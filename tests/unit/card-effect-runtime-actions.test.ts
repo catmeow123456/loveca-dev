@@ -39,6 +39,7 @@ import {
   moveTopDeckCardsToWaitingRoomAndEnqueueTriggers,
   moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers,
 } from '../../src/application/card-effects/runtime/main-deck-waiting-room-triggers';
+import { partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers } from '../../src/application/card-effects/runtime/inspection-waiting-room-triggers';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   revealHandCardForActiveEffect,
@@ -533,6 +534,85 @@ describe('card effect runtime actions', () => {
     expect(result?.discardedCardIds).toEqual([]);
     expect(result?.enterWaitingRoomEvent).toBeUndefined();
     expect(result?.gameState).toBe(state);
+    expect(enqueueCallCount).toBe(0);
+  });
+
+  it('atomically partitions inspected cards and only enqueues the waiting-room subset', () => {
+    const mutableState = createMutableState();
+    const cardIds = ownedMemberIds(mutableState, PLAYER1, 5);
+    setPlayerZones(mutableState, 0, { mainDeckCardIds: cardIds.slice(3) });
+    const state: GameState = {
+      ...mutableState,
+      inspectionZone: { cardIds: cardIds.slice(0, 3), revealedCardIds: [] },
+      inspectionContext: { ownerPlayerId: PLAYER1, sourceZone: ZoneType.MAIN_DECK },
+    };
+    const calls: Array<{
+      readonly movedCardIds: readonly string[];
+      readonly fromZone: ZoneType | undefined;
+    }> = [];
+    const enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (
+      game,
+      _triggerConditions,
+      options
+    ) => {
+      calls.push({
+        movedCardIds: options?.enterWaitingRoomEvents?.[0]?.cardInstanceIds ?? [],
+        fromZone: options?.enterWaitingRoomEvents?.[0]?.fromZone,
+      });
+      return game;
+    };
+
+    const result = partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      cardIds.slice(0, 3),
+      [cardIds[1]],
+      [cardIds[2]],
+      [cardIds[0]],
+      enqueueTriggeredCardEffects
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.handCardIds).toEqual([cardIds[1]]);
+    expect(result?.deckTopCardIds).toEqual([cardIds[2]]);
+    expect(result?.waitingRoomCardIds).toEqual([cardIds[0]]);
+    expect(result?.gameState.players[0].hand.cardIds).toContain(cardIds[1]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
+      cardIds[2],
+      ...cardIds.slice(3),
+    ]);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toContain(cardIds[0]);
+    expect(result?.gameState.inspectionZone.cardIds).toEqual([]);
+    expect(result?.gameState.inspectionContext).toBeNull();
+    expect(calls).toEqual([{ movedCardIds: [cardIds[0]], fromZone: ZoneType.MAIN_DECK }]);
+  });
+
+  it('rejects a non-covering inspected-card partition without moving or enqueuing', () => {
+    const mutableState = createMutableState();
+    const cardIds = ownedMemberIds(mutableState, PLAYER1, 3);
+    setPlayerZones(mutableState, 0, { mainDeckCardIds: [] });
+    const state: GameState = {
+      ...mutableState,
+      inspectionZone: { cardIds, revealedCardIds: [] },
+      inspectionContext: { ownerPlayerId: PLAYER1, sourceZone: ZoneType.MAIN_DECK },
+    };
+    let enqueueCallCount = 0;
+
+    const result = partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      cardIds,
+      [cardIds[0]],
+      [cardIds[1]],
+      [],
+      (game) => {
+        enqueueCallCount += 1;
+        return game;
+      }
+    );
+
+    expect(result).toBeNull();
+    expect(state.inspectionZone.cardIds).toEqual(cardIds);
     expect(enqueueCallCount).toBe(0);
   });
 
@@ -1358,7 +1438,9 @@ describe('card effect runtime actions', () => {
         candidateCardIds: [cardIds[4]],
       })
     ).toBeNull();
-    expect(moveWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[3]], options)).toBeNull();
+    expect(
+      moveWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[3]], options)
+    ).toBeNull();
     expect(
       moveWaitingRoomCardsToDeckBottomForPlayer(
         state,
@@ -1367,7 +1449,9 @@ describe('card effect runtime actions', () => {
         options
       )
     ).toBeNull();
-    expect(moveWaitingRoomCardsToDeckBottomForPlayer(state, 'missing-player', [cardIds[0]], options)).toBeNull();
+    expect(
+      moveWaitingRoomCardsToDeckBottomForPlayer(state, 'missing-player', [cardIds[0]], options)
+    ).toBeNull();
     expect(state.players[0].waitingRoom.cardIds).toEqual([
       cardIds[0],
       cardIds[1],

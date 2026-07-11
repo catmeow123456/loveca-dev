@@ -11,7 +11,11 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromStatefulZone,
+} from '../../src/domain/entities/zone';
 import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
@@ -20,6 +24,7 @@ import { createGameSession } from '../../src/application/game-session';
 import {
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -80,13 +85,28 @@ function createMiraCreation(cardCode = 'PL!HS-bp2-026-L'): LiveCardData {
   };
 }
 
-function createDummyLive(cardCode: string, score = 1): LiveCardData {
+function createDummyLive(
+  cardCode: string,
+  score = 1,
+  groupNames: readonly string[] = ['虹ヶ咲']
+): LiveCardData {
   return {
     cardCode,
     name: cardCode,
-    groupNames: ['虹ヶ咲'],
+    groupNames,
     cardType: CardType.LIVE,
     score,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+  };
+}
+
+function createBokuraNoLiveKimiToNoLife(): LiveCardData {
+  return {
+    cardCode: 'PL!-bp3-019-L',
+    name: '僕らのLIVE 君とのLIFE',
+    groupNames: ["μ's"],
+    cardType: CardType.LIVE,
+    score: 0,
     requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
   };
 }
@@ -254,6 +274,185 @@ function latestPayload(game: GameState, abilityId: string) {
     .find((action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === abilityId)
     ?.payload;
 }
+
+describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
+  it('confirms PL!-bp3-019-L before counting current structured μ\'s LIVE cards and adding SCORE +1', () => {
+    const source = createCardInstance(createBokuraNoLiveKimiToNoLife(), PLAYER1, 'bokura-live');
+    const otherMuseLive = createCardInstance(
+      createDummyLive('PL!-test-muse-live', 1, ["μ's"]),
+      PLAYER1,
+      'other-muse-live'
+    );
+    const game = setupState({ lives: [source, otherMuseLive], initialScore: 3 });
+
+    const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    expect(result.success).toBe(true);
+    expect(result.gameState.activeEffect).toMatchObject({
+      abilityId: PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: source.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(result.gameState.activeEffect?.effectText).toContain(
+      "【LIVE开始时】自己的LIVE中存在大于等于2张『μ's』的卡片的场合，此卡的分数＋１。"
+    );
+    expect(result.gameState.activeEffect?.effectText).toContain("当前自己LIVE中的『μ's』卡片2张");
+    expect(result.gameState.activeEffect?.effectText).toContain('满足条件，实际[スコア]+1');
+    expect(result.gameState.activeEffect?.effectText).not.toMatch(/source|pending|stale|来源/);
+    expect(
+      scoreModifiersForAbility(
+        result.gameState,
+        PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+
+    const state = confirmActiveEffectStep(
+      result.gameState,
+      PLAYER1,
+      result.gameState.activeEffect!.id
+    );
+    expect(
+      scoreModifiersForAbility(
+        state,
+        PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toContainEqual(
+      expect.objectContaining({ liveCardId: source.instanceId, countDelta: 1 })
+    );
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+    expect(
+      latestPayload(state, PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID)
+    ).toMatchObject({ museLiveCardCount: 2, conditionMet: true, scoreBonus: 1 });
+  });
+
+  it('does not count a non-μ\'s LIVE card for PL!-bp3-019-L', () => {
+    const source = createCardInstance(
+      createBokuraNoLiveKimiToNoLife(),
+      PLAYER1,
+      'bokura-unmet'
+    );
+    const otherLive = createCardInstance(
+      createDummyLive('PL!N-test-non-muse'),
+      PLAYER1,
+      'non-muse-live'
+    );
+    const result = new GameService().executeCheckTiming(
+      setupState({ lives: [source, otherLive], initialScore: 2 }),
+      [TriggerCondition.ON_LIVE_START]
+    );
+    expect(result.gameState.activeEffect?.effectText).toContain("『μ's』卡片1张");
+    expect(result.gameState.activeEffect?.effectText).toContain('未满足条件，实际不增加分数');
+
+    const state = confirmActiveEffectStep(
+      result.gameState,
+      PLAYER1,
+      result.gameState.activeEffect!.id
+    );
+    expect(
+      scoreModifiersForAbility(
+        state,
+        PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(2);
+  });
+
+  it('rechecks that PL!-bp3-019-L is still in the controller LIVE zone on confirmation', () => {
+    const source = createCardInstance(createBokuraNoLiveKimiToNoLife(), PLAYER1, 'bokura-left');
+    const otherMuseLive = createCardInstance(
+      createDummyLive('PL!-test-muse-left', 1, ["μ's"]),
+      PLAYER1,
+      'other-muse-left'
+    );
+    const result = new GameService().executeCheckTiming(
+      setupState({ lives: [source, otherMuseLive] }),
+      [TriggerCondition.ON_LIVE_START]
+    );
+    const sourceRemoved = updatePlayer(result.gameState, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, source.instanceId),
+    }));
+
+    const state = confirmActiveEffectStep(
+      sourceRemoved,
+      PLAYER1,
+      sourceRemoved.activeEffect!.id
+    );
+    expect(
+      scoreModifiersForAbility(
+        state,
+        PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    expect(
+      latestPayload(state, PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID)
+    ).toMatchObject({ sourceInLiveZone: false, conditionMet: false, scoreBonus: 0 });
+  });
+
+  it('auto-resolves ordered PL!-bp3-019-L pendings and confirms a manually selected one first', () => {
+    const createScenario = (suffix: string) => {
+      const first = createCardInstance(
+        createBokuraNoLiveKimiToNoLife(),
+        PLAYER1,
+        `bokura-first-${suffix}`
+      );
+      const second = createCardInstance(
+        createBokuraNoLiveKimiToNoLife(),
+        PLAYER1,
+        `bokura-second-${suffix}`
+      );
+      const checked = new GameService().executeCheckTiming(
+        setupState({ lives: [first, second] }),
+        [TriggerCondition.ON_LIVE_START]
+      ).gameState;
+      return { first, second, checked };
+    };
+
+    const orderedScenario = createScenario('ordered');
+    expect(orderedScenario.checked.activeEffect?.canResolveInOrder).toBe(true);
+    const ordered = confirmActiveEffectStep(
+      orderedScenario.checked,
+      PLAYER1,
+      orderedScenario.checked.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(ordered.pendingAbilities).toEqual([]);
+    expect(
+      scoreModifiersForAbility(
+        ordered,
+        PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(2);
+
+    const manualScenario = createScenario('manual');
+    const preview = confirmActiveEffectStep(
+      manualScenario.checked,
+      PLAYER1,
+      manualScenario.checked.activeEffect!.id,
+      manualScenario.second.instanceId
+    );
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: manualScenario.second.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(
+      scoreModifiersForAbility(
+        preview,
+        PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    const confirmed = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(
+      scoreModifiersForAbility(
+        confirmed,
+        PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toContainEqual(expect.objectContaining({ sourceCardId: manualScenario.second.instanceId }));
+  });
+});
 
 describe('Nijigasaki live-start score bonus LIVE cards', () => {
   it('adds SCORE +6 for Solitude Rain when Nijigasaki stage members cover all six colors', () => {

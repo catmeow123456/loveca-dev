@@ -158,6 +158,8 @@ const PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID =
   'PL!N-bp4-012:continuous-opponent-success-score-six-live-score';
 const PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
+const PL_BP3_002_CONTINUOUS_OPPONENT_WAITING_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp3-002:continuous-opponent-waiting-gain-blade';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 const PL_N_PB1_007_CONTINUOUS_LIVE_REQUIREMENT_SIX_COLORS_GAIN_ALL_HEART_ABILITY_ID =
@@ -680,6 +682,29 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     baseCardCodes: ['PL!-pb1-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       collectPlPb1002OpponentWaitingPurpleHeartModifiers(game, playerId, sourceCardId),
+  },
+  {
+    baseCardCodes: ['PL!-bp3-002'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
+        return [];
+      }
+      const opponent = game.players.find((candidate) => candidate.id !== playerId);
+      const opponentWaitingMemberCount = opponent
+        ? countStageMembersByOrientation(game, opponent.id, OrientationState.WAITING)
+        : 0;
+      return opponentWaitingMemberCount > 0
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: opponentWaitingMemberCount,
+              sourceCardId,
+              abilityId: PL_BP3_002_CONTINUOUS_OPPONENT_WAITING_GAIN_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
   },
   {
     cardCodes: ['PL!HS-bp5-016-N'],

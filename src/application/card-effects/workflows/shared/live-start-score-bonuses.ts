@@ -24,6 +24,8 @@ import {
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
@@ -47,6 +49,28 @@ const NORMAL_HEART_COLORS: readonly HeartColor[] = [
 const EUTOPIA_SCORE_BONUS = 2;
 
 export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
+  registerManualConfirmablePendingAbilityStarterHandler(
+    PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveBokuraNoLiveKimiToNoLifeLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getBokuraNoLiveKimiToNoLifeConfirmationConfig
+  );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveNatsuiroEgaoLiveStartScore(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getNatsuiroEgaoScoreConfirmationConfig
+  );
   registerManualConfirmablePendingAbilityStarterHandler(
     HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -113,6 +137,30 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getAuroraFlowerConfirmationConfig
   );
+}
+
+function getBokuraNoLiveKimiToNoLifeConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getBokuraNoLiveKimiToNoLifeContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己LIVE中的『μ's』卡片${context.museLiveCardCount}张，${
+      context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+    }）`,
+  };
+}
+
+function getNatsuiroEgaoScoreConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getNatsuiroEgaoScoreContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己成功LIVE卡区${context.successLiveCount}张，${
+      context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+    }）`,
+  };
 }
 
 function getLinkToTheFutureConfirmationConfig(
@@ -209,6 +257,87 @@ function resolveSolitudeRainLiveStart(
       sourceInLiveZone,
       nijigasakiStageMemberIds,
       effectiveHeartColors,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveBokuraNoLiveKimiToNoLifeLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const { sourceInLiveZone, museLiveCardIds, museLiveCardCount, conditionMet } =
+    getBokuraNoLiveKimiToNoLifeContext(stateWithoutPending, ability);
+  const scoreBonus = conditionMet ? 1 : 0;
+  const stateAfterScore = conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus,
+      })
+    : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet ? 'TWO_MUSE_LIVE_THIS_LIVE_SCORE' : 'NO_TWO_MUSE_LIVE',
+      sourceInLiveZone,
+      museLiveCardIds,
+      museLiveCardCount,
+      conditionMet,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveNatsuiroEgaoLiveStartScore(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const { sourceInLiveZone, successLiveCount, conditionMet } = getNatsuiroEgaoScoreContext(
+    stateWithoutPending,
+    ability
+  );
+  const scoreBonus = conditionMet ? 1 : 0;
+  const stateAfterScore = conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus,
+      })
+    : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet ? 'SUCCESS_LIVE_TWO_THIS_LIVE_SCORE' : 'NO_SUCCESS_LIVE_TWO',
+      sourceInLiveZone,
+      successLiveCount,
+      conditionMet,
       scoreBonus,
     }),
     orderedResolution
@@ -536,12 +665,7 @@ function getMiraCreationContext(
   }
 
   const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
-  const rightRurino = stageSlotHasMemberName(
-    game,
-    player.id,
-    SlotPosition.RIGHT,
-    '大沢瑠璃乃'
-  );
+  const rightRurino = stageSlotHasMemberName(game, player.id, SlotPosition.RIGHT, '大沢瑠璃乃');
   const leftHime = stageSlotHasMemberName(game, player.id, SlotPosition.LEFT, '安養寺姫芽');
   const centerMegu = stageSlotHasMemberName(game, player.id, SlotPosition.CENTER, '藤島慈');
   return {
@@ -575,6 +699,56 @@ function getEutopiaContext(
   };
 }
 
+function getBokuraNoLiveKimiToNoLifeContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly museLiveCardIds: readonly string[];
+  readonly museLiveCardCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      museLiveCardIds: [],
+      museLiveCardCount: 0,
+      conditionMet: false,
+    };
+  }
+
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const museLiveCardIds = player.liveZone.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && cardBelongsToGroup(card.data, "μ's");
+  });
+  return {
+    sourceInLiveZone,
+    museLiveCardIds,
+    museLiveCardCount: museLiveCardIds.length,
+    conditionMet: sourceInLiveZone && museLiveCardIds.length >= 2,
+  };
+}
+
+function getNatsuiroEgaoScoreContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly successLiveCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const successLiveCount = player?.successZone.cardIds.length ?? 0;
+  return {
+    sourceInLiveZone,
+    successLiveCount,
+    conditionMet: sourceInLiveZone && successLiveCount >= 2,
+  };
+}
+
 function getMiracleStayTuneContext(
   game: GameState,
   ability: PendingAbilityState
@@ -583,7 +757,10 @@ function getMiracleStayTuneContext(
   readonly ownSuccessZoneCount: number;
   readonly opponentSuccessZoneCount: number;
   readonly successZoneConditionMet: boolean;
-  readonly differentNamedStageMembers: readonly { readonly cardId: string; readonly name: string }[];
+  readonly differentNamedStageMembers: readonly {
+    readonly cardId: string;
+    readonly name: string;
+  }[];
   readonly differentNameConditionMet: boolean;
   readonly conditionMet: boolean;
 } {

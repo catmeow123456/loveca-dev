@@ -86,8 +86,42 @@ export const BP3_001_ACTIVATED_WAIT_SELF_DRAW_DISCARD_ABILITY_ID =
   'PL!-bp3-001:activated-wait-self-draw-one-discard-one';
 export const BP3_001_LIVE_START_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID =
   'PL!-bp3-001:live-start-activate-own-stage-member';
+export const PL_BP3_002_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID =
+  'PL!-bp3-002:on-enter-discard-wait-opponent-low-cost-members';
+export const PL_BP3_002_CONTINUOUS_OPPONENT_WAITING_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp3-002:continuous-opponent-waiting-gain-blade';
+export const PL_BP3_003_ON_ENTER_WAIT_SELF_RECOVER_MUSE_MEMBER_ABILITY_ID =
+  'PL!-bp3-003:on-enter-wait-self-recover-muse-member';
+export const PL_BP3_004_ON_ENTER_DRAW_PER_STAGE_MEMBER_DISCARD_ONE_ABILITY_ID =
+  'PL!-bp3-004:on-enter-draw-per-stage-member-discard-one';
+export const PL_BP3_004_LIVE_START_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp3-004:live-start-discard-recover-muse-live';
+export const PL_BP3_005_ON_ENTER_ACTIVATE_ALL_STAGE_MEMBERS_ABILITY_ID =
+  'PL!-bp3-005:on-enter-activate-all-stage-members';
+export const PL_BP3_007_LIVE_START_DISCARD_TWO_PARTITION_TOP_THREE_ABILITY_ID =
+  'PL!-bp3-007:live-start-discard-two-partition-top-three';
+export const PL_BP3_008_ACTIVATED_WAIT_SELF_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp3-008:activated-wait-self-recover-muse-live';
+export const PL_BP3_008_LIVE_START_OPTIONAL_WAIT_MUSE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp3-008:live-start-optional-wait-muse-member-gain-yellow-heart';
+export const PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID =
+  'PL!-bp3-009:on-enter-cost-thirteen-draw-one';
+export const PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID =
+  'PL!-bp3-009:activated-wait-self-choose-heart';
 export const BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID =
   'PL!-bp3-006:live-start-discard-gain-blade-by-success-count';
+export const PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-019-L:live-start-two-muse-live-this-live-score';
+export const PL_BP3_022_LIVE_START_REVEAL_PER_STAGE_MEMBER_GAIN_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-022-L:live-start-reveal-per-stage-member-gain-live-score';
+export const PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID =
+  'PL!-bp3-023-L:live-start-stage-blade-ten-reduce-requirement';
+export const PL_BP3_024_LIVE_START_SUCCESS_CHOOSE_HEART_TARGET_MUSE_MEMBER_ABILITY_ID =
+  'PL!-bp3-024-L:live-start-success-choose-heart-target-muse-member';
+export const PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-024-L:live-start-success-two-this-live-score';
+export const PL_BP3_025_LIVE_SUCCESS_NO_REMAINING_HEART_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-025-L:live-success-no-remaining-heart-this-live-score';
 export const BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID =
   'PL!-bp3:live-start-success-count-choose-pink-yellow-purple-heart';
 export const PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID =

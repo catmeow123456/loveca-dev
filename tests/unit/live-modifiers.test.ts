@@ -63,6 +63,8 @@ const HS_PB1_015_CONTINUOUS_ABILITY_ID =
 const PL_N_PB1_011_CONTINUOUS_ABILITY_ID = 'PL!N-pb1-011:continuous-energy-below-gain-blade';
 const PL_PB1_002_CONTINUOUS_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
+const PL_BP3_002_CONTINUOUS_ABILITY_ID =
+  'PL!-bp3-002:continuous-opponent-waiting-gain-blade';
 const HS_BP5_016_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_PB1_007_CONTINUOUS_ABILITY_ID =
@@ -3420,6 +3422,230 @@ describe('live modifier helpers', () => {
       expect(
         collectLiveModifiers(belowGame).some(
           (modifier) => modifier.abilityId === PL_PB1_002_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+    });
+  });
+
+  describe('PL!-bp3-002 continuous opponent WAITING BLADE', () => {
+    function createEli(id = 'bp3-002-eli') {
+      return createCardInstance(
+        {
+          cardCode: 'PL!-bp3-002-R',
+          name: '絢瀬絵里',
+          cardType: CardType.MEMBER,
+          cost: 9,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PURPLE, 2)],
+        },
+        'p1',
+        id
+      );
+    }
+
+    function createOpponent(index: number) {
+      return createCardInstance(
+        {
+          cardCode: `PL!-bp3-test-opponent-${index}`,
+          name: `Opponent ${index}`,
+          cardType: CardType.MEMBER,
+          cost: 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+        },
+        'p2',
+        `bp3-opponent-${index}`
+      );
+    }
+
+    function setupOpponentWaiting(count: 0 | 1 | 2 | 3) {
+      const eli = createEli();
+      const opponents = [0, 1, 2].map(createOpponent);
+      let game = createGameState(`pl-bp3-002-opponent-waiting-${count}`, 'p1', 'P1', 'p2', 'P2');
+      game = registerCards(game, [eli, ...opponents]);
+      game = updatePlayer(game, 'p1', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, eli.instanceId),
+      }));
+      game = updatePlayer(game, 'p2', (player) => ({
+        ...player,
+        memberSlots: opponents.reduce((slots, opponent, index) => {
+          const slot = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index]!;
+          return placeCardInSlot(slots, slot, opponent.instanceId, {
+            orientation: index < count ? OrientationState.WAITING : OrientationState.ACTIVE,
+          });
+        }, player.memberSlots),
+      }));
+      return { game, eli, opponents };
+    }
+
+    for (const count of [0, 1, 2, 3] as const) {
+      it(`adds ${count} BLADE when opponent has ${count} WAITING stage members`, () => {
+        const { game, eli } = setupOpponentWaiting(count);
+        const modifiers = collectLiveModifiers(game);
+        const modifier = modifiers.find(
+          (candidate) => candidate.abilityId === PL_BP3_002_CONTINUOUS_ABILITY_ID
+        );
+        if (count === 0) {
+          expect(modifier).toBeUndefined();
+          expect(getMemberEffectiveBladeCount(game, 'p1', eli.instanceId, modifiers)).toBe(1);
+          return;
+        }
+        expect(modifier).toEqual({
+          kind: 'BLADE',
+          playerId: 'p1',
+          countDelta: count,
+          sourceCardId: eli.instanceId,
+          abilityId: PL_BP3_002_CONTINUOUS_ABILITY_ID,
+        });
+        expect(getMemberEffectiveBladeCount(game, 'p1', eli.instanceId, modifiers)).toBe(1 + count);
+      });
+    }
+
+    it('recomputes immediately when an opponent member changes orientation', () => {
+      const { game, eli, opponents } = setupOpponentWaiting(0);
+      expect(
+        collectLiveModifiers(game).some(
+          (modifier) => modifier.abilityId === PL_BP3_002_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+      const waiting = updatePlayer(game, 'p2', (player) => ({
+        ...player,
+        memberSlots: {
+          ...player.memberSlots,
+          cardStates: new Map(player.memberSlots.cardStates).set(opponents[0]!.instanceId, {
+            ...player.memberSlots.cardStates.get(opponents[0]!.instanceId)!,
+            orientation: OrientationState.WAITING,
+          }),
+        },
+      }));
+      expect(getMemberEffectiveBladeCount(waiting, 'p1', eli.instanceId)).toBe(2);
+      const activeAgain = updatePlayer(waiting, 'p2', (player) => ({
+        ...player,
+        memberSlots: {
+          ...player.memberSlots,
+          cardStates: new Map(player.memberSlots.cardStates).set(opponents[0]!.instanceId, {
+            ...player.memberSlots.cardStates.get(opponents[0]!.instanceId)!,
+            orientation: OrientationState.ACTIVE,
+          }),
+        },
+      }));
+      expect(getMemberEffectiveBladeCount(activeAgain, 'p1', eli.instanceId)).toBe(1);
+    });
+
+    it('ignores own WAITING members, waiting-room cards, and a source off stage or memberBelow', () => {
+      const eli = createEli();
+      const ownWaiting = createCardInstance(
+        {
+          cardCode: 'PL!-bp3-test-own-waiting',
+          name: 'Own Waiting',
+          cardType: CardType.MEMBER,
+          cost: 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+        },
+        'p1',
+        'bp3-own-waiting'
+      );
+      const opponentOutsideStage = createOpponent(8);
+      const opponentBelow = createOpponent(10);
+      const opponentHost = createCardInstance(
+        {
+          cardCode: 'PL!-bp3-test-opponent-host',
+          name: 'Opponent Host',
+          cardType: CardType.MEMBER,
+          cost: 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+        },
+        'p2',
+        'bp3-opponent-host'
+      );
+      const host = createCardInstance(
+        {
+          cardCode: 'PL!-bp3-test-host',
+          name: 'Host',
+          cardType: CardType.MEMBER,
+          cost: 1,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        'p1',
+        'bp3-host'
+      );
+
+      let irrelevantGame = createGameState('pl-bp3-002-irrelevant-zones', 'p1', 'P1', 'p2', 'P2');
+      irrelevantGame = registerCards(irrelevantGame, [
+        eli,
+        ownWaiting,
+        opponentOutsideStage,
+        opponentBelow,
+        opponentHost,
+      ]);
+      irrelevantGame = updatePlayer(irrelevantGame, 'p1', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, eli.instanceId),
+          SlotPosition.LEFT,
+          ownWaiting.instanceId,
+          { orientation: OrientationState.WAITING }
+        ),
+      }));
+      irrelevantGame = updatePlayer(irrelevantGame, 'p2', (player) => ({
+        ...player,
+        waitingRoom: addCardToZone(player.waitingRoom, opponentOutsideStage.instanceId),
+        memberSlots: addMemberBelowMember(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponentHost.instanceId),
+          SlotPosition.CENTER,
+          opponentBelow.instanceId
+        ),
+      }));
+      expect(
+        collectLiveModifiers(irrelevantGame).some(
+          (modifier) => modifier.abilityId === PL_BP3_002_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+
+      const waitingOpponent = createOpponent(9);
+      let offStageGame = createGameState('pl-bp3-002-off-stage', 'p1', 'P1', 'p2', 'P2');
+      offStageGame = registerCards(offStageGame, [eli, waitingOpponent]);
+      offStageGame = updatePlayer(offStageGame, 'p2', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(
+          player.memberSlots,
+          SlotPosition.CENTER,
+          waitingOpponent.instanceId,
+          { orientation: OrientationState.WAITING }
+        ),
+      }));
+      expect(
+        collectLiveModifiers(offStageGame).some(
+          (modifier) => modifier.abilityId === PL_BP3_002_CONTINUOUS_ABILITY_ID
+        )
+      ).toBe(false);
+
+      let belowGame = createGameState('pl-bp3-002-member-below', 'p1', 'P1', 'p2', 'P2');
+      belowGame = registerCards(belowGame, [eli, host, waitingOpponent]);
+      belowGame = updatePlayer(belowGame, 'p1', (player) => ({
+        ...player,
+        memberSlots: addMemberBelowMember(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          eli.instanceId
+        ),
+      }));
+      belowGame = updatePlayer(belowGame, 'p2', (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(
+          player.memberSlots,
+          SlotPosition.CENTER,
+          waitingOpponent.instanceId,
+          { orientation: OrientationState.WAITING }
+        ),
+      }));
+      expect(
+        collectLiveModifiers(belowGame).some(
+          (modifier) => modifier.abilityId === PL_BP3_002_CONTINUOUS_ABILITY_ID
         )
       ).toBe(false);
     });

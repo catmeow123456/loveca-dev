@@ -1,6 +1,60 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-10
+更新时间：2026-07-11
+
+## 本次 2026-07-11 缪斯 BP3 第九批卡效
+
+- 已实现 `PL!-bp3-007-P / R` 费用 9「東條 希」：LIVE 开始时可选弃2手，之后检视自己卡组顶3张，并强制分配为入手1张、回顶1张、入休息室1张。
+- 新增窄单卡 `pl-bp3-007-nozomi.ts`；弃手复用 hand-to-waiting trigger wrapper，检视复用 refresh-aware `inspectTopCards`。新增通用原子 `partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers`，只负责校验 inspected 全量分区、一次性更新 HAND / MAIN_DECK_TOP / WAITING_ROOM 与清理 inspection，并仅为 waiting 子集发 `MAIN_DECK -> WAITING_ROOM` 事件，不承载007的1/1/1卡文规则。runner 仅增加 import/register 薄胶水。
+- focused classification/workflow/runtime-helper/boundary、token/text governance、rarity sync（7 files / 116 tests）、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第八批卡效
+
+- 已实现 `PL!-bp3-024-L` 分数 2「夏色えがおで1,2,Jump!」两段能力：成功 LIVE 卡区有卡时，强制选择桃/黄/紫 Heart 之一，再选择自己舞台1名结构化 μ's 成员，使其至 LIVE 结束获得所选 Heart +1；成功 LIVE 卡区至少2张时，此 LIVE 分数 +1。
+- 第一段新增窄单卡 `pl-bp3-024-natsuiro-egao-de-1-2-jump.ts`，复用 stage target selector 与 `addHeartLiveModifierForMember` 写 `TARGET_MEMBER` modifier，并在颜色、目标两步实时重查来源 LIVE、成功区与目标；第二段扩展 shared `live-start-score-bonuses.ts`，沿用实时 manual confirm-only / ordered 语义。runner 仅增加 import/register 薄胶水。
+- focused classification/integration、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第七批卡效
+
+- 已实现 `PL!-bp3-009-R＋ / P / P＋ / SEC` 费用 2「矢澤にこ」两段能力：登场结算时自己当前主舞台存在有效费用大于等于13的成员则抽1；起动每回合1次将此成员 ACTIVE -> WAITING，强制选择桃/黄/紫 Heart 之一，LIVE结束时为止此成员获得所选 Heart +1。
+- 新增窄单卡 `pl-bp3-009-nico.ts`。登场段复用 `getMemberEffectiveCost`、manual confirm-only 与 `drawCardsForPlayer`，已入队后来源离场不取消；起动段复用成员状态变化 helper/wrapper，支付成功后才记录次数，并通过 `addHeartLiveModifierForMember` 写 `SOURCE_MEMBER` modifier。runner 仅增加 import/register 薄胶水。
+- focused classification/integration（含四罕度、有效费用升降、来源离场、手动确认实时重查、三色、非法/陈旧选择、状态事件及 turn1）、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第六批卡效
+
+- 已实现 `PL!-bp3-004-R＋ / P / P＋ / SEC` 费用 11「園田海未」两段能力：登场时按结算当下自己主舞台成员数抽牌，之后有手牌时强制放置1张入休息室；LIVE 开始时若自己成功 LIVE 卡区有卡，可选弃1手，再从休息室强制回收1张结构化 μ's LIVE。
+- 新增窄单卡 `pl-bp3-004-umi.ts`。登场段复用 `countStageMembers`、`drawCardsForPlayer` 与 hand-to-waiting trigger wrapper；FAQ Q146 的来源仍在场时计入，pending 入队后来源离场仍按当前舞台结算。LIVE_START 段复用 optional-discard activeEffect、waiting-room-to-hand zone selection 与 recovery helper；刚弃置的合法 μ's LIVE 可被选回，无目标时保留费用并安全结束。runner 仅增加 import/register 薄胶水。
+- focused classification/integration（含刷新、稀有度、来源离场、stale 与事件不重复）、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第五批卡效
+
+- 已实现 `PL!-bp3-002-P / R` 费用 9「絢瀬絵里」两段能力：登场可选弃1手，支付后实时扫描对方舞台费用4以下且非 WAITING 的成员，并按 FAQ Q144 可选0至2名变 WAITING；登场 pending 已入队后来源离场仍继续结算。
+- 登场段新增窄单卡 `pl-bp3-002-eli.ts`，复用 optional discard activeEffect、hand-to-waiting trigger wrapper、有效费用 query、`setMembersOrientation` 与 member-state trigger wrapper；不迁移 `n-bp4-005-ai.ts`，避免改变其来源仍在场门槛。常时段扩展 continuous live modifier registry，按对方主舞台 WAITING 成员数实时给来源成员 BLADE +N，0名、来源离场或 memberBelow 时即时失效。runner 仅增加 import/register 薄胶水。
+- focused classification/integration/live-modifiers、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第四批卡效
+
+- 已实现 `PL!-bp3-003-P / R` 费用 11「南ことり」：登场后可选将仍在己方舞台且为 ACTIVE 的来源成员变为 WAITING；支付后重扫自己休息室，有结构化 μ's MEMBER 时必须选1张加入手牌，无合法目标时按 FAQ Q145 保留费用并安全结束。
+- 新增窄单卡 `pl-bp3-003-kotori.ts`；自身待机费用窗口直接提供“发动 / 不发动”动作，不重复展示来源成员作为可选目标。状态费用复用 `setMemberOrientation` 与 member-state trigger wrapper，先记录 PAY_COST 再入队真实 ACTIVE -> WAITING 事件。回收复用 waiting-room-to-hand activeEffect/zone selection 与 `recoverCardsFromWaitingRoomToHandForPlayer`；来源离场/已 WAITING、拒绝费用、非法/陈旧动作或目标、手动与 ordered 多 pending 均有 focused 覆盖。runner 仅增加 import/register 薄胶水。
+- focused classification/integration、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第三批卡效
+
+- 已实现 `PL!-bp3-025-L` 分数 4「タカラモノズ」：新增窄单卡 `pl-bp3-025-takaramonozu.ts`，LIVE 成功结算时读取当前 `playerRemainingHearts` 总数；0个且来源仍在自己的 LIVE 区时，为来源 LIVE 写 SCORE +1 并刷新 `playerScores`，RAINBOW 计入余 Heart 且能力不消费余 Heart。
+- 无交互 queued pending 沿用 manual confirm-only / ordered bridge，动态文案展示当前余 Heart 数、满足/未满足与实际 `[スコア]` 结果；同 ability/source 的重复 pending 保持幂等，不错误叠加 modifier。runner 仅增加 import/register 薄胶水。
+- focused classification/integration、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第二批卡效
+
+- 已实现 `PL!-bp3-005-P / R` 费用 4「星空 凛」：新增窄单卡 `pl-bp3-005-rin.ts`，登场 pending 结算时将控制者当前舞台所有主成员（包含来源）变为 ACTIVE；已排队后来源离场不阻断效果，仍按当前舞台结算。
+- 状态变化复用 `setMembersOrientation` 与 `enqueueMemberStateChangedTriggersFromOrientationResult`，只为真实 WAITING -> ACTIVE 变化生成并入队 `ON_MEMBER_STATE_CHANGED`。本能力 RESOLVE 事实先记录，随后入队下游状态变化能力，再继续 pending；全员已 ACTIVE 时无伪事件，多 pending 不丢失或重复。
+- workflow 保持单卡 ownership，未因单一样本扩 shared family/DSL；runner 仅增加 import/register 薄胶水。focused classification/integration、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
+
+## 本次 2026-07-11 缪斯 BP3 第一批卡效
+
+- 已实现 `PL!-bp3-019-L` 分数 0「僕らのLIVE 君とのLIFE」：扩展 shared `live-start-score-bonuses.ts`，实时统计自己 LIVE 中结构化身份为 μ's 的卡片（包含来源自身），达到2张时为来源 LIVE 写 SCORE +1 并刷新 `playerScores`。
+- 已实现 `PL!-bp3-023-L` 分数 3「ミはμ'sicのミ」：扩展 shared `conditional-live-modifier.ts`，通过 `getMemberEffectiveBladeCount` 汇总自己舞台成员实时有效 BLADE，达到10时为来源 LIVE 写必要 `[無ハート]` -2，并在条件变化时替换或清理同源 modifier。
+- 两张均沿用无交互 queued pending 的 manual-confirm / ordered 语义，手动确认文本实时展示当前计数、条件与实际结果，顺序发动自动连续结算；runner 零改动。focused classification/integration、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
 
 ## 本次 2026-07-11 水团 BP2 声援重做收尾
 
