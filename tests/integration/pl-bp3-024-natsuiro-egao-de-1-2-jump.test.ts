@@ -189,6 +189,9 @@ describe('PL!-bp3-024-L 夏色えがおで1,2,Jump! LIVE-start abilities', () =>
     const colorStep = resolvePendingCardEffects(scenario.game).gameState;
     expect(colorStep.activeEffect).toMatchObject({
       abilityId: PL_BP3_024_LIVE_START_SUCCESS_CHOOSE_HEART_TARGET_MUSE_MEMBER_ABILITY_ID,
+      stepText: '请选择本次获得的Heart颜色。',
+      selectionLabel: '选择Heart颜色',
+      confirmSelectionLabel: '获得Heart',
       selectableOptions: [
         { id: HeartColor.PINK, label: '[桃ハート]' },
         { id: HeartColor.YELLOW, label: '[黄ハート]' },

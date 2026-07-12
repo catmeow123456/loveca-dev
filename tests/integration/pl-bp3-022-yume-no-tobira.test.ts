@@ -177,7 +177,7 @@ describe('PL!-bp3-022-L ユメノトビラ live-start reveal workflow', () => {
         abilityId: PL_BP3_022_LIVE_START_REVEAL_PER_STAGE_MEMBER_GAIN_LIVE_SCORE_ABILITY_ID,
         revealedCardIds: scenario.deckCards.map((card) => card.instanceId),
         selectableCardVisibility: 'PUBLIC',
-        confirmSelectionLabel: '继续处理',
+        confirmSelectionLabel: '确认公开结果',
       });
       expect(started.activeEffect?.metadata?.stageMemberCount).toBe(3);
       expect(started.inspectionZone.revealedCardIds).toEqual(

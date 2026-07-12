@@ -102,7 +102,7 @@ function startYumeNoTobiraLiveStart(
       selectableCardIds: [],
       selectableCardVisibility: 'PUBLIC',
       selectionLabel: '公开的卡片',
-      confirmSelectionLabel: '继续处理',
+      confirmSelectionLabel: '确认公开结果',
       canSkipSelection: false,
       metadata: {
         orderedResolution,

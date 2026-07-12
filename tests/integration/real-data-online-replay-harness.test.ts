@@ -46,6 +46,8 @@ const LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON =
   'legacy fixture predates active-effect confirm labels';
 const LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON =
   'legacy fixture predates enter-hand event emission';
+const LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON =
+  'legacy fixture predates self-sacrifice recovery action metadata and enter-hand events';
 const LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON =
   'legacy fixture predates dynamic check-timing queue refresh';
 const REFRESH_AWARE_MILL_ABILITY_IDS = new Set([
@@ -506,9 +508,10 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 36,
       [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 18,
       [LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON]: 2,
+      [LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON]: 23,
       [LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON]: 2,
       [LEGACY_LIVE_SET_TRACKING_REPLAY_SKIP_REASON]: 114,
-      [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 48,
+      [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 25,
       [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 10,
       'not a submitted player decision': 112,
     });
@@ -1539,6 +1542,9 @@ function getExpectedReplayMismatchSkipReason(
   if (isLegacyEnterHandEventReplayMismatch(decision, mismatch)) {
     return LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON;
   }
+  if (isLegacySelfSacrificeRecoveryReplayMismatch(decision, mismatch)) {
+    return LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON;
+  }
   if (isLegacyEnterStageSourceMetadataReplayMismatch(mismatch)) {
     return LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON;
   }
@@ -1644,6 +1650,55 @@ function isLegacyEnterHandEventReplayMismatch(
     const record = asRecord(diff);
     return typeof record?.path === 'string' && allowedPaths.has(record.path);
   });
+}
+
+function isLegacySelfSacrificeRecoveryReplayMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: { readonly diffs: readonly unknown[] }
+): boolean {
+  const abilityId = decision.abilityId;
+  if (
+    abilityId?.endsWith(':activated-send-self-to-waiting-room-add-member') !== true &&
+    abilityId?.endsWith(':activated-send-self-to-waiting-room-add-live') !== true
+  ) {
+    return false;
+  }
+  if (mismatch.diffs.length === 0) {
+    return false;
+  }
+
+  const allowedActionPayloadFields = new Set([
+    'activatedEnergyCardIds',
+    'conditionMet',
+    'conditionValue',
+    'nextOrientation',
+    'previousOrientations',
+  ]);
+  let hasActionMetadataDiff = false;
+  let hasAddedEventDiff = false;
+  const onlyExpectedLegacyDiffs = mismatch.diffs.every((diff) => {
+    if (isAddedEventLogDiff(diff)) {
+      hasAddedEventDiff = true;
+      return true;
+    }
+    const record = asRecord(diff);
+    const path = record?.path;
+    const match =
+      typeof path === 'string'
+        ? /^\$\.actionHistory\[\d+\]\.payload\.([^.]+)$/.exec(path)
+        : null;
+    if (
+      !match ||
+      !allowedActionPayloadFields.has(match[1]!) ||
+      record?.expected !== undefined
+    ) {
+      return false;
+    }
+    hasActionMetadataDiff = true;
+    return true;
+  });
+
+  return onlyExpectedLegacyDiffs && hasActionMetadataDiff && hasAddedEventDiff;
 }
 
 function isLegacyConfirmOnlyLivePendingOrderMismatch(

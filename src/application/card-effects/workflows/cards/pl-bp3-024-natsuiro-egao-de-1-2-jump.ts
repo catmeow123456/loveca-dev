@@ -93,7 +93,7 @@ function startNatsuiroEgaoHeartSelection(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: SELECT_HEART_COLOR_STEP_ID,
-      stepText: '请选择1种Heart。',
+      stepText: '请选择本次获得的Heart颜色。',
       awaitingPlayerId: player.id,
       selectableCardIds: [],
       selectableCardVisibility: 'PUBLIC',
@@ -102,7 +102,7 @@ function startNatsuiroEgaoHeartSelection(
         label: HEART_COLOR_LABELS[color],
       })),
       selectionLabel: '选择Heart颜色',
-      confirmSelectionLabel: '选择',
+      confirmSelectionLabel: '获得Heart',
       canSkipSelection: false,
       metadata: {
         orderedResolution,
