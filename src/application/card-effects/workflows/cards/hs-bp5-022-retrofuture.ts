@@ -123,11 +123,11 @@ function startRetrofuturePayEnergyOption(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
-      stepText: canPay ? '可以支付2张活跃能量发动此效果。' : '当前没有足够的活跃能量，可以不发动。',
+      stepText: canPay ? '可以支付[E][E]发动此效果。' : '当前活跃能量不足，无法支付[E][E]，可以不发动。',
       awaitingPlayerId: player.id,
       selectableOptions: canPay
         ? [
-            { id: PAY_OPTION_ID, label: '支付2能量' },
+            { id: PAY_OPTION_ID, label: '支付[E][E]' },
             { id: DECLINE_OPTION_ID, label: '不发动' },
           ]
         : [{ id: DECLINE_OPTION_ID, label: '不发动' }],

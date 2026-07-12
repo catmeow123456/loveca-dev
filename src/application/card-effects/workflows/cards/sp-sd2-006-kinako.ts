@@ -107,7 +107,7 @@ function startSpSd2006KinakoActivatedEffect(
           SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID
         ),
         stepId: SELECT_DISCARD_STEP_ID,
-        stepText: '支付2张活跃能量，并选择1张手牌放置入休息室。',
+        stepText: '支付[E][E]，并选择1张手牌放置入休息室。',
         awaitingPlayerId: player.id,
         selectableCardIds: player.hand.cardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',

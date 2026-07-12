@@ -256,8 +256,11 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
       confirmActiveEffect(scenario.session, { selectedCardId: zeroLive.instanceId }).success
     ).toBe(true);
     confirmPublicSelectionIfNeeded(scenario.session);
+    expect(scenario.session.state?.activeEffect?.stepText).toBe(
+      '可以支付0个[E]，将选择的LIVE卡加入手牌。'
+    );
     expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付0能量' },
+      { id: 'pay', label: '支付0个[E]' },
       { id: 'decline', label: '不支付' },
     ]);
     expect(confirmActiveEffect(scenario.session, { selectedOptionId: 'pay' }).success).toBe(true);
@@ -274,7 +277,7 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
       'discard'
     );
     const scoreLive = createCardInstance(
-      createLive('PL!N-score-live-L', 'Score Live', 2),
+      createLive('PL!N-score-live-L', 'Score Live', 3),
       PLAYER1,
       'score-live'
     );
@@ -284,7 +287,7 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
       sourceCost: 11,
       handCards: [discard],
       waitingRoomCards: [scoreLive],
-      energyCount: 2,
+      energyCount: 3,
     });
 
     expect(
@@ -303,6 +306,13 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
       confirmActiveEffect(scenario.session, { selectedCardId: scoreLive.instanceId }).success
     ).toBe(true);
     confirmPublicSelectionIfNeeded(scenario.session);
+    expect(scenario.session.state?.activeEffect?.stepText).toBe(
+      '可以支付[E][E][E]，将选择的LIVE卡加入手牌。'
+    );
+    expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
+      { id: 'pay', label: '支付[E][E][E]' },
+      { id: 'decline', label: '不支付' },
+    ]);
     expect(confirmActiveEffect(scenario.session, { selectedOptionId: 'pay' }).success).toBe(true);
 
     const player = scenario.session.state!.players[0];
@@ -313,6 +323,52 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
           player.energyZone.cardStates.get(cardId)?.orientation === OrientationState.WAITING
       )
     ).toBe(true);
+  });
+
+  it('PL!N-bp5-003-AR renders a score 1 payment as one [E] token', () => {
+    const discard = createCardInstance(
+      createMember('HAND-CARD-ONE', 'Hand Card One', 1),
+      PLAYER1,
+      'discard-one'
+    );
+    const scoreOneLive = createCardInstance(
+      createLive('PL!N-score-one-live-L', 'Score One Live', 1),
+      PLAYER1,
+      'score-one-live'
+    );
+    const scenario = setupActivatedScenario({
+      sourceCardCode: 'PL!N-bp5-003-AR',
+      sourceName: '桜坂しずく',
+      sourceCost: 11,
+      handCards: [discard],
+      waitingRoomCards: [scoreOneLive],
+      energyCount: 1,
+    });
+
+    expect(
+      scenario.session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          scenario.sourceId,
+          PL_N_BP5_003_ACTIVATED_DISCARD_PAY_SCORE_RECOVER_LIVE_ABILITY_ID
+        )
+      ).success
+    ).toBe(true);
+    expect(
+      confirmActiveEffect(scenario.session, { selectedCardId: discard.instanceId }).success
+    ).toBe(true);
+    expect(
+      confirmActiveEffect(scenario.session, { selectedCardId: scoreOneLive.instanceId }).success
+    ).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
+
+    expect(scenario.session.state?.activeEffect?.stepText).toBe(
+      '可以支付[E]，将选择的LIVE卡加入手牌。'
+    );
+    expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
+      { id: 'pay', label: '支付[E]' },
+      { id: 'decline', label: '不支付' },
+    ]);
   });
 
   it('PL!N-bp5-003-AR keeps the discard cost and does not recover when payment is declined', () => {

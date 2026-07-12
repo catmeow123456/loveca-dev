@@ -697,6 +697,45 @@ export function playMembersFromWaitingRoomToEmptySlots(
   };
 }
 
+/** Remove Live-scoped state that belonged to a member's previous stage instance. */
+export function clearPreviousStageMemberInstanceState(
+  game: GameState,
+  playerId: string,
+  memberCardId: string
+): GameState {
+  const liveModifiers = game.liveResolution.liveModifiers.filter((modifier) => {
+    if (
+      modifier.kind === 'SUPPRESS_ABILITY' &&
+      modifier.sourceCardId === memberCardId
+    ) return false;
+    if (!('playerId' in modifier) || modifier.playerId !== playerId) return true;
+    if ('memberCardId' in modifier && modifier.memberCardId === memberCardId) return false;
+    if (
+      modifier.kind === 'HEART' &&
+      modifier.target === 'TARGET_MEMBER' &&
+      modifier.targetMemberCardId === memberCardId
+    ) return false;
+    if (
+      modifier.kind === 'HEART' &&
+      modifier.target === 'SOURCE_MEMBER' &&
+      modifier.sourceCardId === memberCardId
+    ) return false;
+    if (modifier.kind === 'BLADE' && modifier.sourceCardId === memberCardId) return false;
+    return true;
+  });
+  const state = {
+    ...game,
+    liveResolution: { ...game.liveResolution, liveModifiers },
+  };
+  return getPlayerById(state, playerId)
+    ? updatePlayer(state, playerId, (player) => ({
+        ...player,
+        positionMovedThisTurn: player.positionMovedThisTurn.filter((id) => id !== memberCardId),
+        movedToStageThisTurn: player.movedToStageThisTurn.filter((id) => id !== memberCardId),
+      }))
+    : state;
+}
+
 export function playMemberBelowCardToEmptySlot(
   game: GameState,
   playerId: string,

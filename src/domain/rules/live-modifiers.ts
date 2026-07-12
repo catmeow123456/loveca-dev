@@ -24,6 +24,7 @@ import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
+  cardNameMatchesAnyAlias,
   hasAtLeastDifferentNamedCards,
 } from '../../shared/utils/card-identity.js';
 import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/slot-perspective.js';
@@ -536,6 +537,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         sourceCardId,
         SP_BP5_222_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID
       ),
+  },
+  {
+    baseCardCodes: ['PL!SP-pb1-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      countPlayerEnergyCards(game, playerId) >= 12
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId: SP_PB1_002_CONTINUOUS_ENERGY_TWELVE_LIVE_SCORE_ABILITY_ID,
+            },
+          ]
+        : [],
   },
   {
     baseCardCodes: ['PL!HS-bp1-003'],
@@ -1207,6 +1224,8 @@ const SP_BP5_111_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp5-111:continuous-energy-exact-eight-live-score';
 const SP_BP5_222_CONTINUOUS_ENERGY_EXACT_EIGHT_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp5-222:continuous-energy-exact-eight-live-score';
+const SP_PB1_002_CONTINUOUS_ENERGY_TWELVE_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-pb1-002:continuous-energy-twelve-live-score';
 const BP6_022_CONTINUOUS_SUCCESS_ZONE_MUSE_LIVE_REQUIREMENT_ABILITY_ID =
   'PL!-bp6-022:continuous-success-zone-muse-live-requirement';
 const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
@@ -2030,15 +2049,10 @@ function hasNamedStageMember(game: GameState, playerId: string, names: readonly 
   if (!player) {
     return false;
   }
-  const normalizedNames = names.map(normalizeContinuousMemberName);
   return MEMBER_SLOT_ORDER.some((slot) => {
     const cardId = player.memberSlots.slots[slot];
     const card = cardId ? getCardById(game, cardId) : null;
-    return (
-      card !== null &&
-      isMemberCardData(card.data) &&
-      normalizedNames.includes(normalizeContinuousMemberName(card.data.name))
-    );
+    return card !== null && isMemberCardData(card.data) && cardNameMatchesAnyAlias(card.data, names);
   });
 }
 
@@ -2091,11 +2105,10 @@ function hasStageMemberNamedAny(game: GameState, playerId: string, names: readon
   if (!player) {
     return false;
   }
-  const normalizedNames = new Set(names.map(normalizeContinuousMemberName));
   return MEMBER_SLOT_ORDER.some((slot) => {
     const cardId = player.memberSlots.slots[slot];
     const card = cardId ? getCardById(game, cardId) : null;
-    return card !== null && normalizedNames.has(normalizeContinuousMemberName(card.data.name));
+    return card !== null && isMemberCardData(card.data) && cardNameMatchesAnyAlias(card.data, names);
   });
 }
 

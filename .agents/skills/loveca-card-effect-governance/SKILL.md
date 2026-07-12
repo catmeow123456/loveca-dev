@@ -79,6 +79,24 @@ git diff -- src/application/card-effect-runner.ts
 
 凡新增或修改 `activeEffect` 的按钮、选项、步骤提示或选择说明，必须同时阅读 [`references/player-visible-action-copy.md`](references/player-visible-action-copy.md)，并先搜索同类既有 workflow 的稳定文案。
 
+## 只读开发工具
+
+从仓库根目录使用 bundled/local Node 运行以下脚本；脚本只读取当前 checkout，不 stage、不 commit、不修改卡牌数据：
+
+```bash
+# AST + registry 玩家文案审计；加 --list-energy 可列出所有含“能量”或 [E] 的候选文本
+node --import tsx .agents/skills/loveca-card-effect-governance/scripts/audit-player-visible-copy.ts
+
+# 按基础编号、完整卡号或前缀盘点 DB、definition、ownership、runner 与 existing_module_map
+node --import tsx .agents/skills/loveca-card-effect-governance/scripts/inventory-card-effect-batch.ts PL!SP-pb1 --ability-only
+
+# 从真实卡牌数据和 implemented effectText 生成提交说明骨架
+node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-card-effect-commit-message.ts PL!SP-pb1-002 PL!SP-pb1-004 --title "feat(effect): 更新星团SP-pb1卡效"
+```
+
+- 批次盘点可加 `--unimplemented-only` 筛未实现卡，或加 `--json` 输出结构化结果；不要用脚本输出替代人工复用、FAQ 和规则语义审查。
+- 提交说明脚本只生成 `新增卡效` 的事实行与其余章节占位；必须按真实 diff 人工补充 `修复bug`、`通用更新` 和验证结果，并在用户确认前保持不提交。
+
 ## 当前框架立场
 
 - `card-effect-runner.ts` 去中心化的主要迁移已经完成，完整卡效 fallback 不应回流。
@@ -132,6 +150,7 @@ git diff -- src/application/card-effect-runner.ts
 ## 玩家可见确认文案
 
 - 按钮与操作文本的分类词表、字段职责和禁用写法见 [`references/player-visible-action-copy.md`](references/player-visible-action-copy.md)。涉及 `confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions`、`selectionLabel` 或 `stepText` 时必须读取并遵循，不要临时发明“确定分配”“选择”“继续处理”等机械文案。
+- 玩家可见文本中的能量费用必须使用 `[E]` token；固定数量按实际数量重复 `[E]`，动态费用、0 费用和特殊能量选择窗口的标准写法统一遵循 `player-visible-action-copy.md`。不要把“支付费用”和“将实体能量卡变为活跃/待机、放置或计数”等规则动作混为一类。
 
 - `activeEffect.effectText` 默认只展示卡文；不要为了 confirm-only 额外追加运行时资源数量、结算预告或调试说明。
 - 只有卡文本身存在条件，且无交互 confirm-only 结算时结果可能因当前状态不同而变化时，才允许在 `effectText` 后追加括号说明。说明应使用玩家语言，包含与卡文条件直接相关的当前计数/状态、满足或未满足、实际结算结果。
@@ -228,6 +247,8 @@ git diff -- src/application/card-effect-runner.ts
 
 ### Runtime helper / event wrapper
 
+- 支付、活跃等通过通用能量操作底座处理的效果，先保持各自动动作原有的资源合法性与数量语义：支付必须足额，至多活跃按实际可处理数量结算。只有候选超出处理数量且存在特殊能量时，才打开通用能量选择窗口并要求精确选择；其余情况保持既有稳定顺序自动处理。单卡 workflow 不得自行复制或绕过这套判断，也不得因文案治理改变候选、顺序、数量、非法输入或 continuation 语义。
+- 触及上述能量操作时，focused test 至少覆盖候选不足/恰好、普通能量超额自动处理、特殊能量超额精确选择，以及重复、非法、stale ID 不推进；支付窗口还要精确断言按实际数量展开的 `[E]` 文案。
 - 玩家从休息室自由选择具体卡牌，随后将其加入手牌、放置于主卡组顶/底或其他指定主卡组位置时，移动前必须走 shared public-card-selection confirmation 两阶段生命周期：首次提交只通过 `revealedCardIds` 向双方公开“本次具体选择了哪些卡”，不移动、不发奖励、不推进 pending；第二次确认恢复原 workflow step/input，由原 workflow 重新校验当前目标、执行移动/奖励/continuation。
 - 普通 `WAITING_ROOM -> HAND` 选择优先且默认使用 `createWaitingRoomToHandEffectState`；组合/grouped/custom workflow 以及休息室到主卡组顶/底/指定位置的 workflow，必须显式写入 `publicCardSelectionConfirmation` metadata 并复用 `runtime/public-card-selection-confirmation.ts`；不得在单卡 workflow 复制暂停、公开、恢复弹窗流程。
 - 固定目标移动、将整个休息室/整类对象洗回主卡组，以及玩家只选择目的地而不选择休息室具体卡牌的效果，不接入该公开确认生命周期。
@@ -250,6 +271,7 @@ git diff -- src/application/card-effect-runner.ts
 - application/effects/conditions.ts 可 re-export domain query 作为卡效入口。
 - 不让各卡自己读 `positionMovedThisTurn`、`groupName`、`eventLog` 等底层字段解释规则。
 - 团体判断优先用 `cardBelongsToGroup`、`groupAliasIs` 等既有身份 helper。
+- 卡名条件必须按卡牌拥有的全部结构化名称身份判断；三人卡等多名称卡同时拥有卡面列出的每个成员名称，不能退化为只比较主显示名。优先复用 `src/shared/utils/card-identity.ts` 的共享名称 matcher 或其 selector 薄包装，不在 `live-modifiers.ts`、workflow 或单卡 query 中复制名称别名表和匹配逻辑。不同名计数与“是否命中某个名称”是两种语义，分别使用对应的 identity helper。
 - 声援公开条件 query 必须说明自己读取的是“本次已公开事实”还是“当前仍可移动目标”。前者应包含匹配的 `CheerEvent.revealedCardIds`，用于数量、不同名、颜色、类型等条件；后者用于实际选择/移动，不能反过来驱动条件成立与否。
 
 ### Ability definition

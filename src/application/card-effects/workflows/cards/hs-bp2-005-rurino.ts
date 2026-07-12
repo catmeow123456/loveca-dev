@@ -268,12 +268,12 @@ function startHsBp2005LiveStart(
       ),
       stepId: HS_BP2_005_PAY_ENERGY_STEP_ID,
       stepText: canPay
-        ? '可以支付1张活跃能量；支付后若三个舞台区域都有成员，则获得2个BLADE。'
-        : '当前没有可支付的活跃能量，可以不发动。',
+        ? '可以支付[E]；支付后若三个舞台区域都有成员，则获得2个BLADE。'
+        : '当前没有可用于支付[E]的活跃能量，可以不发动。',
       awaitingPlayerId: player.id,
       selectableOptions: canPay
         ? [
-            { id: 'pay', label: '支付1能量' },
+            { id: 'pay', label: '支付[E]' },
             { id: 'decline', label: DECLINE_OPTION_LABEL },
           ]
         : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],

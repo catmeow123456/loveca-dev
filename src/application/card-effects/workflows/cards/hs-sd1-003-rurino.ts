@@ -105,7 +105,7 @@ function startHsSd1003LiveStart(
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
       stepText:
-        '可以支付1张活跃能量。如此做时，选择此成员以外的1名『莲之空』成员获得[桃ハート]与[BLADE]。',
+        '可以支付[E]。如此做时，选择此成员以外的1名『莲之空』成员获得[桃ハート]与[BLADE]。',
       awaitingPlayerId: player.id,
       selectableOptions: [
         { id: 'pay', label: '支付[E]' },

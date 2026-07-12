@@ -338,7 +338,7 @@ describe('PL!SP-bp5-001 Kanon workflows', () => {
     );
 
     expect(started.activeEffect).toMatchObject({
-      selectableOptions: [{ id: 'pay', label: '支付1张能量' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });
@@ -369,7 +369,7 @@ describe('PL!SP-bp5-001 Kanon workflows', () => {
     );
 
     expect(state.activeEffect).toMatchObject({
-      selectableOptions: [{ id: 'pay', label: '支付1张能量' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });

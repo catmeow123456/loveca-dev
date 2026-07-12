@@ -101,7 +101,7 @@ function startHsBp2018HimeOnEnter(
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_TWO_ENERGY_STEP_ID,
       stepText:
-        '可以支付2张活跃能量；如此做时，从自己的休息室将1张LIVE卡以正面朝上放置入LIVE卡区。',
+        '可以支付[E][E]；如此做时，从自己的休息室将1张LIVE卡以正面朝上放置入LIVE卡区。',
       awaitingPlayerId: player.id,
       selectableOptions: [{ id: PAY_OPTION_ID, label: '支付[E][E]' }],
       canSkipSelection: true,

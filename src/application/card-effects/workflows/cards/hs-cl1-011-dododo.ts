@@ -125,9 +125,9 @@ function startHsCl1011DododoLiveSuccess(
       controllerId: player.id,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
-      stepText: '可以支付1张活跃能量；如此做时，选择一种方式从自己的休息室加入手牌。',
+      stepText: '可以支付[E]；如此做时，选择一种方式从自己的休息室加入手牌。',
       awaitingPlayerId: player.id,
-      selectableOptions: [{ id: 'pay', label: '支付1能量' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {

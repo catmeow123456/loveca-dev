@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
+  cardNameAliasMatches,
+  cardNameMatchesAnyAlias,
   getCardGroupIdentityKeys,
   getCardNameCandidates,
   hasAtLeastDifferentNamedCards,
@@ -96,6 +98,19 @@ describe('card identity helpers', () => {
       '津島善子',
       '天王寺璃奈',
     ]);
+  });
+
+  it('matches aliases against every identity of a Q62 multi-name card', () => {
+    const llBp2001 = {
+      cardCode: 'LL-bp2-001-R＋',
+      name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃',
+    };
+
+    expect(cardNameAliasMatches(llBp2001, '渡边曜')).toBe(true);
+    expect(cardNameAliasMatches(llBp2001, '鬼塚夏美')).toBe(true);
+    expect(cardNameAliasMatches(llBp2001, '大泽琉璃乃')).toBe(true);
+    expect(cardNameMatchesAnyAlias(llBp2001, ['藤島慈', '大沢瑠璃乃'])).toBe(true);
+    expect(cardNameAliasMatches(llBp2001, '藤島慈')).toBe(false);
   });
 
   it('normalizes official groupNames and series text to canonical group identities', () => {

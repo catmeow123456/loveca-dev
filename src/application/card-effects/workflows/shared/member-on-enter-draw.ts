@@ -9,13 +9,17 @@ import {
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
+  SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   countSuccessfulLiveCards,
+  hasStageMemberMatching,
   successLiveScoreAtLeast,
   sumSuccessfulLiveScore,
 } from '../../../effects/conditions.js';
+import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
+import { CardType } from '../../../../shared/types/enums.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
@@ -30,6 +34,7 @@ interface MemberOnEnterDrawConfig {
   readonly minSuccessLiveCardCount?: number;
   readonly minSuccessLiveScore?: number;
   readonly minWaitingRoomCount?: number;
+  readonly requiredOtherStageUnitAlias?: string;
 }
 
 const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
@@ -61,6 +66,12 @@ const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
     drawCount: 1,
     actionStep: 'ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE',
     minWaitingRoomCount: 10,
+  },
+  {
+    abilityId: SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE',
+    requiredOtherStageUnitAlias: '5yncri5e!',
   },
 ];
 
@@ -164,6 +175,28 @@ function resolveMemberOnEnterDraw(
       orderedResolution
     );
   }
+  const hasRequiredOtherStageUnitMember =
+    config.requiredOtherStageUnitAlias === undefined ||
+    hasStageMemberMatching(
+      game,
+      player.id,
+      and(typeIs(CardType.MEMBER), unitAliasIs(config.requiredOtherStageUnitAlias)),
+      { excludeCardId: ability.sourceCardId }
+    );
+  if (!hasRequiredOtherStageUnitMember) {
+    return continuePendingCardEffects(
+      addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'OTHER_STAGE_UNIT_MEMBER_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        requiredOtherStageUnitAlias: config.requiredOtherStageUnitAlias,
+        hasRequiredOtherStageUnitMember,
+      }),
+      orderedResolution
+    );
+  }
 
   const drawResult = drawCardsForPlayer(stateAfterUseRecord, player.id, config.drawCount);
   if (!drawResult) {
@@ -185,6 +218,8 @@ function resolveMemberOnEnterDraw(
       requiredSuccessLiveScore: config.minSuccessLiveScore,
       successLiveCardCount,
       requiredSuccessLiveCardCount: config.minSuccessLiveCardCount,
+      requiredOtherStageUnitAlias: config.requiredOtherStageUnitAlias,
+      hasRequiredOtherStageUnitMember,
       drawnCardIds: drawResult.drawnCardIds,
       drawCount: drawResult.drawnCardIds.length,
     }),

@@ -191,7 +191,7 @@ describe('pay energy gain Blade workflow', () => {
     );
     expect(session.state?.activeEffect?.stepId).toBe('S_PR_013_LIVE_START_PAY_ENERGY');
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付2能量' },
+      { id: 'pay', label: '支付[E][E]' },
       { id: 'decline', label: '不发动' },
     ]);
     expect(session.state?.activeEffect?.metadata?.activeEnergyCardIds).toEqual(energyCardIds);
@@ -319,7 +319,7 @@ describe('pay energy gain Blade workflow', () => {
     );
     expect(session.state?.activeEffect?.stepId).toBe('HS_BP1_004_LIVE_START_PAY_ENERGY');
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付1能量' },
+      { id: 'pay', label: '支付[E]' },
       { id: 'decline', label: '不发动' },
     ]);
     expect(session.state?.activeEffect?.metadata?.activeEnergyCardIds).toEqual([energyCardId]);

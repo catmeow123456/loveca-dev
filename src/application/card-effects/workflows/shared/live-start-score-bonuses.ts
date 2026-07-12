@@ -20,6 +20,7 @@ import {
   selectDifferentNamedCards,
 } from '../../../../shared/utils/card-identity.js';
 import { cardNameAliasIs } from '../../../effects/card-selectors.js';
+import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import {
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
@@ -31,6 +32,7 @@ import {
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+  SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   getAbilityEffectText,
@@ -150,6 +152,17 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getAuroraFlowerConfirmationConfig
   );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveNeutralLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getNeutralConfirmationConfig
+  );
 }
 
 function getPsychoHeartConfirmationConfig(
@@ -248,6 +261,18 @@ function getAuroraFlowerConfirmationConfig(
   const context = getAuroraFlowerContext(game, ability);
   return {
     effectText: `${getAbilityEffectText(ability.abilityId)}（不同名且不同有效费用成员 ${context.matchingStageMembers.length}名，${context.conditionMet ? '满足条件，分数+1' : '未满足条件，不增加分数'}）`,
+  };
+}
+
+function getNeutralConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getNeutralContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前不同名『KALEIDOSCORE』成员${context.differentNamedKaleidoscoreStageMembers.length}名，${
+      context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+    }）`,
   };
 }
 
@@ -625,6 +650,44 @@ function resolveAuroraFlowerLiveStart(
   );
 }
 
+function resolveNeutralLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) return game;
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getNeutralContext(stateWithoutPending, ability);
+  const scoreBonus = context.conditionMet ? 1 : 0;
+  const stateAfterScore =
+    scoreBonus > 0
+      ? addScoreModifierAndRefresh(stateWithoutPending, {
+          playerId: player.id,
+          sourceCardId: ability.sourceCardId,
+          abilityId: ability.abilityId,
+          scoreBonus,
+        })
+      : stateWithoutPending;
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: context.conditionMet ? 'DIFFERENT_KALEIDOSCORE_NAMES_SCORE' : 'NO_DIFFERENT_KALEIDOSCORE_NAMES',
+      sourceInLiveZone: context.sourceInLiveZone,
+      differentNamedKaleidoscoreMemberCardIds:
+        context.differentNamedKaleidoscoreStageMembers.map((member) => member.cardId),
+      differentNamedKaleidoscoreMemberNames:
+        context.differentNamedKaleidoscoreStageMembers.map((member) => member.name),
+      conditionMet: context.conditionMet,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
 function getSolitudeRainContext(
   game: GameState,
   ability: PendingAbilityState
@@ -911,6 +974,47 @@ function getAuroraFlowerContext(
     sourceInLiveZone,
     matchingStageMembers,
     conditionMet: sourceInLiveZone && matchingStageMembers.length >= 3,
+  };
+}
+
+function getNeutralContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly differentNamedKaleidoscoreStageMembers: readonly {
+    readonly cardId: string;
+    readonly name: string;
+  }[];
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      differentNamedKaleidoscoreStageMembers: [],
+      conditionMet: false,
+    };
+  }
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const isKaleidoscore = unitAliasIs('KALEIDOSCORE');
+  const differentNamedKaleidoscoreStageMembers = selectDifferentNamedCards(
+    getAllMemberCardIds(player.memberSlots),
+    (cardId) => {
+      const card = getCardById(game, cardId);
+      return card &&
+        card.ownerId === player.id &&
+        isMemberCardData(card.data) &&
+        isKaleidoscore(card)
+        ? card.data
+        : null;
+    },
+    { minCount: 1 }
+  ).map((match) => ({ cardId: match.item, name: match.name }));
+  return {
+    sourceInLiveZone,
+    differentNamedKaleidoscoreStageMembers,
+    conditionMet: sourceInLiveZone && differentNamedKaleidoscoreStageMembers.length >= 2,
   };
 }
 

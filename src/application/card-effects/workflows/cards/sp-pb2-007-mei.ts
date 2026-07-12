@@ -110,10 +110,10 @@ function startSpPb2007MeiLiveSuccess(
       controllerId: player.id,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
-      stepText: '可以支付3张活跃能量，从自己的休息室将1张『Liella!』LIVE卡加入手牌。',
+      stepText: '可以支付[E][E][E]，从自己的休息室将1张『Liella!』LIVE卡加入手牌。',
       awaitingPlayerId: player.id,
       selectableOptions: [
-        { id: 'pay', label: '支付3能量' },
+        { id: 'pay', label: '支付[E][E][E]' },
         { id: 'decline', label: '不发动' },
       ],
       metadata: {

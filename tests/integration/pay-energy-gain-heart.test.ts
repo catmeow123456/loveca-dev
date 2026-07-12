@@ -219,7 +219,7 @@ describe('pay energy gain Heart shared workflow', () => {
     });
 
     expect(session.state?.activeEffect).toMatchObject({
-      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });
@@ -361,7 +361,7 @@ describe('pay energy gain Heart shared workflow', () => {
     });
 
     expect(session.state?.activeEffect).toMatchObject({
-      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });
@@ -465,7 +465,7 @@ describe('pay energy gain Heart shared workflow', () => {
     expect(session.state?.activeEffect).toMatchObject({
       sourceCardId: firstSourceId,
       abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
-      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       metadata: expect.objectContaining({ orderedResolution: true }),
     });
     expect(session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
@@ -497,7 +497,7 @@ describe('pay energy gain Heart shared workflow', () => {
     expect(session.state?.activeEffect).toMatchObject({
       sourceCardId: secondSourceId,
       abilityId: HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID,
-      selectableOptions: [{ id: 'pay', label: '支付1[E]' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       metadata: expect.objectContaining({ orderedResolution: true }),
     });
     expect(session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);

@@ -322,8 +322,8 @@ describe('PL!SP-bp4 second batch effects', () => {
     const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'bp4-022-two');
 
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay-1', label: '支付1个[E]' },
-      { id: 'pay-2', label: '支付2个[E]' },
+      { id: 'pay-1', label: '支付[E]' },
+      { id: 'pay-2', label: '支付[E][E]' },
       { id: 'decline', label: '不发动' },
     ]);
     const payTwo = session.executeCommand(
@@ -377,7 +377,7 @@ describe('PL!SP-bp4 second batch effects', () => {
       'bp4-022-one'
     );
     expect(oneEnergySession.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay-1', label: '支付1个[E]' },
+      { id: 'pay-1', label: '支付[E]' },
       { id: 'decline', label: '不发动' },
     ]);
     const payOne = oneEnergySession.executeCommand(

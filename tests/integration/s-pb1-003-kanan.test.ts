@@ -258,7 +258,7 @@ describe('PL!S-pb1-003 松浦果南', () => {
     expect(started.activeEffect).toMatchObject({
       abilityId: PL_S_PB1_003_LIVE_START_PAY_TWO_ENERGY_ORIGINAL_HEART_GREEN_ABILITY_ID,
       selectableOptions: [
-        { id: 'pay', label: '支付2能量' },
+        { id: 'pay', label: '支付[E][E]' },
         { id: 'decline', label: '不发动' },
       ],
     });

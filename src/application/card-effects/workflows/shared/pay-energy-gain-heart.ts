@@ -104,10 +104,12 @@ function startPayEnergyGainHeartWorkflow(
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
       stepText: canPay
-        ? `可以支付${config.energyCostCount}张活跃能量，获得${config.heartCount}个${config.heartLabel}。`
-        : '当前没有足够可支付的活跃能量，可以不发动。',
+        ? `可以支付${'[E]'.repeat(config.energyCostCount)}，获得${config.heartCount}个${config.heartLabel}。`
+        : `当前活跃能量不足，无法支付${'[E]'.repeat(config.energyCostCount)}，可以不发动。`,
       awaitingPlayerId: player.id,
-      selectableOptions: canPay ? [{ id: 'pay', label: `支付${config.energyCostCount}[E]` }] : [],
+      selectableOptions: canPay
+        ? [{ id: 'pay', label: `支付${'[E]'.repeat(config.energyCostCount)}` }]
+        : [],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {

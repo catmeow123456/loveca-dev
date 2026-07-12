@@ -28,6 +28,7 @@ import {
   PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
+  SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -120,17 +121,45 @@ function createMember(options: {
   readonly cardCode: string;
   readonly name?: string;
   readonly groupNames?: readonly string[];
+  readonly unitName?: string;
   readonly hearts: readonly HeartColor[];
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
     name: options.name ?? options.cardCode,
     groupNames: options.groupNames ?? ['虹ヶ咲学園スクールアイドル同好会'],
+    unitName: options.unitName,
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 1,
     hearts: options.hearts.map((color) => createHeartIcon(color, 1)),
   };
+}
+
+function createNeutral(cardCode = 'PL!SP-pb1-024-L'): LiveCardData {
+  return {
+    cardCode,
+    name: 'ニュートラル',
+    groupNames: ['Liella!'],
+    unitName: 'KALEIDOSCORE',
+    cardType: CardType.LIVE,
+    score: 6,
+    requirements: createHeartRequirement({ [HeartColor.PURPLE]: 1 }),
+  };
+}
+
+function createKaleidoscoreMember(id: string, name: string, unitName = 'KALEIDOSCORE') {
+  return createCardInstance(
+    createMember({
+      cardCode: `PL!SP-test-${id}`,
+      name,
+      groupNames: ['Liella!'],
+      unitName,
+      hearts: [],
+    }),
+    PLAYER1,
+    id
+  );
 }
 
 function setupState(options: {
@@ -463,6 +492,147 @@ describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
         PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
       )
     ).toContainEqual(expect.objectContaining({ sourceCardId: manualScenario.second.instanceId }));
+  });
+});
+
+describe('PL!SP-pb1-024 Neutral shared live-start score bonus', () => {
+  function scenario(options: {
+    readonly cardCode?: string;
+    readonly names?: readonly string[];
+    readonly units?: readonly string[];
+    readonly sourceId?: string;
+  } = {}) {
+    const source = createCardInstance(
+      createNeutral(options.cardCode),
+      PLAYER1,
+      options.sourceId ?? 'neutral-source'
+    );
+    const names = options.names ?? ['平安名すみれ', 'ウィーン・マルガレーテ'];
+    const members = names.map((name, index) =>
+      createKaleidoscoreMember(`kaleidoscore-${index}`, name, options.units?.[index])
+    );
+    return {
+      source,
+      game: setupState({
+        lives: [source],
+        members: Object.fromEntries(
+          members.map((card, index) => [
+            [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index],
+            card,
+          ])
+        ),
+        initialScore: 6,
+      }),
+    };
+  }
+
+  it.each(['PL!SP-pb1-024-L', 'PL!SP-pb1-024-SRL'])('adds source-bound SCORE +1 for two different KALEIDOSCORE names: %s', (cardCode) => {
+    const { source, game } = scenario({ cardCode });
+    const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    expect(checked.success).toBe(true);
+    expect(checked.gameState.activeEffect).toMatchObject({
+      abilityId: SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(checked.gameState.activeEffect?.effectText).toContain('当前不同名『KALEIDOSCORE』成员2名');
+    expect(checked.gameState.activeEffect?.effectText).toContain('满足条件，实际[スコア]+1');
+    expect(checked.gameState.activeEffect?.effectText).not.toMatch(/source|pending|stale|eventId/);
+    expect(scoreModifiersForAbility(checked.gameState, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+    const resolved = confirmIfConfirmOnly(checked.gameState, PLAYER1);
+    expect(scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toContainEqual(expect.objectContaining({
+      playerId: PLAYER1,
+      liveCardId: source.instanceId,
+      sourceCardId: source.instanceId,
+      countDelta: 1,
+    }));
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+  });
+
+  it.each([
+    { names: ['平安名すみれ'], units: undefined },
+    { names: ['平安名すみれ', '平安名すみれ'], units: undefined },
+    { names: ['平安名すみれ', 'ウィーン・マルガレーテ'], units: ['KALEIDOSCORE', 'CatChu!'] },
+  ])('does not score for one different KALEIDOSCORE name: $names', ({ names, units }) => {
+    const { game } = scenario({ names, units });
+    const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    expect(checked.gameState.activeEffect?.effectText).toContain('未满足条件，实际不增加分数');
+    const resolved = confirmIfConfirmOnly(checked.gameState, PLAYER1);
+    expect(scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(6);
+  });
+
+  it('does not count opponent stage members or memberBelow', () => {
+    const base = scenario({ names: ['平安名すみれ'] });
+    const below = createKaleidoscoreMember('neutral-below', 'ウィーン・マルガレーテ');
+    const opponent = createCardInstance(
+      createMember({
+        cardCode: 'PL!SP-test-neutral-opponent',
+        name: '鬼塚夏美',
+        groupNames: ['Liella!'],
+        unitName: 'KALEIDOSCORE',
+        hearts: [],
+      }),
+      PLAYER2,
+      'neutral-opponent'
+    );
+    let game = registerCards(base.game, [below, opponent]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        memberBelow: { ...player.memberSlots.memberBelow, [SlotPosition.LEFT]: [below.instanceId] },
+      },
+    }));
+    game = updatePlayer(game, PLAYER2, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, opponent.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    const resolved = resolveLiveStart(game);
+    expect(scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+  });
+
+  it('rechecks source validity and does not dynamically revoke an already resolved score', () => {
+    const first = scenario({ sourceId: 'neutral-stale' });
+    const checked = new GameService().executeCheckTiming(first.game, [TriggerCondition.ON_LIVE_START]).gameState;
+    const departed = updatePlayer(checked, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, first.source.instanceId),
+    }));
+    const noOp = confirmIfConfirmOnly(departed, PLAYER1);
+    expect(scoreModifiersForAbility(noOp, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+
+    const second = scenario({ sourceId: 'neutral-persistent' });
+    const resolved = resolveLiveStart(second.game);
+    const stageChanged = updatePlayer(resolved, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, null),
+    }));
+    expect(scoreModifiersForAbility(stageChanged, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toHaveLength(1);
+    expect(stageChanged.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+  });
+
+  it('auto-resolves ordered copies and uses confirm-only for a manually selected copy', () => {
+    const first = createCardInstance(createNeutral('PL!SP-pb1-024-L'), PLAYER1, 'neutral-first');
+    const second = createCardInstance(createNeutral('PL!SP-pb1-024-SRL'), PLAYER1, 'neutral-second');
+    const memberA = createKaleidoscoreMember('neutral-a', '平安名すみれ');
+    const memberB = createKaleidoscoreMember('neutral-b', 'ウィーン・マルガレーテ');
+    const checked = new GameService().executeCheckTiming(setupState({
+      lives: [first, second],
+      members: { [SlotPosition.LEFT]: memberA, [SlotPosition.RIGHT]: memberB },
+      initialScore: 6,
+    }), [TriggerCondition.ON_LIVE_START]).gameState;
+    const ordered = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, undefined, undefined, true);
+    expect(ordered.activeEffect).toBeNull();
+    expect(scoreModifiersForAbility(ordered, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toHaveLength(2);
+    const manual = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, second.instanceId);
+    expect(manual.activeEffect).toMatchObject({
+      sourceCardId: second.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(scoreModifiersForAbility(manual, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
   });
 });
 

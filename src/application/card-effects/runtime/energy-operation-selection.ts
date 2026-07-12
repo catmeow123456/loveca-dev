@@ -149,8 +149,7 @@ export function resolveEnergyOperationSelectionStep(
   resolveRestoredActiveEffectStep: ResolveRestoredActiveEffectStep
 ): GameState {
   const continuation = game.activeEffect?.metadata?.energySelectionContinuation as
-    | EnergySelectionContinuation
-    | undefined;
+    EnergySelectionContinuation | undefined;
   if (!continuation) return game;
   const selectedEnergyCardIds =
     input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []);
@@ -226,7 +225,7 @@ function createWindow(
   request: EnergySelectionRequiredError,
   continuation: EnergySelectionContinuation
 ): GameState {
-  const labels = getEnergySelectionLabels(request.operation);
+  const labels = getEnergySelectionLabels(request.operation, request.requiredCount);
   return {
     ...game,
     activeEffect: {
@@ -250,16 +249,20 @@ function createWindow(
   };
 }
 
-function getEnergySelectionLabels(operation: EnergySelectionOperation): {
+function getEnergySelectionLabels(
+  operation: EnergySelectionOperation,
+  requiredCount: number
+): {
   readonly stepText: string;
   readonly selectionLabel: string;
   readonly confirmLabel: string;
 } {
   switch (operation) {
     case 'TAP_ACTIVE_ENERGY':
+      const paymentTokens = '[E]'.repeat(requiredCount);
       return {
-        stepText: '请选择要支付的活跃能量。',
-        selectionLabel: '选择要支付的能量',
+        stepText: `请选择用于支付${paymentTokens}的活跃能量卡。`,
+        selectionLabel: '选择用于支付费用的能量卡',
         confirmLabel: '支付费用',
       };
     case 'ACTIVATE_WAITING_ENERGY':

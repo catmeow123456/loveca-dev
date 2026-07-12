@@ -105,10 +105,10 @@ function startPayEnergyStackWaitingMembersWorkflow(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_OPTION_STEP_ID,
-      stepText: '可以支付1张活跃能量，将休息室2张成员卡按选择顺序放置到卡组顶。',
+      stepText: '可以支付[E]，将休息室2张成员卡按选择顺序放置到卡组顶。',
       awaitingPlayerId: player.id,
       selectableOptions: [
-        { id: 'pay', label: '支付1能量' },
+        { id: 'pay', label: '支付[E]' },
         { id: 'decline', label: DECLINE_OPTION_LABEL },
       ],
       metadata: {

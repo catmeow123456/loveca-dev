@@ -8,7 +8,11 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  addCardToZone,
+  placeCardInSlot,
+} from '../../src/domain/entities/zone';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
@@ -69,7 +73,11 @@ function setup(options: { readonly activeEnergyCount: number; readonly sourceCar
   readonly drawCardId: string;
   readonly energyIds: readonly string[];
 } {
-  const source = createCardInstance(member(options.sourceCardCode ?? 'PL!SP-bp5-020-N', 4), PLAYER1, 'natsumi-source');
+  const source = createCardInstance(
+    member(options.sourceCardCode ?? 'PL!SP-bp5-020-N', 4),
+    PLAYER1,
+    'natsumi-source'
+  );
   const drawCard = createCardInstance(member('PL!SP-test-draw', 2), PLAYER1, 'draw-card');
   const energies = Array.from({ length: 3 }, (_, index) =>
     createCardInstance(energy(`PL!E-${index}`), PLAYER1, `energy-${index}`)
@@ -82,7 +90,8 @@ function setup(options: { readonly activeEnergyCount: number; readonly sourceCar
     energyZone: energies.reduce(
       (zone, card, index) =>
         addCardToStatefulZone(zone, card.instanceId, {
-          orientation: index < options.activeEnergyCount ? OrientationState.ACTIVE : OrientationState.WAITING,
+          orientation:
+            index < options.activeEnergyCount ? OrientationState.ACTIVE : OrientationState.WAITING,
           face: FaceState.FACE_UP,
         }),
       player.energyZone
@@ -92,7 +101,12 @@ function setup(options: { readonly activeEnergyCount: number; readonly sourceCar
       face: FaceState.FACE_UP,
     }),
   }));
-  return { game: setMainPhase(game), sourceId: source.instanceId, drawCardId: drawCard.instanceId, energyIds: energies.map((card) => card.instanceId) };
+  return {
+    game: setMainPhase(game),
+    sourceId: source.instanceId,
+    drawCardId: drawCard.instanceId,
+    energyIds: energies.map((card) => card.instanceId),
+  };
 }
 
 function pending(sourceCardId: string): PendingAbilityState {
@@ -124,11 +138,15 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
       const session = createGameSession();
       session.createGame(`hs-bp1-007-${sourceCardCode}`, PLAYER1, 'P1', PLAYER2, 'P2');
       (session as unknown as { authorityState: GameState }).authorityState = game;
-      expect(session.executeCommand(createActivateAbilityCommand(
-        PLAYER1,
-        sourceId,
-        SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
-      )).success).toBe(true);
+      expect(
+        session.executeCommand(
+          createActivateAbilityCommand(
+            PLAYER1,
+            sourceId,
+            SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+          )
+        ).success
+      ).toBe(true);
       expect(session.state?.players[0].hand.cardIds).toContain(drawCardId);
     }
   );
@@ -183,7 +201,12 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
         )
       ).success
     ).toBe(true);
-    expect(session.state?.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'COMMON_ENERGY_OPERATION_SELECTION',
+      stepText: '请选择用于支付[E][E]的活跃能量卡。',
+      selectionLabel: '选择用于支付费用的能量卡',
+      confirmSelectionLabel: '支付费用',
+    });
     expect(session.state?.activeEffect?.selectableCardIds).toEqual(energyIds);
     expect(
       session.executeCommand(
@@ -236,8 +259,24 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
     const session = createGameSession();
     session.createGame('sp-bp5-020-twice', PLAYER1, 'P1', PLAYER2, 'P2');
     (session as unknown as { authorityState: GameState }).authorityState = game;
-    expect(session.executeCommand(createActivateAbilityCommand(PLAYER1, sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID)).success).toBe(true);
-    expect(session.executeCommand(createActivateAbilityCommand(PLAYER1, sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID)).success).toBe(false);
+    expect(
+      session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          sourceId,
+          SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+        )
+      ).success
+    ).toBe(true);
+    expect(
+      session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          sourceId,
+          SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+        )
+      ).success
+    ).toBe(false);
     expect(abilityUseCount(session.state!)).toBe(1);
   });
 
@@ -247,26 +286,54 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
       const session = createGameSession();
       session.createGame('sp-bp5-020-illegal-timing', PLAYER1, 'P1', PLAYER2, 'P2');
       (session as unknown as { authorityState: GameState }).authorityState = game;
-      return session.executeCommand(createActivateAbilityCommand(playerId, scenario.sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID));
+      return session.executeCommand(
+        createActivateAbilityCommand(
+          playerId,
+          scenario.sourceId,
+          SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+        )
+      );
     };
     expect(run({ ...scenario.game, currentPhase: GamePhase.LIVE_PHASE }).success).toBe(false);
     expect(run({ ...scenario.game, activePlayerIndex: 1 }).success).toBe(false);
-    expect(run({ ...scenario.game, activeEffect: {
-      id: 'busy', abilityId: 'busy', sourceCardId: scenario.sourceId, controllerId: PLAYER1,
-      effectText: 'busy', stepId: 'busy', stepText: 'busy', awaitingPlayerId: PLAYER1,
-    } }).success).toBe(false);
+    expect(
+      run({
+        ...scenario.game,
+        activeEffect: {
+          id: 'busy',
+          abilityId: 'busy',
+          sourceCardId: scenario.sourceId,
+          controllerId: PLAYER1,
+          effectText: 'busy',
+          stepId: 'busy',
+          stepText: 'busy',
+          awaitingPlayerId: PLAYER1,
+        },
+      }).success
+    ).toBe(false);
   });
 
   it('rejects activation when the source is no longer on its controller stage', () => {
     const scenario = setup({ activeEnergyCount: 2 });
     const offStage = updatePlayer(scenario.game, PLAYER1, (player) => ({
       ...player,
-      memberSlots: { ...player.memberSlots, slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null } },
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
+      },
     }));
     const session = createGameSession();
     session.createGame('sp-bp5-020-off-stage', PLAYER1, 'P1', PLAYER2, 'P2');
     (session as unknown as { authorityState: GameState }).authorityState = offStage;
-    expect(session.executeCommand(createActivateAbilityCommand(PLAYER1, scenario.sourceId, SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID)).success).toBe(false);
+    expect(
+      session.executeCommand(
+        createActivateAbilityCommand(
+          PLAYER1,
+          scenario.sourceId,
+          SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+        )
+      ).success
+    ).toBe(false);
     expect(abilityUseCount(session.state!)).toBe(0);
   });
 
@@ -277,9 +344,7 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
       pendingAbilities: [pending(sourceId)],
     }).gameState;
 
-    expect(started.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付1张能量' },
-    ]);
+    expect(started.activeEffect?.selectableOptions).toEqual([{ id: 'pay', label: '支付[E]' }]);
     expect(started.activeEffect?.canSkipSelection).toBe(true);
     expect(started.activeEffect?.skipSelectionLabel).toBe('不发动');
 
@@ -326,7 +391,12 @@ describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
       undefined,
       'pay'
     );
-    expect(selecting.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    expect(selecting.activeEffect).toMatchObject({
+      stepId: 'COMMON_ENERGY_OPERATION_SELECTION',
+      stepText: '请选择用于支付[E]的活跃能量卡。',
+      selectionLabel: '选择用于支付费用的能量卡',
+      confirmSelectionLabel: '支付费用',
+    });
     const resolved = confirmActiveEffectStep(
       selecting,
       PLAYER1,

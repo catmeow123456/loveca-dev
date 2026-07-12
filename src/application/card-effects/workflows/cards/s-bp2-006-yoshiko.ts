@@ -98,7 +98,7 @@ function startYoshikoOnEnterPlayLowCostMembers(
   const canPay = activeEnergyCardIds.length >= 4 && emptySlots.length > 0;
   const selectableOptions = canPay
     ? [
-        { id: 'pay', label: '支付4能量' },
+        { id: 'pay', label: '支付[E][E][E][E]' },
         { id: 'decline', label: DECLINE_OPTION_LABEL },
       ]
     : [{ id: 'decline', label: DECLINE_OPTION_LABEL }];
@@ -115,8 +115,8 @@ function startYoshikoOnEnterPlayLowCostMembers(
         effectText: getAbilityEffectText(YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID),
         stepId: YOSHIKO_PAY_COST_STEP_ID,
         stepText: canPay
-          ? '可以支付4张活跃能量发动此效果。'
-          : '当前无法支付4张活跃能量或没有空成员区，可以不发动。',
+          ? '可以支付[E][E][E][E]发动此效果。'
+          : '当前无法支付[E][E][E][E]或没有空成员区，可以不发动。',
         awaitingPlayerId: player.id,
         selectableOptions,
         metadata: {

@@ -520,7 +520,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
 
     const effect = scenario.session.state!.activeEffect!;
     expect(effect).toMatchObject({
-      selectableOptions: [{ id: 'pay', label: '支付1能量' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       selectableCardIds: scenario.movedCardIds,
       selectableCardMode: 'SINGLE',
       minSelectableCards: 1,

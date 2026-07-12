@@ -10880,7 +10880,7 @@ describe('sample card effect runner', () => {
       HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付1能量' },
+      { id: 'pay', label: '支付[E]' },
       { id: 'decline', label: '不发动' },
     ]);
 
@@ -11210,6 +11210,13 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
     );
+    expect(session.state?.activeEffect?.stepText).toBe(
+      '可以支付[E]，获得2个BLADE。'
+    );
+    expect(session.state?.activeEffect?.selectableOptions).toEqual([
+      { id: 'pay', label: '支付[E]' },
+      { id: 'decline', label: '不发动' },
+    ]);
 
     const payResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -11349,7 +11356,7 @@ describe('sample card effect runner', () => {
       BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付1能量' },
+      { id: 'pay', label: '支付[E]' },
       { id: 'decline', label: '不发动' },
     ]);
 

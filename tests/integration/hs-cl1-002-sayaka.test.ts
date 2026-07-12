@@ -206,7 +206,7 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: HS_CL1_002_ON_ENTER_PAY_ENERGY_RECOVER_DOLLCHESTRA_CARD_ABILITY_ID,
       stepId: 'HS_CL1_002_PAY_ENERGY_FOR_DOLLCHESTRA_RECOVERY',
-      selectableOptions: [{ id: 'pay', label: '支付1能量' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });

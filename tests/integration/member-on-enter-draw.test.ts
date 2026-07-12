@@ -20,6 +20,7 @@ import {
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+  SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -552,5 +553,224 @@ describe('member on-enter draw shared workflow', () => {
           action.payload.step === 'ON_ENTER_DRAW_ONE'
       )
     ).toBe(true);
+  });
+});
+
+function createFiveyncriseMember(cardCode: string, name = '鬼塚夏美'): MemberCardData {
+  return { ...createMember(cardCode, name, 2), groupNames: ['Liella!'], unitName: '5yncri5e!' };
+}
+
+function resolveSpPb1009(options: {
+  readonly sourceCode?: string;
+  readonly ownStageCards?: readonly ReturnType<typeof createCardInstance>[];
+  readonly opponentStageCards?: readonly ReturnType<typeof createCardInstance>[];
+  readonly handCards?: readonly ReturnType<typeof createCardInstance>[];
+  readonly waitingRoomCards?: readonly ReturnType<typeof createCardInstance>[];
+  readonly memberBelowCards?: readonly ReturnType<typeof createCardInstance>[];
+  readonly includeDrawCard?: boolean;
+} = {}) {
+  const source = createCardInstance(
+    createFiveyncriseMember(options.sourceCode ?? 'PL!SP-pb1-009-R'),
+    PLAYER1,
+    'sp-pb1-009-source'
+  );
+  const drawCard = createCardInstance(createMember('DRAW'), PLAYER1, 'sp-pb1-009-draw');
+  const ownStageCards = [...(options.ownStageCards ?? [])];
+  const opponentStageCards = [...(options.opponentStageCards ?? [])];
+  const handCards = [...(options.handCards ?? [])];
+  const waitingRoomCards = [...(options.waitingRoomCards ?? [])];
+  const memberBelowCards = [...(options.memberBelowCards ?? [])];
+  let game = createGameState('sp-pb1-009', PLAYER1, 'P1', PLAYER2, 'P2');
+  game = registerCards(game, [
+    source,
+    drawCard,
+    ...ownStageCards,
+    ...opponentStageCards,
+    ...handCards,
+    ...waitingRoomCards,
+    ...memberBelowCards,
+  ]);
+  game = updatePlayer(game, PLAYER1, (player) => {
+    let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId);
+    ownStageCards.forEach((card, index) => {
+      memberSlots = placeCardInSlot(
+        memberSlots,
+        index === 0 ? SlotPosition.LEFT : SlotPosition.RIGHT,
+        card.instanceId
+      );
+    });
+    return {
+      ...player,
+      mainDeck: {
+        ...player.mainDeck,
+        cardIds: options.includeDrawCard === false ? [] : [drawCard.instanceId],
+      },
+      hand: { ...player.hand, cardIds: handCards.map((card) => card.instanceId) },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: waitingRoomCards.map((card) => card.instanceId),
+      },
+      memberSlots: {
+        ...memberSlots,
+        memberBelow: {
+          ...memberSlots.memberBelow,
+          [SlotPosition.CENTER]: memberBelowCards.map((card) => card.instanceId),
+        },
+      },
+    };
+  });
+  game = updatePlayer(game, PLAYER2, (player) => {
+    let memberSlots = player.memberSlots;
+    opponentStageCards.forEach((card, index) => {
+      memberSlots = placeCardInSlot(
+        memberSlots,
+        index === 0 ? SlotPosition.LEFT : SlotPosition.RIGHT,
+        card.instanceId
+      );
+    });
+    return { ...player, memberSlots };
+  });
+  const state = resolvePendingCardEffects({
+    ...game,
+    pendingAbilities: [
+      pendingAbility(
+        'sp-pb1-009-pending',
+        source.instanceId,
+        SlotPosition.CENTER,
+        SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID
+      ),
+    ],
+  }).gameState;
+  return { state, source, drawCard };
+}
+
+describe('PL!SP-pb1-009 shared member-on-enter draw condition', () => {
+  it('does not count the 5yncri5e! source itself', () => {
+    const { state, drawCard } = resolveSpPb1009();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.players[0].hand.cardIds).not.toContain(drawCard.instanceId);
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'OTHER_STAGE_UNIT_MEMBER_CONDITION_NOT_MET',
+      requiredOtherStageUnitAlias: '5yncri5e!',
+      hasRequiredOtherStageUnitMember: false,
+    });
+  });
+
+  it.each(['PL!SP-pb1-009-R', 'PL!SP-pb1-009-P＋'])(
+    'draws one for %s with another own-stage 5yncri5e! member',
+    (sourceCode) => {
+      const other = createCardInstance(createFiveyncriseMember('OTHER'), PLAYER1, 'other-five');
+      const { state, drawCard } = resolveSpPb1009({ sourceCode, ownStageCards: [other] });
+      expect(state.players[0].hand.cardIds).toContain(drawCard.instanceId);
+      expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+        step: 'ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE',
+        requiredOtherStageUnitAlias: '5yncri5e!',
+        hasRequiredOtherStageUnitMember: true,
+        drawnCardIds: [drawCard.instanceId],
+      });
+    }
+  );
+
+  it('counts another same-name instance as another member', () => {
+    const sameName = createCardInstance(
+      createFiveyncriseMember('PL!SP-pb1-009-P＋'),
+      PLAYER1,
+      'same-name-other-instance'
+    );
+    expect(resolveSpPb1009({ ownStageCards: [sameName] }).state.players[0].hand.cardIds).toContain(
+      'sp-pb1-009-draw'
+    );
+  });
+
+  it('does not count another Liella! member outside 5yncri5e!', () => {
+    const otherLiella = createCardInstance(
+      { ...createMember('OTHER-LIELLA'), groupNames: ['Liella!'], unitName: 'CatChu!' },
+      PLAYER1,
+      'other-liella'
+    );
+    const { state, drawCard } = resolveSpPb1009({ ownStageCards: [otherLiella] });
+    expect(state.players[0].hand.cardIds).not.toContain(drawCard.instanceId);
+  });
+
+  it('does not count the opponent stage', () => {
+    const opponent = createCardInstance(createFiveyncriseMember('OPPONENT'), PLAYER2, 'opponent');
+    const { state, drawCard } = resolveSpPb1009({ opponentStageCards: [opponent] });
+    expect(state.players[0].hand.cardIds).not.toContain(drawCard.instanceId);
+  });
+
+  it('does not count 5yncri5e! cards in memberBelow, hand, or waiting room', () => {
+    const below = createCardInstance(createFiveyncriseMember('BELOW'), PLAYER1, 'below');
+    const hand = createCardInstance(createFiveyncriseMember('HAND'), PLAYER1, 'hand');
+    const waiting = createCardInstance(createFiveyncriseMember('WAITING'), PLAYER1, 'waiting');
+    const { state, drawCard } = resolveSpPb1009({
+      memberBelowCards: [below],
+      handCards: [hand],
+      waitingRoomCards: [waiting],
+    });
+    expect(state.players[0].hand.cardIds).not.toContain(drawCard.instanceId);
+  });
+
+  it('finishes normally with an empty main deck', () => {
+    const other = createCardInstance(createFiveyncriseMember('OTHER'), PLAYER1, 'other-five');
+    const { state } = resolveSpPb1009({ ownStageCards: [other], includeDrawCard: false });
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE',
+      drawnCardIds: [],
+      drawCount: 0,
+    });
+  });
+
+  it('preserves ordered continuation into an existing member-on-enter-draw config', () => {
+    const first = createCardInstance(createFiveyncriseMember('PL!SP-pb1-009-R'), PLAYER1, 'first');
+    const second = createCardInstance(createFiveyncriseMember('OTHER'), PLAYER1, 'second');
+    const drawOne = createCardInstance(createMember('DRAW-1'), PLAYER1, 'draw-1');
+    const drawTwo = createCardInstance(createMember('DRAW-2'), PLAYER1, 'draw-2');
+    let game = createGameState('sp-pb1-009-ordered', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [first, second, drawOne, drawTwo]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [drawOne.instanceId, drawTwo.instanceId] },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, first.instanceId),
+        SlotPosition.RIGHT,
+        second.instanceId
+      ),
+    }));
+    const selection = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          '009',
+          first.instanceId,
+          SlotPosition.LEFT,
+          SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID
+        ),
+        pendingAbility('generic', second.instanceId, SlotPosition.RIGHT),
+      ],
+    }).gameState;
+    const resolved = confirmActiveEffectStep(
+      selection,
+      PLAYER1,
+      selection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).toEqual([drawOne.instanceId, drawTwo.instanceId]);
+    expect(
+      resolved.actionHistory
+        .filter(
+          (action) =>
+            action.type === 'RESOLVE_ABILITY' &&
+            (action.payload.step === 'ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE' ||
+              action.payload.step === 'ON_ENTER_DRAW_ONE')
+        )
+        .map((action) => action.payload.abilityId)
+    ).toEqual([
+      SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
+      MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+    ]);
   });
 });

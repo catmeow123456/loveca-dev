@@ -1349,3 +1349,23 @@ export const SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID =
   'PL!SP-bp7-007-SEC:live-success-place-two-skipped-energy';
 export const SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID =
   'PL!SP-bp7-007-SEC:live-success-more-energy-activate-five';
+export const SP_PB1_002_CONTINUOUS_ENERGY_TWELVE_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-pb1-002:continuous-energy-twelve-live-score';
+export const SP_PB1_010_CONTINUOUS_ENERGY_TEN_STAGE_COST_PLUS_FOUR_ABILITY_ID =
+  'PL!SP-pb1-010:continuous-energy-ten-stage-cost-plus-four';
+export const SP_PB1_005_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-pb1-005:on-enter-place-waiting-energy';
+export const SP_PB1_007_LIVE_START_ACTIVATE_TWO_ENERGY_ABILITY_ID =
+  'PL!SP-pb1-007:live-start-activate-two-energy';
+export const SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID =
+  'PL!SP-pb1-009:on-enter-other-fiveyncrise-draw-one';
+export const SP_PB1_023_LIVE_START_CATCHU_ACTIVATE_ENERGY_SCORE_ABILITY_ID =
+  'PL!SP-pb1-023:live-start-catchu-activate-energy-score';
+export const SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID =
+  'PL!SP-pb1-024:live-start-kaleidoscore-score';
+export const SP_PB1_004_LIVE_START_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-pb1-004:live-start-pay-two-energy-place-waiting-energy';
+export const SP_PB1_004_LIVE_SUCCESS_PAY_THREE_ENERGY_DRAW_ONE_ABILITY_ID =
+  'PL!SP-pb1-004:live-success-pay-three-energy-draw-one';
+export const SP_PB1_011_ON_ENTER_REPLAY_OTHER_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-pb1-011:on-enter-replay-other-liella-member';

@@ -78,9 +78,9 @@ function startLiveSuccessPayDecision(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: LIVE_SUCCESS_PAY_DECISION_STEP_ID,
-      stepText: '可以支付1张能量抽1张卡。',
+      stepText: '可以支付[E]抽1张卡。',
       awaitingPlayerId: player.id,
-      selectableOptions: [{ id: PAY_OPTION_ID, label: '支付1张能量' }],
+      selectableOptions: [{ id: PAY_OPTION_ID, label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {

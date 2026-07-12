@@ -364,7 +364,7 @@ describe('N-sd1-010 Shioriko card effects', () => {
       N_SD1_010_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_ABILITY_ID
     );
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付2[E]' },
+      { id: 'pay', label: '支付[E][E]' },
     ]);
     expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
     expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');

@@ -4,7 +4,8 @@ import { BladeHeartEffect, HeartColor, type CardType } from '../../shared/types/
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
-  getNormalizedCardNameCandidates as getSharedNormalizedCardNameCandidates,
+  cardNameAliasMatches,
+  cardNameMatchesAnyAlias,
   normalizeCardName as normalizeSharedCardName,
 } from '../../shared/utils/card-identity.js';
 import { hasStrictNoAbilityCardText } from '../../shared/utils/card-text.js';
@@ -16,73 +17,6 @@ const UNIT_ALIAS_GROUPS: readonly (readonly string[])[] = [
   ['dollchestra', 'DOLLCHESTRA'],
   ['mira-cra-park', 'Mira-Cra Park!', 'みらくらぱーく！', 'みらくらぱーく!'],
   ['edelnote', 'EdelNote'],
-];
-
-const CARD_NAME_ALIAS_GROUPS: readonly (readonly string[])[] = [
-  ['高坂穂乃果', '高坂穗乃果'],
-  ['絢瀬絵里', '绚濑绘里'],
-  ['南ことり', '南琴梨'],
-  ['園田海未', '园田海未'],
-  ['星空凛'],
-  ['西木野真姫', '西木野真姬'],
-  ['東條希', '东条希'],
-  ['小泉花陽', '小泉花阳'],
-  ['矢澤にこ', '矢泽日香'],
-  ['高海千歌'],
-  ['桜内梨子', '樱内梨子'],
-  ['松浦果南'],
-  ['黒澤ダイヤ', '黑泽黛雅'],
-  ['渡辺曜', '渡边曜'],
-  ['津島善子', '津岛善子'],
-  ['国木田花丸'],
-  ['小原鞠莉'],
-  ['黒澤ルビィ', '黑泽露比'],
-  ['上原歩夢', '上原步梦'],
-  ['中須かすみ', '中须霞'],
-  ['桜坂しずく', '樱坂雫'],
-  ['朝香果林'],
-  ['宮下愛', '宫下爱'],
-  ['近江彼方'],
-  ['優木せつ菜', '优木雪菜'],
-  ['エマ・ヴェルデ', '艾玛·维尔德'],
-  ['天王寺璃奈'],
-  ['三船栞子'],
-  ['ミア・テイラー', '米娅·泰勒'],
-  ['鐘嵐珠', '钟岚珠'],
-  ['澁谷かのん', '渋谷かのん', '涩谷香音', '涉谷香音'],
-  ['唐可可'],
-  ['嵐千砂都', '岚千砂都'],
-  ['平安名すみれ', '平安名堇'],
-  ['葉月恋', '叶月恋'],
-  ['桜小路きな子', '樱小路希奈子'],
-  ['米女メイ', '米女芽衣'],
-  ['若菜四季'],
-  ['鬼塚夏美', '鬼冢夏美'],
-  ['ウィーン・マルガレーテ', '薇恩・玛格丽特'],
-  ['鬼塚冬毬', '鬼冢冬毬'],
-  ['日野下花帆'],
-  ['村野さやか', '村野沙耶香'],
-  ['乙宗梢'],
-  ['夕霧綴理', '夕雾缀理'],
-  ['大沢瑠璃乃', '大泽瑠璃乃', '大泽琉璃乃'],
-  ['藤島慈', '藤岛慈'],
-  ['百生吟子'],
-  ['徒町小鈴', '徒町小铃'],
-  ['安養寺姫芽', '安养寺姬芽'],
-  [
-    'セラス柳田リリエンフェルト',
-    'セラス 柳田 リリエンフェルト',
-    '赛拉丝柳田利林费尔德',
-    '赛拉丝·柳田·利林费尔德',
-  ],
-  ['桂城泉'],
-  ['綺羅ツバサ', '绮罗翼'],
-  ['優木あんじゅ', '优木杏树'],
-  ['統堂英玲奈', '统堂英玲奈'],
-  ['鹿角聖良', '鹿角圣良'],
-  ['鹿角理亞', '鹿角理亚'],
-  ['柊摩央'],
-  ['聖澤悠奈', '圣泽悠奈'],
 ];
 
 export function typeIs(cardType: CardType): CardSelector {
@@ -133,16 +67,11 @@ export function cardNameContains(name: string): CardSelector {
 }
 
 export function cardNameAliasIs(name: string): CardSelector {
-  const normalizedAliases = getNormalizedCardNameAliases(name);
-  return (card) =>
-    getNormalizedCardNameCandidates(card.data.name).some((candidate) =>
-      normalizedAliases.includes(candidate)
-    );
+  return (card) => cardNameAliasMatches(card.data, name);
 }
 
 export function cardNameAliasAny(names: readonly string[]): CardSelector {
-  const selectors = names.map((name) => cardNameAliasIs(name));
-  return (card) => selectors.some((selector) => selector(card));
+  return (card) => cardNameMatchesAnyAlias(card.data, names);
 }
 
 export function memberHasHeartColor(color: HeartColor): CardSelector {
@@ -258,16 +187,4 @@ function matchesAnyNormalizedAlias(
 ): boolean {
   const normalizedValue = normalizeGroupName(value);
   return normalizedAliases.some((alias) => normalizedValue.includes(alias));
-}
-
-function getNormalizedCardNameAliases(name: string): readonly string[] {
-  const normalizedName = normalizeCardName(name);
-  const aliasGroup = CARD_NAME_ALIAS_GROUPS.find((aliases) =>
-    aliases.some((alias) => normalizeCardName(alias) === normalizedName)
-  );
-  return (aliasGroup ?? [name]).map((alias) => normalizeCardName(alias));
-}
-
-function getNormalizedCardNameCandidates(value: string | undefined): readonly string[] {
-  return getSharedNormalizedCardNameCandidates({ name: value });
 }
