@@ -90,10 +90,20 @@ export const S_BP3_001_ACTIVATED_WAIT_OWN_MEMBER_GRANT_PLAYER_SCORE_ABILITY_ID =
   'PL!S-bp3-001:activated-wait-own-member-grant-live-total-score';
 export const S_BP3_002_LIVE_SUCCESS_HIGHER_SCORE_SELF_REVEALED_CHEER_TO_HAND_ABILITY_ID =
   'PL!S-bp3-002:live-success-higher-score-self-revealed-cheer-to-hand';
+export const S_BP3_016_CONTINUOUS_SUCCESS_LIVE_COUNT_STAGE_COST_ABILITY_ID =
+  'PL!S-bp3-016:continuous-success-live-count-stage-cost';
 export const S_BP3_007_ACTIVATED_PAY_ENERGY_BOTTOM_WAITING_LIVE_DRAW_ABILITY_ID =
   'PL!S-bp3-007:activated-pay-energy-bottom-waiting-live-draw';
 export const S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!S-bp3-008:activated-self-sacrifice-recover-aqours-live-activate-energy';
+export const S_BP3_019_LIVE_SUCCESS_NO_NON_BLADE_CHEER_OR_TWO_REMAINING_HEART_SET_SCORE_ABILITY_ID =
+  'PL!S-bp3-019-L:live-success-no-non-blade-cheer-or-two-remaining-heart-set-score';
+export const S_BP3_020_AUTO_ON_CHEER_AT_MOST_TWO_BLADE_HEART_REROLL_ABILITY_ID =
+  'PL!S-bp3-020-L:auto-on-cheer-at-most-two-blade-heart-reroll';
+export const S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID =
+  'PL!S-bp3-021:live-start-waiting-member-to-deck-top-grant-stage-blade';
+export const S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID =
+  'PL!S-bp3-024:live-start-center-high-cost-aqours-choose-blade-or-wait';
 export const PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
   'PL!N-bp3-025-L:live-start-return-energy-below-gain-red-heart';
 export const PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID =
@@ -124,6 +134,8 @@ export const BP3_001_ACTIVATED_WAIT_SELF_DRAW_DISCARD_ABILITY_ID =
   'PL!-bp3-001:activated-wait-self-draw-one-discard-one';
 export const BP3_001_LIVE_START_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID =
   'PL!-bp3-001:live-start-activate-own-stage-member';
+export const S_BP3_010_011_ON_ENTER_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID =
+  'PL!S-bp3-010-011:on-enter-activate-own-stage-member';
 export const PL_BP3_002_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID =
   'PL!-bp3-002:on-enter-discard-wait-opponent-low-cost-members';
 export const PL_BP3_002_CONTINUOUS_OPPONENT_WAITING_GAIN_BLADE_ABILITY_ID =

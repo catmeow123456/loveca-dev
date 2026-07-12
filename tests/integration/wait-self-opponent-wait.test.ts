@@ -68,11 +68,19 @@ function createKarin(cardCode = 'PL!N-bp5-004-AR'): MemberCardData {
   };
 }
 
-function createBp3017Or023(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N'): MemberCardData {
+type CostLteFourWaitCardCode =
+  | 'PL!N-bp3-017-N'
+  | 'PL!N-bp3-023-N'
+  | 'PL!S-bp3-012-N'
+  | 'PL!S-bp3-017-N';
+
+function createBp3017Or023(cardCode: CostLteFourWaitCardCode): MemberCardData {
   return {
     cardCode,
-    name: cardCode.includes('-017-') ? '宮下 愛' : 'ミア・テイラー',
-    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
+    name: cardCode,
+    groupNames: cardCode.startsWith('PL!S-')
+      ? ['Aqours']
+      : ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 2,
@@ -305,7 +313,7 @@ function resolvePayloads(game: GameState, abilityId: string) {
     .map((action) => action.payload);
 }
 
-function setupBp3LiveStart(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
+function setupBp3LiveStart(cardCode: CostLteFourWaitCardCode) {
   const source = createCardInstance(createBp3017Or023(cardCode), PLAYER1, `${cardCode}-source`);
   const cost4 = createCardInstance(
     createMember('TEST-COST-4', { cost: 4 }),
@@ -358,7 +366,7 @@ function setupBp3LiveStart(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
   return { game, source, cost4, cost5, waitingCost3, ownCost2, belowCost1 };
 }
 
-function playBp3Source(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
+function playBp3Source(cardCode: CostLteFourWaitCardCode) {
   const session = createGameSession();
   const deck = createDeck();
   session.createGame(`${cardCode}-on-enter`, PLAYER1, 'P1', PLAYER2, 'P2');
@@ -394,6 +402,24 @@ function playBp3Source(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
 }
 
 describe('PL!N-bp3-017 / 023 shared cost <= 4 configuration', () => {
+  for (const cardCode of [
+    'PL!N-bp3-017-N',
+    'PL!N-bp3-023-N',
+    'PL!S-bp3-012-N',
+    'PL!S-bp3-017-N',
+  ] as const) {
+    it(`reuses both ON_ENTER and LIVE_START definitions for ${cardCode}`, () => {
+      const entered = playBp3Source(cardCode);
+      expect(entered.session.state?.activeEffect?.abilityId).toBe(
+        PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID
+      );
+      const live = startLiveStart(setupBp3LiveStart(cardCode).game);
+      expect(live.activeEffect?.abilityId).toBe(
+        PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID
+      );
+    });
+  }
+
   it('resolves PL!N-bp3-017-N ON_ENTER by waiting source then a cost 4 opponent member', () => {
     const { session, source, target } = playBp3Source('PL!N-bp3-017-N');
     let state = session.state!;

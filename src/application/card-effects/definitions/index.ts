@@ -78,8 +78,13 @@ import {
   S_BP3_005_LIVE_SUCCESS_FEWER_REVEALED_CHEER_CARDS_DRAW_ONE_ABILITY_ID,
   S_BP3_001_ACTIVATED_WAIT_OWN_MEMBER_GRANT_PLAYER_SCORE_ABILITY_ID,
   S_BP3_002_LIVE_SUCCESS_HIGHER_SCORE_SELF_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+  S_BP3_016_CONTINUOUS_SUCCESS_LIVE_COUNT_STAGE_COST_ABILITY_ID,
   S_BP3_007_ACTIVATED_PAY_ENERGY_BOTTOM_WAITING_LIVE_DRAW_ABILITY_ID,
   S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+  S_BP3_019_LIVE_SUCCESS_NO_NON_BLADE_CHEER_OR_TWO_REMAINING_HEART_SET_SCORE_ABILITY_ID,
+  S_BP3_020_AUTO_ON_CHEER_AT_MOST_TWO_BLADE_HEART_REROLL_ABILITY_ID,
+  S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID,
+  S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID,
   PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
   PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID,
   PL_N_BP3_028_LIVE_START_LOOK_TOP_PER_NIJIGASAKI_REVEAL_LIVE_SCORE_ABILITY_ID,
@@ -95,6 +100,7 @@ import {
   PL_N_BP3_011_ON_ENTER_COMPARE_OPPONENT_MEMBER_GAIN_BLADE_ABILITY_ID,
   BP3_001_ACTIVATED_WAIT_SELF_DRAW_DISCARD_ABILITY_ID,
   BP3_001_LIVE_START_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID,
+  S_BP3_010_011_ON_ENTER_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID,
   PL_BP3_002_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID,
   PL_BP3_002_CONTINUOUS_OPPONENT_WAITING_GAIN_BLADE_ABILITY_ID,
   PL_BP3_003_ON_ENTER_WAIT_SELF_RECOVER_MUSE_MEMBER_ABILITY_ID,
@@ -839,6 +845,16 @@ const S_BP3_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【中央】【1回合1次】将1名成员变为待机状态：LIVE结束时为止，因此变为待机状态的成员，获得「【常时】LIVE的合计分数+1。」。(此能力仅可在中央区域登场的场合起动)';
 const S_BP3_002_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】LIVE的合计分数比对方高的场合，可以将此卡加入手牌。此能力仅可从此卡因自己声援被公开的场合发动。';
+const S_BP3_016_CONTINUOUS_EFFECT_TEXT =
+  '【常时】每存在1张自己的成功LIVE卡区中的卡片，存在于舞台的此成员的费用+1。';
+const S_BP3_019_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】此回合中，因声援被公开的自己的卡片中未持有BLADE HEART的卡片为0张的场合，或自己持有大于等于2个剩余HEART的场合，此卡的分数变为4。';
+const S_BP3_020_AUTO_ON_CHEER_EFFECT_TEXT =
+  '【自动】［1回合1次］因声援被公开大于等于1张自己的卡片时，那些卡片中持有BLADE HEART的卡片小于等于2张的场合，可以将那些卡片全部放置入休息室。 失去因此次声援获得的BLADE HEART，再次执行一次声援。';
+const S_BP3_021_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将存在于自己的休息室的1张成员卡放置于卡组顶：如此做的场合，LIVE结束时为止，存在于自己的舞台的1名成员，获得[BLADE]。';
+const S_BP3_024_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】自己的舞台的中央区域存在费用大于等于9的『Aqours』的成员的场合，从以下选择1项。\n\n・LIVE结束时为止，存在于自己的舞台上的1名成员，获得[BLADE][BLADE]。\n\n・将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。';
 const PL_N_BP4_009_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己舞台成员的费用合计比对方低的场合，抽2张卡，将1张手牌放置于卡组顶。';
 const PL_N_BP4_011_LIVE_START_EFFECT_TEXT =
@@ -863,6 +879,8 @@ const PL_N_BP4_028_LIVE_START_EFFECT_TEXT =
 const BP3_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将此成员变为待机状态：抽1张卡，将1张手牌放置入休息室。（待机状态成员持有的 BLADE 不会增加声援公开张数。）';
 const BP3_001_LIVE_START_EFFECT_TEXT = '【LIVE开始时】可以将自己舞台上的成员至多1名变为活跃状态。';
+const S_BP3_010_011_ON_ENTER_EFFECT_TEXT =
+  '【登场】将至多1张存在于自己的舞台的成员变为活跃状态。';
 const PL_BP3_002_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：将存在于对方的舞台的至多2名费用小于等于4的成员变为待机状态。(待机状态的成员持有的[BLADE]，不会使因声援公开的张数增加。)';
 const PL_BP3_002_CONTINUOUS_EFFECT_TEXT =
@@ -3039,6 +3057,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 workflow；通用 REVEALED_CHEER_CARD 来源收集只枚举当前仍属于自己本次声援且仍在 resolutionZone/revealedCardIds 的卡。严格领先时可选择将固定来源自身加入手牌。',
   },
   {
+    abilityId: S_BP3_016_CONTINUOUS_SUCCESS_LIVE_COUNT_STAGE_COST_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-016'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_BP3_016_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      '常时有效费用修正不进队列；getMemberEffectiveCost 仅在此成员为控制者舞台主成员时按控制者自己的成功 LIVE 区卡数 +1/张。FAQ Q155：手牌登场费用不增加；MEMBER_COST delta 后叠加，MEMBER_COST_SET 最后覆盖。',
+  },
+  {
     abilityId: S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
     baseCardCodes: ['PL!S-bp3-003'],
     category: CardAbilityCategory.ON_ENTER,
@@ -3108,6 +3137,56 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: S_BP3_005_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
       '扩展 shared `live-success-conditional-draw-one.ts`；条件使用 event-inclusive `selectCurrentLiveRevealedCheerCardIds` 分别统计本次 LIVE 因声援公开的全部自己/对方卡牌，包含追加声援以及已离开 resolutionZone 的事实卡。确认后实时按 ownCount < opponentCount 判定并复用 drawCardsForPlayer；P/R 通过基础编号共用 definition。',
+  },
+  {
+    abilityId: S_BP3_019_LIVE_SUCCESS_NO_NON_BLADE_CHEER_OR_TWO_REMAINING_HEART_SET_SCORE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-019'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: S_BP3_019_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 workflow；使用 CheerEvent.revealedCardIds 历史事实与 hasBladeHeart 统计，0张公开卡按 FAQ Q182 满足条件。另一 OR 条件读取剩余 Heart 总数。结算时将绑定来源 LIVE 的当前有效分数规范为4，并按实际 delta 刷新 playerScores。',
+  },
+  {
+    abilityId: S_BP3_020_AUTO_ON_CHEER_AT_MOST_TWO_BLADE_HEART_REROLL_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-020'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    countPendingAsTurnUse: false,
+    effectText: S_BP3_020_AUTO_ON_CHEER_EFFECT_TEXT,
+    notes:
+      '复用 shared `cheer-reroll.ts`；按 pending eventIds 对应的自己普通 CheerEvent.revealedCardIds 历史事实统计 BLADE HEART 卡，公开至少1张且命中阈值才可选发动。完整集合双方公开确认后才全部移动、按来源实例记录 turn1、替换旧声援事实并以原 totalBlade 重做普通声援。',
+  },
+  {
+    abilityId: S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-021'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP3_021_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 workflow；休息室成员自由选卡先走双方公开确认，成功置顶后才强制选择己方主舞台成员并写入目标实例 BLADE +1。',
+  },
+  {
+    abilityId: S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-024'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: S_BP3_024_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 workflow；实时检查中央 Aqours 成员有效费用，按合法目标显示己方成员 BLADE +2 或对方印刷费用4以下成员待机分支。',
   },
   {
     abilityId: HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
@@ -3271,7 +3350,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
-    baseCardCodes: ['PL!N-bp3-017', 'PL!N-bp3-023'],
+    baseCardCodes: ['PL!N-bp3-017', 'PL!N-bp3-023', 'PL!S-bp3-012', 'PL!S-bp3-017'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -3279,7 +3358,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP3_017_023_EFFECT_TEXT,
     notes:
-      '017/023 同文共用 definition 与 shared wait-self-opponent-wait family；支付来源 WAITING 后以 typeIs(MEMBER) + costLte(4) 重扫对方主舞台非 WAITING 成员。',
+      'N-bp3-017/023 与 S-bp3-012/017 同文共用 definition 与 shared wait-self-opponent-wait family；支付来源 WAITING 后以 typeIs(MEMBER) + costLte(4) 重扫对方主舞台非 WAITING 成员。',
   },
   {
     abilityId: PL_N_BP3_006_ON_ENTER_WAIT_SELF_ABILITY_ID,
@@ -3403,7 +3482,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
-    baseCardCodes: ['PL!N-bp3-017', 'PL!N-bp3-023'],
+    baseCardCodes: ['PL!N-bp3-017', 'PL!N-bp3-023', 'PL!S-bp3-012', 'PL!S-bp3-017'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -3411,7 +3490,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP3_017_023_EFFECT_TEXT,
     notes:
-      '017/023 同文共用 definition 与 shared wait-self-opponent-wait family；真实可选交互不套 confirm-only，来源 WAITING 与目标 WAITING 均走状态变化 wrapper。',
+      'N-bp3-017/023 与 S-bp3-012/017 同文共用 definition 与 shared wait-self-opponent-wait family；真实可选交互不套 confirm-only，来源 WAITING 与目标 WAITING 均走状态变化 wrapper。',
   },
   {
     abilityId: BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
@@ -7429,6 +7508,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP3_001_LIVE_START_EFFECT_TEXT,
     notes:
       '窄单卡 LIVE_START workflow；结算时重查来源仍在己方舞台，选择自己舞台至多1名当前非 ACTIVE 成员变 ACTIVE，可跳过，可选来源自身。方向变化通过 member-state trigger wrapper 入队。',
+  },
+  {
+    abilityId: S_BP3_010_011_ON_ENTER_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp3-010', 'PL!S-bp3-011'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP3_010_011_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '010/011 同文共用 definition 与 shared activate-own-stage-member workflow；ON_ENTER 入队后不要求来源仍在舞台，结算时重扫己方主舞台非 ACTIVE 成员，状态变化走 wrapper。',
   },
   {
     abilityId: PL_BP3_002_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID,

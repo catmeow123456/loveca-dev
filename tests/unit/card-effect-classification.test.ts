@@ -102,6 +102,9 @@ import {
   BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT_ABILITY_ID,
   BP3_001_ACTIVATED_WAIT_SELF_DRAW_DISCARD_ABILITY_ID,
   BP3_001_LIVE_START_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID,
+  S_BP3_010_011_ON_ENTER_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID,
+  S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID,
+  S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID,
   BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID,
   BP4_005_LIVE_START_POSITION_CHANGE_IF_NO_HIGH_BLADE_MUSE_ABILITY_ID,
   BP4_005_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
@@ -374,6 +377,7 @@ import {
   SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID,
   S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
   S_BP3_003_LIVE_START_DISCARD_UP_TO_TWO_GAIN_BLADE_ABILITY_ID,
+  S_BP3_016_CONTINUOUS_SUCCESS_LIVE_COUNT_STAGE_COST_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
   SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
   SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID,
@@ -701,6 +705,8 @@ import {
   S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
   S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID,
+  S_BP3_019_LIVE_SUCCESS_NO_NON_BLADE_CHEER_OR_TWO_REMAINING_HEART_SET_SCORE_ABILITY_ID,
+  S_BP3_020_AUTO_ON_CHEER_AT_MOST_TWO_BLADE_HEART_REROLL_ABILITY_ID,
   S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID,
   S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID,
   S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
@@ -4839,14 +4845,24 @@ describe('card effect classification registry', () => {
       });
     }
 
-    for (const cardCode of ['PL!N-bp3-017-N', 'PL!N-bp3-023-N']) {
+    for (const cardCode of [
+      'PL!N-bp3-017-N',
+      'PL!N-bp3-023-N',
+      'PL!S-bp3-012-N',
+      'PL!S-bp3-017-N',
+    ]) {
       const abilities = getCardAbilityDefinitions(cardCode);
       expect(abilities).toHaveLength(2);
       expect(abilities).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
             abilityId: PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
-            baseCardCodes: ['PL!N-bp3-017', 'PL!N-bp3-023'],
+            baseCardCodes: [
+              'PL!N-bp3-017',
+              'PL!N-bp3-023',
+              'PL!S-bp3-012',
+              'PL!S-bp3-017',
+            ],
             category: CardAbilityCategory.ON_ENTER,
             sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
             triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -4855,7 +4871,12 @@ describe('card effect classification registry', () => {
           }),
           expect.objectContaining({
             abilityId: PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
-            baseCardCodes: ['PL!N-bp3-017', 'PL!N-bp3-023'],
+            baseCardCodes: [
+              'PL!N-bp3-017',
+              'PL!N-bp3-023',
+              'PL!S-bp3-012',
+              'PL!S-bp3-017',
+            ],
             category: CardAbilityCategory.LIVE_START,
             sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
             triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -4864,6 +4885,40 @@ describe('card effect classification registry', () => {
           }),
         ])
       );
+    }
+
+    const sharedActivateDefinitions = ['PL!S-bp3-010-N', 'PL!S-bp3-011-N'].map((cardCode) =>
+      getCardAbilityDefinitions(cardCode)
+    );
+    for (const abilities of sharedActivateDefinitions) {
+      expect(abilities).toHaveLength(1);
+      expect(abilities[0]).toMatchObject({
+        abilityId: S_BP3_010_011_ON_ENTER_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID,
+        baseCardCodes: ['PL!S-bp3-010', 'PL!S-bp3-011'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      });
+    }
+    expect(sharedActivateDefinitions[0][0]).toBe(sharedActivateDefinitions[1][0]);
+
+    for (const [cardCode, abilityId, baseCardCode] of [
+      ['PL!S-bp3-021-L', S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID, 'PL!S-bp3-021'],
+      ['PL!S-bp3-024-L', S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID, 'PL!S-bp3-024'],
+    ] as const) {
+      const abilities = getCardAbilityDefinitions(cardCode);
+      expect(abilities).toHaveLength(1);
+      expect(abilities[0]).toMatchObject({
+        abilityId,
+        baseCardCodes: [baseCardCode],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
     }
 
     for (const cardCode of ['PL!N-bp3-001-R＋', 'PL!N-bp3-001-P', 'PL!N-bp3-001-P＋', 'PL!N-bp3-001-SEC']) {
@@ -11560,6 +11615,26 @@ describe('card effect classification registry', () => {
       false
     );
   });
+  it('classifies PL!S-bp3-016-N as one non-queued stage continuous ability', () => {
+    const definitions = getCardAbilityDefinitions('PL!S-bp3-016-N');
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0]).toMatchObject({
+      abilityId: S_BP3_016_CONTINUOUS_SUCCESS_LIVE_COUNT_STAGE_COST_ABILITY_ID,
+      baseCardCodes: ['PL!S-bp3-016'],
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+    });
+    expect(definitions[0]?.triggerCondition).toBeUndefined();
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (definition) =>
+          definition.abilityId ===
+          S_BP3_016_CONTINUOUS_SUCCESS_LIVE_COUNT_STAGE_COST_ABILITY_ID
+      )
+    ).toHaveLength(1);
+  });
 });
 
 describe('PL!SP-pb1-004 / 011 classification', () => {
@@ -11733,6 +11808,41 @@ describe('PL!S-bp2-001 and PL!S-bp2-025 classifications', () => {
         triggerCondition: TriggerCondition.ON_LIVE_START,
         queued: true,
         implemented: true,
+      })
+    );
+  });
+});
+
+describe('PL!S-bp3-019/020 LIVE classifications', () => {
+  it('registers MIRACLE WAVE from the exact L card', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp3-019-L')).toContainEqual(
+      expect.objectContaining({
+        abilityId: S_BP3_019_LIVE_SUCCESS_NO_NON_BLADE_CHEER_OR_TWO_REMAINING_HEART_SET_SCORE_ABILITY_ID,
+        baseCardCodes: ['PL!S-bp3-019'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE成功时】此回合中，因声援被公开的自己的卡片中未持有BLADE HEART的卡片为0张的场合，或自己持有大于等于2个剩余HEART的场合，此卡的分数变为4。',
+      })
+    );
+  });
+
+  it('registers Daisuki dattara Daijoubu from the exact L card', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp3-020-L')).toContainEqual(
+      expect.objectContaining({
+        abilityId: S_BP3_020_AUTO_ON_CHEER_AT_MOST_TWO_BLADE_HEART_REROLL_ABILITY_ID,
+        baseCardCodes: ['PL!S-bp3-020'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_CHEER,
+        queued: true,
+        implemented: true,
+        perTurnLimit: 1,
+        effectText:
+          '【自动】［1回合1次］因声援被公开大于等于1张自己的卡片时，那些卡片中持有BLADE HEART的卡片小于等于2张的场合，可以将那些卡片全部放置入休息室。 失去因此次声援获得的BLADE HEART，再次执行一次声援。',
       })
     );
   });
