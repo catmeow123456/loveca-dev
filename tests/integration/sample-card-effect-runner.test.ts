@@ -807,16 +807,12 @@ function removeFromPlayerZones(player: {
   successZone: { cardIds: string[] };
   liveZone: { cardIds: string[] };
 }): void {
-  const zones = [
-    player.hand,
-    player.mainDeck,
-    player.waitingRoom,
-    player.successZone,
-    player.liveZone,
-  ];
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
+  const zones = [player.hand, player.waitingRoom, player.successZone, player.liveZone];
   for (const zone of zones) {
     zone.cardIds = [];
   }
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
 }
 
 function setActiveEnergy(
@@ -1608,7 +1604,7 @@ describe('sample card effect runner', () => {
     expect(liveCardId).toBeTruthy();
     expect(nonMuseLiveCardId).toBeTruthy();
     expect(energyCardIds.length).toBeGreaterThanOrEqual(11);
-    expect(otherMemberCardIds.length).toBeGreaterThanOrEqual(3);
+    expect(otherMemberCardIds.length).toBeGreaterThanOrEqual(4);
 
     const nonMuseLiveCard = state.cardRegistry.get(nonMuseLiveCardId!) as unknown as {
       data: LiveCardData;
@@ -1630,7 +1626,7 @@ describe('sample card effect runner', () => {
     removeFromPlayerZones(p1);
     setActiveEnergy(p1, energyCardIds.slice(0, 11));
     p1.hand.cardIds = [umiCardId!];
-    p1.mainDeck.cardIds = [...inspectedCardIds];
+    p1.mainDeck.cardIds = [...inspectedCardIds, otherMemberCardIds[3]!];
     p1.memberSlots.slots[SlotPosition.CENTER] = null;
 
     const beforeSeq = session.getCurrentPublicEventSeq();
@@ -6924,9 +6920,12 @@ describe('sample card effect runner', () => {
     expect(liveCardId).toBeTruthy();
 
     const topCardIds = [lowCostCardId!, highCostCardId!, liveCardId!];
+    const ruleSentinelCardId = ownedP1CardIds.find(
+      (cardId) => cardId !== kekeCardId && !topCardIds.includes(cardId)
+    )!;
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [kekeCardId!];
-    p1.mainDeck.cardIds = topCardIds;
+    p1.mainDeck.cardIds = [...topCardIds, ruleSentinelCardId];
 
     const beforeSeq = session.getCurrentPublicEventSeq();
     const playResult = session.executeCommand(
@@ -7051,9 +7050,12 @@ describe('sample card effect runner', () => {
     };
 
     const topCardIds = [eligibleMuseCardId!, triggeredMuseCardId!];
+    const ruleSentinelCardId = ownedP1CardIds.find(
+      (cardId) => cardId !== eliCardId && !topCardIds.includes(cardId)
+    )!;
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [eliCardId!];
-    p1.mainDeck.cardIds = topCardIds;
+    p1.mainDeck.cardIds = [...topCardIds, ruleSentinelCardId];
 
     const beforeSeq = session.getCurrentPublicEventSeq();
     const playResult = session.executeCommand(
@@ -16201,7 +16203,7 @@ describe('sample card effect runner', () => {
 
     expect(kahoCardId).toBeTruthy();
     expect(liveCardId).toBeTruthy();
-    expect(deckCardIds.length).toBeGreaterThanOrEqual(2);
+    expect(deckCardIds.length).toBeGreaterThanOrEqual(3);
 
     removeFromPlayerZones(p1);
     p1.mainDeck.cardIds = deckCardIds.slice(0, 2);
@@ -16312,7 +16314,7 @@ describe('sample card effect runner', () => {
     const drawCardIds = deckCardIds.slice(0, 2);
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [discardCardId!];
-    p1.mainDeck.cardIds = drawCardIds;
+    p1.mainDeck.cardIds = [...drawCardIds, deckCardIds[2]!];
     p1.memberSlots.slots[SlotPosition.CENTER] = kahoCardId!;
     p1.memberSlots.cardStates = new Map([
       [kahoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -16363,7 +16365,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.sourceCardId).toBe(kahoCardId);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardCardId, ...drawCardIds]);
     expect(session.state?.players[0].hand.cardIds).toEqual([discardCardId, ...drawCardIds]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckCardIds[2]]);
     expect(
       session.state?.actionHistory.some(
         (action) =>

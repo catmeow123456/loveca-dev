@@ -407,7 +407,7 @@ describe('PL!N-bp4-023 Mia Taylor on-enter workflow', () => {
       scenario.handCards[0].instanceId
     );
 
-    expect(resolved.players[0].waitingRoom.cardIds).toContain(scenario.handCards[0].instanceId);
+    expect(resolved.players[0].mainDeck.cardIds).toContain(scenario.handCards[0].instanceId);
     expect(
       hasTriggeredAbility(
         resolved,

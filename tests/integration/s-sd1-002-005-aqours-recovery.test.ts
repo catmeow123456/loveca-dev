@@ -71,7 +71,7 @@ function energy(cardCode: string): EnergyCardData {
 }
 
 function deck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     member(`PL!S-test-main-${index}`)
   );
   const energyDeck: EnergyCardData[] = Array.from({ length: 12 }, (_, index) =>
@@ -313,7 +313,7 @@ describe('PL!S-sd1-002 and PL!S-sd1-005 Aqours recovery workflows', () => {
 
     expect(noTargetResult.success, noTargetResult.error).toBe(true);
     expect(noTarget.session.state?.activeEffect).toBeNull();
-    expect(noTarget.session.state?.players[0].waitingRoom.cardIds).toContain(
+    expect(noTarget.session.state?.players[0].mainDeck.cardIds).toContain(
       nonAqoursDiscard.instanceId
     );
   });

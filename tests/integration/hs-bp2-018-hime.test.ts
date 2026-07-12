@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -491,6 +492,7 @@ describe('PL!HS-bp2-018-N Hime on-enter workflow', () => {
         PLAYER1
       )
     );
+    game = addCheckTimingRuleSentinel(game, PLAYER1, 'hs-bp2-018-ordered');
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_STAGE]);
     game = resolvePendingCardEffects(game).gameState;
 
@@ -504,7 +506,10 @@ describe('PL!HS-bp2-018-N Hime on-enter workflow', () => {
     setSessionState(session, {
       ...game,
       pendingAbilities: [
-        ...game.pendingAbilities,
+        ...game.pendingAbilities.map((ability) => ({
+          ...ability,
+          metadata: { ...ability.metadata, orderedResolutionBatchId: 'hs-bp2-018-test-batch' },
+        })),
         {
           id: 'hs-bp2-018-ordered-next',
           abilityId:
@@ -514,6 +519,7 @@ describe('PL!HS-bp2-018-N Hime on-enter workflow', () => {
           mandatory: false,
           timingId: TriggerCondition.ON_ENTER_STAGE,
           eventIds: ['hs-bp2-018-ordered-next-event'],
+          metadata: { orderedResolutionBatchId: 'hs-bp2-018-test-batch' },
         },
       ],
       activeEffect: {

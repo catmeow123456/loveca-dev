@@ -83,13 +83,24 @@ function setupLiveSuccessScenario(options: {
       `bp6-deck-${index}`
     )
   );
+  const ruleSentinel = createCardInstance(
+    createMuseMember('PL!-bp6-rule-sentinel', 'Rule sentinel'),
+    PLAYER1,
+    'bp6-rule-sentinel'
+  );
 
   let game = createGameState('pl-bp6-011-016-live-success', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [source, live, ...handCards, ...deckCards]);
+  game = registerCards(game, [source, live, ...handCards, ...deckCards, ruleSentinel]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     hand: { ...player.hand, cardIds: handCards.map((card) => card.instanceId) },
-    mainDeck: { ...player.mainDeck, cardIds: deckCards.map((card) => card.instanceId) },
+    mainDeck: {
+      ...player.mainDeck,
+      cardIds:
+        options.sourceCardCode.startsWith('PL!-bp6-011') && options.mainDeckCount >= 2
+        ? [...deckCards.map((card) => card.instanceId), ruleSentinel.instanceId]
+        : deckCards.map((card) => card.instanceId),
+    },
     memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
       orientation: OrientationState.ACTIVE,
       face: FaceState.FACE_UP,
@@ -187,7 +198,8 @@ describe('PL!-bp6-011/016 LIVE success workflows', () => {
 
     expect(discardResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([deckCards[0]!.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckCards[0]!.instanceId]);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
   });
 

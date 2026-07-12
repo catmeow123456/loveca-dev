@@ -90,13 +90,14 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/audit-pla
 # 按基础编号、完整卡号或前缀盘点 DB、definition、ownership、runner 与 existing_module_map
 node --import tsx .agents/skills/loveca-card-effect-governance/scripts/inventory-card-effect-batch.ts PL!SP-pb1 --ability-only
 
-# 从 cards_cn.json 的前端中文 card_text 生成提交说明骨架；同文卡自动合并一行
+# 从当前前端卡牌 API 的 card_text 生成提交说明骨架；同文卡自动合并一行
 node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-card-effect-commit-message.ts PL!SP-pb1-002 PL!SP-pb1-004 --title "feat(effect): 更新星团SP-pb1卡效"
 ```
 
 - 批次盘点可加 `--unimplemented-only` 筛未实现卡，或加 `--json` 输出结构化结果；不要用脚本输出替代人工复用、FAQ 和规则语义审查。
-- 用户要求起草 Loveca 卡效提交说明时，必须先运行 `draft-card-effect-commit-message.ts`，不得只凭实现汇报或人工转抄卡文。脚本以 `llocg_db/json/cards_cn.json` 的 `detail.ability` 作为前端中文 `card_text` 来源；同一基础编号的罕度版本先合并，多个基础编号仅在标准化换行并去除首尾空白后卡文仍完全相同时合并为一行，不做语义、标点或 token 近似合并。
-- 若同一基础编号的不同罕度在 `cards_cn.json` 中存在不同卡文，或没有可用中文卡文，脚本必须报错并停止，不能静默回退到 definition `effectText`、日文 `cards.json` 或人工翻译。
+- 用户要求起草 Loveca 卡效提交说明时，必须先运行 `draft-card-effect-commit-message.ts`，不得只凭实现汇报或人工转抄卡文。脚本逐卡读取当前前端公开 `/api/cards/:code`，按前端相同规则使用 `card_text_cn ?? card_text_jp`；同一基础编号的罕度版本先合并，多个基础编号仅在标准化换行并去除首尾空白后卡文仍完全相同时合并为一行，不做语义、标点或 token 近似合并。默认读取生产同源 API；本地或其他环境可通过 `LOVECA_CARD_API_BASE_URL` 或 `--api-base-url` 覆盖。
+- 提交说明脚本是只读联网工具；运行环境没有网络权限时应先申请只读访问，或将 `--api-base-url` 指向可信的当前本地 API。API 不可用时直接报告阻塞，不得回退到已停止更新的 `cards_cn.json`。
+- 若同一基础编号的不同罕度在前端 API 中存在不同展示卡文，或没有可用 `card_text_cn` / `card_text_jp`，脚本必须报错并停止，不能静默回退到 definition `effectText`、`cards_cn.json` 或人工翻译。
 - 提交说明脚本只生成 `新增卡效` 的事实行与其余章节占位；必须逐行对照脚本输出，按真实 diff 人工补充 `修复bug`、`通用更新` 和验证结果，并在用户确认前保持不提交。
 
 ## 当前框架立场
@@ -141,13 +142,22 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 - 无交互效果包括：starter/resolver 直接删除 pending、写 modifier、移动、抽牌、加状态、`addAction RESOLVE_ABILITY`、`continuePendingCardEffects` 等，不需要玩家选择、支付或确认规则分支的效果。
 - 无交互 queued pending 的统一语义：
   - 单个 `LIVE开始` / `LIVE成功` pending：默认先开 confirm-only `activeEffect` 展示将要结算的效果，确认后再结算。
-  - 多个 pending 点“顺序发动”：按顺序自动结算，不逐个开 confirm-only。
+  - 多个 pending 点“顺序发动”：只有剩余候选仍全部属于玩家本次确认的同一 ordered batch 时，才按顺序自动结算且不逐个开 confirm-only；任一能力结算中新产生 pending 后必须停止旧 batch 的自动续跑并重新开放排序。
   - 多个 pending 中用户手动点选某一个无交互效果：只在此时先开 confirm-only pending bridge，让玩家知道点到了哪个效果；确认后再用 `skipManualConfirmation` 回到真实 resolver。
 - 已有真实交互窗口的效果不要额外套 confirm-only，例如选择卡、弃手、支付费用、选择颜色、可选发动、查看、揭示、排序等 `activeEffect` workflow。
 - 新增或迁移无交互 queued pending 时，优先复用 `manualConfirmation` / `confirmBeforeResolution` / `skipManualConfirmation` 语义，或使用薄包装 helper；不要把卡牌专属条件、modifier、费用、区域移动、抽牌等结算逻辑放入 runner 或通用 helper。
 - legacy always-confirm-only workflow 不应作为新实现模板；如果语义上无交互，应迁移为自动 resolver + 手动队列点选时的 confirm-only bridge。
 - 需要动态展示文本的 confirm-only bridge，应在 manual confirmation 分支实时计算 `effectText` / `stepText`，避免展示过期条件。
 - 无交互且有条件触发、条件分支或动态计数影响结算结果的 `LIVE开始` / `LIVE成功` 效果，必须在 confirm-only 展示的 `effectText` 后追加实时条件说明，例如当前计数、关键布尔条件、满足/未满足以及实际结算结果。若评估后决定不追加，必须在审查结论、执行窗口提示词或收尾说明中明确写出原因；不要默默省略。
+
+## 统一检查时点与动态待机池
+
+- 自动能力满足诱发条件后只进入待机状态；当前能力必须完整结算，不能在效果步骤中间直接调用新能力 resolver 或插入另一个 activeEffect。
+- 当前能力结算完成后必须回到同一个检查时点，先执行规则处理，再收集本次新事件产生的触发，并从实时 pending 池重新生成玩家候选。`timingId` 是触发事件事实，不是队列批次边界；不得按 `LIVE_START`、`LIVE_SUCCESS`、初始 pending 快照或阶段专属数组隔离新旧能力。
+- 主动玩家从自己当前全部待机自动能力中选择 1 个完整处理；每个能力完成后重新回到规则处理。主动玩家待机能力为空后才处理非主动玩家；非主动玩家能力结算中新产生主动玩家能力时，重新进入规则处理后再次按主动玩家优先检查。
+- workflow 只通过统一 continuation 返回调度器，不得维护私有 pending 队列、复制固定候选列表、直接启动“原队列下一项”或在阶段结束时才批量 flush 新触发能力。
+- `orderedResolution` 只是玩家对当次候选池的便捷排序承诺。只有剩余候选全部携带同一个 ordered batch token 时才能自动续跑；新入队能力没有该 token，必须与旧 pending 一起重新开放选择。
+- 检查时点必须持续到规则处理、主动玩家 pending、非主动玩家 pending、activeEffect、pendingChoice 与 pendingCostPayment 都为空；循环保护必须显式报错或保留可诊断状态，不得静默丢弃未处理能力。
 
 ## 玩家可见确认文案
 
@@ -191,7 +201,7 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 批次建议默认输出表格，每行一张卡，列为：
 
 | 序号 | 卡牌 | 效果 | 是否计划增加卡牌维度 ts | 计划复用 helper / workflow | 当前 helper 不足从而必须单写的部分 |
-| --- | --- | --- | --- | --- | --- |
+| ---- | ---- | ---- | ----------------------- | -------------------------- | ---------------------------------- |
 
 表格之后给出建议第一批开发卡牌和理由。若用户确认批次，再输出执行窗口提示词；不要提前要求执行窗口实现未确认的卡。
 
@@ -249,8 +259,9 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 
 ### Runtime helper / event wrapper
 
-- 支付、活跃等通过通用能量操作底座处理的效果，先保持各自动动作原有的资源合法性与数量语义：支付必须足额，至多活跃按实际可处理数量结算。只有候选超出处理数量且存在特殊能量时，才打开通用能量选择窗口并要求精确选择；其余情况保持既有稳定顺序自动处理。单卡 workflow 不得自行复制或绕过这套判断，也不得因文案治理改变候选、顺序、数量、非法输入或 continuation 语义。
-- 触及上述能量操作时，focused test 至少覆盖候选不足/恰好、普通能量超额自动处理、特殊能量超额精确选择，以及重复、非法、stale ID 不推进；支付窗口还要精确断言按实际数量展开的 `[E]` 文案。
+- 支付、活跃、放置于成员下方、返回能量卡组等效果统一通过通用能量操作底座处理，并保持各自动作的资源合法性与数量语义：支付候选仅为 ACTIVE 且必须足额；活跃候选仅为 WAITING，至多活跃按实际可处理数量结算；放置于成员下方与返回能量卡组的候选为能量区全部能量，自动处理时固定按 WAITING 优先、ACTIVE 其次。只有候选超出处理数量且至少一张合法候选带特殊 marker 时，才打开通用能量选择窗口并要求精确选择；候选恰好等于处理数量或没有特殊能量时按上述顺序自动处理。单卡 workflow 不得自行复制或绕过这套判断，不得使用 `energyZone.cardIds[0]`、`.slice(...)` 等存储顺序选择，也不得因文案治理改变候选、顺序、数量、非法输入或 continuation 语义。
+- 卡牌效果将能量区能量放回能量卡组时，选择完成后的执行必须统一调用 `runtime/energy-return.ts` 的 `resolveEnergyReturnByCardEffect`；card workflow、optional window helper 及其他 card-effect runtime 不得直接调用底层 `moveEnergyZoneCardsToEnergyDeckByCardEffect`。公共 helper 必须保持“移动指定卡牌、清除离区 marker、一次写入一个批量 `ON_ENERGY_MOVED_TO_DECK`、将本次精确事件传给触发入队”的原子边界；可选/强制发动、按钮文案和返回后的回收或奖励仍由各自 workflow 管理。
+- 触及上述能量操作时，focused test 至少覆盖候选不足/恰好、普通能量超额按规定顺序自动处理、特殊能量超额精确选择，以及重复、非法、stale ID 不推进；断言必须包含实际处理的 energyCardIds，不能只检查数量。返回能量卡组还要覆盖批量移动只产生一个标准事件、事件 cause/来源正确及对应 trigger 只入队一次；支付窗口还要精确断言按实际数量展开的 `[E]` 文案。
 - 玩家从休息室自由选择具体卡牌，随后将其加入手牌、放置于主卡组顶/底或其他指定主卡组位置时，移动前必须走 shared public-card-selection confirmation 两阶段生命周期：首次提交只通过 `revealedCardIds` 向双方公开“本次具体选择了哪些卡”，不移动、不发奖励、不推进 pending；服务端按 `min(3500ms, 2000ms + (公开卡牌数 - 1) * 300ms)` 写入权威 deadline，到期后由任意对局参与者请求自动恢复原 workflow step/input，由原 workflow 重新校验当前目标、执行移动/奖励/continuation。不得用客户端 command timestamp 或单方手动确认作为权威判断，也不得用服务进程内长驻 `setTimeout`。
 - 普通 `WAITING_ROOM -> HAND` 选择优先且默认使用 `createWaitingRoomToHandEffectState`；组合/grouped/custom workflow 以及休息室到主卡组顶/底/指定位置的 workflow，必须显式写入 `publicCardSelectionConfirmation` metadata 并复用 `runtime/public-card-selection-confirmation.ts`；不得在单卡 workflow 复制暂停、公开、恢复弹窗流程。
 - 固定目标移动、将整个休息室/整类对象洗回主卡组，以及玩家只选择目的地而不选择休息室具体卡牌的效果，不接入该公开确认生命周期。
@@ -337,9 +348,14 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 - workflow integration 覆盖正常结算、skip、无目标、非法选择、pending continuation。
 - 对无交互 queued LIVE pending，focused integration 至少覆盖：
   1. 单 pending 先开 confirm-only `activeEffect`，确认前不结算，确认后才结算；
-  2. 多 pending 点“顺序发动”自动连续结算且不弹 confirm-only；
+  2. 多 pending 点“顺序发动”且没有新增能力时，同一 ordered batch 自动连续结算且不弹 confirm-only；
   3. 多 pending 手动点选该效果时先弹 confirm-only，确认前不应用效果，确认后才结算；
   4. 已有真实交互 workflow 不出现双弹窗。
+- 检查时点调度 focused integration 至少覆盖：
+  1. 初始 A、B 待机，A 完整结算后产生 X，下一次候选同时包含 B、X 并允许先选择 X；
+  2. X 不得插入 A 的多步骤效果文字中间；
+  3. A 产生 X、X 再产生 Y 时保持同一检查时点，直到规则处理与双方 pending 真正清空；
+  4. 主动/非主动玩家优先级，以及 ordered batch 在新增 X 后必须失效并重新选择。
 - domain query/helper unit 覆盖纯函数正反例。
 - event wrapper 覆盖事件产生、事件入队、0 张/无事件不触发。
 - 声援公开条件测试必须覆盖“本次声援公开过的卡已被前序效果移出 `resolutionZone` 但仍应计入条件”的回归；若同一效果还要移动声援公开卡，另测 stale target 不能被移动。
@@ -411,7 +427,7 @@ git diff --check
 卡效提交说明：
 
 ```text
-请先阅读 .agents/skills/loveca-card-effect-governance/SKILL.md，并使用 draft-card-effect-commit-message.ts 为本批卡效生成提交说明骨架。新增卡效必须使用 cards_cn.json 的前端中文 card_text；同文卡合并一行，其余卡牌一张一行。请结合真实 diff 补齐其他章节，先把完整 commit message 给我确认，不要 commit、不要 push。卡牌范围：<卡号列表或明确的 diff/commit 范围>
+请先阅读 .agents/skills/loveca-card-effect-governance/SKILL.md，并使用 draft-card-effect-commit-message.ts 为本批卡效生成提交说明骨架。新增卡效必须使用当前前端 `/api/cards` 实际返回的展示 card_text（中文优先、日文兜底）；同文卡合并一行，其余卡牌一张一行。请结合真实 diff 补齐其他章节，先把完整 commit message 给我确认，不要 commit、不要 push。卡牌范围：<卡号列表或明确的 diff/commit 范围>
 ```
 
 修正审查发现的问题：

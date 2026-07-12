@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import { createCardInstance, createHeartIcon, type MemberCardData } from '../../src/domain/entities/card';
 import { addAction, createGameState, registerCards, updatePlayer, type PendingAbilityState } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
@@ -96,7 +97,7 @@ describe('PL!SP-bp2-006 Kinako', () => {
     game = updatePlayer(game, P1, (p) => ({ ...p, memberSlots: placeCardInSlot(placeCardInSlot(p.memberSlots, SlotPosition.CENTER, source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }), SlotPosition.LEFT, observer.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }), hand: { ...p.hand, cardIds: [target.instanceId, originalCost.instanceId] } }));
     const later: PendingAbilityState = { id: 'existing-later', abilityId: PL_N_BP3_003_ON_ENTER_ACTIVATE_WAITING_LOW_COST_NIJIGASAKI_MEMBER_ON_ENTER_ABILITY_ID, sourceCardId: 'later-source', controllerId: P1, mandatory: true, timingId: TriggerCondition.ON_ENTER_STAGE, eventIds: ['later'] };
     game = { ...game, currentPhase: GamePhase.MAIN_PHASE, currentSubPhase: SubPhase.NONE, activePlayerIndex: 0, pendingAbilities: [later] };
-    const started = activateCardAbility(game, P1, source.instanceId, SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID);
+    const started = activateCardAbility(addCheckTimingRuleSentinel(game, P1, 'sp-bp2-006-continuation'), P1, source.instanceId, SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID);
     expect(started.activeEffect?.selectableCardVisibility).toBe('AWAITING_PLAYER_ONLY');
     expect(started.activeEffect?.selectableCardIds).toContain(target.instanceId);
     const delegated = confirmActiveEffectStep(started, P1, started.activeEffect!.id, target.instanceId);
@@ -107,7 +108,10 @@ describe('PL!SP-bp2-006 Kinako', () => {
     expect(delegated.actionHistory.some((a) => a.type === 'PAY_COST' && a.payload.sourceCardId === source.instanceId)).toBe(true);
     expect(delegated.pendingAbilities.some((p) => p.id === later.id)).toBe(true);
     expect(delegated.pendingAbilities.some((p) => p.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(true);
-    const afterOriginal = confirmActiveEffectStep(delegated, P1, delegated.activeEffect!.id);
+    let afterOriginal = confirmActiveEffectStep(delegated, P1, delegated.activeEffect!.id);
+    if (afterOriginal.activeEffect?.abilityId === 'system:select-pending-card-effect') {
+      afterOriginal = confirmActiveEffectStep(afterOriginal, P1, afterOriginal.activeEffect.id, null, null, false, later.id);
+    }
     expect(afterOriginal.activeEffect?.abilityId).not.toBe(GENERIC_DISCARD_LOOK_TOP_ABILITY_ID);
     expect(afterOriginal.actionHistory.findIndex((a) => a.payload.step === 'DELEGATE_WAITING_ROOM_MEMBER_ON_ENTER_ABILITY')).toBeLessThan(afterOriginal.actionHistory.findIndex((a) => a.payload.pendingAbilityId === later.id));
     const repeated = activateCardAbility({ ...delegated, activeEffect: null }, P1, source.instanceId, SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID);

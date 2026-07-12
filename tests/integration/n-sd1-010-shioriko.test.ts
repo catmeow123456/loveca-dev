@@ -68,7 +68,7 @@ function createEnergyCard(cardCode: string): EnergyCardData {
 }
 
 function createDeck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
   );
   const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
@@ -82,8 +82,9 @@ function removeFromPlayerZones(player: {
   successZone: { cardIds: string[] };
   liveZone: { cardIds: string[] };
 }): void {
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
   player.hand.cardIds = [];
-  player.mainDeck.cardIds = [];
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];
@@ -256,7 +257,7 @@ describe('N-sd1-010 Shioriko card effects', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
-    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...topCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
 
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -325,7 +326,7 @@ describe('N-sd1-010 Shioriko card effects', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
-    p1.mainDeck.cardIds = drawnCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...drawnCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
 
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {

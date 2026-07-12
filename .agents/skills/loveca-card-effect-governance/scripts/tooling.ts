@@ -189,7 +189,7 @@ export function parseScopeArguments(argv: readonly string[]): {
       continue;
     }
     const next = argv[index + 1];
-    if (next && !next.startsWith('--') && ['--title'].includes(argument)) {
+    if (next && !next.startsWith('--') && ['--title', '--api-base-url'].includes(argument)) {
       values.set(argument, next);
       index += 1;
     } else {

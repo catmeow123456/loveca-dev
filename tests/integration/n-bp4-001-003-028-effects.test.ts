@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -467,10 +468,11 @@ describe('PL!N-bp4 001 / 003 / 028 effects', () => {
   );
 
   it('PL!N-bp4-028 ordered resolution resolves multiple pending abilities without per-effect confirm-only', () => {
-    const { game, live, secondLive } = setupStarsWeChase({
+    const { game: setupGame, live, secondLive } = setupStarsWeChase({
       differentLiveNames: 6,
       includeSecondPending: true,
     });
+    const game = addCheckTimingRuleSentinel(setupGame, PLAYER1, 'n-bp4-028-ordered');
     const orderSelection = resolvePendingCardEffects({
       ...game,
       pendingAbilities: [live.instanceId, secondLive!.instanceId].map((liveId, index) =>

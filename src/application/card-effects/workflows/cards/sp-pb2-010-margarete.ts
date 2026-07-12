@@ -6,10 +6,13 @@ import {
 } from '../../../../domain/entities/game.js';
 import { OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
 import {
-  moveEnergyZoneCardsToEnergyDeckByCardEffect,
   placeEnergyFromDeckToZoneByCardEffect,
 } from '../../../effects/energy.js';
-import { shouldSelectEnergyForOperation } from '../../../effects/energy-selection.js';
+import {
+  getEnergySelectionCandidates,
+  resolveEnergySelectionForOperation,
+  shouldSelectEnergyForOperation,
+} from '../../../effects/energy-selection.js';
 import {
   SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
   SP_PB2_010_LIVE_SUCCESS_DRAW_TWO_OR_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -19,6 +22,10 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
+import {
+  resolveEnergyReturnByCardEffect,
+  type EnqueueTriggeredCardEffectsForEnergyReturn,
+} from '../../runtime/energy-return.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -34,10 +41,11 @@ const DRAW_TWO_OPTION_ID = 'draw-two';
 const PLACE_WAITING_ENERGY_OPTION_ID = 'place-waiting-energy';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
-let enqueueEnergyReturnTriggers: EnqueueTriggeredCardEffectsForEnterWaitingRoom = (game) => game;
+let enqueueEnergyReturnTriggers: EnqueueTriggeredCardEffectsForEnergyReturn = (game) => game;
 
 export function registerSpPb2010MargareteWorkflowHandlers(deps: {
-  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom &
+    EnqueueTriggeredCardEffectsForEnergyReturn;
 }): void {
   enqueueEnergyReturnTriggers = deps.enqueueTriggeredCardEffects;
   registerPendingAbilityStarterHandler(
@@ -258,8 +266,12 @@ function finishLiveStartReturnEnergyOrNoop(
   if (!player) {
     return game;
   }
-  const energyCardId = player.energyZone.cardIds[0] ?? null;
-  if (!energyCardId) {
+  const candidateEnergyCardIds = getEnergySelectionCandidates(
+    game,
+    player.id,
+    'RETURN_TO_ENERGY_DECK'
+  );
+  if (candidateEnergyCardIds.length === 0) {
     return finishPendingAbility(
       game,
       player.id,
@@ -289,7 +301,7 @@ function finishLiveStartReturnEnergyOrNoop(
         stepId: LIVE_START_SELECT_RETURN_ENERGY_STEP_ID,
         stepText: '请选择1张能量放回能量卡组。',
         awaitingPlayerId: player.id,
-        selectableCardIds: player.energyZone.cardIds,
+        selectableCardIds: candidateEnergyCardIds,
         minSelectableCards: 1,
         maxSelectableCards: 1,
         confirmSelectionLabel: '放回能量卡组',
@@ -299,8 +311,18 @@ function finishLiveStartReturnEnergyOrNoop(
     };
   }
 
-  return resolveEnergyReturn(
+  const selection = resolveEnergySelectionForOperation(
     game,
+    player.id,
+    'RETURN_TO_ENERGY_DECK',
+    1
+  );
+  if (!selection) return game;
+  const energyCardId = selection.selectedEnergyCardIds[0] ?? null;
+  if (!energyCardId) return game;
+
+  return resolveEnergyReturn(
+    selection.gameState,
     player.id,
     ability,
     energyCardId,
@@ -349,7 +371,7 @@ function resolveEnergyReturn(
   const player = getPlayerById(game, playerId);
   if (!player || !player.energyZone.cardIds.includes(energyCardId)) return game;
 
-  const returnResult = returnEnergyFromZoneToDeck(game, player.id, energyCardId);
+  const returnResult = returnEnergyFromZoneToDeck(game, player.id, energyCardId, ability);
   if (!returnResult) {
     return game;
   }
@@ -497,26 +519,25 @@ function finishLiveSuccessOption(
 function returnEnergyFromZoneToDeck(
   game: GameState,
   playerId: string,
-  energyCardId: string
+  energyCardId: string,
+  ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId'>
 ): { readonly gameState: GameState; readonly returnedEnergyCardId: string } | null {
-  const result = moveEnergyZoneCardsToEnergyDeckByCardEffect(
-    game,
+  const result = resolveEnergyReturnByCardEffect(game, {
     playerId,
-    [energyCardId],
-    {
+    selectedEnergyCardIds: [energyCardId],
+    cause: {
       kind: 'CARD_EFFECT',
       playerId,
-      sourceCardId: game.activeEffect?.sourceCardId ?? 'unknown-source',
-      abilityId: SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
-      pendingAbilityId: game.activeEffect?.id,
+      sourceCardId: ability.sourceCardId,
+      abilityId: ability.abilityId,
+      pendingAbilityId: ability.id,
     },
-    { exactCount: 1 }
-  );
+    exactCount: 1,
+    enqueueTriggeredCardEffects: enqueueEnergyReturnTriggers,
+  });
   if (!result) return null;
   return {
-    gameState: enqueueEnergyReturnTriggers(result.gameState, [
-      TriggerCondition.ON_ENERGY_MOVED_TO_DECK,
-    ]),
+    gameState: result.gameState,
     returnedEnergyCardId: energyCardId,
   };
 }

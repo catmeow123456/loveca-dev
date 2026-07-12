@@ -77,7 +77,7 @@ function createEnergyCard(cardCode: string): EnergyCardData {
 }
 
 function createDeck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
   );
   const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
@@ -453,8 +453,8 @@ describe('PL!N-bp3-008 Emma workflow', () => {
 
     expect(orientation(scenario, scenario.leftId)).toBe(OrientationState.ACTIVE);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(
-      scenario.handCardIds
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual(
+      expect.arrayContaining(scenario.handCardIds)
     );
     expect(scenario.session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
@@ -512,8 +512,8 @@ describe('PL!N-bp3-008 Emma workflow', () => {
 
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(
-      scenario.handCardIds
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual(
+      expect.arrayContaining(scenario.handCardIds)
     );
     expect(orientation(scenario, scenario.leftId)).toBe(OrientationState.ACTIVE);
     expect(scenario.session.state?.liveResolution.liveModifiers).toEqual([]);

@@ -1053,9 +1053,18 @@ describe('bp7 energy mechanics linkage', () => {
       )
     );
     expect(game.energyActivePhaseSkips).toHaveLength(2);
-    expect(game.activeEffect?.selectableCardIds).toEqual(
-      game.players[0].energyZone.cardIds
+    const waitingCandidates = game.players[0].energyZone.cardIds.filter(
+      (id) =>
+        game.players[0].energyZone.cardStates.get(id)?.orientation === OrientationState.WAITING
     );
+    const activeCandidates = game.players[0].energyZone.cardIds.filter(
+      (id) =>
+        game.players[0].energyZone.cardStates.get(id)?.orientation !== OrientationState.WAITING
+    );
+    expect(game.activeEffect?.selectableCardIds).toEqual([
+      ...waitingCandidates,
+      ...activeCandidates,
+    ]);
     expect(game.activeEffect?.selectionLabel).toBe('选择要放回能量卡组的能量');
     expect(
       game.players[0].energyZone.cardStates.get(game.players[0].energyZone.cardIds[5]!)?.orientation
@@ -1272,6 +1281,52 @@ describe('bp7 energy mechanics linkage', () => {
     expect(
       game.liveResolution.liveModifiers.some((x) => x.kind === 'BLADE' && x.countDelta === 3)
     ).toBe(true);
+  });
+  it('automatically returns waiting energy before active energy for Mei live-start cost', () => {
+    const mei = makeMember('PL!SP-bp7-007-SEC', 'waiting-first-mei');
+    const cards = [
+      energy('waiting-first-active-1'),
+      energy('waiting-first-active-2'),
+      energy('waiting-first-waiting-1'),
+      energy('waiting-first-waiting-2'),
+    ];
+    let game = registerCards(createGameState('waiting-first', P1, 'P1', P2, 'P2'), [
+      mei,
+      ...cards,
+    ]);
+    game = updatePlayer(game, P1, (player) => ({
+      ...player,
+      energyZone: cards.reduce(
+        (zone, card, index) =>
+          addCardToStatefulZone(zone, card.instanceId, {
+            orientation: index < 2 ? OrientationState.ACTIVE : OrientationState.WAITING,
+            face: FaceState.FACE_UP,
+          }),
+        player.energyZone
+      ),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, mei.instanceId),
+    }));
+
+    game = start(
+      game,
+      pending(
+        SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
+        mei.instanceId,
+        TriggerCondition.ON_LIVE_START,
+        'waiting-first'
+      )
+    );
+    expect(game.activeEffect?.selectableOptions).toEqual([{ id: 'activate', label: '发动' }]);
+    game = command(game, 'activate');
+
+    expect(game.players[0].energyDeck.cardIds).toEqual([
+      cards[2].instanceId,
+      cards[3].instanceId,
+    ]);
+    expect(game.players[0].energyZone.cardIds).toEqual([
+      cards[0].instanceId,
+      cards[1].instanceId,
+    ]);
   });
   it('handles insufficient and mixed-marker Mei LIVE start energy costs', () => {
     const mei = makeMember('PL!SP-bp7-007-SEC', 'mixed-live-start-mei');

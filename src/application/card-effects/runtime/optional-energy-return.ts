@@ -3,14 +3,15 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../domain/entities/game.js';
-import { TriggerCondition } from '../../../shared/types/enums.js';
-import { moveEnergyZoneCardsToEnergyDeckByCardEffect } from '../../effects/energy.js';
-import { shouldSelectEnergyForOperation } from '../../effects/energy-selection.js';
-
-type EnqueueTriggeredCardEffects = (
-  game: GameState,
-  triggers: readonly TriggerCondition[]
-) => GameState;
+import {
+  getEnergySelectionCandidates,
+  resolveEnergySelectionForOperation,
+  shouldSelectEnergyForOperation,
+} from '../../effects/energy-selection.js';
+import {
+  resolveEnergyReturnByCardEffect,
+  type EnqueueTriggeredCardEffectsForEnergyReturn,
+} from './energy-return.js';
 
 export interface OptionalEnergyReturnWindowConfig {
   readonly ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'>;
@@ -25,7 +26,7 @@ export interface OptionalEnergyReturnWindowConfig {
 export interface ResolveOptionalEnergyReturnConfig {
   readonly selectedCardIds: readonly string[];
   readonly selectedOptionId: string | null;
-  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnergyReturn;
 }
 
 export interface OptionalEnergyReturnResult {
@@ -40,13 +41,27 @@ export function createOptionalEnergyReturnWindow(
 ): GameState | null {
   const player = getPlayerById(game, config.ability.controllerId);
   if (!player || player.energyZone.cardIds.length < config.requiredCount) return null;
+  const candidateEnergyCardIds = getEnergySelectionCandidates(
+    game,
+    player.id,
+    'RETURN_TO_ENERGY_DECK'
+  );
   const requiresSelection = shouldSelectEnergyForOperation(
     game,
     player.id,
     'RETURN_TO_ENERGY_DECK',
     config.requiredCount
   );
-  const autoEnergyCardIds = player.energyZone.cardIds.slice(0, config.requiredCount);
+  const autoSelection = requiresSelection
+    ? null
+    : resolveEnergySelectionForOperation(
+        game,
+        player.id,
+        'RETURN_TO_ENERGY_DECK',
+        config.requiredCount
+      );
+  if (!requiresSelection && !autoSelection) return null;
+  const autoEnergyCardIds = autoSelection?.selectedEnergyCardIds ?? [];
   return {
     ...game,
     activeEffect: {
@@ -60,7 +75,7 @@ export function createOptionalEnergyReturnWindow(
       awaitingPlayerId: player.id,
       ...(requiresSelection
         ? {
-            selectableCardIds: player.energyZone.cardIds,
+            selectableCardIds: candidateEnergyCardIds,
             ...(config.requiredCount > 1 ? { selectableCardMode: 'ORDERED_MULTI' as const } : {}),
             selectionLabel: '选择要放回能量卡组的能量',
             minSelectableCards: config.requiredCount,
@@ -113,24 +128,22 @@ export function resolveOptionalEnergyReturn(
     )
   )
     return null;
-  const movement = moveEnergyZoneCardsToEnergyDeckByCardEffect(
-    game,
-    player.id,
+  const movement = resolveEnergyReturnByCardEffect(game, {
+    playerId: player.id,
     selectedEnergyCardIds,
-    {
+    cause: {
       kind: 'CARD_EFFECT',
       playerId: player.id,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       pendingAbilityId: effect.id,
     },
-    { exactCount: requiredCount }
-  );
+    exactCount: requiredCount,
+    enqueueTriggeredCardEffects: config.enqueueTriggeredCardEffects,
+  });
   if (!movement) return null;
   return {
-    gameState: config.enqueueTriggeredCardEffects(movement.gameState, [
-      TriggerCondition.ON_ENERGY_MOVED_TO_DECK,
-    ]),
+    gameState: movement.gameState,
     movedEnergyCardIds: movement.movedEnergyCardIds,
     declined: false,
   };

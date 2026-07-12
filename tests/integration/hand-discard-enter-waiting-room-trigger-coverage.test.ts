@@ -26,6 +26,7 @@ import {
   HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_BP6_004_LIVE_START_DISCARD_GAIN_BLADE_ABILITY_ID,
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+  HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
   HS_PB1_004_ON_ENTER_PAY_ENERGY_DISCARD_MILL_RECOVER_CERISE_LIVE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -414,6 +415,21 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     ).toBe(true);
 
     expectPb1003AutoResolvedOnce(session.state, pb1003SourceId);
+    const parentResolvedIndex = session.state!.actionHistory.findIndex(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId === BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID
+    );
+    const triggeredAutoResolvedIndex = session.state!.actionHistory.findIndex(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId ===
+          HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+        action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
+    );
+    expect(parentResolvedIndex).toBeGreaterThanOrEqual(0);
+    expect(triggeredAutoResolvedIndex).toBeGreaterThan(parentResolvedIndex);
+    expect(session.state?.checkTimingContext).toBeNull();
   });
 
   it('covers HS-bp5-003 live-start discard before target Heart selection', () => {
@@ -447,8 +463,24 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
       PLAYER1,
       'hs-bp5-003-discard'
     );
-    const live = createCardInstance(createLiveCard('HS-BP5-003-LIVE'), PLAYER1, 'hs-bp5-003-live');
-    const state = registerCards(session.state!, [source, pb1003Source, target, discardCard, live]);
+    const live = createCardInstance(
+      createLiveCard('PL!HS-pb1-029-L', '全方位キュン♡'),
+      PLAYER1,
+      'hs-bp5-003-live'
+    );
+    const drawCard = createCardInstance(
+      createMemberCard('HS-BP5-003-DRAW', 'Draw'),
+      PLAYER1,
+      'hs-bp5-003-draw'
+    );
+    const state = registerCards(session.state!, [
+      source,
+      pb1003Source,
+      target,
+      discardCard,
+      live,
+      drawCard,
+    ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -471,12 +503,30 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     placeStageMember(p1, SlotPosition.CENTER, source.instanceId);
     placeStageMember(p1, SlotPosition.RIGHT, pb1003Source.instanceId);
     p1.hand.cardIds = [discardCard.instanceId];
+    p1.mainDeck.cardIds = [drawCard.instanceId];
     p1.liveZone.cardIds = [live.instanceId];
     p1.liveZone.cardStates = new Map([
       [live.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
     ]);
 
     advanceToLiveStartEffects(session);
+    expect(session.state?.activeEffect?.metadata?.pendingAbilityIds).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID),
+        expect.stringContaining(
+          HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID
+        ),
+      ])
+    );
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          source.instanceId
+        )
+      ).success
+    ).toBe(true);
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
     );
@@ -495,7 +545,50 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
       ).success
     ).toBe(true);
 
+    const nextPendingIds = session.state?.activeEffect?.metadata?.pendingAbilityIds;
+    expect(nextPendingIds).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining(
+          HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID
+        ),
+        expect.stringContaining(HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID),
+      ])
+    );
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          pb1003Source.instanceId
+        )
+      ).success
+    ).toBe(true);
+    if (session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(PLAYER1, session.state.activeEffect.id)
+        ).success
+      ).toBe(true);
+    }
     expectPb1003AutoResolvedOnce(session.state, pb1003Source.instanceId);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID &&
+          action.payload.extraHeartMiraCraMemberCount === 2
+      )
+    ).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toContain(drawCard.instanceId);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'REQUIREMENT',
+        liveCardId: live.instanceId,
+        abilityId:
+          HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
+      })
+    );
   });
 
   it('covers HS-bp5-008 on-enter wait and discard look-top workflow', () => {
@@ -764,6 +857,25 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
         )
       ).success
     ).toBe(true);
+
+    if (session.state?.activeEffect?.abilityId === 'system:select-pending-card-effect') {
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(
+            PLAYER1,
+            session.state.activeEffect.id,
+            pb1003Source.instanceId
+          )
+        ).success
+      ).toBe(true);
+      if (session.state?.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+        expect(
+          session.executeCommand(
+            createConfirmEffectStepCommand(PLAYER1, session.state.activeEffect.id)
+          ).success
+        ).toBe(true);
+      }
+    }
 
     expectPb1003AutoResolvedOnce(session.state, pb1003Source.instanceId);
   });

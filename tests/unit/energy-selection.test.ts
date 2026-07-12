@@ -54,10 +54,37 @@ describe('energy selection policy', () => {
     expect(getEnergySelectionCandidates(game, 'p1', 'ACTIVATE_WAITING_ENERGY')).toEqual([
       'waiting-special',
     ]);
+    expect(getEnergySelectionCandidates(game, 'p1', 'RETURN_TO_ENERGY_DECK')).toEqual([
+      'waiting-special',
+      'active-normal',
+      'active-special',
+    ]);
     expect(shouldSelectEnergyForOperation(game, 'p1', 'TAP_ACTIVE_ENERGY', 1)).toBe(true);
     expect(shouldSelectEnergyForOperation(game, 'p1', 'RETURN_TO_ENERGY_DECK', 1)).toBe(true);
     expect(shouldSelectEnergyForOperation(game, 'p1', 'ACTIVATE_WAITING_ENERGY', 1)).toBe(false);
     expect(shouldSelectEnergyForOperation(game, 'p1', 'STACK_BELOW_MEMBER', 3)).toBe(false);
+  });
+
+  it('automatically returns waiting energy before active energy', () => {
+    let game = createGameState('return-waiting-first', 'p1', 'P1', 'p2', 'P2');
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      energyZone: {
+        ...player.energyZone,
+        cardIds: ['active-1', 'active-2', 'waiting-1', 'waiting-2'],
+        cardStates: new Map([
+          ['active-1', { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+          ['active-2', { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+          ['waiting-1', { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+          ['waiting-2', { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+        ]),
+      },
+    }));
+
+    expect(
+      resolveEnergySelectionForOperation(game, 'p1', 'RETURN_TO_ENERGY_DECK', 2)
+        ?.selectedEnergyCardIds
+    ).toEqual(['waiting-1', 'waiting-2']);
   });
 
   it.each<EnergySelectionOperation>([

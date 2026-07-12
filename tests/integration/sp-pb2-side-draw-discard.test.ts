@@ -88,13 +88,21 @@ function setupScenario(options: {
       `${options.sourceCardCode}:draw-${index}`
     )
   );
+  const ruleSentinel = createCardInstance(
+    createMember('PL!SP-test-rule-sentinel', 'Rule sentinel'),
+    PLAYER1,
+    `${options.sourceCardCode}:rule-sentinel`
+  );
 
   let game = createGameState('sp-pb2-side-draw-discard', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [source, watcher, ...handCards, ...drawCards]);
+  game = registerCards(game, [source, watcher, ...handCards, ...drawCards, ruleSentinel]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     hand: { ...player.hand, cardIds: handCards.map((card) => card.instanceId) },
-    mainDeck: { ...player.mainDeck, cardIds: drawCards.map((card) => card.instanceId) },
+    mainDeck: {
+      ...player.mainDeck,
+      cardIds: [...drawCards.map((card) => card.instanceId), ruleSentinel.instanceId],
+    },
     memberSlots: placeCardInSlot(
       placeCardInSlot(player.memberSlots, options.sourceSlot, source.instanceId),
       SlotPosition.CENTER,
@@ -185,7 +193,10 @@ describe('PL!SP-pb2 side draw then discard workflows', () => {
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).toEqual(scenario.handIds);
-    expect(state.players[0].mainDeck.cardIds).toEqual(scenario.drawIds);
+    expect(state.players[0].mainDeck.cardIds).toEqual([
+      ...scenario.drawIds,
+      expect.any(String),
+    ]);
     expect(
       state.actionHistory.some(
         (action) =>
@@ -235,6 +246,9 @@ describe('PL!SP-pb2 side draw then discard workflows', () => {
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).toEqual(scenario.handIds);
-    expect(state.players[0].mainDeck.cardIds).toEqual(scenario.drawIds);
+    expect(state.players[0].mainDeck.cardIds).toEqual([
+      ...scenario.drawIds,
+      expect.any(String),
+    ]);
   });
 });

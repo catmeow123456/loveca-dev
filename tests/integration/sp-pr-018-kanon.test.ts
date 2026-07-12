@@ -262,6 +262,86 @@ describe('PL!SP-PR-018 Kanon live success waiting energy workflow', () => {
     expect(hasResolvedBp5004(state)).toBe(true);
   });
 
+  it('lets a newly waiting AUTO join the next LIVE-success choice window', () => {
+    const cheerCards = Array.from({ length: 7 }, (_, index) =>
+      createMember(`PL!SP-PR-018-liella-order-${index + 1}`)
+    );
+    const scenario = setupState({ cheerCards });
+    const secondSource = createMember('PL!SP-PR-018-PR', {
+      instanceId: 'sp-pr-018-second-source',
+    });
+    const sumire = createMember('PL!SP-bp5-004-P', {
+      instanceId: 'sp-bp5-004-order-sumire',
+    });
+    const drawCard = createMember('PL!SP-PR-018-order-draw', {
+      instanceId: 'sp-pr-018-order-draw',
+    });
+    let game = registerCards(scenario.game, [secondSource, sumire, drawCard]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: addCardToZone(player.mainDeck, drawCard.instanceId),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, sumire.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.RIGHT,
+        secondSource.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+    }));
+    const firstPending = createSpPr018PendingAbility(scenario.sourceId, 'live-success-a');
+    const secondPending = createSpPr018PendingAbility(secondSource.instanceId, 'live-success-b');
+
+    let state = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [firstPending, secondPending],
+    }).gameState;
+    expect(state.activeEffect?.metadata?.pendingAbilityIds).toEqual([
+      firstPending.id,
+      secondPending.id,
+    ]);
+
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      scenario.sourceId
+    );
+    expect(state.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id);
+
+    const sumirePending = state.pendingAbilities.find(
+      (ability) =>
+        ability.abilityId ===
+        SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID
+    );
+    expect(sumirePending).toBeDefined();
+    expect(state.activeEffect?.metadata?.pendingAbilityIds).toEqual([
+      secondPending.id,
+      sumirePending!.id,
+    ]);
+
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      sumire.instanceId
+    );
+    if (state.activeEffect?.metadata?.confirmOnlyPendingAbility === true) {
+      state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect.id);
+    }
+    expect(hasResolvedBp5004(state)).toBe(true);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.pendingAbilityId === secondPending.id
+      )
+    ).toBe(true);
+    expect(state.checkTimingContext).toBeNull();
+  });
+
   it('shows the actual Liella cheer count and standby energy wording in confirmation text', () => {
     const cheerCards = Array.from({ length: 8 }, (_, index) =>
       createMember(`PL!SP-PR-018-liella-${index + 1}`)

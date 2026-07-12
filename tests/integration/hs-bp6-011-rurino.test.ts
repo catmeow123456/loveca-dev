@@ -242,7 +242,7 @@ describe('PL!HS-bp6-011-R Rurino activated wait self draw discard workflow', () 
 
     expect(discardResult.success).toBe(true);
     expect(scenario.session.state?.activeEffect).toBeNull();
-    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
       scenario.drawnCardIds[0],
     ]);
     expect(

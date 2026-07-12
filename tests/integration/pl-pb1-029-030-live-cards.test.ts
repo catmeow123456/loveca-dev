@@ -1,5 +1,6 @@
 import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -371,7 +372,24 @@ describe('PL!-pb1-029-L and PL!-pb1-030-L LIVE card workflows', () => {
       [shiranai]
     );
 
-    const state = resolvePendingCardEffects(game).gameState;
+    let state = resolvePendingCardEffects(
+      addCheckTimingRuleSentinel(game, PLAYER1, 'pl-pb1-030-continuation')
+    ).gameState;
+    if (state.activeEffect?.abilityId === 'system:select-pending-card-effect') {
+      const cutiePanther = state.pendingAbilities.find(
+        (ability) => ability.id === 'cutie-panther-pending'
+      );
+      expect(cutiePanther).toBeTruthy();
+      state = confirmActiveEffectStep(
+        state,
+        PLAYER1,
+        state.activeEffect.id,
+        null,
+        null,
+        false,
+        cutiePanther!.id
+      );
+    }
 
     expect(latestPayload(state, PL_PB1_030_LIVE_SUCCESS_DIFFERENT_BIBI_RECOVER_MEMBER_ABILITY_ID)).toMatchObject({
       step: 'SKIP_CONDITION_NOT_MET',

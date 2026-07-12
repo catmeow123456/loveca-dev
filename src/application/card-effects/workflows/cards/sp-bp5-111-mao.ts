@@ -5,15 +5,18 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { CardType, GamePhase, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
+import { CardType, GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { moveEnergyZoneCardsToEnergyDeckByCardEffect } from '../../../effects/energy.js';
 import { resolveEnergySelectionForOperation } from '../../../effects/energy-selection.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import { SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import {
+  resolveEnergyReturnByCardEffect,
+  type EnqueueTriggeredCardEffectsForEnergyReturn,
+} from '../../runtime/energy-return.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -31,9 +34,10 @@ interface EnergyCostContext {
   readonly effectText: string;
 }
 
-type Enqueue = (game: GameState, triggers: readonly TriggerCondition[]) => GameState;
-let enqueueTriggeredCardEffects: Enqueue = (game) => game;
-export function registerSpBp5111MaoWorkflowHandlers(deps?: { readonly enqueueTriggeredCardEffects: Enqueue }): void {
+let enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnergyReturn = (game) => game;
+export function registerSpBp5111MaoWorkflowHandlers(deps?: {
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnergyReturn;
+}): void {
   enqueueTriggeredCardEffects = deps?.enqueueTriggeredCardEffects ?? enqueueTriggeredCardEffects;
   registerActivatedAbilityHandler(
     SP_BP5_111_ACTIVATED_RETURN_TWO_ENERGY_RECOVER_LIVE_ABILITY_ID,
@@ -98,16 +102,23 @@ function finishEnergyCostSelection(
     return game;
   }
 
-  const costPayment = moveEnergyZoneCardsToEnergyDeckByCardEffect(
-    game, player.id, selectedEnergyCardIds,
-    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: context.sourceCardId, abilityId: context.abilityId },
-    { exactCount: 2 }
-  );
+  const costPayment = resolveEnergyReturnByCardEffect(game, {
+    playerId: player.id,
+    selectedEnergyCardIds,
+    cause: {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: context.sourceCardId,
+      abilityId: context.abilityId,
+    },
+    exactCount: 2,
+    enqueueTriggeredCardEffects,
+  });
   if (!costPayment) {
     return game;
   }
 
-  let state = enqueueTriggeredCardEffects(costPayment.gameState, [TriggerCondition.ON_ENERGY_MOVED_TO_DECK]);
+  let state = costPayment.gameState;
   state = recordPayCostAction(state, player.id, {
     abilityId: context.abilityId,
     sourceCardId: context.sourceCardId,

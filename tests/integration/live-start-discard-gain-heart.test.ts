@@ -65,7 +65,7 @@ function createEnergyCard(cardCode: string): EnergyCardData {
 }
 
 function createDeck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
   );
   const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
@@ -79,8 +79,9 @@ function removeFromPlayerZones(player: {
   successZone: { cardIds: string[] };
   liveZone: { cardIds: string[] };
 }): void {
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
   player.hand.cardIds = [];
-  player.mainDeck.cardIds = [];
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];
@@ -298,7 +299,7 @@ describe('PL!N-bp3-002 中須かすみ shared recipient mode', () => {
     expect(finished.activeEffect).toBeNull();
     expect(finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)).toBe(false);
     expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
-    expect(finished.players[0]!.waitingRoom.cardIds).toContain(scenario.discard.instanceId);
+    expect(finished.players[0]!.mainDeck.cardIds).toContain(scenario.discard.instanceId);
     expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(true);
   });
 
@@ -310,7 +311,7 @@ describe('PL!N-bp3-002 中須かすみ shared recipient mode', () => {
     expect(finished.activeEffect).toBeNull();
     expect(finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)).toBe(false);
     expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
-    expect(finished.players[0]!.waitingRoom.cardIds).toContain(scenario.discard.instanceId);
+    expect(finished.players[0]!.mainDeck.cardIds).toContain(scenario.discard.instanceId);
   });
 
   it('两个合法目标之一 stale 时刷新候选，并可选择剩余目标完成且不能重复确认', () => {

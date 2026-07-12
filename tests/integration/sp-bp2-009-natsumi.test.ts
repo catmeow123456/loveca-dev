@@ -87,13 +87,20 @@ function setupNatsumiState(options: {
   const deckCards = Array.from({ length: options.mainDeckCount ?? 0 }, (_, index) =>
     createCardInstance(createMember(`DECK-${index}`), PLAYER1, `deck-${index}`)
   );
+  const ruleSentinel = createCardInstance(createMember('DECK-SENTINEL'), PLAYER1, 'deck-sentinel');
 
   let game = createGameState('sp-bp2-009-natsumi', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [source, live, ...handCards, ...deckCards]);
+  game = registerCards(game, [source, live, ...handCards, ...deckCards, ruleSentinel]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     hand: { ...player.hand, cardIds: handCards.map((card) => card.instanceId) },
-    mainDeck: { ...player.mainDeck, cardIds: deckCards.map((card) => card.instanceId) },
+    mainDeck: {
+      ...player.mainDeck,
+      cardIds:
+        deckCards.length > 0
+          ? [...deckCards.map((card) => card.instanceId), ruleSentinel.instanceId]
+          : [],
+    },
     memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
       orientation: OrientationState.ACTIVE,
       face: FaceState.FACE_UP,

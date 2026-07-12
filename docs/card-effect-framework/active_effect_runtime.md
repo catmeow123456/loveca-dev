@@ -110,6 +110,13 @@ Rules:
 
 ## Continue Pending
 
+Production continuation now returns through `runtime/check-timing-scheduler.ts` while a
+serializable `checkTimingContext` is active. After one ability finishes completely, the
+scheduler runs rule processing, dispatches resulting rule events, and rebuilds the active
+player's choice from the live pending pool. Trigger timing ids are event facts, not queue
+batch boundaries. A normal activated ability with no new pending AUTO does not open this
+loop; one that produces pending AUTO opens a new check timing.
+
 step handler 完成后应明确决定：
 
 - 是否清空 `activeEffect`。

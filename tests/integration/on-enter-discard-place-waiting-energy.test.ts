@@ -75,8 +75,9 @@ function removeFromPlayerZones(player: {
   liveZone: { cardIds: string[] };
   energyZone: { cardIds: string[]; cardStates: Map<string, { orientation: OrientationState }> };
 }): void {
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
   player.hand.cardIds = [];
-  player.mainDeck.cardIds = [];
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];

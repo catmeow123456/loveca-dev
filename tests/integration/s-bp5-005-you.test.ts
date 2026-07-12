@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { AnyCardData, CardInstance, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
@@ -336,9 +337,29 @@ describe('PL!S-bp5-005 渡辺 曜', () => {
       }),
     }));
 
-    let state = startEffect(finalSetup);
+    let state = startEffect(
+      addCheckTimingRuleSentinel(finalSetup, PLAYER1, 's-bp5-005-continuation')
+    );
     state = confirmDiscard(state, handCards[0]!.instanceId);
     state = chooseHeart(state, HeartColor.YELLOW);
+
+    if (state.activeEffect?.abilityId === 'system:select-pending-card-effect') {
+      const next = state.pendingAbilities.find(
+        (ability) =>
+          ability.abilityId ===
+          PL_S_BP5_004_ON_ENTER_CHOOSE_AQOURS_BLADE_OR_SAINTSNOW_POSITION_CHANGE_ABILITY_ID
+      );
+      expect(next).toBeTruthy();
+      state = confirmActiveEffectStep(
+        state,
+        PLAYER1,
+        state.activeEffect.id,
+        null,
+        null,
+        false,
+        next!.id
+      );
+    }
 
     expect(state.activeEffect?.abilityId).toBe(
       PL_S_BP5_004_ON_ENTER_CHOOSE_AQOURS_BLADE_OR_SAINTSNOW_POSITION_CHANGE_ABILITY_ID

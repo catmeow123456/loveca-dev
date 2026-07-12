@@ -177,7 +177,7 @@ describe('PL!HS-bp6-005 Kosuzu workflows', () => {
     );
 
     expect(result.success, result.error).toBe(true);
-    expect(session.state?.players[0].waitingRoom.cardIds).toContain(handCards[0]!.instanceId);
+    expect(session.state?.players[0].mainDeck.cardIds).toContain(handCards[0]!.instanceId);
     expect(session.state?.liveResolution.liveModifiers).toEqual(
       expect.arrayContaining([
         {

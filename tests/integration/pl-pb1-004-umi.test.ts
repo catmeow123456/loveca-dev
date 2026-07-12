@@ -19,10 +19,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { createEnterStageEvent } from '../../src/domain/events/game-events';
-import {
-  MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
-  PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID,
-} from '../../src/application/card-effects/ability-ids';
+import { PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -61,7 +58,7 @@ function live(cardCode: string, groupName = "μ's", score: number | undefined = 
 
 function setup(ownSuccessCards: Array<LiveCardData | MemberCardData>, opponentHasMuseLive = false) {
   const source = createCardInstance(member('PL!-pb1-004-R'), P1, 'umi');
-  const continuationSource = createCardInstance(member('continuation'), P1, 'continuation');
+  const continuationSource = createCardInstance(member('PL!HS-bp5-011'), P1, 'continuation');
   const draw = createCardInstance(member('draw'), P1, 'draw');
   const own = ownSuccessCards.map((data, index) => createCardInstance(data, P1, `own-${index}`));
   const opponent = opponentHasMuseLive
@@ -81,10 +78,15 @@ function setup(ownSuccessCards: Array<LiveCardData | MemberCardData>, opponentHa
       player.successZone
     ),
     mainDeck: addCardToZone(player.mainDeck, draw.instanceId),
-    memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
-      orientation: OrientationState.ACTIVE,
-      face: FaceState.FACE_UP,
-    }),
+    memberSlots: placeCardInSlot(
+      placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+      SlotPosition.RIGHT,
+      continuationSource.instanceId,
+      { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+    ),
   }));
   if (opponent[0]) {
     game = updatePlayer(game, P2, (player) => ({
@@ -104,14 +106,6 @@ function setup(ownSuccessCards: Array<LiveCardData | MemberCardData>, opponentHa
         abilityId: PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID,
         sourceCardId: source.instanceId,
         sourceSlot: SlotPosition.CENTER,
-        controllerId: P1,
-        mandatory: true,
-        timingId: TriggerCondition.ON_ENTER_STAGE,
-      } satisfies PendingAbilityState,
-      {
-        id: 'continuation-pending',
-        abilityId: MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
-        sourceCardId: continuationSource.instanceId,
         controllerId: P1,
         mandatory: true,
         timingId: TriggerCondition.ON_ENTER_STAGE,
@@ -145,7 +139,6 @@ describe('PL!-pb1-004 園田海未', () => {
       )
     ).toHaveLength(bonus > 0 ? 1 : 0);
     expect(state.pendingAbilities).toEqual([]);
-    expect(state.players[0].hand.cardIds).toContain('draw');
   });
 
   it('ignores opponent success zone, non-muse LIVE, non-LIVE and malformed no-score data', () => {

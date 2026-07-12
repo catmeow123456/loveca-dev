@@ -1,5 +1,11 @@
 # Workflow Module Guide
 
+Workflow finish handlers keep using the compatibility `continuePendingCardEffects`
+callback, but must not choose the next ability or retain a private queue snapshot. The
+runtime check-timing scheduler owns rule-processing re-entry, active/non-active priority,
+and live-pool reselection. `orderedResolution` only applies to the selected batch; a newly
+waiting ability cancels the shortcut and reopens player choice.
+
 > 文档类型：编码标准
 > 适用范围：卡效 workflow family、特殊卡 workflow、runner dispatch 的组织方式
 > 当前状态：目标写法；现有旧 runner 逻辑按 `migration_roadmap.md` 分批迁移

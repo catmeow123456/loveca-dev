@@ -316,8 +316,12 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
     ).toBe(true);
   });
 
-  it('automatically returns the first energy to the energy deck when discard is declined', () => {
+  it('automatically returns waiting energy before active energy when discard is declined', () => {
     const scenario = setupMargareteScenario({ handCount: 1, energyZoneCount: 2 });
+    scenario.session.state!.players[0].energyZone.cardStates.set(scenario.energyZoneCardIds[1]!, {
+      orientation: OrientationState.WAITING,
+      face: FaceState.FACE_UP,
+    });
     startPending(
       scenario.session,
       pendingAbility(
@@ -331,10 +335,10 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
     expect(scenario.session.state?.activeEffect).toBeNull();
 
     expect(scenario.session.state?.players[0].energyZone.cardIds).not.toContain(
-      scenario.energyZoneCardIds[0]
+      scenario.energyZoneCardIds[1]
     );
     expect(scenario.session.state?.players[0].energyDeck.cardIds).toContain(
-      scenario.energyZoneCardIds[0]
+      scenario.energyZoneCardIds[1]
     );
     expect(
       scenario.session.state?.actionHistory.some(
@@ -342,7 +346,7 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId === SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID &&
           action.payload.step === 'RETURN_ENERGY_TO_DECK' &&
-          action.payload.returnedEnergyCardId === scenario.energyZoneCardIds[0] &&
+          action.payload.returnedEnergyCardId === scenario.energyZoneCardIds[1] &&
           action.payload.declinedDiscard === true &&
           action.payload.noHand === false
       )
@@ -397,6 +401,17 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
     expect(scenario.session.state?.players[0].energyDeck.cardIds).toContain(
       scenario.energyZoneCardIds[0]
     );
+    expect(
+      scenario.session.state?.eventLog.find(
+        (entry) => entry.event.eventType === TriggerCondition.ON_ENERGY_MOVED_TO_DECK
+      )?.event
+    ).toMatchObject({
+      cause: {
+        kind: 'CARD_EFFECT',
+        sourceCardId: scenario.sourceId,
+        abilityId: SP_PB2_010_LIVE_START_DISCARD_OR_RETURN_ENERGY_ABILITY_ID,
+      },
+    });
     expect(
       scenario.session.state?.actionHistory.some(
         (action) =>

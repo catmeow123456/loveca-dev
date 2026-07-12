@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { MemberCardData } from '../../src/domain/entities/card';
+import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
   createGameState,
@@ -49,6 +49,10 @@ function createMember(cardCode: string, name = cardCode, cost = 4): MemberCardDa
   };
 }
 
+function createEnergy(cardCode: string): EnergyCardData {
+  return { cardCode, name: cardCode, cardType: CardType.ENERGY };
+}
+
 function runOnEnterDrawOne(
   cardCode: string,
   name: string,
@@ -71,7 +75,7 @@ function runOnEnterDrawOne(
   );
   const energyCards = Array.from({ length: options.energyCount ?? 0 }, (_, index) =>
     createCardInstance(
-      createMember(`${cardCode}-energy-${index}`),
+      createEnergy(`${cardCode}-energy-${index}`),
       PLAYER1,
       `${cardCode}-energy-${index}`
     )
@@ -291,7 +295,7 @@ describe('member on-enter draw shared workflow', () => {
     const secondDraw = createCardInstance(createMember('DRAW-2'), PLAYER1, 'draw-2');
     let game = createGameState('member-on-enter-draw-ordered', PLAYER1, 'P1', PLAYER2, 'P2');
     const energyCards = Array.from({ length: 7 }, (_, index) =>
-      createCardInstance(createMember(`ENERGY-${index}`), PLAYER1, `energy-${index}`)
+      createCardInstance(createEnergy(`ENERGY-${index}`), PLAYER1, `energy-${index}`)
     );
     game = registerCards(game, [first, second, firstDraw, secondDraw, ...energyCards]);
     game = updatePlayer(game, PLAYER1, (player) => ({

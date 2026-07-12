@@ -233,7 +233,7 @@ describe('shared on-enter source member gain BLADE workflow', () => {
     });
   });
 
-  it('consumes the pending ability when the controller cannot be found', () => {
+  it('keeps a pending ability auditable when its controller cannot be found', () => {
     const source = createCardInstance(
       createMember('PL!S-PR-016-PR', '黒澤ダイヤ', 9),
       PLAYER1,
@@ -250,12 +250,8 @@ describe('shared on-enter source member gain BLADE workflow', () => {
       ],
     }).gameState;
 
-    expect(state.pendingAbilities).toEqual([]);
+    expect(state.pendingAbilities).toHaveLength(1);
     expect(state.liveResolution.liveModifiers).toEqual([]);
-    expect(latestPayload(state, S_PR_016_ON_ENTER_GAIN_ONE_BLADE_ABILITY_ID)).toMatchObject({
-      step: 'CONTROLLER_NOT_FOUND_NO_OP',
-      sourceOnStage: false,
-      bladeBonus: 0,
-    });
+    expect(latestPayload(state, S_PR_016_ON_ENTER_GAIN_ONE_BLADE_ABILITY_ID)).toBeUndefined();
   });
 });

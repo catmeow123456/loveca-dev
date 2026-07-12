@@ -68,6 +68,13 @@ import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { enqueueEnergyMovedToDeckCardEffects, getLatestEnergyMovedToDeckEvents } from './card-effects/runtime/energy-moved-to-deck-triggers.js';
 import { hasAbilityInstance } from './card-effects/runtime/ability-instance.js';
+import {
+  advanceCheckTimingIteration,
+  closeCheckTimingContextIfIdle,
+  getCheckTimingAbilityCandidates,
+  openCheckTimingContext,
+  processCheckTimingRuleActions,
+} from './card-effects/runtime/check-timing-scheduler.js';
 import { registerBp5003KotoriWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-003-kotori.js';
 import { registerBp5004UmiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-004-umi.js';
 import { registerWaitSelfOpponentWaitWorkflowHandlers } from './card-effects/workflows/shared/wait-self-opponent-wait.js';
@@ -479,6 +486,7 @@ export * from './card-effects/ability-ids.js';
 export * from './card-effects/ability-definition-types.js';
 export { CARD_ABILITY_DEFINITIONS } from './card-effects/definitions/index.js';
 export const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
+const ORDERED_RESOLUTION_BATCH_ID_KEY = 'orderedResolutionBatchId';
 const DECLINE_OPTION_LABEL = '不发动';
 const ABILITY_USE_STEP = 'ABILITY_USE';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
@@ -3090,7 +3098,7 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     return resolvePendingCardEffects(stateWithResolvedAbilityObservers);
   }
 
-  const pendingAbilities = getSupportedPendingAbilities(game);
+  const pendingAbilities = getCurrentCheckTimingAbilityCandidates(game);
   const ability = pendingAbilities[0];
   if (!ability) {
     return {
@@ -3109,18 +3117,15 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     };
   }
 
-  const sameTimingAbilities = pendingAbilities.filter((candidate) =>
-    isSamePendingAbilityChoiceWindow(candidate, ability)
-  );
-  if (sameTimingAbilities.length > 1) {
-    if (shouldProcessSameAbilitySourceQueueInOrder(sameTimingAbilities)) {
+  if (pendingAbilities.length > 1) {
+    if (shouldProcessSameAbilitySourceQueueInOrder(pendingAbilities)) {
       return {
         gameState: startPendingAbilityEffect(game, ability),
         resolvedAbilityIds: [ability.id],
       };
     }
     return {
-      gameState: startAbilityOrderSelection(game, sameTimingAbilities),
+      gameState: startAbilityOrderSelection(game, pendingAbilities),
       resolvedAbilityIds: [],
     };
   }
@@ -3328,14 +3333,39 @@ function selectPendingAbilityOrder(
     return game;
   }
 
-  return startPendingAbilityEffect(
-    {
-      ...game,
-      activeEffect: null,
-    },
-    selectedAbility,
-    { orderedResolution: resolveInOrder, manualConfirmation: !resolveInOrder }
+  const stateWithoutSelection = {
+    ...game,
+    activeEffect: null,
+  };
+  if (!resolveInOrder) {
+    return startPendingAbilityEffect(stateWithoutSelection, selectedAbility, {
+      manualConfirmation: true,
+    });
+  }
+
+  const batchId = effect.id;
+  const stateWithOrderedBatch = {
+    ...stateWithoutSelection,
+    pendingAbilities: stateWithoutSelection.pendingAbilities.map((ability) =>
+      pendingAbilityIds.includes(ability.id)
+        ? {
+            ...ability,
+            metadata: {
+              ...ability.metadata,
+              [ORDERED_RESOLUTION_BATCH_ID_KEY]: batchId,
+            },
+          }
+        : ability
+    ),
+  };
+  const markedSelectedAbility = stateWithOrderedBatch.pendingAbilities.find(
+    (ability) => ability.id === selectedAbility.id
   );
+  return markedSelectedAbility
+    ? startPendingAbilityEffect(stateWithOrderedBatch, markedSelectedAbility, {
+        orderedResolution: true,
+      })
+    : game;
 }
 
 function getAbilityOrderOptionLabel(
@@ -3354,6 +3384,20 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     return game;
   }
 
+  if (game.checkTimingContext) {
+    const stateWithAdvancedIteration = advanceCheckTimingIteration(game);
+    const stateAfterRuleProcessing = processCheckTimingRuleActionsAndDispatchTriggers(
+      stateWithAdvancedIteration
+    );
+    if (stateAfterRuleProcessing !== stateWithAdvancedIteration) {
+      if (stateAfterRuleProcessing.endInfo) {
+        return stateAfterRuleProcessing;
+      }
+      return continuePendingCardEffects(stateAfterRuleProcessing, orderedResolution);
+    }
+    game = stateWithAdvancedIteration;
+  }
+
   const stateWithEnergyPlacedTriggers = enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game);
   if (stateWithEnergyPlacedTriggers !== game) {
     return continuePendingCardEffects(stateWithEnergyPlacedTriggers, orderedResolution);
@@ -3369,9 +3413,13 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     return continuePendingCardEffects(stateWithResolvedAbilityObservers, orderedResolution);
   }
 
-  const pendingAbilities = getSupportedPendingAbilities(game);
+  const pendingAbilities = getCurrentCheckTimingAbilityCandidates(game);
   if (pendingAbilities.length === 0) {
-    return game;
+    return closeCheckTimingContextIfIdle(game);
+  }
+
+  if (!game.checkTimingContext) {
+    return continuePendingCardEffects(openCheckTimingContext(game), orderedResolution);
   }
 
   const immediateObserverAbility = pendingAbilities.find(isImmediateResolvedObserverAbility);
@@ -3382,28 +3430,61 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     });
   }
 
-  if (orderedResolution) {
+  if (orderedResolution && canContinueOrderedResolution(pendingAbilities)) {
     return startPendingAbilityEffect(game, pendingAbilities[0], { orderedResolution: true });
   }
 
   const nextAbility = pendingAbilities[0];
-  const sameTimingAbilities = pendingAbilities.filter((candidate) =>
-    isSamePendingAbilityChoiceWindow(candidate, nextAbility)
-  );
 
   if (
-    sameTimingAbilities.length > 1 &&
-    shouldProcessSameAbilitySourceQueueInOrder(sameTimingAbilities)
+    pendingAbilities.length > 1 &&
+    shouldProcessSameAbilitySourceQueueInOrder(pendingAbilities)
   ) {
-    return startPendingAbilityEffect(game, nextAbility, { orderedResolution });
+    return startPendingAbilityEffect(game, nextAbility);
   }
 
-  return sameTimingAbilities.length > 1
-    ? startAbilityOrderSelection(game, sameTimingAbilities)
+  return pendingAbilities.length > 1
+    ? startAbilityOrderSelection(game, pendingAbilities)
     : startPendingAbilityEffect(game, nextAbility, {
         confirmBeforeResolution:
           pendingAbilities.length === 1 && shouldConfirmSingleLivePendingAbility(nextAbility),
       });
+}
+
+function processCheckTimingRuleActionsAndDispatchTriggers(game: GameState): GameState {
+  const result = processCheckTimingRuleActions(game);
+  if (result.gameEnded) {
+    return result.gameState;
+  }
+  if (result.energyMovedToDeckEvents.length === 0) {
+    return result.gameState;
+  }
+  return enqueueTriggeredCardEffects(
+    result.gameState,
+    [TriggerCondition.ON_ENERGY_MOVED_TO_DECK],
+    { energyMovedToDeckEvents: result.energyMovedToDeckEvents }
+  );
+}
+
+function getCurrentCheckTimingAbilityCandidates(
+  game: GameState
+): readonly PendingAbilityState[] {
+  return getCheckTimingAbilityCandidates(game, getSupportedPendingAbilities(game));
+}
+
+function canContinueOrderedResolution(
+  abilities: readonly PendingAbilityState[]
+): boolean {
+  if (abilities.length === 0) {
+    return false;
+  }
+  const batchIds = abilities.map((ability) =>
+    typeof ability.metadata?.[ORDERED_RESOLUTION_BATCH_ID_KEY] === 'string'
+      ? ability.metadata[ORDERED_RESOLUTION_BATCH_ID_KEY]
+      : null
+  );
+  const batchId = batchIds[0];
+  return batchId !== null && batchIds.every((candidate) => candidate === batchId);
 }
 
 function shouldConfirmSingleLivePendingAbility(ability: PendingAbilityState): boolean {
@@ -3462,49 +3543,6 @@ function skipPendingAbilityWithoutActiveEffect(
 
 function isOrderedResolutionEffect(game: GameState): boolean {
   return game.activeEffect?.metadata?.orderedResolution === true;
-}
-
-function isSamePendingAbilityChoiceWindow(
-  left: PendingAbilityState,
-  right: PendingAbilityState
-): boolean {
-  if (left.controllerId !== right.controllerId) {
-    return false;
-  }
-
-  if (left.timingId === right.timingId) {
-    return true;
-  }
-
-  if (isRelayReplacementAbilityChoiceWindow(left, right)) {
-    return true;
-  }
-
-  return left.eventIds.some((eventId) => right.eventIds.includes(eventId));
-}
-
-function isRelayReplacementAbilityChoiceWindow(
-  left: PendingAbilityState,
-  right: PendingAbilityState
-): boolean {
-  const enterAbility =
-    left.timingId === TriggerCondition.ON_ENTER_STAGE
-      ? left
-      : right.timingId === TriggerCondition.ON_ENTER_STAGE
-        ? right
-        : null;
-  const leaveAbility =
-    left.timingId === TriggerCondition.ON_LEAVE_STAGE
-      ? left
-      : right.timingId === TriggerCondition.ON_LEAVE_STAGE
-        ? right
-        : null;
-
-  return (
-    enterAbility !== null &&
-    leaveAbility !== null &&
-    leaveAbility.metadata?.replacingCardId === enterAbility.sourceCardId
-  );
 }
 
 function startPendingAbilityEffect(

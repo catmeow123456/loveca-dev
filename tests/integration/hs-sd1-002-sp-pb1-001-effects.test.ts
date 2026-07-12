@@ -480,7 +480,10 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
       const resolved = chooseCards(selectDiscard, discarded);
 
       expect(resolved.players[0]!.hand.cardIds).toEqual([hand[2]!.instanceId]);
-      expect(resolved.players[0]!.waitingRoom.cardIds).toEqual(discarded);
+      expect(resolved.players[0]!.mainDeck.cardIds).toEqual(expect.arrayContaining(discarded));
+      expect(resolved.players[0]!.waitingRoom.cardIds).toEqual(
+        energy.map((card) => card.instanceId)
+      );
       expect(hasWaitingEvent(resolved, ZoneType.HAND, discarded)).toBe(true);
     });
 

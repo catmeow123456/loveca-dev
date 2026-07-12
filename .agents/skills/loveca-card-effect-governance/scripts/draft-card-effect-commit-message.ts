@@ -1,56 +1,149 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import {
-  type CardGroup,
-  findRepoRoot,
-  formatCardStat,
-  parseScopeArguments,
-  selectCardGroups,
-} from './tooling.js';
+import { findRepoRoot, parseScopeArguments } from './tooling.js';
 
 interface FrontendCardRecord {
-  readonly detail?: {
-    readonly ability?: string;
-  };
+  readonly card_code: string;
+  readonly name_jp?: string | null;
+  readonly name_cn?: string | null;
+  readonly rare?: string | null;
+  readonly cost?: number | null;
+  readonly score?: number | null;
+  readonly card_text_cn?: string | null;
+  readonly card_text_jp?: string | null;
 }
 
-type FrontendCardDatabase = Readonly<Record<string, FrontendCardRecord>>;
+interface FrontendCardsResponse {
+  readonly data?: readonly FrontendCardRecord[] | null;
+  readonly error?: { readonly message?: string } | null;
+}
+
+interface FrontendCardGroup {
+  readonly baseCardCode: string;
+  readonly prints: readonly FrontendCardRecord[];
+  readonly representative: FrontendCardRecord;
+}
 
 interface CommitMessageEntry {
   readonly effectText: string;
-  readonly groups: readonly CardGroup[];
+  readonly groups: readonly FrontendCardGroup[];
 }
 
-function normalizeFrontendCardText(value: string | undefined): string | undefined {
+const DEFAULT_FRONTEND_API_BASE_URL = 'https://loveca.lovelivefun.xyz';
+
+function normalizeFrontendCardText(value: string | null | undefined): string | undefined {
   const normalized = value?.replace(/\r\n?/g, '\n').trim();
   if (!normalized || /^[-ー－—]+$/.test(normalized)) return undefined;
   return normalized;
 }
 
-function loadFrontendCards(repoRoot: string): FrontendCardDatabase {
-  return JSON.parse(
-    readFileSync(join(repoRoot, 'llocg_db/json/cards_cn.json'), 'utf8')
-  ) as FrontendCardDatabase;
+function normalizeApiBaseUrl(value: string): string {
+  const normalized = value.trim().replace(/\/+$/, '');
+  if (!normalized) {
+    throw new Error('前端卡牌 API 地址不能为空。');
+  }
+  return normalized;
 }
 
-function getFrontendCardText(
-  group: CardGroup,
-  frontendCards: FrontendCardDatabase
-): string {
+function normalizeCardCode(value: string): string {
+  return value.replaceAll('＋', '+');
+}
+
+function getBaseCardCode(card: FrontendCardRecord): string {
+  const suffix = card.rare ? `-${card.rare}` : '';
+  return suffix && card.card_code.endsWith(suffix)
+    ? card.card_code.slice(0, -suffix.length)
+    : card.card_code.replace(/-[^-]+$/, '');
+}
+
+async function loadFrontendCards(apiBaseUrl: string): Promise<readonly FrontendCardRecord[]> {
+  const url = `${apiBaseUrl}/api/cards`;
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { accept: 'application/json' } });
+  } catch (error) {
+    throw new Error(
+      `读取前端卡牌 API 失败：${url}；${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  if (!response.ok) {
+    throw new Error(`读取前端卡牌 API 失败：${url} 返回 HTTP ${response.status}。`);
+  }
+  const payload = (await response.json()) as FrontendCardsResponse;
+  if (!payload.data) {
+    throw new Error(
+      `前端卡牌 API 没有返回卡牌数据${payload.error?.message ? `：${payload.error.message}` : '。'}`
+    );
+  }
+  return payload.data;
+}
+
+function selectFrontendCardGroups(
+  cards: readonly FrontendCardRecord[],
+  scopes: readonly string[]
+): readonly FrontendCardGroup[] {
+  if (scopes.length === 0) {
+    throw new Error('请至少提供一个基础编号、完整卡号或卡号前缀。');
+  }
+
+  const groups = new Map<string, FrontendCardRecord[]>();
+  const exactPrintToBase = new Map<string, string>();
+  for (const card of cards) {
+    const baseCardCode = getBaseCardCode(card);
+    const prints = groups.get(baseCardCode) ?? [];
+    prints.push(card);
+    groups.set(baseCardCode, prints);
+    exactPrintToBase.set(card.card_code, baseCardCode);
+  }
+
+  const selectedBases = new Set<string>();
+  for (const rawScope of scopes) {
+    const scope = normalizeCardCode(rawScope);
+    const exactBase = groups.has(scope) ? scope : exactPrintToBase.get(scope);
+    if (exactBase) {
+      selectedBases.add(exactBase);
+      continue;
+    }
+
+    const matchingBases = [...groups.keys()].filter((baseCardCode) =>
+      baseCardCode.startsWith(scope)
+    );
+    if (matchingBases.length === 0) {
+      throw new Error(`${rawScope} 在当前前端卡牌 API 中没有匹配卡牌。`);
+    }
+    for (const baseCardCode of matchingBases) {
+      selectedBases.add(baseCardCode);
+    }
+  }
+
+  return [...selectedBases]
+    .sort((left, right) => left.localeCompare(right, 'en'))
+    .map((baseCardCode) => {
+      const prints = (groups.get(baseCardCode) ?? []).sort((left, right) =>
+        left.card_code.localeCompare(right.card_code, 'en')
+      );
+      return {
+        baseCardCode,
+        prints,
+        representative: prints[0]!,
+      };
+    });
+}
+
+function getFrontendCardText(group: FrontendCardGroup): string {
   const textsByPrint = group.prints
     .map((card) => ({
-      cardCode: card.card_no,
-      text: normalizeFrontendCardText(frontendCards[card.card_no]?.detail?.ability),
+      cardCode: card.card_code,
+      text:
+        normalizeFrontendCardText(card.card_text_cn) ??
+        normalizeFrontendCardText(card.card_text_jp),
     }))
-    .filter(
-      (entry): entry is { readonly cardCode: string; readonly text: string } =>
-        Boolean(entry.text)
+    .filter((entry): entry is { readonly cardCode: string; readonly text: string } =>
+      Boolean(entry.text)
     );
   const uniqueTexts = [...new Set(textsByPrint.map((entry) => entry.text))];
 
   if (uniqueTexts.length === 0) {
     throw new Error(
-      `${group.baseCardCode} 在 llocg_db/json/cards_cn.json 中没有可用的前端中文 detail.ability。`
+      `${group.baseCardCode} 在前端卡牌 API 中没有可用的 card_text_cn 或 card_text_jp。`
     );
   }
   if (uniqueTexts.length > 1) {
@@ -58,19 +151,18 @@ function getFrontendCardText(
       .map((entry) => `${entry.cardCode}=${JSON.stringify(entry.text)}`)
       .join('；');
     throw new Error(
-      `${group.baseCardCode} 的不同罕度在 cards_cn.json 中存在不同卡文，拒绝自动合并：${details}`
+      `${group.baseCardCode} 的不同罕度在前端卡牌 API 中存在不同展示卡文，拒绝自动合并：${details}`
     );
   }
   return uniqueTexts[0]!;
 }
 
 function mergeGroupsByFrontendCardText(
-  groups: readonly CardGroup[],
-  frontendCards: FrontendCardDatabase
+  groups: readonly FrontendCardGroup[]
 ): readonly CommitMessageEntry[] {
-  const entries = new Map<string, CardGroup[]>();
+  const entries = new Map<string, FrontendCardGroup[]>();
   for (const group of groups) {
-    const effectText = getFrontendCardText(group, frontendCards);
+    const effectText = getFrontendCardText(group);
     const matchingGroups = entries.get(effectText) ?? [];
     matchingGroups.push(group);
     entries.set(effectText, matchingGroups);
@@ -81,17 +173,29 @@ function mergeGroupsByFrontendCardText(
   }));
 }
 
-function formatCardDescriptor(group: CardGroup): string {
+function formatCardStat(card: FrontendCardRecord): string {
+  if (typeof card.cost === 'number') return `费用${card.cost}`;
+  if (typeof card.score === 'number') return `分数${card.score}`;
+  return '费用/分数未登记';
+}
+
+function formatCardDescriptor(group: FrontendCardGroup): string {
   const card = group.representative;
-  return `${group.baseCardCode} ${formatCardStat(card)}「${card.name ?? '未登记卡名'}」`;
+  const name = card.name_cn?.trim() || card.name_jp?.trim() || '未登记卡名';
+  return `${group.baseCardCode} ${formatCardStat(card)}「${name}」`;
 }
 
 async function main(): Promise<void> {
-  const repoRoot = findRepoRoot();
+  findRepoRoot();
   const { scopes, values } = parseScopeArguments(process.argv.slice(2));
-  const groups = await selectCardGroups(repoRoot, scopes);
-  const frontendCards = loadFrontendCards(repoRoot);
-  const entries = mergeGroupsByFrontendCardText(groups, frontendCards);
+  const apiBaseUrl = normalizeApiBaseUrl(
+    values.get('--api-base-url') ??
+      process.env.LOVECA_CARD_API_BASE_URL ??
+      DEFAULT_FRONTEND_API_BASE_URL
+  );
+  const frontendCards = await loadFrontendCards(apiBaseUrl);
+  const groups = selectFrontendCardGroups(frontendCards, scopes);
+  const entries = mergeGroupsByFrontendCardText(groups);
   const title =
     values.get('--title') ?? `feat(effect): 更新${scopes.length === 1 ? scopes[0] : '本批'}卡效`;
 

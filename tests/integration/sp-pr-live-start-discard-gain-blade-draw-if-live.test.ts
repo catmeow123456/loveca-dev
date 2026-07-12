@@ -269,6 +269,6 @@ describe('SP PR LIVE start discard gain BLADE and draw if LIVE shared workflow',
     expect(selectDiscard(session, discard.instanceId).success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.pendingAbilities).toEqual([]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toContain(discard.instanceId);
+    expect(session.state?.players[0].mainDeck.cardIds).toContain(discard.instanceId);
   });
 });

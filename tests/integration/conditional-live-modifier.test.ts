@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -636,7 +637,11 @@ describe('conditional live modifier workflow', () => {
       PLAYER1,
       'pb1-026-second-live'
     );
-    let game = registerCards(scenario.game, [secondLive]);
+    let game = addCheckTimingRuleSentinel(
+      registerCards(scenario.game, [secondLive]),
+      PLAYER1,
+      'conditional-live-modifier-ordered'
+    );
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       liveZone: addCardToStatefulZone(player.liveZone, secondLive.instanceId, {

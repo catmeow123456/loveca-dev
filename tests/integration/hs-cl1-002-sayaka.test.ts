@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type {
   EnergyCardData,
   LiveCardData,
@@ -420,6 +421,7 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
       game,
       createEnterStageEvent(secondSource.instanceId, ZoneType.HAND, SlotPosition.RIGHT, PLAYER1, PLAYER1)
     );
+    game = addCheckTimingRuleSentinel(game, PLAYER1, 'hs-cl1-002-ordered');
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_STAGE]);
     game = resolvePendingCardEffects(game).gameState;
 
@@ -435,7 +437,10 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
     (session as unknown as { authorityState: GameState }).authorityState = {
       ...session.state!,
       pendingAbilities: [
-        ...session.state!.pendingAbilities,
+        ...session.state!.pendingAbilities.map((ability) => ({
+          ...ability,
+          metadata: { ...ability.metadata, orderedResolutionBatchId: 'hs-cl1-002-test-batch' },
+        })),
         {
           id: 'manual-ordered-continuation-pending',
           abilityId: HS_CL1_002_ON_ENTER_PAY_ENERGY_RECOVER_DOLLCHESTRA_CARD_ABILITY_ID,
@@ -444,6 +449,7 @@ describe('PL!HS-cl1-002-CL Sayaka workflow', () => {
           mandatory: false,
           timingId: TriggerCondition.ON_ENTER_STAGE,
           eventIds: ['manual-ordered-continuation-event'],
+          metadata: { orderedResolutionBatchId: 'hs-cl1-002-test-batch' },
         },
       ],
     };

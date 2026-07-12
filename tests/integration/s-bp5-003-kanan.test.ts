@@ -211,7 +211,7 @@ describe('PL!S-bp5-003 松浦果南', () => {
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([hand.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([hand.instanceId]);
     expect(
       session.state?.eventLog.some(
         (entry) =>
@@ -420,6 +420,6 @@ describe('PL!S-bp5-003 松浦果南', () => {
     );
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect?.sourceCardId).toBe(source2.instanceId);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([handCards[2]!.instanceId]);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
   });
 });

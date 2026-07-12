@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer, type GameState, type PendingAbilityState } from '../../src/domain/entities/game';
@@ -84,7 +85,9 @@ describe('PL!N-bp3-006 近江彼方', () => {
       pendingAbilities: [{ ...pending('006-pending'), sourceCardId: provingSource.instanceId }],
     };
 
-    const continued = resolvePendingCardEffects(game).gameState;
+    const continued = resolvePendingCardEffects(
+      addCheckTimingRuleSentinel(game, P1, 'n-bp3-006-continuation')
+    ).gameState;
     expect(continued.pendingAbilities.some((ability) => ability.id === '006-pending')).toBe(false);
     expect(
       continued.actionHistory.some(

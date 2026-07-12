@@ -1,5 +1,16 @@
 # Card Effect Runner Migration Roadmap
 
+## Unified check-timing continuation (2026-07)
+
+- Production pending continuation is centralized in
+  `src/application/card-effects/runtime/check-timing-scheduler.ts`.
+- `GameState.checkTimingContext` preserves the check-timing id, rules active player, and
+  iteration count across player choices and serialization.
+- The live pending choice pool no longer partitions abilities by `timingId`; abilities
+  created during resolution join the next choice after the current ability finishes.
+- `src/domain/rules/check-timing.ts` remains an older domain model and is not wired as a
+  second production scheduler.
+
 > 文档类型：历史/计划文档
 > 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
 > 当前状态：迁移计划；完成状态以代码、测试和本表同步为准

@@ -482,6 +482,13 @@ export interface PendingAbilityState {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+/** Serializable authority state for one complete rules 9.5.3 check timing. */
+export interface CheckTimingContextState {
+  readonly id: string;
+  readonly activePlayerId: string;
+  readonly iterationCount: number;
+}
+
 export type PendingChoiceKind = 'CONFIRM_OPTIONAL' | 'SELECT_CARDS' | 'SELECT_TARGET';
 
 /**
@@ -703,6 +710,9 @@ export interface GameState {
    */
   readonly pendingAbilities: readonly PendingAbilityState[];
 
+  /** Current check timing, retained across player choices and ability resolution. */
+  readonly checkTimingContext: CheckTimingContextState | null;
+
   /**
    * 卡效执行中等待玩家作出的一个选择
    */
@@ -887,6 +897,7 @@ export function createGameState(
     effectWindowType: EffectWindowType.NONE,
     availableAbilityIds: [],
     pendingAbilities: [],
+    checkTimingContext: null,
     pendingChoice: null,
     activeEffect: null,
     pendingCostPayment: null,
@@ -967,6 +978,7 @@ export function getPlayerById(game: GameState, playerId: string): PlayerState | 
  */
 export function hasPendingAbilityOrChoice(game: GameState): boolean {
   return (
+    game.checkTimingContext !== null ||
     game.pendingAbilities.length > 0 ||
     game.pendingChoice !== null ||
     game.activeEffect !== null ||
@@ -1614,6 +1626,7 @@ export interface GameStateSnapshot {
   readonly currentTurnType: TurnType;
   readonly firstPlayerIndex: number;
   readonly activePlayerIndex: number;
+  readonly checkTimingContext: CheckTimingContextState | null;
   readonly isStarted: boolean;
   readonly isEnded: boolean;
   readonly endInfo: GameEndInfo | null;
@@ -1630,6 +1643,7 @@ export function createGameSnapshot(game: GameState): GameStateSnapshot {
     currentTurnType: game.currentTurnType,
     firstPlayerIndex: game.firstPlayerIndex,
     activePlayerIndex: game.activePlayerIndex,
+    checkTimingContext: game.checkTimingContext,
     isStarted: game.isStarted,
     isEnded: game.isEnded,
     endInfo: game.endInfo,

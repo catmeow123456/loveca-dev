@@ -1,5 +1,6 @@
 import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -550,7 +551,7 @@ describe('PL!HS-sd1-014/017/018 workflows', () => {
       }),
     }));
     const orderSelection = resolvePendingCardEffects({
-      ...game,
+      ...addCheckTimingRuleSentinel(game, PLAYER1, 'hs-sd1-018-ordered'),
       pendingAbilities: [
         pending(
           HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,

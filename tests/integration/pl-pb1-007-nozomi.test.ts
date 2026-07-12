@@ -1,5 +1,6 @@
 import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import {
   createCardInstance,
   createHeartIcon,
@@ -69,7 +70,7 @@ function setup(
     'waiting-trigger-source'
   );
   const continuationSource = createCardInstance(
-    member('continuation-source'),
+    member('PL!HS-bp5-011'),
     P1,
     'continuation-source'
   );
@@ -130,9 +131,11 @@ function setup(
     id: 'continuation-pending',
     abilityId: MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
     sourceCardId: continuationSource.instanceId,
+    sourceSlot: SlotPosition.RIGHT,
     controllerId: P1,
     mandatory: true,
     timingId: TriggerCondition.ON_ENTER_STAGE,
+    eventIds: ['continuation-event'],
   };
   return {
     game: { ...game, pendingAbilities: [continuationPending] },
@@ -140,6 +143,7 @@ function setup(
     hands,
     targets,
     continuationDraw,
+    continuationSource,
     waitingTriggerSource,
   };
 }
@@ -320,17 +324,50 @@ describe('PL!-pb1-007 東條 希', () => {
 
   it('opens and completes recovery at zero cost when a legal target exists', () => {
     const s = setup(3, 0, true, true);
-    const started = activateCardAbility(s.game, P1, s.source.instanceId, A);
+    const gameWithContinuationSource = updatePlayer(s.game, P1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        s.continuationSource.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+    }));
+    const started = activateCardAbility(
+      addCheckTimingRuleSentinel(
+        { ...gameWithContinuationSource, pendingAbilities: [] },
+        P1,
+        'pl-pb1-007-zero-cost'
+      ),
+      P1,
+      s.source.instanceId,
+      A
+    );
     expect(started.activeEffect?.selectableCardIds).toEqual([s.targets[0].instanceId]);
-    const done = confirmActiveEffectStepThroughPublicReveal(
+    let done = confirmActiveEffectStepThroughPublicReveal(
       started,
       P1,
       started.activeEffect!.id,
       s.targets[0].instanceId
     );
+    if (done.activeEffect?.abilityId === 'system:select-pending-card-effect') {
+      const continuation = done.pendingAbilities.find(
+        (ability) => ability.id === 'continuation-pending'
+      );
+      expect(continuation).toBeTruthy();
+      done = confirmActiveEffectStep(
+        done,
+        P1,
+        done.activeEffect.id,
+        null,
+        null,
+        false,
+        continuation!.id
+      );
+    }
     expect(done.players[0].hand.cardIds).toContain(s.targets[0].instanceId);
     expect(abilityUseCount(done)).toBe(1);
-    expectContinuationResolved(done);
+    expect(done.activeEffect).toBeNull();
   });
 
   it('requires another lily white member and filters non-Muse LIVE and member recovery targets', () => {

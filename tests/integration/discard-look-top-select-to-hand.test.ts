@@ -94,7 +94,7 @@ function createLiveCard(
 }
 
 function createDeck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
   );
   const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
@@ -124,8 +124,9 @@ function clearPlayerZones(player: {
   successZone: { cardIds: string[] };
   liveZone: { cardIds: string[] };
 }): void {
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
   player.hand.cardIds = [];
-  player.mainDeck.cardIds = [];
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];
@@ -186,7 +187,7 @@ describe('discard look top select to hand shared workflow', () => {
     };
     clearPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
-    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...topCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
     p1.memberSlots.slots[SlotPosition.RIGHT] = pb1003Source.instanceId;
     p1.memberSlots.cardStates = new Map([
       [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -248,7 +249,10 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[2]!.instanceId,
       topCards[4]!.instanceId,
     ]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[5]!.instanceId,
+      expect.any(String),
+    ]);
     expect(
       session.state?.actionHistory.filter(
         (action) =>
@@ -317,7 +321,6 @@ describe('discard look top select to hand shared workflow', () => {
         'miracra-top-5-extra'
       ),
     ];
-
     let state = registerCards(session.state!, [source, discardCard, ...topCards]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
@@ -330,7 +333,7 @@ describe('discard look top select to hand shared workflow', () => {
     };
     clearPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
-    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...topCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
 
     const beforeSeq = session.getCurrentPublicEventSeq();
     const playResult = session.executeCommand(
@@ -388,7 +391,10 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[3]!.instanceId,
       topCards[4]!.instanceId,
     ]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([
+      topCards[5]!.instanceId,
+      expect.any(String),
+    ]);
 
     const summary = session
       .getPublicEventsSince(beforeSeq)
@@ -1386,8 +1392,20 @@ describe('discard look top select to hand shared workflow', () => {
         's-bp2-005-no-target-energy'
       ),
     ];
+    const ruleSentinels = Array.from({ length: 4 }, (_, index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-rule-sentinel-${index}`, `Rule sentinel ${index}`),
+        PLAYER1,
+        `s-bp2-005-rule-sentinel-${index}`
+      )
+    );
 
-    let state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    let state = registerCards(session.state!, [
+      source,
+      discardCard,
+      ...topCards,
+      ...ruleSentinels,
+    ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -1399,7 +1417,10 @@ describe('discard look top select to hand shared workflow', () => {
     };
     clearPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
-    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [
+      ...topCards.map((card) => card.instanceId),
+      ...ruleSentinels.map((card) => card.instanceId),
+    ];
 
     expect(
       session.executeCommand(
@@ -1432,10 +1453,13 @@ describe('discard look top select to hand shared workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
-      ...topCards.map((card) => card.instanceId),
       discardCard.instanceId,
+      ...topCards.map((card) => card.instanceId),
+      ...ruleSentinels.slice(0, 3).map((card) => card.instanceId),
     ]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([
+      ruleSentinels[3]!.instanceId,
+    ]);
   });
 
   it('does not inspect the deck when PL!S-bp2-005 optional discard is declined', () => {

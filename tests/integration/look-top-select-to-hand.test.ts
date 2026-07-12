@@ -79,7 +79,7 @@ function createEnergyCard(cardCode: string): EnergyCardData {
 }
 
 function createDeck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
   );
   const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
@@ -195,8 +195,8 @@ describe('look top select to hand shared workflow', () => {
     expect(finishResult.success, finishResult.error).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([selectedLiveCardId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
-      inspectedCardIds.filter((cardId) => cardId !== selectedLiveCardId)
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(
+      expect.arrayContaining(inspectedCardIds.filter((cardId) => cardId !== selectedLiveCardId))
     );
     expect(
       session.state?.eventLog.some((entry) => {

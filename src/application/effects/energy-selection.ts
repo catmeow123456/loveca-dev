@@ -73,7 +73,7 @@ export function getEnergySelectionCandidates(
       (id) => player.energyZone.cardStates.get(id)?.orientation === OrientationState.WAITING
     );
   }
-  if (operation === 'STACK_BELOW_MEMBER') {
+  if (operation === 'RETURN_TO_ENERGY_DECK' || operation === 'STACK_BELOW_MEMBER') {
     const waiting = player.energyZone.cardIds.filter(
       (id) => player.energyZone.cardStates.get(id)?.orientation === OrientationState.WAITING
     );

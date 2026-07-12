@@ -318,7 +318,7 @@ describe('PL!-bp3-026 Oh,Love&Peace! workflow', () => {
     const state = confirmEffect(selecting, { selectedCardIds: setup.handCardIds });
 
     expect(state.activeEffect).toBeNull();
-    expect(state.players[0].waitingRoom.cardIds).toEqual(expect.arrayContaining(setup.handCardIds));
+    expect(state.players[0].mainDeck.cardIds).toEqual(expect.arrayContaining(setup.handCardIds));
     expect(
       state.actionHistory.some(
         (action) =>
