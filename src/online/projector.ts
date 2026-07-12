@@ -80,6 +80,7 @@ import { createBlindCardSelectionToken } from '../shared/utils/blind-card-select
 interface ProjectPlayerViewStateOptions {
   readonly seq?: number;
   readonly gameMode?: GameMode;
+  readonly now?: number;
 }
 
 type VisibleSurface = Extract<ViewCardObject['surface'], 'BACK' | 'FRONT'>;
@@ -338,6 +339,7 @@ export function projectPlayerViewState(
 
   const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
+  const publicCardSelectionAutoAdvanceAt = game.activeEffect?.publicCardSelectionAutoAdvanceAt;
   for (const skip of game.energyActivePhaseSkips ?? []) {
     const publicObjectId = createPublicObjectId(skip.energyCardId);
     const object = objects[publicObjectId];
@@ -356,6 +358,11 @@ export function projectPlayerViewState(
           ? getSeatForPlayer(game, game.activeEffect.awaitingPlayerId)
           : null,
         revealedObjectIds: game.activeEffect.revealedCardIds?.map(createPublicObjectId),
+        publicCardSelectionAutoAdvanceAt,
+        publicCardSelectionAutoAdvanceAfterMs: publicCardSelectionAutoAdvanceAt
+          ? Math.max(0, publicCardSelectionAutoAdvanceAt - (options.now ?? Date.now()))
+          : undefined,
+        publicCardSelectionOrdered: game.activeEffect.publicCardSelectionOrdered,
         inspectionObjectIds: game.activeEffect.inspectionCardIds?.map(createPublicObjectId),
         ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
@@ -792,7 +799,9 @@ function projectInspectionZones(
   const inspectionOwnerId = game.inspectionContext?.ownerPlayerId ?? null;
   const inspectionViewerId =
     game.inspectionContext?.viewerPlayerId ?? game.inspectionContext?.ownerPlayerId ?? null;
-  const inspectionViewerSeat = inspectionViewerId ? getSeatForPlayer(game, inspectionViewerId) : null;
+  const inspectionViewerSeat = inspectionViewerId
+    ? getSeatForPlayer(game, inspectionViewerId)
+    : null;
   for (const seat of ['FIRST', 'SECOND'] as const) {
     const ownerPlayerId = getPlayerIdForSeat(game, seat);
     const ownedCardIds =
@@ -985,10 +994,7 @@ function buildCheerHeartColorReplacementView(
   game: GameState,
   liveModifiers: readonly LiveModifierState[]
 ): LiveResultViewState['cheerHeartColorReplacements'] {
-  const replacements: Record<
-    Seat,
-    LiveResultViewState['cheerHeartColorReplacements'][Seat]
-  > = {
+  const replacements: Record<Seat, LiveResultViewState['cheerHeartColorReplacements'][Seat]> = {
     FIRST: null,
     SECOND: null,
   };
@@ -1223,7 +1229,13 @@ function buildActiveEffectCommandHints(
   game: GameState,
   viewerPlayerId: string
 ): readonly ViewCommandHint[] {
-  if (!game.activeEffect || game.activeEffect.awaitingPlayerId !== viewerPlayerId) {
+  if (!game.activeEffect) {
+    return [];
+  }
+  if (
+    game.activeEffect.publicCardSelectionAutoAdvanceAt === undefined &&
+    game.activeEffect.awaitingPlayerId !== viewerPlayerId
+  ) {
     return [];
   }
 
@@ -1231,6 +1243,12 @@ function buildActiveEffectCommandHints(
     buildCommandHint(GameCommandType.CONFIRM_EFFECT_STEP, {
       params: {
         effectId: game.activeEffect.id,
+        ...(game.activeEffect.publicCardSelectionAutoAdvanceAt !== undefined
+          ? {
+              publicCardSelectionAutoAdvanceAt:
+                game.activeEffect.publicCardSelectionAutoAdvanceAt,
+            }
+          : {}),
       },
     }),
   ];

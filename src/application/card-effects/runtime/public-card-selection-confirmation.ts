@@ -8,12 +8,12 @@ import { createActiveEffectEnergySelectionWindow } from './energy-operation-sele
 
 export const PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID =
   'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION';
+const PUBLIC_CARD_SELECTION_BASE_DISPLAY_DURATION_MS = 2_000;
+const PUBLIC_CARD_SELECTION_PER_ADDITIONAL_CARD_DURATION_MS = 300;
+const PUBLIC_CARD_SELECTION_MAX_DISPLAY_DURATION_MS = 3_500;
 
 export type PublicCardSelectionDestination =
-  | 'HAND'
-  | 'MAIN_DECK_TOP'
-  | 'MAIN_DECK_BOTTOM'
-  | 'MAIN_DECK_POSITION_4';
+  'HAND' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' | 'MAIN_DECK_POSITION_4';
 
 export interface PublicCardSelectionConfirmationConfig {
   readonly destination: PublicCardSelectionDestination;
@@ -29,6 +29,11 @@ export interface PublicCardSelectionConfirmationConfig {
 interface PublicCardSelectionConfirmationContinuation {
   readonly originalEffect: ActiveEffectState;
   readonly originalInput: ActiveEffectStepHandlerInput;
+}
+
+export interface PublicCardSelectionAutoAdvanceMetadata {
+  readonly autoAdvanceAt: number;
+  readonly ordered: boolean;
 }
 
 type ResolveRestoredActiveEffectStep = (
@@ -65,11 +70,13 @@ export function getPublicCardSelectionConfirmationConfig(
         ) {
           return [];
         }
-        return [{
-          candidateCardIds: group.candidateCardIds as readonly string[],
-          minCount: group.minCount,
-          maxCount: group.maxCount,
-        }];
+        return [
+          {
+            candidateCardIds: group.candidateCardIds as readonly string[],
+            minCount: group.minCount,
+            maxCount: group.maxCount,
+          },
+        ];
       })
     : undefined;
   return {
@@ -105,8 +112,11 @@ export function createPublicCardSelectionConfirmationWindow(
     selectedCardIds.some((cardId) => !candidates.includes(cardId)) ||
     selectedCardIds.some((cardId) => {
       const sourcePlayerId = config.sourcePlayerId ?? originalEffect.controllerId;
-      return game.players.find((player) => player.id === sourcePlayerId)
-        ?.waitingRoom.cardIds.includes(cardId) !== true;
+      return (
+        game.players
+          .find((player) => player.id === sourcePlayerId)
+          ?.waitingRoom.cardIds.includes(cardId) !== true
+      );
     }) ||
     !matchesSelectionGroups(selectedCardIds, config.groups)
   ) {
@@ -130,10 +140,63 @@ export function createPublicCardSelectionConfirmationWindow(
       stepText: copy.stepText,
       awaitingPlayerId: originalEffect.awaitingPlayerId,
       revealedCardIds: selectedCardIds,
-      confirmSelectionLabel: copy.confirmLabel,
-      metadata: { publicCardSelectionConfirmationContinuation: continuation },
+      publicCardSelectionOrdered: config.ordered === true,
+      metadata: {
+        publicCardSelectionConfirmationContinuation: continuation,
+      },
     },
   };
+}
+
+export function isPublicCardSelectionAutoAdvanceEffect(
+  effect: ActiveEffectState | null | undefined
+): effect is ActiveEffectState {
+  return (
+    effect?.stepId === PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID &&
+    effect.metadata?.publicCardSelectionConfirmationContinuation !== undefined
+  );
+}
+
+export function getPublicCardSelectionAutoAdvanceMetadata(
+  effect: ActiveEffectState | null | undefined
+): PublicCardSelectionAutoAdvanceMetadata | null {
+  if (!isPublicCardSelectionAutoAdvanceEffect(effect)) return null;
+  if (
+    typeof effect.publicCardSelectionAutoAdvanceAt !== 'number' ||
+    !Number.isFinite(effect.publicCardSelectionAutoAdvanceAt)
+  ) {
+    return null;
+  }
+  return {
+    autoAdvanceAt: effect.publicCardSelectionAutoAdvanceAt,
+    ordered: effect.publicCardSelectionOrdered === true,
+  };
+}
+
+export function attachPublicCardSelectionAutoAdvanceDeadline(
+  game: GameState,
+  now: number
+): GameState {
+  const effect = game.activeEffect;
+  if (!isPublicCardSelectionAutoAdvanceEffect(effect)) return game;
+  if (getPublicCardSelectionAutoAdvanceMetadata(effect)) return game;
+  return {
+    ...game,
+    activeEffect: {
+      ...effect,
+      publicCardSelectionAutoAdvanceAt:
+        now + getPublicCardSelectionDisplayDurationMs(effect.revealedCardIds?.length ?? 1),
+    },
+  };
+}
+
+export function getPublicCardSelectionDisplayDurationMs(selectedCardCount: number): number {
+  const additionalCardCount = Math.max(0, selectedCardCount - 1);
+  return Math.min(
+    PUBLIC_CARD_SELECTION_MAX_DISPLAY_DURATION_MS,
+    PUBLIC_CARD_SELECTION_BASE_DISPLAY_DURATION_MS +
+      additionalCardCount * PUBLIC_CARD_SELECTION_PER_ADDITIONAL_CARD_DURATION_MS
+  );
 }
 
 function matchesSelectionGroups(
@@ -141,11 +204,17 @@ function matchesSelectionGroups(
   groups: PublicCardSelectionConfirmationConfig['groups']
 ): boolean {
   if (!groups) return true;
-  if (selectedCardIds.some((cardId) => !groups.some((group) => group.candidateCardIds.includes(cardId)))) {
+  if (
+    selectedCardIds.some(
+      (cardId) => !groups.some((group) => group.candidateCardIds.includes(cardId))
+    )
+  ) {
     return false;
   }
   return groups.every((group) => {
-    const count = selectedCardIds.filter((cardId) => group.candidateCardIds.includes(cardId)).length;
+    const count = selectedCardIds.filter((cardId) =>
+      group.candidateCardIds.includes(cardId)
+    ).length;
     return count >= group.minCount && count <= group.maxCount;
   });
 }
@@ -155,10 +224,8 @@ export function resolvePublicCardSelectionConfirmationStep(
   context: ActiveEffectStepHandlerContext,
   resolveRestoredActiveEffectStep: ResolveRestoredActiveEffectStep
 ): GameState {
-  const continuation = game.activeEffect?.metadata
-    ?.publicCardSelectionConfirmationContinuation as
-    | PublicCardSelectionConfirmationContinuation
-    | undefined;
+  const continuation = game.activeEffect?.metadata?.publicCardSelectionConfirmationContinuation as
+    PublicCardSelectionConfirmationContinuation | undefined;
   if (!continuation) return game;
   const restoredGame = { ...game, activeEffect: continuation.originalEffect };
   try {
@@ -188,32 +255,27 @@ function getSelectedCardIds(input: ActiveEffectStepHandlerInput): readonly strin
 
 function getConfirmationCopy(config: PublicCardSelectionConfirmationConfig): {
   readonly stepText: string;
-  readonly confirmLabel: string;
 } {
   switch (config.destination) {
     case 'HAND':
       return {
-        stepText: '已选择的卡牌已向双方公开。确认后加入手牌。',
-        confirmLabel: '加入手牌',
+        stepText: '已选择的卡牌已向双方公开，即将自动加入手牌。',
       };
     case 'MAIN_DECK_BOTTOM':
       return {
         stepText: config.ordered
           ? '已选择的卡牌及放置顺序已向双方公开。'
           : '已选择的卡牌已向双方公开。',
-        confirmLabel: config.ordered ? '按此顺序放置于卡组底' : '放置于卡组底',
       };
     case 'MAIN_DECK_POSITION_4':
       return {
         stepText: '已选择的卡牌已向双方公开。',
-        confirmLabel: '放置于卡组顶第4张',
       };
     case 'MAIN_DECK_TOP':
       return {
         stepText: config.ordered
           ? '已选择的卡牌及放置顺序已向双方公开。'
           : '已选择的卡牌已向双方公开。',
-        confirmLabel: config.ordered ? '按此顺序放置于卡组顶' : '放置于卡组顶',
       };
   }
 }

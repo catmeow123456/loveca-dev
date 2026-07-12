@@ -134,17 +134,7 @@ import {
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
-
-function confirmPublicSelectionIfNeeded(
-  session: ReturnType<typeof createGameSession>
-): void {
-  const effect = session.state?.activeEffect;
-  if (effect?.stepId !== 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') return;
-  const result = session.executeCommand(
-    createConfirmEffectStepCommand(effect.awaitingPlayerId!, effect.id)
-  );
-  expect(result.success, result.error).toBe(true);
-}
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { resolvePendingAbilityStarterWithRegistry } from '../../src/application/card-effects/runtime/starter-registry';
 
 const PLAYER1 = 'player1';
@@ -1254,12 +1244,7 @@ function setupFixedPayEnergyGainBladeLiveStartScenario(options: {
   expect(sourceCardId).toBeTruthy();
   expect(liveCardId).toBeTruthy();
   expect(energyCardIds.length).toBeGreaterThanOrEqual(options.activeEnergyCount);
-  sourceCard.data = createMemberCard(
-    options.cardCode,
-    options.cardName,
-    15,
-    options.groupNames
-  );
+  sourceCard.data = createMemberCard(options.cardCode, options.cardName, 15, options.groupNames);
 
   removeFromPlayerZones(p1);
   p1.memberSlots.slots[SlotPosition.CENTER] = sourceCardId!;
@@ -1329,7 +1314,9 @@ function prepareHsPb1KahoMegumiOrderScenario(gameId: string): {
   );
   const megumiCardId = ownedP1CardIds.find((cardId) => {
     const card = state.cardRegistry.get(cardId);
-    return card?.data.cardCode === 'PL!HS-bp1-006-P' && card.data.groupNames?.includes('莲之空') === true;
+    return (
+      card?.data.cardCode === 'PL!HS-bp1-006-P' && card.data.groupNames?.includes('莲之空') === true
+    );
   });
   const energyCardIds = ownedP1CardIds.filter(
     (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.ENERGY
@@ -1963,7 +1950,12 @@ describe('sample card effect runner', () => {
       data: MemberCardData;
     };
     kotoriCard.data = createMemberCard('PL!-sd1-003-SD', '南 ことり', 1);
-    targetMemberCard.data = createMemberCard('PL!-sd1-test-low-cost-muse', '低费用 μs 成员', 4, "μ's");
+    targetMemberCard.data = createMemberCard(
+      'PL!-sd1-test-low-cost-muse',
+      '低费用 μs 成员',
+      4,
+      "μ's"
+    );
     highCostMuseMemberCard.data = createMemberCard(
       'PL!-sd1-test-high-cost-muse',
       '高费用 μs 成员',
@@ -2263,9 +2255,7 @@ describe('sample card effect runner', () => {
       .find((event) => event.type === 'CardEffectSummary');
     expect(summary?.type).toBe('CardEffectSummary');
     if (summary?.type === 'CardEffectSummary') {
-      expect(summary.abilityId).toBe(
-        PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID
-      );
+      expect(summary.abilityId).toBe(PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID);
       expect(summary.effectKind).toBe('SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM');
       expect(summary.sourceCard?.publicObjectId).toBe(`obj_${nicoCardId}`);
       expect(summary.recoveredCards.map((card) => card.publicObjectId)).toEqual([
@@ -2399,9 +2389,7 @@ describe('sample card effect runner', () => {
       .find((event) => event.type === 'CardEffectSummary');
     expect(summary?.type).toBe('CardEffectSummary');
     if (summary?.type === 'CardEffectSummary') {
-      expect(summary.abilityId).toBe(
-        PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID
-      );
+      expect(summary.abilityId).toBe(PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID);
       expect(summary.sourceCard?.publicObjectId).toBe(`obj_${nicoCardId}`);
       expect(summary.recoveredCards).toEqual([]);
       expect(summary.hiddenRecoveredCardCount).toBe(0);
@@ -10218,9 +10206,7 @@ describe('sample card effect runner', () => {
       sourceCardId: nicoCardId,
       metadata: { confirmOnlyPendingAbility: true },
     });
-    expect(session.state?.activeEffect?.effectText).toContain(
-      "当前 μ's 休息室 25张，满足条件"
-    );
+    expect(session.state?.activeEffect?.effectText).toContain("当前 μ's 休息室 25张，满足条件");
     expect(session.state?.liveResolution.playerScoreBonuses.get(PLAYER1)).toBeUndefined();
 
     const confirmResult = session.executeCommand(
@@ -10256,9 +10242,7 @@ describe('sample card effect runner', () => {
       sourceCardId: nicoCardId,
       metadata: { confirmOnlyPendingAbility: true },
     });
-    expect(session.state?.activeEffect?.effectText).toContain(
-      "当前 μ's 休息室 24张，未满足条件"
-    );
+    expect(session.state?.activeEffect?.effectText).toContain("当前 μ's 休息室 24张，未满足条件");
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -11210,9 +11194,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepText).toBe(
-      '可以支付[E]，获得2个BLADE。'
-    );
+    expect(session.state?.activeEffect?.stepText).toBe('可以支付[E]，获得2个BLADE。');
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'pay', label: '支付[E]' },
       { id: 'decline', label: '不发动' },
@@ -11343,14 +11325,13 @@ describe('sample card effect runner', () => {
   });
 
   it('lets PL!-bp4-010-N live-start pay-energy Blade effect be declined without paying', () => {
-    const { session, sourceCardId, energyCardIds } =
-      setupFixedPayEnergyGainBladeLiveStartScenario({
-        gameId: 'sample-bp4-010-live-start-blade-decline',
-        cardCode: 'PL!-bp4-010-N',
-        cardName: '高坂穗乃果',
-        groupNames: ["μ's"],
-        activeEnergyCount: 1,
-      });
+    const { session, sourceCardId, energyCardIds } = setupFixedPayEnergyGainBladeLiveStartScenario({
+      gameId: 'sample-bp4-010-live-start-blade-decline',
+      cardCode: 'PL!-bp4-010-N',
+      cardName: '高坂穗乃果',
+      groupNames: ["μ's"],
+      activeEnergyCount: 1,
+    });
 
     expect(session.state?.activeEffect?.abilityId).toBe(
       BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
@@ -11395,14 +11376,13 @@ describe('sample card effect runner', () => {
   });
 
   it('limits PL!HS-PR-001-PR live-start pay2 Blade effect to decline when active energy is insufficient', () => {
-    const { session, sourceCardId, energyCardIds } =
-      setupFixedPayEnergyGainBladeLiveStartScenario({
-        gameId: 'sample-hs-pr-001-live-start-blade-insufficient-energy',
-        cardCode: 'PL!HS-PR-001-PR',
-        cardName: '日野下 花帆',
-        groupNames: ["μ's"],
-        activeEnergyCount: 1,
-      });
+    const { session, sourceCardId, energyCardIds } = setupFixedPayEnergyGainBladeLiveStartScenario({
+      gameId: 'sample-hs-pr-001-live-start-blade-insufficient-energy',
+      cardCode: 'PL!HS-PR-001-PR',
+      cardName: '日野下 花帆',
+      groupNames: ["μ's"],
+      activeEnergyCount: 1,
+    });
 
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID
@@ -14429,7 +14409,12 @@ describe('sample card effect runner', () => {
       data: MemberCardData;
     };
     kotoriCard.data = createMemberCard('PL!-sd1-003-SD', '南 ことり', 2);
-    targetMemberCard.data = createMemberCard('PL!-sd1-test-low-cost-muse', '低费用 μs 成员', 4, "μ's");
+    targetMemberCard.data = createMemberCard(
+      'PL!-sd1-test-low-cost-muse',
+      '低费用 μs 成员',
+      4,
+      "μ's"
+    );
 
     const preparedState = updatePlayer(state, PLAYER1, (player) => ({
       ...player,

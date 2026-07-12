@@ -152,6 +152,11 @@ import {
   CardAbilitySourceZone,
 } from './card-effects/ability-definition-types.js';
 import { getRenGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-activated-abilities.js';
+import {
+  attachPublicCardSelectionAutoAdvanceDeadline,
+  getPublicCardSelectionAutoAdvanceMetadata,
+  isPublicCardSelectionAutoAdvanceEffect,
+} from './card-effects/runtime/public-card-selection-confirmation.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
@@ -236,6 +241,8 @@ export interface GameSessionOptions {
   gameMode?: GameMode;
   /** 事件监听器 */
   onEvent?: (event: GameSessionEvent) => void;
+  /** 权威时钟；仅供服务端 deadline 与确定性测试使用。 */
+  now?: () => number;
 }
 
 interface StateTransitionOptions {
@@ -554,7 +561,12 @@ export class GameSession {
       };
     }
 
-    const undoDraft = this.captureUndoDraft(command.playerId, command.type);
+    const isPublicSelectionAutoAdvance =
+      command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
+      command.publicCardSelectionAutoAdvanceAt !== undefined;
+    const undoDraft = isPublicSelectionAutoAdvance
+      ? null
+      : this.captureUndoDraft(command.playerId, command.type);
     const result = this.applyCommand(this.authorityState, command);
     if (!result.success) {
       this.recordCommand(command, 'REJECTED', result.error);
@@ -587,7 +599,11 @@ export class GameSession {
     this.recordCommand(command, 'ACCEPTED');
 
     this.runPostCommitAutomation(command.playerId);
-    this.finalizeUndoEntry(undoDraft);
+    if (undoDraft) {
+      this.finalizeUndoEntry(undoDraft);
+    } else {
+      this.extendLatestUndoEntryThroughAutomaticContinuation();
+    }
 
     return {
       success: true,
@@ -669,7 +685,10 @@ export class GameSession {
       };
     }
 
-    const undoDraft = this.captureUndoDraft(getActivePlayer(this.authorityState).id, 'ADVANCE_PHASE');
+    const undoDraft = this.captureUndoDraft(
+      getActivePlayer(this.authorityState).id,
+      'ADVANCE_PHASE'
+    );
     const result = this.gameService.advancePhase(this.authorityState);
 
     if (result.success) {
@@ -723,10 +742,7 @@ export class GameSession {
     };
   }
 
-  getUndoAvailability(
-    playerId: string,
-    policy: UndoPolicy = 'LOCAL_IMMEDIATE'
-  ): OnlineUndoView {
+  getUndoAvailability(playerId: string, policy: UndoPolicy = 'LOCAL_IMMEDIATE'): OnlineUndoView {
     if (policy === 'NONE') {
       return createUndoAvailability(policy, false, null, '当前桌面不支持撤销');
     }
@@ -928,6 +944,43 @@ export class GameSession {
     });
   }
 
+  private extendLatestUndoEntryThroughAutomaticContinuation(): void {
+    if (!this.authorityState) {
+      return;
+    }
+
+    const latestIndex = this.undoHistory.length - 1;
+    const latestEntry = this.undoHistory[latestIndex];
+    if (!latestEntry) {
+      return;
+    }
+    if (this.getUndoBoundaryKey(this.authorityState) !== latestEntry.summary.boundaryKey) {
+      this.undoHistory = [];
+      return;
+    }
+
+    const summary = latestEntry.summary;
+    this.undoHistory[latestIndex] = {
+      snapshot: latestEntry.snapshot,
+      summary: {
+        ...summary,
+        afterCommandSeq: this.commandSeq,
+        afterPublicSeq: this.publicEventSeq,
+        afterGameEventSeq: this.getCurrentGameEventSeq(),
+        afterCaptureCursor: this.getRuntimeCaptureCursor(),
+        hasHumanOpponentReveal:
+          summary.hasHumanOpponentReveal ||
+          this.hasHumanOpponentRevealSince(summary.beforePublicSeq),
+        hasRandomOrShuffle:
+          summary.hasRandomOrShuffle ||
+          this.hasRandomOrShuffleSince(
+            summary.beforePublicSeq,
+            summary.beforeCaptureCursor.auditSeq
+          ),
+      },
+    };
+  }
+
   private pushUndoEntry(entry: GameSessionUndoEntry): void {
     this.undoHistory.push(entry);
     if (this.undoHistory.length > MAX_UNDO_HISTORY) {
@@ -1116,6 +1169,7 @@ export class GameSession {
     return projectPlayerViewState(this.authorityState, playerId, {
       seq: options.seqOverride ?? this.publicEventSeq,
       gameMode: this._gameMode,
+      now: this.now(),
     });
   }
 
@@ -1599,19 +1653,19 @@ export class GameSession {
           return '该卡牌没有这个起动效果';
         }
         const directDefinition = getCardAbilityDefinitions(card.data.cardCode).find(
-            (ability) =>
-              ability.category === CardAbilityCategory.ACTIVATED &&
-              ability.implemented &&
-              ability.abilityId === command.abilityId
-          );
+          (ability) =>
+            ability.category === CardAbilityCategory.ACTIVATED &&
+            ability.implemented &&
+            ability.abilityId === command.abilityId
+        );
         const grantedDefinition = directDefinition
           ? null
-          : getRenGrantedActivatedAbilityDefinition(
+          : (getRenGrantedActivatedAbilityDefinition(
               state,
               command.playerId,
               command.cardId,
               command.abilityId
-            )?.definition ?? null;
+            )?.definition ?? null);
         const sourceZone =
           directDefinition?.sourceZone ??
           grantedDefinition?.sourceZone ??
@@ -1682,7 +1736,9 @@ export class GameSession {
           if (!player) {
             return '玩家不存在';
           }
-          if (player.liveZone.cardIds.length >= getLiveSetCardLimitForPlayer(state, command.playerId)) {
+          if (
+            player.liveZone.cardIds.length >= getLiveSetCardLimitForPlayer(state, command.playerId)
+          ) {
             return '已达到 Live 卡放置上限';
           }
           const card = state.cardRegistry.get(command.cardId);
@@ -1726,10 +1782,8 @@ export class GameSession {
           if (currentSettlementPlayerId !== command.playerId) {
             return '当前不是你的成功 Live 结算顺序';
           }
-          const hasCandidates = getSuccessLiveSelectionCandidateIds(
-            state,
-            command.playerId
-          ).length > 0;
+          const hasCandidates =
+            getSuccessLiveSelectionCandidateIds(state, command.playerId).length > 0;
           if (hasCandidates && command.skipSuccessLiveSelection !== true) {
             return '请先选择成功 Live，或使用全部放置入休息室';
           }
@@ -1808,6 +1862,35 @@ export class GameSession {
         if (state.activeEffect.id !== command.effectId) {
           return '当前处理中的卡牌效果不匹配';
         }
+        const publicSelectionAutoAdvance = getPublicCardSelectionAutoAdvanceMetadata(
+          state.activeEffect
+        );
+        if (publicSelectionAutoAdvance) {
+          if (
+            command.publicCardSelectionAutoAdvanceAt !== publicSelectionAutoAdvance.autoAdvanceAt
+          ) {
+            return '公开展示推进请求已过期';
+          }
+          if (this.now() < publicSelectionAutoAdvance.autoAdvanceAt) {
+            return '公开展示尚未结束';
+          }
+          if (
+            command.selectedCardId !== undefined ||
+            command.selectedCardIds !== undefined ||
+            command.selectedSlot !== undefined ||
+            command.resolveInOrder !== undefined ||
+            command.selectedOptionId !== undefined ||
+            command.selectedNumber !== undefined ||
+            command.stageFormationMoveHistory !== undefined ||
+            command.stageFormationPlacements !== undefined
+          ) {
+            return '公开展示推进不接受玩家选择';
+          }
+          return null;
+        }
+        if (command.publicCardSelectionAutoAdvanceAt !== undefined) {
+          return '当前效果不接受公开展示推进';
+        }
         if (state.activeEffect.awaitingPlayerId !== command.playerId) {
           return '当前不是该玩家确认卡牌效果';
         }
@@ -1880,7 +1963,10 @@ export class GameSession {
         }
         const numericInput = state.activeEffect.numericInput;
         if (numericInput) {
-          if (typeof command.selectedNumber !== 'number' || !Number.isFinite(command.selectedNumber)) {
+          if (
+            typeof command.selectedNumber !== 'number' ||
+            !Number.isFinite(command.selectedNumber)
+          ) {
             return '当前效果需要输入数字';
           }
           if (numericInput.integerOnly === true && !Number.isInteger(command.selectedNumber)) {
@@ -2109,7 +2195,8 @@ export class GameSession {
 
     if (
       command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
-      state.activeEffect?.awaitingPlayerId === command.playerId
+      (state.activeEffect?.awaitingPlayerId === command.playerId ||
+        isPublicCardSelectionAutoAdvanceEffect(state.activeEffect))
     ) {
       return null;
     }
@@ -3368,7 +3455,7 @@ export class GameSession {
 
     const replacementSlots =
       command.relayMode === 'DOUBLE'
-        ? command.relayReplacementSlots ?? []
+        ? (command.relayReplacementSlots ?? [])
         : replacedCardId
           ? [command.targetSlot]
           : [];
@@ -3412,15 +3499,9 @@ export class GameSession {
         }
         replacementMoveEvents.push(
           buildCardMovedPublicEvent(state, result.gameState, actorSeat, memberCardId, {
-            from: buildZoneRefForMove(
-              state,
-              command.playerId,
-              memberCardId,
-              ZoneType.MEMBER_SLOT,
-              {
-                slot: replacementSlot,
-              }
-            ),
+            from: buildZoneRefForMove(state, command.playerId, memberCardId, ZoneType.MEMBER_SLOT, {
+              slot: replacementSlot,
+            }),
             to: buildZoneRefForMove(
               result.gameState,
               command.playerId,
@@ -3672,15 +3753,9 @@ export class GameSession {
         }
         extraPublicEvents.push(
           buildCardMovedPublicEvent(state, result.gameState, actorSeat, memberCardId, {
-            from: buildZoneRefForMove(
-              state,
-              command.playerId,
-              memberCardId,
-              ZoneType.MEMBER_SLOT,
-              {
-                slot: command.sourceSlot,
-              }
-            ),
+            from: buildZoneRefForMove(state, command.playerId, memberCardId, ZoneType.MEMBER_SLOT, {
+              slot: command.sourceSlot,
+            }),
             to: buildZoneRefForMove(
               result.gameState,
               command.playerId,
@@ -3881,9 +3956,12 @@ export class GameSession {
     state: GameState,
     command: ConfirmEffectStepCommand
   ): CommandExecutionResult {
-    const nextState = confirmActiveEffectStep(
+    const resolveAsPlayerId = isPublicCardSelectionAutoAdvanceEffect(state.activeEffect)
+      ? (state.activeEffect.awaitingPlayerId ?? command.playerId)
+      : command.playerId;
+    const resolvedState = confirmActiveEffectStep(
       state,
-      command.playerId,
+      resolveAsPlayerId,
       command.effectId,
       command.selectedCardId,
       command.selectedSlot,
@@ -3894,13 +3972,15 @@ export class GameSession {
       command.stageFormationMoveHistory,
       command.stageFormationPlacements
     );
-    if (nextState === state) {
+    if (resolvedState === state) {
       return {
         success: false,
         gameState: state,
         error: '卡牌效果步骤确认失败',
       };
     }
+
+    const nextState = attachPublicCardSelectionAutoAdvanceDeadline(resolvedState, this.now());
 
     return {
       success: true,
@@ -3921,6 +4001,10 @@ export class GameSession {
         },
       ],
     };
+  }
+
+  private now(): number {
+    return this.options.now?.() ?? Date.now();
   }
 
   private applyConfirmStepCommand(
@@ -4989,7 +5073,8 @@ function buildCardEffectSummaryPublicEvents(
       continue;
     }
 
-    const abilityId = typeof action.payload.abilityId === 'string' ? action.payload.abilityId : null;
+    const abilityId =
+      typeof action.payload.abilityId === 'string' ? action.payload.abilityId : null;
     const sourceCardId =
       typeof action.payload.sourceCardId === 'string' ? action.payload.sourceCardId : null;
     if (!abilityId || !sourceCardId) {
@@ -5047,7 +5132,9 @@ function buildCardEffectSummaryPublicEvents(
       summaryStatus: summary.summaryStatus,
       ...(sourceCard ? { sourceCard } : { sourceHidden: true }),
       ...(summary.sourceActionLabel ? { sourceActionLabel: summary.sourceActionLabel } : {}),
-      ...(summary.sourceOrientationCost ? { sourceOrientationCost: summary.sourceOrientationCost } : {}),
+      ...(summary.sourceOrientationCost
+        ? { sourceOrientationCost: summary.sourceOrientationCost }
+        : {}),
       recoveredCards,
       hiddenRecoveredCardCount,
       noRecoveredCards,
@@ -5091,9 +5178,7 @@ function parsePublicEffectSummaryPayload(value: unknown): PublicEffectSummaryPay
     ? payload.recoveredCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
     : [];
   const discardedCostCardIds = Array.isArray(payload.discardedCostCardIds)
-    ? payload.discardedCostCardIds.filter(
-        (cardId): cardId is string => typeof cardId === 'string'
-      )
+    ? payload.discardedCostCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
     : [];
   const selectedCardIds = Array.isArray(payload.selectedCardIds)
     ? payload.selectedCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
@@ -5155,13 +5240,11 @@ function parseCardEffectSummaryStatus(value: unknown): CardEffectSummaryStatus {
 function parseCardEffectSummarySourceActionLabel(
   value: unknown
 ): CardEffectSummarySourceActionLabel | undefined {
-  return (
-    value === '登场' ||
+  return value === '登场' ||
     value === '离场' ||
     value === '起动' ||
     value === 'LIVE开始' ||
     value === 'LIVE成功'
-  )
     ? value
     : undefined;
 }
@@ -5627,11 +5710,7 @@ function getMainMemberBelowIds(
   return player.memberSlots.memberBelow?.[slot] ?? [];
 }
 
-function playerOwnsCardInWaitingRoom(
-  state: GameState,
-  playerId: string,
-  cardId: string
-): boolean {
+function playerOwnsCardInWaitingRoom(state: GameState, playerId: string, cardId: string): boolean {
   return isCardInOwnedZone(state, playerId, ZoneType.WAITING_ROOM, cardId);
 }
 

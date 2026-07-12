@@ -249,10 +249,10 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 
 - 支付、活跃等通过通用能量操作底座处理的效果，先保持各自动动作原有的资源合法性与数量语义：支付必须足额，至多活跃按实际可处理数量结算。只有候选超出处理数量且存在特殊能量时，才打开通用能量选择窗口并要求精确选择；其余情况保持既有稳定顺序自动处理。单卡 workflow 不得自行复制或绕过这套判断，也不得因文案治理改变候选、顺序、数量、非法输入或 continuation 语义。
 - 触及上述能量操作时，focused test 至少覆盖候选不足/恰好、普通能量超额自动处理、特殊能量超额精确选择，以及重复、非法、stale ID 不推进；支付窗口还要精确断言按实际数量展开的 `[E]` 文案。
-- 玩家从休息室自由选择具体卡牌，随后将其加入手牌、放置于主卡组顶/底或其他指定主卡组位置时，移动前必须走 shared public-card-selection confirmation 两阶段生命周期：首次提交只通过 `revealedCardIds` 向双方公开“本次具体选择了哪些卡”，不移动、不发奖励、不推进 pending；第二次确认恢复原 workflow step/input，由原 workflow 重新校验当前目标、执行移动/奖励/continuation。
+- 玩家从休息室自由选择具体卡牌，随后将其加入手牌、放置于主卡组顶/底或其他指定主卡组位置时，移动前必须走 shared public-card-selection confirmation 两阶段生命周期：首次提交只通过 `revealedCardIds` 向双方公开“本次具体选择了哪些卡”，不移动、不发奖励、不推进 pending；服务端按 `min(3500ms, 2000ms + (公开卡牌数 - 1) * 300ms)` 写入权威 deadline，到期后由任意对局参与者请求自动恢复原 workflow step/input，由原 workflow 重新校验当前目标、执行移动/奖励/continuation。不得用客户端 command timestamp 或单方手动确认作为权威判断，也不得用服务进程内长驻 `setTimeout`。
 - 普通 `WAITING_ROOM -> HAND` 选择优先且默认使用 `createWaitingRoomToHandEffectState`；组合/grouped/custom workflow 以及休息室到主卡组顶/底/指定位置的 workflow，必须显式写入 `publicCardSelectionConfirmation` metadata 并复用 `runtime/public-card-selection-confirmation.ts`；不得在单卡 workflow 复制暂停、公开、恢复弹窗流程。
 - 固定目标移动、将整个休息室/整类对象洗回主卡组，以及玩家只选择目的地而不选择休息室具体卡牌的效果，不接入该公开确认生命周期。
-- 上述休息室自由选卡路径的 focused 测试至少锁定：双方 projector 看到相同选择结果；首次提交前后卡仍在休息室且奖励/pending 未推进；第二次确认才结算；确认时 stale target 不得被移动；可选 0 张/空选择路径按适用性确认不创建空的额外公开窗口。
+- 上述休息室自由选卡路径的 focused 测试至少锁定：双方 projector 看到相同选择结果与 deadline；首次提交前后卡仍在休息室且奖励/pending 未推进；deadline 前不结算，到期后双方均可请求且重复请求只结算一次；到期时 stale target 不得被移动；可选 0 张/空选择路径按适用性确认不创建空的额外公开窗口；前端不显示普通确认按钮，到期自动请求只发送一次，旧 effect 的 timer 在状态切换时取消；自动推进不得新建一条只恢复过期展示窗口的撤销记录，应合并回原选卡撤销条目，并覆盖撤销后不会立即再次自动结算。
 - 手牌进休息室默认使用 `discardHandCardsToWaitingRoomAndEnqueueTriggers` 或 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`。
 - 检视 / 查看 / 公开卡组顶后，inspected cards 从检视区进入休息室必须走统一 inspection-to-waiting helper；事件事实按卡组顶移动处理，`fromZone` 为 `MAIN_DECK`、`toZone` 为 `WAITING_ROOM`，同一次检视进入休息室的一组卡作为同一个 `movedCardIds`。
 - workflow 不允许裸写 `waitingRoom.cardIds` + `clearInspectionCards` 来处理 inspected remainder；若只是 direct mill 或不进入休息室，应在实现/审查中明确说明不属于 inspection-to-waiting helper 范围。

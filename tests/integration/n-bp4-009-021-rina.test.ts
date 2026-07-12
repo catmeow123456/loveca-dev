@@ -1,4 +1,7 @@
-import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
+import {
+  confirmActiveEffectStepThroughPublicReveal,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
@@ -169,16 +172,17 @@ function confirmSelection(
   );
   expect(result.success, result.error).toBe(true);
   if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
-    const confirmed = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, effect!.id)
-    );
-    expect(confirmed.success, confirmed.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
   }
 }
 
 describe('PL!N-bp4-009 Rina live-start workflow', () => {
   it('draws two when effective stage cost is lower, then returns the selected hand card to deck top', () => {
-    const existingHand = createCardInstance(createMember('existing-hand'), PLAYER1, 'existing-hand');
+    const existingHand = createCardInstance(
+      createMember('existing-hand'),
+      PLAYER1,
+      'existing-hand'
+    );
     const drawnOne = createCardInstance(createMember('drawn-one'), PLAYER1, 'drawn-one');
     const drawnTwo = createCardInstance(createMember('drawn-two'), PLAYER1, 'drawn-two');
     const deckRest = createCardInstance(createMember('deck-rest'), PLAYER1, 'deck-rest');
@@ -264,7 +268,12 @@ describe('PL!N-bp4-009 Rina live-start workflow', () => {
         cardIds: player.hand.cardIds.filter((cardId) => cardId !== drawnOne.instanceId),
       },
     }));
-    const staleResult = confirmActiveEffectStepThroughPublicReveal(staleState, PLAYER1, effect!.id, drawnOne.instanceId);
+    const staleResult = confirmActiveEffectStepThroughPublicReveal(
+      staleState,
+      PLAYER1,
+      effect!.id,
+      drawnOne.instanceId
+    );
     expect(staleResult.activeEffect).toBeTruthy();
     expect(staleResult.players[0].mainDeck.cardIds).toEqual([deckRest.instanceId]);
 

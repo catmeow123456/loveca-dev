@@ -16,6 +16,7 @@ import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
   FaceState,
@@ -110,10 +111,7 @@ function confirmSelection(
   );
   expect(result.success, result.error).toBe(true);
   if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
-    const confirmed = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, effect!.id)
-    );
-    expect(confirmed.success, confirmed.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
   }
 }
 

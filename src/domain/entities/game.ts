@@ -508,9 +508,7 @@ export interface PendingChoiceState {
 }
 
 export type ActiveEffectSelectableCardVisibility =
-  | 'PUBLIC'
-  | 'AWAITING_PLAYER_ONLY'
-  | 'AWAITING_PLAYER_BLIND';
+  'PUBLIC' | 'AWAITING_PLAYER_ONLY' | 'AWAITING_PLAYER_BLIND';
 
 export interface ActiveEffectNumericInputState {
   readonly min?: number;
@@ -553,6 +551,10 @@ export interface ActiveEffectState {
   readonly awaitingPlayerId: string | null;
   /** 当前步骤已公开给双方的卡牌 */
   readonly revealedCardIds?: readonly string[];
+  /** 休息室选卡公共展示的服务端权威截止时间。 */
+  readonly publicCardSelectionAutoAdvanceAt?: number;
+  /** 公共展示中的卡牌是否按选择顺序结算。 */
+  readonly publicCardSelectionOrdered?: boolean;
   /** 当前步骤涉及的检视区卡牌 */
   readonly inspectionCardIds?: readonly string[];
   /** 当前步骤可选择的卡牌 */

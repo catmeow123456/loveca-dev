@@ -12,6 +12,7 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   PB1_019_ACTIVATED_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
@@ -180,11 +181,7 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
     );
 
     expect(confirmResult.success, confirmResult.error).toBe(true);
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([sourceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(sourceId);
@@ -233,11 +230,7 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
     );
 
     expect(confirmResult.success, confirmResult.error).toBe(true);
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([waitingLiveId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(sourceId);

@@ -1,10 +1,9 @@
-import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
+import {
+  confirmActiveEffectStepThroughPublicReveal,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
-import type {
-  EnergyCardData,
-  LiveCardData,
-  MemberCardData,
-} from '../../src/domain/entities/card';
+import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
   createHeartIcon,
@@ -12,9 +11,7 @@ import {
 } from '../../src/domain/entities/card';
 import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
-import {
-  confirmActiveEffectStep,
-} from '../../src/application/card-effect-runner';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
@@ -105,10 +102,9 @@ function setupKasumi014Scenario(options: {
     PLAYER1,
     'waiting-member'
   );
-  const energyCards = (options.energyOrientations ?? [
-    OrientationState.ACTIVE,
-    OrientationState.ACTIVE,
-  ]).map((_, index) =>
+  const energyCards = (
+    options.energyOrientations ?? [OrientationState.ACTIVE, OrientationState.ACTIVE]
+  ).map((_, index) =>
     createCardInstance(createEnergy(`N-BP5-014-ENERGY-${index}`), PLAYER1, `energy-${index}`)
   );
 
@@ -120,10 +116,7 @@ function setupKasumi014Scenario(options: {
     waitingAqoursLive,
     waitingMember,
   };
-  let game = registerCards(session.state!, [
-    ...Object.values(cards),
-    ...energyCards,
-  ]);
+  let game = registerCards(session.state!, [...Object.values(cards), ...energyCards]);
   game = {
     ...game,
     currentPhase: options.currentPhase ?? GamePhase.MAIN_PHASE,
@@ -177,16 +170,18 @@ function activateKasumi014(session: ReturnType<typeof createGameSession>) {
   );
 }
 
-function confirmSelectedCard(session: ReturnType<typeof createGameSession>, selectedCardId: string) {
+function confirmSelectedCard(
+  session: ReturnType<typeof createGameSession>,
+  selectedCardId: string
+) {
   const result = session.executeCommand(
     createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedCardId)
   );
   if (session.state?.activeEffect?.stepId !== 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
     return result;
   }
-  return session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, session.state.activeEffect.id)
-  );
+  confirmPublicSelectionIfNeeded(session);
+  return { ...result, gameState: session.state! };
 }
 
 function abilityUseCount(game: GameState): number {
@@ -219,9 +214,9 @@ describe('PL!N-bp5-014 Kasumi activated discard recover Nijigasaki LIVE workflow
     expect(scenario.session.state?.activeEffect?.stepId).toBe(
       'N_BP5_014_SELECT_HAND_CARD_TO_DISCARD'
     );
-    expect(confirmSelectedCard(scenario.session, scenario.cards.discardMember.instanceId).success).toBe(
-      true
-    );
+    expect(
+      confirmSelectedCard(scenario.session, scenario.cards.discardMember.instanceId).success
+    ).toBe(true);
     expect(scenario.session.state?.activeEffect?.stepId).toBe(
       'N_BP5_014_SELECT_NIJIGASAKI_LIVE_TO_HAND'
     );
@@ -236,7 +231,9 @@ describe('PL!N-bp5-014 Kasumi activated discard recover Nijigasaki LIVE workflow
     expect(player.hand.cardIds).toEqual([scenario.cards.waitingNijigasakiLive.instanceId]);
     expect(player.waitingRoom.cardIds).toContain(scenario.cards.discardMember.instanceId);
     expect(
-      scenario.energyCards.map((card) => player.energyZone.cardStates.get(card.instanceId)?.orientation)
+      scenario.energyCards.map(
+        (card) => player.energyZone.cardStates.get(card.instanceId)?.orientation
+      )
     ).toEqual([OrientationState.WAITING, OrientationState.WAITING]);
     expect(abilityUseCount(scenario.session.state!)).toBe(1);
     expect(payCostCount(scenario.session.state!)).toBe(1);
@@ -291,9 +288,9 @@ describe('PL!N-bp5-014 Kasumi activated discard recover Nijigasaki LIVE workflow
     });
 
     expect(activateKasumi014(scenario.session).success).toBe(true);
-    expect(confirmSelectedCard(scenario.session, scenario.cards.discardMember.instanceId).success).toBe(
-      true
-    );
+    expect(
+      confirmSelectedCard(scenario.session, scenario.cards.discardMember.instanceId).success
+    ).toBe(true);
 
     const player = scenario.session.state!.players[0]!;
     expect(scenario.session.state?.activeEffect).toBeNull();
@@ -322,9 +319,9 @@ describe('PL!N-bp5-014 Kasumi activated discard recover Nijigasaki LIVE workflow
     });
 
     expect(activateKasumi014(scenario.session).success).toBe(true);
-    expect(confirmSelectedCard(scenario.session, scenario.cards.discardMember.instanceId).success).toBe(
-      true
-    );
+    expect(
+      confirmSelectedCard(scenario.session, scenario.cards.discardMember.instanceId).success
+    ).toBe(true);
     const activeEffectId = scenario.session.state!.activeEffect!.id;
     const result = confirmActiveEffectStepThroughPublicReveal(
       scenario.session.state!,

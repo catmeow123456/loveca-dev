@@ -1,4 +1,7 @@
-import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
+import {
+  confirmActiveEffectStepThroughPublicReveal,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -103,11 +106,8 @@ function confirmOne(session: GameSession, selectedCardId: string | null): GameSt
   if (session.state?.activeEffect?.stepId !== 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
     return result.gameState;
   }
-  const confirmed = session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, session.state.activeEffect.id)
-  );
-  expect(confirmed.success, confirmed.error).toBe(true);
-  return confirmed.gameState;
+  confirmPublicSelectionIfNeeded(session);
+  return session.state!;
 }
 
 function confirmMany(session: GameSession, selectedCardIds: readonly string[]): GameState {
