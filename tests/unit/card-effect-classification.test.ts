@@ -9,6 +9,10 @@ import {
   SP_PB1_004_LIVE_SUCCESS_PAY_THREE_ENERGY_DRAW_ONE_ABILITY_ID,
   SP_PB1_011_ON_ENTER_REPLAY_OTHER_LIELLA_MEMBER_ABILITY_ID,
   SP_PB1_010_CONTINUOUS_ENERGY_TEN_STAGE_COST_PLUS_FOUR_ABILITY_ID,
+  SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID,
+  SP_BP2_015_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_PURPLE_HEART_ABILITY_ID,
+  SP_BP2_020_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_RED_HEART_ABILITY_ID,
+  SP_BP2_021_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_YELLOW_HEART_ABILITY_ID,
   S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
   S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
   S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
@@ -195,6 +199,7 @@ import {
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
   SP_BP2_001_ON_ENTER_SUPPRESS_LIELLA_MEMBER_LIVE_START_RECOVER_LIELLA_CARD_ABILITY_ID,
   SP_BP2_002_ON_ENTER_LOOK_HIGH_COST_CARD_ABILITY_ID,
+  SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID,
   SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_ABILITY_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
   HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
@@ -258,6 +263,7 @@ import {
   SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID,
   SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID,
   SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID,
+  SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID,
   S_BP5_019_LIVE_SUCCESS_SUCCESS_ZONE_TWO_REVEALED_CHEER_MEMBER_TO_HAND_ABILITY_ID,
   S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -632,6 +638,7 @@ import {
   SP_PB1_020_AUTO_ON_MOVE_DRAW_ONE_ABILITY_ID,
   SP_PB1_023_LIVE_START_CATCHU_ACTIVATE_ENERGY_SCORE_ABILITY_ID,
   SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+  SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
   SP_PB1_006_AUTO_ENTER_OR_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
   SP_BP5_014_ON_ENTER_OTHER_STAGE_MEMBER_MOVED_DRAW_ONE_ABILITY_ID,
   SP_BP5_015_ON_ENTER_CENTER_GAIN_TWO_BLADE_ABILITY_ID,
@@ -1059,6 +1066,33 @@ describe('card effect classification registry', () => {
         effectText: cardCase.effectText,
       });
     }
+    for (const cardCode of ['PL!SP-bp2-023-L', 'PL!SP-bp2-023-SRL']) {
+      const definitions = getCardAbilityDefinitions(cardCode).filter(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      );
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId: SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+        baseCardCodes: ['PL!SP-bp2-023'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE开始时】自己的成功LIVE卡区的卡片比对方少的场合，此卡的[スコア]+1。',
+      });
+      expect(definitions[0]?.effectText).toContain('[スコア]');
+    }
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(1);
 
     expect(getCardAbilityDefinitions('PL!-bp3-019-P')).toEqual([]);
     expect(getCardAbilityDefinitions('PL!-bp3-023-P')).toEqual([]);
@@ -3146,20 +3180,40 @@ describe('card effect classification registry', () => {
       expect(lanzhuContinuous?.effectText).toContain('[スコア]');
     }
 
+    const waitingRoomCardToDeckTopBaseCodes = [
+      'PL!N-bp4-021',
+      'PL!SP-bp2-013',
+      'PL!SP-bp2-014',
+      'PL!SP-bp2-018',
+    ];
+    for (const cardCode of [
+      'PL!N-bp4-021-N',
+      'PL!SP-bp2-013-N',
+      'PL!SP-bp2-014-N',
+      'PL!SP-bp2-018-N',
+    ]) {
+      const matchingDefinitions = getCardAbilityDefinitions(cardCode).filter(
+        (ability) =>
+          ability.abilityId === PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID
+      );
+      expect(matchingDefinitions).toHaveLength(1);
+      expect(matchingDefinitions[0]).toMatchObject({
+        abilityId: PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
+        baseCardCodes: waitingRoomCardToDeckTopBaseCodes,
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText: '【登场】从自己的休息室将至多1张卡，放置于卡组顶。',
+      });
+    }
     expect(
-      getCardAbilityDefinitions('PL!N-bp4-021-N').find(
+      CARD_ABILITY_DEFINITIONS.filter(
         (ability) =>
           ability.abilityId === PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID
       )
-    ).toMatchObject({
-      abilityId: PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
-      baseCardCodes: ['PL!N-bp4-021'],
-      category: CardAbilityCategory.ON_ENTER,
-      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
-      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
-      queued: true,
-      implemented: true,
-    });
+    ).toHaveLength(1);
 
     expect(
       getCardAbilityDefinitions('PL!N-bp4-023-N').find(
@@ -7721,6 +7775,49 @@ describe('card effect classification registry', () => {
       });
     }
 
+    for (const cardCode of ['PL!SP-bp2-025-L', 'PL!SP-bp2-025-SRL']) {
+      const definitions = getCardAbilityDefinitions(cardCode).filter(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID
+      );
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId:
+          SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+        baseCardCodes: ['PL!SP-bp2-025'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE成功时】自己的舞台上存在「涩谷香音」、「薇恩・玛格丽特」、「鬼冢冬毬」其中的，大于等于2名名称互不相同的成员的场合，从因声援被公开的自己的卡片中，将1张卡片加入手牌。',
+      });
+      expect(definitions[0].cardCodes).toBeUndefined();
+      expect(definitions[0].perTurnLimit).toBeUndefined();
+    }
+    expect(
+      getCardAbilityDefinitions('PL!SP-bp2-025-L').find(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID
+      )
+    ).toBe(
+      getCardAbilityDefinitions('PL!SP-bp2-025-SRL').find(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID
+      )
+    );
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID
+      )
+    ).toHaveLength(1);
+
     const landingActionYeahLiveSuccess = getCardAbilityDefinitions('PL!S-bp5-020-L').find(
       (ability) =>
         ability.abilityId === S_BP5_020_LIVE_SUCCESS_LOSE_REMAINING_HEARTS_SCORE_ABILITY_ID
@@ -8043,6 +8140,38 @@ describe('card effect classification registry', () => {
         implemented: true,
       });
     }
+
+    const renDefinitions = ['PL!SP-bp2-005-P', 'PL!SP-bp2-005-R'].map((cardCode) =>
+      getCardAbilityDefinitions(cardCode).filter(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID
+      )
+    );
+    for (const definitionsForRarity of renDefinitions) {
+      expect(definitionsForRarity).toHaveLength(1);
+      expect(definitionsForRarity[0]).toMatchObject({
+        abilityId: SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID,
+        baseCardCodes: ['PL!SP-bp2-005'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】可以支付[E][E]：检视自己卡组顶的7张卡。可以将1张其中的『Liella!』的卡片公开并加入手牌。其余的卡片放置入休息室。',
+      });
+      expect(definitionsForRarity[0]).not.toHaveProperty('cardCodes');
+      expect(definitionsForRarity[0]).not.toHaveProperty('perTurnLimit');
+    }
+    expect(renDefinitions[0]?.[0]).toBe(renDefinitions[1]?.[0]);
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (ability) =>
+          ability.abilityId ===
+          SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID
+      )
+    ).toHaveLength(1);
 
     const bp2014OnEnter = getCardAbilityDefinitions('PL!HS-bp2-014-N').find(
       (ability) => ability.abilityId === HS_BP2_014_ON_ENTER_DRAW_CANNOT_LIVE_ABILITY_ID
@@ -12102,5 +12231,77 @@ describe('HS pb1 newly implemented card classifications', () => {
       });
       expect(matchedDefinitions[0]?.triggerCondition).toBeUndefined();
     }
+  });
+
+  it('classifies both PL!SP-bp2-004 rarities as one non-queued continuous source-member ability', () => {
+    const definitionsByCardCode = ['PL!SP-bp2-004-P', 'PL!SP-bp2-004-R'].map((cardCode) =>
+      getCardAbilityDefinitions(cardCode).filter(
+        (definition) =>
+          definition.abilityId ===
+          SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID
+      )
+    );
+
+    for (const definitions of definitionsByCardCode) {
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId: SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID,
+        baseCardCodes: ['PL!SP-bp2-004'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+      });
+      expect(definitions[0].triggerCondition).toBeUndefined();
+      expect(definitions[0].perTurnLimit).toBeUndefined();
+      expect(definitions[0].effectText).toContain('[黄ハート]');
+    }
+    expect(definitionsByCardCode[0][0]).toBe(definitionsByCardCode[1][0]);
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (definition) =>
+          definition.abilityId ===
+          SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID
+      )
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      cardCode: 'PL!SP-bp2-015-N',
+      baseCardCode: 'PL!SP-bp2-015',
+      abilityId: SP_BP2_015_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_PURPLE_HEART_ABILITY_ID,
+      effectText:
+        '【自动】【1回合1次】因声援被公开的自己的卡片中不包含持有BLADE HEART的卡片时，LIVE结束时为止，获得[紫ハート]。',
+    },
+    {
+      cardCode: 'PL!SP-bp2-020-N',
+      baseCardCode: 'PL!SP-bp2-020',
+      abilityId: SP_BP2_020_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_RED_HEART_ABILITY_ID,
+      effectText:
+        '【自动】【1回合1次】因声援被公开的自己的卡片中不包含持有BLADE HEART的卡时，LIVE结束时为止，获得[赤ハート]。',
+    },
+    {
+      cardCode: 'PL!SP-bp2-021-N',
+      baseCardCode: 'PL!SP-bp2-021',
+      abilityId: SP_BP2_021_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_YELLOW_HEART_ABILITY_ID,
+      effectText:
+        '【自动】【1回合1次】因声援被公开的自己的卡片中不包含持有BLADE HEART的卡时，LIVE结束时为止，获得[黄ハート]。',
+    },
+  ])('classifies $cardCode as one queued turn1 ON_CHEER AUTO ability', ({ cardCode, baseCardCode, abilityId, effectText }) => {
+    const definitions = getCardAbilityDefinitions(cardCode);
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0]).toMatchObject({
+      abilityId,
+      baseCardCodes: [baseCardCode],
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_CHEER,
+      queued: true,
+      implemented: true,
+      perTurnLimit: 1,
+      effectText,
+    });
+    expect(definitions[0]?.cardCodes).toBeUndefined();
   });
 });

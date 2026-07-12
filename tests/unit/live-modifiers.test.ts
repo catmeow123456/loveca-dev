@@ -5918,6 +5918,260 @@ describe('live modifier helpers', () => {
   });
 });
 
+describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
+  const abilityId = 'PL!SP-bp2-004:continuous-center-highest-stage-cost-gain-yellow-heart';
+
+  function createScenario(options: {
+    readonly sourceSlot: SlotPosition.LEFT | SlotPosition.CENTER | SlotPosition.RIGHT;
+    readonly leftCost: number;
+    readonly centerCost: number;
+    readonly rightCost: number;
+    readonly opponentCost?: number;
+    readonly belowCost?: number;
+  }) {
+    const costs = {
+      [SlotPosition.LEFT]: options.leftCost,
+      [SlotPosition.CENTER]: options.centerCost,
+      [SlotPosition.RIGHT]: options.rightCost,
+    };
+    const stageCards = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].map(
+      (slot) =>
+        createCardInstance(
+          {
+            cardCode:
+              slot === options.sourceSlot ? 'PL!SP-bp2-004-P' : `TEST-SP-BP2-004-${slot}`,
+            name: slot === options.sourceSlot ? '平安名すみれ' : `Stage ${slot}`,
+            groupNames: ['Liella!'],
+            cardType: CardType.MEMBER,
+            cost: costs[slot],
+            blade: 1,
+            hearts: [createHeartIcon(HeartColor.PINK, 1)],
+          },
+          'p1',
+          `sp-bp2-004-${slot}`
+        )
+    );
+    const source = stageCards.find((_, index) =>
+      [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index] === options.sourceSlot
+    )!;
+    const opponent = createCardInstance(
+      {
+        cardCode: 'TEST-SP-BP2-004-OPPONENT',
+        name: 'Opponent',
+        cardType: CardType.MEMBER,
+        cost: options.opponentCost ?? 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p2',
+      'sp-bp2-004-opponent'
+    );
+    const below = createCardInstance(
+      {
+        cardCode: 'TEST-SP-BP2-004-BELOW',
+        name: 'Below',
+        cardType: CardType.MEMBER,
+        cost: options.belowCost ?? 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'sp-bp2-004-below'
+    );
+    let game = registerCards(
+      createGameState('sp-bp2-004-continuous', 'p1', 'P1', 'p2', 'P2'),
+      [...stageCards, opponent, below]
+    );
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      for (const [index, slot] of [
+        SlotPosition.LEFT,
+        SlotPosition.CENTER,
+        SlotPosition.RIGHT,
+      ].entries()) {
+        memberSlots = placeCardInSlot(memberSlots, slot, stageCards[index].instanceId);
+      }
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, below.instanceId);
+      return { ...player, memberSlots };
+    });
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        opponent.instanceId
+      ),
+    }));
+    return {
+      game,
+      sourceId: source.instanceId,
+      centerId: stageCards[1].instanceId,
+      leftId: stageCards[0].instanceId,
+      rightId: stageCards[2].instanceId,
+    };
+  }
+
+  function findModifiers(game: ReturnType<typeof createGameState>) {
+    return collectLiveModifiers(game).filter(
+      (modifier) => modifier.kind === 'HEART' && modifier.abilityId === abilityId
+    );
+  }
+
+  it.each([
+    [SlotPosition.LEFT, 4, 9, 7],
+    [SlotPosition.RIGHT, 7, 9, 4],
+    [SlotPosition.CENTER, 4, 9, 7],
+  ])('grants the source in %s one SOURCE_MEMBER yellow Heart when center is highest', (sourceSlot, leftCost, centerCost, rightCost) => {
+    const { game, sourceId } = createScenario({ sourceSlot, leftCost, centerCost, rightCost });
+
+    expect(findModifiers(game)).toEqual([
+      {
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+        sourceCardId: sourceId,
+        abilityId,
+      },
+    ]);
+    expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+  });
+
+  it('accepts a highest-cost tie and ignores higher-cost opponent and memberBelow cards', () => {
+    const { game } = createScenario({
+      sourceSlot: SlotPosition.LEFT,
+      leftCost: 9,
+      centerCost: 9,
+      rightCost: 5,
+      opponentCost: 30,
+      belowCost: 40,
+    });
+    expect(findModifiers(game)).toHaveLength(1);
+  });
+
+  it.each([
+    [10, 9, 5],
+    [5, 9, 10],
+  ])('does not grant when center cost is strictly below a side member (%s/%s/%s)', (leftCost, centerCost, rightCost) => {
+    const { game } = createScenario({
+      sourceSlot: SlotPosition.LEFT,
+      leftCost,
+      centerCost,
+      rightCost,
+    });
+    expect(findModifiers(game)).toEqual([]);
+  });
+
+  it('does not grant with an empty center or after the source leaves the main stage', () => {
+    const scenario = createScenario({
+      sourceSlot: SlotPosition.LEFT,
+      leftCost: 4,
+      centerCost: 9,
+      rightCost: 7,
+    });
+    const emptyCenter = updatePlayer(scenario.game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
+      },
+    }));
+    const sourceOffStage = updatePlayer(scenario.game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.LEFT]: null },
+      },
+    }));
+    expect(findModifiers(emptyCenter)).toEqual([]);
+    expect(findModifiers(sourceOffStage)).toEqual([]);
+  });
+
+  it('uses effective-cost modifiers for center and side members', () => {
+    const scenario = createScenario({
+      sourceSlot: SlotPosition.LEFT,
+      leftCost: 4,
+      centerCost: 7,
+      rightCost: 9,
+    });
+    const centerRaised = addLiveModifier(scenario.game, {
+      kind: 'MEMBER_COST',
+      playerId: 'p1',
+      memberCardId: scenario.centerId,
+      sourceCardId: 'test-center-cost-source',
+      abilityId: 'test:center-cost-plus-two',
+      countDelta: 2,
+    });
+    expect(findModifiers(centerRaised)).toHaveLength(1);
+
+    const sideRaised = addLiveModifier(centerRaised, {
+      kind: 'MEMBER_COST',
+      playerId: 'p1',
+      memberCardId: scenario.rightId,
+      sourceCardId: 'test-side-cost-source',
+      abilityId: 'test:side-cost-plus-one',
+      countDelta: 1,
+    });
+    expect(findModifiers(sideRaised)).toEqual([]);
+  });
+
+  it('disappears and naturally recovers across fresh continuous collections', () => {
+    const scenario = createScenario({
+      sourceSlot: SlotPosition.LEFT,
+      leftCost: 4,
+      centerCost: 9,
+      rightCost: 8,
+    });
+    expect(findModifiers(scenario.game)).toHaveLength(1);
+    const sideRaised = addLiveModifier(scenario.game, {
+      kind: 'MEMBER_COST',
+      playerId: 'p1',
+      memberCardId: scenario.rightId,
+      sourceCardId: 'test-temporary-side-cost-source',
+      abilityId: 'test:temporary-side-cost-plus-two',
+      countDelta: 2,
+    });
+    expect(findModifiers(sideRaised)).toEqual([]);
+    expect(findModifiers(scenario.game)).toHaveLength(1);
+  });
+
+  it('collects once per legal source instance without duplicating either source', () => {
+    const first = createScenario({
+      sourceSlot: SlotPosition.LEFT,
+      leftCost: 4,
+      centerCost: 9,
+      rightCost: 4,
+    });
+    const secondSource = createCardInstance(
+      {
+        cardCode: 'PL!SP-bp2-004-R',
+        name: '平安名すみれ',
+        groupNames: ['Liella!'],
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'sp-bp2-004-second-source'
+    );
+    let game = registerCards(first.game, [secondSource]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        secondSource.instanceId
+      ),
+    }));
+    const modifiers = findModifiers(game);
+    expect(modifiers).toHaveLength(2);
+    expect(new Set(modifiers.map((modifier) => modifier.sourceCardId))).toEqual(
+      new Set([first.sourceId, secondSource.instanceId])
+    );
+  });
+});
+
 describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
   it('compares summed effective Heart counts for the exact own stage member', () => {
     const member = createStageMember('QUERY-MEMBER', 'p1', 'query-member', 2);

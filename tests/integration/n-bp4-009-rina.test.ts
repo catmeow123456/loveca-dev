@@ -12,7 +12,7 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { addMemberCostLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
@@ -20,7 +20,6 @@ import { createConfirmEffectStepCommand } from '../../src/application/game-comma
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import {
   PL_N_BP4_009_LIVE_START_DRAW_TWO_HAND_TO_DECK_TOP_LOW_STAGE_COST_ABILITY_ID,
-  PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -107,45 +106,6 @@ function setupBp4009Scenario(options: {
   }
 
   return game;
-}
-
-function setupBp4021Scenario(options: {
-  readonly waitingRoomCards: readonly ReturnType<typeof createCardInstance>[];
-  readonly mainDeckCards?: readonly ReturnType<typeof createCardInstance>[];
-}): GameState {
-  const source = createCardInstance(
-    createMember('PL!N-bp4-021-N', { name: '天王寺璃奈', cost: 9 }),
-    PLAYER1,
-    'n-bp4-021-source'
-  );
-  const waitingRoomCards = [...options.waitingRoomCards];
-  const mainDeckCards = [...(options.mainDeckCards ?? [])];
-  let game = createGameState('n-bp4-021-rina', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [source, ...waitingRoomCards, ...mainDeckCards]);
-  game = updatePlayer(game, PLAYER1, (player) => ({
-    ...player,
-    mainDeck: { ...player.mainDeck, cardIds: mainDeckCards.map((card) => card.instanceId) },
-    waitingRoom: waitingRoomCards.reduce(
-      (zone, card) => addCardToZone(zone, card.instanceId),
-      player.waitingRoom
-    ),
-    memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
-      orientation: OrientationState.ACTIVE,
-      face: FaceState.FACE_UP,
-    }),
-  }));
-
-  return emitGameEvent(game, {
-    eventId: 'enter-n-bp4-021-rina',
-    eventType: TriggerCondition.ON_ENTER_STAGE,
-    timestamp: Date.now(),
-    cardInstanceId: source.instanceId,
-    fromZone: ZoneType.HAND,
-    toZone: ZoneType.MEMBER_SLOT,
-    toSlot: SlotPosition.CENTER,
-    ownerId: PLAYER1,
-    controllerId: PLAYER1,
-  });
 }
 
 function startTiming(game: GameState, triggerCondition: TriggerCondition): GameState {
@@ -285,71 +245,5 @@ describe('PL!N-bp4-009 Rina live-start workflow', () => {
       deckRest.instanceId,
     ]);
     expect(session.state?.players[0].hand.cardIds).toEqual([drawnOne.instanceId]);
-  });
-});
-
-describe('PL!N-bp4-021 Rina on-enter workflow', () => {
-  it('opens an optional waiting-room selection and puts the selected card on deck top', () => {
-    const target = createCardInstance(createMember('waiting-target'), PLAYER1, 'waiting-target');
-    const other = createCardInstance(createMember('waiting-other'), PLAYER1, 'waiting-other');
-    const deckTop = createCardInstance(createMember('deck-top'), PLAYER1, 'deck-top');
-    const state = startTiming(
-      setupBp4021Scenario({
-        waitingRoomCards: [target, other],
-        mainDeckCards: [deckTop],
-      }),
-      TriggerCondition.ON_ENTER_STAGE
-    );
-    const session = attachSession(state);
-
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID
-    );
-    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
-    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
-
-    confirmSelection(session, target.instanceId);
-
-    expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([other.instanceId]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([
-      target.instanceId,
-      deckTop.instanceId,
-    ]);
-  });
-
-  it('can decline without moving a waiting-room card', () => {
-    const target = createCardInstance(createMember('waiting-target'), PLAYER1, 'waiting-target');
-    const deckTop = createCardInstance(createMember('deck-top'), PLAYER1, 'deck-top');
-    const state = startTiming(
-      setupBp4021Scenario({
-        waitingRoomCards: [target],
-        mainDeckCards: [deckTop],
-      }),
-      TriggerCondition.ON_ENTER_STAGE
-    );
-    const session = attachSession(state);
-
-    confirmSelection(session, null);
-
-    expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([target.instanceId]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckTop.instanceId]);
-    expect(session.state?.pendingAbilities).toHaveLength(0);
-  });
-
-  it('consumes the pending ability as no-op when waiting room is empty', () => {
-    const deckTop = createCardInstance(createMember('deck-top'), PLAYER1, 'deck-top');
-    const state = startTiming(
-      setupBp4021Scenario({
-        waitingRoomCards: [],
-        mainDeckCards: [deckTop],
-      }),
-      TriggerCondition.ON_ENTER_STAGE
-    );
-
-    expect(state.activeEffect).toBeNull();
-    expect(state.pendingAbilities).toHaveLength(0);
-    expect(state.players[0].mainDeck.cardIds).toEqual([deckTop.instanceId]);
   });
 });

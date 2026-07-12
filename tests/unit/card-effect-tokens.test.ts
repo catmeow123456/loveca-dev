@@ -8,6 +8,11 @@ describe('parseCardEffectText', () => {
   it('accepts the bp1-007 and PR-028 Chinese effect texts without unknown tokens', () => {
     expect(getUnknownCardEffectPlaceholders('【起动】【1回合1次】[E][E]：抽1张卡。')).toEqual([]);
     expect(getUnknownCardEffectPlaceholders('【LIVE成功时】自己的舞台中，存在持有的HEART数量比原本持有的HEART数量多的成员的场合，抽1张卡。')).toEqual([]);
+    expect(
+      getUnknownCardEffectPlaceholders(
+        '【常时】存在于自己的舞台的成员中，中央区域的成员持有最高费用的场合，获得[黄ハート]。'
+      )
+    ).toEqual([]);
   });
 
   it('parses Loveca timing and modifier placeholders', () => {

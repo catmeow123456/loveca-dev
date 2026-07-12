@@ -13,15 +13,15 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID =
-  'PL_N_BP4_021_SELECT_WAITING_ROOM_CARD_TO_DECK_TOP';
+  'ON_ENTER_SELECT_WAITING_ROOM_CARD_TO_DECK_TOP';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerNBp4021RinaWorkflowHandlers(): void {
+export function registerOnEnterWaitingRoomCardToDeckTopWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(
     PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
     (game, ability, options, context) =>
-      startRinaWaitingRoomCardToDeckTop(
+      startOnEnterWaitingRoomCardToDeckTop(
         game,
         ability,
         options.orderedResolution === true,
@@ -32,7 +32,7 @@ export function registerNBp4021RinaWorkflowHandlers(): void {
     PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID,
     SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID,
     (game, input, context) =>
-      finishRinaWaitingRoomCardToDeckTopSelection(
+      finishOnEnterWaitingRoomCardToDeckTopSelection(
         game,
         input.selectedCardId ?? null,
         context.continuePendingCardEffects
@@ -40,16 +40,14 @@ export function registerNBp4021RinaWorkflowHandlers(): void {
   );
 }
 
-function startRinaWaitingRoomCardToDeckTop(
+function startOnEnterWaitingRoomCardToDeckTop(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
+  if (!player) return game;
 
   const stateWithoutPending: GameState = {
     ...game,
@@ -78,15 +76,15 @@ function startRinaWaitingRoomCardToDeckTop(
         controllerId: ability.controllerId,
         effectText: getAbilityEffectText(ability.abilityId),
         stepId: SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID,
-        stepText: '可以选择自己休息室1张卡放置于卡组顶。',
+        stepText: '可以选择自己休息室至多1张卡放置于卡组顶。',
         awaitingPlayerId: player.id,
         selectableCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
-        selectionLabel: '选择放置到卡组顶的休息室卡',
-        confirmSelectionLabel: '放置到卡组顶',
+        selectionLabel: '选择要放置于卡组顶的卡',
+        confirmSelectionLabel: '放置于卡组顶',
         canSkipSelection: true,
-        skipSelectionLabel: '不发动',
+        skipSelectionLabel: '不放置',
         metadata: {
           publicCardSelectionConfirmation: { destination: 'MAIN_DECK_TOP' },
           orderedResolution,
@@ -107,7 +105,7 @@ function startRinaWaitingRoomCardToDeckTop(
   );
 }
 
-function finishRinaWaitingRoomCardToDeckTopSelection(
+function finishOnEnterWaitingRoomCardToDeckTopSelection(
   game: GameState,
   selectedCardId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects
@@ -117,14 +115,10 @@ function finishRinaWaitingRoomCardToDeckTopSelection(
     !effect ||
     effect.abilityId !== PL_N_BP4_021_ON_ENTER_WAITING_ROOM_CARD_TO_DECK_TOP_ABILITY_ID ||
     effect.stepId !== SELECT_WAITING_ROOM_CARD_TO_DECK_TOP_STEP_ID
-  ) {
-    return game;
-  }
+  ) return game;
 
   const player = getPlayerById(game, effect.controllerId);
-  if (!player) {
-    return game;
-  }
+  if (!player) return game;
 
   if (selectedCardId === null) {
     return continuePendingCardEffects(
@@ -144,18 +138,14 @@ function finishRinaWaitingRoomCardToDeckTopSelection(
     !selectedCard ||
     selectedCard.ownerId !== player.id ||
     !player.waitingRoom.cardIds.includes(selectedCardId)
-  ) {
-    return game;
-  }
+  ) return game;
 
   const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(game, player.id, [selectedCardId], {
     candidateCardIds: effect.selectableCardIds,
     minCount: 1,
     maxCount: 1,
   });
-  if (!moveResult) {
-    return game;
-  }
+  if (!moveResult) return game;
 
   return continuePendingCardEffects(
     addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {

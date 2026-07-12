@@ -33,6 +33,7 @@ import {
   PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+  SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   getAbilityEffectText,
@@ -163,6 +164,17 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getNeutralConfirmationConfig
   );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveGoRestartLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getGoRestartConfirmationConfig
+  );
 }
 
 function getPsychoHeartConfirmationConfig(
@@ -272,6 +284,20 @@ function getNeutralConfirmationConfig(
   return {
     effectText: `${getAbilityEffectText(ability.abilityId)}（当前不同名『KALEIDOSCORE』成员${context.differentNamedKaleidoscoreStageMembers.length}名，${
       context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+    }）`,
+  };
+}
+
+function getGoRestartConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getGoRestartContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己成功LIVE ${context.ownSuccessZoneCount}张，对方成功LIVE ${context.opponentSuccessZoneCount}张，${
+      context.conditionMet
+        ? '满足条件，实际[スコア]+1。'
+        : '未满足条件，实际不增加[スコア]。'
     }）`,
   };
 }
@@ -688,6 +714,42 @@ function resolveNeutralLiveStart(
   );
 }
 
+function resolveGoRestartLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) return game;
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getGoRestartContext(stateWithoutPending, ability);
+  const stateAfterScore = context.conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus: context.scoreBonus,
+      })
+    : stateWithoutPending;
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: context.conditionMet
+        ? 'FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE'
+        : 'NO_FEWER_SUCCESS_LIVE',
+      sourceInLiveZone: context.sourceInLiveZone,
+      ownSuccessZoneCount: context.ownSuccessZoneCount,
+      opponentSuccessZoneCount: context.opponentSuccessZoneCount,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
 function getSolitudeRainContext(
   game: GameState,
   ability: PendingAbilityState
@@ -1015,6 +1077,31 @@ function getNeutralContext(
     sourceInLiveZone,
     differentNamedKaleidoscoreStageMembers,
     conditionMet: sourceInLiveZone && differentNamedKaleidoscoreStageMembers.length >= 2,
+  };
+}
+
+function getGoRestartContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly ownSuccessZoneCount: number;
+  readonly opponentSuccessZoneCount: number;
+  readonly conditionMet: boolean;
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const opponent = game.players.find((candidate) => candidate.id !== ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const ownSuccessZoneCount = player?.successZone.cardIds.length ?? 0;
+  const opponentSuccessZoneCount = opponent?.successZone.cardIds.length ?? 0;
+  const conditionMet = sourceInLiveZone && ownSuccessZoneCount < opponentSuccessZoneCount;
+  return {
+    sourceInLiveZone,
+    ownSuccessZoneCount,
+    opponentSuccessZoneCount,
+    conditionMet,
+    scoreBonus: conditionMet ? 1 : 0,
   };
 }
 

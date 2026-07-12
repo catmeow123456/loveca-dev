@@ -142,6 +142,8 @@ const SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID =
   'PL!SP-sd2-004:continuous-center-gain-four-blade';
 const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID =
   'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
+const SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp2-004:continuous-center-highest-stage-cost-gain-yellow-heart';
 const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
   'PL!-bp6-012:continuous-success-zone-printemps-card-yellow-heart';
 const BP6_014_CONTINUOUS_SUCCESS_ZONE_LILYWHITE_CARD_PINK_HEART_ABILITY_ID =
@@ -239,6 +241,26 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    baseCardCodes: ['PL!SP-bp2-004'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        !isCenterStageMemberAtHighestEffectiveCost(game, playerId)
+      ) {
+        return [];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
   {
     baseCardCodes: ['PL!-sd1-001'],
     collect: ({ playerId, sourceCardId, successLiveCount }) =>
@@ -1713,6 +1735,22 @@ function isSourceStageMemberInSlot(
 
 function isSourceMainStageMember(game: GameState, playerId: string, sourceCardId: string): boolean {
   return getSourceMainStageSlot(game, playerId, sourceCardId) !== null;
+}
+
+function isCenterStageMemberAtHighestEffectiveCost(game: GameState, playerId: string): boolean {
+  const player = getPlayerById(game, playerId);
+  const centerCardId = player?.memberSlots.slots[SlotPosition.CENTER] ?? null;
+  if (!player || !centerCardId) {
+    return false;
+  }
+
+  const stageMemberCardIds = MEMBER_SLOT_ORDER.map((slot) => player.memberSlots.slots[slot]).filter(
+    (cardId): cardId is string => cardId !== null
+  );
+  const centerEffectiveCost = getMemberEffectiveCost(game, playerId, centerCardId);
+  return stageMemberCardIds.every(
+    (cardId) => getMemberEffectiveCost(game, playerId, cardId) <= centerEffectiveCost
+  );
 }
 
 function getSourceMainStageSlot(

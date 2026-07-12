@@ -442,6 +442,10 @@ export const N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_
   'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
 export const SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp2-024:live-success-hand-advantage-this-live-score';
+export const SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID =
+  'PL!SP-bp2-025:live-success-two-distinct-named-stage-members-revealed-cheer-to-hand';
+export const SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID =
+  'PL!SP-bp2-005:on-enter-pay-two-energy-look-top-seven-liella-card';
 export const S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
   'PL!S-bp2-024:live-success-draw-two-discard-one';
 export const S_BP5_019_LIVE_SUCCESS_SUCCESS_ZONE_TWO_REVEALED_CHEER_MEMBER_TO_HAND_ABILITY_ID =
@@ -553,6 +557,8 @@ export const SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID =
   'PL!SP-bp4-028:live-start-active-energy-score';
 export const SP_BP2_008_ACTIVATED_PAY_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-bp2-008:activated-pay-energy-self-position-change';
+export const SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp2-023:live-start-fewer-success-live-this-live-score';
 export const SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-sd2-002:activated-pay-two-energy-self-position-change';
 export const SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID =
@@ -1335,6 +1341,14 @@ export const SP_BP2_006_ON_ENTER_RELAY_RECOVER_REPLACED_LIELLA_MEMBER_ABILITY_ID
   'PL!SP-bp2-006:on-enter-relay-recover-replaced-liella-member';
 export const SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID =
   'PL!SP-bp2-006:activated-discard-low-cost-liella-member-activate-on-enter';
+export const SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp2-004:continuous-center-highest-stage-cost-gain-yellow-heart';
+export const SP_BP2_015_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!SP-bp2-015:auto-on-cheer-no-blade-heart-gain-purple-heart';
+export const SP_BP2_020_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_RED_HEART_ABILITY_ID =
+  'PL!SP-bp2-020:auto-on-cheer-no-blade-heart-gain-red-heart';
+export const SP_BP2_021_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp2-021:auto-on-cheer-no-blade-heart-gain-yellow-heart';
 export const SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp7-005-SEC:auto-enter-or-return-place-waiting-energy';
 export const SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID =

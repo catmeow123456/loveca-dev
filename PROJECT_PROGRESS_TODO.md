@@ -1,6 +1,36 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-11
+更新时间：2026-07-12
+
+## 本次 2026-07-12 Liella! SP-bp2-005「葉月 恋」
+
+- 实现 `PL!SP-bp2-005-P / R` 费用 4「葉月 恋」同文登场能力；一个 `baseCardCodes: ['PL!SP-bp2-005']` definition 覆盖两种罕度，前台 effectText 逐字使用本地 Excel 中文原文。
+- 新增单卡薄 wrapper `workflows/cards/sp-bp2-005-ren.ts`；可选支付 `[E][E]` 复用 `payImmediateEffectCosts` / `recordPayCostAction`，支付后委托 shared `look-top-select-to-hand` 处理检视、私密候选、公开、入手与 remainder 进休息室事件。
+- 不扩展 `GENERIC_DISCARD_LOOK_TOP_ABILITY_ID` / `discard-look-top-select-to-hand`，因为本卡是可选两活跃能量费用，与既有弃置1张手牌费用 family 的支付窗口、事件和无资源分支不同；runner 仅新增一条 import/register 薄胶水。
+
+## 本次 2026-07-12 Liella! SP-bp2 无 BLADE HEART 声援三色 Heart
+
+- 实现 `PL!SP-bp2-015-N` 费用 4「平安名すみれ」、`PL!SP-bp2-020-N` 费用 4「鬼塚夏美」、`PL!SP-bp2-021-N` 费用 4「ウィーン・マルガレーテ」；三条独立 AUTO / STAGE_MEMBER / ON_CHEER / queued / turn1 definition 使用 Excel 中文原文。
+- 新增 shared `on-cheer-no-blade-heart-gain-heart.ts`，稳定配置轴仅为 abilityId、紫/红/黄 Heart 与 action step；按 pending-linked `CheerEvent.revealedCardIds` 事实判断并复用 `hasBladeHeart()` 落实 FAQ Q112/Q113，写来源实例绑定的 `SOURCE_MEMBER` modifier。
+- 有效普通自己声援即使因存在任意 BLADE HEART 失败仍消费 turn1；无匹配声援、实际公开0张自己的卡、additional 或来源离场不消费。无玩家输入，不创建 activeEffect/confirm-only；focused、治理、类型与 diff 验证结果见本窗口收尾。
+
+## 本次 2026-07-12 Liella! SP-bp2-025「Bubble Rise」
+
+- 实现 `PL!SP-bp2-025-L / SRL` 分数 4「Bubble Rise」同文 LIVE 成功能力；一个 `baseCardCodes: ['PL!SP-bp2-025']` definition 覆盖两种罕度，前台效果文本采用本地 Excel 中文原文。
+- 扩展 shared `revealed-cheer-selection` 的可选 pre-queue availability gate 配置：只扫描控制者 LEFT / CENTER / RIGHT 主成员实体，以结构化卡名别名将两个不同 cardId 分配给「澁谷かのん」「ウィーン・マルガレーテ」「鬼塚冬毬」中的两个不同名字；条件在 pending 入队前判断，结算不重查舞台。
+- 结算复用当前可移动声援公开卡选择与 `moveRevealedCheerCards(..., HAND)`；强制公开单选任意卡牌类型，无目标时 single pending confirm-only、ordered resolution 自动继续。focused、token/text governance、类型与 diff 验证结果见本窗口收尾。
+
+## 本次 2026-07-12 Liella! SP-bp2-004 中央最高有效费用常时 Heart
+
+- 实现 `PL!SP-bp2-004-P / R` 费用 9「平安名すみれ」同文常时能力；用一个 `baseCardCodes: ['PL!SP-bp2-004']` definition 覆盖两种罕度，前台文本采用最新本地 Excel 中文同步文本。
+- 仅扩展 `live-modifiers.ts` continuous registry：来源仍在己方主舞台且中央成员有效费用等于己方三个主成员槽最高值时，为该来源动态收集 `SOURCE_MEMBER` 黄 Heart +1；平手成立，不计对方舞台或 memberBelow，不进 pending，runner 不变。
+- focused classification / live-modifier、token / text governance、TypeScript 与 diff 验证结果见本窗口收尾。
+
+## 本次 2026-07-12 Liella! SP-bp2 同文登场置顶
+
+- 实现 `PL!SP-bp2-013-N` 费用 9「唐 可可」、`PL!SP-bp2-014-N` 费用 9「嵐 千砂都」、`PL!SP-bp2-018-N` 费用 9「米女メイ」：扩展 `PL!N-bp4-021-N` 费用 9「天王寺璃奈」既有同文 definition/baseCardCodes。
+- 将原卡牌维度 workflow 晋升为行为命名的 shared workflow；保留可选 0～1 张、公开选卡权威 deadline 两阶段确认、到期重校验、置顶与 pending continuation，runner 仅调整 import/register 路径。
+- focused classification/integration、token/text governance、类型检查与 diff 检查结果见本窗口收尾。
 
 ## 本次 2026-07-11 Liella! bp7 能量机制与 005 / 006 / 007
 
@@ -1302,6 +1332,11 @@ git diff --check
 费用修正器已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」起步。后续同类卡继续扩展 `cost-calculator.ts` 的 cost modifier 条件与来源，不要写 UI 层特例。
 
 ## 已知注意点
+
+### 2026-07-12 星团 bp2「Go!! リスタート」
+
+- 完成 `PL!SP-bp2-023-L / SRL` 分数 1「Go!! リスタート」：按基础编号登记同文罕度，扩展 shared `live-start-score-bonuses.ts`，实时比较双方成功 LIVE 卡区数量。
+- 单 pending 与手动点选使用动态 confirm-only，顺序发动自动连续；满足时写来源绑定 SCORE +1 并同步刷新 `playerScores`，focused classification/integration 与 token/text governance 覆盖本窗口验证。
 
 ### 2026-07-11 虹咲三弹 LIVE 卡第一批
 

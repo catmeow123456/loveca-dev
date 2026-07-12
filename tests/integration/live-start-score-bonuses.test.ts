@@ -29,6 +29,7 @@ import {
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
   SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+  SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -148,6 +149,17 @@ function createNeutral(cardCode = 'PL!SP-pb1-024-L'): LiveCardData {
   };
 }
 
+function createGoRestart(cardCode = 'PL!SP-bp2-023-L'): LiveCardData {
+  return {
+    cardCode,
+    name: 'Go!! リスタート',
+    groupNames: ['Liella!'],
+    cardType: CardType.LIVE,
+    score: 1,
+    requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
+  };
+}
+
 function createKaleidoscoreMember(id: string, name: string, unitName = 'KALEIDOSCORE') {
   return createCardInstance(
     createMember({
@@ -165,6 +177,7 @@ function createKaleidoscoreMember(id: string, name: string, unitName = 'KALEIDOS
 function setupState(options: {
   readonly lives: readonly ReturnType<typeof createCardInstance>[];
   readonly successLives?: readonly ReturnType<typeof createCardInstance>[];
+  readonly opponentSuccessLives?: readonly ReturnType<typeof createCardInstance>[];
   readonly members?: Partial<Record<SlotPosition, ReturnType<typeof createCardInstance>>>;
   readonly opponentMembers?: Partial<Record<SlotPosition, ReturnType<typeof createCardInstance>>>;
   readonly initialScore?: number;
@@ -182,6 +195,7 @@ function setupState(options: {
   game = registerCards(game, [
     ...options.lives,
     ...(options.successLives ?? []),
+    ...(options.opponentSuccessLives ?? []),
     ...members.map(([, card]) => card),
     ...opponentMembers.map(([, card]) => card),
   ]);
@@ -211,6 +225,10 @@ function setupState(options: {
   });
   game = updatePlayer(game, PLAYER2, (player) => ({
     ...player,
+    successZone: (options.opponentSuccessLives ?? []).reduce(
+      (zone, live) => addCardToStatefulZone(zone, live.instanceId),
+      player.successZone
+    ),
     memberSlots: opponentMembers.reduce(
       (slots, [slot, member]) =>
         placeCardInSlot(slots, slot, member.instanceId, {
@@ -633,6 +651,249 @@ describe('PL!SP-pb1-024 Neutral shared live-start score bonus', () => {
       metadata: { confirmOnlyPendingAbility: true },
     });
     expect(scoreModifiersForAbility(manual, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+  });
+});
+
+describe('PL!SP-bp2-023 Go!! Restart shared live-start score bonus', () => {
+  function scenario(options: {
+    readonly cardCode?: string;
+    readonly ownCount: number;
+    readonly opponentCount: number;
+    readonly sourceId?: string;
+  }) {
+    const source = createCardInstance(
+      createGoRestart(options.cardCode),
+      PLAYER1,
+      options.sourceId ?? 'go-restart-source'
+    );
+    const successLives = Array.from({ length: options.ownCount }, (_, index) =>
+      createCardInstance(createDummyLive(`own-success-${index}`), PLAYER1, `own-success-${index}`)
+    );
+    const opponentSuccessLives = Array.from({ length: options.opponentCount }, (_, index) =>
+      createCardInstance(
+        createDummyLive(`opponent-success-${index}`),
+        PLAYER2,
+        `opponent-success-${index}`
+      )
+    );
+    return {
+      source,
+      game: setupState({
+        lives: [source],
+        successLives,
+        opponentSuccessLives,
+        initialScore: 1,
+      }),
+    };
+  }
+
+  it.each(['PL!SP-bp2-023-L', 'PL!SP-bp2-023-SRL'])(
+    'queues %s through the shared handler and resolves only after confirmation',
+    (cardCode) => {
+      const { source, game } = scenario({ cardCode, ownCount: 1, opponentCount: 2 });
+      const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+      expect(checked.success).toBe(true);
+      expect(checked.gameState.activeEffect).toMatchObject({
+        abilityId: SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+        sourceCardId: source.instanceId,
+        metadata: { confirmOnlyPendingAbility: true },
+      });
+      expect(checked.gameState.activeEffect?.effectText).toContain(
+        '当前自己成功LIVE 1张，对方成功LIVE 2张，满足条件，实际[スコア]+1'
+      );
+      expect(checked.gameState.activeEffect?.effectText).not.toMatch(
+        /source|pending|payload|stale|eventId|trigger|来源在LIVE区|来源不在LIVE区/
+      );
+      expect(
+        scoreModifiersForAbility(
+          checked.gameState,
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toEqual([]);
+      expect(checked.gameState.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+
+      const resolved = confirmIfConfirmOnly(checked.gameState, PLAYER1);
+      expect(
+        scoreModifiersForAbility(
+          resolved,
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toContainEqual(
+        expect.objectContaining({
+          playerId: PLAYER1,
+          liveCardId: source.instanceId,
+          sourceCardId: source.instanceId,
+          countDelta: 1,
+        })
+      );
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(2);
+      expect(
+        latestPayload(
+          resolved,
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toMatchObject({
+        ownSuccessZoneCount: 1,
+        opponentSuccessZoneCount: 2,
+        conditionMet: true,
+        scoreBonus: 1,
+      });
+      const repeated = confirmActiveEffectStep(
+        resolved,
+        PLAYER1,
+        checked.gameState.activeEffect!.id
+      );
+      expect(
+        scoreModifiersForAbility(
+          repeated,
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toHaveLength(1);
+      expect(repeated.liveResolution.playerScores.get(PLAYER1)).toBe(2);
+    }
+  );
+
+  it.each([
+    [0, 1, true],
+    [0, 0, false],
+    [2, 2, false],
+  ] as const)(
+    'compares current success zones %i:%i and conditionMet=%s',
+    (ownCount, opponentCount, expectedMet) => {
+      const { game } = scenario({ ownCount, opponentCount });
+      const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+      const expectedText = expectedMet
+        ? `当前自己成功LIVE ${ownCount}张，对方成功LIVE ${opponentCount}张，满足条件，实际[スコア]+1`
+        : `当前自己成功LIVE ${ownCount}张，对方成功LIVE ${opponentCount}张，未满足条件，实际不增加[スコア]`;
+      expect(checked.gameState.activeEffect?.effectText).toContain(expectedText);
+      const resolved = confirmIfConfirmOnly(checked.gameState, PLAYER1);
+      expect(
+        scoreModifiersForAbility(
+          resolved,
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toHaveLength(expectedMet ? 1 : 0);
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(expectedMet ? 2 : 1);
+      expect(
+        latestPayload(
+          resolved,
+          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toMatchObject({ ownSuccessZoneCount: ownCount, opponentSuccessZoneCount: opponentCount, conditionMet: expectedMet, scoreBonus: expectedMet ? 1 : 0 });
+    }
+  );
+
+  it('rechecks current counts and source validity when confirmation resolves', () => {
+    const { source, game } = scenario({ ownCount: 0, opponentCount: 1 });
+    const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    const departed = updatePlayer(checked.gameState, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, source.instanceId),
+    }));
+    const resolved = confirmIfConfirmOnly(departed, PLAYER1);
+    expect(
+      scoreModifiersForAbility(
+        resolved,
+        SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+    expect(
+      latestPayload(resolved, SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID)
+    ).toMatchObject({ sourceInLiveZone: false, conditionMet: false, scoreBonus: 0 });
+  });
+
+  it('does not score when current own success count changes to 3 against opponent 2 before confirmation', () => {
+    const { game } = scenario({ ownCount: 2, opponentCount: 2 });
+    const extraSuccess = createCardInstance(
+      createDummyLive('own-success-extra'),
+      PLAYER1,
+      'own-success-extra'
+    );
+    const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    let changed = registerCards(checked.gameState, [extraSuccess]);
+    changed = updatePlayer(changed, PLAYER1, (player) => ({
+      ...player,
+      successZone: addCardToStatefulZone(player.successZone, extraSuccess.instanceId),
+    }));
+    const resolved = confirmIfConfirmOnly(changed, PLAYER1);
+    expect(
+      scoreModifiersForAbility(
+        resolved,
+        SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    expect(
+      latestPayload(resolved, SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID)
+    ).toMatchObject({
+      ownSuccessZoneCount: 3,
+      opponentSuccessZoneCount: 2,
+      conditionMet: false,
+      scoreBonus: 0,
+    });
+  });
+
+  it('auto-resolves ordered copies and opens one confirm-only bridge for a manually selected copy', () => {
+    const first = createCardInstance(createGoRestart('PL!SP-bp2-023-L'), PLAYER1, 'go-first');
+    const second = createCardInstance(createGoRestart('PL!SP-bp2-023-SRL'), PLAYER1, 'go-second');
+    const opponentSuccess = createCardInstance(
+      createDummyLive('go-opponent-success'),
+      PLAYER2,
+      'go-opponent-success'
+    );
+    const checked = new GameService().executeCheckTiming(
+      setupState({ lives: [first, second], opponentSuccessLives: [opponentSuccess], initialScore: 2 }),
+      [TriggerCondition.ON_LIVE_START]
+    ).gameState;
+    expect(checked.activeEffect?.canResolveInOrder).toBe(true);
+
+    const ordered = confirmActiveEffectStep(
+      checked,
+      PLAYER1,
+      checked.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(ordered.pendingAbilities).toEqual([]);
+    expect(
+      scoreModifiersForAbility(
+        ordered,
+        SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(2);
+    expect(ordered.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+
+    const manual = confirmActiveEffectStep(
+      checked,
+      PLAYER1,
+      checked.activeEffect!.id,
+      second.instanceId
+    );
+    expect(manual.activeEffect).toMatchObject({
+      abilityId: SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: second.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(
+      scoreModifiersForAbility(
+        manual,
+        SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    const confirmed = confirmIfConfirmOnly(manual, PLAYER1);
+    expect(
+      scoreModifiersForAbility(
+        confirmed,
+        SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(1);
+    expect(confirmed.activeEffect).toMatchObject({
+      abilityId: SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+      sourceCardId: first.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
   });
 });
 
