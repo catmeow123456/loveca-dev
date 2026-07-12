@@ -88,6 +88,7 @@ function startSpBp2011TomariOnEnter(
         awaitingPlayerId: player.id,
         selectableCardIds: waitingLiveCardIds,
         canSkipSelection: false,
+        publiclyConfirmSelection: false,
         metadata: {
           orderedResolution,
         },
@@ -153,6 +154,10 @@ function startOpponentChoiceStep(
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: {
+            destination: 'HAND',
+            sourcePlayerId: effect.controllerId,
+          },
           selectedLiveCardIds: selectedIds,
         },
       },

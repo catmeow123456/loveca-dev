@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -173,9 +174,10 @@ describe('PL!S-pb1-001 Chika on-enter recovery', () => {
       createConfirmEffectStepCommand(PLAYER1, started.activeEffect!.id, liveId)
     );
     expect(result.success, result.error).toBe(true);
-    expect(result.gameState.players[0]!.hand.cardIds).toContain(liveId);
-    expect(result.gameState.players[0]!.waitingRoom.cardIds).not.toContain(liveId);
-    expect(result.gameState.players[0]!.waitingRoom.cardIds).toContain(memberId);
+    confirmPublicSelectionIfNeeded(session);
+    expect(session.state!.players[0]!.hand.cardIds).toContain(liveId);
+    expect(session.state!.players[0]!.waitingRoom.cardIds).not.toContain(liveId);
+    expect(session.state!.players[0]!.waitingRoom.cardIds).toContain(memberId);
   });
 
   it('consumes the pending ability without targets when opponent hand is not two cards ahead', () => {

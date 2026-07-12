@@ -114,6 +114,11 @@ describe('zone selection helpers', () => {
     expect(effect.canSkipSelection).toBe(true);
     expect(effect.metadata).toEqual({
       orderedResolution: true,
+      publicCardSelectionConfirmation: {
+        destination: 'HAND',
+        ordered: false,
+        sourcePlayerId: PLAYER1,
+      },
       zoneSelection: {
         source: 'WAITING_ROOM',
         destination: 'HAND',

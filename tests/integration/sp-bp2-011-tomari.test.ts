@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -124,7 +125,7 @@ function chooseDistinctLives(
   game: GameState,
   selectedCardIds: readonly string[]
 ): GameState {
-  return confirmActiveEffectStep(
+  return confirmActiveEffectStepThroughPublicReveal(
     game,
     PLAYER1,
     game.activeEffect!.id,
@@ -137,7 +138,7 @@ function chooseDistinctLives(
 }
 
 function opponentChooses(game: GameState, selectedCardId: string): GameState {
-  return confirmActiveEffectStep(game, PLAYER2, game.activeEffect!.id, selectedCardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER2, game.activeEffect!.id, selectedCardId);
 }
 
 function continuationPending(sourceCardId: string): PendingAbilityState {

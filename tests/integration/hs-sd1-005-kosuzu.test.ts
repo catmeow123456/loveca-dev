@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -191,6 +192,7 @@ describe('PL!HS-sd1-005-SD Kosuzu workflow', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([scenario.liveId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([

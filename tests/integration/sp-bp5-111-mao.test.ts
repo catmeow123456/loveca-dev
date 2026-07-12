@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -167,6 +168,7 @@ describe('PL!SP-bp5-111 Mao activated workflow', () => {
 
     expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
     expect(session.state?.players[0].energyDeck.cardIds).toEqual(scenario.energyIds);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toContain(scenario.waitingLiveIds[0]);
     expect(abilityUseCount(session.state!)).toBe(1);
   });

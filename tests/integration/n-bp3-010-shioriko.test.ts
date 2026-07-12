@@ -158,6 +158,10 @@ function selectTargetPlayer(session: GameSession, playerId: string): void {
     createConfirmEffectStepCommand(PLAYER1, effect.id, undefined, undefined, undefined, playerId)
   );
   expect(result.success).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    const confirmed = session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effect.id));
+    expect(confirmed.success).toBe(true);
+  }
 }
 
 function moveSelectedCards(session: GameSession, selectedCardIds: readonly string[]): void {
@@ -174,6 +178,10 @@ function moveSelectedCards(session: GameSession, selectedCardIds: readonly strin
     )
   );
   expect(result.success).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    const confirmed = session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effect.id));
+    expect(confirmed.success).toBe(true);
+  }
 }
 
 describe('PL!N-bp3-010 三船栞子', () => {

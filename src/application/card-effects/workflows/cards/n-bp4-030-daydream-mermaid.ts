@@ -241,6 +241,7 @@ function finishOptionSelection(
       canSkipSelection: false,
       metadata: {
         ...effect.metadata,
+        publicCardSelectionConfirmation: { destination: 'HAND' },
         hasNijigasakiSuccessLive,
         selectedOptionIds,
         placedEnergyCardIds,

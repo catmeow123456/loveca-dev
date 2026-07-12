@@ -48,6 +48,10 @@ Benefits:
 - workflow 拥有自己的 step handler。
 - 新卡不需要修改 runner 的大型分发函数。
 
+### Public Waiting-Room Selection Confirmation
+
+`runtime/public-card-selection-confirmation.ts` 是休息室选卡结果的两阶段公开边界。休息室本身是公开区域；该 runtime 补足的是玩家提交后“本次具体选择了哪些卡”的双方可见步骤。workflow 在原 activeEffect metadata 中窄声明目的地后，step registry 会在首次提交时验证数量、重复、原候选与当前休息室位置，保存可序列化的 `originalEffect` / `originalInput`，并只展示 `revealedCardIds`。第二次确认恢复原 step/input 并重放原 handler；区域移动、费用、奖励和 pending continuation 仍由原 workflow 在最终 stale 校验后处理。空的 optional 选择不创建公开窗口。
+
 ## Granted Activated Abilities
 
 少数常时能力会让舞台上的 host 获得下方成员的起动能力。当前只落地 `PL!SP-pb2-005` 的窄入口：

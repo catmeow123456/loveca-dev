@@ -4,7 +4,8 @@ import { createCardInstance, createHeartIcon, createHeartRequirement } from '../
 import { createGameState, registerCards, updatePlayer, type GameState, type PendingAbilityState } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
-import { confirmActiveEffectStep, resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { confirmActiveEffectStepThroughPublicReveal as confirmActiveEffectStep } from '../helpers/public-card-selection-confirmation';
 import { HS_PR_035_ON_ENTER_BOTTOM_THREE_OPPONENT_WAITING_MEMBERS_WAIT_LOW_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { CardType, FaceState, HeartColor, OrientationState, SlotPosition, TriggerCondition } from '../../src/shared/types/enums';
 

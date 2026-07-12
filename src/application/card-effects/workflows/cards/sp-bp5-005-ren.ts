@@ -224,6 +224,7 @@ function startSpBp5005RenAuto(
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {
+        publicCardSelectionConfirmation: { destination: 'HAND' },
         orderedResolution: options.orderedResolution === true,
         movedCardIds,
         selectableCardIds,

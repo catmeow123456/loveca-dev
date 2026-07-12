@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -335,7 +336,7 @@ describe('PL!-pb1-029-L and PL!-pb1-030-L LIVE card workflows', () => {
     });
     expect(started.activeEffect?.effectText).toContain('不同名BiBi成员 2名');
 
-    const state = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, nico.instanceId);
+    const state = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id, nico.instanceId);
     expect(state.activeEffect).toBeNull();
     expect(state.pendingAbilities).toEqual([]);
     expect(state.players[0].hand.cardIds).toContain(nico.instanceId);

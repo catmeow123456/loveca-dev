@@ -88,6 +88,7 @@ function startRinaWaitingRoomCardToDeckTop(
         canSkipSelection: true,
         skipSelectionLabel: '不发动',
         metadata: {
+          publicCardSelectionConfirmation: { destination: 'MAIN_DECK_TOP' },
           orderedResolution,
           sourceZone: ZoneType.WAITING_ROOM,
           destination: ZoneType.MAIN_DECK,

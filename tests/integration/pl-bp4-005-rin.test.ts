@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
@@ -187,6 +188,7 @@ describe('PL!-bp4-005 Rin workflow', () => {
         createConfirmEffectStepCommand(PLAYER1, game.activeEffect!.id, candidateId)
       ).success
     ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toContain(candidateId);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(candidateId);
   });

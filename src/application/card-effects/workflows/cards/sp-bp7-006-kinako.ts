@@ -219,7 +219,11 @@ function afterPay(
       maxSelectableCards: 1,
       confirmSelectionLabel: '加入手牌',
       canSkipSelection: false,
-      metadata: { orderedResolution: ordered, movedEnergyCardIds: ids },
+      metadata: {
+        publicCardSelectionConfirmation: { destination: 'HAND' },
+        orderedResolution: ordered,
+        movedEnergyCardIds: ids,
+      },
     },
   };
 }

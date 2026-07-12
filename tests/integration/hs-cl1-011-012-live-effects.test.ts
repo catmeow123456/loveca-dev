@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -168,7 +169,7 @@ function startDododo(game: GameState, sourceLiveId: string): GameState {
 }
 
 function chooseOption(game: GameState, optionId: string): GameState {
-  return confirmActiveEffectStep(
+  return confirmActiveEffectStepThroughPublicReveal(
     game,
     PLAYER1,
     game.activeEffect!.id,
@@ -325,7 +326,7 @@ describe('PL!HS-cl1-011-CL Dododo live-success workflow', () => {
     state = chooseOption(state, 'recover-member');
     expect(state.activeEffect?.selectableCardIds).toEqual([memberTargetId]);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, memberTargetId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, memberTargetId);
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).toContain(memberTargetId);
@@ -354,7 +355,7 @@ describe('PL!HS-cl1-011-CL Dododo live-success workflow', () => {
 
     state = chooseOption(state, 'recover-hasunosora-live');
     expect(state.activeEffect?.selectableCardIds).toEqual([hasunosoraLiveTargetId]);
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, hasunosoraLiveTargetId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, hasunosoraLiveTargetId);
 
     expect(state.players[0].hand.cardIds).toContain(hasunosoraLiveTargetId);
 
@@ -477,7 +478,7 @@ describe('PL!HS-cl1-012-CL Edelied live-success workflow', () => {
       },
     };
 
-    const confirmed = confirmActiveEffectStep(
+    const confirmed = confirmActiveEffectStepThroughPublicReveal(
       staleState,
       PLAYER1,
       staleState.activeEffect!.id,

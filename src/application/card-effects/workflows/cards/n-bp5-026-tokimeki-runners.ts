@@ -189,6 +189,7 @@ function startTokimekiLiveSuccessRecovery(
       confirmSelectionLabel: '加入手牌',
       canSkipSelection: false,
       metadata: {
+        publicCardSelectionConfirmation: { destination: 'HAND' },
         [TOKIMEKI_METADATA_KEY]: true,
         orderedResolution: options.orderedResolution === true,
         recoveryCandidateCardIds: context.selectableCardIds,

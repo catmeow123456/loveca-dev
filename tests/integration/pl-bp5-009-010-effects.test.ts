@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -99,7 +100,14 @@ function confirmOne(session: GameSession, selectedCardId: string | null): GameSt
     createConfirmEffectStepCommand(PLAYER1, effect.id, selectedCardId)
   );
   expect(result.success, result.error).toBe(true);
-  return result.gameState;
+  if (session.state?.activeEffect?.stepId !== 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    return result.gameState;
+  }
+  const confirmed = session.executeCommand(
+    createConfirmEffectStepCommand(PLAYER1, session.state.activeEffect.id)
+  );
+  expect(confirmed.success, confirmed.error).toBe(true);
+  return confirmed.gameState;
 }
 
 function confirmMany(session: GameSession, selectedCardIds: readonly string[]): GameState {
@@ -299,7 +307,7 @@ describe('PL!-bp5-009 Nico activated discard-two recovery', () => {
       canSkipSelection: false,
     });
 
-    const invalid = confirmActiveEffectStep(
+    const invalid = confirmActiveEffectStepThroughPublicReveal(
       scenario.session.state!,
       PLAYER1,
       scenario.session.state!.activeEffect!.id,

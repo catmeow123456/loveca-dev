@@ -207,6 +207,7 @@ function finishShizukuDiscardCost(
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: { destination: 'HAND' },
           discardedHandCardIds: discardResult.discardedCardIds,
         },
       },

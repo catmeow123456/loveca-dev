@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type {
   EnergyCardData,
@@ -759,6 +760,7 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, scoreLive.instanceId)
     );
     expect(recover.success, recover.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([scoreLive.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       expect.arrayContaining([cost1.instanceId, cost2.instanceId, noScoreLive.instanceId])

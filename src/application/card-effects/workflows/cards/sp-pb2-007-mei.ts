@@ -186,6 +186,7 @@ function finishPayEnergy(
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: { destination: 'HAND' },
           paidEnergyCardIds: costPayment.paidEnergyCardIds,
           selectableCardIds,
         },

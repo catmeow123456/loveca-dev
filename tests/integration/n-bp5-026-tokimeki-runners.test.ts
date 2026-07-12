@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -233,7 +234,7 @@ describe('PL!N-bp5-026 TOKIMEKI Runners workflows', () => {
     const orderSelection = resolvePendingCardEffects(game).gameState;
     expect(orderSelection.activeEffect?.abilityId).toBe('system:select-pending-card-effect');
 
-    const result = confirmActiveEffectStep(
+    const result = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,
@@ -263,7 +264,7 @@ describe('PL!N-bp5-026 TOKIMEKI Runners workflows', () => {
       abilityId: N_BP5_026_LIVE_START_STAGE_SIX_HEARTS_THIS_LIVE_SCORE_ABILITY_ID,
     });
     const orderSelection = resolvePendingCardEffects(game).gameState;
-    const preview = confirmActiveEffectStep(
+    const preview = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,
@@ -282,7 +283,7 @@ describe('PL!N-bp5-026 TOKIMEKI Runners workflows', () => {
     expect(preview.activeEffect?.selectableOptions).toBeUndefined();
     expect(preview.liveResolution.playerScores.get(PLAYER1)).toBe(2);
 
-    const afterFirst = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    const afterFirst = confirmActiveEffectStepThroughPublicReveal(preview, PLAYER1, preview.activeEffect!.id);
     expect(afterFirst.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
     expect(afterFirst.activeEffect?.sourceCardId).toBe('tokimeki-live-2');
   });
@@ -298,7 +299,7 @@ describe('PL!N-bp5-026 TOKIMEKI Runners workflows', () => {
     expect(selection.activeEffect?.stepText).toContain('请选择自己的休息室1张');
     expect(selection.activeEffect?.effectText).toContain('【LIVE成功时】');
 
-    const result = confirmActiveEffectStep(
+    const result = confirmActiveEffectStepThroughPublicReveal(
       selection,
       PLAYER1,
       selection.activeEffect!.id,

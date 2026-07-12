@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
@@ -20,7 +21,7 @@ function setup(rarity: 'R' | 'P' = 'R', handIds = ['hand-member'], waitingIds = 
   return { ...game, currentPhase: GamePhase.MAIN_PHASE };
 }
 const activate = (game: ReturnType<typeof setup>) => activateCardAbility(game, P1, 'source', ABILITY_ID);
-const choose = (game: ReturnType<typeof setup>, cardId?: string) => confirmActiveEffectStep(game, P1, game.activeEffect!.id, cardId);
+const choose = (game: ReturnType<typeof setup>, cardId?: string) => confirmActiveEffectStepThroughPublicReveal(game, P1, game.activeEffect!.id, cardId);
 
 describe('PL!N-bp3-004 朝香果林', () => {
   it.each(['R', 'P'] as const)('先待机、后强制弃手，再强制回收虹咲LIVE：%s', (rarity) => {

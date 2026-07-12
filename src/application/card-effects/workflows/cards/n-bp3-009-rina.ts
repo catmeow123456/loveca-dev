@@ -39,7 +39,11 @@ function start(game: GameState, ability: PendingAbilityState, ordered: boolean, 
     stepText: '可以从自己的休息室选择恰好2张成员卡，按选择顺序放置于卡组底。', awaitingPlayerId: ability.controllerId,
     selectableCardIds: ids, selectableCardVisibility: 'PUBLIC', selectableCardMode: 'ORDERED_MULTI', minSelectableCards: 2, maxSelectableCards: 2,
     selectionLabel: '选择要放置于卡组底的成员卡', confirmSelectionLabel: '按此顺序放置', canSkipSelection: true, skipSelectionLabel: '不发动',
-    metadata: { orderedResolution: ordered, candidateCardIds: ids },
+    metadata: {
+      publicCardSelectionConfirmation: { destination: 'MAIN_DECK_BOTTOM', ordered: true },
+      orderedResolution: ordered,
+      candidateCardIds: ids,
+    },
   }, actionPayload: { sourceCardId: ability.sourceCardId, step: 'SELECT_TWO_WAITING_MEMBERS', selectableCardIds: ids } });
 }
 

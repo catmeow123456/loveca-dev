@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
   createGameState,
@@ -112,7 +113,8 @@ function command(game: GameState, option?: string, cardId?: string, cardIds?: re
     )
   );
   expect(result.success, JSON.stringify(result)).toBe(true);
-  return result.gameState;
+  confirmPublicSelectionIfNeeded(session);
+  return session.state!;
 }
 function commandResolveInOrder(game: GameState) {
   const session = createGameSession();

@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -137,11 +138,11 @@ function resolve(game: GameState): GameState {
 }
 
 function chooseCard(game: GameState, selectedCardId: string | null): GameState {
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, selectedCardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, selectedCardId);
 }
 
 function chooseHeart(game: GameState, color: HeartColor): GameState {
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, null, null, false, color);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, null, null, false, color);
 }
 
 describe('PL!N-bp4-011 Mia Taylor live-start and live-success workflow', () => {

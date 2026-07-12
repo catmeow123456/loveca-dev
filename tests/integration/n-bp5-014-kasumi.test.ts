@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type {
   EnergyCardData,
@@ -177,8 +178,14 @@ function activateKasumi014(session: ReturnType<typeof createGameSession>) {
 }
 
 function confirmSelectedCard(session: ReturnType<typeof createGameSession>, selectedCardId: string) {
-  return session.executeCommand(
+  const result = session.executeCommand(
     createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedCardId)
+  );
+  if (session.state?.activeEffect?.stepId !== 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    return result;
+  }
+  return session.executeCommand(
+    createConfirmEffectStepCommand(PLAYER1, session.state.activeEffect.id)
   );
 }
 
@@ -319,7 +326,7 @@ describe('PL!N-bp5-014 Kasumi activated discard recover Nijigasaki LIVE workflow
       true
     );
     const activeEffectId = scenario.session.state!.activeEffect!.id;
-    const result = confirmActiveEffectStep(
+    const result = confirmActiveEffectStepThroughPublicReveal(
       scenario.session.state!,
       PLAYER1,
       activeEffectId,

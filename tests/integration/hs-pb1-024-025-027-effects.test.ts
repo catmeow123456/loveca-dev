@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -330,6 +331,7 @@ describe('PL!HS-pb1-025-L live start/success', () => {
         )
       ).success
     ).toBe(true);
+    confirmPublicSelectionIfNeeded(liveSuccessSession);
     expect(liveSuccessSession.state?.players[0].hand.cardIds).toContain(recoverTarget.instanceId);
   });
 });

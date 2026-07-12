@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -101,9 +102,11 @@ function sessionFromState(state: GameState): ReturnType<typeof createGameSession
 }
 
 function confirm(session: ReturnType<typeof createGameSession>, selectedCardId?: string) {
-  return session.executeCommand(
+  const result = session.executeCommand(
     createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedCardId)
   );
+  confirmPublicSelectionIfNeeded(session);
+  return result;
 }
 
 function startOnEnterScenario(options: {

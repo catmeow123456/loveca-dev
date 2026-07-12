@@ -200,6 +200,14 @@ describe('pay-energy waiting-room-to-hand shared workflow', () => {
         )
       );
       expect(confirmResult.success, confirmResult.error).toBe(true);
+      expect(
+        scenario.session.executeCommand(
+          createConfirmEffectStepCommand(
+            PLAYER1,
+            scenario.session.state!.activeEffect!.id
+          )
+        ).success
+      ).toBe(true);
       expect(scenario.session.state?.players[0].hand.cardIds).toContain(eligible.instanceId);
       expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
         highScore.instanceId,
@@ -290,6 +298,11 @@ describe('pay-energy waiting-room-to-hand shared workflow', () => {
           scenario.session.state!.activeEffect!.id,
           first.instanceId
         )
+      ).success
+    ).toBe(true);
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
       ).success
     ).toBe(true);
 

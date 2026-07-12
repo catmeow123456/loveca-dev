@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -148,6 +149,7 @@ function confirmCard(session: GameSession, cardId: string | null): void {
     createConfirmEffectStepCommand(PLAYER1, activeEffect.id, cardId)
   );
   expect(result.success).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
 }
 
 describe('PL!HS-pb1-007 Seras workflow', () => {

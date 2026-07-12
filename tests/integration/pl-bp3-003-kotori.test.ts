@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -128,11 +129,11 @@ function resolve(game: GameState): GameState {
 }
 
 function confirm(game: GameState, selectedCardId?: string | null): GameState {
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, selectedCardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, selectedCardId);
 }
 
 function chooseOption(game: GameState, selectedOptionId: string | null): GameState {
-  return confirmActiveEffectStep(
+  return confirmActiveEffectStepThroughPublicReveal(
     game,
     PLAYER1,
     game.activeEffect!.id,
@@ -363,7 +364,7 @@ describe('PL!-bp3-003 南ことり workflow', () => {
     const orderSelection = resolve(scenario.game);
     expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
 
-    let manual = confirmActiveEffectStep(
+    let manual = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,
@@ -380,7 +381,7 @@ describe('PL!-bp3-003 南ことり workflow', () => {
     expect(manual.pendingAbilities).toEqual([]);
 
     const orderedSelection = resolve(setup({ pendingCount: 2 }).game);
-    let ordered = confirmActiveEffectStep(
+    let ordered = confirmActiveEffectStepThroughPublicReveal(
       orderedSelection,
       PLAYER1,
       orderedSelection.activeEffect!.id,

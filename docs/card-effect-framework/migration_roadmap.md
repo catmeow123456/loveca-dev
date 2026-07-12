@@ -60,8 +60,11 @@ Current dispatch registries:
 - `src/application/card-effects/runtime/step-registry.ts`
 - `src/application/card-effects/runtime/starter-registry.ts`
 - `src/application/card-effects/runtime/activated-registry.ts`
+- `src/application/card-effects/runtime/public-card-selection-confirmation.ts`
 
 They are registry-first / fallback-old-runner entry points. Remaining work is to keep moving old starter/step/activated cases into workflow modules.
+
+The public selection confirmation runtime now owns the common pause/reveal/restore lifecycle for audited waiting-room selections. It does not own card predicates or zone movement; stable waiting-room-to-hand shells opt in by default, while custom recovery and deck-top/bottom/position workflows use explicit metadata.
 
 ## R-4 Current Workflow Modules
 

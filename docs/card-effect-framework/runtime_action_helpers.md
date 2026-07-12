@@ -165,6 +165,7 @@ Current boundary:
 - source/destination 固定为 `WAITING_ROOM -> HAND`。
 - 不扫描候选；selector 与 UI step 属于 workflow。
 - 不处理 no-target 确认、公开确认、分组上限或后续奖励。
+- 从休息室自由选择的卡必须先由 `runtime/public-card-selection-confirmation.ts` 暂停原 step 并向双方公开；本 helper 保持纯移动，不创建 UI 或推进 step。
 - 不表达费用支付或 pending 继续。
 - 非空移动会为每张加入手牌的卡记录 `ON_ENTER_HAND` 事件，事件事实为 `WAITING_ROOM -> HAND`；普通 recovery workflow 仍由调用方负责何时触发/继续 pending。
 

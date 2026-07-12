@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -298,6 +299,7 @@ describe('PL!-bp6-021 Wonderful Rush workflow', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([scenario.museWaitingLiveId]);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(

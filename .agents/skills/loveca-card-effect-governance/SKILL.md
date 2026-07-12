@@ -228,6 +228,10 @@ git diff -- src/application/card-effect-runner.ts
 
 ### Runtime helper / event wrapper
 
+- 玩家从休息室自由选择具体卡牌，随后将其加入手牌、放置于主卡组顶/底或其他指定主卡组位置时，移动前必须走 shared public-card-selection confirmation 两阶段生命周期：首次提交只通过 `revealedCardIds` 向双方公开“本次具体选择了哪些卡”，不移动、不发奖励、不推进 pending；第二次确认恢复原 workflow step/input，由原 workflow 重新校验当前目标、执行移动/奖励/continuation。
+- 普通 `WAITING_ROOM -> HAND` 选择优先且默认使用 `createWaitingRoomToHandEffectState`；组合/grouped/custom workflow 以及休息室到主卡组顶/底/指定位置的 workflow，必须显式写入 `publicCardSelectionConfirmation` metadata 并复用 `runtime/public-card-selection-confirmation.ts`；不得在单卡 workflow 复制暂停、公开、恢复弹窗流程。
+- 固定目标移动、将整个休息室/整类对象洗回主卡组，以及玩家只选择目的地而不选择休息室具体卡牌的效果，不接入该公开确认生命周期。
+- 上述休息室自由选卡路径的 focused 测试至少锁定：双方 projector 看到相同选择结果；首次提交前后卡仍在休息室且奖励/pending 未推进；第二次确认才结算；确认时 stale target 不得被移动；可选 0 张/空选择路径按适用性确认不创建空的额外公开窗口。
 - 手牌进休息室默认使用 `discardHandCardsToWaitingRoomAndEnqueueTriggers` 或 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`。
 - 检视 / 查看 / 公开卡组顶后，inspected cards 从检视区进入休息室必须走统一 inspection-to-waiting helper；事件事实按卡组顶移动处理，`fromZone` 为 `MAIN_DECK`、`toZone` 为 `WAITING_ROOM`，同一次检视进入休息室的一组卡作为同一个 `movedCardIds`。
 - workflow 不允许裸写 `waitingRoom.cardIds` + `clearInspectionCards` 来处理 inspected remainder；若只是 direct mill 或不进入休息室，应在实现/审查中明确说明不属于 inspection-to-waiting helper 范围。

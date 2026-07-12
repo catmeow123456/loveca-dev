@@ -337,6 +337,11 @@ describe('live-start pay energy stack waiting members to deck top workflow', () 
     );
 
     expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe('COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION');
+    const publicConfirmResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+    );
+    expect(publicConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].mainDeck.cardIds.slice(0, 4)).toEqual([
       waitingMemberB.instanceId,

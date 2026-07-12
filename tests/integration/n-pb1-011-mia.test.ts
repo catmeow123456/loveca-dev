@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
@@ -191,6 +192,7 @@ describe('PL!N-pb1-011 Mia workflows', () => {
     expect(abilityUseCount(scenario.session.state!)).toBe(1);
 
     confirmCard(scenario.session, scenario.nijigasakiLive.instanceId);
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.players[0].hand.cardIds).toContain(
       scenario.nijigasakiLive.instanceId

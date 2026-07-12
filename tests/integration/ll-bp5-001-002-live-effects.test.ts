@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -261,7 +262,7 @@ function addPendingAbility(
 function resolveConfirmOnly(game: GameState): GameState {
   const started = resolvePendingCardEffects(game).gameState;
   expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
-  return confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+  return confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id);
 }
 
 describe('LL-bp5-001 Live with a smile!', () => {
@@ -302,7 +303,7 @@ describe('LL-bp5-001 Live with a smile!', () => {
   it('does not add SCORE when none of the three conditions are met', () => {
     const started = resolvePendingCardEffects(setupLiveWithASmile({})).gameState;
     expect(started.activeEffect?.effectText).toContain('未满足条件');
-    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id);
 
     expect(resolved.liveResolution.liveModifiers.some((modifier) => modifier.kind === 'SCORE')).toBe(false);
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
@@ -333,7 +334,7 @@ describe('LL-bp5-002 Bring the LOVE!', () => {
     });
     const started = resolvePendingCardEffects(game).gameState;
     expect(started.activeEffect?.effectText).toContain('未满足条件');
-    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id);
 
     expect(resolved.liveResolution.liveModifiers).toEqual([]);
   });
@@ -348,7 +349,7 @@ describe('LL-bp5-002 Bring the LOVE!', () => {
 
     expect(started.activeEffect?.selectableCardIds).toEqual([waitingIds[0]]);
     expect(started.activeEffect?.selectionLabel).toBe('请选择要加入手牌的卡牌');
-    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, waitingIds[0]);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id, waitingIds[0]);
 
     expect(resolved.players[0]!.hand.cardIds).toContain(waitingIds[0]);
     expect(resolved.players[0]!.waitingRoom.cardIds).not.toContain(waitingIds[0]);
@@ -389,7 +390,7 @@ describe('LL-bp5-002 Bring the LOVE!', () => {
       }),
     };
 
-    const afterConfirm = confirmActiveEffectStep(
+    const afterConfirm = confirmActiveEffectStepThroughPublicReveal(
       stateWithChangedGroup,
       PLAYER1,
       stateWithChangedGroup.activeEffect!.id,

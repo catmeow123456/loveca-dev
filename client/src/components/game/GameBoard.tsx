@@ -488,7 +488,7 @@ export const GameBoard = memo(function GameBoard({
     : (activeEffect?.effectText ?? '');
   const activeEffectBadgeLabel = isActiveEffectOrderSelectionWindow
     ? `队列 ${activeEffectSelectableCardIds.length} 个`
-    : `${activeEffect?.inspectionObjectIds?.length ?? 0} 张`;
+    : `${activeEffect?.inspectionObjectIds?.length ?? activeEffect?.revealedObjectIds?.length ?? 0} 张`;
   const activeEffectSelectionLabel = isActiveEffectOrderSelectionWindow
     ? '请选择下一个要处理的效果'
     : (activeEffect?.selectionLabel ?? '请选择要处理的卡牌');

@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
@@ -63,7 +64,7 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
     expect(paid.activeEffect?.selectableCardIds).toEqual([scenario.museLive.instanceId]);
     expect(paid.actionHistory.some((action) => action.type === 'PAY_COST')).toBe(true);
 
-    const resolved = confirmActiveEffectStep(paid, PLAYER1, paid.activeEffect!.id, scenario.museLive.instanceId);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(paid, PLAYER1, paid.activeEffect!.id, scenario.museLive.instanceId);
     expect(player(resolved).hand.cardIds).toContain(scenario.museLive.instanceId);
     expect(player(resolved).waitingRoom.cardIds).toContain(scenario.nonMuseLive.instanceId);
     expect(resolved.activeEffect).toBeNull();
@@ -81,7 +82,7 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
   it('rejects invalid recovery selection without rolling back the paid WAIT cost', () => {
     const scenario = setup();
     const paid = activateCardAbility(scenario.game, PLAYER1, scenario.source.instanceId, PL_BP3_008_ACTIVATED_WAIT_SELF_RECOVER_MUSE_LIVE_ABILITY_ID);
-    const invalid = confirmActiveEffectStep(paid, PLAYER1, paid.activeEffect!.id, scenario.nonMuseLive.instanceId);
+    const invalid = confirmActiveEffectStepThroughPublicReveal(paid, PLAYER1, paid.activeEffect!.id, scenario.nonMuseLive.instanceId);
     expect(invalid).toBe(paid);
     expect(player(invalid).memberSlots.cardStates.get(scenario.source.instanceId)?.orientation).toBe(OrientationState.WAITING);
   });
@@ -91,7 +92,7 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
     const started = resolvePendingCardEffects({ ...scenario.game, pendingAbilities: [queuedLiveStart(scenario.source.instanceId)] }).gameState;
     expect(started.activeEffect).toMatchObject({ selectableCardIds: [scenario.museTarget.instanceId, scenario.source.instanceId], canSkipSelection: true, skipSelectionLabel: '不发动' });
     expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
-    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, scenario.museTarget.instanceId);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id, scenario.museTarget.instanceId);
     expect(player(resolved).memberSlots.cardStates.get(scenario.museTarget.instanceId)?.orientation).toBe(OrientationState.WAITING);
     expect(yellowHeartCount(resolved, scenario.source.instanceId)).toBe(2);
     expect(resolved.pendingAbilities).toEqual([]);
@@ -100,7 +101,7 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
   it('allows decline, handles no legal ACTIVE μ\'s target, and rejects stale target selection without a state event', () => {
     const scenario = setup();
     const started = resolvePendingCardEffects({ ...scenario.game, pendingAbilities: [queuedLiveStart(scenario.source.instanceId)] }).gameState;
-    const declined = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    const declined = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id);
     expect(player(declined).memberSlots.cardStates.get(scenario.source.instanceId)?.orientation).toBe(OrientationState.ACTIVE);
     expect(yellowHeartCount(declined, scenario.source.instanceId)).toBe(0);
 
@@ -112,7 +113,7 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
       ...current,
       memberSlots: removeCardFromSlot(current.memberSlots, SlotPosition.LEFT),
     }));
-    const staleAttempt = confirmActiveEffectStep(stale, PLAYER1, stale.activeEffect!.id, scenario.museTarget.instanceId);
+    const staleAttempt = confirmActiveEffectStepThroughPublicReveal(stale, PLAYER1, stale.activeEffect!.id, scenario.museTarget.instanceId);
     expect(staleAttempt).toBe(stale);
     expect(yellowHeartCount(staleAttempt, scenario.source.instanceId)).toBe(0);
   });
@@ -124,7 +125,7 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
       ...current,
       memberSlots: removeCardFromSlot(current.memberSlots, SlotPosition.CENTER),
     }));
-    const resolved = confirmActiveEffectStep(sourceLeft, PLAYER1, sourceLeft.activeEffect!.id, scenario.museTarget.instanceId);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(sourceLeft, PLAYER1, sourceLeft.activeEffect!.id, scenario.museTarget.instanceId);
     expect(player(resolved).memberSlots.cardStates.get(scenario.museTarget.instanceId)?.orientation).toBe(OrientationState.WAITING);
     expect(yellowHeartCount(resolved, scenario.source.instanceId)).toBe(0);
   });
@@ -150,20 +151,20 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
 
     const orderSelection = resolvePendingCardEffects(game).gameState;
     expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
-    const manualSecond = confirmActiveEffectStep(
+    const manualSecond = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,
       secondSource.instanceId
     );
     expect(manualSecond.activeEffect?.sourceCardId).toBe(secondSource.instanceId);
-    const afterDecline = confirmActiveEffectStep(
+    const afterDecline = confirmActiveEffectStepThroughPublicReveal(
       manualSecond,
       PLAYER1,
       manualSecond.activeEffect!.id
     );
     expect(afterDecline.activeEffect?.sourceCardId).toBe(scenario.source.instanceId);
-    const resolved = confirmActiveEffectStep(
+    const resolved = confirmActiveEffectStepThroughPublicReveal(
       afterDecline,
       PLAYER1,
       afterDecline.activeEffect!.id,
@@ -196,7 +197,7 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
     };
 
     const orderSelection = resolvePendingCardEffects(game).gameState;
-    const firstSelection = confirmActiveEffectStep(
+    const firstSelection = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,
@@ -205,14 +206,14 @@ describe('PL!-bp3-008 小泉花陽 activated recovery and optional LIVE-start He
       true
     );
     expect(firstSelection.activeEffect?.sourceCardId).toBe(scenario.source.instanceId);
-    const secondSelection = confirmActiveEffectStep(
+    const secondSelection = confirmActiveEffectStepThroughPublicReveal(
       firstSelection,
       PLAYER1,
       firstSelection.activeEffect!.id,
       scenario.source.instanceId
     );
     expect(secondSelection.activeEffect?.sourceCardId).toBe(secondSource.instanceId);
-    const resolved = confirmActiveEffectStep(
+    const resolved = confirmActiveEffectStepThroughPublicReveal(
       secondSelection,
       PLAYER1,
       secondSelection.activeEffect!.id,

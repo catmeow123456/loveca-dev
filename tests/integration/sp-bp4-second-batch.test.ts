@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -282,6 +283,7 @@ describe('PL!SP-bp4 second batch effects', () => {
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, source.instanceId)
     );
     expect(recover.success, recover.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([source.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([liellaLive.instanceId, nonLiella.instanceId]);
   });

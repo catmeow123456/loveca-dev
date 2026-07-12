@@ -145,6 +145,7 @@ function finishEnergyCostSelection(
       selectableCardIds: candidateCardIds,
       canSkipSelection: false,
       metadata: {
+        publicCardSelectionConfirmation: { destination: 'HAND' },
         returnedEnergyCardIds: costPayment.movedEnergyCardIds,
       },
     },

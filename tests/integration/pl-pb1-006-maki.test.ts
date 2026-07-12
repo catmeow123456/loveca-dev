@@ -13,9 +13,9 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
-  confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { confirmActiveEffectStepThroughPublicReveal as confirmActiveEffectStep } from '../helpers/public-card-selection-confirmation';
 import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   PL_PB1_006_ON_ENTER_STACK_MUSE_LIVE_DRAW_IF_OPPONENT_WAITING_ABILITY_ID,

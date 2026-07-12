@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
@@ -167,6 +168,12 @@ function confirmSelection(
     createConfirmEffectStepCommand(PLAYER1, effect!.id, selectedCardId)
   );
   expect(result.success, result.error).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    const confirmed = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, effect!.id)
+    );
+    expect(confirmed.success, confirmed.error).toBe(true);
+  }
 }
 
 describe('PL!N-bp4-009 Rina live-start workflow', () => {
@@ -241,7 +248,7 @@ describe('PL!N-bp4-009 Rina live-start workflow', () => {
     const effect = state.activeEffect;
     expect(effect).toBeTruthy();
 
-    const illegalResult = confirmActiveEffectStep(
+    const illegalResult = confirmActiveEffectStepThroughPublicReveal(
       state,
       PLAYER1,
       effect!.id,
@@ -257,7 +264,7 @@ describe('PL!N-bp4-009 Rina live-start workflow', () => {
         cardIds: player.hand.cardIds.filter((cardId) => cardId !== drawnOne.instanceId),
       },
     }));
-    const staleResult = confirmActiveEffectStep(staleState, PLAYER1, effect!.id, drawnOne.instanceId);
+    const staleResult = confirmActiveEffectStepThroughPublicReveal(staleState, PLAYER1, effect!.id, drawnOne.instanceId);
     expect(staleResult.activeEffect).toBeTruthy();
     expect(staleResult.players[0].mainDeck.cardIds).toEqual([deckRest.instanceId]);
 

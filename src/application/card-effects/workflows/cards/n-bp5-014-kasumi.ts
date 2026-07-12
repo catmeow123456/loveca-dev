@@ -194,6 +194,7 @@ function finishKasumiCost(
         selectionLabel: '选择加入手牌的虹咲LIVE',
         confirmSelectionLabel: '加入手牌',
         metadata: {
+          publicCardSelectionConfirmation: { destination: 'HAND' },
           paidEnergyCardIds: energyPayment.paidEnergyCardIds,
           discardedHandCardIds: discardResult.discardedCardIds,
           recoveryCandidateCardIds: selectableLiveCardIds,

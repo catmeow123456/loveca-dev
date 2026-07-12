@@ -182,6 +182,10 @@ function startMiaRecoverySelection(game: GameState, selectedOptionId: string | n
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: {
+            destination: 'HAND',
+            ordered: recoveryCount > 1,
+          },
           selectedMode: selectedOptionId,
           recoveryCount,
           recoveryCandidateCardIds: waitingLiveCardIds,

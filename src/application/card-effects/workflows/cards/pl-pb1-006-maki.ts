@@ -80,6 +80,7 @@ function start(
         canSkipSelection: true,
         skipSelectionLabel: '不放置',
         metadata: {
+          publicCardSelectionConfirmation: { destination: 'MAIN_DECK_TOP' },
           orderedResolution: ordered,
           sourceZone: ZoneType.WAITING_ROOM,
           destination: ZoneType.MAIN_DECK,

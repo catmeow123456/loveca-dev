@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -183,7 +184,7 @@ function startKanonEffect(game: GameState): GameState {
 
 function suppressTargetWithoutRecovery(game: GameState, targetCardId: string): GameState {
   let state = startKanonEffect(game);
-  state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, targetCardId);
+  state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, targetCardId);
   expect(state.activeEffect).toBeNull();
   return state;
 }
@@ -217,7 +218,7 @@ describe('PL!SP-bp2-001-P＋ Kanon on-enter live-start suppression workflow', ()
 
     expect(state.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, target.instanceId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, target.instanceId);
     expect(state.liveStartSuppressions).toEqual([
       expect.objectContaining({
         playerId: PLAYER1,
@@ -229,7 +230,7 @@ describe('PL!SP-bp2-001-P＋ Kanon on-enter live-start suppression workflow', ()
     ]);
     expect(state.activeEffect?.selectableCardIds).toEqual([waitingCard.instanceId]);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, waitingCard.instanceId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, waitingCard.instanceId);
     const player = getPlayerById(state, PLAYER1)!;
     expect(player.hand.cardIds).toContain(waitingCard.instanceId);
     expect(player.waitingRoom.cardIds).not.toContain(waitingCard.instanceId);
@@ -262,7 +263,7 @@ describe('PL!SP-bp2-001-P＋ Kanon on-enter live-start suppression workflow', ()
     const waitingCard = createPlainLiella('waiting-liella');
     let state = startKanonEffect(setupGame({ target, waitingCards: [waitingCard] }).game);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, null);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, null);
 
     const player = getPlayerById(state, PLAYER1)!;
     expect(state.liveStartSuppressions).toEqual([]);

@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -114,7 +115,7 @@ function createPending(sourceCardId: string, sourceSlot: SlotPosition, suffix: s
 }
 
 function chooseMode(game: GameState, selectedOptionId: string): GameState {
-  return confirmActiveEffectStep(
+  return confirmActiveEffectStepThroughPublicReveal(
     game,
     PLAYER1,
     game.activeEffect!.id,
@@ -126,7 +127,7 @@ function chooseMode(game: GameState, selectedOptionId: string): GameState {
 }
 
 function recoverCards(game: GameState, selectedCardIds: readonly string[]): GameState {
-  return confirmActiveEffectStep(
+  return confirmActiveEffectStepThroughPublicReveal(
     game,
     PLAYER1,
     game.activeEffect!.id,
@@ -266,7 +267,7 @@ describe('PL!N-bp5-011 Mia Taylor on-enter distinct LIVE recovery workflow', () 
     });
     let state = resolvePendingCardEffects(game).gameState;
     expect(state.activeEffect?.abilityId).toBe('system:select-pending-card-effect');
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, null, null, true);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, null, null, true);
     state = chooseMode(state, 'recover-one-different-name-live');
     state = recoverCards(state, [waitingLives[0]!.instanceId]);
     const resolveActions = state.actionHistory.filter(

@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type {
   AnyCardData,
@@ -341,6 +342,7 @@ describe('HS-pb1-012 Ginko recycle members workflow', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([liveTargetId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);

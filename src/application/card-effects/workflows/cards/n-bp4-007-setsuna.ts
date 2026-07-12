@@ -140,6 +140,10 @@ function startNextRecoveryStep(
           confirmSelectionLabel: '加入手牌',
           canSkipSelection: false,
           metadata: {
+            publicCardSelectionConfirmation: {
+              destination: 'HAND',
+              sourcePlayerId: targetPlayerId,
+            },
             orderedResolution,
             recoverPlayerIds: playerIds,
             recoverPlayerIndex: index,

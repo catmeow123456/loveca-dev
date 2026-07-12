@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type {
   EnergyCardData,
   LiveCardData,
@@ -178,6 +179,7 @@ function confirmCard(session: GameSession, selectedCardId: string): void {
     createConfirmEffectStepCommand(PLAYER1, activeEffect.id, selectedCardId)
   );
   expect(result.success).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
 }
 
 function hasPayCostAction(state: GameState): boolean {

@@ -301,6 +301,10 @@ function startKarinStackNijigasakiMembers(
         confirmSelectionLabel: '放到卡组顶',
         canSkipSelection: true,
         metadata: {
+          publicCardSelectionConfirmation: {
+            destination: 'MAIN_DECK_TOP',
+            ordered: true,
+          },
           orderedResolution,
           sourceZone: ZoneType.WAITING_ROOM,
           destination: ZoneType.MAIN_DECK,

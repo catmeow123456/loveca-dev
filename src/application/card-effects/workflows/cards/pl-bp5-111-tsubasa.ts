@@ -307,6 +307,7 @@ function finishTsubasaActivateWaitingMember(
             confirmSelectionLabel: '加入手牌',
             metadata: {
               ...effect.metadata,
+              publicCardSelectionConfirmation: { destination: 'HAND' },
               activatedMemberCardId: selectedCardId,
               activatedMemberPlayerId: target.playerId,
               memberStateChangedEventIds: memberStateChangedEvents.map((event) => event.eventId),

@@ -11,9 +11,9 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
-  confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { confirmActiveEffectStepThroughPublicReveal as confirmActiveEffectStep } from '../helpers/public-card-selection-confirmation';
 import { GameService } from '../../src/application/game-service';
 import { S_BP5_023_LIVE_START_STAGE_AQOURS_SAINTSNOW_COST_STACK_LIVE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {

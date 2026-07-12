@@ -14,6 +14,12 @@ import {
   ENERGY_OPERATION_SELECTION_STEP_ID,
   resolveEnergyOperationSelectionStep,
 } from './energy-operation-selection.js';
+import {
+  createPublicCardSelectionConfirmationWindow,
+  getPublicCardSelectionConfirmationConfig,
+  PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+  resolvePublicCardSelectionConfirmationStep,
+} from './public-card-selection-confirmation.js';
 import type {
   DelegatePendingAbility,
   PendingAbilityStarterOptions,
@@ -85,9 +91,33 @@ export function resolveActiveEffectStepWithRegistry(
       resolveRestoredActiveEffectStep
     );
   }
+  if (effect.stepId === PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID) {
+    return resolvePublicCardSelectionConfirmationStep(
+      game,
+      context,
+      (restoredGame, restoredEffect, restoredInput, restoredContext) =>
+        resolveRestoredActiveEffectStep(
+          restoredGame,
+          restoredEffect,
+          restoredInput,
+          restoredContext,
+          []
+        )
+    );
+  }
 
   const handler = getActiveEffectStepHandler(effect);
   if (!handler) return null;
+  const publicConfirmation = getPublicCardSelectionConfirmationConfig(effect);
+  if (publicConfirmation) {
+    const confirmationWindow = createPublicCardSelectionConfirmationWindow(
+      game,
+      effect,
+      input,
+      publicConfirmation
+    );
+    if (confirmationWindow) return confirmationWindow;
+  }
   try {
     return handler(game, input, context);
   } catch (error) {

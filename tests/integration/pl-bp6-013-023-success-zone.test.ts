@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -334,6 +335,11 @@ describe('PL!-bp6-013/023 success-zone workflows', () => {
     );
 
     expect(result.success).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toContain(scenario.museLiveTargetId);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(scenario.museLiveTargetId);
   });
@@ -528,13 +534,13 @@ describe('PL!-bp6-013/023 success-zone workflows', () => {
         )
       ),
     }).gameState;
-    const preview = confirmActiveEffectStep(
+    const preview = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,
       scenario.sourceIds[0]
     );
-    const afterFirst = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    const afterFirst = confirmActiveEffectStepThroughPublicReveal(preview, PLAYER1, preview.activeEffect!.id);
 
     expect(afterFirst.players[0].hand.cardIds).toEqual([]);
     expect(afterFirst.pendingAbilities).toHaveLength(1);
@@ -558,7 +564,7 @@ describe('PL!-bp6-013/023 success-zone workflows', () => {
     }).gameState;
     expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
 
-    const ordered = confirmActiveEffectStep(
+    const ordered = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,
@@ -580,7 +586,7 @@ describe('PL!-bp6-013/023 success-zone workflows', () => {
         )
       ),
     }).gameState;
-    const preview = confirmActiveEffectStep(
+    const preview = confirmActiveEffectStepThroughPublicReveal(
       manualOrderSelection,
       PLAYER1,
       manualOrderSelection.activeEffect!.id,
@@ -589,7 +595,7 @@ describe('PL!-bp6-013/023 success-zone workflows', () => {
     expect(preview.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
     expect(preview.players[0].hand.cardIds).toEqual([]);
 
-    const afterConfirm = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    const afterConfirm = confirmActiveEffectStepThroughPublicReveal(preview, PLAYER1, preview.activeEffect!.id);
     expect(afterConfirm.players[0].hand.cardIds).toEqual([manualScenario.drawCardIds[0]]);
   });
 });

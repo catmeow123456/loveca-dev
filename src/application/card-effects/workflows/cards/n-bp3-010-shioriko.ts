@@ -129,8 +129,14 @@ function startSelectWaitingMembers(game: GameState, selectedOptionId: string | n
       maxSelectableCards: MAX_WAITING_MEMBERS,
       canSkipSelection: true,
       skipSelectionLabel: '不放置',
+      confirmSelectionLabel: '按此顺序放置于卡组底',
       metadata: {
         ...effect.metadata,
+        publicCardSelectionConfirmation: {
+          destination: 'MAIN_DECK_BOTTOM',
+          ordered: true,
+          sourcePlayerId: targetPlayer.id,
+        },
         targetPlayerId: targetPlayer.id,
         candidateCardIds,
       },

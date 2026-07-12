@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type {
   AnyCardData,
@@ -207,6 +208,7 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
     });
     expect(confirmResult.success, confirmResult.error).toBe(true);
 
+    confirmPublicSelectionIfNeeded(scenario.session);
     const player = scenario.session.state!.players[0];
     expect(player.hand.cardIds).toContain(live.instanceId);
     expect(player.waitingRoom.cardIds).not.toContain(live.instanceId);
@@ -253,6 +255,7 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
     expect(
       confirmActiveEffect(scenario.session, { selectedCardId: zeroLive.instanceId }).success
     ).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'pay', label: '支付0能量' },
       { id: 'decline', label: '不支付' },
@@ -299,6 +302,7 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
     expect(
       confirmActiveEffect(scenario.session, { selectedCardId: scoreLive.instanceId }).success
     ).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(confirmActiveEffect(scenario.session, { selectedOptionId: 'pay' }).success).toBe(true);
 
     const player = scenario.session.state!.players[0];
@@ -346,6 +350,7 @@ describe('PL!N-bp1-012 Lanzhu and PL!N-bp5-003 Shizuku activated workflows', () 
     expect(
       confirmActiveEffect(scenario.session, { selectedCardId: scoreLive.instanceId }).success
     ).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'decline', label: '不支付' },
     ]);

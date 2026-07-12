@@ -164,6 +164,12 @@ function confirmActiveEffect(
     )
   );
   expect(result.success, result.error).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    const confirmed = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, effect!.id)
+    );
+    expect(confirmed.success, confirmed.error).toBe(true);
+  }
 }
 
 describe('PL!N-bp4-004 Karin live-start workflows', () => {

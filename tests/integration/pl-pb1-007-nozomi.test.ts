@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import {
   createCardInstance,
@@ -147,7 +148,7 @@ function confirmDiscard(
   game: ReturnType<typeof activateCardAbility>,
   selectedCardIds: readonly string[]
 ) {
-  return confirmActiveEffectStep(
+  return confirmActiveEffectStepThroughPublicReveal(
     game,
     P1,
     game.activeEffect!.id,
@@ -200,7 +201,7 @@ describe('PL!-pb1-007 東條 希', () => {
     expect(activateCardAbility(blocked.game, P1, blocked.source.instanceId, A)).toBe(blocked.game);
     const s = setup(2, 1, true, false);
     const started = activateCardAbility(s.game, P1, s.source.instanceId, A);
-    const paid = confirmActiveEffectStep(
+    const paid = confirmActiveEffectStepThroughPublicReveal(
       started,
       P1,
       started.activeEffect!.id,
@@ -211,7 +212,7 @@ describe('PL!-pb1-007 東條 希', () => {
       [s.hands[0].instanceId]
     );
     expect(paid.activeEffect?.selectableCardIds).toEqual([s.hands[0].instanceId]);
-    const done = confirmActiveEffectStep(paid, P1, paid.activeEffect!.id, s.hands[0].instanceId);
+    const done = confirmActiveEffectStepThroughPublicReveal(paid, P1, paid.activeEffect!.id, s.hands[0].instanceId);
     expect(done.players[0].hand.cardIds).toContain(s.hands[0].instanceId);
     expect(done.activeEffect).toBeNull();
     expectContinuationResolved(done);
@@ -223,7 +224,7 @@ describe('PL!-pb1-007 東條 希', () => {
     ] as const) {
       const s = setup(2, 1, other, target, target);
       const started = activateCardAbility(s.game, P1, s.source.instanceId, A);
-      const done = confirmActiveEffectStep(
+      const done = confirmActiveEffectStepThroughPublicReveal(
         started,
         P1,
         started.activeEffect!.id,
@@ -287,7 +288,7 @@ describe('PL!-pb1-007 東條 希', () => {
         cardIds: player.waitingRoom.cardIds.filter((id) => id !== targetId),
       },
     }));
-    const done = confirmActiveEffectStep(staleState, P1, paid.activeEffect!.id, targetId);
+    const done = confirmActiveEffectStepThroughPublicReveal(staleState, P1, paid.activeEffect!.id, targetId);
     expect(done.players[0].hand.cardIds).not.toContain(targetId);
     expect(done.players[0].hand.cardIds).not.toContain(s.hands[0].instanceId);
     expect(
@@ -311,7 +312,7 @@ describe('PL!-pb1-007 東條 希', () => {
     const s = setup(2, 1, true, true, false);
     const started = activateCardAbility(s.game, P1, s.source.instanceId, A);
     const paid = confirmDiscard(started, [s.hands[0].instanceId]);
-    const illegal = confirmActiveEffectStep(paid, P1, paid.activeEffect!.id, 'never-selectable');
+    const illegal = confirmActiveEffectStepThroughPublicReveal(paid, P1, paid.activeEffect!.id, 'never-selectable');
     expect(illegal).toBe(paid);
     expect(illegal.activeEffect).toBe(paid.activeEffect);
     expect(abilityUseCount(illegal)).toBe(1);
@@ -321,7 +322,7 @@ describe('PL!-pb1-007 東條 希', () => {
     const s = setup(3, 0, true, true);
     const started = activateCardAbility(s.game, P1, s.source.instanceId, A);
     expect(started.activeEffect?.selectableCardIds).toEqual([s.targets[0].instanceId]);
-    const done = confirmActiveEffectStep(
+    const done = confirmActiveEffectStepThroughPublicReveal(
       started,
       P1,
       started.activeEffect!.id,

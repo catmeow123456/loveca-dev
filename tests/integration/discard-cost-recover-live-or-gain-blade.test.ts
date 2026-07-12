@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -97,6 +98,7 @@ function confirmCard(session: GameSession, cardId: string | null): void {
     createConfirmEffectStepCommand(PLAYER1, activeEffect.id, cardId)
   );
   expect(result.success).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
 }
 
 function setupKarinLiveStart(options: {

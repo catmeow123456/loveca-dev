@@ -134,6 +134,17 @@ import {
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
+
+function confirmPublicSelectionIfNeeded(
+  session: ReturnType<typeof createGameSession>
+): void {
+  const effect = session.state?.activeEffect;
+  if (effect?.stepId !== 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') return;
+  const result = session.executeCommand(
+    createConfirmEffectStepCommand(effect.awaitingPlayerId!, effect.id)
+  );
+  expect(result.success, result.error).toBe(true);
+}
 import { resolvePendingAbilityStarterWithRegistry } from '../../src/application/card-effects/runtime/starter-registry';
 
 const PLAYER1 = 'player1';
@@ -1783,6 +1794,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetMemberCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([eliCardId]);
@@ -1880,6 +1892,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([nonLiveWaitingRoomCardId]);
@@ -1986,6 +1999,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetMemberCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -2067,6 +2081,7 @@ describe('sample card effect runner', () => {
       );
 
       expect(confirmResult.success).toBe(true);
+      confirmPublicSelectionIfNeeded(session);
       expect(session.state?.activeEffect).toBeNull();
       expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
       expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -2221,6 +2236,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetMuseLiveId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([nonMuseLiveId, nicoCardId]);
@@ -2619,6 +2635,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetMuseLiveId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -3124,6 +3141,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCardId]);
@@ -3576,6 +3594,7 @@ describe('sample card effect runner', () => {
       );
 
       expect(confirmResult.success).toBe(true);
+      confirmPublicSelectionIfNeeded(session);
       expect(session.state?.activeEffect).toBeNull();
       expect(session.state?.players[0].hand.cardIds).toEqual([targetMemberCardId]);
       expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
@@ -3667,6 +3686,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
@@ -4689,6 +4709,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([ceriseLive.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -5184,6 +5205,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([
       ceriseMember.instanceId,
@@ -5339,6 +5361,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(context.session);
     expect(context.session.state?.activeEffect).toBeNull();
     expect(context.session.state?.players[0].hand.cardIds).toEqual([
       context.ceriseMember.instanceId,
@@ -5465,6 +5488,7 @@ describe('sample card effect runner', () => {
       );
 
       expect(recoverResult.success).toBe(true);
+      confirmPublicSelectionIfNeeded(context.session);
       expect(context.session.state?.activeEffect).toBeNull();
       expect(context.session.state?.players[0].hand.cardIds).toEqual(
         testCase.expectedHand(context)
@@ -5527,6 +5551,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(context.session);
     expect(context.session.state?.activeEffect).toBeNull();
     expect(context.session.state?.players[0].hand.cardIds).toEqual([
       context.yellowMember.instanceId,
@@ -5749,6 +5774,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([selectedMemberCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([liveCardId!]);
@@ -7558,6 +7584,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([highScoreLiveId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([lowScoreLiveId, nonLiveId]);
@@ -7762,6 +7789,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual(
       expect.arrayContaining([lowCostMemberIds[0]!, lowCostMemberIds[1]!])
@@ -8196,6 +8224,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([handLiveCardId, sameNameLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([differentNameLiveCardId]);
@@ -8472,6 +8501,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(selectResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toContain(lowCostHasuCardId);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([nonHasuCardId]);
@@ -10739,6 +10769,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([otherLiveCardId]);
@@ -10991,6 +11022,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([otherLiveCardId]);
@@ -11099,6 +11131,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
@@ -18190,6 +18223,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetLiveCardId, targetMemberCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -18396,6 +18430,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([liveTarget!.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);

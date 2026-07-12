@@ -109,6 +109,12 @@ function confirmSelection(
     createConfirmEffectStepCommand(PLAYER1, effect!.id, selectedCardId)
   );
   expect(result.success, result.error).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    const confirmed = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, effect!.id)
+    );
+    expect(confirmed.success, confirmed.error).toBe(true);
+  }
 }
 
 describe('PL!N-bp5-021-N Rina on-enter workflow', () => {

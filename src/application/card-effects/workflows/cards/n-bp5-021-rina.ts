@@ -116,6 +116,7 @@ function startRinaOnEnter(
         confirmSelectionLabel: '放入卡组',
         canSkipSelection: true,
         metadata: {
+          publicCardSelectionConfirmation: { destination: 'MAIN_DECK_POSITION_4' },
           orderedResolution,
           sourceZone: ZoneType.WAITING_ROOM,
           destination: ZoneType.MAIN_DECK,
