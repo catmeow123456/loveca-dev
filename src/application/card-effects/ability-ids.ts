@@ -80,6 +80,20 @@ export const PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILIT
   'PL!N-bp3-010:live-start-select-player-bottom-waiting-members';
 export const PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID =
   'PL!N-bp3-012:on-enter-discard-look-top-nijigasaki-card';
+export const S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID =
+  'PL!S-bp3-003:on-enter-discard-live-draw-three';
+export const S_BP3_003_LIVE_START_DISCARD_UP_TO_TWO_GAIN_BLADE_ABILITY_ID =
+  'PL!S-bp3-003:live-start-discard-up-to-two-gain-two-blade-each';
+export const S_BP3_005_LIVE_SUCCESS_FEWER_REVEALED_CHEER_CARDS_DRAW_ONE_ABILITY_ID =
+  'PL!S-bp3-005:live-success-fewer-revealed-cheer-cards-draw-one';
+export const S_BP3_001_ACTIVATED_WAIT_OWN_MEMBER_GRANT_PLAYER_SCORE_ABILITY_ID =
+  'PL!S-bp3-001:activated-wait-own-member-grant-live-total-score';
+export const S_BP3_002_LIVE_SUCCESS_HIGHER_SCORE_SELF_REVEALED_CHEER_TO_HAND_ABILITY_ID =
+  'PL!S-bp3-002:live-success-higher-score-self-revealed-cheer-to-hand';
+export const S_BP3_007_ACTIVATED_PAY_ENERGY_BOTTOM_WAITING_LIVE_DRAW_ABILITY_ID =
+  'PL!S-bp3-007:activated-pay-energy-bottom-waiting-live-draw';
+export const S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!S-bp3-008:activated-self-sacrifice-recover-aqours-live-activate-energy';
 export const PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
   'PL!N-bp3-025-L:live-start-return-energy-below-gain-red-heart';
 export const PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID =

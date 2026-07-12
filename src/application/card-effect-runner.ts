@@ -18,6 +18,8 @@ import {
   updatePlayer,
 } from '../domain/entities/game.js';
 import { addLiveModifier, isLiveAbilitySuppressed } from '../domain/rules/live-modifiers.js';
+import { collectCurrentRevealedCheerLiveSuccessAbilitySources } from './card-effects/runtime/live-success-revealed-cheer-sources.js';
+import { removeTargetMemberBoundLiveModifiersForLeaveStageEvents } from './card-effects/runtime/target-member-bound-live-modifiers.js';
 import { getZoneSelectionConfig } from './effects/zone-selection.js';
 import {
   getRenGrantedActivatedAbilityUiConfig,
@@ -198,7 +200,7 @@ import { registerNBp3027LaBellaPatriaWorkflowHandlers } from './card-effects/wor
 import { registerNBp4004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-004-karin.js';
 import { registerNBp4001AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-001-ayumu.js';
 import { registerNBp4002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-002-kasumi.js';
-import { registerNBp4003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-003-shizuku.js';
+import { registerLiveSuccessConditionalDrawOneWorkflowHandlers } from './card-effects/workflows/shared/live-success-conditional-draw-one.js';
 import { registerNBp4009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-009-rina.js';
 import { registerNBp4005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-005-ai.js';
 import { registerNBp4006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-bp4-006-kanata.js';
@@ -292,7 +294,9 @@ import { registerPlBp6013And023SuccessZoneWorkflowHandlers } from './card-effect
 import { registerPlBp6021WonderfulRushWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-021-wonderful-rush.js';
 import { registerPlBp6007NozomiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp6-007-nozomi.js';
 import { registerPlBp3014RinWorkflowHandlers } from './card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.js';
-import { registerPr017NicoWorkflowHandlers } from './card-effects/workflows/cards/pl-pr-017-nico.js';
+import { registerSBp3007HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-bp3-007-hanamaru.js';
+import { registerSBp3001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp3-001-chika.js';
+import { registerSBp3002RikoWorkflowHandlers } from './card-effects/workflows/cards/s-bp3-002-riko.js';
 import { registerNBp5007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp5-007-setsuna.js';
 import { registerSBp2024KimikokoWorkflowHandlers } from './card-effects/workflows/cards/s-bp2-024-kimikoko.js';
 import { registerSBp5020LandingActionYeahWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-020-landing-action-yeah.js';
@@ -418,7 +422,7 @@ import { registerLookTopSelectToHandWorkflowHandlers } from './card-effects/work
 import { registerActivatedPayEnergySelfPositionChangeWorkflowHandlers } from './card-effects/workflows/shared/activated-pay-energy-self-position-change.js';
 import { registerActivatedWaitSelfDiscardDrawWorkflowHandlers } from './card-effects/workflows/shared/activated-wait-self-discard-draw.js';
 import { registerLiveStartDiscardGainHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-gain-heart.js';
-import { registerLiveStartDiscardGainBladeDrawIfLiveWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-gain-blade-draw-if-live.js';
+import { registerLiveStartDiscardGainBladeWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-gain-blade.js';
 import { registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-same-unit-gain-heart-blade.js';
 import { registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/live-start-pay-energy-stack-waiting-members-to-deck-top.js';
 import { registerLiveStartReplaceOriginalHeartColorWorkflowHandlers } from './card-effects/workflows/shared/live-start-replace-original-heart-color.js';
@@ -889,6 +893,8 @@ registerWaitDiscardLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEff
 registerHsBp6031FanfareWorkflowHandlers();
 registerSBp2024KimikokoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp3006YoshikoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp3001ChikaWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp3002RikoWorkflowHandlers();
 registerSBp5001ChikaWorkflowHandlers();
 registerSBp5002RikoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp5003KananWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -913,7 +919,7 @@ registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerDirectMillTopWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNamedHandDiscardLiveStartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerLiveStartDiscardGainBladeDrawIfLiveWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerLiveStartDiscardGainBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardSameUnitGainHeartBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartPayEnergyStackWaitingMembersToDeckTopWorkflowHandlers();
 registerLiveStartReplaceOriginalHeartColorWorkflowHandlers();
@@ -971,7 +977,7 @@ registerPayEnergyGainHeartWorkflowHandlers();
 registerOpponentWaitTargetWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerPayEnergyWaitingRoomToHandWorkflowHandlers();
 registerDiscardCostWaitingRoomToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerPr017NicoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp3007HanamaruWorkflowHandlers();
 registerBp5005RinWorkflowHandlers();
 registerBp5006MakiWorkflowHandlers();
 registerBp5001HonokaWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1054,7 +1060,7 @@ registerNBp3025AwakeningPromiseWorkflowHandlers();
 registerNBp3027LaBellaPatriaWorkflowHandlers();
 registerNBp4001AyumuWorkflowHandlers();
 registerNBp4002KasumiWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerNBp4003ShizukuWorkflowHandlers();
+registerLiveSuccessConditionalDrawOneWorkflowHandlers();
 registerNBp4004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp4005AiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp4006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1280,6 +1286,10 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LEAVE_STAGE)) {
+    state = removeTargetMemberBoundLiveModifiersForLeaveStageEvents(
+      state,
+      options.leaveStageEvents ?? getLeaveStageEventsFromLog(state)
+    );
     const onLeaveSources =
       options.onLeaveStageSources ??
       createOnLeaveStageAbilitySourcesFromEvents(
@@ -2991,6 +3001,7 @@ function enqueueLiveSuccessCardEffects(
       cardId,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
     })),
+    ...collectCurrentRevealedCheerLiveSuccessAbilitySources(state, player.id),
   ];
 
   for (const sourceEntry of sourceEntries) {

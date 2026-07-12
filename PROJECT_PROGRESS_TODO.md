@@ -2,6 +2,33 @@
 
 更新时间：2026-07-12
 
+## 本次 2026-07-12 Aqours bp3-001 / 002 收束卡效
+
+- 实现 `PL!S-bp3-001-P / P＋ / R＋ / SEC` 费用15「高海千歌」：单卡 activated workflow 只允许中央来源选择自己舞台 ACTIVE 成员作为待机费用；成功后才记录 turn1 use，并为实际目标成员实例写入 `SCORE +1`。
+- 新增目标成员绑定的临时玩家 SCORE 形状：`targetMemberCardId` 与 `sourceCardId` 分离。来源离场不删除；目标离场经通用 `LeaveStageEvent` hook 删除全部绑定 modifier 并重建兼容投影；LIVE_END 仍由统一 resolution 清理。
+- 实现 `PL!S-bp3-002-P / R` 费用11「樱内梨子」：新增精确 `REVEALED_CHEER_CARD` LIVE_SUCCESS 来源区，只从控制者当前声援、仍在 resolutionZone 且仍公开的卡收集。领先时显示“加入手牌 / 不加入”真实交互，固定移动来源自身，不进入 public-card-selection confirmation。
+- runner 仅增加两个 workflow 注册及两个通用 hook：目标成员绑定 modifier 的 LeaveStage 清理、当前公开声援 LIVE_SUCCESS 来源收集；未接 trigger matcher T-2 或 steps-lite。
+
+## 本次 2026-07-12 Aqours bp3-005 / N-bp4-003 shared LIVE成功抽牌
+
+- 实现 `PL!S-bp3-005-P / R` 费用7「渡辺 曜」：新增 `S_BP3_005_LIVE_SUCCESS_FEWER_REVEALED_CHEER_CARDS_DRAW_ONE_ABILITY_ID`，P/R 由一个 definition 覆盖，effectText 逐字采用本地 Excel 中文卡文。
+- 将既有 `PL!N-bp4-003` 费用4「桜坂しずく」从卡牌维度 workflow 晋升为 `workflows/shared/live-success-conditional-draw-one.ts`；仅配置 abilityId、预期基础编号、`HIGHER_LIVE_SCORE` / `OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT`、精确 action/no-op step，保留003旧 action payload/确认语义。
+- 005 使用 event-inclusive `selectCurrentLiveRevealedCheerCardIds` 统计本次 LIVE 所有声援公开事实，包含普通/追加声援与已移出 resolutionZone 的卡；确认时重算 own/opponent，条件严格 ownCount < opponentCount，抽牌复用 `drawCardsForPlayer`，动态确认文案显示双方数量、条件状态和实际抽牌张数。
+- 新增 `tests/integration/live-success-conditional-draw-one.test.ts`，并加强 `tests/integration/n-bp4-001-003-028-effects.test.ts` 的003旧 payload 回归；focused、token/text governance、classification、server/client tsc、玩家可见文案审计与 diff check 结果见本窗口收尾。
+
+## 本次 2026-07-12 Aqours bp3-007 / 008 卡效
+
+- 实现 `PL!S-bp3-007-P / R` 与 `PL!S-bp3-008-P / R`，均按基础编号覆盖；007 支付 `[E]` 后选择自己或对方的休息室 LIVE，经公开确认放置于该玩家卡组底，成功移动后抽1。
+- 008 复用并扩展 `self-sacrifice-waiting-room-to-hand`：来源经统一离场 wrapper 支付费用，公开确认回收 LIVE；仅当本次实际回收卡为印刷分数至少6的 Aqours LIVE 时，复用通用能量操作活跃至多4张能量。
+- 将 `PL!-PR-017` 纳入同一 shared family 的有限条件联合类型，保留其成功 LIVE 区印刷总分条件、既有 action step 与 payload；007 保持单卡 workflow，不与 N-bp3-010 的不同流程过度合并。
+
+## 本次 2026-07-12 Aqours bp3-003 / 009 卡效
+
+- 实现 `PL!S-bp3-003-P / P＋ / R＋ / SEC` 费用11「松浦果南」两段能力与 `PL!S-bp3-009-P / R` 费用9「黒澤ルビィ」登场能力，definition 使用最新本地 Excel 中文原文并按基础编号覆盖。
+- 003 登场段扩 `discard-then-draw` 的 LIVE selector 与固定抽3策略；LIVE 开始段将旧 shared workflow 晋升为 `live-start-discard-gain-blade.ts`，支持0至2张、每张使此成员获得 BLADE +2，并保留旧卡弃 LIVE 抽1语义及 action history 单数字段。
+- 009 仅扩 `GENERIC_DISCARD_LOOK_TOP_ABILITY_ID` / `discard-look-top-select-to-hand` 的 top6 + Aqours MEMBER 配置；先公开再入手，余牌继续走 inspection-to-waiting 事件 wrapper。runner 仅同步 shared import/register 重命名。
+- 修正验证：focused classification / discard-then-draw / live-start-discard-gain-blade / discard-look-top 共147项通过；token/text governance 13项通过；server `tsc --noEmit`、client `tsc -b client`、玩家文案审计（3261条候选文本）与 `git diff --check` 均通过。
+
 ## 本次 2026-07-12 Liella! SP-bp2-005「葉月 恋」
 
 - 实现 `PL!SP-bp2-005-P / R` 费用 4「葉月 恋」同文登场能力；一个 `baseCardCodes: ['PL!SP-bp2-005']` definition 覆盖两种罕度，前台 effectText 逐字使用本地 Excel 中文原文。
@@ -297,7 +324,7 @@
 
 - 修复 `PL!S-sd1-018-SD` 费用 4「黑泽露比」这类“抽 1 张，再将 1 张手牌放置到卡组底”效果的桌面飞行动画表现：卡组顶牌提供真实动画锚点，卡效/成功 LIVE 选择面板不再污染移动锚点，飞行动画层高于卡效面板避免被遮挡，进入主卡组/能量卡组时强制使用牌库区域锚点而不是下一帧对象锚点。
 - 补充 `battle-animation-events` 单测覆盖面板锚点忽略、`MAIN_DECK -> HAND` 与 `HAND -> MAIN_DECK` 的 scoped deck anchor 路径，并锁定“下一帧同一张牌存在对象锚点时也不能抢占卡组底终点”；浏览器验证对墙打桌面 1600x900 下己方主卡组锚点、顶牌对象锚点、动画层 z-index 与普通抽牌移动代理出现/清理。
-- 验证：`pnpm exec vitest run tests/unit/battle-animation-events.test.ts` passed；`pnpm exec vitest run tests/integration/draw-then-discard.test.ts` passed；`pnpm exec vitest run tests/integration/sp-pr-live-start-discard-gain-blade-draw-if-live.test.ts` passed；`pnpm exec vitest run tests/integration/s-future-water-batch1.test.ts` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
+- 验证：`pnpm exec vitest run tests/unit/battle-animation-events.test.ts` passed；`pnpm exec vitest run tests/integration/draw-then-discard.test.ts` passed；`pnpm exec vitest run tests/integration/live-start-discard-gain-blade.test.ts` passed；`pnpm exec vitest run tests/integration/s-future-water-batch1.test.ts` passed；`pnpm --dir client exec tsc -b` passed；`pnpm exec tsc --noEmit` passed；`git diff --check` passed。
 
 ## 本次 2026-07-06 卡效框架文档一致性修正
 
@@ -347,7 +374,7 @@
 
 - 已实现 `PL!SP-PR-003-PR` 费用 2「澁谷かのん」、`PL!SP-PR-007-PR` 费用 2「葉月 恋」、`PL!SP-PR-010-PR` 费用 2「若菜四季」：登场时自己能量区 7 张以上则抽 1；能量不足消费 pending no-op。
 - 已实现 `PL!SP-PR-009-PR` 费用 9「米女メイ」、`PL!SP-PR-011-PR` 费用 9「鬼塚夏美」、`PL!SP-PR-012-PR` 费用 9「ウィーン・マルガレーテ」：LIVE 开始可弃 1 手牌，获得 BLADE；弃置 LIVE 卡时再抽 1。
-- 登场段扩展 shared `member-on-enter-draw.ts` 的能量阈值配置轴；LIVE 开始段新增 shared `live-start-discard-gain-blade-draw-if-live.ts`，弃手走 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`，runner 仅新增 import/register 胶水。
+- 登场段扩展 shared `member-on-enter-draw.ts` 的能量阈值配置轴；LIVE 开始段新增 shared `live-start-discard-gain-blade.ts`，弃手走 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`，runner 仅新增 import/register 胶水。
 - 文档同步：`docs/card-effect-reuse-audit/existing_module_map.md` 已记录 6 张 PR 卡的真实卡文形状、shared workflow 和测试入口；本批未新增更通用 framework 边界。
 
 ## 本次 2026-07-02 莲之空 CL1 002 卡效补充

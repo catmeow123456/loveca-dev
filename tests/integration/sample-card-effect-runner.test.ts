@@ -2234,18 +2234,27 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[1])?.orientation).toBe(
       OrientationState.ACTIVE
     );
-    expect(
-      session.state?.actionHistory.some(
-        (action) =>
-          action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId ===
-            PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID &&
-          action.payload.conditionMet === true &&
-          Array.isArray(action.payload.activatedEnergyCardIds) &&
-          action.payload.activatedEnergyCardIds[0] === energyCardIds[0] &&
-          action.payload.activatedEnergyCardIds[1] === energyCardIds[1]
-      )
-    ).toBe(true);
+    const finalAction = session.state?.actionHistory.find(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId ===
+          PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID &&
+        action.payload.step === 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_IF_SUCCESS_SCORE'
+    );
+    expect(finalAction?.payload).toMatchObject({
+      step: 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_IF_SUCCESS_SCORE',
+      selectedCardId: targetMuseLiveId,
+      selectedCardIds: [targetMuseLiveId],
+      successLiveScore: 9,
+      conditionValue: 9,
+      conditionMet: true,
+      activatedEnergyCardIds: [energyCardIds[0], energyCardIds[1]],
+      publicEffectSummary: {
+        effectKind: 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM',
+        recoveredCardIds: [targetMuseLiveId],
+        noRecoveredCards: false,
+      },
+    });
     const summary = session
       .getPublicEventsSince(beforeSeq)
       .find((event) => event.type === 'CardEffectSummary');
@@ -2380,6 +2389,20 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[1])?.orientation).toBe(
       OrientationState.ACTIVE
     );
+    expect(session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_IF_SUCCESS_SCORE',
+      selectedCardId: null,
+      selectedCardIds: [],
+      successLiveScore: 9,
+      conditionValue: 9,
+      conditionMet: true,
+      activatedEnergyCardIds: [energyCardIds[0], energyCardIds[1]],
+      publicEffectSummary: {
+        effectKind: 'SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM',
+        recoveredCardIds: [],
+        noRecoveredCards: true,
+      },
+    });
     const summary = session
       .getPublicEventsSince(beforeSeq)
       .find((event) => event.type === 'CardEffectSummary');

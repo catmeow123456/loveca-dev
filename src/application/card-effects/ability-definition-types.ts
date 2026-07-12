@@ -17,6 +17,8 @@ export enum CardAbilitySourceZone {
   WAITING_ROOM = 'WAITING_ROOM',
   LIVE_CARD = 'LIVE_CARD',
   SUCCESS_LIVE_CARD = 'SUCCESS_LIVE_CARD',
+  /** A card still revealed in its controller's current Live cheer set. */
+  REVEALED_CHEER_CARD = 'REVEALED_CHEER_CARD',
 }
 
 export interface ActivatedAbilityUiConfig {

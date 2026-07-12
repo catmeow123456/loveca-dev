@@ -372,6 +372,8 @@ import {
   SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
   SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID,
   SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID,
+  S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
+  S_BP3_003_LIVE_START_DISCARD_UP_TO_TWO_GAIN_BLADE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
   SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
   SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID,
@@ -10950,6 +10952,50 @@ describe('card effect classification registry', () => {
       });
       expect(liveStartDiscardBladeDraw?.perTurnLimit).toBeUndefined();
     }
+    for (const cardCode of [
+      'PL!S-bp3-003-P',
+      'PL!S-bp3-003-P＋',
+      'PL!S-bp3-003-R＋',
+      'PL!S-bp3-003-SEC',
+    ]) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions.filter((ability) => ability.implemented)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId: S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
+            baseCardCodes: ['PL!S-bp3-003'],
+            category: CardAbilityCategory.ON_ENTER,
+            sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+            triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+            queued: true,
+          }),
+          expect.objectContaining({
+            abilityId: S_BP3_003_LIVE_START_DISCARD_UP_TO_TWO_GAIN_BLADE_ABILITY_ID,
+            baseCardCodes: ['PL!S-bp3-003'],
+            category: CardAbilityCategory.LIVE_START,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_START,
+            queued: true,
+          }),
+        ])
+      );
+    }
+    for (const cardCode of ['PL!S-bp3-009-P', 'PL!S-bp3-009-R']) {
+      expect(
+        getCardAbilityDefinitions(cardCode).filter(
+          (ability) => ability.abilityId === GENERIC_DISCARD_LOOK_TOP_ABILITY_ID
+        )
+      ).toEqual([
+        expect.objectContaining({
+          baseCardCodes: expect.arrayContaining(['PL!S-bp3-009']),
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+        }),
+      ]);
+    }
     const pr024Sumire = getCardAbilityDefinitions('PL!SP-PR-024-PR').find(
       (ability) =>
         ability.abilityId === SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID
@@ -11225,7 +11271,11 @@ describe('card effect classification registry', () => {
 
       if (ability.category === CardAbilityCategory.LIVE_SUCCESS) {
         expect(ability.triggerCondition).toBe(TriggerCondition.ON_LIVE_SUCCESS);
-        expect([CardAbilitySourceZone.LIVE_CARD, CardAbilitySourceZone.STAGE_MEMBER]).toContain(
+        expect([
+          CardAbilitySourceZone.LIVE_CARD,
+          CardAbilitySourceZone.STAGE_MEMBER,
+          CardAbilitySourceZone.REVEALED_CHEER_CARD,
+        ]).toContain(
           ability.sourceZone
         );
         expect(ability.queued).toBe(true);

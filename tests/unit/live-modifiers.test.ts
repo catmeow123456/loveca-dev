@@ -20,6 +20,7 @@ import {
 } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
+  addPlayerScoreLiveModifierForTargetMember,
   addMemberCostLiveModifierForMember,
   addMemberCostSetLiveModifierForMember,
   addLiveModifier,
@@ -36,6 +37,7 @@ import {
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
   replaceLiveModifier,
+  removeTargetMemberBoundLiveModifiers,
 } from '../../src/domain/rules/live-modifiers';
 import { applyHeartRequirementModifiers } from '../../src/domain/rules/live-requirement-modifiers';
 import { getMemberEffectiveCost } from '../../src/domain/rules/member-effective-cost';
@@ -8372,5 +8374,33 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       applyHeartRequirementModifiers(opponentLive.data.requirements, requirementModifiers)
         .totalRequired
     ).toBe(2);
+  });
+
+  it('keeps player SCORE granted to a target member separate from its source and removes every binding by target', () => {
+    const source = createCardInstance({ cardCode: 'source', name: 'source', cardType: CardType.MEMBER, cost: 1, blade: 1, hearts: [] }, 'p1', 'source');
+    const target = createCardInstance({ cardCode: 'target', name: 'target', cardType: CardType.MEMBER, cost: 1, blade: 1, hearts: [] }, 'p1', 'target');
+    const otherTarget = createCardInstance({ cardCode: 'other-target', name: 'other-target', cardType: CardType.MEMBER, cost: 1, blade: 1, hearts: [] }, 'p1', 'other-target');
+    let game = registerCards(createGameState('target-score', 'p1', 'P1', 'p2', 'P2'), [source, target, otherTarget]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }),
+        SlotPosition.RIGHT,
+        otherTarget.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+    }));
+    const first = addPlayerScoreLiveModifierForTargetMember(game, { playerId: 'p1', targetMemberCardId: target.instanceId, sourceCardId: source.instanceId, abilityId: 'one', countDelta: 1 });
+    const second = addPlayerScoreLiveModifierForTargetMember(first!.gameState, { playerId: 'p1', targetMemberCardId: target.instanceId, sourceCardId: 'other-source', abilityId: 'two', countDelta: 1 });
+    const third = addPlayerScoreLiveModifierForTargetMember(second!.gameState, { playerId: 'p1', targetMemberCardId: otherTarget.instanceId, sourceCardId: 'third-source', abilityId: 'three', countDelta: 1 });
+    expect(third!.gameState.liveResolution.playerScoreBonuses.get('p1')).toBe(3);
+    const afterTargetLeaves = removeTargetMemberBoundLiveModifiers(third!.gameState, [target.instanceId]);
+    expect(afterTargetLeaves.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({ targetMemberCardId: otherTarget.instanceId, abilityId: 'three' }),
+    ]);
+    expect(afterTargetLeaves.liveResolution.playerScoreBonuses.get('p1')).toBe(1);
+    const afterOtherTargetLeaves = removeTargetMemberBoundLiveModifiers(afterTargetLeaves, [otherTarget.instanceId]);
+    expect(afterOtherTargetLeaves.liveResolution.liveModifiers).toEqual([]);
+    expect(afterOtherTargetLeaves.liveResolution.playerScoreBonuses.has('p1')).toBe(false);
   });
 });

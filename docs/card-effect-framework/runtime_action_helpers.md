@@ -6,6 +6,17 @@
 
 runtime action helper 只表达原子动作，不表达完整卡文流程。它们的价值不是立刻减少总代码行数，而是让 workflow 不再重复实现同一套移动、抽牌、弃牌和结果记录语义。
 
+## 目标成员绑定的临时 LIVE modifier
+
+- `addPlayerScoreLiveModifierForTargetMember` 在 `domain/rules/live-modifiers.ts` 写入玩家总分 SCORE，同时显式保存 `targetMemberCardId`、审计 `sourceCardId` 和 `abilityId`；不以来源卡替代目标成员身份。
+- `removeTargetMemberBoundLiveModifiersForLeaveStageEvents` 是 LeaveStageEvent 的通用 runtime hook，删除所有绑定离场成员实例的临时 modifier，并通过统一 modifier 底座刷新 `playerScoreBonuses` 等兼容投影。它不识别卡号或 abilityId；成员槽位移动和状态变化不触发删除。
+- 当前真实样本为 `PL!S-bp3-001`。这不是对所有 SCORE modifier 施加目标语义；没有 `targetMemberCardId` 的旧 modifier 保持原有生命周期。
+
+## 当前公开声援的 LIVE_SUCCESS 来源
+
+- `collectCurrentRevealedCheerLiveSuccessAbilitySources` 仅收集控制者本次声援集合中、仍位于 `resolutionZone.cardIds` 且仍列于 `revealedCardIds` 的卡，并要求 definition 明确声明 `LIVE_SUCCESS / REVEALED_CHEER_CARD / queued / implemented`。
+- 该 helper 服务“能力来源仍因声援公开”的区域事实，不读取 event-inclusive CheerEvent 历史集合；历史集合仍只适合声援计数等条件查询。当前真实样本为 `PL!S-bp3-002`，不是任意区域来源总开关。
+
 ## 能量区返回与活跃阶段标记
 
 - 卡牌效果将能量区能量放回能量卡组统一使用 `runtime/energy-return.ts` 的 `resolveEnergyReturnByCardEffect`。该 helper 负责校验并移动指定能量、清除离区 marker、一次写入一个批量 `ON_ENERGY_MOVED_TO_DECK` 事件，并将本次精确事件传给触发入队；返回值包含实际 `movedEnergyCardIds` 与本次 `energyMovedEvent`，caller 不得根据输入数组推测实际移动结果。card workflow 与其他 card-effect runtime 不得直接调用底层 `moveEnergyZoneCardsToEnergyDeckByCardEffect`。

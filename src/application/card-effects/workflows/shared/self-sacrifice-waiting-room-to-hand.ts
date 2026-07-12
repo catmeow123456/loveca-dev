@@ -1,4 +1,8 @@
-import { isMemberCardData, type CardInstance } from '../../../../domain/entities/card.js';
+import {
+  isLiveCardData,
+  isMemberCardData,
+  type CardInstance,
+} from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -6,19 +10,25 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { CardType, GamePhase } from '../../../../shared/types/enums.js';
+import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import {
   BP4_003_ACTIVATED_ABILITY_ID,
   ELI_ACTIVATED_ABILITY_ID,
   HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
+  PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
+  S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_ABILITY_ID,
 } from '../../ability-ids.js';
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
-import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
+import {
+  activateWaitingEnergyCardsForPlayer,
+  recoverCardsFromWaitingRoomToHandForPlayer,
+} from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
+import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -28,7 +38,10 @@ import {
   paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
   type EnqueueTriggeredCardEffectsForLeaveStage,
 } from '../../runtime/leave-stage-triggers.js';
-import { groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import { successLiveScoreAtLeast, sumSuccessfulLiveScore } from '../../../effects/conditions.js';
+import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
+import { clearPreviousStageMemberInstanceState } from '../../../effects/member-state.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -58,10 +71,55 @@ interface SelfSacrificeWaitingRoomToHandWorkflowConfig {
   readonly stepId: string;
   readonly selectablePredicate: (card: CardInstance) => boolean;
   readonly selectionRequiredWhenHasTargets?: boolean;
+  readonly stepText?: string;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
+  readonly postRecovery?:
+    | {
+        readonly kind: 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST';
+        readonly threshold: number;
+        readonly activateCount: number;
+        readonly finishStep: string;
+      }
+    | {
+        readonly kind: 'RECOVERED_AQOURS_LIVE_PRINTED_SCORE_AT_LEAST';
+        readonly threshold: number;
+        readonly activateCount: number;
+        readonly finishStep: string;
+      };
 }
 
 const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaitingRoomToHandWorkflowConfig[] =
   [
+    {
+      abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!-PR-017'],
+      stepId: 'PR_017_SELECT_WAITING_ROOM_MUSE_LIVE',
+      selectablePredicate: and(typeIs(CardType.LIVE), groupAliasIs("μ's")),
+      selectionRequiredWhenHasTargets: true,
+      postRecovery: {
+        kind: 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST',
+        threshold: 9,
+        activateCount: 2,
+        finishStep: 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_IF_SUCCESS_SCORE',
+      },
+    },
+    {
+      abilityId: S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!S-bp3-008'],
+      stepId: 'S_BP3_008_SELECT_WAITING_ROOM_LIVE',
+      selectablePredicate: typeIs(CardType.LIVE),
+      selectionRequiredWhenHasTargets: true,
+      stepText: '请选择1张LIVE卡加入手牌。',
+      selectionLabel: '选择要加入手牌的LIVE卡',
+      confirmSelectionLabel: '加入手牌',
+      postRecovery: {
+        kind: 'RECOVERED_AQOURS_LIVE_PRINTED_SCORE_AT_LEAST',
+        threshold: 6,
+        activateCount: 4,
+        finishStep: 'RECOVER_LIVE_ACTIVATE_ENERGY_IF_AQOURS_SCORE',
+      },
+    },
     {
       abilityId: ELI_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: ['PL!-sd1-002'],
@@ -174,6 +232,7 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
     return game;
   }
   state = costPayment.gameState;
+  state = clearPreviousStageMemberInstanceState(state, player.id, cardId);
   const movedToWaitingRoomCardIds = costPayment.movedToWaitingRoomCardIds;
 
   const selectableCardIds = selectWaitingRoomCardIds(state, player.id, config.selectablePredicate);
@@ -193,8 +252,11 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
       controllerId: player.id,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
+      stepText: config.stepText,
       awaitingPlayerId: player.id,
       selectableCardIds,
+      selectionLabel: config.selectionLabel,
+      confirmSelectionLabel: config.confirmSelectionLabel,
       metadata: {
         sourceSlot,
         movedToWaitingRoomCardIds,
@@ -248,11 +310,67 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
     }
   );
   if (!recoveryResult) {
-    return game;
+    if (!wasRestoredAfterPublicCardSelectionConfirmation(effect)) return game;
+    return continuePendingCardEffects(
+      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'SELECTED_CARD_LEFT_WAITING_ROOM',
+        selectedCardId: selectedCardIdsToMove[0] ?? null,
+        selectedCardIds: selectedCardIdsToMove,
+        movedCardIds: [],
+        activatedEnergyCardIds: [],
+      }),
+      effect.metadata?.orderedResolution === true
+    );
   }
 
+  const config = SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS.find(
+    (item) => item.abilityId === effect.abilityId
+  );
+  const recoveredCard =
+    recoveryResult.movedCardIds.length === 1
+      ? getCardById(recoveryResult.gameState, recoveryResult.movedCardIds[0])
+      : null;
+  let conditionMet = false;
+  let conditionValue: number | null = null;
+  if (config?.postRecovery?.kind === 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST') {
+    conditionValue = sumSuccessfulLiveScore(recoveryResult.gameState, player.id);
+    conditionMet = successLiveScoreAtLeast(
+      recoveryResult.gameState,
+      player.id,
+      config.postRecovery.threshold
+    );
+  } else if (config?.postRecovery?.kind === 'RECOVERED_AQOURS_LIVE_PRINTED_SCORE_AT_LEAST') {
+    conditionValue =
+      recoveredCard && isLiveCardData(recoveredCard.data) ? recoveredCard.data.score : null;
+    conditionMet =
+      recoveredCard !== null &&
+      isLiveCardData(recoveredCard.data) &&
+      groupAliasIs('Aqours')(recoveredCard) &&
+      (recoveredCard.data.score ?? 0) >= config.postRecovery.threshold;
+  }
+  const waitingEnergyCount = getEnergyCardIdsByOrientation(
+    recoveryResult.gameState,
+    player.id,
+    OrientationState.WAITING
+  ).length;
+  const activationCount =
+    conditionMet && config?.postRecovery
+      ? Math.min(config.postRecovery.activateCount, waitingEnergyCount)
+      : 0;
+  const orientationChange =
+    conditionMet && activationCount > 0
+      ? activateWaitingEnergyCardsForPlayer(recoveryResult.gameState, player.id, activationCount)
+      : null;
+  if (conditionMet && activationCount > 0 && !orientationChange) {
+    return game;
+  }
+  const stateAfterEnergy = orientationChange?.gameState ?? recoveryResult.gameState;
+
   const state = {
-    ...recoveryResult.gameState,
+    ...stateAfterEnergy,
     activeEffect: null,
   };
 
@@ -261,7 +379,7 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'FINISH',
+      step: config?.postRecovery?.finishStep ?? 'FINISH',
       selectedCardId: recoveryResult.movedCardIds[0] ?? null,
       selectedCardIds: recoveryResult.movedCardIds,
       publicEffectSummary: {
@@ -269,6 +387,14 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
         recoveredCardIds: recoveryResult.movedCardIds,
         noRecoveredCards: recoveryResult.movedCardIds.length === 0,
       },
+      conditionValue,
+      ...(config?.postRecovery?.kind === 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST'
+        ? { successLiveScore: conditionValue }
+        : {}),
+      conditionMet,
+      activatedEnergyCardIds: orientationChange?.activatedEnergyCardIds ?? [],
+      previousOrientations: orientationChange?.previousOrientations ?? [],
+      nextOrientation: orientationChange?.nextOrientation ?? OrientationState.ACTIVE,
     }),
     effect.metadata?.orderedResolution === true
   );

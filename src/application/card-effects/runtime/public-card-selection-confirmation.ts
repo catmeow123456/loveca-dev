@@ -40,6 +40,14 @@ export interface PublicCardSelectionAutoAdvanceMetadata {
   readonly ordered: boolean;
 }
 
+const PUBLIC_CARD_SELECTION_RESOLUTION_MARKER = 'publicCardSelectionResolutionCompleted';
+
+export function wasRestoredAfterPublicCardSelectionConfirmation(
+  effect: ActiveEffectState
+): boolean {
+  return effect.metadata?.[PUBLIC_CARD_SELECTION_RESOLUTION_MARKER] === true;
+}
+
 type ResolveRestoredActiveEffectStep = (
   game: GameState,
   effect: ActiveEffectState,
@@ -268,12 +276,19 @@ export function resolvePublicCardSelectionConfirmationStep(
   const continuation = game.activeEffect?.metadata?.publicCardSelectionConfirmationContinuation as
     PublicCardSelectionConfirmationContinuation | undefined;
   if (!continuation) return game;
-  const restoredGame = { ...game, activeEffect: continuation.originalEffect };
+  const restoredEffect: ActiveEffectState = {
+    ...continuation.originalEffect,
+    metadata: {
+      ...continuation.originalEffect.metadata,
+      [PUBLIC_CARD_SELECTION_RESOLUTION_MARKER]: true,
+    },
+  };
+  const restoredGame = { ...game, activeEffect: restoredEffect };
   try {
     return (
       resolveRestoredActiveEffectStep(
         restoredGame,
-        continuation.originalEffect,
+        restoredEffect,
         continuation.originalInput,
         context
       ) ?? game

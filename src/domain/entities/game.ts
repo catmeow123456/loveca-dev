@@ -198,6 +198,8 @@ export type LiveModifierState =
       readonly countDelta: number;
       /** 指定时表示“此 Live 卡分数”修正；未指定时表示玩家 LIVE 合计分数修正 */
       readonly liveCardId?: string;
+      /** 指定时表示此玩家总分修正由该成员实例获得，并在该实例离场时失去。 */
+      readonly targetMemberCardId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;

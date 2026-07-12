@@ -12,6 +12,7 @@ import {
   HS_BP1_005_ON_ENTER_DISCARD_UP_TO_THREE_DRAW_SAME_COUNT_ABILITY_ID,
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
   HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID,
+  S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
@@ -29,7 +30,8 @@ type EnqueueTriggeredCardEffects = (
 
 type DrawPolicy =
   | { readonly kind: 'DISCARDED_COUNT'; readonly offset: number }
-  | { readonly kind: 'UNTIL_HAND_SIZE'; readonly target: number };
+  | { readonly kind: 'UNTIL_HAND_SIZE'; readonly target: number }
+  | { readonly kind: 'FIXED'; readonly count: number };
 
 interface DiscardThenDrawConfig {
   readonly abilityId: string;
@@ -38,6 +40,8 @@ interface DiscardThenDrawConfig {
   readonly minSelection: number;
   readonly maxSelection: number | 'ALL_CANDIDATES';
   readonly stepText: string;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
   readonly skipSelectionLabel?: string;
   readonly zeroSelectionResolves: boolean;
   readonly drawPolicy: DrawPolicy;
@@ -47,8 +51,23 @@ interface DiscardThenDrawConfig {
 const anyCard: CardSelector = () => true;
 const miraCraMember: CardSelector = (card) =>
   typeIs(CardType.MEMBER)(card) && unitAliasIs('Mira-Cra Park!')(card);
+const liveCard: CardSelector = typeIs(CardType.LIVE);
 
 const CONFIGS: readonly DiscardThenDrawConfig[] = [
+  {
+    abilityId: S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
+    stepId: 'S_BP3_003_SELECT_LIVE_TO_DISCARD',
+    selector: liveCard,
+    minSelection: 1,
+    maxSelection: 1,
+    stepText: '可以将1张手牌的LIVE卡放置入休息室；成功放置后抽3张卡。',
+    selectionLabel: '选择要放置入休息室的卡',
+    confirmSelectionLabel: '放置入休息室',
+    skipSelectionLabel: '不发动',
+    zeroSelectionResolves: false,
+    drawPolicy: { kind: 'FIXED', count: 3 },
+    actionStep: 'DISCARD_LIVE_DRAW_THREE',
+  },
   {
     abilityId: HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
     stepId: 'HS_PB1_003_SELECT_MIRACRA_HAND_MEMBERS',
@@ -137,6 +156,8 @@ function startDiscardThenDraw(
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.stepId,
       stepText: config.stepText,
+      selectionLabel: config.selectionLabel,
+      confirmSelectionLabel: config.confirmSelectionLabel,
       awaitingPlayerId: player.id,
       selectableCardIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
@@ -211,7 +232,9 @@ function finishDiscardThenDraw(
   const drawCount =
     config.drawPolicy.kind === 'DISCARDED_COUNT'
       ? discardResult.discardedCardIds.length + config.drawPolicy.offset
-      : Math.max(0, config.drawPolicy.target - playerAfterDiscard.hand.cardIds.length);
+      : config.drawPolicy.kind === 'FIXED'
+        ? config.drawPolicy.count
+        : Math.max(0, config.drawPolicy.target - playerAfterDiscard.hand.cardIds.length);
   const drawResult =
     drawCount === 0
       ? { gameState: discardResult.gameState, drawnCardIds: [] as readonly string[] }

@@ -2464,6 +2464,69 @@ export function addLiveModifier(game: GameState, modifier: LiveModifierState): G
   return setLiveModifiers(game, [...game.liveResolution.liveModifiers, modifier]);
 }
 
+export interface PlayerScoreLiveModifierForTargetMemberOptions {
+  readonly playerId: string;
+  readonly targetMemberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly countDelta: number;
+}
+
+/**
+ * Adds a player-total SCORE modifier granted to one concrete stage-member instance.
+ * The source and recipient deliberately remain separate: losing the source must not
+ * remove an ability that was already granted to another member.
+ */
+export function addPlayerScoreLiveModifierForTargetMember(
+  game: GameState,
+  options: PlayerScoreLiveModifierForTargetMemberOptions
+): { readonly gameState: GameState; readonly modifier: ScoreModifierState } | null {
+  if (!Number.isInteger(options.countDelta) || options.countDelta === 0) {
+    return null;
+  }
+  const player = getPlayerById(game, options.playerId);
+  const target = getCardById(game, options.targetMemberCardId);
+  if (
+    !player ||
+    !target ||
+    target.ownerId !== player.id ||
+    !isMemberCardData(target.data) ||
+    !Object.values(player.memberSlots.slots).includes(options.targetMemberCardId)
+  ) {
+    return null;
+  }
+
+  const modifier: ScoreModifierState = {
+    kind: 'SCORE',
+    playerId: options.playerId,
+    countDelta: options.countDelta,
+    sourceCardId: options.sourceCardId,
+    targetMemberCardId: options.targetMemberCardId,
+    abilityId: options.abilityId,
+  };
+  return { gameState: addLiveModifier(game, modifier), modifier };
+}
+
+/** Remove every temporary modifier whose granted target has left the stage. */
+export function removeTargetMemberBoundLiveModifiers(
+  game: GameState,
+  targetMemberCardIds: readonly string[]
+): GameState {
+  const targetMemberCardIdSet = new Set(targetMemberCardIds);
+  if (targetMemberCardIdSet.size === 0) {
+    return game;
+  }
+  const liveModifiers = game.liveResolution.liveModifiers.filter(
+    (modifier) =>
+      !('targetMemberCardId' in modifier) ||
+      modifier.targetMemberCardId === undefined ||
+      !targetMemberCardIdSet.has(modifier.targetMemberCardId)
+  );
+  return liveModifiers.length === game.liveResolution.liveModifiers.length
+    ? game
+    : setLiveModifiers(game, liveModifiers);
+}
+
 export function suppressLiveAbility(
   game: GameState,
   options: SuppressLiveAbilityOptions

@@ -1,5 +1,15 @@
 # Card Effect Runner Migration Roadmap
 
+## bp3-001 / 002 通用 hook（2026-07）
+
+- `REVEALED_CHEER_CARD` 来源收集和 target-member-bound modifier 清理由 runner 调用通用 runtime hook；两个完整卡效仍由各自 workflow registry 持有。
+- runner 未接入卡号、abilityId、团体、目标 predicate 或 pending 构造；这不改变 trigger matcher T-2、steps-lite 或“所有区域来源/所有 modifier 已迁移”的完成状态。
+
+## Self-sacrifice recovery family (2026-07)
+
+- `PL!-PR-017` 已从单卡 workflow 迁入 `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`，并由 `PL!S-bp3-008` 证明回收后条件奖励轴。
+- 条件轴保持有限联合，不引入任意 callback 或 runner hook；来源离场、公开选卡确认与能量操作继续复用统一 runtime 边界。
+
 ## Unified check-timing continuation (2026-07)
 
 - Production pending continuation is centralized in
@@ -90,6 +100,7 @@ Current migrated workflow modules:
 - `workflows/shared/live-start-discard-gain-heart.ts`
 - `workflows/shared/draw-then-discard.ts`
 - `workflows/shared/discard-then-draw.ts`
+- `workflows/shared/live-start-discard-gain-blade.ts`
 - `workflows/shared/waiting-room-to-hand.ts`
 - `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`
 - `workflows/shared/pay-energy-waiting-room-to-hand.ts`
@@ -109,7 +120,7 @@ Current migrated workflow modules:
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
-- `workflows/cards/pl-pr-017-nico.ts`
+- `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`（含 `PL!-PR-017` / `PL!S-bp3-008` 有限后处理条件）
 - `workflows/shared/play-waiting-room-member-to-source-slot.ts`
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-bp5-003-rurino.ts`
@@ -128,7 +139,9 @@ Current migrated workflow modules:
 - `workflows/cards/sp-bp5-003-chisato.ts`
 - `workflows/cards/s-bp2-006-yoshiko.ts`
 
-`discard-then-draw.ts` now owns the proven hand-discard-before-draw family for `PL!HS-pb1-003`, `PL!HS-bp1-005`, and `PL!HS-PR-031`. Its stable axes are selector, selection bounds/decline copy, and the narrow draw-policy union. Only the ON_ENTER segment moved out of `hs-pb1-003-rurino.ts`; that card's hand-to-waiting AUTO remains card-local.
+`discard-then-draw.ts` now owns the proven hand-discard-before-draw family for `PL!HS-pb1-003`, `PL!HS-bp1-005`, `PL!HS-PR-031`, and `PL!S-bp3-003`. Its stable axes are selector, selection bounds/decline copy, and the narrow draw-policy union, now including fixed draw count. Only the ON_ENTER segment moved out of `hs-pb1-003-rurino.ts`; that card's hand-to-waiting AUTO remains card-local.
+
+`live-start-discard-gain-blade.ts` is the promoted behavior-named family for `PL!SP-PR-009/011/012` and `PL!S-bp3-003`. The second real shape proves stable min/max discard and BLADE-per-card axes; the former card-specific file name was removed. The only post-action axis remains the narrow existing “draw one if a discarded card is LIVE” rule, not a general callback or steps DSL.
 
 Recent helper modules added outside `actions.ts`:
 
@@ -824,3 +837,9 @@ Do not:
 # Waiting-room ON_ENTER delegation boundary
 
 已由 `PL!N-bp3-003` 与 `PL!SP-bp2-006` 建立窄 family：definition 显式 opt-in、休息室来源、空 source slot、无真实登场事件。当前不扩展为通用 timing delegation 或 steps DSL。
+
+# LIVE_SUCCESS conditional draw-one promotion
+
+`PL!N-bp4-003` and `PL!S-bp3-005` now share `workflows/shared/live-success-conditional-draw-one.ts`. The promotion preserves N-bp4-003's `HIGHER_LIVE_SCORE` action steps and payload fields while adding the second real sample, whose stable condition axis is `OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT`. The shared workflow retains source-safe STAGE_MEMBER resolution, manual/confirm-only and ordered pending semantics, and delegates drawing to `drawCardsForPlayer`.
+
+The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` facts for both players, so all card types, ordinary/additional cheer, and cards already moved out of `resolutionZone` remain countable; it does not reuse the movable-target selector. No runner condition, card-number branch, pending construction, or draw body was added.

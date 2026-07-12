@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
+import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
   createGameState,
   emitGameEvent,
@@ -23,6 +23,7 @@ import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_ID,
   HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID,
+  S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -50,10 +51,32 @@ function member(cardCode: string, unitName = 'みらくらぱーく！'): Member
   };
 }
 
-function start(cardCode: string, handCount: number, handUnits?: readonly string[]) {
+function live(cardCode: string): LiveCardData {
+  return {
+    cardCode,
+    name: cardCode,
+    groupNames: ['Aqours'],
+    cardType: CardType.LIVE,
+    score: 1,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+  };
+}
+
+function start(
+  cardCode: string,
+  handCount: number,
+  handUnits?: readonly string[],
+  handKinds?: readonly ('member' | 'live')[]
+) {
   const source = createCardInstance(member(cardCode), PLAYER1, 'source');
   const hand = Array.from({ length: handCount }, (_, index) =>
-    createCardInstance(member(`HAND-${index}`, handUnits?.[index] ?? 'みらくらぱーく！'), PLAYER1, `hand-${index}`)
+    createCardInstance(
+      handKinds?.[index] === 'live'
+        ? live(`HAND-LIVE-${index}`)
+        : member(`HAND-${index}`, handUnits?.[index] ?? 'みらくらぱーく！'),
+      PLAYER1,
+      `hand-${index}`
+    )
   );
   const deck = Array.from({ length: 8 }, (_, index) =>
     createCardInstance(member(`DRAW-${index}`), PLAYER1, `draw-${index}`)
@@ -171,6 +194,30 @@ function decline(session: ReturnType<typeof createGameSession>) {
 }
 
 describe('discard-then-draw shared workflow', () => {
+  it('S-bp3-003 discards exactly one LIVE card and draws three', () => {
+    const scenario = start('PL!S-bp3-003-P', 2, undefined, ['live', 'member']);
+    const liveCard = scenario.hand[0];
+
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
+      selectableCardIds: [liveCard.instanceId],
+      selectionLabel: '选择要放置入休息室的卡',
+      confirmSelectionLabel: '放置入休息室',
+      skipSelectionLabel: '不发动',
+    });
+    expect(confirm(scenario.session, [scenario.hand[1].instanceId]).success).toBe(false);
+    expect(confirm(scenario.session, [liveCard.instanceId]).success).toBe(true);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(liveCard.instanceId);
+    expect(scenario.session.state?.players[0].hand.cardIds).toHaveLength(4);
+  });
+
+  it('S-bp3-003 declines and has no legal submission without a LIVE hand card', () => {
+    const { session, hand } = start('PL!S-bp3-003-SEC', 1);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
+    expect(confirm(session, [hand[0].instanceId]).success).toBe(false);
+    expect(decline(session).success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual([hand[0].instanceId]);
+  });
   it('keeps HS-pb1-003 selector, zero-selection draw, and grouped trigger semantics', () => {
     const { session, hand } = start('PL!HS-pb1-003-R', 3, [
       'みらくらぱーく！',

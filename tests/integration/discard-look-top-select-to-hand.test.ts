@@ -38,6 +38,8 @@ import {
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+const S_BP3_009_EFFECT_TEXT =
+  '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的6张卡。可以将1张其中的『Aqours』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 
 // 真实团体身份必须由结构化 groupNames 决定（卡号前缀不再作为 fallback）。
 function groupNamesFromCardCode(cardCode: string): readonly string[] {
@@ -132,7 +134,145 @@ function clearPlayerZones(player: {
   player.liveZone.cardIds = [];
 }
 
+function setupSbp3009Scenario() {
+  const session = createGameSession();
+  const deck = createDeck();
+  session.createGame('s-bp3-009-regression', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+  session.initializeGame(deck, deck);
+  forceMainPhaseForPlayer(session);
+  const source = createCardInstance(
+    createMemberCard('PL!S-bp3-009-P', '黒澤ルビィ', 9),
+    PLAYER1,
+    's-bp3-009-regression-source'
+  );
+  const discardCard = createCardInstance(
+    createMemberCard('PL!S-regression-discard'),
+    PLAYER1,
+    's-bp3-009-regression-discard'
+  );
+  const topCards = Array.from({ length: 7 }, (_, index) =>
+    createCardInstance(
+      createMemberCard(`PL!S-regression-top-${index}`),
+      PLAYER1,
+      `s-bp3-009-regression-top-${index}`
+    )
+  );
+  const state = registerCards(session.state!, [source, discardCard, ...topCards]);
+  (session as unknown as { authorityState: GameState }).authorityState = state;
+  const player = state.players[0] as unknown as {
+    hand: { cardIds: string[] };
+    mainDeck: { cardIds: string[] };
+    waitingRoom: { cardIds: string[] };
+    successZone: { cardIds: string[] };
+    liveZone: { cardIds: string[] };
+  };
+  clearPlayerZones(player);
+  player.hand.cardIds = [source.instanceId, discardCard.instanceId];
+  player.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+  expect(
+    session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    ).success
+  ).toBe(true);
+  return { session, discardCard, topCards };
+}
+
 describe('discard look top select to hand shared workflow', () => {
+  it('PL!S-bp3-009 inspects six and only reveals an Aqours member before adding it to hand', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame('s-bp3-009-discard-look-top-six', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const source = createCardInstance(createMemberCard('PL!S-bp3-009-P', '黒澤ルビィ', 9), PLAYER1, 's-bp3-009-source');
+    const discardCard = createCardInstance(createMemberCard('PL!S-test-discard'), PLAYER1, 's-bp3-009-discard');
+    const topCards = [
+      createCardInstance(createMemberCard('PL!S-test-aqours-member', 'Aqours member'), PLAYER1, 's-bp3-009-top-0'),
+      createCardInstance(createMemberCard('PL!SP-test-liella-member', 'Liella member'), PLAYER1, 's-bp3-009-top-1'),
+      createCardInstance(createLiveCard('PL!S-test-aqours-live', 'Aqours LIVE'), PLAYER1, 's-bp3-009-top-2'),
+      ...[3, 4, 5, 6].map((index) => createCardInstance(createMemberCard(`PL!SP-test-${index}`), PLAYER1, `s-bp3-009-top-${index}`)),
+    ];
+    const state = registerCards(session.state!, [source, discardCard, ...topCards]);
+    (session as unknown as { authorityState: GameState }).authorityState = state;
+    const p1 = state.players[0] as unknown as {
+      hand: { cardIds: string[] }; mainDeck: { cardIds: string[] }; waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] }; liveZone: { cardIds: string[] };
+    };
+    clearPlayerZones(p1);
+    p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
+    p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+
+    expect(session.executeCommand(createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, { freePlay: true })).success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      effectText: S_BP3_009_EFFECT_TEXT,
+      selectionLabel: '选择要放置入休息室的卡',
+      confirmSelectionLabel: '放置入休息室',
+      skipSelectionLabel: '不发动',
+    });
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardCard.instanceId)).success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      effectText: S_BP3_009_EFFECT_TEXT,
+      inspectionCardIds: topCards.slice(0, 6).map((card) => card.instanceId),
+      selectableCardIds: [topCards[0]!.instanceId],
+      selectionLabel: '选择要公开并加入手牌的卡',
+      confirmSelectionLabel: '公开并加入手牌',
+      skipSelectionLabel: '全部放置入休息室',
+    });
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, topCards[1]!.instanceId)).success).toBe(false);
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, topCards[0]!.instanceId)).success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      effectText: S_BP3_009_EFFECT_TEXT,
+      stepText: S_BP3_009_EFFECT_TEXT,
+    });
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([topCards[0]!.instanceId]);
+    expect(session.state?.players[0].hand.cardIds).not.toContain(topCards[0]!.instanceId);
+    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)).success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toContain(topCards[0]!.instanceId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(expect.arrayContaining([
+      discardCard.instanceId,
+      ...topCards.slice(1, 6).map((card) => card.instanceId),
+    ]));
+  });
+
+  it('PL!S-bp3-009 puts all six inspected cards into one waiting-room event when selecting zero', () => {
+    const { session, discardCard, topCards } = setupSbp3009Scenario();
+    expect(session.state?.activeEffect?.effectText).toBe(S_BP3_009_EFFECT_TEXT);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      effectText: S_BP3_009_EFFECT_TEXT,
+      inspectionCardIds: topCards.slice(0, 6).map((card) => card.instanceId),
+      skipSelectionLabel: '全部放置入休息室',
+    });
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
+      discardCard.instanceId,
+      ...topCards.slice(0, 6).map((card) => card.instanceId),
+    ]);
+    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+      fromZone: ZoneType.MAIN_DECK,
+      toZone: ZoneType.WAITING_ROOM,
+      cardInstanceIds: topCards.slice(0, 6).map((card) => card.instanceId),
+    });
+  });
   it('lets top five LIVE cards discard one, inspect five, reveal a selected LIVE, and take it', () => {
     const session = createGameSession();
     const deck = createDeck();
