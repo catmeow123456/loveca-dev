@@ -510,6 +510,10 @@ function startRevealedCheerSelectionWorkflow(
       metadata: {
         cheerRevealedCardSelection: true,
         destination: config.destination,
+        publicCardSelectionConfirmation: {
+          source: 'REVEALED_CHEER',
+          destination: config.destination,
+        },
         additionalCheerEqualToMoved: config.additionalCheerEqualToMoved === true,
         orderedResolution: context.orderedResolution,
         ...startCondition?.payload,

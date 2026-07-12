@@ -228,6 +228,10 @@ function finishDiscardCost(
           ...effect.metadata,
           sourceSlot,
           discardedCardId,
+          publicCardSelectionConfirmation: {
+            source: 'REVEALED_CHEER',
+            destination: 'HAND',
+          },
         },
       },
     },

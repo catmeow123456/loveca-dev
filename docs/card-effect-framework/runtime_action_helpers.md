@@ -169,6 +169,12 @@ Current boundary:
 - 不表达费用支付或 pending 继续。
 - 非空移动会为每张加入手牌的卡记录 `ON_ENTER_HAND` 事件，事件事实为 `WAITING_ROOM -> HAND`；普通 recovery workflow 仍由调用方负责何时触发/继续 pending。
 
+### `moveRevealedCheerCards` 与公开展示边界
+
+- `effects/cheer-selection.ts` 只负责把已重校验的当前声援可移动卡放入 `HAND` / `MAIN_DECK_TOP` / `MAIN_DECK_BOTTOM` / `WAITING_ROOM`，不创建 UI、deadline、turn1 或追加声援。
+- 玩家从声援处理区确定具体卡牌后，原 workflow 必须先通过 `runtime/public-card-selection-confirmation.ts` 展示；展示期间卡仍在 resolution zone，不记录 turn1、不追加声援、不推进 pending。
+- 条件查询的 `CheerEvent.revealedCardIds` 是历史事实；公开窗口和实际移动用的是当前声援 ID 中仍在 resolution zone 且 revealed 的交集，两者不可混用。
+
 ## Waiting Room Shuffle-To-Deck Helper Parameters
 
 ### `shuffleWaitingRoomCardsToDeckBottomForPlayer`

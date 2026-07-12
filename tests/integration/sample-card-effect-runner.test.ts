@@ -12736,6 +12736,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([selectedCardId, restCardId]);
     expect(session.state?.resolutionZone.cardIds).toEqual([cheerCardIds[0]]);
@@ -12840,6 +12841,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([candidateMemberCardId]);
     expect(session.state?.resolutionZone.cardIds).toEqual([highCostMemberCardId, liveCheerCardId]);
@@ -12995,6 +12997,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(confirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([

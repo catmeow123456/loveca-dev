@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -121,9 +122,11 @@ function setup(options: {
 }
 
 function choose(session: GameSession, selectedCardId: string | null) {
-  return session.executeCommand(
+  const result = session.executeCommand(
     createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedCardId)
   );
+  if (result.success) confirmPublicSelectionIfNeeded(session);
+  return result;
 }
 
 describe('PL!HS-PR-027 Kosuzu shared LIVE success workflow', () => {

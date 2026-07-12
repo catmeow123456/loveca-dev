@@ -1,4 +1,7 @@
-import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
+import {
+  confirmActiveEffectStepThroughPublicReveal,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -425,6 +428,7 @@ describe('PL!HS-cl1-012-CL Edelied live-success workflow', () => {
     );
 
     expect(result.success, result.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([validTargetId]);
     expect(session.state?.resolutionZone.cardIds).not.toContain(validTargetId);

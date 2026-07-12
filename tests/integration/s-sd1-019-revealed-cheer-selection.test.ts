@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -192,6 +193,7 @@ describe('PL!S-sd1-019-SD revealed cheer selection', () => {
     );
 
     expect(confirmResult.success, confirmResult.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([validAqoursLiveId]);
     expect(session.state?.resolutionZone.cardIds).not.toContain(validAqoursLiveId);

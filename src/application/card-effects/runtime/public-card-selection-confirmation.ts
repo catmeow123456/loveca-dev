@@ -5,6 +5,7 @@ import type {
 } from './step-registry.js';
 import { EnergySelectionRequiredError } from '../../effects/energy-selection.js';
 import { createActiveEffectEnergySelectionWindow } from './energy-operation-selection.js';
+import { selectRevealedCheerCardIds } from '../../effects/cheer-selection.js';
 
 export const PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID =
   'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION';
@@ -13,10 +14,13 @@ const PUBLIC_CARD_SELECTION_PER_ADDITIONAL_CARD_DURATION_MS = 300;
 const PUBLIC_CARD_SELECTION_MAX_DISPLAY_DURATION_MS = 3_500;
 
 export type PublicCardSelectionDestination =
-  'HAND' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' | 'MAIN_DECK_POSITION_4';
+  'HAND' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' | 'MAIN_DECK_POSITION_4' | 'WAITING_ROOM';
+
+export type PublicCardSelectionSource = 'WAITING_ROOM' | 'REVEALED_CHEER';
 
 export interface PublicCardSelectionConfirmationConfig {
   readonly destination: PublicCardSelectionDestination;
+  readonly source?: PublicCardSelectionSource;
   readonly ordered?: boolean;
   readonly sourcePlayerId?: string;
   readonly groups?: readonly {
@@ -50,12 +54,17 @@ export function getPublicCardSelectionConfirmationConfig(
   if (!value || typeof value !== 'object' || !('destination' in value)) return null;
   const candidate = value as Record<string, unknown>;
   const destination = candidate.destination;
+  const source = candidate.source;
   if (
     destination !== 'HAND' &&
     destination !== 'MAIN_DECK_TOP' &&
     destination !== 'MAIN_DECK_BOTTOM' &&
-    destination !== 'MAIN_DECK_POSITION_4'
+    destination !== 'MAIN_DECK_POSITION_4' &&
+    destination !== 'WAITING_ROOM'
   ) {
+    return null;
+  }
+  if (source !== undefined && source !== 'WAITING_ROOM' && source !== 'REVEALED_CHEER') {
     return null;
   }
   const groups = Array.isArray(candidate.groups)
@@ -81,6 +90,7 @@ export function getPublicCardSelectionConfirmationConfig(
     : undefined;
   return {
     destination,
+    source: source ?? 'WAITING_ROOM',
     ordered: candidate.ordered === true,
     sourcePlayerId:
       typeof candidate.sourcePlayerId === 'string' ? candidate.sourcePlayerId : undefined,
@@ -110,19 +120,35 @@ export function createPublicCardSelectionConfirmationWindow(
     selectedCardIds.length > maxCount ||
     new Set(selectedCardIds).size !== selectedCardIds.length ||
     selectedCardIds.some((cardId) => !candidates.includes(cardId)) ||
-    selectedCardIds.some((cardId) => {
-      const sourcePlayerId = config.sourcePlayerId ?? originalEffect.controllerId;
-      return (
-        game.players
-          .find((player) => player.id === sourcePlayerId)
-          ?.waitingRoom.cardIds.includes(cardId) !== true
-      );
-    }) ||
+    !selectedCardsRemainInConfiguredSource(game, originalEffect, selectedCardIds, config) ||
     !matchesSelectionGroups(selectedCardIds, config.groups)
   ) {
     return null;
   }
 
+  return createPublicCardSelectionConfirmationWindowForCardIds(
+    game,
+    originalEffect,
+    originalInput,
+    config,
+    selectedCardIds
+  );
+}
+
+export function createPublicCardSelectionConfirmationWindowForCardIds(
+  game: GameState,
+  originalEffect: ActiveEffectState,
+  originalInput: ActiveEffectStepHandlerInput,
+  config: PublicCardSelectionConfirmationConfig,
+  selectedCardIds: readonly string[]
+): GameState | null {
+  if (
+    selectedCardIds.length === 0 ||
+    new Set(selectedCardIds).size !== selectedCardIds.length ||
+    !selectedCardsRemainInConfiguredSource(game, originalEffect, selectedCardIds, config)
+  ) {
+    return null;
+  }
   const copy = getConfirmationCopy(config);
   const continuation: PublicCardSelectionConfirmationContinuation = {
     originalEffect,
@@ -146,6 +172,21 @@ export function createPublicCardSelectionConfirmationWindow(
       },
     },
   };
+}
+
+function selectedCardsRemainInConfiguredSource(
+  game: GameState,
+  originalEffect: ActiveEffectState,
+  selectedCardIds: readonly string[],
+  config: PublicCardSelectionConfirmationConfig
+): boolean {
+  const sourcePlayerId = config.sourcePlayerId ?? originalEffect.controllerId;
+  if ((config.source ?? 'WAITING_ROOM') === 'REVEALED_CHEER') {
+    const movableCardIdSet = new Set(selectRevealedCheerCardIds(game, sourcePlayerId));
+    return selectedCardIds.every((cardId) => movableCardIdSet.has(cardId));
+  }
+  const sourcePlayer = game.players.find((player) => player.id === sourcePlayerId);
+  return selectedCardIds.every((cardId) => sourcePlayer?.waitingRoom.cardIds.includes(cardId));
 }
 
 export function isPublicCardSelectionAutoAdvanceEffect(
@@ -276,6 +317,10 @@ function getConfirmationCopy(config: PublicCardSelectionConfirmationConfig): {
         stepText: config.ordered
           ? '已选择的卡牌及放置顺序已向双方公开。'
           : '已选择的卡牌已向双方公开。',
+      };
+    case 'WAITING_ROOM':
+      return {
+        stepText: '已选择的卡牌已向双方公开，即将自动放置入休息室。',
       };
   }
 }

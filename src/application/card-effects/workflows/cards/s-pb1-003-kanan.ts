@@ -257,6 +257,10 @@ function startRecoverRevealedCheerLive(
       canSkipSelection: false,
       metadata: {
         orderedResolution: options.orderedResolution === true,
+        publicCardSelectionConfirmation: {
+          source: 'REVEALED_CHEER',
+          destination: 'HAND',
+        },
       },
     },
     actionPayload: {

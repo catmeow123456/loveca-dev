@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
@@ -102,6 +103,7 @@ describe('PL!SP-bp2-025 Bubble Rise', () => {
     (session as unknown as { authorityState: GameState }).authorityState = updatePlayer(before, PLAYER1, (player) => ({ ...player, memberSlots: { ...player.memberSlots, slots: { ...player.memberSlots.slots, [SlotPosition.LEFT]: null, [SlotPosition.CENTER]: null } } }));
     const result = session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, targetMember.instanceId));
     expect(result.success, result.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toContain(targetMember.instanceId);
     expect(session.state?.players[0].hand.cardIds).not.toContain(targetLive.instanceId);
     expect(session.state?.activeEffect).toBeNull();

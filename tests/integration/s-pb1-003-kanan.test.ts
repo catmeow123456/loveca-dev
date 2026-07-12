@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { CardInstance, EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -131,7 +132,8 @@ function confirmCard(session: GameSession, selectedCardId: string): GameState {
     createConfirmEffectStepCommand(PLAYER1, effect.id, selectedCardId)
   );
   expect(result.success, result.error).toBe(true);
-  return result.gameState;
+  confirmPublicSelectionIfNeeded(session);
+  return session.state!;
 }
 
 function latestPayload(game: GameState, abilityId: string, step: string) {

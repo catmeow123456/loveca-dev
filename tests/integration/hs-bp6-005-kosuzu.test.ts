@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -348,6 +349,7 @@ describe('PL!HS-bp6-005 Kosuzu workflows', () => {
     );
 
     expect(result.success, result.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([valid.instanceId]);
     expect(session.state?.resolutionZone.cardIds).toEqual([
       liveCard.instanceId,

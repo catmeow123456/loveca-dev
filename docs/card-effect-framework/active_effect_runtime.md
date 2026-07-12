@@ -48,9 +48,11 @@ Benefits:
 - workflow 拥有自己的 step handler。
 - 新卡不需要修改 runner 的大型分发函数。
 
-### Public Waiting-Room Selection Confirmation
+### Public Zone-Selection Confirmation
 
-`runtime/public-card-selection-confirmation.ts` 是休息室选卡结果的两阶段公开边界。休息室本身是公开区域；该 runtime 补足的是玩家提交后“本次具体选择了哪些卡”的双方可见步骤。workflow 在原 activeEffect metadata 中窄声明目的地后，step registry 会在首次提交时验证数量、重复、原候选与当前休息室位置，保存可序列化的 `originalEffect` / `originalInput`，并只展示 `revealedCardIds`。`GameSession` 在该步骤上按 `min(3500ms, 2000ms + (公开卡牌数 - 1) * 300ms)` 写入服务端权威 `publicCardSelectionAutoAdvanceAt`；双方客户端在展示结束后均可请求推进，但自动推进命令必须带回当前 deadline 作为 generation token，服务端同时校验 token 精确匹配且已到期，避免旧 timer 误推进复用同一 effect id 的后续窗口。到期后恢复原 step/input 重放 handler。自动推进不创建新的玩家撤销边界；它会把最终事件与审计 cursor 合并回原选卡撤销条目，使撤销直接回到提交选择之前，而不是恢复一个会立即再次推进的过期展示窗口。区域移动、费用、奖励和 pending continuation 仍由原 workflow 在最终 stale 校验后处理。不使用服务进程定时任务；双方断线时保留可序列化状态，任意一方重连后根据已过期 deadline 立即补请求。空的 optional 选择不创建公开窗口。
+`runtime/public-card-selection-confirmation.ts` 是“从公开来源确定具体卡牌后，移动前向双方展示本次选择”的两阶段边界。metadata 通过 `source: 'WAITING_ROOM' | 'REVEALED_CHEER'` 声明来源（缺省仍为 `WAITING_ROOM`），目的地支持手牌、主卡组位置与休息室。声援来源只接受当前玩家本次声援 ID 中、仍在 `resolutionZone.cardIds` 与 `resolutionZone.revealedCardIds` 且归属正确的可移动卡；不用 event-inclusive 条件事实代替当前可移动目标。workflow 在首次提交时只安装 `revealedCardIds` 展示并保存可序列化的 `originalEffect` / `originalInput`，不移动、不发放奖励、不推进 pending。
+
+`GameSession` 按 `min(3500ms, 2000ms + (公开卡牌数 - 1) * 300ms)` 写入服务端权威 `publicCardSelectionAutoAdvanceAt`；双方客户端在展示结束后均可请求推进，命令必须带回当前 deadline generation token。到期后恢复原 step/input，由原 workflow 重新校验目标并完成移动、turn1、追加声援、奖励和 continuation。自动推进合并回原选卡撤销条目，不恢复过期窗口；空 optional 选择不展示。`PL!S-bp2-004` 这类服务端确定全部目标的窄路径可使用 cardIds 入口进入同一生命周期，但卡专属条件与 reroll 仍留在单卡 workflow，且展示集合与最终移动集合不一致时必须安全不移动。
 
 ## Granted Activated Abilities
 

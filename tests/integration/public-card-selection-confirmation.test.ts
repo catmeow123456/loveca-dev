@@ -6,6 +6,7 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
@@ -28,11 +29,15 @@ import {
 } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
+import { createCheerEvent } from '../../src/domain/events/game-events';
+import { moveRevealedCheerCards } from '../../src/application/effects/cheer-selection';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 const ABILITY_ID = 'test:public-waiting-room-selection';
 const STEP_ID = 'SELECT_WAITING_ROOM_CARDS';
+const CHEER_ABILITY_ID = 'test:public-revealed-cheer-selection';
+const CHEER_STEP_ID = 'SELECT_REVEALED_CHEER_CARDS';
 
 function member(id: string): ReturnType<typeof createCardInstance> {
   const data: MemberCardData = {
@@ -44,6 +49,66 @@ function member(id: string): ReturnType<typeof createCardInstance> {
     hearts: [createHeartIcon(HeartColor.PINK, 1)],
   };
   return createCardInstance(data, PLAYER1, id);
+}
+
+function setupRevealedCheer(count = 2) {
+  let now = 10_000;
+  const cards = Array.from({ length: count }, (_, index) => member(`cheer-${index}`));
+  let game = registerCards(
+    createGameState('public-cheer-selection-test', PLAYER1, 'P1', PLAYER2, 'P2'),
+    cards
+  );
+  const cardIds = cards.map((card) => card.instanceId);
+  const cheerEvent = createCheerEvent(PLAYER1, cardIds, count);
+  game = emitGameEvent(game, cheerEvent);
+  game = {
+    ...game,
+    resolutionZone: {
+      ...game.resolutionZone,
+      cardIds,
+      revealedCardIds: cardIds,
+    },
+    liveResolution: {
+      ...game.liveResolution,
+      firstPlayerCheerCardIds: cardIds,
+    },
+    activeEffect: {
+      id: 'public-cheer-selection-effect',
+      abilityId: CHEER_ABILITY_ID,
+      sourceCardId: cards[0]!.instanceId,
+      controllerId: PLAYER1,
+      effectText: '从声援公开卡中加入手牌。',
+      stepId: CHEER_STEP_ID,
+      stepText: '选择要加入手牌的声援公开卡。',
+      awaitingPlayerId: PLAYER1,
+      selectableCardIds: cardIds,
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: count,
+      maxSelectableCards: count,
+      metadata: {
+        publicCardSelectionConfirmation: {
+          source: 'REVEALED_CHEER',
+          destination: 'HAND',
+        },
+      },
+    },
+  };
+  registerActiveEffectStepHandler(CHEER_ABILITY_ID, CHEER_STEP_ID, (state, input) => {
+    const selectedCardIds = input.selectedCardIds ?? [];
+    const moved = moveRevealedCheerCards(state, PLAYER1, selectedCardIds, 'HAND');
+    return moved ? { ...moved.gameState, activeEffect: null } : state;
+  });
+  const session = createGameSession({ now: () => now });
+  session.createGame('public-cheer-selection-session', PLAYER1, 'P1', PLAYER2, 'P2');
+  (session as unknown as { authorityState: GameState }).authorityState = game;
+  return {
+    session,
+    cardIds,
+    cheerEventId: cheerEvent.eventId,
+    setNow: (value: number) => {
+      now = value;
+    },
+  };
 }
 
 function setup(
@@ -117,6 +182,94 @@ describe('public waiting-room card selection confirmation', () => {
     expect(getPublicCardSelectionDisplayDurationMs(4)).toBe(2_900);
     expect(getPublicCardSelectionDisplayDurationMs(6)).toBe(3_500);
     expect(getPublicCardSelectionDisplayDurationMs(8)).toBe(3_500);
+  });
+
+  it('uses the same authoritative deadline and undo lifecycle for current revealed-cheer cards while preserving event facts', () => {
+    const { session, cardIds, cheerEventId, setNow } = setupRevealedCheer();
+    const effectId = session.state!.activeEffect!.id;
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        effectId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        cardIds
+      )
+    );
+    expect(selected.success, selected.error).toBe(true);
+    const selectionUndo = session.getUndoAvailability(PLAYER1);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+      revealedCardIds: cardIds,
+      publicCardSelectionAutoAdvanceAt: 12_300,
+    });
+    expect(session.state?.resolutionZone.cardIds).toEqual(cardIds);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    const expectedObjectIds = cardIds.map(createPublicObjectId);
+    expect(projectPlayerViewState(session.state!, PLAYER1, { now: 10_000 }).activeEffect)
+      .toMatchObject({
+        revealedObjectIds: expectedObjectIds,
+        publicCardSelectionAutoAdvanceAfterMs: 2_300,
+      });
+    expect(projectPlayerViewState(session.state!, PLAYER2, { now: 10_000 }).activeEffect)
+      .toMatchObject({
+        revealedObjectIds: expectedObjectIds,
+        publicCardSelectionAutoAdvanceAfterMs: 2_300,
+      });
+
+    setNow(12_300);
+    const advanced = session.executeCommand(
+      createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_300)
+    );
+    expect(advanced.success, advanced.error).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual(cardIds);
+    expect(session.state?.resolutionZone.cardIds).toEqual([]);
+    expect(
+      session.state?.eventLog.find((entry) => entry.event.eventId === cheerEventId)?.event
+    ).toMatchObject({ revealedCardIds: cardIds });
+
+    const resolvedUndo = session.getUndoAvailability(PLAYER1);
+    expect(resolvedUndo.entry?.undoEntryId).toBe(selectionUndo.entry?.undoEntryId);
+    const undone = session.undoLastStepForPlayer(PLAYER1, resolvedUndo.entry!.undoEntryId);
+    expect(undone.success, undone.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({ stepId: CHEER_STEP_ID });
+    expect(session.state?.resolutionZone.cardIds).toEqual(cardIds);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+  });
+
+  it('does not move a displayed cheer card that is no longer part of the current cheer at deadline', () => {
+    const { session, cardIds, setNow } = setupRevealedCheer(1);
+    const effectId = session.state!.activeEffect!.id;
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          effectId,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          cardIds
+        )
+      ).success
+    ).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = {
+      ...session.state!,
+      liveResolution: {
+        ...session.state!.liveResolution,
+        firstPlayerCheerCardIds: [],
+      },
+    };
+    setNow(12_000);
+    const advanced = session.executeCommand(
+      createAutoAdvancePublicCardSelectionCommand(PLAYER2, effectId, 12_000)
+    );
+    expect(advanced.success, advanced.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({ stepId: CHEER_STEP_ID });
+    expect(session.state?.resolutionZone.cardIds).toEqual(cardIds);
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
   });
 
   it('reveals to both players before movement, then either participant can advance at the deadline', () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -88,7 +89,8 @@ function confirmActiveEffect(session: GameSession, selectedCardId?: string | nul
     createConfirmEffectStepCommand(PLAYER1, effectId, selectedCardId)
   );
   expect(result.success, result.error).toBe(true);
-  return result.gameState;
+  confirmPublicSelectionIfNeeded(session);
+  return session.state!;
 }
 
 function choosePendingAbilityBySource(session: GameSession, sourceCardId: string): GameState {

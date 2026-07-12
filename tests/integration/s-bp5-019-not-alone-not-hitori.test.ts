@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -76,7 +77,8 @@ function confirmSelectedCards(game: GameState, selectedCardIds: readonly string[
     )
   );
   expect(result.success, result.error).toBe(true);
-  return result.gameState;
+  confirmPublicSelectionIfNeeded(session);
+  return session.state!;
 }
 
 function setupState(options: {

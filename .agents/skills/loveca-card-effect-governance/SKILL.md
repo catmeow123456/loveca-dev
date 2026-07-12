@@ -1,6 +1,6 @@
 ---
 name: loveca-card-effect-governance
-description: Use for Loveca battle card-effect architecture review and new card-effect development governance. 适用于 Loveca 卡效总审查、新卡效候选审查、执行窗口提示词、卡效开发规范、runner 回流检查、helper/workflow/query 复用与晋升审查、只读审查窗口、focused validation、文档诚实性检查。
+description: Use for Loveca battle card-effect architecture review and new card-effect development governance. 适用于 Loveca 卡效总审查、新卡效候选审查、执行窗口提示词、卡效开发规范、卡效提交说明生成、runner 回流检查、helper/workflow/query 复用与晋升审查、只读审查窗口、focused validation、文档诚实性检查。
 ---
 
 # Loveca Card Effect Governance
@@ -90,12 +90,14 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/audit-pla
 # 按基础编号、完整卡号或前缀盘点 DB、definition、ownership、runner 与 existing_module_map
 node --import tsx .agents/skills/loveca-card-effect-governance/scripts/inventory-card-effect-batch.ts PL!SP-pb1 --ability-only
 
-# 从真实卡牌数据和 implemented effectText 生成提交说明骨架
+# 从 cards_cn.json 的前端中文 card_text 生成提交说明骨架；同文卡自动合并一行
 node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-card-effect-commit-message.ts PL!SP-pb1-002 PL!SP-pb1-004 --title "feat(effect): 更新星团SP-pb1卡效"
 ```
 
 - 批次盘点可加 `--unimplemented-only` 筛未实现卡，或加 `--json` 输出结构化结果；不要用脚本输出替代人工复用、FAQ 和规则语义审查。
-- 提交说明脚本只生成 `新增卡效` 的事实行与其余章节占位；必须按真实 diff 人工补充 `修复bug`、`通用更新` 和验证结果，并在用户确认前保持不提交。
+- 用户要求起草 Loveca 卡效提交说明时，必须先运行 `draft-card-effect-commit-message.ts`，不得只凭实现汇报或人工转抄卡文。脚本以 `llocg_db/json/cards_cn.json` 的 `detail.ability` 作为前端中文 `card_text` 来源；同一基础编号的罕度版本先合并，多个基础编号仅在标准化换行并去除首尾空白后卡文仍完全相同时合并为一行，不做语义、标点或 token 近似合并。
+- 若同一基础编号的不同罕度在 `cards_cn.json` 中存在不同卡文，或没有可用中文卡文，脚本必须报错并停止，不能静默回退到 definition `effectText`、日文 `cards.json` 或人工翻译。
+- 提交说明脚本只生成 `新增卡效` 的事实行与其余章节占位；必须逐行对照脚本输出，按真实 diff 人工补充 `修复bug`、`通用更新` 和验证结果，并在用户确认前保持不提交。
 
 ## 当前框架立场
 
@@ -253,6 +255,9 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 - 普通 `WAITING_ROOM -> HAND` 选择优先且默认使用 `createWaitingRoomToHandEffectState`；组合/grouped/custom workflow 以及休息室到主卡组顶/底/指定位置的 workflow，必须显式写入 `publicCardSelectionConfirmation` metadata 并复用 `runtime/public-card-selection-confirmation.ts`；不得在单卡 workflow 复制暂停、公开、恢复弹窗流程。
 - 固定目标移动、将整个休息室/整类对象洗回主卡组，以及玩家只选择目的地而不选择休息室具体卡牌的效果，不接入该公开确认生命周期。
 - 上述休息室自由选卡路径的 focused 测试至少锁定：双方 projector 看到相同选择结果与 deadline；首次提交前后卡仍在休息室且奖励/pending 未推进；deadline 前不结算，到期后双方均可请求且重复请求只结算一次；到期时 stale target 不得被移动；可选 0 张/空选择路径按适用性确认不创建空的额外公开窗口；前端不显示普通确认按钮，到期自动请求只发送一次，旧 effect 的 timer 在状态切换时取消；自动推进不得新建一条只恢复过期展示窗口的撤销记录，应合并回原选卡撤销条目，并覆盖撤销后不会立即再次自动结算。
+- 玩家从当前声援处理区确定具体卡牌，随后加入手牌、放置于主卡组顶/底或放置入休息室时，移动前同样必须使用 shared public-card-selection confirmation；即使来源和目的地都公开，也不得省略“本次具体移动了哪些卡”的双方展示。metadata 显式使用 `source: 'REVEALED_CHEER'`；缺省 source 只用于向后兼容 `WAITING_ROOM`。
+- 声援可移动目标必须同时属于当前玩家本次声援 ID、仍在 `resolutionZone.cardIds`、仍在 `resolutionZone.revealedCardIds` 且 owner 正确。不得用 event-inclusive `CheerEvent.revealedCardIds` 历史条件事实作为可移动集合；卡移出处理区后，原 CheerEvent 事实仍必须保留供后续条件计数。
+- 声援选卡公开的 focused 测试至少覆盖 HAND/卡组顶/卡组底/WAITING_ROOM，首次提交不移动、不记录 turn1、不追加声援、不推进 pending，双方可见与动态时长，到期只结算一次，0 张不弹窗，移出 resolution/失去 revealed/不再属于当前声援时不移动，以及自动推进撤销回到原选择前。服务端确定全部卡的路径（如 `PL!S-bp2-004`）必须在展示后走独立结算 step，并在展示集合与最终可移动集合不完全一致时整体不移动，不得悄悄移动剩余子集。
 - 手牌进休息室默认使用 `discardHandCardsToWaitingRoomAndEnqueueTriggers` 或 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`。
 - 检视 / 查看 / 公开卡组顶后，inspected cards 从检视区进入休息室必须走统一 inspection-to-waiting helper；事件事实按卡组顶移动处理，`fromZone` 为 `MAIN_DECK`、`toZone` 为 `WAITING_ROOM`，同一次检视进入休息室的一组卡作为同一个 `movedCardIds`。
 - workflow 不允许裸写 `waitingRoom.cardIds` + `clearInspectionCards` 来处理 inspected remainder；若只是 direct mill 或不进入休息室，应在实现/审查中明确说明不属于 inspection-to-waiting helper 范围。
@@ -401,6 +406,12 @@ git diff --check
 
 ```text
 请先阅读 .agents/skills/loveca-card-effect-governance/SKILL.md，然后按当前卡效框架规范为以下卡牌做新卡效开发。先核对 cards.json 卡文、existing_module_map.md 和复用路径，再实现。默认不 commit、不 push。
+```
+
+卡效提交说明：
+
+```text
+请先阅读 .agents/skills/loveca-card-effect-governance/SKILL.md，并使用 draft-card-effect-commit-message.ts 为本批卡效生成提交说明骨架。新增卡效必须使用 cards_cn.json 的前端中文 card_text；同文卡合并一行，其余卡牌一张一行。请结合真实 diff 补齐其他章节，先把完整 commit message 给我确认，不要 commit、不要 push。卡牌范围：<卡号列表或明确的 diff/commit 范围>
 ```
 
 修正审查发现的问题：

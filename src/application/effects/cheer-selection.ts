@@ -168,14 +168,10 @@ export function moveRevealedCheerCards(
   }
 
   const uniqueCardIds = [...new Set(cardIds)];
+  const movableCardIdSet = new Set(selectRevealedCheerCardIds(game, playerId));
   if (
     uniqueCardIds.length !== cardIds.length ||
-    uniqueCardIds.some(
-      (cardId) =>
-        !game.resolutionZone.cardIds.includes(cardId) ||
-        !game.resolutionZone.revealedCardIds.includes(cardId) ||
-        getCardById(game, cardId)?.ownerId !== player.id
-    )
+    uniqueCardIds.some((cardId) => !movableCardIdSet.has(cardId))
   ) {
     return null;
   }

@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
+import { createPublicObjectId } from '../../src/online/projector';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -10,6 +13,7 @@ import { createConfirmEffectStepCommand } from '../../src/application/game-comma
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import { S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID } from '../../src/application/card-effects/workflows/shared/revealed-cheer-selection';
 import {
   CardType,
   FaceState,
@@ -167,6 +171,19 @@ describe('revealed cheer selection: PL!S-bp2-021-L 未体験HORIZON', () => {
     );
 
     expect(result.success, result.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+      revealedCardIds: [movableLiveId],
+    });
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckTopId, deckBottomId]);
+    expect(session.state?.resolutionZone.cardIds).toContain(movableLiveId);
+    expect(session.getPlayerViewState(PLAYER1).activeEffect?.revealedObjectIds).toEqual([
+      createPublicObjectId(movableLiveId),
+    ]);
+    expect(session.getPlayerViewState(PLAYER2).activeEffect?.revealedObjectIds).toEqual([
+      createPublicObjectId(movableLiveId),
+    ]);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([
@@ -176,6 +193,43 @@ describe('revealed cheer selection: PL!S-bp2-021-L 未体験HORIZON', () => {
     ]);
     expect(session.state?.resolutionZone.cardIds).not.toContain(movableLiveId);
     expect(session.state?.resolutionZone.revealedCardIds).not.toContain(movableLiveId);
+  });
+
+  it('restores the cheer selection when the displayed target loses revealed status before advance', () => {
+    const { session, movableLiveId } = setup();
+    const effectId = session.state!.activeEffect!.id;
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        effectId,
+        null,
+        null,
+        false,
+        null,
+        [movableLiveId]
+      )
+    );
+    expect(selected.success, selected.error).toBe(true);
+    const displayEffect = session.state!.activeEffect!;
+    (session as unknown as { authorityState: GameState }).authorityState = {
+      ...session.state!,
+      resolutionZone: {
+        ...session.state!.resolutionZone,
+        revealedCardIds: session.state!.resolutionZone.revealedCardIds.filter(
+          (cardId) => cardId !== movableLiveId
+        ),
+      },
+      activeEffect: { ...displayEffect, publicCardSelectionAutoAdvanceAt: 0 },
+    };
+
+    confirmPublicSelectionIfNeeded(session);
+
+    expect(session.state?.activeEffect).toMatchObject({
+      id: effectId,
+      stepId: S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID,
+    });
+    expect(session.state?.resolutionZone.cardIds).toContain(movableLiveId);
+    expect(session.state?.players[0].mainDeck.cardIds).not.toContain(movableLiveId);
   });
 
   it('skips without moving any card and does not add a confirm-only step', () => {
