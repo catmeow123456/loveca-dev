@@ -142,6 +142,8 @@ const SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_ABILITY_ID =
   'PL!SP-sd2-004:continuous-center-gain-four-blade';
 const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID =
   'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
+const S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!S-PR-030-031:continuous-any-stage-cost-thirteen-gain-two-blade';
 const SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID =
   'PL!SP-bp2-004:continuous-center-highest-stage-cost-gain-yellow-heart';
 const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
@@ -1089,6 +1091,23 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       });
       return modifier ? [modifier] : [];
     },
+  },
+  {
+    baseCardCodes: ['PL!S-PR-030', 'PL!S-PR-031'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      isSourceMainStageMember(game, playerId, sourceCardId) &&
+      hasAnyStageMemberWithEffectiveCostAtLeast(game, 13)
+        ? [
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 2,
+              sourceCardId,
+              abilityId:
+                S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
+            },
+          ]
+        : [],
   },
   {
     baseCardCodes: ['PL!SP-bp2-010'],
@@ -2238,6 +2257,26 @@ function hasOwnStageMemberWithEffectiveCostAtLeast(
       getMemberEffectiveCost(game, playerId, cardId) >= minCost
     );
   });
+}
+
+function hasAnyStageMemberWithEffectiveCostAtLeast(
+  game: GameState,
+  minCost: number
+): boolean {
+  return game.players.some((player) =>
+    MEMBER_SLOT_ORDER.some((slot) => {
+      const cardId = player.memberSlots.slots[slot];
+      if (!cardId) {
+        return false;
+      }
+      const card = getCardById(game, cardId);
+      return (
+        card !== null &&
+        isMemberCardData(card.data) &&
+        getMemberEffectiveCost(game, player.id, cardId) >= minCost
+      );
+    })
+  );
 }
 
 function hasOtherHigherEffectiveCostStageMember(

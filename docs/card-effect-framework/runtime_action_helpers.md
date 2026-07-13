@@ -488,3 +488,9 @@ When a runtime helper becomes available:
 # Delegatable definition query
 
 `getWaitingRoomDelegatableOnEnterDefinitions(cardCode)` 是休息室虚拟登场的窄查询：只返回显式 `delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW'` 的 implemented + queued + ON_ENTER + PLAYED_MEMBER definition。它不解析文本或 notes，也不改变既有 COMPASS / N-PR-026 的 `getDelegatableQueuedAbilityDefinitions` 语义。
+
+# Hand reveal activeEffect helper
+
+`runtime/active-effect.ts` 的 `revealHandCardsForActiveEffect` 是“同一效果窗口一次公开多张仍在手牌中的卡”的窄原子 helper。它校验选择集合无重复、全部属于原候选且仍在指定玩家手牌中；随后一次写入同一个 `revealedCardIds` 集合、一次记录可审计的 `RESOLVE_ABILITY` action，并清理上一阶段的卡牌选择数量、模式、按钮及其他选择字段。它不移动手牌、不创建多个逐张公开窗口，也不判断卡号、LIVE 条件或执行奖励。
+
+原 `revealHandCardForActiveEffect` 保持兼容，并委托复数 core 处理单张集合。`PL!-PR-014` 是复数入口的首个真实样本；其匿名候选与 stale token 版本由 blind selection utility / projector / GameSession 边界负责，公开集合的规则快照与后续抽牌仍由单卡 workflow 负责。

@@ -6,10 +6,12 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { CardType, GamePhase } from '../../../../shared/types/enums.js';
+import { CardType, GamePhase, HeartColor } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+  PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
+  PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID,
   S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -22,7 +24,14 @@ import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
-import { and, groupAliasIs, groupIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
+import {
+  and,
+  groupAliasIs,
+  groupIs,
+  hasScoreBladeHeart,
+  liveRequiresPrintedHeartColorAtLeast,
+  typeIs,
+} from '../../../effects/card-selectors.js';
 import { successLiveScoreAtLeast } from '../../../effects/conditions.js';
 import { type EffectCostDefinition } from '../../../effects/effect-costs.js';
 import {
@@ -38,6 +47,12 @@ const BP4_002_SELECT_WAITING_ROOM_MUSE_LIVE_STEP_ID = 'BP4_002_SELECT_WAITING_RO
 const S_SD1_007_SELECT_DISCARD_STEP_ID = 'S_SD1_007_SELECT_TWO_HAND_CARDS_TO_DISCARD';
 const S_SD1_007_SELECT_WAITING_ROOM_SCORE_AQOURS_LIVE_STEP_ID =
   'S_SD1_007_SELECT_WAITING_ROOM_SCORE_AQOURS_LIVE';
+const PL_PR_003_SELECT_DISCARD_STEP_ID = 'PL_PR_003_SELECT_TWO_HAND_CARDS_TO_DISCARD';
+const PL_PR_003_SELECT_WAITING_ROOM_LIVE_STEP_ID =
+  'PL_PR_003_SELECT_WAITING_ROOM_YELLOW_THREE_LIVE';
+const PL_PR_004_SELECT_DISCARD_STEP_ID = 'PL_PR_004_SELECT_TWO_HAND_CARDS_TO_DISCARD';
+const PL_PR_004_SELECT_WAITING_ROOM_LIVE_STEP_ID =
+  'PL_PR_004_SELECT_WAITING_ROOM_PINK_THREE_LIVE';
 
 interface DiscardCostWaitingRoomToHandWorkflowConfig {
   readonly abilityId: string;
@@ -47,6 +62,8 @@ interface DiscardCostWaitingRoomToHandWorkflowConfig {
   readonly discardCount: number;
   readonly recoverySelector: (card: CardInstance) => boolean;
   readonly recoveryStepText: string;
+  readonly recoverySelectionLabel?: string;
+  readonly recoveryConfirmSelectionLabel?: string;
   readonly canActivate?: (game: GameState, playerId: string) => boolean;
   readonly recoverySelectionRequiredWhenHasTargets?: boolean;
 }
@@ -65,6 +82,38 @@ const BP4_002_DISCARD_RECOVER_WORKFLOW: DiscardCostWaitingRoomToHandWorkflowConf
 
 const DISCARD_COST_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly DiscardCostWaitingRoomToHandWorkflowConfig[] = [
   BP4_002_DISCARD_RECOVER_WORKFLOW,
+  {
+    abilityId: PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!-PR-003'],
+    discardStepId: PL_PR_003_SELECT_DISCARD_STEP_ID,
+    recoveryStepId: PL_PR_003_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+    discardCount: 2,
+    recoverySelector: and(
+      typeIs(CardType.LIVE),
+      liveRequiresPrintedHeartColorAtLeast(HeartColor.YELLOW, 3)
+    ),
+    recoveryStepText:
+      '请选择自己的休息室中1张必要HEART中含有大于等于3个[黄ハート]的LIVE卡加入手牌。',
+    recoverySelectionLabel: '选择要加入手牌的LIVE卡',
+    recoveryConfirmSelectionLabel: '加入手牌',
+    recoverySelectionRequiredWhenHasTargets: true,
+  },
+  {
+    abilityId: PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID,
+    expectedBaseCardCodes: ['PL!-PR-004'],
+    discardStepId: PL_PR_004_SELECT_DISCARD_STEP_ID,
+    recoveryStepId: PL_PR_004_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+    discardCount: 2,
+    recoverySelector: and(
+      typeIs(CardType.LIVE),
+      liveRequiresPrintedHeartColorAtLeast(HeartColor.PINK, 3)
+    ),
+    recoveryStepText:
+      '请选择自己的休息室中1张必要HEART中含有大于等于3个[桃ハート]的LIVE卡加入手牌。',
+    recoverySelectionLabel: '选择要加入手牌的LIVE卡',
+    recoveryConfirmSelectionLabel: '加入手牌',
+    recoverySelectionRequiredWhenHasTargets: true,
+  },
   {
     abilityId: S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
     expectedBaseCardCodes: ['PL!S-sd1-007'],
@@ -261,6 +310,8 @@ function startDiscardCostWaitingRoomRecoveryAfterDiscard(
         effectText: effect.effectText,
         stepId: recoveryStepId,
         stepText: config.recoveryStepText,
+        selectionLabel: config.recoverySelectionLabel,
+        confirmSelectionLabel: config.recoveryConfirmSelectionLabel,
         awaitingPlayerId: player.id,
         selectableCardIds,
         metadata: {

@@ -23,6 +23,16 @@ export const MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
   'member:live-success-draw-one-discard-one';
 export const PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID =
   'PL!N-bp1-002:on-enter-look-top-three-arrange-to-top';
+export const S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID =
+  'PL!S-PR:on-enter-look-top-three-arrange-to-top';
+export const S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!S-PR-030-031:continuous-any-stage-cost-thirteen-gain-two-blade';
+export const PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID =
+  'PL!-PR-001-002:on-leave-stage-activate-member';
+export const PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID =
+  'PL!-PR-005-006-008:on-enter-choose-draw-discard-or-wait-opponent-low-cost';
+export const PL_PR_014_ON_ENTER_BLIND_REVEAL_OPPONENT_HAND_THREE_DRAW_IF_NO_LIVE_ABILITY_ID =
+  'PL!-PR-014:on-enter-blind-reveal-opponent-hand-three-draw-if-no-live';
 export const PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID =
   'PL!N-bp1-002:activated-from-waiting-room-pay-two-discard-one-play-self';
 export const PL_N_PB1_014_ON_ENTER_RELAY_FROM_KASUMI_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
@@ -442,6 +452,8 @@ export const SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABIL
   'PL!SP-PR-018-PR:live-success-seven-liella-cheer-place-waiting-energy';
 export const SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID =
   'PL!SP-PR-020-PR:on-enter-low-cost-relay-play-hand-low-cost-member';
+export const PL_PR_015_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID =
+  'PL!-PR-015-PR:on-enter-low-cost-relay-play-hand-low-cost-member';
 export const SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID =
   'PL!SP-PR-024-PR:auto-on-cheer-score-liella-live-gain-purple-heart';
 export const SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID =
@@ -848,6 +860,10 @@ export const RIN_ACTIVATED_ABILITY_ID =
   'PL!-sd1-005-SD:activated-send-self-to-waiting-room-add-live';
 export const PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!-PR-017-PR:activated-send-self-recover-muse-live-activate-energy';
+export const PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID =
+  'PL!-PR-003:activated-discard-two-recover-yellow-three-live';
+export const PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID =
+  'PL!-PR-004:activated-discard-two-recover-pink-three-live';
 export const BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID =
   'PL!-bp4-002:activated-discard-two-recover-muse-live-if-success-score';
 export const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
@@ -907,6 +923,10 @@ export const PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABI
   'PL!N-bp3-017-023:on-enter-wait-self-opponent-cost-lte-four-wait';
 export const PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID =
   'PL!N-bp3-017-023:live-start-wait-self-opponent-cost-lte-four-wait';
+export const PL_PR_007_009_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID =
+  'PL!-PR-007-009:on-enter-wait-self-opponent-cost-lte-four-wait';
+export const PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID =
+  'PL!-PR-007-009:live-start-wait-self-opponent-cost-lte-four-wait';
 export const PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!N-bp3-001:live-start-stack-energy-draw-stage-gain-two-blade';
 export const PL_N_BP3_013_ON_ENTER_STACK_ENERGY_DRAW_TWO_ABILITY_ID =

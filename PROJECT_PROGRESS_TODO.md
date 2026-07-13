@@ -12,6 +12,36 @@
 - `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md` 与 `docs/online-mode/preparation.md` 已同步当前产品行为；对局结束后最终只读桌面保留 1 分钟仍未实现，持久化观战审计不在当前范围。
 - 验证：focused suite `tests/integration/online-room-service.test.ts`、`tests/integration/online-route-error-handling.test.ts`、`tests/unit/game-store-remote-sync.test.ts`、`tests/unit/battle-surface-capabilities.test.ts`、`tests/unit/api-client-redaction.test.ts` passed（5 files / 68 tests）；rebase 最新 `origin/main` 后 `pnpm test:run` passed（462 files / 3955 tests，3 performance tests skipped）；shared / server / client TypeScript 与 `git diff --check` passed。
 
+## 本次 2026-07-13 Aqours S-PR-030 / 031 同文常时 BLADE
+
+- 实现 `PL!S-PR-030-PR` 费用 9「津島善子」与 `PL!S-PR-031-PR` 费用 9「国木田花丸」：两张共用 `S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID` 与一条 `CONTINUOUS / STAGE_MEMBER / queued: false` definition，effectText 精确采用 Excel 中文。
+- 扩展 `domain/rules/live-modifiers.ts` continuous registry：来源仍在己方三个主舞台槽时，动态扫描双方三个主舞台槽并按各自 playerId 调用 `getMemberEffectiveCost`；任一有效费用 >=13 即为该来源固定收集 BLADE +2。来源自身与 WAITING 舞台成员可满足；memberBelow、手牌、休息室和其他非舞台区域不计入；多名合法成员不按数量叠加，条件失效后重新收集即消失。
+- 未登记权威源触发类型冲突的 `PL!S-PR-029-PR`，未新增 pending/workflow/trigger，runner 不变。Focused classification 与 live-modifier 测试覆盖 030/031 独立及同时在场、有效费用升降、双方/来源自身/WAITING、区域排除和实时失效。
+
+## 本次 2026-07-13 PL!-PR-015 换手登场低费成员
+
+- 实现 `PL!-PR-015-PR` 费用 17「西木野真姫」：新增独立 `PL_PR_015_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID` 与 `PLAYED_MEMBER / ON_ENTER_STAGE / queued` definition，effectText 逐字采用 `loveca_20260626015115.xlsx` `sheet1!A1414:B1414` 中文，不补入中文原文没有的“可以”。
+- 将 `PL!SP-PR-020` 旧单卡 workflow 晋升为 `workflows/shared/low-cost-relay-play-hand-member.ts`。换手来源费用使用生产 relay action 捕获的有效费用快照，来源成员使用结算时有效费用；手牌费用<=4继续按印刷费用 selector，独立的手牌登场 play-cost 减费不改变目标资格。
+- 两步玩家文案固定为“选择要登场的成员 / 登场 / 不登场”和“选择登场区域 / 登场”；stale 手牌目标或区域会刷新当前候选，候选耗尽时安全结束。效果登场继续走 `playMemberFromZoneToEmptySlot`，父能力 resolve action 后再入队新成员 ON_ENTER 并回到统一 continuation。
+- runner 仅把原 `sp-pr-020-kinako` import/register 等价替换为 shared import/register，没有卡号门禁、目标查询、pending 构造或 effect body。Focused 覆盖真实换手命令低/等/高费用、普通登场、印刷费用3/4/5、可选跳过、无目标/无区域、stale/伪造/重复输入、来源离场与子 ON_ENTER 顺序。
+
+## 本次 2026-07-13 PL!-PR-005 / 006 / 008 同文登场二选一
+
+- 实现 `PL!-PR-005-PR` 费用 9「星空 凛」、`PL!-PR-006-PR` 费用 9「西木野真姫」、`PL!-PR-008-PR` 费用 9「小泉花陽」；三张共用一个 ON_ENTER abilityId、完整基础编号集合与 Excel 中文原文。
+- 新增 shared `on-enter-choose-draw-discard-or-wait-opponent-low-cost.ts`：首步始终显示强制二选一；抽弃分支委托 `draw-then-discard` core，使用私密手牌选择和标准 HAND -> WAITING_ROOM 事件；批量待机分支只扫描对方三个主舞台槽，以印刷费用 <=2 过滤，通过 `setMembersOrientation` 与标准事件 wrapper 在本能力 resolve action 后入队真实状态变化。
+- 未扩 `opponent-wait-target.ts`（其为单目标选择 family），未扩 `hs-pb1-008-izumi.ts`；runner 仅新增一个 shared import 与一次 register 调用。Focused integration 通过真实登场覆盖三张卡、非法 option、来源离场、两分支 continuation、memberBelow/已 WAITING/无目标及状态触发时序。
+
+## 本次 2026-07-13 PL!-PR-001 / 002 同文离场活跃成员
+
+- 实现费用4「高坂穂乃果」/「绚濑绘里」同文离场 AUTO：仅从舞台进入休息室时，可选双方主舞台 WAITING 成员变为 ACTIVE。
+- 新增 shared workflow、稳定 abilityId、definition 与 focused 覆盖；runner 仅 import/register 胶水。
+
+## 本次 2026-07-13 Aqours S-PR-028 / 032 / 033 同文登场控顶
+
+- 实现 `PL!S-PR-028-PR` 费用 4「黒澤ダイヤ」、`PL!S-PR-032-PR` 费用 4「小原鞠莉」、`PL!S-PR-033-PR` 费用 4「黒澤ルビィ」：使用独立 `S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID` / definition 保留 Excel“卡牌”原文，并恢复霞 definition 的“卡片”原文与单基础编号边界。
+- 三张执行仍复用 `workflows/shared/arrange-inspected-deck-top.ts` 的 top3 / 0..3 ordered 配置，余牌保持 inspection-to-waiting 单组事件与统一 pending continuation；focused integration 通过真实登场命令与 ON_ENTER_STAGE definition lookup 入队。未扩霞的休息室来源起动能力，未新增 workflow/helper，runner 不变。
+- focused classification/integration、霞回归、rarity、token/text governance、服务端/客户端类型检查与 diff check 的实际结果见本窗口收尾；下一步仅在用户确认后进入提交窗口。
+
 ## 本次 2026-07-12 Aqours bp3-001 / 002 收束卡效
 
 - 实现 `PL!S-bp3-001-P / P＋ / R＋ / SEC` 费用15「高海千歌」：单卡 activated workflow 只允许中央来源选择自己舞台 ACTIVE 成员作为待机费用；成功后才记录 turn1 use，并为实际目标成员实例写入 `SCORE +1`。
@@ -1368,6 +1398,24 @@ git diff --check
 费用修正器已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」起步。后续同类卡继续扩展 `cost-calculator.ts` 的 cost modifier 条件与来源，不要写 UI 层特例。
 
 ## 已知注意点
+
+### 2026-07-13 μ's PR-014 匿名盲选对方手牌公开
+
+- 完成 `PL!-PR-014-PR` 费用 2「園田海未」：独立 queued ON_ENTER abilityId 与单卡 `pl-pr-014-umi.ts` workflow，definition 使用 `loveca_20260626015115.xlsx` `sheet1!B2260` 精确中文。
+- 强制选择数量为 `min(3, 对方当前手牌数)`；权威状态保留真实候选，选择者只收到版本化匿名牌背 token，候选变化时完整刷新并使旧 token 失效。多张手牌通过复数 activeEffect helper 在同一窗口一次公开并清理旧选择字段，卡牌仍留在对方手牌。
+- LIVE 条件只读取本效果公开时保存的集合事实；公开后目标变 stale 不改变结论。无 LIVE 时复用 `drawCardsForPlayer` 抽1，完整 `RESOLVE_ABILITY` 后统一 continuation。runner 仅新增一个 import 与一次 register；focused 入口为 `tests/integration/pl-pr-014-umi.test.ts`、blind token 与 runtime action 单测。
+
+### 2026-07-13 μ's PR-007 / PR-009 自身待机后使对方低费成员待机
+
+- 完成 `PL!-PR-007-PR` 费用4「東條 希」与 `PL!-PR-009-PR` 费用4「矢澤にこ」：两张仅 PR、印刷 BLADE 2、中日文完全同文，共用独立 PR ON_ENTER / LIVE_START abilityId 与 `baseCardCodes: ['PL!-PR-007', 'PL!-PR-009']`。
+- 两张执行复用 shared `wait-self-opponent-wait.ts` 的印刷费用 <=4 配置；因 Excel 中文提醒句与现有 N/S-bp3 family 不同，不共享 ability identity。来源/目标均走成员状态事件 wrapper，支付后无目标、stale、ordered continuation 与重复确认保持既有安全语义；family 目标确认按钮窄统一为“变为待机状态”。
+- 未新增卡牌维度 workflow/helper，未修改 runner；focused classification/integration 覆盖两张真实 ON_ENTER、真实 LIVE_START、玩家文案、skip、来源失效、目标过滤、无目标、stale、事件顺序、ordered 与重复确认。
+
+### 2026-07-13 μ's PR-003 / PR-004 弃2回收 LIVE
+
+- 完成 `PL!-PR-003-PR` 费用 15「南ことり」与 `PL!-PR-004-PR` 费用 15「園田海未」：分别登记独立起动 abilityId，并扩展 shared `discard-cost-waiting-room-to-hand.ts`。
+- 两张均在标准弃手事件 wrapper 支付2张手牌后重扫自己的休息室，分别只接受 LIVE 自身印刷必要黄 Heart >=3 / 桃 Heart >=3；回收继续走 public-card-selection confirmation，费用牌自身可成为目标。
+- 未新增 workflow/helper，未修改 runner；focused integration 覆盖生产起动、selector 正反例、非法/stale 输入、无目标、公开确认、每回合限制与发动门禁。
 
 ### 2026-07-12 星团 bp2「Go!! リスタート」
 

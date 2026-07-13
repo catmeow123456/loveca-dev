@@ -466,8 +466,12 @@ function projectActiveEffectCardSelection(
     !isWaitingPlayerView;
 
   if (blindForWaitingPlayer) {
+    const blindSelectionVersion =
+      typeof effect.metadata?.blindSelectionVersion === 'number'
+        ? effect.metadata.blindSelectionVersion
+        : undefined;
     const selectableObjectIds = (selectableCardIds ?? []).map((_, index) => {
-      const token = createBlindCardSelectionToken(index);
+      const token = createBlindCardSelectionToken(index, blindSelectionVersion);
       const publicObjectId = createPublicObjectId(token);
       objects[publicObjectId] = {
         publicObjectId,

@@ -53,6 +53,8 @@ export interface DrawThenDiscardCardsWorkflowConfig {
   readonly requiredSourceSlots?: readonly SlotPosition[];
   readonly requiresLeaveStageToWaitingRoom?: boolean;
   readonly requiredStageMemberGroup?: string;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
 }
 
 export interface DrawThenDiscardAbilityContext {
@@ -343,7 +345,8 @@ export function startDrawThenDiscardCardsWorkflow(
         minSelectableCards: config.discardCount > 1 ? requiredSelectableCount : undefined,
         maxSelectableCards: config.discardCount > 1 ? requiredSelectableCount : undefined,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-        selectionLabel: '请选择要放置入休息室的手牌',
+        selectionLabel: config.selectionLabel ?? '请选择要放置入休息室的手牌',
+        confirmSelectionLabel: config.confirmSelectionLabel,
         canSkipSelection: selectableCardIds.length === 0,
         skipSelectionLabel: '确认',
         metadata: {

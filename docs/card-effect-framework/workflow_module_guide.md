@@ -1,5 +1,9 @@
 # Workflow Module Guide
 
+## ON_LEAVE_STAGE activate stage member
+
+`workflows/shared/on-leave-activate-stage-member.ts` 服务 `PL!-PR-001` / `PL!-PR-002` 两个同文样本。固定轴为 `ON_LEAVE_STAGE`，且仅 `toZone === WAITING_ROOM` 时生效；候选仅包含双方主舞台的 WAITING 成员，可跳过。它不承载费用、奖励、团体筛选或任意状态 DSL。
+
 Workflow finish handlers keep using the compatibility `continuePendingCardEffects`
 callback, but must not choose the next ability or retain a private queue snapshot. The
 runtime check-timing scheduler owns rule-processing re-entry, active/non-active priority,
@@ -13,6 +17,8 @@ waiting ability cancels the shortcut and reopens player choice.
 workflow 是卡效流程的主要承载层。它可以是一类同型效果，也可以是一张特殊卡的单独流程。
 
 `PL!S-bp3-001` 与 `PL!S-bp3-002` 是同一窗口但流程无关的两个单卡 ownership 样本：前者是主阶段选择成员待机费用并授予目标成员临时能力，后者是 LIVE_SUCCESS 从当前公开声援来源固定回手。它们分别保留在 `cards/s-bp3-001-chika.ts`、`cards/s-bp3-002-riko.ts`，只复用原子状态变化、modifier、声援移动和来源收集 helper，不拼成批次 workflow 或参数 DSL。
+
+`workflows/shared/discard-cost-waiting-room-to-hand.ts` 也承接 `PL!-PR-003` / `PL!-PR-004`：两张卡因 Excel 玩家文本和指定 Heart 颜色不同而保留独立 abilityId，selector 分别读取 LIVE 自身印刷 `requirements.colorRequirements` 的黄 / 桃 Heart >=3。固定流程仍为强制弃2手牌、通过标准 enter-waiting-room wrapper 支付、支付后重扫自己的休息室、强制选1张合法目标并走 public-card-selection confirmation；因此本次弃置的合格 LIVE 可被回收。该扩展未新增 workflow/helper，也不需要 runner 注册。
 
 ## When To Create A Workflow Module
 
@@ -89,7 +95,11 @@ Relay-enter draw/discard is a shared on-enter family when the operation is "if t
 
 `workflows/shared/relay-enter-lower-cost-unit.ts` is only a pure condition helper. It reads the current pending ability's `relayReplacements` event-snapshot costs, the source member's effective cost at resolution, and the replaced cards' structured unit aliases. Payment, modifiers, skip behavior, and pending continuation remain in each card workflow; this helper is not a relay DSL and must not become a runner gate.
 
+`workflows/shared/low-cost-relay-play-hand-member.ts` owns the stable full-flow family proven by `PL!SP-PR-020` and `PL!-PR-015`. Keep the cards' ability identities and Excel effectText separate while sharing the relay snapshot comparison, optional hand selection, empty-slot selection, stale refresh, `playMemberFromZoneToEmptySlot`, ON_ENTER enqueue, and continuation order. The replaced member uses its effective-cost snapshot captured by the production relay action; the entered source uses effective cost at resolution. The hand threshold uses the card's printed cost through `costLte`, not the separate play-cost payment modifier pipeline. Player copy is fixed to “选择要登场的成员 / 登场 / 不登场” and “选择登场区域 / 登场”. Do not add card-number branches or relay gates to the runner.
+
 Draw-then-discard may also carry a narrow `requiredSourceSlot` axis for real side-locked on-enter cards. Check the current authoritative source slot before drawing; when the side condition fails, consume the pending ability as a no-op and do not open the discard window.
+
+`workflows/shared/on-enter-choose-draw-discard-or-wait-opponent-low-cost.ts` owns the stable same-text family proven by `PL!-PR-005`, `PL!-PR-006`, and `PL!-PR-008`: a mandatory two-option ON_ENTER window followed by either draw-one-discard-one or an immediate batch change of every matching opponent main-stage member to WAITING. The draw branch delegates `startDrawThenDiscardCardsWorkflow` / `finishDrawThenDiscardCardsWorkflow`; that core exposes only narrow optional `selectionLabel` / `confirmSelectionLabel` copy overrides, leaving all existing registered configs unchanged. The wait branch uses printed-cost selectors, `setMembersOrientation`, and the member-state trigger wrapper, records the resolve action before enqueue, and emits no event for already-WAITING matches. Do not merge this family into `opponent-wait-target.ts`, whose stable contract is a second single-target player-selection window, or into a general branch DSL. Runner ownership remains one import and one register call.
 
 Discard-look-top-select-to-hand may combine an alias selector with `memberOnly` when the real text says "named group/unit member card". Keep the discard cost on `discardOneHandCardToWaitingRoomAndEnqueueTriggers`, then build the reveal selector as `typeIs(CardType.MEMBER)` plus the alias predicate so LIVE cards from the same group remain in the inspected remainder.
 

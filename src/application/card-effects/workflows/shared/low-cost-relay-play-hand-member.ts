@@ -14,16 +14,24 @@ import {
   ZoneType,
 } from '../../../../shared/types/enums.js';
 import { and, costLte, typeIs } from '../../../effects/card-selectors.js';
-import { SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID } from '../../ability-ids.js';
+import {
+  PL_PR_015_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+  SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+} from '../../ability-ids.js';
+import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
 import { playMemberFromZoneToEmptySlot } from '../../runtime/play-member-to-stage.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
-const SELECT_HAND_MEMBER_STEP_ID = 'SP_PR_020_SELECT_HAND_LOW_COST_MEMBER';
-const SELECT_EMPTY_SLOT_STEP_ID = 'SP_PR_020_SELECT_EMPTY_SLOT';
+const SELECT_HAND_MEMBER_STEP_ID = 'LOW_COST_RELAY_PLAY_HAND_MEMBER_SELECT_HAND';
+const SELECT_EMPTY_SLOT_STEP_ID = 'LOW_COST_RELAY_PLAY_HAND_MEMBER_SELECT_SLOT';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
+const ABILITY_IDS = [
+  PL_PR_015_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+  SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = (
@@ -36,43 +44,39 @@ type EnqueueTriggeredCardEffects = (
 
 const lowCostMemberSelector = and(typeIs(CardType.MEMBER), costLte(4));
 
-export function registerSpPr020KinakoWorkflowHandlers(deps: {
+export function registerLowCostRelayPlayHandMemberWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
 }): void {
-  registerPendingAbilityStarterHandler(
-    SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
-    (game, ability, options, context) =>
-      startSpPr020KinakoOnEnter(
+  for (const abilityId of ABILITY_IDS) {
+    registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
+      startLowCostRelayPlayHandMember(
         game,
         ability,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
-  );
-  registerActiveEffectStepHandler(
-    SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
-    SELECT_HAND_MEMBER_STEP_ID,
-    (game, input, context) =>
+    );
+    registerActiveEffectStepHandler(abilityId, SELECT_HAND_MEMBER_STEP_ID, (game, input, context) =>
       finishHandMemberSelection(
         game,
-        input.selectedCardId ?? null,
+        Object.prototype.hasOwnProperty.call(input, 'selectedCardId')
+          ? input.selectedCardId ?? null
+          : undefined,
         context.continuePendingCardEffects
       )
-  );
-  registerActiveEffectStepHandler(
-    SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
-    SELECT_EMPTY_SLOT_STEP_ID,
-    (game, input, context) =>
+    );
+    registerActiveEffectStepHandler(abilityId, SELECT_EMPTY_SLOT_STEP_ID, (game, input, context) =>
       finishPlayHandMemberToSlot(
         game,
         input.selectedSlot ?? null,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
-  );
+    );
+  }
 }
 
-function startSpPr020KinakoOnEnter(
+function startLowCostRelayPlayHandMember(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
@@ -86,7 +90,7 @@ function startSpPr020KinakoOnEnter(
 
   const relayCondition = getLowCostRelayCondition(
     ability.metadata?.relayReplacements,
-    sourceCard.data.cost
+    getMemberEffectiveCost(game, player.id, ability.sourceCardId)
   );
   if (!relayCondition.conditionMet) {
     return finishPendingNoOp(
@@ -136,8 +140,8 @@ function startSpPr020KinakoOnEnter(
         awaitingPlayerId: player.id,
         selectableCardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-        selectionLabel: '选择要登场的低费用成员',
-        confirmSelectionLabel: '选择',
+        selectionLabel: '选择要登场的成员',
+        confirmSelectionLabel: '登场',
         canSkipSelection: true,
         skipSelectionLabel: '不登场',
         metadata: {
@@ -168,7 +172,7 @@ function startSpPr020KinakoOnEnter(
 
 function finishHandMemberSelection(
   game: GameState,
-  selectedCardId: string | null,
+  selectedCardId: string | null | undefined,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -177,6 +181,10 @@ function finishHandMemberSelection(
   }
   const player = getPlayerById(game, effect.controllerId);
   if (!player) {
+    return game;
+  }
+
+  if (selectedCardId === undefined) {
     return game;
   }
 
@@ -193,25 +201,40 @@ function finishHandMemberSelection(
     );
   }
 
-  if (
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !isPlayableLowCostHandMember(game, player.id, selectedCardId)
-  ) {
-    return game;
-  }
-
   const emptySlots = getEmptyMemberSlots(game, player.id);
+  const selectableCardIds = getPlayableLowCostHandMemberIds(
+    game,
+    player.id,
+    effect.sourceCardId
+  );
+  const selectionWasOffered = effect.selectableCardIds?.includes(selectedCardId) === true;
+  const selectionIsCurrent = selectableCardIds.includes(selectedCardId);
+  if (!selectionWasOffered || !selectionIsCurrent) {
+    if (
+      !selectionWasOffered &&
+      sameValues(effect.selectableCardIds ?? [], selectableCardIds) &&
+      sameValues(getSlotList(effect.metadata?.emptySlots), emptySlots)
+    ) {
+      return game;
+    }
+    return refreshHandSelectionOrFinish(
+      game,
+      effect,
+      player.id,
+      selectableCardIds,
+      emptySlots,
+      continuePendingCardEffects,
+      'STALE_HAND_SELECTION'
+    );
+  }
   if (emptySlots.length === 0) {
-    return continuePendingCardEffects(
-      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: 'NO_OP_NO_EMPTY_STAGE_SLOT_AFTER_SELECTION',
-        sourceSlot: effect.metadata?.sourceSlot,
-        selectedCardId,
-      }),
-      effect.metadata?.orderedResolution === true
+    return finishActiveEffectNoOp(
+      game,
+      effect,
+      player.id,
+      continuePendingCardEffects,
+      'NO_OP_NO_EMPTY_STAGE_SLOT_AFTER_SELECTION',
+      { selectedCardId }
     );
   }
 
@@ -221,10 +244,11 @@ function finishHandMemberSelection(
       activeEffect: {
         ...effect,
         stepId: SELECT_EMPTY_SLOT_STEP_ID,
-        stepText: '请选择要让该成员登场的空成员区。',
-        selectableCardIds: [selectedCardId],
+        stepText: '请选择该成员要登场的空成员区。',
+        selectableCardIds: undefined,
+        selectableCardVisibility: undefined,
         selectableSlots: emptySlots,
-        selectionLabel: '选择空成员区',
+        selectionLabel: '选择登场区域',
         confirmSelectionLabel: '登场',
         canSkipSelection: false,
         skipSelectionLabel: undefined,
@@ -256,19 +280,54 @@ function finishPlayHandMemberToSlot(
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.stepId !== SELECT_EMPTY_SLOT_STEP_ID ||
-    selectedSlot === null ||
-    effect.selectableSlots?.includes(selectedSlot) !== true
-  ) {
+  if (!effect || effect.stepId !== SELECT_EMPTY_SLOT_STEP_ID || selectedSlot === null) {
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
   const selectedCardId =
     typeof effect.metadata?.selectedCardId === 'string' ? effect.metadata.selectedCardId : null;
-  if (!player || !selectedCardId || !isPlayableLowCostHandMember(game, player.id, selectedCardId)) {
+  if (!player || !selectedCardId) {
     return game;
+  }
+
+  const emptySlots = getEmptyMemberSlots(game, player.id);
+  const selectableCardIds = getPlayableLowCostHandMemberIds(
+    game,
+    player.id,
+    effect.sourceCardId
+  );
+  if (!isPlayableLowCostHandMember(game, player.id, selectedCardId)) {
+    return refreshHandSelectionOrFinish(
+      game,
+      effect,
+      player.id,
+      selectableCardIds,
+      emptySlots,
+      continuePendingCardEffects,
+      'STALE_SELECTED_HAND_MEMBER'
+    );
+  }
+  if (effect.selectableSlots?.includes(selectedSlot) !== true) {
+    return sameValues(effect.selectableSlots ?? [], emptySlots)
+      ? game
+      : refreshSlotSelectionOrFinish(
+          game,
+          effect,
+          player.id,
+          emptySlots,
+          continuePendingCardEffects,
+          'STALE_SLOT_SELECTION'
+        );
+  }
+  if (!emptySlots.includes(selectedSlot)) {
+    return refreshSlotSelectionOrFinish(
+      game,
+      effect,
+      player.id,
+      emptySlots,
+      continuePendingCardEffects,
+      'STALE_SLOT_SELECTION'
+    );
   }
 
   const playResult = playMemberFromZoneToEmptySlot(game, player.id, {
@@ -306,6 +365,128 @@ function finishPlayHandMemberToSlot(
   );
 
   return continuePendingCardEffects(stateWithOnEnter, effect.metadata?.orderedResolution === true);
+}
+
+function refreshHandSelectionOrFinish(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  playerId: string,
+  selectableCardIds: readonly string[],
+  emptySlots: readonly SlotPosition[],
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  reason: string
+): GameState {
+  if (selectableCardIds.length === 0 || emptySlots.length === 0) {
+    return finishActiveEffectNoOp(
+      game,
+      effect,
+      playerId,
+      continuePendingCardEffects,
+      selectableCardIds.length === 0 ? 'NO_OP_NO_LOW_COST_HAND_MEMBER_STALE' : 'NO_OP_NO_EMPTY_STAGE_SLOT_STALE',
+      { reason, selectableCardIds, emptySlots }
+    );
+  }
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...effect,
+        stepId: SELECT_HAND_MEMBER_STEP_ID,
+        stepText: '可以从自己的手牌选择1张费用4以下的成员卡登场到空成员区。',
+        selectableCardIds,
+        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+        selectableSlots: undefined,
+        selectionLabel: '选择要登场的成员',
+        confirmSelectionLabel: '登场',
+        canSkipSelection: true,
+        skipSelectionLabel: '不登场',
+        metadata: { ...effect.metadata, selectedCardId: undefined, emptySlots },
+      },
+    },
+    'RESOLVE_ABILITY',
+    playerId,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'REFRESH_HAND_MEMBER_SELECTION',
+      reason,
+      selectableCardIds,
+      emptySlots,
+    }
+  );
+}
+
+function refreshSlotSelectionOrFinish(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  playerId: string,
+  emptySlots: readonly SlotPosition[],
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  reason: string
+): GameState {
+  if (emptySlots.length === 0) {
+    return finishActiveEffectNoOp(
+      game,
+      effect,
+      playerId,
+      continuePendingCardEffects,
+      'NO_OP_NO_EMPTY_STAGE_SLOT_STALE',
+      { reason, emptySlots }
+    );
+  }
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...effect,
+        selectableSlots: emptySlots,
+        selectionLabel: '选择登场区域',
+        confirmSelectionLabel: '登场',
+      },
+    },
+    'RESOLVE_ABILITY',
+    playerId,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'REFRESH_EMPTY_SLOT_SELECTION',
+      reason,
+      emptySlots,
+    }
+  );
+}
+
+function finishActiveEffectNoOp(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  playerId: string,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  step: string,
+  payload: Readonly<Record<string, unknown>>
+): GameState {
+  return continuePendingCardEffects(
+    addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', playerId, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      sourceSlot: effect.metadata?.sourceSlot,
+      step,
+      ...payload,
+    }),
+    effect.metadata?.orderedResolution === true
+  );
+}
+
+function sameValues<T>(left: readonly T[], right: readonly T[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function getSlotList(value: unknown): readonly SlotPosition[] {
+  return Array.isArray(value)
+    ? value.filter((slot): slot is SlotPosition => MEMBER_SLOT_ORDER.includes(slot as SlotPosition))
+    : [];
 }
 
 function finishPendingNoOp(

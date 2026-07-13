@@ -47,6 +47,8 @@ import {
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
+  PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
+  PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID,
   BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
@@ -68,6 +70,8 @@ import {
   PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  PL_PR_007_009_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID,
   PL_N_BP3_013_ON_ENTER_STACK_ENERGY_DRAW_TWO_ABILITY_ID,
   PL_N_BP3_006_ON_ENTER_WAIT_SELF_ABILITY_ID,
@@ -318,6 +322,9 @@ import {
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
+  S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
+  S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
+  PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID,
   PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
   PL_N_PB1_014_ON_ENTER_RELAY_FROM_KASUMI_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   PL_N_PB1_022_ON_ENTER_RELAY_FROM_SHIORIKO_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -373,6 +380,8 @@ import {
   SP_PR_016_LIVE_SUCCESS_DISCARD_RECOVER_LOW_COST_OR_SCORE_REVEALED_CHEER_ABILITY_ID,
   SP_PR_018_LIVE_SUCCESS_SEVEN_LIELLA_CHEER_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+  PL_PR_015_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+  PL_PR_014_ON_ENTER_BLIND_REVEAL_OPPONENT_HAND_THREE_DRAW_IF_NO_LIVE_ABILITY_ID,
   SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID,
   SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID,
   S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID,
@@ -691,6 +700,7 @@ import {
   YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
 import {
+  PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID,
   PL_S_BP5_004_ON_ENTER_CHOOSE_AQOURS_BLADE_OR_SAINTSNOW_POSITION_CHANGE_ABILITY_ID,
   PL_S_BP5_005_LIVE_START_DISCARD_CHOOSE_HEART_NON_AQOURS_ENTERED_MEMBERS_ABILITY_ID,
   PL_S_BP5_009_ON_ENTER_PAY_ENERGY_RECOVER_SAINTSNOW_GAIN_TWO_BLADE_ABILITY_ID,
@@ -1949,6 +1959,8 @@ describe('card effect classification registry', () => {
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
         queued: true,
         implemented: true,
+        effectText:
+          '【登场】检视自己卡组顶的3张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。',
       });
       expect(kasumiActivated).toMatchObject({
         abilityId:
@@ -1963,6 +1975,47 @@ describe('card effect classification registry', () => {
         abilityId:
           PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
       });
+    }
+
+    for (const cardCode of ['PL!S-PR-028-PR', 'PL!S-PR-032-PR', 'PL!S-PR-033-PR']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(
+        definitions.find(
+          (ability) =>
+            ability.abilityId ===
+            S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID
+        )
+      ).toMatchObject({
+        abilityId: S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
+        baseCardCodes: ['PL!S-PR-028', 'PL!S-PR-032', 'PL!S-PR-033'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】检视自己卡组顶的3张卡。将其中任意张数的卡牌按任意顺序放置于卡组顶，其余的卡片放置入休息室。',
+      });
+      expect(
+        definitions.some(
+          (ability) =>
+            ability.abilityId ===
+            PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+
+    for (const cardCode of ['PL!-PR-001-PR', 'PL!-PR-002-PR']) {
+      expect(getCardAbilityDefinitions(cardCode)).toContainEqual(expect.objectContaining({
+        abilityId: PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID,
+        baseCardCodes: ['PL!-PR-001', 'PL!-PR-002'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+        queued: true,
+        implemented: true,
+        effectText: '【自动】此成员被从舞台放置入休息室时，可以将1名成员变为活跃状态。',
+      }));
     }
 
     for (const cardCode of [
@@ -2385,6 +2438,37 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+
+    const pr015Definitions = getCardAbilityDefinitions('PL!-PR-015-PR');
+    expect(pr015Definitions).toHaveLength(1);
+    expect(pr015Definitions[0]).toMatchObject({
+      abilityId: PL_PR_015_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
+      baseCardCodes: ['PL!-PR-015'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      implemented: true,
+      effectText:
+        '【登场】因与小于此成员费用的成员换手登场的场合，从手牌将1张费用小于等于4的成员卡登场至舞台。',
+    });
+    expect(pr015Definitions[0]?.abilityId).not.toBe(
+      SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID
+    );
+    expect(getCardAbilityDefinitions('PL!-PR-014-PR')).toEqual([
+      expect.objectContaining({
+        abilityId:
+          PL_PR_014_ON_ENTER_BLIND_REVEAL_OPPONENT_HAND_THREE_DRAW_IF_NO_LIVE_ABILITY_ID,
+        baseCardCodes: ['PL!-PR-014'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】自己在不查看的情况下将对手的3张手牌公开。通过这个效果公开的卡牌中不包含Live卡的场合，抽1张牌。',
+      }),
+    ]);
 
     for (const cardCode of ['PL!N-PR-003-PR', 'PL!N-PR-008-PR', 'PL!N-PR-010-PR']) {
       expect(
@@ -5204,6 +5288,50 @@ describe('card effect classification registry', () => {
       queued: false,
       implemented: true,
     });
+
+    const pr003Kotori = getCardAbilityDefinitions('PL!-PR-003-PR');
+    expect(pr003Kotori).toContainEqual(
+      expect.objectContaining({
+        abilityId: PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
+        baseCardCodes: ['PL!-PR-003'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+        effectText:
+          '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张必要HEART中含有大于等于3个[黄ハート]的LIVE卡加入手牌。',
+      })
+    );
+    expect(
+      pr003Kotori.some(
+        (ability) =>
+          ability.abilityId ===
+          PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID
+      )
+    ).toBe(false);
+
+    const pr004Umi = getCardAbilityDefinitions('PL!-PR-004-PR');
+    expect(pr004Umi).toContainEqual(
+      expect.objectContaining({
+        abilityId: PL_PR_004_ACTIVATED_DISCARD_TWO_RECOVER_PINK_THREE_LIVE_ABILITY_ID,
+        baseCardCodes: ['PL!-PR-004'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+        effectText:
+          '【起动】【1回合1次】将2张手牌放置入休息室：从休息室将1张必要HEART中含有大于等于3个[桃ハート]的LIVE卡加入手牌。',
+      })
+    );
+    expect(
+      pr004Umi.some(
+        (ability) =>
+          ability.abilityId ===
+          PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID
+      )
+    ).toBe(false);
 
     const bp4002Eli = getCardAbilityDefinitions('PL!-bp4-002-SEC').find(
       (ability) => ability.abilityId === BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID
@@ -12463,5 +12591,117 @@ describe('HS pb1 newly implemented card classifications', () => {
       effectText,
     });
     expect(definitions[0]?.cardCodes).toBeUndefined();
+  });
+});
+
+describe('PL!-PR-005/006/008 shared on-enter choice classification', () => {
+  it('uses one exact definition for the three same-text cards and excludes PR-007/009', () => {
+    const effectText =
+      '【登场】从以下选择1项。\n\n・抽1张卡，将1张手牌放置入休息室。\n\n・将存在于对方的舞台的所有费用小于等于2的成员变为待机状态。';
+    for (const cardCode of ['PL!-PR-005-PR', 'PL!-PR-006-PR', 'PL!-PR-008-PR']) {
+      const definitions = getCardAbilityDefinitions(cardCode).filter(
+        (definition) =>
+          definition.abilityId ===
+          PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID
+      );
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId:
+          PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID,
+        baseCardCodes: ['PL!-PR-005', 'PL!-PR-006', 'PL!-PR-008'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText,
+      });
+    }
+    for (const cardCode of ['PL!-PR-007-PR', 'PL!-PR-009-PR']) {
+      expect(
+        getCardAbilityDefinitions(cardCode).some(
+          (definition) =>
+            definition.abilityId ===
+            PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID
+        )
+      ).toBe(false);
+    }
+  });
+});
+
+describe('PL!-PR-007/009 wait-self opponent cost <= 4 classification', () => {
+  it('uses exactly two PR-specific definitions and does not reuse adjacent or N/S-bp3 identities', () => {
+    const effectText =
+      '【登场】/【LIVE开始时】可以将此成员变为待机状态：将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。（待机状态的成员持有的[ブレード]，在声援时不能增加公开张数。）';
+    const expectedBaseCardCodes = ['PL!-PR-007', 'PL!-PR-009'];
+    for (const cardCode of ['PL!-PR-007-PR', 'PL!-PR-009-PR']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toHaveLength(2);
+      expect(definitions).toEqual([
+        expect.objectContaining({
+          abilityId: PL_PR_007_009_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+          baseCardCodes: expectedBaseCardCodes,
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+          effectText,
+        }),
+        expect.objectContaining({
+          abilityId: PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+          baseCardCodes: expectedBaseCardCodes,
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+          effectText,
+        }),
+      ]);
+      expect(
+        definitions.map((definition) => definition.abilityId)
+      ).not.toEqual(
+        expect.arrayContaining([
+          PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID,
+          PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+          PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+        ])
+      );
+    }
+  });
+});
+
+describe('PL!S-PR-030/031 continuous any-stage high-cost classification', () => {
+  it('uses one exact shared continuous definition and keeps conflicting 029 unregistered', () => {
+    const effectText =
+      '【常时】自己或对手的舞台存在费用大于等于13的成员卡的场合，获得[ブレード][ブレード]。';
+    const expectedBaseCardCodes = ['PL!S-PR-030', 'PL!S-PR-031'];
+
+    for (const cardCode of ['PL!S-PR-030-PR', 'PL!S-PR-031-PR']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId:
+          S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
+        baseCardCodes: expectedBaseCardCodes,
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        effectText,
+      });
+      expect(definitions[0]?.triggerCondition).toBeUndefined();
+      expect(definitions[0]?.cardCodes).toBeUndefined();
+    }
+
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (definition) =>
+          definition.abilityId ===
+          S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!S-PR-029-PR')).toHaveLength(0);
   });
 });

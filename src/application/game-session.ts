@@ -1898,7 +1898,10 @@ export class GameSession {
           state.activeEffect?.selectableCardVisibility === 'AWAITING_PLAYER_BLIND'
             ? resolveBlindCardSelectionToken(
                 state.activeEffect.selectableCardIds ?? [],
-                selectedCardId
+                selectedCardId,
+                typeof state.activeEffect.metadata?.blindSelectionVersion === 'number'
+                  ? state.activeEffect.metadata.blindSelectionVersion
+                  : undefined
               ) !== null
             : state.activeEffect?.selectableCardIds?.includes(selectedCardId) === true;
         if (command.selectedCardId && !isSelectableCardReference(command.selectedCardId)) {

@@ -21,6 +21,8 @@ import {
   PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  PL_PR_007_009_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -81,6 +83,8 @@ const CONFIGS = new Map<string, WaitSelfOpponentWaitConfig>([
   ...[
     PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
     PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+    PL_PR_007_009_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+    PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
   ].map(
     (abilityId) =>
       [
@@ -331,7 +335,7 @@ function finishSourceWaitCost(
         awaitingPlayerId: player.id,
         selectableCardIds: targetCardIds,
         selectionLabel: config.selectionLabel,
-        confirmSelectionLabel: '变为待机',
+        confirmSelectionLabel: '变为待机状态',
         metadata: {
           orderedResolution,
           sourceSlot: sourceState.sourceSlot,

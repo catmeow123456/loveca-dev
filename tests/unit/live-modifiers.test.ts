@@ -142,6 +142,8 @@ const S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID =
   'PL!S-bp5-010:continuous-red-heart-five-opponent-live-requirement-plus-one';
 const S_BP5_011_CONTINUOUS_REQUIREMENT_ABILITY_ID =
   'PL!S-bp5-011:continuous-blue-heart-five-opponent-live-requirement-plus-one';
+const S_PR_030_031_CONTINUOUS_ABILITY_ID =
+  'PL!S-PR-030-031:continuous-any-stage-cost-thirteen-gain-two-blade';
 
 function createStageMember(
   cardCode: string,
@@ -5917,6 +5919,325 @@ describe('live modifier helpers', () => {
     }));
 
     expect(hasHsBp1ContinuousScore(game)).toBe(false);
+  });
+});
+
+type SPrHighCostPlacement = 'STAGE' | 'MEMBER_BELOW' | 'HAND' | 'WAITING_ROOM' | 'LIVE_ZONE';
+
+function createSPr030031ContinuousState(options: {
+  readonly sourceCodes?: readonly string[];
+  readonly sourcePrintedCosts?: readonly number[];
+  readonly sourceOnStage?: boolean;
+  readonly ownHighCost?: {
+    readonly placement: SPrHighCostPlacement;
+    readonly printedCost: number;
+    readonly costDelta?: number;
+    readonly orientation?: OrientationState;
+  };
+  readonly opponentHighCost?: {
+    readonly placement: SPrHighCostPlacement;
+    readonly printedCost: number;
+    readonly costDelta?: number;
+    readonly orientation?: OrientationState;
+  };
+}) {
+  const sourceCodes = options.sourceCodes ?? ['PL!S-PR-030-PR'];
+  const sourceSlots = [SlotPosition.LEFT, SlotPosition.CENTER] as const;
+  const sources = sourceCodes.map((cardCode, index) =>
+    createCardInstance(
+      {
+        cardCode,
+        name: cardCode,
+        groupNames: ['Aqours'],
+        cardType: CardType.MEMBER,
+        cost: options.sourcePrintedCosts?.[index] ?? 9,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      `s-pr-030-031-source-${index}`
+    )
+  );
+  const createQualifier = (ownerId: string, printedCost: number, suffix: string) =>
+    createCardInstance(
+      {
+        cardCode: `TEST-${suffix}`,
+        name: suffix,
+        cardType: CardType.MEMBER,
+        cost: printedCost,
+        blade: 1,
+        hearts: [],
+      },
+      ownerId,
+      `s-pr-030-031-${suffix}`
+    );
+  const ownQualifier = options.ownHighCost
+    ? createQualifier('p1', options.ownHighCost.printedCost, 'own-qualifier')
+    : null;
+  const opponentQualifier = options.opponentHighCost
+    ? createQualifier('p2', options.opponentHighCost.printedCost, 'opponent-qualifier')
+    : null;
+  const ownHost =
+    options.ownHighCost?.placement === 'MEMBER_BELOW'
+      ? createQualifier('p1', 1, 'own-low-cost-host')
+      : null;
+  const opponentHost =
+    options.opponentHighCost?.placement === 'MEMBER_BELOW'
+      ? createQualifier('p2', 1, 'opponent-low-cost-host')
+      : null;
+  const cards = [...sources];
+  for (const card of [ownQualifier, opponentQualifier, ownHost, opponentHost]) {
+    if (card) cards.push(card);
+  }
+
+  let game = registerCards(
+    createGameState('s-pr-030-031-continuous', 'p1', 'P1', 'p2', 'P2'),
+    cards
+  );
+  game = updatePlayer(game, 'p1', (player) => {
+    let memberSlots = player.memberSlots;
+    if (options.sourceOnStage !== false) {
+      sources.forEach((source, index) => {
+        memberSlots = placeCardInSlot(memberSlots, sourceSlots[index], source.instanceId);
+      });
+    }
+    if (ownQualifier && options.ownHighCost?.placement === 'STAGE') {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, ownQualifier.instanceId, {
+        orientation: options.ownHighCost.orientation ?? OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      });
+    } else if (ownQualifier && ownHost && options.ownHighCost?.placement === 'MEMBER_BELOW') {
+      memberSlots = addMemberBelowMember(
+        placeCardInSlot(memberSlots, SlotPosition.RIGHT, ownHost.instanceId),
+        SlotPosition.RIGHT,
+        ownQualifier.instanceId
+      );
+    }
+    let hand = player.hand;
+    if (options.sourceOnStage === false) {
+      hand = sources.reduce((zone, source) => addCardToZone(zone, source.instanceId), hand);
+    }
+    if (ownQualifier && options.ownHighCost?.placement === 'HAND') {
+      hand = addCardToZone(hand, ownQualifier.instanceId);
+    }
+    return {
+      ...player,
+      memberSlots,
+      hand,
+      waitingRoom:
+        ownQualifier && options.ownHighCost?.placement === 'WAITING_ROOM'
+          ? addCardToZone(player.waitingRoom, ownQualifier.instanceId)
+          : player.waitingRoom,
+      liveZone:
+        ownQualifier && options.ownHighCost?.placement === 'LIVE_ZONE'
+          ? addCardToStatefulZone(player.liveZone, ownQualifier.instanceId)
+          : player.liveZone,
+    };
+  });
+  game = updatePlayer(game, 'p2', (player) => {
+    let memberSlots = player.memberSlots;
+    if (opponentQualifier && options.opponentHighCost?.placement === 'STAGE') {
+      memberSlots = placeCardInSlot(
+        memberSlots,
+        SlotPosition.CENTER,
+        opponentQualifier.instanceId,
+        {
+          orientation: options.opponentHighCost.orientation ?? OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }
+      );
+    } else if (
+      opponentQualifier &&
+      opponentHost &&
+      options.opponentHighCost?.placement === 'MEMBER_BELOW'
+    ) {
+      memberSlots = addMemberBelowMember(
+        placeCardInSlot(memberSlots, SlotPosition.CENTER, opponentHost.instanceId),
+        SlotPosition.CENTER,
+        opponentQualifier.instanceId
+      );
+    }
+    return {
+      ...player,
+      memberSlots,
+      hand:
+        opponentQualifier && options.opponentHighCost?.placement === 'HAND'
+          ? addCardToZone(player.hand, opponentQualifier.instanceId)
+          : player.hand,
+      waitingRoom:
+        opponentQualifier && options.opponentHighCost?.placement === 'WAITING_ROOM'
+          ? addCardToZone(player.waitingRoom, opponentQualifier.instanceId)
+          : player.waitingRoom,
+      liveZone:
+        opponentQualifier && options.opponentHighCost?.placement === 'LIVE_ZONE'
+          ? addCardToStatefulZone(player.liveZone, opponentQualifier.instanceId)
+          : player.liveZone,
+    };
+  });
+
+  for (const adjustment of [
+    ownQualifier && options.ownHighCost?.costDelta
+      ? { playerId: 'p1', cardId: ownQualifier.instanceId, delta: options.ownHighCost.costDelta }
+      : null,
+    opponentQualifier && options.opponentHighCost?.costDelta
+      ? {
+          playerId: 'p2',
+          cardId: opponentQualifier.instanceId,
+          delta: options.opponentHighCost.costDelta,
+        }
+      : null,
+  ]) {
+    if (!adjustment) continue;
+    game =
+      addMemberCostLiveModifierForMember(game, {
+        playerId: adjustment.playerId,
+        memberCardId: adjustment.cardId,
+        sourceCardId: 'test-cost-source',
+        abilityId: `test-cost-${adjustment.cardId}`,
+        countDelta: adjustment.delta,
+      })?.gameState ?? game;
+  }
+
+  return {
+    game,
+    sourceIds: sources.map((source) => source.instanceId),
+    opponentQualifierId: opponentQualifier?.instanceId ?? null,
+  };
+}
+
+describe('PL!S-PR-030/031 continuous any-stage cost >= 13 BLADE', () => {
+  const abilityModifiers = (game: ReturnType<typeof createGameState>) =>
+    collectLiveModifiers(game).filter(
+      (modifier) => modifier.abilityId === S_PR_030_031_CONTINUOUS_ABILITY_ID
+    );
+
+  it('collects exactly BLADE +2 from another own effective-cost-13 stage member', () => {
+    const state = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    const modifiers = collectLiveModifiers(state.game);
+    expect(abilityModifiers(state.game)).toEqual([{
+      kind: 'BLADE', playerId: 'p1', countDelta: 2, sourceCardId: state.sourceIds[0],
+      abilityId: S_PR_030_031_CONTINUOUS_ABILITY_ID,
+    }]);
+    expect(getMemberEffectiveBladeCount(state.game, 'p1', state.sourceIds[0], modifiers)).toBe(3);
+  });
+
+  it('uses the opponent player id for opponent effective cost', () => {
+    const state = createSPr030031ContinuousState({
+      opponentHighCost: { placement: 'STAGE', printedCost: 12, costDelta: 1 },
+    });
+    expect(getMemberEffectiveCost(state.game, 'p2', state.opponentQualifierId!)).toBe(13);
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+  });
+
+  it('allows the source itself to satisfy the condition', () => {
+    const state = createSPr030031ContinuousState({ sourcePrintedCosts: [13] });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+  });
+
+  it('does not collect at effective cost 12', () => {
+    expect(
+      abilityModifiers(createSPr030031ContinuousState({ sourcePrintedCosts: [12] }).game)
+    ).toEqual([]);
+  });
+
+  it('uses effective rather than printed cost in both directions', () => {
+    const raised = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 12, costDelta: 1 },
+    });
+    expect(abilityModifiers(raised.game)).toHaveLength(1);
+    const lowered = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 13, costDelta: -1 },
+    });
+    expect(abilityModifiers(lowered.game)).toEqual([]);
+  });
+
+  it('counts a WAITING cost-13 member still on the main stage', () => {
+    const state = createSPr030031ContinuousState({
+      opponentHighCost: {
+        placement: 'STAGE', printedCost: 13, orientation: OrientationState.WAITING,
+      },
+    });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+  });
+
+  it('excludes a cost-13 memberBelow card', () => {
+    const state = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'MEMBER_BELOW', printedCost: 13 },
+    });
+    expect(abilityModifiers(state.game)).toEqual([]);
+  });
+
+  it.each(['HAND', 'WAITING_ROOM', 'LIVE_ZONE'] as const)(
+    'excludes a cost-13 member in %s',
+    (placement) => {
+      const state = createSPr030031ContinuousState({
+        opponentHighCost: { placement, printedCost: 13 },
+      });
+      expect(abilityModifiers(state.game)).toEqual([]);
+    }
+  );
+
+  it('stops collecting when the source leaves the main stage', () => {
+    const state = createSPr030031ContinuousState({
+      sourceOnStage: false,
+      opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    expect(abilityModifiers(state.game)).toEqual([]);
+  });
+
+  it('does not multiply the fixed +2 for multiple qualifying members', () => {
+    const state = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 13 },
+      opponentHighCost: { placement: 'STAGE', printedCost: 14 },
+    });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+    expect(abilityModifiers(state.game)[0]).toMatchObject({ countDelta: 2 });
+    expect(getMemberEffectiveBladeCount(state.game, 'p1', state.sourceIds[0])).toBe(3);
+  });
+
+  it.each(['PL!S-PR-030-PR', 'PL!S-PR-031-PR'] as const)(
+    'collects independently for %s',
+    (cardCode) => {
+      const state = createSPr030031ContinuousState({
+        sourceCodes: [cardCode],
+        opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+      });
+      expect(abilityModifiers(state.game)).toHaveLength(1);
+    }
+  );
+
+  it('gives simultaneous 030 and 031 sources separate +2 modifiers', () => {
+    const state = createSPr030031ContinuousState({
+      sourceCodes: ['PL!S-PR-030-PR', 'PL!S-PR-031-PR'],
+      opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    const modifiers = collectLiveModifiers(state.game);
+    expect(abilityModifiers(state.game)).toHaveLength(2);
+    expect(new Set(abilityModifiers(state.game).map((modifier) => modifier.sourceCardId))).toEqual(
+      new Set(state.sourceIds)
+    );
+    for (const sourceId of state.sourceIds) {
+      expect(getMemberEffectiveBladeCount(state.game, 'p1', sourceId, modifiers)).toBe(3);
+    }
+  });
+
+  it('removes the dynamic modifier after the qualifying member leaves stage', () => {
+    const state = createSPr030031ContinuousState({
+      opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+    const changed = updatePlayer(state.game, 'p2', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
+      },
+      waitingRoom: addCardToZone(player.waitingRoom, state.opponentQualifierId!),
+    }));
+    expect(abilityModifiers(changed)).toEqual([]);
+    expect(getMemberEffectiveBladeCount(changed, 'p1', state.sourceIds[0])).toBe(1);
   });
 });
 
