@@ -118,6 +118,12 @@ interface StageHeartOpponentLiveRequirementContinuousDefinition {
   readonly abilityId: string;
 }
 
+interface TotalStageSixHeartContinuousDefinition {
+  readonly baseCardCodes: readonly string[];
+  readonly abilityId: string;
+  readonly heartColors: readonly HeartColor[];
+}
+
 interface SuccessZoneContinuousLiveModifierDefinition extends ContinuousLiveModifierDefinition {
   readonly nonStackingAbilityId?: string;
 }
@@ -144,6 +150,12 @@ const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID 
   'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
 const S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!S-PR-030-031:continuous-any-stage-cost-thirteen-gain-two-blade';
+const N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID =
+  'PL!N-PR-020-PL!S-PR-037:continuous-own-stage-exact-two-gain-blue-heart-blade';
+const N_PR_027_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_BLUE_HEART_ABILITY_ID =
+  'PL!N-PR-027:continuous-total-stage-six-gain-red-blue-heart';
+const S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID =
+  'PL!S-PR-042:continuous-total-stage-six-gain-red-green-heart';
 const SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID =
   'PL!SP-bp2-004:continuous-center-highest-stage-cost-gain-yellow-heart';
 const BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID =
@@ -1093,7 +1105,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
-    baseCardCodes: ['PL!S-PR-030', 'PL!S-PR-031'],
+    baseCardCodes: ['PL!S-PR-029', 'PL!S-PR-030', 'PL!S-PR-031'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
       hasAnyStageMemberWithEffectiveCostAtLeast(game, 13)
@@ -1108,6 +1120,38 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [],
+  },
+  {
+    baseCardCodes: ['PL!N-PR-020', 'PL!S-PR-037'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        countStageMembers(game, playerId) !== 2
+      ) {
+        return [];
+      }
+      const heartModifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId:
+          N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+        hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      });
+      return heartModifier
+        ? [
+            heartModifier,
+            {
+              kind: 'BLADE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId:
+                N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
   },
   {
     baseCardCodes: ['PL!SP-bp2-010'],
@@ -1174,29 +1218,23 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       abilityId: SP_PB2_032_CONTINUOUS_ENERGY_SIX_EIGHT_GAIN_PURPLE_HEART_ABILITY_ID,
     },
   ]),
-  {
-    baseCardCodes: ['PL!SP-PR-022'],
-    collect: ({ game, playerId, sourceCardId }) => {
-      if (
-        !isSourceMainStageMember(game, playerId, sourceCardId) ||
-        countTotalStageMembers(game) !== 6
-      ) {
-        return [];
-      }
-
-      const modifier = createHeartLiveModifierForMember(game, {
-        playerId,
-        memberCardId: sourceCardId,
-        sourceCardId,
-        abilityId: SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID,
-        hearts: [
-          { color: HeartColor.RED, count: 1 },
-          { color: HeartColor.YELLOW, count: 1 },
-        ],
-      });
-      return modifier ? [modifier] : [];
+  ...createTotalStageSixHeartContinuousDefinitions([
+    {
+      baseCardCodes: ['PL!SP-PR-022'],
+      abilityId: SP_PR_022_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_YELLOW_HEART_ABILITY_ID,
+      heartColors: [HeartColor.RED, HeartColor.YELLOW],
     },
-  },
+    {
+      baseCardCodes: ['PL!N-PR-027'],
+      abilityId: N_PR_027_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_BLUE_HEART_ABILITY_ID,
+      heartColors: [HeartColor.RED, HeartColor.BLUE],
+    },
+    {
+      baseCardCodes: ['PL!S-PR-042'],
+      abilityId: S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID,
+      heartColors: [HeartColor.RED, HeartColor.GREEN],
+    },
+  ]),
   ...createActiveEnergyHeartContinuousDefinitions([
     {
       baseCardCode: 'PL!SP-pb2-026',
@@ -1739,6 +1777,30 @@ function createStageHeartOpponentLiveRequirementContinuousDefinitions(
             definition.abilityId
           )
         : [],
+  }));
+}
+
+function createTotalStageSixHeartContinuousDefinitions(
+  definitions: readonly TotalStageSixHeartContinuousDefinition[]
+): readonly ContinuousLiveModifierDefinition[] {
+  return definitions.map(({ baseCardCodes, abilityId, heartColors }) => ({
+    baseCardCodes,
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        countTotalStageMembers(game) !== 6
+      ) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId,
+        hearts: heartColors.map((color) => ({ color, count: 1 })),
+      });
+      return modifier ? [modifier] : [];
+    },
   }));
 }
 

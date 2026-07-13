@@ -407,6 +407,7 @@ import { registerSBp5019NotAloneNotHitoriWorkflowHandlers } from './card-effects
 import { registerSBp5022SelfControlWorkflowHandlers } from './card-effects/workflows/cards/s-bp5-022-self-control.js';
 import { registerOnCheerLiveCountGainHeartWorkflowHandlers } from './card-effects/workflows/shared/on-cheer-live-count-gain-heart.js';
 import { registerOnCheerNoBladeHeartGainHeartWorkflowHandlers } from './card-effects/workflows/shared/on-cheer-no-blade-heart-gain-heart.js';
+import { registerOnCheerSameGroupMemberTripleGainHeartsWorkflowHandlers } from './card-effects/workflows/shared/on-cheer-same-group-member-triple-gain-hearts.js';
 import { registerSSd1004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-004-dia.js';
 import { registerSSd1005YouWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-005-you.js';
 import { registerSSd1006YoshikoWorkflowHandlers } from './card-effects/workflows/cards/s-sd1-006-yoshiko.js';
@@ -1253,6 +1254,7 @@ registerSpPb2049NeutralWorkflowHandlers();
 registerOnEnterDiscardRecoverUnitCardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerOnCheerLiveCountGainHeartWorkflowHandlers();
 registerOnCheerNoBladeHeartGainHeartWorkflowHandlers();
+registerOnCheerSameGroupMemberTripleGainHeartsWorkflowHandlers();
 registerSSd1004DiaWorkflowHandlers();
 registerSSd1005YouWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSSd1006YoshikoWorkflowHandlers({ enqueueTriggeredCardEffects });

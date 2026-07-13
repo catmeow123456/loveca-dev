@@ -27,6 +27,16 @@ export const S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID =
   'PL!S-PR:on-enter-look-top-three-arrange-to-top';
 export const S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!S-PR-030-031:continuous-any-stage-cost-thirteen-gain-two-blade';
+export const N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID =
+  'PL!N-PR-020-PL!S-PR-037:continuous-own-stage-exact-two-gain-blue-heart-blade';
+export const N_PR_027_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_BLUE_HEART_ABILITY_ID =
+  'PL!N-PR-027:continuous-total-stage-six-gain-red-blue-heart';
+export const S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID =
+  'PL!S-PR-042:continuous-total-stage-six-gain-red-green-heart';
+export const N_PR_023_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID =
+  'PL!N-PR-023:auto-on-cheer-same-group-member-three-gain-pink-green-heart';
+export const S_PR_040_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID =
+  'PL!S-PR-040:auto-on-cheer-same-group-member-three-gain-pink-green-heart';
 export const PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID =
   'PL!-PR-001-002:on-leave-stage-activate-member';
 export const PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID =

@@ -12,11 +12,23 @@
 - `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md` 与 `docs/online-mode/preparation.md` 已同步当前产品行为；对局结束后最终只读桌面保留 1 分钟仍未实现，持久化观战审计不在当前范围。
 - 验证：focused suite `tests/integration/online-room-service.test.ts`、`tests/integration/online-route-error-handling.test.ts`、`tests/unit/game-store-remote-sync.test.ts`、`tests/unit/battle-surface-capabilities.test.ts`、`tests/unit/api-client-redaction.test.ts` passed（5 files / 68 tests）；rebase 最新 `origin/main` 后 `pnpm test:run` passed（462 files / 3955 tests，3 performance tests skipped）；shared / server / client TypeScript 与 `git diff --check` passed。
 
-## 本次 2026-07-13 Aqours S-PR-030 / 031 同文常时 BLADE
+## 本次 2026-07-13 第三批 -PR- 弃2后抽至5
 
-- 实现 `PL!S-PR-030-PR` 费用 9「津島善子」与 `PL!S-PR-031-PR` 费用 9「国木田花丸」：两张共用 `S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID` 与一条 `CONTINUOUS / STAGE_MEMBER / queued: false` definition，effectText 精确采用 Excel 中文。
+- 实现 `PL!N-PR-028-PR` 费用 11「宮下 愛」：与 `PL!HS-PR-031-PR` 费用 11「日野下花帆」在 `cards.json` 及 Excel 的中日文完全一致，因此不新增 abilityId，扩展既有 `HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID` 的基础编号覆盖。
+- 两张卡继续共用 `discard-then-draw.ts` 的 exactly 2、可选“不发动”、私密有序手牌选择与 `UNTIL_HAND_SIZE(5)` 配置；抽牌数在成功弃置2张后按当前手牌计算，手牌已达到或超过5张时不抽。
+- 未新增 workflow/helper/DSL，也未修改 runner；focused classification/integration 覆盖真实登场入队、精确文案、边界抽牌、原子失败、来源离场、批量 HAND -> WAITING_ROOM 事件与双 pending continuation。
+
+## 本次 2026-07-13 第二批 -PR- ON_CHEER 同团成员 Heart
+
+- 实现 `PL!N-PR-023-PR` 费用 9「上原歩夢」与 `PL!S-PR-040-PR` 费用 9「国木田花丸」：因 Excel 精确中文不同保留两个独立 ability identity/definition，执行共用 `on-cheer-same-group-member-triple-gain-hearts.ts`。
+- shared workflow 只读取 pending 关联的自己普通 `CheerEvent.revealedCardIds` 历史事实；对不同 card ID 去重后，通过结构化 canonical group key 构造成员集合，要求某一具体团体桶至少 3 张。成功为来源写一个 `SOURCE_MEMBER` 桃＋绿 Heart modifier；条件失败仍消费 turn1，additional、对方事件与 stale 来源不记录使用。
+- runner 仅新增 import/register 胶水；focused integration/classification 覆盖真实声援入队、WAITING 来源、多团体/三角反例、重复、非成员/对手、历史事件、移出处理区、pending turn1 占用、来源离场/memberBelow、双来源 continuation 与独立 identity。
+
+## 本次 2026-07-13 Aqours S-PR-029 / 030 / 031 同文常时 BLADE
+
+- 实现 `PL!S-PR-029-PR` 费用 9「渡辺 曜」、`PL!S-PR-030-PR` 费用 9「津島善子」与 `PL!S-PR-031-PR` 费用 9「国木田花丸」：三张共用 `S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID` 与一条 `CONTINUOUS / STAGE_MEMBER / queued: false` definition，effectText 使用用户指定的精确中文。
 - 扩展 `domain/rules/live-modifiers.ts` continuous registry：来源仍在己方三个主舞台槽时，动态扫描双方三个主舞台槽并按各自 playerId 调用 `getMemberEffectiveCost`；任一有效费用 >=13 即为该来源固定收集 BLADE +2。来源自身与 WAITING 舞台成员可满足；memberBelow、手牌、休息室和其他非舞台区域不计入；多名合法成员不按数量叠加，条件失效后重新收集即消失。
-- 未登记权威源触发类型冲突的 `PL!S-PR-029-PR`，未新增 pending/workflow/trigger，runner 不变。Focused classification 与 live-modifier 测试覆盖 030/031 独立及同时在场、有效费用升降、双方/来源自身/WAITING、区域排除和实时失效。
+- 按用户已确认的 cards.json【常时】权威结论，将 `PL!S-PR-029-PR` 加入同一 definition 与 modifier 配置，保留原 runtime ability ID；不采用 stale Excel/cards_cn【登场】。Focused classification 与 live-modifier 测试覆盖 029/030/031 独立、有效费用升降、双方/来源自身/WAITING、区域排除、实时失效及 029 印刷 BLADE 3 到有效 BLADE 5。
 
 ## 本次 2026-07-13 PL!-PR-015 换手登场低费成员
 
@@ -1398,6 +1410,11 @@ git diff --check
 费用修正器已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」起步。后续同类卡继续扩展 `cost-calculator.ts` 的 cost modifier 条件与来源，不要写 UI 层特例。
 
 ## 已知注意点
+
+### 2026-07-13 第一批 -PR- 常时卡效
+
+- 完成 `PL!S-PR-029-PR`、`PL!N-PR-020-PR`、`PL!S-PR-037-PR`、`PL!N-PR-027-PR`、`PL!S-PR-042-PR` 五张纯常时卡效；029 扩入既有 030/031 同文 ability identity，020/037 共用新 identity，027/042 与既有 022 仅共享双方舞台合计6名的窄配置工厂。
+- 实现只触及 ability ID、definition、continuous modifier registry、focused unit tests 与本批登记文档；未新增 workflow、交互或 runner 逻辑。
 
 ### 2026-07-13 μ's PR-014 匿名盲选对方手牌公开
 

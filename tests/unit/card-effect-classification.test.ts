@@ -13,6 +13,8 @@ import {
   SP_BP2_015_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_PURPLE_HEART_ABILITY_ID,
   SP_BP2_020_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_RED_HEART_ABILITY_ID,
   SP_BP2_021_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_YELLOW_HEART_ABILITY_ID,
+  N_PR_023_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
+  S_PR_040_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
   S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
   S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
   S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
@@ -324,6 +326,9 @@ import {
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
+  N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+  N_PR_027_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_BLUE_HEART_ABILITY_ID,
+  S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID,
   PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID,
   PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
   PL_N_PB1_014_ON_ENTER_RELAY_FROM_KASUMI_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -8412,24 +8417,20 @@ describe('card effect classification registry', () => {
         implemented: true,
       });
     }
-    expect(
-      getCardAbilityDefinitions('PL!HS-PR-031-PR').find(
-        (ability) =>
-          ability.abilityId === HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID
-      )
-    ).toMatchObject({
-      baseCardCodes: ['PL!HS-PR-031'],
-      category: CardAbilityCategory.ON_ENTER,
-      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
-      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
-      queued: true,
-      implemented: true,
-    });
-    expect(
-      getCardAbilityDefinitions('PL!N-PR-028-PR').some(
-        (ability) => ability.abilityId === HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID
-      )
-    ).toBe(false);
+    for (const cardCode of ['PL!HS-PR-031-PR', 'PL!N-PR-028-PR']) {
+      const definitions = getCardAbilityDefinitions(cardCode).filter((ability) => ability.implemented);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId: HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID,
+        baseCardCodes: ['PL!HS-PR-031', 'PL!N-PR-028'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText: '【登场】可以将2张手牌放置入休息室：自己抽卡直到手牌变为5张。',
+      });
+    }
 
     const startDash = getCardAbilityDefinitions('PL!-sd1-019-SD')[0];
     expect(startDash).toMatchObject({
@@ -12672,13 +12673,13 @@ describe('PL!-PR-007/009 wait-self opponent cost <= 4 classification', () => {
   });
 });
 
-describe('PL!S-PR-030/031 continuous any-stage high-cost classification', () => {
-  it('uses one exact shared continuous definition and keeps conflicting 029 unregistered', () => {
+describe('PL!S-PR-029/030/031 continuous any-stage high-cost classification', () => {
+  it('uses one exact shared continuous definition for all three cards', () => {
     const effectText =
       '【常时】自己或对手的舞台存在费用大于等于13的成员卡的场合，获得[ブレード][ブレード]。';
-    const expectedBaseCardCodes = ['PL!S-PR-030', 'PL!S-PR-031'];
+    const expectedBaseCardCodes = ['PL!S-PR-029', 'PL!S-PR-030', 'PL!S-PR-031'];
 
-    for (const cardCode of ['PL!S-PR-030-PR', 'PL!S-PR-031-PR']) {
+    for (const cardCode of ['PL!S-PR-029-PR', 'PL!S-PR-030-PR', 'PL!S-PR-031-PR']) {
       const definitions = getCardAbilityDefinitions(cardCode);
       expect(definitions).toHaveLength(1);
       expect(definitions[0]).toMatchObject({
@@ -12702,6 +12703,130 @@ describe('PL!S-PR-030/031 continuous any-stage high-cost classification', () => 
           S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID
       )
     ).toHaveLength(1);
-    expect(getCardAbilityDefinitions('PL!S-PR-029-PR')).toHaveLength(0);
+  });
+});
+
+describe('first -PR- continuous Heart classification batch', () => {
+  it('shares one exact definition between PL!N-PR-020 and PL!S-PR-037', () => {
+    const effectText =
+      '【常时】只要存在于自己的舞台的成员恰好为2名，获得[青ハート][ブレード]。';
+    const baseCardCodes = ['PL!N-PR-020', 'PL!S-PR-037'];
+    for (const cardCode of ['PL!N-PR-020-PR', 'PL!S-PR-037-PR']) {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId:
+          N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+        baseCardCodes,
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        effectText,
+      });
+      expect(definitions[0]?.triggerCondition).toBeUndefined();
+    }
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (definition) =>
+          definition.abilityId ===
+          N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID
+      )
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    {
+      cardCode: 'PL!N-PR-027-PR',
+      baseCardCode: 'PL!N-PR-027',
+      abilityId: N_PR_027_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_BLUE_HEART_ABILITY_ID,
+      effectText:
+        '【常时】只要存在于自己和对方的舞台的成员恰好为6名，获得[赤ハート][青ハート]。',
+    },
+    {
+      cardCode: 'PL!S-PR-042-PR',
+      baseCardCode: 'PL!S-PR-042',
+      abilityId: S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID,
+      effectText:
+        '【常时】只要存在于自己和对方的舞台的成员恰好为6名，获得[赤ハート][緑ハート]。',
+    },
+  ])('keeps $cardCode on an independent exact definition', (expected) => {
+    const definitions = getCardAbilityDefinitions(expected.cardCode);
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0]).toMatchObject({
+      abilityId: expected.abilityId,
+      baseCardCodes: [expected.baseCardCode],
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+      effectText: expected.effectText,
+    });
+    expect(definitions[0]?.triggerCondition).toBeUndefined();
+  });
+
+  it('does not merge PL!N-PR-027 and PL!S-PR-042 identities or text', () => {
+    const n = getCardAbilityDefinitions('PL!N-PR-027-PR')[0];
+    const s = getCardAbilityDefinitions('PL!S-PR-042-PR')[0];
+    expect(n?.abilityId).not.toBe(s?.abilityId);
+    expect(n?.effectText).not.toBe(s?.effectText);
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter((definition) =>
+        [n?.abilityId, s?.abilityId].includes(definition.abilityId)
+      )
+    ).toHaveLength(2);
+  });
+});
+
+describe('second -PR- ON_CHEER same-group member classification batch', () => {
+  const cases = [
+    {
+      cardCode: 'PL!N-PR-023-PR',
+      baseCardCode: 'PL!N-PR-023',
+      abilityId:
+        N_PR_023_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
+      effectText:
+        '【自动】【1回合1次】自己进行声援时，因声援被公开的卡片中存在大于等于3张持有相同团体名的成员卡的场合，LIVE结束时为止，获得[桃ハート][緑ハート]。',
+    },
+    {
+      cardCode: 'PL!S-PR-040-PR',
+      baseCardCode: 'PL!S-PR-040',
+      abilityId:
+        S_PR_040_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
+      effectText:
+        '【自动】【1回合1次】因声援被公开的自己的卡片中包含大于等于3张持有团体名相同的卡片的场合，LIVE结束时为止，获得[桃ハート][緑ハート]。',
+    },
+  ] as const;
+
+  it.each(cases)('classifies $cardCode as one exact queued turn1 AUTO ability', (expected) => {
+    const definitions = getCardAbilityDefinitions(expected.cardCode);
+    expect(definitions).toHaveLength(1);
+    expect(definitions[0]).toMatchObject({
+      abilityId: expected.abilityId,
+      baseCardCodes: [expected.baseCardCode],
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_CHEER,
+      queued: true,
+      implemented: true,
+      perTurnLimit: 1,
+      effectText: expected.effectText,
+    });
+    expect(definitions[0]?.countPendingAsTurnUse).not.toBe(false);
+    expect(definitions[0]?.cardCodes).toBeUndefined();
+    expect(
+      CARD_ABILITY_DEFINITIONS.filter(
+        (definition) => definition.abilityId === expected.abilityId
+      )
+    ).toHaveLength(1);
+  });
+
+  it('keeps the two exact Excel texts and ability identities separate', () => {
+    const n = getCardAbilityDefinitions(cases[0].cardCode)[0]!;
+    const s = getCardAbilityDefinitions(cases[1].cardCode)[0]!;
+    expect(n.abilityId).not.toBe(s.abilityId);
+    expect(n.effectText).not.toBe(s.effectText);
+    expect(n.baseCardCodes).toEqual([cases[0].baseCardCode]);
+    expect(s.baseCardCodes).toEqual([cases[1].baseCardCode]);
   });
 });

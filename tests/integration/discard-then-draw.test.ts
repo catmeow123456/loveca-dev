@@ -8,7 +8,7 @@ import {
   type GameState,
   updatePlayer,
 } from '../../src/domain/entities/game';
-import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
@@ -37,6 +37,7 @@ import {
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+const DRAW_TO_FIVE_CARD_CODES = ['PL!HS-PR-031-PR', 'PL!N-PR-028-PR'] as const;
 
 function member(cardCode: string, unitName = 'みらくらぱーく！'): MemberCardData {
   return {
@@ -345,38 +346,85 @@ describe('discard-then-draw shared workflow', () => {
     expect(stale.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 
-  it.each([
-    [2, 5],
-    [5, 5],
-    [7, 5],
-  ])('PR-031 discards two then draws from hand size %i to %i', (initialHand, finalHand) => {
-    const { session, hand } = start('PL!HS-PR-031-PR', initialHand);
-    expect(confirm(session, hand.slice(0, 2).map((card) => card.instanceId)).success).toBe(true);
-    expect(session.state?.players[0].waitingRoom.cardIds).toHaveLength(2);
-    expect(session.state?.players[0].hand.cardIds).toHaveLength(finalHand);
-    expect(session.state?.activeEffect).toBeNull();
+  it('N-PR-028 enters through the real ON_ENTER check timing and opens the shared private window', () => {
+    const { session, hand } = start('PL!N-PR-028-PR', 5);
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID,
+      effectText: '【登场】可以将2张手牌放置入休息室：自己抽卡直到手牌变为5张。',
+      stepText: '请选择2张手牌放置入休息室；之后抽至5张手牌。',
+      selectableCardIds: hand.map((card) => card.instanceId),
+      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: 2,
+      maxSelectableCards: 2,
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
   });
 
-  it('PR-031 with zero or one card keeps a legal interval and only permits decline', () => {
-    for (const handCount of [0, 1]) {
-      const { session } = start('PL!HS-PR-031-PR', handCount);
-      expect(session.state?.activeEffect).toMatchObject({
-        minSelectableCards: 2,
-        maxSelectableCards: 2,
-        canSkipSelection: true,
-        skipSelectionLabel: '不发动',
-      });
-      expect(session.state?.activeEffect?.selectableCardIds).toHaveLength(handCount);
-      expect(confirm(session, session.state!.activeEffect!.selectableCardIds ?? []).success).toBe(
-        false
-      );
-      expect(decline(session).success).toBe(true);
-      expect(session.state?.players[0].hand.cardIds).toHaveLength(handCount);
+  for (const cardCode of DRAW_TO_FIVE_CARD_CODES) {
+    it.each([
+      [2, 5],
+      [5, 5],
+      [7, 5],
+      [8, 6],
+    ])(`${cardCode} discards two then changes hand size %i to %i`, (initialHand, finalHand) => {
+      const { session, hand } = start(cardCode, initialHand);
+      expect(confirm(session, hand.slice(0, 2).map((card) => card.instanceId)).success).toBe(true);
+      expect(session.state?.players[0].waitingRoom.cardIds).toHaveLength(2);
+      expect(session.state?.players[0].hand.cardIds).toHaveLength(finalHand);
+      expect(session.state?.activeEffect).toBeNull();
+    });
+  }
+
+  it('both same-text cards with zero or one hand card can only decline without moving cards', () => {
+    for (const cardCode of DRAW_TO_FIVE_CARD_CODES) {
+      for (const handCount of [0, 1]) {
+        const { session } = start(cardCode, handCount);
+        expect(session.state?.activeEffect).toMatchObject({
+          minSelectableCards: 2,
+          maxSelectableCards: 2,
+          canSkipSelection: true,
+          skipSelectionLabel: '不发动',
+        });
+        expect(session.state?.activeEffect?.selectableCardIds).toHaveLength(handCount);
+        expect(confirm(session, session.state!.activeEffect!.selectableCardIds ?? []).success).toBe(
+          false
+        );
+        expect(decline(session).success).toBe(true);
+        expect(session.state?.players[0].hand.cardIds).toHaveLength(handCount);
+        expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+      }
     }
   });
 
-  it('PR-031 continues from draw-to-five into the second real pending window', () => {
-    const { session, hand, deck } = startDoublePending('PL!HS-PR-031-PR', 5);
+  it('N-PR-028 decline does not change hand, waiting room, or deck', () => {
+    const { session, hand, deck } = start('PL!N-PR-028-PR', 5);
+    expect(decline(session).success).toBe(true);
+    expect(session.state?.players[0].hand.cardIds).toEqual(hand.map((card) => card.instanceId));
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(
+      deck.map((card) => card.instanceId)
+    );
+  });
+
+  it('N-PR-028 uses one grouped HAND to WAITING_ROOM event for the two-card payment', () => {
+    const { session, hand } = start('PL!N-PR-028-PR', 5);
+    const discardedCardIds = hand.slice(0, 2).map((card) => card.instanceId);
+    expect(confirm(session, discardedCardIds).success).toBe(true);
+    const waitingEvents = session.state!.eventLog.filter(
+      ({ event }) =>
+        event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+        event.fromZone === ZoneType.HAND &&
+        event.toZone === ZoneType.WAITING_ROOM
+    );
+    expect(waitingEvents).toHaveLength(1);
+    expect(waitingEvents[0].event.cardInstanceIds).toEqual(discardedCardIds);
+  });
+
+  it('N-PR-028 continues from draw-to-five into the second real pending window', () => {
+    const { session, hand, deck } = startDoublePending('PL!N-PR-028-PR', 5);
     expect(session.state?.pendingAbilities).toHaveLength(1);
 
     expect(confirm(session, [hand[0].instanceId, hand[1].instanceId]).success).toBe(true);
@@ -402,20 +450,70 @@ describe('discard-then-draw shared workflow', () => {
     ]);
   });
 
-  it('PR-031 rejects one or three cards and does not partially pay', () => {
-    for (const count of [1, 3]) {
-      const { session, hand } = start('PL!HS-PR-031-PR', 3);
-      expect(confirm(session, hand.slice(0, count).map((card) => card.instanceId)).success).toBe(false);
-      expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
-    }
+  it('N-PR-028 resolves after its queued source leaves the stage', () => {
+    const { session, source, hand } = start('PL!N-PR-028-PR', 5);
+    (session as unknown as { authorityState: GameState }).authorityState = updatePlayer(
+      (session as unknown as { authorityState: GameState }).authorityState,
+      PLAYER1,
+      (player) => ({
+        ...player,
+        memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        waitingRoom: {
+          ...player.waitingRoom,
+          cardIds: [...player.waitingRoom.cardIds, source.instanceId],
+        },
+      })
+    );
+    expect(confirm(session, hand.slice(0, 2).map((card) => card.instanceId)).success).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([source.instanceId, hand[0].instanceId, hand[1].instanceId])
+    );
+    expect(session.state?.players[0].hand.cardIds).toHaveLength(5);
   });
 
-  it('does not register the same-text N-PR-028 card', () => {
+  it('N-PR-028 rejects short, over-limit, duplicate, and stale selections atomically', () => {
+    const invalidSelections = [
+      (hand: readonly { instanceId: string }[]) => [hand[0].instanceId],
+      (hand: readonly { instanceId: string }[]) => hand.slice(0, 3).map((card) => card.instanceId),
+      (hand: readonly { instanceId: string }[]) => [hand[0].instanceId, hand[0].instanceId],
+    ];
+    for (const select of invalidSelections) {
+      const { session, hand } = start('PL!N-PR-028-PR', 3);
+      const originalHandIds = hand.map((card) => card.instanceId);
+      expect(confirm(session, select(hand)).success).toBe(false);
+      expect(session.state?.players[0].hand.cardIds).toEqual(originalHandIds);
+      expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    }
+
+    const stale = start('PL!N-PR-028-PR', 3);
+    const remainingHandIds = stale.hand.slice(1).map((card) => card.instanceId);
+    (stale.session as unknown as { authorityState: GameState }).authorityState = updatePlayer(
+      (stale.session as unknown as { authorityState: GameState }).authorityState,
+      PLAYER1,
+      (player) => ({ ...player, hand: { ...player.hand, cardIds: remainingHandIds } })
+    );
     expect(
-      getCardAbilityDefinitionsForCardCode('PL!N-PR-028-PR').some(
-        (definition) =>
-          definition.abilityId === HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID
-      )
+      confirm(stale.session, [stale.hand[0].instanceId, stale.hand[1].instanceId]).success
     ).toBe(false);
+    expect(stale.session.state?.players[0].hand.cardIds).toEqual(remainingHandIds);
+    expect(stale.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+  });
+
+  it('registers both exact same-text cards under one implemented ability definition', () => {
+    const definitions = DRAW_TO_FIVE_CARD_CODES.map((cardCode) =>
+      getCardAbilityDefinitionsForCardCode(cardCode).filter((definition) => definition.implemented)
+    );
+    for (const cardDefinitions of definitions) {
+      expect(cardDefinitions).toHaveLength(1);
+      expect(cardDefinitions[0]).toMatchObject({
+        abilityId: HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID,
+        baseCardCodes: ['PL!HS-PR-031', 'PL!N-PR-028'],
+        category: 'ON_ENTER',
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        effectText: '【登场】可以将2张手牌放置入休息室：自己抽卡直到手牌变为5张。',
+      });
+    }
+    expect(definitions[0][0].effectText).toBe(definitions[1][0].effectText);
   });
 });

@@ -40,6 +40,11 @@ import {
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
+  N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+  N_PR_027_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_BLUE_HEART_ABILITY_ID,
+  S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID,
+  N_PR_023_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
+  S_PR_040_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
   PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID,
   PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID,
   PL_PR_014_ON_ENTER_BLIND_REVEAL_OPPONENT_HAND_THREE_DRAW_IF_NO_LIVE_ABILITY_ID,
@@ -783,6 +788,16 @@ const S_PR_ON_ENTER_LOOK_TOP_THREE_EFFECT_TEXT =
   '【登场】检视自己卡组顶的3张卡。将其中任意张数的卡牌按任意顺序放置于卡组顶，其余的卡片放置入休息室。';
 const S_PR_030_031_CONTINUOUS_EFFECT_TEXT =
   '【常时】自己或对手的舞台存在费用大于等于13的成员卡的场合，获得[ブレード][ブレード]。';
+const N_PR_020_S_PR_037_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要存在于自己的舞台的成员恰好为2名，获得[青ハート][ブレード]。';
+const N_PR_027_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要存在于自己和对方的舞台的成员恰好为6名，获得[赤ハート][青ハート]。';
+const S_PR_042_CONTINUOUS_EFFECT_TEXT =
+  '【常时】只要存在于自己和对方的舞台的成员恰好为6名，获得[赤ハート][緑ハート]。';
+const N_PR_023_AUTO_ON_CHEER_EFFECT_TEXT =
+  '【自动】【1回合1次】自己进行声援时，因声援被公开的卡片中存在大于等于3张持有相同团体名的成员卡的场合，LIVE结束时为止，获得[桃ハート][緑ハート]。';
+const S_PR_040_AUTO_ON_CHEER_EFFECT_TEXT =
+  '【自动】【1回合1次】因声援被公开的自己的卡片中包含大于等于3张持有团体名相同的卡片的场合，LIVE结束时为止，获得[桃ハート][緑ハート]。';
 const PL_N_BP1_002_ACTIVATED_EFFECT_TEXT =
   '【起动】[E][E]将1张手牌放置入休息室：将此卡从休息室登场至舞台。此能力仅可在此卡存在于休息室的场合起动。';
 const PL_N_PB1_014_RELAY_DRAW_DISCARD_EFFECT_TEXT =
@@ -3323,7 +3338,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID,
-    baseCardCodes: ['PL!HS-PR-031'],
+    baseCardCodes: ['PL!HS-PR-031', 'PL!N-PR-028'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -3331,7 +3346,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_PR_031_ON_ENTER_EFFECT_TEXT,
     notes:
-      '复用 discard-then-draw shared workflow；可选弃置恰好2张当前手牌，随后按弃置后的手牌数抽至5张。仅覆盖 PL!HS-PR-031，不覆盖同文 PL!N-PR-028。',
+      'PL!HS-PR-031 与 PL!N-PR-028 同文共用 discard-then-draw shared workflow；可选弃置恰好2张当前手牌，随后按成功弃置2张后的当前手牌数抽至5张。',
   },
   {
     abilityId: LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
@@ -7319,7 +7334,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!S-PR-030', 'PL!S-PR-031'],
+    baseCardCodes: ['PL!S-PR-029', 'PL!S-PR-030', 'PL!S-PR-031'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -7327,6 +7342,68 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: S_PR_030_031_CONTINUOUS_EFFECT_TEXT,
     notes:
       'continuous modifier registry 动态扫描双方三个主舞台成员槽的有效费用；条件成立时来源自身固定获得 BLADE +2，不进入 pending。',
+  },
+  {
+    abilityId:
+      N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-020', 'PL!S-PR-037'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: N_PR_020_S_PR_037_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous modifier registry；来源仍在己方主舞台且己方主舞台成员恰好2名时，为来源成员写 SOURCE_MEMBER 青 Heart +1 与 BLADE +1。',
+  },
+  {
+    abilityId: N_PR_027_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_BLUE_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-027'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: N_PR_027_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous modifier registry 双方主舞台合计6名窄配置族；保留独立 ability identity，为来源成员写红 Heart +1 与青 Heart +1。',
+  },
+  {
+    abilityId: S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!S-PR-042'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: S_PR_042_CONTINUOUS_EFFECT_TEXT,
+    notes:
+      'continuous modifier registry 双方主舞台合计6名窄配置族；保留独立 ability identity，为来源成员写红 Heart +1 与绿 Heart +1。',
+  },
+  {
+    abilityId:
+      N_PR_023_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-023'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: N_PR_023_AUTO_ON_CHEER_EFFECT_TEXT,
+    notes:
+      '与 PL!S-PR-040 共用 shared ON_CHEER workflow；只读取 pending 关联的自己普通 CheerEvent.revealedCardIds 历史事实，以结构化团体身份统计同一团体桶内不同己方成员。有效来源和事件会在条件失败时仍消费 turn1，additional、对方事件或 stale 来源不记录使用。',
+  },
+  {
+    abilityId:
+      S_PR_040_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!S-PR-040'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_CHEER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: S_PR_040_AUTO_ON_CHEER_EFFECT_TEXT,
+    notes:
+      '与 PL!N-PR-023 共用 shared ON_CHEER workflow，但因 Excel 中文不同保留独立 ability identity/definition；只读取 pending 关联的自己普通 CheerEvent.revealedCardIds 历史事实，以结构化团体身份统计同一团体桶内不同己方成员。有效来源和事件会在条件失败时仍消费 turn1，additional、对方事件或 stale 来源不记录使用。',
   },
   {
     abilityId: PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
