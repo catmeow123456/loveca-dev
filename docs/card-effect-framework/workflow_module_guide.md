@@ -147,6 +147,8 @@ Cheer-card Heart color replacement is a shared no-input LIVE_START family for ef
 
 Success-zone placement prohibitions are not workflow families by themselves. Keep pure "can this LIVE enter SUCCESS_ZONE" rules in `domain/rules/success-live-placement.ts`, and call them from the natural success Live selection, replacement candidates, exchange candidates, and manual move validation. If the same card also has a LIVE_SUCCESS reward, implement that reward as a normal workflow wrapper, as `PL!S-bp2-024` does with draw-then-discard.
 
+Choose-player / bottom-one-waiting-LIVE / draw-one is a narrow shared family proven by `PL!S-bp3-007` and `PL!S-PR-041`. Its stable core is: the effect controller chooses self or opponent, selects exactly one LIVE from that player's waiting room, publishes that choice through the shared deadline confirmation, revalidates owner/zone/type/original-candidate membership after resume, moves the card to that player's main-deck bottom, then draws one for the effect controller only after a successful move. Keep the activated entry's main-phase/current-player/stage-source gates, `[E]` and special-energy payment, turn1 use, activatedUi, action/payload contract, and legacy persisted step IDs separate from the queued ON_ENTER entry's no-cost/no-limit pending consumption, orderedResolution, and unified continuation. Do not add arbitrary zone, destination, reward, or step DSL axes. `PL!N-bp3-010` is excluded because it selects up to two ordered members with no draw; `PL!S-bp2-008` is excluded because it only targets its controller's waiting room, allows zero or one LIVE, and has no draw.
+
 Example shape:
 
 ```ts
@@ -242,15 +244,30 @@ Preferred tests:
 
 Workflow extraction should preserve existing tests. If behavior changes are intended, they must be a separate, explicitly reviewed change.
 
-# LIVE_SUCCESS conditional draw-one family
+# conditional LIVE draw-one family
 
-`workflows/shared/live-success-conditional-draw-one.ts` is the behavior-named family proven by `PL!N-bp4-003` and `PL!S-bp3-005`. It owns the shared STAGE_MEMBER/LIVE_SUCCESS pending lifecycle, source-safe resolution, confirm-only/manual bridge, ordered continuation, real-time condition reread, and one-card draw through `drawCardsForPlayer`.
+`workflows/shared/conditional-live-draw-one.ts` is the behavior-named family proven across `PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, and `PL!-bp4-023`. It owns the shared LIVE_START/LIVE_SUCCESS and STAGE_MEMBER/LIVE_CARD pending lifecycle, source-safe resolution, confirm-only/manual bridge, ordered continuation, real-time condition reread, and one-card draw through `drawCardsForPlayer`.
 
-Its finite discriminated-union configuration has only the ability id, expected base card codes, condition type, exact action/no-op step labels, and condition-specific structured values needed for confirmation text. The proven condition types are `HIGHER_LIVE_SCORE` and `OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT`; it is not a general condition callback or DSL. The 005 query uses event-inclusive current-LIVE cheer facts, while movable cheer targets remain a separate concern.
+Its finite discriminated-union configuration has only the ability id, expected base card codes, source kind, condition type, exact action/no-op step labels, and condition-specific structured values needed for confirmation text. The proven conditions are LIVE score, event-inclusive cheer counts, stage effective-cost totals, and a specified remaining-HEART color with existing rebalance semantics; it is not a general condition callback or DSL.
 # conditional-live-modifier 的成员登场次数配置
 
 - `PL!N-bp3-005` 是该 family 的 player-level SCORE 样本：manual confirm-only 预览与最终 finish 均实时调用成员登场事件 query；modifier key 由 `kind + playerId + sourceCardId + abilityId` 区分，不绑定 `liveCardId`。
 - replacement 后以旧值和新值的 delta 刷新 `liveResolution.playerScores`，保证 resolver 重入不重复累计、不同来源实例可以叠加。
+
+# LIVE_START 自身待机后中央 μ's 获得 BLADE family
+
+`workflows/shared/live-start-wait-self-center-muse-gain-blade.ts` 由第二个真实样本 `PL!-bp4-011` 触发晋升；原 `PL!-bp4-017` 单卡 workflow 与 focused test 已迁入行为命名 shared ownership。稳定参数轴仅为 `abilityId`、`bladeAmount` 与兼容 action step：两张卡都固定由来源自身从 ACTIVE 变 WAITING 作为可选费用，固定查询自己中央结构化 μ's 成员，并写目标成员 BLADE modifier。当前不泛化团体、区域、费用状态或 modifier 类型。
+
+该 family 使用“发动 / 不发动”且不生成固定来源的 `selectableCardIds`；打开窗口与确认发动时都重查来源，支付走成员状态事件 wrapper，支付后才重读中央目标。来源自身位于中央时，变为 WAITING 后仍可成为目标；中央无合法目标时保留费用并正常继续 pending。
+
+# conditional-live-modifier 的中央 μ's 有效 BLADE 分数配置
+
+`PL!-bp4-022` 在 confirm-only 与最终结算时都读取当前中央结构化 μ's 成员，并通过 `collectLiveModifiers` + `getMemberEffectiveBladeCount` 使用印刷 BLADE、临时 modifier 与 replacement 后的有效值。满足 9 个阈值且来源 LIVE 仍合法时，用绑定来源 `liveCardId` 的 SCORE replacement 写 +2；`playerScores` 只按旧/新 modifier 差值刷新，重复结算不累计，条件失效会清理旧状态。玩家动态文案只展示中央身份、有效 BLADE、条件与实际 +2/+0，不展示来源区域门禁。
+
+# ON_ENTER_STAGE AUTO 的换手事实过滤
+
+`OnEnterStageTriggerFilter.enteredViaRelay` 只比较已发生的 `EnterStageEvent` 事实：`relayReplacements` 非空，或 legacy `replacedMemberCardId` 存在时视为换手。ON_ENTER_STAGE AUTO source 同时传递 `enteredFromZone`，并在入队前通用应用 definition `triggerFromZones`。未配置这两个轴的既有 AUTO 保持原行为；workflow 不应回查最近事件或根据槽位替换情况猜测换手。`PL!N-PR-025` 是首个组合 `triggerFromZones: [HAND]` 与 `enteredViaRelay: true` 的生产样本。
+
 # Waiting-room ON_ENTER delegation
 
 `activate-waiting-room-member-on-enter-ability.ts` 是窄 shared family，不是 ability DSL。它只委托显式审计并 opt-in 的已实现、queued、`ON_ENTER`/`PLAYED_MEMBER` definition；目标留在休息室，来源槽位为空，不创建真实登场事件，费用仍由原 workflow 支付。

@@ -327,9 +327,6 @@ export class GameService {
       game.currentPhase === GamePhase.LIVE_SET_PHASE &&
       action.type === GameActionType.SET_LIVE_CARD;
 
-    // Mulligan 阶段双方玩家都可以换牌
-    const isMulliganPhase = game.currentPhase === GamePhase.MULLIGAN_PHASE;
-
     if (
       (action.type === GameActionType.MANUAL_MOVE_CARD ||
         action.type === GameActionType.TAP_ENERGY) &&
@@ -356,7 +353,6 @@ export class GameService {
       action.type !== GameActionType.SELECT_CARDS &&
       action.type !== GameActionType.CONFIRM_OPTIONAL &&
       !isLiveSetPhaseAction &&
-      !isMulliganPhase &&
       !isOwnDeskFreeDragAction
     ) {
       return {

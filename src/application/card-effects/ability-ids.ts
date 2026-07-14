@@ -35,8 +35,12 @@ export const S_PR_042_CONTINUOUS_TOTAL_STAGE_SIX_GAIN_RED_GREEN_HEART_ABILITY_ID
   'PL!S-PR-042:continuous-total-stage-six-gain-red-green-heart';
 export const N_PR_023_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID =
   'PL!N-PR-023:auto-on-cheer-same-group-member-three-gain-pink-green-heart';
+export const N_PR_025_AUTO_TWICE_PER_TURN_OWN_RELAY_MEMBER_ENTER_DRAW_ONE_ABILITY_ID =
+  'PL!N-PR-025:auto-twice-per-turn-own-relay-member-enter-draw-one';
 export const S_PR_040_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID =
   'PL!S-PR-040:auto-on-cheer-same-group-member-three-gain-pink-green-heart';
+export const S_PR_041_ON_ENTER_CHOOSE_PLAYER_BOTTOM_WAITING_LIVE_DRAW_ONE_ABILITY_ID =
+  'PL!S-PR-041:on-enter-choose-player-bottom-waiting-live-draw-one';
 export const PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID =
   'PL!-PR-001-002:on-leave-stage-activate-member';
 export const PL_PR_005_006_008_ON_ENTER_CHOOSE_DRAW_DISCARD_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID =
@@ -342,6 +346,8 @@ export const PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_AB
   'PL!-bp5-014:on-enter-discard-look-top-blue-or-purple-heart-member';
 export const PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID =
   'PL!-bp5-015:on-enter-success-live-score-three-draw';
+export const PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID =
+  'PL!-bp4-016:on-enter-success-live-score-three-draw-one';
 export const PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID =
   'PL!-bp5-024-L:live-start-private-wars-choice';
 export const N_BP5_015_LIVE_START_ALL_SIX_STAGE_HEARTS_GAIN_TWO_BLADE_ABILITY_ID =
@@ -388,8 +394,16 @@ export const BP4_005_LIVE_START_POSITION_CHANGE_IF_NO_HIGH_BLADE_MUSE_ABILITY_ID
   'PL!-bp4-005:live-start-position-change-if-no-high-blade-muse';
 export const BP4_009_ON_ENTER_OPPONENT_WAIT_OWN_ACTIVE_MEMBER_ABILITY_ID =
   'PL!-bp4-009:on-enter-opponent-wait-own-active-member';
+export const PL_BP4_011_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!-bp4-011:live-start-wait-self-center-muse-gain-two-blade';
+export const PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID =
+  'PL!-bp4-001:live-start-lower-stage-cost-draw-one';
 export const BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID =
   'PL!-bp4-017-N:live-start-wait-self-center-muse-gain-blade';
+export const PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID =
+  'PL!-bp4-022:live-start-center-muse-blade-nine-score-two';
+export const PL_BP4_023_LIVE_SUCCESS_PINK_REMAINING_HEART_DRAW_ONE_ABILITY_ID =
+  'PL!-bp4-023:live-success-pink-remaining-heart-draw-one';
 export const PL_PB1_002_ON_ENTER_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID =
   'PL!-pb1-002:on-enter-wait-self-only-bibi-wait-opponent-low-original-blade';
 export const PL_PB1_002_LIVE_START_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINAL_BLADE_ABILITY_ID =
@@ -430,6 +444,8 @@ export const PL_N_BP5_021_ON_ENTER_MILL_TWO_OPTIONAL_INSERT_LIVE_FOURTH_FROM_TOP
   'PL!N-bp5-021-N:on-enter-mill-two-insert-live-fourth-from-top';
 export const MEMBER_ON_ENTER_ACTIVATE_TWO_WAITING_ENERGY_ABILITY_ID =
   'member:on-enter-activate-two-waiting-energy';
+export const PL_BP4_004_ON_ENTER_SUCCESS_SCORE_SIX_ACTIVATE_TWO_ENERGY_ABILITY_ID =
+  'PL!-bp4-004:on-enter-success-live-score-six-activate-two-energy';
 export const HS_PB1_021_LIVE_SUCCESS_DOLLCHESTRA_LIVE_ZONE_DRAW_ABILITY_ID =
   'PL!HS-pb1-021-N:live-success-draw-if-dollchestra-live-zone';
 export const HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID =

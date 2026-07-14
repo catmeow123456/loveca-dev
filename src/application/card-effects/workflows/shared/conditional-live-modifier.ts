@@ -63,6 +63,7 @@ import {
   HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+  PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
   PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID,
   PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -83,6 +84,7 @@ import {
 const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
 const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
 const PL_BP3_023_STAGE_BLADE_REQUIREMENT_STEP_ID = 'PL_BP3_023_STAGE_BLADE_REQUIREMENT';
+const PL_BP4_022_CENTER_MUSE_BLADE_SCORE_STEP_ID = 'PL_BP4_022_CENTER_MUSE_BLADE_SCORE';
 const PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT_STEP_ID =
   'PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT';
 const PL_BP5_022_SUCCESS_ZONE_SCORE_REQUIREMENT_STEP_ID =
@@ -203,6 +205,12 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     stepId: PL_BP3_023_STAGE_BLADE_REQUIREMENT_STEP_ID,
     getStartContext: getPlBp3023StageBladeStartContext,
     finish: finishPlBp3023StageBladeRequirementReduction,
+  },
+  {
+    abilityId: PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
+    stepId: PL_BP4_022_CENTER_MUSE_BLADE_SCORE_STEP_ID,
+    getStartContext: getPlBp4022NoBrandGirlsStartContext,
+    finish: finishPlBp4022NoBrandGirlsScoreBonus,
   },
   {
     abilityId: PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -767,6 +775,88 @@ function finishPlBp3023StageBladeRequirementReduction(
       stageBladeTotal: context.stageBladeTotal,
       conditionMet: context.conditionMet,
       requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function getPlBp4022NoBrandGirlsStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getPlBp4022NoBrandGirlsContext(game, ability, playerId);
+  const centerDescription = context.centerMemberCardId === null
+    ? "当前中央区域没有『μ's』成员"
+    : context.centerMemberIsMuse
+      ? "当前中央区域为『μ's』成员"
+      : "当前中央区域成员不是『μ's』成员";
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID
+    )}（${centerDescription}，有效[ブレード]${context.centerMemberEffectiveBladeCount}，${
+      context.conditionMet ? '满足条件' : '未满足条件'
+    }，实际[スコア]+${context.scoreBonus}。）`,
+    actionPayload: {
+      centerMemberCardId: context.centerMemberCardId,
+      centerMemberIsMuse: context.centerMemberIsMuse,
+      centerMemberEffectiveBladeCount: context.centerMemberEffectiveBladeCount,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.scoreBonus,
+    },
+  };
+}
+
+function finishPlBp4022NoBrandGirlsScoreBonus(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getPlBp4022NoBrandGirlsContext(game, effect, playerId);
+  const previousModifier = game.liveResolution.liveModifiers.find(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.playerId === playerId &&
+      modifier.liveCardId === effect.sourceCardId &&
+      modifier.sourceCardId === effect.sourceCardId &&
+      modifier.abilityId === effect.abilityId
+  );
+  const previousScoreBonus = previousModifier?.kind === 'SCORE' ? previousModifier.countDelta : 0;
+  let state = replaceLiveModifier(
+    { ...game, activeEffect: null },
+    {
+      kind: 'SCORE',
+      playerId,
+      liveCardId: effect.sourceCardId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    },
+    context.scoreBonus > 0
+      ? {
+          kind: 'SCORE',
+          playerId,
+          countDelta: context.scoreBonus,
+          liveCardId: effect.sourceCardId,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+  const scoreDelta = context.scoreBonus - previousScoreBonus;
+  if (scoreDelta !== 0) {
+    state = refreshPlayerScoreDraft(state, playerId, scoreDelta);
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_CENTER_MUSE_BLADE_NINE_SCORE_TWO',
+      sourceInLiveZone: context.sourceInLiveZone,
+      centerMemberCardId: context.centerMemberCardId,
+      centerMemberIsMuse: context.centerMemberIsMuse,
+      centerMemberEffectiveBladeCount: context.centerMemberEffectiveBladeCount,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.scoreBonus,
+      scoreDelta,
     },
   };
 }
@@ -1967,6 +2057,40 @@ function getPlBp3023StageBladeContext(
     stageBladeTotal,
     conditionMet,
     requirementReduction: conditionMet ? 2 : 0,
+  };
+}
+
+function getPlBp4022NoBrandGirlsContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly centerMemberCardId: string | null;
+  readonly centerMemberIsMuse: boolean;
+  readonly centerMemberEffectiveBladeCount: number;
+  readonly conditionMet: boolean;
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, playerId);
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const centerCardId = player?.memberSlots.slots[SlotPosition.CENTER] ?? null;
+  const centerCard = centerCardId ? getCardById(game, centerCardId) : null;
+  const centerMemberCardId = centerCard && isMemberCardData(centerCard.data) ? centerCardId : null;
+  const centerMemberIsMuse = centerCard !== null &&
+    isMemberCardData(centerCard.data) &&
+    groupAliasIs("μ's")(centerCard);
+  const centerMemberEffectiveBladeCount = centerMemberCardId
+    ? getMemberEffectiveBladeCount(game, playerId, centerMemberCardId, collectLiveModifiers(game))
+    : 0;
+  const conditionMet = centerMemberIsMuse && centerMemberEffectiveBladeCount >= 9;
+  return {
+    sourceInLiveZone,
+    centerMemberCardId,
+    centerMemberIsMuse,
+    centerMemberEffectiveBladeCount,
+    conditionMet,
+    scoreBonus: sourceInLiveZone && conditionMet ? 2 : 0,
   };
 }
 

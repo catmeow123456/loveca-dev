@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import {
   createGameState,
   emitGameEvent,
@@ -20,6 +24,7 @@ import {
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+  PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
   SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -51,6 +56,17 @@ function createMember(cardCode: string, name = cardCode, cost = 4): MemberCardDa
 
 function createEnergy(cardCode: string): EnergyCardData {
   return { cardCode, name: cardCode, cardType: CardType.ENERGY };
+}
+
+function createLive(cardCode: string, score: number): LiveCardData {
+  return {
+    cardCode,
+    name: cardCode,
+    groupNames: ["μ's"],
+    cardType: CardType.LIVE,
+    score,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+  };
 }
 
 function runOnEnterDrawOne(
@@ -776,5 +792,136 @@ describe('PL!SP-pb1-009 shared member-on-enter draw condition', () => {
       SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
       MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
     ]);
+  });
+});
+
+function resolvePlBp4016(options: {
+  readonly successLiveScores: readonly number[];
+  readonly nonLivePrintedScore?: number;
+  readonly drawSource?: 'MAIN_DECK' | 'WAITING_ROOM' | 'NONE';
+}): { readonly state: GameState; readonly drawCardId: string } {
+  const source = createCardInstance(
+    createMember('PL!-bp4-016-N', '東條 希', 4),
+    PLAYER1,
+    'bp4-016-source'
+  );
+  const successLives = options.successLiveScores.map((score, index) =>
+    createCardInstance(createLive(`SUCCESS-LIVE-${index}`, score), PLAYER1, `success-live-${index}`)
+  );
+  const nonLive =
+    options.nonLivePrintedScore === undefined
+      ? null
+      : createCardInstance(
+          {
+            ...createMember('NON-LIVE-IN-SUCCESS', 'Non LIVE'),
+            score: options.nonLivePrintedScore,
+          } as MemberCardData & { readonly score: number },
+          PLAYER1,
+          'non-live-success'
+        );
+  const drawCard = createCardInstance(createMember('DRAW-CARD'), PLAYER1, 'bp4-016-draw');
+  const drawSource = options.drawSource ?? 'MAIN_DECK';
+  let game = createGameState('pl-bp4-016-draw', PLAYER1, 'P1', PLAYER2, 'P2');
+  game = registerCards(
+    game,
+    [source, ...successLives, ...(nonLive ? [nonLive] : []), drawCard]
+  );
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    mainDeck: {
+      ...player.mainDeck,
+      cardIds: drawSource === 'MAIN_DECK' ? [drawCard.instanceId] : [],
+    },
+    waitingRoom: {
+      ...player.waitingRoom,
+      cardIds: drawSource === 'WAITING_ROOM' ? [drawCard.instanceId] : [],
+    },
+    successZone: {
+      ...player.successZone,
+      cardIds: [...successLives.map((card) => card.instanceId), ...(nonLive ? [nonLive.instanceId] : [])],
+    },
+    memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+  }));
+
+  const state = resolvePendingCardEffects({
+    ...game,
+    pendingAbilities: [
+      pendingAbility(
+        'bp4-016-pending',
+        source.instanceId,
+        SlotPosition.CENTER,
+        PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID
+      ),
+    ],
+  }).gameState;
+  return { state, drawCardId: drawCard.instanceId };
+}
+
+describe('PL!-bp4-016-N shared success-score on-enter draw', () => {
+  it('consumes pending without drawing at success LIVE printed score 2', () => {
+    const { state, drawCardId } = resolvePlBp4016({ successLiveScores: [2] });
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.players[0].hand.cardIds).not.toContain(drawCardId);
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
+      step: 'SUCCESS_LIVE_SCORE_CONDITION_NOT_MET',
+      successLiveScore: 2,
+      requiredSuccessLiveScore: 3,
+    });
+  });
+
+  it('draws one at success LIVE printed score 3', () => {
+    const { state, drawCardId } = resolvePlBp4016({ successLiveScores: [1, 2] });
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.players[0].hand.cardIds).toEqual([drawCardId]);
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
+      step: 'ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ONE',
+      successLiveScore: 3,
+      drawnCardIds: [drawCardId],
+      drawCount: 1,
+    });
+  });
+
+  it('does not count a non-LIVE card mixed into the success zone', () => {
+    const { state, drawCardId } = resolvePlBp4016({
+      successLiveScores: [2],
+      nonLivePrintedScore: 99,
+    });
+    expect(state.players[0].hand.cardIds).not.toContain(drawCardId);
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'SUCCESS_LIVE_SCORE_CONDITION_NOT_MET',
+      successLiveScore: 2,
+    });
+  });
+
+  it('refreshes an empty main deck from the waiting room before drawing', () => {
+    const { state, drawCardId } = resolvePlBp4016({
+      successLiveScores: [3],
+      drawSource: 'WAITING_ROOM',
+    });
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.players[0].hand.cardIds).toEqual([drawCardId]);
+    expect(state.players[0].waitingRoom.cardIds).not.toContain(drawCardId);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1
+      )
+    ).toBe(true);
+  });
+
+  it('records only the actual zero-card draw and continues pending when no card can be drawn', () => {
+    const { state } = resolvePlBp4016({ successLiveScores: [3], drawSource: 'NONE' });
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.activeEffect).toBeNull();
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
+      step: 'ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ONE',
+      drawnCardIds: [],
+      drawCount: 0,
+    });
   });
 });

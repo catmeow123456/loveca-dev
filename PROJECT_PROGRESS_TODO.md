@@ -12,6 +12,46 @@
 - `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md` 与 `docs/online-mode/preparation.md` 已同步当前产品行为；对局结束后最终只读桌面保留 1 分钟仍未实现，持久化观战审计不在当前范围。
 - 验证：focused suite `tests/integration/online-room-service.test.ts`、`tests/integration/online-route-error-handling.test.ts`、`tests/unit/game-store-remote-sync.test.ts`、`tests/unit/battle-surface-capabilities.test.ts`、`tests/unit/api-client-redaction.test.ts` passed（5 files / 68 tests）；rebase 最新 `origin/main` 后 `pnpm test:run` passed（462 files / 3955 tests，3 performance tests skipped）；shared / server / client TypeScript 与 `git diff --check` passed。
 
+## 本次 2026-07-14 换牌规则顺序与实例完整性修复
+
+- 按细则 6.2.1.6 将换牌顺序修正为“暂放手牌→从原主卡组顶抽取同数量→暂放牌放回主卡组→洗牌”，避免玩家立即抽回刚换掉的同一卡牌实例；不修改 Fisher–Yates 洗牌实现。
+- 补上重复换牌实例 ID 的原子拒绝，并移除换牌阶段的双方时机豁免，让底层 `GameService` 与联机命令层一致按先攻/后攻子阶段校验。
+- 新增 `tests/unit/mulligan.test.ts`，覆盖换1/3/6张、0张、重复/非手牌 ID、越序与双方阶段推进；换牌、子阶段、整体流程、单人模式与联机命令共 129 tests 通过，`tsc --noEmit` 通过。
+
+## 本次 2026-07-14 第三批 PL!-bp4 条件抽1
+
+- 实现 `PL!-bp4-001-P / R` 费用 9「高坂穂乃果」与 `PL!-bp4-023-L` 分数 3「もぎゅっと\"love\"で接近中！」；两项玩家中文分别逐字采用 Excel `sheet1!B1494:B1495` 与 `sheet1!B1529`。
+- 将既有 shared family 晋升并重命名为 `conditional-live-draw-one.ts`，以显式联合类型承载 LIVE_START/LIVE_SUCCESS、STAGE_MEMBER/LIVE_CARD、有效舞台费用比较与指定颜色剩余 HEART 条件；保留费用 4「桜坂しずく」与费用 7「渡辺 曜」既有 action/payload、实时条件与 pending 行为。
+- 001 复用有效费用 query，严格比较双方三个主舞台槽并排除 memberBelow；023 复用 remaining-hearts 的粉色指定颜色 rebalance，预览不改状态，正式结算且来源有效时才应用合法还原。两者统一复用 `drawCardsForPlayer`，单 pending confirm-only、ordered batch 自动处理与多 pending 手动点选均由 shared family 承载。
+- 验证：指定 shared/既有回归/remaining-hearts/classification/rarity/token/text 共 8 个文件 183 tests 通过；服务端 `tsc --noEmit`、客户端 `tsc -b client`、批次 inventory、玩家文案审计、旧路径 `rg` 与 staged/unstaged diff check 均通过。runner 本批仅替换 shared import/register 两行，行数保持 3748；未 stage、未 commit、未 push。
+
+## 本次 2026-07-14 第二批 PL!-bp4 自待机 BLADE / 中央 BLADE 分数
+
+- 实现 `PL!-bp4-011-N` 费用 4「絢瀬絵里」：将 `PL!-bp4-017-N` 费用 2「小泉花陽」旧单卡 workflow 晋升为 shared `live-start-wait-self-center-muse-gain-blade.ts`；稳定轴仅 abilityId、bladeAmount 与兼容 action step，两张卡分别获得两个/一个 BLADE。
+- 两张成员卡都使用“发动 / 不发动”且不生成固定来源的单卡选择；打开与确认时重查 ACTIVE 舞台来源，支付走标准成员状态事件 wrapper，支付后重读中央结构化 μ's 目标。来源自身在中央并变 WAITING 后仍可获益；中央无合法目标时费用保留并继续 pending。
+- 实现 `PL!-bp4-022-L / SECL` 分数 7「No brand girls」：扩展 `conditional-live-modifier.ts`，以中央 μ's 成员实时有效 BLADE >=9 为条件写来源 LIVE SCORE +2。有效值包含印刷、临时 modifier 与 replacement；SCORE 使用 replacement 与差值刷新 `playerScores`，重入不重复、条件失效清理旧状态。
+- confirm-only 动态文案显示中央是否为 μ's、有效 BLADE、满足/未满足与实际 `[スコア]+2/+0`；规则日文采用 `cards.json`，玩家中文分别核对 Excel `sheet1!B1517 / B1528 / B1839`。
+- 验证：指定 7 个 vitest 文件共 382 tests 通过；服务端 `tsc --noEmit`、客户端 `tsc -b client`、批次 inventory、玩家文案审计与 staged/unstaged diff check 均通过。runner 本批只替换旧 workflow import/register 名称，0 行净增，总行数 3748；本窗口未 stage、未 commit、未 push。
+
+## 本次 2026-07-14 第一批 PL!-bp4 成功 LIVE 分数条件登场效果
+
+- 完成 `PL!-bp4-004-P / PL!-bp4-004-R` 费用 2「園田海未」与 `PL!-bp4-016-N` 费用 4「東條 希」：均按基础编号登记独立 ON_ENTER / PLAYED_MEMBER / ON_ENTER_STAGE / queued definition，effectText 逐字采用最新 Excel `loveca_20260626015115.xlsx` 的多行中文效果。
+- `PL!-bp4-016` 仅扩展 `member-on-enter-draw.ts` 的既有 `minSuccessLiveScore=3` 配置；`PL!-bp4-004` 将 `on-enter-activate-waiting-energy.ts` 整理为窄配置数组并新增 `minSuccessLiveScore=6 / activationCount=2`，继续复用成功 LIVE 分数 query、抽牌 runtime 与通用特殊能量精确选择。
+- 验证：指定 7 个 vitest 文件共 170 tests 通过；`tsc --noEmit` 通过；runner 本批 0 行、0 diff。
+- 本窗口改动保持未 stage、未 commit、未 push；进入窗口前的既有 dirty WIP 与 `llocg_db` 均未清理、回退或纳入。
+
+## 本次 2026-07-14 第五批 -PR- 选择玩家休息室 LIVE 置底抽1
+
+- 实现 `PL!S-PR-041-PR` 费用 15「黒澤ルビィ」：新增独立 ON_ENTER / PLAYED_MEMBER / ON_ENTER_STAGE / queued definition，effectText 逐字采用 Excel `sheet1!A1818:X1818` 中文，无费用、无每回合次数限制。
+- 将 `PL!S-bp3-007` 旧单卡 workflow 晋升为行为命名 `choose-player-bottom-waiting-live-draw-one.ts`，只共享“选择玩家→强制选择1张 LIVE→公开截止时间确认→恢复重验→放置于所选玩家卡组底→效果控制者抽1”的稳定核心。007 保留主要阶段、主动玩家、来源舞台、`[E]`/特殊能量、turn1、activatedUi、action/payload 与 persisted step ID；041 从生产 ON_ENTER pending 进入，保留 orderedResolution 与统一 continuation。
+- 公开确认继续复用既有服务端 deadline runtime；首次提交不移动、不抽牌、不推进 pending，双方看到同一选择与截止时间。恢复时重验 owner、休息室、LIVE 与原候选，stale 时只消费041 pending 并继续。`PL!N-bp3-010` 与 `PL!S-bp2-008` 因数量、目标范围和奖励不同，不并入本 shared family。
+
+## 本次 2026-07-14 第四批 -PR- 换手登场抽1
+
+- 实现 `PL!N-PR-025-PR` 费用 15「優木せつ菜」：独立 AUTO / STAGE_MEMBER / ON_ENTER_STAGE / queued / turn2 definition 精确采用 Excel `sheet1` 第 1940 行中文。
+- 通用 `OnEnterStageTriggerFilter` 增加 `enteredViaRelay` 轴；ON_ENTER_STAGE AUTO source 传递 `enteredFromZone` 与从 `relayReplacements` / legacy `replacedMemberCardId` 得出的换手事实，并通用应用 definition `triggerFromZones`。本卡只匹配从 HAND 走真实规则换手的己方成员，不把卡效替换或普通空槽登场当成换手。
+- 新增窄单卡 `n-pr-025-setsuna.ts`：pending 默认预占每回合两次上限，每来源实例独立记录；结算抽1后回到统一 continuation。单 pending 和 ordered batch 自动结算，仅手动点选多 pending 时显示精确 confirm-only 文案。
+
 ## 本次 2026-07-13 第三批 -PR- 弃2后抽至5
 
 - 实现 `PL!N-PR-028-PR` 费用 11「宮下 愛」：与 `PL!HS-PR-031-PR` 费用 11「日野下花帆」在 `cards.json` 及 Excel 的中日文完全一致，因此不新增 abilityId，扩展既有 `HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID` 的基础编号覆盖。
@@ -64,9 +104,9 @@
 ## 本次 2026-07-12 Aqours bp3-005 / N-bp4-003 shared LIVE成功抽牌
 
 - 实现 `PL!S-bp3-005-P / R` 费用7「渡辺 曜」：新增 `S_BP3_005_LIVE_SUCCESS_FEWER_REVEALED_CHEER_CARDS_DRAW_ONE_ABILITY_ID`，P/R 由一个 definition 覆盖，effectText 逐字采用本地 Excel 中文卡文。
-- 将既有 `PL!N-bp4-003` 费用4「桜坂しずく」从卡牌维度 workflow 晋升为 `workflows/shared/live-success-conditional-draw-one.ts`；仅配置 abilityId、预期基础编号、`HIGHER_LIVE_SCORE` / `OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT`、精确 action/no-op step，保留003旧 action payload/确认语义。
+- 将既有 `PL!N-bp4-003` 费用4「桜坂しずく」从卡牌维度 workflow 晋升为当前 `workflows/shared/conditional-live-draw-one.ts`；仅配置 abilityId、预期基础编号、`HIGHER_LIVE_SCORE` / `OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT`、精确 action/no-op step，保留003旧 action payload/确认语义。
 - 005 使用 event-inclusive `selectCurrentLiveRevealedCheerCardIds` 统计本次 LIVE 所有声援公开事实，包含普通/追加声援与已移出 resolutionZone 的卡；确认时重算 own/opponent，条件严格 ownCount < opponentCount，抽牌复用 `drawCardsForPlayer`，动态确认文案显示双方数量、条件状态和实际抽牌张数。
-- 新增 `tests/integration/live-success-conditional-draw-one.test.ts`，并加强 `tests/integration/n-bp4-001-003-028-effects.test.ts` 的003旧 payload 回归；focused、token/text governance、classification、server/client tsc、玩家可见文案审计与 diff check 结果见本窗口收尾。
+- 新增当前 `tests/integration/conditional-live-draw-one.test.ts`，并加强 `tests/integration/n-bp4-001-003-028-effects.test.ts` 的003旧 payload 回归；focused、token/text governance、classification、server/client tsc、玩家可见文案审计与 diff check 结果见本窗口收尾。
 
 ## 本次 2026-07-12 Aqours bp3-007 / 008 卡效
 

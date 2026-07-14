@@ -10,61 +10,77 @@ import {
   FaceState,
   OrientationState,
   SlotPosition,
-  TriggerCondition,
 } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import {
+  BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+  PL_BP4_011_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_TWO_BLADE_ABILITY_ID,
+} from '../../ability-ids.js';
+import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
-import { BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
+import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
-const WAIT_SELF_COST_STEP_ID = 'BP4_017_WAIT_SELF_COST_FOR_CENTER_MUSE_BLADE';
+const WAIT_SELF_COST_STEP_ID = 'LIVE_START_WAIT_SELF_COST_FOR_CENTER_MUSE_BLADE';
 const ACTIVATE_WAIT_SELF_COST_OPTION_ID = 'activate';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
 
-const museMemberSelector = (cardId: string, game: GameState): boolean => {
-  const card = getCardById(game, cardId);
-  return card !== null && typeIsMemberMuse(card);
-};
+interface LiveStartWaitSelfCenterMuseGainBladeConfig {
+  readonly abilityId: string;
+  readonly bladeAmount: number;
+  readonly resolvedActionStep: string;
+}
 
-export function registerPlBp4017HanayoWorkflowHandlers(deps: {
+const WORKFLOW_CONFIGS: readonly LiveStartWaitSelfCenterMuseGainBladeConfig[] = [
+  {
+    abilityId: PL_BP4_011_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_TWO_BLADE_ABILITY_ID,
+    bladeAmount: 2,
+    resolvedActionStep: 'WAIT_SELF_CENTER_MUSE_GAIN_TWO_BLADE',
+  },
+  {
+    abilityId: BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+    bladeAmount: 1,
+    resolvedActionStep: 'WAIT_SELF_CENTER_MUSE_GAIN_BLADE',
+  },
+];
+
+export function registerLiveStartWaitSelfCenterMuseGainBladeWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
 }): void {
-  registerPendingAbilityStarterHandler(
-    BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
-    (game, ability, options, context) =>
-      startBp4017HanayoLiveStart(
+  for (const config of WORKFLOW_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      startLiveStartWaitSelfCenterMuseGainBlade(
         game,
         ability,
+        config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
-  );
-  registerActiveEffectStepHandler(
-    BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
-    WAIT_SELF_COST_STEP_ID,
-    (game, input, context) =>
-      finishBp4017HanayoWaitSelfCost(
+    );
+    registerActiveEffectStepHandler(config.abilityId, WAIT_SELF_COST_STEP_ID, (game, input, context) =>
+      finishLiveStartWaitSelfCenterMuseGainBlade(
         game,
         input.selectedOptionId ?? null,
+        config,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
-  );
+    );
+  }
 }
 
-function startBp4017HanayoLiveStart(
+function startLiveStartWaitSelfCenterMuseGainBlade(
   game: GameState,
   ability: PendingAbilityState,
+  config: LiveStartWaitSelfCenterMuseGainBladeConfig,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -73,11 +89,9 @@ function startBp4017HanayoLiveStart(
     return game;
   }
 
-  const sourceSlot = getSourceMemberSlot(game, player.id, ability.sourceCardId);
-  const sourceState = sourceSlot
-    ? player.memberSlots.cardStates.get(ability.sourceCardId)
-    : undefined;
-  if (!sourceSlot || sourceState?.orientation !== OrientationState.ACTIVE) {
+  const sourceSlot = getActiveStageMemberSlot(game, player.id, ability.sourceCardId);
+  if (!sourceSlot) {
+    const sourceState = player.memberSlots.cardStates.get(ability.sourceCardId);
     return finishPendingNoOp(
       game,
       ability,
@@ -86,12 +100,13 @@ function startBp4017HanayoLiveStart(
       continuePendingCardEffects,
       {
         step: 'NO_OP_SOURCE_NOT_ACTIVE_STAGE_MEMBER',
-        sourceSlot,
+        sourceSlot: getSourceMemberSlot(game, player.id, ability.sourceCardId),
         sourceOrientation: sourceState?.orientation ?? null,
       }
     );
   }
 
+  const bladeTokens = '[ブレード]'.repeat(config.bladeAmount);
   return addAction(
     {
       ...game,
@@ -103,8 +118,7 @@ function startBp4017HanayoLiveStart(
         controllerId: player.id,
         effectText: getAbilityEffectText(ability.abilityId),
         stepId: WAIT_SELF_COST_STEP_ID,
-        stepText:
-          "可以将此成员变为待机状态。如此做的场合，自己的中央区域的『μ's』成员获得[BLADE]。",
+        stepText: `可以将此成员变为待机状态。如此做的场合，自己的中央区域的『μ's』成员获得${bladeTokens}。`,
         awaitingPlayerId: player.id,
         selectableOptions: [{ id: ACTIVATE_WAIT_SELF_COST_OPTION_ID, label: '发动' }],
         canSkipSelection: true,
@@ -124,18 +138,20 @@ function startBp4017HanayoLiveStart(
       sourceCardId: ability.sourceCardId,
       step: 'START_WAIT_SELF_COST_FOR_CENTER_MUSE_BLADE',
       sourceSlot,
+      bladeBonus: config.bladeAmount,
     }
   );
 }
 
-function finishBp4017HanayoWaitSelfCost(
+function finishLiveStartWaitSelfCenterMuseGainBlade(
   game: GameState,
   selectedOptionId: string | null,
+  config: LiveStartWaitSelfCenterMuseGainBladeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || effect.stepId !== WAIT_SELF_COST_STEP_ID) {
+  if (!effect || effect.stepId !== WAIT_SELF_COST_STEP_ID || effect.abilityId !== config.abilityId) {
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
@@ -163,17 +179,15 @@ function finishBp4017HanayoWaitSelfCost(
     return game;
   }
 
-  const sourceSlot = getSourceMemberSlot(game, player.id, effect.sourceCardId);
-  const sourceState = sourceSlot
-    ? player.memberSlots.cardStates.get(effect.sourceCardId)
-    : undefined;
-  if (!sourceSlot || sourceState?.orientation !== OrientationState.ACTIVE) {
+  const sourceSlot = getActiveStageMemberSlot(game, player.id, effect.sourceCardId);
+  if (!sourceSlot) {
+    const sourceState = player.memberSlots.cardStates.get(effect.sourceCardId);
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
         abilityId: effect.abilityId,
         sourceCardId: effect.sourceCardId,
-        sourceSlot,
+        sourceSlot: getSourceMemberSlot(game, player.id, effect.sourceCardId),
         step: 'NO_OP_SOURCE_NOT_ACTIVE_STAGE_MEMBER_AFTER_SELECTION',
         sourceOrientation: sourceState?.orientation ?? null,
       }),
@@ -228,6 +242,7 @@ function finishBp4017HanayoWaitSelfCost(
         sourceSlot,
         step: 'NO_OP_NO_CENTER_MUSE_MEMBER_AFTER_COST',
         targetMemberCardId: null,
+        bladeBonus: 0,
       }),
       orderedResolution
     );
@@ -237,10 +252,21 @@ function finishBp4017HanayoWaitSelfCost(
     playerId: player.id,
     sourceCardId: targetMemberCardId,
     abilityId: effect.abilityId,
-    amount: 1,
+    amount: config.bladeAmount,
   });
   if (!bladeResult) {
-    return game;
+    return continuePendingCardEffects(
+      addAction({ ...stateAfterCost, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        sourceSlot,
+        step: 'NO_OP_CENTER_MUSE_MEMBER_INVALID_AFTER_COST',
+        targetMemberCardId,
+        bladeBonus: 0,
+      }),
+      orderedResolution
+    );
   }
 
   return continuePendingCardEffects(
@@ -249,7 +275,7 @@ function finishBp4017HanayoWaitSelfCost(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       sourceSlot,
-      step: 'WAIT_SELF_CENTER_MUSE_GAIN_BLADE',
+      step: config.resolvedActionStep,
       targetMemberCardId,
       bladeBonus: bladeResult.bladeBonus,
     }),
@@ -284,17 +310,37 @@ function finishPendingNoOp(
   );
 }
 
+function getActiveStageMemberSlot(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): SlotPosition | null {
+  const player = getPlayerById(game, playerId);
+  const sourceSlot = getSourceMemberSlot(game, playerId, sourceCardId);
+  const sourceCard = getCardById(game, sourceCardId);
+  const sourceState = sourceSlot ? player?.memberSlots.cardStates.get(sourceCardId) : undefined;
+  if (
+    !sourceSlot ||
+    !sourceCard ||
+    sourceCard.ownerId !== playerId ||
+    !isMemberCardData(sourceCard.data) ||
+    sourceState?.orientation !== OrientationState.ACTIVE
+  ) {
+    return null;
+  }
+  return sourceSlot;
+}
+
 function getCenterMuseMemberCardId(game: GameState, playerId: string): string | null {
   const player = getPlayerById(game, playerId);
   const centerCardId = player?.memberSlots.slots[SlotPosition.CENTER] ?? null;
-  if (!centerCardId || !museMemberSelector(centerCardId, game)) {
+  if (!centerCardId) {
     return null;
   }
-
+  const card = getCardById(game, centerCardId);
+  if (!card || !isMemberCardData(card.data) || !groupAliasIs("μ's")(card)) {
+    return null;
+  }
   const centerState = player?.memberSlots.cardStates.get(centerCardId);
   return centerState?.face === FaceState.FACE_UP ? centerCardId : null;
-}
-
-function typeIsMemberMuse(card: NonNullable<ReturnType<typeof getCardById>>): boolean {
-  return isMemberCardData(card.data) && groupAliasIs("μ's")(card);
 }

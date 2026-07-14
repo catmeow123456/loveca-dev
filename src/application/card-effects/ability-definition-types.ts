@@ -31,6 +31,7 @@ export interface OnEnterStageTriggerFilter {
   readonly enteredController?: 'SELF' | 'OPPONENT' | 'ANY';
   readonly excludeEnteredCardAsSource?: boolean;
   readonly enteredCardType?: CardType;
+  readonly enteredViaRelay?: boolean;
   readonly enteredGroupAliases?: readonly string[];
   readonly enteredUnitAliases?: readonly string[];
   readonly enteredOrdinalThisTurn?: number;

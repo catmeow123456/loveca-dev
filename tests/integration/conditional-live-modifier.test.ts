@@ -39,6 +39,7 @@ import {
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+  PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
   PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -476,6 +477,86 @@ function setupRelayEnteredLiveStartState(options: {
       ...state.liveResolution,
       performingPlayerId: PLAYER1,
     },
+  };
+}
+
+function setupNoBrandGirlsState(options: {
+  readonly sourceCount?: number;
+  readonly centerKind?: 'muse' | 'non-muse' | 'empty';
+  readonly centerBlade?: number;
+  readonly bladeModifier?: number;
+  readonly playerScore?: number;
+} = {}): {
+  readonly game: GameState;
+  readonly lives: readonly ReturnType<typeof createCardInstance>[];
+  readonly center: ReturnType<typeof createCardInstance>;
+} {
+  const sourceCount = options.sourceCount ?? 1;
+  const lives = Array.from({ length: sourceCount }, (_, index) =>
+    createCardInstance(
+      createLive('PL!-bp4-022-L', 'No brand girls', 7),
+      PLAYER1,
+      `no-brand-girls-${index}`
+    )
+  );
+  const center = createCardInstance(
+    createMember({
+      cardCode: options.centerKind === 'non-muse' ? 'PL!S-test-center' : 'PL!-test-center',
+      name: options.centerKind === 'non-muse' ? '高海千歌' : '絢瀬絵里',
+      cost: 4,
+      blade: options.centerBlade ?? 9,
+      groupNames: options.centerKind === 'non-muse' ? ['Aqours'] : ["μ's"],
+    }),
+    PLAYER1,
+    'no-brand-girls-center'
+  );
+  let game = setupLiveStartState({
+    live: lives[0]!,
+    additionalLives: lives.slice(1),
+    stageMembers:
+      options.centerKind === 'empty'
+        ? []
+        : [{ card: center, slot: SlotPosition.CENTER }],
+  });
+  game = {
+    ...game,
+    liveResolution: {
+      ...game.liveResolution,
+      playerScores: new Map([
+        [PLAYER1, options.playerScore ?? sourceCount * 7],
+      ]),
+    },
+  };
+  if (options.bladeModifier) {
+    game = addLiveModifier(game, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: options.bladeModifier,
+      sourceCardId: center.instanceId,
+      abilityId: 'test:no-brand-girls-center-blade',
+    });
+  }
+  return { game, lives, center };
+}
+
+function noBrandGirlsScoreModifiers(game: GameState) {
+  return game.liveResolution.liveModifiers.filter(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.abilityId ===
+        PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID
+  );
+}
+
+function createNoBrandGirlsPending(sourceCardId: string, index = 0): PendingAbilityState {
+  return {
+    id: `no-brand-girls-pending-${index}`,
+    abilityId: PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
+    sourceCardId,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: TriggerCondition.ON_LIVE_START,
+    eventIds: ['no-brand-girls-live-start'],
   };
 }
 
@@ -1313,6 +1394,226 @@ describe('conditional live modifier workflow', () => {
       })
     );
   });
+
+  it.each([
+    { blade: 8, conditionText: '未满足条件', scoreBonus: 0, expectedScore: 7 },
+    { blade: 9, conditionText: '满足条件', scoreBonus: 2, expectedScore: 9 },
+  ])(
+    'confirms PL!-bp4-022 at effective BLADE $blade and applies SCORE +$scoreBonus',
+    ({ blade, conditionText, scoreBonus, expectedScore }) => {
+      const scenario = setupNoBrandGirlsState({ centerBlade: blade });
+      const preview = runLiveStart(scenario.game);
+
+      expect(preview.activeEffect).toMatchObject({
+        abilityId: PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
+        sourceCardId: scenario.lives[0]!.instanceId,
+        metadata: { confirmOnlyPendingAbility: true },
+      });
+      expect(preview.pendingAbilities).toHaveLength(1);
+      expect(preview.activeEffect?.effectText).toContain("当前中央区域为『μ's』成员");
+      expect(preview.activeEffect?.effectText).toContain(`有效[ブレード]${blade}`);
+      expect(preview.activeEffect?.effectText).toContain(conditionText);
+      expect(preview.activeEffect?.effectText).toContain(`实际[スコア]+${scoreBonus}`);
+      expect(preview.activeEffect?.stepText).toBe(preview.activeEffect?.effectText);
+      expect(preview.activeEffect?.effectText).not.toMatch(
+        /source|pending|stale|payload|trigger|来源|LIVE区/
+      );
+      expect(noBrandGirlsScoreModifiers(preview)).toHaveLength(0);
+      expect(preview.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+
+      const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(expectedScore);
+      expect(noBrandGirlsScoreModifiers(resolved)).toHaveLength(scoreBonus > 0 ? 1 : 0);
+      if (scoreBonus > 0) {
+        expect(noBrandGirlsScoreModifiers(resolved)[0]).toMatchObject({
+          kind: 'SCORE',
+          playerId: PLAYER1,
+          countDelta: 2,
+          liveCardId: scenario.lives[0]!.instanceId,
+          sourceCardId: scenario.lives[0]!.instanceId,
+        });
+      }
+    }
+  );
+
+  it('counts printed BLADE plus a temporary member modifier when PL!-bp4-022 reaches nine', () => {
+    const scenario = setupNoBrandGirlsState({ centerBlade: 8, bladeModifier: 1 });
+    const preview = runLiveStart(scenario.game);
+    expect(preview.activeEffect?.effectText).toContain('有效[ブレード]9');
+    expect(preview.activeEffect?.effectText).toContain('满足条件，实际[スコア]+2');
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(9);
+    expect(noBrandGirlsScoreModifiers(resolved)).toHaveLength(1);
+  });
+
+  it('uses the current original-BLADE replacement when PL!-bp4-022 evaluates its center member', () => {
+    const scenario = setupNoBrandGirlsState({ centerBlade: 3 });
+    const replaced = addLiveModifier(scenario.game, {
+      kind: 'MEMBER_ORIGINAL_BLADE_REPLACEMENT',
+      playerId: PLAYER1,
+      memberCardId: scenario.center.instanceId,
+      count: 9,
+      sourceCardId: scenario.center.instanceId,
+      abilityId: 'test:no-brand-girls-original-blade-replacement',
+    });
+    const preview = runLiveStart(replaced);
+    expect(preview.activeEffect?.effectText).toContain('有效[ブレード]9');
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(noBrandGirlsScoreModifiers(resolved)).toHaveLength(1);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(9);
+  });
+
+  it.each([
+    { centerKind: 'non-muse' as const, expectedText: "当前中央区域成员不是『μ's』成员", blade: 12 },
+    { centerKind: 'empty' as const, expectedText: "当前中央区域没有『μ's』成员", blade: 0 },
+  ])(
+    'does not apply PL!-bp4-022 when center is $centerKind',
+    ({ centerKind, expectedText, blade }) => {
+      const scenario = setupNoBrandGirlsState({ centerKind, centerBlade: 12 });
+      const preview = runLiveStart(scenario.game);
+      expect(preview.activeEffect?.effectText).toContain(expectedText);
+      expect(preview.activeEffect?.effectText).toContain(`有效[ブレード]${blade}`);
+      expect(preview.activeEffect?.effectText).toContain('未满足条件，实际[スコア]+0');
+      const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+      expect(noBrandGirlsScoreModifiers(resolved)).toHaveLength(0);
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    }
+  );
+
+  it('recomputes PL!-bp4-022 at confirmation after effective BLADE changes', () => {
+    const scenario = setupNoBrandGirlsState({ centerBlade: 8 });
+    const preview = runLiveStart(scenario.game);
+    expect(preview.activeEffect?.effectText).toContain('有效[ブレード]8');
+    const changed = addLiveModifier(preview, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: scenario.center.instanceId,
+      abilityId: 'test:no-brand-girls-late-blade',
+    });
+    const resolved = confirmActiveEffectStep(changed, PLAYER1, changed.activeEffect!.id);
+    expect(noBrandGirlsScoreModifiers(resolved)).toHaveLength(1);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(9);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID &&
+          action.payload.centerMemberEffectiveBladeCount === 9 &&
+          action.payload.scoreBonus === 2
+      )
+    ).toBe(true);
+  });
+
+  it('does not apply PL!-bp4-022 after its source leaves the controller LIVE zone', () => {
+    const scenario = setupNoBrandGirlsState({ centerBlade: 9 });
+    const preview = runLiveStart(scenario.game);
+    const sourceRemoved = updatePlayer(preview, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, scenario.lives[0]!.instanceId),
+    }));
+    const resolved = confirmActiveEffectStep(
+      sourceRemoved,
+      PLAYER1,
+      sourceRemoved.activeEffect!.id
+    );
+    expect(noBrandGirlsScoreModifiers(resolved)).toHaveLength(0);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID &&
+          action.payload.sourceInLiveZone === false &&
+          action.payload.conditionMet === true &&
+          action.payload.scoreBonus === 0
+      )
+    ).toBe(true);
+  });
+
+  it('replaces the PL!-bp4-022 SCORE modifier once and refreshes playerScores only by delta', () => {
+    const scenario = setupNoBrandGirlsState({ centerBlade: 9 });
+    const firstPreview = runLiveStart(scenario.game);
+    const first = confirmActiveEffectStep(firstPreview, PLAYER1, firstPreview.activeEffect!.id);
+    expect(first.liveResolution.playerScores.get(PLAYER1)).toBe(9);
+    expect(noBrandGirlsScoreModifiers(first)).toHaveLength(1);
+
+    const replayPreview = resolvePendingCardEffects({
+      ...first,
+      pendingAbilities: [createNoBrandGirlsPending(scenario.lives[0]!.instanceId, 1)],
+    }).gameState;
+    const replayed = confirmActiveEffectStep(
+      replayPreview,
+      PLAYER1,
+      replayPreview.activeEffect!.id
+    );
+    expect(replayed.liveResolution.playerScores.get(PLAYER1)).toBe(9);
+    expect(noBrandGirlsScoreModifiers(replayed)).toHaveLength(1);
+    expect(
+      replayed.actionHistory.at(-1)?.payload
+    ).toMatchObject({ scoreBonus: 2, scoreDelta: 0 });
+  });
+
+  it('removes stale PL!-bp4-022 SCORE state and subtracts its previous draft bonus when the condition fails', () => {
+    const scenario = setupNoBrandGirlsState({ centerBlade: 8, playerScore: 9 });
+    const withStaleModifier = addLiveModifier(scenario.game, {
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      liveCardId: scenario.lives[0]!.instanceId,
+      sourceCardId: scenario.lives[0]!.instanceId,
+      abilityId: PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
+    });
+    const preview = runLiveStart(withStaleModifier);
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(noBrandGirlsScoreModifiers(resolved)).toHaveLength(0);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      conditionMet: false,
+      scoreBonus: 0,
+      scoreDelta: -2,
+    });
+  });
+
+  it('auto-resolves an ordered PL!-bp4-022 batch and confirms a manually selected pending first', () => {
+    const orderedScenario = setupNoBrandGirlsState({ sourceCount: 2, centerBlade: 9 });
+    const orderSelection = runLiveStart(orderedScenario.game);
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const ordered = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(ordered.pendingAbilities).toEqual([]);
+    expect(noBrandGirlsScoreModifiers(ordered)).toHaveLength(2);
+    expect(ordered.liveResolution.playerScores.get(PLAYER1)).toBe(18);
+
+    const manualScenario = setupNoBrandGirlsState({ sourceCount: 2, centerBlade: 9 });
+    const manualOrderSelection = runLiveStart(manualScenario.game);
+    const preview = confirmActiveEffectStep(
+      manualOrderSelection,
+      PLAYER1,
+      manualOrderSelection.activeEffect!.id,
+      manualScenario.lives[1]!.instanceId
+    );
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
+      sourceCardId: manualScenario.lives[1]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(noBrandGirlsScoreModifiers(preview)).toHaveLength(0);
+    const confirmed = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(noBrandGirlsScoreModifiers(confirmed)).toHaveLength(1);
+    expect(confirmed.liveResolution.playerScores.get(PLAYER1)).toBe(16);
+  });
+
   it('confirms and applies PL!N-bp3-005 player SCORE from current member-entry events', () => {
     const ai = createCardInstance(createMember({ cardCode: 'PL!N-bp3-005-P', name: '宮下 愛', cost: 15 }), PLAYER1, 'ai');
     let game = registerCards(createGameState('n-bp3-005-live-start', PLAYER1, 'P1', PLAYER2, 'P2'), [ai]);
