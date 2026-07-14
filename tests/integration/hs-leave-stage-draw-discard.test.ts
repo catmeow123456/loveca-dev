@@ -86,8 +86,9 @@ function removeFromPlayerZones(player: {
   successZone: { cardIds: string[] };
   liveZone: { cardIds: string[] };
 }): void {
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
   player.hand.cardIds = [];
-  player.mainDeck.cardIds = [];
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];
@@ -336,7 +337,8 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
 
     expect(continueResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([sourceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toContain(sourceId);
   });
 
   it('puts PL!HS-bp2-015-N leave-stage AUTO and the replacing member ON_ENTER into one order window', () => {
@@ -381,7 +383,7 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [entering.instanceId];
-    p1.mainDeck.cardIds = drawnCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...drawnCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
     p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
     p1.memberSlots.cardStates = new Map([
       [source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],

@@ -43,6 +43,17 @@ function loadLlocgCards(relativePath: string): Record<string, LlocgCardRecord> {
 }
 
 describe('card effect rarity synchronization', () => {
+  it('covers both PL!HS-bp1-007 rarities through the shared base code', () => {
+    const definition = CARD_ABILITY_DEFINITIONS.find(
+      (ability) => ability.abilityId === 'PL!SP-bp5-020:activated-pay-two-energy-draw-one'
+    );
+    expect(definition?.baseCardCodes).toContain('PL!HS-bp1-007');
+    expect(loadCardCodeFamilies().get('PL!HS-bp1-007')).toEqual([
+      'PL!HS-bp1-007-P',
+      'PL!HS-bp1-007-R',
+    ]);
+  });
+
   it('does not partially cover same-base multi-rarity cards with exact cardCodes', () => {
     const families = loadCardCodeFamilies();
     const partialExactMatches: string[] = [];

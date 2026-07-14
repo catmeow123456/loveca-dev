@@ -128,6 +128,10 @@ describe('revealed cheer card movement', () => {
     }));
     game = {
       ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        firstPlayerCheerCardIds: [revealedLive.instanceId],
+      },
       resolutionZone: {
         ...game.resolutionZone,
         cardIds: [revealedLive.instanceId],
@@ -159,6 +163,10 @@ describe('revealed cheer card movement', () => {
     );
     game = {
       ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        firstPlayerCheerCardIds: [ownLive.instanceId, opponentLive.instanceId],
+      },
       resolutionZone: {
         ...game.resolutionZone,
         cardIds: [ownLive.instanceId, opponentLive.instanceId],

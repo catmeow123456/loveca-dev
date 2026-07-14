@@ -510,7 +510,8 @@ export class RuleActionProcessor {
 // 规则处理应用函数
 // ============================================
 
-import { updatePlayer } from '../entities/game.js';
+import { emitGameEvent, updatePlayer } from '../entities/game.js';
+import { createEnergyMovedToDeckEvent } from '../events/game-events.js';
 import {
   addCardToZone,
   removeCardFromZone,
@@ -573,6 +574,12 @@ export function applyRuleActionResult(
             getCardType
           );
         }
+        state = emitRuleEnergyReturnEventForMoves(
+          state,
+          result.affectedPlayerId,
+          result.movedCards,
+          game.turnCount
+        );
       }
       break;
     }
@@ -590,6 +597,12 @@ export function applyRuleActionResult(
             getCardType
           );
         }
+        state = emitRuleEnergyReturnEventForMoves(
+          state,
+          result.affectedPlayerId,
+          result.movedCards,
+          game.turnCount
+        );
       }
       break;
     }
@@ -711,7 +724,37 @@ function moveCardForRuleAction(
     return updatedPlayer;
   });
 
+  if (fromZone === ZoneType.ENERGY_ZONE) {
+    state = {
+      ...state,
+      energyActivePhaseSkips: (state.energyActivePhaseSkips ?? []).filter(
+        (skip) => skip.energyCardId !== cardId
+      ),
+    };
+  }
   return state;
+}
+
+function emitRuleEnergyReturnEventForMoves(
+  game: GameState,
+  playerId: string,
+  moves: NonNullable<RuleActionResult['movedCards']>,
+  turnCount: number
+): GameState {
+  const movedEnergyCardIds = moves
+    .filter((move) => move.from === ZoneType.ENERGY_ZONE && move.to === ZoneType.ENERGY_DECK)
+    .map((move) => move.cardId);
+  return movedEnergyCardIds.length > 0
+    ? emitGameEvent(
+        game,
+        createEnergyMovedToDeckEvent(
+          playerId,
+          movedEnergyCardIds,
+          { kind: 'RULE_ACTION', playerId },
+          turnCount
+        )
+      )
+    : game;
 }
 
 function secureRandomInt(max: number): number {

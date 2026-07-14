@@ -1,4 +1,6 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -185,7 +187,7 @@ function start014(options: {
 }
 
 function confirm(game: GameState, selectedCardId?: string | null): GameState {
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, selectedCardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, selectedCardId);
 }
 
 describe('PL!HS-sd1-014/017/018 workflows', () => {
@@ -549,7 +551,7 @@ describe('PL!HS-sd1-014/017/018 workflows', () => {
       }),
     }));
     const orderSelection = resolvePendingCardEffects({
-      ...game,
+      ...addCheckTimingRuleSentinel(game, PLAYER1, 'hs-sd1-018-ordered'),
       pendingAbilities: [
         pending(
           HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
@@ -567,7 +569,7 @@ describe('PL!HS-sd1-014/017/018 workflows', () => {
     }).gameState;
 
     expect(orderSelection.activeEffect?.abilityId).toBe(ABILITY_ORDER_SELECTION_ID);
-    const resolved = confirmActiveEffectStep(
+    const resolved = confirmActiveEffectStepThroughPublicReveal(
       orderSelection,
       PLAYER1,
       orderSelection.activeEffect!.id,

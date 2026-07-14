@@ -123,7 +123,7 @@ function startHsPb1007SerasOnEnterPayDiscardRecover(
           HS_PB1_007_ON_ENTER_PAY_TWO_ENERGY_DISCARD_RECOVER_HASUNOSORA_CARD_ABILITY_ID
         ),
         stepId: SELECT_DISCARD_STEP_ID,
-        stepText: '可以支付2张活跃能量并将1张手牌放置入休息室。也可以选择不发动此效果。',
+        stepText: '可以支付[E][E]并将1张手牌放置入休息室。也可以选择不发动此效果。',
         awaitingPlayerId: player.id,
         selectableCardIds: player.hand.cardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',

@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type {
   AnyCardData,
@@ -70,7 +71,7 @@ function energy(cardCode: string): EnergyCardData {
 }
 
 function deck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     member(`PL!S-test-main-${index}`)
   );
   const energyDeck: EnergyCardData[] = Array.from({ length: 12 }, (_, index) =>
@@ -267,6 +268,7 @@ describe('PL!S-sd1-002 and PL!S-sd1-005 Aqours recovery workflows', () => {
     );
 
     expect(recoverResult.success, recoverResult.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(target.instanceId);
@@ -296,6 +298,7 @@ describe('PL!S-sd1-002 and PL!S-sd1-005 Aqours recovery workflows', () => {
     );
 
     expect(recoverResult.success, recoverResult.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([aqoursDiscard.instanceId]);
 
     const nonAqoursDiscard = createCardInstance(member('PL!S-test-other', 'Other', ['Liella!']), PLAYER1, 'discard-other');
@@ -310,7 +313,7 @@ describe('PL!S-sd1-002 and PL!S-sd1-005 Aqours recovery workflows', () => {
 
     expect(noTargetResult.success, noTargetResult.error).toBe(true);
     expect(noTarget.session.state?.activeEffect).toBeNull();
-    expect(noTarget.session.state?.players[0].waitingRoom.cardIds).toContain(
+    expect(noTarget.session.state?.players[0].mainDeck.cardIds).toContain(
       nonAqoursDiscard.instanceId
     );
   });
@@ -375,6 +378,7 @@ describe('PL!S-sd1-002 and PL!S-sd1-005 Aqours recovery workflows', () => {
     );
 
     expect(recoverResult.success, recoverResult.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
   });
@@ -404,6 +408,7 @@ describe('PL!S-sd1-002 and PL!S-sd1-005 Aqours recovery workflows', () => {
         discardedLive.instanceId
       )
     );
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([discardedLive.instanceId]);
 
     const nonTargetDiscard = createCardInstance(member('PL!S-test-non-target', 'No target', ['Liella!']), PLAYER1, 'non-target-discard');

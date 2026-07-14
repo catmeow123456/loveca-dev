@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createReadStream, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { createGunzip } from 'node:zlib';
@@ -46,6 +47,55 @@ const LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON =
   'legacy fixture predates active-effect confirm labels';
 const LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON =
   'legacy fixture predates enter-hand event emission';
+const LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON =
+  'legacy fixture predates self-sacrifice recovery action metadata and enter-hand events';
+const LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON =
+  'legacy fixture predates dynamic check-timing queue refresh';
+const REPLAY_MISMATCH_DIFF_LIMIT = 256;
+const LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_ALLOWED_DIFF_PATHS = new Set([
+  '$.actionHistory.length',
+  '$.actionSequence',
+  '$.activeEffect.abilityId',
+  '$.activeEffect.canResolveInOrder',
+  '$.activeEffect.canSkipSelection',
+  '$.activeEffect.effectText',
+  '$.activeEffect.maxSelectableCards',
+  '$.activeEffect.metadata.namedHandDiscardNames',
+  '$.activeEffect.metadata.namedHandDiscardRewardKind',
+  '$.activeEffect.metadata.orderedResolution',
+  '$.activeEffect.metadata.sourceSlot',
+  '$.activeEffect.metadata.usesAbilityOptions',
+  '$.activeEffect.minSelectableCards',
+  '$.activeEffect.selectableCardIds',
+  '$.activeEffect.selectableCardIds.length',
+  '$.activeEffect.selectableCardMode',
+  '$.activeEffect.selectableCardVisibility',
+  '$.activeEffect.skipSelectionLabel',
+  '$.activeEffect.sourceCardId',
+  '$.activeEffect.stepId',
+  '$.activeEffect.stepText',
+  '$.activeEffect',
+  '$.inspectionContext',
+  '$.inspectionZone.cardIds.length',
+  '$.inspectionZone.revealedCardIds.length',
+  '$.liveResolution.liveModifiers.length',
+  '$.pendingAbilities.length',
+  '$.players[0].energyZone.cardStates[0][1].orientation',
+  '$.players[0].energyZone.cardStates[1][1].orientation',
+  '$.players[0].waitingRoom.length',
+]);
+// Exact snapshots of the eight legacy decisions that now stop at a dynamic queue
+// selection. Any path or value change produces a different signature and is not skipped.
+const LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_MISMATCH_SHA256 = new Set([
+  '20abfe744fea78cf561573bb05813e6869cc396390fda4ed5be84543c6a0c947',
+  '8230c30333a967f1769270ff7fef5753adb6ebdc92bad23f01c4a71189b96701',
+  '775733a6ac60d290425d16a2cec4745024350db6bcb84fcbda833975d734fdf4',
+  '5a40aeeec9ebca37982a17b971195fed06cd364c7fdeed3eb252121a28e553d6',
+  'e4e4ee929383fdda63ba0eefe8750562cd622ade97c3db21b092e5808c167e88',
+  '8ed83080427fcc1666f9e42c9d982bc67b0190f1b5d433ee92706ed3840c2053',
+  'd83d07b49420a713bcdf2a4687808b72f9a52efd0fa63637d7c0fb72f1157b86',
+  'ba3994c1a1f259e62afdf4ca4403f4879b8679338c5d913421348716c9e3d056',
+]);
 const REFRESH_AWARE_MILL_ABILITY_IDS = new Set([
   'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live',
   'PL!HS-bp1-008:on-enter-mill-three-draw-if-all-members',
@@ -485,31 +535,117 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
 
     expect(replay.failedExecutions).toEqual([]);
     expect(replay.mismatches).toEqual([]);
-    expect(replay.replayedCount).toBe(75);
-    expect(replay.skippedCount).toBe(395);
+    expect(replay.replayedCount).toBe(56);
+    expect(replay.skippedCount).toBe(414);
     expect(plainRecord(replay.replayedByDecisionType)).toEqual({
-      ACTIVE_EFFECT_SUBMITTED: 42,
-      PENDING_ABILITY_ORDER_SUBMITTED: 16,
-      SELECT_SUCCESS_LIVE_SUBMITTED: 17,
+      ACTIVE_EFFECT_SUBMITTED: 39,
+      PENDING_ABILITY_ORDER_SUBMITTED: 4,
+      SELECT_SUCCESS_LIVE_SUBMITTED: 13,
     });
     expect(plainRecord(replay.replayedByCommandType)).toEqual({
-      CONFIRM_EFFECT_STEP: 58,
-      SELECT_SUCCESS_LIVE: 17,
+      CONFIRM_EFFECT_STEP: 43,
+      SELECT_SUCCESS_LIVE: 13,
     });
     expect(plainRecord(replay.skippedReasons)).toEqual({
       'legacy fixture lacks exact before checkpoint for command replay': 31,
       'legacy fixture lacks recorded randomness for mulligan replay': 12,
       'legacy fixture lacks reliable before checkpoint for activate ability': 28,
       [LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON]: 1,
-      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 34,
+      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 36,
+      [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 18,
       [LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON]: 2,
+      [LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON]: 23,
       [LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON]: 2,
       [LEGACY_LIVE_SET_TRACKING_REPLAY_SKIP_REASON]: 114,
-      [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 48,
-      [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 11,
+      [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 25,
+      [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 10,
       'not a submitted player decision': 112,
     });
   }, 120_000);
+
+  it('does not hide unrelated drift behind the dynamic check-timing legacy classifier', () => {
+    const decision = {
+      abilityId: 'legacy:resolved-effect',
+      decisionId: 'legacy-dynamic-check-timing-decision',
+      decisionType: 'ACTIVE_EFFECT_SUBMITTED',
+    } as DecisionRecordSummary;
+    const expectedPending = {
+      abilityId: 'legacy:next-effect',
+      sourceCardId: 'source-next',
+      controllerId: 'player-1',
+      sourceSlot: null,
+    };
+    const mismatch = {
+      commandType: GameCommandType.CONFIRM_EFFECT_STEP,
+      diffs: [
+        { path: '$.actionHistory.length', actual: 10, expected: 12 },
+        { path: '$.actionSequence', actual: 10, expected: 12 },
+        {
+          path: '$.activeEffect.abilityId',
+          actual: 'system:select-pending-card-effect',
+          expected: expectedPending.abilityId,
+        },
+        { path: '$.pendingAbilities.length', actual: 1, expected: 0 },
+      ],
+      actual: {
+        activeEffect: {
+          abilityId: 'system:select-pending-card-effect',
+          sourceCardId: expectedPending.sourceCardId,
+          stepId: 'SELECT_NEXT_PENDING_ABILITY',
+          awaitingPlayerId: expectedPending.controllerId,
+        },
+        pendingAbilities: [expectedPending],
+      },
+      expected: {
+        activeEffect: {
+          abilityId: expectedPending.abilityId,
+          sourceCardId: expectedPending.sourceCardId,
+          stepId: 'LEGACY_EFFECT_STEP',
+          awaitingPlayerId: expectedPending.controllerId,
+        },
+        pendingAbilities: [],
+      },
+    };
+
+    expect(hasOnlyAllowedLegacyDynamicCheckTimingSelectionDiffPaths(mismatch.diffs)).toBe(true);
+    expect(isLegacyDynamicCheckTimingReplayMismatch(decision, mismatch)).toBe(false);
+    const baseSignature = createReplayMismatchSignature(decision, mismatch);
+    for (const path of [
+      '$.players[0].hand.length',
+      '$.players[0].waitingRoom.length',
+      '$.pendingAbilities[0].abilityId',
+      '$.liveResolution.liveModifiers.length',
+    ]) {
+      const driftedMismatch = {
+        ...mismatch,
+        diffs: [...mismatch.diffs, { path, actual: 1, expected: 0 }],
+      };
+      expect(isLegacyDynamicCheckTimingReplayMismatch(decision, driftedMismatch)).toBe(false);
+      expect(createReplayMismatchSignature(decision, driftedMismatch)).not.toBe(baseSignature);
+    }
+    for (const path of ['$.players[0].hand.length', '$.pendingAbilities[0].abilityId']) {
+      expect(
+        hasOnlyAllowedLegacyDynamicCheckTimingSelectionDiffPaths([
+          ...mismatch.diffs,
+          { path, actual: 1, expected: 0 },
+        ]),
+        `${path} must remain outside the legacy allowlist`
+      ).toBe(false);
+    }
+    const pendingDriftMismatch = {
+      ...mismatch,
+      actual: { ...mismatch.actual, pendingAbilities: [] },
+    };
+    expect(isLegacyDynamicCheckTimingReplayMismatch(decision, pendingDriftMismatch)).toBe(false);
+    expect(createReplayMismatchSignature(decision, pendingDriftMismatch)).not.toBe(baseSignature);
+    expect(
+      getExpectedReplayMismatchSkipReason(decision, {
+        ...mismatch,
+        decisionId: decision.decisionId,
+        diffsTruncated: true,
+      })
+    ).toBeNull();
+  });
 
   it('tracks member slot cardStates drift exposed by the legacy fixture', async () => {
     expect(FIXTURE_EXISTS, `${FIXTURE_PATH} is required for real-data replay harness`).toBe(true);
@@ -1473,6 +1609,11 @@ function buildEngineReplayAudit(
     if (actualFingerprint !== expectedFingerprint) {
       const actualNormalized = normalizeEngineState(result.gameState);
       const expectedNormalized = normalizeEngineState(afterCheckpoint.state);
+      const collectedDiffs = findFirstDifferences(
+        actualNormalized,
+        expectedNormalized,
+        REPLAY_MISMATCH_DIFF_LIMIT + 1
+      );
       const mismatch = {
         matchId: decision.matchId,
         decisionId: decision.decisionId,
@@ -1480,7 +1621,8 @@ function buildEngineReplayAudit(
         commandType,
         beforeCheckpointSeq: beforeCheckpoint.checkpointSeq,
         afterCheckpointSeq: afterCheckpoint.checkpointSeq,
-        diffs: findFirstDifferences(actualNormalized, expectedNormalized, 8),
+        diffs: collectedDiffs.slice(0, REPLAY_MISMATCH_DIFF_LIMIT),
+        diffsTruncated: collectedDiffs.length > REPLAY_MISMATCH_DIFF_LIMIT,
         actual: summarizeReplayComparisonState(result.gameState),
         expected: summarizeReplayComparisonState(afterCheckpoint.state),
       };
@@ -1508,10 +1650,17 @@ function getExpectedReplayMismatchSkipReason(
     readonly commandType: string;
     readonly decisionId: string;
     readonly diffs: readonly unknown[];
+    readonly diffsTruncated: boolean;
     readonly actual: unknown;
     readonly expected: unknown;
   }
 ): string | null {
+  if (mismatch.diffsTruncated) {
+    return null;
+  }
+  if (isLegacyDynamicCheckTimingReplayMismatch(decision, mismatch)) {
+    return LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON;
+  }
   if (
     mismatch.commandType === GameCommandType.SET_LIVE_CARD &&
     isLegacyLiveSetTrackingReplayMismatch(mismatch)
@@ -1533,6 +1682,9 @@ function getExpectedReplayMismatchSkipReason(
   if (isLegacyEnterHandEventReplayMismatch(decision, mismatch)) {
     return LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON;
   }
+  if (isLegacySelfSacrificeRecoveryReplayMismatch(decision, mismatch)) {
+    return LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON;
+  }
   if (isLegacyEnterStageSourceMetadataReplayMismatch(mismatch)) {
     return LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON;
   }
@@ -1546,6 +1698,104 @@ function getExpectedReplayMismatchSkipReason(
     return null;
   }
   return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
+}
+
+function isLegacyDynamicCheckTimingReplayMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: {
+    readonly commandType: string;
+    readonly diffs: readonly unknown[];
+    readonly actual: unknown;
+    readonly expected: unknown;
+  }
+): boolean {
+  if (isLegacyDynamicCheckTimingSelectionMismatch(decision, mismatch)) {
+    return true;
+  }
+  if (
+    decision.decisionType === 'PENDING_ABILITY_ORDER_SUBMITTED' &&
+    mismatch.diffs.length > 0 &&
+    mismatch.diffs.every((diff) => asRecord(diff)?.path === '$.pendingAbilities[0].metadata')
+  ) {
+    return true;
+  }
+  if (
+    mismatch.diffs.length > 0 &&
+    mismatch.diffs.every(
+      (diff) => asRecord(diff)?.path === '$.activeEffect.metadata.orderedResolution'
+    )
+  ) {
+    return true;
+  }
+  if (mismatch.commandType !== GameCommandType.SELECT_SUCCESS_LIVE) {
+    return false;
+  }
+  const allowedPaths = new Set(['$.currentPhase', '$.endInfo', '$.isEnded']);
+  return (
+    mismatch.diffs.length > 0 &&
+    mismatch.diffs.every((diff) => {
+      const path = asRecord(diff)?.path;
+      return typeof path === 'string' && allowedPaths.has(path);
+    })
+  );
+}
+
+function isLegacyDynamicCheckTimingSelectionMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: {
+    readonly commandType: string;
+    readonly diffs: readonly unknown[];
+    readonly actual: unknown;
+    readonly expected: unknown;
+  }
+): boolean {
+  const actualAbilityId = activeEffectAbilityId(mismatch.actual);
+  const expectedAbilityId = activeEffectAbilityId(mismatch.expected);
+  if (
+    decision.decisionType !== 'ACTIVE_EFFECT_SUBMITTED' ||
+    mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP ||
+    actualAbilityId !== 'system:select-pending-card-effect' ||
+    expectedAbilityId === actualAbilityId ||
+    mismatch.diffs.length === 0 ||
+    !hasOnlyAllowedLegacyDynamicCheckTimingSelectionDiffPaths(mismatch.diffs)
+  ) {
+    return false;
+  }
+  return LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_MISMATCH_SHA256.has(
+    createReplayMismatchSignature(decision, mismatch)
+  );
+}
+
+function hasOnlyAllowedLegacyDynamicCheckTimingSelectionDiffPaths(
+  diffs: readonly unknown[]
+): boolean {
+  return diffs.every((diff) => {
+    const path = asRecord(diff)?.path;
+    return (
+      typeof path === 'string' &&
+      LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_ALLOWED_DIFF_PATHS.has(path)
+    );
+  });
+}
+
+function createReplayMismatchSignature(
+  decision: DecisionRecordSummary,
+  mismatch: {
+    readonly diffs: readonly unknown[];
+    readonly actual: unknown;
+    readonly expected: unknown;
+  }
+): string {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        decisionId: decision.decisionId,
+        diffs: mismatch.diffs,
+        actual: mismatch.actual,
+        expected: mismatch.expected,
+      })
+    )
+    .digest('hex');
 }
 
 function isLegacyLiveSetTrackingReplayMismatch(mismatch: {
@@ -1594,6 +1844,55 @@ function isLegacyEnterHandEventReplayMismatch(
     const record = asRecord(diff);
     return typeof record?.path === 'string' && allowedPaths.has(record.path);
   });
+}
+
+function isLegacySelfSacrificeRecoveryReplayMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: { readonly diffs: readonly unknown[] }
+): boolean {
+  const abilityId = decision.abilityId;
+  if (
+    abilityId?.endsWith(':activated-send-self-to-waiting-room-add-member') !== true &&
+    abilityId?.endsWith(':activated-send-self-to-waiting-room-add-live') !== true
+  ) {
+    return false;
+  }
+  if (mismatch.diffs.length === 0) {
+    return false;
+  }
+
+  const allowedActionPayloadFields = new Set([
+    'activatedEnergyCardIds',
+    'conditionMet',
+    'conditionValue',
+    'nextOrientation',
+    'previousOrientations',
+  ]);
+  let hasActionMetadataDiff = false;
+  let hasAddedEventDiff = false;
+  const onlyExpectedLegacyDiffs = mismatch.diffs.every((diff) => {
+    if (isAddedEventLogDiff(diff)) {
+      hasAddedEventDiff = true;
+      return true;
+    }
+    const record = asRecord(diff);
+    const path = record?.path;
+    const match =
+      typeof path === 'string'
+        ? /^\$\.actionHistory\[\d+\]\.payload\.([^.]+)$/.exec(path)
+        : null;
+    if (
+      !match ||
+      !allowedActionPayloadFields.has(match[1]!) ||
+      record?.expected !== undefined
+    ) {
+      return false;
+    }
+    hasActionMetadataDiff = true;
+    return true;
+  });
+
+  return onlyExpectedLegacyDiffs && hasActionMetadataDiff && hasAddedEventDiff;
 }
 
 function isLegacyConfirmOnlyLivePendingOrderMismatch(

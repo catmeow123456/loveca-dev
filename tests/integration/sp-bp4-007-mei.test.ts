@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -150,7 +151,7 @@ function moveAndQueue(game: GameState, cardId: string, toSlot: SlotPosition): Ga
 function chooseFirstPendingBySource(game: GameState, sourceCardId: string): GameState {
   const effect = game.activeEffect;
   expect(effect).not.toBeNull();
-  return confirmActiveEffectStep(game, PLAYER1, effect!.id, sourceCardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, effect!.id, sourceCardId);
 }
 
 describe('PL!SP-bp4-007 Mei on-move low-score Liella LIVE recovery', () => {
@@ -172,7 +173,7 @@ describe('PL!SP-bp4-007 Mei on-move low-score Liella LIVE recovery', () => {
       canSkipSelection: false,
     });
 
-    const state = confirmActiveEffectStep(
+    const state = confirmActiveEffectStepThroughPublicReveal(
       selecting,
       PLAYER1,
       selecting.activeEffect!.id,
@@ -216,7 +217,7 @@ describe('PL!SP-bp4-007 Mei on-move low-score Liella LIVE recovery', () => {
     const selecting = resolvePendingCardEffects(
       moveAndQueue(scenario.game, scenario.sourceId, SlotPosition.CENTER)
     ).gameState;
-    const resolved = confirmActiveEffectStep(
+    const resolved = confirmActiveEffectStepThroughPublicReveal(
       selecting,
       PLAYER1,
       selecting.activeEffect!.id,
@@ -244,7 +245,7 @@ describe('PL!SP-bp4-007 Mei on-move low-score Liella LIVE recovery', () => {
       SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_ABILITY_ID
     );
 
-    const state = confirmActiveEffectStep(
+    const state = confirmActiveEffectStepThroughPublicReveal(
       selectingMei,
       PLAYER1,
       selectingMei.activeEffect!.id,

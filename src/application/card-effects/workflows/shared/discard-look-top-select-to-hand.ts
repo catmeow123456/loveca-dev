@@ -15,6 +15,7 @@ import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.j
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+  PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
   PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -79,9 +80,17 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   readonly selectorKind: DiscardLookTopAliasSelectorKind;
   readonly topCount: number;
   readonly memberOnly?: boolean;
+  readonly effectTextAbilityId?: string;
 }[] = [
   { baseCardCode: 'PL!HS-bp1-009', alias: 'みらくらぱーく！', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!HS-pb1-018', alias: 'DOLLCHESTRA', selectorKind: 'UNIT', topCount: 5 },
+  {
+    baseCardCode: 'PL!S-bp3-009',
+    alias: 'Aqours',
+    selectorKind: 'GROUP',
+    topCount: 6,
+    memberOnly: true,
+  },
   {
     baseCardCode: 'PL!-bp6-004',
     alias: "μ's",
@@ -108,6 +117,14 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   { baseCardCode: 'PL!SP-pb1-016', alias: 'KALEIDOSCORE', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!SP-pb1-017', alias: '5yncri5e!', selectorKind: 'UNIT', topCount: 5 },
   { baseCardCode: 'PL!-pb1-016', alias: 'lilywhite', selectorKind: 'UNIT', topCount: 4 },
+  {
+    baseCardCode: 'PL!N-bp3-012',
+    alias: '虹ヶ咲',
+    selectorKind: 'GROUP',
+    topCount: 4,
+    memberOnly: false,
+    effectTextAbilityId: PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
+  },
 ] as const;
 
 type DiscardLookTopAliasSelectorKind = 'UNIT' | 'GROUP';
@@ -136,6 +153,7 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
   for (const abilityId of [
     GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
     BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
+    PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
     PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
   ]) {
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
@@ -254,6 +272,13 @@ function startDiscardLookTopSelectToHandWorkflow(
         stepId: DISCARD_LOOK_SELECT_DISCARD_STEP_ID,
         selectableCardIds,
         orderedResolution: options.orderedResolution,
+        selectionLabel: cardCodeMatchesBase(cardCode, 'PL!S-bp3-009')
+          ? '选择要放置入休息室的卡'
+          : undefined,
+        confirmSelectionLabel: cardCodeMatchesBase(cardCode, 'PL!S-bp3-009')
+          ? '放置入休息室'
+          : undefined,
+        skipSelectionLabel: cardCodeMatchesBase(cardCode, 'PL!S-bp3-009') ? '不发动' : undefined,
         metadata: {
           ...metadata,
         },
@@ -358,7 +383,9 @@ function createLookTopConfig(
       : metadata.liveOnly
         ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
         : metadata.cardSelectorAlias && metadata.memberOnly
-          ? `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
+          ? metadata.cardSelectorAlias === 'Aqours'
+            ? '请选择至多1张Aqours成员卡公开并加入手牌，其余放置入休息室。'
+            : `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
           : metadata.cardSelectorAlias
             ? `请选择其中1张${metadata.cardSelectorAlias}的卡加入手牌，其余放置入休息室。`
             : metadata.memberOnly
@@ -390,12 +417,20 @@ function createLookTopConfig(
         : metadata.liveOnly
           ? '请选择要加入手牌的LIVE卡'
           : metadata.cardSelectorAlias && metadata.memberOnly
-            ? `请选择要加入手牌的${metadata.cardSelectorAlias}成员卡`
+            ? metadata.cardSelectorAlias === 'Aqours'
+              ? '选择要公开并加入手牌的卡'
+              : `请选择要加入手牌的${metadata.cardSelectorAlias}成员卡`
             : metadata.memberOnly
               ? '请选择要加入手牌的成员卡'
               : '请选择要加入手牌的卡牌',
-    confirmSelectionLabel: '加入手牌',
-    skipSelectionLabel: '不加入',
+    confirmSelectionLabel:
+      metadata.cardSelectorAlias === 'Aqours' && metadata.memberOnly
+        ? '公开并加入手牌'
+        : '加入手牌',
+    skipSelectionLabel:
+      metadata.cardSelectorAlias === 'Aqours' && metadata.memberOnly
+        ? '全部放置入休息室'
+        : '不加入',
     revealStepText: effectText,
     revealActionStep: 'REVEAL_SELECTED',
   };
@@ -606,8 +641,14 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   }
   const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   if (aliasCardConfig) {
+    if (aliasCardConfig.effectTextAbilityId) {
+      return getAbilityEffectText(aliasCardConfig.effectTextAbilityId);
+    }
     const topCount = getDiscardLookTopCount(cardCode);
     if (aliasCardConfig.memberOnly === true) {
+      if (cardCodeMatchesBase(cardCode, 'PL!S-bp3-009')) {
+        return '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的6张卡。可以将1张其中的『Aqours』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
+      }
       return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的『${aliasCardConfig.alias}』成员卡公开并加入手牌。其余的卡片放置入休息室。`;
     }
     return `【登场】可以将1张手牌放置入休息室：检视自己卡组顶的${topCount}张卡。可以将1张其中的${aliasCardConfig.alias}的卡公开并加入手牌。其余的卡片放置入休息室。`;

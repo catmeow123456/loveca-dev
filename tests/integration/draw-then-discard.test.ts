@@ -74,7 +74,7 @@ function createLiveCard(cardCode: string, name = cardCode): LiveCardData {
 }
 
 function createDeck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
   );
   const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
@@ -104,8 +104,9 @@ function removeFromPlayerZones(player: {
   successZone: { cardIds: string[] };
   liveZone: { cardIds: string[] };
 }): void {
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
   player.hand.cardIds = [];
-  player.mainDeck.cardIds = [];
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];
@@ -161,7 +162,7 @@ describe('draw-then-discard shared workflow', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, ...handCards.map((card) => card.instanceId)];
-    p1.mainDeck.cardIds = drawnCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...drawnCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
     p1.memberSlots.slots[SlotPosition.RIGHT] = pb1003Source.instanceId;
     p1.memberSlots.cardStates = new Map([
       [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -316,7 +317,8 @@ describe('draw-then-discard shared workflow', () => {
 
     expect(discardResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([drawnCard.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([drawnCard.instanceId]);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(
       session.state?.actionHistory.some(
@@ -380,7 +382,7 @@ describe('draw-then-discard shared workflow', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [handCard.instanceId];
-    p1.mainDeck.cardIds = [drawCard.instanceId];
+    p1.mainDeck.cardIds = [drawCard.instanceId, ...p1.mainDeck.cardIds];
     p1.liveZone.cardIds = [sourceLive.instanceId];
 
     (session as unknown as { authorityState: GameState }).authorityState =
@@ -469,7 +471,7 @@ describe('draw-then-discard shared workflow', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [handCard.instanceId];
-    p1.mainDeck.cardIds = [drawCard.instanceId];
+    p1.mainDeck.cardIds = [drawCard.instanceId, ...p1.mainDeck.cardIds];
     p1.liveZone.cardIds = [live.instanceId];
     p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
     p1.memberSlots.slots[SlotPosition.RIGHT] = triggerSource.instanceId;
@@ -585,6 +587,7 @@ describe('draw-then-discard shared workflow', () => {
       };
     };
     removeFromPlayerZones(p1);
+    p1.mainDeck.cardIds = [];
     p1.liveZone.cardIds = [live.instanceId];
     p1.memberSlots.slots[SlotPosition.CENTER] = source.instanceId;
     p1.memberSlots.cardStates = new Map([
@@ -679,7 +682,7 @@ describe('draw-then-discard shared workflow', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = handCards.map((card) => card.instanceId);
-    p1.mainDeck.cardIds = drawCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...drawCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
     p1.liveZone.cardIds = [sourceLive.instanceId];
     p1.memberSlots.slots[SlotPosition.RIGHT] = triggerSource.instanceId;
     p1.memberSlots.cardStates = new Map([
@@ -829,7 +832,8 @@ describe('draw-then-discard shared workflow', () => {
     expect(discardResult.success, discardResult.error).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([drawCard.instanceId]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([drawCard.instanceId]);
   });
 
   it('continues to the next member live-success pending after draw one discard one', () => {
@@ -895,7 +899,7 @@ describe('draw-then-discard shared workflow', () => {
     };
     removeFromPlayerZones(p1);
     p1.hand.cardIds = [handCard.instanceId];
-    p1.mainDeck.cardIds = drawCards.map((card) => card.instanceId);
+    p1.mainDeck.cardIds = [...drawCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
     p1.liveZone.cardIds = [live.instanceId];
     p1.memberSlots.slots[SlotPosition.CENTER] = firstSource.instanceId;
     p1.memberSlots.slots[SlotPosition.LEFT] = secondSource.instanceId;

@@ -328,6 +328,37 @@ describe('PL!SP-bp5-001 Kanon workflows', () => {
     ).toBe(true);
   });
 
+  it('on-enter declines through the single skip action without paying energy', () => {
+    const scenario = setupTriggeredState({ activeEnergyCount: 1 });
+    const started = startTriggeredAbility(
+      scenario.game,
+      scenario.source.instanceId,
+      SP_BP5_001_ON_ENTER_PAY_ENERGY_WAIT_OPPONENT_OR_DRAW_ABILITY_ID,
+      TriggerCondition.ON_ENTER_STAGE
+    );
+
+    expect(started.activeEffect).toMatchObject({
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+    const state = confirmStep(started, {});
+
+    expect(state.activeEffect).toBeNull();
+    expect(
+      state.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_BP5_001_ON_ENTER_PAY_ENERGY_WAIT_OPPONENT_OR_DRAW_ABILITY_ID &&
+          action.payload.step === 'DECLINE_PAY_ENERGY'
+      )
+    ).toBe(true);
+  });
+
   it('on-enter pays energy and draws one card', () => {
     const scenario = setupTriggeredState({ activeEnergyCount: 1 });
     let state = startTriggeredAbility(
@@ -336,6 +367,12 @@ describe('PL!SP-bp5-001 Kanon workflows', () => {
       SP_BP5_001_ON_ENTER_PAY_ENERGY_WAIT_OPPONENT_OR_DRAW_ABILITY_ID,
       TriggerCondition.ON_ENTER_STAGE
     );
+
+    expect(state.activeEffect).toMatchObject({
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
 
     state = confirmOption(state, 'pay');
     expect(state.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId)?.orientation).toBe(

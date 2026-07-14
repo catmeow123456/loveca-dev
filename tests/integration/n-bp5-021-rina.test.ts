@@ -16,6 +16,7 @@ import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
   FaceState,
@@ -109,6 +110,9 @@ function confirmSelection(
     createConfirmEffectStepCommand(PLAYER1, effect!.id, selectedCardId)
   );
   expect(result.success, result.error).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    confirmPublicSelectionIfNeeded(session);
+  }
 }
 
 describe('PL!N-bp5-021-N Rina on-enter workflow', () => {

@@ -18,6 +18,7 @@ import {
 } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { GameService } from '../../src/application/game-service';
 import { PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
@@ -158,6 +159,9 @@ function selectTargetPlayer(session: GameSession, playerId: string): void {
     createConfirmEffectStepCommand(PLAYER1, effect.id, undefined, undefined, undefined, playerId)
   );
   expect(result.success).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    confirmPublicSelectionIfNeeded(session);
+  }
 }
 
 function moveSelectedCards(session: GameSession, selectedCardIds: readonly string[]): void {
@@ -174,6 +178,9 @@ function moveSelectedCards(session: GameSession, selectedCardIds: readonly strin
     )
   );
   expect(result.success).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    confirmPublicSelectionIfNeeded(session);
+  }
 }
 
 describe('PL!N-bp3-010 三船栞子', () => {

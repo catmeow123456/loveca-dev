@@ -83,10 +83,10 @@ function startPayEnergyDecision(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_DECISION_STEP_ID,
-      stepText: '可以支付1张活跃能量，从能量卡组放置1张待机能量。',
+      stepText: '可以支付[E]，从能量卡组放置1张待机能量。',
       awaitingPlayerId: player.id,
       selectableOptions: [
-        { id: PAY_OPTION_ID, label: '支付1张能量' },
+        { id: PAY_OPTION_ID, label: '支付[E]' },
       ],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',

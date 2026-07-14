@@ -9,6 +9,7 @@ import {
   removeCardFromStatefulZone,
 } from '../../domain/entities/zone.js';
 import type { SlotPosition } from '../../shared/types/enums.js';
+import { resolveEnergySelectionForOperation } from './energy-selection.js';
 
 export interface StackEnergyBelowResult {
   readonly gameState: GameState;
@@ -47,12 +48,16 @@ export function stackEnergyFromEnergyZoneBelowMember(
     return { gameState: game, stackedEnergyCardIds: [] };
   }
 
-  const stackedEnergyCardIds = player.energyZone.cardIds.slice(0, count);
-  if (stackedEnergyCardIds.length < count) {
-    return null;
-  }
+  const selection = resolveEnergySelectionForOperation(
+    game,
+    playerId,
+    'STACK_BELOW_MEMBER',
+    count
+  );
+  if (!selection) return null;
+  const stackedEnergyCardIds = selection.selectedEnergyCardIds;
 
-  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+  const gameState = updatePlayer(selection.gameState, playerId, (currentPlayer) => {
     let energyZone = currentPlayer.energyZone;
     let memberSlots = currentPlayer.memberSlots;
     for (const energyCardId of stackedEnergyCardIds) {
@@ -66,7 +71,15 @@ export function stackEnergyFromEnergyZoneBelowMember(
     };
   });
 
-  return { gameState, stackedEnergyCardIds };
+  return {
+    gameState: {
+      ...gameState,
+      energyActivePhaseSkips: (gameState.energyActivePhaseSkips ?? []).filter(
+        (skip) => !stackedEnergyCardIds.includes(skip.energyCardId)
+      ),
+    },
+    stackedEnergyCardIds,
+  };
 }
 
 export function returnEnergyBelowMemberToEnergyDeck(

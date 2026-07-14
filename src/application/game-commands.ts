@@ -235,6 +235,8 @@ export interface ConfirmCostPaymentCommand extends BaseGameCommand {
 export interface ConfirmEffectStepCommand extends BaseGameCommand {
   readonly type: GameCommandType.CONFIRM_EFFECT_STEP;
   readonly effectId: string;
+  /** 公共选卡展示自动推进的预期 deadline；普通确认不携带。 */
+  readonly publicCardSelectionAutoAdvanceAt?: number;
   readonly selectedCardId?: string | null;
   readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: SlotPosition | null;
@@ -737,6 +739,20 @@ export function createConfirmEffectStepCommand(
     selectedNumber,
     stageFormationMoveHistory,
     stageFormationPlacements,
+    timestamp: Date.now(),
+  };
+}
+
+export function createAutoAdvancePublicCardSelectionCommand(
+  playerId: string,
+  effectId: string,
+  expectedDeadline: number
+): ConfirmEffectStepCommand {
+  return {
+    type: GameCommandType.CONFIRM_EFFECT_STEP,
+    playerId,
+    effectId,
+    publicCardSelectionAutoAdvanceAt: expectedDeadline,
     timestamp: Date.now(),
   };
 }

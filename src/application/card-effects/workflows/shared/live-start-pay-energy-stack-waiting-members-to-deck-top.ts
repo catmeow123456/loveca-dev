@@ -3,7 +3,6 @@ import {
   addAction,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
@@ -15,6 +14,7 @@ import {
 } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { moveWaitingRoomCardsToDeckTopForPlayer } from '../../runtime/actions.js';
 import {
   getAbilityEffectText,
   recordPayCostAction,
@@ -105,10 +105,10 @@ function startPayEnergyStackWaitingMembersWorkflow(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_OPTION_STEP_ID,
-      stepText: '可以支付1张活跃能量，将休息室2张成员卡按选择顺序放置到卡组顶。',
+      stepText: '可以支付[E]，将休息室2张成员卡按选择顺序放置到卡组顶。',
       awaitingPlayerId: player.id,
       selectableOptions: [
-        { id: 'pay', label: '支付1能量' },
+        { id: 'pay', label: '支付[E]' },
         { id: 'decline', label: DECLINE_OPTION_LABEL },
       ],
       metadata: {
@@ -182,6 +182,10 @@ function finishPayEnergyForStackWaitingMembers(game: GameState): GameState {
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: {
+            destination: 'MAIN_DECK_TOP',
+            ordered: true,
+          },
           paidEnergyCardIds: costPayment.paidEnergyCardIds,
         },
       },
@@ -238,22 +242,20 @@ function finishStackWaitingMembersToDeckTop(
     return game;
   }
 
-  const stateAfterMove = updatePlayer(game, player.id, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: {
-      ...currentPlayer.waitingRoom,
-      cardIds: currentPlayer.waitingRoom.cardIds.filter(
-        (cardId) => !uniqueSelectedCardIds.includes(cardId)
-      ),
-    },
-    mainDeck: {
-      ...currentPlayer.mainDeck,
-      cardIds: [...uniqueSelectedCardIds, ...currentPlayer.mainDeck.cardIds],
-    },
-  }));
+  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(
+    game,
+    player.id,
+    uniqueSelectedCardIds,
+    {
+      candidateCardIds: effect.selectableCardIds ?? [],
+      minCount: 2,
+      maxCount: 2,
+    }
+  );
+  if (!moveResult) return game;
 
   return continuePendingCardEffects(
-    addAction({ ...stateAfterMove, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+    addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,

@@ -26,6 +26,7 @@ import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const WAIT_SELF_COST_STEP_ID = 'BP4_017_WAIT_SELF_COST_FOR_CENTER_MUSE_BLADE';
+const ACTIVATE_WAIT_SELF_COST_OPTION_ID = 'activate';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -54,7 +55,7 @@ export function registerPlBp4017HanayoWorkflowHandlers(deps: {
     (game, input, context) =>
       finishBp4017HanayoWaitSelfCost(
         game,
-        input.selectedCardId ?? null,
+        input.selectedOptionId ?? null,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
@@ -105,9 +106,7 @@ function startBp4017HanayoLiveStart(
         stepText:
           "可以将此成员变为待机状态。如此做的场合，自己的中央区域的『μ's』成员获得[BLADE]。",
         awaitingPlayerId: player.id,
-        selectableCardIds: [ability.sourceCardId],
-        selectionLabel: '选择此成员变为待机状态',
-        confirmSelectionLabel: '变为待机',
+        selectableOptions: [{ id: ACTIVATE_WAIT_SELF_COST_OPTION_ID, label: '发动' }],
         canSkipSelection: true,
         skipSelectionLabel: '不发动',
         metadata: {
@@ -125,14 +124,13 @@ function startBp4017HanayoLiveStart(
       sourceCardId: ability.sourceCardId,
       step: 'START_WAIT_SELF_COST_FOR_CENTER_MUSE_BLADE',
       sourceSlot,
-      selectableCardIds: [ability.sourceCardId],
     }
   );
 }
 
 function finishBp4017HanayoWaitSelfCost(
   game: GameState,
-  selectedCardId: string | null,
+  selectedOptionId: string | null,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
@@ -146,7 +144,7 @@ function finishBp4017HanayoWaitSelfCost(
   }
 
   const orderedResolution = effect.metadata?.orderedResolution === true;
-  if (selectedCardId === null) {
+  if (selectedOptionId === null) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         pendingAbilityId: effect.id,
@@ -159,8 +157,8 @@ function finishBp4017HanayoWaitSelfCost(
     );
   }
   if (
-    selectedCardId !== effect.sourceCardId ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true
+    selectedOptionId !== ACTIVATE_WAIT_SELF_COST_OPTION_ID ||
+    effect.selectableOptions?.some((option) => option.id === selectedOptionId) !== true
   ) {
     return game;
   }

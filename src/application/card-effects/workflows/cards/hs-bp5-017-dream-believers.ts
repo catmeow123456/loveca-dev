@@ -80,7 +80,7 @@ function startHsBp5017LiveStart(
       controllerId: ability.controllerId,
       effectText: getHsBp5017DreamBelieversEffectText(game, player.id, ability.sourceCardId),
       stepId: HS_BP5_017_PAY_ENERGY_STEP_ID,
-      stepText: '可以支付1张活跃能量发动此效果。',
+      stepText: '可以支付[E]发动此效果。',
       awaitingPlayerId: player.id,
       selectableOptions: [
         { id: 'pay', label: '支付[E]' },

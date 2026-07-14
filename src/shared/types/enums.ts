@@ -324,6 +324,8 @@ export enum TriggerCondition {
   ON_ENTER_WAITING_ROOM = 'ON_ENTER_WAITING_ROOM',
   /** 卡片效果将能量从能量卡组放置入能量区 */
   ON_ENERGY_PLACED_BY_CARD_EFFECT = 'ON_ENERGY_PLACED_BY_CARD_EFFECT',
+  /** 能量从能量区放置入能量卡组 */
+  ON_ENERGY_MOVED_TO_DECK = 'ON_ENERGY_MOVED_TO_DECK',
 
   // ---- Live 相关触发 ----
   /** Live 开始时 */

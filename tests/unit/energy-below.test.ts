@@ -37,7 +37,10 @@ function createEnergy(cardCode: string): EnergyCardData {
   };
 }
 
-function setupEnergyBelowState(options: { readonly energyCount: number }) {
+function setupEnergyBelowState(options: {
+  readonly energyCount: number;
+  readonly orientations?: readonly OrientationState[];
+}) {
   const host = createCardInstance(createMember('MEM-HOST'), PLAYER1, 'host');
   const waitingRoomCard = createCardInstance(createMember('MEM-WAITING'), PLAYER1, 'waiting-card');
   const energies = Array.from({ length: options.energyCount }, (_, index) =>
@@ -55,7 +58,9 @@ function setupEnergyBelowState(options: { readonly energyCount: number }) {
         energies.map((energy, index) => [
           energy.instanceId,
           {
-            orientation: index % 2 === 0 ? OrientationState.ACTIVE : OrientationState.WAITING,
+            orientation:
+              options.orientations?.[index] ??
+              (index % 2 === 0 ? OrientationState.ACTIVE : OrientationState.WAITING),
             face: FaceState.FACE_UP,
           },
         ])
@@ -70,30 +75,80 @@ function setupEnergyBelowState(options: { readonly energyCount: number }) {
 }
 
 describe('energy below application helpers', () => {
-  it('automatically stacks the first energy from energy zone below a member', () => {
+  it('prefers a later WAITING energy over an earlier ACTIVE energy', () => {
     const { game, energies, waitingRoomCard } = setupEnergyBelowState({ energyCount: 2 });
 
     const result = stackEnergyFromEnergyZoneBelowMember(game, PLAYER1, SlotPosition.CENTER, 1);
 
     expect(result).not.toBeNull();
-    expect(result?.stackedEnergyCardIds).toEqual([energies[0].instanceId]);
-    expect(result?.gameState.players[0].energyZone.cardIds).toEqual([energies[1].instanceId]);
+    expect(result?.stackedEnergyCardIds).toEqual([energies[1].instanceId]);
+    expect(result?.gameState.players[0].energyZone.cardIds).toEqual([energies[0].instanceId]);
     expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([
-      energies[0].instanceId,
+      energies[1].instanceId,
     ]);
     expect(result?.gameState.players[0].waitingRoom.cardIds).toEqual([waitingRoomCard.instanceId]);
   });
 
-  it('stacks ACTIVE and WAITING energy in energy-zone order when count is two', () => {
+  it('clears the next-active-phase marker when energy leaves the energy zone for member-below', () => {
+    const setup = setupEnergyBelowState({
+      energyCount: 1,
+      orientations: [OrientationState.WAITING],
+    });
+    const game = {
+      ...setup.game,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: setup.energies[0].instanceId,
+          sourceCardId: setup.host.instanceId,
+          abilityId: 'marker',
+        },
+      ],
+    };
+    const result = stackEnergyFromEnergyZoneBelowMember(game, PLAYER1, SlotPosition.CENTER, 1);
+    expect(result?.gameState.energyActivePhaseSkips).toEqual([]);
+  });
+
+  it('takes the first WAITING energy when WAITING precedes ACTIVE', () => {
+    const { game, energies } = setupEnergyBelowState({
+      energyCount: 2,
+      orientations: [OrientationState.WAITING, OrientationState.ACTIVE],
+    });
+    expect(
+      stackEnergyFromEnergyZoneBelowMember(game, PLAYER1, SlotPosition.CENTER, 1)
+        ?.stackedEnergyCardIds
+    ).toEqual([energies[0].instanceId]);
+  });
+
+  it('preserves energy-zone order among multiple WAITING energies', () => {
+    const { game, energies } = setupEnergyBelowState({
+      energyCount: 3,
+      orientations: [OrientationState.ACTIVE, OrientationState.WAITING, OrientationState.WAITING],
+    });
+    expect(
+      stackEnergyFromEnergyZoneBelowMember(game, PLAYER1, SlotPosition.CENTER, 1)
+        ?.stackedEnergyCardIds
+    ).toEqual([energies[1].instanceId]);
+  });
+
+  it('takes the first energy when all energies are ACTIVE', () => {
+    const { game, energies } = setupEnergyBelowState({
+      energyCount: 2,
+      orientations: [OrientationState.ACTIVE, OrientationState.ACTIVE],
+    });
+    expect(
+      stackEnergyFromEnergyZoneBelowMember(game, PLAYER1, SlotPosition.CENTER, 1)
+        ?.stackedEnergyCardIds
+    ).toEqual([energies[0].instanceId]);
+  });
+
+  it('stacks WAITING energies first and then ACTIVE energies in their original order', () => {
     const { game, energies } = setupEnergyBelowState({ energyCount: 3 });
 
     const result = stackEnergyFromEnergyZoneBelowMember(game, PLAYER1, SlotPosition.CENTER, 2);
 
     expect(result).not.toBeNull();
-    expect(result?.stackedEnergyCardIds).toEqual([
-      energies[0].instanceId,
-      energies[1].instanceId,
-    ]);
+    expect(result?.stackedEnergyCardIds).toEqual([energies[1].instanceId, energies[0].instanceId]);
     expect(result?.gameState.players[0].energyZone.cardIds).toEqual([energies[2].instanceId]);
     expect(result?.gameState.players[0].energyZone.cardStates.has(energies[0].instanceId)).toBe(
       false
@@ -102,8 +157,8 @@ describe('energy below application helpers', () => {
       false
     );
     expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([
-      energies[0].instanceId,
       energies[1].instanceId,
+      energies[0].instanceId,
     ]);
   });
 
@@ -115,6 +170,13 @@ describe('energy below application helpers', () => {
     expect(result).toBeNull();
     expect(game.players[0].energyZone.cardIds).toEqual([energies[0].instanceId]);
     expect(game.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+  });
+
+  it('keeps the existing count-zero no-op behavior', () => {
+    const { game, energies } = setupEnergyBelowState({ energyCount: 2 });
+    const result = stackEnergyFromEnergyZoneBelowMember(game, PLAYER1, SlotPosition.CENTER, 0);
+    expect(result).toEqual({ gameState: game, stackedEnergyCardIds: [] });
+    expect(game.players[0].energyZone.cardIds).toEqual(energies.map((energy) => energy.instanceId));
   });
 
   it('returns energy below a leaving member to the energy deck in deterministic order', () => {
@@ -136,10 +198,7 @@ describe('energy below application helpers', () => {
 
     const result = returnEnergyBelowMemberToEnergyDeck(stacked, PLAYER1, SlotPosition.CENTER);
 
-    expect(result.returnedEnergyCardIds).toEqual([
-      energies[0].instanceId,
-      energies[1].instanceId,
-    ]);
+    expect(result.returnedEnergyCardIds).toEqual([energies[0].instanceId, energies[1].instanceId]);
     expect(result.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
     expect(result.gameState.players[0].energyDeck.cardIds.slice(-2)).toEqual([
       energies[0].instanceId,

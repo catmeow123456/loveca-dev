@@ -99,6 +99,10 @@ function startSpBp4006KinakoLiveSuccess(
         confirmSelectionLabel: '加入手牌',
         metadata: {
           orderedResolution,
+          publicCardSelectionConfirmation: {
+            source: 'REVEALED_CHEER',
+            destination: 'HAND',
+          },
           differentNameLiellaMemberCount: context.differentNameLiellaMemberCount,
           movableLiellaLiveCount: context.targetCardIds.length,
         },

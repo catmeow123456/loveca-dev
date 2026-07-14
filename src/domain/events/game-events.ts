@@ -291,6 +291,16 @@ export interface EnergyPlacedByCardEffectEvent extends BaseGameEvent {
   readonly cause: CardEffectCause;
 }
 
+export interface EnergyMovedToDeckEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_ENERGY_MOVED_TO_DECK;
+  readonly playerId: string;
+  readonly movedEnergyCardIds: readonly string[];
+  readonly fromZone: ZoneType.ENERGY_ZONE;
+  readonly toZone: ZoneType.ENERGY_DECK;
+  readonly cause: CardEffectCause | { readonly kind: 'RULE_ACTION'; readonly playerId: string };
+  readonly turnCount: number;
+}
+
 // ============================================
 // 状态触发事件
 // ============================================
@@ -394,6 +404,7 @@ export type GameEvent =
   | DrawEvent
   | PayCostEvent
   | EnergyPlacedByCardEffectEvent
+  | EnergyMovedToDeckEvent
   | MemberStateChangedEvent
   | MemberSlotMovedEvent
   | HandEmptyEvent
@@ -719,6 +730,26 @@ export function createEnergyPlacedByCardEffectEvent(
     orientation,
     cause,
     triggerPlayerId: targetPlayerId,
+  };
+}
+
+export function createEnergyMovedToDeckEvent(
+  playerId: string,
+  movedEnergyCardIds: readonly string[],
+  cause: EnergyMovedToDeckEvent['cause'],
+  turnCount: number
+): EnergyMovedToDeckEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENERGY_MOVED_TO_DECK,
+    timestamp: Date.now(),
+    playerId,
+    movedEnergyCardIds: [...movedEnergyCardIds],
+    fromZone: ZoneType.ENERGY_ZONE,
+    toZone: ZoneType.ENERGY_DECK,
+    cause,
+    turnCount,
+    triggerPlayerId: playerId,
   };
 }
 

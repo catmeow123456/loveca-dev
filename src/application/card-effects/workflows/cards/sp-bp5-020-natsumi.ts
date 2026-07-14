@@ -6,21 +6,18 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { GamePhase, OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
+import { OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
-  SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
   SP_BP5_020_LIVE_SUCCESS_PAY_ENERGY_DRAW_ONE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
-import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
-  recordAbilityUseForContext,
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 
@@ -30,10 +27,6 @@ const PAY_OPTION_ID = 'pay';
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerSpBp5020NatsumiWorkflowHandlers(): void {
-  registerActivatedAbilityHandler(
-    SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
-    (game, playerId, cardId) => resolveActivatedDraw(game, playerId, cardId)
-  );
   registerPendingAbilityStarterHandler(
     SP_BP5_020_LIVE_SUCCESS_PAY_ENERGY_DRAW_ONE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -54,46 +47,6 @@ export function registerSpBp5020NatsumiWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
-}
-
-function resolveActivatedDraw(game: GameState, playerId: string, cardId: string): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
-    return game;
-  }
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
-  const player = getPlayerById(game, playerId);
-  if (activePlayerId !== playerId || !player || !sourceIsOwnStageBp5020(game, playerId, cardId)) {
-    return game;
-  }
-
-  const costPayment = payImmediateEffectCosts(game, player.id, cardId, [
-    { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
-  ]);
-  if (!costPayment) {
-    return game;
-  }
-
-  let state = recordPayCostAction(costPayment.gameState, player.id, {
-    abilityId: SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
-    sourceCardId: cardId,
-    energyCardIds: costPayment.paidEnergyCardIds,
-    amount: costPayment.paidEnergyCardIds.length,
-  });
-  state = recordAbilityUseForContext(state, player.id, {
-    abilityId: SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
-    sourceCardId: cardId,
-  });
-  const drawResult = drawCardsForPlayer(state, player.id, 1);
-  state = drawResult?.gameState ?? state;
-
-  return addAction(state, 'RESOLVE_ABILITY', player.id, {
-    abilityId: SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
-    sourceCardId: cardId,
-    effectText: getAbilityEffectText(SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID),
-    step: 'PAY_TWO_ENERGY_DRAW_ONE',
-    paidEnergyCardIds: costPayment.paidEnergyCardIds,
-    drawnCardIds: drawResult?.drawnCardIds ?? [],
-  });
 }
 
 function startLiveSuccessPayDecision(
@@ -125,9 +78,9 @@ function startLiveSuccessPayDecision(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: LIVE_SUCCESS_PAY_DECISION_STEP_ID,
-      stepText: '可以支付1张能量抽1张卡。',
+      stepText: '可以支付[E]抽1张卡。',
       awaitingPlayerId: player.id,
-      selectableOptions: [{ id: PAY_OPTION_ID, label: '支付1张能量' }],
+      selectableOptions: [{ id: PAY_OPTION_ID, label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {

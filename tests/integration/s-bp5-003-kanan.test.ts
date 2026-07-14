@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -207,9 +208,10 @@ describe('PL!S-bp5-003 松浦果南', () => {
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
     );
     expect(recover.success, recover.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([hand.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([hand.instanceId]);
     expect(
       session.state?.eventLog.some(
         (entry) =>
@@ -267,6 +269,7 @@ describe('PL!S-bp5-003 松浦果南', () => {
       )
     );
     expect(recover.success, recover.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual(
       waitingCards.map((card) => card.instanceId)
     );
@@ -415,7 +418,8 @@ describe('PL!S-bp5-003 松浦果南', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       PL_S_BP5_003_ON_ENTER_DISCARD_NO_BLADE_HEART_MEMBERS_RECOVER_AQOURS_LIVE_ABILITY_ID
     );
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect?.sourceCardId).toBe(source2.instanceId);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([handCards[2]!.instanceId]);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
   });
 });

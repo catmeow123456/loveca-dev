@@ -201,7 +201,7 @@ describe('PL!S-pb1-006 津島善子 activated reveal LIVE', () => {
 
     expect(discard.success, discard.error).toBe(true);
     expect(session.state?.players[1]!.hand.cardIds).not.toContain(opponentHandCards[0]!.instanceId);
-    expect(session.state?.players[1]!.waitingRoom.cardIds).toContain(
+    expect(session.state?.players[1]!.mainDeck.cardIds).toContain(
       opponentHandCards[0]!.instanceId
     );
     expect(

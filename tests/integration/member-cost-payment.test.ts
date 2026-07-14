@@ -716,6 +716,72 @@ describe('member cost payment', () => {
     ).toBe(true);
   });
 
+  it('uses PL!SP-pb1-010 continuous effective cost for relay payment at ten energy', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('sp-pb1-010-effective-cost-relay-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 10);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const sourceCardId = ownedMemberCardIds[0];
+    const margareteCardId = ownedMemberCardIds[1];
+    expect(sourceCardId).toBeTruthy();
+    expect(margareteCardId).toBeTruthy();
+
+    const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as { data: MemberCardData };
+    sourceCard.data = createMemberCard('PL!SP-test-cost-twelve', '12费测试成员', 12);
+    const margareteCard = state.cardRegistry.get(margareteCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    margareteCard.data = createMemberCard(
+      'PL!SP-pb1-010-P＋',
+      'ウィーン・マルガレーテ',
+      4,
+      { groupNames: ['Liella!'] }
+    );
+
+    player.hand.cardIds = [sourceCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== sourceCardId && cardId !== margareteCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = margareteCardId!;
+    player.memberSlots.cardStates = new Map([
+      [margareteCardId!, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.pendingCostPayment).toBeNull();
+    expect(
+      session.state?.actionHistory.some(
+        (action) => action.type === 'PAY_COST' && action.payload.amount === 4
+      )
+    ).toBe(true);
+    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      cardInstanceId: sourceCardId,
+      replacedMemberCardId: margareteCardId,
+      replacedMemberEffectiveCost: 8,
+    });
+  });
+
   it('uses PL!-bp4-008-P effective stage cost for relay payment when success Live score is at least 6', () => {
     const session = createGameSession();
     const deck = createDeck();

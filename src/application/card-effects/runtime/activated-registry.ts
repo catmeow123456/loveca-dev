@@ -1,4 +1,7 @@
 import type { GameState } from '../../../domain/entities/game.js';
+import { EnergySelectionRequiredError } from '../../effects/energy-selection.js';
+import { createActivatedAbilityEnergySelectionWindow } from './energy-operation-selection.js';
+import { getAbilityEffectText } from './workflow-helpers.js';
 
 export type ActivatedAbilityHandler = (
   game: GameState,
@@ -23,5 +26,18 @@ export function resolveActivatedAbilityWithRegistry(
   abilityId: string
 ): GameState | null {
   const handler = activatedAbilityHandlers.get(abilityId);
-  return handler ? handler(game, playerId, cardId, abilityId) : null;
+  if (!handler) return null;
+  try {
+    return handler(game, playerId, cardId, abilityId);
+  } catch (error) {
+    if (!(error instanceof EnergySelectionRequiredError)) throw error;
+    return createActivatedAbilityEnergySelectionWindow(
+      game,
+      playerId,
+      cardId,
+      abilityId,
+      getAbilityEffectText(abilityId),
+      error
+    );
+  }
 }

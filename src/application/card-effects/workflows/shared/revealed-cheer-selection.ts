@@ -18,6 +18,7 @@ import {
   typeIs,
   unitAliasIs,
 } from '../../../effects/card-selectors.js';
+import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
 import {
   moveRevealedCheerCards,
@@ -37,6 +38,7 @@ import {
   S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
   S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
   S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+  SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   CardAbilityCategory,
@@ -55,6 +57,11 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import { CardType } from '../../../../shared/types/enums.js';
+import { cardNameAliasMatches } from '../../../../shared/utils/card-identity.js';
+import {
+  registerLiveSuccessAbilityAvailabilityGate,
+  type LiveSuccessAbilityAvailabilityGate,
+} from '../../runtime/live-success-ability-availability-gates.js';
 
 export const HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID = 'HS_BP6_001_SELECT_REVEALED_CHEER_TO_TOP';
 export const HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID =
@@ -92,6 +99,7 @@ interface RevealedCheerSelectionWorkflowConfig {
   readonly destination: RevealedCheerCardDestination;
   readonly optional: boolean;
   readonly confirmWhenNoTargets?: boolean;
+  readonly availabilityGate?: LiveSuccessAbilityAvailabilityGate;
   readonly startCondition?: (
     game: GameState,
     playerId: string,
@@ -129,6 +137,18 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId:
+      SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+    stepId: 'SP_BP2_025_SELECT_REVEALED_CHEER_TO_HAND',
+    stepText: '请选择1张因声援被公开的自己的卡片加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开卡',
+    destination: 'HAND',
+    optional: false,
+    confirmWhenNoTargets: true,
+    availabilityGate: ({ game, controllerId }) =>
+      hasTwoDistinctTargetNamedStageMembers(game, controllerId),
+  },
   {
     abilityId: S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
     stepId: S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID,
@@ -257,6 +277,9 @@ export function registerRevealedCheerSelectionWorkflowHandlers(
   dependencies: RevealedCheerSelectionWorkflowDependencies
 ): void {
   for (const config of REVEALED_CHEER_SELECTION_WORKFLOWS) {
+    if (config.availabilityGate) {
+      registerLiveSuccessAbilityAvailabilityGate(config.abilityId, config.availabilityGate);
+    }
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startRevealedCheerSelectionWorkflow(game, config, {
         ability,
@@ -276,6 +299,38 @@ export function registerRevealedCheerSelectionWorkflowHandlers(
       )
     );
   }
+}
+
+const SP_BP2_025_TARGET_MEMBER_NAMES = [
+  '澁谷かのん',
+  'ウィーン・マルガレーテ',
+  '鬼塚冬毬',
+] as const;
+
+function hasTwoDistinctTargetNamedStageMembers(game: GameState, playerId: string): boolean {
+  const stageMemberCardIds = getStageMemberCardIdsMatching(game, playerId, (card) =>
+    SP_BP2_025_TARGET_MEMBER_NAMES.some((name) => cardNameAliasMatches(card.data, name))
+  );
+  return stageMemberCardIds.some((firstCardId, firstIndex) => {
+    const firstCard = getCardById(game, firstCardId);
+    if (!firstCard) {
+      return false;
+    }
+    return stageMemberCardIds.slice(firstIndex + 1).some((secondCardId) => {
+      const secondCard = getCardById(game, secondCardId);
+      if (!secondCard) {
+        return false;
+      }
+      return SP_BP2_025_TARGET_MEMBER_NAMES.some(
+        (firstName) =>
+          cardNameAliasMatches(firstCard.data, firstName) &&
+          SP_BP2_025_TARGET_MEMBER_NAMES.some(
+            (secondName) =>
+              secondName !== firstName && cardNameAliasMatches(secondCard.data, secondName)
+          )
+      );
+    });
+  });
 }
 
 export function syncHsBp6027ManualCheerAdjustment(
@@ -455,6 +510,10 @@ function startRevealedCheerSelectionWorkflow(
       metadata: {
         cheerRevealedCardSelection: true,
         destination: config.destination,
+        publicCardSelectionConfirmation: {
+          source: 'REVEALED_CHEER',
+          destination: config.destination,
+        },
         additionalCheerEqualToMoved: config.additionalCheerEqualToMoved === true,
         orderedResolution: context.orderedResolution,
         ...startCondition?.payload,

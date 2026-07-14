@@ -74,20 +74,92 @@ export const PL_N_BP3_008_ACTIVATED_WAIT_OTHER_NIJIGASAKI_DRAW_ONE_ABILITY_ID =
   'PL!N-bp3-008:activated-wait-other-nijigasaki-draw-one';
 export const PL_N_BP3_008_LIVE_START_DISCARD_TWO_ACTIVATE_OTHER_MEMBER_GAIN_GREEN_HEART_ABILITY_ID =
   'PL!N-bp3-008:live-start-discard-two-activate-other-member-gain-green-heart';
+export const PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID =
+  'PL!N-bp3-009:live-start-bottom-two-waiting-members-cost-sum-reward';
 export const PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID =
   'PL!N-bp3-010:live-start-select-player-bottom-waiting-members';
+export const PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID =
+  'PL!N-bp3-012:on-enter-discard-look-top-nijigasaki-card';
+export const S_BP3_003_ON_ENTER_DISCARD_LIVE_DRAW_THREE_ABILITY_ID =
+  'PL!S-bp3-003:on-enter-discard-live-draw-three';
+export const S_BP3_003_LIVE_START_DISCARD_UP_TO_TWO_GAIN_BLADE_ABILITY_ID =
+  'PL!S-bp3-003:live-start-discard-up-to-two-gain-two-blade-each';
+export const S_BP3_005_LIVE_SUCCESS_FEWER_REVEALED_CHEER_CARDS_DRAW_ONE_ABILITY_ID =
+  'PL!S-bp3-005:live-success-fewer-revealed-cheer-cards-draw-one';
+export const S_BP3_001_ACTIVATED_WAIT_OWN_MEMBER_GRANT_PLAYER_SCORE_ABILITY_ID =
+  'PL!S-bp3-001:activated-wait-own-member-grant-live-total-score';
+export const S_BP3_002_LIVE_SUCCESS_HIGHER_SCORE_SELF_REVEALED_CHEER_TO_HAND_ABILITY_ID =
+  'PL!S-bp3-002:live-success-higher-score-self-revealed-cheer-to-hand';
+export const S_BP3_007_ACTIVATED_PAY_ENERGY_BOTTOM_WAITING_LIVE_DRAW_ABILITY_ID =
+  'PL!S-bp3-007:activated-pay-energy-bottom-waiting-live-draw';
+export const S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!S-bp3-008:activated-self-sacrifice-recover-aqours-live-activate-energy';
 export const PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
   'PL!N-bp3-025-L:live-start-return-energy-below-gain-red-heart';
+export const PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp3-026-L:live-start-success-score-one-or-five-this-live-score';
 export const PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!N-bp3-027-L:live-success-green-surplus-nijigasaki-member-place-waiting-energy';
+export const PL_N_BP3_028_LIVE_START_LOOK_TOP_PER_NIJIGASAKI_REVEAL_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp3-028:live-start-look-top-per-nijigasaki-reveal-live-score';
 export const PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!N-bp3-030-L:live-success-cheer-all-blade-this-live-score';
+export const PL_N_BP3_031_LIVE_SUCCESS_WAITING_STAGE_MEMBERS_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp3-031-L:live-success-waiting-stage-members-this-live-score';
+export const PL_N_BP3_006_ON_ENTER_WAIT_SELF_ABILITY_ID =
+  'PL!N-bp3-006:on-enter-wait-self';
+export const PL_N_BP3_007_ACTIVATED_PAY_TWO_SEND_SELF_PLAY_SETUNA_ATTACH_ENERGY_ABILITY_ID =
+  'PL!N-bp3-007:activated-pay-two-send-self-play-setsuna-attach-energy';
+export const PL_N_BP3_004_ACTIVATED_WAIT_SELF_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID =
+  'PL!N-bp3-004:activated-wait-self-discard-recover-nijigasaki-live';
+export const PL_N_BP3_005_AUTO_THIRD_MEMBER_ENTER_DRAW_TO_FIVE_ABILITY_ID =
+  'PL!N-bp3-005:auto-third-member-enter-draw-to-five';
+export const PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID =
+  'PL!N-bp3-005:live-start-two-member-entries-gain-score';
+export const PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID =
+  'PL!N-bp3-002:live-start-discard-choose-heart-other-nijigasaki-member';
+export const PL_N_BP3_011_ON_ENTER_COMPARE_OPPONENT_MEMBER_GAIN_BLADE_ABILITY_ID =
+  'PL!N-bp3-011:on-enter-compare-opponent-member-gain-blade';
 export const BP3_001_ACTIVATED_WAIT_SELF_DRAW_DISCARD_ABILITY_ID =
   'PL!-bp3-001:activated-wait-self-draw-one-discard-one';
 export const BP3_001_LIVE_START_ACTIVATE_OWN_STAGE_MEMBER_ABILITY_ID =
   'PL!-bp3-001:live-start-activate-own-stage-member';
+export const PL_BP3_002_ON_ENTER_DISCARD_WAIT_OPPONENT_LOW_COST_MEMBERS_ABILITY_ID =
+  'PL!-bp3-002:on-enter-discard-wait-opponent-low-cost-members';
+export const PL_BP3_002_CONTINUOUS_OPPONENT_WAITING_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp3-002:continuous-opponent-waiting-gain-blade';
+export const PL_BP3_003_ON_ENTER_WAIT_SELF_RECOVER_MUSE_MEMBER_ABILITY_ID =
+  'PL!-bp3-003:on-enter-wait-self-recover-muse-member';
+export const PL_BP3_004_ON_ENTER_DRAW_PER_STAGE_MEMBER_DISCARD_ONE_ABILITY_ID =
+  'PL!-bp3-004:on-enter-draw-per-stage-member-discard-one';
+export const PL_BP3_004_LIVE_START_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp3-004:live-start-discard-recover-muse-live';
+export const PL_BP3_005_ON_ENTER_ACTIVATE_ALL_STAGE_MEMBERS_ABILITY_ID =
+  'PL!-bp3-005:on-enter-activate-all-stage-members';
+export const PL_BP3_007_LIVE_START_DISCARD_TWO_PARTITION_TOP_THREE_ABILITY_ID =
+  'PL!-bp3-007:live-start-discard-two-partition-top-three';
+export const PL_BP3_008_ACTIVATED_WAIT_SELF_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-bp3-008:activated-wait-self-recover-muse-live';
+export const PL_BP3_008_LIVE_START_OPTIONAL_WAIT_MUSE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!-bp3-008:live-start-optional-wait-muse-member-gain-yellow-heart';
+export const PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID =
+  'PL!-bp3-009:on-enter-cost-thirteen-draw-one';
+export const PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID =
+  'PL!-bp3-009:activated-wait-self-choose-heart';
 export const BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID =
   'PL!-bp3-006:live-start-discard-gain-blade-by-success-count';
+export const PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-019-L:live-start-two-muse-live-this-live-score';
+export const PL_BP3_022_LIVE_START_REVEAL_PER_STAGE_MEMBER_GAIN_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-022-L:live-start-reveal-per-stage-member-gain-live-score';
+export const PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID =
+  'PL!-bp3-023-L:live-start-stage-blade-ten-reduce-requirement';
+export const PL_BP3_024_LIVE_START_SUCCESS_CHOOSE_HEART_TARGET_MUSE_MEMBER_ABILITY_ID =
+  'PL!-bp3-024-L:live-start-success-choose-heart-target-muse-member';
+export const PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-024-L:live-start-success-two-this-live-score';
+export const PL_BP3_025_LIVE_SUCCESS_NO_REMAINING_HEART_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!-bp3-025-L:live-success-no-remaining-heart-this-live-score';
 export const BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID =
   'PL!-bp3:live-start-success-count-choose-pink-yellow-purple-heart';
 export const PL_N_BP3_014_LIVE_START_REPLACE_ORIGINAL_HEART_COLOR_ABILITY_ID =
@@ -292,8 +364,30 @@ export const PL_PB1_002_LIVE_START_WAIT_SELF_ONLY_BIBI_WAIT_OPPONENT_LOW_ORIGINA
   'PL!-pb1-002:live-start-wait-self-only-bibi-wait-opponent-low-original-blade';
 export const PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
+export const PL_PB1_003_ON_ENTER_WAIT_SELF_ACTIVATE_PRINTEMPS_COUNT_ENERGY_ABILITY_ID =
+  'PL!-pb1-003:on-enter-wait-self-activate-printemps-count-energy';
+export const PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID =
+  'PL!-pb1-004:on-enter-center-success-muse-score';
+export const PL_PB1_008_ON_ENTER_WAIT_UP_TO_THREE_MEMBERS_DRAW_PER_WAITED_ABILITY_ID =
+  'PL!-pb1-008:on-enter-wait-up-to-three-members-draw-per-waited';
+export const PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID =
+  'PL!-pb1-009:on-enter-wait-opponent-original-blade-one';
+export const PL_PB1_009_ON_ENTER_PREVENT_EFFECT_MEMBER_ACTIVATION_THIS_TURN_ABILITY_ID =
+  'PL!-pb1-009:on-enter-prevent-effect-member-activation-this-turn';
+export const PL_PB1_017_ON_ENTER_WAIT_SELF_DRAW_DISCARD_UNLESS_PRINTEMPS_RELAY_ABILITY_ID =
+  'PL!-pb1-017:on-enter-wait-self-draw-discard-unless-printemps-relay';
+export const PL_PB1_006_ON_ENTER_STACK_MUSE_LIVE_DRAW_IF_OPPONENT_WAITING_ABILITY_ID =
+  'PL!-pb1-006:on-enter-stack-muse-live-draw-if-opponent-waiting';
+export const PL_PB1_007_ACTIVATED_SUCCESS_COUNT_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID =
+  'PL!-pb1-007:activated-success-count-discard-recover-muse-live';
 export const PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID =
   'PL!-pb1-010:live-start-discard-hand-other-members-gain-blade';
+export const PL_PB1_012_ON_ENTER_ACTIVATE_PRINTEMPS_MEMBER_ABILITY_ID =
+  'PL!-pb1-012:on-enter-activate-printemps-member';
+export const PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID =
+  'PL!-pb1-013:activated-pay-two-energy-reveal-hand-live-score';
+export const PL_PB1_014_CONTINUOUS_SUCCESS_LILYWHITE_HAND_COST_REDUCTION_ABILITY_ID =
+  'PL!-pb1-014:continuous-success-lilywhite-hand-cost-reduction';
 export const PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID =
   'PL!-pb1-011:on-enter-different-bibi-wait-opponent-low-cost-member';
 export const PL_N_BP5_003_ACTIVATED_DISCARD_PAY_SCORE_RECOVER_LIVE_ABILITY_ID =
@@ -362,6 +456,10 @@ export const N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_
   'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
 export const SP_BP2_024_LIVE_SUCCESS_HAND_ADVANTAGE_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp2-024:live-success-hand-advantage-this-live-score';
+export const SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID =
+  'PL!SP-bp2-025:live-success-two-distinct-named-stage-members-revealed-cheer-to-hand';
+export const SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID =
+  'PL!SP-bp2-005:on-enter-pay-two-energy-look-top-seven-liella-card';
 export const S_BP2_024_LIVE_SUCCESS_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
   'PL!S-bp2-024:live-success-draw-two-discard-one';
 export const S_BP5_019_LIVE_SUCCESS_SUCCESS_ZONE_TWO_REVEALED_CHEER_MEMBER_TO_HAND_ABILITY_ID =
@@ -388,6 +486,10 @@ export const HS_PB1_003_ON_ENTER_DISCARD_MIRACRA_MEMBERS_DRAW_PLUS_ONE_ABILITY_I
   'PL!HS-pb1-003-R:on-enter-discard-miracra-members-draw-plus-one';
 export const HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID =
   'PL!HS-pb1-003-R:auto-hand-to-waiting-gain-pink-heart-blade';
+export const HS_BP1_005_ON_ENTER_DISCARD_UP_TO_THREE_DRAW_SAME_COUNT_ABILITY_ID =
+  'PL!HS-bp1-005:on-enter-discard-up-to-three-draw-same-count';
+export const HS_PR_031_ON_ENTER_DISCARD_TWO_DRAW_TO_FIVE_ABILITY_ID =
+  'PL!HS-PR-031:on-enter-discard-two-draw-to-five';
 export const HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID =
   'PL!HS-sd1-002-SD:live-start-discard-two-look-top-member-hand-gain-heart-blade';
 export const HS_SD1_004_ON_ENTER_DISCARD_HASUNOSORA_RECOVER_MEMBER_ABILITY_ID =
@@ -430,6 +532,10 @@ export const HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILIT
   'PL!HS-PR-017:live-start-discard-same-unit-gain-blue-heart-blade';
 export const HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID =
   'PL!HS-PR-020:live-start-pay-energy-stack-waiting-members-to-deck-top';
+export const HS_PR_029_LIVE_START_PAY_ENERGY_GAIN_PINK_HEART_ABILITY_ID =
+  'PL!HS-PR-029:live-start-pay-one-gain-pink-heart';
+export const HS_PR_028_LIVE_SUCCESS_EXTRA_EFFECTIVE_HEART_MEMBER_DRAW_ONE_ABILITY_ID =
+  'PL!HS-PR-028:live-success-extra-effective-heart-member-draw-one';
 export const S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!S-PR-013:live-start-pay-two-gain-two-blade';
 export const S_PR_016_ON_ENTER_GAIN_ONE_BLADE_ABILITY_ID = 'PL!S-PR-016:on-enter-gain-one-blade';
@@ -465,6 +571,8 @@ export const SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID =
   'PL!SP-bp4-028:live-start-active-energy-score';
 export const SP_BP2_008_ACTIVATED_PAY_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-bp2-008:activated-pay-energy-self-position-change';
+export const SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-bp2-023:live-start-fewer-success-live-this-live-score';
 export const SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID =
   'PL!SP-sd2-002:activated-pay-two-energy-self-position-change';
 export const SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_ABILITY_ID =
@@ -783,6 +891,14 @@ export const PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_A
   'PL!N-bp5-004:on-enter-wait-self-opponent-original-blade-four-wait';
 export const PL_N_BP5_004_LIVE_START_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID =
   'PL!N-bp5-004:live-start-wait-self-opponent-original-blade-four-wait';
+export const PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID =
+  'PL!N-bp3-017-023:on-enter-wait-self-opponent-cost-lte-four-wait';
+export const PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID =
+  'PL!N-bp3-017-023:live-start-wait-self-opponent-cost-lte-four-wait';
+export const PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-bp3-001:live-start-stack-energy-draw-stage-gain-two-blade';
+export const PL_N_BP3_013_ON_ENTER_STACK_ENERGY_DRAW_TWO_ABILITY_ID =
+  'PL!N-bp3-013:on-enter-stack-energy-draw-two';
 export const BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID =
   'PL!-bp5-007:on-enter-relay-low-cost-discard-to-three-draw-three';
 export const BP4_008_CONTINUOUS_SUCCESS_SCORE_STAGE_COST_ABILITY_ID =
@@ -1227,3 +1343,57 @@ export const PL_PB1_030_LIVE_SUCCESS_DIFFERENT_BIBI_RECOVER_MEMBER_ABILITY_ID =
   'PL!-pb1-030-L:live-success-different-bibi-recover-member';
 export const PL_PB1_031_LIVE_SUCCESS_DISCARD_HAND_RECOVER_MUSE_MEMBER_CHEER_ABILITY_ID =
   'PL!-pb1-031-L:live-success-discard-hand-recover-muse-member-cheer';
+export const PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID =
+  'PL!-pb1-005:on-enter-has-success-live-draw-one';
+export const PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID =
+  'PL!-pb1-032-L:live-success-has-muse-success-live-draw-one';
+export const HS_PR_035_ON_ENTER_BOTTOM_THREE_OPPONENT_WAITING_MEMBERS_WAIT_LOW_BLADE_ABILITY_ID =
+  'PL!HS-PR-035-PR:on-enter-bottom-three-opponent-waiting-members-wait-low-blade';
+export const PL_N_BP3_003_ON_ENTER_ACTIVATE_WAITING_LOW_COST_NIJIGASAKI_MEMBER_ON_ENTER_ABILITY_ID =
+  'PL!N-bp3-003:on-enter-activate-waiting-low-cost-nijigasaki-member-on-enter';
+export const SP_BP2_006_ON_ENTER_RELAY_RECOVER_REPLACED_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-bp2-006:on-enter-relay-recover-replaced-liella-member';
+export const SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID =
+  'PL!SP-bp2-006:activated-discard-low-cost-liella-member-activate-on-enter';
+export const SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp2-004:continuous-center-highest-stage-cost-gain-yellow-heart';
+export const SP_BP2_015_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!SP-bp2-015:auto-on-cheer-no-blade-heart-gain-purple-heart';
+export const SP_BP2_020_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_RED_HEART_ABILITY_ID =
+  'PL!SP-bp2-020:auto-on-cheer-no-blade-heart-gain-red-heart';
+export const SP_BP2_021_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_YELLOW_HEART_ABILITY_ID =
+  'PL!SP-bp2-021:auto-on-cheer-no-blade-heart-gain-yellow-heart';
+export const SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-bp7-005-SEC:auto-enter-or-return-place-waiting-energy';
+export const SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID =
+  'PL!SP-bp7-005-SEC:auto-own-effect-place-energy-gain-blade';
+export const SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-bp7-006-SEC:on-enter-return-energy-recover-liella-member';
+export const SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID =
+  'PL!SP-bp7-006-SEC:live-success-energy-returned-score';
+export const SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID =
+  'PL!SP-bp7-007-SEC:live-start-return-two-gain-three-blade';
+export const SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID =
+  'PL!SP-bp7-007-SEC:live-success-place-two-skipped-energy';
+export const SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID =
+  'PL!SP-bp7-007-SEC:live-success-more-energy-activate-five';
+export const SP_PB1_002_CONTINUOUS_ENERGY_TWELVE_LIVE_SCORE_ABILITY_ID =
+  'PL!SP-pb1-002:continuous-energy-twelve-live-score';
+export const SP_PB1_010_CONTINUOUS_ENERGY_TEN_STAGE_COST_PLUS_FOUR_ABILITY_ID =
+  'PL!SP-pb1-010:continuous-energy-ten-stage-cost-plus-four';
+export const SP_PB1_005_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-pb1-005:on-enter-place-waiting-energy';
+export const SP_PB1_007_LIVE_START_ACTIVATE_TWO_ENERGY_ABILITY_ID =
+  'PL!SP-pb1-007:live-start-activate-two-energy';
+export const SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID =
+  'PL!SP-pb1-009:on-enter-other-fiveyncrise-draw-one';
+export const SP_PB1_023_LIVE_START_CATCHU_ACTIVATE_ENERGY_SCORE_ABILITY_ID =
+  'PL!SP-pb1-023:live-start-catchu-activate-energy-score';
+export const SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID =
+  'PL!SP-pb1-024:live-start-kaleidoscore-score';
+export const SP_PB1_004_LIVE_START_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-pb1-004:live-start-pay-two-energy-place-waiting-energy';
+export const SP_PB1_004_LIVE_SUCCESS_PAY_THREE_ENERGY_DRAW_ONE_ABILITY_ID =
+  'PL!SP-pb1-004:live-success-pay-three-energy-draw-one';
+export const SP_PB1_011_ON_ENTER_REPLAY_OTHER_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-pb1-011:on-enter-replay-other-liella-member';

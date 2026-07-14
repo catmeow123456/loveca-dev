@@ -51,15 +51,20 @@ function setupLiveSuccess(): {
     createCardInstance(createMember('DECK-DRAW-1'), PLAYER1, 'deck-draw-1'),
     createCardInstance(createMember('DECK-DRAW-2'), PLAYER1, 'deck-draw-2'),
   ];
+  const ruleSentinel = createCardInstance(
+    createMember('DECK-RULE-SENTINEL'),
+    PLAYER1,
+    'deck-rule-sentinel'
+  );
 
   let game = createGameState('s-bp2-024-kimikoko', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(game, [live, handCard, ...deckCards]);
+  game = registerCards(game, [live, handCard, ...deckCards, ruleSentinel]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     hand: addCardToZone(player.hand, handCard.instanceId),
     mainDeck: {
       ...player.mainDeck,
-      cardIds: deckCards.map((card) => card.instanceId),
+      cardIds: [...deckCards.map((card) => card.instanceId), ruleSentinel.instanceId],
     },
     liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
   }));

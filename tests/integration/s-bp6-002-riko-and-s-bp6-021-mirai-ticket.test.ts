@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -240,6 +242,14 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       );
 
       expect(finish.success, finish.error).toBe(true);
+      expect(session.state?.activeEffect).toMatchObject({
+        stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+        revealedCardIds: [targetId],
+      });
+      expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+      expect(session.state?.resolutionZone.cardIds).toContain(targetId);
+      expect(session.state?.players[0].mainDeck.cardIds).toEqual(additionalDeckIds);
+      confirmPublicSelectionIfNeeded(session);
       expect(session.state?.players[0].waitingRoom.cardIds).toEqual([targetId]);
       expect(session.state?.resolutionZone.cardIds).toEqual(
         additionalDeckIds.slice(0, expectedAdditional)
@@ -319,6 +329,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     );
 
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([mixedSeriesMember.instanceId]);
     expect(session.state?.resolutionZone.cardIds).toEqual(
       additionalDeckCards.slice(0, 4).map((card) => card.instanceId)

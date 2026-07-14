@@ -28,6 +28,7 @@ export interface WaitingRoomToHandEffectStateConfig {
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;
   readonly canSkipSelection?: boolean;
+  readonly publiclyConfirmSelection?: boolean;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly zoneSelection?: ZoneCardSelectionConfig;
 }
@@ -85,6 +86,15 @@ export function createWaitingRoomToHandEffectState(
     metadata: {
       ...config.metadata,
       zoneSelection,
+      ...(config.publiclyConfirmSelection === false
+        ? {}
+        : {
+            publicCardSelectionConfirmation: {
+              destination: 'HAND',
+              ordered: shouldUseOrderedMulti,
+              sourcePlayerId: config.awaitingPlayerId,
+            },
+          }),
     },
   };
 }

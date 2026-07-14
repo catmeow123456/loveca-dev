@@ -74,11 +74,7 @@ export type ViewerSurface = 'NONE' | 'BACK' | 'FRONT';
 export type PublicEventSource = 'PLAYER' | 'SYSTEM';
 
 export type PublicWindowType =
-  | 'SERIAL_PRIORITY'
-  | 'INSPECTION'
-  | 'SIMULTANEOUS_COMMIT'
-  | 'RESULT_ANIMATION'
-  | 'SHARED_CONFIRM';
+  'SERIAL_PRIORITY' | 'INSPECTION' | 'SIMULTANEOUS_COMMIT' | 'RESULT_ANIMATION' | 'SHARED_CONFIRM';
 
 export type WindowStatus = 'OPENED' | 'UPDATED' | 'CLOSED';
 
@@ -119,11 +115,10 @@ export interface LiveResultViewState {
   readonly cheerHeartColorReplacements: Readonly<
     Record<
       Seat,
-      | {
-          readonly fromColors: readonly HeartColor[];
-          readonly toColor: HeartColor;
-        }
-      | null
+      {
+        readonly fromColors: readonly HeartColor[];
+        readonly toColor: HeartColor;
+      } | null
     >
   >;
   /** 当前仅投影无色/All 必要 Heart 减少；彩色/增加修正应升级为 modifier 列表 */
@@ -204,6 +199,7 @@ export interface ViewCardObject {
   readonly publiclyRevealed?: boolean;
   readonly judgmentResult?: boolean;
   readonly enteredStageThisTurn?: boolean;
+  readonly skipsNextActivePhase?: boolean;
   readonly frontInfo?: ViewFrontCardInfo;
   readonly activatedAbilityUiConfig?: ActivatedAbilityUiConfig;
 }
@@ -250,8 +246,15 @@ export interface ActiveEffectViewState {
   readonly stepText: string;
   readonly waitingSeat: Seat | null;
   readonly revealedObjectIds?: readonly string[];
+  /** 休息室选卡公共展示的服务端权威截止时间。 */
+  readonly publicCardSelectionAutoAdvanceAt?: number;
+  /** 投影时按服务端时钟计算的剩余展示时长。 */
+  readonly publicCardSelectionAutoAdvanceAfterMs?: number;
+  readonly publicCardSelectionOrdered?: boolean;
   readonly inspectionObjectIds?: readonly string[];
   readonly selectableObjectIds?: readonly string[];
+  /** 候选对象只以匿名牌背展示，不含可关联到真实卡牌实例的对象 ID。 */
+  readonly selectableObjectsFaceDown?: boolean;
   readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
   readonly minSelectableObjects?: number;
   readonly maxSelectableObjects?: number;
@@ -453,12 +456,7 @@ export type CardEffectSummaryKind =
   | 'DISCARD_LOOK_TOP_SELECT_TO_HAND'
   | 'ARRANGE_INSPECTED_DECK_TOP';
 export type CardEffectSummaryStatus = 'STARTED' | 'COMPLETED';
-export type CardEffectSummarySourceActionLabel =
-  | '登场'
-  | '离场'
-  | '起动'
-  | 'LIVE开始'
-  | 'LIVE成功';
+export type CardEffectSummarySourceActionLabel = '登场' | '离场' | '起动' | 'LIVE开始' | 'LIVE成功';
 
 export interface CardEffectSummaryPublicEvent extends BasePublicEvent {
   readonly type: 'CardEffectSummary';

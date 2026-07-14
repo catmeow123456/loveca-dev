@@ -202,6 +202,7 @@ function finishSelectLiellaMember(
         skipSelectionLabel: undefined,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: { destination: 'HAND' },
           targetMemberCardId: target.cardId,
           suppressedAbilityIds: target.liveStartAbilityIds,
           recoveryCandidates,

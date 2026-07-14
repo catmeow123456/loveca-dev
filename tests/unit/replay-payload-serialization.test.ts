@@ -73,6 +73,22 @@ function createTestDeck(prefix: string): DeckConfig {
 }
 
 describe('replay payload serialization', () => {
+  it('旧 authority payload 缺少 energyActivePhaseSkips 时仍可复水和投影', () => {
+    const session = createGameSession();
+    session.createGame('legacy-energy-marker', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const legacySnapshot = { ...snapshot } as typeof snapshot & {
+      energyActivePhaseSkips?: typeof snapshot.energyActivePhaseSkips;
+    };
+    delete legacySnapshot.energyActivePhaseSkips;
+    const rehydrated = rehydrateAuthorityGameState(
+      serializeReplayPayload(legacySnapshot, 'AUTHORITY_GAME_STATE', 'GAME_STATE_V1')
+    );
+    expect(rehydrated.energyActivePhaseSkips).toBeUndefined();
+    expect(() => projectPlayerViewState(rehydrated, PLAYER1)).not.toThrow();
+  });
+
   it('authority checkpoint 经 TRANSPORT_V1 GZIP envelope 往返后仍可复水并投影玩家视角', () => {
     const session = createGameSession();
     session.createGame('replay-serialize', PLAYER1, '玩家1', PLAYER2, '玩家2');

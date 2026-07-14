@@ -89,6 +89,9 @@ describe('validateCardCode', () => {
       'PL!-bp3-004-P+',
       'LL-bp4-001-SEC+',
       'PL!SP-sd2-000-SECS',
+      'PL!SP-bp7-005-SEC',
+      'PL!SP-bp7-006-SEC',
+      'PL!SP-bp7-007-SEC',
     ];
     for (const code of cases) {
       const result = validateCardCode(code);

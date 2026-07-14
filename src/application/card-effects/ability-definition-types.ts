@@ -17,6 +17,8 @@ export enum CardAbilitySourceZone {
   WAITING_ROOM = 'WAITING_ROOM',
   LIVE_CARD = 'LIVE_CARD',
   SUCCESS_LIVE_CARD = 'SUCCESS_LIVE_CARD',
+  /** A card still revealed in its controller's current Live cheer set. */
+  REVEALED_CHEER_CARD = 'REVEALED_CHEER_CARD',
 }
 
 export interface ActivatedAbilityUiConfig {
@@ -29,7 +31,9 @@ export interface OnEnterStageTriggerFilter {
   readonly enteredController?: 'SELF' | 'OPPONENT' | 'ANY';
   readonly excludeEnteredCardAsSource?: boolean;
   readonly enteredCardType?: CardType;
+  readonly enteredGroupAliases?: readonly string[];
   readonly enteredUnitAliases?: readonly string[];
+  readonly enteredOrdinalThisTurn?: number;
 }
 
 export interface CardAbilityDefinition {
@@ -52,5 +56,7 @@ export interface CardAbilityDefinition {
   readonly observerOnly?: boolean;
   readonly skipQueueWhenTurnLimitReached?: boolean;
   readonly activatedUi?: ActivatedAbilityUiConfig;
+  /** Explicit opt-in for resolving this ON_ENTER ability with its member still in the waiting room. */
+  readonly delegatedOnEnterFromWaitingRoomPolicy?: 'ALLOW';
   readonly notes?: string;
 }

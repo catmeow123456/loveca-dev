@@ -21,6 +21,7 @@ import {
 import {
   addLiveModifier,
   collectLiveModifiers,
+  getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
   replaceLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
@@ -36,6 +37,7 @@ import {
 } from '../../../effects/card-selectors.js';
 import {
   countCardsMatchingSelector,
+  countMemberEntriesThisTurn,
   countOtherLiveZoneCardsMatching,
   countSuccessfulLiveCards,
   getCardIdsInZone,
@@ -60,10 +62,12 @@ import {
   HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
   HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
+  PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP5_022_LIVE_START_SUCCESS_ZONE_SCORE_AND_REQUIREMENT_ABILITY_ID,
   PL_BP5_023_LIVE_START_STAGE_NON_PINK_PURPLE_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
+  PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -78,6 +82,7 @@ import {
 
 const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
 const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
+const PL_BP3_023_STAGE_BLADE_REQUIREMENT_STEP_ID = 'PL_BP3_023_STAGE_BLADE_REQUIREMENT';
 const PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT_STEP_ID =
   'PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT';
 const PL_BP5_022_SUCCESS_ZONE_SCORE_REQUIREMENT_STEP_ID =
@@ -106,6 +111,7 @@ const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID =
 const SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID = 'SP_BP4_028_ACTIVE_ENERGY_SCORE';
 const PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE_STEP_ID =
   'PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE';
+const PL_N_BP3_005_MEMBER_ENTRIES_SCORE_STEP_ID = 'PL_N_BP3_005_MEMBER_ENTRIES_SCORE';
 const HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID =
   'HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT';
 
@@ -152,6 +158,19 @@ interface LiveRequirementGainHeartConfig {
 
 const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkflowConfig[] = [
   {
+    abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
+    stepId: PL_N_BP3_005_MEMBER_ENTRIES_SCORE_STEP_ID,
+    getStartContext: (game, _ability, playerId) => {
+      const entryCount = countMemberEntriesThisTurn(game, playerId);
+      const conditionMet = entryCount >= 2;
+      return {
+        effectText: `${getAbilityEffectText(PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID)}（本回合自己的成员已登场${entryCount}次，${conditionMet ? '满足条件，实际LIVE合计[スコア]+1' : '未满足条件，不增加LIVE合计[スコア]'}。）`,
+        actionPayload: { entryCount, conditionMet, scoreBonus: conditionMet ? 1 : 0 },
+      };
+    },
+    finish: finishPlNBp3005MemberEntriesScore,
+  },
+  {
     abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
     stepId: HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID,
     getStartContext: getHsPb1026DifferentHasunosoraMemberStartContext,
@@ -178,6 +197,12 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
       };
     },
     finish: finishBokuimaLiveStartRequirementReduction,
+  },
+  {
+    abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+    stepId: PL_BP3_023_STAGE_BLADE_REQUIREMENT_STEP_ID,
+    getStartContext: getPlBp3023StageBladeStartContext,
+    finish: finishPlBp3023StageBladeRequirementReduction,
   },
   {
     abilityId: PL_BP5_020_LIVE_START_CENTER_MUSE_YELLOW_HEART_REDUCE_REQUIREMENT_ABILITY_ID,
@@ -449,6 +474,34 @@ function resolveConditionalLiveModifierWorkflow(
   );
 }
 
+function finishPlNBp3005MemberEntriesScore(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const entryCount = countMemberEntriesThisTurn(game, playerId);
+  const scoreBonus = entryCount >= 2 ? 1 : 0;
+  const previous = game.liveResolution.liveModifiers.find(
+    (modifier) => modifier.kind === 'SCORE' && modifier.playerId === playerId &&
+      modifier.sourceCardId === effect.sourceCardId && modifier.abilityId === effect.abilityId &&
+      modifier.liveCardId === undefined
+  );
+  const previousBonus = previous?.kind === 'SCORE' ? previous.countDelta : 0;
+  let state = replaceLiveModifier(
+    { ...game, activeEffect: null },
+    { kind: 'SCORE', playerId, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId },
+    scoreBonus > 0
+      ? { kind: 'SCORE', playerId, countDelta: 1, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId }
+      : null
+  );
+  const scoreDelta = scoreBonus - previousBonus;
+  if (scoreDelta !== 0) state = refreshPlayerScoreDraft(state, playerId, scoreDelta);
+  return {
+    gameState: state,
+    actionPayload: { step: 'APPLY_MEMBER_ENTRIES_SCORE', entryCount, conditionMet: scoreBonus > 0, scoreBonus, scoreDelta },
+  };
+}
+
 function finishNicoLiveStartScoreBonus(
   game: GameState,
   effect: PendingAbilityState,
@@ -652,6 +705,67 @@ function getPlBp5020WonderZoneStartContext(
       sourceInLiveZone: context.sourceInLiveZone,
       centerMuseMemberCardId: context.centerMuseMemberCardId,
       yellowHeartCount: context.yellowHeartCount,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function getPlBp3023StageBladeStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getPlBp3023StageBladeContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+    )}（当前自己舞台成员持有的[BLADE]合计${context.stageBladeTotal}，${
+      context.conditionMet
+        ? '满足条件，实际减少2个[無ハート]。'
+        : '未满足条件，实际不减少[無ハート]。'
+    }）`,
+    actionPayload: {
+      stageMemberCardIds: context.stageMemberCardIds,
+      stageMemberBladeCounts: context.stageMemberBladeCounts,
+      stageBladeTotal: context.stageBladeTotal,
+      conditionMet: context.conditionMet,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function finishPlBp3023StageBladeRequirementReduction(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getPlBp3023StageBladeContext(game, effect, playerId);
+  const state = replaceSourceRequirementModifier(
+    {
+      ...game,
+      activeEffect: null,
+    },
+    effect,
+    context.requirementReduction > 0
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -context.requirementReduction }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_STAGE_BLADE_REQUIREMENT_REDUCTION',
+      sourceInLiveZone: context.sourceInLiveZone,
+      stageMemberCardIds: context.stageMemberCardIds,
+      stageMemberBladeCounts: context.stageMemberBladeCounts,
+      stageBladeTotal: context.stageBladeTotal,
+      conditionMet: context.conditionMet,
       requirementReduction: context.requirementReduction,
     },
   };
@@ -1819,6 +1933,40 @@ function getPlBp5020WonderZoneContext(
     centerMuseMemberCardId,
     yellowHeartCount,
     requirementReduction: Math.min(3, Math.floor(yellowHeartCount / 2)),
+  };
+}
+
+function getPlBp3023StageBladeContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly stageMemberCardIds: readonly string[];
+  readonly stageMemberBladeCounts: readonly number[];
+  readonly stageBladeTotal: number;
+  readonly conditionMet: boolean;
+  readonly requirementReduction: number;
+} {
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const stageMemberCardIds = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    typeIs(CardType.MEMBER)
+  );
+  const liveModifiers = collectLiveModifiers(game);
+  const stageMemberBladeCounts = stageMemberCardIds.map((memberCardId) =>
+    getMemberEffectiveBladeCount(game, playerId, memberCardId, liveModifiers)
+  );
+  const stageBladeTotal = stageMemberBladeCounts.reduce((total, count) => total + count, 0);
+  const conditionMet = sourceInLiveZone && stageBladeTotal >= 10;
+  return {
+    sourceInLiveZone,
+    stageMemberCardIds,
+    stageMemberBladeCounts,
+    stageBladeTotal,
+    conditionMet,
+    requirementReduction: conditionMet ? 2 : 0,
   };
 }
 

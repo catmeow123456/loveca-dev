@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -8,7 +9,11 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -29,6 +34,9 @@ import {
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+const SHARED_PLAYER_VISIBLE_INTERNAL_WORDS =
+  /此成员已不在舞台|来源不在舞台|来源在舞台|来源不在LIVE区|来源在LIVE区|source|pending|payload|stale|eventId|trigger/i;
+const N_BP4_003_EFFECT_TEXT = '【LIVE成功时】LIVE的合计[スコア]比对方高的场合，抽1张卡。';
 
 function createNijigasakiMember(
   cardCode: string,
@@ -358,8 +366,8 @@ describe('PL!N-bp4 001 / 003 / 028 effects', () => {
 
   it('PL!N-bp4-003 draws one only after confirm when own LIVE score is higher', () => {
     const { game, sourceId, drawIds } = setupShizuku({
-      ownScore: 5,
-      opponentScore: 4,
+      ownScore: 3,
+      opponentScore: 2,
       deckCount: 1,
     });
     const started = resolveSinglePending(
@@ -373,7 +381,15 @@ describe('PL!N-bp4 001 / 003 / 028 effects', () => {
     );
 
     expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
-    expect(started.activeEffect?.effectText).toContain('当前LIVE合计分数为5对4');
+    expect(started.activeEffect?.effectText).toBe(
+      `${N_BP4_003_EFFECT_TEXT}（当前LIVE合计分数为3对2，满足条件，实际抽1张卡。）`
+    );
+    expect(started.activeEffect?.stepText).toBe(
+      '当前LIVE合计分数为3对2，满足条件，实际抽1张卡。'
+    );
+    expect(
+      `${started.activeEffect?.effectText ?? ''}\n${started.activeEffect?.stepText ?? ''}`
+    ).not.toMatch(SHARED_PLAYER_VISIBLE_INTERNAL_WORDS);
     expect(started.players[0].hand.cardIds).toEqual([]);
     expect(started.players[0].mainDeck.cardIds).toEqual(drawIds);
 
@@ -381,12 +397,26 @@ describe('PL!N-bp4 001 / 003 / 028 effects', () => {
     expect(resolved.players[0].hand.cardIds).toEqual(drawIds);
     expect(resolved.players[0].mainDeck.cardIds).toEqual([]);
     expect(resolved.pendingAbilities).toEqual([]);
+    const resolveAction = [...resolved.actionHistory]
+      .reverse()
+      .find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID
+      );
+    expect(resolveAction?.payload).toMatchObject({
+      step: 'DRAW_ONE',
+      ownScore: 3,
+      opponentScore: 2,
+      scoreHigherThanOpponent: true,
+      drawnCardIds: drawIds,
+    });
   });
 
   it('PL!N-bp4-003 consumes pending as no-op when own LIVE score is not higher', () => {
     const { game, sourceId, drawIds } = setupShizuku({
-      ownScore: 4,
-      opponentScore: 4,
+      ownScore: 2,
+      opponentScore: 3,
       deckCount: 1,
     });
     const started = resolveSinglePending(
@@ -398,12 +428,72 @@ describe('PL!N-bp4 001 / 003 / 028 effects', () => {
         timingId: TriggerCondition.ON_LIVE_SUCCESS,
       })
     );
-    expect(started.activeEffect?.effectText).toContain('自己未高于对方');
+    expect(started.activeEffect?.effectText).toBe(
+      `${N_BP4_003_EFFECT_TEXT}（当前LIVE合计分数为2对3，未满足条件，实际抽0张卡。）`
+    );
+    expect(started.activeEffect?.stepText).toBe(
+      '当前LIVE合计分数为2对3，未满足条件，实际抽0张卡。'
+    );
+    expect(
+      `${started.activeEffect?.effectText ?? ''}\n${started.activeEffect?.stepText ?? ''}`
+    ).not.toMatch(SHARED_PLAYER_VISIBLE_INTERNAL_WORDS);
 
     const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
     expect(resolved.players[0].hand.cardIds).toEqual([]);
     expect(resolved.players[0].mainDeck.cardIds).toEqual(drawIds);
     expect(resolved.pendingAbilities).toEqual([]);
+  });
+
+  it('PL!N-bp4-003 shows the real score condition and zero actual draws on the source-safe path', () => {
+    const { game, sourceId, drawIds } = setupShizuku({
+      ownScore: 3,
+      opponentScore: 2,
+      deckCount: 1,
+    });
+    const sourceMissing = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    const started = resolveSinglePending(
+      sourceMissing,
+      pendingAbility({
+        id: 'n-bp4-003-source-missing-pending',
+        abilityId: PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID,
+        sourceCardId: sourceId,
+        timingId: TriggerCondition.ON_LIVE_SUCCESS,
+      })
+    );
+    const previewText = '当前LIVE合计分数为3对2，满足条件，实际抽0张卡。';
+    expect(started.activeEffect?.effectText).toBe(
+      `${N_BP4_003_EFFECT_TEXT}（${previewText}）`
+    );
+    expect(started.activeEffect?.stepText).toBe(previewText);
+    expect(
+      `${started.activeEffect?.effectText ?? ''}\n${started.activeEffect?.stepText ?? ''}`
+    ).not.toMatch(SHARED_PLAYER_VISIBLE_INTERNAL_WORDS);
+    expect(started.players[0].hand.cardIds).toEqual([]);
+    expect(started.players[0].mainDeck.cardIds).toEqual(drawIds);
+
+    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    expect(resolved.players[0].hand.cardIds).toEqual([]);
+    expect(resolved.players[0].mainDeck.cardIds).toEqual(drawIds);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.activeEffect).toBeNull();
+    const resolveAction = [...resolved.actionHistory]
+      .reverse()
+      .find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === PL_N_BP4_003_LIVE_SUCCESS_HIGHER_SCORE_DRAW_ABILITY_ID
+      );
+    expect(resolveAction?.payload).toMatchObject({
+      step: 'SOURCE_NOT_ON_STAGE',
+      sourceOnStage: false,
+      ownScore: 3,
+      opponentScore: 2,
+      scoreHigherThanOpponent: true,
+      drawnCardIds: [],
+    });
   });
 
   it.each([
@@ -467,10 +557,11 @@ describe('PL!N-bp4 001 / 003 / 028 effects', () => {
   );
 
   it('PL!N-bp4-028 ordered resolution resolves multiple pending abilities without per-effect confirm-only', () => {
-    const { game, live, secondLive } = setupStarsWeChase({
+    const { game: setupGame, live, secondLive } = setupStarsWeChase({
       differentLiveNames: 6,
       includeSecondPending: true,
     });
+    const game = addCheckTimingRuleSentinel(setupGame, PLAYER1, 'n-bp4-028-ordered');
     const orderSelection = resolvePendingCardEffects({
       ...game,
       pendingAbilities: [live.instanceId, secondLive!.instanceId].map((liveId, index) =>

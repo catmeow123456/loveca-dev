@@ -415,7 +415,7 @@ describe('PL!SP-pb2-047-L Welcome to Bokura no Sekai workflow', () => {
 
     expect(discardResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([handCards[0]!.instanceId]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([handCards[0]!.instanceId]);
     expect(latestWelcomePayload(session.state!, 'DISCARD_HAND_CARD_NO_TARGET')).toMatchObject({
       discardedCardId: handCards[0]!.instanceId,
       legalTargetCardIds: [],

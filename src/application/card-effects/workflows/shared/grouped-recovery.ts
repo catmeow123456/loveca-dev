@@ -1,5 +1,6 @@
 import {
   addAction,
+  getCardById,
   getPlayerById,
   type GameActionType,
   type GameState,
@@ -452,6 +453,18 @@ function startGroupedRecoveryAfterDiscard(
           selection.requiredRecoveryCount === 0 ? config.skipRecoveryLabel : undefined,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: {
+            destination: 'HAND',
+            ordered: selection.maxSelectableCards > 1,
+            groups: config.groups.map((group) => ({
+              candidateCardIds: selection.selectableCardIds.filter((cardId) => {
+                const card = getCardById(discardResult.gameState, cardId);
+                return card !== null && group.selector(card);
+              }),
+              minCount: selection.requiredGroupKeys.includes(group.key) ? 1 : 0,
+              maxCount: 1,
+            })),
+          },
           discardCardId: discardResult.discardedCardIds[0],
           discardedHandCardIds: discardResult.discardedCardIds,
           requiredRecoveryCount: selection.requiredRecoveryCount,

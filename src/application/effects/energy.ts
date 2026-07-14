@@ -2,8 +2,10 @@ import type { GameState } from '../../domain/entities/game.js';
 import { emitGameEvent, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
 import {
   createEnergyPlacedByCardEffectEvent,
+  createEnergyMovedToDeckEvent,
   type CardEffectCause,
   type EnergyPlacedByCardEffectEvent,
+  type EnergyMovedToDeckEvent,
 } from '../../domain/events/game-events.js';
 import {
   addCardToStatefulZone,
@@ -36,6 +38,11 @@ export interface SetEnergyOrientationResult {
 export interface MoveEnergyZoneCardsToEnergyDeckResult {
   readonly gameState: GameState;
   readonly movedEnergyCardIds: readonly string[];
+}
+
+export interface MoveEnergyZoneCardsToEnergyDeckByEffectResult
+  extends MoveEnergyZoneCardsToEnergyDeckResult {
+  readonly energyMovedEvent?: EnergyMovedToDeckEvent;
 }
 
 export function getEnergyCardIdsByOrientation(
@@ -158,8 +165,35 @@ export function moveEnergyZoneCardsToEnergyDeck(
   });
 
   return {
-    gameState,
+    gameState: {
+      ...gameState,
+      energyActivePhaseSkips: (gameState.energyActivePhaseSkips ?? []).filter(
+        (skip) => !selectedEnergyCardIds.includes(skip.energyCardId)
+      ),
+    },
     movedEnergyCardIds: selectedEnergyCardIds,
+  };
+}
+
+export function moveEnergyZoneCardsToEnergyDeckByCardEffect(
+  game: GameState,
+  playerId: string,
+  selectedEnergyCardIds: readonly string[],
+  cause: CardEffectCause,
+  options: { readonly exactCount?: number } = {}
+): MoveEnergyZoneCardsToEnergyDeckByEffectResult | null {
+  const movement = moveEnergyZoneCardsToEnergyDeck(game, playerId, selectedEnergyCardIds, options);
+  if (!movement || movement.movedEnergyCardIds.length === 0) return movement;
+  const energyMovedEvent = createEnergyMovedToDeckEvent(
+    playerId,
+    movement.movedEnergyCardIds,
+    cause,
+    game.turnCount
+  );
+  return {
+    gameState: emitGameEvent(movement.gameState, energyMovedEvent),
+    movedEnergyCardIds: movement.movedEnergyCardIds,
+    energyMovedEvent,
   };
 }
 

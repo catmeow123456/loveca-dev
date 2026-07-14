@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type {
   AnyCardData,
@@ -169,7 +170,7 @@ function startEffect(game: GameState): GameState {
 
 function choosePay(game: GameState): GameState {
   const effect = game.activeEffect!;
-  return confirmActiveEffectStep(
+  return confirmActiveEffectStepThroughPublicReveal(
     game,
     PLAYER1,
     effect.id,
@@ -182,12 +183,12 @@ function choosePay(game: GameState): GameState {
 
 function chooseDecline(game: GameState): GameState {
   const effect = game.activeEffect!;
-  return confirmActiveEffectStep(game, PLAYER1, effect.id, null);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, effect.id, null);
 }
 
 function chooseWaitingRoomCard(game: GameState, cardId: string): GameState {
   const effect = game.activeEffect!;
-  return confirmActiveEffectStep(game, PLAYER1, effect.id, cardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, effect.id, cardId);
 }
 
 function removeSourceFromStage(game: GameState, sourceCardId: string): GameState {

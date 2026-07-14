@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -180,7 +181,7 @@ function activateKinako(game: GameState, sourceId: string): GameState {
 
 function confirmSelection(game: GameState, selectedCardId: string): GameState {
   expect(game.activeEffect).not.toBeNull();
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, selectedCardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, selectedCardId);
 }
 
 function latestPayload(game: GameState, step?: string) {

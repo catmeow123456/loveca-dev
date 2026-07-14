@@ -49,7 +49,7 @@ function createEnergyCard(cardCode: string): EnergyCardData {
 }
 
 function createDeck(): DeckConfig {
-  const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
+  const mainDeck: AnyCardData[] = Array.from({ length: 61 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
   );
   const energyDeck = Array.from({ length: 12 }, (_, index) => createEnergyCard(`ENE-${index}`));
@@ -328,8 +328,8 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
       ).success
     ).toBe(true);
     expect(confirmSelectedCards(selectNone.session, []).success).toBe(true);
-    expect(selectNone.session.state?.players[0].waitingRoom.cardIds).toEqual(
-      selectNone.mainDeckCardIds
+    expect(selectNone.session.state?.players[0].mainDeck.cardIds).toEqual(
+      expect.arrayContaining(selectNone.mainDeckCardIds)
     );
 
     const selectAllShortDeck = setupKasumiScenario({

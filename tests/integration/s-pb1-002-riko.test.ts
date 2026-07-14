@@ -156,7 +156,7 @@ describe('PL!S-pb1-002 桜内梨子', () => {
 
     expect(result.success, result.error).toBe(true);
     expect(result.gameState.players[1]!.hand.cardIds).not.toContain(liveId);
-    expect(result.gameState.players[1]!.waitingRoom.cardIds).toContain(liveId);
+    expect(result.gameState.players[1]!.mainDeck.cardIds).toContain(liveId);
     expect(
       result.gameState.actionHistory.some(
         (action) =>

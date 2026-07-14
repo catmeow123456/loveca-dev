@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -191,12 +192,12 @@ describe('PL!N-bp4-007 Setsuna on-enter, continuous, and live-success effects', 
     expect(state.activeEffect?.awaitingPlayerId).toBe(PLAYER1);
     expect(state.activeEffect?.selectableCardIds).toEqual([ownLive.instanceId]);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, ownLive.instanceId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, ownLive.instanceId);
     expect(state.players[0]!.hand.cardIds).toEqual([ownLive.instanceId]);
     expect(state.activeEffect?.awaitingPlayerId).toBe(PLAYER2);
     expect(state.activeEffect?.selectableCardIds).toEqual([opponentLive.instanceId]);
 
-    state = confirmActiveEffectStep(state, PLAYER2, state.activeEffect!.id, opponentLive.instanceId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER2, state.activeEffect!.id, opponentLive.instanceId);
     expect(state.activeEffect).toBeNull();
     expect(state.pendingAbilities).toEqual([]);
     expect(state.players[0]!.waitingRoom.cardIds).toEqual([ownMember.instanceId]);
@@ -219,7 +220,7 @@ describe('PL!N-bp4-007 Setsuna on-enter, continuous, and live-success effects', 
     expect(state.activeEffect?.awaitingPlayerId).toBe(PLAYER2);
 
     const stale = setWaitingRoom(state, PLAYER2, []);
-    const unchanged = confirmActiveEffectStep(
+    const unchanged = confirmActiveEffectStepThroughPublicReveal(
       stale,
       PLAYER2,
       stale.activeEffect!.id,
@@ -229,7 +230,7 @@ describe('PL!N-bp4-007 Setsuna on-enter, continuous, and live-success effects', 
     expect(unchanged.players[1]!.hand.cardIds).toEqual([]);
 
     state = setWaitingRoom(state, PLAYER2, [opponentLive.instanceId]);
-    state = confirmActiveEffectStep(state, PLAYER2, state.activeEffect!.id, opponentLive.instanceId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER2, state.activeEffect!.id, opponentLive.instanceId);
     expect(state.activeEffect).toBeNull();
     expect(state.players[1]!.hand.cardIds).toEqual([opponentLive.instanceId]);
   });
@@ -293,7 +294,7 @@ describe('PL!N-bp4-007 Setsuna on-enter, continuous, and live-success effects', 
     expect(state.activeEffect?.effectText).not.toContain('确认后');
     expect(state.players[0]!.energyZone.cardIds).toEqual([]);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id);
     expect(state.activeEffect).toBeNull();
     expect(state.players[0]!.energyZone.cardIds).toEqual([ownEnergy.instanceId]);
     expect(state.players[1]!.energyZone.cardIds).toEqual([opponentEnergy.instanceId]);
@@ -317,7 +318,7 @@ describe('PL!N-bp4-007 Setsuna on-enter, continuous, and live-success effects', 
       scenario.source.instanceId
     );
 
-    let state = confirmActiveEffectStep(resolve(game), PLAYER1, game.pendingAbilities[0]!.id);
+    let state = confirmActiveEffectStepThroughPublicReveal(resolve(game), PLAYER1, game.pendingAbilities[0]!.id);
     expect(state.players[0]!.energyZone.cardIds).toEqual([ownEnergy.instanceId]);
     expect(state.players[1]!.energyZone.cardIds).toEqual([]);
 
@@ -335,7 +336,7 @@ describe('PL!N-bp4-007 Setsuna on-enter, continuous, and live-success effects', 
       offStageScenario.source.instanceId
     );
 
-    state = confirmActiveEffectStep(
+    state = confirmActiveEffectStepThroughPublicReveal(
       resolve(offStageGame),
       PLAYER1,
       offStageGame.pendingAbilities[0]!.id

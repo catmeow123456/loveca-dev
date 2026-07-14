@@ -6,7 +6,7 @@
 import type { LiveCardData, MemberCardData } from '../entities/card.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
-import { cardBelongsToGroup } from '../../shared/utils/card-identity.js';
+import { cardBelongsToGroup, cardBelongsToUnit } from '../../shared/utils/card-identity.js';
 import { hasStrictNoAbilityCardText } from '../../shared/utils/card-text.js';
 import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
 
@@ -229,6 +229,23 @@ export class CostCalculator {
           label: '自己的舞台存在本回合进行过区域移动的Liella!成员，费用减少2',
           amount: Math.min(memberData.cost, 2),
           sourceCardId: resources.sourceCardId,
+        });
+      }
+    }
+
+    if (
+      cardCodeMatchesBase(memberData.cardCode, 'PL!-pb1-014') &&
+      isSourceCardBeingPlayedFromHand(resources)
+    ) {
+      const lilywhiteSource = resources.successLiveCards?.find((successLiveCard) =>
+        cardBelongsToUnit(successLiveCard.data, 'lilywhite')
+      );
+      if (lilywhiteSource) {
+        modifiers.push({
+          id: 'PL!-pb1-014:hand-self-cost-minus-if-success-lilywhite',
+          label: '自己的成功LIVE卡区存在lilywhite卡，此卡费用减少2',
+          amount: Math.min(memberData.cost, 2),
+          sourceCardId: lilywhiteSource.cardId,
         });
       }
     }

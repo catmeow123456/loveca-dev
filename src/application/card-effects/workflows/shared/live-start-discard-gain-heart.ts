@@ -5,11 +5,14 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
-import { HeartColor } from '../../../../shared/types/enums.js';
+import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { hasOtherStageMember } from '../../../effects/conditions.js';
+import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
+import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
+  PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
@@ -26,6 +29,8 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 export const KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID = 'KOTORI_LIVE_START_SELECT_DISCARD';
 export const KOTORI_LIVE_START_SELECT_HEART_STEP_ID = 'KOTORI_LIVE_START_SELECT_HEART';
+export const LIVE_START_DISCARD_GAIN_HEART_SELECT_MEMBER_STEP_ID =
+  'LIVE_START_DISCARD_GAIN_HEART_SELECT_MEMBER';
 
 const KOTORI_HEART_COLOR_OPTIONS = [HeartColor.PINK, HeartColor.YELLOW, HeartColor.PURPLE] as const;
 const STANDARD_HEART_COLOR_OPTIONS = [
@@ -49,22 +54,32 @@ const HEART_COLOR_OPTION_LABELS: Readonly<Record<HeartColor, string>> = {
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
+type HeartRecipient =
+  | { readonly mode: 'SOURCE_MEMBER'; readonly requiresOtherStageMember: boolean }
+  | { readonly mode: 'SELECT_OTHER_STAGE_MEMBER'; readonly groupAlias: string };
+
 interface LiveStartDiscardGainHeartConfig {
   readonly abilityId: string;
-  readonly requiresOtherStageMember: boolean;
   readonly heartColorOptions: readonly HeartColor[];
+  readonly recipient: HeartRecipient;
 }
 
 const LIVE_START_DISCARD_GAIN_HEART_CONFIGS: readonly LiveStartDiscardGainHeartConfig[] = [
   {
     abilityId: KOTORI_LIVE_START_HEART_ABILITY_ID,
-    requiresOtherStageMember: false,
     heartColorOptions: KOTORI_HEART_COLOR_OPTIONS,
+    recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: false },
   },
   {
     abilityId: HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
-    requiresOtherStageMember: true,
     heartColorOptions: STANDARD_HEART_COLOR_OPTIONS,
+    recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: true },
+  },
+  {
+    abilityId:
+      PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,
+    heartColorOptions: STANDARD_HEART_COLOR_OPTIONS,
+    recipient: { mode: 'SELECT_OTHER_STAGE_MEMBER', groupAlias: '虹ヶ咲' },
   },
 ];
 
@@ -92,6 +107,16 @@ export function registerLiveStartDiscardGainHeartWorkflowHandlers(deps: {
               deps.enqueueTriggeredCardEffects
             )
           : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    );
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      LIVE_START_DISCARD_GAIN_HEART_SELECT_MEMBER_STEP_ID,
+      (game, input, context) =>
+        finishLiveStartDiscardGainHeartTarget(
+          game,
+          input.selectedCardId ?? null,
+          context.continuePendingCardEffects
+        )
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -130,8 +155,11 @@ function startLiveStartDiscardGainHeartEffect(
       selectableCardIds,
       orderedResolution,
       metadata: {
-        requiresOtherStageMemberForHeart: config.requiresOtherStageMember,
         heartColorOptions: [...config.heartColorOptions],
+        heartRecipientMode: config.recipient.mode,
+        ...(config.recipient.mode === 'SOURCE_MEMBER'
+          ? { requiresOtherStageMemberForHeart: config.recipient.requiresOtherStageMember }
+          : { heartRecipientGroupAlias: config.recipient.groupAlias }),
       },
     }),
     actionPayload: {
@@ -240,6 +268,49 @@ function finishLiveStartDiscardGainHeartBonus(
     return game;
   }
 
+  if (effect.metadata?.heartRecipientMode === 'SELECT_OTHER_STAGE_MEMBER') {
+    const selectableCardIds = getOtherStageMemberCardIdsForEffect(game, effect);
+    if (selectableCardIds.length === 0) {
+      return finishWithoutHeartModifier(
+        game,
+        effect,
+        player.id,
+        continuePendingCardEffects,
+        'NO_LEGAL_TARGET_AFTER_HEART_COLOR'
+      );
+    }
+    return addAction(
+      {
+        ...game,
+        activeEffect: {
+          ...effect,
+          stepId: LIVE_START_DISCARD_GAIN_HEART_SELECT_MEMBER_STEP_ID,
+          stepText: "请选择自己舞台上此成员以外的1名『虹咲』成员获得所选Heart。",
+          selectableCardIds,
+          selectableCardVisibility: 'PUBLIC',
+          selectableCardMode: 'SINGLE',
+          minSelectableCards: 1,
+          maxSelectableCards: 1,
+          selectableOptions: undefined,
+          selectionLabel: "选择获得Heart的『虹咲』成员",
+          confirmSelectionLabel: '获得所选Heart',
+          canSkipSelection: false,
+          metadata: { ...effect.metadata, selectedHeartColor: selectedColor },
+        },
+      },
+      'RESOLVE_ABILITY',
+      player.id,
+      {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'SELECT_HEART_COLOR',
+        heartColor: selectedColor,
+        selectableCardIds,
+      }
+    );
+  }
+
   const heartBonus = { color: selectedColor, count: 1 };
   const modifierResult = addHeartLiveModifierForMember(
     { ...game, activeEffect: null },
@@ -262,6 +333,121 @@ function finishLiveStartDiscardGainHeartBonus(
       sourceCardId: effect.sourceCardId,
       step: 'APPLY_HEART_BONUS',
       heartColor: selectedColor,
+    }),
+    effect.metadata?.orderedResolution === true
+  );
+}
+
+function finishLiveStartDiscardGainHeartTarget(
+  game: GameState,
+  selectedCardId: string | null,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  const selectedColor = effect?.metadata?.selectedHeartColor;
+  if (
+    !effect ||
+    effect.stepId !== LIVE_START_DISCARD_GAIN_HEART_SELECT_MEMBER_STEP_ID ||
+    !player ||
+    selectedCardId === null ||
+    !Object.values(HeartColor).includes(selectedColor as HeartColor) ||
+    effect.selectableCardIds?.includes(selectedCardId) !== true
+  ) {
+    return game;
+  }
+  const selectableCardIds = getOtherStageMemberCardIdsForEffect(game, effect);
+  if (!selectableCardIds.includes(selectedCardId)) {
+    if (
+      !isSourceMemberOnMainStage(game, effect.controllerId, effect.sourceCardId) ||
+      selectableCardIds.length === 0
+    ) {
+      return finishWithoutHeartModifier(
+        game,
+        effect,
+        player.id,
+        continuePendingCardEffects,
+        'SOURCE_OR_TARGET_NO_LONGER_AVAILABLE'
+      );
+    }
+    return {
+      ...game,
+      activeEffect: {
+        ...effect,
+        selectableCardIds,
+      },
+    };
+  }
+  const modifierResult = addHeartLiveModifierForMember(
+    { ...game, activeEffect: null },
+    {
+      playerId: player.id,
+      memberCardId: selectedCardId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      hearts: [{ color: selectedColor as HeartColor, count: 1 }],
+    }
+  );
+  if (!modifierResult) {
+    return finishWithoutHeartModifier(
+      game,
+      effect,
+      player.id,
+      continuePendingCardEffects,
+      'TARGET_OR_SOURCE_INVALID'
+    );
+  }
+  return continuePendingCardEffects(
+    addAction(modifierResult.gameState, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'APPLY_HEART_BONUS_TO_TARGET_MEMBER',
+      targetMemberCardId: selectedCardId,
+      heartColor: selectedColor,
+    }),
+    effect.metadata?.orderedResolution === true
+  );
+}
+
+function getOtherStageMemberCardIdsForEffect(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>
+): readonly string[] {
+  const groupAlias = effect.metadata?.heartRecipientGroupAlias;
+  if (typeof groupAlias !== 'string') return [];
+  if (!isSourceMemberOnMainStage(game, effect.controllerId, effect.sourceCardId)) return [];
+  return getStageMemberCardIdsMatching(
+    game,
+    effect.controllerId,
+    and(typeIs(CardType.MEMBER), groupAliasIs(groupAlias))
+  ).filter((cardId) => cardId !== effect.sourceCardId);
+}
+
+function isSourceMemberOnMainStage(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  return getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER)).includes(
+    sourceCardId
+  );
+}
+
+function finishWithoutHeartModifier(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  playerId: string,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  reason: string
+): GameState {
+  return continuePendingCardEffects(
+    addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', playerId, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'NO_HEART_MODIFIER',
+      reason,
     }),
     effect.metadata?.orderedResolution === true
   );

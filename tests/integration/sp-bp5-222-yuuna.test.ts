@@ -109,7 +109,7 @@ describe('PL!SP-bp5-222 Yuuna live-start workflow', () => {
     const scenario = setup({ activeEnergyCount: 1, energyDeckCount: 1 });
     const started = resolvePendingCardEffects(scenario.game).gameState;
     expect(started.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付1张能量' },
+      { id: 'pay', label: '支付[E]' },
     ]);
     expect(started.activeEffect?.canSkipSelection).toBe(true);
     expect(started.activeEffect?.skipSelectionLabel).toBe('不发动');

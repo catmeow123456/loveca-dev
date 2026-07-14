@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -171,7 +172,7 @@ describe('PL!SP-bp4 third batch effects', () => {
       selectableCardIds: [targetLive.instanceId],
     });
 
-    const resolved = confirmActiveEffectStep(
+    const resolved = confirmActiveEffectStepThroughPublicReveal(
       started,
       PLAYER1,
       started.activeEffect!.id,

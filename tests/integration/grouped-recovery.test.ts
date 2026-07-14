@@ -14,10 +14,10 @@ import {
 } from '../../src/domain/entities/game';
 import { createLeaveStageEvent } from '../../src/domain/events/game-events';
 import {
-  confirmActiveEffectStep,
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { confirmActiveEffectStepThroughPublicReveal as confirmActiveEffectStep } from '../helpers/public-card-selection-confirmation';
 import { S_BP2_002_ON_LEAVE_STAGE_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { CardType, HeartColor, SlotPosition, TriggerCondition, ZoneType } from '../../src/shared/types/enums';
 

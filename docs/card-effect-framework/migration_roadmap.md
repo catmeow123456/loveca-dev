@@ -1,5 +1,26 @@
 # Card Effect Runner Migration Roadmap
 
+## bp3-001 / 002 通用 hook（2026-07）
+
+- `REVEALED_CHEER_CARD` 来源收集和 target-member-bound modifier 清理由 runner 调用通用 runtime hook；两个完整卡效仍由各自 workflow registry 持有。
+- runner 未接入卡号、abilityId、团体、目标 predicate 或 pending 构造；这不改变 trigger matcher T-2、steps-lite 或“所有区域来源/所有 modifier 已迁移”的完成状态。
+
+## Self-sacrifice recovery family (2026-07)
+
+- `PL!-PR-017` 已从单卡 workflow 迁入 `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`，并由 `PL!S-bp3-008` 证明回收后条件奖励轴。
+- 条件轴保持有限联合，不引入任意 callback 或 runner hook；来源离场、公开选卡确认与能量操作继续复用统一 runtime 边界。
+
+## Unified check-timing continuation (2026-07)
+
+- Production pending continuation is centralized in
+  `src/application/card-effects/runtime/check-timing-scheduler.ts`.
+- `GameState.checkTimingContext` preserves the check-timing id, rules active player, and
+  iteration count across player choices and serialization.
+- The live pending choice pool no longer partitions abilities by `timingId`; abilities
+  created during resolution join the next choice after the current ability finishes.
+- `src/domain/rules/check-timing.ts` remains an older domain model and is not wired as a
+  second production scheduler.
+
 > 文档类型：历史/计划文档
 > 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
 > 当前状态：迁移计划；完成状态以代码、测试和本表同步为准
@@ -24,7 +45,7 @@
 | R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，更多区域移动/公开确认 helper 待真实 workflow 推动。 |
 | R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中时直接保持状态不变并返回；look-top、抽后弃、回收等 workflow 已迁入 registry，runner 不再承载完整卡效 fallback。 |
 | R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中时直接保持状态不变并返回；新增 queued workflow 必须注册 starter。 |
-| R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
+| R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、activated pay-energy draw、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
 | R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO`、`HANAYO` activated、`BP5_007` pending workflow 已迁出；`HS_BP5_003` 离场站位变换段与 LIVE 开始弃手加 Heart 段均已迁入 Rurino 单卡 workflow；runner 完整卡效 fallback 已清空，但仍保留若干 matcher / relay / trigger 条件胶水。 |
 | R-6 | planned | trigger matcher T-2。 | 在 enqueue 边界稳定后，用纯 matcher 替代部分旧 trigger 判定，并保留 shadow 一致性测试。 |
 | R-7 | planned | steps-lite。 | 只对 proven workflow family 建 typed builder；不做完整 DSL。 |
@@ -60,18 +81,26 @@ Current dispatch registries:
 - `src/application/card-effects/runtime/step-registry.ts`
 - `src/application/card-effects/runtime/starter-registry.ts`
 - `src/application/card-effects/runtime/activated-registry.ts`
+- `src/application/card-effects/runtime/public-card-selection-confirmation.ts`
 
 They are registry-first / fallback-old-runner entry points. Remaining work is to keep moving old starter/step/activated cases into workflow modules.
+
+The public selection confirmation runtime now owns the common pause/reveal/restore lifecycle for audited waiting-room selections. It does not own card predicates or zone movement; stable waiting-room-to-hand shells opt in by default, while custom recovery and deck-top/bottom/position workflows use explicit metadata.
 
 ## R-4 Current Workflow Modules
 
 Current migrated workflow modules:
+
+- `workflows/shared/activated-pay-energy-draw.ts`：由 `PL!SP-bp5-020` 起动段与 `PL!HS-bp1-007` 第二个真实样本证明；SP 的 LIVE_SUCCESS 段仍归单卡 workflow。
+- `domain/rules/live-modifiers.ts#memberHasMoreEffectiveHeartsThanPrinted`：`PL!HS-pb1-029` / `PL!HS-PR-028` 共用的有效 Heart 数量纯 query，不承载结算。
 
 - `workflows/shared/look-top-select-to-hand.ts`
 - `workflows/shared/discard-look-top-select-to-hand.ts`
 - `workflows/shared/named-hand-discard-live-start.ts`
 - `workflows/shared/live-start-discard-gain-heart.ts`
 - `workflows/shared/draw-then-discard.ts`
+- `workflows/shared/discard-then-draw.ts`
+- `workflows/shared/live-start-discard-gain-blade.ts`
 - `workflows/shared/waiting-room-to-hand.ts`
 - `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`
 - `workflows/shared/pay-energy-waiting-room-to-hand.ts`
@@ -91,7 +120,7 @@ Current migrated workflow modules:
 - `workflows/cards/hs-pb1-009-kaho.ts`
 - `workflows/cards/hs-sd1-001-kaho.ts`
 - `workflows/cards/hs-sd1-006-hime.ts`
-- `workflows/cards/pl-pr-017-nico.ts`
+- `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`（含 `PL!-PR-017` / `PL!S-bp3-008` 有限后处理条件）
 - `workflows/shared/play-waiting-room-member-to-source-slot.ts`
 - `workflows/cards/hs-bp5-001-kaho.ts`
 - `workflows/cards/hs-bp5-003-rurino.ts`
@@ -109,6 +138,10 @@ Current migrated workflow modules:
 - `workflows/cards/s-bp2-024-kimikoko.ts`
 - `workflows/cards/sp-bp5-003-chisato.ts`
 - `workflows/cards/s-bp2-006-yoshiko.ts`
+
+`discard-then-draw.ts` now owns the proven hand-discard-before-draw family for `PL!HS-pb1-003`, `PL!HS-bp1-005`, `PL!HS-PR-031`, and `PL!S-bp3-003`. Its stable axes are selector, selection bounds/decline copy, and the narrow draw-policy union, now including fixed draw count. Only the ON_ENTER segment moved out of `hs-pb1-003-rurino.ts`; that card's hand-to-waiting AUTO remains card-local.
+
+`live-start-discard-gain-blade.ts` is the promoted behavior-named family for `PL!SP-PR-009/011/012` and `PL!S-bp3-003`. The second real shape proves stable min/max discard and BLADE-per-card axes; the former card-specific file name was removed. The only post-action axis remains the narrow existing “draw one if a discarded card is LIVE” rule, not a general callback or steps DSL.
 
 Recent helper modules added outside `actions.ts`:
 
@@ -764,6 +797,8 @@ Tests now cover existing success paths plus HS_BP6_017 empty-hand skip, HS_PB1_0
 
 ### Other Audit Candidates
 
+- Wait-self opponent-wait family: the former single-card `workflows/cards/n-bp5-004-karin.ts` moved to `workflows/shared/wait-self-opponent-wait.ts` when `PL!N-bp3-017` / `PL!N-bp3-023` supplied the next real same-flow samples. The migration only parameterizes target selector and player-facing target copy, preserving optional source WAITING payment, post-payment rescan, event-wrapper timing, no-target cost retention, and pending continuation; it does not claim a general cost DSL or change `opponent-wait-target.ts`.
+
 - Opponent wait target family: R-4M migrated `HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER`, `HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER`, and `SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER` into `src/application/card-effects/workflows/shared/opponent-wait-target.ts`. The config axes are target selector, start action step, step text, and selection label; the workflow preserves `SKIP_NO_TARGET`, `WAIT_OPPONENT_MEMBER`, member-state event enqueue timing, and source/target payload fields.
 - Fixed pay-energy gain-BLADE family: R-4K migrated `HS_SD1_006`, `BP4_010`, and `HS_PR_001` into `src/application/card-effects/workflows/shared/pay-energy-gain-blade.ts`. The config axes are energy cost count and fixed BLADE bonus. `recordPayCostAction` now lives in `runtime/workflow-helpers.ts` and is also used by `workflows/cards/hs-bp5-001-kaho.ts`.
 - Arrange top family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-top.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.ts`. The shared core owns inspection, ordered deck-top return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core.
@@ -795,3 +830,16 @@ Do not:
 - introduce full steps DSL
 - change card text behavior while moving code
 - clean or include long-term untracked asset/database directories
+# PL!N-bp3-005 event-ordinal query/filter
+
+- `src/domain/rules/member-turn-state.ts` 新增只读的本回合成员登场次数与指定 `ON_ENTER_STAGE` 事件 ordinal query；以最近 `ON_TURN_START`（缺失时最近 `ON_TURN_END`，再缺失时完整测试事件流）作为稳定回合边界。
+- `OnEnterStageTriggerFilter.enteredOrdinalThisTurn` 是无卡号的通用入队前过滤轴；runner 仅调用 query 做薄 matcher 胶水，不接 T-2 matcher，也不改变 pending 顺序。
+# Waiting-room ON_ENTER delegation boundary
+
+已由 `PL!N-bp3-003` 与 `PL!SP-bp2-006` 建立窄 family：definition 显式 opt-in、休息室来源、空 source slot、无真实登场事件。当前不扩展为通用 timing delegation 或 steps DSL。
+
+# LIVE_SUCCESS conditional draw-one promotion
+
+`PL!N-bp4-003` and `PL!S-bp3-005` now share `workflows/shared/live-success-conditional-draw-one.ts`. The promotion preserves N-bp4-003's `HIGHER_LIVE_SCORE` action steps and payload fields while adding the second real sample, whose stable condition axis is `OWN_REVEALED_CHEER_COUNT_LESS_THAN_OPPONENT`. The shared workflow retains source-safe STAGE_MEMBER resolution, manual/confirm-only and ordered pending semantics, and delegates drawing to `drawCardsForPlayer`.
+
+The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` facts for both players, so all card types, ordinary/additional cheer, and cards already moved out of `resolutionZone` remain countable; it does not reuse the movable-target selector. No runner condition, card-number branch, pending construction, or draw body was added.

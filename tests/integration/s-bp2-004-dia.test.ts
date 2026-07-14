@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
+import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import {
@@ -237,7 +239,7 @@ describe('PL!S-bp2-004 黒澤ダイヤ', () => {
       ...player,
       memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, kanan.instanceId),
     }));
-    const resolved = confirmActiveEffectStep(
+    const displayed = confirmActiveEffectStep(
       startedWithKanan,
       PLAYER1,
       startedWithKanan.activeEffect!.id,
@@ -245,6 +247,22 @@ describe('PL!S-bp2-004 黒澤ダイヤ', () => {
       undefined,
       false,
       'reroll'
+    );
+    expect(displayed.activeEffect).toMatchObject({
+      stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+      revealedCardIds: [oldOne.instanceId, oldTwo.instanceId],
+    });
+    expect(displayed.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(displayed.resolutionZone.cardIds).toEqual([oldOne.instanceId, oldTwo.instanceId]);
+    expect(displayed.liveResolution.firstPlayerCheerCardIds).toEqual([
+      oldOne.instanceId,
+      oldTwo.instanceId,
+    ]);
+    expect(didUse(displayed)).toBe(false);
+    const resolved = confirmActiveEffectStep(
+      displayed,
+      PLAYER1,
+      displayed.activeEffect!.id
     );
 
     expect(resolved.players[0].waitingRoom.cardIds).toEqual([oldOne.instanceId, oldTwo.instanceId]);
@@ -309,7 +327,7 @@ describe('PL!S-bp2-004 黒澤ダイヤ', () => {
       canSkipSelection: true,
     });
 
-    const afterReroll = confirmActiveEffectStep(
+    const afterReroll = confirmActiveEffectStepThroughPublicReveal(
       rerollDecision,
       PLAYER1,
       rerollDecision.activeEffect!.id,
@@ -382,7 +400,7 @@ describe('PL!S-bp2-004 黒澤ダイヤ', () => {
     });
     expect(rerollDecision.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
 
-    const resolved = confirmActiveEffectStep(
+    const resolved = confirmActiveEffectStepThroughPublicReveal(
       rerollDecision,
       PLAYER1,
       rerollDecision.activeEffect!.id,
@@ -423,7 +441,7 @@ describe('PL!S-bp2-004 黒澤ダイヤ', () => {
         revealedCardIds: [oldTwo.instanceId],
       },
     };
-    const partialResolved = confirmActiveEffectStep(
+    const partialResolved = confirmActiveEffectStepThroughPublicReveal(
       oneGone,
       PLAYER1,
       oneGone.activeEffect!.id,
@@ -457,6 +475,54 @@ describe('PL!S-bp2-004 黒澤ダイヤ', () => {
     expect(emptyResolved.activeEffect).toBeNull();
     expect(didUse(emptyResolved)).toBe(false);
     expect(emptyResolved.actionHistory.some((action) => action.type === 'CHEER' && action.payload.automated === true)).toBe(false);
+  });
+
+  it('does not reroll or move a remaining subset when the displayed all-card set becomes stale', () => {
+    const oldOne = createCardInstance(member('OLD-ONE'), PLAYER1, 'old-one');
+    const oldTwo = createCardInstance(member('OLD-TWO'), PLAYER1, 'old-two');
+    const newCard = createCardInstance(member('NEW'), PLAYER1, 'new');
+    const scenario = setup({ revealed: [oldOne, oldTwo], deck: [newCard] });
+    const started = queueAndStart(scenario.game, scenario.event.eventId);
+    const displayed = confirmActiveEffectStep(
+      started,
+      PLAYER1,
+      started.activeEffect!.id,
+      undefined,
+      undefined,
+      false,
+      'reroll'
+    );
+    const staleDisplay = {
+      ...displayed,
+      resolutionZone: {
+        ...displayed.resolutionZone,
+        cardIds: [oldTwo.instanceId],
+        revealedCardIds: [oldTwo.instanceId],
+      },
+    };
+
+    const resolved = confirmActiveEffectStep(
+      staleDisplay,
+      PLAYER1,
+      staleDisplay.activeEffect!.id
+    );
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(resolved.resolutionZone.cardIds).toEqual([oldTwo.instanceId]);
+    expect(resolved.liveResolution.firstPlayerCheerCardIds).toEqual([
+      oldOne.instanceId,
+      oldTwo.instanceId,
+    ]);
+    expect(didUse(resolved)).toBe(false);
+    expect(
+      resolved.actionHistory.some(
+        (action) => action.type === 'CHEER' && action.payload.automated === true
+      )
+    ).toBe(false);
+    expect(
+      resolved.eventLog.find((entry) => entry.event.eventId === scenario.event.eventId)?.event
+    ).toMatchObject({ revealedCardIds: [oldOne.instanceId, oldTwo.instanceId] });
   });
 
   it('does not treat a manually injected unrelated event as this pending ability event', () => {

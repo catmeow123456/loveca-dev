@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
@@ -176,21 +177,22 @@ function abilityUseCount(game: GameState): number {
 }
 
 describe('PL!N-pb1-011 Mia workflows', () => {
-  it('automatically moves the first energy below this member and recovers one Nijigasaki LIVE', () => {
+  it('automatically prioritizes waiting energy below this member and recovers one Nijigasaki LIVE', () => {
     const scenario = setupMiaSession();
     expect(activate(scenario.session).success).toBe(true);
     expect(scenario.session.state?.players[0].energyZone.cardIds).not.toContain(
-      scenario.energyCards[0].instanceId
+      scenario.energyCards[1].instanceId
     );
     expect(
       scenario.session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]
-    ).toEqual([scenario.energyCards[0].instanceId]);
+    ).toEqual([scenario.energyCards[1].instanceId]);
     expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
       scenario.nijigasakiLive.instanceId,
     ]);
     expect(abilityUseCount(scenario.session.state!)).toBe(1);
 
     confirmCard(scenario.session, scenario.nijigasakiLive.instanceId);
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.players[0].hand.cardIds).toContain(
       scenario.nijigasakiLive.instanceId
@@ -213,6 +215,33 @@ describe('PL!N-pb1-011 Mia workflows', () => {
     }
   });
 
+  it('selects the exact energy to put below this member when a special energy exists', () => {
+    const scenario = setupMiaSession();
+    const marked: GameState = {
+      ...scenario.session.state!,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: scenario.energyCards[1].instanceId,
+          sourceCardId: 'marker-source',
+          abilityId: 'marker-ability',
+        },
+      ],
+    };
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = marked;
+    expect(activate(scenario.session).success).toBe(true);
+    expect(scenario.session.state?.activeEffect?.stepId).toBe(
+      'COMMON_ENERGY_OPERATION_SELECTION'
+    );
+    confirmCard(scenario.session, scenario.energyCards[0].instanceId);
+    expect(
+      scenario.session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]
+    ).toEqual([scenario.energyCards[0].instanceId]);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      scenario.nijigasakiLive.instanceId,
+    ]);
+  });
+
   it('does not allow non-Nijigasaki LIVE or member cards as recovery targets', () => {
     const scenario = setupMiaSession({
       waitingRoomCards: ['nijigasakiLive', 'otherLive', 'waitingMember'],
@@ -231,7 +260,7 @@ describe('PL!N-pb1-011 Mia workflows', () => {
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(
       scenario.session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]
-    ).toEqual([scenario.energyCards[0].instanceId]);
+    ).toEqual([scenario.energyCards[1].instanceId]);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
     expect(abilityUseCount(scenario.session.state!)).toBe(1);
   });
@@ -272,6 +301,6 @@ describe('PL!N-pb1-011 Mia workflows', () => {
     }
 
     expect(game.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
-    expect(game.players[0].energyDeck.cardIds).toContain(scenario.energyCards[0].instanceId);
+    expect(game.players[0].energyDeck.cardIds).toContain(scenario.energyCards[1].instanceId);
   });
 });

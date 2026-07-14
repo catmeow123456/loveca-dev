@@ -188,6 +188,17 @@ function playWithDoubleRelay(session: GameSession, sourceId: string): void {
   expect(result.success).toBe(true);
 }
 
+function playWithSingleRelay(session: GameSession, sourceId: string): void {
+  const result = session.executeCommand(
+    createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
+      freePlay: true,
+      relayMode: 'SINGLE',
+      relayReplacementSlots: [SlotPosition.CENTER],
+    })
+  );
+  expect(result.success).toBe(true);
+}
+
 function latestResolvePayload(game: GameState) {
   return [...game.actionHistory]
     .reverse()
@@ -200,6 +211,51 @@ function latestResolvePayload(game: GameState) {
 }
 
 describe('PL!SP-pb2-000 Chisato and Natsumi on-enter workflow', () => {
+  it('draws one and grants BLADE +2 for a single relay with one no-Blade-Heart Liella replacement', () => {
+    const scenario = setupDoubleRelayScenario();
+    playWithSingleRelay(scenario.session, scenario.sourceId);
+
+    expect(scenario.session.state?.players[0].hand.cardIds).toContain(scenario.drawCardIds[0]);
+    expect(scenario.session.state?.players[0].hand.cardIds).not.toContain(
+      scenario.drawCardIds[1]
+    );
+    expect(latestResolvePayload(scenario.session.state!)).toMatchObject({
+      conditionMet: true,
+      relayReplacementCardIds: [scenario.centerReplacementId],
+      liellaReplacementCardIds: [scenario.centerReplacementId],
+      noBladeHeartLiellaReplacementCardIds: [scenario.centerReplacementId],
+      drawCount: 1,
+      bladeBonus: 2,
+    });
+    expect(scenario.session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: scenario.sourceId,
+      abilityId: SP_PB2_000_ON_ENTER_DOUBLE_RELAY_DRAW_AND_GAIN_BLADE_ABILITY_ID,
+    });
+  });
+
+  it('draws one without gaining BLADE for a single Liella replacement with Blade Heart', () => {
+    const scenario = setupDoubleRelayScenario({ centerHasBladeHeart: true });
+    playWithSingleRelay(scenario.session, scenario.sourceId);
+
+    expect(latestResolvePayload(scenario.session.state!)).toMatchObject({
+      conditionMet: true,
+      relayReplacementCardIds: [scenario.centerReplacementId],
+      liellaReplacementCardIds: [scenario.centerReplacementId],
+      noBladeHeartLiellaReplacementCardIds: [],
+      drawCount: 1,
+      bladeBonus: 0,
+    });
+    expect(scenario.session.state?.liveResolution.liveModifiers).not.toContainEqual(
+      expect.objectContaining({
+        sourceCardId: scenario.sourceId,
+        abilityId: SP_PB2_000_ON_ENTER_DOUBLE_RELAY_DRAW_AND_GAIN_BLADE_ABILITY_ID,
+      })
+    );
+  });
+
   it.each(['PL!SP-pb2-000-R', 'PL!SP-pb2-000-DUO'])(
     'draws two for %s double relay with two Liella replacements',
     (sourceCardCode) => {
@@ -253,7 +309,7 @@ describe('PL!SP-pb2-000 Chisato and Natsumi on-enter workflow', () => {
     expect(scenario.session.state?.players[0].hand.cardIds).not.toContain(scenario.drawCardIds[1]);
   });
 
-  it('consumes pending as no-op when double relay metadata is missing', () => {
+  it('consumes pending as no-op when relay metadata is missing', () => {
     const scenario = setupDoubleRelayScenario();
     const pendingAbility: PendingAbilityState = {
       id: 'sp-pb2-000-no-metadata',
@@ -273,7 +329,7 @@ describe('PL!SP-pb2-000 Chisato and Natsumi on-enter workflow', () => {
     expect(state.pendingAbilities).toEqual([]);
     expect(latestResolvePayload(state)).toMatchObject({
       conditionMet: false,
-      reason: 'NOT_DOUBLE_RELAY',
+      reason: 'NOT_RELAY',
       relayReplacementCardIds: [],
     });
   });

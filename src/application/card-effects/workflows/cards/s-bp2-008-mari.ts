@@ -96,7 +96,11 @@ function startWaitingRoomLiveSelection(
       confirmSelectionLabel: '放置到卡组底',
       canSkipSelection: true,
       skipSelectionLabel: '不放置',
-      metadata: { orderedResolution, candidateCardIds },
+      metadata: {
+        publicCardSelectionConfirmation: { destination: 'MAIN_DECK_BOTTOM' },
+        orderedResolution,
+        candidateCardIds,
+      },
     },
     actionPayload: {
       sourceCardId: ability.sourceCardId,

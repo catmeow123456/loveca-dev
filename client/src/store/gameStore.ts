@@ -41,6 +41,7 @@ import {
   type GameCommand,
   createEndPhaseCommand,
   createConfirmEffectStepCommand,
+  createAutoAdvancePublicCardSelectionCommand,
   createConfirmCostPaymentCommand,
   createMulliganCommand,
   createConfirmStepCommand,
@@ -376,6 +377,11 @@ export interface GameStore {
       readonly toSlot: SlotPosition;
     }[]
   ) => CommandDispatchResult;
+  /** 公共选卡展示到期后的无交互推进。 */
+  autoAdvancePublicCardSelection: (
+    effectId: string,
+    expectedDeadline: number
+  ) => CommandDispatchResult;
   /** 确认费用支付 */
   confirmCostPayment: (
     paymentId: string,
@@ -650,6 +656,7 @@ interface StoreCommandOptions {
   readonly clearHoveredCardId?: string;
   readonly deselectCard?: boolean;
   readonly logError?: boolean;
+  readonly silentFailure?: boolean;
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
@@ -695,23 +702,30 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
 
     if (
-      dispatchRemoteCommand(command, options.failureMessage, () => {
-        applyCommandSuccessEffects(options);
-      })
+      dispatchRemoteCommand(
+        command,
+        options.failureMessage,
+        () => {
+          applyCommandSuccessEffects(options);
+        },
+        options.silentFailure === true
+      )
     ) {
       return { success: false, pending: true };
     }
 
     const result = get().gameSession.executeCommand(command);
     if (!result.success) {
-      if (options.logError) {
+      if (options.logError && !options.silentFailure) {
         get().addLog(`${options.failureMessage}: ${result.error}`, 'error');
       }
-      get().pushBattleFeedback({
-        tone: 'error',
-        label: options.failureMessage,
-        detail: result.error,
-      });
+      if (!options.silentFailure) {
+        get().pushBattleFeedback({
+          tone: 'error',
+          label: options.failureMessage,
+          detail: result.error,
+        });
+      }
       return { success: false, error: result.error };
     }
 
@@ -1103,6 +1117,21 @@ export const useGameStore = create<GameStore>((set, get) => {
           successMessage: '继续处理卡牌效果',
           deselectCard: true,
           logError: true,
+        }
+      );
+    },
+
+    autoAdvancePublicCardSelection: (effectId, expectedDeadline) => {
+      return runViewerCommand(
+        (playerId) =>
+          createAutoAdvancePublicCardSelectionCommand(
+            playerId,
+            effectId,
+            expectedDeadline
+          ),
+        {
+          failureMessage: '公开展示自动推进失败',
+          silentFailure: true,
         }
       );
     },
@@ -3168,7 +3197,8 @@ function applyRemoteFailureSnapshotIfPresent(
 function dispatchRemoteCommand(
   command: GameCommand,
   failureMessage: string,
-  onSuccess?: () => void
+  onSuccess?: () => void,
+  silentFailure = false
 ): boolean {
   const store = useGameStore.getState();
   if (store.replaySession) {
@@ -3193,6 +3223,7 @@ function dispatchRemoteCommand(
     }
     if (!result.success) {
       applyRemoteFailureSnapshotIfPresent(result, 'remoteCommandRejected');
+      if (silentFailure) return;
       useGameStore
         .getState()
         .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
@@ -3204,6 +3235,7 @@ function dispatchRemoteCommand(
       return;
     }
     if (!result.snapshot) {
+      if (silentFailure) return;
       useGameStore
         .getState()
         .addLog(`${failureMessage}: ${result.error ?? '服务端拒绝了该操作'}`, 'error');

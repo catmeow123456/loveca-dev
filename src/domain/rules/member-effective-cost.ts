@@ -8,6 +8,9 @@ import { successLiveScoreAtLeast } from './success-live-score.js';
 const BP4_008_HANAYO_BASE_CARD_CODE = 'PL!-bp4-008';
 const BP4_008_SUCCESS_SCORE_COST_BONUS = 3;
 const SP_PB2_006_KINAKO_BASE_CARD_CODE = 'PL!SP-pb2-006';
+const SP_PB1_010_MARGARETE_BASE_CARD_CODE = 'PL!SP-pb1-010';
+const SP_PB1_010_ENERGY_THRESHOLD = 10;
+const SP_PB1_010_STAGE_COST_BONUS = 4;
 
 export function getMemberEffectiveCost(
   game: GameState,
@@ -24,9 +27,27 @@ export function getMemberEffectiveCost(
     effectiveCost += BP4_008_SUCCESS_SCORE_COST_BONUS;
   }
   effectiveCost += getSpPb2006MemberBelowLiellaCostBonus(game, playerId, memberCardId);
+  effectiveCost += getSpPb1010StageEnergyCostBonus(game, playerId, memberCardId);
   effectiveCost += getLiveMemberCostModifier(game, playerId, memberCardId);
   effectiveCost = getLiveMemberCostSetValue(game, playerId, memberCardId) ?? effectiveCost;
   return effectiveCost;
+}
+
+function getSpPb1010StageEnergyCostBonus(
+  game: GameState,
+  playerId: string,
+  memberCardId: string
+): number {
+  const card = getCardById(game, memberCardId);
+  const player = getPlayerById(game, playerId);
+  return card !== null &&
+    player !== null &&
+    isMemberCardData(card.data) &&
+    cardCodeMatchesBase(card.data.cardCode, SP_PB1_010_MARGARETE_BASE_CARD_CODE) &&
+    isMemberOnPlayerStage(game, playerId, memberCardId) &&
+    player.energyZone.cardIds.length >= SP_PB1_010_ENERGY_THRESHOLD
+    ? SP_PB1_010_STAGE_COST_BONUS
+    : 0;
 }
 
 function getLiveMemberCostModifier(

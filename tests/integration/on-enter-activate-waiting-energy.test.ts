@@ -10,6 +10,7 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { MEMBER_ON_ENTER_ACTIVATE_TWO_WAITING_ENERGY_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -156,6 +157,47 @@ describe('shared on-enter activate waiting energy workflow', () => {
           action.payload.abilityId === MEMBER_ON_ENTER_ACTIVATE_TWO_WAITING_ENERGY_ABILITY_ID
       )?.payload.activatedEnergyCardIds
     ).toEqual([scenario.energyCardIds[1]]);
+  });
+
+  it('selects exact waiting energy when the candidates include a special energy', () => {
+    const scenario = setupOnEnterEnergyScenario({
+      sourceCardCode: 'PL!HS-bp1-001-R',
+      sourceName: '日野下花帆',
+      sourceCost: 11,
+      energyOrientations: [
+        OrientationState.WAITING,
+        OrientationState.WAITING,
+        OrientationState.WAITING,
+      ],
+    });
+    const marked: GameState = {
+      ...scenario.game,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: scenario.energyCardIds[2]!,
+          sourceCardId: 'marker-source',
+          abilityId: 'marker-ability',
+        },
+      ],
+    };
+    const selecting = resolveOnEnter(marked);
+    expect(selecting.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    const resolved = confirmActiveEffectStep(
+      selecting,
+      PLAYER1,
+      selecting.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [scenario.energyCardIds[0]!, scenario.energyCardIds[2]!]
+    );
+    expect(
+      scenario.energyCardIds.map(
+        (cardId) => resolved.players[0].energyZone.cardStates.get(cardId)?.orientation
+      )
+    ).toEqual([OrientationState.ACTIVE, OrientationState.WAITING, OrientationState.ACTIVE]);
   });
 
   it('consumes the pending ability when no energy is waiting', () => {

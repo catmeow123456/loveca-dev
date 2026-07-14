@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -97,6 +98,7 @@ function confirmCard(session: GameSession, cardId: string | null): void {
     createConfirmEffectStepCommand(PLAYER1, activeEffect.id, cardId)
   );
   expect(result.success).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
 }
 
 function setupKarinLiveStart(options: {
@@ -191,6 +193,7 @@ function setupContinuationScenario(): {
   readonly session: GameSession;
   readonly discard: ReturnType<typeof createCardInstance>;
   readonly remainingHand: ReturnType<typeof createCardInstance>;
+  readonly shioriko: ReturnType<typeof createCardInstance>;
 } {
   const shioriko = createCardInstance(
     createNijigasakiMember('PL!N-bp5-022-N', '三船栞子', 9),
@@ -254,6 +257,7 @@ function setupContinuationScenario(): {
     session: createSessionWithState(resolveResult.gameState),
     discard,
     remainingHand,
+    shioriko,
   };
 }
 
@@ -540,7 +544,10 @@ describe('PL!N discard/recover and BLADE workflows', () => {
   });
 
   it('continues to the next pending ability after PL!N-bp5-022 finishes with no target', () => {
-    const { session, discard, remainingHand } = setupContinuationScenario();
+    const { session, discard, remainingHand, shioriko } = setupContinuationScenario();
+
+    expect(session.state?.activeEffect?.abilityId).toBe('system:select-pending-card-effect');
+    confirmCard(session, shioriko.instanceId);
 
     expect(session.state?.activeEffect?.abilityId).toBe(
       N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID

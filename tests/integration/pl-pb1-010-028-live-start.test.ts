@@ -17,6 +17,7 @@ import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { addMemberEffectActivationProhibitionUntilTurnEnd } from '../../src/domain/rules/member-effect-activation-prohibitions';
 import {
   PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID,
   PL_PB1_028_LIVE_START_ACTIVATE_PRINTEMPS_MEMBERS_SCORE_ABILITY_ID,
@@ -352,6 +353,36 @@ describe('PL!-pb1-010 / PL!-pb1-028 LIVE start workflows', () => {
       .map((event) => event.cardInstanceId)
       .sort();
     expect(changedCardIds).toEqual(entries.map((entry) => entry.card.instanceId).sort());
+  });
+
+  it('PL!-pb1-028 counts zero actual activations under the 009 turn rule and grants no score', () => {
+    const setupState = setup028();
+    const prohibited = addMemberEffectActivationProhibitionUntilTurnEnd(setupState.game, {
+      affectedPlayerIds: [PLAYER1, PLAYER2],
+      sourceCardId: 'nico-009',
+      abilityId: 'PL!-pb1-009:on-enter-prevent-effect-member-activation-this-turn',
+    });
+    const started = resolvePendingCardEffects(prohibited).gameState;
+    expect(started.activeEffect?.effectText).toContain('确认后实际变活跃 0名');
+    const resolved = confirmActiveEffect(sessionWithState(started));
+    for (const entry of setupState.entries) {
+      expect(resolved.players[0].memberSlots.cardStates.get(entry.card.instanceId)?.orientation).toBe(
+        OrientationState.WAITING
+      );
+    }
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(
+      resolved.eventLog.filter(
+        (entry) => entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED
+      )
+    ).toHaveLength(0);
+    expect(
+      resolved.actionHistory.find(
+        (action) =>
+          action.payload.abilityId ===
+          PL_PB1_028_LIVE_START_ACTIVATE_PRINTEMPS_MEMBERS_SCORE_ABILITY_ID
+      )?.payload.actualActivationCount
+    ).toBe(0);
   });
 
   it('PL!-pb1-028 does not count already ACTIVE members and safely handles no Printemps or source leaving', () => {

@@ -104,6 +104,10 @@ function startSBp5023AwakenThePowerLiveStart(
         canSkipSelection: true,
         skipSelectionLabel: '不放置',
         metadata: {
+          publicCardSelectionConfirmation: {
+            destination: 'MAIN_DECK_TOP',
+            ordered: true,
+          },
           orderedResolution,
           aqoursMemberCardIds: condition.aqoursMemberCardIds,
           saintSnowMemberCardIds: condition.saintSnowMemberCardIds,

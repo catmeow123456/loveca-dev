@@ -129,7 +129,7 @@ function startKasumiFromWaitingRoomActivated(
           PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID
         ),
         stepId: N_BP1_002_SELECT_DISCARD_STEP_ID,
-        stepText: '请选择1张手牌放置入休息室，并支付2张活跃能量。',
+        stepText: '请选择1张手牌放置入休息室，并支付[E][E]。',
         awaitingPlayerId: player.id,
         selectableCardIds: player.hand.cardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',

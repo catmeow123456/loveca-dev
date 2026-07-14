@@ -128,7 +128,7 @@ describe('PL!SP-pb2-040 Mei live start workflow', () => {
     const started = startAbility(scenario.game, scenario.sourceId);
 
     expect(started.activeEffect?.selectableOptions).toEqual([
-      { id: 'pay', label: '支付1能量' },
+      { id: 'pay', label: '支付[E]' },
       { id: 'decline', label: '不发动' },
     ]);
     const state = confirmOption(started, 'pay');

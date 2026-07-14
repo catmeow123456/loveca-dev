@@ -1,4 +1,9 @@
-import { emitGameEvent, getPlayerById, updatePlayer, type GameState } from '../../../domain/entities/game.js';
+import {
+  emitGameEvent,
+  getPlayerById,
+  updatePlayer,
+  type GameState,
+} from '../../../domain/entities/game.js';
 import { addCardToZone, placeCardInSlot } from '../../../domain/entities/zone.js';
 import {
   createEnterWaitingRoomEvent,
@@ -24,9 +29,12 @@ export interface MoveInspectedMultiSelectionResult {
   readonly waitingRoomCardIds: readonly string[];
 }
 
-export interface MoveInspectedDeckTopRestToWaitingRoomResult
-  extends MoveInspectedMultiSelectionResult {
+export interface MoveInspectedDeckTopRestToWaitingRoomResult extends MoveInspectedMultiSelectionResult {
   readonly deckTopCardIds: readonly string[];
+}
+
+export interface PartitionInspectedCardsResult extends MoveInspectedDeckTopRestToWaitingRoomResult {
+  readonly handCardIds: readonly string[];
 }
 
 export interface MoveInspectedSelectionToStageResult {
@@ -196,6 +204,58 @@ export function moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
     selectedCardIds: deckTopCardIds,
     waitingRoomCardIds,
     deckTopCardIds,
+  };
+}
+
+export function partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers(
+  game: GameState,
+  playerId: string,
+  inspectedCardIds: readonly string[],
+  handCardIds: readonly string[],
+  deckTopCardIds: readonly string[],
+  waitingRoomCardIds: readonly string[],
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): PartitionInspectedCardsResult | null {
+  const player = getPlayerById(game, playerId);
+  const destinationCardIds = [...handCardIds, ...deckTopCardIds, ...waitingRoomCardIds];
+  const uniqueDestinationCardIds = new Set(destinationCardIds);
+  if (
+    !player ||
+    game.inspectionContext?.ownerPlayerId !== playerId ||
+    uniqueDestinationCardIds.size !== destinationCardIds.length ||
+    uniqueDestinationCardIds.size !== inspectedCardIds.length ||
+    destinationCardIds.some((cardId) => !inspectedCardIds.includes(cardId)) ||
+    inspectedCardIds.some((cardId) => !game.inspectionZone.cardIds.includes(cardId))
+  ) {
+    return null;
+  }
+
+  let state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    hand: handCardIds.reduce((hand, cardId) => addCardToZone(hand, cardId), currentPlayer.hand),
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [...deckTopCardIds, ...currentPlayer.mainDeck.cardIds],
+    },
+    waitingRoom: {
+      ...currentPlayer.waitingRoom,
+      cardIds: [...currentPlayer.waitingRoom.cardIds, ...waitingRoomCardIds],
+    },
+  }));
+  state = clearInspectionCards(state, inspectedCardIds);
+  state = enqueueInspectionCardsEnteredWaitingRoom(
+    state,
+    player.id,
+    waitingRoomCardIds,
+    enqueueTriggeredCardEffects
+  );
+
+  return {
+    gameState: state,
+    selectedCardIds: [...handCardIds, ...deckTopCardIds],
+    waitingRoomCardIds,
+    deckTopCardIds,
+    handCardIds,
   };
 }
 

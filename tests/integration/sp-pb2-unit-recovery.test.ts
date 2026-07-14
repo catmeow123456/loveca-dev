@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -113,15 +114,15 @@ function startAbility(game: GameState, abilityId: string, sourceCardId: string):
 }
 
 function selectDiscard(game: GameState, cardId: string): GameState {
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, cardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, cardId);
 }
 
 function selectRecovery(game: GameState, cardId: string): GameState {
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, cardId);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, cardId);
 }
 
 function skipEffect(game: GameState): GameState {
-  return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id);
+  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id);
 }
 
 describe('PL!SP-pb2 on-enter discard recover unit card workflows', () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type {
   EnergyCardData,
   LiveCardData,
@@ -219,6 +220,7 @@ function confirmCard(session: ReturnType<typeof createGameSession>, cardId: stri
   const effectId = session.state!.activeEffect!.id;
   const result = session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effectId, cardId));
   expect(result.success).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
 }
 
 function optionIds(session: ReturnType<typeof createGameSession>): readonly string[] {

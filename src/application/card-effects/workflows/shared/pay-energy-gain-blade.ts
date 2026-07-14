@@ -325,9 +325,9 @@ function getPayOption(
   count: number
 ): { readonly id: string; readonly label: string } {
   if (config.energyCost.kind === 'FIXED') {
-    return { id: 'pay', label: `支付${count}能量` };
+    return { id: 'pay', label: `支付${'[E]'.repeat(count)}` };
   }
-  return { id: `pay-${count}`, label: `支付${count}个[E]` };
+  return { id: `pay-${count}`, label: `支付${'[E]'.repeat(count)}` };
 }
 
 function getSelectedEnergyCostCount(
@@ -355,11 +355,11 @@ function getStartStepText(
   startBladeBonus: number
 ): string {
   if (!canPay) {
-    return '当前没有可支付的活跃能量，可以不发动。';
+    return '当前没有可用于支付[E]的活跃能量，可以不发动。';
   }
   if (config.energyCost.kind === 'UP_TO') {
     const maxCount = paymentCounts[paymentCounts.length - 1] ?? 0;
-    return `可以支付最多${maxCount}个[E]。每支付1个[E]，此成员获得1个[BLADE]。`;
+    return `最多可以支付${'[E]'.repeat(maxCount)}。每支付[E]，此成员获得1个[BLADE]。`;
   }
-  return `可以支付${config.energyCost.count}张活跃能量，获得${startBladeBonus}个BLADE。`;
+  return `可以支付${'[E]'.repeat(config.energyCost.count)}，获得${startBladeBonus}个BLADE。`;
 }

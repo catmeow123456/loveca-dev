@@ -207,6 +207,7 @@ function finishShizukuDiscardCost(
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
+          publicCardSelectionConfirmation: { destination: 'HAND' },
           discardedHandCardIds: discardResult.discardedCardIds,
         },
       },
@@ -249,9 +250,10 @@ function startShizukuPayOrDecline(game: GameState, selectedLiveCardId: string | 
 
   const energyCost = selectedLiveCard.data.score;
   const canPay = getActiveEnergyCardIds(player).length >= energyCost;
+  const paymentText = energyCost === 0 ? '支付0个[E]' : `支付${'[E]'.repeat(energyCost)}`;
   const selectableOptions = canPay
     ? [
-        { id: PAY_OPTION_ID, label: `支付${energyCost}能量` },
+        { id: PAY_OPTION_ID, label: paymentText },
         { id: DECLINE_OPTION_ID, label: '不支付' },
       ]
     : [{ id: DECLINE_OPTION_ID, label: '不支付' }];
@@ -263,8 +265,8 @@ function startShizukuPayOrDecline(game: GameState, selectedLiveCardId: string | 
         ...effect,
         stepId: PAY_OR_DECLINE_STEP_ID,
         stepText: canPay
-          ? `可以支付${energyCost}张活跃能量，将选择的LIVE卡加入手牌。`
-          : `活跃能量不足以支付${energyCost}，可以不支付。`,
+          ? `可以${paymentText}，将选择的LIVE卡加入手牌。`
+          : `活跃能量不足以${paymentText}，可以不支付。`,
         selectableCardIds: undefined,
         selectableCardVisibility: undefined,
         selectionLabel: undefined,

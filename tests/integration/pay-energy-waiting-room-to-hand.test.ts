@@ -16,6 +16,7 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { DeckConfig } from '../../src/application/game-service';
 import { HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
@@ -200,6 +201,7 @@ describe('pay-energy waiting-room-to-hand shared workflow', () => {
         )
       );
       expect(confirmResult.success, confirmResult.error).toBe(true);
+      confirmPublicSelectionIfNeeded(scenario.session);
       expect(scenario.session.state?.players[0].hand.cardIds).toContain(eligible.instanceId);
       expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
         highScore.instanceId,
@@ -292,6 +294,7 @@ describe('pay-energy waiting-room-to-hand shared workflow', () => {
         )
       ).success
     ).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
 
     const secondActivation = activate(scenario);
     expect(secondActivation.success).toBe(false);

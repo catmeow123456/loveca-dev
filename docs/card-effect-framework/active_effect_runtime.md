@@ -48,6 +48,12 @@ Benefits:
 - workflow 拥有自己的 step handler。
 - 新卡不需要修改 runner 的大型分发函数。
 
+### Public Zone-Selection Confirmation
+
+`runtime/public-card-selection-confirmation.ts` 是“从公开来源确定具体卡牌后，移动前向双方展示本次选择”的两阶段边界。metadata 通过 `source: 'WAITING_ROOM' | 'REVEALED_CHEER'` 声明来源（缺省仍为 `WAITING_ROOM`），目的地支持手牌、主卡组位置与休息室。声援来源只接受当前玩家本次声援 ID 中、仍在 `resolutionZone.cardIds` 与 `resolutionZone.revealedCardIds` 且归属正确的可移动卡；不用 event-inclusive 条件事实代替当前可移动目标。workflow 在首次提交时只安装 `revealedCardIds` 展示并保存可序列化的 `originalEffect` / `originalInput`，不移动、不发放奖励、不推进 pending。
+
+`GameSession` 按 `min(3500ms, 2000ms + (公开卡牌数 - 1) * 300ms)` 写入服务端权威 `publicCardSelectionAutoAdvanceAt`；双方客户端在展示结束后均可请求推进，命令必须带回当前 deadline generation token。到期后恢复原 step/input，由原 workflow 重新校验目标并完成移动、turn1、追加声援、奖励和 continuation。自动推进合并回原选卡撤销条目，不恢复过期窗口；空 optional 选择不展示。`PL!S-bp2-004` 这类服务端确定全部目标的窄路径可使用 cardIds 入口进入同一生命周期，但卡专属条件与 reroll 仍留在单卡 workflow，且展示集合与最终移动集合不一致时必须安全不移动。
+
 ## Granted Activated Abilities
 
 少数常时能力会让舞台上的 host 获得下方成员的起动能力。当前只落地 `PL!SP-pb2-005` 的窄入口：
@@ -73,7 +79,7 @@ Important fields:
 | `selectableSlotPositions` | 可选槽位候选。 |
 | `selectableOptions` | 颜色、模式、分支等选项。 |
 | `revealedCardIds` | 已公开给双方的隐藏区卡。 |
-| `selectableCardVisibility` | 候选对谁可见。 |
+| `selectableCardVisibility` | 候选投影模式：`PUBLIC`、`AWAITING_PLAYER_ONLY` 或 `AWAITING_PLAYER_BLIND`。 |
 | `metadata` | workflow 私有上下文。 |
 
 ## Metadata Rule
@@ -92,7 +98,24 @@ Rules:
 - step handler 必须重新校验目标仍合法。
 - 跨玩家可见性不能仅靠 metadata 控制，必须配合投影字段。
 
+### Blind Card Selection
+
+`AWAITING_PLAYER_BLIND` 用于“等待玩家从自己看不到内容的卡牌中选择”这一窄交互：
+
+- 权威状态中的 `selectableCardIds` 保留真实候选，供 workflow 在选择后重新校验区域与初始候选快照。
+- 在线投影只向 `awaitingPlayerId` 提供匿名牌背；非等待玩家不接收候选标记。
+- 匿名候选使用 `shared/utils/blind-card-selection.ts` 的位置 token，不投影真实实例 ID、`frontInfo` 或 `cardType`，避免通过历史公开对象关联身份。
+- GameSession 只接受能映射到当前候选快照的位置 token；workflow 解析后仍必须确认真实卡当前位于规则要求的区域。
+- 选择完成并公开时，继续使用 `revealedCardIds` / `revealHandCardForActiveEffect`，此后双方才可看到正面。
+
 ## Continue Pending
+
+Production continuation now returns through `runtime/check-timing-scheduler.ts` while a
+serializable `checkTimingContext` is active. After one ability finishes completely, the
+scheduler runs rule processing, dispatches resulting rule events, and rebuilds the active
+player's choice from the live pending pool. Trigger timing ids are event facts, not queue
+batch boundaries. A normal activated ability with no new pending AUTO does not open this
+loop; one that produces pending AUTO opens a new check timing.
 
 step handler 完成后应明确决定：
 
@@ -132,6 +155,12 @@ These helpers are intentionally small. If a proposed helper starts to own paymen
 
 `createOptionalDiscardHandToWaitingRoomActiveEffect` is only the reusable selection-window shell for optional single-card hand discard costs. The caller still decides when to remove the pending ability, what action payload starts the window, how skip resolves, and how the selected card is discarded later. Do not use it for windows with extra energy/source costs, grouped selection, discard-to-N hand adjustment, or other effects whose metadata would require a mini configuration interpreter.
 
+## Common Energy Operation Selection
+
+`runtime/energy-operation-selection.ts` owns the shared pre-step used when a card effect must distinguish ordinary energy from energy carrying an `energyActivePhaseSkips` marker. Workflows keep their original ability step and cost ordering; the adapter stores the original activated ability, pending starter, or activeEffect input, opens `COMMON_ENERGY_OPERATION_SELECTION`, then resumes the original path with exact selected energy card ids.
+
+The adapter is entered only when the operation has more legal candidates than its resolved count and at least one legal candidate is marked. It does not add an extra window when all legal candidates must be processed or when no legal candidate is marked. Consecutive energy operations replay previously confirmed selections from the original immutable state so a later selection cannot duplicate an earlier payment or prematurely commit another cost.
+
 ## Migration Target
 
 Priority:
@@ -140,3 +169,6 @@ Priority:
 2. 迁出特殊卡 workflow。
 3. 收窄重复 activeEffect 创建/finish 样板。
 4. runner 最终只保留 registry dispatch 与旧逻辑 fallback 被移除后的生命周期入口。
+# Waiting-room delegated ON_ENTER selection
+
+休息室虚拟登场能力选择使用玩家语言展示 `发动：${effectText}`。synthetic pending 的内部 metadata 记录 parent、target、原区域；这些字段不进入 `effectText`/`stepText`。多能力才创建能力选择 step，单能力直接进入原 workflow。

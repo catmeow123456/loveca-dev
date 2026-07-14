@@ -103,9 +103,9 @@ function startHsCl1002SayakaOnEnter(
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
       stepText:
-        '可以支付1张活跃能量；如此做时，从自己的休息室将1张『DOLLCHESTRA』卡片加入手牌。',
+        '可以支付[E]；如此做时，从自己的休息室将1张『DOLLCHESTRA』卡片加入手牌。',
       awaitingPlayerId: player.id,
-      selectableOptions: [{ id: 'pay', label: '支付1能量' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {

@@ -211,10 +211,10 @@ function startSpBp5005RenAuto(
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
       stepText: canPayEnergy
-        ? '选择本次进入休息室的1张卡，支付1张活跃能量后加入手牌。'
-        : '没有可支付的活跃能量，不能发动此效果。',
+        ? '选择本次进入休息室的1张卡，支付[E]后加入手牌。'
+        : '没有可用于支付[E]的活跃能量，不能发动此效果。',
       awaitingPlayerId: player.id,
-      selectableOptions: canPayEnergy ? [{ id: 'pay', label: '支付1能量' }] : undefined,
+      selectableOptions: canPayEnergy ? [{ id: 'pay', label: '支付[E]' }] : undefined,
       selectableCardIds: canPayEnergy ? selectableCardIds : undefined,
       selectableCardMode: canPayEnergy ? 'SINGLE' : undefined,
       minSelectableCards: canPayEnergy ? 1 : undefined,
@@ -224,6 +224,7 @@ function startSpBp5005RenAuto(
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {
+        publicCardSelectionConfirmation: { destination: 'HAND' },
         orderedResolution: options.orderedResolution === true,
         movedCardIds,
         selectableCardIds,

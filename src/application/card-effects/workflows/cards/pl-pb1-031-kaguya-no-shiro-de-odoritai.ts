@@ -212,6 +212,10 @@ function finishKaguyaDiscardCost(
         metadata: {
           ...effect.metadata,
           discardedCardId,
+          publicCardSelectionConfirmation: {
+            source: 'REVEALED_CHEER',
+            destination: 'HAND',
+          },
         },
       },
     },

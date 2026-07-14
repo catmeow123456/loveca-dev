@@ -16,6 +16,7 @@ import {
   type CardAbilityDefinition,
 } from '../ability-definition-types.js';
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
+import { hasAbilityInstance } from './ability-instance.js';
 
 interface EnterHandAbilitySource {
   readonly sourceCardId: string;
@@ -303,15 +304,4 @@ function getAlreadyTriggeredEventIds(game: GameState): ReadonlySet<string> {
       .map((action) => action.payload.eventId)
       .filter((eventId): eventId is string => typeof eventId === 'string')
   );
-}
-
-function hasAbilityInstance(game: GameState, pendingAbilityId: string): boolean {
-  const alreadyPending = game.pendingAbilities.some((ability) => ability.id === pendingAbilityId);
-  const alreadyActive = game.activeEffect?.id === pendingAbilityId;
-  const alreadyResolved = game.actionHistory.some(
-    (historyAction) =>
-      historyAction.type === 'RESOLVE_ABILITY' &&
-      historyAction.payload.pendingAbilityId === pendingAbilityId
-  );
-  return alreadyPending || alreadyActive || alreadyResolved;
 }

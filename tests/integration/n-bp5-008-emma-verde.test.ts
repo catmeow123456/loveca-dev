@@ -128,16 +128,16 @@ describe('PL!N-bp5-008 Emma Verde activated energy workflow', () => {
 
     const player = scenario.session.state!.players[0]!;
     expect(player.energyZone.cardIds).toEqual([
-      scenario.energyCards[1]!.instanceId,
+      scenario.energyCards[0]!.instanceId,
       scenario.energyCards[2]!.instanceId,
     ]);
     expect(player.memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([
-      scenario.energyCards[0]!.instanceId,
+      scenario.energyCards[1]!.instanceId,
     ]);
     expect(
-      scenario.energyCards
-        .slice(1)
-        .map((card) => player.energyZone.cardStates.get(card.instanceId)?.orientation)
+      [scenario.energyCards[0]!, scenario.energyCards[2]!].map(
+        (card) => player.energyZone.cardStates.get(card.instanceId)?.orientation
+      )
     ).toEqual([OrientationState.ACTIVE, OrientationState.ACTIVE]);
     expect(abilityUseCount(scenario.session.state!)).toBe(1);
     expect(
@@ -146,7 +146,7 @@ describe('PL!N-bp5-008 Emma Verde activated energy workflow', () => {
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.step === 'STACK_ENERGY_BELOW_ACTIVATE_TWO_ENERGY'
       )?.payload.activatedEnergyCardIds
-    ).toEqual([scenario.energyCards[1]!.instanceId, scenario.energyCards[2]!.instanceId]);
+    ).toEqual([scenario.energyCards[2]!.instanceId]);
   });
 
   it('keeps the paid cost and activates only available waiting energy', () => {
@@ -159,9 +159,9 @@ describe('PL!N-bp5-008 Emma Verde activated energy workflow', () => {
 
     const player = scenario.session.state!.players[0]!;
     expect(player.memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([
-      scenario.energyCards[0]!.instanceId,
+      scenario.energyCards[1]!.instanceId,
     ]);
-    expect(player.energyZone.cardStates.get(scenario.energyCards[1]!.instanceId)?.orientation).toBe(
+    expect(player.energyZone.cardStates.get(scenario.energyCards[0]!.instanceId)?.orientation).toBe(
       OrientationState.ACTIVE
     );
     expect(
@@ -170,7 +170,7 @@ describe('PL!N-bp5-008 Emma Verde activated energy workflow', () => {
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.step === 'STACK_ENERGY_BELOW_ACTIVATE_TWO_ENERGY'
       )?.payload.activatedEnergyCardIds
-    ).toEqual([scenario.energyCards[1]!.instanceId]);
+    ).toEqual([]);
   });
 
   it('does not activate or record turn use without energy, outside main phase, or for a non-current player', () => {

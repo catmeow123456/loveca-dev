@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -181,6 +183,13 @@ describe('PL!HS-bp1-021-L Holiday Holiday revealed cheer selection', () => {
     );
 
     expect(confirmResult.success, confirmResult.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
+      revealedCardIds: [validHasunosoraLiveId],
+    });
+    expect(session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(session.state?.resolutionZone.cardIds).toContain(validHasunosoraLiveId);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([validHasunosoraLiveId]);
     expect(session.state?.resolutionZone.cardIds).not.toContain(validHasunosoraLiveId);

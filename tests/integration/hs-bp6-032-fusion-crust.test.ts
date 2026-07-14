@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -181,6 +182,7 @@ describe('PL!HS-bp6-032-L Fusion Crust live-success workflow', () => {
     );
 
     expect(confirmResult.success, confirmResult.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([lowCostMemberId]);
     expect(session.state?.resolutionZone.cardIds).toEqual([

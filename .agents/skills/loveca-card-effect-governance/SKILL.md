@@ -1,6 +1,6 @@
 ---
 name: loveca-card-effect-governance
-description: Use for Loveca battle card-effect architecture review and new card-effect development governance. 适用于 Loveca 卡效总审查、新卡效候选审查、执行窗口提示词、卡效开发规范、runner 回流检查、helper/workflow/query 复用与晋升审查、只读审查窗口、focused validation、文档诚实性检查。
+description: Use for Loveca battle card-effect architecture review and new card-effect development governance. 适用于 Loveca 卡效总审查、新卡效候选审查、执行窗口提示词、卡效开发规范、卡效提交说明生成、runner 回流检查、helper/workflow/query 复用与晋升审查、只读审查窗口、focused validation、文档诚实性检查。
 ---
 
 # Loveca Card Effect Governance
@@ -77,6 +77,29 @@ git diff -- src/application/card-effect-runner.ts
 
 普通新卡效开发可先读精简集合：`AGENTS.md`、`README.md`、`new_card_effect_cookbook.md`、`module_boundaries.md`、`runtime_action_helpers.md`、`active_effect_runtime.md`、`workflow_module_guide.md`、`existing_module_map.md`，再按效果形状补读最近代码和测试。
 
+凡新增或修改 `activeEffect` 的按钮、选项、步骤提示或选择说明，必须同时阅读 [`references/player-visible-action-copy.md`](references/player-visible-action-copy.md)，并先搜索同类既有 workflow 的稳定文案。
+
+## 只读开发工具
+
+从仓库根目录使用 bundled/local Node 运行以下脚本；脚本只读取当前 checkout，不 stage、不 commit、不修改卡牌数据：
+
+```bash
+# AST + registry 玩家文案审计；加 --list-energy 可列出所有含“能量”或 [E] 的候选文本
+node --import tsx .agents/skills/loveca-card-effect-governance/scripts/audit-player-visible-copy.ts
+
+# 按基础编号、完整卡号或前缀盘点 DB、definition、ownership、runner 与 existing_module_map
+node --import tsx .agents/skills/loveca-card-effect-governance/scripts/inventory-card-effect-batch.ts PL!SP-pb1 --ability-only
+
+# 从当前前端卡牌 API 的 card_text 生成提交说明骨架；同文卡自动合并一行
+node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-card-effect-commit-message.ts PL!SP-pb1-002 PL!SP-pb1-004 --title "feat(effect): 更新星团SP-pb1卡效"
+```
+
+- 批次盘点可加 `--unimplemented-only` 筛未实现卡，或加 `--json` 输出结构化结果；不要用脚本输出替代人工复用、FAQ 和规则语义审查。
+- 用户要求起草 Loveca 卡效提交说明时，必须先运行 `draft-card-effect-commit-message.ts`，不得只凭实现汇报或人工转抄卡文。脚本逐卡读取当前前端公开 `/api/cards/:code`，按前端相同规则使用 `card_text_cn ?? card_text_jp`；同一基础编号的罕度版本先合并，多个基础编号仅在标准化换行并去除首尾空白后卡文仍完全相同时合并为一行，不做语义、标点或 token 近似合并。默认读取生产同源 API；本地或其他环境可通过 `LOVECA_CARD_API_BASE_URL` 或 `--api-base-url` 覆盖。
+- 提交说明脚本是只读联网工具；运行环境没有网络权限时应先申请只读访问，或将 `--api-base-url` 指向可信的当前本地 API。API 不可用时直接报告阻塞，不得回退到已停止更新的 `cards_cn.json`。
+- 若同一基础编号的不同罕度在前端 API 中存在不同展示卡文，或没有可用 `card_text_cn` / `card_text_jp`，脚本必须报错并停止，不能静默回退到 definition `effectText`、`cards_cn.json` 或人工翻译。
+- 提交说明脚本只生成 `新增卡效` 的事实行与其余章节占位；必须逐行对照脚本输出，按真实 diff 人工补充 `修复bug`、`通用更新` 和验证结果，并在用户确认前保持不提交。
+
 ## 当前框架立场
 
 - `card-effect-runner.ts` 去中心化的主要迁移已经完成，完整卡效 fallback 不应回流。
@@ -119,7 +142,7 @@ git diff -- src/application/card-effect-runner.ts
 - 无交互效果包括：starter/resolver 直接删除 pending、写 modifier、移动、抽牌、加状态、`addAction RESOLVE_ABILITY`、`continuePendingCardEffects` 等，不需要玩家选择、支付或确认规则分支的效果。
 - 无交互 queued pending 的统一语义：
   - 单个 `LIVE开始` / `LIVE成功` pending：默认先开 confirm-only `activeEffect` 展示将要结算的效果，确认后再结算。
-  - 多个 pending 点“顺序发动”：按顺序自动结算，不逐个开 confirm-only。
+  - 多个 pending 点“顺序发动”：只有剩余候选仍全部属于玩家本次确认的同一 ordered batch 时，才按顺序自动结算且不逐个开 confirm-only；任一能力结算中新产生 pending 后必须停止旧 batch 的自动续跑并重新开放排序。
   - 多个 pending 中用户手动点选某一个无交互效果：只在此时先开 confirm-only pending bridge，让玩家知道点到了哪个效果；确认后再用 `skipManualConfirmation` 回到真实 resolver。
 - 已有真实交互窗口的效果不要额外套 confirm-only，例如选择卡、弃手、支付费用、选择颜色、可选发动、查看、揭示、排序等 `activeEffect` workflow。
 - 新增或迁移无交互 queued pending 时，优先复用 `manualConfirmation` / `confirmBeforeResolution` / `skipManualConfirmation` 语义，或使用薄包装 helper；不要把卡牌专属条件、modifier、费用、区域移动、抽牌等结算逻辑放入 runner 或通用 helper。
@@ -127,7 +150,19 @@ git diff -- src/application/card-effect-runner.ts
 - 需要动态展示文本的 confirm-only bridge，应在 manual confirmation 分支实时计算 `effectText` / `stepText`，避免展示过期条件。
 - 无交互且有条件触发、条件分支或动态计数影响结算结果的 `LIVE开始` / `LIVE成功` 效果，必须在 confirm-only 展示的 `effectText` 后追加实时条件说明，例如当前计数、关键布尔条件、满足/未满足以及实际结算结果。若评估后决定不追加，必须在审查结论、执行窗口提示词或收尾说明中明确写出原因；不要默默省略。
 
+## 统一检查时点与动态待机池
+
+- 自动能力满足诱发条件后只进入待机状态；当前能力必须完整结算，不能在效果步骤中间直接调用新能力 resolver 或插入另一个 activeEffect。
+- 当前能力结算完成后必须回到同一个检查时点，先执行规则处理，再收集本次新事件产生的触发，并从实时 pending 池重新生成玩家候选。`timingId` 是触发事件事实，不是队列批次边界；不得按 `LIVE_START`、`LIVE_SUCCESS`、初始 pending 快照或阶段专属数组隔离新旧能力。
+- 主动玩家从自己当前全部待机自动能力中选择 1 个完整处理；每个能力完成后重新回到规则处理。主动玩家待机能力为空后才处理非主动玩家；非主动玩家能力结算中新产生主动玩家能力时，重新进入规则处理后再次按主动玩家优先检查。
+- workflow 只通过统一 continuation 返回调度器，不得维护私有 pending 队列、复制固定候选列表、直接启动“原队列下一项”或在阶段结束时才批量 flush 新触发能力。
+- `orderedResolution` 只是玩家对当次候选池的便捷排序承诺。只有剩余候选全部携带同一个 ordered batch token 时才能自动续跑；新入队能力没有该 token，必须与旧 pending 一起重新开放选择。
+- 检查时点必须持续到规则处理、主动玩家 pending、非主动玩家 pending、activeEffect、pendingChoice 与 pendingCostPayment 都为空；循环保护必须显式报错或保留可诊断状态，不得静默丢弃未处理能力。
+
 ## 玩家可见确认文案
+
+- 按钮与操作文本的分类词表、字段职责和禁用写法见 [`references/player-visible-action-copy.md`](references/player-visible-action-copy.md)。涉及 `confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions`、`selectionLabel` 或 `stepText` 时必须读取并遵循，不要临时发明“确定分配”“选择”“继续处理”等机械文案。
+- 玩家可见文本中的能量费用必须使用 `[E]` token；固定数量按实际数量重复 `[E]`，动态费用、0 费用和特殊能量选择窗口的标准写法统一遵循 `player-visible-action-copy.md`。不要把“支付费用”和“将实体能量卡变为活跃/待机、放置或计数”等规则动作混为一类。
 
 - `activeEffect.effectText` 默认只展示卡文；不要为了 confirm-only 额外追加运行时资源数量、结算预告或调试说明。
 - 只有卡文本身存在条件，且无交互 confirm-only 结算时结果可能因当前状态不同而变化时，才允许在 `effectText` 后追加括号说明。说明应使用玩家语言，包含与卡文条件直接相关的当前计数/状态、满足或未满足、实际结算结果。
@@ -166,7 +201,7 @@ git diff -- src/application/card-effect-runner.ts
 批次建议默认输出表格，每行一张卡，列为：
 
 | 序号 | 卡牌 | 效果 | 是否计划增加卡牌维度 ts | 计划复用 helper / workflow | 当前 helper 不足从而必须单写的部分 |
-| --- | --- | --- | --- | --- | --- |
+| ---- | ---- | ---- | ----------------------- | -------------------------- | ---------------------------------- |
 
 表格之后给出建议第一批开发卡牌和理由。若用户确认批次，再输出执行窗口提示词；不要提前要求执行窗口实现未确认的卡。
 
@@ -224,6 +259,16 @@ git diff -- src/application/card-effect-runner.ts
 
 ### Runtime helper / event wrapper
 
+- 支付、活跃、放置于成员下方、返回能量卡组等效果统一通过通用能量操作底座处理，并保持各自动作的资源合法性与数量语义：支付候选仅为 ACTIVE 且必须足额；活跃候选仅为 WAITING，至多活跃按实际可处理数量结算；放置于成员下方与返回能量卡组的候选为能量区全部能量，自动处理时固定按 WAITING 优先、ACTIVE 其次。只有候选超出处理数量且至少一张合法候选带特殊 marker 时，才打开通用能量选择窗口并要求精确选择；候选恰好等于处理数量或没有特殊能量时按上述顺序自动处理。单卡 workflow 不得自行复制或绕过这套判断，不得使用 `energyZone.cardIds[0]`、`.slice(...)` 等存储顺序选择，也不得因文案治理改变候选、顺序、数量、非法输入或 continuation 语义。
+- 卡牌效果将能量区能量放回能量卡组时，选择完成后的执行必须统一调用 `runtime/energy-return.ts` 的 `resolveEnergyReturnByCardEffect`；card workflow、optional window helper 及其他 card-effect runtime 不得直接调用底层 `moveEnergyZoneCardsToEnergyDeckByCardEffect`。公共 helper 必须保持“移动指定卡牌、清除离区 marker、一次写入一个批量 `ON_ENERGY_MOVED_TO_DECK`、将本次精确事件传给触发入队”的原子边界；可选/强制发动、按钮文案和返回后的回收或奖励仍由各自 workflow 管理。
+- 触及上述能量操作时，focused test 至少覆盖候选不足/恰好、普通能量超额按规定顺序自动处理、特殊能量超额精确选择，以及重复、非法、stale ID 不推进；断言必须包含实际处理的 energyCardIds，不能只检查数量。返回能量卡组还要覆盖批量移动只产生一个标准事件、事件 cause/来源正确及对应 trigger 只入队一次；支付窗口还要精确断言按实际数量展开的 `[E]` 文案。
+- 玩家从休息室自由选择具体卡牌，随后将其加入手牌、放置于主卡组顶/底或其他指定主卡组位置时，移动前必须走 shared public-card-selection confirmation 两阶段生命周期：首次提交只通过 `revealedCardIds` 向双方公开“本次具体选择了哪些卡”，不移动、不发奖励、不推进 pending；服务端按 `min(3500ms, 2000ms + (公开卡牌数 - 1) * 300ms)` 写入权威 deadline，到期后由任意对局参与者请求自动恢复原 workflow step/input，由原 workflow 重新校验当前目标、执行移动/奖励/continuation。不得用客户端 command timestamp 或单方手动确认作为权威判断，也不得用服务进程内长驻 `setTimeout`。
+- 普通 `WAITING_ROOM -> HAND` 选择优先且默认使用 `createWaitingRoomToHandEffectState`；组合/grouped/custom workflow 以及休息室到主卡组顶/底/指定位置的 workflow，必须显式写入 `publicCardSelectionConfirmation` metadata 并复用 `runtime/public-card-selection-confirmation.ts`；不得在单卡 workflow 复制暂停、公开、恢复弹窗流程。
+- 固定目标移动、将整个休息室/整类对象洗回主卡组，以及玩家只选择目的地而不选择休息室具体卡牌的效果，不接入该公开确认生命周期。
+- 上述休息室自由选卡路径的 focused 测试至少锁定：双方 projector 看到相同选择结果与 deadline；首次提交前后卡仍在休息室且奖励/pending 未推进；deadline 前不结算，到期后双方均可请求且重复请求只结算一次；到期时 stale target 不得被移动；可选 0 张/空选择路径按适用性确认不创建空的额外公开窗口；前端不显示普通确认按钮，到期自动请求只发送一次，旧 effect 的 timer 在状态切换时取消；自动推进不得新建一条只恢复过期展示窗口的撤销记录，应合并回原选卡撤销条目，并覆盖撤销后不会立即再次自动结算。
+- 玩家从当前声援处理区确定具体卡牌，随后加入手牌、放置于主卡组顶/底或放置入休息室时，移动前同样必须使用 shared public-card-selection confirmation；即使来源和目的地都公开，也不得省略“本次具体移动了哪些卡”的双方展示。metadata 显式使用 `source: 'REVEALED_CHEER'`；缺省 source 只用于向后兼容 `WAITING_ROOM`。
+- 声援可移动目标必须同时属于当前玩家本次声援 ID、仍在 `resolutionZone.cardIds`、仍在 `resolutionZone.revealedCardIds` 且 owner 正确。不得用 event-inclusive `CheerEvent.revealedCardIds` 历史条件事实作为可移动集合；卡移出处理区后，原 CheerEvent 事实仍必须保留供后续条件计数。
+- 声援选卡公开的 focused 测试至少覆盖 HAND/卡组顶/卡组底/WAITING_ROOM，首次提交不移动、不记录 turn1、不追加声援、不推进 pending，双方可见与动态时长，到期只结算一次，0 张不弹窗，移出 resolution/失去 revealed/不再属于当前声援时不移动，以及自动推进撤销回到原选择前。服务端确定全部卡的路径（如 `PL!S-bp2-004`）必须在展示后走独立结算 step，并在展示集合与最终可移动集合不完全一致时整体不移动，不得悄悄移动剩余子集。
 - 手牌进休息室默认使用 `discardHandCardsToWaitingRoomAndEnqueueTriggers` 或 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`。
 - 检视 / 查看 / 公开卡组顶后，inspected cards 从检视区进入休息室必须走统一 inspection-to-waiting helper；事件事实按卡组顶移动处理，`fromZone` 为 `MAIN_DECK`、`toZone` 为 `WAITING_ROOM`，同一次检视进入休息室的一组卡作为同一个 `movedCardIds`。
 - workflow 不允许裸写 `waitingRoom.cardIds` + `clearInspectionCards` 来处理 inspected remainder；若只是 direct mill 或不进入休息室，应在实现/审查中明确说明不属于 inspection-to-waiting helper 范围。
@@ -242,6 +287,7 @@ git diff -- src/application/card-effect-runner.ts
 - application/effects/conditions.ts 可 re-export domain query 作为卡效入口。
 - 不让各卡自己读 `positionMovedThisTurn`、`groupName`、`eventLog` 等底层字段解释规则。
 - 团体判断优先用 `cardBelongsToGroup`、`groupAliasIs` 等既有身份 helper。
+- 卡名条件必须按卡牌拥有的全部结构化名称身份判断；三人卡等多名称卡同时拥有卡面列出的每个成员名称，不能退化为只比较主显示名。优先复用 `src/shared/utils/card-identity.ts` 的共享名称 matcher 或其 selector 薄包装，不在 `live-modifiers.ts`、workflow 或单卡 query 中复制名称别名表和匹配逻辑。不同名计数与“是否命中某个名称”是两种语义，分别使用对应的 identity helper。
 - 声援公开条件 query 必须说明自己读取的是“本次已公开事实”还是“当前仍可移动目标”。前者应包含匹配的 `CheerEvent.revealedCardIds`，用于数量、不同名、颜色、类型等条件；后者用于实际选择/移动，不能反过来驱动条件成立与否。
 
 ### Ability definition
@@ -263,6 +309,7 @@ git diff -- src/application/card-effect-runner.ts
 - `activeEffect` 的前端可见操作文案也按中文处理，包括 `stepText`、`selectionLabel`、`confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions[].label`、`numericInput.confirmLabel` 等。除“查看原卡文”等明确展示日文原文的入口外，不要把日文按钮或日文步骤提示混入中文 UI。
 - `selectableOptions[].label` 可以使用 `client/src/lib/cardEffectTokens.ts` 已支持的 token（如 `[E]`、`[BLADE]`、`[桃ハート]`、`[赤ハート]`、`[紫ハート]`），由前端统一渲染成图标；不要用 emoji 或手写图片替代，也不要写未映射 token。
 - 可选发动窗口若使用 `selectableOptions` 展示“支付/放置/选择能力”等正向选项，跳过动作应建模为 `canSkipSelection: true` + 明确的 `skipSelectionLabel`（例如 `不发动`、`不放置`），不要同时在 `selectableOptions` 里放 `不发动` / `不处理`，否则前端会同时出现两个跳过按钮；也不要依赖默认 `不加入`，除非真实语义就是“不加入手牌”。
+- 可选效果的成本或动作若固定指向来源自身（例如“可以将此成员变为待机状态”），来源成员不是玩家要选择的对象，禁止用 `selectableCardIds: [sourceCardId]` 制造单卡选择窗口。应使用正向 `selectableOptions`（按钮文案通常为 `发动`）配合 `canSkipSelection: true` + `skipSelectionLabel: '不发动'`；玩家选择发动后，再按 `activeEffect.sourceCardId` 重新校验来源并直接支付。focused 测试必须断言该窗口没有 `selectableCardIds`、存在正向发动选项，并覆盖发动、不发动和确认时来源失效。
 - 多步骤 activeEffect 从“选择”进入“公开/确认/继续处理”阶段时，必须清理上一阶段专属字段（例如 `selectableCardMode`、`minSelectableCards`、`maxSelectableCards`、`confirmSelectionLabel`、`canSkipSelection`），避免前端同时渲染旧按钮和新步骤按钮。
 - 遇到 BLADE、Heart、费用、分数等会显示为图标的内容时，先查现有映射。例如 BLADE 应使用已映射的 `[BLADE]` / `[ブレード]` 等形式，Heart 应使用已映射的 `[赤ハート]`、`[黄ハート]`、`[紫HEART]` 等形式；不要把应图标化的文本写成未映射的 `[红Heart]`、`[blade]`、`[heart]` 或混用大小写/语言导致前端无法识别。
 - 如果真实新卡需要的图标 token 当前没有映射，先明确这是前端 token 覆盖缺口：要么改用已有等价 token，要么在同一执行窗口同步扩展 `cardEffectTokens.ts` 与对应 token 测试；不要只在 `definitions/index.ts` 写一个无法转换的临时文本。
@@ -301,9 +348,14 @@ git diff -- src/application/card-effect-runner.ts
 - workflow integration 覆盖正常结算、skip、无目标、非法选择、pending continuation。
 - 对无交互 queued LIVE pending，focused integration 至少覆盖：
   1. 单 pending 先开 confirm-only `activeEffect`，确认前不结算，确认后才结算；
-  2. 多 pending 点“顺序发动”自动连续结算且不弹 confirm-only；
+  2. 多 pending 点“顺序发动”且没有新增能力时，同一 ordered batch 自动连续结算且不弹 confirm-only；
   3. 多 pending 手动点选该效果时先弹 confirm-only，确认前不应用效果，确认后才结算；
   4. 已有真实交互 workflow 不出现双弹窗。
+- 检查时点调度 focused integration 至少覆盖：
+  1. 初始 A、B 待机，A 完整结算后产生 X，下一次候选同时包含 B、X 并允许先选择 X；
+  2. X 不得插入 A 的多步骤效果文字中间；
+  3. A 产生 X、X 再产生 Y 时保持同一检查时点，直到规则处理与双方 pending 真正清空；
+  4. 主动/非主动玩家优先级，以及 ordered batch 在新增 X 后必须失效并重新选择。
 - domain query/helper unit 覆盖纯函数正反例。
 - event wrapper 覆盖事件产生、事件入队、0 张/无事件不触发。
 - 声援公开条件测试必须覆盖“本次声援公开过的卡已被前序效果移出 `resolutionZone` 但仍应计入条件”的回归；若同一效果还要移动声援公开卡，另测 stale target 不能被移动。
@@ -370,6 +422,12 @@ git diff --check
 
 ```text
 请先阅读 .agents/skills/loveca-card-effect-governance/SKILL.md，然后按当前卡效框架规范为以下卡牌做新卡效开发。先核对 cards.json 卡文、existing_module_map.md 和复用路径，再实现。默认不 commit、不 push。
+```
+
+卡效提交说明：
+
+```text
+请先阅读 .agents/skills/loveca-card-effect-governance/SKILL.md，并使用 draft-card-effect-commit-message.ts 为本批卡效生成提交说明骨架。新增卡效必须使用当前前端 `/api/cards` 实际返回的展示 card_text（中文优先、日文兜底）；同文卡合并一行，其余卡牌一张一行。请结合真实 diff 补齐其他章节，先把完整 commit message 给我确认，不要 commit、不要 push。卡牌范围：<卡号列表或明确的 diff/commit 范围>
 ```
 
 修正审查发现的问题：

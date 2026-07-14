@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -26,6 +27,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
 
@@ -69,7 +71,11 @@ function setMainPhase(game: GameState): GameState {
   };
 }
 
-function setup(options: { readonly energyCount: number; readonly waitingLiveCount: number }) {
+function setup(options: {
+  readonly energyCount: number;
+  readonly waitingLiveCount: number;
+  readonly markedEnergyIndices?: readonly number[];
+}) {
   const source = createCardInstance(member(), PLAYER1, 'mao-source');
   const energies = Array.from({ length: options.energyCount }, (_, index) =>
     createCardInstance(energy(`PL!E-${index}`), PLAYER1, `energy-${index}`)
@@ -98,8 +104,17 @@ function setup(options: { readonly energyCount: number; readonly waitingLiveCoun
       player.waitingRoom
     ),
   }));
+  const markedEnergyIndices = options.markedEnergyIndices ?? [];
   return {
-    game: setMainPhase(game),
+    game: {
+      ...setMainPhase(game),
+      energyActivePhaseSkips: markedEnergyIndices.map((index) => ({
+        playerId: PLAYER1,
+        energyCardId: energies[index]!.instanceId,
+        sourceCardId: 'marker-source',
+        abilityId: 'marker-ability',
+      })),
+    },
     sourceId: source.instanceId,
     energyIds: energies.map((card) => card.instanceId),
     waitingLiveIds: waitingLives.map((card) => card.instanceId),
@@ -139,21 +154,6 @@ describe('PL!SP-bp5-111 Mao activated workflow', () => {
     const session = createSession(scenario.game);
 
     expect(activateMao(session, scenario.sourceId).success).toBe(true);
-    expect(session.state?.activeEffect?.stepId).toBe('SP_BP5_111_SELECT_TWO_ENERGY_COST');
-
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(
-          PLAYER1,
-          session.state!.activeEffect!.id,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          scenario.energyIds
-        )
-      ).success
-    ).toBe(true);
     expect(session.state?.activeEffect?.stepId).toBe('SP_BP5_111_SELECT_WAITING_ROOM_LIVE');
 
     expect(
@@ -168,8 +168,61 @@ describe('PL!SP-bp5-111 Mao activated workflow', () => {
 
     expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
     expect(session.state?.players[0].energyDeck.cardIds).toEqual(scenario.energyIds);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toContain(scenario.waitingLiveIds[0]);
     expect(abilityUseCount(session.state!)).toBe(1);
+  });
+
+  it.each([
+    {
+      label: '普通与特殊混合',
+      markedEnergyIndices: [2],
+      selectedIndices: [0, 2],
+    },
+    {
+      label: '候选全部为特殊能量',
+      markedEnergyIndices: [0, 1, 2, 3],
+      selectedIndices: [1, 3],
+    },
+  ])('$label时通过公共窗口返回明确选择的2张能量', ({
+    markedEnergyIndices,
+    selectedIndices,
+  }) => {
+    const scenario = setup({
+      energyCount: 4,
+      waitingLiveCount: 1,
+      markedEnergyIndices,
+    });
+    const session = createSession(scenario.game);
+
+    expect(activateMao(session, scenario.sourceId).success).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    expect(session.state?.players[0].energyDeck.cardIds).toEqual([]);
+    const selectedEnergyIds = selectedIndices.map((index) => scenario.energyIds[index]!);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          selectedEnergyIds
+        )
+      ).success
+    ).toBe(true);
+
+    expect(session.state?.activeEffect?.stepId).toBe('SP_BP5_111_SELECT_WAITING_ROOM_LIVE');
+    expect(session.state?.players[0].energyDeck.cardIds).toEqual(selectedEnergyIds);
+    expect(session.state?.players[0].energyZone.cardIds).toEqual(
+      scenario.energyIds.filter((cardId) => !selectedEnergyIds.includes(cardId))
+    );
+    const movedEvents = session.state!.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_ENERGY_MOVED_TO_DECK);
+    expect(movedEvents).toHaveLength(1);
+    expect(movedEvents[0]).toMatchObject({ movedEnergyCardIds: selectedEnergyIds });
   });
 
   it('does not pay or record use when energy or waiting room LIVE target is missing', () => {
@@ -191,19 +244,7 @@ describe('PL!SP-bp5-111 Mao activated workflow', () => {
     const session = createSession(scenario.game);
 
     expect(activateMao(session, scenario.sourceId).success).toBe(true);
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(
-          PLAYER1,
-          session.state!.activeEffect!.id,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          scenario.energyIds
-        )
-      ).success
-    ).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe('SP_BP5_111_SELECT_WAITING_ROOM_LIVE');
 
     const targetGone = updatePlayer(session.state!, PLAYER1, (player) => ({
       ...player,

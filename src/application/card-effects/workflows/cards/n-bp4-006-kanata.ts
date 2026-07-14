@@ -18,6 +18,7 @@ import {
   ZoneType,
 } from '../../../../shared/types/enums.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { and, costLte, groupAliasIs, hasBladeHeart, typeIs } from '../../../effects/card-selectors.js';
 import { PL_N_BP4_006_ON_ENTER_PAY_TWO_PLAY_LOW_COST_NIJIGASAKI_MEMBER_ABILITY_ID } from '../../ability-ids.js';
@@ -100,9 +101,7 @@ function startNBp4006KanataOnEnter(
     ability.sourceCardId
   );
   const canPayEnergy =
-    payImmediateEffectCosts(game, player.id, ability.sourceCardId, [
-      { kind: 'TAP_ACTIVE_ENERGY', count: ENERGY_COST },
-    ]) !== null;
+    getEnergySelectionCandidates(game, player.id, 'TAP_ACTIVE_ENERGY').length >= ENERGY_COST;
   if (emptySlots.length === 0 || selectableCardIds.length === 0 || !canPayEnergy) {
     return finishPendingNoOp(
       game,

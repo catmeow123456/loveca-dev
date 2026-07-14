@@ -116,12 +116,12 @@ function startPayTwoEnergyOriginalHeartGreen(
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_TWO_ENERGY_STEP_ID,
       stepText: canPay
-        ? '可以支付2张活跃能量；支付后，LIVE结束时为止，此成员原本持有的 Heart 全部变为[緑ハート]。'
-        : '当前没有足够可支付的活跃能量，可以不发动。',
+        ? '可以支付[E][E]；支付后，LIVE结束时为止，此成员原本持有的 Heart 全部变为[緑ハート]。'
+        : '当前活跃能量不足，无法支付[E][E]，可以不发动。',
       awaitingPlayerId: player.id,
       selectableOptions: canPay
         ? [
-            { id: 'pay', label: '支付2能量' },
+            { id: 'pay', label: '支付[E][E]' },
             { id: 'decline', label: '不发动' },
           ]
         : [{ id: 'decline', label: '不发动' }],
@@ -257,6 +257,10 @@ function startRecoverRevealedCheerLive(
       canSkipSelection: false,
       metadata: {
         orderedResolution: options.orderedResolution === true,
+        publicCardSelectionConfirmation: {
+          source: 'REVEALED_CHEER',
+          destination: 'HAND',
+        },
       },
     },
     actionPayload: {

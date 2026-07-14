@@ -45,6 +45,7 @@ function createMockLiveData(
   cardCode: string = 'TEST-LIVE',
   options: {
     readonly groupNames?: readonly string[];
+    readonly unitName?: string;
     readonly cardText?: string;
   } = {}
 ): LiveCardData {
@@ -52,6 +53,7 @@ function createMockLiveData(
     cardCode,
     name,
     groupNames: options.groupNames,
+    unitName: options.unitName,
     cardText: options.cardText,
     cardType: CardType.LIVE,
     score,
@@ -1082,6 +1084,88 @@ describe('CostCalculator', () => {
 
       expect(info.modifiedCost).toBe(16);
       expect(info.modifierAmount).toBe(0);
+    });
+
+    it('reduces PL!-pb1-014 R/P＋ from own hand by 2 for one or more structured lilywhite success LIVE cards', () => {
+      for (const cardCode of ['PL!-pb1-014-R', 'PL!-pb1-014-P＋']) {
+        for (const sourceCount of [1, 2]) {
+          const sourceCardId = `${cardCode}-hand`;
+          const info = calculator.calculateModifiedPlayCost(
+            createMockMemberData(15, '星空 凛', cardCode),
+            {
+              activeEnergyIds: [],
+              stageMembers: [],
+              sourceCardId,
+              handCardIds: [sourceCardId],
+              successLiveCards: Array.from({ length: sourceCount }, (_, index) => ({
+                cardId: `lilywhite-${index}`,
+                data: createMockLiveData(1, 'lilywhite LIVE', `live-${index}`, {
+                  unitName: 'lilywhite',
+                }),
+              })),
+            }
+          );
+          expect(info.modifiedCost).toBe(13);
+          expect(info.modifierAmount).toBe(2);
+          expect(info.modifiers).toHaveLength(1);
+          expect(info.modifiers[0]).toMatchObject({
+            id: 'PL!-pb1-014:hand-self-cost-minus-if-success-lilywhite',
+            label: '自己的成功LIVE卡区存在lilywhite卡，此卡费用减少2',
+            sourceCardId: 'lilywhite-0',
+          });
+        }
+      }
+    });
+
+    it('does not reduce PL!-pb1-014 without own structured lilywhite success LIVE or for another hand member', () => {
+      const cases = [
+        { cardCode: 'PL!-pb1-014-R', successLiveCards: [] },
+        {
+          cardCode: 'PL!-pb1-014-R',
+          successLiveCards: [{ cardId: 'other', data: createMockLiveData(1, 'other', 'other', { unitName: 'BiBi' }) }],
+        },
+        {
+          cardCode: 'PL!-pb1-014-R',
+          successLiveCards: [{ cardId: 'text-only', data: createMockLiveData(1, 'lilywhite', 'prefix-lilywhite', { cardText: 'lilywhite' }) }],
+        },
+        {
+          cardCode: 'PL!-pb1-013-R',
+          successLiveCards: [{ cardId: 'lilywhite', data: createMockLiveData(1, 'lilywhite', 'live', { unitName: 'lilywhite' }) }],
+        },
+      ];
+      for (const testCase of cases) {
+        const sourceCardId = 'source-hand';
+        const info = calculator.calculateModifiedPlayCost(
+          createMockMemberData(15, 'member', testCase.cardCode),
+          { activeEnergyIds: [], stageMembers: [], sourceCardId, handCardIds: [sourceCardId], successLiveCards: testCase.successLiveCards }
+        );
+        expect(info.modifiedCost).toBe(15);
+      }
+    });
+
+    it('applies PL!-pb1-014 modified cost before relay discount and clamps the cost at zero', () => {
+      const sourceCardId = 'rin-hand';
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 13 }, (_, index) => `e${index}`),
+        stageMembers: [createStageMemberInfo('relay', 5, SlotPosition.CENTER)],
+        sourceCardId,
+        handCardIds: [sourceCardId],
+        successLiveCards: [{ cardId: 'lilywhite', data: createMockLiveData(1, 'live', 'live', { unitName: 'lilywhite' }) }],
+      };
+      const result = calculator.checkCanPayCost(
+        createMockMemberData(15, '星空 凛', 'PL!-pb1-014-R'),
+        SlotPosition.CENTER,
+        resources
+      );
+      const relay = result.availablePlans.find((plan) => plan.isRelay);
+      expect(relay).toMatchObject({ modifiedCost: 13, relayDiscount: 5, actualEnergyCost: 8 });
+
+      const zero = calculator.calculateModifiedPlayCost(
+        createMockMemberData(1, '星空 凛', 'PL!-pb1-014-R'),
+        resources
+      );
+      expect(zero.modifiedCost).toBe(0);
+      expect(zero.modifierAmount).toBe(1);
     });
   });
 

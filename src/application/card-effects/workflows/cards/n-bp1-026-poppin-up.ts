@@ -122,6 +122,10 @@ function startNBp1026PoppinUpSelection(
       metadata: {
         [POPPIN_UP_METADATA_KEY]: true,
         orderedResolution: options.orderedResolution === true,
+        publicCardSelectionConfirmation: {
+          source: 'REVEALED_CHEER',
+          destination: 'HAND',
+        },
         ...scoreComparison,
       },
     },

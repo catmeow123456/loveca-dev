@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -7,17 +8,21 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
+import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import {
   addCardToStatefulZone,
   addCardToZone,
   placeCardInSlot,
+  removeCardFromStatefulZone,
   removeCardFromSlot,
 } from '../../src/domain/entities/zone';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import {
   confirmActiveEffectStep,
@@ -33,6 +38,8 @@ import {
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+  PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+  PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -44,6 +51,7 @@ import {
   SubPhase,
   TriggerCondition,
   TurnType,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -68,6 +76,7 @@ function createMember(options: {
   readonly cardCode: string;
   readonly name: string;
   readonly cost: number;
+  readonly blade?: number;
   readonly groupNames?: readonly string[];
 }): MemberCardData {
   return {
@@ -77,7 +86,7 @@ function createMember(options: {
     unitName: 'DOLLCHESTRA',
     cardType: CardType.MEMBER,
     cost: options.cost,
-    blade: 1,
+    blade: options.blade ?? 1,
     hearts: [createHeartIcon(HeartColor.BLUE, 1)],
   };
 }
@@ -102,12 +111,15 @@ function setupLiveStartState(options: {
   readonly stageMembers: readonly {
     readonly card: ReturnType<typeof createCardInstance>;
     readonly slot: SlotPosition;
+    readonly orientation?: OrientationState;
   }[];
   readonly successLive?: ReturnType<typeof createCardInstance>;
+  readonly additionalLives?: readonly ReturnType<typeof createCardInstance>[];
 }): GameState {
   let game = createGameState('conditional-live-modifier', PLAYER1, 'P1', PLAYER2, 'P2');
   game = registerCards(game, [
     options.live,
+    ...(options.additionalLives ?? []),
     ...options.stageMembers.map((member) => member.card),
     ...(options.successLive ? [options.successLive] : []),
   ]);
@@ -115,16 +127,20 @@ function setupLiveStartState(options: {
     let memberSlots = player.memberSlots;
     for (const stageMember of options.stageMembers) {
       memberSlots = placeCardInSlot(memberSlots, stageMember.slot, stageMember.card.instanceId, {
-        orientation: OrientationState.ACTIVE,
+        orientation: stageMember.orientation ?? OrientationState.ACTIVE,
         face: FaceState.FACE_UP,
       });
     }
     return {
       ...player,
-      liveZone: addCardToStatefulZone(player.liveZone, options.live.instanceId, {
-        orientation: OrientationState.ACTIVE,
-        face: FaceState.FACE_UP,
-      }),
+      liveZone: [options.live, ...(options.additionalLives ?? [])].reduce(
+        (zone, live) =>
+          addCardToStatefulZone(zone, live.instanceId, {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }),
+        player.liveZone
+      ),
       successZone: options.successLive
         ? addCardToZone(player.successZone, options.successLive.instanceId)
         : player.successZone,
@@ -265,6 +281,51 @@ function setupHanamusubiPendingState(options: {
       },
     },
     sourceLives,
+  };
+}
+
+function setupBp3023StageBladeScenario(options: {
+  readonly blades: readonly number[];
+  readonly orientations?: readonly OrientationState[];
+  readonly sourceCount?: number;
+}): {
+  readonly game: GameState;
+  readonly lives: readonly ReturnType<typeof createCardInstance>[];
+  readonly members: readonly ReturnType<typeof createCardInstance>[];
+} {
+  const sourceCount = options.sourceCount ?? 1;
+  const lives = Array.from({ length: sourceCount }, (_, index) =>
+    createCardInstance(
+      createLive('PL!-bp3-023-L', "ミはμ'sicのミ", 3),
+      PLAYER1,
+      `bp3-023-live-${index}`
+    )
+  );
+  const slots = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
+  const members = options.blades.map((blade, index) =>
+    createCardInstance(
+      createMember({
+        cardCode: `PL!-test-bp3-023-member-${index}`,
+        name: `测试成员${index + 1}`,
+        cost: 1,
+        blade,
+      }),
+      PLAYER1,
+      `bp3-023-member-${index}`
+    )
+  );
+  return {
+    game: setupLiveStartState({
+      live: lives[0]!,
+      additionalLives: lives.slice(1),
+      stageMembers: members.map((card, index) => ({
+        card,
+        slot: slots[index]!,
+        orientation: options.orientations?.[index],
+      })),
+    }),
+    lives,
+    members,
   };
 }
 
@@ -576,7 +637,11 @@ describe('conditional live modifier workflow', () => {
       PLAYER1,
       'pb1-026-second-live'
     );
-    let game = registerCards(scenario.game, [secondLive]);
+    let game = addCheckTimingRuleSentinel(
+      registerCards(scenario.game, [secondLive]),
+      PLAYER1,
+      'conditional-live-modifier-ordered'
+    );
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       liveZone: addCardToStatefulZone(player.liveZone, secondLive.instanceId, {
@@ -1028,5 +1093,248 @@ describe('conditional live modifier workflow', () => {
           modifier.abilityId === HS_BP2_024_LIVE_START_KOSUZU_SAYAKA_REQUIREMENT_ABILITY_ID
       )
     ).toBe(false);
+  });
+
+  it('confirms PL!-bp3-023-L before counting effective stage BLADE and includes WAITING members', () => {
+    const scenario = setupBp3023StageBladeScenario({
+      blades: [4, 3, 3],
+      orientations: [
+        OrientationState.ACTIVE,
+        OrientationState.WAITING,
+        OrientationState.ACTIVE,
+      ],
+    });
+    const preview = runLiveStart(scenario.game);
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+      sourceCardId: scenario.lives[0]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.activeEffect?.effectText).toContain(
+      '【LIVE开始时】存在于自己的舞台的成员持有的[BLADE]的合计大于等于10的场合、使此卡成功的必要HEART减少[無ハート][無ハート]。'
+    );
+    expect(preview.activeEffect?.effectText).toContain('当前自己舞台成员持有的[BLADE]合计10');
+    expect(preview.activeEffect?.effectText).toContain('满足条件，实际减少2个[無ハート]');
+    expect(preview.activeEffect?.effectText).not.toMatch(/source|pending|stale|来源|LIVE区/);
+    expect(preview.liveResolution.liveModifiers).toEqual([]);
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'REQUIREMENT',
+      liveCardId: scenario.lives[0]!.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+      sourceCardId: scenario.lives[0]!.instanceId,
+      abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+    });
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID &&
+          action.payload.stageBladeTotal === 10 &&
+          action.payload.conditionMet === true &&
+          action.payload.requirementReduction === 2
+      )
+    ).toBe(true);
+  });
+
+  it('does not reduce PL!-bp3-023-L requirement when effective stage BLADE is below ten', () => {
+    const scenario = setupBp3023StageBladeScenario({ blades: [3, 3, 3] });
+    const preview = runLiveStart(scenario.game);
+    expect(preview.activeEffect?.effectText).toContain('[BLADE]合计9');
+    expect(preview.activeEffect?.effectText).toContain('未满足条件，实际不减少[無ハート]');
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(
+      state.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('recomputes PL!-bp3-023-L effective BLADE at confirmation and clears stale requirement state', () => {
+    const gainedScenario = setupBp3023StageBladeScenario({ blades: [3, 3, 3] });
+    const gainedPreview = runLiveStart(gainedScenario.game);
+    expect(gainedPreview.activeEffect?.effectText).toContain('[BLADE]合计9');
+    const gainedBeforeConfirmation = addLiveModifier(gainedPreview, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: gainedScenario.members[0]!.instanceId,
+      abilityId: 'test:bp3-023-live-blade-gained',
+    });
+    const gainedState = confirmActiveEffectStep(
+      gainedBeforeConfirmation,
+      PLAYER1,
+      gainedBeforeConfirmation.activeEffect!.id
+    );
+    expect(gainedState.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'REQUIREMENT',
+        liveCardId: gainedScenario.lives[0]!.instanceId,
+        abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+      })
+    );
+
+    const lostScenario = setupBp3023StageBladeScenario({ blades: [3, 3, 3] });
+    let lostGame = addLiveModifier(lostScenario.game, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: lostScenario.members[0]!.instanceId,
+      abilityId: 'test:bp3-023-live-blade-lost',
+    });
+    lostGame = addLiveModifier(lostGame, {
+      kind: 'REQUIREMENT',
+      liveCardId: lostScenario.lives[0]!.instanceId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+      sourceCardId: lostScenario.lives[0]!.instanceId,
+      abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+    });
+    const lostPreview = runLiveStart(lostGame);
+    expect(lostPreview.activeEffect?.effectText).toContain('[BLADE]合计10');
+    const lostBeforeConfirmation = {
+      ...lostPreview,
+      liveResolution: {
+        ...lostPreview.liveResolution,
+        liveModifiers: lostPreview.liveResolution.liveModifiers.filter(
+          (modifier) => modifier.abilityId !== 'test:bp3-023-live-blade-lost'
+        ),
+      },
+    };
+    const lostState = confirmActiveEffectStep(
+      lostBeforeConfirmation,
+      PLAYER1,
+      lostBeforeConfirmation.activeEffect!.id
+    );
+    expect(
+      lostState.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('rechecks that PL!-bp3-023-L is still in the controller LIVE zone on confirmation', () => {
+    const scenario = setupBp3023StageBladeScenario({ blades: [4, 3, 3] });
+    const preview = runLiveStart(scenario.game);
+    const sourceRemoved = updatePlayer(preview, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, scenario.lives[0]!.instanceId),
+    }));
+    const state = confirmActiveEffectStep(
+      sourceRemoved,
+      PLAYER1,
+      sourceRemoved.activeEffect!.id
+    );
+    expect(
+      state.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID &&
+          action.payload.sourceInLiveZone === false &&
+          action.payload.requirementReduction === 0
+      )
+    ).toBe(true);
+  });
+
+  it('auto-resolves ordered PL!-bp3-023-L pendings and confirms a manually selected one first', () => {
+    const orderedScenario = setupBp3023StageBladeScenario({
+      blades: [4, 3, 3],
+      sourceCount: 2,
+    });
+    const orderSelection = runLiveStart(orderedScenario.game);
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const ordered = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(ordered.pendingAbilities).toEqual([]);
+    expect(
+      ordered.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+      )
+    ).toHaveLength(2);
+
+    const manualScenario = setupBp3023StageBladeScenario({
+      blades: [4, 3, 3],
+      sourceCount: 2,
+    });
+    const manualOrderSelection = runLiveStart(manualScenario.game);
+    const preview = confirmActiveEffectStep(
+      manualOrderSelection,
+      PLAYER1,
+      manualOrderSelection.activeEffect!.id,
+      manualScenario.lives[1]!.instanceId
+    );
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+      sourceCardId: manualScenario.lives[1]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(
+      preview.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+    const confirmed = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(confirmed.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'REQUIREMENT',
+        sourceCardId: manualScenario.lives[1]!.instanceId,
+        abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
+      })
+    );
+  });
+  it('confirms and applies PL!N-bp3-005 player SCORE from current member-entry events', () => {
+    const ai = createCardInstance(createMember({ cardCode: 'PL!N-bp3-005-P', name: '宮下 愛', cost: 15 }), PLAYER1, 'ai');
+    let game = registerCards(createGameState('n-bp3-005-live-start', PLAYER1, 'P1', PLAYER2, 'P2'), [ai]);
+    game = updatePlayer(game, PLAYER1, (player) => ({ ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ai.instanceId) }));
+    game = emitGameEvent(game, createEnterStageEvent('first', ZoneType.HAND, SlotPosition.LEFT, PLAYER1, PLAYER1));
+    game = emitGameEvent(game, createEnterStageEvent('second', ZoneType.WAITING_ROOM, SlotPosition.RIGHT, PLAYER1, PLAYER1));
+    const pending: PendingAbilityState = {
+      id: 'ai-live-start', abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
+      sourceCardId: ai.instanceId, controllerId: PLAYER1, mandatory: true,
+      timingId: TriggerCondition.ON_LIVE_START, eventIds: ['live-start'],
+    };
+    game = { ...game, pendingAbilities: [pending] };
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.liveResolution.playerScores.get(PLAYER1) ?? 0).toBe(0);
+    expect(preview.activeEffect?.effectText).toContain('已登场2次，满足条件');
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual(expect.objectContaining({
+      kind: 'SCORE', playerId: PLAYER1, sourceCardId: ai.instanceId,
+      abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID, countDelta: 1,
+    }));
+    expect(resolved.liveResolution.liveModifiers.at(-1)?.liveCardId).toBeUndefined();
   });
 });

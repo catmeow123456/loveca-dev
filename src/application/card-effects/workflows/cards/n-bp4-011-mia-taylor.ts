@@ -389,6 +389,7 @@ function startMiaLiveSuccessMillRecover(
         confirmSelectionLabel: '加入手牌',
         canSkipSelection: false,
         metadata: {
+          publicCardSelectionConfirmation: { destination: 'HAND' },
           orderedResolution,
           sourceZone: ZoneType.WAITING_ROOM,
           milledCardIds: millResult.movedCardIds,

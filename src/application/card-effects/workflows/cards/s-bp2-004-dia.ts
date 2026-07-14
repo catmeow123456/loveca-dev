@@ -12,6 +12,7 @@ import { revealCheerCardsFromMainDeck } from '../../../effects/cheer.js';
 import { moveRevealedCheerCards } from '../../../effects/cheer-selection.js';
 import { S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { createPublicCardSelectionConfirmationWindowForCardIds } from '../../runtime/public-card-selection-confirmation.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -20,6 +21,7 @@ import { getLatestOwnNormalCheerEventByIds } from '../../runtime/cheer-events.js
 
 const ABILITY_ID = S_BP2_004_AUTO_ON_CHEER_NO_LIVE_REROLL_ABILITY_ID;
 const REROLL_DECISION_STEP_ID = 'S_BP2_004_DECIDE_CHEER_REROLL';
+const REROLL_AFTER_PUBLIC_DISPLAY_STEP_ID = 'S_BP2_004_REROLL_AFTER_PUBLIC_DISPLAY';
 const REROLL_OPTION_ID = 'reroll';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -44,9 +46,18 @@ export function registerSBp2004DiaWorkflowHandlers(deps: {
     finishOnCheerRerollDecision(
       game,
       input.selectedOptionId,
-      context.continuePendingCardEffects,
-      deps.enqueueTriggeredCardEffects
+      context.continuePendingCardEffects
     )
+  );
+  registerActiveEffectStepHandler(
+    ABILITY_ID,
+    REROLL_AFTER_PUBLIC_DISPLAY_STEP_ID,
+    (game, _input, context) =>
+      finishOnCheerRerollAfterPublicDisplay(
+        game,
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
   );
 }
 
@@ -121,8 +132,7 @@ function startOnCheerRerollWorkflow(
 function finishOnCheerRerollDecision(
   game: GameState,
   selectedOptionId: string | null | undefined,
-  continuePendingCardEffects: ContinuePendingCardEffects,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForCheer
+  continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
@@ -172,6 +182,75 @@ function finishOnCheerRerollDecision(
     return finishActiveEffect(game, player.id, effect, continuePendingCardEffects, {
       step: 'NO_MOVABLE_ORIGINAL_REVEALED_CARDS_ON_ACTIVATION',
       cheerEventId: originalEvent.eventId,
+    });
+  }
+  const continuationEffect = {
+    ...effect,
+    stepId: REROLL_AFTER_PUBLIC_DISPLAY_STEP_ID,
+    stepText: '公开展示结束后，重新校验并处理本次声援。',
+    selectableOptions: undefined,
+    canSkipSelection: false,
+    skipSelectionLabel: undefined,
+    metadata: {
+      ...effect.metadata,
+      publicDisplayedCheerCardIds: movableCardIds,
+    },
+  };
+  return (
+    createPublicCardSelectionConfirmationWindowForCardIds(
+      game,
+      continuationEffect,
+      {},
+      { source: 'REVEALED_CHEER', destination: 'WAITING_ROOM' },
+      movableCardIds
+    ) ?? game
+  );
+}
+
+function finishOnCheerRerollAfterPublicDisplay(
+  game: GameState,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForCheer
+): GameState {
+  const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  if (
+    !effect ||
+    !player ||
+    effect.abilityId !== ABILITY_ID ||
+    effect.stepId !== REROLL_AFTER_PUBLIC_DISPLAY_STEP_ID ||
+    effect.metadata?.sBp2004CheerReroll !== true
+  ) {
+    return game;
+  }
+
+  const sourceSlot = getSourceMemberSlot(game, player.id, effect.sourceCardId);
+  const originalCheerEventId = effect.metadata?.originalCheerEventId;
+  const originalEvent =
+    typeof originalCheerEventId === 'string'
+      ? getLatestOwnNormalCheerEventByIds(game, player.id, [originalCheerEventId])
+      : null;
+  if (sourceSlot === null || !originalEvent || eventContainsLiveCard(game, originalEvent)) {
+    return finishActiveEffect(game, player.id, effect, continuePendingCardEffects, {
+      step: 'REROLL_CONDITION_STALE_AFTER_PUBLIC_DISPLAY',
+      sourceSlot,
+      cheerEventId: originalCheerEventId,
+    });
+  }
+
+  const movableCardIds = selectMovableOriginalRevealedCardIds(game, player.id, originalEvent);
+  const publicDisplayedCheerCardIds = effect.metadata?.publicDisplayedCheerCardIds;
+  if (
+    !Array.isArray(publicDisplayedCheerCardIds) ||
+    !publicDisplayedCheerCardIds.every((cardId) => typeof cardId === 'string') ||
+    movableCardIds.length !== publicDisplayedCheerCardIds.length ||
+    movableCardIds.some((cardId, index) => cardId !== publicDisplayedCheerCardIds[index])
+  ) {
+    return finishActiveEffect(game, player.id, effect, continuePendingCardEffects, {
+      step: 'PUBLIC_DISPLAYED_CHEER_TARGETS_STALE',
+      cheerEventId: originalEvent.eventId,
+      publicDisplayedCheerCardIds,
+      movableCardIds,
     });
   }
   const moveResult = moveRevealedCheerCards(game, player.id, movableCardIds, 'WAITING_ROOM');

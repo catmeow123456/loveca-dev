@@ -130,7 +130,7 @@ function startSpPb1001LiveStart(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: LIVE_START_DECISION_STEP_ID,
-      stepText: '可以支付2张活跃能量。若不支付，则将自己的2张手牌放置入休息室。',
+      stepText: '可以支付[E][E]。若不支付，则将自己的2张手牌放置入休息室。',
       awaitingPlayerId: player.id,
       selectableOptions: [
         { id: PAY_OPTION_ID, label: '支付[E][E]' },
@@ -403,7 +403,7 @@ function startSpPb1001LiveSuccess(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: LIVE_SUCCESS_PAY_STEP_ID,
-      stepText: '可以支付6张活跃能量。如此做时，LIVE合计分数+1。',
+      stepText: '可以支付[E][E][E][E][E][E]。如此做时，LIVE合计分数+1。',
       awaitingPlayerId: player.id,
       selectableOptions: [
         { id: PAY_OPTION_ID, label: '支付[E][E][E][E][E][E]' },

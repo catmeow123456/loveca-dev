@@ -133,6 +133,11 @@ import {
   type ActionHandlerContext,
 } from './action-handlers/index.js';
 import { enqueueTriggeredCardEffects, resolvePendingCardEffects } from './card-effect-runner.js';
+import {
+  closeCheckTimingContextIfIdle,
+  openCheckTimingContext,
+  processCheckTimingRuleActions,
+} from './card-effects/runtime/check-timing-scheduler.js';
 import { liveResolver } from '../domain/rules/live-resolver.js';
 import { applyHeartRequirementModifiers } from '../domain/rules/live-requirement-modifiers.js';
 import {
@@ -154,6 +159,7 @@ import {
   collectContinuousActivePhaseSkippedMemberCardIds,
   consumeMemberActivePhaseSkipsForPlayer,
 } from '../domain/rules/member-active-skips.js';
+import { consumeEnergyActivePhaseSkipsForPlayer } from '../domain/rules/energy-active-skips.js';
 
 function isTriggerCondition(event: GameEventType | string): event is TriggerCondition {
   return Object.values(TriggerCondition).includes(event as TriggerCondition);
@@ -712,7 +718,7 @@ export class GameService {
       }
 
       state = this.revealLiveCards(state);
-      state = this.executePendingRuleActions(state).gameState;
+      state = this.executePendingRuleActionsAndDispatchTriggers(state).gameState;
       const performingPlayerId =
         state.liveResolution.performingPlayerId ?? state.players[state.activePlayerIndex]?.id;
       const performingPlayer = performingPlayerId ? getPlayerById(state, performingPlayerId) : null;
@@ -1078,13 +1084,15 @@ export class GameService {
 
   private untapAllForActivePhase(game: GameState, playerId: string): GameState {
     const skipResult = consumeMemberActivePhaseSkipsForPlayer(game, playerId);
+    const energySkipResult = consumeEnergyActivePhaseSkipsForPlayer(skipResult.gameState, playerId);
+    const skippedEnergyCardIdSet = new Set(energySkipResult.skippedEnergyCardIds);
     const skippedMemberCardIdSet = new Set([
       ...skipResult.skippedMemberCardIds,
-      ...collectContinuousActivePhaseSkippedMemberCardIds(skipResult.gameState, playerId),
+      ...collectContinuousActivePhaseSkippedMemberCardIds(energySkipResult.gameState, playerId),
     ]);
-    const player = getPlayerById(skipResult.gameState, playerId);
+    const player = getPlayerById(energySkipResult.gameState, playerId);
     if (!player) {
-      return skipResult.gameState;
+      return energySkipResult.gameState;
     }
     const waitingMembers = Object.values(SlotPosition).flatMap((slot) => {
       const cardId = player.memberSlots.slots[slot];
@@ -1096,7 +1104,7 @@ export class GameService {
         : [];
     });
 
-    let state = updatePlayer(skipResult.gameState, playerId, (player) => {
+    let state = updatePlayer(energySkipResult.gameState, playerId, (player) => {
       const memberCardStates = new Map(player.memberSlots.cardStates);
       for (const [cardId, cardState] of memberCardStates) {
         if (!skippedMemberCardIdSet.has(cardId)) {
@@ -1109,7 +1117,17 @@ export class GameService {
 
       return clearTurnMoveRecords({
         ...player,
-        energyZone: untapAllEnergy(player.energyZone),
+        energyZone: {
+          ...player.energyZone,
+          cardStates: new Map(
+            [...player.energyZone.cardStates].map(([cardId, cardState]) => [
+              cardId,
+              skippedEnergyCardIdSet.has(cardId)
+                ? cardState
+                : { ...cardState, orientation: OrientationState.ACTIVE },
+            ])
+          ),
+        },
         memberSlots: {
           ...player.memberSlots,
           cardStates: memberCardStates,
@@ -1410,74 +1428,39 @@ export class GameService {
   // 检查时机处理（规则 9.5 + 10）
   // ============================================
 
-  private executePendingRuleActions(game: GameState): GameOperationResult {
-    let state = game;
-    let hasChanges = false;
-    let iterations = 0;
-    const MAX_ITERATIONS = 100; // 防止无限循环
-    const appliedRuleActions: RuleActionResult[] = [];
-
-    // 获取卡牌类型的辅助函数
-    const getCardType = (cardId: string): CardType | null => {
-      const card = getCardById(state, cardId);
-      return card?.data.cardType ?? null;
-    };
-
-    // 规则处理循环（规则 9.5.3.1）
-    for (;;) {
-      iterations++;
-      if (iterations > MAX_ITERATIONS) {
-        console.warn('检查时机处理达到最大迭代次数，可能存在无限循环');
-        break;
-      }
-
-      // 收集所有需要执行的规则处理
-      const pendingActions = ruleActionProcessor.collectPendingRuleActions(state, getCardType);
-
-      if (pendingActions.length === 0) {
-        break;
-      }
-
-      hasChanges = true;
-
-      // 应用所有规则处理
-      let hasVictory = false;
-      let winnerId: string | null = null;
-      let isDraw = false;
-
-      for (const action of pendingActions) {
-        appliedRuleActions.push(action);
-        if (action.type === RuleActionType.VICTORY) {
-          hasVictory = true;
-          winnerId = action.winnerId ?? null;
-          isDraw = action.description.includes('平局');
-          continue;
-        }
-
-        state = this.applyRuleActionWithLog(state, action);
-      }
-
-      // 如果有胜利处理，结束游戏
-      if (hasVictory) {
-        if (isDraw) {
-          state = markGameEnded(state, GameEndReason.DRAW, null);
-        } else if (winnerId) {
-          state = markGameEnded(state, GameEndReason.VICTORY_CONDITION, winnerId);
-        }
-        return {
-          success: true,
-          gameState: state,
-          triggeredEvents: ['GAME_ENDED'],
-          ruleActions: appliedRuleActions,
-        };
-      }
+  /**
+   * 执行规则行动，并只分发本次规则行动新产生的规则事件。
+   *
+   * eventLog 起点必须在规则行动前记录，避免依赖“最新事件”推断或重新处理历史事件。
+   */
+  private executePendingRuleActionsAndDispatchTriggers(game: GameState): GameOperationResult {
+    const ruleActionResult = processCheckTimingRuleActions(game);
+    let state = ruleActionResult.gameState;
+    if (ruleActionResult.gameEnded) {
+      return {
+        success: true,
+        gameState: state,
+        triggeredEvents: ['GAME_ENDED'],
+        ruleActions: ruleActionResult.ruleActions,
+      };
     }
 
+    if (ruleActionResult.energyMovedToDeckEvents.length > 0) {
+      state = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENERGY_MOVED_TO_DECK], {
+        energyMovedToDeckEvents: ruleActionResult.energyMovedToDeckEvents,
+      });
+    }
+
+    const abilityResult = resolvePendingCardEffects(state);
+    const finalState = closeCheckTimingContextIfIdle(abilityResult.gameState);
+    const hasChanges =
+      ruleActionResult.ruleActions.length > 0 ||
+      abilityResult.resolvedAbilityIds.length > 0;
     return {
       success: true,
-      gameState: state,
+      gameState: finalState,
       triggeredEvents: hasChanges ? ['RULE_ACTIONS_EXECUTED'] : undefined,
-      ruleActions: appliedRuleActions,
+      ruleActions: ruleActionResult.ruleActions,
     };
   }
 
@@ -1497,27 +1480,10 @@ export class GameService {
     triggerConditions: readonly TriggerCondition[] = [],
     options: DispatchEventsOptions = {}
   ): GameOperationResult {
-    let state = enqueueTriggeredCardEffects(game, triggerConditions, {
+    let state = enqueueTriggeredCardEffects(openCheckTimingContext(game), triggerConditions, {
       triggerEventLogStartIndex: options.triggerEventLogStartIndex,
     });
-    const ruleActionResult = this.executePendingRuleActions(state);
-    state = ruleActionResult.gameState;
-    if (ruleActionResult.triggeredEvents?.includes('GAME_ENDED')) {
-      return ruleActionResult;
-    }
-
-    const abilityResult = resolvePendingCardEffects(state);
-    state = abilityResult.gameState;
-    const hasChanges =
-      (ruleActionResult.ruleActions?.length ?? 0) > 0 ||
-      abilityResult.resolvedAbilityIds.length > 0;
-
-    return {
-      success: true,
-      gameState: state,
-      triggeredEvents: hasChanges ? ['RULE_ACTIONS_EXECUTED'] : undefined,
-      ruleActions: ruleActionResult.ruleActions,
-    };
+    return this.executePendingRuleActionsAndDispatchTriggers(state);
   }
 
   // ============================================

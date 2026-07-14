@@ -129,6 +129,21 @@ export interface MemberActivePhaseSkipState {
   readonly abilityId: string;
 }
 
+export interface EnergyActivePhaseSkipState {
+  readonly playerId: string;
+  readonly energyCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+}
+
+export interface MemberEffectActivationProhibitionState {
+  readonly affectedPlayerIds: readonly string[];
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly createdTurnCount: number;
+  readonly expiresAt: 'TURN_END';
+}
+
 export interface LiveSetLimitReductionState {
   readonly playerId: string;
   readonly sourceCardId: string;
@@ -183,6 +198,8 @@ export type LiveModifierState =
       readonly countDelta: number;
       /** 指定时表示“此 Live 卡分数”修正；未指定时表示玩家 LIVE 合计分数修正 */
       readonly liveCardId?: string;
+      /** 指定时表示此玩家总分修正由该成员实例获得，并在该实例离场时失去。 */
+      readonly targetMemberCardId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -467,6 +484,13 @@ export interface PendingAbilityState {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+/** Serializable authority state for one complete rules 9.5.3 check timing. */
+export interface CheckTimingContextState {
+  readonly id: string;
+  readonly activePlayerId: string;
+  readonly iterationCount: number;
+}
+
 export type PendingChoiceKind = 'CONFIRM_OPTIONAL' | 'SELECT_CARDS' | 'SELECT_TARGET';
 
 /**
@@ -492,7 +516,8 @@ export interface PendingChoiceState {
   readonly maxCount?: number;
 }
 
-export type ActiveEffectSelectableCardVisibility = 'PUBLIC' | 'AWAITING_PLAYER_ONLY';
+export type ActiveEffectSelectableCardVisibility =
+  'PUBLIC' | 'AWAITING_PLAYER_ONLY' | 'AWAITING_PLAYER_BLIND';
 
 export interface ActiveEffectNumericInputState {
   readonly min?: number;
@@ -535,6 +560,10 @@ export interface ActiveEffectState {
   readonly awaitingPlayerId: string | null;
   /** 当前步骤已公开给双方的卡牌 */
   readonly revealedCardIds?: readonly string[];
+  /** 休息室选卡公共展示的服务端权威截止时间。 */
+  readonly publicCardSelectionAutoAdvanceAt?: number;
+  /** 公共展示中的卡牌是否按选择顺序结算。 */
+  readonly publicCardSelectionOrdered?: boolean;
   /** 当前步骤涉及的检视区卡牌 */
   readonly inspectionCardIds?: readonly string[];
   /** 当前步骤可选择的卡牌 */
@@ -683,6 +712,9 @@ export interface GameState {
    */
   readonly pendingAbilities: readonly PendingAbilityState[];
 
+  /** Current check timing, retained across player choices and ability resolution. */
+  readonly checkTimingContext: CheckTimingContextState | null;
+
   /**
    * 卡效执行中等待玩家作出的一个选择
    */
@@ -746,6 +778,9 @@ export interface GameState {
    * 卡效造成的“下次自己的活跃阶段不变为活跃状态”临时标记。
    */
   readonly memberActivePhaseSkips: readonly MemberActivePhaseSkipState[];
+  readonly energyActivePhaseSkips?: readonly EnergyActivePhaseSkipState[];
+  /** 本回合内禁止卡牌效果使指定玩家的待机成员变为活跃。 */
+  readonly memberEffectActivationProhibitions?: readonly MemberEffectActivationProhibitionState[];
   /**
    * 卡效造成的“下一次 LIVE 卡设置阶段可放置张数上限减少”标记。
    */
@@ -864,6 +899,7 @@ export function createGameState(
     effectWindowType: EffectWindowType.NONE,
     availableAbilityIds: [],
     pendingAbilities: [],
+    checkTimingContext: null,
     pendingChoice: null,
     activeEffect: null,
     pendingCostPayment: null,
@@ -877,6 +913,8 @@ export function createGameState(
     liveProhibitions: [],
     liveStartSuppressions: [],
     memberActivePhaseSkips: [],
+    energyActivePhaseSkips: [],
+    memberEffectActivationProhibitions: [],
     liveSetLimitReductions: [],
 
     isStarted: false,
@@ -942,6 +980,7 @@ export function getPlayerById(game: GameState, playerId: string): PlayerState | 
  */
 export function hasPendingAbilityOrChoice(game: GameState): boolean {
   return (
+    game.checkTimingContext !== null ||
     game.pendingAbilities.length > 0 ||
     game.pendingChoice !== null ||
     game.activeEffect !== null ||
@@ -1589,6 +1628,7 @@ export interface GameStateSnapshot {
   readonly currentTurnType: TurnType;
   readonly firstPlayerIndex: number;
   readonly activePlayerIndex: number;
+  readonly checkTimingContext: CheckTimingContextState | null;
   readonly isStarted: boolean;
   readonly isEnded: boolean;
   readonly endInfo: GameEndInfo | null;
@@ -1605,6 +1645,7 @@ export function createGameSnapshot(game: GameState): GameStateSnapshot {
     currentTurnType: game.currentTurnType,
     firstPlayerIndex: game.firstPlayerIndex,
     activePlayerIndex: game.activePlayerIndex,
+    checkTimingContext: game.checkTimingContext,
     isStarted: game.isStarted,
     isEnded: game.isEnded,
     endInfo: game.endInfo,

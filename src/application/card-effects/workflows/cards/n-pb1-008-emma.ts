@@ -222,7 +222,14 @@ function finishEmmaActivateMember(
     game,
     player.id,
     [selectedCardId],
-    OrientationState.ACTIVE
+    OrientationState.ACTIVE,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
   );
   if (!orientationChange) {
     return game;

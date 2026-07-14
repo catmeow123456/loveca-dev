@@ -250,6 +250,11 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
     );
     expect(nonEdelResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(session.state?.actionHistory.some(
+      (action) => action.type === 'TRIGGER_ABILITY' &&
+        action.payload.abilityId === HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID
+    )).toBe(false);
     expect(hasAbilityUse(session.state!, seras.instanceId)).toBe(false);
 
     const edelResult = session.executeCommand(

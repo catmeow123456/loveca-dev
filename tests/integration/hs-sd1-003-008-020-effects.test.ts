@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addCheckTimingRuleSentinel } from '../helpers/check-timing-rule-sentinel';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -315,14 +316,25 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
   });
 
   it('PL!HS-sd1-003-SD continues pending after target selection', () => {
-    const first = setup003({ activeEnergyCount: 2 });
+    const first = setup003({ activeEnergyCount: 4 });
     const secondSource = createCardInstance(
       createHasunosoraMember('PL!HS-sd1-003-SD', 'Second Rurino', 7),
       PLAYER1,
       'sd1-003-second-source'
     );
-    const withSecond = {
-      ...registerCards(first.state, [secondSource]),
+    const stateWithSecondOnStage = updatePlayer(
+      registerCards(first.state, [secondSource]),
+      PLAYER1,
+      (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, secondSource.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+      })
+    );
+    const withSecond = addCheckTimingRuleSentinel({
+      ...stateWithSecondOnStage,
       pendingAbilities: [
         pending(
           HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
@@ -331,9 +343,17 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
           'second'
         ),
       ],
-    };
+    }, PLAYER1, 'hs-sd1-003-continuation');
     const resolved = chooseCard(chooseOption(withSecond, 'pay'), first.target.instanceId);
-    expect(resolved.activeEffect?.sourceCardId).toBe(secondSource.instanceId);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.payload.abilityId ===
+            HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === secondSource.instanceId
+      )
+    ).toBe(true);
   });
 
   it('PL!HS-sd1-008-SD on-enter draws two, discards one, and enqueues hand-to-waiting triggers', () => {
@@ -351,7 +371,7 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
       '008-trigger-source'
     );
     const state = start(
-      putCards({
+      addCheckTimingRuleSentinel(putCards({
         game: createState([source, hand, deck1, deck2, triggerSource]),
         hand: [hand.instanceId],
         deck: [deck1.instanceId, deck2.instanceId],
@@ -359,7 +379,7 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
           { cardId: source.instanceId, slot: SlotPosition.CENTER },
           { cardId: triggerSource.instanceId, slot: SlotPosition.LEFT },
         ],
-      }),
+      }), PLAYER1, 'hs-sd1-008-draw-discard'),
       pending(
         HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
         source.instanceId,

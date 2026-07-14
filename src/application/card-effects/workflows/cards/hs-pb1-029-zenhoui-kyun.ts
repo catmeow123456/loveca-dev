@@ -1,7 +1,5 @@
-import { isMemberCardData, type HeartIcon } from '../../../../domain/entities/card.js';
 import {
   addAction,
-  getCardById,
   getPlayerById,
   type GameState,
   type LiveModifierState,
@@ -9,7 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   collectLiveModifiers,
-  getMemberEffectiveHeartIcons,
+  memberHasMoreEffectiveHeartsThanPrinted,
   replaceLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
@@ -102,17 +100,9 @@ function resolveHsPb1029ZenhouiKyunLiveStart(
 
 function getMiraCraMembersWithExtraHeart(game: GameState, playerId: string): readonly string[] {
   const liveModifiers = collectLiveModifiers(game);
-  return getStageMemberCardIdsMatching(game, playerId, miraCraMember).filter((cardId) => {
-    const card = getCardById(game, cardId);
-    if (!card || !isMemberCardData(card.data)) {
-      return false;
-    }
-
-    return (
-      countHeartIcons(getMemberEffectiveHeartIcons(game, playerId, cardId, liveModifiers)) >
-      countHeartIcons(card.data.hearts)
-    );
-  });
+  return getStageMemberCardIdsMatching(game, playerId, miraCraMember).filter((cardId) =>
+    memberHasMoreEffectiveHeartsThanPrinted(game, playerId, cardId, liveModifiers)
+  );
 }
 
 function createRequirementModifier(
@@ -128,8 +118,4 @@ function createRequirementModifier(
         abilityId: ability.abilityId,
       }
     : null;
-}
-
-function countHeartIcons(hearts: readonly HeartIcon[]): number {
-  return hearts.reduce((total, heart) => total + heart.count, 0);
 }

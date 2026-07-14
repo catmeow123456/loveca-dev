@@ -360,6 +360,25 @@ describe('PL!HS-pb1-013 Kosuzu workflows', () => {
     });
     const session = createSessionFromState(resolvePendingCardEffects(state).gameState);
 
+    if (session.state?.activeEffect?.abilityId === 'system:select-pending-card-effect') {
+      const arrange = session.state.pendingAbilities.find(
+        (ability) => ability.abilityId === HS_PB1_013_LIVE_START_LOOK_TOP_TWO_ARRANGE_ABILITY_ID
+      );
+      expect(arrange).toBeTruthy();
+      expect(
+        session.executeCommand(
+          createConfirmEffectStepCommand(
+            PLAYER1,
+            session.state.activeEffect.id,
+            undefined,
+            undefined,
+            false,
+            arrange!.id
+          )
+        ).success
+      ).toBe(true);
+    }
+
     expect(confirm(session, { selectedCardIds: [deckCardIds[0]!] }).success).toBe(true);
 
     expect(session.state?.activeEffect).toMatchObject({

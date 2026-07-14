@@ -14,6 +14,7 @@ import { registerCards, type GameState } from '../../src/domain/entities/game';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { HS_PR_020_LIVE_START_PAY_ENERGY_STACK_WAITING_MEMBERS_TO_DECK_TOP_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -337,6 +338,8 @@ describe('live-start pay energy stack waiting members to deck top workflow', () 
     );
 
     expect(confirmResult.success).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe('COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION');
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].mainDeck.cardIds.slice(0, 4)).toEqual([
       waitingMemberB.instanceId,

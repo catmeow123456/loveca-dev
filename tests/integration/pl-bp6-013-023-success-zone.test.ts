@@ -1,3 +1,7 @@
+import {
+  confirmActiveEffectStepThroughPublicReveal,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -13,10 +17,14 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import {
   BP6_013_ON_ENTER_RECOVER_MUSE_LIVE_IF_SUCCESS_SCORE_SIX_ABILITY_ID,
   BP6_023_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_SUCCESS_MUSE_ABILITY_ID,
+  PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
@@ -91,11 +99,7 @@ function setupBp6013(options: {
   readonly includeMuseLiveTarget?: boolean;
   readonly includeInvalidTargets?: boolean;
 }) {
-  const source = createCardInstance(
-    createMuseMember('PL!-bp6-013-N'),
-    PLAYER1,
-    'bp6-013-source'
-  );
+  const source = createCardInstance(createMuseMember('PL!-bp6-013-N'), PLAYER1, 'bp6-013-source');
   const successLive = createCardInstance(
     createLive('PL!-bp6-success-live', { score: options.successScore }),
     PLAYER1,
@@ -173,10 +177,7 @@ function startBp6013(game: GameState, sourceId: string): GameState {
   );
 }
 
-function setupBp6023(options: {
-  readonly successZoneGroup?: string;
-  readonly deckCount: number;
-}) {
+function setupBp6023(options: { readonly successZoneGroup?: string; readonly deckCount: number }) {
   const source = createCardInstance(
     createLive('PL!-bp6-023-L', { score: 4 }),
     PLAYER1,
@@ -194,7 +195,11 @@ function setupBp6023(options: {
         )
       : null;
   const drawCards = Array.from({ length: options.deckCount }, (_, index) =>
-    createCardInstance(createMuseMember(`PL!-bp6-023-draw-${index}`, 2), PLAYER1, `bp6-023-draw-${index}`)
+    createCardInstance(
+      createMuseMember(`PL!-bp6-023-draw-${index}`, 2),
+      PLAYER1,
+      `bp6-023-draw-${index}`
+    )
   );
 
   let game = createGameState('pl-bp6-023-success-zone', PLAYER1, 'P1', PLAYER2, 'P2');
@@ -246,6 +251,62 @@ function startBp6023(game: GameState, sourceId: string): GameState {
   );
 }
 
+function setupPb1032(options: {
+  readonly successZoneGroup?: string;
+  readonly deckCount: number;
+  readonly sourceCount?: number;
+}) {
+  const sourceLives = Array.from({ length: options.sourceCount ?? 1 }, (_, index) =>
+    createCardInstance(
+      createLive('PL!-pb1-032-L', { groupNames: ["μ's"], score: 2 }),
+      PLAYER1,
+      `pb1-032-source-${index}`
+    )
+  );
+  const successLive =
+    options.successZoneGroup !== undefined
+      ? createCardInstance(
+          createLive('PL!-pb1-032-success-live', {
+            groupNames: [options.successZoneGroup],
+            score: 3,
+          }),
+          PLAYER1,
+          'pb1-032-success-live'
+        )
+      : null;
+  const drawCards = Array.from({ length: options.deckCount }, (_, index) =>
+    createCardInstance(
+      createMuseMember(`PL!-pb1-032-draw-${index}`, 2),
+      PLAYER1,
+      `pb1-032-draw-${index}`
+    )
+  );
+  let game = createGameState('pl-pb1-032-success-zone', PLAYER1, 'P1', PLAYER2, 'P2');
+  game = registerCards(game, [...sourceLives, ...(successLive ? [successLive] : []), ...drawCards]);
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    liveZone: {
+      ...player.liveZone,
+      cardIds: sourceLives.map((card) => card.instanceId),
+      cardStates: new Map(
+        sourceLives.map((card) => [
+          card.instanceId,
+          { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+        ])
+      ),
+    },
+    successZone: { ...player.successZone, cardIds: successLive ? [successLive.instanceId] : [] },
+    mainDeck: { ...player.mainDeck, cardIds: drawCards.map((card) => card.instanceId) },
+    hand: { ...player.hand, cardIds: [] },
+  }));
+
+  return {
+    game,
+    sourceIds: sourceLives.map((card) => card.instanceId),
+    drawCardIds: drawCards.map((card) => card.instanceId),
+  };
+}
+
 function latestPayload(game: GameState, abilityId: string) {
   return game.actionHistory
     .filter((action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === abilityId)
@@ -277,10 +338,9 @@ describe('PL!-bp6-013/023 success-zone workflows', () => {
     );
 
     expect(result.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toContain(scenario.museLiveTargetId);
-    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(
-      scenario.museLiveTargetId
-    );
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(scenario.museLiveTargetId);
   });
 
   it('PL!-bp6-013-N consumes pending without recovery when success score is below six', () => {
@@ -377,5 +437,172 @@ describe('PL!-bp6-013/023 success-zone workflows', () => {
       drawCount: 2,
       drawnCardIds: [scenario.drawCardIds[0]],
     });
+  });
+
+  it('PL!-pb1-032-L shows a confirm-only preview, then draws one when an existing Muse card is in success zone', () => {
+    const scenario = setupPb1032({ successZoneGroup: "μ's", deckCount: 1 });
+    const confirmation = resolvePendingCardEffects({
+      ...scenario.game,
+      pendingAbilities: [
+        pendingAbility(
+          PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+          scenario.sourceIds[0]!,
+          TriggerCondition.ON_LIVE_SUCCESS
+        ),
+      ],
+    }).gameState;
+
+    expect(confirmation.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(confirmation.players[0].hand.cardIds).toEqual([]);
+    expect(confirmation.activeEffect?.effectText).toContain(
+      "当前自己的成功LIVE卡区有1张『μ's』卡，条件满足，实际抽1张卡"
+    );
+
+    const resolved = confirmIfConfirmOnly(confirmation, PLAYER1);
+    expect(resolved.players[0].hand.cardIds).toEqual([scenario.drawCardIds[0]]);
+    expect(
+      latestPayload(resolved, PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID)
+    ).toMatchObject({
+      hasMuseSuccessCard: true,
+      drawCount: 1,
+    });
+  });
+
+  it('PL!-pb1-032-L shows an unmet real-time result and draws zero for no or non-Muse success-zone cards', () => {
+    for (const successZoneGroup of [undefined, 'Aqours']) {
+      const scenario = setupPb1032({ successZoneGroup, deckCount: 1 });
+      const confirmation = resolvePendingCardEffects({
+        ...scenario.game,
+        pendingAbilities: [
+          pendingAbility(
+            PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+            scenario.sourceIds[0]!,
+            TriggerCondition.ON_LIVE_SUCCESS
+          ),
+        ],
+      }).gameState;
+
+      expect(confirmation.activeEffect?.effectText).toContain('条件未满足，实际抽0张卡');
+      const resolved = confirmIfConfirmOnly(confirmation, PLAYER1);
+      expect(resolved.pendingAbilities).toEqual([]);
+      expect(resolved.players[0].hand.cardIds).toEqual([]);
+      expect(
+        latestPayload(resolved, PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID)
+      ).toMatchObject({
+        hasMuseSuccessCard: false,
+        drawCount: 0,
+        drawnCardIds: [],
+      });
+    }
+  });
+
+  it('PL!-pb1-032-L does not count its source LIVE before it enters success zone and safely resolves an empty deck', () => {
+    const scenario = setupPb1032({ deckCount: 0 });
+    const resolved = confirmIfConfirmOnly(
+      resolvePendingCardEffects({
+        ...scenario.game,
+        pendingAbilities: [
+          pendingAbility(
+            PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+            scenario.sourceIds[0]!,
+            TriggerCondition.ON_LIVE_SUCCESS
+          ),
+        ],
+      }).gameState,
+      PLAYER1
+    );
+
+    expect(resolved.players[0].hand.cardIds).toEqual([]);
+    expect(
+      latestPayload(resolved, PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID)
+    ).toMatchObject({
+      hasMuseSuccessCard: false,
+      drawCount: 0,
+    });
+  });
+
+  it('PL!-pb1-032-L continues to the next pending after a manually confirmed unmet result', () => {
+    const scenario = setupPb1032({ deckCount: 0, sourceCount: 2 });
+    const orderSelection = resolvePendingCardEffects({
+      ...scenario.game,
+      pendingAbilities: scenario.sourceIds.map((sourceCardId) =>
+        pendingAbility(
+          PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+          sourceCardId,
+          TriggerCondition.ON_LIVE_SUCCESS
+        )
+      ),
+    }).gameState;
+    const preview = confirmActiveEffectStepThroughPublicReveal(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      scenario.sourceIds[0]
+    );
+    const afterFirst = confirmActiveEffectStepThroughPublicReveal(
+      preview,
+      PLAYER1,
+      preview.activeEffect!.id
+    );
+
+    expect(afterFirst.players[0].hand.cardIds).toEqual([]);
+    expect(afterFirst.pendingAbilities).toHaveLength(1);
+    expect(afterFirst.activeEffect).toMatchObject({
+      sourceCardId: scenario.sourceIds[1],
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+  });
+
+  it('PL!-pb1-032-L resolves multiple pending abilities in order without confirm-only and manually selected pending opens it first', () => {
+    const orderedScenario = setupPb1032({ successZoneGroup: "μ's", deckCount: 2, sourceCount: 2 });
+    const orderSelection = resolvePendingCardEffects({
+      ...orderedScenario.game,
+      pendingAbilities: orderedScenario.sourceIds.map((sourceCardId) =>
+        pendingAbility(
+          PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+          sourceCardId,
+          TriggerCondition.ON_LIVE_SUCCESS
+        )
+      ),
+    }).gameState;
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+
+    const ordered = confirmActiveEffectStepThroughPublicReveal(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(ordered.players[0].hand.cardIds).toEqual(orderedScenario.drawCardIds);
+
+    const manualScenario = setupPb1032({ successZoneGroup: "μ's", deckCount: 2, sourceCount: 2 });
+    const manualOrderSelection = resolvePendingCardEffects({
+      ...manualScenario.game,
+      pendingAbilities: manualScenario.sourceIds.map((sourceCardId) =>
+        pendingAbility(
+          PL_PB1_032_LIVE_SUCCESS_HAS_MUSE_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
+          sourceCardId,
+          TriggerCondition.ON_LIVE_SUCCESS
+        )
+      ),
+    }).gameState;
+    const preview = confirmActiveEffectStepThroughPublicReveal(
+      manualOrderSelection,
+      PLAYER1,
+      manualOrderSelection.activeEffect!.id,
+      manualScenario.sourceIds[0]
+    );
+    expect(preview.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(preview.players[0].hand.cardIds).toEqual([]);
+
+    const afterConfirm = confirmActiveEffectStepThroughPublicReveal(
+      preview,
+      PLAYER1,
+      preview.activeEffect!.id
+    );
+    expect(afterConfirm.players[0].hand.cardIds).toEqual([manualScenario.drawCardIds[0]]);
   });
 });

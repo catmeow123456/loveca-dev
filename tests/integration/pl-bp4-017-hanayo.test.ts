@@ -26,6 +26,18 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 
+function activateWaitSelfCost(game: GameState): GameState {
+  return confirmActiveEffectStep(
+    game,
+    PLAYER1,
+    game.activeEffect!.id,
+    null,
+    null,
+    undefined,
+    'activate'
+  );
+}
+
 function createMemberData(
   cardCode: string,
   options: {
@@ -140,16 +152,13 @@ describe('PL!-bp4-017 Hanayo live-start wait self for center Muse BLADE workflow
     expect(started.activeEffect).toMatchObject({
       abilityId: BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
       awaitingPlayerId: PLAYER1,
-      selectableCardIds: [scenario.source.instanceId],
+      selectableOptions: [{ id: 'activate', label: '发动' }],
       canSkipSelection: true,
+      skipSelectionLabel: '不发动',
     });
+    expect(started.activeEffect?.selectableCardIds).toBeUndefined();
 
-    const state = confirmActiveEffectStep(
-      started,
-      PLAYER1,
-      started.activeEffect!.id,
-      scenario.source.instanceId
-    );
+    const state = activateWaitSelfCost(started);
 
     expect(
       state.players[0].memberSlots.cardStates.get(scenario.source.instanceId)?.orientation
@@ -200,6 +209,29 @@ describe('PL!-bp4-017 Hanayo live-start wait self for center Muse BLADE workflow
     });
   });
 
+  it('revalidates the fixed source when the player confirms activation', () => {
+    const scenario = setupState();
+    let state = startAbility(scenario.game, scenario.source.instanceId);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        cardStates: new Map(player.memberSlots.cardStates).set(scenario.source.instanceId, {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
+      },
+    }));
+
+    state = activateWaitSelfCost(state);
+
+    expect(state.activeEffect).toBeNull();
+    expect(bladeModifiers(state)).toHaveLength(0);
+    expect(latestPayload(state)).toMatchObject({
+      step: 'NO_OP_SOURCE_NOT_ACTIVE_STAGE_MEMBER_AFTER_SELECTION',
+    });
+  });
+
   it.each([
     { name: 'source already WAITING', options: { sourceOrientation: OrientationState.WAITING } },
     { name: 'source not on stage', options: { sourceInStage: false } },
@@ -221,12 +253,7 @@ describe('PL!-bp4-017 Hanayo live-start wait self for center Muse BLADE workflow
   ])('keeps the paid cost but does not add BLADE when $name', ({ centerKind }) => {
     const scenario = setupState({ centerKind });
     const started = startAbility(scenario.game, scenario.source.instanceId);
-    const state = confirmActiveEffectStep(
-      started,
-      PLAYER1,
-      started.activeEffect!.id,
-      scenario.source.instanceId
-    );
+    const state = activateWaitSelfCost(started);
 
     expect(
       state.players[0].memberSlots.cardStates.get(scenario.source.instanceId)?.orientation

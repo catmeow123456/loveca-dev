@@ -104,8 +104,8 @@ function startHsPb1GinkoPayEnergyDiscardMillRecoverCeriseLive(
         ),
         stepId: HS_PB1_004_SELECT_DISCARD_STEP_ID,
         stepText: canPay
-          ? '可以支付1张活跃能量并将1张手牌放置入休息室。也可以选择不发动此效果。'
-          : '当前无法同时支付1张活跃能量并弃1张手牌，可以不发动。',
+          ? '可以支付[E]并将1张手牌放置入休息室。也可以选择不发动此效果。'
+          : '当前无法同时支付[E]并弃1张手牌，可以不发动。',
         awaitingPlayerId: player.id,
         selectableCardIds: canPay ? player.hand.cardIds : [],
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',

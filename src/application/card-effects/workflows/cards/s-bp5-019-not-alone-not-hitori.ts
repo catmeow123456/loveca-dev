@@ -107,6 +107,10 @@ function startSBp5019NotAloneNotHitoriLiveSuccess(
         skipSelectionLabel: '不加入',
         metadata: {
           orderedResolution,
+          publicCardSelectionConfirmation: {
+            source: 'REVEALED_CHEER',
+            destination: 'HAND',
+          },
           ownSuccessLiveCount: condition.ownSuccessLiveCount,
           opponentSuccessLiveCount: condition.opponentSuccessLiveCount,
         },

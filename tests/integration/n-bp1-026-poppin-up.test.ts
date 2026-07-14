@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { CardInstance, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -136,7 +137,9 @@ function resolveLiveSuccess(game: GameState): GameState {
 
 function confirmSelection(session: GameSession, cardId: string) {
   const effect = session.state!.activeEffect!;
-  return session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effect.id, cardId));
+  const result = session.executeCommand(createConfirmEffectStepCommand(PLAYER1, effect.id, cardId));
+  if (result.success) confirmPublicSelectionIfNeeded(session);
+  return result;
 }
 
 function latestResolveAction(state: GameState, step: string) {

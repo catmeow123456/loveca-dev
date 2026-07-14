@@ -1,4 +1,4 @@
-import { isMemberCardData } from '../../../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -12,6 +12,7 @@ import {
   addLiveModifier,
   collectLiveModifiers,
   getMemberEffectiveHeartIcons,
+  replaceLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import {
@@ -19,14 +20,20 @@ import {
   selectDifferentNamedCards,
 } from '../../../../shared/utils/card-identity.js';
 import { cardNameAliasIs } from '../../../effects/card-selectors.js';
+import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import {
   HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
   HS_BP5_018_LIVE_START_DIFFERENT_NAMES_AND_COSTS_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
+  SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+  SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   getAbilityEffectText,
@@ -47,6 +54,39 @@ const NORMAL_HEART_COLORS: readonly HeartColor[] = [
 const EUTOPIA_SCORE_BONUS = 2;
 
 export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
+  registerManualConfirmablePendingAbilityStarterHandler(
+    PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolvePsychoHeartLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getPsychoHeartConfirmationConfig
+  );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveBokuraNoLiveKimiToNoLifeLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getBokuraNoLiveKimiToNoLifeConfirmationConfig
+  );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveNatsuiroEgaoLiveStartScore(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getNatsuiroEgaoScoreConfirmationConfig
+  );
   registerManualConfirmablePendingAbilityStarterHandler(
     HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -113,6 +153,66 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getAuroraFlowerConfirmationConfig
   );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveNeutralLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getNeutralConfirmationConfig
+  );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolveGoRestartLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getGoRestartConfirmationConfig
+  );
+}
+
+function getPsychoHeartConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getPsychoHeartContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己的成功LIVE卡区${
+      context.hasPrintedScoreOne ? '存在' : '不存在'
+    }分数1的LIVE，${context.hasPrintedScoreFive ? '存在' : '不存在'}分数5的LIVE，实际[スコア]+${
+      context.scoreBonus
+    }。）`,
+  };
+}
+
+function getBokuraNoLiveKimiToNoLifeConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getBokuraNoLiveKimiToNoLifeContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己LIVE中的『μ's』卡片${context.museLiveCardCount}张，${
+      context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+    }）`,
+  };
+}
+
+function getNatsuiroEgaoScoreConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getNatsuiroEgaoScoreContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己成功LIVE卡区${context.successLiveCount}张，${
+      context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+    }）`,
+  };
 }
 
 function getLinkToTheFutureConfirmationConfig(
@@ -176,6 +276,32 @@ function getAuroraFlowerConfirmationConfig(
   };
 }
 
+function getNeutralConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getNeutralContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前不同名『KALEIDOSCORE』成员${context.differentNamedKaleidoscoreStageMembers.length}名，${
+      context.conditionMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+    }）`,
+  };
+}
+
+function getGoRestartConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getGoRestartContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己成功LIVE ${context.ownSuccessZoneCount}张，对方成功LIVE ${context.opponentSuccessZoneCount}张，${
+      context.conditionMet
+        ? '满足条件，实际[スコア]+1。'
+        : '未满足条件，实际不增加[スコア]。'
+    }）`,
+  };
+}
+
 function resolveSolitudeRainLiveStart(
   game: GameState,
   ability: PendingAbilityState,
@@ -210,6 +336,118 @@ function resolveSolitudeRainLiveStart(
       nijigasakiStageMemberIds,
       effectiveHeartColors,
       scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveBokuraNoLiveKimiToNoLifeLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const { sourceInLiveZone, museLiveCardIds, museLiveCardCount, conditionMet } =
+    getBokuraNoLiveKimiToNoLifeContext(stateWithoutPending, ability);
+  const scoreBonus = conditionMet ? 1 : 0;
+  const stateAfterScore = conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus,
+      })
+    : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet ? 'TWO_MUSE_LIVE_THIS_LIVE_SCORE' : 'NO_TWO_MUSE_LIVE',
+      sourceInLiveZone,
+      museLiveCardIds,
+      museLiveCardCount,
+      conditionMet,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveNatsuiroEgaoLiveStartScore(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const { sourceInLiveZone, successLiveCount, conditionMet } = getNatsuiroEgaoScoreContext(
+    stateWithoutPending,
+    ability
+  );
+  const scoreBonus = conditionMet ? 1 : 0;
+  const stateAfterScore = conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus,
+      })
+    : stateWithoutPending;
+
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: conditionMet ? 'SUCCESS_LIVE_TWO_THIS_LIVE_SCORE' : 'NO_SUCCESS_LIVE_TWO',
+      sourceInLiveZone,
+      successLiveCount,
+      conditionMet,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolvePsychoHeartLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) return game;
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getPsychoHeartContext(stateWithoutPending, ability);
+  const scoreUpdate = replaceScoreModifierAndRefresh(stateWithoutPending, {
+    playerId: player.id,
+    sourceCardId: ability.sourceCardId,
+    abilityId: ability.abilityId,
+    scoreBonus: context.scoreBonus,
+  });
+  return continuePendingCardEffects(
+    addAction(scoreUpdate, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: 'SUCCESS_PRINTED_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE',
+      sourceInLiveZone: context.sourceInLiveZone,
+      hasPrintedScoreOne: context.hasPrintedScoreOne,
+      hasPrintedScoreFive: context.hasPrintedScoreFive,
+      scoreBonus: context.scoreBonus,
     }),
     orderedResolution
   );
@@ -438,6 +676,80 @@ function resolveAuroraFlowerLiveStart(
   );
 }
 
+function resolveNeutralLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) return game;
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getNeutralContext(stateWithoutPending, ability);
+  const scoreBonus = context.conditionMet ? 1 : 0;
+  const stateAfterScore =
+    scoreBonus > 0
+      ? addScoreModifierAndRefresh(stateWithoutPending, {
+          playerId: player.id,
+          sourceCardId: ability.sourceCardId,
+          abilityId: ability.abilityId,
+          scoreBonus,
+        })
+      : stateWithoutPending;
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: context.conditionMet ? 'DIFFERENT_KALEIDOSCORE_NAMES_SCORE' : 'NO_DIFFERENT_KALEIDOSCORE_NAMES',
+      sourceInLiveZone: context.sourceInLiveZone,
+      differentNamedKaleidoscoreMemberCardIds:
+        context.differentNamedKaleidoscoreStageMembers.map((member) => member.cardId),
+      differentNamedKaleidoscoreMemberNames:
+        context.differentNamedKaleidoscoreStageMembers.map((member) => member.name),
+      conditionMet: context.conditionMet,
+      scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
+function resolveGoRestartLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) return game;
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getGoRestartContext(stateWithoutPending, ability);
+  const stateAfterScore = context.conditionMet
+    ? addScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus: context.scoreBonus,
+      })
+    : stateWithoutPending;
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: context.conditionMet
+        ? 'FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE'
+        : 'NO_FEWER_SUCCESS_LIVE',
+      sourceInLiveZone: context.sourceInLiveZone,
+      ownSuccessZoneCount: context.ownSuccessZoneCount,
+      opponentSuccessZoneCount: context.opponentSuccessZoneCount,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.scoreBonus,
+    }),
+    orderedResolution
+  );
+}
+
 function getSolitudeRainContext(
   game: GameState,
   ability: PendingAbilityState
@@ -536,12 +848,7 @@ function getMiraCreationContext(
   }
 
   const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
-  const rightRurino = stageSlotHasMemberName(
-    game,
-    player.id,
-    SlotPosition.RIGHT,
-    '大沢瑠璃乃'
-  );
+  const rightRurino = stageSlotHasMemberName(game, player.id, SlotPosition.RIGHT, '大沢瑠璃乃');
   const leftHime = stageSlotHasMemberName(game, player.id, SlotPosition.LEFT, '安養寺姫芽');
   const centerMegu = stageSlotHasMemberName(game, player.id, SlotPosition.CENTER, '藤島慈');
   return {
@@ -575,6 +882,83 @@ function getEutopiaContext(
   };
 }
 
+function getBokuraNoLiveKimiToNoLifeContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly museLiveCardIds: readonly string[];
+  readonly museLiveCardCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      museLiveCardIds: [],
+      museLiveCardCount: 0,
+      conditionMet: false,
+    };
+  }
+
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const museLiveCardIds = player.liveZone.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && cardBelongsToGroup(card.data, "μ's");
+  });
+  return {
+    sourceInLiveZone,
+    museLiveCardIds,
+    museLiveCardCount: museLiveCardIds.length,
+    conditionMet: sourceInLiveZone && museLiveCardIds.length >= 2,
+  };
+}
+
+function getNatsuiroEgaoScoreContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly successLiveCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const successLiveCount = player?.successZone.cardIds.length ?? 0;
+  return {
+    sourceInLiveZone,
+    successLiveCount,
+    conditionMet: sourceInLiveZone && successLiveCount >= 2,
+  };
+}
+
+function getPsychoHeartContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly hasPrintedScoreOne: boolean;
+  readonly hasPrintedScoreFive: boolean;
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const printedScores = sourceInLiveZone
+    ? (player?.successZone.cardIds ?? []).flatMap((cardId) => {
+        const card = getCardById(game, cardId);
+        return card && isLiveCardData(card.data) ? [card.data.score] : [];
+      })
+    : [];
+  const hasPrintedScoreOne = printedScores.includes(1);
+  const hasPrintedScoreFive = printedScores.includes(5);
+  return {
+    sourceInLiveZone,
+    hasPrintedScoreOne,
+    hasPrintedScoreFive,
+    scoreBonus: hasPrintedScoreOne && hasPrintedScoreFive ? 2 : hasPrintedScoreOne || hasPrintedScoreFive ? 1 : 0,
+  };
+}
+
 function getMiracleStayTuneContext(
   game: GameState,
   ability: PendingAbilityState
@@ -583,7 +967,10 @@ function getMiracleStayTuneContext(
   readonly ownSuccessZoneCount: number;
   readonly opponentSuccessZoneCount: number;
   readonly successZoneConditionMet: boolean;
-  readonly differentNamedStageMembers: readonly { readonly cardId: string; readonly name: string }[];
+  readonly differentNamedStageMembers: readonly {
+    readonly cardId: string;
+    readonly name: string;
+  }[];
   readonly differentNameConditionMet: boolean;
   readonly conditionMet: boolean;
 } {
@@ -649,6 +1036,72 @@ function getAuroraFlowerContext(
     sourceInLiveZone,
     matchingStageMembers,
     conditionMet: sourceInLiveZone && matchingStageMembers.length >= 3,
+  };
+}
+
+function getNeutralContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly differentNamedKaleidoscoreStageMembers: readonly {
+    readonly cardId: string;
+    readonly name: string;
+  }[];
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return {
+      sourceInLiveZone: false,
+      differentNamedKaleidoscoreStageMembers: [],
+      conditionMet: false,
+    };
+  }
+  const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
+  const isKaleidoscore = unitAliasIs('KALEIDOSCORE');
+  const differentNamedKaleidoscoreStageMembers = selectDifferentNamedCards(
+    getAllMemberCardIds(player.memberSlots),
+    (cardId) => {
+      const card = getCardById(game, cardId);
+      return card &&
+        card.ownerId === player.id &&
+        isMemberCardData(card.data) &&
+        isKaleidoscore(card)
+        ? card.data
+        : null;
+    },
+    { minCount: 1 }
+  ).map((match) => ({ cardId: match.item, name: match.name }));
+  return {
+    sourceInLiveZone,
+    differentNamedKaleidoscoreStageMembers,
+    conditionMet: sourceInLiveZone && differentNamedKaleidoscoreStageMembers.length >= 2,
+  };
+}
+
+function getGoRestartContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly ownSuccessZoneCount: number;
+  readonly opponentSuccessZoneCount: number;
+  readonly conditionMet: boolean;
+  readonly scoreBonus: number;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const opponent = game.players.find((candidate) => candidate.id !== ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const ownSuccessZoneCount = player?.successZone.cardIds.length ?? 0;
+  const opponentSuccessZoneCount = opponent?.successZone.cardIds.length ?? 0;
+  const conditionMet = sourceInLiveZone && ownSuccessZoneCount < opponentSuccessZoneCount;
+  return {
+    sourceInLiveZone,
+    ownSuccessZoneCount,
+    opponentSuccessZoneCount,
+    conditionMet,
+    scoreBonus: conditionMet ? 1 : 0,
   };
 }
 
@@ -760,6 +1213,21 @@ function addScoreModifierAndRefresh(
     options.playerId,
     options.scoreBonus
   );
+}
+
+function replaceScoreModifierAndRefresh(
+  game: GameState,
+  options: { readonly playerId: string; readonly sourceCardId: string; readonly abilityId: string; readonly scoreBonus: number }
+): GameState {
+  const previous = game.liveResolution.liveModifiers
+    .filter((modifier) => modifier.kind === 'SCORE' && modifier.playerId === options.playerId && modifier.liveCardId === options.sourceCardId && modifier.sourceCardId === options.sourceCardId && modifier.abilityId === options.abilityId)
+    .reduce((sum, modifier) => sum + (modifier.kind === 'SCORE' ? modifier.countDelta : 0), 0);
+  const replacement: Extract<LiveModifierState, { readonly kind: 'SCORE' }> | null = options.scoreBonus > 0 ? {
+    kind: 'SCORE', playerId: options.playerId, countDelta: options.scoreBonus,
+    liveCardId: options.sourceCardId, sourceCardId: options.sourceCardId, abilityId: options.abilityId,
+  } : null;
+  const state = replaceLiveModifier(game, { kind: 'SCORE', playerId: options.playerId, liveCardId: options.sourceCardId, sourceCardId: options.sourceCardId, abilityId: options.abilityId }, replacement);
+  return refreshPlayerScoreDraft(state, options.playerId, options.scoreBonus - previous);
 }
 
 function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: number): GameState {

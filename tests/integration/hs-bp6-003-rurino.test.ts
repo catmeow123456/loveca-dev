@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type {
   AnyCardData,
@@ -108,8 +109,9 @@ function removeFromPlayerZones(player: {
   successZone: { cardIds: string[] };
   liveZone: { cardIds: string[] };
 }): void {
+  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
   player.hand.cardIds = [];
-  player.mainDeck.cardIds = [];
+  player.mainDeck.cardIds = ruleSentinelCardId ? [ruleSentinelCardId] : [];
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];
@@ -233,6 +235,7 @@ describe('HS-bp6-003 Rurino workflow', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toContain(liveToRecover.instanceId);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(liveToRecover.instanceId);

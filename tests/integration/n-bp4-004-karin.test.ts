@@ -12,6 +12,7 @@ import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { ABILITY_ORDER_SELECTION_ID } from '../../src/application/card-effect-runner';
 import {
   PL_N_BP4_004_LIVE_START_DRAW_WAIT_LOW_COST_OPPONENT_MEMBER_ABILITY_ID,
@@ -164,6 +165,9 @@ function confirmActiveEffect(
     )
   );
   expect(result.success, result.error).toBe(true);
+  if (session.state?.activeEffect?.stepId === 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION') {
+    confirmPublicSelectionIfNeeded(session);
+  }
 }
 
 describe('PL!N-bp4-004 Karin live-start workflows', () => {

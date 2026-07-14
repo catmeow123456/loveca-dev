@@ -1,7 +1,7 @@
-import type { TriggerCondition } from '../../../shared/types/enums.js';
+import { TriggerCondition } from '../../../shared/types/enums.js';
 import {
+  CardAbilityCategory,
   CardAbilitySourceZone,
-  type CardAbilityCategory,
   type CardAbilityDefinition,
 } from '../ability-definition-types.js';
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
@@ -34,4 +34,18 @@ export function getDelegatableQueuedAbilityDefinitions(
       definition.requiredSourceSlots.includes(query.sourceSlot)
     );
   });
+}
+
+export function getWaitingRoomDelegatableOnEnterDefinitions(
+  cardCode: string
+): readonly CardAbilityDefinition[] {
+  return getCardAbilityDefinitionsForCardCode(cardCode).filter(
+    (definition) =>
+      definition.implemented &&
+      definition.queued &&
+      definition.category === CardAbilityCategory.ON_ENTER &&
+      definition.sourceZone === CardAbilitySourceZone.PLAYED_MEMBER &&
+      definition.triggerCondition === TriggerCondition.ON_ENTER_STAGE &&
+      definition.delegatedOnEnterFromWaitingRoomPolicy === 'ALLOW'
+  );
 }

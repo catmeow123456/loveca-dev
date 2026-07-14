@@ -157,7 +157,7 @@ describe('PL!HS-bp2-009 安養寺姫芽', () => {
       expect(session.state?.activeEffect).toMatchObject({
         abilityId:
           HS_BP2_009_ON_ENTER_PAY_ENERGY_LOWER_COST_MIRACRA_RELAY_GAIN_TWO_PINK_HEART_ABILITY_ID,
-        selectableOptions: [{ id: 'pay', label: '支付1能量' }],
+        selectableOptions: [{ id: 'pay', label: '支付[E]' }],
         canSkipSelection: true,
         skipSelectionLabel: '不发动',
       });
@@ -216,7 +216,7 @@ describe('PL!HS-bp2-009 安養寺姫芽', () => {
       const { session, energyCardIds } = setup(options);
       expect(session.state?.activeEffect?.selectableOptions).toContainEqual({
         id: 'pay',
-        label: '支付1能量',
+        label: '支付[E]',
       });
 
       choose(session, 'pay');

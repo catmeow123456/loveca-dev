@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { CardInstance, EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -17,7 +18,10 @@ import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src
 import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import {
   PL_S_PB1_003_LIVE_START_PAY_TWO_ENERGY_ORIGINAL_HEART_GREEN_ABILITY_ID,
   PL_S_PB1_003_LIVE_SUCCESS_RECOVER_REVEALED_CHEER_LIVE_ABILITY_ID,
@@ -131,7 +135,8 @@ function confirmCard(session: GameSession, selectedCardId: string): GameState {
     createConfirmEffectStepCommand(PLAYER1, effect.id, selectedCardId)
   );
   expect(result.success, result.error).toBe(true);
-  return result.gameState;
+  confirmPublicSelectionIfNeeded(session);
+  return session.state!;
 }
 
 function latestPayload(game: GameState, abilityId: string, step: string) {
@@ -258,7 +263,7 @@ describe('PL!S-pb1-003 松浦果南', () => {
     expect(started.activeEffect).toMatchObject({
       abilityId: PL_S_PB1_003_LIVE_START_PAY_TWO_ENERGY_ORIGINAL_HEART_GREEN_ABILITY_ID,
       selectableOptions: [
-        { id: 'pay', label: '支付2能量' },
+        { id: 'pay', label: '支付[E][E]' },
         { id: 'decline', label: '不发动' },
       ],
     });
@@ -304,9 +309,20 @@ describe('PL!S-pb1-003 松浦果南', () => {
       TriggerCondition.ON_LIVE_SUCCESS,
       'pending-live-success-no-target'
     );
-    const insufficient = resolvePendingCardEffects(
+    let insufficient = resolvePendingCardEffects(
       setupLiveStart({ activeEnergyCount: 1, extraPending: [noTargetLiveSuccessPending] }).game
     ).gameState;
+    if (insufficient.activeEffect?.abilityId === 'system:select-pending-card-effect') {
+      insufficient = confirmActiveEffectStep(
+        insufficient,
+        PLAYER1,
+        insufficient.activeEffect.id,
+        null,
+        null,
+        false,
+        'pending-live-start'
+      );
+    }
     expect(insufficient.activeEffect).toMatchObject({
       selectableOptions: [{ id: 'decline', label: '不发动' }],
     });

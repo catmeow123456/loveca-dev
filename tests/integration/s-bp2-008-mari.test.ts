@@ -17,10 +17,10 @@ import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/event
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   ABILITY_ORDER_SELECTION_ID,
-  confirmActiveEffectStep,
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { confirmActiveEffectStepThroughPublicReveal as confirmActiveEffectStep } from '../helpers/public-card-selection-confirmation';
 import {
   S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,

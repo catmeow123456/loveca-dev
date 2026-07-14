@@ -77,10 +77,10 @@ function startHsBp2009HimeOnEnter(
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: PAY_ENERGY_STEP_ID,
       stepText: canPay
-        ? '可以支付1张活跃能量。支付后检查本次换手条件，满足时获得[桃ハート][桃ハート]。'
-        : '当前没有可支付的活跃能量，可以不发动。',
+        ? '可以支付[E]。支付后检查本次换手条件，满足时获得[桃ハート][桃ハート]。'
+        : '当前没有可用于支付[E]的活跃能量，可以不发动。',
       awaitingPlayerId: player.id,
-      selectableOptions: canPay ? [{ id: 'pay', label: '支付1能量' }] : undefined,
+      selectableOptions: canPay ? [{ id: 'pay', label: '支付[E]' }] : undefined,
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {

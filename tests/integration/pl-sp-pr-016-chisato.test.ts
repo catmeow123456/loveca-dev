@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
@@ -136,9 +137,11 @@ function setupChisatoScenario(options: {
 }
 
 function confirm(session: GameSession, selectedCardId: string | null) {
-  return session.executeCommand(
+  const result = session.executeCommand(
     createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedCardId)
   );
+  if (result.success) confirmPublicSelectionIfNeeded(session);
+  return result;
 }
 
 function enterWaitingRoomFromHandCount(game: GameState): number {

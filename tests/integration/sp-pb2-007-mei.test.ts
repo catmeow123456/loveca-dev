@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -159,7 +160,7 @@ describe('PL!SP-pb2-007 Mei live success workflow', () => {
       'decline',
     ]);
 
-    state = confirmActiveEffectStep(
+    state = confirmActiveEffectStepThroughPublicReveal(
       state,
       PLAYER1,
       state.activeEffect!.id,
@@ -170,7 +171,7 @@ describe('PL!SP-pb2-007 Mei live success workflow', () => {
     );
     expect(state.activeEffect?.selectableCardIds).toEqual([targetLiveId]);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, targetLiveId);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id, targetLiveId);
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).toContain(targetLiveId);
     expect(state.players[0].waitingRoom.cardIds).not.toContain(targetLiveId);
@@ -237,7 +238,7 @@ describe('PL!SP-pb2-007 Mei live success workflow', () => {
     const { game, sourceId } = setupMeiState({ activeEnergyCount: 3 });
     let state = startMei(game, sourceId);
 
-    state = confirmActiveEffectStep(
+    state = confirmActiveEffectStepThroughPublicReveal(
       state,
       PLAYER1,
       state.activeEffect!.id,

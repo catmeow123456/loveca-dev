@@ -1000,6 +1000,7 @@ export const PlayerArea = memo(function PlayerArea({
             const card = getVisibleCardPresentation(cardId);
             const isActive = getEnergyCardOrientation(cardId) === OrientationState.ACTIVE;
             const imagePath = card?.imagePath ?? null;
+            const skipsNextActivePhase = getCardViewObject(cardId)?.skipsNextActivePhase === true;
 
             return (
               <div
@@ -1029,6 +1030,7 @@ export const PlayerArea = memo(function PlayerArea({
                           ? 'transition-none'
                           : 'transition-[rotate,scale,transform,filter,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-110 hover:z-10 motion-reduce:duration-75',
                         !isActive && 'rotate-90 opacity-55 grayscale',
+                        skipsNextActivePhase && 'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
                         card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
@@ -1037,7 +1039,9 @@ export const PlayerArea = memo(function PlayerArea({
                         }
                       }}
                       title={
-                        isOpponent
+                        skipsNextActivePhase
+                          ? '下次活跃阶段不会自动变为活跃'
+                          : isOpponent
                           ? isActive
                             ? '活跃'
                             : '等待'
@@ -1052,6 +1056,9 @@ export const PlayerArea = memo(function PlayerArea({
                         <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[8px] text-white/70">
                           E
                         </div>
+                      )}
+                      {skipsNextActivePhase && (
+                        <span aria-label="下次活跃阶段不会自动变为活跃" className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[7px] font-bold text-white">!</span>
                       )}
                     </div>
                   </CardDetailPressTarget>
@@ -1758,6 +1765,7 @@ export const PlayerArea = memo(function PlayerArea({
             const card = getVisibleCardPresentation(cardId);
             const imagePath = card?.imagePath ?? null;
             const isActive = getEnergyCardOrientation(cardId) === OrientationState.ACTIVE;
+            const skipsNextActivePhase = getCardViewObject(cardId)?.skipsNextActivePhase === true;
 
             return (
               <div key={cardId} className="flex min-h-0 min-w-0 items-center justify-center">
@@ -1776,6 +1784,7 @@ export const PlayerArea = memo(function PlayerArea({
                           ? 'cursor-pointer active:scale-95'
                           : 'cursor-default',
                         !isActive && 'rotate-90 opacity-45 grayscale',
+                        skipsNextActivePhase && 'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
                         card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
@@ -1784,7 +1793,9 @@ export const PlayerArea = memo(function PlayerArea({
                         }
                       }}
                       title={
-                        allowGeneralOwnZoneInteraction && canTapEnergy
+                        skipsNextActivePhase
+                          ? '下次活跃阶段不会自动变为活跃'
+                          : allowGeneralOwnZoneInteraction && canTapEnergy
                           ? '点按切换活跃/待机'
                           : '能量区'
                       }
@@ -1795,6 +1806,9 @@ export const PlayerArea = memo(function PlayerArea({
                         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-indigo-500 to-purple-600 text-[8px] text-white/70">
                           E
                         </div>
+                      )}
+                      {skipsNextActivePhase && (
+                        <span aria-label="下次活跃阶段不会自动变为活跃" className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[6px] font-bold text-white">!</span>
                       )}
                     </div>
                   </CardDetailPressTarget>

@@ -1,3 +1,4 @@
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
@@ -519,7 +520,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
 
     const effect = scenario.session.state!.activeEffect!;
     expect(effect).toMatchObject({
-      selectableOptions: [{ id: 'pay', label: '支付1能量' }],
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
       selectableCardIds: scenario.movedCardIds,
       selectableCardMode: 'SINGLE',
       minSelectableCards: 1,
@@ -558,6 +559,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       )
     );
     expect(recoverResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.players[0].hand.cardIds).toContain(scenario.movedCardIds[0]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).not.toContain(
@@ -749,6 +751,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       fromZone: ZoneType.HAND,
     });
 
+    confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.pendingAbilities).toHaveLength(0);
   });
 });

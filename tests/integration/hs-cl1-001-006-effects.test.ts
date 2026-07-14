@@ -106,7 +106,7 @@ describe('PL!HS-cl1-001-CL Kaho live-start workflow', () => {
     expect(state.pendingAbilities).toEqual([]);
     expect(state.inspectionZone.cardIds).toEqual([]);
     expect(state.inspectionContext).toBeNull();
-    expect(state.players[0].waitingRoom.cardIds).toEqual([topCard.instanceId]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([topCard.instanceId]);
     expect(
       state.eventLog.find(
         (entry) =>

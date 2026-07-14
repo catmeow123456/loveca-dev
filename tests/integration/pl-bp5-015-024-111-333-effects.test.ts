@@ -1,3 +1,4 @@
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -260,7 +261,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
     });
     expect(started.activeEffect?.effectText).toContain('自己舞台没有『A-RISE』成员');
 
-    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id);
 
     expect(resolved.activeEffect).toBeNull();
     expect(latestPayload(resolved, PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID)).toMatchObject({
@@ -273,7 +274,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
     const { game, opponentTargetId } = setupPrivateWars({ opponentWaiting: true });
     const started = startLiveStart(game);
 
-    const branch = confirmActiveEffectStep(
+    const branch = confirmActiveEffectStepThroughPublicReveal(
       started,
       PLAYER1,
       started.activeEffect!.id,
@@ -282,7 +283,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       false,
       'activate-waiting-member'
     );
-    const resolved = confirmActiveEffectStep(branch, PLAYER1, branch.activeEffect!.id, opponentTargetId);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(branch, PLAYER1, branch.activeEffect!.id, opponentTargetId);
 
     expect(resolved.players[1].memberSlots.cardStates.get(opponentTargetId)?.orientation).toBe(
       OrientationState.ACTIVE
@@ -300,7 +301,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
     const { game, opponentTargetId } = setupPrivateWars({ opponentBlade: 3 });
     const started = startLiveStart(game);
 
-    const branch = confirmActiveEffectStep(
+    const branch = confirmActiveEffectStepThroughPublicReveal(
       started,
       PLAYER1,
       started.activeEffect!.id,
@@ -309,7 +310,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       false,
       'wait-opponent-low-blade-member'
     );
-    const resolved = confirmActiveEffectStep(branch, PLAYER1, branch.activeEffect!.id, opponentTargetId);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(branch, PLAYER1, branch.activeEffect!.id, opponentTargetId);
 
     expect(resolved.players[1].memberSlots.cardStates.get(opponentTargetId)?.orientation).toBe(
       OrientationState.WAITING
@@ -323,7 +324,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
   it('PL!-bp5-024 stale waiting-member target leaves state unchanged', () => {
     const { game, opponentTargetId } = setupPrivateWars({ opponentWaiting: true });
     const started = startLiveStart(game);
-    const branch = confirmActiveEffectStep(
+    const branch = confirmActiveEffectStepThroughPublicReveal(
       started,
       PLAYER1,
       started.activeEffect!.id,
@@ -340,7 +341,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       });
       return { ...player, memberSlots: { ...player.memberSlots, cardStates } };
     });
-    const resolved = confirmActiveEffectStep(stale, PLAYER1, stale.activeEffect!.id, opponentTargetId);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(stale, PLAYER1, stale.activeEffect!.id, opponentTargetId);
 
     expect(getMemberEffectiveBladeCount(resolved, PLAYER2, opponentTargetId)).toBe(3);
     expect(latestPayload(resolved, PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID)).toMatchObject({
@@ -386,8 +387,8 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       PL_BP5_111_ACTIVATED_DISCARD_ACTIVATE_WAITING_MEMBER_RECOVER_LIVE_ABILITY_ID
     );
 
-    const discarded = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, hand2);
-    const resolved = confirmActiveEffectStep(discarded, PLAYER1, discarded.activeEffect!.id, ownTargetId);
+    const discarded = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id, hand2);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(discarded, PLAYER1, discarded.activeEffect!.id, ownTargetId);
 
     expect(resolved.players[0].waitingRoom.cardIds).toContain(hand2);
     expect(resolved.players[0].hand.cardIds).not.toContain(liveId);
@@ -407,9 +408,9 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       sourceId,
       PL_BP5_111_ACTIVATED_DISCARD_ACTIVATE_WAITING_MEMBER_RECOVER_LIVE_ABILITY_ID
     );
-    const discarded = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, hand1);
-    const activated = confirmActiveEffectStep(discarded, PLAYER1, discarded.activeEffect!.id, opponentTargetId);
-    const recovered = confirmActiveEffectStep(activated, PLAYER1, activated.activeEffect!.id, liveId);
+    const discarded = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id, hand1);
+    const activated = confirmActiveEffectStepThroughPublicReveal(discarded, PLAYER1, discarded.activeEffect!.id, opponentTargetId);
+    const recovered = confirmActiveEffectStepThroughPublicReveal(activated, PLAYER1, activated.activeEffect!.id, liveId);
 
     expect(recovered.players[1].memberSlots.cardStates.get(opponentTargetId)?.orientation).toBe(
       OrientationState.ACTIVE
@@ -432,8 +433,8 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       sourceId,
       PL_BP5_111_ACTIVATED_DISCARD_ACTIVATE_WAITING_MEMBER_RECOVER_LIVE_ABILITY_ID
     );
-    const discarded = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, hand1);
-    const resolved = confirmActiveEffectStep(discarded, PLAYER1, discarded.activeEffect!.id, opponentTargetId);
+    const discarded = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id, hand1);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(discarded, PLAYER1, discarded.activeEffect!.id, opponentTargetId);
 
     expect(resolved.activeEffect).toBeNull();
     expect(resolved.players[1].memberSlots.cardStates.get(opponentTargetId)?.orientation).toBe(
@@ -494,7 +495,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
   it('PL!-bp5-333 decline leaves both members unchanged', () => {
     const { game, sourceId, opponentTargetId } = setupErenaOnEnter({ opponentCost: 9 });
     const started = resolveOnEnter(game, sourceId);
-    const resolved = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(started, PLAYER1, started.activeEffect!.id);
 
     expect(resolved.players[0].memberSlots.cardStates.get(sourceId)?.orientation).toBe(
       OrientationState.ACTIVE
@@ -507,7 +508,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
   it('PL!-bp5-333 keeps self waiting after paying when no opponent target exists', () => {
     const { game, sourceId } = setupErenaOnEnter({ opponentCost: 10 });
     const started = resolveOnEnter(game, sourceId);
-    const resolved = confirmActiveEffectStep(
+    const resolved = confirmActiveEffectStepThroughPublicReveal(
       started,
       PLAYER1,
       started.activeEffect!.id,
@@ -530,7 +531,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
   it('PL!-bp5-333 pays self waiting then waits opponent cost 9 or lower member', () => {
     const { game, sourceId, opponentTargetId } = setupErenaOnEnter({ opponentCost: 9 });
     const started = resolveOnEnter(game, sourceId);
-    const paid = confirmActiveEffectStep(
+    const paid = confirmActiveEffectStepThroughPublicReveal(
       started,
       PLAYER1,
       started.activeEffect!.id,
@@ -539,7 +540,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       false,
       'pay-wait-self'
     );
-    const resolved = confirmActiveEffectStep(paid, PLAYER1, paid.activeEffect!.id, opponentTargetId);
+    const resolved = confirmActiveEffectStepThroughPublicReveal(paid, PLAYER1, paid.activeEffect!.id, opponentTargetId);
 
     expect(resolved.players[0].memberSlots.cardStates.get(sourceId)?.orientation).toBe(
       OrientationState.WAITING

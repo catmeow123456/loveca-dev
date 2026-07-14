@@ -75,10 +75,12 @@ import {
   getZoneOrderedForViewer,
   isZoneOccupancyVisibleToViewer,
 } from './visibility.js';
+import { createBlindCardSelectionToken } from '../shared/utils/blind-card-selection.js';
 
 interface ProjectPlayerViewStateOptions {
   readonly seq?: number;
   readonly gameMode?: GameMode;
+  readonly now?: number;
 }
 
 type VisibleSurface = Extract<ViewCardObject['surface'], 'BACK' | 'FRONT'>;
@@ -86,6 +88,7 @@ type WindowDescriptor = Omit<ViewWindowState, 'status'>;
 
 interface ActiveEffectCardSelectionProjection {
   readonly selectableObjectIds?: readonly string[];
+  readonly selectableObjectsFaceDown?: boolean;
   readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
   readonly minSelectableObjects?: number;
   readonly maxSelectableObjects?: number;
@@ -331,12 +334,17 @@ export function projectPlayerViewState(
     const ownerSeat = getSeatByPlayerIndex(playerIndex);
     projectPlayerZones(game, player, ownerSeat, viewerSeat, objects, zones);
   }
-
   projectResolutionAndInspectionZones(game, viewerSeat, objects, zones);
   projectActiveEffectRevealedCards(game, objects);
 
   const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
+  const publicCardSelectionAutoAdvanceAt = game.activeEffect?.publicCardSelectionAutoAdvanceAt;
+  for (const skip of game.energyActivePhaseSkips ?? []) {
+    const publicObjectId = createPublicObjectId(skip.energyCardId);
+    const object = objects[publicObjectId];
+    if (object) objects[publicObjectId] = { ...object, skipsNextActivePhase: true };
+  }
   const activeEffect = game.activeEffect
     ? {
         id: game.activeEffect.id,
@@ -350,6 +358,11 @@ export function projectPlayerViewState(
           ? getSeatForPlayer(game, game.activeEffect.awaitingPlayerId)
           : null,
         revealedObjectIds: game.activeEffect.revealedCardIds?.map(createPublicObjectId),
+        publicCardSelectionAutoAdvanceAt,
+        publicCardSelectionAutoAdvanceAfterMs: publicCardSelectionAutoAdvanceAt
+          ? Math.max(0, publicCardSelectionAutoAdvanceAt - (options.now ?? Date.now()))
+          : undefined,
+        publicCardSelectionOrdered: game.activeEffect.publicCardSelectionOrdered,
         inspectionObjectIds: game.activeEffect.inspectionCardIds?.map(createPublicObjectId),
         ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
@@ -433,7 +446,7 @@ function projectActiveEffectStageFormation(game: GameState) {
 function projectActiveEffectCardSelection(
   game: GameState,
   viewerSeat: Seat,
-  objects: Readonly<Record<string, ViewCardObject>>
+  objects: Record<string, ViewCardObject>
 ): ActiveEffectCardSelectionProjection {
   const effect = game.activeEffect;
   if (!effect) {
@@ -445,8 +458,38 @@ function projectActiveEffectCardSelection(
     ? getSeatForPlayer(game, effect.awaitingPlayerId)
     : null;
   const isWaitingPlayerView = waitingSeat === viewerSeat;
+  const blindForWaitingPlayer =
+    effect.selectableCardVisibility === 'AWAITING_PLAYER_BLIND' && isWaitingPlayerView;
   const explicitlyPrivate =
-    effect.selectableCardVisibility === 'AWAITING_PLAYER_ONLY' && !isWaitingPlayerView;
+    (effect.selectableCardVisibility === 'AWAITING_PLAYER_ONLY' ||
+      effect.selectableCardVisibility === 'AWAITING_PLAYER_BLIND') &&
+    !isWaitingPlayerView;
+
+  if (blindForWaitingPlayer) {
+    const selectableObjectIds = (selectableCardIds ?? []).map((_, index) => {
+      const token = createBlindCardSelectionToken(index);
+      const publicObjectId = createPublicObjectId(token);
+      objects[publicObjectId] = {
+        publicObjectId,
+        ownerSeat: getSeatForPlayer(game, effect.controllerId) ?? viewerSeat,
+        controllerSeat: getSeatForPlayer(game, effect.controllerId) ?? viewerSeat,
+        surface: 'BACK',
+      };
+      return publicObjectId;
+    });
+
+    return {
+      selectableObjectIds,
+      selectableObjectsFaceDown: true,
+      selectableObjectMode: effect.selectableCardMode,
+      minSelectableObjects: effect.minSelectableCards,
+      maxSelectableObjects: effect.maxSelectableCards,
+      selectionLabel: effect.selectionLabel,
+      confirmSelectionLabel: effect.confirmSelectionLabel,
+      canSkipSelection: effect.canSkipSelection,
+      skipSelectionLabel: effect.skipSelectionLabel,
+    };
+  }
   const allSelectableCardsVisible =
     selectableCardIds === undefined ||
     selectableCardIds.every((cardId) => {
@@ -756,7 +799,9 @@ function projectInspectionZones(
   const inspectionOwnerId = game.inspectionContext?.ownerPlayerId ?? null;
   const inspectionViewerId =
     game.inspectionContext?.viewerPlayerId ?? game.inspectionContext?.ownerPlayerId ?? null;
-  const inspectionViewerSeat = inspectionViewerId ? getSeatForPlayer(game, inspectionViewerId) : null;
+  const inspectionViewerSeat = inspectionViewerId
+    ? getSeatForPlayer(game, inspectionViewerId)
+    : null;
   for (const seat of ['FIRST', 'SECOND'] as const) {
     const ownerPlayerId = getPlayerIdForSeat(game, seat);
     const ownedCardIds =
@@ -949,10 +994,7 @@ function buildCheerHeartColorReplacementView(
   game: GameState,
   liveModifiers: readonly LiveModifierState[]
 ): LiveResultViewState['cheerHeartColorReplacements'] {
-  const replacements: Record<
-    Seat,
-    LiveResultViewState['cheerHeartColorReplacements'][Seat]
-  > = {
+  const replacements: Record<Seat, LiveResultViewState['cheerHeartColorReplacements'][Seat]> = {
     FIRST: null,
     SECOND: null,
   };
@@ -1187,7 +1229,13 @@ function buildActiveEffectCommandHints(
   game: GameState,
   viewerPlayerId: string
 ): readonly ViewCommandHint[] {
-  if (!game.activeEffect || game.activeEffect.awaitingPlayerId !== viewerPlayerId) {
+  if (!game.activeEffect) {
+    return [];
+  }
+  if (
+    game.activeEffect.publicCardSelectionAutoAdvanceAt === undefined &&
+    game.activeEffect.awaitingPlayerId !== viewerPlayerId
+  ) {
     return [];
   }
 
@@ -1195,6 +1243,12 @@ function buildActiveEffectCommandHints(
     buildCommandHint(GameCommandType.CONFIRM_EFFECT_STEP, {
       params: {
         effectId: game.activeEffect.id,
+        ...(game.activeEffect.publicCardSelectionAutoAdvanceAt !== undefined
+          ? {
+              publicCardSelectionAutoAdvanceAt:
+                game.activeEffect.publicCardSelectionAutoAdvanceAt,
+            }
+          : {}),
       },
     }),
   ];
