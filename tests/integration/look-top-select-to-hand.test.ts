@@ -20,8 +20,11 @@ import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
+  PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
   S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
+  SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
   FaceState,
@@ -350,5 +353,427 @@ describe('look top select to hand shared workflow', () => {
       expect(completedSummary.noSelectedCards).toBe(false);
       expect(completedSummary.waitingRoomCardCount).toBe(4);
     }
+  });
+});
+
+interface Bp4006Scenario {
+  readonly session: ReturnType<typeof createGameSession>;
+  readonly source: ReturnType<typeof createCardInstance<MemberCardData>>;
+  readonly topCards: readonly ReturnType<typeof createCardInstance>[];
+}
+
+function createBp4006TopCards(): readonly ReturnType<typeof createCardInstance>[] {
+  return [
+    createCardInstance(
+      createMemberCard('PL!-test-muse-member-curly', '高坂穂乃果', 4, 'μ’s'),
+      PLAYER1,
+      'bp4-006-muse-member-curly'
+    ),
+    createCardInstance(
+      createLiveCard('PL!-test-muse-live', 'μ’s LIVE', "μ's"),
+      PLAYER1,
+      'bp4-006-muse-live'
+    ),
+    createCardInstance(
+      createMemberCard('PL!S-test-other-member', '高海千歌', 4, 'Aqours'),
+      PLAYER1,
+      'bp4-006-other-member'
+    ),
+    createCardInstance(
+      createMemberCard('PL!-test-muse-member-straight', '西木野真姫', 4, "μ's"),
+      PLAYER1,
+      'bp4-006-muse-member-straight'
+    ),
+    createCardInstance(
+      createLiveCard('PL!S-test-other-live', 'Aqours LIVE', 'Aqours'),
+      PLAYER1,
+      'bp4-006-other-live'
+    ),
+  ];
+}
+
+function setupBp4006(options: {
+  readonly cardCode?: 'PL!-bp4-006-P' | 'PL!-bp4-006-R';
+  readonly successScore?: number;
+  readonly topCards?: readonly ReturnType<typeof createCardInstance>[];
+} = {}): Bp4006Scenario {
+  const session = createGameSession();
+  const deck = createDeck();
+  session.createGame('pl-bp4-006-maki', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+  session.initializeGame(deck, deck);
+  forceMainPhaseForPlayer(session);
+
+  const source = createCardInstance(
+    createMemberCard(options.cardCode ?? 'PL!-bp4-006-P', '西木野真姫', 4, "μ's"),
+    PLAYER1,
+    'bp4-006-source'
+  );
+  const successLive = createCardInstance(
+    {
+      ...createLiveCard('PL!-test-success-live', 'Success LIVE', "μ's"),
+      score: options.successScore ?? 3,
+    },
+    PLAYER1,
+    'bp4-006-success-live'
+  );
+  const topCards = options.topCards ?? createBp4006TopCards();
+  const deckFiller =
+    topCards.length === 5
+      ? createCardInstance(
+          createMemberCard('PL!-test-deck-filler', 'Deck Filler', 1, "μ's"),
+          PLAYER1,
+          'bp4-006-deck-filler'
+        )
+      : null;
+  let state = registerCards(session.state!, [
+    source,
+    successLive,
+    ...topCards,
+    ...(deckFiller ? [deckFiller] : []),
+  ]);
+  state = updatePlayer(state, PLAYER1, (player) => ({
+    ...player,
+    hand: { ...player.hand, cardIds: [source.instanceId] },
+    mainDeck: {
+      ...player.mainDeck,
+      cardIds: [
+        ...topCards.map((card) => card.instanceId),
+        ...(deckFiller ? [deckFiller.instanceId] : []),
+      ],
+    },
+    waitingRoom: { ...player.waitingRoom, cardIds: [] },
+    successZone: { ...player.successZone, cardIds: [successLive.instanceId] },
+    liveZone: { ...player.liveZone, cardIds: [] },
+    memberSlots: {
+      ...player.memberSlots,
+      slots: {
+        [SlotPosition.LEFT]: null,
+        [SlotPosition.CENTER]: null,
+        [SlotPosition.RIGHT]: null,
+      },
+      cardStates: new Map(),
+    },
+  }));
+  (session as unknown as { authorityState: GameState }).authorityState = state;
+  return { session, source, topCards };
+}
+
+function playBp4006(scenario: Bp4006Scenario): void {
+  const result = scenario.session.executeCommand(
+    createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.CENTER, {
+      freePlay: true,
+    })
+  );
+  expect(result.success, result.error).toBe(true);
+}
+
+describe('PL!-bp4-006 shared success-score look-top configuration', () => {
+  it('uses the real ON_ENTER_STAGE path and records the source instance, timing, and ability id', () => {
+    const scenario = setupBp4006();
+    playBp4006(scenario);
+
+    const triggerAction = scenario.session.state?.actionHistory.find(
+      (action) =>
+        action.type === 'TRIGGER_ABILITY' &&
+        action.payload.abilityId ===
+          PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+    );
+    expect(triggerAction?.payload).toMatchObject({
+      sourceCardId: scenario.source.instanceId,
+      timingId: TriggerCondition.ON_ENTER_STAGE,
+      sourceSlot: SlotPosition.CENTER,
+    });
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
+      sourceCardId: scenario.source.instanceId,
+      controllerId: PLAYER1,
+      effectText:
+        "【登场】存在于自己的成功LIVE卡区中的卡片的分数合计大于等于3的场合，检视自己卡组顶的5张卡。可以将1张其中的『μ's』的成员卡公开并加入手牌。其余的卡片放置入休息室。",
+      selectionLabel: "选择要公开并加入手牌的『μ's』成员",
+      confirmSelectionLabel: '公开并加入手牌',
+      skipSelectionLabel: '全部放置入休息室',
+    });
+  });
+
+  it('consumes the current pending below score three without inspecting or leaking the deck top', () => {
+    const scenario = setupBp4006({ successScore: 2 });
+    const originalDeck = [...scenario.session.state!.players[0].mainDeck.cardIds];
+    playBp4006(scenario);
+
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.inspectionZone.cardIds).toEqual([]);
+    expect(scenario.session.state?.inspectionZone.revealedCardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual(originalDeck);
+    expect(
+      scenario.session.state?.pendingAbilities.some(
+        (ability) =>
+          ability.abilityId ===
+          PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(scenario.session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'SUCCESS_LIVE_SCORE_CONDITION_NOT_MET',
+      successfulLiveScore: 2,
+      requiredSuccessfulLiveScore: 3,
+      conditionMet: false,
+      resultText: '成功LIVE卡区中的卡片分数合计为2，未达到3，不检视卡组顶。',
+    });
+    const opponentView = scenario.session.getPlayerViewState(PLAYER2);
+    for (const card of scenario.topCards) {
+      expect(JSON.stringify(opponentView)).not.toContain(card.instanceId);
+    }
+  });
+
+  it('selects only structured μ\'s MEMBER aliases and keeps all unselected cards private', () => {
+    const scenario = setupBp4006();
+    playBp4006(scenario);
+    const [curlyMuseMember, museLive, otherMember, straightMuseMember] = scenario.topCards;
+
+    expect(scenario.session.state?.activeEffect?.inspectionCardIds).toEqual(
+      scenario.topCards.map((card) => card.instanceId)
+    );
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([
+      curlyMuseMember!.instanceId,
+      straightMuseMember!.instanceId,
+    ]);
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).not.toContain(
+      museLive!.instanceId
+    );
+    expect(scenario.session.state?.activeEffect?.selectableCardIds).not.toContain(
+      otherMember!.instanceId
+    );
+
+    const controllerView = projectPlayerViewState(scenario.session.state!, PLAYER1);
+    const opponentView = projectPlayerViewState(scenario.session.state!, PLAYER2);
+    expect(controllerView.activeEffect?.selectableObjectIds).toEqual([
+      createPublicObjectId(curlyMuseMember!.instanceId),
+      createPublicObjectId(straightMuseMember!.instanceId),
+    ]);
+    expect(opponentView.activeEffect?.selectableObjectIds).toBeUndefined();
+    for (const card of scenario.topCards) {
+      expect(opponentView.objects[createPublicObjectId(card.instanceId)]?.surface).toBe('BACK');
+    }
+  });
+
+  it('rejects opponent, unlisted, non-selector, oversized, and stale selections without closing the window', () => {
+    const scenario = setupBp4006();
+    const opponentCard = createCardInstance(
+      createMemberCard('PL!-opponent-muse', '絢瀬絵里', 4, "μ's"),
+      PLAYER2,
+      'bp4-006-opponent-card'
+    );
+    let state = registerCards(scenario.session.state!, [opponentCard]);
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = state;
+    playBp4006(scenario);
+    const effectId = scenario.session.state!.activeEffect!.id;
+
+    for (const invalidCardId of [
+      opponentCard.instanceId,
+      'not-listed-card',
+      scenario.topCards[1]!.instanceId,
+      scenario.topCards[2]!.instanceId,
+    ]) {
+      const result = scenario.session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, effectId, invalidCardId)
+      );
+      expect(result.success).toBe(false);
+      expect(scenario.session.state?.activeEffect?.id).toBe(effectId);
+      expect(scenario.session.state?.inspectionZone.cardIds).toHaveLength(5);
+    }
+
+    const oversizedResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        effectId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [scenario.topCards[0]!.instanceId, scenario.topCards[3]!.instanceId]
+      )
+    );
+    expect(oversizedResult.success).toBe(false);
+    expect(scenario.session.state?.activeEffect?.id).toBe(effectId);
+
+    const staleCardId = scenario.topCards[0]!.instanceId;
+    state = {
+      ...scenario.session.state!,
+      inspectionZone: {
+        ...scenario.session.state!.inspectionZone,
+        cardIds: scenario.session.state!.inspectionZone.cardIds.filter(
+          (cardId) => cardId !== staleCardId
+        ),
+      },
+    };
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = state;
+    const staleResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, effectId, staleCardId)
+    );
+    expect(staleResult.success).toBe(false);
+    expect(scenario.session.state?.activeEffect?.id).toBe(effectId);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+  });
+
+  it('allows zero selections and moves every inspected card to waiting room as one real event batch', () => {
+    const scenario = setupBp4006();
+    playBp4006(scenario);
+    const effectId = scenario.session.state!.activeEffect!.id;
+    const inspectedCardIds = scenario.topCards.map((card) => card.instanceId);
+
+    const result = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, effectId, null)
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(inspectedCardIds);
+    expect(
+      scenario.session.state?.eventLog
+        .map((entry) => entry.event)
+        .find(
+          (event) =>
+            event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+            event.fromZone === ZoneType.MAIN_DECK &&
+            event.toZone === ZoneType.WAITING_ROOM
+        )
+    ).toMatchObject({ cardInstanceIds: inspectedCardIds });
+  });
+
+  it('reveals the selected card to both players before adding it to hand and keeps the rest hidden', () => {
+    const scenario = setupBp4006();
+    playBp4006(scenario);
+    const selectedCardId = scenario.topCards[0]!.instanceId;
+    const hiddenCardId = scenario.topCards[1]!.instanceId;
+
+    const reveal = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        selectedCardId
+      )
+    );
+    expect(reveal.success, reveal.error).toBe(true);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+    expect(scenario.session.state?.inspectionZone.revealedCardIds).toEqual([selectedCardId]);
+    for (const playerId of [PLAYER1, PLAYER2]) {
+      const view = scenario.session.getPlayerViewState(playerId);
+      expect(view.objects[createPublicObjectId(selectedCardId)]?.surface).toBe('FRONT');
+      expect(view.objects[createPublicObjectId(hiddenCardId)]?.surface).toBe(
+        playerId === PLAYER1 ? 'FRONT' : 'BACK'
+      );
+    }
+
+    const stateAfterSourceLeft = updatePlayer(scenario.session.state!, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
+      },
+    }));
+    (scenario.session as unknown as { authorityState: GameState }).authorityState =
+      stateAfterSourceLeft;
+    const finish = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
+    );
+    expect(finish.success, finish.error).toBe(true);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([selectedCardId]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(
+      scenario.topCards
+        .map((card) => card.instanceId)
+        .filter((cardId) => cardId !== selectedCardId)
+    );
+  });
+
+  it('revalidates the structured selector again at confirmation time', () => {
+    const scenario = setupBp4006();
+    playBp4006(scenario);
+    const selected = scenario.topCards[0]!;
+    const changedToLive = createCardInstance(
+      createLiveCard(selected.data.cardCode, selected.data.name, "μ's"),
+      PLAYER1,
+      selected.instanceId
+    );
+    const state = registerCards(scenario.session.state!, [changedToLive]);
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = state;
+
+    const result = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        selected.instanceId
+      )
+    );
+    expect(result.success).toBe(false);
+    expect(scenario.session.state?.activeEffect).not.toBeNull();
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
+  });
+
+  it('keeps the inspection waiting-room event and the pending it creates in the unified continuation', () => {
+    const scenario = setupBp4006();
+    const watcher = createCardInstance(
+      createMemberCard('PL!SP-bp5-005-P', '葉月 恋', 11, 'Liella!'),
+      PLAYER1,
+      'bp4-006-waiting-room-watcher'
+    );
+    let state = registerCards(scenario.session.state!, [watcher]);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.LEFT]: watcher.instanceId },
+        cardStates: new Map([
+          ...player.memberSlots.cardStates,
+          [
+            watcher.instanceId,
+            { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+          ],
+        ]),
+      },
+    }));
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = state;
+    playBp4006(scenario);
+
+    const finish = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id, null)
+    );
+    expect(finish.success, finish.error).toBe(true);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId ===
+            SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID &&
+          action.payload.sourceCardId === watcher.instanceId
+      )
+    ).toBe(true);
+    expect(
+      scenario.session.state?.activeEffect?.abilityId ===
+        SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID ||
+        scenario.session.state?.pendingAbilities.some(
+          (ability) =>
+            ability.abilityId ===
+            SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID
+        )
+    ).toBe(true);
+  });
+
+  it('clamps a short deck and safely confirms an empty deck without losing continuation', () => {
+    const shortTop = createBp4006TopCards().slice(0, 2);
+    const short = setupBp4006({ topCards: shortTop });
+    playBp4006(short);
+    expect(short.session.state?.activeEffect?.inspectionCardIds).toEqual(
+      shortTop.map((card) => card.instanceId)
+    );
+
+    const empty = setupBp4006({ topCards: [] });
+    playBp4006(empty);
+    expect(empty.session.state?.activeEffect?.inspectionCardIds).toEqual([]);
+    expect(empty.session.state?.activeEffect?.selectableCardIds).toEqual([]);
+    const finish = empty.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, empty.session.state!.activeEffect!.id, null)
+    );
+    expect(finish.success, finish.error).toBe(true);
+    expect(empty.session.state?.activeEffect).toBeNull();
+    expect(empty.session.state?.inspectionZone.cardIds).toEqual([]);
   });
 });

@@ -38,6 +38,7 @@ Examples:
 - `successLiveScoreAtLeast(game, playerId, 6)`
 - `getMemberEffectiveCost(game, playerId, memberCardId)`
 - `cardBelongsToGroup(card.data, "μ's")`
+- `hasLiveWithoutLiveStartOrSuccessAbility(game, playerId)` 只扫描指定玩家当前 LIVE 区合法 LIVE 实例并按印刷 `cardText` 判断中日 LIVE_START / LIVE_SUCCESS；它不依赖 definition 是否已实现，也不创建 pending 或 modifier。
 
 ## Runtime Action
 

@@ -76,7 +76,7 @@ interface SelfSacrificeWaitingRoomToHandWorkflowConfig {
   readonly confirmSelectionLabel?: string;
   readonly postRecovery?:
     | {
-        readonly kind: 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST';
+        readonly kind: 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST';
         readonly threshold: number;
         readonly activateCount: number;
         readonly finishStep: string;
@@ -98,7 +98,7 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
       selectablePredicate: and(typeIs(CardType.LIVE), groupAliasIs("μ's")),
       selectionRequiredWhenHasTargets: true,
       postRecovery: {
-        kind: 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST',
+        kind: 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST',
         threshold: 9,
         activateCount: 2,
         finishStep: 'RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_IF_SUCCESS_SCORE',
@@ -335,7 +335,7 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
       : null;
   let conditionMet = false;
   let conditionValue: number | null = null;
-  if (config?.postRecovery?.kind === 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST') {
+  if (config?.postRecovery?.kind === 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST') {
     conditionValue = sumSuccessfulLiveScore(recoveryResult.gameState, player.id);
     conditionMet = successLiveScoreAtLeast(
       recoveryResult.gameState,
@@ -388,7 +388,7 @@ function finishSelfSacrificeWaitingRoomToHandWorkflow(
         noRecoveredCards: recoveryResult.movedCardIds.length === 0,
       },
       conditionValue,
-      ...(config?.postRecovery?.kind === 'SUCCESS_LIVE_PRINTED_SCORE_AT_LEAST'
+      ...(config?.postRecovery?.kind === 'SUCCESS_LIVE_EFFECTIVE_SCORE_AT_LEAST'
         ? { successLiveScore: conditionValue }
         : {}),
       conditionMet,

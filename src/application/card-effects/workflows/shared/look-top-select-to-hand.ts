@@ -6,6 +6,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
+import { sumSuccessfulLiveScore } from '../../../../domain/rules/success-live-score.js';
 import {
   CardType,
   HeartColor,
@@ -17,6 +18,7 @@ import {
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
   PL_S_BP5_007_LIVE_SUCCESS_LOOK_TOP_GREEN_HEART_MEMBER_ABILITY_ID,
+  PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
   S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
   S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
   SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
@@ -102,6 +104,7 @@ export interface LookTopSelectToHandWorkflowConfig {
   readonly optionalSourceOrientationCost?: 'WAITING';
   readonly optionStepId?: string;
   readonly publicEffectSummaryContext?: LookTopSelectToHandPublicSummaryContext;
+  readonly minSuccessfulLiveScore?: number;
 }
 
 export interface LookTopSelectToHandWorkflowOptions {
@@ -160,12 +163,46 @@ const PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_FROM_TOP_FOUR';
 const PL_S_BP5_007_REVEAL_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_REVEAL_SELECTED_GREEN_HEART_MEMBER';
+const PL_BP4_006_SELECT_MUSE_MEMBER_STEP_ID =
+  'PL_BP4_006_SELECT_MUSE_MEMBER_FROM_TOP_FIVE';
+const PL_BP4_006_REVEAL_MUSE_MEMBER_STEP_ID = 'PL_BP4_006_REVEAL_SELECTED_MUSE_MEMBER';
 const SP_BP4_002_OPTION_STEP_ID = 'SP_BP4_002_WAIT_OPTION';
 const SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID = 'SP_BP4_002_SELECT_HIGH_REQUIREMENT_LIELLA_LIVE';
 const SP_BP4_002_REVEAL_LIELLA_LIVE_STEP_ID =
   'SP_BP4_002_REVEAL_SELECTED_HIGH_REQUIREMENT_LIELLA_LIVE';
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
+  {
+    abilityId: PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
+    topCount: 5,
+    selector: and(typeIs(CardType.MEMBER), groupAliasIs("μ's")),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    minSuccessfulLiveScore: 3,
+    selectStepId: PL_BP4_006_SELECT_MUSE_MEMBER_STEP_ID,
+    revealStepId: PL_BP4_006_REVEAL_MUSE_MEMBER_STEP_ID,
+    selectStepText: getAbilityEffectText(
+      PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+    ),
+    noTargetStepText: getAbilityEffectText(
+      PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+    ),
+    selectionLabel: "选择要公开并加入手牌的『μ's』成员",
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '全部放置入休息室',
+    revealStepText: getAbilityEffectText(
+      PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+    ),
+    revealActionStep: 'REVEAL_SELECTED_MUSE_MEMBER',
+    noCardsMode: 'open-selection',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
+  },
   {
     abilityId: SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
     topCount: 4,
@@ -441,15 +478,28 @@ export function registerLookTopSelectToHandWorkflowHandlers(deps: {
         {
           continuePendingCardEffects: context.continuePendingCardEffects,
           enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-        }
+        },
+        (state, selectedCardIds) =>
+          selectedCardIds.every((cardId) => {
+            const card = getCardById(state, cardId);
+            return card !== null && config.selector(card);
+          })
       )
     );
     if (config.revealStepId) {
       registerActiveEffectStepHandler(abilityId, config.revealStepId, (game, _input, context) =>
-        finishRevealedLookTopSelectToHandWorkflow(game, {
-          continuePendingCardEffects: context.continuePendingCardEffects,
-          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-        })
+        finishRevealedLookTopSelectToHandWorkflow(
+          game,
+          {
+            continuePendingCardEffects: context.continuePendingCardEffects,
+            enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+          },
+          (state, selectedCardIds) =>
+            selectedCardIds.every((cardId) => {
+              const card = getCardById(state, cardId);
+              return card !== null && config.selector(card);
+            })
+        )
       );
     }
   }
@@ -586,6 +636,29 @@ export function startLookTopSelectToHandWorkflow(
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
+  }
+
+  if (config.minSuccessfulLiveScore !== undefined) {
+    const successfulLiveScore = sumSuccessfulLiveScore(game, player.id);
+    if (successfulLiveScore < config.minSuccessfulLiveScore) {
+      const state = {
+        ...game,
+        pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      };
+      return options.continuePendingCardEffects(
+        addAction(state, 'RESOLVE_ABILITY', player.id, {
+          pendingAbilityId: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          step: 'SUCCESS_LIVE_SCORE_CONDITION_NOT_MET',
+          successfulLiveScore,
+          requiredSuccessfulLiveScore: config.minSuccessfulLiveScore,
+          conditionMet: false,
+          resultText: `成功LIVE卡区中的卡片分数合计为${successfulLiveScore}，未达到${config.minSuccessfulLiveScore}，不检视卡组顶。`,
+        }),
+        options.orderedResolution === true
+      );
+    }
   }
 
   if (

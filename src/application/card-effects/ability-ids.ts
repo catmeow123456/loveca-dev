@@ -140,8 +140,7 @@ export const PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_I
   'PL!N-bp3-030-L:live-success-cheer-all-blade-this-live-score';
 export const PL_N_BP3_031_LIVE_SUCCESS_WAITING_STAGE_MEMBERS_THIS_LIVE_SCORE_ABILITY_ID =
   'PL!N-bp3-031-L:live-success-waiting-stage-members-this-live-score';
-export const PL_N_BP3_006_ON_ENTER_WAIT_SELF_ABILITY_ID =
-  'PL!N-bp3-006:on-enter-wait-self';
+export const PL_N_BP3_006_ON_ENTER_WAIT_SELF_ABILITY_ID = 'PL!N-bp3-006:on-enter-wait-self';
 export const PL_N_BP3_007_ACTIVATED_PAY_TWO_SEND_SELF_PLAY_SETUNA_ATTACH_ENERGY_ABILITY_ID =
   'PL!N-bp3-007:activated-pay-two-send-self-play-setsuna-attach-energy';
 export const PL_N_BP3_004_ACTIVATED_WAIT_SELF_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID =
@@ -394,6 +393,8 @@ export const BP4_005_LIVE_START_POSITION_CHANGE_IF_NO_HIGH_BLADE_MUSE_ABILITY_ID
   'PL!-bp4-005:live-start-position-change-if-no-high-blade-muse';
 export const BP4_009_ON_ENTER_OPPONENT_WAIT_OWN_ACTIVE_MEMBER_ABILITY_ID =
   'PL!-bp4-009:on-enter-opponent-wait-own-active-member';
+export const PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID =
+  'PL!-bp4-006:on-enter-success-score-three-look-top-five-muse-member';
 export const PL_BP4_011_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-011:live-start-wait-self-center-muse-gain-two-blade';
 export const PL_BP4_001_LIVE_START_LOWER_STAGE_COST_DRAW_ONE_ABILITY_ID =
@@ -896,8 +897,22 @@ export const BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID =
   'PL!-bp4-002:continuous-live-without-timing-purple-heart';
 export const BP4_003_ACTIVATED_ABILITY_ID =
   'PL!-bp4-003-P:activated-send-self-to-waiting-room-add-live';
+export const PL_BP4_007_ON_ENTER_SUCCESS_LIVE_EXISTS_SCORE_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID =
+  'PL!-bp4-007:on-enter-success-live-exists-score-at-most-one-gain-score';
+export const PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID =
+  'PL!-bp4-013:live-start-discard-target-other-member-gain-pink-heart';
+export const PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!-bp4-014:live-start-live-without-timing-target-other-member-gain-two-blade';
 export const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+export const PL_BP4_019_CONTINUOUS_SUCCESS_ZONE_MUSE_STAGE_THIS_CARD_SCORE_PLUS_FIVE_ABILITY_ID =
+  'PL!-bp4-019:continuous-success-zone-muse-stage-this-card-score-plus-five';
+export const PL_BP4_020_LIVE_START_ONLY_MUSE_STAGE_TARGET_MEMBER_POSITION_CHANGE_ABILITY_ID =
+  'PL!-bp4-020:live-start-only-muse-stage-target-member-position-change';
+export const PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp4-020:continuous-success-zone-center-muse-gain-blade';
+export const PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID =
+  'PL!-bp4-024:live-start-target-muse-member-gain-one-blade';
 export const SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_ABILITY_ID =
   'PL!SP-bp4-018:activated-send-self-to-waiting-room-add-liella-card';
 export const BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID =

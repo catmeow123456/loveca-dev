@@ -858,7 +858,7 @@ function resolvePlBp4016(options: {
 }
 
 describe('PL!-bp4-016-N shared success-score on-enter draw', () => {
-  it('consumes pending without drawing at success LIVE printed score 2', () => {
+  it('consumes pending without drawing at success LIVE effective score 2', () => {
     const { state, drawCardId } = resolvePlBp4016({ successLiveScores: [2] });
     expect(state.pendingAbilities).toEqual([]);
     expect(state.players[0].hand.cardIds).not.toContain(drawCardId);
@@ -870,7 +870,7 @@ describe('PL!-bp4-016-N shared success-score on-enter draw', () => {
     });
   });
 
-  it('draws one at success LIVE printed score 3', () => {
+  it('draws one at success LIVE effective score 3', () => {
     const { state, drawCardId } = resolvePlBp4016({ successLiveScores: [1, 2] });
     expect(state.pendingAbilities).toEqual([]);
     expect(state.players[0].hand.cardIds).toEqual([drawCardId]);

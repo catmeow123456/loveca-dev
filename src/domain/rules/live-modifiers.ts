@@ -31,6 +31,7 @@ import { toPlayerLocalSlotForControllerPerspective } from '../../shared/utils/sl
 import { hasMemberPositionMovedThisTurn } from './member-turn-state.js';
 import { getMemberEffectiveCost } from './member-effective-cost.js';
 import { applyHeartRequirementModifiers } from './live-requirement-modifiers.js';
+import { hasLiveWithoutLiveStartOrSuccessAbility } from './live-zone-ability.js';
 import { sumSuccessfulLiveScore, successLiveScoreAtLeast } from './success-live-score.js';
 
 type ScoreModifierState = Extract<LiveModifierState, { readonly kind: 'SCORE' }>;
@@ -50,10 +51,7 @@ type CheerCardHeartColorReplacementModifierState = Extract<
 type BladeModifierState = Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
 type CheerCountModifierState = Extract<LiveModifierState, { readonly kind: 'CHEER_COUNT' }>;
 type MemberCostModifierState = Extract<LiveModifierState, { readonly kind: 'MEMBER_COST' }>;
-type MemberCostSetModifierState = Extract<
-  LiveModifierState,
-  { readonly kind: 'MEMBER_COST_SET' }
->;
+type MemberCostSetModifierState = Extract<LiveModifierState, { readonly kind: 'MEMBER_COST_SET' }>;
 type RequirementModifierState = Extract<LiveModifierState, { readonly kind: 'REQUIREMENT' }>;
 
 type LiveModifierCompatibilityProjection = Pick<
@@ -169,6 +167,8 @@ const BP6_009_CONTINUOUS_CENTER_SIDE_PRINTED_BLADE_TWO_SCORE_ABILITY_ID =
 const BP4_005_CONTINUOUS_CENTER_SCORE_ABILITY_ID = 'PL!-bp4-005:continuous-center-score-plus-one';
 const BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!-bp4-018:continuous-success-score-lead-gain-two-blade';
+const PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID =
+  'PL!-bp4-020:continuous-success-zone-center-muse-gain-blade';
 const PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID =
   'PL!N-bp4-007:continuous-total-energy-fifteen-gain-two-red-heart';
 const PL_N_BP4_012_CONTINUOUS_OPPONENT_SUCCESS_SCORE_SIX_LIVE_SCORE_ABILITY_ID =
@@ -330,7 +330,9 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   {
     baseCardCodes: ['PL!-bp5-333'],
     collect: ({ game, playerId, sourceCardId }) => {
-      if (!sourceStageMemberHasOrientation(game, playerId, sourceCardId, OrientationState.WAITING)) {
+      if (
+        !sourceStageMemberHasOrientation(game, playerId, sourceCardId, OrientationState.WAITING)
+      ) {
         return [];
       }
       const modifier = createHeartLiveModifierForMember(game, {
@@ -387,8 +389,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         playerId,
         memberCardId: sourceCardId,
         sourceCardId,
-        abilityId:
-          PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID,
+        abilityId: PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.RED, count: 2 }],
       });
       return modifier ? [modifier] : [];
@@ -1021,7 +1022,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     baseCardCodes: ['PL!SP-bp4-009'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
-      sumStageMemberEffectiveCost(game, playerId) < sumOpponentStageMemberEffectiveCost(game, playerId)
+      sumStageMemberEffectiveCost(game, playerId) <
+        sumOpponentStageMemberEffectiveCost(game, playerId)
         ? [
             {
               kind: 'BLADE',
@@ -1115,8 +1117,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               playerId,
               countDelta: 2,
               sourceCardId,
-              abilityId:
-                S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
+              abilityId: S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
             },
           ]
         : [],
@@ -1267,6 +1268,11 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
 
 const SUCCESS_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly SuccessZoneContinuousLiveModifierDefinition[] =
   [
+    {
+      baseCardCodes: ['PL!-bp4-020'],
+      collect: ({ game, playerId, sourceCardId }) =>
+        collectLoveWingBellCenterMuseBladeModifier(game, playerId, sourceCardId),
+    },
     {
       baseCardCodes: ['PL!-bp6-022'],
       nonStackingAbilityId: 'PL!-bp6-022:continuous-success-zone-muse-live-requirement',
@@ -1559,20 +1565,40 @@ function collectSingleOpponentLiveRequirementPlusOneModifier(
     : [];
 }
 
-function hasLiveWithoutLiveStartOrSuccessAbility(game: GameState, playerId: string): boolean {
-  const player = game.players.find((candidate) => candidate.id === playerId);
-  if (!player) {
-    return false;
+function collectLoveWingBellCenterMuseBladeModifier(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly LiveModifierState[] {
+  const player = getPlayerById(game, playerId);
+  const source = getCardById(game, sourceCardId);
+  const centerCardId = player?.memberSlots.slots[SlotPosition.CENTER] ?? null;
+  const centerCard = centerCardId ? getCardById(game, centerCardId) : null;
+  if (
+    !player ||
+    !source ||
+    source.ownerId !== playerId ||
+    !isLiveCardData(source.data) ||
+    getBaseCardCode(source.data.cardCode) !== 'PL!-bp4-020' ||
+    !player.successZone.cardIds.includes(sourceCardId) ||
+    !centerCardId ||
+    !centerCard ||
+    centerCard.ownerId !== playerId ||
+    !isMemberCardData(centerCard.data) ||
+    !cardBelongsToGroup(centerCard.data, "μ's")
+  ) {
+    return [];
   }
 
-  return player.liveZone.cardIds.some((liveCardId) => {
-    const card = getCardById(game, liveCardId);
-    return (
-      card !== null &&
-      isLiveCardData(card.data) &&
-      !liveHasLiveStartOrSuccessAbility(card.data.cardText)
-    );
-  });
+  return [
+    {
+      kind: 'BLADE',
+      playerId,
+      countDelta: 1,
+      sourceCardId: centerCardId,
+      abilityId: PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+    },
+  ];
 }
 
 function hasSuccessfulLiveScoreLead(game: GameState, playerId: string): boolean {
@@ -1636,23 +1662,6 @@ function hasLiveZoneThreeIncludingNijigasakiLive(game: GameState, playerId: stri
     const card = getCardById(game, liveCardId);
     return card !== null && isLiveCardData(card.data) && cardBelongsToGroup(card.data, '虹ヶ咲');
   });
-}
-
-function liveHasLiveStartOrSuccessAbility(cardText: string | undefined): boolean {
-  if (!cardText) {
-    return false;
-  }
-
-  return (
-    cardText.includes('【LIVE开始时】') ||
-    cardText.includes('【LIVE開始時】') ||
-    cardText.includes('【LIVE成功时】') ||
-    cardText.includes('【LIVE成功時】') ||
-    cardText.includes('{{live_start.png|ライブ開始時}}') ||
-    cardText.includes('{{live_success.png|ライブ成功時}}') ||
-    cardText.includes('ライブ開始時') ||
-    cardText.includes('ライブ成功時')
-  );
 }
 
 function doesContinuousDefinitionMatchCardCode(
@@ -2014,13 +2023,7 @@ function cardMatchesNormalizedUnit(
 }
 
 function hasThreeDifferentHasunosoraMembersOnStage(game: GameState, playerId: string): boolean {
-  return hasAtLeastDifferentNamedStageMembers(
-    game,
-    playerId,
-    3,
-    isHasunosoraMemberCard,
-    '蓮ノ空'
-  );
+  return hasAtLeastDifferentNamedStageMembers(game, playerId, 3, isHasunosoraMemberCard, '蓮ノ空');
 }
 
 function collectPb1014FrontHighCostHeartModifier(
@@ -2171,7 +2174,9 @@ function hasNamedStageMember(game: GameState, playerId: string, names: readonly 
   return MEMBER_SLOT_ORDER.some((slot) => {
     const cardId = player.memberSlots.slots[slot];
     const card = cardId ? getCardById(game, cardId) : null;
-    return card !== null && isMemberCardData(card.data) && cardNameMatchesAnyAlias(card.data, names);
+    return (
+      card !== null && isMemberCardData(card.data) && cardNameMatchesAnyAlias(card.data, names)
+    );
   });
 }
 
@@ -2219,7 +2224,11 @@ function sourceStageMemberHasOrientation(
   return player?.memberSlots.cardStates.get(sourceCardId)?.orientation === orientation;
 }
 
-function hasStageMemberNamedAny(game: GameState, playerId: string, names: readonly string[]): boolean {
+function hasStageMemberNamedAny(
+  game: GameState,
+  playerId: string,
+  names: readonly string[]
+): boolean {
   const player = getPlayerById(game, playerId);
   if (!player) {
     return false;
@@ -2227,7 +2236,9 @@ function hasStageMemberNamedAny(game: GameState, playerId: string, names: readon
   return MEMBER_SLOT_ORDER.some((slot) => {
     const cardId = player.memberSlots.slots[slot];
     const card = cardId ? getCardById(game, cardId) : null;
-    return card !== null && isMemberCardData(card.data) && cardNameMatchesAnyAlias(card.data, names);
+    return (
+      card !== null && isMemberCardData(card.data) && cardNameMatchesAnyAlias(card.data, names)
+    );
   });
 }
 
@@ -2321,10 +2332,7 @@ function hasOwnStageMemberWithEffectiveCostAtLeast(
   });
 }
 
-function hasAnyStageMemberWithEffectiveCostAtLeast(
-  game: GameState,
-  minCost: number
-): boolean {
+function hasAnyStageMemberWithEffectiveCostAtLeast(game: GameState, minCost: number): boolean {
   return game.players.some((player) =>
     MEMBER_SLOT_ORDER.some((slot) => {
       const cardId = player.memberSlots.slots[slot];
@@ -2490,11 +2498,7 @@ function hasOtherEdelNoteStageMember(
   });
 }
 
-function hasNoOtherStageMembers(
-  game: GameState,
-  playerId: string,
-  sourceCardId: string
-): boolean {
+function hasNoOtherStageMembers(game: GameState, playerId: string, sourceCardId: string): boolean {
   const player = game.players.find((candidate) => candidate.id === playerId);
   if (!player) {
     return false;

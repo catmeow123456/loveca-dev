@@ -12,6 +12,41 @@
 - `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md` 与 `docs/online-mode/preparation.md` 已同步当前产品行为；对局结束后最终只读桌面保留 1 分钟仍未实现，持久化观战审计不在当前范围。
 - 验证：focused suite `tests/integration/online-room-service.test.ts`、`tests/integration/online-route-error-handling.test.ts`、`tests/unit/game-store-remote-sync.test.ts`、`tests/unit/battle-surface-capabilities.test.ts`、`tests/unit/api-client-redaction.test.ts` passed（5 files / 68 tests）；rebase 最新 `origin/main` 后 `pnpm test:run` passed（462 files / 3955 tests，3 performance tests skipped）；shared / server / client TypeScript 与 `git diff --check` passed。
 
+## 本次 2026-07-15 `PL!-bp4-020-L` Love wing bell（PL!-bp4 候选收尾）
+
+- 完成分数 3「Love wing bell」两段独立能力；日文核对 `llocg_db/json/cards.json`，中日文、团体、类型、分数、必要 Heart 与 token 核对 `loveca_20260626015115.xlsx` `sheet1!A1526:X1526`，两条 definition 分别逐字使用对应中文段落，`[ブレード]` 复用现有 BLADE token。
+- LIVE_START 新增窄单卡 `workflows/cards/pl-bp4-020-love-wing-bell.ts`；只读己方 LEFT/CENTER/RIGHT 顶层成员，用结构化 `groupAliasIs("μ's")` 判定全员团体。第一步可选成员或「不发动」，第二步强制选择其他两槽；移动/交换复用 `moveMemberBetweenSlotsAndEnqueueTriggers`，保留真实 `MEMBER_SLOT_MOVED` 事件与统一 continuation。开窗、选成员、确认槽位均实时重验；illegal input 刷新强制窗，stale 清窗 no-op，目标槽变化时以权威槽位刷新。未扩展 `stage-formation-change.ts` 或建立站位变换 DSL。
+- CONTINUOUS 只扩成功区 continuous registry；每张合法 020 实例每次收集时独立为己方 CENTER 顶层结构化 μ's 成员产生 BLADE +1，modifier `sourceCardId` 使用获得 BLADE 的中央成员实例。多张020可叠加，来源离成功区、中央成员移动/离场/非 μ's 时即时减少、转移或消失；不改印刷 BLADE，不写 `liveResolution.liveModifiers`。
+- focused integration 22 tests 与 `live-modifiers` full 230 tests 覆盖 definition/真实触发/团体判定/两步交互/移动交换事件/manual bridge/ordered continuation/stale/动态 BLADE/叠加；classification、rarity、token/text governance 同步通过。runner 本窗只inport/register 两行，3750 → 3752。PL!-bp4 候选卡效至此全部完成。
+
+## 本次 2026-07-15 `PL!-bp4-007-P / R` 登场授予来源成员 LIVE 合计分数
+
+- 实现费用 11「東條 希」两种罕贵度的同基础编号 ON_ENTER 卡效；日文规则逐卡核对 `llocg_db/json/cards.json`，玩家中文逐字采用 `loveca_20260626015115.xlsx` `sheet1` 第1510行（R）与第1511行（P），两行名称、费用、团体、小队、token 和卡文一致。
+- 新增窄单卡 `workflows/cards/pl-bp4-007-nozomi.ts`；结算时分别调用 `countSuccessfulLiveCards` 与 `sumSuccessfulLiveScore`，成功区至少1张且当前有效分数合计 <=1 才授予，空成功区即使合计0也不满足。`PL!-bp4-019-L` 在007这个 μ's 舞台成员存在时按有效9分读取并使条件失败。
+- 满足时复用 `addPlayerScoreLiveModifierForTargetMember`，写 `SCORE / playerId / countDelta:1`，source/target 均绑定007来源实例。授予后成功区变化不动态撤销；站位移动保留，来源离场由标准 target-bound 清理，LIVE结束走统一 modifier 生命周期。不修改 continuous registry 或直接写 `playerScores`。
+- focused 覆盖真实 PLAY_MEMBER -> ON_ENTER_STAGE、0/1/2分与多卡边界、019有效分数、ACTIVE/WAITING、来源 stale/owner/type/base/memberBelow/区域过滤、精确 modifier、移动/离场/条件冻结、双实例叠加、continuation、P/R definition 与真实 LIVE 计分消费者。runner 仅新增一个 import 与一次 register 调用；未扩 shared family。
+
+## 本次 2026-07-14 `PL!-bp4-006-P / R` 成功分数门槛检视
+
+- 实现费用 4「西木野真姫」两种罕贵度的同基础编号 ON_ENTER 卡效；日文规则逐卡核对 `llocg_db/json/cards.json`，玩家中文逐字采用 `loveca_20260626015115.xlsx` `sheet1` 第1508行（R）与第1509行（P），两行完全一致。
+- 扩展 `workflows/shared/look-top-select-to-hand.ts` 的有限 `minSuccessfulLiveScore=3` 配置轴；门槛在任何检视前调用 `sumSuccessfulLiveScore`，不足时消费当前 pending、记录条件未满足且不建立 inspection/activeEffect，达标后才进入原有 top5 私密检视流程。
+- selector 复用 `typeIs(CardType.MEMBER) + groupAliasIs("μ's")`，仅允许结构化 μ's 成员且兼容直/弯引号别名；选择0张时全部 inspected cards 入休息室，选择1张时先双方公开、确认后入手，其余统一走 inspection-to-waiting 事件 wrapper并保留新 pending。来源在触发后离场不取消已触发效果。
+- focused 覆盖真实 ON_ENTER、门槛2/3、P/R definition、别名与类型过滤、0/1选择、公开与隐私、非法/stale、短/空牌库、来源离场、waiting-room 事件与动态 pending；runner 本批零增量。
+
+## 本次 2026-07-14 `PL!-bp4-013-N` 固定桃 Heart 目标成员
+
+- 实现费用 4「園田海未」queued LIVE_START 卡效；日文规则核对 `llocg_db/json/cards.json`，玩家中文逐字采用 `loveca_20260626015115.xlsx` 精确卡号行 `sheet1!A1519:X1519` 的多行中文效果，并确认 `[桃ハート]` token 已映射。
+- 扩展 `workflows/shared/live-start-discard-gain-heart.ts` 的有限 Heart 选择轴与 recipient `groupAlias` 可选轴：013 固定桃 Heart，弃手后直接进入任意其他己方主舞台成员选择，不打开单选项颜色窗口；既有 Kotori、HS-bp1-006 与虹咲样本保持原交互。
+- 弃手继续走 `discardOneHandCardToWaitingRoomAndEnqueueTriggers`；目标只取 LEFT/CENTER/RIGHT 顶层 ACTIVE/WAITING 成员，确认时实时重扫，成功后写来源/目标分离的 `TARGET_MEMBER` 桃 Heart +1。来源/目标 stale 与支付后无目标均不回滚费用，目标离场复用通用 target-bound modifier 清理。
+- focused 覆盖真实 ON_LIVE_START、发动/不发动/无手牌、弃手事件与动态 pending、固定桃目标窗口、跨团体与目标过滤、非法/stale、费用不回滚、精确 modifier、continuation 和离场清理；无 runner 修改。
+
+## 本次 2026-07-14 `PL!-bp4-019-L` 成功区有效分数
+
+- 实现分数 4「Angelic Angel」常时效果：来源实例仍在拥有者成功 LIVE 区且己方主舞台存在结构化 μ's 成员时，该卡当前有效分数 +5；ACTIVE / WAITING 均满足，排除 memberBelow 与对方舞台，多张019分别叠加。
+- 将 `sumSuccessfulLiveScore` 统一升级为成功区合法 LIVE 单卡有效分数求和；019 的窄收集只读取成功区、卡牌身份与主舞台事实，不调用 `collectLiveModifiers`，既有门槛/比较消费者自动继承有效分数语义。
+- 新增 `tests/unit/success-live-score.test.ts` 领域矩阵并补 classification；无 workflow、activeEffect、pending、持久 modifier 或 runner 修改。
+- 验证：成功区 query / conditions / live-modifiers / 登场抽牌共 280 tests、classification 101 tests、token/text governance 13 tests、PR-017 / S-bp3-008 shared family 回归 232 tests 通过；服务端 `tsc --noEmit` 与客户端 `tsc -b client` 通过。
+
 ## 本次 2026-07-14 换牌规则顺序与实例完整性修复
 
 - 按细则 6.2.1.6 将换牌顺序修正为“暂放手牌→从原主卡组顶抽取同数量→暂放牌放回主卡组→洗牌”，避免玩家立即抽回刚换掉的同一卡牌实例；不修改 Fisher–Yates 洗牌实现。
@@ -1450,6 +1485,13 @@ git diff --check
 费用修正器已由 `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」与 `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」起步。后续同类卡继续扩展 `cost-calculator.ts` 的 cost modifier 条件与来源，不要写 UI 层特例。
 
 ## 已知注意点
+
+### 2026-07-14 μ's bp4 014 / 024 目标成员 BLADE shared family
+
+- 完成 `PL!-bp4-014-N` 费用9「星空 凛」与 `PL!-bp4-024-L` 分数2「小夜啼鳥恋詩」两张 queued LIVE_START 卡效；definition 使用 `loveca_20260626015115.xlsx` 精确中文与已映射 `[ブレード]` token。
+- 原 `PL!S-bp2-025-L` 分数1「青空Jumping Heart」单卡 workflow 晋升为 `workflows/shared/live-start-target-member-gain-blade.ts`；有限配置覆盖来源区域、BLADE 数量、目标团体、排除来源与三种条件，不扩为 callback / DSL。
+- `live-modifiers.ts` 中 `PL!-bp4-002` 的私有印刷时点判断晋升为 `domain/rules/live-zone-ability.ts` 纯 query，并由 002 与 014 共用；按合法 LIVE 实例与印刷卡文判断，不依赖 definition 实现状态。
+- focused 覆盖真实 ON_LIVE_START 入队、0/1/多目标、强制非法输入、ACTIVE/WAITING、memberBelow/对方/错误团体过滤、来源/条件/目标 stale、ordered continuation、精确 BLADE modifier 与 effectText token。runner 仅替换 shared import/register ownership。
 
 ### 2026-07-13 第一批 -PR- 常时卡效
 

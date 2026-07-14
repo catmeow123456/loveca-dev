@@ -152,6 +152,8 @@ import {
   BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID,
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
   BP4_018_CONTINUOUS_SUCCESS_SCORE_LEAD_GAIN_TWO_BLADE_ABILITY_ID,
+  PL_BP4_019_CONTINUOUS_SUCCESS_ZONE_MUSE_STAGE_THIS_CARD_SCORE_PLUS_FIVE_ABILITY_ID,
+  PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
   BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_GREEN_BLUE_PURPLE_HEART_ABILITY_ID,
   CARD_ABILITY_DEFINITIONS,
   CardAbilityCategory,
@@ -386,6 +388,8 @@ import {
   PL_N_BP5_021_ON_ENTER_MILL_TWO_OPTIONAL_INSERT_LIVE_FOURTH_FROM_TOP_ABILITY_ID,
   MEMBER_ON_ENTER_ACTIVATE_TWO_WAITING_ENERGY_ABILITY_ID,
   PL_BP4_004_ON_ENTER_SUCCESS_SCORE_SIX_ACTIVATE_TWO_ENERGY_ABILITY_ID,
+  PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
+  PL_BP4_007_ON_ENTER_SUCCESS_LIVE_EXISTS_SCORE_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
   PL_N_BP3_027_LIVE_SUCCESS_GREEN_SURPLUS_NIJIGASAKI_MEMBER_PLACE_WAITING_ENERGY_ABILITY_ID,
   PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -736,6 +740,10 @@ import {
   S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
   S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+  PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
+  PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+  PL_BP4_020_LIVE_START_ONLY_MUSE_STAGE_TARGET_MEMBER_POSITION_CHANGE_ABILITY_ID,
+  PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 
 const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
@@ -5406,6 +5414,20 @@ describe('card effect classification registry', () => {
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       queued: false,
       implemented: true,
+    });
+
+    const bp4019AngelicAngel = getCardAbilityDefinitions('PL!-bp4-019-L');
+    expect(bp4019AngelicAngel).toHaveLength(1);
+    expect(bp4019AngelicAngel[0]).toMatchObject({
+      abilityId:
+        PL_BP4_019_CONTINUOUS_SUCCESS_ZONE_MUSE_STAGE_THIS_CARD_SCORE_PLUS_FIVE_ABILITY_ID,
+      baseCardCodes: ['PL!-bp4-019'],
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.SUCCESS_LIVE_CARD,
+      queued: false,
+      implemented: true,
+      effectText:
+        "【常时】只要此卡存在于自己的成功LIVE卡区，且自己的舞台存在『μ's』的成员，存在于自己的成功LIVE卡区的此卡分数+5。",
     });
 
     for (const cardCode of [
@@ -11510,6 +11532,8 @@ describe('card effect classification registry', () => {
       PL_S_BP5_001_ON_ENTER_RELAY_FROM_NO_ABILITY_DRAW_ABILITY_ID,
       PL_S_BP5_003_ON_ENTER_DISCARD_NO_BLADE_HEART_MEMBERS_RECOVER_AQOURS_LIVE_ABILITY_ID,
       PL_S_BP5_004_ON_ENTER_CHOOSE_AQOURS_BLADE_OR_SAINTSNOW_POSITION_CHANGE_ABILITY_ID,
+      PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
+      PL_BP4_007_ON_ENTER_SUCCESS_LIVE_EXISTS_SCORE_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
       BP4_009_ON_ENTER_OPPONENT_WAIT_OWN_ACTIVE_MEMBER_ABILITY_ID,
       PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
       SP_PR_020_ON_ENTER_LOW_COST_RELAY_PLAY_HAND_LOW_COST_MEMBER_ABILITY_ID,
@@ -12020,6 +12044,84 @@ describe('PL!S-bp2-001 and PL!S-bp2-025 classifications', () => {
         implemented: true,
       })
     );
+  });
+});
+
+describe('PL!-bp4-014 / PL!-bp4-024 target-member BLADE classifications', () => {
+  it('registers 星空 凛 as a queued stage-member LIVE_START ability', () => {
+    expect(getCardAbilityDefinitions('PL!-bp4-014-N')).toContainEqual(
+      expect.objectContaining({
+        abilityId:
+          PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!-bp4-014'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE开始时】自己的LIVE中的LIVE卡，存在不持有【LIVE开始时】能力与【LIVE成功时】能力的卡片的场合，LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[ブレード][ブレード]。',
+      })
+    );
+  });
+
+  it('registers 小夜啼鳥恋詩 as a queued LIVE-card LIVE_START ability', () => {
+    expect(getCardAbilityDefinitions('PL!-bp4-024-L')).toContainEqual(
+      expect.objectContaining({
+        abilityId: PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!-bp4-024'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText:
+          "【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名『μ's』的成员，获得[ブレード]。",
+      })
+    );
+  });
+});
+
+describe('PL!-bp4-020 Love wing bell classifications', () => {
+  it('registers exactly one queued LIVE_START and one success-zone CONTINUOUS ability', () => {
+    expect(getCardAbilityDefinitions('PL!-bp4-020-L')).toEqual([
+      expect.objectContaining({
+        abilityId: PL_BP4_020_LIVE_START_ONLY_MUSE_STAGE_TARGET_MEMBER_POSITION_CHANGE_ABILITY_ID,
+        baseCardCodes: ['PL!-bp4-020'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      }),
+      expect.objectContaining({
+        abilityId: PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!-bp4-020'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.SUCCESS_LIVE_CARD,
+        queued: false,
+        implemented: true,
+      }),
+    ]);
+  });
+});
+
+describe('PL!-bp4-013 fixed-pink target-member Heart classification', () => {
+  it('registers 園田海未 as one queued stage-member LIVE_START ability', () => {
+    expect(getCardAbilityDefinitions('PL!-bp4-013-N')).toEqual([
+      expect.objectContaining({
+        abilityId:
+          PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
+        baseCardCodes: ['PL!-bp4-013'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[桃ハート]。',
+      }),
+    ]);
   });
 });
 
@@ -13023,4 +13125,47 @@ describe('first PL!-bp4 on-enter success-score batch', () => {
     });
     expect(definitions[0]?.effectText).not.toMatch(/source|pending|payload|trigger|来源仍在舞台/iu);
   });
+
+  it.each(['PL!-bp4-006-P', 'PL!-bp4-006-R'])(
+    'keeps %s on one shared success-score look-top definition',
+    (cardCode) => {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId:
+          PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
+        baseCardCodes: ['PL!-bp4-006'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          "【登场】存在于自己的成功LIVE卡区中的卡片的分数合计大于等于3的场合，检视自己卡组顶的5张卡。可以将1张其中的『μ's』的成员卡公开并加入手牌。其余的卡片放置入休息室。",
+      });
+    }
+  );
+
+  it.each(['PL!-bp4-007-P', 'PL!-bp4-007-R'])(
+    'keeps %s on one target-bound on-enter score definition',
+    (cardCode) => {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId:
+          PL_BP4_007_ON_ENTER_SUCCESS_LIVE_EXISTS_SCORE_AT_MOST_ONE_GAIN_SCORE_ABILITY_ID,
+        baseCardCodes: ['PL!-bp4-007'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】自己的成功LIVE卡区存在大于等于1张卡片，且分数合计小于等于1的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。',
+      });
+      expect(
+        CARD_ABILITY_DEFINITIONS.filter((definition) => definition.abilityId === definitions[0]?.abilityId)
+      ).toHaveLength(1);
+    }
+  );
 });
