@@ -11,6 +11,14 @@ import {
   SP_BP1_010_ACTIVATED_PAY_TWO_ENERGY_DISCARD_LOOK_TOP_FIVE_LIELLA_ABILITY_ID,
   SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
   SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID,
+  SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
+  SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_ABILITY_ID,
+  SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+  SP_SD1_004_ON_ENTER_GAIN_LIVE_TOTAL_SCORE_ONE_ABILITY_ID,
+  SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+  SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+  SP_SD1_009_ON_ENTER_PAY_ONE_ENERGY_NINE_LOOK_TOP_FIVE_ABILITY_ID,
+  SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
   SP_PB1_002_CONTINUOUS_ENERGY_TWELVE_LIVE_SCORE_ABILITY_ID,
   SP_PB1_005_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -13570,5 +13578,190 @@ describe('PL!SP-bp1 fourth batch definitions', () => {
 
   it('keeps excluded candidate PL!SP-bp1-025-L unregistered', () => {
     expect(getCardAbilityDefinitions('PL!SP-bp1-025-L')).toEqual([]);
+  });
+});
+
+describe('PL!SP-sd1 first activated batch definitions', () => {
+  it('classifies PL!SP-sd1-005-SD as an independent pay-three recovery ability', () => {
+    expect(getCardAbilityDefinitions('PL!SP-sd1-005-SD')).toEqual([
+      expect.objectContaining({
+        abilityId: SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+        baseCardCodes: ['PL!SP-sd1-005'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+        effectText: '【起动】【1回合1次】[E][E][E]：从自己的休息室将1张LIVE卡加入手牌。',
+        activatedUi: {
+          abilityId: SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+          text: '【起动】【1回合1次】[E][E][E]：从自己的休息室将1张LIVE卡加入手牌。',
+          title: '支付[E][E][E]，从休息室回收1张LIVE卡',
+        },
+      }),
+    ]);
+  });
+
+  it.each(['PL!SP-sd1-011-P', 'PL!SP-sd1-011-SD', 'PL!SP-sd1-011-SD2'])(
+    'classifies %s through the base-code pay-two waiting-energy definition',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+          baseCardCodes: ['PL!SP-sd1-011'],
+          category: CardAbilityCategory.ACTIVATED,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: false,
+          implemented: true,
+          perTurnLimit: 1,
+          effectText:
+            '【起动】【1回合1次】[E][E]：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。',
+          activatedUi: {
+            abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+            text: '【起动】【1回合1次】[E][E]：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。',
+            title: '支付[E][E]，放置1张待机能量',
+          },
+        }),
+      ]);
+    }
+  );
+
+  it.each(['PL!SP-sd1-023-SD', 'PL!SP-sd1-023-SRL', 'PL!SP-sd1-025-SD', 'PL!SP-sd1-025-SRL'])(
+    'keeps excluded rules-placeholder card %s without a definition',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
+});
+
+describe('PL!SP-sd1 second on-enter batch definitions', () => {
+  it.each([
+    [
+      'PL!SP-sd1-001-SD',
+      SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
+      'PL!SP-sd1-001',
+      '【登场】每存在6张自己的能量，抽1张卡。',
+    ],
+    [
+      'PL!SP-sd1-004-SD',
+      SP_SD1_004_ON_ENTER_GAIN_LIVE_TOTAL_SCORE_ONE_ABILITY_ID,
+      'PL!SP-sd1-004',
+      '【登场】LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。',
+    ],
+    [
+      'PL!SP-sd1-002-SD',
+      SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_ABILITY_ID,
+      'PL!SP-sd1-002',
+      '【登场】可以从手牌将1张费用小于等于4的『Liella!』的成员卡登场到舞台。\n\n（也可以因此效果登场至已经存在成员的区域。但是，无法登场至此回合登场至舞台的成员所在的区域。）',
+    ],
+  ] as const)(
+    'classifies %s as one independent queued ON_ENTER ability with exact Excel text',
+    (cardCode, abilityId, baseCardCode, effectText) => {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toHaveLength(1);
+      expect(definitions[0]).toMatchObject({
+        abilityId,
+        baseCardCodes: [baseCardCode],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText,
+      });
+      expect(definitions[0]).not.toHaveProperty('perTurnLimit');
+      expect(definitions[0]).not.toHaveProperty('activatedUi');
+    }
+  );
+
+  it('preserves the approved 005/011 definitions and leaves every excluded SP-sd1 candidate unregistered', () => {
+    expect(getCardAbilityDefinitions('PL!SP-sd1-005-SD')).toContainEqual(
+      expect.objectContaining({
+        abilityId: SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+        implemented: true,
+      })
+    );
+    expect(getCardAbilityDefinitions('PL!SP-sd1-011-SD')).toContainEqual(
+      expect.objectContaining({
+        abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+        implemented: true,
+      })
+    );
+    for (const cardCode of [
+      'PL!SP-sd1-023-SD',
+      'PL!SP-sd1-025-SD',
+    ]) {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  });
+
+  it('maps 009 SD to one independent implemented ON_ENTER definition with exact Excel text', () => {
+    expect(getCardAbilityDefinitions('PL!SP-sd1-009-SD')).toEqual([
+      expect.objectContaining({
+        abilityId: SP_SD1_009_ON_ENTER_PAY_ONE_ENERGY_NINE_LOOK_TOP_FIVE_ABILITY_ID,
+        baseCardCodes: ['PL!SP-sd1-009'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】可以支付[E]：自己的能量大于等于9张的场合，检视自己卡组顶的5张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。',
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!SP-sd1-009-SD')[0]).not.toHaveProperty('perTurnLimit');
+    expect(getCardAbilityDefinitions('PL!SP-sd1-009-SD')[0]).not.toHaveProperty('activatedUi');
+  });
+});
+
+describe('PL!SP-sd1-003 LIVE_START definition', () => {
+  it.each(['PL!SP-sd1-003-P', 'PL!SP-sd1-003-SD', 'PL!SP-sd1-003-SD2'])(
+    'maps %s to one independent implemented definition with exact Excel text',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+          baseCardCodes: ['PL!SP-sd1-003'],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+          effectText:
+            '【LIVE开始时】可以将2张手牌放置入休息室：LIVE结束时为止，获得[BLADE][BLADE][BLADE][BLADE][BLADE]。',
+        }),
+      ]);
+    }
+  );
+
+  it.each([
+    'PL!SP-sd1-023-SD',
+    'PL!SP-sd1-023-SRL',
+    'PL!SP-sd1-025-SD',
+    'PL!SP-sd1-025-SRL',
+  ])('keeps excluded or rules-placeholder card %s without a definition', (cardCode) => {
+    expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+  });
+});
+
+describe('PL!SP-sd1 fifth batch definition', () => {
+  it('maps only the real SD printing through one independent queued ON_ENTER identity', () => {
+    expect(getCardAbilityDefinitions('PL!SP-sd1-007-SD')).toEqual([
+      expect.objectContaining({
+        abilityId: SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+        baseCardCodes: ['PL!SP-sd1-007'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】可以支付[E][E]：从自己的休息室将1张『Liella!』的成员卡加入手牌。',
+      }),
+    ]);
+    const definition = getCardAbilityDefinitions('PL!SP-sd1-007-SD')[0]!;
+    expect(definition).not.toHaveProperty('perTurnLimit');
+    expect(definition).not.toHaveProperty('activatedUi');
+    expect(definition).not.toHaveProperty('cardCodes');
   });
 });

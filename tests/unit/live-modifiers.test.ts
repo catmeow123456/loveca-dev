@@ -38,6 +38,7 @@ import {
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
   replaceLiveModifier,
+  removeStageMemberBoundLiveModifiers,
   removeTargetMemberBoundLiveModifiers,
 } from '../../src/domain/rules/live-modifiers';
 import { applyHeartRequirementModifiers } from '../../src/domain/rules/live-requirement-modifiers';
@@ -9257,6 +9258,39 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
     ]);
     expect(afterOtherTargetLeaves.liveResolution.liveModifiers).toEqual([]);
     expect(afterOtherTargetLeaves.liveResolution.playerScoreBonuses.has('p1')).toBe(false);
+  });
+
+  it('removes source-member BLADE by member instance while preserving unrelated modifiers', () => {
+    const matchingBlade = {
+      kind: 'BLADE' as const,
+      playerId: 'p1',
+      countDelta: 5,
+      sourceCardId: 'leaving-member',
+      abilityId: 'fixed-five',
+    };
+    const otherBlade = {
+      kind: 'BLADE' as const,
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: 'other-member',
+      abilityId: 'other-blade',
+    };
+    const playerScore = {
+      kind: 'SCORE' as const,
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: 'leaving-member',
+      abilityId: 'unbound-score',
+    };
+    let game = createGameState('remove-stage-member-bound-blade', 'p1', 'P1', 'p2', 'P2');
+    game = addLiveModifier(game, matchingBlade);
+    game = addLiveModifier(game, otherBlade);
+    game = addLiveModifier(game, playerScore);
+
+    expect(removeStageMemberBoundLiveModifiers(game, ['leaving-member']).liveResolution.liveModifiers).toEqual([
+      otherBlade,
+      playerScore,
+    ]);
   });
 });
 

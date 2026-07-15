@@ -492,7 +492,8 @@ describe('shared on-enter activate waiting energy workflow', () => {
       scenario.energyCardIds[0]!,
       scenario.energyCardIds[2]!,
     ]);
-    expect(rejected.activeEffect).toBeNull();
+    expect(rejected).toBe(stale);
+    expect(rejected.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
     expect(rejected.pendingAbilities).toHaveLength(1);
     expect(
       rejected.actionHistory.some(
@@ -502,5 +503,17 @@ describe('shared on-enter activate waiting energy workflow', () => {
           action.payload.step === 'ON_ENTER_SUCCESS_LIVE_SCORE_SIX_ACTIVATE_TWO_ENERGY'
       )
     ).toBe(false);
+
+    const resolved = confirmEnergySelection(rejected, [
+      scenario.energyCardIds[1]!,
+      scenario.energyCardIds[2]!,
+    ]);
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toHaveLength(0);
+    expect(
+      [scenario.energyCardIds[1]!, scenario.energyCardIds[2]!].map(
+        (cardId) => resolved.players[0].energyZone.cardStates.get(cardId)?.orientation
+      )
+    ).toEqual([OrientationState.ACTIVE, OrientationState.ACTIVE]);
   });
 });

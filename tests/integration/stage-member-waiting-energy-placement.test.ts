@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
-import { registerCards, type GameState } from '../../src/domain/entities/game';
+import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
 import {
   createActivateAbilityCommand,
+  createConfirmEffectStepCommand,
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
@@ -13,6 +14,7 @@ import {
   SP_BP4_005_ON_ENTER_LIELLA_RELAY_ENERGY_SEVEN_PLACE_TWO_WAITING_ENERGY_ABILITY_ID,
   SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP5_021_ACTIVATED_SELF_SACRIFICE_ENERGY_SIX_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   collectLiveModifiers,
@@ -93,6 +95,7 @@ function setEnergyZones(
     readonly energyZoneCount: number;
     readonly energyDeckCount: number;
     readonly activeEnergyCount?: number;
+    readonly markedEnergyIndices?: readonly number[];
   }
 ): {
   readonly energyZoneCardIds: readonly string[];
@@ -117,8 +120,7 @@ function setEnergyZones(
     energyZoneCardIds.map((cardId, index) => [
       cardId,
       {
-        orientation:
-          index < activeEnergyCount ? OrientationState.ACTIVE : OrientationState.WAITING,
+        orientation: index < activeEnergyCount ? OrientationState.ACTIVE : OrientationState.WAITING,
         face: FaceState.FACE_UP,
       },
     ])
@@ -188,6 +190,21 @@ function setupActivatedScenario(options: {
           ],
         ]
   );
+  (
+    state as GameState & {
+      energyActivePhaseSkips: Array<{
+        playerId: string;
+        energyCardId: string;
+        sourceCardId: string;
+        abilityId: string;
+      }>;
+    }
+  ).energyActivePhaseSkips = (options.markedEnergyIndices ?? []).map((index) => ({
+    playerId: PLAYER1,
+    energyCardId: energyZoneCardIds[index]!,
+    sourceCardId: 'marker-source',
+    abilityId: 'marker-ability',
+  }));
 
   return {
     session,
@@ -199,6 +216,10 @@ function setupActivatedScenario(options: {
 
 function activate(session: GameSession, sourceId: string, abilityId: string) {
   return session.executeCommand(createActivateAbilityCommand(PLAYER1, sourceId, abilityId));
+}
+
+function setAuthorityState(session: GameSession, game: GameState): void {
+  (session as unknown as { authorityState: GameState }).authorityState = game;
 }
 
 describe('PL!SP-bp5-021 Margarete activated energy placement', () => {
@@ -297,9 +318,9 @@ describe('PL!SP-bp4-010 Margarete activated energy placement', () => {
     expect(
       session.state?.players[0].energyZone.cardStates.get(energyZoneCardIds[0]!)?.orientation
     ).toBe(OrientationState.WAITING);
-    expect(
-      session.state?.players[0].memberSlots.cardStates.get(sourceId)?.orientation
-    ).toBe(OrientationState.WAITING);
+    expect(session.state?.players[0].memberSlots.cardStates.get(sourceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
     expect(session.state?.players[0].energyZone.cardIds).toContain(energyDeckCardIds[0]);
     expect(
       session.state?.players[0].energyZone.cardStates.get(energyDeckCardIds[0]!)?.orientation
@@ -388,6 +409,326 @@ describe('PL!SP-bp4-010 Margarete activated energy placement', () => {
           action.payload.step === 'ABILITY_USE'
       )
     ).toHaveLength(1);
+  });
+});
+
+describe('PL!SP-sd1-011 Tomari activated waiting-energy placement', () => {
+  it.each(['PL!SP-sd1-011-P', 'PL!SP-sd1-011-SD', 'PL!SP-sd1-011-SD2'])(
+    '%s pays two ACTIVE energy and places one WAITING energy through the base definition',
+    (sourceCardCode) => {
+      const { session, sourceId, energyZoneCardIds, energyDeckCardIds } = setupActivatedScenario({
+        sourceCardCode,
+        sourceName: '鬼塚冬毬',
+        sourceCost: 7,
+        energyZoneCount: 3,
+        energyDeckCount: 2,
+      });
+
+      expect(
+        activate(
+          session,
+          sourceId,
+          SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+        ).success
+      ).toBe(true);
+      const payCost = session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId ===
+            SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      );
+      expect(payCost?.payload.energyCardIds).toEqual(energyZoneCardIds.slice(0, 2));
+      expect(
+        session.state?.players[0].energyZone.cardStates.get(energyZoneCardIds[2]!)?.orientation
+      ).toBe(OrientationState.ACTIVE);
+      expect(session.state?.players[0].energyZone.cardIds).toContain(energyDeckCardIds[0]);
+      expect(
+        session.state?.players[0].energyZone.cardStates.get(energyDeckCardIds[0]!)?.orientation
+      ).toBe(OrientationState.WAITING);
+      const placementEvent = session.state?.eventLog.find(
+        (entry) => entry.event.eventType === TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT
+      )?.event;
+      expect(placementEvent).toMatchObject({
+        targetPlayerId: PLAYER1,
+        placedEnergyCardIds: [energyDeckCardIds[0]],
+        orientation: OrientationState.WAITING,
+        cause: {
+          kind: 'CARD_EFFECT',
+          playerId: PLAYER1,
+          sourceCardId: sourceId,
+          abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+        },
+      });
+      expect(
+        session.state?.actionHistory.find(
+          (action) =>
+            action.type === 'RESOLVE_ABILITY' &&
+            action.payload.step === 'PAY_TWO_ENERGY_PLACE_WAITING_ENERGY'
+        )?.payload
+      ).toMatchObject({
+        paidEnergyCardIds: energyZoneCardIds.slice(0, 2),
+        placedEnergyCardIds: [energyDeckCardIds[0]],
+      });
+    }
+  );
+
+  it('opens exact special-energy payment with governed copy and validates ids', () => {
+    const scenario = setupActivatedScenario({
+      sourceCardCode: 'PL!SP-sd1-011-SD',
+      sourceName: '鬼塚冬毬',
+      sourceCost: 7,
+      energyZoneCount: 3,
+      energyDeckCount: 1,
+      markedEnergyIndices: [0],
+    });
+    expect(
+      activate(
+        scenario.session,
+        scenario.sourceId,
+        SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      ).success
+    ).toBe(true);
+    const payment = scenario.session.state!.activeEffect!;
+    expect(payment).toMatchObject({
+      stepId: 'COMMON_ENERGY_OPERATION_SELECTION',
+      stepText: '请选择用于支付[E][E]的活跃能量卡。',
+      selectionLabel: '选择用于支付费用的能量卡',
+      confirmSelectionLabel: '支付费用',
+      minSelectableCards: 2,
+      maxSelectableCards: 2,
+    });
+    for (const selectedCardIds of [
+      [scenario.energyZoneCardIds[0]!, scenario.energyZoneCardIds[0]!],
+      [scenario.energyZoneCardIds[0]!, 'illegal-energy'],
+    ]) {
+      expect(
+        scenario.session.executeCommand(
+          createConfirmEffectStepCommand(
+            PLAYER1,
+            payment.id,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            selectedCardIds
+          )
+        ).success
+      ).toBe(false);
+      expect(scenario.session.state?.activeEffect?.stepId).toBe(
+        'COMMON_ENERGY_OPERATION_SELECTION'
+      );
+    }
+    const selectedCardIds = scenario.energyZoneCardIds.slice(1, 3);
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          payment.id,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          selectedCardIds
+        )
+      ).success
+    ).toBe(true);
+    expect(
+      scenario.session.state?.actionHistory.find((action) => action.type === 'PAY_COST')?.payload
+        .energyCardIds
+    ).toEqual(selectedCardIds);
+  });
+
+  it('rejects a stale special-energy id without payment, placement, or turn use', () => {
+    const scenario = setupActivatedScenario({
+      sourceCardCode: 'PL!SP-sd1-011-SD',
+      sourceName: '鬼塚冬毬',
+      sourceCost: 7,
+      energyZoneCount: 3,
+      energyDeckCount: 1,
+      markedEnergyIndices: [0],
+    });
+    expect(
+      activate(
+        scenario.session,
+        scenario.sourceId,
+        SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      ).success
+    ).toBe(true);
+    const payment = scenario.session.state!.activeEffect!;
+    const staleId = scenario.energyZoneCardIds[0]!;
+    const staleState = updatePlayer(scenario.session.state!, PLAYER1, (player) => {
+      const cardStates = new Map(player.energyZone.cardStates);
+      cardStates.delete(staleId);
+      return {
+        ...player,
+        energyZone: {
+          ...player.energyZone,
+          cardIds: player.energyZone.cardIds.filter((cardId) => cardId !== staleId),
+          cardStates,
+        },
+      };
+    });
+    setAuthorityState(scenario.session, staleState);
+    const actionHistoryLength = scenario.session.state!.actionHistory.length;
+    const staleResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        payment.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [staleId, scenario.energyZoneCardIds[1]!]
+      )
+    );
+    expect(staleResult.success).toBe(false);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      id: payment.id,
+      stepId: 'COMMON_ENERGY_OPERATION_SELECTION',
+    });
+    expect(scenario.session.state?.actionHistory).toHaveLength(actionHistoryLength);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.payload.abilityId ===
+            SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID &&
+          (action.type === 'PAY_COST' ||
+            action.type === 'RESOLVE_ABILITY' ||
+            action.payload.step === 'ABILITY_USE')
+      )
+    ).toBe(false);
+    expect(
+      scenario.session.state?.eventLog.some(
+        (entry) => entry.event.eventType === TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT
+      )
+    ).toBe(false);
+    expect(scenario.session.state?.players[0].energyDeck.cardIds).toEqual(
+      scenario.energyDeckCardIds
+    );
+    expect(
+      scenario.energyZoneCardIds.slice(1).map(
+        (cardId) =>
+          scenario.session.state?.players[0].energyZone.cardStates.get(cardId)?.orientation
+      )
+    ).toEqual([OrientationState.ACTIVE, OrientationState.ACTIVE]);
+
+    const validEnergyCardIds = scenario.energyZoneCardIds.slice(1, 3);
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          payment.id,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          validEnergyCardIds
+        )
+      ).success
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(
+      scenario.session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId ===
+            SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      )?.payload.energyCardIds
+    ).toEqual(validEnergyCardIds);
+    expect(scenario.session.state?.players[0].energyDeck.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].energyZone.cardIds).toContain(
+      scenario.energyDeckCardIds[0]
+    );
+    expect(
+      scenario.session.state?.players[0].energyZone.cardStates.get(
+        scenario.energyDeckCardIds[0]!
+      )?.orientation
+    ).toBe(OrientationState.WAITING);
+  });
+
+  it('keeps cost and turn1 use when the energy deck is empty, then rejects a repeat', () => {
+    const { session, sourceId, energyZoneCardIds } = setupActivatedScenario({
+      sourceCardCode: 'PL!SP-sd1-011-P',
+      sourceName: '鬼塚冬毬',
+      sourceCost: 7,
+      energyZoneCount: 3,
+      energyDeckCount: 0,
+    });
+    expect(
+      activate(
+        session,
+        sourceId,
+        SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      ).success
+    ).toBe(true);
+    expect(
+      energyZoneCardIds
+        .slice(0, 2)
+        .map((cardId) => session.state?.players[0].energyZone.cardStates.get(cardId)?.orientation)
+    ).toEqual([OrientationState.WAITING, OrientationState.WAITING]);
+    expect(
+      session.state?.actionHistory.find(
+        (action) => action.payload.step === 'PAY_TWO_ENERGY_PLACE_WAITING_ENERGY'
+      )?.payload.placedEnergyCardIds
+    ).toEqual([]);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.payload.abilityId ===
+            SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID &&
+          action.payload.step === 'ABILITY_USE'
+      )
+    ).toHaveLength(1);
+    expect(
+      activate(
+        session,
+        sourceId,
+        SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      ).success
+    ).toBe(false);
+  });
+
+  it.each([
+    ['insufficient ACTIVE energy', { activeEnergyCount: 1 }],
+    ['wrong phase', { wrongPhase: true }],
+    ['not active player', { inactivePlayer: true }],
+    ['source not on stage', { sourceOnStage: false }],
+  ])('does not activate when %s', (_label, options) => {
+    const scenario = setupActivatedScenario({
+      sourceCardCode: 'PL!SP-sd1-011-SD',
+      sourceName: '鬼塚冬毬',
+      sourceCost: 7,
+      sourceOnStage: options.sourceOnStage,
+      energyZoneCount: 2,
+      activeEnergyCount: options.activeEnergyCount,
+      energyDeckCount: 1,
+    });
+    if (options.wrongPhase) {
+      setAuthorityState(scenario.session, {
+        ...scenario.session.state!,
+        currentPhase: GamePhase.LIVE_SET,
+      });
+    }
+    if (options.inactivePlayer) {
+      setAuthorityState(scenario.session, { ...scenario.session.state!, activePlayerIndex: 1 });
+    }
+    expect(
+      activate(
+        scenario.session,
+        scenario.sourceId,
+        SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      ).success
+    ).toBe(false);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.payload.abilityId ===
+          SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(scenario.session.state?.players[0].energyDeck.cardIds).toEqual(
+      scenario.energyDeckCardIds
+    );
   });
 });
 

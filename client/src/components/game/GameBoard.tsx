@@ -3255,7 +3255,7 @@ export const GameBoard = memo(function GameBoard({
                         canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                       }`}
                     >
-                      继续处理
+                      {activeEffect.skipSelectionLabel ?? '继续处理'}
                     </button>
                   )}
               </div>

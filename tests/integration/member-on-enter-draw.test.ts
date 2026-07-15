@@ -19,6 +19,8 @@ import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
+import { createGameSession } from '../../src/application/game-session';
 import { GameService } from '../../src/application/game-service';
 import {
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
@@ -26,15 +28,18 @@ import {
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
   SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID,
+  SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
   SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
+  SubPhase,
   TriggerCondition,
   ZoneType,
 } from '../../src/shared/types/enums';
@@ -574,6 +579,256 @@ describe('member on-enter draw shared workflow', () => {
           action.payload.step === 'ON_ENTER_DRAW_ONE'
       )
     ).toBe(true);
+  });
+});
+
+function setupSpSd1001(options: {
+  readonly energyCount: number;
+  readonly deckCount?: number;
+  readonly activeEnergyCount?: number;
+  readonly markedEnergyIndices?: readonly number[];
+  readonly includeSourceOnStage?: boolean;
+}) {
+  const source = createCardInstance(
+    createMember('PL!SP-sd1-001-SD', '澁谷かのん', 11),
+    PLAYER1,
+    'sp-sd1-001-source'
+  );
+  const energyCards = Array.from({ length: options.energyCount }, (_, index) =>
+    createCardInstance(createEnergy(`SP-SD1-ENERGY-${index}`), PLAYER1, `sp-sd1-energy-${index}`)
+  );
+  const deckCards = Array.from({ length: options.deckCount ?? 3 }, (_, index) =>
+    createCardInstance(createMember(`SP-SD1-DRAW-${index}`), PLAYER1, `sp-sd1-draw-${index}`)
+  );
+  let game = registerCards(
+    createGameState('sp-sd1-001', PLAYER1, 'P1', PLAYER2, 'P2'),
+    [source, ...energyCards, ...deckCards]
+  );
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    mainDeck: { ...player.mainDeck, cardIds: deckCards.map((card) => card.instanceId) },
+    energyZone: {
+      ...player.energyZone,
+      cardIds: energyCards.map((card) => card.instanceId),
+      cardStates: new Map(
+        energyCards.map((card, index) => [
+          card.instanceId,
+          {
+            orientation:
+              index < (options.activeEnergyCount ?? options.energyCount)
+                ? OrientationState.ACTIVE
+                : OrientationState.WAITING,
+            face: FaceState.FACE_UP,
+          },
+        ])
+      ),
+    },
+    memberSlots:
+      options.includeSourceOnStage === false
+        ? player.memberSlots
+        : placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+  }));
+  game = {
+    ...game,
+    energyActivePhaseSkips: (options.markedEnergyIndices ?? []).map((index) => ({
+      playerId: PLAYER1,
+      energyCardId: energyCards[index]!.instanceId,
+      sourceCardId: 'marker-source',
+      abilityId: 'marker-ability',
+    })),
+  };
+  return { game, source, energyCards, deckCards };
+}
+
+function resolveSpSd1001(game: GameState, sourceCardId = 'sp-sd1-001-source') {
+  return resolvePendingCardEffects({
+    ...game,
+    pendingAbilities: [
+      pendingAbility(
+        'sp-sd1-001-pending',
+        sourceCardId,
+        SlotPosition.CENTER,
+        SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID
+      ),
+    ],
+  }).gameState;
+}
+
+describe('PL!SP-sd1-001-SD 费用11 澁谷かのん dynamic energy draw', () => {
+  it('uses real PLAY_MEMBER -> ON_ENTER_STAGE and resolves from the current energy count', () => {
+    const session = createGameSession();
+    session.createGame('sp-sd1-001-real-play', PLAYER1, 'P1', PLAYER2, 'P2');
+    const scenario = setupSpSd1001({ energyCount: 6, deckCount: 1 });
+    let game = scenario.game;
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [scenario.source.instanceId] },
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    (session as unknown as { authorityState: GameState }).authorityState = {
+      ...game,
+      currentPhase: GamePhase.MAIN_PHASE,
+      currentSubPhase: SubPhase.NONE,
+      activePlayerIndex: 0,
+    };
+
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.LEFT, {
+        freePlay: true,
+      })
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(session.state!.pendingAbilities).toEqual([]);
+    expect(session.state!.players[0].hand.cardIds).toContain(scenario.deckCards[0]!.instanceId);
+    expect(
+      session.state!.actionHistory.find(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId === SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID
+      )?.payload
+    ).toMatchObject({
+      sourceCardId: scenario.source.instanceId,
+      sourceSlot: SlotPosition.LEFT,
+      timingId: TriggerCondition.ON_ENTER_STAGE,
+    });
+  });
+
+  it.each([
+    [0, 0],
+    [5, 0],
+    [6, 1],
+    [11, 1],
+    [12, 2],
+  ] as const)('draws floor(%i / 6) cards and records exact requested/actual payload', (energyCount, expected) => {
+    const scenario = setupSpSd1001({ energyCount, deckCount: 3 });
+    const resolved = resolveSpSd1001(scenario.game);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.players[0].hand.cardIds).toEqual(
+      scenario.deckCards.slice(0, expected).map((card) => card.instanceId)
+    );
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
+      step: 'ON_ENTER_DRAW_PER_SIX_ENERGY',
+      energyCount,
+      energyPerDraw: 6,
+      requestedDrawCount: expected,
+      drawnCardIds: scenario.deckCards.slice(0, expected).map((card) => card.instanceId),
+      drawCount: expected,
+    });
+  });
+
+  it('counts ACTIVE, WAITING, and marker-bearing energy cards uniformly', () => {
+    const scenario = setupSpSd1001({
+      energyCount: 6,
+      deckCount: 1,
+      activeEnergyCount: 2,
+      markedEnergyIndices: [1, 4],
+    });
+    const resolved = resolveSpSd1001(scenario.game);
+    expect(resolved.players[0].hand.cardIds).toEqual([scenario.deckCards[0]!.instanceId]);
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      energyCount: 6,
+      requestedDrawCount: 1,
+      drawCount: 1,
+    });
+    expect(resolved.energyActivePhaseSkips).toEqual(scenario.game.energyActivePhaseSkips);
+  });
+
+  it('records the actual draw when two are requested but only one card is available', () => {
+    const scenario = setupSpSd1001({ energyCount: 12, deckCount: 1 });
+    const resolved = resolveSpSd1001(scenario.game);
+    expect(resolved.players[0].hand.cardIds).toEqual([scenario.deckCards[0]!.instanceId]);
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      energyCount: 12,
+      energyPerDraw: 6,
+      requestedDrawCount: 2,
+      drawnCardIds: [scenario.deckCards[0]!.instanceId],
+      drawCount: 1,
+    });
+  });
+
+  it('consumes the pending and continues safely when no card can be drawn', () => {
+    const scenario = setupSpSd1001({ energyCount: 6, deckCount: 0 });
+    const resolved = resolveSpSd1001(scenario.game);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      requestedDrawCount: 1,
+      drawnCardIds: [],
+      drawCount: 0,
+    });
+  });
+
+  it('still resolves from the current energy count after the triggering source leaves stage', () => {
+    const scenario = setupSpSd1001({ energyCount: 12, deckCount: 2 });
+    let queued = {
+      ...scenario.game,
+      pendingAbilities: [
+        pendingAbility(
+          'source-left',
+          scenario.source.instanceId,
+          SlotPosition.CENTER,
+          SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID
+        ),
+      ],
+    };
+    queued = updatePlayer(queued, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      waitingRoom: { ...player.waitingRoom, cardIds: [scenario.source.instanceId] },
+    }));
+    const resolved = resolvePendingCardEffects(queued).gameState;
+    expect(resolved.players[0].hand.cardIds).toEqual(
+      scenario.deckCards.map((card) => card.instanceId)
+    );
+    expect(resolved.pendingAbilities).toEqual([]);
+  });
+
+  it('preserves ordered continuation into a later pending ability', () => {
+    const scenario = setupSpSd1001({ energyCount: 6, deckCount: 2 });
+    const second = createCardInstance(createMember('PL!HS-bp5-011-N'), PLAYER1, 'later-source');
+    let game = registerCards(scenario.game, [second]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, second.instanceId),
+    }));
+    const selection = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'dynamic-draw',
+          scenario.source.instanceId,
+          SlotPosition.CENTER,
+          SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID
+        ),
+        pendingAbility('fixed-draw', second.instanceId, SlotPosition.RIGHT),
+      ],
+    }).gameState;
+    expect(selection.activeEffect?.canResolveInOrder).toBe(true);
+    const resolved = confirmActiveEffectStep(
+      selection,
+      PLAYER1,
+      selection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.players[0].hand.cardIds).toEqual(
+      scenario.deckCards.map((card) => card.instanceId)
+    );
+    expect(
+      resolved.actionHistory
+        .filter((action) => action.type === 'RESOLVE_ABILITY')
+        .map((action) => action.payload.abilityId)
+    ).toEqual(
+      expect.arrayContaining([
+        SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
+        MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+      ])
+    );
   });
 });
 

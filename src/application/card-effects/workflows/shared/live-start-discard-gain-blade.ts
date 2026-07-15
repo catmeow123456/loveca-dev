@@ -9,6 +9,7 @@ import {
 import {
   S_BP3_003_LIVE_START_DISCARD_UP_TO_TWO_GAIN_BLADE_ABILITY_ID,
   SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID,
+  SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { addBladeLiveModifierForSourceMember, drawCardsForPlayer } from '../../runtime/actions.js';
@@ -23,12 +24,16 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
+type BladeReward =
+  | { readonly kind: 'PER_DISCARD'; readonly amountPerCard: number }
+  | { readonly kind: 'FIXED_TOTAL'; readonly amount: number };
+
 interface LiveStartDiscardGainBladeConfig {
   readonly abilityId: string;
   readonly stepId: string;
   readonly minDiscardCount: number;
   readonly maxDiscardCount: number;
-  readonly bladePerDiscard: number;
+  readonly bladeReward: BladeReward;
   readonly drawOneIfDiscardedLive: boolean;
   readonly stepText: string;
   readonly actionStep: string;
@@ -41,7 +46,7 @@ const CONFIGS: readonly LiveStartDiscardGainBladeConfig[] = [
     stepId: 'SP_PR_LIVE_START_SELECT_DISCARD_FOR_BLADE_DRAW',
     minDiscardCount: 1,
     maxDiscardCount: 1,
-    bladePerDiscard: 1,
+    bladeReward: { kind: 'PER_DISCARD', amountPerCard: 1 },
     drawOneIfDiscardedLive: true,
     stepText: '可以将1张手牌放置入休息室。',
     actionStep: 'DISCARD_GAIN_BLADE',
@@ -52,10 +57,21 @@ const CONFIGS: readonly LiveStartDiscardGainBladeConfig[] = [
     stepId: 'S_BP3_003_LIVE_START_SELECT_UP_TO_TWO_DISCARD',
     minDiscardCount: 1,
     maxDiscardCount: 2,
-    bladePerDiscard: 2,
+    bladeReward: { kind: 'PER_DISCARD', amountPerCard: 2 },
     drawOneIfDiscardedLive: false,
     stepText: '可以将至多2张手牌放置入休息室；每放置1张，此成员获得[BLADE][BLADE]。',
     actionStep: 'DISCARD_UP_TO_TWO_GAIN_TWO_BLADE_EACH',
+  },
+  {
+    abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+    stepId: 'SP_SD1_003_LIVE_START_SELECT_TWO_DISCARD',
+    minDiscardCount: 2,
+    maxDiscardCount: 2,
+    bladeReward: { kind: 'FIXED_TOTAL', amount: 5 },
+    drawOneIfDiscardedLive: false,
+    stepText:
+      '可以将2张手牌放置入休息室：LIVE结束时为止，获得[BLADE][BLADE][BLADE][BLADE][BLADE]。',
+    actionStep: 'DISCARD_TWO_GAIN_FIVE_BLADE',
   },
 ] as const;
 
@@ -96,8 +112,17 @@ function startLiveStartDiscardGainBlade(
   if (!player || sourceSlot === null) {
     return skipPendingAbility(game, ability, ability.controllerId, orderedResolution, continuePendingCardEffects, 'SOURCE_NOT_ON_STAGE');
   }
-  if (player.hand.cardIds.length === 0) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, 'NO_HAND_TO_DISCARD');
+  if (player.hand.cardIds.length < config.minDiscardCount) {
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects,
+      player.hand.cardIds.length === 0
+        ? 'NO_HAND_TO_DISCARD'
+        : 'INSUFFICIENT_HAND_TO_DISCARD'
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -166,7 +191,10 @@ function finishLiveStartDiscardGainBlade(
   );
   if (!discardResult) return game;
 
-  const bladeBonus = discardResult.discardedCardIds.length * config.bladePerDiscard;
+  const bladeBonus =
+    config.bladeReward.kind === 'FIXED_TOTAL'
+      ? config.bladeReward.amount
+      : discardResult.discardedCardIds.length * config.bladeReward.amountPerCard;
   const bladeResult = addBladeLiveModifierForSourceMember(discardResult.gameState, {
     playerId: player.id,
     sourceCardId: effect.sourceCardId,

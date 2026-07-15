@@ -127,6 +127,15 @@ function formatViolations(violations: readonly GovernanceViolation[]): string {
 }
 
 describe('card effect display text governance', () => {
+  it('uses the configured skip label for skippable effects without selectable inputs', () => {
+    const gameBoardSource = readFileSync(
+      join(process.cwd(), 'client/src/components/game/GameBoard.tsx'),
+      'utf8'
+    );
+
+    expect(gameBoardSource).toContain("{activeEffect.skipSelectionLabel ?? '继续处理'}");
+  });
+
   it('keeps the shared activated and Echoes Beyond texts at their Excel Chinese source', () => {
     expect(
       CARD_ABILITY_DEFINITIONS.find(

@@ -251,6 +251,8 @@ export const SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID =
   'PL!SP-bp1-024:live-success-stage-kanon-keke-draw';
 export const SP_BP1_012_ON_ENTER_PAY_ENERGY_LOOK_TOP_THREE_SELECT_ONE_ABILITY_ID =
   'PL!SP-bp1-012:on-enter-pay-energy-look-top-three-select-one';
+export const SP_SD1_009_ON_ENTER_PAY_ONE_ENERGY_NINE_LOOK_TOP_FIVE_ABILITY_ID =
+  'PL!SP-sd1-009:on-enter-pay-one-energy-nine-look-top-five';
 export const SP_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp1-023:live-success-higher-score-place-waiting-energy';
 export const BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID =
@@ -597,6 +599,20 @@ export const SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_
   'PL!SP-bp1-026:live-start-five-different-liella-members-reduce-rainbow-requirement';
 export const SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID =
   'PL!SP-bp1-027:live-start-energy-twelve-score';
+export const SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID =
+  'PL!SP-sd1-001:on-enter-draw-per-six-energy';
+export const SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-sd1-002:on-enter-play-low-cost-liella-member';
+export const SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID =
+  'PL!SP-sd1-003:live-start-discard-two-gain-five-blade';
+export const SP_SD1_004_ON_ENTER_GAIN_LIVE_TOTAL_SCORE_ONE_ABILITY_ID =
+  'PL!SP-sd1-004:on-enter-gain-live-total-score-one';
+export const SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID =
+  'PL!SP-sd1-005:activated-pay-three-energy-recover-live';
+export const SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID =
+  'PL!SP-sd1-007:on-enter-pay-two-energy-recover-liella-member';
+export const SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-sd1-011:activated-pay-two-energy-place-waiting-energy';
 export const SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID =
   'PL!SP-sd1-026:live-start-energy-nine-score';
 export const BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =

@@ -2643,6 +2643,31 @@ export function removeTargetMemberBoundLiveModifiers(
     : setLiveModifiers(game, liveModifiers);
 }
 
+/** Remove temporary modifiers bound to a concrete member instance that left the stage. */
+export function removeStageMemberBoundLiveModifiers(
+  game: GameState,
+  memberCardIds: readonly string[]
+): GameState {
+  const memberCardIdSet = new Set(memberCardIds);
+  if (memberCardIdSet.size === 0) {
+    return game;
+  }
+  const liveModifiers = game.liveResolution.liveModifiers.filter(
+    (modifier) =>
+      !(
+        ('targetMemberCardId' in modifier &&
+          modifier.targetMemberCardId !== undefined &&
+          memberCardIdSet.has(modifier.targetMemberCardId)) ||
+        (modifier.kind === 'BLADE' &&
+          modifier.sourceCardId !== undefined &&
+          memberCardIdSet.has(modifier.sourceCardId))
+      )
+  );
+  return liveModifiers.length === game.liveResolution.liveModifiers.length
+    ? game
+    : setLiveModifiers(game, liveModifiers);
+}
+
 export function suppressLiveAbility(
   game: GameState,
   options: SuppressLiveAbilityOptions

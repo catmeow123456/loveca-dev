@@ -208,6 +208,7 @@ import {
   SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID,
   SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID,
   SP_BP1_012_ON_ENTER_PAY_ENERGY_LOOK_TOP_THREE_SELECT_ONE_ABILITY_ID,
+  SP_SD1_009_ON_ENTER_PAY_ONE_ENERGY_NINE_LOOK_TOP_FIVE_ABILITY_ID,
   SP_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
   HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
@@ -498,6 +499,13 @@ import {
   SP_BP1_010_ACTIVATED_PAY_TWO_ENERGY_DISCARD_LOOK_TOP_FIVE_LIELLA_ABILITY_ID,
   SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
   SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID,
+  SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
+  SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_ABILITY_ID,
+  SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+  SP_SD1_004_ON_ENTER_GAIN_LIVE_TOTAL_SCORE_ONE_ABILITY_ID,
+  SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+  SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+  SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
   SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID,
   SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
@@ -1243,6 +1251,20 @@ const SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台与休息室存在大于等于5人名称互不相同的『Liella!』的成员的场合，使用此卡所需的费用变为[赤ハート][赤ハート][黄ハート][黄ハート][紫ハート][紫ハート]。';
 const SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_EFFECT_TEXT =
   '【LIVE开始时】自己的能量大于等于12张的场合，此卡的[スコア]+1。';
+const SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_EFFECT_TEXT =
+  '【登场】每存在6张自己的能量，抽1张卡。';
+const SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_EFFECT_TEXT =
+  '【登场】可以从手牌将1张费用小于等于4的『Liella!』的成员卡登场到舞台。\n\n（也可以因此效果登场至已经存在成员的区域。但是，无法登场至此回合登场至舞台的成员所在的区域。）';
+const SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_EFFECT_TEXT =
+  '【LIVE开始时】可以将2张手牌放置入休息室：LIVE结束时为止，获得[BLADE][BLADE][BLADE][BLADE][BLADE]。';
+const SP_SD1_004_ON_ENTER_GAIN_LIVE_TOTAL_SCORE_ONE_EFFECT_TEXT =
+  '【登场】LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。';
+const SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_EFFECT_TEXT =
+  '【起动】【1回合1次】[E][E][E]：从自己的休息室将1张LIVE卡加入手牌。';
+const SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_EFFECT_TEXT =
+  '【登场】可以支付[E][E]：从自己的休息室将1张『Liella!』的成员卡加入手牌。';
+const SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_EFFECT_TEXT =
+  '【起动】【1回合1次】[E][E]：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
 const SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_EFFECT_TEXT =
   '【LIVE开始时】自己的能量大于等于9张的场合，此卡的[スコア]+1。';
 const SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_EFFECT_TEXT =
@@ -1484,6 +1506,8 @@ const SP_BP1_024_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的舞台上存在「涩谷香音」与「唐 可可」的场合，抽1张卡。';
 const SP_BP1_012_ON_ENTER_EFFECT_TEXT =
   '【登场】可以支付[E]：检视自己卡组顶的3张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。';
+const SP_SD1_009_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以支付[E]：自己的能量大于等于9张的场合，检视自己卡组顶的5张卡。将1张其中的卡片加入手牌，其余的卡片放置入休息室。';
 const SP_BP1_023_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】LIVE的合计分数比对方高的场合，从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
 const BP4_021_LIVE_START_EFFECT_TEXT =
@@ -2676,6 +2700,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '固定支付1张活跃能量的可选登场 family；支付后复用 look-top-select-to-hand 检视卡组顶3张，强制从实际检视卡中选择1张私密加入手牌，其余成组进入休息室。',
   },
   {
+    abilityId: SP_SD1_009_ON_ENTER_PAY_ONE_ENERGY_NINE_LOOK_TOP_FIVE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-009'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_SD1_009_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '复用 optional-pay-energy-look-top-select-to-hand shared workflow；可选支付1张活跃能量，支付成功后按当前能量区总张数检查9张门槛，满足时检视顶5并私密强制单选，其余成组进入休息室。',
+  },
+  {
     abilityId: SP_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
     baseCardCodes: ['PL!SP-bp1-023'],
     category: CardAbilityCategory.LIVE_SUCCESS,
@@ -3781,7 +3817,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_BP4_007_ON_ENTER_EFFECT_TEXT,
     notes:
-      '窄单卡 ON_ENTER workflow `pl-bp4-007-nozomi.ts`；结算时分别读取成功 LIVE 卡张数与 sumSuccessfulLiveScore 当前有效分数，至少1张且合计<=1时，为来源成员实例写 target-bound 玩家 SCORE +1。授予后不动态重查条件；站位移动保留，来源成员离场经标准 target-bound 清理，LIVE结束由统一 modifier 生命周期清理。',
+      '共享 `on-enter-gain-live-total-score.ts` 的成功 LIVE 条件配置；结算时分别读取成功 LIVE 卡张数与 sumSuccessfulLiveScore 当前有效分数，至少1张且合计<=1时，为来源成员实例写 target-bound 玩家 SCORE +1。授予后不动态重查条件；站位移动保留，来源成员离场经标准 target-bound 清理，LIVE结束由统一 modifier 生命周期清理。',
   },
   {
     abilityId: PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
@@ -5476,6 +5512,100 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_EFFECT_TEXT,
     notes:
       '扩展 live-start-score-bonuses 的 minEnergyCount 有限配置轴；确认时读取己方能量区真实数量，达到12张且来源仍在己方 LIVE 区时仅为来源 LIVE 写 SCORE +1 并同步 playerScores。',
+  },
+  {
+    abilityId: SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-001'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_EFFECT_TEXT,
+    notes:
+      '扩展 member-on-enter-draw 的 energyPerDraw=6 有限动态抽牌轴；结算时按当前能量区卡牌张数整除6计算请求抽牌数，复用 drawCardsForPlayer 的刷新与实际抽牌语义。',
+  },
+  {
+    abilityId: SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-002'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_EFFECT_TEXT,
+    notes:
+      '独立 queued ON_ENTER 单卡 workflow；从自己的私密手牌选择印刷费用4以下的 Liella! 成员，不支付其登场费用，并在确认时按当前成员实例的 movedToStageThisTurn 与 canMemberBeRelayedAway 重新计算可登场区域；替换移动复用 playMemberFromZoneToStageSlotWithReplacement。',
+  },
+  {
+    abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-003'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_EFFECT_TEXT,
+    notes:
+      '扩展 shared live-start-discard-gain-blade 的恰好2张与固定 BLADE 总量有限轴；足额弃置后为来源成员实例固定写 BLADE +5，不按弃置张数缩放且不附带抽牌。',
+  },
+  {
+    abilityId: SP_SD1_004_ON_ENTER_GAIN_LIVE_TOTAL_SCORE_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-004'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_SD1_004_ON_ENTER_GAIN_LIVE_TOTAL_SCORE_ONE_EFFECT_TEXT,
+    notes:
+      '共享 on-enter-gain-live-total-score 的 ALWAYS 配置；重验来源实例仍在自己主舞台后，为来源成员实例写 target-bound 玩家 SCORE +1，不读取成功 LIVE 条件。',
+  },
+  {
+    abilityId: SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-005'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
+      text: SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_EFFECT_TEXT,
+      title: '支付[E][E][E]，从休息室回收1张LIVE卡',
+    },
+    notes:
+      '扩展 pay-energy-waiting-room-to-hand；主阶段支付3张 ACTIVE 能量后强制选择自己休息室1张任意LIVE卡，经 shared public-card-selection confirmation 展示后加入手牌。',
+  },
+  {
+    abilityId: SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-007'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_EFFECT_TEXT,
+    notes:
+      '扩展 pay-energy-waiting-room-to-hand 内独立的 queued ON_ENTER 可选支付生命周期；有合法目标时可支付2张 ACTIVE 能量，支付后强制选择自己休息室1张 Liella! 成员，经 shared public-card-selection confirmation 展示后加入手牌。',
+  },
+  {
+    abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!SP-sd1-011'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+      text: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_EFFECT_TEXT,
+      title: '支付[E][E]，放置1张待机能量',
+    },
+    notes:
+      '扩展 stage-member-waiting-energy-placement；主阶段支付2张 ACTIVE 能量后，从能量卡组放置1张WAITING能量，空能量卡组时保留费用与本回合使用并安全结束。',
   },
   {
     abilityId: SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
