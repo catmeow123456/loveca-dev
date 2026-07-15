@@ -73,6 +73,7 @@ import {
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
   SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID,
+  SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
   PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -108,8 +109,7 @@ const PL_S_BP5_013_GREEN_REQUIREMENT_GAIN_HEART_STEP_ID =
   'PL_S_BP5_013_GREEN_REQUIREMENT_GAIN_HEART';
 const HS_SD1_018_DREAM_BELIEVERS_SCORE_STEP_ID = 'HS_SD1_018_DREAM_BELIEVERS_SCORE';
 const PL_PB1_029_LILYWHITE_SCORE_STEP_ID = 'PL_PB1_029_LILYWHITE_SCORE';
-const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID =
-  'PL_PB1_030_OPPONENT_WAITING_REQUIREMENT';
+const PL_PB1_030_OPPONENT_WAITING_REQUIREMENT_STEP_ID = 'PL_PB1_030_OPPONENT_WAITING_REQUIREMENT';
 const SP_BP4_028_ACTIVE_ENERGY_SCORE_STEP_ID = 'SP_BP4_028_ACTIVE_ENERGY_SCORE';
 const PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE_STEP_ID =
   'PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE';
@@ -158,6 +158,38 @@ interface LiveRequirementGainHeartConfig {
   readonly colorLabel: string;
 }
 
+interface DifferentGroupMemberRequirementReductionConfig {
+  readonly abilityId: string;
+  readonly stepId: string;
+  readonly groupAlias: string;
+  readonly groupLabel: string;
+  readonly minDifferentNames: number;
+  readonly requirementReduction: number;
+  readonly actionStep: string;
+}
+
+const DIFFERENT_GROUP_MEMBER_REQUIREMENT_REDUCTION_CONFIGS: readonly DifferentGroupMemberRequirementReductionConfig[] =
+  [
+    {
+      abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+      stepId: HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID,
+      groupAlias: '蓮ノ空',
+      groupLabel: '莲之空',
+      minDifferentNames: 6,
+      requirementReduction: 2,
+      actionStep: 'APPLY_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_REDUCTION',
+    },
+    {
+      abilityId: SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
+      stepId: 'SP_BP1_026_DIFFERENT_LIELLA_MEMBER_REQUIREMENT',
+      groupAlias: 'Liella!',
+      groupLabel: 'Liella!',
+      minDifferentNames: 5,
+      requirementReduction: 2,
+      actionStep: 'APPLY_DIFFERENT_LIELLA_MEMBER_REQUIREMENT_REDUCTION',
+    },
+  ];
+
 const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkflowConfig[] = [
   {
     abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
@@ -172,12 +204,16 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     },
     finish: finishPlNBp3005MemberEntriesScore,
   },
-  {
-    abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
-    stepId: HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID,
-    getStartContext: getHsPb1026DifferentHasunosoraMemberStartContext,
-    finish: finishHsPb1026DifferentHasunosoraMemberRequirementReduction,
-  },
+  ...DIFFERENT_GROUP_MEMBER_REQUIREMENT_REDUCTION_CONFIGS.map(
+    (config): ConditionalLiveModifierWorkflowConfig => ({
+      abilityId: config.abilityId,
+      stepId: config.stepId,
+      getStartContext: (game, ability, playerId) =>
+        getDifferentGroupMemberRequirementStartContext(game, ability, playerId, config),
+      finish: (game, effect, playerId) =>
+        finishDifferentGroupMemberRequirementReduction(game, effect, playerId, config),
+    })
+  ),
   {
     abilityId: NICO_LIVE_START_SCORE_ABILITY_ID,
     stepId: NICO_SCORE_BONUS_STEP_ID,
@@ -490,8 +526,11 @@ function finishPlNBp3005MemberEntriesScore(
   const entryCount = countMemberEntriesThisTurn(game, playerId);
   const scoreBonus = entryCount >= 2 ? 1 : 0;
   const previous = game.liveResolution.liveModifiers.find(
-    (modifier) => modifier.kind === 'SCORE' && modifier.playerId === playerId &&
-      modifier.sourceCardId === effect.sourceCardId && modifier.abilityId === effect.abilityId &&
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.playerId === playerId &&
+      modifier.sourceCardId === effect.sourceCardId &&
+      modifier.abilityId === effect.abilityId &&
       modifier.liveCardId === undefined
   );
   const previousBonus = previous?.kind === 'SCORE' ? previous.countDelta : 0;
@@ -499,14 +538,26 @@ function finishPlNBp3005MemberEntriesScore(
     { ...game, activeEffect: null },
     { kind: 'SCORE', playerId, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId },
     scoreBonus > 0
-      ? { kind: 'SCORE', playerId, countDelta: 1, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId }
+      ? {
+          kind: 'SCORE',
+          playerId,
+          countDelta: 1,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
       : null
   );
   const scoreDelta = scoreBonus - previousBonus;
   if (scoreDelta !== 0) state = refreshPlayerScoreDraft(state, playerId, scoreDelta);
   return {
     gameState: state,
-    actionPayload: { step: 'APPLY_MEMBER_ENTRIES_SCORE', entryCount, conditionMet: scoreBonus > 0, scoreBonus, scoreDelta },
+    actionPayload: {
+      step: 'APPLY_MEMBER_ENTRIES_SCORE',
+      entryCount,
+      conditionMet: scoreBonus > 0,
+      scoreBonus,
+      scoreDelta,
+    },
   };
 }
 
@@ -639,7 +690,11 @@ function createLiveRequirementGainHeartWorkflow(
   };
 }
 
-function isSourceMemberInOwnStage(game: GameState, playerId: string, sourceCardId: string): boolean {
+function isSourceMemberInOwnStage(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
   const player = getPlayerById(game, playerId);
   if (!player || !Object.values(player.memberSlots.slots).includes(sourceCardId)) {
     return false;
@@ -785,11 +840,12 @@ function getPlBp4022NoBrandGirlsStartContext(
   playerId: string
 ): ConditionalLiveModifierStartContext {
   const context = getPlBp4022NoBrandGirlsContext(game, ability, playerId);
-  const centerDescription = context.centerMemberCardId === null
-    ? "当前中央区域没有『μ's』成员"
-    : context.centerMemberIsMuse
-      ? "当前中央区域为『μ's』成员"
-      : "当前中央区域成员不是『μ's』成员";
+  const centerDescription =
+    context.centerMemberCardId === null
+      ? "当前中央区域没有『μ's』成员"
+      : context.centerMemberIsMuse
+        ? "当前中央区域为『μ's』成员"
+        : "当前中央区域成员不是『μ's』成员";
   return {
     effectText: `${getAbilityEffectText(
       PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID
@@ -1285,8 +1341,11 @@ function getPlPb1029LilywhiteScoreCondition(
   }
   const sourceInLiveZone = player.liveZone.cardIds.includes(ability.sourceCardId);
   const successLiveCount = player.successZone.cardIds.length;
-  const stageMemberCount = getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER))
-    .length;
+  const stageMemberCount = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    typeIs(CardType.MEMBER)
+  ).length;
   const lilywhiteStageMemberCount = getStageMemberCardIdsMatching(
     game,
     playerId,
@@ -1377,7 +1436,9 @@ function getPlPb1030OpponentWaitingRequirementCondition(
         if (cardId === null) {
           return false;
         }
-        return opponent.memberSlots.cardStates.get(cardId)?.orientation === OrientationState.WAITING;
+        return (
+          opponent.memberSlots.cardStates.get(cardId)?.orientation === OrientationState.WAITING
+        );
       }).length
     : 0;
   return {
@@ -1557,9 +1618,7 @@ function getSpBp4028DaisukiFullPowerStartContext(
     effectText: `${getAbilityEffectText(
       SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID
     )}（当前活跃能量 ${context.activeEnergyCount}张，${
-      context.conditionMet
-        ? '满足条件，实际[スコア]+1'
-        : '未满足条件，实际不增加[スコア]'
+      context.conditionMet ? '满足条件，实际[スコア]+1' : '未满足条件，实际不增加[スコア]'
     }）`,
     actionPayload: {
       activeEnergyCount: context.activeEnergyCount,
@@ -1753,7 +1812,9 @@ function createRelayEnteredHasunosoraRequirementReductionWorkflow(
       const conditionMet = relayEnteredHasunosoraMemberIds.length >= 2;
       return {
         effectText: `${getAbilityEffectText(relayConfig.abilityId)}（当前${relayEnteredHasunosoraMemberIds.length}名，${
-          conditionMet ? `满足条件，减少1个${relayConfig.colorLabel}` : `未满足条件，不减少${relayConfig.colorLabel}`
+          conditionMet
+            ? `满足条件，减少1个${relayConfig.colorLabel}`
+            : `未满足条件，不减少${relayConfig.colorLabel}`
         }）`,
         actionPayload: {
           relayEnteredHasunosoraMemberIds,
@@ -2039,11 +2100,7 @@ function getPlBp3023StageBladeContext(
   readonly requirementReduction: number;
 } {
   const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
-  const stageMemberCardIds = getStageMemberCardIdsMatching(
-    game,
-    playerId,
-    typeIs(CardType.MEMBER)
-  );
+  const stageMemberCardIds = getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER));
   const liveModifiers = collectLiveModifiers(game);
   const stageMemberBladeCounts = stageMemberCardIds.map((memberCardId) =>
     getMemberEffectiveBladeCount(game, playerId, memberCardId, liveModifiers)
@@ -2077,9 +2134,8 @@ function getPlBp4022NoBrandGirlsContext(
   const centerCardId = player?.memberSlots.slots[SlotPosition.CENTER] ?? null;
   const centerCard = centerCardId ? getCardById(game, centerCardId) : null;
   const centerMemberCardId = centerCard && isMemberCardData(centerCard.data) ? centerCardId : null;
-  const centerMemberIsMuse = centerCard !== null &&
-    isMemberCardData(centerCard.data) &&
-    groupAliasIs("μ's")(centerCard);
+  const centerMemberIsMuse =
+    centerCard !== null && isMemberCardData(centerCard.data) && groupAliasIs("μ's")(centerCard);
   const centerMemberEffectiveBladeCount = centerMemberCardId
     ? getMemberEffectiveBladeCount(game, playerId, centerMemberCardId, collectLiveModifiers(game))
     : 0;
@@ -2126,8 +2182,8 @@ function getPlBp5023OtohimeContext(
 } {
   const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
   const qualifiedMemberCardIds = sourceInLiveZone
-    ? getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER)).filter((memberCardId) =>
-        hasEffectiveHeartOtherThanPinkOrPurple(game, playerId, memberCardId)
+    ? getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER)).filter(
+        (memberCardId) => hasEffectiveHeartOtherThanPinkOrPurple(game, playerId, memberCardId)
       )
     : [];
   return {
@@ -2137,34 +2193,34 @@ function getPlBp5023OtohimeContext(
   };
 }
 
-function getHsPb1026DifferentHasunosoraMemberStartContext(
+function getDifferentGroupMemberRequirementStartContext(
   game: GameState,
   ability: PendingAbilityState,
-  playerId: string
+  playerId: string,
+  config: DifferentGroupMemberRequirementReductionConfig
 ): ConditionalLiveModifierStartContext {
-  const context = getHsPb1026DifferentHasunosoraMemberContext(game, ability, playerId);
+  const context = getDifferentGroupMemberRequirementContext(game, ability, playerId, config);
   return {
-    effectText: `${getAbilityEffectText(
-      HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID
-    )}（当前不同名『莲之空』成员${context.differentHasunosoraMemberNameCount}名，${
+    effectText: `${getAbilityEffectText(config.abilityId)}（当前不同名『${config.groupLabel}』成员${context.differentMemberNameCount}名，${
       context.conditionMet
-        ? '满足条件，实际减少2个[無ハート]'
+        ? `满足条件，实际减少${config.requirementReduction}个[無ハート]`
         : '未满足条件，实际不减少[無ハート]'
     }）`,
     actionPayload: {
-      differentHasunosoraMemberNameCount: context.differentHasunosoraMemberNameCount,
+      differentMemberNameCount: context.differentMemberNameCount,
       conditionMet: context.conditionMet,
       requirementReduction: context.requirementReduction,
     },
   };
 }
 
-function finishHsPb1026DifferentHasunosoraMemberRequirementReduction(
+function finishDifferentGroupMemberRequirementReduction(
   game: GameState,
   effect: PendingAbilityState,
-  playerId: string
+  playerId: string,
+  config: DifferentGroupMemberRequirementReductionConfig
 ): ConditionalLiveModifierFinishContext {
-  const context = getHsPb1026DifferentHasunosoraMemberContext(game, effect, playerId);
+  const context = getDifferentGroupMemberRequirementContext(game, effect, playerId, config);
   const state = replaceSourceRequirementModifier(
     {
       ...game,
@@ -2175,7 +2231,7 @@ function finishHsPb1026DifferentHasunosoraMemberRequirementReduction(
       ? {
           kind: 'REQUIREMENT',
           liveCardId: effect.sourceCardId,
-          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -config.requirementReduction }],
           sourceCardId: effect.sourceCardId,
           abilityId: effect.abilityId,
         }
@@ -2184,44 +2240,49 @@ function finishHsPb1026DifferentHasunosoraMemberRequirementReduction(
   return {
     gameState: state,
     actionPayload: {
-      step: 'APPLY_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_REDUCTION',
-      differentHasunosoraMemberNameCount: context.differentHasunosoraMemberNameCount,
+      step: config.actionStep,
+      differentMemberNameCount: context.differentMemberNameCount,
       conditionMet: context.conditionMet,
       requirementReduction: context.requirementReduction,
     },
   };
 }
 
-function getHsPb1026DifferentHasunosoraMemberContext(
+function getDifferentGroupMemberRequirementContext(
   game: GameState,
   ability: PendingAbilityState,
-  playerId: string
+  playerId: string,
+  config: DifferentGroupMemberRequirementReductionConfig
 ): {
-  readonly differentHasunosoraMemberNameCount: number;
+  readonly differentMemberNameCount: number;
   readonly conditionMet: boolean;
   readonly requirementReduction: number;
 } {
   const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
   const memberCardIds = [
-    ...getStageMemberCardIdsMatching(game, playerId, and(typeIs(CardType.MEMBER), groupAliasIs('蓮ノ空'))),
+    ...getStageMemberCardIdsMatching(
+      game,
+      playerId,
+      and(typeIs(CardType.MEMBER), groupAliasIs(config.groupAlias))
+    ),
     ...getCardIdsInZone(game, playerId, ZoneType.WAITING_ROOM).filter((cardId) => {
       const card = getCardById(game, cardId);
-      return card !== null && isMemberCardData(card.data) && groupAliasIs('蓮ノ空')(card);
+      return card !== null && isMemberCardData(card.data) && groupAliasIs(config.groupAlias)(card);
     }),
   ];
-  const differentHasunosoraMemberNameCount = selectDifferentNamedCards(
+  const differentMemberNameCount = selectDifferentNamedCards(
     memberCardIds,
     (cardId) => getCardById(game, cardId)?.data ?? null,
     {
-      groupName: '蓮ノ空',
+      groupName: config.groupAlias,
       minCount: 0,
     }
   ).length;
-  const conditionMet = sourceInLiveZone && differentHasunosoraMemberNameCount >= 6;
+  const conditionMet = sourceInLiveZone && differentMemberNameCount >= config.minDifferentNames;
   return {
-    differentHasunosoraMemberNameCount,
+    differentMemberNameCount,
     conditionMet,
-    requirementReduction: conditionMet ? 2 : 0,
+    requirementReduction: conditionMet ? config.requirementReduction : 0,
   };
 }
 

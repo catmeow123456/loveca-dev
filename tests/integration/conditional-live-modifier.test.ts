@@ -18,6 +18,7 @@ import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import {
   addCardToStatefulZone,
   addCardToZone,
+  addMemberBelowMember,
   placeCardInSlot,
   removeCardFromStatefulZone,
   removeCardFromSlot,
@@ -38,6 +39,7 @@ import {
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+  SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
   PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
   PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
@@ -178,7 +180,11 @@ function setupPb1026LiveStartPending(memberNames: readonly string[]): {
   game = registerCards(game, [live, ...members]);
   game = updatePlayer(game, PLAYER1, (player) => {
     let memberSlots = player.memberSlots;
-    for (const [index, slot] of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].entries()) {
+    for (const [index, slot] of [
+      SlotPosition.LEFT,
+      SlotPosition.CENTER,
+      SlotPosition.RIGHT,
+    ].entries()) {
       const member = members[index];
       if (!member) {
         continue;
@@ -195,10 +201,9 @@ function setupPb1026LiveStartPending(memberNames: readonly string[]): {
         orientation: OrientationState.ACTIVE,
         face: FaceState.FACE_UP,
       }),
-      waitingRoom: members.slice(3).reduce(
-        (zone, member) => addCardToZone(zone, member.instanceId),
-        player.waitingRoom
-      ),
+      waitingRoom: members
+        .slice(3)
+        .reduce((zone, member) => addCardToZone(zone, member.instanceId), player.waitingRoom),
     };
   });
   return {
@@ -207,7 +212,8 @@ function setupPb1026LiveStartPending(memberNames: readonly string[]): {
       pendingAbilities: [
         {
           id: 'pb1-026-pending',
-          abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+          abilityId:
+            HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
           sourceCardId: live.instanceId,
           controllerId: PLAYER1,
           mandatory: true,
@@ -219,6 +225,85 @@ function setupPb1026LiveStartPending(memberNames: readonly string[]): {
     live,
     members,
   };
+}
+
+function setupSpBp1026Pending(options: {
+  readonly names: readonly string[];
+  readonly sourceCount?: number;
+  readonly preserveOtherRequirementModifier?: boolean;
+}): {
+  readonly game: GameState;
+  readonly lives: readonly ReturnType<typeof createCardInstance>[];
+  readonly members: readonly ReturnType<typeof createCardInstance>[];
+} {
+  const lives = Array.from({ length: options.sourceCount ?? 1 }, (_, index) =>
+    createCardInstance(
+      createLive('PL!SP-bp1-026-L', '未来予報ハレルヤ！', 3),
+      PLAYER1,
+      `sp-bp1-026-live-${index}`
+    )
+  );
+  const members = options.names.map((name, index) =>
+    createCardInstance(
+      createMember({
+        cardCode: `PL!SP-test-bp1-026-${index}`,
+        name,
+        cost: index + 1,
+        groupNames: ['Liella!'],
+      }),
+      PLAYER1,
+      `sp-bp1-026-member-${index}`
+    )
+  );
+  let game = registerCards(
+    createGameState('conditional-live-modifier-sp-bp1-026', PLAYER1, 'P1', PLAYER2, 'P2'),
+    [...lives, ...members]
+  );
+  game = updatePlayer(game, PLAYER1, (player) => {
+    let memberSlots = player.memberSlots;
+    for (const [index, slot] of [
+      SlotPosition.LEFT,
+      SlotPosition.CENTER,
+      SlotPosition.RIGHT,
+    ].entries()) {
+      if (members[index]) {
+        memberSlots = placeCardInSlot(memberSlots, slot, members[index]!.instanceId);
+      }
+    }
+    return {
+      ...player,
+      memberSlots,
+      liveZone: lives.reduce(
+        (zone, live) => addCardToStatefulZone(zone, live.instanceId),
+        player.liveZone
+      ),
+      waitingRoom: members
+        .slice(3)
+        .reduce((zone, member) => addCardToZone(zone, member.instanceId), player.waitingRoom),
+    };
+  });
+  game = {
+    ...game,
+    pendingAbilities: lives.map((live, index) => ({
+      id: `sp-bp1-026-pending-${index}`,
+      abilityId: SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
+      sourceCardId: live.instanceId,
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_LIVE_START,
+    })),
+    liveResolution: { ...game.liveResolution, performingPlayerId: PLAYER1 },
+  };
+  if (options.preserveOtherRequirementModifier) {
+    game = addLiveModifier(game, {
+      kind: 'REQUIREMENT',
+      liveCardId: lives[0]!.instanceId,
+      modifiers: [{ color: HeartColor.RED, countDelta: -1 }],
+      sourceCardId: 'other-source',
+      abilityId: 'other-requirement-ability',
+    });
+  }
+  return { game, lives, members };
 }
 
 function createHanamusubiPending(sourceCardId: string, index = 0): PendingAbilityState {
@@ -480,13 +565,15 @@ function setupRelayEnteredLiveStartState(options: {
   };
 }
 
-function setupNoBrandGirlsState(options: {
-  readonly sourceCount?: number;
-  readonly centerKind?: 'muse' | 'non-muse' | 'empty';
-  readonly centerBlade?: number;
-  readonly bladeModifier?: number;
-  readonly playerScore?: number;
-} = {}): {
+function setupNoBrandGirlsState(
+  options: {
+    readonly sourceCount?: number;
+    readonly centerKind?: 'muse' | 'non-muse' | 'empty';
+    readonly centerBlade?: number;
+    readonly bladeModifier?: number;
+    readonly playerScore?: number;
+  } = {}
+): {
   readonly game: GameState;
   readonly lives: readonly ReturnType<typeof createCardInstance>[];
   readonly center: ReturnType<typeof createCardInstance>;
@@ -514,17 +601,13 @@ function setupNoBrandGirlsState(options: {
     live: lives[0]!,
     additionalLives: lives.slice(1),
     stageMembers:
-      options.centerKind === 'empty'
-        ? []
-        : [{ card: center, slot: SlotPosition.CENTER }],
+      options.centerKind === 'empty' ? [] : [{ card: center, slot: SlotPosition.CENTER }],
   });
   game = {
     ...game,
     liveResolution: {
       ...game.liveResolution,
-      playerScores: new Map([
-        [PLAYER1, options.playerScore ?? sourceCount * 7],
-      ]),
+      playerScores: new Map([[PLAYER1, options.playerScore ?? sourceCount * 7]]),
     },
   };
   if (options.bladeModifier) {
@@ -543,8 +626,7 @@ function noBrandGirlsScoreModifiers(game: GameState) {
   return game.liveResolution.liveModifiers.filter(
     (modifier) =>
       modifier.kind === 'SCORE' &&
-      modifier.abilityId ===
-        PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID
+      modifier.abilityId === PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID
   );
 }
 
@@ -562,10 +644,18 @@ function createNoBrandGirlsPending(sourceCardId: string, index = 0): PendingAbil
 
 describe('conditional live modifier workflow', () => {
   it('recomputes PL!HS-pb1-026 different Hasunosora members across stage and waiting room before writing RAINBOW -2', () => {
-    const live = createCardInstance(createLive('PL!HS-pb1-026-L', '雪舞う空と二秒の永遠', 4), PLAYER1, 'pb1-026-live');
+    const live = createCardInstance(
+      createLive('PL!HS-pb1-026-L', '雪舞う空と二秒の永遠', 4),
+      PLAYER1,
+      'pb1-026-live'
+    );
     const members = Array.from({ length: 6 }, (_, index) =>
       createCardInstance(
-        createMember({ cardCode: `PL!HS-test-pb1-026-${index}`, name: `成员${index}`, cost: index + 1 }),
+        createMember({
+          cardCode: `PL!HS-test-pb1-026-${index}`,
+          name: `成员${index}`,
+          cost: index + 1,
+        }),
         PLAYER1,
         `pb1-026-member-${index}`
       )
@@ -574,7 +664,11 @@ describe('conditional live modifier workflow', () => {
     game = registerCards(game, [live, ...members]);
     game = updatePlayer(game, PLAYER1, (player) => {
       let memberSlots = player.memberSlots;
-      for (const [index, slot] of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].entries()) {
+      for (const [index, slot] of [
+        SlotPosition.LEFT,
+        SlotPosition.CENTER,
+        SlotPosition.RIGHT,
+      ].entries()) {
         memberSlots = placeCardInSlot(memberSlots, slot, members[index]!.instanceId, {
           orientation: OrientationState.ACTIVE,
           face: FaceState.FACE_UP,
@@ -587,10 +681,9 @@ describe('conditional live modifier workflow', () => {
           orientation: OrientationState.ACTIVE,
           face: FaceState.FACE_UP,
         }),
-        waitingRoom: members.slice(3).reduce(
-          (zone, member) => addCardToZone(zone, member.instanceId),
-          player.waitingRoom
-        ),
+        waitingRoom: members
+          .slice(3)
+          .reduce((zone, member) => addCardToZone(zone, member.instanceId), player.waitingRoom),
       };
     });
     game = {
@@ -598,7 +691,8 @@ describe('conditional live modifier workflow', () => {
       pendingAbilities: [
         {
           id: 'pb1-026-pending',
-          abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+          abilityId:
+            HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
           sourceCardId: live.instanceId,
           controllerId: PLAYER1,
           mandatory: true,
@@ -671,7 +765,9 @@ describe('conditional live modifier workflow', () => {
       ...player,
       liveZone: {
         ...player.liveZone,
-        cardIds: player.liveZone.cardIds.filter((cardId) => cardId !== sourceScenario.live.instanceId),
+        cardIds: player.liveZone.cardIds.filter(
+          (cardId) => cardId !== sourceScenario.live.instanceId
+        ),
         cardStates: new Map(
           [...player.liveZone.cardStates].filter(
             ([cardId]) => cardId !== sourceScenario.live.instanceId
@@ -736,7 +832,8 @@ describe('conditional live modifier workflow', () => {
         ...game.pendingAbilities,
         {
           id: 'pb1-026-second-pending',
-          abilityId: HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+          abilityId:
+            HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
           sourceCardId: secondLive.instanceId,
           controllerId: PLAYER1,
           mandatory: true,
@@ -1069,7 +1166,12 @@ describe('conditional live modifier workflow', () => {
       },
       {
         card: createCardInstance(
-          createMember({ cardCode: 'PL!SP-test-high', name: 'Liella High', cost: 12, groupNames: ['Liella!'] }),
+          createMember({
+            cardCode: 'PL!SP-test-high',
+            name: 'Liella High',
+            cost: 12,
+            groupNames: ['Liella!'],
+          }),
           PLAYER1,
           'liella-high'
         ),
@@ -1179,11 +1281,7 @@ describe('conditional live modifier workflow', () => {
   it('confirms PL!-bp3-023-L before counting effective stage BLADE and includes WAITING members', () => {
     const scenario = setupBp3023StageBladeScenario({
       blades: [4, 3, 3],
-      orientations: [
-        OrientationState.ACTIVE,
-        OrientationState.WAITING,
-        OrientationState.ACTIVE,
-      ],
+      orientations: [OrientationState.ACTIVE, OrientationState.WAITING, OrientationState.ACTIVE],
     });
     const preview = runLiveStart(scenario.game);
 
@@ -1232,8 +1330,7 @@ describe('conditional live modifier workflow', () => {
       state.liveResolution.liveModifiers.some(
         (modifier) =>
           modifier.kind === 'REQUIREMENT' &&
-          modifier.abilityId ===
-            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+          modifier.abilityId === PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -1297,8 +1394,7 @@ describe('conditional live modifier workflow', () => {
       lostState.liveResolution.liveModifiers.some(
         (modifier) =>
           modifier.kind === 'REQUIREMENT' &&
-          modifier.abilityId ===
-            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+          modifier.abilityId === PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -1310,17 +1406,12 @@ describe('conditional live modifier workflow', () => {
       ...player,
       liveZone: removeCardFromStatefulZone(player.liveZone, scenario.lives[0]!.instanceId),
     }));
-    const state = confirmActiveEffectStep(
-      sourceRemoved,
-      PLAYER1,
-      sourceRemoved.activeEffect!.id
-    );
+    const state = confirmActiveEffectStep(sourceRemoved, PLAYER1, sourceRemoved.activeEffect!.id);
     expect(
       state.liveResolution.liveModifiers.some(
         (modifier) =>
           modifier.kind === 'REQUIREMENT' &&
-          modifier.abilityId ===
-            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+          modifier.abilityId === PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
       )
     ).toBe(false);
     expect(
@@ -1356,8 +1447,7 @@ describe('conditional live modifier workflow', () => {
       ordered.liveResolution.liveModifiers.filter(
         (modifier) =>
           modifier.kind === 'REQUIREMENT' &&
-          modifier.abilityId ===
-            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+          modifier.abilityId === PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
       )
     ).toHaveLength(2);
 
@@ -1381,8 +1471,7 @@ describe('conditional live modifier workflow', () => {
       preview.liveResolution.liveModifiers.some(
         (modifier) =>
           modifier.kind === 'REQUIREMENT' &&
-          modifier.abilityId ===
-            PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
+          modifier.abilityId === PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
       )
     ).toBe(false);
     const confirmed = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
@@ -1552,9 +1641,7 @@ describe('conditional live modifier workflow', () => {
     );
     expect(replayed.liveResolution.playerScores.get(PLAYER1)).toBe(9);
     expect(noBrandGirlsScoreModifiers(replayed)).toHaveLength(1);
-    expect(
-      replayed.actionHistory.at(-1)?.payload
-    ).toMatchObject({ scoreBonus: 2, scoreDelta: 0 });
+    expect(replayed.actionHistory.at(-1)?.payload).toMatchObject({ scoreBonus: 2, scoreDelta: 0 });
   });
 
   it('removes stale PL!-bp4-022 SCORE state and subtracts its previous draft bonus when the condition fails', () => {
@@ -1615,16 +1702,35 @@ describe('conditional live modifier workflow', () => {
   });
 
   it('confirms and applies PL!N-bp3-005 player SCORE from current member-entry events', () => {
-    const ai = createCardInstance(createMember({ cardCode: 'PL!N-bp3-005-P', name: '宮下 愛', cost: 15 }), PLAYER1, 'ai');
-    let game = registerCards(createGameState('n-bp3-005-live-start', PLAYER1, 'P1', PLAYER2, 'P2'), [ai]);
-    game = updatePlayer(game, PLAYER1, (player) => ({ ...player,
-      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ai.instanceId) }));
-    game = emitGameEvent(game, createEnterStageEvent('first', ZoneType.HAND, SlotPosition.LEFT, PLAYER1, PLAYER1));
-    game = emitGameEvent(game, createEnterStageEvent('second', ZoneType.WAITING_ROOM, SlotPosition.RIGHT, PLAYER1, PLAYER1));
+    const ai = createCardInstance(
+      createMember({ cardCode: 'PL!N-bp3-005-P', name: '宮下 愛', cost: 15 }),
+      PLAYER1,
+      'ai'
+    );
+    let game = registerCards(
+      createGameState('n-bp3-005-live-start', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [ai]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, ai.instanceId),
+    }));
+    game = emitGameEvent(
+      game,
+      createEnterStageEvent('first', ZoneType.HAND, SlotPosition.LEFT, PLAYER1, PLAYER1)
+    );
+    game = emitGameEvent(
+      game,
+      createEnterStageEvent('second', ZoneType.WAITING_ROOM, SlotPosition.RIGHT, PLAYER1, PLAYER1)
+    );
     const pending: PendingAbilityState = {
-      id: 'ai-live-start', abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
-      sourceCardId: ai.instanceId, controllerId: PLAYER1, mandatory: true,
-      timingId: TriggerCondition.ON_LIVE_START, eventIds: ['live-start'],
+      id: 'ai-live-start',
+      abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
+      sourceCardId: ai.instanceId,
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_LIVE_START,
+      eventIds: ['live-start'],
     };
     game = { ...game, pendingAbilities: [pending] };
     const preview = resolvePendingCardEffects(game).gameState;
@@ -1632,10 +1738,168 @@ describe('conditional live modifier workflow', () => {
     expect(preview.activeEffect?.effectText).toContain('已登场2次，满足条件');
     const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
-    expect(resolved.liveResolution.liveModifiers).toContainEqual(expect.objectContaining({
-      kind: 'SCORE', playerId: PLAYER1, sourceCardId: ai.instanceId,
-      abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID, countDelta: 1,
-    }));
+    expect(resolved.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'SCORE',
+        playerId: PLAYER1,
+        sourceCardId: ai.instanceId,
+        abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
+        countDelta: 1,
+      })
+    );
     expect(resolved.liveResolution.liveModifiers.at(-1)?.liveCardId).toBeUndefined();
+  });
+
+  it.each([
+    [['涩谷香音', '唐可可', '岚千砂都', '平安名堇'], 4, false],
+    [['涩谷香音', '唐可可', '岚千砂都', '平安名堇', '叶月恋'], 5, true],
+    [['涩谷香音', '唐可可', '岚千砂都', '平安名堇', '唐可可'], 4, false],
+    [['涩谷香音', '唐可可', '岚千砂都', '平安名堇', '唐可可＆叶月恋'], 5, true],
+  ])(
+    'PL!SP-bp1-026 recomputes %s as %i different Liella names',
+    (names, expectedCount, expectedMet) => {
+      const scenario = setupSpBp1026Pending({
+        names,
+        preserveOtherRequirementModifier: true,
+      });
+      const preview = resolvePendingCardEffects(scenario.game).gameState;
+      expect(preview.activeEffect?.effectText).toBe(
+        `【LIVE开始时】自己的舞台与休息室存在大于等于5人名称互不相同的『Liella!』的成员的场合，使用此卡所需的费用变为[赤ハート][赤ハート][黄ハート][黄ハート][紫ハート][紫ハート]。（当前不同名『Liella!』成员${expectedCount}名，${
+          expectedMet ? '满足条件，实际减少2个[無ハート]' : '未满足条件，实际不减少[無ハート]'
+        }）`
+      );
+      expect(
+        preview.liveResolution.liveModifiers.some(
+          (modifier) =>
+            modifier.kind === 'REQUIREMENT' &&
+            modifier.abilityId ===
+              SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID
+        )
+      ).toBe(false);
+      const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+      expect(
+        resolved.liveResolution.liveModifiers.filter(
+          (modifier) =>
+            modifier.kind === 'REQUIREMENT' &&
+            modifier.abilityId ===
+              SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID
+        )
+      ).toEqual(
+        expectedMet
+          ? [
+              expect.objectContaining({
+                liveCardId: scenario.lives[0]!.instanceId,
+                modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
+              }),
+            ]
+          : []
+      );
+      expect(resolved.liveResolution.liveModifiers).toContainEqual(
+        expect.objectContaining({ abilityId: 'other-requirement-ability' })
+      );
+    }
+  );
+
+  it('PL!SP-bp1-026 excludes non-Liella, opponent and memberBelow cards and safely no-ops when stale', () => {
+    const scenario = setupSpBp1026Pending({
+      names: ['涩谷香音', '唐可可', '岚千砂都', '平安名堇'],
+    });
+    const nonLiella = createCardInstance(
+      createMember({ cardCode: 'non-liella', name: '叶月恋', cost: 1, groupNames: ['Aqours'] }),
+      PLAYER1,
+      'non-liella'
+    );
+    const opponentLiella = createCardInstance(
+      createMember({
+        cardCode: 'opponent-liella',
+        name: '叶月恋',
+        cost: 1,
+        groupNames: ['Liella!'],
+      }),
+      PLAYER2,
+      'opponent-liella'
+    );
+    const belowLiella = createCardInstance(
+      createMember({ cardCode: 'below-liella', name: '叶月恋', cost: 1, groupNames: ['Liella!'] }),
+      PLAYER1,
+      'below-liella'
+    );
+    let game = registerCards(scenario.game, [nonLiella, opponentLiella, belowLiella]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      waitingRoom: addCardToZone(player.waitingRoom, nonLiella.instanceId),
+      memberSlots: addMemberBelowMember(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        belowLiella.instanceId
+      ),
+    }));
+    game = updatePlayer(game, PLAYER2, (player) => ({
+      ...player,
+      waitingRoom: addCardToZone(player.waitingRoom, opponentLiella.instanceId),
+    }));
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect?.effectText).toContain('成员4名，未满足条件');
+    const stale = updatePlayer(preview, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, scenario.lives[0]!.instanceId),
+    }));
+    const resolved = confirmActiveEffectStep(stale, PLAYER1, stale.activeEffect!.id);
+    expect(
+      resolved.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('PL!SP-bp1-026 auto-resolves an ordered batch and bridges a manually selected pending', () => {
+    const scenario = setupSpBp1026Pending({
+      names: ['涩谷香音', '唐可可', '岚千砂都', '平安名堇', '叶月恋'],
+      sourceCount: 2,
+    });
+    const orderSelection = resolvePendingCardEffects(
+      addCheckTimingRuleSentinel(scenario.game, PLAYER1, 'sp-bp1-026-ordered')
+    ).gameState;
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const ordered = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(
+      ordered.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID
+      )
+    ).toHaveLength(2);
+
+    const manual = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      scenario.lives[1]!.instanceId
+    );
+    expect(manual.activeEffect).toMatchObject({
+      abilityId: SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
+      sourceCardId: scenario.lives[1]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(
+      manual.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
   });
 });

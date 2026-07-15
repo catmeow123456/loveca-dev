@@ -87,6 +87,7 @@ interface ContinuousLiveModifierDefinition {
 interface SideSlotBladeContinuousDefinition {
   readonly baseCardCode: string;
   readonly requiredSlot: SlotPosition;
+  readonly countDelta: number;
   readonly abilityId: string;
 }
 
@@ -205,6 +206,8 @@ const PL_S_BP5_011_CONTINUOUS_BLUE_HEART_FIVE_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE
   'PL!S-bp5-011:continuous-blue-heart-five-opponent-live-requirement-plus-one';
 const SP_BP2_010_CONTINUOUS_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID =
   'PL!SP-bp2-010:continuous-opponent-live-requirement-plus-one';
+const SP_BP1_004_CONTINUOUS_CENTER_GAIN_FIVE_BLADE_ABILITY_ID =
+  'PL!SP-bp1-004:continuous-center-gain-five-blade';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -1192,13 +1195,21 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   ...createSideSlotBladeContinuousDefinitions([
     {
+      baseCardCode: 'PL!SP-bp1-004',
+      requiredSlot: SlotPosition.CENTER,
+      countDelta: 5,
+      abilityId: SP_BP1_004_CONTINUOUS_CENTER_GAIN_FIVE_BLADE_ABILITY_ID,
+    },
+    {
       baseCardCode: 'PL!SP-pb2-035',
       requiredSlot: SlotPosition.LEFT,
+      countDelta: 2,
       abilityId: SP_PB2_035_CONTINUOUS_LEFT_SIDE_GAIN_TWO_BLADE_ABILITY_ID,
     },
     {
       baseCardCode: 'PL!SP-pb2-041',
       requiredSlot: SlotPosition.RIGHT,
+      countDelta: 2,
       abilityId: SP_PB2_041_CONTINUOUS_RIGHT_SIDE_GAIN_TWO_BLADE_ABILITY_ID,
     },
   ]),
@@ -1687,7 +1698,7 @@ function createSideSlotBladeContinuousDefinitions(
             {
               kind: 'BLADE',
               playerId,
-              countDelta: 2,
+              countDelta: definition.countDelta,
               sourceCardId,
               abilityId: definition.abilityId,
             },

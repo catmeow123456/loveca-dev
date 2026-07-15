@@ -75,7 +75,11 @@ Revealed-cheer selections use the same lifecycle with `source: 'REVEALED_CHEER'`
 
 Fixed pay-energy gain-BLADE is a shared live-start family when the only stable axes are active energy cost and fixed BLADE amount. Keep the payment prompt, `PAY_COST` action log, source-member BLADE modifier, skip path, and pending continuation inside the workflow; do not fold payment execution into the action-log helper.
 
-Activated pay-energy draw is a shared family proven by `PL!SP-bp5-020` and `PL!HS-bp1-007`. Keep its axes narrow to ability id, active energy cost, draw count, and action copy. The definition owns the once-per-turn limit; the workflow validates current-player main phase, source membership/definition match, pays through `TAP_ACTIVE_ENERGY`, records `PAY_COST`, then records ability use and draws. Do not add target selection, pending behavior, or a generic activated DSL.
+Activated pay-energy draw is a shared family proven by `PL!SP-bp5-020` and `PL!HS-bp1-007`. Keep its axes narrow to ability id, active energy cost, draw count, and action copy. The definition owns the once-per-turn limit; the workflow validates current-player main phase, source membership/definition match, pays through `TAP_ACTIVE_ENERGY`, records `PAY_COST`, then records ability use and draws. Do not add target selection, pending behavior, or a generic activated DSL. `PL!SP-bp1-009` does not join this family because it must continue into a discard step; its thin card wrapper owns legality and the fixed one-ACTIVE-energy payment, then delegates draw/discard state and HAND -> WAITING_ROOM trigger handling to the existing `draw-then-discard` core.
+
+`PL!SP-bp1-010` 也不加入上述 family：它的固定复合费用是两张 ACTIVE 能量加恰好一张弃手，且后续必须完成顶5检视、可选0至1张『Liella!』卡公开入手、余牌成组入休息室。窄单卡 workflow 只编排 `payImmediateEffectCosts`、标准弃手事件 wrapper 与 `look-top-select-to-hand` core；在任何资源移动前预验证两种资源，全部成功后才记录回合次数。这不是任意复合费用或 steps DSL。
+
+`PL!SP-bp1-003` 保持窄单卡 workflow：它在起动后公开 0 至全部己方手牌成员，并以提交时同一个完整手牌快照计算每张卡的当前有效登场费用。多张公开复用 `revealHandCardsForActiveEffect`，满足指定合计时只写入一次 target-member-bound SCORE modifier；普通登场与本 workflow 共用 `buildPlayMemberCostResources` / `getHandMemberEffectivePlayCost` 的只读资源查询。不要由此建立任意 reveal、费用或 steps DSL。
 
 The pure `memberHasMoreEffectiveHeartsThanPrinted` query compares the sum of each `HeartIcon.count` in `getMemberEffectiveHeartIcons` with the printed member Hearts using one collected modifier snapshot. It includes SOURCE_MEMBER and TARGET_MEMBER additions, rejects wrong-player/off-stage/non-member cards, and treats original-color replacement without a count increase as false. Card-specific unit filters remain in workflows such as `hs-pb1-029-zenhoui-kyun.ts`.
 
@@ -83,7 +87,11 @@ On-enter discard-then-recover-unit-card is a shared family when the stable opera
 
 On-enter workflows may read `pending.metadata.fromZone` when the printed condition depends on where the member entered from. The runner may propagate `EnterStageEvent.fromZone` into ordinary ON_ENTER pending metadata, and normal hand-play fallback sources should mark `ZoneType.HAND`; card-specific source checks still belong in workflow modules, not in runner gates or trigger matcher experiments.
 
-Member-on-enter draw is a shared family when the whole operation is "this played member draws N cards" with no discard, target selection, optional payment, or follow-up movement. Keep the axes narrow to ability id, base card codes, draw count, and action step label. Draw-only effects should not be folded into draw-then-discard unless they genuinely share the discard step semantics.
+Member-on-enter draw is a shared family when the whole operation is "this played member draws N cards" with no discard, target selection, optional payment, or follow-up movement. Keep the axes narrow to ability id, base card codes, draw count, action step label, and proven finite condition fields. `PL!SP-bp1-008` adds only a named own-main-stage-member condition plus a fixed bonus draw count: resolve-time scanning is restricted to LEFT/CENTER/RIGHT top members and uses shared card identity matching. This is not an arbitrary predicate/callback axis. Draw-only effects should not be folded into draw-then-discard unless they genuinely share the discard step semantics.
+
+`PL!SP-bp1-002` 保持单卡 workflow，因为当前没有第二个真实样本证明「按本次登场事件区域 + 可选固定费用 + 固定抽牌」是稳定 family。LEFT 条件只读 `PendingAbilityState.sourceSlot` 的 ON_ENTER 事件快照，不从结算时卡牌位置反推；实际支付与抽牌分别复用 `payImmediateEffectCosts` 和 `drawCardsForPlayer`。不因此引入任意区域、费用或抽牌 DSL。
+
+Ordinary `waiting-room-to-hand.ts` recovery may carry a finite start threshold and target selector when the surrounding lifecycle remains identical. `PL!SP-bp1-007` adds the concrete `energyZone.cardIds.length >= 11` threshold and mandatory LIVE-only single selection. Eligible recovery continues to use `createWaitingRoomToHandEffectState` and public-card-selection confirmation: first submission reveals without movement, deadline resume performs final owner/zone/type/original-candidate validation, then the workflow moves once and continues pending resolution. This does not create a general condition DSL or replace specialized grouped/cost-bearing recovery families.
 
 Discard-then-draw is a separate shared family when the stable order is private hand multi-selection, optional decline, one grouped hand-to-waiting move, draw count derived from the actual discarded cards or the post-discard hand size, resolve action, then pending continuation. Keep the axes narrow to ability/step ids, selector, min/max selection, Chinese prompt/skip copy, and a small draw-policy union (`discarded count + offset` or `until hand size`). Use `discardHandCardsToWaitingRoomAndEnqueueTriggers`; do not merge this family with draw-then-discard or a general steps DSL. Current real samples are `PL!HS-pb1-003`, `PL!HS-bp1-005`, `PL!HS-PR-031`, and same-text `PL!N-PR-028`; the latter two share one ability identity and workflow configuration.
 
@@ -260,6 +268,16 @@ Its finite discriminated-union configuration has only the ability id, expected b
 - `PL!N-bp3-005` 是该 family 的 player-level SCORE 样本：manual confirm-only 预览与最终 finish 均实时调用成员登场事件 query；modifier key 由 `kind + playerId + sourceCardId + abilityId` 区分，不绑定 `liveCardId`。
 - replacement 后以旧值和新值的 delta 刷新 `liveResolution.playerScores`，保证 resolver 重入不重复累计、不同来源实例可以叠加。
 
+# conditional-live-modifier 的跨区不同名团体成员必要 Heart 配置
+
+`PL!HS-pb1-026` 与 `PL!SP-bp1-026` 共用同一有限配置 family：稳定轴仅为 `abilityId`、`groupAlias`、玩家显示团体名、不同名阈值、固定泛用必要 Heart 减少量与 action step。两者都只扫描控制者 LEFT/CENTER/RIGHT 顶层成员和休息室成员，先用结构化团体 matcher 过滤，再用共享 card identity matcher 为多名称成员分配不同名；不统计 memberBelow、对方区域或其他区域。
+
+manual confirm-only 预览与最终结算都实时重算数量和来源 LIVE 状态；条件成立时只替换同一 `liveCardId + sourceCardId + abilityId` 的 `REQUIREMENT RAINBOW` modifier，不清除其他来源。本 family 不接受 callback，不表达任意区域、selector、modifier 类型或条件 DSL。
+
+# live-start-score-bonuses 的能量阈值配置
+
+`PL!SP-bp1-027` 和 `PL!SP-sd1-026` 是该 shared workflow 的有限 `minEnergyCount` 样本，分别配置 12 和 9；稳定轴仅为 `abilityId`、能量张数阈值、固定 SCORE 增量与 action step。确认窗口和最终 resolver 都读取控制者当前 `energyZone.cardIds.length`，因此 ACTIVE、WAITING 和特殊能量都按张数计入；条件成立时 replacement 写入绑定来源 LIVE 实例与 ability 的 SCORE modifier，并只按新旧差值刷新 `playerScores`，所以 resolver 重入不重复累计，而结算后的能量变化不会撤销既得分数。两个阈值按 abilityId 隔离，不扩展成任意 predicate 或分数条件 DSL。
+
 # LIVE_START 自身待机后中央 μ's 获得 BLADE family
 
 `workflows/shared/live-start-wait-self-center-muse-gain-blade.ts` 由第二个真实样本 `PL!-bp4-011` 触发晋升；原 `PL!-bp4-017` 单卡 workflow 与 focused test 已迁入行为命名 shared ownership。稳定参数轴仅为 `abilityId`、`bladeAmount` 与兼容 action step：两张卡都固定由来源自身从 ACTIVE 变 WAITING 作为可选费用，固定查询自己中央结构化 μ's 成员，并写目标成员 BLADE modifier。当前不泛化团体、区域、费用状态或 modifier 类型。
@@ -283,6 +301,18 @@ Its finite discriminated-union configuration has only the ability id, expected b
 # Activate-own-stage-member family
 
 `workflows/shared/activate-own-stage-member.ts` 承担“从控制者三个主舞台槽中至多选择1名当前非 ACTIVE 成员并变为 ACTIVE”的稳定可选流程。配置只保留 abilityId、stepId，以及来源在结算时是否仍须位于己方舞台：`PL!-bp3-001` 的 LIVE_START 保留来源 gate，`PL!S-bp3-010/011` 的 ON_ENTER 入队后不要求来源仍在场。状态变化统一走成员状态事件 wrapper，并通过统一 continuation 返回检查时点。这里没有 callback、任意条件组合或 steps-lite，因此是行为命名的 shared workflow，不是通用状态变化 DSL。
+
+# Optional pay-energy look-top-select-to-hand family
+
+`workflows/shared/optional-pay-energy-look-top-select-to-hand.ts` 当前只服务真实完全同文的 `PL!SP-bp1-012`、`PL!SP-sd1-008` 与 `PL!SP-sd1-017`。稳定边界固定为：ON_ENTER queued、可选支付 1 张 ACTIVE 能量、检视卡组顶 3 张、实际有卡时强制私密选择恰好 1 张加入手牌、余牌成组进入休息室。支付只调用 `payImmediateEffectCosts(TAP_ACTIVE_ENERGY, 1)` 并记录实际 `energyCardIds`；检视、refresh、选择入手、`MAIN_DECK -> WAITING_ROOM` 事件和 continuation 委托 `look-top-select-to-hand.ts`。
+
+本 family 不接受任意费用数、费用 callback、selector callback 配置或 steps DSL。所选卡不公开，不接 public-card-selection confirmation；支付成功后，后续卡组不足、无检视卡或 stale 选卡不会回滚费用。ON_ENTER 来源在入队后离场沿用现有 queued 触发语义，不额外增加来源存活 gate。
+
+# Higher-score place-waiting-energy family
+
+`workflows/shared/higher-score-place-waiting-energy.ts` 由 `PL!HS-bp1-023` 的旧单卡 workflow 在新增 `PL!SP-bp1-023` 第二个真实样本时晋升。稳定核心是 queued LIVE_SUCCESS 在最终结算时重读 `liveResolution.playerScores`，只接受自己严格高于对方，重验来源 LIVE 的 owner、类型和当前 LIVE 区，然后通过 `placeEnergyFromDeckToZoneByCardEffect` 放置 1 张 WAITING 能量并统一 continuation。
+
+配置轴只保留 abilityId、预期基础编号、action step，以及可选的结构化 `requiredStageGroupAlias`。HS 样本配置 `groupAliasIs('蓮ノ空')` 并只扫描己方 LEFT/CENTER/RIGHT 顶层成员；SP 样本不配置团体条件。manual confirm-only 文案实时展示双方分数、适用时的团体状态、能量卡组是否有牌与实际结果；最终 resolver 不信任开窗快照。旧 HS abilityId、definition 文本和 action/payload 兼容字段保持不变。
 
 # LIVE_START 选择目标成员获得 BLADE family
 

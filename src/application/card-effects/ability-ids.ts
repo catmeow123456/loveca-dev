@@ -249,6 +249,10 @@ export const SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID =
   'PL!SP-bp1-024:live-start-kanon-keke-gain-heart-blade';
 export const SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID =
   'PL!SP-bp1-024:live-success-stage-kanon-keke-draw';
+export const SP_BP1_012_ON_ENTER_PAY_ENERGY_LOOK_TOP_THREE_SELECT_ONE_ABILITY_ID =
+  'PL!SP-bp1-012:on-enter-pay-energy-look-top-three-select-one';
+export const SP_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!SP-bp1-023:live-success-higher-score-place-waiting-energy';
 export const BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID =
   'PL!-bp4-021-L:live-start-success-score-requirement-and-score';
 export const HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID =
@@ -573,6 +577,28 @@ export const SP_PB1_001_LIVE_START_PAY_TWO_ENERGY_OR_DISCARD_TWO_ABILITY_ID =
   'PL!SP-pb1-001:live-start-pay-two-energy-or-discard-two';
 export const SP_PB1_001_LIVE_SUCCESS_PAY_SIX_ENERGY_SCORE_ABILITY_ID =
   'PL!SP-pb1-001:live-success-pay-six-energy-score';
+export const SP_BP1_004_CONTINUOUS_CENTER_GAIN_FIVE_BLADE_ABILITY_ID =
+  'PL!SP-bp1-004:continuous-center-gain-five-blade';
+export const SP_BP1_001_CONTINUOUS_NO_OTHER_STAGE_MEMBER_CANNOT_LIVE_ABILITY_ID =
+  'PL!SP-bp1-001:continuous-no-other-stage-member-cannot-live';
+export const SP_BP1_002_ON_ENTER_LEFT_PAY_TWO_ENERGY_DRAW_TWO_ABILITY_ID =
+  'PL!SP-bp1-002:on-enter-left-pay-two-energy-draw-two';
+export const SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_ID =
+  'PL!SP-bp1-003:activated-reveal-hand-members-cost-total-gain-score';
+export const SP_BP1_007_ON_ENTER_ENERGY_ELEVEN_RECOVER_LIVE_ABILITY_ID =
+  'PL!SP-bp1-007:on-enter-energy-eleven-recover-live';
+export const SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID =
+  'PL!SP-bp1-008:on-enter-draw-one-bonus-if-mei';
+export const SP_BP1_009_ACTIVATED_PAY_ONE_ENERGY_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
+  'PL!SP-bp1-009:activated-pay-one-energy-draw-one-discard-one';
+export const SP_BP1_010_ACTIVATED_PAY_TWO_ENERGY_DISCARD_LOOK_TOP_FIVE_LIELLA_ABILITY_ID =
+  'PL!SP-bp1-010:activated-pay-two-energy-discard-look-top-five-liella';
+export const SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID =
+  'PL!SP-bp1-026:live-start-five-different-liella-members-reduce-rainbow-requirement';
+export const SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID =
+  'PL!SP-bp1-027:live-start-energy-twelve-score';
+export const SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID =
+  'PL!SP-sd1-026:live-start-energy-nine-score';
 export const BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!-bp4-010-N:live-start-pay-one-gain-two-blade';
 export const HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID =

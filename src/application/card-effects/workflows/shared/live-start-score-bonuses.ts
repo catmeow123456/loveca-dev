@@ -34,6 +34,8 @@ import {
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
   SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+  SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID,
+  SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   getAbilityEffectText,
@@ -53,7 +55,43 @@ const NORMAL_HEART_COLORS: readonly HeartColor[] = [
 
 const EUTOPIA_SCORE_BONUS = 2;
 
+interface EnergyThresholdScoreBonusConfig {
+  readonly abilityId: string;
+  readonly minEnergyCount: number;
+  readonly scoreBonus: number;
+  readonly actionStep: string;
+}
+
+const ENERGY_THRESHOLD_SCORE_BONUS_CONFIGS: readonly EnergyThresholdScoreBonusConfig[] = [
+  {
+    abilityId: SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
+    minEnergyCount: 9,
+    scoreBonus: 1,
+    actionStep: 'ENERGY_NINE_THIS_LIVE_SCORE',
+  },
+  {
+    abilityId: SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID,
+    minEnergyCount: 12,
+    scoreBonus: 1,
+    actionStep: 'ENERGY_TWELVE_THIS_LIVE_SCORE',
+  },
+];
+
 export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
+  for (const config of ENERGY_THRESHOLD_SCORE_BONUS_CONFIGS) {
+    registerManualConfirmablePendingAbilityStarterHandler(
+      config.abilityId,
+      (game, ability, options, context) =>
+        resolveEnergyThresholdScoreBonus(
+          game,
+          ability,
+          config,
+          options.orderedResolution === true,
+          context.continuePendingCardEffects
+        ),
+      (game, ability) => getEnergyThresholdScoreConfirmationConfig(game, ability, config)
+    );
+  }
   registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) =>
@@ -175,6 +213,80 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
       ),
     getGoRestartConfirmationConfig
   );
+}
+
+function getEnergyThresholdScoreConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState,
+  config: EnergyThresholdScoreBonusConfig
+): { readonly effectText: string } {
+  const context = getEnergyThresholdScoreContext(game, ability, config);
+  return {
+    effectText: `${getAbilityEffectText(config.abilityId)}（当前自己的能量${context.energyCount}张，${
+      context.conditionMet
+        ? `满足条件，实际[スコア]+${config.scoreBonus}。`
+        : '未满足条件，实际不增加分数。'
+    }）`,
+  };
+}
+
+function resolveEnergyThresholdScoreBonus(
+  game: GameState,
+  ability: PendingAbilityState,
+  config: EnergyThresholdScoreBonusConfig,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getEnergyThresholdScoreContext(stateWithoutPending, ability, config);
+  const stateAfterScore = context.conditionMet
+    ? replaceScoreModifierAndRefresh(stateWithoutPending, {
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        scoreBonus: config.scoreBonus,
+      })
+    : stateWithoutPending;
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: context.conditionMet ? config.actionStep : `NO_${config.actionStep}`,
+      sourceInLiveZone: context.sourceInLiveZone,
+      energyCount: context.energyCount,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.conditionMet ? config.scoreBonus : 0,
+    }),
+    orderedResolution
+  );
+}
+
+function getEnergyThresholdScoreContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  config: EnergyThresholdScoreBonusConfig
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly energyCount: number;
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceCard = getCardById(game, ability.sourceCardId);
+  const sourceInLiveZone =
+    player?.liveZone.cardIds.includes(ability.sourceCardId) === true &&
+    sourceCard?.ownerId === player.id &&
+    isLiveCardData(sourceCard.data);
+  const energyCount = player?.energyZone.cardIds.length ?? 0;
+  return {
+    sourceInLiveZone,
+    energyCount,
+    conditionMet: sourceInLiveZone && energyCount >= config.minEnergyCount,
+  };
 }
 
 function getPsychoHeartConfirmationConfig(

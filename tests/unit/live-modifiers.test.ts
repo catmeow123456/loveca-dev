@@ -17,6 +17,7 @@ import {
   addCardToZone,
   addMemberBelowMember,
   placeCardInSlot,
+  removeCardFromSlot,
 } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
@@ -95,6 +96,7 @@ const SP_PB2_032_CONTINUOUS_ABILITY_ID =
   'PL!SP-pb2-032:continuous-energy-six-eight-gain-purple-heart';
 const SP_PB2_035_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-035:continuous-left-side-gain-two-blade';
 const SP_PB2_041_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
+const SP_BP1_004_CONTINUOUS_ABILITY_ID = 'PL!SP-bp1-004:continuous-center-gain-five-blade';
 const SP_BP5_011_CONTINUOUS_ABILITY_ID = 'PL!SP-bp5-011:continuous-slot-hearts';
 const SP_BP5_016_CONTINUOUS_ABILITY_ID =
   'PL!SP-bp5-016:continuous-energy-ten-gain-two-purple-heart';
@@ -6167,7 +6169,7 @@ describe("PL!-bp4-020-L 成功区常时 CENTER μ's BLADE", () => {
     expect(modifiersFor(setupLoveWingBell(options).game)).toEqual([]);
   });
 
-  it('中央为空时不生效，侧边或 memberBelow 的 μ\'s 不会代替 CENTER', () => {
+  it("中央为空时不生效，侧边或 memberBelow 的 μ's 不会代替 CENTER", () => {
     const { game } = setupLoveWingBell();
     const noCenter = updatePlayer(game, 'p1', (player) => ({
       ...player,
@@ -6569,7 +6571,7 @@ describe('PL!S-PR-029/030/031 continuous any-stage cost >= 13 BLADE', () => {
         playerId: 'p1',
         countDelta: 2,
         sourceCardId: state.sourceIds[0],
-      abilityId: S_PR_030_031_CONTINUOUS_ABILITY_ID,
+        abilityId: S_PR_030_031_CONTINUOUS_ABILITY_ID,
       },
     ]);
     expect(getMemberEffectiveBladeCount(state.game, 'p1', state.sourceIds[0], modifiers)).toBe(3);
@@ -6721,23 +6723,23 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
       [SlotPosition.RIGHT]: options.rightCost,
     };
     const stageCards = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].map((slot) =>
-        createCardInstance(
-          {
+      createCardInstance(
+        {
           cardCode: slot === options.sourceSlot ? 'PL!SP-bp2-004-P' : `TEST-SP-BP2-004-${slot}`,
-            name: slot === options.sourceSlot ? '平安名すみれ' : `Stage ${slot}`,
-            groupNames: ['Liella!'],
-            cardType: CardType.MEMBER,
-            cost: costs[slot],
-            blade: 1,
-            hearts: [createHeartIcon(HeartColor.PINK, 1)],
-          },
-          'p1',
-          `sp-bp2-004-${slot}`
-        )
+          name: slot === options.sourceSlot ? '平安名すみれ' : `Stage ${slot}`,
+          groupNames: ['Liella!'],
+          cardType: CardType.MEMBER,
+          cost: costs[slot],
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        'p1',
+        `sp-bp2-004-${slot}`
+      )
     );
     const source = stageCards.find(
       (_, index) =>
-      [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index] === options.sourceSlot
+        [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index] === options.sourceSlot
     )!;
     const opponent = createCardInstance(
       {
@@ -6806,19 +6808,19 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
   ])(
     'grants the source in %s one SOURCE_MEMBER yellow Heart when center is highest',
     (sourceSlot, leftCost, centerCost, rightCost) => {
-    const { game, sourceId } = createScenario({ sourceSlot, leftCost, centerCost, rightCost });
+      const { game, sourceId } = createScenario({ sourceSlot, leftCost, centerCost, rightCost });
 
-    expect(findModifiers(game)).toEqual([
-      {
-        kind: 'HEART',
-        target: 'SOURCE_MEMBER',
-        playerId: 'p1',
-        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
-        sourceCardId: sourceId,
-        abilityId,
-      },
-    ]);
-    expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+      expect(findModifiers(game)).toEqual([
+        {
+          kind: 'HEART',
+          target: 'SOURCE_MEMBER',
+          playerId: 'p1',
+          hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+          sourceCardId: sourceId,
+          abilityId,
+        },
+      ]);
+      expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
     }
   );
 
@@ -6840,13 +6842,13 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
   ])(
     'does not grant when center cost is strictly below a side member (%s/%s/%s)',
     (leftCost, centerCost, rightCost) => {
-    const { game } = createScenario({
-      sourceSlot: SlotPosition.LEFT,
-      leftCost,
-      centerCost,
-      rightCost,
-    });
-    expect(findModifiers(game)).toEqual([]);
+      const { game } = createScenario({
+        sourceSlot: SlotPosition.LEFT,
+        leftCost,
+        centerCost,
+        rightCost,
+      });
+      expect(findModifiers(game)).toEqual([]);
     }
   );
 
@@ -9255,5 +9257,100 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
     ]);
     expect(afterOtherTargetLeaves.liveResolution.liveModifiers).toEqual([]);
     expect(afterOtherTargetLeaves.liveResolution.playerScoreBonuses.has('p1')).toBe(false);
+  });
+});
+
+describe('PL!SP-bp1-004 continuous center BLADE', () => {
+  it('dynamically collects SOURCE_MEMBER BLADE +5 only while top-level in CENTER and stacks legal sources', () => {
+    const createSumire = (id: string, ownerId = 'p1') =>
+      createCardInstance(
+        {
+          cardCode: 'PL!SP-bp1-004-P',
+          name: '平安名すみれ',
+          groupNames: ['Liella!'],
+          cardType: CardType.MEMBER,
+          cost: 15,
+          blade: 2,
+          hearts: [],
+        },
+        ownerId,
+        id
+      );
+    const first = createSumire('sp-bp1-004-first');
+    const second = createSumire('sp-bp1-004-second', 'p2');
+    const cover = createCardInstance(
+      { ...first.data, cardCode: 'PL!SP-test-cover', name: 'cover' },
+      'p1',
+      'sp-bp1-004-cover'
+    );
+    let game = registerCards(createGameState('sp-bp1-004-center', 'p1', 'P1', 'p2', 'P2'), [
+      first,
+      second,
+      cover,
+    ]);
+    const modifiersFor = (state: typeof game, cardId: string) =>
+      collectLiveModifiers(state).filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === cardId &&
+          modifier.abilityId === SP_BP1_004_CONTINUOUS_ABILITY_ID
+      );
+
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, first.instanceId),
+    }));
+    expect(modifiersFor(game, first.instanceId)).toEqual([
+      expect.objectContaining({ kind: 'BLADE', playerId: 'p1', countDelta: 5 }),
+    ]);
+    expect(getMemberEffectiveBladeCount(game, 'p1', first.instanceId)).toBe(7);
+
+    const onLeft = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        SlotPosition.LEFT,
+        first.instanceId
+      ),
+    }));
+    expect(modifiersFor(onLeft, first.instanceId)).toEqual([]);
+    const onRight = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        SlotPosition.RIGHT,
+        first.instanceId
+      ),
+    }));
+    expect(modifiersFor(onRight, first.instanceId)).toEqual([]);
+
+    const absent = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    expect(modifiersFor(absent, first.instanceId)).toEqual([]);
+
+    const below = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, cover.instanceId),
+        SlotPosition.CENTER,
+        first.instanceId
+      ),
+    }));
+    expect(modifiersFor(below, first.instanceId)).toEqual([]);
+
+    const restored = updatePlayer(absent, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, first.instanceId),
+    }));
+    expect(modifiersFor(restored, first.instanceId)).toHaveLength(1);
+
+    const secondPlayerStacked = updatePlayer(restored, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, second.instanceId),
+    }));
+    expect(modifiersFor(secondPlayerStacked, first.instanceId)).toHaveLength(1);
+    expect(modifiersFor(secondPlayerStacked, second.instanceId)).toHaveLength(1);
   });
 });

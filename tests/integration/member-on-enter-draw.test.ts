@@ -13,7 +13,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { addCardToZone, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
@@ -25,6 +25,7 @@ import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
+  SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID,
   SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -580,15 +581,17 @@ function createFiveyncriseMember(cardCode: string, name = '鬼塚夏美'): Membe
   return { ...createMember(cardCode, name, 2), groupNames: ['Liella!'], unitName: '5yncri5e!' };
 }
 
-function resolveSpPb1009(options: {
-  readonly sourceCode?: string;
-  readonly ownStageCards?: readonly ReturnType<typeof createCardInstance>[];
-  readonly opponentStageCards?: readonly ReturnType<typeof createCardInstance>[];
-  readonly handCards?: readonly ReturnType<typeof createCardInstance>[];
-  readonly waitingRoomCards?: readonly ReturnType<typeof createCardInstance>[];
-  readonly memberBelowCards?: readonly ReturnType<typeof createCardInstance>[];
-  readonly includeDrawCard?: boolean;
-} = {}) {
+function resolveSpPb1009(
+  options: {
+    readonly sourceCode?: string;
+    readonly ownStageCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly opponentStageCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly handCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly waitingRoomCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly memberBelowCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly includeDrawCard?: boolean;
+  } = {}
+) {
   const source = createCardInstance(
     createFiveyncriseMember(options.sourceCode ?? 'PL!SP-pb1-009-R'),
     PLAYER1,
@@ -822,10 +825,7 @@ function resolvePlBp4016(options: {
   const drawCard = createCardInstance(createMember('DRAW-CARD'), PLAYER1, 'bp4-016-draw');
   const drawSource = options.drawSource ?? 'MAIN_DECK';
   let game = createGameState('pl-bp4-016-draw', PLAYER1, 'P1', PLAYER2, 'P2');
-  game = registerCards(
-    game,
-    [source, ...successLives, ...(nonLive ? [nonLive] : []), drawCard]
-  );
+  game = registerCards(game, [source, ...successLives, ...(nonLive ? [nonLive] : []), drawCard]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     mainDeck: {
@@ -838,7 +838,10 @@ function resolvePlBp4016(options: {
     },
     successZone: {
       ...player.successZone,
-      cardIds: [...successLives.map((card) => card.instanceId), ...(nonLive ? [nonLive.instanceId] : [])],
+      cardIds: [
+        ...successLives.map((card) => card.instanceId),
+        ...(nonLive ? [nonLive.instanceId] : []),
+      ],
     },
     memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
   }));
@@ -923,5 +926,208 @@ describe('PL!-bp4-016-N shared success-score on-enter draw', () => {
       drawnCardIds: [],
       drawCount: 0,
     });
+  });
+});
+
+function resolveSpBp1008(
+  options: {
+    readonly meiName?: string;
+    readonly meiZone?: 'OWN_STAGE' | 'OPPONENT_STAGE' | 'MEMBER_BELOW' | 'WAITING_ROOM' | 'NONE';
+    readonly drawCount?: number;
+    readonly sourceCode?: string;
+    readonly beforeResolution?: 'MEI_ENTERS_STAGE' | 'MEI_LEAVES_STAGE';
+  } = {}
+) {
+  const meiZoneAtQueue =
+    options.beforeResolution === 'MEI_ENTERS_STAGE'
+      ? 'NONE'
+      : options.beforeResolution === 'MEI_LEAVES_STAGE'
+        ? 'OWN_STAGE'
+        : options.meiZone;
+  const source = createCardInstance(
+    createMember(options.sourceCode ?? 'PL!SP-bp1-008-P', '若菜四季', 13),
+    PLAYER1,
+    'sp-bp1-008-source'
+  );
+  const mei = createCardInstance(
+    createMember('MEI', options.meiName ?? '米女メイ', 13),
+    options.meiZone === 'OPPONENT_STAGE' ? PLAYER2 : PLAYER1,
+    'sp-bp1-008-mei'
+  );
+  const drawCards = Array.from({ length: options.drawCount ?? 2 }, (_, index) =>
+    createCardInstance(createMember(`DRAW-${index}`), PLAYER1, `sp-bp1-008-draw-${index}`)
+  );
+  let game = registerCards(createGameState('sp-bp1-008', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    mei,
+    ...drawCards,
+  ]);
+  game = updatePlayer(game, PLAYER1, (player) => {
+    let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId);
+    if (meiZoneAtQueue === 'OWN_STAGE') {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, mei.instanceId);
+    }
+    if (options.meiZone === 'MEMBER_BELOW') {
+      memberSlots = {
+        ...memberSlots,
+        memberBelow: {
+          ...memberSlots.memberBelow,
+          [SlotPosition.CENTER]: [mei.instanceId],
+        },
+      };
+    }
+    return {
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: drawCards.map((card) => card.instanceId) },
+      waitingRoom:
+        options.meiZone === 'WAITING_ROOM'
+          ? { ...player.waitingRoom, cardIds: [mei.instanceId] }
+          : player.waitingRoom,
+      memberSlots,
+    };
+  });
+  if (options.meiZone === 'OPPONENT_STAGE') {
+    game = updatePlayer(game, PLAYER2, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, mei.instanceId),
+    }));
+  }
+  let queuedGame: GameState = {
+    ...game,
+    pendingAbilities: [
+      pendingAbility(
+        'sp-bp1-008-pending',
+        source.instanceId,
+        SlotPosition.CENTER,
+        SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID
+      ),
+    ],
+  };
+  if (options.beforeResolution === 'MEI_ENTERS_STAGE') {
+    queuedGame = updatePlayer(queuedGame, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, mei.instanceId),
+    }));
+  } else if (options.beforeResolution === 'MEI_LEAVES_STAGE') {
+    queuedGame = updatePlayer(queuedGame, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [...player.waitingRoom.cardIds, mei.instanceId],
+      },
+    }));
+  }
+  const state = resolvePendingCardEffects(queuedGame).gameState;
+  return { state, source, mei, drawCards };
+}
+
+describe('PL!SP-bp1-008 shared member-on-enter conditional draw', () => {
+  it.each(['PL!SP-bp1-008-P', 'PL!SP-bp1-008-R'])(
+    'draws only one for %s without Mei on the own main stage',
+    (sourceCode) => {
+      const { state, drawCards } = resolveSpBp1008({ sourceCode, meiZone: 'NONE' });
+      expect(state.players[0].hand.cardIds).toEqual([drawCards[0]!.instanceId]);
+      expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+        abilityId: SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID,
+        hasBonusStageMember: false,
+        requestedDrawCount: 1,
+        drawCount: 1,
+      });
+    }
+  );
+
+  it.each(['米女メイ', '米女芽衣', '米女メイ&鬼塚夏美'])(
+    'draws two for the own-stage Mei identity %s',
+    (meiName) => {
+      const { state, drawCards } = resolveSpBp1008({ meiName, meiZone: 'OWN_STAGE' });
+      expect(state.players[0].hand.cardIds).toEqual(drawCards.map((card) => card.instanceId));
+      expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+        bonusStageMemberName: '米女メイ',
+        hasBonusStageMember: true,
+        requestedDrawCount: 2,
+        drawCount: 2,
+      });
+    }
+  );
+
+  it.each(['OPPONENT_STAGE', 'MEMBER_BELOW', 'WAITING_ROOM'] as const)(
+    'does not count Mei in %s',
+    (meiZone) => {
+      const { state, drawCards } = resolveSpBp1008({ meiZone });
+      expect(state.players[0].hand.cardIds).toEqual([drawCards[0]!.instanceId]);
+    }
+  );
+
+  it('uses the stage state at resolution when Mei enters or leaves after queueing', () => {
+    expect(
+      resolveSpBp1008({ beforeResolution: 'MEI_ENTERS_STAGE' }).state.players[0].hand.cardIds
+    ).toHaveLength(2);
+    expect(
+      resolveSpBp1008({ beforeResolution: 'MEI_LEAVES_STAGE' }).state.players[0].hand.cardIds
+    ).toHaveLength(1);
+  });
+
+  it('draws only the actual available card when the bonus requests two', () => {
+    const { state, drawCards } = resolveSpBp1008({ meiZone: 'OWN_STAGE', drawCount: 1 });
+    expect(state.players[0].hand.cardIds).toEqual([drawCards[0]!.instanceId]);
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      requestedDrawCount: 2,
+      drawCount: 1,
+    });
+  });
+
+  it('fully consumes its pending and continues an ordered draw ability', () => {
+    const first = createCardInstance(
+      createMember('PL!SP-bp1-008-P', '若菜四季', 13),
+      PLAYER1,
+      'sp-bp1-008-first'
+    );
+    const second = createCardInstance(createMember('GENERIC'), PLAYER1, 'generic-second');
+    const mei = createCardInstance(createMember('MEI', '米女芽衣'), PLAYER1, 'mei');
+    const draws = [0, 1, 2].map((index) =>
+      createCardInstance(createMember(`DRAW-${index}`), PLAYER1, `ordered-draw-${index}`)
+    );
+    let game = registerCards(createGameState('sp-bp1-008-ordered', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      first,
+      second,
+      mei,
+      ...draws,
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: draws.map((card) => card.instanceId) },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, first.instanceId),
+          SlotPosition.CENTER,
+          mei.instanceId
+        ),
+        SlotPosition.RIGHT,
+        second.instanceId
+      ),
+    }));
+    const selection = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'conditional',
+          first.instanceId,
+          SlotPosition.LEFT,
+          SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID
+        ),
+        pendingAbility('generic', second.instanceId, SlotPosition.RIGHT),
+      ],
+    }).gameState;
+    const resolved = confirmActiveEffectStep(
+      selection,
+      PLAYER1,
+      selection.activeEffect!.id,
+      null,
+      null,
+      true
+    );
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).toEqual(draws.map((card) => card.instanceId));
   });
 });

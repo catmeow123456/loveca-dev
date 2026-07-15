@@ -12,6 +12,54 @@
 - `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md` 与 `docs/online-mode/preparation.md` 已同步当前产品行为；对局结束后最终只读桌面保留 1 分钟仍未实现，持久化观战审计不在当前范围。
 - 验证：focused suite `tests/integration/online-room-service.test.ts`、`tests/integration/online-route-error-handling.test.ts`、`tests/unit/game-store-remote-sync.test.ts`、`tests/unit/battle-surface-capabilities.test.ts`、`tests/unit/api-client-redaction.test.ts` passed（5 files / 68 tests）；rebase 最新 `origin/main` 后 `pnpm test:run` passed（462 files / 3955 tests，3 performance tests skipped）；shared / server / client TypeScript 与 `git diff --check` passed。
 
+## 2026-07-15：Liella! SP-bp1 候选卡最终独立批次（未提交）
+
+- `PL!SP-bp1-003-P / P＋ / R＋ / SEC` 费用 10「嵐 千砂都」完成每回合1次起动能力；日文规则与 FAQ 核对 `llocg_db/json/cards.json`，玩家中文采用 Excel `sheet1!A121:X124` 多行中文效果，并只把“分数”替换为 `[スコア]` token。
+- 新增窄单卡 workflow `workflows/cards/sp-bp1-003-chisato.ts`：只允许当前玩家自己的主阶段从己方 LEFT/CENTER/RIGHT 顶层来源发动，ACTIVE / WAITING 均可；候选只含自己当前手牌 MEMBER，提交前只对等待玩家可见，支持 0 至全部 `ORDERED_MULTI`，但结算不使用选择顺序。合法提交先公开所选手牌且不移动，进入同一 activeEffect 的公开结果确认；0 张是合法公开、合计 0、不获得 SCORE，但仍记录本回合使用。
+- Q129 费用口径由新只读边界 `effects/play-member-cost.ts` 统一：`GameSession.preparePlayMemberCostPayment` 与本 workflow 共享同一 stage/success LIVE/完整手牌快照资源构造，并逐张调用 `costCalculator.calculateModifiedPlayCost`。公开提交时保存每张 `effectiveCost`、合计与条件事实，最终确认不重算。
+- 合计恰为 10 / 20 / 30 / 40 / 50 时，通过 `addPlayerScoreLiveModifierForTargetMember` 给 003 来源实例写玩家总 SCORE +1；不写 `liveCardId`，不直接改主阶段 `playerScores`。Q78 继续由标准 ON_LEAVE_STAGE 的 target-member-bound 清理处理，槽位移动保留、来源离场或成为 memberBelow 后移除；Q171 继续由 LIVE 结果结算统一清空 `liveModifiers`，没有进行 LIVE 也相同。
+- 本批新增 1 个生产卡牌维度 `.ts`；runner 只增加 003 workflow 的一个 import 与一个 register 调用。`PL!SP-bp1-025` 仍只是 ALL BLADE 规则提醒，不登记 ability；前五批与历史“当时未实现”记录保持原样。
+
+## 2026-07-15：Liella! SP-bp1 新卡卡效第五批（未提交）
+
+- `PL!SP-bp1-001-P / R` 费用 9「澁谷かのん」完成非 queued `CONTINUOUS` ability；玩家文本逐字采用 Excel `sheet1!A115:X116` 的「【常时】自己的舞台上不存在其他的成员的场合，自己无法进行LIVE。」。
+- `src/domain/rules/live-prohibitions.ts` 新增窄的动态 continuous 查询：只在合法 001 来源是控制者 LEFT/CENTER/RIGHT 主舞台顶层 MEMBER，且己方没有来源以外的其他合法顶层成员时禁止 LIVE。对方成员与 memberBelow 不计入；两张 001 同时在场会互相视为其他成员，因此不禁止。
+- 该限制不写入 `game.liveProhibitions`，不调用 `addLiveProhibitionUntilLiveEnd`；来源离场、成为 memberBelow、失去正确 owner/type，或己方出现其他顶层成员时即时失效，其他成员离场后即时恢复。`isPlayerLiveProhibited` 统一合并临时状态与实时 continuous 查询，Live Set 仍可盖牌并正常抽牌，随后复用既有 phase-ten 检查点把 LIVE 区全部卡移入休息室。
+- `PL!HS-bp2-014-N` 费用 4「大沢瑠璃乃」继续使用写入状态、直到 LIVE 结束清理的临时禁止；清理临时状态不影响当前场面仍满足的 001，001 场面变化也不清理临时状态。
+- 本批没有新增生产卡牌维度 `.ts`，没有 workflow、pending、activeEffect 或 runner 接线。`PL!SP-bp1-003` 仍未实现并留到最后一个独立执行窗口；`PL!SP-bp1-025` 仍只视为规则提醒，不登记 ability。历史批次中的「当时未实现 001」记录保持原样。
+
+## 2026-07-15：Liella! SP-bp1 新卡卡效第四批（未提交）
+
+- `PL!SP-bp1-002-P / P＋ / R＋ / SEC` 费用 4「唐 可可」完成 queued ON_ENTER；左侧条件只读本次登场事件的 `sourceSlot=LEFT` 快照，后续移动或离场不改判。窄单卡 workflow 复用 `payImmediateEffectCosts` 固定支付两张 ACTIVE 能量，再用 `drawCardsForPlayer` 抽 2；非 LEFT、能量不足或拒绝不产生部分修改。
+- `PL!SP-bp1-010-P / R` 费用 11「ウィーン・マルガレーテ」完成每回合1次起动能力。窄单卡 workflow 预验证两张 ACTIVE 能量与恰好1张手牌，复用标准费用/弃手 trigger wrapper；两项费用全部成功后才记录每回合次数。后续委托 `look-top-select-to-hand` core 完成顶5检视、可选0至1张结构化『Liella!』MEMBER/LIVE 公开入手、余牌 grouped 事件与 refresh；未选 inspection 内容保持私密，弃手产生的 pending 在当前能力完整结束后再统一调度。
+- `PL!SP-sd1-026-SD / SRL` 分数 4「私のSymphony 〜澁谷かのんVer.〜」复用 `live-start-score-bonuses.ts`，只增加 `minEnergyCount=9 / scoreBonus=1` 配置。能量区按 `cardIds.length` 统计 ACTIVE、WAITING 与特殊能量；modifier 按来源 LIVE 实例与 abilityId replacement，重入不累加、不覆盖其他来源，并与 `PL!SP-bp1-027` 的 12 能量阈值隔离。卡面括号抽牌提醒未登记为额外 ability。
+- runner 第四批只新增 002 / 010 两个 workflow 的 import/register 接线，分类为薄边界类别1；没有卡牌 gate、复合费用、pending 构造或 effect body 回流。本批新增 2 个生产卡牌维度 `.ts` workflow。
+- 仍未实现 `PL!SP-bp1-001 / 003`；`PL!SP-bp1-025` 的 ALL BLADE 括号文本继续视为规则提醒，不登记 ability。历史批次中的「当时未实现」记录保持不回写。
+
+## 2026-07-15：Liella! SP-bp1 新卡卡效第三批（未提交）
+
+- `PL!SP-bp1-012-N` 费用 4「澁谷かのん」、`PL!SP-sd1-008-SD` 费用 4「若菜四季」、`PL!SP-sd1-017-SD` 费用 4「桜小路きな子」完成同文 ON_ENTER family：可选支付 `[E]` 后检视卡组顶 3 张，实际有卡时强制私密选择 1 张加入手牌，其余成组进入休息室。
+- 三张 Excel 多行中文效果规范化后完全一致，共用一个 ability identity；Excel 的 012 日文 `[E][E]` 与 `cards.json` 及另两张 `[E]` 不一致，规则实现以 `cards.json` 的固定 `[E]` 为准。支付复用 `payImmediateEffectCosts`，检视/refresh/余牌事件/continuation 复用 `look-top-select-to-hand` 核心。
+- `PL!SP-bp1-023-L / SRL` 分数 1「START!! True dreams」完成 LIVE_SUCCESS：实时分数严格高于对方时放置 1 张待机能量；括号 SCORE 规则提醒未登记为额外 ability。
+- 原 `PL!HS-bp1-023-L` 分数 2「ド！ド！ド！」单卡 workflow 晋升为 `higher-score-place-waiting-energy` shared ownership；保留旧 abilityId/action 行为，HS 继续要求己方主舞台顶层结构化莲之空成员，SP 不带团体条件。
+- runner 本批只把旧 HS 单卡 import/register 替换为 shared 注册，并增加 012 shared family 的 import/register；没有卡牌 gate、费用、pending 或 effect body 回流。
+- 已新增 focused tests：`tests/integration/optional-pay-energy-look-top-select-to-hand.test.ts`、`tests/integration/higher-score-place-waiting-energy.test.ts`；同步 `tests/unit/card-effect-classification.test.ts`。最终相关回归共 12 files / 266 tests passed，Type Errors 0；server/client TypeScript、玩家文案 3452 条审计、局部 Prettier、`git diff --check` 与暂存区检查均通过。
+- 明确未处理：`PL!SP-bp1-001 / 002 / 003 / 010 / 025`、`PL!SP-sd1-026`，以及既有第一/第二批和其他脏树。
+
+## 本次 2026-07-15 `PL!SP-bp1-007 / 008 / 009` 第二批卡效
+
+- 完成费用 13「米女メイ」P/P＋/R＋/SEC、费用 13「若菜四季」P/R、费用 9「鬼塚夏美」P/R；日文规则核对 `llocg_db/json/cards.json`，玩家中文逐字采用 `loveca_20260626015115.xlsx` 的多行中文效果。
+- 007 扩展 shared `waiting-room-to-hand.ts`：pending 结算时读取控制者全部能量区卡牌数，至少 11 张才强制选择恰好 1 张 LIVE；条件不足或无合法目标安全 no-op。真实选卡沿用 public-card-selection confirmation，第一次提交只公开；初次 selector 显式校验 owner，权威 deadline 后恢复时重新运行当前 `candidateBuilder` 并与原候选取交集，从而重验 owner、区域和 LIVE 类型，失效目标 no-op 后统一 continuation。
+- 008 扩展 shared `member-on-enter-draw.ts` 的有限“指定舞台成员姓名 + 追加抽牌数”配置轴：固定先抽 1，结算时自己的 LEFT/CENTER/RIGHT 顶层成员具有「米女メイ」身份时再抽 1；复用 `cardNameAliasIs`，支持日中别名、空白与多名称身份，不统计对方、memberBelow 或其他区域。
+- 009 新增本批唯一卡牌维度薄 wrapper `workflows/cards/sp-bp1-009-natsumi.ts`：自己的主阶段支付 1 张 ACTIVE 能量并记录标准 `PAY_COST`，随后委托 `draw-then-discard` core 抽 1 弃 1；弃手走标准 HAND -> WAITING_ROOM 事件 wrapper，新 pending 在当前能力完整结算后由统一检查时点调度。回合次数只在支付成功后记录。
+- 本批没有引入任意 predicate、任意费用或通用 steps DSL；`PL!SP-bp1-001 / 002 / 003 / 010 / 012 / 023 / 025` 与 `PL!SP-sd1-026` 仍未登记、未实现。runner 只为 009 增加一个 import 与一个 register 调用。
+
+## 本次 2026-07-15 `PL!SP-bp1-004 / 026 / 027` 第一批卡效
+
+- 完成费用 15「平安名すみれ」P/PR/R、分数 3「未来予報ハレルヤ！」L/SECL/SRL、分数 6「Sing！Shine！Smile！」L/SRL；日文规则核对 `llocg_db/json/cards.json`，玩家中文采用 `loveca_20260626015115.xlsx` 多行中文效果。`PL!SP-bp1-025` 与阈值9同型 `PL!SP-sd1-026` 均未登记、未实现。
+- 004 复用 `live-modifiers.ts` 固定槽位 BLADE continuous 配置，CENTER 顶层来源动态获得 SOURCE_MEMBER BLADE +5；026 将 HS-pb1-026 的硬编码跨区不同名判断收窄为团体、阈值、减少量等有限配置轴，结构化匹配 Liella! 并写来源 LIVE `REQUIREMENT RAINBOW -2`；027 只为 `live-start-score-bonuses.ts` 增加 `minEnergyCount=12` 配置，来源绑定 SCORE +1 使用 replacement 差值刷新，重入不累计。
+- focused classification / continuous / conditional modifier / score bonus 4 文件 441 tests 与 token/text governance 15 tests 通过；玩家文案审计检查 3433 条候选文本通过，服务端 `tsc --noEmit`、客户端 `tsc -b client`、`git diff --check` 通过。runner 3752 行、零 diff；未 stage、未 commit、未 push，既有 `llocg_db` 脏状态保持未动。
+
 ## 本次 2026-07-15 `PL!-bp4-020-L` Love wing bell（PL!-bp4 候选收尾）
 
 - 完成分数 3「Love wing bell」两段独立能力；日文核对 `llocg_db/json/cards.json`，中日文、团体、类型、分数、必要 Heart 与 token 核对 `loveca_20260626015115.xlsx` `sheet1!A1526:X1526`，两条 definition 分别逐字使用对应中文段落，`[ブレード]` 复用现有 BLADE token。

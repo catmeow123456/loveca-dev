@@ -117,7 +117,8 @@ import { registerBp6024SuccessReplacementWorkflowHandlers } from './card-effects
 import { registerHsBp1008KosuzuWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-008-kosuzu.js';
 import { registerPlayWaitingRoomMemberToSourceSlotWorkflowHandlers } from './card-effects/workflows/shared/play-waiting-room-member-to-source-slot.js';
 import { registerHsBp1022AwokeWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-022-awoke.js';
-import { registerHsBp1023DododoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp1-023-dododo.js';
+import { registerHigherScorePlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/shared/higher-score-place-waiting-energy.js';
+import { registerOptionalPayEnergyLookTopSelectToHandWorkflowHandlers } from './card-effects/workflows/shared/optional-pay-energy-look-top-select-to-hand.js';
 import { registerHsBp2014RurinoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp2-014-rurino.js';
 import { registerHsBp6031FanfareWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-031-fanfare.js';
 import { registerHsBp6004GinkoWorkflowHandlers } from './card-effects/workflows/cards/hs-bp6-004-ginko.js';
@@ -316,6 +317,10 @@ import { registerSBp5222RiaWorkflowHandlers } from './card-effects/workflows/car
 import { registerSpBp2003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-003-chisato.js';
 import { registerSpBp2005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-005-ren.js';
 import { registerSpBp2009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-009-natsumi.js';
+import { registerSpBp1009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-009-natsumi.js';
+import { registerSpBp1002KekeWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-002-keke.js';
+import { registerSpBp1003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-003-chisato.js';
+import { registerSpBp1010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-010-margarete.js';
 import { registerSpBp2010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-010-margarete.js';
 import { registerSpBp2011TomariWorkflowHandlers } from './card-effects/workflows/cards/sp-bp2-011-tomari.js';
 import { registerSpBp1024TinyStarsWorkflowHandlers } from './card-effects/workflows/cards/sp-bp1-024-tiny-stars.js';
@@ -1043,7 +1048,8 @@ registerHsBp5016IzumiWorkflowHandlers({
 registerHsBp5021JoshoKiryuWorkflowHandlers();
 registerHsBp5022RetrofutureWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsBp1022AwokeWorkflowHandlers();
-registerHsBp1023DododoWorkflowHandlers();
+registerHigherScorePlaceWaitingEnergyWorkflowHandlers();
+registerOptionalPayEnergyLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1002SayakaWorkflowHandlers();
 registerHsPb1004GinkoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerHsPb1003RurinoWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1173,6 +1179,10 @@ registerNPr026RinaWorkflowHandlers();
 registerPlBp3014RinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp5007SetsunaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp2009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp1009NatsumiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp1002KekeWorkflowHandlers();
+registerSpBp1003ChisatoWorkflowHandlers();
+registerSpBp1010MargareteWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp2010MargareteWorkflowHandlers();
 registerSBp5020LandingActionYeahWorkflowHandlers();
 registerSBp5111SeiraWorkflowHandlers({

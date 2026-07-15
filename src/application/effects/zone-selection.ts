@@ -58,7 +58,7 @@ export function selectWaitingRoomCardIds(
 
   return player.waitingRoom.cardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
-    return card !== null && predicate(card);
+    return card !== null && card.ownerId === playerId && predicate(card);
   });
 }
 
