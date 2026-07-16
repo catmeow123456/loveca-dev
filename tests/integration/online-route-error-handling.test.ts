@@ -6,6 +6,10 @@ vi.mock('../../src/server/services/online-room-service.js', () => ({
     code = 'ONLINE_ROOM_ERROR';
     statusCode = 400;
   },
+  loadUserProfileForOnlineMatch: vi.fn(async (userId: string) => ({
+    userId,
+    displayName: '服务端昵称',
+  })),
   onlineRoomService: {
     touchInGameMemberByMatch: vi.fn(),
     markReadyToStart: vi.fn(),
@@ -33,12 +37,17 @@ function createMockResponse() {
   const response = {
     statusCode: 200,
     body: null as unknown,
+    headers: {} as Record<string, string>,
     status(code: number) {
       this.statusCode = code;
       return this;
     },
     json(payload: unknown) {
       this.body = payload;
+      return this;
+    },
+    setHeader(name: string, value: string) {
+      this.headers[name] = value;
       return this;
     },
   };
@@ -49,6 +58,7 @@ function createMockResponse() {
       data: unknown;
       error: { code: string; message: string } | null;
     } | null;
+    headers: Record<string, string>;
   };
 }
 
@@ -64,7 +74,11 @@ function findRouteHandler(path: string, method: 'get' | 'post') {
   return layer.route.stack.at(-1)?.handle as (req: Request, res: Response) => void | Promise<void>;
 }
 
-async function invokeRoute(path: string, method: 'get' | 'post', options: Partial<Request> = {}) {
+async function invokeRoute(
+  path: string,
+  method: 'get' | 'post',
+  options: Partial<Request> = {}
+) {
   const handler = findRouteHandler(path, method);
   const response = createMockResponse();
   const request = {
@@ -80,6 +94,7 @@ async function invokeRoute(path: string, method: 'get' | 'post', options: Partia
 
 describe('onlineRouter error handling', () => {
   afterEach(() => {
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -100,6 +115,54 @@ describe('onlineRouter error handling', () => {
         code: 'ONLINE_INTERNAL_ERROR',
         message: 'snapshot blew up',
       },
+    });
+  });
+
+  it('观战视角切换路由应绑定 token 与 session 并禁止缓存', async () => {
+    vi.spyOn(onlineMatchService, 'switchSpectatorView').mockResolvedValue({
+      session: { sessionId: 'session-1', viewerSeat: 'SECOND', viewVersion: 2 },
+      snapshot: {
+        matchId: 'm1',
+        seat: 'SECOND',
+        spectatorView: { currentViewerSeat: 'SECOND', viewVersion: 2 },
+      },
+    } as never);
+
+    const response = await invokeRoute('/spectator-links/:token/sessions/:sessionId/view', 'post', {
+      params: { token: 'token-1', sessionId: 'session-1' },
+      body: { viewerSeat: 'SECOND' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(onlineMatchService.switchSpectatorView).toHaveBeenCalledWith(
+      'token-1',
+      'session-1',
+      'SECOND'
+    );
+    expect(response.headers).toMatchObject({
+      'Cache-Control': 'private, no-store',
+      'Referrer-Policy': 'no-referrer',
+      'X-Robots-Tag': 'noindex, nofollow, noarchive',
+    });
+  });
+
+  it('观战建会话应忽略客户端昵称并使用服务端账号展示名', async () => {
+    vi.spyOn(onlineMatchService, 'joinSpectatorLink').mockResolvedValue({
+      link: { token: 'token-1' },
+      session: { sessionId: 'session-1', displayName: '服务端昵称' },
+      snapshot: { matchId: 'm1' },
+    } as never);
+
+    const response = await invokeRoute('/spectator-links/:token/sessions', 'post', {
+      params: { token: 'token-1' },
+      body: { clientId: 'tab-1', displayName: '伪造昵称' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(onlineMatchService.joinSpectatorLink).toHaveBeenCalledWith('token-1', {
+      clientId: 'tab-1',
+      displayName: '服务端昵称',
+      authenticatedUserId: 'u1',
     });
   });
 

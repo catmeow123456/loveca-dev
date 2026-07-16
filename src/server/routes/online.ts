@@ -14,7 +14,11 @@ import {
   OnlineSpectatorServiceError,
   onlineMatchService,
 } from '../services/online-match-service.js';
-import { OnlineRoomServiceError, onlineRoomService } from '../services/online-room-service.js';
+import {
+  OnlineRoomServiceError,
+  loadUserProfileForOnlineMatch,
+  onlineRoomService,
+} from '../services/online-room-service.js';
 import {
   MatchReplayReadServiceError,
   matchReplayReadService,
@@ -51,8 +55,11 @@ const undoRequestResponseSchema = z.object({
 });
 
 const spectatorSessionSchema = z.object({
-  displayName: z.string().trim().min(1).max(24).optional(),
   clientId: z.string().trim().min(1).max(128).optional(),
+});
+
+const spectatorViewSchema = z.object({
+  viewerSeat: z.enum(['FIRST', 'SECOND']),
 });
 
 const adminPlayerViewSpectatorLinkSchema = z.object({
@@ -115,7 +122,6 @@ onlineRouter.post(
 
       const link = await onlineMatchService.createAdminPlayerViewSpectatorLink(
         match.matchId,
-        req.user!.id,
         parsed.data.viewerSeat
       );
       if (!link) {
@@ -308,8 +314,12 @@ onlineRouter.get('/rooms/:roomCode', requireAuth, async (req, res) => {
 });
 
 onlineRouter.get('/rooms/:roomCode/spectator-entry', async (req, res) => {
+  setSpectatorNoStoreHeaders(res);
   try {
-    const entry = await onlineRoomService.getRoomSpectatorEntry(readPathParam(req.params.roomCode));
+    const entry = await onlineRoomService.getRoomSpectatorEntry(
+      readPathParam(req.params.roomCode),
+      req.user?.id
+    );
     if (!entry || !entry.matchId || entry.seats.length === 0) {
       res.status(404).json({
         data: null,
@@ -328,6 +338,7 @@ onlineRouter.get('/rooms/:roomCode/spectator-entry', async (req, res) => {
 });
 
 onlineRouter.post('/rooms/:roomCode/spectator-entry/:viewerSeat/link', async (req, res) => {
+  setSpectatorNoStoreHeaders(res);
   const viewerSeat = readSeatPath(req.params.viewerSeat);
   if (!viewerSeat) {
     res
@@ -339,7 +350,8 @@ onlineRouter.post('/rooms/:roomCode/spectator-entry/:viewerSeat/link', async (re
   try {
     const link = await onlineRoomService.createRoomCodeSpectatorLink(
       readPathParam(req.params.roomCode),
-      viewerSeat
+      viewerSeat,
+      req.user?.id
     );
     res.status(201).json({ data: link, error: null });
   } catch (error) {
@@ -610,36 +622,8 @@ onlineRouter.get('/matches/:matchId/public-events', requireAuth, async (req, res
   }
 });
 
-onlineRouter.post(
-  '/matches/:matchId/spectator-links/player-view',
-  requireAuth,
-  async (req, res) => {
-    try {
-      const matchId = readPathParam(req.params.matchId);
-      const match = onlineMatchService.getMatch(matchId);
-      if (!match) {
-        respondMatchNotFound(res);
-        return;
-      }
-
-      const link = await onlineMatchService.createPlayerViewSpectatorLink(
-        match.matchId,
-        req.user!.id
-      );
-      if (!link) {
-        respondMatchForbidden(res);
-        return;
-      }
-
-      onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
-      res.status(201).json({ data: link, error: null });
-    } catch (error) {
-      respondOnlineError(res, error);
-    }
-  }
-);
-
 onlineRouter.post('/spectator-links/:token/sessions', async (req, res) => {
+  setSpectatorNoStoreHeaders(res);
   const parsed = spectatorSessionSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
     res
@@ -649,10 +633,14 @@ onlineRouter.post('/spectator-links/:token/sessions', async (req, res) => {
   }
 
   try {
-    const joined = await onlineMatchService.joinSpectatorLink(
-      readPathParam(req.params.token),
-      parsed.data
-    );
+    const displayName = req.user
+      ? (await loadUserProfileForOnlineMatch(req.user.id)).displayName
+      : undefined;
+    const joined = await onlineMatchService.joinSpectatorLink(readPathParam(req.params.token), {
+      ...parsed.data,
+      displayName,
+      authenticatedUserId: req.user?.id,
+    });
     res.status(201).json({ data: joined, error: null });
   } catch (error) {
     respondOnlineError(res, error);
@@ -660,12 +648,14 @@ onlineRouter.post('/spectator-links/:token/sessions', async (req, res) => {
 });
 
 onlineRouter.get('/spectator-links/:token/snapshot', async (req, res) => {
+  setSpectatorNoStoreHeaders(res);
   try {
     const snapshot = await onlineMatchService.getSpectatorSnapshot(
       readPathParam(req.params.token),
       readOptionalString(req.query?.sessionId),
       {
         sinceSeq: readOptionalSeq(req.query?.sinceSeq),
+        sinceViewVersion: readOptionalSeq(req.query?.sinceViewVersion),
       }
     );
     res.json({ data: snapshot, error: null });
@@ -675,6 +665,7 @@ onlineRouter.get('/spectator-links/:token/snapshot', async (req, res) => {
 });
 
 onlineRouter.get('/spectator-links/:token/public-events', async (req, res) => {
+  setSpectatorNoStoreHeaders(res);
   try {
     const events = await onlineMatchService.getSpectatorPublicEvents(
       readPathParam(req.params.token),
@@ -684,6 +675,28 @@ onlineRouter.get('/spectator-links/:token/public-events', async (req, res) => {
       }
     );
     res.json({ data: events, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/spectator-links/:token/sessions/:sessionId/view', async (req, res) => {
+  setSpectatorNoStoreHeaders(res);
+  const parsed = spectatorViewSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '观战视角参数非法' } });
+    return;
+  }
+
+  try {
+    const switched = await onlineMatchService.switchSpectatorView(
+      readPathParam(req.params.token),
+      readPathParam(req.params.sessionId),
+      parsed.data.viewerSeat
+    );
+    res.json({ data: switched, error: null });
   } catch (error) {
     respondOnlineError(res, error);
   }
@@ -992,6 +1005,13 @@ function respondOnlineError(res: Response, error: unknown): void {
       message: error instanceof Error ? error.message : '正式联机请求失败',
     },
   });
+}
+
+function setSpectatorNoStoreHeaders(res: Response): void {
+  res.setHeader('Cache-Control', 'private, no-store');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 }
 
 function readPathParam(value: string | string[] | undefined): string {

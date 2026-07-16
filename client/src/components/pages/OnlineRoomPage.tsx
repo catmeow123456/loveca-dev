@@ -5,7 +5,6 @@ import {
   Check,
   ChevronDown,
   CircleDot,
-  Copy,
   Crown,
   DoorOpen,
   Eye,
@@ -36,7 +35,6 @@ import { useGameStore } from '@/store/gameStore';
 import {
   acceptOnlineRoomRestart,
   cancelOnlineRoomRestart,
-  createOnlinePlayerSpectatorLink,
   createOnlineRoom,
   fetchOnlineMatchSnapshot,
   fetchOnlineRoom,
@@ -119,9 +117,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
   const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
-  const [isGeneratingSpectatorLink, setIsGeneratingSpectatorLink] = useState(false);
   const [isUpdatingSpectatorEntry, setIsUpdatingSpectatorEntry] = useState(false);
-  const [spectatorLinkMessage, setSpectatorLinkMessage] = useState<string | null>(null);
   const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
@@ -607,32 +603,6 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
   };
 
-  const handleCreateSpectatorLink = async () => {
-    if (!room?.matchId) {
-      return;
-    }
-
-    setIsGeneratingSpectatorLink(true);
-    setSpectatorLinkMessage(null);
-    setError(null);
-    try {
-      const link = await createOnlinePlayerSpectatorLink(room.matchId);
-      const url = `${window.location.origin}${link.path}`;
-      let copied = false;
-      try {
-        await navigator.clipboard.writeText(url);
-        copied = true;
-      } catch {
-        copied = false;
-      }
-      setSpectatorLinkMessage(copied ? '观战链接已复制' : `观战链接：${url}`);
-    } catch (spectatorError) {
-      setError(spectatorError instanceof Error ? spectatorError.message : '生成观战链接失败');
-    } finally {
-      setIsGeneratingSpectatorLink(false);
-    }
-  };
-
   const handleToggleSpectatorRoomEntry = async () => {
     if (!room?.matchId || !mySpectatorRoomEntry) {
       return;
@@ -689,15 +659,12 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
             <RoomActionPanel
               roomCode={room.roomCode}
               presence={spectatorPresence}
-              spectatorLinkMessage={spectatorLinkMessage}
-              isGeneratingSpectatorLink={isGeneratingSpectatorLink}
               spectatorRoomEntry={mySpectatorRoomEntry}
               isUpdatingSpectatorEntry={isUpdatingSpectatorEntry}
               isSubmitting={isSubmitting}
               canRequestRestart={canRequestRestart}
               restartRequest={restartRequest}
               isRestartRequester={isRestartRequester}
-              onCreateSpectatorLink={handleCreateSpectatorLink}
               onToggleSpectatorRoomEntry={handleToggleSpectatorRoomEntry}
               onRequestRestart={handleRequestRestart}
               onCancelRestart={handleCancelRestart}
@@ -1854,15 +1821,12 @@ function getRpsIcon(gesture: OpeningRpsGesture, size: number) {
 function RoomActionPanel({
   roomCode,
   presence,
-  spectatorLinkMessage,
-  isGeneratingSpectatorLink,
   spectatorRoomEntry,
   isUpdatingSpectatorEntry,
   isSubmitting,
   canRequestRestart,
   restartRequest,
   isRestartRequester,
-  onCreateSpectatorLink,
   onToggleSpectatorRoomEntry,
   onRequestRestart,
   onCancelRestart,
@@ -1870,15 +1834,12 @@ function RoomActionPanel({
 }: {
   roomCode: string;
   presence: OnlineRoomView['spectatorPresence'];
-  spectatorLinkMessage: string | null;
-  isGeneratingSpectatorLink: boolean;
   spectatorRoomEntry: NonNullable<OnlineRoomView['spectatorRoomEntry']>['seats'][number] | null;
   isUpdatingSpectatorEntry: boolean;
   isSubmitting: boolean;
   canRequestRestart: boolean;
   restartRequest: OnlineRoomView['restartRequest'];
   isRestartRequester: boolean;
-  onCreateSpectatorLink: () => void;
   onToggleSpectatorRoomEntry: () => void;
   onRequestRestart: () => void;
   onCancelRestart: () => void;
@@ -1903,7 +1864,7 @@ function RoomActionPanel({
                 </div>
                 <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
                   {spectatorRoomEntry.enabled
-                    ? '知道房间号的观战者可进入你的视角。'
+                    ? `观战者可在首页输入房间号 ${roomCode} 进入你的视角。`
                     : '你的视角已从房间号入口关闭。'}
                 </div>
               </div>
@@ -1928,19 +1889,6 @@ function RoomActionPanel({
             </div>
           </div>
         ) : null}
-        <button
-          type="button"
-          onClick={onCreateSpectatorLink}
-          disabled={isGeneratingSpectatorLink}
-          className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
-        >
-          {isGeneratingSpectatorLink ? (
-            <Loader2 size={16} className="animate-spin" />
-          ) : (
-            <Copy size={16} />
-          )}
-          复制观战链接
-        </button>
         {!restartRequest && (
           <button
             type="button"
@@ -1980,12 +1928,6 @@ function RoomActionPanel({
           离开房间
         </button>
       </div>
-
-      {spectatorLinkMessage && (
-        <div className="mt-3 break-all rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_9%,transparent)] px-3 py-2 text-xs text-[var(--text-primary)]">
-          {spectatorLinkMessage}
-        </div>
-      )}
 
       <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">
         <SpectatorPresencePanel presence={presence} embedded />

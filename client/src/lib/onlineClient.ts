@@ -19,6 +19,7 @@ import type {
   OnlineSpectatorJoinView,
   OnlineSpectatorLinkView,
   OnlineSpectatorSnapshotResponse,
+  OnlineSpectatorSwitchView,
   PublicEventsResponse,
   Seat,
 } from '@game/online';
@@ -287,18 +288,6 @@ export async function fetchOnlineMatchPublicEvents(
   return response.data;
 }
 
-export async function createOnlinePlayerSpectatorLink(
-  matchId: string
-): Promise<OnlineSpectatorLinkView> {
-  const response = await apiClient.post<OnlineSpectatorLinkView>(
-    `/api/online/matches/${encodeURIComponent(matchId)}/spectator-links/player-view`
-  );
-  if (!response.data) {
-    throw new Error(response.error?.message ?? '生成观战链接失败');
-  }
-  return response.data;
-}
-
 export async function createOnlineAdminPlayerSpectatorLink(
   matchId: string,
   viewerSeat: Seat
@@ -314,21 +303,14 @@ export async function createOnlineAdminPlayerSpectatorLink(
 }
 
 interface JoinOnlineSpectatorLinkInput {
-  readonly displayName?: string;
   readonly clientId?: string;
 }
 
 export async function joinOnlineSpectatorLink(
   token: string,
-  input?: string | JoinOnlineSpectatorLinkInput
+  input?: JoinOnlineSpectatorLinkInput
 ): Promise<OnlineSpectatorJoinView> {
-  const payload =
-    typeof input === 'string'
-      ? { displayName: input.trim() }
-      : {
-          displayName: input?.displayName?.trim(),
-          clientId: input?.clientId?.trim(),
-        };
+  const payload = { clientId: input?.clientId?.trim() };
   const response = await apiClient.post<OnlineSpectatorJoinView>(
     `/api/online/spectator-links/${encodeURIComponent(token)}/sessions`,
     Object.fromEntries(
@@ -344,7 +326,8 @@ export async function joinOnlineSpectatorLink(
 export async function fetchOnlineSpectatorSnapshotResponse(
   token: string,
   sessionId: string | undefined,
-  sinceSeq?: number
+  sinceSeq?: number,
+  sinceViewVersion?: number
 ): Promise<OnlineSpectatorSnapshotResponse> {
   const params = new URLSearchParams();
   if (sessionId) {
@@ -353,12 +336,34 @@ export async function fetchOnlineSpectatorSnapshotResponse(
   if (sinceSeq !== undefined && Number.isSafeInteger(sinceSeq) && sinceSeq >= 0) {
     params.set('sinceSeq', String(sinceSeq));
   }
+  if (
+    sinceViewVersion !== undefined &&
+    Number.isSafeInteger(sinceViewVersion) &&
+    sinceViewVersion >= 0
+  ) {
+    params.set('sinceViewVersion', String(sinceViewVersion));
+  }
   const search = params.toString();
   const response = await apiClient.get<OnlineSpectatorSnapshotResponse>(
     `/api/online/spectator-links/${encodeURIComponent(token)}/snapshot${search ? `?${search}` : ''}`
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取观战快照失败');
+  }
+  return response.data;
+}
+
+export async function switchOnlineSpectatorView(
+  token: string,
+  sessionId: string,
+  viewerSeat: Seat
+): Promise<OnlineSpectatorSwitchView> {
+  const response = await apiClient.post<OnlineSpectatorSwitchView>(
+    `/api/online/spectator-links/${encodeURIComponent(token)}/sessions/${encodeURIComponent(sessionId)}/view`,
+    { viewerSeat }
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '切换观战视角失败');
   }
   return response.data;
 }

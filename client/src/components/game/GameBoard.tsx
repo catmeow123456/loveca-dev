@@ -509,6 +509,7 @@ export const GameBoard = memo(function GameBoard({
   const successLiveSelectionCardIds =
     successLiveSelection?.candidateObjectIds.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const showSuccessLiveSelectionModal =
+    !isReadOnly &&
     currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
     !activeEffect &&
     successLiveSelection?.waitingSeat === viewerSeat &&
@@ -2873,6 +2874,60 @@ export const GameBoard = memo(function GameBoard({
                         const candidateTitle = `${label}${energyStatusLabel}${
                           skipsNextActivePhase ? '；下次活跃阶段不会自动变为活跃' : ''
                         }`;
+                        if (isReadOnly) {
+                          return (
+                            <CardDetailPressTarget
+                              key={cardId}
+                              cardId={
+                                activeEffectSelectableObjectsFaceDown
+                                  ? null
+                                  : (presentation?.instanceId ?? null)
+                              }
+                              disabled={activeEffectSelectableObjectsFaceDown || !presentation}
+                              title={candidateTitle}
+                              className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_70%,transparent)] p-1.5"
+                            >
+                              {activeEffectSelectableObjectsFaceDown ? (
+                                <div className="h-[90px] w-[64px] overflow-hidden rounded-lg shadow md:h-[105px] md:w-[75px]">
+                                  <img
+                                    src="/back.jpg"
+                                    alt="不可见的手牌"
+                                    className="h-full w-full object-cover"
+                                  />
+                                </div>
+                              ) : presentation ? (
+                                <div
+                                  className={cn(
+                                    'h-[90px] w-[64px] rounded-lg transition-transform md:h-[105px] md:w-[75px]',
+                                    isWaitingEnergy && 'rotate-90',
+                                    skipsNextActivePhase &&
+                                      'ring-2 ring-red-500 ring-offset-2 ring-offset-[var(--bg-surface)]'
+                                  )}
+                                >
+                                  <Card
+                                    cardData={presentation.cardData as AnyCardData}
+                                    instanceId={presentation.instanceId}
+                                    imagePath={presentation.imagePath}
+                                    size="sm"
+                                    faceUp={true}
+                                    showHover={false}
+                                    className={cn(
+                                      'h-full w-full transition-[filter,opacity]',
+                                      isWaitingEnergy && 'opacity-60 grayscale'
+                                    )}
+                                  />
+                                </div>
+                              ) : (
+                                <div className="flex h-[90px] w-[64px] items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] text-[10px] text-[var(--text-muted)] md:h-[84px] md:w-[60px]">
+                                  ?
+                                </div>
+                              )}
+                              <span className="line-clamp-2 min-h-[2.4em] text-center text-[10px] font-semibold leading-tight text-[var(--text-secondary)]">
+                                {label}
+                              </span>
+                            </CardDetailPressTarget>
+                          );
+                        }
                         return (
                           <button
                             key={cardId}
@@ -2977,7 +3032,12 @@ export const GameBoard = memo(function GameBoard({
                   </div>
                 )}
               </div>
-              <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0">
+              <div
+                className={cn(
+                  'flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
+                  isReadOnly && 'hidden'
+                )}
+              >
                 {isPublicCardSelectionAutoAdvance && publicSelectionFallbackReady && (
                   <button
                     type="button"
@@ -3236,18 +3296,20 @@ export const GameBoard = memo(function GameBoard({
                 <p className="mt-1 text-xs text-[var(--danger)]">可用能量不足，无法支付。</p>
               )}
             </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                type="button"
-                disabled={!canConfirmCostPayment}
-                onClick={() => confirmCostPayment(pendingCostPayment.id, autoCostEnergyIds)}
-                className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
-                  canConfirmCostPayment ? '' : 'cursor-not-allowed opacity-50'
-                }`}
-              >
-                确认支付
-              </button>
-            </div>
+            {!isReadOnly && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  disabled={!canConfirmCostPayment}
+                  onClick={() => confirmCostPayment(pendingCostPayment.id, autoCostEnergyIds)}
+                  className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                    canConfirmCostPayment ? '' : 'cursor-not-allowed opacity-50'
+                  }`}
+                >
+                  确认支付
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -3307,7 +3369,7 @@ export const GameBoard = memo(function GameBoard({
         {/* 换牌面板 */}
         <MulliganPanel isOpen={!isReadOnly && mulliganPanelOpen} />
 
-        {pendingUndoRequest && (
+        {!isReadOnly && pendingUndoRequest && (
           <div className="pointer-events-auto fixed inset-0 z-[110] flex items-center justify-center px-4">
             <div className="modal-backdrop absolute inset-0" />
             <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">

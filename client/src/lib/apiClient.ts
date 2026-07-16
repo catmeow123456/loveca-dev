@@ -156,7 +156,10 @@ function wait(ms: number): Promise<void> {
 }
 
 function getNetworkErrorMessage(path: string, err: unknown): string {
-  const lines = [err instanceof Error ? err.message : '网络错误', `请求地址: ${buildApiUrl(path)}`];
+  const lines = [
+    err instanceof Error ? err.message : '网络错误',
+    `请求地址: ${buildApiUrl(redactSensitiveApiPath(path))}`,
+  ];
 
   if (typeof navigator !== 'undefined' && !navigator.onLine) {
     lines.push('浏览器当前处于离线状态');
@@ -171,6 +174,13 @@ function getNetworkErrorMessage(path: string, err: unknown): string {
   }
 
   return lines.join('\n');
+}
+
+export function redactSensitiveApiPath(path: string): string {
+  return path
+    .replace(/(\/api\/online\/spectator-links\/)[^/?#]+/g, '$1[redacted]')
+    .replace(/(\/sessions\/)[^/?#]+(?=\/view(?:[?#]|$))/g, '$1[redacted]')
+    .replace(/([?&]sessionId=)[^&#]*/gi, '$1[redacted]');
 }
 
 async function sendApiRequest(

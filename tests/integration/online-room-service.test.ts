@@ -304,7 +304,7 @@ describe('OnlineRoomService', () => {
     expect(commandRoundTrip.snapshot?.playerViewState.match.viewerSeat).toBe('FIRST');
   });
 
-  it('玩家视角观战链接只读复用对应玩家投影并计入房间观战者', async () => {
+  it('房间号观战只读复用对应玩家投影并计入房间观战者', async () => {
     const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       matchService,
@@ -326,29 +326,24 @@ describe('OnlineRoomService', () => {
     const started = await startRoomThroughOpening(service, 'spec1', 'u1', 'u2', 'u2');
     expect(started.currentUserSeat).toBe('FIRST');
 
-    const link = await matchService.createPlayerViewSpectatorLink(started.matchId!, 'u2');
+    const link = await service.createRoomCodeSpectatorLink('spec1', 'FIRST');
     expect(link).toMatchObject({
       matchId: started.matchId,
       viewType: 'PLAYER',
       viewerSeat: 'FIRST',
+      authorizedViewerSeats: ['FIRST', 'SECOND'],
     });
-    expect(link?.path).toContain('/online/spectate/');
-
-    const forbiddenLink = await matchService.createPlayerViewSpectatorLink(
-      started.matchId!,
-      'outsider'
-    );
-    expect(forbiddenLink).toBeNull();
+    expect(link.path).toContain('/online/spectate/');
 
     const adminLink = await matchService.createAdminPlayerViewSpectatorLink(
       started.matchId!,
-      'admin',
       'SECOND'
     );
     expect(adminLink).toMatchObject({
       matchId: started.matchId,
       viewType: 'PLAYER',
       viewerSeat: 'SECOND',
+      authorizedViewerSeats: ['FIRST', 'SECOND'],
     });
 
     const adminJoined = await matchService.joinSpectatorLink(adminLink!.token, {
@@ -358,15 +353,33 @@ describe('OnlineRoomService', () => {
       displayName: '管理员',
       viewType: 'PLAYER',
       viewerSeat: 'SECOND',
+      authorizedViewerSeats: ['FIRST', 'SECOND'],
+      viewVersion: 1,
     });
     expect(adminJoined.snapshot.seat).toBe('SECOND');
     expect(adminJoined.snapshot.playerViewState.match.viewerSeat).toBe('SECOND');
+    expect(adminJoined.snapshot.playerViewState.permissions.availableCommands).toEqual([]);
+
+    const adminSwitched = await matchService.switchSpectatorView(
+      adminLink!.token,
+      adminJoined.session.sessionId,
+      'FIRST'
+    );
+    expect(adminSwitched.session).toMatchObject({ viewerSeat: 'FIRST', viewVersion: 2 });
+    expect(adminSwitched.snapshot).toMatchObject({
+      seat: 'FIRST',
+      spectatorView: {
+        currentViewerSeat: 'FIRST',
+        authorizedViewerSeats: ['FIRST', 'SECOND'],
+        viewVersion: 2,
+      },
+    });
 
     const roomAfterAdminJoin = await service.getRoomView('spec1', 'u1');
     expect(roomAfterAdminJoin.spectatorPresence.total).toBe(0);
     expect(roomAfterAdminJoin.spectatorPresence.viewers).toEqual([]);
 
-    const joined = await matchService.joinSpectatorLink(link!.token, {
+    const joined = await matchService.joinSpectatorLink(link.token, {
       displayName: '旁观者',
     });
     expect(joined.session).toMatchObject({
@@ -378,6 +391,13 @@ describe('OnlineRoomService', () => {
     expect(joined.snapshot.playerViewState.match.viewerSeat).toBe('FIRST');
     expect(joined.snapshot.playerViewState.match.undo?.policy).toBe('NONE');
     expect(joined.snapshot.playerViewState.match.undo?.canUndoNow).toBe(false);
+    expect(joined.snapshot.playerViewState.permissions.availableCommands).toEqual([]);
+    await expect(matchService.getSpectatorSnapshot(link.token, null)).rejects.toMatchObject({
+      code: 'ONLINE_SPECTATOR_SESSION_REQUIRED',
+    });
+    await expect(
+      matchService.getSpectatorSnapshot(link.token, adminJoined.session.sessionId)
+    ).rejects.toMatchObject({ code: 'ONLINE_SPECTATOR_SESSION_INVALID' });
 
     const firstHandObjectId = joined.snapshot.playerViewState.table.zones.FIRST_HAND.objectIds?.[0];
     expect(firstHandObjectId).toBeTruthy();
@@ -385,10 +405,11 @@ describe('OnlineRoomService', () => {
     expect(joined.snapshot.playerViewState.table.zones.SECOND_HAND.objectIds).toBeUndefined();
 
     const unchangedSnapshot = await matchService.getSpectatorSnapshot(
-      link!.token,
+      link.token,
       joined.session.sessionId,
       {
         sinceSeq: joined.snapshot.seq,
+        sinceViewVersion: joined.session.viewVersion,
       }
     );
     expect(unchangedSnapshot).toEqual({
@@ -396,10 +417,11 @@ describe('OnlineRoomService', () => {
       seq: joined.snapshot.seq,
       currentPublicSeq: joined.snapshot.currentPublicSeq,
       modified: false,
+      spectatorView: joined.snapshot.spectatorView,
     });
 
     const publicLog = await matchService.getSpectatorPublicEvents(
-      link!.token,
+      link.token,
       joined.session.sessionId,
       {
         afterSeq: 0,
@@ -416,9 +438,10 @@ describe('OnlineRoomService', () => {
       viewerSeat: 'FIRST',
     });
     expect(roomForPlayer.members.map((member) => member.userId)).toEqual(['u1', 'u2']);
+
   });
 
-  it('房间号观战默认开启，关闭后只撤销房间号来源观战', async () => {
+  it('房间号观战默认开启，并在双方关闭后撤销会话', async () => {
     const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       matchService,
@@ -449,17 +472,42 @@ describe('OnlineRoomService', () => {
       ['FIRST', true],
       ['SECOND', true],
     ]);
+    await expect(service.getRoomSpectatorEntry('watch1', 'u1')).rejects.toMatchObject({
+      code: 'ONLINE_ROOM_SPECTATOR_FORBIDDEN',
+    });
+    await expect(
+      service.createRoomCodeSpectatorLink('watch1', 'FIRST', 'u2')
+    ).rejects.toMatchObject({ code: 'ONLINE_ROOM_SPECTATOR_FORBIDDEN' });
 
     const roomCodeLink = await service.createRoomCodeSpectatorLink('watch1', 'FIRST');
     expect(roomCodeLink).toMatchObject({
       matchId: started.matchId,
       viewerSeat: 'FIRST',
+      authorizedViewerSeats: ['FIRST', 'SECOND'],
     });
+    await expect(
+      matchService.joinSpectatorLink(roomCodeLink.token, {
+        clientId: 'participant-tab',
+        authenticatedUserId: 'u1',
+      })
+    ).rejects.toMatchObject({ code: 'ONLINE_ROOM_SPECTATOR_FORBIDDEN' });
 
     const joined = await matchService.joinSpectatorLink(roomCodeLink.token, {
       clientId: 'room-code-tab',
     });
     expect(joined.snapshot.playerViewState.match.viewerSeat).toBe('FIRST');
+    const switched = await matchService.switchSpectatorView(
+      roomCodeLink.token,
+      joined.session.sessionId,
+      'SECOND'
+    );
+    expect(switched.session).toMatchObject({ viewerSeat: 'SECOND', viewVersion: 2 });
+    const switchedBack = await matchService.switchSpectatorView(
+      roomCodeLink.token,
+      joined.session.sessionId,
+      'FIRST'
+    );
+    expect(switchedBack.session).toMatchObject({ viewerSeat: 'FIRST', viewVersion: 3 });
     expect((await service.getRoomView('watch1', 'u1')).spectatorPresence.total).toBe(1);
 
     const closed = await service.setOwnRoomSpectatorEntry('watch1', 'u2', false);
@@ -469,28 +517,57 @@ describe('OnlineRoomService', () => {
     expect(await service.getRoomSpectatorEntry('watch1')).toMatchObject({
       seats: [{ seat: 'SECOND', displayName: 'Alpha', enabled: true }],
     });
-    expect((await service.getRoomView('watch1', 'u1')).spectatorPresence.total).toBe(0);
+    expect((await service.getRoomView('watch1', 'u1')).spectatorPresence.total).toBe(1);
+    expect((await service.getRoomView('watch1', 'u1')).spectatorPresence.viewers[0]).toMatchObject({
+      viewerSeat: 'SECOND',
+      authorizedViewerSeats: ['SECOND'],
+      viewVersion: 4,
+    });
     await expect(service.createRoomCodeSpectatorLink('watch1', 'FIRST')).rejects.toMatchObject({
       code: 'ONLINE_ROOM_SPECTATOR_CLOSED',
     });
-    await expect(
-      matchService.getSpectatorSnapshot(roomCodeLink.token, joined.session.sessionId)
-    ).rejects.toMatchObject({
-      code: 'ONLINE_SPECTATOR_LINK_NOT_FOUND',
+    const afterSeatClosed = await matchService.getSpectatorSnapshot(
+      roomCodeLink.token,
+      joined.session.sessionId,
+      { sinceSeq: joined.snapshot.seq, sinceViewVersion: joined.session.viewVersion }
+    );
+    expect(afterSeatClosed).toMatchObject({
+      seat: 'SECOND',
+      spectatorView: {
+        currentViewerSeat: 'SECOND',
+        authorizedViewerSeats: ['SECOND'],
+        viewVersion: 4,
+        authorizationNotice: {
+          code: 'VIEW_AUTHORIZATION_CLOSED',
+          closedViewerSeats: ['FIRST'],
+          autoSwitched: true,
+          message: '先攻视角的观战授权已关闭，已自动切换到仍开放的视角',
+        },
+      },
     });
 
-    const explicitLink = await matchService.createPlayerViewSpectatorLink(started.matchId!, 'u2');
-    expect(explicitLink).toMatchObject({
+    await service.setOwnRoomSpectatorEntry('watch1', 'u2', false);
+    const afterRepeatedClose = await matchService.getSpectatorSnapshot(
+      roomCodeLink.token,
+      joined.session.sessionId,
+      { sinceSeq: joined.snapshot.seq, sinceViewVersion: 4 }
+    );
+    expect(afterRepeatedClose).toEqual({
       matchId: started.matchId,
-      viewerSeat: 'FIRST',
+      seq: joined.snapshot.seq,
+      currentPublicSeq: joined.snapshot.currentPublicSeq,
+      modified: false,
+      spectatorView: afterSeatClosed.spectatorView,
     });
-    const explicitJoin = await matchService.joinSpectatorLink(explicitLink!.token, {
-      displayName: '链接观战者',
-    });
-    expect(explicitJoin.snapshot.playerViewState.match.viewerSeat).toBe('FIRST');
 
     await service.setOwnRoomSpectatorEntry('watch1', 'u1', false);
     expect((await service.getRoomSpectatorEntry('watch1'))?.seats).toEqual([]);
+    await expect(
+      matchService.getSpectatorSnapshot(roomCodeLink.token, joined.session.sessionId)
+    ).rejects.toMatchObject({
+      code: 'ONLINE_SPECTATOR_AUTHORIZATION_CLOSED',
+      message: '房间号观战授权已关闭，请返回首页重新输入房间号',
+    });
 
     const reopened = await service.setOwnRoomSpectatorEntry('watch1', 'u2', true);
     expect(reopened.spectatorRoomEntry?.seats.find((seat) => seat.seat === 'FIRST')?.enabled).toBe(
@@ -498,6 +575,67 @@ describe('OnlineRoomService', () => {
     );
     const reopenedLink = await service.createRoomCodeSpectatorLink('watch1', 'FIRST');
     expect(reopenedLink.viewerSeat).toBe('FIRST');
+  });
+
+  it('普通观战同一对局限制会话数并按会话限制请求频率', async () => {
+    let now = 9_500_000;
+    const matchService = createInMemoryMatchService({
+      now: () => now,
+      spectatorMaxPublicSessions: 2,
+      spectatorRequestWindowMs: 10_000,
+      spectatorRequestLimit: 3,
+    });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (userId, deckId) => ({
+        deckId,
+        deckName: `${userId}-${deckId}`,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('limit1', 'u1');
+    await service.joinRoom('limit1', 'u2');
+    await service.lockDeck('limit1', 'u1', 'deck-a');
+    await service.lockDeck('limit1', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'limit1', 'u1', 'u2', 'u1');
+    const link = await service.createRoomCodeSpectatorLink('limit1', 'FIRST');
+
+    const first = await matchService.joinSpectatorLink(link.token, { clientId: 'limit-tab-a' });
+    await matchService.joinSpectatorLink(link.token, { clientId: 'limit-tab-b' });
+    await expect(
+      matchService.joinSpectatorLink(link.token, { clientId: 'limit-tab-c' })
+    ).rejects.toMatchObject({
+      code: 'ONLINE_SPECTATOR_CAPACITY_REACHED',
+      statusCode: 429,
+    });
+
+    const adminLink = await matchService.createAdminPlayerViewSpectatorLink(
+      started.matchId!,
+      'FIRST'
+    );
+    await expect(matchService.joinSpectatorLink(adminLink!.token)).resolves.toBeTruthy();
+    expect((await service.getRoomView('limit1', 'u1')).spectatorPresence.total).toBe(2);
+
+    const resumed = await matchService.joinSpectatorLink(link.token, {
+      clientId: 'limit-tab-a',
+    });
+    expect(resumed.session.sessionId).toBe(first.session.sessionId);
+    await matchService.getSpectatorSnapshot(link.token, first.session.sessionId);
+    await matchService.getSpectatorPublicEvents(link.token, first.session.sessionId);
+    await expect(
+      matchService.getSpectatorSnapshot(link.token, first.session.sessionId)
+    ).rejects.toMatchObject({
+      code: 'ONLINE_SPECTATOR_RATE_LIMITED',
+      statusCode: 429,
+    });
+
+    now += 10_000;
+    await expect(
+      matchService.getSpectatorSnapshot(link.token, first.session.sessionId)
+    ).resolves.toBeTruthy();
   });
 
   it('玩家视角观战默认游客编号按活跃观战者计算并复用同一客户端 session', async () => {
@@ -521,18 +659,18 @@ describe('OnlineRoomService', () => {
     await service.joinRoom('spec2', 'u2');
     await service.lockDeck('spec2', 'u1', 'deck-a');
     await service.lockDeck('spec2', 'u2', 'deck-b');
-    const started = await startRoomThroughOpening(service, 'spec2', 'u1', 'u2', 'u1');
-    const link = await matchService.createPlayerViewSpectatorLink(started.matchId!, 'u1');
+    await startRoomThroughOpening(service, 'spec2', 'u1', 'u2', 'u1');
+    const link = await service.createRoomCodeSpectatorLink('spec2', 'FIRST');
 
-    const firstJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-a' });
+    const firstJoin = await matchService.joinSpectatorLink(link.token, { clientId: 'tab-a' });
     expect(firstJoin.session.displayName).toBe('游客 1');
 
     now += 1_000;
-    const repeatedJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-a' });
+    const repeatedJoin = await matchService.joinSpectatorLink(link.token, { clientId: 'tab-a' });
     expect(repeatedJoin.session.sessionId).toBe(firstJoin.session.sessionId);
     expect(repeatedJoin.session.displayName).toBe('游客 1');
 
-    const secondJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-b' });
+    const secondJoin = await matchService.joinSpectatorLink(link.token, { clientId: 'tab-b' });
     expect(secondJoin.session.displayName).toBe('游客 2');
 
     const roomWithTwoViewers = await service.getRoomView('spec2', 'u1');
@@ -542,8 +680,11 @@ describe('OnlineRoomService', () => {
     ).toEqual(['游客 1', '游客 2']);
 
     now += 16_000;
-    const afterStaleJoin = await matchService.joinSpectatorLink(link!.token, { clientId: 'tab-c' });
+    const afterStaleJoin = await matchService.joinSpectatorLink(link.token, { clientId: 'tab-c' });
     expect(afterStaleJoin.session.displayName).toBe('游客 1');
+    await expect(
+      matchService.getSpectatorSnapshot(link.token, firstJoin.session.sessionId)
+    ).rejects.toMatchObject({ code: 'ONLINE_SPECTATOR_SESSION_INVALID' });
     const roomAfterStaleCleanup = await service.getRoomView('spec2', 'u1');
     expect(roomAfterStaleCleanup.spectatorPresence.total).toBe(1);
     expect(roomAfterStaleCleanup.spectatorPresence.viewers[0]?.displayName).toBe('游客 1');

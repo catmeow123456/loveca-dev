@@ -1,6 +1,16 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-12
+更新时间：2026-07-16
+
+## 本次 2026-07-16 联机观战入口、视角与容量收口
+
+- 产品入口收敛为“输入房间号观战”：玩家房间面板只提示分享房间号；普通玩家专用观战链接的 UI、客户端调用、服务端接口与运行态类型已完整移除，不保留停机更新后无意义的兼容入口。
+- 观战会话改为“授权视角集合 + 当前视角 + `viewVersion`”：房间号入口按双方开关授权，管理员入口授权先攻 / 后攻；同一会话可切换视角，并始终只返回一个玩家投影。
+- 房间号一侧关闭时，已有会话在下次快照收到结构化提示；当前视角被关闭时自动切到仍开放视角，双方均关闭时会话永久失效；重复提交相同开关状态不会递增视角版本或覆盖未读提示。客户端按视角版本清理旧桌面并丢弃旧版本在途响应。
+- 只读与安全边界收口：快照、公开日志和切换均校验 `token + sessionId`；观战投影不提供可用命令，共享桌面隐藏卡效、费用、撤销、成功 LIVE 选择和判定控件。观战响应禁止缓存、引用与索引，客户端网络错误地址脱敏 token / sessionId。
+- 展示名由服务端决定，登录用户读取账号资料，未登录用户分配稳定游客名；本局参赛账号不能通过房间号进入观战。每个对局固定最多 10 个活跃普通观战会话，管理员不占公开名额；会话恢复、快照、公开日志与视角切换共享默认 10 秒 40 次的频率窗口。
+- `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md` 与 `docs/online-mode/preparation.md` 已同步当前产品行为；对局结束后最终只读桌面保留 1 分钟仍未实现，持久化观战审计不在当前范围。
+- 验证：focused suite `tests/integration/online-room-service.test.ts`、`tests/integration/online-route-error-handling.test.ts`、`tests/unit/game-store-remote-sync.test.ts`、`tests/unit/battle-surface-capabilities.test.ts`、`tests/unit/api-client-redaction.test.ts` passed（5 files / 68 tests）；rebase 最新 `origin/main` 后 `pnpm test:run` passed（462 files / 3955 tests，3 performance tests skipped）；shared / server / client TypeScript 与 `git diff --check` passed。
 
 ## 本次 2026-07-12 Aqours bp3-001 / 002 收束卡效
 
@@ -197,7 +207,6 @@
 - 已实现 `PL!-bp3-019-L` 分数 0「僕らのLIVE 君とのLIFE」：扩展 shared `live-start-score-bonuses.ts`，实时统计自己 LIVE 中结构化身份为 μ's 的卡片（包含来源自身），达到2张时为来源 LIVE 写 SCORE +1 并刷新 `playerScores`。
 - 已实现 `PL!-bp3-023-L` 分数 3「ミはμ'sicのミ」：扩展 shared `conditional-live-modifier.ts`，通过 `getMemberEffectiveBladeCount` 汇总自己舞台成员实时有效 BLADE，达到10时为来源 LIVE 写必要 `[無ハート]` -2，并在条件变化时替换或清理同源 modifier。
 - 两张均沿用无交互 queued pending 的 manual-confirm / ordered 语义，手动确认文本实时展示当前计数、条件与实际结果，顺序发动自动连续结算；runner 零改动。focused classification/integration、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
-
 ## 本次 2026-07-11 水团 BP2 声援重做收尾
 
 - `PL!S-bp2-004-R / P` 费用 11「黒澤ダイヤ」完成 P/R 收束：无 LIVE 的原普通声援可选移动原公开卡后，先记录 turn1、按原 BLADE 重做 normal `CheerEvent` 并显式重新入队；`replaceCurrentCheerCards` 仅替换当前玩家 current cheer IDs，满足 Q107，未扩成通用 cheer loop。

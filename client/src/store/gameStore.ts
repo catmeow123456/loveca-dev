@@ -35,6 +35,7 @@ import {
   type PublicEvent,
   type PublicEventsResponse,
   type RuntimeRecoveryInfo,
+  type OnlineSpectatorAuthorizationNotice,
 } from '@game/online';
 import {
   GameCommandType,
@@ -245,6 +246,9 @@ export interface RemoteSessionState {
   readonly playerId: string | null;
   readonly spectatorToken?: string;
   readonly spectatorSessionId?: string;
+  readonly spectatorAuthorizedViewerSeats?: readonly Seat[];
+  readonly spectatorViewVersion?: number;
+  readonly spectatorAuthorizationNotice?: OnlineSpectatorAuthorizationNotice | null;
 }
 
 export interface ReplayReadonlySessionState {
@@ -1585,7 +1589,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     connectRemoteSession: (session) => {
       get().gameSession.localFreePlay = false;
-      set({
+      set((state) => ({
         remoteSession: session,
         replaySession: null,
         playerViewState: null,
@@ -1593,7 +1597,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         gameMode: GameMode.DEBUG,
         freePlayEnabled: false,
         publicBattleLog: { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: session.matchId },
-      });
+        ui: clearTransientBattleUi(state.ui),
+      }));
       void get().syncPublicBattleLog();
     },
 
@@ -1631,7 +1636,8 @@ export const useGameStore = create<GameStore>((set, get) => {
               remoteSession.seat,
               get().playerViewState?.match.seq,
               remoteSession.spectatorToken,
-              remoteSession.spectatorSessionId
+              remoteSession.spectatorSessionId,
+              remoteSession.spectatorViewVersion
             )
           : await fetchRemoteSnapshotSyncResult(
               remoteSession.source,
@@ -1641,6 +1647,30 @@ export const useGameStore = create<GameStore>((set, get) => {
             );
       if (!isRemoteSessionStillCurrent(remoteSession)) {
         return;
+      }
+      if (remoteSession.source === 'SPECTATOR' && snapshotResult.spectatorView) {
+        const spectatorView = snapshotResult.spectatorView;
+        set((state) => {
+          if (state.remoteSession?.source !== 'SPECTATOR') {
+            return state;
+          }
+          const viewChanged =
+            state.remoteSession.spectatorViewVersion !== spectatorView.viewVersion ||
+            state.remoteSession.seat !== spectatorView.currentViewerSeat;
+          return {
+            remoteSession: {
+              ...state.remoteSession,
+              seat: spectatorView.currentViewerSeat,
+              playerId: snapshotResult.snapshot?.playerId ?? state.remoteSession.playerId,
+              spectatorAuthorizedViewerSeats: spectatorView.authorizedViewerSeats,
+              spectatorViewVersion: spectatorView.viewVersion,
+              spectatorAuthorizationNotice: spectatorView.authorizationNotice,
+            },
+            playerViewState: viewChanged ? null : state.playerViewState,
+            viewingPlayerId: snapshotResult.snapshot?.playerId ?? state.viewingPlayerId,
+            ui: viewChanged ? clearTransientBattleUi(state.ui) : state.ui,
+          };
+        });
       }
       if (!snapshotResult.snapshot) {
         await syncPublicBattleLogIfNeeded(remoteSession.matchId, snapshotResult.currentPublicSeq);
@@ -3155,7 +3185,24 @@ function getRemoteSessionQueueKey(remoteSession: NonNullable<GameStore['remoteSe
     remoteSession.playerId ?? '',
     remoteSession.spectatorToken ?? '',
     remoteSession.spectatorSessionId ?? '',
+    remoteSession.spectatorViewVersion ?? '',
   ].join(':');
+}
+
+function clearTransientBattleUi(ui: UIState): UIState {
+  return {
+    ...ui,
+    selectedCardId: null,
+    hoveredCardId: null,
+    cardDetail: null,
+    isDragging: false,
+    highlightedZones: [],
+    dragActionHint: null,
+    battleFeedbackEvents: [],
+    battleAnimationOcclusions: [],
+    waitingForInput: false,
+    inputRequestType: null,
+  };
 }
 
 function isRemoteSessionStillCurrent(
@@ -3169,7 +3216,8 @@ function isRemoteSessionStillCurrent(
     current.seat === remoteSession.seat &&
     current.playerId === remoteSession.playerId &&
     current.spectatorToken === remoteSession.spectatorToken &&
-    current.spectatorSessionId === remoteSession.spectatorSessionId
+    current.spectatorSessionId === remoteSession.spectatorSessionId &&
+    current.spectatorViewVersion === remoteSession.spectatorViewVersion
   );
 }
 

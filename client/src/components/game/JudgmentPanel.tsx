@@ -426,6 +426,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const getSeatMemberSlotCardId = useGameStore((s) => s.getSeatMemberSlotCardId);
   const selectedCardId = useGameStore((s) => s.ui.selectedCardId);
   const battleSurface = useGameStore((s) => s.getBattleSurfaceCapabilities().surface);
+  const isReadOnly = useGameStore((s) => s.getBattleSurfaceCapabilities().isReadOnly);
   const liveHeartBonuses = useGameStore((s) => {
     const active = s.getActiveSeatView();
     return active ? (s.playerViewState?.match.liveResult?.heartBonuses[active] ?? []) : [];
@@ -498,7 +499,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         viewerSeat: activeSeat,
         sourceSeat: activeSeat,
         surface: battleSurface,
-        isReadOnly: false,
+        isReadOnly,
         availableCommandTypes: canMoveResolutionCardToZone
           ? [GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE]
           : [],
@@ -901,7 +902,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             <span className="text-xs text-[var(--text-muted)]">主卡组剩余: {mainDeckCount}</span>
           </div>
 
-          <div className="flex gap-2 mb-2">
+          <div className={cn('flex gap-2 mb-2', isReadOnly && 'hidden')}>
             <button
               onClick={drawCheerCard}
               disabled={!canRevealCheerCard || mainDeckCount === 0}
@@ -916,7 +917,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </button>
           </div>
 
-          <div className="mb-2 grid grid-cols-3 gap-2">
+          <div className={cn('mb-2 grid grid-cols-3 gap-2', isReadOnly && 'hidden')}>
             <DroppableZone
               id="resolution-target-hand"
               disabled={!canMoveResolutionCardToZone}
@@ -999,9 +1000,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                           <SortableCheerCard
                             cardId={id}
                             imagePath={getCardImagePath(frontInfo.cardCode)}
-                            disabled={!canMoveResolutionCardToZone}
-                            selected={selectedCardId === id}
-                            onClick={() => toggleSelectedResolutionCard(id)}
+                            disabled={isReadOnly || !canMoveResolutionCardToZone}
+                            selected={!isReadOnly && selectedCardId === id}
+                            onClick={() => {
+                              if (!isReadOnly) toggleSelectedResolutionCard(id);
+                            }}
                           />
                         ) : (
                           <div className="h-[100px] w-[72px] overflow-hidden rounded-lg shadow-md">
@@ -1026,7 +1029,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                             <span className="text-cyan-400">📄+{effects.drawBonus}</span>
                           )}
                         </div>
-                        <div className="absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100">
+                        <div
+                          className={cn(
+                            'absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100',
+                            isReadOnly && 'hidden'
+                          )}
+                        >
                           <button
                             disabled={!canMoveResolutionCardToZone || !canInspectFront}
                             onClick={() => moveToHand(id)}
@@ -1176,7 +1184,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
         {/* ======== 底部按钮 ======== */}
         {isPerformanceJudgment ? (
-          <div className="mt-4 space-y-2 border-t border-[var(--border-subtle)] pt-3">
+          <div
+            className={cn(
+              'mt-4 space-y-2 border-t border-[var(--border-subtle)] pt-3',
+              isReadOnly && 'hidden'
+            )}
+          >
             <button
               onClick={handleAcceptAutoJudgment}
               disabled={!canSubmitJudgment}
@@ -1214,7 +1227,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </div>
           </div>
         ) : (
-          <div className="mt-4 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]">
+          <div
+            className={cn(
+              'mt-4 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-secondary)]',
+              isReadOnly && 'hidden'
+            )}
+          >
             当前不在 Live 判定确认子阶段，本面板保持为辅助操作窗口。
           </div>
         )}

@@ -636,7 +636,10 @@ export class OnlineRoomService {
     return this.buildRoomView(room, room.members[0]);
   }
 
-  async getRoomSpectatorEntry(roomCodeInput: string): Promise<OnlineRoomSpectatorEntryView | null> {
+  async getRoomSpectatorEntry(
+    roomCodeInput: string,
+    viewerUserId?: string | null
+  ): Promise<OnlineRoomSpectatorEntryView | null> {
     await this.cleanupExpiredState();
 
     const roomCode = normalizeRoomCode(roomCodeInput);
@@ -644,17 +647,20 @@ export class OnlineRoomService {
     if (!room || room.members.length === 0) {
       return null;
     }
+    this.assertUserCanEnterRoomCodeSpectator(room, viewerUserId);
 
     return buildSpectatorRoomEntryView(room, { onlyEnabledSeats: true });
   }
 
   async createRoomCodeSpectatorLink(
     roomCodeInput: string,
-    viewerSeat: Seat
+    viewerSeat: Seat,
+    viewerUserId?: string | null
   ): Promise<OnlineSpectatorLinkView> {
     await this.cleanupExpiredState();
 
     const room = this.getRoomState(roomCodeInput);
+    this.assertUserCanEnterRoomCodeSpectator(room, viewerUserId);
     if (room.status !== 'IN_GAME' || !room.matchId) {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
@@ -677,7 +683,12 @@ export class OnlineRoomService {
       );
     }
 
-    const link = this.matchService.createRoomCodePlayerViewSpectatorLink(room.matchId, viewerSeat);
+    const authorizedViewerSeats = getEnabledSpectatorSeats(room);
+    const link = this.matchService.createRoomCodePlayerViewSpectatorLink(
+      room.matchId,
+      viewerSeat,
+      authorizedViewerSeats
+    );
     if (!link) {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
@@ -715,15 +726,26 @@ export class OnlineRoomService {
     }
 
     room.spectatorRoomEntryEnabled[seat] = enabled;
-    if (!enabled) {
-      this.matchService.revokeRoomCodeSpectatorAccess(room.matchId, seat);
-    }
+    this.matchService.setRoomCodeSpectatorSeats(room.matchId, getEnabledSpectatorSeats(room));
 
     const now = this.now();
     member.presence = 'ACTIVE';
     member.lastSeenAt = now;
     touchRoom(room, now);
     return this.buildRoomView(room, member);
+  }
+
+  private assertUserCanEnterRoomCodeSpectator(
+    room: OnlineRoomState,
+    viewerUserId?: string | null
+  ): void {
+    if (viewerUserId && findMember(room, viewerUserId)) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_SPECTATOR_FORBIDDEN',
+        '当前账号不能通过房间号进入该观战入口',
+        403
+      );
+    }
   }
 
   async listAdminRoomSummaries(): Promise<readonly OnlineAdminRoomSummary[]> {
@@ -1121,6 +1143,12 @@ function buildSpectatorRoomEntryView(
     matchId: room.matchId,
     seats,
   };
+}
+
+function getEnabledSpectatorSeats(room: OnlineRoomState): Seat[] {
+  return (['FIRST', 'SECOND'] as const).filter(
+    (seat) => Boolean(room.seatAssignments[seat]) && room.spectatorRoomEntryEnabled[seat] === true
+  );
 }
 
 function getHostUserId(room: OnlineRoomState): string | null {

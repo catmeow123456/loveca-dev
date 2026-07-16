@@ -205,6 +205,93 @@ describe('gameStore remote snapshot sync', () => {
     expect(fetchRemotePublicEvents).not.toHaveBeenCalled();
   });
 
+  it('观战视角版本变化时应原子更新会话视角并应用对应投影', async () => {
+    useGameStore.setState({
+      remoteSession: {
+        source: 'SPECTATOR',
+        matchId: 'match-spec',
+        seat: 'FIRST',
+        playerId: 'player-1',
+        spectatorToken: 'token-1',
+        spectatorSessionId: 'session-1',
+        spectatorAuthorizedViewerSeats: ['FIRST', 'SECOND'],
+        spectatorViewVersion: 1,
+      },
+      replaySession: null,
+      viewingPlayerId: 'player-1',
+      playerViewState: createViewState('match-spec', 4),
+      ui: {
+        ...useGameStore.getState().ui,
+        selectedCardId: 'private-card',
+        hoveredCardId: 'private-card',
+        cardDetail: { kind: 'visible', cardId: 'private-card' },
+        isDragging: true,
+      },
+    });
+    const secondView = createViewState('match-spec', 4);
+    const secondSnapshot: RemoteSnapshot = {
+      matchId: 'match-spec',
+      seat: 'SECOND',
+      playerId: 'player-2',
+      seq: 4,
+      currentPublicSeq: 8,
+      playerViewState: {
+        ...secondView,
+        match: { ...secondView.match, viewerSeat: 'SECOND' },
+      },
+    };
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockResolvedValueOnce({
+      matchId: 'match-spec',
+      seq: 4,
+      currentPublicSeq: 8,
+      snapshot: secondSnapshot,
+      spectatorView: {
+        currentViewerSeat: 'SECOND',
+        authorizedViewerSeats: ['SECOND'],
+        viewVersion: 2,
+        authorizationNotice: {
+          code: 'VIEW_AUTHORIZATION_CLOSED',
+          closedViewerSeats: ['FIRST'],
+          autoSwitched: true,
+          message: '先攻视角的观战授权已关闭，已自动切换到仍开放的视角',
+        },
+      },
+    });
+    vi.mocked(fetchRemotePublicEvents).mockResolvedValueOnce(
+      createPublicEventsResponse('match-spec', 8)
+    );
+
+    await useGameStore.getState().syncRemoteState();
+
+    expect(fetchRemoteSnapshotSyncResult).toHaveBeenCalledWith(
+      'SPECTATOR',
+      'match-spec',
+      'FIRST',
+      4,
+      'token-1',
+      'session-1',
+      1
+    );
+    expect(useGameStore.getState().remoteSession).toMatchObject({
+      seat: 'SECOND',
+      playerId: 'player-2',
+      spectatorAuthorizedViewerSeats: ['SECOND'],
+      spectatorViewVersion: 2,
+      spectatorAuthorizationNotice: {
+        code: 'VIEW_AUTHORIZATION_CLOSED',
+        autoSwitched: true,
+      },
+    });
+    expect(useGameStore.getState().viewingPlayerId).toBe('player-2');
+    expect(useGameStore.getState().playerViewState?.match.viewerSeat).toBe('SECOND');
+    expect(useGameStore.getState().ui).toMatchObject({
+      selectedCardId: null,
+      hoveredCardId: null,
+      cardDetail: null,
+      isDragging: false,
+    });
+  });
+
   it('does not fetch public events for a not-modified snapshot when the public cursor is already current', async () => {
     setRemoteSession('match-1');
     useGameStore.setState({

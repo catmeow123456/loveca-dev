@@ -70,6 +70,7 @@ export interface OnlineSpectatorLinkView {
   readonly matchId: string;
   readonly viewType: OnlineSpectatorViewType;
   readonly viewerSeat: Seat;
+  readonly authorizedViewerSeats: readonly Seat[];
   readonly createdAt: number;
   readonly expiresAt: number;
   readonly revokedAt: number | null;
@@ -81,6 +82,8 @@ export interface OnlineSpectatorSessionView {
   readonly displayName: string;
   readonly viewType: OnlineSpectatorViewType;
   readonly viewerSeat: Seat;
+  readonly authorizedViewerSeats: readonly Seat[];
+  readonly viewVersion: number;
   readonly joinedAt: number;
   readonly lastSeenAt: number;
 }
@@ -93,7 +96,30 @@ export interface OnlineSpectatorPresenceView {
 export interface OnlineSpectatorJoinView {
   readonly link: OnlineSpectatorLinkView;
   readonly session: OnlineSpectatorSessionView;
-  readonly snapshot: OnlineMatchSnapshot;
+  readonly snapshot: OnlineSpectatorMatchSnapshot;
+}
+
+export interface OnlineSpectatorViewState {
+  readonly currentViewerSeat: Seat;
+  readonly authorizedViewerSeats: readonly Seat[];
+  readonly viewVersion: number;
+  readonly authorizationNotice: OnlineSpectatorAuthorizationNotice | null;
+}
+
+export interface OnlineSpectatorAuthorizationNotice {
+  readonly code: 'VIEW_AUTHORIZATION_CLOSED';
+  readonly closedViewerSeats: readonly Seat[];
+  readonly autoSwitched: boolean;
+  readonly message: string;
+}
+
+export type OnlineSpectatorMatchSnapshot = OnlineMatchSnapshot & {
+  readonly spectatorView: OnlineSpectatorViewState;
+};
+
+export interface OnlineSpectatorSwitchView {
+  readonly session: OnlineSpectatorSessionView;
+  readonly snapshot: OnlineSpectatorMatchSnapshot;
 }
 
 export interface OnlineRoomSpectatorSeatView {
@@ -109,7 +135,12 @@ export interface OnlineRoomSpectatorEntryView {
   readonly seats: readonly OnlineRoomSpectatorSeatView[];
 }
 
-export type OnlineSpectatorSnapshotResponse = OnlineMatchSnapshot | OnlineMatchSnapshotNotModified;
+export type OnlineSpectatorSnapshotResponse =
+  OnlineSpectatorMatchSnapshot | OnlineSpectatorSnapshotNotModified;
+
+export interface OnlineSpectatorSnapshotNotModified extends OnlineMatchSnapshotNotModified {
+  readonly spectatorView: OnlineSpectatorViewState;
+}
 
 export interface OnlineMatchSnapshotNotModified {
   readonly matchId: string;

@@ -4,6 +4,7 @@ import type {
   OnlineCommandResult,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
+  OnlineSpectatorViewState,
   PublicEventsResponse,
 } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -43,6 +44,7 @@ export interface RemoteSnapshotSyncResult {
   readonly seq: number;
   readonly currentPublicSeq: number;
   readonly snapshot: RemoteSnapshot | null;
+  readonly spectatorView?: OnlineSpectatorViewState;
 }
 
 export async function fetchRemoteSnapshot(
@@ -51,7 +53,8 @@ export async function fetchRemoteSnapshot(
   seat?: DebugMatchSnapshot['seat'],
   sinceSeq?: number,
   spectatorToken?: string,
-  spectatorSessionId?: string
+  spectatorSessionId?: string,
+  spectatorViewVersion?: number
 ): Promise<RemoteSnapshot | null> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -69,7 +72,8 @@ export async function fetchRemoteSnapshot(
     const response = await fetchOnlineSpectatorSnapshotResponse(
       spectatorToken,
       spectatorSessionId,
-      sinceSeq
+      sinceSeq,
+      spectatorViewVersion
     );
     return isSnapshotNotModified(response) ? null : response;
   }
@@ -83,7 +87,8 @@ export async function fetchRemoteSnapshotSyncResult(
   seat?: DebugMatchSnapshot['seat'],
   sinceSeq?: number,
   spectatorToken?: string,
-  spectatorSessionId?: string
+  spectatorSessionId?: string,
+  spectatorViewVersion?: number
 ): Promise<RemoteSnapshotSyncResult> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -105,7 +110,8 @@ export async function fetchRemoteSnapshotSyncResult(
         ? await fetchOnlineSpectatorSnapshotResponse(
             requireSpectatorToken(spectatorToken),
             spectatorSessionId,
-            sinceSeq
+            sinceSeq,
+            spectatorViewVersion
           )
         : await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
   const snapshot = isSnapshotNotModified(response) ? null : response;
@@ -114,6 +120,10 @@ export async function fetchRemoteSnapshotSyncResult(
     seq: response.seq,
     currentPublicSeq: response.currentPublicSeq,
     snapshot,
+    spectatorView:
+      source === 'SPECTATOR' && 'spectatorView' in response
+        ? (response as { readonly spectatorView: OnlineSpectatorViewState }).spectatorView
+        : undefined,
   };
 }
 
