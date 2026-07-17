@@ -11,77 +11,116 @@ import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
   selectWaitingRoomCardIds,
+  type ZoneCardPredicate,
 } from '../../../effects/zone-selection.js';
-import { BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID } from '../../ability-ids.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import {
+  BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID,
+  PL_N_BP1_009_ON_ENTER_OPTIONAL_DISCARD_MILL_TWO_RECOVER_MEMBER_ABILITY_ID,
+} from '../../ability-ids.js';
+import { createOptionalDiscardHandToWaitingRoomActiveEffect } from '../../runtime/active-effect.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
-
-const SELECT_DISCARD_STEP_ID = 'BP5_010_SELECT_HAND_CARD_TO_DISCARD';
-const SELECT_ARISE_MEMBER_STEP_ID = 'BP5_010_SELECT_ARISE_MEMBER_FROM_WAITING_ROOM';
-
-const ariseMemberSelector = and(typeIs(CardType.MEMBER), groupAliasIs('A-RISE'));
+import { finishWaitingRoomToHandWorkflow } from './waiting-room-to-hand.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerBp5010HonokaWorkflowHandlers(deps: {
+interface DiscardMillTopRecoverMemberConfig {
+  readonly abilityId: string;
+  readonly millCount: number;
+  readonly recoverSelector: ZoneCardPredicate;
+  readonly recoverTargetDescription: string;
+  readonly validateSourceStillOnStage: boolean;
+  readonly discardStepId: string;
+  readonly recoverStepId: string;
+  readonly millActionStep: string;
+  readonly noTargetActionStep: string;
+}
+
+const CONFIGS: readonly DiscardMillTopRecoverMemberConfig[] = [
+  {
+    abilityId: BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID,
+    millCount: 3,
+    recoverSelector: and(typeIs(CardType.MEMBER), groupAliasIs('A-RISE')),
+    recoverTargetDescription: '『A-RISE』成员卡',
+    validateSourceStillOnStage: true,
+    discardStepId: 'BP5_010_SELECT_HAND_CARD_TO_DISCARD',
+    recoverStepId: 'BP5_010_SELECT_ARISE_MEMBER_FROM_WAITING_ROOM',
+    millActionStep: 'MILL_TOP_THREE',
+    noTargetActionStep: 'NO_ARISE_MEMBER_TARGET',
+  },
+  {
+    abilityId: PL_N_BP1_009_ON_ENTER_OPTIONAL_DISCARD_MILL_TWO_RECOVER_MEMBER_ABILITY_ID,
+    millCount: 2,
+    recoverSelector: typeIs(CardType.MEMBER),
+    recoverTargetDescription: '成员卡',
+    validateSourceStillOnStage: false,
+    discardStepId: 'PL_N_BP1_009_SELECT_HAND_CARD_TO_DISCARD',
+    recoverStepId: 'PL_N_BP1_009_SELECT_MEMBER_FROM_WAITING_ROOM',
+    millActionStep: 'MILL_TOP_TWO',
+    noTargetActionStep: 'NO_MEMBER_TARGET',
+  },
+];
+
+export function registerDiscardMillTopRecoverMemberWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerPendingAbilityStarterHandler(
-    BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID,
-    (game, ability, options, context) =>
-      startBp5010HonokaLiveStart(
+  for (const config of CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      startDiscardMillTopRecoverMember(
         game,
         ability,
+        config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
-  );
-  registerActiveEffectStepHandler(
-    BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID,
-    SELECT_DISCARD_STEP_ID,
-    (game, input, context) =>
+    );
+    registerActiveEffectStepHandler(config.abilityId, config.discardStepId, (game, input, context) =>
       input.selectedCardId
-        ? finishBp5010HonokaDiscardMillRecover(
+        ? finishDiscardMillTopRecoverMember(
             game,
             input.selectedCardId,
+            config,
             context.continuePendingCardEffects,
             deps.enqueueTriggeredCardEffects
           )
-        : finishBp5010HonokaWithoutPayment(
-            game,
-            'DECLINE_DISCARD_COST',
-            context.continuePendingCardEffects
-          )
-  );
-  registerActiveEffectStepHandler(
-    BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID,
-    SELECT_ARISE_MEMBER_STEP_ID,
-    (game, input, context) =>
-      finishWaitingRoomToHandWorkflow(
+        : finishWithoutPayment(game, config, context.continuePendingCardEffects)
+    );
+    registerActiveEffectStepHandler(config.abilityId, config.recoverStepId, (game, input, context) => {
+      const effect = game.activeEffect;
+      const currentCandidateCardIds = effect
+        ? selectWaitingRoomCardIds(game, effect.controllerId, config.recoverSelector)
+        : [];
+      return finishWaitingRoomToHandWorkflow(
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
-  );
+        context.continuePendingCardEffects,
+        { currentCandidateCardIds }
+      );
+    });
+  }
 }
 
-function startBp5010HonokaLiveStart(
+function startDiscardMillTopRecoverMember(
   game: GameState,
   ability: PendingAbilityState,
+  config: DiscardMillTopRecoverMemberConfig,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   const sourceSlot = player ? findMemberSlot(player, ability.sourceCardId) : null;
-  if (!player || sourceSlot === null || player.hand.cardIds.length === 0) {
+  if (
+    !player ||
+    player.hand.cardIds.length === 0 ||
+    (config.validateSourceStillOnStage && sourceSlot === null)
+  ) {
     return consumePendingWithoutEffect(
       game,
       ability,
@@ -95,57 +134,29 @@ function startBp5010HonokaLiveStart(
   return {
     ...game,
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-    activeEffect: {
-      id: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(
-        BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID
-      ),
-      stepId: SELECT_DISCARD_STEP_ID,
-      stepText:
-        '可以将1张手牌放置入休息室。如此做的话，将卡组顶3张放置入休息室，之后回收1张『A-RISE』成员卡。',
-      awaitingPlayerId: player.id,
-      selectableCardIds: player.hand.cardIds,
-      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+    activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability,
+      playerId: player.id,
+      effectText: getAbilityEffectText(config.abilityId),
+      stepId: config.discardStepId,
+      stepText: `可以将1张手牌放置入休息室。如此做的话，将卡组顶${config.millCount}张放置入休息室，之后回收1张${config.recoverTargetDescription}。`,
       selectionLabel: '选择要放置入休息室的手牌',
       confirmSelectionLabel: '放置入休息室',
-      canSkipSelection: true,
       skipSelectionLabel: '不发动',
-      metadata: {
-        orderedResolution,
-        sourceSlot,
-        topCount: 3,
-        effectCosts: [
-          {
-            kind: 'DISCARD_HAND_TO_WAITING_ROOM',
-            minCount: 1,
-            maxCount: 1,
-            optional: true,
-          },
-        ],
-        handToWaitingRoomCost: {
-          minCount: 1,
-          maxCount: 1,
-          optional: true,
-        },
-      },
-    },
+      selectableCardIds: player.hand.cardIds,
+      orderedResolution,
+      metadata: { sourceSlot, millCount: config.millCount },
+    }),
   };
 }
 
-function finishBp5010HonokaWithoutPayment(
+function finishWithoutPayment(
   game: GameState,
-  step: string,
+  config: DiscardMillTopRecoverMemberConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID ||
-    effect.stepId !== SELECT_DISCARD_STEP_ID
-  ) {
+  if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== config.discardStepId) {
     return game;
   }
   return continuePendingCardEffects(
@@ -154,30 +165,28 @@ function finishBp5010HonokaWithoutPayment(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       sourceSlot: effect.metadata?.sourceSlot,
-      step,
+      step: 'DECLINE_DISCARD_COST',
     }),
     effect.metadata?.orderedResolution === true
   );
 }
 
-function finishBp5010HonokaDiscardMillRecover(
+function finishDiscardMillTopRecoverMember(
   game: GameState,
   discardCardId: string,
+  config: DiscardMillTopRecoverMemberConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
-    effect.abilityId !== BP5_010_LIVE_START_DISCARD_MILL_RECOVER_ARISE_MEMBER_ABILITY_ID ||
-    effect.stepId !== SELECT_DISCARD_STEP_ID ||
-    effect.selectableCardIds?.includes(discardCardId) !== true
+    effect.abilityId !== config.abilityId ||
+    effect.stepId !== config.discardStepId ||
+    effect.selectableCardIds?.includes(discardCardId) !== true ||
+    !player?.hand.cardIds.includes(discardCardId)
   ) {
-    return game;
-  }
-
-  const player = getPlayerById(game, effect.controllerId);
-  if (!player || !player.hand.cardIds.includes(discardCardId)) {
     return game;
   }
 
@@ -185,14 +194,10 @@ function finishBp5010HonokaDiscardMillRecover(
     game,
     player.id,
     discardCardId,
-    {
-      candidateCardIds: effect.selectableCardIds ?? [],
-    },
+    { candidateCardIds: effect.selectableCardIds ?? [] },
     enqueueTriggeredCardEffects
   );
-  if (!discardResult) {
-    return game;
-  }
+  if (!discardResult) return game;
 
   const stateAfterCost = addAction(discardResult.gameState, 'PAY_COST', player.id, {
     pendingAbilityId: effect.id,
@@ -201,23 +206,20 @@ function finishBp5010HonokaDiscardMillRecover(
     sourceSlot: effect.metadata?.sourceSlot,
     discardedHandCardIds: discardResult.discardedCardIds,
   });
-
   const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
     stateAfterCost,
     player.id,
-    3,
+    config.millCount,
     enqueueTriggeredCardEffects
   );
-  if (!millResult) {
-    return game;
-  }
+  if (!millResult) return game;
 
   const stateAfterMill = addAction(millResult.gameState, 'RESOLVE_ABILITY', player.id, {
     pendingAbilityId: effect.id,
     abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId,
     sourceSlot: effect.metadata?.sourceSlot,
-    step: 'MILL_TOP_THREE',
+    step: config.millActionStep,
     discardedHandCardIds: discardResult.discardedCardIds,
     milledCardIds: millResult.movedCardIds,
     refreshCount: millResult.refreshCount,
@@ -225,7 +227,7 @@ function finishBp5010HonokaDiscardMillRecover(
   const selectableCardIds = selectWaitingRoomCardIds(
     stateAfterMill,
     player.id,
-    ariseMemberSelector
+    config.recoverSelector
   );
   if (selectableCardIds.length === 0) {
     return continuePendingCardEffects(
@@ -234,7 +236,7 @@ function finishBp5010HonokaDiscardMillRecover(
         abilityId: effect.abilityId,
         sourceCardId: effect.sourceCardId,
         sourceSlot: effect.metadata?.sourceSlot,
-        step: 'NO_ARISE_MEMBER_TARGET',
+        step: config.noTargetActionStep,
         discardedHandCardIds: discardResult.discardedCardIds,
         milledCardIds: millResult.movedCardIds,
         refreshCount: millResult.refreshCount,
@@ -251,8 +253,10 @@ function finishBp5010HonokaDiscardMillRecover(
       sourceCardId: effect.sourceCardId,
       controllerId: player.id,
       effectText: effect.effectText,
-      stepId: SELECT_ARISE_MEMBER_STEP_ID,
-      stepText: '请选择自己休息室1张『A-RISE』成员卡加入手牌。',
+      stepId: config.recoverStepId,
+      stepText: `请选择自己休息室1张${config.recoverTargetDescription}加入手牌。`,
+      selectionLabel: '选择要加入手牌的成员卡',
+      confirmSelectionLabel: '加入手牌',
       awaitingPlayerId: player.id,
       selectableCardIds,
       canSkipSelection: false,
@@ -278,20 +282,24 @@ function consumePendingWithoutEffect(
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string,
-  payload: Readonly<Record<string, unknown>> = {}
+  payload: Readonly<Record<string, unknown>>
 ): GameState {
-  const state = {
-    ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-  };
   return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', ability.controllerId, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step,
-      ...payload,
-    }),
+    addAction(
+      {
+        ...game,
+        pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      },
+      'RESOLVE_ABILITY',
+      ability.controllerId,
+      {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step,
+        ...payload,
+      }
+    ),
     orderedResolution
   );
 }

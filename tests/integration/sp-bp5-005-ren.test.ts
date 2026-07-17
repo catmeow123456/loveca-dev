@@ -124,6 +124,7 @@ function setupScenario(options: {
     createMemberCard('PL!SP-bp5-005-liella-1', 'Liella member 1'),
     createMemberCard('PL!SP-bp5-005-liella-2', 'Liella member 2'),
     createMemberCard('PL!S-bp5-005-aqours', 'Aqours member', 2, 'Aqours'),
+    createMemberCard('PL!S-bp5-005-deck-remainder', 'Deck remainder', 2, 'Aqours'),
   ]).map((card, index) => createCardInstance(card, PLAYER1, `p1-ren-deck-${index}`));
   const energyCards = Array.from({ length: options.energyCount ?? 2 }, (_, index) =>
     createCardInstance(createEnergyCard(`REN-ENE-${index}`), PLAYER1, `p1-ren-energy-${index}`)
@@ -250,7 +251,7 @@ function declineAuto(scenario: RenScenario): void {
 }
 
 describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
-  it('mills the top 3 cards and gains BLADE for each milled Liella member', () => {
+  it('moves the top 3 cards as an effect and gains BLADE for each moved Liella member', () => {
     const scenario = setupScenario();
 
     activateRen(scenario);
@@ -260,7 +261,9 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       scenario.unrelatedWaitingCardId,
       ...scenario.deckCardIds.slice(0, 3),
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
+      scenario.deckCardIds[3],
+    ]);
     expect(
       scenario.session.state?.liveResolution.liveModifiers.filter(
         (modifier) =>
@@ -275,14 +278,23 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       sourceCardId: scenario.sourceId,
       metadata: { movedCardIds: scenario.deckCardIds.slice(0, 3) },
     });
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId ===
+            SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID
+      )
+    ).toBe(false);
   });
 
-  it('pays the mill cost without adding BLADE when no milled card is a Liella member', () => {
+  it('resolves without adding BLADE when no moved card is a Liella member', () => {
     const scenario = setupScenario({
       mainDeckCards: [
         createMemberCard('PL!S-bp5-005-aqours-1', 'Aqours 1', 2, 'Aqours'),
         createMemberCard('PL!N-bp5-005-niji', 'Niji', 2, '虹ヶ咲'),
         createMemberCard('PL!HS-bp5-005-hasu', 'Hasu', 2, '蓮ノ空'),
+        createMemberCard('PL!S-bp5-005-aqours-2', 'Aqours 2', 2, 'Aqours'),
       ],
     });
 
@@ -301,7 +313,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
     ).toBe(false);
   });
 
-  it('cannot activate with fewer than 3 cards in the main deck', () => {
+  it('with only 2 main-deck cards, moves both, refreshes, then moves the remaining 1', () => {
     const scenario = setupScenario({
       mainDeckCards: [
         createMemberCard('PL!SP-bp5-005-liella-1'),
@@ -309,9 +321,73 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       ],
     });
 
-    activateRen(scenario, false);
+    activateRen(scenario);
 
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual(scenario.deckCardIds);
+    const effect = scenario.session.state?.activeEffect;
+    const milledCardIds = effect?.metadata.movedCardIds as readonly string[];
+    const postRefreshCardId = milledCardIds[2];
+
+    expect(milledCardIds).toHaveLength(3);
+    expect(milledCardIds.slice(0, 2)).toEqual(scenario.deckCardIds);
+    expect(postRefreshCardId).toBeTruthy();
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      postRefreshCardId,
+    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toHaveLength(4);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).not.toContain(
+      postRefreshCardId
+    );
+    expect(
+      scenario.session.state?.actionHistory.filter(
+        (action) => action.type === 'RULE_ACTION' && action.payload.type === 'REFRESH'
+      )
+    ).toHaveLength(1);
+    expect(
+      scenario.session.state?.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId ===
+            SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID
+      )
+    ).toMatchObject([{ sourceCardId: scenario.sourceId, countDelta: 3 }]);
+    expect(effect).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      metadata: { movedCardIds: milledCardIds },
+      selectableCardIds: [postRefreshCardId],
+    });
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId ===
+            SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('can start from an empty main deck, refresh, and still resolves 3 placements', () => {
+    const scenario = setupScenario({ mainDeckCards: [] });
+
+    activateRen(scenario);
+
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toHaveLength(3);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID &&
+          action.payload.milledCardIds?.length === 3
+      )
+    ).toBe(true);
+    expect(
+      scenario.session.state?.actionHistory.filter(
+        (action) => action.type === 'RULE_ACTION' && action.payload.type === 'REFRESH'
+      )
+    ).toHaveLength(2);
+    activateRen(scenario, false);
   });
 
   it('can activate only once per source each turn', () => {

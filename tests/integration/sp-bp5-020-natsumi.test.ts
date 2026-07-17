@@ -131,7 +131,14 @@ function abilityUseCount(game: GameState): number {
 }
 
 describe('PL!SP-bp5-020 Natsumi activated and LIVE success workflow', () => {
-  it.each(['PL!HS-bp1-007-P', 'PL!HS-bp1-007-R'])(
+  it.each([
+    'PL!HS-bp1-007-P',
+    'PL!HS-bp1-007-R',
+    'PL!N-bp1-006-P',
+    'PL!N-bp1-006-P＋',
+    'PL!N-bp1-006-R＋',
+    'PL!N-bp1-006-SEC',
+  ])(
     '%s reuses the SP activated ability without receiving its LIVE success ability',
     (sourceCardCode) => {
       const { game, sourceId, drawCardId } = setup({ activeEnergyCount: 2, sourceCardCode });

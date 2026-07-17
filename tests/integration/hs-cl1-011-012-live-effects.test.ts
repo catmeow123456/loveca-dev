@@ -489,9 +489,8 @@ describe('PL!HS-cl1-012-CL Edelied live-success workflow', () => {
       validTargetId
     );
 
-    expect(confirmed.activeEffect?.abilityId).toBe(
-      HS_CL1_012_LIVE_SUCCESS_EQUAL_SCORE_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND_ABILITY_ID
-    );
+    expect(confirmed.activeEffect).toBeNull();
+    expect(confirmed.pendingAbilities).toEqual([]);
     expect(confirmed.players[0].hand.cardIds).toEqual([]);
     expect(confirmed.resolutionZone.cardIds).not.toContain(validTargetId);
   });

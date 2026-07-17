@@ -23,7 +23,11 @@ import {
   removeCardFromStatefulZone,
   removeCardFromSlot,
 } from '../../src/domain/entities/zone';
-import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
+import {
+  addLiveModifier,
+  collectLiveModifiers,
+  getEffectivePerformanceCheerCount,
+} from '../../src/domain/rules/live-modifiers';
 import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import {
   confirmActiveEffectStep,
@@ -39,6 +43,7 @@ import {
   HS_BP5_019_LIVE_START_REQUIREMENT_ABILITY_ID,
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
+  N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
   SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
   PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
@@ -370,7 +375,10 @@ function setupHanamusubiPendingState(options: {
   };
 }
 
-function setupBp3023StageBladeScenario(options: {
+function setupStageBladeTotalScenario(options: {
+  readonly cardCode: string;
+  readonly name: string;
+  readonly score: number;
   readonly blades: readonly number[];
   readonly orientations?: readonly OrientationState[];
   readonly sourceCount?: number;
@@ -382,36 +390,87 @@ function setupBp3023StageBladeScenario(options: {
   const sourceCount = options.sourceCount ?? 1;
   const lives = Array.from({ length: sourceCount }, (_, index) =>
     createCardInstance(
-      createLive('PL!-bp3-023-L', "ミはμ'sicのミ", 3),
+      createLive(options.cardCode, options.name, options.score),
       PLAYER1,
-      `bp3-023-live-${index}`
+      `stage-blade-live-${index}`
     )
   );
   const slots = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
   const members = options.blades.map((blade, index) =>
     createCardInstance(
       createMember({
-        cardCode: `PL!-test-bp3-023-member-${index}`,
+        cardCode: `PL!-test-stage-blade-member-${index}`,
         name: `测试成员${index + 1}`,
         cost: 1,
         blade,
       }),
       PLAYER1,
-      `bp3-023-member-${index}`
+      `stage-blade-member-${index}`
     )
   );
   return {
-    game: setupLiveStartState({
-      live: lives[0]!,
-      additionalLives: lives.slice(1),
-      stageMembers: members.map((card, index) => ({
-        card,
-        slot: slots[index]!,
-        orientation: options.orientations?.[index],
-      })),
-    }),
+    game: (() => {
+      const game = setupLiveStartState({
+        live: lives[0]!,
+        additionalLives: lives.slice(1),
+        stageMembers: members.map((card, index) => ({
+          card,
+          slot: slots[index]!,
+          orientation: options.orientations?.[index],
+        })),
+      });
+      return {
+        ...game,
+        liveResolution: {
+          ...game.liveResolution,
+          playerScores: new Map([[PLAYER1, sourceCount * options.score]]),
+        },
+      };
+    })(),
     lives,
     members,
+  };
+}
+
+function setupBp3023StageBladeScenario(
+  options: Omit<Parameters<typeof setupStageBladeTotalScenario>[0], 'cardCode' | 'name' | 'score'>
+) {
+  return setupStageBladeTotalScenario({
+    ...options,
+    cardCode: 'PL!-bp3-023-L',
+    name: "ミはμ'sicのミ",
+    score: 3,
+  });
+}
+
+function setupDreamWithYouScenario(
+  options: Omit<Parameters<typeof setupStageBladeTotalScenario>[0], 'cardCode' | 'name' | 'score'>
+) {
+  return setupStageBladeTotalScenario({
+    ...options,
+    cardCode: 'PL!N-sd1-028-SD',
+    name: 'Dream with You',
+    score: 4,
+  });
+}
+
+function dreamWithYouScoreModifiers(game: GameState) {
+  return game.liveResolution.liveModifiers.filter(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.abilityId === N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID
+  );
+}
+
+function createDreamWithYouPending(sourceCardId: string, index = 0): PendingAbilityState {
+  return {
+    id: `dream-with-you-pending-${index}`,
+    abilityId: N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
+    sourceCardId,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: TriggerCondition.ON_LIVE_START,
+    eventIds: ['dream-with-you-live-start'],
   };
 }
 
@@ -1482,6 +1541,334 @@ describe('conditional live modifier workflow', () => {
         abilityId: PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
       })
     );
+  });
+
+  it('confirms Dream with You at exactly ten effective stage BLADE, including a WAITING member, before applying SCORE +1', () => {
+    const scenario = setupDreamWithYouScenario({
+      blades: [4, 3, 3],
+      orientations: [OrientationState.ACTIVE, OrientationState.WAITING, OrientationState.ACTIVE],
+    });
+    const preview = runLiveStart(scenario.game);
+
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
+      sourceCardId: scenario.lives[0]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(preview.activeEffect?.effectText).toContain(
+      '【LIVE开始时】存在于自己的舞台的成员持有的[BLADE]的合计大于等于10时，此卡的分数+1。'
+    );
+    expect(preview.activeEffect?.effectText).toContain(
+      '当前自己舞台成员持有的[BLADE]合计10，满足条件，实际此卡[スコア]+1。'
+    );
+    expect(preview.activeEffect?.stepText).toBe(preview.activeEffect?.effectText);
+    expect(preview.activeEffect?.effectText).not.toMatch(
+      /source|pending|stale|eventId|trigger|来源|LIVE区/
+    );
+    expect(preview.activeEffect?.effectText?.match(/\[[^\]]+\]/g)?.every(
+      (token) => token === '[BLADE]' || token === '[スコア]'
+    )).toBe(true);
+    expect(dreamWithYouScoreModifiers(preview)).toHaveLength(0);
+    expect(preview.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(dreamWithYouScoreModifiers(resolved)).toEqual([
+      {
+        kind: 'SCORE',
+        playerId: PLAYER1,
+        countDelta: 1,
+        liveCardId: scenario.lives[0]!.instanceId,
+        sourceCardId: scenario.lives[0]!.instanceId,
+        abilityId: N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
+      },
+    ]);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(
+      resolved.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID
+      )?.payload
+    ).toMatchObject({
+      stageMemberCardIds: scenario.members.map((member) => member.instanceId),
+      stageMemberBladeCounts: [4, 3, 3],
+      stageBladeTotal: 10,
+      sourceInLiveZone: true,
+      conditionMet: true,
+      scoreBonus: 1,
+      scoreDelta: 1,
+    });
+  });
+
+  it('shows the unmet Dream with You result and does not add SCORE at effective stage BLADE nine', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [3, 3, 3] });
+    const preview = runLiveStart(scenario.game);
+    expect(preview.activeEffect?.effectText).toContain(
+      '当前自己舞台成员持有的[BLADE]合计9，未满足条件，实际不增加此卡[スコア]。'
+    );
+
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(dreamWithYouScoreModifiers(resolved)).toHaveLength(0);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+  });
+
+  it('uses effective BLADE modifiers for Dream with You instead of printed BLADE only', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [3, 3, 3] });
+    const withBladeModifier = addLiveModifier(scenario.game, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: scenario.members[0]!.instanceId,
+      abilityId: 'test:dream-with-you-blade-plus-one',
+    });
+    const preview = runLiveStart(withBladeModifier);
+    expect(preview.activeEffect?.effectText).toContain('[BLADE]合计10');
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(dreamWithYouScoreModifiers(resolved)).toHaveLength(1);
+  });
+
+  it('does not count opponent members or member-below cards for Dream with You', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [3, 3, 3] });
+    const opponentMember = createCardInstance(
+      createMember({ cardCode: 'test-opponent-stage', name: 'Opponent', cost: 1, blade: 20 }),
+      PLAYER2,
+      'dream-with-you-opponent-member'
+    );
+    const belowMember = createCardInstance(
+      createMember({ cardCode: 'test-member-below', name: 'Below', cost: 1, blade: 20 }),
+      PLAYER1,
+      'dream-with-you-below-member'
+    );
+    let game = registerCards(scenario.game, [opponentMember, belowMember]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        belowMember.instanceId
+      ),
+    }));
+    game = updatePlayer(game, PLAYER2, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.LEFT,
+        opponentMember.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+    }));
+
+    const preview = runLiveStart(game);
+    expect(preview.activeEffect?.effectText).toContain('[BLADE]合计9');
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(dreamWithYouScoreModifiers(resolved)).toHaveLength(0);
+  });
+
+  it('recomputes Dream with You from nine to ten effective BLADE on confirmation', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [3, 3, 3] });
+    const preview = runLiveStart(scenario.game);
+    expect(preview.activeEffect?.effectText).toContain('[BLADE]合计9');
+    const changed = addLiveModifier(preview, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: scenario.members[0]!.instanceId,
+      abilityId: 'test:dream-with-you-late-blade',
+    });
+
+    const resolved = confirmActiveEffectStep(changed, PLAYER1, changed.activeEffect!.id);
+    expect(dreamWithYouScoreModifiers(resolved)).toHaveLength(1);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(
+      resolved.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID
+      )?.payload
+    ).toMatchObject({ stageBladeTotal: 10, conditionMet: true, scoreBonus: 1, scoreDelta: 1 });
+  });
+
+  it('recomputes Dream with You from ten to nine on confirmation and clears stale SCORE state by delta', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [3, 3, 3] });
+    let game = addLiveModifier(scenario.game, {
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: scenario.members[0]!.instanceId,
+      abilityId: 'test:dream-with-you-removable-blade',
+    });
+    game = addLiveModifier(game, {
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      liveCardId: scenario.lives[0]!.instanceId,
+      sourceCardId: scenario.lives[0]!.instanceId,
+      abilityId: N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
+    });
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        playerScores: new Map([[PLAYER1, 5]]),
+      },
+    };
+    const preview = runLiveStart(game);
+    expect(preview.activeEffect?.effectText).toContain('[BLADE]合计10');
+    const changed = {
+      ...preview,
+      liveResolution: {
+        ...preview.liveResolution,
+        liveModifiers: preview.liveResolution.liveModifiers.filter(
+          (modifier) => modifier.abilityId !== 'test:dream-with-you-removable-blade'
+        ),
+      },
+    };
+
+    const resolved = confirmActiveEffectStep(changed, PLAYER1, changed.activeEffect!.id);
+    expect(dreamWithYouScoreModifiers(resolved)).toHaveLength(0);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+    expect(
+      resolved.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID
+      )?.payload
+    ).toMatchObject({ stageBladeTotal: 9, conditionMet: false, scoreBonus: 0, scoreDelta: -1 });
+  });
+
+  it('consumes Dream with You pending without SCORE when the source leaves its controller LIVE zone', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [4, 3, 3] });
+    const preview = runLiveStart(scenario.game);
+    const sourceRemoved = updatePlayer(preview, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, scenario.lives[0]!.instanceId),
+    }));
+    const resolved = confirmActiveEffectStep(
+      sourceRemoved,
+      PLAYER1,
+      sourceRemoved.activeEffect!.id
+    );
+
+    expect(dreamWithYouScoreModifiers(resolved)).toHaveLength(0);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+    expect(
+      resolved.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID
+      )?.payload
+    ).toMatchObject({ sourceInLiveZone: false, conditionMet: false, scoreBonus: 0, scoreDelta: 0 });
+  });
+
+  it('re-resolves Dream with You idempotently and subtracts only the prior draft bonus after the condition later fails', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [4, 3, 3] });
+    const firstPreview = runLiveStart(scenario.game);
+    const first = confirmActiveEffectStep(firstPreview, PLAYER1, firstPreview.activeEffect!.id);
+    expect(first.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+
+    const replayPreview = resolvePendingCardEffects({
+      ...first,
+      pendingAbilities: [createDreamWithYouPending(scenario.lives[0]!.instanceId, 1)],
+    }).gameState;
+    const replayed = confirmActiveEffectStep(
+      replayPreview,
+      PLAYER1,
+      replayPreview.activeEffect!.id
+    );
+    expect(dreamWithYouScoreModifiers(replayed)).toHaveLength(1);
+    expect(replayed.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+
+    const conditionFailed = updatePlayer(replayed, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+    }));
+    const failedPreview = resolvePendingCardEffects({
+      ...conditionFailed,
+      pendingAbilities: [createDreamWithYouPending(scenario.lives[0]!.instanceId, 2)],
+    }).gameState;
+    const failed = confirmActiveEffectStep(
+      failedPreview,
+      PLAYER1,
+      failedPreview.activeEffect!.id
+    );
+    expect(dreamWithYouScoreModifiers(failed)).toHaveLength(0);
+    expect(failed.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+    const dreamActions = failed.actionHistory.filter(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId === N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID
+    );
+    expect(dreamActions.at(-2)?.payload).toMatchObject({ scoreBonus: 1, scoreDelta: 0 });
+    expect(dreamActions.at(-1)?.payload).toMatchObject({ scoreBonus: 0, scoreDelta: -1 });
+  });
+
+  it('auto-resolves an ordered Dream with You batch and confirms a manually selected pending first', () => {
+    const orderedScenario = setupDreamWithYouScenario({ blades: [4, 3, 3], sourceCount: 2 });
+    const orderSelection = runLiveStart(orderedScenario.game);
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const ordered = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(ordered.pendingAbilities).toEqual([]);
+    expect(dreamWithYouScoreModifiers(ordered)).toHaveLength(2);
+    expect(ordered.liveResolution.playerScores.get(PLAYER1)).toBe(10);
+
+    const manualScenario = setupDreamWithYouScenario({ blades: [4, 3, 3], sourceCount: 2 });
+    const manualOrderSelection = runLiveStart(manualScenario.game);
+    const preview = confirmActiveEffectStep(
+      manualOrderSelection,
+      PLAYER1,
+      manualOrderSelection.activeEffect!.id,
+      manualScenario.lives[1]!.instanceId
+    );
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
+      sourceCardId: manualScenario.lives[1]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(dreamWithYouScoreModifiers(preview)).toHaveLength(0);
+    const confirmed = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(dreamWithYouScoreModifiers(confirmed)).toHaveLength(1);
+    expect(confirmed.liveResolution.playerScores.get(PLAYER1)).toBe(9);
+  });
+
+  it('keeps the resolved Dream with You SCORE bonus after a later CHEER_COUNT reduction (FAQ Q116)', () => {
+    const scenario = setupDreamWithYouScenario({ blades: [4, 3, 3] });
+    const preview = runLiveStart(scenario.game);
+    const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    const afterCheerCountReduction = addLiveModifier(resolved, {
+      kind: 'CHEER_COUNT',
+      playerId: PLAYER1,
+      countDelta: -1,
+      sourceCardId: 'test:q116-cheer-count-source',
+      abilityId: 'test:q116-cheer-count-reduction',
+    });
+
+    expect(dreamWithYouScoreModifiers(afterCheerCountReduction)).toHaveLength(1);
+    expect(afterCheerCountReduction.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(
+      getEffectivePerformanceCheerCount(
+        afterCheerCountReduction,
+        PLAYER1,
+        10,
+        collectLiveModifiers(afterCheerCountReduction)
+      )
+    ).toBe(9);
+    expect(
+      afterCheerCountReduction.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'CHEER_COUNT' &&
+          modifier.abilityId === 'test:q116-cheer-count-reduction' &&
+          modifier.countDelta === -1
+      )
+    ).toBe(true);
   });
 
   it.each([

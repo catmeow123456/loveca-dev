@@ -35,6 +35,7 @@ import {
   HS_BP6_027_ON_CHEER_ADDITIONAL_CHEER_ABILITY_ID,
   HS_CL1_012_LIVE_SUCCESS_EQUAL_SCORE_REVEALED_CHEER_HIGH_COST_MEMBER_TO_HAND_ABILITY_ID,
   HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
+  PL_N_PB1_012_LIVE_SUCCESS_NIJIGASAKI_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
   S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
   S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
   S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
@@ -80,6 +81,8 @@ export const S_SD1_019_SELECT_AQOURS_LIVE_CHEER_TO_HAND_STEP_ID =
   'S_SD1_019_SELECT_REVEALED_CHEER_AQOURS_LIVE_TO_HAND';
 export const S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID =
   'S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM';
+export const PL_N_PB1_012_SELECT_NIJIGASAKI_MEMBER_CHEER_TO_HAND_STEP_ID =
+  'PL_N_PB1_012_SELECT_REVEALED_CHEER_NIJIGASAKI_MEMBER_TO_HAND';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -137,6 +140,16 @@ export interface SyncHsBp6027ManualCheerAdjustmentDependencies {
 }
 
 const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflowConfig[] = [
+  {
+    abilityId: PL_N_PB1_012_LIVE_SUCCESS_NIJIGASAKI_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+    stepId: PL_N_PB1_012_SELECT_NIJIGASAKI_MEMBER_CHEER_TO_HAND_STEP_ID,
+    stepText: '请选择1张因声援被公开的『虹咲』成员卡加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开虹咲成员',
+    predicate: and(typeIs(CardType.MEMBER), groupAliasIs('虹ヶ咲')),
+    destination: 'HAND',
+    optional: false,
+    confirmWhenNoTargets: true,
+  },
   {
     abilityId:
       SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
@@ -595,9 +608,26 @@ function finishRevealedCheerSelectionWorkflow(
     return game;
   }
 
+  const currentSelectableCardIds = selectRevealedCheerCardIds(game, player.id, config.predicate);
+  if (!uniqueSelectedCardIds.every((cardId) => currentSelectableCardIds.includes(cardId))) {
+    return refreshOrFinishStaleRevealedCheerSelection(
+      game,
+      config,
+      effect,
+      currentSelectableCardIds,
+      continuePendingCardEffects
+    );
+  }
+
   const moveResult = moveRevealedCheerCards(game, player.id, uniqueSelectedCardIds, destination);
   if (!moveResult) {
-    return game;
+    return refreshOrFinishStaleRevealedCheerSelection(
+      game,
+      config,
+      effect,
+      currentSelectableCardIds,
+      continuePendingCardEffects
+    );
   }
 
   let state: GameState = {
@@ -635,6 +665,60 @@ function finishRevealedCheerSelectionWorkflow(
       destination,
     }),
     effect.metadata?.orderedResolution === true
+  );
+}
+
+function refreshOrFinishStaleRevealedCheerSelection(
+  game: GameState,
+  config: RevealedCheerSelectionWorkflowConfig,
+  effect: ActiveEffectState,
+  selectableCardIds: readonly string[],
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  if (selectableCardIds.length === 0 && effect.canSkipSelection !== true) {
+    return continuePendingCardEffects(
+      addAction(
+        {
+          ...game,
+          activeEffect: null,
+        },
+        'RESOLVE_ABILITY',
+        effect.controllerId,
+        {
+          pendingAbilityId: effect.id,
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          step: 'REVEALED_CHEER_TARGETS_CLEARED',
+          destination: config.destination,
+        }
+      ),
+      effect.metadata?.orderedResolution === true
+    );
+  }
+
+  const maxSelectableCards =
+    effect.selectableCardMode === 'ORDERED_MULTI'
+      ? Math.min(config.selectMax ?? 1, selectableCardIds.length)
+      : undefined;
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...effect,
+        selectableCardIds,
+        maxSelectableCards,
+      },
+    },
+    'RESOLVE_ABILITY',
+    effect.controllerId,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'REFRESH_REVEALED_CHEER_SELECTION',
+      selectableCardIds,
+      destination: config.destination,
+    }
   );
 }
 

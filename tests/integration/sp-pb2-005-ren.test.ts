@@ -8,6 +8,7 @@ import {
 import {
   getActivatedAbilityLimitStatus,
   getActivatedAbilityUiConfig,
+  getActivatedAbilityUiConfigs,
   isSupportedActivatedAbilityForCard,
 } from '../../src/application/card-effect-runner';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
@@ -314,6 +315,11 @@ describe('PL!SP-pb2-005 Ren on-enter and granted activated workflows', () => {
       playerView.objects[createPublicObjectId(scenario.renId)]?.activatedAbilityUiConfig
         ?.abilityId
     ).toBe(SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID);
+    expect(
+      playerView.objects[
+        createPublicObjectId(scenario.renId)
+      ]?.activatedAbilityUiConfigs?.map((config) => config.abilityId)
+    ).toEqual([SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID]);
 
     expect(
       isSupportedActivatedAbilityForCard(
@@ -333,6 +339,13 @@ describe('PL!SP-pb2-005 Ren on-enter and granted activated workflows', () => {
         sourceCardId: scenario.renId,
       })?.abilityId
     ).toBe(SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID);
+    expect(
+      getActivatedAbilityUiConfigs('PL!SP-pb2-005-R', CardAbilitySourceZone.STAGE_MEMBER, {
+        game: scenario.session.state!,
+        playerId: PLAYER1,
+        sourceCardId: scenario.renId,
+      }).map((config) => config.abilityId)
+    ).toEqual([SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID]);
 
     const result = scenario.session.executeCommand(
       createActivateAbilityCommand(

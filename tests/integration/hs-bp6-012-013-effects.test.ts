@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
+import type { MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
   createGameState,
@@ -7,13 +7,12 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
-  HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID,
   HS_BP6_013_LIVE_START_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
   HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -47,14 +46,6 @@ function createMember(
     cost: options.cost ?? 1,
     blade: options.blade ?? 1,
     hearts: [createHeartIcon(HeartColor.PINK, 1)],
-  };
-}
-
-function createEnergy(cardCode: string): EnergyCardData {
-  return {
-    cardCode,
-    name: cardCode,
-    cardType: CardType.ENERGY,
   };
 }
 
@@ -107,132 +98,6 @@ function resolve(game: GameState): GameState {
 function confirm(game: GameState, selectedCardId?: string | null): GameState {
   return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, selectedCardId);
 }
-
-describe('PL!HS-bp6-012 Ginko workflow', () => {
-  function setupGinko(options: {
-    readonly hasOtherCerise: boolean;
-    readonly energyOrientations: readonly OrientationState[];
-  }) {
-    const source = createCardInstance(
-      createMember('PL!HS-bp6-012-R', '百生 吟子', { unitName: 'Cerise Bouquet' }),
-      PLAYER1,
-      'bp6-012-source'
-    );
-    const other = createCardInstance(
-      createMember('PL!HS-bp6-012-other', 'Other Cerise', { unitName: 'スリーズブーケ' }),
-      PLAYER1,
-      'bp6-012-other'
-    );
-    const energyCards = options.energyOrientations.map((_, index) =>
-      createCardInstance(
-        createEnergy(`BP6-012-ENERGY-${index}`),
-        PLAYER1,
-        `bp6-012-energy-${index}`
-      )
-    );
-    let game = registerCards(baseGame('bp6-012-ginko'), [source, other, ...energyCards]);
-    game = stageMember(game, PLAYER1, source.instanceId, SlotPosition.CENTER);
-    if (options.hasOtherCerise) {
-      game = stageMember(game, PLAYER1, other.instanceId, SlotPosition.LEFT);
-    }
-    game = updatePlayer(game, PLAYER1, (player) => ({
-      ...player,
-      energyZone: energyCards.reduce(
-        (zone, card, index) =>
-          addCardToStatefulZone(zone, card.instanceId, {
-            orientation: options.energyOrientations[index],
-            face: FaceState.FACE_UP,
-          }),
-        player.energyZone
-      ),
-    }));
-
-    return {
-      game,
-      sourceId: source.instanceId,
-      energyCardIds: energyCards.map((card) => card.instanceId),
-    };
-  }
-
-  it('activates exactly one waiting energy when another Cerise Bouquet member is on own stage', () => {
-    const scenario = setupGinko({
-      hasOtherCerise: true,
-      energyOrientations: [
-        OrientationState.WAITING,
-        OrientationState.WAITING,
-        OrientationState.ACTIVE,
-      ],
-    });
-
-    const state = resolve(
-      withPending(
-        scenario.game,
-        HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID,
-        scenario.sourceId,
-        TriggerCondition.ON_ENTER_STAGE
-      )
-    );
-
-    expect(
-      scenario.energyCardIds.map(
-        (cardId) => state.players[0].energyZone.cardStates.get(cardId)?.orientation
-      )
-    ).toEqual([OrientationState.ACTIVE, OrientationState.WAITING, OrientationState.ACTIVE]);
-    expect(
-      state.actionHistory.find(
-        (action) =>
-          action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId ===
-            HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID
-      )?.payload.activatedEnergyCardIds
-    ).toEqual([scenario.energyCardIds[0]]);
-    expect(state.pendingAbilities).toEqual([]);
-  });
-
-  it('no-ops when there is no other Cerise Bouquet member', () => {
-    const scenario = setupGinko({
-      hasOtherCerise: false,
-      energyOrientations: [OrientationState.WAITING],
-    });
-
-    const state = resolve(
-      withPending(
-        scenario.game,
-        HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID,
-        scenario.sourceId,
-        TriggerCondition.ON_ENTER_STAGE
-      )
-    );
-
-    expect(state.players[0].energyZone.cardStates.get(scenario.energyCardIds[0])?.orientation).toBe(
-      OrientationState.WAITING
-    );
-    expect(state.actionHistory.at(-1)?.payload.step).toBe('NO_OTHER_CERISE_BOUQUET_MEMBER');
-    expect(state.pendingAbilities).toEqual([]);
-  });
-
-  it('no-ops when the condition is met but there is no waiting energy', () => {
-    const scenario = setupGinko({
-      hasOtherCerise: true,
-      energyOrientations: [OrientationState.ACTIVE],
-    });
-
-    const state = resolve(
-      withPending(
-        scenario.game,
-        HS_BP6_012_ON_ENTER_OTHER_CERISE_BOUQUET_ACTIVATE_ENERGY_ABILITY_ID,
-        scenario.sourceId,
-        TriggerCondition.ON_ENTER_STAGE
-      )
-    );
-
-    expect(state.players[0].energyZone.cardStates.get(scenario.energyCardIds[0])?.orientation).toBe(
-      OrientationState.ACTIVE
-    );
-    expect(state.actionHistory.at(-1)?.payload.step).toBe('NO_WAITING_ENERGY');
-    expect(state.pendingAbilities).toEqual([]);
-  });
-});
 
 describe('PL!HS-bp6-013 Kosuzu workflow', () => {
   function setupKosuzu(options: { readonly rightTarget?: 'highBlade' | 'waiting' } = {}) {

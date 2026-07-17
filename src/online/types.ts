@@ -202,6 +202,7 @@ export interface ViewCardObject {
   readonly skipsNextActivePhase?: boolean;
   readonly frontInfo?: ViewFrontCardInfo;
   readonly activatedAbilityUiConfig?: ActivatedAbilityUiConfig;
+  readonly activatedAbilityUiConfigs?: readonly ActivatedAbilityUiConfig[];
 }
 
 export interface ViewCommandScope {

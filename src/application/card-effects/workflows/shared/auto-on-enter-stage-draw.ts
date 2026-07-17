@@ -4,7 +4,10 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { N_PR_025_AUTO_TWICE_PER_TURN_OWN_RELAY_MEMBER_ENTER_DRAW_ONE_ABILITY_ID } from '../../ability-ids.js';
+import {
+  N_PR_025_AUTO_TWICE_PER_TURN_OWN_RELAY_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+  PL_N_PB1_005_AUTO_TURN_ONCE_COST_TEN_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+} from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { startConfirmOnlyPendingAbilityEffect } from '../../runtime/active-effect.js';
 import {
@@ -18,17 +21,40 @@ import {
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerNPr025SetsunaWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    N_PR_025_AUTO_TWICE_PER_TURN_OWN_RELAY_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
-    (game, ability, options, context) =>
-      resolveNPr025SetsunaRelayDraw(game, ability, options, context.continuePendingCardEffects)
-  );
+interface AutoOnEnterStageDrawConfig {
+  readonly abilityId: string;
+  readonly actionStep: string;
 }
 
-function resolveNPr025SetsunaRelayDraw(
+const AUTO_ON_ENTER_STAGE_DRAW_CONFIGS: readonly AutoOnEnterStageDrawConfig[] = [
+  {
+    abilityId: N_PR_025_AUTO_TWICE_PER_TURN_OWN_RELAY_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+    actionStep: 'DRAW_ONE_AFTER_OWN_RELAY_MEMBER_ENTER',
+  },
+  {
+    abilityId: PL_N_PB1_005_AUTO_TURN_ONCE_COST_TEN_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+    actionStep: 'DRAW_ONE_AFTER_COST_TEN_MEMBER_ENTER',
+  },
+];
+
+export function registerAutoOnEnterStageDrawWorkflowHandlers(): void {
+  for (const config of AUTO_ON_ENTER_STAGE_DRAW_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      resolveAutoOnEnterStageDraw(
+        game,
+        ability,
+        config,
+        options,
+        context.continuePendingCardEffects
+      )
+    );
+  }
+}
+
+function resolveAutoOnEnterStageDraw(
   game: GameState,
   ability: PendingAbilityState,
+  config: AutoOnEnterStageDrawConfig,
   options: PendingAbilityStarterOptions,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -62,7 +88,7 @@ function resolveNPr025SetsunaRelayDraw(
       pendingAbilityId: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
-      step: 'DRAW_ONE_AFTER_OWN_RELAY_MEMBER_ENTER',
+      step: config.actionStep,
       drawnCardIds: drawResult?.drawnCardIds ?? [],
     }),
     options.orderedResolution === true

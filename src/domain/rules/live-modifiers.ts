@@ -6,6 +6,7 @@ import {
 } from '../../shared/types/enums.js';
 import {
   isLiveCardData,
+  isEnergyCardData,
   isMemberCardData,
   type BladeHeartItem,
   type HeartIcon,
@@ -180,10 +181,14 @@ const PL_BP3_002_CONTINUOUS_OPPONENT_WAITING_GAIN_BLADE_ABILITY_ID =
   'PL!-bp3-002:continuous-opponent-waiting-gain-blade';
 const PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
+const PL_N_PB1_001_CONTINUOUS_TWO_LIVE_CARDS_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-pb1-001:continuous-two-live-cards-gain-two-blade';
 const PL_N_PB1_007_CONTINUOUS_LIVE_REQUIREMENT_SIX_COLORS_GAIN_ALL_HEART_ABILITY_ID =
   'PL!N-pb1-007:continuous-live-requirement-six-colors-gain-all-heart';
 const PL_N_PB1_011_CONTINUOUS_ENERGY_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!N-pb1-011:continuous-energy-below-gain-blade';
+const PL_N_PB1_002_CONTINUOUS_TWO_ENERGY_BELOW_LIVE_TOTAL_SCORE_ABILITY_ID =
+  'PL!N-pb1-002:continuous-two-energy-below-live-total-score';
 const PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!S-pb1-005:continuous-opponent-energy-more-gain-three-blade';
 const PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID =
@@ -427,6 +432,27 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         hearts: [{ color: HeartColor.YELLOW, count: 1 }],
       });
       return modifier ? [modifier] : [];
+    },
+  },
+  {
+    baseCardCodes: ['PL!N-pb1-001'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        countActualLiveCardsInLiveZone(game, playerId) < 2
+      ) {
+        return [];
+      }
+      return [
+        {
+          kind: 'BLADE',
+          playerId,
+          countDelta: 2,
+          sourceCardId,
+          abilityId: PL_N_PB1_001_CONTINUOUS_TWO_LIVE_CARDS_GAIN_TWO_BLADE_ABILITY_ID,
+          visibilityDependency: playerLiveZoneContentsVisibilityDependency(playerId),
+        },
+      ];
     },
   },
   {
@@ -903,6 +929,22 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               abilityId: KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID,
             },
           ],
+  },
+  {
+    baseCardCodes: ['PL!N-pb1-002'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      countEnergyBelowSourceMember(game, playerId, sourceCardId) >= 2
+        ? [
+            {
+              kind: 'SCORE',
+              playerId,
+              countDelta: 1,
+              sourceCardId,
+              abilityId:
+                PL_N_PB1_002_CONTINUOUS_TWO_ENERGY_BELOW_LIVE_TOTAL_SCORE_ABILITY_ID,
+            },
+          ]
+        : [],
   },
   {
     baseCardCodes: ['PL!N-pb1-011'],
@@ -1675,6 +1717,17 @@ function hasLiveZoneThreeIncludingNijigasakiLive(game: GameState, playerId: stri
   });
 }
 
+function countActualLiveCardsInLiveZone(game: GameState, playerId: string): number {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return 0;
+  }
+  return player.liveZone.cardIds.reduce((count, cardId) => {
+    const card = getCardById(game, cardId);
+    return count + (card !== null && isLiveCardData(card.data) ? 1 : 0);
+  }, 0);
+}
+
 function doesContinuousDefinitionMatchCardCode(
   definition: ContinuousLiveModifierDefinition,
   cardCode: string
@@ -1924,7 +1977,13 @@ function countEnergyBelowSourceMember(
   const sourceSlot = MEMBER_SLOT_ORDER.find(
     (slot) => player.memberSlots.slots[slot] === sourceCardId
   );
-  return sourceSlot ? (player.memberSlots.energyBelow[sourceSlot]?.length ?? 0) : 0;
+  if (!sourceSlot) {
+    return 0;
+  }
+  return (player.memberSlots.energyBelow[sourceSlot] ?? []).filter((energyCardId) => {
+    const energyCard = getCardById(game, energyCardId);
+    return energyCard?.ownerId === playerId && isEnergyCardData(energyCard.data);
+  }).length;
 }
 
 function countPlayerEnergyCards(game: GameState, playerId: string): number {

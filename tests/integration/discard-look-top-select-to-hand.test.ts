@@ -1582,7 +1582,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(session.state?.activeEffect).toMatchObject({
       selectableCardIds: [],
       canSkipSelection: true,
-      skipSelectionLabel: '确认',
+      skipSelectionLabel: '全部放置入休息室',
     });
 
     const confirmNoTargetResult = session.executeCommand(
@@ -3040,7 +3040,7 @@ describe('PL!N-bp3-012 Lanzhu shared discard-look-top config', () => {
     payDiscard(session, discardCard.instanceId);
     expect(session.state?.activeEffect).toMatchObject({
       selectableCardIds: [],
-      skipSelectionLabel: '确认',
+      skipSelectionLabel: '全部放置入休息室',
     });
     expect(
       session.executeCommand(

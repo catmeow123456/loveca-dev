@@ -1,7 +1,7 @@
-import type { CardInstance } from '../entities/card.js';
+import { isMemberCardData, type CardInstance } from '../entities/card.js';
 import type { GameState } from '../entities/game.js';
 import { getCardById, getPlayerById } from '../entities/game.js';
-import { TriggerCondition } from '../../shared/types/enums.js';
+import { TriggerCondition, ZoneType } from '../../shared/types/enums.js';
 
 type CardInstanceSelector = (card: CardInstance) => boolean;
 
@@ -26,6 +26,23 @@ export function countMemberEntriesThisTurn(game: GameState, playerId: string): n
   ).length;
 }
 
+export function hasMemberEnteredStageThisTurnMatching(
+  game: GameState,
+  playerId: string,
+  selector: CardInstanceSelector
+): boolean {
+  return getCurrentTurnEventEntries(game).some(({ event }) => {
+    if (
+      event.eventType !== TriggerCondition.ON_ENTER_STAGE ||
+      event.controllerId !== playerId
+    ) {
+      return false;
+    }
+    const card = getCardById(game, event.cardInstanceId);
+    return card !== null && isMemberCardData(card.data) && selector(card);
+  });
+}
+
 export function getMemberEntryOrdinalForEvent(
   game: GameState,
   playerId: string,
@@ -33,7 +50,8 @@ export function getMemberEntryOrdinalForEvent(
 ): number | null {
   let ordinal = 0;
   for (const { event } of getCurrentTurnEventEntries(game)) {
-    if (event.eventType !== TriggerCondition.ON_ENTER_STAGE || event.controllerId !== playerId) continue;
+    if (event.eventType !== TriggerCondition.ON_ENTER_STAGE || event.controllerId !== playerId)
+      continue;
     ordinal += 1;
     if (event.eventId === enterStageEventId) return ordinal;
   }
@@ -117,4 +135,41 @@ export function getMovedToStageOrPositionMovedStageMemberIdsMatching(
     const card = getCardById(game, cardId);
     return card !== null && selector(card);
   });
+}
+
+export function selectNoBladeHeartMemberCardIdsMovedFromLiveZoneToWaitingThisTurn(
+  game: GameState,
+  playerId: string
+): readonly string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const { event } of getCurrentTurnEventEntries(game)) {
+    if (
+      event.eventType !== TriggerCondition.ON_ENTER_WAITING_ROOM ||
+      event.fromZone !== ZoneType.LIVE_ZONE ||
+      event.toZone !== ZoneType.WAITING_ROOM ||
+      event.controllerId !== playerId
+    ) {
+      continue;
+    }
+
+    const movedCardIds =
+      'cardInstanceIds' in event && event.cardInstanceIds
+        ? event.cardInstanceIds
+        : [event.cardInstanceId];
+    for (const cardId of movedCardIds) {
+      if (seen.has(cardId)) {
+        continue;
+      }
+      const card = getCardById(game, cardId);
+      if (!card || !isMemberCardData(card.data) || (card.data.bladeHearts?.length ?? 0) > 0) {
+        continue;
+      }
+      seen.add(cardId);
+      result.push(cardId);
+    }
+  }
+
+  return result;
 }

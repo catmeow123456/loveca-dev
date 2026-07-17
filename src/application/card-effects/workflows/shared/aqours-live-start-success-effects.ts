@@ -537,7 +537,7 @@ function resolveRubyLiveSuccessCenterCheerScore(
     return game;
   }
 
-  const centerCheerCardIds = getOwnNonAdditionalCheerRevealedCardIds(game, player.id);
+  const cheerCardIds = selectCurrentLiveRevealedCheerCardIds(game, player.id);
   const matchingCardIds = getRubyLiveSuccessMatchingCardIds(game, player.id);
   const scoreBonus = matchingCardIds.length > 0 ? 1 : 0;
   let state: GameState = {
@@ -561,9 +561,9 @@ function resolveRubyLiveSuccessCenterCheerScore(
       sourceCardId: ability.sourceCardId,
       step:
         scoreBonus > 0
-          ? 'CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE'
-          : 'NO_CENTER_CHEER_SCORE_AQOURS_LIVE',
-      centerCheerCardIds,
+          ? 'CHEER_SCORE_AQOURS_LIVE_SCORE'
+          : 'NO_CHEER_SCORE_AQOURS_LIVE',
+      cheerCardIds,
       matchingCardIds,
       scoreBonus,
     }),
@@ -874,9 +874,9 @@ function resolveOpponentRemainingHeartsLiveSuccessScore(
 }
 
 function getRubyLiveSuccessMatchingCardIds(game: GameState, playerId: string): readonly string[] {
-  const centerCheerCardIds = getOwnNonAdditionalCheerRevealedCardIds(game, playerId);
+  const cheerCardIds = selectCurrentLiveRevealedCheerCardIds(game, playerId);
   const isScoreAqoursLive = and(typeIs(CardType.LIVE), groupAliasIs(AQOURS), hasScoreBladeHeart());
-  return centerCheerCardIds.filter((cardId) => {
+  return cheerCardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
     return card !== null && card.ownerId === playerId && isScoreAqoursLive(card);
   });
@@ -954,15 +954,6 @@ function isOwnMainStageMember(
   cardId: string
 ): boolean {
   return STAGE_SLOTS.some((slot) => player.memberSlots.slots[slot] === cardId);
-}
-
-function getOwnNonAdditionalCheerRevealedCardIds(
-  game: GameState,
-  playerId: string
-): readonly string[] {
-  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
-    eventScope: 'NON_ADDITIONAL',
-  });
 }
 
 function addScoreModifierAndRefresh(

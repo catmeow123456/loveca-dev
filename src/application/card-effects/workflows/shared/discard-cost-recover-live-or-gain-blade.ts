@@ -1,9 +1,11 @@
 import {
   addAction,
+  getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
@@ -15,6 +17,7 @@ import {
   N_BP1_005_LIVE_START_DISCARD_GAIN_ONE_BLADE_ABILITY_ID,
   N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   N_SD1_004_LIVE_START_DISCARD_GAIN_TWO_BLADE_ABILITY_ID,
+  PL_N_PB1_001_ON_ENTER_OPTIONAL_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
@@ -37,6 +40,10 @@ export const N_BP5_022_SELECT_DISCARD_STEP_ID =
   'N_BP5_022_SELECT_DISCARD_FOR_NIJIGASAKI_LIVE_RECOVERY';
 export const N_BP5_022_SELECT_RECOVERY_STEP_ID =
   'N_BP5_022_SELECT_NIJIGASAKI_LIVE_FROM_WAITING_ROOM';
+export const PL_N_PB1_001_SELECT_DISCARD_STEP_ID =
+  'PL_N_PB1_001_SELECT_DISCARD_FOR_NIJIGASAKI_LIVE_RECOVERY';
+export const PL_N_PB1_001_SELECT_RECOVERY_STEP_ID =
+  'PL_N_PB1_001_SELECT_NIJIGASAKI_LIVE_FROM_WAITING_ROOM';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -61,6 +68,41 @@ const DISCARD_GAIN_BLADE_CONFIGS: readonly DiscardGainBladeConfig[] = [
     stepId: N_BP1_005_SELECT_DISCARD_STEP_ID,
     bladeAmount: 1,
     resolvedStep: 'DISCARD_HAND_CARD_GAIN_ONE_BLADE',
+  },
+];
+
+interface OnEnterDiscardRecoverLiveConfig {
+  readonly abilityId: string;
+  readonly discardStepId: string;
+  readonly recoveryStepId: string;
+  readonly recoveryCondition: 'ALWAYS' | 'OTHER_PRINTED_COST_ELEVEN_MEMBER';
+  readonly startActionStep: string;
+  readonly selectActionStep: string;
+  readonly conditionNotMetActionStep: string;
+  readonly noTargetActionStep: string;
+}
+
+const ON_ENTER_DISCARD_RECOVER_LIVE_CONFIGS: readonly OnEnterDiscardRecoverLiveConfig[] = [
+  {
+    abilityId: N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+    discardStepId: N_BP5_022_SELECT_DISCARD_STEP_ID,
+    recoveryStepId: N_BP5_022_SELECT_RECOVERY_STEP_ID,
+    recoveryCondition: 'ALWAYS',
+    startActionStep: 'START_SELECT_DISCARD_FOR_NIJIGASAKI_LIVE_RECOVERY',
+    selectActionStep: 'DISCARD_SELECT_NIJIGASAKI_LIVE',
+    conditionNotMetActionStep: 'DISCARD_COST_RECOVERY_CONDITION_NOT_MET',
+    noTargetActionStep: 'DISCARD_COST_NO_NIJIGASAKI_LIVE_TARGET',
+  },
+  {
+    abilityId:
+      PL_N_PB1_001_ON_ENTER_OPTIONAL_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+    discardStepId: PL_N_PB1_001_SELECT_DISCARD_STEP_ID,
+    recoveryStepId: PL_N_PB1_001_SELECT_RECOVERY_STEP_ID,
+    recoveryCondition: 'OTHER_PRINTED_COST_ELEVEN_MEMBER',
+    startActionStep: 'START_SELECT_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE',
+    selectActionStep: 'DISCARD_SELECT_NIJIGASAKI_LIVE_IF_OTHER_COST_ELEVEN',
+    conditionNotMetActionStep: 'DISCARD_COST_OTHER_PRINTED_COST_ELEVEN_MEMBER_NOT_FOUND',
+    noTargetActionStep: 'DISCARD_COST_NO_NIJIGASAKI_LIVE_TARGET',
   },
 ];
 
@@ -90,40 +132,48 @@ export function registerNDiscardRecoverAndBladeWorkflowHandlers(deps: {
     );
   }
 
-  registerPendingAbilityStarterHandler(
-    N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
-    (game, ability, options, context) =>
-      startShiorikoOnEnterDiscardRecoverLive(
+  for (const config of ON_ENTER_DISCARD_RECOVER_LIVE_CONFIGS) {
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
+      startOnEnterDiscardRecoverLive(
         game,
         ability,
+        config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
       )
-  );
-  registerActiveEffectStepHandler(
-    N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
-    N_BP5_022_SELECT_DISCARD_STEP_ID,
-    (game, input, context) =>
-      input.selectedCardId
-        ? finishShiorikoDiscardCost(
-            game,
-            input.selectedCardId,
-            context.continuePendingCardEffects,
-            deps.enqueueTriggeredCardEffects
-          )
-        : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
-  );
-  registerActiveEffectStepHandler(
-    N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
-    N_BP5_022_SELECT_RECOVERY_STEP_ID,
-    (game, input, context) =>
-      finishWaitingRoomToHandWorkflow(
-        game,
-        input.selectedCardId ?? null,
-        input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
-  );
+    );
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.discardStepId,
+      (game, input, context) =>
+        input.selectedCardId
+          ? finishOnEnterDiscardCost(
+              game,
+              input.selectedCardId,
+              config,
+              context.continuePendingCardEffects,
+              deps.enqueueTriggeredCardEffects
+            )
+          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+    );
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      config.recoveryStepId,
+      (game, input, context) => {
+        const effect = game.activeEffect;
+        const currentCandidateCardIds = effect
+          ? selectWaitingRoomCardIds(game, effect.controllerId, nijigasakiLive)
+          : [];
+        return finishWaitingRoomToHandWorkflow(
+          game,
+          input.selectedCardId ?? null,
+          input.selectedCardIds,
+          context.continuePendingCardEffects,
+          { currentCandidateCardIds }
+        );
+      }
+    );
+  }
 }
 
 function startLiveStartDiscardGainBlade(
@@ -167,14 +217,14 @@ function startLiveStartDiscardGainBlade(
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
-      activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
-        ability,
-        playerId: player.id,
-        effectText: getAbilityEffectText(config.abilityId),
-        stepId: config.stepId,
-        selectableCardIds: player.hand.cardIds,
-        orderedResolution,
-      }),
+    activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability,
+      playerId: player.id,
+      effectText: getAbilityEffectText(config.abilityId),
+      stepId: config.stepId,
+      selectableCardIds: player.hand.cardIds,
+      orderedResolution,
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       sourceSlot: ability.sourceSlot,
@@ -242,9 +292,10 @@ function finishDiscardGainBlade(
   );
 }
 
-function startShiorikoOnEnterDiscardRecoverLive(
+function startOnEnterDiscardRecoverLive(
   game: GameState,
   ability: PendingAbilityState,
+  config: OnEnterDiscardRecoverLiveConfig,
   orderedResolution: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
@@ -272,27 +323,28 @@ function startShiorikoOnEnterDiscardRecoverLive(
     activeEffect: createOptionalDiscardHandToWaitingRoomActiveEffect({
       ability,
       playerId: player.id,
-      effectText: getAbilityEffectText(
-        N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID
-      ),
-      stepId: N_BP5_022_SELECT_DISCARD_STEP_ID,
-      stepText: '请选择1张手牌放置入休息室。也可以选择不发动此效果。',
+      effectText: getAbilityEffectText(config.abilityId),
+      stepId: config.discardStepId,
+      stepText: '可以将1张手牌放置入休息室。',
       selectionLabel: '选择要放置入休息室的手牌',
+      confirmSelectionLabel: '放置入休息室',
+      skipSelectionLabel: '不发动',
       selectableCardIds: player.hand.cardIds,
       orderedResolution,
     }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       sourceSlot: ability.sourceSlot,
-      step: 'START_SELECT_DISCARD_FOR_NIJIGASAKI_LIVE_RECOVERY',
+      step: config.startActionStep,
       selectableCardIds: player.hand.cardIds,
     },
   });
 }
 
-function finishShiorikoDiscardCost(
+function finishOnEnterDiscardCost(
   game: GameState,
   selectedCardId: string,
+  config: OnEnterDiscardRecoverLiveConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
@@ -300,8 +352,8 @@ function finishShiorikoDiscardCost(
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   if (
     !effect ||
-    effect.abilityId !== N_BP5_022_ON_ENTER_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID ||
-    effect.stepId !== N_BP5_022_SELECT_DISCARD_STEP_ID ||
+    effect.abilityId !== config.abilityId ||
+    effect.stepId !== config.discardStepId ||
     !player ||
     effect.selectableCardIds?.includes(selectedCardId) !== true ||
     !player.hand.cardIds.includes(selectedCardId)
@@ -328,6 +380,22 @@ function finishShiorikoDiscardCost(
     sourceCardId: effect.sourceCardId,
     discardedHandCardIds: discardResult.discardedCardIds,
   });
+  if (!isRecoveryConditionMet(stateAfterCost, player.id, effect.sourceCardId, config)) {
+    return finishActiveEffect(
+      {
+        ...stateAfterCost,
+        activeEffect: effect,
+      },
+      continuePendingCardEffects,
+      {
+        step: config.conditionNotMetActionStep,
+        reason: 'OTHER_PRINTED_COST_ELEVEN_MEMBER_NOT_FOUND',
+        discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
+        discardedCardIds: discardResult.discardedCardIds,
+        selectedCardIds: [],
+      }
+    );
+  }
   const selectableCardIds = selectWaitingRoomCardIds(stateAfterCost, player.id, nijigasakiLive);
 
   if (selectableCardIds.length === 0) {
@@ -338,7 +406,8 @@ function finishShiorikoDiscardCost(
       },
       continuePendingCardEffects,
       {
-        step: 'DISCARD_COST_NO_NIJIGASAKI_LIVE_TARGET',
+        step: config.noTargetActionStep,
+        reason: 'NO_NIJIGASAKI_LIVE_TARGET',
         discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
         discardedCardIds: discardResult.discardedCardIds,
         selectableCardIds,
@@ -356,8 +425,10 @@ function finishShiorikoDiscardCost(
         sourceCardId: effect.sourceCardId,
         controllerId: player.id,
         effectText: effect.effectText,
-        stepId: N_BP5_022_SELECT_RECOVERY_STEP_ID,
+        stepId: config.recoveryStepId,
         stepText: '请选择自己的休息室中1张『虹ヶ咲』LIVE卡加入手牌。',
+        selectionLabel: '选择要加入手牌的虹咲LIVE卡',
+        confirmSelectionLabel: '加入手牌',
         awaitingPlayerId: player.id,
         selectableCardIds,
         metadata: {
@@ -378,12 +449,37 @@ function finishShiorikoDiscardCost(
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'DISCARD_SELECT_NIJIGASAKI_LIVE',
+      step: config.selectActionStep,
       discardedCardId: discardResult.discardedCardIds[0] ?? selectedCardId,
       discardedCardIds: discardResult.discardedCardIds,
       selectableCardIds,
     }
   );
+}
+
+function isRecoveryConditionMet(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  config: OnEnterDiscardRecoverLiveConfig
+): boolean {
+  if (config.recoveryCondition === 'ALWAYS') {
+    return true;
+  }
+
+  const player = getPlayerById(game, playerId);
+  return Object.values(player?.memberSlots.slots ?? {}).some((cardId) => {
+    if (!cardId || cardId === sourceCardId) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return (
+      card !== null &&
+      card.ownerId === playerId &&
+      isMemberCardData(card.data) &&
+      card.data.cost === 11
+    );
+  });
 }
 
 function finishActiveEffect(

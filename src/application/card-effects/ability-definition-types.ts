@@ -25,12 +25,14 @@ export interface ActivatedAbilityUiConfig {
   readonly abilityId: string;
   readonly text: string;
   readonly title: string;
+  readonly displayOrder?: number;
 }
 
 export interface OnEnterStageTriggerFilter {
   readonly enteredController?: 'SELF' | 'OPPONENT' | 'ANY';
   readonly excludeEnteredCardAsSource?: boolean;
   readonly enteredCardType?: CardType;
+  readonly enteredPrintedCost?: number;
   readonly enteredViaRelay?: boolean;
   readonly enteredGroupAliases?: readonly string[];
   readonly enteredUnitAliases?: readonly string[];

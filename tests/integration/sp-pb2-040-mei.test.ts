@@ -110,7 +110,7 @@ function startAbility(game: GameState, sourceId: string): GameState {
   }).gameState;
 }
 
-function confirmOption(game: GameState, optionId: string): GameState {
+function confirmOption(game: GameState, optionId?: string): GameState {
   return confirmActiveEffectStep(
     game,
     PLAYER1,
@@ -129,8 +129,9 @@ describe('PL!SP-pb2-040 Mei live start workflow', () => {
 
     expect(started.activeEffect?.selectableOptions).toEqual([
       { id: 'pay', label: '支付[E]' },
-      { id: 'decline', label: '不发动' },
     ]);
+    expect(started.activeEffect?.canSkipSelection).toBe(true);
+    expect(started.activeEffect?.skipSelectionLabel).toBe('不发动');
     const state = confirmOption(started, 'pay');
 
     expect(state.activeEffect).toBeNull();
@@ -158,7 +159,7 @@ describe('PL!SP-pb2-040 Mei live start workflow', () => {
   it('can decline without paying energy or writing a Blade modifier', () => {
     const scenario = setupState({ activeEnergyCount: 1 });
     const started = startAbility(scenario.game, scenario.sourceId);
-    const state = confirmOption(started, 'decline');
+    const state = confirmOption(started);
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[0])?.orientation).toBe(
@@ -177,8 +178,10 @@ describe('PL!SP-pb2-040 Mei live start workflow', () => {
     const scenario = setupState({ activeEnergyCount: 0 });
     const started = startAbility(scenario.game, scenario.sourceId);
 
-    expect(started.activeEffect?.selectableOptions).toEqual([{ id: 'decline', label: '不发动' }]);
-    const state = confirmOption(started, 'decline');
+    expect(started.activeEffect?.selectableOptions).toEqual([]);
+    expect(started.activeEffect?.canSkipSelection).toBe(true);
+    expect(started.activeEffect?.skipSelectionLabel).toBe('不发动');
+    const state = confirmOption(started);
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[0])?.orientation).toBe(

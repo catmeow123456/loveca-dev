@@ -7,6 +7,7 @@ import { createGameSession } from '../../src/application/game-session';
 import {
   clearInspectionCards,
   inspectTopCards,
+  inspectTopCardsUntilMatch,
   moveInspectedCardsToWaitingRoom,
   moveInspectedSelectionToHandRestToWaitingRoom,
   moveTopDeckCardsToWaitingRoom,
@@ -131,6 +132,93 @@ describe('look-top helpers', () => {
 
     expect(result?.gameState.inspectionZone.cardIds).toEqual(topCardIds);
     expect(result?.gameState.inspectionZone.revealedCardIds).toEqual(topCardIds);
+  });
+
+  it('inspects until the first live match and evaluates the predicate against current state', () => {
+    const state = createMutableState();
+    const owned = [...state.cardRegistry.values()].filter((card) => card.ownerId === PLAYER1);
+    const members = owned.filter((card) => card.data.cardType === CardType.MEMBER).slice(0, 2);
+    const live = owned.find((card) => card.data.cardType === CardType.LIVE)!;
+    const topCardIds = [members[0]!.instanceId, members[1]!.instanceId, live.instanceId];
+    setMainDeckForPlayer(state, topCardIds);
+
+    const predicateStates: boolean[] = [];
+    const result = inspectTopCardsUntilMatch(state, PLAYER1, (currentState, card) => {
+      predicateStates.push(currentState.inspectionZone.cardIds.includes(card.instanceId));
+      return card.data.cardType === CardType.LIVE;
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.inspectedCardIds).toEqual(topCardIds);
+    expect(result?.hitCardId).toBe(live.instanceId);
+    expect(predicateStates).toEqual([true, true, true]);
+    expect(result?.gameState.inspectionZone.cardIds).toEqual(topCardIds);
+    expect(result?.gameState.inspectionZone.revealedCardIds).toEqual(topCardIds);
+    expect(result?.gameState.inspectionContext).toEqual({
+      ownerPlayerId: PLAYER1,
+      sourceZone: ZoneType.MAIN_DECK,
+    });
+  });
+
+  it('stops immediately when the first inspected card matches', () => {
+    const state = createMutableState();
+    const owned = [...state.cardRegistry.values()].filter((card) => card.ownerId === PLAYER1);
+    const live = owned.find((card) => card.data.cardType === CardType.LIVE)!;
+    const member = owned.find((card) => card.data.cardType === CardType.MEMBER)!;
+    setMainDeckForPlayer(state, [live.instanceId, member.instanceId]);
+
+    const result = inspectTopCardsUntilMatch(
+      state,
+      PLAYER1,
+      (_currentState, card) => card.data.cardType === CardType.LIVE
+    );
+
+    expect(result?.inspectedCardIds).toEqual([live.instanceId]);
+    expect(result?.hitCardId).toBe(live.instanceId);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([member.instanceId]);
+  });
+
+  it('continues after refresh without shuffling inspected cards back into the deck', () => {
+    const state = createMutableState();
+    const owned = [...state.cardRegistry.values()].filter((card) => card.ownerId === PLAYER1);
+    const member = owned.find((card) => card.data.cardType === CardType.MEMBER)!;
+    const live = owned.find((card) => card.data.cardType === CardType.LIVE)!;
+    setMainDeckForPlayer(state, [member.instanceId]);
+    state.players[0]!.waitingRoom.cardIds = [live.instanceId];
+
+    const result = inspectTopCardsUntilMatch(
+      state,
+      PLAYER1,
+      (_currentState, card) => card.data.cardType === CardType.LIVE
+    );
+
+    expect(result?.inspectedCardIds).toEqual([member.instanceId, live.instanceId]);
+    expect(result?.hitCardId).toBe(live.instanceId);
+    expect(result?.gameState.inspectionZone.cardIds).toEqual([
+      member.instanceId,
+      live.instanceId,
+    ]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).not.toContain(member.instanceId);
+  });
+
+  it('returns no hit after exhausting all available cards and rejects a missing player', () => {
+    const state = createMutableState();
+    const members = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.MEMBER)
+      .slice(0, 3)
+      .map((card) => card.instanceId);
+    setMainDeckForPlayer(state, members);
+
+    const exhausted = inspectTopCardsUntilMatch(
+      state,
+      PLAYER1,
+      (_currentState, card) => card.data.cardType === CardType.LIVE
+    );
+    expect(exhausted?.inspectedCardIds).toEqual(members);
+    expect(exhausted?.hitCardId).toBeNull();
+    expect(exhausted?.gameState.players[0].mainDeck.cardIds).toEqual([]);
+    expect(exhausted?.gameState.inspectionZone.revealedCardIds).toEqual(members);
+    expect(inspectTopCardsUntilMatch(state, 'missing-player', () => true)).toBeNull();
   });
 
   it('refreshes before main-deck inspection when the deck is short but waiting room can supply cards', () => {

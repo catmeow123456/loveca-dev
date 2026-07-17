@@ -46,9 +46,11 @@ import { GameCommandType } from '@game/application/game-commands';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import {
   CardAbilitySourceZone,
-  getActivatedAbilityUiConfig,
+  getActivatedAbilityUiConfigs,
+  type ActivatedAbilityUiConfig,
 } from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
+import { CardEffectText } from '@/components/card/CardEffectText';
 import { CardModifierBadgeStack } from '@/components/card/CardModifierBadgeStack';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import { DraggableCard, DroppableZone } from './interaction';
@@ -95,6 +97,48 @@ const INSPECTION_TARGET_IDS = {
   blocker: 'inspection-target-blocker',
 } as const;
 const DISABLE_ORDINARY_DROP_FROM_INSPECTION = [ZoneType.INSPECTION_ZONE] as const;
+
+const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
+  configs,
+  onActivate,
+  className,
+  placement = 'above',
+}: {
+  readonly configs: readonly ActivatedAbilityUiConfig[];
+  readonly onActivate: (config: ActivatedAbilityUiConfig) => void;
+  readonly className?: string;
+  readonly placement?: 'above' | 'below';
+}) {
+  if (configs.length === 0) return null;
+  return (
+    <div
+      className={cn(
+        'absolute left-1/2 flex w-[min(420px,92vw)] -translate-x-1/2 flex-col gap-1',
+        placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1',
+        className
+      )}
+    >
+      {configs.map((config) => (
+        <button
+          key={config.abilityId}
+          type="button"
+          className={cn(
+            'w-full rounded-lg border border-rose-300/70 bg-white/95 px-3 py-1.5 text-left font-semibold text-rose-600 shadow-lg',
+            'transition-colors hover:bg-rose-50 active:scale-[0.99]'
+          )}
+          style={{ fontSize: '12px', lineHeight: 1.25 }}
+          onClick={(event) => {
+            event.stopPropagation();
+            onActivate(config);
+          }}
+          title={config.title}
+        >
+          <CardEffectText as="span" text={config.text} />
+        </button>
+      ))}
+    </div>
+  );
+});
 
 const SortableInspectionCard = memo(function SortableInspectionCard({
   cardId,
@@ -657,12 +701,14 @@ export const PlayerArea = memo(function PlayerArea({
 
     // 堆叠成员卡偏移量：向右下方偏移
     const memberBelowOffsetPercent = 8;
-    const activatedAbilityConfig =
-      cardViewObject?.activatedAbilityUiConfig ??
-      getActivatedAbilityUiConfig(card?.cardCode, CardAbilitySourceZone.STAGE_MEMBER);
+    const activatedAbilityConfigs =
+      cardViewObject?.activatedAbilityUiConfigs ??
+      (cardViewObject?.activatedAbilityUiConfig
+        ? [cardViewObject.activatedAbilityUiConfig]
+        : getActivatedAbilityUiConfigs(card?.cardCode, CardAbilitySourceZone.STAGE_MEMBER));
     const canActivateAbility =
       card !== null &&
-      activatedAbilityConfig !== null &&
+      activatedAbilityConfigs.length > 0 &&
       selectedCardId === card.instanceId &&
       !isOpponent &&
       viewerSeat === playerSeat &&
@@ -885,23 +931,14 @@ export const PlayerArea = memo(function PlayerArea({
               </span>
             )}
             {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
-            {card && canActivateAbility && activatedAbilityConfig && (
-              <button
-                type="button"
-                className={cn(
-                  'absolute bottom-full left-1/2 z-30 mb-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
-                  'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
-                  'transition-colors hover:bg-rose-50 active:scale-95'
-                )}
-                style={{ fontSize: '12px', lineHeight: 1.25 }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  activateCardAbility(card.instanceId, activatedAbilityConfig.abilityId);
-                }}
-                title={activatedAbilityConfig.title}
-              >
-                {activatedAbilityConfig.text}
-              </button>
+            {card && canActivateAbility && (
+              <ActivatedAbilityMenu
+                configs={activatedAbilityConfigs}
+                className="z-30"
+                onActivate={(config) =>
+                  activateCardAbility(card.instanceId, config.abilityId)
+                }
+              />
             )}
             {!cardId && <span className="text-slate-600 text-xs">{position}</span>}
           </DroppableZone>
@@ -1338,12 +1375,12 @@ export const PlayerArea = memo(function PlayerArea({
                           <div className="grid grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-2 sm:grid-cols-5 md:grid-cols-6 md:gap-3">
                             {waitingRoomCards.map(({ cardId, card }) => {
                               const isWaitingRoomCardSelected = selectedCardId === card.instanceId;
-                              const activatedAbilityConfig = getActivatedAbilityUiConfig(
+                              const activatedAbilityConfigs = getActivatedAbilityUiConfigs(
                                 card.cardCode,
                                 CardAbilitySourceZone.WAITING_ROOM
                               );
                               const canActivateWaitingRoomAbility =
-                                activatedAbilityConfig !== null &&
+                                activatedAbilityConfigs.length > 0 &&
                                 !isOpponent &&
                                 viewerSeat === playerSeat &&
                                 canActivateAbilityCommand &&
@@ -1386,27 +1423,15 @@ export const PlayerArea = memo(function PlayerArea({
                                   className="relative flex min-w-0 flex-col items-center"
                                 >
                                   {waitingRoomCardContent}
-                                  {canActivateWaitingRoomAbility && activatedAbilityConfig && (
-                                    <button
-                                      type="button"
-                                      className={cn(
-                                        'absolute bottom-full left-1/2 z-30 mb-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
-                                        'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
-                                        'transition-colors hover:bg-rose-50 active:scale-95'
-                                      )}
-                                      style={{ fontSize: '12px', lineHeight: 1.25 }}
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        activateCardAbility(
-                                          card.instanceId,
-                                          activatedAbilityConfig.abilityId
-                                        );
+                                  {canActivateWaitingRoomAbility && (
+                                    <ActivatedAbilityMenu
+                                      configs={activatedAbilityConfigs}
+                                      className="z-30"
+                                      onActivate={(config) => {
+                                        activateCardAbility(card.instanceId, config.abilityId);
                                         closeWaitingRoom();
                                       }}
-                                      title={activatedAbilityConfig.title}
-                                    >
-                                      {activatedAbilityConfig.text}
-                                    </button>
+                                    />
                                   )}
                                 </div>
                               );
@@ -2499,12 +2524,12 @@ export const PlayerArea = memo(function PlayerArea({
           // 结果阶段切走后，这里会自动退化为只读展示。
           const isDraggable = canDragFromHand;
           const isHandCardSelected = selectedCardId === card.instanceId;
-          const activatedAbilityConfig = getActivatedAbilityUiConfig(
+          const activatedAbilityConfigs = getActivatedAbilityUiConfigs(
             card.cardCode,
             CardAbilitySourceZone.HAND
           );
           const canActivateHandAbility =
-            activatedAbilityConfig !== null &&
+            activatedAbilityConfigs.length > 0 &&
             viewerSeat === playerSeat &&
             canActivateAbilityCommand &&
             isHandCardSelected;
@@ -2558,23 +2583,15 @@ export const PlayerArea = memo(function PlayerArea({
                     />
                   </CardDetailPressTarget>
                 </DraggableCard>
-                {canActivateHandAbility && activatedAbilityConfig && (
-                  <button
-                    type="button"
-                    className={cn(
-                      'absolute bottom-full left-1/2 z-50 mb-1 w-[min(420px,92vw)] -translate-x-1/2 rounded-lg border border-rose-300/70',
-                      'bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
-                      'transition-colors hover:bg-rose-50 active:scale-95'
-                    )}
-                    style={{ fontSize: '12px', lineHeight: 1.25 }}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      activateCardAbility(card.instanceId, activatedAbilityConfig.abilityId);
-                    }}
-                    title={activatedAbilityConfig.title}
-                  >
-                    {activatedAbilityConfig.text}
-                  </button>
+                {canActivateHandAbility && (
+                  <ActivatedAbilityMenu
+                    configs={activatedAbilityConfigs}
+                    className="z-50"
+                    placement={isOpponent ? 'below' : 'above'}
+                    onActivate={(config) =>
+                      activateCardAbility(card.instanceId, config.abilityId)
+                    }
+                  />
                 )}
               </div>
             </div>
@@ -2837,7 +2854,7 @@ export const PlayerArea = memo(function PlayerArea({
       )}
     >
       {/* 主区域 - 绝对定位布局（成员槽和Live区在顶部，靠近中央分隔线） */}
-      <div className="relative z-0 min-h-0 flex-1 px-2">
+      <div className="relative min-h-0 flex-1 px-2">
         {/* 左侧区域 - 绝对定位固定在左边 */}
         <div className="absolute left-2 top-0 flex w-[92px] justify-center sm:w-[120px] md:w-[150px]">
           {renderSuccessZone()}

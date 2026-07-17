@@ -14,6 +14,7 @@ import {
   getMemberEffectiveHeartIcons,
   replaceLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
+import { findOwnSuccessOrCurrentLiveCardsWithExactEffectiveRequiredHeartCount } from '../../../../domain/rules/live-card-effective-requirement.js';
 import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import {
   cardBelongsToGroup,
@@ -30,6 +31,7 @@ import {
   PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID,
+  PL_N_PB1_038_LIVE_START_EXACT_PINK_REQUIREMENT_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
   PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
   SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
@@ -168,6 +170,17 @@ export function registerNLiveStartScoreBonusesWorkflowHandlers(): void {
         context.continuePendingCardEffects
       ),
     getEutopiaConfirmationConfig
+  );
+  registerManualConfirmablePendingAbilityStarterHandler(
+    PL_N_PB1_038_LIVE_START_EXACT_PINK_REQUIREMENT_THIS_LIVE_SCORE_ABILITY_ID,
+    (game, ability, options, context) =>
+      resolvePhoenixLiveStart(
+        game,
+        ability,
+        options.orderedResolution === true,
+        context.continuePendingCardEffects
+      ),
+    getPhoenixConfirmationConfig
   );
   registerManualConfirmablePendingAbilityStarterHandler(
     PL_N_BP5_027_LIVE_START_SUCCESS_ZONE_TWO_DIFFERENT_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
@@ -1214,6 +1227,80 @@ function getGoRestartContext(
     opponentSuccessZoneCount,
     conditionMet,
     scoreBonus: conditionMet ? 1 : 0,
+  };
+}
+
+function getPhoenixConfirmationConfig(
+  game: GameState,
+  ability: PendingAbilityState
+): { readonly effectText: string } {
+  const context = getPhoenixContext(game, ability);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（自己的成功LIVE卡区或LIVE中，必要[桃ハート]恰好为4的『虹咲』LIVE卡${context.matchingLiveCardIds.length}张，${
+      context.conditionMet ? '满足条件，实际分数+1。' : '未满足条件，实际分数不增加。'
+    }）`,
+  };
+}
+
+function resolvePhoenixLiveStart(
+  game: GameState,
+  ability: PendingAbilityState,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player) {
+    return game;
+  }
+  const stateWithoutPending = consumePendingAbility(game, ability);
+  const context = getPhoenixContext(stateWithoutPending, ability);
+  const stateAfterScore = replaceScoreModifierAndRefresh(stateWithoutPending, {
+    playerId: player.id,
+    sourceCardId: ability.sourceCardId,
+    abilityId: ability.abilityId,
+    scoreBonus: context.conditionMet ? 1 : 0,
+  });
+  return continuePendingCardEffects(
+    addAction(stateAfterScore, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: ability.id,
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      step: context.conditionMet ? 'PHOENIX_THIS_LIVE_SCORE' : 'NO_PHOENIX_THIS_LIVE_SCORE',
+      sourceInLiveZone: context.sourceInLiveZone,
+      matchingLiveCardIds: context.matchingLiveCardIds,
+      scoreBonus: context.conditionMet ? 1 : 0,
+    }),
+    orderedResolution
+  );
+}
+
+function getPhoenixContext(
+  game: GameState,
+  ability: PendingAbilityState
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly matchingLiveCardIds: readonly string[];
+  readonly conditionMet: boolean;
+} {
+  const player = getPlayerById(game, ability.controllerId);
+  const sourceCard = getCardById(game, ability.sourceCardId);
+  const sourceInLiveZone =
+    player !== null &&
+    sourceCard !== null &&
+    sourceCard.ownerId === ability.controllerId &&
+    isLiveCardData(sourceCard.data) &&
+    player.liveZone.cardIds.includes(ability.sourceCardId);
+  const matchingLiveCardIds = player
+    ? findOwnSuccessOrCurrentLiveCardsWithExactEffectiveRequiredHeartCount(game, player.id, {
+        group: '虹ヶ咲',
+        heartColor: HeartColor.PINK,
+        exactCount: 4,
+      })
+    : [];
+  return {
+    sourceInLiveZone,
+    matchingLiveCardIds,
+    conditionMet: sourceInLiveZone && matchingLiveCardIds.length > 0,
   };
 }
 

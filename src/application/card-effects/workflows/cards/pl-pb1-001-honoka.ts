@@ -9,7 +9,7 @@ import {
 import { CardType, FaceState, GamePhase, OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
-import { inspectTopCards } from '../../../effects/look-top.js';
+import { inspectTopCardsUntilMatch } from '../../../effects/look-top.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { PL_PB1_001_ACTIVATED_WAIT_SELF_DISCARD_REVEAL_UNTIL_CHOSEN_ABILITY_ID } from '../../ability-ids.js';
 import {
@@ -43,11 +43,7 @@ type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForEnterWaitingRoo
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type RevealMode = typeof LIVE_OPTION_ID | typeof HIGH_COST_MEMBER_OPTION_ID;
 
-interface RevealUntilHitResult {
-  readonly gameState: GameState;
-  readonly inspectedCardIds: readonly string[];
-  readonly hitCardId: string | null;
-}
+type RevealUntilHitResult = NonNullable<ReturnType<typeof inspectTopCardsUntilMatch>>;
 
 export function registerPlPb1001HonokaWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects;
@@ -280,7 +276,9 @@ function revealHonokaCardsUntilChosen(
     return game;
   }
 
-  const revealResult = revealTopCardsUntilHit(game, player.id, mode);
+  const revealResult = inspectTopCardsUntilMatch(game, player.id, (state, card) =>
+    doesCardMatchRevealMode(state, player.id, card, mode)
+  );
   if (!revealResult) {
     return game;
   }
@@ -372,54 +370,6 @@ function finishHonokaRevealUntilChosen(
     }),
     effect.metadata?.orderedResolution === true
   );
-}
-
-function revealTopCardsUntilHit(
-  game: GameState,
-  playerId: string,
-  mode: RevealMode
-): RevealUntilHitResult | null {
-  let state = game;
-  const inspectedCardIds: string[] = [];
-
-  while (true) {
-    const player = getPlayerById(state, playerId);
-    if (!player) {
-      return null;
-    }
-    if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
-      break;
-    }
-
-    const inspection = inspectTopCards(state, playerId, {
-      count: 1,
-      reveal: true,
-    });
-    const inspectedCardId = inspection?.inspectedCardIds[0] ?? null;
-    if (!inspection || inspectedCardId === null) {
-      break;
-    }
-
-    state = inspection.gameState;
-    inspectedCardIds.push(inspectedCardId);
-    const inspectedCard = getCardById(state, inspectedCardId);
-    if (
-      inspectedCard !== null &&
-      doesCardMatchRevealMode(state, playerId, inspectedCard, mode)
-    ) {
-      return {
-        gameState: state,
-        inspectedCardIds,
-        hitCardId: inspectedCardId,
-      };
-    }
-  }
-
-  return {
-    gameState: state,
-    inspectedCardIds,
-    hitCardId: null,
-  };
 }
 
 function doesCardMatchRevealMode(

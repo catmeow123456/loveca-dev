@@ -377,20 +377,25 @@ describe('PL!S-bp3-008 小原鞠莉', () => {
           undefined,
           undefined,
           undefined,
-          energies.slice(0, 4).map((energyCard) => energyCard.instanceId)
+          energies.slice(1).map((energyCard) => energyCard.instanceId)
         )
       ).success
     ).toBe(true);
-    expect(session.state?.activeEffect?.stepId).toBe('S_BP3_008_SELECT_WAITING_ROOM_LIVE');
-    expect(session.state?.players[0].waitingRoom.cardIds).toContain(target.instanceId);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[0].hand.cardIds).toContain(target.instanceId);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(target.instanceId);
     expect(
       energies
         .slice(1)
         .every(
           (energyCard) =>
             session.state?.players[0].energyZone.cardStates.get(energyCard.instanceId)
-              ?.orientation === OrientationState.WAITING
+              ?.orientation === OrientationState.ACTIVE
         )
     ).toBe(true);
+    expect(session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'RECOVER_LIVE_ACTIVATE_ENERGY_IF_AQOURS_SCORE',
+      activatedEnergyCardIds: energies.slice(1).map((energyCard) => energyCard.instanceId),
+    });
   });
 });

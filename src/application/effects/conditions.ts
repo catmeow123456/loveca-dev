@@ -16,6 +16,7 @@ export {
   getMovedToStageThisTurnStageMemberIdsMatching,
   getMovedToStageOrPositionMovedStageMemberIdsMatching,
   getPositionMovedStageMemberIdsMatching,
+  hasMemberEnteredStageThisTurnMatching,
   hasMemberMovedToStageThisTurn,
   hasMemberPositionMovedThisTurn,
 } from '../../domain/rules/member-turn-state.js';

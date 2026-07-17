@@ -10890,8 +10890,8 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'pay', label: '支付[E]' },
-      { id: 'decline', label: '不发动' },
     ]);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
 
     const payResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -11219,11 +11219,11 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepText).toBe('可以支付[E]，获得2个BLADE。');
+    expect(session.state?.activeEffect?.stepText).toBe('可以支付[E]，获得[BLADE][BLADE]。');
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'pay', label: '支付[E]' },
-      { id: 'decline', label: '不发动' },
     ]);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
 
     const payResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -11363,8 +11363,8 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'pay', label: '支付[E]' },
-      { id: 'decline', label: '不发动' },
     ]);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
 
     const declineResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -11412,9 +11412,8 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'decline', label: '不发动' },
-    ]);
+    expect(session.state?.activeEffect?.selectableOptions).toEqual([]);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
 
     const skipResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)

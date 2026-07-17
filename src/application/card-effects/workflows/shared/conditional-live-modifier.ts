@@ -18,6 +18,7 @@ import {
   type LiveRequirementModifierState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import {
   addLiveModifier,
   collectLiveModifiers,
@@ -48,7 +49,13 @@ import {
   sumSuccessfulLiveScore,
 } from '../../../effects/conditions.js';
 import { getRelayEnteredStageMemberCardIdsThisTurn } from '../../../effects/relay-entered-members.js';
-import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
+import {
+  cardBelongsToGroup,
+  getCardNameCandidates,
+  getNormalizedCardNameCandidates,
+  normalizeCardName,
+  selectDifferentNamedCards,
+} from '../../../../shared/utils/card-identity.js';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
@@ -61,6 +68,7 @@ import {
   HS_BP5_020_LIVE_START_HIGH_COST_HASUNOSORA_SCORE_ABILITY_ID,
   HS_PB1_026_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_REDUCE_REQUIREMENT_ABILITY_ID,
   HS_SD1_018_LIVE_START_HASUNOSORA_STAGE_DREAM_BELIEVERS_SCORE_ABILITY_ID,
+  N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
   NICO_LIVE_START_SCORE_ABILITY_ID,
   PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
@@ -70,6 +78,7 @@ import {
   PL_N_BP4_028_LIVE_START_DIFFERENT_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
   PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
   PL_N_PB1_037_LIVE_START_NIJIGASAKI_ACTIVATED_ENERGY_MEMBER_SCORE_ABILITY_ID,
+  PL_N_PB1_042_LIVE_START_SAME_NAME_NIJIGASAKI_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
   SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID,
@@ -85,6 +94,7 @@ import {
 const NICO_SCORE_BONUS_STEP_ID = 'NICO_SCORE_BONUS';
 const BOKUIMA_REQUIREMENT_REDUCTION_STEP_ID = 'BOKUIMA_REQUIREMENT_REDUCTION';
 const PL_BP3_023_STAGE_BLADE_REQUIREMENT_STEP_ID = 'PL_BP3_023_STAGE_BLADE_REQUIREMENT';
+const N_SD1_028_STAGE_BLADE_SCORE_STEP_ID = 'N_SD1_028_STAGE_BLADE_SCORE';
 const PL_BP4_022_CENTER_MUSE_BLADE_SCORE_STEP_ID = 'PL_BP4_022_CENTER_MUSE_BLADE_SCORE';
 const PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT_STEP_ID =
   'PL_BP5_020_CENTER_MUSE_YELLOW_REQUIREMENT';
@@ -116,6 +126,8 @@ const PL_N_BP4_028_DIFFERENT_NIJIGASAKI_LIVE_SCORE_STEP_ID =
 const PL_N_BP3_005_MEMBER_ENTRIES_SCORE_STEP_ID = 'PL_N_BP3_005_MEMBER_ENTRIES_SCORE';
 const HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID =
   'HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT';
+const PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT_STEP_ID =
+  'PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -127,6 +139,14 @@ interface ConditionalLiveModifierStartContext {
 interface ConditionalLiveModifierFinishContext {
   readonly gameState: GameState;
   readonly actionPayload: Readonly<Record<string, unknown>>;
+}
+
+interface StageBladeTotalContext {
+  readonly sourceInLiveZone: boolean;
+  readonly stageMemberCardIds: readonly string[];
+  readonly stageMemberBladeCounts: readonly number[];
+  readonly stageBladeTotal: number;
+  readonly conditionMet: boolean;
 }
 
 interface ConditionalLiveModifierWorkflowConfig {
@@ -192,6 +212,12 @@ const DIFFERENT_GROUP_MEMBER_REQUIREMENT_REDUCTION_CONFIGS: readonly DifferentGr
 
 const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkflowConfig[] = [
   {
+    abilityId: PL_N_PB1_042_LIVE_START_SAME_NAME_NIJIGASAKI_REDUCE_REQUIREMENT_ABILITY_ID,
+    stepId: PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT_STEP_ID,
+    getStartContext: getEternalizeLoveStartContext,
+    finish: finishEternalizeLoveRequirementReduction,
+  },
+  {
     abilityId: PL_N_BP3_005_LIVE_START_TWO_MEMBER_ENTRIES_GAIN_SCORE_ABILITY_ID,
     stepId: PL_N_BP3_005_MEMBER_ENTRIES_SCORE_STEP_ID,
     getStartContext: (game, _ability, playerId) => {
@@ -241,6 +267,12 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     stepId: PL_BP3_023_STAGE_BLADE_REQUIREMENT_STEP_ID,
     getStartContext: getPlBp3023StageBladeStartContext,
     finish: finishPlBp3023StageBladeRequirementReduction,
+  },
+  {
+    abilityId: N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID,
+    stepId: N_SD1_028_STAGE_BLADE_SCORE_STEP_ID,
+    getStartContext: getDreamWithYouStartContext,
+    finish: finishDreamWithYouScoreBonus,
   },
   {
     abilityId: PL_BP4_022_LIVE_START_CENTER_MUSE_BLADE_NINE_SCORE_TWO_ABILITY_ID,
@@ -778,7 +810,7 @@ function getPlBp3023StageBladeStartContext(
   ability: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierStartContext {
-  const context = getPlBp3023StageBladeContext(game, ability, playerId);
+  const context = getStageBladeTenRequirementContext(game, ability, playerId);
   return {
     effectText: `${getAbilityEffectText(
       PL_BP3_023_LIVE_START_STAGE_BLADE_TEN_REDUCE_REQUIREMENT_ABILITY_ID
@@ -802,7 +834,7 @@ function finishPlBp3023StageBladeRequirementReduction(
   effect: PendingAbilityState,
   playerId: string
 ): ConditionalLiveModifierFinishContext {
-  const context = getPlBp3023StageBladeContext(game, effect, playerId);
+  const context = getStageBladeTenRequirementContext(game, effect, playerId);
   const state = replaceSourceRequirementModifier(
     {
       ...game,
@@ -830,6 +862,88 @@ function finishPlBp3023StageBladeRequirementReduction(
       stageBladeTotal: context.stageBladeTotal,
       conditionMet: context.conditionMet,
       requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function getDreamWithYouStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getStageBladeTotalContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(
+      N_SD1_028_LIVE_START_STAGE_BLADE_TEN_GAIN_SCORE_ABILITY_ID
+    )}（当前自己舞台成员持有的[BLADE]合计${context.stageBladeTotal}，${
+      context.conditionMet
+        ? '满足条件，实际此卡[スコア]+1。'
+        : '未满足条件，实际不增加此卡[スコア]。'
+    }）`,
+    actionPayload: {
+      sourceInLiveZone: context.sourceInLiveZone,
+      stageMemberCardIds: context.stageMemberCardIds,
+      stageMemberBladeCounts: context.stageMemberBladeCounts,
+      stageBladeTotal: context.stageBladeTotal,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.conditionMet ? 1 : 0,
+    },
+  };
+}
+
+function finishDreamWithYouScoreBonus(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getStageBladeTotalContext(game, effect, playerId);
+  const scoreBonus = context.conditionMet ? 1 : 0;
+  const previousModifier = game.liveResolution.liveModifiers.find(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.playerId === playerId &&
+      modifier.liveCardId === effect.sourceCardId &&
+      modifier.sourceCardId === effect.sourceCardId &&
+      modifier.abilityId === effect.abilityId
+  );
+  const previousScoreBonus =
+    previousModifier?.kind === 'SCORE' ? previousModifier.countDelta : 0;
+  let state = replaceLiveModifier(
+    { ...game, activeEffect: null },
+    {
+      kind: 'SCORE',
+      playerId,
+      liveCardId: effect.sourceCardId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+    },
+    scoreBonus > 0
+      ? {
+          kind: 'SCORE',
+          playerId,
+          countDelta: scoreBonus,
+          liveCardId: effect.sourceCardId,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+  const scoreDelta = scoreBonus - previousScoreBonus;
+  if (scoreDelta !== 0) {
+    state = refreshPlayerScoreDraft(state, playerId, scoreDelta);
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_STAGE_BLADE_TEN_SCORE_BONUS',
+      sourceInLiveZone: context.sourceInLiveZone,
+      stageMemberCardIds: context.stageMemberCardIds,
+      stageMemberBladeCounts: context.stageMemberBladeCounts,
+      stageBladeTotal: context.stageBladeTotal,
+      conditionMet: context.conditionMet,
+      scoreBonus,
+      scoreDelta,
     },
   };
 }
@@ -2087,18 +2201,11 @@ function getPlBp5020WonderZoneContext(
   };
 }
 
-function getPlBp3023StageBladeContext(
+function getStageBladeTotalContext(
   game: GameState,
   ability: PendingAbilityState,
   playerId: string
-): {
-  readonly sourceInLiveZone: boolean;
-  readonly stageMemberCardIds: readonly string[];
-  readonly stageMemberBladeCounts: readonly number[];
-  readonly stageBladeTotal: number;
-  readonly conditionMet: boolean;
-  readonly requirementReduction: number;
-} {
+): StageBladeTotalContext {
   const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
   const stageMemberCardIds = getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER));
   const liveModifiers = collectLiveModifiers(game);
@@ -2113,7 +2220,18 @@ function getPlBp3023StageBladeContext(
     stageMemberBladeCounts,
     stageBladeTotal,
     conditionMet,
-    requirementReduction: conditionMet ? 2 : 0,
+  };
+}
+
+function getStageBladeTenRequirementContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): StageBladeTotalContext & { readonly requirementReduction: number } {
+  const context = getStageBladeTotalContext(game, ability, playerId);
+  return {
+    ...context,
+    requirementReduction: context.conditionMet ? 2 : 0,
   };
 }
 
@@ -2190,6 +2308,115 @@ function getPlBp5023OtohimeContext(
     sourceInLiveZone,
     qualifiedMemberCardIds,
     requirementReduction: qualifiedMemberCardIds.length,
+  };
+}
+
+function getEternalizeLoveStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getEternalizeLoveContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前共享姓名：${
+      context.sharedNames.length > 0 ? context.sharedNames.join('、') : '无'
+    }，${
+      context.conditionMet
+        ? '满足条件，实际减少3个必要[無ハート]。'
+        : '未满足条件，实际不减少必要[無ハート]。'
+    }）`,
+    actionPayload: {
+      sharedNames: context.sharedNames,
+      conditionMet: context.conditionMet,
+      requirementReduction: context.conditionMet ? 3 : 0,
+    },
+  };
+}
+
+function finishEternalizeLoveRequirementReduction(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getEternalizeLoveContext(game, effect, playerId);
+  const gameState = replaceSourceRequirementModifier(
+    { ...game, activeEffect: null },
+    effect,
+    context.conditionMet
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -3 }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+  return {
+    gameState,
+    actionPayload: {
+      step: context.conditionMet
+        ? 'APPLY_SAME_NAME_NIJIGASAKI_REQUIREMENT_REDUCTION'
+        : 'NO_SAME_NAME_NIJIGASAKI_REQUIREMENT_REDUCTION',
+      sourceInLiveZone: context.sourceInLiveZone,
+      sharedNames: context.sharedNames,
+      conditionMet: context.conditionMet,
+      requirementReduction: context.conditionMet ? 3 : 0,
+    },
+  };
+}
+
+function getEternalizeLoveContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): {
+  readonly sourceInLiveZone: boolean;
+  readonly sharedNames: readonly string[];
+  readonly conditionMet: boolean;
+} {
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const player = getPlayerById(game, playerId);
+  const members = (player ? getAllMemberCardIds(player.memberSlots) : [])
+    .map((cardId) => ({ cardId, card: getCardById(game, cardId) }))
+    .filter(
+      (
+        entry
+      ): entry is { readonly cardId: string; readonly card: NonNullable<typeof entry.card> } =>
+        entry.card !== null &&
+        entry.card.ownerId === playerId &&
+        isMemberCardData(entry.card.data) &&
+        cardBelongsToGroup(entry.card.data, '虹ヶ咲')
+    )
+    .map((entry) => ({
+      cardId: entry.cardId,
+      names: getCardNameCandidates(entry.card.data, { groupName: '虹ヶ咲' }),
+      normalizedNames: getNormalizedCardNameCandidates(entry.card.data, {
+        groupName: '虹ヶ咲',
+      }),
+    }));
+
+  const sharedNames = new Set<string>();
+  for (let leftIndex = 0; leftIndex < members.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < members.length; rightIndex += 1) {
+      const left = members[leftIndex]!;
+      const right = members[rightIndex]!;
+      if (left.cardId === right.cardId) {
+        continue;
+      }
+      const rightNames = new Set(right.normalizedNames);
+      for (const name of left.names) {
+        if (rightNames.has(normalizeCardName(name))) {
+          sharedNames.add(name);
+        }
+      }
+    }
+  }
+
+  return {
+    sourceInLiveZone,
+    sharedNames: [...sharedNames],
+    conditionMet: sourceInLiveZone && sharedNames.size > 0,
   };
 }
 

@@ -324,8 +324,8 @@ describe('PL!SP-bp4 second batch effects', () => {
     expect(session.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'pay-1', label: '支付[E]' },
       { id: 'pay-2', label: '支付[E][E]' },
-      { id: 'decline', label: '不发动' },
     ]);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
     const payTwo = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -378,8 +378,8 @@ describe('PL!SP-bp4 second batch effects', () => {
     );
     expect(oneEnergySession.state?.activeEffect?.selectableOptions).toEqual([
       { id: 'pay-1', label: '支付[E]' },
-      { id: 'decline', label: '不发动' },
     ]);
+    expect(oneEnergySession.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
     const payOne = oneEnergySession.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -421,18 +421,10 @@ describe('PL!SP-bp4 second batch effects', () => {
       resolvePendingCardEffects(noEnergyGame).gameState,
       'bp4-022-none'
     );
-    expect(noEnergySession.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'decline', label: '不发动' },
-    ]);
+    expect(noEnergySession.state?.activeEffect?.selectableOptions).toEqual([]);
+    expect(noEnergySession.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
     const decline = noEnergySession.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        noEnergySession.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        'decline'
-      )
+      createConfirmEffectStepCommand(PLAYER1, noEnergySession.state!.activeEffect!.id)
     );
     expect(decline.success, decline.error).toBe(true);
     expect(noEnergySession.state?.liveResolution.liveModifiers).toEqual([]);
