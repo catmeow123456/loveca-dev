@@ -1,4 +1,4 @@
-import type { CardInstance } from '../../domain/entities/card.js';
+import { isMemberCardData, type CardInstance } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import {
   getCardById,
@@ -9,7 +9,7 @@ import {
 } from '../../domain/entities/game.js';
 import type { CheerEvent } from '../../domain/events/game-events.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
-import { TriggerCondition, type CardType } from '../../shared/types/enums.js';
+import { HeartColor, TriggerCondition, type CardType } from '../../shared/types/enums.js';
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
@@ -53,6 +53,107 @@ export interface CurrentLiveRevealedDifferentNameCheerCardResult {
 export interface MoveRevealedCheerCardsResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
+}
+
+export interface DistinctCheerHeartColorAssignment {
+  readonly color: HeartColor;
+  readonly cardId: string;
+}
+
+export interface DistinctCheerCardsCoverHeartColorsResult {
+  readonly matchingCardIds: readonly string[];
+  readonly candidateCardIdsByColor: ReadonlyMap<HeartColor, readonly string[]>;
+  readonly candidateCountsByColor: ReadonlyMap<HeartColor, number>;
+  readonly conditionMet: boolean;
+  readonly assignment: readonly DistinctCheerHeartColorAssignment[];
+  readonly matchedCardIds: readonly string[];
+}
+
+/**
+ * Evaluates event-inclusive current-cheer facts. Printed member Hearts only; Blade Hearts and
+ * temporary LIVE modifiers are intentionally outside this query.
+ */
+export function evaluateDistinctCheerCardsCoverHeartColors(
+  game: GameState,
+  playerId: string,
+  options: {
+    readonly requiredColors: readonly HeartColor[];
+    readonly groupAlias: string;
+    readonly cardType: CardType;
+  }
+): DistinctCheerCardsCoverHeartColorsResult {
+  const matchingCardIds = [
+    ...new Set(
+      selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+        cardTypes: options.cardType,
+        groupAliases: [options.groupAlias],
+      })
+    ),
+  ];
+  const candidateCardIdsByColor = new Map<HeartColor, readonly string[]>();
+
+  for (const color of options.requiredColors) {
+    candidateCardIdsByColor.set(
+      color,
+      matchingCardIds.filter((cardId) => {
+        const card = getCardById(game, cardId);
+        return (
+          card !== null &&
+          card.ownerId === playerId &&
+          isMemberCardData(card.data) &&
+          card.data.hearts.some((heart) => heart.color === color && heart.count > 0)
+        );
+      })
+    );
+  }
+
+  const assignment = findDistinctHeartColorAssignment(
+    options.requiredColors,
+    candidateCardIdsByColor
+  );
+  return {
+    matchingCardIds,
+    candidateCardIdsByColor,
+    candidateCountsByColor: new Map(
+      [...candidateCardIdsByColor].map(([color, cardIds]) => [color, cardIds.length])
+    ),
+    conditionMet: assignment.length === options.requiredColors.length,
+    assignment,
+    matchedCardIds: assignment.map((entry) => entry.cardId),
+  };
+}
+
+function findDistinctHeartColorAssignment(
+  requiredColors: readonly HeartColor[],
+  candidatesByColor: ReadonlyMap<HeartColor, readonly string[]>
+): readonly DistinctCheerHeartColorAssignment[] {
+  const usedCardIds = new Set<string>();
+  const assignment: DistinctCheerHeartColorAssignment[] = [];
+
+  const search = (colorIndex: number): boolean => {
+    if (colorIndex >= requiredColors.length) {
+      return true;
+    }
+    const color = requiredColors[colorIndex];
+    if (color === undefined) {
+      return true;
+    }
+    for (const cardId of candidatesByColor.get(color) ?? []) {
+      if (usedCardIds.has(cardId)) {
+        continue;
+      }
+      usedCardIds.add(cardId);
+      assignment.push({ color, cardId });
+      if (search(colorIndex + 1)) {
+        return true;
+      }
+      assignment.pop();
+      usedCardIds.delete(cardId);
+    }
+    return false;
+  };
+
+  return search(0) ? assignment : [];
 }
 
 export function selectRevealedCheerCardIds(

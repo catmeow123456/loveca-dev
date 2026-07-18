@@ -6003,6 +6003,75 @@ describe('live modifier helpers', () => {
   });
 });
 
+describe('PL!S-bp7-016-N 费用15「国木田花丸」 continuous Heart', () => {
+  it('只计己方三个主舞台顶层成员，并为来源动态提供红绿蓝 Heart 各1', () => {
+    const source = createStageMember('PL!S-bp7-016-N', 'p1', 'hanamaru', 1);
+    const allyLeft = createStageMember('ALLY-LEFT', 'p1', 'ally-left', 1);
+    const allyRight = createStageMember('ALLY-RIGHT', 'p1', 'ally-right', 1);
+    const below = createStageMember('BELOW', 'p1', 'below', 1);
+    const opponent = createStageMember('OPPONENT', 'p2', 'opponent', 1);
+    let game = registerCards(
+      createGameState('s-bp7-016-continuous', 'p1', 'P1', 'p2', 'P2'),
+      [source, allyLeft, allyRight, below, opponent]
+    );
+    game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.LEFT, allyLeft.instanceId);
+    game = placeMemberOnStage(game, 'p2', SlotPosition.CENTER, opponent.instanceId);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        below.instanceId
+      ),
+    }));
+
+    const abilityId =
+      'PL!S-bp7-016-N:continuous-stage-three-gain-red-green-blue-heart';
+    const heartsForSource = (state: GameState) =>
+      collectLiveModifiers(state).filter(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.abilityId === abilityId &&
+          modifier.sourceCardId === source.instanceId
+      );
+
+    expect(heartsForSource(game)).toEqual([]);
+
+    game = placeMemberOnStage(game, 'p1', SlotPosition.RIGHT, allyRight.instanceId);
+    const modifiers = heartsForSource(game);
+    expect(modifiers).toEqual([
+      expect.objectContaining({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        sourceCardId: source.instanceId,
+        hearts: [
+          createHeartIcon(HeartColor.RED, 1),
+          createHeartIcon(HeartColor.GREEN, 1),
+          createHeartIcon(HeartColor.BLUE, 1),
+        ],
+      }),
+    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', collectLiveModifiers(game))).toEqual(
+      []
+    );
+    expect(getMemberEffectiveHeartIcons(game, 'p1', source.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.RED, 1),
+      createHeartIcon(HeartColor.GREEN, 1),
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+    expect(heartsForSource(game)).toHaveLength(1);
+
+    const sourceLeftStage = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    expect(heartsForSource(sourceLeftStage)).toEqual([]);
+  });
+});
+
 describe('PL!N-pb1-001 continuous actual LIVE-card BLADE modifier', () => {
   function setup(options: {
     readonly liveCardCount: number;

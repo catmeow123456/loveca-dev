@@ -213,6 +213,8 @@ const SP_BP2_010_CONTINUOUS_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID =
   'PL!SP-bp2-010:continuous-opponent-live-requirement-plus-one';
 const SP_BP1_004_CONTINUOUS_CENTER_GAIN_FIVE_BLADE_ABILITY_ID =
   'PL!SP-bp1-004:continuous-center-gain-five-blade';
+const S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID =
+  'PL!S-bp7-016-N:continuous-stage-three-gain-red-green-blue-heart';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -263,6 +265,29 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    cardCodes: ['PL!S-bp7-016-N'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (
+        !isSourceMainStageMember(game, playerId, sourceCardId) ||
+        countStageMembers(game, playerId) < 3
+      ) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID,
+        hearts: [
+          { color: HeartColor.RED, count: 1 },
+          { color: HeartColor.GREEN, count: 1 },
+          { color: HeartColor.BLUE, count: 1 },
+        ],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
   {
     baseCardCodes: ['PL!SP-bp2-004'],
     collect: ({ game, playerId, sourceCardId }) => {

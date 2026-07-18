@@ -11,6 +11,7 @@ import {
   SlotPosition,
   OrientationState,
 } from '../../shared/types/enums.js';
+import type { CheerDeckEdge } from '../rules/cheer-direction.js';
 import type { CardInstance } from '../entities/card.js';
 
 // ============================================
@@ -110,6 +111,8 @@ export interface CardMoveEvent extends BaseGameEvent {
   readonly ownerId: string;
   /** 卡牌掌控者 ID */
   readonly controllerId: string;
+  /** 可选的卡效移动来源；普通规则移动保持缺省。 */
+  readonly cause?: CardEffectCause;
 }
 
 export interface RelayReplacementEventData {
@@ -232,6 +235,8 @@ export interface CheerEvent extends BaseGameEvent {
   readonly automated?: boolean;
   /** 是否为卡片效果追加的声援；追加声援不再二次触发 ON_CHEER */
   readonly additional?: boolean;
+  /** 本次声援实际使用的卡组边缘；旧回放缺失时视为 TOP。 */
+  readonly deckEdge?: CheerDeckEdge;
 }
 
 /**
@@ -675,7 +680,8 @@ export function createEnterWaitingRoomEvent(
   cardInstanceIds: readonly string[],
   fromZone: ZoneType,
   ownerId: string,
-  controllerId: string
+  controllerId: string,
+  cause?: CardEffectCause
 ): EnterWaitingRoomEvent {
   const firstCardId = cardInstanceIds[0];
   if (!firstCardId) {
@@ -693,6 +699,7 @@ export function createEnterWaitingRoomEvent(
     ownerId,
     controllerId,
     triggerPlayerId: controllerId,
+    ...(cause ? { cause } : {}),
   };
 }
 
@@ -813,7 +820,11 @@ export function createCheerEvent(
   playerId: string,
   revealedCardIds: readonly string[],
   totalBlade: number,
-  options: { readonly automated?: boolean; readonly additional?: boolean } = {}
+  options: {
+    readonly automated?: boolean;
+    readonly additional?: boolean;
+    readonly deckEdge?: CheerDeckEdge;
+  } = {}
 ): CheerEvent {
   return {
     eventId: generateEventId(),
@@ -824,6 +835,7 @@ export function createCheerEvent(
     totalBlade,
     automated: options.automated === true,
     additional: options.additional === true,
+    deckEdge: options.deckEdge ?? 'TOP',
     triggerPlayerId: playerId,
   };
 }

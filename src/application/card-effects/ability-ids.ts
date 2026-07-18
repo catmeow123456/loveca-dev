@@ -247,6 +247,10 @@ export const PL_BP3_008_LIVE_START_OPTIONAL_WAIT_MUSE_MEMBER_GAIN_YELLOW_HEART_A
   'PL!-bp3-008:live-start-optional-wait-muse-member-gain-yellow-heart';
 export const PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID =
   'PL!-bp3-009:on-enter-cost-thirteen-draw-one';
+export const S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID =
+  'PL!S-bp7-002-P:on-enter-aqours-cost-nine-draw-one';
+export const S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID =
+  'PL!S-bp7-016-N:continuous-stage-three-gain-red-green-blue-heart';
 export const PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID =
   'PL!-bp3-009:activated-wait-self-choose-heart';
 export const BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID =
@@ -1108,6 +1112,8 @@ export const SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID =
   'PL!SP-sd2-011:auto-on-move-gain-blade';
 export const HS_BP5_014_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID =
   'PL!HS-bp5-014:auto-on-move-gain-blade';
+export const SP_BP7_014_AUTO_ON_MOVE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!SP-bp7-014-N:auto-on-move-gain-two-blade';
 export const SP_BP4_017_LIVE_START_LEFT_MOVED_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!SP-bp4-017:live-start-left-moved-gain-two-blade';
 export const SP_BP4_020_LIVE_START_RIGHT_MOVED_GAIN_TWO_BLADE_ABILITY_ID =
@@ -1582,3 +1588,17 @@ export const SP_PB1_004_LIVE_SUCCESS_PAY_THREE_ENERGY_DRAW_ONE_ABILITY_ID =
   'PL!SP-pb1-004:live-success-pay-three-energy-draw-one';
 export const SP_PB1_011_ON_ENTER_REPLAY_OTHER_LIELLA_MEMBER_ABILITY_ID =
   'PL!SP-pb1-011:on-enter-replay-other-liella-member';
+export const S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID =
+  'PL!S-bp7-006-P:live-start-mill-bottom-three-all-aqours-members-gain-green-heart';
+export const S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID =
+  'PL!S-bp7-015-N:live-start-mill-bottom-one-live-gain-red-heart';
+export const S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID =
+  'PL!S-bp7-020-SECL:live-start-all-stage-members-active-reduce-colorless-requirement';
+export const S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID =
+  'PL!S-bp7-020-SECL:live-start-mill-bottom-one-aqours-member-reduce-colorless-requirement';
+export const S_BP7_021_LIVE_START_STAGE_THREE_MILL_BOTTOM_FIVE_MEMBER_REWARDS_ABILITY_ID =
+  'PL!S-bp7-021-L:live-start-stage-three-mill-bottom-five-member-rewards';
+export const S_BP7_022_CONTINUOUS_CHEER_FROM_DECK_BOTTOM_ABILITY_ID =
+  'PL!S-bp7-022-SECL:continuous-cheer-from-deck-bottom';
+export const S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID =
+  'PL!S-bp7-022-SECL:live-success-distinct-aqours-red-green-blue-cheer-score';

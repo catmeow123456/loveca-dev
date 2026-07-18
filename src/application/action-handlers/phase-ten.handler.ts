@@ -38,7 +38,7 @@ import {
   updatePlayer,
   getFirstPlayer,
 } from '../../domain/entities/game.js';
-import { createCheerEvent } from '../../domain/events/game-events.js';
+import { revealCheerCardsFromMainDeck } from '../effects/cheer.js';
 import {
   removeCardFromStatefulZone,
   addCardToZone,
@@ -690,48 +690,5 @@ export const handlePerformCheer: ActionHandler<PerformCheerAction> = (
     return failure(game, '玩家不存在');
   }
 
-  let state = game;
-  const cheerCardIds: string[] = [];
-
-  // 从卡组顶翻开指定数量的卡牌
-  for (let i = 0; i < cheerCount; i++) {
-    const drawResult = ctx.drawTopMainDeckCard(state, playerId);
-    state = drawResult.gameState;
-    if (drawResult.cardId) {
-      cheerCardIds.push(drawResult.cardId);
-    }
-  }
-
-  // 将应援卡牌放入解决区域
-  state = {
-    ...state,
-    resolutionZone: {
-      ...state.resolutionZone,
-      cardIds: [...state.resolutionZone.cardIds, ...cheerCardIds],
-    },
-  };
-
-  // 更新 liveResolution 状态
-  const isFirstPlayer = playerId === getFirstPlayer(state).id;
-  state = {
-    ...state,
-    liveResolution: {
-      ...state.liveResolution,
-      firstPlayerCheerCardIds: isFirstPlayer
-        ? [...state.liveResolution.firstPlayerCheerCardIds, ...cheerCardIds]
-        : state.liveResolution.firstPlayerCheerCardIds,
-      secondPlayerCheerCardIds: isFirstPlayer
-        ? state.liveResolution.secondPlayerCheerCardIds
-        : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
-    },
-  };
-  state = emitGameEvent(state, createCheerEvent(playerId, cheerCardIds, cheerCount));
-
-  // 记录动作
-  state = addAction(state, 'CHEER', playerId, {
-    cheerCount,
-    cheerCardIds,
-  });
-
-  return success(state);
+  return success(revealCheerCardsFromMainDeck(game, playerId, cheerCount).gameState);
 };

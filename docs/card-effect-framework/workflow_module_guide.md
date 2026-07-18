@@ -345,3 +345,29 @@ manual confirm-only 预览与最终结算都实时重算数量和来源 LIVE 状
 # LIVE 区印刷时点能力 query
 
 `domain/rules/live-zone-ability.ts#hasLiveWithoutLiveStartOrSuccessAbility` 是只读 `GameState` 的游戏级 query：仅扫描指定玩家当前 LIVE 区中 owner 正确的合法 LIVE 实例，并按 `cardText` 印刷文本识别中日 LIVE_START / LIVE_SUCCESS 标记，不查询 ability definition 的实现状态。`PL!-bp4-002` 的 continuous modifier 与 `PL!-bp4-014` 的 shared workflow 是当前两个真实消费者；query 不创建 pending、activeEffect 或 modifier。
+
+# LIVE_START 卡组底全匹配后获得 Heart family
+
+`workflows/shared/live-start-mill-bottom-all-match-gain-heart.ts` 由 `PL!S-bp7-006-P` 费用2「津岛善子」与 `PL!S-bp7-015-N` 费用5「津岛善子」两个真实样本建立。稳定轴仅为 exact card code / abilityId、卡组底移动数量、窄条件（`GROUP_MEMBER + Aqours` 或 `CARD_TYPE + LIVE`）与 Heart 颜色；Heart 固定写给 `SOURCE_MEMBER`。
+
+family 复用 direct top-mill 的公开结果形状：实际卡组底移动与分组等待室事件完成后，以 `activeEffect.revealedCardIds` 向双方展示真实 `movedCardIds`；展示窗口打开时尚未写 Heart，玩家确认公开结果后才按实际移动数与卡牌身份写 modifier 并统一 continuation。该真实公开窗口取代纯 confirm-only，手动点选也不会双弹窗；移动前仍不预读或展示隐藏底牌。本 family 不包含抽牌、加分、LIVE 必要 Heart 修改、声援方向或任意奖励 DSL。
+
+# bp7 bottom-mill 后 requirement / draw / score 单卡样本
+
+`PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」只共享第一批 refresh-aware bottom helper，不形成新的 shared reward family。020 的底1 Aqours MEMBER 后必要[無ハート]-1 留在 `cards/s-bp7-020-happy-party-train.ts`；同卡公开的“己方主舞台成员全部 ACTIVE”段扩展 `conditional-live-modifier.ts`，以至少1名顶层成员避免空集合误判。021 留在 `cards/s-bp7-021-bokura-no-tabi-wa-owaranai.ts`，结算时重查三名顶层成员门槛，完整移动5张后按实际 MEMBER 数抽牌并以 replacement 写来源 LIVE SCORE。
+
+`PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」保持单卡 LIVE_SUCCESS workflow `cards/s-bp7-022-koi-ni-naritai-aquarium.ts`。声援方向是 domain 纯 query 与统一公开入口的规则责任，不在 workflow/runner 传 `useBottom` 布尔值。LIVE_SUCCESS 复用 `selectCurrentLiveRevealedCheerCardIds` 事件事实，再由 `evaluateDistinctCheerCardsCoverHeartColors` 对印刷 Heart 做三色不同 cardId 的确定性小型回溯；它只表达“不同卡覆盖所需颜色”，不是图算法框架或 Heart DSL。结果以来源 LIVE SCORE replacement 和 `playerScores` 差值刷新结算，动态 confirm-only 只显示三色候选数、三张不同卡匹配结果与实际分数。
+
+020 与 021 都在移动及标准分组事件入队后打开双方公开结果窗口，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 确认后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 确认后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
+
+# ON_ENTER 舞台有效费用门槛抽牌 family
+
+`workflows/shared/member-on-enter-draw.ts` 现由 `PL!-bp3-009` 费用2「矢澤にこ」与 exact `PL!S-bp7-002-P` 费用4「樱内梨子」证明“主舞台有效费用门槛后登场抽牌”配置。稳定轴仅为 `abilityId`、`drawCount`、最低有效费用、可选团体条件与 action step；三个主舞台顶层通过 `getMemberEffectiveCost` 实时查询，团体通过 `cardBelongsToGroup` 结构化判定。
+
+两张卡都在 manual confirm-only 和最终 resolver 时实时重扫，动态文案只显示符合成员数、满足状态与实际抽牌数。已合法入队后不要求来源仍在场，不计 memberBelow、对方或其他区域。无条件旧配置继续只展示原卡文，不追加资源统计。这不是任意 ON_ENTER 条件 DSL。
+
+# ON_MEMBER_SLOT_MOVED 来源成员 BLADE family
+
+`workflows/shared/on-move-gain-blade.ts` 的实际配置轴为 `abilityId`、BLADE `amount` 与 action step。`PL!SP-sd2-011` 费用4「鬼冢冬比」、`PL!HS-bp5-014-N` 费用4「安養寺 姫芽」保持 +1，exact `PL!SP-bp7-014-N` 费用4「岚千砂都」配置 +2。family 只在来源自身移动事件入队后结算，不按 `triggerPlayerId` 过滤，次数保持来源实例语义。
+
+来源在事件后、结算前失效，或 `addBladeLiveModifierForSourceMember` 返回 null 时，family 删除当前 pending、记录不含成功 `bladeBonus` 的 no-op `RESOLVE_ABILITY`，再回到统一 continuation；不改变其他 pending 顺序。玩家卡文/确认文案不暴露该引擎安全原因。本 family 不扩展为通用移动奖励 DSL。

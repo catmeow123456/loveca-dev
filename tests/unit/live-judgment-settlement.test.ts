@@ -2173,6 +2173,118 @@ describe('Live 判定与结算', () => {
       'p1-cheer-1',
     ]);
     expect(secondResult.gameState.resolutionZone.cardIds).toEqual(['p1-cheer-2', 'p1-cheer-1']);
+    expect(secondResult.gameState.resolutionZone.revealedCardIds).toEqual([
+      'p1-cheer-2',
+      'p1-cheer-1',
+    ]);
+  });
+
+  it('handlePerformCheer 手动声援使用统一底部入口并记录 deckEdge', () => {
+    const source = createCardInstance(
+      {
+        cardCode: 'PL!S-bp7-022-SECL',
+        name: '想在水族馆恋爱',
+        cardType: CardType.LIVE as const,
+        score: 8,
+        requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
+      },
+      'p1',
+      'bottom-cheer-source'
+    );
+    const top = createCardInstance(
+      { cardCode: 'TOP', name: 'Top', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      'p1',
+      'top'
+    );
+    const bottom = createCardInstance(
+      { cardCode: 'BOTTOM', name: 'Bottom', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      'p1',
+      'bottom'
+    );
+    let game = registerCards(createGameState('manual-bottom-cheer', 'p1', 'P1', 'p2', 'P2'), [
+      source,
+      top,
+      bottom,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, source.instanceId),
+      mainDeck: { ...player.mainDeck, cardIds: [top.instanceId, bottom.instanceId] },
+    }));
+    const ctx = {
+      getPlayerById: (state: typeof game, playerId: string) =>
+        state.players.find((player) => player.id === playerId),
+    } as never;
+    const result = handlePerformCheer(game, createPerformCheerAction('p1', 1), ctx);
+    expect(result.success).toBe(true);
+    expect(result.gameState.resolutionZone.cardIds).toEqual([bottom.instanceId]);
+    expect(result.gameState.resolutionZone.revealedCardIds).toEqual([bottom.instanceId]);
+    expect(result.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([bottom.instanceId]);
+    expect(result.gameState.eventLog.at(-1)?.event).toMatchObject({
+      revealedCardIds: [bottom.instanceId],
+      deckEdge: 'BOTTOM',
+    });
+    expect(result.gameState.actionHistory.at(-1)?.payload).toMatchObject({
+      cheerCardIds: [bottom.instanceId],
+      revealedCardIds: [bottom.instanceId],
+      deckEdge: 'BOTTOM',
+    });
+  });
+
+  it('GameService 自动普通声援从当前持续能力指定的卡组底公开', () => {
+    const service = new GameService();
+    const source = createCardInstance(
+      {
+        cardCode: 'PL!S-bp7-022-SECL',
+        name: '想在水族馆恋爱',
+        cardType: CardType.LIVE as const,
+        score: 8,
+        requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
+      },
+      'p1',
+      'auto-bottom-source'
+    );
+    const bladeMember = createCardInstance(
+      {
+        cardCode: 'AUTO-BLADE',
+        name: 'Auto Blade',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'auto-blade-member'
+    );
+    const top = createCardInstance(
+      { cardCode: 'AUTO-TOP', name: 'Auto Top', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      'p1',
+      'auto-top'
+    );
+    const bottom = createCardInstance(
+      { cardCode: 'AUTO-BOTTOM', name: 'Auto Bottom', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      'p1',
+      'auto-bottom'
+    );
+    let game = registerCards(createGameState('automatic-bottom-cheer', 'p1', 'P1', 'p2', 'P2'), [
+      source,
+      bladeMember,
+      top,
+      bottom,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, source.instanceId),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, bladeMember.instanceId),
+      mainDeck: { ...player.mainDeck, cardIds: [top.instanceId, bottom.instanceId] },
+    }));
+    const done = (
+      service as unknown as {
+        autoRevealPerformanceCheer(state: typeof game, playerId: string): typeof game;
+      }
+    ).autoRevealPerformanceCheer(game, 'p1');
+    expect(done.liveResolution.firstPlayerCheerCardIds).toEqual([bottom.instanceId]);
+    expect(done.eventLog.at(-1)?.event).toMatchObject({ deckEdge: 'BOTTOM' });
   });
 
   it('结算阶段应只统计判定成功的 Live 分数', () => {

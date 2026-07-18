@@ -68,7 +68,7 @@
 | `PL!HS-bp5-003` 费用 2「大泽瑠璃乃」 | 离场后选择任意成员站位变换；LIVE 开始弃手后按弃置卡团体名选择成员获得指定 Heart | 已迁入 `workflows/cards/hs-bp5-003-rurino.ts`；站位变换复用 `member-state.ts`，指定成员 Heart 写入窄 `TARGET_MEMBER` live modifier；“先弃手再按团体筛选场上成员”的流程未抽多人/步骤 DSL。 |
 | `PL!HS-bp1-003` 费用 13「乙宗梢」 | 起动低费莲之空成员回收；三面不同名莲之空常时分数 | zone-selection 与 continuous registry 已复用；三面不同名条件仍是 effect-specific helper，未抽 condition AST。 |
 | `PL!HS-pb1-020` 费用 9「百生吟子」 | 条件弃 2 手牌后 Cerise Bouquet 成员 + 莲之空 LIVE 分组回收 | 已迁入 `workflows/shared/grouped-recovery.ts`；弃手、分组上限/强制选择与 `WAITING_ROOM -> HAND` 移动由 shared workflow + runtime grouped-selection/zone-selection 校验。 |
-| `PL!HS-bp6-001` 费用 4「日野下花帆」 / `PL!HS-cl1-009` 分数 1「水彩世界」 / `PL!HS-bp6-027` 分数 5「月夜見海月」 / `PL!S-bp2-021` 分数 4「未体験HORIZON」 / `PL!S-bp2-004` 费用 11「黒澤ダイヤ」 | 声援公开卡选择、回顶/入手/入休息室/卡组底、追加与重做声援 | `cheer-selection.ts` 已支持手牌、卡组顶、卡组底、休息室与多选；`cheer.ts` 已支持追加公开以及 004 的窄重做声援。后者以 `replaceCurrentCheerCards=true` 仅替换当前玩家 current IDs，创建 normal `CheerEvent`、显式重走 ON_CHEER，且来源先记录 turn1；不泛化为所有声援重置。 |
+| `PL!HS-bp6-001` 费用 4「日野下花帆」 / `PL!HS-cl1-009` 分数 1「水彩世界」 / `PL!HS-bp6-027` 分数 5「月夜見海月」 / `PL!S-bp2-021` 分数 4「未体験HORIZON」 / `PL!S-bp2-004` 费用 11「黒澤ダイヤ」 / `PL!S-bp7-022-SECL` 分数 8「想在水族馆恋爱」 | 声援公开卡选择、追加/重做与当前卡组边缘 | `cheer-selection.ts` 继续区分 event-inclusive 条件事实与当前 resolution 可移动目标。`cheer.ts` 现统一普通/手动/自动/追加/重做公开，以 `CheerDeckEdge` 记录 TOP/BOTTOM；当前仅 exact 022 是 BOTTOM 真实样本。004 的 `replaceCurrentCheerCards` 窄重做、additional 不二次 ON_CHEER 语义不变，未建立任意 cheer/direction DSL。 |
 | `PL!SP-PR-004-PR` | 可选弃手后放置待机能量的流程串联 | C01 与 E03 原语已复用；完整 step pipeline 尚未配置化。 |
 | `PL!SP-bp4-008-P` 费用 13「若菜四季」 | 左侧抽弃、右侧能量活跃与 LIVE 开始站位变换 | 左侧抽后弃已迁入 `draw-then-discard.ts`，右侧能量活跃与 LIVE 开始站位变换已迁入 `workflows/cards/sp-bp4-008-shiki.ts`；仍不抽通用多段 source-slot DSL。 |
 | `S07` / 非手牌方式登场 | 更多来源区域与事件 ordering 边界 | `PL!S-bp2-006-P` 费用 11「津岛善子」已验证从休息室登场后继续触发被登场成员自己的登场能力；当前通过 `enqueueTriggeredCardEffects` 显式登场来源入队，触发逻辑不写进 S07 移动原语。后续扩卡组/成功区/能量下方等来源时，继续复用同一入口并补 ordering 样例。 |
@@ -84,3 +84,7 @@
 | `PL!HS-PR-002-PR` 费用 10「村野さやか」 | `T01,C01,F03` | 同上，可作为第二张同构样例，验证配置化而不是单卡分支。 |
 
 已可继续选择真实 AUTO / LIVE 开始 / LIVE 成功样例扩边界；本批 `PL!S-bp2-021-L` 分数 4「未体験HORIZON」补齐声援公开卡组底，`PL!S-bp2-004` 费用 11「黒澤ダイヤ」补齐窄重做声援。下一步建议继续抽 condition / look-top / reveal-hand / grouped selection 配置；更完整 cheer loop 语义仍等待新样例。仍不建议一次性上完整事件系统或 refresh 语义；保持一张卡一条事件边界的小步节奏。
+
+### 2026-07 卡组底剩余缺口
+
+已完成的 direct-mill 原语仍只是“卡组底直接进入休息室＋refresh-aware 分组事件”；006/015 gain-heart 与 020/021 requirement/draw/score 在各自 caller 层以 `revealedCardIds` 向双方展示实际移动卡，确认后才写奖励。022 已独立补齐从卡组底声援，但仅为一个 exact 持续能力样本与窄方向 query，没有与 direct-mill 合并，也没有建立任意方向/reward/zone DSL。memberBelow / energyBelow、cost calculator 与其他 bp7 仍是后续独立批次。

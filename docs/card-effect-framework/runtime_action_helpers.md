@@ -486,6 +486,20 @@ Target helper family:
 - grouped selection helpers
 - destination-specific helpers for deck top / bottom / success zone / resolution zone
 
+## 卡组底直接进入休息室
+
+- `moveBottomDeckCardsToWaitingRoom` 是纯区域移动小原语：`mainDeck.cardIds[0]` 为卡组顶，数组末尾为卡组底，返回顺序为实际从最底开始取出的 cardId 顺序。它不经过 inspection，不创建事件或 pending。
+- `moveBottomDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers` 与现有顶牌 WithRefresh helper 保持同一刷新语义：主卡组耗尽时按现有规则更新卡组并继续从新卡组底处理；`movedCardIds` 只记录实际发生的 `MAIN_DECK -> WAITING_ROOM` 移动，单纯被 refresh 洗回的卡不会自动计入。
+- 同一能力实际移动的卡作为一个分组 `ON_ENTER_WAITING_ROOM` 事件入队一次；0张不发事件。本边界不覆盖检视后入休息室、从卡组底声援、休息室自由选卡或任意 zone-move DSL。
+- 区域/事件 helper 本身不创建玩家展示。若 caller 还要按实际底牌身份给予 Heart、修改必要 Heart、抽牌或加分等后续奖励，应仿照 direct top-mill workflow：移动后用 `activeEffect.revealedCardIds` 向双方展示本次 `movedCardIds`，确认公开结果后才写 modifier/奖励并回到统一 continuation。`PL!S-bp7-006-P` 费用2「津岛善子」、`PL!S-bp7-015-N` 费用5「津岛善子」、`PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」是当前真实样本。
+
+## 声援卡组边缘与底部单张抽取
+
+- `domain/rules/cheer-direction.ts` 的 `getCheerDeckEdgeForPlayer` 只读当前 GameState；默认 TOP，当前唯一真实 BOTTOM 样本是 exact `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」仍作为 owner 正确的 LIVE 实例位于自己 LIVE 区。它不写 modifier、pending 或事件，也不是 continuous DSL。
+- `drawFromBottom` 是与 `drawFromTop` 对称的 zone 小原语：移除数组末尾一张，不反转剩余顺序，不创建事件/action/刷新。
+- `revealCheerCardsFromMainDeck` 在每次公开前先处理即时 refresh，再重读当前边缘，取牌后再处理 refresh。普通、手动、自动、追加与重做声援共用该入口；`CheerEvent` 与 `CHEER` action 只记录实际公开顺序及 `deckEdge`，不记录剩余卡组顺序。旧事件缺少该字段时按 TOP 读取。
+- 该边界没有与 `moveBottomDeckCardsToWaitingRoom*` 合并：后者仍只负责 `MAIN_DECK -> WAITING_ROOM`，声援的目的地是 resolution zone。
+
 ## Migration Requirement
 
 ### Inspect Top Cards Until Match

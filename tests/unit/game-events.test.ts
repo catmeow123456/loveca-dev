@@ -17,6 +17,7 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../../src/shared/types/enums';
+import { CheerDeckEdge } from '../../src/domain/rules/cheer-direction';
 
 describe('game event log', () => {
   it('starts empty on a new game state', () => {
@@ -113,6 +114,7 @@ describe('game event log', () => {
     const event = createCheerEvent('p1', ['cheer-1', 'cheer-2'], 2, {
       automated: true,
       additional: true,
+      deckEdge: CheerDeckEdge.BOTTOM,
     });
 
     expect(event).toMatchObject({
@@ -122,8 +124,10 @@ describe('game event log', () => {
       totalBlade: 2,
       automated: true,
       additional: true,
+      deckEdge: CheerDeckEdge.BOTTOM,
       triggerPlayerId: 'p1',
     });
+    expect(createCheerEvent('p1', [], 0).deckEdge).toBe(CheerDeckEdge.TOP);
   });
 
   it('records member state changed event facts and cause context', () => {

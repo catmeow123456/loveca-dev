@@ -25,19 +25,26 @@ function member(index: number, bladeHeart: boolean): MemberCardData {
     bladeHearts: bladeHeart ? [{ effect: BladeHeartEffect.SCORE }] : [] };
 }
 
-function start(bladeHeartCount: number, totalCount = Math.max(1, bladeHeartCount), options: { sourceCount?: number; deckCount?: number } = {}) {
+function start(bladeHeartCount: number, totalCount = Math.max(1, bladeHeartCount), options: { sourceCount?: number; deckCount?: number; bottomCheer?: boolean } = {}) {
   const sources = Array.from({ length: options.sourceCount ?? 1 }, (_, index) =>
     createCardInstance(live(), P1, `source-020-${index}`)
   );
   const source = sources[0]!;
+  const bottomCheerSource = options.bottomCheer
+    ? createCardInstance(
+        { ...live(), cardCode: 'PL!S-bp7-022-SECL', name: '想在水族馆恋爱' },
+        P1,
+        'bottom-cheer-source'
+      )
+    : null;
   const cards = Array.from({ length: totalCount }, (_, index) => createCardInstance(member(index, index < bladeHeartCount), P1, `cheer-${index}`));
   const deck = Array.from({ length: options.deckCount ?? 0 }, (_, index) =>
     createCardInstance(member(100 + index, false), P1, `deck-${index}`)
   );
-  let game = registerCards(createGameState('s-bp3-020', P1, 'P1', P2, 'P2'), [...sources, ...cards, ...deck]);
+  let game = registerCards(createGameState('s-bp3-020', P1, 'P1', P2, 'P2'), [...sources, ...(bottomCheerSource ? [bottomCheerSource] : []), ...cards, ...deck]);
   game = updatePlayer(game, P1, (player) => ({
     ...player,
-    liveZone: sources.reduce((zone, card) => addCardToStatefulZone(zone, card.instanceId), player.liveZone),
+    liveZone: [...sources, ...(bottomCheerSource ? [bottomCheerSource] : [])].reduce((zone, card) => addCardToStatefulZone(zone, card.instanceId), player.liveZone),
     mainDeck: { ...player.mainDeck, cardIds: deck.map((card) => card.instanceId) },
   }));
   const event = createCheerEvent(P1, cards.map((card) => card.instanceId), 2);
@@ -221,5 +228,32 @@ describe('shared cheer-reroll family: PL!S-bp3-020-L', () => {
     expect(rerollEvent.eventType).toBe(TriggerCondition.ON_CHEER);
     expect(afterFirst.activeEffect?.metadata?.originalCheerEventId).toBe(rerollEvent.eventId);
     expect(afterFirst.activeEffect?.metadata?.originalCheerEventId).not.toBe(scenario.event.eventId);
+  });
+
+  it('rerolls from the current deck bottom, replaces current cheer facts, and records the real edge', () => {
+    const scenario = start(1, 2, { deckCount: 4, bottomCheer: true });
+    const displayed = confirmActiveEffectStep(
+      scenario.state,
+      P1,
+      scenario.state.activeEffect!.id,
+      undefined,
+      undefined,
+      false,
+      'reroll'
+    );
+    const done = confirmActiveEffectStep(displayed, P1, displayed.activeEffect!.id);
+    const expected = [scenario.deck[3]!.instanceId, scenario.deck[2]!.instanceId];
+    expect(done.liveResolution.firstPlayerCheerCardIds).toEqual(expected);
+    expect(done.resolutionZone.revealedCardIds).toEqual(expected);
+    expect(
+      done.eventLog
+        .map((entry) => entry.event)
+        .filter((event) => event.eventType === TriggerCondition.ON_CHEER)
+        .at(-1)
+    ).toMatchObject({ revealedCardIds: expected, deckEdge: 'BOTTOM' });
+    expect(done.actionHistory.findLast((action) => action.type === 'CHEER')?.payload).toMatchObject({
+      cheerCardIds: expected,
+      deckEdge: 'BOTTOM',
+    });
   });
 });

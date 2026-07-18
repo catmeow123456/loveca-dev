@@ -41,6 +41,16 @@ import {
   S_PR_040_AUTO_ON_CHEER_SAME_GROUP_MEMBER_THREE_GAIN_PINK_GREEN_HEART_ABILITY_ID,
   S_PR_041_ON_ENTER_CHOOSE_PLAYER_BOTTOM_WAITING_LIVE_DRAW_ONE_ABILITY_ID,
   S_BP3_007_ACTIVATED_PAY_ENERGY_BOTTOM_WAITING_LIVE_DRAW_ABILITY_ID,
+  S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID,
+  S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
+  S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID,
+  SP_BP7_014_AUTO_ON_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
+  S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
+  S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+  S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+  S_BP7_021_LIVE_START_STAGE_THREE_MILL_BOTTOM_FIVE_MEMBER_REWARDS_ABILITY_ID,
+  S_BP7_022_CONTINUOUS_CHEER_FROM_DECK_BOTTOM_ABILITY_ID,
+  S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID,
   S_BP2_008_CONTINUOUS_FULL_DISTINCT_AQOURS_STAGE_GRANT_LIVE_SUCCESS_ABILITY_ID,
   S_BP2_008_GRANTED_LIVE_SUCCESS_CHEER_LIVE_SCORE_ABILITY_ID,
   S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
@@ -14565,4 +14575,166 @@ describe('PL!N-sd1-028-SD 分数4「Dream with You」 definition', () => {
       )
     ).toHaveLength(1);
   });
+});
+
+describe('PL!S-bp7-006-P 费用2「津岛善子」与 PL!S-bp7-015-N 费用5「津岛善子」 definitions', () => {
+  it.each([
+    [
+      'PL!S-bp7-006-P',
+      S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID,
+      '[緑ハート]',
+    ],
+    [
+      'PL!S-bp7-015-N',
+      S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
+      '[赤ハート]',
+    ],
+  ])('registers exact %s as one implemented queued LIVE_START ability', (cardCode, abilityId, token) => {
+    const definitions = getCardAbilityDefinitions(cardCode);
+    expect(definitions).toEqual([
+      expect.objectContaining({
+        abilityId,
+        cardCodes: [cardCode],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText: expect.stringContaining(token),
+      }),
+    ]);
+    expect(definitions[0]?.baseCardCodes).toBeUndefined();
+    expect(CARD_ABILITY_DEFINITIONS.filter((definition) => definition.abilityId === abilityId)).toHaveLength(1);
+  });
+
+  it('does not speculate unverified rarity-family coverage', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp7-006-R')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-015-P')).toEqual([]);
+  });
+});
+
+describe('PL!S-bp7-020-SECL 分数3「快乐派对火车」与 PL!S-bp7-021-L 分数5「我们的旅程永不落幕」 definitions', () => {
+  it('registers the two exact SECL LIVE_START abilities independently', () => {
+    const definitions = getCardAbilityDefinitions('PL!S-bp7-020-SECL');
+    expect(definitions).toHaveLength(2);
+    expect(definitions.map((definition) => definition.abilityId)).toEqual([
+      S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+      S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+    ]);
+    for (const definition of definitions) {
+      expect(definition).toMatchObject({
+        cardCodes: ['PL!S-bp7-020-SECL'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      });
+      expect(definition.baseCardCodes).toBeUndefined();
+    }
+  });
+
+  it('registers the exact L 021 ability without speculative rarity coverage', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp7-021-L')).toEqual([
+      expect.objectContaining({
+        abilityId: S_BP7_021_LIVE_START_STAGE_THREE_MILL_BOTTOM_FIVE_MEMBER_REWARDS_ABILITY_ID,
+        cardCodes: ['PL!S-bp7-021-L'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-020-L')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-021-SECL')).toEqual([]);
+  });
+});
+
+describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 definitions', () => {
+  it('registers exact SECL continuous direction and queued LIVE_SUCCESS as independent abilities', () => {
+    const definitions = getCardAbilityDefinitions('PL!S-bp7-022-SECL');
+    expect(definitions).toHaveLength(2);
+    expect(definitions).toEqual([
+      expect.objectContaining({
+        abilityId: S_BP7_022_CONTINUOUS_CHEER_FROM_DECK_BOTTOM_ABILITY_ID,
+        cardCodes: ['PL!S-bp7-022-SECL'],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        queued: false,
+        implemented: true,
+      }),
+      expect.objectContaining({
+        abilityId:
+          S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID,
+        cardCodes: ['PL!S-bp7-022-SECL'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+        effectText: expect.stringContaining('[スコア]'),
+      }),
+    ]);
+    for (const definition of definitions) {
+      expect(definition.baseCardCodes).toBeUndefined();
+    }
+    expect(getCardAbilityDefinitions('PL!S-bp7-022-L')).toEqual([]);
+  });
+});
+
+describe('bp7 exact member definitions batch four', () => {
+  it.each([
+    [
+      'PL!S-bp7-002-P',
+      S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
+      CardAbilityCategory.ON_ENTER,
+      CardAbilitySourceZone.PLAYED_MEMBER,
+      TriggerCondition.ON_ENTER_STAGE,
+      true,
+      undefined,
+    ],
+    [
+      'PL!S-bp7-016-N',
+      S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID,
+      CardAbilityCategory.CONTINUOUS,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      undefined,
+      false,
+      undefined,
+    ],
+    [
+      'PL!SP-bp7-014-N',
+      SP_BP7_014_AUTO_ON_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
+      CardAbilityCategory.AUTO,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      TriggerCondition.ON_MEMBER_SLOT_MOVED,
+      true,
+      1,
+    ],
+  ] as const)(
+    'registers only exact %s',
+    (cardCode, abilityId, category, sourceZone, triggerCondition, queued, perTurnLimit) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId,
+          cardCodes: [cardCode],
+          category,
+          sourceZone,
+          ...(triggerCondition === undefined ? {} : { triggerCondition }),
+          queued,
+          implemented: true,
+          ...(perTurnLimit === undefined ? {} : { perTurnLimit }),
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.baseCardCodes).toBeUndefined();
+    }
+  );
+
+  it.each(['PL!S-bp7-002-N', 'PL!S-bp7-016-P', 'PL!SP-bp7-014-P'])(
+    'does not authorize sibling rarity %s',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
 });

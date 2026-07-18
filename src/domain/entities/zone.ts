@@ -870,6 +870,20 @@ export function drawFromTop(zone: BaseZoneState): { zone: BaseZoneState; cardId:
 }
 
 /**
+ * 从卡组底部抽取一张卡牌。数组末尾为卡组底。
+ */
+export function drawFromBottom(zone: BaseZoneState): { zone: BaseZoneState; cardId: string | null } {
+  if (zone.cardIds.length === 0) {
+    return { zone, cardId: null };
+  }
+
+  return {
+    zone: { ...zone, cardIds: zone.cardIds.slice(0, -1) },
+    cardId: zone.cardIds[zone.cardIds.length - 1] ?? null,
+  };
+}
+
+/**
  * 查看卡组顶部卡牌（不移除）
  * 参考规则 5.7
  */

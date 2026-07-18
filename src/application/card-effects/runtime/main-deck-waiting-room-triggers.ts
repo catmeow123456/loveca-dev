@@ -1,5 +1,6 @@
 import { emitGameEvent, type GameState } from '../../../domain/entities/game.js';
 import {
+  type CardEffectCause,
   createEnterWaitingRoomEvent,
   type EnterWaitingRoomEvent,
 } from '../../../domain/events/game-events.js';
@@ -7,6 +8,7 @@ import { TriggerCondition, ZoneType } from '../../../shared/types/enums.js';
 import {
   moveTopDeckCardsToWaitingRoom,
   moveTopDeckCardsToWaitingRoomWithRefresh,
+  moveBottomDeckCardsToWaitingRoomWithRefresh,
   type MoveCardsToWaitingRoomResult,
   type MoveTopDeckCardsToWaitingRoomWithRefreshResult,
 } from '../../effects/look-top.js';
@@ -20,19 +22,21 @@ export type PrepareMainDeckWaitingRoomGameState = (
 
 export interface MainDeckWaitingRoomTriggerOptions {
   readonly prepareGameStateBeforeEnqueue?: PrepareMainDeckWaitingRoomGameState;
+  readonly cause?: CardEffectCause;
 }
 
 export function enqueueMainDeckCardsEnteredWaitingRoom(
   game: GameState,
   playerId: string,
   movedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  cause?: CardEffectCause
 ): GameState {
   if (movedCardIds.length === 0) {
     return game;
   }
 
-  const enterWaitingRoomEvent = createMainDeckEnterWaitingRoomEvent(playerId, movedCardIds);
+  const enterWaitingRoomEvent = createMainDeckEnterWaitingRoomEvent(playerId, movedCardIds, cause);
   return enqueueTriggeredCardEffects(
     emitGameEvent(game, enterWaitingRoomEvent),
     [TriggerCondition.ON_ENTER_WAITING_ROOM],
@@ -62,7 +66,8 @@ export function moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
       preparedState,
       playerId,
       moveResult.movedCardIds,
-      enqueueTriggeredCardEffects
+      enqueueTriggeredCardEffects,
+      options.cause
     ),
   };
 }
@@ -93,14 +98,53 @@ export function moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
       preparedState,
       playerId,
       moveResult.movedCardIds,
-      enqueueTriggeredCardEffects
+      enqueueTriggeredCardEffects,
+      options.cause
+    ),
+  };
+}
+
+export function moveBottomDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
+  game: GameState,
+  playerId: string,
+  count: number,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: MainDeckWaitingRoomTriggerOptions = {}
+): MoveTopDeckCardsToWaitingRoomWithRefreshResult | null {
+  const moveResult = moveBottomDeckCardsToWaitingRoomWithRefresh(game, playerId, count);
+  if (!moveResult) {
+    return null;
+  }
+
+  const preparedState =
+    options.prepareGameStateBeforeEnqueue?.(
+      moveResult.gameState,
+      moveResult.movedCardIds,
+      moveResult.refreshCount
+    ) ?? moveResult.gameState;
+
+  return {
+    ...moveResult,
+    gameState: enqueueMainDeckCardsEnteredWaitingRoom(
+      preparedState,
+      playerId,
+      moveResult.movedCardIds,
+      enqueueTriggeredCardEffects,
+      options.cause
     ),
   };
 }
 
 function createMainDeckEnterWaitingRoomEvent(
   playerId: string,
-  movedCardIds: readonly string[]
+  movedCardIds: readonly string[],
+  cause?: CardEffectCause
 ): EnterWaitingRoomEvent {
-  return createEnterWaitingRoomEvent(movedCardIds, ZoneType.MAIN_DECK, playerId, playerId);
+  return createEnterWaitingRoomEvent(
+    movedCardIds,
+    ZoneType.MAIN_DECK,
+    playerId,
+    playerId,
+    cause
+  );
 }

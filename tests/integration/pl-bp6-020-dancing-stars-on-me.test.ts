@@ -16,6 +16,7 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
@@ -158,6 +159,18 @@ function confirmIfConfirmOnly(game: GameState): GameState {
 }
 
 describe('PL!-bp6-020 Dancing stars on me!', () => {
+  it('does not enqueue the resolved-observer AUTO ability at the raw LIVE_START timing', () => {
+    const scenario = setupState();
+    const state = enqueueTriggeredCardEffects(scenario.game, [TriggerCondition.ON_LIVE_START]);
+    expect(
+      state.pendingAbilities.some(
+        (ability) =>
+          ability.abilityId ===
+          BP6_020_AUTO_CENTER_MUSE_LIVE_START_RESOLVED_POSITION_CHANGE_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
   it('position changes the center Muse member after its LIVE_START ability resolves', () => {
     const scenario = setupState();
     let state = resolvePendingCardEffects(

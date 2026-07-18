@@ -6,11 +6,16 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   HS_BP5_014_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
+  SP_BP7_014_AUTO_ON_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
   SP_SD2_011_AUTO_ON_MOVE_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
+import { getSourceMemberSlot } from '../../runtime/source-member.js';
+import {
+  maybeStartConfirmablePendingAbilityConfirmation,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -31,19 +36,28 @@ const ON_MOVE_GAIN_BLADE_CONFIGS: readonly OnMoveGainBladeConfig[] = [
     amount: 1,
     actionStep: 'ON_MOVE_GAIN_BLADE',
   },
+  {
+    abilityId: SP_BP7_014_AUTO_ON_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
+    amount: 2,
+    actionStep: 'ON_MOVE_GAIN_TWO_BLADE',
+  },
 ];
 
 export function registerOnMoveGainBladeWorkflowHandlers(): void {
   for (const config of ON_MOVE_GAIN_BLADE_CONFIGS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      resolveOnMoveGainBlade(
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) => {
+      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options);
+      if (confirmation) {
+        return confirmation;
+      }
+      return resolveOnMoveGainBlade(
         game,
         ability,
         config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
-    );
+      );
+    });
   }
 }
 
@@ -67,14 +81,30 @@ function resolveOnMoveGainBlade(
     abilityId: ability.abilityId,
     sourceCardId: ability.sourceCardId,
   });
-  const bladeResult = addBladeLiveModifierForSourceMember(stateAfterUseRecord, {
-    playerId: player.id,
-    sourceCardId: ability.sourceCardId,
-    abilityId: ability.abilityId,
-    amount: config.amount,
-  });
+  const sourceSlot = getSourceMemberSlot(stateAfterUseRecord, player.id, ability.sourceCardId);
+  const bladeResult =
+    sourceSlot === null
+      ? null
+      : addBladeLiveModifierForSourceMember(stateAfterUseRecord, {
+          playerId: player.id,
+          sourceCardId: ability.sourceCardId,
+          abilityId: ability.abilityId,
+          amount: config.amount,
+        });
   if (!bladeResult) {
-    return game;
+    return continuePendingCardEffects(
+      addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'NO_OP_SOURCE_MEMBER_UNAVAILABLE',
+        sourceSlot: ability.sourceSlot,
+        fromSlot: ability.metadata?.fromSlot,
+        toSlot: ability.metadata?.toSlot,
+        swappedCardInstanceId: ability.metadata?.swappedCardInstanceId,
+      }),
+      orderedResolution
+    );
   }
 
   return continuePendingCardEffects(

@@ -10,6 +10,20 @@
 - 已进入桌面的频率保护不再向用户显示“请求过于频繁 / 请重试”，而是保留桌面并提示“观战同步暂时繁忙，正在自动恢复”；普通网络失败提示“观战同步中断，正在重新连接”。新会话容量已满仍作为入口阻断，提示稍后再进入。
 - focused 验证覆盖静止 10 秒请求预算、慢请求不重入、429 等待后单次探测、视角切换旧响应丢弃、未修改会话引用稳定、同会话快照/日志共享退避、快照与按水位日志串行、服务端等待时间与路由响应，共 7 files / 78 tests 通过；shared/server/client TypeScript 与客户端相关文件 ESLint 通过；全仓 `pnpm test:run` 505 files / 5008 tests 通过，3 个 performance 文件 / 3 项测试按默认配置跳过。提交前审查补充视角切换会话代际校验与 token 变化初始化清理，并同步联机需求和设计文档；待生产环境复验，未 commit、未 push。
 
+## 2026-07-18：bp7 第四批成员卡效与 shared family 晋升（未提交）
+
+- 完成 exact `PL!S-bp7-002-P` 费用4「樱内梨子」：扩展 `member-on-enter-draw.ts` 的主舞台有效费用门槛/可选团体配置，以 `getMemberEffectiveCost` + `cardBelongsToGroup` 实时重扫己方三个顶层成员，满足 Aqours 有效费用>=9时抽1；confirm-only 显示当前数量/条件/实际抽牌。
+- `PL!-bp3-009-R＋ / P / P＋ / SEC` 费用2「矢澤にこ」ON_ENTER 段晋升到同一 shared family，保留费用13、独立 abilityId、实时文案、来源离场后结算与抽牌刷新语义；`pl-bp3-009-nico.ts` 只保留起动 Heart 能力。
+- 完成 exact `PL!S-bp7-016-N` 费用15「国木田花丸」 continuous registry 三成员条件下 SOURCE_MEMBER 红/绿/蓝 Heart 各1；完成 exact `PL!SP-bp7-014-N` 费用4「岚千砂都」on-move BLADE +2。on-move family 同时修正来源 stale/null 时遗留 pending：改为 no-op action + 统一 continuation，旧两张 +1 卡保持。
+- Focused/classification 共 538 项已通过；token/text 16 项、server/client TypeScript、玩家文案审计与 `git diff --check` 均通过。Runner 本批不新增 register/import，仍为 3760 行；不建立 ON_ENTER/持续 Heart/移动奖励 DSL，未 stage/commit/push。
+
+## 2026-07-18：Aqours bp7 第二批 bottom direct-mill 卡效（未提交）
+
+- 修正 `PL!S-bp7-006-P` 费用2「津岛善子」、`PL!S-bp7-015-N` 费用5「津岛善子」、`PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」的底牌展示时序：实际移动入休息室后先用 `revealedCardIds` 向双方展示，公开窗口确认前不写 Heart/必要 Heart、抽牌或 SCORE modifier，确认后才按实际移动集合判定并继续待机池；真实公开窗口取代满足舞台条件时的纯 confirm-only，不产生双弹窗。
+- 完成 exact `PL!S-bp7-020-SECL` 分数3「快乐派对火车」两段独立 LIVE_START：公开的全舞台顶层成员 ACTIVE 条件复用 `conditional-live-modifier`，底1结构化 Aqours MEMBER 条件复用第一批 bottom helper；两条来源 LIVE requirement modifier 可叠加且各自 replacement 幂等。
+- 完成 exact `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」：舞台3名门槛后 refresh-aware 底5，实际5张中 MEMBER 3～4张抽1、5张抽1且来源 LIVE SCORE +1；完整 action 后才入队分组等待室事件。未扩 gain-heart family、未建立 reward DSL、未实现底部声援或其他 bp7；未 stage/commit/push。
+- 完成 exact `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」：统一普通/手动/自动/追加/重做声援的 TOP/BOTTOM 纯 query 与 `CheerEvent`/action 审计事实；LIVE 成功段按 event-inclusive 当前声援事实做三张不同 Aqours 成员印刷红绿蓝 Heart 匹配，以来源 LIVE SCORE replacement 和差值刷新结算。未与 bottom direct-mill 合并，未建立方向/Heart DSL，未实现其他 bp7。
+
 ## 2026-07-18：费用11「葉月 恋」卡组顶放置费用/效果边界修正（未提交）
 
 - 修正 `PL!SP-bp5-005-P / R＋ / AR / SEC` 费用 11「葉月 恋」第一条起动能力误沿用 `PL!SP-bp5-006` 费用 11「桜小路希奈子」 FAQ Q234 费用门禁的问题；叶月恋的卡组顶放置改为 refresh-aware 效果处理，主卡组不足3张仍可发动，卡组耗尽时将休息室洗回后继续放置，按本次放置的卡中 Liella! 成员数获得 BLADE，且不记录 `PAY_COST`。
