@@ -193,4 +193,5 @@ pnpm test:run tests/integration/live-start-timing.test.ts tests/unit/live-modifi
 # 本回合成员登场事件次数（已落地）
 
 - `countMemberEntriesThisTurn(game, playerId)` 与 `getMemberEntryOrdinalForEvent(game, playerId, eventId)` 已归属 `domain/rules/member-turn-state.ts`，并从 `application/effects/conditions.ts` re-export。
-- 数据源是权威 `GameState.eventLog` 中当前回合的 `ON_ENTER_STAGE` 事件；不读取当前舞台人数、不对实例去重、不读取 `movedToStageThisTurn`，因此离场、同实例再次登场与同批第3/第4事件均保持正确语义。
+- 数据源是权威 `GameState.eventLog` 中当前回合的 `ON_ENTER_STAGE` 事件；`GameService.advancePhase` 在真实新回合切换时写入旧回合 `ON_TURN_END`（首回合除外）及新回合 `ON_TURN_START`，供该查询截取当前事件窗口。不读取当前舞台人数、不对实例去重、不读取 `movedToStageThisTurn`，因此离场、同实例再次登场与同批第3/第4事件均保持正确语义。
+- `hasMemberEnteredStageThisTurnMatching(game, playerId, selector)` 在同一 domain 模块提供窄布尔查询，并从 `application/effects/conditions.ts` re-export。它只检查当前回合 `controllerId` 匹配的 `ON_ENTER_STAGE` 事件所指成员实例，再应用现有 selector；成员之后离场仍保持事件事实，单纯站位变换、对方事件、非成员以及仅写入 `movedToStageThisTurn` 的伪数据不命中。当前消费者是 `PL!N-bp1-006` 费用13「近江彼方」第一条起动能力；该 query 不是条件 AST、通用事件扫描 callback 或事件 DSL。

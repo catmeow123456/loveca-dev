@@ -43,6 +43,7 @@ import { partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers } fro
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   revealHandCardForActiveEffect,
+  revealHandCardsForActiveEffect,
 } from '../../src/application/card-effects/runtime/active-effect';
 import { getNewMemberSlotMovedEvents } from '../../src/application/card-effects/runtime/events';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
@@ -985,6 +986,48 @@ describe('card effect runtime actions', () => {
     });
 
     expect(result.activeEffect?.revealedCardIds).toEqual([cardIds[0], cardIds[1]]);
+  });
+
+  it('reveals multiple hand cards in one action and clears prior selection fields', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 3);
+    setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
+    const activeState = withRevealHandActiveEffect(state, {
+      selectableCardIds: cardIds,
+      minSelectableCards: 2,
+      maxSelectableCards: 2,
+      selectionLabel: '旧选择',
+      confirmSelectionLabel: '旧按钮',
+      canSkipSelection: false,
+    });
+
+    const result = revealHandCardsForActiveEffect(activeState, {
+      effect: activeState.activeEffect!,
+      playerId: PLAYER1,
+      selectedCardIds: [cardIds[2], cardIds[0]],
+      nextStepId: 'CONFIRM_REVEALED_MULTI',
+      nextStepText: '已一次性公开所选手牌',
+      actionStep: 'REVEAL_HAND_CARDS',
+      selectableCardIds: undefined,
+      selectableCardVisibility: undefined,
+      selectableCardMode: undefined,
+      selectionLabel: '公开的卡片',
+      confirmSelectionLabel: '确认公开结果',
+      canSkipSelection: false,
+    });
+
+    expect(result.activeEffect).toMatchObject({
+      stepId: 'CONFIRM_REVEALED_MULTI',
+      revealedCardIds: [cardIds[2], cardIds[0]],
+      selectionLabel: '公开的卡片',
+      confirmSelectionLabel: '确认公开结果',
+    });
+    expect(result.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(result.activeEffect?.selectableCardVisibility).toBeUndefined();
+    expect(result.activeEffect?.selectableCardMode).toBeUndefined();
+    expect(result.activeEffect?.minSelectableCards).toBeUndefined();
+    expect(result.activeEffect?.maxSelectableCards).toBeUndefined();
+    expect(result.actionHistory.filter((action) => action.payload.step === 'REVEAL_HAND_CARDS')).toHaveLength(1);
   });
 
   it('does not update reveal-from-hand effects for invalid candidates, missing hand cards, or missing players', () => {

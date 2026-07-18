@@ -5,6 +5,7 @@ import type {
 } from '../../../domain/entities/game.js';
 import {
   EnergySelectionRequiredError,
+  getEnergySelectionCandidates,
   withEnergySelectionResolutions,
   type EnergySelectionOperation,
   type EnergySelectionResolution,
@@ -160,6 +161,14 @@ export function resolveEnergyOperationSelectionStep(
       (cardId) => game.activeEffect?.selectableCardIds?.includes(cardId) !== true
     )
   ) {
+    return game;
+  }
+  const currentCandidateEnergyCardIds = getEnergySelectionCandidates(
+    game,
+    continuation.playerId,
+    continuation.operation
+  );
+  if (selectedEnergyCardIds.some((cardId) => !currentCandidateEnergyCardIds.includes(cardId))) {
     return game;
   }
 

@@ -16,11 +16,7 @@ import {
   addLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
-import {
-  BladeHeartEffect,
-  HeartColor,
-  TriggerCondition,
-} from '../../../../shared/types/enums.js';
+import { BladeHeartEffect, HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
 import { N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -50,9 +46,7 @@ function resolveNBp5001AyumuOnCheer(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   if (!player || sourceSlot === null) {
     return skipPendingAbility(
       game,
@@ -76,7 +70,8 @@ function resolveNBp5001AyumuOnCheer(
     );
   }
 
-  const heartColors = collectBladeHeartColorsFromCheerEvent(game, player.id, cheerEvent);
+  const revealedCardIds = selectCurrentLiveRevealedCheerCardIds(game, player.id);
+  const heartColors = collectBladeHeartColorsFromCurrentLiveCheer(game, player.id, revealedCardIds);
   const bladeHeartTypeCount = heartColors.size;
   const shouldGainHeart = bladeHeartTypeCount >= 3;
   const shouldGainScore = bladeHeartTypeCount >= 6;
@@ -120,7 +115,7 @@ function resolveNBp5001AyumuOnCheer(
       sourceSlot,
       step: 'COUNT_CHEER_BLADE_HEART_TYPES',
       cheerEventId: cheerEvent.eventId,
-      revealedCardIds: cheerEvent.revealedCardIds,
+      revealedCardIds,
       bladeHeartColors: [...heartColors],
       bladeHeartTypeCount,
       gainedPinkHeart: shouldGainHeart,
@@ -150,16 +145,12 @@ function getOwnCheerEventForAbility(
   return events.at(-1) ?? null;
 }
 
-function collectBladeHeartColorsFromCheerEvent(
+function collectBladeHeartColorsFromCurrentLiveCheer(
   game: GameState,
   playerId: string,
-  cheerEvent: CheerEvent
+  revealedCardIds: readonly string[]
 ): ReadonlySet<HeartColor> {
   const colors = new Set<HeartColor>();
-  const revealedCardIds = selectCurrentLiveRevealedCheerCardIds(game, playerId, {
-    eventIds: [cheerEvent.eventId],
-    eventScope: 'NON_ADDITIONAL',
-  });
   for (const cardId of revealedCardIds) {
     const card = getCardById(game, cardId);
     if (!card || card.ownerId !== playerId) {
@@ -206,7 +197,9 @@ function skipPendingAbility(
 function removePendingAbility(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }
 

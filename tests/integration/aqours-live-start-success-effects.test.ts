@@ -15,10 +15,11 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { clearTurnMoveRecords } from '../../src/domain/entities/player';
-import { createCheerEvent } from '../../src/domain/events/game-events';
+import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/events/game-events';
 import { collectLiveModifiers } from '../../src/domain/rules/live-modifiers';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
@@ -157,7 +158,7 @@ function placeLiveZone(
   }));
 }
 
-function setCurrentCenterCheerCards(game: GameState, cardIds: readonly string[]): GameState {
+function setCurrentCheerCards(game: GameState, cardIds: readonly string[]): GameState {
   return {
     ...game,
     liveResolution: {
@@ -225,11 +226,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       PLAYER1,
       'my-mai-tonight-cn'
     );
-    const member = createCardInstance(
-      createMemberCard('PL!S-stage-member'),
-      PLAYER1,
-      'stage-member'
-    );
+    const member = createCardInstance(createMemberCard('PL!S-stage-member'), PLAYER1, 'stage-member');
     let game = registerCards(createGameState('bp2-023-cn-only', PLAYER1, 'P1', PLAYER2, 'P2'), [
       sourceLive,
       member,
@@ -268,7 +265,11 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       PLAYER1,
       'non-aqours-live'
     );
-    const member = createCardInstance(createMemberCard('PL!S-stage-member'), PLAYER1, 'stage-member');
+    const member = createCardInstance(
+      createMemberCard('PL!S-stage-member'),
+      PLAYER1,
+      'stage-member'
+    );
     let game = registerCards(createGameState('bp2-023-miss', PLAYER1, 'P1', PLAYER2, 'P2'), [
       sourceLive,
       sameNameLive,
@@ -565,7 +566,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       game,
       createCheerEvent(PLAYER1, [scoreAqoursLive.instanceId], 1, { additional: false })
     );
-    game = setCurrentCenterCheerCards(game, [scoreAqoursLive.instanceId]);
+    game = setCurrentCheerCards(game, [scoreAqoursLive.instanceId]);
     game = {
       ...game,
       pendingAbilities: [
@@ -591,6 +592,44 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       abilityId: S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
     });
   });
+
+  it.each([
+    { slot: SlotPosition.LEFT, expectedPendingCount: 0 },
+    { slot: SlotPosition.CENTER, expectedPendingCount: 1 },
+    { slot: SlotPosition.RIGHT, expectedPendingCount: 0 },
+  ])(
+    'PL!S-bp6-009 LIVE_SUCCESS only queues while the source is in CENTER: $slot',
+    ({ slot, expectedPendingCount }) => {
+      const ruby = createCardInstance(
+        createMemberCard('PL!S-bp6-009-P', { name: '黒澤ルビィ', cost: 9 }),
+        PLAYER1,
+        `ruby-source-slot-${slot}`
+      );
+      const successfulLive = createCardInstance(
+        createLiveCard('PL!S-successful-live'),
+        PLAYER1,
+        `successful-live-${slot}`
+      );
+      let game = registerCards(
+        createGameState(`bp6-009-source-slot-${slot}`, PLAYER1, 'P1', PLAYER2, 'P2'),
+        [ruby, successfulLive]
+      );
+      game = placeStageMembers(game, [{ cardId: ruby.instanceId, slot }]);
+      game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_LIVE_SUCCESS], {
+        liveSuccessEvents: [
+          createLiveSuccessEvent(PLAYER1, [successfulLive.instanceId], successfulLive.data.score),
+        ],
+      });
+
+      expect(
+        game.pendingAbilities.filter(
+          (ability) =>
+            ability.abilityId ===
+            S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toHaveLength(expectedPendingCount);
+    }
+  );
 
   it('PL!S-bp6-009 LIVE_SUCCESS ignores historical center cheer from a previous Live', () => {
     const ruby = createCardInstance(
@@ -621,7 +660,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       game,
       createCheerEvent(PLAYER1, [currentNoScoreAqoursLive.instanceId], 1)
     );
-    game = setCurrentCenterCheerCards(game, [currentNoScoreAqoursLive.instanceId]);
+    game = setCurrentCheerCards(game, [currentNoScoreAqoursLive.instanceId]);
     game = {
       ...game,
       pendingAbilities: [
@@ -639,7 +678,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
     expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
   });
 
-  it('PL!S-bp6-009 LIVE_SUCCESS ignores non-score targets and additional cheer', () => {
+  it('PL!S-bp6-009 LIVE_SUCCESS counts a SCORE Aqours LIVE revealed by additional cheer', () => {
     const ruby = createCardInstance(createMemberCard('PL!S-bp6-009-P'), PLAYER1, 'ruby-no-score');
     const scoreAqoursLive = createCardInstance(
       createLiveCard('PL!S-score-aqours-live', { hasScore: true }),
@@ -662,7 +701,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       game,
       createCheerEvent(PLAYER1, [scoreAqoursLive.instanceId], 1, { additional: true })
     );
-    game = setCurrentCenterCheerCards(game, [
+    game = setCurrentCheerCards(game, [
       noScoreAqoursLive.instanceId,
       scoreAqoursLive.instanceId,
     ]);
@@ -677,10 +716,18 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       ],
     };
 
-    const resolved = confirmIfConfirmOnly(resolvePendingCardEffects(game).gameState);
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect?.effectText).toContain('当前声援[スコア]Aqours LIVE 1张');
+    const resolved = confirmIfConfirmOnly(preview);
 
-    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
-    expect(resolved.liveResolution.liveModifiers).toHaveLength(0);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual({
+      kind: 'SCORE',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: ruby.instanceId,
+      abilityId: S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
+    });
   });
 });
 

@@ -17,6 +17,7 @@ import {
   SP_BP4_005_ON_ENTER_LIELLA_RELAY_ENERGY_SEVEN_PLACE_TWO_WAITING_ENERGY_ABILITY_ID,
   SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP5_021_ACTIVATED_SELF_SACRIFICE_ENERGY_SIX_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
@@ -52,6 +53,10 @@ export function registerStageMemberWaitingEnergyPlacementWorkflowHandlers(deps: 
     SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_ABILITY_ID,
     (game, playerId, cardId) => startBp4010PayEnergyWaitSelfPlaceEnergy(game, playerId, cardId, deps)
   );
+  registerActivatedAbilityHandler(
+    SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+    (game, playerId, cardId) => startSd1011PayEnergyPlaceWaitingEnergy(game, playerId, cardId)
+  );
   registerPendingAbilityStarterHandler(
     SP_BP4_005_ON_ENTER_LIELLA_RELAY_ENERGY_SEVEN_PLACE_TWO_WAITING_ENERGY_ABILITY_ID,
     (game, ability, options, context) =>
@@ -62,6 +67,68 @@ export function registerStageMemberWaitingEnergyPlacementWorkflowHandlers(deps: 
         context.continuePendingCardEffects
       )
   );
+}
+
+function startSd1011PayEnergyPlaceWaitingEnergy(
+  game: GameState,
+  playerId: string,
+  cardId: string
+): GameState {
+  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
+    return game;
+  }
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, cardId);
+  if (
+    game.players[game.activePlayerIndex]?.id !== playerId ||
+    !player ||
+    !sourceCard ||
+    sourceCard.ownerId !== playerId ||
+    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-sd1-011') ||
+    !isMemberCardData(sourceCard.data) ||
+    findMemberSlot(player, cardId) === null
+  ) {
+    return game;
+  }
+
+  const costPayment = payImmediateEffectCosts(game, player.id, cardId, [
+    { kind: 'TAP_ACTIVE_ENERGY', count: 2 },
+  ]);
+  if (!costPayment) {
+    return game;
+  }
+
+  let state = recordPayCostAction(costPayment.gameState, player.id, {
+    abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+    sourceCardId: cardId,
+    energyCardIds: costPayment.paidEnergyCardIds,
+    amount: costPayment.paidEnergyCardIds.length,
+  });
+  state = recordAbilityUseForContext(state, player.id, {
+    abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+    sourceCardId: cardId,
+  });
+  const energyPlacement = placeEnergyFromDeckToZoneByCardEffect(
+    state,
+    player.id,
+    1,
+    OrientationState.WAITING,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: cardId,
+      abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+    }
+  );
+  state = energyPlacement?.gameState ?? state;
+
+  return addAction(state, 'RESOLVE_ABILITY', player.id, {
+    abilityId: SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+    sourceCardId: cardId,
+    step: 'PAY_TWO_ENERGY_PLACE_WAITING_ENERGY',
+    paidEnergyCardIds: costPayment.paidEnergyCardIds,
+    placedEnergyCardIds: energyPlacement?.placedEnergyCardIds ?? [],
+  });
 }
 
 function startBp5021SelfSacrificeEnergyPlacement(

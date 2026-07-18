@@ -269,7 +269,7 @@ describe('PL!SP-bp2-005 P/R 费用4「葉月 恋」', () => {
       stepText:
         '没有可加入手牌的『Liella!』卡片。确认后其余卡片放置入休息室。',
       selectableCardIds: [],
-      skipSelectionLabel: '确认',
+      skipSelectionLabel: '全部放置入休息室',
     });
   });
 

@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { CardType } from '../../../../shared/types/enums.js';
+import { CardType, TriggerCondition } from '../../../../shared/types/enums.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import {
   S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID,
@@ -99,16 +99,19 @@ function resolveOnCheerDrawOne(
     });
   }
 
+  const hasOwnNormalCheerTrigger = hasOwnNormalCheerEventForAbility(game, ability, player.id);
   const matchingLiveCardIds = selectCurrentLiveRevealedCheerCardIds(game, player.id, {
-    eventIds: ability.eventIds,
-    eventScope: 'NON_ADDITIONAL',
     cardTypes: CardType.LIVE,
   });
-  const conditionMet = matchingLiveCardIds.length >= 1 && player.hand.cardIds.length <= 7;
+  const conditionMet =
+    hasOwnNormalCheerTrigger &&
+    matchingLiveCardIds.length >= 1 &&
+    player.hand.cardIds.length <= 7;
   if (!conditionMet) {
     return consumePending(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
       step: 'CHEER_LIVE_OR_HAND_CONDITION_NOT_MET',
       sourceSlot,
+      hasOwnNormalCheerTrigger,
       matchingLiveCardIds,
       handCardCount: player.hand.cardIds.length,
     });
@@ -134,6 +137,23 @@ function resolveOnCheerDrawOne(
       drawnCardIds: drawResult.drawnCardIds,
     }),
     orderedResolution
+  );
+}
+
+function hasOwnNormalCheerEventForAbility(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): boolean {
+  const eventIds = new Set(ability.eventIds);
+  return game.eventLog.some(
+    ({ event }) =>
+      event.eventType === TriggerCondition.ON_CHEER &&
+      'playerId' in event &&
+      'additional' in event &&
+      event.playerId === playerId &&
+      event.additional !== true &&
+      eventIds.has(event.eventId)
   );
 }
 

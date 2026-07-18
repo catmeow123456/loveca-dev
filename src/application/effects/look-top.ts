@@ -6,6 +6,7 @@ import { ZoneType } from '../../shared/types/enums.js';
 import { applyCheckTopRefreshForPlayer, applyPendingRefreshForPlayer } from './refresh.js';
 
 export type InspectionCardPredicate = (card: CardInstance) => boolean;
+export type InspectionCardStatePredicate = (game: GameState, card: CardInstance) => boolean;
 
 export interface InspectTopCardsConfig {
   readonly count: number;
@@ -18,6 +19,12 @@ export interface InspectTopCardsResult {
   readonly gameState: GameState;
   readonly inspectedCardIds: readonly string[];
   readonly selectableCardIds: readonly string[];
+}
+
+export interface InspectTopCardsUntilMatchResult {
+  readonly gameState: GameState;
+  readonly inspectedCardIds: readonly string[];
+  readonly hitCardId: string | null;
 }
 
 export interface MoveInspectedSelectionResult {
@@ -83,6 +90,38 @@ export function inspectTopCards(
     inspectedCardIds,
     selectableCardIds,
   };
+}
+
+export function inspectTopCardsUntilMatch(
+  game: GameState,
+  playerId: string,
+  predicate: InspectionCardStatePredicate
+): InspectTopCardsUntilMatchResult | null {
+  let state = game;
+  const inspectedCardIds: string[] = [];
+
+  while (true) {
+    const player = getPlayerById(state, playerId);
+    if (!player) {
+      return null;
+    }
+    if (player.mainDeck.cardIds.length === 0 && player.waitingRoom.cardIds.length === 0) {
+      return { gameState: state, inspectedCardIds, hitCardId: null };
+    }
+
+    const inspection = inspectTopCards(state, playerId, { count: 1, reveal: true });
+    const inspectedCardId = inspection?.inspectedCardIds[0] ?? null;
+    if (!inspection || inspectedCardId === null) {
+      return { gameState: state, inspectedCardIds, hitCardId: null };
+    }
+
+    state = inspection.gameState;
+    inspectedCardIds.push(inspectedCardId);
+    const inspectedCard = getCardById(state, inspectedCardId);
+    if (inspectedCard && predicate(state, inspectedCard)) {
+      return { gameState: state, inspectedCardIds, hitCardId: inspectedCardId };
+    }
+  }
 }
 
 export function moveInspectedSelectionToHandRestToWaitingRoom(

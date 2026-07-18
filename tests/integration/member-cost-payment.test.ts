@@ -716,6 +716,102 @@ describe('member cost payment', () => {
     ).toBe(true);
   });
 
+  it('does not increase PL!S-bp3-016-N entry cost while it is still in hand', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame('s-bp3-016-hand-entry-cost', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 4);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+    };
+    const memberCardId = [...player.hand.cardIds, ...player.mainDeck.cardIds].find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const successLiveCardIds = player.mainDeck.cardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    ).slice(0, 3);
+    expect(memberCardId).toBeTruthy();
+    expect(successLiveCardIds).toHaveLength(3);
+    const member = state.cardRegistry.get(memberCardId!) as unknown as { data: MemberCardData };
+    member.data = createMemberCard('PL!S-bp3-016-N', '国木田花丸', 4);
+    player.hand.cardIds = [memberCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== memberCardId && !successLiveCardIds.includes(cardId)
+    );
+    player.successZone.cardIds = successLiveCardIds;
+
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER)
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(
+      session.state?.actionHistory.some(
+        (action) => action.type === 'PAY_COST' && action.payload.amount === 4
+      )
+    ).toBe(true);
+  });
+
+  it.each([
+    { successCount: 1, expectedEffectiveCost: 5 },
+    { successCount: 3, expectedEffectiveCost: 7 },
+  ])('uses PL!S-bp3-016-N effective cost for relay and updates with $successCount success Live cards', ({ successCount, expectedEffectiveCost }) => {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame(`s-bp3-016-relay-${successCount}`, PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 10);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const memberIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const incomingId = memberIds[0];
+    const hanamaruId = memberIds[1];
+    const successLiveIds = player.mainDeck.cardIds.filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    ).slice(0, successCount);
+    const incoming = state.cardRegistry.get(incomingId!) as unknown as { data: MemberCardData };
+    incoming.data = createMemberCard('PL!S-test-cost-ten', '10费测试成员', 10);
+    const hanamaru = state.cardRegistry.get(hanamaruId!) as unknown as { data: MemberCardData };
+    hanamaru.data = createMemberCard('PL!S-bp3-016-N', '国木田花丸', 4);
+    player.hand.cardIds = [incomingId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== incomingId && cardId !== hanamaruId && !successLiveIds.includes(cardId)
+    );
+    player.successZone.cardIds = successLiveIds;
+    player.memberSlots.slots[SlotPosition.CENTER] = hanamaruId!;
+    player.memberSlots.cardStates = new Map([
+      [hanamaruId!, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingId!, SlotPosition.CENTER)
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+      eventType: TriggerCondition.ON_ENTER_STAGE,
+      cardInstanceId: incomingId,
+      replacedMemberCardId: hanamaruId,
+      replacedMemberEffectiveCost: expectedEffectiveCost,
+    });
+  });
+
   it('uses PL!SP-pb1-010 continuous effective cost for relay payment at ten energy', () => {
     const session = createGameSession();
     const deck = createDeck();

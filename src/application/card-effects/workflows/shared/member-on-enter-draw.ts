@@ -8,7 +8,10 @@ import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
+  PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
+  SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID,
+  SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
   SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -18,7 +21,7 @@ import {
   successLiveScoreAtLeast,
   sumSuccessfulLiveScore,
 } from '../../../effects/conditions.js';
-import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
+import { and, cardNameAliasIs, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -31,10 +34,13 @@ interface MemberOnEnterDrawConfig {
   readonly drawCount: number;
   readonly actionStep: string;
   readonly minEnergyCount?: number;
+  readonly energyPerDraw?: number;
   readonly minSuccessLiveCardCount?: number;
   readonly minSuccessLiveScore?: number;
   readonly minWaitingRoomCount?: number;
   readonly requiredOtherStageUnitAlias?: string;
+  readonly bonusDrawCount?: number;
+  readonly bonusStageMemberName?: string;
 }
 
 const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
@@ -56,7 +62,19 @@ const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
     minEnergyCount: 7,
   },
   {
+    abilityId: SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
+    drawCount: 0,
+    actionStep: 'ON_ENTER_DRAW_PER_SIX_ENERGY',
+    energyPerDraw: 6,
+  },
+  {
     abilityId: PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ONE',
+    minSuccessLiveScore: 3,
+  },
+  {
+    abilityId: PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
     drawCount: 1,
     actionStep: 'ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ONE',
     minSuccessLiveScore: 3,
@@ -72,6 +90,13 @@ const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
     drawCount: 1,
     actionStep: 'ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE',
     requiredOtherStageUnitAlias: '5yncri5e!',
+  },
+  {
+    abilityId: SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'ON_ENTER_DRAW_ONE_BONUS_IF_MEI',
+    bonusDrawCount: 1,
+    bonusStageMemberName: '米女メイ',
   },
 ];
 
@@ -198,10 +223,22 @@ function resolveMemberOnEnterDraw(
     );
   }
 
-  const drawResult = drawCardsForPlayer(stateAfterUseRecord, player.id, config.drawCount);
-  if (!drawResult) {
-    return game;
-  }
+  const hasBonusStageMember =
+    config.bonusStageMemberName !== undefined &&
+    hasStageMemberMatching(game, player.id, cardNameAliasIs(config.bonusStageMemberName));
+  const dynamicEnergyDrawCount =
+    config.energyPerDraw === undefined ? 0 : Math.floor(energyCount / config.energyPerDraw);
+  const requestedDrawCount =
+    config.drawCount +
+    dynamicEnergyDrawCount +
+    (hasBonusStageMember ? (config.bonusDrawCount ?? 0) : 0);
+  const drawResult =
+    requestedDrawCount === 0
+      ? { gameState: stateAfterUseRecord, drawnCardIds: [] as readonly string[] }
+      : drawCardsForPlayer(stateAfterUseRecord, player.id, requestedDrawCount) ?? {
+          gameState: stateAfterUseRecord,
+          drawnCardIds: [] as readonly string[],
+        };
 
   return continuePendingCardEffects(
     addAction(drawResult.gameState, 'RESOLVE_ABILITY', player.id, {
@@ -212,6 +249,7 @@ function resolveMemberOnEnterDraw(
       sourceSlot: ability.sourceSlot,
       energyCount,
       requiredEnergyCount: config.minEnergyCount,
+      energyPerDraw: config.energyPerDraw,
       waitingRoomCount,
       requiredWaitingRoomCount: config.minWaitingRoomCount,
       successLiveScore,
@@ -220,6 +258,9 @@ function resolveMemberOnEnterDraw(
       requiredSuccessLiveCardCount: config.minSuccessLiveCardCount,
       requiredOtherStageUnitAlias: config.requiredOtherStageUnitAlias,
       hasRequiredOtherStageUnitMember,
+      bonusStageMemberName: config.bonusStageMemberName,
+      hasBonusStageMember,
+      requestedDrawCount,
       drawnCardIds: drawResult.drawnCardIds,
       drawCount: drawResult.drawnCardIds.length,
     }),

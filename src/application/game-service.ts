@@ -64,6 +64,8 @@ import {
   createLiveStartEvent,
   createLiveSuccessEvent,
   createMemberStateChangedEvent,
+  createTurnEndEvent,
+  createTurnStartEvent,
 } from '../domain/events/game-events.js';
 import type { LiveSuccessEvent } from '../domain/events/game-events.js';
 import type { PlayerState } from '../domain/entities/player.js';
@@ -327,9 +329,6 @@ export class GameService {
       game.currentPhase === GamePhase.LIVE_SET_PHASE &&
       action.type === GameActionType.SET_LIVE_CARD;
 
-    // Mulligan 阶段双方玩家都可以换牌
-    const isMulliganPhase = game.currentPhase === GamePhase.MULLIGAN_PHASE;
-
     if (
       (action.type === GameActionType.MANUAL_MOVE_CARD ||
         action.type === GameActionType.TAP_ENERGY) &&
@@ -356,7 +355,6 @@ export class GameService {
       action.type !== GameActionType.SELECT_CARDS &&
       action.type !== GameActionType.CONFIRM_OPTIONAL &&
       !isLiveSetPhaseAction &&
-      !isMulliganPhase &&
       !isOwnDeskFreeDragAction
     ) {
       return {
@@ -609,7 +607,25 @@ export class GameService {
    */
   advancePhase(game: GameState): GameOperationResult {
     const transition = this.phaseManager.getNextPhase(game);
-    let state = this.phaseManager.applyTransition(game, transition);
+    let state = game;
+
+    // “本回合”事件查询以 eventLog 的回合边界为准。第一回合只有开始边界；后续回合
+    // 在切换前先关闭旧回合，避免旧的 ON_ENTER_STAGE / ON_CHEER 事件跨回合泄漏。
+    if (transition.isNewTurn && game.turnCount > 0) {
+      const endingPlayerId = game.players[game.activePlayerIndex]?.id;
+      if (endingPlayerId) {
+        state = emitGameEvent(state, createTurnEndEvent(game.turnCount, endingPlayerId));
+      }
+    }
+
+    state = this.phaseManager.applyTransition(state, transition);
+
+    if (transition.isNewTurn) {
+      const startingPlayerId = state.players[state.activePlayerIndex]?.id;
+      if (startingPlayerId) {
+        state = emitGameEvent(state, createTurnStartEvent(state.turnCount, startingPlayerId));
+      }
+    }
 
     // 进入/离开 Live Set 阶段时，重置该阶段用的一次性完成标记，避免跨回合污染。
     // 注意：Live Set 阶段内部为了切换先/后攻会出现 "LIVE_SET_PHASE -> LIVE_SET_PHASE" 的自循环，

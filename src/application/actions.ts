@@ -159,7 +159,7 @@ export interface SelectSlotAction extends BaseGameAction {
 
 /**
  * 换牌动作（Mulligan）
- * 玩家选择要换的牌，洗入牌库后重新抽取相同数量
+ * 玩家选择要换的牌，先抽取相同数量，再将选中的牌放回主卡组并洗牌
  */
 export interface MulliganAction extends BaseGameAction {
   readonly type: GameActionType.MULLIGAN;

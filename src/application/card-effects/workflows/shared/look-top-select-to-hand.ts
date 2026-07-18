@@ -6,6 +6,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
+import { sumSuccessfulLiveScore } from '../../../../domain/rules/success-live-score.js';
 import {
   CardType,
   HeartColor,
@@ -17,6 +18,12 @@ import {
   HS_BP2_012_LEAVE_STAGE_LOOK_TOP_MEMBER_ABILITY_ID,
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
   PL_S_BP5_007_LIVE_SUCCESS_LOOK_TOP_GREEN_HEART_MEMBER_ABILITY_ID,
+  PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
+  PL_N_PB1_016_ON_ENTER_LOOK_TOP_TWO_KARIN_MEMBER_ABILITY_ID,
+  PL_N_PB1_018_ON_ENTER_LOOK_TOP_TWO_KANATA_MEMBER_ABILITY_ID,
+  PL_N_PB1_021_ON_ENTER_LOOK_TOP_TWO_RINA_MEMBER_ABILITY_ID,
+  PL_N_PB1_024_ON_ENTER_LOOK_TOP_TWO_LANZHU_MEMBER_ABILITY_ID,
+  N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID,
   S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
   S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
   SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
@@ -38,6 +45,7 @@ import {
 import { moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   and,
+  cardNameAliasIs,
   costGte,
   groupAliasIs,
   groupIs,
@@ -102,6 +110,7 @@ export interface LookTopSelectToHandWorkflowConfig {
   readonly optionalSourceOrientationCost?: 'WAITING';
   readonly optionStepId?: string;
   readonly publicEffectSummaryContext?: LookTopSelectToHandPublicSummaryContext;
+  readonly minSuccessfulLiveScore?: number;
 }
 
 export interface LookTopSelectToHandWorkflowOptions {
@@ -160,12 +169,141 @@ const PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_FROM_TOP_FOUR';
 const PL_S_BP5_007_REVEAL_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_REVEAL_SELECTED_GREEN_HEART_MEMBER';
+const PL_BP4_006_SELECT_MUSE_MEMBER_STEP_ID =
+  'PL_BP4_006_SELECT_MUSE_MEMBER_FROM_TOP_FIVE';
+const PL_BP4_006_REVEAL_MUSE_MEMBER_STEP_ID = 'PL_BP4_006_REVEAL_SELECTED_MUSE_MEMBER';
 const SP_BP4_002_OPTION_STEP_ID = 'SP_BP4_002_WAIT_OPTION';
 const SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID = 'SP_BP4_002_SELECT_HIGH_REQUIREMENT_LIELLA_LIVE';
 const SP_BP4_002_REVEAL_LIELLA_LIVE_STEP_ID =
   'SP_BP4_002_REVEAL_SELECTED_HIGH_REQUIREMENT_LIELLA_LIVE';
+const N_PB1_016_SELECT_KARIN_MEMBER_STEP_ID = 'N_PB1_016_SELECT_KARIN_MEMBER_FROM_TOP_TWO';
+const N_PB1_016_REVEAL_KARIN_MEMBER_STEP_ID = 'N_PB1_016_REVEAL_SELECTED_KARIN_MEMBER';
+const N_PB1_018_SELECT_KANATA_MEMBER_STEP_ID = 'N_PB1_018_SELECT_KANATA_MEMBER_FROM_TOP_TWO';
+const N_PB1_018_REVEAL_KANATA_MEMBER_STEP_ID = 'N_PB1_018_REVEAL_SELECTED_KANATA_MEMBER';
+const N_PB1_021_SELECT_RINA_MEMBER_STEP_ID = 'N_PB1_021_SELECT_RINA_MEMBER_FROM_TOP_TWO';
+const N_PB1_021_REVEAL_RINA_MEMBER_STEP_ID = 'N_PB1_021_REVEAL_SELECTED_RINA_MEMBER';
+const N_PB1_024_SELECT_LANZHU_MEMBER_STEP_ID = 'N_PB1_024_SELECT_LANZHU_MEMBER_FROM_TOP_TWO';
+const N_PB1_024_REVEAL_LANZHU_MEMBER_STEP_ID = 'N_PB1_024_REVEAL_SELECTED_LANZHU_MEMBER';
+const N_SD1_001_SELECT_NIJIGASAKI_LIVE_STEP_ID =
+  'N_SD1_001_SELECT_NIJIGASAKI_LIVE_FROM_TOP_FIVE';
+const N_SD1_001_REVEAL_NIJIGASAKI_LIVE_STEP_ID = 'N_SD1_001_REVEAL_SELECTED_NIJIGASAKI_LIVE';
+
+function createNamedMemberLookTopTwoConfig(params: {
+  readonly abilityId: string;
+  readonly memberName: string;
+  readonly selectStepId: string;
+  readonly revealStepId: string;
+}): RegisteredLookTopSelectToHandWorkflowConfig {
+  return {
+    abilityId: params.abilityId,
+    topCount: 2,
+    selector: and(typeIs(CardType.MEMBER), cardNameAliasIs(params.memberName)),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: params.selectStepId,
+    revealStepId: params.revealStepId,
+    selectStepText: getAbilityEffectText(params.abilityId),
+    noTargetStepText: getAbilityEffectText(params.abilityId),
+    selectionLabel: '选择要公开并加入手牌的指定成员',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '全部放置入休息室',
+    revealStepText: getAbilityEffectText(params.abilityId),
+    revealActionStep: 'REVEAL_SELECTED_NAMED_MEMBER',
+    noCardsMode: 'open-selection',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 2,
+    },
+  };
+}
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
+  {
+    abilityId: N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID,
+    topCount: 5,
+    selector: and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲')),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: N_SD1_001_SELECT_NIJIGASAKI_LIVE_STEP_ID,
+    revealStepId: N_SD1_001_REVEAL_NIJIGASAKI_LIVE_STEP_ID,
+    selectStepText: getAbilityEffectText(N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID),
+    noTargetStepText: getAbilityEffectText(
+      N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID
+    ),
+    selectionLabel: '选择要公开并加入手牌的虹咲 LIVE',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '不加入',
+    revealStepText: getAbilityEffectText(
+      N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID
+    ),
+    revealActionStep: 'REVEAL_SELECTED_NIJIGASAKI_LIVE',
+    noCardsMode: 'open-selection',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
+  },
+  createNamedMemberLookTopTwoConfig({
+    abilityId: PL_N_PB1_016_ON_ENTER_LOOK_TOP_TWO_KARIN_MEMBER_ABILITY_ID,
+    memberName: '朝香果林',
+    selectStepId: N_PB1_016_SELECT_KARIN_MEMBER_STEP_ID,
+    revealStepId: N_PB1_016_REVEAL_KARIN_MEMBER_STEP_ID,
+  }),
+  createNamedMemberLookTopTwoConfig({
+    abilityId: PL_N_PB1_018_ON_ENTER_LOOK_TOP_TWO_KANATA_MEMBER_ABILITY_ID,
+    memberName: '近江彼方',
+    selectStepId: N_PB1_018_SELECT_KANATA_MEMBER_STEP_ID,
+    revealStepId: N_PB1_018_REVEAL_KANATA_MEMBER_STEP_ID,
+  }),
+  createNamedMemberLookTopTwoConfig({
+    abilityId: PL_N_PB1_021_ON_ENTER_LOOK_TOP_TWO_RINA_MEMBER_ABILITY_ID,
+    memberName: '天王寺璃奈',
+    selectStepId: N_PB1_021_SELECT_RINA_MEMBER_STEP_ID,
+    revealStepId: N_PB1_021_REVEAL_RINA_MEMBER_STEP_ID,
+  }),
+  createNamedMemberLookTopTwoConfig({
+    abilityId: PL_N_PB1_024_ON_ENTER_LOOK_TOP_TWO_LANZHU_MEMBER_ABILITY_ID,
+    memberName: '鐘嵐珠',
+    selectStepId: N_PB1_024_SELECT_LANZHU_MEMBER_STEP_ID,
+    revealStepId: N_PB1_024_REVEAL_LANZHU_MEMBER_STEP_ID,
+  }),
+  {
+    abilityId: PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID,
+    topCount: 5,
+    selector: and(typeIs(CardType.MEMBER), groupAliasIs("μ's")),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    minSuccessfulLiveScore: 3,
+    selectStepId: PL_BP4_006_SELECT_MUSE_MEMBER_STEP_ID,
+    revealStepId: PL_BP4_006_REVEAL_MUSE_MEMBER_STEP_ID,
+    selectStepText: getAbilityEffectText(
+      PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+    ),
+    noTargetStepText: getAbilityEffectText(
+      PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+    ),
+    selectionLabel: "选择要公开并加入手牌的『μ's』成员",
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '全部放置入休息室',
+    revealStepText: getAbilityEffectText(
+      PL_BP4_006_ON_ENTER_SUCCESS_SCORE_THREE_LOOK_TOP_FIVE_MUSE_MEMBER_ABILITY_ID
+    ),
+    revealActionStep: 'REVEAL_SELECTED_MUSE_MEMBER',
+    noCardsMode: 'open-selection',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 5,
+    },
+  },
   {
     abilityId: SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
     topCount: 4,
@@ -441,15 +579,28 @@ export function registerLookTopSelectToHandWorkflowHandlers(deps: {
         {
           continuePendingCardEffects: context.continuePendingCardEffects,
           enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-        }
+        },
+        (state, selectedCardIds) =>
+          selectedCardIds.every((cardId) => {
+            const card = getCardById(state, cardId);
+            return card !== null && config.selector(card);
+          })
       )
     );
     if (config.revealStepId) {
       registerActiveEffectStepHandler(abilityId, config.revealStepId, (game, _input, context) =>
-        finishRevealedLookTopSelectToHandWorkflow(game, {
-          continuePendingCardEffects: context.continuePendingCardEffects,
-          enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
-        })
+        finishRevealedLookTopSelectToHandWorkflow(
+          game,
+          {
+            continuePendingCardEffects: context.continuePendingCardEffects,
+            enqueueTriggeredCardEffects: deps.enqueueTriggeredCardEffects,
+          },
+          (state, selectedCardIds) =>
+            selectedCardIds.every((cardId) => {
+              const card = getCardById(state, cardId);
+              return card !== null && config.selector(card);
+            })
+        )
       );
     }
   }
@@ -588,6 +739,29 @@ export function startLookTopSelectToHandWorkflow(
     return game;
   }
 
+  if (config.minSuccessfulLiveScore !== undefined) {
+    const successfulLiveScore = sumSuccessfulLiveScore(game, player.id);
+    if (successfulLiveScore < config.minSuccessfulLiveScore) {
+      const state = {
+        ...game,
+        pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      };
+      return options.continuePendingCardEffects(
+        addAction(state, 'RESOLVE_ABILITY', player.id, {
+          pendingAbilityId: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          step: 'SUCCESS_LIVE_SCORE_CONDITION_NOT_MET',
+          successfulLiveScore,
+          requiredSuccessfulLiveScore: config.minSuccessfulLiveScore,
+          conditionMet: false,
+          resultText: `成功LIVE卡区中的卡片分数合计为${successfulLiveScore}，未达到${config.minSuccessfulLiveScore}，不检视卡组顶。`,
+        }),
+        options.orderedResolution === true
+      );
+    }
+  }
+
   if (
     player.mainDeck.cardIds.length === 0 &&
     player.waitingRoom.cardIds.length === 0 &&
@@ -657,7 +831,9 @@ export function startLookTopSelectToHandWorkflow(
         skipSelectionLabel: canSkipSelection
           ? selectableCardIds.length > 0
             ? config.skipSelectionLabel
-            : '确认'
+            : inspectedCardIds.length > 0
+              ? '全部放置入休息室'
+              : '确认'
           : undefined,
         metadata: {
           sourceZone: ZoneType.MAIN_DECK,

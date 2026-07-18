@@ -5,6 +5,32 @@ import {
 } from '../../client/src/lib/cardEffectTokens';
 
 describe('parseCardEffectText', () => {
+  it('maps the fixed pink Heart token used by PL!-bp4-013 Excel text and target copy', () => {
+    const texts = [
+      '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[桃ハート]。',
+      '请选择自己舞台上此成员以外的1名成员获得[桃ハート]。',
+      '选择获得[桃ハート]的成员',
+      '获得[桃ハート]',
+    ];
+    expect(texts.map(getUnknownCardEffectPlaceholders)).toEqual([[], [], [], []]);
+    expect(
+      texts.map((text) => parseCardEffectText(text).filter((part) => part.kind === 'heart').length)
+    ).toEqual([1, 1, 1, 1]);
+  });
+
+  it('maps every BLADE token used by PL!-bp4-014 and PL!-bp4-024 Excel text', () => {
+    const texts = [
+      '【LIVE开始时】自己的LIVE中的LIVE卡，存在不持有【LIVE开始时】能力与【LIVE成功时】能力的卡片的场合，LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[ブレード][ブレード]。',
+      "【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名『μ's』的成员，获得[ブレード]。",
+    ];
+    expect(texts.map(getUnknownCardEffectPlaceholders)).toEqual([[], []]);
+    expect(
+      texts.map(
+        (text) => parseCardEffectText(text).filter((part) => part.kind === 'blade').length
+      )
+    ).toEqual([2, 1]);
+  });
+
   it('accepts the bp1-007 and PR-028 Chinese effect texts without unknown tokens', () => {
     expect(getUnknownCardEffectPlaceholders('【起动】【1回合1次】[E][E]：抽1张卡。')).toEqual([]);
     expect(getUnknownCardEffectPlaceholders('【LIVE成功时】自己的舞台中，存在持有的HEART数量比原本持有的HEART数量多的成员的场合，抽1张卡。')).toEqual([]);

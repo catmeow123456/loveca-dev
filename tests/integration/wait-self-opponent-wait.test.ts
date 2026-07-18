@@ -27,6 +27,8 @@ import {
   PL_N_BP5_004_ON_ENTER_WAIT_SELF_OPPONENT_ORIGINAL_BLADE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
   PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+  PL_PR_007_009_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import {
@@ -68,11 +70,23 @@ function createKarin(cardCode = 'PL!N-bp5-004-AR'): MemberCardData {
   };
 }
 
-function createBp3017Or023(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N'): MemberCardData {
+type CostLteFourWaitCardCode =
+  | 'PL!N-bp3-017-N'
+  | 'PL!N-bp3-023-N'
+  | 'PL!S-bp3-012-N'
+  | 'PL!S-bp3-017-N'
+  | 'PL!-PR-007-PR'
+  | 'PL!-PR-009-PR';
+
+function createCostLteFourWaitSource(cardCode: CostLteFourWaitCardCode): MemberCardData {
   return {
     cardCode,
-    name: cardCode.includes('-017-') ? '宮下 愛' : 'ミア・テイラー',
-    groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
+    name: cardCode,
+    groupNames: cardCode.startsWith('PL!S-')
+      ? ['Aqours']
+      : cardCode.startsWith('PL!-PR-')
+        ? ["μ's"]
+        : ['虹ヶ咲学園スクールアイドル同好会'],
     cardType: CardType.MEMBER,
     cost: 4,
     blade: 2,
@@ -305,8 +319,12 @@ function resolvePayloads(game: GameState, abilityId: string) {
     .map((action) => action.payload);
 }
 
-function setupBp3LiveStart(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
-  const source = createCardInstance(createBp3017Or023(cardCode), PLAYER1, `${cardCode}-source`);
+function setupBp3LiveStart(cardCode: CostLteFourWaitCardCode) {
+  const source = createCardInstance(
+    createCostLteFourWaitSource(cardCode),
+    PLAYER1,
+    `${cardCode}-source`
+  );
   const cost4 = createCardInstance(
     createMember('TEST-COST-4', { cost: 4 }),
     PLAYER2,
@@ -358,14 +376,14 @@ function setupBp3LiveStart(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
   return { game, source, cost4, cost5, waitingCost3, ownCost2, belowCost1 };
 }
 
-function playBp3Source(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
+function playBp3Source(cardCode: CostLteFourWaitCardCode) {
   const session = createGameSession();
   const deck = createDeck();
   session.createGame(`${cardCode}-on-enter`, PLAYER1, 'P1', PLAYER2, 'P2');
   session.initializeGame(deck, deck);
   forceMainPhaseForPlayer(session);
   const source = createCardInstance(
-    createBp3017Or023(cardCode),
+    createCostLteFourWaitSource(cardCode),
     PLAYER1,
     `${cardCode}-on-enter-source`
   );
@@ -394,6 +412,69 @@ function playBp3Source(cardCode: 'PL!N-bp3-017-N' | 'PL!N-bp3-023-N') {
 }
 
 describe('PL!N-bp3-017 / 023 shared cost <= 4 configuration', () => {
+  for (const cardCode of [
+    'PL!N-bp3-017-N',
+    'PL!N-bp3-023-N',
+    'PL!S-bp3-012-N',
+    'PL!S-bp3-017-N',
+  ] as const) {
+    it(`reuses both ON_ENTER and LIVE_START definitions for ${cardCode}`, () => {
+      const entered = playBp3Source(cardCode);
+      expect(entered.session.state?.activeEffect?.abilityId).toBe(
+        PL_N_BP3_017_023_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID
+      );
+      const live = startLiveStart(setupBp3LiveStart(cardCode).game);
+      expect(live.activeEffect?.abilityId).toBe(
+        PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID
+      );
+    });
+  }
+
+  for (const cardCode of ['PL!-PR-007-PR', 'PL!-PR-009-PR'] as const) {
+    it(`uses the PR identities and exact player copy through real ON_ENTER and LIVE_START for ${cardCode}`, () => {
+      const effectText =
+        '【登场】/【LIVE开始时】可以将此成员变为待机状态：将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。（待机状态的成员持有的[ブレード]，在声援时不能增加公开张数。）';
+      const entered = playBp3Source(cardCode);
+      let enteredState = entered.session.state!;
+      expect(enteredState.activeEffect).toMatchObject({
+        abilityId: PL_PR_007_009_ON_ENTER_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+        effectText,
+        stepText:
+          '可以将此成员变为待机状态。如此做后，选择对方舞台上1名费用小于等于4且当前非待机的成员变为待机状态。',
+        selectableOptions: [{ id: 'activate', label: '发动' }],
+        canSkipSelection: true,
+        skipSelectionLabel: '不发动',
+      });
+      expect(enteredState.activeEffect?.selectableCardIds).toBeUndefined();
+      enteredState = activateSourceWaitCost(enteredState);
+      expect(enteredState.activeEffect).toMatchObject({
+        selectionLabel: '选择对方舞台上费用小于等于4的成员',
+        confirmSelectionLabel: '变为待机状态',
+        stepText:
+          '请选择对方舞台上1名费用小于等于4且当前非待机的成员变为待机状态。',
+      });
+      enteredState = confirmActiveEffectStep(
+        enteredState,
+        PLAYER1,
+        enteredState.activeEffect!.id,
+        entered.target.instanceId
+      );
+      expect(orientationOf(enteredState, PLAYER1, entered.source.instanceId)).toBe(
+        OrientationState.WAITING
+      );
+      expect(orientationOf(enteredState, PLAYER2, entered.target.instanceId)).toBe(
+        OrientationState.WAITING
+      );
+
+      const liveSetup = setupBp3LiveStart(cardCode);
+      const live = startLiveStart(liveSetup.game);
+      expect(live.activeEffect).toMatchObject({
+        abilityId: PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+        effectText,
+      });
+    });
+  }
+
   it('resolves PL!N-bp3-017-N ON_ENTER by waiting source then a cost 4 opponent member', () => {
     const { session, source, target } = playBp3Source('PL!N-bp3-017-N');
     let state = session.state!;
@@ -512,33 +593,46 @@ describe('PL!N-bp3-017 / 023 shared cost <= 4 configuration', () => {
     expect(invalidTarget).toBe(state);
   });
 
-  it('does not pay when the fixed source becomes invalid before activation is confirmed', () => {
-    const setup = setupBp3LiveStart('PL!N-bp3-023-N');
-    let state = startLiveStart(setup.game);
-    state = updatePlayer(state, PLAYER1, (player) => ({
-      ...player,
-      memberSlots: {
-        ...player.memberSlots,
-        cardStates: new Map(player.memberSlots.cardStates).set(setup.source.instanceId, {
-          orientation: OrientationState.WAITING,
-          face: FaceState.FACE_UP,
-        }),
-      },
-    }));
+  it('does not pay when the fixed source becomes WAITING or leaves before activation is confirmed', () => {
+    for (const sourceState of ['WAITING', 'ABSENT'] as const) {
+      const setup = setupBp3LiveStart('PL!-PR-007-PR');
+      let state = startLiveStart(setup.game);
+      state = updatePlayer(state, PLAYER1, (player) => ({
+        ...player,
+        memberSlots:
+          sourceState === 'WAITING'
+            ? {
+                ...player.memberSlots,
+                cardStates: new Map(player.memberSlots.cardStates).set(setup.source.instanceId, {
+                  orientation: OrientationState.WAITING,
+                  face: FaceState.FACE_UP,
+                }),
+              }
+            : {
+                ...player.memberSlots,
+                slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
+                cardStates: new Map(
+                  [...player.memberSlots.cardStates].filter(
+                    ([id]) => id !== setup.source.instanceId
+                  )
+                ),
+              },
+      }));
 
-    const resolved = activateSourceWaitCost(state);
+      const resolved = activateSourceWaitCost(state);
 
-    expect(resolved.activeEffect).toBeNull();
-    expect(resolved.pendingAbilities).toEqual([]);
-    expect(orientationOf(resolved, PLAYER2, setup.cost4.instanceId)).toBe(
-      OrientationState.ACTIVE
-    );
-    expect(
-      resolvePayloads(
-        resolved,
-        PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID
-      ).at(-1)
-    ).toMatchObject({ step: 'SKIP_SOURCE_NOT_ACTIVE_AT_COST' });
+      expect(resolved.activeEffect).toBeNull();
+      expect(resolved.pendingAbilities).toEqual([]);
+      expect(orientationOf(resolved, PLAYER2, setup.cost4.instanceId)).toBe(
+        OrientationState.ACTIVE
+      );
+      expect(
+        resolvePayloads(
+          resolved,
+          PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID
+        ).at(-1)
+      ).toMatchObject({ step: 'SKIP_SOURCE_NOT_ACTIVE_AT_COST' });
+    }
   });
 
   it('keeps paid source WAITING, records stale no-target, and continues when the selected target is no longer legal', () => {
@@ -682,10 +776,28 @@ describe('PL!N-bp3-017 / 023 shared cost <= 4 configuration', () => {
     });
   });
 
-  it('continues ordered resolution into the next real wait-cost interaction', () => {
-    const setup = setupBp3LiveStart('PL!N-bp3-017-N');
+  it('ignores a repeated target confirmation after the PR effect has resolved', () => {
+    const setup = setupBp3LiveStart('PL!-PR-009-PR');
+    let state = startLiveStart(setup.game);
+    state = activateSourceWaitCost(state);
+    const effectId = state.activeEffect!.id;
+    state = confirmActiveEffectStep(state, PLAYER1, effectId, setup.cost4.instanceId);
+    const eventCount = state.eventLog.filter(
+      (entry) => entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED
+    ).length;
+    const repeated = confirmActiveEffectStep(state, PLAYER1, effectId, setup.cost4.instanceId);
+    expect(repeated).toBe(state);
+    expect(
+      repeated.eventLog.filter(
+        (entry) => entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED
+      )
+    ).toHaveLength(eventCount);
+  });
+
+  it('continues ordered resolution from PR-007 into PR-009 without an extra confirm-only window', () => {
+    const setup = setupBp3LiveStart('PL!-PR-007-PR');
     const secondSource = createCardInstance(
-      createBp3017Or023('PL!N-bp3-023-N'),
+      createCostLteFourWaitSource('PL!-PR-009-PR'),
       PLAYER1,
       'ordered-second-source'
     );
@@ -711,7 +823,9 @@ describe('PL!N-bp3-017 / 023 shared cost <= 4 configuration', () => {
     state = activateSourceWaitCost(state);
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, setup.cost4.instanceId);
     expect(state.activeEffect).toMatchObject({
-      abilityId: PL_N_BP3_017_023_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+      abilityId: PL_PR_007_009_LIVE_START_WAIT_SELF_OPPONENT_COST_LTE_FOUR_WAIT_ABILITY_ID,
+      stepId: 'WAIT_SELF_OPPONENT_WAIT_CHOOSE_ACTIVATION',
+      selectableOptions: [{ id: 'activate', label: '发动' }],
       sourceCardId: [setup.source.instanceId, secondSource.instanceId].find(
         (cardId) => cardId !== firstSourceId
       ),

@@ -12,7 +12,10 @@ import {
   placeCardInSlot,
   removeCardFromSlot,
 } from '../../src/domain/entities/zone';
-import { addMemberCostLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import {
+  addMemberCostLiveModifierForMember,
+  addMemberCostSetLiveModifierForMember,
+} from '../../src/domain/rules/live-modifiers';
 import {
   cardNameAliasIs,
   costGte,
@@ -412,6 +415,78 @@ describe('effect conditions', () => {
     }));
 
     expect(getMemberEffectiveCost(game, 'p1', hanayoR.instanceId)).toBe(7);
+  });
+
+  it('applies PL!S-bp3-016-N success Live count only while it is the controller stage member', () => {
+    const hanamaru = memberCard('s-bp3-016-hanamaru', {
+      cardCode: 'PL!S-bp3-016-N', name: '国木田花丸', cost: 4,
+    });
+    const otherMember = memberCard('s-bp3-016-other', { cost: 4 });
+    const successLives = [liveCard('success-a'), liveCard('success-b'), liveCard('success-c')];
+    let game = createGameState('s-bp3-016-effective-cost', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [hanamaru, otherMember, ...successLives]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, hanamaru.instanceId),
+    }));
+
+    expect(getMemberEffectiveCost(game, 'p1', hanamaru.instanceId)).toBe(4);
+    const oneSuccess = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: { ...player.successZone, cardIds: [successLives[0].instanceId] },
+    }));
+    expect(getMemberEffectiveCost(oneSuccess, 'p1', hanamaru.instanceId)).toBe(5);
+    const threeSuccess = updatePlayer(oneSuccess, 'p1', (player) => ({
+      ...player,
+      successZone: { ...player.successZone, cardIds: successLives.map((card) => card.instanceId) },
+    }));
+    expect(getMemberEffectiveCost(threeSuccess, 'p1', hanamaru.instanceId)).toBe(7);
+    expect(getMemberEffectiveCost(threeSuccess, 'p2', hanamaru.instanceId)).toBe(4);
+    expect(getMemberEffectiveCost(threeSuccess, 'p1', otherMember.instanceId)).toBe(4);
+
+    const opponentSuccessOnly = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      successZone: { ...player.successZone, cardIds: successLives.map((card) => card.instanceId) },
+    }));
+    expect(getMemberEffectiveCost(opponentSuccessOnly, 'p1', hanamaru.instanceId)).toBe(4);
+    const removedSuccess = updatePlayer(threeSuccess, 'p1', (player) => ({
+      ...player,
+      successZone: { ...player.successZone, cardIds: [successLives[0].instanceId] },
+    }));
+    expect(getMemberEffectiveCost(removedSuccess, 'p1', hanamaru.instanceId)).toBe(5);
+
+    for (const zone of ['hand', 'waitingRoom'] as const) {
+      const offStage = updatePlayer(threeSuccess, 'p1', (player) => ({
+        ...player,
+        memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        [zone]: { ...player[zone], cardIds: [hanamaru.instanceId] },
+      }));
+      expect(getMemberEffectiveCost(offStage, 'p1', hanamaru.instanceId)).toBe(4);
+    }
+    const belowStage = updatePlayer(threeSuccess, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        placeCardInSlot(
+          removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+          SlotPosition.CENTER,
+          otherMember.instanceId
+        ),
+        SlotPosition.CENTER,
+        hanamaru.instanceId
+      ),
+    }));
+    expect(getMemberEffectiveCost(belowStage, 'p1', hanamaru.instanceId)).toBe(4);
+
+    const deltaResult = addMemberCostLiveModifierForMember(threeSuccess, {
+      playerId: 'p1', memberCardId: hanamaru.instanceId, sourceCardId: hanamaru.instanceId,
+      abilityId: 'test-s-bp3-016-delta', countDelta: 2,
+    });
+    expect(getMemberEffectiveCost(deltaResult!.gameState, 'p1', hanamaru.instanceId)).toBe(9);
+    const setResult = addMemberCostSetLiveModifierForMember(deltaResult!.gameState, {
+      playerId: 'p1', memberCardId: hanamaru.instanceId, sourceCardId: hanamaru.instanceId,
+      abilityId: 'test-s-bp3-016-set', setTo: 6,
+    });
+    expect(getMemberEffectiveCost(setResult!.gameState, 'p1', hanamaru.instanceId)).toBe(6);
   });
 
   it('adds PL!SP-pb2-006 cost by same-slot memberBelow Liella members only while on stage', () => {

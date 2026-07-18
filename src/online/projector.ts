@@ -9,7 +9,7 @@ import {
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
   isResultSuccessEffectSubPhase,
 } from '../application/command-availability.js';
-import { getActivatedAbilityUiConfig } from '../application/card-effect-runner.js';
+import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import {
   hasPendingAbilityOrChoice,
@@ -466,8 +466,12 @@ function projectActiveEffectCardSelection(
     !isWaitingPlayerView;
 
   if (blindForWaitingPlayer) {
+    const blindSelectionVersion =
+      typeof effect.metadata?.blindSelectionVersion === 'number'
+        ? effect.metadata.blindSelectionVersion
+        : undefined;
     const selectableObjectIds = (selectableCardIds ?? []).map((_, index) => {
-      const token = createBlindCardSelectionToken(index);
+      const token = createBlindCardSelectionToken(index, blindSelectionVersion);
       const publicObjectId = createPublicObjectId(token);
       objects[publicObjectId] = {
         publicObjectId,
@@ -691,22 +695,25 @@ function addMemberSlotZones(
         const effectiveCost = isMemberCardData(occupant.data)
           ? getMemberEffectiveCost(game, playerId, occupantId)
           : 0;
+        const activatedAbilityUiConfigs = isMemberCardData(occupant.data)
+          ? getActivatedAbilityUiConfigs(
+              occupant.data.cardCode,
+              CardAbilitySourceZone.STAGE_MEMBER,
+              {
+                game,
+                playerId,
+                sourceCardId: occupantId,
+              }
+            )
+          : [];
         upsertViewObject(objects, occupant, ownerSeat, 'FRONT', state?.orientation, state?.face, {
           enteredStageThisTurn: movedToStageThisTurn.includes(occupantId),
           frontInfo: isMemberCardData(occupant.data)
             ? buildStageMemberFrontInfo(occupant, effectiveHearts, effectiveBlade, effectiveCost)
             : undefined,
-          activatedAbilityUiConfig: isMemberCardData(occupant.data)
-            ? (getActivatedAbilityUiConfig(
-                occupant.data.cardCode,
-                CardAbilitySourceZone.STAGE_MEMBER,
-                {
-                  game,
-                  playerId,
-                  sourceCardId: occupantId,
-                }
-              ) ?? undefined)
-            : undefined,
+          activatedAbilityUiConfig: activatedAbilityUiConfigs[0],
+          activatedAbilityUiConfigs:
+            activatedAbilityUiConfigs.length > 0 ? activatedAbilityUiConfigs : undefined,
         });
       }
     }
@@ -891,6 +898,7 @@ function upsertViewObject(
     | 'enteredStageThisTurn'
     | 'frontInfo'
     | 'activatedAbilityUiConfig'
+    | 'activatedAbilityUiConfigs'
   > & {
     readonly knownCardType?: ViewCardObject['cardType'];
   }
@@ -909,6 +917,8 @@ function upsertViewObject(
     enteredStageThisTurn: metadata?.enteredStageThisTurn,
     frontInfo: surface === 'FRONT' ? (metadata?.frontInfo ?? buildFrontInfo(card)) : undefined,
     activatedAbilityUiConfig: surface === 'FRONT' ? metadata?.activatedAbilityUiConfig : undefined,
+    activatedAbilityUiConfigs:
+      surface === 'FRONT' ? metadata?.activatedAbilityUiConfigs : undefined,
   };
 }
 

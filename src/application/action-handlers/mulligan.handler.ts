@@ -11,7 +11,6 @@ import { success, failure } from './types.js';
 import { GamePhase, SubPhase } from '../../shared/types/enums.js';
 import {
   getFirstPlayer,
-  getSecondPlayer,
   addMulliganCompletedPlayer,
   isAllMulliganCompleted,
   markMulliganCompleted,
@@ -24,7 +23,7 @@ import { removeCardFromZone, shuffleZone } from '../../domain/entities/zone.js';
 /**
  * 处理换牌动作（Mulligan）
  *
- * 玩家选择要换的牌，洗入牌库后重新抽取相同数量
+ * 玩家先将要换的牌暂时放在一旁，抽取相同数量后再放回主卡组并洗牌
  */
 export const handleMulligan: ActionHandler<MulliganAction> = (
   game: GameState,
@@ -48,6 +47,10 @@ export const handleMulligan: ActionHandler<MulliganAction> = (
     return failure(game, '玩家不存在');
   }
 
+  if (new Set(cardIdsToMulligan).size !== cardIdsToMulligan.length) {
+    return failure(game, '换牌列表中存在重复的卡牌');
+  }
+
   // 验证所有要换的牌都在手牌中
   for (const cardId of cardIdsToMulligan) {
     if (!player.hand.cardIds.includes(cardId)) {
@@ -59,28 +62,25 @@ export const handleMulligan: ActionHandler<MulliganAction> = (
   const mulliganCount = cardIdsToMulligan.length;
 
   if (mulliganCount > 0) {
-    // 1. 将选中的牌从手牌移除，放入牌库底部
-    for (const cardId of cardIdsToMulligan) {
-      state = updatePlayer(state, playerId, (p) => {
-        const newHand = removeCardFromZone(p.hand, cardId);
-        const newDeck = {
-          ...p.mainDeck,
-          cardIds: [...p.mainDeck.cardIds, cardId], // 放到牌库底部
-        };
-        return { ...p, hand: newHand, mainDeck: newDeck };
-      });
-    }
-
-    // 2. 洗牌
+    // 1. 将选中的牌从手牌移除，在本次原子结算中暂时放在一旁
     state = updatePlayer(state, playerId, (p) => ({
       ...p,
-      mainDeck: shuffleZone(p.mainDeck),
+      hand: cardIdsToMulligan.reduce((hand, cardId) => removeCardFromZone(hand, cardId), p.hand),
     }));
 
-    // 3. 抽取相同数量的卡牌
+    // 2. 从原主卡组顶抽取相同数量的卡牌
     for (let i = 0; i < mulliganCount; i++) {
       state = ctx.drawCard(state, playerId);
     }
+
+    // 3. 将暂放的牌放回主卡组，然后洗牌
+    state = updatePlayer(state, playerId, (p) => ({
+      ...p,
+      mainDeck: shuffleZone({
+        ...p.mainDeck,
+        cardIds: [...p.mainDeck.cardIds, ...cardIdsToMulligan],
+      }),
+    }));
 
     // 记录换牌动作
     state = addAction(state, 'DRAW_CARD', playerId, {
@@ -95,7 +95,6 @@ export const handleMulligan: ActionHandler<MulliganAction> = (
 
   // 更新子阶段
   const firstPlayer = getFirstPlayer(state);
-  const secondPlayer = getSecondPlayer(state);
 
   if (playerId === firstPlayer.id) {
     // 先攻完成换牌，切换到后攻

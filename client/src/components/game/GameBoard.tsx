@@ -3187,10 +3187,7 @@ export const GameBoard = memo(function GameBoard({
                         canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
                       }`}
                     >
-                      {activeEffect.confirmSelectionLabel ?? '确认选择'}
-                      {activeEffectOrderedSelection.length > 0
-                        ? ` (${activeEffectOrderedSelection.length} 张)`
-                        : ''}
+                      {`${activeEffect.confirmSelectionLabel ?? '确认选择'}（${activeEffectOrderedSelection.length}张）`}
                     </button>
                   )}
                 {showOrdinaryActiveEffectControls && activeEffect.canResolveInOrder && (
@@ -3258,7 +3255,7 @@ export const GameBoard = memo(function GameBoard({
                         canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
                       }`}
                     >
-                      继续处理
+                      {activeEffect.skipSelectionLabel ?? '继续处理'}
                     </button>
                   )}
               </div>

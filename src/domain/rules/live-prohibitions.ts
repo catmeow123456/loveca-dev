@@ -1,5 +1,32 @@
-import { updatePlayer, type GameState, type LiveProhibitionState } from '../entities/game.js';
+import {
+  getCardById,
+  updatePlayer,
+  type GameState,
+  type LiveProhibitionState,
+} from '../entities/game.js';
 import { addCardToZone } from '../entities/zone.js';
+import { CardType, SlotPosition } from '../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
+
+interface ContinuousLiveProhibitionDefinition {
+  readonly baseCardCode: string;
+  readonly condition: 'NO_OTHER_OWN_TOP_LEVEL_STAGE_MEMBER';
+}
+
+export interface ContinuousLiveProhibitionSource {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly baseCardCode: string;
+}
+
+const MAIN_STAGE_SLOTS = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
+
+const CONTINUOUS_LIVE_PROHIBITION_DEFINITIONS: readonly ContinuousLiveProhibitionDefinition[] = [
+  {
+    baseCardCode: 'PL!SP-bp1-001',
+    condition: 'NO_OTHER_OWN_TOP_LEVEL_STAGE_MEMBER',
+  },
+];
 
 export interface AddLiveProhibitionOptions {
   readonly playerId: string;
@@ -35,7 +62,61 @@ export function addLiveProhibitionUntilLiveEnd(
 }
 
 export function isPlayerLiveProhibited(game: GameState, playerId: string): boolean {
-  return game.liveProhibitions.some((prohibition) => prohibition.playerId === playerId);
+  return (
+    game.liveProhibitions.some((prohibition) => prohibition.playerId === playerId) ||
+    isPlayerContinuouslyLiveProhibited(game, playerId)
+  );
+}
+
+export function collectContinuousLiveProhibitionSources(
+  game: GameState,
+  playerId: string
+): readonly ContinuousLiveProhibitionSource[] {
+  const player = game.players.find((candidate) => candidate.id === playerId);
+  if (!player) {
+    return [];
+  }
+
+  const ownTopLevelMemberIds = MAIN_STAGE_SLOTS.map(
+    (slot) => player.memberSlots.slots[slot]
+  ).filter((cardId): cardId is string => {
+    if (!cardId) {
+      return false;
+    }
+    const card = getCardById(game, cardId);
+    return card?.ownerId === playerId && card.data.cardType === CardType.MEMBER;
+  });
+
+  const sources: ContinuousLiveProhibitionSource[] = [];
+  for (const sourceCardId of ownTopLevelMemberIds) {
+    const sourceCard = getCardById(game, sourceCardId);
+    if (!sourceCard) {
+      continue;
+    }
+
+    for (const definition of CONTINUOUS_LIVE_PROHIBITION_DEFINITIONS) {
+      if (!cardCodeMatchesBase(sourceCard.data.cardCode, definition.baseCardCode)) {
+        continue;
+      }
+      if (
+        definition.condition === 'NO_OTHER_OWN_TOP_LEVEL_STAGE_MEMBER' &&
+        ownTopLevelMemberIds.some((cardId) => cardId !== sourceCardId)
+      ) {
+        continue;
+      }
+
+      sources.push({
+        playerId,
+        sourceCardId,
+        baseCardCode: definition.baseCardCode,
+      });
+    }
+  }
+  return sources;
+}
+
+export function isPlayerContinuouslyLiveProhibited(game: GameState, playerId: string): boolean {
+  return collectContinuousLiveProhibitionSources(game, playerId).length > 0;
 }
 
 export function clearLiveProhibitionsUntilLiveEnd(game: GameState): GameState {

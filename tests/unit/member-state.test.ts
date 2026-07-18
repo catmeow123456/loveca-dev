@@ -16,6 +16,7 @@ import {
   getMemberEntryOrdinalForEvent,
   getPositionMovedStageMemberIdsMatching,
   hasMemberPositionMovedThisTurn,
+  hasMemberEnteredStageThisTurnMatching,
 } from '../../src/domain/rules/member-turn-state';
 import {
   moveMemberBetweenSlots,
@@ -31,12 +32,16 @@ import {
 } from '../../src/application/action-handlers/zone-operations';
 import {
   CardType,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
+  SubPhase,
   TriggerCondition,
+  TurnType,
   ZoneType,
 } from '../../src/shared/types/enums';
+import { GameService } from '../../src/application/game-service';
 
 function createMemberCard(cardCode: string): MemberCardData {
   return {
@@ -58,6 +63,99 @@ function createEnergyCard(cardCode: string): EnergyCardData {
 }
 
 describe('member state effect helpers', () => {
+  it('queries current-turn ON_ENTER_STAGE member facts independently of current stage arrays', () => {
+    const ownNijigasaki = createCardInstance(
+      { ...createMemberCard('NIJIGASAKI'), groupNames: ['虹ヶ咲'] },
+      'p1',
+      'own-nijigasaki'
+    );
+    const ownOther = createCardInstance(
+      { ...createMemberCard('OTHER'), groupNames: ['Aqours'] },
+      'p1',
+      'own-other'
+    );
+    const opponentNijigasaki = createCardInstance(
+      { ...createMemberCard('OPPONENT-NIJIGASAKI'), groupNames: ['虹ヶ咲'] },
+      'p2',
+      'opponent-nijigasaki'
+    );
+    let game = registerCards(createGameState('member-enter-query', 'p1', 'P1', 'p2', 'P2'), [
+      ownNijigasaki,
+      ownOther,
+      opponentNijigasaki,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      movedToStageThisTurn: ['forged-without-event'],
+      positionMovedThisTurn: [ownNijigasaki.instanceId],
+    }));
+    game = emitGameEvent(
+      game,
+      createEnterStageEvent(ownOther.instanceId, ZoneType.HAND, SlotPosition.LEFT, 'p1', 'p1')
+    );
+    game = emitGameEvent(
+      game,
+      createEnterStageEvent(
+        opponentNijigasaki.instanceId,
+        ZoneType.HAND,
+        SlotPosition.LEFT,
+        'p2',
+        'p2'
+      )
+    );
+    const nijigasaki = (card: typeof ownNijigasaki) =>
+      card.data.groupNames?.includes('虹ヶ咲') === true;
+    expect(hasMemberEnteredStageThisTurnMatching(game, 'p1', nijigasaki)).toBe(false);
+
+    game = emitGameEvent(
+      game,
+      createEnterStageEvent(
+        ownNijigasaki.instanceId,
+        ZoneType.HAND,
+        SlotPosition.CENTER,
+        'p1',
+        'p1'
+      )
+    );
+    expect(hasMemberEnteredStageThisTurnMatching(game, 'p1', nijigasaki)).toBe(true);
+    expect(hasMemberEnteredStageThisTurnMatching(game, 'p1', () => false)).toBe(false);
+
+    game = emitGameEvent(game, createTurnStartEvent(2, 'p2'));
+    expect(hasMemberEnteredStageThisTurnMatching(game, 'p1', nijigasaki)).toBe(false);
+  });
+
+  it('writes authoritative turn boundaries when GameService advances to a new turn', () => {
+    const member = createCardInstance(
+      { ...createMemberCard('NIJIGASAKI'), groupNames: ['虹ヶ咲'] },
+      'p1',
+      'nijigasaki'
+    );
+    let game = registerCards(createGameState('member-turn-boundary', 'p1', 'P1', 'p2', 'P2'), [
+      member,
+    ]);
+    game = emitGameEvent(
+      game,
+      createEnterStageEvent(member.instanceId, ZoneType.HAND, SlotPosition.CENTER, 'p1', 'p1')
+    );
+    game = {
+      ...game,
+      turnCount: 1,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.NONE,
+      currentTurnType: TurnType.LIVE_PHASE,
+    };
+
+    const advanced = new GameService().advancePhase(game);
+
+    expect(advanced.success, advanced.error).toBe(true);
+    expect(advanced.gameState.eventLog.slice(-2).map(({ event }) => event.eventType)).toEqual([
+      TriggerCondition.ON_TURN_END,
+      TriggerCondition.ON_TURN_START,
+    ]);
+    expect(countMemberEntriesThisTurn(advanced.gameState, 'p1')).toBe(0);
+    expect(getMemberEntryOrdinalForEvent(advanced.gameState, 'p1', game.eventLog[0]!.event.eventId)).toBeNull();
+  });
+
   it('counts authoritative member entry events and returns their current-turn ordinal', () => {
     let game = createGameState('member-entry-ordinal', 'p1', 'P1', 'p2', 'P2');
     game = emitGameEvent(game, createEnterStageEvent('old', ZoneType.HAND, SlotPosition.LEFT, 'p1', 'p1'));

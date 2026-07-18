@@ -127,6 +127,15 @@ function formatViolations(violations: readonly GovernanceViolation[]): string {
 }
 
 describe('card effect display text governance', () => {
+  it('uses the configured skip label for skippable effects without selectable inputs', () => {
+    const gameBoardSource = readFileSync(
+      join(process.cwd(), 'client/src/components/game/GameBoard.tsx'),
+      'utf8'
+    );
+
+    expect(gameBoardSource).toContain("{activeEffect.skipSelectionLabel ?? '继续处理'}");
+  });
+
   it('keeps the shared activated and Echoes Beyond texts at their Excel Chinese source', () => {
     expect(
       CARD_ABILITY_DEFINITIONS.find(
@@ -148,6 +157,27 @@ describe('card effect display text governance', () => {
     ).toBe(
       '【起动】【1回合1次】将1张手牌放置入休息室：选择自己休息室1张LIVE卡。可以支付与该卡分数相同数量的[E]；如此做时将该LIVE加入手牌。'
     );
+    expect(
+      CARD_ABILITY_DEFINITIONS.find(
+        (ability) =>
+          ability.abilityId ===
+          'PL!-bp4-013:live-start-discard-target-other-member-gain-pink-heart'
+      )?.effectText
+    ).toBe(
+      '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[桃ハート]。'
+    );
+    expect(
+      CARD_ABILITY_DEFINITIONS.find((ability) =>
+        ability.abilityId.startsWith('PL!-bp4-014:live-start-live-without-timing')
+      )?.effectText
+    ).toBe(
+      '【LIVE开始时】自己的LIVE中的LIVE卡，存在不持有【LIVE开始时】能力与【LIVE成功时】能力的卡片的场合，LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[ブレード][ブレード]。'
+    );
+    expect(
+      CARD_ABILITY_DEFINITIONS.find(
+        (ability) => ability.abilityId === 'PL!-bp4-024:live-start-target-muse-member-gain-one-blade'
+      )?.effectText
+    ).toBe("【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名『μ's』的成员，获得[ブレード]。");
   });
 
   it('uses only mapped card effect placeholders in registry display text', () => {

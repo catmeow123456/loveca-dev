@@ -24,4 +24,13 @@ describe('blind card selection tokens', () => {
   it('rejects a well-formed token outside the candidate snapshot', () => {
     expect(resolveBlindCardSelectionToken(['card-0'], 'blind-card-1')).toBeNull();
   });
+
+  it('versions refreshed candidate tokens so an old token cannot select a new card', () => {
+    const oldToken = createBlindCardSelectionToken(0, 0);
+    const refreshedToken = createBlindCardSelectionToken(0, 1);
+    expect(oldToken).toBe('blind-card-v0-0');
+    expect(refreshedToken).toBe('blind-card-v1-0');
+    expect(resolveBlindCardSelectionToken(['new-card'], oldToken, 1)).toBeNull();
+    expect(resolveBlindCardSelectionToken(['new-card'], refreshedToken, 1)).toBe('new-card');
+  });
 });

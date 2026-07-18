@@ -98,6 +98,11 @@ export interface RevealHandCardForActiveEffectOptions {
   readonly skipSelectionLabel?: string;
 }
 
+export interface RevealHandCardsForActiveEffectOptions
+  extends Omit<RevealHandCardForActiveEffectOptions, 'selectedCardId'> {
+  readonly selectedCardIds: readonly string[];
+}
+
 export function startPendingActiveEffect(
   game: GameState,
   config: StartPendingActiveEffectConfig
@@ -192,25 +197,37 @@ export function revealHandCardForActiveEffect(
   game: GameState,
   options: RevealHandCardForActiveEffectOptions
 ): GameState {
+  if (options.selectedCardId === null || options.selectedCardId === undefined) return game;
+  return revealHandCardsForActiveEffect(game, {
+    ...options,
+    selectedCardIds: [options.selectedCardId],
+    selectableCardVisibility: options.selectableCardVisibility ?? 'PUBLIC',
+  });
+}
+
+export function revealHandCardsForActiveEffect(
+  game: GameState,
+  options: RevealHandCardsForActiveEffectOptions
+): GameState {
   const effect = game.activeEffect;
+  const selectedCardIds = [...options.selectedCardIds];
   if (
     !effect ||
     effect.id !== options.effect.id ||
     effect.abilityId !== options.effect.abilityId ||
-    options.selectedCardId === null ||
-    options.selectedCardId === undefined ||
-    effect.selectableCardIds?.includes(options.selectedCardId) !== true
+    new Set(selectedCardIds).size !== selectedCardIds.length ||
+    selectedCardIds.some((cardId) => effect.selectableCardIds?.includes(cardId) !== true)
   ) {
     return game;
   }
 
   const player = getPlayerById(game, options.playerId);
-  if (!player || !player.hand.cardIds.includes(options.selectedCardId)) {
+  if (!player || selectedCardIds.some((cardId) => !player.hand.cardIds.includes(cardId))) {
     return game;
   }
 
   const revealedCardIds = Array.from(
-    new Set([...(effect.revealedCardIds ?? []), options.selectedCardId])
+    new Set([...(effect.revealedCardIds ?? []), ...selectedCardIds])
   );
 
   return addAction(
@@ -222,11 +239,16 @@ export function revealHandCardForActiveEffect(
         stepText: options.nextStepText,
         revealedCardIds,
         selectableCardIds: options.selectableCardIds,
-        selectableCardVisibility: options.selectableCardVisibility ?? 'PUBLIC',
+        selectableCardVisibility: options.selectableCardVisibility,
         selectableCardMode: options.selectableCardMode,
         selectableOptions: options.selectableOptions,
+        selectableSlots: undefined,
+        stageFormation: undefined,
+        numericInput: undefined,
         selectionLabel: options.selectionLabel,
         confirmSelectionLabel: options.confirmSelectionLabel,
+        minSelectableCards: undefined,
+        maxSelectableCards: undefined,
         canSkipSelection: options.canSkipSelection,
         skipSelectionLabel: options.skipSelectionLabel,
         metadata: {

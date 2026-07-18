@@ -9,6 +9,7 @@ import {
   registerCards,
   updateLiveResolution,
   updatePlayer,
+  type GameState,
   type LiveModifierState,
 } from '../../src/domain/entities/game';
 import {
@@ -17,6 +18,7 @@ import {
   addCardToZone,
   addMemberBelowMember,
   placeCardInSlot,
+  removeCardFromSlot,
 } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
@@ -37,12 +39,14 @@ import {
   getPlayerLiveScoreModifier,
   projectLiveModifierCompatibility,
   replaceLiveModifier,
+  removeStageMemberBoundLiveModifiers,
   removeTargetMemberBoundLiveModifiers,
 } from '../../src/domain/rules/live-modifiers';
 import { applyHeartRequirementModifiers } from '../../src/domain/rules/live-requirement-modifiers';
 import { getMemberEffectiveCost } from '../../src/domain/rules/member-effective-cost';
 import { costLte } from '../../src/application/effects/card-selectors';
 import { fromTransport, toTransport } from '../../src/online/serde';
+import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
   BladeHeartEffect,
@@ -62,21 +66,22 @@ const HS_BP5_007_CONTINUOUS_ABILITY_ID = 'PL!HS-bp5-007:continuous-other-edelnot
 const HS_BP2_006_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp2-006:continuous-other-miracra-stage-member-blade';
 const HS_BP6_002_CONTINUOUS_ABILITY_ID = 'PL!HS-bp6-002:continuous-alone-gain-two-blade';
-const HS_PB1_015_CONTINUOUS_ABILITY_ID =
-  'PL!HS-pb1-015-R:continuous-alone-lose-three-blade';
+const HS_PB1_015_CONTINUOUS_ABILITY_ID = 'PL!HS-pb1-015-R:continuous-alone-lose-three-blade';
 const PL_N_PB1_011_CONTINUOUS_ABILITY_ID = 'PL!N-pb1-011:continuous-energy-below-gain-blade';
+const PL_N_PB1_002_CONTINUOUS_ABILITY_ID =
+  'PL!N-pb1-002:continuous-two-energy-below-live-total-score';
+const PL_N_PB1_001_CONTINUOUS_ABILITY_ID =
+  'PL!N-pb1-001:continuous-two-live-cards-gain-two-blade';
 const PL_PB1_002_CONTINUOUS_ABILITY_ID =
   'PL!-pb1-002:continuous-opponent-waiting-gain-purple-heart';
-const PL_BP3_002_CONTINUOUS_ABILITY_ID =
-  'PL!-bp3-002:continuous-opponent-waiting-gain-blade';
+const PL_BP3_002_CONTINUOUS_ABILITY_ID = 'PL!-bp3-002:continuous-opponent-waiting-gain-blade';
 const HS_BP5_016_CONTINUOUS_ABILITY_ID =
   'PL!HS-bp5-016-N:continuous-opponent-two-waiting-purple-heart';
 const HS_PB1_007_CONTINUOUS_ABILITY_ID =
   'PL!HS-pb1-007:continuous-exact-two-own-opponent-three-purple-heart';
 const HS_PB1_022_CONTINUOUS_RURINO_ABILITY_ID =
   'PL!HS-pb1-022:continuous-rurino-stage-gain-two-pink-heart';
-const HS_PB1_022_CONTINUOUS_MEGU_ABILITY_ID =
-  'PL!HS-pb1-022:continuous-megu-stage-gain-two-blade';
+const HS_PB1_022_CONTINUOUS_MEGU_ABILITY_ID = 'PL!HS-pb1-022:continuous-megu-stage-gain-two-blade';
 const HS_SD1_004_CONTINUOUS_ABILITY_ID =
   'PL!HS-sd1-004-SD:continuous-stage-kaho-kosuzu-hime-green-heart';
 const HS_SD1_005_CONTINUOUS_ABILITY_ID =
@@ -98,15 +103,13 @@ const SP_PB2_032_CONTINUOUS_ABILITY_ID =
   'PL!SP-pb2-032:continuous-energy-six-eight-gain-purple-heart';
 const SP_PB2_035_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-035:continuous-left-side-gain-two-blade';
 const SP_PB2_041_CONTINUOUS_ABILITY_ID = 'PL!SP-pb2-041:continuous-right-side-gain-two-blade';
+const SP_BP1_004_CONTINUOUS_ABILITY_ID = 'PL!SP-bp1-004:continuous-center-gain-five-blade';
 const SP_BP5_011_CONTINUOUS_ABILITY_ID = 'PL!SP-bp5-011:continuous-slot-hearts';
 const SP_BP5_016_CONTINUOUS_ABILITY_ID =
   'PL!SP-bp5-016:continuous-energy-ten-gain-two-purple-heart';
-const SP_BP5_111_CONTINUOUS_ABILITY_ID =
-  'PL!SP-bp5-111:continuous-energy-exact-eight-live-score';
-const SP_BP5_222_CONTINUOUS_ABILITY_ID =
-  'PL!SP-bp5-222:continuous-energy-exact-eight-live-score';
-const SP_PB1_002_CONTINUOUS_ABILITY_ID =
-  'PL!SP-pb1-002:continuous-energy-twelve-live-score';
+const SP_BP5_111_CONTINUOUS_ABILITY_ID = 'PL!SP-bp5-111:continuous-energy-exact-eight-live-score';
+const SP_BP5_222_CONTINUOUS_ABILITY_ID = 'PL!SP-bp5-222:continuous-energy-exact-eight-live-score';
+const SP_PB1_002_CONTINUOUS_ABILITY_ID = 'PL!SP-pb1-002:continuous-energy-twelve-live-score';
 const SP_PR_022_CONTINUOUS_ABILITY_ID =
   'PL!SP-PR-022-PR:continuous-total-stage-six-gain-red-yellow-heart';
 const SP_PR_025_CONTINUOUS_ABILITY_ID =
@@ -114,10 +117,8 @@ const SP_PR_025_CONTINUOUS_ABILITY_ID =
 const SP_BP4_003_CONTINUOUS_ABILITY_ID = 'PL!SP-bp4-003:continuous-center-gain-two-blade';
 const SP_BP4_009_CONTINUOUS_ABILITY_ID =
   'PL!SP-bp4-009:continuous-lower-stage-cost-gain-three-blade';
-const SP_BP4_021_CONTINUOUS_ABILITY_ID =
-  'PL!SP-bp4-021:continuous-more-energy-gain-purple-heart';
-const SP_SD2_004_CONTINUOUS_ABILITY_ID =
-  'PL!SP-sd2-004:continuous-center-gain-four-blade';
+const SP_BP4_021_CONTINUOUS_ABILITY_ID = 'PL!SP-bp4-021:continuous-more-energy-gain-purple-heart';
+const SP_SD2_004_CONTINUOUS_ABILITY_ID = 'PL!SP-sd2-004:continuous-center-gain-four-blade';
 const SP_SD2_008_CONTINUOUS_ABILITY_ID =
   'PL!SP-sd2-008:continuous-high-cost-stage-member-gain-yellow-heart';
 const BP6_012_CONTINUOUS_ABILITY_ID =
@@ -134,14 +135,19 @@ const PL_N_BP1_012_CONTINUOUS_ABILITY_ID =
   'PL!N-bp1-012:continuous-live-zone-three-nijigasaki-live-gain-all-heart-blade';
 const SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID =
   'PL!SP-bp2-010:continuous-opponent-live-requirement-plus-one';
-const N_BP5_002_CONTINUOUS_ABILITY_ID =
-  'PL!N-bp5-002:continuous-stage-most-hearts-live-score';
-const S_BP5_008_CONTINUOUS_ABILITY_ID =
-  'PL!S-bp5-008:continuous-opponent-remaining-heart-score';
+const N_BP5_002_CONTINUOUS_ABILITY_ID = 'PL!N-bp5-002:continuous-stage-most-hearts-live-score';
+const S_BP5_008_CONTINUOUS_ABILITY_ID = 'PL!S-bp5-008:continuous-opponent-remaining-heart-score';
 const S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID =
   'PL!S-bp5-010:continuous-red-heart-five-opponent-live-requirement-plus-one';
 const S_BP5_011_CONTINUOUS_REQUIREMENT_ABILITY_ID =
   'PL!S-bp5-011:continuous-blue-heart-five-opponent-live-requirement-plus-one';
+const S_PR_030_031_CONTINUOUS_ABILITY_ID =
+  'PL!S-PR-030-031:continuous-any-stage-cost-thirteen-gain-two-blade';
+const N_PR_020_S_PR_037_CONTINUOUS_ABILITY_ID =
+  'PL!N-PR-020-PL!S-PR-037:continuous-own-stage-exact-two-gain-blue-heart-blade';
+const N_PR_027_CONTINUOUS_ABILITY_ID = 'PL!N-PR-027:continuous-total-stage-six-gain-red-blue-heart';
+const S_PR_042_CONTINUOUS_ABILITY_ID =
+  'PL!S-PR-042:continuous-total-stage-six-gain-red-green-heart';
 
 function createStageMember(
   cardCode: string,
@@ -926,10 +932,10 @@ describe('live modifier helpers', () => {
       'p1',
       'll-bp6-001'
     );
-    let game = registerCards(
-      createGameState('hs-sd1-004-multi-name', 'p1', 'P1', 'p2', 'P2'),
-      [ginko, llBp6001]
-    );
+    let game = registerCards(createGameState('hs-sd1-004-multi-name', 'p1', 'P1', 'p2', 'P2'), [
+      ginko,
+      llBp6001,
+    ]);
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,
       memberSlots: placeCardInSlot(
@@ -1058,7 +1064,11 @@ describe('live modifier helpers', () => {
     }));
     game = updatePlayer(game, 'p2', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponentHighCost.instanceId),
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        opponentHighCost.instanceId
+      ),
     }));
 
     let modifiers = collectLiveModifiers(game);
@@ -1105,8 +1115,7 @@ describe('live modifier helpers', () => {
     expect(
       collectLiveModifiers(game).some(
         (modifier) =>
-          modifier.kind === 'BLADE' &&
-          modifier.abilityId === HS_BP5_004_CONTINUOUS_ABILITY_ID
+          modifier.kind === 'BLADE' && modifier.abilityId === HS_BP5_004_CONTINUOUS_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -1518,6 +1527,84 @@ describe('live modifier helpers', () => {
     expect(hasSpPr022HeartModifier(memberBelow.game)).toBe(false);
   });
 
+  it.each([
+    {
+      cardCode: 'PL!SP-PR-022-PR',
+      abilityId: SP_PR_022_CONTINUOUS_ABILITY_ID,
+      colors: [HeartColor.RED, HeartColor.YELLOW],
+    },
+    {
+      cardCode: 'PL!N-PR-027-PR',
+      abilityId: N_PR_027_CONTINUOUS_ABILITY_ID,
+      colors: [HeartColor.RED, HeartColor.BLUE],
+    },
+    {
+      cardCode: 'PL!S-PR-042-PR',
+      abilityId: S_PR_042_CONTINUOUS_ABILITY_ID,
+      colors: [HeartColor.RED, HeartColor.GREEN],
+    },
+  ])('isolates $cardCode colors in the total-stage-six family', (config) => {
+    const atSix = createSpPr022StageState({
+      totalStageMembers: 6,
+      sourceCardCode: config.cardCode,
+      waitingMember: true,
+      addMemberBelowFiller: true,
+    });
+    const modifiers = collectLiveModifiers(atSix.game).filter(
+      (modifier) => modifier.abilityId === config.abilityId
+    );
+    expect(modifiers).toEqual([
+      {
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        hearts: config.colors.map((color) => createHeartIcon(color, 1)),
+        sourceCardId: atSix.sourceId,
+        abilityId: config.abilityId,
+      },
+    ]);
+
+    const atFive = createSpPr022StageState({
+      totalStageMembers: 5,
+      sourceCardCode: config.cardCode,
+    });
+    expect(
+      collectLiveModifiers(atFive.game).some((modifier) => modifier.abilityId === config.abilityId)
+    ).toBe(false);
+
+    for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
+      const invalidSource = createSpPr022StageState({
+        totalStageMembers: 6,
+        sourceCardCode: config.cardCode,
+        sourcePlacement,
+      });
+      expect(
+        collectLiveModifiers(invalidSource.game).some(
+          (modifier) => modifier.abilityId === config.abilityId
+        )
+      ).toBe(false);
+    }
+  });
+
+  it('removes PL!N-PR-027 / PL!S-PR-042 modifiers when total stage count drops to five', () => {
+    for (const [cardCode, abilityId] of [
+      ['PL!N-PR-027-PR', N_PR_027_CONTINUOUS_ABILITY_ID],
+      ['PL!S-PR-042-PR', S_PR_042_CONTINUOUS_ABILITY_ID],
+    ] as const) {
+      const atSix = createSpPr022StageState({ totalStageMembers: 6, sourceCardCode: cardCode });
+      const changed = updatePlayer(atSix.game, 'p2', (player) => ({
+        ...player,
+        memberSlots: {
+          ...player.memberSlots,
+          slots: { ...player.memberSlots.slots, [SlotPosition.RIGHT]: null },
+        },
+      }));
+      expect(
+        collectLiveModifiers(changed).some((modifier) => modifier.abilityId === abilityId)
+      ).toBe(false);
+    }
+  });
+
   it('collects PL!SP-PR-025 BLADE plus two only when own energy count is exactly seven', () => {
     const atSeven = createSpPb2EnergyHeartState({
       cardCode: 'PL!SP-PR-025-PR',
@@ -1822,11 +1909,7 @@ describe('live modifier helpers', () => {
     let stackedGame = registerCards(stacked.game, [secondSource]);
     stackedGame = updatePlayer(stackedGame, 'p1', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(
-        player.memberSlots,
-        SlotPosition.LEFT,
-        secondSource.instanceId
-      ),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, secondSource.instanceId),
     }));
     expect(
       collectLiveModifiers(stackedGame).filter(
@@ -5920,6 +6003,1092 @@ describe('live modifier helpers', () => {
   });
 });
 
+describe('PL!N-pb1-001 continuous actual LIVE-card BLADE modifier', () => {
+  function setup(options: {
+    readonly liveCardCount: number;
+    readonly includeNonLive?: boolean;
+    readonly sourceCount?: number;
+    readonly sourceOrientation?: OrientationState;
+  }) {
+    const sources = Array.from({ length: options.sourceCount ?? 1 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: index === 0 ? 'PL!N-pb1-001-R' : 'PL!N-pb1-001-P＋',
+          name: '上原歩夢',
+          groupNames: ['虹ヶ咲'],
+          cardType: CardType.MEMBER,
+          cost: 11,
+          blade: 3,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        'p1',
+        `pb1-001-source-${index}`
+      )
+    );
+    const liveCards = Array.from({ length: options.liveCardCount }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `PL!N-pb1-001-live-${index}`,
+          name: `LIVE ${index}`,
+          groupNames: ['虹ヶ咲'],
+          cardType: CardType.LIVE,
+          score: 1,
+          requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+        },
+        'p1',
+        `pb1-001-live-${index}`
+      )
+    );
+    const nonLive = options.includeNonLive
+      ? createCardInstance(
+          {
+            cardCode: 'PL!N-pb1-001-live-zone-member',
+            name: 'Not a LIVE',
+            groupNames: ['虹ヶ咲'],
+            cardType: CardType.MEMBER,
+            cost: 1,
+            blade: 1,
+            hearts: [createHeartIcon(HeartColor.PINK, 1)],
+          },
+          'p1',
+          'pb1-001-live-zone-member'
+        )
+      : null;
+    let game = createGameState('pb1-001-continuous', 'p1', 'P1', 'p2', 'P2');
+    game = registerCards(game, [...sources, ...liveCards, ...(nonLive ? [nonLive] : [])]);
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      for (const [index, source] of sources.slice(0, 3).entries()) {
+        memberSlots = placeCardInSlot(
+          memberSlots,
+          [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index]!,
+          source.instanceId,
+          {
+            orientation: options.sourceOrientation ?? OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }
+        );
+      }
+      const liveZoneCards = [...liveCards, ...(nonLive ? [nonLive] : [])];
+      return {
+        ...player,
+        memberSlots,
+        liveZone: liveZoneCards.reduce(
+          (zone, card) =>
+            addCardToStatefulZone(zone, card.instanceId, {
+              orientation: OrientationState.ACTIVE,
+              face: FaceState.FACE_DOWN,
+            }),
+          player.liveZone
+        ),
+      };
+    });
+    return { game, sources, liveCards, nonLive };
+  }
+
+  function modifiersFor(game: GameState, sourceCardId: string) {
+    return collectLiveModifiers(game).filter(
+      (modifier) =>
+        modifier.abilityId === PL_N_PB1_001_CONTINUOUS_ABILITY_ID &&
+        modifier.sourceCardId === sourceCardId
+    );
+  }
+
+  it.each([
+    [0, 0],
+    [1, 0],
+    [2, 1],
+    [3, 1],
+  ])('collects a fixed BLADE +2 at %i actual LIVE cards', (liveCardCount, modifierCount) => {
+    const { game, sources } = setup({ liveCardCount });
+    expect(modifiersFor(game, sources[0]!.instanceId)).toHaveLength(modifierCount);
+    expect(getMemberEffectiveBladeCount(game, 'p1', sources[0]!.instanceId)).toBe(
+      modifierCount === 1 ? 5 : 3
+    );
+    if (modifierCount === 1) {
+      expect(modifiersFor(game, sources[0]!.instanceId)).toEqual([
+        {
+          kind: 'BLADE',
+          playerId: 'p1',
+          countDelta: 2,
+          sourceCardId: sources[0]!.instanceId,
+          abilityId: PL_N_PB1_001_CONTINUOUS_ABILITY_ID,
+          visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p1' },
+        },
+      ]);
+    }
+  });
+
+  it('does not count a MEMBER in liveZone and updates immediately across the 1/2 threshold', () => {
+    const oneLivePlusMember = setup({ liveCardCount: 1, includeNonLive: true });
+    const sourceId = oneLivePlusMember.sources[0]!.instanceId;
+    expect(modifiersFor(oneLivePlusMember.game, sourceId)).toEqual([]);
+
+    const secondLive = createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-001-added-live',
+        name: 'Added LIVE',
+        groupNames: ['虹ヶ咲'],
+        cardType: CardType.LIVE,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'pb1-001-added-live'
+    );
+    let atTwo = registerCards(oneLivePlusMember.game, [secondLive]);
+    atTwo = updatePlayer(atTwo, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, secondLive.instanceId),
+    }));
+    expect(getMemberEffectiveBladeCount(atTwo, 'p1', sourceId)).toBe(5);
+
+    const backToOne = updatePlayer(atTwo, 'p1', (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: player.liveZone.cardIds.filter((cardId) => cardId !== secondLive.instanceId),
+      },
+    }));
+    expect(getMemberEffectiveBladeCount(backToOne, 'p1', sourceId)).toBe(3);
+  });
+
+  it('survives slot moves and WAITING orientation, but ends off-stage, replaced, or memberBelow', () => {
+    const { game, sources } = setup({ liveCardCount: 2, sourceOrientation: OrientationState.WAITING });
+    const sourceId = sources[0]!.instanceId;
+    expect(getMemberEffectiveBladeCount(game, 'p1', sourceId)).toBe(5);
+
+    const moved = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+        SlotPosition.RIGHT,
+        sourceId,
+        { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }
+      ),
+    }));
+    expect(getMemberEffectiveBladeCount(moved, 'p1', sourceId)).toBe(5);
+
+    const cover = createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-001-cover',
+        name: 'Cover',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'pb1-001-cover'
+    );
+    let covered = registerCards(moved, [cover]);
+    covered = updatePlayer(covered, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, cover.instanceId),
+        SlotPosition.RIGHT,
+        sourceId
+      ),
+    }));
+    expect(modifiersFor(covered, sourceId)).toEqual([]);
+
+    const absent = updatePlayer(moved, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.RIGHT),
+    }));
+    expect(modifiersFor(absent, sourceId)).toEqual([]);
+  });
+
+  it('gives each source instance only its own BLADE +2 and hides the condition from an opponent view', () => {
+    const { game, sources } = setup({ liveCardCount: 2, sourceCount: 2 });
+    for (const source of sources) {
+      expect(modifiersFor(game, source.instanceId)).toHaveLength(1);
+      expect(getMemberEffectiveBladeCount(game, 'p1', source.instanceId)).toBe(5);
+    }
+    expect(
+      collectLiveModifiers(game).filter(
+        (modifier) => modifier.abilityId === PL_N_PB1_001_CONTINUOUS_ABILITY_ID
+      )
+    ).toHaveLength(2);
+
+    const sourceObjectId = createPublicObjectId(sources[0]!.instanceId);
+    const ownerObject = projectPlayerViewState(game, 'p1').objects[sourceObjectId];
+    const opponentObject = projectPlayerViewState(game, 'p2').objects[sourceObjectId];
+    expect(ownerObject?.frontInfo?.modifierDelta?.bladeDelta).toBe(2);
+    expect(opponentObject?.frontInfo?.modifierDelta?.bladeDelta).toBeUndefined();
+  });
+});
+
+describe('PL!N-pb1-002 continuous energyBelow LIVE total score', () => {
+  function setupKasumiScoreScenario(options: {
+    readonly firstCount?: number;
+    readonly secondCount?: number;
+    readonly sourcePlacement?: 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+    readonly sourceOwner?: 'p1' | 'p2';
+    readonly otherSlotCount?: number;
+    readonly memberBelowCount?: number;
+    readonly energyOwner?: 'p1' | 'p2';
+  } = {}) {
+    const sourceOwner = options.sourceOwner ?? 'p1';
+    const kasumi = createCardInstance(
+      {
+        cardCode: 'PL!N-pb1-002-R',
+        name: '中須かすみ',
+        cardType: CardType.MEMBER,
+        cost: 13,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        groupNames: ['虹ヶ咲'],
+      },
+      sourceOwner,
+      'pb1-kasumi-1'
+    );
+    const second = createCardInstance(
+      { ...kasumi.data, cardCode: 'PL!N-pb1-002-P＋' },
+      'p1',
+      'pb1-kasumi-2'
+    );
+    const host = createCardInstance(
+      { ...kasumi.data, cardCode: 'HOST', name: 'Host' },
+      'p1',
+      'pb1-host'
+    );
+    const energyCards = Array.from({ length: 9 }, (_, index) =>
+      createCardInstance(
+        { cardCode: `PB1-ENERGY-${index}`, name: `Energy ${index}`, cardType: CardType.ENERGY },
+        options.energyOwner ?? 'p1',
+        `pb1-energy-${index}`
+      )
+    );
+    const belowMember = createCardInstance(
+      { ...kasumi.data, cardCode: 'BELOW', name: 'Below' },
+      'p1',
+      'pb1-below-member'
+    );
+    let game = registerCards(
+      createGameState('n-pb1-002-continuous', 'p1', 'P1', 'p2', 'P2'),
+      [kasumi, second, host, belowMember, ...energyCards]
+    );
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          kasumi.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, kasumi.instanceId);
+      }
+      for (const energy of energyCards.slice(0, options.firstCount ?? 0)) {
+        memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.CENTER, energy.instanceId);
+      }
+      if ((options.secondCount ?? 0) > 0) {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, second.instanceId);
+        for (const energy of energyCards.slice(3, 3 + (options.secondCount ?? 0))) {
+          memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.LEFT, energy.instanceId);
+        }
+      } else if ((options.otherSlotCount ?? 0) > 0) {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, host.instanceId);
+        for (const energy of energyCards.slice(3, 3 + (options.otherSlotCount ?? 0))) {
+          memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.LEFT, energy.instanceId);
+        }
+      }
+      if ((options.memberBelowCount ?? 0) > 0) {
+        memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, belowMember.instanceId);
+      }
+      return { ...player, memberSlots };
+    });
+    return { game, kasumi, second };
+  }
+
+  function scoreModifiers(game: GameState) {
+    return collectLiveModifiers(game).filter(
+      (modifier) =>
+        modifier.kind === 'SCORE' && modifier.abilityId === PL_N_PB1_002_CONTINUOUS_ABILITY_ID
+    );
+  }
+
+  it('is inactive at 0/1 energy and grants a fixed player SCORE +1 at 2/3 energy', () => {
+    for (const [count, expected] of [[0, 0], [1, 0], [2, 1], [3, 1]] as const) {
+      const { game, kasumi } = setupKasumiScoreScenario({ firstCount: count });
+      const modifiers = scoreModifiers(game);
+      expect(modifiers).toHaveLength(expected);
+      if (expected === 1) {
+        expect(modifiers[0]).toEqual({
+          kind: 'SCORE',
+          playerId: 'p1',
+          countDelta: 1,
+          sourceCardId: kasumi.instanceId,
+          abilityId: PL_N_PB1_002_CONTINUOUS_ABILITY_ID,
+        });
+        expect(modifiers[0]).not.toHaveProperty('liveCardId');
+        expect(getPlayerLiveScoreModifier(game.liveResolution, 'p1', collectLiveModifiers(game))).toBe(1);
+      }
+    }
+  });
+
+  it('stacks independently across sources and follows a source with its energyBelow to a new slot', () => {
+    const { game, kasumi, second } = setupKasumiScoreScenario({ firstCount: 2, secondCount: 2 });
+    expect(scoreModifiers(game).map((modifier) => modifier.sourceCardId).sort()).toEqual(
+      [kasumi.instanceId, second.instanceId].sort()
+    );
+    expect(getPlayerLiveScoreModifier(game.liveResolution, 'p1', collectLiveModifiers(game))).toBe(2);
+
+    const moved = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: null,
+          [SlotPosition.RIGHT]: kasumi.instanceId,
+        },
+        energyBelow: {
+          ...player.memberSlots.energyBelow,
+          [SlotPosition.CENTER]: [],
+          [SlotPosition.RIGHT]: player.memberSlots.energyBelow[SlotPosition.CENTER],
+        },
+      },
+    }));
+    expect(scoreModifiers(moved).map((modifier) => modifier.sourceCardId).sort()).toEqual(
+      [kasumi.instanceId, second.instanceId].sort()
+    );
+  });
+
+  it('ignores other-slot energy, memberBelow, off-stage and opponent-owned sources', () => {
+    for (const scenario of [
+      setupKasumiScoreScenario({ firstCount: 1, otherSlotCount: 2 }),
+      setupKasumiScoreScenario({ firstCount: 1, memberBelowCount: 2 }),
+      setupKasumiScoreScenario({ firstCount: 2, sourcePlacement: 'MEMBER_BELOW' }),
+      setupKasumiScoreScenario({ firstCount: 2, sourcePlacement: 'OFF_STAGE' }),
+      setupKasumiScoreScenario({ firstCount: 2, sourceOwner: 'p2' }),
+      setupKasumiScoreScenario({ firstCount: 2, energyOwner: 'p2' }),
+    ]) {
+      expect(scoreModifiers(scenario.game)).toEqual([]);
+    }
+  });
+
+  it('removes the modifier dynamically when the source leaves or is replaced', () => {
+    const { game } = setupKasumiScoreScenario({ firstCount: 2 });
+    const absent = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    expect(scoreModifiers(absent)).toEqual([]);
+  });
+});
+
+describe("PL!-bp4-020-L 成功区常时 CENTER μ's BLADE", () => {
+  const abilityId = 'PL!-bp4-020:continuous-success-zone-center-muse-gain-blade';
+
+  function setupLoveWingBell(
+    options: {
+      readonly sourceCount?: number;
+      readonly sourceZone?: 'SUCCESS' | 'LIVE' | 'HAND' | 'WAITING';
+      readonly sourceOwner?: string;
+      readonly sourceIsMember?: boolean;
+      readonly centerGroup?: readonly string[];
+      readonly centerOwner?: string;
+      readonly centerIsLive?: boolean;
+      readonly orientation?: OrientationState;
+    } = {}
+  ) {
+    const sourceCount = options.sourceCount ?? 1;
+    const sourceZone = options.sourceZone ?? 'SUCCESS';
+    const sources = Array.from({ length: sourceCount }, (_, index) =>
+      createCardInstance(
+        options.sourceIsMember
+          ? {
+              cardCode: 'PL!-bp4-020-L',
+              name: 'forged member',
+              cardType: CardType.MEMBER,
+              cost: 1,
+              blade: 1,
+              hearts: [],
+            }
+          : {
+              cardCode: 'PL!-bp4-020-L',
+              name: 'Love wing bell',
+              cardType: CardType.LIVE,
+              score: 3,
+              requirements: createHeartRequirement({}),
+            },
+        options.sourceOwner ?? 'p1',
+        `love-wing-${index}`
+      )
+    );
+    const center = createCardInstance(
+      options.centerIsLive
+        ? {
+            cardCode: 'CENTER-LIVE',
+            name: 'center live',
+            cardType: CardType.LIVE,
+            score: 1,
+            requirements: createHeartRequirement({}),
+          }
+        : {
+            cardCode: 'CENTER-MEMBER',
+            name: 'center member',
+            cardType: CardType.MEMBER,
+            groupNames: options.centerGroup ?? ["μ's"],
+            cost: 3,
+            blade: 2,
+            hearts: [createHeartIcon(HeartColor.PINK, 1)],
+          },
+      options.centerOwner ?? 'p1',
+      'center-member'
+    );
+    const side = createCardInstance(
+      {
+        cardCode: 'SIDE-MUSE',
+        name: 'side muse',
+        cardType: CardType.MEMBER,
+        groupNames: ["μ's"],
+        cost: 3,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'side-muse'
+    );
+    const below = createCardInstance(
+      {
+        cardCode: 'BELOW-MUSE',
+        name: 'below muse',
+        cardType: CardType.MEMBER,
+        groupNames: ["μ's"],
+        cost: 3,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'below-muse'
+    );
+    let game = registerCards(createGameState('bp4-020-continuous', 'p1', 'P1', 'p2', 'P2'), [
+      ...sources,
+      center,
+      side,
+      below,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.CENTER, center.instanceId, {
+            orientation: options.orientation ?? OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }),
+          SlotPosition.LEFT,
+          side.instanceId
+        ),
+        SlotPosition.RIGHT,
+        below.instanceId
+      ),
+      successZone:
+        sourceZone === 'SUCCESS'
+          ? sources.reduce(
+              (zone, source) => addCardToZone(zone, source.instanceId),
+              player.successZone
+            )
+          : player.successZone,
+      liveZone:
+        sourceZone === 'LIVE'
+          ? sources.reduce(
+              (zone, source) => addCardToStatefulZone(zone, source.instanceId),
+              player.liveZone
+            )
+          : player.liveZone,
+      hand:
+        sourceZone === 'HAND'
+          ? { ...player.hand, cardIds: sources.map((source) => source.instanceId) }
+          : player.hand,
+      waitingRoom:
+        sourceZone === 'WAITING'
+          ? { ...player.waitingRoom, cardIds: sources.map((source) => source.instanceId) }
+          : player.waitingRoom,
+    }));
+    return { game, sources, center, side, below };
+  }
+
+  function modifiersFor(game: ReturnType<typeof createGameState>) {
+    return collectLiveModifiers(game).filter(
+      (modifier) => modifier.kind === 'BLADE' && modifier.abilityId === abilityId
+    );
+  }
+
+  it.each([OrientationState.ACTIVE, OrientationState.WAITING])(
+    "成功区 020 为 %s CENTER μ's 动态 BLADE +1 并被有效值/合计读取",
+    (orientation) => {
+      const { game, center } = setupLoveWingBell({ orientation });
+      const modifiers = collectLiveModifiers(game);
+      expect(modifiersFor(game)).toEqual([
+        expect.objectContaining({
+          kind: 'BLADE',
+          playerId: 'p1',
+          countDelta: 1,
+          sourceCardId: center.instanceId,
+          abilityId,
+        }),
+      ]);
+      expect(getMemberEffectiveBladeCount(game, 'p1', center.instanceId, modifiers)).toBe(3);
+      expect(getPlayerLiveBladeModifier(game.liveResolution, 'p1', modifiers)).toBe(1);
+      expect(game.liveResolution.liveModifiers).toEqual([]);
+      expect(center.data.cardType === CardType.MEMBER && center.data.blade).toBe(2);
+    }
+  );
+
+  it.each(['LIVE', 'HAND', 'WAITING'] as const)('020 在 %s 不生效', (sourceZone) => {
+    expect(modifiersFor(setupLoveWingBell({ sourceZone }).game)).toEqual([]);
+  });
+
+  it.each([
+    ['wrong owner', { sourceOwner: 'p2' }],
+    ['forged non-live', { sourceIsMember: true }],
+    ['non muse center', { centerGroup: ['Aqours'] }],
+    ['wrong owner center', { centerOwner: 'p2' }],
+    ['non-member center', { centerIsLive: true }],
+  ])('%s 不生效', (_label, options) => {
+    expect(modifiersFor(setupLoveWingBell(options).game)).toEqual([]);
+  });
+
+  it("中央为空时不生效，侧边或 memberBelow 的 μ's 不会代替 CENTER", () => {
+    const { game } = setupLoveWingBell();
+    const noCenter = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, null),
+    }));
+    expect(modifiersFor(noCenter)).toEqual([]);
+  });
+
+  it('两张不同 020 实例叠加 +2，移走一张后实时只剩 +1', () => {
+    const { game, sources, center } = setupLoveWingBell({ sourceCount: 2 });
+    expect(modifiersFor(game)).toHaveLength(2);
+    expect(getMemberEffectiveBladeCount(game, 'p1', center.instanceId)).toBe(4);
+    const oneRemoved = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      successZone: {
+        ...player.successZone,
+        cardIds: player.successZone.cardIds.filter((cardId) => cardId !== sources[0].instanceId),
+      },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [...player.waitingRoom.cardIds, sources[0].instanceId],
+      },
+    }));
+    expect(modifiersFor(oneRemoved)).toHaveLength(1);
+    expect(getMemberEffectiveBladeCount(oneRemoved, 'p1', center.instanceId)).toBe(3);
+  });
+
+  it("中央成员移到侧边时立即消失，新的中央 μ's 成员立即获得", () => {
+    const { game, center, side } = setupLoveWingBell();
+    const swapped = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, center.instanceId),
+        SlotPosition.CENTER,
+        side.instanceId
+      ),
+    }));
+    expect(modifiersFor(swapped)).toEqual([
+      expect.objectContaining({ sourceCardId: side.instanceId, countDelta: 1 }),
+    ]);
+    expect(getMemberEffectiveBladeCount(swapped, 'p1', center.instanceId)).toBe(2);
+    expect(getMemberEffectiveBladeCount(swapped, 'p1', side.instanceId)).toBe(2);
+  });
+});
+
+type SPrHighCostPlacement = 'STAGE' | 'MEMBER_BELOW' | 'HAND' | 'WAITING_ROOM' | 'LIVE_ZONE';
+
+function createOwnStageExactTwoState(options: {
+  readonly sourceCodes: readonly string[];
+  readonly ownStageMemberCount: 1 | 2 | 3;
+  readonly sourcePlacement?: 'STAGE' | 'OFF_STAGE' | 'MEMBER_BELOW';
+  readonly waitingFiller?: boolean;
+  readonly addMemberBelowFiller?: boolean;
+}) {
+  const sourcePlacement = options.sourcePlacement ?? 'STAGE';
+  const sources = options.sourceCodes.map((cardCode, index) =>
+    createCardInstance(
+      {
+        cardCode,
+        name: cardCode,
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      `exact-two-source-${index}`
+    )
+  );
+  const fillers = [0, 1, 2].map((index) =>
+    createStageFillerMember(`exact-two-filler-${index}`, 'p1')
+  );
+  const belowFiller = createStageFillerMember('exact-two-below-filler', 'p1');
+  const host = createStageFillerMember('exact-two-host', 'p1');
+  let game = registerCards(createGameState('exact-own-stage-two', 'p1', 'P1', 'p2', 'P2'), [
+    ...sources,
+    ...fillers,
+    belowFiller,
+    host,
+  ]);
+  game = updatePlayer(game, 'p1', (player) => {
+    let memberSlots = player.memberSlots;
+    const stageCards =
+      sourcePlacement === 'STAGE'
+        ? [...sources, ...fillers].slice(0, options.ownStageMemberCount)
+        : [host, ...fillers].slice(0, options.ownStageMemberCount);
+    stageCards.forEach((card, index) => {
+      memberSlots = placeCardInSlot(
+        memberSlots,
+        [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index],
+        card.instanceId,
+        {
+          orientation:
+            options.waitingFiller && index === stageCards.length - 1
+              ? OrientationState.WAITING
+              : OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }
+      );
+    });
+    if (sourcePlacement === 'MEMBER_BELOW') {
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.LEFT, sources[0].instanceId);
+    }
+    if (options.addMemberBelowFiller) {
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.LEFT, belowFiller.instanceId);
+    }
+    return {
+      ...player,
+      memberSlots,
+      hand:
+        sourcePlacement === 'OFF_STAGE'
+          ? sources.reduce((hand, source) => addCardToZone(hand, source.instanceId), player.hand)
+          : player.hand,
+    };
+  });
+  return { game, sourceIds: sources.map((source) => source.instanceId) };
+}
+
+describe('PL!N-PR-020 / PL!S-PR-037 continuous own-stage exact two', () => {
+  const modifiers = (game: ReturnType<typeof createGameState>) =>
+    collectLiveModifiers(game).filter(
+      (modifier) => modifier.abilityId === N_PR_020_S_PR_037_CONTINUOUS_ABILITY_ID
+    );
+
+  it.each(['PL!N-PR-020-PR', 'PL!S-PR-037-PR'] as const)(
+    'gives %s source blue Heart +1 and BLADE +1 only at exactly two own main-stage members',
+    (cardCode) => {
+      for (const count of [1, 3] as const) {
+        expect(
+          modifiers(
+            createOwnStageExactTwoState({ sourceCodes: [cardCode], ownStageMemberCount: count })
+              .game
+          )
+        ).toEqual([]);
+      }
+      const atTwo = createOwnStageExactTwoState({
+        sourceCodes: [cardCode],
+        ownStageMemberCount: 2,
+        waitingFiller: true,
+        addMemberBelowFiller: true,
+      });
+      expect(modifiers(atTwo.game)).toEqual([
+        {
+          kind: 'HEART',
+          target: 'SOURCE_MEMBER',
+          playerId: 'p1',
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+          sourceCardId: atTwo.sourceIds[0],
+          abilityId: N_PR_020_S_PR_037_CONTINUOUS_ABILITY_ID,
+        },
+        {
+          kind: 'BLADE',
+          playerId: 'p1',
+          countDelta: 1,
+          sourceCardId: atTwo.sourceIds[0],
+          abilityId: N_PR_020_S_PR_037_CONTINUOUS_ABILITY_ID,
+        },
+      ]);
+      expect(getMemberEffectiveHeartIcons(atTwo.game, 'p1', atTwo.sourceIds[0])).toContainEqual(
+        createHeartIcon(HeartColor.BLUE, 1)
+      );
+      expect(getMemberEffectiveBladeCount(atTwo.game, 'p1', atTwo.sourceIds[0])).toBe(2);
+    }
+  );
+
+  it('requires the source itself to remain a main-stage member', () => {
+    for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
+      const state = createOwnStageExactTwoState({
+        sourceCodes: ['PL!N-PR-020-PR'],
+        ownStageMemberCount: 2,
+        sourcePlacement,
+      });
+      expect(modifiers(state.game)).toEqual([]);
+    }
+  });
+
+  it('collects independently for two source instances and disappears after count changes', () => {
+    const atTwo = createOwnStageExactTwoState({
+      sourceCodes: ['PL!N-PR-020-PR', 'PL!S-PR-037-PR'],
+      ownStageMemberCount: 2,
+    });
+    expect(modifiers(atTwo.game)).toHaveLength(4);
+    expect(new Set(modifiers(atTwo.game).map((modifier) => modifier.sourceCardId))).toEqual(
+      new Set(atTwo.sourceIds)
+    );
+    const atOne = updatePlayer(atTwo.game, 'p1', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
+      },
+    }));
+    expect(modifiers(atOne)).toEqual([]);
+    const dynamicThird = createStageFillerMember('dynamic-third', 'p1');
+    const atThree = updatePlayer(registerCards(atTwo.game, [dynamicThird]), 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, dynamicThird.instanceId),
+    }));
+    expect(modifiers(atThree)).toEqual([]);
+  });
+});
+
+function createSPr030031ContinuousState(options: {
+  readonly sourceCodes?: readonly string[];
+  readonly sourcePrintedCosts?: readonly number[];
+  readonly sourcePrintedBlades?: readonly number[];
+  readonly sourceOnStage?: boolean;
+  readonly ownHighCost?: {
+    readonly placement: SPrHighCostPlacement;
+    readonly printedCost: number;
+    readonly costDelta?: number;
+    readonly orientation?: OrientationState;
+  };
+  readonly opponentHighCost?: {
+    readonly placement: SPrHighCostPlacement;
+    readonly printedCost: number;
+    readonly costDelta?: number;
+    readonly orientation?: OrientationState;
+  };
+}) {
+  const sourceCodes = options.sourceCodes ?? ['PL!S-PR-030-PR'];
+  const sourceSlots = [SlotPosition.LEFT, SlotPosition.CENTER] as const;
+  const sources = sourceCodes.map((cardCode, index) =>
+    createCardInstance(
+      {
+        cardCode,
+        name: cardCode,
+        groupNames: ['Aqours'],
+        cardType: CardType.MEMBER,
+        cost: options.sourcePrintedCosts?.[index] ?? 9,
+        blade: options.sourcePrintedBlades?.[index] ?? 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      `s-pr-030-031-source-${index}`
+    )
+  );
+  const createQualifier = (ownerId: string, printedCost: number, suffix: string) =>
+    createCardInstance(
+      {
+        cardCode: `TEST-${suffix}`,
+        name: suffix,
+        cardType: CardType.MEMBER,
+        cost: printedCost,
+        blade: 1,
+        hearts: [],
+      },
+      ownerId,
+      `s-pr-030-031-${suffix}`
+    );
+  const ownQualifier = options.ownHighCost
+    ? createQualifier('p1', options.ownHighCost.printedCost, 'own-qualifier')
+    : null;
+  const opponentQualifier = options.opponentHighCost
+    ? createQualifier('p2', options.opponentHighCost.printedCost, 'opponent-qualifier')
+    : null;
+  const ownHost =
+    options.ownHighCost?.placement === 'MEMBER_BELOW'
+      ? createQualifier('p1', 1, 'own-low-cost-host')
+      : null;
+  const opponentHost =
+    options.opponentHighCost?.placement === 'MEMBER_BELOW'
+      ? createQualifier('p2', 1, 'opponent-low-cost-host')
+      : null;
+  const cards = [...sources];
+  for (const card of [ownQualifier, opponentQualifier, ownHost, opponentHost]) {
+    if (card) cards.push(card);
+  }
+
+  let game = registerCards(
+    createGameState('s-pr-030-031-continuous', 'p1', 'P1', 'p2', 'P2'),
+    cards
+  );
+  game = updatePlayer(game, 'p1', (player) => {
+    let memberSlots = player.memberSlots;
+    if (options.sourceOnStage !== false) {
+      sources.forEach((source, index) => {
+        memberSlots = placeCardInSlot(memberSlots, sourceSlots[index], source.instanceId);
+      });
+    }
+    if (ownQualifier && options.ownHighCost?.placement === 'STAGE') {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, ownQualifier.instanceId, {
+        orientation: options.ownHighCost.orientation ?? OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      });
+    } else if (ownQualifier && ownHost && options.ownHighCost?.placement === 'MEMBER_BELOW') {
+      memberSlots = addMemberBelowMember(
+        placeCardInSlot(memberSlots, SlotPosition.RIGHT, ownHost.instanceId),
+        SlotPosition.RIGHT,
+        ownQualifier.instanceId
+      );
+    }
+    let hand = player.hand;
+    if (options.sourceOnStage === false) {
+      hand = sources.reduce((zone, source) => addCardToZone(zone, source.instanceId), hand);
+    }
+    if (ownQualifier && options.ownHighCost?.placement === 'HAND') {
+      hand = addCardToZone(hand, ownQualifier.instanceId);
+    }
+    return {
+      ...player,
+      memberSlots,
+      hand,
+      waitingRoom:
+        ownQualifier && options.ownHighCost?.placement === 'WAITING_ROOM'
+          ? addCardToZone(player.waitingRoom, ownQualifier.instanceId)
+          : player.waitingRoom,
+      liveZone:
+        ownQualifier && options.ownHighCost?.placement === 'LIVE_ZONE'
+          ? addCardToStatefulZone(player.liveZone, ownQualifier.instanceId)
+          : player.liveZone,
+    };
+  });
+  game = updatePlayer(game, 'p2', (player) => {
+    let memberSlots = player.memberSlots;
+    if (opponentQualifier && options.opponentHighCost?.placement === 'STAGE') {
+      memberSlots = placeCardInSlot(
+        memberSlots,
+        SlotPosition.CENTER,
+        opponentQualifier.instanceId,
+        {
+          orientation: options.opponentHighCost.orientation ?? OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }
+      );
+    } else if (
+      opponentQualifier &&
+      opponentHost &&
+      options.opponentHighCost?.placement === 'MEMBER_BELOW'
+    ) {
+      memberSlots = addMemberBelowMember(
+        placeCardInSlot(memberSlots, SlotPosition.CENTER, opponentHost.instanceId),
+        SlotPosition.CENTER,
+        opponentQualifier.instanceId
+      );
+    }
+    return {
+      ...player,
+      memberSlots,
+      hand:
+        opponentQualifier && options.opponentHighCost?.placement === 'HAND'
+          ? addCardToZone(player.hand, opponentQualifier.instanceId)
+          : player.hand,
+      waitingRoom:
+        opponentQualifier && options.opponentHighCost?.placement === 'WAITING_ROOM'
+          ? addCardToZone(player.waitingRoom, opponentQualifier.instanceId)
+          : player.waitingRoom,
+      liveZone:
+        opponentQualifier && options.opponentHighCost?.placement === 'LIVE_ZONE'
+          ? addCardToStatefulZone(player.liveZone, opponentQualifier.instanceId)
+          : player.liveZone,
+    };
+  });
+
+  for (const adjustment of [
+    ownQualifier && options.ownHighCost?.costDelta
+      ? { playerId: 'p1', cardId: ownQualifier.instanceId, delta: options.ownHighCost.costDelta }
+      : null,
+    opponentQualifier && options.opponentHighCost?.costDelta
+      ? {
+          playerId: 'p2',
+          cardId: opponentQualifier.instanceId,
+          delta: options.opponentHighCost.costDelta,
+        }
+      : null,
+  ]) {
+    if (!adjustment) continue;
+    game =
+      addMemberCostLiveModifierForMember(game, {
+        playerId: adjustment.playerId,
+        memberCardId: adjustment.cardId,
+        sourceCardId: 'test-cost-source',
+        abilityId: `test-cost-${adjustment.cardId}`,
+        countDelta: adjustment.delta,
+      })?.gameState ?? game;
+  }
+
+  return {
+    game,
+    sourceIds: sources.map((source) => source.instanceId),
+    opponentQualifierId: opponentQualifier?.instanceId ?? null,
+  };
+}
+
+describe('PL!S-PR-029/030/031 continuous any-stage cost >= 13 BLADE', () => {
+  const abilityModifiers = (game: ReturnType<typeof createGameState>) =>
+    collectLiveModifiers(game).filter(
+      (modifier) => modifier.abilityId === S_PR_030_031_CONTINUOUS_ABILITY_ID
+    );
+
+  it('collects exactly BLADE +2 from another own effective-cost-13 stage member', () => {
+    const state = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    const modifiers = collectLiveModifiers(state.game);
+    expect(abilityModifiers(state.game)).toEqual([
+      {
+        kind: 'BLADE',
+        playerId: 'p1',
+        countDelta: 2,
+        sourceCardId: state.sourceIds[0],
+        abilityId: S_PR_030_031_CONTINUOUS_ABILITY_ID,
+      },
+    ]);
+    expect(getMemberEffectiveBladeCount(state.game, 'p1', state.sourceIds[0], modifiers)).toBe(3);
+  });
+
+  it('uses the opponent player id for opponent effective cost', () => {
+    const state = createSPr030031ContinuousState({
+      opponentHighCost: { placement: 'STAGE', printedCost: 12, costDelta: 1 },
+    });
+    expect(getMemberEffectiveCost(state.game, 'p2', state.opponentQualifierId!)).toBe(13);
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+  });
+
+  it('allows the source itself to satisfy the condition', () => {
+    const state = createSPr030031ContinuousState({ sourcePrintedCosts: [13] });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+  });
+
+  it('does not collect at effective cost 12', () => {
+    expect(
+      abilityModifiers(createSPr030031ContinuousState({ sourcePrintedCosts: [12] }).game)
+    ).toEqual([]);
+  });
+
+  it('uses effective rather than printed cost in both directions', () => {
+    const raised = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 12, costDelta: 1 },
+    });
+    expect(abilityModifiers(raised.game)).toHaveLength(1);
+    const lowered = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 13, costDelta: -1 },
+    });
+    expect(abilityModifiers(lowered.game)).toEqual([]);
+  });
+
+  it('counts a WAITING cost-13 member still on the main stage', () => {
+    const state = createSPr030031ContinuousState({
+      opponentHighCost: {
+        placement: 'STAGE',
+        printedCost: 13,
+        orientation: OrientationState.WAITING,
+      },
+    });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+  });
+
+  it('excludes a cost-13 memberBelow card', () => {
+    const state = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'MEMBER_BELOW', printedCost: 13 },
+    });
+    expect(abilityModifiers(state.game)).toEqual([]);
+  });
+
+  it.each(['HAND', 'WAITING_ROOM', 'LIVE_ZONE'] as const)(
+    'excludes a cost-13 member in %s',
+    (placement) => {
+      const state = createSPr030031ContinuousState({
+        opponentHighCost: { placement, printedCost: 13 },
+      });
+      expect(abilityModifiers(state.game)).toEqual([]);
+    }
+  );
+
+  it('stops collecting when the source leaves the main stage', () => {
+    const state = createSPr030031ContinuousState({
+      sourceOnStage: false,
+      opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    expect(abilityModifiers(state.game)).toEqual([]);
+  });
+
+  it('does not multiply the fixed +2 for multiple qualifying members', () => {
+    const state = createSPr030031ContinuousState({
+      ownHighCost: { placement: 'STAGE', printedCost: 13 },
+      opponentHighCost: { placement: 'STAGE', printedCost: 14 },
+    });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+    expect(abilityModifiers(state.game)[0]).toMatchObject({ countDelta: 2 });
+    expect(getMemberEffectiveBladeCount(state.game, 'p1', state.sourceIds[0])).toBe(3);
+  });
+
+  it.each(['PL!S-PR-029-PR', 'PL!S-PR-030-PR', 'PL!S-PR-031-PR'] as const)(
+    'collects independently for %s',
+    (cardCode) => {
+      const state = createSPr030031ContinuousState({
+        sourceCodes: [cardCode],
+        opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+      });
+      expect(abilityModifiers(state.game)).toHaveLength(1);
+    }
+  );
+
+  it('raises PL!S-PR-029 printed BLADE 3 to effective BLADE 5', () => {
+    const state = createSPr030031ContinuousState({
+      sourceCodes: ['PL!S-PR-029-PR'],
+      sourcePrintedBlades: [3],
+      opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    expect(getMemberEffectiveBladeCount(state.game, 'p1', state.sourceIds[0])).toBe(5);
+  });
+
+  it('gives simultaneous 030 and 031 sources separate +2 modifiers', () => {
+    const state = createSPr030031ContinuousState({
+      sourceCodes: ['PL!S-PR-030-PR', 'PL!S-PR-031-PR'],
+      opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    const modifiers = collectLiveModifiers(state.game);
+    expect(abilityModifiers(state.game)).toHaveLength(2);
+    expect(new Set(abilityModifiers(state.game).map((modifier) => modifier.sourceCardId))).toEqual(
+      new Set(state.sourceIds)
+    );
+    for (const sourceId of state.sourceIds) {
+      expect(getMemberEffectiveBladeCount(state.game, 'p1', sourceId, modifiers)).toBe(3);
+    }
+  });
+
+  it('removes the dynamic modifier after the qualifying member leaves stage', () => {
+    const state = createSPr030031ContinuousState({
+      opponentHighCost: { placement: 'STAGE', printedCost: 13 },
+    });
+    expect(abilityModifiers(state.game)).toHaveLength(1);
+    const changed = updatePlayer(state.game, 'p2', (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
+      },
+      waitingRoom: addCardToZone(player.waitingRoom, state.opponentQualifierId!),
+    }));
+    expect(abilityModifiers(changed)).toEqual([]);
+    expect(getMemberEffectiveBladeCount(changed, 'p1', state.sourceIds[0])).toBe(1);
+  });
+});
+
 describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
   const abilityId = 'PL!SP-bp2-004:continuous-center-highest-stage-cost-gain-yellow-heart';
 
@@ -5936,25 +7105,24 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
       [SlotPosition.CENTER]: options.centerCost,
       [SlotPosition.RIGHT]: options.rightCost,
     };
-    const stageCards = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].map(
-      (slot) =>
-        createCardInstance(
-          {
-            cardCode:
-              slot === options.sourceSlot ? 'PL!SP-bp2-004-P' : `TEST-SP-BP2-004-${slot}`,
-            name: slot === options.sourceSlot ? '平安名すみれ' : `Stage ${slot}`,
-            groupNames: ['Liella!'],
-            cardType: CardType.MEMBER,
-            cost: costs[slot],
-            blade: 1,
-            hearts: [createHeartIcon(HeartColor.PINK, 1)],
-          },
-          'p1',
-          `sp-bp2-004-${slot}`
-        )
+    const stageCards = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].map((slot) =>
+      createCardInstance(
+        {
+          cardCode: slot === options.sourceSlot ? 'PL!SP-bp2-004-P' : `TEST-SP-BP2-004-${slot}`,
+          name: slot === options.sourceSlot ? '平安名すみれ' : `Stage ${slot}`,
+          groupNames: ['Liella!'],
+          cardType: CardType.MEMBER,
+          cost: costs[slot],
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        'p1',
+        `sp-bp2-004-${slot}`
+      )
     );
-    const source = stageCards.find((_, index) =>
-      [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index] === options.sourceSlot
+    const source = stageCards.find(
+      (_, index) =>
+        [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT][index] === options.sourceSlot
     )!;
     const opponent = createCardInstance(
       {
@@ -5980,10 +7148,11 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
       'p1',
       'sp-bp2-004-below'
     );
-    let game = registerCards(
-      createGameState('sp-bp2-004-continuous', 'p1', 'P1', 'p2', 'P2'),
-      [...stageCards, opponent, below]
-    );
+    let game = registerCards(createGameState('sp-bp2-004-continuous', 'p1', 'P1', 'p2', 'P2'), [
+      ...stageCards,
+      opponent,
+      below,
+    ]);
     game = updatePlayer(game, 'p1', (player) => {
       let memberSlots = player.memberSlots;
       for (const [index, slot] of [
@@ -5998,11 +7167,7 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
     });
     game = updatePlayer(game, 'p2', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(
-        player.memberSlots,
-        SlotPosition.CENTER,
-        opponent.instanceId
-      ),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, opponent.instanceId),
     }));
     return {
       game,
@@ -6023,21 +7188,24 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
     [SlotPosition.LEFT, 4, 9, 7],
     [SlotPosition.RIGHT, 7, 9, 4],
     [SlotPosition.CENTER, 4, 9, 7],
-  ])('grants the source in %s one SOURCE_MEMBER yellow Heart when center is highest', (sourceSlot, leftCost, centerCost, rightCost) => {
-    const { game, sourceId } = createScenario({ sourceSlot, leftCost, centerCost, rightCost });
+  ])(
+    'grants the source in %s one SOURCE_MEMBER yellow Heart when center is highest',
+    (sourceSlot, leftCost, centerCost, rightCost) => {
+      const { game, sourceId } = createScenario({ sourceSlot, leftCost, centerCost, rightCost });
 
-    expect(findModifiers(game)).toEqual([
-      {
-        kind: 'HEART',
-        target: 'SOURCE_MEMBER',
-        playerId: 'p1',
-        hearts: [{ color: HeartColor.YELLOW, count: 1 }],
-        sourceCardId: sourceId,
-        abilityId,
-      },
-    ]);
-    expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
-  });
+      expect(findModifiers(game)).toEqual([
+        {
+          kind: 'HEART',
+          target: 'SOURCE_MEMBER',
+          playerId: 'p1',
+          hearts: [{ color: HeartColor.YELLOW, count: 1 }],
+          sourceCardId: sourceId,
+          abilityId,
+        },
+      ]);
+      expect(game.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
+    }
+  );
 
   it('accepts a highest-cost tie and ignores higher-cost opponent and memberBelow cards', () => {
     const { game } = createScenario({
@@ -6054,15 +7222,18 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
   it.each([
     [10, 9, 5],
     [5, 9, 10],
-  ])('does not grant when center cost is strictly below a side member (%s/%s/%s)', (leftCost, centerCost, rightCost) => {
-    const { game } = createScenario({
-      sourceSlot: SlotPosition.LEFT,
-      leftCost,
-      centerCost,
-      rightCost,
-    });
-    expect(findModifiers(game)).toEqual([]);
-  });
+  ])(
+    'does not grant when center cost is strictly below a side member (%s/%s/%s)',
+    (leftCost, centerCost, rightCost) => {
+      const { game } = createScenario({
+        sourceSlot: SlotPosition.LEFT,
+        leftCost,
+        centerCost,
+        rightCost,
+      });
+      expect(findModifiers(game)).toEqual([]);
+    }
+  );
 
   it('does not grant with an empty center or after the source leaves the main stage', () => {
     const scenario = createScenario({
@@ -6160,11 +7331,7 @@ describe('PL!SP-bp2-004 continuous center-highest-cost yellow Heart', () => {
     let game = registerCards(first.game, [secondSource]);
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(
-        player.memberSlots,
-        SlotPosition.RIGHT,
-        secondSource.instanceId
-      ),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, secondSource.instanceId),
     }));
     const modifiers = findModifiers(game);
     expect(modifiers).toHaveLength(2);
@@ -6208,7 +7375,9 @@ describe('memberHasMoreEffectiveHeartsThanPrinted', () => {
         hearts: [createHeartIcon(HeartColor.BLUE, 3)],
       }
     );
-    expect(memberHasMoreEffectiveHeartsThanPrinted(onlyOtherModifiers, 'p1', member.instanceId)).toBe(false);
+    expect(
+      memberHasMoreEffectiveHeartsThanPrinted(onlyOtherModifiers, 'p1', member.instanceId)
+    ).toBe(false);
     expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p2', member.instanceId)).toBe(false);
     expect(memberHasMoreEffectiveHeartsThanPrinted(game, 'p1', 'missing')).toBe(false);
   });
@@ -6294,7 +7463,11 @@ describe('PL!S-pb1-005 continuous opponent energy lead BLADE', () => {
     );
     const opponentEnergy = Array.from({ length: options.opponentEnergyCount ?? 0 }, (_, index) =>
       createCardInstance(
-        { cardCode: `OPP-ENE-${index}`, name: `Opponent Energy ${index}`, cardType: CardType.ENERGY },
+        {
+          cardCode: `OPP-ENE-${index}`,
+          name: `Opponent Energy ${index}`,
+          cardType: CardType.ENERGY,
+        },
         'p2',
         `opponent-energy-${index}`
       )
@@ -6644,7 +7817,7 @@ describe('PL!S-bp2-001 continuous own-empty opponent-success BLADE', () => {
     }
   });
 
-  it('does not grant BLADE while the source member is not on its owner\'s main stage', () => {
+  it("does not grant BLADE while the source member is not on its owner's main stage", () => {
     const scenario = setupChikaSuccessScenario({
       cardCode: 'PL!S-bp2-001-R',
       ownSuccessCount: 0,
@@ -7170,12 +8343,7 @@ function createSpBp5016EnergyState(options: {
 function createSpPb2EnergyHeartState(options: {
   readonly cardCode: string;
   readonly energyOrientations: readonly OrientationState[];
-  readonly sourcePlacement?:
-    | 'MAIN_STAGE'
-    | 'OFF_STAGE'
-    | 'MEMBER_BELOW'
-    | 'HAND'
-    | 'WAITING_ROOM';
+  readonly sourcePlacement?: 'MAIN_STAGE' | 'OFF_STAGE' | 'MEMBER_BELOW' | 'HAND' | 'WAITING_ROOM';
 }) {
   const source = createCardInstance(
     {
@@ -7224,10 +8392,7 @@ function createSpPb2EnergyHeartState(options: {
         SlotPosition.CENTER,
         source.instanceId
       );
-    } else if (
-      options.sourcePlacement === undefined ||
-      options.sourcePlacement === 'MAIN_STAGE'
-    ) {
+    } else if (options.sourcePlacement === undefined || options.sourcePlacement === 'MAIN_STAGE') {
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId);
     }
 
@@ -7492,11 +8657,15 @@ function createSpSd2ContinuousStageState(options: {
 function createSpPr022StageState(options: {
   readonly totalStageMembers: 5 | 6;
   readonly sourcePlacement?: 'MAIN_STAGE' | 'OFF_STAGE' | 'MEMBER_BELOW';
+  readonly sourceCardCode?: string;
+  readonly waitingMember?: boolean;
+  readonly addMemberBelowFiller?: boolean;
 }) {
+  const sourceCardCode = options.sourceCardCode ?? 'PL!SP-PR-022-PR';
   const source = createCardInstance(
     {
-      cardCode: 'PL!SP-PR-022-PR',
-      name: '若菜四季',
+      cardCode: sourceCardCode,
+      name: sourceCardCode,
       groupNames: ['Liella!'],
       cardType: CardType.MEMBER,
       cost: 4,
@@ -7504,7 +8673,7 @@ function createSpPr022StageState(options: {
       hearts: [createHeartIcon(HeartColor.PINK, 1)],
     },
     'p1',
-    'sp-pr-022-source'
+    `${sourceCardCode}-source`
   );
   const p1Left = createStageFillerMember('p1-left-member', 'p1');
   const p1Center = createStageFillerMember('p1-center-member', 'p1');
@@ -7512,7 +8681,8 @@ function createSpPr022StageState(options: {
   const p2Left = createStageFillerMember('p2-left-member', 'p2');
   const p2Center = createStageFillerMember('p2-center-member', 'p2');
   const p2Right = createStageFillerMember('p2-right-member', 'p2');
-  const allCards = [source, p1Left, p1Center, p1Right, p2Left, p2Center, p2Right];
+  const belowFiller = createStageFillerMember('p1-below-filler', 'p1');
+  const allCards = [source, p1Left, p1Center, p1Right, p2Left, p2Center, p2Right, belowFiller];
 
   let game = createGameState('sp-pr-022-stage-six', 'p1', 'P1', 'p2', 'P2');
   game = registerCards(game, allCards);
@@ -7520,7 +8690,10 @@ function createSpPr022StageState(options: {
     const sourcePlacement = options.sourcePlacement ?? 'MAIN_STAGE';
     let memberSlots = player.memberSlots;
     if (sourcePlacement === 'MAIN_STAGE') {
-      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId);
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: options.waitingMember ? OrientationState.WAITING : OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      });
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, p1Left.instanceId);
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, p1Right.instanceId);
     } else if (sourcePlacement === 'MEMBER_BELOW') {
@@ -7532,6 +8705,9 @@ function createSpPr022StageState(options: {
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, p1Center.instanceId);
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, p1Left.instanceId);
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, p1Right.instanceId);
+    }
+    if (options.addMemberBelowFiller) {
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.LEFT, belowFiller.instanceId);
     }
     return { ...player, memberSlots };
   });
@@ -8377,30 +9553,220 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
   });
 
   it('keeps player SCORE granted to a target member separate from its source and removes every binding by target', () => {
-    const source = createCardInstance({ cardCode: 'source', name: 'source', cardType: CardType.MEMBER, cost: 1, blade: 1, hearts: [] }, 'p1', 'source');
-    const target = createCardInstance({ cardCode: 'target', name: 'target', cardType: CardType.MEMBER, cost: 1, blade: 1, hearts: [] }, 'p1', 'target');
-    const otherTarget = createCardInstance({ cardCode: 'other-target', name: 'other-target', cardType: CardType.MEMBER, cost: 1, blade: 1, hearts: [] }, 'p1', 'other-target');
-    let game = registerCards(createGameState('target-score', 'p1', 'P1', 'p2', 'P2'), [source, target, otherTarget]);
+    const source = createCardInstance(
+      {
+        cardCode: 'source',
+        name: 'source',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'source'
+    );
+    const target = createCardInstance(
+      {
+        cardCode: 'target',
+        name: 'target',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'target'
+    );
+    const otherTarget = createCardInstance(
+      {
+        cardCode: 'other-target',
+        name: 'other-target',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'other-target'
+    );
+    let game = registerCards(createGameState('target-score', 'p1', 'P1', 'p2', 'P2'), [
+      source,
+      target,
+      otherTarget,
+    ]);
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,
       memberSlots: placeCardInSlot(
-        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }),
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, target.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
         SlotPosition.RIGHT,
         otherTarget.instanceId,
         { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
       ),
     }));
-    const first = addPlayerScoreLiveModifierForTargetMember(game, { playerId: 'p1', targetMemberCardId: target.instanceId, sourceCardId: source.instanceId, abilityId: 'one', countDelta: 1 });
-    const second = addPlayerScoreLiveModifierForTargetMember(first!.gameState, { playerId: 'p1', targetMemberCardId: target.instanceId, sourceCardId: 'other-source', abilityId: 'two', countDelta: 1 });
-    const third = addPlayerScoreLiveModifierForTargetMember(second!.gameState, { playerId: 'p1', targetMemberCardId: otherTarget.instanceId, sourceCardId: 'third-source', abilityId: 'three', countDelta: 1 });
+    const first = addPlayerScoreLiveModifierForTargetMember(game, {
+      playerId: 'p1',
+      targetMemberCardId: target.instanceId,
+      sourceCardId: source.instanceId,
+      abilityId: 'one',
+      countDelta: 1,
+    });
+    const second = addPlayerScoreLiveModifierForTargetMember(first!.gameState, {
+      playerId: 'p1',
+      targetMemberCardId: target.instanceId,
+      sourceCardId: 'other-source',
+      abilityId: 'two',
+      countDelta: 1,
+    });
+    const third = addPlayerScoreLiveModifierForTargetMember(second!.gameState, {
+      playerId: 'p1',
+      targetMemberCardId: otherTarget.instanceId,
+      sourceCardId: 'third-source',
+      abilityId: 'three',
+      countDelta: 1,
+    });
     expect(third!.gameState.liveResolution.playerScoreBonuses.get('p1')).toBe(3);
-    const afterTargetLeaves = removeTargetMemberBoundLiveModifiers(third!.gameState, [target.instanceId]);
+    const afterTargetLeaves = removeTargetMemberBoundLiveModifiers(third!.gameState, [
+      target.instanceId,
+    ]);
     expect(afterTargetLeaves.liveResolution.liveModifiers).toEqual([
       expect.objectContaining({ targetMemberCardId: otherTarget.instanceId, abilityId: 'three' }),
     ]);
     expect(afterTargetLeaves.liveResolution.playerScoreBonuses.get('p1')).toBe(1);
-    const afterOtherTargetLeaves = removeTargetMemberBoundLiveModifiers(afterTargetLeaves, [otherTarget.instanceId]);
+    const afterOtherTargetLeaves = removeTargetMemberBoundLiveModifiers(afterTargetLeaves, [
+      otherTarget.instanceId,
+    ]);
     expect(afterOtherTargetLeaves.liveResolution.liveModifiers).toEqual([]);
     expect(afterOtherTargetLeaves.liveResolution.playerScoreBonuses.has('p1')).toBe(false);
+  });
+
+  it('removes source-member BLADE by member instance while preserving unrelated modifiers', () => {
+    const matchingBlade = {
+      kind: 'BLADE' as const,
+      playerId: 'p1',
+      countDelta: 5,
+      sourceCardId: 'leaving-member',
+      abilityId: 'fixed-five',
+    };
+    const otherBlade = {
+      kind: 'BLADE' as const,
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: 'other-member',
+      abilityId: 'other-blade',
+    };
+    const playerScore = {
+      kind: 'SCORE' as const,
+      playerId: 'p1',
+      countDelta: 1,
+      sourceCardId: 'leaving-member',
+      abilityId: 'unbound-score',
+    };
+    let game = createGameState('remove-stage-member-bound-blade', 'p1', 'P1', 'p2', 'P2');
+    game = addLiveModifier(game, matchingBlade);
+    game = addLiveModifier(game, otherBlade);
+    game = addLiveModifier(game, playerScore);
+
+    expect(removeStageMemberBoundLiveModifiers(game, ['leaving-member']).liveResolution.liveModifiers).toEqual([
+      otherBlade,
+      playerScore,
+    ]);
+  });
+});
+
+describe('PL!SP-bp1-004 continuous center BLADE', () => {
+  it('dynamically collects SOURCE_MEMBER BLADE +5 only while top-level in CENTER and stacks legal sources', () => {
+    const createSumire = (id: string, ownerId = 'p1') =>
+      createCardInstance(
+        {
+          cardCode: 'PL!SP-bp1-004-P',
+          name: '平安名すみれ',
+          groupNames: ['Liella!'],
+          cardType: CardType.MEMBER,
+          cost: 15,
+          blade: 2,
+          hearts: [],
+        },
+        ownerId,
+        id
+      );
+    const first = createSumire('sp-bp1-004-first');
+    const second = createSumire('sp-bp1-004-second', 'p2');
+    const cover = createCardInstance(
+      { ...first.data, cardCode: 'PL!SP-test-cover', name: 'cover' },
+      'p1',
+      'sp-bp1-004-cover'
+    );
+    let game = registerCards(createGameState('sp-bp1-004-center', 'p1', 'P1', 'p2', 'P2'), [
+      first,
+      second,
+      cover,
+    ]);
+    const modifiersFor = (state: typeof game, cardId: string) =>
+      collectLiveModifiers(state).filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.sourceCardId === cardId &&
+          modifier.abilityId === SP_BP1_004_CONTINUOUS_ABILITY_ID
+      );
+
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, first.instanceId),
+    }));
+    expect(modifiersFor(game, first.instanceId)).toEqual([
+      expect.objectContaining({ kind: 'BLADE', playerId: 'p1', countDelta: 5 }),
+    ]);
+    expect(getMemberEffectiveBladeCount(game, 'p1', first.instanceId)).toBe(7);
+
+    const onLeft = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        SlotPosition.LEFT,
+        first.instanceId
+      ),
+    }));
+    expect(modifiersFor(onLeft, first.instanceId)).toEqual([]);
+    const onRight = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+        SlotPosition.RIGHT,
+        first.instanceId
+      ),
+    }));
+    expect(modifiersFor(onRight, first.instanceId)).toEqual([]);
+
+    const absent = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    expect(modifiersFor(absent, first.instanceId)).toEqual([]);
+
+    const below = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, cover.instanceId),
+        SlotPosition.CENTER,
+        first.instanceId
+      ),
+    }));
+    expect(modifiersFor(below, first.instanceId)).toEqual([]);
+
+    const restored = updatePlayer(absent, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, first.instanceId),
+    }));
+    expect(modifiersFor(restored, first.instanceId)).toHaveLength(1);
+
+    const secondPlayerStacked = updatePlayer(restored, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, second.instanceId),
+    }));
+    expect(modifiersFor(secondPlayerStacked, first.instanceId)).toHaveLength(1);
+    expect(modifiersFor(secondPlayerStacked, second.instanceId)).toHaveLength(1);
   });
 });

@@ -5,15 +5,18 @@ import { getCardById, getPlayerById } from '../../domain/entities/game.js';
 import { getMemberEffectiveBladeCount } from '../../domain/rules/live-modifiers.js';
 import { getMemberEffectiveCost as getDomainMemberEffectiveCost } from '../../domain/rules/member-effective-cost.js';
 export {
+  getSuccessfulLiveEffectiveScore,
   sumSuccessfulLiveScore,
   successLiveScoreAtLeast,
 } from '../../domain/rules/success-live-score.js';
+export { hasLiveWithoutLiveStartOrSuccessAbility } from '../../domain/rules/live-zone-ability.js';
 export {
   countMemberEntriesThisTurn,
   getMemberEntryOrdinalForEvent,
   getMovedToStageThisTurnStageMemberIdsMatching,
   getMovedToStageOrPositionMovedStageMemberIdsMatching,
   getPositionMovedStageMemberIdsMatching,
+  hasMemberEnteredStageThisTurnMatching,
   hasMemberMovedToStageThisTurn,
   hasMemberPositionMovedThisTurn,
 } from '../../domain/rules/member-turn-state.js';

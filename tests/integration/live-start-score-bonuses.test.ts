@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
+import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
   createCardInstance,
   createHeartIcon,
@@ -17,7 +17,10 @@ import {
   removeCardFromStatefulZone,
 } from '../../src/domain/entities/zone';
 import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
-import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
@@ -30,6 +33,8 @@ import {
   HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID,
   SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
   SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
+  SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID,
+  SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -67,7 +72,14 @@ function createEutopia(): LiveCardData {
 }
 
 function createPsychoHeart(): LiveCardData {
-  return { cardCode: 'PL!N-bp3-026-L', name: 'サイコーハート', groupNames: ['虹ヶ咲'], cardType: CardType.LIVE, score: 3, requirements: createHeartRequirement({ [HeartColor.RED]: 1 }) };
+  return {
+    cardCode: 'PL!N-bp3-026-L',
+    name: 'サイコーハート',
+    groupNames: ['虹ヶ咲'],
+    cardType: CardType.LIVE,
+    score: 3,
+    requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
+  };
 }
 
 function createLinkToTheFuture(): LiveCardData {
@@ -158,6 +170,113 @@ function createGoRestart(cardCode = 'PL!SP-bp2-023-L'): LiveCardData {
     score: 1,
     requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
   };
+}
+
+function createSingShineSmile(cardCode = 'PL!SP-bp1-027-L'): LiveCardData {
+  return {
+    cardCode,
+    name: 'Sing！Shine！Smile！',
+    groupNames: ['Liella!'],
+    cardType: CardType.LIVE,
+    score: 6,
+    requirements: createHeartRequirement({
+      [HeartColor.RED]: 3,
+      [HeartColor.YELLOW]: 3,
+      [HeartColor.PURPLE]: 3,
+      [HeartColor.RAINBOW]: 5,
+    }),
+  };
+}
+
+function createMySymphony(cardCode = 'PL!SP-sd1-026-SD'): LiveCardData {
+  return {
+    cardCode,
+    name: '私のSymphony 〜澮谷かのんVer.〜',
+    groupNames: ['Liella!'],
+    cardType: CardType.LIVE,
+    score: 4,
+    requirements: createHeartRequirement({ [HeartColor.YELLOW]: 3 }),
+  };
+}
+
+function createEnergy(cardCode: string): EnergyCardData {
+  return { cardCode, name: cardCode, cardType: CardType.ENERGY };
+}
+
+function setupSpBp1027(options: {
+  readonly energyCount: number;
+  readonly sourceCount?: number;
+  readonly initialScore?: number;
+}): {
+  readonly game: GameState;
+  readonly lives: readonly ReturnType<typeof createCardInstance>[];
+  readonly energies: readonly ReturnType<typeof createCardInstance>[];
+} {
+  const lives = Array.from({ length: options.sourceCount ?? 1 }, (_, index) =>
+    createCardInstance(createSingShineSmile(), PLAYER1, `sp-bp1-027-live-${index}`)
+  );
+  const energies = Array.from({ length: options.energyCount }, (_, index) =>
+    createCardInstance(
+      createEnergy(`sp-bp1-027-energy-${index}`),
+      PLAYER1,
+      `sp-bp1-027-energy-${index}`
+    )
+  );
+  let game = registerCards(
+    setupState({ lives, initialScore: options.initialScore ?? 6 }),
+    energies
+  );
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    energyZone: energies.reduce(
+      (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+      player.energyZone
+    ),
+  }));
+  return { game, lives, energies };
+}
+
+function setupSpSd1026(options: {
+  readonly energyCount: number;
+  readonly sourceCode?: string;
+  readonly sourceOwner?: string;
+  readonly sourceInLiveZone?: boolean;
+  readonly sourceAsMember?: boolean;
+}): {
+  readonly game: GameState;
+  readonly live: ReturnType<typeof createCardInstance>;
+  readonly energies: readonly ReturnType<typeof createCardInstance>[];
+} {
+  const sourceData = options.sourceAsMember
+    ? createMember({ cardCode: options.sourceCode ?? 'PL!SP-sd1-026-SD', hearts: [] })
+    : createMySymphony(options.sourceCode);
+  const live = createCardInstance(sourceData, options.sourceOwner ?? PLAYER1, 'sp-sd1-026-live');
+  const energies = Array.from({ length: options.energyCount }, (_, index) =>
+    createCardInstance(
+      createEnergy(`sp-sd1-026-energy-${index}`),
+      PLAYER1,
+      `sp-sd1-026-energy-${index}`
+    )
+  );
+  let game = registerCards(
+    setupState({
+      lives: options.sourceInLiveZone === false ? [] : [live],
+      initialScore: 4,
+    }),
+    options.sourceInLiveZone === false ? [live, ...energies] : energies
+  );
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    energyZone: energies.reduce(
+      (zone, energy, index) =>
+        addCardToStatefulZone(zone, energy.instanceId, {
+          orientation: index % 2 === 0 ? OrientationState.ACTIVE : OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
+      player.energyZone
+    ),
+  }));
+  return { game, live, energies };
 }
 
 function createKaleidoscoreMember(id: string, name: string, unitName = 'KALEIDOSCORE') {
@@ -262,13 +381,7 @@ function resolveLiveStart(game: GameState): GameState {
   session.createGame('n-live-start-score-bonuses-order', PLAYER1, 'P1', PLAYER2, 'P2');
   (session as unknown as { authorityState: GameState }).authorityState = gameState;
   const orderResult = session.executeCommand(
-    createConfirmEffectStepCommand(
-      PLAYER1,
-      gameState.activeEffect.id,
-      undefined,
-      null,
-      true
-    )
+    createConfirmEffectStepCommand(PLAYER1, gameState.activeEffect.id, undefined, null, true)
   );
   expect(orderResult.success, orderResult.error).toBe(true);
   expect(session.state?.activeEffect).toBeNull();
@@ -314,7 +427,11 @@ function scoreModifiersForAbility(game: GameState, abilityId: string) {
   );
 }
 
-function createHasunosoraMemberInstance(id: string, name: string, groupNames = ['蓮ノ空女学院スクールアイドルクラブ']) {
+function createHasunosoraMemberInstance(
+  id: string,
+  name: string,
+  groupNames = ['蓮ノ空女学院スクールアイドルクラブ']
+) {
   return createCardInstance(
     createMember({
       cardCode: `PL!HS-test-${id}`,
@@ -335,7 +452,7 @@ function latestPayload(game: GameState, abilityId: string) {
 }
 
 describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
-  it('confirms PL!-bp3-019-L before counting current structured μ\'s LIVE cards and adding SCORE +1', () => {
+  it("confirms PL!-bp3-019-L before counting current structured μ's LIVE cards and adding SCORE +1", () => {
     const source = createCardInstance(createBokuraNoLiveKimiToNoLife(), PLAYER1, 'bokura-live');
     const otherMuseLive = createCardInstance(
       createDummyLive('PL!-test-muse-live', 1, ["μ's"]),
@@ -374,21 +491,15 @@ describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
         state,
         PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID
       )
-    ).toContainEqual(
-      expect.objectContaining({ liveCardId: source.instanceId, countDelta: 1 })
-    );
+    ).toContainEqual(expect.objectContaining({ liveCardId: source.instanceId, countDelta: 1 }));
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(4);
     expect(
       latestPayload(state, PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID)
     ).toMatchObject({ museLiveCardCount: 2, conditionMet: true, scoreBonus: 1 });
   });
 
-  it('does not count a non-μ\'s LIVE card for PL!-bp3-019-L', () => {
-    const source = createCardInstance(
-      createBokuraNoLiveKimiToNoLife(),
-      PLAYER1,
-      'bokura-unmet'
-    );
+  it("does not count a non-μ's LIVE card for PL!-bp3-019-L", () => {
+    const source = createCardInstance(createBokuraNoLiveKimiToNoLife(), PLAYER1, 'bokura-unmet');
     const otherLive = createCardInstance(
       createDummyLive('PL!N-test-non-muse'),
       PLAYER1,
@@ -431,11 +542,7 @@ describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
       liveZone: removeCardFromStatefulZone(player.liveZone, source.instanceId),
     }));
 
-    const state = confirmActiveEffectStep(
-      sourceRemoved,
-      PLAYER1,
-      sourceRemoved.activeEffect!.id
-    );
+    const state = confirmActiveEffectStep(sourceRemoved, PLAYER1, sourceRemoved.activeEffect!.id);
     expect(
       scoreModifiersForAbility(
         state,
@@ -459,10 +566,9 @@ describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
         PLAYER1,
         `bokura-second-${suffix}`
       );
-      const checked = new GameService().executeCheckTiming(
-        setupState({ lives: [first, second] }),
-        [TriggerCondition.ON_LIVE_START]
-      ).gameState;
+      const checked = new GameService().executeCheckTiming(setupState({ lives: [first, second] }), [
+        TriggerCondition.ON_LIVE_START,
+      ]).gameState;
       return { first, second, checked };
     };
 
@@ -514,12 +620,14 @@ describe("PL!-bp3 μ's live-start score bonus LIVE cards", () => {
 });
 
 describe('PL!SP-pb1-024 Neutral shared live-start score bonus', () => {
-  function scenario(options: {
-    readonly cardCode?: string;
-    readonly names?: readonly string[];
-    readonly units?: readonly string[];
-    readonly sourceId?: string;
-  } = {}) {
+  function scenario(
+    options: {
+      readonly cardCode?: string;
+      readonly names?: readonly string[];
+      readonly units?: readonly string[];
+      readonly sourceId?: string;
+    } = {}
+  ) {
     const source = createCardInstance(
       createNeutral(options.cardCode),
       PLAYER1,
@@ -544,27 +652,43 @@ describe('PL!SP-pb1-024 Neutral shared live-start score bonus', () => {
     };
   }
 
-  it.each(['PL!SP-pb1-024-L', 'PL!SP-pb1-024-SRL'])('adds source-bound SCORE +1 for two different KALEIDOSCORE names: %s', (cardCode) => {
-    const { source, game } = scenario({ cardCode });
-    const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
-    expect(checked.success).toBe(true);
-    expect(checked.gameState.activeEffect).toMatchObject({
-      abilityId: SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
-      metadata: { confirmOnlyPendingAbility: true },
-    });
-    expect(checked.gameState.activeEffect?.effectText).toContain('当前不同名『KALEIDOSCORE』成员2名');
-    expect(checked.gameState.activeEffect?.effectText).toContain('满足条件，实际[スコア]+1');
-    expect(checked.gameState.activeEffect?.effectText).not.toMatch(/source|pending|stale|eventId/);
-    expect(scoreModifiersForAbility(checked.gameState, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
-    const resolved = confirmIfConfirmOnly(checked.gameState, PLAYER1);
-    expect(scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toContainEqual(expect.objectContaining({
-      playerId: PLAYER1,
-      liveCardId: source.instanceId,
-      sourceCardId: source.instanceId,
-      countDelta: 1,
-    }));
-    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
-  });
+  it.each(['PL!SP-pb1-024-L', 'PL!SP-pb1-024-SRL'])(
+    'adds source-bound SCORE +1 for two different KALEIDOSCORE names: %s',
+    (cardCode) => {
+      const { source, game } = scenario({ cardCode });
+      const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+      expect(checked.success).toBe(true);
+      expect(checked.gameState.activeEffect).toMatchObject({
+        abilityId: SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID,
+        metadata: { confirmOnlyPendingAbility: true },
+      });
+      expect(checked.gameState.activeEffect?.effectText).toContain(
+        '当前不同名『KALEIDOSCORE』成员2名'
+      );
+      expect(checked.gameState.activeEffect?.effectText).toContain('满足条件，实际[スコア]+1');
+      expect(checked.gameState.activeEffect?.effectText).not.toMatch(
+        /source|pending|stale|eventId/
+      );
+      expect(
+        scoreModifiersForAbility(
+          checked.gameState,
+          SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID
+        )
+      ).toEqual([]);
+      const resolved = confirmIfConfirmOnly(checked.gameState, PLAYER1);
+      expect(
+        scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)
+      ).toContainEqual(
+        expect.objectContaining({
+          playerId: PLAYER1,
+          liveCardId: source.instanceId,
+          sourceCardId: source.instanceId,
+          countDelta: 1,
+        })
+      );
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    }
+  );
 
   it.each([
     { names: ['平安名すみれ'], units: undefined },
@@ -575,7 +699,9 @@ describe('PL!SP-pb1-024 Neutral shared live-start score bonus', () => {
     const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
     expect(checked.gameState.activeEffect?.effectText).toContain('未满足条件，实际不增加分数');
     const resolved = confirmIfConfirmOnly(checked.gameState, PLAYER1);
-    expect(scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)
+    ).toEqual([]);
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(6);
   });
 
@@ -609,18 +735,24 @@ describe('PL!SP-pb1-024 Neutral shared live-start score bonus', () => {
       }),
     }));
     const resolved = resolveLiveStart(game);
-    expect(scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(resolved, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)
+    ).toEqual([]);
   });
 
   it('rechecks source validity and does not dynamically revoke an already resolved score', () => {
     const first = scenario({ sourceId: 'neutral-stale' });
-    const checked = new GameService().executeCheckTiming(first.game, [TriggerCondition.ON_LIVE_START]).gameState;
+    const checked = new GameService().executeCheckTiming(first.game, [
+      TriggerCondition.ON_LIVE_START,
+    ]).gameState;
     const departed = updatePlayer(checked, PLAYER1, (player) => ({
       ...player,
       liveZone: removeCardFromStatefulZone(player.liveZone, first.source.instanceId),
     }));
     const noOp = confirmIfConfirmOnly(departed, PLAYER1);
-    expect(scoreModifiersForAbility(noOp, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(noOp, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)
+    ).toEqual([]);
 
     const second = scenario({ sourceId: 'neutral-persistent' });
     const resolved = resolveLiveStart(second.game);
@@ -628,29 +760,54 @@ describe('PL!SP-pb1-024 Neutral shared live-start score bonus', () => {
       ...player,
       memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, null),
     }));
-    expect(scoreModifiersForAbility(stageChanged, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toHaveLength(1);
+    expect(
+      scoreModifiersForAbility(stageChanged, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)
+    ).toHaveLength(1);
     expect(stageChanged.liveResolution.playerScores.get(PLAYER1)).toBe(7);
   });
 
   it('auto-resolves ordered copies and uses confirm-only for a manually selected copy', () => {
     const first = createCardInstance(createNeutral('PL!SP-pb1-024-L'), PLAYER1, 'neutral-first');
-    const second = createCardInstance(createNeutral('PL!SP-pb1-024-SRL'), PLAYER1, 'neutral-second');
+    const second = createCardInstance(
+      createNeutral('PL!SP-pb1-024-SRL'),
+      PLAYER1,
+      'neutral-second'
+    );
     const memberA = createKaleidoscoreMember('neutral-a', '平安名すみれ');
     const memberB = createKaleidoscoreMember('neutral-b', 'ウィーン・マルガレーテ');
-    const checked = new GameService().executeCheckTiming(setupState({
-      lives: [first, second],
-      members: { [SlotPosition.LEFT]: memberA, [SlotPosition.RIGHT]: memberB },
-      initialScore: 6,
-    }), [TriggerCondition.ON_LIVE_START]).gameState;
-    const ordered = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, undefined, undefined, true);
+    const checked = new GameService().executeCheckTiming(
+      setupState({
+        lives: [first, second],
+        members: { [SlotPosition.LEFT]: memberA, [SlotPosition.RIGHT]: memberB },
+        initialScore: 6,
+      }),
+      [TriggerCondition.ON_LIVE_START]
+    ).gameState;
+    const ordered = confirmActiveEffectStep(
+      checked,
+      PLAYER1,
+      checked.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
     expect(ordered.activeEffect).toBeNull();
-    expect(scoreModifiersForAbility(ordered, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toHaveLength(2);
-    const manual = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, second.instanceId);
+    expect(
+      scoreModifiersForAbility(ordered, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)
+    ).toHaveLength(2);
+    const manual = confirmActiveEffectStep(
+      checked,
+      PLAYER1,
+      checked.activeEffect!.id,
+      second.instanceId
+    );
     expect(manual.activeEffect).toMatchObject({
       sourceCardId: second.instanceId,
       metadata: { confirmOnlyPendingAbility: true },
     });
-    expect(scoreModifiersForAbility(manual, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(manual, SP_PB1_024_LIVE_START_KALEIDOSCORE_SCORE_ABILITY_ID)
+    ).toEqual([]);
   });
 });
 
@@ -728,10 +885,7 @@ describe('PL!SP-bp2-023 Go!! Restart shared live-start score bonus', () => {
       );
       expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(2);
       expect(
-        latestPayload(
-          resolved,
-          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
-        )
+        latestPayload(resolved, SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID)
       ).toMatchObject({
         ownSuccessZoneCount: 1,
         opponentSuccessZoneCount: 2,
@@ -775,11 +929,13 @@ describe('PL!SP-bp2-023 Go!! Restart shared live-start score bonus', () => {
       ).toHaveLength(expectedMet ? 1 : 0);
       expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(expectedMet ? 2 : 1);
       expect(
-        latestPayload(
-          resolved,
-          SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID
-        )
-      ).toMatchObject({ ownSuccessZoneCount: ownCount, opponentSuccessZoneCount: opponentCount, conditionMet: expectedMet, scoreBonus: expectedMet ? 1 : 0 });
+        latestPayload(resolved, SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_THIS_LIVE_SCORE_ABILITY_ID)
+      ).toMatchObject({
+        ownSuccessZoneCount: ownCount,
+        opponentSuccessZoneCount: opponentCount,
+        conditionMet: expectedMet,
+        scoreBonus: expectedMet ? 1 : 0,
+      });
     }
   );
 
@@ -842,7 +998,11 @@ describe('PL!SP-bp2-023 Go!! Restart shared live-start score bonus', () => {
       'go-opponent-success'
     );
     const checked = new GameService().executeCheckTiming(
-      setupState({ lives: [first, second], opponentSuccessLives: [opponentSuccess], initialScore: 2 }),
+      setupState({
+        lives: [first, second],
+        opponentSuccessLives: [opponentSuccess],
+        initialScore: 2,
+      }),
       [TriggerCondition.ON_LIVE_START]
     ).gameState;
     expect(checked.activeEffect?.canResolveInOrder).toBe(true);
@@ -900,16 +1060,32 @@ describe('PL!SP-bp2-023 Go!! Restart shared live-start score bonus', () => {
 describe('PL!N-bp3-026-L Psycho Heart live-start score bonus', () => {
   function scenario(scores: readonly number[], sourceId = 'psycho-source') {
     const source = createCardInstance(createPsychoHeart(), PLAYER1, sourceId);
-    const successLives = scores.map((score, index) => createCardInstance(createDummyLive(`success-${score}-${index}`, score), PLAYER1, `success-${score}-${index}`));
+    const successLives = scores.map((score, index) =>
+      createCardInstance(
+        createDummyLive(`success-${score}-${index}`, score),
+        PLAYER1,
+        `success-${score}-${index}`
+      )
+    );
     return { source, game: setupState({ lives: [source], successLives, initialScore: 3 }) };
   }
 
   it.each([
-    [[], 0], [[1], 1], [[5], 1], [[1, 5], 2], [[1, 1], 1], [[5, 5], 1],
+    [[], 0],
+    [[1], 1],
+    [[5], 1],
+    [[1, 5], 2],
+    [[1, 1], 1],
+    [[5, 5], 1],
   ] as const)('uses printed success-zone scores %j for SCORE +%i', (scores, expected) => {
     const { game } = scenario(scores);
     const state = resolveLiveStart(game);
-    expect(scoreModifiersForAbility(state, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(expected > 0 ? 1 : 0);
+    expect(
+      scoreModifiersForAbility(
+        state,
+        PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(expected > 0 ? 1 : 0);
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(3 + expected);
   });
 
@@ -917,40 +1093,96 @@ describe('PL!N-bp3-026-L Psycho Heart live-start score bonus', () => {
     const { game } = scenario([1, 5]);
     const result = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
     expect(result.success).toBe(true);
-    expect(result.gameState.activeEffect).toMatchObject({ abilityId: PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID, metadata: { confirmOnlyPendingAbility: true } });
+    expect(result.gameState.activeEffect).toMatchObject({
+      abilityId: PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
     expect(result.gameState.activeEffect?.effectText).toContain('存在分数1的LIVE，存在分数5的LIVE');
     expect(result.gameState.activeEffect?.effectText).toContain('实际[スコア]+2');
-    expect(result.gameState.activeEffect?.effectText).not.toMatch(/source|pending|stale|来源.*LIVE区/);
-    expect(scoreModifiersForAbility(result.gameState, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
-    expect(confirmIfConfirmOnly(result.gameState, PLAYER1).liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(result.gameState.activeEffect?.effectText).not.toMatch(
+      /source|pending|stale|来源.*LIVE区/
+    );
+    expect(
+      scoreModifiersForAbility(
+        result.gameState,
+        PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    expect(
+      confirmIfConfirmOnly(result.gameState, PLAYER1).liveResolution.playerScores.get(PLAYER1)
+    ).toBe(5);
   });
 
   it('ordered resolution auto-resolves and manual selection opens the confirm bridge', () => {
     const first = createCardInstance(createPsychoHeart(), PLAYER1, 'psycho-first');
     const second = createCardInstance(createPsychoHeart(), PLAYER1, 'psycho-second');
     const success = createCardInstance(createDummyLive('success-five', 5), PLAYER1, 'success-five');
-    const checked = new GameService().executeCheckTiming(setupState({ lives: [first, second], successLives: [success], initialScore: 6 }), [TriggerCondition.ON_LIVE_START]).gameState;
-    const ordered = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, undefined, undefined, true);
+    const checked = new GameService().executeCheckTiming(
+      setupState({ lives: [first, second], successLives: [success], initialScore: 6 }),
+      [TriggerCondition.ON_LIVE_START]
+    ).gameState;
+    const ordered = confirmActiveEffectStep(
+      checked,
+      PLAYER1,
+      checked.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
     expect(ordered.activeEffect).toBeNull();
     expect(ordered.liveResolution.playerScores.get(PLAYER1)).toBe(8);
-    const manual = confirmActiveEffectStep(checked, PLAYER1, checked.activeEffect!.id, first.instanceId);
+    const manual = confirmActiveEffectStep(
+      checked,
+      PLAYER1,
+      checked.activeEffect!.id,
+      first.instanceId
+    );
     expect(manual.activeEffect?.metadata).toMatchObject({ confirmOnlyPendingAbility: true });
-    expect(scoreModifiersForAbility(manual, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(
+        manual,
+        PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
   });
 
   it('rechecks source validity and replaces an existing source/ability modifier without stacking', () => {
     const { source, game } = scenario([1, 5], 'psycho-dedupe');
-    const checked = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]).gameState;
-    const departed = updatePlayer(checked, PLAYER1, (player) => ({ ...player, liveZone: removeCardFromStatefulZone(player.liveZone, source.instanceId) }));
+    const checked = new GameService().executeCheckTiming(game, [
+      TriggerCondition.ON_LIVE_START,
+    ]).gameState;
+    const departed = updatePlayer(checked, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, source.instanceId),
+    }));
     const noOp = confirmIfConfirmOnly(departed, PLAYER1);
     expect(noOp.liveResolution.playerScores.get(PLAYER1)).toBe(3);
     expect(noOp.activeEffect).toBeNull();
 
     const resolved = resolveLiveStart(game);
-    const ability = latestPayload(resolved, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID);
-    const repeated = resolveLiveStart({ ...resolved, pendingAbilities: [{ id: 'repeat', abilityId: PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID, sourceCardId: source.instanceId, controllerId: PLAYER1, triggerCondition: TriggerCondition.ON_LIVE_START }] });
+    const ability = latestPayload(
+      resolved,
+      PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID
+    );
+    const repeated = resolveLiveStart({
+      ...resolved,
+      pendingAbilities: [
+        {
+          id: 'repeat',
+          abilityId: PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID,
+          sourceCardId: source.instanceId,
+          controllerId: PLAYER1,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+        },
+      ],
+    });
     expect(ability).toBeTruthy();
-    expect(scoreModifiersForAbility(repeated, PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(1);
+    expect(
+      scoreModifiersForAbility(
+        repeated,
+        PL_N_BP3_026_LIVE_START_SUCCESS_SCORE_ONE_OR_FIVE_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(1);
     expect(repeated.liveResolution.playerScores.get(PLAYER1)).toBe(5);
   });
 });
@@ -982,12 +1214,16 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
         countDelta: 6,
         liveCardId: solitudeRain.instanceId,
         sourceCardId: solitudeRain.instanceId,
-        abilityId:
-          PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
+        abilityId: PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
       },
     ]);
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(6);
-    expect(latestPayload(state, PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID)).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({
       effectiveHeartColors: [
         HeartColor.PINK,
         HeartColor.RED,
@@ -1005,14 +1241,8 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
     const game = setupState({
       lives: [solitudeRain],
       members: {
-        [SlotPosition.LEFT]: createMemberInstance('pink-pink', [
-          HeartColor.PINK,
-          HeartColor.PINK,
-        ]),
-        [SlotPosition.CENTER]: createMemberInstance('pink-red', [
-          HeartColor.PINK,
-          HeartColor.RED,
-        ]),
+        [SlotPosition.LEFT]: createMemberInstance('pink-pink', [HeartColor.PINK, HeartColor.PINK]),
+        [SlotPosition.CENTER]: createMemberInstance('pink-red', [HeartColor.PINK, HeartColor.RED]),
         [SlotPosition.RIGHT]: createMemberInstance('rainbow-only', [HeartColor.RAINBOW]),
       },
     });
@@ -1025,11 +1255,15 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
       countDelta: 2,
       liveCardId: solitudeRain.instanceId,
       sourceCardId: solitudeRain.instanceId,
-      abilityId:
-        PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
+      abilityId: PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
     });
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(2);
-    expect(latestPayload(state, PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID)).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({
       effectiveHeartColors: [HeartColor.PINK, HeartColor.RED],
       scoreBonus: 2,
     });
@@ -1058,8 +1292,7 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
       countDelta: 2,
       liveCardId: solitudeRain.instanceId,
       sourceCardId: solitudeRain.instanceId,
-      abilityId:
-        PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
+      abilityId: PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
     });
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(2);
   });
@@ -1096,8 +1329,7 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
       countDelta: 6,
       liveCardId: solitudeRain.instanceId,
       sourceCardId: solitudeRain.instanceId,
-      abilityId:
-        PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
+      abilityId: PL_N_BP1_027_LIVE_START_NIJIGASAKI_STAGE_HEART_COLORS_THIS_LIVE_SCORE_ABILITY_ID,
     });
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(6);
   });
@@ -1124,7 +1356,9 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
       },
     ]);
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(7);
-    expect(latestPayload(state, PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID)).toMatchObject({
+    expect(
+      latestPayload(state, PL_N_BP1_029_LIVE_START_LIVE_ZONE_THREE_THIS_LIVE_SCORE_ABILITY_ID)
+    ).toMatchObject({
       liveZoneCardCount: 3,
       conditionMet: true,
       scoreBonus: 2,
@@ -1161,7 +1395,11 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
   it('continues ordered pending resolution across Solitude Rain and Eutopia without opening selection', () => {
     const solitudeRain = createCardInstance(createSolitudeRain(), PLAYER1, 'ordered-solitude');
     const eutopia = createCardInstance(createEutopia(), PLAYER1, 'ordered-eutopia');
-    const dummy = createCardInstance(createDummyLive('PL!N-ordered-dummy'), PLAYER1, 'ordered-dummy');
+    const dummy = createCardInstance(
+      createDummyLive('PL!N-ordered-dummy'),
+      PLAYER1,
+      'ordered-dummy'
+    );
     const game = setupState({
       lives: [solitudeRain, eutopia, dummy],
       initialScore: 5,
@@ -1209,26 +1447,36 @@ describe('Hasunosora live-start score bonus LIVE cards', () => {
       members: {
         [SlotPosition.LEFT]: createHasunosoraMemberInstance('rurino', '大沢瑠璃乃'),
         [SlotPosition.CENTER]: createHasunosoraMemberInstance('hime', '安养寺姬芽'),
-        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('other', '高坂穂乃果', ['μ\'s']),
+        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('other', '高坂穂乃果', ["μ's"]),
       },
       initialScore: 4,
     });
 
-    const checkResult = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    const checkResult = new GameService().executeCheckTiming(game, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
     expect(checkResult.success).toBe(true);
     expect(checkResult.gameState.activeEffect).toMatchObject({
       abilityId: HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
       metadata: { confirmOnlyPendingAbility: true },
     });
-    expect(checkResult.gameState.activeEffect?.effectText).toContain("不同名『莲之空』成员2名");
+    expect(checkResult.gameState.activeEffect?.effectText).toContain('不同名『莲之空』成员2名');
     expect(checkResult.gameState.activeEffect?.effectText).toContain('实际[スコア]+4');
     expect(checkResult.gameState.activeEffect?.effectText).not.toMatch(/source|pending|LIVE区/);
-    expect(scoreModifiersForAbility(checkResult.gameState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(
+        checkResult.gameState,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
 
     const state = confirmIfConfirmOnly(checkResult.gameState, PLAYER1);
-    expect(scoreModifiersForAbility(state, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toContainEqual(
-      expect.objectContaining({ liveCardId: live.instanceId, countDelta: 4 })
-    );
+    expect(
+      scoreModifiersForAbility(
+        state,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toContainEqual(expect.objectContaining({ liveCardId: live.instanceId, countDelta: 4 }));
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(8);
   });
 
@@ -1239,62 +1487,94 @@ describe('Hasunosora live-start score bonus LIVE cards', () => {
       members: {
         [SlotPosition.LEFT]: createHasunosoraMemberInstance('same-jp', '大沢瑠璃乃'),
         [SlotPosition.CENTER]: createHasunosoraMemberInstance('same-spaced', '大沢 瑠璃乃'),
-        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('non-hs', '高坂穂乃果', ['μ\'s']),
+        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('non-hs', '高坂穂乃果', ["μ's"]),
       },
       opponentMembers: {
         [SlotPosition.CENTER]: createHasunosoraMemberInstance('opponent-hime', '安養寺姫芽'),
       },
     });
     const state = resolveLiveStart(game);
-    expect(scoreModifiersForAbility(state, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toContainEqual(
-      expect.objectContaining({ countDelta: 2 })
-    );
+    expect(
+      scoreModifiersForAbility(
+        state,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toContainEqual(expect.objectContaining({ countDelta: 2 }));
 
     const noMemberState = resolveLiveStart(
-      setupState({ lives: [createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-no-members')] })
+      setupState({
+        lives: [createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-no-members')],
+      })
     );
-    expect(scoreModifiersForAbility(noMemberState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
-    expect(latestPayload(noMemberState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toMatchObject({ scoreBonus: 0 });
+    expect(
+      scoreModifiersForAbility(
+        noMemberState,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
+    expect(
+      latestPayload(
+        noMemberState,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toMatchObject({ scoreBonus: 0 });
 
     const departureLive = createCardInstance(createLinkToTheFuture(), PLAYER1, 'link-departed');
     const departureCheck = new GameService().executeCheckTiming(
       setupState({
         lives: [departureLive],
-        members: { [SlotPosition.CENTER]: createHasunosoraMemberInstance('departure-hime', '安養寺姫芽') },
+        members: {
+          [SlotPosition.CENTER]: createHasunosoraMemberInstance('departure-hime', '安養寺姫芽'),
+        },
       }),
       [TriggerCondition.ON_LIVE_START]
     );
-    const departedBeforeConfirmation = updatePlayer(departureCheck.gameState, PLAYER1, (player) => ({
-      ...player,
-      liveZone: {
-        ...player.liveZone,
-        cardIds: player.liveZone.cardIds.filter((cardId) => cardId !== departureLive.instanceId),
-      },
-    }));
+    const departedBeforeConfirmation = updatePlayer(
+      departureCheck.gameState,
+      PLAYER1,
+      (player) => ({
+        ...player,
+        liveZone: {
+          ...player.liveZone,
+          cardIds: player.liveZone.cardIds.filter((cardId) => cardId !== departureLive.instanceId),
+        },
+      })
+    );
     const departedState = confirmIfConfirmOnly(departedBeforeConfirmation, PLAYER1);
-    expect(scoreModifiersForAbility(departedState, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(
+        departedState,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
   });
 
   it.each([
     ['PL!HS-bp2-026-L', '大泽瑠璃乃', '安养寺姬芽', '藤岛 慈'],
     ['PL!HS-bp2-026-L＋', '大沢瑠璃乃', '安養寺姫芽', '藤島慈'],
-  ])('covers %s and adds SCORE +2 only for the printed Mira-Cra formation', (cardCode, rurino, hime, megu) => {
-    const live = createCardInstance(createMiraCreation(cardCode), PLAYER1, `${cardCode}-source`);
-    const game = setupState({
-      lives: [live],
-      members: {
-        [SlotPosition.LEFT]: createHasunosoraMemberInstance('hime', hime),
-        [SlotPosition.CENTER]: createHasunosoraMemberInstance('megu', megu),
-        [SlotPosition.RIGHT]: createHasunosoraMemberInstance('rurino', rurino),
-      },
-      initialScore: 5,
-    });
-    const state = resolveLiveStart(game);
-    expect(scoreModifiersForAbility(state, HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID)).toContainEqual(
-      expect.objectContaining({ liveCardId: live.instanceId, countDelta: 2 })
-    );
-    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(7);
-  });
+  ])(
+    'covers %s and adds SCORE +2 only for the printed Mira-Cra formation',
+    (cardCode, rurino, hime, megu) => {
+      const live = createCardInstance(createMiraCreation(cardCode), PLAYER1, `${cardCode}-source`);
+      const game = setupState({
+        lives: [live],
+        members: {
+          [SlotPosition.LEFT]: createHasunosoraMemberInstance('hime', hime),
+          [SlotPosition.CENTER]: createHasunosoraMemberInstance('megu', megu),
+          [SlotPosition.RIGHT]: createHasunosoraMemberInstance('rurino', rurino),
+        },
+        initialScore: 5,
+      });
+      const state = resolveLiveStart(game);
+      expect(
+        scoreModifiersForAbility(
+          state,
+          HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID
+        )
+      ).toContainEqual(expect.objectContaining({ liveCardId: live.instanceId, countDelta: 2 }));
+      expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    }
+  );
 
   it.each([
     ['an empty printed slot', null, '安養寺姫芽', '藤島慈'],
@@ -1307,7 +1587,12 @@ describe('Hasunosora live-start score bonus LIVE cards', () => {
     if (hime) members[SlotPosition.LEFT] = createHasunosoraMemberInstance('left', hime);
     if (megu) members[SlotPosition.CENTER] = createHasunosoraMemberInstance('center', megu);
     const state = resolveLiveStart(setupState({ lives: [live], members, initialScore: 5 }));
-    expect(scoreModifiersForAbility(state, HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(
+        state,
+        HS_BP2_026_LIVE_START_MIRACRA_FORMATION_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(5);
   });
 
@@ -1320,7 +1605,9 @@ describe('Hasunosora live-start score bonus LIVE cards', () => {
         [SlotPosition.LEFT]: createHasunosoraMemberInstance('ordered-rurino', '大沢瑠璃乃'),
       },
     });
-    const checkResult = new GameService().executeCheckTiming(game, [TriggerCondition.ON_LIVE_START]);
+    const checkResult = new GameService().executeCheckTiming(game, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
     expect(checkResult.success).toBe(true);
     expect(checkResult.gameState.activeEffect?.canResolveInOrder).toBe(true);
 
@@ -1333,7 +1620,12 @@ describe('Hasunosora live-start score bonus LIVE cards', () => {
       true
     );
     expect(ordered.activeEffect).toBeNull();
-    expect(scoreModifiersForAbility(ordered, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(2);
+    expect(
+      scoreModifiersForAbility(
+        ordered,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(2);
 
     const preview = confirmActiveEffectStep(
       checkResult.gameState,
@@ -1345,8 +1637,339 @@ describe('Hasunosora live-start score bonus LIVE cards', () => {
       abilityId: HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID,
       metadata: { confirmOnlyPendingAbility: true },
     });
-    expect(scoreModifiersForAbility(preview, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toEqual([]);
+    expect(
+      scoreModifiersForAbility(
+        preview,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toEqual([]);
     const confirmed = confirmIfConfirmOnly(preview, PLAYER1);
-    expect(scoreModifiersForAbility(confirmed, HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID)).toHaveLength(1);
+    expect(
+      scoreModifiersForAbility(
+        confirmed,
+        HS_BP2_020_LIVE_START_DIFFERENT_HASUNOSORA_MEMBER_NAMES_THIS_LIVE_SCORE_ABILITY_ID
+      )
+    ).toHaveLength(1);
+  });
+});
+
+describe('PL!SP-sd1-026 energy threshold score bonus', () => {
+  it.each([
+    ['PL!SP-sd1-026-SD', 8, false],
+    ['PL!SP-sd1-026-SRL', 9, true],
+    ['PL!SP-sd1-026-SD', 12, true],
+  ])(
+    '%s counts all %i energy-zone cards and applies SCORE +1 only at nine',
+    (sourceCode, energyCount, met) => {
+      const scenario = setupSpSd1026({ sourceCode, energyCount });
+      const checked = new GameService().executeCheckTiming(scenario.game, [
+        TriggerCondition.ON_LIVE_START,
+      ]);
+      expect(checked.success).toBe(true);
+      expect(checked.gameState.activeEffect?.effectText).toBe(
+        `【LIVE开始时】自己的能量大于等于9张的场合，此卡的[${'スコア'}]+1。（当前自己的能量${energyCount}张，${
+          met ? `满足条件，实际[${'スコア'}]+1。` : '未满足条件，实际不增加分数。'
+        }）`
+      );
+      const resolved = confirmActiveEffectStep(
+        checked.gameState,
+        PLAYER1,
+        checked.gameState.activeEffect!.id
+      );
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(met ? 5 : 4);
+      expect(
+        scoreModifiersForAbility(resolved, SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID)
+      ).toHaveLength(met ? 1 : 0);
+      if (met) {
+        expect(
+          scoreModifiersForAbility(resolved, SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID)[0]
+        ).toMatchObject({
+          liveCardId: scenario.live.instanceId,
+          sourceCardId: scenario.live.instanceId,
+          abilityId: SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
+          countDelta: 1,
+        });
+      }
+    }
+  );
+
+  it('counts ACTIVE, WAITING, and marked special energy by energyZone.cardIds.length', () => {
+    const scenario = setupSpSd1026({ energyCount: 9 });
+    const marked = {
+      ...scenario.game,
+      energyActivePhaseSkips: [
+        {
+          playerId: PLAYER1,
+          energyCardId: scenario.energies[8]!.instanceId,
+          sourceCardId: 'special-marker',
+          abilityId: 'special-marker',
+        },
+      ],
+    };
+    const resolved = resolveLiveStart(marked);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(resolved.players[0].energyZone.cardIds).toHaveLength(9);
+    expect(
+      resolved.players[0].energyZone.cardStates.get(scenario.energies[1]!.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+  });
+
+  it.each([
+    ['source outside LIVE zone', { sourceInLiveZone: false }],
+    ['wrong owner', { sourceOwner: PLAYER2 }],
+    ['wrong card type', { sourceAsMember: true }],
+  ] as const)('rejects %s without a modifier or score delta', (_label, options) => {
+    const scenario = setupSpSd1026({ energyCount: 9, ...options });
+    const result = new GameService().executeCheckTiming(scenario.game, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+    expect(result.success).toBe(true);
+    const resolved = result.gameState.activeEffect
+      ? confirmActiveEffectStep(
+          result.gameState,
+          result.gameState.activeEffect.awaitingPlayerId,
+          result.gameState.activeEffect.id
+        )
+      : result.gameState;
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+    expect(
+      scoreModifiersForAbility(resolved, SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID)
+    ).toEqual([]);
+  });
+
+  it('rechecks source and energy at confirmation, then keeps the resolved LIVE modifier stable', () => {
+    const scenario = setupSpSd1026({ energyCount: 8 });
+    const checked = new GameService().executeCheckTiming(scenario.game, [
+      TriggerCondition.ON_LIVE_START,
+    ]).gameState;
+    const ninth = createCardInstance(createEnergy('ninth-energy'), PLAYER1, 'ninth-energy');
+    let gained = registerCards(checked, [ninth]);
+    gained = updatePlayer(gained, PLAYER1, (player) => ({
+      ...player,
+      energyZone: addCardToStatefulZone(player.energyZone, ninth.instanceId),
+    }));
+    const resolved = confirmActiveEffectStep(gained, PLAYER1, gained.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    const laterLostEnergy = updatePlayer(resolved, PLAYER1, (player) => ({
+      ...player,
+      energyZone: removeCardFromStatefulZone(player.energyZone, ninth.instanceId),
+    }));
+    expect(laterLostEnergy.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+
+    const staleScenario = setupSpSd1026({ energyCount: 9 });
+    const staleChecked = new GameService().executeCheckTiming(staleScenario.game, [
+      TriggerCondition.ON_LIVE_START,
+    ]).gameState;
+    const sourceGone = updatePlayer(staleChecked, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, staleScenario.live.instanceId),
+    }));
+    const staleResolved = confirmActiveEffectStep(sourceGone, PLAYER1, sourceGone.activeEffect!.id);
+    expect(staleResolved.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+  });
+
+  it('reentry replaces the same source+ability modifier and preserves unrelated modifiers', () => {
+    const scenario = setupSpSd1026({ energyCount: 9 });
+    const unrelated = {
+      ...scenario.game,
+      liveResolution: {
+        ...scenario.game.liveResolution,
+        liveModifiers: [
+          {
+            kind: 'SCORE' as const,
+            playerId: PLAYER1,
+            countDelta: 2,
+            liveCardId: scenario.live.instanceId,
+            sourceCardId: 'other-source',
+            abilityId: 'other-ability',
+          },
+        ],
+        playerScores: new Map([[PLAYER1, 6]]),
+      },
+    };
+    const once = resolveLiveStart(unrelated);
+    const repeatedPending = {
+      id: 'sp-sd1-026-repeat',
+      abilityId: SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID,
+      sourceCardId: scenario.live.instanceId,
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_LIVE_START,
+    };
+    const preview = resolvePendingCardEffects({
+      ...once,
+      pendingAbilities: [repeatedPending],
+    }).gameState;
+    const twice = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+    expect(
+      scoreModifiersForAbility(twice, SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID)
+    ).toHaveLength(1);
+    expect(scoreModifiersForAbility(twice, 'other-ability')).toHaveLength(1);
+    expect(twice.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+  });
+
+  it('keeps the nine- and twelve-energy configs isolated in the same LIVE start', () => {
+    const symphony = createCardInstance(createMySymphony(), PLAYER1, 'symphony');
+    const sing = createCardInstance(createSingShineSmile(), PLAYER1, 'sing');
+    const energies = Array.from({ length: 9 }, (_, index) =>
+      createCardInstance(createEnergy(`joint-energy-${index}`), PLAYER1, `joint-energy-${index}`)
+    );
+    let game = registerCards(setupState({ lives: [symphony, sing], initialScore: 10 }), energies);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      energyZone: energies.reduce(
+        (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+        player.energyZone
+      ),
+    }));
+    const resolved = resolveLiveStart(game);
+    expect(
+      scoreModifiersForAbility(resolved, SP_SD1_026_LIVE_START_ENERGY_NINE_SCORE_ABILITY_ID)
+    ).toHaveLength(1);
+    expect(
+      scoreModifiersForAbility(resolved, SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID)
+    ).toHaveLength(0);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(11);
+  });
+});
+
+describe('PL!SP-bp1-027 energy threshold score bonus', () => {
+  it.each([
+    [11, false],
+    [12, true],
+    [15, true],
+  ])(
+    'PL!SP-bp1-027 uses the current %i-card energy count and adds at most SCORE +1',
+    (energyCount, expectedMet) => {
+      const scenario = setupSpBp1027({ energyCount });
+      const checked = new GameService().executeCheckTiming(scenario.game, [
+        TriggerCondition.ON_LIVE_START,
+      ]);
+      expect(checked.success).toBe(true);
+      expect(checked.gameState.liveResolution.playerScores.get(PLAYER1)).toBe(6);
+      expect(checked.gameState.activeEffect?.effectText).toBe(
+        `【LIVE开始时】自己的能量大于等于12张的场合，此卡的[スコア]+1。（当前自己的能量${energyCount}张，${
+          expectedMet ? '满足条件，实际[スコア]+1。' : '未满足条件，实际不增加分数。'
+        }）`
+      );
+      const resolved = confirmActiveEffectStep(
+        checked.gameState,
+        PLAYER1,
+        checked.gameState.activeEffect!.id
+      );
+      expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(expectedMet ? 7 : 6);
+      expect(
+        scoreModifiersForAbility(resolved, SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID)
+      ).toEqual(
+        expectedMet
+          ? [
+              expect.objectContaining({
+                liveCardId: scenario.lives[0]!.instanceId,
+                sourceCardId: scenario.lives[0]!.instanceId,
+                countDelta: 1,
+              }),
+            ]
+          : []
+      );
+    }
+  );
+
+  it('PL!SP-bp1-027 rechecks energy and source at confirmation and does not revoke a resolved bonus', () => {
+    const scenario = setupSpBp1027({ energyCount: 11 });
+    const checked = new GameService().executeCheckTiming(scenario.game, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+    expect(checked.success).toBe(true);
+    const twelfth = createCardInstance(
+      createEnergy('sp-bp1-027-energy-11'),
+      PLAYER1,
+      'sp-bp1-027-energy-11'
+    );
+    let gainedEnergy = registerCards(checked.gameState, [twelfth]);
+    gainedEnergy = updatePlayer(gainedEnergy, PLAYER1, (player) => ({
+      ...player,
+      energyZone: addCardToStatefulZone(player.energyZone, twelfth.instanceId),
+    }));
+    const resolved = confirmActiveEffectStep(gainedEnergy, PLAYER1, gainedEnergy.activeEffect!.id);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    const afterEnergyLeaves = updatePlayer(resolved, PLAYER1, (player) => ({
+      ...player,
+      energyZone: removeCardFromStatefulZone(player.energyZone, twelfth.instanceId),
+    }));
+    expect(afterEnergyLeaves.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+
+    const staleScenario = setupSpBp1027({ energyCount: 12 });
+    const staleChecked = new GameService().executeCheckTiming(staleScenario.game, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+    const stale = updatePlayer(staleChecked.gameState, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, staleScenario.lives[0]!.instanceId),
+    }));
+    const staleResolved = confirmActiveEffectStep(stale, PLAYER1, stale.activeEffect!.id);
+    expect(staleResolved.liveResolution.playerScores.get(PLAYER1)).toBe(6);
+  });
+
+  it('PL!SP-bp1-027 resolver replacement is idempotent for the same source and ability', () => {
+    const scenario = setupSpBp1027({ energyCount: 12 });
+    const resolved = resolveLiveStart(scenario.game);
+    const repeatedPending = {
+      id: 'sp-bp1-027-repeat',
+      abilityId: SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID,
+      sourceCardId: scenario.lives[0]!.instanceId,
+      controllerId: PLAYER1,
+      mandatory: true,
+      timingId: TriggerCondition.ON_LIVE_START,
+    };
+    const repeatPreview = resolvePendingCardEffects({
+      ...resolved,
+      pendingAbilities: [repeatedPending],
+    }).gameState;
+    const repeated = confirmActiveEffectStep(
+      repeatPreview,
+      PLAYER1,
+      repeatPreview.activeEffect!.id
+    );
+    expect(repeated.liveResolution.playerScores.get(PLAYER1)).toBe(7);
+    expect(
+      scoreModifiersForAbility(repeated, SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID)
+    ).toHaveLength(1);
+  });
+
+  it('PL!SP-bp1-027 auto-resolves an ordered batch and bridges a manually selected pending', () => {
+    const scenario = setupSpBp1027({ energyCount: 12, sourceCount: 2 });
+    const checked = new GameService().executeCheckTiming(scenario.game, [
+      TriggerCondition.ON_LIVE_START,
+    ]);
+    expect(checked.success).toBe(true);
+    expect(checked.gameState.activeEffect?.canResolveInOrder).toBe(true);
+    const ordered = confirmActiveEffectStep(
+      checked.gameState,
+      PLAYER1,
+      checked.gameState.activeEffect!.id,
+      undefined,
+      undefined,
+      true
+    );
+    expect(ordered.activeEffect).toBeNull();
+    expect(
+      scoreModifiersForAbility(ordered, SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID)
+    ).toHaveLength(2);
+    expect(ordered.liveResolution.playerScores.get(PLAYER1)).toBe(8);
+
+    const manual = confirmActiveEffectStep(
+      checked.gameState,
+      PLAYER1,
+      checked.gameState.activeEffect!.id,
+      scenario.lives[1]!.instanceId
+    );
+    expect(manual.activeEffect).toMatchObject({
+      abilityId: SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID,
+      sourceCardId: scenario.lives[1]!.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+    expect(
+      scoreModifiersForAbility(manual, SP_BP1_027_LIVE_START_ENERGY_TWELVE_SCORE_ABILITY_ID)
+    ).toEqual([]);
   });
 });

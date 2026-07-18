@@ -1,14 +1,12 @@
 import {
+  emitGameEvent,
   getCardById,
   getPlayerById,
   type GameState,
 } from '../../domain/entities/game.js';
 import { createEnterWaitingRoomEvent } from '../../domain/events/game-events.js';
 import { TriggerCondition, ZoneType } from '../../shared/types/enums.js';
-import {
-  enqueueTriggeredCardEffects,
-  resolvePendingCardEffects,
-} from '../card-effect-runner.js';
+import { enqueueTriggeredCardEffects, resolvePendingCardEffects } from '../card-effect-runner.js';
 
 interface LiveZoneWaitingRoomBatch {
   readonly ownerId: string;
@@ -33,8 +31,12 @@ export function resolveLiveZoneToWaitingRoomTriggers(
       batch.controllerId
     )
   );
+  const stateWithEvents = enterWaitingRoomEvents.reduce(
+    (state, event) => emitGameEvent(state, event),
+    game
+  );
   const stateWithTriggers = enqueueTriggeredCardEffects(
-    game,
+    stateWithEvents,
     [TriggerCondition.ON_ENTER_WAITING_ROOM],
     { enterWaitingRoomEvents }
   );

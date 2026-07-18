@@ -14,6 +14,7 @@ import {
   HS_PB1_024_ON_ENTER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
+  S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -131,6 +132,16 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
     inspectCount: 3,
     sourceActionLabel: '登场',
     stepId: 'PL_N_BP1_002_ARRANGE_TOP_THREE',
+    stepText: '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
+    selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
+    selectMin: 0,
+    selectMax: 3,
+  },
+  {
+    abilityId: S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
+    inspectCount: 3,
+    sourceActionLabel: '登场',
+    stepId: 'S_PR_ARRANGE_TOP_THREE',
     stepText: '请选择要留在卡组顶的卡牌。数字1会成为卡组最上方的卡，未选择的卡牌将放置入休息室。',
     selectionLabel: '按卡组顶从上到下的顺序选择卡牌',
     selectMin: 0,

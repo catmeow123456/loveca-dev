@@ -22,7 +22,7 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { moveTopDeckCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -34,7 +34,7 @@ import {
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 
-const MILL_COST_COUNT = 3;
+const MILL_EFFECT_COUNT = 3;
 const PAY_ENERGY_STEP_ID = 'SP_BP5_005_PAY_ENERGY_TO_RECOVER_MOVED_CARD';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -90,8 +90,7 @@ function startSpBp5005RenActivated(
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
     !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp5-005') ||
-    sourceSlot === null ||
-    player.mainDeck.cardIds.length < MILL_COST_COUNT
+    sourceSlot === null
   ) {
     return game;
   }
@@ -100,22 +99,13 @@ function startSpBp5005RenActivated(
     abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
     sourceCardId: cardId,
   });
-  const millResult = moveTopDeckCardsToWaitingRoomAndEnqueueTriggers(
+  const millResult = moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers(
     state,
     player.id,
-    MILL_COST_COUNT,
-    enqueueTriggeredCardEffects,
-    {
-      prepareGameStateBeforeEnqueue: (gameState, movedCardIds) =>
-        recordPayCostAction(gameState, player.id, {
-          abilityId: SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
-          sourceCardId: cardId,
-          milledCardIds: movedCardIds,
-          count: movedCardIds.length,
-        }),
-    }
+    MILL_EFFECT_COUNT,
+    enqueueTriggeredCardEffects
   );
-  if (!millResult || millResult.movedCardIds.length !== MILL_COST_COUNT) {
+  if (!millResult) {
     return game;
   }
   state = millResult.gameState;
@@ -471,7 +461,9 @@ function getRecoverableMovedWaitingRoomCardIds(
   if (!player) {
     return [];
   }
-  return movedCardIds.filter((cardId) => player.waitingRoom.cardIds.includes(cardId));
+  return [
+    ...new Set(movedCardIds.filter((cardId) => player.waitingRoom.cardIds.includes(cardId))),
+  ];
 }
 
 function getActiveEnergyCardIds(

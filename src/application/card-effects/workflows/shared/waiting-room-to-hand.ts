@@ -15,17 +15,14 @@ import {
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
+  SP_BP1_007_ON_ENTER_ENERGY_ELEVEN_RECOVER_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
+import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import {
-  and,
-  costLte,
-  groupIs,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, costLte, groupIs, typeIs } from '../../../effects/card-selectors.js';
 import { countSuccessfulLiveCards } from '../../../effects/conditions.js';
 import {
   createWaitingRoomToHandEffectState,
@@ -35,10 +32,8 @@ import {
 } from '../../../effects/zone-selection.js';
 
 const SELECT_WAITING_ROOM_CARD_STEP_ID = 'SELECT_WAITING_ROOM_CARD';
-const PL_S_PB1_001_SELECT_WAITING_ROOM_LIVE_STEP_ID =
-  'PL_S_PB1_001_SELECT_WAITING_ROOM_LIVE';
-const PR_018_SELECT_HIGH_SCORE_LIVE_STEP_ID =
-  'PR_018_SELECT_HIGH_SCORE_LIVE_FROM_WAITING_ROOM';
+const PL_S_PB1_001_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'PL_S_PB1_001_SELECT_WAITING_ROOM_LIVE';
+const PR_018_SELECT_HIGH_SCORE_LIVE_STEP_ID = 'PR_018_SELECT_HIGH_SCORE_LIVE_FROM_WAITING_ROOM';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -78,8 +73,10 @@ export interface WaitingRoomToHandWorkflowConfig {
   readonly noCandidatesActionStep?: string;
 }
 
-interface RegisteredWaitingRoomToHandWorkflowConfig
-  extends Omit<WaitingRoomToHandWorkflowConfig, 'ability' | 'effectText' | 'orderedResolution'> {
+interface RegisteredWaitingRoomToHandWorkflowConfig extends Omit<
+  WaitingRoomToHandWorkflowConfig,
+  'ability' | 'effectText' | 'orderedResolution'
+> {
   readonly abilityId: string;
 }
 
@@ -146,6 +143,21 @@ const WAITING_ROOM_TO_HAND_WORKFLOWS: readonly RegisteredWaitingRoomToHandWorkfl
     selectionRequiredWhenHasTargets: true,
   },
   {
+    abilityId: SP_BP1_007_ON_ENTER_ENERGY_ELEVEN_RECOVER_LIVE_ABILITY_ID,
+    stepId: 'SP_BP1_007_SELECT_WAITING_ROOM_LIVE',
+    stepText: '请选择自己休息室中1张LIVE卡加入手牌。',
+    canStart: (game, playerId) => {
+      const player = getPlayerById(game, playerId);
+      return player !== null && player.energyZone.cardIds.length >= 11;
+    },
+    conditionNotMetActionStep: 'ENERGY_COUNT_BELOW_ELEVEN',
+    noCandidatesActionStep: 'NO_WAITING_ROOM_LIVE_TARGET',
+    candidateBuilder: (game, playerId) =>
+      selectWaitingRoomCardIds(game, playerId, typeIs(CardType.LIVE)),
+    countRule: { exactCount: 1 },
+    optional: false,
+  },
+  {
     abilityId: HS_PB1_025_LIVE_SUCCESS_HAND_SIX_RECOVER_MEMBER_ABILITY_ID,
     stepId: 'HS_PB1_025_SELECT_WAITING_ROOM_MEMBER',
     stepText: '请选择自己休息室中1张成员卡加入手牌。',
@@ -208,15 +220,24 @@ export function registerWaitingRoomToHandWorkflowHandlers(): void {
         orderedResolution,
       });
     });
-    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      finishWaitingRoomToHandWorkflow(
+    registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) => {
+      const effect = game.activeEffect;
+      const currentCandidateCardIds = effect
+        ? config.candidateBuilder(game, effect.controllerId)
+        : [];
+      return finishWaitingRoomToHandWorkflow(
         game,
         input.selectedCardId ?? null,
         input.selectedCardIds,
-        context.continuePendingCardEffects
-      )
-    );
+        context.continuePendingCardEffects,
+        { currentCandidateCardIds }
+      );
+    });
   }
+}
+
+export interface FinishWaitingRoomToHandWorkflowOptions {
+  readonly currentCandidateCardIds?: readonly string[];
 }
 
 export function startWaitingRoomToHandWorkflow(
@@ -303,7 +324,8 @@ export function finishWaitingRoomToHandWorkflow(
   game: GameState,
   selectedCardId: string | null,
   selectedCardIds: readonly string[] | undefined,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  options: FinishWaitingRoomToHandWorkflowOptions = {}
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -324,12 +346,38 @@ export function finishWaitingRoomToHandWorkflow(
         ? [selectedCardId]
         : [];
   const zoneSelection = getZoneSelectionConfig(effect);
+  const originalCandidateCardIds = effect.selectableCardIds ?? [];
+  const currentCandidateCardIdSet = new Set(
+    options.currentCandidateCardIds ?? originalCandidateCardIds
+  );
+  const currentlyEligibleOriginalCandidateCardIds = originalCandidateCardIds.filter((cardId) =>
+    currentCandidateCardIdSet.has(cardId)
+  );
+  if (
+    wasRestoredAfterPublicCardSelectionConfirmation(effect) &&
+    selectedCardIdsToMove.some(
+      (cardId) => !currentlyEligibleOriginalCandidateCardIds.includes(cardId)
+    )
+  ) {
+    const state = { ...game, activeEffect: null };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'STALE_SELECTION_NO_LONGER_ELIGIBLE',
+        selectedCardIds: selectedCardIdsToMove,
+        currentCandidateCardIds: currentlyEligibleOriginalCandidateCardIds,
+      }),
+      effect.metadata?.orderedResolution === true
+    );
+  }
   const recoveryResult = recoverCardsFromWaitingRoomToHandForPlayer(
     game,
     player.id,
     selectedCardIdsToMove,
     {
-      candidateCardIds: effect.selectableCardIds ?? [],
+      candidateCardIds: currentlyEligibleOriginalCandidateCardIds,
       minCount: zoneSelection.minCount,
       maxCount: zoneSelection.maxCount,
     }

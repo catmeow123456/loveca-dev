@@ -92,10 +92,16 @@ export function getRenGrantedActivatedAbilityUiConfig(
   playerId: string,
   hostCardId: string
 ): ActivatedAbilityUiConfig | null {
-  return (
-    getRenGrantedActivatedAbilityDefinitions(game, playerId, hostCardId).find(
-      (candidate) => candidate.definition.activatedUi
-    )?.definition.activatedUi ?? null
+  return getRenGrantedActivatedAbilityUiConfigs(game, playerId, hostCardId)[0] ?? null;
+}
+
+export function getRenGrantedActivatedAbilityUiConfigs(
+  game: GameState,
+  playerId: string,
+  hostCardId: string
+): readonly ActivatedAbilityUiConfig[] {
+  return getRenGrantedActivatedAbilityDefinitions(game, playerId, hostCardId).flatMap(
+    (candidate) => (candidate.definition.activatedUi ? [candidate.definition.activatedUi] : [])
   );
 }
 

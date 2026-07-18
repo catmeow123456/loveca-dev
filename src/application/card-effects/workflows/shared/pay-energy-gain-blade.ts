@@ -4,12 +4,12 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { OrientationState } from '../../../../shared/types/enums.js';
 import {
   BP4_010_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_PR_001_LIVE_START_PAY_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  PL_N_BP1_001_LIVE_START_PAY_ONE_ENERGY_GAIN_ONE_BLADE_ABILITY_ID,
   S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
   SP_BP4_022_LIVE_START_PAY_UP_TO_TWO_ENERGY_GAIN_BLADE_ABILITY_ID,
   SP_PB2_040_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
@@ -26,6 +26,8 @@ import {
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
+import { getSourceMemberSlot } from '../../runtime/source-member.js';
 
 const DECLINE_OPTION_LABEL = '不发动';
 const HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_SD1_006_LIVE_START_PAY_ENERGY';
@@ -35,6 +37,7 @@ const S_PR_013_LIVE_START_PAY_ENERGY_STEP_ID = 'S_PR_013_LIVE_START_PAY_ENERGY';
 const HS_BP1_004_LIVE_START_PAY_ENERGY_STEP_ID = 'HS_BP1_004_LIVE_START_PAY_ENERGY';
 const SP_PB2_040_LIVE_START_PAY_ENERGY_STEP_ID = 'SP_PB2_040_LIVE_START_PAY_ENERGY';
 const SP_BP4_022_LIVE_START_PAY_ENERGY_STEP_ID = 'SP_BP4_022_LIVE_START_PAY_ENERGY';
+const PL_N_BP1_001_LIVE_START_PAY_ENERGY_STEP_ID = 'PL_N_BP1_001_LIVE_START_PAY_ENERGY';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -51,6 +54,12 @@ interface PayEnergyGainBladeWorkflowConfig {
 }
 
 const PAY_ENERGY_GAIN_BLADE_WORKFLOWS: readonly PayEnergyGainBladeWorkflowConfig[] = [
+  {
+    abilityId: PL_N_BP1_001_LIVE_START_PAY_ONE_ENERGY_GAIN_ONE_BLADE_ABILITY_ID,
+    stepId: PL_N_BP1_001_LIVE_START_PAY_ENERGY_STEP_ID,
+    energyCost: { kind: 'FIXED', count: 1 },
+    bladeBonusSource: { kind: 'FIXED', amount: 1 },
+  },
   {
     abilityId: HS_SD1_006_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
     stepId: HS_SD1_006_LIVE_START_PAY_ENERGY_STEP_ID,
@@ -124,7 +133,11 @@ function startPayEnergyGainBladeWorkflow(
     return game;
   }
 
-  const activeEnergyCardIds = getActiveEnergyCardIds(player);
+  const activeEnergyCardIds = getEnergySelectionCandidates(
+    game,
+    player.id,
+    'TAP_ACTIVE_ENERGY'
+  );
   const paymentCounts = getSelectablePaymentCounts(config, activeEnergyCardIds.length);
   const canPay = paymentCounts.length > 0;
   const liveZoneCardCount = player.liveZone.cardIds.length;
@@ -143,11 +156,10 @@ function startPayEnergyGainBladeWorkflow(
       stepText: getStartStepText(config, canPay, paymentCounts, startBladeBonus),
       awaitingPlayerId: player.id,
       selectableOptions: canPay
-        ? [
-            ...paymentCounts.map((count) => getPayOption(config, count)),
-            { id: 'decline', label: DECLINE_OPTION_LABEL },
-          ]
-        : [{ id: 'decline', label: DECLINE_OPTION_LABEL }],
+        ? paymentCounts.map((count) => getPayOption(config, count))
+        : [],
+      canSkipSelection: true,
+      skipSelectionLabel: DECLINE_OPTION_LABEL,
       metadata: {
         orderedResolution,
         activeEnergyCardIds,
@@ -180,6 +192,9 @@ function finishPayEnergyGainBladeWorkflow(
   const player = getPlayerById(game, effect.controllerId);
   if (!player) {
     return game;
+  }
+  if (getSourceMemberSlot(game, player.id, effect.sourceCardId) === null) {
+    return finishSkippedActiveEffect(game, continuePendingCardEffects);
   }
 
   const energyCostCount = getSelectedEnergyCostCount(config, selectedOptionId, effect);
@@ -240,12 +255,6 @@ function finishPayEnergyGainBladeWorkflow(
 
 function isPayOption(optionId: string | null | undefined): boolean {
   return optionId === 'pay' || optionId?.startsWith('pay-') === true;
-}
-
-function getActiveEnergyCardIds(player: NonNullable<ReturnType<typeof getPlayerById>>): string[] {
-  return player.energyZone.cardIds.filter(
-    (cardId) => player.energyZone.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
-  );
 }
 
 function getStartBladeBonus(
@@ -361,5 +370,5 @@ function getStartStepText(
     const maxCount = paymentCounts[paymentCounts.length - 1] ?? 0;
     return `最多可以支付${'[E]'.repeat(maxCount)}。每支付[E]，此成员获得1个[BLADE]。`;
   }
-  return `可以支付${'[E]'.repeat(config.energyCost.count)}，获得${startBladeBonus}个BLADE。`;
+  return `可以支付${'[E]'.repeat(config.energyCost.count)}，获得${'[BLADE]'.repeat(startBladeBonus)}。`;
 }

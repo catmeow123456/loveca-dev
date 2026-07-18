@@ -160,15 +160,10 @@ import {
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
-import { getMemberEffectiveCost } from './effects/conditions.js';
+import { buildPlayMemberCostResources } from './effects/play-member-cost.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
-import { getActiveEnergyIds, tapEnergy } from '../domain/entities/zone.js';
-import {
-  costCalculator,
-  type CostPaymentPlan,
-  type StageMemberInfo,
-  type SuccessLiveCardInfo,
-} from '../domain/rules/cost-calculator.js';
+import { tapEnergy } from '../domain/entities/zone.js';
+import { costCalculator, type CostPaymentPlan } from '../domain/rules/cost-calculator.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -1898,7 +1893,10 @@ export class GameSession {
           state.activeEffect?.selectableCardVisibility === 'AWAITING_PLAYER_BLIND'
             ? resolveBlindCardSelectionToken(
                 state.activeEffect.selectableCardIds ?? [],
-                selectedCardId
+                selectedCardId,
+                typeof state.activeEffect.metadata?.blindSelectionVersion === 'number'
+                  ? state.activeEffect.metadata.blindSelectionVersion
+                  : undefined
               ) !== null
             : state.activeEffect?.selectableCardIds?.includes(selectedCardId) === true;
         if (command.selectedCardId && !isSelectableCardReference(command.selectedCardId)) {
@@ -3539,59 +3537,27 @@ export class GameSession {
       return { success: false, error: '只有成员卡可以登场到成员区' };
     }
 
-    const activeEnergyIds = getActiveEnergyIds(player.energyZone);
-    const stageMembers: StageMemberInfo[] = [];
-    const successLiveCards: SuccessLiveCardInfo[] = [];
-    for (const slot of [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]) {
-      const stageCardId = player.memberSlots.slots[slot];
-      if (!stageCardId) {
-        continue;
-      }
-      const stageCard = state.cardRegistry.get(stageCardId);
-      if (stageCard && isMemberCardData(stageCard.data)) {
-        stageMembers.push({
-          cardId: stageCardId,
-          data: stageCard.data,
-          effectiveCost: getMemberEffectiveCost(state, command.playerId, stageCardId),
-          position: slot,
-          orientation:
-            player.memberSlots.cardStates.get(stageCardId)?.orientation ?? OrientationState.ACTIVE,
-          positionMovedThisTurn: player.positionMovedThisTurn.includes(stageCardId),
-        });
-      }
-    }
-    for (const successLiveCardId of player.successZone.cardIds) {
-      const successLiveCard = state.cardRegistry.get(successLiveCardId);
-      if (successLiveCard && isLiveCardData(successLiveCard.data)) {
-        successLiveCards.push({
-          cardId: successLiveCardId,
-          data: successLiveCard.data,
-        });
-      }
+    const resources = buildPlayMemberCostResources(
+      state,
+      command.playerId,
+      command.cardId,
+      player.hand.cardIds
+    );
+    if (!resources) {
+      return { success: false, error: '无法计算成员卡的当前费用' };
     }
 
-    const costCheck = costCalculator.checkCanPayCost(
-      card.data,
-      command.targetSlot,
-      {
-        activeEnergyIds,
-        stageMembers,
-        sourceCardId: command.cardId,
-        handCardIds: player.hand.cardIds,
-        successLiveCards,
-      },
-      {
-        relayMode: command.relayMode,
-        relayReplacementSlots: command.relayReplacementSlots,
-      }
-    );
+    const costCheck = costCalculator.checkCanPayCost(card.data, command.targetSlot, resources, {
+      relayMode: command.relayMode,
+      relayReplacementSlots: command.relayReplacementSlots,
+    });
     const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
     if (!plan) {
       return {
         success: false,
         error:
           costCheck.reason ??
-          `费用不足：需要 ${card.data.cost}，可用活跃能量 ${activeEnergyIds.length}`,
+          `费用不足：需要 ${card.data.cost}，可用活跃能量 ${resources.activeEnergyIds.length}`,
       };
     }
 
@@ -3612,7 +3578,7 @@ export class GameSession {
         relayDiscount: plan.relayDiscount,
         replacedMemberCardId: plan.memberToRelay,
         relayReplacements: plan.relayReplacements,
-        payableEnergyCardIds: activeEnergyIds,
+        payableEnergyCardIds: resources.activeEnergyIds,
         explanation: this.formatPlayMemberCostExplanation(plan),
       },
     };

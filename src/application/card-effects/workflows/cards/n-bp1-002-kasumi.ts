@@ -1,10 +1,8 @@
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
-  emitGameEvent,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type GameState,
 } from '../../../../domain/entities/game.js';
 import type {
@@ -12,19 +10,6 @@ import type {
   EnterWaitingRoomEvent,
   LeaveStageEvent,
 } from '../../../../domain/events/game-events.js';
-import {
-  createEnterStageEvent,
-  createEnterWaitingRoomEvent,
-  createLeaveStageEvent,
-} from '../../../../domain/events/game-events.js';
-import {
-  addCardsToZone,
-  addCardToZone,
-  placeCardInSlot,
-  popMemberBelowMember,
-  removeCardFromSlot,
-  removeCardFromZone,
-} from '../../../../domain/entities/zone.js';
 import {
   GamePhase,
   OrientationState,
@@ -34,14 +19,10 @@ import {
 } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
-import { getMemberEffectiveCost } from '../../../effects/conditions.js';
-import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../../../effects/energy-below.js';
 import { PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
-import {
-  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
-} from '../../runtime/enter-waiting-room-triggers.js';
-import { getNewEnterStageEvents } from '../../runtime/events.js';
+import { discardOneHandCardToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
+import { playMemberFromZoneToStageSlotWithReplacement } from '../../runtime/play-member-to-stage.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
@@ -71,11 +52,7 @@ export function registerNBp1002KasumiWorkflowHandlers(deps: {
     PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
     N_BP1_002_SELECT_DISCARD_STEP_ID,
     (game, input) =>
-      finishKasumiDiscardCost(
-        game,
-        input.selectedCardId ?? null,
-        deps.enqueueTriggeredCardEffects
-      )
+      finishKasumiDiscardCost(game, input.selectedCardId ?? null, deps.enqueueTriggeredCardEffects)
   );
   registerActiveEffectStepHandler(
     PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
@@ -250,7 +227,11 @@ function finishKasumiPlaySelfFromWaitingRoom(
     return game;
   }
 
-  const playResult = playKasumiFromWaitingRoomToStageSlot(game, player.id, effect.sourceCardId, selectedSlot);
+  const playResult = playMemberFromZoneToStageSlotWithReplacement(game, player.id, {
+    cardId: effect.sourceCardId,
+    sourceZone: ZoneType.WAITING_ROOM,
+    toSlot: selectedSlot,
+  });
   if (!playResult) {
     return game;
   }
@@ -269,130 +250,20 @@ function finishKasumiPlaySelfFromWaitingRoom(
   const stateWithOnEnter = enqueueTriggeredCardEffects(
     state,
     [
-      ...(playResult.leaveStageEvent ? [TriggerCondition.ON_LEAVE_STAGE] : []),
-      ...(playResult.enterWaitingRoomEvent ? [TriggerCondition.ON_ENTER_WAITING_ROOM] : []),
+      ...(playResult.leaveStageEvents.length > 0 ? [TriggerCondition.ON_LEAVE_STAGE] : []),
+      ...(playResult.enterWaitingRoomEvents.length > 0
+        ? [TriggerCondition.ON_ENTER_WAITING_ROOM]
+        : []),
       TriggerCondition.ON_ENTER_STAGE,
     ],
     {
-      leaveStageEvents: playResult.leaveStageEvent ? [playResult.leaveStageEvent] : [],
-      enterWaitingRoomEvents: playResult.enterWaitingRoomEvent
-        ? [playResult.enterWaitingRoomEvent]
-        : [],
-      enterStageEvents: getNewEnterStageEvents(game, state),
+      leaveStageEvents: playResult.leaveStageEvents,
+      enterWaitingRoomEvents: playResult.enterWaitingRoomEvents,
+      enterStageEvents: [playResult.enterStageEvent],
     }
   );
 
   return continuePendingCardEffects({ ...stateWithOnEnter, activeEffect: null }, false);
-}
-
-interface PlayKasumiFromWaitingRoomToStageSlotResult {
-  readonly gameState: GameState;
-  readonly replacedMemberCardId: string | null;
-  readonly replacedMemberEffectiveCost: number | null;
-  readonly leaveStageEvent: LeaveStageEvent | null;
-  readonly enterWaitingRoomEvent: EnterWaitingRoomEvent | null;
-}
-
-function playKasumiFromWaitingRoomToStageSlot(
-  game: GameState,
-  playerId: string,
-  cardId: string,
-  targetSlot: SlotPosition
-): PlayKasumiFromWaitingRoomToStageSlotResult | null {
-  const player = getPlayerById(game, playerId);
-  const card = getCardById(game, cardId);
-  if (!player || !card || !player.waitingRoom.cardIds.includes(cardId)) {
-    return null;
-  }
-
-  const replacedMemberCardId = player.memberSlots.slots[targetSlot];
-  const replacedMemberCard = replacedMemberCardId
-    ? getCardById(game, replacedMemberCardId)
-    : null;
-  if (replacedMemberCardId && !replacedMemberCard) {
-    return null;
-  }
-  const replacedMemberEffectiveCost = replacedMemberCardId
-    ? getMemberEffectiveCost(game, playerId, replacedMemberCardId)
-    : null;
-  let replacedMemberBelowIds: readonly string[] = [];
-
-  let state = game;
-  if (replacedMemberCardId && replacedMemberCard) {
-    state = updatePlayer(state, playerId, (currentPlayer) => {
-      const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
-        currentPlayer,
-        targetSlot
-      );
-      const playerWithReturnedEnergy = energyReturnResult.playerState;
-      const [slotsWithoutMemberBelow, memberBelowIds] = popMemberBelowMember(
-        playerWithReturnedEnergy.memberSlots,
-        targetSlot
-      );
-      replacedMemberBelowIds = memberBelowIds;
-      const slotsWithoutReplacedMember = removeCardFromSlot(slotsWithoutMemberBelow, targetSlot);
-      const waitingRoom = addCardsToZone(
-        addCardToZone(playerWithReturnedEnergy.waitingRoom, replacedMemberCardId),
-        memberBelowIds
-      );
-      return {
-        ...playerWithReturnedEnergy,
-        memberSlots: slotsWithoutReplacedMember,
-        waitingRoom,
-      };
-    });
-  }
-
-  state = updatePlayer(state, playerId, (currentPlayer) => ({
-    ...currentPlayer,
-    waitingRoom: removeCardFromZone(currentPlayer.waitingRoom, cardId),
-    memberSlots: placeCardInSlot(currentPlayer.memberSlots, targetSlot, cardId),
-    movedToStageThisTurn: [...currentPlayer.movedToStageThisTurn, cardId],
-  }));
-
-  const leaveStageEvent =
-    replacedMemberCardId && replacedMemberCard
-      ? createLeaveStageEvent(
-          replacedMemberCardId,
-          targetSlot,
-          ZoneType.WAITING_ROOM,
-          replacedMemberCard.ownerId,
-          playerId,
-          cardId
-        )
-      : null;
-  if (leaveStageEvent) {
-    state = emitGameEvent(state, leaveStageEvent);
-  }
-
-  const enterWaitingRoomEvent =
-    replacedMemberCardId && replacedMemberCard
-      ? createEnterWaitingRoomEvent(
-          [replacedMemberCardId, ...replacedMemberBelowIds],
-          ZoneType.MEMBER_SLOT,
-          replacedMemberCard.ownerId,
-          playerId
-        )
-      : null;
-  if (enterWaitingRoomEvent) {
-    state = emitGameEvent(state, enterWaitingRoomEvent);
-  }
-
-  state = emitGameEvent(
-    state,
-    createEnterStageEvent(cardId, ZoneType.WAITING_ROOM, targetSlot, card.ownerId, playerId, {
-      replacedMemberCardId,
-      replacedMemberEffectiveCost,
-    })
-  );
-
-  return {
-    gameState: state,
-    replacedMemberCardId,
-    replacedMemberEffectiveCost,
-    leaveStageEvent,
-    enterWaitingRoomEvent,
-  };
 }
 
 function getActiveEnergyCardIds(game: GameState, playerId: string): readonly string[] {

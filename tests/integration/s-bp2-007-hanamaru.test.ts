@@ -17,6 +17,7 @@ import { createCheerEvent } from '../../src/domain/events/game-events';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
@@ -147,6 +148,37 @@ function resolveAuto(game: GameState, sourceCardId: string, eventIds: readonly s
   }).gameState;
 }
 
+function enqueueOwnCheer(
+  game: GameState,
+  cardIds: readonly string[],
+  options: { readonly additional?: boolean } = {}
+): GameState {
+  const event = createCheerEvent(PLAYER1, cardIds, cardIds.length, {
+    additional: options.additional,
+  });
+  const withEvent = emitGameEvent(game, event);
+  const withCurrentCheer: GameState = {
+    ...withEvent,
+    liveResolution: {
+      ...withEvent.liveResolution,
+      isInLive: true,
+      performingPlayerId: PLAYER1,
+      firstPlayerCheerCardIds: [
+        ...withEvent.liveResolution.firstPlayerCheerCardIds,
+        ...cardIds,
+      ],
+    },
+    resolutionZone: {
+      ...withEvent.resolutionZone,
+      cardIds: [...withEvent.resolutionZone.cardIds, ...cardIds],
+      revealedCardIds: [...withEvent.resolutionZone.revealedCardIds, ...cardIds],
+    },
+  };
+  return enqueueTriggeredCardEffects(withCurrentCheer, [TriggerCondition.ON_CHEER], {
+    cheerEvents: [event],
+  });
+}
+
 function startLiveStart(game: GameState, sourceCardId: string) {
   return resolvePendingCardEffects({
     ...game,
@@ -252,7 +284,43 @@ describe('PL!S-bp2-007 国木田花丸', () => {
     expect(didUseAuto(opponentResolved)).toBe(false);
   });
 
-  it('uses only the pending normal own cheer event facts, including a LIVE already removed from resolution', () => {
+  it('draws when additional cheer reveals the first LIVE before resolution, but does not resolve retroactively in the opposite order', () => {
+    const normalMember = createCardInstance(member('NORMAL-MEMBER'), PLAYER1, 'normal-member');
+    const additionalLive = createCardInstance(live('ADDITIONAL-LIVE'), PLAYER1, 'additional-live');
+    const drawn = createCardInstance(member('DRAWN-AFTER-ADDITIONAL'), PLAYER1, 'drawn-after-additional');
+
+    const miraiFirst = setup({ deck: [drawn] });
+    const miraiFirstGame = registerCards(miraiFirst.game, [normalMember, additionalLive]);
+    const queued = enqueueOwnCheer(miraiFirstGame, [normalMember.instanceId]);
+    expect(queued.pendingAbilities).toHaveLength(1);
+
+    const afterAdditionalCheer = enqueueOwnCheer(queued, [additionalLive.instanceId], {
+      additional: true,
+    });
+    expect(afterAdditionalCheer.pendingAbilities).toHaveLength(1);
+
+    const resolvedAfterAdditional = resolvePendingCardEffects(afterAdditionalCheer).gameState;
+    expect(resolvedAfterAdditional.players[0].hand.cardIds).toContain(drawn.instanceId);
+    expect(didUseAuto(resolvedAfterAdditional)).toBe(true);
+
+    const hanamaruFirst = setup({ deck: [drawn] });
+    const hanamaruFirstGame = registerCards(hanamaruFirst.game, [normalMember, additionalLive]);
+    const resolvedBeforeAdditional = resolvePendingCardEffects(
+      enqueueOwnCheer(hanamaruFirstGame, [normalMember.instanceId])
+    ).gameState;
+    expect(resolvedBeforeAdditional.players[0].hand.cardIds).not.toContain(drawn.instanceId);
+    expect(didUseAuto(resolvedBeforeAdditional)).toBe(false);
+
+    const afterLateAdditional = enqueueOwnCheer(
+      resolvedBeforeAdditional,
+      [additionalLive.instanceId],
+      { additional: true }
+    );
+    expect(afterLateAdditional.pendingAbilities).toEqual([]);
+    expect(afterLateAdditional.players[0].hand.cardIds).not.toContain(drawn.instanceId);
+  });
+
+  it('uses current LIVE event-inclusive cheer facts, including a LIVE already removed from resolution, but rejects an additional-only pending', () => {
     const deck = createCardInstance(member('DRAW'), PLAYER1, 'draw');
     const current = createCardInstance(live('CURRENT'), PLAYER1, 'current');
     const old = createCardInstance(live('OLD'), PLAYER1, 'old');

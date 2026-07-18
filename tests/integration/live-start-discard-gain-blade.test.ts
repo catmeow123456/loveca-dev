@@ -15,17 +15,27 @@ import {
 import { addCardToZone, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { GameService } from '../../src/application/game-service';
 import {
+  enqueueTriggeredCardEffects,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
+import {
+  HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   S_BP3_003_LIVE_START_DISCARD_UP_TO_TWO_GAIN_BLADE_ABILITY_ID,
   SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_ABILITY_ID,
+  SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../src/application/card-effects/runtime/member-slot-moved-triggers';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   CardType,
   FaceState,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
+  SubPhase,
   TriggerCondition,
 } from '../../src/shared/types/enums';
 
@@ -163,6 +173,65 @@ function setupSbp3003(handCount = 3): {
   session.createGame('s-bp3-003-focused-session', PLAYER1, 'P1', PLAYER2, 'P2');
   (session as unknown as { authorityState: GameState }).authorityState = started;
   return {
+    session,
+    sourceCardId: source.instanceId,
+    handCardIds: hand.map((card) => card.instanceId),
+    outsideCardId: outside.instanceId,
+  };
+}
+
+function setupSpSd1003(options: {
+  readonly handKinds?: readonly ('member' | 'live')[];
+  readonly sourceOrientation?: OrientationState;
+  readonly sourceSlot?: SlotPosition;
+  readonly resolve?: boolean;
+} = {}): {
+  readonly game: GameState;
+  readonly session: GameSession;
+  readonly sourceCardId: string;
+  readonly handCardIds: readonly string[];
+  readonly outsideCardId: string;
+} {
+  const handKinds = options.handKinds ?? ['member', 'member'];
+  const sourceSlot = options.sourceSlot ?? SlotPosition.CENTER;
+  const source = createCardInstance(
+    createMember('PL!SP-sd1-003-SD', '嵐 千砂都'),
+    PLAYER1,
+    'sp-sd1-003-source'
+  );
+  const hand = handKinds.map((kind, index) =>
+    createCardInstance(
+      kind === 'live'
+        ? createLive(`SP-SD1-003-LIVE-${index}`)
+        : createMember(`SP-SD1-003-MEMBER-${index}`),
+      PLAYER1,
+      `sp-sd1-003-hand-${index}`
+    )
+  );
+  const outside = createCardInstance(
+    createMember('SP-SD1-003-OUTSIDE'),
+    PLAYER1,
+    'sp-sd1-003-outside'
+  );
+  let game = registerCards(
+    createGameState('sp-sd1-003-focused', PLAYER1, 'P1', PLAYER2, 'P2'),
+    [source, ...hand, outside]
+  );
+  game = updatePlayer(game, PLAYER1, (player) => ({
+    ...player,
+    hand: { ...player.hand, cardIds: hand.map((card) => card.instanceId) },
+    memberSlots: placeCardInSlot(player.memberSlots, sourceSlot, source.instanceId, {
+      orientation: options.sourceOrientation ?? OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    }),
+  }));
+  const queued = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_LIVE_START]);
+  const started = options.resolve === false ? queued : resolvePendingCardEffects(queued).gameState;
+  const session = createGameSession();
+  session.createGame('sp-sd1-003-focused-session', PLAYER1, 'P1', PLAYER2, 'P2');
+  (session as unknown as { authorityState: GameState }).authorityState = started;
+  return {
+    game: started,
     session,
     sourceCardId: source.instanceId,
     handCardIds: hand.map((card) => card.instanceId),
@@ -392,6 +461,319 @@ describe('SP PR LIVE start discard gain BLADE and draw if LIVE shared workflow',
     expect(scenario.session.state?.liveResolution.liveModifiers).toEqual([]);
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.pendingAbilities).toEqual([]);
+  });
+
+  it('enqueues SP-sd1-003 through the real LIVE_START path with source instance, slot, and timing', () => {
+    const scenario = setupSpSd1003({ resolve: false });
+
+    expect(scenario.game.pendingAbilities).toEqual([
+      expect.objectContaining({
+        abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+        sourceCardId: scenario.sourceCardId,
+        controllerId: PLAYER1,
+        sourceSlot: SlotPosition.CENTER,
+        timingId: TriggerCondition.ON_LIVE_START,
+      }),
+    ]);
+  });
+
+  it.each([OrientationState.ACTIVE, OrientationState.WAITING])(
+    'opens the exact two-card SP-sd1-003 window from an %s source',
+    (sourceOrientation) => {
+      const scenario = setupSpSd1003({
+        handKinds: ['member', 'member', 'member'],
+        sourceOrientation,
+      });
+
+      expect(scenario.session.state?.activeEffect).toMatchObject({
+        abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+        sourceCardId: scenario.sourceCardId,
+        selectableCardIds: scenario.handCardIds,
+        minSelectableCards: 2,
+        maxSelectableCards: 2,
+        canSkipSelection: true,
+        stepText:
+          '可以将2张手牌放置入休息室：LIVE结束时为止，获得[BLADE][BLADE][BLADE][BLADE][BLADE]。',
+        selectionLabel: '选择要放置入休息室的卡',
+        confirmSelectionLabel: '放置入休息室',
+        skipSelectionLabel: '不发动',
+      });
+      expect(scenario.session.state?.activeEffect?.stepText).not.toMatch(
+        /来源仍在舞台|来源不在舞台|source|pending|stale|payload|eventId|trigger/
+      );
+    }
+  );
+
+  it.each([0, 1])('consumes SP-sd1-003 safely with %i hand cards and opens no illegal window', (handCount) => {
+    const scenario = setupSpSd1003({
+      handKinds: Array.from({ length: handCount }, () => 'member' as const),
+    });
+
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.pendingAbilities).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(scenario.session.state?.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it.each([2, 3])('keeps SP-sd1-003 min/max exactly two with %i hand cards', (handCount) => {
+    const scenario = setupSpSd1003({
+      handKinds: Array.from({ length: handCount }, () => 'member' as const),
+    });
+
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      selectableCardIds: scenario.handCardIds,
+      minSelectableCards: 2,
+      maxSelectableCards: 2,
+    });
+  });
+
+  it('allows SP-sd1-003 to be skipped without discarding or adding BLADE', () => {
+    const scenario = setupSpSd1003({ handKinds: ['member', 'live'] });
+
+    expect(selectDiscard(scenario.session, null).success).toBe(true);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual(scenario.handCardIds);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(scenario.session.state?.liveResolution.liveModifiers).toEqual([]);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+  });
+
+  it('discards exactly two mixed cards at once, draws nothing, and grants fixed BLADE +5', () => {
+    const scenario = setupSpSd1003({ handKinds: ['member', 'live', 'member'] });
+    const selected = scenario.handCardIds.slice(0, 2);
+
+    expect(selectDiscards(scenario.session, selected).success).toBe(true);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(selected);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([scenario.handCardIds[2]]);
+    expect(scenario.session.state?.liveResolution.liveModifiers).toEqual([
+      {
+        kind: 'BLADE',
+        playerId: PLAYER1,
+        countDelta: 5,
+        sourceCardId: scenario.sourceCardId,
+        abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+      },
+    ]);
+    expect(
+      scenario.session.state?.actionHistory.filter((action) => action.payload.step === 'DRAW_CARD')
+    ).toEqual([]);
+    expect(scenario.session.state?.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'DISCARD_TWO_GAIN_FIVE_BLADE',
+      discardedCardIds: selected,
+      discardedLive: false,
+      bladeBonus: 5,
+      drawnCardIds: [],
+    });
+    expect(
+      scenario.session.state?.eventLog.filter(
+        (entry) => entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+      )
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    ['one card', (scenario: ReturnType<typeof setupSpSd1003>) => [scenario.handCardIds[0]!]],
+    ['three cards', (scenario: ReturnType<typeof setupSpSd1003>) => scenario.handCardIds],
+    ['duplicate ids', (scenario: ReturnType<typeof setupSpSd1003>) => [scenario.handCardIds[0]!, scenario.handCardIds[0]!]],
+    ['outside candidate', (scenario: ReturnType<typeof setupSpSd1003>) => [scenario.handCardIds[0]!, scenario.outsideCardId]],
+  ] as const)('atomically rejects SP-sd1-003 %s selection and preserves its window', (_label, selected) => {
+    const scenario = setupSpSd1003({ handKinds: ['member', 'member', 'member'] });
+    const before = scenario.session.state;
+
+    expect(selectDiscards(scenario.session, selected(scenario)).success).toBe(false);
+    expect(scenario.session.state).toEqual(before);
+  });
+
+  it('atomically rejects a stale SP-sd1-003 hand id and preserves its window', () => {
+    const scenario = setupSpSd1003({ handKinds: ['member', 'member', 'member'] });
+    const staleId = scenario.handCardIds[0]!;
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = updatePlayer(
+      scenario.session.state!,
+      PLAYER1,
+      (player) => ({
+        ...player,
+        hand: { ...player.hand, cardIds: player.hand.cardIds.filter((cardId) => cardId !== staleId) },
+      })
+    );
+    const before = scenario.session.state;
+
+    expect(selectDiscards(scenario.session, [staleId, scenario.handCardIds[1]!]).success).toBe(false);
+    expect(scenario.session.state).toEqual(before);
+  });
+
+  it('consumes SP-sd1-003 pending safely when the source leaves before pending resolution', () => {
+    const scenario = setupSpSd1003({ resolve: false });
+    const sourceRemoved = updatePlayer(scenario.game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    const resolved = resolvePendingCardEffects(sourceRemoved).gameState;
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).toEqual(scenario.handCardIds);
+    expect(resolved.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('ends SP-sd1-003 safely when the source leaves after its window opens', () => {
+    const scenario = setupSpSd1003({ handKinds: ['member', 'member'] });
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = updatePlayer(
+      scenario.session.state!,
+      PLAYER1,
+      (player) => ({
+        ...player,
+        memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      })
+    );
+
+    expect(selectDiscards(scenario.session, scenario.handCardIds).success).toBe(true);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual(scenario.handCardIds);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(scenario.session.state?.liveResolution.liveModifiers).toEqual([]);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.pendingAbilities).toEqual([]);
+  });
+
+  it('keeps SP-sd1-003 BLADE through movement and clears it on standard source departure', () => {
+    const scenario = setupSpSd1003({ handKinds: ['member', 'member'] });
+    expect(selectDiscards(scenario.session, scenario.handCardIds).success).toBe(true);
+
+    const moved = moveMemberBetweenSlotsAndEnqueueTriggers(
+      scenario.session.state!,
+      PLAYER1,
+      scenario.sourceCardId,
+      SlotPosition.RIGHT,
+      enqueueTriggeredCardEffects
+    );
+    expect(moved?.gameState.liveResolution.liveModifiers).toHaveLength(1);
+    const left = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      moved!.gameState,
+      PLAYER1,
+      scenario.sourceCardId,
+      enqueueTriggeredCardEffects
+    );
+    expect(left?.gameState.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('clears SP-sd1-003 BLADE through the unified LIVE-end lifecycle', () => {
+    const scenario = setupSpSd1003({ handKinds: ['member', 'member'] });
+    expect(selectDiscards(scenario.session, scenario.handCardIds).success).toBe(true);
+    expect(scenario.session.state?.liveResolution.liveModifiers).toHaveLength(1);
+
+    const finalized = new GameService().finalizeLiveResult({
+      ...scenario.session.state!,
+      currentPhase: GamePhase.LIVE_RESULT_PHASE,
+      currentSubPhase: SubPhase.RESULT_SETTLEMENT,
+      liveResolution: {
+        ...scenario.session.state!.liveResolution,
+        liveWinnerIds: [PLAYER1],
+      },
+    });
+
+    expect(finalized.success).toBe(true);
+    expect(finalized.gameState.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('reopens ordered resolution when the grouped discard event adds a new pending ability', () => {
+    const first = createCardInstance(
+      createMember('PL!SP-sd1-003-SD', '嵐 千砂都'),
+      PLAYER1,
+      'sp-sd1-003-first'
+    );
+    const second = createCardInstance(
+      createMember('PL!SP-sd1-003-P', '嵐 千砂都'),
+      PLAYER1,
+      'sp-sd1-003-second'
+    );
+    const watcher = createCardInstance(
+      createMember('PL!HS-pb1-003-R', '大沢 瑠璃乃'),
+      PLAYER1,
+      'hs-pb1-003-watcher'
+    );
+    const hand = Array.from({ length: 4 }, (_, index) =>
+      createCardInstance(
+        createMember(`SP-SD1-003-ORDERED-HAND-${index}`),
+        PLAYER1,
+        `sp-sd1-003-ordered-hand-${index}`
+      )
+    );
+    let game = registerCards(
+      createGameState('sp-sd1-003-ordered-new-pending', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [first, second, watcher, ...hand]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: hand.map((card) => card.instanceId) },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, first.instanceId),
+          SlotPosition.CENTER,
+          watcher.instanceId
+        ),
+        SlotPosition.RIGHT,
+        second.instanceId
+      ),
+    }));
+    const orderSelection = resolvePendingCardEffects(
+      enqueueTriggeredCardEffects(game, [TriggerCondition.ON_LIVE_START])
+    ).gameState;
+    const session = createGameSession();
+    session.createGame('sp-sd1-003-ordered-new-pending-session', PLAYER1, 'P1', PLAYER2, 'P2');
+    (session as unknown as { authorityState: GameState }).authorityState = orderSelection;
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          undefined,
+          true
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect?.sourceCardId).toBe(first.instanceId);
+    expect(selectDiscards(session, hand.slice(0, 2).map((card) => card.instanceId)).success).toBe(true);
+
+    expect(session.state?.activeEffect?.canResolveInOrder).toBe(true);
+    expect(session.state?.pendingAbilities).toHaveLength(2);
+    expect(session.state?.pendingAbilities).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
+          sourceCardId: second.instanceId,
+        }),
+        expect.objectContaining({
+          abilityId: HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+          sourceCardId: watcher.instanceId,
+        }),
+      ])
+    );
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === first.instanceId
+      ).map((action) => action.payload.step)
+    ).toEqual(['START_SELECT_DISCARD', 'DISCARD_TWO_GAIN_FIVE_BLADE']);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === second.instanceId
+      )
+    ).toEqual([]);
+    expect(
+      session.state?.actionHistory.filter(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+      )
+    ).toEqual([]);
   });
 
   it('continues ordered pending after a decline into the next discard window', () => {
