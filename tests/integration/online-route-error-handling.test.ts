@@ -30,7 +30,10 @@ vi.mock('../../src/server/db/pool.js', () => ({
 }));
 
 import { onlineRouter } from '../../src/server/routes/online';
-import { onlineMatchService } from '../../src/server/services/online-match-service';
+import {
+  OnlineSpectatorServiceError,
+  onlineMatchService,
+} from '../../src/server/services/online-match-service';
 import { onlineRoomService } from '../../src/server/services/online-room-service';
 
 function createMockResponse() {
@@ -74,11 +77,7 @@ function findRouteHandler(path: string, method: 'get' | 'post') {
   return layer.route.stack.at(-1)?.handle as (req: Request, res: Response) => void | Promise<void>;
 }
 
-async function invokeRoute(
-  path: string,
-  method: 'get' | 'post',
-  options: Partial<Request> = {}
-) {
+async function invokeRoute(path: string, method: 'get' | 'post', options: Partial<Request> = {}) {
   const handler = findRouteHandler(path, method);
   const response = createMockResponse();
   const request = {
@@ -143,6 +142,33 @@ describe('onlineRouter error handling', () => {
       'Cache-Control': 'private, no-store',
       'Referrer-Policy': 'no-referrer',
       'X-Robots-Tag': 'noindex, nofollow, noarchive',
+    });
+  });
+
+  it('观战频率保护应返回结构化等待时间与 Retry-After', async () => {
+    vi.spyOn(onlineMatchService, 'getSpectatorSnapshot').mockRejectedValue(
+      new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_RATE_LIMITED',
+        '观战同步暂时繁忙，请稍等',
+        429,
+        2_250
+      )
+    );
+
+    const response = await invokeRoute('/spectator-links/:token/snapshot', 'get', {
+      params: { token: 'token-1' },
+      query: { sessionId: 'session-1' },
+    });
+
+    expect(response.statusCode).toBe(429);
+    expect(response.headers['Retry-After']).toBe('3');
+    expect(response.body).toEqual({
+      data: null,
+      error: {
+        code: 'ONLINE_SPECTATOR_RATE_LIMITED',
+        message: '观战同步暂时繁忙，请稍等',
+        retryAfterMs: 2_250,
+      },
     });
   });
 

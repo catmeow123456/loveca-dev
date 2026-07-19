@@ -292,6 +292,87 @@ describe('gameStore remote snapshot sync', () => {
     });
   });
 
+  it('观战未修改响应的视角元数据相同时保留原会话对象引用', async () => {
+    const spectatorSession = {
+      source: 'SPECTATOR' as const,
+      matchId: 'match-spec-stable',
+      seat: 'FIRST' as const,
+      playerId: 'player-1',
+      spectatorToken: 'token-stable',
+      spectatorSessionId: 'session-stable',
+      spectatorAuthorizedViewerSeats: ['FIRST', 'SECOND'] as const,
+      spectatorViewVersion: 3,
+      spectatorAuthorizationNotice: null,
+      spectatorSyncGeneration: 0,
+    };
+    useGameStore.setState({
+      remoteSession: spectatorSession,
+      viewingPlayerId: 'player-1',
+      playerViewState: createViewState('match-spec-stable', 7),
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-spec-stable',
+        cursorSeq: 4,
+        currentPublicSeq: 4,
+      },
+    });
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockResolvedValueOnce({
+      matchId: 'match-spec-stable',
+      seq: 7,
+      currentPublicSeq: 4,
+      snapshot: null,
+      spectatorView: {
+        currentViewerSeat: 'FIRST',
+        authorizedViewerSeats: ['FIRST', 'SECOND'],
+        viewVersion: 3,
+        authorizationNotice: null,
+      },
+    });
+
+    await useGameStore.getState().syncRemoteState();
+
+    expect(useGameStore.getState().remoteSession).toBe(spectatorSession);
+    expect(fetchRemotePublicEvents).not.toHaveBeenCalled();
+  });
+
+  it('开始切换视角后丢弃旧视角在途快照', async () => {
+    useGameStore.setState({
+      remoteSession: {
+        source: 'SPECTATOR',
+        matchId: 'match-spec-switch',
+        seat: 'FIRST',
+        playerId: 'player-1',
+        spectatorToken: 'token-switch',
+        spectatorSessionId: 'session-switch',
+        spectatorAuthorizedViewerSeats: ['FIRST', 'SECOND'],
+        spectatorViewVersion: 1,
+        spectatorSyncGeneration: 0,
+      },
+      viewingPlayerId: 'player-1',
+      playerViewState: createViewState('match-spec-switch', 2),
+    });
+    const pendingSnapshot = deferred<{
+      readonly matchId: string;
+      readonly seq: number;
+      readonly currentPublicSeq: number;
+      readonly snapshot: RemoteSnapshot | null;
+    }>();
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockReturnValueOnce(pendingSnapshot.promise);
+
+    const syncPromise = useGameStore.getState().syncRemoteState();
+    useGameStore.getState().invalidateSpectatorSync();
+    pendingSnapshot.resolve({
+      matchId: 'match-spec-switch',
+      seq: 3,
+      currentPublicSeq: 0,
+      snapshot: createSnapshot('match-spec-switch', 3, 0),
+    });
+    await syncPromise;
+
+    expect(useGameStore.getState().playerViewState?.match.seq).toBe(2);
+    expect(useGameStore.getState().remoteSession?.spectatorSyncGeneration).toBe(1);
+  });
+
   it('does not fetch public events for a not-modified snapshot when the public cursor is already current', async () => {
     setRemoteSession('match-1');
     useGameStore.setState({
@@ -340,6 +421,57 @@ describe('gameStore remote snapshot sync', () => {
       expect(fetchRemotePublicEvents).toHaveBeenCalledWith('ONLINE', 'match-1', 'FIRST', 5);
     });
     expect(useGameStore.getState().publicBattleLog.currentPublicSeq).toBe(8);
+  });
+
+  it('观战快照同步等待所需的公开日志增量完成后才结束本轮调度', async () => {
+    useGameStore.setState({
+      remoteSession: {
+        source: 'SPECTATOR',
+        matchId: 'match-spec-log',
+        seat: 'FIRST',
+        playerId: 'player-1',
+        spectatorToken: 'token-log',
+        spectatorSessionId: 'session-log',
+        spectatorAuthorizedViewerSeats: ['FIRST'],
+        spectatorViewVersion: 1,
+        spectatorSyncGeneration: 0,
+      },
+      playerViewState: createViewState('match-spec-log', 4),
+      publicBattleLog: {
+        ...EMPTY_PUBLIC_BATTLE_LOG,
+        matchId: 'match-spec-log',
+        cursorSeq: 5,
+        currentPublicSeq: 5,
+      },
+    });
+    vi.mocked(fetchRemoteSnapshotSyncResult).mockResolvedValueOnce({
+      matchId: 'match-spec-log',
+      seq: 5,
+      currentPublicSeq: 8,
+      snapshot: createSnapshot('match-spec-log', 5, 8),
+      spectatorView: {
+        currentViewerSeat: 'FIRST',
+        authorizedViewerSeats: ['FIRST'],
+        viewVersion: 1,
+        authorizationNotice: null,
+      },
+    });
+    const pendingEvents = deferred<PublicEventsResponse | null>();
+    vi.mocked(fetchRemotePublicEvents).mockReturnValueOnce(pendingEvents.promise);
+    let settled = false;
+
+    const syncPromise = useGameStore
+      .getState()
+      .syncRemoteState()
+      .then(() => {
+        settled = true;
+      });
+    await vi.waitFor(() => expect(fetchRemotePublicEvents).toHaveBeenCalledTimes(1));
+    expect(settled).toBe(false);
+
+    pendingEvents.resolve(createPublicEventsResponse('match-spec-log', 8));
+    await syncPromise;
+    expect(settled).toBe(true);
   });
 
   it('resets retained public events when the server truncates an old cursor', async () => {

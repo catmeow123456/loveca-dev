@@ -977,11 +977,15 @@ function respondOnlineError(res: Response, error: unknown): void {
   }
 
   if (error instanceof OnlineSpectatorServiceError) {
+    if (error.retryAfterMs !== undefined) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))));
+    }
     res.status(error.statusCode).json({
       data: null,
       error: {
         code: error.code,
         message: error.message,
+        ...(error.retryAfterMs !== undefined ? { retryAfterMs: error.retryAfterMs } : {}),
       },
     });
     return;

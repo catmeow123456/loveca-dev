@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Eye, Loader2, ScrollText, SwitchCamera } from 'lucide-react';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { ThemeToggle } from '@/components/common';
 import { joinOnlineSpectatorLink, switchOnlineSpectatorView } from '@/lib/onlineClient';
+import { ApiClientError } from '@/lib/apiClient';
+import { SpectatorPollingScheduler, type SpectatorPollingErrorState } from '@/lib/spectatorPolling';
 import { useGameStore } from '@/store/gameStore';
 import type { OnlineSpectatorJoinView, OnlineSpectatorSessionView, Seat } from '@game/online';
 
@@ -18,13 +20,16 @@ interface OnlineSpectatorPageProps {
 export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPageProps) {
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
+  const applySpectatorViewSession = useGameStore((s) => s.applySpectatorViewSession);
   const disconnectRemoteSession = useGameStore((s) => s.disconnectRemoteSession);
+  const invalidateSpectatorSync = useGameStore((s) => s.invalidateSpectatorSync);
   const syncRemoteState = useGameStore((s) => s.syncRemoteState);
   const remoteSession = useGameStore((s) =>
     s.remoteSession?.source === 'SPECTATOR' ? s.remoteSession : null
   );
   const matchView = useGameStore((s) => s.getMatchView());
   const spectatorClientId = useMemo(() => readSpectatorClientId(token), [token]);
+  const pollingSchedulerRef = useRef<SpectatorPollingScheduler | null>(null);
 
   const [sessionView, setSessionView] = useState<OnlineSpectatorSessionView | null>(null);
   const [linkView, setLinkView] = useState<OnlineSpectatorJoinView['link'] | null>(null);
@@ -32,6 +37,31 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSwitchingView, setIsSwitchingView] = useState(false);
   const [isAccessInvalid, setIsAccessInvalid] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
+
+  const spectatorMatchId = remoteSession?.matchId ?? null;
+  const spectatorToken = remoteSession?.spectatorToken ?? null;
+  const spectatorSessionId = remoteSession?.spectatorSessionId ?? null;
+
+  const handlePollingError = useCallback((state: SpectatorPollingErrorState) => {
+    if (state.kind === 'RATE_LIMITED') {
+      setError(null);
+      setSyncNotice('观战同步暂时繁忙，正在自动恢复');
+      return;
+    }
+    if (state.kind === 'NETWORK') {
+      setError(null);
+      setSyncNotice('观战同步中断，正在重新连接');
+      return;
+    }
+    setSyncNotice(null);
+    const message = state.error instanceof Error ? state.error.message : '同步观战对局失败';
+    setError(message);
+    if (isInvalidSpectatorAccessError(state.error)) {
+      setIsAccessInvalid(true);
+      pollingSchedulerRef.current?.pause();
+    }
+  }, []);
 
   useEffect(() => {
     const previousReferrer = document.querySelector<HTMLMetaElement>('meta[name="referrer"]');
@@ -59,6 +89,9 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
     setIsBootstrapping(true);
     setError(null);
     setIsAccessInvalid(false);
+    setSyncNotice(null);
+    setSessionView(null);
+    setLinkView(null);
 
     const bootstrap = async () => {
       try {
@@ -110,47 +143,29 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
   ]);
 
   useEffect(() => {
-    if (!remoteSession) {
+    if (!spectatorMatchId || !spectatorToken || !spectatorSessionId) {
       return;
     }
 
-    let cancelled = false;
-    let polling = false;
-
-    const pollMatch = async () => {
-      if (polling) {
-        return;
-      }
-
-      polling = true;
-      try {
-        await syncRemoteState();
-        if (!cancelled) {
-          setError(null);
-        }
-      } catch (pollError) {
-        if (!cancelled) {
-          const message = pollError instanceof Error ? pollError.message : '同步观战对局失败';
-          setError(message);
-          if (isInvalidSpectatorAccessMessage(message)) {
-            setIsAccessInvalid(true);
-          }
-        }
-      } finally {
-        polling = false;
-      }
-    };
-
-    void pollMatch();
-    const timer = window.setInterval(() => {
-      void pollMatch();
-    }, MATCH_POLL_INTERVAL_MS);
+    const scheduler = new SpectatorPollingScheduler({
+      intervalMs: MATCH_POLL_INTERVAL_MS,
+      poll: syncRemoteState,
+      onSuccess: () => {
+        setError(null);
+        setSyncNotice(null);
+      },
+      onError: handlePollingError,
+    });
+    pollingSchedulerRef.current = scheduler;
+    scheduler.start();
 
     return () => {
-      cancelled = true;
-      window.clearInterval(timer);
+      scheduler.dispose();
+      if (pollingSchedulerRef.current === scheduler) {
+        pollingSchedulerRef.current = null;
+      }
     };
-  }, [remoteSession, syncRemoteState]);
+  }, [handlePollingError, spectatorMatchId, spectatorSessionId, spectatorToken, syncRemoteState]);
 
   const handleSwitchView = async (viewerSeat: Seat) => {
     if (
@@ -164,24 +179,50 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
 
     setIsSwitchingView(true);
     setError(null);
-    try {
-      const switched = await switchOnlineSpectatorView(
-        remoteSession.spectatorToken,
-        remoteSession.spectatorSessionId,
-        viewerSeat
+    setSyncNotice(null);
+    pollingSchedulerRef.current?.pause();
+    invalidateSpectatorSync();
+    const switchToken = remoteSession.spectatorToken;
+    const switchSessionId = remoteSession.spectatorSessionId;
+    const switchGeneration = useGameStore.getState().remoteSession?.spectatorSyncGeneration;
+    const isSwitchContextCurrent = () => {
+      const currentSession = useGameStore.getState().remoteSession;
+      return (
+        currentSession?.source === 'SPECTATOR' &&
+        currentSession.spectatorToken === switchToken &&
+        currentSession.spectatorSessionId === switchSessionId &&
+        currentSession.spectatorSyncGeneration === switchGeneration
       );
-      connectRemoteSession({
-        ...remoteSession,
+    };
+    try {
+      const switched = await switchOnlineSpectatorView(switchToken, switchSessionId, viewerSeat);
+      if (!isSwitchContextCurrent()) {
+        return;
+      }
+      applySpectatorViewSession({
         seat: switched.snapshot.spectatorView.currentViewerSeat,
         playerId: switched.snapshot.playerId,
-        spectatorAuthorizedViewerSeats: switched.snapshot.spectatorView.authorizedViewerSeats,
-        spectatorViewVersion: switched.snapshot.spectatorView.viewVersion,
-        spectatorAuthorizationNotice: switched.snapshot.spectatorView.authorizationNotice,
+        authorizedViewerSeats: switched.snapshot.spectatorView.authorizedViewerSeats,
+        viewVersion: switched.snapshot.spectatorView.viewVersion,
+        authorizationNotice: switched.snapshot.spectatorView.authorizationNotice,
       });
       await applyRemoteSnapshot(switched.snapshot);
       setSessionView(switched.session);
+      pollingSchedulerRef.current?.resume();
     } catch (switchError) {
-      setError(switchError instanceof Error ? switchError.message : '切换观战视角失败');
+      if (!isSwitchContextCurrent()) {
+        return;
+      }
+      if (isInvalidSpectatorAccessError(switchError)) {
+        setIsAccessInvalid(true);
+        setError(switchError instanceof Error ? switchError.message : '切换观战视角失败');
+        pollingSchedulerRef.current?.pause();
+      } else if (isRetryableSpectatorError(switchError)) {
+        pollingSchedulerRef.current?.resume(switchError);
+      } else {
+        setError(switchError instanceof Error ? switchError.message : '切换观战视角失败');
+        pollingSchedulerRef.current?.resume();
+      }
     } finally {
       setIsSwitchingView(false);
     }
@@ -277,12 +318,16 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
           <ThemeToggle />
         </div>
       </div>
-      {error ? (
+      {syncNotice ? (
+        <div className="absolute right-4 top-4 z-[120] max-w-[calc(100vw-2rem)] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:max-w-sm">
+          {syncNotice}
+        </div>
+      ) : error ? (
         <div className="absolute right-4 top-4 z-[120] hidden max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--semantic-error)] shadow-[var(--shadow-md)] backdrop-blur-xl md:block">
           {error}
         </div>
       ) : null}
-      {!error && remoteSession?.spectatorAuthorizationNotice ? (
+      {!syncNotice && !error && remoteSession?.spectatorAuthorizationNotice ? (
         <div className="absolute right-4 top-4 z-[120] max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs leading-5 text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
           {remoteSession.spectatorAuthorizationNotice.message}
         </div>
@@ -331,8 +376,26 @@ function createSpectatorClientId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-function isInvalidSpectatorAccessMessage(message: string): boolean {
-  return /观战链接不存在|观战链接已过期|观战会话已失效|观战对局不存在|观战授权已关闭|观战授权已被分享者关闭/.test(
-    message
+function isInvalidSpectatorAccessError(error: unknown): boolean {
+  return (
+    error instanceof ApiClientError &&
+    [
+      'ONLINE_SPECTATOR_LINK_NOT_FOUND',
+      'ONLINE_SPECTATOR_LINK_EXPIRED',
+      'ONLINE_SPECTATOR_SESSION_INVALID',
+      'ONLINE_SPECTATOR_SESSION_REQUIRED',
+      'ONLINE_SPECTATOR_MATCH_NOT_FOUND',
+      'ONLINE_SPECTATOR_AUTHORIZATION_CLOSED',
+      'ONLINE_SPECTATOR_VIEW_FORBIDDEN',
+    ].includes(error.code)
+  );
+}
+
+function isRetryableSpectatorError(error: unknown): boolean {
+  return (
+    error instanceof ApiClientError &&
+    (error.code === 'ONLINE_SPECTATOR_RATE_LIMITED' ||
+      error.code === 'NETWORK_ERROR' ||
+      error.code === 'TIMEOUT')
   );
 }

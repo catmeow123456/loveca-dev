@@ -1,6 +1,14 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-17
+更新时间：2026-07-19
+
+## 2026-07-19：联机观战 429 轮询与自动恢复闭环（未提交）
+
+- 修复观战未修改快照仍重建 `remoteSession`、进而让依赖整个会话对象的 effect 反复重启并立即请求的问题；页面改用只依赖 `matchId + token + sessionId` 的串行 `SpectatorPollingScheduler`，常规 800ms 间隔从上次请求完成后计算，慢请求不重入。
+- 未变化的视角、授权集合与授权提示保持原会话对象引用；主动切换视角会暂停轮询、递增客户端同步 generation 使旧在途响应失效，并保留公开日志与最后一份已验证桌面。观战连接不再无条件并行拉取公开日志，日志继续只按快照公开水位增量同步。
+- 服务端 `ONLINE_SPECTATOR_RATE_LIMITED` 新增精确 `retryAfterMs` 与 `Retry-After`，默认单会话窗口由 10 秒 40 次提高到 10 秒 60 次；容量 429 仍使用独立 `ONLINE_SPECTATOR_CAPACITY_REACHED`。客户端 API 保留 HTTP 状态、结构化错误码和等待时间，并以 `token + sessionId` 在快照、公开日志和切换间共享退避窗口。
+- 已进入桌面的频率保护不再向用户显示“请求过于频繁 / 请重试”，而是保留桌面并提示“观战同步暂时繁忙，正在自动恢复”；普通网络失败提示“观战同步中断，正在重新连接”。新会话容量已满仍作为入口阻断，提示稍后再进入。
+- focused 验证覆盖静止 10 秒请求预算、慢请求不重入、429 等待后单次探测、视角切换旧响应丢弃、未修改会话引用稳定、同会话快照/日志共享退避、快照与按水位日志串行、服务端等待时间与路由响应，共 7 files / 78 tests 通过；shared/server/client TypeScript 与客户端相关文件 ESLint 通过；全仓 `pnpm test:run` 505 files / 5008 tests 通过，3 个 performance 文件 / 3 项测试按默认配置跳过。提交前审查补充视角切换会话代际校验与 token 变化初始化清理，并同步联机需求和设计文档；待生产环境复验，未 commit、未 push。
 
 ## 2026-07-18：费用11「葉月 恋」卡组顶放置费用/效果边界修正（未提交）
 
@@ -92,6 +100,7 @@
 - 展示名由服务端决定，登录用户读取账号资料，未登录用户分配稳定游客名；本局参赛账号不能通过房间号进入观战。每个对局固定最多 10 个活跃普通观战会话，管理员不占公开名额；会话恢复、快照、公开日志与视角切换共享默认 10 秒 40 次的频率窗口。
 - `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md` 与 `docs/online-mode/preparation.md` 已同步当前产品行为；对局结束后最终只读桌面保留 1 分钟仍未实现，持久化观战审计不在当前范围。
 - 验证：focused suite `tests/integration/online-room-service.test.ts`、`tests/integration/online-route-error-handling.test.ts`、`tests/unit/game-store-remote-sync.test.ts`、`tests/unit/battle-surface-capabilities.test.ts`、`tests/unit/api-client-redaction.test.ts` passed（5 files / 68 tests）；rebase 最新 `origin/main` 后 `pnpm test:run` passed（462 files / 3955 tests，3 performance tests skipped）；shared / server / client TypeScript 与 `git diff --check` passed。
+
 ## 2026-07-16：Liella! SP-sd1 最后一批登场卡效（未提交）
 
 - `PL!SP-sd1-002-SD` 费用 11「唐 可可」新增独立 queued ON_ENTER identity；日文逐字核对 `llocg_db/json/cards.json`，definition 中文逐字采用 Excel `loveca_20260626015115.xlsx` `sheet1!A866:X866`，保留空行与括号说明。当前只有真实 SD 印刷，definition 仅登记 `baseCardCodes: ['PL!SP-sd1-002']`。
@@ -499,6 +508,7 @@
 - 已实现 `PL!-bp3-019-L` 分数 0「僕らのLIVE 君とのLIFE」：扩展 shared `live-start-score-bonuses.ts`，实时统计自己 LIVE 中结构化身份为 μ's 的卡片（包含来源自身），达到2张时为来源 LIVE 写 SCORE +1 并刷新 `playerScores`。
 - 已实现 `PL!-bp3-023-L` 分数 3「ミはμ'sicのミ」：扩展 shared `conditional-live-modifier.ts`，通过 `getMemberEffectiveBladeCount` 汇总自己舞台成员实时有效 BLADE，达到10时为来源 LIVE 写必要 `[無ハート]` -2，并在条件变化时替换或清理同源 modifier。
 - 两张均沿用无交互 queued pending 的 manual-confirm / ordered 语义，手动确认文本实时展示当前计数、条件与实际结果，顺序发动自动连续结算；runner 零改动。focused classification/integration、token/text governance、rarity sync、`tsc --noEmit`、`tsc -b client` 与 `git diff --check` 均已通过。
+
 ## 本次 2026-07-11 水团 BP2 声援重做收尾
 
 - `PL!S-bp2-004-R / P` 费用 11「黒澤ダイヤ」完成 P/R 收束：无 LIVE 的原普通声援可选移动原公开卡后，先记录 turn1、按原 BLADE 重做 normal `CheerEvent` 并显式重新入队；`replaceCurrentCheerCards` 仅替换当前玩家 current cheer IDs，满足 Q107，未扩成通用 cheer loop。

@@ -55,7 +55,7 @@ const SPECTATOR_LINK_TTL_MS = 12 * 60 * 60 * 1000;
 const SPECTATOR_SESSION_STALE_MS = 15 * 1000;
 const DEFAULT_SPECTATOR_MAX_PUBLIC_SESSIONS = 10;
 const DEFAULT_SPECTATOR_REQUEST_WINDOW_MS = 10 * 1000;
-const DEFAULT_SPECTATOR_REQUEST_LIMIT = 40;
+const DEFAULT_SPECTATOR_REQUEST_LIMIT = 60;
 const DEFAULT_AUTHORITY_CHECKPOINT_INTERVAL_FRAMES = 5;
 export const PUBLIC_EVENTS_RESPONSE_MAX = readPositiveIntEnv('ONLINE_PUBLIC_EVENTS_MAX_BATCH', 500);
 
@@ -257,12 +257,14 @@ export class OnlineMatchServiceError extends Error {
 export class OnlineSpectatorServiceError extends Error {
   readonly code: string;
   readonly statusCode: number;
+  readonly retryAfterMs?: number;
 
-  constructor(code: string, message: string, statusCode = 400) {
+  constructor(code: string, message: string, statusCode = 400, retryAfterMs?: number) {
     super(message);
     this.name = 'OnlineSpectatorServiceError';
     this.code = code;
     this.statusCode = statusCode;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -816,7 +818,7 @@ export class OnlineMatchService {
     ) {
       throw new OnlineSpectatorServiceError(
         'ONLINE_SPECTATOR_CAPACITY_REACHED',
-        `该房间观战人数已达上限（${this.spectatorMaxPublicSessions} 人），请稍后重试`,
+        `该房间观战人数已达上限（${this.spectatorMaxPublicSessions} 人），请稍后再进入`,
         429
       );
     }
@@ -1738,10 +1740,15 @@ export class OnlineMatchService {
       return;
     }
     if (current.requestCount >= this.spectatorRequestLimit) {
+      const retryAfterMs = Math.max(
+        1,
+        current.windowStartedAt + this.spectatorRequestWindowMs - now
+      );
       throw new OnlineSpectatorServiceError(
         'ONLINE_SPECTATOR_RATE_LIMITED',
-        '观战请求过于频繁，请稍后重试',
-        429
+        '观战同步暂时繁忙，请稍等',
+        429,
+        retryAfterMs
       );
     }
     current.requestCount += 1;

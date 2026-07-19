@@ -84,8 +84,41 @@ export interface SharedDeckRecord extends DeckRecord {
 
 export interface ApiResponse<T = unknown> {
   data: T | null;
-  error: { code: string; message: string } | null;
+  error: { code: string; message: string; retryAfterMs?: number } | null;
   total?: number;
+  status?: number;
+  retryAfterMs?: number;
+}
+
+export class ApiClientError extends Error {
+  readonly code: string;
+  readonly status?: number;
+  readonly retryAfterMs?: number;
+
+  constructor(input: {
+    readonly code: string;
+    readonly message: string;
+    readonly status?: number;
+    readonly retryAfterMs?: number;
+  }) {
+    super(input.message);
+    this.name = 'ApiClientError';
+    this.code = input.code;
+    this.status = input.status;
+    this.retryAfterMs = input.retryAfterMs;
+  }
+}
+
+export function toApiClientError<T>(
+  response: ApiResponse<T>,
+  fallbackMessage: string
+): ApiClientError {
+  return new ApiClientError({
+    code: response.error?.code ?? 'UNKNOWN_ERROR',
+    message: response.error?.message ?? fallbackMessage,
+    status: response.status,
+    retryAfterMs: response.error?.retryAfterMs ?? response.retryAfterMs,
+  });
 }
 
 // ============================================
@@ -119,6 +152,8 @@ async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> 
   if (!contentType.includes('json')) {
     return {
       data: null,
+      status: response.status,
+      retryAfterMs: readRetryAfterMs(response.headers.get('retry-after')),
       error: {
         code: 'INVALID_RESPONSE',
         message: `服务器返回了非预期的响应 (${response.status})`,
@@ -126,16 +161,39 @@ async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> 
     };
   }
   try {
-    return (await response.json()) as ApiResponse<T>;
+    const body = (await response.json()) as ApiResponse<T>;
+    return {
+      ...body,
+      status: response.status,
+      retryAfterMs:
+        body.error?.retryAfterMs ?? readRetryAfterMs(response.headers.get('retry-after')),
+    };
   } catch {
     return {
       data: null,
+      status: response.status,
+      retryAfterMs: readRetryAfterMs(response.headers.get('retry-after')),
       error: {
         code: 'INVALID_RESPONSE',
         message: '服务器返回的 JSON 格式异常',
       },
     };
   }
+}
+
+function readRetryAfterMs(value: string | null): number | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.ceil(seconds * 1000);
+  }
+  const deadline = Date.parse(value);
+  if (!Number.isFinite(deadline)) {
+    return undefined;
+  }
+  return Math.max(0, deadline - Date.now());
 }
 
 function buildApiUrl(path: string): string {

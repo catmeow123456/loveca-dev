@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：联机首版已落地能力、剩余边界、命令/事件/视图约束
 > 当前状态：正式联机基础闭环已实现；卡效自动化第一阶段已部分接入；正式联机运行期 snapshot / command response 已走 JSON-native DTO 热路径；历史记录、timeline、authority checkpoint、public/private event 明细和玩家视角只读回放已阶段性落地；服务端可记录对墙打已具备运行态缺失后的 checkpoint 恢复；实时传输、正式联机进程重启后恢复运行中对局、完整随机/决策覆盖、确定性重演和全卡池完整自动裁判仍为后续方向
-> 最后更新：2026-07-08
+> 最后更新：2026-07-19
 
 ## 1. 文档目的
 
@@ -37,7 +37,10 @@
 - `src/server/services/online-match-service.ts`
 - `src/online/projector.ts`
 - `client/src/components/pages/OnlineRoomPage.tsx`
+- `client/src/components/pages/OnlineSpectatorPage.tsx`
+- `client/src/lib/apiClient.ts`
 - `client/src/lib/onlineClient.ts`
+- `client/src/lib/spectatorPolling.ts`
 
 当前事实：
 
@@ -46,7 +49,9 @@
 - 命令入口已经在向语义化命令收敛，但仍存在部分桌面自由移动能力。
 - 当前实现的“信任玩家”不是无限制拖拽；UI 会在主阶段和 Live 大阶段开放己方常用桌面操作，服务端仍校验阶段、座位、区域、卡种和命令上下文。
 - 正式房间 REST 链路已经存在：创建/加入房间、锁定云端卡组、房主提议先后手、客方确认开局、读取房间、离开房间、读取对局快照、提交命令、阶段推进。
-- 当前同步方式是短间隔 HTTP 轮询，不是 WebSocket；短暂断线通过房间码与服务端 `presence/lastSeenAt` 恢复，长期恢复仍受内存态生命周期限制。
+- 当前同步方式是短间隔 HTTP 轮询，不是 WebSocket；普通玩家观战使用请求完成后再计时的串行轮询，快照与按公开水位拉取的日志增量不并发重入。短暂断线通过房间码与服务端 `presence/lastSeenAt` 恢复，长期恢复仍受内存态生命周期限制。
+- 普通观战会话的恢复、快照、公开日志与视角切换共享服务端频率窗口。频率保护响应提供结构化等待时间，客户端按同一观战会话共享退避；已进入桌面的观战者保留最后一份有效桌面并自动恢复，容量达到上限导致的新会话失败仍作为入口阻断。
+- 观战视角切换会暂停轮询并作废旧代际的在途同步结果；未变化的视角元数据保持会话对象引用稳定，避免轮询 effect 因等价快照反复重建。
 - 运行期玩家视角 snapshot 与正式联机响应 DTO 已落地；历史记录、timeline、authority checkpoint、public/private event 明细和玩家视角只读 checkpoint 回放已阶段性落地；进程重启后的运行中对局恢复尚未落地。
 - 当前自动化卡效范围以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准；未登记卡效仍按显式操作与审计边界处理。
 

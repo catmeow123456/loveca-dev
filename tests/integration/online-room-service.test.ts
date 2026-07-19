@@ -438,7 +438,6 @@ describe('OnlineRoomService', () => {
       viewerSeat: 'FIRST',
     });
     expect(roomForPlayer.members.map((member) => member.userId)).toEqual(['u1', 'u2']);
-
   });
 
   it('房间号观战默认开启，并在双方关闭后撤销会话', async () => {
@@ -630,6 +629,8 @@ describe('OnlineRoomService', () => {
     ).rejects.toMatchObject({
       code: 'ONLINE_SPECTATOR_RATE_LIMITED',
       statusCode: 429,
+      retryAfterMs: 10_000,
+      message: '观战同步暂时繁忙，请稍等',
     });
 
     now += 10_000;

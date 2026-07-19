@@ -1,4 +1,10 @@
-import { apiClient, getAccessToken, getApiBaseUrl } from '@/lib/apiClient';
+import {
+  ApiClientError,
+  apiClient,
+  getAccessToken,
+  getApiBaseUrl,
+  toApiClientError,
+} from '@/lib/apiClient';
 import type {
   DebugReplayBundle,
   DebugReplayCheckpointView,
@@ -306,6 +312,61 @@ interface JoinOnlineSpectatorLinkInput {
   readonly clientId?: string;
 }
 
+const spectatorRetryUntilBySession = new Map<string, number>();
+
+function getSpectatorSessionKey(token: string, sessionId: string): string {
+  return JSON.stringify([token, sessionId]);
+}
+
+function assertSpectatorRequestAllowed(token: string, sessionId: string): void {
+  const key = getSpectatorSessionKey(token, sessionId);
+  const retryUntil = spectatorRetryUntilBySession.get(key);
+  if (retryUntil === undefined) {
+    return;
+  }
+  const retryAfterMs = retryUntil - Date.now();
+  if (retryAfterMs <= 0) {
+    spectatorRetryUntilBySession.delete(key);
+    return;
+  }
+  throw new ApiClientError({
+    code: 'ONLINE_SPECTATOR_RATE_LIMITED',
+    message: '观战同步暂时繁忙，请稍等',
+    status: 429,
+    retryAfterMs,
+  });
+}
+
+function rememberSpectatorRateLimit(token: string, sessionId: string, error: ApiClientError): void {
+  if (error.code !== 'ONLINE_SPECTATOR_RATE_LIMITED' || error.retryAfterMs === undefined) {
+    return;
+  }
+  spectatorRetryUntilBySession.set(
+    getSpectatorSessionKey(token, sessionId),
+    Date.now() + Math.max(1, error.retryAfterMs)
+  );
+}
+
+function throwSpectatorRequestError<T>(
+  token: string,
+  sessionId: string,
+  response: Parameters<typeof toApiClientError<T>>[0],
+  fallbackMessage: string
+): never {
+  const responseError = toApiClientError(response, fallbackMessage);
+  const error =
+    responseError.status === 429 && responseError.code !== 'ONLINE_SPECTATOR_RATE_LIMITED'
+      ? new ApiClientError({
+          code: 'ONLINE_SPECTATOR_RATE_LIMITED',
+          message: '观战同步暂时繁忙，请稍等',
+          status: 429,
+          retryAfterMs: responseError.retryAfterMs ?? 1_000,
+        })
+      : responseError;
+  rememberSpectatorRateLimit(token, sessionId, error);
+  throw error;
+}
+
 export async function joinOnlineSpectatorLink(
   token: string,
   input?: JoinOnlineSpectatorLinkInput
@@ -318,7 +379,7 @@ export async function joinOnlineSpectatorLink(
     )
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '进入观战失败');
+    throw toApiClientError(response, '进入观战失败');
   }
   return response.data;
 }
@@ -329,6 +390,9 @@ export async function fetchOnlineSpectatorSnapshotResponse(
   sinceSeq?: number,
   sinceViewVersion?: number
 ): Promise<OnlineSpectatorSnapshotResponse> {
+  if (sessionId) {
+    assertSpectatorRequestAllowed(token, sessionId);
+  }
   const params = new URLSearchParams();
   if (sessionId) {
     params.set('sessionId', sessionId);
@@ -348,7 +412,10 @@ export async function fetchOnlineSpectatorSnapshotResponse(
     `/api/online/spectator-links/${encodeURIComponent(token)}/snapshot${search ? `?${search}` : ''}`
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取观战快照失败');
+    if (sessionId) {
+      throwSpectatorRequestError(token, sessionId, response, '读取观战快照失败');
+    }
+    throw toApiClientError(response, '读取观战快照失败');
   }
   return response.data;
 }
@@ -358,12 +425,13 @@ export async function switchOnlineSpectatorView(
   sessionId: string,
   viewerSeat: Seat
 ): Promise<OnlineSpectatorSwitchView> {
+  assertSpectatorRequestAllowed(token, sessionId);
   const response = await apiClient.post<OnlineSpectatorSwitchView>(
     `/api/online/spectator-links/${encodeURIComponent(token)}/sessions/${encodeURIComponent(sessionId)}/view`,
     { viewerSeat }
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '切换观战视角失败');
+    throwSpectatorRequestError(token, sessionId, response, '切换观战视角失败');
   }
   return response.data;
 }
@@ -373,6 +441,9 @@ export async function fetchOnlineSpectatorPublicEvents(
   sessionId: string | undefined,
   afterSeq?: number
 ): Promise<PublicEventsResponse> {
+  if (sessionId) {
+    assertSpectatorRequestAllowed(token, sessionId);
+  }
   const params = new URLSearchParams();
   if (sessionId) {
     params.set('sessionId', sessionId);
@@ -387,7 +458,10 @@ export async function fetchOnlineSpectatorPublicEvents(
     }`
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取观战公开日志失败');
+    if (sessionId) {
+      throwSpectatorRequestError(token, sessionId, response, '读取观战公开日志失败');
+    }
+    throw toApiClientError(response, '读取观战公开日志失败');
   }
   return response.data;
 }

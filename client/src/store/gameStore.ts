@@ -249,6 +249,7 @@ export interface RemoteSessionState {
   readonly spectatorAuthorizedViewerSeats?: readonly Seat[];
   readonly spectatorViewVersion?: number;
   readonly spectatorAuthorizationNotice?: OnlineSpectatorAuthorizationNotice | null;
+  readonly spectatorSyncGeneration?: number;
 }
 
 export interface ReplayReadonlySessionState {
@@ -444,6 +445,14 @@ export interface GameStore {
   isReadonlyReplayMode: () => boolean;
   /** 接入远程联机会话 */
   connectRemoteSession: (session: RemoteSessionState) => void;
+  invalidateSpectatorSync: () => void;
+  applySpectatorViewSession: (input: {
+    readonly seat: Seat;
+    readonly playerId: string;
+    readonly authorizedViewerSeats: readonly Seat[];
+    readonly viewVersion: number;
+    readonly authorizationNotice: OnlineSpectatorAuthorizationNotice | null;
+  }) => void;
   /** 将远程快照应用到当前联机会话 */
   applyRemoteSnapshot: (snapshot: RemoteSnapshot) => Promise<void>;
   /** 断开远程联机会话 */
@@ -1128,11 +1137,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     autoAdvancePublicCardSelection: (effectId, expectedDeadline) => {
       return runViewerCommand(
         (playerId) =>
-          createAutoAdvancePublicCardSelectionCommand(
-            playerId,
-            effectId,
-            expectedDeadline
-          ),
+          createAutoAdvancePublicCardSelectionCommand(playerId, effectId, expectedDeadline),
         {
           failureMessage: '公开展示自动推进失败',
           silentFailure: true,
@@ -1590,7 +1595,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     connectRemoteSession: (session) => {
       get().gameSession.localFreePlay = false;
       set((state) => ({
-        remoteSession: session,
+        remoteSession:
+          session.source === 'SPECTATOR'
+            ? { ...session, spectatorSyncGeneration: session.spectatorSyncGeneration ?? 0 }
+            : session,
         replaySession: null,
         playerViewState: null,
         viewingPlayerId: session.playerId,
@@ -1599,14 +1607,57 @@ export const useGameStore = create<GameStore>((set, get) => {
         publicBattleLog: { ...EMPTY_PUBLIC_BATTLE_LOG, matchId: session.matchId },
         ui: clearTransientBattleUi(state.ui),
       }));
-      void get().syncPublicBattleLog();
+      if (session.source !== 'SPECTATOR') {
+        void get().syncPublicBattleLog();
+      }
+    },
+
+    invalidateSpectatorSync: () => {
+      set((state) => {
+        if (state.remoteSession?.source !== 'SPECTATOR') {
+          return state;
+        }
+        return {
+          remoteSession: {
+            ...state.remoteSession,
+            spectatorSyncGeneration: (state.remoteSession.spectatorSyncGeneration ?? 0) + 1,
+          },
+        };
+      });
+    },
+
+    applySpectatorViewSession: (input) => {
+      set((state) => {
+        if (state.remoteSession?.source !== 'SPECTATOR') {
+          return state;
+        }
+        return {
+          remoteSession: {
+            ...state.remoteSession,
+            seat: input.seat,
+            playerId: input.playerId,
+            spectatorAuthorizedViewerSeats: input.authorizedViewerSeats,
+            spectatorViewVersion: input.viewVersion,
+            spectatorAuthorizationNotice: input.authorizationNotice,
+          },
+          playerViewState: null,
+          viewingPlayerId: input.playerId,
+          ui: clearTransientBattleUi(state.ui),
+        };
+      });
     },
 
     applyRemoteSnapshot: async (snapshot) => {
       if (isReadonlyReplayMode()) {
         return;
       }
-      applyRemoteSnapshotThenPreload(snapshot, set, 'store.applyRemoteSnapshot');
+      const isSpectator = get().remoteSession?.source === 'SPECTATOR';
+      applyRemoteSnapshotThenPreload(snapshot, set, 'store.applyRemoteSnapshot', {
+        syncPublicBattleLog: !isSpectator,
+      });
+      if (isSpectator) {
+        await syncPublicBattleLogIfNeeded(snapshot.matchId, snapshot.currentPublicSeq);
+      }
     },
 
     disconnectRemoteSession: () => {
@@ -1657,17 +1708,32 @@ export const useGameStore = create<GameStore>((set, get) => {
           const viewChanged =
             state.remoteSession.spectatorViewVersion !== spectatorView.viewVersion ||
             state.remoteSession.seat !== spectatorView.currentViewerSeat;
+          const playerId = snapshotResult.snapshot?.playerId ?? state.remoteSession.playerId;
+          const sessionChanged =
+            viewChanged ||
+            state.remoteSession.playerId !== playerId ||
+            !areSeatListsEqual(
+              state.remoteSession.spectatorAuthorizedViewerSeats,
+              spectatorView.authorizedViewerSeats
+            ) ||
+            !areSpectatorNoticesEqual(
+              state.remoteSession.spectatorAuthorizationNotice,
+              spectatorView.authorizationNotice
+            );
+          if (!sessionChanged) {
+            return state;
+          }
           return {
             remoteSession: {
               ...state.remoteSession,
               seat: spectatorView.currentViewerSeat,
-              playerId: snapshotResult.snapshot?.playerId ?? state.remoteSession.playerId,
+              playerId,
               spectatorAuthorizedViewerSeats: spectatorView.authorizedViewerSeats,
               spectatorViewVersion: spectatorView.viewVersion,
               spectatorAuthorizationNotice: spectatorView.authorizationNotice,
             },
             playerViewState: viewChanged ? null : state.playerViewState,
-            viewingPlayerId: snapshotResult.snapshot?.playerId ?? state.viewingPlayerId,
+            viewingPlayerId: playerId ?? state.viewingPlayerId,
             ui: viewChanged ? clearTransientBattleUi(state.ui) : state.ui,
           };
         });
@@ -1677,7 +1743,15 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      applyRemoteSnapshotThenPreload(snapshotResult.snapshot, set, 'syncRemoteState');
+      applyRemoteSnapshotThenPreload(snapshotResult.snapshot, set, 'syncRemoteState', {
+        syncPublicBattleLog: remoteSession.source !== 'SPECTATOR',
+      });
+      if (remoteSession.source === 'SPECTATOR') {
+        await syncPublicBattleLogIfNeeded(
+          snapshotResult.snapshot.matchId,
+          snapshotResult.currentPublicSeq
+        );
+      }
     },
 
     isRemoteMode: () => get().remoteSession !== null,
@@ -2631,7 +2705,8 @@ function applyRemoteSnapshot(
 function applyRemoteSnapshotThenPreload(
   snapshot: RemoteSnapshot,
   set: (partial: Partial<GameStore> | ((state: GameStore) => Partial<GameStore>)) => void,
-  context: string
+  context: string,
+  options: { readonly syncPublicBattleLog?: boolean } = {}
 ): void {
   const previousViewState = useGameStore.getState().playerViewState;
   const nextViewState = snapshot.playerViewState;
@@ -2658,7 +2733,9 @@ function applyRemoteSnapshotThenPreload(
   if (snapshot.recovery) {
     notifyRemoteRuntimeRecovery(snapshot.recovery);
   }
-  void syncPublicBattleLogIfNeeded(snapshot.matchId, snapshot.currentPublicSeq);
+  if (options.syncPublicBattleLog !== false) {
+    void syncPublicBattleLogIfNeeded(snapshot.matchId, snapshot.currentPublicSeq);
+  }
 }
 
 function mergePublicEventsFromSnapshot(snapshot: RemoteSnapshot): void {
@@ -3217,7 +3294,30 @@ function isRemoteSessionStillCurrent(
     current.playerId === remoteSession.playerId &&
     current.spectatorToken === remoteSession.spectatorToken &&
     current.spectatorSessionId === remoteSession.spectatorSessionId &&
-    current.spectatorViewVersion === remoteSession.spectatorViewVersion
+    current.spectatorViewVersion === remoteSession.spectatorViewVersion &&
+    current.spectatorSyncGeneration === remoteSession.spectatorSyncGeneration
+  );
+}
+
+function areSeatListsEqual(left: readonly Seat[] | undefined, right: readonly Seat[]): boolean {
+  return left?.length === right.length && left.every((seat, index) => seat === right[index]);
+}
+
+function areSpectatorNoticesEqual(
+  left: OnlineSpectatorAuthorizationNotice | null | undefined,
+  right: OnlineSpectatorAuthorizationNotice | null
+): boolean {
+  if (left === right) {
+    return true;
+  }
+  if (!left || !right) {
+    return false;
+  }
+  return (
+    left.code === right.code &&
+    left.autoSwitched === right.autoSwitched &&
+    left.message === right.message &&
+    areSeatListsEqual(left.closedViewerSeats, right.closedViewerSeats)
   );
 }
 
