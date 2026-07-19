@@ -215,6 +215,14 @@ const SP_BP1_004_CONTINUOUS_CENTER_GAIN_FIVE_BLADE_ABILITY_ID =
   'PL!SP-bp1-004:continuous-center-gain-five-blade';
 const S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID =
   'PL!S-bp7-016-N:continuous-stage-three-gain-red-green-blue-heart';
+const SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID =
+  'PL!SP-bp7-001-P:continuous-below-liella-host-gain-blade';
+const S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
+  'PL!S-bp7-005-SEC:continuous-aqours-host-with-member-below-gain-blade';
+const N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
+  'PL!N-bp7-007-SEC:continuous-energy-below-gain-red-heart';
+const N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID =
+  'PL!N-bp7-007-SEC:continuous-energy-above-six-gain-red-heart';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -228,6 +236,20 @@ export interface AddHeartLiveModifierForMemberResult {
   readonly gameState: GameState;
   readonly modifier: HeartModifierState;
   readonly heartBonus: readonly HeartIcon[];
+}
+
+export interface BladeLiveModifierForMemberOptions {
+  readonly playerId: string;
+  readonly memberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly countDelta: number;
+}
+
+export interface AddBladeLiveModifierForMemberResult {
+  readonly gameState: GameState;
+  readonly modifier: BladeModifierState;
+  readonly bladeBonus: number;
 }
 
 export interface MemberCostLiveModifierForMemberOptions {
@@ -265,6 +287,73 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    cardCodes: ['PL!N-bp7-007-SEC'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
+      const count = countEnergyBelowSourceMember(game, playerId, sourceCardId);
+      if (count === 0) return [];
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.RED, count }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    cardCodes: ['PL!N-bp7-007-SEC'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
+      const count = Math.max(0, countPlayerEnergyCards(game, playerId) - 6);
+      if (count === 0) return [];
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.RED, count }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
+  {
+    cardCodes: ['PL!S-bp7-005-SEC'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const player = getPlayerById(game, playerId);
+      if (!player || !isSourceMainStageMember(game, playerId, sourceCardId)) {
+        return [];
+      }
+      return MEMBER_SLOT_ORDER.flatMap((slot) => {
+        const hostCardId = player.memberSlots.slots[slot];
+        const hostCard = hostCardId ? getCardById(game, hostCardId) : null;
+        const containsMemberBelowCard = (player.memberSlots.memberBelow[slot] ?? []).some((cardId) => {
+          const card = getCardById(game, cardId);
+          return card?.ownerId === playerId && isMemberCardData(card.data);
+        });
+        if (
+          !hostCardId ||
+          !hostCard ||
+          hostCard.ownerId !== playerId ||
+          !isMemberCardData(hostCard.data) ||
+          !cardBelongsToGroup(hostCard.data, 'Aqours') ||
+          !containsMemberBelowCard
+        ) {
+          return [];
+        }
+        const modifier = createBladeLiveModifierForMember(game, {
+          playerId,
+          memberCardId: hostCardId,
+          sourceCardId,
+          abilityId: S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
+          countDelta: 1,
+        });
+        return modifier ? [modifier] : [];
+      });
+    },
+  },
   {
     cardCodes: ['PL!S-bp7-016-N'],
     collect: ({ game, playerId, sourceCardId }) => {
@@ -1517,6 +1606,40 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
       }
     }
 
+    // Ordinary continuous definitions intentionally remain top-level-only. This
+    // exact registry is the narrow opt-in boundary for abilities whose source is memberBelow.
+    for (const slot of MEMBER_SLOT_ORDER) {
+      const hostCardId = player.memberSlots.slots[slot];
+      const hostCard = hostCardId ? getCardById(game, hostCardId) : null;
+      if (
+        !hostCardId ||
+        !hostCard ||
+        hostCard.ownerId !== player.id ||
+        !isMemberCardData(hostCard.data) ||
+        !cardBelongsToGroup(hostCard.data, 'Liella!')
+      ) {
+        continue;
+      }
+      for (const sourceCardId of player.memberSlots.memberBelow[slot] ?? []) {
+        const sourceCard = getCardById(game, sourceCardId);
+        if (
+          sourceCard?.ownerId !== player.id ||
+          sourceCard.data.cardCode !== 'PL!SP-bp7-001-P' ||
+          !isMemberCardData(sourceCard.data)
+        ) {
+          continue;
+        }
+        const modifier = createBladeLiveModifierForMember(game, {
+          playerId: player.id,
+          memberCardId: hostCardId,
+          sourceCardId,
+          abilityId: SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
+          countDelta: 1,
+        });
+        if (modifier) modifiers.push(modifier);
+      }
+    }
+
     const appliedNonStackingAbilityIds = new Set<string>();
     for (const cardId of player.successZone.cardIds) {
       const card = getCardById(game, cardId);
@@ -2737,15 +2860,20 @@ export function removeStageMemberBoundLiveModifiers(
     return game;
   }
   const liveModifiers = game.liveResolution.liveModifiers.filter(
-    (modifier) =>
-      !(
-        ('targetMemberCardId' in modifier &&
-          modifier.targetMemberCardId !== undefined &&
-          memberCardIdSet.has(modifier.targetMemberCardId)) ||
-        (modifier.kind === 'BLADE' &&
-          modifier.sourceCardId !== undefined &&
-          memberCardIdSet.has(modifier.sourceCardId))
-      )
+    (modifier) => {
+      const targetMemberCardId =
+        'targetMemberCardId' in modifier ? modifier.targetMemberCardId : undefined;
+      const targetBound =
+        targetMemberCardId !== undefined && memberCardIdSet.has(targetMemberCardId);
+      const memberBound =
+        'memberCardId' in modifier && memberCardIdSet.has(modifier.memberCardId);
+      const legacySourceBoundBlade =
+        modifier.kind === 'BLADE' &&
+        targetMemberCardId === undefined &&
+        modifier.sourceCardId !== undefined &&
+        memberCardIdSet.has(modifier.sourceCardId);
+      return !(targetBound || memberBound || legacySourceBoundBlade);
+    }
   );
   return liveModifiers.length === game.liveResolution.liveModifiers.length
     ? game
@@ -2826,6 +2954,50 @@ export function addHeartLiveModifierForMember(
     modifier,
     heartBonus: options.hearts,
   };
+}
+
+export function createBladeLiveModifierForMember(
+  game: GameState,
+  options: BladeLiveModifierForMemberOptions
+): BladeModifierState | null {
+  const player = getPlayerById(game, options.playerId);
+  const memberCard = getCardById(game, options.memberCardId);
+  if (
+    !player ||
+    !memberCard ||
+    memberCard.ownerId !== options.playerId ||
+    !isMemberCardData(memberCard.data) ||
+    !Object.values(player.memberSlots.slots).includes(options.memberCardId) ||
+    !Number.isInteger(options.countDelta) ||
+    options.countDelta <= 0
+  ) {
+    return null;
+  }
+
+  return {
+    kind: 'BLADE',
+    playerId: options.playerId,
+    countDelta: options.countDelta,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+    ...(options.memberCardId === options.sourceCardId
+      ? {}
+      : { targetMemberCardId: options.memberCardId }),
+  };
+}
+
+export function addBladeLiveModifierForMember(
+  game: GameState,
+  options: BladeLiveModifierForMemberOptions
+): AddBladeLiveModifierForMemberResult | null {
+  const modifier = createBladeLiveModifierForMember(game, options);
+  return modifier
+    ? {
+        gameState: addLiveModifier(game, modifier),
+        modifier,
+        bladeBonus: options.countDelta,
+      }
+    : null;
 }
 
 export function addMemberCostLiveModifierForMember(
@@ -3085,7 +3257,9 @@ export function getMemberEffectiveBladeCount(
   }
 
   const modifierBladeCount = getBladeModifiers(playerId, liveModifiers)
-    .filter((modifier) => modifier.sourceCardId === sourceCardId)
+    .filter(
+      (modifier) => (modifier.targetMemberCardId ?? modifier.sourceCardId) === sourceCardId
+    )
     .reduce((total, modifier) => total + modifier.countDelta, 0);
 
   const replacement = getLatestMemberOriginalBladeReplacementModifier(
@@ -3134,7 +3308,11 @@ export function getMemberEffectiveHeartIcons(
     liveModifiers
   );
   const baseHearts = replacement
-    ? replaceOriginalHeartColor(sourceCard.data.hearts, replacement.color)
+    ? replacement.hearts
+      ? replacement.hearts.map((heart) => ({ ...heart }))
+      : replacement.color
+        ? replaceOriginalHeartColor(sourceCard.data.hearts, replacement.color)
+        : sourceCard.data.hearts
     : sourceCard.data.hearts;
   const modifierHearts = liveModifiers
     .filter(

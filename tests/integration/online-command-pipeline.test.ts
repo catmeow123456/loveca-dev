@@ -1800,7 +1800,7 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('成员登场到特殊成员所在槽位时默认换手，并将其下方成员一并送去休息室', () => {
+  it('成员登场到已有 memberBelow 的槽位时仍正常换手并清理下方成员', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -1882,12 +1882,12 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('显式 asMemberBelow 移动只允许堆叠到特殊成员下方', () => {
+  it('恶意夹带旧版压人字段也不能通过普通移动命令手动压人', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
     session.createGame(
-      'online-command-explicit-member-below-special-only',
+      'online-command-reject-legacy-member-below-payload',
       PLAYER1,
       '玩家1',
       PLAYER2,
@@ -1909,10 +1909,10 @@ describe('GameSession command pipeline', () => {
     let memberCardIds = player.hand.cardIds.filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
-    if (memberCardIds.length < 3) {
+    if (memberCardIds.length < 2) {
       const additionalMemberIds = player.mainDeck.cardIds
         .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER)
-        .slice(0, 3 - memberCardIds.length);
+        .slice(0, 2 - memberCardIds.length);
       const additionalMemberIdSet = new Set(additionalMemberIds);
       player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
         (cardId) => !additionalMemberIdSet.has(cardId)
@@ -1920,18 +1920,15 @@ describe('GameSession command pipeline', () => {
       player.hand.cardIds = [...player.hand.cardIds, ...additionalMemberIds];
       memberCardIds = [...memberCardIds, ...additionalMemberIds];
     }
-    const [stackingCardId, normalHostId, specialHostId] = memberCardIds;
+    const [stackingCardId, specialHostId] = memberCardIds;
 
     expect(stackingCardId).toBeTruthy();
-    expect(normalHostId).toBeTruthy();
     expect(specialHostId).toBeTruthy();
 
     player.hand.cardIds = player.hand.cardIds.filter(
-      (cardId) => cardId !== normalHostId && cardId !== specialHostId
+      (cardId) => cardId !== specialHostId
     );
-    player.memberSlots.slots[SlotPosition.CENTER] = normalHostId!;
     player.memberSlots.slots[SlotPosition.RIGHT] = specialHostId!;
-    player.memberSlots.memberBelow[SlotPosition.CENTER] = [];
     player.memberSlots.memberBelow[SlotPosition.RIGHT] = [];
 
     const specialHost = state.cardRegistry.get(specialHostId!) as unknown as {
@@ -1943,33 +1940,21 @@ describe('GameSession command pipeline', () => {
       name: '村野さやか',
     };
 
-    const invalidResult = session.executeCommand(
-      createMoveOwnedCardToZoneCommand(
+    const legacyPayload = {
+      ...createMoveOwnedCardToZoneCommand(
         PLAYER1,
         stackingCardId!,
         ZoneType.HAND,
         ZoneType.MEMBER_SLOT,
-        { targetSlot: SlotPosition.CENTER, asMemberBelow: true }
-      )
-    );
-    expect(invalidResult.success).toBe(false);
+        { targetSlot: SlotPosition.RIGHT }
+      ),
+      ['as' + 'MemberBelow']: true,
+    };
+    const result = session.executeCommand(legacyPayload);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('专用登场命令');
     expect(session.state?.players[0].hand.cardIds).toContain(stackingCardId);
-    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
-
-    const validResult = session.executeCommand(
-      createMoveOwnedCardToZoneCommand(
-        PLAYER1,
-        stackingCardId!,
-        ZoneType.HAND,
-        ZoneType.MEMBER_SLOT,
-        { targetSlot: SlotPosition.RIGHT, asMemberBelow: true }
-      )
-    );
-    expect(validResult.success).toBe(true);
-    expect(session.state?.players[0].hand.cardIds).not.toContain(stackingCardId);
-    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([
-      stackingCardId,
-    ]);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([]);
   });
 
   it('成员登场命令可用 freePlay 标记作为自由拖拽兜底跳过费用', () => {

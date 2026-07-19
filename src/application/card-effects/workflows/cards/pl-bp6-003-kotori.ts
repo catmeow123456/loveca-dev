@@ -20,7 +20,7 @@ import {
 } from '../../ability-ids.js';
 import { finishSkippedActiveEffect, startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
-import { stackMemberCardBelowSpecialMember } from '../../runtime/actions.js';
+import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
@@ -254,7 +254,7 @@ function finishKotoriLiveStart(
     return game;
   }
 
-  const stackResult = stackMemberCardBelowSpecialMember(game, {
+  const stackResult = stackMemberCardBelowStageMember(game, {
     playerId: player.id,
     sourceZone: ZoneType.HAND,
     movedCardId: revealedCardId,

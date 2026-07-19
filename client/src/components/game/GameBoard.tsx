@@ -1789,7 +1789,7 @@ export const GameBoard = memo(function GameBoard({
         return;
       }
 
-      // 休息室成员卡拖到成员槽位：由后端 handleManualMoveCard 检测特殊成员堆叠
+      // 休息室成员卡拖到成员槽位仍走普通成员区移动规则；memberBelow 只由卡效创建。
       if (
         fromZone === ZoneType.WAITING_ROOM &&
         toZone === ZoneType.MEMBER_SLOT &&

@@ -19,7 +19,6 @@ import {
   createMemberSlotMovedEvent,
 } from '../../domain/events/game-events.js';
 import { ZoneType, SlotPosition } from '../../shared/types/enums.js';
-import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
 import {
   addCardToZone,
@@ -34,7 +33,6 @@ import {
   removeEnergyBelowMember,
   findEnergyBelowSlot,
   moveEnergyBelowWithMember,
-  addMemberBelowMember,
   removeMemberBelowMember,
   findMemberBelowSlot,
   moveMemberBelowWithMember,
@@ -68,11 +66,6 @@ interface ZoneAddOptions {
    * 参考规则 4.5.5：能量牌拖到成员区应附加到成员下方，而非替换成员
    */
   asEnergyBelow?: boolean;
-  /**
-   * 是否以成员堆叠模式放置（附加到特殊成员下方）
-   * 特殊成员卡效果：可在其下方堆叠成员卡
-   */
-  asMemberBelow?: boolean;
   /**
    * 来源槽位（仅在成员区之间移动时使用）
    * 参考规则 4.5.5.3：成员移动到其他成员区时，其下方的能量卡同时跟随移动
@@ -225,18 +218,6 @@ const MEMBER_SLOT_ACCESSOR: ZoneAccessor = {
       };
     }
 
-    // 成员卡堆叠到特殊成员下方
-    if (options.asMemberBelow) {
-      const memberCardId = getCardInSlot(p.memberSlots, options.targetSlot);
-      if (!memberCardId) {
-        return p;
-      }
-      return {
-        ...p,
-        memberSlots: addMemberBelowMember(p.memberSlots, options.targetSlot, cardId),
-      };
-    }
-
     // 普通成员卡放置（换手逻辑）
     const existingCardId = getCardInSlot(p.memberSlots, options.targetSlot);
     let updatedPlayer = p;
@@ -284,23 +265,6 @@ function getZoneAccessor(zone: ZoneType): ZoneAccessor | undefined {
     STATEFUL_ZONE_ACCESSORS[zone] ||
     (zone === ZoneType.MEMBER_SLOT ? MEMBER_SLOT_ACCESSOR : undefined)
   );
-}
-
-function canAddMemberBelowToSlot(
-  game: GameState,
-  playerId: string,
-  targetSlot?: SlotPosition
-): boolean {
-  if (!targetSlot) {
-    return false;
-  }
-  const player = getPlayerById(game, playerId);
-  const targetMemberCardId = player ? getCardInSlot(player.memberSlots, targetSlot) : null;
-  if (!targetMemberCardId) {
-    return false;
-  }
-  const targetMemberCard = getCardById(game, targetMemberCardId);
-  return targetMemberCard !== null && isSpecialMemberCard(targetMemberCard.data.cardCode);
 }
 
 /**
@@ -352,12 +316,6 @@ export function addCardToPlayerZone(
   zone: ZoneType,
   options?: ZoneAddOptions
 ): GameState {
-  if (zone === ZoneType.MEMBER_SLOT && options?.asMemberBelow) {
-    if (!canAddMemberBelowToSlot(game, playerId, options.targetSlot)) {
-      return game;
-    }
-  }
-
   const accessor = getZoneAccessor(zone);
   if (!accessor) {
     console.warn(`未知的区域类型: ${zone}`);
@@ -386,14 +344,6 @@ export function moveCardBetweenZones(
   toZone: ZoneType,
   options?: ZoneAddOptions
 ): GameState {
-  if (
-    toZone === ZoneType.MEMBER_SLOT &&
-    options?.asMemberBelow &&
-    !canAddMemberBelowToSlot(game, playerId, options.targetSlot)
-  ) {
-    return game;
-  }
-
   let state = removeCardFromPlayerZone(game, playerId, cardId, fromZone);
   state = addCardToPlayerZone(state, playerId, cardId, toZone, options);
   return state;
@@ -536,14 +486,6 @@ export function moveCardUniversal(
   options?: ZoneAddOptions
 ): GameState {
   let state = game;
-
-  if (
-    toZone === ZoneType.MEMBER_SLOT &&
-    options?.asMemberBelow &&
-    !canAddMemberBelowToSlot(state, playerId, options.targetSlot)
-  ) {
-    return state;
-  }
 
   // 特殊情况：成员卡在 MEMBER_SLOT 之间移动时，随成员一并移动 energyBelow（规则 4.5.5.3）
   if (

@@ -24,6 +24,7 @@ import {
   S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
+import { clearPreviousStageMemberInstanceState } from '../../src/application/effects/member-state';
 import {
   CardType,
   FaceState,
@@ -126,7 +127,9 @@ function removeMainStageMember(game: GameState, playerId: string, slot: SlotPosi
   }));
 }
 
-function setupAozora(options: { readonly targetCount?: number; readonly successCount?: number } = {}) {
+function setupAozora(
+  options: { readonly targetCount?: number; readonly successCount?: number } = {}
+) {
   const source = createCardInstance(live('PL!S-bp2-025-L', '青空Jumping Heart'), PLAYER1, 'aozora');
   const targets = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]
     .slice(0, options.targetCount ?? 2)
@@ -137,10 +140,11 @@ function setupAozora(options: { readonly targetCount?: number; readonly successC
   const successLives = Array.from({ length: options.successCount ?? 2 }, (_, index) =>
     createCardInstance(live(`PL!S-success-${index}`), PLAYER1, `success-${index}`)
   );
-  let game = registerCards(
-    createGameState('aozora', PLAYER1, 'P1', PLAYER2, 'P2'),
-    [source, ...targets.map(({ card }) => card), ...successLives]
-  );
+  let game = registerCards(createGameState('aozora', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    ...targets.map(({ card }) => card),
+    ...successLives,
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     liveZone: addCardToZone(player.liveZone, source.instanceId),
@@ -167,25 +171,61 @@ function setupAozora(options: { readonly targetCount?: number; readonly successC
   };
 }
 
-function setupRin(options: { readonly qualifyingText?: string; readonly includeTargets?: boolean } = {}) {
+function setupRin(
+  options: { readonly qualifyingText?: string; readonly includeTargets?: boolean } = {}
+) {
   const source = createCardInstance(member('PL!-bp4-014-N', '星空 凛', ['μ’s']), PLAYER1, 'rin');
-  const activeTarget = createCardInstance(member('PL!-target-active', 'active'), PLAYER1, 'active-target');
-  const waitingTarget = createCardInstance(member('PL!-target-waiting', 'waiting'), PLAYER1, 'waiting-target');
+  const activeTarget = createCardInstance(
+    member('PL!-target-active', 'active'),
+    PLAYER1,
+    'active-target'
+  );
+  const waitingTarget = createCardInstance(
+    member('PL!-target-waiting', 'waiting'),
+    PLAYER1,
+    'waiting-target'
+  );
   const below = createCardInstance(member('PL!-target-below', 'below'), PLAYER1, 'below-target');
-  const opponent = createCardInstance(member('PL!-target-opponent', 'opponent'), PLAYER2, 'opponent-target');
+  const opponent = createCardInstance(
+    member('PL!-target-opponent', 'opponent'),
+    PLAYER2,
+    'opponent-target'
+  );
   const qualifyingLive = createCardInstance(
     live('PL!-qualifying-live', 'qualifying', { cardText: options.qualifyingText }),
     PLAYER1,
     'qualifying-live'
   );
-  let game = registerCards(
-    createGameState('rin', PLAYER1, 'P1', PLAYER2, 'P2'),
-    [source, activeTarget, waitingTarget, below, opponent, qualifyingLive]
+  let game = registerCards(createGameState('rin', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    activeTarget,
+    waitingTarget,
+    below,
+    opponent,
+    qualifyingLive,
+  ]);
+  game = addMainStageMember(
+    game,
+    PLAYER1,
+    SlotPosition.CENTER,
+    source.instanceId,
+    OrientationState.ACTIVE
   );
-  game = addMainStageMember(game, PLAYER1, SlotPosition.CENTER, source.instanceId, OrientationState.ACTIVE);
   if (options.includeTargets !== false) {
-    game = addMainStageMember(game, PLAYER1, SlotPosition.LEFT, activeTarget.instanceId, OrientationState.ACTIVE);
-    game = addMainStageMember(game, PLAYER1, SlotPosition.RIGHT, waitingTarget.instanceId, OrientationState.WAITING);
+    game = addMainStageMember(
+      game,
+      PLAYER1,
+      SlotPosition.LEFT,
+      activeTarget.instanceId,
+      OrientationState.ACTIVE
+    );
+    game = addMainStageMember(
+      game,
+      PLAYER1,
+      SlotPosition.RIGHT,
+      waitingTarget.instanceId,
+      OrientationState.WAITING
+    );
   }
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
@@ -198,7 +238,13 @@ function setupRin(options: { readonly qualifyingText?: string; readonly includeT
       },
     },
   }));
-  game = addMainStageMember(game, PLAYER2, SlotPosition.CENTER, opponent.instanceId, OrientationState.ACTIVE);
+  game = addMainStageMember(
+    game,
+    PLAYER2,
+    SlotPosition.CENTER,
+    opponent.instanceId,
+    OrientationState.ACTIVE
+  );
   return {
     game,
     sourceId: source.instanceId,
@@ -212,20 +258,50 @@ function setupRin(options: { readonly qualifyingText?: string; readonly includeT
 
 function setupNightingale(options: { readonly includeSecondMuse?: boolean } = {}) {
   const source = createCardInstance(live('PL!-bp4-024-L', '小夜啼鳥恋詩'), PLAYER1, 'nightingale');
-  const straightMuse = createCardInstance(member('PL!-muse-straight', 'muse straight', ["μ's"]), PLAYER1, 'muse-straight');
-  const curlyMuse = createCardInstance(member('PL!-muse-curly', 'muse curly', ['μ’s']), PLAYER1, 'muse-curly');
-  const nonMuse = createCardInstance(member('PL!-non-muse', 'non muse', ['Aqours']), PLAYER1, 'non-muse');
-  const belowMuse = createCardInstance(member('PL!-below-muse', 'below muse', ['μ’s']), PLAYER1, 'below-muse');
-  const opponentMuse = createCardInstance(member('PL!-opponent-muse', 'opponent muse', ['μ’s']), PLAYER2, 'opponent-muse');
-  let game = registerCards(
-    createGameState('nightingale', PLAYER1, 'P1', PLAYER2, 'P2'),
-    [source, straightMuse, curlyMuse, nonMuse, belowMuse, opponentMuse]
+  const straightMuse = createCardInstance(
+    member('PL!-muse-straight', 'muse straight', ["μ's"]),
+    PLAYER1,
+    'muse-straight'
   );
+  const curlyMuse = createCardInstance(
+    member('PL!-muse-curly', 'muse curly', ['μ’s']),
+    PLAYER1,
+    'muse-curly'
+  );
+  const nonMuse = createCardInstance(
+    member('PL!-non-muse', 'non muse', ['Aqours']),
+    PLAYER1,
+    'non-muse'
+  );
+  const belowMuse = createCardInstance(
+    member('PL!-below-muse', 'below muse', ['μ’s']),
+    PLAYER1,
+    'below-muse'
+  );
+  const opponentMuse = createCardInstance(
+    member('PL!-opponent-muse', 'opponent muse', ['μ’s']),
+    PLAYER2,
+    'opponent-muse'
+  );
+  let game = registerCards(createGameState('nightingale', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    straightMuse,
+    curlyMuse,
+    nonMuse,
+    belowMuse,
+    opponentMuse,
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     liveZone: addCardToZone(player.liveZone, source.instanceId),
   }));
-  game = addMainStageMember(game, PLAYER1, SlotPosition.LEFT, straightMuse.instanceId, OrientationState.ACTIVE);
+  game = addMainStageMember(
+    game,
+    PLAYER1,
+    SlotPosition.LEFT,
+    straightMuse.instanceId,
+    OrientationState.ACTIVE
+  );
   game = addMainStageMember(
     game,
     PLAYER1,
@@ -234,7 +310,13 @@ function setupNightingale(options: { readonly includeSecondMuse?: boolean } = {}
     OrientationState.WAITING
   );
   if (options.includeSecondMuse !== false) {
-    game = addMainStageMember(game, PLAYER1, SlotPosition.RIGHT, nonMuse.instanceId, OrientationState.ACTIVE);
+    game = addMainStageMember(
+      game,
+      PLAYER1,
+      SlotPosition.RIGHT,
+      nonMuse.instanceId,
+      OrientationState.ACTIVE
+    );
   }
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
@@ -246,7 +328,13 @@ function setupNightingale(options: { readonly includeSecondMuse?: boolean } = {}
       },
     },
   }));
-  game = addMainStageMember(game, PLAYER2, SlotPosition.CENTER, opponentMuse.instanceId, OrientationState.ACTIVE);
+  game = addMainStageMember(
+    game,
+    PLAYER2,
+    SlotPosition.CENTER,
+    opponentMuse.instanceId,
+    OrientationState.ACTIVE
+  );
   return {
     game,
     sourceId: source.instanceId,
@@ -267,8 +355,17 @@ describe('shared LIVE_START target-member gain-BLADE family', () => {
     const single = setupAozora({ targetCount: 1 });
     const singleResolved = start(single.game);
     expect(singleResolved.activeEffect).toBeNull();
-    expect(bladeModifiers(singleResolved, S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID)).toEqual([
-      expect.objectContaining({ sourceCardId: single.targetIds[0], countDelta: 2 }),
+    expect(
+      bladeModifiers(
+        singleResolved,
+        S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({
+        sourceCardId: single.sourceId,
+        targetMemberCardId: single.targetIds[0],
+        countDelta: 2,
+      }),
     ]);
 
     const multiple = setupAozora();
@@ -281,9 +378,45 @@ describe('shared LIVE_START target-member gain-BLADE family', () => {
     });
     expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).toBeUndefined();
     const resolved = choose(started, multiple.targetIds[1]);
-    expect(bladeModifiers(resolved, S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID)).toEqual([
-      expect.objectContaining({ sourceCardId: multiple.targetIds[1], countDelta: 2 }),
+    expect(
+      bladeModifiers(
+        resolved,
+        S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({
+        sourceCardId: multiple.sourceId,
+        targetMemberCardId: multiple.targetIds[1],
+        countDelta: 2,
+      }),
     ]);
+  });
+
+  it('keeps target-aware BLADE after the LIVE source leaves and clears it with the target instance', () => {
+    const scenario = setupAozora({ targetCount: 1 });
+    const applied = start(scenario.game);
+    const sourceLeft = updatePlayer(applied, PLAYER1, (player) => ({
+      ...player,
+      liveZone: { ...player.liveZone, cardIds: [] },
+    }));
+    expect(
+      bladeModifiers(
+        sourceLeft,
+        S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toHaveLength(1);
+
+    const targetCleared = clearPreviousStageMemberInstanceState(
+      sourceLeft,
+      PLAYER1,
+      scenario.targetIds[0]!
+    );
+    expect(
+      bladeModifiers(
+        targetCleared,
+        S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual([]);
   });
 
   it('preserves ordered continuation after a no-op first family pending', () => {
@@ -293,9 +426,19 @@ describe('shared LIVE_START target-member gain-BLADE family', () => {
       'missing-source',
       'continuation'
     );
-    const order = start({ ...scenario.game, pendingAbilities: [...scenario.game.pendingAbilities, continuation] });
+    const order = start({
+      ...scenario.game,
+      pendingAbilities: [...scenario.game.pendingAbilities, continuation],
+    });
     expect(order.activeEffect?.canResolveInOrder).toBe(true);
-    const resolved = confirmActiveEffectStep(order, PLAYER1, order.activeEffect!.id, null, null, true);
+    const resolved = confirmActiveEffectStep(
+      order,
+      PLAYER1,
+      order.activeEffect!.id,
+      null,
+      null,
+      true
+    );
     expect(resolved.activeEffect).toBeNull();
     expect(resolved.pendingAbilities).toEqual([]);
   });
@@ -333,8 +476,17 @@ describe('PL!-bp4-014-N 费用9「星空 凛」', () => {
     expect(started.activeEffect?.selectableCardIds).not.toContain(scenario.belowId);
     expect(started.activeEffect?.selectableCardIds).not.toContain(scenario.opponentId);
     const resolved = choose(started, scenario.waitingTargetId);
-    expect(bladeModifiers(resolved, PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID)).toEqual([
-      expect.objectContaining({ sourceCardId: scenario.waitingTargetId, countDelta: 2 }),
+    expect(
+      bladeModifiers(
+        resolved,
+        PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({
+        sourceCardId: scenario.sourceId,
+        targetMemberCardId: scenario.waitingTargetId,
+        countDelta: 2,
+      }),
     ]);
   });
 
@@ -343,20 +495,44 @@ describe('PL!-bp4-014-N 费用9「星空 凛」', () => {
     let oneGame = removeMainStageMember(one.game, PLAYER1, SlotPosition.RIGHT);
     const oneResolved = start({
       ...oneGame,
-      pendingAbilities: [pending(PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID, one.sourceId)],
+      pendingAbilities: [
+        pending(
+          PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+          one.sourceId
+        ),
+      ],
     });
     expect(oneResolved.activeEffect).toBeNull();
-    expect(bladeModifiers(oneResolved, PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID)).toEqual([
-      expect.objectContaining({ sourceCardId: one.activeTargetId, countDelta: 2 }),
+    expect(
+      bladeModifiers(
+        oneResolved,
+        PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({
+        sourceCardId: one.sourceId,
+        targetMemberCardId: one.activeTargetId,
+        countDelta: 2,
+      }),
     ]);
 
     const none = setupRin({ includeTargets: false });
     const noneResolved = start({
       ...none.game,
-      pendingAbilities: [pending(PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID, none.sourceId)],
+      pendingAbilities: [
+        pending(
+          PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+          none.sourceId
+        ),
+      ],
     });
     expect(noneResolved.activeEffect).toBeNull();
-    expect(bladeModifiers(noneResolved, PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID)).toEqual([]);
+    expect(
+      bladeModifiers(
+        noneResolved,
+        PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual([]);
   });
 
   it.each([
@@ -367,10 +543,20 @@ describe('PL!-bp4-014-N 费用9「星空 凛」', () => {
     const scenario = setupRin({ qualifyingText });
     const resolved = start({
       ...scenario.game,
-      pendingAbilities: [pending(PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID, scenario.sourceId)],
+      pendingAbilities: [
+        pending(
+          PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+          scenario.sourceId
+        ),
+      ],
     });
     expect(resolved.activeEffect).toBeNull();
-    expect(bladeModifiers(resolved, PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID)).toEqual([]);
+    expect(
+      bladeModifiers(
+        resolved,
+        PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual([]);
   });
 
   it('clears without BLADE when target, source, or qualifying LIVE becomes stale before confirmation', () => {
@@ -378,7 +564,12 @@ describe('PL!-bp4-014-N 费用9「星空 凛」', () => {
       const scenario = setupRin();
       const started = start({
         ...scenario.game,
-        pendingAbilities: [pending(PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID, scenario.sourceId)],
+        pendingAbilities: [
+          pending(
+            PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+            scenario.sourceId
+          ),
+        ],
       });
       const withContinuation = {
         ...started,
@@ -402,7 +593,12 @@ describe('PL!-bp4-014-N 费用9「星空 凛」', () => {
       const resolved = choose(stale, scenario.activeTargetId);
       expect(resolved.activeEffect).toBeNull();
       expect(resolved.pendingAbilities).toEqual([]);
-      expect(bladeModifiers(resolved, PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID)).toEqual([]);
+      expect(
+        bladeModifiers(
+          resolved,
+          PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID
+        )
+      ).toEqual([]);
     }
   });
 });
@@ -430,8 +626,14 @@ describe('PL!-bp4-024-L 分数2「小夜啼鳥恋詩」', () => {
     expect(started.activeEffect?.selectableCardIds).not.toContain(scenario.opponentMuseId);
     expect(choose(started, scenario.nonMuseId)).toBe(started);
     const resolved = choose(started, scenario.curlyMuseId);
-    expect(bladeModifiers(resolved, PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID)).toEqual([
-      expect.objectContaining({ sourceCardId: scenario.curlyMuseId, countDelta: 1 }),
+    expect(
+      bladeModifiers(resolved, PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID)
+    ).toEqual([
+      expect.objectContaining({
+        sourceCardId: scenario.sourceId,
+        targetMemberCardId: scenario.curlyMuseId,
+        countDelta: 1,
+      }),
     ]);
   });
 
@@ -439,11 +641,22 @@ describe('PL!-bp4-024-L 分数2「小夜啼鳥恋詩」', () => {
     const scenario = setupNightingale({ includeSecondMuse: false });
     const resolved = start({
       ...scenario.game,
-      pendingAbilities: [pending(PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID, scenario.sourceId)],
+      pendingAbilities: [
+        pending(
+          PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+          scenario.sourceId
+        ),
+      ],
     });
     expect(resolved.activeEffect).toBeNull();
-    expect(bladeModifiers(resolved, PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID)).toEqual([
-      expect.objectContaining({ sourceCardId: scenario.straightMuseId, countDelta: 1 }),
+    expect(
+      bladeModifiers(resolved, PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID)
+    ).toEqual([
+      expect.objectContaining({
+        sourceCardId: scenario.sourceId,
+        targetMemberCardId: scenario.straightMuseId,
+        countDelta: 1,
+      }),
     ]);
   });
 
@@ -452,7 +665,12 @@ describe('PL!-bp4-024-L 分数2「小夜啼鳥恋詩」', () => {
       const scenario = setupNightingale();
       const started = start({
         ...scenario.game,
-        pendingAbilities: [pending(PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID, scenario.sourceId)],
+        pendingAbilities: [
+          pending(
+            PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+            scenario.sourceId
+          ),
+        ],
       });
       const withContinuation = {
         ...started,
@@ -474,7 +692,9 @@ describe('PL!-bp4-024-L 分数2「小夜啼鳥恋詩」', () => {
       const resolved = choose(stale, scenario.straightMuseId);
       expect(resolved.activeEffect).toBeNull();
       expect(resolved.pendingAbilities).toEqual([]);
-      expect(bladeModifiers(resolved, PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID)).toEqual([]);
+      expect(
+        bladeModifiers(resolved, PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID)
+      ).toEqual([]);
     }
   });
 });
@@ -493,13 +713,16 @@ describe('family effectText and BLADE token governance', () => {
       "【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名『μ's』的成员，获得[ブレード]。",
       1,
     ],
-  ] as const)('uses exact Excel Chinese text and mapped BLADE tokens for %s', (cardCode, abilityId, effectText, bladeCount) => {
-    const definition = getCardAbilityDefinitionsForCardCode(cardCode).find(
-      (candidate) => candidate.abilityId === abilityId
-    );
-    expect(definition?.effectText).toBe(effectText);
-    expect(parseCardEffectText(definition!.effectText).filter((part) => part.kind === 'blade')).toHaveLength(
-      bladeCount
-    );
-  });
+  ] as const)(
+    'uses exact Excel Chinese text and mapped BLADE tokens for %s',
+    (cardCode, abilityId, effectText, bladeCount) => {
+      const definition = getCardAbilityDefinitionsForCardCode(cardCode).find(
+        (candidate) => candidate.abilityId === abilityId
+      );
+      expect(definition?.effectText).toBe(effectText);
+      expect(
+        parseCardEffectText(definition!.effectText).filter((part) => part.kind === 'blade')
+      ).toHaveLength(bladeCount);
+    }
+  );
 });

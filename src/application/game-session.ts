@@ -1748,8 +1748,7 @@ export class GameSession {
         if (
           card?.data.cardType === CardType.MEMBER &&
           command.fromZone === ZoneType.HAND &&
-          command.toZone === ZoneType.MEMBER_SLOT &&
-          command.asMemberBelow !== true
+          command.toZone === ZoneType.MEMBER_SLOT
         ) {
           return '手牌成员登场到成员区必须使用专用登场命令';
         }
@@ -3089,7 +3088,6 @@ export class GameSession {
           sourceSlot: command.sourceSlot,
           position: command.position,
           liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
-          asMemberBelow: command.asMemberBelow,
         }
       )
     );
@@ -3857,7 +3855,6 @@ export class GameSession {
           targetSlot: command.targetSlot,
           position: command.position,
           liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
-          asMemberBelow: command.asMemberBelow,
         }
       )
     );

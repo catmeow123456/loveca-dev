@@ -58,7 +58,6 @@ import {
 } from '../../domain/rules/success-live-placement.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
-import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 
 function haveAllWinnersConfirmed(game: GameState, confirmedPlayerIds: readonly string[]): boolean {
   const winners = game.liveResolution.liveWinnerIds;
@@ -361,26 +360,6 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
     }
   }
 
-  // memberBelow 堆叠必须由命令层显式声明；普通手动拖拽保持换手/移动语义。
-  const asMemberBelow = action.asMemberBelow === true;
-  if (asMemberBelow) {
-    if (toZone !== ZoneType.MEMBER_SLOT || !targetSlot) {
-      return failure(game, 'memberBelow 堆叠必须指定目标成员槽位');
-    }
-    if (card.data.cardType !== CardType.MEMBER) {
-      return failure(game, '只有成员卡可以堆叠到特殊成员下方');
-    }
-
-    const targetMemberCardId = player.memberSlots.slots[targetSlot as SlotPosition] ?? null;
-    const targetMemberCard = targetMemberCardId ? ctx.getCardById(game, targetMemberCardId) : null;
-    if (
-      !targetMemberCard ||
-      targetMemberCard.data.cardType !== CardType.MEMBER ||
-      !isSpecialMemberCard(targetMemberCard.data.cardCode)
-    ) {
-      return failure(game, '目标槽位不是特殊成员卡，无法堆叠成员卡');
-    }
-  }
   // memberBelow 中的卡牌不是来源槽位的主成员，不能携带 sourceSlot
   // 否则 moveCardUniversal 会误走 MEMBER_SLOT ↔ MEMBER_SLOT 槽位互换路径，
   // 导致源槽位主成员被意外移除（游戏状态损坏）
@@ -396,7 +375,7 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
     type: 'MOVE_CARD' as const,
     timestamp: Date.now(),
     playerId,
-    details: { cardId, fromZone, toZone, targetSlot, asMemberBelow },
+    details: { cardId, fromZone, toZone, targetSlot },
     canUndo: true,
   };
 
@@ -406,15 +385,12 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
   };
 
   // 能量牌拖到成员区：以附加到成员下方模式执行（规则 4.5.5）
-  // 成员卡堆叠到特殊成员下方
   // memberBelow 卡牌走通用 remove+add 路径（不含 sourceSlot）
   // 成员卡在 MEMBER_SLOT 之间移动时：传入 sourceSlot 以随成员携带 energyBelow 和 memberBelow
   const moveOptions =
     isEnergyCard && toZone === ZoneType.MEMBER_SLOT
       ? { targetSlot: targetSlot as SlotPosition, asEnergyBelow: true }
-      : asMemberBelow
-        ? { targetSlot: targetSlot as SlotPosition, asMemberBelow: true }
-        : isCardInMemberBelow
+      : isCardInMemberBelow
           ? { targetSlot: targetSlot as SlotPosition }
           : { targetSlot, sourceSlot, position };
 
@@ -658,14 +634,13 @@ export const handleUndoOperation: ActionHandler<UndoOperationAction> = (
 
   // 根据操作类型执行撤销
   if (lastOperation.type === 'MOVE_CARD' && lastOperation.details) {
-    const { cardId, fromZone, toZone, targetSlot, asMemberBelow } = lastOperation.details;
+    const { cardId, fromZone, toZone, targetSlot } = lastOperation.details;
 
     if (cardId && fromZone && toZone) {
       // 反向移动：从 toZone 移回 fromZone
       state = removeCardFromPlayerZone(state, playerId, cardId as string, toZone as ZoneType);
       state = addCardToPlayerZone(state, playerId, cardId as string, fromZone as ZoneType, {
         targetSlot: targetSlot as SlotPosition | undefined,
-        asMemberBelow: asMemberBelow as boolean | undefined,
       });
     }
   }

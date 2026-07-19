@@ -236,7 +236,10 @@ export type LiveModifierState =
       readonly kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT';
       readonly playerId: string;
       readonly memberCardId: string;
-      readonly color: HeartColor;
+      /** Legacy color-only replacement: preserves the printed total and changes every icon color. */
+      readonly color?: HeartColor;
+      /** Full printed-heart snapshot replacement for effects that copy a member's printed vector. */
+      readonly hearts?: readonly HeartIcon[];
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -263,6 +266,8 @@ export type LiveModifierState =
       readonly kind: 'BLADE';
       readonly playerId: string;
       readonly countDelta: number;
+      /** Recipient member; omitted for legacy source-member modifiers. */
+      readonly targetMemberCardId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -491,6 +496,21 @@ export interface CheckTimingContextState {
   readonly iterationCount: number;
 }
 
+/** Serializable forced child sequence for delegated queued abilities. */
+export interface DelegatedAbilitySequenceState {
+  readonly id: string;
+  readonly controllerId: string;
+  readonly parentAbilityId: string;
+  readonly parentSourceCardId: string;
+  readonly parentEffectId: string;
+  readonly orderedResolution: boolean;
+  readonly remainingAbilities: readonly PendingAbilityState[];
+  readonly resolvedPendingAbilityIds: readonly string[];
+  readonly resolvedAbilityIds: readonly string[];
+  readonly skippedPendingAbilityIds: readonly string[];
+  readonly skippedAbilityIds: readonly string[];
+}
+
 export type PendingChoiceKind = 'CONFIRM_OPTIONAL' | 'SELECT_CARDS' | 'SELECT_TARGET';
 
 /**
@@ -711,6 +731,9 @@ export interface GameState {
    * 已经由检查时点发现、等待执行的能力队列
    */
   readonly pendingAbilities: readonly PendingAbilityState[];
+
+  /** Forced delegated abilities resolve here before returning to the global pending pool. */
+  readonly delegatedAbilitySequence?: DelegatedAbilitySequenceState | null;
 
   /** Current check timing, retained across player choices and ability resolution. */
   readonly checkTimingContext: CheckTimingContextState | null;

@@ -45,6 +45,19 @@ import {
   S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
   S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID,
   SP_BP7_014_AUTO_ON_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
+  SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
+  SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID,
+  N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
+  N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
+  N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
+  N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID,
+  N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
+  N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
+  N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID,
+  N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID,
+  S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
+  S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
+  S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
   S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
   S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
   S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
@@ -4710,6 +4723,7 @@ describe('card effect classification registry', () => {
         queued: true,
         implemented: true,
         perTurnLimit: 1,
+        observerOnly: true,
       });
     }
 
@@ -11334,7 +11348,7 @@ describe('card effect classification registry', () => {
     });
   });
 
-  it('classifies special member memberBelow effects for Kotori and Rina', () => {
+  it('classifies memberBelow effects for Kotori and Rina', () => {
     for (const cardCode of [
       'PL!-bp6-003-P',
       'PL!-bp6-003-P＋',
@@ -14737,4 +14751,88 @@ describe('bp7 exact member definitions batch four', () => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
     }
   );
+});
+
+describe('BP7 memberBelow batch exact definitions', () => {
+  it('registers Kanon, Shizuku, and You as exact-only independent ability segments', () => {
+    expect(getCardAbilityDefinitions('PL!SP-bp7-001-P')).toEqual([
+      expect.objectContaining({
+        abilityId: SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.ANYWHERE,
+        queued: false,
+      }),
+      expect.objectContaining({
+        abilityId: SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID,
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+        queued: true,
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-003-SEC')).toEqual([
+      expect.objectContaining({
+        abilityId: N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        perTurnLimit: 1,
+      }),
+      expect.objectContaining({
+        abilityId: N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-005-SEC')).toEqual([
+      expect.objectContaining({
+        abilityId: S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+      }),
+      expect.objectContaining({
+        abilityId: S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+      }),
+      expect.objectContaining({
+        abilityId: S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        requiredSourceSlots: [SlotPosition.CENTER],
+        queued: false,
+        perTurnLimit: 1,
+      }),
+    ]);
+    for (const code of ['PL!SP-bp7-001-SEC', 'PL!N-bp7-003-P', 'PL!S-bp7-005-P']) {
+      expect(getCardAbilityDefinitions(code)).toEqual([]);
+    }
+  });
+});
+
+describe('BP7 energyBelow batch exact definitions', () => {
+  it('registers only the four authorized exact card codes and separates Setsuna segments', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-004-P')).toEqual([
+      expect.objectContaining({ abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID, category: CardAbilityCategory.ACTIVATED, queued: false, perTurnLimit: 1 }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-005-P')).toEqual([
+      expect.objectContaining({ abilityId: N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID, category: CardAbilityCategory.ON_ENTER, sourceZone: CardAbilitySourceZone.PLAYED_MEMBER, triggerCondition: TriggerCondition.ON_ENTER_STAGE, queued: true }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-007-SEC').map((definition) => definition.abilityId)).toEqual([
+      N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
+      N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
+      N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID,
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-019-N')).toEqual([
+      expect.objectContaining({ abilityId: N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID, category: CardAbilityCategory.AUTO, triggerCondition: TriggerCondition.ON_LEAVE_STAGE, triggerToZones: [ZoneType.WAITING_ROOM], queued: true }),
+    ]);
+    for (const cardCode of ['PL!N-bp7-004-SEC', 'PL!N-bp7-005-SEC', 'PL!N-bp7-007-P', 'PL!N-bp7-019-P']) {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  });
 });

@@ -42,6 +42,10 @@ export function registerPendingAbilityStarterHandler(
   pendingAbilityStarterHandlers.set(abilityId, handler);
 }
 
+export function hasPendingAbilityStarterHandler(abilityId: string): boolean {
+  return pendingAbilityStarterHandlers.has(abilityId);
+}
+
 export function resolvePendingAbilityStarterWithRegistry(
   game: GameState,
   ability: PendingAbilityState,

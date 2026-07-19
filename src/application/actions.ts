@@ -224,8 +224,6 @@ export interface ManualMoveCardAction extends BaseGameAction {
   readonly position?: 'TOP' | 'BOTTOM';
   /** 命令层已验证的 Live 卡桌面豁免移动 */
   readonly liveDeskMoveExempt?: boolean;
-  /** 是否以成员堆叠模式放置（附加到特殊成员下方） */
-  readonly asMemberBelow?: boolean;
 }
 
 /**
@@ -518,7 +516,6 @@ export function createManualMoveCardAction(
     sourceSlot?: SlotPosition;
     position?: 'TOP' | 'BOTTOM';
     liveDeskMoveExempt?: boolean;
-    asMemberBelow?: boolean;
   }
 ): ManualMoveCardAction {
   return {
@@ -531,7 +528,6 @@ export function createManualMoveCardAction(
     sourceSlot: options?.sourceSlot,
     position: options?.position,
     liveDeskMoveExempt: options?.liveDeskMoveExempt,
-    asMemberBelow: options?.asMemberBelow,
     timestamp: Date.now(),
   };
 }

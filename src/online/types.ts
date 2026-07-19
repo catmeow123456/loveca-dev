@@ -144,7 +144,7 @@ export interface ViewZoneState {
   readonly objectIds?: readonly string[];
   readonly slotMap?: Readonly<Record<string, string | null>>;
   readonly overlays?: Readonly<Record<string, readonly string[]>>;
-  /** 每个槽位下方堆叠的成员卡 ID（特殊成员卡效果） */
+  /** 每个槽位主成员下方由卡牌效果堆叠的成员卡 ID */
   readonly memberBelow?: Readonly<Record<string, readonly string[]>>;
 }
 

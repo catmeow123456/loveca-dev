@@ -1556,8 +1556,38 @@ export const SP_BP2_021_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_YELLOW_HEART_ABILITY_I
   'PL!SP-bp2-021:auto-on-cheer-no-blade-heart-gain-yellow-heart';
 export const SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp7-005-SEC:auto-enter-or-return-place-waiting-energy';
+export const SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID =
+  'PL!SP-bp7-001-P:continuous-below-liella-host-gain-blade';
+export const SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID =
+  'PL!SP-bp7-001-P:auto-relay-stack-self-below-replacement';
+export const N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID =
+  'PL!N-bp7-003-SEC:activated-mill-five-stack-member-copy-printed-hearts';
+export const N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
+  'PL!N-bp7-003-SEC:live-start-different-member-below-gain-blade';
+export const N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID =
+  'PL!N-bp7-004-P:activated-stack-energy-below-wait-original-blade';
+export const N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID =
+  'PL!N-bp7-005-P:on-enter-diverdiva-choose-activate-two-or-place-energy-below';
+export const N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
+  'PL!N-bp7-007-SEC:continuous-energy-below-gain-red-heart';
+export const N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID =
+  'PL!N-bp7-007-SEC:continuous-energy-above-six-gain-red-heart';
+export const N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID =
+  'PL!N-bp7-007-SEC:live-success-place-energy-deck-below-self';
+export const N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID =
+  'PL!N-bp7-019-N:auto-relay-nijigasaki-place-energy-below-replacement';
+export const S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID =
+  'PL!S-bp7-005-SEC:on-enter-stack-waiting-member-below-stage-member';
+export const S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
+  'PL!S-bp7-005-SEC:continuous-aqours-host-with-member-below-gain-blade';
+export const S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID =
+  'PL!S-bp7-005-SEC:activated-discard-two-delegate-two-on-enter';
 export const SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-005-SEC:auto-own-effect-place-energy-gain-blade';
+export const S_BP7_019_LIVE_SUCCESS_BOTTOM_UP_TO_TWO_AQOURS_CARDS_ABILITY_ID =
+  'PL!S-bp7-019-L:live-success-bottom-up-to-two-aqours-cards';
+export const SP_BP7_004_LIVE_START_BOTTOM_THREE_LIELLA_MEMBERS_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!SP-bp7-004-P:live-start-bottom-three-liella-members-gain-two-blade';
 export const SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID =
   'PL!SP-bp7-006-SEC:on-enter-return-energy-recover-liella-member';
 export const SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID =

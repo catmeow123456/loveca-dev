@@ -176,7 +176,7 @@ function createLiveStartPendingAbility(
 }
 
 describe('PL!HS-pb1-002 Sayaka workflow', () => {
-  it('reveals a same-name hand member and stacks it below the source special member', () => {
+  it('reveals a same-name hand member and stacks it below the source stage host', () => {
     const handSayaka = createCardInstance(
       createMember('PL!HS-bp5-002-P', '村野沙耶香', 15),
       PLAYER1,

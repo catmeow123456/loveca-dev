@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { addEnergyBelowMember, placeCardInSlot } from '../../src/domain/entities/zone';
+import { addEnergyBelowMember, addMemberBelowMember, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import {
+  placeEnergyFromEnergyDeckBelowStageMember,
   returnEnergyBelowMemberToEnergyDeck,
   stackEnergyFromEnergyZoneBelowMember,
 } from '../../src/application/effects/energy-below';
@@ -75,6 +76,44 @@ function setupEnergyBelowState(options: {
 }
 
 describe('energy below application helpers', () => {
+  it('moves ENERGY_DECK index 0 below the target and returns exact ids without emitting an energy-zone placement event', () => {
+    const { game, host, energies } = setupEnergyBelowState({ energyCount: 2 });
+    const deckState = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      energyZone: { ...player.energyZone, cardIds: [], cardStates: new Map() },
+      energyDeck: { ...player.energyDeck, cardIds: energies.map((energy) => energy.instanceId) },
+    }));
+    const result = placeEnergyFromEnergyDeckBelowStageMember(deckState, PLAYER1, host.instanceId, 1);
+    expect(result?.placedEnergyCardIds).toEqual([energies[0].instanceId]);
+    expect(result?.targetSlot).toBe(SlotPosition.CENTER);
+    expect(result?.gameState.players[0].energyDeck.cardIds).toEqual([energies[1].instanceId]);
+    expect(result?.gameState.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([energies[0].instanceId]);
+    expect(result?.gameState.eventLog).toEqual(deckState.eventLog);
+  });
+
+  it('follows a moved target instance and treats an empty energy deck as an unchanged success', () => {
+    const { game, host } = setupEnergyBelowState({ energyCount: 0 });
+    const moved = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(removeCardFromSlot(player.memberSlots, SlotPosition.CENTER), SlotPosition.RIGHT, host.instanceId),
+    }));
+    expect(placeEnergyFromEnergyDeckBelowStageMember(moved, PLAYER1, host.instanceId, 1)).toEqual({
+      gameState: moved,
+      targetSlot: SlotPosition.RIGHT,
+      placedEnergyCardIds: [],
+    });
+  });
+
+  it('rejects stale, opponent and memberBelow targets', () => {
+    const { game, host, waitingRoomCard } = setupEnergyBelowState({ energyCount: 0 });
+    expect(placeEnergyFromEnergyDeckBelowStageMember(game, PLAYER1, 'missing', 1)).toBeNull();
+    expect(placeEnergyFromEnergyDeckBelowStageMember(game, PLAYER2, host.instanceId, 1)).toBeNull();
+    const below = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(player.memberSlots, SlotPosition.CENTER, waitingRoomCard.instanceId),
+    }));
+    expect(placeEnergyFromEnergyDeckBelowStageMember(below, PLAYER1, waitingRoomCard.instanceId, 1)).toBeNull();
+  });
   it('prefers a later WAITING energy over an earlier ACTIVE energy', () => {
     const { game, energies, waitingRoomCard } = setupEnergyBelowState({ energyCount: 2 });
 

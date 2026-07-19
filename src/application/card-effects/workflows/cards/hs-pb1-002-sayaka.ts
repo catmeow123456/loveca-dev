@@ -17,7 +17,7 @@ import {
   HS_PB1_002_LIVE_START_MEMBER_BELOW_COUNT_COST_BLUE_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
-import { stackMemberCardBelowSpecialMember } from '../../runtime/actions.js';
+import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -199,7 +199,7 @@ function finishHsPb1002SayakaStackRevealedMember(game: GameState): GameState {
     return game;
   }
 
-  const stackResult = stackMemberCardBelowSpecialMember(game, {
+  const stackResult = stackMemberCardBelowStageMember(game, {
     playerId: player.id,
     sourceZone: ZoneType.HAND,
     movedCardId: revealedCardId,

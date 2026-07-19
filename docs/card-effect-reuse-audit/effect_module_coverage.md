@@ -10,7 +10,7 @@
 ## Reusable Modules
 
 | module | covered fragments | current boundary | proving cards |
-|---|---|---|---|
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CARD_ABILITY_DEFINITIONS` in `src/application/card-effects/definitions/index.ts` | `T01,T02,T03,T04,T05,T06,T07` | 集中登记 category、trigger/source zone、queued、per-turn limit、`cardCodes` / `baseCardCodes` 与 UI 文案。ability id 在 `card-effects/ability-ids.ts`，definition 类型在 `card-effects/ability-definition-types.ts`；activeEffect step、activated ability 与 pending starter 结算均为 registry-first，分别走 `step-registry`、`activated-registry` 与 `starter-registry`。完整卡效 fallback 不应回流 runner；runner 仍保留 pending 生命周期、trigger/relay/matcher 胶水与 workflow 注册。 | 当前所有登记卡 |
 | Base card-code matching | card identity | 卡效登记支持 `baseCardCodes`，同基础编号不同罕度自动匹配同一能力；`tests/unit/card-effect-rarity-sync.test.ts` 会阻止 exact `cardCodes` 漏同步同编号罕度。 | `PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp1-006` 费用 11「藤岛 慈」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-pb1-004` 费用 4「百生吟子」、`PL!HS-PR-019` 费用 2「百生吟子」等 |
 | Trigger enqueue functions in `src/application/card-effect-runner.ts` | `T01,T02,T04,T06,S08,E06` | 支持登场、LIVE 开始、LIVE 成功、自己进行声援时、离场 AUTO、成员状态变化 AUTO、成员槽位移动 AUTO、舞台成员监听登场 AUTO 与同一时点/同事件队列。登场与舞台成员 LIVE 开始会记录来源槽位，能力可通过 `requiredSourceSlots` 统一过滤左/中/右区域条件。LIVE 成功已支持成功 LIVE 卡来源与表演玩家舞台成员来源；`ON_CHEER` 优先消费 `CheerEvent`，追加声援事件不二次触发，旧扫描表演玩家 LIVE 区来源只作 fallback；004 重做声援会显式以 `additional=false` 新事件走同一入队路径，且来源已先记录 turn1。登场 AUTO 优先消费 `EnterStageEvent`；成员状态变化 AUTO 优先消费 `MemberStateChangedEvent`，并可读取玩家操作/规则处理/卡效 cause；离场 AUTO 优先消费 `LeaveStageEvent`，可携带换上成员 `replacingCardId` 与目的地区 `toZone` 做离场/relay 来源条件；LIVE 开始优先消费 `LiveStartEvent`；LIVE 成功优先消费 `LiveSuccessEvent`；pending ability 绑定真实 `eventId`。 | `PL!N-bp4-018` 费用 7「近江彼方」、`PL!-pb1-015` 费用 7「西木野真姬」、`PL!HS-bp2-012` 费用 5「乙宗 梢」、`PL!HS-bp5-003` 费用 2「大泽瑠璃乃」、`PL!HS-bp6-017` 费用 11「日野下花帆」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-009` 费用 15「日野下花帆」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-bp5-019` 分数 6「花结」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-027` 分数 5「月夜見海月」、`PL!S-bp2-004` 费用 11「黒澤ダイヤ」 |
@@ -46,7 +46,7 @@
 ## Compatibility Layers
 
 | compatibility field/path | why it remains |
-|---|---|
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `liveResolution.playerScoreBonuses` / `playerHeartBonuses` / `liveRequirementReductions` / `liveRequirementModifiers` | 现在由 `liveModifiers` 投影维护，供既有 UI/online projection/tests 兼容；新增 Live 修正不应主写这些字段。`SOURCE_MEMBER` 与 `TARGET_MEMBER` Heart 不投影到 `playerHeartBonuses`。 |
 | `GameService.drawTopMainDeckCard` / debug `DRAW_CARD_TO_HAND` | 规则流程抽牌和桌面调试命令暂不并入 card-effect draw helper，避免提前改变刷新/事件语义。 |
 | runner 内 legacy full-effect fallback | 旧完整卡效 fallback 已清空；runner 仍保留 registry fallback 返回、pending 队列推进、trigger/relay/matcher 胶水和 workflow 注册。steps-lite / declarative resolver 仍按 `migration_roadmap.md` 推进，不在此文档中宣称已完成。 |
@@ -54,7 +54,7 @@
 ## Tests By Coverage Area
 
 | area | tests |
-|---|---|
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Ability classification and queue metadata | `tests/unit/card-effect-classification.test.ts` |
 | Same-base rarity synchronization | `tests/unit/card-effect-rarity-sync.test.ts` |
 | Card selectors | `tests/unit/card-selectors.test.ts` |
@@ -67,3 +67,30 @@
 | Draw helper | `tests/unit/draw.test.ts` |
 | Energy placement/orientation helper | `tests/unit/energy.test.ts` |
 | Integrated sample behavior | `tests/integration/sample-card-effect-runner.test.ts` |
+
+# 2026-07-18 BP7 memberBelow 能力覆盖
+
+| 能力边界                      | 真实样本                                                                 | 覆盖状态                                                                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 卡效原子创建 `memberBelow`    | 香音 AUTO、雫 ACTIVATED、曜 ON_ENTER；及旧 Ren/Rina/Kotori/Kinako/Sayaka | 通用 stage-host helper，无 host 白名单、无手动命令                                                                                                      |
+| 来源/目标分离的 BLADE         | 下方香音 -> Liella! host；舞台曜 -> 多个 Aqours host                     | 有 target 时只随 target 清理；无 target 的旧 BLADE 仍随 source 清理；写入要求目标为当前己方顶层成员                                                     |
+| 完整印刷 Heart replacement    | 雫压入成员的 `data.hearts` 快照                                          | 保留颜色/数量/多色向量，bonus 后追加，latest wins；来源实例离场/重登清理                                                                                |
+| 强制委托 ON_ENTER 子序列      | 曜 CENTER 起动                                                           | 每名成员选1段、玩家定顺序、两段间不回全局 pending；兼容舞台历史 sourceZone；只有真实交互、终局或 sequence 实际推进才算进展，缺 starter/无进展安全跳过   |
+| 休息室有序置于卡组底          | `PL!S-bp7-019-L`、`PL!SP-bp7-004-P`                                      | 复用窄 `WAITING_ROOM -> MAIN_DECK_BOTTOM` action 与 shared public confirmation；0张直接结算，非空选择先公开，deadline 后整组重验，任一 stale 不移动子集 |
+
+该覆盖不表示任意区域移动、任意 stat-copy、任意 continuous 扫描或通用卡效解释器已实现。
+
+# 2026-07-19 BP7 energyBelow 第三批覆盖
+
+审查反馈修正已通过 focused、指定回归与类型检查；全量仅保留既知 online cheer `CardMovedPublic` 严格投影断言和 real-data replay `deckEdge/revealedCardIds` fixture 漂移两类非本批失败。
+
+| 边界 | exact 样本 | 覆盖状态 |
+| --- | --- | --- |
+| ENERGY_ZONE → energyBelow | `PL!N-bp7-004-P` | 继续由既有 `stackEnergyFromEnergyZoneBelowMember` 处理 WAITING-first、特殊 marker 精确选择；公开中文 API 的“能量卡组”不作为规则依据。 |
+| ENERGY_DECK → 当前己方顶层成员 energyBelow | `PL!N-bp7-005-P`、`PL!N-bp7-007-SEC`、`PL!N-bp7-019-N` | 新窄 helper 保持顶牌/剩余顺序、按成员实例追踪移槽、返回精确 IDs；不接受对方/memberBelow/stale 目标。 |
+| 强制二选一 stale continuation | `PL!N-bp7-005-P` | 卡文分支为“活跃2张能量”；不足2张时尽可能处理。原本展示的分支或成员目标确认时失效会消费当前 pending、记录空实际 IDs 并回到统一 continuation；从未展示的伪造输入仍被拒绝。 |
+| exact member-slot-moved observer registry | `PL!SP-pb2-022` | 卡牌专属 5yncri5e!/CENTER 事件筛选与 pending 构造归属单卡 workflow 的窄 registry handler；runner 仅保留通用 observer 调度。 |
+| 动态成员红 Heart | `PL!N-bp7-007-SEC` | exact continuous registry 分别按来源 energyBelow 与 `max(0, own energyZone count - 6)` 收集 SOURCE_MEMBER Heart，可与普通 modifier 叠加。 |
+| replacement 事件绑定 | `PL!N-bp7-019-N` | 只消费真实 LeaveStageEvent 的 replacingCardId，来源结算时不必仍在休息室；replacement 必须为当前顶层结构化虹咲成员。 |
+
+energyBelow 继续随主成员移动/交换，并在离场、换手或替换时由既有清理路径返回能量卡组。below 放置不发仅表示放置入能量区的事件。本表不宣称任意 below DSL 或完整能量事件体系。

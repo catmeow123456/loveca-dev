@@ -720,7 +720,14 @@ export function clearPreviousStageMemberInstanceState(
       modifier.target === 'SOURCE_MEMBER' &&
       modifier.sourceCardId === memberCardId
     ) return false;
-    if (modifier.kind === 'BLADE' && modifier.sourceCardId === memberCardId) return false;
+    if (modifier.kind === 'BLADE') {
+      const targetMemberCardId = modifier.targetMemberCardId;
+      if (targetMemberCardId !== undefined) {
+        if (targetMemberCardId === memberCardId) return false;
+      } else if (modifier.sourceCardId === memberCardId) {
+        return false;
+      }
+    }
     return true;
   });
   const state = {

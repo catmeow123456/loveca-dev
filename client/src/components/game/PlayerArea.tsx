@@ -693,7 +693,7 @@ export const PlayerArea = memo(function PlayerArea({
     // 该槽位下方的能量卡（规则 4.5.5）
     const energyBelowIds = getSeatMemberOverlayCardIds(playerSeat, position);
 
-    // 该槽位下方堆叠的成员卡（特殊成员卡效果）
+    // 该槽位主成员下方由卡牌效果堆叠的成员卡
     const memberBelowIds = getSeatMemberBelowCardIds(playerSeat, position);
 
     // 能量卡偏移量：每张能量卡向左下方偏移 10% 的卡牌尺寸

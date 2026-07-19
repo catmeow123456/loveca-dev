@@ -16,7 +16,11 @@ import {
   type EnterLiveZoneEvent,
   type EnterWaitingRoomEvent,
 } from '../../../domain/events/game-events.js';
-import { addLiveModifier } from '../../../domain/rules/live-modifiers.js';
+import {
+  addBladeLiveModifierForMember as addBladeLiveModifierForMemberRule,
+  type AddBladeLiveModifierForMemberResult,
+  type BladeLiveModifierForMemberOptions,
+} from '../../../domain/rules/live-modifiers.js';
 import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared/types/enums.js';
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
 import { drawCardsFromMainDeckToHand, type DrawCardsResult } from '../../effects/draw.js';
@@ -31,7 +35,6 @@ import {
   addMemberBelowMember,
   removeCardFromZone,
 } from '../../../domain/entities/zone.js';
-import { isSpecialMemberCard } from '../../../shared/utils/card-code.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
 
 export interface DrawCardsForEachPlayerResult {
@@ -203,7 +206,7 @@ export interface MoveHandCardsToDeckTopForPlayerResult {
   readonly remainingCandidateIds: readonly string[];
 }
 
-export interface StackMemberCardBelowSpecialMemberOptions {
+export interface StackMemberCardBelowStageMemberOptions {
   readonly playerId: string;
   readonly sourceZone: ZoneType.HAND | ZoneType.WAITING_ROOM;
   readonly movedCardId: string;
@@ -211,7 +214,7 @@ export interface StackMemberCardBelowSpecialMemberOptions {
   readonly targetSlot: SlotPosition;
 }
 
-export interface StackMemberCardBelowSpecialMemberResult {
+export interface StackMemberCardBelowStageMemberResult {
   readonly gameState: GameState;
   readonly movedCardId: string;
   readonly sourceZone: ZoneType.HAND | ZoneType.WAITING_ROOM;
@@ -574,35 +577,20 @@ export function addBladeLiveModifierForSourceMember(
   game: GameState,
   options: AddBladeLiveModifierForSourceMemberOptions
 ): AddBladeLiveModifierForSourceMemberResult | null {
-  const { playerId, sourceCardId, abilityId, amount } = options;
-  if (!Number.isInteger(amount) || amount <= 0) {
-    return null;
-  }
+  return addBladeLiveModifierForMember(game, {
+    playerId: options.playerId,
+    memberCardId: options.sourceCardId,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+    countDelta: options.amount,
+  });
+}
 
-  const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, sourceCardId);
-  if (
-    !player ||
-    !sourceCard ||
-    sourceCard.ownerId !== playerId ||
-    !isMemberCardData(sourceCard.data)
-  ) {
-    return null;
-  }
-
-  const modifier: Extract<LiveModifierState, { readonly kind: 'BLADE' }> = {
-    kind: 'BLADE',
-    playerId,
-    countDelta: amount,
-    sourceCardId,
-    abilityId,
-  };
-
-  return {
-    gameState: addLiveModifier(game, modifier),
-    modifier,
-    bladeBonus: amount,
-  };
+export function addBladeLiveModifierForMember(
+  game: GameState,
+  options: BladeLiveModifierForMemberOptions
+): AddBladeLiveModifierForMemberResult | null {
+  return addBladeLiveModifierForMemberRule(game, options);
 }
 
 export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
@@ -918,10 +906,10 @@ export function moveHandCardsToDeckTopForPlayer(
   };
 }
 
-export function stackMemberCardBelowSpecialMember(
+export function stackMemberCardBelowStageMember(
   game: GameState,
-  options: StackMemberCardBelowSpecialMemberOptions
-): StackMemberCardBelowSpecialMemberResult | null {
+  options: StackMemberCardBelowStageMemberOptions
+): StackMemberCardBelowStageMemberResult | null {
   const { playerId, sourceZone, movedCardId, hostCardId, targetSlot } = options;
   const player = getPlayerById(game, playerId);
   const movedCard = getCardById(game, movedCardId);
@@ -934,7 +922,6 @@ export function stackMemberCardBelowSpecialMember(
     hostCard.ownerId !== playerId ||
     !isMemberCardData(movedCard.data) ||
     !isMemberCardData(hostCard.data) ||
-    !isSpecialMemberCard(hostCard.data.cardCode) ||
     player.memberSlots.slots[targetSlot] !== hostCardId
   ) {
     return null;

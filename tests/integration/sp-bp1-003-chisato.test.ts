@@ -10,7 +10,7 @@ import { enqueueTriggeredCardEffects } from '../../src/application/card-effect-r
 import { SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_ID as ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
-import { stackMemberCardBelowSpecialMember } from '../../src/application/card-effects/runtime/actions';
+import { stackMemberCardBelowStageMember } from '../../src/application/card-effects/runtime/actions';
 import {
   createCardInstance,
   createHeartIcon,
@@ -595,7 +595,7 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
       enqueueTriggeredCardEffects
     )!;
     expect(left.gameState.liveResolution.liveModifiers).toEqual([]);
-    const stacked = stackMemberCardBelowSpecialMember(left.gameState, {
+    const stacked = stackMemberCardBelowStageMember(left.gameState, {
       playerId: P1,
       movedCardId: context.source.instanceId,
       hostCardId: host.instanceId,

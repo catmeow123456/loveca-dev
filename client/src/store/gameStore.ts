@@ -360,7 +360,7 @@ export interface GameStore {
       | ZoneType.SUCCESS_ZONE
       | ZoneType.WAITING_ROOM
       | ZoneType.EXILE_ZONE,
-    options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM'; asMemberBelow?: boolean }
+    options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM' }
   ) => CommandDispatchResult;
   /** 放置 Live 卡到 Live 区 */
   setLiveCard: (cardId: string, faceDown?: boolean) => CommandDispatchResult;

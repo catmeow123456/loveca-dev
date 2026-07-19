@@ -65,8 +65,22 @@ import { enqueueMemberSlotMovedObserverCardEffects } from './card-effects/runtim
 import { enqueueResolvedAbilityObserverCardEffects } from './card-effects/runtime/resolved-ability-observers.js';
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
+import { advanceDelegatedAbilitySequence } from './card-effects/runtime/delegated-ability-sequence.js';
 import { enqueueEnergyMovedToDeckCardEffects, getLatestEnergyMovedToDeckEvents } from './card-effects/runtime/energy-moved-to-deck-triggers.js';
 import { hasAbilityInstance } from './card-effects/runtime/ability-instance.js';
+import {
+  canUseAbilityThisTurn,
+  canUseActivatedAbilityThisTurn,
+} from './card-effects/runtime/ability-turn-limit.js';
+export {
+  canUseActivatedAbilityThisTurn,
+  getAbilityTurnLimitStatus,
+  getActivatedAbilityLimitStatus,
+} from './card-effects/runtime/ability-turn-limit.js';
+export type {
+  AbilityTurnLimitStatus,
+  ActivatedAbilityLimitStatus,
+} from './card-effects/runtime/ability-turn-limit.js';
 import {
   advanceCheckTimingIteration,
   closeCheckTimingContextIfIdle,
@@ -348,6 +362,15 @@ import { registerSpBp5004SumireWorkflowHandlers } from './card-effects/workflows
 import { registerSpBp7005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-005-ren.js';
 import { registerSpBp7006KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-006-kinako.js';
 import { registerSpBp7007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-007-mei.js';
+import { registerSpBp7001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-001-kanon.js';
+import { registerNBp7003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-003-shizuku.js';
+import { registerNBp7004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-004-karin.js';
+import { registerNBp7005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-005-ai.js';
+import { registerNBp7007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-007-setsuna.js';
+import { registerNBp7019SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-019-setsuna.js';
+import { registerSBp7005YouWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-005-you.js';
+import { registerSBp7019NandoDatteYakusokuWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-019-nando-datte-yakusoku.js';
+import { registerSpBp7004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-004-sumire.js';
 import { registerSpBp5005RenWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-005-ren.js';
 import { registerSpBp5009NatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-009-natsumi.js';
 import { registerSpBp5010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp5-010-margarete.js';
@@ -496,7 +519,6 @@ import {
   HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
   PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_DRAW_ABILITY_ID,
-  SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
 } from './card-effects/ability-ids.js';
 import {
   CardAbilityCategory,
@@ -521,8 +543,6 @@ export { CARD_ABILITY_DEFINITIONS } from './card-effects/definitions/index.js';
 export const ABILITY_ORDER_SELECTION_ID = 'system:select-pending-card-effect';
 const ORDERED_RESOLUTION_BATCH_ID_KEY = 'orderedResolutionBatchId';
 const DECLINE_OPTION_LABEL = '不发动';
-const ABILITY_USE_STEP = 'ABILITY_USE';
-const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 interface RevealSelectedInspectionCardConfig {
   readonly stepId: string;
@@ -685,108 +705,6 @@ export function isSupportedActivatedAbilityForCard(
     options.sourceCardId &&
     isRenGrantedActivatedAbility(options.game, options.playerId, options.sourceCardId, abilityId)
   );
-}
-
-function getActivatedAbilityDefinition(abilityId: string): CardAbilityDefinition | null {
-  const definition = findCardAbilityDefinitionById(abilityId);
-  return definition?.category === CardAbilityCategory.ACTIVATED && definition.implemented
-    ? definition
-    : null;
-}
-
-export interface AbilityTurnLimitStatus {
-  readonly abilityId: string;
-  readonly sourceCardId: string;
-  readonly limit: number;
-  readonly used: number;
-  readonly remaining: number;
-}
-
-export type ActivatedAbilityLimitStatus = AbilityTurnLimitStatus;
-
-export function getAbilityTurnLimitStatus(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): AbilityTurnLimitStatus | null {
-  const definition = findCardAbilityDefinitionById(abilityId);
-  if (definition?.implemented !== true) {
-    return null;
-  }
-  const limit = definition?.perTurnLimit;
-  if (limit === undefined) {
-    return null;
-  }
-  const countPendingAsTurnUse = definition.countPendingAsTurnUse !== false;
-
-  const resolvedUses = game.actionHistory.filter(
-    (action) =>
-      action.type === 'RESOLVE_ABILITY' &&
-      action.playerId === playerId &&
-      action.payload.abilityId === abilityId &&
-      action.payload.sourceCardId === sourceCardId &&
-      (action.payload.step === ABILITY_USE_STEP ||
-        action.payload.step === ACTIVATED_ABILITY_USE_STEP) &&
-      action.payload.turnCount === game.turnCount
-  ).length;
-  const pendingUses = countPendingAsTurnUse
-    ? game.pendingAbilities.filter(
-        (ability) =>
-          ability.controllerId === playerId &&
-          ability.abilityId === abilityId &&
-          ability.sourceCardId === sourceCardId
-      ).length
-    : 0;
-  const activeUse =
-    countPendingAsTurnUse &&
-    game.activeEffect?.controllerId === playerId &&
-    game.activeEffect.abilityId === abilityId &&
-    game.activeEffect.sourceCardId === sourceCardId
-      ? 1
-      : 0;
-  const used = resolvedUses + pendingUses + activeUse;
-
-  return {
-    abilityId,
-    sourceCardId,
-    limit,
-    used,
-    remaining: Math.max(0, limit - used),
-  };
-}
-
-export function getActivatedAbilityLimitStatus(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): ActivatedAbilityLimitStatus | null {
-  const definition = getActivatedAbilityDefinition(abilityId);
-  if (!definition) {
-    return null;
-  }
-  return getAbilityTurnLimitStatus(game, playerId, abilityId, sourceCardId);
-}
-
-function canUseAbilityThisTurn(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): boolean {
-  const status = getAbilityTurnLimitStatus(game, playerId, abilityId, sourceCardId);
-  return status === null || status.used < status.limit;
-}
-
-export function canUseActivatedAbilityThisTurn(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): boolean {
-  const status = getActivatedAbilityLimitStatus(game, playerId, abilityId, sourceCardId);
-  return status === null || status.used < status.limit;
 }
 
 function getQueuedAbilityDefinitionsForCard(
@@ -1202,6 +1120,15 @@ registerSpBp5004SumireWorkflowHandlers();
 registerSpBp7005RenWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7007MeiWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp7001KanonWorkflowHandlers();
+registerNBp7003ShizukuWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp7004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp7005AiWorkflowHandlers();
+registerNBp7007SetsunaWorkflowHandlers();
+registerNBp7019SetsunaWorkflowHandlers();
+registerSBp7005YouWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp7019NandoDatteYakusokuWorkflowHandlers();
+registerSpBp7004SumireWorkflowHandlers();
 registerSpBp5005RenWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp5009NatsumiWorkflowHandlers({
   enqueueTriggeredCardEffectsForEnterWaitingRoom: enqueueTriggeredCardEffects,
@@ -1983,7 +1910,6 @@ function enqueueMemberSlotMovedCardEffects(
   for (const source of createMemberSlotMovedAbilitySourcesFromEvents(events)) {
     state = enqueueSingleMemberSlotMovedCardEffect(state, source);
   }
-  state = enqueueSpPb2022MemberSlotMovedObserverCardEffects(state, events);
   return enqueueMemberSlotMovedObserverCardEffects(state, events);
 }
 
@@ -2065,90 +1991,6 @@ function enqueueSingleMemberSlotMovedCardEffect(
         swappedCardInstanceId: source.swappedCardInstanceId ?? null,
       }
     );
-  }
-
-  return state;
-}
-
-function enqueueSpPb2022MemberSlotMovedObserverCardEffects(
-  game: GameState,
-  events: readonly MemberSlotMovedEvent[]
-): GameState {
-  let state = game;
-  for (const event of events) {
-    const player = getPlayerById(state, event.controllerId);
-    if (!player) {
-      continue;
-    }
-
-    for (const sourceSlot of MEMBER_SLOT_ORDER) {
-      const sourceCardId = player.memberSlots.slots[sourceSlot];
-      const sourceCard = sourceCardId ? getCardById(state, sourceCardId) : null;
-      if (!sourceCardId || !sourceCard) {
-        continue;
-      }
-
-      const hasTomariObserverAbility = getQueuedAbilityDefinitionsForCard(
-        sourceCard.data.cardCode,
-        CardAbilityCategory.AUTO,
-        CardAbilitySourceZone.STAGE_MEMBER,
-        sourceSlot
-      ).some(
-        (ability) =>
-          ability.abilityId ===
-            SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID &&
-          ability.triggerCondition === TriggerCondition.ON_MEMBER_SLOT_MOVED
-      );
-      if (!hasTomariObserverAbility) {
-        continue;
-      }
-
-      const abilityId = SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID;
-      if (!canUseAbilityThisTurn(state, player.id, abilityId, sourceCardId)) {
-        continue;
-      }
-
-      const pendingAbilityId = `${abilityId}:${sourceCardId}:${event.eventId}`;
-      if (hasAbilityInstance(state, pendingAbilityId)) {
-        continue;
-      }
-
-      const pendingAbility: PendingAbilityState = {
-        id: pendingAbilityId,
-        abilityId,
-        sourceCardId,
-        controllerId: player.id,
-        mandatory: true,
-        timingId: TriggerCondition.ON_MEMBER_SLOT_MOVED,
-        eventIds: [event.eventId],
-        sourceSlot,
-        metadata: {
-          movedCardId: event.cardInstanceId,
-          fromSlot: event.fromSlot,
-          toSlot: event.toSlot,
-          swappedCardInstanceId: event.swappedCardInstanceId ?? null,
-        },
-      };
-
-      state = addAction(
-        {
-          ...state,
-          pendingAbilities: [...state.pendingAbilities, pendingAbility],
-        },
-        'TRIGGER_ABILITY',
-        player.id,
-        {
-          pendingAbilityId,
-          abilityId,
-          sourceCardId,
-          timingId: pendingAbility.timingId,
-          movedCardId: event.cardInstanceId,
-          fromSlot: event.fromSlot,
-          toSlot: event.toSlot,
-          sourceSlot,
-        }
-      );
-    }
   }
 
   return state;
@@ -3442,6 +3284,13 @@ function getAbilityOrderOptionLabel(
 function continuePendingCardEffects(game: GameState, orderedResolution: boolean): GameState {
   if (game.activeEffect) {
     return game;
+  }
+
+  const delegatedSequenceState = advanceDelegatedAbilitySequence(game, delegatePendingAbility);
+  if (delegatedSequenceState) {
+    return delegatedSequenceState.delegatedAbilitySequence
+      ? delegatedSequenceState
+      : continuePendingCardEffects(delegatedSequenceState, orderedResolution);
   }
 
   if (game.checkTimingContext) {

@@ -15,7 +15,7 @@ import {
   PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
   S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -203,11 +203,7 @@ function finishTargetMemberSelection(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (
-    !effect ||
-    effect.abilityId !== config.abilityId ||
-    effect.stepId !== SELECT_MEMBER_STEP_ID
-  ) {
+  if (!effect || effect.abilityId !== config.abilityId || effect.stepId !== SELECT_MEMBER_STEP_ID) {
     return game;
   }
   if (selectedCardId === null || effect.selectableCardIds?.includes(selectedCardId) !== true) {
@@ -238,20 +234,18 @@ function finishTargetMemberSelection(
     );
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForMember(game, {
     playerId: player.id,
-    sourceCardId: selectedCardId,
+    memberCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
-    amount: config.bladeAmount,
+    countDelta: config.bladeAmount,
   });
   if (!bladeResult) {
-    return finishSelectionWithoutBlade(
-      game,
-      effect,
-      player.id,
-      continuePendingCardEffects,
-      { step: 'TARGET_MEMBER_NO_LONGER_VALID', selectedCardId }
-    );
+    return finishSelectionWithoutBlade(game, effect, player.id, continuePendingCardEffects, {
+      step: 'TARGET_MEMBER_NO_LONGER_VALID',
+      selectedCardId,
+    });
   }
 
   return continuePendingCardEffects(
@@ -277,11 +271,12 @@ function applyBladeAndContinue(
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForMember(game, {
     playerId,
-    sourceCardId: targetMemberCardId,
+    memberCardId: targetMemberCardId,
+    sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
-    amount: config.bladeAmount,
+    countDelta: config.bladeAmount,
   });
   if (!bladeResult) {
     return continueNoOp(game, ability, playerId, orderedResolution, continuePendingCardEffects, {
@@ -314,10 +309,7 @@ function getCurrentTargetMemberCardIds(
   }
   return getStageMemberCardIdsMatching(game, playerId, and(...selectors)).filter((cardId) => {
     const card = getCardById(game, cardId);
-    return (
-      card?.ownerId === playerId &&
-      (!config.excludeSourceMember || cardId !== sourceCardId)
-    );
+    return card?.ownerId === playerId && (!config.excludeSourceMember || cardId !== sourceCardId);
   });
 }
 
@@ -396,6 +388,8 @@ function finishSelectionWithoutBlade(
 function removePendingAbility(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }

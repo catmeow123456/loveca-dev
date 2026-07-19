@@ -16,7 +16,7 @@ import {
   N_PR_026_ON_ENTER_STACK_LOW_COST_NIJIGASAKI_MEMBER_FROM_WAITING_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { stackMemberCardBelowSpecialMember } from '../../runtime/actions.js';
+import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
 import { getDelegatableQueuedAbilityDefinitions } from '../../runtime/delegatable-definitions.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -141,7 +141,7 @@ function finishRinaOnEnter(
   if (!player || sourceSlot === null) {
     return game;
   }
-  const stackResult = stackMemberCardBelowSpecialMember(game, {
+  const stackResult = stackMemberCardBelowStageMember(game, {
     playerId: player.id,
     sourceZone: ZoneType.WAITING_ROOM,
     movedCardId: selectedCardId,

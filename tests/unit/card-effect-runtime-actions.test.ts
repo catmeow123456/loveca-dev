@@ -28,7 +28,7 @@ import {
   moveWaitingRoomCardsToDeckBottomForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
-  stackMemberCardBelowSpecialMember,
+  stackMemberCardBelowStageMember,
 } from '../../src/application/card-effects/runtime/actions';
 import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
@@ -1592,8 +1592,12 @@ describe('card effect runtime actions', () => {
   });
 
   it('adds a source member BLADE live modifier without mutating the original state', () => {
-    const state = createMutableState();
+    let state = createMutableState();
     const [sourceCardId] = ownedMemberIds(state, PLAYER1, 1);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, sourceCardId),
+    }));
 
     const result = addBladeLiveModifierForSourceMember(state, {
       playerId: PLAYER1,
@@ -1655,10 +1659,10 @@ describe('card effect runtime actions', () => {
     expect(state.liveResolution.liveModifiers).toEqual([]);
   });
 
-  it('moves a member card from hand below a special member without enqueueing triggers', () => {
+  it('moves a member card from hand below a top-level stage host without enqueueing triggers', () => {
     const { game, host, moved, hostSlot } = createStackHelperState({});
 
-    const result = stackMemberCardBelowSpecialMember(game, {
+    const result = stackMemberCardBelowStageMember(game, {
       playerId: PLAYER1,
       sourceZone: ZoneType.HAND,
       movedCardId: moved.instanceId,
@@ -1681,12 +1685,12 @@ describe('card effect runtime actions', () => {
     expect(result?.gameState.pendingAbilities).toEqual([]);
   });
 
-  it('moves a member card from waiting room below a special member', () => {
+  it('moves a member card from waiting room below a top-level stage host', () => {
     const { game, host, moved, hostSlot } = createStackHelperState({
       movedSourceZone: ZoneType.WAITING_ROOM,
     });
 
-    const result = stackMemberCardBelowSpecialMember(game, {
+    const result = stackMemberCardBelowStageMember(game, {
       playerId: PLAYER1,
       sourceZone: ZoneType.WAITING_ROOM,
       movedCardId: moved.instanceId,
@@ -1701,21 +1705,21 @@ describe('card effect runtime actions', () => {
     ]);
   });
 
-  it('rejects non-special hosts, empty target slots, non-member cards, wrong source zones, and duplicates', () => {
+  it('accepts ordinary member hosts and rejects empty slots, non-members, wrong source zones, and duplicates', () => {
     const nonSpecialHostState = createStackHelperState({ hostCardCode: 'PL!HS-test-normal-host' });
     expect(
-      stackMemberCardBelowSpecialMember(nonSpecialHostState.game, {
+      stackMemberCardBelowStageMember(nonSpecialHostState.game, {
         playerId: PLAYER1,
         sourceZone: ZoneType.HAND,
         movedCardId: nonSpecialHostState.moved.instanceId,
         hostCardId: nonSpecialHostState.host.instanceId,
         targetSlot: nonSpecialHostState.hostSlot,
       })
-    ).toBeNull();
+    ).not.toBeNull();
 
     const emptySlotState = createStackHelperState({});
     expect(
-      stackMemberCardBelowSpecialMember(emptySlotState.game, {
+      stackMemberCardBelowStageMember(emptySlotState.game, {
         playerId: PLAYER1,
         sourceZone: ZoneType.HAND,
         movedCardId: emptySlotState.moved.instanceId,
@@ -1730,7 +1734,7 @@ describe('card effect runtime actions', () => {
       movedCardData: createEnergyCard('PL!HS-test-energy'),
     });
     expect(
-      stackMemberCardBelowSpecialMember(nonMemberState.game, {
+      stackMemberCardBelowStageMember(nonMemberState.game, {
         playerId: PLAYER1,
         sourceZone: ZoneType.HAND,
         movedCardId: nonMemberState.moved.instanceId,
@@ -1741,7 +1745,7 @@ describe('card effect runtime actions', () => {
 
     const wrongSourceState = createStackHelperState({ movedSourceZone: ZoneType.HAND });
     expect(
-      stackMemberCardBelowSpecialMember(wrongSourceState.game, {
+      stackMemberCardBelowStageMember(wrongSourceState.game, {
         playerId: PLAYER1,
         sourceZone: ZoneType.WAITING_ROOM,
         movedCardId: wrongSourceState.moved.instanceId,
@@ -1750,7 +1754,7 @@ describe('card effect runtime actions', () => {
       })
     ).toBeNull();
 
-    const duplicateResult = stackMemberCardBelowSpecialMember(emptySlotState.game, {
+    const duplicateResult = stackMemberCardBelowStageMember(emptySlotState.game, {
       playerId: PLAYER1,
       sourceZone: ZoneType.HAND,
       movedCardId: emptySlotState.moved.instanceId,
@@ -1763,7 +1767,7 @@ describe('card effect runtime actions', () => {
       hand: addCardToZone(player.hand, emptySlotState.moved.instanceId),
     }));
     expect(
-      stackMemberCardBelowSpecialMember(invalidDuplicateState, {
+      stackMemberCardBelowStageMember(invalidDuplicateState, {
         playerId: PLAYER1,
         sourceZone: ZoneType.HAND,
         movedCardId: emptySlotState.moved.instanceId,

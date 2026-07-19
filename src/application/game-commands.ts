@@ -141,8 +141,6 @@ export interface MoveTableCardCommand extends BaseGameCommand {
   readonly targetSlot?: SlotPosition;
   readonly sourceSlot?: SlotPosition;
   readonly position?: 'TOP' | 'BOTTOM';
-  /** 是否以成员堆叠模式放置（附加到特殊成员下方） */
-  readonly asMemberBelow?: boolean;
 }
 
 export interface MoveMemberToSlotCommand extends BaseGameCommand {
@@ -218,8 +216,6 @@ export interface MoveOwnedCardToZoneCommand extends BaseGameCommand {
     | ZoneType.EXILE_ZONE;
   readonly targetSlot?: SlotPosition;
   readonly position?: 'TOP' | 'BOTTOM';
-  /** 是否以成员堆叠模式放置（附加到特殊成员下方） */
-  readonly asMemberBelow?: boolean;
 }
 
 export interface FinishInspectionCommand extends BaseGameCommand {
@@ -528,7 +524,6 @@ export function createMoveTableCardCommand(
     targetSlot?: SlotPosition;
     sourceSlot?: SlotPosition;
     position?: 'TOP' | 'BOTTOM';
-    asMemberBelow?: boolean;
   }
 ): MoveTableCardCommand {
   return {
@@ -540,7 +535,6 @@ export function createMoveTableCardCommand(
     targetSlot: options?.targetSlot,
     sourceSlot: options?.sourceSlot,
     position: options?.position,
-    asMemberBelow: options?.asMemberBelow,
     timestamp: Date.now(),
   };
 }
@@ -671,7 +665,6 @@ export function createMoveOwnedCardToZoneCommand(
   options?: {
     targetSlot?: SlotPosition;
     position?: 'TOP' | 'BOTTOM';
-    asMemberBelow?: boolean;
   }
 ): MoveOwnedCardToZoneCommand {
   return {
@@ -682,7 +675,6 @@ export function createMoveOwnedCardToZoneCommand(
     toZone,
     targetSlot: options?.targetSlot,
     position: options?.position,
-    asMemberBelow: options?.asMemberBelow,
     timestamp: Date.now(),
   };
 }
