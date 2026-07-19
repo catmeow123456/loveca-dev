@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
-import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Activity,
@@ -51,7 +50,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastLoadedAt, setLastLoadedAt] = useState<number | null>(null);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [replayImportText, setReplayImportText] = useState('');
   const [replayError, setReplayError] = useState<string | null>(null);
   const [exportingMatchId, setExportingMatchId] = useState<string | null>(null);
@@ -71,9 +70,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   }, [viewerSeat]);
 
   const loadRooms = useCallback(async (showLoading: boolean) => {
-    if (showLoading) {
-      setIsLoading(true);
-    } else {
+    if (!showLoading) {
       setIsRefreshing(true);
     }
 
@@ -223,7 +220,8 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   );
 
   useEffect(() => {
-    void loadRooms(true);
+    const timer = window.setTimeout(() => void loadRooms(true), 0);
+    return () => window.clearTimeout(timer);
   }, [loadRooms]);
 
   useEffect(() => {
@@ -249,16 +247,11 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
       (total, room) => total + room.members.filter((member) => member.presence === 'ACTIVE').length,
       0
     );
-    const leftMembers = rooms.reduce(
-      (total, room) => total + room.members.filter((member) => member.presence === 'LEFT').length,
-      0
-    );
 
     return {
-      totalRooms: rooms.length,
       inGameRooms,
       activeMembers,
-      leftMembers,
+      waitingRooms: rooms.length - inGameRooms,
     };
   }, [rooms]);
 
@@ -279,7 +272,9 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
         }
         right={
           <>
-            <ThemeToggle />
+            <div className="hidden sm:block">
+              <ThemeToggle />
+            </div>
             <button
               type="button"
               onClick={() => setAutoRefresh((value) => !value)}
@@ -302,19 +297,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
         }
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6">
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile icon={<Activity size={18} />} label="活跃房间" value={stats.totalRooms} />
-          <StatTile icon={<Clock3 size={18} />} label="进行中对局" value={stats.inGameRooms} />
-          <StatTile icon={<Users size={18} />} label="在线玩家" value={stats.activeMembers} />
-          <StatTile icon={<Users size={18} />} label="失联玩家" value={stats.leftMembers} />
-        </section>
-
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-muted)]">
-          <span>自动刷新：{autoRefresh ? '开启' : '暂停'}</span>
-          <span>最近更新：{lastLoadedAt ? formatDateTime(lastLoadedAt) : '-'}</span>
-        </div>
-
+      <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-5 px-3 py-4 sm:px-4 sm:py-6">
         {error ? (
           <div className="rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-4 py-3 text-sm text-[var(--semantic-error)]">
             {error}
@@ -327,6 +310,35 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
         ) : null}
 
         <section className="surface-panel overflow-hidden">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-4 py-4 sm:px-5">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)]">
+                <Activity size={17} />
+              </div>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-[var(--text-primary)]">实时对局</h2>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  按开始时间从早到晚排列；等待中的房间固定列在对局之后。
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-[var(--text-secondary)]">
+              <span>
+                <strong className="text-[var(--text-primary)]">{stats.inGameRooms}</strong> 场进行中
+              </span>
+              <span>{stats.waitingRooms} 个等待房间</span>
+              <span>{stats.activeMembers} 名在线玩家</span>
+              <span className="inline-flex items-center gap-1.5 text-[var(--text-muted)]">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    autoRefresh ? 'bg-[var(--semantic-success)]' : 'bg-[var(--text-muted)]'
+                  }`}
+                />
+                {autoRefresh ? '自动刷新' : '刷新暂停'}
+                {lastLoadedAt ? ` · ${formatClockTime(lastLoadedAt)}` : ''}
+              </span>
+            </div>
+          </div>
           {isLoading ? (
             <div className="flex min-h-72 items-center justify-center text-sm text-[var(--text-secondary)]">
               <RefreshCw size={18} className="mr-2 animate-spin text-[var(--accent-primary)]" />
@@ -341,103 +353,79 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-[1180px] w-full border-collapse text-left text-sm">
-                <thead className="border-b border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-xs uppercase text-[var(--text-muted)]">
-                  <tr>
-                    <th className="px-4 py-3 font-semibold">房间</th>
-                    <th className="px-4 py-3 font-semibold">玩家</th>
-                    <th className="px-4 py-3 font-semibold">对局</th>
-                    <th className="px-4 py-3 font-semibold">阶段</th>
-                    <th className="px-4 py-3 font-semibold">最近活动</th>
-                    <th className="px-4 py-3 font-semibold">观战 / 回放</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rooms.map((room, index) => (
-                    <motion.tr
-                      key={room.roomCode}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.18, delay: index * 0.02 }}
-                      className="border-b border-[var(--border-subtle)] align-top last:border-0 hover:bg-[var(--bg-overlay)]/70"
-                    >
-                      <td className="px-4 py-4">
-                        <div className="flex flex-col gap-2">
-                          <div className="font-mono text-lg font-bold text-[var(--text-primary)]">
-                            {room.roomCode}
-                          </div>
-                          <StatusBadge status={room.status} />
-                          <div className="text-xs text-[var(--text-muted)]">
-                            owner {shortId(room.ownerUserId)}
-                          </div>
+            <div className="divide-y divide-[var(--border-subtle)]">
+              {rooms.map((room) => (
+                <article
+                  key={room.roomCode}
+                  className="grid gap-4 px-4 py-4 transition-colors hover:bg-[var(--bg-overlay)]/55 sm:px-5 lg:grid-cols-[minmax(170px,0.72fr)_minmax(270px,1.3fr)_minmax(220px,1fr)_minmax(250px,1fr)] lg:items-start"
+                >
+                  <div className="min-w-0 border-l-2 border-[color:color-mix(in_srgb,var(--accent-primary)_55%,var(--border-subtle))] pl-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-mono text-lg font-bold tracking-wide text-[var(--text-primary)]">
+                        {room.roomCode}
+                      </div>
+                      <StatusBadge status={room.status} />
+                    </div>
+                    {room.match ? (
+                      <div className="mt-3 grid gap-1">
+                        <div className="flex items-center gap-1.5 font-mono text-xs font-semibold text-[var(--text-secondary)]">
+                          <Clock3 size={13} />
+                          {formatDateTime(room.match.startedAt)}
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="grid gap-2">
-                          {room.members.map((member) => (
-                            <MemberRow key={member.userId} member={member} />
-                          ))}
+                        <div className="text-xs text-[var(--accent-primary)]">
+                          已进行 {formatDuration(now - room.match.startedAt)}
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        {room.match ? (
-                          <div className="grid gap-1.5">
-                            <div className="font-mono text-xs text-[var(--text-secondary)]">
-                              {shortId(room.match.matchId)}
-                            </div>
-                            <div className="text-xs text-[var(--text-muted)]">
-                              开始 {formatDateTime(room.match.startedAt)}
-                            </div>
-                            <div className="text-sm font-semibold text-[var(--accent-primary)]">
-                              已持续 {formatDuration(now - room.match.startedAt)}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-[var(--text-muted)]">尚未开始</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        {room.match ? (
-                          <div className="grid gap-1.5 text-sm">
-                            <div className="font-semibold text-[var(--text-primary)]">
-                              {room.match.phase}
-                            </div>
-                            <div className="text-xs text-[var(--text-secondary)]">
-                              {room.match.subPhase}
-                            </div>
-                            <div className="text-xs text-[var(--text-muted)]">
-                              T{room.match.turnCount} · seq {room.match.seq} · active{' '}
-                              {room.match.activeSeat ?? '-'}
-                            </div>
-                          </div>
-                        ) : (
-                          <span className="text-sm text-[var(--text-muted)]">等待准备</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-4">
-                        <div className="grid gap-1.5 text-xs text-[var(--text-muted)]">
-                          <span>房间 {formatRelativeMs(now - room.updatedAt)}</span>
-                          {room.match ? (
-                            <span>对局 {formatRelativeMs(now - room.match.lastActivityAt)}</span>
-                          ) : null}
+                      </div>
+                    ) : (
+                      <div className="mt-3 text-xs text-[var(--text-muted)]">等待对局开始</div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <SectionLabel icon={<Users size={13} />}>玩家</SectionLabel>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                      {room.members.map((member) => (
+                        <MemberRow key={member.userId} member={member} />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <SectionLabel icon={<Activity size={13} />}>对局进度</SectionLabel>
+                    {room.match ? (
+                      <div className="mt-2 grid gap-1.5">
+                        <div className="truncate font-semibold text-[var(--text-primary)]">
+                          {room.match.phase}
                         </div>
-                      </td>
-                      <td className="px-4 py-4">
-                        <RoomMatchOperations
-                          room={room}
-                          exportingMatchId={exportingMatchId}
-                          openingSpectatorKey={openingSpectatorKey}
-                          onOpenSpectatorView={(matchId, seat) =>
-                            void handleOpenSpectatorView(matchId, seat)
-                          }
-                          onExportReplay={(matchId, mode) => void handleExportReplay(matchId, mode)}
-                        />
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
+                        <div className="truncate text-xs text-[var(--text-secondary)]">
+                          {room.match.subPhase}
+                        </div>
+                        <div className="text-xs text-[var(--text-muted)]">
+                          第 {room.match.turnCount} 回合
+                          {room.match.activeSeat
+                            ? ` · ${formatSeatLabel(room.match.activeSeat)}行动`
+                            : ''}
+                        </div>
+                        <div className="text-xs text-[var(--text-muted)]">
+                          最近操作 {formatRelativeMs(now - room.match.lastActivityAt)}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 text-sm text-[var(--text-muted)]">等待双方准备</div>
+                    )}
+                  </div>
+
+                  <RoomMatchOperations
+                    room={room}
+                    exportingMatchId={exportingMatchId}
+                    openingSpectatorKey={openingSpectatorKey}
+                    onOpenSpectatorView={(matchId, seat) =>
+                      void handleOpenSpectatorView(matchId, seat)
+                    }
+                    onExportReplay={(matchId, mode) => void handleExportReplay(matchId, mode)}
+                  />
+                </article>
+              ))}
             </div>
           )}
         </section>
@@ -580,16 +568,11 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   );
 }
 
-function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
+function SectionLabel({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="surface-panel-frosted flex items-center gap-3 p-4">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)]">
-        {icon}
-      </div>
-      <div className="min-w-0">
-        <div className="text-xs text-[var(--text-muted)]">{label}</div>
-        <div className="text-2xl font-bold leading-tight text-[var(--text-primary)]">{value}</div>
-      </div>
+    <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-[var(--text-muted)]">
+      {icon}
+      {children}
     </div>
   );
 }
@@ -608,69 +591,65 @@ function RoomMatchOperations({
   onExportReplay: (matchId: string, mode: 'DOWNLOAD' | 'LOAD') => void;
 }) {
   if (!room.match) {
-    return <span className="text-sm text-[var(--text-muted)]">-</span>;
+    return (
+      <div className="min-w-0">
+        <SectionLabel icon={<Eye size={13} />}>管理操作</SectionLabel>
+        <div className="mt-2 text-sm text-[var(--text-muted)]">对局开始后可观战和导出回放</div>
+      </div>
+    );
   }
 
   const matchId = room.match.matchId;
 
   return (
-    <div className="grid min-w-48 gap-2">
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-2">
-        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-muted)]">
-          <Eye size={13} />
-          玩家视角
-        </div>
-        <div className="grid gap-1.5">
-          {(['FIRST', 'SECOND'] as const).map((seat) => {
-            const member = room.members.find((candidate) => candidate.seat === seat);
-            const spectatorKey = `${matchId}:${seat}`;
-            const loading = openingSpectatorKey === spectatorKey;
-            return (
-              <button
-                key={seat}
-                type="button"
-                onClick={() => onOpenSpectatorView(matchId, seat)}
-                disabled={!member || openingSpectatorKey !== null}
-                title={
-                  member
-                    ? `以${formatSeatLabel(seat)} ${member.displayName} 视角观战，管理员不计入公开观战人数`
-                    : `未找到${formatSeatLabel(seat)}玩家`
-                }
-                className="button-ghost inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 border border-[var(--border-default)] px-2.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? (
-                  <RefreshCw size={14} className="animate-spin" />
-                ) : (
-                  <ExternalLink size={14} />
-                )}
-                <span className="min-w-0 truncate">
-                  {formatSeatLabel(seat)}
-                  {member ? ` · ${member.displayName}` : ''}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+    <div className="min-w-0">
+      <SectionLabel icon={<Eye size={13} />}>管理操作</SectionLabel>
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        {(['FIRST', 'SECOND'] as const).map((seat) => {
+          const member = room.members.find((candidate) => candidate.seat === seat);
+          const spectatorKey = `${matchId}:${seat}`;
+          const loading = openingSpectatorKey === spectatorKey;
+          return (
+            <button
+              key={seat}
+              type="button"
+              onClick={() => onOpenSpectatorView(matchId, seat)}
+              disabled={!member || openingSpectatorKey !== null}
+              title={
+                member
+                  ? `以${formatSeatLabel(seat)} ${member.displayName} 视角观战，管理员不计入公开观战人数`
+                  : `未找到${formatSeatLabel(seat)}玩家`
+              }
+              className="button-ghost inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 border border-[var(--border-default)] px-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {loading ? (
+                <RefreshCw size={14} className="animate-spin" />
+              ) : (
+                <ExternalLink size={14} />
+              )}
+              <span className="truncate">{formatSeatLabel(seat)}视角</span>
+            </button>
+          );
+        })}
       </div>
-
-      <div className="grid grid-cols-2 gap-2">
+      <div className="mt-2 flex items-center gap-2">
         <button
           type="button"
           onClick={() => onExportReplay(matchId, 'LOAD')}
           disabled={exportingMatchId === matchId}
-          className="button-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold disabled:opacity-50"
+          className="button-ghost inline-flex min-h-8 flex-1 items-center justify-center gap-1.5 px-2 text-xs text-[var(--text-secondary)] disabled:opacity-50"
         >
           <Eye size={14} />
-          载入
+          载入回放
         </button>
         <button
           type="button"
           onClick={() => onExportReplay(matchId, 'DOWNLOAD')}
           disabled={exportingMatchId === matchId}
-          className="button-ghost inline-flex min-h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs disabled:opacity-50"
+          className="button-ghost inline-flex min-h-8 flex-1 items-center justify-center gap-1.5 px-2 text-xs text-[var(--text-secondary)] disabled:opacity-50"
         >
           <Download size={14} />
-          导出
+          导出回放
         </button>
       </div>
     </div>
@@ -824,34 +803,29 @@ function StatusBadge({ status }: { status: OnlineRoomStatus }) {
 }
 
 function MemberRow({ member }: { member: OnlineAdminRoomMemberSummary }) {
+  const seatOrRole = member.seat
+    ? formatSeatLabel(member.seat)
+    : member.role === 'HOST'
+      ? '房主'
+      : '参与者';
+
   return (
-    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2">
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate font-semibold text-[var(--text-primary)]">
-            {member.displayName}
-          </div>
-          <div className="font-mono text-xs text-[var(--text-muted)]">{shortId(member.userId)}</div>
+    <div className="flex min-w-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+          member.presence === 'ACTIVE' ? 'bg-[var(--semantic-success)]' : 'bg-[var(--text-muted)]'
+        }`}
+        title={member.presence === 'ACTIVE' ? '在线' : '失联'}
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+          {member.displayName}
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className="rounded-full border border-[var(--border-default)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
-            {member.seat ?? member.role}
-          </span>
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${
-              member.presence === 'ACTIVE'
-                ? 'bg-[var(--semantic-success)]'
-                : 'bg-[var(--text-muted)]'
-            }`}
-            title={member.presence === 'ACTIVE' ? '在线' : '失联'}
-          />
+        <div className="mt-0.5 text-xs text-[var(--text-muted)]">
+          {seatOrRole}
+          {` · ${member.lockedDeckName ? '卡组已锁定' : '未锁定卡组'}`}
+          {!member.seat ? ` · ${member.ready ? '已就绪' : '待准备'}` : ''}
         </div>
-      </div>
-      <div className="mt-2 flex min-w-0 flex-wrap gap-1.5 text-xs">
-        <span className="chip-badge max-w-full truncate px-2 py-1">
-          {member.lockedDeckName ?? '未锁定卡组'}
-        </span>
-        <span className="chip-badge px-2 py-1">{member.ready ? 'ready' : 'pending'}</span>
       </div>
     </div>
   );
@@ -865,6 +839,14 @@ function formatDateTime(value: number): string {
   return new Intl.DateTimeFormat('zh-CN', {
     month: '2-digit',
     day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(value));
+}
+
+function formatClockTime(value: number): string {
+  return new Intl.DateTimeFormat('zh-CN', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',

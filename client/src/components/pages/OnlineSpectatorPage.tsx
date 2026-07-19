@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Eye, Loader2, ScrollText, SwitchCamera } from 'lucide-react';
+import { ArrowLeft, Eye, Loader2, SwitchCamera } from 'lucide-react';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { ThemeToggle } from '@/components/common';
@@ -342,10 +342,6 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
       ) : (
         <GameBoard showDesktopPublicBattleLogButton={false} />
       )}
-      <div className="absolute bottom-4 left-4 z-[90] hidden items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:inline-flex">
-        <ScrollText size={14} />
-        只读观战
-      </div>
     </BattleViewportShell>
   );
 }

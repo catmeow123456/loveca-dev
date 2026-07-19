@@ -2092,10 +2092,19 @@ describe('OnlineRoomService', () => {
     await service.lockDeck('game1', 'u6', 'deck-f');
     const started = await startRoomThroughOpening(service, 'game1', 'u5', 'u6', 'u6');
 
-    now += 12_000;
+    now += 1_000;
+
+    await service.createRoom('game2', 'u7');
+    await service.joinRoom('game2', 'u8');
+    await service.lockDeck('game2', 'u7', 'deck-g');
+    await service.lockDeck('game2', 'u8', 'deck-h');
+    await startRoomThroughOpening(service, 'game2', 'u7', 'u8', 'u7');
+
+    now += 11_000;
+    service.touchInGameMemberByMatch(started.matchId!, 'u5');
 
     const summaries = await service.listAdminRoomSummaries();
-    expect(summaries.map((room) => room.roomCode).sort()).toEqual(['GAME1', 'PREP1', 'READY1']);
+    expect(summaries.map((room) => room.roomCode)).toEqual(['GAME1', 'GAME2', 'PREP1', 'READY1']);
 
     const gameSummary = summaries.find((room) => room.roomCode === 'GAME1');
     expect(gameSummary?.status).toBe('IN_GAME');

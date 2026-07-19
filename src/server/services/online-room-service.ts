@@ -754,11 +754,22 @@ export class OnlineRoomService {
     const now = this.now();
     return [...this.rooms.values()]
       .filter((room) => room.members.length > 0)
-      .sort(
-        (left, right) =>
-          right.updatedAt - left.updatedAt || left.roomCode.localeCompare(right.roomCode)
-      )
-      .map((room) => this.buildAdminRoomSummary(room, now));
+      .map((room) => this.buildAdminRoomSummary(room, now))
+      .sort((left, right) => {
+        if (left.match && right.match) {
+          return (
+            left.match.startedAt - right.match.startedAt ||
+            left.roomCode.localeCompare(right.roomCode)
+          );
+        }
+        if (left.match) {
+          return -1;
+        }
+        if (right.match) {
+          return 1;
+        }
+        return left.roomCode.localeCompare(right.roomCode);
+      });
   }
 
   clear(): void {
