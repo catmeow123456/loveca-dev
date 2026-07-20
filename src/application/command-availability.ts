@@ -6,6 +6,7 @@ import { isUserActionRequired } from '../shared/phase-config/sub-phase-registry.
 export const MAIN_PHASE_MANUAL_COMMAND_TYPES: readonly GameCommandType[] = [
   GameCommandType.OPEN_INSPECTION,
   GameCommandType.PLAY_MEMBER_TO_SLOT,
+  GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY,
   GameCommandType.TAP_MEMBER,
   GameCommandType.TAP_ENERGY,
   GameCommandType.MOVE_TABLE_CARD,

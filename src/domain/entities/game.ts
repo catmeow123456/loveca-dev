@@ -87,7 +87,8 @@ export type GameActionType =
   | 'RESOLVE_ABILITY'
   | 'RULE_ACTION'
   | 'TAP_MEMBER'
-  | 'TAP_ENERGY';
+  | 'TAP_ENERGY'
+  | 'SPECIAL_MEMBER_PLAY';
 
 /**
  * 游戏动作记录
@@ -142,6 +143,15 @@ export interface MemberEffectActivationProhibitionState {
   readonly abilityId: string;
   readonly createdTurnCount: number;
   readonly expiresAt: 'TURN_END';
+}
+
+export interface MemberWaitProtectionState {
+  readonly affectedPlayerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly expiresAt: 'LIVE_END';
+  readonly memberGroupAlias: 'Aqours';
+  readonly maxPrintedBlade: 3;
 }
 
 export interface LiveSetLimitReductionState {
@@ -651,6 +661,17 @@ export interface PendingCostPaymentState {
   readonly explanation?: string;
 }
 
+export interface PendingSpecialMemberPlayState {
+  readonly id: string;
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly targetSlot: SlotPosition;
+  readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
+  readonly printedCost: 15;
+  readonly specialPlayCost: 10;
+  readonly candidateCardIds: readonly string[];
+}
+
 // ============================================
 // 游戏状态定义
 // ============================================
@@ -753,6 +774,9 @@ export interface GameState {
    */
   readonly pendingCostPayment: PendingCostPaymentState | null;
 
+  /** Optional for authority checkpoints created before the narrow special-play boundary. */
+  readonly pendingSpecialMemberPlay?: PendingSpecialMemberPlayState | null;
+
   /**
    * 用户操作历史栈（用于撤销功能）
    */
@@ -804,6 +828,8 @@ export interface GameState {
   readonly energyActivePhaseSkips?: readonly EnergyActivePhaseSkipState[];
   /** 本回合内禁止卡牌效果使指定玩家的待机成员变为活跃。 */
   readonly memberEffectActivationProhibitions?: readonly MemberEffectActivationProhibitionState[];
+  /** Opponent card effects cannot wait matching current top-level stage members until LIVE_END. */
+  readonly memberWaitProtections?: readonly MemberWaitProtectionState[];
   /**
    * 卡效造成的“下一次 LIVE 卡设置阶段可放置张数上限减少”标记。
    */
@@ -926,6 +952,7 @@ export function createGameState(
     pendingChoice: null,
     activeEffect: null,
     pendingCostPayment: null,
+    pendingSpecialMemberPlay: null,
     operationHistory: [],
     liveSetCardIds: new Map(),
 
@@ -938,6 +965,7 @@ export function createGameState(
     memberActivePhaseSkips: [],
     energyActivePhaseSkips: [],
     memberEffectActivationProhibitions: [],
+    memberWaitProtections: [],
     liveSetLimitReductions: [],
 
     isStarted: false,
@@ -1007,7 +1035,8 @@ export function hasPendingAbilityOrChoice(game: GameState): boolean {
     game.pendingAbilities.length > 0 ||
     game.pendingChoice !== null ||
     game.activeEffect !== null ||
-    game.pendingCostPayment !== null
+    game.pendingCostPayment !== null ||
+    (game.pendingSpecialMemberPlay ?? null) !== null
   );
 }
 

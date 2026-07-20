@@ -27,7 +27,7 @@
 | `src/application/effects/cheer.ts` | `E06` | 声援公开权威 helper：每次取牌前/后处理即时 refresh，按 `getCheerDeckEdgeForPlayer` 从 TOP 或 BOTTOM 单张公开到解决区，登记 current cheer facts，写入含 `deckEdge` 的 `CheerEvent` 与 `CHEER` action。普通/手动/自动/追加/重做共用入口；`replaceCurrentCheerCards=true` 仍只替换当前玩家 IDs，additional 仍不二次触发 ON_CHEER。当前 BOTTOM 真实样本仅 `PL!S-bp7-022-SECL`，不是任意方向 DSL。 | `PL!HS-bp6-027` 分数 5「月夜見海月」、`PL!S-bp2-004` 费用 11「黒澤ダイヤ」、`PL!S-bp7-022-SECL` 分数 8「想在水族馆恋爱」 |
 | `src/application/effects/draw.ts` + `src/application/card-effects/runtime/actions.ts` + `src/application/card-effects/workflows/shared/draw-then-discard.ts` | `F01,F02` | `drawCardsFromMainDeckToHand` 提供底层卡效抽牌语义；`runtime/actions.ts` 承接 `drawCardsForPlayer` / `drawCardsForEachPlayer` 与 exact-count 手札弃置到休息室 helper；`draw-then-discard.ts` 已承接抽 N 后弃 M 的 activeEffect workflow，`PL!HS-pb1-009` 的 BLADE 阈值前置由窄 card workflow 包装。纯抽牌如 `PL!-pb1-015` 仍只走 draw action helper，不并入抽后弃 family。 | `PL!N-bp4-018` 费用 7「近江彼方」、`PL!-pb1-015` 费用 7「西木野真姬」、`PL!SP-bp4-008` 费用 13「若菜四季」、`PL!HS-bp1-006` 费用 11「藤岛 慈」、`PL!HS-pb1-009` 费用 15「日野下花帆」、`PL!-bp5-007` 费用 13「东条希」 |
 | `src/application/effects/energy.ts` | `E02,E03` | 提供卡效步骤的 `placeEnergyFromDeckToZone`、`setEnergyOrientation`、`setFirstEnergyCardsOrientation`。普通能量阶段默认放置逻辑不并入此 helper。 | `PL!SP-PR-004` 费用 4「唐 可可」、`PL!-bp5-005` 费用 10「星空凛」、`PL!SP-bp4-008` 费用 13「若菜四季」、`PL!SP-bp5-003` 费用 17「岚 千砂都」、`PL!N-pb1-008` 费用 17「艾玛·维尔德」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-sd1-006` 费用 15「安养寺姬芽」 |
-| `src/application/effects/member-state.ts` | `S01,S02,S05,S07,S09` | 提供 `setMemberOrientation` / `setMembersOrientation`、`moveMemberBetweenSlots` 与 `playMembersFromWaitingRoomToEmptySlots`。方向改变会写入 `ON_MEMBER_STATE_CHANGED` eventLog，事件可携带玩家操作、规则处理或卡片效果来源；成员区空槽移动/交换会写入 `ON_MEMBER_SLOT_MOVED` eventLog，并继续记录 `positionMovedThisTurn`；卡效从休息室登场会写入 `ON_ENTER_STAGE` eventLog。普通 `TAP_MEMBER` / 活跃阶段重置 / `MOVE_MEMBER_TO_SLOT` 也写入同族事件；`enqueueTriggeredCardEffects` 已消费成员状态变化、成员槽位移动与登场事件。 | `PL!N-bp4-018` 费用 7「近江彼方」、`PL!-pb1-015` 费用 7「西木野真姬」、`PL!N-pb1-004` 费用 11「朝香果林」、`PL!SP-bp4-008` 费用 13「若菜四季」、`PL!SP-bp4-011` 费用 7「鬼冢冬毬」、`PL!SP-bp5-003` 费用 17「岚 千砂都」、`PL!N-pb1-008` 费用 17「艾玛·维尔德」、`PL!S-bp2-006` 费用 11「津岛善子」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-bp5-003` 费用 2「大泽瑠璃乃」、`PL!HS-bp6-004` 费用 13「百生 吟子」 |
+| `src/application/effects/member-state.ts` + `src/domain/rules/member-wait-protections.ts` | `S01,S02,S05,S07,S09` | 提供成员方向、站位移动/交换与休息室登场原语。方向改变会写入 `ON_MEMBER_STATE_CHANGED`；CARD_EFFECT cause 可选记录实际选择玩家，并与效果控制者分离。费用4「松浦果南」新增的窄 LIVE_END 待机保护只在公共状态变化边界检查，不过滤可选成员；它动态读取当前顶层结构化 Aqours 与印刷 BLADE <=3，并明确区分既有活跃禁止和新待机保护的阻止结果。成员区移动继续写 `ON_MEMBER_SLOT_MOVED` 与 `positionMovedThisTurn`。 | 既有成员状态/移动样本；`PL!S-bp7-003-SEC`；费用15「セラス 柳田 リリエンフェルト」真实选择玩家 QA。该状态不是任意免疫或 protection DSL。 |
 | `src/domain/rules/live-modifiers.ts` + `src/application/card-effects/runtime/actions.ts` | `T05,B01,B02,B03,B05,B06,B07,B08` | `collectLiveModifiers` 是 Live 判定读路径；`addLiveModifier` / `replaceLiveModifier` 是临时 Live 修正主写入路径；`runtime/actions.ts` 另提供 `addBladeLiveModifierForSourceMember`，只收束 source member BLADE 写入，不处理费用、弃手、公开、洗回、成功区判断或 action payload。legacy maps 作为兼容投影。`SCORE` 不带 `liveCardId` 表示玩家 LIVE 合计分数，带 `liveCardId` 表示此 Live 卡分数；`HEART` 支持 `target: SOURCE_MEMBER` 与窄 `target: TARGET_MEMBER`，均由 `getMemberEffectiveHeartIcons` 在读取对应成员时合并，不投影到 `playerHeartBonuses`；`REQUIREMENT` 可由 LIVE 开始临时修正或成功区 LIVE 常时来源动态投影；最终分数草案只有在该玩家至少一首 LIVE 成功时才应用玩家合计分数修正，全部失败时仍为 0。Continuous modifier registry 也支持基础编号匹配；`PL!-bp5-008` 通过成功 LIVE 分数合计条件动态投影 SOURCE_MEMBER 黄 Heart +2；`PL!-bp5-003` 通过舞台 3 名以上不同名成员条件动态投影 SOURCE_MEMBER 黄 Heart +1；`PL!-bp4-002` 通过自己的 LIVE 是否存在不持有 LIVE 开始/成功能力的 LIVE 动态投影 SOURCE_MEMBER 紫 Heart +2；`PL!-bp6-022` 通过成功区 LIVE 来源动态投影原本分数>=5的 μ's LIVE 必要无色 Heart -2 且不叠加；`PL!N-pb1-004` 通过 `positionMovedThisTurn` 区分登场与位置移动。`PL!HS-bp6-031` 指定目标成员 BLADE 与 reveal-hand helper 仍暂缓。 | `LL-bp1-001` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-004` 费用 11「朝香果林」、`PL!-sd1-001` 费用 7「高坂穗乃果」、`PL!-bp4-002` 费用 15「绚濑绘里」、`PL!-bp5-003` 费用 11「南琴梨」、`PL!-bp5-008` 费用 13「小泉花阳」、`PL!-bp6-022` 分数 9「Dreamin' Go! Go!!」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp1-006` 费用 11「藤岛 慈」、`PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp5-003` 费用 2「大泽瑠璃乃」、`PL!HS-pb1-009` 费用 15「日野下花帆」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-bp5-019` 分数 6「花结」、`PL!HS-bp2-022` 分数 2「アオクハルカ」、`PL!HS-sd1-006` 费用 15「安养寺姬芽」、`PL!HS-PR-019` 费用 2「百生吟子」 |
 | `src/domain/rules/live-requirement-modifiers.ts` | `B07` | `applyHeartRequirementModifiers` 负责彩色/泛用/All/Rainbow 必要 Heart 数学。`PL!-sd1-022` 分数 4「僕らは今のなかで」与 `PL!HS-bp5-019` 分数 6「花结」等 LIVE 开始 requirement 写入已由 `workflows/shared/conditional-live-modifier.ts` 承载；该 helper 不处理费用、选择或完整 modifier DSL。 | `PL!-sd1-022` 分数 4「僕らは今のなかで」、`PL!HS-bp5-019` 分数 6「花结」 |
 | `src/domain/rules/cost-calculator.ts` | `X08,X11` | 生成成员登场支付方案前先计算登场费用修正；当前支持手牌中自身按其他手牌数量减费、手牌中自身按舞台成员状态/团体条件减费，以及舞台来源修正其他手牌登场费用。换手减免可读取调用方传入的舞台成员有效费用，未传入时仍回落到印刷费用；费用修正也使用基础编号匹配。`canMemberBeRelayedAway` 先覆盖换手禁止 proving path，实际登场 handler 也会二次拦截。 | `LL-bp2-001` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!N-pb1-008` 费用 17「艾玛·维尔德」、`PL!SP-bp5-003` 费用 17「岚 千砂都」、`PL!-bp4-008` 费用 4「小泉花阳」 |
@@ -94,3 +94,25 @@
 | replacement 事件绑定 | `PL!N-bp7-019-N` | 只消费真实 LeaveStageEvent 的 replacingCardId，来源结算时不必仍在休息室；replacement 必须为当前顶层结构化虹咲成员。 |
 
 energyBelow 继续随主成员移动/交换，并在离场、换手或替换时由既有清理路径返回能量卡组。below 放置不发仅表示放置入能量区的事件。本表不宣称任意 below DSL 或完整能量事件体系。
+
+# 2026-07-19 BP7 七弹第一批卡效覆盖
+
+| 边界 | exact 样本 | 覆盖状态 |
+| --- | --- | --- |
+| 支付能量后私密检视并全部有序回顶 | `PL!N-bp7-006-SEC` 第一段 | 复用标准能量支付、inspection 和 ordered-top；只有支付成功才消耗独立 turn1。确认重验 inspection owner、卡集合、覆盖和顺序，对手不投影卡号或顺序。 |
+| exact 顶牌作为费用并保留事件事实 | `PL!N-bp7-006-SEC` 第二段 | `moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers`；当前主卡组不足3张则不可支付，不通过刷新补足。恰好3张时移动后执行规则刷新，条件与公开展示仍只读该 grouped event 保存的 moved IDs。未命中用真实公开结果窗口阻断 continuation；命中由现有二选一窗口兼任公开展示，不产生双弹窗。 |
+| 结构化移动结果命中与强制二选一 | `PL!N-bp7-006-SEC` 第二段 | 团体、LIVE/MEMBER 与 BLADE HEART 分别走 selector/query；不扫休息室。能量分支复用通用 WAITING 能量活跃和 marker 精确选择；BLADE 分支复用真实来源成员实例的 LIVE_END modifier。二选一提交按钮明确为“结算所选效果”。 |
+| 多 owner 同一 refresh-aware direct-mill 效果 | `PL!N-bp7-009-P` | `moveTopDeckCardsForPlayersWithRefreshAndEnqueueTriggers`；每位玩家独立 owner/moved IDs/refresh count/grouped event，主动玩家先处理规则刷新。全部移动完成并统一 enqueue 后只开一个真实公开结果窗口，双方 projector 读取相同的实际移动卡并集；展示可去重，metadata/action/event 保留各 owner 原始顺序及重复事实。确认后只推进一次 continuation；双方均0张时直接结束。 |
+
+本表只说明两个窄 runtime 边界及其两张 exact 样本，不表示所有 direct-mill、多玩家效果或费用 pipeline 已配置化。
+
+# 2026-07-20 LL-bp7-001-R+ 覆盖
+
+| 边界 | exact 样本 | 覆盖状态 |
+| --- | --- | --- |
+| 姓名一对一最大分配 | `LL-bp7-001-R+` | shared identity query；联合名成员每张最多占一槽，不依赖贪心候选顺序。 |
+| 可复水特殊登场 | `LL-bp7-001-R+` | exact pending/command/projector；对手仅等待态，旧 payload 缺字段安全默认。 |
+| 单次 play 费用基准10 | `LL-bp7-001-R+` | 服务端窄输入；登场后仍是印刷/有效费用15，不写持久修正。 |
+| 休息室回收 | 登场LIVE / LIVE成功成员 | 扩展既有 `waiting-room-to-hand` 与 public confirmation family。 |
+
+不表示通用替代费用、任意指定姓名支付或特殊登场 DSL 已完成。

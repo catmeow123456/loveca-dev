@@ -234,6 +234,7 @@ export interface PlayerViewState {
   readonly permissions: PermissionViewState;
   readonly activeEffect?: ActiveEffectViewState | null;
   readonly pendingCostPayment?: PendingCostPaymentViewState | null;
+  readonly pendingSpecialMemberPlay?: PendingSpecialMemberPlayViewState | null;
   readonly uiHints?: UiHintViewState;
 }
 
@@ -299,6 +300,21 @@ export interface PendingCostPaymentViewState {
   readonly replacedMemberObjectId: string | null;
   readonly payableEnergyObjectIds: readonly string[];
   readonly explanation?: string;
+}
+
+export interface PendingSpecialMemberPlayViewState {
+  readonly id: string;
+  readonly playerSeat: Seat | null;
+  readonly waiting: true;
+  readonly mode?: 'LL_BP7_001_SPECIAL_PLAY';
+  readonly sourceObjectId?: string;
+  readonly targetSlot?: string;
+  readonly candidateObjectIds?: readonly string[];
+  readonly minSelectableObjects?: 3;
+  readonly maxSelectableObjects?: 3;
+  readonly stepText?: string;
+  readonly selectionLabel?: string;
+  readonly confirmSelectionLabel?: string;
 }
 
 export interface PublicCardInfo {

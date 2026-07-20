@@ -1,6 +1,40 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-19
+更新时间：2026-07-20
+
+## 2026-07-20：选择性能量活跃分支修正（未提交）
+
+- 修正 `PL!N-bp7-005-P` 费用11「宫下爱」：“将2张能量变为活跃状态”分支的可选性改为检查能量区是否有卡，不再错误要求存在 WAITING 能量；能量全部已 ACTIVE 时仍可选该分支，并以0张实际变化正常结束。只有展示后能量区真实变空才记录 stale no-op。
+- 盘点全部四条已实现的“多选一中活跃能量”路径：`PL!N-pb1-008-P+` 费用17「艾玛·维尔德」存在同类 WAITING 过滤并已同步修正；`PL!N-bp7-006-SEC` 费用17「近江彼方」与 `PL!N-pb1-010` 费用4「三船栞子」原本就允许0张实际变化，本轮只补全部 ACTIVE 回归。支付 `[E]` 的活跃能量门禁与无选择的自动活跃效果均未改动。
+- 追加修正 `PL!N-bp4-008-R / P` 费用5「艾玛·维尔德」：能量区有卡时，弃1手起动能力的“将1张能量变为活跃状态”处理方向不再因全部 ACTIVE 而消失；若没有 WAITING 能量，选择该方向后直接以0张实际状态变化结束，不展示 ACTIVE 能量目标。能量与待机虹咲成员方向同时存在时先选方向，只有确有 WAITING 能量时才进入具体能量选择。
+- 四条分支、能量 runtime 与卡效 runtime 定向6文件/97项通过；追加艾玛修正后的 focused、classification、runtime、energy 与 `sample-card-effect-runner` 共5文件/508项通过，服务端/客户端 TypeScript 通过。未 stage/commit/push。
+
+## 2026-07-20：BP7 公开窗口与多效果 UI 修正（未提交）
+
+- `PL!N-bp7-009-P` 费用4「天王寺璃奈」保持双方顶7各自移动、独立 owner 事件与统一 continuation，仅将公开展示改为“发动方结果 -> 对方结果”两个连续窗口；两次均固定由效果发动方确认，空结果不建空窗口，第二次确认前不推进后续 waiting-room pending。
+- 起动能力菜单移入全局 portal 图层，保留卡牌锚点并限制在视口可用高度内滚动，不再被对方半场的 overflow / stacking context 裁切或遮挡。同时点多效果顺序窗口改为纵向整行选项和左对齐文字，长卡文自然换行。
+- focused N009/S003/N006/runtime 与 projector/replay/direct-mill 两批定向回归共161项通过（含 N009 重复验证）；服务端与客户端 TypeScript 通过。未修改其他 BP7 卡效逻辑，未 stage/commit/push。
+
+## 2026-07-19：BP7 费用4「松浦果南」三段卡效（未提交）
+
+- exact 实现 `PL!S-bp7-003-SEC` 三条独立 queued ability identity：登场检视顶1可置底、LIVE 开始检视顶1可置底、登场在“本次 LIVE 结束前的成员待机保护”与“自身移动到 Aqours / Saint Snow 成员所在区域”之间强制选择。两条登场能力保持统一 ordered pending，由玩家决定结算顺序。
+- 检视段复用私密 inspection 与标准 continuation；保留时回到刷新后主卡组顶，置底时只在 `MAIN_DECK` 内重排，不公开、不写 `revealedCardIds`、不产生休息室事件。空主卡组沿用标准 refresh，双方牌库均空则不建立空窗口。
+- 待机保护落在 `member-state` 状态变化规则边界：动态检查当前顶层 Aqours 与印刷 BLADE <=3，不过滤候选；`CARD_EFFECT` 的控制者与实际选择玩家分别记录。对方决定的待机变化被阻止，受影响玩家自己选择时不阻止，因此费用15「セラス 柳田 リリエンフェルト」真实 AUTO 路径可正常待机并记录两项事实。保护不随来源离场，真实 `LIVE_END` 清理。
+- 站位目标区域复用从 `PL!S-bp5-111 / 222` 既有支付能量站位流程抽出的纯 query，并用标准交换/移动事件 wrapper；没有建立任意免疫、保护、数值比较或站位 DSL。本轮未修改其他 BP7 单卡、卡牌数据或 `llocg_db`。
+
+## 2026-07-19：BP7 第二批单卡 PL!N-bp7-027-L（未提交）
+
+- exact 实现 `PL!N-bp7-027-L` 分数2「オードリー / 奥黛丽」：LIVE 成功时只从己方三个主舞台顶层选择结构化虹咲成员；0目标安全结束、1目标自动结算、多目标打开公开且不可跳过的真实单选窗口。
+- 结算时用同一个 `collectLiveModifiers` snapshot 计算所选成员与双方全部其他顶层成员的 `getMemberEffectiveBladeCount`；ACTIVE/WAITING、临时 BLADE 与原本 BLADE replacement 均计入，memberBelow 不计，严格大于且空比较集合成立。
+- 条件成立时以来源 LIVE 实例和独立 ability identity replacement 写 SCORE +1，并按旧新差值同步 `liveResolution.playerScores`；来源/目标 stale 安全 no-op，目标同实例移槽继续跟随，action payload 保存目标、双方比较事实、条件与加分结果。
+- 本轮只新增单卡 workflow 与 focused test，不新增 runtime helper/shared family，不修改其他 BP7 卡牌、卡牌数据或 `llocg_db`。
+
+## 2026-07-19：BP7 七弹第一批公开展示审查修正（未提交）
+
+- 修正 exact `PL!N-bp7-006-SEC` 费用17「近江彼方」顶3费用的公开结果：命中继续由强制二选一窗口同时展示实际 `movedCardIds`，未命中则打开单一“确认公开结果”窗口；恰好3张且支付后刷新时也只读取费用事件保存的原始移动事实，确认前不 continuation。
+- 修正 exact `PL!N-bp7-009-P` 费用4「天王寺璃奈」双方顶7：移除移动前 confirm-only，双方 refresh-aware 移动和两个独立 owner grouped event 全部建立后，再打开一个真实公开结果窗口；双方均无实际移动时直接结束。
+- 两个窄 runtime 边界不变：006 仍是“足额主卡组精确顶牌费用 + 移动后规则刷新”，009 仍是“多 owner 同一效果全部移动后统一 enqueue”。公开展示集合允许按实例去重，metadata/action/event 中每位玩家的原始顺序与重复事实完整保留；未扩成 direct-mill DSL。
+- 本轮 focused + 相关 direct-mill/projector/pending 回归：11 files / 369 tests passed；本批四个 workflow/test 文件 ESLint 通过，`tsc --noEmit` 与 `tsc -b client` 通过，未 stage/commit/push。
 
 ## 2026-07-19：联机观战 429 轮询与自动恢复闭环（未提交）
 
@@ -1758,3 +1792,10 @@ git diff --check
 - 子模块 `llocg_db` 里可能有本地未跟踪 `.DS_Store`，不要提交。
 - 旧日期进度文档只作为 git 历史中的施工日志保留；新窗口应以本文件为当前事实。
 - 本地测试端口目前按 `5173` 使用；如果页面没热更新，先确认实际 Vite 端口。
+
+## 2026-07-20 LL-bp7-001-R+ 收口
+
+- exact 三条 definition、可复水 `pendingSpecialMemberPlay` 与 begin/confirm/cancel 命令已落地；区域选定后才建私密选卡窗口，对手只见等待态，旧 checkpoint 缺字段安全默认为无窗口。
+- 确认时重验 exact 来源、目标、三姓名最大分配、弃置后手牌和费用方案，再原子完成 grouped 弃手、10费正常支付、普通单换手与登场；登场后无其他修正时有效费用为15。
+- 两段回收只扩展既有 `waiting-room-to-hand` family。本批不宣称通用替代费用、任意姓名支付或特殊登场 DSL 已完成。
+- 审查收紧：BEGIN 权威端现拒绝未结算 effect/pending/check timing/inspection/delegated sequence；已占区域的费用查询显式绑定普通 `SINGLE` 换手，并以0费换手目标回归锁定移动、PAY_COST、公开事件与 sealed audit 一致。

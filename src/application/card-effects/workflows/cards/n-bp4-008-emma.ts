@@ -8,7 +8,10 @@ import {
 import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
-import { setEnergyOrientation } from '../../../effects/energy.js';
+import {
+  getEnergyCardIdsByOrientation,
+  setEnergyOrientation,
+} from '../../../effects/energy.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import {
@@ -29,7 +32,10 @@ import {
 import { PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID } from '../../ability-ids.js';
 
 const SELECT_DISCARD_STEP_ID = 'PL_N_BP4_008_SELECT_DISCARD_COST';
+const SELECT_TARGET_TYPE_STEP_ID = 'PL_N_BP4_008_SELECT_TARGET_TYPE';
 const SELECT_ACTIVE_TARGET_STEP_ID = 'PL_N_BP4_008_SELECT_ACTIVE_TARGET';
+const ACTIVATE_ENERGY_OPTION_ID = 'activate-energy';
+const ACTIVATE_MEMBER_OPTION_ID = 'activate-nijigasaki-member';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForEnterWaitingRoom &
@@ -52,6 +58,16 @@ export function registerNBp4008EmmaWorkflowHandlers(deps: {
         game,
         input.selectedCardId ?? null,
         deps.enqueueTriggeredCardEffects,
+        context.continuePendingCardEffects
+      )
+  );
+  registerActiveEffectStepHandler(
+    PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID,
+    SELECT_TARGET_TYPE_STEP_ID,
+    (game, input, context) =>
+      finishEmmaTargetTypeSelection(
+        game,
+        input.selectedOptionId ?? null,
         context.continuePendingCardEffects
       )
   );
@@ -86,7 +102,7 @@ function startEmmaActivatedWorkflow(
     sourceSlot === null ||
     !isEmmaSourceOnOwnStage(game, player.id, sourceCardId) ||
     player.hand.cardIds.length === 0 ||
-    getActiveTargetIds(game, player.id).length === 0
+    getActivationTypeOptions(game, player.id).length === 0
   ) {
     return game;
   }
@@ -158,7 +174,7 @@ function finishEmmaDiscardCost(
     !selectedCardId ||
     effect.selectableCardIds?.includes(selectedCardId) !== true ||
     !player.hand.cardIds.includes(selectedCardId) ||
-    getActiveTargetIds(game, player.id).length === 0
+    getActivationTypeOptions(game, player.id).length === 0
   ) {
     return game;
   }
@@ -187,8 +203,8 @@ function finishEmmaDiscardCost(
     sourceCardId: effect.sourceCardId,
   });
 
-  const selectableCardIds = getActiveTargetIds(state, player.id);
-  if (selectableCardIds.length === 0) {
+  const selectableOptions = getActivationTypeOptions(state, player.id);
+  if (selectableOptions.length === 0) {
     return continuePendingCardEffects(
       addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
         abilityId: effect.abilityId,
@@ -203,22 +219,35 @@ function finishEmmaDiscardCost(
     );
   }
 
+  const effectAfterDiscard = {
+    ...effect,
+    metadata: {
+      ...effect.metadata,
+      discardedCardIds: discardResult.discardedCardIds,
+    },
+  };
+  if (selectableOptions.length === 1) {
+    return beginEmmaTargetSelection(
+      { ...state, activeEffect: effectAfterDiscard },
+      effectAfterDiscard,
+      selectableOptions[0]!.id,
+      continuePendingCardEffects
+    );
+  }
+
   return addAction(
     {
       ...state,
       activeEffect: {
-        ...effect,
-        stepId: SELECT_ACTIVE_TARGET_STEP_ID,
-        stepText: '请选择1张待机状态能量或1名待机状态「虹咲」成员变为活跃状态。',
-        selectableCardIds,
-        selectableCardVisibility: 'PUBLIC',
-        selectionLabel: '选择变为活跃状态的目标',
-        confirmSelectionLabel: '变为活跃状态',
+        ...effectAfterDiscard,
+        stepId: SELECT_TARGET_TYPE_STEP_ID,
+        stepText: '请选择要执行的效果。',
+        selectableCardIds: undefined,
+        selectableCardVisibility: undefined,
+        selectableOptions,
+        selectionLabel: undefined,
+        confirmSelectionLabel: '确定',
         canSkipSelection: false,
-        metadata: {
-          ...effect.metadata,
-          discardedCardIds: discardResult.discardedCardIds,
-        },
       },
     },
     'RESOLVE_ABILITY',
@@ -227,10 +256,131 @@ function finishEmmaDiscardCost(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       sourceSlot: effect.metadata?.sourceSlot ?? null,
-      step: 'DISCARD_COST_SELECT_ACTIVE_TARGET',
+      step: 'DISCARD_COST_SELECT_TARGET_TYPE',
       discardedCardIds: discardResult.discardedCardIds,
+      selectableOptionIds: selectableOptions.map((option) => option.id),
+    }
+  );
+}
+
+function finishEmmaTargetTypeSelection(
+  game: GameState,
+  selectedOptionId: string | null,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !==
+      PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID ||
+    effect.stepId !== SELECT_TARGET_TYPE_STEP_ID ||
+    !selectedOptionId ||
+    effect.selectableOptions?.some((option) => option.id === selectedOptionId) !== true
+  ) {
+    return game;
+  }
+  return beginEmmaTargetSelection(
+    game,
+    effect,
+    selectedOptionId,
+    continuePendingCardEffects
+  );
+}
+
+function beginEmmaTargetSelection(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  selectedOptionId: string,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) return game;
+
+  if (selectedOptionId === ACTIVATE_ENERGY_OPTION_ID) {
+    if (player.energyZone.cardIds.length === 0) {
+      return finishEmmaEnergyNoChange(game, effect, continuePendingCardEffects, {
+        step: 'ACTIVATE_ENERGY_BRANCH_STALE',
+      });
+    }
+    const waitingEnergyCardIds = getEnergyCardIdsByOrientation(
+      game,
+      player.id,
+      OrientationState.WAITING
+    );
+    if (waitingEnergyCardIds.length === 0) {
+      return finishEmmaEnergyNoChange(game, effect, continuePendingCardEffects, {
+        step: 'ACTIVATE_ENERGY',
+      });
+    }
+    return startEmmaConcreteTargetSelection(game, effect, selectedOptionId, waitingEnergyCardIds);
+  }
+
+  if (selectedOptionId !== ACTIVATE_MEMBER_OPTION_ID) return game;
+  const waitingMemberCardIds = getWaitingNijigasakiMemberTargetIds(game, player.id);
+  if (waitingMemberCardIds.length === 0) return game;
+  return startEmmaConcreteTargetSelection(game, effect, selectedOptionId, waitingMemberCardIds);
+}
+
+function startEmmaConcreteTargetSelection(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  targetType: string,
+  selectableCardIds: readonly string[]
+): GameState {
+  const isEnergy = targetType === ACTIVATE_ENERGY_OPTION_ID;
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...effect,
+        stepId: SELECT_ACTIVE_TARGET_STEP_ID,
+        stepText: isEnergy
+          ? '请选择1张待机状态能量变为活跃状态。'
+          : '请选择1名待机状态「虹咲」成员变为活跃状态。',
+        selectableOptions: undefined,
+        selectableCardIds,
+        selectableCardVisibility: 'PUBLIC',
+        selectionLabel: isEnergy ? '选择要变为活跃状态的能量' : '选择要变为活跃状态的成员',
+        confirmSelectionLabel: '变为活跃状态',
+        canSkipSelection: false,
+        metadata: {
+          ...effect.metadata,
+          targetType,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    effect.controllerId,
+    {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      sourceSlot: effect.metadata?.sourceSlot ?? null,
+      step: isEnergy ? 'SELECT_ENERGY_TARGET' : 'SELECT_MEMBER_TARGET',
+      discardedCardIds: getDiscardedCardIds(effect.metadata),
       selectableCardIds,
     }
+  );
+}
+
+function finishEmmaEnergyNoChange(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  payload: Readonly<Record<string, unknown>>
+): GameState {
+  return continuePendingCardEffects(
+    addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', effect.controllerId, {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      sourceSlot: effect.metadata?.sourceSlot ?? null,
+      discardedCardIds: getDiscardedCardIds(effect.metadata),
+      selectedTargetType: ACTIVATE_ENERGY_OPTION_ID,
+      activatedEnergyCardIds: [],
+      activatedMemberCardId: null,
+      stateChanged: false,
+      ...payload,
+    }),
+    false
   );
 }
 
@@ -249,13 +399,21 @@ function finishEmmaActivateTarget(
     effect.stepId !== SELECT_ACTIVE_TARGET_STEP_ID ||
     !player ||
     !selectedCardId ||
-    effect.selectableCardIds?.includes(selectedCardId) !== true ||
-    !getActiveTargetIds(game, player.id).includes(selectedCardId)
+    effect.selectableCardIds?.includes(selectedCardId) !== true
   ) {
     return game;
   }
 
-  if (isWaitingEnergyTarget(game, player.id, selectedCardId)) {
+  if (effect.metadata?.targetType === ACTIVATE_ENERGY_OPTION_ID) {
+    if (!isEnergyTarget(game, player.id, selectedCardId)) return game;
+    const previousOrientation = player.energyZone.cardStates.get(selectedCardId)?.orientation;
+    if (previousOrientation !== OrientationState.WAITING) {
+      return finishEmmaEnergyNoChange(game, effect, continuePendingCardEffects, {
+        step: 'ACTIVATE_ENERGY',
+        previousOrientation,
+        nextOrientation: OrientationState.ACTIVE,
+      });
+    }
     const orientationResult = setEnergyOrientation(
       game,
       player.id,
@@ -269,20 +427,32 @@ function finishEmmaActivateTarget(
       return game;
     }
     return continuePendingCardEffects(
-      addAction({ ...orientationResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        sourceSlot: effect.metadata?.sourceSlot ?? null,
-        step: 'ACTIVATE_ENERGY',
-        discardedCardIds: getDiscardedCardIds(effect.metadata),
-        activatedEnergyCardIds: orientationResult.updatedEnergyCardIds,
-        activatedMemberCardId: null,
-      }),
+      addAction(
+        { ...orientationResult.gameState, activeEffect: null },
+        'RESOLVE_ABILITY',
+        player.id,
+        {
+          abilityId: effect.abilityId,
+          sourceCardId: effect.sourceCardId,
+          sourceSlot: effect.metadata?.sourceSlot ?? null,
+          step: 'ACTIVATE_ENERGY',
+          discardedCardIds: getDiscardedCardIds(effect.metadata),
+          selectedEnergyCardId: selectedCardId,
+          activatedEnergyCardIds: orientationResult.updatedEnergyCardIds,
+          activatedMemberCardId: null,
+          previousOrientation: orientationResult.previousOrientations[0]?.orientation,
+          nextOrientation: orientationResult.nextOrientation,
+          stateChanged: orientationResult.updatedEnergyCardIds.length > 0,
+        }
+      ),
       false
     );
   }
 
-  if (!isWaitingNijigasakiMemberTarget(game, player.id, selectedCardId)) {
+  if (
+    effect.metadata?.targetType !== ACTIVATE_MEMBER_OPTION_ID ||
+    !isWaitingNijigasakiMemberTarget(game, player.id, selectedCardId)
+  ) {
     return game;
   }
   const orientationResult = setMemberOrientation(
@@ -328,23 +498,39 @@ function finishEmmaActivateTarget(
   );
 }
 
-function getActiveTargetIds(game: GameState, playerId: string): readonly string[] {
+function getActivationTypeOptions(
+  game: GameState,
+  playerId: string
+): readonly { readonly id: string; readonly label: string }[] {
   const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
+  if (!player) return [];
   return [
-    ...player.energyZone.cardIds.filter((cardId) => isWaitingEnergyTarget(game, player.id, cardId)),
-    ...Object.values(player.memberSlots.slots).filter(
-      (cardId): cardId is string =>
-        cardId !== null && isWaitingNijigasakiMemberTarget(game, player.id, cardId)
-    ),
+    ...(player.energyZone.cardIds.length > 0
+      ? [{ id: ACTIVATE_ENERGY_OPTION_ID, label: '将1张能量变为活跃状态' }]
+      : []),
+    ...(getWaitingNijigasakiMemberTargetIds(game, player.id).length > 0
+      ? [{ id: ACTIVATE_MEMBER_OPTION_ID, label: '将1名「虹咲」成员变为活跃状态' }]
+      : []),
   ];
 }
 
-function isWaitingEnergyTarget(game: GameState, playerId: string, cardId: string): boolean {
+function getWaitingNijigasakiMemberTargetIds(
+  game: GameState,
+  playerId: string
+): readonly string[] {
   const player = getPlayerById(game, playerId);
-  return player?.energyZone.cardStates.get(cardId)?.orientation === OrientationState.WAITING;
+  if (!player) return [];
+  return Object.values(player.memberSlots.slots).filter(
+    (cardId): cardId is string =>
+      cardId !== null && isWaitingNijigasakiMemberTarget(game, player.id, cardId)
+  );
+}
+
+function isEnergyTarget(game: GameState, playerId: string, cardId: string): boolean {
+  const player = getPlayerById(game, playerId);
+  return (
+    player?.energyZone.cardIds.includes(cardId) === true && player.energyZone.cardStates.has(cardId)
+  );
 }
 
 function isWaitingNijigasakiMemberTarget(

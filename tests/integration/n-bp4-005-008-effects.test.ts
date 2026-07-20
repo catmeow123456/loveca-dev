@@ -77,6 +77,20 @@ function confirmSingle(game: GameState, selectedCardId: string | null): GameStat
   return confirmActiveEffectStep(game, PLAYER1, effect!.id, selectedCardId);
 }
 
+function confirmOption(game: GameState, selectedOptionId: string): GameState {
+  const effect = game.activeEffect;
+  expect(effect).toBeTruthy();
+  return confirmActiveEffectStep(
+    game,
+    PLAYER1,
+    effect!.id,
+    undefined,
+    undefined,
+    undefined,
+    selectedOptionId
+  );
+}
+
 function confirmMany(game: GameState, selectedCardIds: readonly string[]): GameState {
   const effect = game.activeEffect;
   expect(effect).toBeTruthy();
@@ -403,6 +417,89 @@ describe('PL!N-bp4-008 Emma activated workflow', () => {
     expect(secondAttempt).toBe(withSecondCost);
   });
 
+  it('with only ACTIVE energy, pays the discard cost and resolves zero changes without an energy target window', () => {
+    const setup = setupEmmaActivated({
+      energyOrientations: Array.from({ length: 4 }, () => OrientationState.ACTIVE),
+    });
+    const started = activateCardAbility(
+      setup.game,
+      PLAYER1,
+      setup.source.instanceId,
+      PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID
+    );
+    expect(started.activeEffect?.stepId).toBe('PL_N_BP4_008_SELECT_DISCARD_COST');
+
+    const afterDiscard = confirmSingle(started, setup.handCards[0]!.instanceId);
+    expect(afterDiscard.players[0].hand.cardIds).toEqual([]);
+    expect(afterDiscard.players[0].waitingRoom.cardIds).toEqual([setup.handCards[0]!.instanceId]);
+    expect(afterDiscard.activeEffect).toBeNull();
+    expect(
+      setup.energyCards.map(
+        (card) => afterDiscard.players[0].energyZone.cardStates.get(card.instanceId)?.orientation
+      )
+    ).toEqual(Array.from({ length: 4 }, () => OrientationState.ACTIVE));
+    expect(afterDiscard.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID,
+      step: 'ACTIVATE_ENERGY',
+      selectedTargetType: 'activate-energy',
+      activatedEnergyCardIds: [],
+      stateChanged: false,
+    });
+    expect(
+      afterDiscard.actionHistory.some(
+        (action) =>
+          action.type === 'PAY_COST' &&
+          action.payload.abilityId ===
+            PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID
+      )
+    ).toBe(true);
+  });
+
+  it('offers energy versus member, then choosing all-ACTIVE energy resolves zero without a card window', () => {
+    const waitingMember = card('PL!N-test-niji', PLAYER1, 'waiting-niji', {
+      groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
+    });
+    const setup = setupEmmaActivated({
+      energyOrientations: [OrientationState.ACTIVE, OrientationState.ACTIVE],
+      stageMembers: [
+        {
+          card: waitingMember,
+          slot: SlotPosition.LEFT,
+          orientation: OrientationState.WAITING,
+        },
+      ],
+    });
+    const afterDiscard = confirmSingle(
+      activateCardAbility(
+        setup.game,
+        PLAYER1,
+        setup.source.instanceId,
+        PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID
+      ),
+      setup.handCards[0]!.instanceId
+    );
+    expect(afterDiscard.activeEffect).toMatchObject({
+      stepId: 'PL_N_BP4_008_SELECT_TARGET_TYPE',
+      selectableCardIds: undefined,
+      selectableOptions: [
+        { id: 'activate-energy', label: '将1张能量变为活跃状态' },
+        { id: 'activate-nijigasaki-member', label: '将1名「虹咲」成员变为活跃状态' },
+      ],
+    });
+
+    const resolved = confirmOption(afterDiscard, 'activate-energy');
+    expect(resolved.activeEffect).toBeNull();
+    expect(
+      resolved.players[0].memberSlots.cardStates.get(waitingMember.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(resolved.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'ACTIVATE_ENERGY',
+      selectedTargetType: 'activate-energy',
+      activatedEnergyCardIds: [],
+      stateChanged: false,
+    });
+  });
+
   it('discards a hand card and activates one waiting Nijigasaki member', () => {
     const nijigasakiTarget = card('PL!N-test-niji', PLAYER1, 'niji-target', {
       groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
@@ -426,9 +523,13 @@ describe('PL!N-bp4-008 Emma activated workflow', () => {
       ),
       setup.handCards[0]!.instanceId
     );
-    expect(afterDiscard.activeEffect?.selectableCardIds).toEqual([nijigasakiTarget.instanceId]);
+    expect(afterDiscard.activeEffect?.stepId).toBe('PL_N_BP4_008_SELECT_TARGET_TYPE');
+    const selectingMember = confirmOption(afterDiscard, 'activate-nijigasaki-member');
+    expect(selectingMember.activeEffect?.selectableCardIds).toEqual([
+      nijigasakiTarget.instanceId,
+    ]);
 
-    const resolved = confirmSingle(afterDiscard, nijigasakiTarget.instanceId);
+    const resolved = confirmSingle(selectingMember, nijigasakiTarget.instanceId);
     expect(resolved.players[0].memberSlots.cardStates.get(nijigasakiTarget.instanceId)?.orientation).toBe(
       OrientationState.ACTIVE
     );
@@ -441,7 +542,7 @@ describe('PL!N-bp4-008 Emma activated workflow', () => {
     ).toBe(true);
   });
 
-  it('does not start without hand cards or legal active targets, and excludes non-Nijigasaki members', () => {
+  it('does not start without hand cards or legal targets, and excludes non-Nijigasaki members', () => {
     const noHand = setupEmmaActivated({ handCards: [] });
     expect(
       activateCardAbility(
@@ -456,8 +557,10 @@ describe('PL!N-bp4-008 Emma activated workflow', () => {
       groupNames: ['Liella!'],
     });
     const noLegalTarget = setupEmmaActivated({
-      energyOrientations: [OrientationState.ACTIVE],
-      stageMembers: [{ card: nonNiji, slot: SlotPosition.LEFT, orientation: OrientationState.WAITING }],
+      energyOrientations: [],
+      stageMembers: [
+        { card: nonNiji, slot: SlotPosition.LEFT, orientation: OrientationState.WAITING },
+      ],
     });
     expect(
       activateCardAbility(
@@ -485,16 +588,18 @@ describe('PL!N-bp4-008 Emma activated workflow', () => {
     expect(illegal).toBe(afterDiscard);
 
     const staleEnergyId = setup.energyCards[0]!.instanceId;
-    const staleState = updatePlayer(afterDiscard, PLAYER1, (player) => ({
-      ...player,
-      energyZone: {
-        ...player.energyZone,
-        cardStates: new Map(player.energyZone.cardStates).set(staleEnergyId, {
-          ...player.energyZone.cardStates.get(staleEnergyId)!,
-          orientation: OrientationState.ACTIVE,
-        }),
-      },
-    }));
+    const staleState = updatePlayer(afterDiscard, PLAYER1, (player) => {
+      const cardStates = new Map(player.energyZone.cardStates);
+      cardStates.delete(staleEnergyId);
+      return {
+        ...player,
+        energyZone: {
+          ...player.energyZone,
+          cardIds: player.energyZone.cardIds.filter((cardId) => cardId !== staleEnergyId),
+          cardStates,
+        },
+      };
+    });
     const staleResult = confirmSingle(staleState, staleEnergyId);
     expect(staleResult).toBe(staleState);
     expect(staleResult.activeEffect).toBeTruthy();

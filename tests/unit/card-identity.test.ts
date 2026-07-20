@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assignCardsToRequiredNames,
   cardBelongsToGroup,
   cardBelongsToUnit,
   cardNameAliasMatches,
@@ -91,6 +92,37 @@ const THREE_NAME_MEMBER_CASES = [
 ] as const;
 
 describe('card identity helpers', () => {
+  it('uses maximum matching for distinct required name slots instead of candidate-order greed', () => {
+    const multi = { id: 'multi', name: '国木田花丸＆優木せつ菜' };
+    const hanamaru = { id: 'hanamaru', name: '国木田花丸' };
+    const chisato = { id: 'chisato', name: '岚千砂都' };
+
+    expect(
+      assignCardsToRequiredNames(
+        [multi, hanamaru, chisato],
+        ['国木田花丸', '優木せつ菜', '嵐千砂都'],
+        (card) => card
+      )
+    ).toEqual([
+      { item: hanamaru, requiredName: '国木田花丸' },
+      { item: multi, requiredName: '優木せつ菜' },
+      { item: chisato, requiredName: '嵐千砂都' },
+    ]);
+  });
+
+  it('does not let one multi-name card satisfy more than one required name slot', () => {
+    expect(
+      assignCardsToRequiredNames(
+        [
+          { id: 'triple', name: '国木田花丸&優木せつ菜&嵐千砂都' },
+          { id: 'other-a', name: '高海千歌' },
+          { id: 'other-b', name: '桜内梨子' },
+        ],
+        ['国木田花丸', '優木せつ菜', '嵐千砂都'],
+        (card) => card
+      )
+    ).toEqual([]);
+  });
   it('splits Q62 multi-name cards into separate name candidates', () => {
     expect(getCardNameCandidates(llBp1001)).toEqual(['上原歩夢', '澁谷かのん', '日野下花帆']);
     expect(getCardNameCandidates({ name: '園田海未＆津島善子＆天王寺璃奈' })).toEqual([

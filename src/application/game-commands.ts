@@ -20,6 +20,9 @@ export enum GameCommandType {
   MOVE_MEMBER_TO_SLOT = 'MOVE_MEMBER_TO_SLOT',
   ATTACH_ENERGY_TO_MEMBER = 'ATTACH_ENERGY_TO_MEMBER',
   PLAY_MEMBER_TO_SLOT = 'PLAY_MEMBER_TO_SLOT',
+  BEGIN_SPECIAL_MEMBER_PLAY = 'BEGIN_SPECIAL_MEMBER_PLAY',
+  CONFIRM_SPECIAL_MEMBER_PLAY = 'CONFIRM_SPECIAL_MEMBER_PLAY',
+  CANCEL_SPECIAL_MEMBER_PLAY = 'CANCEL_SPECIAL_MEMBER_PLAY',
   ACTIVATE_ABILITY = 'ACTIVATE_ABILITY',
   MOVE_PUBLIC_CARD_TO_WAITING_ROOM = 'MOVE_PUBLIC_CARD_TO_WAITING_ROOM',
   MOVE_PUBLIC_CARD_TO_HAND = 'MOVE_PUBLIC_CARD_TO_HAND',
@@ -170,6 +173,24 @@ export interface PlayMemberToSlotCommand extends BaseGameCommand {
   readonly relayReplacementSlots?: readonly SlotPosition[];
 }
 
+export interface BeginSpecialMemberPlayCommand extends BaseGameCommand {
+  readonly type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY;
+  readonly cardId: string;
+  readonly targetSlot: SlotPosition;
+  readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
+}
+
+export interface ConfirmSpecialMemberPlayCommand extends BaseGameCommand {
+  readonly type: GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY;
+  readonly pendingId: string;
+  readonly selectedCardIds: readonly string[];
+}
+
+export interface CancelSpecialMemberPlayCommand extends BaseGameCommand {
+  readonly type: GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY;
+  readonly pendingId: string;
+}
+
 export interface ActivateAbilityCommand extends BaseGameCommand {
   readonly type: GameCommandType.ACTIVATE_ABILITY;
   readonly cardId: string;
@@ -309,6 +330,9 @@ export type GameCommand =
   | MoveMemberToSlotCommand
   | AttachEnergyToMemberCommand
   | PlayMemberToSlotCommand
+  | BeginSpecialMemberPlayCommand
+  | ConfirmSpecialMemberPlayCommand
+  | CancelSpecialMemberPlayCommand
   | ActivateAbilityCommand
   | MovePublicCardToWaitingRoomCommand
   | MovePublicCardToHandCommand
@@ -593,6 +617,47 @@ export function createPlayMemberToSlotCommand(
     ...(options.relayReplacementSlots
       ? { relayReplacementSlots: [...options.relayReplacementSlots] }
       : {}),
+    timestamp: Date.now(),
+  };
+}
+
+export function createBeginSpecialMemberPlayCommand(
+  playerId: string,
+  cardId: string,
+  targetSlot: SlotPosition
+): BeginSpecialMemberPlayCommand {
+  return {
+    type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY,
+    playerId,
+    cardId,
+    targetSlot,
+    mode: 'LL_BP7_001_SPECIAL_PLAY',
+    timestamp: Date.now(),
+  };
+}
+
+export function createConfirmSpecialMemberPlayCommand(
+  playerId: string,
+  pendingId: string,
+  selectedCardIds: readonly string[]
+): ConfirmSpecialMemberPlayCommand {
+  return {
+    type: GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY,
+    playerId,
+    pendingId,
+    selectedCardIds: [...selectedCardIds],
+    timestamp: Date.now(),
+  };
+}
+
+export function createCancelSpecialMemberPlayCommand(
+  playerId: string,
+  pendingId: string
+): CancelSpecialMemberPlayCommand {
+  return {
+    type: GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY,
+    playerId,
+    pendingId,
     timestamp: Date.now(),
   };
 }

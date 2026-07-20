@@ -80,8 +80,11 @@ function chooseBranch(game: GameState, option: string | null, next: Continue): G
 }
 
 function activateEnergy(game: GameState, ability: PendingAbilityState, ordered: boolean, next: Continue): GameState {
+  const player = getPlayerById(game, ability.controllerId);
+  if (!player || player.energyZone.cardIds.length === 0) {
+    return finish(game, ability, ordered, next, { step: 'ACTIVATE_BRANCH_STALE', activatedEnergyCardIds: [] });
+  }
   const waitingCount = getEnergyCardIdsByOrientation(game, ability.controllerId, OrientationState.WAITING).length;
-  if (waitingCount === 0) return finish(game, ability, ordered, next, { step: 'ACTIVATE_BRANCH_STALE', activatedEnergyCardIds: [] });
   const result = activateWaitingEnergyCardsForPlayer(game, ability.controllerId, Math.min(2, waitingCount));
   if (!result) return game;
   return finish(result.gameState, ability, ordered, next, {
@@ -134,7 +137,7 @@ function getExecutableBranches(game: GameState, playerId: string): readonly stri
   const player = getPlayerById(game, playerId);
   if (!player) return [];
   const branches: string[] = [];
-  if (getEnergyCardIdsByOrientation(game, playerId, OrientationState.WAITING).length > 0) branches.push(ACTIVATE_OPTION);
+  if (player.energyZone.cardIds.length > 0) branches.push(ACTIVATE_OPTION);
   if (player.energyDeck.cardIds.length > 0 && getNijigasakiTargets(game, playerId).length > 0) branches.push(PLACE_OPTION);
   return branches;
 }

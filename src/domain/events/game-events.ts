@@ -340,7 +340,10 @@ export type MemberStateChangeCause =
     }
   | {
       readonly kind: 'CARD_EFFECT';
+      /** Controller of the card effect. */
       readonly playerId: string;
+      /** Player who actually chose the affected member, when the effect used a player choice. */
+      readonly selectionPlayerId?: string;
       readonly sourceCardId: string;
       readonly abilityId?: string;
       readonly pendingAbilityId?: string;

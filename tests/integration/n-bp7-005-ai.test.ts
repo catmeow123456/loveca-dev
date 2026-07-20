@@ -24,12 +24,13 @@ function member(code: string, id: string, name: string) {
   }, P1, id);
 }
 
-function setup(options: { readonly waitingEnergyCount?: number; readonly energyDeckCount?: number } = {}) {
+function setup(options: { readonly waitingEnergyCount?: number; readonly activeEnergyCount?: number; readonly energyDeckCount?: number } = {}) {
   const waitingEnergyCount = options.waitingEnergyCount ?? 1;
+  const activeEnergyCount = options.activeEnergyCount ?? 0;
   const energyDeckCount = options.energyDeckCount ?? 1;
   const ai = member('PL!N-bp7-005-P', 'ai', '宮下愛');
   const karin = member('KARIN', 'karin', '朝香果林');
-  const zoneEnergies = Array.from({ length: Math.max(2, waitingEnergyCount) }, (_, index) =>
+  const zoneEnergies = Array.from({ length: waitingEnergyCount + activeEnergyCount }, (_, index) =>
     createCardInstance(
       { cardCode: `EZ-${index}`, name: `EZ-${index}`, cardType: CardType.ENERGY },
       P1,
@@ -47,7 +48,7 @@ function setup(options: { readonly waitingEnergyCount?: number; readonly energyD
     createGameState('bp7-005', P1, 'P1', P2, 'P2'),
     [ai, karin, ...zoneEnergies, ...deckEnergies]
   );
-  const waitingIds = zoneEnergies.slice(0, waitingEnergyCount).map((card) => card.instanceId);
+  const zoneEnergyIds = zoneEnergies.map((card) => card.instanceId);
   game = updatePlayer(game, P1, (player) => ({
     ...player,
     memberSlots: placeCardInSlot(
@@ -61,11 +62,17 @@ function setup(options: { readonly waitingEnergyCount?: number; readonly energyD
     ),
     energyZone: {
       ...player.energyZone,
-      cardIds: waitingIds,
+      cardIds: zoneEnergyIds,
       cardStates: new Map(
-        waitingIds.map((id) => [
+        zoneEnergyIds.map((id, index) => [
           id,
-          { orientation: OrientationState.WAITING, face: FaceState.FACE_UP },
+          {
+            orientation:
+              index < waitingEnergyCount
+                ? OrientationState.WAITING
+                : OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          },
         ])
       ),
     },
@@ -147,17 +154,41 @@ describe('PL!N-bp7-005-P 宫下爱', () => {
     ]);
   });
 
-  it('已展示的活跃分支在确认前失效时消费 pending 并继续', () => {
-    const { game, zoneEnergies, pending } = setup({ waitingEnergyCount: 1 });
+  it('能量区4张全部已活跃时仍可选活跃分支，并以0张实际变化正常结束', () => {
+    const { game, zoneEnergies, deckEnergies } = setup({
+      waitingEnergyCount: 0,
+      activeEnergyCount: 4,
+      energyDeckCount: 1,
+    });
+    const choosing = start(game);
+
+    expect(choosing.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+      ACTIVATE_OPTION,
+      PLACE_OPTION,
+    ]);
+    const done = choose(choosing, ACTIVATE_OPTION);
+    expect(done.activeEffect).toBeNull();
+    expect(
+      zoneEnergies.map((card) =>
+        done.players[0].energyZone.cardStates.get(card.instanceId)?.orientation
+      )
+    ).toEqual(Array.from({ length: 4 }, () => OrientationState.ACTIVE));
+    expect(done.players[0].energyDeck.cardIds).toContain(deckEnergies[0]!.instanceId);
+    expect(latestResolution(done)).toMatchObject({
+      step: 'ACTIVATE_TWO_ENERGY',
+      activatedEnergyCardIds: [],
+    });
+  });
+
+  it('已展示的活跃分支在确认前能量区变空时消费 pending 并继续', () => {
+    const { game, pending } = setup({ waitingEnergyCount: 1 });
     const choosing = start(game);
     const stale = updatePlayer(choosing, P1, (player) => ({
       ...player,
       energyZone: {
         ...player.energyZone,
-        cardStates: new Map(player.energyZone.cardStates).set(zoneEnergies[0]!.instanceId, {
-          orientation: OrientationState.ACTIVE,
-          face: FaceState.FACE_UP,
-        }),
+        cardIds: [],
+        cardStates: new Map(),
       },
     }));
 

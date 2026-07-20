@@ -219,7 +219,7 @@ describe('PL!N-pb1-010 Shioriko on-enter choice workflow', () => {
     expect(chooseOption(game, N_PB1_010_ACTIVATE_ONE_ENERGY_OPTION_ID, PLAYER2)).toBe(game);
   });
 
-  it('safe-no-ops with no waiting energy and auto-activates exactly one ordinary candidate', () => {
+  it('safe-no-ops with no waiting energy, including when every energy is already ACTIVE', () => {
     const noEnergy = chooseOption(setup().game, N_PB1_010_ACTIVATE_ONE_ENERGY_OPTION_ID);
     expect(noEnergy.activeEffect).toBeNull();
     expect(lastResolve(noEnergy)?.payload).toMatchObject({
@@ -228,6 +228,26 @@ describe('PL!N-pb1-010 Shioriko on-enter choice workflow', () => {
       activatedEnergyCardIds: [],
     });
 
+    const allActiveScenario = setup({
+      energyOrientations: Array.from({ length: 4 }, () => OrientationState.ACTIVE),
+    });
+    const allActive = chooseOption(allActiveScenario.game, N_PB1_010_ACTIVATE_ONE_ENERGY_OPTION_ID);
+    expect(allActive.activeEffect).toBeNull();
+    expect(lastResolve(allActive)?.payload).toMatchObject({
+      step: 'NO_OP_NO_WAITING_ENERGY',
+      selectedOptionId: N_PB1_010_ACTIVATE_ONE_ENERGY_OPTION_ID,
+      activatedEnergyCardIds: [],
+    });
+    expect(
+      allActiveScenario.energyIds.every(
+        (cardId) =>
+          allActive.players[0].energyZone.cardStates.get(cardId)?.orientation ===
+          OrientationState.ACTIVE
+      )
+    ).toBe(true);
+  });
+
+  it('auto-activates exactly one ordinary candidate', () => {
     const scenario = setup({
       energyOrientations: [OrientationState.WAITING, OrientationState.WAITING],
     });

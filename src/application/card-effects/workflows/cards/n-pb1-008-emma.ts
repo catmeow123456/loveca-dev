@@ -76,9 +76,10 @@ function startEmmaOnEnterActivateMemberOrEnergy(
     player.id,
     OrientationState.WAITING
   );
+  const hasEnergyCards = player.energyZone.cardIds.length > 0;
   const selectableOptions = [
     ...(waitingMemberCardIds.length > 0 ? [{ id: 'member', label: '选择1名成员' }] : []),
-    ...(waitingEnergyCardIds.length > 0 ? [{ id: 'energy', label: '将能量变活跃' }] : []),
+    ...(hasEnergyCards ? [{ id: 'energy', label: '将能量变活跃' }] : []),
   ];
 
   return startPendingActiveEffect(game, {
@@ -139,8 +140,15 @@ function startEmmaTargetSelection(
     player.id,
     OrientationState.WAITING
   );
+  const selectedOptionWasOffered = effect.selectableOptions?.some(
+    (option) => option.id === selectedOptionId
+  );
 
-  if (selectedOptionId === 'member' && waitingMemberCardIds.length > 0) {
+  if (
+    selectedOptionWasOffered &&
+    selectedOptionId === 'member' &&
+    waitingMemberCardIds.length > 0
+  ) {
     return addAction(
       {
         ...game,
@@ -176,11 +184,11 @@ function startEmmaTargetSelection(
     );
   }
 
-  if (selectedOptionId === 'energy' && waitingEnergyCardIds.length > 0) {
+  if (selectedOptionWasOffered && selectedOptionId === 'energy') {
     return finishEmmaActivateEnergy(game, continuePendingCardEffects);
   }
 
-  if (waitingMemberCardIds.length > 0 || waitingEnergyCardIds.length > 0) {
+  if (waitingMemberCardIds.length > 0 || player.energyZone.cardIds.length > 0) {
     return game;
   }
 

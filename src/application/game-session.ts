@@ -137,6 +137,9 @@ import type {
   DrawCardToHandCommand,
   DrawEnergyToZoneCommand,
   ReturnHandCardToTopCommand,
+  BeginSpecialMemberPlayCommand,
+  ConfirmSpecialMemberPlayCommand,
+  CancelSpecialMemberPlayCommand,
 } from './game-commands.js';
 import {
   activateCardAbility,
@@ -161,6 +164,20 @@ import { startSuccessZoneReplacementEffect } from './card-effects/workflows/card
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { buildPlayMemberCostResources } from './effects/play-member-cost.js';
+import {
+  LL_BP7_001_SPECIAL_PLAY_COST,
+  LL_BP7_001_SPECIAL_PLAY_PRINTED_COST,
+  LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES,
+  assignLlBp7001SpecialPlayPayment,
+  canAssignLlBp7001SpecialPlayPayment,
+  getLlBp7001SpecialPlayHandCandidateIds,
+  getLlBp7001SpecialPlayTargetSlots,
+  isLlBp7001SpecialPlaySource,
+} from './effects/special-member-play.js';
+import {
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+} from './card-effects/runtime/enter-waiting-room-triggers.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { tapEnergy } from '../domain/entities/zone.js';
 import { costCalculator, type CostPaymentPlan } from '../domain/rules/cost-calculator.js';
@@ -1625,6 +1642,52 @@ export class GameSession {
         }
         return null;
       }
+      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY: {
+        if (
+          hasPendingAbilityOrChoice(state) ||
+          state.inspectionContext !== null ||
+          (state.delegatedAbilitySequence ?? null) !== null
+        ) {
+          return '请先完成当前效果、检查时点或检视流程';
+        }
+        if (command.mode !== 'LL_BP7_001_SPECIAL_PLAY') {
+          return '不支持的特殊登场方式';
+        }
+        if (!isLlBp7001SpecialPlaySource(state, command.playerId, command.cardId)) {
+          return '特殊登场来源已失效';
+        }
+        if (
+          !getLlBp7001SpecialPlayTargetSlots(state, command.playerId, command.cardId).includes(
+            command.targetSlot
+          )
+        ) {
+          return '该成员区不能用于本次特殊登场';
+        }
+        if (!canAssignLlBp7001SpecialPlayPayment(state, command.playerId, command.cardId)) {
+          return '手牌中没有可完成指定姓名支付的成员';
+        }
+        return null;
+      }
+      case GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY: {
+        const pending = state.pendingSpecialMemberPlay ?? null;
+        if (!pending || pending.id !== command.pendingId || pending.playerId !== command.playerId) {
+          return '特殊登场选择窗口已失效';
+        }
+        return assignLlBp7001SpecialPlayPayment(
+          state,
+          command.playerId,
+          pending.sourceCardId,
+          command.selectedCardIds
+        ).length === LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length
+          ? null
+          : '必须选择可分别满足三个指定姓名的三张不同成员';
+      }
+      case GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY: {
+        const pending = state.pendingSpecialMemberPlay ?? null;
+        return pending && pending.id === command.pendingId && pending.playerId === command.playerId
+          ? null
+          : '特殊登场选择窗口已失效';
+      }
       case GameCommandType.ACTIVATE_ABILITY: {
         if (state.activeEffect) {
           return '当前正在处理其他卡牌效果';
@@ -2022,6 +2085,9 @@ export class GameSession {
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可检视阶段';
       case GameCommandType.CONFIRM_COST_PAYMENT:
         return state.pendingCostPayment ? null : '当前没有待支付费用';
+      case GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY:
+      case GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY:
+        return state.pendingSpecialMemberPlay ? null : '当前没有待处理的特殊登场';
       case GameCommandType.CONFIRM_EFFECT_STEP:
         return state.activeEffect ? null : '当前没有正在处理的卡牌效果';
       case GameCommandType.ACTIVATE_ABILITY:
@@ -2033,6 +2099,7 @@ export class GameSession {
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
       case GameCommandType.ATTACH_ENERGY_TO_MEMBER:
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
+      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY:
       case GameCommandType.DRAW_CARD_TO_HAND:
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
@@ -2147,6 +2214,18 @@ export class GameSession {
   }
 
   private validateCommandActor(state: GameState, command: GameCommand): string | null {
+    const pendingSpecialPlay = state.pendingSpecialMemberPlay ?? null;
+    if (pendingSpecialPlay) {
+      if (
+        pendingSpecialPlay.playerId === command.playerId &&
+        (command.type === GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY ||
+          command.type === GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY)
+      ) {
+        return null;
+      }
+      return '当前正在等待特殊登场选择';
+    }
+
     if (state.pendingCostPayment) {
       if (
         command.type === GameCommandType.CONFIRM_COST_PAYMENT &&
@@ -2295,6 +2374,12 @@ export class GameSession {
         return this.applyAttachEnergyToMemberCommand(state, command);
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
         return this.applyPlayMemberToSlotCommand(state, command);
+      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY:
+        return this.applyBeginSpecialMemberPlayCommand(state, command);
+      case GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY:
+        return this.applyConfirmSpecialMemberPlayCommand(state, command);
+      case GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY:
+        return this.applyCancelSpecialMemberPlayCommand(state, command);
       case GameCommandType.ACTIVATE_ABILITY:
         return this.applyActivateAbilityCommand(state, command);
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
@@ -3404,6 +3489,230 @@ export class GameSession {
     }
 
     return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
+  }
+
+  private applyBeginSpecialMemberPlayCommand(
+    state: GameState,
+    command: BeginSpecialMemberPlayCommand
+  ): CommandExecutionResult {
+    const candidateCardIds = getLlBp7001SpecialPlayHandCandidateIds(
+      state,
+      command.playerId,
+      command.cardId
+    );
+    const pendingId = `${state.gameId}-special-member-play-${state.actionSequence + 1}`;
+    return {
+      success: true,
+      gameState: addAction(
+        {
+          ...state,
+          pendingSpecialMemberPlay: {
+            id: pendingId,
+            playerId: command.playerId,
+            sourceCardId: command.cardId,
+            targetSlot: command.targetSlot,
+            mode: command.mode,
+            printedCost: LL_BP7_001_SPECIAL_PLAY_PRINTED_COST,
+            specialPlayCost: LL_BP7_001_SPECIAL_PLAY_COST,
+            candidateCardIds,
+          },
+        },
+        'SPECIAL_MEMBER_PLAY',
+        command.playerId,
+        { step: 'BEGIN', targetSlot: command.targetSlot }
+      ),
+    };
+  }
+
+  private applyCancelSpecialMemberPlayCommand(
+    state: GameState,
+    command: CancelSpecialMemberPlayCommand
+  ): CommandExecutionResult {
+    return {
+      success: true,
+      gameState: addAction(
+        { ...state, pendingSpecialMemberPlay: null },
+        'SPECIAL_MEMBER_PLAY',
+        command.playerId,
+        { step: 'CANCEL', pendingId: command.pendingId }
+      ),
+    };
+  }
+
+  private applyConfirmSpecialMemberPlayCommand(
+    state: GameState,
+    command: ConfirmSpecialMemberPlayCommand
+  ): CommandExecutionResult {
+    const pending = state.pendingSpecialMemberPlay ?? null;
+    if (!pending) {
+      return { success: false, gameState: state, error: '特殊登场选择窗口已失效' };
+    }
+    if (
+      !isLlBp7001SpecialPlaySource(state, command.playerId, pending.sourceCardId) ||
+      !getLlBp7001SpecialPlayTargetSlots(state, command.playerId, pending.sourceCardId).includes(
+        pending.targetSlot
+      )
+    ) {
+      return { success: false, gameState: state, error: '特殊登场来源或目标已失效' };
+    }
+
+    const assignment = assignLlBp7001SpecialPlayPayment(
+      state,
+      command.playerId,
+      pending.sourceCardId,
+      command.selectedCardIds
+    );
+    if (assignment.length !== LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length) {
+      return { success: false, gameState: state, error: '指定姓名支付不完整' };
+    }
+
+    const player = getPlayerById(state, command.playerId);
+    const sourceCard = state.cardRegistry.get(pending.sourceCardId);
+    if (!player || !sourceCard || !isMemberCardData(sourceCard.data)) {
+      return { success: false, gameState: state, error: '特殊登场来源已失效' };
+    }
+    if (
+      sourceCard.data.cost !== LL_BP7_001_SPECIAL_PLAY_PRINTED_COST ||
+      pending.printedCost !== LL_BP7_001_SPECIAL_PLAY_PRINTED_COST ||
+      pending.specialPlayCost !== LL_BP7_001_SPECIAL_PLAY_COST
+    ) {
+      return { success: false, gameState: state, error: '特殊登场费用上下文已失效' };
+    }
+
+    const selectedIds = assignment.map(({ cardId }) => cardId);
+    const selectedSet = new Set(selectedIds);
+    const handAfterNamedPayment = player.hand.cardIds.filter((cardId) => !selectedSet.has(cardId));
+    const resources = buildPlayMemberCostResources(
+      state,
+      command.playerId,
+      pending.sourceCardId,
+      handAfterNamedPayment
+    );
+    if (!resources) {
+      return { success: false, gameState: state, error: '无法计算本次特殊登场费用' };
+    }
+    const costCheck = costCalculator.checkCanPayCost(
+      sourceCard.data,
+      pending.targetSlot,
+      resources,
+      {
+        specialPlayBaseCost: LL_BP7_001_SPECIAL_PLAY_COST,
+        ...(player.memberSlots.slots[pending.targetSlot] ? { relayMode: 'SINGLE' as const } : {}),
+      }
+    );
+    const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
+    if (!plan) {
+      return {
+        success: false,
+        gameState: state,
+        error: costCheck.reason ?? '活跃能量不足以完成本次特殊登场',
+      };
+    }
+
+    // The grouped move is authoritative, while trigger enqueue is deliberately deferred until
+    // the discard, energy payment, ordinary relay, and play have all completed atomically.
+    const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
+      { ...state, pendingSpecialMemberPlay: null },
+      command.playerId,
+      selectedIds,
+      { count: 3, candidateCardIds: pending.candidateCardIds },
+      (game) => game
+    );
+    if (!discardResult?.enterWaitingRoomEvent) {
+      return { success: false, gameState: state, error: '指定姓名支付已失效' };
+    }
+
+    const payment: NonNullable<GameState['pendingCostPayment']> = {
+      id: `${pending.id}-cost`,
+      playerId: command.playerId,
+      source: 'PLAY_MEMBER',
+      sourceCardId: pending.sourceCardId,
+      targetSlot: pending.targetSlot,
+      baseCost: plan.totalCost,
+      finalEnergyCost: plan.actualEnergyCost,
+      relayDiscount: plan.relayDiscount,
+      replacedMemberCardId: plan.memberToRelay,
+      relayReplacements: plan.relayReplacements,
+      payableEnergyCardIds: resources.activeEnergyIds,
+      explanation: this.formatPlayMemberCostExplanation(plan),
+    };
+    const paidState = this.applyCostPaymentToState(
+      discardResult.gameState,
+      payment,
+      plan.energyToTap
+    );
+    const playResult = this.applyPlayMemberToSlotWithoutCostPrompt(paidState, {
+      type: GameCommandType.PLAY_MEMBER_TO_SLOT,
+      playerId: command.playerId,
+      cardId: pending.sourceCardId,
+      targetSlot: pending.targetSlot,
+      relayMode: 'SINGLE',
+      timestamp: command.timestamp,
+    });
+    if (!playResult.success) {
+      return { success: false, gameState: state, error: playResult.error };
+    }
+
+    const completedState = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+      playResult.gameState,
+      discardResult,
+      enqueueTriggeredCardEffects
+    );
+    const auditedState = addAction(completedState, 'SPECIAL_MEMBER_PLAY', command.playerId, {
+      step: 'CONFIRM',
+      sourceCardId: pending.sourceCardId,
+      targetSlot: pending.targetSlot,
+      mode: pending.mode,
+      printedCost: pending.printedCost,
+      specialPlayCost: pending.specialPlayCost,
+      namedPayments: assignment,
+      relayReplacement: plan.memberToRelay,
+      relayReplacements: plan.relayReplacements,
+      relayDiscount: plan.relayDiscount,
+      paidEnergyCardIds: [...plan.energyToTap],
+      paidEnergyCount: plan.actualEnergyCost,
+      waitingRoomEventId: discardResult.enterWaitingRoomEvent.eventId,
+    });
+    const actorSeat = getSeatForPlayer(auditedState, command.playerId);
+    const discardPublicEvents = actorSeat
+      ? selectedIds.map((cardId) =>
+          buildCardRevealedAndMovedPublicEvent(auditedState, actorSeat, cardId, {
+            from: createOwnedZoneRef(ZoneType.HAND, actorSeat),
+            to: createOwnedZoneRef(ZoneType.WAITING_ROOM, actorSeat),
+            reason: 'SPECIAL_MEMBER_PLAY_COST',
+          })
+        )
+      : [];
+
+    return {
+      success: true,
+      gameState: auditedState,
+      declarationType: 'SPECIAL_MEMBER_PLAY_CONFIRMED',
+      declarationPublicValue: pending.targetSlot,
+      extraPublicEvents: [...discardPublicEvents, ...(playResult.extraPublicEvents ?? [])],
+      sealedAuditRecords: actorSeat
+        ? [
+            {
+              type: 'SPECIAL_MEMBER_PLAY_CONFIRMED',
+              actorSeat,
+              payload: {
+                sourceCardId: pending.sourceCardId,
+                targetSlot: pending.targetSlot,
+                mode: pending.mode,
+                printedCost: pending.printedCost,
+                specialPlayCost: pending.specialPlayCost,
+                namedPayments: assignment,
+                relayReplacement: plan.memberToRelay,
+                relayReplacements: plan.relayReplacements,
+                relayDiscount: plan.relayDiscount,
+                paidEnergyCardIds: [...plan.energyToTap],
+                paidEnergyCount: plan.actualEnergyCost,
+                waitingRoomEventId: discardResult.enterWaitingRoomEvent.eventId,
+              },
+            },
+          ]
+        : [],
+    };
   }
 
   private applyPlayMemberToSlotWithoutCostPrompt(

@@ -8,7 +8,7 @@ import {
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { groupAliasIs } from '../../../effects/card-selectors.js';
+import { getOtherStageMemberSlotsWithGroupMember } from '../../../effects/member-position-targets.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
@@ -225,21 +225,10 @@ function getLegalPositionChangeTargetSlots(
   sourceSlot: SlotPosition,
   config: Pick<PayEnergyPositionChangeToGroupMemberAreaConfig, 'targetGroupAliases'>
 ): readonly SlotPosition[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-  return (Object.values(SlotPosition) as SlotPosition[]).filter((slot) => {
-    if (slot === sourceSlot) {
-      return false;
-    }
-    const cardId = player.memberSlots.slots[slot];
-    const card = cardId ? getCardById(game, cardId) : null;
-    return (
-      card !== null &&
-      card.ownerId === playerId &&
-      isMemberCardData(card.data) &&
-      config.targetGroupAliases.some((groupName) => groupAliasIs(groupName)(card))
-    );
-  });
+  return getOtherStageMemberSlotsWithGroupMember(
+    game,
+    playerId,
+    sourceSlot,
+    config.targetGroupAliases
+  );
 }

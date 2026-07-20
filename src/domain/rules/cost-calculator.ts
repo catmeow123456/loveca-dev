@@ -51,6 +51,8 @@ export type RelayMode = 'SINGLE' | 'DOUBLE';
 export interface PlayMemberCostOptions {
   readonly relayMode?: RelayMode;
   readonly relayReplacementSlots?: readonly SlotPosition[];
+  /** Server-validated one-play base for the first narrow special-member-play sample. */
+  readonly specialPlayBaseCost?: 10;
 }
 
 /**
@@ -323,14 +325,15 @@ export class CostCalculator {
    */
   calculateModifiedPlayCost(
     memberData: MemberCardData,
-    resources: AvailableResources
+    resources: AvailableResources,
+    options: Pick<PlayMemberCostOptions, 'specialPlayBaseCost'> = {}
   ): {
     readonly baseCost: number;
     readonly modifiedCost: number;
     readonly modifiers: readonly PlayCostModifierApplication[];
     readonly modifierAmount: number;
   } {
-    const baseCost = this.calculateBaseCost(memberData);
+    const baseCost = options.specialPlayBaseCost ?? this.calculateBaseCost(memberData);
     const modifiers = this.calculatePlayCostModifiers(memberData, resources);
     const modifierAmount = modifiers.reduce((sum, modifier) => sum + modifier.amount, 0);
     const modifiedCost = Math.max(0, baseCost - modifierAmount);
@@ -358,7 +361,7 @@ export class CostCalculator {
     resources: AvailableResources,
     options: PlayMemberCostOptions = {}
   ): CostCheckResult {
-    const costInfo = this.calculateModifiedPlayCost(memberData, resources);
+    const costInfo = this.calculateModifiedPlayCost(memberData, resources, options);
     const baseCost = costInfo.baseCost;
     const modifiedCost = costInfo.modifiedCost;
     const availableEnergy = resources.activeEnergyIds.length;

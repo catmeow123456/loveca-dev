@@ -58,6 +58,7 @@ interface RegisteredArrangeInspectedDeckTopConfig {
   readonly stepId: string;
   readonly stepText: string;
   readonly selectionLabel: string;
+  readonly confirmSelectionLabel?: string;
   readonly selectMin: number;
   readonly selectMax: number;
   readonly requireAllInspected?: boolean;
@@ -87,6 +88,7 @@ export interface ArrangeInspectedDeckTopConfig {
   readonly stepId: string;
   readonly stepText: string;
   readonly selectionLabel: string;
+  readonly confirmSelectionLabel?: string;
   readonly selectMin: number;
   readonly selectMax: number;
   readonly requestedInspectCount?: number;
@@ -250,6 +252,7 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
           stepId: config.stepId,
           stepText: config.stepText,
           selectionLabel: config.selectionLabel,
+          confirmSelectionLabel: config.confirmSelectionLabel,
           selectMin: config.selectMin,
           selectMax: config.selectMax,
           selectedDestination: config.selectedDestination ?? 'MAIN_DECK_TOP',
@@ -430,7 +433,7 @@ export function startArrangeInspectedDeckTopWorkflow(
       minSelectableCards,
       maxSelectableCards,
       selectionLabel: config.selectionLabel,
-      confirmSelectionLabel: '按此顺序放回卡组顶',
+      confirmSelectionLabel: config.confirmSelectionLabel ?? '按此顺序放回卡组顶',
       metadata: {
         sourceZone: ZoneType.MAIN_DECK,
         deckOwnerId: deckOwner.id,
@@ -530,6 +533,7 @@ function finishArrangeInspectedDeckTopTargetPlayerSelection(
       stepId: registeredConfig.stepId,
       stepText: registeredConfig.stepText,
       selectionLabel: registeredConfig.selectionLabel,
+      confirmSelectionLabel: registeredConfig.confirmSelectionLabel,
       selectMin: registeredConfig.selectMin,
       selectMax: registeredConfig.selectMax,
       selectedDestination: registeredConfig.selectedDestination ?? 'MAIN_DECK_TOP',

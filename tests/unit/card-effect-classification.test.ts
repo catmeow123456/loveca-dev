@@ -51,10 +51,14 @@ import {
   N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
   N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID,
+  N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
+  N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID,
   N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
   N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
   N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID,
+  N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
   N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID,
+  N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
   S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
@@ -14832,6 +14836,80 @@ describe('BP7 energyBelow batch exact definitions', () => {
       expect.objectContaining({ abilityId: N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID, category: CardAbilityCategory.AUTO, triggerCondition: TriggerCondition.ON_LEAVE_STAGE, triggerToZones: [ZoneType.WAITING_ROOM], queued: true }),
     ]);
     for (const cardCode of ['PL!N-bp7-004-SEC', 'PL!N-bp7-005-SEC', 'PL!N-bp7-007-P', 'PL!N-bp7-019-P']) {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  });
+});
+
+describe('BP7 first card-effect batch exact definitions', () => {
+  it('registers Kanata as two independent activated identities and Rina as one queued on-enter identity', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-006-SEC')).toEqual([
+      expect.objectContaining({
+        abilityId: N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
+        cardCodes: ['PL!N-bp7-006-SEC'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+      }),
+      expect.objectContaining({
+        abilityId: N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID,
+        cardCodes: ['PL!N-bp7-006-SEC'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 2,
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-009-P')).toEqual([
+      expect.objectContaining({
+        abilityId: N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
+        cardCodes: ['PL!N-bp7-009-P'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+      }),
+    ]);
+    expect(
+      getCardAbilityDefinitions('PL!N-bp7-006-SEC').every(
+        (definition) => definition.baseCardCodes === undefined
+      )
+    ).toBe(true);
+    expect(getCardAbilityDefinitions('PL!N-bp7-009-P')[0]?.baseCardCodes).toBeUndefined();
+  });
+
+  it.each(['PL!N-bp7-006-P', 'PL!N-bp7-006-R', 'PL!N-bp7-009-N', 'PL!N-bp7-009-SEC'])(
+    'does not match the unverified nearby code %s',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
+});
+
+describe('PL!N-bp7-027-L exact LIVE_SUCCESS definition', () => {
+  it('registers only Audrey L as an implemented queued LIVE-card ability', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-027-L')).toEqual([
+      expect.objectContaining({
+        abilityId: N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
+        cardCodes: ['PL!N-bp7-027-L'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-027-L')[0]?.baseCardCodes).toBeUndefined();
+    for (const cardCode of [
+      'PL!N-bp7-027-P',
+      'PL!N-bp7-027-SECL',
+      'PL!N-bp7-026-L',
+      'PL!N-bp7-028-L',
+    ]) {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
     }
   });

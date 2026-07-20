@@ -76,6 +76,9 @@ import {
   createSubmitScoreCommand,
   createTapEnergyCommand,
   createTapMemberCommand,
+  createBeginSpecialMemberPlayCommand,
+  createConfirmSpecialMemberPlayCommand,
+  createCancelSpecialMemberPlayCommand,
 } from '@game/application/game-commands';
 import {
   SlotPosition,
@@ -326,6 +329,12 @@ export interface GameStore {
     slot: SlotPosition,
     options?: PlayMemberToSlotOptions
   ) => CommandDispatchResult;
+  beginSpecialMemberPlay: (cardId: string, slot: SlotPosition) => CommandDispatchResult;
+  confirmSpecialMemberPlay: (
+    pendingId: string,
+    selectedCardIds: readonly string[]
+  ) => CommandDispatchResult;
+  cancelSpecialMemberPlay: (pendingId: string) => CommandDispatchResult;
   /** 发动卡牌的起动效果 */
   activateCardAbility: (cardId: string, abilityId: string) => CommandDispatchResult;
   /** 将公开区卡牌移入休息室 */
@@ -1032,6 +1041,30 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       );
     },
+
+    beginSpecialMemberPlay: (cardId, slot) =>
+      runViewerCommand((playerId) => createBeginSpecialMemberPlayCommand(playerId, cardId, slot), {
+        failureMessage: '特殊登场开始失败',
+        successMessage: '选择特殊登场支付',
+        logError: true,
+      }),
+
+    confirmSpecialMemberPlay: (pendingId, selectedCardIds) =>
+      runViewerCommand(
+        (playerId) => createConfirmSpecialMemberPlayCommand(playerId, pendingId, selectedCardIds),
+        {
+          failureMessage: '特殊登场确认失败',
+          successMessage: '放置入休息室并登场',
+          deselectCard: true,
+          logError: true,
+        }
+      ),
+
+    cancelSpecialMemberPlay: (pendingId) =>
+      runViewerCommand((playerId) => createCancelSpecialMemberPlayCommand(playerId, pendingId), {
+        failureMessage: '取消特殊登场失败',
+        logError: true,
+      }),
 
     activateCardAbility: (cardId, abilityId) => {
       return runViewerCommand(
@@ -3096,6 +3129,12 @@ function stabilizePlayerViewState(
   )
     ? previous.pendingCostPayment
     : next.pendingCostPayment;
+  const pendingSpecialMemberPlay = areJsonLikeValuesEqual(
+    previous.pendingSpecialMemberPlay,
+    next.pendingSpecialMemberPlay
+  )
+    ? previous.pendingSpecialMemberPlay
+    : next.pendingSpecialMemberPlay;
   const uiHints = areJsonLikeValuesEqual(previous.uiHints, next.uiHints)
     ? previous.uiHints
     : next.uiHints;
@@ -3107,6 +3146,7 @@ function stabilizePlayerViewState(
     permissions === previous.permissions &&
     activeEffect === previous.activeEffect &&
     pendingCostPayment === previous.pendingCostPayment &&
+    pendingSpecialMemberPlay === previous.pendingSpecialMemberPlay &&
     uiHints === previous.uiHints
   ) {
     return previous;
@@ -3120,6 +3160,7 @@ function stabilizePlayerViewState(
     permissions,
     activeEffect,
     pendingCostPayment,
+    pendingSpecialMemberPlay,
     uiHints,
   };
 }

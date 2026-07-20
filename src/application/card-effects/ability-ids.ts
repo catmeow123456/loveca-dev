@@ -1556,6 +1556,12 @@ export const SP_BP2_021_AUTO_ON_CHEER_NO_BLADE_HEART_GAIN_YELLOW_HEART_ABILITY_I
   'PL!SP-bp2-021:auto-on-cheer-no-blade-heart-gain-yellow-heart';
 export const SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp7-005-SEC:auto-enter-or-return-place-waiting-energy';
+export const LL_BP7_001_CONTINUOUS_SPECIAL_PLAY_COST_TEN_ABILITY_ID =
+  'LL-bp7-001-R+:continuous-special-play-cost-ten';
+export const LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID =
+  'LL-bp7-001-R+:on-enter-recover-live';
+export const LL_BP7_001_LIVE_SUCCESS_RECOVER_MEMBER_ABILITY_ID =
+  'LL-bp7-001-R+:live-success-recover-member';
 export const SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-001-P:continuous-below-liella-host-gain-blade';
 export const SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID =
@@ -1568,16 +1574,30 @@ export const N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_
   'PL!N-bp7-004-P:activated-stack-energy-below-wait-original-blade';
 export const N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID =
   'PL!N-bp7-005-P:on-enter-diverdiva-choose-activate-two-or-place-energy-below';
+export const N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID =
+  'PL!N-bp7-006-SEC:activated-pay-energy-inspect-top-four';
+export const N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID =
+  'PL!N-bp7-006-SEC:activated-mill-top-three-choose-energy-or-blade';
 export const N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
   'PL!N-bp7-007-SEC:continuous-energy-below-gain-red-heart';
 export const N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID =
   'PL!N-bp7-007-SEC:continuous-energy-above-six-gain-red-heart';
 export const N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID =
   'PL!N-bp7-007-SEC:live-success-place-energy-deck-below-self';
+export const N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID =
+  'PL!N-bp7-009-P:on-enter-each-player-mill-top-seven';
 export const N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID =
   'PL!N-bp7-019-N:auto-relay-nijigasaki-place-energy-below-replacement';
+export const N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID =
+  'PL!N-bp7-027-L:live-success-select-nijigasaki-highest-blade-score';
 export const S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID =
   'PL!S-bp7-005-SEC:on-enter-stack-waiting-member-below-stage-member';
+export const S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID =
+  'PL!S-bp7-003-SEC:on-enter-look-top-one-optional-bottom';
+export const S_BP7_003_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID =
+  'PL!S-bp7-003-SEC:live-start-look-top-one-optional-bottom';
+export const S_BP7_003_ON_ENTER_CHOOSE_WAIT_PROTECTION_OR_POSITION_CHANGE_ABILITY_ID =
+  'PL!S-bp7-003-SEC:on-enter-choose-wait-protection-or-position-change';
 export const S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp7-005-SEC:continuous-aqours-host-with-member-below-gain-blade';
 export const S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID =

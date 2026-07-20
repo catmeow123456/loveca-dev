@@ -1343,6 +1343,27 @@ describe('CostCalculator', () => {
   });
 
   describe('calculatePlayCostInfo', () => {
+    it('uses the server-only special-play base for one calculation without changing printed cost', () => {
+      const memberData = createMockMemberData(
+        15,
+        '国木田花丸&優木せつ菜&嵐千砂都',
+        'LL-bp7-001-R+'
+      );
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 10 }, (_, index) => `e${index}`),
+        stageMembers: [],
+      };
+
+      const ordinary = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+      const special = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
+        specialPlayBaseCost: 10,
+      });
+
+      expect(ordinary.canPay).toBe(false);
+      expect(special.availablePlans[0]).toMatchObject({ totalCost: 10, actualEnergyCost: 10 });
+      expect(memberData.cost).toBe(15);
+    });
+
     it('应该返回完整的费用信息', () => {
       const memberData = createMockMemberData(4);
       const resources: AvailableResources = {

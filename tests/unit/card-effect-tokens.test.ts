@@ -41,6 +41,15 @@ describe('parseCardEffectText', () => {
     ).toEqual([]);
   });
 
+  it('maps the public BP7 Chinese per-turn limit tokens', () => {
+    expect(getUnknownCardEffectPlaceholders('【起动】【每回合1次】[E]：检视卡组顶4张。')).toEqual(
+      []
+    );
+    expect(getUnknownCardEffectPlaceholders('【起动】【每回合2次】获得[BLADE][BLADE]。')).toEqual(
+      []
+    );
+  });
+
   it('parses Loveca timing and modifier placeholders', () => {
     const parts = parseCardEffectText('【LIVE开始时】可以支付[E]：获得[紫ハート][ブレード]。');
 

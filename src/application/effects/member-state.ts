@@ -12,6 +12,7 @@ import {
 import type { MemberStateChangeCause } from '../../domain/events/game-events.js';
 import { FaceState, OrientationState, SlotPosition, ZoneType } from '../../shared/types/enums.js';
 import { isMemberEffectActivationProhibited } from '../../domain/rules/member-effect-activation-prohibitions.js';
+import { isMemberWaitProtectedFromChange } from '../../domain/rules/member-wait-protections.js';
 
 export interface SetMemberOrientationResult {
   readonly gameState: GameState;
@@ -20,12 +21,15 @@ export interface SetMemberOrientationResult {
   readonly nextOrientation: OrientationState;
   readonly changed: boolean;
   readonly blockedByEffectActivationProhibition: boolean;
+  readonly blockedByWaitingProtection: boolean;
 }
 
 export interface SetMembersOrientationResult {
   readonly gameState: GameState;
   readonly updatedMemberCardIds: readonly string[];
   readonly blockedMemberCardIds?: readonly string[];
+  readonly blockedByEffectActivationProhibitionMemberCardIds: readonly string[];
+  readonly blockedByWaitingProtectionMemberCardIds: readonly string[];
   readonly previousOrientations: readonly {
     readonly cardId: string;
     readonly orientation: OrientationState;
@@ -109,6 +113,7 @@ export function setMemberOrientation(
       nextOrientation: orientation,
       changed: false,
       blockedByEffectActivationProhibition: false,
+      blockedByWaitingProtection: false,
     };
   }
 
@@ -125,6 +130,23 @@ export function setMemberOrientation(
       nextOrientation: currentState.orientation,
       changed: false,
       blockedByEffectActivationProhibition: true,
+      blockedByWaitingProtection: false,
+    };
+  }
+
+  if (
+    currentState.orientation === OrientationState.ACTIVE &&
+    orientation === OrientationState.WAITING &&
+    isMemberWaitProtectedFromChange(game, playerId, cardId, cause)
+  ) {
+    return {
+      gameState: game,
+      cardId,
+      previousOrientation: currentState.orientation,
+      nextOrientation: currentState.orientation,
+      changed: false,
+      blockedByEffectActivationProhibition: false,
+      blockedByWaitingProtection: true,
     };
   }
 
@@ -159,6 +181,7 @@ export function setMemberOrientation(
     nextOrientation: orientation,
     changed: true,
     blockedByEffectActivationProhibition: false,
+    blockedByWaitingProtection: false,
   };
 }
 
@@ -192,13 +215,14 @@ export function setMembersOrientation(
       gameState: game,
       updatedMemberCardIds: [],
       blockedMemberCardIds: [],
+      blockedByEffectActivationProhibitionMemberCardIds: [],
+      blockedByWaitingProtectionMemberCardIds: [],
       previousOrientations: [],
       nextOrientation: orientation,
     };
   }
 
-
-  const blockedMemberCardIds =
+  const blockedByEffectActivationProhibitionMemberCardIds =
     orientation === OrientationState.ACTIVE &&
     cause?.kind === 'CARD_EFFECT' &&
     isMemberEffectActivationProhibited(game, playerId)
@@ -206,7 +230,20 @@ export function setMembersOrientation(
           .filter((entry) => entry.orientation === OrientationState.WAITING)
           .map((entry) => entry.cardId)
       : [];
-  const blockedMemberCardIdSet = new Set(blockedMemberCardIds);
+  const blockedByWaitingProtectionMemberCardIds =
+    orientation === OrientationState.WAITING
+      ? previousOrientations
+          .filter(
+            (entry) =>
+              entry.orientation === OrientationState.ACTIVE &&
+              isMemberWaitProtectedFromChange(game, playerId, entry.cardId, cause)
+          )
+          .map((entry) => entry.cardId)
+      : [];
+  const blockedMemberCardIdSet = new Set([
+    ...blockedByEffectActivationProhibitionMemberCardIds,
+    ...blockedByWaitingProtectionMemberCardIds,
+  ]);
   const updatedMemberCardIds = previousOrientations
     .filter(
       (entry) => entry.orientation !== orientation && !blockedMemberCardIdSet.has(entry.cardId)
@@ -257,7 +294,9 @@ export function setMembersOrientation(
   return {
     gameState,
     updatedMemberCardIds,
-    blockedMemberCardIds,
+    blockedMemberCardIds: blockedByEffectActivationProhibitionMemberCardIds,
+    blockedByEffectActivationProhibitionMemberCardIds,
+    blockedByWaitingProtectionMemberCardIds,
     previousOrientations,
     nextOrientation: orientation,
   };
