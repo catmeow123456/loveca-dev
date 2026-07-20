@@ -53,6 +53,7 @@ import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
 import { ENTER_EFFECT_SURFACE_SUSPEND_MS } from '@/lib/battleAnimationSequencing';
+import { formatActiveEffectCardLabelWithLocation } from '@/lib/activeEffectCardLocation';
 import {
   hasBattleViewportSignatureChanged,
   isBattleViewportInteractionInvalidated,
@@ -484,13 +485,36 @@ export const GameBoard = memo(function GameBoard({
     [invalidateDragForViewportChange]
   );
 
+  const formatActiveEffectCardCompactLabel = useCallback(
+    (cardId: string, cardData: AnyCardData): string => {
+      const zone = findViewerCardZone(cardId);
+      const slot = getCardSlotPosition(cardId);
+      const isStageSlotOccupant =
+        slot !== null &&
+        (getSeatMemberSlotCardId('FIRST', slot) === cardId ||
+          getSeatMemberSlotCardId('SECOND', slot) === cardId);
+      const cardLabel = formatCardCompactLabel(cardData);
+
+      return formatActiveEffectCardLabelWithLocation(cardLabel, {
+        cardType: cardData.cardType,
+        zone,
+        slot,
+        isStageSlotOccupant,
+      });
+    },
+    [findViewerCardZone, getCardSlotPosition, getSeatMemberSlotCardId]
+  );
+
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const activeEffectSource = activeEffectSourceCardId
     ? getVisibleCardPresentation(activeEffectSourceCardId)
     : null;
   const activeEffectSourceLabel = activeEffectSource
-    ? formatCardCompactLabel(activeEffectSource.cardData as AnyCardData)
+    ? formatActiveEffectCardCompactLabel(
+        activeEffectSource.instanceId,
+        activeEffectSource.cardData as AnyCardData
+      )
     : '卡牌效果';
   const activeEffectLocalizedInfo = activeEffectSource
     ? getCardLocalizedInfo(activeEffectSource.cardData as AnyCardData)
@@ -3007,7 +3031,10 @@ export const GameBoard = memo(function GameBoard({
                         const label = activeEffectSelectableObjectsFaceDown
                           ? `第${candidateIndex + 1}张手牌`
                           : cardData
-                            ? formatCardCompactLabel(cardData as AnyCardData)
+                            ? formatActiveEffectCardCompactLabel(
+                                cardId,
+                                cardData as AnyCardData
+                              )
                             : '选择此卡';
                         const energyStatusLabel = isEnergyCandidate
                           ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
