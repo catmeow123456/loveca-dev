@@ -29,6 +29,7 @@ import { canMemberBeRelayedAway } from '../../domain/rules/cost-calculator.js';
 import { getMemberEffectiveCost } from '../effects/conditions.js';
 import { returnEnergyBelowMemberToEnergyDeckForPlayer } from '../effects/energy-below.js';
 import { canUseDoubleRelay } from '../../shared/rules/double-relay.js';
+import { RuleActionType } from '../../domain/rules/rule-actions.js';
 
 interface RelayReplacementExecution {
   readonly cardId: string;
@@ -83,21 +84,38 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   }
   const replacements = relayReplacements.replacements;
   const firstReplacement = replacements[0] ?? null;
+  let duplicateMemberRemoval: RelayReplacementExecution | null = null;
+  if (existingCardId && action.isRelay === false) {
+    const existingCard = ctx.getCardById(game, existingCardId);
+    if (!existingCard || !isMemberCardData(existingCard.data)) {
+      return failure(game, '目标槽位上的卡牌不是成员卡');
+    }
+    duplicateMemberRemoval = {
+      cardId: existingCardId,
+      slot: targetSlot,
+      ownerId: existingCard.ownerId,
+      effectiveCost: getMemberEffectiveCost(game, playerId, existingCardId),
+    };
+  }
+  const removedMembers =
+    replacements.length > 0 ? replacements : duplicateMemberRemoval ? [duplicateMemberRemoval] : [];
 
   let state = game;
 
-  // 执行：处理被替换的成员（换手）
-  const replacedCardIdsMovedToWaitingRoom: string[] = [];
-  if (replacements.length > 0) {
+  // 执行：处理因换手或重复成员规则离场的成员。
+  const removedCardIdsMovedToWaitingRoom: string[] = [];
+  const returnedEnergyCardIds: string[] = [];
+  if (removedMembers.length > 0) {
     state = updatePlayer(state, playerId, (p) => {
       let newSlots = p.memberSlots;
       let newWaitingRoom = p.waitingRoom;
       let updatedPlayer = p;
-      for (const replacement of replacements) {
+      for (const replacement of removedMembers) {
         const energyReturnResult = returnEnergyBelowMemberToEnergyDeckForPlayer(
           { ...updatedPlayer, memberSlots: newSlots, waitingRoom: newWaitingRoom },
           replacement.slot
         );
+        returnedEnergyCardIds.push(...energyReturnResult.returnedEnergyCardIds);
         updatedPlayer = energyReturnResult.playerState;
         newSlots = updatedPlayer.memberSlots;
         newWaitingRoom = updatedPlayer.waitingRoom;
@@ -105,7 +123,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
           newSlots,
           replacement.slot
         );
-        replacedCardIdsMovedToWaitingRoom.push(replacement.cardId, ...memberBelowIds);
+        removedCardIdsMovedToWaitingRoom.push(replacement.cardId, ...memberBelowIds);
         newSlots = removeCardFromSlot(slotsWithoutMemberBelow, replacement.slot);
         newWaitingRoom = addCardsToZone(
           addCardToZone(newWaitingRoom, replacement.cardId),
@@ -114,30 +132,16 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
       }
       return { ...updatedPlayer, memberSlots: newSlots, waitingRoom: newWaitingRoom };
     });
-    for (const replacement of replacements) {
-      state = emitGameEvent(
-        state,
-        createLeaveStageEvent(
-          replacement.cardId,
-          replacement.slot,
-          ZoneType.WAITING_ROOM,
-          replacement.ownerId,
-          playerId,
-          cardId
-        )
-      );
-    }
-    if (replacedCardIdsMovedToWaitingRoom.length > 0) {
-      state = emitGameEvent(
-        state,
-        createEnterWaitingRoomEvent(
-          replacedCardIdsMovedToWaitingRoom,
-          ZoneType.MEMBER_SLOT,
-          firstReplacement?.ownerId ?? playerId,
-          playerId
-        )
-      );
-    }
+  }
+
+  if (replacements.length > 0) {
+    state = emitRemovedMemberEvents(
+      state,
+      replacements,
+      removedCardIdsMovedToWaitingRoom,
+      playerId,
+      cardId
+    );
   }
 
   // 执行：从手牌移除并放置到舞台
@@ -153,16 +157,34 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   });
   state = emitGameEvent(
     state,
-    createEnterStageEvent(cardId, ZoneType.HAND, targetSlot, card.ownerId, playerId, {
-      replacedMemberCardId: firstReplacement?.cardId ?? null,
-      replacedMemberEffectiveCost: firstReplacement?.effectiveCost ?? null,
-      relayReplacements: replacements.map((replacement) => ({
-        cardId: replacement.cardId,
-        slot: replacement.slot,
-        effectiveCost: replacement.effectiveCost,
-      })),
-    })
+    createEnterStageEvent(
+      cardId,
+      ZoneType.HAND,
+      targetSlot,
+      card.ownerId,
+      playerId,
+      firstReplacement
+        ? {
+            replacedMemberCardId: firstReplacement.cardId,
+            replacedMemberEffectiveCost: firstReplacement.effectiveCost,
+            relayReplacements: replacements.map((replacement) => ({
+              cardId: replacement.cardId,
+              slot: replacement.slot,
+              effectiveCost: replacement.effectiveCost,
+            })),
+          }
+        : undefined
+    )
   );
+
+  if (duplicateMemberRemoval) {
+    state = emitRemovedMemberEvents(
+      state,
+      [duplicateMemberRemoval],
+      removedCardIdsMovedToWaitingRoom,
+      playerId
+    );
+  }
 
   // 记录动作
   state = addAction(state, 'PLAY_MEMBER', playerId, {
@@ -176,14 +198,29 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
       slot: replacement.slot,
       effectiveCost: replacement.effectiveCost,
     })),
+    duplicateMemberRuleRemovedCardId: duplicateMemberRemoval?.cardId ?? null,
     energyPayment: 'MANUAL',
   });
+
+  if (duplicateMemberRemoval) {
+    state = addAction(state, 'RULE_ACTION', null, {
+      type: RuleActionType.DUPLICATE_MEMBER,
+      affectedPlayerId: playerId,
+      slot: targetSlot,
+      keptMemberCardId: cardId,
+      movedToWaitingRoomCardIds: removedCardIdsMovedToWaitingRoom,
+      returnedEnergyCardIds,
+    });
+  }
 
   const triggeredEvents: TriggerCondition[] = [TriggerCondition.ON_ENTER_STAGE];
   if (replacements.length > 0) {
     triggeredEvents.unshift(TriggerCondition.ON_ENTER_WAITING_ROOM);
     triggeredEvents.unshift(TriggerCondition.ON_LEAVE_STAGE);
     triggeredEvents.push(TriggerCondition.ON_RELAY);
+  } else if (duplicateMemberRemoval) {
+    triggeredEvents.push(TriggerCondition.ON_LEAVE_STAGE);
+    triggeredEvents.push(TriggerCondition.ON_ENTER_WAITING_ROOM);
   }
 
   return success(state, {
@@ -228,6 +265,10 @@ function collectRelayReplacements(
     return { ok: true, replacements: [] };
   }
 
+  if (action.isRelay === false) {
+    return { ok: true, replacements: [] };
+  }
+
   return collectReplacementsFromSlots(game, action, ctx, incomingMemberData, [action.targetSlot]);
 }
 
@@ -267,4 +308,39 @@ function collectReplacementsFromSlots(
   }
 
   return { ok: true, replacements };
+}
+
+function emitRemovedMemberEvents(
+  game: GameState,
+  removals: readonly RelayReplacementExecution[],
+  movedToWaitingRoomCardIds: readonly string[],
+  controllerId: string,
+  replacingCardId?: string
+): GameState {
+  let state = game;
+  for (const removal of removals) {
+    state = emitGameEvent(
+      state,
+      createLeaveStageEvent(
+        removal.cardId,
+        removal.slot,
+        ZoneType.WAITING_ROOM,
+        removal.ownerId,
+        controllerId,
+        replacingCardId
+      )
+    );
+  }
+  if (movedToWaitingRoomCardIds.length > 0) {
+    state = emitGameEvent(
+      state,
+      createEnterWaitingRoomEvent(
+        movedToWaitingRoomCardIds,
+        ZoneType.MEMBER_SLOT,
+        removals[0]?.ownerId ?? controllerId,
+        controllerId
+      )
+    );
+  }
+  return state;
 }

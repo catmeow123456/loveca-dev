@@ -3572,10 +3572,10 @@ export class GameSession {
     if (payment) {
       const energyCardIds = payment.payableEnergyCardIds.slice(0, payment.finalEnergyCost);
       const paidState = this.applyCostPaymentToState(state, payment, energyCardIds);
-      return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, command);
+      return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, command, costResult.isRelay);
     }
 
-    return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
+    return this.applyPlayMemberToSlotWithoutCostPrompt(state, command, costResult.isRelay);
   }
 
   private applyBeginSpecialMemberPlayCommand(
@@ -3728,14 +3728,18 @@ export class GameSession {
       payment,
       plan.energyToTap
     );
-    const playResult = this.applyPlayMemberToSlotWithoutCostPrompt(paidState, {
-      type: GameCommandType.PLAY_MEMBER_TO_SLOT,
-      playerId: command.playerId,
-      cardId: pending.sourceCardId,
-      targetSlot: pending.targetSlot,
-      relayMode: 'SINGLE',
-      timestamp: command.timestamp,
-    });
+    const playResult = this.applyPlayMemberToSlotWithoutCostPrompt(
+      paidState,
+      {
+        type: GameCommandType.PLAY_MEMBER_TO_SLOT,
+        playerId: command.playerId,
+        cardId: pending.sourceCardId,
+        targetSlot: pending.targetSlot,
+        relayMode: 'SINGLE',
+        timestamp: command.timestamp,
+      },
+      plan.isRelay
+    );
     if (!playResult.success) {
       return { success: false, gameState: state, error: playResult.error };
     }
@@ -3804,7 +3808,8 @@ export class GameSession {
 
   private applyPlayMemberToSlotWithoutCostPrompt(
     state: GameState,
-    command: PlayMemberToSlotCommand
+    command: PlayMemberToSlotCommand,
+    isRelayOverride?: boolean
   ): CommandExecutionResult {
     const actorSeat = getSeatForPlayer(state, command.playerId);
     if (!actorSeat) {
@@ -3817,10 +3822,11 @@ export class GameSession {
     }
 
     const replacedCardId = player.memberSlots.slots[command.targetSlot] ?? null;
+    const isRelay = isRelayOverride ?? replacedCardId !== null;
     const result = this.gameService.processAction(
       state,
       createPlayMemberAction(command.playerId, command.cardId, command.targetSlot, {
-        isRelay: replacedCardId !== null,
+        isRelay,
         relayMode: command.relayMode,
         relayReplacementSlots: command.relayReplacementSlots,
       })
@@ -3919,7 +3925,11 @@ export class GameSession {
     state: GameState,
     command: PlayMemberToSlotCommand
   ):
-    | { readonly success: true; readonly pendingCostPayment: GameState['pendingCostPayment'] }
+    | {
+        readonly success: true;
+        readonly pendingCostPayment: GameState['pendingCostPayment'];
+        readonly isRelay: boolean;
+      }
     | { readonly success: false; readonly error: string } {
     const player = state.players.find((candidate) => candidate.id === command.playerId);
     if (!player) {
@@ -3956,11 +3966,12 @@ export class GameSession {
     }
 
     if (plan.actualEnergyCost === 0) {
-      return { success: true, pendingCostPayment: null };
+      return { success: true, pendingCostPayment: null, isRelay: plan.isRelay };
     }
 
     return {
       success: true,
+      isRelay: plan.isRelay,
       pendingCostPayment: {
         id: `${state.gameId}-cost-${state.actionSequence + 1}`,
         playerId: command.playerId,
@@ -4007,16 +4018,20 @@ export class GameSession {
 
     const paidState = this.applyCostPaymentToState(state, payment, command.energyCardIds);
 
-    return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, {
-      type: GameCommandType.PLAY_MEMBER_TO_SLOT,
-      playerId: payment.playerId,
-      cardId: payment.sourceCardId,
-      targetSlot: payment.targetSlot,
-      relayMode:
-        payment.relayReplacements && payment.relayReplacements.length > 1 ? 'DOUBLE' : undefined,
-      relayReplacementSlots: payment.relayReplacements?.map((replacement) => replacement.slot),
-      timestamp: command.timestamp,
-    });
+    return this.applyPlayMemberToSlotWithoutCostPrompt(
+      paidState,
+      {
+        type: GameCommandType.PLAY_MEMBER_TO_SLOT,
+        playerId: payment.playerId,
+        cardId: payment.sourceCardId,
+        targetSlot: payment.targetSlot,
+        relayMode:
+          payment.relayReplacements && payment.relayReplacements.length > 1 ? 'DOUBLE' : undefined,
+        relayReplacementSlots: payment.relayReplacements?.map((replacement) => replacement.slot),
+        timestamp: command.timestamp,
+      },
+      (payment.relayReplacements?.length ?? 0) > 0
+    );
   }
 
   private applyCostPaymentToState(

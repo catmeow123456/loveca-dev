@@ -447,6 +447,31 @@ describe('CostCalculator', () => {
       expect(result.availablePlans.some((plan) => plan.isRelay)).toBe(false);
     });
 
+    it('应该允许全额支付当前费用直接登场到 LL-bp2-001-R+ 所在成员区', () => {
+      const memberData = createMockMemberData(10, 'Incoming Member', 'TEST-INCOMING');
+      const resources: AvailableResources = {
+        activeEnergyIds: Array.from({ length: 10 }, (_, index) => `e${index}`),
+        stageMembers: [
+          createStageMemberInfo('protected-member', 20, SlotPosition.CENTER, {
+            cardCode: 'LL-bp2-001-R+',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      expect(result.canPay).toBe(true);
+      expect(result.availablePlans).toHaveLength(1);
+      expect(result.availablePlans[0]).toMatchObject({
+        isRelay: false,
+        actualEnergyCost: 10,
+        relayDiscount: 0,
+        relayReplacements: [],
+      });
+    });
+
     it('应该在没有待机虹咲成员时不减少 PL!N-pb1-008-P+ 的费用', () => {
       const memberData = createMockMemberData(17, '艾玛·维尔德', 'PL!N-pb1-008-P+');
       const resources: AvailableResources = {
@@ -1183,6 +1208,21 @@ describe('CostCalculator', () => {
       expect(optimal).not.toBeNull();
       expect(optimal?.isRelay).toBe(true);
       expect(optimal?.actualEnergyCost).toBe(2); // 4 - 2 = 2
+    });
+
+    it('应该在能量消耗相同时优先选择换手方案', () => {
+      const memberData = createMockMemberData(0);
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [createStageMemberInfo('member-1', 0, SlotPosition.CENTER)],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+      const optimal = calculator.selectOptimalPlan(result.availablePlans);
+
+      expect(result.availablePlans).toHaveLength(2);
+      expect(optimal?.isRelay).toBe(true);
+      expect(optimal?.actualEnergyCost).toBe(0);
     });
 
     it('应该在没有方案时返回null', () => {

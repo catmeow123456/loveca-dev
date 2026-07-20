@@ -459,7 +459,7 @@ export class CostCalculator {
 
   /**
    * 选择最优支付方案
-   * 优先选择消耗最少能量的方案
+   * 优先选择消耗最少能量的方案；消耗相同时保留普通登场的自动换手行为。
    *
    * @param plans 可用的支付方案
    * @returns 最优方案，如果没有可用方案则返回 null
@@ -469,8 +469,13 @@ export class CostCalculator {
       return null;
     }
 
-    // 按实际能量消耗排序，选择最少的
-    const sorted = [...plans].sort((a, b) => a.actualEnergyCost - b.actualEnergyCost);
+    const sorted = [...plans].sort((a, b) => {
+      const energyCostDifference = a.actualEnergyCost - b.actualEnergyCost;
+      if (energyCostDifference !== 0) {
+        return energyCostDifference;
+      }
+      return Number(b.isRelay) - Number(a.isRelay);
+    });
     return sorted[0];
   }
 
