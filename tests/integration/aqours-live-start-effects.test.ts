@@ -17,7 +17,9 @@ import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
   S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_004_LIVE_START_RETURN_NO_LIVE_START_AQOURS_LIVE_GAIN_RED_GREEN_HEART_ABILITY_ID,
@@ -253,6 +255,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       )
     );
     expect(move.success, move.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([nonAqoursHand.instanceId]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([
       aqoursHand.instanceId,
@@ -391,6 +394,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, lowBlade.instanceId)
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBeUndefined();
     expect(session.state?.liveResolution.liveModifiers).toHaveLength(0);
   });
@@ -542,6 +546,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([drawn.instanceId]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([hand.instanceId]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
@@ -619,6 +624,15 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
     ]);
     expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
     expect(session.state?.activeEffect?.selectionLabel).toBeUndefined();
+    expect(session.state?.activeEffect?.effectChoice).toMatchObject({
+      mode: 'SINGLE',
+      options: [
+        { id: BP6_020_GRANT_DRAW_OPTION_ID },
+        { id: BP6_020_GAIN_HEART_OPTION_ID },
+        { id: BP6_020_SCORE_OPTION_ID },
+      ],
+      publicConfirmation: true,
+    });
 
     const finish = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -631,6 +645,11 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+      effectChoice: { selectedOptionIds: [BP6_020_GRANT_DRAW_OPTION_ID] },
+    });
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(
       session.state?.actionHistory.find(
@@ -723,6 +742,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       );
 
       expect(finish.success, finish.error).toBe(true);
+      confirmPublicSelectionIfNeeded(session);
       expect(session.state?.activeEffect).toBeNull();
       expect(
         session.state?.actionHistory.some(
@@ -829,6 +849,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       )
     );
     expect(chooseHeart.success, chooseHeart.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect?.stepId).toBe(
       BP6_020_SELECT_RELAY_ENTERED_AQOURS_MEMBER_STEP_ID
     );
@@ -905,6 +926,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
     );
 
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toHaveLength(0);
     expect(
@@ -961,6 +983,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBe(expectedScore);
     expect(
       session.state?.actionHistory.find(
@@ -1028,6 +1051,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP3_025_LIVE_START_AQOURS_BLADE_SIX_THIS_LIVE_SCORE_ABILITY_ID
     );

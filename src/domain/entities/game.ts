@@ -571,6 +571,26 @@ export interface ActiveEffectStageFormationState {
   readonly slots: readonly ActiveEffectStageFormationSlotState[];
 }
 
+export interface ActiveEffectChoiceOptionState {
+  /** 服务端定义的稳定选项 ID。 */
+  readonly id: string;
+  /** 玩家可见的完整效果分支文本。 */
+  readonly text: string;
+  /** 当前是否可选；缺省时视为可选。 */
+  readonly selectable?: boolean;
+}
+
+export interface ActiveEffectChoiceState {
+  readonly mode: 'SINGLE' | 'MULTI';
+  readonly options: readonly ActiveEffectChoiceOptionState[];
+  readonly minSelections: number;
+  readonly maxSelections: number;
+  /** 结构化效果选项在结算前必须向双方公开。 */
+  readonly publicConfirmation: true;
+  /** 只在双方公开阶段保存，且按卡文印刷顺序排列。 */
+  readonly selectedOptionIds?: readonly string[];
+}
+
 export interface ActiveEffectState {
   /** 当前处理中的效果实例 ID */
   readonly id: string;
@@ -592,6 +612,8 @@ export interface ActiveEffectState {
   readonly revealedCardIds?: readonly string[];
   /** 休息室选卡公共展示的服务端权威截止时间。 */
   readonly publicCardSelectionAutoAdvanceAt?: number;
+  /** 效果选项公共展示的服务端权威截止时间。 */
+  readonly publicEffectChoiceAutoAdvanceAt?: number;
   /** 公共展示中的卡牌是否按选择顺序结算。 */
   readonly publicCardSelectionOrdered?: boolean;
   /** 当前步骤涉及的检视区卡牌 */
@@ -610,6 +632,8 @@ export interface ActiveEffectState {
   readonly selectableSlots?: readonly SlotPosition[];
   /** 当前步骤可选择的通用选项 */
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  /** 真实卡文中的单选/多选效果分支，与通用 selectableOptions 分开。 */
+  readonly effectChoice?: ActiveEffectChoiceState;
   /** 当前步骤的站位变换交互状态 */
   readonly stageFormation?: ActiveEffectStageFormationState;
   /** 当前步骤需要玩家输入的数字 */

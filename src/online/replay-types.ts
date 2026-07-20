@@ -99,6 +99,7 @@ export interface MatchDecisionSubmissionSummary {
   readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: string | null;
   readonly selectedOptionId?: string | null;
+  readonly selectedEffectOptionIds?: readonly string[];
   readonly selectedNumber?: number | null;
   readonly stageFormationMoveHistory?: readonly {
     readonly cardId: string;

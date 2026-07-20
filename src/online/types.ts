@@ -253,6 +253,10 @@ export interface ActiveEffectViewState {
   /** 投影时按服务端时钟计算的剩余展示时长。 */
   readonly publicCardSelectionAutoAdvanceAfterMs?: number;
   readonly publicCardSelectionOrdered?: boolean;
+  /** 效果选项公开展示的服务端权威截止时间。 */
+  readonly publicEffectChoiceAutoAdvanceAt?: number;
+  /** 投影时按服务端时钟计算的效果选项剩余展示时长。 */
+  readonly publicEffectChoiceAutoAdvanceAfterMs?: number;
   readonly inspectionObjectIds?: readonly string[];
   readonly selectableObjectIds?: readonly string[];
   /** 候选对象只以匿名牌背展示，不含可关联到真实卡牌实例的对象 ID。 */
@@ -262,6 +266,19 @@ export interface ActiveEffectViewState {
   readonly maxSelectableObjects?: number;
   readonly selectableSlots?: readonly string[];
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  readonly effectChoice?: {
+    readonly mode: 'SINGLE' | 'MULTI';
+    readonly options: readonly {
+      readonly id: string;
+      readonly text: string;
+      /** 动态合法性只投影给当前等待操作的玩家。 */
+      readonly selectable?: boolean;
+    }[];
+    readonly minSelections: number;
+    readonly maxSelections: number;
+    readonly publicConfirmation: true;
+    readonly selectedOptionIds?: readonly string[];
+  };
   readonly stageFormation?: {
     readonly playerSeat: Seat | null;
     readonly slots: readonly {

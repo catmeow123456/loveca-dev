@@ -19,6 +19,7 @@ import {
   SP_PB2_011_AUTO_CENTER_MEMBER_MOVED_CHOOSE_BLADE_WAIT_OR_DRAW_ABILITY_ID,
   SP_PB2_011_LIVE_START_SELF_POSITION_CHANGE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   CardType,
   FaceState,
@@ -224,6 +225,19 @@ function abilityUseCount(game: GameState): number {
   ).length;
 }
 
+function chooseEffectOption(game: GameState, optionId: string): GameState {
+  const selected = confirmActiveEffectStep(
+    game,
+    PLAYER1,
+    game.activeEffect!.id,
+    null,
+    null,
+    false,
+    optionId
+  );
+  return continuePublicEffectChoiceForTest(selected, PLAYER1);
+}
+
 describe('PL!SP-pb2-011 Tomari center move option workflow', () => {
   it('triggers when an own CENTER member moves away, but not when a member moves into CENTER', () => {
     const scenario = setupState();
@@ -250,15 +264,7 @@ describe('PL!SP-pb2-011 Tomari center move option workflow', () => {
       enqueueMove(scenario.game, scenario.centerMemberId, SlotPosition.CENTER, SlotPosition.LEFT)
     ).gameState;
 
-    const state = confirmActiveEffectStep(
-      started,
-      PLAYER1,
-      started.activeEffect!.id,
-      null,
-      null,
-      false,
-      'gain-blade'
-    );
+    const state = chooseEffectOption(started, 'gain-blade');
 
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
@@ -281,15 +287,7 @@ describe('PL!SP-pb2-011 Tomari center move option workflow', () => {
       'wait-opponent',
       'draw',
     ]);
-    state = confirmActiveEffectStep(
-      state,
-      PLAYER1,
-      state.activeEffect!.id,
-      null,
-      null,
-      false,
-      'wait-opponent'
-    );
+    state = chooseEffectOption(state, 'wait-opponent');
     expect(state.activeEffect?.selectableCardIds).toEqual([scenario.lowOpponentId]);
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.lowOpponentId);
@@ -320,15 +318,7 @@ describe('PL!SP-pb2-011 Tomari center move option workflow', () => {
       enqueueMove(scenario.game, scenario.centerMemberId, SlotPosition.CENTER, SlotPosition.LEFT)
     ).gameState;
 
-    const state = confirmActiveEffectStep(
-      started,
-      PLAYER1,
-      started.activeEffect!.id,
-      null,
-      null,
-      false,
-      'draw'
-    );
+    const state = chooseEffectOption(started, 'draw');
 
     expect(state.players[0].hand.cardIds).toContain(scenario.drawCardId);
     expect(abilityUseCount(state)).toBe(1);
@@ -339,15 +329,7 @@ describe('PL!SP-pb2-011 Tomari center move option workflow', () => {
     const started = resolvePendingCardEffects(
       enqueueMove(scenario.game, scenario.centerMemberId, SlotPosition.CENTER, SlotPosition.LEFT)
     ).gameState;
-    const resolved = confirmActiveEffectStep(
-      started,
-      PLAYER1,
-      started.activeEffect!.id,
-      null,
-      null,
-      false,
-      'draw'
-    );
+    const resolved = chooseEffectOption(started, 'draw');
 
     const queuedAgain = enqueueMove(
       resolved,

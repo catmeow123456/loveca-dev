@@ -6814,7 +6814,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     observerOnly: true,
     effectText: SP_PB2_011_AUTO_EFFECT_TEXT,
     notes:
-      '单卡 AUTO workflow `sp-pb2-011-tomari.ts`；只处理 pending eventIds 对应的权威 ON_MEMBER_SLOT_MOVED，要求自己舞台中心成员从 CENTER 移出。选项为来源 BLADE +2、对方印刷 BLADE<=2 非 WAITING 成员 WAITING、抽1；无合法对方目标时不显示 WAIT 选项。',
+      '单卡 AUTO workflow `sp-pb2-011-tomari.ts`；只处理 pending eventIds 对应的权威 ON_MEMBER_SLOT_MOVED，要求自己舞台中心成员从 CENTER 移出。选项为来源 BLADE +2、对方印刷 BLADE<=2 非 WAITING 成员 WAITING、抽1；无合法对方目标时仍展示印刷的 WAIT 分支，但标记为当前不可选。',
   },
   {
     abilityId: SP_PB2_011_LIVE_START_SELF_POSITION_CHANGE_ABILITY_ID,
@@ -12491,7 +12491,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: '【登场】自己的舞台存在2名名称不同的『DiverDiva』成员时，选择1项。\n・将2张能量变为活跃状态。\n・从自己的能量卡组将1张能量放置于自己舞台上1名『虹ヶ咲』成员下方。',
-    notes: 'exact P only；结算时使用结构化小队 matcher 与共享不同名最大分配 identity helper。二选一只展示当前可执行分支，能量卡组分支按目标实例重验当前顶层槽位。',
+    notes:
+      'exact P only；结算时使用结构化小队 matcher 与共享不同名最大分配 identity helper。二选一保留两个印刷分支，当前不可执行的分支标记为不可选；能量卡组分支按目标实例重验当前顶层槽位。',
   },
   {
     abilityId: N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,

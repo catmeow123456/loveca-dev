@@ -20,10 +20,14 @@ import {
   PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,
   resolvePublicCardSelectionConfirmationStep,
 } from './public-card-selection-confirmation.js';
-import type {
-  DelegatePendingAbility,
-  PendingAbilityStarterOptions,
-} from './starter-registry.js';
+import {
+  createPublicEffectChoiceConfirmationWindow,
+  getStructuredEffectChoiceSelection,
+  PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+  PUBLIC_EFFECT_CHOICE_RETRY_EFFECT_METADATA_KEY,
+  resolvePublicEffectChoiceConfirmationStep,
+} from './public-effect-choice-confirmation.js';
+import type { DelegatePendingAbility, PendingAbilityStarterOptions } from './starter-registry.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -32,6 +36,7 @@ export interface ActiveEffectStepHandlerInput {
   readonly selectedSlot?: SlotPosition | null;
   readonly resolveInOrder?: boolean;
   readonly selectedOptionId?: string | null;
+  readonly selectedEffectOptionIds?: readonly string[];
   readonly selectedCardIds?: readonly string[];
   readonly selectedNumber?: number | null;
   readonly stageFormationMoveHistory?: readonly {
@@ -105,9 +110,31 @@ export function resolveActiveEffectStepWithRegistry(
         )
     );
   }
+  if (effect.stepId === PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID) {
+    return resolvePublicEffectChoiceConfirmationStep(
+      game,
+      context,
+      (restoredGame, restoredEffect, restoredInput, restoredContext) =>
+        resolveRestoredAfterPublicEffectChoiceConfirmation(
+          restoredGame,
+          restoredEffect,
+          restoredInput,
+          restoredContext
+        )
+    );
+  }
 
   const handler = getActiveEffectStepHandler(effect);
   if (!handler) return null;
+  const skipsStructuredEffectChoice =
+    input.selectedEffectOptionIds === undefined &&
+    input.selectedCardId === null &&
+    effect.canSkipSelection === true;
+  if (effect.effectChoice?.publicConfirmation === true && !skipsStructuredEffectChoice) {
+    const selectedOptionIds = getStructuredEffectChoiceSelection(effect, input);
+    if (!selectedOptionIds) return null;
+    return createPublicEffectChoiceConfirmationWindow(game, effect, input, selectedOptionIds);
+  }
   const publicConfirmation = getPublicCardSelectionConfirmationConfig(effect);
   if (publicConfirmation) {
     const confirmationWindow = createPublicCardSelectionConfirmationWindow(
@@ -126,6 +153,25 @@ export function resolveActiveEffectStepWithRegistry(
   }
 }
 
+function resolveRestoredAfterPublicEffectChoiceConfirmation(
+  game: GameState,
+  effect: ActiveEffectState,
+  input: ActiveEffectStepHandlerInput,
+  context: ActiveEffectStepHandlerContext
+): GameState | null {
+  const publicCardConfirmation = getPublicCardSelectionConfirmationConfig(effect);
+  if (publicCardConfirmation) {
+    const confirmationWindow = createPublicCardSelectionConfirmationWindow(
+      game,
+      effect,
+      input,
+      publicCardConfirmation
+    );
+    if (confirmationWindow) return confirmationWindow;
+  }
+  return resolveRestoredActiveEffectStep(game, effect, input, context, []);
+}
+
 function resolveRestoredActiveEffectStep(
   game: GameState,
   effect: ActiveEffectState,
@@ -133,13 +179,47 @@ function resolveRestoredActiveEffectStep(
   context: ActiveEffectStepHandlerContext,
   resolutions: readonly EnergySelectionResolution[]
 ): GameState | null {
+  const retryEffectCandidate = effect.metadata?.[PUBLIC_EFFECT_CHOICE_RETRY_EFFECT_METADATA_KEY];
+  const retryEffect = isActiveEffectStateLike(retryEffectCandidate)
+    ? retryEffectCandidate
+    : undefined;
+  if (retryEffect) {
+    const cleanMetadata: Record<string, unknown> = { ...(effect.metadata ?? {}) };
+    delete cleanMetadata[PUBLIC_EFFECT_CHOICE_RETRY_EFFECT_METADATA_KEY];
+    const executionEffect: ActiveEffectState = {
+      ...effect,
+      effectChoice: undefined,
+      metadata: cleanMetadata,
+    };
+    const executionGame = { ...game, activeEffect: executionEffect };
+    const handler = getActiveEffectStepHandler(executionEffect);
+    if (!handler) return null;
+    const result = withEnergySelectionResolutions(resolutions, () =>
+      handler(executionGame, input, context)
+    );
+    return result === executionGame ? { ...game, activeEffect: retryEffect } : result;
+  }
   const handler = getActiveEffectStepHandler(effect);
   return handler
     ? withEnergySelectionResolutions(resolutions, () => handler(game, input, context))
     : null;
 }
 
-function getActiveEffectStepHandler(effect: ActiveEffectState): ActiveEffectStepHandler | undefined {
+function isActiveEffectStateLike(value: unknown): value is ActiveEffectState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Partial<ActiveEffectState>;
+  return (
+    typeof candidate.id === 'string' &&
+    typeof candidate.abilityId === 'string' &&
+    typeof candidate.sourceCardId === 'string' &&
+    typeof candidate.controllerId === 'string' &&
+    typeof candidate.stepId === 'string'
+  );
+}
+
+function getActiveEffectStepHandler(
+  effect: ActiveEffectState
+): ActiveEffectStepHandler | undefined {
   return activeEffectStepHandlers.get(
     getActiveEffectStepHandlerKey(effect.abilityId, effect.stepId)
   );

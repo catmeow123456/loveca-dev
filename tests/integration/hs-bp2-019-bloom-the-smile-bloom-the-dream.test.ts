@@ -151,15 +151,32 @@ function start(game: GameState, sourceCardId: string): GameState {
 }
 
 function choose(game: GameState, optionId?: string, resolveInOrder = false): GameState {
-  return confirmActiveEffectStep(
+  const effectId = game.activeEffect!.id;
+  if (optionId === undefined) {
+    return confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      effectId,
+      null,
+      undefined,
+      resolveInOrder
+    );
+  }
+  const publicChoice = confirmActiveEffectStep(
     game,
     PLAYER1,
-    game.activeEffect!.id,
+    effectId,
     undefined,
     undefined,
     resolveInOrder,
-    optionId
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    [optionId]
   );
+  return confirmActiveEffectStep(publicChoice, PLAYER1, effectId);
 }
 
 function effectiveRequirement(game: GameState, liveCardId: string, data: LiveCardData) {
@@ -186,17 +203,23 @@ describe('PL!HS-bp2-019 Bloom the smile, Bloom the dream!', () => {
     expect(state.activeEffect).toMatchObject({
       abilityId: HS_BP2_019_LIVE_START_CHOOSE_HASUNOSORA_REQUIREMENT_PATTERN_ABILITY_ID,
       stepId: STEP_ID,
-      selectableOptions: [
-        { id: 'pink', label: '[桃ハート][桃ハート][無ハート]' },
-        { id: 'green', label: '[緑ハート][緑ハート][無ハート]' },
-        { id: 'blue', label: '[青ハート][青ハート][無ハート]' },
-      ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: 'pink', text: '此LIVE成功所需的必要Heart变为[桃ハート][桃ハート][無ハート]。' },
+          { id: 'green', text: '此LIVE成功所需的必要Heart变为[緑ハート][緑ハート][無ハート]。' },
+          { id: 'blue', text: '此LIVE成功所需的必要Heart变为[青ハート][青ハート][無ハート]。' },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: true,
       skipSelectionLabel: '不改变必要Heart',
     });
     expect(state.activeEffect?.metadata?.confirmOnlyPendingAbility).toBeUndefined();
-    expect(state.activeEffect?.selectableOptions).toHaveLength(3);
-    expect(state.activeEffect?.selectableOptions?.map((option) => option.label)).not.toContain(
+    expect(state.activeEffect?.effectChoice?.options).toHaveLength(3);
+    expect(state.activeEffect?.effectChoice?.options.map((option) => option.text)).not.toContain(
       '不改变必要Heart'
     );
   });

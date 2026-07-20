@@ -97,10 +97,16 @@ function startNatsuiroEgaoHeartSelection(
       awaitingPlayerId: player.id,
       selectableCardIds: [],
       selectableCardVisibility: 'PUBLIC',
-      selectableOptions: HEART_COLOR_OPTIONS.map((color) => ({
-        id: color,
-        label: HEART_COLOR_LABELS[color],
-      })),
+      effectChoice: {
+        mode: 'SINGLE',
+        options: HEART_COLOR_OPTIONS.map((color) => ({
+          id: color,
+          text: `选择的成员获得${HEART_COLOR_LABELS[color]}。`,
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       selectionLabel: '选择Heart颜色',
       confirmSelectionLabel: '获得Heart',
       canSkipSelection: false,
@@ -164,6 +170,7 @@ function startNatsuiroEgaoMemberSelection(
         selectableCardIds,
         selectableCardMode: 'SINGLE',
         selectableOptions: undefined,
+        effectChoice: undefined,
         minSelectableCards: undefined,
         maxSelectableCards: undefined,
         selectionLabel: "选择获得Heart的『μ's』成员",

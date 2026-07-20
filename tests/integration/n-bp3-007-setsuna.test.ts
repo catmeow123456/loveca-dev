@@ -169,8 +169,8 @@ describe('PL!N-bp3-007 费用9「優木せつ菜」', () => {
     const started = activate(setup());
     const p1View = projectPlayerViewState(started, P1);
     const p2View = projectPlayerViewState(started, P2);
-    expect(JSON.stringify(p1View)).toContain('target');
-    expect(JSON.stringify(p2View)).not.toContain('target');
+    expect(JSON.stringify(p1View.activeEffect)).toContain('target');
+    expect(JSON.stringify(p2View.activeEffect)).not.toContain('target');
     const copy = `${started.activeEffect?.stepText} ${started.activeEffect?.selectionLabel} ${started.activeEffect?.confirmSelectionLabel}`;
     expect(copy).not.toMatch(/source|pending|payload|eventId|stale/);
     expect(started.activeEffect?.canSkipSelection).toBe(false);

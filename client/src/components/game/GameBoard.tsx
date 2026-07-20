@@ -44,6 +44,7 @@ import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { BattleAnimationLayer } from './BattleAnimationLayer';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
+import { EffectChoicePanel } from './EffectChoicePanel';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
@@ -75,6 +76,14 @@ import {
   PUBLIC_CARD_SELECTION_FALLBACK_DELAY_MS,
   schedulePublicCardSelectionAutoAdvance,
 } from '@/lib/publicCardSelectionAutoAdvance';
+import {
+  canConfirmEffectChoiceSelection,
+  isPublicEffectChoiceAutoAdvanceView,
+  normalizeEffectChoiceSelection,
+  PUBLIC_EFFECT_CHOICE_FALLBACK_DELAY_MS,
+  schedulePublicEffectChoiceAutoAdvance,
+  toggleEffectChoiceSelection,
+} from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
 import {
   LL_BP7_001_SPECIAL_PLAY_UI_CARD_CODE,
@@ -342,6 +351,7 @@ export const GameBoard = memo(function GameBoard({
     confirmSubPhase,
     confirmEffectStep,
     autoAdvancePublicCardSelection,
+    autoAdvancePublicEffectChoice,
     confirmCostPayment,
     selectSuccessCard,
     skipSuccessLiveSelection,
@@ -382,6 +392,7 @@ export const GameBoard = memo(function GameBoard({
       confirmSubPhase: s.confirmSubPhase,
       confirmEffectStep: s.confirmEffectStep,
       autoAdvancePublicCardSelection: s.autoAdvancePublicCardSelection,
+      autoAdvancePublicEffectChoice: s.autoAdvancePublicEffectChoice,
       confirmCostPayment: s.confirmCostPayment,
       selectSuccessCard: s.selectSuccessCard,
       skipSuccessLiveSelection: s.skipSuccessLiveSelection,
@@ -427,9 +438,13 @@ export const GameBoard = memo(function GameBoard({
     null
   );
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
+  const [activeEffectChoiceSelection, setActiveEffectChoiceSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
   const [publicSelectionFallbackReady, setPublicSelectionFallbackReady] = useState(false);
+  const [publicEffectChoiceFallbackKey, setPublicEffectChoiceFallbackKey] = useState<string | null>(
+    null
+  );
   const [activeEffectOriginalTextExpanded, setActiveEffectOriginalTextExpanded] = useState(false);
   const [stageFormationDraftSlots, setStageFormationDraftSlots] = useState<
     StageFormationDraftSlot[]
@@ -573,7 +588,14 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const isPublicCardSelectionAutoAdvance = isPublicCardSelectionAutoAdvanceView(activeEffect);
-  const showOrdinaryActiveEffectControls = !isPublicCardSelectionAutoAdvance;
+  const isPublicEffectChoiceAutoAdvance = isPublicEffectChoiceAutoAdvanceView(activeEffect);
+  const publicEffectChoiceKey = isPublicEffectChoiceAutoAdvance
+    ? `${activeEffect.id}:${activeEffect.publicEffectChoiceAutoAdvanceAt}`
+    : null;
+  const publicEffectChoiceFallbackReady =
+    publicEffectChoiceKey !== null && publicEffectChoiceFallbackKey === publicEffectChoiceKey;
+  const showOrdinaryActiveEffectControls =
+    !isPublicCardSelectionAutoAdvance && !isPublicEffectChoiceAutoAdvance;
   const publicCardSelectionDisplayEntries = activeEffect
     ? buildPublicCardSelectionDisplayEntries(activeEffect)
     : [];
@@ -595,6 +617,16 @@ export const GameBoard = memo(function GameBoard({
     activeEffectOrderedSelection.every((cardId) => activeEffectSelectableCardIds.includes(cardId));
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
+  const activeEffectChoice = activeEffect?.effectChoice ?? null;
+  const showLegacyActiveEffectControls = showOrdinaryActiveEffectControls && !activeEffectChoice;
+  const activeEffectChoiceSignature = activeEffectChoice
+    ? `${activeEffectChoice.mode}:${activeEffectChoice.minSelections}:${activeEffectChoice.maxSelections}:${activeEffectChoice.options
+        .map((option) => `${option.id}:${option.selectable === false ? 'disabled' : 'enabled'}`)
+        .join('|')}`
+    : '';
+  const normalizedActiveEffectChoiceSelection = activeEffectChoice
+    ? normalizeEffectChoiceSelection(activeEffectChoice, activeEffectChoiceSelection)
+    : [];
   const activeEffectNumericInput = activeEffect?.numericInput ?? null;
   const activeEffectStageFormation = activeEffect?.stageFormation ?? null;
   const activeEffectStageFormationSignature =
@@ -620,12 +652,19 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectUsesCardOptionSelection =
     !activeEffectUsesOrderedMultiSelect &&
     activeEffectSelectableCardIds.length > 0 &&
-    activeEffectSelectableOptions.length > 0;
+    (activeEffectSelectableOptions.length > 0 ||
+      (!!activeEffectChoice && !isPublicEffectChoiceAutoAdvance));
   const activeEffectSelectedCardId =
     activeEffectSingleSelection &&
     activeEffectSelectableCardIds.includes(activeEffectSingleSelection)
       ? activeEffectSingleSelection
       : null;
+  const canConfirmActiveEffectChoice =
+    canConfirmActiveEffect &&
+    !!activeEffectChoice &&
+    activeEffectChoice.mode === 'MULTI' &&
+    (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId) &&
+    canConfirmEffectChoiceSelection(activeEffectChoice, normalizedActiveEffectChoiceSelection);
   const activeEffectSelectableBadgeLabel = isActiveEffectOrderSelectionWindow
     ? `队列 ${activeEffectSelectableCardIds.length} 个`
     : `${
@@ -793,12 +832,14 @@ export const GameBoard = memo(function GameBoard({
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
     setActiveEffectSingleSelection(null);
+    setActiveEffectChoiceSelection([]);
   }, [
     activeEffect?.id,
     activeEffect?.stepId,
     activeEffect?.selectableObjectMode,
     activeEffectSelectableCardSignature,
     activeEffectSelectableOptions.length,
+    activeEffectChoiceSignature,
   ]);
 
   useEffect(() => {
@@ -838,6 +879,37 @@ export const GameBoard = memo(function GameBoard({
     canConfirmEffectCommand,
     autoAdvancePublicCardSelection,
     isPublicCardSelectionAutoAdvance,
+    isReadOnly,
+  ]);
+
+  useEffect(() => {
+    if (!isPublicEffectChoiceAutoAdvance || isReadOnly || !canConfirmEffectCommand) {
+      return;
+    }
+
+    const effectId = activeEffect.id;
+    const fallbackKey = `${effectId}:${activeEffect.publicEffectChoiceAutoAdvanceAt}`;
+    const cancelAutoAdvance = schedulePublicEffectChoiceAutoAdvance(
+      activeEffect.publicEffectChoiceAutoAdvanceAfterMs,
+      () => autoAdvancePublicEffectChoice(effectId, activeEffect.publicEffectChoiceAutoAdvanceAt)
+    );
+    const fallbackTimer = window.setTimeout(
+      () => setPublicEffectChoiceFallbackKey(fallbackKey),
+      activeEffect.publicEffectChoiceAutoAdvanceAfterMs + PUBLIC_EFFECT_CHOICE_FALLBACK_DELAY_MS
+    );
+
+    return () => {
+      cancelAutoAdvance();
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [
+    activeEffect?.id,
+    activeEffect?.stepId,
+    activeEffect?.publicEffectChoiceAutoAdvanceAt,
+    activeEffect?.publicEffectChoiceAutoAdvanceAfterMs,
+    autoAdvancePublicEffectChoice,
+    canConfirmEffectCommand,
+    isPublicEffectChoiceAutoAdvance,
     isReadOnly,
   ]);
 
@@ -2731,6 +2803,56 @@ export const GameBoard = memo(function GameBoard({
                     text={activeEffectDescription}
                     className="text-[13px] leading-relaxed md:text-sm"
                   />
+                  {!isActiveEffectOrderSelectionWindow && activeEffectChoice && (
+                    <EffectChoicePanel
+                      activeEffect={activeEffect}
+                      selectedOptionIds={normalizedActiveEffectChoiceSelection}
+                      canChoose={
+                        canConfirmActiveEffect &&
+                        !isPublicEffectChoiceAutoAdvance &&
+                        (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
+                      }
+                      canConfirmMulti={canConfirmActiveEffectChoice}
+                      onSelectSingle={(optionId) =>
+                        confirmEffectStep(
+                          activeEffect.id,
+                          activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          [optionId]
+                        )
+                      }
+                      onToggleMulti={(optionId) =>
+                        setActiveEffectChoiceSelection((current) => [
+                          ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
+                        ])
+                      }
+                      onConfirmMulti={() =>
+                        confirmEffectStep(
+                          activeEffect.id,
+                          activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          undefined,
+                          normalizedActiveEffectChoiceSelection
+                        )
+                      }
+                      onSkip={() => confirmEffectStep(activeEffect.id, null)}
+                    />
+                  )}
                   {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
                     <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
                       <button
@@ -3224,7 +3346,22 @@ export const GameBoard = memo(function GameBoard({
                     继续处理
                   </button>
                 )}
-                {showOrdinaryActiveEffectControls && activeEffectStageFormation && (
+                {isPublicEffectChoiceAutoAdvance && publicEffectChoiceFallbackReady && (
+                  <button
+                    type="button"
+                    disabled={isReadOnly || !canConfirmEffectCommand}
+                    onClick={() =>
+                      autoAdvancePublicEffectChoice(
+                        activeEffect.id,
+                        activeEffect.publicEffectChoiceAutoAdvanceAt
+                      )
+                    }
+                    className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
+                  >
+                    继续处理
+                  </button>
+                )}
+                {showLegacyActiveEffectControls && activeEffectStageFormation && (
                   <button
                     type="button"
                     disabled={!canConfirmActiveEffect}
@@ -3237,7 +3374,7 @@ export const GameBoard = memo(function GameBoard({
                     确认站位
                   </button>
                 )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableSlots.map((slot) => {
                     const slotLabel =
                       slot === SlotPosition.LEFT
@@ -3264,7 +3401,7 @@ export const GameBoard = memo(function GameBoard({
                       </button>
                     );
                   })}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableOptions.map((option) => (
                     <button
                       key={option.id}
@@ -3307,7 +3444,7 @@ export const GameBoard = memo(function GameBoard({
                       />
                     </button>
                   ))}
-                {showOrdinaryActiveEffectControls && activeEffectNumericInput && (
+                {showLegacyActiveEffectControls && activeEffectNumericInput && (
                   <div className="flex min-w-[180px] flex-col gap-1">
                     <label className="text-xs font-semibold text-[var(--text-secondary)]">
                       {activeEffectNumericInput.label ?? '数字'}
@@ -3346,7 +3483,7 @@ export const GameBoard = memo(function GameBoard({
                     </div>
                   </div>
                 )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectUsesOrderedMultiSelect &&
                   (activeEffectSelectableCardIds.length > 0 ||
                     activeEffectMinSelectableCards === 0) && (
@@ -3370,7 +3507,7 @@ export const GameBoard = memo(function GameBoard({
                       {`${activeEffect.confirmSelectionLabel ?? '确认选择'}（${activeEffectOrderedSelection.length}张）`}
                     </button>
                   )}
-                {showOrdinaryActiveEffectControls && activeEffect.canResolveInOrder && (
+                {showLegacyActiveEffectControls && activeEffect.canResolveInOrder && (
                   <button
                     type="button"
                     disabled={!canConfirmActiveEffect}
@@ -3384,7 +3521,7 @@ export const GameBoard = memo(function GameBoard({
                     顺序发动
                   </button>
                 )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffect.canSkipSelection &&
                   (activeEffectSelectableCardIds.length > 0 ||
                     activeEffectSelectableSlots.length > 0 ||
@@ -3403,7 +3540,7 @@ export const GameBoard = memo(function GameBoard({
                       {activeEffect.skipSelectionLabel ?? '不加入'}
                     </button>
                   )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableCardIds.length === 0 &&
                   activeEffectSelectableSlots.length === 0 &&
                   activeEffectSelectableOptions.length === 0 &&
@@ -3422,7 +3559,7 @@ export const GameBoard = memo(function GameBoard({
                       {activeEffect.confirmSelectionLabel ?? '继续处理'}
                     </button>
                   )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableCardIds.length === 0 &&
                   activeEffectSelectableSlots.length === 0 &&
                   activeEffectSelectableOptions.length === 0 &&

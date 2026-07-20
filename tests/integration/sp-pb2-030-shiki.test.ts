@@ -65,15 +65,23 @@ function startAbility(game: GameState, sourceId: string, idSuffix = 'pending'): 
 }
 
 function chooseColor(game: GameState, color: HeartColor): GameState {
-  return confirmActiveEffectStep(
+  const publicChoice = confirmActiveEffectStep(
     game,
     PLAYER1,
     game.activeEffect!.id,
     undefined,
     undefined,
     undefined,
-    color
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    [color]
   );
+  return publicChoice === game
+    ? game
+    : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
 }
 
 describe('PL!SP-pb2-030 Shiki original heart replacement', () => {
@@ -83,11 +91,17 @@ describe('PL!SP-pb2-030 Shiki original heart replacement', () => {
       const scenario = setupState();
       const started = startAbility(scenario.game, scenario.sourceId);
 
-      expect(started.activeEffect?.selectableOptions).toEqual([
-        { id: HeartColor.RED, label: '红Heart' },
-        { id: HeartColor.YELLOW, label: '黄Heart' },
-        { id: HeartColor.PURPLE, label: '紫Heart' },
-      ]);
+      expect(started.activeEffect?.effectChoice).toMatchObject({
+        mode: 'SINGLE',
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+        options: [
+          { id: HeartColor.RED, text: '此成员原本持有的Heart变为[赤ハート]。' },
+          { id: HeartColor.YELLOW, text: '此成员原本持有的Heart变为[黄ハート]。' },
+          { id: HeartColor.PURPLE, text: '此成员原本持有的Heart变为[紫ハート]。' },
+        ],
+      });
 
       const state = chooseColor(started, color);
       const replacement = state.liveResolution.liveModifiers.find(

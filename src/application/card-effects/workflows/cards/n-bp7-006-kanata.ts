@@ -252,6 +252,19 @@ function startMillTopThree(
           { id: ACTIVATE_ENERGY_OPTION_ID, label: '将2张能量变为活跃状态' },
           { id: GAIN_BLADE_OPTION_ID, label: '获得[BLADE][BLADE]' },
         ],
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: ACTIVATE_ENERGY_OPTION_ID, text: '将2张能量变为活跃状态。' },
+            {
+              id: GAIN_BLADE_OPTION_ID,
+              text: 'LIVE结束时为止，此成员获得[BLADE][BLADE]。',
+            },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         selectionLabel: '选择要结算的效果',
         confirmSelectionLabel: '结算所选效果',
         canSkipSelection: false,

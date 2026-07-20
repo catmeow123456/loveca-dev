@@ -123,6 +123,24 @@ function startHsCl1004Ginko(
       stepText: '请选择要执行的效果。',
       awaitingPlayerId: player.id,
       selectableOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: MILL_OPTION_ID,
+            text: '从自己的卡组顶将3张卡放置入休息室。',
+            selectable: canMill,
+          },
+          {
+            id: WAIT_OPPONENT_OPTION_ID,
+            text: '将对方舞台上1名费用小于等于2的成员变为待机状态。',
+            selectable: opponentTargetIds.length > 0,
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       metadata: {
         orderedResolution,

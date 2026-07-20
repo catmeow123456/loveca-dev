@@ -16,17 +16,16 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
-const LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID =
-  'LIVE_START_SUCCESS_COUNT_CHOOSE_HEART';
+const LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_STEP_ID = 'LIVE_START_SUCCESS_COUNT_CHOOSE_HEART';
 
-const HEART_COLOR_OPTION_LABELS: Readonly<Record<HeartColor, string>> = {
-  [HeartColor.PINK]: '[桃ハート]',
-  [HeartColor.RED]: '[赤ハート]',
-  [HeartColor.YELLOW]: '[黄ハート]',
-  [HeartColor.GREEN]: '[緑ハート]',
-  [HeartColor.BLUE]: '[青ハート]',
-  [HeartColor.PURPLE]: '[紫ハート]',
-  [HeartColor.RAINBOW]: '[虹ハート]',
+const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
+  [HeartColor.PINK]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[桃ハート]。',
+  [HeartColor.RED]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[赤ハート]。',
+  [HeartColor.YELLOW]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[黄ハート]。',
+  [HeartColor.GREEN]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[緑ハート]。',
+  [HeartColor.BLUE]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[青ハート]。',
+  [HeartColor.PURPLE]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[紫ハート]。',
+  [HeartColor.RAINBOW]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[虹ハート]。',
 };
 
 interface LiveStartSuccessCountChooseHeartConfig {
@@ -80,9 +79,7 @@ function startLiveStartSuccessCountChooseHeart(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   if (!player || sourceSlot === null) {
     return skipPendingAbility(
       game,
@@ -108,10 +105,16 @@ function startLiveStartSuccessCountChooseHeart(
       awaitingPlayerId: player.id,
       selectableCardIds: [],
       selectableCardVisibility: 'PUBLIC',
-      selectableOptions: config.heartColorOptions.map((color) => ({
-        id: color,
-        label: HEART_COLOR_OPTION_LABELS[color],
-      })),
+      effectChoice: {
+        mode: 'SINGLE',
+        options: config.heartColorOptions.map((color) => ({
+          id: color,
+          text: HEART_COLOR_OPTION_TEXTS[color],
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       selectionLabel: '选择Heart颜色',
       confirmSelectionLabel: '获得Heart',
       canSkipSelection: false,

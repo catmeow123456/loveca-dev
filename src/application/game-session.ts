@@ -160,6 +160,11 @@ import {
   getPublicCardSelectionAutoAdvanceMetadata,
   isPublicCardSelectionAutoAdvanceEffect,
 } from './card-effects/runtime/public-card-selection-confirmation.js';
+import {
+  attachPublicEffectChoiceAutoAdvanceDeadline,
+  getPublicEffectChoiceAutoAdvanceMetadata,
+  isPublicEffectChoiceAutoAdvanceEffect,
+} from './card-effects/runtime/public-effect-choice-confirmation.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
@@ -575,7 +580,8 @@ export class GameSession {
 
     const isPublicSelectionAutoAdvance =
       command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
-      command.publicCardSelectionAutoAdvanceAt !== undefined;
+      (command.publicCardSelectionAutoAdvanceAt !== undefined ||
+        command.publicEffectChoiceAutoAdvanceAt !== undefined);
     const undoDraft = isPublicSelectionAutoAdvance
       ? null
       : this.captureUndoDraft(command.playerId, command.type);
@@ -1937,16 +1943,49 @@ export class GameSession {
             command.selectedSlot !== undefined ||
             command.resolveInOrder !== undefined ||
             command.selectedOptionId !== undefined ||
+            command.selectedEffectOptionIds !== undefined ||
             command.selectedNumber !== undefined ||
             command.stageFormationMoveHistory !== undefined ||
-            command.stageFormationPlacements !== undefined
+            command.stageFormationPlacements !== undefined ||
+            command.publicEffectChoiceAutoAdvanceAt !== undefined
           ) {
             return '公开展示推进不接受玩家选择';
           }
           return null;
         }
+        const publicEffectChoiceAutoAdvance = getPublicEffectChoiceAutoAdvanceMetadata(
+          state.activeEffect
+        );
+        if (publicEffectChoiceAutoAdvance) {
+          if (
+            command.publicEffectChoiceAutoAdvanceAt !== publicEffectChoiceAutoAdvance.autoAdvanceAt
+          ) {
+            return '效果选项公开推进请求已过期';
+          }
+          if (this.now() < publicEffectChoiceAutoAdvance.autoAdvanceAt) {
+            return '效果选项公开展示尚未结束';
+          }
+          if (
+            command.selectedCardId !== undefined ||
+            command.selectedCardIds !== undefined ||
+            command.selectedSlot !== undefined ||
+            command.resolveInOrder !== undefined ||
+            command.selectedOptionId !== undefined ||
+            command.selectedEffectOptionIds !== undefined ||
+            command.selectedNumber !== undefined ||
+            command.stageFormationMoveHistory !== undefined ||
+            command.stageFormationPlacements !== undefined ||
+            command.publicCardSelectionAutoAdvanceAt !== undefined
+          ) {
+            return '效果选项公开推进不接受玩家选择';
+          }
+          return null;
+        }
         if (command.publicCardSelectionAutoAdvanceAt !== undefined) {
           return '当前效果不接受公开展示推进';
+        }
+        if (command.publicEffectChoiceAutoAdvanceAt !== undefined) {
+          return '当前效果不接受效果选项公开推进';
         }
         if (state.activeEffect.awaitingPlayerId !== command.playerId) {
           return '当前不是该玩家确认卡牌效果';
@@ -2003,11 +2042,58 @@ export class GameSession {
         }
         if (
           command.selectedOptionId &&
+          !state.activeEffect.effectChoice &&
           !state.activeEffect.selectableOptions?.some(
             (option) => option.id === command.selectedOptionId
           )
         ) {
           return '选择的选项不能用于当前效果';
+        }
+        if (state.activeEffect.effectChoice) {
+          const choice = state.activeEffect.effectChoice;
+          if (
+            choice.mode === 'SINGLE' &&
+            (choice.minSelections !== 1 || choice.maxSelections !== 1)
+          ) {
+            return '当前单选效果的选择数量配置无效';
+          }
+          if (
+            command.selectedEffectOptionIds !== undefined &&
+            command.selectedOptionId !== undefined
+          ) {
+            return '当前效果不能同时提交新旧效果选项';
+          }
+          const selectedOptionIds =
+            command.selectedEffectOptionIds ??
+            (choice.mode === 'SINGLE' && command.selectedOptionId
+              ? [command.selectedOptionId]
+              : undefined);
+          if (!selectedOptionIds) {
+            if (command.selectedCardId !== null || state.activeEffect.canSkipSelection !== true) {
+              return '当前效果需要选择效果选项';
+            }
+          } else {
+            if (
+              selectedOptionIds.length < choice.minSelections ||
+              selectedOptionIds.length > choice.maxSelections ||
+              (choice.mode === 'SINGLE' && selectedOptionIds.length > 1)
+            ) {
+              return '选择的效果选项数量不符合当前效果';
+            }
+            if (new Set(selectedOptionIds).size !== selectedOptionIds.length) {
+              return '不能重复选择同一个效果选项';
+            }
+            if (
+              selectedOptionIds.some((optionId) => {
+                const option = choice.options.find((candidate) => candidate.id === optionId);
+                return !option || option.selectable === false;
+              })
+            ) {
+              return '选择的效果选项不能用于当前效果';
+            }
+          }
+        } else if (command.selectedEffectOptionIds !== undefined) {
+          return '当前效果不接受结构化效果选项';
         }
         if (command.stageFormationMoveHistory || command.stageFormationPlacements) {
           if (!state.activeEffect.stageFormation) {
@@ -2272,7 +2358,8 @@ export class GameSession {
     if (
       command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
       (state.activeEffect?.awaitingPlayerId === command.playerId ||
-        isPublicCardSelectionAutoAdvanceEffect(state.activeEffect))
+        isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
+        isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect))
     ) {
       return null;
     }
@@ -4228,9 +4315,11 @@ export class GameSession {
     state: GameState,
     command: ConfirmEffectStepCommand
   ): CommandExecutionResult {
-    const resolveAsPlayerId = isPublicCardSelectionAutoAdvanceEffect(state.activeEffect)
-      ? (state.activeEffect.awaitingPlayerId ?? command.playerId)
-      : command.playerId;
+    const resolveAsPlayerId =
+      isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
+      isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect)
+        ? (state.activeEffect.awaitingPlayerId ?? command.playerId)
+        : command.playerId;
     const resolvedState = confirmActiveEffectStep(
       state,
       resolveAsPlayerId,
@@ -4242,7 +4331,8 @@ export class GameSession {
       command.selectedCardIds,
       command.selectedNumber,
       command.stageFormationMoveHistory,
-      command.stageFormationPlacements
+      command.stageFormationPlacements,
+      command.selectedEffectOptionIds
     );
     if (resolvedState === state) {
       return {
@@ -4252,7 +4342,11 @@ export class GameSession {
       };
     }
 
-    const nextState = attachPublicCardSelectionAutoAdvanceDeadline(resolvedState, this.now());
+    const now = this.now();
+    const nextState = attachPublicEffectChoiceAutoAdvanceDeadline(
+      attachPublicCardSelectionAutoAdvanceDeadline(resolvedState, now),
+      now
+    );
 
     return {
       success: true,
@@ -4266,6 +4360,8 @@ export class GameSession {
           payload: {
             effectId: command.effectId,
             selectedCardId: command.selectedCardId ?? null,
+            selectedOptionId: command.selectedOptionId ?? null,
+            selectedEffectOptionIds: command.selectedEffectOptionIds,
             selectedNumber: command.selectedNumber ?? null,
             stageFormationMoveHistory: command.stageFormationMoveHistory,
             stageFormationPlacements: command.stageFormationPlacements,

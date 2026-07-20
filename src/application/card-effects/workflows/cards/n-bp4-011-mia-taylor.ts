@@ -52,13 +52,13 @@ const HEART_COLOR_OPTIONS = [
   HeartColor.PURPLE,
 ] as const;
 
-const HEART_COLOR_OPTION_LABELS: Readonly<Record<(typeof HEART_COLOR_OPTIONS)[number], string>> = {
-  [HeartColor.PINK]: '[桃ハート]',
-  [HeartColor.RED]: '[赤ハート]',
-  [HeartColor.YELLOW]: '[黄ハート]',
-  [HeartColor.GREEN]: '[緑ハート]',
-  [HeartColor.BLUE]: '[青ハート]',
-  [HeartColor.PURPLE]: '[紫ハート]',
+const HEART_COLOR_OPTION_TEXTS: Readonly<Record<(typeof HEART_COLOR_OPTIONS)[number], string>> = {
+  [HeartColor.PINK]: '此成员获得[桃ハート]。',
+  [HeartColor.RED]: '此成员获得[赤ハート]。',
+  [HeartColor.YELLOW]: '此成员获得[黄ハート]。',
+  [HeartColor.GREEN]: '此成员获得[緑ハート]。',
+  [HeartColor.BLUE]: '此成员获得[青ハート]。',
+  [HeartColor.PURPLE]: '此成员获得[紫ハート]。',
 };
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -244,10 +244,17 @@ function startMiaHeartSelection(
         confirmSelectionLabel: '获得Heart',
         canSkipSelection: false,
         skipSelectionLabel: undefined,
-        selectableOptions: HEART_COLOR_OPTIONS.map((color) => ({
-          id: color,
-          label: HEART_COLOR_OPTION_LABELS[color],
-        })),
+        selectableOptions: undefined,
+        effectChoice: {
+          mode: 'SINGLE',
+          options: HEART_COLOR_OPTIONS.map((color) => ({
+            id: color,
+            text: HEART_COLOR_OPTION_TEXTS[color],
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         metadata: {
           ...effect.metadata,
           discardedLiveCardId: discardResult.discardedCardIds[0],
@@ -519,10 +526,7 @@ function getHandLiveCardIds(game: GameState, playerId: string): readonly string[
   });
 }
 
-function getWaitingRoomNijigasakiLiveCardIds(
-  game: GameState,
-  playerId: string
-): readonly string[] {
+function getWaitingRoomNijigasakiLiveCardIds(game: GameState, playerId: string): readonly string[] {
   const player = getPlayerById(game, playerId);
   if (!player) {
     return [];
@@ -556,6 +560,8 @@ function getNumberMetadata(value: unknown): number | null {
   return typeof value === 'number' ? value : null;
 }
 
-function isSelectableHeartColor(value: string | null): value is (typeof HEART_COLOR_OPTIONS)[number] {
+function isSelectableHeartColor(
+  value: string | null
+): value is (typeof HEART_COLOR_OPTIONS)[number] {
   return HEART_COLOR_OPTIONS.some((color) => color === value);
 }

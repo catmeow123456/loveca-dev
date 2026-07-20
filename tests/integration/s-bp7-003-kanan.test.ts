@@ -23,6 +23,7 @@ import {
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   CardAbilityCategory,
   CardAbilitySourceZone,
@@ -127,15 +128,20 @@ function start(game: GameState): GameState {
 }
 
 function chooseOption(game: GameState, optionId: string | null, playerId = P1): GameState {
-  return confirmActiveEffectStep(
+  const normalizedOptionId =
+    optionId === null &&
+    game.activeEffect?.effectChoice?.options.some((option) => option.id === 'keep-top')
+      ? 'keep-top'
+      : optionId;
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
     game,
     playerId,
     game.activeEffect!.id,
     undefined,
     undefined,
     undefined,
-    optionId
-  );
+    normalizedOptionId
+  ), playerId);
 }
 
 function chooseSlot(game: GameState, slot: SlotPosition): GameState {
@@ -220,9 +226,14 @@ describe('PL!S-bp7-003-SEC private top-one inspection', () => {
         abilityId,
         stepText: '查看卡组顶1张卡。可以将其放置于卡组底。',
         inspectionCardIds: [TOP_ID],
-        selectableOptions: [{ id: 'place-bottom', label: '放置于卡组底' }],
-        confirmSelectionLabel: '放置于卡组底',
-        skipSelectionLabel: '保留在卡组顶',
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: 'keep-top', text: '将检视的卡保留在卡组顶。' },
+            { id: 'place-bottom', text: '将检视的卡放置于卡组底。' },
+          ],
+        },
+        confirmSelectionLabel: '确定',
       });
       expect(waiting.inspectionZone.revealedCardIds).toEqual([]);
       const ownView = projectPlayerViewState(waiting, P1);
@@ -294,7 +305,7 @@ describe('PL!S-bp7-003-SEC private top-one inspection', () => {
       inspectionContext: { ownerPlayerId: P2, sourceZone: ZoneType.MAIN_DECK },
     };
     const staleResult = chooseOption(stale, 'place-bottom');
-    expect(staleResult).toBe(stale);
+    expect(staleResult).toStrictEqual(stale);
     expect(staleResult.players[0].mainDeck.cardIds).toEqual([SECOND_ID]);
     expect(staleResult.inspectionZone.cardIds).toEqual([TOP_ID]);
 

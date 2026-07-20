@@ -20,6 +20,7 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   HS_CL1_003_ACTIVATED_WAIT_SELF_MIRACRA_MEMBER_GAIN_BLADE_ABILITY_ID,
   HS_CL1_004_ON_ENTER_MILL_THREE_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID,
@@ -213,14 +214,17 @@ function setupGinkoOnEnter(options: {
 }
 
 function confirmOption(game: GameState, selectedOptionId: string): GameState {
-  return confirmActiveEffectStep(
-    game,
-    PLAYER1,
-    game.activeEffect!.id,
-    null,
-    null,
-    undefined,
-    selectedOptionId
+  return continuePublicEffectChoiceForTest(
+    confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      game.activeEffect!.id,
+      null,
+      null,
+      undefined,
+      selectedOptionId
+    ),
+    PLAYER1
   );
 }
 

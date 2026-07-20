@@ -22,6 +22,7 @@ import {
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { projectPlayerViewState } from '../../src/online/projector';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   BladeHeartEffect,
   CardType,
@@ -164,14 +165,17 @@ function confirmCards(game: GameState, cardIds: readonly string[]): GameState {
 }
 
 function choose(game: GameState, optionId: string): GameState {
-  return confirmActiveEffectStep(
-    game,
-    P1,
-    game.activeEffect!.id,
-    undefined,
-    undefined,
-    undefined,
-    optionId
+  return continuePublicEffectChoiceForTest(
+    confirmActiveEffectStep(
+      game,
+      P1,
+      game.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      optionId
+    ),
+    P1
   );
 }
 

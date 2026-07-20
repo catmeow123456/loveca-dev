@@ -223,6 +223,24 @@ function startSpPb2011TomariAutoWorkflow(
       selectableCardIds: [],
       selectableCardVisibility: 'PUBLIC',
       selectableOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: GAIN_BLADE_OPTION_ID,
+            text: 'LIVE结束时为止，此成员获得[BLADE][BLADE]。',
+          },
+          {
+            id: WAIT_OPPONENT_OPTION_ID,
+            text: '将对方舞台上1名原本持有的[BLADE]数量小于等于2的成员变为待机状态。',
+            selectable: opponentTargetIds.length > 0,
+          },
+          { id: DRAW_OPTION_ID, text: '抽1张卡。' },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       metadata: {
         orderedResolution,
@@ -355,6 +373,7 @@ function finishSpPb2011TomariOption(
       ...effect,
       stepId: SELECT_OPPONENT_MEMBER_STEP_ID,
       stepText: '请选择对方舞台上1名原本 BLADE 数小于等于2的成员变为待机状态。',
+      effectChoice: undefined,
       selectableCardIds: opponentTargetIds,
       selectableOptions: undefined,
       selectionLabel: '选择对方原本 BLADE 小于等于2的成员',

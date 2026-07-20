@@ -13,10 +13,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import {
-  addCardToStatefulZone,
-  placeCardInSlot,
-} from '../../src/domain/entities/zone';
+import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -167,15 +164,34 @@ function start(game: GameState, ability: PendingAbilityState): GameState {
 }
 
 function chooseOption(game: GameState, selectedOptionId: string): GameState {
-  return confirmActiveEffectStep(
+  if (!game.activeEffect?.effectChoice) {
+    return confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      game.activeEffect!.id,
+      null,
+      null,
+      false,
+      selectedOptionId
+    );
+  }
+  const publicChoice = confirmActiveEffectStep(
     game,
     PLAYER1,
-    game.activeEffect!.id,
-    null,
-    null,
-    false,
-    selectedOptionId
+    game.activeEffect.id,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    [selectedOptionId]
   );
+  return publicChoice === game
+    ? game
+    : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
 }
 
 function chooseCard(game: GameState, selectedCardId: string | null): GameState {
@@ -244,7 +260,11 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
       PLAYER1,
       'sd1-003-target'
     );
-    const other = createCardInstance(createOtherMember('PL!SP-test-target'), PLAYER1, 'other-target');
+    const other = createCardInstance(
+      createOtherMember('PL!SP-test-target'),
+      PLAYER1,
+      'other-target'
+    );
     const energy = Array.from({ length: options.activeEnergyCount ?? 1 }, (_, index) =>
       createCardInstance(createOtherMember(`energy-${index}`), PLAYER1, `energy-${index}`)
     );
@@ -327,23 +347,32 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
       PLAYER1,
       (player) => ({
         ...player,
-        memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, secondSource.instanceId, {
-          orientation: OrientationState.ACTIVE,
-          face: FaceState.FACE_UP,
-        }),
+        memberSlots: placeCardInSlot(
+          player.memberSlots,
+          SlotPosition.RIGHT,
+          secondSource.instanceId,
+          {
+            orientation: OrientationState.ACTIVE,
+            face: FaceState.FACE_UP,
+          }
+        ),
       })
     );
-    const withSecond = addCheckTimingRuleSentinel({
-      ...stateWithSecondOnStage,
-      pendingAbilities: [
-        pending(
-          HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
-          secondSource.instanceId,
-          TriggerCondition.ON_LIVE_START,
-          'second'
-        ),
-      ],
-    }, PLAYER1, 'hs-sd1-003-continuation');
+    const withSecond = addCheckTimingRuleSentinel(
+      {
+        ...stateWithSecondOnStage,
+        pendingAbilities: [
+          pending(
+            HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
+            secondSource.instanceId,
+            TriggerCondition.ON_LIVE_START,
+            'second'
+          ),
+        ],
+      },
+      PLAYER1,
+      'hs-sd1-003-continuation'
+    );
     const resolved = chooseCard(chooseOption(withSecond, 'pay'), first.target.instanceId);
     expect(resolved.pendingAbilities).toEqual([]);
     expect(
@@ -371,15 +400,19 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
       '008-trigger-source'
     );
     const state = start(
-      addCheckTimingRuleSentinel(putCards({
-        game: createState([source, hand, deck1, deck2, triggerSource]),
-        hand: [hand.instanceId],
-        deck: [deck1.instanceId, deck2.instanceId],
-        stage: [
-          { cardId: source.instanceId, slot: SlotPosition.CENTER },
-          { cardId: triggerSource.instanceId, slot: SlotPosition.LEFT },
-        ],
-      }), PLAYER1, 'hs-sd1-008-draw-discard'),
+      addCheckTimingRuleSentinel(
+        putCards({
+          game: createState([source, hand, deck1, deck2, triggerSource]),
+          hand: [hand.instanceId],
+          deck: [deck1.instanceId, deck2.instanceId],
+          stage: [
+            { cardId: source.instanceId, slot: SlotPosition.CENTER },
+            { cardId: triggerSource.instanceId, slot: SlotPosition.LEFT },
+          ],
+        }),
+        PLAYER1,
+        'hs-sd1-008-draw-discard'
+      ),
       pending(
         HS_SD1_008_ON_ENTER_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
         source.instanceId,
@@ -441,12 +474,10 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
       PLAYER1,
       'sd1-008-live-target'
     );
-    const handCards =
-      options.handCards ??
-      [
-        createCardInstance(createHasunosoraMember('PL!HS-hand-1'), PLAYER1, '008-hasu-1'),
-        createCardInstance(createHasunosoraLive('PL!HS-hand-live'), PLAYER1, '008-hasu-2'),
-      ];
+    const handCards = options.handCards ?? [
+      createCardInstance(createHasunosoraMember('PL!HS-hand-1'), PLAYER1, '008-hasu-1'),
+      createCardInstance(createHasunosoraLive('PL!HS-hand-live'), PLAYER1, '008-hasu-2'),
+    ];
     return {
       source,
       target,
@@ -495,9 +526,12 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
       const heartSelected = chooseOption(discarded, heartColor);
       const resolved = chooseCard(heartSelected, setup.target.instanceId);
 
-      expect(hasHandToWaitingEvent(resolved, setup.handCards.map((card) => card.instanceId))).toBe(
-        true
-      );
+      expect(
+        hasHandToWaitingEvent(
+          resolved,
+          setup.handCards.map((card) => card.instanceId)
+        )
+      ).toBe(true);
       expect(findHeartModifier(resolved, setup.target.instanceId)).toMatchObject({
         hearts: [{ color: heartColor, count: 2 }],
         abilityId: HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID,
@@ -507,7 +541,11 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
 
   it('PL!HS-sd1-008-SD live-start target list excludes source and non-Hasunosora, and continues pending', () => {
     const handCards = [0, 1, 2, 3].map((index) =>
-      createCardInstance(createHasunosoraMember(`PL!HS-008-hand-${index}`), PLAYER1, `008-hand-${index}`)
+      createCardInstance(
+        createHasunosoraMember(`PL!HS-008-hand-${index}`),
+        PLAYER1,
+        `008-hand-${index}`
+      )
     );
     const setup = setup008Live({ handCards });
     const second = {
@@ -527,6 +565,7 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
     );
     const selected = chooseOption(discarded, HeartColor.PINK);
     expect(selected.activeEffect?.selectableCardIds).toEqual([setup.target.instanceId]);
+    expect(selected.activeEffect?.effectChoice).toBeUndefined();
     const resolved = chooseCard(selected, setup.target.instanceId);
     expect(resolved.activeEffect?.abilityId).toBe(
       HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID
@@ -587,7 +626,11 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
   });
 
   it('PL!HS-sd1-020-SD discards one Hasunosora member and can target any own stage member', () => {
-    const hand = createCardInstance(createHasunosoraMember('PL!HS-020-hand'), PLAYER1, '020-hand-1');
+    const hand = createCardInstance(
+      createHasunosoraMember('PL!HS-020-hand'),
+      PLAYER1,
+      '020-hand-1'
+    );
     const setup = setup020({ handCards: [hand] });
     const selected = chooseCards(setup.state, [hand.instanceId]);
     const resolved = chooseCard(selected, setup.target.instanceId);
@@ -595,13 +638,18 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
     expect(hasHandToWaitingEvent(resolved, [hand.instanceId])).toBe(true);
     expect(findBladeModifier(resolved, setup.target.instanceId)).toMatchObject({
       countDelta: 1,
-      abilityId: HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID,
+      abilityId:
+        HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID,
     });
   });
 
   it('PL!HS-sd1-020-SD discards three Hasunosora members for BLADE x3', () => {
     const handCards = [0, 1, 2].map((index) =>
-      createCardInstance(createHasunosoraMember(`PL!HS-020-hand-${index}`), PLAYER1, `020-hand-${index}`)
+      createCardInstance(
+        createHasunosoraMember(`PL!HS-020-hand-${index}`),
+        PLAYER1,
+        `020-hand-${index}`
+      )
     );
     const setup = setup020({ handCards, targetHasunosora: true });
     const selected = chooseCards(
@@ -616,15 +664,29 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
   });
 
   it('PL!HS-sd1-020-SD only accepts Hasunosora member hand cards and no-ops without a stage target', () => {
-    const hasuMember = createCardInstance(createHasunosoraMember('PL!HS-020-legal'), PLAYER1, '020-legal');
-    const hasuLive = createCardInstance(createHasunosoraLive('PL!HS-020-live-hand'), PLAYER1, '020-live-hand');
-    const otherMember = createCardInstance(createOtherMember('PL!SP-020-other'), PLAYER1, '020-other');
+    const hasuMember = createCardInstance(
+      createHasunosoraMember('PL!HS-020-legal'),
+      PLAYER1,
+      '020-legal'
+    );
+    const hasuLive = createCardInstance(
+      createHasunosoraLive('PL!HS-020-live-hand'),
+      PLAYER1,
+      '020-live-hand'
+    );
+    const otherMember = createCardInstance(
+      createOtherMember('PL!SP-020-other'),
+      PLAYER1,
+      '020-other'
+    );
     const setup = setup020({ handCards: [hasuMember, hasuLive, otherMember] });
 
     expect(setup.state.activeEffect?.selectableCardIds).toEqual([hasuMember.instanceId]);
     const unchanged = chooseCards(setup.state, [hasuLive.instanceId]);
     expect(unchanged.activeEffect?.id).toBe(setup.state.activeEffect?.id);
-    expect(setup020({ handCards: [hasuMember], includeTarget: false }).state.activeEffect).toBeNull();
+    expect(
+      setup020({ handCards: [hasuMember], includeTarget: false }).state.activeEffect
+    ).toBeNull();
   });
 
   it('PL!HS-sd1-020-SD continues pending after target selection', () => {

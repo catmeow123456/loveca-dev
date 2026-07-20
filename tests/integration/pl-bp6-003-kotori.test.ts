@@ -8,8 +8,12 @@ import {
   type GameState,
 } from '../../src/domain/entities/game';
 import { addMemberBelowMember, placeCardInSlot } from '../../src/domain/entities/zone';
-import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import {
+  createAutoAdvancePublicEffectChoiceCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
   BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
   BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
@@ -141,6 +145,41 @@ function confirmEffect(
   );
 }
 
+function confirmEffectChoice(
+  session: ReturnType<typeof createSessionWithState>,
+  selectedOptionId: string
+) {
+  const effectId = session.state!.activeEffect!.id;
+  const selected = session.executeCommand(
+    createConfirmEffectStepCommand(
+      PLAYER1,
+      effectId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [selectedOptionId]
+    )
+  );
+  expect(selected.success, selected.error).toBe(true);
+  expect(session.state?.activeEffect).toMatchObject({
+    stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+    effectChoice: { selectedOptionIds: [selectedOptionId] },
+  });
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: {
+      ...session.state!.activeEffect!,
+      publicEffectChoiceAutoAdvanceAt: 0,
+    },
+  };
+  return session.executeCommand(createAutoAdvancePublicEffectChoiceCommand(PLAYER1, effectId, 0));
+}
+
 function activeFaceUp() {
   return {
     orientation: OrientationState.ACTIVE,
@@ -169,16 +208,23 @@ describe('PL!-bp6-003 Kotori memberBelow workflow', () => {
     const session = createSessionWithState(resolvePendingCardEffects(game).gameState);
 
     expect(session.state?.activeEffect).toMatchObject({
-      abilityId:
-        BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
+      abilityId: BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
       selectableCardIds: [handMember.instanceId],
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
     });
 
     expect(confirmEffect(session, handMember.instanceId).success).toBe(true);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual([handMember.instanceId]);
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
+      HeartColor.PINK,
+      HeartColor.RED,
+      HeartColor.YELLOW,
+      HeartColor.GREEN,
+      HeartColor.BLUE,
+      HeartColor.PURPLE,
+    ]);
 
-    expect(confirmEffect(session, undefined, undefined, HeartColor.BLUE).success).toBe(true);
+    expect(confirmEffectChoice(session, HeartColor.BLUE).success).toBe(true);
     const player = session.state!.players[0]!;
     expect(player.hand.cardIds).not.toContain(handMember.instanceId);
     expect(player.memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([
@@ -216,9 +262,9 @@ describe('PL!-bp6-003 Kotori memberBelow workflow', () => {
     });
     const leftResult = resolvePendingCardEffects(leftGame).gameState;
     expect(leftResult.activeEffect).toBeNull();
-    expect(leftResult.actionHistory.some((action) => action.payload.step === 'SOURCE_NOT_CENTER')).toBe(
-      true
-    );
+    expect(
+      leftResult.actionHistory.some((action) => action.payload.step === 'SOURCE_NOT_CENTER')
+    ).toBe(true);
 
     const noCandidate = setupKotoriGame({
       handCandidates: [
@@ -281,9 +327,11 @@ describe('PL!-bp6-003 Kotori memberBelow workflow', () => {
       pendingAbilityId: BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
     });
     const noLegalResult = resolvePendingCardEffects(noLegal).gameState;
-    expect(noLegalResult.actionHistory.some((action) => action.payload.step === 'NO_LOW_COST_MUSE_MEMBER_BELOW')).toBe(
-      true
-    );
+    expect(
+      noLegalResult.actionHistory.some(
+        (action) => action.payload.step === 'NO_LOW_COST_MUSE_MEMBER_BELOW'
+      )
+    ).toBe(true);
 
     const legalBelow = createCardInstance(
       createMember('PL!-below-legal', 'below legal', { cost: 2 }),
@@ -308,15 +356,22 @@ describe('PL!-bp6-003 Kotori memberBelow workflow', () => {
     noEmptySlot = updatePlayer(noEmptySlot, PLAYER1, (player) => ({
       ...player,
       memberSlots: placeCardInSlot(
-        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, leftBlocker.instanceId, activeFaceUp()),
+        placeCardInSlot(
+          player.memberSlots,
+          SlotPosition.LEFT,
+          leftBlocker.instanceId,
+          activeFaceUp()
+        ),
         SlotPosition.RIGHT,
         rightBlocker.instanceId,
         activeFaceUp()
       ),
     }));
     const noEmptySlotResult = resolvePendingCardEffects(noEmptySlot).gameState;
-    expect(noEmptySlotResult.actionHistory.some((action) => action.payload.step === 'NO_EMPTY_MEMBER_SLOT')).toBe(
-      true
-    );
+    expect(
+      noEmptySlotResult.actionHistory.some(
+        (action) => action.payload.step === 'NO_EMPTY_MEMBER_SLOT'
+      )
+    ).toBe(true);
   });
 });

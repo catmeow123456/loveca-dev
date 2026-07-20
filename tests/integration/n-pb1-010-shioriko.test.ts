@@ -23,6 +23,7 @@ import {
 import { PL_N_PB1_010_ON_ENTER_CHOOSE_ACTIVATE_ONE_ENERGY_OR_STACK_NIJIGASAKI_LIVE_TO_DECK_TOP_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { ENERGY_OPERATION_SELECTION_STEP_ID } from '../../src/application/card-effects/runtime/energy-operation-selection';
 import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   N_PB1_010_ACTIVATE_ONE_ENERGY_OPTION_ID,
   N_PB1_010_SELECT_NIJIGASAKI_LIVE_STEP_ID,
@@ -164,7 +165,7 @@ function setup(
 }
 
 function chooseOption(game: GameState, optionId: string | null, playerId = PLAYER1): GameState {
-  return confirmActiveEffectStep(
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
     game,
     playerId,
     game.activeEffect!.id,
@@ -172,7 +173,7 @@ function chooseOption(game: GameState, optionId: string | null, playerId = PLAYE
     undefined,
     undefined,
     optionId
-  );
+  ), playerId);
 }
 
 function chooseCards(game: GameState, cardIds: readonly string[]): GameState {

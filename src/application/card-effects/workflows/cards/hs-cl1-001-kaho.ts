@@ -14,6 +14,7 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const LOOK_TOP_OPTION_STEP_ID = 'HS_CL1_001_LOOK_TOP_ONE_OPTIONAL_WAITING_ROOM';
+const KEEP_TOP_OPTION_ID = 'keep-top';
 const PLACE_WAITING_ROOM_OPTION_ID = 'place-waiting-room';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -87,9 +88,18 @@ function startHsCl1001KahoLiveStart(
         stepText: '查看卡组顶1张卡。可以将该卡放置入休息室。',
         awaitingPlayerId: player.id,
         inspectionCardIds: inspection.inspectedCardIds,
-        selectableOptions: [{ id: PLACE_WAITING_ROOM_OPTION_ID, label: '放置入休息室' }],
-        canSkipSelection: true,
-        skipSelectionLabel: '不放置',
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: KEEP_TOP_OPTION_ID, text: '将检视的卡保留在卡组顶。' },
+            { id: PLACE_WAITING_ROOM_OPTION_ID, text: '将检视的卡放置入休息室。' },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        canSkipSelection: false,
+        skipSelectionLabel: undefined,
         metadata: {
           orderedResolution,
           eventIds: ability.eventIds,
@@ -133,7 +143,7 @@ function finishHsCl1001KahoLiveStart(
   }
 
   const placeInWaitingRoom = selectedOptionId === PLACE_WAITING_ROOM_OPTION_ID;
-  if (selectedOptionId !== null && !placeInWaitingRoom) {
+  if (selectedOptionId !== KEEP_TOP_OPTION_ID && !placeInWaitingRoom) {
     return game;
   }
 

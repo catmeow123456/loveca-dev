@@ -14,9 +14,10 @@ import {
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
-  confirmActiveEffectStep,
+  confirmActiveEffectStep as confirmActiveEffectStepImmediate,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import { SP_PB2_001_ON_ENTER_DISCARD_LOOK_TOP_LOW_COST_LIELLA_MEMBER_PLAY_OR_HAND_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -29,6 +30,15 @@ import {
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+
+function confirmActiveEffectStep(
+  ...args: Parameters<typeof confirmActiveEffectStepImmediate>
+): GameState {
+  return continuePublicEffectChoiceForTest(
+    confirmActiveEffectStepImmediate(...args),
+    args[1]
+  );
+}
 
 function createMember(
   cardCode: string,
@@ -241,6 +251,8 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
     ]);
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.eligibleId);
+    expect(state.activeEffect?.revealedCardIds).toEqual([scenario.eligibleId]);
+    expect(state.activeEffect?.selectableCardIds).toBeUndefined();
     state = confirmActiveEffectStep(
       state,
       PLAYER1,

@@ -115,6 +115,24 @@ function startMiaDistinctLiveRecovery(
       stepText: '请选择1个满足条件的回收模式。',
       awaitingPlayerId: player.id,
       selectableOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: NAME_MODE_OPTION_ID,
+            text: '自己的休息室有3张以上卡名不同的LIVE卡的场合，从自己的休息室将1张LIVE卡加入手牌。',
+            selectable: selectableOptions.some((option) => option.id === NAME_MODE_OPTION_ID),
+          },
+          {
+            id: GROUP_MODE_OPTION_ID,
+            text: '自己的休息室有3张以上团体名不同的LIVE卡的场合，从自己的休息室将2张LIVE卡加入手牌。',
+            selectable: selectableOptions.some((option) => option.id === GROUP_MODE_OPTION_ID),
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       confirmSelectionLabel: '选择模式',
       metadata: {
@@ -171,6 +189,7 @@ function startMiaRecoverySelection(game: GameState, selectedOptionId: string | n
           recoveryCount === 1
             ? '请选择自己休息室中1张LIVE卡加入手牌。'
             : '请选择自己休息室中2张LIVE卡加入手牌。',
+        effectChoice: undefined,
         selectableCardIds: waitingLiveCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: recoveryCount === 1 ? 'SINGLE' : 'ORDERED_MULTI',

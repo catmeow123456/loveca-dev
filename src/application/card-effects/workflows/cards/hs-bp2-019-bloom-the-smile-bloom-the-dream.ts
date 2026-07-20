@@ -108,10 +108,18 @@ function startRequirementPatternChoice(
       stepId: SELECT_REQUIREMENT_PATTERN_STEP_ID,
       stepText: '可以选择此LIVE成功所需的必要Heart组合。',
       awaitingPlayerId: ability.controllerId,
-      selectableOptions: REQUIREMENT_PATTERNS.map((pattern) => ({
-        id: pattern.id,
-        label: pattern.label,
-      })),
+      effectChoice: {
+        mode: 'SINGLE',
+        options: REQUIREMENT_PATTERNS.map((pattern) => ({
+          id: pattern.id,
+          text: `此LIVE成功所需的必要Heart变为${pattern.label}。`,
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
+      selectionLabel: '选择必要Heart组合',
+      confirmSelectionLabel: '变更必要Heart',
       canSkipSelection: true,
       skipSelectionLabel: '不改变必要Heart',
       metadata: { orderedResolution },

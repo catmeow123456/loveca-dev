@@ -98,6 +98,27 @@ function startEmmaOnEnterActivateMemberOrEnergy(
           : '当前没有待机状态的舞台成员或能量。确认后继续。',
       awaitingPlayerId: player.id,
       selectableOptions,
+      effectChoice:
+        selectableOptions.length > 0
+          ? {
+              mode: 'SINGLE',
+              options: [
+                {
+                  id: 'member',
+                  text: '将1名存在于自己的舞台的成员变为活跃状态。',
+                  selectable: waitingMemberCardIds.length > 0,
+                },
+                {
+                  id: 'energy',
+                  text: '将2张能量变为活跃状态。',
+                  selectable: hasEnergyCards,
+                },
+              ],
+              minSelections: 1,
+              maxSelections: 1,
+              publicConfirmation: true,
+            }
+          : undefined,
       canSkipSelection: selectableOptions.length === 0,
       skipSelectionLabel: selectableOptions.length === 0 ? '确认' : undefined,
       metadata: {
@@ -156,6 +177,7 @@ function startEmmaTargetSelection(
           ...effect,
           stepId: EMMA_SELECT_MEMBER_STEP_ID,
           stepText: '请选择1名要变为活跃状态的舞台成员。',
+          effectChoice: undefined,
           selectableCardIds: waitingMemberCardIds,
           selectableCardMode: 'SINGLE',
           minSelectableCards: undefined,

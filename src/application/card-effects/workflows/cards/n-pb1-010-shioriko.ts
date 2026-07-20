@@ -88,6 +88,22 @@ function startShiorikoOnEnterChoice(
           label: '将至多2张虹咲LIVE卡放置于卡组顶',
         },
       ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: N_PB1_010_ACTIVATE_ONE_ENERGY_OPTION_ID,
+            text: '将1张能量变为活跃状态。',
+          },
+          {
+            id: N_PB1_010_STACK_NIJIGASAKI_LIVE_OPTION_ID,
+            text: '从自己的休息室将至多2张『虹ヶ咲』LIVE卡按任意顺序放置于卡组顶。',
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       metadata: { orderedResolution },
     },

@@ -17,10 +17,14 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import {
+  createAutoAdvancePublicEffectChoiceCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import { PL_N_BP4_030_LIVE_SUCCESS_CHOOSE_ENERGY_OR_MEMBER_RECOVERY_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
   CardType,
   GamePhase,
@@ -35,7 +39,6 @@ const PLAYER2 = 'player2';
 
 const ENERGY_OPTION_ID = 'energy';
 const MEMBER_RECOVERY_OPTION_ID = 'member-recovery';
-const ENERGY_AND_MEMBER_RECOVERY_OPTION_ID = 'energy-and-member-recovery';
 
 function createLive(
   cardCode: string,
@@ -208,12 +211,48 @@ function startPending(game: GameState) {
   return session;
 }
 
-function confirmOption(session: ReturnType<typeof createGameSession>, optionId: string): void {
+function submitOptions(
+  session: ReturnType<typeof createGameSession>,
+  optionIds: readonly string[]
+): ReturnType<typeof session.executeCommand> {
   const effectId = session.state!.activeEffect!.id;
+  return session.executeCommand(
+    createConfirmEffectStepCommand(
+      PLAYER1,
+      effectId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      optionIds
+    )
+  );
+}
+
+function advanceEffectChoice(session: ReturnType<typeof createGameSession>): void {
+  const effect = session.state!.activeEffect!;
+  expect(effect.stepId).toBe(PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID);
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: { ...effect, publicEffectChoiceAutoAdvanceAt: 0 },
+  };
   const result = session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, effectId, undefined, undefined, undefined, optionId)
+    createAutoAdvancePublicEffectChoiceCommand(PLAYER1, effect.id, 0)
   );
   expect(result.success).toBe(true);
+}
+
+function confirmOptions(
+  session: ReturnType<typeof createGameSession>,
+  optionIds: readonly string[]
+): void {
+  const result = submitOptions(session, optionIds);
+  expect(result.success).toBe(true);
+  advanceEffectChoice(session);
 }
 
 function confirmCard(session: ReturnType<typeof createGameSession>, cardId: string): void {
@@ -224,7 +263,7 @@ function confirmCard(session: ReturnType<typeof createGameSession>, cardId: stri
 }
 
 function optionIds(session: ReturnType<typeof createGameSession>): readonly string[] {
-  return session.state!.activeEffect?.selectableOptions?.map((option) => option.id) ?? [];
+  return session.state!.activeEffect?.effectChoice?.options.map((option) => option.id) ?? [];
 }
 
 function abilityActions(game: GameState) {
@@ -242,8 +281,27 @@ describe('PL!N-bp4-030-L Daydream Mermaid', () => {
     const session = startPending(scenario.game);
 
     expect(optionIds(session)).toEqual([ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID]);
+    expect(session.state?.activeEffect?.effectChoice?.options).toEqual([
+      {
+        id: ENERGY_OPTION_ID,
+        text: '从自己的能量卡组将1张能量卡以待机状态放置。',
+        selectable: true,
+      },
+      {
+        id: MEMBER_RECOVERY_OPTION_ID,
+        text: '从自己的休息室将1张成员卡加入手牌。',
+        selectable: true,
+      },
+    ]);
 
-    confirmOption(session, ENERGY_OPTION_ID);
+    const submitted = submitOptions(session, [ENERGY_OPTION_ID]);
+    expect(submitted.success).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID);
+    expect(session.state?.activeEffect?.effectChoice?.selectedOptionIds).toEqual([
+      ENERGY_OPTION_ID,
+    ]);
+    expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
+    advanceEffectChoice(session);
 
     const state = session.state!;
     expect(state.activeEffect).toBeNull();
@@ -259,7 +317,7 @@ describe('PL!N-bp4-030-L Daydream Mermaid', () => {
     const scenario = setupScenario({ successZone: 'none', energyDeckCount: 1 });
     const session = startPending(scenario.game);
 
-    confirmOption(session, MEMBER_RECOVERY_OPTION_ID);
+    confirmOptions(session, [MEMBER_RECOVERY_OPTION_ID]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([scenario.waitingMemberId]);
 
     confirmCard(session, scenario.waitingMemberId!);
@@ -275,13 +333,19 @@ describe('PL!N-bp4-030-L Daydream Mermaid', () => {
     const scenario = setupScenario({ successZone: 'nijigasaki', energyDeckCount: 1 });
     const session = startPending(scenario.game);
 
-    expect(optionIds(session)).toEqual([
-      ENERGY_OPTION_ID,
-      MEMBER_RECOVERY_OPTION_ID,
-      ENERGY_AND_MEMBER_RECOVERY_OPTION_ID,
-    ]);
+    expect(optionIds(session)).toEqual([ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID]);
+    expect(session.state?.activeEffect?.effectChoice).toMatchObject({
+      mode: 'MULTI',
+      minSelections: 1,
+      maxSelections: 2,
+    });
 
-    confirmOption(session, ENERGY_AND_MEMBER_RECOVERY_OPTION_ID);
+    const submitted = submitOptions(session, [ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID]);
+    expect(submitted.success).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID);
+    expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
+    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+    advanceEffectChoice(session);
     expect(session.state?.players[0].energyZone.cardIds).toEqual([scenario.energyCardIds[0]]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([scenario.waitingMemberId]);
 
@@ -303,17 +367,7 @@ describe('PL!N-bp4-030-L Daydream Mermaid', () => {
 
     expect(optionIds(session)).toEqual([ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID]);
 
-    const effectId = session.state!.activeEffect!.id;
-    const result = session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        effectId,
-        undefined,
-        undefined,
-        undefined,
-        ENERGY_AND_MEMBER_RECOVERY_OPTION_ID
-      )
-    );
+    const result = submitOptions(session, [ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID]);
 
     expect(result.success).toBe(false);
     expect(session.state?.activeEffect?.stepId).toBe('PL_N_BP4_030_SELECT_LIVE_SUCCESS_OPTION');

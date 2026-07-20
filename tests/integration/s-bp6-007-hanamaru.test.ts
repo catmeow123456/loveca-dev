@@ -23,6 +23,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { S_BP6_007_LIVE_START_PAY_ENERGY_OR_DISCARD_GRANT_AQOURS_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   CardType,
   FaceState,
@@ -224,7 +225,7 @@ function start(game: GameState): GameState {
 }
 
 function chooseOption(game: GameState, optionId: string | null): GameState {
-  return confirmActiveEffectStep(
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
     game,
     PLAYER1,
     game.activeEffect!.id,
@@ -232,7 +233,7 @@ function chooseOption(game: GameState, optionId: string | null): GameState {
     undefined,
     undefined,
     optionId
-  );
+  ), PLAYER1);
 }
 
 function chooseCards(game: GameState, cardIds: readonly string[]): GameState {

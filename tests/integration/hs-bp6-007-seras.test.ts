@@ -7,6 +7,7 @@ import {
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { DeckConfig } from '../../src/application/game-service';
 import { HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { S_BP7_003_ON_ENTER_CHOOSE_WAIT_PROTECTION_OR_POSITION_CHANGE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
@@ -172,6 +173,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
         )
       ).success
     ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state!.memberWaitProtections).toHaveLength(1);
     expect(session.state!.activeEffect).toBeNull();
 

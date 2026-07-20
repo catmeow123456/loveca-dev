@@ -1,4 +1,8 @@
-import { isLiveCardData, isMemberCardData, type HeartIcon } from '../../../../domain/entities/card.js';
+import {
+  isLiveCardData,
+  isMemberCardData,
+  type HeartIcon,
+} from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -23,9 +27,9 @@ const HEART_OPTIONS: readonly {
   readonly label: string;
   readonly color: HeartColor;
 }[] = [
-  { id: 'pink', label: '选择[桃ハート]', color: HeartColor.PINK },
-  { id: 'red', label: '选择[赤ハート]', color: HeartColor.RED },
-  { id: 'purple', label: '选择[紫ハート]', color: HeartColor.PURPLE },
+  { id: 'pink', label: '[桃ハート]', color: HeartColor.PINK },
+  { id: 'red', label: '[赤ハート]', color: HeartColor.RED },
+  { id: 'purple', label: '[紫ハート]', color: HeartColor.PURPLE },
 ];
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -88,10 +92,18 @@ function startChooseHeartForMovedMembers(
       stepId: CHOOSE_HEART_STEP_ID,
       stepText: '请选择要让本回合移动过的成员获得的 Heart。',
       awaitingPlayerId: player.id,
-      selectableOptions: HEART_OPTIONS.map((option) => ({
-        id: option.id,
-        label: option.label,
-      })),
+      effectChoice: {
+        mode: 'SINGLE',
+        options: HEART_OPTIONS.map((option) => ({
+          id: option.id,
+          text: `此回合中进行过站位变换的成员获得${option.label}。`,
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
+      selectionLabel: '选择移动过的成员要获得的Heart',
+      confirmSelectionLabel: '获得Heart',
       metadata: {
         orderedResolution,
         movedMemberCardIds,
@@ -206,7 +218,11 @@ function getMovedStageMemberCardIds(game: GameState, playerId: string): readonly
   });
 }
 
-function sourceIsCurrentBp5024Live(game: GameState, playerId: string, sourceCardId: string): boolean {
+function sourceIsCurrentBp5024Live(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, sourceCardId);
   return (

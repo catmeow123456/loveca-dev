@@ -106,7 +106,22 @@ function startChooseEffect(
       stepId: CHOOSE_EFFECT_STEP_ID,
       stepText: '请选择要执行的效果。',
       awaitingPlayerId: player.id,
-      selectableOptions: EFFECT_OPTIONS,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: DRAW_DISCARD_OPTION_ID,
+            text: '抽1张卡，将1张手牌放置入休息室。',
+          },
+          {
+            id: WAIT_OPPONENT_LOW_COST_OPTION_ID,
+            text: '将对方舞台上所有费用小于等于2的成员变为待机状态。',
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       selectionLabel: '选择要执行的效果',
       canSkipSelection: false,
       metadata: {

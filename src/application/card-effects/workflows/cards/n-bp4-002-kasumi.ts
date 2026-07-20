@@ -20,6 +20,7 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const CHOOSE_DECK_OWNER_STEP_ID = 'N_BP4_002_CHOOSE_DECK_OWNER';
 const LOOK_TOP_OPTION_STEP_ID = 'N_BP4_002_LOOK_TOP_OPTIONAL_WAITING_ROOM';
+const KEEP_TOP_OPTION_ID = 'keep-top';
 const PLACE_WAITING_ROOM_OPTION_ID = 'place-waiting-room';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -179,9 +180,18 @@ function finishKasumiDeckOwnerSelection(
         stepText: '查看所选玩家卡组顶1张卡。可以将该卡放置入休息室。',
         awaitingPlayerId: controller.id,
         inspectionCardIds: inspection.inspectedCardIds,
-        selectableOptions: [{ id: PLACE_WAITING_ROOM_OPTION_ID, label: '放置入休息室' }],
-        canSkipSelection: true,
-        skipSelectionLabel: '不放置',
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: KEEP_TOP_OPTION_ID, text: '将检视的卡保留在卡组顶。' },
+            { id: PLACE_WAITING_ROOM_OPTION_ID, text: '将检视的卡放置入休息室。' },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        canSkipSelection: false,
+        skipSelectionLabel: undefined,
         metadata: {
           orderedResolution: effect.metadata?.orderedResolution === true,
           deckOwnerId: deckOwner.id,
@@ -227,7 +237,7 @@ function finishKasumiLookTopOption(
   }
 
   const placeInWaitingRoom = selectedOptionId === PLACE_WAITING_ROOM_OPTION_ID;
-  if (selectedOptionId !== null && !placeInWaitingRoom) {
+  if (selectedOptionId !== KEEP_TOP_OPTION_ID && !placeInWaitingRoom) {
     return game;
   }
 

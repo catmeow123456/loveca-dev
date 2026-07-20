@@ -18,7 +18,10 @@ import {
   BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
   BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { finishSkippedActiveEffect, startPendingActiveEffect } from '../../runtime/active-effect.js';
+import {
+  finishSkippedActiveEffect,
+  startPendingActiveEffect,
+} from '../../runtime/active-effect.js';
 import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
 import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
@@ -52,6 +55,14 @@ const HEART_COLOR_OPTIONS = [
   HeartColor.BLUE,
   HeartColor.PURPLE,
 ] as const;
+const HEART_COLOR_TOKENS: Readonly<Record<(typeof HEART_COLOR_OPTIONS)[number], string>> = {
+  [HeartColor.PINK]: '[桃ハート]',
+  [HeartColor.RED]: '[赤ハート]',
+  [HeartColor.YELLOW]: '[黄ハート]',
+  [HeartColor.GREEN]: '[緑ハート]',
+  [HeartColor.BLUE]: '[青ハート]',
+  [HeartColor.PURPLE]: '[紫ハート]',
+};
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = (
@@ -83,11 +94,7 @@ export function registerBp6003KotoriWorkflowHandlers(
     BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
     KOTORI_SELECT_HAND_MEMBER_STEP_ID,
     (game, input, context) =>
-      revealKotoriHandMember(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
+      revealKotoriHandMember(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
@@ -102,12 +109,7 @@ export function registerBp6003KotoriWorkflowHandlers(
   registerPendingAbilityStarterHandler(
     BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
     (game, ability, options, context) =>
-      startKotoriLiveSuccess(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      )
+      startKotoriLiveSuccess(game, ability, options, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
@@ -139,16 +141,28 @@ function startKotoriLiveStart(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   if (!player || sourceSlot !== SlotPosition.CENTER) {
-    return skipPendingAbility(game, ability, ability.controllerId, orderedResolution, 'SOURCE_NOT_CENTER', continuePendingCardEffects);
+    return skipPendingAbility(
+      game,
+      ability,
+      ability.controllerId,
+      orderedResolution,
+      'SOURCE_NOT_CENTER',
+      continuePendingCardEffects
+    );
   }
 
   const selectableCardIds = getLowCostMuseMemberIdsInHand(game, player.id);
   if (selectableCardIds.length === 0) {
-    return skipPendingAbility(game, ability, player.id, orderedResolution, 'NO_HAND_LOW_COST_MUSE_MEMBER', continuePendingCardEffects);
+    return skipPendingAbility(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      'NO_HAND_LOW_COST_MUSE_MEMBER',
+      continuePendingCardEffects
+    );
   }
 
   return startPendingActiveEffect(game, {
@@ -192,7 +206,8 @@ function revealKotoriHandMember(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID ||
+    effect.abilityId !==
+      BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID ||
     effect.stepId !== KOTORI_SELECT_HAND_MEMBER_STEP_ID
   ) {
     return game;
@@ -225,7 +240,17 @@ function revealKotoriHandMember(
     ...state,
     activeEffect: {
       ...state.activeEffect,
-      selectableOptions: HEART_COLOR_OPTIONS.map((color) => ({ id: color, label: color })),
+      selectableOptions: undefined,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: HEART_COLOR_OPTIONS.map((color) => ({
+          id: color,
+          text: `此成员获得${HEART_COLOR_TOKENS[color]}。`,
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       selectionLabel: '选择Heart颜色',
       confirmSelectionLabel: '获得Heart',
       canSkipSelection: false,
@@ -241,7 +266,8 @@ function finishKotoriLiveStart(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID ||
+    effect.abilityId !==
+      BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID ||
     effect.stepId !== KOTORI_SELECT_HEART_COLOR_STEP_ID ||
     !isHeartColorOption(selectedOptionId)
   ) {
@@ -299,9 +325,7 @@ function startKotoriLiveSuccess(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceSlot = player
-    ? getSourceMemberSlot(game, player.id, ability.sourceCardId)
-    : null;
+  const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   if (!player || sourceSlot === null) {
     const manualConfirmation = maybeStartManualPendingAbilityConfirmation(game, ability, options);
     if (manualConfirmation) {

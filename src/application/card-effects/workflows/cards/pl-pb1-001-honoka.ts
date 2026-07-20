@@ -244,6 +244,16 @@ function finishHonokaDiscardCost(
           { id: LIVE_OPTION_ID, label: 'LIVE卡' },
           { id: HIGH_COST_MEMBER_OPTION_ID, label: '费用10以上成员卡' },
         ],
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: LIVE_OPTION_ID, text: '选择“LIVE卡”。' },
+            { id: HIGH_COST_MEMBER_OPTION_ID, text: '选择“费用10以上的成员卡”。' },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         confirmSelectionLabel: '选择',
         metadata: {
           ...effect.metadata,
@@ -290,6 +300,7 @@ function revealHonokaCardsUntilChosen(
         ...effect,
         stepId: CONFIRM_REVEALED_CARDS_STEP_ID,
         stepText: formatRevealConfirmationStepText(revealResult, mode),
+        effectChoice: undefined,
         inspectionCardIds: revealResult.inspectedCardIds,
         revealedCardIds: revealResult.inspectedCardIds,
         selectableOptions: undefined,

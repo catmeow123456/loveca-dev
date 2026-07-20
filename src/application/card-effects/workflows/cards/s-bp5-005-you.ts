@@ -172,9 +172,19 @@ function finishYouDiscardCostStartHeartSelection(
         stepText: '请选择1种 Heart 颜色。',
         selectableCardIds: undefined,
         selectableCardVisibility: undefined,
-        selectableOptions: HEART_OPTIONS,
+        selectableOptions: undefined,
+        effectChoice: {
+          mode: 'SINGLE',
+          options: HEART_OPTIONS.map((option) => ({
+            id: option.id,
+            text: `自己舞台上这个回合登场的成员中，所有『Aqours』以外的成员获得${option.label}。`,
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         selectionLabel: '选择 Heart 颜色',
-        confirmSelectionLabel: '选择',
+        confirmSelectionLabel: '获得Heart',
         canSkipSelection: false,
         skipSelectionLabel: undefined,
         metadata: {

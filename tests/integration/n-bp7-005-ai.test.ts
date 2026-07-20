@@ -5,6 +5,7 @@ import { createCardInstance, createHeartIcon } from '../../src/domain/entities/c
 import { createGameState, registerCards, updatePlayer, type GameState, type PendingAbilityState } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { CardType, FaceState, HeartColor, OrientationState, SlotPosition, TriggerCondition } from '../../src/shared/types/enums';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 
 const P1 = 'p1';
 const P2 = 'p2';
@@ -106,7 +107,7 @@ function start(game: GameState): GameState {
 }
 
 function choose(game: GameState, option: string): GameState {
-  return confirmActiveEffectStep(
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
     game,
     P1,
     game.activeEffect!.id,
@@ -114,7 +115,7 @@ function choose(game: GameState, option: string): GameState {
     undefined,
     undefined,
     option
-  );
+  ), P1);
 }
 
 function latestResolution(game: GameState) {
@@ -241,7 +242,7 @@ describe('PL!N-bp7-005-P 宫下爱', () => {
 
   it('目标选择后离场时记录 PLACE_TARGET_STALE 并消费能力', () => {
     const { game, karin, pending } = setup({ waitingEnergyCount: 0 });
-    const selecting = start(game);
+    const selecting = choose(start(game), PLACE_OPTION);
     const stale = updatePlayer(selecting, P1, (player) => ({
       ...player,
       memberSlots: {
@@ -262,7 +263,7 @@ describe('PL!N-bp7-005-P 宫下爱', () => {
 
   it('目标选择后成为 memberBelow 时安全消费且不移动能量', () => {
     const { game, ai, karin, deckEnergies } = setup({ waitingEnergyCount: 0 });
-    const selecting = start(game);
+    const selecting = choose(start(game), PLACE_OPTION);
     const stale = updatePlayer(selecting, P1, (player) => ({
       ...player,
       memberSlots: {
@@ -289,7 +290,7 @@ describe('PL!N-bp7-005-P 宫下爱', () => {
 
   it('目标仅移槽时按成员实例找到当前槽并正常放置', () => {
     const { game, karin, deckEnergies } = setup({ waitingEnergyCount: 0 });
-    const selecting = start(game);
+    const selecting = choose(start(game), PLACE_OPTION);
     const moved = updatePlayer(selecting, P1, (player) => ({
       ...player,
       memberSlots: {
@@ -315,7 +316,7 @@ describe('PL!N-bp7-005-P 宫下爱', () => {
 
   it('选择目标后能量卡组变空时记录实际空 IDs 并正常结束', () => {
     const { game, karin } = setup({ waitingEnergyCount: 0 });
-    const selecting = start(game);
+    const selecting = choose(start(game), PLACE_OPTION);
     const emptyDeck = updatePlayer(selecting, P1, (player) => ({
       ...player,
       energyDeck: { ...player.energyDeck, cardIds: [] },
@@ -336,7 +337,7 @@ describe('PL!N-bp7-005-P 宫下爱', () => {
   });
 
   it('不属于原 selectableCardIds 的目标输入仍保持窗口', () => {
-    const selecting = start(setup({ waitingEnergyCount: 0 }).game);
+    const selecting = choose(start(setup({ waitingEnergyCount: 0 }).game), PLACE_OPTION);
     const rejected = confirmActiveEffectStep(
       selecting,
       P1,

@@ -15,9 +15,7 @@ import {
 } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
-import {
-  PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
-} from '../../ability-ids.js';
+import { PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -34,9 +32,9 @@ const BASE_CARD_CODE = 'PL!-bp3-009';
 const SELECT_HEART_COLOR_STEP_ID = 'PL_BP3_009_SELECT_HEART_COLOR';
 
 const HEART_OPTIONS = [
-  { id: 'PINK', label: '[桃ハート]', color: HeartColor.PINK },
-  { id: 'YELLOW', label: '[黄ハート]', color: HeartColor.YELLOW },
-  { id: 'PURPLE', label: '[紫ハート]', color: HeartColor.PURPLE },
+  { id: 'PINK', text: '此成员获得[桃ハート]。', color: HeartColor.PINK },
+  { id: 'YELLOW', text: '此成员获得[黄ハート]。', color: HeartColor.YELLOW },
+  { id: 'PURPLE', text: '此成员获得[紫ハート]。', color: HeartColor.PURPLE },
 ] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -114,16 +112,21 @@ function startActivatedChooseHeart(
         abilityId: PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
         sourceCardId: cardId,
         controllerId: playerId,
-        effectText: getAbilityEffectText(
-          PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID
-        ),
+        effectText: getAbilityEffectText(PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID),
         stepId: SELECT_HEART_COLOR_STEP_ID,
         stepText: '请选择1种Heart。LIVE结束时为止，此成员获得1个选择的Heart。',
         awaitingPlayerId: playerId,
-        selectableOptions: HEART_OPTIONS.map((option) => ({
-          id: option.id,
-          label: option.label,
-        })),
+        effectChoice: {
+          mode: 'SINGLE',
+          options: HEART_OPTIONS.map((option) => ({
+            id: option.id,
+            text: option.text,
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        selectionLabel: '选择此成员要获得的Heart',
         confirmSelectionLabel: '选择Heart',
         canSkipSelection: false,
         metadata: { sourceSlot: source.sourceSlot },

@@ -13,6 +13,7 @@ import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID,
   SP_PB1_001_LIVE_START_PAY_TWO_ENERGY_OR_DISCARD_TWO_ABILITY_ID,
@@ -130,14 +131,17 @@ function start(game: GameState, ability: PendingAbilityState): GameState {
 }
 
 function chooseOption(game: GameState, selectedOptionId: string): GameState {
-  return confirmActiveEffectStep(
-    game,
-    PLAYER1,
-    game.activeEffect!.id,
-    null,
-    null,
-    false,
-    selectedOptionId
+  return continuePublicEffectChoiceForTest(
+    confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      game.activeEffect!.id,
+      null,
+      null,
+      false,
+      selectedOptionId
+    ),
+    PLAYER1
   );
 }
 
@@ -495,7 +499,7 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
       );
       const hand = [createCardInstance(createLiellaMember('lonely-hand'), PLAYER1, 'lonely-hand')];
       const energy = createEnergyCards(1, 'start-short-energy');
-      const resolved = start(
+      const choosing = start(
         putCards({
           game: createState([source, ...hand, ...energy]),
           hand: hand.map((card) => card.instanceId),
@@ -508,6 +512,11 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
           TriggerCondition.ON_LIVE_START
         )
       );
+      expect(choosing.activeEffect?.effectChoice?.options).toEqual([
+        { id: 'pay', text: '支付[E][E]。', selectable: false },
+        { id: 'discard', text: '将自己的2张手牌放置入休息室。' },
+      ]);
+      const resolved = chooseOption(choosing, 'discard');
 
       expect(resolved.activeEffect).toBeNull();
       expect(resolved.players[0]!.hand.cardIds).toEqual([]);
@@ -521,7 +530,7 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
         PLAYER1,
         'kanon-source'
       );
-      const resolved = start(
+      const choosing = start(
         putCards({
           game: createState([source]),
           hand: [],
@@ -534,6 +543,7 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
           TriggerCondition.ON_LIVE_START
         )
       );
+      const resolved = chooseOption(choosing, 'discard');
 
       expect(resolved.activeEffect).toBeNull();
       expect(resolved.pendingAbilities).toEqual([]);

@@ -17,10 +17,7 @@ import {
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import {
-  getAbilityEffectText,
-  recordPayCostAction,
-} from '../../runtime/workflow-helpers.js';
+import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 
 export const N_BP1_003_PAY_ONE_ENERGY_STEP_ID = 'N_BP1_003_PAY_ONE_ENERGY';
 export const N_BP1_003_CHOOSE_HEART_STEP_ID = 'N_BP1_003_CHOOSE_HEART';
@@ -36,12 +33,12 @@ const HEART_COLOR_OPTIONS = [
 ] as const;
 
 const HEART_OPTION_LABELS: Readonly<Record<(typeof HEART_COLOR_OPTIONS)[number], string>> = {
-  [HeartColor.PINK]: '获得[桃ハート]',
-  [HeartColor.RED]: '获得[赤ハート]',
-  [HeartColor.YELLOW]: '获得[黄ハート]',
-  [HeartColor.GREEN]: '获得[緑ハート]',
-  [HeartColor.BLUE]: '获得[青ハート]',
-  [HeartColor.PURPLE]: '获得[紫ハート]',
+  [HeartColor.PINK]: '此成员获得[桃ハート]。',
+  [HeartColor.RED]: '此成员获得[赤ハート]。',
+  [HeartColor.YELLOW]: '此成员获得[黄ハート]。',
+  [HeartColor.GREEN]: '此成员获得[緑ハート]。',
+  [HeartColor.BLUE]: '此成员获得[青ハート]。',
+  [HeartColor.PURPLE]: '此成员获得[紫ハート]。',
 };
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -69,11 +66,7 @@ export function registerNBp1003ShizukuWorkflowHandlers(): void {
     PL_N_BP1_003_LIVE_START_PAY_ONE_ENERGY_CHOOSE_HEART_ABILITY_ID,
     N_BP1_003_CHOOSE_HEART_STEP_ID,
     (game, input, context) =>
-      finishHeartSelection(
-        game,
-        input.selectedOptionId ?? null,
-        context.continuePendingCardEffects
-      )
+      finishHeartSelection(game, input.selectedOptionId ?? null, context.continuePendingCardEffects)
   );
 }
 
@@ -96,11 +89,7 @@ function startShizukuLiveStart(
     );
   }
 
-  const activeEnergyCardIds = getEnergySelectionCandidates(
-    game,
-    player.id,
-    'TAP_ACTIVE_ENERGY'
-  );
+  const activeEnergyCardIds = getEnergySelectionCandidates(game, player.id, 'TAP_ACTIVE_ENERGY');
   const canPay = activeEnergyCardIds.length >= ENERGY_COST;
   return startPendingActiveEffect(game, {
     ability,
@@ -179,10 +168,17 @@ function payEnergyAndStartHeartSelection(
         maxSelectableCards: undefined,
         selectionLabel: '选择要获得的Heart颜色',
         confirmSelectionLabel: undefined,
-        selectableOptions: HEART_COLOR_OPTIONS.map((color) => ({
-          id: color,
-          label: HEART_OPTION_LABELS[color],
-        })),
+        selectableOptions: undefined,
+        effectChoice: {
+          mode: 'SINGLE',
+          options: HEART_COLOR_OPTIONS.map((color) => ({
+            id: color,
+            text: HEART_OPTION_LABELS[color],
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         canSkipSelection: false,
         skipSelectionLabel: undefined,
         metadata: {

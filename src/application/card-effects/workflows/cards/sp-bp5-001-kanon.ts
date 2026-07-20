@@ -311,6 +311,24 @@ function finishPayEnergyDecision(
             ? { id: WAIT_OPPONENT_OPTION_ID, label: '对方费用4以下成员WAIT' }
             : { id: DRAW_OPTION_ID, label: '抽1张卡' }
         ),
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            {
+              id: WAIT_OPPONENT_OPTION_ID,
+              text: '将对方舞台上1名费用小于等于4的成员变为待机状态。',
+              selectable: optionIds.includes(WAIT_OPPONENT_OPTION_ID),
+            },
+            {
+              id: DRAW_OPTION_ID,
+              text: '抽1张卡。',
+              selectable: optionIds.includes(DRAW_OPTION_ID),
+            },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         metadata: {
           ...effect.metadata,
           paidEnergyCardIds: costPayment.paidEnergyCardIds,
@@ -504,6 +522,24 @@ function startActivatedEnergyActivation(
       stepText: '请选择起动成本。',
       awaitingPlayerId: player.id,
       selectableOptions: options,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: WAIT_SELF_COST_OPTION_ID,
+            text: '将此成员变为待机状态。',
+            selectable: options.some((option) => option.id === WAIT_SELF_COST_OPTION_ID),
+          },
+          {
+            id: DISCARD_HAND_COST_OPTION_ID,
+            text: '将1张手牌放置入休息室。',
+            selectable: options.some((option) => option.id === DISCARD_HAND_COST_OPTION_ID),
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       metadata: {
         sourceSlot,
@@ -538,6 +574,7 @@ function finishActivatedCostChoice(
         ...effect,
         stepId: ACTIVATED_DISCARD_STEP_ID,
         stepText: '请选择1张手牌放置入休息室。',
+        effectChoice: undefined,
         selectableCardIds: player.hand.cardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
         selectionLabel: '选择要放置入休息室的手牌',

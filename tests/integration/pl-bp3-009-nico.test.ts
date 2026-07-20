@@ -56,15 +56,17 @@ function pending(sourceCardId: string, id = 'nico-on-enter'): PendingAbilityStat
   };
 }
 
-function setup(options: {
-  readonly rarity?: 'R＋' | 'P' | 'P＋' | 'SEC';
-  readonly qualifierCost?: number;
-  readonly qualifierModifier?: number;
-  readonly sourceOnStage?: boolean;
-  readonly sourceOrientation?: OrientationState;
-  readonly deckCount?: number;
-  readonly pendingCount?: number;
-} = {}) {
+function setup(
+  options: {
+    readonly rarity?: 'R＋' | 'P' | 'P＋' | 'SEC';
+    readonly qualifierCost?: number;
+    readonly qualifierModifier?: number;
+    readonly sourceOnStage?: boolean;
+    readonly sourceOrientation?: OrientationState;
+    readonly deckCount?: number;
+    readonly pendingCount?: number;
+  } = {}
+) {
   const source = createCardInstance(
     member(`PL!-bp3-009-${options.rarity ?? 'P'}`, 2, '矢澤にこ'),
     PLAYER1,
@@ -78,10 +80,11 @@ function setup(options: {
   const deckCards = Array.from({ length: options.deckCount ?? 2 }, (_, index) =>
     createCardInstance(member(`TEST-DECK-${index}`, 1), PLAYER1, `deck-${index}`)
   );
-  let game = registerCards(
-    createGameState('pl-bp3-009-nico', PLAYER1, 'P1', PLAYER2, 'P2'),
-    [source, qualifier, ...deckCards]
-  );
+  let game = registerCards(createGameState('pl-bp3-009-nico', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    qualifier,
+    ...deckCards,
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => {
     let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.LEFT, qualifier.instanceId, {
       orientation: OrientationState.ACTIVE,
@@ -130,15 +133,23 @@ function setup(options: {
 }
 
 function chooseOption(game: GameState, optionId: string): GameState {
-  return confirmActiveEffectStep(
+  const publicChoice = confirmActiveEffectStep(
     game,
     PLAYER1,
     game.activeEffect!.id,
     undefined,
     undefined,
     undefined,
-    optionId
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    [optionId]
   );
+  return publicChoice === game
+    ? game
+    : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
 }
 
 describe('PL!-bp3-009 矢澤にこ workflow', () => {
@@ -228,9 +239,7 @@ describe('PL!-bp3-009 矢澤にこ workflow', () => {
       false,
       'nico-on-enter-2'
     );
-    expect(refreshConfirmation.activeEffect?.effectText).toContain(
-      '满足条件，实际抽1张卡'
-    );
+    expect(refreshConfirmation.activeEffect?.effectText).toContain('满足条件，实际抽1张卡');
     const refreshResolved = confirmActiveEffectStep(
       refreshConfirmation,
       PLAYER1,
@@ -276,11 +285,7 @@ describe('PL!-bp3-009 矢澤にこ workflow', () => {
         ],
       },
     };
-    const resolved = confirmActiveEffectStep(
-      confirmation,
-      PLAYER1,
-      confirmation.activeEffect!.id
-    );
+    const resolved = confirmActiveEffectStep(confirmation, PLAYER1, confirmation.activeEffect!.id);
     expect(resolved.players[0].hand.cardIds).toEqual([
       scenario.deckCards[0]!.instanceId,
       scenario.deckCards[1]!.instanceId,
@@ -332,15 +337,21 @@ describe('PL!-bp3-009 矢澤にこ workflow', () => {
       scenario.source.instanceId,
       PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID
     );
-    expect(started.players[0].memberSlots.cardStates.get(scenario.source.instanceId)?.orientation).toBe(
-      OrientationState.WAITING
-    );
+    expect(
+      started.players[0].memberSlots.cardStates.get(scenario.source.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
     expect(started.activeEffect?.canSkipSelection).toBe(false);
-    expect(started.activeEffect?.selectableOptions).toEqual([
-      { id: 'PINK', label: '[桃ハート]' },
-      { id: 'YELLOW', label: '[黄ハート]' },
-      { id: 'PURPLE', label: '[紫ハート]' },
-    ]);
+    expect(started.activeEffect?.effectChoice).toMatchObject({
+      mode: 'SINGLE',
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
+      options: [
+        { id: 'PINK', text: '此成员获得[桃ハート]。' },
+        { id: 'YELLOW', text: '此成员获得[黄ハート]。' },
+        { id: 'PURPLE', text: '此成员获得[紫ハート]。' },
+      ],
+    });
     expect(
       started.eventLog.filter(
         (entry) =>

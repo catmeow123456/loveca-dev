@@ -113,6 +113,22 @@ function createSessionFromGame(
   return session;
 }
 
+function selectBp6002LiveIfNeeded(session: ReturnType<typeof createGameSession>): void {
+  const effect = session.state?.activeEffect;
+  if (
+    effect?.abilityId !==
+      S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID ||
+    !effect.selectableCardIds?.[0]
+  ) {
+    return;
+  }
+  const result = session.executeCommand(
+    createConfirmEffectStepCommand(PLAYER1, effect.id, effect.selectableCardIds[0])
+  );
+  expect(result.success, result.error).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
+}
+
 function placeCenterMember(game: GameState, cardId: string): GameState {
   return updatePlayer(game, PLAYER1, (player) => ({
     ...player,
@@ -543,7 +559,8 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    selectBp6002LiveIfNeeded(session);
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       'top',
       'bottom',
     ]);
@@ -559,6 +576,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([handCard.instanceId]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([
       live.instanceId,
@@ -605,7 +623,8 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    selectBp6002LiveIfNeeded(session);
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       'top',
       'bottom',
     ]);
@@ -660,6 +679,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(p2Commands.some((hint) => hint.command === GameCommandType.SUBMIT_SCORE)).toBe(false);
     expect(p1Commands.some((hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP)).toBe(true);
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -671,6 +691,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
 
@@ -727,6 +748,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(directScore.success).toBe(false);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([]);
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -738,6 +760,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([PLAYER2]);
@@ -794,6 +817,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       },
     };
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -806,6 +830,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     );
 
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).not.toBe(SubPhase.RESULT_SCORE_CONFIRM);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([]);
@@ -941,6 +966,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -952,6 +978,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SETTLEMENT);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
@@ -1034,6 +1061,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     });
     const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'bp6-002-bottom');
 
+    selectBp6002LiveIfNeeded(session);
     const finish = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -1045,6 +1073,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([
       deckCard.instanceId,

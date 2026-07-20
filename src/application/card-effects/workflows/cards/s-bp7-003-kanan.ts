@@ -29,6 +29,7 @@ const LOOK_TOP_STEP = 'S_BP7_003_LOOK_TOP_ONE_OPTIONAL_BOTTOM';
 const CHOOSE_BRANCH_STEP = 'S_BP7_003_CHOOSE_EFFECT';
 const CHOOSE_MOVE_SLOT_STEP = 'S_BP7_003_CHOOSE_POSITION_CHANGE_SLOT';
 const PLACE_BOTTOM_OPTION = 'place-bottom';
+const KEEP_TOP_OPTION = 'keep-top';
 const PROTECT_OPTION = 'protect-aqours';
 const MOVE_OPTION = 'position-change';
 const TARGET_GROUPS = ['Aqours', 'SaintSnow'] as const;
@@ -118,10 +119,19 @@ function startLookTopOne(
         stepText: '查看卡组顶1张卡。可以将其放置于卡组底。',
         awaitingPlayerId: player.id,
         inspectionCardIds: [inspectedCardId],
-        selectableOptions: [{ id: PLACE_BOTTOM_OPTION, label: '放置于卡组底' }],
-        confirmSelectionLabel: '放置于卡组底',
-        canSkipSelection: true,
-        skipSelectionLabel: '保留在卡组顶',
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: KEEP_TOP_OPTION, text: '将检视的卡保留在卡组顶。' },
+            { id: PLACE_BOTTOM_OPTION, text: '将检视的卡放置于卡组底。' },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        confirmSelectionLabel: '确定',
+        canSkipSelection: false,
+        skipSelectionLabel: undefined,
         metadata: {
           orderedResolution,
           sourceSlot: ability.sourceSlot,
@@ -151,7 +161,7 @@ function finishLookTopOne(
   const effect = game.activeEffect;
   if (!effect || effect.stepId !== LOOK_TOP_STEP || !isLookTopAbility(effect.abilityId))
     return game;
-  if (selectedOptionId !== null && selectedOptionId !== PLACE_BOTTOM_OPTION) return game;
+  if (selectedOptionId !== KEEP_TOP_OPTION && selectedOptionId !== PLACE_BOTTOM_OPTION) return game;
 
   const cardId = effect.inspectionCardIds?.length === 1 ? effect.inspectionCardIds[0] : null;
   const player = getPlayerById(game, effect.controllerId);
@@ -231,7 +241,24 @@ function startChooseEffect(
         stepId: CHOOSE_BRANCH_STEP,
         stepText: '请从以下效果中选择1项。',
         awaitingPlayerId: player.id,
-        selectableOptions: options,
+      selectableOptions: options,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: PROTECT_OPTION,
+            text: 'LIVE结束时为止，存在于自己的舞台的原本持有的[BLADE]数量小于等于3的『Aqours』成员，不会因对方的效果变为待机状态。',
+          },
+          {
+            id: MOVE_OPTION,
+            text: '将此成员站位变换至存在『Aqours』或『Saint Snow』成员的区域。',
+            selectable: canMove,
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
         selectionLabel: '选择要结算的效果',
         confirmSelectionLabel: '结算所选效果',
         canSkipSelection: false,
@@ -301,6 +328,7 @@ function finishChooseEffect(
         ...effect,
         stepId: CHOOSE_MOVE_SLOT_STEP,
         stepText: '请选择此成员站位变换后的区域。',
+        effectChoice: undefined,
         selectableOptions: undefined,
         selectableSlots: targetSlots,
         selectionLabel: '选择移动后的区域',

@@ -345,6 +345,7 @@ export function projectPlayerViewState(
   const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
   const publicCardSelectionAutoAdvanceAt = game.activeEffect?.publicCardSelectionAutoAdvanceAt;
+  const publicEffectChoiceAutoAdvanceAt = game.activeEffect?.publicEffectChoiceAutoAdvanceAt;
   for (const skip of game.energyActivePhaseSkips ?? []) {
     const publicObjectId = createPublicObjectId(skip.energyCardId);
     const object = objects[publicObjectId];
@@ -368,12 +369,39 @@ export function projectPlayerViewState(
           ? Math.max(0, publicCardSelectionAutoAdvanceAt - (options.now ?? Date.now()))
           : undefined,
         publicCardSelectionOrdered: game.activeEffect.publicCardSelectionOrdered,
+        publicEffectChoiceAutoAdvanceAt,
+        publicEffectChoiceAutoAdvanceAfterMs: publicEffectChoiceAutoAdvanceAt
+          ? Math.max(0, publicEffectChoiceAutoAdvanceAt - (options.now ?? Date.now()))
+          : undefined,
         inspectionObjectIds: isActiveEffectControlledInspection(game, viewerPlayerId)
           ? game.activeEffect.inspectionCardIds?.map(createPublicObjectId)
           : undefined,
         ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
-        selectableOptions: game.activeEffect.selectableOptions,
+        selectableOptions: game.activeEffect.effectChoice
+          ? undefined
+          : game.activeEffect.selectableOptions,
+        effectChoice: game.activeEffect.effectChoice
+          ? {
+              mode: game.activeEffect.effectChoice.mode,
+              options: game.activeEffect.effectChoice.options.map((option) => ({
+                id: option.id,
+                text: option.text,
+                ...(game.activeEffect?.awaitingPlayerId === viewerPlayerId &&
+                option.selectable !== undefined
+                  ? { selectable: option.selectable }
+                  : {}),
+              })),
+              minSelections: game.activeEffect.effectChoice.minSelections,
+              maxSelections: game.activeEffect.effectChoice.maxSelections,
+              publicConfirmation: true as const,
+              ...(game.activeEffect.effectChoice.selectedOptionIds
+                ? {
+                    selectedOptionIds: game.activeEffect.effectChoice.selectedOptionIds,
+                  }
+                : {}),
+            }
+          : undefined,
         stageFormation: projectActiveEffectStageFormation(game),
         numericInput: game.activeEffect.numericInput,
         canResolveInOrder: game.activeEffect.canResolveInOrder,
@@ -1293,6 +1321,7 @@ function buildActiveEffectCommandHints(
   }
   if (
     game.activeEffect.publicCardSelectionAutoAdvanceAt === undefined &&
+    game.activeEffect.publicEffectChoiceAutoAdvanceAt === undefined &&
     game.activeEffect.awaitingPlayerId !== viewerPlayerId
   ) {
     return [];
@@ -1304,8 +1333,12 @@ function buildActiveEffectCommandHints(
         effectId: game.activeEffect.id,
         ...(game.activeEffect.publicCardSelectionAutoAdvanceAt !== undefined
           ? {
-              publicCardSelectionAutoAdvanceAt:
-                game.activeEffect.publicCardSelectionAutoAdvanceAt,
+              publicCardSelectionAutoAdvanceAt: game.activeEffect.publicCardSelectionAutoAdvanceAt,
+            }
+          : {}),
+        ...(game.activeEffect.publicEffectChoiceAutoAdvanceAt !== undefined
+          ? {
+              publicEffectChoiceAutoAdvanceAt: game.activeEffect.publicEffectChoiceAutoAdvanceAt,
             }
           : {}),
       },

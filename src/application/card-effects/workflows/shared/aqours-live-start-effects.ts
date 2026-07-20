@@ -278,7 +278,7 @@ function revealSd1009HandCard(
     );
   }
 
-  return revealHandCardForActiveEffect(game, {
+  const stateAfterReveal = revealHandCardForActiveEffect(game, {
     effect,
     playerId: player.id,
     selectedCardId,
@@ -287,16 +287,30 @@ function revealSd1009HandCard(
     actionStep: 'REVEAL_AQOURS_HAND_CARD',
     selectableCardIds: undefined,
     selectableCardVisibility: 'PUBLIC',
-    selectableOptions: [
-      { id: TOP_OPTION_ID, label: '卡组顶' },
-      { id: BOTTOM_OPTION_ID, label: '卡组底' },
-    ],
     selectionLabel: '选择放置位置',
     confirmSelectionLabel: '放置',
     canSkipSelection: false,
     metadata: { revealedHandCardId: selectedCardId },
     actionPayload: { revealedHandCardId: selectedCardId },
   });
+  return stateAfterReveal.activeEffect
+    ? {
+        ...stateAfterReveal,
+        activeEffect: {
+          ...stateAfterReveal.activeEffect,
+          effectChoice: {
+            mode: 'SINGLE',
+            options: [
+              { id: TOP_OPTION_ID, text: '将因此公开的卡放置到卡组顶。' },
+              { id: BOTTOM_OPTION_ID, text: '将因此公开的卡放置到卡组底。' },
+            ],
+            minSelections: 1,
+            maxSelections: 1,
+            publicConfirmation: true,
+          },
+        },
+      }
+    : stateAfterReveal;
 }
 
 function finishSd1009MoveRevealedHandCard(
@@ -628,12 +642,18 @@ function startBp6019AllAqoursScoreDrawPlaceHand(
       awaitingPlayerId: player.id,
       selectableCardIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-      selectableOptions:
+      effectChoice:
         selectableCardIds.length > 0
-          ? [
-              { id: TOP_OPTION_ID, label: '卡组顶' },
-              { id: BOTTOM_OPTION_ID, label: '卡组底' },
-            ]
+          ? {
+              mode: 'SINGLE',
+              options: [
+                { id: TOP_OPTION_ID, text: '将选择的手牌放置到卡组顶。' },
+                { id: BOTTOM_OPTION_ID, text: '将选择的手牌放置到卡组底。' },
+              ],
+              minSelections: 1,
+              maxSelections: 1,
+              publicConfirmation: true,
+            }
           : undefined,
       selectionLabel: '选择要放置到卡组顶或底的手牌',
       confirmSelectionLabel: '放置',
@@ -753,6 +773,26 @@ function startBp6020ChooseAdventureType(
       stepText: '请选择「冒险Type A, B, C!!」的1个效果。',
       awaitingPlayerId: player.id,
       selectableOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: BP6_020_GRANT_DRAW_OPTION_ID,
+            text: '此卡获得「【LIVE成功时】抽1张卡。」',
+          },
+          {
+            id: BP6_020_GAIN_HEART_OPTION_ID,
+            text: 'LIVE结束时为止，本回合因换手登场的1名『Aqours』成员获得[赤ハート]。',
+          },
+          {
+            id: BP6_020_SCORE_OPTION_ID,
+            text: '自己的成功LIVE卡置场有2张以上时，此卡的分数+1。',
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       confirmSelectionLabel: '选择',
       canSkipSelection: false,
       metadata: {

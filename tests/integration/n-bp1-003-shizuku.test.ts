@@ -15,6 +15,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { PL_N_BP1_003_LIVE_START_PAY_ONE_ENERGY_CHOOSE_HEART_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
   CardType,
   FaceState,
@@ -63,10 +64,10 @@ function setup(options: {
   const energyCards = options.orientations.map((_, index) =>
     createCardInstance(energy(index), PLAYER1, `energy-${index}`)
   );
-  let game = registerCards(
-    createGameState('n-bp1-003-shizuku', PLAYER1, 'P1', PLAYER2, 'P2'),
-    [source, ...energyCards]
-  );
+  let game = registerCards(createGameState('n-bp1-003-shizuku', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    ...energyCards,
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
@@ -127,6 +128,15 @@ function confirmEnergy(game: GameState, energyIds: readonly string[]): GameState
   );
 }
 
+function confirmEffectChoice(game: GameState, optionId: string): GameState {
+  const disclosed = confirmOption(game, optionId);
+  expect(disclosed.activeEffect).toMatchObject({
+    stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+    effectChoice: { selectedOptionIds: [optionId] },
+  });
+  return confirmActiveEffectStep(disclosed, PLAYER1, disclosed.activeEffect!.id);
+}
+
 describe('PL!N-bp1-003 费用10「桜坂しずく」LIVE开始能力', () => {
   it('pays one ordinary energy, offers exactly six normal Heart results, and grants only the source member', () => {
     const scenario = setup({
@@ -140,24 +150,31 @@ describe('PL!N-bp1-003 费用10「桜坂しずく」LIVE开始能力', () => {
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });
-    expect(state.activeEffect?.selectableOptions?.filter((option) => option.label === '不发动')).toEqual(
-      []
-    );
+    expect(
+      state.activeEffect?.selectableOptions?.filter((option) => option.label === '不发动')
+    ).toEqual([]);
 
     state = confirmOption(state, 'pay');
     expect(state.activeEffect).toMatchObject({
       stepId: 'N_BP1_003_CHOOSE_HEART',
       selectionLabel: '选择要获得的Heart颜色',
       canSkipSelection: false,
-      selectableOptions: [
-        { id: HeartColor.PINK, label: '获得[桃ハート]' },
-        { id: HeartColor.RED, label: '获得[赤ハート]' },
-        { id: HeartColor.YELLOW, label: '获得[黄ハート]' },
-        { id: HeartColor.GREEN, label: '获得[緑ハート]' },
-        { id: HeartColor.BLUE, label: '获得[青ハート]' },
-        { id: HeartColor.PURPLE, label: '获得[紫ハート]' },
-      ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: HeartColor.PINK, text: '此成员获得[桃ハート]。' },
+          { id: HeartColor.RED, text: '此成员获得[赤ハート]。' },
+          { id: HeartColor.YELLOW, text: '此成员获得[黄ハート]。' },
+          { id: HeartColor.GREEN, text: '此成员获得[緑ハート]。' },
+          { id: HeartColor.BLUE, text: '此成员获得[青ハート]。' },
+          { id: HeartColor.PURPLE, text: '此成员获得[紫ハート]。' },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
     });
+    expect(state.activeEffect?.selectableOptions).toBeUndefined();
     expect(state.activeEffect?.skipSelectionLabel).toBeUndefined();
     expect(state.activeEffect?.confirmSelectionLabel).toBeUndefined();
     expect(state.players[0].energyZone.cardStates.get(scenario.energyIds[0])?.orientation).toBe(
@@ -167,7 +184,7 @@ describe('PL!N-bp1-003 费用10「桜坂しずく」LIVE开始能力', () => {
       OrientationState.ACTIVE
     );
 
-    state = confirmOption(state, HeartColor.PURPLE);
+    state = confirmEffectChoice(state, HeartColor.PURPLE);
     expect(state.activeEffect).toBeNull();
     expect(state.pendingAbilities).toEqual([]);
     expect(state.liveResolution.liveModifiers).toContainEqual({
@@ -219,10 +236,7 @@ describe('PL!N-bp1-003 费用10「桜坂しずく」LIVE开始能力', () => {
       maxSelectableCards: 1,
     });
 
-    for (const ids of [
-      [scenario.energyIds[0]!, scenario.energyIds[0]!],
-      ['illegal-energy'],
-    ]) {
+    for (const ids of [[scenario.energyIds[0]!, scenario.energyIds[0]!], ['illegal-energy']]) {
       const rejected = confirmEnergy(selecting, ids);
       expect(rejected.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
       expect(rejected.actionHistory.some((action) => action.type === 'PAY_COST')).toBe(false);
@@ -273,7 +287,7 @@ describe('PL!N-bp1-003 费用10「桜坂しずく」LIVE开始能力', () => {
         slots: { ...player.memberSlots.slots, [SlotPosition.CENTER]: null },
       },
     }));
-    state = confirmOption(state, HeartColor.BLUE);
+    state = confirmEffectChoice(state, HeartColor.BLUE);
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].energyZone.cardStates.get(after.energyIds[0])?.orientation).toBe(
       OrientationState.WAITING

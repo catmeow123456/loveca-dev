@@ -14,7 +14,10 @@ import {
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
 import { liveResolver } from '../../src/domain/rules/live-resolver';
-import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import {
+  createAutoAdvancePublicEffectChoiceCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
 import { GameService } from '../../src/application/game-service';
 import {
@@ -138,9 +141,30 @@ function startLiveStartSelection(game: GameState): GameSession {
 function resolveSelectedColor(session: GameSession, color: HeartColor): void {
   const activeEffect = session.state!.activeEffect!;
   const result = session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, activeEffect.id, undefined, undefined, undefined, color)
+    createConfirmEffectStepCommand(
+      PLAYER1,
+      activeEffect.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [color]
+    )
   );
   expect(result.success).toBe(true);
+  const publicEffect = session.state!.activeEffect!;
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: { ...publicEffect, publicEffectChoiceAutoAdvanceAt: 0 },
+  };
+  const advanced = session.executeCommand(
+    createAutoAdvancePublicEffectChoiceCommand(PLAYER2, activeEffect.id, 0)
+  );
+  expect(advanced.success, advanced.error).toBe(true);
 }
 
 function judgeSingleLive(memberData: MemberCardData, color: HeartColor): boolean {
@@ -166,7 +190,13 @@ describe('LIVE start original Heart color replacement workflow', () => {
 
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: cardCase.abilityId,
-      selectableOptions: cardCase.options.map((color) => expect.objectContaining({ id: color })),
+      effectChoice: {
+        mode: 'SINGLE',
+        options: cardCase.options.map((color) => expect.objectContaining({ id: color })),
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
     });
 
@@ -197,7 +227,9 @@ describe('LIVE start original Heart color replacement workflow', () => {
 
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: cardCase.abilityId,
-      selectableOptions: cardCase.options.map((color) => expect.objectContaining({ id: color })),
+      effectChoice: {
+        options: cardCase.options.map((color) => expect.objectContaining({ id: color })),
+      },
       canSkipSelection: false,
     });
   });
@@ -214,7 +246,12 @@ describe('LIVE start original Heart color replacement workflow', () => {
         undefined,
         undefined,
         undefined,
-        HeartColor.RED
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [HeartColor.RED]
       )
     );
 

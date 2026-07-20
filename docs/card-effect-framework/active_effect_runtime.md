@@ -54,6 +54,14 @@ Benefits:
 
 `GameSession` 按 `min(3500ms, 2000ms + (公开卡牌数 - 1) * 300ms)` 写入服务端权威 `publicCardSelectionAutoAdvanceAt`；双方客户端在展示结束后均可请求推进，命令必须带回当前 deadline generation token。到期后恢复原 step/input，由原 workflow 重新校验目标并完成移动、turn1、追加声援、奖励和 continuation。自动推进合并回原选卡撤销条目，不恢复过期窗口；空 optional 选择不展示。`PL!S-bp2-004` 这类服务端确定全部目标的窄路径可使用 cardIds 入口进入同一生命周期，但卡专属条件与 reroll 仍留在单卡 workflow，且展示集合与最终移动集合不一致时必须安全不移动。
 
+### Public Effect-Choice Confirmation
+
+`runtime/public-effect-choice-confirmation.ts` 负责卡文中的真实单选/多选效果分支，不替代普通 `selectableOptions`。workflow 用 `activeEffect.effectChoice` 声明服务端拥有的选项 ID、完整玩家文本、`SINGLE | MULTI`、选择数量边界和当前可选性；选卡、选成员、选槽位、队列顺序、发动/不发动、支付/不支付与数值输入继续使用原有字段。客户端只提交 `selectedEffectOptionIds`，服务端拒绝重复、伪造或当前不可选的 ID，并按 `effectChoice.options` 的卡文顺序归一化，多选效果不得用组合 ID 表达所有排列。
+
+首次提交只创建双方可见的选项公开窗口，不执行分支动作、不打开后续选卡窗口、不推进 pending。`GameSession` 写入固定 1500ms 的权威 `publicEffectChoiceAutoAdvanceAt`；任一对局参与者到期后可以带回当前 deadline generation token 请求推进。恢复时清除已消费的 `effectChoice`，再由原 workflow 重新校验来源、选项与目标；如果同一步还包含 public-card selection，顺序固定为“公开效果选项 -> 公开所选卡牌 -> 原 handler 结算”。自动推进合并进最初选项提交的 undo entry，重连使用投影的剩余时间，旧 timer/deadline 不得推进新窗口。
+
+选择阶段双方都可以看到印刷选项文本，但只有等待玩家收到动态 `selectable`；公开阶段双方只收到同一组 `selectedOptionIds` 与对应服务端文本。workflow 可以在权威状态暂留 legacy `selectableOptions` 供旧 handler 校验，但 projector 在存在 `effectChoice` 时不得再投影它，前端也不得渲染两套按钮。由选项进入卡牌、成员、槽位或另一个选项步骤时必须清除旧 `effectChoice`；只有下一步本身也是新的卡文选项时才重新创建。
+
 ## Granted Activated Abilities
 
 少数常时能力会让舞台上的 host 获得下方成员的起动能力。当前只落地 `PL!SP-pb2-005` 的窄入口：
@@ -77,7 +85,9 @@ Important fields:
 | `selectableCardIds` | 可选卡牌候选。 |
 | `selectableObjectIds` | 可选公开对象候选。 |
 | `selectableSlotPositions` | 可选槽位候选。 |
-| `selectableOptions` | 颜色、模式、分支等选项。 |
+| `selectableOptions` | 普通动作、支付、发动、队列或 legacy handler 使用的通用选项；不再作为真实多效果分支的玩家展示入口。 |
+| `effectChoice` | 卡文中的真实单选/多选效果分支，包含服务端选项文本、数量边界、动态可选性与公开结果。 |
+| `publicEffectChoiceAutoAdvanceAt` | 效果选项公开阶段的服务端权威截止时间。 |
 | `revealedCardIds` | 已公开给双方的隐藏区卡。 |
 | `selectableCardVisibility` | 候选投影模式：`PUBLIC`、`AWAITING_PLAYER_ONLY` 或 `AWAITING_PLAYER_BLIND`。 |
 | `metadata` | workflow 私有上下文。 |

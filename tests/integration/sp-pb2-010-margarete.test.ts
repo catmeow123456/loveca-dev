@@ -8,7 +8,12 @@ import {
 } from '../../src/domain/entities/game';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import {
+  PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+  PUBLIC_EFFECT_CHOICE_DISPLAY_DURATION_MS,
+} from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import type { DeckConfig } from '../../src/application/game-service';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
@@ -252,10 +257,21 @@ function appendPending(
 
 function confirmOption(session: ReturnType<typeof createGameSession>, optionId: string): void {
   const effectId = session.state!.activeEffect!.id;
+  const submittedAt = Date.now();
   const result = session.executeCommand(
     createConfirmEffectStepCommand(PLAYER1, effectId, undefined, undefined, undefined, optionId)
   );
   expect(result.success).toBe(true);
+  expect(session.state?.activeEffect).toMatchObject({
+    stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+    effectChoice: { selectedOptionIds: [optionId] },
+  });
+  const autoAdvanceAt = session.state?.activeEffect?.publicEffectChoiceAutoAdvanceAt;
+  expect(autoAdvanceAt).toBeTypeOf('number');
+  expect(autoAdvanceAt!).toBeGreaterThanOrEqual(
+    submittedAt + PUBLIC_EFFECT_CHOICE_DISPLAY_DURATION_MS
+  );
+  confirmPublicSelectionIfNeeded(session);
 }
 
 function confirmCard(session: ReturnType<typeof createGameSession>, cardId: string): void {
@@ -276,9 +292,12 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
       )
     );
 
-    expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'discard', label: '弃1张手牌' },
-      { id: 'decline-discard', label: '不弃手，返回1张能量' },
+    expect(scenario.session.state?.activeEffect?.effectChoice?.options).toEqual([
+      { id: 'discard', text: '将1张手牌放置入休息室。' },
+      {
+        id: 'decline-discard',
+        text: '不将手牌放置入休息室，将自己的1张能量放置入能量卡组。',
+      },
     ]);
 
     confirmOption(scenario.session, 'discard');
@@ -488,8 +507,9 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
       )
     );
 
-    expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'draw-two', label: '抽2张卡' },
+    expect(scenario.session.state?.activeEffect?.effectChoice?.options).toEqual([
+      { id: 'draw-two', text: '抽2张卡。' },
+      expect.objectContaining({ id: 'place-waiting-energy', selectable: false }),
     ]);
 
     confirmOption(scenario.session, 'draw-two');
@@ -520,9 +540,9 @@ describe('PL!SP-pb2-010 Margarete workflows', () => {
       )
     );
 
-    expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'draw-two', label: '抽2张卡' },
-      { id: 'place-waiting-energy', label: '放置1张待机能量' },
+    expect(scenario.session.state?.activeEffect?.effectChoice?.options).toEqual([
+      { id: 'draw-two', text: '抽2张卡。' },
+      expect.objectContaining({ id: 'place-waiting-energy', selectable: true }),
     ]);
 
     confirmOption(scenario.session, 'place-waiting-energy');

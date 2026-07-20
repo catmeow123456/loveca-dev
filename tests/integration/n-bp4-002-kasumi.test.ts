@@ -12,6 +12,7 @@ import { GameService } from '../../src/application/game-service';
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { PL_N_BP4_002_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_OPTIONAL_WAITING_ROOM_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   CardType,
   FaceState,
@@ -110,15 +111,16 @@ function chooseDeckOwner(game: GameState, selectedOptionId: 'self' | 'opponent')
 }
 
 function chooseLookTopOption(game: GameState, selectedOptionId: string | null): GameState {
-  return confirmActiveEffectStep(
+  const normalizedOptionId = selectedOptionId ?? 'keep-top';
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
     game,
     PLAYER1,
     game.activeEffect!.id,
     undefined,
     undefined,
     undefined,
-    selectedOptionId
-  );
+    normalizedOptionId
+  ), PLAYER1);
 }
 
 describe('PL!N-bp4-002 Kasumi live-start choose player look top workflow', () => {
@@ -142,9 +144,14 @@ describe('PL!N-bp4-002 Kasumi live-start choose player look top workflow', () =>
     expect(inspection.activeEffect).toMatchObject({
       stepId: 'N_BP4_002_LOOK_TOP_OPTIONAL_WAITING_ROOM',
       inspectionCardIds: [scenario.ownDeckCardIds[0]],
-      selectableOptions: [{ id: 'place-waiting-room', label: '放置入休息室' }],
-      canSkipSelection: true,
-      skipSelectionLabel: '不放置',
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: 'keep-top', text: '将检视的卡保留在卡组顶。' },
+          { id: 'place-waiting-room', text: '将检视的卡放置入休息室。' },
+        ],
+      },
+      canSkipSelection: false,
     });
     expect(inspection.inspectionContext).toEqual({
       ownerPlayerId: PLAYER1,
@@ -289,7 +296,9 @@ describe('PL!N-bp4-002 Kasumi live-start choose player look top workflow', () =>
         cardIds: [],
       },
     };
-    expect(chooseLookTopOption(staleInspection, 'place-waiting-room')).toBe(staleInspection);
+    expect(chooseLookTopOption(staleInspection, 'place-waiting-room')).toStrictEqual(
+      staleInspection
+    );
     expect(staleInspection.activeEffect).not.toBeNull();
   });
 });

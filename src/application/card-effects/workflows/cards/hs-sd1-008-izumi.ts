@@ -76,11 +76,7 @@ export function registerHsSd1008IzumiWorkflowHandlers(deps: {
     HS_SD1_008_LIVE_START_DISCARD_TWO_HASUNOSORA_CHOOSE_HEART_TARGET_ABILITY_ID,
     SELECT_TARGET_STEP_ID,
     (game, input, context) =>
-      finishHsSd1008Target(
-        game,
-        input.selectedCardId ?? null,
-        context.continuePendingCardEffects
-      )
+      finishHsSd1008Target(game, input.selectedCardId ?? null, context.continuePendingCardEffects)
   );
 }
 
@@ -130,8 +126,7 @@ function startHsSd1008LiveStart(
       controllerId: ability.controllerId,
       effectText: getAbilityEffectText(ability.abilityId),
       stepId: SELECT_DISCARD_STEP_ID,
-      stepText:
-        '可以将手牌中的2张『莲之空』卡放置入休息室。如此做时，选择1种 Heart 与目标成员。',
+      stepText: '可以将手牌中的2张『莲之空』卡放置入休息室。如此做时，选择1种 Heart 与目标成员。',
       awaitingPlayerId: player.id,
       selectableCardIds: discardCandidateIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
@@ -186,8 +181,7 @@ function finishHsSd1008Discard(
     uniqueSelectedCardIds.length !== selectedCardIds.length ||
     uniqueSelectedCardIds.some(
       (cardId) =>
-        effect.selectableCardIds?.includes(cardId) !== true ||
-        !currentCandidates.includes(cardId)
+        effect.selectableCardIds?.includes(cardId) !== true || !currentCandidates.includes(cardId)
     )
   ) {
     return game;
@@ -237,12 +231,19 @@ function finishHsSd1008Discard(
         minSelectableCards: undefined,
         maxSelectableCards: undefined,
         selectableCardVisibility: undefined,
-        selectableOptions: HEART_OPTIONS.map((option) => ({
-          id: option.id,
-          label: option.label,
-        })),
-        selectionLabel: undefined,
-        confirmSelectionLabel: undefined,
+        selectableOptions: undefined,
+        effectChoice: {
+          mode: 'SINGLE',
+          options: HEART_OPTIONS.map((option) => ({
+            id: option.id,
+            text: `选择的成员获得${option.label}${option.label}。`,
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        selectionLabel: '选择目标成员要获得的Heart',
+        confirmSelectionLabel: '获得Heart',
         canSkipSelection: false,
         skipSelectionLabel: undefined,
         metadata: {
@@ -277,11 +278,7 @@ function finishHsSd1008HeartSelection(
     return game;
   }
 
-  const targetCardIds = getOtherHasunosoraStageMemberCardIds(
-    game,
-    player.id,
-    effect.sourceCardId
-  );
+  const targetCardIds = getOtherHasunosoraStageMemberCardIds(game, player.id, effect.sourceCardId);
   if (targetCardIds.length === 0) {
     return continuePendingCardEffects(
       addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
@@ -307,6 +304,7 @@ function finishHsSd1008HeartSelection(
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
         selectableOptions: undefined,
+        effectChoice: undefined,
         selectionLabel: '选择获得 Heart 的莲之空成员',
         confirmSelectionLabel: '确定',
         canSkipSelection: false,
@@ -451,10 +449,7 @@ function getStringArrayMetadata(effect: ActiveEffectState | null, key: string): 
     : [];
 }
 
-function getHeartColorMetadata(
-  effect: ActiveEffectState | null,
-  key: string
-): HeartColor | null {
+function getHeartColorMetadata(effect: ActiveEffectState | null, key: string): HeartColor | null {
   const value = effect?.metadata?.[key];
   return typeof value === 'string' && HEART_OPTIONS.some((option) => option.id === value)
     ? (value as HeartColor)

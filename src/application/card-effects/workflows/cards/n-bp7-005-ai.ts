@@ -42,11 +42,6 @@ function start(game: GameState, ability: PendingAbilityState, ordered: boolean, 
   }
   const branches = getExecutableBranches(game, player.id);
   if (branches.length === 0) return finish(game, ability, ordered, next, { step: 'NO_EXECUTABLE_BRANCH' });
-  if (branches.length === 1) {
-    return branches[0] === ACTIVATE_OPTION
-      ? activateEnergy(game, ability, ordered, next)
-      : beginPlacement(game, ability, ordered, next);
-  }
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
@@ -54,10 +49,29 @@ function start(game: GameState, ability: PendingAbilityState, ordered: boolean, 
       id: ability.id, abilityId: ability.abilityId, sourceCardId: ability.sourceCardId,
       controllerId: player.id, effectText: getAbilityEffectText(ability.abilityId),
       stepId: CHOOSE_BRANCH_STEP_ID, stepText: '请选择要执行的效果。', awaitingPlayerId: player.id,
-      selectableOptions: [
-        { id: ACTIVATE_OPTION, label: '将2张能量变为活跃状态' },
-        { id: PLACE_OPTION, label: '将能量放置于『虹ヶ咲』成员下方' },
-      ],
+      selectableOptions: branches.map((id) =>
+        id === ACTIVATE_OPTION
+          ? { id, label: '将2张能量变为活跃状态' }
+          : { id, label: '将能量放置于『虹ヶ咲』成员下方' }
+      ),
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: ACTIVATE_OPTION,
+            text: '将2张能量变为活跃状态。',
+            selectable: branches.includes(ACTIVATE_OPTION),
+          },
+          {
+            id: PLACE_OPTION,
+            text: '从自己的能量卡组将1张能量放置于自己舞台上1名『虹ヶ咲』成员下方。',
+            selectable: branches.includes(PLACE_OPTION),
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       metadata: { orderedResolution: ordered },
     },

@@ -3071,7 +3071,8 @@ export function confirmActiveEffectStep(
   stageFormationPlacements?: readonly {
     readonly cardId: string;
     readonly toSlot: SlotPosition;
-  }[]
+  }[],
+  selectedEffectOptionIds?: readonly string[]
 ): GameState {
   const effect = game.activeEffect;
   if (!effect) {
@@ -3103,6 +3104,7 @@ export function confirmActiveEffectStep(
       selectedNumber,
       stageFormationMoveHistory,
       stageFormationPlacements,
+      selectedEffectOptionIds,
     },
     {
       continuePendingCardEffects,

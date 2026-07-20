@@ -208,6 +208,24 @@ function finishRetrofuturePayEnergy(
             ? '请选择要执行的效果。'
             : '当前无法从休息室登场成员，可以选择减少此LIVE的紫色必要Heart。',
         selectableOptions: modeOptions,
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            {
+              id: PLAY_MEMBER_MODE_OPTION_ID,
+              text: '从自己的休息室将1张费用小于等于4的『EdelNote』成员卡登场到自己舞台的空成员区。',
+              selectable: modeOptions.some((option) => option.id === PLAY_MEMBER_MODE_OPTION_ID),
+            },
+            {
+              id: REDUCE_REQUIREMENT_MODE_OPTION_ID,
+              text: '此LIVE成功所需的[紫ハート]减少1。',
+              selectable: true,
+            },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         selectableCardIds: undefined,
         selectableCardVisibility: undefined,
         selectableSlots: undefined,
@@ -289,6 +307,7 @@ function finishRetrofutureModeSelection(
         ...effect,
         stepId: SELECT_WAITING_ROOM_MEMBER_STEP_ID,
         stepText: '请选择自己休息室中1张费用4以下的EdelNote成员卡。',
+        effectChoice: undefined,
         selectableOptions: undefined,
         selectableCardIds: waitingRoomCandidateIds,
         selectableCardVisibility: 'PUBLIC',

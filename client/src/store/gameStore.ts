@@ -43,6 +43,7 @@ import {
   createEndPhaseCommand,
   createConfirmEffectStepCommand,
   createAutoAdvancePublicCardSelectionCommand,
+  createAutoAdvancePublicEffectChoiceCommand,
   createConfirmCostPaymentCommand,
   createMulliganCommand,
   createConfirmStepCommand,
@@ -389,10 +390,16 @@ export interface GameStore {
     stageFormationPlacements?: readonly {
       readonly cardId: string;
       readonly toSlot: SlotPosition;
-    }[]
+    }[],
+    selectedEffectOptionIds?: readonly string[]
   ) => CommandDispatchResult;
   /** 公共选卡展示到期后的无交互推进。 */
   autoAdvancePublicCardSelection: (
+    effectId: string,
+    expectedDeadline: number
+  ) => CommandDispatchResult;
+  /** 效果选项公开展示到期后的无交互推进。 */
+  autoAdvancePublicEffectChoice: (
     effectId: string,
     expectedDeadline: number
   ) => CommandDispatchResult;
@@ -1142,7 +1149,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       selectedCardIds,
       selectedNumber,
       stageFormationMoveHistory,
-      stageFormationPlacements
+      stageFormationPlacements,
+      selectedEffectOptionIds
     ) => {
       return runViewerCommand(
         (playerId) =>
@@ -1156,7 +1164,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             selectedCardIds,
             selectedNumber,
             stageFormationMoveHistory,
-            stageFormationPlacements
+            stageFormationPlacements,
+            selectedEffectOptionIds
           ),
         {
           failureMessage: '卡牌效果处理失败',
@@ -1173,6 +1182,17 @@ export const useGameStore = create<GameStore>((set, get) => {
           createAutoAdvancePublicCardSelectionCommand(playerId, effectId, expectedDeadline),
         {
           failureMessage: '公开展示自动推进失败',
+          silentFailure: true,
+        }
+      );
+    },
+
+    autoAdvancePublicEffectChoice: (effectId, expectedDeadline) => {
+      return runViewerCommand(
+        (playerId) =>
+          createAutoAdvancePublicEffectChoiceCommand(playerId, effectId, expectedDeadline),
+        {
+          failureMessage: '效果选项公开展示自动推进失败',
           silentFailure: true,
         }
       );

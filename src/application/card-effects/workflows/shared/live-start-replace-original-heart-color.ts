@@ -20,14 +20,14 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const REPLACE_ORIGINAL_HEART_COLOR_STEP_ID = 'REPLACE_ORIGINAL_HEART_COLOR';
 
-const HEART_COLOR_OPTION_LABELS: Readonly<Record<HeartColor, string>> = {
-  [HeartColor.PINK]: '桃Heart',
-  [HeartColor.RED]: '红Heart',
-  [HeartColor.YELLOW]: '黄Heart',
-  [HeartColor.GREEN]: '绿Heart',
-  [HeartColor.BLUE]: '蓝Heart',
-  [HeartColor.PURPLE]: '紫Heart',
-  [HeartColor.RAINBOW]: '虹Heart',
+const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
+  [HeartColor.PINK]: '此成员原本持有的Heart变为[桃ハート]。',
+  [HeartColor.RED]: '此成员原本持有的Heart变为[赤ハート]。',
+  [HeartColor.YELLOW]: '此成员原本持有的Heart变为[黄ハート]。',
+  [HeartColor.GREEN]: '此成员原本持有的Heart变为[緑ハート]。',
+  [HeartColor.BLUE]: '此成员原本持有的Heart变为[青ハート]。',
+  [HeartColor.PURPLE]: '此成员原本持有的Heart变为[紫ハート]。',
+  [HeartColor.RAINBOW]: '此成员原本持有的Heart变为[虹ハート]。',
 };
 
 interface ReplaceOriginalHeartColorConfig {
@@ -70,12 +70,15 @@ export function registerLiveStartReplaceOriginalHeartColorWorkflowHandlers(): vo
         config
       )
     );
-    registerActiveEffectStepHandler(config.abilityId, REPLACE_ORIGINAL_HEART_COLOR_STEP_ID, (game, input, context) =>
-      finishReplaceOriginalHeartColorChoice(
-        game,
-        input.selectedOptionId ?? null,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      REPLACE_ORIGINAL_HEART_COLOR_STEP_ID,
+      (game, input, context) =>
+        finishReplaceOriginalHeartColorChoice(
+          game,
+          input.selectedOptionId ?? null,
+          context.continuePendingCardEffects
+        )
     );
   }
 }
@@ -105,10 +108,18 @@ function startReplaceOriginalHeartColorChoice(
       awaitingPlayerId: player.id,
       selectableCardIds: [],
       selectableCardVisibility: 'PUBLIC',
-      selectableOptions: config.heartColorOptions.map((color) => ({
-        id: color,
-        label: HEART_COLOR_OPTION_LABELS[color],
-      })),
+      effectChoice: {
+        mode: 'SINGLE',
+        options: config.heartColorOptions.map((color) => ({
+          id: color,
+          text: HEART_COLOR_OPTION_TEXTS[color],
+        })),
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
+      selectionLabel: '选择变更后的Heart',
+      confirmSelectionLabel: '变更Heart',
       canSkipSelection: false,
       metadata: {
         heartColorOptions: [...config.heartColorOptions],

@@ -254,11 +254,14 @@ export interface ConfirmEffectStepCommand extends BaseGameCommand {
   readonly effectId: string;
   /** 公共选卡展示自动推进的预期 deadline；普通确认不携带。 */
   readonly publicCardSelectionAutoAdvanceAt?: number;
+  /** 效果选项公开展示自动推进的预期 deadline；普通确认不携带。 */
+  readonly publicEffectChoiceAutoAdvanceAt?: number;
   readonly selectedCardId?: string | null;
   readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: SlotPosition | null;
   readonly resolveInOrder?: boolean;
   readonly selectedOptionId?: string | null;
+  readonly selectedEffectOptionIds?: readonly string[];
   readonly selectedNumber?: number | null;
   readonly stageFormationMoveHistory?: readonly {
     readonly cardId: string;
@@ -782,7 +785,8 @@ export function createConfirmEffectStepCommand(
   stageFormationPlacements?: readonly {
     readonly cardId: string;
     readonly toSlot: SlotPosition;
-  }[]
+  }[],
+  selectedEffectOptionIds?: readonly string[]
 ): ConfirmEffectStepCommand {
   return {
     type: GameCommandType.CONFIRM_EFFECT_STEP,
@@ -796,6 +800,21 @@ export function createConfirmEffectStepCommand(
     selectedNumber,
     stageFormationMoveHistory,
     stageFormationPlacements,
+    selectedEffectOptionIds,
+    timestamp: Date.now(),
+  };
+}
+
+export function createAutoAdvancePublicEffectChoiceCommand(
+  playerId: string,
+  effectId: string,
+  expectedDeadline: number
+): ConfirmEffectStepCommand {
+  return {
+    type: GameCommandType.CONFIRM_EFFECT_STEP,
+    playerId,
+    effectId,
+    publicEffectChoiceAutoAdvanceAt: expectedDeadline,
     timestamp: Date.now(),
   };
 }

@@ -136,7 +136,26 @@ function startDiaChooseBranch(
       stepId: CHOOSE_BRANCH_STEP_ID,
       stepText: '请选择要处理的效果分支。',
       awaitingPlayerId: player.id,
-      selectableOptions: branchOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: AQOURS_BLADE_OPTION_ID,
+            text: '自己舞台上此成员以外的1名『Aqours』成员，LIVE结束时为止，获得[BLADE]。',
+            selectable: branchOptions.some((option) => option.id === AQOURS_BLADE_OPTION_ID),
+          },
+          {
+            id: SAINTSNOW_POSITION_CHANGE_OPTION_ID,
+            text: '将自己舞台上1名『SaintSnow』成员进行站位变换。',
+            selectable: branchOptions.some(
+              (option) => option.id === SAINTSNOW_POSITION_CHANGE_OPTION_ID
+            ),
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       selectionLabel: '选择效果分支',
       confirmSelectionLabel: '选择',
       canSkipSelection: false,
@@ -183,6 +202,7 @@ function finishDiaChooseBranch(
           ...effect,
           stepId: SELECT_AQOURS_BLADE_TARGET_STEP_ID,
           stepText: '请选择自己舞台上此成员以外的1名『Aqours』成员获得[BLADE]。',
+          effectChoice: undefined,
           selectableCardIds,
           selectableCardVisibility: 'PUBLIC',
           selectableOptions: undefined,
@@ -221,6 +241,7 @@ function finishDiaChooseBranch(
           ...effect,
           stepId: SELECT_SAINTSNOW_POSITION_TARGET_STEP_ID,
           stepText: '请选择自己舞台上1名『SaintSnow』成员进行站位变换。',
+          effectChoice: undefined,
           selectableCardIds,
           selectableCardVisibility: 'PUBLIC',
           selectableOptions: undefined,

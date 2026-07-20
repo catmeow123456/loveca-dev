@@ -10,19 +10,10 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import {
-  GamePhase,
-  HeartColor,
-  OrientationState,
-} from '../../../../shared/types/enums.js';
-import {
-  groupAliasIs,
-  memberHasHeartColor,
-} from '../../../effects/card-selectors.js';
+import { GamePhase, HeartColor, OrientationState } from '../../../../shared/types/enums.js';
+import { groupAliasIs, memberHasHeartColor } from '../../../effects/card-selectors.js';
 import { inspectTopCards } from '../../../effects/look-top.js';
-import {
-  BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
-} from '../../ability-ids.js';
+import { BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
@@ -53,14 +44,14 @@ const NORMAL_HEART_COLORS = [
   HeartColor.BLUE,
   HeartColor.PURPLE,
 ] as const;
-const HEART_COLOR_OPTION_LABELS: Readonly<Record<HeartColor, string>> = {
-  [HeartColor.PINK]: '粉心',
-  [HeartColor.RED]: '红心',
-  [HeartColor.YELLOW]: '黄心',
-  [HeartColor.GREEN]: '绿心',
-  [HeartColor.BLUE]: '蓝心',
-  [HeartColor.PURPLE]: '紫心',
-  [HeartColor.RAINBOW]: '虹心',
+const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
+  [HeartColor.PINK]: '指定[桃ハート]作为Heart颜色。',
+  [HeartColor.RED]: '指定[赤ハート]作为Heart颜色。',
+  [HeartColor.YELLOW]: '指定[黄ハート]作为Heart颜色。',
+  [HeartColor.GREEN]: '指定[緑ハート]作为Heart颜色。',
+  [HeartColor.BLUE]: '指定[青ハート]作为Heart颜色。',
+  [HeartColor.PURPLE]: '指定[紫ハート]作为Heart颜色。',
+  [HeartColor.RAINBOW]: '指定[虹ハート]作为Heart颜色。',
 };
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -76,11 +67,7 @@ export function registerPlBp6006MakiWorkflowHandlers(deps: {
     BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
     BP6_006_SELECT_DISCARD_COST_STEP_ID,
     (game, input) =>
-      finishBp6006DiscardCost(
-        game,
-        input.selectedCardId ?? null,
-        deps.enqueueTriggeredCardEffects
-      )
+      finishBp6006DiscardCost(game, input.selectedCardId ?? null, deps.enqueueTriggeredCardEffects)
   );
   registerActiveEffectStepHandler(
     BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
@@ -221,10 +208,17 @@ function finishBp6006DiscardCost(
         stepId: BP6_006_SELECT_HEART_COLOR_STEP_ID,
         stepText: '请选择1种 Heart 颜色。',
         selectableCardIds: [],
-        selectableOptions: NORMAL_HEART_COLORS.map((color) => ({
-          id: color,
-          label: HEART_COLOR_OPTION_LABELS[color],
-        })),
+        selectableOptions: undefined,
+        effectChoice: {
+          mode: 'SINGLE',
+          options: NORMAL_HEART_COLORS.map((color) => ({
+            id: color,
+            text: HEART_COLOR_OPTION_TEXTS[color],
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         selectionLabel: '选择 Heart 颜色',
         confirmSelectionLabel: '选择',
         canSkipSelection: false,
@@ -317,6 +311,7 @@ function finishBp6006ChooseColor(
         selectableCardIds: museCandidateCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableOptions: undefined,
+        effectChoice: undefined,
         selectionLabel: "选择要加入手牌的『μ's』卡",
         confirmSelectionLabel: '加入手牌',
         canSkipSelection: false,
@@ -411,7 +406,9 @@ function isCardMatchingBp6006ColorCondition(card: CardInstance, color: HeartColo
   if (isMemberCardData(card.data)) {
     return memberHasHeartColor(color)(card);
   }
-  return isLiveCardData(card.data) && (card.data.requirements.colorRequirements.get(color) ?? 0) > 0;
+  return (
+    isLiveCardData(card.data) && (card.data.requirements.colorRequirements.get(color) ?? 0) > 0
+  );
 }
 
 function isNormalHeartColor(value: string | null): value is HeartColor {

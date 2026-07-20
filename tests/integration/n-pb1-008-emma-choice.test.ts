@@ -12,6 +12,7 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   CardType,
   FaceState,
@@ -87,14 +88,17 @@ describe('PL!N-pb1-008-P+ 艾玛·维尔德选择性能量活跃', () => {
       { id: 'energy', label: '将能量变活跃' },
     ]);
 
-    const done = confirmActiveEffectStep(
-      choosing,
-      P1,
-      choosing.activeEffect!.id,
-      undefined,
-      undefined,
-      undefined,
-      'energy'
+    const done = continuePublicEffectChoiceForTest(
+      confirmActiveEffectStep(
+        choosing,
+        P1,
+        choosing.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'energy'
+      ),
+      P1
     );
     expect(done.activeEffect).toBeNull();
     expect(

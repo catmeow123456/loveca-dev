@@ -23,6 +23,7 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
@@ -117,7 +118,8 @@ function confirmActiveEffect(
     )
   );
   expect(result.success, result.error).toBe(true);
-  return result.gameState;
+  confirmPublicSelectionIfNeeded(session);
+  return session.state!;
 }
 
 function confirmActiveEffectCard(
