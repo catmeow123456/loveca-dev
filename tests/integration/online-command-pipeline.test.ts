@@ -914,25 +914,108 @@ describe('GameSession command pipeline', () => {
     expect(result.success).toBe(true);
 
     const events = session.getPublicEventsSince(beforeSeq);
+    const hiddenMoveIndex = events.findIndex(
+      (event) =>
+        event.type === 'CardMovedPublic' &&
+        event.to?.zone === ZoneType.RESOLUTION_ZONE &&
+        event.card === undefined &&
+        event.count === 1
+    );
+    const revealIndex = events.findIndex(
+      (event) =>
+        event.type === 'CardRevealed' &&
+        event.actorSeat === 'FIRST' &&
+        event.reason === 'CHEER_REVEAL' &&
+        event.card.cardCode !== undefined
+    );
     expect(
-      events.some(
-        (event) =>
-          event.type === 'CardMovedPublic' &&
-          event.to?.zone === ZoneType.RESOLUTION_ZONE &&
-          event.card === undefined &&
-          event.count === 1
-      )
-    ).toBe(true);
-    expect(
-      events.some(
-        (event) =>
-          event.type === 'CardRevealed' &&
-          event.actorSeat === 'FIRST' &&
-          event.reason === 'CHEER_REVEAL' &&
-          event.card.cardCode !== undefined
-      )
-    ).toBe(true);
+      hiddenMoveIndex,
+      '应先以仅含数量的隐藏事件记录主卡组到解决区的移动'
+    ).toBeGreaterThanOrEqual(0);
+    expect(revealIndex, '应在移动后单独公开实际声援卡').toBeGreaterThan(hiddenMoveIndex);
     expect(session.state?.resolutionZone.revealedCardIds).toHaveLength(1);
+  });
+
+  it('分数8「想在水族馆恋爱」从卡组底声援时仍先隐藏移动再公开', () => {
+    const session = createGameSession();
+    const baseDeck = createTestDeck();
+    const deck: DeckConfig = {
+      ...baseDeck,
+      mainDeck: baseDeck.mainDeck.map((card) =>
+        card.cardCode === 'LIVE-0'
+          ? createTestLiveCard('PL!S-bp7-022-SECL', '想在水族馆恋爱')
+          : card
+      ),
+    };
+
+    session.createGame('online-command-bottom-cheer', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+
+    const sourceCardId = [...session.state!.cardRegistry.values()].find(
+      (card) => card.ownerId === PLAYER1 && card.data.cardCode === 'PL!S-bp7-022-SECL'
+    )?.instanceId;
+    expect(sourceCardId).toBeTruthy();
+
+    const state = session.state as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      players: Array<{
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        liveZone: {
+          cardIds: string[];
+          cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+        };
+      }>;
+    };
+    const player = state.players[0]!;
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== sourceCardId);
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter((cardId) => cardId !== sourceCardId);
+    player.liveZone.cardIds = [sourceCardId!];
+    player.liveZone.cardStates = new Map([
+      [sourceCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    state.activePlayerIndex = 0;
+
+    const expectedBottomCardId = player.mainDeck.cardIds.at(-1);
+    expect(expectedBottomCardId).toBeTruthy();
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const result = session.executeCommand(createRevealCheerCardCommand(PLAYER1));
+    expect(result.success).toBe(true);
+    expect(session.state?.resolutionZone.revealedCardIds).toContain(expectedBottomCardId);
+
+    const events = session.getPublicEventsSince(beforeSeq);
+    const hiddenMoveIndex = events.findIndex(
+      (event) =>
+        event.type === 'CardMovedPublic' &&
+        event.from?.zone === ZoneType.MAIN_DECK &&
+        event.to?.zone === ZoneType.RESOLUTION_ZONE
+    );
+    const revealIndex = events.findIndex(
+      (event) =>
+        event.type === 'CardRevealed' &&
+        event.reason === 'CHEER_REVEAL' &&
+        event.card.publicObjectId === createPublicObjectId(expectedBottomCardId!)
+    );
+    expect(hiddenMoveIndex).toBeGreaterThanOrEqual(0);
+    const hiddenMove = events[hiddenMoveIndex];
+    expect(hiddenMove).toMatchObject({
+      type: 'CardMovedPublic',
+      actorSeat: 'FIRST',
+      count: 1,
+      from: { zone: ZoneType.MAIN_DECK, ownerSeat: 'FIRST' },
+      to: { zone: ZoneType.RESOLUTION_ZONE },
+    });
+    if (!hiddenMove || hiddenMove.type !== 'CardMovedPublic') {
+      throw new Error('缺少声援卡进入解决区的隐藏移动事件');
+    }
+    expect(hiddenMove.card).toBeUndefined();
+    expect(hiddenMove.from?.index, '卡组底声援不得记录为卡组顶 index 0').toBeUndefined();
+    expect(revealIndex).toBeGreaterThan(hiddenMoveIndex);
   });
 
   it('进入演出阶段时系统自动翻开 Live 会产出系统公开事件', () => {
@@ -1800,7 +1883,7 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('成员登场到特殊成员所在槽位时默认换手，并将其下方成员一并送去休息室', () => {
+  it('成员登场到已有 memberBelow 的槽位时仍正常换手并清理下方成员', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -1882,12 +1965,12 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('显式 asMemberBelow 移动只允许堆叠到特殊成员下方', () => {
+  it('恶意夹带旧版压人字段也不能通过普通移动命令手动压人', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
     session.createGame(
-      'online-command-explicit-member-below-special-only',
+      'online-command-reject-legacy-member-below-payload',
       PLAYER1,
       '玩家1',
       PLAYER2,
@@ -1909,10 +1992,10 @@ describe('GameSession command pipeline', () => {
     let memberCardIds = player.hand.cardIds.filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
-    if (memberCardIds.length < 3) {
+    if (memberCardIds.length < 2) {
       const additionalMemberIds = player.mainDeck.cardIds
         .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER)
-        .slice(0, 3 - memberCardIds.length);
+        .slice(0, 2 - memberCardIds.length);
       const additionalMemberIdSet = new Set(additionalMemberIds);
       player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
         (cardId) => !additionalMemberIdSet.has(cardId)
@@ -1920,18 +2003,15 @@ describe('GameSession command pipeline', () => {
       player.hand.cardIds = [...player.hand.cardIds, ...additionalMemberIds];
       memberCardIds = [...memberCardIds, ...additionalMemberIds];
     }
-    const [stackingCardId, normalHostId, specialHostId] = memberCardIds;
+    const [stackingCardId, specialHostId] = memberCardIds;
 
     expect(stackingCardId).toBeTruthy();
-    expect(normalHostId).toBeTruthy();
     expect(specialHostId).toBeTruthy();
 
     player.hand.cardIds = player.hand.cardIds.filter(
-      (cardId) => cardId !== normalHostId && cardId !== specialHostId
+      (cardId) => cardId !== specialHostId
     );
-    player.memberSlots.slots[SlotPosition.CENTER] = normalHostId!;
     player.memberSlots.slots[SlotPosition.RIGHT] = specialHostId!;
-    player.memberSlots.memberBelow[SlotPosition.CENTER] = [];
     player.memberSlots.memberBelow[SlotPosition.RIGHT] = [];
 
     const specialHost = state.cardRegistry.get(specialHostId!) as unknown as {
@@ -1943,33 +2023,21 @@ describe('GameSession command pipeline', () => {
       name: '村野さやか',
     };
 
-    const invalidResult = session.executeCommand(
-      createMoveOwnedCardToZoneCommand(
+    const legacyPayload = {
+      ...createMoveOwnedCardToZoneCommand(
         PLAYER1,
         stackingCardId!,
         ZoneType.HAND,
         ZoneType.MEMBER_SLOT,
-        { targetSlot: SlotPosition.CENTER, asMemberBelow: true }
-      )
-    );
-    expect(invalidResult.success).toBe(false);
+        { targetSlot: SlotPosition.RIGHT }
+      ),
+      ['as' + 'MemberBelow']: true,
+    };
+    const result = session.executeCommand(legacyPayload);
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('专用登场命令');
     expect(session.state?.players[0].hand.cardIds).toContain(stackingCardId);
-    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
-
-    const validResult = session.executeCommand(
-      createMoveOwnedCardToZoneCommand(
-        PLAYER1,
-        stackingCardId!,
-        ZoneType.HAND,
-        ZoneType.MEMBER_SLOT,
-        { targetSlot: SlotPosition.RIGHT, asMemberBelow: true }
-      )
-    );
-    expect(validResult.success).toBe(true);
-    expect(session.state?.players[0].hand.cardIds).not.toContain(stackingCardId);
-    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([
-      stackingCardId,
-    ]);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([]);
   });
 
   it('成员登场命令可用 freePlay 标记作为自由拖拽兜底跳过费用', () => {

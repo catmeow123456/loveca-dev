@@ -140,9 +140,9 @@
 - 每张能量卡向左下偏移 10%
 - 槽位底部用小胶囊显示“附加能量 xN”
 
-特殊成员卡堆叠表现（详见 `docs/special-member-stacking.md`）：
+成员下方堆叠表现（详见 `docs/special-member-stacking.md`）：
 
-- 部分特殊成员卡支持在其下方堆叠成员卡（`memberBelow`）
+- 已登记卡牌效果可在舞台主成员下方堆叠成员卡（`memberBelow`）
 - 堆叠成员卡向右下偏移 8%，与能量附着相区分
 - 使用 amber 色边框，与能量附着的 indigo 色相区分
 - 槽位底部用小胶囊显示“堆叠成员 xN”

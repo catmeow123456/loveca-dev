@@ -99,6 +99,7 @@ export function resolveStageMemberOrientationTargetSelection(
   return setMemberOrientation(game, targetPlayerId, selectedCardId, targetOrientation, {
     kind: 'CARD_EFFECT',
     playerId: effect.controllerId,
+    selectionPlayerId: effect.awaitingPlayerId ?? undefined,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     pendingAbilityId: effect.id,

@@ -45,6 +45,8 @@ const LEGACY_LIVE_SET_TRACKING_REPLAY_SKIP_REASON =
   'legacy fixture predates live-set tracking and enter-live-zone events';
 const LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON =
   'legacy fixture predates active-effect confirm labels';
+const LEGACY_CHEER_FACT_METADATA_REPLAY_SKIP_REASON =
+  'legacy fixture predates cheer deck-edge and revealed-card action metadata';
 const LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON =
   'legacy fixture predates enter-hand event emission';
 const LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON =
@@ -535,15 +537,15 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
 
     expect(replay.failedExecutions).toEqual([]);
     expect(replay.mismatches).toEqual([]);
-    expect(replay.replayedCount).toBe(56);
-    expect(replay.skippedCount).toBe(414);
+    expect(replay.replayedCount).toBe(51);
+    expect(replay.skippedCount).toBe(419);
     expect(plainRecord(replay.replayedByDecisionType)).toEqual({
-      ACTIVE_EFFECT_SUBMITTED: 39,
-      PENDING_ABILITY_ORDER_SUBMITTED: 4,
+      ACTIVE_EFFECT_SUBMITTED: 35,
+      PENDING_ABILITY_ORDER_SUBMITTED: 3,
       SELECT_SUCCESS_LIVE_SUBMITTED: 13,
     });
     expect(plainRecord(replay.replayedByCommandType)).toEqual({
-      CONFIRM_EFFECT_STEP: 43,
+      CONFIRM_EFFECT_STEP: 38,
       SELECT_SUCCESS_LIVE: 13,
     });
     expect(plainRecord(replay.skippedReasons)).toEqual({
@@ -551,7 +553,8 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       'legacy fixture lacks recorded randomness for mulligan replay': 12,
       'legacy fixture lacks reliable before checkpoint for activate ability': 28,
       [LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON]: 1,
-      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 36,
+      [LEGACY_CHEER_FACT_METADATA_REPLAY_SKIP_REASON]: 4,
+      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 37,
       [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 18,
       [LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON]: 2,
       [LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON]: 23,
@@ -645,6 +648,138 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
         diffsTruncated: true,
       })
     ).toBeNull();
+  });
+
+  it('allows only the exact legacy TOP-cheer metadata drift', () => {
+    const decision = {
+      abilityId: 'legacy:additional-cheer',
+      decisionId: 'legacy-cheer-fact-metadata-decision',
+      decisionType: 'ACTIVE_EFFECT_SUBMITTED',
+    } as DecisionRecordSummary;
+    const expectedNormalized = {
+      actionHistory: [
+        {
+          type: 'CHEER',
+          playerId: 'player-1',
+          payload: {
+            cheerCount: 1,
+            cheerCardIds: ['cheer-card'],
+            additional: true,
+            automated: false,
+          },
+        },
+      ],
+      eventLog: [
+        {
+          event: {
+            eventType: 'ON_CHEER',
+            playerId: 'player-1',
+            revealedCardIds: ['cheer-card'],
+            additional: true,
+            automated: false,
+          },
+        },
+      ],
+    };
+    const createActualNormalized = (
+      deckEdge: 'TOP' | 'BOTTOM',
+      revealedCardIds: readonly string[] = ['cheer-card'],
+      extraPayload: Readonly<Record<string, unknown>> = {}
+    ) => ({
+      actionHistory: [
+        {
+          type: 'CHEER',
+          playerId: 'player-1',
+          payload: {
+            cheerCount: 1,
+            cheerCardIds: ['cheer-card'],
+            revealedCardIds: [...revealedCardIds],
+            additional: true,
+            automated: false,
+            deckEdge,
+            ...extraPayload,
+          },
+        },
+      ],
+      eventLog: [
+        {
+          event: {
+            eventType: 'ON_CHEER',
+            playerId: 'player-1',
+            revealedCardIds: ['cheer-card'],
+            additional: true,
+            automated: false,
+            deckEdge,
+          },
+        },
+      ],
+    });
+    const createMismatch = (actualNormalized: unknown) => ({
+      commandType: GameCommandType.CONFIRM_EFFECT_STEP,
+      decisionId: decision.decisionId,
+      diffs: findFirstDifferences(actualNormalized, expectedNormalized, 16),
+      diffsTruncated: false,
+      actual: null,
+      expected: null,
+    });
+
+    const actualNormalized = createActualNormalized('TOP');
+    const mismatch = createMismatch(actualNormalized);
+    expect(mismatch.diffs).toEqual([
+      {
+        path: '$.actionHistory[0].payload.deckEdge',
+        actual: 'TOP',
+        expected: undefined,
+      },
+      {
+        path: '$.actionHistory[0].payload.revealedCardIds',
+        actual: ['cheer-card'],
+        expected: undefined,
+      },
+      {
+        path: '$.eventLog[0].event.deckEdge',
+        actual: 'TOP',
+        expected: undefined,
+      },
+    ]);
+    expect(
+      isLegacyCheerFactReplayMismatch(mismatch, {
+        actualNormalized,
+        expectedNormalized,
+      })
+    ).toBe(true);
+    expect(
+      getExpectedReplayMismatchSkipReason(decision, mismatch, {
+        actualNormalized,
+        expectedNormalized,
+      })
+    ).toBe(LEGACY_CHEER_FACT_METADATA_REPLAY_SKIP_REASON);
+
+    const bottomActual = createActualNormalized('BOTTOM');
+    expect(
+      isLegacyCheerFactReplayMismatch(createMismatch(bottomActual), {
+        actualNormalized: bottomActual,
+        expectedNormalized,
+      })
+    ).toBe(false);
+
+    const wrongRevealedActual = createActualNormalized('TOP', ['other-card']);
+    expect(
+      isLegacyCheerFactReplayMismatch(createMismatch(wrongRevealedActual), {
+        actualNormalized: wrongRevealedActual,
+        expectedNormalized,
+      })
+    ).toBe(false);
+
+    const unrelatedDriftActual = createActualNormalized('TOP', ['cheer-card'], {
+      unrelatedField: true,
+    });
+    expect(
+      isLegacyCheerFactReplayMismatch(createMismatch(unrelatedDriftActual), {
+        actualNormalized: unrelatedDriftActual,
+        expectedNormalized,
+      })
+    ).toBe(false);
   });
 
   it('tracks member slot cardStates drift exposed by the legacy fixture', async () => {
@@ -1626,7 +1761,10 @@ function buildEngineReplayAudit(
         actual: summarizeReplayComparisonState(result.gameState),
         expected: summarizeReplayComparisonState(afterCheckpoint.state),
       };
-      const skipReason = getExpectedReplayMismatchSkipReason(decision, mismatch);
+      const skipReason = getExpectedReplayMismatchSkipReason(decision, mismatch, {
+        actualNormalized,
+        expectedNormalized,
+      });
       if (skipReason) {
         audit.skippedCount += 1;
         increment(audit.skippedReasons, skipReason);
@@ -1653,6 +1791,10 @@ function getExpectedReplayMismatchSkipReason(
     readonly diffsTruncated: boolean;
     readonly actual: unknown;
     readonly expected: unknown;
+  },
+  comparison?: {
+    readonly actualNormalized: unknown;
+    readonly expectedNormalized: unknown;
   }
 ): string | null {
   if (mismatch.diffsTruncated) {
@@ -1660,6 +1802,9 @@ function getExpectedReplayMismatchSkipReason(
   }
   if (isLegacyDynamicCheckTimingReplayMismatch(decision, mismatch)) {
     return LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON;
+  }
+  if (isLegacyCheerFactReplayMismatch(mismatch, comparison)) {
+    return LEGACY_CHEER_FACT_METADATA_REPLAY_SKIP_REASON;
   }
   if (
     mismatch.commandType === GameCommandType.SET_LIVE_CARD &&
@@ -1698,6 +1843,163 @@ function getExpectedReplayMismatchSkipReason(
     return null;
   }
   return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
+}
+
+function isLegacyCheerFactReplayMismatch(
+  mismatch: {
+    readonly commandType: string;
+    readonly diffs: readonly unknown[];
+  },
+  comparison?: {
+    readonly actualNormalized: unknown;
+    readonly expectedNormalized: unknown;
+  }
+): boolean {
+  if (
+    mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP ||
+    mismatch.diffs.length !== 3 ||
+    !comparison
+  ) {
+    return false;
+  }
+
+  let actionIndex: number | null = null;
+  let eventIndex: number | null = null;
+  let hasActionDeckEdge = false;
+  let hasActionRevealedCardIds = false;
+  let hasEventDeckEdge = false;
+
+  for (const diff of mismatch.diffs) {
+    const record = asRecord(diff);
+    const path = record?.path;
+    if (typeof path !== 'string' || record?.expected !== undefined) {
+      return false;
+    }
+
+    const actionDeckEdgeMatch = /^\$\.actionHistory\[(\d+)\]\.payload\.deckEdge$/.exec(path);
+    if (actionDeckEdgeMatch) {
+      if (record.actual !== 'TOP' || hasActionDeckEdge) {
+        return false;
+      }
+      actionIndex = Number(actionDeckEdgeMatch[1]);
+      hasActionDeckEdge = true;
+      continue;
+    }
+
+    const actionRevealedMatch = /^\$\.actionHistory\[(\d+)\]\.payload\.revealedCardIds$/.exec(path);
+    if (actionRevealedMatch) {
+      if (!Array.isArray(record.actual) || hasActionRevealedCardIds) {
+        return false;
+      }
+      const nextActionIndex = Number(actionRevealedMatch[1]);
+      if (actionIndex !== null && actionIndex !== nextActionIndex) {
+        return false;
+      }
+      actionIndex = nextActionIndex;
+      hasActionRevealedCardIds = true;
+      continue;
+    }
+
+    const eventDeckEdgeMatch = /^\$\.eventLog\[(\d+)\]\.event\.deckEdge$/.exec(path);
+    if (eventDeckEdgeMatch) {
+      if (record.actual !== 'TOP' || hasEventDeckEdge) {
+        return false;
+      }
+      eventIndex = Number(eventDeckEdgeMatch[1]);
+      hasEventDeckEdge = true;
+      continue;
+    }
+
+    return false;
+  }
+
+  if (
+    actionIndex === null ||
+    eventIndex === null ||
+    !hasActionDeckEdge ||
+    !hasActionRevealedCardIds ||
+    !hasEventDeckEdge
+  ) {
+    return false;
+  }
+
+  const actualAction = getNormalizedArrayEntry(
+    comparison.actualNormalized,
+    'actionHistory',
+    actionIndex
+  );
+  const expectedAction = getNormalizedArrayEntry(
+    comparison.expectedNormalized,
+    'actionHistory',
+    actionIndex
+  );
+  const actualEventEntry = getNormalizedArrayEntry(
+    comparison.actualNormalized,
+    'eventLog',
+    eventIndex
+  );
+  const expectedEventEntry = getNormalizedArrayEntry(
+    comparison.expectedNormalized,
+    'eventLog',
+    eventIndex
+  );
+  const actualPayload = asRecord(actualAction?.payload);
+  const expectedPayload = asRecord(expectedAction?.payload);
+  const actualEvent = asRecord(actualEventEntry?.event);
+  const expectedEvent = asRecord(expectedEventEntry?.event);
+  if (!actualPayload || !expectedPayload || !actualEvent || !expectedEvent) {
+    return false;
+  }
+
+  const cheerCardIds = actualPayload.cheerCardIds;
+  if (
+    actualAction?.type !== 'CHEER' ||
+    expectedAction?.type !== 'CHEER' ||
+    actualEvent.eventType !== 'ON_CHEER' ||
+    expectedEvent.eventType !== 'ON_CHEER' ||
+    actualPayload.deckEdge !== 'TOP' ||
+    actualEvent.deckEdge !== 'TOP' ||
+    hasOwn(expectedPayload, 'deckEdge') ||
+    hasOwn(expectedPayload, 'revealedCardIds') ||
+    hasOwn(expectedEvent, 'deckEdge') ||
+    !sameOrderedStringArray(cheerCardIds, expectedPayload.cheerCardIds) ||
+    !sameOrderedStringArray(cheerCardIds, actualPayload.revealedCardIds) ||
+    !sameOrderedStringArray(cheerCardIds, actualEvent.revealedCardIds) ||
+    !sameOrderedStringArray(cheerCardIds, expectedEvent.revealedCardIds) ||
+    actualAction.playerId !== actualEvent.playerId ||
+    expectedAction.playerId !== expectedEvent.playerId ||
+    actualAction.playerId !== expectedAction.playerId ||
+    actualPayload.additional !== actualEvent.additional ||
+    actualPayload.automated !== actualEvent.automated
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function getNormalizedArrayEntry(
+  value: unknown,
+  key: string,
+  index: number
+): Record<string, unknown> | null {
+  const entries = asRecord(value)?.[key];
+  return Array.isArray(entries) ? asRecord(entries[index]) : null;
+}
+
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function sameOrderedStringArray(left: unknown, right: unknown): boolean {
+  return (
+    Array.isArray(left) &&
+    Array.isArray(right) &&
+    left.every((entry) => typeof entry === 'string') &&
+    right.every((entry) => typeof entry === 'string') &&
+    left.length === right.length &&
+    left.every((entry, index) => entry === right[index])
+  );
 }
 
 function isLegacyDynamicCheckTimingReplayMismatch(

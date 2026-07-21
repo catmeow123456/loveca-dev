@@ -622,7 +622,7 @@ function summarizeVisibleContext(
   const selectableOptionCount =
     pendingAbilityCandidateCount > 0
       ? Math.max(effect.selectableOptions?.length ?? 0, pendingAbilityCandidateCount)
-      : (effect.selectableOptions?.length ?? 0);
+      : (effect.effectChoice?.options.length ?? effect.selectableOptions?.length ?? 0);
 
   return {
     selectableCardCount,
@@ -644,6 +644,9 @@ function summarizeConfirmEffectStepSubmission(
     ...('selectedSlot' in command ? { selectedSlot: command.selectedSlot ?? null } : {}),
     ...('selectedOptionId' in command
       ? { selectedOptionId: command.selectedOptionId ?? null }
+      : {}),
+    ...(command.selectedEffectOptionIds
+      ? { selectedEffectOptionIds: [...command.selectedEffectOptionIds] }
       : {}),
     ...('selectedNumber' in command ? { selectedNumber: command.selectedNumber ?? null } : {}),
     ...(command.stageFormationMoveHistory
@@ -744,6 +747,9 @@ function buildCommandDecisionId(
 }
 
 function getMinSelectableCards(effect: ActiveEffectState): number | null {
+  if (effect.effectChoice) {
+    return effect.effectChoice.minSelections;
+  }
   if (effect.minSelectableCards !== undefined) {
     return effect.minSelectableCards;
   }
@@ -754,6 +760,9 @@ function getMinSelectableCards(effect: ActiveEffectState): number | null {
 }
 
 function getMaxSelectableCards(effect: ActiveEffectState): number | null {
+  if (effect.effectChoice) {
+    return effect.effectChoice.maxSelections;
+  }
   if (effect.maxSelectableCards !== undefined) {
     return effect.maxSelectableCards;
   }

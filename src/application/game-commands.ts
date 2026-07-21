@@ -20,6 +20,9 @@ export enum GameCommandType {
   MOVE_MEMBER_TO_SLOT = 'MOVE_MEMBER_TO_SLOT',
   ATTACH_ENERGY_TO_MEMBER = 'ATTACH_ENERGY_TO_MEMBER',
   PLAY_MEMBER_TO_SLOT = 'PLAY_MEMBER_TO_SLOT',
+  BEGIN_SPECIAL_MEMBER_PLAY = 'BEGIN_SPECIAL_MEMBER_PLAY',
+  CONFIRM_SPECIAL_MEMBER_PLAY = 'CONFIRM_SPECIAL_MEMBER_PLAY',
+  CANCEL_SPECIAL_MEMBER_PLAY = 'CANCEL_SPECIAL_MEMBER_PLAY',
   ACTIVATE_ABILITY = 'ACTIVATE_ABILITY',
   MOVE_PUBLIC_CARD_TO_WAITING_ROOM = 'MOVE_PUBLIC_CARD_TO_WAITING_ROOM',
   MOVE_PUBLIC_CARD_TO_HAND = 'MOVE_PUBLIC_CARD_TO_HAND',
@@ -141,8 +144,6 @@ export interface MoveTableCardCommand extends BaseGameCommand {
   readonly targetSlot?: SlotPosition;
   readonly sourceSlot?: SlotPosition;
   readonly position?: 'TOP' | 'BOTTOM';
-  /** 是否以成员堆叠模式放置（附加到特殊成员下方） */
-  readonly asMemberBelow?: boolean;
 }
 
 export interface MoveMemberToSlotCommand extends BaseGameCommand {
@@ -170,6 +171,24 @@ export interface PlayMemberToSlotCommand extends BaseGameCommand {
   readonly relayMode?: 'SINGLE' | 'DOUBLE';
   /** 显式选择的被换手成员槽位。双换手时必须正好 2 个。 */
   readonly relayReplacementSlots?: readonly SlotPosition[];
+}
+
+export interface BeginSpecialMemberPlayCommand extends BaseGameCommand {
+  readonly type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY;
+  readonly cardId: string;
+  readonly targetSlot: SlotPosition;
+  readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
+}
+
+export interface ConfirmSpecialMemberPlayCommand extends BaseGameCommand {
+  readonly type: GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY;
+  readonly pendingId: string;
+  readonly selectedCardIds: readonly string[];
+}
+
+export interface CancelSpecialMemberPlayCommand extends BaseGameCommand {
+  readonly type: GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY;
+  readonly pendingId: string;
 }
 
 export interface ActivateAbilityCommand extends BaseGameCommand {
@@ -218,8 +237,6 @@ export interface MoveOwnedCardToZoneCommand extends BaseGameCommand {
     | ZoneType.EXILE_ZONE;
   readonly targetSlot?: SlotPosition;
   readonly position?: 'TOP' | 'BOTTOM';
-  /** 是否以成员堆叠模式放置（附加到特殊成员下方） */
-  readonly asMemberBelow?: boolean;
 }
 
 export interface FinishInspectionCommand extends BaseGameCommand {
@@ -237,11 +254,14 @@ export interface ConfirmEffectStepCommand extends BaseGameCommand {
   readonly effectId: string;
   /** 公共选卡展示自动推进的预期 deadline；普通确认不携带。 */
   readonly publicCardSelectionAutoAdvanceAt?: number;
+  /** 效果选项公开展示自动推进的预期 deadline；普通确认不携带。 */
+  readonly publicEffectChoiceAutoAdvanceAt?: number;
   readonly selectedCardId?: string | null;
   readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: SlotPosition | null;
   readonly resolveInOrder?: boolean;
   readonly selectedOptionId?: string | null;
+  readonly selectedEffectOptionIds?: readonly string[];
   readonly selectedNumber?: number | null;
   readonly stageFormationMoveHistory?: readonly {
     readonly cardId: string;
@@ -313,6 +333,9 @@ export type GameCommand =
   | MoveMemberToSlotCommand
   | AttachEnergyToMemberCommand
   | PlayMemberToSlotCommand
+  | BeginSpecialMemberPlayCommand
+  | ConfirmSpecialMemberPlayCommand
+  | CancelSpecialMemberPlayCommand
   | ActivateAbilityCommand
   | MovePublicCardToWaitingRoomCommand
   | MovePublicCardToHandCommand
@@ -528,7 +551,6 @@ export function createMoveTableCardCommand(
     targetSlot?: SlotPosition;
     sourceSlot?: SlotPosition;
     position?: 'TOP' | 'BOTTOM';
-    asMemberBelow?: boolean;
   }
 ): MoveTableCardCommand {
   return {
@@ -540,7 +562,6 @@ export function createMoveTableCardCommand(
     targetSlot: options?.targetSlot,
     sourceSlot: options?.sourceSlot,
     position: options?.position,
-    asMemberBelow: options?.asMemberBelow,
     timestamp: Date.now(),
   };
 }
@@ -599,6 +620,47 @@ export function createPlayMemberToSlotCommand(
     ...(options.relayReplacementSlots
       ? { relayReplacementSlots: [...options.relayReplacementSlots] }
       : {}),
+    timestamp: Date.now(),
+  };
+}
+
+export function createBeginSpecialMemberPlayCommand(
+  playerId: string,
+  cardId: string,
+  targetSlot: SlotPosition
+): BeginSpecialMemberPlayCommand {
+  return {
+    type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY,
+    playerId,
+    cardId,
+    targetSlot,
+    mode: 'LL_BP7_001_SPECIAL_PLAY',
+    timestamp: Date.now(),
+  };
+}
+
+export function createConfirmSpecialMemberPlayCommand(
+  playerId: string,
+  pendingId: string,
+  selectedCardIds: readonly string[]
+): ConfirmSpecialMemberPlayCommand {
+  return {
+    type: GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY,
+    playerId,
+    pendingId,
+    selectedCardIds: [...selectedCardIds],
+    timestamp: Date.now(),
+  };
+}
+
+export function createCancelSpecialMemberPlayCommand(
+  playerId: string,
+  pendingId: string
+): CancelSpecialMemberPlayCommand {
+  return {
+    type: GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY,
+    playerId,
+    pendingId,
     timestamp: Date.now(),
   };
 }
@@ -671,7 +733,6 @@ export function createMoveOwnedCardToZoneCommand(
   options?: {
     targetSlot?: SlotPosition;
     position?: 'TOP' | 'BOTTOM';
-    asMemberBelow?: boolean;
   }
 ): MoveOwnedCardToZoneCommand {
   return {
@@ -682,7 +743,6 @@ export function createMoveOwnedCardToZoneCommand(
     toZone,
     targetSlot: options?.targetSlot,
     position: options?.position,
-    asMemberBelow: options?.asMemberBelow,
     timestamp: Date.now(),
   };
 }
@@ -725,7 +785,8 @@ export function createConfirmEffectStepCommand(
   stageFormationPlacements?: readonly {
     readonly cardId: string;
     readonly toSlot: SlotPosition;
-  }[]
+  }[],
+  selectedEffectOptionIds?: readonly string[]
 ): ConfirmEffectStepCommand {
   return {
     type: GameCommandType.CONFIRM_EFFECT_STEP,
@@ -739,6 +800,39 @@ export function createConfirmEffectStepCommand(
     selectedNumber,
     stageFormationMoveHistory,
     stageFormationPlacements,
+    selectedEffectOptionIds,
+    timestamp: Date.now(),
+  };
+}
+
+export function createConfirmEffectChoiceCommand(
+  playerId: string,
+  effectId: string,
+  options: {
+    readonly selectedEffectOptionIds: readonly string[];
+    readonly selectedCardId?: string | null;
+  }
+): ConfirmEffectStepCommand {
+  return {
+    type: GameCommandType.CONFIRM_EFFECT_STEP,
+    playerId,
+    effectId,
+    selectedCardId: options.selectedCardId,
+    selectedEffectOptionIds: options.selectedEffectOptionIds,
+    timestamp: Date.now(),
+  };
+}
+
+export function createAutoAdvancePublicEffectChoiceCommand(
+  playerId: string,
+  effectId: string,
+  expectedDeadline: number
+): ConfirmEffectStepCommand {
+  return {
+    type: GameCommandType.CONFIRM_EFFECT_STEP,
+    playerId,
+    effectId,
+    publicEffectChoiceAutoAdvanceAt: expectedDeadline,
     timestamp: Date.now(),
   };
 }

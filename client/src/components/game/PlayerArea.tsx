@@ -101,42 +101,114 @@ const DISABLE_ORDINARY_DROP_FROM_INSPECTION = [ZoneType.INSPECTION_ZONE] as cons
 const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
   configs,
   onActivate,
-  className,
   placement = 'above',
 }: {
   readonly configs: readonly ActivatedAbilityUiConfig[];
   readonly onActivate: (config: ActivatedAbilityUiConfig) => void;
-  readonly className?: string;
   readonly placement?: 'above' | 'below';
 }) {
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const [layout, setLayout] = useState<{
+    readonly left: number;
+    readonly top: number;
+    readonly width: number;
+    readonly maxHeight: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (configs.length === 0) {
+      setLayout(null);
+      return;
+    }
+
+    const updateLayout = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const viewportPadding = 8;
+      const gap = 4;
+      const width = Math.max(1, Math.min(420, window.innerWidth - viewportPadding * 2));
+      const unclampedCenter = rect.left + rect.width / 2;
+      const left = Math.min(
+        window.innerWidth - viewportPadding - width / 2,
+        Math.max(viewportPadding + width / 2, unclampedCenter)
+      );
+      const top = placement === 'above' ? rect.top - gap : rect.bottom + gap;
+      const maxHeight = Math.max(
+        1,
+        placement === 'above' ? top - viewportPadding : window.innerHeight - top - viewportPadding
+      );
+      setLayout((current) =>
+        current &&
+        current.left === left &&
+        current.top === top &&
+        current.width === width &&
+        current.maxHeight === maxHeight
+          ? current
+          : { left, top, width, maxHeight }
+      );
+    };
+
+    updateLayout();
+    const animationTrackingDeadline = window.performance.now() + 1_000;
+    let animationFrameId = window.requestAnimationFrame(function trackAnimatedLayout(timestamp) {
+      updateLayout();
+      if (timestamp < animationTrackingDeadline) {
+        animationFrameId = window.requestAnimationFrame(trackAnimatedLayout);
+      }
+    });
+    window.addEventListener('resize', updateLayout);
+    window.addEventListener('scroll', updateLayout, true);
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateLayout);
+    if (anchorRef.current) resizeObserver?.observe(anchorRef.current);
+    return () => {
+      window.cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', updateLayout);
+      window.removeEventListener('scroll', updateLayout, true);
+      resizeObserver?.disconnect();
+    };
+  }, [configs.length, placement]);
+
   if (configs.length === 0) return null;
   return (
-    <div
-      className={cn(
-        'absolute left-1/2 flex w-[min(420px,92vw)] -translate-x-1/2 flex-col gap-1',
-        placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1',
-        className
-      )}
-    >
-      {configs.map((config) => (
-        <button
-          key={config.abilityId}
-          type="button"
-          className={cn(
-            'w-full rounded-lg border border-rose-300/70 bg-white/95 px-3 py-1.5 text-left font-semibold text-rose-600 shadow-lg',
-            'transition-colors hover:bg-rose-50 active:scale-[0.99]'
-          )}
-          style={{ fontSize: '12px', lineHeight: 1.25 }}
-          onClick={(event) => {
-            event.stopPropagation();
-            onActivate(config);
-          }}
-          title={config.title}
-        >
-          <CardEffectText as="span" text={config.text} />
-        </button>
-      ))}
-    </div>
+    <>
+      <span ref={anchorRef} className="pointer-events-none absolute inset-0" aria-hidden="true" />
+      {layout &&
+        createPortal(
+          <div
+            data-battle-animation-ignore="true"
+            className="fixed z-[140] flex flex-col gap-1 overflow-y-auto overscroll-contain"
+            style={{
+              left: layout.left,
+              top: layout.top,
+              width: layout.width,
+              maxHeight: layout.maxHeight,
+              transform: placement === 'above' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
+            }}
+          >
+            {configs.map((config) => (
+              <button
+                key={config.abilityId}
+                type="button"
+                className={cn(
+                  'w-full shrink-0 rounded-lg border border-rose-300/70 bg-white/95 px-3 py-1.5 text-left font-semibold text-rose-600 shadow-lg',
+                  'transition-colors hover:bg-rose-50 active:scale-[0.99]'
+                )}
+                style={{ fontSize: '12px', lineHeight: 1.25 }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onActivate(config);
+                }}
+                title={config.title}
+              >
+                <CardEffectText as="span" text={config.text} />
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+    </>
   );
 });
 
@@ -693,7 +765,7 @@ export const PlayerArea = memo(function PlayerArea({
     // 该槽位下方的能量卡（规则 4.5.5）
     const energyBelowIds = getSeatMemberOverlayCardIds(playerSeat, position);
 
-    // 该槽位下方堆叠的成员卡（特殊成员卡效果）
+    // 该槽位主成员下方由卡牌效果堆叠的成员卡
     const memberBelowIds = getSeatMemberBelowCardIds(playerSeat, position);
 
     // 能量卡偏移量：每张能量卡向左下方偏移 10% 的卡牌尺寸
@@ -934,10 +1006,7 @@ export const PlayerArea = memo(function PlayerArea({
             {card && canActivateAbility && (
               <ActivatedAbilityMenu
                 configs={activatedAbilityConfigs}
-                className="z-30"
-                onActivate={(config) =>
-                  activateCardAbility(card.instanceId, config.abilityId)
-                }
+                onActivate={(config) => activateCardAbility(card.instanceId, config.abilityId)}
               />
             )}
             {!cardId && <span className="text-slate-600 text-xs">{position}</span>}
@@ -1426,7 +1495,6 @@ export const PlayerArea = memo(function PlayerArea({
                                   {canActivateWaitingRoomAbility && (
                                     <ActivatedAbilityMenu
                                       configs={activatedAbilityConfigs}
-                                      className="z-30"
                                       onActivate={(config) => {
                                         activateCardAbility(card.instanceId, config.abilityId);
                                         closeWaitingRoom();
@@ -2586,11 +2654,8 @@ export const PlayerArea = memo(function PlayerArea({
                 {canActivateHandAbility && (
                   <ActivatedAbilityMenu
                     configs={activatedAbilityConfigs}
-                    className="z-50"
                     placement={isOpponent ? 'below' : 'above'}
-                    onActivate={(config) =>
-                      activateCardAbility(card.instanceId, config.abilityId)
-                    }
+                    onActivate={(config) => activateCardAbility(card.instanceId, config.abilityId)}
                   />
                 )}
               </div>

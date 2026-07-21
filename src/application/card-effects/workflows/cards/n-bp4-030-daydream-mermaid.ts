@@ -21,7 +21,7 @@ const SELECT_WAITING_MEMBER_STEP_ID = 'PL_N_BP4_030_SELECT_WAITING_ROOM_MEMBER';
 
 const ENERGY_OPTION_ID = 'energy';
 const MEMBER_RECOVERY_OPTION_ID = 'member-recovery';
-const ENERGY_AND_MEMBER_RECOVERY_OPTION_ID = 'energy-and-member-recovery';
+const PRINTED_OPTION_IDS = [ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID] as const;
 
 type ActiveEffect = NonNullable<GameState['activeEffect']>;
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -43,7 +43,7 @@ export function registerNBp4030DaydreamMermaidWorkflowHandlers(): void {
     (game, input, context) =>
       finishOptionSelection(
         game,
-        input.selectedOptionId ?? null,
+        input.selectedEffectOptionIds ?? [],
         context.continuePendingCardEffects
       )
   );
@@ -87,7 +87,7 @@ function startDaydreamMermaidLiveSuccess(
   }
 
   const hasNijigasakiSuccessLive = hasNijigasakiSuccessZoneCard(game, player.id);
-  const availableOptionIds = getAvailableOptionIds(game, player.id, hasNijigasakiSuccessLive);
+  const availableOptionIds = getAvailableOptionIds(game, player.id);
   if (availableOptionIds.length === 0) {
     return finishPendingAbility(
       game,
@@ -118,11 +118,17 @@ function startDaydreamMermaidLiveSuccess(
         ? '请选择1个或多个LIVE成功效果。'
         : '请选择1个LIVE成功效果。',
       awaitingPlayerId: player.id,
-      selectableOptions: availableOptionIds.map((optionId) => ({
-        id: optionId,
-        label: getOptionLabel(optionId),
-      })),
-      confirmSelectionLabel: '确定',
+      effectChoice: {
+        mode: hasNijigasakiSuccessLive ? 'MULTI' : 'SINGLE',
+        options: PRINTED_OPTION_IDS.map((optionId) => ({
+          id: optionId,
+          text: getOptionText(optionId),
+          selectable: availableOptionIds.includes(optionId),
+        })),
+        minSelections: 1,
+        maxSelections: Math.min(hasNijigasakiSuccessLive ? 2 : 1, availableOptionIds.length),
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       metadata: {
         orderedResolution,
@@ -135,7 +141,7 @@ function startDaydreamMermaidLiveSuccess(
 
 function finishOptionSelection(
   game: GameState,
-  selectedOptionId: string | null,
+  selectedOptionIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -165,12 +171,19 @@ function finishOptionSelection(
   }
 
   const hasNijigasakiSuccessLive = hasNijigasakiSuccessZoneCard(game, player.id);
-  const availableOptionIds = getAvailableOptionIds(game, player.id, hasNijigasakiSuccessLive);
-  if (!selectedOptionId || !availableOptionIds.includes(selectedOptionId)) {
+  const availableOptionIds = getAvailableOptionIds(game, player.id);
+  const maxSelections = Math.min(hasNijigasakiSuccessLive ? 2 : 1, availableOptionIds.length);
+  if (
+    selectedOptionIds.length < 1 ||
+    selectedOptionIds.length > maxSelections ||
+    new Set(selectedOptionIds).size !== selectedOptionIds.length ||
+    selectedOptionIds.some((optionId) => !availableOptionIds.includes(optionId)) ||
+    PRINTED_OPTION_IDS.filter((optionId) => selectedOptionIds.includes(optionId)).some(
+      (optionId, index) => optionId !== selectedOptionIds[index]
+    )
+  ) {
     return game;
   }
-
-  const selectedOptionIds = getSelectedOptionIds(selectedOptionId);
   let state = game;
   let placedEnergyCardIds: readonly string[] = [];
   if (selectedOptionIds.includes(ENERGY_OPTION_ID)) {
@@ -233,6 +246,7 @@ function finishOptionSelection(
       stepText: '请选择自己休息室中的1张成员卡加入手牌。',
       awaitingPlayerId: player.id,
       selectableOptions: undefined,
+      effectChoice: undefined,
       selectableCardIds: waitingMemberCardIds,
       selectableCardMode: 'SINGLE',
       selectableCardVisibility: 'PUBLIC',
@@ -413,8 +427,7 @@ function hasNijigasakiSuccessZoneCard(game: GameState, playerId: string): boolea
 
 function getAvailableOptionIds(
   game: GameState,
-  playerId: string,
-  allowMultiple: boolean
+  playerId: string
 ): string[] {
   const player = getPlayerById(game, playerId);
   if (!player) {
@@ -426,13 +439,6 @@ function getAvailableOptionIds(
   }
   if (getWaitingRoomMemberCardIds(game, playerId).length > 0) {
     options.push(MEMBER_RECOVERY_OPTION_ID);
-  }
-  if (
-    allowMultiple &&
-    options.includes(ENERGY_OPTION_ID) &&
-    options.includes(MEMBER_RECOVERY_OPTION_ID)
-  ) {
-    options.push(ENERGY_AND_MEMBER_RECOVERY_OPTION_ID);
   }
   return options;
 }
@@ -448,20 +454,11 @@ function getWaitingRoomMemberCardIds(game: GameState, playerId: string): string[
   });
 }
 
-function getSelectedOptionIds(optionId: string): readonly string[] {
-  return optionId === ENERGY_AND_MEMBER_RECOVERY_OPTION_ID
-    ? [ENERGY_OPTION_ID, MEMBER_RECOVERY_OPTION_ID]
-    : [optionId];
-}
-
-function getOptionLabel(optionId: string): string {
+function getOptionText(optionId: string): string {
   if (optionId === ENERGY_OPTION_ID) {
-    return '从能量卡组放置1张待机能量';
+    return '从自己的能量卡组将1张能量卡以待机状态放置。';
   }
-  if (optionId === MEMBER_RECOVERY_OPTION_ID) {
-    return '从休息室将1张成员卡加入手牌';
-  }
-  return '放置待机能量，并从休息室回收1张成员卡';
+  return '从自己的休息室将1张成员卡加入手牌。';
 }
 
 function getMetadataStringArray(value: unknown): readonly string[] {

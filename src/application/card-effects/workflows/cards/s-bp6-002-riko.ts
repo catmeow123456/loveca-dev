@@ -128,20 +128,6 @@ function startBp6002AqoursLiveFromLiveZoneToWaitingTopBottom(
     sourceCardId: ability.sourceCardId,
   });
 
-  if (eligibleCardIds.length === 1) {
-    return startBp6002DestinationSelection(
-      stateAfterUseRecord,
-      ability,
-      player.id,
-      eligibleCardIds[0]!,
-      orderedResolution,
-      {
-        step: 'START_SELECT_AQOURS_LIVE_TOP_BOTTOM',
-        selectableCardIds: eligibleCardIds,
-      }
-    );
-  }
-
   return startPendingActiveEffect(stateAfterUseRecord, {
     ability,
     playerId: player.id,
@@ -386,10 +372,16 @@ function startBp6002DestinationSelection(
       stepId: BP6_002_SELECT_DESTINATION_STEP_ID,
       stepText: '请选择将该『Aqours』LIVE卡放置到卡组顶或卡组底。也可以选择不发动。',
       awaitingPlayerId: playerId,
-      selectableOptions: [
-        { id: TOP_OPTION_ID, label: '卡组顶' },
-        { id: BOTTOM_OPTION_ID, label: '卡组底' },
-      ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: TOP_OPTION_ID, text: '将该『Aqours』LIVE卡放置到卡组顶。' },
+          { id: BOTTOM_OPTION_ID, text: '将该『Aqours』LIVE卡放置到卡组底。' },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       selectionLabel: '选择放置位置',
       confirmSelectionLabel: '放置',
       canSkipSelection: true,

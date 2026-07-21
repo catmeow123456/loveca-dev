@@ -14,6 +14,7 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../src/application/card-effects/runtime/member-slot-moved-triggers';
 import { SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -162,6 +163,193 @@ function abilityUseCount(game: GameState): number {
 }
 
 describe('PL!SP-pb2-022 Tomari on-move blade workflow', () => {
+  it('binds the member entering CENTER when PL!SP-pb2-025 swaps with the left member', () => {
+    const scenario = setupState();
+    const positionChanger = createCardInstance(
+      createMember('PL!SP-pb2-025-N'),
+      PLAYER1,
+      'sp-pb2-025-position-changer'
+    );
+    const withPositionChanger = registerCards(scenario.game, [positionChanger]);
+    const arranged = updatePlayer(withPositionChanger, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: scenario.movedId,
+          [SlotPosition.CENTER]: positionChanger.instanceId,
+          [SlotPosition.RIGHT]: scenario.sourceId,
+        },
+      },
+    }));
+
+    const moveResult = moveMemberBetweenSlotsAndEnqueueTriggers(
+      arranged,
+      PLAYER1,
+      positionChanger.instanceId,
+      SlotPosition.LEFT,
+      enqueueTriggeredCardEffects
+    );
+
+    expect(moveResult).not.toBeNull();
+    expect(moveResult?.memberSlotMovedEvents.map((event) => [
+      event.cardInstanceId,
+      event.fromSlot,
+      event.toSlot,
+    ])).toEqual([
+      [positionChanger.instanceId, SlotPosition.CENTER, SlotPosition.LEFT],
+      [scenario.movedId, SlotPosition.LEFT, SlotPosition.CENTER],
+    ]);
+    expect(moveResult?.gameState.pendingAbilities).toHaveLength(1);
+    expect(moveResult?.gameState.pendingAbilities[0]?.eventIds).toEqual([
+      moveResult?.memberSlotMovedEvents[1]?.eventId,
+    ]);
+    expect(moveResult?.gameState.pendingAbilities[0]).toMatchObject({
+      sourceCardId: scenario.sourceId,
+      sourceSlot: SlotPosition.RIGHT,
+      metadata: {
+        movedCardId: scenario.movedId,
+        fromSlot: SlotPosition.LEFT,
+        toSlot: SlotPosition.CENTER,
+      },
+    });
+    expect(
+      moveResult?.gameState.actionHistory
+        .filter((action) => action.type === 'TRIGGER_ABILITY')
+        .at(-1)?.payload
+    ).toMatchObject({
+      sourceCardId: scenario.sourceId,
+      sourceSlot: SlotPosition.RIGHT,
+      movedCardId: scenario.movedId,
+      fromSlot: SlotPosition.LEFT,
+      toSlot: SlotPosition.CENTER,
+    });
+
+    const state = resolvePendingCardEffects(moveResult!.gameState).gameState;
+
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 4,
+      sourceCardId: scenario.sourceId,
+      abilityId: SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
+    });
+    expect(latestPayload(state)).toMatchObject({
+      conditionMet: true,
+      movedCardId: scenario.movedId,
+      fromSlot: SlotPosition.LEFT,
+      toSlot: SlotPosition.CENTER,
+      bladeBonus: 4,
+    });
+  });
+
+  it('still triggers when the source is swapped out of CENTER by a 5yncri5e! member', () => {
+    const scenario = setupState();
+    const positionChanger = createCardInstance(
+      createMember('PL!SP-pb2-025-N'),
+      PLAYER1,
+      'sp-pb2-025-position-changer-to-center'
+    );
+    const withPositionChanger = registerCards(scenario.game, [positionChanger]);
+    const arranged = updatePlayer(withPositionChanger, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: positionChanger.instanceId,
+          [SlotPosition.CENTER]: scenario.sourceId,
+          [SlotPosition.RIGHT]: null,
+        },
+      },
+    }));
+
+    const moveResult = moveMemberBetweenSlotsAndEnqueueTriggers(
+      arranged,
+      PLAYER1,
+      positionChanger.instanceId,
+      SlotPosition.CENTER,
+      enqueueTriggeredCardEffects
+    );
+
+    expect(moveResult).not.toBeNull();
+    expect(moveResult?.gameState.pendingAbilities).toHaveLength(1);
+    expect(moveResult?.gameState.pendingAbilities[0]?.eventIds).toEqual([
+      moveResult?.memberSlotMovedEvents[0]?.eventId,
+    ]);
+
+    const state = resolvePendingCardEffects(moveResult!.gameState).gameState;
+
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 4,
+      sourceCardId: scenario.sourceId,
+      abilityId: SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID,
+    });
+    expect(latestPayload(state)).toMatchObject({
+      conditionMet: true,
+      movedCardId: positionChanger.instanceId,
+      fromSlot: SlotPosition.LEFT,
+      toSlot: SlotPosition.CENTER,
+      bladeBonus: 4,
+    });
+  });
+
+  it('queues only one no-op pending when two non-5yncri5e! members swap', () => {
+    const scenario = setupState();
+    const centerCatchu = createCardInstance(
+      createMember('PL!SP-test-center-catchu', 'CatChu!'),
+      PLAYER1,
+      'sp-pb2-022-center-catchu'
+    );
+    const withCenterCatchu = registerCards(scenario.game, [centerCatchu]);
+    const arranged = updatePlayer(withCenterCatchu, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: scenario.nonFiveyncriseId,
+          [SlotPosition.CENTER]: centerCatchu.instanceId,
+          [SlotPosition.RIGHT]: scenario.sourceId,
+        },
+      },
+    }));
+
+    const moveResult = moveMemberBetweenSlotsAndEnqueueTriggers(
+      arranged,
+      PLAYER1,
+      centerCatchu.instanceId,
+      SlotPosition.LEFT,
+      enqueueTriggeredCardEffects
+    );
+
+    expect(moveResult).not.toBeNull();
+    expect(moveResult?.memberSlotMovedEvents).toHaveLength(2);
+    expect(moveResult?.gameState.pendingAbilities).toHaveLength(1);
+    expect(
+      moveResult?.gameState.actionHistory.filter(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId ===
+            SP_PB2_022_AUTO_5YNCRISE_MEMBER_MOVED_CENTER_GAIN_FOUR_BLADE_ABILITY_ID &&
+          action.payload.sourceCardId === scenario.sourceId
+      )
+    ).toHaveLength(1);
+
+    const state = resolvePendingCardEffects(moveResult!.gameState).gameState;
+
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.liveResolution.liveModifiers).toEqual([]);
+    expect(latestPayload(state)).toMatchObject({
+      conditionMet: false,
+      movedMemberIsOwnFiveyncrise: false,
+    });
+    expect(abilityUseCount(state)).toBe(0);
+  });
+
   it('grants source BLADE +4 when an own 5yncri5e! stage member moves to CENTER', () => {
     const scenario = setupState();
     const queued = moveOwnMember(
@@ -238,10 +426,60 @@ describe('PL!SP-pb2-022 Tomari on-move blade workflow', () => {
     });
   });
 
+  it('consumes the bound pending no-op when the moved member is stale before resolution', () => {
+    const scenario = setupState();
+    const queued = moveOwnMember(
+      scenario.game,
+      scenario.movedId,
+      SlotPosition.LEFT,
+      SlotPosition.CENTER
+    );
+    const stale = updatePlayer(queued, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.CENTER]: null,
+          [SlotPosition.LEFT]: scenario.movedId,
+        },
+      },
+    }));
+
+    const state = resolvePendingCardEffects(stale).gameState;
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.liveResolution.liveModifiers).toEqual([]);
+    expect(latestPayload(state)).toMatchObject({
+      conditionMet: false,
+      movedMemberCurrentlyCenter: false,
+      bladeBonus: 0,
+    });
+    expect(abilityUseCount(state)).toBe(0);
+  });
+
   it('does not enqueue for opponent member movement', () => {
     const scenario = setupState();
     const queued = moveOpponentMemberToCenter(scenario.game, scenario.opponentMovedId);
 
+    expect(queued.pendingAbilities).toEqual([]);
+  });
+
+  it('does not enqueue when no current stage source owns the observer ability', () => {
+    const scenario = setupState();
+    const withoutSource = updatePlayer(scenario.game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        slots: { ...player.memberSlots.slots, [SlotPosition.RIGHT]: null },
+      },
+    }));
+
+    const queued = moveOwnMember(
+      withoutSource,
+      scenario.movedId,
+      SlotPosition.LEFT,
+      SlotPosition.CENTER
+    );
     expect(queued.pendingAbilities).toEqual([]);
   });
 

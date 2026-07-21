@@ -44,6 +44,7 @@ import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { BattleAnimationLayer } from './BattleAnimationLayer';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
+import { EffectChoicePanel } from './EffectChoicePanel';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
@@ -53,6 +54,7 @@ import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
 import { ENTER_EFFECT_SURFACE_SUSPEND_MS } from '@/lib/battleAnimationSequencing';
+import { formatActiveEffectCardLabelWithLocation } from '@/lib/activeEffectCardLocation';
 import {
   hasBattleViewportSignatureChanged,
   isBattleViewportInteractionInvalidated,
@@ -74,7 +76,19 @@ import {
   PUBLIC_CARD_SELECTION_FALLBACK_DELAY_MS,
   schedulePublicCardSelectionAutoAdvance,
 } from '@/lib/publicCardSelectionAutoAdvance';
+import {
+  canConfirmEffectChoiceSelection,
+  isPublicEffectChoiceAutoAdvanceView,
+  normalizeEffectChoiceSelection,
+  PUBLIC_EFFECT_CHOICE_FALLBACK_DELAY_MS,
+  schedulePublicEffectChoiceAutoAdvance,
+  toggleEffectChoiceSelection,
+} from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
+import {
+  LL_BP7_001_SPECIAL_PLAY_UI_CARD_CODE,
+  getSpecialMemberPlayTargetSlots,
+} from '@/lib/specialMemberPlay';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { GameCommandType } from '@game/application/game-commands';
@@ -231,6 +245,9 @@ export const GameBoard = memo(function GameBoard({
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
   const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
   const pendingCostPayment = useGameStore((s) => s.playerViewState?.pendingCostPayment ?? null);
+  const pendingSpecialMemberPlay = useGameStore(
+    (s) => s.playerViewState?.pendingSpecialMemberPlay ?? null
+  );
   const battleAnimationOcclusions = useGameStore((s) => s.ui.battleAnimationOcclusions);
   const viewerLiveScore = useGameStore((s) => s.getViewerLiveScore());
   const opponentLiveScore = useGameStore((s) => s.getOpponentLiveScore());
@@ -248,6 +265,9 @@ export const GameBoard = memo(function GameBoard({
   );
   const canPlayMemberToSlotCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.PLAY_MEMBER_TO_SLOT)
+  );
+  const specialMemberPlayHint = useGameStore((s) =>
+    s.getCommandHint(GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY)
   );
   const canSetLiveCardCommand = useGameStore((s) => s.canUseAction(GameCommandType.SET_LIVE_CARD));
   const canMoveMemberToSlotCommand = useGameStore((s) =>
@@ -322,12 +342,17 @@ export const GameBoard = memo(function GameBoard({
     setLiveCard,
     addLog,
     playMemberToSlot,
+    beginSpecialMemberPlay,
+    confirmSpecialMemberPlay,
+    cancelSpecialMemberPlay,
     moveTableCard,
     moveMemberToSlot,
     attachEnergyToMember,
     confirmSubPhase,
     confirmEffectStep,
+    confirmEffectChoice,
     autoAdvancePublicCardSelection,
+    autoAdvancePublicEffectChoice,
     confirmCostPayment,
     selectSuccessCard,
     skipSuccessLiveSelection,
@@ -359,12 +384,17 @@ export const GameBoard = memo(function GameBoard({
       setLiveCard: s.setLiveCard,
       addLog: s.addLog,
       playMemberToSlot: s.playMemberToSlot,
+      beginSpecialMemberPlay: s.beginSpecialMemberPlay,
+      confirmSpecialMemberPlay: s.confirmSpecialMemberPlay,
+      cancelSpecialMemberPlay: s.cancelSpecialMemberPlay,
       moveTableCard: s.moveTableCard,
       moveMemberToSlot: s.moveMemberToSlot,
       attachEnergyToMember: s.attachEnergyToMember,
       confirmSubPhase: s.confirmSubPhase,
       confirmEffectStep: s.confirmEffectStep,
+      confirmEffectChoice: s.confirmEffectChoice,
       autoAdvancePublicCardSelection: s.autoAdvancePublicCardSelection,
+      autoAdvancePublicEffectChoice: s.autoAdvancePublicEffectChoice,
       confirmCostPayment: s.confirmCostPayment,
       selectSuccessCard: s.selectSuccessCard,
       skipSuccessLiveSelection: s.skipSuccessLiveSelection,
@@ -410,9 +440,13 @@ export const GameBoard = memo(function GameBoard({
     null
   );
   const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
+  const [activeEffectChoiceSelection, setActiveEffectChoiceSelection] = useState<string[]>([]);
   const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
   const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
   const [publicSelectionFallbackReady, setPublicSelectionFallbackReady] = useState(false);
+  const [publicEffectChoiceFallbackKey, setPublicEffectChoiceFallbackKey] = useState<string | null>(
+    null
+  );
   const [activeEffectOriginalTextExpanded, setActiveEffectOriginalTextExpanded] = useState(false);
   const [stageFormationDraftSlots, setStageFormationDraftSlots] = useState<
     StageFormationDraftSlot[]
@@ -432,6 +466,25 @@ export const GameBoard = memo(function GameBoard({
     readonly cardId: string;
     readonly selectedSlots: readonly SlotPosition[];
   } | null>(null);
+  const [specialPlayTargetSelectionCardId, setSpecialPlayTargetSelectionCardId] = useState<
+    string | null
+  >(null);
+  const [specialPlayPaymentDraft, setSpecialPlayPaymentDraft] = useState<{
+    readonly pendingId: string;
+    readonly cardIds: readonly string[];
+  } | null>(null);
+
+  useEffect(() => {
+    const pendingId = pendingSpecialMemberPlay?.id;
+    const timer = window.setTimeout(
+      () =>
+        setSpecialPlayPaymentDraft((current) =>
+          current && current.pendingId !== pendingId ? null : current
+        ),
+      0
+    );
+    return () => window.clearTimeout(timer);
+  }, [pendingSpecialMemberPlay?.id]);
 
   const clearDragInteractionState = useCallback(() => {
     setActiveCardId(null);
@@ -461,13 +514,36 @@ export const GameBoard = memo(function GameBoard({
     [invalidateDragForViewportChange]
   );
 
+  const formatActiveEffectCardCompactLabel = useCallback(
+    (cardId: string, cardData: AnyCardData): string => {
+      const zone = findViewerCardZone(cardId);
+      const slot = getCardSlotPosition(cardId);
+      const isStageSlotOccupant =
+        slot !== null &&
+        (getSeatMemberSlotCardId('FIRST', slot) === cardId ||
+          getSeatMemberSlotCardId('SECOND', slot) === cardId);
+      const cardLabel = formatCardCompactLabel(cardData);
+
+      return formatActiveEffectCardLabelWithLocation(cardLabel, {
+        cardType: cardData.cardType,
+        zone,
+        slot,
+        isStageSlotOccupant,
+      });
+    },
+    [findViewerCardZone, getCardSlotPosition, getSeatMemberSlotCardId]
+  );
+
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const activeEffectSource = activeEffectSourceCardId
     ? getVisibleCardPresentation(activeEffectSourceCardId)
     : null;
   const activeEffectSourceLabel = activeEffectSource
-    ? formatCardCompactLabel(activeEffectSource.cardData as AnyCardData)
+    ? formatActiveEffectCardCompactLabel(
+        activeEffectSource.instanceId,
+        activeEffectSource.cardData as AnyCardData
+      )
     : '卡牌效果';
   const activeEffectLocalizedInfo = activeEffectSource
     ? getCardLocalizedInfo(activeEffectSource.cardData as AnyCardData)
@@ -526,7 +602,14 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const isPublicCardSelectionAutoAdvance = isPublicCardSelectionAutoAdvanceView(activeEffect);
-  const showOrdinaryActiveEffectControls = !isPublicCardSelectionAutoAdvance;
+  const isPublicEffectChoiceAutoAdvance = isPublicEffectChoiceAutoAdvanceView(activeEffect);
+  const publicEffectChoiceKey = isPublicEffectChoiceAutoAdvance
+    ? `${activeEffect.id}:${activeEffect.publicEffectChoiceAutoAdvanceAt}`
+    : null;
+  const publicEffectChoiceFallbackReady =
+    publicEffectChoiceKey !== null && publicEffectChoiceFallbackKey === publicEffectChoiceKey;
+  const showOrdinaryActiveEffectControls =
+    !isPublicCardSelectionAutoAdvance && !isPublicEffectChoiceAutoAdvance;
   const publicCardSelectionDisplayEntries = activeEffect
     ? buildPublicCardSelectionDisplayEntries(activeEffect)
     : [];
@@ -548,6 +631,16 @@ export const GameBoard = memo(function GameBoard({
     activeEffectOrderedSelection.every((cardId) => activeEffectSelectableCardIds.includes(cardId));
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
+  const activeEffectChoice = activeEffect?.effectChoice ?? null;
+  const showLegacyActiveEffectControls = showOrdinaryActiveEffectControls && !activeEffectChoice;
+  const activeEffectChoiceSignature = activeEffectChoice
+    ? `${activeEffectChoice.mode}:${activeEffectChoice.minSelections}:${activeEffectChoice.maxSelections}:${activeEffectChoice.options
+        .map((option) => `${option.id}:${option.selectable === false ? 'disabled' : 'enabled'}`)
+        .join('|')}`
+    : '';
+  const normalizedActiveEffectChoiceSelection = activeEffectChoice
+    ? normalizeEffectChoiceSelection(activeEffectChoice, activeEffectChoiceSelection)
+    : [];
   const activeEffectNumericInput = activeEffect?.numericInput ?? null;
   const activeEffectStageFormation = activeEffect?.stageFormation ?? null;
   const activeEffectStageFormationSignature =
@@ -573,12 +666,19 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectUsesCardOptionSelection =
     !activeEffectUsesOrderedMultiSelect &&
     activeEffectSelectableCardIds.length > 0 &&
-    activeEffectSelectableOptions.length > 0;
+    (activeEffectSelectableOptions.length > 0 ||
+      (!!activeEffectChoice && !isPublicEffectChoiceAutoAdvance));
   const activeEffectSelectedCardId =
     activeEffectSingleSelection &&
     activeEffectSelectableCardIds.includes(activeEffectSingleSelection)
       ? activeEffectSingleSelection
       : null;
+  const canConfirmActiveEffectChoice =
+    canConfirmActiveEffect &&
+    !!activeEffectChoice &&
+    activeEffectChoice.mode === 'MULTI' &&
+    (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId) &&
+    canConfirmEffectChoiceSelection(activeEffectChoice, normalizedActiveEffectChoiceSelection);
   const activeEffectSelectableBadgeLabel = isActiveEffectOrderSelectionWindow
     ? `队列 ${activeEffectSelectableCardIds.length} 个`
     : `${
@@ -618,6 +718,35 @@ export const GameBoard = memo(function GameBoard({
     ? getVisibleCardPresentation(selectedCardId)
     : null;
   const selectedCardZone = selectedCardId ? findViewerCardZone(selectedCardId) : null;
+  const selectedSpecialPlayObjectId = selectedCardId ? `obj_${selectedCardId}` : null;
+  const specialPlayTargetSlots = getSpecialMemberPlayTargetSlots(
+    specialMemberPlayHint,
+    selectedSpecialPlayObjectId
+  );
+  const canShowSpecialPlayEntry =
+    !isReadOnly &&
+    specialMemberPlayHint?.enabled === true &&
+    !activeEffect &&
+    !pendingCostPayment &&
+    !pendingSpecialMemberPlay &&
+    selectedCardZone === ZoneType.HAND &&
+    selectedCardPresentation?.cardData.cardCode === LL_BP7_001_SPECIAL_PLAY_UI_CARD_CODE &&
+    !!selectedSpecialPlayObjectId &&
+    specialMemberPlayHint.scope?.objectIds?.includes(selectedSpecialPlayObjectId) === true;
+  const pendingSpecialPlayCandidateIds =
+    pendingSpecialMemberPlay?.candidateObjectIds?.map((objectId) =>
+      objectId.replace(/^obj_/, '')
+    ) ?? [];
+  const controlsPendingSpecialPlay =
+    !!pendingSpecialMemberPlay?.sourceObjectId &&
+    !!viewerSeat &&
+    pendingSpecialMemberPlay.playerSeat === viewerSeat;
+  const specialPlayTargetSelectionOpen =
+    canShowSpecialPlayEntry && specialPlayTargetSelectionCardId === selectedCardId;
+  const specialPlayPaymentSelection =
+    specialPlayPaymentDraft && specialPlayPaymentDraft.pendingId === pendingSpecialMemberPlay?.id
+      ? specialPlayPaymentDraft.cardIds
+      : [];
   const viewerOccupiedMemberSlots = viewerSeat
     ? MEMBER_SLOT_ORDER.map((slot) => ({
         slot,
@@ -717,12 +846,14 @@ export const GameBoard = memo(function GameBoard({
   useEffect(() => {
     setActiveEffectOrderedSelection([]);
     setActiveEffectSingleSelection(null);
+    setActiveEffectChoiceSelection([]);
   }, [
     activeEffect?.id,
     activeEffect?.stepId,
     activeEffect?.selectableObjectMode,
     activeEffectSelectableCardSignature,
     activeEffectSelectableOptions.length,
+    activeEffectChoiceSignature,
   ]);
 
   useEffect(() => {
@@ -762,6 +893,37 @@ export const GameBoard = memo(function GameBoard({
     canConfirmEffectCommand,
     autoAdvancePublicCardSelection,
     isPublicCardSelectionAutoAdvance,
+    isReadOnly,
+  ]);
+
+  useEffect(() => {
+    if (!isPublicEffectChoiceAutoAdvance || isReadOnly || !canConfirmEffectCommand) {
+      return;
+    }
+
+    const effectId = activeEffect.id;
+    const fallbackKey = `${effectId}:${activeEffect.publicEffectChoiceAutoAdvanceAt}`;
+    const cancelAutoAdvance = schedulePublicEffectChoiceAutoAdvance(
+      activeEffect.publicEffectChoiceAutoAdvanceAfterMs,
+      () => autoAdvancePublicEffectChoice(effectId, activeEffect.publicEffectChoiceAutoAdvanceAt)
+    );
+    const fallbackTimer = window.setTimeout(
+      () => setPublicEffectChoiceFallbackKey(fallbackKey),
+      activeEffect.publicEffectChoiceAutoAdvanceAfterMs + PUBLIC_EFFECT_CHOICE_FALLBACK_DELAY_MS
+    );
+
+    return () => {
+      cancelAutoAdvance();
+      window.clearTimeout(fallbackTimer);
+    };
+  }, [
+    activeEffect?.id,
+    activeEffect?.stepId,
+    activeEffect?.publicEffectChoiceAutoAdvanceAt,
+    activeEffect?.publicEffectChoiceAutoAdvanceAfterMs,
+    autoAdvancePublicEffectChoice,
+    canConfirmEffectCommand,
+    isPublicEffectChoiceAutoAdvance,
     isReadOnly,
   ]);
 
@@ -955,6 +1117,38 @@ export const GameBoard = memo(function GameBoard({
       setDoubleRelaySelection(null);
     }
   }, [activeDoubleRelaySelection, addLog, playMemberToSlot]);
+
+  const handleBeginSpecialPlayAtSlot = useCallback(
+    (slot: SlotPosition) => {
+      if (!selectedCardId || !specialPlayTargetSlots.includes(slot)) {
+        return;
+      }
+      const result = beginSpecialMemberPlay(selectedCardId, slot);
+      if (result.success || result.pending) {
+        setSpecialPlayTargetSelectionCardId(null);
+      }
+    },
+    [beginSpecialMemberPlay, selectedCardId, specialPlayTargetSlots]
+  );
+
+  const handleToggleSpecialPlayPayment = useCallback(
+    (cardId: string) => {
+      setSpecialPlayPaymentDraft((current) => {
+        const pendingId = pendingSpecialMemberPlay?.id;
+        if (!pendingId) return current;
+        const cardIds = current?.pendingId === pendingId ? current.cardIds : [];
+        return {
+          pendingId,
+          cardIds: cardIds.includes(cardId)
+            ? cardIds.filter((candidate) => candidate !== cardId)
+            : cardIds.length < 3
+              ? [...cardIds, cardId]
+              : cardIds,
+        };
+      });
+    },
+    [pendingSpecialMemberPlay?.id]
+  );
 
   const isJudgmentPanelRelevant =
     (currentPhase === GamePhase.PERFORMANCE_PHASE &&
@@ -1789,7 +1983,7 @@ export const GameBoard = memo(function GameBoard({
         return;
       }
 
-      // 休息室成员卡拖到成员槽位：由后端 handleManualMoveCard 检测特殊成员堆叠
+      // 休息室成员卡拖到成员槽位仍走普通成员区移动规则；memberBelow 只由卡效创建。
       if (
         fromZone === ZoneType.WAITING_ROOM &&
         toZone === ZoneType.MEMBER_SLOT &&
@@ -2297,7 +2491,64 @@ export const GameBoard = memo(function GameBoard({
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
-        {canShowDoubleRelayEntry && (
+        {canShowSpecialPlayEntry && (
+          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[83] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  特殊登场
+                </div>
+                <div className="mt-0.5 truncate text-sm font-semibold">
+                  {selectedCardPresentation
+                    ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+                    : '成员登场'}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setSpecialPlayTargetSelectionCardId((current) =>
+                    current === selectedCardId ? null : selectedCardId
+                  )
+                }
+                className={cn(
+                  specialPlayTargetSelectionOpen ? 'button-secondary' : 'button-primary',
+                  'inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold'
+                )}
+              >
+                {specialPlayTargetSelectionOpen ? (
+                  <X className="h-4 w-4" />
+                ) : (
+                  <DoorOpen className="h-4 w-4" />
+                )}
+                {specialPlayTargetSelectionOpen ? '取消' : '特殊登场'}
+              </button>
+            </div>
+            {specialPlayTargetSelectionOpen && (
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {MEMBER_SLOT_ORDER.map((slot) => {
+                  const enabled = specialPlayTargetSlots.includes(slot);
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={!enabled}
+                      onClick={() => handleBeginSpecialPlayAtSlot(slot)}
+                      className={cn(
+                        'button-secondary inline-flex min-h-10 items-center justify-center px-2 text-xs font-semibold',
+                        !enabled && 'cursor-not-allowed opacity-40'
+                      )}
+                    >
+                      {MEMBER_SLOT_LABELS[slot]}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {canShowDoubleRelayEntry && !canShowSpecialPlayEntry && (
           <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[82] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -2566,6 +2817,40 @@ export const GameBoard = memo(function GameBoard({
                     text={activeEffectDescription}
                     className="text-[13px] leading-relaxed md:text-sm"
                   />
+                  {!isActiveEffectOrderSelectionWindow && activeEffectChoice && (
+                    <EffectChoicePanel
+                      activeEffect={activeEffect}
+                      selectedOptionIds={normalizedActiveEffectChoiceSelection}
+                      canChoose={
+                        canConfirmActiveEffect &&
+                        !isPublicEffectChoiceAutoAdvance &&
+                        (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
+                      }
+                      canConfirmMulti={canConfirmActiveEffectChoice}
+                      onSelectSingle={(optionId) =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: [optionId],
+                        })
+                      }
+                      onToggleMulti={(optionId) =>
+                        setActiveEffectChoiceSelection((current) => [
+                          ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
+                        ])
+                      }
+                      onConfirmMulti={() =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
+                        })
+                      }
+                      onSkip={() => confirmEffectStep(activeEffect.id, null)}
+                    />
+                  )}
                   {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
                     <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
                       <button
@@ -2866,7 +3151,10 @@ export const GameBoard = memo(function GameBoard({
                         const label = activeEffectSelectableObjectsFaceDown
                           ? `第${candidateIndex + 1}张手牌`
                           : cardData
-                            ? formatCardCompactLabel(cardData as AnyCardData)
+                            ? formatActiveEffectCardCompactLabel(
+                                cardId,
+                                cardData as AnyCardData
+                              )
                             : '选择此卡';
                         const energyStatusLabel = isEnergyCandidate
                           ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
@@ -3034,7 +3322,10 @@ export const GameBoard = memo(function GameBoard({
               </div>
               <div
                 className={cn(
-                  'flex shrink-0 flex-wrap justify-end gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
+                  'flex shrink-0 gap-2 border-t border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 md:mt-4 md:border-t-0 md:bg-transparent md:p-0',
+                  isActiveEffectOrderSelectionWindow
+                    ? 'flex-col items-stretch justify-start'
+                    : 'flex-wrap justify-end',
                   isReadOnly && 'hidden'
                 )}
               >
@@ -3053,7 +3344,22 @@ export const GameBoard = memo(function GameBoard({
                     继续处理
                   </button>
                 )}
-                {showOrdinaryActiveEffectControls && activeEffectStageFormation && (
+                {isPublicEffectChoiceAutoAdvance && publicEffectChoiceFallbackReady && (
+                  <button
+                    type="button"
+                    disabled={isReadOnly || !canConfirmEffectCommand}
+                    onClick={() =>
+                      autoAdvancePublicEffectChoice(
+                        activeEffect.id,
+                        activeEffect.publicEffectChoiceAutoAdvanceAt
+                      )
+                    }
+                    className="button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold"
+                  >
+                    继续处理
+                  </button>
+                )}
+                {showLegacyActiveEffectControls && activeEffectStageFormation && (
                   <button
                     type="button"
                     disabled={!canConfirmActiveEffect}
@@ -3066,7 +3372,7 @@ export const GameBoard = memo(function GameBoard({
                     确认站位
                   </button>
                 )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableSlots.map((slot) => {
                     const slotLabel =
                       slot === SlotPosition.LEFT
@@ -3093,7 +3399,7 @@ export const GameBoard = memo(function GameBoard({
                       </button>
                     );
                   })}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableOptions.map((option) => (
                     <button
                       key={option.id}
@@ -3113,21 +3419,30 @@ export const GameBoard = memo(function GameBoard({
                           option.id
                         )
                       }
-                      className={`button-secondary inline-flex min-h-10 items-center justify-center px-3 text-sm font-semibold ${
+                      className={cn(
+                        'button-secondary inline-flex min-h-10 items-center px-3 text-sm font-semibold',
+                        isActiveEffectOrderSelectionWindow
+                          ? 'w-full justify-start py-3 text-left leading-relaxed'
+                          : 'justify-center',
                         canConfirmActiveEffect &&
-                        (!activeEffectUsesCardOptionSelection || activeEffectSelectedCardId)
+                          (!activeEffectUsesCardOptionSelection || activeEffectSelectedCardId)
                           ? ''
                           : 'cursor-not-allowed opacity-50'
-                      }`}
+                      )}
                     >
                       <CardEffectText
                         as="span"
                         text={option.label}
-                        className="inline-flex items-center justify-center gap-1 whitespace-normal break-normal"
+                        className={cn(
+                          'whitespace-normal break-normal',
+                          isActiveEffectOrderSelectionWindow
+                            ? 'block w-full text-left leading-relaxed'
+                            : 'inline-flex items-center justify-center gap-1'
+                        )}
                       />
                     </button>
                   ))}
-                {showOrdinaryActiveEffectControls && activeEffectNumericInput && (
+                {showLegacyActiveEffectControls && activeEffectNumericInput && (
                   <div className="flex min-w-[180px] flex-col gap-1">
                     <label className="text-xs font-semibold text-[var(--text-secondary)]">
                       {activeEffectNumericInput.label ?? '数字'}
@@ -3166,7 +3481,7 @@ export const GameBoard = memo(function GameBoard({
                     </div>
                   </div>
                 )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectUsesOrderedMultiSelect &&
                   (activeEffectSelectableCardIds.length > 0 ||
                     activeEffectMinSelectableCards === 0) && (
@@ -3190,19 +3505,21 @@ export const GameBoard = memo(function GameBoard({
                       {`${activeEffect.confirmSelectionLabel ?? '确认选择'}（${activeEffectOrderedSelection.length}张）`}
                     </button>
                   )}
-                {showOrdinaryActiveEffectControls && activeEffect.canResolveInOrder && (
+                {showLegacyActiveEffectControls && activeEffect.canResolveInOrder && (
                   <button
                     type="button"
                     disabled={!canConfirmActiveEffect}
                     onClick={() => confirmEffectStep(activeEffect.id, undefined, null, true)}
-                    className={`button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold ${
+                    className={cn(
+                      'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
+                      isActiveEffectOrderSelectionWindow && 'self-end',
                       canConfirmActiveEffect ? '' : 'cursor-not-allowed opacity-50'
-                    }`}
+                    )}
                   >
                     顺序发动
                   </button>
                 )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffect.canSkipSelection &&
                   (activeEffectSelectableCardIds.length > 0 ||
                     activeEffectSelectableSlots.length > 0 ||
@@ -3221,7 +3538,7 @@ export const GameBoard = memo(function GameBoard({
                       {activeEffect.skipSelectionLabel ?? '不加入'}
                     </button>
                   )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableCardIds.length === 0 &&
                   activeEffectSelectableSlots.length === 0 &&
                   activeEffectSelectableOptions.length === 0 &&
@@ -3240,7 +3557,7 @@ export const GameBoard = memo(function GameBoard({
                       {activeEffect.confirmSelectionLabel ?? '继续处理'}
                     </button>
                   )}
-                {showOrdinaryActiveEffectControls &&
+                {showLegacyActiveEffectControls &&
                   activeEffectSelectableCardIds.length === 0 &&
                   activeEffectSelectableSlots.length === 0 &&
                   activeEffectSelectableOptions.length === 0 &&
@@ -3260,6 +3577,84 @@ export const GameBoard = memo(function GameBoard({
                   )}
               </div>
             </motion.div>
+          </div>
+        )}
+
+        {pendingSpecialMemberPlay && (
+          <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[97] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            {controlsPendingSpecialPlay ? (
+              <>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  {pendingSpecialMemberPlay.selectionLabel}
+                </div>
+                <p className="mt-2 text-sm leading-relaxed">{pendingSpecialMemberPlay.stepText}</p>
+                <div className="mt-3 grid max-h-[48vh] grid-cols-[repeat(auto-fill,minmax(78px,1fr))] gap-3 overflow-y-auto rounded-lg border border-[var(--border-subtle)] p-3">
+                  {pendingSpecialPlayCandidateIds.map((cardId) => {
+                    const presentation = getVisibleCardPresentation(cardId);
+                    if (!presentation) return null;
+                    const selected = specialPlayPaymentSelection.includes(cardId);
+                    return (
+                      <button
+                        key={cardId}
+                        type="button"
+                        onClick={() => handleToggleSpecialPlayPayment(cardId)}
+                        className={cn(
+                          'relative flex min-w-0 flex-col items-center rounded-lg border p-1.5 transition-colors',
+                          selected
+                            ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]'
+                        )}
+                        title={formatCardCompactLabel(presentation.cardData as AnyCardData)}
+                      >
+                        <div className="h-[105px] w-[75px] overflow-hidden rounded-lg">
+                          <Card
+                            cardData={presentation.cardData as AnyCardData}
+                            instanceId={presentation.instanceId}
+                            imagePath={presentation.imagePath}
+                            size="sm"
+                            faceUp={true}
+                            showHover={false}
+                            className="h-full w-full"
+                          />
+                        </div>
+                        {selected && (
+                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
+                            {specialPlayPaymentSelection.indexOf(cardId) + 1}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => cancelSpecialMemberPlay(pendingSpecialMemberPlay.id)}
+                    className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    disabled={specialPlayPaymentSelection.length !== 3}
+                    onClick={() =>
+                      confirmSpecialMemberPlay(
+                        pendingSpecialMemberPlay.id,
+                        specialPlayPaymentSelection
+                      )
+                    }
+                    className={cn(
+                      'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
+                      specialPlayPaymentSelection.length !== 3 && 'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    {pendingSpecialMemberPlay.confirmSelectionLabel}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-center text-sm font-semibold">等待对方完成特殊登场</p>
+            )}
           </div>
         )}
 

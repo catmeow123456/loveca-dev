@@ -10,9 +10,17 @@ import {
   createHeartIcon,
   createHeartRequirement,
 } from '../../src/domain/entities/card';
-import { createGameState, registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
+import {
+  createGameState,
+  registerCards,
+  updatePlayer,
+  type GameState,
+} from '../../src/domain/entities/game';
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
-import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import {
+  createAutoAdvancePublicEffectChoiceCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID } from '../../src/application/card-effect-runner';
@@ -132,10 +140,10 @@ describe('live-start discard gain Heart workflow', () => {
       PLAYER1,
       'kotori-shared-regression-discard'
     );
-    let game = registerCards(createGameState('kotori-shared-regression', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      kotori,
-      discard,
-    ]);
+    let game = registerCards(
+      createGameState('kotori-shared-regression', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [kotori, discard]
+    );
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
       memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, kotori.instanceId),
@@ -163,20 +171,26 @@ describe('live-start discard gain Heart workflow', () => {
       discardWindow.activeEffect!.id,
       discard.instanceId
     );
-    expect(colorWindow.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    expect(colorWindow.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       HeartColor.PINK,
       HeartColor.YELLOW,
       HeartColor.PURPLE,
     ]);
-    const done = confirmActiveEffectStep(
+    const publicChoice = confirmActiveEffectStep(
       colorWindow,
       PLAYER1,
       colorWindow.activeEffect!.id,
-      null,
-      null,
-      false,
-      HeartColor.YELLOW
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [HeartColor.YELLOW]
     );
+    const done = confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
     expect(done.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
       target: 'SOURCE_MEMBER',
@@ -279,14 +293,20 @@ describe('live-start discard gain Heart workflow', () => {
     );
 
     expect(discardResult.success).toBe(true);
-    expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: HeartColor.PINK, label: '粉心' },
-      { id: HeartColor.RED, label: '红心' },
-      { id: HeartColor.YELLOW, label: '黄心' },
-      { id: HeartColor.GREEN, label: '绿心' },
-      { id: HeartColor.BLUE, label: '蓝心' },
-      { id: HeartColor.PURPLE, label: '紫心' },
-    ]);
+    expect(session.state?.activeEffect?.effectChoice).toMatchObject({
+      mode: 'SINGLE',
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
+      options: [
+        { id: HeartColor.PINK, text: '获得[桃ハート]。' },
+        { id: HeartColor.RED, text: '获得[赤ハート]。' },
+        { id: HeartColor.YELLOW, text: '获得[黄ハート]。' },
+        { id: HeartColor.GREEN, text: '获得[緑ハート]。' },
+        { id: HeartColor.BLUE, text: '获得[青ハート]。' },
+        { id: HeartColor.PURPLE, text: '获得[紫ハート]。' },
+      ],
+    });
 
     const heartResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -295,11 +315,26 @@ describe('live-start discard gain Heart workflow', () => {
         undefined,
         undefined,
         undefined,
-        HeartColor.PINK
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [HeartColor.PINK]
       )
     );
 
     expect(heartResult.success).toBe(true);
+    const publicChoice = session.state!.activeEffect!;
+    (session as unknown as { authorityState: GameState }).authorityState = {
+      ...session.state!,
+      activeEffect: { ...publicChoice, publicEffectChoiceAutoAdvanceAt: 0 },
+    };
+    expect(
+      session.executeCommand(
+        createAutoAdvancePublicEffectChoiceCommand(PLAYER2, publicChoice.id, 0)
+      ).success
+    ).toBe(true);
     expect(
       session.state?.actionHistory.filter(
         (action) =>
@@ -314,23 +349,108 @@ describe('live-start discard gain Heart workflow', () => {
 });
 
 function setupKasumi(rarity: 'R' | 'P' = 'R', withHand = true, withSecondTarget = false) {
-  const kasumi = createCardInstance(createMemberCard(`PL!N-bp3-002-${rarity}`, '中須かすみ', 4), PLAYER1, 'kasumi');
-  const target = createCardInstance({ ...createMemberCard('PL!N-target', '上原歩夢', 5), groupNames: ['虹ヶ咲'] }, PLAYER1, 'target');
-  const secondTarget = createCardInstance({ ...createMemberCard('PL!N-second-target', '桜坂しずく', 5), groupNames: ['虹ヶ咲'] }, PLAYER1, 'second-target');
-  const memberBelow = createCardInstance({ ...createMemberCard('PL!N-member-below', '天王寺璃奈', 5), groupNames: ['虹ヶ咲'] }, PLAYER1, 'member-below');
-  const nonNiji = createCardInstance({ ...createMemberCard('PL!HS-pb1-003-P＋', '大沢瑠璃乃', 15), groupNames: ['蓮ノ空'] }, PLAYER1, 'non-niji');
-  const opponent = createCardInstance({ ...createMemberCard('PL!N-opponent', '優木せつ菜', 5), groupNames: ['虹ヶ咲'] }, PLAYER2, 'opponent');
+  const kasumi = createCardInstance(
+    createMemberCard(`PL!N-bp3-002-${rarity}`, '中須かすみ', 4),
+    PLAYER1,
+    'kasumi'
+  );
+  const target = createCardInstance(
+    { ...createMemberCard('PL!N-target', '上原歩夢', 5), groupNames: ['虹ヶ咲'] },
+    PLAYER1,
+    'target'
+  );
+  const secondTarget = createCardInstance(
+    { ...createMemberCard('PL!N-second-target', '桜坂しずく', 5), groupNames: ['虹ヶ咲'] },
+    PLAYER1,
+    'second-target'
+  );
+  const memberBelow = createCardInstance(
+    { ...createMemberCard('PL!N-member-below', '天王寺璃奈', 5), groupNames: ['虹ヶ咲'] },
+    PLAYER1,
+    'member-below'
+  );
+  const nonNiji = createCardInstance(
+    { ...createMemberCard('PL!HS-pb1-003-P＋', '大沢瑠璃乃', 15), groupNames: ['蓮ノ空'] },
+    PLAYER1,
+    'non-niji'
+  );
+  const opponent = createCardInstance(
+    { ...createMemberCard('PL!N-opponent', '優木せつ菜', 5), groupNames: ['虹ヶ咲'] },
+    PLAYER2,
+    'opponent'
+  );
   const discard = createCardInstance(createMemberCard('DISCARD', 'discard', 1), PLAYER1, 'discard');
-  let game = registerCards(createGameState('n-bp3-002', PLAYER1, 'P1', PLAYER2, 'P2'), [kasumi, target, secondTarget, memberBelow, nonNiji, opponent, discard]);
-  game = updatePlayer(game, PLAYER1, (p) => ({ ...p, memberSlots: { ...placeCardInSlot(placeCardInSlot(placeCardInSlot(p.memberSlots, SlotPosition.LEFT, target.instanceId), SlotPosition.CENTER, kasumi.instanceId), SlotPosition.RIGHT, withSecondTarget ? secondTarget.instanceId : nonNiji.instanceId), memberBelow: new Map([[target.instanceId, [memberBelow.instanceId]]]) }, hand: { ...p.hand, cardIds: withHand ? [discard.instanceId] : [] } }));
-  game = updatePlayer(game, PLAYER2, (p) => ({ ...p, memberSlots: placeCardInSlot(p.memberSlots, SlotPosition.LEFT, opponent.instanceId) }));
-  game = { ...game, pendingAbilities: [{ id: 'kasumi-pending', abilityId: KASUMI_ABILITY_ID, sourceCardId: kasumi.instanceId, controllerId: PLAYER1, mandatory: false, timingId: TriggerCondition.ON_LIVE_START, eventIds: ['live-start'], sourceSlot: SlotPosition.CENTER }] };
+  let game = registerCards(createGameState('n-bp3-002', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    kasumi,
+    target,
+    secondTarget,
+    memberBelow,
+    nonNiji,
+    opponent,
+    discard,
+  ]);
+  game = updatePlayer(game, PLAYER1, (p) => ({
+    ...p,
+    memberSlots: {
+      ...placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(p.memberSlots, SlotPosition.LEFT, target.instanceId),
+          SlotPosition.CENTER,
+          kasumi.instanceId
+        ),
+        SlotPosition.RIGHT,
+        withSecondTarget ? secondTarget.instanceId : nonNiji.instanceId
+      ),
+      memberBelow: new Map([[target.instanceId, [memberBelow.instanceId]]]),
+    },
+    hand: { ...p.hand, cardIds: withHand ? [discard.instanceId] : [] },
+  }));
+  game = updatePlayer(game, PLAYER2, (p) => ({
+    ...p,
+    memberSlots: placeCardInSlot(p.memberSlots, SlotPosition.LEFT, opponent.instanceId),
+  }));
+  game = {
+    ...game,
+    pendingAbilities: [
+      {
+        id: 'kasumi-pending',
+        abilityId: KASUMI_ABILITY_ID,
+        sourceCardId: kasumi.instanceId,
+        controllerId: PLAYER1,
+        mandatory: false,
+        timingId: TriggerCondition.ON_LIVE_START,
+        eventIds: ['live-start'],
+        sourceSlot: SlotPosition.CENTER,
+      },
+    ],
+  };
   return { game, kasumi, target, secondTarget, memberBelow, nonNiji, opponent, discard };
 }
 
 describe('PL!N-bp3-002 中須かすみ shared recipient mode', () => {
   const start = (game: GameState) => resolvePendingCardEffects(game).gameState;
-  const confirm = (game: GameState, cardId?: string, optionId?: string) => confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, cardId, null, false, optionId);
+  const confirm = (game: GameState, cardId?: string, optionId?: string) => {
+    if (!optionId) {
+      return confirmActiveEffectStep(game, PLAYER1, game.activeEffect!.id, cardId);
+    }
+    const publicChoice = confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      game.activeEffect!.id,
+      cardId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [optionId]
+    );
+    return publicChoice === game
+      ? game
+      : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
+  };
 
   it.each(['R', 'P'] as const)('R/P 共用；可跳过且无手牌时也能结束：%s', (rarity) => {
     const window = start(setupKasumi(rarity).game);
@@ -344,15 +464,48 @@ describe('PL!N-bp3-002 中須かすみ shared recipient mode', () => {
     const { game, discard, target, kasumi } = setupKasumi();
     const colorWindow = confirm(start(game), discard.instanceId);
     expect(colorWindow.players[0]!.waitingRoom.cardIds).toContain(discard.instanceId);
-    expect(colorWindow.activeEffect?.selectableOptions?.map((o) => o.id)).toEqual([HeartColor.PINK, HeartColor.RED, HeartColor.YELLOW, HeartColor.GREEN, HeartColor.BLUE, HeartColor.PURPLE]);
-    expect(colorWindow.activeEffect?.selectableOptions?.map((o) => o.id)).not.toContain(HeartColor.RAINBOW);
+    expect(colorWindow.activeEffect?.effectChoice?.options.map((o) => o.id)).toEqual([
+      HeartColor.PINK,
+      HeartColor.RED,
+      HeartColor.YELLOW,
+      HeartColor.GREEN,
+      HeartColor.BLUE,
+      HeartColor.PURPLE,
+    ]);
+    expect(colorWindow.activeEffect?.effectChoice?.options.map((o) => o.id)).not.toContain(
+      HeartColor.RAINBOW
+    );
     const targetWindow = confirm(colorWindow, undefined, HeartColor.BLUE);
-    expect(targetWindow.activeEffect).toMatchObject({ selectableCardIds: [target.instanceId], canSkipSelection: false, confirmSelectionLabel: '获得所选Heart' });
-    expect(targetWindow.pendingAbilities).toContainEqual(expect.objectContaining({ abilityId: HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID }));
-    expect(targetWindow.liveResolution.liveModifiers.some((m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(false);
+    expect(targetWindow.activeEffect).toMatchObject({
+      selectableCardIds: [target.instanceId],
+      canSkipSelection: false,
+      confirmSelectionLabel: '获得所选Heart',
+    });
+    expect(targetWindow.pendingAbilities).toContainEqual(
+      expect.objectContaining({
+        abilityId: HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+      })
+    );
+    expect(
+      targetWindow.liveResolution.liveModifiers.some(
+        (m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+      )
+    ).toBe(false);
     const done = confirm(targetWindow, target.instanceId);
-    expect(done.liveResolution.liveModifiers).toContainEqual({ kind: 'HEART', target: 'TARGET_MEMBER', playerId: PLAYER1, hearts: [{ color: HeartColor.BLUE, count: 1 }], sourceCardId: kasumi.instanceId, abilityId: KASUMI_ABILITY_ID, targetMemberCardId: target.instanceId });
-    expect(done.liveResolution.liveModifiers.some((m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(true);
+    expect(done.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      sourceCardId: kasumi.instanceId,
+      abilityId: KASUMI_ABILITY_ID,
+      targetMemberCardId: target.instanceId,
+    });
+    expect(
+      done.liveResolution.liveModifiers.some(
+        (m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+      )
+    ).toBe(true);
   });
 
   it('非候选、对方、非虹咲、来源与 memberBelow 均不能选择', () => {
@@ -369,48 +522,97 @@ describe('PL!N-bp3-002 中須かすみ shared recipient mode', () => {
 
   it('进入选成员窗口后唯一目标离场，安全结束并继续下游 pending', () => {
     const scenario = setupKasumi();
-    const targetWindow = confirm(confirm(start(scenario.game), scenario.discard.instanceId), undefined, HeartColor.GREEN);
-    const targetGone = updatePlayer(targetWindow, PLAYER1, (p) => ({ ...p, memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.LEFT) }));
+    const targetWindow = confirm(
+      confirm(start(scenario.game), scenario.discard.instanceId),
+      undefined,
+      HeartColor.GREEN
+    );
+    const targetGone = updatePlayer(targetWindow, PLAYER1, (p) => ({
+      ...p,
+      memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.LEFT),
+    }));
     const finished = confirm(targetGone, scenario.target.instanceId);
     expect(finished.activeEffect).toBeNull();
-    expect(finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)).toBe(false);
-    expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    expect(
+      finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)
+    ).toBe(false);
+    expect(
+      finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)
+    ).toBe(false);
     expect(finished.players[0]!.mainDeck.cardIds).toContain(scenario.discard.instanceId);
-    expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID)).toBe(true);
+    expect(
+      finished.liveResolution.liveModifiers.some(
+        (m) => m.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+      )
+    ).toBe(true);
   });
 
   it('进入选成员窗口后来源离场，安全结束且不留下强制窗口', () => {
     const scenario = setupKasumi();
-    const targetWindow = confirm(confirm(start(scenario.game), scenario.discard.instanceId), undefined, HeartColor.PURPLE);
-    const sourceGone = updatePlayer(targetWindow, PLAYER1, (p) => ({ ...p, memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.CENTER) }));
+    const targetWindow = confirm(
+      confirm(start(scenario.game), scenario.discard.instanceId),
+      undefined,
+      HeartColor.PURPLE
+    );
+    const sourceGone = updatePlayer(targetWindow, PLAYER1, (p) => ({
+      ...p,
+      memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.CENTER),
+    }));
     const finished = confirm(sourceGone, scenario.target.instanceId);
     expect(finished.activeEffect).toBeNull();
-    expect(finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)).toBe(false);
-    expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    expect(
+      finished.pendingAbilities.some((ability) => ability.abilityId === KASUMI_ABILITY_ID)
+    ).toBe(false);
+    expect(
+      finished.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)
+    ).toBe(false);
     expect(finished.players[0]!.mainDeck.cardIds).toContain(scenario.discard.instanceId);
   });
 
   it('两个合法目标之一 stale 时刷新候选，并可选择剩余目标完成且不能重复确认', () => {
     const scenario = setupKasumi('R', true, true);
-    const targetWindow = confirm(confirm(start(scenario.game), scenario.discard.instanceId), undefined, HeartColor.BLUE);
-    expect(targetWindow.activeEffect?.selectableCardIds).toEqual([scenario.target.instanceId, scenario.secondTarget.instanceId]);
-    const firstGone = updatePlayer(targetWindow, PLAYER1, (p) => ({ ...p, memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.LEFT) }));
+    const targetWindow = confirm(
+      confirm(start(scenario.game), scenario.discard.instanceId),
+      undefined,
+      HeartColor.BLUE
+    );
+    expect(targetWindow.activeEffect?.selectableCardIds).toEqual([
+      scenario.target.instanceId,
+      scenario.secondTarget.instanceId,
+    ]);
+    const firstGone = updatePlayer(targetWindow, PLAYER1, (p) => ({
+      ...p,
+      memberSlots: removeCardFromSlot(p.memberSlots, SlotPosition.LEFT),
+    }));
     const refreshed = confirm(firstGone, scenario.target.instanceId);
     expect(refreshed.activeEffect?.selectableCardIds).toEqual([scenario.secondTarget.instanceId]);
-    expect(refreshed.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)).toBe(false);
+    expect(
+      refreshed.liveResolution.liveModifiers.some((m) => m.abilityId === KASUMI_ABILITY_ID)
+    ).toBe(false);
     const done = confirm(refreshed, scenario.secondTarget.instanceId);
     expect(done.activeEffect).toBeNull();
-    expect(done.liveResolution.liveModifiers.filter((m) => m.abilityId === KASUMI_ABILITY_ID)).toHaveLength(1);
-    const repeated = confirmActiveEffectStep(done, PLAYER1, refreshed.activeEffect!.id, scenario.secondTarget.instanceId);
+    expect(
+      done.liveResolution.liveModifiers.filter((m) => m.abilityId === KASUMI_ABILITY_ID)
+    ).toHaveLength(1);
+    const repeated = confirmActiveEffectStep(
+      done,
+      PLAYER1,
+      refreshed.activeEffect!.id,
+      scenario.secondTarget.instanceId
+    );
     expect(repeated).toBe(done);
-    expect(repeated.liveResolution.liveModifiers.filter((m) => m.abilityId === KASUMI_ABILITY_ID)).toHaveLength(1);
+    expect(
+      repeated.liveResolution.liveModifiers.filter((m) => m.abilityId === KASUMI_ABILITY_ID)
+    ).toHaveLength(1);
   });
 });
 
-function setupUmi013(options: {
-  readonly withHand?: boolean;
-  readonly withTargets?: boolean;
-} = {}) {
+function setupUmi013(
+  options: {
+    readonly withHand?: boolean;
+    readonly withTargets?: boolean;
+  } = {}
+) {
   const withHand = options.withHand ?? true;
   const withTargets = options.withTargets ?? true;
   const umi = createCardInstance(
@@ -452,12 +654,10 @@ function setupUmi013(options: {
     discard,
   ]);
   game = updatePlayer(game, PLAYER1, (player) => {
-    let memberSlots = placeCardInSlot(
-      player.memberSlots,
-      SlotPosition.CENTER,
-      umi.instanceId,
-      { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
-    );
+    let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, umi.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
     if (withTargets) {
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, activeMuseTarget.instanceId, {
         orientation: OrientationState.ACTIVE,
@@ -548,7 +748,10 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
             ...player.liveZone,
             cardIds: [live.instanceId],
             cardStates: new Map([
-              [live.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+              [
+                live.instanceId,
+                { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN },
+              ],
             ]),
           },
           memberSlots: placeCardInSlot(
@@ -687,8 +890,7 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
     expect(
       done.actionHistory.some(
         (action) =>
-          action.payload.abilityId ===
-          HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+          action.payload.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
       )
     ).toBe(true);
   });
@@ -711,9 +913,9 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
           entry.event.cardInstanceIds.includes(scenario.discard.instanceId)
       )
     ).toBe(true);
-    expect(finished.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)).toBe(
-      false
-    );
+    expect(
+      finished.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)
+    ).toBe(false);
   });
 
   it('refreshes remaining candidates when one target becomes stale and keeps the mandatory window', () => {
@@ -728,9 +930,9 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
       scenario.waitingOtherGroupTarget.instanceId,
     ]);
     expect(refreshed.activeEffect?.canSkipSelection).toBe(false);
-    expect(refreshed.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)).toBe(
-      false
-    );
+    expect(
+      refreshed.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)
+    ).toBe(false);
   });
 
   it('ends safely with paid cost when no target existed after discard or the only target becomes stale', () => {
@@ -738,9 +940,9 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
     const noTargetDone = confirm(start(noTarget.game), noTarget.discard.instanceId);
     expect(noTargetDone.activeEffect).toBeNull();
     expect(noTargetDone.players[0]!.waitingRoom.cardIds).toContain(noTarget.discard.instanceId);
-    expect(noTargetDone.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)).toBe(
-      false
-    );
+    expect(
+      noTargetDone.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)
+    ).toBe(false);
 
     const staleScenario = setupUmi013();
     const targetWindow = confirm(start(staleScenario.game), staleScenario.discard.instanceId);
@@ -762,9 +964,9 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
           entry.event.cardInstanceIds.includes(staleScenario.discard.instanceId)
       )
     ).toBe(true);
-    expect(staleDone.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)).toBe(
-      false
-    );
+    expect(
+      staleDone.liveResolution.liveModifiers.some((m) => m.abilityId === UMI_013_ABILITY_ID)
+    ).toBe(false);
   });
 
   it('removes the target-bound Heart through the standard leave-stage cleanup path', () => {

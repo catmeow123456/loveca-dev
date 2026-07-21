@@ -157,6 +157,7 @@ import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { clearLiveProhibitionsUntilLiveEnd } from '../domain/rules/live-prohibitions.js';
 import { clearLiveStartSuppressionsUntilLiveEnd } from '../domain/rules/live-start-suppressions.js';
+import { clearMemberWaitProtectionsUntilLiveEnd } from '../domain/rules/member-wait-protections.js';
 import {
   collectContinuousActivePhaseSkippedMemberCardIds,
   consumeMemberActivePhaseSkipsForPlayer,
@@ -648,6 +649,7 @@ export class GameService {
     ) {
       state = clearLiveProhibitionsUntilLiveEnd(state);
       state = clearLiveStartSuppressionsUntilLiveEnd(state);
+      state = clearMemberWaitProtectionsUntilLiveEnd(state);
     }
 
     // 执行阶段自动处理
@@ -1967,7 +1969,9 @@ export class GameService {
       }
     }
 
-    state = clearLiveStartSuppressionsUntilLiveEnd(clearLiveProhibitionsUntilLiveEnd(state));
+    state = clearMemberWaitProtectionsUntilLiveEnd(
+      clearLiveStartSuppressionsUntilLiveEnd(clearLiveProhibitionsUntilLiveEnd(state))
+    );
     return resolveLiveZoneToWaitingRoomTriggers(state, movedLiveCardIds);
   }
 }

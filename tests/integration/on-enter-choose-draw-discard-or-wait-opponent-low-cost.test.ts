@@ -7,6 +7,7 @@ import {
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
@@ -196,6 +197,9 @@ function chooseOption(
     )
   );
   expect(result.success).toBe(expectedSuccess);
+  if (result.success) {
+    confirmPublicSelectionIfNeeded(session);
+  }
 }
 
 function appendNextDrawPending(
@@ -263,13 +267,22 @@ describe('PR on-enter choose draw-discard or wait all opponent low-cost members'
         stepText: '请选择要执行的效果。',
         selectionLabel: '选择要执行的效果',
         canSkipSelection: false,
-        selectableOptions: [
-          { id: 'draw_discard', label: '抽1张卡，将1张手牌放置入休息室' },
-          {
-            id: 'wait_opponent_low_cost',
-            label: '将对方所有费用小于等于2的成员变为待机状态',
-          },
-        ],
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            {
+              id: 'draw_discard',
+              text: '抽1张卡，将1张手牌放置入休息室。',
+            },
+            {
+              id: 'wait_opponent_low_cost',
+              text: '将对方舞台上所有费用小于等于2的成员变为待机状态。',
+            },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
       });
       expect(effect?.selectableCardIds).toBeUndefined();
       expect(effect?.skipSelectionLabel).toBeUndefined();

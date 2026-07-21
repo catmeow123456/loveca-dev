@@ -10,6 +10,11 @@ import {
   isResultSuccessEffectSubPhase,
 } from '../application/command-availability.js';
 import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
+import {
+  canAssignLlBp7001SpecialPlayPayment,
+  getLlBp7001SpecialPlayTargetSlots,
+  isLlBp7001SpecialPlaySource,
+} from '../application/effects/special-member-play.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import {
   hasPendingAbilityOrChoice,
@@ -340,6 +345,7 @@ export function projectPlayerViewState(
   const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
   const publicCardSelectionAutoAdvanceAt = game.activeEffect?.publicCardSelectionAutoAdvanceAt;
+  const publicEffectChoiceAutoAdvanceAt = game.activeEffect?.publicEffectChoiceAutoAdvanceAt;
   for (const skip of game.energyActivePhaseSkips ?? []) {
     const publicObjectId = createPublicObjectId(skip.energyCardId);
     const object = objects[publicObjectId];
@@ -363,10 +369,39 @@ export function projectPlayerViewState(
           ? Math.max(0, publicCardSelectionAutoAdvanceAt - (options.now ?? Date.now()))
           : undefined,
         publicCardSelectionOrdered: game.activeEffect.publicCardSelectionOrdered,
-        inspectionObjectIds: game.activeEffect.inspectionCardIds?.map(createPublicObjectId),
+        publicEffectChoiceAutoAdvanceAt,
+        publicEffectChoiceAutoAdvanceAfterMs: publicEffectChoiceAutoAdvanceAt
+          ? Math.max(0, publicEffectChoiceAutoAdvanceAt - (options.now ?? Date.now()))
+          : undefined,
+        inspectionObjectIds: isActiveEffectControlledInspection(game, viewerPlayerId)
+          ? game.activeEffect.inspectionCardIds?.map(createPublicObjectId)
+          : undefined,
         ...activeEffectCardSelection,
         selectableSlots: game.activeEffect.selectableSlots,
-        selectableOptions: game.activeEffect.selectableOptions,
+        selectableOptions: game.activeEffect.effectChoice
+          ? undefined
+          : game.activeEffect.selectableOptions,
+        effectChoice: game.activeEffect.effectChoice
+          ? {
+              mode: game.activeEffect.effectChoice.mode,
+              options: game.activeEffect.effectChoice.options.map((option) => ({
+                id: option.id,
+                text: option.text,
+                ...(game.activeEffect?.awaitingPlayerId === viewerPlayerId &&
+                option.selectable !== undefined
+                  ? { selectable: option.selectable }
+                  : {}),
+              })),
+              minSelections: game.activeEffect.effectChoice.minSelections,
+              maxSelections: game.activeEffect.effectChoice.maxSelections,
+              publicConfirmation: true as const,
+              ...(game.activeEffect.effectChoice.selectedOptionIds
+                ? {
+                    selectedOptionIds: game.activeEffect.effectChoice.selectedOptionIds,
+                  }
+                : {}),
+            }
+          : undefined,
         stageFormation: projectActiveEffectStageFormation(game),
         numericInput: game.activeEffect.numericInput,
         canResolveInOrder: game.activeEffect.canResolveInOrder,
@@ -390,6 +425,30 @@ export function projectPlayerViewState(
         explanation: game.pendingCostPayment.explanation,
       }
     : null;
+  const pendingSpecialMemberPlayState = game.pendingSpecialMemberPlay ?? null;
+  const pendingSpecialMemberPlay = pendingSpecialMemberPlayState
+    ? pendingSpecialMemberPlayState.playerId === viewerPlayerId
+      ? {
+          id: pendingSpecialMemberPlayState.id,
+          playerSeat: getSeatForPlayer(game, pendingSpecialMemberPlayState.playerId),
+          waiting: true as const,
+          mode: pendingSpecialMemberPlayState.mode,
+          sourceObjectId: createPublicObjectId(pendingSpecialMemberPlayState.sourceCardId),
+          targetSlot: pendingSpecialMemberPlayState.targetSlot,
+          candidateObjectIds:
+            pendingSpecialMemberPlayState.candidateCardIds.map(createPublicObjectId),
+          minSelectableObjects: 3 as const,
+          maxSelectableObjects: 3 as const,
+          stepText: '请选择「国木田花丸」「优木雪菜」「岚千砂都」的成员卡各1张放置入休息室。',
+          selectionLabel: '选择要放置入休息室的指定成员',
+          confirmSelectionLabel: '放置入休息室并登场',
+        }
+      : {
+          id: pendingSpecialMemberPlayState.id,
+          playerSeat: getSeatForPlayer(game, pendingSpecialMemberPlayState.playerId),
+          waiting: true as const,
+        }
+    : null;
   const uiHints: UiHintViewState = {
     gameMode: options.gameMode ?? GameMode.DEBUG,
   };
@@ -401,6 +460,7 @@ export function projectPlayerViewState(
     permissions,
     activeEffect,
     pendingCostPayment,
+    pendingSpecialMemberPlay,
     uiHints,
   };
 }
@@ -1170,6 +1230,23 @@ function buildPermissionViewState(
   viewerPlayerId: string,
   viewerSeat: Seat
 ): PermissionViewState {
+  const pendingSpecialPlay = game.pendingSpecialMemberPlay ?? null;
+  if (pendingSpecialPlay) {
+    return {
+      availableCommands:
+        pendingSpecialPlay.playerId === viewerPlayerId
+          ? [
+              buildCommandHint(GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY, {
+                params: { pendingId: pendingSpecialPlay.id, requiredCount: 3 },
+              }),
+              buildCommandHint(GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY, {
+                params: { pendingId: pendingSpecialPlay.id },
+              }),
+            ]
+          : [],
+    };
+  }
+
   const availableActionTypes = inferAvailableActionTypes(game);
   const canUsePhaseCommands = canViewerUsePhaseCommands(game, viewerPlayerId, viewerSeat);
   const allowSharedOwnDeskCommands =
@@ -1244,6 +1321,7 @@ function buildActiveEffectCommandHints(
   }
   if (
     game.activeEffect.publicCardSelectionAutoAdvanceAt === undefined &&
+    game.activeEffect.publicEffectChoiceAutoAdvanceAt === undefined &&
     game.activeEffect.awaitingPlayerId !== viewerPlayerId
   ) {
     return [];
@@ -1255,8 +1333,12 @@ function buildActiveEffectCommandHints(
         effectId: game.activeEffect.id,
         ...(game.activeEffect.publicCardSelectionAutoAdvanceAt !== undefined
           ? {
-              publicCardSelectionAutoAdvanceAt:
-                game.activeEffect.publicCardSelectionAutoAdvanceAt,
+              publicCardSelectionAutoAdvanceAt: game.activeEffect.publicCardSelectionAutoAdvanceAt,
+            }
+          : {}),
+        ...(game.activeEffect.publicEffectChoiceAutoAdvanceAt !== undefined
+          ? {
+              publicEffectChoiceAutoAdvanceAt: game.activeEffect.publicEffectChoiceAutoAdvanceAt,
             }
           : {}),
       },
@@ -1563,6 +1645,29 @@ function buildPhaseCommandHint(
           ],
         }),
       });
+    case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY: {
+      const player = game.players.find((candidate) => candidate.id === viewerPlayerId);
+      const sourceCardIds = (player?.hand.cardIds ?? []).filter(
+        (cardId) =>
+          isLlBp7001SpecialPlaySource(game, viewerPlayerId, cardId) &&
+          canAssignLlBp7001SpecialPlayPayment(game, viewerPlayerId, cardId) &&
+          getLlBp7001SpecialPlayTargetSlots(game, viewerPlayerId, cardId).length > 0
+      );
+      return buildCommandHint(command, {
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'HAND')],
+          cardIds: sourceCardIds,
+        }),
+        params: {
+          targetSlotsByObjectId: Object.fromEntries(
+            sourceCardIds.map((cardId) => [
+              createPublicObjectId(cardId),
+              getLlBp7001SpecialPlayTargetSlots(game, viewerPlayerId, cardId),
+            ])
+          ),
+        },
+      });
+    }
     case GameCommandType.TAP_MEMBER:
       return buildCommandHint(command, {
         scope: createCommandScope({

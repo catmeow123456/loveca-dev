@@ -4,7 +4,6 @@ import {
   getCardById,
   getPlayerById,
   type GameState,
-  type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import {
@@ -15,36 +14,27 @@ import {
   SlotPosition,
 } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
-import {
-  PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
-  PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID,
-} from '../../ability-ids.js';
-import { drawCardsForPlayer } from '../../runtime/actions.js';
+import { PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
 } from '../../runtime/member-state-changed-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
-import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
-  maybeStartConfirmablePendingAbilityConfirmation,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 
 const BASE_CARD_CODE = 'PL!-bp3-009';
-const MIN_STAGE_MEMBER_COST = 13;
 const SELECT_HEART_COLOR_STEP_ID = 'PL_BP3_009_SELECT_HEART_COLOR';
-const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 
 const HEART_OPTIONS = [
-  { id: 'PINK', label: '[桃ハート]', color: HeartColor.PINK },
-  { id: 'YELLOW', label: '[黄ハート]', color: HeartColor.YELLOW },
-  { id: 'PURPLE', label: '[紫ハート]', color: HeartColor.PURPLE },
+  { id: 'PINK', text: '此成员获得[桃ハート]。', color: HeartColor.PINK },
+  { id: 'YELLOW', text: '此成员获得[黄ハート]。', color: HeartColor.YELLOW },
+  { id: 'PURPLE', text: '此成员获得[紫ハート]。', color: HeartColor.PURPLE },
 ] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -52,27 +42,6 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 export function registerPlBp3009NicoWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged;
 }): void {
-  registerPendingAbilityStarterHandler(
-    PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID,
-    (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(
-        game,
-        ability,
-        options,
-        { effectText: getOnEnterConfirmationEffectText(game, ability) }
-      );
-      if (confirmation) {
-        return confirmation;
-      }
-      return resolveOnEnterDraw(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      );
-    }
-  );
-
   registerActivatedAbilityHandler(
     PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
     (game, playerId, cardId) => startActivatedChooseHeart(game, playerId, cardId, deps)
@@ -87,80 +56,6 @@ export function registerPlBp3009NicoWorkflowHandlers(deps: {
         context.continuePendingCardEffects
       )
   );
-}
-
-function getOnEnterConfirmationEffectText(
-  game: GameState,
-  ability: PendingAbilityState
-): string {
-  const player = getPlayerById(game, ability.controllerId);
-  const qualifyingMemberCardIds = getQualifyingStageMemberCardIds(game, ability.controllerId);
-  const conditionMet = qualifyingMemberCardIds.length > 0;
-  const canDraw =
-    !!player && (player.mainDeck.cardIds.length > 0 || player.waitingRoom.cardIds.length > 0);
-  const resultText = !conditionMet
-    ? '未满足条件，实际不抽卡'
-    : canDraw
-      ? '满足条件，实际抽1张卡'
-      : '满足条件，但当前没有可抽的卡，实际抽0张卡';
-  return `${getAbilityEffectText(ability.abilityId)}（当前自己舞台费用大于等于13的成员 ${qualifyingMemberCardIds.length}名，${resultText}。）`;
-}
-
-function resolveOnEnterDraw(
-  game: GameState,
-  ability: PendingAbilityState,
-  orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  if (!player) {
-    return game;
-  }
-
-  const qualifyingMemberCardIds = getQualifyingStageMemberCardIds(game, player.id);
-  const conditionMet = qualifyingMemberCardIds.length > 0;
-  const stateWithoutPending: GameState = {
-    ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-  };
-  const drawResult = conditionMet ? drawCardsForPlayer(stateWithoutPending, player.id, 1) : null;
-  const stateAfterDraw = drawResult?.gameState ?? stateWithoutPending;
-
-  return continuePendingCardEffects(
-    addAction(stateAfterDraw, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      sourceSlot: ability.sourceSlot,
-      step: conditionMet ? 'COST_THIRTEEN_STAGE_MEMBER_DRAW_ONE' : 'NO_QUALIFYING_STAGE_MEMBER',
-      conditionMet,
-      qualifyingMemberCardIds,
-      drawnCardIds: drawResult?.drawnCardIds ?? [],
-    }),
-    orderedResolution
-  );
-}
-
-function getQualifyingStageMemberCardIds(game: GameState, playerId: string): readonly string[] {
-  const player = getPlayerById(game, playerId);
-  if (!player) {
-    return [];
-  }
-  const result: string[] = [];
-  for (const slot of MEMBER_SLOT_ORDER) {
-    const cardId = player.memberSlots.slots[slot];
-    const card = cardId ? getCardById(game, cardId) : null;
-    if (
-      cardId &&
-      card &&
-      isMemberCardData(card.data) &&
-      card.data.cardType === CardType.MEMBER &&
-      getMemberEffectiveCost(game, playerId, cardId) >= MIN_STAGE_MEMBER_COST
-    ) {
-      result.push(cardId);
-    }
-  }
-  return result;
 }
 
 function startActivatedChooseHeart(
@@ -217,16 +112,21 @@ function startActivatedChooseHeart(
         abilityId: PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
         sourceCardId: cardId,
         controllerId: playerId,
-        effectText: getAbilityEffectText(
-          PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID
-        ),
+        effectText: getAbilityEffectText(PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID),
         stepId: SELECT_HEART_COLOR_STEP_ID,
         stepText: '请选择1种Heart。LIVE结束时为止，此成员获得1个选择的Heart。',
         awaitingPlayerId: playerId,
-        selectableOptions: HEART_OPTIONS.map((option) => ({
-          id: option.id,
-          label: option.label,
-        })),
+        effectChoice: {
+          mode: 'SINGLE',
+          options: HEART_OPTIONS.map((option) => ({
+            id: option.id,
+            text: option.text,
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        selectionLabel: '选择此成员要获得的Heart',
         confirmSelectionLabel: '选择Heart',
         canSkipSelection: false,
         metadata: { sourceSlot: source.sourceSlot },

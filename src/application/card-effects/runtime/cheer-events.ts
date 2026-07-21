@@ -1,6 +1,11 @@
 import type { GameState } from '../../../domain/entities/game.js';
 import type { CheerEvent } from '../../../domain/events/game-events.js';
 import { TriggerCondition } from '../../../shared/types/enums.js';
+import { CheerDeckEdge } from '../../../domain/rules/cheer-direction.js';
+
+export function getCheerEventDeckEdge(event: CheerEvent): CheerDeckEdge {
+  return event.deckEdge ?? CheerDeckEdge.TOP;
+}
 
 /**
  * Returns the latest logged normal CheerEvent for one player within the caller's event scope.

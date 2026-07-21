@@ -108,7 +108,7 @@ function setLiveCards(game: ReturnType<typeof setupLiveSet>['game'], cardIds: re
 }
 
 describe('PL!SP-bp1-001 Kanon continuous Live prohibition', () => {
-  it('allows Live Set and draws normally, then moves every Live-zone card to waiting room', () => {
+  it('keeps the first player cards hidden until both players finish Live Set, then moves them', () => {
     const scenario = setupLiveSet();
     const service = new GameService();
     const setState = setLiveCards(scenario.game, [
@@ -126,13 +126,25 @@ describe('PL!SP-bp1-001 Kanon continuous Live prohibition', () => {
       scenario.drawCards[0].instanceId,
       scenario.drawCards[1].instanceId,
     ]);
-    expect(confirmed.gameState.players[0].liveZone.cardIds).toEqual([]);
-    expect(confirmed.gameState.players[0].liveZone.cardStates.size).toBe(0);
-    expect(confirmed.gameState.players[0].waitingRoom.cardIds).toEqual([
+    expect(confirmed.gameState.players[0].liveZone.cardIds).toEqual([
       scenario.live1.instanceId,
       scenario.live2.instanceId,
     ]);
+    expect(confirmed.gameState.players[0].liveZone.cardStates.size).toBe(2);
+    expect(confirmed.gameState.players[0].waitingRoom.cardIds).toEqual([]);
     expect(isPlayerLiveProhibited(confirmed.gameState, PLAYER1)).toBe(true);
+
+    const opponentConfirmed = service.processAction(
+      confirmed.gameState,
+      createConfirmSubPhaseAction(PLAYER2, SubPhase.LIVE_SET_SECOND_PLAYER)
+    );
+    expect(opponentConfirmed.success).toBe(true);
+    expect(opponentConfirmed.gameState.players[0].liveZone.cardIds).toEqual([]);
+    expect(opponentConfirmed.gameState.players[0].liveZone.cardStates.size).toBe(0);
+    expect(opponentConfirmed.gameState.players[0].waitingRoom.cardIds).toEqual([
+      scenario.live1.instanceId,
+      scenario.live2.instanceId,
+    ]);
   });
 
   it('keeps the Live card when another own top-level member exists', () => {
@@ -203,8 +215,20 @@ describe('PL!SP-bp1-001 Kanon continuous Live prohibition', () => {
     );
 
     expect(confirmed.success).toBe(true);
-    expect(confirmed.gameState.players[0].liveZone.cardIds).toEqual([]);
-    expect(confirmed.gameState.players[0].waitingRoom.cardIds).toContain(scenario.live1.instanceId);
+    expect(confirmed.gameState.players[0].liveZone.cardIds).toEqual([scenario.live1.instanceId]);
+    expect(confirmed.gameState.players[0].waitingRoom.cardIds).not.toContain(
+      scenario.live1.instanceId
+    );
+
+    const opponentConfirmed = service.processAction(
+      confirmed.gameState,
+      createConfirmSubPhaseAction(PLAYER2, SubPhase.LIVE_SET_SECOND_PLAYER)
+    );
+    expect(opponentConfirmed.success).toBe(true);
+    expect(opponentConfirmed.gameState.players[0].liveZone.cardIds).toEqual([]);
+    expect(opponentConfirmed.gameState.players[0].waitingRoom.cardIds).toContain(
+      scenario.live1.instanceId
+    );
   });
 
   it('does not affect the opponent or create a Live-start event for the prohibited player', () => {

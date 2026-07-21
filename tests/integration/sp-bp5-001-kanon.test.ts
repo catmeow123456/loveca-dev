@@ -14,6 +14,8 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
@@ -203,7 +205,7 @@ function confirmStep(game: GameState, input: Parameters<typeof resolveActiveEffe
 }
 
 function confirmOption(game: GameState, selectedOptionId: string): GameState {
-  return confirmStep(game, { selectedOptionId });
+  return continuePublicEffectChoiceForTest(confirmStep(game, { selectedOptionId }), PLAYER1);
 }
 
 function setupActivatedSession(options: {
@@ -283,6 +285,7 @@ function confirmSessionOption(session: ReturnType<typeof createGameSession>, opt
       createConfirmEffectStepCommand(PLAYER1, effectId, undefined, undefined, undefined, optionId)
     ).success
   ).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
 }
 
 function confirmSessionCard(session: ReturnType<typeof createGameSession>, cardId: string): void {

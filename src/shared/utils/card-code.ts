@@ -252,26 +252,3 @@ export function isSameBaseCardCode(cardCode: string, otherCardCode: string): boo
 export function cardCodeMatchesBase(cardCode: string, baseCardCode: string): boolean {
   return getBaseCardCode(cardCode) === normalizeCardCode(baseCardCode);
 }
-
-// ============================================
-// 特殊成员卡检测
-// ============================================
-
-/** 支持成员卡下方堆叠的特殊成员卡 cardCode 模式 */
-const SPECIAL_MEMBER_PATTERNS = [
-  /^PL!-bp6-003-/,
-  /^PL!HS-pb1-002-/,
-  /^PL!N-PR-026-/,
-  /^PL!SP-pb2-005-/,
-  /^PL!SP-pb2-006-/,
-];
-
-/**
- * 判断 cardCode 是否属于可以在其下方堆叠成员卡的特殊成员卡。
- *
- * @param cardCode 卡牌编号
- * @returns 是否为特殊成员卡
- */
-export function isSpecialMemberCard(cardCode: string): boolean {
-  return SPECIAL_MEMBER_PATTERNS.some((pattern) => pattern.test(cardCode));
-}

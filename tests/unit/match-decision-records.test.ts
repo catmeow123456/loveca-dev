@@ -339,6 +339,7 @@ describe('match decision records P2', () => {
       playerId: 'p1',
       effectId: beforeEffect.id,
       selectedCardId: 'candidate-card',
+      selectedEffectOptionIds: ['option-a', 'option-c'],
       selectedNumber: 3,
       stageFormationMoveHistory: [
         { cardId: 'member-b', toSlot: SlotPosition.LEFT },
@@ -368,6 +369,7 @@ describe('match decision records P2', () => {
       status: 'SUBMITTED',
       submittedCommandSeq: 7,
       submission: {
+        selectedEffectOptionIds: ['option-a', 'option-c'],
         selectedCardId: 'candidate-card',
         selectedNumber: 3,
         stageFormationMoveHistory: [

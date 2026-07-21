@@ -15,7 +15,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { placeCardInSlot, removeCardFromStatefulZone } from '../../src/domain/entities/zone';
 import {
   createCheerEvent,
   createEnterWaitingRoomEvent,
@@ -113,6 +113,22 @@ function createSessionFromGame(
   return session;
 }
 
+function selectBp6002LiveIfNeeded(session: ReturnType<typeof createGameSession>): void {
+  const effect = session.state?.activeEffect;
+  if (
+    effect?.abilityId !==
+      S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID ||
+    !effect.selectableCardIds?.[0]
+  ) {
+    return;
+  }
+  const result = session.executeCommand(
+    createConfirmEffectStepCommand(PLAYER1, effect.id, effect.selectableCardIds[0])
+  );
+  expect(result.success, result.error).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
+}
+
 function placeCenterMember(game: GameState, cardId: string): GameState {
   return updatePlayer(game, PLAYER1, (player) => ({
     ...player,
@@ -172,7 +188,7 @@ function createLiveStartPendingAbility(
   };
 }
 
-function openMiraiTicketCheerSelection(cost: number, deckCount: number): {
+function openMiraiTicketCheerSelection(cost: number, deckCount: number, bottomCheer = false): {
   readonly session: ReturnType<typeof createSessionFromGame>;
   readonly targetId: string;
   readonly additionalDeckIds: readonly string[];
@@ -187,15 +203,26 @@ function openMiraiTicketCheerSelection(cost: number, deckCount: number): {
     PLAYER1,
     `aqours-cost-${cost}`
   );
+  const bottomCheerSource = bottomCheer
+    ? createCardInstance(
+        createLiveCard('PL!S-bp7-022-SECL', { name: '想在水族馆恋爱' }),
+        PLAYER1,
+        `bottom-cheer-${cost}`
+      )
+    : null;
   const additionalDeckCards = Array.from({ length: deckCount }, (_, index) =>
     createCardInstance(createMemberCard(`PL!S-additional-${cost}-${index}`), PLAYER1, `additional-${cost}-${index}`)
   );
   let game = registerCards(createGameState(`mirai-ticket-${cost}`, PLAYER1, 'P1', PLAYER2, 'P2'), [
     sourceLive,
+    ...(bottomCheerSource ? [bottomCheerSource] : []),
     target,
     ...additionalDeckCards,
   ]);
-  game = placeLiveZone(game, [sourceLive.instanceId]);
+  game = placeLiveZone(game, [
+    sourceLive.instanceId,
+    ...(bottomCheerSource ? [bottomCheerSource.instanceId] : []),
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => ({
     ...player,
     mainDeck: { ...player.mainDeck, cardIds: additionalDeckCards.map((card) => card.instanceId) },
@@ -436,6 +463,69 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(afterNormalCheer.pendingAbilities).toEqual([]);
   });
 
+  it('PL!S-bp6-021 additional cheer re-reads the current bottom direction and records true reveal order', () => {
+    const { session, targetId, additionalDeckIds } = openMiraiTicketCheerSelection(17, 4, true);
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [targetId]
+      )
+    );
+    expect(selected.success, selected.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
+    const expected = [additionalDeckIds[3], additionalDeckIds[2], additionalDeckIds[1]];
+    expect(session.state?.resolutionZone.revealedCardIds).toEqual(expected);
+    expect(
+      session.state!.eventLog
+        .map((entry) => entry.event)
+        .filter((event) => event.eventType === TriggerCondition.ON_CHEER)
+        .at(-1)
+    ).toMatchObject({ revealedCardIds: expected, additional: true, deckEdge: 'BOTTOM' });
+    expect(session.state!.actionHistory.findLast((action) => action.type === 'CHEER')?.payload).toMatchObject({
+      cheerCardIds: expected,
+      additional: true,
+      deckEdge: 'BOTTOM',
+    });
+  });
+
+  it('PL!S-bp6-021 additional cheer restores TOP when the bottom-direction source leaves before reveal', () => {
+    const { session, targetId, additionalDeckIds } = openMiraiTicketCheerSelection(17, 4, true);
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [targetId]
+      )
+    );
+    expect(selected.success, selected.error).toBe(true);
+    (session as unknown as { authorityState: GameState }).authorityState = updatePlayer(
+      session.state!,
+      PLAYER1,
+      (player) => ({
+        ...player,
+        liveZone: removeCardFromStatefulZone(player.liveZone, 'bottom-cheer-17'),
+      })
+    );
+    confirmPublicSelectionIfNeeded(session);
+    const expected = additionalDeckIds.slice(0, 3);
+    expect(session.state?.resolutionZone.revealedCardIds).toEqual(expected);
+    expect(
+      session.state!.eventLog
+        .map((entry) => entry.event)
+        .filter((event) => event.eventType === TriggerCondition.ON_CHEER)
+        .at(-1)
+    ).toMatchObject({ revealedCardIds: expected, additional: true, deckEdge: 'TOP' });
+  });
+
   it('PL!S-bp6-002 AUTO ignores unrelated waiting-room events, then returns an Aqours LIVE from waiting room to deck top', () => {
     const source = createCardInstance(createMemberCard('PL!S-bp6-002-P', { cost: 17 }), PLAYER1, 'riko');
     const handCard = createCardInstance(createMemberCard('PL!S-hand'), PLAYER1, 'hand-card');
@@ -469,7 +559,8 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    selectBp6002LiveIfNeeded(session);
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       'top',
       'bottom',
     ]);
@@ -485,6 +576,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([handCard.instanceId]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([
       live.instanceId,
@@ -531,7 +623,8 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    selectBp6002LiveIfNeeded(session);
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       'top',
       'bottom',
     ]);
@@ -586,6 +679,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(p2Commands.some((hint) => hint.command === GameCommandType.SUBMIT_SCORE)).toBe(false);
     expect(p1Commands.some((hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP)).toBe(true);
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -597,6 +691,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
 
@@ -653,6 +748,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(directScore.success).toBe(false);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([]);
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -664,6 +760,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([PLAYER2]);
@@ -720,6 +817,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       },
     };
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -732,6 +830,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     );
 
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).not.toBe(SubPhase.RESULT_SCORE_CONFIRM);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([]);
@@ -867,6 +966,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
 
+    selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -878,6 +978,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finishEffect.success, finishEffect.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SETTLEMENT);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
@@ -960,6 +1061,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     });
     const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'bp6-002-bottom');
 
+    selectBp6002LiveIfNeeded(session);
     const finish = session.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -971,6 +1073,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       )
     );
     expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([
       deckCard.instanceId,

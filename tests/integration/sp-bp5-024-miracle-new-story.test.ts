@@ -121,26 +121,43 @@ function heartModifiers(game: GameState) {
   );
 }
 
+function chooseHeart(game: GameState, optionId: string): GameState {
+  const effectId = game.activeEffect!.id;
+  const publicChoice = confirmActiveEffectStep(
+    game,
+    PLAYER1,
+    effectId,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    [optionId]
+  );
+  return confirmActiveEffectStep(publicChoice, PLAYER1, effectId);
+}
+
 describe('PL!SP-bp5-024 MIRACLE NEW STORY live-start workflow', () => {
   it('opens a color choice and gives the selected Heart to all moved stage members', () => {
     const scenario = setup(['moved-left', 'moved-center']);
 
     const started = resolvePendingCardEffects(scenario.game).gameState;
-    expect(started.activeEffect?.selectableOptions).toEqual([
-      { id: 'pink', label: '选择[桃ハート]' },
-      { id: 'red', label: '选择[赤ハート]' },
-      { id: 'purple', label: '选择[紫ハート]' },
-    ]);
+    expect(started.activeEffect?.effectChoice).toMatchObject({
+      mode: 'SINGLE',
+      options: [
+        { id: 'pink', text: expect.stringContaining('[桃ハート]') },
+        { id: 'red', text: expect.stringContaining('[赤ハート]') },
+        { id: 'purple', text: expect.stringContaining('[紫ハート]') },
+      ],
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
+    });
 
-    const resolved = confirmActiveEffectStep(
-      started,
-      PLAYER1,
-      started.activeEffect!.id,
-      undefined,
-      undefined,
-      undefined,
-      'red'
-    );
+    const resolved = chooseHeart(started, 'red');
 
     expect(heartModifiers(resolved)).toEqual(
       expect.arrayContaining([
@@ -190,15 +207,7 @@ describe('PL!SP-bp5-024 MIRACLE NEW STORY live-start workflow', () => {
       liveZone: removeCardFromStatefulZone(player.liveZone, scenario.liveId),
     }));
 
-    const resolved = confirmActiveEffectStep(
-      sourceGone,
-      PLAYER1,
-      sourceGone.activeEffect!.id,
-      undefined,
-      undefined,
-      undefined,
-      'red'
-    );
+    const resolved = chooseHeart(sourceGone, 'red');
 
     expect(resolved.activeEffect).toBeNull();
     expect(resolved.pendingAbilities).toEqual([]);

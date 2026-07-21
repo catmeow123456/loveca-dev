@@ -270,6 +270,97 @@ export function moveTopDeckCardsToWaitingRoomWithRefresh(
   };
 }
 
+/**
+ * 将主卡组底的卡直接放置入休息室。
+ *
+ * `mainDeck.cardIds[0]` 为卡组顶，数组末尾为卡组底；返回顺序是实际从卡组底
+ * 取出的顺序（最底一张在前）。本原语不经过 inspection，也不生成事件。
+ */
+export function moveBottomDeckCardsToWaitingRoom(
+  game: GameState,
+  playerId: string,
+  count: number
+): MoveCardsToWaitingRoomResult | null {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return null;
+  }
+
+  if (count <= 0) {
+    return { gameState: game, movedCardIds: [] };
+  }
+
+  const moveCount = Math.max(0, Math.min(count, player.mainDeck.cardIds.length));
+  const movedCardIds = player.mainDeck.cardIds.slice(-moveCount).reverse();
+  if (movedCardIds.length === 0) {
+    return { gameState: game, movedCardIds };
+  }
+
+  const state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: currentPlayer.mainDeck.cardIds.slice(0, -movedCardIds.length),
+    },
+    waitingRoom: {
+      ...currentPlayer.waitingRoom,
+      cardIds: [...currentPlayer.waitingRoom.cardIds, ...movedCardIds],
+    },
+  }));
+
+  return { gameState: state, movedCardIds };
+}
+
+export function moveBottomDeckCardsToWaitingRoomWithRefresh(
+  game: GameState,
+  playerId: string,
+  count: number
+): MoveTopDeckCardsToWaitingRoomWithRefreshResult | null {
+  if (count <= 0) {
+    return { gameState: game, movedCardIds: [], refreshCount: 0 };
+  }
+
+  let state = game;
+  const movedCardIds: string[] = [];
+  let refreshCount = 0;
+
+  while (movedCardIds.length < count) {
+    const player = getPlayerById(state, playerId);
+    if (!player) {
+      return null;
+    }
+
+    if (player.mainDeck.cardIds.length === 0) {
+      const refreshedState = applyPendingRefreshForPlayer(state, playerId);
+      if (refreshedState === state) {
+        break;
+      }
+      state = refreshedState;
+      refreshCount += 1;
+      continue;
+    }
+
+    const moveResult = moveBottomDeckCardsToWaitingRoom(
+      state,
+      playerId,
+      count - movedCardIds.length
+    );
+    if (!moveResult) {
+      return null;
+    }
+    state = moveResult.gameState;
+    movedCardIds.push(...moveResult.movedCardIds);
+
+    const refreshedState = applyPendingRefreshForPlayer(state, playerId);
+    if (refreshedState !== state) {
+      state = refreshedState;
+      refreshCount += 1;
+    }
+  }
+
+  return { gameState: state, movedCardIds, refreshCount };
+}
+
 export function clearInspectionCards(game: GameState, cardIds: readonly string[]): GameState {
   return {
     ...game,

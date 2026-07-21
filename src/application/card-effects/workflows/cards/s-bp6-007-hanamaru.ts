@@ -112,7 +112,24 @@ function startHanamaruLiveStartWorkflow(
           ? '可以支付[E][E]或将2张手牌放置入休息室来发动。'
           : '当前无法支付费用，可以不发动。',
       awaitingPlayerId: player.id,
-      selectableOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: 'pay-energy',
+            text: '支付[E][E]。',
+            selectable: canPayEnergy,
+          },
+          {
+            id: 'discard-hand',
+            text: '将2张手牌放置入休息室。',
+            selectable: canDiscardHand,
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
       metadata: {
@@ -146,6 +163,7 @@ function startDiscardCostSelection(game: GameState): GameState {
         ...effect,
         stepId: SELECT_DISCARD_STEP_ID,
         stepText: '选择2张要作为费用放置入休息室的手牌。',
+        effectChoice: undefined,
         selectableCardIds: player.hand.cardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
         selectableCardMode: 'ORDERED_MULTI',
@@ -290,6 +308,7 @@ function continueAfterCost(
         ...effect,
         stepId: SELECT_TARGETS_STEP_ID,
         stepText: '选择至多2名自己的舞台上的『Aqours』成员。可以不选择。',
+        effectChoice: undefined,
         selectableCardIds: targetMemberCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'ORDERED_MULTI',

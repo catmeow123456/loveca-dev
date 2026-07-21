@@ -10,6 +10,7 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   HS_CL1_001_LIVE_START_LOOK_TOP_ONE_OPTIONAL_WAITING_ROOM_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -49,15 +50,16 @@ function placeSourceMemberOnStage(game: GameState, cardId: string): GameState {
 }
 
 function confirmActiveEffectOption(game: GameState, selectedOptionId: string | null): GameState {
-  return confirmActiveEffectStep(
+  const normalizedOptionId = selectedOptionId ?? 'keep-top';
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
     game,
     PLAYER1,
     game.activeEffect!.id,
     null,
     null,
     undefined,
-    selectedOptionId
-  );
+    normalizedOptionId
+  ), PLAYER1);
 }
 
 describe('PL!HS-cl1-001-CL Kaho live-start workflow', () => {
@@ -88,9 +90,14 @@ describe('PL!HS-cl1-001-CL Kaho live-start workflow', () => {
     expect(state.activeEffect).toMatchObject({
       abilityId: HS_CL1_001_LIVE_START_LOOK_TOP_ONE_OPTIONAL_WAITING_ROOM_ABILITY_ID,
       inspectionCardIds: [topCard.instanceId],
-      selectableOptions: [{ id: 'place-waiting-room', label: '放置入休息室' }],
-      canSkipSelection: true,
-      skipSelectionLabel: '不放置',
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: 'keep-top', text: '将检视的卡保留在卡组顶。' },
+          { id: 'place-waiting-room', text: '将检视的卡放置入休息室。' },
+        ],
+      },
+      canSkipSelection: false,
     });
     expect(state.inspectionZone.cardIds).toEqual([topCard.instanceId]);
     expect(state.inspectionZone.revealedCardIds).toEqual([]);

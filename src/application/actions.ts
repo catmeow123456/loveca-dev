@@ -78,7 +78,7 @@ export interface PlayMemberAction extends BaseGameAction {
   readonly cardId: string;
   /** 目标槽位 */
   readonly targetSlot: SlotPosition;
-  /** 是否接力传递（从相邻槽位） */
+  /** 本次登场是否进行换手；显式为 false 时，已有成员由重复成员规则处理。 */
   readonly isRelay?: boolean;
   /** 接力来源槽位（如果是接力） */
   readonly relayFromSlot?: SlotPosition;
@@ -224,8 +224,6 @@ export interface ManualMoveCardAction extends BaseGameAction {
   readonly position?: 'TOP' | 'BOTTOM';
   /** 命令层已验证的 Live 卡桌面豁免移动 */
   readonly liveDeskMoveExempt?: boolean;
-  /** 是否以成员堆叠模式放置（附加到特殊成员下方） */
-  readonly asMemberBelow?: boolean;
 }
 
 /**
@@ -518,7 +516,6 @@ export function createManualMoveCardAction(
     sourceSlot?: SlotPosition;
     position?: 'TOP' | 'BOTTOM';
     liveDeskMoveExempt?: boolean;
-    asMemberBelow?: boolean;
   }
 ): ManualMoveCardAction {
   return {
@@ -531,7 +528,6 @@ export function createManualMoveCardAction(
     sourceSlot: options?.sourceSlot,
     position: options?.position,
     liveDeskMoveExempt: options?.liveDeskMoveExempt,
-    asMemberBelow: options?.asMemberBelow,
     timestamp: Date.now(),
   };
 }

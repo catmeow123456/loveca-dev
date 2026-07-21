@@ -151,6 +151,117 @@ function revealPlayerLiveZone(
   });
 }
 
+function revealLiveCard(state: GameState, playerId: string, cardId: string): GameState {
+  return updatePlayer(state, playerId, (player) => {
+    const cardStates = new Map(player.liveZone.cardStates);
+    const currentState = cardStates.get(cardId) ?? createDefaultCardState();
+    cardStates.set(cardId, { ...currentState, face: FaceState.FACE_UP });
+    return {
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardStates,
+      },
+    };
+  });
+}
+
+function createHiddenLiveDependentMemberState(options: {
+  readonly sourceCardCode: string;
+  readonly sourceName: string;
+  readonly liveData: LiveCardData;
+}): { readonly state: GameState; readonly sourceId: string; readonly liveId: string } {
+  const source = createCardInstance(
+    {
+      ...createTestMember(options.sourceCardCode, options.sourceName),
+      cost: options.sourceCardCode === 'PL!SP-bp5-012-N' ? 2 : 15,
+    },
+    PLAYER1,
+    `${options.sourceCardCode}-hidden-source`
+  );
+  const live = createCardInstance(
+    options.liveData,
+    PLAYER1,
+    `${options.sourceCardCode}-hidden-live`
+  );
+  let state = registerCards(
+    createGameState(`${options.sourceCardCode}-visibility`, PLAYER1, '玩家1', PLAYER2, '玩家2'),
+    [source, live]
+  );
+  state = updatePlayer(state, PLAYER1, (player) => ({
+    ...player,
+    memberSlots: {
+      ...player.memberSlots,
+      slots: {
+        ...player.memberSlots.slots,
+        [SlotPosition.CENTER]: source.instanceId,
+      },
+      cardStates: new Map([[source.instanceId, createDefaultCardState()]]),
+    },
+    liveZone: addCardToStatefulZone(player.liveZone, live.instanceId, createFaceDownCardState()),
+  }));
+  return { state, sourceId: source.instanceId, liveId: live.instanceId };
+}
+
+function createOpponentLiveRequirementVisibilityState(options: {
+  readonly sourceCardCode: 'PL!SP-bp2-010-R+' | 'PL!S-bp5-010-N' | 'PL!S-bp5-011-N';
+  readonly heartColor: HeartColor;
+  readonly heartCount: number;
+}): { readonly state: GameState; readonly targetLiveId: string } {
+  const source = createCardInstance(
+    {
+      cardCode: options.sourceCardCode,
+      name:
+        options.sourceCardCode === 'PL!S-bp5-010-N'
+          ? '高海千歌'
+          : options.sourceCardCode === 'PL!S-bp5-011-N'
+            ? '櫻内梨子'
+            : 'ウィーン・マルガレーテ',
+      cardType: CardType.MEMBER,
+      cost: options.sourceCardCode.startsWith('PL!S-') ? 4 : 15,
+      blade: 1,
+      hearts: [createHeartIcon(options.heartColor, options.heartCount)],
+    },
+    PLAYER1,
+    `${options.sourceCardCode}-requirement-source`
+  );
+  const targetLive = createCardInstance(
+    createTestLive('PL!TEST-OPPONENT-HIDDEN-LIVE', '对方盖放LIVE'),
+    PLAYER2,
+    `${options.sourceCardCode}-opponent-live`
+  );
+  let state = registerCards(
+    createGameState(
+      `${options.sourceCardCode}-opponent-visibility`,
+      PLAYER1,
+      '玩家1',
+      PLAYER2,
+      '玩家2'
+    ),
+    [source, targetLive]
+  );
+  state = updatePlayer(state, PLAYER1, (player) => ({
+    ...player,
+    memberSlots: {
+      ...player.memberSlots,
+      slots: {
+        ...player.memberSlots.slots,
+        [SlotPosition.CENTER]: source.instanceId,
+      },
+      cardStates: new Map([[source.instanceId, createDefaultCardState()]]),
+    },
+  }));
+  state = updatePlayer(state, PLAYER2, (player) => ({
+    ...player,
+    liveZone: addCardToStatefulZone(
+      player.liveZone,
+      targetLive.instanceId,
+      createFaceDownCardState()
+    ),
+  }));
+  return { state, targetLiveId: targetLive.instanceId };
+}
+
 function createProjectedState() {
   const p1HandCard = createCardInstance(
     createTestMember('MEM-001', 'P1 手牌成员'),
@@ -623,6 +734,14 @@ describe('PlayerViewState projector', () => {
       { color: HeartColor.PINK, count: 1 },
     ]);
 
+    const firstLiveCardId = state.players[0]?.liveZone.cardIds[0];
+    expect(firstLiveCardId).toBeDefined();
+    state = revealLiveCard(state, PLAYER1, firstLiveCardId!);
+    const partiallyRevealedOpponentView = projectPlayerViewState(state, PLAYER2);
+    expect(
+      partiallyRevealedOpponentView.objects[lanzhuObjectId]?.frontInfo?.modifierDelta
+    ).toBeUndefined();
+
     state = revealPlayerLiveZone(state, PLAYER1);
     const revealedOpponentView = projectPlayerViewState(state, PLAYER2);
 
@@ -648,6 +767,128 @@ describe('PlayerViewState projector', () => {
     expect(lanzhuObject?.frontInfo?.modifierDelta).toEqual({ bladeDelta: 1 });
     expect(lanzhuObject?.frontInfo?.hearts).toEqual([{ color: HeartColor.PINK, count: 1 }]);
   });
+
+  it.each([
+    {
+      label: 'PL!-bp4-002 费用15「绚濑绘里」',
+      sourceCardCode: 'PL!-bp4-002-R+',
+      sourceName: '絢瀬絵里',
+      liveData: createTestLive('PL!TEST-NO-LIVE-TIMING', '无LIVE开始成功能力'),
+      expectedHeart: { color: HeartColor.PURPLE, count: 2 },
+    },
+    {
+      label: 'PL!N-pb1-007 费用15「优木雪菜」',
+      sourceCardCode: 'PL!N-pb1-007-R',
+      sourceName: '優木せつ菜',
+      liveData: {
+        ...createTestLive('PL!TEST-SIX-COLOR-REQUIREMENT', '六色必要Heart LIVE'),
+        requirements: createHeartRequirement({
+          [HeartColor.PINK]: 1,
+          [HeartColor.RED]: 1,
+          [HeartColor.YELLOW]: 1,
+          [HeartColor.GREEN]: 1,
+          [HeartColor.BLUE]: 1,
+          [HeartColor.PURPLE]: 1,
+        }),
+      },
+      expectedHeart: { color: HeartColor.RAINBOW, count: 1 },
+    },
+    {
+      label: 'PL!SP-bp5-012-N 费用2「涩谷香音」',
+      sourceCardCode: 'PL!SP-bp5-012-N',
+      sourceName: '澁谷かのん',
+      liveData: {
+        ...createTestLiveWithGroup('PL!TEST-LIELLA-EIGHT', 'Liella! 8 Heart LIVE', 'Liella!'),
+        requirements: createHeartRequirement({ [HeartColor.RAINBOW]: 8 }),
+      },
+      expectedHeart: { color: HeartColor.YELLOW, count: 1 },
+    },
+  ])(
+    'hides $label continuous member Hearts while its own LIVE contents are face down',
+    (testCase) => {
+      let { state, sourceId } = createHiddenLiveDependentMemberState(testCase);
+      const sourceObjectId = createPublicObjectId(sourceId);
+
+      expect(
+        projectPlayerViewState(state, PLAYER1).objects[sourceObjectId]?.frontInfo?.modifierDelta
+      ).toEqual({ heartDeltas: [testCase.expectedHeart] });
+      expect(
+        projectPlayerViewState(state, PLAYER2).objects[sourceObjectId]?.frontInfo?.modifierDelta
+      ).toBeUndefined();
+
+      state = revealPlayerLiveZone(state, PLAYER1);
+      expect(
+        projectPlayerViewState(state, PLAYER2).objects[sourceObjectId]?.frontInfo?.modifierDelta
+      ).toEqual({ heartDeltas: [testCase.expectedHeart] });
+    }
+  );
+
+  it('hides PL!SP-bp2-010 费用15「薇恩・玛格丽特」 requirement targets from the source controller, while the target owner and authority remain correct', () => {
+    let { state, targetLiveId } = createOpponentLiveRequirementVisibilityState({
+      sourceCardCode: 'PL!SP-bp2-010-R+',
+      heartColor: HeartColor.PURPLE,
+      heartCount: 1,
+    });
+    state = addLiveModifier(state, {
+      kind: 'REQUIREMENT',
+      liveCardId: targetLiveId,
+      modifiers: [{ color: HeartColor.RAINBOW, countDelta: 2 }],
+      sourceCardId: 'public-requirement-source',
+      abilityId: 'test-public-requirement',
+    });
+    const targetObjectId = createPublicObjectId(targetLiveId);
+
+    expect(
+      projectPlayerViewState(state, PLAYER1).match.liveResult?.requirementModifiers[targetObjectId]
+    ).toEqual([{ color: HeartColor.RAINBOW, countDelta: 2 }]);
+    expect(
+      projectPlayerViewState(state, PLAYER2).match.liveResult?.requirementModifiers[targetObjectId]
+    ).toEqual([
+      { color: HeartColor.RAINBOW, countDelta: 2 },
+      { color: HeartColor.RAINBOW, countDelta: 1 },
+    ]);
+
+    state = revealPlayerLiveZone(state, PLAYER2);
+    expect(
+      projectPlayerViewState(state, PLAYER1).match.liveResult?.requirementModifiers[targetObjectId]
+    ).toEqual([
+      { color: HeartColor.RAINBOW, countDelta: 2 },
+      { color: HeartColor.RAINBOW, countDelta: 1 },
+    ]);
+  });
+
+  it.each([
+    ['PL!S-bp5-010-N' as const, HeartColor.RED, '费用4「高海千歌」'],
+    ['PL!S-bp5-011-N' as const, HeartColor.BLUE, '费用4「樱内梨子」'],
+  ])(
+    'hides %s opponent-LIVE requirement selection from the source controller until reveal',
+    (sourceCardCode, heartColor) => {
+      let { state, targetLiveId } = createOpponentLiveRequirementVisibilityState({
+        sourceCardCode,
+        heartColor,
+        heartCount: 5,
+      });
+      const targetObjectId = createPublicObjectId(targetLiveId);
+
+      expect(
+        projectPlayerViewState(state, PLAYER1).match.liveResult?.requirementModifiers[
+          targetObjectId
+        ]
+      ).toBeUndefined();
+      expect(
+        projectPlayerViewState(state, PLAYER2).match.liveResult?.requirementModifiers[
+          targetObjectId
+        ]
+      ).toEqual([{ color: HeartColor.RAINBOW, countDelta: 1 }]);
+
+      state = revealPlayerLiveZone(state, PLAYER2);
+      expect(
+        projectPlayerViewState(state, PLAYER1).match.liveResult?.requirementModifiers[
+          targetObjectId
+        ]
+      ).toEqual([{ color: HeartColor.RAINBOW, countDelta: 1 }]);
+    }
+  );
 
   it('keeps legacy player Heart bonuses in liveResult without mixing member Hearts', () => {
     let { state } = createProjectedState();
@@ -706,7 +947,7 @@ describe('PlayerViewState projector', () => {
     ]);
   });
 
-  it('projects continuous requirement modifiers collected from current live modifiers', () => {
+  it("hides PL!-bp6-022-L 分数9「Dreamin' Go! Go!!」 requirement targets from the opponent until every dependent LIVE is revealed", () => {
     let { state } = createProjectedState();
     const dreamin = createCardInstance(
       {
@@ -732,19 +973,40 @@ describe('PlayerViewState projector', () => {
       PLAYER1,
       'p1-projected-live'
     );
-    state = registerCards(state, [dreamin, targetLive]);
+    const otherHiddenLive = createCardInstance(
+      createTestLive('PL!-PROJECTED-OTHER-LIVE', '其他盖放LIVE'),
+      PLAYER1,
+      'p1-projected-other-live'
+    );
+    state = registerCards(state, [dreamin, targetLive, otherHiddenLive]);
     state = updatePlayer(state, PLAYER1, (player) => ({
       ...player,
       successZone: addCardToZone(player.successZone, dreamin.instanceId),
-      liveZone: addCardToStatefulZone(player.liveZone, targetLive.instanceId),
+      liveZone: addCardToStatefulZone(
+        addCardToStatefulZone(player.liveZone, targetLive.instanceId, createFaceDownCardState()),
+        otherHiddenLive.instanceId,
+        createFaceDownCardState()
+      ),
     }));
 
-    const view = projectPlayerViewState(state, PLAYER1);
     const targetObjectId = createPublicObjectId(targetLive.instanceId);
 
-    expect(view.match.liveResult?.requirementModifiers[targetObjectId]).toEqual([
-      { color: HeartColor.RAINBOW, countDelta: -2 },
-    ]);
+    expect(
+      projectPlayerViewState(state, PLAYER1).match.liveResult?.requirementModifiers[targetObjectId]
+    ).toEqual([{ color: HeartColor.RAINBOW, countDelta: -2 }]);
+    expect(
+      projectPlayerViewState(state, PLAYER2).match.liveResult?.requirementModifiers[targetObjectId]
+    ).toBeUndefined();
+
+    state = revealLiveCard(state, PLAYER1, targetLive.instanceId);
+    expect(
+      projectPlayerViewState(state, PLAYER2).match.liveResult?.requirementModifiers[targetObjectId]
+    ).toBeUndefined();
+
+    state = revealPlayerLiveZone(state, PLAYER1);
+    expect(
+      projectPlayerViewState(state, PLAYER2).match.liveResult?.requirementModifiers[targetObjectId]
+    ).toEqual([{ color: HeartColor.RAINBOW, countDelta: -2 }]);
   });
 
   it('uiHints 只表达 GameSession 规则自动化策略，不表达桌面本地模式', () => {
@@ -1293,9 +1555,9 @@ describe('PlayerViewState projector', () => {
     const player2View = projectPlayerViewState(state, PLAYER2);
 
     expect(hasEnabledCommand(player1View, GameCommandType.SELECT_SUCCESS_LIVE)).toBe(true);
-    expect(getCommandHint(player1View, GameCommandType.SELECT_SUCCESS_LIVE)?.scope?.objectIds).toEqual([
-      createPublicObjectId(p1LiveCard.instanceId),
-    ]);
+    expect(
+      getCommandHint(player1View, GameCommandType.SELECT_SUCCESS_LIVE)?.scope?.objectIds
+    ).toEqual([createPublicObjectId(p1LiveCard.instanceId)]);
     expect(hasEnabledCommand(player1View, GameCommandType.CONFIRM_STEP)).toBe(false);
     expect(getCommandHint(player1View, GameCommandType.CONFIRM_STEP)?.reason).toContain(
       '请先选择成功 Live'

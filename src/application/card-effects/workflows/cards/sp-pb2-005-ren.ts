@@ -10,7 +10,7 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { SlotPosition, ZoneType } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_005_ON_ENTER_RELAY_STACK_REPLACED_LIELLA_MEMBER_BELOW_ABILITY_ID } from '../../ability-ids.js';
-import { stackMemberCardBelowSpecialMember } from '../../runtime/actions.js';
+import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -206,7 +206,7 @@ function stackSelectedReplacementAndFinish(
   validReplacementCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
-  const stackResult = stackMemberCardBelowSpecialMember(game, {
+  const stackResult = stackMemberCardBelowStageMember(game, {
     playerId,
     sourceZone: ZoneType.WAITING_ROOM,
     movedCardId: selectedCardId,

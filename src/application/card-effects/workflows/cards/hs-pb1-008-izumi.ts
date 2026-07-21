@@ -123,14 +123,26 @@ function resolveHsPb1008OnEnterWaitLowOriginalBladeMembers(
   ];
   const combinedOrientationChange: CombinedOrientationResult = {
     gameState: opponentOrientationChange.gameState,
-    updatedMemberCardIds: [...ownTargetCardIds, ...opponentTargetCardIds],
+    updatedMemberCardIds: [
+      ...ownOrientationChange.updatedMemberCardIds,
+      ...opponentOrientationChange.updatedMemberCardIds,
+    ],
+    blockedByEffectActivationProhibitionMemberCardIds: [
+      ...ownOrientationChange.blockedByEffectActivationProhibitionMemberCardIds,
+      ...opponentOrientationChange.blockedByEffectActivationProhibitionMemberCardIds,
+    ],
+    blockedByWaitingProtectionMemberCardIds: [
+      ...ownOrientationChange.blockedByWaitingProtectionMemberCardIds,
+      ...opponentOrientationChange.blockedByWaitingProtectionMemberCardIds,
+    ],
     previousOrientations,
     nextOrientation: OrientationState.WAITING,
     ownTargetCardIds,
     opponentTargetCardIds,
-    actualWaitingTargetCardIds: previousOrientations
-      .filter((previous) => previous.orientation !== OrientationState.WAITING)
-      .map((previous) => previous.cardId),
+    actualWaitingTargetCardIds: [
+      ...ownOrientationChange.updatedMemberCardIds,
+      ...opponentOrientationChange.updatedMemberCardIds,
+    ],
   };
 
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(

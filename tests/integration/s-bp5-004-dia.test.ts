@@ -14,6 +14,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { PL_S_BP5_004_ON_ENTER_CHOOSE_AQOURS_BLADE_OR_SAINTSNOW_POSITION_CHANGE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
   CardType,
   FaceState,
@@ -93,7 +94,7 @@ function startEffect(game: GameState): GameState {
 
 function chooseOption(game: GameState, selectedOptionId: string): GameState {
   const effect = game.activeEffect!;
-  return confirmActiveEffectStep(
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
     game,
     PLAYER1,
     effect.id,
@@ -101,7 +102,7 @@ function chooseOption(game: GameState, selectedOptionId: string): GameState {
     undefined,
     undefined,
     selectedOptionId
-  );
+  ), PLAYER1);
 }
 
 function chooseCard(game: GameState, selectedCardId: string): GameState {
@@ -146,7 +147,7 @@ describe('PL!S-bp5-004 黒澤ダイヤ', () => {
     game = { ...game, pendingAbilities: [pending(source.instanceId)] };
 
     let state = startEffect(game);
-    expect(state.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    expect(state.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       'aqours-blade',
       'saintsnow-position-change',
     ]);
@@ -191,8 +192,9 @@ describe('PL!S-bp5-004 黒澤ダイヤ', () => {
     game = { ...game, pendingAbilities: [pending(source.instanceId)] };
 
     let state = startEffect(game);
-    expect(state.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
-      'saintsnow-position-change',
+    expect(state.activeEffect?.effectChoice?.options).toEqual([
+      expect.objectContaining({ id: 'aqours-blade', selectable: false }),
+      expect.objectContaining({ id: 'saintsnow-position-change', selectable: true }),
     ]);
 
     state = chooseOption(state, 'saintsnow-position-change');

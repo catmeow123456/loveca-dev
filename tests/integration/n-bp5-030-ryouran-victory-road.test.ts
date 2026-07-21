@@ -22,6 +22,7 @@ import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
@@ -284,6 +285,18 @@ function setupLlBp2LiveStartSession(): {
 }
 
 describe('PL!N-bp5-030-L 繚乱！ビクトリーロード', () => {
+  it('does not enqueue the resolved-observer AUTO ability at the raw LIVE_START timing', () => {
+    const scenario = setupDirectState({});
+    const state = enqueueTriggeredCardEffects(scenario.game, [TriggerCondition.ON_LIVE_START]);
+    expect(
+      state.pendingAbilities.some(
+        (ability) =>
+          ability.abilityId ===
+          N_BP5_030_AUTO_STAGE_MEMBER_LIVE_START_RESOLVED_GAIN_ALL_HEART_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
   it('grants ALL Heart after an own stage member LIVE_START ability resolves with no Heart', () => {
     const scenario = setupDirectState({ sourceHearts: [] });
     const state = resolvePendingCardEffects(

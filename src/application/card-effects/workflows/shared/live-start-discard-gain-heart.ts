@@ -43,14 +43,14 @@ const STANDARD_HEART_COLOR_OPTIONS = [
   HeartColor.PURPLE,
 ] as const;
 
-const HEART_COLOR_OPTION_LABELS: Readonly<Record<HeartColor, string>> = {
-  [HeartColor.PINK]: '粉心',
-  [HeartColor.RED]: '红心',
-  [HeartColor.YELLOW]: '黄心',
-  [HeartColor.GREEN]: '绿心',
-  [HeartColor.BLUE]: '蓝心',
-  [HeartColor.PURPLE]: '紫心',
-  [HeartColor.RAINBOW]: '虹心',
+const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
+  [HeartColor.PINK]: '获得[桃ハート]。',
+  [HeartColor.RED]: '获得[赤ハート]。',
+  [HeartColor.YELLOW]: '获得[黄ハート]。',
+  [HeartColor.GREEN]: '获得[緑ハート]。',
+  [HeartColor.BLUE]: '获得[青ハート]。',
+  [HeartColor.PURPLE]: '获得[紫ハート]。',
+  [HeartColor.RAINBOW]: '获得[虹ハート]。',
 };
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -81,8 +81,7 @@ const LIVE_START_DISCARD_GAIN_HEART_CONFIGS: readonly LiveStartDiscardGainHeartC
     recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: true },
   },
   {
-    abilityId:
-      PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,
+    abilityId: PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,
     heartSelection: { mode: 'CHOOSE', options: STANDARD_HEART_COLOR_OPTIONS },
     recipient: { mode: 'SELECT_OTHER_STAGE_MEMBER', groupAlias: '虹ヶ咲' },
   },
@@ -256,10 +255,19 @@ function startLiveStartDiscardGainHeartChoice(
         stepText: '请选择本次 Live 结束前获得的 Heart。',
         selectableCardIds: [],
         selectableCardVisibility: 'PUBLIC',
-        selectableOptions: getHeartColorOptionsForEffect(effect.metadata).map((color) => ({
-          id: color,
-          label: HEART_COLOR_OPTION_LABELS[color],
-        })),
+        selectableOptions: undefined,
+        effectChoice: {
+          mode: 'SINGLE',
+          options: getHeartColorOptionsForEffect(effect.metadata).map((color) => ({
+            id: color,
+            text: HEART_COLOR_OPTION_TEXTS[color],
+          })),
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
+        selectionLabel: '选择要获得的Heart',
+        confirmSelectionLabel: '获得Heart',
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
@@ -364,14 +372,15 @@ function startTargetMemberSelection(
         stepId: LIVE_START_DISCARD_GAIN_HEART_SELECT_MEMBER_STEP_ID,
         stepText: isAnyOtherStageMember
           ? '请选择自己舞台上此成员以外的1名成员获得[桃ハート]。'
-          : "请选择自己舞台上此成员以外的1名『虹咲』成员获得所选Heart。",
+          : '请选择自己舞台上此成员以外的1名『虹咲』成员获得所选Heart。',
         selectableCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableOptions: undefined,
+        effectChoice: undefined,
         skipSelectionLabel: undefined,
         selectionLabel: isAnyOtherStageMember
           ? '选择获得[桃ハート]的成员'
-          : "选择获得Heart的『虹咲』成员",
+          : '选择获得Heart的『虹咲』成员',
         confirmSelectionLabel: isAnyOtherStageMember ? '获得[桃ハート]' : '获得所选Heart',
         selectableCardMode: 'SINGLE',
         minSelectableCards: 1,

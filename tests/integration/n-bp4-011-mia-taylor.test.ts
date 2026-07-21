@@ -22,6 +22,7 @@ import {
   PL_N_BP4_011_LIVE_START_DISCARD_LIVE_GAIN_CHOSEN_HEART_ABILITY_ID,
   PL_N_BP4_011_LIVE_SUCCESS_MILL_FIVE_RECOVER_DISTINCT_NIJIGASAKI_LIVE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
   CardType,
   FaceState,
@@ -138,11 +139,29 @@ function resolve(game: GameState): GameState {
 }
 
 function chooseCard(game: GameState, selectedCardId: string | null): GameState {
-  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, selectedCardId);
+  return confirmActiveEffectStepThroughPublicReveal(
+    game,
+    PLAYER1,
+    game.activeEffect!.id,
+    selectedCardId
+  );
 }
 
 function chooseHeart(game: GameState, color: HeartColor): GameState {
-  return confirmActiveEffectStepThroughPublicReveal(game, PLAYER1, game.activeEffect!.id, null, null, false, color);
+  const disclosed = confirmActiveEffectStep(
+    game,
+    PLAYER1,
+    game.activeEffect!.id,
+    undefined,
+    undefined,
+    undefined,
+    color
+  );
+  expect(disclosed.activeEffect).toMatchObject({
+    stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+    effectChoice: { selectedOptionIds: [color] },
+  });
+  return confirmActiveEffectStep(disclosed, PLAYER1, disclosed.activeEffect!.id);
 }
 
 describe('PL!N-bp4-011 Mia Taylor live-start and live-success workflow', () => {
@@ -175,7 +194,7 @@ describe('PL!N-bp4-011 Mia Taylor live-start and live-success workflow', () => {
           entry.event.toZone === ZoneType.WAITING_ROOM
       )
     ).toBe(true);
-    expect(state.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    expect(state.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       HeartColor.PINK,
       HeartColor.RED,
       HeartColor.YELLOW,
@@ -183,6 +202,7 @@ describe('PL!N-bp4-011 Mia Taylor live-start and live-success workflow', () => {
       HeartColor.BLUE,
       HeartColor.PURPLE,
     ]);
+    expect(state.activeEffect?.selectableOptions).toBeUndefined();
 
     state = chooseHeart(state, HeartColor.GREEN);
     expect(state.activeEffect).toBeNull();
@@ -315,7 +335,11 @@ describe('PL!N-bp4-011 Mia Taylor live-start and live-success workflow', () => {
     const filler1 = createCardInstance(createMember('filler-1'), PLAYER1, 'filler-1');
     const filler2 = createCardInstance(createMember('filler-2'), PLAYER1, 'filler-2');
     const filler3 = createCardInstance(createMember('filler-3'), PLAYER1, 'filler-3');
-    const deckRest = createCardInstance(createMember('insufficient-rest'), PLAYER1, 'insufficient-rest');
+    const deckRest = createCardInstance(
+      createMember('insufficient-rest'),
+      PLAYER1,
+      'insufficient-rest'
+    );
     let game = addCards(scenario.game, [
       waitingA,
       milledSame,

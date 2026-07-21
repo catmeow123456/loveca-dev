@@ -38,7 +38,7 @@ const SELECT_HEART_TARGET_STEP_ID = 'SP_PB2_002_SELECT_HEART_TARGET';
 
 const ENERGY_OPTION_ID = 'energy';
 const HEART_OPTION_ID = 'heart';
-const ENERGY_AND_HEART_OPTION_ID = 'energy-and-heart';
+const PRINTED_OPTION_IDS = [ENERGY_OPTION_ID, HEART_OPTION_ID] as const;
 const HEART_BONUS: readonly HeartIcon[] = [{ color: HeartColor.PURPLE, count: 2 }];
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -72,7 +72,7 @@ export function registerSpPb2002KekeWorkflowHandlers(deps: {
     (game, input, context) =>
       resolveSelectedOption(
         game,
-        input.selectedOptionId ?? null,
+        input.selectedEffectOptionIds ?? [],
         context.continuePendingCardEffects
       )
   );
@@ -124,7 +124,7 @@ function startSpPb2002KekeActivatedEffect(
   });
   if (
     selectableCardIds.length === 0 ||
-    getAvailableOptionIds(game, playerId, cardId, false).length === 0
+    getAvailableOptionIds(game, playerId, cardId).length === 0
   ) {
     return game;
   }
@@ -162,7 +162,7 @@ function startSpPb2002KekeActivatedEffect(
       sourceCardId: cardId,
       step: 'PAY_COST',
       selectableCardIds,
-      availableOptionIds: getAvailableOptionIds(state, player.id, cardId, false),
+      availableOptionIds: getAvailableOptionIds(state, player.id, cardId),
     }
   );
 }
@@ -237,8 +237,7 @@ function startOptionSelection(
   const availableOptionIds = getAvailableOptionIds(
     game,
     player.id,
-    effect.sourceCardId,
-    discardedNoBladeHeartMember
+    effect.sourceCardId
   );
   if (availableOptionIds.length === 0) {
     return finishWithPayload(
@@ -270,12 +269,20 @@ function startOptionSelection(
       selectableCardMode: undefined,
       minSelectableCards: undefined,
       maxSelectableCards: undefined,
-      selectableOptions: availableOptionIds.map((optionId) => ({
-        id: optionId,
-        label: getOptionLabel(optionId),
-      })),
+      selectableOptions: undefined,
+      effectChoice: {
+        mode: discardedNoBladeHeartMember ? 'MULTI' : 'SINGLE',
+        options: PRINTED_OPTION_IDS.map((optionId) => ({
+          id: optionId,
+          text: getOptionText(optionId),
+          selectable: availableOptionIds.includes(optionId),
+        })),
+        minSelections: 1,
+        maxSelections: Math.min(discardedNoBladeHeartMember ? 2 : 1, availableOptionIds.length),
+        publicConfirmation: true,
+      },
       selectionLabel: undefined,
-      confirmSelectionLabel: '确定',
+      confirmSelectionLabel: undefined,
       canSkipSelection: false,
       metadata: {
         ...effect.metadata,
@@ -288,7 +295,7 @@ function startOptionSelection(
 
 function resolveSelectedOption(
   game: GameState,
-  selectedOptionId: string | null,
+  selectedOptionIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -298,19 +305,26 @@ function resolveSelectedOption(
     !effect ||
     effect.abilityId !== SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID ||
     effect.stepId !== SELECT_RESOLUTION_OPTION_STEP_ID ||
-    !player ||
-    !selectedOptionId ||
-    !getAvailableOptionIds(
-      game,
-      player.id,
-      effect.sourceCardId,
-      discardedNoBladeHeartMember
-    ).includes(selectedOptionId)
+    !player
   ) {
     return game;
   }
-
-  const selectedOptionIds = getSelectedOptionIds(selectedOptionId);
+  const availableOptionIds = getAvailableOptionIds(game, player.id, effect.sourceCardId);
+  const maxSelections = Math.min(
+    discardedNoBladeHeartMember ? 2 : 1,
+    availableOptionIds.length
+  );
+  if (
+    selectedOptionIds.length < 1 ||
+    selectedOptionIds.length > maxSelections ||
+    new Set(selectedOptionIds).size !== selectedOptionIds.length ||
+    selectedOptionIds.some((optionId) => !availableOptionIds.includes(optionId)) ||
+    PRINTED_OPTION_IDS.filter((optionId) => selectedOptionIds.includes(optionId)).some(
+      (optionId, index) => optionId !== selectedOptionIds[index]
+    )
+  ) {
+    return game;
+  }
   let state = game;
   let placedEnergyCardIds: readonly string[] = [];
   if (selectedOptionIds.includes(ENERGY_OPTION_ID)) {
@@ -380,6 +394,7 @@ function resolveSelectedOption(
       stepText: '请选择自己舞台上此成员以外的1名『Liella!』成员，获得紫 Heart +2。',
       awaitingPlayerId: player.id,
       selectableOptions: undefined,
+      effectChoice: undefined,
       selectableCardIds: targetMemberCardIds,
       selectableCardMode: 'SINGLE',
       selectableCardVisibility: undefined,
@@ -483,8 +498,7 @@ function isSourceOnStage(game: GameState, playerId: string, sourceCardId: string
 function getAvailableOptionIds(
   game: GameState,
   playerId: string,
-  sourceCardId: string,
-  allowMultiple: boolean
+  sourceCardId: string
 ): string[] {
   const options: string[] = [];
   const player = getPlayerById(game, playerId);
@@ -496,9 +510,6 @@ function getAvailableOptionIds(
   }
   if (getHeartTargetMemberCardIds(game, playerId, sourceCardId).length > 0) {
     options.push(HEART_OPTION_ID);
-  }
-  if (allowMultiple && options.includes(ENERGY_OPTION_ID) && options.includes(HEART_OPTION_ID)) {
-    options.push(ENERGY_AND_HEART_OPTION_ID);
   }
   return options;
 }
@@ -526,18 +537,11 @@ function getHeartTargetMemberCardIds(
   });
 }
 
-function getSelectedOptionIds(optionId: string): readonly string[] {
-  return optionId === ENERGY_AND_HEART_OPTION_ID ? [ENERGY_OPTION_ID, HEART_OPTION_ID] : [optionId];
-}
-
-function getOptionLabel(optionId: string): string {
+function getOptionText(optionId: string): string {
   if (optionId === ENERGY_OPTION_ID) {
-    return '从能量卡组放置1张待机能量';
+    return '从能量卡组将1张能量卡以待机状态放置。';
   }
-  if (optionId === HEART_OPTION_ID) {
-    return '使此成员以外的1名『Liella!』成员获得紫 Heart +2';
-  }
-  return '放置待机能量，并使1名成员获得紫 Heart +2';
+  return '直到LIVE结束时为止，使自己舞台上此成员以外的1名『Liella!』成员获得[紫ハート][紫ハート]。';
 }
 
 function getMetadataStringArray(value: unknown): readonly string[] {

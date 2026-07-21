@@ -11,6 +11,11 @@ import type {
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { CardType, GameMode, HeartColor } from '../../src/shared/types/enums';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
+import {
+  addMemberWaitProtectionUntilLiveEnd,
+  clearMemberWaitProtectionsUntilLiveEnd,
+  isMemberWaitProtectedFromChange,
+} from '../../src/domain/rules/member-wait-protections';
 import type {
   ReplayPayloadKind,
   ReplaySerializedPayloadEnvelope,
@@ -73,6 +78,23 @@ function createTestDeck(prefix: string): DeckConfig {
 }
 
 describe('replay payload serialization', () => {
+  it('旧 authority payload 缺少 pendingSpecialMemberPlay 时按无窗口安全复水与投影', () => {
+    const session = createGameSession();
+    session.createGame('legacy-special-member-play', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const legacySnapshot = { ...snapshot } as typeof snapshot & {
+      pendingSpecialMemberPlay?: typeof snapshot.pendingSpecialMemberPlay;
+    };
+    delete legacySnapshot.pendingSpecialMemberPlay;
+
+    const rehydrated = rehydrateAuthorityGameState(
+      serializeReplayPayload(legacySnapshot, 'AUTHORITY_GAME_STATE', 'GAME_STATE_V1')
+    );
+    expect(rehydrated.pendingSpecialMemberPlay).toBeUndefined();
+    expect(projectPlayerViewState(rehydrated, PLAYER1).pendingSpecialMemberPlay).toBeNull();
+  });
+
   it('旧 authority payload 缺少 energyActivePhaseSkips 时仍可复水和投影', () => {
     const session = createGameSession();
     session.createGame('legacy-energy-marker', PLAYER1, '玩家1', PLAYER2, '玩家2');
@@ -87,6 +109,39 @@ describe('replay payload serialization', () => {
     );
     expect(rehydrated.energyActivePhaseSkips).toBeUndefined();
     expect(() => projectPlayerViewState(rehydrated, PLAYER1)).not.toThrow();
+  });
+
+  it('旧 authority payload 缺少 memberWaitProtections 时按空数组兼容查询、写入、投影与 LIVE_END 清理', () => {
+    const session = createGameSession();
+    session.createGame('legacy-member-wait-protection', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const legacySnapshot = { ...snapshot } as typeof snapshot & {
+      memberWaitProtections?: typeof snapshot.memberWaitProtections;
+    };
+    delete legacySnapshot.memberWaitProtections;
+
+    const rehydrated = rehydrateAuthorityGameState(
+      serializeReplayPayload(legacySnapshot, 'AUTHORITY_GAME_STATE', 'GAME_STATE_V1')
+    );
+    expect(rehydrated.memberWaitProtections).toBeUndefined();
+    expect(() => projectPlayerViewState(rehydrated, PLAYER1)).not.toThrow();
+    expect(
+      isMemberWaitProtectedFromChange(rehydrated, PLAYER1, 'missing-member', {
+        kind: 'CARD_EFFECT',
+        playerId: PLAYER2,
+        sourceCardId: 'opponent-effect',
+      })
+    ).toBe(false);
+    expect(clearMemberWaitProtectionsUntilLiveEnd(rehydrated)).toBe(rehydrated);
+
+    const protectedState = addMemberWaitProtectionUntilLiveEnd(rehydrated, {
+      affectedPlayerId: PLAYER1,
+      sourceCardId: 'legacy-source',
+      abilityId: 'legacy-protection',
+    });
+    expect(protectedState.memberWaitProtections).toHaveLength(1);
+    expect(clearMemberWaitProtectionsUntilLiveEnd(protectedState).memberWaitProtections).toEqual([]);
   });
 
   it('authority checkpoint 经 TRANSPORT_V1 GZIP envelope 往返后仍可复水并投影玩家视角', () => {

@@ -38,7 +38,7 @@ import {
   updatePlayer,
   getFirstPlayer,
 } from '../../domain/entities/game.js';
-import { createCheerEvent } from '../../domain/events/game-events.js';
+import { revealCheerCardsFromMainDeck } from '../effects/cheer.js';
 import {
   removeCardFromStatefulZone,
   addCardToZone,
@@ -58,7 +58,6 @@ import {
 } from '../../domain/rules/success-live-placement.js';
 import { phaseManager, type SubPhaseAutoAction } from '../phase-manager.js';
 import { isUserActionRequired } from '../../shared/phase-config/index.js';
-import { isSpecialMemberCard } from '../../shared/utils/card-code.js';
 
 function haveAllWinnersConfirmed(game: GameState, confirmedPlayerIds: readonly string[]): boolean {
   const winners = game.liveResolution.liveWinnerIds;
@@ -254,9 +253,18 @@ function executeSubPhaseAutoAction(
       for (let i = 0; i < liveCardCount; i++) {
         state = ctx.drawCard(state, autoAction.playerId);
       }
-      state = liveProhibitedPlayerLiveZoneToWaitingRoom(state, autoAction.playerId);
       state = clearLiveSetCardsForPlayer(state, autoAction.playerId);
       state = consumeLiveSetLimitReductionsForPlayer(state, autoAction.playerId);
+
+      // 双方盖牌完成前，受限玩家盖下的卡仍须保持非公开。
+      // 待双方都完成 Live Set 后，再统一清空所有不能 Live 的玩家的 Live 区。
+      if (
+        state.players.every((candidate) => state.liveSetCompletedPlayers.includes(candidate.id))
+      ) {
+        for (const candidate of state.players) {
+          state = liveProhibitedPlayerLiveZoneToWaitingRoom(state, candidate.id);
+        }
+      }
       return state;
     }
 
@@ -361,26 +369,6 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
     }
   }
 
-  // memberBelow 堆叠必须由命令层显式声明；普通手动拖拽保持换手/移动语义。
-  const asMemberBelow = action.asMemberBelow === true;
-  if (asMemberBelow) {
-    if (toZone !== ZoneType.MEMBER_SLOT || !targetSlot) {
-      return failure(game, 'memberBelow 堆叠必须指定目标成员槽位');
-    }
-    if (card.data.cardType !== CardType.MEMBER) {
-      return failure(game, '只有成员卡可以堆叠到特殊成员下方');
-    }
-
-    const targetMemberCardId = player.memberSlots.slots[targetSlot as SlotPosition] ?? null;
-    const targetMemberCard = targetMemberCardId ? ctx.getCardById(game, targetMemberCardId) : null;
-    if (
-      !targetMemberCard ||
-      targetMemberCard.data.cardType !== CardType.MEMBER ||
-      !isSpecialMemberCard(targetMemberCard.data.cardCode)
-    ) {
-      return failure(game, '目标槽位不是特殊成员卡，无法堆叠成员卡');
-    }
-  }
   // memberBelow 中的卡牌不是来源槽位的主成员，不能携带 sourceSlot
   // 否则 moveCardUniversal 会误走 MEMBER_SLOT ↔ MEMBER_SLOT 槽位互换路径，
   // 导致源槽位主成员被意外移除（游戏状态损坏）
@@ -396,7 +384,7 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
     type: 'MOVE_CARD' as const,
     timestamp: Date.now(),
     playerId,
-    details: { cardId, fromZone, toZone, targetSlot, asMemberBelow },
+    details: { cardId, fromZone, toZone, targetSlot },
     canUndo: true,
   };
 
@@ -406,15 +394,12 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
   };
 
   // 能量牌拖到成员区：以附加到成员下方模式执行（规则 4.5.5）
-  // 成员卡堆叠到特殊成员下方
   // memberBelow 卡牌走通用 remove+add 路径（不含 sourceSlot）
   // 成员卡在 MEMBER_SLOT 之间移动时：传入 sourceSlot 以随成员携带 energyBelow 和 memberBelow
   const moveOptions =
     isEnergyCard && toZone === ZoneType.MEMBER_SLOT
       ? { targetSlot: targetSlot as SlotPosition, asEnergyBelow: true }
-      : asMemberBelow
-        ? { targetSlot: targetSlot as SlotPosition, asMemberBelow: true }
-        : isCardInMemberBelow
+      : isCardInMemberBelow
           ? { targetSlot: targetSlot as SlotPosition }
           : { targetSlot, sourceSlot, position };
 
@@ -658,14 +643,13 @@ export const handleUndoOperation: ActionHandler<UndoOperationAction> = (
 
   // 根据操作类型执行撤销
   if (lastOperation.type === 'MOVE_CARD' && lastOperation.details) {
-    const { cardId, fromZone, toZone, targetSlot, asMemberBelow } = lastOperation.details;
+    const { cardId, fromZone, toZone, targetSlot } = lastOperation.details;
 
     if (cardId && fromZone && toZone) {
       // 反向移动：从 toZone 移回 fromZone
       state = removeCardFromPlayerZone(state, playerId, cardId as string, toZone as ZoneType);
       state = addCardToPlayerZone(state, playerId, cardId as string, fromZone as ZoneType, {
         targetSlot: targetSlot as SlotPosition | undefined,
-        asMemberBelow: asMemberBelow as boolean | undefined,
       });
     }
   }
@@ -690,48 +674,5 @@ export const handlePerformCheer: ActionHandler<PerformCheerAction> = (
     return failure(game, '玩家不存在');
   }
 
-  let state = game;
-  const cheerCardIds: string[] = [];
-
-  // 从卡组顶翻开指定数量的卡牌
-  for (let i = 0; i < cheerCount; i++) {
-    const drawResult = ctx.drawTopMainDeckCard(state, playerId);
-    state = drawResult.gameState;
-    if (drawResult.cardId) {
-      cheerCardIds.push(drawResult.cardId);
-    }
-  }
-
-  // 将应援卡牌放入解决区域
-  state = {
-    ...state,
-    resolutionZone: {
-      ...state.resolutionZone,
-      cardIds: [...state.resolutionZone.cardIds, ...cheerCardIds],
-    },
-  };
-
-  // 更新 liveResolution 状态
-  const isFirstPlayer = playerId === getFirstPlayer(state).id;
-  state = {
-    ...state,
-    liveResolution: {
-      ...state.liveResolution,
-      firstPlayerCheerCardIds: isFirstPlayer
-        ? [...state.liveResolution.firstPlayerCheerCardIds, ...cheerCardIds]
-        : state.liveResolution.firstPlayerCheerCardIds,
-      secondPlayerCheerCardIds: isFirstPlayer
-        ? state.liveResolution.secondPlayerCheerCardIds
-        : [...state.liveResolution.secondPlayerCheerCardIds, ...cheerCardIds],
-    },
-  };
-  state = emitGameEvent(state, createCheerEvent(playerId, cheerCardIds, cheerCount));
-
-  // 记录动作
-  state = addAction(state, 'CHEER', playerId, {
-    cheerCount,
-    cheerCardIds,
-  });
-
-  return success(state);
+  return success(revealCheerCardsFromMainDeck(game, playerId, cheerCount).gameState);
 };

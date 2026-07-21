@@ -99,8 +99,8 @@ function startSpPb1001LiveStart(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  _continuePendingCardEffects: ContinuePendingCardEffects,
+  _enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
@@ -108,18 +108,6 @@ function startSpPb1001LiveStart(
   }
 
   const activeEnergyCardIds = getActiveEnergyCardIds(player);
-  if (activeEnergyCardIds.length < LIVE_START_ENERGY_COST) {
-    return startOrFinishForcedDiscard(
-      game,
-      ability,
-      player.id,
-      orderedResolution,
-      continuePendingCardEffects,
-      enqueueTriggeredCardEffects,
-      'NO_ACTIVE_ENERGY_FORCE_DISCARD'
-    );
-  }
-
   return startPendingActiveEffect(game, {
     ability,
     playerId: player.id,
@@ -132,10 +120,20 @@ function startSpPb1001LiveStart(
       stepId: LIVE_START_DECISION_STEP_ID,
       stepText: '可以支付[E][E]。若不支付，则将自己的2张手牌放置入休息室。',
       awaitingPlayerId: player.id,
-      selectableOptions: [
-        { id: PAY_OPTION_ID, label: '支付[E][E]' },
-        { id: DISCARD_OPTION_ID, label: '不支付，放置手牌' },
-      ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: PAY_OPTION_ID,
+            text: '支付[E][E]。',
+            selectable: activeEnergyCardIds.length >= LIVE_START_ENERGY_COST,
+          },
+          { id: DISCARD_OPTION_ID, text: '将自己的2张手牌放置入休息室。' },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       confirmSelectionLabel: '确定',
       canSkipSelection: false,
       metadata: {

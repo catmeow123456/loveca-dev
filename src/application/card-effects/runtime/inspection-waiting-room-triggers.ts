@@ -166,6 +166,7 @@ export function moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
   const uniqueDestinationCardIds = new Set(destinationCardIds);
   if (
     !player ||
+    game.inspectionContext?.ownerPlayerId !== playerId ||
     uniqueDestinationCardIds.size !== destinationCardIds.length ||
     uniqueDestinationCardIds.size !== inspectedCardIds.length ||
     destinationCardIds.some((cardId) => !inspectedCardIds.includes(cardId)) ||

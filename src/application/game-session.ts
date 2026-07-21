@@ -137,6 +137,9 @@ import type {
   DrawCardToHandCommand,
   DrawEnergyToZoneCommand,
   ReturnHandCardToTopCommand,
+  BeginSpecialMemberPlayCommand,
+  ConfirmSpecialMemberPlayCommand,
+  CancelSpecialMemberPlayCommand,
 } from './game-commands.js';
 import {
   activateCardAbility,
@@ -157,13 +160,33 @@ import {
   getPublicCardSelectionAutoAdvanceMetadata,
   isPublicCardSelectionAutoAdvanceEffect,
 } from './card-effects/runtime/public-card-selection-confirmation.js';
+import {
+  attachPublicEffectChoiceAutoAdvanceDeadline,
+  getPublicEffectChoiceAutoAdvanceMetadata,
+  isPublicEffectChoiceAutoAdvanceEffect,
+} from './card-effects/runtime/public-effect-choice-confirmation.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { buildPlayMemberCostResources } from './effects/play-member-cost.js';
+import {
+  LL_BP7_001_SPECIAL_PLAY_COST,
+  LL_BP7_001_SPECIAL_PLAY_PRINTED_COST,
+  LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES,
+  assignLlBp7001SpecialPlayPayment,
+  canAssignLlBp7001SpecialPlayPayment,
+  getLlBp7001SpecialPlayHandCandidateIds,
+  getLlBp7001SpecialPlayTargetSlots,
+  isLlBp7001SpecialPlaySource,
+} from './effects/special-member-play.js';
+import {
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
+  enqueueEnterWaitingRoomTriggersFromDiscardResult,
+} from './card-effects/runtime/enter-waiting-room-triggers.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { tapEnergy } from '../domain/entities/zone.js';
 import { costCalculator, type CostPaymentPlan } from '../domain/rules/cost-calculator.js';
+import { getCheerDeckEdgeForPlayer } from '../domain/rules/cheer-direction.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -558,7 +581,8 @@ export class GameSession {
 
     const isPublicSelectionAutoAdvance =
       command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
-      command.publicCardSelectionAutoAdvanceAt !== undefined;
+      (command.publicCardSelectionAutoAdvanceAt !== undefined ||
+        command.publicEffectChoiceAutoAdvanceAt !== undefined);
     const undoDraft = isPublicSelectionAutoAdvance
       ? null
       : this.captureUndoDraft(command.playerId, command.type);
@@ -1625,6 +1649,52 @@ export class GameSession {
         }
         return null;
       }
+      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY: {
+        if (
+          hasPendingAbilityOrChoice(state) ||
+          state.inspectionContext !== null ||
+          (state.delegatedAbilitySequence ?? null) !== null
+        ) {
+          return '请先完成当前效果、检查时点或检视流程';
+        }
+        if (command.mode !== 'LL_BP7_001_SPECIAL_PLAY') {
+          return '不支持的特殊登场方式';
+        }
+        if (!isLlBp7001SpecialPlaySource(state, command.playerId, command.cardId)) {
+          return '特殊登场来源已失效';
+        }
+        if (
+          !getLlBp7001SpecialPlayTargetSlots(state, command.playerId, command.cardId).includes(
+            command.targetSlot
+          )
+        ) {
+          return '该成员区不能用于本次特殊登场';
+        }
+        if (!canAssignLlBp7001SpecialPlayPayment(state, command.playerId, command.cardId)) {
+          return '手牌中没有可完成指定姓名支付的成员';
+        }
+        return null;
+      }
+      case GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY: {
+        const pending = state.pendingSpecialMemberPlay ?? null;
+        if (!pending || pending.id !== command.pendingId || pending.playerId !== command.playerId) {
+          return '特殊登场选择窗口已失效';
+        }
+        return assignLlBp7001SpecialPlayPayment(
+          state,
+          command.playerId,
+          pending.sourceCardId,
+          command.selectedCardIds
+        ).length === LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length
+          ? null
+          : '必须选择可分别满足三个指定姓名的三张不同成员';
+      }
+      case GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY: {
+        const pending = state.pendingSpecialMemberPlay ?? null;
+        return pending && pending.id === command.pendingId && pending.playerId === command.playerId
+          ? null
+          : '特殊登场选择窗口已失效';
+      }
       case GameCommandType.ACTIVATE_ABILITY: {
         if (state.activeEffect) {
           return '当前正在处理其他卡牌效果';
@@ -1748,8 +1818,7 @@ export class GameSession {
         if (
           card?.data.cardType === CardType.MEMBER &&
           command.fromZone === ZoneType.HAND &&
-          command.toZone === ZoneType.MEMBER_SLOT &&
-          command.asMemberBelow !== true
+          command.toZone === ZoneType.MEMBER_SLOT
         ) {
           return '手牌成员登场到成员区必须使用专用登场命令';
         }
@@ -1875,16 +1944,49 @@ export class GameSession {
             command.selectedSlot !== undefined ||
             command.resolveInOrder !== undefined ||
             command.selectedOptionId !== undefined ||
+            command.selectedEffectOptionIds !== undefined ||
             command.selectedNumber !== undefined ||
             command.stageFormationMoveHistory !== undefined ||
-            command.stageFormationPlacements !== undefined
+            command.stageFormationPlacements !== undefined ||
+            command.publicEffectChoiceAutoAdvanceAt !== undefined
           ) {
             return '公开展示推进不接受玩家选择';
           }
           return null;
         }
+        const publicEffectChoiceAutoAdvance = getPublicEffectChoiceAutoAdvanceMetadata(
+          state.activeEffect
+        );
+        if (publicEffectChoiceAutoAdvance) {
+          if (
+            command.publicEffectChoiceAutoAdvanceAt !== publicEffectChoiceAutoAdvance.autoAdvanceAt
+          ) {
+            return '效果选项公开推进请求已过期';
+          }
+          if (this.now() < publicEffectChoiceAutoAdvance.autoAdvanceAt) {
+            return '效果选项公开展示尚未结束';
+          }
+          if (
+            command.selectedCardId !== undefined ||
+            command.selectedCardIds !== undefined ||
+            command.selectedSlot !== undefined ||
+            command.resolveInOrder !== undefined ||
+            command.selectedOptionId !== undefined ||
+            command.selectedEffectOptionIds !== undefined ||
+            command.selectedNumber !== undefined ||
+            command.stageFormationMoveHistory !== undefined ||
+            command.stageFormationPlacements !== undefined ||
+            command.publicCardSelectionAutoAdvanceAt !== undefined
+          ) {
+            return '效果选项公开推进不接受玩家选择';
+          }
+          return null;
+        }
         if (command.publicCardSelectionAutoAdvanceAt !== undefined) {
           return '当前效果不接受公开展示推进';
+        }
+        if (command.publicEffectChoiceAutoAdvanceAt !== undefined) {
+          return '当前效果不接受效果选项公开推进';
         }
         if (state.activeEffect.awaitingPlayerId !== command.playerId) {
           return '当前不是该玩家确认卡牌效果';
@@ -1941,11 +2043,58 @@ export class GameSession {
         }
         if (
           command.selectedOptionId &&
+          !state.activeEffect.effectChoice &&
           !state.activeEffect.selectableOptions?.some(
             (option) => option.id === command.selectedOptionId
           )
         ) {
           return '选择的选项不能用于当前效果';
+        }
+        if (state.activeEffect.effectChoice) {
+          const choice = state.activeEffect.effectChoice;
+          if (
+            choice.mode === 'SINGLE' &&
+            (choice.minSelections !== 1 || choice.maxSelections !== 1)
+          ) {
+            return '当前单选效果的选择数量配置无效';
+          }
+          if (
+            command.selectedEffectOptionIds !== undefined &&
+            command.selectedOptionId !== undefined
+          ) {
+            return '当前效果不能同时提交新旧效果选项';
+          }
+          const selectedOptionIds =
+            command.selectedEffectOptionIds ??
+            (choice.mode === 'SINGLE' && command.selectedOptionId
+              ? [command.selectedOptionId]
+              : undefined);
+          if (!selectedOptionIds) {
+            if (command.selectedCardId !== null || state.activeEffect.canSkipSelection !== true) {
+              return '当前效果需要选择效果选项';
+            }
+          } else {
+            if (
+              selectedOptionIds.length < choice.minSelections ||
+              selectedOptionIds.length > choice.maxSelections ||
+              (choice.mode === 'SINGLE' && selectedOptionIds.length > 1)
+            ) {
+              return '选择的效果选项数量不符合当前效果';
+            }
+            if (new Set(selectedOptionIds).size !== selectedOptionIds.length) {
+              return '不能重复选择同一个效果选项';
+            }
+            if (
+              selectedOptionIds.some((optionId) => {
+                const option = choice.options.find((candidate) => candidate.id === optionId);
+                return !option || option.selectable === false;
+              })
+            ) {
+              return '选择的效果选项不能用于当前效果';
+            }
+          }
+        } else if (command.selectedEffectOptionIds !== undefined) {
+          return '当前效果不接受结构化效果选项';
         }
         if (command.stageFormationMoveHistory || command.stageFormationPlacements) {
           if (!state.activeEffect.stageFormation) {
@@ -2023,6 +2172,9 @@ export class GameSession {
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可检视阶段';
       case GameCommandType.CONFIRM_COST_PAYMENT:
         return state.pendingCostPayment ? null : '当前没有待支付费用';
+      case GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY:
+      case GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY:
+        return state.pendingSpecialMemberPlay ? null : '当前没有待处理的特殊登场';
       case GameCommandType.CONFIRM_EFFECT_STEP:
         return state.activeEffect ? null : '当前没有正在处理的卡牌效果';
       case GameCommandType.ACTIVATE_ABILITY:
@@ -2034,6 +2186,7 @@ export class GameSession {
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
       case GameCommandType.ATTACH_ENERGY_TO_MEMBER:
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
+      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY:
       case GameCommandType.DRAW_CARD_TO_HAND:
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
@@ -2148,6 +2301,18 @@ export class GameSession {
   }
 
   private validateCommandActor(state: GameState, command: GameCommand): string | null {
+    const pendingSpecialPlay = state.pendingSpecialMemberPlay ?? null;
+    if (pendingSpecialPlay) {
+      if (
+        pendingSpecialPlay.playerId === command.playerId &&
+        (command.type === GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY ||
+          command.type === GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY)
+      ) {
+        return null;
+      }
+      return '当前正在等待特殊登场选择';
+    }
+
     if (state.pendingCostPayment) {
       if (
         command.type === GameCommandType.CONFIRM_COST_PAYMENT &&
@@ -2194,7 +2359,8 @@ export class GameSession {
     if (
       command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
       (state.activeEffect?.awaitingPlayerId === command.playerId ||
-        isPublicCardSelectionAutoAdvanceEffect(state.activeEffect))
+        isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
+        isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect))
     ) {
       return null;
     }
@@ -2296,6 +2462,12 @@ export class GameSession {
         return this.applyAttachEnergyToMemberCommand(state, command);
       case GameCommandType.PLAY_MEMBER_TO_SLOT:
         return this.applyPlayMemberToSlotCommand(state, command);
+      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY:
+        return this.applyBeginSpecialMemberPlayCommand(state, command);
+      case GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY:
+        return this.applyConfirmSpecialMemberPlayCommand(state, command);
+      case GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY:
+        return this.applyCancelSpecialMemberPlayCommand(state, command);
       case GameCommandType.ACTIVATE_ABILITY:
         return this.applyActivateAbilityCommand(state, command);
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
@@ -2656,6 +2828,7 @@ export class GameSession {
     if (!actorSeat) {
       return { success: false, gameState: state, error: '玩家不存在' };
     }
+    const cheerDeckEdge = getCheerDeckEdgeForPlayer(preRefreshResult.gameState, command.playerId);
 
     const beforeOwnedResolution = new Set(
       getOwnedResolutionCardIds(preRefreshResult.gameState, command.playerId)
@@ -2702,16 +2875,16 @@ export class GameSession {
       declarationPublicValue: 1,
       extraPublicEvents: [
         ...preRefreshResult.extraPublicEvents,
-        buildCardMovedPublicEvent(
-          preRefreshResult.gameState,
-          result.gameState,
+        {
+          type: 'CardMovedPublic',
+          source: 'PLAYER',
           actorSeat,
-          revealedCardId,
-          {
-            from: createOwnedZoneRef(ZoneType.MAIN_DECK, actorSeat, { index: 0 }),
-            to: createResolutionZoneRef(getResolutionIndex(result.gameState, revealedCardId)),
-          }
-        ),
+          count: 1,
+          from: createOwnedZoneRef(ZoneType.MAIN_DECK, actorSeat, {
+            position: cheerDeckEdge,
+          }),
+          to: createResolutionZoneRef(getResolutionIndex(result.gameState, revealedCardId)),
+        },
         buildCardRevealedPublicEvent(revealedState, actorSeat, revealedCardId, {
           from: createResolutionZoneRef(getResolutionIndex(revealedState, revealedCardId)),
           reason: 'CHEER_REVEAL',
@@ -3089,7 +3262,6 @@ export class GameSession {
           sourceSlot: command.sourceSlot,
           position: command.position,
           liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
-          asMemberBelow: command.asMemberBelow,
         }
       )
     );
@@ -3402,15 +3574,244 @@ export class GameSession {
     if (payment) {
       const energyCardIds = payment.payableEnergyCardIds.slice(0, payment.finalEnergyCost);
       const paidState = this.applyCostPaymentToState(state, payment, energyCardIds);
-      return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, command);
+      return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, command, costResult.isRelay);
     }
 
-    return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
+    return this.applyPlayMemberToSlotWithoutCostPrompt(state, command, costResult.isRelay);
+  }
+
+  private applyBeginSpecialMemberPlayCommand(
+    state: GameState,
+    command: BeginSpecialMemberPlayCommand
+  ): CommandExecutionResult {
+    const candidateCardIds = getLlBp7001SpecialPlayHandCandidateIds(
+      state,
+      command.playerId,
+      command.cardId
+    );
+    const pendingId = `${state.gameId}-special-member-play-${state.actionSequence + 1}`;
+    return {
+      success: true,
+      gameState: addAction(
+        {
+          ...state,
+          pendingSpecialMemberPlay: {
+            id: pendingId,
+            playerId: command.playerId,
+            sourceCardId: command.cardId,
+            targetSlot: command.targetSlot,
+            mode: command.mode,
+            printedCost: LL_BP7_001_SPECIAL_PLAY_PRINTED_COST,
+            specialPlayCost: LL_BP7_001_SPECIAL_PLAY_COST,
+            candidateCardIds,
+          },
+        },
+        'SPECIAL_MEMBER_PLAY',
+        command.playerId,
+        { step: 'BEGIN', targetSlot: command.targetSlot }
+      ),
+    };
+  }
+
+  private applyCancelSpecialMemberPlayCommand(
+    state: GameState,
+    command: CancelSpecialMemberPlayCommand
+  ): CommandExecutionResult {
+    return {
+      success: true,
+      gameState: addAction(
+        { ...state, pendingSpecialMemberPlay: null },
+        'SPECIAL_MEMBER_PLAY',
+        command.playerId,
+        { step: 'CANCEL', pendingId: command.pendingId }
+      ),
+    };
+  }
+
+  private applyConfirmSpecialMemberPlayCommand(
+    state: GameState,
+    command: ConfirmSpecialMemberPlayCommand
+  ): CommandExecutionResult {
+    const pending = state.pendingSpecialMemberPlay ?? null;
+    if (!pending) {
+      return { success: false, gameState: state, error: '特殊登场选择窗口已失效' };
+    }
+    if (
+      !isLlBp7001SpecialPlaySource(state, command.playerId, pending.sourceCardId) ||
+      !getLlBp7001SpecialPlayTargetSlots(state, command.playerId, pending.sourceCardId).includes(
+        pending.targetSlot
+      )
+    ) {
+      return { success: false, gameState: state, error: '特殊登场来源或目标已失效' };
+    }
+
+    const assignment = assignLlBp7001SpecialPlayPayment(
+      state,
+      command.playerId,
+      pending.sourceCardId,
+      command.selectedCardIds
+    );
+    if (assignment.length !== LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length) {
+      return { success: false, gameState: state, error: '指定姓名支付不完整' };
+    }
+
+    const player = getPlayerById(state, command.playerId);
+    const sourceCard = state.cardRegistry.get(pending.sourceCardId);
+    if (!player || !sourceCard || !isMemberCardData(sourceCard.data)) {
+      return { success: false, gameState: state, error: '特殊登场来源已失效' };
+    }
+    if (
+      sourceCard.data.cost !== LL_BP7_001_SPECIAL_PLAY_PRINTED_COST ||
+      pending.printedCost !== LL_BP7_001_SPECIAL_PLAY_PRINTED_COST ||
+      pending.specialPlayCost !== LL_BP7_001_SPECIAL_PLAY_COST
+    ) {
+      return { success: false, gameState: state, error: '特殊登场费用上下文已失效' };
+    }
+
+    const selectedIds = assignment.map(({ cardId }) => cardId);
+    const selectedSet = new Set(selectedIds);
+    const handAfterNamedPayment = player.hand.cardIds.filter((cardId) => !selectedSet.has(cardId));
+    const resources = buildPlayMemberCostResources(
+      state,
+      command.playerId,
+      pending.sourceCardId,
+      handAfterNamedPayment
+    );
+    if (!resources) {
+      return { success: false, gameState: state, error: '无法计算本次特殊登场费用' };
+    }
+    const costCheck = costCalculator.checkCanPayCost(
+      sourceCard.data,
+      pending.targetSlot,
+      resources,
+      {
+        specialPlayBaseCost: LL_BP7_001_SPECIAL_PLAY_COST,
+        ...(player.memberSlots.slots[pending.targetSlot] ? { relayMode: 'SINGLE' as const } : {}),
+      }
+    );
+    const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
+    if (!plan) {
+      return {
+        success: false,
+        gameState: state,
+        error: costCheck.reason ?? '活跃能量不足以完成本次特殊登场',
+      };
+    }
+
+    // The grouped move is authoritative, while trigger enqueue is deliberately deferred until
+    // the discard, energy payment, ordinary relay, and play have all completed atomically.
+    const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
+      { ...state, pendingSpecialMemberPlay: null },
+      command.playerId,
+      selectedIds,
+      { count: 3, candidateCardIds: pending.candidateCardIds },
+      (game) => game
+    );
+    if (!discardResult?.enterWaitingRoomEvent) {
+      return { success: false, gameState: state, error: '指定姓名支付已失效' };
+    }
+
+    const payment: NonNullable<GameState['pendingCostPayment']> = {
+      id: `${pending.id}-cost`,
+      playerId: command.playerId,
+      source: 'PLAY_MEMBER',
+      sourceCardId: pending.sourceCardId,
+      targetSlot: pending.targetSlot,
+      baseCost: plan.totalCost,
+      finalEnergyCost: plan.actualEnergyCost,
+      relayDiscount: plan.relayDiscount,
+      replacedMemberCardId: plan.memberToRelay,
+      relayReplacements: plan.relayReplacements,
+      payableEnergyCardIds: resources.activeEnergyIds,
+      explanation: this.formatPlayMemberCostExplanation(plan),
+    };
+    const paidState = this.applyCostPaymentToState(
+      discardResult.gameState,
+      payment,
+      plan.energyToTap
+    );
+    const playResult = this.applyPlayMemberToSlotWithoutCostPrompt(
+      paidState,
+      {
+        type: GameCommandType.PLAY_MEMBER_TO_SLOT,
+        playerId: command.playerId,
+        cardId: pending.sourceCardId,
+        targetSlot: pending.targetSlot,
+        relayMode: 'SINGLE',
+        timestamp: command.timestamp,
+      },
+      plan.isRelay
+    );
+    if (!playResult.success) {
+      return { success: false, gameState: state, error: playResult.error };
+    }
+
+    const completedState = enqueueEnterWaitingRoomTriggersFromDiscardResult(
+      playResult.gameState,
+      discardResult,
+      enqueueTriggeredCardEffects
+    );
+    const auditedState = addAction(completedState, 'SPECIAL_MEMBER_PLAY', command.playerId, {
+      step: 'CONFIRM',
+      sourceCardId: pending.sourceCardId,
+      targetSlot: pending.targetSlot,
+      mode: pending.mode,
+      printedCost: pending.printedCost,
+      specialPlayCost: pending.specialPlayCost,
+      namedPayments: assignment,
+      relayReplacement: plan.memberToRelay,
+      relayReplacements: plan.relayReplacements,
+      relayDiscount: plan.relayDiscount,
+      paidEnergyCardIds: [...plan.energyToTap],
+      paidEnergyCount: plan.actualEnergyCost,
+      waitingRoomEventId: discardResult.enterWaitingRoomEvent.eventId,
+    });
+    const actorSeat = getSeatForPlayer(auditedState, command.playerId);
+    const discardPublicEvents = actorSeat
+      ? selectedIds.map((cardId) =>
+          buildCardRevealedAndMovedPublicEvent(auditedState, actorSeat, cardId, {
+            from: createOwnedZoneRef(ZoneType.HAND, actorSeat),
+            to: createOwnedZoneRef(ZoneType.WAITING_ROOM, actorSeat),
+            reason: 'SPECIAL_MEMBER_PLAY_COST',
+          })
+        )
+      : [];
+
+    return {
+      success: true,
+      gameState: auditedState,
+      declarationType: 'SPECIAL_MEMBER_PLAY_CONFIRMED',
+      declarationPublicValue: pending.targetSlot,
+      extraPublicEvents: [...discardPublicEvents, ...(playResult.extraPublicEvents ?? [])],
+      sealedAuditRecords: actorSeat
+        ? [
+            {
+              type: 'SPECIAL_MEMBER_PLAY_CONFIRMED',
+              actorSeat,
+              payload: {
+                sourceCardId: pending.sourceCardId,
+                targetSlot: pending.targetSlot,
+                mode: pending.mode,
+                printedCost: pending.printedCost,
+                specialPlayCost: pending.specialPlayCost,
+                namedPayments: assignment,
+                relayReplacement: plan.memberToRelay,
+                relayReplacements: plan.relayReplacements,
+                relayDiscount: plan.relayDiscount,
+                paidEnergyCardIds: [...plan.energyToTap],
+                paidEnergyCount: plan.actualEnergyCost,
+                waitingRoomEventId: discardResult.enterWaitingRoomEvent.eventId,
+              },
+            },
+          ]
+        : [],
+    };
   }
 
   private applyPlayMemberToSlotWithoutCostPrompt(
     state: GameState,
-    command: PlayMemberToSlotCommand
+    command: PlayMemberToSlotCommand,
+    isRelayOverride?: boolean
   ): CommandExecutionResult {
     const actorSeat = getSeatForPlayer(state, command.playerId);
     if (!actorSeat) {
@@ -3423,10 +3824,11 @@ export class GameSession {
     }
 
     const replacedCardId = player.memberSlots.slots[command.targetSlot] ?? null;
+    const isRelay = isRelayOverride ?? replacedCardId !== null;
     const result = this.gameService.processAction(
       state,
       createPlayMemberAction(command.playerId, command.cardId, command.targetSlot, {
-        isRelay: replacedCardId !== null,
+        isRelay,
         relayMode: command.relayMode,
         relayReplacementSlots: command.relayReplacementSlots,
       })
@@ -3525,7 +3927,11 @@ export class GameSession {
     state: GameState,
     command: PlayMemberToSlotCommand
   ):
-    | { readonly success: true; readonly pendingCostPayment: GameState['pendingCostPayment'] }
+    | {
+        readonly success: true;
+        readonly pendingCostPayment: GameState['pendingCostPayment'];
+        readonly isRelay: boolean;
+      }
     | { readonly success: false; readonly error: string } {
     const player = state.players.find((candidate) => candidate.id === command.playerId);
     if (!player) {
@@ -3562,11 +3968,12 @@ export class GameSession {
     }
 
     if (plan.actualEnergyCost === 0) {
-      return { success: true, pendingCostPayment: null };
+      return { success: true, pendingCostPayment: null, isRelay: plan.isRelay };
     }
 
     return {
       success: true,
+      isRelay: plan.isRelay,
       pendingCostPayment: {
         id: `${state.gameId}-cost-${state.actionSequence + 1}`,
         playerId: command.playerId,
@@ -3613,16 +4020,20 @@ export class GameSession {
 
     const paidState = this.applyCostPaymentToState(state, payment, command.energyCardIds);
 
-    return this.applyPlayMemberToSlotWithoutCostPrompt(paidState, {
-      type: GameCommandType.PLAY_MEMBER_TO_SLOT,
-      playerId: payment.playerId,
-      cardId: payment.sourceCardId,
-      targetSlot: payment.targetSlot,
-      relayMode:
-        payment.relayReplacements && payment.relayReplacements.length > 1 ? 'DOUBLE' : undefined,
-      relayReplacementSlots: payment.relayReplacements?.map((replacement) => replacement.slot),
-      timestamp: command.timestamp,
-    });
+    return this.applyPlayMemberToSlotWithoutCostPrompt(
+      paidState,
+      {
+        type: GameCommandType.PLAY_MEMBER_TO_SLOT,
+        playerId: payment.playerId,
+        cardId: payment.sourceCardId,
+        targetSlot: payment.targetSlot,
+        relayMode:
+          payment.relayReplacements && payment.relayReplacements.length > 1 ? 'DOUBLE' : undefined,
+        relayReplacementSlots: payment.relayReplacements?.map((replacement) => replacement.slot),
+        timestamp: command.timestamp,
+      },
+      (payment.relayReplacements?.length ?? 0) > 0
+    );
   }
 
   private applyCostPaymentToState(
@@ -3857,7 +4268,6 @@ export class GameSession {
           targetSlot: command.targetSlot,
           position: command.position,
           liveDeskMoveExempt: this.isLiveDeskMoveStageExempt(state, command),
-          asMemberBelow: command.asMemberBelow,
         }
       )
     );
@@ -3922,9 +4332,11 @@ export class GameSession {
     state: GameState,
     command: ConfirmEffectStepCommand
   ): CommandExecutionResult {
-    const resolveAsPlayerId = isPublicCardSelectionAutoAdvanceEffect(state.activeEffect)
-      ? (state.activeEffect.awaitingPlayerId ?? command.playerId)
-      : command.playerId;
+    const resolveAsPlayerId =
+      isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
+      isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect)
+        ? (state.activeEffect.awaitingPlayerId ?? command.playerId)
+        : command.playerId;
     const resolvedState = confirmActiveEffectStep(
       state,
       resolveAsPlayerId,
@@ -3936,7 +4348,8 @@ export class GameSession {
       command.selectedCardIds,
       command.selectedNumber,
       command.stageFormationMoveHistory,
-      command.stageFormationPlacements
+      command.stageFormationPlacements,
+      command.selectedEffectOptionIds
     );
     if (resolvedState === state) {
       return {
@@ -3946,7 +4359,11 @@ export class GameSession {
       };
     }
 
-    const nextState = attachPublicCardSelectionAutoAdvanceDeadline(resolvedState, this.now());
+    const now = this.now();
+    const nextState = attachPublicEffectChoiceAutoAdvanceDeadline(
+      attachPublicCardSelectionAutoAdvanceDeadline(resolvedState, now),
+      now
+    );
 
     return {
       success: true,
@@ -3960,6 +4377,8 @@ export class GameSession {
           payload: {
             effectId: command.effectId,
             selectedCardId: command.selectedCardId ?? null,
+            selectedOptionId: command.selectedOptionId ?? null,
+            selectedEffectOptionIds: command.selectedEffectOptionIds,
             selectedNumber: command.selectedNumber ?? null,
             stageFormationMoveHistory: command.stageFormationMoveHistory,
             stageFormationPlacements: command.stageFormationPlacements,

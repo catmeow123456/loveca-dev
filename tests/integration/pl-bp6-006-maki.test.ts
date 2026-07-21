@@ -13,14 +13,14 @@ import {
   type GameState,
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
-import {
-  BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
-} from '../../src/application/card-effects/ability-ids';
+import { BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   createActivateAbilityCommand,
+  createAutoAdvancePublicEffectChoiceCommand,
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
   CardType,
   FaceState,
@@ -143,6 +143,38 @@ function createMainPhaseSession(state: GameState): ReturnType<typeof createGameS
   return session;
 }
 
+function chooseHeartColor(session: ReturnType<typeof createGameSession>, color: HeartColor) {
+  const effectId = session.state!.activeEffect!.id;
+  const selected = session.executeCommand(
+    createConfirmEffectStepCommand(
+      PLAYER1,
+      effectId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [color]
+    )
+  );
+  expect(selected.success, selected.error).toBe(true);
+  expect(session.state?.activeEffect).toMatchObject({
+    stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+    effectChoice: { selectedOptionIds: [color] },
+  });
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: {
+      ...session.state!.activeEffect!,
+      publicEffectChoiceAutoAdvanceAt: 0,
+    },
+  };
+  return session.executeCommand(createAutoAdvancePublicEffectChoiceCommand(PLAYER1, effectId, 0));
+}
+
 describe('PL!-bp6-006 Maki workflow', () => {
   it('PL!-bp6-006 cannot activate without a hand card and does not consume turn once', () => {
     const maki = createCardInstance(
@@ -150,7 +182,9 @@ describe('PL!-bp6-006 Maki workflow', () => {
       PLAYER1,
       'maki-no-hand'
     );
-    let game = registerCards(createGameState('bp6-006-no-hand', PLAYER1, 'P1', PLAYER2, 'P2'), [maki]);
+    let game = registerCards(createGameState('bp6-006-no-hand', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      maki,
+    ]);
     game = placeStageMember(game, maki.instanceId);
     game = setPlayerZones(game, { hand: [] });
     const session = createMainPhaseSession(game);
@@ -243,19 +277,11 @@ describe('PL!-bp6-006 Maki workflow', () => {
     session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
     );
-    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.id)).toContain(
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toContain(
       HeartColor.RED
     );
-    session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        HeartColor.RED
-      )
-    );
+    expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
+    expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([
       revealedCards[0]!.instanceId,
       revealedCards[1]!.instanceId,
@@ -367,16 +393,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
     session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
     );
-    session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        HeartColor.RED
-      )
-    );
+    expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
 
     const inspectedCardIds = session.state!.activeEffect!.inspectionCardIds!;
     const selectedCardId = session.state!.activeEffect!.selectableCardIds![0]!;
@@ -430,7 +447,11 @@ describe('PL!-bp6-006 Maki workflow', () => {
         PLAYER1,
         'blue-member'
       ),
-      createCardInstance(createLiveCard('PL!-red-live', { requirements: { [HeartColor.RED]: 1 } }), PLAYER1, 'red-live'),
+      createCardInstance(
+        createLiveCard('PL!-red-live', { requirements: { [HeartColor.RED]: 1 } }),
+        PLAYER1,
+        'red-live'
+      ),
     ];
     let game = registerCards(createGameState('bp6-006-miss', PLAYER1, 'P1', PLAYER2, 'P2'), [
       maki,
@@ -454,16 +475,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
     session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
     );
-    session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        HeartColor.RED
-      )
-    );
+    expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
 
     const player = getPlayerById(session.state!, PLAYER1)!;
     expect(session.state?.activeEffect).toBeNull();
@@ -510,16 +522,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
     session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, cost.instanceId)
     );
-    session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        session.state!.activeEffect!.id,
-        undefined,
-        undefined,
-        undefined,
-        HeartColor.RED
-      )
-    );
+    expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
 
     expect(session.state?.activeEffect).toBeNull();
     expect(getPlayerById(session.state!, PLAYER1)!.hand.cardIds).toEqual([]);

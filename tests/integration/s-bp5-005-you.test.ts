@@ -74,28 +74,31 @@ function pending(sourceCardId: string, id = 's-bp5-005-pending'): PendingAbility
   };
 }
 
-function setup(options: {
-  readonly sourceEntered?: boolean;
-  readonly handCards?: readonly CardInstance[];
-  readonly stageMembers?: readonly {
-    readonly card: CardInstance<MemberCardData>;
-    readonly slot: SlotPosition;
-    readonly enteredThisTurn?: boolean;
-  }[];
-  readonly extraPending?: readonly PendingAbilityState[];
-} = {}) {
+function setup(
+  options: {
+    readonly sourceEntered?: boolean;
+    readonly handCards?: readonly CardInstance[];
+    readonly stageMembers?: readonly {
+      readonly card: CardInstance<MemberCardData>;
+      readonly slot: SlotPosition;
+      readonly enteredThisTurn?: boolean;
+    }[];
+    readonly extraPending?: readonly PendingAbilityState[];
+  } = {}
+) {
   const source = instance(
     member('PL!S-bp5-005-R＋', { name: '渡辺 曜', groupNames: ['Aqours'] }),
     'you-source'
   );
-  const handCards =
-    options.handCards ??
-    [instance(member('PL!S-test-hand', { name: 'Discard cost' }), 'discard-cost')];
+  const handCards = options.handCards ?? [
+    instance(member('PL!S-test-hand', { name: 'Discard cost' }), 'discard-cost'),
+  ];
   const stageMembers = options.stageMembers ?? [];
-  let game = registerCards(
-    createGameState('s-bp5-005-you', PLAYER1, 'P1', PLAYER2, 'P2'),
-    [source, ...handCards, ...stageMembers.map((entry) => entry.card)]
-  );
+  let game = registerCards(createGameState('s-bp5-005-you', PLAYER1, 'P1', PLAYER2, 'P2'), [
+    source,
+    ...handCards,
+    ...stageMembers.map((entry) => entry.card),
+  ]);
   game = updatePlayer(game, PLAYER1, (player) => {
     let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
       orientation: OrientationState.ACTIVE,
@@ -147,21 +150,30 @@ function confirmDiscard(game: GameState, selectedCardId?: string | null): GameSt
 }
 
 function chooseHeart(game: GameState, selectedOptionId: HeartColor): GameState {
-  const effect = game.activeEffect!;
-  return confirmActiveEffectStep(
+  const publicChoice = confirmActiveEffectStep(
     game,
     PLAYER1,
-    effect.id,
+    game.activeEffect!.id,
     undefined,
     undefined,
     undefined,
-    selectedOptionId
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    [selectedOptionId]
   );
+  return publicChoice === game
+    ? game
+    : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
 }
 
 function latestPayload(game: GameState): Record<string, unknown> | undefined {
   return game.actionHistory
-    .filter((action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === ABILITY_ID)
+    .filter(
+      (action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === ABILITY_ID
+    )
     .at(-1)?.payload;
 }
 
@@ -195,16 +207,30 @@ describe('PL!S-bp5-005 渡辺 曜', () => {
 
     expect(player.hand.cardIds).toEqual([]);
     expect(player.waitingRoom.cardIds).toEqual([handCards[0]!.instanceId]);
-    expect(state.activeEffect?.selectableOptions).toEqual([
-      { id: HeartColor.YELLOW, label: '[黄ハート]' },
-      { id: HeartColor.GREEN, label: '[緑ハート]' },
-      { id: HeartColor.BLUE, label: '[青ハート]' },
-    ]);
+    expect(state.activeEffect?.effectChoice).toMatchObject({
+      mode: 'SINGLE',
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
+      options: [
+        {
+          id: HeartColor.YELLOW,
+          text: '自己舞台上这个回合登场的成员中，所有『Aqours』以外的成员获得[黄ハート]。',
+        },
+        {
+          id: HeartColor.GREEN,
+          text: '自己舞台上这个回合登场的成员中，所有『Aqours』以外的成员获得[緑ハート]。',
+        },
+        {
+          id: HeartColor.BLUE,
+          text: '自己舞台上这个回合登场的成员中，所有『Aqours』以外的成员获得[青ハート]。',
+        },
+      ],
+    });
     expect(
       state.actionHistory.some(
         (action) =>
-          action.type === 'PAY_COST' &&
-          action.payload.discardedCardId === handCards[0]!.instanceId
+          action.type === 'PAY_COST' && action.payload.discardedCardId === handCards[0]!.instanceId
       )
     ).toBe(true);
     expect(state.eventLog.at(-1)?.event).toMatchObject({

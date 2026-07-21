@@ -39,6 +39,7 @@ import { GameService, type DeckConfig } from '../../src/application/game-service
 import { createTapMemberAction } from '../../src/application/actions';
 import {
   createActivateAbilityCommand,
+  createAutoAdvancePublicEffectChoiceCommand,
   createConfirmEffectStepCommand,
   createConfirmStepCommand,
   createFinishInspectionWithArrangementCommand,
@@ -139,6 +140,19 @@ import { resolvePendingAbilityStarterWithRegistry } from '../../src/application/
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
+
+function autoAdvancePublicEffectChoice(session: ReturnType<typeof createGameSession>): void {
+  const publicChoice = session.state!.activeEffect!;
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: { ...publicChoice, publicEffectChoiceAutoAdvanceAt: 0 },
+  };
+  expect(
+    session.executeCommand(
+      createAutoAdvancePublicEffectChoiceCommand(PLAYER2, publicChoice.id, 0)
+    ).success
+  ).toBe(true);
+}
 
 const RIN_LIKE_MEMBER_ACTIVATION_TEST_CASES = [
   { cardCode: 'PL!-sd1-005-SD', name: '星空 凛' },
@@ -800,14 +814,20 @@ function setupTsukiyomiManualCheerAdjustmentSession(
   return session;
 }
 
-function removeFromPlayerZones(player: {
-  hand: { cardIds: string[] };
-  mainDeck: { cardIds: string[] };
-  waitingRoom: { cardIds: string[] };
-  successZone: { cardIds: string[] };
-  liveZone: { cardIds: string[] };
-}): void {
-  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
+function removeFromPlayerZones(
+  player: {
+    hand: { cardIds: string[] };
+    mainDeck: { cardIds: string[] };
+    waitingRoom: { cardIds: string[] };
+    successZone: { cardIds: string[] };
+    liveZone: { cardIds: string[] };
+  },
+  excludedCardIds: readonly string[] = []
+): void {
+  const excludedCardIdSet = new Set(excludedCardIds);
+  const ruleSentinelCardId = player.mainDeck.cardIds.find(
+    (cardId) => !excludedCardIdSet.has(cardId)
+  );
   const zones = [player.hand, player.waitingRoom, player.successZone, player.liveZone];
   for (const zone of zones) {
     zone.cardIds = [];
@@ -2163,7 +2183,13 @@ describe('sample card effect runner', () => {
     nonMuseLive.data = createLiveCard('PR-017-NON-MUSE-LIVE', 'Non Muse Live', '虹咲');
     successScore3Live.data = createLiveCard('PR-017-SUCCESS-THREE', 'Success Three');
 
-    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p1, [
+      nicoCardId!,
+      targetMuseLiveId!,
+      nonMuseLiveId!,
+      successScore6LiveId!,
+      successScore3LiveId!,
+    ]);
     p1.memberSlots.slots[SlotPosition.CENTER] = nicoCardId!;
     p1.memberSlots.cardStates = new Map([
       [nicoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -2343,7 +2369,12 @@ describe('sample card effect runner', () => {
     nonMuseLive.data = createLiveCard('PR-017-NON-MUSE-LIVE', 'Non Muse Live', '虹咲');
     successScore3Live.data = createLiveCard('PR-017-SUCCESS-THREE', 'Success Three');
 
-    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p1, [
+      nicoCardId!,
+      nonMuseLiveId!,
+      successScore6LiveId!,
+      successScore3LiveId!,
+    ]);
     p1.memberSlots.slots[SlotPosition.CENTER] = nicoCardId!;
     p1.memberSlots.cardStates = new Map([
       [nicoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -10393,10 +10424,10 @@ describe('sample card effect runner', () => {
     );
 
     expect(discardResult.success).toBe(true);
-    expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: HeartColor.PINK, label: '粉心' },
-      { id: HeartColor.YELLOW, label: '黄心' },
-      { id: HeartColor.PURPLE, label: '紫心' },
+    expect(session.state?.activeEffect?.effectChoice?.options).toEqual([
+      { id: HeartColor.PINK, text: '获得[桃ハート]。' },
+      { id: HeartColor.YELLOW, text: '获得[黄ハート]。' },
+      { id: HeartColor.PURPLE, text: '获得[紫ハート]。' },
     ]);
 
     const heartResult = session.executeCommand(
@@ -10406,11 +10437,20 @@ describe('sample card effect runner', () => {
         undefined,
         undefined,
         undefined,
-        HeartColor.YELLOW
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [HeartColor.YELLOW]
       )
     );
 
     expect(heartResult.success).toBe(true);
+    expect(session.state?.activeEffect?.effectChoice?.selectedOptionIds).toEqual([
+      HeartColor.YELLOW,
+    ]);
+    autoAdvancePublicEffectChoice(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
@@ -10524,13 +10564,13 @@ describe('sample card effect runner', () => {
     );
 
     expect(discardResult.success).toBe(true);
-    expect(session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: HeartColor.PINK, label: '粉心' },
-      { id: HeartColor.RED, label: '红心' },
-      { id: HeartColor.YELLOW, label: '黄心' },
-      { id: HeartColor.GREEN, label: '绿心' },
-      { id: HeartColor.BLUE, label: '蓝心' },
-      { id: HeartColor.PURPLE, label: '紫心' },
+    expect(session.state?.activeEffect?.effectChoice?.options).toEqual([
+      { id: HeartColor.PINK, text: '获得[桃ハート]。' },
+      { id: HeartColor.RED, text: '获得[赤ハート]。' },
+      { id: HeartColor.YELLOW, text: '获得[黄ハート]。' },
+      { id: HeartColor.GREEN, text: '获得[緑ハート]。' },
+      { id: HeartColor.BLUE, text: '获得[青ハート]。' },
+      { id: HeartColor.PURPLE, text: '获得[紫ハート]。' },
     ]);
 
     const heartResult = session.executeCommand(
@@ -10540,11 +10580,20 @@ describe('sample card effect runner', () => {
         undefined,
         undefined,
         undefined,
-        HeartColor.BLUE
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [HeartColor.BLUE]
       )
     );
 
     expect(heartResult.success).toBe(true);
+    expect(session.state?.activeEffect?.effectChoice?.selectedOptionIds).toEqual([
+      HeartColor.BLUE,
+    ]);
+    autoAdvancePublicEffectChoice(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
@@ -13599,6 +13648,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(selectMemberBranchResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect?.stepId).toBe('EMMA_SELECT_MEMBER_TO_ACTIVATE');
     expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([targetMemberCardId]);
@@ -13710,6 +13760,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(selectEnergyBranchResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     for (const energyCardId of autoActivatedEnergyCardIds) {
       expect(session.state?.players[0].energyZone.cardStates.get(energyCardId)?.orientation).toBe(
@@ -13807,6 +13858,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(selectEnergyBranchResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].energyZone.cardStates.get(energyCardIds[0])?.orientation).toBe(
       OrientationState.ACTIVE

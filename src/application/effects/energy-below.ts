@@ -1,6 +1,8 @@
 import type { GameState } from '../../domain/entities/game.js';
-import { getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import { getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import { isEnergyCardData, isMemberCardData } from '../../domain/entities/card.js';
 import type { PlayerState } from '../../domain/entities/player.js';
+import { findMemberSlot } from '../../domain/entities/player.js';
 import {
   addCardToZone,
   addEnergyBelowMember,
@@ -14,6 +16,61 @@ import { resolveEnergySelectionForOperation } from './energy-selection.js';
 export interface StackEnergyBelowResult {
   readonly gameState: GameState;
   readonly stackedEnergyCardIds: readonly string[];
+}
+
+export interface PlaceEnergyFromEnergyDeckBelowStageMemberResult {
+  readonly gameState: GameState;
+  readonly targetSlot: SlotPosition;
+  readonly placedEnergyCardIds: readonly string[];
+}
+
+export function placeEnergyFromEnergyDeckBelowStageMember(
+  game: GameState,
+  playerId: string,
+  targetMemberCardId: string,
+  count: number
+): PlaceEnergyFromEnergyDeckBelowStageMemberResult | null {
+  if (!Number.isInteger(count) || count < 0) return null;
+  const player = getPlayerById(game, playerId);
+  const targetMember = getCardById(game, targetMemberCardId);
+  const targetSlot = player ? findMemberSlot(player, targetMemberCardId) : null;
+  if (
+    !player ||
+    !targetMember ||
+    targetMember.ownerId !== playerId ||
+    !isMemberCardData(targetMember.data) ||
+    targetSlot === null ||
+    player.memberSlots.slots[targetSlot] !== targetMemberCardId
+  ) {
+    return null;
+  }
+
+  const placedEnergyCardIds = player.energyDeck.cardIds.slice(0, count);
+  for (const energyCardId of placedEnergyCardIds) {
+    const energyCard = getCardById(game, energyCardId);
+    if (!energyCard || energyCard.ownerId !== playerId || !isEnergyCardData(energyCard.data)) {
+      return null;
+    }
+  }
+  if (placedEnergyCardIds.length === 0) {
+    return { gameState: game, targetSlot, placedEnergyCardIds };
+  }
+
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => {
+    let memberSlots = currentPlayer.memberSlots;
+    for (const energyCardId of placedEnergyCardIds) {
+      memberSlots = addEnergyBelowMember(memberSlots, targetSlot, energyCardId);
+    }
+    return {
+      ...currentPlayer,
+      energyDeck: {
+        ...currentPlayer.energyDeck,
+        cardIds: currentPlayer.energyDeck.cardIds.slice(placedEnergyCardIds.length),
+      },
+      memberSlots,
+    };
+  });
+  return { gameState, targetSlot, placedEnergyCardIds };
 }
 
 export interface ReturnEnergyBelowResult {

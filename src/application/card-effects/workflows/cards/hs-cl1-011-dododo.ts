@@ -205,6 +205,28 @@ function finishPayEnergy(
           id: mode.optionId,
           label: mode.label,
         })),
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            {
+              id: RECOVER_MEMBER_OPTION_ID,
+              text: '从自己的休息室将1张成员卡加入手牌。',
+              selectable: availableModes.some(
+                (mode) => mode.optionId === RECOVER_MEMBER_OPTION_ID
+              ),
+            },
+            {
+              id: RECOVER_HASUNOSORA_LIVE_OPTION_ID,
+              text: '自己的LIVE卡置场有2张以上卡的场合，从自己的休息室将1张『蓮ノ空』LIVE卡加入手牌。',
+              selectable: availableModes.some(
+                (mode) => mode.optionId === RECOVER_HASUNOSORA_LIVE_OPTION_ID
+              ),
+            },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         selectableCardIds: undefined,
         selectableCardMode: undefined,
         minSelectableCards: undefined,

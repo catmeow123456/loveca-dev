@@ -49,3 +49,25 @@ export function getWaitingRoomDelegatableOnEnterDefinitions(
       definition.delegatedOnEnterFromWaitingRoomPolicy === 'ALLOW'
   );
 }
+
+/**
+ * ON_ENTER abilities a concrete, current top-level stage member may delegate.
+ * Historical definitions use both PLAYED_MEMBER and STAGE_MEMBER for this timing.
+ */
+export function getStageMemberDelegatableOnEnterDefinitions(
+  cardCode: string,
+  sourceSlot: SlotPosition
+): readonly CardAbilityDefinition[] {
+  return getCardAbilityDefinitionsForCardCode(cardCode).filter(
+    (definition) =>
+      definition.implemented &&
+      definition.queued &&
+      definition.category === CardAbilityCategory.ON_ENTER &&
+      (definition.sourceZone === CardAbilitySourceZone.PLAYED_MEMBER ||
+        definition.sourceZone === CardAbilitySourceZone.STAGE_MEMBER) &&
+      definition.triggerCondition === TriggerCondition.ON_ENTER_STAGE &&
+      (definition.requiredSourceSlots === undefined ||
+        definition.requiredSourceSlots.length === 0 ||
+        definition.requiredSourceSlots.includes(sourceSlot))
+  );
+}

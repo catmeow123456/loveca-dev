@@ -76,9 +76,10 @@ function startEmmaOnEnterActivateMemberOrEnergy(
     player.id,
     OrientationState.WAITING
   );
+  const hasEnergyCards = player.energyZone.cardIds.length > 0;
   const selectableOptions = [
     ...(waitingMemberCardIds.length > 0 ? [{ id: 'member', label: '选择1名成员' }] : []),
-    ...(waitingEnergyCardIds.length > 0 ? [{ id: 'energy', label: '将能量变活跃' }] : []),
+    ...(hasEnergyCards ? [{ id: 'energy', label: '将能量变活跃' }] : []),
   ];
 
   return startPendingActiveEffect(game, {
@@ -97,6 +98,27 @@ function startEmmaOnEnterActivateMemberOrEnergy(
           : '当前没有待机状态的舞台成员或能量。确认后继续。',
       awaitingPlayerId: player.id,
       selectableOptions,
+      effectChoice:
+        selectableOptions.length > 0
+          ? {
+              mode: 'SINGLE',
+              options: [
+                {
+                  id: 'member',
+                  text: '将1名存在于自己的舞台的成员变为活跃状态。',
+                  selectable: waitingMemberCardIds.length > 0,
+                },
+                {
+                  id: 'energy',
+                  text: '将2张能量变为活跃状态。',
+                  selectable: hasEnergyCards,
+                },
+              ],
+              minSelections: 1,
+              maxSelections: 1,
+              publicConfirmation: true,
+            }
+          : undefined,
       canSkipSelection: selectableOptions.length === 0,
       skipSelectionLabel: selectableOptions.length === 0 ? '确认' : undefined,
       metadata: {
@@ -139,8 +161,15 @@ function startEmmaTargetSelection(
     player.id,
     OrientationState.WAITING
   );
+  const selectedOptionWasOffered = effect.selectableOptions?.some(
+    (option) => option.id === selectedOptionId
+  );
 
-  if (selectedOptionId === 'member' && waitingMemberCardIds.length > 0) {
+  if (
+    selectedOptionWasOffered &&
+    selectedOptionId === 'member' &&
+    waitingMemberCardIds.length > 0
+  ) {
     return addAction(
       {
         ...game,
@@ -148,6 +177,7 @@ function startEmmaTargetSelection(
           ...effect,
           stepId: EMMA_SELECT_MEMBER_STEP_ID,
           stepText: '请选择1名要变为活跃状态的舞台成员。',
+          effectChoice: undefined,
           selectableCardIds: waitingMemberCardIds,
           selectableCardMode: 'SINGLE',
           minSelectableCards: undefined,
@@ -176,11 +206,11 @@ function startEmmaTargetSelection(
     );
   }
 
-  if (selectedOptionId === 'energy' && waitingEnergyCardIds.length > 0) {
+  if (selectedOptionWasOffered && selectedOptionId === 'energy') {
     return finishEmmaActivateEnergy(game, continuePendingCardEffects);
   }
 
-  if (waitingMemberCardIds.length > 0 || waitingEnergyCardIds.length > 0) {
+  if (waitingMemberCardIds.length > 0 || player.energyZone.cardIds.length > 0) {
     return game;
   }
 

@@ -235,21 +235,31 @@ describe('member cost payment', () => {
     ).toBe(true);
   });
 
-  it('prevents LL-bp2-001-R+ from being sent to waiting room by relay', () => {
+  it('allows full-cost direct play over LL-bp2-001-R+ and applies the duplicate-member rule without relay', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('ll-bp2-relay-prohibition-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'll-bp2-relay-prohibition-payment',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 2);
 
     const state = session.state!;
     const player = state.players[0] as unknown as {
       hand: { cardIds: string[] };
       mainDeck: { cardIds: string[] };
+      energyDeck: { cardIds: string[] };
+      energyZone: { cardIds: string[] };
       memberSlots: {
         slots: Record<SlotPosition, string | null>;
         energyBelow: Record<SlotPosition, string[]>;
+        memberBelow: Record<SlotPosition, string[]>;
         cardStates: Map<string, { orientation: OrientationState }>;
       };
     };
@@ -258,7 +268,133 @@ describe('member cost payment', () => {
     );
     const incomingCardId = ownedMemberCardIds[0];
     const protectedCardId = ownedMemberCardIds[1];
+    const memberBelowCardId = ownedMemberCardIds[2];
+    const energyBelowCardId = player.energyDeck.cardIds[0];
 
+    expect(incomingCardId).toBeTruthy();
+    expect(protectedCardId).toBeTruthy();
+    expect(memberBelowCardId).toBeTruthy();
+    expect(energyBelowCardId).toBeTruthy();
+
+    (state.cardRegistry.get(incomingCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('TEST-INCOMING', 'Incoming Member', 2);
+    (state.cardRegistry.get(protectedCardId!) as unknown as { data: MemberCardData }).data =
+      createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20);
+
+    player.hand.cardIds = [incomingCardId!];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) =>
+        cardId !== incomingCardId && cardId !== protectedCardId && cardId !== memberBelowCardId
+    );
+    player.energyDeck.cardIds = player.energyDeck.cardIds.filter(
+      (cardId) => cardId !== energyBelowCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = protectedCardId!;
+    player.memberSlots.memberBelow[SlotPosition.CENTER] = [memberBelowCardId!];
+    player.memberSlots.energyBelow[SlotPosition.CENTER] = [energyBelowCardId!];
+    player.memberSlots.cardStates = new Map([
+      [protectedCardId!, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const eventLogLengthBeforePlay = state.eventLog.length;
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingCardId!, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(incomingCardId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].hand.cardIds).not.toContain(incomingCardId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([protectedCardId, memberBelowCardId])
+    );
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(energyBelowCardId);
+    expect(session.state?.players[0].energyDeck.cardIds).toContain(energyBelowCardId);
+
+    const payCostAction = session.state?.actionHistory.find(
+      (action) => action.type === 'PAY_COST' && action.payload.sourceCardId === incomingCardId
+    );
+    expect(payCostAction?.payload).toMatchObject({
+      amount: 2,
+      relayDiscount: 0,
+      relayReplacements: [],
+    });
+    const playAction = session.state?.actionHistory.find(
+      (action) => action.type === 'PLAY_MEMBER' && action.payload.cardId === incomingCardId
+    );
+    expect(playAction?.payload).toMatchObject({
+      isRelay: false,
+      relayReplacements: [],
+      duplicateMemberRuleRemovedCardId: protectedCardId,
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'DUPLICATE_MEMBER' &&
+          action.payload.keptMemberCardId === incomingCardId
+      )
+    ).toBe(true);
+
+    const playEvents = session
+      .state!.eventLog.slice(eventLogLengthBeforePlay)
+      .map((entry) => entry.event);
+    const enterStageIndex = playEvents.findIndex(
+      (event) =>
+        event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+        'cardInstanceId' in event &&
+        event.cardInstanceId === incomingCardId
+    );
+    const protectedLeaveIndex = playEvents.findIndex(
+      (event) =>
+        event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
+        'cardInstanceId' in event &&
+        event.cardInstanceId === protectedCardId
+    );
+    expect(enterStageIndex).toBeGreaterThanOrEqual(0);
+    expect(protectedLeaveIndex).toBeGreaterThan(enterStageIndex);
+    expect(playEvents[enterStageIndex]).toMatchObject({
+      cardInstanceId: incomingCardId,
+      replacedMemberCardId: undefined,
+      relayReplacements: undefined,
+    });
+    expect(playEvents[protectedLeaveIndex]).toMatchObject({
+      cardInstanceId: protectedCardId,
+      replacingCardId: undefined,
+    });
+    expect(playEvents.some((event) => event.eventType === TriggerCondition.ON_RELAY)).toBe(false);
+  });
+
+  it('rejects direct play over LL-bp2-001-R+ when the full current cost cannot be paid', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame(
+      'll-bp2-direct-payment-insufficient',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 1);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const incomingCardId = ownedMemberCardIds[0];
+    const protectedCardId = ownedMemberCardIds[1];
     expect(incomingCardId).toBeTruthy();
     expect(protectedCardId).toBeTruthy();
 
@@ -266,7 +402,6 @@ describe('member cost payment', () => {
       createMemberCard('TEST-INCOMING', 'Incoming Member', 2);
     (state.cardRegistry.get(protectedCardId!) as unknown as { data: MemberCardData }).data =
       createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20);
-
     player.hand.cardIds = [incomingCardId!];
     player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
       (cardId) => cardId !== incomingCardId && cardId !== protectedCardId
@@ -281,17 +416,23 @@ describe('member cost payment', () => {
     );
 
     expect(playResult.success).toBe(false);
-    expect(playResult.error).toContain('无法因换手');
+    expect(playResult.error).toContain('费用不足');
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(protectedCardId);
     expect(session.state?.players[0].hand.cardIds).toEqual([incomingCardId]);
     expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(protectedCardId);
   });
 
-  it('prevents PL!HS-bp6-006 from being relayed away by a non-Mira-Cra member', () => {
+  it('uses full-cost direct play when a non-Mira-Cra member cannot relay PL!HS-bp6-006', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('hs-bp6-006-non-miracra-relay-prohibition', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'hs-bp6-006-non-miracra-relay-prohibition',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -337,11 +478,28 @@ describe('member cost payment', () => {
       createPlayMemberToSlotCommand(PLAYER1, incomingCardId!, SlotPosition.CENTER)
     );
 
-    expect(playResult.success).toBe(false);
-    expect(playResult.error).toContain('无法因换手');
-    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(himeCardId);
-    expect(session.state?.players[0].hand.cardIds).toEqual([incomingCardId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(himeCardId);
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(incomingCardId);
+    expect(session.state?.players[0].hand.cardIds).not.toContain(incomingCardId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(himeCardId);
+    const payCostAction = session.state?.actionHistory.find(
+      (action) => action.type === 'PAY_COST' && action.payload.sourceCardId === incomingCardId
+    );
+    expect(payCostAction?.payload).toMatchObject({
+      amount: 4,
+      relayDiscount: 0,
+      relayReplacements: [],
+    });
+    expect(
+      session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+          'cardInstanceId' in entry.event &&
+          entry.event.cardInstanceId === incomingCardId &&
+          'relayReplacements' in entry.event &&
+          entry.event.relayReplacements !== undefined
+      )
+    ).toBe(false);
   });
 
   it('allows PL!HS-bp6-006 to be relayed away by a Mira-Cra member', () => {

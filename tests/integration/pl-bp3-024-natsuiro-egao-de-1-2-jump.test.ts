@@ -162,15 +162,23 @@ function setup(options: {
 }
 
 function chooseColor(game: GameState, color: HeartColor): GameState {
-  return confirmActiveEffectStep(
+  const publicChoice = confirmActiveEffectStep(
     game,
     PLAYER1,
     game.activeEffect!.id,
     undefined,
     undefined,
-    false,
-    color
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    [color]
   );
+  return publicChoice === game
+    ? game
+    : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
 }
 
 function scoreModifiers(game: GameState) {
@@ -192,11 +200,17 @@ describe('PL!-bp3-024-L 夏色えがおで1,2,Jump! LIVE-start abilities', () =>
       stepText: '请选择本次获得的Heart颜色。',
       selectionLabel: '选择Heart颜色',
       confirmSelectionLabel: '获得Heart',
-      selectableOptions: [
-        { id: HeartColor.PINK, label: '[桃ハート]' },
-        { id: HeartColor.YELLOW, label: '[黄ハート]' },
-        { id: HeartColor.PURPLE, label: '[紫ハート]' },
-      ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: HeartColor.PINK, text: '选择的成员获得[桃ハート]。' },
+          { id: HeartColor.YELLOW, text: '选择的成员获得[黄ハート]。' },
+          { id: HeartColor.PURPLE, text: '选择的成员获得[紫ハート]。' },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
     });
     expect(colorStep.activeEffect?.effectText).not.toMatch(/source|pending|stale|eventId|trigger/);
@@ -212,7 +226,12 @@ describe('PL!-bp3-024-L 夏色えがおで1,2,Jump! LIVE-start abilities', () =>
           undefined,
           undefined,
           undefined,
-          HeartColor.RED
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [HeartColor.RED]
         )
       ).success
     ).toBe(false);
@@ -223,6 +242,7 @@ describe('PL!-bp3-024-L 夏色えがおで1,2,Jump! LIVE-start abilities', () =>
     expect(targetStep.activeEffect).toMatchObject({
       selectableCardIds: [scenario.museMemberCardId],
       selectableOptions: undefined,
+      effectChoice: undefined,
       canSkipSelection: false,
     });
     expect(targetStep.activeEffect?.selectableCardIds).not.toContain(scenario.nonMuseMemberCardId);

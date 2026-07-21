@@ -12,6 +12,8 @@ import {
   HS_BP2_002_ON_ENTER_RECOVER_LOW_COST_MEMBER_ABILITY_ID,
   HS_PB1_025_LIVE_SUCCESS_HAND_SIX_RECOVER_MEMBER_ABILITY_ID,
   KOTORI_ON_ENTER_ABILITY_ID,
+  LL_BP7_001_LIVE_SUCCESS_RECOVER_MEMBER_ABILITY_ID,
+  LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
@@ -81,6 +83,30 @@ interface RegisteredWaitingRoomToHandWorkflowConfig extends Omit<
 }
 
 const WAITING_ROOM_TO_HAND_WORKFLOWS: readonly RegisteredWaitingRoomToHandWorkflowConfig[] = [
+  {
+    abilityId: LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
+    stepId: 'LL_BP7_001_SELECT_WAITING_ROOM_LIVE',
+    stepText: '请选择自己的休息室中1张LIVE卡加入手牌。',
+    selectionLabel: '选择要加入手牌的LIVE卡',
+    confirmSelectionLabel: '加入手牌',
+    candidateBuilder: (game, playerId) =>
+      selectWaitingRoomCardIds(game, playerId, typeIs(CardType.LIVE)),
+    countRule: { exactCount: 1 },
+    optional: false,
+    noCandidatesActionStep: 'NO_WAITING_ROOM_LIVE_TARGET',
+  },
+  {
+    abilityId: LL_BP7_001_LIVE_SUCCESS_RECOVER_MEMBER_ABILITY_ID,
+    stepId: 'LL_BP7_001_SELECT_WAITING_ROOM_MEMBER',
+    stepText: '请选择自己的休息室中1张成员卡加入手牌。',
+    selectionLabel: '选择要加入手牌的成员卡',
+    confirmSelectionLabel: '加入手牌',
+    candidateBuilder: (game, playerId) =>
+      selectWaitingRoomCardIds(game, playerId, typeIs(CardType.MEMBER)),
+    countRule: { exactCount: 1 },
+    optional: false,
+    noCandidatesActionStep: 'NO_WAITING_ROOM_MEMBER_TARGET',
+  },
   {
     abilityId: HONOKA_ON_ENTER_ABILITY_ID,
     stepId: SELECT_WAITING_ROOM_CARD_STEP_ID,

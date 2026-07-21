@@ -43,7 +43,7 @@
 |---|---|---|---|
 | R-0 | done | 建立卡效框架总文档与权威关系。 | `README.md`、目标架构、模块边界、迁移路线和旧文档索引落地。 |
 | R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，更多区域移动/公开确认 helper 待真实 workflow 推动。 |
-| R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中时直接保持状态不变并返回；look-top、抽后弃、回收等 workflow 已迁入 registry，runner 不再承载完整卡效 fallback。 |
+| R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中时直接保持状态不变并返回；look-top、抽后弃、回收等 workflow 已迁入 registry，runner 不再承载完整卡效 fallback。真实单选/多选卡文分支已使用结构化 `effectChoice` 与固定 1500ms 双方公开 runtime；普通动作选项继续使用原字段。 |
 | R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中时直接保持状态不变并返回；新增 queued workflow 必须注册 starter。 |
 | R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、activated pay-energy draw、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
 | R-5 | partial | special card workflow 迁出。 | `HS_BP1_002`、`HS_BP5_001` activated、`HS_PB1_004`、`BP5_003`、`YOSHIKO`、`HANAYO` activated、`BP5_007` pending workflow 已迁出；`HS_BP5_003` 离场站位变换段与 LIVE 开始弃手加 Heart 段均已迁入 Rurino 单卡 workflow；runner 完整卡效 fallback 已清空，但仍保留若干 matcher / relay / trigger 条件胶水。 |
@@ -812,6 +812,14 @@ These effects may remain card-specific, but should leave runner only after a nar
 - `PL!-bp6-024-L` 分数 3「錯覚CROSSROADS」：成功区放置替代 hook 已迁入 BP6_024 单卡 hook 模块。
 - `MAKI_ON_ENTER_ABILITY_ID`：已迁入 MAKI 单卡 workflow，保留对 BP6_024 replacement hook 的调用。
 - `PL!-bp5-007` 费用 13「东条希」：换手登场后双方弃到 3 并各抽 3，已迁入 `workflows/cards/pl-bp5-007-nozomi.ts`；runner 仅保留 relay/有效费用触发门禁胶水。
+
+## 2026-07 bottom direct-mill slice
+
+`PL!S-bp7-006-P` 费用2「津岛善子」与 `PL!S-bp7-015-N` 费用5「津岛善子」建立了最小卡组底 direct-mill 原语、标准批量事件 wrapper 与窄 shared workflow family。实际移动卡现复用 direct top-mill 的 `activeEffect.revealedCardIds` 公开结果形状向双方展示，确认前不写 Heart、确认后才按实际集合判定；公开窗口取代纯 confirm-only。runner 只新增 import/register 胶水。该切片不表示已完成所有卡组底机制、从卡组底声援、底部堆墓后抽牌/加分/修改 LIVE 需求，也没有引入 steps DSL。
+
+第二批 `PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」在同一原语上补充两个具体卡牌样本：bottom-mill 后按实际移动集合写来源 LIVE requirement，或在舞台门槛后抽牌并写来源 LIVE SCORE。两张卡的底牌能力现都于实际移动和分组事件后先公开真实 `movedCardIds`，确认窗口期间不写 requirement、不抽牌、不写 SCORE；020 确认后按结构化 Aqours MEMBER 条件 replacement，021 确认后按5张中的 MEMBER 数量执行对应奖励。020 的公开“全舞台成员 ACTIVE”段仍进入既有 `conditional-live-modifier` family；两个 bottom 段保持单卡 workflow。该批没有扩第一批 gain-heart family、没有建立任意 bottom reward DSL、没有覆盖从卡组底声援或其他 bp7。
+
+第三个 exact 样本 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」单独建立声援方向边界：`CheerDeckEdge` 纯 query、zone 底部单张抽取与统一 `revealCheerCardsFromMainDeck`。普通/手动/自动/追加/重做声援不再保留第二套循环，但这仍不是任意牌库方向 DSL；当前只有 022 提供 BOTTOM。本批不改造 bottom direct-mill，不实现其他 bp7。同卡 LIVE_SUCCESS 以 event-inclusive 事实与小型确定性匹配解决“三张不同卡覆盖红绿蓝”，runner 只增加一条 import/register。
 
 ## Guardrails
 

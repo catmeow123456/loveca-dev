@@ -40,6 +40,11 @@ export interface DifferentStructuredUnitCardMatch<T> {
   readonly normalizedUnitName: string;
 }
 
+export interface RequiredCardNameAssignment<T> {
+  readonly item: T;
+  readonly requiredName: string;
+}
+
 const CARD_NAME_ALIAS_GROUPS: readonly (readonly string[])[] = [
   ['高坂穂乃果', '高坂穗乃果'],
   ['絢瀬絵里', '绚濑绘里'],
@@ -281,6 +286,54 @@ export function cardNameMatchesAnyAlias(
   names: readonly string[]
 ): boolean {
   return names.some((name) => cardNameAliasMatches(card, name));
+}
+
+/**
+ * Assigns distinct card instances to distinct required member-name slots.
+ *
+ * Multi-name cards contribute at most one identity. The backtracking search is
+ * intentionally maximum matching rather than candidate-order greedy matching.
+ */
+export function assignCardsToRequiredNames<T>(
+  items: readonly T[],
+  requiredNames: readonly string[],
+  getCard: (item: T) => CardIdentityLike | null | undefined
+): readonly RequiredCardNameAssignment<T>[] {
+  if (items.length < requiredNames.length) {
+    return [];
+  }
+
+  const assignments: RequiredCardNameAssignment<T>[] = [];
+  const usedItemIndexes = new Set<number>();
+
+  const search = (requiredNameIndex: number): boolean => {
+    if (requiredNameIndex >= requiredNames.length) {
+      return true;
+    }
+
+    const requiredName = requiredNames[requiredNameIndex];
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      if (usedItemIndexes.has(itemIndex)) {
+        continue;
+      }
+      const item = items[itemIndex];
+      const card = getCard(item);
+      if (!card || !cardNameAliasMatches(card, requiredName)) {
+        continue;
+      }
+
+      usedItemIndexes.add(itemIndex);
+      assignments.push({ item, requiredName });
+      if (search(requiredNameIndex + 1)) {
+        return true;
+      }
+      assignments.pop();
+      usedItemIndexes.delete(itemIndex);
+    }
+    return false;
+  };
+
+  return search(0) ? assignments : [];
 }
 
 function getNormalizedCardNameAliases(name: string): readonly string[] {

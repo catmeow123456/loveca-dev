@@ -145,10 +145,19 @@ function startLiveStartDiscardOrReturnEnergy(
       stepId: LIVE_START_DECISION_STEP_ID,
       stepText: '可以弃1张手牌。若不弃手，则必须将自己的1张能量放回能量卡组。',
       awaitingPlayerId: player.id,
-      selectableOptions: [
-        { id: DISCARD_OPTION_ID, label: '弃1张手牌' },
-        { id: DECLINE_DISCARD_OPTION_ID, label: '不弃手，返回1张能量' },
-      ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: DISCARD_OPTION_ID, text: '将1张手牌放置入休息室。' },
+          {
+            id: DECLINE_DISCARD_OPTION_ID,
+            text: '不将手牌放置入休息室，将自己的1张能量放置入能量卡组。',
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       confirmSelectionLabel: '确定',
       canSkipSelection: false,
       metadata: {
@@ -183,6 +192,7 @@ function finishLiveStartDecision(
         ...effect,
         stepId: LIVE_START_SELECT_DISCARD_STEP_ID,
         stepText: '请选择1张手牌放置入休息室。',
+        effectChoice: undefined,
         selectableOptions: undefined,
         selectableCardIds: player.hand.cardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
@@ -396,34 +406,12 @@ function startLiveSuccessOptionSelection(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
+  _continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
   }
-  const selectableOptions = [
-    { id: DRAW_TWO_OPTION_ID, label: '抽2张卡' },
-    ...(player.energyDeck.cardIds.length > 0
-      ? [{ id: PLACE_WAITING_ENERGY_OPTION_ID, label: '放置1张待机能量' }]
-      : []),
-  ];
-  if (selectableOptions.length === 0) {
-    return finishPendingAbility(
-      game,
-      player.id,
-      ability,
-      orderedResolution,
-      {
-        step: 'NO_OP_NO_VALID_OPTIONS',
-        selectedOptionId: null,
-        drawnCardIds: [],
-        placedEnergyCardIds: [],
-      },
-      continuePendingCardEffects
-    );
-  }
-
   return {
     ...game,
     activeEffect: {
@@ -435,7 +423,20 @@ function startLiveSuccessOptionSelection(
       stepId: LIVE_SUCCESS_SELECT_OPTION_STEP_ID,
       stepText: '请选择1个LIVE成功效果。',
       awaitingPlayerId: player.id,
-      selectableOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: DRAW_TWO_OPTION_ID, text: '抽2张卡。' },
+          {
+            id: PLACE_WAITING_ENERGY_OPTION_ID,
+            text: '从自己的能量卡组将1张能量卡以待机状态放置。',
+            selectable: player.energyDeck.cardIds.length > 0,
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       confirmSelectionLabel: '确定',
       canSkipSelection: false,
       metadata: {

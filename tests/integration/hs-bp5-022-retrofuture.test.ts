@@ -20,6 +20,7 @@ import {
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID,
   HS_BP5_022_LIVE_START_PAY_TWO_ENERGY_HIGH_COST_EDELNOTE_PLAY_LOW_COST_OR_REDUCE_PURPLE_REQUIREMENT_ABILITY_ID,
@@ -196,6 +197,7 @@ function confirmOption(session: ReturnType<typeof createGameSession>, selectedOp
     )
   );
   expect(result.success, result.error).toBe(true);
+  confirmPublicSelectionIfNeeded(session);
 }
 
 function confirmCard(session: ReturnType<typeof createGameSession>, selectedCardId: string) {

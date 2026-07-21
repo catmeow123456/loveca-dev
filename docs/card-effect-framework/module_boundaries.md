@@ -19,6 +19,8 @@
 
 本回合成员卡效活跃限制属于窄 domain rule：状态只记录受影响玩家、来源、能力与创建回合，query 只回答当前回合是否有效；具体卡牌 workflow 只负责建立状态，公共成员状态 action 负责执行门禁。该边界不是任意条件或限制 DSL。
 
+费用4「松浦果南」的 LIVE_END 待机保护同样属于窄 domain rule。workflow 只建立包含受影响玩家、来源实例、ability identity、结构化 Aqours 条件与印刷 BLADE 上限的状态；公共成员状态 action 在实际变为 WAITING 时动态查询。保护不参与候选过滤，CARD_EFFECT cause 将效果控制者与实际选择玩家作为不同事实，因此塞拉斯让受影响玩家自行选择时不会被保护阻止。来源离场不清除，只有真实 LIVE_END 清理。这个边界不构成任意免疫、数值 predicate 或 protection DSL。
+
 ## Selector / Query
 
 Typical locations:
@@ -122,3 +124,9 @@ Rules:
 - 临时 LIVE 修正通过 `addLiveModifier` / `replaceLiveModifier` 写入。
 - 不把 continuous modifier 混入 runner workflow 或 steps DSL。
 - `SOURCE_MEMBER` / `TARGET_MEMBER` Heart 应由有效 Heart 读取路径合并，不写入 legacy `playerHeartBonuses`。
+
+## Narrow special-member-play authority boundary
+
+`LL-bp7-001-R+` 是首个窄特殊成员登场样本。`BEGIN_SPECIAL_MEMBER_PLAY` 在先选成员区后建立可复水 pending；`CONFIRM` 由权威端重验姓名分配、区域、换手与能量并原子结算。客户端不提交数字费用。窄 `specialPlayBaseCost: 10` 只是本次 play 的服务端验证输入；不改写印刷费用，不写登场后 modifier/replacement。该边界不是任意特殊登场或替代费用 DSL。
+
+BEGIN 的权威 guard 必须拒绝任何未结算 `activeEffect` / pending ability/choice/cost、check timing、inspection 或 delegated sequence，不得依赖 UI 隐藏按钮。确认时，空区域只计算非换手方案；已占区域必须将费用查询绑定 `relayMode: 'SINGLE'`，即使被换手成员有效费用为0，费用 action、replacement 事件和 sealed audit 也必须记录同一换手事实。

@@ -14,7 +14,10 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { getPlayerLiveHeartModifiers } from '../../src/domain/rules/live-modifiers';
-import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import {
+  createAutoAdvancePublicEffectChoiceCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
@@ -133,9 +136,28 @@ function setupScenario(options: {
 
 function chooseColor(session: GameSession, color: HeartColor): ReturnType<GameSession['executeCommand']> {
   const effectId = session.state!.activeEffect!.id;
-  return session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, effectId, undefined, undefined, undefined, color)
+  const selected = session.executeCommand(
+    createConfirmEffectStepCommand(
+      PLAYER1,
+      effectId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [color]
+    )
   );
+  if (!selected.success) return selected;
+  const publicEffect = session.state!.activeEffect!;
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: { ...publicEffect, publicEffectChoiceAutoAdvanceAt: 0 },
+  };
+  return session.executeCommand(createAutoAdvancePublicEffectChoiceCommand(PLAYER2, effectId, 0));
 }
 
 function expectSourceHeartModifier(
@@ -167,11 +189,17 @@ describe('LIVE start success-count choose Heart workflow', () => {
 
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
-      selectableOptions: [
-        expect.objectContaining({ id: HeartColor.PINK, label: '[桃ハート]' }),
-        expect.objectContaining({ id: HeartColor.YELLOW, label: '[黄ハート]' }),
-        expect.objectContaining({ id: HeartColor.PURPLE, label: '[紫ハート]' }),
-      ],
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          expect.objectContaining({ id: HeartColor.PINK, text: expect.stringContaining('[桃ハート]') }),
+          expect.objectContaining({ id: HeartColor.YELLOW, text: expect.stringContaining('[黄ハート]') }),
+          expect.objectContaining({ id: HeartColor.PURPLE, text: expect.stringContaining('[紫ハート]') }),
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
     });
 
@@ -193,15 +221,15 @@ describe('LIVE start success-count choose Heart workflow', () => {
       ownSuccessCount: 1,
     });
 
-    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.id)).toEqual([
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       HeartColor.GREEN,
       HeartColor.BLUE,
       HeartColor.PURPLE,
     ]);
-    expect(session.state?.activeEffect?.selectableOptions?.map((option) => option.label)).toEqual([
-      '[緑ハート]',
-      '[青ハート]',
-      '[紫ハート]',
+    expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.text)).toEqual([
+      expect.stringContaining('[緑ハート]'),
+      expect.stringContaining('[青ハート]'),
+      expect.stringContaining('[紫ハート]'),
     ]);
 
     expect(chooseColor(session, HeartColor.BLUE).success).toBe(true);
@@ -239,11 +267,13 @@ describe('LIVE start success-count choose Heart workflow', () => {
 
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
-      selectableOptions: [
-        expect.objectContaining({ id: HeartColor.PINK, label: '[桃ハート]' }),
-        expect.objectContaining({ id: HeartColor.YELLOW, label: '[黄ハート]' }),
-        expect.objectContaining({ id: HeartColor.PURPLE, label: '[紫ハート]' }),
-      ],
+      effectChoice: {
+        options: [
+          expect.objectContaining({ id: HeartColor.PINK }),
+          expect.objectContaining({ id: HeartColor.YELLOW }),
+          expect.objectContaining({ id: HeartColor.PURPLE }),
+        ],
+      },
       canSkipSelection: false,
     });
 

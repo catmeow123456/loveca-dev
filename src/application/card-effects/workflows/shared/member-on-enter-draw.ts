@@ -1,5 +1,6 @@
 import {
   addAction,
+  getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
@@ -9,6 +10,8 @@ import {
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
   PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
+  PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID,
+  S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID,
   SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
@@ -23,9 +26,17 @@ import {
 } from '../../../effects/conditions.js';
 import { and, cardNameAliasIs, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { CardType } from '../../../../shared/types/enums.js';
+import { SlotPosition } from '../../../../shared/types/enums.js';
+import { isMemberCardData } from '../../../../domain/entities/card.js';
+import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
+import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
-import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
+import {
+  getAbilityEffectText,
+  maybeStartConfirmablePendingAbilityConfirmation,
+  recordAbilityUseForContext,
+} from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -41,7 +52,11 @@ interface MemberOnEnterDrawConfig {
   readonly requiredOtherStageUnitAlias?: string;
   readonly bonusDrawCount?: number;
   readonly bonusStageMemberName?: string;
+  readonly minStageMemberEffectiveCost?: number;
+  readonly requiredStageMemberGroupAlias?: string;
 }
+
+const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 
 const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
   {
@@ -98,20 +113,94 @@ const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
     bonusDrawCount: 1,
     bonusStageMemberName: '米女メイ',
   },
+  {
+    abilityId: PL_BP3_009_ON_ENTER_COST_THIRTEEN_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'COST_THIRTEEN_STAGE_MEMBER_DRAW_ONE',
+    minStageMemberEffectiveCost: 13,
+  },
+  {
+    abilityId: S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'AQOURS_COST_NINE_STAGE_MEMBER_DRAW_ONE',
+    minStageMemberEffectiveCost: 9,
+    requiredStageMemberGroupAlias: 'Aqours',
+  },
 ];
 
 export function registerMemberOnEnterDrawWorkflowHandlers(): void {
   for (const config of MEMBER_ON_ENTER_DRAW_CONFIGS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      resolveMemberOnEnterDraw(
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) => {
+      if (config.minStageMemberEffectiveCost !== undefined) {
+        const confirmation = maybeStartConfirmablePendingAbilityConfirmation(
+          game,
+          ability,
+          options,
+          { effectText: getStageCostConfirmationEffectText(game, ability, config) }
+        );
+        if (confirmation) {
+          return confirmation;
+        }
+      }
+      return resolveMemberOnEnterDraw(
         game,
         ability,
         config,
         options.orderedResolution === true,
         context.continuePendingCardEffects
-      )
-    );
+      );
+    });
   }
+}
+
+function getQualifyingStageMemberCardIds(
+  game: GameState,
+  playerId: string,
+  config: MemberOnEnterDrawConfig
+): readonly string[] {
+  if (config.minStageMemberEffectiveCost === undefined) {
+    return [];
+  }
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+  return MEMBER_SLOT_ORDER.flatMap((slot) => {
+    const cardId = player.memberSlots.slots[slot];
+    const card = cardId ? getCardById(game, cardId) : null;
+    if (
+      !cardId ||
+      !card ||
+      !isMemberCardData(card.data) ||
+      getMemberEffectiveCost(game, playerId, cardId) < config.minStageMemberEffectiveCost! ||
+      (config.requiredStageMemberGroupAlias !== undefined &&
+        !cardBelongsToGroup(card.data, config.requiredStageMemberGroupAlias))
+    ) {
+      return [];
+    }
+    return [cardId];
+  });
+}
+
+function getStageCostConfirmationEffectText(
+  game: GameState,
+  ability: PendingAbilityState,
+  config: MemberOnEnterDrawConfig
+): string {
+  const player = getPlayerById(game, ability.controllerId);
+  const qualifyingCardIds = getQualifyingStageMemberCardIds(game, ability.controllerId, config);
+  const conditionMet = qualifyingCardIds.length > 0;
+  const canDraw =
+    !!player && (player.mainDeck.cardIds.length > 0 || player.waitingRoom.cardIds.length > 0);
+  const groupText = config.requiredStageMemberGroupAlias
+    ? `的『${config.requiredStageMemberGroupAlias}』`
+    : '的';
+  const resultText = !conditionMet
+    ? '未满足条件，实际抽0张卡'
+    : canDraw
+      ? '满足条件，实际抽1张卡'
+      : '满足条件，但当前没有可抽的卡，实际抽0张卡';
+  return `${getAbilityEffectText(ability.abilityId)}（当前自己舞台费用大于等于${config.minStageMemberEffectiveCost}${groupText}成员 ${qualifyingCardIds.length}名，${resultText}。）`;
 }
 
 function resolveMemberOnEnterDraw(
@@ -226,12 +315,16 @@ function resolveMemberOnEnterDraw(
   const hasBonusStageMember =
     config.bonusStageMemberName !== undefined &&
     hasStageMemberMatching(game, player.id, cardNameAliasIs(config.bonusStageMemberName));
+  const qualifyingStageMemberCardIds = getQualifyingStageMemberCardIds(game, player.id, config);
+  const stageMemberCostConditionMet =
+    config.minStageMemberEffectiveCost === undefined || qualifyingStageMemberCardIds.length > 0;
   const dynamicEnergyDrawCount =
     config.energyPerDraw === undefined ? 0 : Math.floor(energyCount / config.energyPerDraw);
-  const requestedDrawCount =
-    config.drawCount +
-    dynamicEnergyDrawCount +
-    (hasBonusStageMember ? (config.bonusDrawCount ?? 0) : 0);
+  const requestedDrawCount = stageMemberCostConditionMet
+    ? config.drawCount +
+      dynamicEnergyDrawCount +
+      (hasBonusStageMember ? (config.bonusDrawCount ?? 0) : 0)
+    : 0;
   const drawResult =
     requestedDrawCount === 0
       ? { gameState: stateAfterUseRecord, drawnCardIds: [] as readonly string[] }
@@ -260,6 +353,10 @@ function resolveMemberOnEnterDraw(
       hasRequiredOtherStageUnitMember,
       bonusStageMemberName: config.bonusStageMemberName,
       hasBonusStageMember,
+      minStageMemberEffectiveCost: config.minStageMemberEffectiveCost,
+      requiredStageMemberGroupAlias: config.requiredStageMemberGroupAlias,
+      qualifyingStageMemberCardIds,
+      stageMemberCostConditionMet,
       requestedDrawCount,
       drawnCardIds: drawResult.drawnCardIds,
       drawCount: drawResult.drawnCardIds.length,

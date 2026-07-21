@@ -13,6 +13,7 @@ import {
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
   createActivateAbilityCommand,
+  createAutoAdvancePublicEffectChoiceCommand,
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
@@ -21,6 +22,7 @@ import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
   BladeHeartEffect,
   CardType,
@@ -232,12 +234,42 @@ function discardLiellaCard(scenario: KekeScenario): void {
   expect(result.success).toBe(true);
 }
 
-function selectOption(scenario: KekeScenario, optionId: string): void {
+function submitOptions(scenario: KekeScenario, optionIds: readonly string[]) {
   const effectId = scenario.session.state!.activeEffect!.id;
+  return scenario.session.executeCommand(
+    createConfirmEffectStepCommand(
+      PLAYER1,
+      effectId,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      optionIds
+    )
+  );
+}
+
+function advanceEffectChoice(scenario: KekeScenario): void {
+  const effect = scenario.session.state!.activeEffect!;
+  expect(effect.stepId).toBe(PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID);
+  (scenario.session as unknown as { authorityState: GameState }).authorityState = {
+    ...scenario.session.state!,
+    activeEffect: { ...effect, publicEffectChoiceAutoAdvanceAt: 0 },
+  };
   const result = scenario.session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, effectId, undefined, undefined, undefined, optionId)
+    createAutoAdvancePublicEffectChoiceCommand(PLAYER1, effect.id, 0)
   );
   expect(result.success).toBe(true);
+}
+
+function selectOptions(scenario: KekeScenario, optionIds: readonly string[]): void {
+  const result = submitOptions(scenario, optionIds);
+  expect(result.success).toBe(true);
+  advanceEffectChoice(scenario);
 }
 
 function selectHeartTarget(scenario: KekeScenario, targetId = scenario.targetId): void {
@@ -265,12 +297,34 @@ describe('PL!SP-pb2-002 Keke activated workflow', () => {
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
       scenario.discardCardId
     );
-    expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'energy', label: '从能量卡组放置1张待机能量' },
-      { id: 'heart', label: '使此成员以外的1名『Liella!』成员获得紫 Heart +2' },
-    ]);
+    expect(scenario.session.state?.activeEffect?.effectChoice).toMatchObject({
+      mode: 'SINGLE',
+      minSelections: 1,
+      maxSelections: 1,
+      options: [
+        {
+          id: 'energy',
+          text: '从能量卡组将1张能量卡以待机状态放置。',
+          selectable: true,
+        },
+        {
+          id: 'heart',
+          text: '直到LIVE结束时为止，使自己舞台上此成员以外的1名『Liella!』成员获得[紫ハート][紫ハート]。',
+          selectable: true,
+        },
+      ],
+    });
 
-    selectOption(scenario, 'energy');
+    const submitted = submitOptions(scenario, ['energy']);
+    expect(submitted.success).toBe(true);
+    expect(scenario.session.state?.activeEffect?.stepId).toBe(
+      PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID
+    );
+    expect(scenario.session.state?.activeEffect?.effectChoice?.selectedOptionIds).toEqual([
+      'energy',
+    ]);
+    expect(scenario.session.state?.players[0].energyZone.cardIds).toEqual([]);
+    advanceEffectChoice(scenario);
 
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.players[0].energyZone.cardIds).toEqual([
@@ -301,13 +355,21 @@ describe('PL!SP-pb2-002 Keke activated workflow', () => {
     activateKeke(scenario);
     discardLiellaCard(scenario);
 
-    expect(scenario.session.state?.activeEffect?.selectableOptions).toEqual([
-      { id: 'energy', label: '从能量卡组放置1张待机能量' },
-      { id: 'heart', label: '使此成员以外的1名『Liella!』成员获得紫 Heart +2' },
-      { id: 'energy-and-heart', label: '放置待机能量，并使1名成员获得紫 Heart +2' },
-    ]);
+    expect(scenario.session.state?.activeEffect?.effectChoice).toMatchObject({
+      mode: 'MULTI',
+      minSelections: 1,
+      maxSelections: 2,
+      options: [{ id: 'energy' }, { id: 'heart' }],
+    });
 
-    selectOption(scenario, 'energy-and-heart');
+    const submitted = submitOptions(scenario, ['heart', 'energy']);
+    expect(submitted.success).toBe(true);
+    expect(scenario.session.state?.activeEffect?.effectChoice?.selectedOptionIds).toEqual([
+      'energy',
+      'heart',
+    ]);
+    expect(scenario.session.state?.players[0].energyZone.cardIds).toEqual([]);
+    advanceEffectChoice(scenario);
     expect(scenario.session.state?.activeEffect).toMatchObject({
       selectableCardIds: [scenario.targetId],
       selectableCardMode: 'SINGLE',
@@ -352,7 +414,7 @@ describe('PL!SP-pb2-002 Keke activated workflow', () => {
 
     activateKeke(scenario);
     discardLiellaCard(scenario);
-    selectOption(scenario, 'heart');
+    selectOptions(scenario, ['heart']);
 
     expect(scenario.session.state?.activeEffect?.selectableCardIds).toEqual([scenario.targetId]);
     expect(scenario.session.state?.activeEffect?.selectableCardIds).not.toContain(
@@ -373,7 +435,7 @@ describe('PL!SP-pb2-002 Keke activated workflow', () => {
 
     activateKeke(scenario);
     discardLiellaCard(scenario);
-    selectOption(scenario, 'energy');
+    selectOptions(scenario, ['energy']);
 
     expect(
       scenario.session.state?.actionHistory.some(

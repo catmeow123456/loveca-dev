@@ -20,9 +20,10 @@ import {
   removeCardFromStatefulZone,
 } from '../../src/domain/entities/zone';
 import {
-  confirmActiveEffectStep,
+  confirmActiveEffectStep as confirmActiveEffectStepImmediate,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import { S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { ABILITY_ORDER_SELECTION_ID } from '../../src/application/card-effect-runner';
 import {
@@ -65,6 +66,16 @@ const pending = (sourceCardId: string): PendingAbilityState => ({
   timingId: TriggerCondition.ON_LIVE_START,
   eventIds: ['live-start'],
 });
+
+function confirmActiveEffectStep(
+  ...args: Parameters<typeof confirmActiveEffectStepImmediate>
+): GameState {
+  return continuePublicEffectChoiceForTest(
+    confirmActiveEffectStepImmediate(...args),
+    args[1]
+  );
+}
+
 function setup(
   options: {
     centerCost?: number;
@@ -187,9 +198,17 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
   it('uses center Aqours effective cost and shows both positive branches when both targets exist', () => {
     const { game } = setup({ centerCost: 8, effectiveDelta: 1 });
     const started = resolvePendingCardEffects(game).gameState;
-    expect(started.activeEffect?.selectableOptions).toEqual([
-      { id: 'gain-two-blade', label: '使自己舞台成员获得[BLADE][BLADE]' },
-      { id: 'wait-opponent-low-cost-member', label: '使对方费用小于等于4的成员变为待机状态' },
+    expect(started.activeEffect?.effectChoice?.options).toEqual([
+      {
+        id: 'gain-two-blade',
+        text: 'LIVE结束时为止，存在于自己的舞台上的1名成员，获得[BLADE][BLADE]。',
+        selectable: true,
+      },
+      {
+        id: 'wait-opponent-low-cost-member',
+        text: '将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。',
+        selectable: true,
+      },
     ]);
     expect(started.activeEffect?.canSkipSelection).toBe(false);
   });
@@ -203,7 +222,7 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
     const started = resolvePendingCardEffects(game).gameState;
     expect(center.data.cardCode).toBe('PL!S-bp3-016-N');
     expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
-    expect(started.activeEffect?.selectableOptions).toHaveLength(2);
+    expect(started.activeEffect?.effectChoice?.options).toHaveLength(2);
   });
 
   it('opens realtime confirm-only for a failed condition and does not do so during ordered resolution', () => {
@@ -267,13 +286,17 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
       )
     ).toHaveLength(1);
     const printedFive = resolvePendingCardEffects(setup({ opponentCost: 5 }).game).gameState;
-    expect(printedFive.activeEffect?.selectableOptions).toEqual([
-      { id: 'gain-two-blade', label: '使自己舞台成员获得[BLADE][BLADE]' },
+    expect(printedFive.activeEffect?.effectChoice?.options).toEqual([
+      expect.objectContaining({ id: 'gain-two-blade', selectable: true }),
+      expect.objectContaining({ id: 'wait-opponent-low-cost-member', selectable: false }),
     ]);
     const alreadyWaiting = resolvePendingCardEffects(
       setup({ opponentWaiting: true }).game
     ).gameState;
-    expect(alreadyWaiting.activeEffect?.selectableOptions).toHaveLength(1);
+    expect(alreadyWaiting.activeEffect?.effectChoice?.options).toEqual([
+      expect.objectContaining({ id: 'gain-two-blade', selectable: true }),
+      expect.objectContaining({ id: 'wait-opponent-low-cost-member', selectable: false }),
+    ]);
   });
 
   it.each([
@@ -334,8 +357,9 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
       opponentEffectiveDelta: -2,
     });
     const started = resolvePendingCardEffects(game).gameState;
-    expect(started.activeEffect?.selectableOptions).toEqual([
-      { id: 'gain-two-blade', label: '使自己舞台成员获得[BLADE][BLADE]' },
+    expect(started.activeEffect?.effectChoice?.options).toEqual([
+      expect.objectContaining({ id: 'gain-two-blade', selectable: true }),
+      expect.objectContaining({ id: 'wait-opponent-low-cost-member', selectable: false }),
     ]);
     const bladeTargets = confirmActiveEffectStep(
       started,
@@ -348,7 +372,8 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
     );
     expect(bladeTargets.activeEffect?.selectableCardIds).not.toContain(below.instanceId);
     expect(
-      started.activeEffect?.selectableOptions?.some((option) => option.id.includes('wait'))
+      started.activeEffect?.effectChoice?.options.find((option) => option.id.includes('wait'))
+        ?.selectable
     ).toBe(false);
     expect(opponent.data.cost).toBe(5);
   });

@@ -189,7 +189,7 @@ export interface MemberSlotZoneState {
   readonly energyBelow: Readonly<Record<SlotPosition, readonly string[]>>;
   /**
    * 每个槽位下方的成员卡列表（按叠放顺序，下方在前）
-   * 特殊成员卡效果：可在其下方堆叠成员卡
+   * 卡牌效果可在主成员下方堆叠成员卡
    */
   readonly memberBelow: Readonly<Record<SlotPosition, readonly string[]>>;
 }
@@ -625,11 +625,11 @@ export function getAllEnergyBelowIds(zone: MemberSlotZoneState): string[] {
 }
 
 // ============================================
-// 成员卡下方堆叠成员卡操作（特殊成员卡效果）
+// 成员卡下方堆叠成员卡操作（仅供卡牌效果 runtime 使用）
 // ============================================
 
 /**
- * 向槽位下方添加成员卡（堆叠到特殊成员卡下方）
+ * 向槽位的顶层成员下方添加成员卡
  *
  * @param zone 成员槽位区域
  * @param position 目标槽位
@@ -866,6 +866,20 @@ export function drawFromTop(zone: BaseZoneState): { zone: BaseZoneState; cardId:
   return {
     zone: { ...zone, cardIds: rest },
     cardId: topCard,
+  };
+}
+
+/**
+ * 从卡组底部抽取一张卡牌。数组末尾为卡组底。
+ */
+export function drawFromBottom(zone: BaseZoneState): { zone: BaseZoneState; cardId: string | null } {
+  if (zone.cardIds.length === 0) {
+    return { zone, cardId: null };
+  }
+
+  return {
+    zone: { ...zone, cardIds: zone.cardIds.slice(0, -1) },
+    cardId: zone.cardIds[zone.cardIds.length - 1] ?? null,
   };
 }
 

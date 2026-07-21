@@ -13,7 +13,12 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToZone, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToZone,
+  addMemberBelowMember,
+  placeCardInSlot,
+  removeCardFromSlot,
+} from '../../src/domain/entities/zone';
 import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
@@ -27,6 +32,7 @@ import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
+  S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
   SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_ABILITY_ID,
   SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
   SP_PB1_009_ON_ENTER_OTHER_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
@@ -577,6 +583,176 @@ describe('member on-enter draw shared workflow', () => {
         (action) =>
           action.payload.abilityId === MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID &&
           action.payload.step === 'ON_ENTER_DRAW_ONE'
+      )
+    ).toBe(true);
+  });
+});
+
+describe('PL!S-bp7-002-P 费用4「樱内梨子」 shared on-enter draw condition', () => {
+  function aqoursMember(cardCode: string, cost: number, groups: readonly string[] = ['Aqours']) {
+    return {
+      ...createMember(cardCode, cardCode, cost),
+      groupNames: [...groups],
+      unitName: undefined,
+    };
+  }
+
+  function setupCondition(options: {
+    readonly qualifierCost?: number;
+    readonly qualifierGroups?: readonly string[];
+    readonly sourceCost?: number;
+    readonly qualifierBelow?: boolean;
+    readonly qualifierOpponent?: boolean;
+    readonly twoPendings?: boolean;
+  } = {}) {
+    const source = createCardInstance(
+      aqoursMember('PL!S-bp7-002-P', options.sourceCost ?? 4),
+      PLAYER1,
+      'bp7-riko'
+    );
+    const qualifier = createCardInstance(
+      aqoursMember(
+        'BP7-QUALIFIER',
+        options.qualifierCost ?? 9,
+        options.qualifierGroups ?? ['Aqours']
+      ),
+      options.qualifierOpponent ? PLAYER2 : PLAYER1,
+      'bp7-qualifier'
+    );
+    const generic = createCardInstance(createMember('GENERIC-DRAW-SOURCE'), PLAYER1, 'generic');
+    const draws = [0, 1].map((index) =>
+      createCardInstance(createMember(`BP7-DRAW-${index}`), PLAYER1, `bp7-draw-${index}`)
+    );
+    let game = registerCards(
+      createGameState('s-bp7-002-on-enter', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, qualifier, generic, ...draws]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => {
+      let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId);
+      if (!options.qualifierOpponent) {
+        memberSlots = options.qualifierBelow
+          ? addMemberBelowMember(memberSlots, SlotPosition.CENTER, qualifier.instanceId)
+          : placeCardInSlot(memberSlots, SlotPosition.LEFT, qualifier.instanceId);
+      }
+      if (options.twoPendings) {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, generic.instanceId);
+      }
+      return {
+        ...player,
+        mainDeck: { ...player.mainDeck, cardIds: draws.map((card) => card.instanceId) },
+        memberSlots,
+      };
+    });
+    if (options.qualifierOpponent) {
+      game = updatePlayer(game, PLAYER2, (player) => ({
+        ...player,
+        memberSlots: placeCardInSlot(
+          player.memberSlots,
+          SlotPosition.LEFT,
+          qualifier.instanceId
+        ),
+      }));
+    }
+    game = {
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'bp7-riko-pending',
+          source.instanceId,
+          SlotPosition.CENTER,
+          S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID
+        ),
+        ...(options.twoPendings
+          ? [pendingAbility('generic-pending', generic.instanceId, SlotPosition.RIGHT)]
+          : []),
+      ],
+    };
+    return { game, source, qualifier, draws };
+  }
+
+  it.each([
+    ['cost nine Aqours', 9, ['Aqours'], true],
+    ['cost eight Aqours', 8, ['Aqours'], false],
+    ['cost nine non-Aqours', 9, ['Liella!'], false],
+    ['mixed structured Aqours identity', 9, ['Liella!', 'Aqours'], true],
+  ] as const)('%s resolves with the expected draw result', (_label, cost, groups, shouldDraw) => {
+    const scenario = setupCondition({ qualifierCost: cost, qualifierGroups: groups });
+    const resolved = resolvePendingCardEffects(scenario.game).gameState;
+    expect(resolved.players[0].hand.cardIds.includes(scenario.draws[0]!.instanceId)).toBe(
+      shouldDraw
+    );
+  });
+
+  it('uses current effective cost rather than printed cost for the Aqours threshold', () => {
+    const scenario = setupCondition({ qualifierCost: 8 });
+    const withEffectiveCost = {
+      ...scenario.game,
+      liveResolution: {
+        ...scenario.game.liveResolution,
+        liveModifiers: [
+          {
+            kind: 'MEMBER_COST' as const,
+            playerId: PLAYER1,
+            memberCardId: scenario.qualifier.instanceId,
+            countDelta: 1,
+            sourceCardId: 'bp7-effective-cost-source',
+            abilityId: 'BP7_EFFECTIVE_COST_TEST',
+          },
+        ],
+      },
+    };
+    const resolved = resolvePendingCardEffects(withEffectiveCost).gameState;
+    expect(resolved.players[0].hand.cardIds).toEqual([scenario.draws[0]!.instanceId]);
+  });
+
+  it.each([
+    ['memberBelow', { qualifierBelow: true }],
+    ['opponent stage', { qualifierOpponent: true }],
+  ] as const)('does not count %s', (_label, options) => {
+    const scenario = setupCondition(options);
+    const resolved = resolvePendingCardEffects(scenario.game).gameState;
+    expect(resolved.players[0].hand.cardIds).toEqual([]);
+  });
+
+  it('counts the source itself when it independently satisfies the printed condition', () => {
+    const scenario = setupCondition({ sourceCost: 9, qualifierCost: 8 });
+    const resolved = resolvePendingCardEffects(scenario.game).gameState;
+    expect(resolved.players[0].hand.cardIds).toEqual([scenario.draws[0]!.instanceId]);
+  });
+
+  it('shows a real-time manual confirmation and rechecks the current stage before drawing', () => {
+    const scenario = setupCondition({ twoPendings: true });
+    const order = resolvePendingCardEffects(scenario.game).gameState;
+    const confirmation = confirmActiveEffectStep(
+      order,
+      PLAYER1,
+      order.activeEffect!.id,
+      undefined,
+      undefined,
+      false,
+      'bp7-riko-pending'
+    );
+    expect(confirmation.activeEffect?.effectText).toContain(
+      '当前自己舞台费用大于等于9的『Aqours』成员 1名，满足条件，实际抽1张卡'
+    );
+    expect(confirmation.players[0].hand.cardIds).toEqual([]);
+    const changed = updatePlayer(confirmation, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+    }));
+    const resolved = confirmActiveEffectStep(
+      changed,
+      PLAYER1,
+      changed.activeEffect!.id
+    );
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0].hand.cardIds).toEqual([scenario.draws[0]!.instanceId]);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.payload.abilityId ===
+            S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID &&
+          action.payload.requestedDrawCount === 0
       )
     ).toBe(true);
   });

@@ -85,7 +85,9 @@ import {
   SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
   PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
+  S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
 } from '../../ability-ids.js';
+import { getStageMemberCardIdsByOrientation } from '../../../effects/stage-targets.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -128,6 +130,8 @@ const HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT_STEP_ID =
   'HS_PB1_026_DIFFERENT_HASUNOSORA_MEMBER_REQUIREMENT';
 const PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT_STEP_ID =
   'PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT';
+const S_BP7_020_ALL_STAGE_MEMBERS_ACTIVE_REQUIREMENT_STEP_ID =
+  'S_BP7_020_ALL_STAGE_MEMBERS_ACTIVE_REQUIREMENT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -211,6 +215,13 @@ const DIFFERENT_GROUP_MEMBER_REQUIREMENT_REDUCTION_CONFIGS: readonly DifferentGr
   ];
 
 const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkflowConfig[] = [
+  {
+    abilityId:
+      S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+    stepId: S_BP7_020_ALL_STAGE_MEMBERS_ACTIVE_REQUIREMENT_STEP_ID,
+    getStartContext: getSBp7020AllStageMembersActiveStartContext,
+    finish: finishSBp7020AllStageMembersActiveRequirementReduction,
+  },
   {
     abilityId: PL_N_PB1_042_LIVE_START_SAME_NAME_NIJIGASAKI_REDUCE_REQUIREMENT_ABILITY_ID,
     stepId: PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT_STEP_ID,
@@ -2417,6 +2428,108 @@ function getEternalizeLoveContext(
     sourceInLiveZone,
     sharedNames: [...sharedNames],
     conditionMet: sourceInLiveZone && sharedNames.size > 0,
+  };
+}
+
+interface AllStageMembersActiveRequirementContext {
+  readonly sourceInLiveZone: boolean;
+  readonly stageMemberCardIds: readonly string[];
+  readonly activeMemberCardIds: readonly string[];
+  readonly stageMemberCount: number;
+  readonly activeMemberCount: number;
+  readonly allStageMembersActive: boolean;
+  readonly conditionMet: boolean;
+  readonly requirementReduction: number;
+}
+
+function getSBp7020AllStageMembersActiveStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getAllStageMembersActiveRequirementContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前舞台成员${context.stageMemberCount}名，其中活跃成员${context.activeMemberCount}名，${
+      context.conditionMet
+        ? '满足条件，实际减少1个必要[無ハート]。'
+        : '未满足条件，实际不减少必要[無ハート]。'
+    }）`,
+    actionPayload: {
+      stageMemberCardIds: context.stageMemberCardIds,
+      activeMemberCardIds: context.activeMemberCardIds,
+      stageMemberCount: context.stageMemberCount,
+      activeMemberCount: context.activeMemberCount,
+      allStageMembersActive: context.allStageMembersActive,
+      conditionMet: context.conditionMet,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function finishSBp7020AllStageMembersActiveRequirementReduction(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getAllStageMembersActiveRequirementContext(game, effect, playerId);
+  const state = replaceSourceRequirementModifier(
+    { ...game, activeEffect: null },
+    effect,
+    context.conditionMet
+      ? {
+          kind: 'REQUIREMENT',
+          liveCardId: effect.sourceCardId,
+          modifiers: [{ color: HeartColor.RAINBOW, countDelta: -1 }],
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        }
+      : null
+  );
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_ALL_STAGE_MEMBERS_ACTIVE_REQUIREMENT_REDUCTION',
+      sourceInLiveZone: context.sourceInLiveZone,
+      stageMemberCardIds: context.stageMemberCardIds,
+      activeMemberCardIds: context.activeMemberCardIds,
+      stageMemberCount: context.stageMemberCount,
+      activeMemberCount: context.activeMemberCount,
+      allStageMembersActive: context.allStageMembersActive,
+      conditionMet: context.conditionMet,
+      requirementReduction: context.requirementReduction,
+    },
+  };
+}
+
+function getAllStageMembersActiveRequirementContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): AllStageMembersActiveRequirementContext {
+  const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
+  const stageMemberCardIds = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    typeIs(CardType.MEMBER)
+  );
+  const activeMemberIds = new Set(
+    getStageMemberCardIdsByOrientation(game, playerId, OrientationState.ACTIVE)
+  );
+  const activeMemberCardIds = stageMemberCardIds.filter((cardId) => activeMemberIds.has(cardId));
+  const stageMemberCount = stageMemberCardIds.length;
+  const activeMemberCount = activeMemberCardIds.length;
+  const allStageMembersActive =
+    stageMemberCount > 0 && activeMemberCount === stageMemberCount;
+  const conditionMet = sourceInLiveZone && allStageMembersActive;
+  return {
+    sourceInLiveZone,
+    stageMemberCardIds,
+    activeMemberCardIds,
+    stageMemberCount,
+    activeMemberCount,
+    allStageMembersActive,
+    conditionMet,
+    requirementReduction: conditionMet ? 1 : 0,
   };
 }
 

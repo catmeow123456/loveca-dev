@@ -7,7 +7,11 @@ import {
   updatePlayer,
 } from '../../domain/entities/game.js';
 import { createCheerEvent, type CheerEvent } from '../../domain/events/game-events.js';
-import { drawFromTop } from '../../domain/entities/zone.js';
+import { drawFromBottom, drawFromTop } from '../../domain/entities/zone.js';
+import {
+  CheerDeckEdge,
+  getCheerDeckEdgeForPlayer,
+} from '../../domain/rules/cheer-direction.js';
 import {
   RuleActionType,
   applyRuleActionResult,
@@ -37,10 +41,12 @@ export function revealCheerCardsFromMainDeck(
 ): RevealCheerCardsResult {
   let state = game;
   const cheerCardIds: string[] = [];
+  let deckEdge = getCheerDeckEdgeForPlayer(state, playerId);
 
   for (let i = 0; i < cheerCount; i++) {
-    const drawResult = drawTopMainDeckCardForCheer(state, playerId);
+    const drawResult = drawMainDeckCardForCheer(state, playerId);
     state = drawResult.gameState;
+    deckEdge = drawResult.deckEdge;
     if (drawResult.cardId) {
       cheerCardIds.push(drawResult.cardId);
     }
@@ -79,6 +85,7 @@ export function revealCheerCardsFromMainDeck(
   const cheerEvent = createCheerEvent(playerId, cheerCardIds, cheerCount, {
     automated: options.automated === true,
     additional: options.additional === true,
+    deckEdge,
   });
   state = emitGameEvent(
     state,
@@ -88,8 +95,10 @@ export function revealCheerCardsFromMainDeck(
   state = addAction(state, 'CHEER', playerId, {
     cheerCount,
     cheerCardIds,
+    revealedCardIds: cheerCardIds,
     automated: options.automated === true,
     additional: options.additional === true,
+    deckEdge,
   });
 
   return {
@@ -99,15 +108,23 @@ export function revealCheerCardsFromMainDeck(
   };
 }
 
-function drawTopMainDeckCardForCheer(
+function drawMainDeckCardForCheer(
   game: GameState,
   playerId: string
-): { readonly gameState: GameState; readonly cardId: string | null } {
+): {
+  readonly gameState: GameState;
+  readonly cardId: string | null;
+  readonly deckEdge: CheerDeckEdge;
+} {
   let state = applyImmediateRefreshesForCheer(game);
+  const deckEdge = getCheerDeckEdgeForPlayer(state, playerId);
 
   let drawnCardId: string | null = null;
   state = updatePlayer(state, playerId, (player) => {
-    const { zone: newDeck, cardId } = drawFromTop(player.mainDeck);
+    const { zone: newDeck, cardId } =
+      deckEdge === CheerDeckEdge.BOTTOM
+        ? drawFromBottom(player.mainDeck)
+        : drawFromTop(player.mainDeck);
     drawnCardId = cardId;
     return {
       ...player,
@@ -119,6 +136,7 @@ function drawTopMainDeckCardForCheer(
     return {
       gameState: state,
       cardId: null,
+      deckEdge,
     };
   }
 
@@ -126,6 +144,7 @@ function drawTopMainDeckCardForCheer(
   return {
     gameState: state,
     cardId: drawnCardId,
+    deckEdge,
   };
 }
 

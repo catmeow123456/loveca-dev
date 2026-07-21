@@ -42,7 +42,9 @@ import {
   type GameCommand,
   createEndPhaseCommand,
   createConfirmEffectStepCommand,
+  createConfirmEffectChoiceCommand,
   createAutoAdvancePublicCardSelectionCommand,
+  createAutoAdvancePublicEffectChoiceCommand,
   createConfirmCostPaymentCommand,
   createMulliganCommand,
   createConfirmStepCommand,
@@ -76,6 +78,9 @@ import {
   createSubmitScoreCommand,
   createTapEnergyCommand,
   createTapMemberCommand,
+  createBeginSpecialMemberPlayCommand,
+  createConfirmSpecialMemberPlayCommand,
+  createCancelSpecialMemberPlayCommand,
 } from '@game/application/game-commands';
 import {
   SlotPosition,
@@ -326,6 +331,12 @@ export interface GameStore {
     slot: SlotPosition,
     options?: PlayMemberToSlotOptions
   ) => CommandDispatchResult;
+  beginSpecialMemberPlay: (cardId: string, slot: SlotPosition) => CommandDispatchResult;
+  confirmSpecialMemberPlay: (
+    pendingId: string,
+    selectedCardIds: readonly string[]
+  ) => CommandDispatchResult;
+  cancelSpecialMemberPlay: (pendingId: string) => CommandDispatchResult;
   /** 发动卡牌的起动效果 */
   activateCardAbility: (cardId: string, abilityId: string) => CommandDispatchResult;
   /** 将公开区卡牌移入休息室 */
@@ -360,7 +371,7 @@ export interface GameStore {
       | ZoneType.SUCCESS_ZONE
       | ZoneType.WAITING_ROOM
       | ZoneType.EXILE_ZONE,
-    options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM'; asMemberBelow?: boolean }
+    options?: { targetSlot?: SlotPosition; position?: 'TOP' | 'BOTTOM' }
   ) => CommandDispatchResult;
   /** 放置 Live 卡到 Live 区 */
   setLiveCard: (cardId: string, faceDown?: boolean) => CommandDispatchResult;
@@ -380,10 +391,24 @@ export interface GameStore {
     stageFormationPlacements?: readonly {
       readonly cardId: string;
       readonly toSlot: SlotPosition;
-    }[]
+    }[],
+    selectedEffectOptionIds?: readonly string[]
+  ) => CommandDispatchResult;
+  /** 以命名参数确认真实卡文的效果分支。 */
+  confirmEffectChoice: (
+    effectId: string,
+    options: {
+      readonly selectedEffectOptionIds: readonly string[];
+      readonly selectedCardId?: string | null;
+    }
   ) => CommandDispatchResult;
   /** 公共选卡展示到期后的无交互推进。 */
   autoAdvancePublicCardSelection: (
+    effectId: string,
+    expectedDeadline: number
+  ) => CommandDispatchResult;
+  /** 效果选项公开展示到期后的无交互推进。 */
+  autoAdvancePublicEffectChoice: (
     effectId: string,
     expectedDeadline: number
   ) => CommandDispatchResult;
@@ -1033,6 +1058,30 @@ export const useGameStore = create<GameStore>((set, get) => {
       );
     },
 
+    beginSpecialMemberPlay: (cardId, slot) =>
+      runViewerCommand((playerId) => createBeginSpecialMemberPlayCommand(playerId, cardId, slot), {
+        failureMessage: '特殊登场开始失败',
+        successMessage: '选择特殊登场支付',
+        logError: true,
+      }),
+
+    confirmSpecialMemberPlay: (pendingId, selectedCardIds) =>
+      runViewerCommand(
+        (playerId) => createConfirmSpecialMemberPlayCommand(playerId, pendingId, selectedCardIds),
+        {
+          failureMessage: '特殊登场确认失败',
+          successMessage: '放置入休息室并登场',
+          deselectCard: true,
+          logError: true,
+        }
+      ),
+
+    cancelSpecialMemberPlay: (pendingId) =>
+      runViewerCommand((playerId) => createCancelSpecialMemberPlayCommand(playerId, pendingId), {
+        failureMessage: '取消特殊登场失败',
+        logError: true,
+      }),
+
     activateCardAbility: (cardId, abilityId) => {
       return runViewerCommand(
         (playerId) => createActivateAbilityCommand(playerId, cardId, abilityId),
@@ -1109,7 +1158,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       selectedCardIds,
       selectedNumber,
       stageFormationMoveHistory,
-      stageFormationPlacements
+      stageFormationPlacements,
+      selectedEffectOptionIds
     ) => {
       return runViewerCommand(
         (playerId) =>
@@ -1123,7 +1173,8 @@ export const useGameStore = create<GameStore>((set, get) => {
             selectedCardIds,
             selectedNumber,
             stageFormationMoveHistory,
-            stageFormationPlacements
+            stageFormationPlacements,
+            selectedEffectOptionIds
           ),
         {
           failureMessage: '卡牌效果处理失败',
@@ -1134,12 +1185,34 @@ export const useGameStore = create<GameStore>((set, get) => {
       );
     },
 
+    confirmEffectChoice: (effectId, options) =>
+      runViewerCommand(
+        (playerId) => createConfirmEffectChoiceCommand(playerId, effectId, options),
+        {
+          failureMessage: '卡牌效果处理失败',
+          successMessage: '继续处理卡牌效果',
+          deselectCard: true,
+          logError: true,
+        }
+      ),
+
     autoAdvancePublicCardSelection: (effectId, expectedDeadline) => {
       return runViewerCommand(
         (playerId) =>
           createAutoAdvancePublicCardSelectionCommand(playerId, effectId, expectedDeadline),
         {
           failureMessage: '公开展示自动推进失败',
+          silentFailure: true,
+        }
+      );
+    },
+
+    autoAdvancePublicEffectChoice: (effectId, expectedDeadline) => {
+      return runViewerCommand(
+        (playerId) =>
+          createAutoAdvancePublicEffectChoiceCommand(playerId, effectId, expectedDeadline),
+        {
+          failureMessage: '效果选项公开展示自动推进失败',
           silentFailure: true,
         }
       );
@@ -3096,6 +3169,12 @@ function stabilizePlayerViewState(
   )
     ? previous.pendingCostPayment
     : next.pendingCostPayment;
+  const pendingSpecialMemberPlay = areJsonLikeValuesEqual(
+    previous.pendingSpecialMemberPlay,
+    next.pendingSpecialMemberPlay
+  )
+    ? previous.pendingSpecialMemberPlay
+    : next.pendingSpecialMemberPlay;
   const uiHints = areJsonLikeValuesEqual(previous.uiHints, next.uiHints)
     ? previous.uiHints
     : next.uiHints;
@@ -3107,6 +3186,7 @@ function stabilizePlayerViewState(
     permissions === previous.permissions &&
     activeEffect === previous.activeEffect &&
     pendingCostPayment === previous.pendingCostPayment &&
+    pendingSpecialMemberPlay === previous.pendingSpecialMemberPlay &&
     uiHints === previous.uiHints
   ) {
     return previous;
@@ -3120,6 +3200,7 @@ function stabilizePlayerViewState(
     permissions,
     activeEffect,
     pendingCostPayment,
+    pendingSpecialMemberPlay,
     uiHints,
   };
 }

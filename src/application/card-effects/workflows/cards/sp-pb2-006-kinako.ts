@@ -10,7 +10,7 @@ import type { MemberSlotMovedEvent } from '../../../../domain/events/game-events
 import { CardType, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_006_AUTO_LIVE_SUCCESS_OR_MOVE_STACK_LIELLA_MEMBER_BELOW_ABILITY_ID } from '../../ability-ids.js';
-import { stackMemberCardBelowSpecialMember } from '../../runtime/actions.js';
+import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -180,7 +180,7 @@ function finishSpPb2006KinakoStack(
     return game;
   }
 
-  const stackResult = stackMemberCardBelowSpecialMember(game, {
+  const stackResult = stackMemberCardBelowStageMember(game, {
     playerId: player.id,
     sourceZone: ZoneType.WAITING_ROOM,
     movedCardId: selectedCardId,

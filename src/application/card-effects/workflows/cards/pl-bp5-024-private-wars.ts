@@ -139,7 +139,28 @@ function startPrivateWarsWorkflow(
       stepId: PRIVATE_WARS_BRANCH_STEP_ID,
       stepText: '请选择「Private Wars」要处理的效果。',
       awaitingPlayerId: player.id,
-      selectableOptions: context.branchOptions,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          {
+            id: ACTIVATE_WAITING_MEMBER_OPTION_ID,
+            text: '将1名待机状态成员变为活跃状态，LIVE结束时为止，该成员获得[BLADE]。',
+            selectable: context.branchOptions.some(
+              (option) => option.id === ACTIVATE_WAITING_MEMBER_OPTION_ID
+            ),
+          },
+          {
+            id: WAIT_OPPONENT_LOW_BLADE_OPTION_ID,
+            text: '将对方舞台上1名原本持有[BLADE]数量小于等于3的成员变为待机状态。',
+            selectable: context.branchOptions.some(
+              (option) => option.id === WAIT_OPPONENT_LOW_BLADE_OPTION_ID
+            ),
+          },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+      },
       canSkipSelection: false,
       metadata: {
         orderedResolution: options.orderedResolution === true,
@@ -209,6 +230,7 @@ function finishPrivateWarsBranchSelection(
         ...effect,
         stepId: PRIVATE_WARS_ACTIVATE_WAITING_MEMBER_STEP_ID,
         stepText: '请选择舞台上1名待机状态成员变为活跃状态，并使其获得[BLADE]。',
+        effectChoice: undefined,
         selectableCardIds: context.activateWaitingMemberCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableOptions: undefined,
@@ -229,6 +251,7 @@ function finishPrivateWarsBranchSelection(
       ...effect,
       stepId: PRIVATE_WARS_WAIT_OPPONENT_MEMBER_STEP_ID,
       stepText: '请选择对方舞台上1名原本[BLADE]小于等于3的成员变为待机状态。',
+      effectChoice: undefined,
       selectableCardIds: context.waitOpponentMemberCardIds,
       selectableCardVisibility: 'PUBLIC',
       selectableOptions: undefined,

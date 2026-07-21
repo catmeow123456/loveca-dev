@@ -87,7 +87,8 @@ export type GameActionType =
   | 'RESOLVE_ABILITY'
   | 'RULE_ACTION'
   | 'TAP_MEMBER'
-  | 'TAP_ENERGY';
+  | 'TAP_ENERGY'
+  | 'SPECIAL_MEMBER_PLAY';
 
 /**
  * 游戏动作记录
@@ -142,6 +143,15 @@ export interface MemberEffectActivationProhibitionState {
   readonly abilityId: string;
   readonly createdTurnCount: number;
   readonly expiresAt: 'TURN_END';
+}
+
+export interface MemberWaitProtectionState {
+  readonly affectedPlayerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly expiresAt: 'LIVE_END';
+  readonly memberGroupAlias: 'Aqours';
+  readonly maxPrintedBlade: 3;
 }
 
 export interface LiveSetLimitReductionState {
@@ -236,7 +246,10 @@ export type LiveModifierState =
       readonly kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT';
       readonly playerId: string;
       readonly memberCardId: string;
-      readonly color: HeartColor;
+      /** Legacy color-only replacement: preserves the printed total and changes every icon color. */
+      readonly color?: HeartColor;
+      /** Full printed-heart snapshot replacement for effects that copy a member's printed vector. */
+      readonly hearts?: readonly HeartIcon[];
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -263,6 +276,8 @@ export type LiveModifierState =
       readonly kind: 'BLADE';
       readonly playerId: string;
       readonly countDelta: number;
+      /** Recipient member; omitted for legacy source-member modifiers. */
+      readonly targetMemberCardId?: string;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -491,6 +506,21 @@ export interface CheckTimingContextState {
   readonly iterationCount: number;
 }
 
+/** Serializable forced child sequence for delegated queued abilities. */
+export interface DelegatedAbilitySequenceState {
+  readonly id: string;
+  readonly controllerId: string;
+  readonly parentAbilityId: string;
+  readonly parentSourceCardId: string;
+  readonly parentEffectId: string;
+  readonly orderedResolution: boolean;
+  readonly remainingAbilities: readonly PendingAbilityState[];
+  readonly resolvedPendingAbilityIds: readonly string[];
+  readonly resolvedAbilityIds: readonly string[];
+  readonly skippedPendingAbilityIds: readonly string[];
+  readonly skippedAbilityIds: readonly string[];
+}
+
 export type PendingChoiceKind = 'CONFIRM_OPTIONAL' | 'SELECT_CARDS' | 'SELECT_TARGET';
 
 /**
@@ -541,6 +571,26 @@ export interface ActiveEffectStageFormationState {
   readonly slots: readonly ActiveEffectStageFormationSlotState[];
 }
 
+export interface ActiveEffectChoiceOptionState {
+  /** 服务端定义的稳定选项 ID。 */
+  readonly id: string;
+  /** 玩家可见的完整效果分支文本。 */
+  readonly text: string;
+  /** 当前是否可选；缺省时视为可选。 */
+  readonly selectable?: boolean;
+}
+
+export interface ActiveEffectChoiceState {
+  readonly mode: 'SINGLE' | 'MULTI';
+  readonly options: readonly ActiveEffectChoiceOptionState[];
+  readonly minSelections: number;
+  readonly maxSelections: number;
+  /** 结构化效果选项在结算前必须向双方公开。 */
+  readonly publicConfirmation: true;
+  /** 只在双方公开阶段保存，且按卡文印刷顺序排列。 */
+  readonly selectedOptionIds?: readonly string[];
+}
+
 export interface ActiveEffectState {
   /** 当前处理中的效果实例 ID */
   readonly id: string;
@@ -562,6 +612,8 @@ export interface ActiveEffectState {
   readonly revealedCardIds?: readonly string[];
   /** 休息室选卡公共展示的服务端权威截止时间。 */
   readonly publicCardSelectionAutoAdvanceAt?: number;
+  /** 效果选项公共展示的服务端权威截止时间。 */
+  readonly publicEffectChoiceAutoAdvanceAt?: number;
   /** 公共展示中的卡牌是否按选择顺序结算。 */
   readonly publicCardSelectionOrdered?: boolean;
   /** 当前步骤涉及的检视区卡牌 */
@@ -580,6 +632,8 @@ export interface ActiveEffectState {
   readonly selectableSlots?: readonly SlotPosition[];
   /** 当前步骤可选择的通用选项 */
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
+  /** 真实卡文中的单选/多选效果分支，与通用 selectableOptions 分开。 */
+  readonly effectChoice?: ActiveEffectChoiceState;
   /** 当前步骤的站位变换交互状态 */
   readonly stageFormation?: ActiveEffectStageFormationState;
   /** 当前步骤需要玩家输入的数字 */
@@ -629,6 +683,17 @@ export interface PendingCostPaymentState {
   readonly payableEnergyCardIds: readonly string[];
   /** 费用计算说明，给 UI 和调试使用 */
   readonly explanation?: string;
+}
+
+export interface PendingSpecialMemberPlayState {
+  readonly id: string;
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly targetSlot: SlotPosition;
+  readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
+  readonly printedCost: 15;
+  readonly specialPlayCost: 10;
+  readonly candidateCardIds: readonly string[];
 }
 
 // ============================================
@@ -712,6 +777,9 @@ export interface GameState {
    */
   readonly pendingAbilities: readonly PendingAbilityState[];
 
+  /** Forced delegated abilities resolve here before returning to the global pending pool. */
+  readonly delegatedAbilitySequence?: DelegatedAbilitySequenceState | null;
+
   /** Current check timing, retained across player choices and ability resolution. */
   readonly checkTimingContext: CheckTimingContextState | null;
 
@@ -729,6 +797,9 @@ export interface GameState {
    * 正在等待玩家支付的费用。
    */
   readonly pendingCostPayment: PendingCostPaymentState | null;
+
+  /** Optional for authority checkpoints created before the narrow special-play boundary. */
+  readonly pendingSpecialMemberPlay?: PendingSpecialMemberPlayState | null;
 
   /**
    * 用户操作历史栈（用于撤销功能）
@@ -781,6 +852,8 @@ export interface GameState {
   readonly energyActivePhaseSkips?: readonly EnergyActivePhaseSkipState[];
   /** 本回合内禁止卡牌效果使指定玩家的待机成员变为活跃。 */
   readonly memberEffectActivationProhibitions?: readonly MemberEffectActivationProhibitionState[];
+  /** Opponent card effects cannot wait matching current top-level stage members until LIVE_END. */
+  readonly memberWaitProtections?: readonly MemberWaitProtectionState[];
   /**
    * 卡效造成的“下一次 LIVE 卡设置阶段可放置张数上限减少”标记。
    */
@@ -903,6 +976,7 @@ export function createGameState(
     pendingChoice: null,
     activeEffect: null,
     pendingCostPayment: null,
+    pendingSpecialMemberPlay: null,
     operationHistory: [],
     liveSetCardIds: new Map(),
 
@@ -915,6 +989,7 @@ export function createGameState(
     memberActivePhaseSkips: [],
     energyActivePhaseSkips: [],
     memberEffectActivationProhibitions: [],
+    memberWaitProtections: [],
     liveSetLimitReductions: [],
 
     isStarted: false,
@@ -984,7 +1059,8 @@ export function hasPendingAbilityOrChoice(game: GameState): boolean {
     game.pendingAbilities.length > 0 ||
     game.pendingChoice !== null ||
     game.activeEffect !== null ||
-    game.pendingCostPayment !== null
+    game.pendingCostPayment !== null ||
+    (game.pendingSpecialMemberPlay ?? null) !== null
   );
 }
 
