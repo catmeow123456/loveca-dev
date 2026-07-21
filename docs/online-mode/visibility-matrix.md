@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：定义联机首版的容器可见性、卡牌可见面、公开对象跟踪和前端投影规则
 > 当前状态：当前联机投影模型的权威说明，需与 `src/online/projector.ts` 和 `src/online/visibility.ts` 同步
-> 最后更新：2026-04-22
+> 最后更新：2026-07-21
 
 ## 1. 文档目标
 
@@ -131,9 +131,10 @@
 
 - 对象真实进入检视区。
 - 检视者通常看到 `FRONT`。
-- 对手通常看到 `BACK`。
+- 对手通常因检视区的公共 occupancy 看到 `BACK` 对象；这只表示区域占位，不授予检视内容的控制权。
+- 权威 activeEffect 使用 `inspectionCardIds` 保存真实实例列表；玩家视图仅在查看者是 `inspectionContext.viewerPlayerId ?? ownerPlayerId` 且同时是 `activeEffect.awaitingPlayerId` 时，投影私有 `inspectionObjectIds` 控制列表。非控制方（包括跨玩家检视中的区域 owner）即使看到检视区 `BACK` 占位，也不接收可操作实例列表或真实卡实例 ID。
 - 检视区内重排、移出、放顶、放底等正式操作，应作为过程变化可感知。
-- 若检视者公开其中某张牌，该对象可在检视区内从 `BACK` 变为 `FRONT`。
+- 若检视者通过 `revealedCardIds` 公开其中某张牌，该对象可在检视区内从 `BACK` 变为 `FRONT`；公开卡面不把私有 `inspectionObjectIds` 控制列表一并暴露给非控制方。
 
 ### 5.3 从手牌盖放 Live
 

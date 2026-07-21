@@ -113,9 +113,15 @@
 - 新 exact-cost wrapper 只表示“当前主卡组已足额时，精确顶 N 进休息室，移动后允许标准刷新，并保留原 grouped event 事实”。它与 WithRefresh direct mill 分工明确，不提供任意费用/区域/刷新策略 DSL。
 - `PL!N-bp7-006-SEC` 命中 query 仍是单卡组合 selector；通用 condition AST 与 generic option resolver 仍在既有 P1 缺口中，本批不为一张卡提前抽象。
 - `PL!N-bp7-009-P` 新增的多 owner wrapper 只覆盖“同一效果对明确玩家列表各自 refresh-aware 主卡组顶进休息室，全部完成后统一 enqueue”。它不是私有 pending 队列、不是任意多玩家效果调度器，也不承担效果选择。
-- 006 未命中公开与 009 双 owner 公开均由各自单卡 workflow 持有真实 activeEffect；命中二选一兼任公开展示。当前没有抽“任意 moved facts 公开” builder，也不以这两个窗口宣称 direct-mill family 已完整覆盖。
-- 公开窗口的 `revealedCardIds` 只承担双方展示，可按卡牌实例去重；原始 `movedCardIds`、refresh count、owner 分组与重复顺序继续由 metadata/action/event 保存。后续新 family 若需要同形语义，仍应先以真实卡样本验证再晋升。
-- 两张都只登记已核实 exact cardCode；`PL!S-bp7-003-SEC` 与其他 BP7 卡仍是后续独立批次，不因本批 helper 而视为已覆盖。
+- 006 未命中公开与 009 按 owner 顺序的至多双窗口公开均由各自单卡 workflow 持有真实 activeEffect；命中二选一兼任公开展示。当前没有抽“任意 moved facts 公开” builder，也不以这些窗口宣称 direct-mill family 已完整覆盖。
+- 各公开窗口的 `revealedCardIds` 只承担双方展示，可按卡牌实例去重；原始 `movedCardIds`、refresh count、owner 分组与重复顺序继续由 metadata/action/event 保存。后续新 family 若需要同形语义，仍应先以真实卡样本验证再晋升。
+- 两张都只登记已核实 exact cardCode；`PL!S-bp7-003-SEC` 后续已完成，其他 BP7 卡仍须按独立批次审核，不因本批 helper 而视为已覆盖。
+
+# 2026-07-21 BP7 公开数据待办
+
+- 本次盘点时本地 `cards.json` 尚无这些卡的数据；来源仅为公开玩家端 `/api/cards` 与本地 definition lookup，未访问生产卡牌数据、管理员 API 或生产后台。
+- 下列公开卡仍未实现，且没有对应 definition、workflow 或 focused test：`PL!N-bp7-028-L` 分数7「Cooking with Love」、`PL!N-bp7-031-L` 分数5「Like a Treasure」、`PL!S-bp7-004-P` 费用13「黑泽黛雅」、`PL!SP-bp7-002-P` 费用2「唐可可」、`PL!SP-bp7-013-N` 费用15「唐可可」、`PL!SP-bp7-026-L` 分数3「Dears」。这些候选尚未进入 `existing_module_map.md`。
+- `PL!SP-bp7-025-L`「Memories」继续阻塞：公开数据将其标为 `MEMBER` 且 `score: null`，但实际卡牌为 LIVE；须先修正或获得一致的公开权威数据，再进入 definition/workflow 实现。
 
 ## LL-bp7-001-R+ 后的剩余缺口
 

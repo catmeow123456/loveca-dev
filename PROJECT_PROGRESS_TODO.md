@@ -2,7 +2,7 @@
 
 更新时间：2026-07-21
 
-## 2026-07-21：盖放 LIVE 隐藏信息 continuous modifier 投影收口（未提交）
+## 2026-07-21：盖放 LIVE 隐藏信息 continuous modifier 投影收口（已提交：`80c2b77`）
 
 - Continuous modifier definition/factory 现必须显式声明 `PUBLIC` 或 `PLAYER_LIVE_ZONE_CONTENTS / SELF|OPPONENT`，统一 collector 将 SELF/OPPONENT 解析为真实 LIVE 区拥有者，并自动给同一 definition 产生的全部 modifier 附加投影依赖。权威 `collectLiveModifiers` 仍保留完整修正，只在玩家视图过滤。
 - 修复 7 张遗漏：`PL!-bp4-002` 费用15「绚濑绘里」、`PL!N-pb1-007` 费用15「优木雪菜」、`PL!SP-bp5-012-N` 费用2「涩谷香音」、`PL!-bp6-022-L` 分数9「Dreamin' Go! Go!!」依赖 SELF；`PL!SP-bp2-010` 费用15「薇恩・玛格丽特」、`PL!S-bp5-010-N` 费用4「高海千歌」、`PL!S-bp5-011-N` 费用4「樱内梨子」依赖对方 LIVE 区。既有 `PL!N-bp1-012` 费用15「钟岚珠」与 `PL!N-pb1-001` 费用11「上原步梦」迁入同一机制。
@@ -14,39 +14,39 @@
 - `GameSession` 不再丢弃费用方案的 `isRelay` 事实；直接登场不写 relay metadata、`replacingCardId` 或 `ON_RELAY`，并记录 `DUPLICATE_MEMBER` 规则动作。普通可换手成员在实际能量消耗相同时仍优先自动换手；同一通用回退也覆盖不满足换手条件的 `PL!HS-bp6-006`。
 - focused 费用、登场与真实换手 metadata 卡效回归共8文件/114项通过，shared/server TypeScript 通过；非法操作收紧规划文档已记录严格模式下仍需验证的槽位锁、费用不足、触发、投影与回放边界。未修改 Runner、卡牌 definition、卡牌数据或 `llocg_db`。
 
-## 2026-07-20：选择性能量活跃分支修正（未提交）
+## 2026-07-20：选择性能量活跃分支修正（已提交：`d52d12e`、`15d20e2`）
 
 - 修正 `PL!N-bp7-005-P` 费用11「宫下爱」：“将2张能量变为活跃状态”分支的可选性改为检查能量区是否有卡，不再错误要求存在 WAITING 能量；能量全部已 ACTIVE 时仍可选该分支，并以0张实际变化正常结束。只有展示后能量区真实变空才记录 stale no-op。
 - 盘点全部四条已实现的“多选一中活跃能量”路径：`PL!N-pb1-008-P+` 费用17「艾玛·维尔德」存在同类 WAITING 过滤并已同步修正；`PL!N-bp7-006-SEC` 费用17「近江彼方」与 `PL!N-pb1-010` 费用4「三船栞子」原本就允许0张实际变化，本轮只补全部 ACTIVE 回归。支付 `[E]` 的活跃能量门禁与无选择的自动活跃效果均未改动。
 - 追加修正 `PL!N-bp4-008-R / P` 费用5「艾玛·维尔德」：能量区有卡时，弃1手起动能力的“将1张能量变为活跃状态”处理方向不再因全部 ACTIVE 而消失；若没有 WAITING 能量，选择该方向后直接以0张实际状态变化结束，不展示 ACTIVE 能量目标。能量与待机虹咲成员方向同时存在时先选方向，只有确有 WAITING 能量时才进入具体能量选择。
-- 四条分支、能量 runtime 与卡效 runtime 定向6文件/97项通过；追加艾玛修正后的 focused、classification、runtime、energy 与 `sample-card-effect-runner` 共5文件/508项通过，服务端/客户端 TypeScript 通过。未 stage/commit/push。
+- 四条分支、能量 runtime 与卡效 runtime 定向6文件/97项通过；追加艾玛修正后的 focused、classification、runtime、energy 与 `sample-card-effect-runner` 共5文件/508项通过，服务端/客户端 TypeScript 通过。相关修正分布于提交 `d52d12e` 与 `15d20e2`。
 
-## 2026-07-20：BP7 公开窗口与多效果 UI 修正（未提交）
+## 2026-07-20：BP7 公开窗口与多效果 UI 修正（已提交：`d52d12e`）
 
-- `PL!N-bp7-009-P` 费用4「天王寺璃奈」保持双方顶7各自移动、独立 owner 事件与统一 continuation，仅将公开展示改为“发动方结果 -> 对方结果”两个连续窗口；两次均固定由效果发动方确认，空结果不建空窗口，第二次确认前不推进后续 waiting-room pending。
+- `PL!N-bp7-009-P` 费用4「天王寺璃奈」保持双方顶7各自移动、独立 owner 事件与统一 continuation，仅将公开展示改为“效果控制者（发动方）结果 -> 对方结果”至多两个连续窗口；两个窗口均固定由效果控制者确认，空结果不建空窗口，最后一个非空结果确认前不推进后续 waiting-room pending。
 - 起动能力菜单移入全局 portal 图层，保留卡牌锚点并限制在视口可用高度内滚动，不再被对方半场的 overflow / stacking context 裁切或遮挡。同时点多效果顺序窗口改为纵向整行选项和左对齐文字，长卡文自然换行。
-- focused N009/S003/N006/runtime 与 projector/replay/direct-mill 两批定向回归共161项通过（含 N009 重复验证）；服务端与客户端 TypeScript 通过。未修改其他 BP7 卡效逻辑，未 stage/commit/push。
+- focused N009/S003/N006/runtime 与 projector/replay/direct-mill 两批定向回归共161项通过（含 N009 重复验证）；服务端与客户端 TypeScript 通过。未修改其他 BP7 卡效逻辑；已提交为 `d52d12e`。
 
-## 2026-07-19：BP7 费用4「松浦果南」三段卡效（未提交）
+## 2026-07-19：BP7 费用4「松浦果南」三段卡效（已提交：`d52d12e`）
 
 - exact 实现 `PL!S-bp7-003-SEC` 三条独立 queued ability identity：登场检视顶1可置底、LIVE 开始检视顶1可置底、登场在“本次 LIVE 结束前的成员待机保护”与“自身移动到 Aqours / Saint Snow 成员所在区域”之间强制选择。两条登场能力保持统一 ordered pending，由玩家决定结算顺序。
 - 检视段复用私密 inspection 与标准 continuation；保留时回到刷新后主卡组顶，置底时只在 `MAIN_DECK` 内重排，不公开、不写 `revealedCardIds`、不产生休息室事件。空主卡组沿用标准 refresh，双方牌库均空则不建立空窗口。
 - 待机保护落在 `member-state` 状态变化规则边界：动态检查当前顶层 Aqours 与印刷 BLADE <=3，不过滤候选；`CARD_EFFECT` 的控制者与实际选择玩家分别记录。对方决定的待机变化被阻止，受影响玩家自己选择时不阻止，因此费用15「セラス 柳田 リリエンフェルト」真实 AUTO 路径可正常待机并记录两项事实。保护不随来源离场，真实 `LIVE_END` 清理。
 - 站位目标区域复用从 `PL!S-bp5-111 / 222` 既有支付能量站位流程抽出的纯 query，并用标准交换/移动事件 wrapper；没有建立任意免疫、保护、数值比较或站位 DSL。本轮未修改其他 BP7 单卡、卡牌数据或 `llocg_db`。
 
-## 2026-07-19：BP7 第二批单卡 PL!N-bp7-027-L（未提交）
+## 2026-07-19：BP7 第二批单卡 PL!N-bp7-027-L（已提交：`d52d12e`）
 
 - exact 实现 `PL!N-bp7-027-L` 分数2「オードリー / 奥黛丽」：LIVE 成功时只从己方三个主舞台顶层选择结构化虹咲成员；0目标安全结束、1目标自动结算、多目标打开公开且不可跳过的真实单选窗口。
 - 结算时用同一个 `collectLiveModifiers` snapshot 计算所选成员与双方全部其他顶层成员的 `getMemberEffectiveBladeCount`；ACTIVE/WAITING、临时 BLADE 与原本 BLADE replacement 均计入，memberBelow 不计，严格大于且空比较集合成立。
 - 条件成立时以来源 LIVE 实例和独立 ability identity replacement 写 SCORE +1，并按旧新差值同步 `liveResolution.playerScores`；来源/目标 stale 安全 no-op，目标同实例移槽继续跟随，action payload 保存目标、双方比较事实、条件与加分结果。
 - 本轮只新增单卡 workflow 与 focused test，不新增 runtime helper/shared family，不修改其他 BP7 卡牌、卡牌数据或 `llocg_db`。
 
-## 2026-07-19：BP7 七弹第一批公开展示审查修正（未提交）
+## 2026-07-19：BP7 七弹第一批公开展示审查修正（已提交：`d52d12e`）
 
 - 修正 exact `PL!N-bp7-006-SEC` 费用17「近江彼方」顶3费用的公开结果：命中继续由强制二选一窗口同时展示实际 `movedCardIds`，未命中则打开单一“确认公开结果”窗口；恰好3张且支付后刷新时也只读取费用事件保存的原始移动事实，确认前不 continuation。
-- 修正 exact `PL!N-bp7-009-P` 费用4「天王寺璃奈」双方顶7：移除移动前 confirm-only，双方 refresh-aware 移动和两个独立 owner grouped event 全部建立后，再打开一个真实公开结果窗口；双方均无实际移动时直接结束。
-- 两个窄 runtime 边界不变：006 仍是“足额主卡组精确顶牌费用 + 移动后规则刷新”，009 仍是“多 owner 同一效果全部移动后统一 enqueue”。公开展示集合允许按实例去重，metadata/action/event 中每位玩家的原始顺序与重复事实完整保留；未扩成 direct-mill DSL。
-- 本轮 focused + 相关 direct-mill/projector/pending 回归：11 files / 369 tests passed；本批四个 workflow/test 文件 ESLint 通过，`tsc --noEmit` 与 `tsc -b client` 通过，未 stage/commit/push。
+- 修正 exact `PL!N-bp7-009-P` 费用4「天王寺璃奈」双方顶7：移除移动前 confirm-only，双方 refresh-aware 移动和两个独立 owner grouped event 全部建立后，按“效果控制者（发动方）结果 → 对方结果”至多打开两个连续真实公开结果窗口；均由效果控制者确认，空结果跳过，最后一个非空结果确认前不推进 continuation，双方均无实际移动时直接结束。
+- 两个窄 runtime 边界不变：006 仍是“足额主卡组精确顶牌费用 + 移动后规则刷新”，009 仍是“多 owner 同一效果全部移动后统一 enqueue”。009 每个公开窗口只展示对应 owner 的结果，metadata/action/event 中每位玩家的原始顺序与重复事实完整保留；未扩成 direct-mill DSL。
+- 本轮 focused + 相关 direct-mill/projector/pending 回归：11 files / 369 tests passed；本批四个 workflow/test 文件 ESLint 通过，`tsc --noEmit` 与 `tsc -b client` 通过；已提交为 `d52d12e`。
 
 ## 2026-07-19：联机观战 429 轮询与自动恢复闭环（未提交）
 
@@ -239,7 +239,7 @@
 - 合计恰为 10 / 20 / 30 / 40 / 50 时，通过 `addPlayerScoreLiveModifierForTargetMember` 给 003 来源实例写玩家总 SCORE +1；不写 `liveCardId`，不直接改主阶段 `playerScores`。Q78 继续由标准 ON_LEAVE_STAGE 的 target-member-bound 清理处理，槽位移动保留、来源离场或成为 memberBelow 后移除；Q171 继续由 LIVE 结果结算统一清空 `liveModifiers`，没有进行 LIVE 也相同。
 - 本批新增 1 个生产卡牌维度 `.ts`；runner 只增加 003 workflow 的一个 import 与一个 register 调用。`PL!SP-bp1-025` 仍只是 ALL BLADE 规则提醒，不登记 ability；前五批与历史“当时未实现”记录保持原样。
 
-## 2026-07-15：Liella! SP-bp1 新卡卡效第五批（未提交）
+## 2026-07-15：Liella! SP-bp1 新卡卡效第五批（已提交：`d5d50ee`；不能 LIVE 时序修正：`80c2b77`）
 
 - `PL!SP-bp1-001-P / R` 费用 9「澁谷かのん」完成非 queued `CONTINUOUS` ability；玩家文本逐字采用 Excel `sheet1!A115:X116` 的「【常时】自己的舞台上不存在其他的成员的场合，自己无法进行LIVE。」。
 - `src/domain/rules/live-prohibitions.ts` 新增窄的动态 continuous 查询：只在合法 001 来源是控制者 LEFT/CENTER/RIGHT 主舞台顶层 MEMBER，且己方没有来源以外的其他合法顶层成员时禁止 LIVE。对方成员与 memberBelow 不计入；两张 001 同时在场会互相视为其他成员，因此不禁止。

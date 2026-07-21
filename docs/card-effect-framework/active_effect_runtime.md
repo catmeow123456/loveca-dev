@@ -86,11 +86,15 @@ Important fields:
 | `selectableObjectIds` | 可选公开对象候选。 |
 | `selectableSlotPositions` | 可选槽位候选。 |
 | `selectableOptions` | 普通动作、支付、发动、队列或 legacy handler 使用的通用选项；不再作为真实多效果分支的玩家展示入口。 |
+| `inspectionCardIds` | 权威 activeEffect 中的检视卡实例列表，供服务端校验、排序和结算；不得作为普通玩家视图字段直接下发。 |
+| `inspectionObjectIds` | 从权威 `inspectionCardIds` 映射出的玩家视图控制列表。仅当查看者是 `inspectionContext.viewerPlayerId ?? ownerPlayerId` 且同时是 `activeEffect.awaitingPlayerId` 时投影，用于操作当前检视对象；非控制方（包括跨玩家检视中的区域 owner）不接收该列表。 |
 | `effectChoice` | 卡文中的真实单选/多选效果分支，包含服务端选项文本、数量边界、动态可选性与公开结果。 |
 | `publicEffectChoiceAutoAdvanceAt` | 效果选项公开阶段的服务端权威截止时间。 |
 | `revealedCardIds` | 已公开给双方的隐藏区卡。 |
 | `selectableCardVisibility` | 候选投影模式：`PUBLIC`、`AWAITING_PLAYER_ONLY` 或 `AWAITING_PLAYER_BLIND`。 |
 | `metadata` | workflow 私有上下文。 |
+
+`inspectionObjectIds` 与普通检视区投影是两条不同边界：非控制方可能仍因检视区的公共 occupancy 看到 `BACK` 对象，但不会获得 activeEffect 的可操作控制列表；卡牌加入 `revealedCardIds` 后，双方对应检视对象可按公开规则显示为 `FRONT`。
 
 ## Metadata Rule
 
