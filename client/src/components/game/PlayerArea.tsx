@@ -138,16 +138,29 @@ const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
         1,
         placement === 'above' ? top - viewportPadding : window.innerHeight - top - viewportPadding
       );
-      setLayout({ left, top, width, maxHeight });
+      setLayout((current) =>
+        current &&
+        current.left === left &&
+        current.top === top &&
+        current.width === width &&
+        current.maxHeight === maxHeight
+          ? current
+          : { left, top, width, maxHeight }
+      );
     };
 
     updateLayout();
+    let animationFrameId = window.requestAnimationFrame(function trackAnimatedLayout() {
+      updateLayout();
+      animationFrameId = window.requestAnimationFrame(trackAnimatedLayout);
+    });
     window.addEventListener('resize', updateLayout);
     window.addEventListener('scroll', updateLayout, true);
     const resizeObserver =
       typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateLayout);
     if (anchorRef.current) resizeObserver?.observe(anchorRef.current);
     return () => {
+      window.cancelAnimationFrame(animationFrameId);
       window.removeEventListener('resize', updateLayout);
       window.removeEventListener('scroll', updateLayout, true);
       resizeObserver?.disconnect();

@@ -472,6 +472,18 @@ export const GameBoard = memo(function GameBoard({
     readonly cardIds: readonly string[];
   } | null>(null);
 
+  useEffect(() => {
+    const pendingId = pendingSpecialMemberPlay?.id;
+    const timer = window.setTimeout(
+      () =>
+        setSpecialPlayPaymentDraft((current) =>
+          current && current.pendingId !== pendingId ? null : current
+        ),
+      0
+    );
+    return () => window.clearTimeout(timer);
+  }, [pendingSpecialMemberPlay?.id]);
+
   const clearDragInteractionState = useCallback(() => {
     setActiveCardId(null);
     setActiveDragFromZone(null);

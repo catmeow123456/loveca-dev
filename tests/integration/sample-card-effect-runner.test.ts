@@ -814,14 +814,20 @@ function setupTsukiyomiManualCheerAdjustmentSession(
   return session;
 }
 
-function removeFromPlayerZones(player: {
-  hand: { cardIds: string[] };
-  mainDeck: { cardIds: string[] };
-  waitingRoom: { cardIds: string[] };
-  successZone: { cardIds: string[] };
-  liveZone: { cardIds: string[] };
-}): void {
-  const ruleSentinelCardId = player.mainDeck.cardIds.at(-1);
+function removeFromPlayerZones(
+  player: {
+    hand: { cardIds: string[] };
+    mainDeck: { cardIds: string[] };
+    waitingRoom: { cardIds: string[] };
+    successZone: { cardIds: string[] };
+    liveZone: { cardIds: string[] };
+  },
+  excludedCardIds: readonly string[] = []
+): void {
+  const excludedCardIdSet = new Set(excludedCardIds);
+  const ruleSentinelCardId = player.mainDeck.cardIds.find(
+    (cardId) => !excludedCardIdSet.has(cardId)
+  );
   const zones = [player.hand, player.waitingRoom, player.successZone, player.liveZone];
   for (const zone of zones) {
     zone.cardIds = [];
@@ -2177,7 +2183,13 @@ describe('sample card effect runner', () => {
     nonMuseLive.data = createLiveCard('PR-017-NON-MUSE-LIVE', 'Non Muse Live', '虹咲');
     successScore3Live.data = createLiveCard('PR-017-SUCCESS-THREE', 'Success Three');
 
-    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p1, [
+      nicoCardId!,
+      targetMuseLiveId!,
+      nonMuseLiveId!,
+      successScore6LiveId!,
+      successScore3LiveId!,
+    ]);
     p1.memberSlots.slots[SlotPosition.CENTER] = nicoCardId!;
     p1.memberSlots.cardStates = new Map([
       [nicoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
@@ -2357,7 +2369,12 @@ describe('sample card effect runner', () => {
     nonMuseLive.data = createLiveCard('PR-017-NON-MUSE-LIVE', 'Non Muse Live', '虹咲');
     successScore3Live.data = createLiveCard('PR-017-SUCCESS-THREE', 'Success Three');
 
-    removeFromPlayerZones(p1);
+    removeFromPlayerZones(p1, [
+      nicoCardId!,
+      nonMuseLiveId!,
+      successScore6LiveId!,
+      successScore3LiveId!,
+    ]);
     p1.memberSlots.slots[SlotPosition.CENTER] = nicoCardId!;
     p1.memberSlots.cardStates = new Map([
       [nicoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
