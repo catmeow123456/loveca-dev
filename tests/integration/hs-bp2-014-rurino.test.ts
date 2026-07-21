@@ -143,19 +143,36 @@ describe('HS-bp2-014 Rurino workflow', () => {
     );
     expect(confirmResult.success).toBe(true);
 
-    const playerAfterLiveSet = confirmResult.gameState.players[0];
-    expect(playerAfterLiveSet.hand.cardIds).toEqual([
+    const playerAfterFirstDraw = confirmResult.gameState.players[0];
+    expect(playerAfterFirstDraw.hand.cardIds).toEqual([
       drawCards[1].instanceId,
       drawCards[2].instanceId,
     ]);
-    expect(playerAfterLiveSet.liveZone.cardIds).toEqual([]);
-    expect(playerAfterLiveSet.liveZone.cardStates.size).toBe(0);
-    expect(playerAfterLiveSet.waitingRoom.cardIds).toEqual([
+    expect(playerAfterFirstDraw.liveZone.cardIds).toEqual([live.instanceId, liveSetDrawnMemberId]);
+    expect(playerAfterFirstDraw.liveZone.cardStates.size).toBe(2);
+    expect(playerAfterFirstDraw.liveZone.cardStates.get(live.instanceId)?.face).toBe(
+      FaceState.FACE_DOWN
+    );
+    expect(playerAfterFirstDraw.liveZone.cardStates.get(liveSetDrawnMemberId)?.face).toBe(
+      FaceState.FACE_DOWN
+    );
+    expect(playerAfterFirstDraw.waitingRoom.cardIds).toEqual([]);
+
+    const confirmOpponentResult = service.processAction(
+      confirmResult.gameState,
+      createConfirmSubPhaseAction(PLAYER2, SubPhase.LIVE_SET_SECOND_PLAYER)
+    );
+    expect(confirmOpponentResult.success).toBe(true);
+
+    const playerAfterBothLiveSets = confirmOpponentResult.gameState.players[0];
+    expect(playerAfterBothLiveSets.liveZone.cardIds).toEqual([]);
+    expect(playerAfterBothLiveSets.liveZone.cardStates.size).toBe(0);
+    expect(playerAfterBothLiveSets.waitingRoom.cardIds).toEqual([
       live.instanceId,
       liveSetDrawnMemberId,
     ]);
     expect(
-      confirmResult.gameState.eventLog.some(
+      confirmOpponentResult.gameState.eventLog.some(
         (entry) =>
           entry.event.eventType === TriggerCondition.ON_LIVE_START &&
           entry.event.performerId === PLAYER1
@@ -219,7 +236,8 @@ describe('HS-bp2-014 Rurino workflow', () => {
       createConfirmSubPhaseAction(PLAYER1, SubPhase.LIVE_SET_FIRST_PLAYER)
     );
     expect(confirmP1.success).toBe(true);
-    expect(confirmP1.gameState.players[0].liveZone.cardIds).toEqual([]);
+    expect(confirmP1.gameState.players[0].liveZone.cardIds).toEqual([live.instanceId]);
+    expect(confirmP1.gameState.players[0].waitingRoom.cardIds).not.toContain(live.instanceId);
     currentState = confirmP1.gameState;
 
     const setP2Live = service.processAction(
@@ -227,6 +245,8 @@ describe('HS-bp2-014 Rurino workflow', () => {
       createSetLiveCardAction(PLAYER2, opponentLive.instanceId, true)
     );
     expect(setP2Live.success).toBe(true);
+    expect(setP2Live.gameState.players[0].liveZone.cardIds).toEqual([live.instanceId]);
+    expect(setP2Live.gameState.players[0].waitingRoom.cardIds).not.toContain(live.instanceId);
     currentState = setP2Live.gameState;
 
     const confirmP2 = service.processAction(
@@ -269,5 +289,51 @@ describe('HS-bp2-014 Rurino workflow', () => {
           entry.event.playerId === PLAYER2
       )
     ).toBe(true);
+  });
+
+  it('also clears a prohibited second player only after that player finishes Live Set', () => {
+    const { state, live, opponentLive } = runOnEnter(3);
+    const service = new GameService();
+    let currentState = {
+      ...state,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+      firstPlayerIndex: 1,
+      activePlayerIndex: 1,
+      liveSetCompletedPlayers: [],
+    };
+
+    const setFirstPlayerLive = service.processAction(
+      currentState,
+      createSetLiveCardAction(PLAYER2, opponentLive.instanceId, true)
+    );
+    expect(setFirstPlayerLive.success).toBe(true);
+
+    const confirmFirstPlayer = service.processAction(
+      setFirstPlayerLive.gameState,
+      createConfirmSubPhaseAction(PLAYER2, SubPhase.LIVE_SET_FIRST_PLAYER)
+    );
+    expect(confirmFirstPlayer.success).toBe(true);
+    currentState = confirmFirstPlayer.gameState;
+
+    const setProhibitedSecondPlayerLive = service.processAction(
+      currentState,
+      createSetLiveCardAction(PLAYER1, live.instanceId, true)
+    );
+    expect(setProhibitedSecondPlayerLive.success).toBe(true);
+    expect(setProhibitedSecondPlayerLive.gameState.players[0].liveZone.cardIds).toEqual([
+      live.instanceId,
+    ]);
+
+    const confirmSecondPlayer = service.processAction(
+      setProhibitedSecondPlayerLive.gameState,
+      createConfirmSubPhaseAction(PLAYER1, SubPhase.LIVE_SET_SECOND_PLAYER)
+    );
+    expect(confirmSecondPlayer.success).toBe(true);
+    expect(confirmSecondPlayer.gameState.players[0].liveZone.cardIds).toEqual([]);
+    expect(confirmSecondPlayer.gameState.players[0].waitingRoom.cardIds).toContain(live.instanceId);
+    expect(confirmSecondPlayer.gameState.players[1].liveZone.cardIds).toEqual([
+      opponentLive.instanceId,
+    ]);
   });
 });

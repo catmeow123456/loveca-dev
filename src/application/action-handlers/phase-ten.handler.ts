@@ -253,9 +253,18 @@ function executeSubPhaseAutoAction(
       for (let i = 0; i < liveCardCount; i++) {
         state = ctx.drawCard(state, autoAction.playerId);
       }
-      state = liveProhibitedPlayerLiveZoneToWaitingRoom(state, autoAction.playerId);
       state = clearLiveSetCardsForPlayer(state, autoAction.playerId);
       state = consumeLiveSetLimitReductionsForPlayer(state, autoAction.playerId);
+
+      // 双方盖牌完成前，受限玩家盖下的卡仍须保持非公开。
+      // 待双方都完成 Live Set 后，再统一清空所有不能 Live 的玩家的 Live 区。
+      if (
+        state.players.every((candidate) => state.liveSetCompletedPlayers.includes(candidate.id))
+      ) {
+        for (const candidate of state.players) {
+          state = liveProhibitedPlayerLiveZoneToWaitingRoom(state, candidate.id);
+        }
+      }
       return state;
     }
 

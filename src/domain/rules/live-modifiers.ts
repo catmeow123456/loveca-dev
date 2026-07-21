@@ -79,9 +79,31 @@ interface ContinuousLiveModifierContext {
   readonly successLiveCount: number;
 }
 
+export type ContinuousLiveModifierVisibility =
+  | { readonly kind: 'PUBLIC' }
+  | {
+      readonly kind: 'PLAYER_LIVE_ZONE_CONTENTS';
+      readonly player: 'SELF' | 'OPPONENT';
+    };
+
+const PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY = { kind: 'PUBLIC' } as const;
+const SELF_LIVE_ZONE_CONTENTS_VISIBILITY = {
+  kind: 'PLAYER_LIVE_ZONE_CONTENTS',
+  player: 'SELF',
+} as const;
+const OPPONENT_LIVE_ZONE_CONTENTS_VISIBILITY = {
+  kind: 'PLAYER_LIVE_ZONE_CONTENTS',
+  player: 'OPPONENT',
+} as const;
+
 interface ContinuousLiveModifierDefinition {
   readonly cardCodes?: readonly string[];
   readonly baseCardCodes?: readonly string[];
+  /**
+   * Information used to decide whether this definition's modifiers may be projected.
+   * This is intentionally required so every new continuous definition is reviewed.
+   */
+  readonly visibility: ContinuousLiveModifierVisibility;
   readonly collect: (context: ContinuousLiveModifierContext) => readonly LiveModifierState[];
 }
 
@@ -288,6 +310,7 @@ export interface SuppressLiveAbilityOptions {
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     cardCodes: ['PL!N-bp7-007-SEC'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
@@ -304,6 +327,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     cardCodes: ['PL!N-bp7-007-SEC'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
@@ -320,6 +344,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     cardCodes: ['PL!S-bp7-005-SEC'],
     collect: ({ game, playerId, sourceCardId }) => {
       const player = getPlayerById(game, playerId);
@@ -329,10 +354,12 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       return MEMBER_SLOT_ORDER.flatMap((slot) => {
         const hostCardId = player.memberSlots.slots[slot];
         const hostCard = hostCardId ? getCardById(game, hostCardId) : null;
-        const containsMemberBelowCard = (player.memberSlots.memberBelow[slot] ?? []).some((cardId) => {
-          const card = getCardById(game, cardId);
-          return card?.ownerId === playerId && isMemberCardData(card.data);
-        });
+        const containsMemberBelowCard = (player.memberSlots.memberBelow[slot] ?? []).some(
+          (cardId) => {
+            const card = getCardById(game, cardId);
+            return card?.ownerId === playerId && isMemberCardData(card.data);
+          }
+        );
         if (
           !hostCardId ||
           !hostCard ||
@@ -355,6 +382,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     cardCodes: ['PL!S-bp7-016-N'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -378,6 +406,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp2-004'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -398,6 +427,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-sd1-001'],
     collect: ({ playerId, sourceCardId, successLiveCount }) =>
       successLiveCount > 0
@@ -412,6 +442,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp5-008'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!successLiveScoreAtLeast(game, playerId, 6)) {
@@ -428,6 +459,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp5-111'],
     collect: ({ game, playerId, sourceCardId }) => {
       const otherAriseMemberCount = countOtherStageMembersBelongingToGroup(
@@ -450,6 +482,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp5-333'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -468,6 +501,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: SELF_LIVE_ZONE_CONTENTS_VISIBILITY,
     baseCardCodes: ['PL!-bp4-002'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!hasLiveWithoutLiveStartOrSuccessAbility(game, playerId)) {
@@ -484,6 +518,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp4-018'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasSuccessfulLiveScoreLead(game, playerId)
@@ -499,6 +534,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-bp4-007'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -518,6 +554,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-bp4-012'],
     collect: ({ game, playerId, sourceCardId }) =>
       opponentSuccessLiveScoreAtLeast(game, playerId, 6)
@@ -533,6 +570,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp5-003'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!hasAtLeastDifferentNamedStageMembers(game, playerId, 3)) {
@@ -549,6 +587,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: SELF_LIVE_ZONE_CONTENTS_VISIBILITY,
     baseCardCodes: ['PL!N-pb1-001'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -564,18 +603,17 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           countDelta: 2,
           sourceCardId,
           abilityId: PL_N_PB1_001_CONTINUOUS_TWO_LIVE_CARDS_GAIN_TWO_BLADE_ABILITY_ID,
-          visibilityDependency: playerLiveZoneContentsVisibilityDependency(playerId),
         },
       ];
     },
   },
   {
+    visibility: SELF_LIVE_ZONE_CONTENTS_VISIBILITY,
     baseCardCodes: ['PL!N-bp1-012'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!hasLiveZoneThreeIncludingNijigasakiLive(game, playerId)) {
         return [];
       }
-      const visibilityDependency = playerLiveZoneContentsVisibilityDependency(playerId);
       const heartModifier = createHeartLiveModifierForMember(game, {
         playerId,
         memberCardId: sourceCardId,
@@ -588,7 +626,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         return [];
       }
       return [
-        { ...heartModifier, visibilityDependency },
+        heartModifier,
         {
           kind: 'BLADE',
           playerId,
@@ -596,12 +634,12 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           sourceCardId,
           abilityId:
             PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID,
-          visibilityDependency,
         },
       ];
     },
   },
   {
+    visibility: SELF_LIVE_ZONE_CONTENTS_VISIBILITY,
     baseCardCodes: ['PL!N-pb1-007'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -622,6 +660,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-bp5-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -638,6 +677,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: SELF_LIVE_ZONE_CONTENTS_VISIBILITY,
     baseCardCodes: ['PL!SP-bp5-012'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!hasLiellaLiveWithRequirementTotalAtLeast(game, playerId, 8)) {
@@ -654,6 +694,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp5-011'],
     collect: ({ game, playerId, sourceCardId }) => {
       const slot = getSourceMainStageSlot(game, playerId, sourceCardId);
@@ -679,6 +720,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp5-016'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -699,6 +741,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp5-111'],
     collect: ({ game, playerId, sourceCardId }) =>
       collectExactEightEnergyScoreModifier(
@@ -709,6 +752,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       ),
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp5-222'],
     collect: ({ game, playerId, sourceCardId }) =>
       collectExactEightEnergyScoreModifier(
@@ -719,6 +763,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       ),
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-pb1-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -735,6 +780,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp1-003'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasThreeDifferentHasunosoraMembersOnStage(game, playerId)
@@ -750,6 +796,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp5-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasAtLeastDifferentEffectiveCostStageMembers(game, playerId, 3)
@@ -757,6 +804,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp5-004'],
     collect: ({ game, playerId, sourceCardId }) => {
       const highCostNonCeriseMemberCount = countHighCostNonCeriseBouquetStageMembers(
@@ -778,6 +826,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp2-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOtherHigherEffectiveCostStageMember(game, playerId, sourceCardId)
@@ -793,6 +842,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp5-007'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOtherEdelNoteStageMember(game, playerId, sourceCardId)
@@ -808,6 +858,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp2-006'],
     collect: ({ game, playerId, sourceCardId }) => {
       const otherMiracraMemberCount = countOtherMiracraParkStageMembers(
@@ -829,6 +880,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-bp6-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasNoOtherStageMembers(game, playerId, sourceCardId)
@@ -844,6 +896,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-pb1-015'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasNoOtherStageMembers(game, playerId, sourceCardId)
@@ -859,6 +912,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-bp5-008'],
     collect: ({ game, playerId, sourceCardId }) => {
       const opponent = game.players.find((candidate) => candidate.id !== playerId);
@@ -876,11 +930,13 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-pb1-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       collectPlPb1002OpponentWaitingPurpleHeartModifiers(game, playerId, sourceCardId),
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp3-002'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
@@ -904,6 +960,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     cardCodes: ['PL!HS-bp5-016-N'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasOpponentWaitingStageMembers(game, playerId, 2)
@@ -911,6 +968,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-sd1-004'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasNamedStageMember(game, playerId, [
@@ -924,6 +982,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-sd1-005'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasNamedStageMember(game, playerId, [
@@ -945,11 +1004,13 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-pb1-014'],
     collect: ({ game, playerId, sourceCardId }) =>
       collectPb1014FrontHighCostHeartModifier(game, playerId, sourceCardId),
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-bp6-009'],
     collect: ({ game, playerId, sourceCardId }) => {
       const player = game.players.find((candidate) => candidate.id === playerId);
@@ -970,6 +1031,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-bp2-001'],
     collect: ({ game, playerId, sourceCardId }) => {
       const player = game.players.find((candidate) => candidate.id === playerId);
@@ -993,6 +1055,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp6-009'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasCenterNicoWithSideOriginalBladeTwoMembers(game, playerId, sourceCardId)
@@ -1008,6 +1071,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!-bp4-005'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceCenterStageMember(game, playerId, sourceCardId)
@@ -1023,6 +1087,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-pb1-007'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasExactOwnTwoOpponentThreeStageMembers(game, playerId)
@@ -1030,6 +1095,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-pb1-004'],
     collect: ({ game, playerId, sourceCardId }) =>
       hasMemberPositionMovedThisTurn(game, playerId, sourceCardId)
@@ -1045,6 +1111,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           ],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-pb1-002'],
     collect: ({ game, playerId, sourceCardId }) =>
       countEnergyBelowSourceMember(game, playerId, sourceCardId) >= 2
@@ -1054,13 +1121,13 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
               playerId,
               countDelta: 1,
               sourceCardId,
-              abilityId:
-                PL_N_PB1_002_CONTINUOUS_TWO_ENERGY_BELOW_LIVE_TOTAL_SCORE_ABILITY_ID,
+              abilityId: PL_N_PB1_002_CONTINUOUS_TWO_ENERGY_BELOW_LIVE_TOTAL_SCORE_ABILITY_ID,
             },
           ]
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-pb1-011'],
     collect: ({ game, playerId, sourceCardId }) => {
       const energyBelowCount = countEnergyBelowSourceMember(game, playerId, sourceCardId);
@@ -1078,6 +1145,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-pb1-005'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1094,6 +1162,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-pb1-009'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1111,6 +1180,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-pb1-022'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -1131,6 +1201,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!HS-pb1-022'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1147,6 +1218,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp4-003'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceCenterStageMember(game, playerId, sourceCardId)
@@ -1162,6 +1234,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp4-005'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1178,6 +1251,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp4-009'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1195,6 +1269,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp4-021'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -1215,6 +1290,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     cardCodes: ['PL!SP-PR-025-PR'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1231,6 +1307,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-sd2-004'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceCenterStageMember(game, playerId, sourceCardId)
@@ -1246,6 +1323,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-sd2-008'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -1266,6 +1344,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-PR-029', 'PL!S-PR-030', 'PL!S-PR-031'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1282,6 +1361,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [],
   },
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-PR-020', 'PL!S-PR-037'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -1314,6 +1394,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   },
   {
+    visibility: OPPONENT_LIVE_ZONE_CONTENTS_VISIBILITY,
     baseCardCodes: ['PL!SP-bp2-010'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId)
@@ -1335,6 +1416,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     },
   ]),
   {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!N-PR-024', 'PL!S-PR-039'],
     collect: ({ game, playerId, sourceCardId }) =>
       countTotalSuccessLiveCards(game, playerId) >= 4
@@ -1436,11 +1518,13 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
 const SUCCESS_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly SuccessZoneContinuousLiveModifierDefinition[] =
   [
     {
+      visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
       baseCardCodes: ['PL!-bp4-020'],
       collect: ({ game, playerId, sourceCardId }) =>
         collectLoveWingBellCenterMuseBladeModifier(game, playerId, sourceCardId),
     },
     {
+      visibility: SELF_LIVE_ZONE_CONTENTS_VISIBILITY,
       baseCardCodes: ['PL!-bp6-022'],
       nonStackingAbilityId: 'PL!-bp6-022:continuous-success-zone-muse-live-requirement',
       collect: ({ game, playerId, sourceCardId }) =>
@@ -1578,6 +1662,22 @@ export function collectLiveModifiers(game: GameState): readonly LiveModifierStat
   return [...game.liveResolution.liveModifiers, ...collectContinuousLiveModifiers(game)];
 }
 
+/** Read-only registry projection used by governance tests and architecture audits. */
+export function getContinuousLiveModifierVisibilityDeclarations(): readonly {
+  readonly cardCodes?: readonly string[];
+  readonly baseCardCodes?: readonly string[];
+  readonly visibility: ContinuousLiveModifierVisibility;
+}[] {
+  return [
+    ...CONTINUOUS_LIVE_MODIFIER_DEFINITIONS,
+    ...SUCCESS_ZONE_CONTINUOUS_LIVE_MODIFIER_DEFINITIONS,
+  ].map(({ cardCodes, baseCardCodes, visibility }) => ({
+    cardCodes,
+    baseCardCodes,
+    visibility,
+  }));
+}
+
 function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierState[] {
   const modifiers: LiveModifierState[] = [];
 
@@ -1596,7 +1696,7 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
         }
 
         modifiers.push(
-          ...definition.collect({
+          ...collectModifiersFromContinuousDefinition(definition, {
             game,
             playerId: player.id,
             sourceCardId: cardId,
@@ -1659,7 +1759,7 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
         }
 
         modifiers.push(
-          ...definition.collect({
+          ...collectModifiersFromContinuousDefinition(definition, {
             game,
             playerId: player.id,
             sourceCardId: cardId,
@@ -1675,6 +1775,27 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
   }
 
   return modifiers;
+}
+
+function collectModifiersFromContinuousDefinition(
+  definition: ContinuousLiveModifierDefinition,
+  context: ContinuousLiveModifierContext
+): readonly LiveModifierState[] {
+  const collected = definition.collect(context);
+  if (definition.visibility.kind === 'PUBLIC' || collected.length === 0) {
+    return collected;
+  }
+
+  const dependentPlayer =
+    definition.visibility.player === 'SELF'
+      ? getPlayerById(context.game, context.playerId)
+      : getOpponent(context.game, context.playerId);
+  if (!dependentPlayer) {
+    return collected;
+  }
+
+  const visibilityDependency = playerLiveZoneContentsVisibilityDependency(dependentPlayer.id);
+  return collected.map((modifier) => ({ ...modifier, visibilityDependency }));
 }
 
 function playerLiveZoneContentsVisibilityDependency(
@@ -1892,6 +2013,7 @@ function createSideSlotBladeContinuousDefinitions(
   definitions: readonly SideSlotBladeContinuousDefinition[]
 ): readonly ContinuousLiveModifierDefinition[] {
   return definitions.map((definition) => ({
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: [definition.baseCardCode],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceStageMemberInSlot(game, playerId, sourceCardId, definition.requiredSlot)
@@ -1912,6 +2034,7 @@ function createEnergyThresholdHeartContinuousDefinitions(
   definitions: readonly EnergyThresholdHeartContinuousDefinition[]
 ): readonly ContinuousLiveModifierDefinition[] {
   return definitions.map((definition) => ({
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: [definition.baseCardCode],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
@@ -1940,6 +2063,7 @@ function createActiveEnergyHeartContinuousDefinitions(
   definitions: readonly ActiveEnergyHeartContinuousDefinition[]
 ): readonly ContinuousLiveModifierDefinition[] {
   return definitions.map((definition) => ({
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: [definition.baseCardCode],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
@@ -1965,6 +2089,7 @@ function createSuccessZoneUnitHeartContinuousDefinitions(
   definitions: readonly SuccessZoneUnitHeartContinuousDefinition[]
 ): readonly ContinuousLiveModifierDefinition[] {
   return definitions.map((definition) => ({
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: [definition.baseCardCode],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!successZoneHasUnitCard(game, playerId, definition.unitName)) {
@@ -1987,6 +2112,7 @@ function createStageHeartOpponentLiveRequirementContinuousDefinitions(
   definitions: readonly StageHeartOpponentLiveRequirementContinuousDefinition[]
 ): readonly ContinuousLiveModifierDefinition[] {
   return definitions.map((definition) => ({
+    visibility: OPPONENT_LIVE_ZONE_CONTENTS_VISIBILITY,
     baseCardCodes: [definition.baseCardCode],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -2005,6 +2131,7 @@ function createTotalStageSixHeartContinuousDefinitions(
   definitions: readonly TotalStageSixHeartContinuousDefinition[]
 ): readonly ContinuousLiveModifierDefinition[] {
   return definitions.map(({ baseCardCodes, abilityId, heartColors }) => ({
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes,
     collect: ({ game, playerId, sourceCardId }) => {
       if (

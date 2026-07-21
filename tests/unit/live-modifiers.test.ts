@@ -5284,6 +5284,7 @@ describe('live modifier helpers', () => {
       hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
       sourceCardId: kanon.instanceId,
       abilityId: 'PL!SP-bp5-012:continuous-liella-live-requirement-eight-yellow-heart',
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p1' },
     });
     expect(getMemberEffectiveHeartIcons(game, 'p1', kanon.instanceId, modifiers)).toEqual([
       createHeartIcon(HeartColor.PINK, 1),
@@ -5530,6 +5531,7 @@ describe('live modifier helpers', () => {
       hearts: [createHeartIcon(HeartColor.PURPLE, 2)],
       sourceCardId: eli.instanceId,
       abilityId: 'PL!-bp4-002:continuous-live-without-timing-purple-heart',
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p1' },
     });
     expect(getMemberEffectiveHeartIcons(game, 'p1', eli.instanceId, modifiers)).toEqual([
       createHeartIcon(HeartColor.PINK, 1),
@@ -5650,6 +5652,7 @@ describe('live modifier helpers', () => {
       modifiers: [{ color: HeartColor.RAINBOW, countDelta: -2 }],
       sourceCardId: dreamin.instanceId,
       abilityId: 'PL!-bp6-022:continuous-success-zone-muse-live-requirement',
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p1' },
     });
     expect(
       getLiveCardRequirementModifiers(game.liveResolution, targetLive.instanceId, modifiers)
@@ -8173,6 +8176,7 @@ describe('PL!N-pb1-007 continuous six-color LIVE requirement ALL Heart', () => {
       hearts: [createHeartIcon(HeartColor.RAINBOW, 1)],
       sourceCardId: setsuna.instanceId,
       abilityId: PL_N_PB1_007_CONTINUOUS_ABILITY_ID,
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p1' },
     });
     expect(getMemberEffectiveHeartIcons(game, 'p1', setsuna.instanceId)).toEqual([
       createHeartIcon(HeartColor.RED, 1),
@@ -8243,6 +8247,7 @@ describe('PL!N-pb1-007 continuous six-color LIVE requirement ALL Heart', () => {
       hearts: [createHeartIcon(HeartColor.RAINBOW, 1)],
       sourceCardId: scenario.setsuna.instanceId,
       abilityId: PL_N_PB1_007_CONTINUOUS_ABILITY_ID,
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p1' },
     });
   });
 });
@@ -9366,6 +9371,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
       sourceCardId: source.instanceId,
       abilityId: S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p2' },
     });
     expect(
       applyHeartRequirementModifiers(
@@ -9388,6 +9394,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
       sourceCardId: source.instanceId,
       abilityId: S_BP5_011_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p2' },
     });
   });
 
@@ -9522,6 +9529,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
       sourceCardId: source.instanceId,
       abilityId: S_BP5_010_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p2' },
     });
   });
 
@@ -9586,6 +9594,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       modifiers: [{ color: HeartColor.RAINBOW, countDelta: 1 }],
       sourceCardId: source.instanceId,
       abilityId: SP_BP2_010_CONTINUOUS_REQUIREMENT_ABILITY_ID,
+      visibilityDependency: { kind: 'PLAYER_LIVE_ZONE_CONTENTS', playerId: 'p2' },
     });
   });
 

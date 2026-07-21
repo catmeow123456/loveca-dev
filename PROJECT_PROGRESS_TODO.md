@@ -1,6 +1,12 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-20
+更新时间：2026-07-21
+
+## 2026-07-21：盖放 LIVE 隐藏信息 continuous modifier 投影收口（未提交）
+
+- Continuous modifier definition/factory 现必须显式声明 `PUBLIC` 或 `PLAYER_LIVE_ZONE_CONTENTS / SELF|OPPONENT`，统一 collector 将 SELF/OPPONENT 解析为真实 LIVE 区拥有者，并自动给同一 definition 产生的全部 modifier 附加投影依赖。权威 `collectLiveModifiers` 仍保留完整修正，只在玩家视图过滤。
+- 修复 7 张遗漏：`PL!-bp4-002` 费用15「绚濑绘里」、`PL!N-pb1-007` 费用15「优木雪菜」、`PL!SP-bp5-012-N` 费用2「涩谷香音」、`PL!-bp6-022-L` 分数9「Dreamin' Go! Go!!」依赖 SELF；`PL!SP-bp2-010` 费用15「薇恩・玛格丽特」、`PL!S-bp5-010-N` 费用4「高海千歌」、`PL!S-bp5-011-N` 费用4「樱内梨子」依赖对方 LIVE 区。既有 `PL!N-bp1-012` 费用15「钟岚珠」与 `PL!N-pb1-001` 费用11「上原步梦」迁入同一机制。
+- focused 覆盖区域拥有者可见、非拥有者盖牌时隐藏、部分公开仍隐藏、全公开后恢复、公开 modifier 并存，以及成员 `frontInfo` 和 requirement maps 两种泄露面；增加完整隐藏依赖清单治理测试。
 
 ## 2026-07-20：LL-bp2-001-R+ 非换手全额登场修正
 

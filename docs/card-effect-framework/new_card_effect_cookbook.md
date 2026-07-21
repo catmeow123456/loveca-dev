@@ -27,7 +27,7 @@
 | 成员获得 HEART                           | `domain/rules/live-modifiers.ts` 的 `addHeartLiveModifierForMember`；只表达“某张成员获得 HEART”，由 helper 生成 `SOURCE_MEMBER` 或 `TARGET_MEMBER` 内部 modifier。                                                                                   | 成员选择、费用、条件判断仍留在 workflow；不要把它扩成通用奖励 DSL。                                                                                               | 来源成员获得 HEART、目标成员获得 HEART、跨玩家目标成员归属、非法目标、legacy `playerHeartBonuses` 不投影 member HEART。                  | 新增/扩展 member HEART helper 时同步本 cookbook；不要使用 `target: 'PLAYER'` 表达真实成员 HEART。                            |
 | 成员移动时自身获得 HEART                  | `workflows/shared/on-move-gain-heart.ts`；真实配置轴仅 `abilityId` / `baseCardCodes` / Heart 颜色 / action step/payload label，底层写入 `SOURCE_MEMBER` Heart。                                                                                       | 奖励不是 Heart、需要选择目标、费用或额外条件时写单卡 workflow；不要和 BLADE 等奖励混成通用 reward DSL。                                                            | `ON_MEMBER_SLOT_MOVED` 入队、`perTurnLimit`、对方卡效导致移动也触发、`SOURCE_MEMBER` Heart、不写 `playerHeartBonuses`。                 | `existing_module_map.md`；新增同型只扩配置，除非真实轴变化。                                                                 |
 | 成员移动时自身获得 BLADE                  | `workflows/shared/on-move-gain-blade.ts`；真实配置轴仅 `abilityId` / `baseCardCodes` / BLADE 数量 / action step label，底层写入 `SOURCE_MEMBER` BLADE。                                                                                                | 需要选择目标、费用、移动条件过滤、不同触发来源或额外奖励时写单卡 workflow；不要扩成任意 reward DSL。                                                               | `ON_MEMBER_SLOT_MOVED` 入队、`perTurnLimit`、自身移动限定、pending continuation、`SOURCE_MEMBER` BLADE。                                | `existing_module_map.md`；新增同型只扩配置，除非真实轴变化。                                                                 |
-| 直到 Live 结束不能 Live                  | `domain/rules/live-prohibitions.ts` 的 `addLiveProhibitionUntilLiveEnd` 与 `liveProhibitedPlayerLiveZoneToWaitingRoom`；`PL!HS-bp2-014` 结算时写入临时状态，Live Set 仍允许盖牌，抽牌后阻止实际 Live。 | 只用于明确写有“直到 LIVE 结束”的期限效果；不要用它表达会随场面即时变化的常时限制，不要提前抽通用限制 DSL或塞进 liveModifiers。 | 限制生效、SET_LIVE_CARD 仍可盖牌、按盖牌数抽卡、盖下卡进入休息室、Live 结束只清除临时状态、空牌库/其他效果仍正常结算。 | 新增期限或限制对象时同步 `runtime_action_helpers.md` 并补 focused unit/integration。 |
+| 直到 Live 结束不能 Live                  | `domain/rules/live-prohibitions.ts` 的 `addLiveProhibitionUntilLiveEnd` 与 `liveProhibitedPlayerLiveZoneToWaitingRoom`；`PL!HS-bp2-014` 结算时写入临时状态，Live Set 仍允许盖牌和按盖牌数抽卡，双方完成盖牌后才清空受限玩家 Live 区以阻止实际 Live。 | 只用于明确写有“直到 LIVE 结束”的期限效果；不要用它表达会随场面即时变化的常时限制，不要提前抽通用限制 DSL或塞进 liveModifiers。 | 限制生效、SET_LIVE_CARD 仍可盖牌、先攻盖牌在后攻确认前保持非公开、按盖牌数抽卡、双方完成后盖下卡进入休息室、Live 结束只清除临时状态、空牌库/其他效果仍正常结算。 | 新增期限或限制对象时同步 `runtime_action_helpers.md` 并补 focused unit/integration。 |
 | 动态常时不能 Live                       | `domain/rules/live-prohibitions.ts` 的 `collectContinuousLiveProhibitionSources` / `isPlayerContinuouslyLiveProhibited`；`isPlayerLiveProhibited` 将其与临时限制合并后复用同一 Live Set 检查点。 | 当前只登记 `PL!SP-bp1-001` 的窄基础编号与“己方没有其他主舞台顶层成员”条件；必须实时校验来源 owner、MEMBER 类型和主舞台顶层位置。不写 `game.liveProhibitions`、不创建 workflow/pending/activeEffect/action，也不扩展任意 predicate 或 phase prohibition DSL。 | LEFT/CENTER/RIGHT、P/R、其他己方顶层成员、对方成员、memberBelow、来源离场/错 owner/错 type/错卡号、双 001、场面即时失效与恢复、临时限制隔离、真实 Live Set 抽牌与全量 liveZone 清理。 | 新增常时禁止样本前先判断是否仍是有限 registry 轴；若语义不同，独立审查，不把 `live-prohibitions.ts` 变成通用 DSL。 |
 | 下个活跃阶段不 active                    | `domain/rules/member-active-skips.ts` 的 `addMemberActivePhaseSkip` 与 `consumeMemberActivePhaseSkipsForPlayer`；workflow 先用 `setMemberOrientation` 处理当前待机/活跃变化，再登记跳过标记。                                                        | 当前只有“下一次自己的活跃阶段跳过指定成员”这一真实轴；不要提前抽跨阶段限制 DSL，也不要塞进 liveModifiers。                                                        | 成功登记、下个自己活跃阶段跳过且消费、对手活跃阶段不消费、其他成员/能量正常 active、来源离场安全 no-op。                                 | 新增期限或跳过对象时同步 `runtime_action_helpers.md` 并补 focused unit/integration。                                         |
 | 手牌进入休息室自动触发                   | 新卡默认调用 `discardHandCardsToWaitingRoomAndEnqueueTriggers` / `discardOneHandCardToWaitingRoomAndEnqueueTriggers`；workflow 不裸调 raw hand-discard helper，也不重复手写 enqueue。                                                                | runner 只消费本次显式传入的手牌进入休息室事件组；raw helper 仅供底层 action/test 或明确不触发卡效的特殊底层路径使用，特殊使用必须注释原因；不接 trigger matcher。 | 同批多张只触发一次、0 张不触发、每回合次数限制、pending continuation、事件 payload。                                                     | 新增事件边界时同步 `runtime_action_helpers.md`；普通单卡 workflow 只登记 `existing_module_map.md`。                          |
@@ -50,18 +50,23 @@
 
 ## Hidden Information Modifier Visibility
 
-如果 modifier 本身已经生效，但前端展示会让非拥有者推断未公开内容，不要改 workflow 结算，也不要在前端组件里按卡名硬隐藏图标。应在产生 modifier 时加 `visibilityDependency`，让 `projectPlayerViewState` 按视角过滤投影用的 modifier。
+如果 modifier 本身已经生效，但前端展示会让非拥有者推断未公开内容，不要改 workflow 结算，也不要在前端组件里按卡名硬隐藏图标。Continuous modifier 必须在 definition/registry 层声明信息可见性，再由统一 collect 边界为本次产生的全部 modifier 附加 `visibilityDependency`；`projectPlayerViewState` 仍只按视角过滤投影用 modifier。
 
 当前可用依赖：
 
-- `PLAYER_LIVE_ZONE_CONTENTS`：modifier 是否成立依赖某玩家 LIVE 区卡牌内容。拥有者始终可见；非拥有者在该玩家 LIVE 区仍有 `FACE_DOWN` 卡时看不到该 modifier；全部公开后恢复显示。
+- `PUBLIC`：modifier 只依赖公开信息，正常投影给双方。
+- `PLAYER_LIVE_ZONE_CONTENTS / SELF`：modifier 是否成立依赖来源控制者的 LIVE 区卡牌内容。
+- `PLAYER_LIVE_ZONE_CONTENTS / OPPONENT`：modifier 是否成立或目标依赖对方 LIVE 区卡牌内容；必须绑定目标 LIVE 区的拥有者，不是效果来源控制者。
+
+`PLAYER_LIVE_ZONE_CONTENTS` 的区域拥有者始终可见；非拥有者在该玩家 LIVE 区仍有任意 `FACE_DOWN` 卡时看不到该 modifier；全部公开后恢复显示。
 
 使用规则：
 
-- 只标记真正依赖隐藏内容的 modifier。登场、起动或其他公开流程已经给出的 HEART / BLADE / SCORE modifier 不应因为处于 LIVE 放置阶段而被隐藏。
-- 同一个效果产出的多个 modifier 要逐个加依赖。例如 `PL!N-bp1-012「鐘 嵐珠」` 同时给 `SOURCE_MEMBER` ALL Heart x2 与 BLADE +2，两条都带 `PLAYER_LIVE_ZONE_CONTENTS`。
+- `ContinuousLiveModifierDefinition.visibility` 是必填分类；新增直接 definition 或 factory 时必须明确选择 `PUBLIC` / `SELF` / `OPPONENT`，不得靠缺省值默认公开。
+- 只标记真正依赖隐藏内容的 definition。登场、起动或其他公开流程已经给出的 HEART / BLADE / SCORE modifier 不应因为处于 LIVE 放置阶段而被隐藏。
+- 同一 definition 产出的多个 modifier 会由 collector 统一标记。例如 `PL!N-bp1-012` 费用 15「钟岚珠」同时给 `SOURCE_MEMBER` ALL Heart x2 与 BLADE +2，不再由卡牌 collector 分别手写依赖。
 - 规则计算仍使用完整 `collectLiveModifiers(game)`；只在玩家视角投影中调用过滤后的 modifier 列表，避免改动真实结算。
-- 新增类似卡时补 `tests/unit/player-view-state.test.ts`：拥有者可见、对手盖牌时不可见、公开后可见；如果同成员还有公开来源 modifier，要确认公开 modifier 仍显示。
+- 新增类似卡时补 `tests/unit/player-view-state.test.ts`：区域拥有者可见、非拥有者盖牌时不可见、部分公开仍隐藏、全部公开后可见；同对象的公开来源 modifier 仍要显示。既要覆盖成员 `frontInfo/modifierDelta`，也要覆盖 `liveResult.requirementModifiers` 中按公开对象 ID 泄露目标的路径。
 
 ## Card Workflow Template
 
