@@ -2,6 +2,12 @@
 
 更新时间：2026-07-21
 
+## 2026-07-21：手动声援公开事件与旧回放兼容修正（未提交）
+
+- 手动声援的联机公开事件改为先发送仅含数量的隐藏移动，再单独发送 `CardRevealed`，避免移动事件从已公开的最终状态提前带出卡面。来源区域同步读取实际声援方向，`PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」从卡组底声援不再被记录为卡组顶。
+- 真实旧回放增加严格的声援事实兼容分类：仅接受同一 CHEER action 的 `deckEdge` 从缺失补为 `TOP`、`revealedCardIds` 补为当次 `cheerCardIds`，以及对应 CheerEvent 的 `deckEdge` 从缺失补为 `TOP`。`BOTTOM`、错误卡牌 ID 或其他字段差异仍会失败；历史夹具与新字段均保留。
+- 全量 Vitest 534 files / 5341 tests 通过，3 个 performance tests 按默认配置跳过；服务端与客户端 TypeScript、`git diff --check` 通过。Prettier 按本 PR 既定豁免不做全仓格式化。
+
 ## 2026-07-21：盖放 LIVE 隐藏信息 continuous modifier 投影收口（已提交：`80c2b77`）
 
 - Continuous modifier definition/factory 现必须显式声明 `PUBLIC` 或 `PLAYER_LIVE_ZONE_CONTENTS / SELF|OPPONENT`，统一 collector 将 SELF/OPPONENT 解析为真实 LIVE 区拥有者，并自动给同一 definition 产生的全部 modifier 附加投影依赖。权威 `collectLiveModifiers` 仍保留完整修正，只在玩家视图过滤。

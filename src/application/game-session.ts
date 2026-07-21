@@ -186,6 +186,7 @@ import {
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { tapEnergy } from '../domain/entities/zone.js';
 import { costCalculator, type CostPaymentPlan } from '../domain/rules/cost-calculator.js';
+import { getCheerDeckEdgeForPlayer } from '../domain/rules/cheer-direction.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -2827,6 +2828,7 @@ export class GameSession {
     if (!actorSeat) {
       return { success: false, gameState: state, error: '玩家不存在' };
     }
+    const cheerDeckEdge = getCheerDeckEdgeForPlayer(preRefreshResult.gameState, command.playerId);
 
     const beforeOwnedResolution = new Set(
       getOwnedResolutionCardIds(preRefreshResult.gameState, command.playerId)
@@ -2873,16 +2875,16 @@ export class GameSession {
       declarationPublicValue: 1,
       extraPublicEvents: [
         ...preRefreshResult.extraPublicEvents,
-        buildCardMovedPublicEvent(
-          preRefreshResult.gameState,
-          result.gameState,
+        {
+          type: 'CardMovedPublic',
+          source: 'PLAYER',
           actorSeat,
-          revealedCardId,
-          {
-            from: createOwnedZoneRef(ZoneType.MAIN_DECK, actorSeat, { index: 0 }),
-            to: createResolutionZoneRef(getResolutionIndex(result.gameState, revealedCardId)),
-          }
-        ),
+          count: 1,
+          from: createOwnedZoneRef(ZoneType.MAIN_DECK, actorSeat, {
+            position: cheerDeckEdge,
+          }),
+          to: createResolutionZoneRef(getResolutionIndex(result.gameState, revealedCardId)),
+        },
         buildCardRevealedPublicEvent(revealedState, actorSeat, revealedCardId, {
           from: createResolutionZoneRef(getResolutionIndex(revealedState, revealedCardId)),
           reason: 'CHEER_REVEAL',
