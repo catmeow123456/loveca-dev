@@ -374,6 +374,7 @@ export const GameBoard = memo(function GameBoard({
     setHoveredCard,
     setFreePlayEnabled,
     respondRemoteUndoRequest,
+    respondManualOperationModeRequest,
     getZoneCardIds,
     findViewerCardZone,
     resolveCardDropTarget,
@@ -416,6 +417,7 @@ export const GameBoard = memo(function GameBoard({
       setHoveredCard: s.setHoveredCard,
       setFreePlayEnabled: s.setFreePlayEnabled,
       respondRemoteUndoRequest: s.respondRemoteUndoRequest,
+      respondManualOperationModeRequest: s.respondManualOperationModeRequest,
       getZoneCardIds: s.getZoneCardIds,
       findViewerCardZone: s.findViewerCardZone,
       resolveCardDropTarget: s.resolveCardDropTarget,
@@ -714,6 +716,20 @@ export const GameBoard = memo(function GameBoard({
     !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat === viewerSeat;
   const pendingUndoCanRespond =
     !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat !== viewerSeat;
+  const manualOperation = matchView?.manualOperation ?? null;
+  const pendingManualOperationRequest = manualOperation?.pendingRequest ?? null;
+  const pendingManualOperationRequesterName = pendingManualOperationRequest
+    ? (getPlayerIdentityForSeat(pendingManualOperationRequest.requesterSeat)?.name ??
+      (pendingManualOperationRequest.requesterSeat === 'FIRST' ? '先攻玩家' : '后攻玩家'))
+    : '';
+  const pendingManualOperationIsRequester =
+    !!pendingManualOperationRequest &&
+    !!viewerSeat &&
+    pendingManualOperationRequest.requesterSeat === viewerSeat;
+  const pendingManualOperationCanRespond =
+    !!pendingManualOperationRequest &&
+    !!viewerSeat &&
+    pendingManualOperationRequest.requesterSeat !== viewerSeat;
   const selectedCardPresentation = selectedCardId
     ? getVisibleCardPresentation(selectedCardId)
     : null;
@@ -871,11 +887,7 @@ export const GameBoard = memo(function GameBoard({
     const effectId = activeEffect.id;
     const cancelAutoAdvance = schedulePublicCardSelectionAutoAdvance(
       activeEffect.publicCardSelectionAutoAdvanceAfterMs,
-      () =>
-        autoAdvancePublicCardSelection(
-          effectId,
-          activeEffect.publicCardSelectionAutoAdvanceAt
-        )
+      () => autoAdvancePublicCardSelection(effectId, activeEffect.publicCardSelectionAutoAdvanceAt)
     );
     const fallbackTimer = window.setTimeout(
       () => setPublicSelectionFallbackReady(true),
@@ -2108,10 +2120,17 @@ export const GameBoard = memo(function GameBoard({
         : mobileActionCount === 3
           ? 'grid-cols-3'
           : 'grid-cols-2';
-  const freePlayControlTitle =
-    capabilities.freePlayPolicy === 'SESSION_GLOBAL'
-      ? '开启后本地会话的成员登场/换手不检查也不支付费用'
-      : '开启后本客户端提交的成员登场/换手不检查也不支付费用';
+  const freePlayControlTitle = pendingManualOperationRequest
+    ? '正在等待自由模式请求回应'
+    : manualOperation && !manualOperation.canSwitchNow
+      ? (manualOperation.disabledReason ?? '当前不能切换操作模式')
+      : freePlayEnabled
+        ? '点击恢复规则模式'
+        : capabilities.surface === 'ONLINE'
+          ? '开启自由模式需要对方同意'
+          : '点击开启自由模式';
+  const manualOperationSwitchDisabled =
+    !!pendingManualOperationRequest || manualOperation?.canSwitchNow === false;
 
   return (
     <DndContext
@@ -2279,6 +2298,7 @@ export const GameBoard = memo(function GameBoard({
                 <button
                   type="button"
                   onClick={() => setFreePlayEnabled(!freePlayEnabled)}
+                  disabled={manualOperationSwitchDisabled}
                   aria-pressed={freePlayEnabled}
                   className={cn(
                     'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[10px] font-semibold shadow-none backdrop-blur-[2px] transition',
@@ -2289,7 +2309,7 @@ export const GameBoard = memo(function GameBoard({
                   title={freePlayControlTitle}
                 >
                   <Zap size={16} className={cn(freePlayEnabled && 'fill-current')} />
-                  <span className="truncate">免费</span>
+                  <span className="truncate">{freePlayEnabled ? '自由' : '规则'}</span>
                 </button>
               )}
 
@@ -3151,10 +3171,7 @@ export const GameBoard = memo(function GameBoard({
                         const label = activeEffectSelectableObjectsFaceDown
                           ? `第${candidateIndex + 1}张手牌`
                           : cardData
-                            ? formatActiveEffectCardCompactLabel(
-                                cardId,
-                                cardData as AnyCardData
-                              )
+                            ? formatActiveEffectCardCompactLabel(cardId, cardData as AnyCardData)
                             : '选择此卡';
                         const energyStatusLabel = isEnergyCandidate
                           ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
@@ -3829,6 +3846,81 @@ export const GameBoard = memo(function GameBoard({
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {!isReadOnly && pendingManualOperationRequest && (
+          <div className="pointer-events-auto fixed inset-0 z-[111] flex items-center justify-center px-4">
+            <div className="modal-backdrop absolute inset-0" />
+            <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/10 text-[var(--semantic-warning)]">
+                  <Zap className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                    自由模式请求
+                  </div>
+                  <div className="mt-1 text-sm font-semibold">
+                    {pendingManualOperationRequesterName} 请求开启自由模式
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                    开启后，双方可免费登场及手动调整己方区域，用于人工处理尚未自动化的规则。
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                    不会获得操作对手或读取对手隐藏信息的权限。任意一方都可在安全时点单方恢复规则模式。
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                {pendingManualOperationIsRequester ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      respondManualOperationModeRequest(
+                        pendingManualOperationRequest.requestId,
+                        'cancel'
+                      )
+                    }
+                    className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    取消请求
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={!pendingManualOperationCanRespond}
+                      onClick={() =>
+                        respondManualOperationModeRequest(
+                          pendingManualOperationRequest.requestId,
+                          'reject'
+                        )
+                      }
+                      className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                      拒绝
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!pendingManualOperationCanRespond}
+                      onClick={() =>
+                        respondManualOperationModeRequest(
+                          pendingManualOperationRequest.requestId,
+                          'accept'
+                        )
+                      }
+                      className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
+                    >
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                      同意开启
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}

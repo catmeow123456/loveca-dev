@@ -3,3 +3,4 @@
  */
 
 export * from './enums';
+export * from './manual-operation-mode';

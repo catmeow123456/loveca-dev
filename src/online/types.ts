@@ -9,6 +9,7 @@ import {
 import type { GameState } from '../domain/entities/game.js';
 import type { HeartIcon } from '../domain/entities/card.js';
 import type { ActivatedAbilityUiConfig } from '../application/card-effects/ability-definition-types.js';
+import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
 
 export type Seat = 'FIRST' | 'SECOND';
 
@@ -69,6 +70,21 @@ export interface OnlineUndoView {
   readonly grant: UndoGrantView | null;
 }
 
+export interface ManualOperationModeRequestView {
+  readonly requestId: string;
+  readonly requesterSeat: Seat;
+  readonly targetMode: 'FREE';
+  readonly targetRevision: number;
+  readonly expiresAt: string;
+}
+
+export interface ManualOperationModeView {
+  readonly mode: ManualOperationMode;
+  readonly canSwitchNow: boolean;
+  readonly disabledReason: string | null;
+  readonly pendingRequest: ManualOperationModeRequestView | null;
+}
+
 export type ViewerSurface = 'NONE' | 'BACK' | 'FRONT';
 
 export type PublicEventSource = 'PLAYER' | 'SYSTEM';
@@ -100,6 +116,8 @@ export interface MatchViewState {
   readonly window: ViewWindowState | null;
   readonly liveResult?: LiveResultViewState;
   readonly undo?: OnlineUndoView;
+  /** 旧回放投影可缺失；客户端对缺失值按自由模式兼容。 */
+  readonly manualOperation?: ManualOperationModeView;
   readonly seq: number;
 }
 

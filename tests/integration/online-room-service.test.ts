@@ -1464,12 +1464,7 @@ describe('OnlineRoomService', () => {
     const commandResult = await matchService.executeCommand(
       match.matchId,
       'u1',
-      createPlayMemberToSlotCommand(
-        'ignored-client-player-id',
-        memberCardId!,
-        SlotPosition.CENTER,
-        { freePlay: true }
-      )
+      createPlayMemberToSlotCommand('ignored-client-player-id', memberCardId!, SlotPosition.CENTER)
     );
     expect(commandResult?.success).toBe(true);
     expect(match.session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(

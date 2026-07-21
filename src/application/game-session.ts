@@ -17,6 +17,11 @@ import {
 } from './command-availability.js';
 import { getModeAutomationPolicy, type ModeAutomationStep } from './mode-automation.js';
 import {
+  getManualOperationMode,
+  getManualOperationModeSwitchBlockedReason,
+  normalizeRestoredManualOperationMode,
+} from './manual-operation-mode.js';
+import {
   CardType,
   FaceState,
   GamePhase,
@@ -27,6 +32,7 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../shared/types/enums.js';
+import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
 import { resolveBlindCardSelectionToken } from '../shared/utils/blind-card-selection.js';
 import type {
   GameEventLogEntry,
@@ -410,16 +416,63 @@ export class GameSession {
     this._gameMode = mode;
   }
 
+  get manualOperationMode(): ManualOperationMode {
+    return this.authorityState ? getManualOperationMode(this.authorityState) : 'RULES';
+  }
+
+  getManualOperationModeSwitchBlockedReason(): string | null {
+    if (!this.authorityState) {
+      return '游戏尚未开始';
+    }
+    return getManualOperationModeSwitchBlockedReason(this.authorityState);
+  }
+
   /**
-   * 自由拖拽兜底用：开启后成员登场/换手不检查也不支付费用。
-   * 本地会话可用全局开关；远程联机由 PLAY_MEMBER_TO_SLOT.freePlay 逐命令携带。
+   * 切换权威操作模式。该控制操作不创建 undo entry，也不属于普通桌面操作。
    */
+  setManualOperationMode(mode: ManualOperationMode): GameOperationResult {
+    if (!this.authorityState) {
+      return {
+        success: false,
+        gameState: null as unknown as GameState,
+        error: '游戏尚未开始',
+      };
+    }
+
+    if (this.manualOperationMode === mode) {
+      return { success: true, gameState: this.authorityState };
+    }
+
+    const blockedReason = getManualOperationModeSwitchBlockedReason(this.authorityState);
+    if (blockedReason) {
+      return { success: false, gameState: this.authorityState, error: blockedReason };
+    }
+
+    this._localFreePlay = mode === 'FREE';
+    this.setAuthorityState(
+      {
+        ...this.authorityState,
+        manualOperationMode: mode,
+      },
+      { source: 'SYSTEM' }
+    );
+    return { success: true, gameState: this.authorityState };
+  }
+
+  /** @deprecated 旧测试/工具兼容；新 UI 使用 setManualOperationMode。 */
   get localFreePlay(): boolean {
-    return this._localFreePlay;
+    return this.authorityState ? this.manualOperationMode === 'FREE' : this._localFreePlay;
   }
 
   set localFreePlay(enabled: boolean) {
     this._localFreePlay = enabled;
+    if (this.authorityState) {
+      this.authorityState = {
+        ...this.authorityState,
+        manualOperationMode: enabled ? 'FREE' : 'RULES',
+      };
+      this.recordAuthoritySnapshot(this.authorityState);
+    }
   }
 
   /**
@@ -456,6 +509,7 @@ export class GameSession {
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
     this.undoEntrySeq = 0;
+    this._localFreePlay = false;
 
     const initialState = this.gameService.createGame(
       gameId,
@@ -851,7 +905,9 @@ export class GameSession {
   }
 
   restoreRuntimeState(input: RestoreRuntimeStateInput): void {
-    const authorityState = this.cloneForUndo(input.authorityState);
+    const authorityState = normalizeRestoredManualOperationMode(
+      this.cloneForUndo(input.authorityState)
+    );
     const retainedPublicEvents = this.cloneForUndo([
       ...((input.publicEvents ?? []) as PublicEvent[]),
     ]);
@@ -882,6 +938,7 @@ export class GameSession {
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
     this.undoEntrySeq = 0;
+    this._localFreePlay = getManualOperationMode(authorityState) === 'FREE';
     this.recordAuthoritySnapshot(authorityState);
   }
 
@@ -1008,7 +1065,12 @@ export class GameSession {
   }
 
   private restoreUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
-    this.authorityState = this.cloneForUndo(snapshot.authorityState);
+    const currentManualOperationMode = this.manualOperationMode;
+    this.authorityState = {
+      ...normalizeRestoredManualOperationMode(this.cloneForUndo(snapshot.authorityState)),
+      manualOperationMode: currentManualOperationMode,
+    };
+    this._localFreePlay = currentManualOperationMode === 'FREE';
     this.publicEvents = this.publicEvents.filter((event) => event.seq <= snapshot.publicEventSeq);
     this.publicEventSeq = snapshot.publicEventSeq;
     this.privateEventsBySeat = {

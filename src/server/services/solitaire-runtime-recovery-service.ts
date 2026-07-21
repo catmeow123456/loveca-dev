@@ -225,8 +225,10 @@ export class SolitaireRuntimeRecoveryService {
         recordBranchId: `${record.match_id}:recovery:${checkpoint.checkpoint_seq}:timeline:${record.last_timeline_seq + 1}`,
         recordCaptureCursor: session.getRuntimeCaptureCursor(),
         pendingUndoRequest: null,
+        pendingManualOperationModeRequest: null,
         activeUndoGrant: null,
         appliedUndoKeys: new Set<string>(),
+        appliedManualOperationKeys: new Map<string, string>(),
         updatedAt: restoredAt,
         lastActivityAt: restoredAt,
         recoveryNotice: {

@@ -11,6 +11,7 @@ import type {
 import type { GameCommand } from '@game/application/game-commands';
 import {
   advanceOnlineDebugPhase,
+  changeOnlineDebugManualOperationMode,
   executeOnlineDebugCommand,
   fetchOnlineDebugSnapshot,
 } from './onlineDebugClient';
@@ -25,6 +26,8 @@ import {
   fetchOnlineSpectatorPublicEvents,
   fetchOnlineSpectatorSnapshotResponse,
   rejectOnlineUndoRequest,
+  changeOnlineManualOperationMode,
+  respondOnlineManualOperationModeRequest,
   undoOnlineMatch,
 } from './onlineClient';
 import {
@@ -34,6 +37,7 @@ import {
   fetchSolitaireMatchSnapshot,
   fetchSolitaireMatchSnapshotResponse,
   undoSolitaireMatch,
+  changeSolitaireManualOperationMode,
 } from './solitaireMatchClient';
 
 export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR';
@@ -311,4 +315,52 @@ export async function rejectRemoteUndoRequest(
     return rejectOnlineUndoRequest(matchId, requestId, input);
   }
   throw new Error('当前远程对局不支持拒绝撤销请求');
+}
+
+export async function changeRemoteManualOperationMode(
+  source: RemoteSessionSource,
+  matchId: string,
+  targetMode: 'RULES' | 'FREE',
+  expectedRevision: number,
+  seat?: DebugMatchSnapshot['seat'],
+  idempotencyKey?: string
+): Promise<RemoteCommandExecutionResult> {
+  if (source === 'DEBUG') {
+    if (!seat) {
+      throw new Error('调试联机会话缺少 seat');
+    }
+    return changeOnlineDebugManualOperationMode(matchId, seat, targetMode);
+  }
+  if (source === 'SOLITAIRE') {
+    return changeSolitaireManualOperationMode(matchId, {
+      targetMode,
+      expectedRevision,
+      idempotencyKey,
+    });
+  }
+  if (source === 'ONLINE') {
+    return changeOnlineManualOperationMode(matchId, {
+      targetMode,
+      expectedRevision,
+      idempotencyKey,
+    });
+  }
+  throw new Error('当前桌面为只读，不能切换操作模式');
+}
+
+export async function respondRemoteManualOperationModeRequest(
+  source: RemoteSessionSource,
+  matchId: string,
+  requestId: string,
+  action: 'accept' | 'reject' | 'cancel',
+  expectedRevision: number,
+  idempotencyKey?: string
+): Promise<RemoteCommandExecutionResult> {
+  if (source !== 'ONLINE') {
+    throw new Error('当前对局不使用自由模式协商');
+  }
+  return respondOnlineManualOperationModeRequest(matchId, requestId, action, {
+    expectedRevision,
+    idempotencyKey,
+  });
 }

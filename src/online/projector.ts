@@ -9,6 +9,10 @@ import {
   PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES,
   isResultSuccessEffectSubPhase,
 } from '../application/command-availability.js';
+import {
+  getManualOperationMode,
+  getManualOperationModeSwitchBlockedReason,
+} from '../application/manual-operation-mode.js';
 import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
 import {
   canAssignLlBp7001SpecialPlayPayment,
@@ -314,6 +318,7 @@ export function projectPlayerViewState(
   }
 
   const activeSeat = getSeatByPlayerIndex(game.activePlayerIndex);
+  const manualOperationSwitchBlockedReason = getManualOperationModeSwitchBlockedReason(game);
   const match: MatchViewState = {
     matchId: game.gameId,
     viewerSeat,
@@ -329,6 +334,12 @@ export function projectPlayerViewState(
       game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : activeSeat,
     window: buildViewWindowState(game),
     liveResult: buildLiveResultView(game, viewerSeat),
+    manualOperation: {
+      mode: getManualOperationMode(game),
+      canSwitchNow: manualOperationSwitchBlockedReason === null,
+      disabledReason: manualOperationSwitchBlockedReason,
+      pendingRequest: null,
+    },
     seq: options.seq ?? 0,
   };
 

@@ -34,11 +34,19 @@ export const DebugControl = memo(function DebugControl() {
   if (!matchView) return null;
   const isLocalDebugSurface = capabilities.surface === 'LOCAL_DEBUG';
   const modeLabel = getBattleSurfaceLabel(capabilities.surface);
-  const freePlayLabel = isLocalDebugSurface ? '本地免费登场' : '免费登场';
-  const freePlayTitle =
-    capabilities.freePlayPolicy === 'SESSION_GLOBAL'
-      ? '开启后本地会话的成员登场/换手不检查也不支付费用'
-      : '开启后本客户端提交的成员登场/换手不检查也不支付费用';
+  const manualOperation = matchView.manualOperation;
+  const freePlayLabel = freePlayEnabled ? '自由模式' : '规则模式';
+  const freePlayTitle = manualOperation?.pendingRequest
+    ? '正在等待对方回应自由模式请求'
+    : manualOperation && !manualOperation.canSwitchNow
+      ? (manualOperation.disabledReason ?? '当前不能切换操作模式')
+      : freePlayEnabled
+        ? '点击恢复规则模式'
+        : capabilities.surface === 'ONLINE'
+          ? '开启自由模式需要对方同意'
+          : '点击开启自由模式';
+  const manualOperationSwitchDisabled =
+    !!manualOperation?.pendingRequest || manualOperation?.canSwitchNow === false;
 
   // 切换视角（仅调试模式）
   const handleSwitchView = () => {
@@ -130,11 +138,13 @@ export const DebugControl = memo(function DebugControl() {
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => setFreePlayEnabled(!freePlayEnabled)}
+              disabled={manualOperationSwitchDisabled}
               className={cn(
                 'flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold transition',
                 freePlayEnabled
                   ? 'border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/15 text-[var(--semantic-warning)]'
-                  : 'border-[var(--border-default)] bg-[var(--bg-surface)]/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  : 'border-[var(--border-default)] bg-[var(--bg-surface)]/50 text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                manualOperationSwitchDisabled && 'cursor-not-allowed opacity-55'
               )}
               title={freePlayTitle}
             >
