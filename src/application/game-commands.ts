@@ -805,6 +805,24 @@ export function createConfirmEffectStepCommand(
   };
 }
 
+export function createConfirmEffectChoiceCommand(
+  playerId: string,
+  effectId: string,
+  options: {
+    readonly selectedEffectOptionIds: readonly string[];
+    readonly selectedCardId?: string | null;
+  }
+): ConfirmEffectStepCommand {
+  return {
+    type: GameCommandType.CONFIRM_EFFECT_STEP,
+    playerId,
+    effectId,
+    selectedCardId: options.selectedCardId,
+    selectedEffectOptionIds: options.selectedEffectOptionIds,
+    timestamp: Date.now(),
+  };
+}
+
 export function createAutoAdvancePublicEffectChoiceCommand(
   playerId: string,
   effectId: string,

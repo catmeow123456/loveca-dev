@@ -42,6 +42,7 @@ import {
   type GameCommand,
   createEndPhaseCommand,
   createConfirmEffectStepCommand,
+  createConfirmEffectChoiceCommand,
   createAutoAdvancePublicCardSelectionCommand,
   createAutoAdvancePublicEffectChoiceCommand,
   createConfirmCostPaymentCommand,
@@ -392,6 +393,14 @@ export interface GameStore {
       readonly toSlot: SlotPosition;
     }[],
     selectedEffectOptionIds?: readonly string[]
+  ) => CommandDispatchResult;
+  /** 以命名参数确认真实卡文的效果分支。 */
+  confirmEffectChoice: (
+    effectId: string,
+    options: {
+      readonly selectedEffectOptionIds: readonly string[];
+      readonly selectedCardId?: string | null;
+    }
   ) => CommandDispatchResult;
   /** 公共选卡展示到期后的无交互推进。 */
   autoAdvancePublicCardSelection: (
@@ -1175,6 +1184,17 @@ export const useGameStore = create<GameStore>((set, get) => {
         }
       );
     },
+
+    confirmEffectChoice: (effectId, options) =>
+      runViewerCommand(
+        (playerId) => createConfirmEffectChoiceCommand(playerId, effectId, options),
+        {
+          failureMessage: '卡牌效果处理失败',
+          successMessage: '继续处理卡牌效果',
+          deselectCard: true,
+          logError: true,
+        }
+      ),
 
     autoAdvancePublicCardSelection: (effectId, expectedDeadline) => {
       return runViewerCommand(

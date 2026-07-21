@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createAutoAdvancePublicCardSelectionCommand,
   createAutoAdvancePublicEffectChoiceCommand,
+  createConfirmEffectChoiceCommand,
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
@@ -78,19 +79,10 @@ function submitEffectChoice(
   selectedCardId?: string
 ) {
   return session.executeCommand(
-    createConfirmEffectStepCommand(
-      P1,
-      session.state!.activeEffect!.id,
+    createConfirmEffectChoiceCommand(P1, session.state!.activeEffect!.id, {
       selectedCardId,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      optionIds
-    )
+      selectedEffectOptionIds: optionIds,
+    })
   );
 }
 

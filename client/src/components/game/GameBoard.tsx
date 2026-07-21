@@ -350,6 +350,7 @@ export const GameBoard = memo(function GameBoard({
     attachEnergyToMember,
     confirmSubPhase,
     confirmEffectStep,
+    confirmEffectChoice,
     autoAdvancePublicCardSelection,
     autoAdvancePublicEffectChoice,
     confirmCostPayment,
@@ -391,6 +392,7 @@ export const GameBoard = memo(function GameBoard({
       attachEnergyToMember: s.attachEnergyToMember,
       confirmSubPhase: s.confirmSubPhase,
       confirmEffectStep: s.confirmEffectStep,
+      confirmEffectChoice: s.confirmEffectChoice,
       autoAdvancePublicCardSelection: s.autoAdvancePublicCardSelection,
       autoAdvancePublicEffectChoice: s.autoAdvancePublicEffectChoice,
       confirmCostPayment: s.confirmCostPayment,
@@ -2826,20 +2828,12 @@ export const GameBoard = memo(function GameBoard({
                       }
                       canConfirmMulti={canConfirmActiveEffectChoice}
                       onSelectSingle={(optionId) =>
-                        confirmEffectStep(
-                          activeEffect.id,
-                          activeEffectUsesCardOptionSelection
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
                             ? activeEffectSelectedCardId
                             : undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          [optionId]
-                        )
+                          selectedEffectOptionIds: [optionId],
+                        })
                       }
                       onToggleMulti={(optionId) =>
                         setActiveEffectChoiceSelection((current) => [
@@ -2847,20 +2841,12 @@ export const GameBoard = memo(function GameBoard({
                         ])
                       }
                       onConfirmMulti={() =>
-                        confirmEffectStep(
-                          activeEffect.id,
-                          activeEffectUsesCardOptionSelection
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
                             ? activeEffectSelectedCardId
                             : undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          undefined,
-                          normalizedActiveEffectChoiceSelection
-                        )
+                          selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
+                        })
                       }
                       onSkip={() => confirmEffectStep(activeEffect.id, null)}
                     />

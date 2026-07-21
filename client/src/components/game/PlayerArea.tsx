@@ -150,9 +150,12 @@ const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
     };
 
     updateLayout();
-    let animationFrameId = window.requestAnimationFrame(function trackAnimatedLayout() {
+    const animationTrackingDeadline = window.performance.now() + 1_000;
+    let animationFrameId = window.requestAnimationFrame(function trackAnimatedLayout(timestamp) {
       updateLayout();
-      animationFrameId = window.requestAnimationFrame(trackAnimatedLayout);
+      if (timestamp < animationTrackingDeadline) {
+        animationFrameId = window.requestAnimationFrame(trackAnimatedLayout);
+      }
     });
     window.addEventListener('resize', updateLayout);
     window.addEventListener('scroll', updateLayout, true);
