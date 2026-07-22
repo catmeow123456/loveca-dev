@@ -500,6 +500,7 @@ P0/P1 覆盖：
 当前落地：
 
 - `src/domain/rules/cost-calculator.ts` 已在支付方案中保留 `totalCost`、`modifiedCost`、`costModifiers`、`costModifierAmount`、`relayDiscount` 与 `actualEnergyCost`，让费用修正与换手减免在规则层统一计算。
+- 换手资格以应用全部登场费用修正后的 `modifiedCost` 为准：只有仍有至少 1 点待支付费用时才生成单/双换手方案。`modifiedCost === 0` 的覆盖登场只保留非换手方案，旧成员由重复成员规则处理，不写 relay metadata 或 `ON_RELAY`。来牌费用大于 0 而被换成员有效费用为 0 时仍可换手。
 - `GameSession.preparePlayMemberCostPayment` 向 `costCalculator` 传入来源卡 ID、当前手牌列表与舞台成员状态，普通登场继续自动扣费，UI/命令层不写单卡特例。
 - `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已验证“手牌中的此成员卡，此卡以外的其他手牌每有 1 张费用减少 1”；此卡本身不计入数量，手牌只有此卡时仍为 20 费，最低可降到 0 费。
 - `LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已验证“此成员无法因换手放置入休息室”：`costCalculator` 不生成把该成员换下去的支付方案，`play-member.handler.ts` 在实际登场动作里也会拦截。

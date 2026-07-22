@@ -232,6 +232,123 @@ describe('member cost payment', () => {
     ).toBe(true);
   });
 
+  it('plays current-cost-zero LL-bp2-001-R+ over an occupied slot without relay metadata', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('ll-bp2-zero-cost-direct-play', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 0);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      energyDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        energyBelow: Record<SlotPosition, string[]>;
+        memberBelow: Record<SlotPosition, string[]>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const sourceCardId = ownedMemberCardIds[0]!;
+    const occupiedCardId = ownedMemberCardIds[1]!;
+    const memberBelowCardId = ownedMemberCardIds[2]!;
+    const otherHandCardIds = ownedMemberCardIds.slice(3, 23);
+    const energyBelowCardId = player.energyDeck.cardIds[0]!;
+    expect(otherHandCardIds).toHaveLength(20);
+    expect(energyBelowCardId).toBeTruthy();
+
+    (state.cardRegistry.get(sourceCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20, {
+        groupNames: ['莲之空女学院学校偶像俱乐部'],
+      });
+    (state.cardRegistry.get(occupiedCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('TEST-OCCUPIED', 'Occupied Member', 4);
+
+    const removedFromDeck = new Set([
+      sourceCardId,
+      occupiedCardId,
+      memberBelowCardId,
+      ...otherHandCardIds,
+    ]);
+    player.hand.cardIds = [sourceCardId, ...otherHandCardIds];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => !removedFromDeck.has(cardId)
+    );
+    player.energyDeck.cardIds = player.energyDeck.cardIds.filter(
+      (cardId) => cardId !== energyBelowCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = occupiedCardId;
+    player.memberSlots.memberBelow[SlotPosition.CENTER] = [memberBelowCardId];
+    player.memberSlots.energyBelow[SlotPosition.CENTER] = [energyBelowCardId];
+    player.memberSlots.cardStates = new Map([
+      [occupiedCardId, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const eventLogLengthBeforePlay = state.eventLog.length;
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceCardId, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(sourceCardId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([occupiedCardId, memberBelowCardId])
+    );
+    expect(session.state?.players[0].energyDeck.cardIds).toContain(energyBelowCardId);
+    expect(
+      session.state?.actionHistory.some(
+        (action) => action.type === 'PAY_COST' && action.payload.sourceCardId === sourceCardId
+      )
+    ).toBe(false);
+
+    const playAction = session.state?.actionHistory.find(
+      (action) => action.type === 'PLAY_MEMBER' && action.payload.cardId === sourceCardId
+    );
+    expect(playAction?.payload).toMatchObject({
+      isRelay: false,
+      relayReplacements: [],
+      duplicateMemberRuleRemovedCardId: occupiedCardId,
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'DUPLICATE_MEMBER' &&
+          action.payload.keptMemberCardId === sourceCardId
+      )
+    ).toBe(true);
+
+    const playEvents = session
+      .state!.eventLog.slice(eventLogLengthBeforePlay)
+      .map((entry) => entry.event);
+    expect(playEvents).toContainEqual(
+      expect.objectContaining({
+        eventType: TriggerCondition.ON_ENTER_STAGE,
+        cardInstanceId: sourceCardId,
+        replacedMemberCardId: undefined,
+        relayReplacements: undefined,
+      })
+    );
+    expect(playEvents).toContainEqual(
+      expect.objectContaining({
+        eventType: TriggerCondition.ON_LEAVE_STAGE,
+        cardInstanceId: occupiedCardId,
+        replacingCardId: undefined,
+      })
+    );
+    expect(playEvents.some((event) => event.eventType === TriggerCondition.ON_RELAY)).toBe(false);
+  });
+
   it('allows full-cost direct play over LL-bp2-001-R+ and applies the duplicate-member rule without relay', () => {
     const session = createGameSession();
     const deck = createDeck();

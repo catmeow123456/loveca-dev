@@ -204,6 +204,31 @@ describe('CostCalculator', () => {
       ]);
     });
 
+    it('动态降为0费时覆盖普通成员只提供非换手登场方案', () => {
+      const sourceCardId = 'll-bp2-001-source';
+      const otherHandCardIds = Array.from({ length: 20 }, (_, index) => `hand-${index}`);
+      const memberData = createMockMemberData(20, '渡边 曜&鬼冢夏美&大泽瑠璃乃', 'LL-bp2-001-R+');
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [createStageMemberInfo('member-1', 4, SlotPosition.CENTER)],
+        sourceCardId,
+        handCardIds: [sourceCardId, ...otherHandCardIds],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      expect(result.canPay).toBe(true);
+      expect(result.availablePlans).toHaveLength(1);
+      expect(result.availablePlans[0]).toMatchObject({
+        modifiedCost: 0,
+        actualEnergyCost: 0,
+        relayDiscount: 0,
+        isRelay: false,
+        memberToRelay: null,
+        relayReplacements: [],
+      });
+    });
+
     it('应该使用舞台成员有效费用计算换手减免', () => {
       const memberData = createMockMemberData(11);
       const resources: AvailableResources = {
@@ -280,6 +305,43 @@ describe('CostCalculator', () => {
 
       expect(result.canPay).toBe(false);
       expect(result.reason).toContain('PL!SP-bp4-004');
+    });
+
+    it.each([
+      {
+        relayMode: 'SINGLE' as const,
+        memberData: createMockMemberData(0),
+        relayReplacementSlots: undefined,
+      },
+      {
+        relayMode: 'DOUBLE' as const,
+        memberData: createMockMemberData(0, '平安名すみれ', 'PL!SP-bp4-004-P'),
+        relayReplacementSlots: [SlotPosition.CENTER, SlotPosition.LEFT],
+      },
+    ])('当前费用为0时拒绝显式 $relayMode 换手请求', (testCase) => {
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [
+          createStageMemberInfo('center-member', 4, SlotPosition.CENTER),
+          createStageMemberInfo('left-member', 4, SlotPosition.LEFT),
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(
+        testCase.memberData,
+        SlotPosition.CENTER,
+        resources,
+        {
+          relayMode: testCase.relayMode,
+          relayReplacementSlots: testCase.relayReplacementSlots,
+        }
+      );
+
+      expect(result).toEqual({
+        canPay: false,
+        availablePlans: [],
+        reason: '当前登场费用为0，没有待支付能量，无法进行换手',
+      });
     });
 
     it('rejects invalid explicit double relay slot selections', () => {
@@ -1240,11 +1302,13 @@ describe('CostCalculator', () => {
       expect(optimal?.actualEnergyCost).toBe(2); // 4 - 2 = 2
     });
 
-    it('应该在能量消耗相同时优先选择换手方案', () => {
-      const memberData = createMockMemberData(0);
+    it('正费用成员与0有效费用成员换手时保留同耗能优先换手', () => {
+      const memberData = createMockMemberData(2);
       const resources: AvailableResources = {
-        activeEnergyIds: [],
-        stageMembers: [createStageMemberInfo('member-1', 0, SlotPosition.CENTER)],
+        activeEnergyIds: ['e1', 'e2'],
+        stageMembers: [
+          createStageMemberInfo('member-1', 4, SlotPosition.CENTER, { effectiveCost: 0 }),
+        ],
       };
 
       const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
@@ -1252,7 +1316,8 @@ describe('CostCalculator', () => {
 
       expect(result.availablePlans).toHaveLength(2);
       expect(optimal?.isRelay).toBe(true);
-      expect(optimal?.actualEnergyCost).toBe(0);
+      expect(optimal?.relayDiscount).toBe(0);
+      expect(optimal?.actualEnergyCost).toBe(2);
     });
 
     it('应该在没有方案时返回null', () => {
@@ -1451,6 +1516,24 @@ describe('CostCalculator', () => {
       expect(info.possibleRelayDiscount).toBe(2);
       expect(info.canPayWithoutRelay).toBe(false);
       expect(info.canPayWithRelay).toBe(true);
+    });
+
+    it('当前登场费用为0时预览不再声称可换手', () => {
+      const sourceCardId = 'll-bp2-001-source';
+      const memberData = createMockMemberData(20, '渡边 曜&鬼冢夏美&大泽瑠璃乃', 'LL-bp2-001-R+');
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [createStageMemberInfo('member-1', 4, SlotPosition.CENTER)],
+        sourceCardId,
+        handCardIds: [sourceCardId, ...Array.from({ length: 20 }, (_, index) => `hand-${index}`)],
+      };
+
+      const info = calculator.calculatePlayCostInfo(memberData, SlotPosition.CENTER, resources);
+
+      expect(info.modifiedCost).toBe(0);
+      expect(info.canPayWithoutRelay).toBe(true);
+      expect(info.canPayWithRelay).toBe(false);
+      expect(info.possibleRelayDiscount).toBe(0);
     });
   });
 });
