@@ -228,11 +228,12 @@ describe('SolitaireMatchService', () => {
   });
 
   it('服务端可记录对墙打允许 FIRST 真实用户按 revision 撤销最近一步', async () => {
-    const { service } = createHarness();
+    const { matchService, service } = createHarness();
     const created = await service.createMatch({
       userId: 'user-1',
       deckId: '11111111-1111-4111-8111-111111111111',
     });
+    matchService.getMatch(created.matchId)!.session.localFreePlay = true;
 
     const mainPhaseResult = await service.executeCommand(
       created.matchId,
@@ -279,11 +280,12 @@ describe('SolitaireMatchService', () => {
   });
 
   it('服务端可记录对墙打撤销拒绝旧 revision 与非参与用户', async () => {
-    const { service } = createHarness();
+    const { matchService, service } = createHarness();
     const created = await service.createMatch({
       userId: 'user-1',
       deckId: '11111111-1111-4111-8111-111111111111',
     });
+    matchService.getMatch(created.matchId)!.session.localFreePlay = true;
     const mainPhaseResult = await service.executeCommand(
       created.matchId,
       'user-1',
@@ -550,6 +552,7 @@ describe('SolitaireMatchService', () => {
       userId: 'user-1',
       deckId: '11111111-1111-4111-8111-111111111111',
     });
+    matchService.getMatch(created.matchId)!.session.localFreePlay = true;
     const mainPhaseResult = await service.executeCommand(
       created.matchId,
       'user-1',

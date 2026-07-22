@@ -4,7 +4,12 @@ import {
   type GameSession,
   type GameSessionRuntimeStats,
 } from '../../application/game-session.js';
-import { GameCommandType, type GameCommand } from '../../application/game-commands.js';
+import {
+  createConfirmStepCommand,
+  createEndPhaseCommand,
+  GameCommandType,
+  type GameCommand,
+} from '../../application/game-commands.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
@@ -38,7 +43,7 @@ import type {
   UndoPolicy,
   UndoRuntimeCaptureCursor,
 } from '../../online/index.js';
-import { GameMode, GamePhase } from '../../shared/types/enums.js';
+import { GameMode, GamePhase, SubPhase } from '../../shared/types/enums.js';
 import type { ManualOperationMode } from '../../shared/types/manual-operation-mode.js';
 import { applyAuthoritativeManualOperationModeToCommand } from '../../application/manual-operation-mode.js';
 import {
@@ -48,10 +53,7 @@ import {
   type MatchDecisionRecordInput,
   type AppendMatchRecordFrameInput,
 } from './match-recorder-service.js';
-import {
-  buildMatchDecisionRecordsForCommand,
-  buildMatchDecisionRecordsForStateTransition,
-} from './match-decision-records.js';
+import { buildMatchDecisionRecordsForCommand } from './match-decision-records.js';
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
@@ -1303,52 +1305,15 @@ export class OnlineMatchService {
       };
     }
 
-    const beforeState = match.session.getAuthoritySnapshotForRecord();
-    const result = match.session.advancePhase();
-    const afterState = match.session.getAuthoritySnapshotForRecord();
-    const decisionRecords = buildMatchDecisionRecordsForStateTransition({
-      matchId: match.matchId,
-      beforeState,
-      afterState,
-      getSeatForPlayer: (playerId) => getSeatByPlayerId(match, playerId),
-    });
-    touchMatch(match);
-    if (result.success) {
-      incrementRemoteRevision(match);
+    const state = match.session.state;
+    if (!state) {
+      return { success: false, error: '对局尚未开始' };
     }
-    await this.appendSessionRecordFrame(
-      match,
-      result.success ? 'SYSTEM_TRANSITION' : 'COMMAND_REJECTED',
-      {
-        summary: result.success ? '阶段推进后保存权威检查点' : '阶段推进被规则层拒绝',
-        force: true,
-        writeAuthorityCheckpoint: result.success,
-        decisionRecords: result.success ? decisionRecords : [],
-      }
-    );
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error,
-      };
-    }
-
-    if (match.pendingUndoRequest) {
-      await this.expirePendingUndoRequest(match, '阶段已推进，撤销请求失效');
-    }
-    if (match.pendingManualOperationModeRequest) {
-      await this.expirePendingManualOperationModeRequest(match, '阶段已推进，自由模式请求失效');
-    }
-    if (match.activeUndoGrant) {
-      await this.expireActiveUndoGrant(match, '阶段已推进，连续撤销授权失效');
-    }
-
-    await this.sealCompletedMatchIfNeeded(match);
-
-    return {
-      success: true,
-      snapshot: this.buildSnapshotForParticipant(match, participant),
-    };
+    const command =
+      state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE
+        ? createEndPhaseCommand(participant.playerId)
+        : createConfirmStepCommand(participant.playerId, state.currentSubPhase);
+    return this.executeCommand(matchId, userId, command);
   }
 
   getUndoAvailability(matchId: string, userId: string, policy?: UndoPolicy): OnlineUndoView | null {

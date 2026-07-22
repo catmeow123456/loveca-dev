@@ -168,6 +168,7 @@ describe('draw-then-discard shared workflow', () => {
       [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -288,6 +289,7 @@ describe('draw-then-discard shared workflow', () => {
     p1.hand.cardIds = [source.instanceId];
     p1.mainDeck.cardIds = [drawnCard.instanceId];
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

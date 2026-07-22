@@ -158,6 +158,7 @@ function createScenario(cardCode: string, options: { readonly withTargets?: bool
   }));
   setAuthorityState(session, state);
 
+  session.localFreePlay = true;
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
       freePlay: true,

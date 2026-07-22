@@ -259,6 +259,7 @@ describe('N-sd1-010 Shioriko card effects', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = [...topCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -328,6 +329,7 @@ describe('N-sd1-010 Shioriko card effects', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = [...drawnCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

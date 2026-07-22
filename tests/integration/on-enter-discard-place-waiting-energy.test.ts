@@ -127,6 +127,7 @@ describe('KEKE on-enter place waiting energy workflow', () => {
     };
     p1.memberSlots.cardStates = new Map();
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, keke.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -210,6 +211,7 @@ describe('KEKE on-enter place waiting energy workflow', () => {
       [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE }],
     ]);
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, keke.instanceId, SlotPosition.CENTER, {
         freePlay: true,

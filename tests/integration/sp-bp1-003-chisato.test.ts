@@ -541,6 +541,7 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
     });
     resolveSelection(context, [card.instanceId]);
 
+    context.session.localFreePlay = true;
     expect(
       context.session.executeCommand(
         createMoveMemberToSlotCommand(

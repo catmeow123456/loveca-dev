@@ -322,6 +322,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     p1.memberSlots.cardStates = new Map();
     placeStageMember(p1, SlotPosition.RIGHT, pb1003Source.instanceId);
 
+    session.localFreePlay = true;
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -423,8 +424,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     const triggeredAutoResolvedIndex = session.state!.actionHistory.findIndex(
       (action) =>
         action.type === 'RESOLVE_ABILITY' &&
-        action.payload.abilityId ===
-          HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
+        action.payload.abilityId === HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID &&
         action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
     );
     expect(parentResolvedIndex).toBeGreaterThanOrEqual(0);
@@ -520,11 +520,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     );
     expect(
       session.executeCommand(
-        createConfirmEffectStepCommand(
-          PLAYER1,
-          session.state!.activeEffect!.id,
-          source.instanceId
-        )
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, source.instanceId)
       ).success
     ).toBe(true);
     expect(session.state?.activeEffect?.abilityId).toBe(
@@ -585,8 +581,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
       expect.objectContaining({
         kind: 'REQUIREMENT',
         liveCardId: live.instanceId,
-        abilityId:
-          HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
+        abilityId: HS_PB1_029_LIVE_START_DRAW_REDUCE_REQUIREMENT_BY_EXTRA_HEART_MIRACRA_ABILITY_ID,
       })
     );
   });
@@ -639,6 +634,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     p1.memberSlots.cardStates = new Map();
     placeStageMember(p1, SlotPosition.RIGHT, pb1003Source.instanceId);
 
+    session.localFreePlay = true;
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -684,9 +680,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
       .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'COMPLETED');
     expect(completedSummary?.type).toBe('CardEffectSummary');
     if (completedSummary?.type === 'CardEffectSummary') {
-      expect(completedSummary.abilityId).toBe(
-        HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID
-      );
+      expect(completedSummary.abilityId).toBe(HS_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID);
       expect(completedSummary.effectKind).toBe('DISCARD_LOOK_TOP_SELECT_TO_HAND');
       expect(completedSummary.summaryStatus).toBe('COMPLETED');
       expect(completedSummary.sourceOrientationCost).toBe('WAITING');
@@ -755,6 +749,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     placeStageMember(p1, SlotPosition.RIGHT, pb1003Source.instanceId);
     setActiveEnergy(p1, energyCardIds.slice(0, 1));
 
+    session.localFreePlay = true;
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {

@@ -398,6 +398,7 @@ describe('PL!N-PR-025-PR 费用15「優木せつ菜」', () => {
   ])('通过真实生产换手路径让$label换手登场时触发并抽1', ({ selfRelay }) => {
     const scenario = productionScenario(selfRelay);
     const targetSlot = selfRelay ? SlotPosition.CENTER : SlotPosition.LEFT;
+    scenario.session.localFreePlay = true;
     const result = scenario.session.executeCommand(
       createPlayMemberToSlotCommand(P1, scenario.incomingId, targetSlot, { freePlay: true })
     );
@@ -454,6 +455,7 @@ describe('PL!N-PR-025-PR 费用15「優木せつ菜」', () => {
     );
 
     for (const card of incoming) {
+      session.localFreePlay = true;
       expect(
         session.executeCommand(
           createPlayMemberToSlotCommand(P1, card.instanceId, SlotPosition.LEFT, { freePlay: true })
@@ -662,6 +664,7 @@ describe('PL!N-pb1-005-P＋ / R 费用2「宮下 爱」', () => {
 
   it('通过真实 PLAY_MEMBER -> ON_ENTER_STAGE 生产路径匹配印刷费用10并抽1', () => {
     const scenario = pbProductionScenario();
+    scenario.session.localFreePlay = true;
     const result = scenario.session.executeCommand(
       createPlayMemberToSlotCommand(P1, scenario.incomingId, SlotPosition.LEFT, { freePlay: true })
     );

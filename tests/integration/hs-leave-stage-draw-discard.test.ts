@@ -203,6 +203,7 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
         addHandToWaitingRoomTriggerSource: true,
       });
 
+    session.localFreePlay = true;
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -272,6 +273,7 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
       { handCount: 1, drawCount: 2, remainingDeckCount: 1 }
     );
 
+    session.localFreePlay = true;
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -305,6 +307,7 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
       { drawCount: 0 }
     );
 
+    session.localFreePlay = true;
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -389,6 +392,7 @@ describe('Hasunosora leave-stage draw then discard AUTO workflows', () => {
       [source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, entering.instanceId, SlotPosition.CENTER, {
         freePlay: true,

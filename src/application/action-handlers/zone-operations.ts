@@ -12,7 +12,7 @@ import {
   getPlayerById,
   updatePlayer,
 } from '../../domain/entities/game.js';
-import { recordPositionMove } from '../../domain/entities/player.js';
+import { recordMoveToStage, recordPositionMove } from '../../domain/entities/player.js';
 import {
   createEnterWaitingRoomEvent,
   createLeaveStageEvent,
@@ -621,6 +621,18 @@ export function moveCardUniversal(
     state = addCardToResolutionZone(state, cardId);
   } else {
     state = addCardToPlayerZone(state, playerId, cardId, toZone, options);
+  }
+
+  if (
+    fromZone !== ZoneType.MEMBER_SLOT &&
+    toZone === ZoneType.MEMBER_SLOT &&
+    options?.targetSlot !== undefined &&
+    cardBeforeMove?.data.cardType === 'MEMBER' &&
+    getPlayerById(state, playerId)?.memberSlots.slots[options.targetSlot] === cardId
+  ) {
+    state = updatePlayer(state, playerId, (player) =>
+      player.movedToStageThisTurn.includes(cardId) ? player : recordMoveToStage(player, cardId)
+    );
   }
 
   if (shouldEmitLeaveStage) {

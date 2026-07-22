@@ -1,7 +1,7 @@
 import { isMemberCardData, type CardInstance } from '../entities/card.js';
 import type { GameState } from '../entities/game.js';
 import { getCardById, getPlayerById } from '../entities/game.js';
-import { TriggerCondition, ZoneType } from '../../shared/types/enums.js';
+import { SlotPosition, TriggerCondition, ZoneType } from '../../shared/types/enums.js';
 
 type CardInstanceSelector = (card: CardInstance) => boolean;
 
@@ -32,10 +32,7 @@ export function hasMemberEnteredStageThisTurnMatching(
   selector: CardInstanceSelector
 ): boolean {
   return getCurrentTurnEventEntries(game).some(({ event }) => {
-    if (
-      event.eventType !== TriggerCondition.ON_ENTER_STAGE ||
-      event.controllerId !== playerId
-    ) {
+    if (event.eventType !== TriggerCondition.ON_ENTER_STAGE || event.controllerId !== playerId) {
       return false;
     }
     const card = getCardById(game, event.cardInstanceId);
@@ -74,6 +71,23 @@ export function hasMemberMovedToStageThisTurn(
 ): boolean {
   const player = getPlayerById(game, playerId);
   return player?.movedToStageThisTurn.includes(memberCardId) === true;
+}
+
+/**
+ * 规则 9.6.2.1.2.1：不能指定当前存在“本回合从非舞台进入舞台”
+ * 成员的成员区。限制跟随成员实例，而不是锁定某个固定槽位。
+ */
+export function canPlayMemberInStageSlotThisTurn(
+  game: GameState,
+  playerId: string,
+  targetSlot: SlotPosition
+): boolean {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return false;
+  }
+  const occupantId = player.memberSlots.slots[targetSlot];
+  return occupantId === null || !player.movedToStageThisTurn.includes(occupantId);
 }
 
 export function getPositionMovedStageMemberIdsMatching(

@@ -517,10 +517,10 @@ P0/P1 覆盖：
 当前落地：
 
 - `src/application/effects/member-state.ts` 新增 `setMembersOrientation`，用于卡效批量改变舞台成员方向；`setMemberOrientation` 单体原语仍保留。
-- `src/application/effects/member-state.ts` 新增 `playMembersFromWaitingRoomToEmptySlots`，用于卡效从休息室将成员登场到空成员区。
+- `src/application/effects/member-state.ts` 新增 `playMembersFromWaitingRoomToEmptySlots`，用于卡效从休息室将成员登场到空成员区；helper 统一把实际登场的成员实例记入 `movedToStageThisTurn`，使普通登场的同回合区域限制跟随成员。
 - `PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始段已完成：中心位来源入队，确认后将自己舞台上全部 Liella! 成员与全部能量变为活跃状态；非 Liella! 成员不受影响。
 - `PL!S-bp2-006-P` 费用 11「津岛善子」登场段已完成：可以支付 4 能量，从休息室选择至多 2 张费用合计小于等于 4 的成员，逐张选择空成员区登场。
-- 当前 S07 边界：卡效登场不走普通登场费用、不计算换手。非手牌方式登场的成员已通过 `enqueueTriggeredCardEffects` 的显式登场来源继续触发自己的登场能力；触发入队不写进 `playMembersFromWaitingRoomToEmptySlots` 移动原语。
+- 当前 S07 边界：卡效登场不走普通登场费用、不计算换手。非手牌方式登场的成员已通过 `enqueueTriggeredCardEffects` 的显式登场来源继续触发自己的登场能力；触发入队不写进 `playMembersFromWaitingRoomToEmptySlots` 移动原语。占用区域的卡效登场则先产生新成员登场事实，再执行重复成员规则，不产生换手 metadata。
 - focused tests 覆盖 helper、能力登记、千砂都 LIVE 开始批量活跃，以及善子支付后从休息室登场。
 
 ### Stage 1O: Minimal AUTO leave-stage proving

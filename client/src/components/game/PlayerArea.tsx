@@ -77,7 +77,6 @@ import {
   HeartColor,
   ZoneType,
   SubPhase,
-  CardType,
 } from '@game/shared/types/enums';
 import type { Seat } from '@game/online';
 
@@ -658,16 +657,25 @@ export const PlayerArea = memo(function PlayerArea({
       seat: playerSeat,
       slot: SlotPosition.LEFT,
       cardId: getSeatMemberSlotCardId(playerSeat, SlotPosition.LEFT),
+      enteredStageThisTurn:
+        getCardViewObject(getSeatMemberSlotCardId(playerSeat, SlotPosition.LEFT) ?? '')
+          ?.enteredStageThisTurn === true,
     },
     {
       seat: playerSeat,
       slot: SlotPosition.CENTER,
       cardId: getSeatMemberSlotCardId(playerSeat, SlotPosition.CENTER),
+      enteredStageThisTurn:
+        getCardViewObject(getSeatMemberSlotCardId(playerSeat, SlotPosition.CENTER) ?? '')
+          ?.enteredStageThisTurn === true,
     },
     {
       seat: playerSeat,
       slot: SlotPosition.RIGHT,
       cardId: getSeatMemberSlotCardId(playerSeat, SlotPosition.RIGHT),
+      enteredStageThisTurn:
+        getCardViewObject(getSeatMemberSlotCardId(playerSeat, SlotPosition.RIGHT) ?? '')
+          ?.enteredStageThisTurn === true,
     },
   ] as const;
   const selectedBattleActionIntents =
@@ -685,6 +693,7 @@ export const PlayerArea = memo(function PlayerArea({
           surface: capabilities.surface,
           isReadOnly,
           availableCommandTypes: availableBattleActionCommandTypes,
+          manualOperationMode: matchView?.manualOperation?.mode,
           memberSlots: memberSlotSnapshots,
           liveZoneCount: liveZoneView?.count ?? liveCardIds.length,
           activeEffect: visibleActiveEffect,
@@ -1251,7 +1260,8 @@ export const PlayerArea = memo(function PlayerArea({
                           ? 'transition-none'
                           : 'transition-[rotate,scale,transform,filter,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-110 hover:z-10 motion-reduce:duration-75',
                         !isActive && 'rotate-90 opacity-55 grayscale',
-                        skipsNextActivePhase && 'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
+                        skipsNextActivePhase &&
+                          'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
                         card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
@@ -1263,12 +1273,12 @@ export const PlayerArea = memo(function PlayerArea({
                         skipsNextActivePhase
                           ? '下次活跃阶段不会自动变为活跃'
                           : isOpponent
-                          ? isActive
-                            ? '活跃'
-                            : '等待'
-                          : allowGeneralOwnZoneInteraction && canTapEnergy
-                            ? '单击切换活跃/等待'
-                            : '当前阶段不可操作'
+                            ? isActive
+                              ? '活跃'
+                              : '等待'
+                            : allowGeneralOwnZoneInteraction && canTapEnergy
+                              ? '单击切换活跃/等待'
+                              : '当前阶段不可操作'
                       }
                     >
                       {imagePath ? (
@@ -1279,7 +1289,12 @@ export const PlayerArea = memo(function PlayerArea({
                         </div>
                       )}
                       {skipsNextActivePhase && (
-                        <span aria-label="下次活跃阶段不会自动变为活跃" className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[7px] font-bold text-white">!</span>
+                        <span
+                          aria-label="下次活跃阶段不会自动变为活跃"
+                          className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[7px] font-bold text-white"
+                        >
+                          !
+                        </span>
                       )}
                     </div>
                   </CardDetailPressTarget>
@@ -1299,8 +1314,7 @@ export const PlayerArea = memo(function PlayerArea({
     const isMainDeck = deckType === 'main';
     const deckZoneType = isMainDeck ? ZoneType.MAIN_DECK : ZoneType.ENERGY_DECK;
     const deckDroppableId = getDroppableId(deckZoneType);
-    const topCardId =
-      count > 0 ? (isMainDeck ? mainDeckCardIds[0] : energyDeckCardIds[0]) : null;
+    const topCardId = count > 0 ? (isMainDeck ? mainDeckCardIds[0] : energyDeckCardIds[0]) : null;
 
     // 点击主卡组：翻顶 1 张到检视区
     const handleClick = () => {
@@ -1964,7 +1978,8 @@ export const PlayerArea = memo(function PlayerArea({
                           ? 'cursor-pointer active:scale-95'
                           : 'cursor-default',
                         !isActive && 'rotate-90 opacity-45 grayscale',
-                        skipsNextActivePhase && 'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
+                        skipsNextActivePhase &&
+                          'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
                         card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
@@ -1976,8 +1991,8 @@ export const PlayerArea = memo(function PlayerArea({
                         skipsNextActivePhase
                           ? '下次活跃阶段不会自动变为活跃'
                           : allowGeneralOwnZoneInteraction && canTapEnergy
-                          ? '点按切换活跃/待机'
-                          : '能量区'
+                            ? '点按切换活跃/待机'
+                            : '能量区'
                       }
                     >
                       {imagePath ? (
@@ -1988,7 +2003,12 @@ export const PlayerArea = memo(function PlayerArea({
                         </div>
                       )}
                       {skipsNextActivePhase && (
-                        <span aria-label="下次活跃阶段不会自动变为活跃" className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[6px] font-bold text-white">!</span>
+                        <span
+                          aria-label="下次活跃阶段不会自动变为活跃"
+                          className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[6px] font-bold text-white"
+                        >
+                          !
+                        </span>
                       )}
                     </div>
                   </CardDetailPressTarget>

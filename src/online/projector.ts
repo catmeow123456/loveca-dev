@@ -13,6 +13,7 @@ import {
   getManualOperationMode,
   getManualOperationModeSwitchBlockedReason,
 } from '../application/manual-operation-mode.js';
+import { isPlayerCommandAllowedByPolicy } from '../application/player-command-policy.js';
 import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
 import {
   canAssignLlBp7001SpecialPlayPayment,
@@ -1065,7 +1066,7 @@ function buildLiveResultView(game: GameState, viewerSeat: Seat): LiveResultViewS
         ? {
             waitingSeat: currentSuccessLiveSettlementSeat,
             candidateObjectIds: successLiveSelectionCandidateIds.map(createPublicObjectId),
-            canSkipToWaitingRoom: true,
+            canSkipToWaitingRoom: getManualOperationMode(game) === 'FREE',
           }
         : null,
   };
@@ -1243,24 +1244,26 @@ function buildPermissionViewState(
 ): PermissionViewState {
   const pendingSpecialPlay = game.pendingSpecialMemberPlay ?? null;
   if (pendingSpecialPlay) {
+    const hints =
+      pendingSpecialPlay.playerId === viewerPlayerId
+        ? [
+            buildCommandHint(GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY, {
+              params: { pendingId: pendingSpecialPlay.id, requiredCount: 3 },
+            }),
+            buildCommandHint(GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY, {
+              params: { pendingId: pendingSpecialPlay.id },
+            }),
+          ]
+        : [];
     return {
-      availableCommands:
-        pendingSpecialPlay.playerId === viewerPlayerId
-          ? [
-              buildCommandHint(GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY, {
-                params: { pendingId: pendingSpecialPlay.id, requiredCount: 3 },
-              }),
-              buildCommandHint(GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY, {
-                params: { pendingId: pendingSpecialPlay.id },
-              }),
-            ]
-          : [],
+      availableCommands: filterCommandHintsByPolicy(game, viewerPlayerId, hints),
     };
   }
 
   const availableActionTypes = inferAvailableActionTypes(game);
   const canUsePhaseCommands = canViewerUsePhaseCommands(game, viewerPlayerId, viewerSeat);
   const allowSharedOwnDeskCommands =
+    getManualOperationMode(game) === 'FREE' &&
     game.currentSubPhase !== SubPhase.RESULT_ANIMATION &&
     game.currentSubPhase !== SubPhase.RESULT_SETTLEMENT;
   const phaseHints = availableActionTypes
@@ -1279,10 +1282,14 @@ function buildPermissionViewState(
 
   if (!game.inspectionContext) {
     return {
-      availableCommands: mergeCommandHints(
-        activeEffectPhaseHints,
-        buildActiveEffectCommandHints(game, viewerPlayerId),
-        buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
+      availableCommands: filterCommandHintsByPolicy(
+        game,
+        viewerPlayerId,
+        mergeCommandHints(
+          activeEffectPhaseHints,
+          buildActiveEffectCommandHints(game, viewerPlayerId),
+          buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
+        )
       ),
     };
   }
@@ -1294,10 +1301,14 @@ function buildPermissionViewState(
   if (inspectionSeat !== viewerSeat) {
     // 检视期间不支持并发检视，非检视所有者不应看到 OPEN_INSPECTION 为可用命令
     return {
-      availableCommands: mergeCommandHints(
-        phaseHints.filter((hint) => hint.command !== GameCommandType.OPEN_INSPECTION),
-        buildActiveEffectCommandHints(game, viewerPlayerId),
-        buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
+      availableCommands: filterCommandHintsByPolicy(
+        game,
+        viewerPlayerId,
+        mergeCommandHints(
+          phaseHints.filter((hint) => hint.command !== GameCommandType.OPEN_INSPECTION),
+          buildActiveEffectCommandHints(game, viewerPlayerId),
+          buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
+        )
       ),
     };
   }
@@ -1310,17 +1321,31 @@ function buildPermissionViewState(
     : activeEffectPhaseHints;
 
   return {
-    availableCommands: mergeCommandHints(
-      inspectionPhaseHints,
-      activeEffectControlsInspection
-        ? []
-        : buildInspectionCommandHints(game, viewerPlayerId, viewerSeat, {
-            skipOpenInspection: !!game.activeEffect,
-          }),
-      buildActiveEffectCommandHints(game, viewerPlayerId),
-      buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
+    availableCommands: filterCommandHintsByPolicy(
+      game,
+      viewerPlayerId,
+      mergeCommandHints(
+        inspectionPhaseHints,
+        activeEffectControlsInspection
+          ? []
+          : buildInspectionCommandHints(game, viewerPlayerId, viewerSeat, {
+              skipOpenInspection: !!game.activeEffect,
+            }),
+        buildActiveEffectCommandHints(game, viewerPlayerId),
+        buildPendingCostCommandHints(game, viewerPlayerId, viewerSeat)
+      )
     ),
   };
+}
+
+function filterCommandHintsByPolicy(
+  game: GameState,
+  viewerPlayerId: string,
+  hints: readonly ViewCommandHint[]
+): readonly ViewCommandHint[] {
+  return hints.filter((hint) =>
+    isPlayerCommandAllowedByPolicy(game, viewerPlayerId, hint.command as GameCommandType)
+  );
 }
 
 function buildActiveEffectCommandHints(
@@ -1833,7 +1858,9 @@ function buildResultConfirmStepHint(
         : !isCurrentSettlementPlayer
           ? '等待当前胜者完成成功 Live 选择'
           : hasCandidates
-            ? '请先选择成功 Live，或使用全部放置入休息室'
+            ? getManualOperationMode(game) === 'RULES'
+              ? '请先选择1张成功 Live'
+              : '请先选择成功 Live，或使用全部放置入休息室'
             : hasConfirmedSettlement
               ? '已确认结算'
               : undefined;
@@ -1903,7 +1930,8 @@ function buildSettlementSelectionHint(
     params: {
       canSkipSuccessLiveSelection:
         game.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
-        currentSettlementPlayerId === viewerPlayerId,
+        currentSettlementPlayerId === viewerPlayerId &&
+        getManualOperationMode(game) === 'FREE',
     },
   });
 }

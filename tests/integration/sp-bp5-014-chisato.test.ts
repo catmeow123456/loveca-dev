@@ -127,6 +127,7 @@ function setupScenario(options: {
 }
 
 function playChisato(scenario: ChisatoScenario): void {
+  scenario.session.localFreePlay = true;
   const result = scenario.session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, SlotPosition.CENTER, {
       freePlay: true,

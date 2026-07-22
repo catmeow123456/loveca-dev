@@ -278,6 +278,7 @@ function activeFaceUp(): { readonly orientation: OrientationState; readonly face
 }
 
 function playNico(scenario: NicoScenario): void {
+  scenario.session.localFreePlay = true;
   const result = scenario.session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, SlotPosition.CENTER, {
       freePlay: true,

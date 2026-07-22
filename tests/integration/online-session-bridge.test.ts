@@ -157,6 +157,7 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
+    session.localFreePlay = true;
     const openResult = session.executeCommand(
       createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2)
     );
@@ -219,6 +220,7 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
+    session.localFreePlay = true;
     const result = session.executeCommand(
       createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 2)
     );
@@ -269,6 +271,7 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
+    session.localFreePlay = true;
     const beforeSeq = session.getCurrentPublicEventSeq();
     const openResult = session.executeCommand(
       createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
@@ -310,6 +313,7 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
+    session.localFreePlay = true;
     for (let index = 0; index < MAX_AUTHORITY_SNAPSHOT_HISTORY + 20; index += 1) {
       const result = session.executeCommand(createDrawCardToHandCommand(PLAYER1));
       expect(result.success).toBe(true);
@@ -355,6 +359,7 @@ describe('GameSession 联机桥接层', () => {
     source.createGame('online-bridge-runtime-restore', PLAYER1, '玩家1', PLAYER2, '玩家2');
     source.initializeGame(deck, deck);
     forceMainPhaseForPlayer(source);
+    source.localFreePlay = true;
     expect(source.executeCommand(createDrawCardToHandCommand(PLAYER1)).success).toBe(true);
     expect(source.executeCommand(createDrawCardToHandCommand(PLAYER1)).success).toBe(true);
     expect(source.executeCommand(createDrawCardToHandCommand(PLAYER1)).success).toBe(true);
@@ -398,6 +403,7 @@ describe('GameSession 联机桥接层', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
+    session.localFreePlay = true;
     const baseCommand = {
       ...createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1),
       idempotencyKey: 'open-main-deck-1',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  createDrawCardToHandCommand,
+  createEndPhaseCommand,
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
@@ -167,10 +167,15 @@ describe('联机自由模式协商', () => {
     );
     expect(expiredAccept?.success).toBe(false);
 
+    const memberObjectId = snapshot?.playerViewState.table.zones.FIRST_HAND.objectIds?.find(
+      (objectId) => snapshot?.playerViewState.objects[objectId]?.cardType === CardType.MEMBER
+    );
+    expect(memberObjectId).toBeTruthy();
+    const memberId = memberObjectId!.replace(/^obj_/, '');
     const draw = await service.executeCommand(
       match.matchId,
       'u1',
-      createDrawCardToHandCommand('ignored')
+      createPlayMemberToSlotCommand('ignored', memberId, SlotPosition.CENTER)
     );
     expect(draw?.success).toBe(true);
     const undoEntry = draw!.snapshot!.playerViewState.match.undo!.entry!;
@@ -196,7 +201,7 @@ describe('联机自由模式协商', () => {
     const command = await service.executeCommand(
       match.matchId,
       'u1',
-      createDrawCardToHandCommand('ignored')
+      createEndPhaseCommand('ignored')
     );
     expect(command?.success).toBe(true);
     expect(command?.snapshot?.playerViewState.match.manualOperation?.pendingRequest).toBeNull();
@@ -309,6 +314,26 @@ describe('联机自由模式协商', () => {
     );
     expect(acceptedMode?.snapshot?.playerViewState.match.manualOperation?.mode).toBe('FREE');
     expect(played?.success).toBe(true);
+  });
+
+  it('联机规则模式拒绝非主要阶段伪造的 END_PHASE', async () => {
+    const service = new OnlineMatchService({ recorder: null });
+    const match = await createOnlineMatch(service, 'MODE06');
+    forceMainPhase(match);
+    const state = match.session.state as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+    };
+    state.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    state.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+
+    const result = await service.executeCommand(
+      match.matchId,
+      'u1',
+      createEndPhaseCommand('ignored')
+    );
+    expect(result?.success).toBe(false);
+    expect(result?.error).toContain('主要阶段');
   });
 });
 

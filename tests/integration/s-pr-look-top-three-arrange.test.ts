@@ -39,6 +39,7 @@ function startViaRealEnter(cardCode: string, name: string, deckCount = 3) {
   const session = createGameSession();
   session.createGame(`session-${cardCode}`, P1, 'P1', P2, 'P2');
   (session as unknown as { authorityState: GameState }).authorityState = game;
+  session.localFreePlay = true;
   const result = session.executeCommand(createPlayMemberToSlotCommand(P1, source.instanceId, SlotPosition.CENTER, { freePlay: true }));
   expect(result.success, result.error).toBe(true);
   return { session, deckIds: deck.map((card) => card.instanceId) };

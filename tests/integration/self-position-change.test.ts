@@ -167,6 +167,7 @@ describe('self position-change shared workflow', () => {
   ] as const)('opens the shared position-change window for %s', (cardCode, name, cost) => {
     const { session, source } = setupSelfPositionChangeSession([], cardCode, name, cost);
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -185,6 +186,7 @@ describe('self position-change shared workflow', () => {
   it('opens an optional PL!SP-bp4-013 position-change window excluding the current slot', () => {
     const { session, source } = setupSelfPositionChangeSession();
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -204,6 +206,7 @@ describe('self position-change shared workflow', () => {
   it('moves PL!SP-bp4-013 to an empty slot and records position movement only after selection', () => {
     const { session, source } = setupSelfPositionChangeSession();
 
+    session.localFreePlay = true;
     session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -253,6 +256,7 @@ describe('self position-change shared workflow', () => {
     };
     stageMember(p1, SlotPosition.LEFT, other.instanceId);
 
+    session.localFreePlay = true;
     session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -293,6 +297,7 @@ describe('self position-change shared workflow', () => {
     };
     stageMember(p1, SlotPosition.RIGHT, nextSource.instanceId);
 
+    session.localFreePlay = true;
     session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

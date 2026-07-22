@@ -145,6 +145,7 @@ function setupOnEnterMakiState(options: {
     ],
   ]);
 
+  session.localFreePlay = true;
   const playResult = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, maki.instanceId, options.slot, {
       freePlay: true,

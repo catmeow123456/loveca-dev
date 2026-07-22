@@ -56,7 +56,7 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
     activePlayerIndex: number;
   };
   mutableState.currentPhase = GamePhase.MAIN_PHASE;
-  mutableState.currentSubPhase = SubPhase.MAIN_FREE;
+  mutableState.currentSubPhase = SubPhase.NONE;
   mutableState.currentTurnType = TurnType.NORMAL;
   mutableState.activePlayerIndex = 0;
 }

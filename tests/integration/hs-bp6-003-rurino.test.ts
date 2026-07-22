@@ -197,6 +197,7 @@ describe('HS-bp6-003 Rurino workflow', () => {
     ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -277,6 +278,7 @@ describe('HS-bp6-003 Rurino workflow', () => {
     p1.memberSlots.cardStates = new Map();
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

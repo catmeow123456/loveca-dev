@@ -5,21 +5,10 @@ import type { ActiveEffectViewState, Seat, ViewerSurface } from '@game/online';
 export type BattleActionTargetKind = 'ZONE' | 'CARD' | 'SLOT' | 'OPTION' | 'NUMBER' | 'NONE';
 
 export type BattleInteractionOrigin =
-  | 'CLICK'
-  | 'DRAG'
-  | 'BUTTON'
-  | 'MODAL'
-  | 'SYSTEM'
-  | 'REMOTE'
-  | 'REPLAY';
+  'CLICK' | 'DRAG' | 'BUTTON' | 'MODAL' | 'SYSTEM' | 'REMOTE' | 'REPLAY';
 
 export type BattleOperationCause =
-  | 'TABLETOP'
-  | 'FLOW_TASK'
-  | 'ACTIVE_EFFECT'
-  | 'COST_PAYMENT'
-  | 'LIVE_JUDGMENT'
-  | 'DEBUG_ASSIST';
+  'TABLETOP' | 'FLOW_TASK' | 'ACTIVE_EFFECT' | 'COST_PAYMENT' | 'LIVE_JUDGMENT' | 'DEBUG_ASSIST';
 
 export type BattleAnimationPolicy =
   | 'LOCAL_DIRECT_DRAG_SETTLE'
@@ -68,10 +57,7 @@ export type BattleActionCommandPayload =
       readonly type: GameCommandType.MOVE_PUBLIC_CARD_TO_HAND;
       readonly cardId: string;
       readonly fromZone:
-        | ZoneType.MEMBER_SLOT
-        | ZoneType.LIVE_ZONE
-        | ZoneType.SUCCESS_ZONE
-        | ZoneType.WAITING_ROOM;
+        ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM;
       readonly sourceSlot?: SlotPosition;
     }
   | {
@@ -102,10 +88,7 @@ export type BattleActionCommandPayload =
       readonly type: GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE;
       readonly cardId: string;
       readonly toZone:
-        | ZoneType.HAND
-        | ZoneType.WAITING_ROOM
-        | ZoneType.MAIN_DECK
-        | ZoneType.EXILE_ZONE;
+        ZoneType.HAND | ZoneType.WAITING_ROOM | ZoneType.MAIN_DECK | ZoneType.EXILE_ZONE;
       readonly position?: 'TOP' | 'BOTTOM';
     }
   | {
@@ -163,6 +146,7 @@ export interface BattleMemberSlotSnapshot {
   readonly seat: Seat;
   readonly slot: SlotPosition;
   readonly cardId: string | null;
+  readonly enteredStageThisTurn?: boolean;
 }
 
 export interface BattleActionIntentInput {
@@ -178,11 +162,18 @@ export interface BattleActionIntentInput {
   readonly surface: BattleInteractionSurface;
   readonly isReadOnly: boolean;
   readonly availableCommandTypes: readonly GameCommandType[];
+  readonly manualOperationMode?: 'RULES' | 'FREE';
   readonly memberSlots: readonly BattleMemberSlotSnapshot[];
   readonly liveZoneCount?: number;
   readonly liveZoneMax?: number;
   readonly activeEffect?: ActiveEffectViewState | null;
   readonly activeEffectCanConfirm?: boolean;
+}
+
+export function canUseLegacyManualDropFallback(
+  manualOperationMode: BattleActionIntentInput['manualOperationMode']
+): boolean {
+  return manualOperationMode === 'FREE';
 }
 
 const MEMBER_SLOT_LABELS: Record<SlotPosition, string> = {
@@ -435,21 +426,23 @@ function buildActiveEffectIntents(input: BattleActionIntentInput): readonly Batt
 }
 
 function createPlayMemberIntent(input: BattleActionIntentInput): BattleActionIntent {
-  const targets = getViewerMemberSlots(input).map((slot) => ({
-    targetId: targetIdForMemberSlot(slot.slot),
-    kind: 'SLOT' as const,
-    zone: ZoneType.MEMBER_SLOT,
-    slot: slot.slot,
-    enabled: true,
-    label: slot.cardId ? '换手登场' : '登场',
-    detail: MEMBER_SLOT_LABELS[slot.slot],
-    anchor: { zone: ZoneType.MEMBER_SLOT, slot: slot.slot },
-    commandPayload: {
-      type: GameCommandType.PLAY_MEMBER_TO_SLOT as const,
-      cardId: input.sourceCardId,
-      targetSlot: slot.slot,
-    },
-  }));
+  const targets = getViewerMemberSlots(input)
+    .filter((slot) => input.manualOperationMode !== 'RULES' || slot.enteredStageThisTurn !== true)
+    .map((slot) => ({
+      targetId: targetIdForMemberSlot(slot.slot),
+      kind: 'SLOT' as const,
+      zone: ZoneType.MEMBER_SLOT,
+      slot: slot.slot,
+      enabled: true,
+      label: slot.cardId ? '在此登场' : '登场',
+      detail: MEMBER_SLOT_LABELS[slot.slot],
+      anchor: { zone: ZoneType.MEMBER_SLOT, slot: slot.slot },
+      commandPayload: {
+        type: GameCommandType.PLAY_MEMBER_TO_SLOT as const,
+        cardId: input.sourceCardId,
+        targetSlot: slot.slot,
+      },
+    }));
 
   return createIntent(input, {
     commandType: GameCommandType.PLAY_MEMBER_TO_SLOT,
@@ -577,10 +570,7 @@ function createSetLiveIntent(input: BattleActionIntentInput): BattleActionIntent
 function createMovePublicToHandIntent(
   input: BattleActionIntentInput,
   fromZone:
-    | ZoneType.MEMBER_SLOT
-    | ZoneType.LIVE_ZONE
-    | ZoneType.SUCCESS_ZONE
-    | ZoneType.WAITING_ROOM
+    ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM
 ): BattleActionIntent {
   return createIntent(input, {
     commandType: GameCommandType.MOVE_PUBLIC_CARD_TO_HAND,
@@ -862,10 +852,7 @@ function isLiveSetPlayerSubPhase(subPhase: SubPhase): boolean {
 function isPublicCardToHandSource(
   zone: ZoneType
 ): zone is
-  | ZoneType.MEMBER_SLOT
-  | ZoneType.LIVE_ZONE
-  | ZoneType.SUCCESS_ZONE
-  | ZoneType.WAITING_ROOM {
+  ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM {
   return (
     zone === ZoneType.MEMBER_SLOT ||
     zone === ZoneType.LIVE_ZONE ||

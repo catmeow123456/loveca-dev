@@ -50,9 +50,9 @@ describe('权威操作模式', () => {
     expect(session.initializeGame(createDeck('A'), createDeck('B')).success).toBe(true);
     forceMainPhase(session.state!);
 
+    expect(session.setManualOperationMode('FREE').success).toBe(true);
     const draw = session.executeCommand(createDrawCardToHandCommand(P1));
     expect(draw.success).toBe(true);
-    expect(session.setManualOperationMode('FREE').success).toBe(true);
     expect(session.manualOperationMode).toBe('FREE');
 
     expect(session.undoLastStep().success).toBe(true);

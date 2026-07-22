@@ -163,6 +163,7 @@ function setupRelayScenario(options: {
 }
 
 function playRenWithSingleRelay(session: GameSession, sourceId: string): void {
+  session.localFreePlay = true;
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
       freePlay: true,
@@ -174,6 +175,7 @@ function playRenWithSingleRelay(session: GameSession, sourceId: string): void {
 }
 
 function playRenWithoutRelay(session: GameSession, sourceId: string): void {
+  session.localFreePlay = true;
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
       freePlay: true,

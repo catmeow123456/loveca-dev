@@ -1237,6 +1237,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     now += 1_000;
     const commandResult = await matchService.executeCommand(
@@ -1280,6 +1281,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1398,6 +1400,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1523,6 +1526,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const commandResult = await matchService.executeCommand(
@@ -1566,6 +1570,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1656,6 +1661,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1720,6 +1726,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     const commandResult = await matchService.executeCommand(
       match.matchId,
@@ -1772,6 +1779,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.localFreePlay = true;
 
     const firstPlayer = match.session.state!.players[0] as unknown as {
       mainDeck: { cardIds: string[] };

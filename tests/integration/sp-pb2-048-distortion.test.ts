@@ -322,6 +322,7 @@ describe('PL!SP-pb2-048-L Distortion workflow', () => {
     session.createGame('sp-pb2-048-distortion-forced-fail', PLAYER1, 'P1', PLAYER2, 'P2');
     (session as unknown as { authorityState: GameState }).authorityState = stateAfterLiveStart;
 
+    session.localFreePlay = true;
     const failResult = session.executeCommand(createConfirmPerformanceOutcomeCommand(PLAYER1, false));
 
     expect(failResult.success).toBe(true);

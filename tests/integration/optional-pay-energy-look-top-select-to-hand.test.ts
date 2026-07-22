@@ -452,6 +452,7 @@ describe('PL!SP-sd1-009-SD 费用13「鬼塚夏美」', () => {
       activePlayerIndex: 0,
     };
 
+    session.localFreePlay = true;
     const result = session.executeCommand(
       createPlayMemberToSlotCommand(P1, scenario.source.instanceId, SlotPosition.RIGHT, {
         freePlay: true,

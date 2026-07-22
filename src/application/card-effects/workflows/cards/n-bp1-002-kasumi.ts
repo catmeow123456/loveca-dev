@@ -19,10 +19,14 @@ import {
 } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { canPlayMemberInStageSlotThisTurn } from '../../../../domain/rules/member-turn-state.js';
 import { PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { discardOneHandCardToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
-import { playMemberFromZoneToStageSlotWithReplacement } from '../../runtime/play-member-to-stage.js';
+import {
+  enqueueCardEffectPlacementTriggersWithStageSnapshot,
+  playMemberFromZoneToStageSlotWithReplacement,
+} from '../../runtime/play-member-to-stage.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
@@ -51,8 +55,13 @@ export function registerNBp1002KasumiWorkflowHandlers(deps: {
   registerActiveEffectStepHandler(
     PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
     N_BP1_002_SELECT_DISCARD_STEP_ID,
-    (game, input) =>
-      finishKasumiDiscardCost(game, input.selectedCardId ?? null, deps.enqueueTriggeredCardEffects)
+    (game, input, context) =>
+      finishKasumiDiscardCost(
+        game,
+        input.selectedCardId ?? null,
+        deps.enqueueTriggeredCardEffects,
+        context.continuePendingCardEffects
+      )
   );
   registerActiveEffectStepHandler(
     PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
@@ -130,7 +139,8 @@ function startKasumiFromWaitingRoomActivated(
 function finishKasumiDiscardCost(
   game: GameState,
   selectedCardId: string | null,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects,
+  continuePendingCardEffects: (game: GameState, orderedResolution: boolean) => GameState
 ): GameState {
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
@@ -175,6 +185,27 @@ function finishKasumiDiscardCost(
     return game;
   }
 
+  const selectableSlots = getLegalKasumiStageSlots(
+    discardResult.gameState,
+    player.id,
+    effect.sourceCardId
+  );
+  if (selectableSlots.length === 0) {
+    const noTargetState = addAction(
+      { ...discardResult.gameState, activeEffect: null },
+      'RESOLVE_ABILITY',
+      player.id,
+      {
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'NO_LEGAL_STAGE_SLOT_AFTER_COST',
+        paidEnergyCardIds: energyPayment.paidEnergyCardIds,
+        discardedCardIds: discardResult.discardedCardIds,
+      }
+    );
+    return continuePendingCardEffects(noTargetState, false);
+  }
+
   return addAction(
     {
       ...discardResult.gameState,
@@ -184,7 +215,7 @@ function finishKasumiDiscardCost(
         stepText: '请选择此卡要登场的成员区。',
         selectableCardIds: undefined,
         selectableCardVisibility: 'PUBLIC',
-        selectableSlots: MEMBER_SLOT_ORDER,
+        selectableSlots,
         selectionLabel: '选择登场成员区',
         confirmSelectionLabel: '登场',
         metadata: {
@@ -201,7 +232,7 @@ function finishKasumiDiscardCost(
       step: 'PAY_COST_SELECT_STAGE_SLOT',
       paidEnergyCardIds: energyPayment.paidEnergyCardIds,
       discardedCardIds: discardResult.discardedCardIds,
-      selectableSlots: MEMBER_SLOT_ORDER,
+      selectableSlots,
     }
   );
 }
@@ -222,7 +253,8 @@ function finishKasumiPlaySelfFromWaitingRoom(
     !player ||
     selectedSlot === null ||
     effect.selectableSlots?.includes(selectedSlot) !== true ||
-    !player.waitingRoom.cardIds.includes(effect.sourceCardId)
+    !player.waitingRoom.cardIds.includes(effect.sourceCardId) ||
+    !getLegalKasumiStageSlots(game, player.id, effect.sourceCardId).includes(selectedSlot)
   ) {
     return game;
   }
@@ -244,26 +276,36 @@ function finishKasumiPlaySelfFromWaitingRoom(
     toSlot: selectedSlot,
     paidEnergyCardIds: getStringArray(effect.metadata?.paidEnergyCardIds),
     discardedCardIds: getStringArray(effect.metadata?.discardedCardIds),
-    replacedMemberCardId: playResult.replacedMemberCardId,
-    replacedMemberEffectiveCost: playResult.replacedMemberEffectiveCost,
+    duplicateMemberRuleRemovedCardId: playResult.duplicateMemberRuleRemovedCardId,
   });
-  const stateWithOnEnter = enqueueTriggeredCardEffects(
+  const stateWithOnEnter = enqueueCardEffectPlacementTriggersWithStageSnapshot(
+    game,
     state,
-    [
-      ...(playResult.leaveStageEvents.length > 0 ? [TriggerCondition.ON_LEAVE_STAGE] : []),
-      ...(playResult.enterWaitingRoomEvents.length > 0
-        ? [TriggerCondition.ON_ENTER_WAITING_ROOM]
-        : []),
-      TriggerCondition.ON_ENTER_STAGE,
-    ],
-    {
-      leaveStageEvents: playResult.leaveStageEvents,
-      enterWaitingRoomEvents: playResult.enterWaitingRoomEvents,
-      enterStageEvents: [playResult.enterStageEvent],
-    }
+    playResult,
+    enqueueTriggeredCardEffects
   );
 
   return continuePendingCardEffects({ ...stateWithOnEnter, activeEffect: null }, false);
+}
+
+function getLegalKasumiStageSlots(
+  game: GameState,
+  playerId: string,
+  incomingCardId: string
+): readonly SlotPosition[] {
+  const player = getPlayerById(game, playerId);
+  const incomingCard = getCardById(game, incomingCardId);
+  if (
+    !player ||
+    !incomingCard ||
+    incomingCard.ownerId !== player.id ||
+    !isMemberCardData(incomingCard.data)
+  ) {
+    return [];
+  }
+  return MEMBER_SLOT_ORDER.filter((slot) =>
+    canPlayMemberInStageSlotThisTurn(game, player.id, slot)
+  );
 }
 
 function getActiveEnergyCardIds(game: GameState, playerId: string): readonly string[] {

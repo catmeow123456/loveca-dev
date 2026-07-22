@@ -48,6 +48,7 @@ function realSession(code: 'PL!-PR-001-PR' | 'PL!-PR-002-PR') {
   (session as unknown as { authorityState: GameState }).authorityState = state;
   const mutable = session.state as unknown as { currentPhase: GamePhase; currentSubPhase: SubPhase; currentTurnType: TurnType; activePlayerIndex: number; waitingPlayerId: string | null };
   mutable.currentPhase = GamePhase.MAIN_PHASE; mutable.currentSubPhase = SubPhase.MAIN_FREE; mutable.currentTurnType = TurnType.NORMAL; mutable.activePlayerIndex = 0; mutable.waitingPlayerId = null;
+  session.localFreePlay = true;
   return { session, source, target };
 }
 

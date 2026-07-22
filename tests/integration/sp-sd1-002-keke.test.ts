@@ -20,6 +20,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
+  HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
   SP_SD1_001_ON_ENTER_DRAW_PER_SIX_ENERGY_ABILITY_ID,
   SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -198,6 +199,7 @@ describe('PL!SP-sd1-002-SD 唐 可可 queued on-enter workflow', () => {
     const session = createGameSession();
     session.createGame('real-sp-sd1-002', P1, 'P1', P2, 'P2');
     (session as unknown as { authorityState: GameState }).authorityState = game;
+    session.localFreePlay = true;
 
     const result = session.executeCommand(
       createPlayMemberToSlotCommand(P1, scenario.source.instanceId, SlotPosition.CENTER, {
@@ -362,7 +364,7 @@ describe('PL!SP-sd1-002-SD 唐 可可 queued on-enter workflow', () => {
     expect(afterLeaveSlots).toEqual([SlotPosition.LEFT, SlotPosition.RIGHT]);
   });
 
-  it('does not bypass LL-bp2-001 or the HS-bp6-006 Mira-Cra replacement restriction', () => {
+  it('uses duplicate-member processing rather than relay restrictions for occupied slots', () => {
     const locked = createCardInstance(member('LL-bp2-001-R+'), P1, 'locked');
     const miraOnly = createCardInstance(
       member('PL!HS-bp6-006-R', { groupNames: ['蓮ノ空女学院スクールアイドルクラブ'] }),
@@ -378,10 +380,10 @@ describe('PL!SP-sd1-002-SD 唐 可可 queued on-enter workflow', () => {
     });
     expect(
       chooseCard(start(scenario.game), scenario.hand[0]!.instanceId).activeEffect?.selectableSlots
-    ).toEqual([SlotPosition.CENTER]);
+    ).toEqual([SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT]);
   });
 
-  it('replaces one member with full memberBelow, energyBelow, events, effective-cost snapshot, and modifier cleanup', () => {
+  it('applies duplicate-member cleanup without relay metadata after the new member enters', () => {
     const replaced = createCardInstance(member('REPLACED', { cost: 7 }), P1, 'replaced');
     const below = createCardInstance(member('BELOW'), P1, 'below');
     const attachedEnergy = createCardInstance(energy('ATTACHED-ENERGY'), P1, 'attached-energy');
@@ -438,7 +440,10 @@ describe('PL!SP-sd1-002-SD 唐 可可 queued on-enter workflow', () => {
         event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
         event.cardInstanceId === replaced.instanceId
     )?.event;
-    expect(leave).toMatchObject({ replacingCardId: targetId, fromSlot: SlotPosition.LEFT });
+    expect(leave).toMatchObject({
+      replacingCardId: undefined,
+      fromSlot: SlotPosition.LEFT,
+    });
     const waiting = done.eventLog.find(
       ({ event }) => event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
     )?.event;
@@ -448,12 +453,117 @@ describe('PL!SP-sd1-002-SD 唐 可可 queued on-enter workflow', () => {
         event.eventType === TriggerCondition.ON_ENTER_STAGE && event.cardInstanceId === targetId
     )?.event;
     expect(enter).toMatchObject({
-      replacedMemberCardId: replaced.instanceId,
-      replacedMemberEffectiveCost: 7,
-      relayReplacements: [
-        { cardId: replaced.instanceId, slot: SlotPosition.LEFT, effectiveCost: 7 },
-      ],
+      replacedMemberCardId: undefined,
+      replacedMemberEffectiveCost: undefined,
+      relayReplacements: undefined,
     });
+    expect(done.eventLog.indexOf(done.eventLog.find(({ event }) => event === enter)!)).toBeLessThan(
+      done.eventLog.indexOf(done.eventLog.find(({ event }) => event === leave)!)
+    );
+    expect(done.eventLog.some(({ event }) => event.eventType === TriggerCondition.ON_RELAY)).toBe(
+      false
+    );
+    expect(
+      done.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'DUPLICATE_MEMBER' &&
+          action.payload.keptMemberCardId === targetId
+      )
+    ).toBe(true);
+  });
+
+  it('重复成员清理不会丢失 enter 时点仍在场的旧成员 AUTO 监听', () => {
+    const listener = createCardInstance(
+      {
+        ...member('PL!HS-bp6-007-R', {
+          cost: 15,
+          groupNames: ['蓮ノ空女学院スクールアイドルクラブ'],
+        }),
+        unitName: 'EdelNote',
+      },
+      P1,
+      'old-seras-listener'
+    );
+    const target = createCardInstance(
+      { ...member('LIELLA-EDELNOTE-TARGET'), unitName: 'EdelNote' },
+      P1,
+      'liella-edelnote-target'
+    );
+    const opponentTarget = createCardInstance(
+      member('OPPONENT-ACTIVE-TARGET', { groupNames: ['Aqours'] }),
+      P2,
+      'opponent-active-target'
+    );
+    const scenario = setup({
+      hand: [target],
+      sourceOnStage: false,
+      occupied: [{ slot: SlotPosition.LEFT, card: listener }],
+    });
+    const prepared = updatePlayer(registerCards(scenario.game, [opponentTarget]), P2, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        opponentTarget.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+    }));
+
+    const done = chooseSlot(chooseCard(start(prepared), target.instanceId), SlotPosition.LEFT);
+
+    expect(done.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(target.instanceId);
+    expect(Object.values(done.players[0].memberSlots.slots)).not.toContain(listener.instanceId);
+    expect(done.activeEffect).toMatchObject({
+      abilityId: HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID,
+      sourceCardId: listener.instanceId,
+      awaitingPlayerId: P2,
+      selectableCardIds: [opponentTarget.instanceId],
+    });
+    expect([...done.players[0].waitingRoom.cardIds, ...done.players[0].mainDeck.cardIds]).toContain(
+      listener.instanceId
+    );
+    expect(
+      done.eventLog.some(
+        ({ event }) =>
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.cardInstanceIds.includes(listener.instanceId)
+      )
+    ).toBe(true);
+    const listenerTriggers = done.actionHistory.filter(
+      (action) =>
+        action.type === 'TRIGGER_ABILITY' &&
+        action.payload.abilityId ===
+          HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID &&
+        action.payload.sourceCardId === listener.instanceId &&
+        action.payload.enteredCardId === target.instanceId
+    );
+    expect(listenerTriggers).toHaveLength(1);
+    const parentIndex = done.actionHistory.findIndex(
+      (action) => action.payload.step === 'PLAY_LOW_COST_LIELLA_HAND_MEMBER'
+    );
+    const listenerTriggerIndex = done.actionHistory.indexOf(listenerTriggers[0]!);
+    expect(parentIndex).toBeGreaterThanOrEqual(0);
+    expect(listenerTriggerIndex).toBeGreaterThan(parentIndex);
+    expect(
+      done.actionHistory.filter(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID &&
+          action.payload.sourceCardId === listener.instanceId
+      )
+    ).toHaveLength(1);
+
+    const resolved = confirmActiveEffectStep(
+      done,
+      P2,
+      done.activeEffect!.id,
+      opponentTarget.instanceId
+    );
+    expect(
+      resolved.players[1].memberSlots.cardStates.get(opponentTarget.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
   });
 
   it('atomically refreshes stale hand targets and stale slots without moving another card', () => {

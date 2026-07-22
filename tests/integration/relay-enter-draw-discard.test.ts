@@ -173,6 +173,7 @@ function setupRelayDrawDiscardScenario(options: {
 }
 
 function playWithRelay(scenario: RelayDrawDiscardScenario): void {
+  scenario.session.localFreePlay = true;
   const result = scenario.session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, SlotPosition.CENTER, {
       freePlay: true,
@@ -291,6 +292,7 @@ describe('relay enter draw-discard shared workflow', () => {
       handCount: 1,
     });
 
+    scenario.session.localFreePlay = true;
     const result = scenario.session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, SlotPosition.LEFT, {
         freePlay: true,

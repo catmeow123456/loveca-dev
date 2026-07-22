@@ -16,18 +16,15 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { placeCardInSlot, removeCardFromStatefulZone } from '../../src/domain/entities/zone';
-import {
-  createCheerEvent,
-  createEnterWaitingRoomEvent,
-} from '../../src/domain/events/game-events';
+import { createCheerEvent, createEnterWaitingRoomEvent } from '../../src/domain/events/game-events';
 import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import {
   createConfirmEffectStepCommand,
-  createConfirmPerformanceOutcomeCommand,
   createConfirmStepCommand,
+  createSubmitJudgmentCommand,
   createSubmitScoreCommand,
   createMovePublicCardToWaitingRoomCommand,
   createSelectSuccessLiveCommand,
@@ -64,6 +61,7 @@ function createMemberCard(
     readonly name?: string;
     readonly groupNames?: readonly string[];
     readonly cost?: number;
+    readonly blade?: number;
     readonly bladeHearts?: MemberCardData['bladeHearts'];
   } = {}
 ): MemberCardData {
@@ -73,7 +71,7 @@ function createMemberCard(
     groupNames: options.groupNames ?? ['Aqours'],
     cardType: CardType.MEMBER,
     cost: options.cost ?? 4,
-    blade: 1,
+    blade: options.blade ?? 1,
     hearts: [createHeartIcon(HeartColor.RED, 1)],
     bladeHearts: options.bladeHearts ?? [],
   };
@@ -188,7 +186,11 @@ function createLiveStartPendingAbility(
   };
 }
 
-function openMiraiTicketCheerSelection(cost: number, deckCount: number, bottomCheer = false): {
+function openMiraiTicketCheerSelection(
+  cost: number,
+  deckCount: number,
+  bottomCheer = false
+): {
   readonly session: ReturnType<typeof createSessionFromGame>;
   readonly targetId: string;
   readonly additionalDeckIds: readonly string[];
@@ -211,7 +213,11 @@ function openMiraiTicketCheerSelection(cost: number, deckCount: number, bottomCh
       )
     : null;
   const additionalDeckCards = Array.from({ length: deckCount }, (_, index) =>
-    createCardInstance(createMemberCard(`PL!S-additional-${cost}-${index}`), PLAYER1, `additional-${cost}-${index}`)
+    createCardInstance(
+      createMemberCard(`PL!S-additional-${cost}-${index}`),
+      PLAYER1,
+      `additional-${cost}-${index}`
+    )
   );
   let game = registerCards(createGameState(`mirai-ticket-${cost}`, PLAYER1, 'P1', PLAYER2, 'P2'), [
     sourceLive,
@@ -249,7 +255,10 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
   ])(
     'PL!S-bp6-021 sends a cost $cost no-BLADE HEART Aqours member and performs capped additional cheer',
     ({ cost, deckCount, expectedAdditional }) => {
-      const { session, targetId, additionalDeckIds } = openMiraiTicketCheerSelection(cost, deckCount);
+      const { session, targetId, additionalDeckIds } = openMiraiTicketCheerSelection(
+        cost,
+        deckCount
+      );
 
       expect(session.state?.activeEffect?.abilityId).toBe(
         S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID
@@ -309,14 +318,19 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       createMemberCard('LL-bp2-001-R+', {
         name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃',
         cost: 20,
-        groupNames:
-          ['ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ'],
+        groupNames: [
+          'ラブライブ！サンシャイン!!\nラブライブ！スーパースター!!\n蓮ノ空女学院スクールアイドルクラブ',
+        ],
       }),
       PLAYER1,
       'll-bp2-001'
     );
     const additionalDeckCards = Array.from({ length: 5 }, (_, index) =>
-      createCardInstance(createMemberCard(`PL!S-ll-additional-${index}`), PLAYER1, `ll-additional-${index}`)
+      createCardInstance(
+        createMemberCard(`PL!S-ll-additional-${index}`),
+        PLAYER1,
+        `ll-additional-${index}`
+      )
     );
     let game = registerCards(createGameState('mirai-ll-bp2-001', PLAYER1, 'P1', PLAYER2, 'P2'), [
       sourceLive,
@@ -375,8 +389,16 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
   });
 
   it('PL!S-bp6-021 filters non-Aqours, non-member, and BLADE HEART cheer cards, and skip does not move or cheer', () => {
-    const sourceLive = createCardInstance(createLiveCard('PL!S-bp6-021-L'), PLAYER1, 'mirai-filter');
-    const valid = createCardInstance(createMemberCard('PL!S-valid', { cost: 10 }), PLAYER1, 'valid');
+    const sourceLive = createCardInstance(
+      createLiveCard('PL!S-bp6-021-L'),
+      PLAYER1,
+      'mirai-filter'
+    );
+    const valid = createCardInstance(
+      createMemberCard('PL!S-valid', { cost: 10 }),
+      PLAYER1,
+      'valid'
+    );
     const nonAqours = createCardInstance(
       createMemberCard('PL!SP-liella-member', { groupNames: ['Liella!'], cost: 10 }),
       PLAYER1,
@@ -399,7 +421,12 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       bladeHeart,
     ]);
     game = placeLiveZone(game, [sourceLive.instanceId]);
-    const revealedIds = [valid.instanceId, nonAqours.instanceId, liveCard.instanceId, bladeHeart.instanceId];
+    const revealedIds = [
+      valid.instanceId,
+      nonAqours.instanceId,
+      liveCard.instanceId,
+      bladeHeart.instanceId,
+    ];
     game = setRevealedCheerCards(game, revealedIds);
     const cheerEvent = createCheerEvent(PLAYER1, revealedIds, revealedIds.length, {
       automated: true,
@@ -408,7 +435,10 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_CHEER], {
       cheerEvents: [cheerEvent],
     });
-    const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'mirai-filter');
+    const session = createSessionFromGame(
+      resolvePendingCardEffects(game).gameState,
+      'mirai-filter'
+    );
 
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([valid.instanceId]);
 
@@ -449,7 +479,9 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     );
     expect(finish.success, finish.error).toBe(true);
 
-    const afterAdditionalCheck = enqueueTriggeredCardEffects(session.state!, [TriggerCondition.ON_CHEER]);
+    const afterAdditionalCheck = enqueueTriggeredCardEffects(session.state!, [
+      TriggerCondition.ON_CHEER,
+    ]);
     expect(afterAdditionalCheck.pendingAbilities).toEqual([]);
 
     const nextCheerEvent = createCheerEvent(PLAYER1, [additionalDeckIds[3]!], 1, {
@@ -481,12 +513,14 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     const expected = [additionalDeckIds[3], additionalDeckIds[2], additionalDeckIds[1]];
     expect(session.state?.resolutionZone.revealedCardIds).toEqual(expected);
     expect(
-      session.state!.eventLog
-        .map((entry) => entry.event)
+      session
+        .state!.eventLog.map((entry) => entry.event)
         .filter((event) => event.eventType === TriggerCondition.ON_CHEER)
         .at(-1)
     ).toMatchObject({ revealedCardIds: expected, additional: true, deckEdge: 'BOTTOM' });
-    expect(session.state!.actionHistory.findLast((action) => action.type === 'CHEER')?.payload).toMatchObject({
+    expect(
+      session.state!.actionHistory.findLast((action) => action.type === 'CHEER')?.payload
+    ).toMatchObject({
       cheerCardIds: expected,
       additional: true,
       deckEdge: 'BOTTOM',
@@ -519,15 +553,19 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     const expected = additionalDeckIds.slice(0, 3);
     expect(session.state?.resolutionZone.revealedCardIds).toEqual(expected);
     expect(
-      session.state!.eventLog
-        .map((entry) => entry.event)
+      session
+        .state!.eventLog.map((entry) => entry.event)
         .filter((event) => event.eventType === TriggerCondition.ON_CHEER)
         .at(-1)
     ).toMatchObject({ revealedCardIds: expected, additional: true, deckEdge: 'TOP' });
   });
 
   it('PL!S-bp6-002 AUTO ignores unrelated waiting-room events, then returns an Aqours LIVE from waiting room to deck top', () => {
-    const source = createCardInstance(createMemberCard('PL!S-bp6-002-P', { cost: 17 }), PLAYER1, 'riko');
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      PLAYER1,
+      'riko'
+    );
     const handCard = createCardInstance(createMemberCard('PL!S-hand'), PLAYER1, 'hand-card');
     const live = createCardInstance(createLiveCard('PL!S-aqours-live'), PLAYER1, 'aqours-live');
     const deckCard = createCardInstance(createMemberCard('PL!S-deck'), PLAYER1, 'deck-card');
@@ -544,17 +582,30 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       mainDeck: { ...player.mainDeck, cardIds: [deckCard.instanceId] },
     }));
 
-    const handEvent = createEnterWaitingRoomEvent([handCard.instanceId], ZoneType.HAND, PLAYER1, PLAYER1);
+    const handEvent = createEnterWaitingRoomEvent(
+      [handCard.instanceId],
+      ZoneType.HAND,
+      PLAYER1,
+      PLAYER1
+    );
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
       enterWaitingRoomEvents: [handEvent],
     });
     expect(game.pendingAbilities).toEqual([]);
 
-    const liveEvent = createEnterWaitingRoomEvent([live.instanceId], ZoneType.LIVE_ZONE, PLAYER1, PLAYER1);
+    const liveEvent = createEnterWaitingRoomEvent(
+      [live.instanceId],
+      ZoneType.LIVE_ZONE,
+      PLAYER1,
+      PLAYER1
+    );
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
       enterWaitingRoomEvents: [liveEvent],
     });
-    const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'bp6-002-auto');
+    const session = createSessionFromGame(
+      resolvePendingCardEffects(game).gameState,
+      'bp6-002-auto'
+    );
 
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
@@ -586,12 +637,22 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
 
   it('PL!S-bp6-002 AUTO opens from the real failed LIVE confirmation path', () => {
     const source = createCardInstance(
-      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      createMemberCard('PL!S-bp6-002-P', { cost: 17, blade: 0 }),
       PLAYER1,
       'riko-failed-live'
     );
-    const live = createCardInstance(createLiveCard('PL!S-failed-live'), PLAYER1, 'failed-live');
-    const deckCard = createCardInstance(createMemberCard('PL!S-failed-deck'), PLAYER1, 'failed-deck');
+    const live = createCardInstance(
+      createLiveCard('PL!S-failed-live', {
+        requirements: createHeartRequirement({ [HeartColor.RED]: 99 }),
+      }),
+      PLAYER1,
+      'failed-live'
+    );
+    const deckCard = createCardInstance(
+      createMemberCard('PL!S-failed-deck'),
+      PLAYER1,
+      'failed-deck'
+    );
     let game = registerCards(createGameState('bp6-002-failed-live', PLAYER1, 'P1', PLAYER2, 'P2'), [
       source,
       live,
@@ -616,7 +677,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     };
     const session = createSessionFromGame(game, 'bp6-002-failed-live');
 
-    const fail = session.executeCommand(createConfirmPerformanceOutcomeCommand(PLAYER1, false));
+    const fail = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
 
     expect(fail.success, fail.error).toBe(true);
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(live.instanceId);
@@ -632,12 +693,22 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
 
   it('PL!S-bp6-002 AUTO blocks score confirmation until the effect is resolved', () => {
     const source = createCardInstance(
-      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      createMemberCard('PL!S-bp6-002-P', { cost: 17, blade: 0 }),
       PLAYER1,
       'riko-score-lock'
     );
-    const live = createCardInstance(createLiveCard('PL!S-score-lock-live'), PLAYER1, 'score-lock-live');
-    const deckCard = createCardInstance(createMemberCard('PL!S-score-lock-deck'), PLAYER1, 'score-lock-deck');
+    const live = createCardInstance(
+      createLiveCard('PL!S-score-lock-live', {
+        requirements: createHeartRequirement({ [HeartColor.RED]: 99 }),
+      }),
+      PLAYER1,
+      'score-lock-live'
+    );
+    const deckCard = createCardInstance(
+      createMemberCard('PL!S-score-lock-deck'),
+      PLAYER1,
+      'score-lock-deck'
+    );
     let game = registerCards(createGameState('bp6-002-score-lock', PLAYER1, 'P1', PLAYER2, 'P2'), [
       source,
       live,
@@ -662,22 +733,26 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     };
     const session = createSessionFromGame(game, 'bp6-002-score-lock');
 
-    const fail = session.executeCommand(createConfirmPerformanceOutcomeCommand(PLAYER1, false));
+    const fail = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
     expect(fail.success, fail.error).toBe(true);
-    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
 
-    const earlyScore = session.executeCommand(createSubmitScoreCommand(PLAYER1, 0));
-    expect(earlyScore.success).toBe(false);
+    const earlyConfirm = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_JUDGMENT)
+    );
+    expect(earlyConfirm.success).toBe(false);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([]);
 
     const p1Commands = session.getPlayerViewState(PLAYER1)?.permissions.availableCommands ?? [];
     const p2Commands = session.getPlayerViewState(PLAYER2)?.permissions.availableCommands ?? [];
     expect(p1Commands.some((hint) => hint.command === GameCommandType.SUBMIT_SCORE)).toBe(false);
     expect(p2Commands.some((hint) => hint.command === GameCommandType.SUBMIT_SCORE)).toBe(false);
-    expect(p1Commands.some((hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP)).toBe(true);
+    expect(p1Commands.some((hint) => hint.command === GameCommandType.CONFIRM_EFFECT_STEP)).toBe(
+      true
+    );
 
     selectBp6002LiveIfNeeded(session);
     const finishEffect = session.executeCommand(
@@ -693,6 +768,12 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(finishEffect.success, finishEffect.error).toBe(true);
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+
+    const confirmJudgment = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_JUDGMENT)
+    );
+    expect(confirmJudgment.success, confirmJudgment.error).toBe(true);
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
 
     const p1Score = session.executeCommand(createSubmitScoreCommand(PLAYER1, 0));
@@ -704,17 +785,26 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
 
   it('PL!S-bp6-002 AUTO blocks solitaire score automation and direct score actions while active', () => {
     const source = createCardInstance(
-      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      createMemberCard('PL!S-bp6-002-P', { cost: 17, blade: 0 }),
       PLAYER1,
       'riko-solitaire-lock'
     );
-    const live = createCardInstance(createLiveCard('PL!S-solitaire-live'), PLAYER1, 'solitaire-live');
-    const deckCard = createCardInstance(createMemberCard('PL!S-solitaire-deck'), PLAYER1, 'solitaire-deck');
-    let game = registerCards(createGameState('bp6-002-solitaire-lock', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      source,
-      live,
-      deckCard,
-    ]);
+    const live = createCardInstance(
+      createLiveCard('PL!S-solitaire-live', {
+        requirements: createHeartRequirement({ [HeartColor.RED]: 99 }),
+      }),
+      PLAYER1,
+      'solitaire-live'
+    );
+    const deckCard = createCardInstance(
+      createMemberCard('PL!S-solitaire-deck'),
+      PLAYER1,
+      'solitaire-deck'
+    );
+    let game = registerCards(
+      createGameState('bp6-002-solitaire-lock', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, live, deckCard]
+    );
     game = placeCenterMember(game, source.instanceId);
     game = placeLiveZone(game, [live.instanceId]);
     game = updatePlayer(game, PLAYER1, (player) => ({
@@ -736,9 +826,9 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       gameMode: GameMode.SOLITAIRE,
     });
 
-    const fail = session.executeCommand(createConfirmPerformanceOutcomeCommand(PLAYER1, false));
+    const fail = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
     expect(fail.success, fail.error).toBe(true);
-    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_002_AUTO_AQOURS_LIVE_FROM_LIVE_ZONE_TO_WAITING_TOP_BOTTOM_ABILITY_ID
     );
@@ -762,6 +852,11 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(finishEffect.success, finishEffect.error).toBe(true);
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
+
+    const confirmJudgment = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_JUDGMENT)
+    );
+    expect(confirmJudgment.success, confirmJudgment.error).toBe(true);
     expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([PLAYER2]);
 
@@ -770,19 +865,24 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(session.state?.currentSubPhase).not.toBe(SubPhase.RESULT_SCORE_CONFIRM);
   });
 
-  it('PL!S-bp6-002 AUTO resumes winner resolution after an old score-confirm race is cleared', () => {
+  it('PL!S-bp6-002 AUTO clears an old score-confirm race before normal score confirmation resumes', () => {
     const source = createCardInstance(
-      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      createMemberCard('PL!S-bp6-002-P', { cost: 17, blade: 0 }),
       PLAYER1,
       'riko-race-recovery'
     );
-    const live = createCardInstance(createLiveCard('PL!S-race-live'), PLAYER1, 'race-live');
+    const live = createCardInstance(
+      createLiveCard('PL!S-race-live', {
+        requirements: createHeartRequirement({ [HeartColor.RED]: 99 }),
+      }),
+      PLAYER1,
+      'race-live'
+    );
     const deckCard = createCardInstance(createMemberCard('PL!S-race-deck'), PLAYER1, 'race-deck');
-    let game = registerCards(createGameState('bp6-002-race-recovery', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      source,
-      live,
-      deckCard,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-002-race-recovery', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, live, deckCard]
+    );
     game = placeCenterMember(game, source.instanceId);
     game = placeLiveZone(game, [live.instanceId]);
     game = updatePlayer(game, PLAYER1, (player) => ({
@@ -802,7 +902,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     };
     const session = createSessionFromGame(game, 'bp6-002-race-recovery');
 
-    const fail = session.executeCommand(createConfirmPerformanceOutcomeCommand(PLAYER1, false));
+    const fail = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
     expect(fail.success, fail.error).toBe(true);
     (session as unknown as { authorityState: GameState }).authorityState = {
       ...session.state!,
@@ -832,8 +932,19 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     expect(finishEffect.success, finishEffect.error).toBe(true);
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.currentSubPhase).not.toBe(SubPhase.RESULT_SCORE_CONFIRM);
+
+    const confirmJudgment = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_JUDGMENT)
+    );
+    expect(confirmJudgment.success, confirmJudgment.error).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.RESULT_SCORE_CONFIRM);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([]);
+
+    const p1Score = session.executeCommand(createSubmitScoreCommand(PLAYER1, 0));
+    expect(p1Score.success, p1Score.error).toBe(true);
+    const p2Score = session.executeCommand(createSubmitScoreCommand(PLAYER2, 0));
+    expect(p2Score.success, p2Score.error).toBe(true);
+    expect(session.state?.currentSubPhase).not.toBe(SubPhase.RESULT_SCORE_CONFIRM);
   });
 
   it('PL!S-bp6-002 AUTO opens once for multiple remaining LIVE cards during settlement cleanup', () => {
@@ -842,10 +953,26 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       PLAYER1,
       'riko-settlement'
     );
-    const successLive = createCardInstance(createLiveCard('PL!S-success-live'), PLAYER1, 'success-live');
-    const remainingLiveA = createCardInstance(createLiveCard('PL!S-remaining-live-a'), PLAYER1, 'remaining-live-a');
-    const remainingLiveB = createCardInstance(createLiveCard('PL!S-remaining-live-b'), PLAYER1, 'remaining-live-b');
-    const deckCard = createCardInstance(createMemberCard('PL!S-settlement-deck'), PLAYER1, 'settlement-deck');
+    const successLive = createCardInstance(
+      createLiveCard('PL!S-success-live'),
+      PLAYER1,
+      'success-live'
+    );
+    const remainingLiveA = createCardInstance(
+      createLiveCard('PL!S-remaining-live-a'),
+      PLAYER1,
+      'remaining-live-a'
+    );
+    const remainingLiveB = createCardInstance(
+      createLiveCard('PL!S-remaining-live-b'),
+      PLAYER1,
+      'remaining-live-b'
+    );
+    const deckCard = createCardInstance(
+      createMemberCard('PL!S-settlement-deck'),
+      PLAYER1,
+      'settlement-deck'
+    );
     let game = registerCards(createGameState('bp6-002-settlement', PLAYER1, 'P1', PLAYER2, 'P2'), [
       source,
       successLive,
@@ -925,12 +1052,10 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       PLAYER1,
       'settlement-resume-deck'
     );
-    let game = registerCards(createGameState('bp6-002-settlement-resume', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      source,
-      successLive,
-      remainingLive,
-      deckCard,
-    ]);
+    let game = registerCards(
+      createGameState('bp6-002-settlement-resume', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, successLive, remainingLive, deckCard]
+    );
     game = placeCenterMember(game, source.instanceId);
     game = placeLiveZone(game, [successLive.instanceId, remainingLive.instanceId]);
     game = updatePlayer(game, PLAYER1, (player) => ({
@@ -1001,7 +1126,11 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       'riko-manual'
     );
     const live = createCardInstance(createLiveCard('PL!S-manual-live'), PLAYER1, 'manual-live');
-    const deckCard = createCardInstance(createMemberCard('PL!S-manual-deck'), PLAYER1, 'manual-deck');
+    const deckCard = createCardInstance(
+      createMemberCard('PL!S-manual-deck'),
+      PLAYER1,
+      'manual-deck'
+    );
     let game = registerCards(createGameState('bp6-002-manual', PLAYER1, 'P1', PLAYER2, 'P2'), [
       source,
       live,
@@ -1024,6 +1153,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     };
     const session = createSessionFromGame(game, 'bp6-002-manual');
 
+    session.localFreePlay = true;
     const move = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(PLAYER1, live.instanceId, ZoneType.LIVE_ZONE)
     );
@@ -1041,8 +1171,16 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       PLAYER1,
       'riko-bottom'
     );
-    const live = createCardInstance(createLiveCard('PL!S-bottom-aqours-live'), PLAYER1, 'bottom-live');
-    const deckCard = createCardInstance(createMemberCard('PL!S-bottom-deck'), PLAYER1, 'bottom-deck');
+    const live = createCardInstance(
+      createLiveCard('PL!S-bottom-aqours-live'),
+      PLAYER1,
+      'bottom-live'
+    );
+    const deckCard = createCardInstance(
+      createMemberCard('PL!S-bottom-deck'),
+      PLAYER1,
+      'bottom-deck'
+    );
     let game = registerCards(createGameState('bp6-002-bottom', PLAYER1, 'P1', PLAYER2, 'P2'), [
       source,
       live,
@@ -1055,11 +1193,19 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       mainDeck: { ...player.mainDeck, cardIds: [deckCard.instanceId] },
     }));
 
-    const liveEvent = createEnterWaitingRoomEvent([live.instanceId], ZoneType.LIVE_ZONE, PLAYER1, PLAYER1);
+    const liveEvent = createEnterWaitingRoomEvent(
+      [live.instanceId],
+      ZoneType.LIVE_ZONE,
+      PLAYER1,
+      PLAYER1
+    );
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
       enterWaitingRoomEvents: [liveEvent],
     });
-    const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'bp6-002-bottom');
+    const session = createSessionFromGame(
+      resolvePendingCardEffects(game).gameState,
+      'bp6-002-bottom'
+    );
 
     selectBp6002LiveIfNeeded(session);
     const finish = session.executeCommand(
@@ -1082,10 +1228,18 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
   });
 
   it('PL!S-bp6-002 AUTO decline consumes the true trigger for the turn, while stale moved cards no-op without use', () => {
-    const source = createCardInstance(createMemberCard('PL!S-bp6-002-P', { cost: 17 }), PLAYER1, 'riko-decline');
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      PLAYER1,
+      'riko-decline'
+    );
     const staleLive = createCardInstance(createLiveCard('PL!S-stale-live'), PLAYER1, 'stale-live');
     const firstLive = createCardInstance(createLiveCard('PL!S-first-live'), PLAYER1, 'first-live');
-    const secondLive = createCardInstance(createLiveCard('PL!S-second-live'), PLAYER1, 'second-live');
+    const secondLive = createCardInstance(
+      createLiveCard('PL!S-second-live'),
+      PLAYER1,
+      'second-live'
+    );
     let game = registerCards(createGameState('bp6-002-decline', PLAYER1, 'P1', PLAYER2, 'P2'), [
       source,
       staleLive,
@@ -1094,7 +1248,12 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     ]);
     game = placeCenterMember(game, source.instanceId);
 
-    const staleEvent = createEnterWaitingRoomEvent([staleLive.instanceId], ZoneType.LIVE_ZONE, PLAYER1, PLAYER1);
+    const staleEvent = createEnterWaitingRoomEvent(
+      [staleLive.instanceId],
+      ZoneType.LIVE_ZONE,
+      PLAYER1,
+      PLAYER1
+    );
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
       enterWaitingRoomEvents: [staleEvent],
     });
@@ -1103,22 +1262,42 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
 
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      waitingRoom: { ...player.waitingRoom, cardIds: [firstLive.instanceId, secondLive.instanceId] },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [firstLive.instanceId, secondLive.instanceId],
+      },
     }));
-    const firstEvent = createEnterWaitingRoomEvent([firstLive.instanceId], ZoneType.LIVE_ZONE, PLAYER1, PLAYER1);
+    const firstEvent = createEnterWaitingRoomEvent(
+      [firstLive.instanceId],
+      ZoneType.LIVE_ZONE,
+      PLAYER1,
+      PLAYER1
+    );
     game = enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
       enterWaitingRoomEvents: [firstEvent],
     });
-    const session = createSessionFromGame(resolvePendingCardEffects(game).gameState, 'bp6-002-decline');
+    const session = createSessionFromGame(
+      resolvePendingCardEffects(game).gameState,
+      'bp6-002-decline'
+    );
     const decline = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, null)
     );
     expect(decline.success, decline.error).toBe(true);
 
-    const secondEvent = createEnterWaitingRoomEvent([secondLive.instanceId], ZoneType.LIVE_ZONE, PLAYER1, PLAYER1);
-    const afterSecond = enqueueTriggeredCardEffects(session.state!, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
-      enterWaitingRoomEvents: [secondEvent],
-    });
+    const secondEvent = createEnterWaitingRoomEvent(
+      [secondLive.instanceId],
+      ZoneType.LIVE_ZONE,
+      PLAYER1,
+      PLAYER1
+    );
+    const afterSecond = enqueueTriggeredCardEffects(
+      session.state!,
+      [TriggerCondition.ON_ENTER_WAITING_ROOM],
+      {
+        enterWaitingRoomEvents: [secondEvent],
+      }
+    );
     expect(afterSecond.pendingAbilities).toEqual([]);
     expect(afterSecond.players[0].waitingRoom.cardIds).toEqual([
       firstLive.instanceId,
@@ -1127,7 +1306,11 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
   });
 
   it('PL!S-bp6-002 LIVE_START gives source member ALL Heart x2 only for all-Aqours red/green/blue requirement total >= 12', () => {
-    const source = createCardInstance(createMemberCard('PL!S-bp6-002-P', { cost: 17 }), PLAYER1, 'riko-live-start');
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      PLAYER1,
+      'riko-live-start'
+    );
     const liveA = createCardInstance(
       createLiveCard('PL!S-red-green-live', {
         requirements: createHeartRequirement({ [HeartColor.RED]: 4, [HeartColor.GREEN]: 4 }),
@@ -1209,13 +1392,20 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       ],
     },
   ])('PL!S-bp6-002 LIVE_START does nothing when $name', ({ liveCards }) => {
-    const source = createCardInstance(createMemberCard('PL!S-bp6-002-P', { cost: 17 }), PLAYER1, 'riko-miss');
-    let game = registerCards(createGameState('bp6-002-live-start-miss', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      source,
-      ...liveCards,
-    ]);
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp6-002-P', { cost: 17 }),
+      PLAYER1,
+      'riko-miss'
+    );
+    let game = registerCards(
+      createGameState('bp6-002-live-start-miss', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, ...liveCards]
+    );
     game = placeCenterMember(game, source.instanceId);
-    game = placeLiveZone(game, liveCards.map((card) => card.instanceId));
+    game = placeLiveZone(
+      game,
+      liveCards.map((card) => card.instanceId)
+    );
     game = {
       ...game,
       pendingAbilities: [

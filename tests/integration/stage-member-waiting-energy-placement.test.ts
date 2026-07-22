@@ -807,6 +807,7 @@ function setupRenOnEnterScenario(options: {
 }
 
 function playRen(session: GameSession, renId: string, useRelay = true): void {
+  session.localFreePlay = true;
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, renId, SlotPosition.CENTER, {
       freePlay: true,

@@ -152,6 +152,7 @@ describe('mill-top gain live modifier workflow', () => {
     };
     p1.memberSlots.cardStates = new Map();
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, ginko.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -254,6 +255,7 @@ describe('mill-top gain live modifier workflow', () => {
     };
     p1.memberSlots.cardStates = new Map();
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, hime.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -346,6 +348,7 @@ describe('mill-top gain live modifier workflow', () => {
     };
     p1.memberSlots.cardStates = new Map();
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, kosuzu.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -518,6 +521,7 @@ describe('mill-top gain live modifier workflow', () => {
     };
     p1.memberSlots.cardStates = new Map();
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, kosuzu.instanceId, SlotPosition.CENTER, {
         freePlay: true,

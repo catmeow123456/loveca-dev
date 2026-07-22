@@ -158,13 +158,15 @@ function hasTriggeredAbility(game: GameState, abilityId: string, sourceCardId?: 
   );
 }
 
-function setupKanata(options: {
-  readonly sourceCode?: string;
-  readonly handCards?: readonly CardInstance[];
-  readonly activeEnergyCount?: number;
-  readonly fillAllSlots?: boolean;
-  readonly lockAllSlotsThisTurn?: boolean;
-} = {}) {
+function setupKanata(
+  options: {
+    readonly sourceCode?: string;
+    readonly handCards?: readonly CardInstance[];
+    readonly activeEnergyCount?: number;
+    readonly fillAllSlots?: boolean;
+    readonly lockAllSlotsThisTurn?: boolean;
+  } = {}
+) {
   const source = createMember(options.sourceCode ?? 'PL!N-bp4-006-R', 'kanata-source', {
     name: '近江彼方',
     cost: 11,
@@ -214,22 +216,25 @@ function setupKanata(options: {
   return { game, source, left, right, handCards, energyCards };
 }
 
-function setupMia(options: {
-  readonly includeNijigasakiTarget?: boolean;
-  readonly includeHandDiscardTriggerSource?: boolean;
-  readonly handCount?: number;
-  readonly mainDeckCount?: number;
-} = {}) {
+function setupMia(
+  options: {
+    readonly includeNijigasakiTarget?: boolean;
+    readonly includeHandDiscardTriggerSource?: boolean;
+    readonly handCount?: number;
+    readonly mainDeckCount?: number;
+  } = {}
+) {
   const source = createMember('PL!N-bp4-023-N', 'mia-source', {
     name: 'ミア・テイラー',
     cost: 5,
   });
-  const target = options.includeNijigasakiTarget === false
-    ? null
-    : createMember('PL!N-test-target', 'mia-target', {
-        name: '中須かすみ',
-        cost: 4,
-      });
+  const target =
+    options.includeNijigasakiTarget === false
+      ? null
+      : createMember('PL!N-test-target', 'mia-target', {
+          name: '中須かすみ',
+          cost: 4,
+        });
   const triggerSource = options.includeHandDiscardTriggerSource
     ? createMember('PL!HS-pb1-003-R', 'hand-discard-trigger-source', {
         name: '大沢瑠璃乃',
@@ -312,15 +317,18 @@ const NAMED_MEMBER_CASES = [
   },
 ] as const;
 
-function setupNamedCase(cardCase: (typeof NAMED_MEMBER_CASES)[number], options: {
-  readonly activeEnergyCount?: number;
-  readonly targetBladeHeart?: boolean;
-  readonly targetCost?: number;
-  readonly targetName?: string;
-  readonly targetCode?: string;
-  readonly fillAllSlots?: boolean;
-  readonly lockAllSlotsThisTurn?: boolean;
-} = {}) {
+function setupNamedCase(
+  cardCase: (typeof NAMED_MEMBER_CASES)[number],
+  options: {
+    readonly activeEnergyCount?: number;
+    readonly targetBladeHeart?: boolean;
+    readonly targetCost?: number;
+    readonly targetName?: string;
+    readonly targetCode?: string;
+    readonly fillAllSlots?: boolean;
+    readonly lockAllSlotsThisTurn?: boolean;
+  } = {}
+) {
   const target = createMember(options.targetCode ?? cardCase.targetCode, 'named-target', {
     name: options.targetName ?? cardCase.targetName,
     cost: options.targetCost ?? 4,
@@ -335,10 +343,7 @@ function setupNamedCase(cardCase: (typeof NAMED_MEMBER_CASES)[number], options: 
   });
 }
 
-function startNamedCase(
-  scenario: ReturnType<typeof setupNamedCase>,
-  abilityId: string
-): GameState {
+function startNamedCase(scenario: ReturnType<typeof setupNamedCase>, abilityId: string): GameState {
   return resolvePending(scenario.game, createPending(abilityId, scenario.source.instanceId));
 }
 
@@ -398,8 +403,9 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
       const targetId = scenario.handCards[0].instanceId;
       expect(resolved.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(targetId);
       expect(resolved.players[0].movedToStageThisTurn).toContain(targetId);
-      expect(resolved.players[0].memberSlots.cardStates.get(scenario.source.instanceId))
-        .toMatchObject({ orientation: OrientationState.ACTIVE });
+      expect(
+        resolved.players[0].memberSlots.cardStates.get(scenario.source.instanceId)
+      ).toMatchObject({ orientation: OrientationState.ACTIVE });
       expect(
         resolved.eventLog.some(
           ({ event }) =>
@@ -431,12 +437,14 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
         new CostCalculator().canPlayInSlot(
           SlotPosition.LEFT,
           resolved.players[0].movedToStageThisTurn,
-          [{
-            cardId: targetId,
-            data: targetData,
-            position: SlotPosition.LEFT,
-            orientation: OrientationState.ACTIVE,
-          }]
+          [
+            {
+              cardId: targetId,
+              data: targetData,
+              position: SlotPosition.LEFT,
+              orientation: OrientationState.ACTIVE,
+            },
+          ]
         )
       ).toBe(false);
     }
@@ -445,26 +453,26 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
   it.each(NAMED_MEMBER_CASES)(
     '$sourceCode accepts only the configured member name at cost 4 or less and rejects same-name LIVE',
     (cardCase) => {
-    const accepted = createMember(cardCase.targetCode, 'accepted-name', {
-      name: cardCase.targetName,
-      cost: 4,
-    });
-    const wrongName = createMember('PL!N-test-wrong-name', 'wrong-name', {
-      name: cardCase.targetName === '上原歩夢' ? '桜坂しずく' : '上原歩夢',
-      cost: 4,
-    });
-    const tooHigh = createMember('PL!N-test-high', 'too-high', {
-      name: cardCase.targetName,
-      cost: 5,
-    });
-    const sameNameLive = createLive('PL!N-test-live', 'same-name-live', cardCase.targetName);
-    const scenario = setupKanata({
-      sourceCode: cardCase.sourceCode,
-      handCards: [accepted, wrongName, tooHigh, sameNameLive],
-    });
-    expect(startNamedCase(scenario, cardCase.abilityId).activeEffect?.selectableCardIds).toEqual([
-      accepted.instanceId,
-    ]);
+      const accepted = createMember(cardCase.targetCode, 'accepted-name', {
+        name: cardCase.targetName,
+        cost: 4,
+      });
+      const wrongName = createMember('PL!N-test-wrong-name', 'wrong-name', {
+        name: cardCase.targetName === '上原歩夢' ? '桜坂しずく' : '上原歩夢',
+        cost: 4,
+      });
+      const tooHigh = createMember('PL!N-test-high', 'too-high', {
+        name: cardCase.targetName,
+        cost: 5,
+      });
+      const sameNameLive = createLive('PL!N-test-live', 'same-name-live', cardCase.targetName);
+      const scenario = setupKanata({
+        sourceCode: cardCase.sourceCode,
+        handCards: [accepted, wrongName, tooHigh, sameNameLive],
+      });
+      expect(startNamedCase(scenario, cardCase.abilityId).activeEffect?.selectableCardIds).toEqual([
+        accepted.instanceId,
+      ]);
     }
   );
 
@@ -513,8 +521,9 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
     const declined = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, null);
     expect(declined.activeEffect).toBeNull();
     expect(declined.players[0].hand.cardIds).toContain(scenario.handCards[0].instanceId);
-    expect(declined.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId))
-      .toMatchObject({ orientation: OrientationState.ACTIVE });
+    expect(
+      declined.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId)
+    ).toMatchObject({ orientation: OrientationState.ACTIVE });
 
     const noEnergy = setupNamedCase(cardCase, { activeEnergyCount: 1 });
     expect(startNamedCase(noEnergy, cardCase.abilityId).activeEffect).toBeNull();
@@ -567,9 +576,7 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
     expect(paid.activeEffect?.stepId).toBe('ON_ENTER_PAY_TWO_SELECT_STAGE_SLOT');
     for (const energy of scenario.energyCards) {
       expect(paid.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation).toBe(
-        selectedIds.includes(energy.instanceId)
-          ? OrientationState.WAITING
-          : OrientationState.ACTIVE
+        selectedIds.includes(energy.instanceId) ? OrientationState.WAITING : OrientationState.ACTIVE
       );
     }
     expect(
@@ -630,7 +637,7 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
     ).toBe(stale);
   });
 
-  it('can play to a legal occupied slot and performs the standard replacement lifecycle', () => {
+  it('can play to an occupied slot and applies duplicate-member processing without relay facts', () => {
     const cardCase = NAMED_MEMBER_CASES[1];
     const scenario = setupNamedCase(cardCase, { fillAllSlots: true });
     const started = startNamedCase(scenario, cardCase.abilityId);
@@ -660,7 +667,7 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
       step: 'PLAY_LOW_COST_HAND_MEMBER_TO_STAGE_SLOT',
       selectedCardId: targetId,
       toSlot: SlotPosition.LEFT,
-      replacedMemberCardId: scenario.left.instanceId,
+      duplicateMemberRuleRemovedCardId: scenario.left.instanceId,
     });
     expect(
       resolved.eventLog
@@ -673,7 +680,7 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
     ).toMatchObject({
       fromSlot: SlotPosition.LEFT,
       toZone: ZoneType.WAITING_ROOM,
-      replacingCardId: targetId,
+      replacingCardId: undefined,
     });
     expect(
       resolved.eventLog
@@ -681,7 +688,7 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
         .find(
           (event) =>
             event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
-            event.cardInstanceId === scenario.left.instanceId
+            event.cardInstanceIds.includes(scenario.left.instanceId)
         )
     ).toMatchObject({
       fromZone: ZoneType.MEMBER_SLOT,
@@ -692,14 +699,36 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
         .map((entry) => entry.event)
         .find(
           (event) =>
-            event.eventType === TriggerCondition.ON_ENTER_STAGE &&
-            event.cardInstanceId === targetId
+            event.eventType === TriggerCondition.ON_ENTER_STAGE && event.cardInstanceId === targetId
         )
     ).toMatchObject({
       fromZone: ZoneType.HAND,
       toSlot: SlotPosition.LEFT,
-      replacedMemberCardId: scenario.left.instanceId,
+      replacedMemberCardId: undefined,
+      replacedMemberEffectiveCost: undefined,
+      relayReplacements: undefined,
     });
+    const events = resolved.eventLog.map((entry) => entry.event);
+    const enterIndex = events.findIndex(
+      (event) =>
+        event.eventType === TriggerCondition.ON_ENTER_STAGE && event.cardInstanceId === targetId
+    );
+    const leaveIndex = events.findIndex(
+      (event) =>
+        event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
+        event.cardInstanceId === scenario.left.instanceId
+    );
+    expect(enterIndex).toBeGreaterThanOrEqual(0);
+    expect(leaveIndex).toBeGreaterThan(enterIndex);
+    expect(events.some((event) => event.eventType === TriggerCondition.ON_RELAY)).toBe(false);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'DUPLICATE_MEMBER' &&
+          action.payload.keptMemberCardId === targetId
+      )
+    ).toBe(true);
   });
 
   it('does not advance stale hand targets or stale occupied slots', () => {
@@ -711,9 +740,9 @@ describe('shared on-enter pay-two play low-cost named hand member workflow', () 
       ...player,
       hand: { ...player.hand, cardIds: player.hand.cardIds.filter((id) => id !== targetId) },
     }));
-    expect(
-      confirmActiveEffectStep(staleHand, PLAYER1, staleHand.activeEffect!.id, targetId)
-    ).toBe(staleHand);
+    expect(confirmActiveEffectStep(staleHand, PLAYER1, staleHand.activeEffect!.id, targetId)).toBe(
+      staleHand
+    );
 
     const selectingSlot = confirmActiveEffectStep(
       started,
@@ -763,8 +792,9 @@ describe('PL!N-bp4-006 Kanata on-enter workflow', () => {
       started.activeEffect!.id,
       scenario.handCards[0].instanceId
     );
-    expect(selectedCard.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId))
-      .toMatchObject({ orientation: OrientationState.WAITING });
+    expect(
+      selectedCard.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId)
+    ).toMatchObject({ orientation: OrientationState.WAITING });
     expect(selectedCard.activeEffect).toMatchObject({
       stepId: 'ON_ENTER_PAY_TWO_SELECT_STAGE_SLOT',
       selectableSlots: [SlotPosition.LEFT, SlotPosition.RIGHT],
@@ -782,7 +812,9 @@ describe('PL!N-bp4-006 Kanata on-enter workflow', () => {
     expect(resolved.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(
       scenario.handCards[0].instanceId
     );
-    expect(resolved.players[0].memberSlots.cardStates.get(scenario.source.instanceId)).toMatchObject({
+    expect(
+      resolved.players[0].memberSlots.cardStates.get(scenario.source.instanceId)
+    ).toMatchObject({
       orientation: OrientationState.WAITING,
     });
     expect(
@@ -792,11 +824,15 @@ describe('PL!N-bp4-006 Kanata on-enter workflow', () => {
         scenario.handCards[0].instanceId
       )
     ).toBe(true);
-    expect(latestResolvePayload(resolved, PL_N_BP4_006_ON_ENTER_PAY_TWO_PLAY_LOW_COST_NIJIGASAKI_MEMBER_ABILITY_ID))
-      .toMatchObject({
-        step: 'WAIT_SOURCE_FOR_BLADE_HEART_MEMBER',
-        playedMemberCardId: scenario.handCards[0].instanceId,
-      });
+    expect(
+      latestResolvePayload(
+        resolved,
+        PL_N_BP4_006_ON_ENTER_PAY_TWO_PLAY_LOW_COST_NIJIGASAKI_MEMBER_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'WAIT_SOURCE_FOR_BLADE_HEART_MEMBER',
+      playedMemberCardId: scenario.handCards[0].instanceId,
+    });
   });
 
   it('skip and impossible starts consume without paying energy or moving cards', () => {
@@ -811,8 +847,9 @@ describe('PL!N-bp4-006 Kanata on-enter workflow', () => {
     const skipped = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, null);
     expect(skipped.activeEffect).toBeNull();
     expect(skipped.players[0].hand.cardIds).toContain(scenario.handCards[0].instanceId);
-    expect(skipped.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId))
-      .toMatchObject({ orientation: OrientationState.ACTIVE });
+    expect(
+      skipped.players[0].energyZone.cardStates.get(scenario.energyCards[0].instanceId)
+    ).toMatchObject({ orientation: OrientationState.ACTIVE });
 
     const noTarget = setupKanata({
       handCards: [
@@ -892,8 +929,9 @@ describe('PL!N-bp4-006 Kanata on-enter workflow', () => {
       undefined,
       SlotPosition.LEFT
     );
-    expect(resolved.players[0].memberSlots.cardStates.get(scenario.source.instanceId))
-      .toMatchObject({ orientation: OrientationState.ACTIVE });
+    expect(
+      resolved.players[0].memberSlots.cardStates.get(scenario.source.instanceId)
+    ).toMatchObject({ orientation: OrientationState.ACTIVE });
   });
 });
 
@@ -919,8 +957,9 @@ describe('PL!N-bp4-023 Mia Taylor on-enter workflow', () => {
       started.activeEffect!.id,
       scenario.target!.instanceId
     );
-    expect(waited.players[0].memberSlots.cardStates.get(scenario.target!.instanceId))
-      .toMatchObject({ orientation: OrientationState.WAITING });
+    expect(waited.players[0].memberSlots.cardStates.get(scenario.target!.instanceId)).toMatchObject(
+      { orientation: OrientationState.WAITING }
+    );
     expect(waited.players[0].hand.cardIds).toContain(scenario.mainDeckCards[0].instanceId);
     expect(waited.activeEffect).toMatchObject({
       stepId: 'N_BP4_023_SELECT_DISCARD_HAND',
@@ -943,12 +982,16 @@ describe('PL!N-bp4-023 Mia Taylor on-enter workflow', () => {
         scenario.triggerSource!.instanceId
       )
     ).toBe(true);
-    expect(latestResolvePayload(resolved, PL_N_BP4_023_ON_ENTER_WAIT_NIJIGASAKI_MEMBER_DRAW_DISCARD_ABILITY_ID))
-      .toMatchObject({
-        step: 'DISCARD_ONE_AFTER_DRAW',
-        waitedMemberCardId: scenario.target!.instanceId,
-        discardedCardIds: [scenario.handCards[0].instanceId],
-      });
+    expect(
+      latestResolvePayload(
+        resolved,
+        PL_N_BP4_023_ON_ENTER_WAIT_NIJIGASAKI_MEMBER_DRAW_DISCARD_ABILITY_ID
+      )
+    ).toMatchObject({
+      step: 'DISCARD_ONE_AFTER_DRAW',
+      waitedMemberCardId: scenario.target!.instanceId,
+      discardedCardIds: [scenario.handCards[0].instanceId],
+    });
   });
 
   it('skip, no legal target, and stale target do not draw or discard', () => {
@@ -995,7 +1038,10 @@ describe('PL!N-bp4-023 Mia Taylor on-enter workflow', () => {
         ...player.memberSlots,
         cardStates: new Map([
           ...player.memberSlots.cardStates,
-          [scenario.target!.instanceId, { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
+          [
+            scenario.target!.instanceId,
+            { orientation: OrientationState.WAITING, face: FaceState.FACE_UP },
+          ],
         ]),
       },
     }));

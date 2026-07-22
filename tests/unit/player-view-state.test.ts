@@ -331,6 +331,7 @@ function createProjectedState() {
     mainDeck: addCardToZone(player.mainDeck, p2MainDeckCard.instanceId),
     energyDeck: addCardToZone(player.energyDeck, p2EnergyDeckCard.instanceId),
   }));
+  state = { ...state, manualOperationMode: 'FREE' };
 
   return {
     state,
@@ -1342,6 +1343,44 @@ describe('PlayerViewState projector', () => {
     expect(hasEnabledCommand(liveSetView, GameCommandType.ACTIVATE_ABILITY)).toBe(false);
   });
 
+  it('RULES 权限只投影当前语义操作，不暴露桌面手动 fallback', () => {
+    const { state } = createProjectedState();
+    const rulesState = {
+      ...state,
+      manualOperationMode: 'RULES' as const,
+      currentPhase: GamePhase.MAIN_PHASE,
+      currentSubPhase: SubPhase.NONE,
+      activePlayerIndex: 0,
+      waitingPlayerId: null,
+    };
+    const activeView = projectPlayerViewState(rulesState, PLAYER1);
+    expect(hasEnabledCommand(activeView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBe(true);
+    expect(getCommandHint(activeView, GameCommandType.TAP_MEMBER)).toBeNull();
+    expect(getCommandHint(activeView, GameCommandType.MOVE_TABLE_CARD)).toBeNull();
+    expect(getCommandHint(activeView, GameCommandType.DRAW_CARD_TO_HAND)).toBeNull();
+
+    const opponentView = projectPlayerViewState(rulesState, PLAYER2);
+    expect(getCommandHint(opponentView, GameCommandType.PLAY_MEMBER_TO_SLOT)).toBeNull();
+    expect(getCommandHint(opponentView, GameCommandType.OPEN_INSPECTION)).toBeNull();
+  });
+
+  it('RULES 在判定窗口只投影自动判定提交，不投影提前成功 Live 选择', () => {
+    const { state } = createProjectedState();
+    const rulesState = {
+      ...state,
+      manualOperationMode: 'RULES' as const,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      activePlayerIndex: 0,
+      waitingPlayerId: null,
+    };
+    const view = projectPlayerViewState(rulesState, PLAYER1);
+    expect(hasEnabledCommand(view, GameCommandType.SUBMIT_JUDGMENT)).toBe(true);
+    expect(getCommandHint(view, GameCommandType.SELECT_SUCCESS_LIVE)).toBeNull();
+    expect(getCommandHint(view, GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)).toBeNull();
+    expect(getCommandHint(view, GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE)).toBeNull();
+  });
+
   it('主要阶段和表演阶段应向非当前回合玩家暴露 TAP_MEMBER', () => {
     const { state } = createProjectedState();
 
@@ -1565,6 +1604,13 @@ describe('PlayerViewState projector', () => {
     expect(player1View.match.liveResult?.successLiveSelection?.candidateObjectIds).toEqual([
       createPublicObjectId(p1LiveCard.instanceId),
     ]);
+    expect(player1View.match.liveResult?.successLiveSelection?.canSkipToWaitingRoom).toBe(true);
+    const rulesView = projectPlayerViewState({ ...state, manualOperationMode: 'RULES' }, PLAYER1);
+    expect(rulesView.match.liveResult?.successLiveSelection?.canSkipToWaitingRoom).toBe(false);
+    expect(
+      getCommandHint(rulesView, GameCommandType.SELECT_SUCCESS_LIVE)?.params
+        ?.canSkipSuccessLiveSelection
+    ).toBe(false);
     expect(hasEnabledCommand(player2View, GameCommandType.SELECT_SUCCESS_LIVE)).toBe(false);
     expect(getCommandHint(player2View, GameCommandType.SELECT_SUCCESS_LIVE)).toBeNull();
   });

@@ -964,7 +964,11 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       const { gameSession } = get();
 
-      const result = gameSession.advancePhase();
+      const viewingPlayerId = get().viewingPlayerId;
+      if (!viewingPlayerId) {
+        return;
+      }
+      const result = gameSession.advancePhase(viewingPlayerId);
 
       if (result.success) {
         // 同步状态

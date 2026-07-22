@@ -154,7 +154,7 @@ export function advanceDebugMatchPhase(matchId: string, seat: Seat): DebugComman
     };
   }
 
-  const result = match.session.advancePhase();
+  const result = match.session.advancePhase(playerId);
   if (!result.success) {
     return {
       success: false,

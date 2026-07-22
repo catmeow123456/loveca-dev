@@ -5,6 +5,10 @@ import { createGunzip } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
 import { GameCommandType, type GameCommand } from '../../src/application/game-commands';
+import {
+  HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
+  PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import type { GameState } from '../../src/domain/entities/game';
 import type { PlayerState } from '../../src/domain/entities/player';
 import type {
@@ -16,7 +20,7 @@ import {
   rehydrateAuthorityGameState,
   rehydrateLegacyReplayPayloadForMigration,
 } from '../../src/server/services/replay-payload-serialization';
-import { GameMode, type SlotPosition, type SubPhase } from '../../src/shared/types/enums';
+import { GameMode, type SlotPosition } from '../../src/shared/types/enums';
 
 const LEGACY_FIXTURE_PATH =
   'data/20260627-cst_20260627T183253Z/loveca-match-replay-2026-06-27-cst-online-only.sql.gz';
@@ -53,6 +57,12 @@ const LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON =
   'legacy fixture predates self-sacrifice recovery action metadata and enter-hand events';
 const LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON =
   'legacy fixture predates dynamic check-timing queue refresh';
+const LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_REPLAY_SKIP_REASON =
+  'legacy fixture predates card-effect stage move tracking';
+const LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_ABILITY_IDS = new Set([
+  HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
+  PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID,
+]);
 const REPLAY_MISMATCH_DIFF_LIMIT = 256;
 const LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_ALLOWED_DIFF_PATHS = new Set([
   '$.actionHistory.length',
@@ -537,15 +547,15 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
 
     expect(replay.failedExecutions).toEqual([]);
     expect(replay.mismatches).toEqual([]);
-    expect(replay.replayedCount).toBe(51);
-    expect(replay.skippedCount).toBe(419);
+    expect(replay.replayedCount).toBe(46);
+    expect(replay.skippedCount).toBe(424);
     expect(plainRecord(replay.replayedByDecisionType)).toEqual({
-      ACTIVE_EFFECT_SUBMITTED: 35,
+      ACTIVE_EFFECT_SUBMITTED: 30,
       PENDING_ABILITY_ORDER_SUBMITTED: 3,
       SELECT_SUCCESS_LIVE_SUBMITTED: 13,
     });
     expect(plainRecord(replay.replayedByCommandType)).toEqual({
-      CONFIRM_EFFECT_STEP: 38,
+      CONFIRM_EFFECT_STEP: 33,
       SELECT_SUCCESS_LIVE: 13,
     });
     expect(plainRecord(replay.skippedReasons)).toEqual({
@@ -553,12 +563,12 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       'legacy fixture lacks recorded randomness for mulligan replay': 12,
       'legacy fixture lacks reliable before checkpoint for activate ability': 28,
       [LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON]: 1,
+      [LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_REPLAY_SKIP_REASON]: 7,
       [LEGACY_CHEER_FACT_METADATA_REPLAY_SKIP_REASON]: 4,
       [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 37,
       [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 18,
       [LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON]: 2,
       [LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON]: 23,
-      [LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON]: 2,
       [LEGACY_LIVE_SET_TRACKING_REPLAY_SKIP_REASON]: 114,
       [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 25,
       [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 10,
@@ -648,6 +658,86 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
         diffsTruncated: true,
       })
     ).toBeNull();
+  });
+
+  it('allows only the two known legacy card-effect stage-move tracking drifts', () => {
+    const createDecision = (abilityId: string) =>
+      ({
+        abilityId,
+        decisionId: `legacy-stage-move:${abilityId}`,
+        decisionType: 'ACTIVE_EFFECT_SUBMITTED',
+      }) as DecisionRecordSummary;
+    const stageMoveDiff = {
+      path: '$.players[1].movedToStageThisTurn.length',
+      actual: 2,
+      expected: 1,
+    };
+    const metadataPair = [
+      {
+        path: '$.actionHistory[12].payload.fromZone',
+        actual: 'WAITING_ROOM',
+        expected: undefined,
+      },
+      {
+        path: '$.pendingAbilities[0].metadata',
+        actual: {
+          fromZone: 'WAITING_ROOM',
+          relayReplacements: [],
+          replacedMemberCardId: null,
+          replacedMemberEffectiveCost: null,
+        },
+        expected: null,
+      },
+    ];
+    const createMismatch = (diffs: readonly unknown[]) => ({
+      commandType: GameCommandType.CONFIRM_EFFECT_STEP,
+      decisionId: 'legacy-stage-move',
+      diffs,
+      diffsTruncated: false,
+      actual: null,
+      expected: null,
+    });
+
+    for (const abilityId of LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_ABILITY_IDS) {
+      const decision = createDecision(abilityId);
+      expect(
+        isLegacyCardEffectStageMoveTrackingReplayMismatch(decision, createMismatch([stageMoveDiff]))
+      ).toBe(true);
+      expect(
+        getExpectedReplayMismatchSkipReason(
+          decision,
+          createMismatch([...metadataPair, stageMoveDiff])
+        )
+      ).toBe(LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_REPLAY_SKIP_REASON);
+    }
+
+    const knownDecision = createDecision(
+      HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID
+    );
+    expect(
+      isLegacyCardEffectStageMoveTrackingReplayMismatch(
+        createDecision('unrelated:ability'),
+        createMismatch([stageMoveDiff])
+      )
+    ).toBe(false);
+    for (const unrelatedDiffs of [
+      [{ ...stageMoveDiff, actual: 3 }],
+      [{ ...stageMoveDiff, path: '$.players[1].hand.length' }],
+      [{ ...stageMoveDiff, path: '$.players[2].movedToStageThisTurn.length' }],
+      [stageMoveDiff, metadataPair[0]],
+      [
+        stageMoveDiff,
+        ...metadataPair,
+        { path: '$.players[1].hand.length', actual: 1, expected: 0 },
+      ],
+    ]) {
+      expect(
+        isLegacyCardEffectStageMoveTrackingReplayMismatch(
+          knownDecision,
+          createMismatch(unrelatedDiffs)
+        )
+      ).toBe(false);
+    }
   });
 
   it('allows only the exact legacy TOP-cheer metadata drift', () => {
@@ -1815,6 +1905,9 @@ function getExpectedReplayMismatchSkipReason(
   if (mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP) {
     return null;
   }
+  if (isLegacyCardEffectStageMoveTrackingReplayMismatch(decision, mismatch)) {
+    return LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_REPLAY_SKIP_REASON;
+  }
   if (isLegacyConfirmOnlyLivePendingOrderMismatch(decision, mismatch)) {
     return LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON;
   }
@@ -1843,6 +1936,46 @@ function getExpectedReplayMismatchSkipReason(
     return null;
   }
   return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
+}
+
+function isLegacyCardEffectStageMoveTrackingReplayMismatch(
+  decision: DecisionRecordSummary,
+  mismatch: { readonly commandType: string; readonly diffs: readonly unknown[] }
+): boolean {
+  if (
+    mismatch.commandType !== GameCommandType.CONFIRM_EFFECT_STEP ||
+    decision.decisionType !== 'ACTIVE_EFFECT_SUBMITTED' ||
+    !decision.abilityId ||
+    !LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_ABILITY_IDS.has(decision.abilityId)
+  ) {
+    return false;
+  }
+
+  const stageMoveDiffs = mismatch.diffs.filter(isCardEffectStageMoveTrackingLengthDiff);
+  if (stageMoveDiffs.length !== 1) {
+    return false;
+  }
+
+  const remainingDiffs = mismatch.diffs.filter(
+    (diff) => !isCardEffectStageMoveTrackingLengthDiff(diff)
+  );
+  return (
+    remainingDiffs.length === 0 ||
+    (remainingDiffs.length === 2 &&
+      remainingDiffs.some(isActionHistoryFromZoneMetadataDiff) &&
+      remainingDiffs.some(isPendingAbilityEnterStageSourceMetadataDiff))
+  );
+}
+
+function isCardEffectStageMoveTrackingLengthDiff(diff: unknown): boolean {
+  const record = asRecord(diff);
+  return (
+    typeof record?.path === 'string' &&
+    /^\$\.players\[[01]\]\.movedToStageThisTurn\.length$/.test(record.path) &&
+    typeof record.actual === 'number' &&
+    typeof record.expected === 'number' &&
+    record.actual === record.expected + 1
+  );
 }
 
 function isLegacyCheerFactReplayMismatch(
@@ -2074,8 +2207,7 @@ function hasOnlyAllowedLegacyDynamicCheckTimingSelectionDiffPaths(
   return diffs.every((diff) => {
     const path = asRecord(diff)?.path;
     return (
-      typeof path === 'string' &&
-      LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_ALLOWED_DIFF_PATHS.has(path)
+      typeof path === 'string' && LEGACY_DYNAMIC_CHECK_TIMING_SELECTION_ALLOWED_DIFF_PATHS.has(path)
     );
   });
 }
@@ -2106,11 +2238,7 @@ function isLegacyLiveSetTrackingReplayMismatch(mismatch: {
   if (mismatch.diffs.length === 0) {
     return false;
   }
-  const allowedPaths = new Set([
-    '$.eventLog.length',
-    '$.eventSequence',
-    '$.liveSetCardIds.length',
-  ]);
+  const allowedPaths = new Set(['$.eventLog.length', '$.eventSequence', '$.liveSetCardIds.length']);
   return mismatch.diffs.every((diff) => {
     const record = asRecord(diff);
     return typeof record?.path === 'string' && allowedPaths.has(record.path);
@@ -2180,14 +2308,8 @@ function isLegacySelfSacrificeRecoveryReplayMismatch(
     const record = asRecord(diff);
     const path = record?.path;
     const match =
-      typeof path === 'string'
-        ? /^\$\.actionHistory\[\d+\]\.payload\.([^.]+)$/.exec(path)
-        : null;
-    if (
-      !match ||
-      !allowedActionPayloadFields.has(match[1]!) ||
-      record?.expected !== undefined
-    ) {
+      typeof path === 'string' ? /^\$\.actionHistory\[\d+\]\.payload\.([^.]+)$/.exec(path) : null;
+    if (!match || !allowedActionPayloadFields.has(match[1]!) || record?.expected !== undefined) {
       return false;
     }
     hasActionMetadataDiff = true;
@@ -2211,7 +2333,11 @@ function isLegacyConfirmOnlyLivePendingOrderMismatch(
 
 function isLegacyConfirmOnlyLivePendingContinuationMismatch(
   decision: DecisionRecordSummary,
-  mismatch: { readonly actual: unknown; readonly expected: unknown; readonly diffs: readonly unknown[] }
+  mismatch: {
+    readonly actual: unknown;
+    readonly expected: unknown;
+    readonly diffs: readonly unknown[];
+  }
 ): boolean {
   if (decision.decisionType !== 'ACTIVE_EFFECT_SUBMITTED') {
     return false;
@@ -2226,7 +2352,8 @@ function isLegacyConfirmOnlyLivePendingContinuationMismatch(
       typeof diff === 'object' &&
       diff !== null &&
       'path' in diff &&
-      (diff.path === '$.activeEffect' || diff.path === '$.activeEffect.metadata.confirmOnlyPendingAbility')
+      (diff.path === '$.activeEffect' ||
+        diff.path === '$.activeEffect.metadata.confirmOnlyPendingAbility')
   );
 }
 
@@ -2538,7 +2665,9 @@ function isLegacyNoInputLivePendingReplay(
 }
 
 function isLivePendingAbilityId(abilityId: string | null): boolean {
-  return abilityId?.includes(':live-start-') === true || abilityId?.includes(':live-success-') === true;
+  return (
+    abilityId?.includes(':live-start-') === true || abilityId?.includes(':live-success-') === true
+  );
 }
 
 function hasValues(value: readonly unknown[] | null | undefined): boolean {
@@ -2612,11 +2741,9 @@ function rebuildDecisionCommand(
                 : null),
             selectedNumber: submission.selectedNumber,
             stageFormationMoveHistory: submission.stageFormationMoveHistory as
-              | readonly { readonly cardId: string; readonly toSlot: SlotPosition }[]
-              | undefined,
+              readonly { readonly cardId: string; readonly toSlot: SlotPosition }[] | undefined,
             stageFormationPlacements: submission.stageFormationPlacements as
-              | readonly { readonly cardId: string; readonly toSlot: SlotPosition }[]
-              | undefined,
+              readonly { readonly cardId: string; readonly toSlot: SlotPosition }[] | undefined,
             timestamp: 0,
           }
         : null;

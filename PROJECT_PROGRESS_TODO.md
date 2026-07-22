@@ -30,6 +30,17 @@
 - 生产 compose 增加 `LOVECA_API_IMAGE` 镜像入口，release runbook 改为生产机 `pull` 后以 `--no-build` 启动，并明确版本标签/digest 回滚与 GHCR 权限边界。验证仅覆盖技能格式、compose 展开、文档 diff 与命令静态检查；未构建或推送真实镜像，未操作生产环境。
 - `v3.7.2` 发布准备已同步 `VERSION`、根/客户端 package 版本，补充 `3.7.1-to-3.7.2` 停机迁移说明；全量 540 files / 5379 tests、TypeScript 与服务端构建通过。前端主 chunk 增长到 4.48 MB 后触发 Workbox 4 MiB 上限，已按既有预缓存策略提高到 5 MiB 并重跑构建通过；仍保留大 chunk 性能告警，后续单独做代码分包。API 候选镜像等待发布准备提交后构建，未推送镜像、未提升 `latest`、未打 tag、未构建 Android 包。
 
+## 2026-07-22：规则/自由模式第二批玩家命令收紧（已实现并验证）
+
+- 新增集中玩家命令政策，按普通规则动作、流程输入、手动调整分类；`RULES` 仅放行当前阶段/子阶段、行动者与 pending workflow 允许的语义命令，`FREE` 保留现有灵活桌面整理。客户端 `freePlay` 不再能绕过权威模式。
+- `RULES` 禁止通用公开区移动、手动能量移动/附着/回收、成员手动换位、任意检视与调整分数；Live 设置、判定、成功 Live 选择、开始/结束主要阶段等保留专用流程。成功 Live 在规则模式不可手动跳过，自由模式继续允许。
+- 普通成员登场的“本回合从非舞台进入舞台”限制跟随成员实例；成员换位后限制跟随，离场后解除。手牌普通登场继续验证 `LL-bp2-001-R+` 全额费用非换手路径；双换手的所有 replacement 区域也统一受限。
+- 卡效登场到占用区域不视为换手。`PL!N-bp1-002`、`PL!SP-sd1-002` 与 shared 支付2能量登场家族改为先产生新成员 `ON_ENTER_STAGE`，再执行重复成员规则；不检查 `canMemberBeRelayedAway`、不写 relay/replacing metadata，并记录 `RULE_ACTION/DUPLICATE_MEMBER`。休息室到空成员区的 shared helper 统一记录 `movedToStageThisTurn`。
+- 权限投影与客户端拖放意图使用同一政策过滤；`RULES` 不再回退到旧的万能 drag/drop，`FREE` 保留该回退。旧 `advancePhase` 玩家入口已翻译为 `END_PHASE` / `CONFIRM_STEP` 命令，内部系统自动转换不经过玩家入口。
+- 规则自动 Live 判定补齐失败 Live 立即从 `LIVE_ZONE` 进入休息室并走 `resolveLiveZoneToWaitingRoomTriggers` 的正式结算；`PL!S-bp6-002` 真实触发会在 pending 期间阻止后续判定确认，不再依赖自由模式的强制成败命令。
+- 旧真实回放只对 `PL!HS-bp5-002` 起动登场与 `PL!-pb1-018` 登场效果的 7 条旧 `movedToStageThisTurn` 差异做严格分类；仅允许玩家 0/1 的记录长度比旧夹具多 1，以及已知成对 `fromZone` / pending metadata 差异。真实复跑结果为 replayed 46、skipped 424，新兼容理由精确命中 7 条。
+- 验证完成：前期残留集合 14 files / 405 tests 通过；全量 Vitest 539 files / 5378 tests 通过，3 个 performance tests 按默认配置跳过；shared/server/client TypeScript 与客户端生产构建通过。新增中央政策及其 focused tests ESLint 通过；扩大到所有被机械迁移的旧测试文件后，仍会报现有 type-aware lint 基线，主生产路径仍仅有旧 `structuredClone` 错误，客户端仍有旧 `GameBoard` hooks 错误。Runner 保持 3624 行且零 diff。
+
 ## 2026-07-21：规则/自由模式第一批基础
 
 - 新对局增加权威 `ManualOperationMode = RULES | FREE`，默认 `RULES`；旧 checkpoint/回放缺字段时按 `FREE` 兼容。模式作为对局事实投影、记录和恢复，普通撤销不回滚当前模式。

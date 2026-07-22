@@ -401,6 +401,7 @@ function playBp3Source(cardCode: CostLteFourWaitCardCode) {
     { cardId: target.instanceId, slot: SlotPosition.CENTER },
   ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
+  session.localFreePlay = true;
   expect(
     session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -838,6 +839,7 @@ describe('PL!N-bp5-004 Karin wait-cost opponent original BLADE four workflow', (
   it('on enter waits source as cost, then only allows an active opponent printed BLADE 4 member', () => {
     const { session, source, blade3Effective4, blade4, blade5 } = setupOnEnterState();
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

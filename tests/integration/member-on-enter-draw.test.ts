@@ -848,6 +848,7 @@ describe('PL!SP-sd1-001-SD 费用11 澁谷かのん dynamic energy draw', () => 
       activePlayerIndex: 0,
     };
 
+    session.localFreePlay = true;
     const result = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.LEFT, {
         freePlay: true,

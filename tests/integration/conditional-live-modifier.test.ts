@@ -590,6 +590,7 @@ function setupRelayEnteredLiveStartState(options: {
   phaseState.activePlayerIndex = 0;
   phaseState.waitingPlayerId = null;
 
+  session.localFreePlay = true;
   const firstRelay = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, incomingOne.instanceId, SlotPosition.LEFT, {
       freePlay: true,
@@ -598,6 +599,7 @@ function setupRelayEnteredLiveStartState(options: {
   expect(firstRelay.success, firstRelay.error).toBe(true);
 
   if (options.secondMode !== 'preexisting') {
+    session.localFreePlay = true;
     const secondEnter = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, incomingTwo.instanceId, SlotPosition.CENTER, {
         freePlay: true,

@@ -64,6 +64,7 @@ import {
 } from '@/lib/battleViewport';
 import {
   buildBattleActionIntents,
+  canUseLegacyManualDropFallback,
   findEnabledBattleActionTargetByTargetId,
   findEnabledBattleActionTargetForZoneDrop,
   type BattleActionIntent,
@@ -380,6 +381,7 @@ export const GameBoard = memo(function GameBoard({
     resolveCardDropTarget,
     getCardSlotPosition,
     getSeatMemberSlotCardId,
+    getCardViewObject,
   } = useGameStore(
     useShallow((s) => ({
       setLiveCard: s.setLiveCard,
@@ -423,6 +425,7 @@ export const GameBoard = memo(function GameBoard({
       resolveCardDropTarget: s.resolveCardDropTarget,
       getCardSlotPosition: s.getCardSlotPosition,
       getSeatMemberSlotCardId: s.getSeatMemberSlotCardId,
+      getCardViewObject: s.getCardViewObject,
     }))
   );
 
@@ -767,9 +770,19 @@ export const GameBoard = memo(function GameBoard({
     ? MEMBER_SLOT_ORDER.map((slot) => ({
         slot,
         cardId: getSeatMemberSlotCardId(viewerSeat, slot),
+        enteredStageThisTurn:
+          getCardViewObject(getSeatMemberSlotCardId(viewerSeat, slot) ?? '')
+            ?.enteredStageThisTurn === true,
       })).filter(
-        (entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
-          entry.cardId !== null
+        (
+          entry
+        ): entry is {
+          readonly slot: SlotPosition;
+          readonly cardId: string;
+          readonly enteredStageThisTurn: boolean;
+        } =>
+          entry.cardId !== null &&
+          (matchView?.manualOperation?.mode === 'FREE' || !entry.enteredStageThisTurn)
       )
     : [];
   const viewerOccupiedMemberSlotSignature = viewerOccupiedMemberSlots
@@ -1344,6 +1357,9 @@ export const GameBoard = memo(function GameBoard({
             seat: viewerSeat,
             slot,
             cardId: getSeatMemberSlotCardId(viewerSeat, slot),
+            enteredStageThisTurn:
+              getCardViewObject(getSeatMemberSlotCardId(viewerSeat, slot) ?? '')
+                ?.enteredStageThisTurn === true,
           }))
         : [];
 
@@ -1362,6 +1378,7 @@ export const GameBoard = memo(function GameBoard({
         surface: capabilities.surface,
         isReadOnly,
         availableCommandTypes: getBattleActionCommandTypes(),
+        manualOperationMode: matchView?.manualOperation?.mode,
         memberSlots,
         liveZoneCount,
         activeEffect,
@@ -1375,11 +1392,13 @@ export const GameBoard = memo(function GameBoard({
       currentPhase,
       currentSubPhase,
       getBattleActionCommandTypes,
+      getCardViewObject,
       getCardSlotPosition,
       getKnownCardType,
       getSeatMemberSlotCardId,
       getZoneCardIds,
       isReadOnly,
+      matchView?.manualOperation?.mode,
       viewerSeat,
     ]
   );
@@ -1689,6 +1708,13 @@ export const GameBoard = memo(function GameBoard({
         : findEnabledBattleActionTargetByTargetId(dragIntents, targetId);
       const payload = intentTarget?.target.commandPayload;
       if (payload && executeBattleActionPayload(payload)) {
+        return;
+      }
+
+      // RULES 只执行上方已命中的语义 intent。后续 inspection、
+      // Live Set 与各类区域移动都是 FREE 为兼容旧拖拽保留的 fallback。
+      if (!canUseLegacyManualDropFallback(matchView?.manualOperation?.mode)) {
+        pushDropError('规则模式下当前拖拽没有可执行的合法操作');
         return;
       }
 
@@ -2058,6 +2084,7 @@ export const GameBoard = memo(function GameBoard({
       getCardSlotPosition,
       isActiveEffectInspectionWindow,
       isReadOnly,
+      matchView?.manualOperation?.mode,
     ]
   );
 
@@ -2754,16 +2781,18 @@ export const GameBoard = memo(function GameBoard({
                 );
               })}
             </div>
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={() => skipSuccessLiveSelection()}
-                className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-              >
-                <DoorOpen className="h-4 w-4" aria-hidden="true" />
-                全部放置入休息室
-              </button>
-            </div>
+            {successLiveSelection?.canSkipToWaitingRoom === true && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => skipSuccessLiveSelection()}
+                  className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+                >
+                  <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                  全部放置入休息室
+                </button>
+              </div>
+            )}
           </div>
         )}
 

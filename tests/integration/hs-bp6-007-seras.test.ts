@@ -131,6 +131,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       ],
     ]);
 
+    session.localFreePlay = true;
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, kanan.instanceId, SlotPosition.CENTER, {
@@ -188,6 +189,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
     mutable.currentSubPhase = SubPhase.MAIN_FREE;
     mutable.waitingPlayerId = null;
 
+    session.localFreePlay = true;
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER2, seras.instanceId, SlotPosition.CENTER, {
@@ -265,6 +267,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, seras.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -327,6 +330,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, otherEdelNote.instanceId, SlotPosition.LEFT, {
         freePlay: true,
@@ -380,6 +384,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.localFreePlay = true;
     const nonEdelResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, nonEdelNote.instanceId, SlotPosition.LEFT, {
         freePlay: true,
@@ -394,6 +399,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
     )).toBe(false);
     expect(hasAbilityUse(session.state!, seras.instanceId)).toBe(false);
 
+    session.localFreePlay = true;
     const edelResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, edelNote.instanceId, SlotPosition.RIGHT, {
         freePlay: true,
@@ -432,6 +438,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       [seras.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.localFreePlay = true;
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, otherEdelNote.instanceId, SlotPosition.LEFT, {
         freePlay: true,
@@ -493,6 +500,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.localFreePlay = true;
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, firstEdelNote.instanceId, SlotPosition.LEFT, {
@@ -510,6 +518,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       orientation: OrientationState.ACTIVE,
       face: FaceState.FACE_UP,
     });
+    session.localFreePlay = true;
     const secondPlay = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, secondEdelNote.instanceId, SlotPosition.RIGHT, {
         freePlay: true,
