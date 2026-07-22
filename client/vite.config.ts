@@ -140,7 +140,7 @@ export default defineConfig(({ mode }) => {
         workbox: {
           cacheId: `loveca-${cacheVersion}`,
           cleanupOutdatedCaches: true,
-          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           // 运行时缓存配置
           runtimeCaching: [
             // Remote card images (Nginx proxy to MinIO)

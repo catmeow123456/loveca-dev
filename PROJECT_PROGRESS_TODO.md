@@ -1,6 +1,12 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-21
+更新时间：2026-07-22
+
+## 2026-07-22：发布技能补充 loveca-api 镜像发布链路（未提交）
+
+- `prepare-for-release` 新增 loveca-api Docker 镜像构建与发布步骤：本地候选检查后推送 `vX.Y.Z` / `sha-<commit>`，验证版本镜像后再提升 `latest`，发布清单记录平台与 digest；所有 registry 推送动作仍须用户确认。
+- 生产 compose 增加 `LOVECA_API_IMAGE` 镜像入口，release runbook 改为生产机 `pull` 后以 `--no-build` 启动，并明确版本标签/digest 回滚与 GHCR 权限边界。验证仅覆盖技能格式、compose 展开、文档 diff 与命令静态检查；未构建或推送真实镜像，未操作生产环境。
+- `v3.7.2` 发布准备已同步 `VERSION`、根/客户端 package 版本，补充 `3.7.1-to-3.7.2` 停机迁移说明；全量 540 files / 5379 tests、TypeScript 与服务端构建通过。前端主 chunk 增长到 4.48 MB 后触发 Workbox 4 MiB 上限，已按既有预缓存策略提高到 5 MiB 并重跑构建通过；仍保留大 chunk 性能告警，后续单独做代码分包。API 候选镜像等待发布准备提交后构建，未推送镜像、未提升 `latest`、未打 tag、未构建 Android 包。
 
 ## 2026-07-21：手动声援公开事件与旧回放兼容修正（未提交）
 
