@@ -1,6 +1,6 @@
 # 卡牌数据同步需求
 
-> 更新时间: 2026-07-05
+> 更新时间: 2026-07-22
 > 文档类型: 需求文档
 > 适用范围: `llocg_db` 与 Loveca Excel 到 `cards` 表的同步脚本输入、转换、审核和写入边界
 > 当前状态: 当前同步需求；实现架构与代码路径见 [设计文档](./design.md)
@@ -12,7 +12,7 @@
 当前同步管线用于把外部卡牌数据转换为项目内部卡牌资料，并写入 `cards` 表：
 
 - `llocg_db` 同步负责建立或刷新卡牌主记录，尤其是结构化规则字段；新卡插入时提供初始中日名称、中日效果和收录商品，已有卡不覆盖这些展示和来源字段。
-- Loveca Excel 同步负责在已有卡牌基础上补强中日名称、中日效果文本、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、收录商品和来源追踪字段；不读取 Excel 官方 `作品名` / `参加ユニット`。
+- Loveca Excel 同步负责在已有卡牌基础上校正来源权威卡牌类型，并补强中日名称、中日效果文本、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、收录商品和来源追踪字段；不读取 Excel 官方 `作品名` / `参加ユニット`。
 - CloudBase 新卡导入负责从 CloudBase 卡牌集合插入 DB 不存在的新卡，并可选处理卡图；它不更新已有卡牌字段。
 
 同步脚本不是日常单卡编辑入口。它适合批量引入或刷新外部卡牌资料，运行前必须理解它会影响已存在卡牌的基础字段和发布状态。
@@ -28,7 +28,7 @@
 
 缺少子模块或输入文件时，同步应停止，并提示维护者先初始化外部数据源。
 
-Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`。`sources/` 是私有输入目录，不进入仓库；正式同步前维护者需要在本地放置对应 Excel。该同步读取 Excel 的展示、文本、成员持有 Heart、BLADE Heart、LIVE 必要 Heart 和来源字段，不应从 Excel 覆盖 `card_type`、`cost`、`blade`、`score`、`work_names` 等主记录和规则字段。
+Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`，也可读取 CloudBase `loveca` 集合。`sources/` 是私有输入目录，不进入仓库；正式同步前维护者需要在本地放置对应 Excel。该同步读取来源卡牌类型、展示、文本、成员持有 Heart、BLADE Heart、LIVE 必要 Heart 和来源字段；类型必须映射为 `MEMBER`、`LIVE` 或 `ENERGY`，缺失或无法映射时整行跳过。它不覆盖 `cost`、`blade`、`score`、`work_names` 等其他主记录和规则字段。
 
 CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 表。集合文档必须至少提供可标准化的卡号、可映射的卡牌类型，以及中日名称中的至少一个；图片处理需要 CloudBase 云存储读取权限和 MinIO / S3 写入环境变量。
 
@@ -43,6 +43,7 @@ CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 
 - 心图标、BLADE 心效果、Live 需求、费用、分数、作品数组、真实团体数组、小组、稀有度和收录商品等字段应转换为项目内部结构；其中 `llocg_db` 的收录商品只写入新卡，已有卡的 `product` 保留数据库现值。
 - 无法识别或缺失的关键结构化字段应输出 warning，不能静默伪造。
 - Loveca Excel 的 `カード名` / `卡牌中文名` 应分别写入 `name_jp` / `name_cn`；数据库不再保留重复的 `name` 列。
+- Loveca Excel 的 `カードタイプ`、以及 CloudBase `loveca` 集合的 `type`，应映射为 `cards.card_type`；仅接受 `MEMBER`、`LIVE`、`ENERGY` 及其来源等价值，缺失或无法映射时不更新该卡的任意字段。
 - Loveca Excel 的 `多行日文效果` / `多行中文效果` 应分别写入 `card_text_jp` / `card_text_cn`；数据库不再保留重复的 `card_text` 列。
 - Loveca Excel 的 `真实团体` 写入 `group_names`；数据库不再保留重复的 `group_name` 列。
 - Loveca Excel 的 `真实小队` 写入 `unit_name_raw`，清洗和别名标准化后写入 `unit_name`。

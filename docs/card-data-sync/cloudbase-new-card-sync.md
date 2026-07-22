@@ -1,6 +1,6 @@
 # CloudBase 新卡同步脚本
 
-> 更新时间: 2026-06-30
+> 更新时间: 2026-07-22
 > 文档类型: 专题说明
 > 适用范围: `src/scripts/sync-cards-cloudbase-new.ts` 的输入、写入和图片处理边界
 > 当前状态: 当前实现说明；同步管线整体职责以 [卡牌数据同步管线](./design.md) 为准
@@ -27,8 +27,22 @@
 输入至少需要提供：
 
 - 可标准化的卡牌编号。
-- 可映射到 `MEMBER` / `LIVE` / `ENERGY` 的卡牌类型。
+- CloudBase 文档的 `type`（语义为卡牌类型 / `カードタイプ`）。
 - `name_jp` / `name_cn` 中至少一个名称字段。
+
+### 卡牌类型判定
+
+CloudBase `loveca` 集合的实际字段名是 `type`，而非 `カードタイプ`。`sync-cards-cloudbase-new.ts`
+只读取该字段，不再从 `カード種別`、`card_type`、费用、分数或 Heart 字段推断类型。当前已确认值按以下映射写入
+PostgreSQL `cards.card_type`：
+
+| CloudBase `type` | `cards.card_type` |
+| ---------------- | ----------------- |
+| `メンバー`       | `MEMBER`          |
+| `ライブ`         | `LIVE`            |
+| `エネルギー`     | `ENERGY`          |
+
+缺失或无法映射的 `type` 会作为该候选的阻断错误报告，且不会插入新卡。
 
 去重规则：
 
@@ -68,12 +82,12 @@ dry-run 和 report 用于正式导入前审核：
 
 ## 6. 相关代码路径
 
-| 路径 | 说明 |
-| --- | --- |
+| 路径                                      | 说明                                  |
+| ----------------------------------------- | ------------------------------------- |
 | `src/scripts/sync-cards-cloudbase-new.ts` | CloudBase-only 新卡导入与卡图上传入口 |
-| `src/shared/utils/card-code.ts` | 卡牌编号标准化 |
-| `src/server/db/schema.ts` | `cards` 表 schema |
-| `client/src/lib/imageService.ts` | 前端卡图路径解析 |
+| `src/shared/utils/card-code.ts`           | 卡牌编号标准化                        |
+| `src/server/db/schema.ts`                 | `cards` 表 schema                     |
+| `client/src/lib/imageService.ts`          | 前端卡图路径解析                      |
 
 ## 7. 相关文档
 

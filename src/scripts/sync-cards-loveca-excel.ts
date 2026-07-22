@@ -1,7 +1,7 @@
 /**
  * Loveca Excel 卡牌展示/文本字段同步脚本
  *
- * 只同步 Excel 权威展示与来源字段：
+ * 同步 Excel 权威卡牌类型、展示与来源字段：
  * - name_jp / name_cn
  * - card_text_jp / card_text_cn
  * - group_names
@@ -12,6 +12,8 @@
  * - product / product_code
  * - image_source_uri / source_external_id / source_flags
  *
+ * 来源卡牌类型合法时写回 DB `card_type`；缺失或无法映射时跳过该行。
+ *
  * 不读取 Excel 官方 `作品名` / `参加ユニット`。这两列存在已知修正问题；
  * 归属信息使用人工修正后的 `真实团体` / `真实小队`。
  *
@@ -21,7 +23,7 @@
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --dry-run
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --yes
- * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudbase-collection=real_card --dry-run
+ * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudbase-collection=loveca --dry-run
  */
 
 import { execFileSync } from 'node:child_process';
@@ -56,6 +58,7 @@ type HeartSyncItem = {
 };
 
 type LovecaSyncSource = 'xlsx' | 'cloudbase';
+type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
 
 interface Args {
   readonly dryRun: boolean;
@@ -76,7 +79,7 @@ interface ExcelCardRow {
 
 interface ExistingCardRow {
   readonly card_code: string;
-  readonly card_type: 'MEMBER' | 'LIVE' | 'ENERGY';
+  readonly card_type: CardType;
   readonly name_jp: string | null;
   readonly name_cn: string | null;
   readonly group_names: string[] | null;
@@ -96,6 +99,7 @@ interface ExistingCardRow {
 
 interface ExcelSyncRecord {
   readonly card_code: string;
+  readonly card_type: CardType;
   readonly name_jp: string | null;
   readonly name_cn: string | null;
   readonly group_names: string[] | null;
@@ -120,6 +124,18 @@ interface PendingUpdate {
   readonly conflictFields: string[];
 }
 
+interface CardTypeValidationIssue {
+  readonly sourceRow: ExcelCardRow;
+  readonly sourceValue: string | null;
+}
+
+interface CardTypeCorrection {
+  readonly sourceRow: ExcelCardRow;
+  readonly existing: ExistingCardRow;
+  readonly sourceValue: string;
+  readonly sourceCardType: CardType;
+}
+
 const FIELD_NAMES = {
   effectJa: '多行日文效果',
   effectCn: '多行中文效果',
@@ -128,6 +144,7 @@ const FIELD_NAMES = {
   nameJp: 'カード名',
   nameCn: '卡牌中文名',
   cardCode: 'カード番号',
+  cardType: 'カードタイプ',
   baseHeart: '基本ハート',
   bladeHeart: 'ブレードハート',
   specialHeart: '特殊ハート',
@@ -140,7 +157,7 @@ const FIELD_NAMES = {
 
 type SourceFieldName = (typeof FIELD_NAMES)[keyof typeof FIELD_NAMES];
 
-const DEFAULT_CLOUDBASE_COLLECTION = 'real_unit';
+const DEFAULT_CLOUDBASE_COLLECTION = 'loveca';
 const DEFAULT_CLOUDBASE_BATCH_SIZE = 100;
 
 const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
@@ -214,6 +231,7 @@ const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
     'card_number',
     'cardNumber',
   ],
+  [FIELD_NAMES.cardType]: ['type'],
   [FIELD_NAMES.baseHeart]: [FIELD_NAMES.baseHeart, 'base_heart', 'baseHeart', 'hearts', 'heart'],
   [FIELD_NAMES.bladeHeart]: [
     FIELD_NAMES.bladeHeart,
@@ -264,6 +282,7 @@ const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
 };
 
 const SYNC_FIELDS: readonly (keyof ExcelSyncRecord)[] = [
+  'card_type',
   'name_jp',
   'name_cn',
   'group_names',
@@ -304,6 +323,15 @@ const EXCEL_SPECIAL_HEART_EFFECT_MAP: Record<
   draw: 'DRAW',
   score: 'SCORE',
   bonus: 'SCORE',
+};
+
+const SOURCE_CARD_TYPE_MAP: Readonly<Record<string, CardType>> = {
+  MEMBER: 'MEMBER',
+  LIVE: 'LIVE',
+  ENERGY: 'ENERGY',
+  メンバー: 'MEMBER',
+  ライブ: 'LIVE',
+  エネルギー: 'ENERGY',
 };
 
 function parseArgs(argv: readonly string[]): Args {
@@ -488,6 +516,9 @@ function readLovecaExcelRows(xlsxPath: string): ExcelCardRow[] {
   const cardCodeIndex = headers.indexOf(FIELD_NAMES.cardCode);
   if (cardCodeIndex < 0) {
     throw new Error(`Missing Excel column: ${FIELD_NAMES.cardCode}`);
+  }
+  if (!headers.includes(FIELD_NAMES.cardType)) {
+    throw new Error(`Missing Excel column: ${FIELD_NAMES.cardType}`);
   }
 
   const result: ExcelCardRow[] = [];
@@ -687,6 +718,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function cleanString(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
+}
+
+function parseSourceCardType(value: string | null): CardType | null {
+  if (!value) {
+    return null;
+  }
+  return SOURCE_CARD_TYPE_MAP[value.trim().toUpperCase()] ?? null;
 }
 
 function normalizeUnitName(value: string | null): string | null {
@@ -889,6 +927,7 @@ function basenameFromUri(uri: string | null): string | null {
 function buildExcelSyncRecord(
   row: ExcelCardRow,
   existing: ExistingCardRow,
+  sourceCardType: CardType,
   warnings: string[]
 ): ExcelSyncRecord {
   const value = (field: string) => cleanString(row.values[field]);
@@ -905,7 +944,7 @@ function buildExcelSyncRecord(
   const unitNameRaw = value(FIELD_NAMES.unitName);
   const unitName = normalizeUnitName(unitNameRaw);
   const baseHearts =
-    existing.card_type === 'MEMBER'
+    sourceCardType === 'MEMBER'
       ? parseExcelHearts(value(FIELD_NAMES.baseHeart), FIELD_NAMES.baseHeart, context, warnings)
       : null;
   const bladeHearts = parseExcelBladeHearts(
@@ -915,7 +954,7 @@ function buildExcelSyncRecord(
     warnings
   );
   const requiredHearts =
-    existing.card_type === 'LIVE'
+    sourceCardType === 'LIVE'
       ? parseExcelHearts(
           value(FIELD_NAMES.requiredHeart),
           FIELD_NAMES.requiredHeart,
@@ -935,6 +974,7 @@ function buildExcelSyncRecord(
 
   return {
     card_code: row.cardCode,
+    card_type: sourceCardType,
     name_jp: nameJp ?? existing.name_jp,
     name_cn: nameCn ?? existing.name_cn,
     group_names: groupNames ?? existing.group_names,
@@ -1132,6 +1172,39 @@ function printConflictDetails(updates: readonly PendingUpdate[]) {
   }
 }
 
+function printCardTypeSyncReport(
+  invalidSourceTypes: readonly CardTypeValidationIssue[],
+  corrections: readonly CardTypeCorrection[]
+) {
+  if (invalidSourceTypes.length === 0 && corrections.length === 0) {
+    return;
+  }
+
+  if (invalidSourceTypes.length > 0) {
+    console.warn('\nCard type validation issues (rows skipped):');
+    for (const issue of invalidSourceTypes.slice(0, 30)) {
+      console.warn(
+        `  ${issue.sourceRow.cardCode} row ${issue.sourceRow.rowNumber}: invalid ${FIELD_NAMES.cardType}=${formatValue(issue.sourceValue)}`
+      );
+    }
+    if (invalidSourceTypes.length > 30) {
+      console.warn(`  ... and ${invalidSourceTypes.length - 30} more invalid source card types`);
+    }
+  }
+
+  if (corrections.length > 0) {
+    console.log('\nCard type corrections:');
+    for (const correction of corrections.slice(0, 30)) {
+      console.log(
+        `  ${correction.sourceRow.cardCode} row ${correction.sourceRow.rowNumber}: DB ${correction.existing.card_type} -> ${correction.sourceCardType} (source=${formatValue(correction.sourceValue)})`
+      );
+    }
+    if (corrections.length > 30) {
+      console.log(`  ... and ${corrections.length - 30} more card type corrections`);
+    }
+  }
+}
+
 function conflictLabelToFieldKey(
   label: string
 ): (keyof ExistingCardRow & keyof ExcelSyncRecord) | null {
@@ -1189,26 +1262,28 @@ async function applyUpdates(pool: Pool, updates: readonly PendingUpdate[]) {
       await client.query(
         `
           UPDATE cards SET
-            name_jp = $2,
-            name_cn = $3,
-            group_names = $4,
-            unit_name = $5,
-            unit_name_raw = $6,
-            card_text_jp = $7,
-            card_text_cn = $8,
-            hearts = $9,
-            blade_hearts = $10,
-            requirements = $11,
-            product = $12,
-            product_code = $13,
-            image_source_uri = $14,
-            source_external_id = $15,
-            source_flags = $16,
+            card_type = $2,
+            name_jp = $3,
+            name_cn = $4,
+            group_names = $5,
+            unit_name = $6,
+            unit_name_raw = $7,
+            card_text_jp = $8,
+            card_text_cn = $9,
+            hearts = $10,
+            blade_hearts = $11,
+            requirements = $12,
+            product = $13,
+            product_code = $14,
+            image_source_uri = $15,
+            source_external_id = $16,
+            source_flags = $17,
             updated_at = now()
           WHERE card_code = $1
         `,
         [
           next.card_code,
+          next.card_type,
           next.name_jp,
           next.name_cn,
           next.group_names == null ? null : JSON.stringify(next.group_names),
@@ -1297,6 +1372,8 @@ async function main() {
     const dbOnly = existingRows.filter((row) => !sourceByCode.has(row.card_code));
     const warnings: string[] = [];
     const updates: PendingUpdate[] = [];
+    const invalidSourceTypes: CardTypeValidationIssue[] = [];
+    const cardTypeCorrections: CardTypeCorrection[] = [];
 
     for (const [code, sourceRow] of sourceByCode) {
       const existing = existingByCode.get(code);
@@ -1304,7 +1381,22 @@ async function main() {
         continue;
       }
 
-      const rawNext = buildExcelSyncRecord(sourceRow, existing, warnings);
+      const sourceValue = cleanString(sourceRow.values[FIELD_NAMES.cardType]);
+      const sourceCardType = parseSourceCardType(sourceValue);
+      if (!sourceCardType) {
+        invalidSourceTypes.push({ sourceRow, sourceValue });
+        continue;
+      }
+      if (sourceCardType !== existing.card_type) {
+        cardTypeCorrections.push({
+          sourceRow,
+          existing,
+          sourceValue: sourceValue!,
+          sourceCardType,
+        });
+      }
+
+      const rawNext = buildExcelSyncRecord(sourceRow, existing, sourceCardType, warnings);
       const conflictFields = collectConflictFields(existing, rawNext);
       const next = applyConflictFlag(rawNext, conflictFields.length > 0);
       const changedFields = collectChangedFields(existing, next);
@@ -1317,6 +1409,12 @@ async function main() {
     console.log(`  DB cards: ${existingRows.length}`);
     console.log(`  Source-only skipped: ${sourceOnly.length}`);
     console.log(`  DB-only untouched: ${dbOnly.length}`);
+    console.log(
+      `  Invalid or missing ${FIELD_NAMES.cardType} skipped: ${invalidSourceTypes.length}`
+    );
+    console.log(
+      `  ${FIELD_NAMES.cardType} / DB card_type corrections: ${cardTypeCorrections.length}`
+    );
     if (warnings.length > 0) {
       console.warn(`  Transform warnings: ${warnings.length}`);
       for (const warning of warnings.slice(0, 30)) {
@@ -1326,6 +1424,7 @@ async function main() {
 
     printUpdateSummary(updates);
     printConflictDetails(updates);
+    printCardTypeSyncReport(invalidSourceTypes, cardTypeCorrections);
 
     if (sourceOnly.length > 0) {
       console.log(`\nSource-only card codes (not inserted): ${sourceOnly.slice(0, 40).join(', ')}`);

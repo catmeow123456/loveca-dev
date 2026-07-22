@@ -20,7 +20,7 @@
 
 `src/scripts/sync-cards-llocg.ts` 是主数据/规则字段同步脚本。它从 `llocg_db/json/cards.json` 与 `llocg_db/json/cards_cn.json` 建立或刷新卡牌主记录，尤其负责卡牌类型、费用、Heart、BLADE、LIVE 分数、必要 Heart、图片文件名、稀有度和作品数组；新卡插入时写入初始中日文本和收录商品，已有卡会保留数据库中的中日名称、中日效果文本和 `product`。
 
-`src/scripts/sync-cards-loveca-excel.ts` 是 Loveca 文本/来源字段补强脚本，默认从本地 Excel 读取，也可通过 `--source=cloudbase` 从腾讯云 CloudBase 集合读取同等字段。它只更新已有卡牌的中日名称、中日效果、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识，不插入 source-only 新卡，不删除 DB-only 卡，也不覆盖费用、BLADE 或 LIVE 分数等其他规则字段。
+`src/scripts/sync-cards-loveca-excel.ts` 是 Loveca 文本/来源字段补强脚本，默认从本地 Excel 读取，也可通过 `--source=cloudbase` 从腾讯云 CloudBase 集合读取同等字段。卡牌类型以来源为权威：本地 Excel 使用 `カードタイプ` 列，CloudBase `loveca` 集合使用 `type` 字段；其值合法时会同步更新 `cards.card_type`，并在报告中列出修正。缺失或非法类型行会跳过。其他同步范围为中日名称、中日效果、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识；不插入 source-only 新卡，不删除 DB-only 卡，也不覆盖费用、BLADE 或 LIVE 分数等其他规则字段。
 
 `src/scripts/sync-cards-cloudbase-new.ts` 是 CloudBase-only 新卡导入脚本。它只插入 DB 不存在的新卡，默认新卡状态为 `DRAFT`，不更新已有卡；正式运行必须显式选择 `--upload-images` 或 `--skip-images`，图片失败、字段缺失、重复卡号和图片 basename 冲突都会写入报告。
 
@@ -47,10 +47,10 @@ pnpm exec tsx src/scripts/audit-loveca-effect-placeholders.ts --json
 CloudBase 来源验证可运行：
 
 ```bash
-pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudbase-collection=real_unit --cloudbase-limit=3 --dry-run
+pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudbase-limit=3 --dry-run
 ```
 
-当前 `real_unit` 只是小队字典集合，缺少卡牌编号，会被脚本跳过；正式同步需要将 `--cloudbase-collection` 指向包含卡牌行的集合。CloudBase 凭据从环境变量或 `.env` 读取：`CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。
+`loveca` 是当前默认且已确认可读取的 CloudBase 卡牌集合。CloudBase 凭据从环境变量或 `.env` 读取：`CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。
 
 CloudBase 新卡 dry-run 可运行：
 

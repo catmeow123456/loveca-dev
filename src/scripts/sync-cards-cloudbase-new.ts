@@ -34,10 +34,7 @@ type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'RAI
 type BladeHeartEffect = 'HEART' | 'DRAW' | 'SCORE';
 type ImageMode = 'upload' | 'skip' | 'none';
 type ImageFailureSourceFlag =
-  | 'missingImage'
-  | 'imageDownloadFailed'
-  | 'imageProcessFailed'
-  | 'imageUploadFailed';
+  'missingImage' | 'imageDownloadFailed' | 'imageProcessFailed' | 'imageUploadFailed';
 
 interface Args {
   readonly dryRun: boolean;
@@ -198,7 +195,7 @@ const IMAGE_SIZES = {
 
 const FIELD_ALIASES = {
   cardCode: ['カード番号', 'card_code', 'cardCode', 'code', 'card_no', 'cardNo', 'card_number'],
-  cardType: ['カード種別', 'card_type', 'cardType', 'type', 'cardTypeName', 'card_type_name'],
+  cardType: ['type'],
   nameJp: [
     'カード名',
     'name_jp',
@@ -1368,9 +1365,7 @@ async function cleanupUploadedImagesForFailedInserts(
     return;
   }
   const failedCardCodes = new Set(
-    insertResults
-      .filter((result) => !result.inserted)
-      .map((result) => result.cardCode)
+    insertResults.filter((result) => !result.inserted).map((result) => result.cardCode)
   );
   for (const imageResult of imageResults) {
     if (!failedCardCodes.has(imageResult.cardCode)) {

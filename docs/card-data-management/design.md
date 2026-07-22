@@ -66,11 +66,11 @@ flowchart TB
 
 卡牌以 `cardCode` 为稳定标识，并按 `CardType` 分为三类：
 
-| 类型 | 主要用途 | 关键结构化字段 |
-| --- | --- | --- |
+| 类型   | 主要用途                         | 关键结构化字段                                         |
+| ------ | -------------------------------- | ------------------------------------------------------ |
 | MEMBER | 成员卡、费用、应援棒与心图标规则 | cost、blade、hearts、bladeHearts、groupNames、unitName |
-| LIVE | Live 成功判定与分数展示 | score、requirements、bladeHearts、groupNames、unitName |
-| ENERGY | 能量牌组与能量区展示 | groupNames、unitName、product |
+| LIVE   | Live 成功判定与分数展示          | score、requirements、bladeHearts、groupNames、unitName |
+| ENERGY | 能量牌组与能量区展示             | groupNames、unitName、product                          |
 
 通用字段包括中日名称、中日效果文本、作品名、真实团体、图片文件名、稀有度、收录商品和发布状态。`rare` 与 `product` 用于管理、展示和筛选，不参与对局规则计算。
 
@@ -82,10 +82,10 @@ flowchart TB
 
 卡牌维护存在两个状态：
 
-| 状态 | 含义 | 可见性 |
-| --- | --- | --- |
-| DRAFT | 未完成、待校对或暂不开放 | 仅管理员可见 |
-| PUBLISHED | 可用于构筑与对局 | 普通用户与游戏流程可见 |
+| 状态      | 含义                     | 可见性                 |
+| --------- | ------------------------ | ---------------------- |
+| DRAFT     | 未完成、待校对或暂不开放 | 仅管理员可见           |
+| PUBLISHED | 可用于构筑与对局         | 普通用户与游戏流程可见 |
 
 应用启动和卡组编辑只加载 PUBLISHED 卡牌到 `gameStore.cardDataRegistry`。管理员页面可以查看和维护全部状态。
 
@@ -111,14 +111,14 @@ flowchart LR
 
 ## 6. 前端职责
 
-| 模块 | 职责 |
-| --- | --- |
-| CardAdminPage | 管理员卡牌列表、筛选、创建、编辑、发布状态切换、导入导出和图片维护入口 |
-| CardEditModal | 表单/YAML 双模式编辑，负责把人工输入约束到卡牌模型可接受的形态 |
-| cardService | REST 访问、缓存、状态过滤和记录到领域模型的转换 |
-| gameStore.cardDataRegistry | 对局和构筑时的只读卡牌资料注册表 |
-| imageService | 卡牌图片 URL 解析和尺寸选择 |
-| aiService | 管理端辅助提取效果文本，不参与对局或规则判定 |
+| 模块                       | 职责                                                                   |
+| -------------------------- | ---------------------------------------------------------------------- |
+| CardAdminPage              | 管理员卡牌列表、筛选、创建、编辑、发布状态切换、导入导出和图片维护入口 |
+| CardEditModal              | 表单/YAML 双模式编辑，负责把人工输入约束到卡牌模型可接受的形态         |
+| cardService                | REST 访问、缓存、状态过滤和记录到领域模型的转换                        |
+| gameStore.cardDataRegistry | 对局和构筑时的只读卡牌资料注册表                                       |
+| imageService               | 卡牌图片 URL 解析和尺寸选择                                            |
+| aiService                  | 管理端辅助提取效果文本，不参与对局或规则判定                           |
 
 ## 7. 服务端职责
 
@@ -134,7 +134,7 @@ flowchart LR
 当前维护三条批量同步通道：
 
 - `src/scripts/sync-cards-llocg.ts` 负责读取 `llocg_db` JP/CN JSON、标准化卡号、合并中文补充数据、转换结构化规则字段，并在写入前对已有卡牌差异进行人工审核。
-- `src/scripts/sync-cards-loveca-excel.ts` 负责读取 Loveca Excel 的中日名称、中日效果文本、真实团体、真实小队、商品和来源字段；不读取 Excel 官方 `作品名` / `参加ユニット`，也不覆盖费用、Heart、分数等对局规则字段。
+- `src/scripts/sync-cards-loveca-excel.ts` 负责读取 Loveca Excel 或 CloudBase `loveca` 的来源权威卡牌类型、中日名称、中日效果文本、真实团体、真实小队、商品和来源字段；不读取 Excel 官方 `作品名` / `参加ユニット`，也不覆盖费用、BLADE、LIVE 分数等其他对局规则字段。
 - `src/scripts/sync-cards-cloudbase-new.ts` 负责从 CloudBase 卡牌集合插入 DB 不存在的新卡，默认写入 `DRAFT`，可选下载、压缩并上传卡图；它不更新已有卡牌，也不登记卡效。
 
 同步脚本会影响卡牌基础资料和发布状态，因此属于高风险维护入口。具体字段映射与运行边界见 [卡牌数据同步需求](../card-data-sync/requirements.md) 和 [卡牌数据同步管线](../card-data-sync/design.md)。
@@ -157,23 +157,23 @@ flowchart LR
 
 ## 11. 相关代码路径
 
-| 路径 | 说明 |
-| --- | --- |
-| `client/src/lib/cardService.ts` | 前端卡牌服务、缓存与数据转换 |
-| `client/src/lib/aiService.ts` | AI 效果文本提取服务 |
-| `client/src/lib/imageService.ts` | 图片 URL 与尺寸解析 |
-| `client/src/components/admin/CardAdminPage.tsx` | 管理页面入口 |
-| `client/src/store/gameStore.ts` | `cardDataRegistry` 所在状态模块 |
-| `src/domain/entities/card.ts` | 卡牌领域模型 |
-| `src/domain/card-data/schema.ts` | 卡牌数据校验 schema |
-| `src/domain/card-data/loader.ts` | 卡牌注册表结构与按编号/名称查找能力 |
-| `src/domain/rules/deck-construction.ts` | 特殊点数与构筑点数规则 |
-| `src/server/db/schema.ts` | 持久化 schema |
-| `src/server/routes/cards.ts` | 卡牌 API 路由 |
-| `src/server/services/card-registry-service.ts` | 后端从数据库加载并缓存 PUBLISHED 卡牌注册表 |
-| `src/scripts/sync-cards-llocg.ts` | `llocg_db` 卡牌同步脚本 |
-| `src/scripts/sync-cards-loveca-excel.ts` | Loveca Excel 中日文本与来源字段同步脚本 |
-| `src/scripts/sync-cards-cloudbase-new.ts` | CloudBase-only 新卡导入与卡图上传脚本 |
+| 路径                                            | 说明                                        |
+| ----------------------------------------------- | ------------------------------------------- |
+| `client/src/lib/cardService.ts`                 | 前端卡牌服务、缓存与数据转换                |
+| `client/src/lib/aiService.ts`                   | AI 效果文本提取服务                         |
+| `client/src/lib/imageService.ts`                | 图片 URL 与尺寸解析                         |
+| `client/src/components/admin/CardAdminPage.tsx` | 管理页面入口                                |
+| `client/src/store/gameStore.ts`                 | `cardDataRegistry` 所在状态模块             |
+| `src/domain/entities/card.ts`                   | 卡牌领域模型                                |
+| `src/domain/card-data/schema.ts`                | 卡牌数据校验 schema                         |
+| `src/domain/card-data/loader.ts`                | 卡牌注册表结构与按编号/名称查找能力         |
+| `src/domain/rules/deck-construction.ts`         | 特殊点数与构筑点数规则                      |
+| `src/server/db/schema.ts`                       | 持久化 schema                               |
+| `src/server/routes/cards.ts`                    | 卡牌 API 路由                               |
+| `src/server/services/card-registry-service.ts`  | 后端从数据库加载并缓存 PUBLISHED 卡牌注册表 |
+| `src/scripts/sync-cards-llocg.ts`               | `llocg_db` 卡牌同步脚本                     |
+| `src/scripts/sync-cards-loveca-excel.ts`        | Loveca Excel 中日文本与来源字段同步脚本     |
+| `src/scripts/sync-cards-cloudbase-new.ts`       | CloudBase-only 新卡导入与卡图上传脚本       |
 
 ## 12. 相关文档
 
