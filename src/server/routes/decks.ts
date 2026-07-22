@@ -9,6 +9,7 @@ import {
   prepareDeckPayloadForStorage,
 } from '../services/deck-storage-service.js';
 import { ENERGY_DECK_SIZE, MAX_SAME_CODE_COUNT } from '../../domain/rules/deck-validator.js';
+import { createDefaultEnergyDeck } from '../../domain/card-data/deck-defaults.js';
 
 export const decksRouter = Router();
 
@@ -32,9 +33,41 @@ const createDeckSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).nullable().optional(),
   main_deck: z.array(mainDeckEntrySchema).default([]),
-  energy_deck: z.array(energyDeckEntrySchema).default([]),
+  energy_deck: z.array(energyDeckEntrySchema).optional(),
   is_public: z.boolean().default(false),
 });
+
+function formatVersionName(baseName: string, version: number): string {
+  const suffix = ` v${version}`;
+  return `${baseName.slice(0, Math.max(0, 100 - suffix.length)).trimEnd()}${suffix}`;
+}
+
+function getNextVersionName(sourceName: string, existingNames: readonly string[]): string {
+  const versionMatch = sourceName.match(/^(.*?)(?:\s+v(\d+))$/i);
+  const baseName = versionMatch?.[1]?.trim() || sourceName.trim() || '卡组';
+  const parsedSourceVersion = versionMatch ? Number(versionMatch[2]) : 1;
+  const sourceVersion =
+    Number.isSafeInteger(parsedSourceVersion) && parsedSourceVersion >= 1 ? parsedSourceVersion : 1;
+  const highestVersion = existingNames.reduce((highest, name) => {
+    const match = name.match(/^(.*?)(?:\s+v(\d+))$/i);
+    if (!match) return highest;
+
+    const version = Number(match[2]);
+    if (!Number.isSafeInteger(version) || version < 1) return highest;
+
+    const existingBaseName = match[1]?.trim().toLocaleLowerCase();
+    const expectedBaseName = formatVersionName(baseName, version)
+      .slice(0, -` v${version}`.length)
+      .trimEnd()
+      .toLocaleLowerCase();
+    return existingBaseName === baseName.toLocaleLowerCase() ||
+      existingBaseName === expectedBaseName
+      ? Math.max(highest, version)
+      : highest;
+  }, sourceVersion);
+
+  return formatVersionName(baseName, highestVersion + 1);
+}
 
 const updateDeckSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -306,7 +339,7 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
         name: b.name,
         description: b.description ?? null,
         main_deck: b.main_deck,
-        energy_deck: b.energy_deck,
+        energy_deck: b.energy_deck ?? createDefaultEnergyDeck(),
       });
     } catch (error) {
       if (error instanceof DeckPayloadValidationError) {
@@ -343,6 +376,88 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
       ]
     );
     res.status(201).json({ data: rows[0], error: null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================
+// POST /api/decks/:id/copy
+// ============================================
+
+decksRouter.post('/:id/copy', requireAuth, async (req, res, next) => {
+  try {
+    const { rows: existing } = await pool.query('SELECT * FROM decks WHERE id = $1', [
+      req.params.id,
+    ]);
+
+    if (existing.length === 0) {
+      res.status(404).json({
+        data: null,
+        error: { code: 'NOT_FOUND', message: '卡组不存在' },
+      });
+      return;
+    }
+
+    const sourceDeck = existing[0];
+    if (sourceDeck.user_id !== req.user!.id) {
+      res.status(403).json({
+        data: null,
+        error: { code: 'FORBIDDEN', message: '无权复制此卡组' },
+      });
+      return;
+    }
+
+    const { rows: userDeckNames } = await pool.query('SELECT name FROM decks WHERE user_id = $1', [
+      req.user!.id,
+    ]);
+    const copyName = getNextVersionName(
+      sourceDeck.name,
+      userDeckNames.map((deck) => deck.name)
+    );
+    let preparedDeck;
+
+    try {
+      preparedDeck = await prepareDeckPayloadForStorage({
+        name: copyName,
+        description: sourceDeck.description ?? null,
+        main_deck: sourceDeck.main_deck ?? [],
+        energy_deck: sourceDeck.energy_deck ?? [],
+      });
+    } catch (error) {
+      if (error instanceof DeckPayloadValidationError) {
+        res.status(400).json({
+          data: null,
+          error: {
+            code: 'DECK_PAYLOAD_INVALID',
+            message: `源卡组包含不可用卡牌: ${getDeckPayloadErrorMessage(error)}`,
+          },
+        });
+        return;
+      }
+      throw error;
+    }
+
+    const { rows: created } = await pool.query(
+      `INSERT INTO decks (
+        user_id, name, description, main_deck, energy_deck, is_valid, validation_errors,
+        is_public, share_enabled, forked_from_deck_id, forked_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, false, false, $8, now())
+      RETURNING *`,
+      [
+        req.user!.id,
+        copyName,
+        sourceDeck.description ?? null,
+        JSON.stringify(preparedDeck.main_deck),
+        JSON.stringify(preparedDeck.energy_deck),
+        preparedDeck.validation.valid,
+        JSON.stringify(preparedDeck.validation.errors),
+        sourceDeck.id,
+      ]
+    );
+
+    res.status(201).json({ data: created[0], error: null });
   } catch (err) {
     next(err);
   }

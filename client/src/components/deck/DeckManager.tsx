@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -22,8 +23,12 @@ import {
   Zap,
   Globe,
   Copy,
+  CopyPlus,
   ExternalLink,
   EyeOff,
+  Link2,
+  MoreHorizontal,
+  X,
 } from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -58,6 +63,7 @@ import {
   deckConfigToRecordPayload,
   deckRecordToConfig,
 } from '@/lib/deckRecordUtils';
+import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
 
 type ViewMode = 'list' | 'edit';
 type DecklogSource = 'jp' | 'en';
@@ -67,18 +73,32 @@ const DECKLOG_SOURCE_LABELS: Record<DecklogSource, string> = {
   en: '国际版 DeckLog',
 };
 
+const DECKLOG_SOURCE_META: Record<
+  DecklogSource,
+  { title: string; domain: string; example: string }
+> = {
+  jp: {
+    title: '日本版',
+    domain: 'decklog.bushiroad.com',
+    example: '2D6XL',
+  },
+  en: {
+    title: '国际版',
+    domain: 'decklog-en.bushiroad.com',
+    example: '60G2Q',
+  },
+};
+
+function inferDecklogSource(input: string): DecklogSource | null {
+  const normalized = input.trim().toLowerCase();
+  if (normalized.includes('decklog-en.bushiroad.com')) return 'en';
+  if (normalized.includes('decklog.bushiroad.com')) return 'jp';
+  return null;
+}
+
 interface DeckManagerProps {
   onBack: () => void;
   initialOpenDeckId?: string | null;
-}
-
-function createEmptyDeck(name: string = '新卡组'): DeckConfig {
-  return {
-    player_name: name,
-    description: '',
-    main_deck: { members: [], lives: [] },
-    energy_deck: [],
-  };
 }
 
 function formatYamlStructureError(issues: { path: PropertyKey[]; message: string }[]): string {
@@ -99,6 +119,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [sharingDeckId, setSharingDeckId] = useState<string | null>(null);
+  const [copyingDeckId, setCopyingDeckId] = useState<string | null>(null);
+  const [openActionsDeckId, setOpenActionsDeckId] = useState<string | null>(null);
+  const [showImportSheet, setShowImportSheet] = useState(false);
 
   // 初始快照用于 dirty 检测
   const initialSnapshot = useRef<string>('');
@@ -147,13 +170,20 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   }, [fetchCloudDecks, offlineMode]);
 
   useEffect(() => {
-    if (!showDecklogDialog) return;
+    if (!showDecklogDialog && !showImportSheet) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (showDecklogDialog && !decklogLoading) setShowDecklogDialog(false);
+      if (showImportSheet) setShowImportSheet(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
     return () => {
       document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
     };
-  }, [showDecklogDialog]);
+  }, [decklogLoading, showDecklogDialog, showImportSheet]);
 
   useEffect(() => {
     return () => {
@@ -162,6 +192,30 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!openActionsDeckId) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenActionsDeckId(null);
+    };
+    const closeOnOutsidePress = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(`[data-deck-actions-root="${openActionsDeckId}"]`)
+      ) {
+        return;
+      }
+      setOpenActionsDeckId(null);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('pointerdown', closeOnOutsidePress);
+    return () => {
+      window.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('pointerdown', closeOnOutsidePress);
+    };
+  }, [openActionsDeckId]);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -175,7 +229,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   };
 
   const handleCreateNew = () => {
-    const newDeck = createEmptyDeck('新卡组');
+    const newDeck = createNewDeckConfig('新卡组');
     setEditingDeck(newDeck);
     setEditingDeckId(null);
     setDeckName('新卡组');
@@ -218,6 +272,33 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       setSaveError(result.error || '删除失败');
     }
     setDeleteConfirm(null);
+  };
+
+  const handleCopyDeck = async (deck: DeckRecord) => {
+    if (cloudFeaturesUnavailable) {
+      setSaveError('离线模式下无法复制云端卡组');
+      return;
+    }
+
+    setOpenActionsDeckId(null);
+    setCopyingDeckId(deck.id);
+    setSaveError(null);
+
+    try {
+      const result = await apiClient.post<DeckRecord>(`/api/decks/${deck.id}/copy`);
+      if (result.error || !result.data) {
+        setSaveError(result.error?.message || '复制卡组失败');
+        return;
+      }
+
+      await fetchCloudDecks();
+      handleEdit(result.data);
+      showToast(`已创建 ${result.data.name}`);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : '复制卡组失败');
+    } finally {
+      setCopyingDeckId(null);
+    }
   };
 
   const getShareUrl = (deck: DeckRecord) =>
@@ -576,47 +657,67 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
             className="relative z-10 flex-1 overflow-y-auto p-3 sm:p-6"
           >
             <div className="workspace-shell mx-auto max-w-5xl p-3 sm:p-6">
-              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <div className="text-sm text-[var(--text-secondary)]">
-                  共 {cloudDecks.length} 个卡组
-                </div>
-                <div className="grid w-full gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:gap-3">
-                  <button
-                    onClick={() => {
-                      if (cloudFeaturesUnavailable) {
-                        setSaveError('离线模式下无法使用 DeckLog 导入');
-                        return;
+              <div className="mb-5 sm:flex sm:justify-end">
+                {isMobile ? (
+                  <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2">
+                    <button
+                      onClick={handleCreateNew}
+                      className="button-primary inline-flex min-h-11 items-center justify-center gap-1.5 px-5 py-2 text-sm font-bold"
+                    >
+                      <Plus size={15} />
+                      创建卡组
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowImportSheet(true)}
+                      className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-semibold"
+                      aria-haspopup="dialog"
+                    >
+                      <Upload size={15} />
+                      导入
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        if (cloudFeaturesUnavailable) {
+                          setSaveError('离线模式下无法使用 DeckLog 导入');
+                          return;
+                        }
+                        setShowDecklogDialog(true);
+                        setDecklogSource('jp');
+                        setDecklogError(null);
+                        setDecklogWarnings([]);
+                      }}
+                      className={`button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium ${
+                        cloudFeaturesUnavailable ? 'opacity-60' : ''
+                      }`}
+                      title={
+                        cloudFeaturesUnavailable ? '离线模式下无法使用 DeckLog 导入' : undefined
                       }
-                      setShowDecklogDialog(true);
-                      setDecklogSource('jp');
-                      setDecklogError(null);
-                      setDecklogWarnings([]);
-                    }}
-                    className={`button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium ${
-                      cloudFeaturesUnavailable ? 'opacity-60' : ''
-                    }`}
-                    title={cloudFeaturesUnavailable ? '离线模式下无法使用 DeckLog 导入' : undefined}
-                  >
-                    <Globe size={14} />从 DeckLog 导入
-                  </button>
-                  <label className="button-secondary inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium">
-                    <Upload size={14} />
-                    导入 YAML
-                    <input
-                      type="file"
-                      accept=".yaml,.yml"
-                      className="hidden"
-                      onChange={handleImport}
-                    />
-                  </label>
-                  <button
-                    onClick={handleCreateNew}
-                    className="button-primary inline-flex min-h-11 items-center justify-center gap-1.5 px-5 py-2 text-sm font-bold"
-                  >
-                    <Plus size={14} />
-                    创建新卡组
-                  </button>
-                </div>
+                    >
+                      <Globe size={14} />从 DeckLog 导入
+                    </button>
+                    <label className="button-secondary inline-flex min-h-11 cursor-pointer items-center justify-center gap-1.5 px-4 py-2 text-sm font-medium">
+                      <Upload size={14} />
+                      导入 YAML
+                      <input
+                        type="file"
+                        accept=".yaml,.yml"
+                        className="hidden"
+                        onChange={handleImport}
+                      />
+                    </label>
+                    <button
+                      onClick={handleCreateNew}
+                      className="button-primary inline-flex min-h-11 items-center justify-center gap-1.5 px-5 py-2 text-sm font-bold"
+                    >
+                      <Plus size={14} />
+                      创建新卡组
+                    </button>
+                  </div>
+                )}
               </div>
 
               {isLoadingCloud && cloudDecks.length === 0 && (
@@ -739,7 +840,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.04 }}
-                      className={`rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
+                      className={`relative rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
+                        openActionsDeckId === deck.id ? 'z-20' : 'z-0'
+                      } ${
                         isDeleting
                           ? 'border-[color:color-mix(in_srgb,var(--semantic-error)_45%,transparent)]'
                           : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] hover:border-[var(--border-default)]'
@@ -766,124 +869,158 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                           </div>
                         </div>
                       ) : (
-                        <>
-                          <div className="mb-2.5 flex items-start justify-between gap-2">
-                            <div className="min-w-0 flex-1">
-                              <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">
-                                {deck.name}
-                              </h3>
-                              {deck.description && (
-                                <p className="line-clamp-1 text-xs text-[var(--text-secondary)] sm:line-clamp-2 sm:text-sm">
-                                  {deck.description}
-                                </p>
-                              )}
-                              <div className="mt-1 text-[11px] text-[var(--text-muted)] sm:hidden">
-                                {new Date(deck.updated_at).toLocaleDateString('zh-CN')}
-                              </div>
-                            </div>
-                            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-                              {deck.share_enabled && (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-info)]">
-                                  <Globe size={10} /> 已分享
-                                </span>
-                              )}
-                              {deckValidity ? (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
-                                  <Check size={10} /> 完整
-                                </span>
-                              ) : (
-                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
-                                  <Circle size={8} /> 未完成
-                                </span>
-                              )}
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2.5">
+                          <div className="col-start-1 row-start-1 min-w-0">
+                            <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">
+                              {deck.name}
+                            </h3>
+                            {deck.description && (
+                              <p className="line-clamp-1 text-xs text-[var(--text-secondary)] sm:line-clamp-2 sm:text-sm">
+                                {deck.description}
+                              </p>
+                            )}
+                            <div className="mt-1 text-[11px] text-[var(--text-muted)] sm:hidden">
+                              {new Date(deck.updated_at).toLocaleDateString('zh-CN')}
                             </div>
                           </div>
+                          <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-1 min-[560px]:col-span-1 min-[560px]:col-start-2 min-[560px]:row-start-1 min-[560px]:justify-end">
+                            {deck.share_enabled && (
+                              <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-info)]">
+                                <Globe size={10} /> 已分享
+                              </span>
+                            )}
+                            {deckValidity ? (
+                              <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
+                                <Check size={10} /> 完整
+                              </span>
+                            ) : (
+                              <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
+                                <Circle size={8} /> 未完成
+                              </span>
+                            )}
+                          </div>
 
-                          <div className="flex flex-col gap-2.5 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
+                          <div className="col-span-2 row-start-3 min-w-0 self-center min-[560px]:col-span-1 min-[560px]:col-start-1 min-[560px]:row-start-2">
                             <DeckStatsRow
                               stats={stats}
                               updatedAt={isMobile ? undefined : deck.updated_at}
                               size={isMobile ? 'sm' : 'md'}
                               className="min-w-0"
                             />
-                            <div
-                              className={`${isMobile ? 'flex items-center gap-1.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none]' : 'flex flex-wrap items-center gap-2 min-[560px]:gap-1.5'}`}
+                          </div>
+                          <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1.5 min-[560px]:row-start-2">
+                            <button
+                              onClick={() => handleEdit(deck)}
+                              className="button-secondary flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold"
                             >
-                              {deck.share_enabled && deck.share_id ? (
-                                <>
-                                  <button
-                                    onClick={() => handleCopyShareLink(deck)}
-                                    className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] min-[560px]:px-3 min-[560px]:py-1.5"
-                                  >
-                                    <span className="inline-flex items-center justify-center gap-1">
-                                      <Copy size={12} />
-                                      <span className="sm:hidden">复制</span>
-                                      <span className="hidden sm:inline">复制链接</span>
-                                    </span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleOpenShare(deck)}
-                                    className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-info)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-info)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-info)_12%,transparent)] min-[560px]:px-3 min-[560px]:py-1.5"
-                                  >
-                                    <span className="inline-flex items-center justify-center gap-1">
-                                      <ExternalLink size={12} />
-                                      <span className="sm:hidden">打开</span>
-                                      <span className="hidden sm:inline">打开分享页</span>
-                                    </span>
-                                  </button>
-                                  <button
-                                    onClick={() => handleDisableShare(deck.id)}
-                                    disabled={sharingDeckId === deck.id}
-                                    className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] disabled:cursor-wait disabled:opacity-60 min-[560px]:px-3 min-[560px]:py-1.5"
-                                  >
-                                    <span className="inline-flex items-center justify-center gap-1">
-                                      {sharingDeckId === deck.id ? (
-                                        <Loader2 size={12} className="animate-spin" />
-                                      ) : (
-                                        <EyeOff size={12} />
-                                      )}
-                                      <span className="sm:hidden">关闭</span>
-                                      <span className="hidden sm:inline">关闭分享</span>
-                                    </span>
-                                  </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => handleEnableShare(deck.id)}
-                                  disabled={sharingDeckId === deck.id}
-                                  className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_22%,transparent)] px-2.5 py-1.5 text-xs text-[var(--accent-primary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] disabled:cursor-wait disabled:opacity-60 min-[560px]:px-3 min-[560px]:py-1.5"
+                              <Pencil size={12} /> 编辑
+                            </button>
+                            <div className="relative" data-deck-actions-root={deck.id}>
+                              <button
+                                type="button"
+                                aria-label={`${deck.name}的更多操作`}
+                                aria-haspopup="menu"
+                                aria-expanded={openActionsDeckId === deck.id}
+                                onClick={() =>
+                                  setOpenActionsDeckId((current) =>
+                                    current === deck.id ? null : deck.id
+                                  )
+                                }
+                                className="button-ghost inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              >
+                                {copyingDeckId === deck.id ? (
+                                  <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                  <MoreHorizontal size={18} />
+                                )}
+                              </button>
+
+                              {openActionsDeckId === deck.id && (
+                                <div
+                                  role="menu"
+                                  aria-label={`${deck.name}的操作`}
+                                  className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-52 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1.5 shadow-2xl"
                                 >
-                                  <span className="inline-flex items-center justify-center gap-1">
-                                    {sharingDeckId === deck.id ? (
-                                      <Loader2 size={12} className="animate-spin" />
-                                    ) : (
-                                      <Globe size={12} />
-                                    )}
-                                    分享
-                                  </span>
-                                </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => handleCopyDeck(deck)}
+                                    disabled={copyingDeckId === deck.id}
+                                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                  >
+                                    <CopyPlus size={15} className="text-[var(--accent-primary)]" />
+                                    复制为新版本
+                                  </button>
+
+                                  {deck.share_enabled && deck.share_id ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => {
+                                          setOpenActionsDeckId(null);
+                                          void handleCopyShareLink(deck);
+                                        }}
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                                      >
+                                        <Copy size={15} /> 复制分享链接
+                                      </button>
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => {
+                                          setOpenActionsDeckId(null);
+                                          handleOpenShare(deck);
+                                        }}
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                                      >
+                                        <ExternalLink size={15} /> 打开分享页
+                                      </button>
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => {
+                                          setOpenActionsDeckId(null);
+                                          void handleDisableShare(deck.id);
+                                        }}
+                                        disabled={sharingDeckId === deck.id}
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-warning)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                      >
+                                        <EyeOff size={15} /> 关闭分享
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setOpenActionsDeckId(null);
+                                        void handleEnableShare(deck.id);
+                                      }}
+                                      disabled={sharingDeckId === deck.id}
+                                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                    >
+                                      <Globe size={15} /> 开启分享
+                                    </button>
+                                  )}
+
+                                  <div className="my-1 border-t border-[var(--border-subtle)]" />
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                      setOpenActionsDeckId(null);
+                                      setDeleteConfirm(deck.id);
+                                    }}
+                                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
+                                  >
+                                    <Trash2 size={15} /> 删除卡组
+                                  </button>
+                                </div>
                               )}
-                              <button
-                                onClick={() => handleEdit(deck)}
-                                className="button-secondary flex shrink-0 items-center justify-center gap-1 px-2.5 py-1.5 text-xs min-[560px]:px-3 min-[560px]:py-1.5"
-                              >
-                                <Pencil size={12} /> 编辑
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirm(deck.id)}
-                                className="shrink-0 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_18%,transparent)] px-2.5 py-1.5 text-xs text-[var(--semantic-error)]/70 transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] hover:text-[var(--semantic-error)] min-[560px]:border-0 min-[560px]:p-1.5"
-                                title="删除卡组"
-                              >
-                                <span className="inline-flex items-center justify-center gap-1">
-                                  <Trash2 size={14} />
-                                  <span className={isMobile ? 'inline' : 'min-[560px]:hidden'}>
-                                    删除
-                                  </span>
-                                </span>
-                              </button>
                             </div>
                           </div>
-                        </>
+                        </div>
                       )}
                     </motion.div>
                   );
@@ -1019,129 +1156,305 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         )}
       </AnimatePresence>
 
-      {showDecklogDialog && (
-        <div
-          className={`modal-backdrop z-50 flex ${
-            isMobile ? 'items-end justify-center p-0' : 'items-center justify-center p-4'
-          }`}
-          onClick={() => !decklogLoading && setShowDecklogDialog(false)}
-        >
+      {showImportSheet &&
+        createPortal(
           <div
-            className={`modal-surface modal-accent-amber flex w-full flex-col overflow-hidden ${
-              isMobile
-                ? 'safe-bottom max-h-[88dvh] rounded-b-none rounded-t-[24px] border-b-0'
-                : 'max-w-md'
-            }`}
-            onClick={(event) => event.stopPropagation()}
+            className="modal-backdrop z-50 flex items-end justify-center p-0"
+            onClick={() => setShowImportSheet(false)}
           >
-            {isMobile && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="deck-import-sheet-title"
+              className="modal-surface safe-bottom w-full rounded-b-none rounded-t-[24px] border-b-0"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="flex justify-center pt-3">
                 <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
               </div>
-            )}
 
-            <div className="px-5 pb-3 pt-5 sm:px-6 sm:pt-6">
-              <h2 className="mb-1 text-lg font-bold text-[var(--text-primary)]">从 DeckLog 导入</h2>
-              <p className="text-sm text-[var(--text-secondary)]">
-                输入 DeckLog 卡组 ID 或完整 URL
-              </p>
-            </div>
-
-            <div className="touch-scroll flex-1 overflow-y-auto px-5 pb-4 sm:px-6">
-              <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] p-1">
-                {(['jp', 'en'] as const).map((source) => {
-                  const isSelected = decklogSource === source;
-                  return (
-                    <button
-                      key={source}
-                      type="button"
-                      aria-pressed={isSelected}
-                      disabled={decklogLoading}
-                      onClick={() => {
-                        setDecklogSource(source);
-                        setDecklogError(null);
-                      }}
-                      className={`min-h-10 rounded-lg px-3 py-2 text-sm font-semibold transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
-                        isSelected
-                          ? 'bg-amber-400 text-slate-950 shadow-sm'
-                          : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                      }`}
-                    >
-                      {DECKLOG_SOURCE_LABELS[source]}
-                    </button>
-                  );
-                })}
+              <div className="px-5 pb-3 pt-4">
+                <h2
+                  id="deck-import-sheet-title"
+                  className="text-lg font-bold text-[var(--text-primary)]"
+                >
+                  导入卡组
+                </h2>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">选择卡组来源</p>
               </div>
 
-              <input
-                type="text"
-                placeholder={
-                  decklogSource === 'jp'
-                    ? '例如: 2D6XL 或 https://decklog.bushiroad.com/view/2D6XL'
-                    : '例如: 60G2Q 或 https://decklog-en.bushiroad.com/ja/view/60G2Q'
-                }
-                value={decklogInput}
-                onChange={(e) => {
-                  setDecklogInput(e.target.value);
-                  setDecklogError(null);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !decklogLoading) handleDecklogImport();
-                }}
-                className="input-field mb-3 min-h-11 px-4 py-2.5 text-sm"
-                autoFocus
-              />
+              <div className="space-y-2 px-4 pb-3">
+                <button
+                  type="button"
+                  disabled={cloudFeaturesUnavailable}
+                  onClick={() => {
+                    setShowImportSheet(false);
+                    setDecklogSource('jp');
+                    setDecklogError(null);
+                    setDecklogWarnings([]);
+                    setShowDecklogDialog(true);
+                  }}
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)]">
+                    <Globe size={19} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[var(--text-primary)]">
+                      从 DeckLog 导入
+                    </span>
+                    <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
+                      {cloudFeaturesUnavailable ? '离线模式下不可用' : '输入日版或国际版卡组链接'}
+                    </span>
+                  </span>
+                </button>
 
-              {decklogError && (
-                <div className="mb-3 flex items-center gap-2 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-2 text-xs text-[var(--semantic-error)]">
-                  <AlertTriangle size={12} />
-                  <span>{decklogError}</span>
-                </div>
-              )}
+                <label className="flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)] text-[var(--semantic-info)]">
+                    <Upload size={19} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-semibold text-[var(--text-primary)]">
+                      导入 YAML 文件
+                    </span>
+                    <span className="mt-0.5 block text-xs text-[var(--text-secondary)]">
+                      从本机选择 .yaml 或 .yml 文件
+                    </span>
+                  </span>
+                  <input
+                    type="file"
+                    accept=".yaml,.yml"
+                    className="hidden"
+                    onChange={(event) => {
+                      setShowImportSheet(false);
+                      handleImport(event);
+                    }}
+                  />
+                </label>
+              </div>
 
-              {decklogWarnings.length > 0 && (
-                <div className="mb-3 rounded-lg border border-amber-400/20 bg-amber-500/10 p-2">
-                  <div className="mb-1 text-xs text-amber-300">以下卡牌未匹配到本地数据：</div>
-                  <ul className="touch-scroll max-h-32 space-y-0.5 overflow-y-auto text-xs text-amber-300/70">
-                    {decklogWarnings.map((w, i) => (
-                      <li key={i}>{w}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              <div className="border-t border-[var(--border-subtle)] px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setShowImportSheet(false)}
+                  className="button-ghost inline-flex min-h-11 w-full items-center justify-center px-4 py-2 text-sm font-semibold"
+                >
+                  取消
+                </button>
+              </div>
             </div>
+          </div>,
+          document.body
+        )}
 
-            <div className="modal-footer safe-bottom flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-              <button
-                onClick={() => setShowDecklogDialog(false)}
-                className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm"
-                disabled={decklogLoading}
-              >
-                取消
-              </button>
-              <button
-                onClick={handleDecklogImport}
-                disabled={decklogLoading || !decklogInput.trim()}
-                className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-5 py-2 text-sm font-semibold transition-all ${
-                  decklogLoading || !decklogInput.trim()
-                    ? 'bg-gray-600/50 text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-orange-400 to-amber-400 text-white hover:shadow-lg hover:shadow-orange-500/20'
-                }`}
-              >
-                {decklogLoading ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" /> 爬取中...
-                  </>
-                ) : (
-                  <>
-                    <Globe size={14} /> 导入
-                  </>
+      {showDecklogDialog &&
+        createPortal(
+          <div
+            className={`modal-backdrop z-50 flex ${
+              isMobile ? 'items-end justify-center p-0' : 'items-center justify-center p-4'
+            }`}
+            onClick={() => !decklogLoading && setShowDecklogDialog(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="decklog-dialog-title"
+              className={`modal-surface modal-accent-amber flex w-full flex-col overflow-hidden ${
+                isMobile
+                  ? 'safe-bottom max-h-[88dvh] rounded-b-none rounded-t-[24px] border-b-0'
+                  : 'max-w-lg'
+              }`}
+              onClick={(event) => event.stopPropagation()}
+            >
+              {isMobile && (
+                <div className="flex justify-center pt-3">
+                  <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
+                </div>
+              )}
+
+              <div className="flex items-start gap-3 px-5 pb-4 pt-4 sm:px-6 sm:pt-6">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)]">
+                  <Globe size={21} />
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <h2
+                    id="decklog-dialog-title"
+                    className="text-lg font-bold text-[var(--text-primary)]"
+                  >
+                    从 DeckLog 导入
+                  </h2>
+                  <p className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+                    读取公开卡组，导入后可继续编辑
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="关闭 DeckLog 导入"
+                  disabled={decklogLoading}
+                  onClick={() => setShowDecklogDialog(false)}
+                  className="button-ghost inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[var(--text-secondary)] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="touch-scroll flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
+                <fieldset className="mb-5">
+                  <legend className="mb-2 text-xs font-semibold tracking-wide text-[var(--text-muted)]">
+                    DECKLOG 站点
+                  </legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['jp', 'en'] as const).map((source) => {
+                      const isSelected = decklogSource === source;
+                      const meta = DECKLOG_SOURCE_META[source];
+                      return (
+                        <button
+                          key={source}
+                          type="button"
+                          aria-pressed={isSelected}
+                          disabled={decklogLoading}
+                          onClick={() => {
+                            setDecklogSource(source);
+                            setDecklogError(null);
+                          }}
+                          className={`relative min-h-[74px] rounded-2xl border px-3 py-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+                            isSelected
+                              ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] shadow-sm'
+                              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                          }`}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-bold text-[var(--text-primary)]">
+                              {meta.title}
+                            </span>
+                            <span
+                              className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                                isSelected
+                                  ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)] text-white'
+                                  : 'border-[var(--border-default)] text-transparent'
+                              }`}
+                            >
+                              <Check size={12} strokeWidth={3} />
+                            </span>
+                          </span>
+                          <span className="mt-1 block truncate text-[10px] text-[var(--text-muted)] sm:text-[11px]">
+                            {meta.domain}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                <div>
+                  <label
+                    htmlFor="decklog-import-input"
+                    className="mb-2 block text-xs font-semibold tracking-wide text-[var(--text-muted)]"
+                  >
+                    卡组链接或编号
+                  </label>
+                  <div className="overflow-hidden rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] transition-colors focus-within:border-[color:color-mix(in_srgb,var(--accent-primary)_65%,transparent)] focus-within:ring-2 focus-within:ring-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]">
+                    <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--bg-frosted)] px-3 py-2 text-[11px] text-[var(--text-muted)]">
+                      <Link2 size={13} className="text-[var(--accent-primary)]" />
+                      <span className="min-w-0 flex-1 truncate">
+                        {DECKLOG_SOURCE_META[decklogSource].domain}
+                      </span>
+                      <span className="rounded-full bg-[var(--bg-overlay)] px-2 py-0.5">
+                        自动识别链接来源
+                      </span>
+                    </div>
+                    <input
+                      id="decklog-import-input"
+                      type="text"
+                      inputMode="url"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="粘贴链接或输入卡组编号"
+                      value={decklogInput}
+                      onChange={(event) => {
+                        const nextInput = event.target.value;
+                        const inferredSource = inferDecklogSource(nextInput);
+                        setDecklogInput(nextInput);
+                        if (inferredSource) setDecklogSource(inferredSource);
+                        setDecklogError(null);
+                        setDecklogWarnings([]);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !decklogLoading) handleDecklogImport();
+                      }}
+                      className="min-h-12 w-full bg-transparent px-3 py-3 text-base text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] sm:text-sm"
+                      autoFocus={!isMobile}
+                    />
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+                    例如{' '}
+                    <span className="font-mono">{DECKLOG_SOURCE_META[decklogSource].example}</span>
+                    ，也可以直接粘贴浏览器中的完整链接。
+                  </p>
+                </div>
+
+                {decklogError && (
+                  <div
+                    role="alert"
+                    className="mt-4 flex items-start gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] p-3 text-xs leading-5 text-[var(--semantic-error)]"
+                  >
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    <span>{decklogError}</span>
+                  </div>
                 )}
-              </button>
+
+                {decklogWarnings.length > 0 && (
+                  <div className="mt-4 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] p-3">
+                    <div className="mb-1 text-xs font-semibold text-[var(--semantic-warning)]">
+                      以下卡牌未匹配到本地数据
+                    </div>
+                    <ul className="touch-scroll max-h-32 space-y-0.5 overflow-y-auto text-xs text-[var(--text-secondary)]">
+                      {decklogWarnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+              <div className="modal-footer safe-bottom flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <p className="hidden text-xs text-[var(--text-muted)] sm:block">
+                  保存前可在编辑器中检查和调整卡组
+                </p>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                  <button
+                    onClick={() => setShowDecklogDialog(false)}
+                    className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm font-medium"
+                    disabled={decklogLoading}
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleDecklogImport}
+                    disabled={decklogLoading || !decklogInput.trim()}
+                    className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-sm font-semibold transition-all ${
+                      decklogLoading || !decklogInput.trim()
+                        ? 'cursor-not-allowed bg-[var(--bg-hover)] text-[var(--text-muted)]'
+                        : 'button-primary text-white'
+                    }`}
+                  >
+                    {decklogLoading ? (
+                      <>
+                        <Loader2 size={14} className="animate-spin" /> 正在读取…
+                      </>
+                    ) : (
+                      <>
+                        <Globe size={14} /> 读取并导入
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
 
       <AnimatePresence>
         {toastMessage && (

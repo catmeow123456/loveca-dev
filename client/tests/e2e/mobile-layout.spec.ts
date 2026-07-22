@@ -120,7 +120,7 @@ function liveCard(index: number): CardDbRecord {
 
 const ENERGY_CARD = makeBaseCard({
   id: 'energy-001',
-  card_code: 'EN-e2e-001',
+  card_code: 'LL-E-001-SD',
   card_type: 'ENERGY',
   name_cn: '移动验收能量',
 });
@@ -272,6 +272,19 @@ async function installApiMocks(page: Page, authenticated: boolean) {
       return;
     }
 
+    if (url.pathname === '/api/decks/scrape-decklog' && method === 'POST') {
+      await fulfillApi(route, {
+        cards: [
+          { card_code: MEMBER_CARDS[0].card_code, count: 4, raw_code: 'ME-e2e-001' },
+          { card_code: LIVE_CARDS[0].card_code, count: 1, raw_code: 'LV-e2e-001' },
+          { card_code: ENERGY_CARD.card_code, count: 12, raw_code: 'LL-E-001-SD' },
+        ],
+        deckName: 'DeckLog E2E 卡组',
+        source: 'jp',
+      });
+      return;
+    }
+
     if (url.pathname === '/api/decks/share/e2e-share') {
       await fulfillApi(route, {
         ...DECK_RECORD,
@@ -283,6 +296,21 @@ async function installApiMocks(page: Page, authenticated: boolean) {
 
     if (url.pathname === '/api/decks/share/e2e-share/fork') {
       await fulfillApi(route, { ...DECK_RECORD, id: 'forked-e2e-deck' });
+      return;
+    }
+
+    if (url.pathname === '/api/decks/e2e-deck/copy' && method === 'POST') {
+      await fulfillApi(route, {
+        ...DECK_RECORD,
+        id: 'copied-e2e-deck',
+        name: 'E2E 移动验收卡组 v2',
+        is_public: false,
+        share_id: null,
+        share_enabled: false,
+        shared_at: null,
+        forked_from_deck_id: DECK_RECORD.id,
+        forked_at: NOW,
+      });
       return;
     }
 
@@ -301,6 +329,19 @@ async function waitForStableApp(page: Page) {
     await document.fonts?.ready;
   });
   await page.waitForTimeout(650);
+}
+
+async function openDecklogDialog(page: Page) {
+  if ((page.viewportSize()?.width ?? 0) < 768) {
+    await page.getByRole('button', { name: '导入', exact: true }).click();
+    const importSheet = page.getByRole('dialog', { name: '导入卡组' });
+    await expect(importSheet).toBeVisible();
+    await importSheet.getByRole('button', { name: /从 DeckLog 导入/ }).click();
+  } else {
+    await page.getByRole('button', { name: /从 DeckLog 导入/ }).click();
+  }
+
+  return page.getByRole('dialog', { name: '从 DeckLog 导入' });
 }
 
 async function expectNoGlobalHorizontalOverflow(page: Page, label: string) {
@@ -412,17 +453,67 @@ const scenarios: Scenario[] = [
     ready: async (page) => {
       await expect(page.getByText('卡组管理')).toBeVisible();
     },
+    action: async (page) => {
+      await expect(page.getByText(/共\s*1\s*个卡组/)).toHaveCount(0);
+
+      if ((page.viewportSize()?.width ?? 0) < 768) {
+        await expect(page.getByRole('button', { name: '创建卡组', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: '导入', exact: true })).toBeVisible();
+
+        const titleBox = await page
+          .getByRole('heading', { name: 'E2E 移动验收卡组' })
+          .boundingBox();
+        const editBox = await page.getByRole('button', { name: '编辑', exact: true }).boundingBox();
+        const moreBox = await page
+          .getByRole('button', { name: /E2E 移动验收卡组的更多操作/ })
+          .boundingBox();
+        expect(titleBox).not.toBeNull();
+        expect(editBox).not.toBeNull();
+        expect(moreBox).not.toBeNull();
+        expect(Math.abs((editBox?.y ?? 0) - (titleBox?.y ?? 0))).toBeLessThan(16);
+        expect(Math.abs((editBox?.y ?? 0) - (moreBox?.y ?? 0))).toBeLessThan(2);
+      }
+
+      await page.getByRole('button', { name: /E2E 移动验收卡组的更多操作/ }).click();
+      const menu = page.getByRole('menu', { name: /E2E 移动验收卡组的操作/ });
+      await expect(menu).toBeVisible();
+      await expect(menu.getByRole('menuitem', { name: '复制为新版本' })).toBeVisible();
+      await expect(menu.getByRole('menuitem', { name: '删除卡组' })).toBeVisible();
+      await expectElementWithinVisualViewport(page, '[role="menu"]', 'deck actions menu');
+    },
   },
   {
-    name: 'decklog-sheet',
+    name: 'decklog-dialog',
     path: '/?page=deck-manager',
     authenticated: true,
     ready: async (page) => {
       await expect(page.getByText('卡组管理')).toBeVisible();
     },
     action: async (page) => {
-      await page.getByRole('button', { name: /从 DeckLog 导入/ }).click();
-      await expect(page.getByRole('heading', { name: '从 DeckLog 导入' })).toBeVisible();
+      const dialog = await openDecklogDialog(page);
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole('button', { name: /读取并导入/ })).toBeDisabled();
+      await expect(dialog.getByRole('button', { name: /日本版/ })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      );
+
+      await dialog
+        .getByLabel('卡组链接或编号')
+        .fill('https://decklog-en.bushiroad.com/ja/view/60G2Q');
+      await expect(dialog.getByRole('button', { name: /国际版/ })).toHaveAttribute(
+        'aria-pressed',
+        'true'
+      );
+      await expect(
+        dialog.getByText('decklog-en.bushiroad.com', { exact: true }).last()
+      ).toBeVisible();
+      await expect(dialog.getByRole('button', { name: /读取并导入/ })).toBeEnabled();
+      await expectElementWithinVisualViewport(
+        page,
+        '[aria-labelledby="decklog-dialog-title"]',
+        'DeckLog import dialog'
+      );
     },
   },
   {
@@ -507,4 +598,69 @@ test.describe('mobile layout baseline', () => {
       await attachScreenshot(page, testInfo, scenario.name);
     });
   }
+
+  test('新建卡组默认包含 12 张能量卡', async ({ page }, testInfo) => {
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager');
+    await expect(page.getByText('卡组管理')).toBeVisible();
+
+    await page.getByRole('button', { name: /创建(?:新)?卡组/ }).click();
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+
+    const viewDeckButton = page.getByRole('button', { name: /查看卡组/ });
+    if (await viewDeckButton.isVisible()) await viewDeckButton.click();
+    const tabletDeckToggle = page.getByRole('button', { name: '卡组' });
+    if (await tabletDeckToggle.isVisible()) await tabletDeckToggle.click();
+
+    await expect(page.getByText('12/12', { exact: true })).toBeVisible();
+    await expectNoGlobalHorizontalOverflow(page, 'new deck with default energy');
+    await attachScreenshot(page, testInfo, 'deck-manager-new-default-energy');
+  });
+
+  test('复制为新版本后直接打开独立副本编辑器', async ({ page }) => {
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager');
+    await expect(page.getByText('卡组管理')).toBeVisible();
+
+    await page.getByRole('button', { name: /E2E 移动验收卡组的更多操作/ }).click();
+    await page.getByRole('menuitem', { name: '复制为新版本' }).click();
+
+    await expect(page.getByPlaceholder('卡组名称')).toHaveValue('E2E 移动验收卡组 v2');
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+  });
+
+  test('手机端导入操作单可进入 DeckLog 导入并支持取消', async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 0) >= 768, '仅验证手机端导入操作单');
+
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager');
+    await expect(page.getByText('卡组管理')).toBeVisible();
+
+    await page.getByRole('button', { name: '导入', exact: true }).click();
+    const importSheet = page.getByRole('dialog', { name: '导入卡组' });
+    await expect(importSheet).toBeVisible();
+    await expectElementWithinVisualViewport(
+      page,
+      '[aria-labelledby="deck-import-sheet-title"]',
+      'deck import sheet'
+    );
+
+    await importSheet.getByRole('button', { name: /从 DeckLog 导入/ }).click();
+    await expect(page.getByRole('heading', { name: '从 DeckLog 导入' })).toBeVisible();
+    await page.getByRole('button', { name: '取消', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '从 DeckLog 导入' })).toHaveCount(0);
+  });
+
+  test('DeckLog 读取成功后进入卡组编辑器', async ({ page }) => {
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager');
+    await expect(page.getByText('卡组管理')).toBeVisible();
+
+    const dialog = await openDecklogDialog(page);
+    await dialog.getByLabel('卡组链接或编号').fill('2D6XL');
+    await dialog.getByRole('button', { name: '读取并导入' }).click();
+
+    await expect(page.getByPlaceholder('卡组名称')).toHaveValue('DeckLog E2E 卡组');
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+  });
 });

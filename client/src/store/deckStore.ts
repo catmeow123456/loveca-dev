@@ -17,6 +17,7 @@ import {
 } from '@/lib/deckRecordUtils';
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
+import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
 
 interface DeckState {
   player1Deck: DeckConfig | null;
@@ -353,13 +354,5 @@ if (import.meta.env.DEV || import.meta.env.MODE === 'test') {
 }
 
 function createEmptyDeck(playerName: string): DeckConfig {
-  return {
-    player_name: playerName,
-    description: "New Deck",
-    main_deck: {
-      members: [],
-      lives: []
-    },
-    energy_deck: []
-  };
+  return createNewDeckConfig(playerName, 'New Deck');
 }
