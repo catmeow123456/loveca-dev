@@ -27,6 +27,23 @@
 - [历史迁移说明](historical-migrations.md)
 - [卡组管理设计](deck-management/design.md)
 
+## 认证与会话
+
+当前认证限流使用 API 进程内的有界内存桶，适合当前单 API 进程部署，但存在以下边界：
+
+- 限流状态会在进程重启后清空，也不会在多个 API 实例间共享；横向扩容前需要迁移到共享限流存储或由可信反向代理统一执行等价限制。
+- 修改或重置密码会在同一事务中撤销刷新令牌，但已经签发的访问令牌不会进入服务端黑名单，最长仍可使用至 15 分钟自然过期。
+- 前端在支持 Web Locks 的浏览器中会跨标签页串行刷新令牌；不支持该 API 的浏览器只具备单标签页内的并发去重保障。
+- 认证 v1 -> v2 切换无法无损转换旧 bcrypt 密码；迁移会要求受影响用户重置密码，并使全部旧会话和未完成的一次性链接失效。占位邮箱账号必须在发布前安排人工恢复。
+
+相关代码路径：
+
+- `src/server/middleware/auth-rate-limit.ts`
+- `src/server/routes/auth.ts`
+- `src/server/services/auth-service.ts`
+- `client/src/lib/apiClient.ts`
+- `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md`
+
 ## 联机模式
 
 当前正式联机已经具备基础闭环：房间创建/加入、云端卡组锁定、双方准备开始、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、房间号观战跨重开等待与自动续看、离开/短暂恢复和管理员房间观测。

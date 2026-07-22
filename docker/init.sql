@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
 
 COMMENT ON TABLE public.users IS '用户认证表';
 COMMENT ON COLUMN public.users.email IS '邮箱，可为系统生成的占位邮箱';
-COMMENT ON COLUMN public.users.password_hash IS 'bcrypt 哈希后的密码';
+COMMENT ON COLUMN public.users.password_hash IS '版本化密码凭据（v2 为 SHA-256 预哈希后的 bcrypt，迁移账号可标记为必须重置）';
 COMMENT ON COLUMN public.users.email_verified IS '邮箱是否已验证';
 
 -- ============================================
@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS public.email_verification_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON public.email_verification_tokens(token);
 
-COMMENT ON TABLE public.email_verification_tokens IS '邮箱验证 token';
+COMMENT ON TABLE public.email_verification_tokens IS '邮箱验证一次性 token 的带密钥摘要';
 
 -- ============================================
 -- 4. password_reset_tokens 表
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS public.password_reset_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON public.password_reset_tokens(token);
 
-COMMENT ON TABLE public.password_reset_tokens IS '密码重置 token';
+COMMENT ON TABLE public.password_reset_tokens IS '密码重置一次性 token 的带密钥摘要';
 
 -- ============================================
 -- 5. profiles 表

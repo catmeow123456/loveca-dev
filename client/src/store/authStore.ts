@@ -32,17 +32,25 @@ interface AuthState {
     email: string,
     password: string,
     displayName?: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+    code?: string;
+    message?: string;
+    verificationRequired?: boolean;
+    verificationEmailSent?: boolean;
+  }>;
   signIn: (
     usernameOrEmail: string,
     password: string
-  ) => Promise<{ success: boolean; error?: string }>;
+  ) => Promise<{ success: boolean; error?: string; code?: string }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   updatePassword: (
     newPassword: string,
-    token?: string
+    token?: string,
+    currentPassword?: string
   ) => Promise<{ success: boolean; error?: string }>;
   verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>;
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
@@ -80,12 +88,12 @@ export const useAuthStore = create<AuthState>()(
         }
 
         try {
-          // Try to restore session from refresh token cookie
-          const timeoutPromise = new Promise<never>((_, reject) => {
-            setTimeout(() => reject(new Error('Authentication timeout')), 5000);
-          });
-
-          const result = await Promise.race([apiClient.refreshSession(), timeoutPromise]);
+          // Abort the underlying request as well as the wait. A timed-out refresh must
+          // never overwrite a later interactive login with a stale access token.
+          const controller = new AbortController();
+          const timeout = window.setTimeout(() => controller.abort(), 5000);
+          const result = await apiClient.refreshSession({ signal: controller.signal });
+          window.clearTimeout(timeout);
 
           if (result.data) {
             set({
@@ -108,18 +116,30 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
-          const result = await apiClient.post<{ id: string; username: string; message: string }>(
-            '/api/auth/register',
-            { username, email: email || undefined, password, displayName }
-          );
+          const result = await apiClient.post<{
+            id: string;
+            username: string;
+            message: string;
+            verificationRequired: boolean;
+            verificationEmailSent: boolean;
+          }>('/api/auth/register', { username, email: email || undefined, password, displayName });
 
           if (result.error) {
             set({ isLoading: false, error: result.error.message });
-            return { success: false, error: result.error.message };
+            return {
+              success: false,
+              error: result.error.message,
+              code: result.error.code,
+            };
           }
 
           set({ isLoading: false });
-          return { success: true };
+          return {
+            success: true,
+            message: result.data?.message,
+            verificationRequired: result.data?.verificationRequired,
+            verificationEmailSent: result.data?.verificationEmailSent,
+          };
         } catch (err) {
           const message = err instanceof Error ? err.message : '注册失败';
           set({ isLoading: false, error: message });
@@ -143,7 +163,11 @@ export const useAuthStore = create<AuthState>()(
 
           if (result.error) {
             set({ isLoading: false, error: result.error.message });
-            return { success: false, error: result.error.message };
+            return {
+              success: false,
+              error: result.error.message,
+              code: result.error.code,
+            };
           }
 
           if (result.data) {
@@ -167,19 +191,20 @@ export const useAuthStore = create<AuthState>()(
 
       signOut: async () => {
         set({ isLoading: true });
-
-        if (isApiConfigured) {
-          await apiClient.post('/api/auth/logout');
+        try {
+          if (isApiConfigured) {
+            await apiClient.post('/api/auth/logout');
+          }
+        } finally {
+          setAccessToken(null);
+          set({
+            user: null,
+            profile: null,
+            offlineMode: false,
+            offlineUser: null,
+            isLoading: false,
+          });
         }
-
-        setAccessToken(null);
-        set({
-          user: null,
-          profile: null,
-          offlineMode: false,
-          offlineUser: null,
-          isLoading: false,
-        });
       },
 
       updateProfile: async (updates) => {
@@ -236,7 +261,7 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      updatePassword: async (newPassword, token) => {
+      updatePassword: async (newPassword, token, currentPassword) => {
         if (!isApiConfigured) {
           return { success: false, error: '服务器未配置' };
         }
@@ -244,12 +269,13 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true, error: null });
 
         try {
+          if (!token && !currentPassword) {
+            set({ isLoading: false, error: '请输入当前密码' });
+            return { success: false, error: '请输入当前密码' };
+          }
           const payload = token
             ? { token, newPassword }
-            : {
-                currentPassword: '', // TODO: add current password input to UI
-                newPassword,
-              };
+            : { currentPassword: currentPassword!, newPassword };
           const result = await apiClient.put('/api/auth/password', payload);
 
           if (result.error) {
@@ -257,7 +283,14 @@ export const useAuthStore = create<AuthState>()(
             return { success: false, error: result.error.message };
           }
 
-          set({ isLoading: false });
+          setAccessToken(null);
+          set({
+            user: null,
+            profile: null,
+            offlineMode: false,
+            offlineUser: null,
+            isLoading: false,
+          });
           return { success: true };
         } catch (err) {
           const message = err instanceof Error ? err.message : '更新密码失败';

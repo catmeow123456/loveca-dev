@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <meta name="referrer" content="no-referrer" />
     <link rel="icon" type="image/png" sizes="192x192" href="/pwa/icon-192.png" />
     <link rel="apple-touch-icon" href="/pwa/icon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -11,11 +12,12 @@
         try {
           const storedTheme = window.localStorage.getItem('loveca-theme');
           const systemLight = window.matchMedia('(prefers-color-scheme: light)').matches;
-          const theme = storedTheme === 'light' || storedTheme === 'dark'
-            ? storedTheme
-            : systemLight
-              ? 'light'
-              : 'dark';
+          const theme =
+            storedTheme === 'light' || storedTheme === 'dark'
+              ? storedTheme
+              : systemLight
+                ? 'light'
+                : 'dark';
           document.documentElement.setAttribute('data-theme', theme);
         } catch {
           document.documentElement.setAttribute('data-theme', 'dark');

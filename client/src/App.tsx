@@ -2,7 +2,7 @@
  * Loveca Card Game - Main Application
  */
 
-import { useCallback, useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
@@ -71,35 +71,19 @@ interface InitialAuthRequest {
 }
 
 function readAuthTokenFromUrl(): string | null {
-  const searchToken = new URLSearchParams(window.location.search).get('token');
-  if (searchToken) {
-    return searchToken;
-  }
-
-  const hash = window.location.hash.replace(/^#\/?/, '');
-  if (!hash) {
-    return null;
-  }
-
-  const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : hash;
-  const hashParams = new URLSearchParams(hashQuery);
-  return hashParams.get('token') ?? hashParams.get('access_token');
+  const hash = window.location.hash.replace(/^#/, '');
+  return hash ? new URLSearchParams(hash).get('token') : null;
 }
 
 function getInitialAuthRequest(): InitialAuthRequest {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
-  const hash = window.location.hash;
   const token = readAuthTokenFromUrl();
 
   if (path === '/verify-email') {
     return { page: 'verify-email', token };
   }
 
-  if (
-    path === '/reset-password' ||
-    hash.includes('type=recovery') ||
-    hash.includes('reset-password')
-  ) {
+  if (path === '/reset-password') {
     return { page: 'reset-password', token };
   }
 
@@ -141,6 +125,11 @@ function App() {
   const publicConfigRefreshInFlightRef = useRef<Promise<boolean> | null>(null);
   const publicConfigLastAttemptAtRef = useRef<number | null>(null);
   const publicConfigRefreshFailureCountRef = useRef(0);
+
+  useLayoutEffect(() => {
+    if (!isInitialAuthActionPage || !initialAuthRequest.token) return;
+    window.history.replaceState(null, '', window.location.pathname);
+  }, [initialAuthRequest.token, isInitialAuthActionPage]);
 
   const setAppConfigIfChanged = useCallback((config: PublicAppConfig): boolean => {
     const nextKey = buildPublicAppConfigRenderKey(config);

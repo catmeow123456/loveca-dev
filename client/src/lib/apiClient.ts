@@ -145,6 +145,7 @@ export function getApiBaseUrl(): string {
 
 const REQUEST_TIMEOUT = 15000; // 15 seconds
 const NETWORK_RETRY_DELAY = 300;
+const AUTH_REFRESH_LOCK = 'loveca-auth-refresh';
 
 /** Safely parse JSON from a response, returning an error ApiResponse for non-JSON bodies */
 async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> {
@@ -211,6 +212,13 @@ function isAbortError(err: unknown): boolean {
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function withAuthRefreshLock<T>(signal: AbortSignal | undefined, request: () => Promise<T>) {
+  if (typeof navigator === 'undefined' || !navigator.locks) {
+    return request();
+  }
+  return navigator.locks.request(AUTH_REFRESH_LOCK, { mode: 'exclusive', signal }, request);
 }
 
 function getNetworkErrorMessage(path: string, err: unknown): string {
@@ -339,11 +347,17 @@ async function tryRefreshToken(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      const response = await withAuthRefreshLock(controller.signal, () =>
+        fetch(`${API_BASE_URL}/api/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+      );
 
       if (!response.ok) return false;
 
@@ -359,6 +373,7 @@ async function tryRefreshToken(): Promise<boolean> {
     } catch {
       return false;
     } finally {
+      window.clearTimeout(timeout);
       refreshPromise = null;
     }
   })();
@@ -399,7 +414,7 @@ export const apiClient = {
   },
 
   /** Try to restore session from refresh token cookie */
-  async refreshSession(): Promise<
+  async refreshSession(options: { signal?: AbortSignal } = {}): Promise<
     ApiResponse<{
       accessToken: string;
       user: { id: string; email: string; emailVerified: boolean };
@@ -407,10 +422,14 @@ export const apiClient = {
     }>
   > {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-      });
+      const response = await withAuthRefreshLock(options.signal, () =>
+        fetch(`${API_BASE_URL}/api/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          signal: options.signal,
+        })
+      );
 
       // 未登录或刷新令牌失效：静默返回，不抛异常
       if (response.status === 401) {
@@ -427,12 +446,18 @@ export const apiClient = {
         profile: Profile;
       }>(response);
 
-      if (body.data?.accessToken) {
+      if (body.data?.accessToken && !options.signal?.aborted) {
         accessToken = body.data.accessToken;
       }
 
       return body;
-    } catch {
+    } catch (error) {
+      if (options.signal?.aborted || isAbortError(error)) {
+        return {
+          data: null,
+          error: { code: 'ABORTED', message: '认证请求已取消' },
+        };
+      }
       return {
         data: null,
         error: { code: 'NETWORK_ERROR', message: '网络错误' },

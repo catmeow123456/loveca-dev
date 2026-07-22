@@ -29,6 +29,12 @@ function getVerificationRequest(
 
   const request = verifyEmail(token);
   verificationRequests.set(token, request);
+  const clearRequest = () => {
+    if (verificationRequests.get(token) === request) {
+      verificationRequests.delete(token);
+    }
+  };
+  void request.then(clearRequest, clearRequest);
   return request;
 }
 

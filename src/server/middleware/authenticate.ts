@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { config } from '../config.js';
 import type { AuthUser } from '../types/api.js';
+import { verifyAccessToken } from '../services/auth-service.js';
 
 /**
  * Optional authentication middleware.
@@ -17,10 +16,10 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
 
   const token = authHeader.slice(7);
   try {
-    const payload = jwt.verify(token, config.jwtSecret) as jwt.JwtPayload;
+    const payload = verifyAccessToken(token);
     req.user = {
-      id: payload.sub as string,
-      role: payload.role as 'user' | 'admin',
+      id: payload.sub,
+      role: payload.role,
     } satisfies AuthUser;
   } catch {
     // Invalid token — treat as unauthenticated, don't fail

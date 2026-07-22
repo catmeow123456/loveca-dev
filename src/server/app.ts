@@ -20,6 +20,11 @@ import { siteAnnouncementsRouter } from './routes/site-announcements.js';
 export function createApp(): express.Express {
   const app = express();
 
+  if (!config.isDev) {
+    // Production traffic is expected to arrive through the local reverse proxy.
+    app.set('trust proxy', 'loopback');
+  }
+
   // Security headers
   app.use(
     helmet({

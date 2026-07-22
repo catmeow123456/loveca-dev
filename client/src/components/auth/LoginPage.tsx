@@ -57,7 +57,8 @@ export function LoginPage({
     // 检测邮箱未验证错误（服务端返回的消息为 '请先验证邮箱'，错误码为 EMAIL_NOT_VERIFIED）
     if (
       !result.success &&
-      (result.error?.includes('验证邮箱') ||
+      (result.code === 'EMAIL_NOT_VERIFIED' ||
+        result.error?.includes('验证邮箱') ||
         result.error?.includes('EMAIL_NOT_VERIFIED') ||
         result.error?.includes('Email not confirmed'))
     ) {
@@ -108,11 +109,7 @@ export function LoginPage({
   const displayError = localError || error;
 
   return (
-    <AuthLayout
-      title="进入 Loveca"
-      subtitle="登录账号，或继续离线测试。"
-      eyebrow="Loveca 对战入口"
-    >
+    <AuthLayout title="进入 Loveca" subtitle="登录账号，或继续离线测试。" eyebrow="Loveca 对战入口">
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">

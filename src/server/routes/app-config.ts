@@ -14,7 +14,7 @@ appConfigRouter.get('/', async (_req, res) => {
       features: {
         email: {
           enabled: emailEnabled,
-          verificationRequired: emailEnabled,
+          verificationRequired: config.isEmailVerificationRequired,
           passwordResetEnabled: emailEnabled,
         },
       },

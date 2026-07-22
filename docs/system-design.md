@@ -380,6 +380,26 @@ graph LR
 - `src/server/middleware/require-gameplay-available.ts`
 - `src/server/services/`
 
+认证与会话链路：
+
+- 访问令牌固定使用带 issuer、audience、subject 与角色约束的 HS256 JWT；浏览器只在内存中保存访问令牌。
+- 刷新令牌通过 HttpOnly Cookie 传递，Cookie 保存令牌定位符与随机 secret，数据库只保存 secret 预哈希后的 bcrypt 摘要；刷新和当前设备登出分别在数据库事务中锁定、校验并轮换或撤销目标令牌。
+- 启用 `EMAIL_ENABLED` 后，注册邮箱和登录前验证成为强制门禁，服务启动时校验完整 SMTP 配置。邮箱验证与密码重置只保存带密钥摘要，一次性 token 的消费、账号更新和相关会话撤销在同一事务完成；邮件链接通过 URL fragment 交给前端并在页面初始化时清理。
+- 认证端点统一返回不可缓存响应，并使用按 IP 与账号标识组合的有界限流；当前部署边界见 `docs/current-limitations.md`。
+- 运行时只接受 v2 密码、刷新 Cookie 和一次性 token 格式；旧凭据通过 `drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts` 在维护窗口统一失效，不在认证业务路径中兼容读取。
+
+认证关键代码路径：
+
+- `src/server/config.ts`
+- `src/server/middleware/authenticate.ts`
+- `src/server/middleware/auth-rate-limit.ts`
+- `src/server/routes/auth.ts`
+- `src/server/services/auth-service.ts`
+- `src/server/services/mail-service.ts`
+- `client/src/lib/apiClient.ts`
+- `client/src/store/authStore.ts`
+- `drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts`
+
 ### 8.2 数据模型设计
 
 ```mermaid

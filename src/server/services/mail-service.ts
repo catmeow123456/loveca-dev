@@ -9,7 +9,8 @@ function getTransporter(): nodemailer.Transporter | null {
     transporter = nodemailer.createTransport({
       host: config.smtp.host,
       port: config.smtp.port,
-      secure: config.smtp.port === 465 || config.smtp.port === 994,
+      secure: config.smtp.port === 465,
+      requireTLS: config.smtp.port !== 465,
       auth: {
         user: config.smtp.user,
         pass: config.smtp.pass,
@@ -26,7 +27,7 @@ export async function sendVerificationEmail(email: string, token: string): Promi
     return false;
   }
 
-  const verifyUrl = `${config.frontendUrl}/verify-email?token=${token}`;
+  const verifyUrl = buildAuthActionUrl('/verify-email', token);
 
   await t.sendMail({
     from: config.smtp.from,
@@ -50,7 +51,7 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     return false;
   }
 
-  const resetUrl = `${config.frontendUrl}/reset-password?token=${token}`;
+  const resetUrl = buildAuthActionUrl('/reset-password', token);
 
   await t.sendMail({
     from: config.smtp.from,
@@ -65,4 +66,9 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
     `,
   });
   return true;
+}
+
+function buildAuthActionUrl(path: string, token: string): string {
+  const baseUrl = config.frontendUrl.replace(/\/+$/, '');
+  return `${baseUrl}${path}#token=${encodeURIComponent(token)}`;
 }

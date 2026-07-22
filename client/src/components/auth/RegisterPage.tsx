@@ -23,6 +23,10 @@ export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: Reg
   const [displayName, setDisplayName] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [verificationRequiredForResult, setVerificationRequiredForResult] =
+    useState(emailVerificationRequired);
+  const [verificationEmailSent, setVerificationEmailSent] = useState(false);
 
   const { signUp, isLoading, error, clearError } = useAuthStore();
 
@@ -86,6 +90,9 @@ export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: Reg
     );
 
     if (result.success) {
+      setSuccessMessage(result.message ?? null);
+      setVerificationRequiredForResult(result.verificationRequired ?? emailVerificationRequired);
+      setVerificationEmailSent(result.verificationEmailSent === true);
       setSuccess(true);
     }
   };
@@ -96,7 +103,13 @@ export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: Reg
     return (
       <AuthLayout
         title="注册成功！"
-        subtitle={emailVerificationRequired ? '请查收验证邮件' : '欢迎加入 Loveca'}
+        subtitle={
+          verificationRequiredForResult
+            ? verificationEmailSent
+              ? '请查收验证邮件'
+              : '请稍后重新发送验证邮件'
+            : '欢迎加入 Loveca'
+        }
       >
         <div className="text-center space-y-6">
           <motion.div
@@ -108,11 +121,17 @@ export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: Reg
             <CheckCircle2 size={56} />
           </motion.div>
 
-          {emailVerificationRequired ? (
+          {verificationRequiredForResult ? (
             <p className="text-[var(--text-secondary)]">
-              {'我们已向'}
-              <span className="font-medium text-[var(--accent-primary)]">{email}</span>
-              {'发送了验证邮件，请点击邮件中的链接完成注册。'}
+              {verificationEmailSent ? (
+                <>
+                  {'我们已向'}
+                  <span className="font-medium text-[var(--accent-primary)]">{email}</span>
+                  {'发送了验证邮件，请点击邮件中的链接完成注册。'}
+                </>
+              ) : (
+                (successMessage ?? '账号已创建，但验证邮件发送失败，请在登录页重新发送。')
+              )}
             </p>
           ) : (
             <p className="text-[var(--text-secondary)]">账号已创建成功，现在可以直接登录了。</p>

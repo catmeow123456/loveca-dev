@@ -1,4 +1,4 @@
-import { config } from './config.js';
+import { assertSecurityConfiguration, config } from './config.js';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
 import { ensureBucket } from './services/minio-service.js';
@@ -14,7 +14,9 @@ const RUNTIME_STATS_LOG_INTERVAL = readPositiveIntEnv(
 
 async function cleanupExpiredTokens() {
   try {
-    const result = await pool.query('SELECT cleanup_expired_tokens()');
+    const result = await pool.query<{ cleanup_expired_tokens: number }>(
+      'SELECT cleanup_expired_tokens()'
+    );
     const deleted = result.rows[0]?.cleanup_expired_tokens ?? 0;
     if (deleted > 0) {
       console.log(`Cleaned up ${deleted} expired tokens`);
@@ -53,6 +55,8 @@ function logRuntimeStats() {
 }
 
 async function main() {
+  assertSecurityConfiguration();
+
   // Verify database connection
   try {
     await pool.query('SELECT 1');
@@ -72,8 +76,8 @@ async function main() {
   }
 
   // Schedule periodic token cleanup
-  setInterval(cleanupExpiredTokens, TOKEN_CLEANUP_INTERVAL).unref();
-  setInterval(cleanupExpiredRuntimeState, RUNTIME_CLEANUP_INTERVAL).unref();
+  setInterval(() => void cleanupExpiredTokens(), TOKEN_CLEANUP_INTERVAL).unref();
+  setInterval(() => void cleanupExpiredRuntimeState(), RUNTIME_CLEANUP_INTERVAL).unref();
   setInterval(logRuntimeStats, RUNTIME_STATS_LOG_INTERVAL).unref();
 
   const app = createApp();

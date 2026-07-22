@@ -27,6 +27,7 @@
   git tag -a v3.3.0 -m "发布 v3.3.0"
   git push origin v3.3.0
   ```
+
 - API 镜像使用 `vX.Y.Z` 与 `sha-<12位提交>` 作为可追溯标签；`latest` 只在版本镜像验证通过后提升。生产部署可以拉取 `latest`，但必须记录实际 digest，回滚使用上一版版本标签或 digest。
 
 ## 3. 发布前检查
@@ -70,6 +71,10 @@
    - `MINIO_BUCKET`
    - `MINIO_USE_SSL`
    - `FRONTEND_URL`
+
+   如启用 `EMAIL_ENABLED=true`，还必须配置 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、
+   `SMTP_PASS` 与 `SMTP_FROM`；启用后注册邮箱必填且登录前必须完成验证。生产环境的
+   `JWT_SECRET` 与 `JWT_REFRESH_SECRET` 必须分别使用不同的 32 字节以上随机值。
 
 5. 确认备份可用：
 
@@ -148,6 +153,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 - 迁移前必须有 Postgres 备份。
 - 不要用 `pnpm db:push` 代替生产迁移。
 - 如果迁移包含数据修复，先在测试数据库验证可重复执行性和失败后的处理方式。
+- 如果发布包含认证凭据 v1 -> v2 切换，必须在停机窗口按 `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md` 先执行 dry-run、处理占位邮箱账号并应用数据迁移，再部署只接受 v2 格式的 API。
 - `docker/init.sql` 包含部分 Drizzle schema 不表达的函数和触发器；新库初始化与已有库迁移不能混为一谈。
 
 ## 6. 部署

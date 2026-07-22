@@ -10,6 +10,26 @@ function optionalEnv(name: string, defaultValue: string): string {
   return process.env[name] ?? defaultValue;
 }
 
+interface SmtpConfiguration {
+  readonly host: string;
+  readonly port: number;
+  readonly user: string;
+  readonly pass: string;
+  readonly from: string;
+}
+
+export function isCompleteSmtpConfiguration(smtp: SmtpConfiguration): boolean {
+  return !!(
+    smtp.host.trim() &&
+    Number.isInteger(smtp.port) &&
+    smtp.port >= 1 &&
+    smtp.port <= 65_535 &&
+    smtp.user.trim() &&
+    smtp.pass &&
+    smtp.from.trim()
+  );
+}
+
 export const config = {
   port: parseInt(optionalEnv('PORT', '3007'), 10),
   nodeEnv: optionalEnv('NODE_ENV', 'development'),
@@ -36,10 +56,10 @@ export const config = {
   // SMTP (optional)
   smtp: {
     host: process.env.SMTP_HOST ?? '',
-    port: parseInt(optionalEnv('SMTP_PORT', '587'), 10),
+    port: Number(optionalEnv('SMTP_PORT', '587')),
     user: process.env.SMTP_USER ?? '',
     pass: process.env.SMTP_PASS ?? '',
-    from: optionalEnv('SMTP_FROM', 'noreply@loveca.app'),
+    from: process.env.SMTP_FROM ?? '',
   },
 
   // Email verification
@@ -53,10 +73,31 @@ export const config = {
   },
 
   get isSmtpConfigured() {
-    return !!(this.smtp.host && this.smtp.user && this.smtp.pass);
+    return isCompleteSmtpConfiguration(this.smtp);
   },
 
   get isEmailFeatureEnabled() {
     return this.emailEnabled && this.isSmtpConfigured;
   },
+
+  get isEmailVerificationRequired() {
+    return this.emailEnabled;
+  },
 } as const;
+
+export function assertSecurityConfiguration(): void {
+  if (!config.isDev && Buffer.byteLength(config.jwtSecret, 'utf8') < 32) {
+    throw new Error('JWT_SECRET must be at least 32 bytes in production');
+  }
+  if (!config.isDev && Buffer.byteLength(config.jwtRefreshSecret, 'utf8') < 32) {
+    throw new Error('JWT_REFRESH_SECRET must be at least 32 bytes in production');
+  }
+  if (!config.isDev && config.jwtSecret === config.jwtRefreshSecret) {
+    throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be different in production');
+  }
+  if (config.isEmailVerificationRequired && !config.isSmtpConfigured) {
+    throw new Error(
+      'EMAIL_ENABLED=true requires SMTP_HOST, a valid SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM'
+    );
+  }
+}
