@@ -27,7 +27,7 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
-import { PlayerArea } from './PlayerArea';
+import { PlayerArea, type SelectedHandCardAction } from './PlayerArea';
 import { GameLog, GameLogContent } from './GameLog';
 import {
   PublicBattleLogButton,
@@ -121,6 +121,31 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import type { PlayerViewState, Seat } from '@game/online';
 
 const INSPECTION_TARGET_PREFIX = 'inspection-target-';
+const SELECTED_HAND_CARD_ACTION_IDS = {
+  doubleRelay: 'double-relay',
+  specialMemberPlay: 'special-member-play',
+} as const;
+const SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS = [
+  {
+    id: SELECTED_HAND_CARD_ACTION_IDS.specialMemberPlay,
+    text: '特殊登场',
+    title: '选择特殊登场区域',
+    align: 'center',
+  },
+] as const satisfies readonly SelectedHandCardAction[];
+const DOUBLE_RELAY_HAND_CARD_ACTIONS = [
+  {
+    id: SELECTED_HAND_CARD_ACTION_IDS.doubleRelay,
+    text: '双换手',
+    title: '依次选择两个换手区域',
+    align: 'center',
+  },
+] as const satisfies readonly SelectedHandCardAction[];
+const SPECIAL_PLAY_AND_DOUBLE_RELAY_HAND_CARD_ACTIONS = [
+  ...SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS,
+  ...DOUBLE_RELAY_HAND_CARD_ACTIONS,
+] as const satisfies readonly SelectedHandCardAction[];
+const NO_SELECTED_HAND_CARD_ACTIONS = [] as const satisfies readonly SelectedHandCardAction[];
 const INSPECTION_TARGET_IDS = [
   `${INSPECTION_TARGET_PREFIX}hand`,
   `${INSPECTION_TARGET_PREFIX}waiting-room`,
@@ -797,6 +822,15 @@ export const GameBoard = memo(function GameBoard({
     selectedCardPresentation?.cardData.cardType === CardType.MEMBER &&
     canUseDoubleRelay(selectedCardPresentation) &&
     viewerOccupiedMemberSlots.length >= 2;
+  const selectedHandCardActions =
+    canShowSpecialPlayEntry && canShowDoubleRelayEntry
+      ? SPECIAL_PLAY_AND_DOUBLE_RELAY_HAND_CARD_ACTIONS
+      : canShowSpecialPlayEntry
+        ? SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS
+        : canShowDoubleRelayEntry
+          ? DOUBLE_RELAY_HAND_CARD_ACTIONS
+          : NO_SELECTED_HAND_CARD_ACTIONS;
+  const selectedHandCardActionCardId = selectedHandCardActions.length > 0 ? selectedCardId : null;
   const activeDoubleRelaySelection =
     doubleRelaySelection && doubleRelaySelection.cardId === selectedCardId
       ? doubleRelaySelection
@@ -1097,13 +1131,6 @@ export const GameBoard = memo(function GameBoard({
     viewerOccupiedMemberSlots,
   ]);
 
-  const handleStartDoubleRelay = useCallback(() => {
-    if (!selectedCardId || !canShowDoubleRelayEntry) {
-      return;
-    }
-    setDoubleRelaySelection({ cardId: selectedCardId, selectedSlots: [] });
-  }, [canShowDoubleRelayEntry, selectedCardId]);
-
   const handleSelectDoubleRelaySlot = useCallback(
     (slot: SlotPosition) => {
       setDoubleRelaySelection((current) => {
@@ -1113,7 +1140,13 @@ export const GameBoard = memo(function GameBoard({
         if (!viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)) {
           return current;
         }
-        if (current.selectedSlots.includes(slot) || current.selectedSlots.length >= 2) {
+        if (current.selectedSlots.includes(slot)) {
+          return {
+            ...current,
+            selectedSlots: current.selectedSlots.filter((selectedSlot) => selectedSlot !== slot),
+          };
+        }
+        if (current.selectedSlots.length >= 2) {
           return current;
         }
         return { ...current, selectedSlots: [...current.selectedSlots, slot] };
@@ -1154,6 +1187,24 @@ export const GameBoard = memo(function GameBoard({
       }
     },
     [beginSpecialMemberPlay, selectedCardId, specialPlayTargetSlots]
+  );
+
+  const handleSelectedHandCardAction = useCallback(
+    (cardId: string, actionId: string) => {
+      if (cardId !== selectedCardId) {
+        return;
+      }
+      if (actionId === SELECTED_HAND_CARD_ACTION_IDS.specialMemberPlay) {
+        setDoubleRelaySelection(null);
+        setSpecialPlayTargetSelectionCardId(cardId);
+        return;
+      }
+      if (actionId === SELECTED_HAND_CARD_ACTION_IDS.doubleRelay) {
+        setSpecialPlayTargetSelectionCardId(null);
+        setDoubleRelaySelection({ cardId, selectedSlots: [] });
+      }
+    },
+    [selectedCardId]
   );
 
   const handleToggleSpecialPlayPayment = useCallback(
@@ -1714,7 +1765,6 @@ export const GameBoard = memo(function GameBoard({
       // RULES 只执行上方已命中的语义 intent。后续 inspection、
       // Live Set 与各类区域移动都是 FREE 为兼容旧拖拽保留的 fallback。
       if (!canUseLegacyManualDropFallback(matchView?.manualOperation?.mode)) {
-        pushDropError('规则模式下当前拖拽没有可执行的合法操作');
         return;
       }
 
@@ -2283,6 +2333,12 @@ export const GameBoard = memo(function GameBoard({
                     isOpponent={false}
                     isActive={resolvedActiveSeat === selfSeat}
                     suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                    selectedHandCardActionCardId={selectedHandCardActionCardId}
+                    selectedHandCardActions={selectedHandCardActions}
+                    suppressSelectedHandCardActionMenu={
+                      specialPlayTargetSelectionOpen || !!activeDoubleRelaySelection
+                    }
+                    onSelectedHandCardAction={handleSelectedHandCardAction}
                   />
                 </div>
               </div>
@@ -2526,6 +2582,12 @@ export const GameBoard = memo(function GameBoard({
                 isOpponent={false}
                 isActive={resolvedActiveSeat === selfSeat}
                 suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                selectedHandCardActionCardId={selectedHandCardActionCardId}
+                selectedHandCardActions={selectedHandCardActions}
+                suppressSelectedHandCardActionMenu={
+                  specialPlayTargetSelectionOpen || !!activeDoubleRelaySelection
+                }
+                onSelectedHandCardAction={handleSelectedHandCardAction}
               />
             </div>
           </>
@@ -2538,41 +2600,32 @@ export const GameBoard = memo(function GameBoard({
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
-        {canShowSpecialPlayEntry && (
-          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[83] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                  特殊登场
-                </div>
-                <div className="mt-0.5 truncate text-sm font-semibold">
-                  {selectedCardPresentation
-                    ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
-                    : '成员登场'}
-                </div>
+        {specialPlayTargetSelectionOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="取消特殊登场"
+              className="modal-backdrop fixed inset-0 z-[93]"
+              onClick={() => setSpecialPlayTargetSelectionCardId(null)}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="选择特殊登场区域"
+              className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                特殊登场
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setSpecialPlayTargetSelectionCardId((current) =>
-                    current === selectedCardId ? null : selectedCardId
-                  )
-                }
-                className={cn(
-                  specialPlayTargetSelectionOpen ? 'button-secondary' : 'button-primary',
-                  'inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold'
-                )}
-              >
-                {specialPlayTargetSelectionOpen ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <DoorOpen className="h-4 w-4" />
-                )}
-                {specialPlayTargetSelectionOpen ? '取消' : '特殊登场'}
-              </button>
-            </div>
-            {specialPlayTargetSelectionOpen && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-1 text-sm font-semibold">
+                {selectedCardPresentation
+                  ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+                  : '成员登场'}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                选择登场区域，随后选择 3 名指定成员放入休息室。
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
                 {MEMBER_SLOT_ORDER.map((slot) => {
                   const enabled = specialPlayTargetSlots.includes(slot);
                   return (
@@ -2582,7 +2635,7 @@ export const GameBoard = memo(function GameBoard({
                       disabled={!enabled}
                       onClick={() => handleBeginSpecialPlayAtSlot(slot)}
                       className={cn(
-                        'button-secondary inline-flex min-h-10 items-center justify-center px-2 text-xs font-semibold',
+                        'button-secondary inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
                         !enabled && 'cursor-not-allowed opacity-40'
                       )}
                     >
@@ -2591,92 +2644,99 @@ export const GameBoard = memo(function GameBoard({
                   );
                 })}
               </div>
-            )}
-          </div>
-        )}
-
-        {canShowDoubleRelayEntry && !canShowSpecialPlayEntry && (
-          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[82] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                  双换手
-                </div>
-                <div className="mt-0.5 truncate text-sm font-semibold">
-                  {selectedCardPresentation
-                    ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
-                    : '成员登场'}
-                </div>
-              </div>
-              {!activeDoubleRelaySelection ? (
+              <div className="mt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={handleStartDoubleRelay}
-                  className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-                  title="双换手"
+                  onClick={() => setSpecialPlayTargetSelectionCardId(null)}
+                  className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
                 >
-                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                  双换手
+                  取消
                 </button>
-              ) : (
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeDoubleRelaySelection && (
+          <>
+            <button
+              type="button"
+              aria-label="取消双换手"
+              className="modal-backdrop fixed inset-0 z-[93]"
+              onClick={() => setDoubleRelaySelection(null)}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="选择双换手区域"
+              className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                双换手
+              </div>
+              <div className="mt-1 text-sm font-semibold">
+                {selectedCardPresentation
+                  ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+                  : '成员登场'}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                依次选择两个成员区。第 1 个是登场位置，第 2 个是追加换手位置。
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {MEMBER_SLOT_ORDER.map((slot) => {
+                  const isAvailable = viewerOccupiedMemberSlots.some(
+                    (entry) => entry.slot === slot
+                  );
+                  const selectedOrderIndex = doubleRelaySelectedSlots.indexOf(slot);
+                  const isSelected = selectedOrderIndex >= 0;
+                  const isDisabled =
+                    !isAvailable || (!isSelected && doubleRelaySelectedSlots.length >= 2);
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => handleSelectDoubleRelaySlot(slot)}
+                      className={cn(
+                        'button-secondary relative inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
+                        isSelected &&
+                          'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
+                        isDisabled && 'cursor-not-allowed opacity-40'
+                      )}
+                    >
+                      {MEMBER_SLOT_LABELS[slot]}
+                      {isSelected && (
+                        <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
+                          {selectedOrderIndex + 1}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => setDoubleRelaySelection(null)}
-                  className="button-secondary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-                  title="取消双换手"
+                  className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
                 >
-                  <X className="h-4 w-4" aria-hidden="true" />
                   取消
                 </button>
-              )}
+                <button
+                  type="button"
+                  disabled={!canConfirmDoubleRelay}
+                  onClick={handleConfirmDoubleRelay}
+                  className={cn(
+                    'button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold',
+                    !canConfirmDoubleRelay && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                  双换手登场
+                </button>
+              </div>
             </div>
-            {activeDoubleRelaySelection && (
-              <>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {viewerOccupiedMemberSlots.map(({ slot }) => {
-                    const selectedOrderIndex = doubleRelaySelectedSlots.indexOf(slot);
-                    const isSelected = selectedOrderIndex >= 0;
-                    const isDisabled = isSelected || doubleRelaySelectedSlots.length >= 2;
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => handleSelectDoubleRelaySlot(slot)}
-                        className={cn(
-                          'button-secondary relative inline-flex min-h-10 items-center justify-center px-2 text-xs font-semibold',
-                          isSelected &&
-                            'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
-                          isDisabled && !isSelected && 'cursor-not-allowed opacity-50'
-                        )}
-                      >
-                        {MEMBER_SLOT_LABELS[slot]}
-                        {isSelected && (
-                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                            {selectedOrderIndex + 1}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 flex justify-end">
-                  <button
-                    type="button"
-                    disabled={!canConfirmDoubleRelay}
-                    onClick={handleConfirmDoubleRelay}
-                    className={cn(
-                      'button-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold',
-                      !canConfirmDoubleRelay && 'cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                    确认
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          </>
         )}
 
         {showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (

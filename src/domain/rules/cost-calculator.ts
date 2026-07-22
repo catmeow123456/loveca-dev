@@ -366,21 +366,25 @@ export class CostCalculator {
     const modifiedCost = costInfo.modifiedCost;
     const availableEnergy = resources.activeEnergyIds.length;
     const availablePlans: CostPaymentPlan[] = [];
+    const requiredEnergyCosts: number[] = [];
 
     // 方案1：直接支付（不换手）
-    if (options.relayMode === undefined && availableEnergy >= modifiedCost) {
-      availablePlans.push({
-        totalCost: baseCost,
-        modifiedCost,
-        costModifiers: costInfo.modifiers,
-        costModifierAmount: costInfo.modifierAmount,
-        energyToTap: resources.activeEnergyIds.slice(0, modifiedCost),
-        memberToRelay: null,
-        relayReplacements: [],
-        relayDiscount: 0,
-        actualEnergyCost: modifiedCost,
-        isRelay: false,
-      });
+    if (options.relayMode === undefined) {
+      requiredEnergyCosts.push(modifiedCost);
+      if (availableEnergy >= modifiedCost) {
+        availablePlans.push({
+          totalCost: baseCost,
+          modifiedCost,
+          costModifiers: costInfo.modifiers,
+          costModifierAmount: costInfo.modifierAmount,
+          energyToTap: resources.activeEnergyIds.slice(0, modifiedCost),
+          memberToRelay: null,
+          relayReplacements: [],
+          relayDiscount: 0,
+          actualEnergyCost: modifiedCost,
+          isRelay: false,
+        });
+      }
     }
 
     // 方案2：换手支付
@@ -407,6 +411,7 @@ export class CostCalculator {
         0
       );
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
+      requiredEnergyCosts.push(actualCost);
 
       if (availableEnergy >= actualCost) {
         availablePlans.push({
@@ -426,6 +431,7 @@ export class CostCalculator {
       const targetReplacement = this.createRelayReplacementPlan(targetMember);
       const relayDiscount = targetReplacement.effectiveCost;
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
+      requiredEnergyCosts.push(actualCost);
 
       if (availableEnergy >= actualCost) {
         availablePlans.push({
@@ -444,10 +450,12 @@ export class CostCalculator {
     }
 
     if (availablePlans.length === 0) {
+      const minimumRequiredEnergy =
+        requiredEnergyCosts.length > 0 ? Math.min(...requiredEnergyCosts) : modifiedCost;
       return {
         canPay: false,
         availablePlans: [],
-        reason: `费用不足：需要 ${modifiedCost} 能量，可用 ${availableEnergy} 能量`,
+        reason: `费用不足：需要 ${minimumRequiredEnergy} 能量，可用 ${availableEnergy} 能量`,
       };
     }
 

@@ -153,6 +153,36 @@ describe('CostCalculator', () => {
       expect(result.reason).toContain('费用不足');
     });
 
+    it('能量不足但可换手时应该报告换手后的最低实际费用', () => {
+      const memberData = createMockMemberData(4);
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [createStageMemberInfo('member-1', 2, SlotPosition.CENTER)],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toBe('费用不足：需要 2 能量，可用 0 能量');
+    });
+
+    it('目标成员不能被换手时应该继续报告全额费用', () => {
+      const memberData = createMockMemberData(4);
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [
+          createStageMemberInfo('protected-member', 20, SlotPosition.CENTER, {
+            cardCode: 'LL-bp2-001-R+',
+          }),
+        ],
+      };
+
+      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
+
+      expect(result.canPay).toBe(false);
+      expect(result.reason).toBe('费用不足：需要 4 能量，可用 0 能量');
+    });
+
     it('应该在有换手选项时提供换手方案', () => {
       const memberData = createMockMemberData(4);
       const resources: AvailableResources = {
