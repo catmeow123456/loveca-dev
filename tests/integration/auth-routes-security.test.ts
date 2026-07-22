@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   clientQuery: vi.fn(),
   clientRelease: vi.fn(),
   hashPassword: vi.fn(),
+  isLegacyCompatiblePasswordHash: vi.fn(),
   verifyPassword: vi.fn(),
   issueRefreshToken: vi.fn(),
   rotateRefreshToken: vi.fn(),
@@ -41,6 +42,7 @@ vi.mock('../../src/server/db/pool.js', () => ({
 vi.mock('../../src/server/services/auth-service.js', () => ({
   DUMMY_PASSWORD_HASH: 'dummy-password-hash',
   hashPassword: mocks.hashPassword,
+  isLegacyCompatiblePasswordHash: mocks.isLegacyCompatiblePasswordHash,
   verifyPassword: mocks.verifyPassword,
   issueRefreshToken: mocks.issueRefreshToken,
   rotateRefreshToken: mocks.rotateRefreshToken,
@@ -307,6 +309,34 @@ describe('authRouter security behavior', () => {
     expect(response.statusCode).toBe(403);
     expect(response.body?.error?.code).toBe('EMAIL_NOT_VERIFIED');
     expect(mocks.issueRefreshToken).not.toHaveBeenCalled();
+  });
+
+  it('upgrades a compatible legacy password after a successful login before issuing a session', async () => {
+    mocks.poolQuery.mockResolvedValue({ rows: [authUser()], rowCount: 1 });
+    mocks.verifyPassword.mockResolvedValue(true);
+    mocks.isLegacyCompatiblePasswordHash.mockReturnValue(true);
+    mocks.updatePasswordAndInvalidateSessions.mockResolvedValue(true);
+    mocks.issueRefreshToken.mockResolvedValue({
+      tokenId: '33333333-3333-4333-8333-333333333333',
+      rawToken: 'b'.repeat(80),
+    });
+
+    const response = await invokeRoute('/login', 'post', {
+      ip: '198.51.100.32',
+      body: { usernameOrEmail: 'user_name', password: 'password-123' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.hashPassword).toHaveBeenCalledWith('password-123');
+    expect(mocks.updatePasswordAndInvalidateSessions).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      'stored-password-hash',
+      'new-password-hash'
+    );
+    expect(mocks.issueRefreshToken).toHaveBeenCalledWith('11111111-1111-4111-8111-111111111111');
+    expect(mocks.updatePasswordAndInvalidateSessions.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.issueRefreshToken.mock.invocationCallOrder[0]!
+    );
   });
 
   it('rotates a v2 refresh token by token id and returns a new cookie', async () => {

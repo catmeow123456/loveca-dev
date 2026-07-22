@@ -1,7 +1,10 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { describe, expect, it } from 'vitest';
-import { PASSWORD_RESET_REQUIRED_HASH } from '../../src/server/auth-credential-format';
+import {
+  LEGACY_COMPATIBLE_PASSWORD_HASH_PREFIX,
+  PASSWORD_RESET_REQUIRED_HASH,
+} from '../../src/server/auth-credential-format';
 import { config, isCompleteSmtpConfiguration } from '../../src/server/config';
 import {
   hashRefreshToken,
@@ -39,9 +42,15 @@ describe('auth-service security primitives', () => {
     await expect(verifyPassword(collidingUnderRawBcrypt, passwordHash)).resolves.toBe(false);
   });
 
-  it('rejects legacy and reset-required password credentials', async () => {
+  it('accepts explicitly wrapped legacy credentials and rejects raw or reset-required values', async () => {
     const legacyHash = await bcrypt.hash('legacy-password', 4);
 
+    await expect(
+      verifyPassword('legacy-password', `${LEGACY_COMPATIBLE_PASSWORD_HASH_PREFIX}${legacyHash}`)
+    ).resolves.toBe(true);
+    await expect(
+      verifyPassword('wrong-password', `${LEGACY_COMPATIBLE_PASSWORD_HASH_PREFIX}${legacyHash}`)
+    ).resolves.toBe(false);
     await expect(verifyPassword('legacy-password', legacyHash)).resolves.toBe(false);
     await expect(verifyPassword('wrong-password', legacyHash)).resolves.toBe(false);
     await expect(verifyPassword('any-password', PASSWORD_RESET_REQUIRED_HASH)).resolves.toBe(false);

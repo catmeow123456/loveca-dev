@@ -2,6 +2,12 @@
 
 更新时间：2026-07-22
 
+## 2026-07-22：认证凭据兼容停机切换修复（未提交）
+
+- `auth-v1-to-v2-credential-cutover.ts` 改为将可识别 v1 bcrypt 摘要包裹为 `$loveca-bcrypt-raw$`，不再覆盖为必须重置；新版认证会在用户以原密码首次成功登录后，原子改写为当前 SHA-256 预哈希 bcrypt 格式。
+- apply 继续撤销全局刷新令牌、邮箱验证 token 与密码重置 token；dry-run 发现 reset-required 或未知格式凭据会阻断，不能用参数绕过。当前 v2、兼容旧 bcrypt、原始旧 bcrypt、reset-required 与未知格式均进入报告。
+- 修复位于 `fix/auth-v2-compatible-cutover` 隔离工作树，基于 `v3.7.2` 后的提交；`v3.7.2` tag 本身保持 reset-only 行为，正式发布需使用后续版本镜像。focused 认证 3 files / 25 tests、`pnpm typecheck`、Prettier 与 `git diff --check` 均通过。
+
 ## 2026-07-22：发布技能补充 loveca-api 镜像发布链路（未提交）
 
 - `prepare-for-release` 新增 loveca-api Docker 镜像构建与发布步骤：本地候选检查后推送 `vX.Y.Z` / `sha-<commit>`，验证版本镜像后再提升 `latest`，发布清单记录平台与 digest；所有 registry 推送动作仍须用户确认。

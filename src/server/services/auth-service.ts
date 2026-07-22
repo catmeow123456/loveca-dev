@@ -4,7 +4,11 @@ import crypto from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { config } from '../config.js';
 import { pool } from '../db/pool.js';
-import { CURRENT_PASSWORD_HASH_PREFIX, readCurrentBcryptHash } from '../auth-credential-format.js';
+import {
+  CURRENT_PASSWORD_HASH_PREFIX,
+  readCurrentBcryptHash,
+  readLegacyCompatibleBcryptHash,
+} from '../auth-credential-format.js';
 
 const SALT_ROUNDS = 12;
 const ACCESS_TOKEN_ISSUER = 'loveca-api';
@@ -47,14 +51,24 @@ export async function hashPassword(password: string): Promise<string> {
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   const preparedPassword = preparePasswordForBcrypt(password);
-  const bcryptHash = readCurrentBcryptHash(hash);
-  if (!bcryptHash) {
-    // Unsupported credential states are never accepted. Keep the comparison cost so
-    // accounts marked for reset do not create a cheap identity-enumeration oracle.
-    await bcrypt.compare(preparedPassword, DUMMY_BCRYPT_HASH);
-    return false;
+  const currentBcryptHash = readCurrentBcryptHash(hash);
+  if (currentBcryptHash) {
+    return bcrypt.compare(preparedPassword, currentBcryptHash);
   }
-  return bcrypt.compare(preparedPassword, bcryptHash);
+
+  const legacyBcryptHash = readLegacyCompatibleBcryptHash(hash);
+  if (legacyBcryptHash) {
+    return bcrypt.compare(password, legacyBcryptHash);
+  }
+
+  // Unsupported credential states are never accepted. Keep the comparison cost so
+  // accounts marked for reset do not create a cheap identity-enumeration oracle.
+  await bcrypt.compare(preparedPassword, DUMMY_BCRYPT_HASH);
+  return false;
+}
+
+export function isLegacyCompatiblePasswordHash(hash: string): boolean {
+  return readLegacyCompatibleBcryptHash(hash) !== null;
 }
 
 function preparePasswordForBcrypt(password: string): string {

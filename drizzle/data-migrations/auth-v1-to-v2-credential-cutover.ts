@@ -1,14 +1,14 @@
 /**
  * Cut authentication credentials from the v1 runtime formats to v2.
  *
- * This migration intentionally does not transform legacy bcrypt passwords: the
- * plaintext password is unavailable, so converting bcrypt(password) into
- * bcrypt(sha256(password)) is impossible. Legacy/unknown password credentials are
- * marked for reset, and every existing refresh/verification/reset token is revoked.
+ * Legacy bcrypt passwords are wrapped in an explicit compatible v2 format instead
+ * of being overwritten. The v2 runtime validates that format with the original
+ * bcrypt input and upgrades it to the current pre-hashed format after a successful
+ * login. Unknown or reset-required credentials block the migration.
  *
  * Usage:
  *   DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts --dry-run --report=tmp/auth-v2-dry-run.json
- *   DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts --apply --yes --invalidate-legacy-passwords --report=tmp/auth-v2-apply.json
+ *   DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts --apply --yes --report=tmp/auth-v2-apply.json
  */
 
 import * as fs from 'node:fs';
@@ -18,6 +18,8 @@ import pg from 'pg';
 import {
   BCRYPT_HASH_PATTERN_SOURCE,
   CURRENT_PASSWORD_HASH_PATTERN_SOURCE,
+  LEGACY_COMPATIBLE_PASSWORD_HASH_PATTERN_SOURCE,
+  LEGACY_COMPATIBLE_PASSWORD_HASH_PREFIX,
   PASSWORD_RESET_REQUIRED_HASH,
 } from '../../src/server/auth-credential-format.js';
 
@@ -26,8 +28,6 @@ type MigrationMode = 'dry-run' | 'apply';
 export interface AuthCredentialCutoverArgs {
   readonly mode: MigrationMode;
   readonly yes: boolean;
-  readonly invalidateLegacyPasswords: boolean;
-  readonly allowUnrecoverableAccounts: boolean;
   readonly reportPath: string | null;
 }
 
@@ -41,6 +41,7 @@ export interface AuthCredentialMigrationQueryClient {
 interface CredentialStatsRow {
   readonly total_user_count: number | string;
   readonly current_password_count: number | string;
+  readonly legacy_compatible_password_count: number | string;
   readonly reset_required_password_count: number | string;
   readonly legacy_bcrypt_password_count: number | string;
   readonly unsupported_password_count: number | string;
@@ -53,6 +54,7 @@ interface CredentialStatsRow {
 export interface AuthCredentialCutoverStats {
   readonly totalUserCount: number;
   readonly currentPasswordCount: number;
+  readonly legacyCompatiblePasswordCount: number;
   readonly resetRequiredPasswordCount: number;
   readonly legacyBcryptPasswordCount: number;
   readonly unsupportedPasswordCount: number;
@@ -65,8 +67,8 @@ export interface AuthCredentialCutoverStats {
 export interface AuthCredentialCutoverBlockingError {
   readonly code:
     | 'APPLY_CONFIRMATION_REQUIRED'
-    | 'LEGACY_PASSWORD_INVALIDATION_NOT_CONFIRMED'
-    | 'UNRECOVERABLE_ACCOUNT_IMPACT_NOT_CONFIRMED';
+    | 'RESET_REQUIRED_PASSWORD_CREDENTIALS_PRESENT'
+    | 'UNSUPPORTED_PASSWORD_CREDENTIALS_PRESENT';
   readonly message: string;
 }
 
@@ -80,7 +82,7 @@ export interface AuthCredentialCutoverReport {
   readonly applied: {
     readonly attempted: boolean;
     readonly committed: boolean;
-    readonly passwordsMarkedForReset: number;
+    readonly passwordsWrappedForCompatibility: number;
     readonly refreshTokensDeleted: number;
     readonly emailVerificationTokensDeleted: number;
     readonly passwordResetTokensDeleted: number;
@@ -94,8 +96,6 @@ export function parseAuthCredentialCutoverArgs(argv: readonly string[]): AuthCre
   let sawDryRun = false;
   let sawApply = false;
   let yes = false;
-  let invalidateLegacyPasswords = false;
-  let allowUnrecoverableAccounts = false;
   let reportPath: string | null = null;
 
   for (const arg of argv) {
@@ -107,10 +107,6 @@ export function parseAuthCredentialCutoverArgs(argv: readonly string[]): AuthCre
       mode = 'apply';
     } else if (arg === '--yes') {
       yes = true;
-    } else if (arg === '--invalidate-legacy-passwords') {
-      invalidateLegacyPasswords = true;
-    } else if (arg === '--allow-unrecoverable-accounts') {
-      allowUnrecoverableAccounts = true;
     } else if (arg.startsWith('--report=')) {
       reportPath = requireNonEmptyArg(arg, '--report=');
     } else if (arg === '--help' || arg === '-h') {
@@ -128,8 +124,6 @@ export function parseAuthCredentialCutoverArgs(argv: readonly string[]): AuthCre
   return {
     mode,
     yes,
-    invalidateLegacyPasswords,
-    allowUnrecoverableAccounts,
     reportPath,
   };
 }
@@ -143,7 +137,7 @@ export async function runAuthCredentialCutover(
   const emptyApplied = {
     attempted: args.mode === 'apply',
     committed: false,
-    passwordsMarkedForReset: 0,
+    passwordsWrappedForCompatibility: 0,
     refreshTokensDeleted: 0,
     emailVerificationTokensDeleted: 0,
     passwordResetTokensDeleted: 0,
@@ -161,18 +155,17 @@ export async function runAuthCredentialCutover(
     };
   }
 
-  const affectedPasswordCount = before.legacyBcryptPasswordCount + before.unsupportedPasswordCount;
+  const affectedPasswordCount = before.legacyBcryptPasswordCount;
   await queryClient.query('BEGIN');
   try {
     const passwordUpdate = await queryClient.query(
       `UPDATE users
-       SET password_hash = $1, updated_at = now()
-       WHERE password_hash !~ $2
-         AND password_hash <> $1`,
-      [PASSWORD_RESET_REQUIRED_HASH, CURRENT_PASSWORD_HASH_PATTERN_SOURCE]
+       SET password_hash = $1 || password_hash, updated_at = now()
+       WHERE password_hash ~ $2`,
+      [LEGACY_COMPATIBLE_PASSWORD_HASH_PREFIX, BCRYPT_HASH_PATTERN_SOURCE]
     );
     assertAffectedRows(
-      'password credential invalidation',
+      'legacy password compatibility wrapping',
       passwordUpdate.rowCount,
       affectedPasswordCount
     );
@@ -194,7 +187,7 @@ export async function runAuthCredentialCutover(
     );
 
     const after = await readCredentialStats(queryClient);
-    assertPostconditions(after);
+    assertPostconditions(after, before.legacyCompatiblePasswordCount + affectedPasswordCount);
     await queryClient.query('COMMIT');
 
     return {
@@ -207,7 +200,7 @@ export async function runAuthCredentialCutover(
       applied: {
         attempted: true,
         committed: true,
-        passwordsMarkedForReset: affectedPasswordCount,
+        passwordsWrappedForCompatibility: affectedPasswordCount,
         refreshTokensDeleted: before.refreshTokenCount,
         emailVerificationTokensDeleted: before.emailVerificationTokenCount,
         passwordResetTokensDeleted: before.passwordResetTokenCount,
@@ -226,28 +219,36 @@ async function readCredentialStats(
     `SELECT
        count(*)::int AS total_user_count,
        count(*) FILTER (WHERE password_hash ~ $1)::int AS current_password_count,
-       count(*) FILTER (WHERE password_hash = $2)::int AS reset_required_password_count,
-       count(*) FILTER (WHERE password_hash ~ $3)::int AS legacy_bcrypt_password_count,
+       count(*) FILTER (WHERE password_hash ~ $2)::int AS legacy_compatible_password_count,
+       count(*) FILTER (WHERE password_hash = $3)::int AS reset_required_password_count,
+       count(*) FILTER (WHERE password_hash ~ $4)::int AS legacy_bcrypt_password_count,
        count(*) FILTER (
          WHERE password_hash !~ $1
-           AND password_hash <> $2
-           AND password_hash !~ $3
+           AND password_hash !~ $2
+           AND password_hash <> $3
+           AND password_hash !~ $4
        )::int AS unsupported_password_count,
        count(*) FILTER (
-         WHERE password_hash !~ $1
+         WHERE password_hash = $3
            AND lower(email) LIKE '%@placeholder.loveca.local'
        )::int AS placeholder_reset_required_count,
        (SELECT count(*)::int FROM refresh_tokens) AS refresh_token_count,
        (SELECT count(*)::int FROM email_verification_tokens) AS email_verification_token_count,
        (SELECT count(*)::int FROM password_reset_tokens) AS password_reset_token_count
      FROM users`,
-    [CURRENT_PASSWORD_HASH_PATTERN_SOURCE, PASSWORD_RESET_REQUIRED_HASH, BCRYPT_HASH_PATTERN_SOURCE]
+    [
+      CURRENT_PASSWORD_HASH_PATTERN_SOURCE,
+      LEGACY_COMPATIBLE_PASSWORD_HASH_PATTERN_SOURCE,
+      PASSWORD_RESET_REQUIRED_HASH,
+      BCRYPT_HASH_PATTERN_SOURCE,
+    ]
   );
   const row = result.rows[0];
   if (!row) throw new Error('Failed to read authentication credential statistics');
   return {
     totalUserCount: toNumber(row.total_user_count),
     currentPasswordCount: toNumber(row.current_password_count),
+    legacyCompatiblePasswordCount: toNumber(row.legacy_compatible_password_count),
     resetRequiredPasswordCount: toNumber(row.reset_required_password_count),
     legacyBcryptPasswordCount: toNumber(row.legacy_bcrypt_password_count),
     unsupportedPasswordCount: toNumber(row.unsupported_password_count),
@@ -272,18 +273,17 @@ function collectBlockingErrors(
     });
   }
 
-  const affectedPasswordCount = stats.legacyBcryptPasswordCount + stats.unsupportedPasswordCount;
-  if (affectedPasswordCount > 0 && !args.invalidateLegacyPasswords) {
+  if (stats.resetRequiredPasswordCount > 0) {
     errors.push({
-      code: 'LEGACY_PASSWORD_INVALIDATION_NOT_CONFIRMED',
-      message: `${affectedPasswordCount} legacy/unsupported password credentials require --invalidate-legacy-passwords`,
+      code: 'RESET_REQUIRED_PASSWORD_CREDENTIALS_PRESENT',
+      message: `${stats.resetRequiredPasswordCount} password credentials are already reset-required and cannot preserve the original password`,
     });
   }
 
-  if (stats.placeholderResetRequiredCount > 0 && !args.allowUnrecoverableAccounts) {
+  if (stats.unsupportedPasswordCount > 0) {
     errors.push({
-      code: 'UNRECOVERABLE_ACCOUNT_IMPACT_NOT_CONFIRMED',
-      message: `${stats.placeholderResetRequiredCount} placeholder-email accounts cannot self-service a password reset; resolve them first or pass --allow-unrecoverable-accounts`,
+      code: 'UNSUPPORTED_PASSWORD_CREDENTIALS_PRESENT',
+      message: `${stats.unsupportedPasswordCount} password credentials have an unknown format and cannot be verified without an explicit recovery plan`,
     });
   }
   return errors;
@@ -299,9 +299,20 @@ function assertAffectedRows(
   }
 }
 
-function assertPostconditions(stats: AuthCredentialCutoverStats): void {
+function assertPostconditions(
+  stats: AuthCredentialCutoverStats,
+  expectedLegacyCompatiblePasswordCount: number
+): void {
   if (stats.legacyBcryptPasswordCount !== 0 || stats.unsupportedPasswordCount !== 0) {
     throw new Error('Legacy or unsupported password credentials remain after migration');
+  }
+  if (stats.resetRequiredPasswordCount !== 0) {
+    throw new Error('Reset-required password credentials remain after migration');
+  }
+  if (stats.legacyCompatiblePasswordCount !== expectedLegacyCompatiblePasswordCount) {
+    throw new Error(
+      `Compatible legacy password count was ${stats.legacyCompatiblePasswordCount}; expected ${expectedLegacyCompatiblePasswordCount}`
+    );
   }
   if (
     stats.refreshTokenCount !== 0 ||
@@ -330,14 +341,12 @@ function printUsage(): void {
   console.log(`
 Usage:
   DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts --dry-run --report=tmp/auth-v2-dry-run.json
-  DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts --apply --yes --invalidate-legacy-passwords --report=tmp/auth-v2-apply.json
+  DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts --apply --yes --report=tmp/auth-v2-apply.json
 
 Options:
   --dry-run                       Analyze only. This is the default.
-  --apply                         Mark legacy passwords for reset and revoke all auth tokens.
+  --apply                         Wrap legacy password hashes and revoke all auth tokens.
   --yes                           Required for apply.
-  --invalidate-legacy-passwords   Confirm that legacy/unknown passwords will stop working.
-  --allow-unrecoverable-accounts  Allow placeholder-email accounts to require operator recovery.
   --report=<path>                 Write a machine-readable JSON report.
 `);
 }
@@ -347,6 +356,9 @@ function printReport(report: AuthCredentialCutoverReport): void {
   console.log(`  Mode: ${report.mode}`);
   console.log(`  Users: ${report.before.totalUserCount}`);
   console.log(`  Current password credentials: ${report.before.currentPasswordCount}`);
+  console.log(
+    `  Compatible legacy password credentials: ${report.before.legacyCompatiblePasswordCount}`
+  );
   console.log(`  Existing reset-required credentials: ${report.before.resetRequiredPasswordCount}`);
   console.log(`  Legacy bcrypt credentials: ${report.before.legacyBcryptPasswordCount}`);
   console.log(`  Unsupported credentials: ${report.before.unsupportedPasswordCount}`);
@@ -360,7 +372,9 @@ function printReport(report: AuthCredentialCutoverReport): void {
     console.error(`  BLOCKED [${error.code}]: ${error.message}`);
   }
   if (report.applied.committed) {
-    console.log(`  Passwords marked for reset: ${report.applied.passwordsMarkedForReset}`);
+    console.log(
+      `  Passwords wrapped for compatibility: ${report.applied.passwordsWrappedForCompatibility}`
+    );
     console.log('  Transaction committed and postconditions passed');
   }
 }

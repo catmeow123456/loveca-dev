@@ -153,7 +153,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 - 迁移前必须有 Postgres 备份。
 - 不要用 `pnpm db:push` 代替生产迁移。
 - 如果迁移包含数据修复，先在测试数据库验证可重复执行性和失败后的处理方式。
-- 如果发布包含认证凭据 v1 -> v2 切换，必须在停机窗口按 `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md` 先执行 dry-run、处理占位邮箱账号并应用数据迁移，再部署只接受 v2 格式的 API。
+- 如果发布包含认证凭据 v1 -> v2 切换，必须在停机窗口按 `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md` 先执行 dry-run；仅当报告中不存在 reset-required 或未知密码格式时才能 apply。部署必须包含兼容封装验证与首次登录自动升级，不能使用原 `v3.7.2` 的 reset-only 认证镜像。
 - `docker/init.sql` 包含部分 Drizzle schema 不表达的函数和触发器；新库初始化与已有库迁移不能混为一谈。
 
 ## 6. 部署

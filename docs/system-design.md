@@ -386,7 +386,7 @@ graph LR
 - 刷新令牌通过 HttpOnly Cookie 传递，Cookie 保存令牌定位符与随机 secret，数据库只保存 secret 预哈希后的 bcrypt 摘要；刷新和当前设备登出分别在数据库事务中锁定、校验并轮换或撤销目标令牌。
 - 启用 `EMAIL_ENABLED` 后，注册邮箱和登录前验证成为强制门禁，服务启动时校验完整 SMTP 配置。邮箱验证与密码重置只保存带密钥摘要，一次性 token 的消费、账号更新和相关会话撤销在同一事务完成；邮件链接通过 URL fragment 交给前端并在页面初始化时清理。
 - 认证端点统一返回不可缓存响应，并使用按 IP 与账号标识组合的有界限流；当前部署边界见 `docs/current-limitations.md`。
-- 运行时只接受 v2 密码、刷新 Cookie 和一次性 token 格式；旧凭据通过 `drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts` 在维护窗口统一失效，不在认证业务路径中兼容读取。
+- 运行时只接受 v2 刷新 Cookie 和一次性 token 格式；维护窗口中的认证切换将可识别的旧 bcrypt 密码封装成显式兼容状态，成功登录后原子升级为当前 v2 预哈希格式。原始旧 Cookie 和一次性 token 统一失效；已标记重置或未知密码格式会阻断迁移，不以运行时兜底伪装为可登录账号。
 
 认证关键代码路径：
 

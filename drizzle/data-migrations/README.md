@@ -6,4 +6,4 @@ Run them only from the matching `drizzle/migration-notes/` release instructions,
 
 Current scripts:
 
-- `auth-v1-to-v2-credential-cutover.ts`: removes v1 authentication credential states before deploying the v2-only runtime. Follow `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md`; legacy passwords cannot be transformed and must be reset.
+- `auth-v1-to-v2-credential-cutover.ts`: wraps recognizable v1 bcrypt password hashes in an explicit compatibility format before deploying the v2 runtime. Successful logins upgrade those hashes to the current pre-hashed format. Follow `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md`; reset-required or unknown credentials block apply because their original passwords cannot be guaranteed.

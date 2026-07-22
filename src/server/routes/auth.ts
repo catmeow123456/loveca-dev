@@ -16,6 +16,7 @@ import {
   createPasswordResetToken,
   deleteAllRefreshTokens,
   hashPassword,
+  isLegacyCompatiblePasswordHash,
   issueRefreshToken,
   resetPasswordWithToken,
   revokeRefreshToken,
@@ -306,7 +307,8 @@ authRouter.post('/login', validate(loginSchema), loginRateLimit, async (req, res
       return;
     }
 
-    const passwordValid = await verifyPassword(password, user.password_hash ?? '');
+    const storedPasswordHash = user.password_hash ?? '';
+    const passwordValid = await verifyPassword(password, storedPasswordHash);
     if (!passwordValid) {
       respondInvalidCredentials(res);
       return;
@@ -318,6 +320,19 @@ authRouter.post('/login', validate(loginSchema), loginRateLimit, async (req, res
         error: { code: 'EMAIL_NOT_VERIFIED', message: '请先验证邮箱' },
       });
       return;
+    }
+
+    if (isLegacyCompatiblePasswordHash(storedPasswordHash)) {
+      const upgradedPasswordHash = await hashPassword(password);
+      const upgraded = await updatePasswordAndInvalidateSessions(
+        user.id,
+        storedPasswordHash,
+        upgradedPasswordHash
+      );
+      if (!upgraded) {
+        respondInvalidCredentials(res);
+        return;
+      }
     }
 
     const issuedRefreshToken = await issueRefreshToken(user.id);

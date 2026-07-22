@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { LEGACY_COMPATIBLE_PASSWORD_HASH_PREFIX } from '../../src/server/auth-credential-format';
 import {
   parseAuthCredentialCutoverArgs,
   runAuthCredentialCutover,
@@ -16,8 +17,6 @@ function args(overrides: Partial<AuthCredentialCutoverArgs> = {}): AuthCredentia
   return {
     mode: 'dry-run',
     yes: false,
-    invalidateLegacyPasswords: false,
-    allowUnrecoverableAccounts: false,
     reportPath: null,
     ...overrides,
   };
@@ -29,6 +28,7 @@ function createStats(
   return {
     totalUserCount: 3,
     currentPasswordCount: 1,
+    legacyCompatiblePasswordCount: 0,
     resetRequiredPasswordCount: 0,
     legacyBcryptPasswordCount: 2,
     unsupportedPasswordCount: 0,
@@ -57,6 +57,7 @@ function createHarness(initial: AuthCredentialCutoverStats): {
             {
               total_user_count: stats.totalUserCount,
               current_password_count: stats.currentPasswordCount,
+              legacy_compatible_password_count: stats.legacyCompatiblePasswordCount,
               reset_required_password_count: stats.resetRequiredPasswordCount,
               legacy_bcrypt_password_count: stats.legacyBcryptPasswordCount,
               unsupported_password_count: stats.unsupportedPasswordCount,
@@ -69,12 +70,11 @@ function createHarness(initial: AuthCredentialCutoverStats): {
         });
       }
       if (text.trim().startsWith('UPDATE users')) {
-        const affected = stats.legacyBcryptPasswordCount + stats.unsupportedPasswordCount;
+        const affected = stats.legacyBcryptPasswordCount;
         stats = {
           ...stats,
-          resetRequiredPasswordCount: stats.resetRequiredPasswordCount + affected,
+          legacyCompatiblePasswordCount: stats.legacyCompatiblePasswordCount + affected,
           legacyBcryptPasswordCount: 0,
-          unsupportedPasswordCount: 0,
         };
         return Promise.resolve({ rows: [] as T[], rowCount: affected });
       }
@@ -104,22 +104,12 @@ function createHarness(initial: AuthCredentialCutoverStats): {
 }
 
 describe('auth credential v1 to v2 cutover', () => {
-  it('defaults to dry-run and parses explicit destructive confirmations', () => {
+  it('defaults to dry-run and parses the explicit apply confirmation', () => {
     expect(parseAuthCredentialCutoverArgs([])).toEqual(args());
-    expect(
-      parseAuthCredentialCutoverArgs([
-        '--apply',
-        '--yes',
-        '--invalidate-legacy-passwords',
-        '--allow-unrecoverable-accounts',
-        '--report=tmp/auth.json',
-      ])
-    ).toEqual(
+    expect(parseAuthCredentialCutoverArgs(['--apply', '--yes', '--report=tmp/auth.json'])).toEqual(
       args({
         mode: 'apply',
         yes: true,
-        invalidateLegacyPasswords: true,
-        allowUnrecoverableAccounts: true,
         reportPath: 'tmp/auth.json',
       })
     );
@@ -140,29 +130,30 @@ describe('auth credential v1 to v2 cutover', () => {
     expect(harness.calls).toHaveLength(1);
   });
 
-  it('blocks apply until password invalidation and placeholder-account impact are explicit', async () => {
-    const harness = createHarness(createStats({ placeholderResetRequiredCount: 1 }));
+  it('blocks apply when any existing credential cannot preserve the original password', async () => {
+    const harness = createHarness(
+      createStats({ resetRequiredPasswordCount: 1, unsupportedPasswordCount: 1, totalUserCount: 5 })
+    );
     const report = await runAuthCredentialCutover(
       harness.client,
       args({ mode: 'apply', yes: true })
     );
 
     expect(report.blockingErrors.map((error) => error.code)).toEqual([
-      'LEGACY_PASSWORD_INVALIDATION_NOT_CONFIRMED',
-      'UNRECOVERABLE_ACCOUNT_IMPACT_NOT_CONFIRMED',
+      'RESET_REQUIRED_PASSWORD_CREDENTIALS_PRESENT',
+      'UNSUPPORTED_PASSWORD_CREDENTIALS_PRESENT',
     ]);
     expect(report.applied.committed).toBe(false);
     expect(harness.calls).toHaveLength(1);
   });
 
-  it('marks old passwords for reset and revokes all token families atomically', async () => {
-    const harness = createHarness(createStats({ unsupportedPasswordCount: 1, totalUserCount: 4 }));
+  it('wraps old passwords without changing their bcrypt digest and revokes all token families atomically', async () => {
+    const harness = createHarness(createStats());
     const report = await runAuthCredentialCutover(
       harness.client,
       args({
         mode: 'apply',
         yes: true,
-        invalidateLegacyPasswords: true,
       })
     );
 
@@ -170,13 +161,13 @@ describe('auth credential v1 to v2 cutover', () => {
     expect(report.applied).toEqual({
       attempted: true,
       committed: true,
-      passwordsMarkedForReset: 3,
+      passwordsWrappedForCompatibility: 2,
       refreshTokensDeleted: 2,
       emailVerificationTokensDeleted: 1,
       passwordResetTokensDeleted: 1,
     });
     expect(report.after).toMatchObject({
-      resetRequiredPasswordCount: 3,
+      legacyCompatiblePasswordCount: 2,
       legacyBcryptPasswordCount: 0,
       unsupportedPasswordCount: 0,
       refreshTokenCount: 0,
@@ -186,7 +177,14 @@ describe('auth credential v1 to v2 cutover', () => {
     expect(harness.calls.map((call) => call.text)).toEqual(
       expect.arrayContaining(['BEGIN', 'COMMIT'])
     );
-    expect(harness.stats()).toMatchObject({ resetRequiredPasswordCount: 3 });
+    expect(harness.stats()).toMatchObject({ legacyCompatiblePasswordCount: 2 });
+    const passwordUpdate = harness.calls.find((call) =>
+      call.text.trim().startsWith('UPDATE users')
+    );
+    expect(passwordUpdate?.values).toEqual([
+      LEGACY_COMPATIBLE_PASSWORD_HASH_PREFIX,
+      expect.stringContaining('^\\$2'),
+    ]);
   });
 
   it('rolls back when affected rows no longer match the analyzed counts', async () => {
@@ -207,7 +205,6 @@ describe('auth credential v1 to v2 cutover', () => {
         args({
           mode: 'apply',
           yes: true,
-          invalidateLegacyPasswords: true,
         })
       )
     ).rejects.toThrow('refresh token deletion affected 1 rows; expected 2');
