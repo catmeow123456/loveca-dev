@@ -2,14 +2,14 @@
 
 > 文档类型：专题说明
 > 适用范围：当前自托管生产发布、部署前检查、部署步骤、健康检查和回滚
-> 当前状态：2026-06-15 最小发布 runbook；生产 Nginx、TLS、对象存储和备份实现仍由部署环境维护
+> 当前状态：2026-07-22 现行发布 runbook；生产 Nginx、TLS、对象存储和备份实现仍由部署环境维护
 
 本文记录当前仓库能够稳定承接的生产发布步骤。它不是完整 IaC 方案，也不表示生产 `docker-compose.yml` 已覆盖前端、Nginx、MinIO、TLS 或自动迁移任务。
 
 ## 1. 当前生产边界
 
 - `Dockerfile` 只构建 API runtime 镜像，运行入口为 `dist/server/index.js`。
-- 生产 `docker-compose.yml` 只包含 Postgres 和 API。
+- 生产 `docker-compose.yml` 只包含 Postgres 和 API；API 镜像由 `LOVECA_API_IMAGE` 指定，默认拉取 `ghcr.io/catmeow123456/loveca-api:latest`。
 - 前端 `client/dist` 需要部署到独立静态服务或 Nginx 管理的目录。
 - 生产图片访问应由 Nginx 或其他反向代理将 `/images/*` 转发到外部 MinIO / S3 兼容对象存储；生产 API 不直接提供 `/images` 静态兜底。
 - `/api/health` 当前只表示 API 进程可响应。数据库、对象存储和必要函数的 ready check 尚未独立落地。
@@ -27,6 +27,7 @@
   git tag -a v3.3.0 -m "发布 v3.3.0"
   git push origin v3.3.0
   ```
+- API 镜像使用 `vX.Y.Z` 与 `sha-<12位提交>` 作为可追溯标签；`latest` 只在版本镜像验证通过后提升。生产部署可以拉取 `latest`，但必须记录实际 digest，回滚使用上一版版本标签或 digest。
 
 ## 3. 发布前检查
 
@@ -78,15 +79,56 @@
 
 ## 4. 构建
 
-在发布机或 CI 构建环境执行：
+在发布机或 CI 构建环境执行代码构建：
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm version:check
 pnpm build:server
 pnpm --dir client build
-docker compose build api
 ```
+
+构建并发布 API 镜像。推送 registry 与提升 `latest` 都是对外动作，执行前必须确认目标仓库、生产平台与用户授权；以下以 `linux/amd64` 为例，实际值必须与生产机一致。推送前分别检查版本标签与提交标签，不要把检查命令和推送命令合并成一段直接执行。任一标签已存在时不得覆盖：两个标签必须都存在、指向相同 digest，且 revision 与当前 `GIT_SHA` 一致，才能复用既有镜像；其他情况一律停止发布并核查。
+
+```bash
+API_IMAGE_REPOSITORY=ghcr.io/catmeow123456/loveca-api
+RELEASE_VERSION="$(tr -d '[:space:]' < VERSION)"
+RELEASE_TAG="v${RELEASE_VERSION}"
+GIT_SHA="$(git rev-parse HEAD)"
+SHORT_SHA="$(git rev-parse --short=12 HEAD)"
+TARGET_PLATFORMS=linux/amd64
+
+docker build --pull -t "loveca-api:release-candidate-${SHORT_SHA}" .
+docker run --rm --entrypoint node "loveca-api:release-candidate-${SHORT_SHA}" --check dist/server/index.js
+```
+
+先分别执行并人工核对两个不可变标签；确认两个标签都不存在后，才执行后续推送：
+
+```bash
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}"
+```
+
+两个标签都不存在时，再使用已确认的平台推送：
+
+```bash
+docker buildx build --pull \
+  --platform "${TARGET_PLATFORMS}" \
+  --label "org.opencontainers.image.source=https://github.com/catmeow123456/loveca-dev" \
+  --label "org.opencontainers.image.revision=${GIT_SHA}" \
+  --label "org.opencontainers.image.version=${RELEASE_VERSION}" \
+  --tag "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}" \
+  --tag "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}" \
+  --push .
+
+docker buildx imagetools inspect "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+docker buildx imagetools create \
+  --tag "${API_IMAGE_REPOSITORY}:latest" \
+  "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+docker buildx imagetools inspect "${API_IMAGE_REPOSITORY}:latest"
+```
+
+若 GHCR package 为 private，发布机需要 package write 权限，生产机需要 package read 权限；token 只通过安全凭据注入，不写入仓库、命令参数或日志。发布记录必须保存版本标签、提交标签、平台与 digest。
 
 构建产物：
 
@@ -110,11 +152,15 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 
 ## 6. 部署
 
-1. 部署 API：
+1. 部署 API。先将 `LOVECA_API_IMAGE` 设为要部署的版本标签或 digest；紧急验证 `latest` 时也必须记录其实际 digest。生产机不得重新构建 API：
 
    ```bash
+   export LOVECA_API_IMAGE=ghcr.io/catmeow123456/loveca-api:vX.Y.Z
    docker compose up -d postgres
-   docker compose up -d --build api
+   docker compose pull api
+   docker compose up -d --no-build --no-deps api
+   docker compose images api
+   docker image inspect --format '{{json .RepoDigests}}' "${LOVECA_API_IMAGE}"
    ```
 
 2. 部署前端：
@@ -177,10 +223,12 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 2. API 回滚：
 
    ```bash
-   docker compose up -d --no-deps api
+   export LOVECA_API_IMAGE=ghcr.io/catmeow123456/loveca-api:v上一版本
+   docker compose pull api
+   docker compose up -d --no-build --no-deps api
    ```
 
-   回滚前需要将 compose 或镜像 tag 指回上一版 API image。
+   优先使用发布记录中的上一版 digest；至少要使用不可变版本标签，不要用 `latest` 猜测上一版。
 
 3. 数据库回滚：
 

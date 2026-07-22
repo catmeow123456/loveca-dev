@@ -37,11 +37,10 @@ pnpm android:twa:doctor         # Check local Android packaging prerequisites
 pnpm android:assetlinks         # Generate Digital Asset Links from env vars
 pnpm android:twa:build:docker   # Build the Bubblewrap TWA APK/AAB with Docker
 
-# Docker (backend runs in Docker container)
-docker compose up -d --build api   # Rebuild & restart API container
-
 # Production
 pnpm start:prod          # Preview production build
+docker compose pull api
+docker compose up -d --no-build --no-deps api  # Deploy LOVECA_API_IMAGE
 ```
 
 ## Architecture Overview
