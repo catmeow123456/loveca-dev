@@ -44,6 +44,7 @@ const HEART_COLOR_LABELS: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '[緑ハート]',
   [HeartColor.BLUE]: '[青ハート]',
   [HeartColor.PURPLE]: '[紫ハート]',
+  [HeartColor.GRAY]: '[無色ハート]',
   [HeartColor.RAINBOW]: '[ALLハート]',
 };
 
@@ -129,9 +130,7 @@ function getVividWorldLiveSuccessConfirmationConfig(
     effectText: `${getAbilityEffectText(ability.abilityId)}（当前本次声援公开的『虹ヶ咲』成员印刷Heart：${
       presentText || '无'
     }；缺少：${missingText || '无'}；${
-      context.conditionMet
-        ? '满足条件，确认后此LIVE[スコア]+1'
-        : '未满足条件，确认后不增加[スコア]'
+      context.conditionMet ? '满足条件，确认后此LIVE[スコア]+1' : '未满足条件，确认后不增加[スコア]'
     }。）`,
     stepText: context.conditionMet ? '确认后此LIVE[スコア]+1。' : '确认后不增加[スコア]。',
   };
@@ -160,7 +159,9 @@ function evaluateVividWorldLiveSuccess(
   });
   const printedHeartColors = collectPrintedHeartColors(game, nijigasakiCheerMemberCardIds);
   const printedHeartColorSet = new Set(printedHeartColors);
-  const missingHeartColors = COUNTED_HEART_COLORS.filter((color) => !printedHeartColorSet.has(color));
+  const missingHeartColors = COUNTED_HEART_COLORS.filter(
+    (color) => !printedHeartColorSet.has(color)
+  );
   return {
     sourceInLiveZone,
     nijigasakiCheerMemberCardIds,
@@ -208,7 +209,9 @@ function formatHeartColors(colors: readonly HeartColor[]): string {
 function removePending(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }
 

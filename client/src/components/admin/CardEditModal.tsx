@@ -21,7 +21,9 @@ import { extractCardEffect } from '@/lib/aiService';
 import {
   GROUP_OPTIONS,
   GROUP_UNIT_MAP,
-  HEART_COLOR_OPTIONS,
+  BLADE_HEART_COLOR_OPTIONS,
+  MEMBER_HEART_COLOR_OPTIONS,
+  REQUIREMENT_HEART_COLOR_OPTIONS,
   RARITY_OPTIONS,
 } from '@/components/deck-editor/filter-constants';
 import { formDataToYaml, yamlToFormData } from './yaml-helpers';
@@ -696,7 +698,7 @@ export function CardEditModal({
                     </label>
                     {/* 颜色面板 */}
                     <div className="flex flex-wrap gap-1.5 mb-2">
-                      {HEART_COLOR_OPTIONS.map((opt) => (
+                      {MEMBER_HEART_COLOR_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => addOrIncrementHeart(opt.value as HeartColor)}
@@ -712,7 +714,7 @@ export function CardEditModal({
                     {/* 已选列表 */}
                     <div className="flex flex-wrap gap-1.5">
                       {(formData.hearts || []).map((heart, i) => {
-                        const opt = HEART_COLOR_OPTIONS.find((o) => o.value === heart.color);
+                        const opt = MEMBER_HEART_COLOR_OPTIONS.find((o) => o.value === heart.color);
                         return (
                           <div key={i} className={selectedChipClass}>
                             <span
@@ -773,7 +775,7 @@ export function CardEditModal({
                     </label>
                     {/* 颜色面板 */}
                     <div className="flex flex-wrap gap-1.5 mb-2">
-                      {HEART_COLOR_OPTIONS.map((opt) => (
+                      {REQUIREMENT_HEART_COLOR_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() => addOrIncrementReq(opt.value as HeartColor)}
@@ -789,7 +791,11 @@ export function CardEditModal({
                     {/* 已选列表 */}
                     <div className="flex flex-wrap gap-1.5">
                       {(formData.requirements || []).map((req, i) => {
-                        const opt = HEART_COLOR_OPTIONS.find((o) => o.value === req.color);
+                        const requirementColor =
+                          req.color === HeartColor.GRAY ? HeartColor.RAINBOW : req.color;
+                        const opt = REQUIREMENT_HEART_COLOR_OPTIONS.find(
+                          (o) => o.value === requirementColor
+                        );
                         return (
                           <div key={i} className={selectedChipClass}>
                             <span
@@ -850,7 +856,7 @@ export function CardEditModal({
                         加分
                       </button>
                       <span className="mx-1 border-l border-[var(--border-subtle)]" />
-                      {HEART_COLOR_OPTIONS.map((opt) => (
+                      {BLADE_HEART_COLOR_OPTIONS.map((opt) => (
                         <button
                           key={opt.value}
                           onClick={() =>
@@ -859,9 +865,9 @@ export function CardEditModal({
                           className={chipButtonClass}
                         >
                           <span
-                            className={`inline-block w-2.5 h-2.5 rounded-full ${opt.value === HeartColor.RAINBOW ? 'bg-pink-400' : opt.colorClass}`}
+                            className={`inline-block w-2.5 h-2.5 rounded-full ${opt.colorClass}`}
                           />
-                          {opt.value === HeartColor.RAINBOW ? 'All' : opt.label}
+                          {opt.label}
                         </button>
                       ))}
                     </div>
@@ -875,15 +881,11 @@ export function CardEditModal({
                         } else if (item.effect === BladeHeartEffect.SCORE) {
                           pillLabel = '加分';
                         } else if (item.effect === BladeHeartEffect.HEART && item.heartColor) {
-                          const opt = HEART_COLOR_OPTIONS.find((o) => o.value === item.heartColor);
-                          pillColor =
-                            item.heartColor === HeartColor.RAINBOW
-                              ? 'bg-pink-400'
-                              : (opt?.colorClass ?? 'bg-gray-400');
-                          pillLabel =
-                            item.heartColor === HeartColor.RAINBOW
-                              ? 'All'
-                              : (opt?.label ?? item.heartColor);
+                          const opt = BLADE_HEART_COLOR_OPTIONS.find(
+                            (option) => option.value === item.heartColor
+                          );
+                          pillColor = opt?.colorClass ?? 'bg-gray-400';
+                          pillLabel = opt?.label ?? item.heartColor;
                         }
                         return (
                           <div key={i} className={selectedChipClass}>

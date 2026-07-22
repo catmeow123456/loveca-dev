@@ -53,6 +53,7 @@ flowchart LR
 - JP 数据作为结构化规则字段主源，CN 数据作为新卡初始中文和补充源。
 - Loveca Excel / CloudBase `loveca` 作为已有卡卡牌类型、中日文本、来源字段、成员持有 Heart、BLADE Heart 和 LIVE 必要 Heart 的优先来源；来源类型缺失或无法映射时跳过该卡，且不覆盖费用、BLADE、LIVE 分数等其他结构化规则字段。
 - 结构化字段必须转换为项目内部模型后再写入。
+- Loveca Excel / CloudBase 的 `特殊ハート` token `double` 表示 1 个“双重无色 Heart”图标，写入时展开为两条 `{ effect: 'HEART', heartColor: 'GRAY' }`。`GRAY` 只增加 LIVE 判定总 Heart，不可填补指定颜色需求；不得映射为可代替任意颜色的 `RAINBOW`。
 - 已存在卡牌不允许静默覆盖，必须经过差异审核。
 - dry-run 不连接或写入目标数据库，只用于验证转换与统计。
 

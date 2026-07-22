@@ -1,5 +1,6 @@
 import { HeartColor } from '@game/shared/types/enums';
 import { applyHeartRequirementModifiers } from '@game/domain/rules/live-requirement-modifiers';
+import { calculateHeartDeficit, HeartPool } from '@game/domain/value-objects/heart';
 import type { HeartRequirement } from '@game/domain/entities/card';
 import { getHeartRequirementEntries } from './heartRequirementUtils';
 
@@ -69,7 +70,7 @@ export function normalizeHeartRequirement(requirements: unknown): HeartRequireme
   let explicitGenericRequired = 0;
 
   for (const entry of rawEntries) {
-    if (entry.color === HeartColor.RAINBOW) {
+    if (entry.color === HeartColor.RAINBOW || entry.color === HeartColor.GRAY) {
       explicitGenericRequired += entry.count;
       continue;
     }
@@ -151,55 +152,13 @@ function evaluateHeartRequirement(
   readonly deficit: Map<HeartColor, number>;
 } {
   const requirement = normalizeHeartRequirement(requirements);
-  const remaining = cloneHeartCounts(hearts);
-  const deficit = new Map<HeartColor, number>();
-  let rainbowAvailable = remaining.get(HeartColor.RAINBOW) ?? 0;
-  let consumedCount = 0;
-
-  for (const [color, required] of requirement.colorRequirements) {
-    if (color === HeartColor.RAINBOW) {
-      continue;
-    }
-
-    const available = remaining.get(color) ?? 0;
-    const normalUsed = Math.min(available, required);
-    const rainbowNeeded = required - normalUsed;
-    const rainbowUsed = Math.min(rainbowAvailable, rainbowNeeded);
-    const missing = rainbowNeeded - rainbowUsed;
-
-    remaining.set(color, available - normalUsed);
-    rainbowAvailable -= rainbowUsed;
-    consumedCount += normalUsed + rainbowUsed + missing;
-
-    if (missing > 0) {
-      deficit.set(color, (deficit.get(color) ?? 0) + missing);
-    }
-  }
-
-  let genericNeeded = Math.max(0, requirement.totalRequired - consumedCount);
-  for (const color of HEART_COLORS) {
-    if (genericNeeded <= 0 || color === HeartColor.RAINBOW) {
-      continue;
-    }
-    const available = remaining.get(color) ?? 0;
-    const used = Math.min(available, genericNeeded);
-    remaining.set(color, available - used);
-    genericNeeded -= used;
-  }
-
-  const rainbowUsedForGeneric = Math.min(rainbowAvailable, genericNeeded);
-  rainbowAvailable -= rainbowUsedForGeneric;
-  genericNeeded -= rainbowUsedForGeneric;
-  if (genericNeeded > 0) {
-    deficit.set(HeartColor.RAINBOW, genericNeeded);
-  }
-
-  remaining.set(HeartColor.RAINBOW, rainbowAvailable);
+  const pool = new HeartPool(new Map(hearts));
+  const remainingPool = pool.consume(requirement);
 
   return {
-    success: deficit.size === 0,
-    remaining,
-    deficit,
+    success: remainingPool !== null,
+    remaining: cloneHeartCounts(remainingPool?.toHeartCounts() ?? hearts),
+    deficit: remainingPool === null ? calculateHeartDeficit(pool, requirement) : new Map(),
   };
 }
 

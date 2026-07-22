@@ -155,8 +155,15 @@ const HEART_LABEL_BY_COLOR: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '绿',
   [HeartColor.BLUE]: '蓝',
   [HeartColor.PURPLE]: '紫',
-  [HeartColor.RAINBOW]: '无色',
+  [HeartColor.GRAY]: '无色',
+  [HeartColor.RAINBOW]: 'All',
 };
+
+function getHeartRequirementLabel(color: HeartColor): string {
+  return color === HeartColor.RAINBOW || color === HeartColor.GRAY
+    ? '无色'
+    : HEART_LABEL_BY_COLOR[color];
+}
 
 function getPreviewStatusLabel(status: LiveJudgmentPreviewStatus): string {
   switch (status) {
@@ -262,8 +269,8 @@ function HeartRequirementIcons({
         <span
           key={req.color}
           className="inline-flex items-center gap-0.5"
-          title={`${HEART_LABEL_BY_COLOR[req.color]}需求 ${req.count}`}
-          aria-label={`${HEART_LABEL_BY_COLOR[req.color]}需求 ${req.count}`}
+          title={`${getHeartRequirementLabel(req.color)}需求 ${req.count}`}
+          aria-label={`${getHeartRequirementLabel(req.color)}需求 ${req.count}`}
         >
           <img
             src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[req.color]}
@@ -290,8 +297,8 @@ function RequirementDeficitBadge({
         <span
           key={entry.color}
           className="inline-flex items-center gap-0.5 rounded bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-1 py-0.5"
-          title={`${HEART_LABEL_BY_COLOR[entry.color]}需求还差 ${entry.count}`}
-          aria-label={`${HEART_LABEL_BY_COLOR[entry.color]}需求还差 ${entry.count}`}
+          title={`${getHeartRequirementLabel(entry.color)}需求还差 ${entry.count}`}
+          aria-label={`${getHeartRequirementLabel(entry.color)}需求还差 ${entry.count}`}
         >
           <img
             src={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[entry.color]}

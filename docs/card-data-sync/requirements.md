@@ -49,6 +49,7 @@ CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 
 - Loveca Excel 的 `真实小队` 写入 `unit_name_raw`，清洗和别名标准化后写入 `unit_name`。
 - Loveca Excel 的 `基本ハート` 只对 MEMBER 写入 `hearts`，`必要ハート` 只对 LIVE 写入 `requirements`；字段为空或解析失败时保留数据库现值。
 - Loveca Excel 的 `ブレードハート` / `特殊ハート` 写入 `blade_hearts`。
+- Excel 或 CloudBase 的 `特殊ハート` 出现 `double` 时，必须转换为两个灰色/无色 Heart 判心项。灰色 Heart 只计入 LIVE 判定总数，不能替代指定颜色 Heart，也不能复用 `RAINBOW` 的万能色语义。
 - Loveca Excel 的官方 `作品名` / `参加ユニット` 存在已知修正问题，Excel 同步不得读取这两列；`work_names` 只由 llocg_db `series`、旧库迁移或人工维护入口维护。
 - Loveca Excel 的 `収録商品` / `商品编号` 分别写入 `product` / `product_code`。
 - CloudBase 新卡导入可以从 `作品名` / `work_names` / `series` 写入 `work_names`，因为该脚本只处理 DB 不存在的新记录；若上游字段质量未确认，应先保持默认 `DRAFT` 并用报告审核。

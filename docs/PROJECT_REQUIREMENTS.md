@@ -67,8 +67,9 @@ graph LR
 
 ### 4.2 Heart 与应援
 
-- Heart 包含六色与 Rainbow
-- Rainbow 在判定时可用于补足颜色缺口
+- Heart 包含六种指定颜色、无色/Gray 与 Rainbow/All
+- 无色/Gray Heart 只计入判定所需 Heart 总数，不能补足指定颜色缺口
+- Rainbow/All Heart 在判定时可用于补足任意指定颜色缺口
 - 演出判定需综合成员提供的 Heart 与应援提供的额外 Heart
 - 应援相关额外得分需纳入 Live 分数结算
 

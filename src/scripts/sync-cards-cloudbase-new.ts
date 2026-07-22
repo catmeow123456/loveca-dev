@@ -22,6 +22,7 @@ import * as Minio from 'minio';
 import { Pool } from 'pg';
 import sharp from 'sharp';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
+import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
 
 const require = createRequire(import.meta.url);
 const cloudbaseSDK = require('@cloudbase/node-sdk') as {
@@ -30,7 +31,7 @@ const cloudbaseSDK = require('@cloudbase/node-sdk') as {
 
 type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
 type CardStatus = 'DRAFT' | 'PUBLISHED';
-type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'RAINBOW';
+type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'GRAY' | 'RAINBOW';
 type BladeHeartEffect = 'HEART' | 'DRAW' | 'SCORE';
 type ImageMode = 'upload' | 'skip' | 'none';
 type ImageFailureSourceFlag =
@@ -344,6 +345,9 @@ const HEART_COLOR_MAP = new Map<string, HeartColor>([
   ['b_heart06', 'PURPLE'],
   ['06', 'PURPLE'],
   ['紫', 'PURPLE'],
+  ['gray', 'GRAY'],
+  ['grey', 'GRAY'],
+  ['colorless', 'GRAY'],
   ['all', 'RAINBOW'],
   ['any', 'RAINBOW'],
   ['rainbow', 'RAINBOW'],
@@ -760,6 +764,7 @@ function parseHeartColor(value: unknown): HeartColor | null {
     direct === 'GREEN' ||
     direct === 'BLUE' ||
     direct === 'PURPLE' ||
+    direct === 'GRAY' ||
     direct === 'RAINBOW'
   ) {
     return direct;
@@ -837,6 +842,18 @@ function parseSpecialEffect(value: unknown): Exclude<BladeHeartEffect, 'HEART'> 
   return raw ? (SPECIAL_HEART_EFFECT_MAP.get(normalizeHeartToken(raw)) ?? null) : null;
 }
 
+function parseBladeHeartColor(value: unknown): HeartColor | null {
+  const raw = cleanString(value);
+  if (raw) {
+    const token = normalizeHeartToken(raw);
+    const colorToken = token.replace(/heart$/, '');
+    if (['gray', 'grey', 'colorless', '無色', '无色'].includes(colorToken)) {
+      return 'GRAY';
+    }
+  }
+  return parseHeartColor(value);
+}
+
 function appendBladeHeartRepeated(
   target: BladeHeartItem[],
   item: BladeHeartItem,
@@ -863,6 +880,22 @@ function parseBladeHeartCollection(
 
   if (Array.isArray(input)) {
     for (const [index, item] of input.entries()) {
+      if (typeof item === 'string') {
+        if (appendDoubleGrayBladeHearts(result, item)) {
+          continue;
+        }
+        const color = parseBladeHeartColor(item);
+        const effect = parseSpecialEffect(item);
+        if (color) {
+          result.push({ effect: 'HEART', heartColor: color });
+        } else if (effect) {
+          result.push({ effect });
+        } else {
+          warnings.push(`${context}: invalid blade heart item #${index + 1}`);
+          hasError = true;
+        }
+        continue;
+      }
       if (!isRecord(item)) {
         warnings.push(`${context}: blade heart item #${index + 1} is not an object`);
         hasError = true;
@@ -871,11 +904,16 @@ function parseBladeHeartCollection(
       const effectRaw = getRecordValue(item, ['effect', 'type']);
       const effect =
         cleanString(effectRaw)?.toUpperCase() === 'HEART' ? 'HEART' : parseSpecialEffect(effectRaw);
-      const color = parseHeartColor(
-        getRecordValue(item, ['heartColor', 'heart_color', 'color', 'name'])
-      );
+      const colorRaw = getRecordValue(item, ['heartColor', 'heart_color', 'color', 'name']);
+      const color = parseBladeHeartColor(colorRaw);
       const count = parsePositiveIntegerCount(getRecordValue(item, ['count', 'value', 'num'])) ?? 1;
 
+      if (
+        appendDoubleGrayBladeHearts(result, effectRaw, count) ||
+        appendDoubleGrayBladeHearts(result, colorRaw, count)
+      ) {
+        continue;
+      }
       if (effect === 'HEART' || (!effect && color)) {
         if (!color) {
           warnings.push(`${context}: missing heart color in blade heart item #${index + 1}`);
@@ -892,9 +930,12 @@ function parseBladeHeartCollection(
     }
   } else if (isRecord(input)) {
     for (const [rawKey, rawCount] of Object.entries(input)) {
-      const color = parseHeartColor(rawKey);
+      const color = parseBladeHeartColor(rawKey);
       const effect = parseSpecialEffect(rawKey);
       const count = parsePositiveIntegerCount(rawCount);
+      if (count && appendDoubleGrayBladeHearts(result, rawKey, count)) {
+        continue;
+      }
       if (!count || (!color && !effect)) {
         warnings.push(`${context}: invalid blade heart entry ${JSON.stringify(rawKey)}`);
         hasError = true;
@@ -907,9 +948,11 @@ function parseBladeHeartCollection(
       );
     }
   } else {
-    const color = parseHeartColor(input);
+    const color = parseBladeHeartColor(input);
     const effect = parseSpecialEffect(input);
-    if (color) {
+    if (appendDoubleGrayBladeHearts(result, input)) {
+      // `double` is one Blade Heart icon that produces two colorless Hearts.
+    } else if (color) {
       result.push({ effect: 'HEART', heartColor: color });
     } else if (effect) {
       result.push({ effect });

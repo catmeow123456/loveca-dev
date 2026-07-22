@@ -50,6 +50,7 @@ const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
   [HeartColor.GREEN]: '获得[緑ハート]。',
   [HeartColor.BLUE]: '获得[青ハート]。',
   [HeartColor.PURPLE]: '获得[紫ハート]。',
+  [HeartColor.GRAY]: '获得[無色ハート]。',
   [HeartColor.RAINBOW]: '获得[虹ハート]。',
 };
 

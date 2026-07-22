@@ -21,6 +21,7 @@ const HEART_COLOR_HEX: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '#86efac',
   [HeartColor.BLUE]: '#60a5fa',
   [HeartColor.PURPLE]: '#c084fc',
+  [HeartColor.GRAY]: '#9ca3af',
   [HeartColor.RAINBOW]: '#fbbf24',
 };
 
@@ -31,6 +32,7 @@ const HEART_COLOR_LABEL: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '绿',
   [HeartColor.BLUE]: '蓝',
   [HeartColor.PURPLE]: '紫',
+  [HeartColor.GRAY]: '无色',
   [HeartColor.RAINBOW]: '虹',
 };
 
@@ -41,7 +43,7 @@ interface BarDatum {
 }
 
 function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; emptyText?: string }) {
-  if (data.length === 0 || data.every(d => d.value === 0)) {
+  if (data.length === 0 || data.every((d) => d.value === 0)) {
     return (
       <div className="flex h-14 items-center justify-center text-xs text-[var(--text-muted)]">
         {emptyText}
@@ -49,9 +51,12 @@ function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; empt
     );
   }
 
-  const maxValue = Math.max(...data.map(d => d.value), 1);
+  const maxValue = Math.max(...data.map((d) => d.value), 1);
   const viewW = 440;
-  const mL = 26, mR = 8, mT = 18, mB = 28;
+  const mL = 26,
+    mR = 8,
+    mT = 18,
+    mB = 28;
   const innerW = viewW - mL - mR;
   const innerH = 80;
   const viewH = mT + innerH + mB;
@@ -60,22 +65,41 @@ function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; empt
   const barW = Math.min(barGroupW * 0.6, 32);
 
   // 3 y-ticks at 0, half, max
-  const yTicks = [0, Math.ceil(maxValue / 2), maxValue].filter(
-    (v, i, arr) => arr.indexOf(v) === i
-  );
+  const yTicks = [0, Math.ceil(maxValue / 2), maxValue].filter((v, i, arr) => arr.indexOf(v) === i);
 
   return (
     <svg width="100%" viewBox={`0 0 ${viewW} ${viewH}`} className="overflow-visible">
       {/* axes */}
-      <line x1={mL} y1={mT} x2={mL} y2={mT + innerH} stroke="color-mix(in srgb, var(--border-default) 70%, transparent)" strokeWidth="1" />
-      <line x1={mL} y1={mT + innerH} x2={mL + innerW} y2={mT + innerH} stroke="color-mix(in srgb, var(--border-default) 70%, transparent)" strokeWidth="1" />
+      <line
+        x1={mL}
+        y1={mT}
+        x2={mL}
+        y2={mT + innerH}
+        stroke="color-mix(in srgb, var(--border-default) 70%, transparent)"
+        strokeWidth="1"
+      />
+      <line
+        x1={mL}
+        y1={mT + innerH}
+        x2={mL + innerW}
+        y2={mT + innerH}
+        stroke="color-mix(in srgb, var(--border-default) 70%, transparent)"
+        strokeWidth="1"
+      />
 
       {/* y-axis ticks */}
-      {yTicks.map(tick => {
+      {yTicks.map((tick) => {
         const y = mT + innerH - (tick / maxValue) * innerH;
         return (
           <g key={tick}>
-            <line x1={mL - 3} y1={y} x2={mL} y2={y} stroke="color-mix(in srgb, var(--border-default) 70%, transparent)" strokeWidth="1" />
+            <line
+              x1={mL - 3}
+              y1={y}
+              x2={mL}
+              y2={y}
+              stroke="color-mix(in srgb, var(--border-default) 70%, transparent)"
+              strokeWidth="1"
+            />
             <text x={mL - 5} y={y + 3.5} textAnchor="end" fontSize="8" fill="var(--text-muted)">
               {tick}
             </text>
@@ -92,11 +116,23 @@ function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; empt
           <g key={`${d.label}-${i}`}>
             <rect x={x} y={y} width={barW} height={barH} fill={d.color} fillOpacity={0.82} rx="2" />
             {d.value > 0 && (
-              <text x={x + barW / 2} y={y - 3} textAnchor="middle" fontSize="8.5" fill="var(--text-secondary)">
+              <text
+                x={x + barW / 2}
+                y={y - 3}
+                textAnchor="middle"
+                fontSize="8.5"
+                fill="var(--text-secondary)"
+              >
                 {d.value}
               </text>
             )}
-            <text x={x + barW / 2} y={mT + innerH + 14} textAnchor="middle" fontSize="9" fill="var(--text-muted)">
+            <text
+              x={x + barW / 2}
+              y={mT + innerH + 14}
+              textAnchor="middle"
+              fontSize="9"
+              fill="var(--text-muted)"
+            >
               {d.label}
             </text>
           </g>
@@ -107,9 +143,7 @@ function BarChart({ data, emptyText = '暂无数据' }: { data: BarDatum[]; empt
 }
 
 export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
-  const { getCardData } = useGameStore(
-    useShallow((s) => ({ getCardData: s.getCardData }))
-  );
+  const { getCardData } = useGameStore(useShallow((s) => ({ getCardData: s.getCardData })));
 
   const { costData, liveScoreData, bladeData } = useMemo(() => {
     // 费用分布（成员卡）
@@ -205,7 +239,9 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
         <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">
           <BarChart data={costData} emptyText="尚未添加成员卡" />
         </div>
-        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">X 轴：费用值 · Y 轴：张数</p>
+        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">
+          X 轴：费用值 · Y 轴：张数
+        </p>
       </section>
 
       {/* Live 分数分布 */}
@@ -217,7 +253,9 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
         <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">
           <BarChart data={liveScoreData} emptyText="尚未添加 Live 卡" />
         </div>
-        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">X 轴：分数值 · Y 轴：张数</p>
+        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">
+          X 轴：分数值 · Y 轴：张数
+        </p>
       </section>
 
       {/* Blade Heart 效果统计 */}
@@ -229,7 +267,9 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
         <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">
           <BarChart data={bladeData} emptyText="卡组中暂无 Blade Heart 效果" />
         </div>
-        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">抽卡 · 加分 · 无判 · ♥各色</p>
+        <p className="mt-1 text-right text-[10px] text-[var(--text-muted)]">
+          抽卡 · 加分 · 无判 · ♥各色
+        </p>
       </section>
     </div>
   );

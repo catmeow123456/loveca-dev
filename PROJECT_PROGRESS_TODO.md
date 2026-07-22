@@ -2,6 +2,14 @@
 
 更新时间：2026-07-22
 
+## 2026-07-22：BP7 double 无色判心数据同步与 LIVE 判定支持（未提交）
+
+- `sync-cards-loveca-excel.ts` 的 XLSX / CloudBase 已有卡同步与 `sync-cards-cloudbase-new.ts` 的新卡导入均识别 `double`，每个 token 展开为两个独立 `HEART + GRAY` 判心项；最新 `loveca_20260722221351.xlsx` 中 `PL!SP-bp7-028-L` 分数8「未来の音が聴こえる」、`PL!S-bp7-022-SECL` 分数8「恋になりたいAQUARIUM」、`PL!N-bp7-030-L` 分数0「Cheer Mode」已确认使用该数据形态。
+- 新增独立 `GRAY` Heart：只补 LIVE 必要 Heart 总数，不可替代彩色需求；保留 `RAINBOW` 作为可替代任意颜色的 All Heart。服务端 `HeartPool`、真实 `LiveResolver` 与客户端判定预览沿用同一分配顺序；“还差”计算统一复用该分配规则，会先用 All Heart 补指定颜色，灰心只计入泛用总数缺口。
+- 判定区、修正图标、休息室统计和卡组统计已支持灰心展示；成员卡与 LIVE 卡的共用详情窗现在会展示结构化判心，`double` 显示为两枚灰心，并同时支持抽卡/分数判心。
+- 卡组编辑器的判心筛选和分析统计已新增独立“无色”项，不与 All/Rainbow 混用；成员持有 Heart、LIVE 必要 Heart 与判心 Heart 使用独立选项语义。卡牌数据管理的 BladeHeart 表单可新增/显示 `GRAY`，YAML 编辑和保存往返保留 `double` 展开后的两条灰心记录。
+- 全量 Vitest 543 files / 5396 tests 通过，3 个 performance tests 按默认配置跳过；shared/server/client TypeScript 与前端生产构建通过。最新 XLSX `--dry-run` 读取 2333 行、2329 个可用编号，只报告 2 组已知重复号；三张 BP7 `double` LIVE 目前均属本地库尚未插入的 source-only 卡。Playwright 实测 1600×900 桌面与 390×844 窄屏详情抽屉，`double` 均渲染两枚灰心且无横向溢出。未执行数据库写入或 CloudBase 正式同步。
+
 ## 2026-07-22：认证凭据兼容停机切换修复（未提交）
 
 - `auth-v1-to-v2-credential-cutover.ts` 改为将可识别 v1 bcrypt 摘要包裹为 `$loveca-bcrypt-raw$`，不再覆盖为必须重置；新版认证会在用户以原密码首次成功登录后，原子改写为当前 SHA-256 预哈希 bcrypt 格式。

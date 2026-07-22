@@ -42,6 +42,7 @@ export const HEART_ICON_NAME_BY_COLOR: Record<HeartColor, ModifierIconName> = {
   [HeartColor.GREEN]: 'heart_green',
   [HeartColor.BLUE]: 'heart_blue',
   [HeartColor.PURPLE]: 'heart_purple',
+  [HeartColor.GRAY]: 'heart_gray',
   [HeartColor.RAINBOW]: 'heart_all',
 };
 
@@ -52,6 +53,7 @@ export const HEART_REQUIREMENT_ICON_NAME_BY_COLOR: Record<HeartColor, ModifierIc
   [HeartColor.GREEN]: 'heart_green',
   [HeartColor.BLUE]: 'heart_blue',
   [HeartColor.PURPLE]: 'heart_purple',
+  [HeartColor.GRAY]: 'heart_gray',
   [HeartColor.RAINBOW]: 'heart_gray',
 };
 
@@ -62,6 +64,7 @@ export const HEART_ICON_SOURCE_BY_COLOR: Record<HeartColor, string> = {
   [HeartColor.GREEN]: MODIFIER_ICON_SOURCE.heart_green,
   [HeartColor.BLUE]: MODIFIER_ICON_SOURCE.heart_blue,
   [HeartColor.PURPLE]: MODIFIER_ICON_SOURCE.heart_purple,
+  [HeartColor.GRAY]: MODIFIER_ICON_SOURCE.heart_gray,
   [HeartColor.RAINBOW]: MODIFIER_ICON_SOURCE.heart_all,
 };
 
@@ -72,5 +75,6 @@ export const HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR: Record<HeartColor, string> 
   [HeartColor.GREEN]: MODIFIER_ICON_SOURCE.heart_green,
   [HeartColor.BLUE]: MODIFIER_ICON_SOURCE.heart_blue,
   [HeartColor.PURPLE]: MODIFIER_ICON_SOURCE.heart_purple,
+  [HeartColor.GRAY]: MODIFIER_ICON_SOURCE.heart_gray,
   [HeartColor.RAINBOW]: MODIFIER_ICON_SOURCE.heart_gray,
 };

@@ -20,9 +20,14 @@ import {
 import { Card } from '@/components/card/Card';
 import { CardLocalizedEffect, CardLocalizedName } from '@/components/card/CardLocalizedInfo';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import type { AnyCardData, MemberCardData, LiveCardData } from '@game/domain/entities/card';
+import type {
+  AnyCardData,
+  BladeHearts,
+  MemberCardData,
+  LiveCardData,
+} from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
-import { HeartColor } from '@game/shared/types/enums';
+import { BladeHeartEffect, HeartColor } from '@game/shared/types/enums';
 import { getCardPoint } from '@game/domain/rules/deck-construction';
 
 function DetailMetric({
@@ -73,20 +78,26 @@ function HeartIconGroup({
   color,
   count,
   iconSrc,
+  label,
   compact = false,
 }: {
   color: HeartColor;
   count: number;
   iconSrc?: string;
+  label?: string;
   compact?: boolean;
 }) {
   const resolvedIconSrc = iconSrc ?? HEART_ICON_SOURCE_BY_COLOR[color];
   const maxDirectIconCount = compact ? 10 : 12;
   const shouldShowEveryIcon = count <= maxDirectIconCount;
   const repeatedCount = Math.max(0, shouldShowEveryIcon ? count : 1);
+  const resolvedLabel =
+    label ?? (color === HeartColor.GRAY ? '无色' : color === HeartColor.RAINBOW ? 'All' : color);
 
   return (
     <div
+      aria-label={`${resolvedLabel} Heart ${count}`}
+      title={`${resolvedLabel} Heart ×${count}`}
       className={cn(
         'inline-flex items-center gap-1 rounded-md border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)]',
         compact ? 'min-h-6 px-1 py-0.5' : 'min-h-7 px-1.5 py-1'
@@ -106,6 +117,70 @@ function HeartIconGroup({
       {!shouldShowEveryIcon && (
         <span className="text-xs font-bold text-[var(--text-primary)]">×{count}</span>
       )}
+    </div>
+  );
+}
+
+function BladeHeartDetails({
+  bladeHearts,
+  compact = false,
+}: {
+  bladeHearts?: BladeHearts;
+  compact?: boolean;
+}) {
+  if (!bladeHearts || bladeHearts.length === 0) {
+    return null;
+  }
+
+  const heartCounts = new Map<HeartColor, number>();
+  let drawCount = 0;
+  let scoreCount = 0;
+  for (const bladeHeart of bladeHearts) {
+    switch (bladeHeart.effect) {
+      case BladeHeartEffect.HEART:
+        if (bladeHeart.heartColor) {
+          heartCounts.set(bladeHeart.heartColor, (heartCounts.get(bladeHeart.heartColor) ?? 0) + 1);
+        }
+        break;
+      case BladeHeartEffect.DRAW:
+        drawCount += 1;
+        break;
+      case BladeHeartEffect.SCORE:
+        scoreCount += 1;
+        break;
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        compact ? 'flex flex-wrap items-center gap-1.5' : 'surface-panel rounded-xl p-2.5'
+      )}
+    >
+      <span className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'text-sm')}>
+        判心
+      </span>
+      <div className={cn('flex flex-wrap items-center', compact ? 'gap-1' : 'mt-1 gap-1.5')}>
+        {[...heartCounts.entries()].map(([color, count]) => (
+          <HeartIconGroup key={color} color={color} count={count} compact={compact} />
+        ))}
+        {drawCount > 0 && (
+          <span
+            className="chip-badge px-2 py-0.5 text-xs text-[var(--semantic-info)]"
+            aria-label={`抽卡判心 ${drawCount}`}
+          >
+            抽卡 +{drawCount}
+          </span>
+        )}
+        {scoreCount > 0 && (
+          <span
+            className="chip-badge px-2 py-0.5 text-xs text-[var(--accent-gold)]"
+            aria-label={`分数判心 ${scoreCount}`}
+          >
+            分数 +{scoreCount}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -142,9 +217,7 @@ export const MemberCardDetails = memo(function MemberCardDetails({
       {data.hearts && data.hearts.length > 0 && (
         <div
           className={cn(
-            compact
-              ? 'flex flex-wrap items-center gap-1.5'
-              : 'surface-panel rounded-xl p-2.5'
+            compact ? 'flex flex-wrap items-center gap-1.5' : 'surface-panel rounded-xl p-2.5'
           )}
         >
           <span className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'text-sm')}>
@@ -152,16 +225,13 @@ export const MemberCardDetails = memo(function MemberCardDetails({
           </span>
           <div className={cn('flex flex-wrap', compact ? 'gap-1' : 'mt-1 gap-1')}>
             {data.hearts.map((heart, idx) => (
-              <HeartIconGroup
-                key={idx}
-                color={heart.color}
-                count={heart.count}
-                compact={compact}
-              />
+              <HeartIconGroup key={idx} color={heart.color} count={heart.count} compact={compact} />
             ))}
           </div>
         </div>
       )}
+
+      <BladeHeartDetails bladeHearts={data.bladeHearts} compact={compact} />
 
       {/* 真实团体/小组 */}
       {(groupDisplayText || data.unitName) && (
@@ -200,9 +270,7 @@ export const LiveCardDetails = memo(function LiveCardDetails({
       {/* Heart 需求 */}
       <div
         className={cn(
-          compact
-            ? 'flex flex-wrap items-center gap-1.5'
-            : 'surface-panel rounded-xl p-2.5'
+          compact ? 'flex flex-wrap items-center gap-1.5' : 'surface-panel rounded-xl p-2.5'
         )}
       >
         <span className={cn('text-[var(--text-muted)]', compact ? 'text-[11px]' : 'text-sm')}>
@@ -215,6 +283,7 @@ export const LiveCardDetails = memo(function LiveCardDetails({
               color={color as HeartColor}
               count={count as number}
               iconSrc={HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR[color as HeartColor]}
+              label={color === HeartColor.RAINBOW || color === HeartColor.GRAY ? '无色' : undefined}
               compact={compact}
             />
           ))}
@@ -225,6 +294,8 @@ export const LiveCardDetails = memo(function LiveCardDetails({
           合计 {data.requirements.totalRequired}
         </span>
       </div>
+
+      <BladeHeartDetails bladeHearts={data.bladeHearts} compact={compact} />
     </div>
   );
 });
@@ -389,13 +460,11 @@ function CardDetailContent({
 }) {
   const point = getCardPoint(card.cardCode);
   const isMobile = density === 'mobile';
-  const typeDetails = card.eventOnlyMissingData
-    ? null
-    : isMemberCardData(card.cardData)
-      ? <MemberCardDetails data={card.cardData} compact={!isMobile} />
-      : isLiveCardData(card.cardData)
-        ? <LiveCardDetails data={card.cardData} compact={!isMobile} />
-        : null;
+  const typeDetails = card.eventOnlyMissingData ? null : isMemberCardData(card.cardData) ? (
+    <MemberCardDetails data={card.cardData} compact={!isMobile} />
+  ) : isLiveCardData(card.cardData) ? (
+    <LiveCardDetails data={card.cardData} compact={!isMobile} />
+  ) : null;
   const pointBadge = (
     <span className={cn('chip-badge', isMobile ? 'px-2.5 py-1 text-sm' : 'px-2 py-0.5 text-xs')}>
       <span className="text-[var(--text-muted)]">点数</span>

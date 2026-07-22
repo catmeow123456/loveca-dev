@@ -16,6 +16,7 @@ const HEART_COLOR_ORDER = [
   HeartColor.GREEN,
   HeartColor.BLUE,
   HeartColor.PURPLE,
+  HeartColor.GRAY,
   HeartColor.RAINBOW,
 ] as const;
 
@@ -75,10 +76,7 @@ interface ModifierBadgeProps {
   readonly value: number;
 }
 
-const ModifierBadge = memo(function ModifierBadge({
-  iconSrc,
-  value,
-}: ModifierBadgeProps) {
+const ModifierBadge = memo(function ModifierBadge({ iconSrc, value }: ModifierBadgeProps) {
   return (
     <div
       className={cn(

@@ -148,7 +148,7 @@ Based on official Love Live card game rules (see `detail_rules.md`):
 - **Win condition**: 3 successful Lives in success zone
 - **10 zones per player**: hand, mainDeck, energyDeck, memberSlots (LEFT/CENTER/RIGHT, each with optional energyBelow and memberBelow cards), energyZone, liveZone, successZone, waitingRoom, exileZone, resolutionZone
 - **Card types**: MEMBER, LIVE, ENERGY
-- **Heart colors**: PINK, RED, YELLOW, GREEN, BLUE, PURPLE, RAINBOW (wild)
+- **Heart colors**: PINK, RED, YELLOW, GREEN, BLUE, PURPLE, GRAY (colorless; total count only), RAINBOW (wild)
 
 ### Key Game Flow
 

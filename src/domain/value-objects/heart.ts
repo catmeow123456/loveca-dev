@@ -199,9 +199,10 @@ export class HeartPool {
       });
     };
 
-    // 先满足指定颜色。需求中的 Rainbow/ALL 表示泛用数量，不要求必须用 Rainbow Heart。
+    // 先满足指定颜色。需求中的 RAINBOW/GRAY 都表示泛用数量；
+    // 资源中的 GRAY 是普通的无色 Heart，只会在后续总数步骤中被消费。
     for (const [color, required] of requirement.colorRequirements) {
-      if (color === HeartColor.RAINBOW) {
+      if (color === HeartColor.RAINBOW || color === HeartColor.GRAY) {
         continue;
       }
 
@@ -400,30 +401,35 @@ export function calculateHeartDeficit(
   requirement: HeartRequirement
 ): Map<HeartColor, number> {
   const deficits = new Map<HeartColor, number>();
+  let remainingRainbow = pool.getRainbowCount();
+  let specificRequiredTotal = 0;
+  let consumedNonRainbow = 0;
 
-  // 计算颜色缺口
+  // 指定颜色优先使用同色 Heart，再使用 Rainbow/All；GRAY 不可补指定颜色。
   for (const [color, required] of requirement.colorRequirements) {
-    const available = pool.getColorCount(color);
-    const deficit = Math.max(0, required - available);
-    if (deficit > 0) {
-      deficits.set(color, deficit);
+    if (color === HeartColor.RAINBOW || color === HeartColor.GRAY) {
+      continue;
+    }
+    specificRequiredTotal += required;
+    const normalUsed = Math.min(pool.getColorCount(color), required);
+    const rainbowNeeded = required - normalUsed;
+    const rainbowUsed = Math.min(remainingRainbow, rainbowNeeded);
+    const missing = rainbowNeeded - rainbowUsed;
+    consumedNonRainbow += normalUsed;
+    remainingRainbow -= rainbowUsed;
+
+    if (missing > 0) {
+      deficits.set(color, missing);
     }
   }
 
-  // 考虑 Rainbow Heart 可以填补缺口
-  let totalDeficit = 0;
-  for (const deficit of deficits.values()) {
-    totalDeficit += deficit;
-  }
-
-  // 检查总数缺口
-  const totalRequired = requirement.totalRequired;
-  const totalAvailable = pool.getTotalCount();
-  const totalGap = Math.max(0, totalRequired - totalAvailable);
-
-  if (totalGap > 0) {
-    // 如果有总数缺口，添加到灰色需求（未指定颜色）
-    deficits.set(HeartColor.RAINBOW, totalGap);
+  const genericRequired = Math.max(0, requirement.totalRequired - specificRequiredTotal);
+  const remainingGenericHearts =
+    pool.getNonRainbowTotalCount() - consumedNonRainbow + remainingRainbow;
+  const genericMissing = Math.max(0, genericRequired - remainingGenericHearts);
+  if (genericMissing > 0) {
+    // RAINBOW 在需求/缺口投影中表示灰色的泛用总数需求。
+    deficits.set(HeartColor.RAINBOW, genericMissing);
   }
 
   return deficits;

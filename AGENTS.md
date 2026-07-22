@@ -139,6 +139,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 区域检索：从休息室按类型、费用、团体、名称等筛选加入手牌应共用筛选与移动逻辑。
 - LIVE 修正：加 Heart、加分、加声援张数、增加/减少必要 Heart 等都应进入 LIVE 自动判定流水线，而不是在 UI 手填结果里静默处理。
 - Live 修正统一入口为 `domain/rules/live-modifiers.ts`。结算读取使用 `collectLiveModifiers` 及相关 getter；新增“Live 结束前”临时修正应通过 `addLiveModifier` / `replaceLiveModifier` 写入 `liveResolution.liveModifiers` 的 `SCORE` / `HEART` / `BLADE` / `REQUIREMENT` modifier；常时修正（如 `PL!-sd1-001-SD` 加声援张数）不写入状态，由 continuous modifier registry 按当前场面动态收集。旧的 `playerScoreBonuses`、`playerHeartBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 只作为兼容投影保留，不作为新增逻辑的主写入路径。
+- `HeartColor.GRAY` 表示实际提供的无色/灰色 Heart，只计入 LIVE 判定总 Heart 数，不能补指定颜色；`HeartColor.RAINBOW` 仍表示可代替任意颜色的 All Heart。判心数据不得再用 `RAINBOW` 代表无色结果；必要无色 Heart 的旧有结构化投影仍可使用 `RAINBOW`/泛用总数语义，规则层同时规范化 `GRAY` 需求输入。
 - “必要HEART增加/减少”类效果应使用 `applyHeartRequirementModifiers`；它支持粉/黄/紫等指定颜色，也支持泛用/无色/All 需求，并兼容 `RAINBOW` 条目和 `totalRequired` 表达的两种数据形态。`PL!-sd1-022-SD` 这种减少 `[無ハート]` 的效果只是其中的 All 需求负修正。
 - 前端判定面板读取必要 Heart 修正时要注意投影键：`playerViewState.match.liveResult.requirementModifiers` / `requirementReductions` 当前以 `obj_<cardId>` 为 key，而桌面组件通常使用 raw `cardId`。读取时必须兼容 raw/public 两种 key，否则 `022` 这类效果会在 UI 预览里显示未修正的需求。
 - “1回合 N 次”属于能力定义的通用限制，应在 `CARD_ABILITY_DEFINITIONS.perTurnLimit` 登记，由通用 `ABILITY_USE` 记录与校验按 `playerId + abilityId + sourceCardId + turnCount` 计算；它限制的是此来源卡实例，不是同名卡或同一玩家同能力总次数。不要在单张卡效果里临时判断。

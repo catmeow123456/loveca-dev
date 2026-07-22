@@ -38,6 +38,10 @@ export enum HeartColor {
   /** 紫色 */
   PURPLE = 'PURPLE',
   /**
+   * 无色/灰色 Heart - 只计入 Heart 总数，不能代替指定颜色 Heart
+   */
+  GRAY = 'GRAY',
+  /**
    * 万能色 - 可视为任意颜色
    * 参考规则 2.1.1.3 及 8.3.15.1.1
    */

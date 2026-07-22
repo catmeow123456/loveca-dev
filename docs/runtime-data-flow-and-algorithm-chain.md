@@ -140,6 +140,7 @@ LIVE 修正分两类：
 - 新增 LIVE 分数、Heart、Blade、必要 Heart 修正时，优先走 live modifier 入口。
 - 旧的 `playerScoreBonuses`、`playerHeartBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 只作为兼容投影保留，不作为新增逻辑主写入路径。
 - 必要 Heart 修正需要兼容指定颜色、All/无色需求、`RAINBOW` 和 `totalRequired` 两种数据形态。
+- LIVE 判定的 Heart 分配以 `HeartPool` 为单一规则入口：先以同色 Heart、再以 `RAINBOW`/All 满足指定颜色，然后用剩余任意 Heart 满足总数需求。`GRAY` 只参与最后的总数分配，前端成功预判与缺口计算必须复用同一入口。
 
 ### 2.7 记录与回放结构
 
@@ -274,6 +275,7 @@ flowchart TD
 - `ON_LIVE_START` 是否写入并触发了来源正确的 pending ability。
 - 修正是常时动态收集，还是临时写入 `liveResolution.liveModifiers`。
 - 必要 Heart 修正是否按颜色、All/无色、`RAINBOW` 和 `totalRequired` 正确合并。
+- 判心来源中的 `GRAY` 是否只增加总数，`RAINBOW`/All 是否依然先填补指定颜色，前端“还差”是否与服务端分配结果一致。
 - 前端判定面板读取的是 raw card id 还是 public object id，必要时要兼容两种 key。
 - LIVE 成功效果是否只在对应 Live 成功后入队。
 

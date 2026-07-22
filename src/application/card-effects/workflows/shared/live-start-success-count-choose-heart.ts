@@ -25,6 +25,7 @@ const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
   [HeartColor.GREEN]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[緑ハート]。',
   [HeartColor.BLUE]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[青ハート]。',
   [HeartColor.PURPLE]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[紫ハート]。',
+  [HeartColor.GRAY]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[無色ハート]。',
   [HeartColor.RAINBOW]: '获得与自己的成功LIVE卡区中的卡牌数量相同数量的[虹ハート]。',
 };
 

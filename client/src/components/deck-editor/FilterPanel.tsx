@@ -17,7 +17,8 @@ import {
   COST_MAX,
   SCORE_MIN,
   SCORE_MAX,
-  HEART_COLOR_OPTIONS,
+  MEMBER_HEART_COLOR_OPTIONS,
+  REQUIREMENT_HEART_COLOR_OPTIONS,
   BLADE_HEART_OPTIONS,
   getGroupDisplayName,
   getProductDisplayName,
@@ -25,14 +26,7 @@ import {
 import type { UseCardFiltersReturn } from './use-card-filters';
 
 type FilterCategory =
-  | 'rarity'
-  | 'group'
-  | 'unit'
-  | 'cost'
-  | 'heart'
-  | 'blade'
-  | 'score'
-  | 'product';
+  'rarity' | 'group' | 'unit' | 'cost' | 'heart' | 'blade' | 'score' | 'product';
 
 interface FilterPanelProps {
   filters: UseCardFiltersReturn;
@@ -142,10 +136,14 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
           />
         );
 
-      case 'heart':
+      case 'heart': {
+        const heartColorOptions =
+          filters.selectedCardType === CardType.LIVE
+            ? REQUIREMENT_HEART_COLOR_OPTIONS
+            : MEMBER_HEART_COLOR_OPTIONS;
         return (
           <FilterChipGroup
-            options={HEART_COLOR_OPTIONS.map((opt) => ({
+            options={heartColorOptions.map((opt) => ({
               value: opt.value,
               label: opt.label,
               colorClass: opt.colorClass,
@@ -154,6 +152,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
             onSelect={(v) => filters.setSelectedHeartColor(v as HeartColor | null)}
           />
         );
+      }
 
       case 'blade':
         return (

@@ -12,6 +12,7 @@ export interface WaitingRoomJudgmentStats {
 function createEmptyWaitingRoomHeartCounts(): Record<HeartColor, number> {
   return {
     [HeartColor.RAINBOW]: 0,
+    [HeartColor.GRAY]: 0,
     [HeartColor.PINK]: 0,
     [HeartColor.RED]: 0,
     [HeartColor.YELLOW]: 0,

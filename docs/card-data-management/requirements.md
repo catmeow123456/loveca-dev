@@ -2,7 +2,7 @@
 
 > 版本: 1.0.0
 > 创建日期: 2026-03-12
-> 最后更新: 2026-06-11
+> 最后更新: 2026-07-22
 > 文档类型: 需求文档
 > 适用范围: 卡牌数据管理后台、同步脚本和发布状态流转
 > 当前状态: 卡牌数据管理业务需求；当前实现边界见 [设计文档](./design.md) 与 [当前实现限制](../current-limitations.md)
@@ -151,7 +151,7 @@ LoveLive! Official Card Game 拥有数百张卡牌，每张卡牌包含编号、
 
 ### 5.3 心颜色
 
-系统支持 7 种心颜色：PINK、RED、YELLOW、GREEN、BLUE、PURPLE、RAINBOW（万能色，可替代任意颜色）。
+系统支持 8 种 Heart 枚举值：PINK、RED、YELLOW、GREEN、BLUE、PURPLE、GRAY、RAINBOW。`GRAY` 是无色/灰色 Heart，只计入 LIVE 判定总数；`RAINBOW` 是 All/万能色，可替代任意指定颜色。管理表单、YAML 与发布数据必须保留两者区别。
 
 ## 6. 安全需求
 

@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { HeartColor, CardType, BladeHeartEffect } from '../../src/shared/types/enums';
 import {
   HeartPool,
+  calculateHeartDeficit,
   createEmptyHeartCounts,
   createHeartCountsFromIcons,
   checkMultipleLiveRequirements,
@@ -172,6 +173,23 @@ describe('HeartPool', () => {
       expect(pool.canSatisfy(requirement)).toBe(true);
     });
 
+    it('灰色 Heart 只能满足无色总数需求，不能填补指定颜色缺口', () => {
+      const grayOnlyPool = HeartPool.fromHeartIcons([{ color: HeartColor.GRAY, count: 2 }]);
+      const redAndGenericRequirement = createHeartRequirement(
+        { [HeartColor.RED]: 1, [HeartColor.RAINBOW]: 2 },
+        3
+      );
+
+      expect(grayOnlyPool.canSatisfy(redAndGenericRequirement)).toBe(false);
+
+      const poolWithRequiredRed = HeartPool.fromHeartIcons([
+        { color: HeartColor.RED, count: 1 },
+        { color: HeartColor.GRAY, count: 2 },
+      ]);
+      expect(poolWithRequiredRed.canSatisfy(redAndGenericRequirement)).toBe(true);
+      expect(poolWithRequiredRed.consume(redAndGenericRequirement)?.getTotalCount()).toBe(0);
+    });
+
     it('应该在 Rainbow Heart 不足时返回 false', () => {
       const counts = new Map<HeartColor, number>([
         [HeartColor.PINK, 1],
@@ -217,6 +235,31 @@ describe('HeartPool', () => {
       const consumed = pool.consume(requirement);
       expect(consumed).not.toBeNull();
       expect(consumed!.getTotalCount()).toBe(0);
+    });
+
+    it('需求输入中的 GRAY 也应规范为泛用总数，允许任意 Heart 满足', () => {
+      const pool = HeartPool.fromHeartIcons([
+        { color: HeartColor.PINK, count: 1 },
+        { color: HeartColor.BLUE, count: 1 },
+      ]);
+      const requirement = createHeartRequirement({ [HeartColor.GRAY]: 2 });
+
+      expect(pool.canSatisfy(requirement)).toBe(true);
+    });
+
+    it('缺口计算应先用 Rainbow 补彩色，再报告彩色与泛用缺口', () => {
+      const pool = HeartPool.fromHeartIcons([
+        { color: HeartColor.RED, count: 1 },
+        { color: HeartColor.BLUE, count: 1 },
+        { color: HeartColor.RAINBOW, count: 1 },
+        { color: HeartColor.GRAY, count: 1 },
+      ]);
+      const requirement = createHeartRequirement({ [HeartColor.RED]: 3 }, 6);
+
+      expect([...calculateHeartDeficit(pool, requirement).entries()]).toEqual([
+        [HeartColor.RED, 1],
+        [HeartColor.RAINBOW, 1],
+      ]);
     });
   });
 
@@ -396,9 +439,53 @@ describe('LiveResolver', () => {
       expect(result.bonusHearts.getColorCount(HeartColor.RAINBOW)).toBe(1);
       expect(result.bonusHearts.getRainbowCount()).toBe(1);
     });
+
+    it('应该把 double 判心的两个灰色 Heart 都加入判定池', () => {
+      const result = resolver.processCheer([
+        {
+          cardId: 'double-colorless-live',
+          bladeHearts: [
+            { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY },
+            { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY },
+          ],
+        },
+      ]);
+
+      expect(result.bonusHearts.getColorCount(HeartColor.GRAY)).toBe(2);
+      expect(result.bonusHearts.getRainbowCount()).toBe(0);
+    });
   });
 
   describe('Live 判定', () => {
+    it('double 的两个灰色 Heart 能补足总数并令 LIVE 成功，但不能补彩色需求', () => {
+      const doubleGrayBladeHearts = [
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY },
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GRAY },
+      ] as const;
+      const genericLive = createMockLiveData(
+        8,
+        createHeartRequirement({ [HeartColor.RED]: 1, [HeartColor.RAINBOW]: 2 }, 3)
+      );
+
+      const success = resolver.performLive(
+        'player-1',
+        [createMockMemberData([{ color: HeartColor.RED, count: 1 }])],
+        [{ cardId: 'generic-live', data: genericLive }],
+        [{ cardId: 'double-cheer', bladeHearts: doubleGrayBladeHearts }]
+      );
+      expect(success.liveJudgments[0]?.isSuccess).toBe(true);
+      expect(success.totalScore).toBe(8);
+
+      const failure = resolver.performLive(
+        'player-1',
+        [],
+        [{ cardId: 'colored-live', data: genericLive }],
+        [{ cardId: 'double-cheer', bladeHearts: doubleGrayBladeHearts }]
+      );
+      expect(failure.liveJudgments[0]?.isSuccess).toBe(false);
+      expect(failure.totalScore).toBe(0);
+    });
+
     it('应该正确判定单张 Live 卡成功', () => {
       const pool = HeartPool.fromHeartIcons([{ color: HeartColor.PINK, count: 3 }]);
 

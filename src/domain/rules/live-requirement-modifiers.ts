@@ -10,8 +10,8 @@ export interface HeartRequirementModifier {
  * Apply Live Heart requirement modifiers while preserving requirement semantics.
  *
  * Generic/neutral requirements may be represented by totalRequired minus named
- * color requirements. Some card data also keeps the same amount in the RAINBOW
- * entry for display, so this helper normalizes both forms.
+ * color requirements. Some card data also keeps the same amount in a RAINBOW
+ * or GRAY entry for display, so this helper normalizes all forms to RAINBOW.
  */
 export function applyHeartRequirementModifiers(
   requirement: HeartRequirement,
@@ -22,8 +22,12 @@ export function applyHeartRequirementModifiers(
   }
 
   const colorRequirements = new Map(requirement.colorRequirements);
-  const explicitGeneric = colorRequirements.get(HeartColor.RAINBOW) ?? 0;
+  const explicitGeneric = Math.max(
+    colorRequirements.get(HeartColor.RAINBOW) ?? 0,
+    colorRequirements.get(HeartColor.GRAY) ?? 0
+  );
   colorRequirements.delete(HeartColor.RAINBOW);
+  colorRequirements.delete(HeartColor.GRAY);
 
   const specificRequiredTotal = [...colorRequirements.values()].reduce(
     (total, count) => total + count,
@@ -40,7 +44,7 @@ export function applyHeartRequirementModifiers(
       continue;
     }
 
-    if (modifier.color === HeartColor.RAINBOW) {
+    if (modifier.color === HeartColor.RAINBOW || modifier.color === HeartColor.GRAY) {
       genericRequired = Math.max(0, genericRequired + modifier.countDelta);
       continue;
     }
@@ -59,7 +63,7 @@ export function applyHeartRequirementModifiers(
   }
 
   const adjustedSpecificTotal = [...colorRequirements.entries()]
-    .filter(([color]) => color !== HeartColor.RAINBOW)
+    .filter(([color]) => color !== HeartColor.RAINBOW && color !== HeartColor.GRAY)
     .reduce((total, [, count]) => total + count, 0);
 
   return {

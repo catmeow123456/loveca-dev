@@ -43,6 +43,12 @@ describe('live judgment preview', () => {
     ]);
   });
 
+  it('normalizes an explicit GRAY requirement entry to generic display semantics', () => {
+    expect(getRequirementEntriesForDisplay(requirement({ [HeartColor.GRAY]: 2 }))).toEqual([
+      { color: HeartColor.RAINBOW, count: 2 },
+    ]);
+  });
+
   it('uses Rainbow Heart to cover specific requirements before calculating generic deficit', () => {
     const merged = requirement({ [HeartColor.RED]: 3 }, 5);
 
@@ -69,6 +75,18 @@ describe('live judgment preview', () => {
         }),
         merged
       )
+    ).toEqual([]);
+  });
+
+  it('uses gray Heart only for generic requirements in the client preview', () => {
+    const merged = requirement({ [HeartColor.RED]: 1 }, 3);
+
+    expect(calculateLiveRequirementDeficit(hearts({ [HeartColor.GRAY]: 2 }), merged)).toEqual([
+      { color: HeartColor.RED, count: 1 },
+    ]);
+
+    expect(
+      calculateLiveRequirementDeficit(hearts({ [HeartColor.RED]: 1, [HeartColor.GRAY]: 2 }), merged)
     ).toEqual([]);
   });
 

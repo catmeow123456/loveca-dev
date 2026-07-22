@@ -3,6 +3,7 @@
  * 从 CardEditor 中提取的纯数据，无 React 依赖
  */
 
+import type { BladeHearts } from '@game/domain/entities/card';
 import { HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 import { VALID_RARITIES } from '@game/shared/utils/card-code';
 
@@ -80,39 +81,81 @@ export function getGroupDisplayName(group: string): string {
   return group;
 }
 
-/** 心颜色枚举列表（用于表单 select） */
-export const HEART_COLORS: HeartColor[] = [
-  HeartColor.PINK,
-  HeartColor.RED,
-  HeartColor.YELLOW,
-  HeartColor.GREEN,
-  HeartColor.BLUE,
-  HeartColor.PURPLE,
-  HeartColor.RAINBOW,
-];
-
-/** 心颜色筛选选项（带 UI 元数据） */
-export const HEART_COLOR_OPTIONS = [
+/** 六种指定 Heart 颜色（带 UI 元数据）。 */
+const STANDARD_HEART_COLOR_OPTIONS = [
   { value: HeartColor.PINK, label: '粉', colorClass: 'bg-pink-400' },
   { value: HeartColor.RED, label: '红', colorClass: 'bg-red-400' },
   { value: HeartColor.YELLOW, label: '黄', colorClass: 'bg-yellow-400' },
   { value: HeartColor.GREEN, label: '绿', colorClass: 'bg-green-400' },
   { value: HeartColor.BLUE, label: '蓝', colorClass: 'bg-blue-400' },
   { value: HeartColor.PURPLE, label: '紫', colorClass: 'bg-purple-400' },
-  { value: HeartColor.RAINBOW, label: '灰', colorClass: 'bg-gray-400' },
+] as const;
+
+/** 成员印刷 Heart：GRAY 是无色，RAINBOW 是可代替指定颜色的 All Heart。 */
+export const MEMBER_HEART_COLOR_OPTIONS = [
+  ...STANDARD_HEART_COLOR_OPTIONS,
+  { value: HeartColor.GRAY, label: '无色', colorClass: 'bg-gray-400' },
+  { value: HeartColor.RAINBOW, label: 'All', colorClass: 'bg-pink-400' },
+] as const;
+
+/** LIVE 必要 Heart：RAINBOW 是不限颜色的通用需求，在 UI 中显示为无色。 */
+export const REQUIREMENT_HEART_COLOR_OPTIONS = [
+  ...STANDARD_HEART_COLOR_OPTIONS,
+  { value: HeartColor.RAINBOW, label: '无色', colorClass: 'bg-gray-400' },
+] as const;
+
+/** 判心 Heart 颜色选项；GRAY 是无色判心，RAINBOW 是可代替任意颜色的 All Heart。 */
+export const BLADE_HEART_COLOR_OPTIONS = [
+  ...STANDARD_HEART_COLOR_OPTIONS,
+  { value: HeartColor.GRAY, label: '无色', colorClass: 'bg-gray-400' },
+  { value: HeartColor.RAINBOW, label: 'All', colorClass: 'bg-pink-400' },
 ] as const;
 
 /** 判心效果筛选选项（bladeHeart） */
 export const BLADE_HEART_OPTIONS = [
-  ...HEART_COLOR_OPTIONS.map((opt) => ({
+  ...BLADE_HEART_COLOR_OPTIONS.map((opt) => ({
     value: `HEART:${opt.value}` as const,
-    label: opt.value === HeartColor.RAINBOW ? 'All' : opt.label,
-    colorClass: opt.value === HeartColor.RAINBOW ? 'bg-pink-400' : opt.colorClass,
+    label: opt.label,
+    colorClass: opt.colorClass,
     icon: '♥' as const,
   })),
   { value: 'SCORE' as const, label: '+1', colorClass: 'bg-amber-400', icon: '♪' as const },
   { value: 'DRAW' as const, label: '抽卡', colorClass: 'bg-cyan-400', icon: '抽' as const },
 ];
+
+export function matchesBladeHeartFilter(
+  bladeHearts: BladeHearts | undefined,
+  selectedBladeHeart: string | null
+): boolean {
+  if (!selectedBladeHeart) return true;
+  if (!bladeHearts || bladeHearts.length === 0) return false;
+  if (selectedBladeHeart === BladeHeartEffect.SCORE) {
+    return bladeHearts.some((item) => item.effect === BladeHeartEffect.SCORE);
+  }
+  if (selectedBladeHeart === BladeHeartEffect.DRAW) {
+    return bladeHearts.some((item) => item.effect === BladeHeartEffect.DRAW);
+  }
+  if (!selectedBladeHeart.startsWith('HEART:')) return false;
+
+  const color = selectedBladeHeart.slice('HEART:'.length) as HeartColor;
+  return bladeHearts.some(
+    (item) => item.effect === BladeHeartEffect.HEART && item.heartColor === color
+  );
+}
+
+/**
+ * LIVE 通用必要 Heart 的权威存储值是 RAINBOW；同时接受已有 GRAY 投影，
+ * 避免数据管理或历史数据中的无色需求被筛选器遗漏。
+ */
+export function matchesRequirementHeartColor(
+  colorRequirements: ReadonlyMap<HeartColor, number>,
+  selectedColor: HeartColor
+): boolean {
+  if (selectedColor === HeartColor.RAINBOW) {
+    return colorRequirements.has(HeartColor.RAINBOW) || colorRequirements.has(HeartColor.GRAY);
+  }
+  return colorRequirements.has(selectedColor);
+}
 
 /** 卡牌类型色彩主题 */
 export const CARD_TYPE_COLORS = {

@@ -33,6 +33,7 @@ import * as readline from 'node:readline/promises';
 import { Pool } from 'pg';
 import { parse as parseDotenv } from 'dotenv';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
+import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
 import { resolveLovecaExcelPath } from './loveca-excel-source.js';
 
 const require = createRequire(import.meta.url);
@@ -50,7 +51,7 @@ type BladeHeartSyncItem = {
   readonly heartColor?: HeartColor;
 };
 
-type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'RAINBOW';
+type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'GRAY' | 'RAINBOW';
 
 type HeartSyncItem = {
   readonly color: HeartColor;
@@ -307,6 +308,9 @@ const EXCEL_HEART_COLOR_MAP: Record<string, Exclude<HeartColor, 'RAINBOW'>> = {
   green: 'GREEN',
   blue: 'BLUE',
   purple: 'PURPLE',
+  gray: 'GRAY',
+  grey: 'GRAY',
+  colorless: 'GRAY',
 };
 
 const EXCEL_RAINBOW_HEART_TOKENS = new Set(['any', 'all']);
@@ -869,7 +873,9 @@ function parseExcelBladeHearts(
     const heartColor = EXCEL_BLADE_HEART_COLOR_MAP[token];
     const specialEffect = EXCEL_SPECIAL_HEART_EFFECT_MAP[token];
 
-    if (heartColor) {
+    if (appendDoubleGrayBladeHearts(result, token)) {
+      // `double` is one Blade Heart icon that produces two colorless Hearts.
+    } else if (heartColor) {
       result.push({ effect: 'HEART', heartColor });
     } else if (specialEffect) {
       result.push({ effect: specialEffect });
@@ -894,6 +900,9 @@ function parseExcelBladeHearts(
       const effect = EXCEL_SPECIAL_HEART_EFFECT_MAP[token];
       const count = parsePositiveIntegerCount(rawCount);
 
+      if (count && appendDoubleGrayBladeHearts(result, token, count)) {
+        continue;
+      }
       if (!effect) {
         warnings.push(`${context} ${FIELD_NAMES.specialHeart}: unknown token "${rawKey}"`);
         hasParseError = true;

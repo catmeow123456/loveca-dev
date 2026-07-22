@@ -7,7 +7,7 @@ import { useGameStore } from '@/store/gameStore';
 import { cleanLocalizedText, getCardGroupDisplayText } from '@/lib/cardLocalization';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
-import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
+import { CardType, HeartColor } from '@game/shared/types/enums';
 import {
   cardBelongsToGroup,
   getKnownCardGroupIdentityName,
@@ -21,6 +21,8 @@ import {
   SCORE_MIN,
   SCORE_MAX,
   PRODUCT_OPTIONS,
+  matchesBladeHeartFilter,
+  matchesRequirementHeartColor,
 } from './filter-constants';
 
 function normalizeGroupFilterText(value?: string | null): string {
@@ -162,12 +164,7 @@ export function useCardFilters(): UseCardFiltersReturn {
         }
       }
 
-      addUniqueOption(
-        options,
-        seen,
-        getKnownCardGroupIdentityName(card),
-        normalizeGroupFilterText
-      );
+      addUniqueOption(options, seen, getKnownCardGroupIdentityName(card), normalizeGroupFilterText);
     }
 
     return options;
@@ -263,7 +260,10 @@ export function useCardFilters(): UseCardFiltersReturn {
             return card.hearts.some((h) => h.color === selectedHeartColor);
           }
           if (isLiveCardData(card)) {
-            return card.requirements.colorRequirements.has(selectedHeartColor);
+            return matchesRequirementHeartColor(
+              card.requirements.colorRequirements,
+              selectedHeartColor
+            );
           }
           return false;
         });
@@ -273,20 +273,7 @@ export function useCardFilters(): UseCardFiltersReturn {
         filtered = filtered.filter((card) => {
           const bladeHearts =
             isMemberCardData(card) || isLiveCardData(card) ? card.bladeHearts : undefined;
-          if (!bladeHearts || bladeHearts.length === 0) return false;
-          if (selectedBladeHeart === 'SCORE') {
-            return bladeHearts.some((bh) => bh.effect === BladeHeartEffect.SCORE);
-          }
-          if (selectedBladeHeart === 'DRAW') {
-            return bladeHearts.some((bh) => bh.effect === BladeHeartEffect.DRAW);
-          }
-          if (selectedBladeHeart.startsWith('HEART:')) {
-            const color = selectedBladeHeart.slice(6) as HeartColor;
-            return bladeHearts.some(
-              (bh) => bh.effect === BladeHeartEffect.HEART && bh.heartColor === color
-            );
-          }
-          return false;
+          return matchesBladeHeartFilter(bladeHearts, selectedBladeHeart);
         });
       }
 

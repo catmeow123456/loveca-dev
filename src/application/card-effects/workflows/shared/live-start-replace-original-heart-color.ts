@@ -27,6 +27,7 @@ const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
   [HeartColor.GREEN]: '此成员原本持有的Heart变为[緑ハート]。',
   [HeartColor.BLUE]: '此成员原本持有的Heart变为[青ハート]。',
   [HeartColor.PURPLE]: '此成员原本持有的Heart变为[紫ハート]。',
+  [HeartColor.GRAY]: '此成员原本持有的Heart变为[無色ハート]。',
   [HeartColor.RAINBOW]: '此成员原本持有的Heart变为[虹ハート]。',
 };
 
