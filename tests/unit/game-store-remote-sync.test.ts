@@ -216,6 +216,9 @@ describe('gameStore remote snapshot sync', () => {
         spectatorSessionId: 'session-1',
         spectatorAuthorizedViewerSeats: ['FIRST', 'SECOND'],
         spectatorViewVersion: 1,
+        spectatorRoomCode: 'ROOM-1',
+        spectatorRoomGeneration: 'room-gen-1',
+        spectatorAttachmentGeneration: 7,
       },
       replaySession: null,
       viewingPlayerId: 'player-1',
@@ -248,6 +251,11 @@ describe('gameStore remote snapshot sync', () => {
       spectatorView: {
         currentViewerSeat: 'SECOND',
         authorizedViewerSeats: ['SECOND'],
+        roomCode: 'ROOM-1',
+        roomGeneration: 'room-gen-1',
+        attachmentGeneration: 7,
+        preferredViewerDisplayName: 'Alpha',
+        effectiveViewerDisplayName: 'Beta',
         viewVersion: 2,
         authorizationNotice: {
           code: 'VIEW_AUTHORIZATION_CLOSED',
@@ -270,7 +278,9 @@ describe('gameStore remote snapshot sync', () => {
       4,
       'token-1',
       'session-1',
-      1
+      1,
+      'room-gen-1',
+      7
     );
     expect(useGameStore.getState().remoteSession).toMatchObject({
       seat: 'SECOND',
@@ -304,6 +314,9 @@ describe('gameStore remote snapshot sync', () => {
       spectatorViewVersion: 3,
       spectatorAuthorizationNotice: null,
       spectatorSyncGeneration: 0,
+      spectatorRoomCode: 'ROOM-STABLE',
+      spectatorRoomGeneration: 'room-gen-stable',
+      spectatorAttachmentGeneration: 3,
     };
     useGameStore.setState({
       remoteSession: spectatorSession,
@@ -324,6 +337,11 @@ describe('gameStore remote snapshot sync', () => {
       spectatorView: {
         currentViewerSeat: 'FIRST',
         authorizedViewerSeats: ['FIRST', 'SECOND'],
+        roomCode: 'ROOM-STABLE',
+        roomGeneration: 'room-gen-stable',
+        attachmentGeneration: 3,
+        preferredViewerDisplayName: 'Alpha',
+        effectiveViewerDisplayName: 'Alpha',
         viewVersion: 3,
         authorizationNotice: null,
       },
@@ -347,6 +365,9 @@ describe('gameStore remote snapshot sync', () => {
         spectatorAuthorizedViewerSeats: ['FIRST', 'SECOND'],
         spectatorViewVersion: 1,
         spectatorSyncGeneration: 0,
+        spectatorRoomCode: 'ROOM-LOG',
+        spectatorRoomGeneration: 'room-gen-log',
+        spectatorAttachmentGeneration: 1,
       },
       viewingPlayerId: 'player-1',
       playerViewState: createViewState('match-spec-switch', 2),
@@ -452,6 +473,11 @@ describe('gameStore remote snapshot sync', () => {
       spectatorView: {
         currentViewerSeat: 'FIRST',
         authorizedViewerSeats: ['FIRST'],
+        roomCode: 'ROOM-LOG',
+        roomGeneration: 'room-gen-log',
+        attachmentGeneration: 1,
+        preferredViewerDisplayName: 'Alpha',
+        effectiveViewerDisplayName: 'Alpha',
         viewVersion: 1,
         authorizationNotice: null,
       },

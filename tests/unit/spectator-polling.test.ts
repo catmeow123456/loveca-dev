@@ -83,7 +83,20 @@ describe('SpectatorPollingScheduler', () => {
 
   it('视角切换暂停时作废旧调度，恢复后仍不与旧请求重入', async () => {
     const oldRequest = deferred();
-    const poll = vi.fn().mockReturnValueOnce(oldRequest.promise).mockResolvedValue(undefined);
+    const appliedResults: string[] = [];
+    const poll = vi
+      .fn()
+      .mockImplementationOnce(async (isCurrent: () => boolean) => {
+        await oldRequest.promise;
+        if (isCurrent()) {
+          appliedResults.push('old');
+        }
+      })
+      .mockImplementation(async (isCurrent: () => boolean) => {
+        if (isCurrent()) {
+          appliedResults.push('current');
+        }
+      });
     const scheduler = new SpectatorPollingScheduler({ intervalMs: 800, poll });
 
     scheduler.start();
@@ -97,6 +110,7 @@ describe('SpectatorPollingScheduler', () => {
     await Promise.resolve();
     await vi.advanceTimersByTimeAsync(800);
     expect(poll).toHaveBeenCalledTimes(2);
+    expect(appliedResults).toEqual(['current']);
     scheduler.dispose();
   });
 });

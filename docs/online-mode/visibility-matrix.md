@@ -96,22 +96,22 @@
 
 ## 4. 区域矩阵
 
-| 区域 | `countVisibility` | `occupancyVisibility` | 自己通常看到 | 对手通常看到 | `orderPolicy` |
-| --- | --- | --- | --- | --- | --- |
-| 成员区 | BOTH | BOTH | `FRONT` | `FRONT` | NONE |
-| 成员下方能量 | BOTH | BOTH | `FRONT` | `FRONT` | PUBLIC_ORDERED |
-| 成员下方堆叠成员（`memberBelow`） | BOTH | BOTH | `FRONT` | `FRONT` | PUBLIC_ORDERED |
-| 能量区 | BOTH | BOTH | `FRONT` | `FRONT` | NONE |
-| Live 放置区（里侧） | BOTH | BOTH | `FRONT` | `BACK` | NONE |
-| Live 放置区（翻开后） | BOTH | BOTH | `FRONT` | `FRONT` | NONE |
-| 主卡组 | BOTH | OWNER_ONLY | 通常 `BACK`，依效果可 `FRONT` | `NONE` | OWNER_ORDERED_HIDDEN |
-| 能量卡组 | BOTH | OWNER_ONLY | 通常 `BACK`，依效果可 `FRONT` | `NONE` | OWNER_ORDERED_HIDDEN |
-| 手牌 | BOTH | OWNER_ONLY | `FRONT` | `NONE` | OWNER_ORDERED_HIDDEN |
-| 成功 Live 区 | BOTH | BOTH | `FRONT` | `FRONT` | PUBLIC_ORDERED |
-| 休息室 | BOTH | BOTH | `FRONT` | `FRONT` | NONE |
-| 除外区 | BOTH | BOTH | `FRONT` | `FRONT` | NONE |
-| 解决区 | BOTH | BOTH | 通常 `FRONT`，可短暂 `BACK` | 通常 `BACK`，翻开后 `FRONT` | NONE |
-| 检视区 | BOTH | BOTH | 通常 `FRONT` | 通常 `BACK` | PUBLIC_ORDERED |
+| 区域                              | `countVisibility` | `occupancyVisibility` | 自己通常看到                  | 对手通常看到                | `orderPolicy`        |
+| --------------------------------- | ----------------- | --------------------- | ----------------------------- | --------------------------- | -------------------- |
+| 成员区                            | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | NONE                 |
+| 成员下方能量                      | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | PUBLIC_ORDERED       |
+| 成员下方堆叠成员（`memberBelow`） | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | PUBLIC_ORDERED       |
+| 能量区                            | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | NONE                 |
+| Live 放置区（里侧）               | BOTH              | BOTH                  | `FRONT`                       | `BACK`                      | NONE                 |
+| Live 放置区（翻开后）             | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | NONE                 |
+| 主卡组                            | BOTH              | OWNER_ONLY            | 通常 `BACK`，依效果可 `FRONT` | `NONE`                      | OWNER_ORDERED_HIDDEN |
+| 能量卡组                          | BOTH              | OWNER_ONLY            | 通常 `BACK`，依效果可 `FRONT` | `NONE`                      | OWNER_ORDERED_HIDDEN |
+| 手牌                              | BOTH              | OWNER_ONLY            | `FRONT`                       | `NONE`                      | OWNER_ORDERED_HIDDEN |
+| 成功 Live 区                      | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | PUBLIC_ORDERED       |
+| 休息室                            | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | NONE                 |
+| 除外区                            | BOTH              | BOTH                  | `FRONT`                       | `FRONT`                     | NONE                 |
+| 解决区                            | BOTH              | BOTH                  | 通常 `FRONT`，可短暂 `BACK`   | 通常 `BACK`，翻开后 `FRONT` | NONE                 |
+| 检视区                            | BOTH              | BOTH                  | 通常 `FRONT`                  | 通常 `BACK`                 | PUBLIC_ORDERED       |
 
 补充：
 
@@ -169,6 +169,14 @@
 - 公共世界可观察该对象进入能量卡组。
 - 进入目标区后，对非持有者不再持续投影该对象。
 
+### 5.8 房间号观战的局间等待
+
+- `WAITING_NEXT_MATCH` 是独立房间级读模型，不是从旧局或玩家房间视图删字段得到的牌桌投影。
+- 等待视图只包含房间号、房间代际、绑定代际、上一局标识、preferred/effective 公开显示名和建议重试时间。
+- 等待视图不包含卡组选择、准备失败详情、未公开猜拳选择、未确定席位、任何卡牌对象或单局公共事件。
+- 进入等待后，客户端清空旧单局 store 与公共日志；新局首份标准玩家视角投影完整验证前，不显示任何新局牌桌内容。
+- 房间号观战始终只消费某一名获授权玩家的标准 `PlayerViewState`；跨重开连续性不授予额外摘要或上帝视角。
+
 ## 6. 前端渲染约束
 
 前端不应自行猜测卡牌可见性，应直接按投影结果渲染：
@@ -188,6 +196,5 @@
 
 以下问题不影响当前矩阵执行，但会影响未来扩展：
 
-1. 观战模式是否允许比普通对手看到更多摘要。
-2. 是否需要把 `FRONT` 继续拆成更细的信息可读级别。
-3. 未来公共事件是否需要单独区分裁判级和玩家级投影。
+1. 是否需要把 `FRONT` 继续拆成更细的信息可读级别。
+2. 未来公共事件是否需要单独区分裁判级和玩家级投影。

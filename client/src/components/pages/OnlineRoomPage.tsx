@@ -1968,7 +1968,7 @@ function SpectatorPresencePanel({
             >
               <div className="min-w-0 truncate font-medium">{viewer.displayName}</div>
               <div className="shrink-0 text-xs text-[var(--text-secondary)]">
-                {getSpectatorViewLabel(viewer.viewerSeat)}
+                {viewer.viewerSeat ? getSpectatorViewLabel(viewer.viewerSeat) : '等待下一局'}
               </div>
             </div>
           ))}

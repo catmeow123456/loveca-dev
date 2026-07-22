@@ -5,6 +5,7 @@ import type {
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineSpectatorViewState,
+  OnlineSpectatorSnapshotResponse,
   PublicEventsResponse,
 } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -54,7 +55,9 @@ export async function fetchRemoteSnapshot(
   sinceSeq?: number,
   spectatorToken?: string,
   spectatorSessionId?: string,
-  spectatorViewVersion?: number
+  spectatorViewVersion?: number,
+  spectatorRoomGeneration?: string | null,
+  spectatorAttachmentGeneration?: number
 ): Promise<RemoteSnapshot | null> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -73,8 +76,13 @@ export async function fetchRemoteSnapshot(
       spectatorToken,
       spectatorSessionId,
       sinceSeq,
-      spectatorViewVersion
+      spectatorViewVersion,
+      spectatorRoomGeneration,
+      spectatorAttachmentGeneration
     );
+    if (isSpectatorWaitingResponse(response)) {
+      return null;
+    }
     return isSnapshotNotModified(response) ? null : response;
   }
 
@@ -88,7 +96,9 @@ export async function fetchRemoteSnapshotSyncResult(
   sinceSeq?: number,
   spectatorToken?: string,
   spectatorSessionId?: string,
-  spectatorViewVersion?: number
+  spectatorViewVersion?: number,
+  spectatorRoomGeneration?: string | null,
+  spectatorAttachmentGeneration?: number
 ): Promise<RemoteSnapshotSyncResult> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -111,9 +121,19 @@ export async function fetchRemoteSnapshotSyncResult(
             requireSpectatorToken(spectatorToken),
             spectatorSessionId,
             sinceSeq,
-            spectatorViewVersion
+            spectatorViewVersion,
+            spectatorRoomGeneration,
+            spectatorAttachmentGeneration
           )
         : await fetchOnlineMatchSnapshotResponse(matchId, sinceSeq);
+  if (isSpectatorWaitingResponse(response)) {
+    return {
+      matchId: response.previousMatchId,
+      seq: sinceSeq ?? 0,
+      currentPublicSeq: 0,
+      snapshot: null,
+    };
+  }
   const snapshot = isSnapshotNotModified(response) ? null : response;
   return {
     matchId: response.matchId,
@@ -128,9 +148,18 @@ export async function fetchRemoteSnapshotSyncResult(
 }
 
 function isSnapshotNotModified(
-  snapshot: OnlineMatchSnapshotResponse
-): snapshot is Extract<OnlineMatchSnapshotResponse, { readonly modified: false }> {
+  snapshot: OnlineMatchSnapshotResponse | OnlineSpectatorSnapshotResponse
+): snapshot is Extract<
+  OnlineMatchSnapshotResponse | OnlineSpectatorSnapshotResponse,
+  { readonly modified: false }
+> {
   return 'modified' in snapshot && snapshot.modified === false;
+}
+
+function isSpectatorWaitingResponse(
+  response: OnlineMatchSnapshotResponse | OnlineSpectatorSnapshotResponse
+): response is Extract<OnlineSpectatorSnapshotResponse, { readonly status: 'WAITING_NEXT_MATCH' }> {
+  return 'status' in response && response.status === 'WAITING_NEXT_MATCH';
 }
 
 export async function fetchRemotePublicEvents(
@@ -139,7 +168,9 @@ export async function fetchRemotePublicEvents(
   seat?: DebugMatchSnapshot['seat'],
   afterSeq?: number,
   spectatorToken?: string,
-  spectatorSessionId?: string
+  spectatorSessionId?: string,
+  spectatorRoomGeneration?: string | null,
+  spectatorAttachmentGeneration?: number
 ): Promise<PublicEventsResponse | null> {
   if (source === 'DEBUG') {
     if (!seat) {
@@ -159,7 +190,9 @@ export async function fetchRemotePublicEvents(
     return fetchOnlineSpectatorPublicEvents(
       requireSpectatorToken(spectatorToken),
       spectatorSessionId,
-      afterSeq
+      afterSeq,
+      spectatorRoomGeneration,
+      spectatorAttachmentGeneration
     );
   }
 

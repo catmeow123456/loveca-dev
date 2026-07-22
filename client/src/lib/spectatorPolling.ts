@@ -11,7 +11,7 @@ export interface SpectatorPollingErrorState {
 
 interface SpectatorPollingSchedulerOptions {
   readonly intervalMs: number;
-  readonly poll: () => Promise<void>;
+  readonly poll: (isCurrent: () => boolean) => Promise<void>;
   readonly onSuccess?: () => void;
   readonly onError?: (state: SpectatorPollingErrorState) => void;
   readonly maxNetworkBackoffMs?: number;
@@ -25,7 +25,7 @@ const RATE_LIMIT_BOUNDARY_PADDING_MS = 50;
 
 export class SpectatorPollingScheduler {
   private readonly intervalMs: number;
-  private readonly poll: () => Promise<void>;
+  private readonly poll: (isCurrent: () => boolean) => Promise<void>;
   private readonly onSuccess?: () => void;
   private readonly onError?: (state: SpectatorPollingErrorState) => void;
   private readonly maxNetworkBackoffMs: number;
@@ -109,7 +109,7 @@ export class SpectatorPollingScheduler {
     this.inFlight = true;
     let nextDelayMs = this.intervalMs;
     try {
-      await this.poll();
+      await this.poll(() => this.isCurrent(generation));
       if (!this.isCurrent(generation)) {
         return;
       }

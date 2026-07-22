@@ -3,14 +3,26 @@ import { ArrowLeft, Eye, Loader2, SwitchCamera } from 'lucide-react';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { ThemeToggle } from '@/components/common';
-import { joinOnlineSpectatorLink, switchOnlineSpectatorView } from '@/lib/onlineClient';
+import {
+  fetchOnlineSpectatorSnapshotResponse,
+  joinOnlineSpectatorLink,
+  switchOnlineSpectatorView,
+} from '@/lib/onlineClient';
 import { ApiClientError } from '@/lib/apiClient';
 import { SpectatorPollingScheduler, type SpectatorPollingErrorState } from '@/lib/spectatorPolling';
 import { useGameStore } from '@/store/gameStore';
-import type { OnlineSpectatorJoinView, OnlineSpectatorSessionView, Seat } from '@game/online';
+import type {
+  OnlineSpectatorJoinView,
+  OnlineSpectatorMatchSnapshot,
+  OnlineSpectatorSessionView,
+  OnlineSpectatorSnapshotResponse,
+  OnlineSpectatorWaitingView,
+  Seat,
+} from '@game/online';
 
 const MATCH_POLL_INTERVAL_MS = 800;
 const SPECTATOR_CLIENT_ID_STORAGE_PREFIX = 'loveca.online.spectator.client.';
+type SpectatorContinuityStatus = 'WATCHING_MATCH' | 'WAITING_NEXT_MATCH' | 'SWITCHING_MATCH';
 
 interface OnlineSpectatorPageProps {
   readonly token: string;
@@ -23,13 +35,15 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
   const applySpectatorViewSession = useGameStore((s) => s.applySpectatorViewSession);
   const disconnectRemoteSession = useGameStore((s) => s.disconnectRemoteSession);
   const invalidateSpectatorSync = useGameStore((s) => s.invalidateSpectatorSync);
-  const syncRemoteState = useGameStore((s) => s.syncRemoteState);
+  const syncPublicBattleLog = useGameStore((s) => s.syncPublicBattleLog);
   const remoteSession = useGameStore((s) =>
     s.remoteSession?.source === 'SPECTATOR' ? s.remoteSession : null
   );
   const matchView = useGameStore((s) => s.getMatchView());
   const spectatorClientId = useMemo(() => readSpectatorClientId(token), [token]);
   const pollingSchedulerRef = useRef<SpectatorPollingScheduler | null>(null);
+  const attachmentGenerationRef = useRef(0);
+  const waitingGenerationRef = useRef<number | null>(null);
 
   const [sessionView, setSessionView] = useState<OnlineSpectatorSessionView | null>(null);
   const [linkView, setLinkView] = useState<OnlineSpectatorJoinView['link'] | null>(null);
@@ -38,10 +52,11 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
   const [isSwitchingView, setIsSwitchingView] = useState(false);
   const [isAccessInvalid, setIsAccessInvalid] = useState(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [continuityStatus, setContinuityStatus] =
+    useState<SpectatorContinuityStatus>('WATCHING_MATCH');
+  const [waitingView, setWaitingView] = useState<OnlineSpectatorWaitingView | null>(null);
 
-  const spectatorMatchId = remoteSession?.matchId ?? null;
-  const spectatorToken = remoteSession?.spectatorToken ?? null;
-  const spectatorSessionId = remoteSession?.spectatorSessionId ?? null;
+  const spectatorSessionId = sessionView?.sessionId ?? null;
 
   const handlePollingError = useCallback((state: SpectatorPollingErrorState) => {
     if (state.kind === 'RATE_LIMITED') {
@@ -62,6 +77,127 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
       pollingSchedulerRef.current?.pause();
     }
   }, []);
+
+  const applyWaitingState = useCallback(
+    (waiting: OnlineSpectatorWaitingView) => {
+      if (waiting.attachmentGeneration < attachmentGenerationRef.current) {
+        return false;
+      }
+      attachmentGenerationRef.current = waiting.attachmentGeneration;
+      if (waitingGenerationRef.current !== waiting.attachmentGeneration) {
+        waitingGenerationRef.current = waiting.attachmentGeneration;
+        disconnectRemoteSession();
+      }
+      setWaitingView((current) =>
+        current &&
+        current.roomGeneration === waiting.roomGeneration &&
+        current.attachmentGeneration === waiting.attachmentGeneration &&
+        current.preferredViewerDisplayName === waiting.preferredViewerDisplayName &&
+        current.effectiveViewerDisplayName === waiting.effectiveViewerDisplayName
+          ? current
+          : waiting
+      );
+      setContinuityStatus('WAITING_NEXT_MATCH');
+      setSessionView((current) =>
+        current &&
+        (current.viewerSeat !== null ||
+          current.authorizedViewerSeats.length > 0 ||
+          current.attachmentGeneration !== waiting.attachmentGeneration ||
+          current.preferredViewerDisplayName !== waiting.preferredViewerDisplayName ||
+          current.effectiveViewerDisplayName !== waiting.effectiveViewerDisplayName)
+          ? {
+              ...current,
+              viewerSeat: null,
+              authorizedViewerSeats: [],
+              attachmentGeneration: waiting.attachmentGeneration,
+              preferredViewerDisplayName: waiting.preferredViewerDisplayName,
+              effectiveViewerDisplayName: waiting.effectiveViewerDisplayName,
+            }
+          : current
+      );
+      setError(null);
+      return true;
+    },
+    [disconnectRemoteSession]
+  );
+
+  const applyWatchingSnapshot = useCallback(
+    async (
+      snapshot: OnlineSpectatorMatchSnapshot,
+      activeSessionId: string,
+      isContextCurrent: () => boolean = () => true
+    ) => {
+      const spectatorView = snapshot.spectatorView;
+      if (
+        !isContextCurrent() ||
+        spectatorView.attachmentGeneration < attachmentGenerationRef.current
+      ) {
+        return false;
+      }
+      const currentRemoteSession = useGameStore.getState().remoteSession;
+      const matchChanged =
+        currentRemoteSession?.source !== 'SPECTATOR' ||
+        currentRemoteSession.matchId !== snapshot.matchId ||
+        currentRemoteSession.spectatorAttachmentGeneration !== spectatorView.attachmentGeneration;
+      if (matchChanged) {
+        setContinuityStatus('SWITCHING_MATCH');
+        connectRemoteSession({
+          source: 'SPECTATOR',
+          matchId: snapshot.matchId,
+          seat: snapshot.seat,
+          playerId: snapshot.playerId,
+          spectatorToken: token,
+          spectatorSessionId: activeSessionId,
+          spectatorAuthorizedViewerSeats: spectatorView.authorizedViewerSeats,
+          spectatorViewVersion: spectatorView.viewVersion,
+          spectatorAuthorizationNotice: spectatorView.authorizationNotice,
+          spectatorRoomCode: spectatorView.roomCode,
+          spectatorRoomGeneration: spectatorView.roomGeneration,
+          spectatorAttachmentGeneration: spectatorView.attachmentGeneration,
+        });
+      } else if (
+        currentRemoteSession.seat !== spectatorView.currentViewerSeat ||
+        currentRemoteSession.playerId !== snapshot.playerId ||
+        currentRemoteSession.spectatorViewVersion !== spectatorView.viewVersion
+      ) {
+        applySpectatorViewSession({
+          seat: spectatorView.currentViewerSeat,
+          playerId: snapshot.playerId,
+          authorizedViewerSeats: spectatorView.authorizedViewerSeats,
+          viewVersion: spectatorView.viewVersion,
+          authorizationNotice: spectatorView.authorizationNotice,
+          roomCode: spectatorView.roomCode,
+          roomGeneration: spectatorView.roomGeneration,
+          attachmentGeneration: spectatorView.attachmentGeneration,
+        });
+      }
+      await applyRemoteSnapshot(snapshot);
+      if (!isContextCurrent()) {
+        return false;
+      }
+      attachmentGenerationRef.current = spectatorView.attachmentGeneration;
+      waitingGenerationRef.current = null;
+      setSessionView((current) =>
+        current
+          ? {
+              ...current,
+              viewerSeat: spectatorView.currentViewerSeat,
+              authorizedViewerSeats: spectatorView.authorizedViewerSeats,
+              attachmentGeneration: spectatorView.attachmentGeneration,
+              preferredViewerDisplayName: spectatorView.preferredViewerDisplayName,
+              effectiveViewerDisplayName: spectatorView.effectiveViewerDisplayName,
+              viewVersion: spectatorView.viewVersion,
+              lastSeenAt: Date.now(),
+            }
+          : current
+      );
+      setWaitingView(null);
+      setContinuityStatus('WATCHING_MATCH');
+      setError(null);
+      return true;
+    },
+    [applyRemoteSnapshot, applySpectatorViewSession, connectRemoteSession, token]
+  );
 
   useEffect(() => {
     const previousReferrer = document.querySelector<HTMLMetaElement>('meta[name="referrer"]');
@@ -86,35 +222,36 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
 
   useEffect(() => {
     let cancelled = false;
-    setIsBootstrapping(true);
-    setError(null);
-    setIsAccessInvalid(false);
-    setSyncNotice(null);
-    setSessionView(null);
-    setLinkView(null);
+    attachmentGenerationRef.current = 0;
+    waitingGenerationRef.current = null;
 
     const bootstrap = async () => {
+      await Promise.resolve();
+      if (cancelled) {
+        return;
+      }
+      setIsBootstrapping(true);
+      setError(null);
+      setIsAccessInvalid(false);
+      setSyncNotice(null);
+      setSessionView(null);
+      setLinkView(null);
+      setWaitingView(null);
+      setContinuityStatus('WATCHING_MATCH');
       try {
         const joined = await joinOnlineSpectatorLink(token, { clientId: spectatorClientId });
         if (cancelled) {
           return;
         }
 
-        connectRemoteSession({
-          source: 'SPECTATOR',
-          matchId: joined.snapshot.matchId,
-          seat: joined.snapshot.seat,
-          playerId: joined.snapshot.playerId,
-          spectatorToken: token,
-          spectatorSessionId: joined.session.sessionId,
-          spectatorAuthorizedViewerSeats: joined.session.authorizedViewerSeats,
-          spectatorViewVersion: joined.session.viewVersion,
-          spectatorAuthorizationNotice: joined.snapshot.spectatorView.authorizationNotice,
-        });
-        await applyRemoteSnapshot(joined.snapshot);
+        setSessionView(joined.session);
+        setLinkView(joined.link);
+        if (isSpectatorWaitingView(joined.snapshot)) {
+          applyWaitingState(joined.snapshot);
+        } else {
+          await applyWatchingSnapshot(joined.snapshot, joined.session.sessionId, () => !cancelled);
+        }
         if (!cancelled) {
-          setSessionView(joined.session);
-          setLinkView(joined.link);
           setError(null);
         }
       } catch (bootstrapError) {
@@ -134,22 +271,46 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
       cancelled = true;
       disconnectRemoteSession();
     };
-  }, [
-    applyRemoteSnapshot,
-    connectRemoteSession,
-    disconnectRemoteSession,
-    spectatorClientId,
-    token,
-  ]);
+  }, [applyWaitingState, applyWatchingSnapshot, disconnectRemoteSession, spectatorClientId, token]);
 
   useEffect(() => {
-    if (!spectatorMatchId || !spectatorToken || !spectatorSessionId) {
+    if (!spectatorSessionId) {
       return;
     }
 
     const scheduler = new SpectatorPollingScheduler({
       intervalMs: MATCH_POLL_INTERVAL_MS,
-      poll: syncRemoteState,
+      poll: async (isCurrent) => {
+        const store = useGameStore.getState();
+        const currentRemoteSession =
+          store.remoteSession?.source === 'SPECTATOR' ? store.remoteSession : null;
+        const response = await fetchOnlineSpectatorSnapshotResponse(
+          token,
+          spectatorSessionId,
+          continuityStatus === 'WATCHING_MATCH' ? store.playerViewState?.match.seq : undefined,
+          continuityStatus === 'WATCHING_MATCH'
+            ? currentRemoteSession?.spectatorViewVersion
+            : undefined,
+          currentRemoteSession?.spectatorRoomGeneration ?? waitingView?.roomGeneration,
+          attachmentGenerationRef.current || undefined
+        );
+        if (!isCurrent()) {
+          return;
+        }
+        if (isSpectatorWaitingView(response)) {
+          applyWaitingState(response);
+          return;
+        }
+        if (isSpectatorSnapshotNotModified(response)) {
+          if (response.spectatorView.attachmentGeneration < attachmentGenerationRef.current) {
+            return;
+          }
+          attachmentGenerationRef.current = response.spectatorView.attachmentGeneration;
+          await syncPublicBattleLog();
+          return;
+        }
+        await applyWatchingSnapshot(response, spectatorSessionId, isCurrent);
+      },
       onSuccess: () => {
         setError(null);
         setSyncNotice(null);
@@ -165,14 +326,24 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
         pollingSchedulerRef.current = null;
       }
     };
-  }, [handlePollingError, spectatorMatchId, spectatorSessionId, spectatorToken, syncRemoteState]);
+  }, [
+    applyWaitingState,
+    applyWatchingSnapshot,
+    continuityStatus,
+    handlePollingError,
+    spectatorSessionId,
+    syncPublicBattleLog,
+    token,
+    waitingView?.roomGeneration,
+  ]);
 
   const handleSwitchView = async (viewerSeat: Seat) => {
     if (
       !remoteSession?.spectatorToken ||
       !remoteSession.spectatorSessionId ||
       remoteSession.seat === viewerSeat ||
-      isSwitchingView
+      isSwitchingView ||
+      continuityStatus !== 'WATCHING_MATCH'
     ) {
       return;
     }
@@ -199,14 +370,10 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
       if (!isSwitchContextCurrent()) {
         return;
       }
-      applySpectatorViewSession({
-        seat: switched.snapshot.spectatorView.currentViewerSeat,
-        playerId: switched.snapshot.playerId,
-        authorizedViewerSeats: switched.snapshot.spectatorView.authorizedViewerSeats,
-        viewVersion: switched.snapshot.spectatorView.viewVersion,
-        authorizationNotice: switched.snapshot.spectatorView.authorizationNotice,
-      });
-      await applyRemoteSnapshot(switched.snapshot);
+      await applyWatchingSnapshot(switched.snapshot, switchSessionId, isSwitchContextCurrent);
+      if (!isSwitchContextCurrent()) {
+        return;
+      }
       setSessionView(switched.session);
       pollingSchedulerRef.current?.resume();
     } catch (switchError) {
@@ -228,7 +395,24 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
     }
   };
 
-  if ((isBootstrapping && !matchView) || (!error && !matchView)) {
+  if (
+    !isBootstrapping &&
+    continuityStatus === 'WAITING_NEXT_MATCH' &&
+    !matchView &&
+    !error &&
+    !isAccessInvalid
+  ) {
+    return (
+      <div className="app-shell flex min-h-screen items-center justify-center px-4">
+        <SpectatorWaitingPanel onBackHome={onBackHome} notice={syncNotice} />
+      </div>
+    );
+  }
+
+  if (
+    (isBootstrapping && !matchView) ||
+    (!error && !matchView && continuityStatus !== 'WAITING_NEXT_MATCH')
+  ) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center">
         <div className="surface-panel-frosted flex items-center gap-3 px-6 py-4 text-[var(--text-primary)]">
@@ -266,7 +450,9 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
       ? (matchView.participants[remoteSession.seat]?.name ?? getSeatLabel(remoteSession.seat))
       : null;
   const authorizedViewerSeats =
-    remoteSession?.spectatorAuthorizedViewerSeats ?? linkView?.authorizedViewerSeats ?? [];
+    continuityStatus === 'WATCHING_MATCH'
+      ? (remoteSession?.spectatorAuthorizedViewerSeats ?? linkView?.authorizedViewerSeats ?? [])
+      : [];
 
   return (
     <BattleViewportShell>
@@ -313,7 +499,7 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
             {sessionView.displayName}
           </div>
         ) : null}
-        <PublicBattleLogButton />
+        {continuityStatus === 'WATCHING_MATCH' ? <PublicBattleLogButton /> : null}
         <div className="hidden md:block">
           <ThemeToggle />
         </div>
@@ -332,7 +518,11 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
           {remoteSession.spectatorAuthorizationNotice.message}
         </div>
       ) : null}
-      {isSwitchingView ? (
+      {continuityStatus === 'WAITING_NEXT_MATCH' ? (
+        <div className="absolute inset-0 z-[115] flex items-center justify-center bg-[var(--bg-base)] px-4">
+          <SpectatorWaitingPanel onBackHome={onBackHome} />
+        </div>
+      ) : isSwitchingView || continuityStatus === 'SWITCHING_MATCH' ? (
         <div className="absolute inset-0 z-[110] flex items-center justify-center bg-[var(--bg-base)]">
           <div className="surface-panel-frosted flex items-center gap-3 px-6 py-4 text-sm text-[var(--text-primary)]">
             <Loader2 size={18} className="animate-spin" />
@@ -344,6 +534,44 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
       )}
     </BattleViewportShell>
   );
+}
+
+function SpectatorWaitingPanel({
+  onBackHome,
+  notice,
+}: {
+  readonly onBackHome: () => void;
+  readonly notice?: string | null;
+}) {
+  return (
+    <div className="surface-panel-frosted w-full max-w-md p-6 text-center shadow-[var(--shadow-xl)]">
+      <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[var(--bg-overlay)] text-[var(--accent-primary)]">
+        <Loader2 size={20} className="animate-spin" />
+      </div>
+      <div className="text-base font-semibold text-[var(--text-primary)]">正在准备下一局</div>
+      {notice ? <div className="mt-3 text-xs text-[var(--semantic-warning)]">{notice}</div> : null}
+      <button
+        type="button"
+        onClick={onBackHome}
+        className="button-ghost mt-5 inline-flex min-h-10 items-center gap-2 px-4"
+      >
+        <ArrowLeft size={16} />
+        返回首页
+      </button>
+    </div>
+  );
+}
+
+function isSpectatorWaitingView(
+  response: OnlineSpectatorSnapshotResponse | OnlineSpectatorJoinView['snapshot']
+): response is OnlineSpectatorWaitingView {
+  return 'status' in response && response.status === 'WAITING_NEXT_MATCH';
+}
+
+function isSpectatorSnapshotNotModified(
+  response: OnlineSpectatorSnapshotResponse
+): response is Extract<OnlineSpectatorSnapshotResponse, { readonly modified: false }> {
+  return 'modified' in response && response.modified === false;
 }
 
 function getSeatLabel(seat: Seat): string {
@@ -380,9 +608,12 @@ function isInvalidSpectatorAccessError(error: unknown): boolean {
       'ONLINE_SPECTATOR_LINK_EXPIRED',
       'ONLINE_SPECTATOR_SESSION_INVALID',
       'ONLINE_SPECTATOR_SESSION_REQUIRED',
+      'ONLINE_SPECTATOR_SESSION_EXPIRED',
       'ONLINE_SPECTATOR_MATCH_NOT_FOUND',
       'ONLINE_SPECTATOR_AUTHORIZATION_CLOSED',
       'ONLINE_SPECTATOR_VIEW_FORBIDDEN',
+      'ONLINE_SPECTATOR_ROOM_CLOSED',
+      'ONLINE_SPECTATOR_ROOM_REPLACED',
     ].includes(error.code)
   );
 }

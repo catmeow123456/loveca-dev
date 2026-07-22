@@ -7,6 +7,9 @@ export type OnlineRoomMemberPresence = 'ACTIVE' | 'LEFT';
 export type OpeningRpsGesture = 'ROCK' | 'PAPER' | 'SCISSORS';
 export type OpeningTurnOrderChoice = 'SELF_FIRST' | 'SELF_SECOND';
 export type OnlineSpectatorViewType = 'PLAYER';
+export type OnlineSpectatorLinkSource = 'ADMIN_LINK' | 'ROOM_CODE';
+export type OnlineSpectatorAccessEndReason =
+  'ROOM_CLOSED' | 'ROOM_REPLACED' | 'AUTHORIZATION_CLOSED' | 'SESSION_EXPIRED';
 
 export interface OnlineOpeningRpsChoiceView {
   readonly userId: string;
@@ -67,9 +70,13 @@ export type OnlineCommandResult = RemoteCommandResult<OnlineMatchSnapshot>;
 
 export interface OnlineSpectatorLinkView {
   readonly token: string;
-  readonly matchId: string;
+  readonly source: OnlineSpectatorLinkSource;
+  readonly matchId: string | null;
+  readonly roomCode: string;
+  readonly roomGeneration: string | null;
+  readonly attachmentGeneration: number;
   readonly viewType: OnlineSpectatorViewType;
-  readonly viewerSeat: Seat;
+  readonly viewerSeat: Seat | null;
   readonly authorizedViewerSeats: readonly Seat[];
   readonly createdAt: number;
   readonly expiresAt: number;
@@ -81,8 +88,11 @@ export interface OnlineSpectatorSessionView {
   readonly sessionId: string;
   readonly displayName: string;
   readonly viewType: OnlineSpectatorViewType;
-  readonly viewerSeat: Seat;
+  readonly viewerSeat: Seat | null;
   readonly authorizedViewerSeats: readonly Seat[];
+  readonly attachmentGeneration: number;
+  readonly preferredViewerDisplayName: string | null;
+  readonly effectiveViewerDisplayName: string | null;
   readonly viewVersion: number;
   readonly joinedAt: number;
   readonly lastSeenAt: number;
@@ -96,12 +106,17 @@ export interface OnlineSpectatorPresenceView {
 export interface OnlineSpectatorJoinView {
   readonly link: OnlineSpectatorLinkView;
   readonly session: OnlineSpectatorSessionView;
-  readonly snapshot: OnlineSpectatorMatchSnapshot;
+  readonly snapshot: OnlineSpectatorMatchSnapshot | OnlineSpectatorWaitingView;
 }
 
 export interface OnlineSpectatorViewState {
   readonly currentViewerSeat: Seat;
   readonly authorizedViewerSeats: readonly Seat[];
+  readonly roomCode: string;
+  readonly roomGeneration: string | null;
+  readonly attachmentGeneration: number;
+  readonly preferredViewerDisplayName: string | null;
+  readonly effectiveViewerDisplayName: string | null;
   readonly viewVersion: number;
   readonly authorizationNotice: OnlineSpectatorAuthorizationNotice | null;
 }
@@ -122,6 +137,17 @@ export interface OnlineSpectatorSwitchView {
   readonly snapshot: OnlineSpectatorMatchSnapshot;
 }
 
+export interface OnlineSpectatorWaitingView {
+  readonly status: 'WAITING_NEXT_MATCH';
+  readonly roomCode: string;
+  readonly roomGeneration: string;
+  readonly attachmentGeneration: number;
+  readonly previousMatchId: string;
+  readonly preferredViewerDisplayName: string | null;
+  readonly effectiveViewerDisplayName: string | null;
+  readonly retryAfterMs: number;
+}
+
 export interface OnlineRoomSpectatorSeatView {
   readonly seat: Seat;
   readonly displayName: string;
@@ -136,7 +162,7 @@ export interface OnlineRoomSpectatorEntryView {
 }
 
 export type OnlineSpectatorSnapshotResponse =
-  OnlineSpectatorMatchSnapshot | OnlineSpectatorSnapshotNotModified;
+  OnlineSpectatorMatchSnapshot | OnlineSpectatorSnapshotNotModified | OnlineSpectatorWaitingView;
 
 export interface OnlineSpectatorSnapshotNotModified extends OnlineMatchSnapshotNotModified {
   readonly spectatorView: OnlineSpectatorViewState;

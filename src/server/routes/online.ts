@@ -656,6 +656,8 @@ onlineRouter.get('/spectator-links/:token/snapshot', async (req, res) => {
       {
         sinceSeq: readOptionalSeq(req.query?.sinceSeq),
         sinceViewVersion: readOptionalSeq(req.query?.sinceViewVersion),
+        expectedRoomGeneration: readOptionalString(req.query?.roomGeneration) ?? undefined,
+        expectedAttachmentGeneration: readOptionalSeq(req.query?.attachmentGeneration),
       }
     );
     res.json({ data: snapshot, error: null });
@@ -672,6 +674,8 @@ onlineRouter.get('/spectator-links/:token/public-events', async (req, res) => {
       readOptionalString(req.query?.sessionId),
       {
         afterSeq: readOptionalSeq(req.query?.afterSeq),
+        expectedRoomGeneration: readOptionalString(req.query?.roomGeneration) ?? undefined,
+        expectedAttachmentGeneration: readOptionalSeq(req.query?.attachmentGeneration),
       }
     );
     res.json({ data: events, error: null });

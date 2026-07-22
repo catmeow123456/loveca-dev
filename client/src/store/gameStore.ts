@@ -255,6 +255,9 @@ export interface RemoteSessionState {
   readonly spectatorViewVersion?: number;
   readonly spectatorAuthorizationNotice?: OnlineSpectatorAuthorizationNotice | null;
   readonly spectatorSyncGeneration?: number;
+  readonly spectatorRoomCode?: string;
+  readonly spectatorRoomGeneration?: string | null;
+  readonly spectatorAttachmentGeneration?: number;
 }
 
 export interface ReplayReadonlySessionState {
@@ -477,6 +480,9 @@ export interface GameStore {
     readonly authorizedViewerSeats: readonly Seat[];
     readonly viewVersion: number;
     readonly authorizationNotice: OnlineSpectatorAuthorizationNotice | null;
+    readonly roomCode?: string;
+    readonly roomGeneration?: string | null;
+    readonly attachmentGeneration?: number;
   }) => void;
   /** 将远程快照应用到当前联机会话 */
   applyRemoteSnapshot: (snapshot: RemoteSnapshot) => Promise<void>;
@@ -1437,7 +1443,9 @@ export const useGameStore = create<GameStore>((set, get) => {
                 remoteSession.seat,
                 afterSeq,
                 remoteSession.spectatorToken,
-                remoteSession.spectatorSessionId
+                remoteSession.spectatorSessionId,
+                remoteSession.spectatorRoomGeneration,
+                remoteSession.spectatorAttachmentGeneration
               )
             : await fetchRemotePublicEvents(
                 remoteSession.source,
@@ -1712,6 +1720,11 @@ export const useGameStore = create<GameStore>((set, get) => {
             spectatorAuthorizedViewerSeats: input.authorizedViewerSeats,
             spectatorViewVersion: input.viewVersion,
             spectatorAuthorizationNotice: input.authorizationNotice,
+            spectatorRoomCode: input.roomCode ?? state.remoteSession.spectatorRoomCode,
+            spectatorRoomGeneration:
+              input.roomGeneration ?? state.remoteSession.spectatorRoomGeneration,
+            spectatorAttachmentGeneration:
+              input.attachmentGeneration ?? state.remoteSession.spectatorAttachmentGeneration,
           },
           playerViewState: null,
           viewingPlayerId: input.playerId,
@@ -1761,7 +1774,9 @@ export const useGameStore = create<GameStore>((set, get) => {
               get().playerViewState?.match.seq,
               remoteSession.spectatorToken,
               remoteSession.spectatorSessionId,
-              remoteSession.spectatorViewVersion
+              remoteSession.spectatorViewVersion,
+              remoteSession.spectatorRoomGeneration,
+              remoteSession.spectatorAttachmentGeneration
             )
           : await fetchRemoteSnapshotSyncResult(
               remoteSession.source,
@@ -1792,7 +1807,11 @@ export const useGameStore = create<GameStore>((set, get) => {
             !areSpectatorNoticesEqual(
               state.remoteSession.spectatorAuthorizationNotice,
               spectatorView.authorizationNotice
-            );
+            ) ||
+            state.remoteSession.spectatorRoomCode !== spectatorView.roomCode ||
+            state.remoteSession.spectatorRoomGeneration !== spectatorView.roomGeneration ||
+            state.remoteSession.spectatorAttachmentGeneration !==
+              spectatorView.attachmentGeneration;
           if (!sessionChanged) {
             return state;
           }
@@ -1804,6 +1823,9 @@ export const useGameStore = create<GameStore>((set, get) => {
               spectatorAuthorizedViewerSeats: spectatorView.authorizedViewerSeats,
               spectatorViewVersion: spectatorView.viewVersion,
               spectatorAuthorizationNotice: spectatorView.authorizationNotice,
+              spectatorRoomCode: spectatorView.roomCode,
+              spectatorRoomGeneration: spectatorView.roomGeneration,
+              spectatorAttachmentGeneration: spectatorView.attachmentGeneration,
             },
             playerViewState: viewChanged ? null : state.playerViewState,
             viewingPlayerId: playerId ?? state.viewingPlayerId,
@@ -3344,6 +3366,8 @@ function getRemoteSessionQueueKey(remoteSession: NonNullable<GameStore['remoteSe
     remoteSession.spectatorToken ?? '',
     remoteSession.spectatorSessionId ?? '',
     remoteSession.spectatorViewVersion ?? '',
+    remoteSession.spectatorRoomGeneration ?? '',
+    remoteSession.spectatorAttachmentGeneration ?? '',
   ].join(':');
 }
 
@@ -3376,6 +3400,9 @@ function isRemoteSessionStillCurrent(
     current.spectatorToken === remoteSession.spectatorToken &&
     current.spectatorSessionId === remoteSession.spectatorSessionId &&
     current.spectatorViewVersion === remoteSession.spectatorViewVersion &&
+    current.spectatorRoomCode === remoteSession.spectatorRoomCode &&
+    current.spectatorRoomGeneration === remoteSession.spectatorRoomGeneration &&
+    current.spectatorAttachmentGeneration === remoteSession.spectatorAttachmentGeneration &&
     current.spectatorSyncGeneration === remoteSession.spectatorSyncGeneration
   );
 }

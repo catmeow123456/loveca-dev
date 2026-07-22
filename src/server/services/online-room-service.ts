@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { DeckConfig as RuntimeDeckConfig } from '../../application/game-service.js';
 import { DeckLoader } from '../../domain/card-data/deck-loader.js';
 import type {
@@ -50,6 +51,7 @@ type OnlineRestartRequestState = OnlineRestartRequestView;
 
 interface OnlineRoomState {
   readonly roomCode: string;
+  readonly roomGeneration: string;
   status: OnlineRoomStatus;
   ownerUserId: string;
   readonly members: OnlineRoomMemberState[];
@@ -57,7 +59,7 @@ interface OnlineRoomState {
   restartRequest: OnlineRestartRequestState | null;
   matchId: string | null;
   seatAssignments: Partial<Record<Seat, string>>;
-  spectatorRoomEntryEnabled: Partial<Record<Seat, boolean>>;
+  spectatorRoomEntryEnabledByUserId: Record<string, boolean>;
   updatedAt: number;
 }
 
@@ -134,6 +136,7 @@ export class OnlineRoomService {
     const now = this.now();
     const room: OnlineRoomState = {
       roomCode,
+      roomGeneration: randomUUID(),
       status: 'PREPARING',
       ownerUserId: userId,
       members: [
@@ -154,7 +157,7 @@ export class OnlineRoomService {
       restartRequest: null,
       matchId: null,
       seatAssignments: {},
-      spectatorRoomEntryEnabled: {},
+      spectatorRoomEntryEnabledByUserId: { [userId]: true },
       updatedAt: now,
     };
 
@@ -199,6 +202,7 @@ export class OnlineRoomService {
       lastSeenAt: now,
     };
     room.members.push(member);
+    room.spectatorRoomEntryEnabledByUserId[userId] = true;
     touchRoom(room, now);
 
     return this.buildRoomView(room, member);
@@ -470,6 +474,7 @@ export class OnlineRoomService {
     const previousDeleted = await this.matchService.deleteMatch(previousMatchId, {
       reason: 'ROOM_RESTART_ACCEPTED',
       now,
+      preserveRoomCodeSpectators: true,
     });
     if (!previousDeleted) {
       throw new OnlineRoomServiceError(
@@ -481,7 +486,6 @@ export class OnlineRoomService {
 
     room.matchId = null;
     room.seatAssignments = {};
-    room.spectatorRoomEntryEnabled = {};
     room.members.forEach((candidate) => {
       candidate.startReady = false;
       candidate.presence = 'ACTIVE';
@@ -574,8 +578,15 @@ export class OnlineRoomService {
 
     const index = room.members.findIndex((candidate) => candidate.userId === userId);
     room.members.splice(index, 1);
+    delete room.spectatorRoomEntryEnabledByUserId[userId];
 
     if (room.members.length === 0) {
+      this.matchService.terminateRoomCodeSpectators(
+        room.roomCode,
+        room.roomGeneration,
+        'ROOM_CLOSED',
+        now
+      );
       this.rooms.delete(room.roomCode);
       return { room: null };
     }
@@ -595,6 +606,12 @@ export class OnlineRoomService {
     room.members.forEach((candidate) => {
       candidate.startReady = false;
     });
+    this.matchService.terminateRoomCodeSpectators(
+      room.roomCode,
+      room.roomGeneration,
+      'ROOM_REPLACED',
+      now
+    );
     touchRoom(room, now);
 
     return {
@@ -668,14 +685,15 @@ export class OnlineRoomService {
         404
       );
     }
-    if (!room.seatAssignments[viewerSeat]) {
+    const viewerUserIdForSeat = room.seatAssignments[viewerSeat];
+    if (!viewerUserIdForSeat) {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_SPECTATOR_UNAVAILABLE',
         '该玩家视角当前不可观战',
         404
       );
     }
-    if (room.spectatorRoomEntryEnabled[viewerSeat] !== true) {
+    if (room.spectatorRoomEntryEnabledByUserId[viewerUserIdForSeat] !== true) {
       throw new OnlineRoomServiceError(
         'ONLINE_ROOM_SPECTATOR_CLOSED',
         '该玩家已关闭房间号观战',
@@ -687,7 +705,8 @@ export class OnlineRoomService {
     const link = this.matchService.createRoomCodePlayerViewSpectatorLink(
       room.matchId,
       viewerSeat,
-      authorizedViewerSeats
+      authorizedViewerSeats,
+      room.roomGeneration
     );
     if (!link) {
       throw new OnlineRoomServiceError(
@@ -725,8 +744,12 @@ export class OnlineRoomService {
       );
     }
 
-    room.spectatorRoomEntryEnabled[seat] = enabled;
-    this.matchService.setRoomCodeSpectatorSeats(room.matchId, getEnabledSpectatorSeats(room));
+    room.spectatorRoomEntryEnabledByUserId[userId] = enabled;
+    this.matchService.setRoomCodeSpectatorSeats(
+      room.matchId,
+      room.roomGeneration,
+      getEnabledSpectatorSeats(room)
+    );
 
     const now = this.now();
     member.presence = 'ACTIVE';
@@ -837,9 +860,10 @@ export class OnlineRoomService {
       restartRequest: room.restartRequest,
       matchId: room.matchId,
       spectatorRoomEntry: buildSpectatorRoomEntryView(room),
-      spectatorPresence: room.matchId
-        ? this.matchService.getSpectatorPresenceForMatch(room.matchId)
-        : { total: 0, viewers: [] },
+      spectatorPresence: this.matchService.getRoomCodeSpectatorPresence(
+        room.roomCode,
+        room.roomGeneration
+      ),
       updatedAt: room.updatedAt,
     };
   }
@@ -935,10 +959,11 @@ export class OnlineRoomService {
     room.openingRps = null;
     room.restartRequest = null;
     room.status = 'IN_GAME';
-    room.spectatorRoomEntryEnabled = {
-      FIRST: true,
-      SECOND: true,
-    };
+    this.matchService.attachRoomCodeSpectators(
+      match.matchId,
+      room.roomGeneration,
+      getEnabledSpectatorSeats(room)
+    );
     touchRoom(room, now);
 
     return match;
@@ -966,6 +991,12 @@ export class OnlineRoomService {
               continue;
             }
           }
+          this.matchService.terminateRoomCodeSpectators(
+            room.roomCode,
+            room.roomGeneration,
+            'ROOM_CLOSED',
+            now
+          );
           this.rooms.delete(roomCode);
           destroyedRoomCount += 1;
         }
@@ -974,6 +1005,12 @@ export class OnlineRoomService {
 
       this.removeExpiredPreparingMembers(room, now);
       if (room.members.length === 0) {
+        this.matchService.terminateRoomCodeSpectators(
+          room.roomCode,
+          room.roomGeneration,
+          'ROOM_CLOSED',
+          now
+        );
         this.rooms.delete(roomCode);
         destroyedRoomCount += 1;
       }
@@ -1002,15 +1039,28 @@ export class OnlineRoomService {
   }
 
   private removeExpiredPreparingMembers(room: OnlineRoomState, now: number): void {
+    const previousUserIds = new Set(room.members.map((member) => member.userId));
     const nextMembers = room.members.filter((member) => !shouldDropPreparingMember(member, now));
     if (nextMembers.length === room.members.length) {
       return;
     }
 
     room.members.splice(0, room.members.length, ...nextMembers);
+    for (const userId of previousUserIds) {
+      if (!nextMembers.some((member) => member.userId === userId)) {
+        delete room.spectatorRoomEntryEnabledByUserId[userId];
+      }
+    }
     if (room.members.length === 0) {
       return;
     }
+
+    this.matchService.terminateRoomCodeSpectators(
+      room.roomCode,
+      room.roomGeneration,
+      'ROOM_REPLACED',
+      now
+    );
 
     if (!room.members.some((member) => member.userId === room.ownerUserId)) {
       room.ownerUserId = room.members[0].userId;
@@ -1133,10 +1183,10 @@ function buildSpectatorRoomEntryView(
     .map((seat) => {
       const userId = room.seatAssignments[seat];
       const member = userId ? findMember(room, userId) : undefined;
-      if (!member) {
+      if (!userId || !member) {
         return null;
       }
-      const enabled = room.spectatorRoomEntryEnabled[seat] === true;
+      const enabled = room.spectatorRoomEntryEnabledByUserId[userId] === true;
       if (options.onlyEnabledSeats && !enabled) {
         return null;
       }
@@ -1157,9 +1207,10 @@ function buildSpectatorRoomEntryView(
 }
 
 function getEnabledSpectatorSeats(room: OnlineRoomState): Seat[] {
-  return (['FIRST', 'SECOND'] as const).filter(
-    (seat) => Boolean(room.seatAssignments[seat]) && room.spectatorRoomEntryEnabled[seat] === true
-  );
+  return (['FIRST', 'SECOND'] as const).filter((seat) => {
+    const userId = room.seatAssignments[seat];
+    return userId !== undefined && room.spectatorRoomEntryEnabledByUserId[userId] === true;
+  });
 }
 
 function getHostUserId(room: OnlineRoomState): string | null {

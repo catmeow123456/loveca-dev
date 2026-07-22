@@ -27,6 +27,7 @@ import type {
   OnlineSpectatorSessionView,
   OnlineSpectatorSnapshotResponse,
   OnlineSpectatorSwitchView,
+  OnlineSpectatorWaitingView,
   OnlineUndoView,
   PublicEvent,
   PublicEventsResponse,
@@ -53,6 +54,8 @@ const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
 const SPECTATOR_LINK_TTL_MS = 12 * 60 * 60 * 1000;
 const SPECTATOR_SESSION_STALE_MS = 15 * 1000;
+const SPECTATOR_TOMBSTONE_TTL_MS = 5 * 60 * 1000;
+const SPECTATOR_WAITING_RETRY_AFTER_MS = 800;
 const DEFAULT_SPECTATOR_MAX_PUBLIC_SESSIONS = 10;
 const DEFAULT_SPECTATOR_REQUEST_WINDOW_MS = 10 * 1000;
 const DEFAULT_SPECTATOR_REQUEST_LIMIT = 60;
@@ -186,32 +189,50 @@ interface OnlineUndoGrantState {
 
 interface OnlineSpectatorLinkState {
   readonly token: string;
-  readonly matchId: string;
+  matchId: string | null;
+  readonly roomCode: string;
+  readonly roomGeneration: string | null;
+  attachmentGeneration: number;
   readonly viewType: 'PLAYER';
-  readonly viewerSeat: Seat;
+  viewerSeat: Seat | null;
   readonly authorizedViewerSeats: Set<Seat>;
+  readonly knownRoomMemberUserIds: Set<string>;
+  readonly authorizedViewerUserIds: Set<string>;
+  readonly preferredViewerUserId: string | null;
+  preferredViewerDisplayName: string | null;
   readonly source: 'ADMIN_LINK' | 'ROOM_CODE';
   readonly countsInPresence: boolean;
   readonly createdAt: number;
   readonly expiresAt: number;
   revokedAt: number | null;
-  revokedReason: 'ROOM_CODE_AUTHORIZATION_CLOSED' | null;
+  revokedReason: 'ROOM_CODE_AUTHORIZATION_CLOSED' | 'ROOM_CLOSED' | 'ROOM_REPLACED' | null;
 }
 
 interface OnlineSpectatorSessionState {
   readonly sessionId: string;
   readonly token: string;
   readonly clientId: string | null;
-  readonly matchId: string;
+  matchId: string | null;
+  readonly roomCode: string;
+  readonly roomGeneration: string | null;
+  attachmentGeneration: number;
+  previousMatchId: string | null;
   readonly viewType: 'PLAYER';
-  viewerSeat: Seat;
+  viewerSeat: Seat | null;
   readonly authorizedViewerSeats: Set<Seat>;
+  readonly authorizedViewerUserIds: Set<string>;
+  preferredViewerUserId: string | null;
+  preferredViewerDisplayName: string | null;
+  effectiveViewerUserId: string | null;
+  effectiveViewerDisplayName: string | null;
   viewVersion: number;
   authorizationNotice: OnlineSpectatorMatchSnapshot['spectatorView']['authorizationNotice'];
   readonly countsInPresence: boolean;
   readonly joinedAt: number;
   displayName: string;
   lastSeenAt: number;
+  endedAt: number | null;
+  endReason: 'ROOM_CLOSED' | 'ROOM_REPLACED' | 'AUTHORIZATION_CLOSED' | 'SESSION_EXPIRED' | null;
 }
 
 export interface CreateUndoRequestInput extends RemoteUndoInput {}
@@ -242,6 +263,7 @@ interface OnlineMatchServiceDeps {
 export interface DeleteOnlineMatchOptions {
   readonly reason?: string;
   readonly now?: number;
+  readonly preserveRoomCodeSpectators?: boolean;
 }
 
 export class OnlineMatchServiceError extends Error {
@@ -647,13 +669,15 @@ export class OnlineMatchService {
       source: 'ADMIN_LINK',
       countsInPresence: false,
       authorizedViewerSeats: ['FIRST', 'SECOND'],
+      roomGeneration: null,
     });
   }
 
   createRoomCodePlayerViewSpectatorLink(
     matchId: string,
     viewerSeat: Seat,
-    authorizedViewerSeats: readonly Seat[]
+    authorizedViewerSeats: readonly Seat[],
+    roomGeneration: string
   ): OnlineSpectatorLinkView | null {
     const match = this.matches.get(matchId);
     if (!match || match.matchMode !== 'ONLINE' || !match.participants[viewerSeat]) {
@@ -662,17 +686,21 @@ export class OnlineMatchService {
 
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
+    const preferredViewerUserId = match.participants[viewerSeat].userId;
     const existingLink = [...this.spectatorLinks.values()].find(
       (link) =>
         link.source === 'ROOM_CODE' &&
-        link.matchId === match.matchId &&
-        link.viewerSeat === viewerSeat &&
+        link.roomCode === match.roomCode &&
+        link.roomGeneration === roomGeneration &&
+        link.preferredViewerUserId === preferredViewerUserId &&
         link.revokedAt === null &&
         link.expiresAt > now
     );
     if (existingLink) {
-      replaceAuthorizedViewerSeats(existingLink.authorizedViewerSeats, authorizedViewerSeats);
-      touchMatch(match);
+      this.attachRoomCodeSpectatorLink(existingLink, match, authorizedViewerSeats);
+      if (match) {
+        touchMatch(match);
+      }
       return buildSpectatorLinkView(existingLink);
     }
 
@@ -680,43 +708,80 @@ export class OnlineMatchService {
       source: 'ROOM_CODE',
       countsInPresence: true,
       authorizedViewerSeats,
+      roomGeneration,
     });
   }
 
-  setRoomCodeSpectatorSeats(matchId: string, authorizedViewerSeats: readonly Seat[]): void {
+  setRoomCodeSpectatorSeats(
+    matchId: string,
+    roomGeneration: string,
+    authorizedViewerSeats: readonly Seat[]
+  ): void {
     const now = this.now();
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return;
+    }
     const nextSeats = normalizeViewerSeats(authorizedViewerSeats);
+    const nextUserIds = new Set(nextSeats.map((seat) => match.participants[seat].userId));
     for (const link of this.spectatorLinks.values()) {
-      if (link.source !== 'ROOM_CODE' || link.matchId !== matchId || link.revokedAt !== null) {
+      if (
+        link.source !== 'ROOM_CODE' ||
+        link.roomCode !== match.roomCode ||
+        link.roomGeneration !== roomGeneration ||
+        link.revokedAt !== null
+      ) {
         continue;
       }
       const previousSeats = normalizeViewerSeats(link.authorizedViewerSeats);
+      const scopedNextUserIds = [...nextUserIds].filter((userId) =>
+        link.knownRoomMemberUserIds.has(userId)
+      );
+      replaceStringSet(link.authorizedViewerUserIds, scopedNextUserIds);
+      const scopedNextSeats = nextSeats.filter((seat) =>
+        link.authorizedViewerUserIds.has(match.participants[seat].userId)
+      );
       const authorizationChanged =
-        previousSeats.length !== nextSeats.length ||
-        previousSeats.some((seat, index) => seat !== nextSeats[index]);
+        previousSeats.length !== scopedNextSeats.length ||
+        previousSeats.some((seat, index) => seat !== scopedNextSeats[index]);
       if (!authorizationChanged) {
         continue;
       }
-      replaceAuthorizedViewerSeats(link.authorizedViewerSeats, nextSeats);
+      replaceAuthorizedViewerSeats(link.authorizedViewerSeats, scopedNextSeats);
       const closedSeats = previousSeats.filter((seat) => !link.authorizedViewerSeats.has(seat));
-      if (nextSeats.length === 0) {
+      if (scopedNextSeats.length === 0) {
         link.revokedAt = now;
         link.revokedReason = 'ROOM_CODE_AUTHORIZATION_CLOSED';
+      } else {
+        const preferredLinkSeat = findSeatByUserId(match, link.preferredViewerUserId);
+        link.viewerSeat =
+          preferredLinkSeat && link.authorizedViewerSeats.has(preferredLinkSeat)
+            ? preferredLinkSeat
+            : scopedNextSeats[0];
       }
-      for (const [sessionId, session] of this.spectatorSessions) {
+      for (const session of this.spectatorSessions.values()) {
         if (session.token !== link.token) {
           continue;
         }
-        if (nextSeats.length === 0) {
-          this.spectatorSessions.delete(sessionId);
-          this.spectatorRequestWindows.delete(sessionId);
+        replaceStringSet(session.authorizedViewerUserIds, link.authorizedViewerUserIds);
+        replaceAuthorizedViewerSeats(session.authorizedViewerSeats, scopedNextSeats);
+        if (scopedNextSeats.length === 0) {
+          endSpectatorSession(session, 'AUTHORIZATION_CLOSED', now);
           continue;
         }
-        const autoSwitched = !link.authorizedViewerSeats.has(session.viewerSeat);
+        const preferredSeat = findSeatByUserId(match, session.preferredViewerUserId);
+        const previousViewerSeat = session.viewerSeat;
+        const nextViewerSeat =
+          preferredSeat && link.authorizedViewerSeats.has(preferredSeat)
+            ? preferredSeat
+            : previousViewerSeat && link.authorizedViewerSeats.has(previousViewerSeat)
+              ? previousViewerSeat
+              : scopedNextSeats[0];
+        const autoSwitched = previousViewerSeat !== nextViewerSeat;
         session.viewVersion += 1;
-        if (autoSwitched) {
-          session.viewerSeat = nextSeats[0];
-        }
+        session.viewerSeat = nextViewerSeat;
+        session.effectiveViewerUserId = match.participants[nextViewerSeat].userId;
+        session.effectiveViewerDisplayName = match.participants[nextViewerSeat].displayName;
         if (closedSeats.length > 0) {
           session.authorizationNotice = {
             code: 'VIEW_AUTHORIZATION_CLOSED',
@@ -724,14 +789,13 @@ export class OnlineMatchService {
             autoSwitched,
             message: buildSpectatorAuthorizationClosedMessage(closedSeats, autoSwitched),
           };
+        } else {
+          session.authorizationNotice = null;
         }
       }
     }
 
-    const match = this.matches.get(matchId);
-    if (match) {
-      touchMatch(match);
-    }
+    touchMatch(match);
   }
 
   private createSpectatorLinkForSeat(
@@ -741,6 +805,7 @@ export class OnlineMatchService {
       readonly source: OnlineSpectatorLinkState['source'];
       readonly countsInPresence: boolean;
       readonly authorizedViewerSeats: readonly Seat[];
+      readonly roomGeneration: string | null;
     }
   ): OnlineSpectatorLinkView {
     const now = this.now();
@@ -749,12 +814,31 @@ export class OnlineMatchService {
     if (!authorizedViewerSeats.includes(viewerSeat)) {
       authorizedViewerSeats.unshift(viewerSeat);
     }
+    const preferredParticipant = match.participants[viewerSeat];
+    const knownRoomMemberUserIds = new Set(
+      options.source === 'ROOM_CODE'
+        ? [match.participants.FIRST.userId, match.participants.SECOND.userId]
+        : []
+    );
+    const authorizedViewerUserIds = new Set(
+      options.source === 'ROOM_CODE'
+        ? authorizedViewerSeats.map((seat) => match.participants[seat].userId)
+        : []
+    );
     const link: OnlineSpectatorLinkState = {
       token: this.idGenerator(),
       matchId: match.matchId,
+      roomCode: match.roomCode,
+      roomGeneration: options.roomGeneration,
+      attachmentGeneration: 1,
       viewType: 'PLAYER',
       viewerSeat,
       authorizedViewerSeats: new Set(authorizedViewerSeats),
+      knownRoomMemberUserIds,
+      authorizedViewerUserIds,
+      preferredViewerUserId: options.source === 'ROOM_CODE' ? preferredParticipant.userId : null,
+      preferredViewerDisplayName:
+        options.source === 'ROOM_CODE' ? preferredParticipant.displayName : null,
       source: options.source,
       countsInPresence: options.countsInPresence,
       createdAt: now,
@@ -782,7 +866,7 @@ export class OnlineMatchService {
     if (
       link.source === 'ROOM_CODE' &&
       input.authenticatedUserId &&
-      getParticipantByUserId(match, input.authenticatedUserId)
+      link.knownRoomMemberUserIds.has(input.authenticatedUserId)
     ) {
       throw new OnlineSpectatorServiceError(
         'ONLINE_ROOM_SPECTATOR_FORBIDDEN',
@@ -802,18 +886,28 @@ export class OnlineMatchService {
       if (displayName) {
         existingSession.displayName = displayName;
       }
-      touchMatch(match);
+      if (match) {
+        touchMatch(match);
+      }
 
       return {
         link: buildSpectatorLinkView(link),
         session: buildSpectatorSessionView(existingSession),
-        snapshot: buildReadonlySpectatorSnapshot(match, link, existingSession),
+        snapshot: this.buildSpectatorSyncState(match, link, existingSession),
       };
+    }
+
+    if (!match) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_WAITING_SESSION_REQUIRED',
+        '该房间正在准备下一局，只有原观战会话可以继续等待',
+        409
+      );
     }
 
     if (
       link.countsInPresence &&
-      this.countActivePublicSpectatorSessionsForRoom(match.roomCode, now) >=
+      this.countActivePublicSpectatorSessionsForRoom(link.roomCode, link.roomGeneration, now) >=
         this.spectatorMaxPublicSessions
     ) {
       throw new OnlineSpectatorServiceError(
@@ -823,9 +917,10 @@ export class OnlineMatchService {
       );
     }
 
-    const viewerSeat = link.authorizedViewerSeats.has(link.viewerSeat)
-      ? link.viewerSeat
-      : normalizeViewerSeats(link.authorizedViewerSeats)[0];
+    const viewerSeat =
+      link.viewerSeat && link.authorizedViewerSeats.has(link.viewerSeat)
+        ? link.viewerSeat
+        : normalizeViewerSeats(link.authorizedViewerSeats)[0];
     if (!viewerSeat) {
       throw new OnlineSpectatorServiceError(
         'ONLINE_SPECTATOR_VIEW_FORBIDDEN',
@@ -839,15 +934,32 @@ export class OnlineMatchService {
       token: link.token,
       clientId,
       matchId: link.matchId,
+      roomCode: link.roomCode,
+      roomGeneration: link.roomGeneration,
+      attachmentGeneration: link.attachmentGeneration,
+      previousMatchId: null,
       viewType: link.viewType,
       viewerSeat,
       authorizedViewerSeats: link.authorizedViewerSeats,
+      authorizedViewerUserIds: new Set(link.authorizedViewerUserIds),
+      preferredViewerUserId:
+        link.source === 'ROOM_CODE'
+          ? link.preferredViewerUserId
+          : match.participants[viewerSeat].userId,
+      preferredViewerDisplayName:
+        link.source === 'ROOM_CODE'
+          ? link.preferredViewerDisplayName
+          : match.participants[viewerSeat].displayName,
+      effectiveViewerUserId: match.participants[viewerSeat].userId,
+      effectiveViewerDisplayName: match.participants[viewerSeat].displayName,
       viewVersion: 1,
       authorizationNotice: null,
       countsInPresence: link.countsInPresence,
-      displayName: displayName ?? this.createGuestDisplayName(link.matchId, now),
+      displayName: displayName ?? this.createGuestDisplayName(match.matchId, now),
       joinedAt: now,
       lastSeenAt: now,
+      endedAt: null,
+      endReason: null,
     };
     this.spectatorSessions.set(session.sessionId, session);
     touchMatch(match);
@@ -855,20 +967,30 @@ export class OnlineMatchService {
     return {
       link: buildSpectatorLinkView(link),
       session: buildSpectatorSessionView(session),
-      snapshot: buildReadonlySpectatorSnapshot(match, link, session),
+      snapshot: this.buildSpectatorSyncState(match, link, session),
     };
   }
 
   async getSpectatorSnapshot(
     tokenInput: string,
     sessionId: string | null | undefined,
-    options: { readonly sinceSeq?: number; readonly sinceViewVersion?: number } = {}
+    options: {
+      readonly sinceSeq?: number;
+      readonly sinceViewVersion?: number;
+      readonly expectedRoomGeneration?: string;
+      readonly expectedAttachmentGeneration?: number;
+    } = {}
   ): Promise<OnlineSpectatorSnapshotResponse> {
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
     const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
     const session = this.requireActiveSpectatorSession(link, sessionId, now);
     this.consumeSpectatorRequest(session, now);
+    this.assertSpectatorGenerationExpectations(link, session, options.expectedRoomGeneration);
+
+    if (!match) {
+      return buildSpectatorWaitingView(link, session);
+    }
 
     await this.expirePendingUndoRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
@@ -878,7 +1000,9 @@ export class OnlineMatchService {
     if (
       options.sinceSeq !== undefined &&
       options.sinceSeq >= currentSeq &&
-      options.sinceViewVersion === session.viewVersion
+      options.sinceViewVersion === session.viewVersion &&
+      (options.expectedAttachmentGeneration === undefined ||
+        options.expectedAttachmentGeneration === session.attachmentGeneration)
     ) {
       return {
         matchId: match.matchId,
@@ -902,6 +1026,13 @@ export class OnlineMatchService {
     const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
     const session = this.requireActiveSpectatorSession(link, sessionId, now);
     this.consumeSpectatorRequest(session, now);
+    if (!match) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_VIEW_SWITCH_UNAVAILABLE',
+        '正在准备下一局，暂时不能切换观战目标',
+        409
+      );
+    }
     if (!link.authorizedViewerSeats.has(viewerSeat)) {
       throw new OnlineSpectatorServiceError(
         'ONLINE_SPECTATOR_VIEW_FORBIDDEN',
@@ -911,6 +1042,10 @@ export class OnlineMatchService {
     }
 
     session.viewerSeat = viewerSeat;
+    session.preferredViewerUserId = match.participants[viewerSeat].userId;
+    session.preferredViewerDisplayName = match.participants[viewerSeat].displayName;
+    session.effectiveViewerUserId = match.participants[viewerSeat].userId;
+    session.effectiveViewerDisplayName = match.participants[viewerSeat].displayName;
     session.viewVersion += 1;
     session.authorizationNotice = null;
     session.lastSeenAt = now;
@@ -924,19 +1059,55 @@ export class OnlineMatchService {
   async getSpectatorPublicEvents(
     tokenInput: string,
     sessionId: string | null | undefined,
-    options: { readonly afterSeq?: number } = {}
+    options: {
+      readonly afterSeq?: number;
+      readonly expectedRoomGeneration?: string;
+      readonly expectedAttachmentGeneration?: number;
+    } = {}
   ): Promise<PublicEventsResponse> {
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
     const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
     const session = this.requireActiveSpectatorSession(link, sessionId, now);
     this.consumeSpectatorRequest(session, now);
+    this.assertSpectatorGenerationExpectations(link, session, options.expectedRoomGeneration);
+    if (
+      options.expectedAttachmentGeneration !== undefined &&
+      options.expectedAttachmentGeneration !== session.attachmentGeneration
+    ) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_BINDING_CHANGED',
+        '观战对局已经切换，请先同步新的房间状态',
+        409
+      );
+    }
+    if (!match) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_WAITING_NEXT_MATCH',
+        '房间正在准备下一局，当前没有可读取的单局公开日志',
+        409
+      );
+    }
 
     await this.expirePendingUndoRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const afterSeq = normalizePublicEventCursor(options.afterSeq);
     return buildPublicEventsResponse(match, afterSeq, 'SPECTATOR');
+  }
+
+  private assertSpectatorGenerationExpectations(
+    link: OnlineSpectatorLinkState,
+    _session: OnlineSpectatorSessionState,
+    expectedRoomGeneration: string | undefined
+  ): void {
+    if (expectedRoomGeneration !== undefined && expectedRoomGeneration !== link.roomGeneration) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_ROOM_REPLACED',
+        '原房间已失效，相同房间号的新房间不会继承本次观战资格',
+        410
+      );
+    }
   }
 
   getSpectatorPresenceForMatch(matchId: string): OnlineSpectatorPresenceView {
@@ -956,6 +1127,38 @@ export class OnlineMatchService {
       total: viewers.length,
       viewers,
     };
+  }
+
+  getRoomCodeSpectatorPresence(
+    roomCode: string,
+    roomGeneration: string
+  ): OnlineSpectatorPresenceView {
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const viewers = [...this.spectatorSessions.values()]
+      .filter(
+        (session) =>
+          session.roomCode === roomCode &&
+          session.roomGeneration === roomGeneration &&
+          session.countsInPresence &&
+          isSpectatorSessionActive(session, now)
+      )
+      .sort(
+        (left, right) =>
+          left.joinedAt - right.joinedAt || left.sessionId.localeCompare(right.sessionId)
+      )
+      .map(buildSpectatorSessionView);
+    return { total: viewers.length, viewers };
+  }
+
+  private buildSpectatorSyncState(
+    match: OnlineMatchState | null,
+    link: OnlineSpectatorLinkState,
+    session: OnlineSpectatorSessionState
+  ): OnlineSpectatorMatchSnapshot | OnlineSpectatorWaitingView {
+    return match
+      ? buildReadonlySpectatorSnapshot(match, link, session)
+      : buildSpectatorWaitingView(link, session);
   }
 
   async executeCommand(
@@ -1551,21 +1754,177 @@ export class OnlineMatchService {
       return false;
     }
 
+    const now = options.now ?? this.now();
     this.matches.delete(matchId);
     for (const [token, link] of this.spectatorLinks) {
       if (link.matchId === matchId) {
-        this.spectatorLinks.delete(token);
-      }
-    }
-    for (const [sessionId, session] of this.spectatorSessions) {
-      if (session.matchId === matchId) {
-        this.spectatorSessions.delete(sessionId);
-        this.spectatorRequestWindows.delete(sessionId);
+        if (options.preserveRoomCodeSpectators && link.source === 'ROOM_CODE') {
+          this.detachRoomCodeSpectatorLink(link, matchId);
+        } else if (link.source === 'ROOM_CODE') {
+          this.terminateRoomCodeSpectatorLink(link, 'ROOM_CLOSED', now);
+        } else {
+          this.spectatorLinks.delete(token);
+          this.deleteSpectatorSessionsForToken(token);
+        }
       }
     }
     this.sealedMatchIds.delete(matchId);
     this.partialRecordMatchIds.delete(matchId);
     return true;
+  }
+
+  attachRoomCodeSpectators(
+    matchId: string,
+    roomGeneration: string,
+    authorizedViewerSeats: readonly Seat[]
+  ): void {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return;
+    }
+    for (const link of this.spectatorLinks.values()) {
+      if (
+        link.source !== 'ROOM_CODE' ||
+        link.roomCode !== match.roomCode ||
+        link.roomGeneration !== roomGeneration ||
+        link.revokedAt !== null
+      ) {
+        continue;
+      }
+      this.attachRoomCodeSpectatorLink(link, match, authorizedViewerSeats);
+    }
+    touchMatch(match);
+  }
+
+  terminateRoomCodeSpectators(
+    roomCode: string,
+    roomGeneration: string,
+    reason: 'ROOM_CLOSED' | 'ROOM_REPLACED',
+    now = this.now()
+  ): void {
+    for (const link of this.spectatorLinks.values()) {
+      if (
+        link.source === 'ROOM_CODE' &&
+        link.roomCode === roomCode &&
+        link.roomGeneration === roomGeneration &&
+        link.revokedAt === null
+      ) {
+        this.terminateRoomCodeSpectatorLink(link, reason, now);
+      }
+    }
+  }
+
+  private attachRoomCodeSpectatorLink(
+    link: OnlineSpectatorLinkState,
+    match: OnlineMatchState,
+    authorizedViewerSeats: readonly Seat[]
+  ): void {
+    const nextAuthorizedSeats = normalizeViewerSeats(authorizedViewerSeats).filter((seat) =>
+      link.knownRoomMemberUserIds.has(match.participants[seat].userId)
+    );
+    const nextAuthorizedUserIds = nextAuthorizedSeats.map(
+      (seat) => match.participants[seat].userId
+    );
+    replaceAuthorizedViewerSeats(link.authorizedViewerSeats, nextAuthorizedSeats);
+    replaceStringSet(link.authorizedViewerUserIds, nextAuthorizedUserIds);
+
+    const preferredSeat = findSeatByUserId(match, link.preferredViewerUserId);
+    const nextViewerSeat =
+      preferredSeat && link.authorizedViewerSeats.has(preferredSeat)
+        ? preferredSeat
+        : nextAuthorizedSeats[0];
+    if (!nextViewerSeat) {
+      this.terminateRoomCodeSpectatorLink(link, 'ROOM_CODE_AUTHORIZATION_CLOSED', this.now());
+      return;
+    }
+
+    const bindingChanged = link.matchId !== match.matchId;
+    if (bindingChanged) {
+      link.attachmentGeneration += 1;
+    }
+    link.matchId = match.matchId;
+    link.viewerSeat = nextViewerSeat;
+    const preferredParticipant = link.preferredViewerUserId
+      ? getParticipantByUserId(match, link.preferredViewerUserId)
+      : null;
+    if (preferredParticipant) {
+      link.preferredViewerDisplayName = preferredParticipant.displayName;
+    }
+
+    for (const session of this.spectatorSessions.values()) {
+      if (session.token !== link.token || session.endedAt !== null) {
+        continue;
+      }
+      const previousMatchId = session.matchId;
+      const sessionPreferredSeat = findSeatByUserId(match, session.preferredViewerUserId);
+      const previousEffectiveSeat = findSeatByUserId(match, session.effectiveViewerUserId);
+      const sessionViewerSeat =
+        sessionPreferredSeat && link.authorizedViewerSeats.has(sessionPreferredSeat)
+          ? sessionPreferredSeat
+          : previousEffectiveSeat && link.authorizedViewerSeats.has(previousEffectiveSeat)
+            ? previousEffectiveSeat
+            : nextViewerSeat;
+      session.previousMatchId = previousMatchId ?? session.previousMatchId;
+      session.matchId = match.matchId;
+      session.attachmentGeneration = link.attachmentGeneration;
+      session.viewerSeat = sessionViewerSeat;
+      replaceAuthorizedViewerSeats(session.authorizedViewerSeats, nextAuthorizedSeats);
+      replaceStringSet(session.authorizedViewerUserIds, nextAuthorizedUserIds);
+      const effectiveParticipant = match.participants[sessionViewerSeat];
+      session.effectiveViewerUserId = effectiveParticipant.userId;
+      session.effectiveViewerDisplayName = effectiveParticipant.displayName;
+      const sessionPreferredParticipant = session.preferredViewerUserId
+        ? getParticipantByUserId(match, session.preferredViewerUserId)
+        : null;
+      if (sessionPreferredParticipant) {
+        session.preferredViewerDisplayName = sessionPreferredParticipant.displayName;
+      }
+      session.authorizationNotice = null;
+      if (bindingChanged || previousMatchId !== match.matchId) {
+        session.viewVersion += 1;
+      }
+    }
+  }
+
+  private detachRoomCodeSpectatorLink(
+    link: OnlineSpectatorLinkState,
+    previousMatchId: string
+  ): void {
+    link.matchId = null;
+    link.viewerSeat = null;
+    link.attachmentGeneration += 1;
+    link.authorizedViewerSeats.clear();
+    for (const session of this.spectatorSessions.values()) {
+      if (session.token !== link.token || session.endedAt !== null) {
+        continue;
+      }
+      session.previousMatchId = session.matchId ?? previousMatchId;
+      session.matchId = null;
+      session.viewerSeat = null;
+      session.attachmentGeneration = link.attachmentGeneration;
+      session.authorizedViewerSeats.clear();
+      session.authorizationNotice = null;
+      session.viewVersion += 1;
+    }
+  }
+
+  private terminateRoomCodeSpectatorLink(
+    link: OnlineSpectatorLinkState,
+    reason: NonNullable<OnlineSpectatorLinkState['revokedReason']>,
+    now: number
+  ): void {
+    link.revokedAt = now;
+    link.revokedReason = reason;
+    for (const session of this.spectatorSessions.values()) {
+      if (session.token !== link.token || session.endedAt !== null) {
+        continue;
+      }
+      endSpectatorSession(
+        session,
+        reason === 'ROOM_CODE_AUTHORIZATION_CLOSED' ? 'AUTHORIZATION_CLOSED' : reason,
+        now
+      );
+    }
   }
 
   async cleanupExpiredMatches(
@@ -1618,15 +1977,12 @@ export class OnlineMatchService {
   private requireActiveSpectatorLink(
     tokenInput: string,
     now: number
-  ): { readonly link: OnlineSpectatorLinkState; readonly match: OnlineMatchState } {
+  ): { readonly link: OnlineSpectatorLinkState; readonly match: OnlineMatchState | null } {
     const token = normalizeSpectatorToken(tokenInput);
     const link = token ? this.spectatorLinks.get(token) : undefined;
     if (link && link.revokedAt !== null && link.revokedReason) {
-      throw new OnlineSpectatorServiceError(
-        'ONLINE_SPECTATOR_AUTHORIZATION_CLOSED',
-        '房间号观战授权已关闭，请返回首页重新输入房间号',
-        410
-      );
+      const error = getSpectatorLinkEndError(link.revokedReason);
+      throw new OnlineSpectatorServiceError(error.code, error.message, 410);
     }
     if (!link) {
       throw new OnlineSpectatorServiceError(
@@ -1639,8 +1995,8 @@ export class OnlineMatchService {
       throw new OnlineSpectatorServiceError('ONLINE_SPECTATOR_LINK_EXPIRED', '观战链接已过期', 410);
     }
 
-    const match = this.matches.get(link.matchId);
-    if (!match) {
+    const match = link.matchId ? (this.matches.get(link.matchId) ?? null) : null;
+    if (!match && link.source === 'ADMIN_LINK') {
       throw new OnlineSpectatorServiceError(
         'ONLINE_SPECTATOR_MATCH_NOT_FOUND',
         '观战对局不存在或已失效',
@@ -1666,19 +2022,34 @@ export class OnlineMatchService {
     }
 
     const session = this.spectatorSessions.get(normalizedSessionId);
-    if (
-      !session ||
-      session.token !== link.token ||
-      session.matchId !== link.matchId ||
-      !isSpectatorSessionActive(session, now)
-    ) {
+    if (!session || session.token !== link.token) {
       throw new OnlineSpectatorServiceError(
         'ONLINE_SPECTATOR_SESSION_INVALID',
         '观战会话已失效，请重新进入观战',
         401
       );
     }
-    if (!link.authorizedViewerSeats.has(session.viewerSeat)) {
+    if (session.endedAt !== null || !isSpectatorSessionActive(session, now)) {
+      if (session.endedAt === null) {
+        endSpectatorSession(session, 'SESSION_EXPIRED', now);
+      }
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_SESSION_EXPIRED',
+        '观战会话已过期，请重新输入房间号',
+        410
+      );
+    }
+    if (session.matchId !== link.matchId) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_SESSION_INVALID',
+        '观战会话已失效，请重新进入观战',
+        401
+      );
+    }
+    if (
+      link.matchId !== null &&
+      (!session.viewerSeat || !link.authorizedViewerSeats.has(session.viewerSeat))
+    ) {
       throw new OnlineSpectatorServiceError(
         'ONLINE_SPECTATOR_VIEW_FORBIDDEN',
         '当前观战视角已被收回',
@@ -1692,14 +2063,23 @@ export class OnlineMatchService {
 
   private cleanupExpiredSpectatorState(now: number): void {
     for (const [sessionId, session] of this.spectatorSessions) {
-      if (!this.spectatorLinks.has(session.token) || !isSpectatorSessionActive(session, now)) {
+      if (session.endedAt === null && !isSpectatorSessionActive(session, now)) {
+        endSpectatorSession(session, 'SESSION_EXPIRED', now);
+      }
+      if (session.endedAt !== null && now - session.endedAt > SPECTATOR_TOMBSTONE_TTL_MS) {
         this.spectatorSessions.delete(sessionId);
         this.spectatorRequestWindows.delete(sessionId);
       }
     }
 
     for (const [token, link] of this.spectatorLinks) {
-      if (link.expiresAt <= now || !this.matches.has(link.matchId)) {
+      const terminalAt = link.revokedAt ?? link.expiresAt;
+      const adminMatchMissing =
+        link.source === 'ADMIN_LINK' && (link.matchId === null || !this.matches.has(link.matchId));
+      if (
+        (link.expiresAt <= now || link.revokedAt !== null || adminMatchMissing) &&
+        now - terminalAt > SPECTATOR_TOMBSTONE_TTL_MS
+      ) {
         this.spectatorLinks.delete(token);
         this.deleteSpectatorSessionsForToken(token);
       }
@@ -1715,12 +2095,16 @@ export class OnlineMatchService {
     }
   }
 
-  private countActivePublicSpectatorSessionsForRoom(roomCode: string, now: number): number {
+  private countActivePublicSpectatorSessionsForRoom(
+    roomCode: string,
+    roomGeneration: string | null,
+    now: number
+  ): number {
     let count = 0;
     for (const session of this.spectatorSessions.values()) {
-      const sessionMatch = this.matches.get(session.matchId);
       if (
-        sessionMatch?.roomCode === roomCode &&
+        session.roomCode === roomCode &&
+        session.roomGeneration === roomGeneration &&
         session.countsInPresence &&
         isSpectatorSessionActive(session, now)
       ) {
@@ -2200,6 +2584,9 @@ function buildReadonlySpectatorSnapshot(
   link: OnlineSpectatorLinkState,
   session: OnlineSpectatorSessionState
 ): OnlineSpectatorMatchSnapshot {
+  if (!session.viewerSeat) {
+    throw new Error('观战会话缺少当前对局席位');
+  }
   const snapshot = buildSnapshot(match, match.participants[session.viewerSeat], {
     undoView: buildReadonlyUndoView(),
   });
@@ -2227,7 +2614,11 @@ function buildReadonlyUndoView(): OnlineUndoView {
 function buildSpectatorLinkView(link: OnlineSpectatorLinkState): OnlineSpectatorLinkView {
   return {
     token: link.token,
+    source: link.source,
     matchId: link.matchId,
+    roomCode: link.roomCode,
+    roomGeneration: link.roomGeneration,
+    attachmentGeneration: link.attachmentGeneration,
     viewType: link.viewType,
     viewerSeat: link.viewerSeat,
     authorizedViewerSeats: normalizeViewerSeats(link.authorizedViewerSeats),
@@ -2247,6 +2638,9 @@ function buildSpectatorSessionView(
     viewType: session.viewType,
     viewerSeat: session.viewerSeat,
     authorizedViewerSeats: normalizeViewerSeats(session.authorizedViewerSeats),
+    attachmentGeneration: session.attachmentGeneration,
+    preferredViewerDisplayName: session.preferredViewerDisplayName,
+    effectiveViewerDisplayName: session.effectiveViewerDisplayName,
     viewVersion: session.viewVersion,
     joinedAt: session.joinedAt,
     lastSeenAt: session.lastSeenAt,
@@ -2257,11 +2651,38 @@ function buildSpectatorViewState(
   link: OnlineSpectatorLinkState,
   session: OnlineSpectatorSessionState
 ): OnlineSpectatorMatchSnapshot['spectatorView'] {
+  if (!session.viewerSeat) {
+    throw new Error('观战会话缺少当前对局席位');
+  }
   return {
     currentViewerSeat: session.viewerSeat,
     authorizedViewerSeats: normalizeViewerSeats(link.authorizedViewerSeats),
+    roomCode: link.roomCode,
+    roomGeneration: link.roomGeneration,
+    attachmentGeneration: session.attachmentGeneration,
+    preferredViewerDisplayName: session.preferredViewerDisplayName,
+    effectiveViewerDisplayName: session.effectiveViewerDisplayName,
     viewVersion: session.viewVersion,
     authorizationNotice: session.authorizationNotice,
+  };
+}
+
+function buildSpectatorWaitingView(
+  link: OnlineSpectatorLinkState,
+  session: OnlineSpectatorSessionState
+): OnlineSpectatorWaitingView {
+  if (link.source !== 'ROOM_CODE' || !link.roomGeneration || !session.previousMatchId) {
+    throw new Error('只有已从旧局解绑的房间号观战会话可以进入局间等待');
+  }
+  return {
+    status: 'WAITING_NEXT_MATCH',
+    roomCode: link.roomCode,
+    roomGeneration: link.roomGeneration,
+    attachmentGeneration: session.attachmentGeneration,
+    previousMatchId: session.previousMatchId,
+    preferredViewerDisplayName: session.preferredViewerDisplayName,
+    effectiveViewerDisplayName: session.effectiveViewerDisplayName,
+    retryAfterMs: SPECTATOR_WAITING_RETRY_AFTER_MS,
   };
 }
 
@@ -2285,6 +2706,48 @@ function replaceAuthorizedViewerSeats(target: Set<Seat>, seats: Iterable<Seat>):
   target.clear();
   for (const seat of normalizeViewerSeats(seats)) {
     target.add(seat);
+  }
+}
+
+function replaceStringSet(target: Set<string>, values: Iterable<string>): void {
+  target.clear();
+  for (const value of values) {
+    target.add(value);
+  }
+}
+
+function endSpectatorSession(
+  session: OnlineSpectatorSessionState,
+  reason: NonNullable<OnlineSpectatorSessionState['endReason']>,
+  now: number
+): void {
+  if (session.endedAt !== null) {
+    return;
+  }
+  session.endedAt = now;
+  session.endReason = reason;
+}
+
+function getSpectatorLinkEndError(reason: NonNullable<OnlineSpectatorLinkState['revokedReason']>): {
+  readonly code: string;
+  readonly message: string;
+} {
+  switch (reason) {
+    case 'ROOM_CODE_AUTHORIZATION_CLOSED':
+      return {
+        code: 'ONLINE_SPECTATOR_AUTHORIZATION_CLOSED',
+        message: '房间号观战授权已关闭，请返回首页重新输入房间号',
+      };
+    case 'ROOM_REPLACED':
+      return {
+        code: 'ONLINE_SPECTATOR_ROOM_REPLACED',
+        message: '原房间已失效，相同房间号的新房间不会继承本次观战资格',
+      };
+    case 'ROOM_CLOSED':
+      return {
+        code: 'ONLINE_SPECTATOR_ROOM_CLOSED',
+        message: '房间已关闭，本次观战已结束',
+      };
   }
 }
 
@@ -2410,6 +2873,19 @@ function getParticipantByUserId(
   }
   if (match.participants.SECOND.userId === userId) {
     return match.participants.SECOND;
+  }
+  return null;
+}
+
+function findSeatByUserId(match: OnlineMatchState, userId: string | null | undefined): Seat | null {
+  if (!userId) {
+    return null;
+  }
+  if (match.participants.FIRST.userId === userId) {
+    return 'FIRST';
+  }
+  if (match.participants.SECOND.userId === userId) {
+    return 'SECOND';
   }
   return null;
 }
@@ -2600,7 +3076,7 @@ function normalizeSpectatorClientId(value: string | null | undefined): string | 
 }
 
 function isSpectatorSessionActive(session: OnlineSpectatorSessionState, now: number): boolean {
-  return now - session.lastSeenAt <= SPECTATOR_SESSION_STALE_MS;
+  return session.endedAt === null && now - session.lastSeenAt <= SPECTATOR_SESSION_STALE_MS;
 }
 
 function buildRemoteFrameDedupeKey(

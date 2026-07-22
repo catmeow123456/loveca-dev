@@ -388,7 +388,9 @@ export async function fetchOnlineSpectatorSnapshotResponse(
   token: string,
   sessionId: string | undefined,
   sinceSeq?: number,
-  sinceViewVersion?: number
+  sinceViewVersion?: number,
+  roomGeneration?: string | null,
+  attachmentGeneration?: number
 ): Promise<OnlineSpectatorSnapshotResponse> {
   if (sessionId) {
     assertSpectatorRequestAllowed(token, sessionId);
@@ -406,6 +408,16 @@ export async function fetchOnlineSpectatorSnapshotResponse(
     sinceViewVersion >= 0
   ) {
     params.set('sinceViewVersion', String(sinceViewVersion));
+  }
+  if (roomGeneration) {
+    params.set('roomGeneration', roomGeneration);
+  }
+  if (
+    attachmentGeneration !== undefined &&
+    Number.isSafeInteger(attachmentGeneration) &&
+    attachmentGeneration >= 0
+  ) {
+    params.set('attachmentGeneration', String(attachmentGeneration));
   }
   const search = params.toString();
   const response = await apiClient.get<OnlineSpectatorSnapshotResponse>(
@@ -439,7 +451,9 @@ export async function switchOnlineSpectatorView(
 export async function fetchOnlineSpectatorPublicEvents(
   token: string,
   sessionId: string | undefined,
-  afterSeq?: number
+  afterSeq?: number,
+  roomGeneration?: string | null,
+  attachmentGeneration?: number
 ): Promise<PublicEventsResponse> {
   if (sessionId) {
     assertSpectatorRequestAllowed(token, sessionId);
@@ -450,6 +464,16 @@ export async function fetchOnlineSpectatorPublicEvents(
   }
   if (afterSeq !== undefined && Number.isSafeInteger(afterSeq) && afterSeq >= 0) {
     params.set('afterSeq', String(afterSeq));
+  }
+  if (roomGeneration) {
+    params.set('roomGeneration', roomGeneration);
+  }
+  if (
+    attachmentGeneration !== undefined &&
+    Number.isSafeInteger(attachmentGeneration) &&
+    attachmentGeneration >= 0
+  ) {
+    params.set('attachmentGeneration', String(attachmentGeneration));
   }
   const search = params.toString();
   const response = await apiClient.get<PublicEventsResponse>(
