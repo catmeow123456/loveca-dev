@@ -91,6 +91,7 @@ interface ProjectPlayerViewStateOptions {
   readonly seq?: number;
   readonly gameMode?: GameMode;
   readonly now?: number;
+  readonly allowRulesModeSuccessLiveSkip?: boolean;
 }
 
 type VisibleSurface = Extract<ViewCardObject['surface'], 'BACK' | 'FRONT'>;
@@ -334,7 +335,11 @@ export function projectPlayerViewState(
     prioritySeat:
       game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : activeSeat,
     window: buildViewWindowState(game),
-    liveResult: buildLiveResultView(game, viewerSeat),
+    liveResult: buildLiveResultView(
+      game,
+      viewerSeat,
+      options.allowRulesModeSuccessLiveSkip === true
+    ),
     manualOperation: {
       mode: getManualOperationMode(game),
       canSwitchNow: manualOperationSwitchBlockedReason === null,
@@ -354,7 +359,9 @@ export function projectPlayerViewState(
   projectResolutionAndInspectionZones(game, viewerSeat, objects, zones);
   projectActiveEffectRevealedCards(game, objects);
 
-  const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat);
+  const permissions = buildPermissionViewState(game, viewerPlayerId, viewerSeat, {
+    allowRulesModeSuccessLiveSkip: options.allowRulesModeSuccessLiveSkip === true,
+  });
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
   const publicCardSelectionAutoAdvanceAt = game.activeEffect?.publicCardSelectionAutoAdvanceAt;
   const publicEffectChoiceAutoAdvanceAt = game.activeEffect?.publicEffectChoiceAutoAdvanceAt;
@@ -994,7 +1001,11 @@ function upsertViewObject(
   };
 }
 
-function buildLiveResultView(game: GameState, viewerSeat: Seat): LiveResultViewState {
+function buildLiveResultView(
+  game: GameState,
+  viewerSeat: Seat,
+  allowRulesModeSuccessLiveSkip: boolean
+): LiveResultViewState {
   const firstPlayerId = game.players[0]?.id;
   const secondPlayerId = game.players[1]?.id;
   const currentSuccessLiveSettlementPlayerId =
@@ -1066,7 +1077,8 @@ function buildLiveResultView(game: GameState, viewerSeat: Seat): LiveResultViewS
         ? {
             waitingSeat: currentSuccessLiveSettlementSeat,
             candidateObjectIds: successLiveSelectionCandidateIds.map(createPublicObjectId),
-            canSkipToWaitingRoom: getManualOperationMode(game) === 'FREE',
+            canSkipToWaitingRoom:
+              getManualOperationMode(game) === 'FREE' || allowRulesModeSuccessLiveSkip,
           }
         : null,
   };
@@ -1240,7 +1252,8 @@ function buildViewHeartRequirement(requirement: HeartRequirement): ViewHeartRequ
 function buildPermissionViewState(
   game: GameState,
   viewerPlayerId: string,
-  viewerSeat: Seat
+  viewerSeat: Seat,
+  options: { readonly allowRulesModeSuccessLiveSkip: boolean }
 ): PermissionViewState {
   const pendingSpecialPlay = game.pendingSpecialMemberPlay ?? null;
   if (pendingSpecialPlay) {
@@ -1274,7 +1287,7 @@ function buildPermissionViewState(
           isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase) &&
           isOwnDeskFreeDragCommand(command))
     )
-    .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat))
+    .map((command) => buildPhaseCommandHint(command, game, viewerPlayerId, viewerSeat, options))
     .filter((hint): hint is ViewCommandHint => hint !== null);
   const activeEffectPhaseHints = game.activeEffect
     ? phaseHints.filter((hint) => hint.command !== GameCommandType.OPEN_INSPECTION)
@@ -1611,7 +1624,8 @@ function buildPhaseCommandHint(
   command: GameCommandType,
   game: GameState,
   viewerPlayerId: string,
-  viewerSeat: Seat
+  viewerSeat: Seat,
+  options: { readonly allowRulesModeSuccessLiveSkip: boolean }
 ): ViewCommandHint | null {
   switch (command) {
     case GameCommandType.MULLIGAN:
@@ -1788,13 +1802,13 @@ function buildPhaseCommandHint(
     case GameCommandType.END_PHASE:
       return buildCommandHint(command);
     case GameCommandType.CONFIRM_STEP:
-      return buildResultConfirmStepHint(game, viewerPlayerId, viewerSeat);
+      return buildResultConfirmStepHint(game, viewerPlayerId, viewerSeat, options);
     case GameCommandType.CONFIRM_PERFORMANCE_OUTCOME:
     case GameCommandType.SUBMIT_JUDGMENT:
     case GameCommandType.SUBMIT_SCORE:
       return buildCommandHint(command);
     case GameCommandType.SELECT_SUCCESS_LIVE:
-      return buildSettlementSelectionHint(game, viewerPlayerId, viewerSeat);
+      return buildSettlementSelectionHint(game, viewerPlayerId, viewerSeat, options);
     case GameCommandType.DRAW_CARD_TO_HAND:
       return buildCommandHint(command, {
         scope: createCommandScope({
@@ -1821,7 +1835,8 @@ function buildPhaseCommandHint(
 function buildResultConfirmStepHint(
   game: GameState,
   viewerPlayerId: string,
-  viewerSeat: Seat
+  viewerSeat: Seat,
+  options: { readonly allowRulesModeSuccessLiveSkip: boolean }
 ): ViewCommandHint {
   if (game.currentSubPhase === SubPhase.RESULT_ANIMATION) {
     const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
@@ -1858,7 +1873,7 @@ function buildResultConfirmStepHint(
         : !isCurrentSettlementPlayer
           ? '等待当前胜者完成成功 Live 选择'
           : hasCandidates
-            ? getManualOperationMode(game) === 'RULES'
+            ? getManualOperationMode(game) === 'RULES' && !options.allowRulesModeSuccessLiveSkip
               ? '请先选择1张成功 Live'
               : '请先选择成功 Live，或使用全部放置入休息室'
             : hasConfirmedSettlement
@@ -1883,7 +1898,8 @@ function buildResultConfirmStepHint(
 function buildSettlementSelectionHint(
   game: GameState,
   viewerPlayerId: string,
-  viewerSeat: Seat
+  viewerSeat: Seat,
+  options: { readonly allowRulesModeSuccessLiveSkip: boolean }
 ): ViewCommandHint {
   const isWinner = game.liveResolution.liveWinnerIds.includes(viewerPlayerId);
   const hasMoved = game.liveResolution.successCardMovedBy.includes(viewerPlayerId);
@@ -1931,7 +1947,7 @@ function buildSettlementSelectionHint(
       canSkipSuccessLiveSelection:
         game.currentSubPhase === SubPhase.RESULT_SETTLEMENT &&
         currentSettlementPlayerId === viewerPlayerId &&
-        getManualOperationMode(game) === 'FREE',
+        (getManualOperationMode(game) === 'FREE' || options.allowRulesModeSuccessLiveSkip),
     },
   });
 }

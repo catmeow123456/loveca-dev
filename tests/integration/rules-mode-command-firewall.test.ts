@@ -28,10 +28,10 @@ import {
   type GameState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone } from '../../src/domain/entities/zone';
-import { projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
   GamePhase,
+  GameMode,
   HeartColor,
   SlotPosition,
   SubPhase,
@@ -192,7 +192,7 @@ describe('规则模式玩家命令防火墙', () => {
     expect(blocked.error).toContain('本回合刚登场');
   });
 
-  it('有合法候选时 RULES 必须选1张成功 Live，FREE 保留旧的 skip', () => {
+  it('有合法候选时联机 RULES 必须选1张成功 Live，本地调试、对墙打与 FREE 可 skip', () => {
     const live = createCardInstance(createLiveCard('SUCCESS-LIVE'), P1, 'success-live');
     let game = registerCards(createGameState('success-skip', P1, 'P1', P2, 'P2'), [live]);
     game = updatePlayer(game, P1, (player) => ({
@@ -221,13 +221,42 @@ describe('规则模式玩家命令防火墙', () => {
     );
     expect(skip.success).toBe(false);
     expect(skip.error).toContain('必须选择1张');
-    const rulesView = projectPlayerViewState(session.state!, P1);
+    const rulesView = session.getPlayerViewState(P1)!;
     expect(rulesView.match.liveResult?.successLiveSelection?.canSkipToWaitingRoom).toBe(false);
     expect(
       rulesView.permissions.availableCommands.find(
         (hint) => hint.command === GameCommandType.SELECT_SUCCESS_LIVE
       )?.params?.canSkipSuccessLiveSelection
     ).toBe(false);
+
+    const localDebugSession = createGameSession({ allowRulesModeSuccessLiveSkip: true });
+    localDebugSession.restoreRuntimeState({ authorityState: game, currentPublicSeq: 0 });
+    const localDebugView = localDebugSession.getPlayerViewState(P1)!;
+    expect(localDebugView.match.liveResult?.successLiveSelection?.canSkipToWaitingRoom).toBe(true);
+    expect(
+      localDebugView.permissions.availableCommands.find(
+        (hint) => hint.command === GameCommandType.SELECT_SUCCESS_LIVE
+      )?.params?.canSkipSuccessLiveSelection
+    ).toBe(true);
+    const localDebugSkip = localDebugSession.executeCommand(
+      createConfirmStepCommand(P1, SubPhase.RESULT_SETTLEMENT, {
+        skipSuccessLiveSelection: true,
+      })
+    );
+    expect(localDebugSkip.success, localDebugSkip.error).toBe(true);
+
+    const solitaireSession = createGameSession({ gameMode: GameMode.SOLITAIRE });
+    solitaireSession.restoreRuntimeState({ authorityState: game, currentPublicSeq: 0 });
+    expect(
+      solitaireSession.getPlayerViewState(P1)?.match.liveResult?.successLiveSelection
+        ?.canSkipToWaitingRoom
+    ).toBe(true);
+    const solitaireSkip = solitaireSession.executeCommand(
+      createConfirmStepCommand(P1, SubPhase.RESULT_SETTLEMENT, {
+        skipSuccessLiveSelection: true,
+      })
+    );
+    expect(solitaireSkip.success, solitaireSkip.error).toBe(true);
 
     const freeSession = createGameSession();
     freeSession.restoreRuntimeState({

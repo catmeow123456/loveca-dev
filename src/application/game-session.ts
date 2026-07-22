@@ -277,6 +277,8 @@ export type GameSessionEvent =
 export interface GameSessionOptions {
   /** 游戏模式（默认调试模式） */
   gameMode?: GameMode;
+  /** 规则模式下是否允许跳过成功 Live 入区；仅供对墙打与调试桌面开启。 */
+  allowRulesModeSuccessLiveSkip?: boolean;
   /** 事件监听器 */
   onEvent?: (event: GameSessionEvent) => void;
   /** 权威时钟；仅供服务端 deadline 与确定性测试使用。 */
@@ -437,6 +439,12 @@ export class GameSession {
 
   get manualOperationMode(): ManualOperationMode {
     return this.authorityState ? getManualOperationMode(this.authorityState) : 'RULES';
+  }
+
+  private canSkipSuccessLiveSelectionInRulesMode(): boolean {
+    return (
+      this.options.allowRulesModeSuccessLiveSkip === true || this._gameMode === GameMode.SOLITAIRE
+    );
   }
 
   getManualOperationModeSwitchBlockedReason(): string | null {
@@ -1243,6 +1251,7 @@ export class GameSession {
       seq: options.seqOverride ?? this.publicEventSeq,
       gameMode: this._gameMode,
       now: this.now(),
+      allowRulesModeSuccessLiveSkip: this.canSkipSuccessLiveSelectionInRulesMode(),
     });
   }
 
@@ -1925,7 +1934,11 @@ export class GameSession {
           }
           const hasCandidates =
             getSuccessLiveSelectionCandidateIds(state, command.playerId).length > 0;
-          if (hasCandidates && getManualOperationMode(state) === 'RULES') {
+          if (
+            hasCandidates &&
+            getManualOperationMode(state) === 'RULES' &&
+            !this.canSkipSuccessLiveSelectionInRulesMode()
+          ) {
             return '规则模式下必须选择1张成功 Live';
           }
           if (hasCandidates && command.skipSuccessLiveSelection !== true) {

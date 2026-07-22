@@ -237,7 +237,7 @@ function recreateMatchSessionIfReady(match: DebugMatchState): void {
     return;
   }
 
-  const session = createGameSession();
+  const session = createGameSession({ allowRulesModeSuccessLiveSkip: true });
   session.createGame(
     match.matchId,
     match.seats.FIRST.playerId,

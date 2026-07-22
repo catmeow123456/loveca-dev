@@ -713,6 +713,7 @@ interface StoreCommandOptions {
 export const useGameStore = create<GameStore>((set, get) => {
   // 创建游戏会话，设置事件监听
   const gameSession = createGameSession({
+    allowRulesModeSuccessLiveSkip: true,
     onEvent: (event: GameSessionEvent) => {
       handleGameSessionEvent(event, get);
     },

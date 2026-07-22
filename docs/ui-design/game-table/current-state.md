@@ -532,6 +532,8 @@ hover 在当前桌面中占比很高：
 
 当前实现中，`LIVE_RESULT_PHASE` 的 `requiresUserAction: true` 只表示存在玩家流程输入，不代表 `RULES` 开放己方桌面自由拖拽。分数提交、确认推进和成功 Live 选择分别走 `SUBMIT_SCORE`、`CONFIRM_STEP`、`SELECT_SUCCESS_LIVE` 等专用命令；普通区域整理仅在 `FREE` 中开放。
 
+成功 Live 结算有一个按桌面能力控制的窄例外：对墙打、本地调试和远程调试即使处于 `RULES`，也会在成功 Live 选择窗口提供“全部放置入休息室”；正式联机 `RULES` 仍必须选择 1 张合法成功 Live。该例外只提交结算专用命令，不开放 Live 区或成功区的普通手动移动。
+
 `RESULT_TURN_END` 是自动推进子阶段，不开放普通桌面拖拽。
 
 - 双方都确认后进入下一回合
