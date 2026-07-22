@@ -1385,7 +1385,7 @@ describe('member cost payment', () => {
     expect(normalResult.success).toBe(false);
     expect(player.memberSlots.slots[SlotPosition.CENTER]).toBeNull();
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const localFreePlayResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER)
     );
@@ -1441,7 +1441,7 @@ describe('member cost payment', () => {
     expect(canPlayMemberInStageSlotThisTurn(state, PLAYER1, SlotPosition.RIGHT)).toBe(true);
     expect(canPlayMemberInStageSlotThisTurn(state, PLAYER1, SlotPosition.LEFT)).toBe(false);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const freeResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, incomingId, SlotPosition.LEFT)
     );
@@ -1455,7 +1455,7 @@ describe('member cost payment', () => {
     session.createGame('ll-bp2-free-non-relay', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
 
     const state = session.state!;
     const player = state.players[0] as unknown as {
@@ -1508,7 +1508,11 @@ describe('member cost payment', () => {
 
   it('free play fallback remains available in solitaire mode', () => {
     const localSession = createGameSession();
-    localSession.localFreePlay = true;
+    const localDeck = createDeck();
+    localSession.createGame('member-local-mode-switch', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    localSession.initializeGame(localDeck, localDeck);
+    forceMainPhaseForPlayer(localSession);
+    expect(localSession.setManualOperationMode('FREE').success).toBe(true);
     expect(localSession.localFreePlay).toBe(true);
     localSession.gameMode = GameMode.SOLITAIRE;
     expect(localSession.localFreePlay).toBe(true);
@@ -1543,7 +1547,7 @@ describe('member cost payment', () => {
     player.energyZone.cardIds = [];
     player.energyZone.cardStates = new Map();
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
 
     expect(session.localFreePlay).toBe(true);
     const result = session.executeCommand(

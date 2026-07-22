@@ -68,7 +68,7 @@ describe('PL!S-bp3-001 高海千歌', () => {
     const { session, source, target } = setup();
     session.executeCommand(createActivateAbilityCommand(P1, source.instanceId, ABILITY));
     session.executeCommand(createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id, target.instanceId));
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(session.executeCommand(createTapMemberCommand(P1, target.instanceId, SlotPosition.LEFT)).success).toBe(true);
     expect(session.state!.players[0].memberSlots.cardStates.get(target.instanceId)?.orientation).toBe(OrientationState.ACTIVE);
     expect(session.state!.liveResolution.liveModifiers).toEqual(expect.arrayContaining([expect.objectContaining({ targetMemberCardId: target.instanceId })]));

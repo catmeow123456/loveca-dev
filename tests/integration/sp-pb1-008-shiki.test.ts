@@ -132,7 +132,7 @@ function setupScenario(options: { readonly mainDeckCount: number }): ShikiScenar
 }
 
 function playShiki(scenario: ShikiScenario): void {
-  scenario.session.localFreePlay = true;
+  scenario.session.setManualOperationMode('FREE');
   const result = scenario.session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, SlotPosition.CENTER, {
       freePlay: true,

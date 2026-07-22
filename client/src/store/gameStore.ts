@@ -927,7 +927,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         },
       });
       get().gameSession.gameMode = GameMode.DEBUG;
-      get().gameSession.localFreePlay = false;
     },
 
     leaveCurrentGame: async () => {
@@ -1593,9 +1592,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       const { gameSession, freePlayEnabled } = get();
-      // 同步更新 store 和 session 的模式
+      // 游戏模式只控制自动化策略，不绕过权威的规则/自由模式切换。
       gameSession.gameMode = mode;
-      gameSession.localFreePlay = freePlayEnabled;
       set({ gameMode: mode, freePlayEnabled });
       get().addLog(`切换游戏模式: ${mode === GameMode.SOLITAIRE ? '对墙打' : '调试'}`, 'info');
       // 同步状态以反映模式变更
@@ -1635,7 +1633,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      get().gameSession.localFreePlay = false;
       set((state) => ({
         playerViewState: normalizedPlayerViewState,
         viewingPlayerId: viewerPlayerId,
@@ -1691,13 +1688,11 @@ export const useGameStore = create<GameStore>((set, get) => {
           inputRequestType: null,
         },
       }));
-      get().gameSession.localFreePlay = false;
     },
 
     isReadonlyReplayMode: () => isReadonlyReplayMode(),
 
     connectRemoteSession: (session) => {
-      get().gameSession.localFreePlay = false;
       set((state) => ({
         remoteSession:
           session.source === 'SPECTATOR'

@@ -178,7 +178,6 @@ describe('PL!N-pb1-002-P＋ / R 费用13「中須かすみ」', () => {
     (cardCode) => {
       const session = createGameSession();
       session.createGame(`real-enter-${cardCode}`, P1, 'P1', P2, 'P2');
-      session.localFreePlay = true;
       const source = createCardInstance(member(cardCode), P1, 'real-kasumi');
       const energies = [0, 1].map((index) =>
         createCardInstance(energy(`REAL-ENERGY-${index}`), P1, `real-energy-${index}`)
@@ -198,6 +197,7 @@ describe('PL!N-pb1-002-P＋ / R 费用13「中須かすみ」', () => {
       }));
       (session as unknown as { authorityState: GameState }).authorityState = {
         ...game,
+        manualOperationMode: 'FREE',
         currentPhase: GamePhase.MAIN_PHASE,
         currentSubPhase: SubPhase.NONE,
         activePlayerIndex: 0,

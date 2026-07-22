@@ -790,6 +790,7 @@ function setupTsukiyomiManualCheerAdjustmentSession(
   }));
   state = {
     ...state,
+    manualOperationMode: 'FREE',
     currentPhase: GamePhase.PERFORMANCE_PHASE,
     currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
     currentTurnType: TurnType.FIRST_PLAYER_TURN,
@@ -809,7 +810,6 @@ function setupTsukiyomiManualCheerAdjustmentSession(
     },
   };
   (session as unknown as { authorityState: GameState }).authorityState = state;
-  session.localFreePlay = true;
 
   return session;
 }
@@ -14663,7 +14663,7 @@ describe('sample card effect runner', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -14898,7 +14898,7 @@ describe('sample card effect runner', () => {
     p2.memberSlots.cardStates = new Map();
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -15014,7 +15014,7 @@ describe('sample card effect runner', () => {
     ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveRurinoResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -15158,7 +15158,7 @@ describe('sample card effect runner', () => {
     ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -15260,7 +15260,7 @@ describe('sample card effect runner', () => {
     p2.memberSlots.cardStates = new Map();
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -15650,7 +15650,7 @@ describe('sample card effect runner', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -16181,7 +16181,7 @@ describe('sample card effect runner', () => {
       [kahoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const firstHasuResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, hasuCardIds[0]!, SlotPosition.LEFT)
     );
@@ -16830,7 +16830,7 @@ describe('sample card effect runner', () => {
       [highBladeMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMoveMemberToSlotCommand(PLAYER1, tomariCardId!, SlotPosition.LEFT, SlotPosition.RIGHT)
     );
@@ -16925,7 +16925,7 @@ describe('sample card effect runner', () => {
       [highBladeMemberId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMoveMemberToSlotCommand(PLAYER1, tomariCardId!, SlotPosition.LEFT, SlotPosition.RIGHT)
     );
@@ -17006,7 +17006,7 @@ describe('sample card effect runner', () => {
     ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const tapResult = session.executeCommand(
       createTapMemberCommand(PLAYER1, kanata.instanceId, SlotPosition.LEFT)
     );
@@ -18229,7 +18229,7 @@ describe('sample card effect runner', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -18361,7 +18361,7 @@ describe('sample card effect runner', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -18430,7 +18430,7 @@ describe('sample card effect runner', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,

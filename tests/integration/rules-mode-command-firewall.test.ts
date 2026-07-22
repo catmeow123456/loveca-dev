@@ -160,7 +160,7 @@ describe('规则模式玩家命令防火墙', () => {
     player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== manualMemberId);
     player.waitingRoom.cardIds = [...player.waitingRoom.cardIds, manualMemberId];
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moved = session.executeCommand(
       createMoveTableCardCommand(P1, manualMemberId, ZoneType.WAITING_ROOM, ZoneType.MEMBER_SLOT, {
         targetSlot: SlotPosition.LEFT,
@@ -184,7 +184,7 @@ describe('规则模式玩家命令防火墙', () => {
     expect(movedOwned.success, movedOwned.error).toBe(true);
     expect(session.state!.players[0].movedToStageThisTurn).toContain(ownedMemberId);
 
-    session.localFreePlay = false;
+    session.setManualOperationMode('RULES');
     const blocked = session.executeCommand(
       createPlayMemberToSlotCommand(P1, incomingMemberId, SlotPosition.LEFT)
     );
@@ -229,8 +229,12 @@ describe('规则模式玩家命令防火墙', () => {
       )?.params?.canSkipSuccessLiveSelection
     ).toBe(false);
 
-    session.localFreePlay = true;
-    const freeSkip = session.executeCommand(
+    const freeSession = createGameSession();
+    freeSession.restoreRuntimeState({
+      authorityState: { ...game, manualOperationMode: 'FREE' },
+      currentPublicSeq: 0,
+    });
+    const freeSkip = freeSession.executeCommand(
       createConfirmStepCommand(P1, SubPhase.RESULT_SETTLEMENT, {
         skipSuccessLiveSelection: true,
       })

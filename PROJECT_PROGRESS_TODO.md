@@ -30,6 +30,15 @@
 - 生产 compose 增加 `LOVECA_API_IMAGE` 镜像入口，release runbook 改为生产机 `pull` 后以 `--no-build` 启动，并明确版本标签/digest 回滚与 GHCR 权限边界。验证仅覆盖技能格式、compose 展开、文档 diff 与命令静态检查；未构建或推送真实镜像，未操作生产环境。
 - `v3.7.2` 发布准备已同步 `VERSION`、根/客户端 package 版本，补充 `3.7.1-to-3.7.2` 停机迁移说明；全量 540 files / 5379 tests、TypeScript 与服务端构建通过。前端主 chunk 增长到 4.48 MB 后触发 Workbox 4 MiB 上限，已按既有预缓存策略提高到 5 MiB 并重跑构建通过；仍保留大 chunk 性能告警，后续单独做代码分包。API 候选镜像等待发布准备提交后构建，未推送镜像、未提升 `latest`、未打 tag、未构建 Android 包。
 
+## 2026-07-22：规则/自由模式第三批旧入口与文档收口
+
+- 删除 `GameSession` 的可写 `localFreePlay`、旧 `debugFreePlay` 和 `_localFreePlay` 镜像状态；权威 `manualOperationMode` 成为唯一模式真值，正常切换必须经过 `setManualOperationMode()` 的安全点校验。
+- 生产 `src/client` 对旧 `dispatch(GameAction)` 零调用；该入口已改为默认关闭的 `dispatchLegacyActionForTesting`，只有显式设置 `enableTestOnlyLegacyActions: true` 的三个历史测试夹具可以使用。新增回归锁定普通会话拒绝和 `localFreePlay` 无 setter。
+- 客户端 store 删除退出、回放、远程连接及切换 `GameMode` 时对旧模式 setter 的冗余写入；`GameMode` 只控制自动化策略，不再能顺便绕过权威规则/自由模式。
+- 7 份现行边界、编码、限制、联机、系统和桌面设计文档已同步第二批后的真实行为；对局前说明明确人工补齐前必须先进入自由模式，旧“信任玩家、事后纠正非法状态”注释改为中央命令政策语义。历史归档、回放审计需求和卡效本身“免付登场费用”的描述保持不变。
+- 浏览器交互验收由项目作者自行执行，本批代理只负责调用图审计、代码/文档收口和自动化验证。
+- 自动化验证完成：聚焦 9 文件 / 362 项、全量 Vitest 540 文件 / 5380 项通过，3 个 performance tests 按默认配置跳过；shared/server/client TypeScript 与客户端生产构建通过。新测试及本批主要客户端文件 ESLint 通过；扩大到整份历史测试文件仍会命中既有 type-aware lint 基线，对局前说明仍有未修改的第 64 行 hooks lint 基线。Runner 保持 3624 行且零 diff，`llocg_db` 未修改。
+
 ## 2026-07-22：规则/自由模式第二批玩家命令收紧（已实现并验证）
 
 - 新增集中玩家命令政策，按普通规则动作、流程输入、手动调整分类；`RULES` 仅放行当前阶段/子阶段、行动者与 pending workflow 允许的语义命令，`FREE` 保留现有灵活桌面整理。客户端 `freePlay` 不再能绕过权威模式。

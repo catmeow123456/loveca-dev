@@ -82,7 +82,6 @@ function setupKasumiScenario(options: {
 
   session.createGame('n-bp1-002-kasumi', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
   session.initializeGame(deck, deck);
-  session.localFreePlay = true;
 
   const source = createCardInstance(
     createMemberCard('PL!N-bp1-002-P', '中須かすみ', 2),
@@ -125,14 +124,17 @@ function setupKasumiScenario(options: {
     )
   );
 
-  const state = registerCards(session.state!, [
-    source,
-    ...mainDeckCards,
-    ...handCards,
-    ...activeEnergyCards,
-    ...waitingEnergyCards,
-    ...fillerMembers,
-  ]);
+  const state = {
+    ...registerCards(session.state!, [
+      source,
+      ...mainDeckCards,
+      ...handCards,
+      ...activeEnergyCards,
+      ...waitingEnergyCards,
+      ...fillerMembers,
+    ]),
+    manualOperationMode: 'FREE' as const,
+  };
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
   const mutableState = state as unknown as {

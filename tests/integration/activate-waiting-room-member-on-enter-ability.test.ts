@@ -125,7 +125,7 @@ describe('activate waiting-room member ON_ENTER ability', () => {
     }));
     (session as unknown as { authorityState: typeof state }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const play = session.executeCommand(
       createPlayMemberToSlotCommand('p1', parent.instanceId, SlotPosition.CENTER, { freePlay: true })
     );

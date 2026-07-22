@@ -281,6 +281,12 @@ export interface GameSessionOptions {
   onEvent?: (event: GameSessionEvent) => void;
   /** 权威时钟；仅供服务端 deadline 与确定性测试使用。 */
   now?: () => number;
+  /**
+   * 只允许历史测试夹具直接提交旧式 GameAction。
+   *
+   * 生产会话不得开启；玩家输入必须通过 executeCommand。
+   */
+  enableTestOnlyLegacyActions?: boolean;
 }
 
 interface StateTransitionOptions {
@@ -401,7 +407,6 @@ export class GameSession {
   private authoritySnapshots = new Map<number, GameState>();
   private undoHistory: GameSessionUndoEntry[] = [];
   private undoEntrySeq = 0;
-  private _localFreePlay = false;
 
   constructor(options: GameSessionOptions = {}) {
     this.gameService = new GameService();
@@ -462,7 +467,6 @@ export class GameSession {
       return { success: false, gameState: this.authorityState, error: blockedReason };
     }
 
-    this._localFreePlay = mode === 'FREE';
     this.setAuthorityState(
       {
         ...this.authorityState,
@@ -473,31 +477,9 @@ export class GameSession {
     return { success: true, gameState: this.authorityState };
   }
 
-  /** @deprecated 旧测试/工具兼容；新 UI 使用 setManualOperationMode。 */
+  /** @deprecated 只读兼容视图；切换必须使用 setManualOperationMode。 */
   get localFreePlay(): boolean {
-    return this.authorityState ? this.manualOperationMode === 'FREE' : this._localFreePlay;
-  }
-
-  set localFreePlay(enabled: boolean) {
-    this._localFreePlay = enabled;
-    if (this.authorityState) {
-      this.authorityState = {
-        ...this.authorityState,
-        manualOperationMode: enabled ? 'FREE' : 'RULES',
-      };
-      this.recordAuthoritySnapshot(this.authorityState);
-    }
-  }
-
-  /**
-   * @deprecated Use localFreePlay. Kept only for older local tests and tooling.
-   */
-  get debugFreePlay(): boolean {
-    return this.localFreePlay;
-  }
-
-  set debugFreePlay(enabled: boolean) {
-    this.localFreePlay = enabled;
+    return this.manualOperationMode === 'FREE';
   }
 
   /**
@@ -523,8 +505,6 @@ export class GameSession {
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
     this.undoEntrySeq = 0;
-    this._localFreePlay = false;
-
     const initialState = this.gameService.createGame(
       gameId,
       player1Id,
@@ -564,12 +544,21 @@ export class GameSession {
   }
 
   /**
-   * 处理旧式 trusted/test action。
+   * 处理旧式 trusted test action。
    *
-   * 生产玩家入口不得调用此方法；必须提交语义化 GameCommand，
-   * 由 executeCommand 统一执行 RULES/FREE、pending、行动者、审计与撤销校验。
+   * TEST ONLY：仅供显式开启 enableTestOnlyLegacyActions 的历史测试夹具。
+   * 生产玩家入口必须提交语义化 GameCommand，由 executeCommand
+   * 统一执行 RULES/FREE、pending、行动者、审计与撤销校验。
    */
-  dispatch(action: GameAction): GameOperationResult {
+  dispatchLegacyActionForTesting(action: GameAction): GameOperationResult {
+    if (!this.options.enableTestOnlyLegacyActions) {
+      return {
+        success: false,
+        gameState: this.authorityState ?? (null as unknown as GameState),
+        error: '旧式测试动作入口未启用',
+      };
+    }
+
     if (!this.authorityState) {
       return {
         success: false,
@@ -943,7 +932,6 @@ export class GameSession {
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
     this.undoEntrySeq = 0;
-    this._localFreePlay = getManualOperationMode(authorityState) === 'FREE';
     this.recordAuthoritySnapshot(authorityState);
   }
 
@@ -1075,7 +1063,6 @@ export class GameSession {
       ...normalizeRestoredManualOperationMode(this.cloneForUndo(snapshot.authorityState)),
       manualOperationMode: currentManualOperationMode,
     };
-    this._localFreePlay = currentManualOperationMode === 'FREE';
     this.publicEvents = this.publicEvents.filter((event) => event.seq <= snapshot.publicEventSeq);
     this.publicEventSeq = snapshot.publicEventSeq;
     this.privateEventsBySeat = {

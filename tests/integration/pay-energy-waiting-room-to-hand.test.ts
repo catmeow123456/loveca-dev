@@ -914,7 +914,7 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
       'liella-member'
     );
     const scenario = setupSpSd1007({ waitingRoomCards: [target], realPlay: true });
-    scenario.session.localFreePlay = true;
+    scenario.session.setManualOperationMode('FREE');
     const result = scenario.session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.LEFT, {
         freePlay: true,

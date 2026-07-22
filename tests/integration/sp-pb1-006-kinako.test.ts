@@ -133,7 +133,7 @@ function setupMoveState(): {
 }
 
 function playKinako(session: ReturnType<typeof createGameSession>, sourceId: string): void {
-  session.localFreePlay = true;
+  session.setManualOperationMode('FREE');
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
       freePlay: true,

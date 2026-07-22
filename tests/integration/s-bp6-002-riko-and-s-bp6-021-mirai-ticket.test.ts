@@ -824,6 +824,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     };
     const session = createSessionFromGame(game, 'bp6-002-solitaire-lock', {
       gameMode: GameMode.SOLITAIRE,
+      enableTestOnlyLegacyActions: true,
     });
 
     const fail = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
@@ -834,7 +835,9 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
     );
     expect(session.state?.liveResolution.scoreConfirmedBy).not.toContain(PLAYER2);
 
-    const directScore = session.dispatch(createConfirmScoreAction(PLAYER2, 0));
+    const directScore = session.dispatchLegacyActionForTesting(
+      createConfirmScoreAction(PLAYER2, 0)
+    );
     expect(directScore.success).toBe(false);
     expect(session.state?.liveResolution.scoreConfirmedBy).toEqual([]);
 
@@ -1151,9 +1154,10 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
         liveWinnerIds: [PLAYER1],
       },
     };
-    const session = createSessionFromGame(game, 'bp6-002-manual');
-
-    session.localFreePlay = true;
+    const session = createSessionFromGame(
+      { ...game, manualOperationMode: 'FREE' },
+      'bp6-002-manual'
+    );
     const move = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(PLAYER1, live.instanceId, ZoneType.LIVE_ZONE)
     );

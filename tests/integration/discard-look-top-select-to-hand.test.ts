@@ -169,7 +169,7 @@ function setupSbp3009Scenario() {
   clearPlayerZones(player);
   player.hand.cardIds = [source.instanceId, discardCard.instanceId];
   player.mainDeck.cardIds = topCards.map((card) => card.instanceId);
-  session.localFreePlay = true;
+  session.setManualOperationMode('FREE');
   expect(
     session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -235,7 +235,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -400,7 +400,7 @@ describe('discard look top select to hand shared workflow', () => {
       [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -544,7 +544,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.mainDeck.cardIds = [...topCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
 
     const beforeSeq = session.getCurrentPublicEventSeq();
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -696,7 +696,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -794,7 +794,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -922,7 +922,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1051,7 +1051,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1176,7 +1176,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
     const meiBeforeSeq = session.getCurrentPublicEventSeq();
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1341,7 +1341,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1483,7 +1483,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1633,7 +1633,7 @@ describe('discard look top select to hand shared workflow', () => {
       ...ruleSentinels.map((card) => card.instanceId),
     ];
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -1720,7 +1720,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -1789,7 +1789,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1852,7 +1852,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1915,7 +1915,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2018,7 +2018,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2110,7 +2110,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2216,7 +2216,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2279,7 +2279,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2343,7 +2343,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2973,7 +2973,7 @@ describe('PL!N-bp3-012 Lanzhu shared discard-look-top config', () => {
         : [source.instanceId, discardCard.instanceId];
     player.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
     player.waitingRoom.cardIds = waitingCards.map((card) => card.instanceId);
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -3280,7 +3280,7 @@ describe('PL!N-bp5-009 Rina wait-discard look top shared workflow', () => {
   }
 
   function playRina(session: ReturnType<typeof createGameSession>, sourceId: string): void {
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
         freePlay: true,

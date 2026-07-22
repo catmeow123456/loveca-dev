@@ -209,7 +209,7 @@ describe('PL!-bp4-007-R / P 費用11 東條 希', () => {
       activePlayerIndex: 0,
     };
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const result = session.executeCommand(
       createPlayMemberToSlotCommand(P1, source.instanceId, SlotPosition.LEFT, { freePlay: true })
     );
@@ -477,7 +477,7 @@ describe('PL!SP-sd1-004-SD 费用11 平安名すみれ', () => {
       activePlayerIndex: 0,
     };
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const result = session.executeCommand(
       createPlayMemberToSlotCommand(P1, source.instanceId, SlotPosition.RIGHT, { freePlay: true })
     );

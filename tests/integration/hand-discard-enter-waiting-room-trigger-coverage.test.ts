@@ -322,7 +322,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     p1.memberSlots.cardStates = new Map();
     placeStageMember(p1, SlotPosition.RIGHT, pb1003Source.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -634,7 +634,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     p1.memberSlots.cardStates = new Map();
     placeStageMember(p1, SlotPosition.RIGHT, pb1003Source.instanceId);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -749,7 +749,7 @@ describe('hand discard enter-waiting-room trigger coverage', () => {
     placeStageMember(p1, SlotPosition.RIGHT, pb1003Source.instanceId);
     setActiveEnergy(p1, energyCardIds.slice(0, 1));
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {

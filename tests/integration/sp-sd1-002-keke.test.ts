@@ -199,7 +199,7 @@ describe('PL!SP-sd1-002-SD 唐 可可 queued on-enter workflow', () => {
     const session = createGameSession();
     session.createGame('real-sp-sd1-002', P1, 'P1', P2, 'P2');
     (session as unknown as { authorityState: GameState }).authorityState = game;
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
 
     const result = session.executeCommand(
       createPlayMemberToSlotCommand(P1, scenario.source.instanceId, SlotPosition.CENTER, {

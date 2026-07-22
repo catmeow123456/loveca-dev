@@ -206,7 +206,7 @@ function setupHsPb1012Scenario(config: {
   }));
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
-  session.localFreePlay = true;
+  session.setManualOperationMode('FREE');
   const playResult = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, ginko.instanceId, SlotPosition.CENTER, {
       freePlay: true,

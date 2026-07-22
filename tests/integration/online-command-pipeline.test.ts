@@ -126,6 +126,23 @@ function forceMainPhaseForPlayer(
   state.waitingPlayerId = null;
 }
 
+/**
+ * 旧自由桌面管线测试会直接构造任意阶段。这里将 FREE 作为夹具初始事实恢复，
+ * 不模拟玩家在判定/结算中途切换模式。
+ */
+function restoreFreeModeFixture(session: ReturnType<typeof createGameSession>): void {
+  const state = session.state;
+  if (!state) {
+    throw new Error('必须先创建测试对局');
+  }
+  const currentPublicSeq = session.getCurrentPublicEventSeq();
+  session.restoreRuntimeState({
+    authorityState: { ...state, manualOperationMode: 'FREE' },
+    currentPublicSeq,
+    publicEvents: session.getPublicEventsSince(0),
+  });
+}
+
 function expectNoDuplicateCardMoveEvents(events: readonly PublicEvent[]): void {
   const seenSeqByKey = new Map<string, number>();
 
@@ -215,8 +232,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-1', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const topCardId = session.state?.players[0].mainDeck.cardIds[0];
     expect(topCardId).toBeTruthy();
@@ -294,8 +311,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-refresh-inspection', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const state = session.state as unknown as {
       players: Array<{
@@ -337,8 +354,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-2', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const firstTopCardId = session.state?.players[0].mainDeck.cardIds[0];
     const secondTopCardId = session.state?.players[0].mainDeck.cardIds[1];
@@ -383,8 +400,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-inspection-batch-top', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const [firstTopCardId, secondTopCardId, thirdTopCardId] =
       session.state?.players[0].mainDeck.cardIds.slice(0, 3) ?? [];
@@ -447,8 +464,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const inspectedCardIds = session.state?.players[0].mainDeck.cardIds.slice(0, 2) ?? [];
     const sourceCardId = session.state?.players[0].hand.cardIds[0];
@@ -531,8 +548,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const { activeEffect, sourceCardId } = installNonInspectionActiveEffect(session);
     const player1MainDeckBefore = [...session.state!.players[0].mainDeck.cardIds];
@@ -588,8 +605,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
     installNonInspectionActiveEffect(session);
 
     const player1View = session.getPlayerViewState(PLAYER1);
@@ -620,8 +637,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const openResult = session.executeCommand(
       createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
@@ -659,8 +676,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const inspectedCardIds = session.state?.players[0].mainDeck.cardIds.slice(0, 2) ?? [];
     expect(inspectedCardIds).toHaveLength(2);
@@ -708,8 +725,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-member-play-guard', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const memberCardId = session.state?.players[0].hand.cardIds.find((cardId) => {
       const card = session.state?.cardRegistry.get(cardId);
@@ -745,8 +762,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const openResult = session.executeCommand(
       createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
@@ -768,8 +785,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-energy-inspection', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const firstEnergyId = session.state?.players[0].energyDeck.cardIds[0];
     const secondEnergyId = session.state?.players[0].energyDeck.cardIds[1];
@@ -801,8 +818,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-inspection-same-source', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const openMainDeckResult = session.executeCommand(
       createOpenInspectionCommand(PLAYER1, ZoneType.MAIN_DECK, 1)
@@ -823,8 +840,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-inspection-guard', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const inspectedCardId = session.state?.players[0].mainDeck.cardIds[0];
     const handCardId = session.state?.players[0].hand.cardIds[0];
@@ -867,8 +884,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-inspection-reveal', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const inspectedCardId = session.state?.players[0].mainDeck.cardIds[0];
     expect(inspectedCardId).toBeTruthy();
@@ -909,7 +926,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-3', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state as unknown as {
       currentPhase: GamePhase;
@@ -961,7 +978,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-bottom-cheer', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const sourceCardId = [...session.state!.cardRegistry.values()].find(
       (card) => card.ownerId === PLAYER1 && card.data.cardCode === 'PL!S-bp7-022-SECL'
@@ -1036,7 +1053,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-performance-reveal', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -1113,7 +1130,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-system-draw-energy', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const topEnergyCardId = session.state?.players[0].energyDeck.cardIds[0];
     expect(topEnergyCardId).toBeTruthy();
@@ -1156,8 +1173,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-draw-energy-to-zone', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const topEnergyCardId = session.state?.players[0].energyDeck.cardIds[0];
     expect(topEnergyCardId).toBeTruthy();
@@ -1201,8 +1218,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-energy-zone-to-deck', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const energyCardId = session.state?.players[0].energyZone.cardIds[0];
     expect(energyCardId).toBeTruthy();
@@ -1256,7 +1273,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-live-set-draw-energy', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state as unknown as {
       currentPhase: GamePhase;
@@ -1285,7 +1302,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-live-return', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -1361,8 +1378,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-owned-zone-transport', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const cardId = session.state?.players[0].mainDeck.cardIds[0];
     expect(cardId).toBeTruthy();
@@ -1392,7 +1409,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -1443,7 +1460,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-public-hand-transport', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -1498,7 +1515,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-resolution-move', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state as unknown as {
       currentPhase: GamePhase;
@@ -1548,7 +1565,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state as unknown as {
       currentPhase: GamePhase;
@@ -1597,7 +1614,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-4', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -1671,9 +1688,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-5', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
-
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const drawResult = session.executeCommand(createDrawCardToHandCommand(PLAYER1));
     expect(drawResult.success).toBe(true);
@@ -1736,7 +1752,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-6', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -1786,7 +1802,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-7', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -1852,7 +1868,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-8', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -1934,7 +1950,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-special-member-relay', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -2023,8 +2039,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const player = state.players[0] as unknown as {
@@ -2123,7 +2139,7 @@ describe('GameSession command pipeline', () => {
     );
     expect(forgedFreePlayResult.success).toBe(false);
 
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
     const freePlayResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER, {
         freePlay: false,
@@ -2142,8 +2158,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-energy-toggle', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const energyCardId = state.players[0].energyZone.cardIds[0];
@@ -2174,7 +2190,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-cross-turn-tap-member', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const player2 = state.players[1] as unknown as {
@@ -2257,8 +2273,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-cross-turn-free-drag', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session, 0);
+    restoreFreeModeFixture(session);
 
     const player2 = session.state!.players[1];
     const memberCardIds = player2.hand.cardIds.filter(
@@ -2307,8 +2323,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-non-active-inspection', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session, 0);
+    restoreFreeModeFixture(session);
 
     const player2 = session.state!.players[1];
     expect(player2.mainDeck.cardIds.length).toBeGreaterThan(0);
@@ -2337,7 +2353,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-live-set-inspection', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2378,7 +2394,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-performance-inspection', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2419,7 +2435,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-live-result-inspection', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2460,7 +2476,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-inspection-rejected', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2522,8 +2538,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session, 0);
+    restoreFreeModeFixture(session);
 
     // 玩家1 开启检视
     const player1 = session.state!.players[0];
@@ -2586,7 +2602,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2624,7 +2640,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-9', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const player = state.players[0] as unknown as {
@@ -2681,7 +2697,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2722,7 +2738,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2777,7 +2793,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2813,7 +2829,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-success-effect-bounce', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -2854,7 +2870,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-10', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -2912,7 +2928,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -2986,7 +3002,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-public-to-hand', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -3040,7 +3056,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-waiting-room-to-hand', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     forceMainPhaseForPlayer(session);
@@ -3089,7 +3105,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-resolution-to-hand', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state as unknown as {
       currentPhase: GamePhase;
@@ -3133,7 +3149,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-11', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const player2HandCardId = session.state?.players[1].hand.cardIds[0];
     expect(player2HandCardId).toBeTruthy();
@@ -3155,8 +3171,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-12', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const handCardId = session.state?.players[0].hand.cardIds[0];
     expect(handCardId).toBeTruthy();
@@ -3175,7 +3191,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-main-phase-guard', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const memberCardId = session.state?.players[0].hand.cardIds.find(
       (cardId) => session.state?.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
@@ -3202,8 +3218,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const memberCardId = session.state?.players[0].hand.cardIds.find(
       (cardId) => session.state?.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
@@ -3230,8 +3246,8 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session);
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const player = state.players[0] as (typeof state.players)[0] & {
@@ -3271,7 +3287,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -3329,7 +3345,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -3386,7 +3402,7 @@ describe('GameSession command pipeline', () => {
       '玩家2'
     );
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -3437,8 +3453,8 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-free-drag-closed-phase', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
     forceMainPhaseForPlayer(session, 0);
+    restoreFreeModeFixture(session);
 
     const energyCardId = session.state?.players[0].energyDeck.cardIds[0];
     expect(energyCardId).toBeTruthy();
@@ -3494,7 +3510,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-face-up-live', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -3544,7 +3560,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-face-down-live', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {
@@ -3591,7 +3607,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-live-tie-double-winner', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const p1LiveCardId = [...state.cardRegistry.values()].find(
@@ -3684,7 +3700,7 @@ describe('GameSession command pipeline', () => {
 
     session.createGame('online-command-13', PLAYER1, '玩家1', PLAYER2, '玩家2');
     session.initializeGame(deck, deck);
-    session.localFreePlay = true;
+    restoreFreeModeFixture(session);
 
     const state = session.state!;
     const mutableState = state as unknown as {

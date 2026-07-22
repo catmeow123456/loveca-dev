@@ -152,7 +152,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, nozomi.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -313,7 +313,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, nozomi.instanceId, SlotPosition.CENTER, {
         freePlay: true,

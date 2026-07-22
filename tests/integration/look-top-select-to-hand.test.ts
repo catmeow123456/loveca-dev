@@ -175,7 +175,7 @@ describe('look top select to hand shared workflow', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -269,7 +269,7 @@ describe('look top select to hand shared workflow', () => {
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
     const beforeSeq = session.getCurrentPublicEventSeq();
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -468,7 +468,7 @@ function setupBp4006(
 }
 
 function playBp4006(scenario: Bp4006Scenario): void {
-  scenario.session.localFreePlay = true;
+  scenario.session.setManualOperationMode('FREE');
   const result = scenario.session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.CENTER, {
       freePlay: true,
@@ -877,7 +877,7 @@ function setupNamedMemberLookTop(caseIndex: number, options: { noValidTarget?: b
     },
   }));
   (session as unknown as { authorityState: GameState }).authorityState = state;
-  session.localFreePlay = true;
+  session.setManualOperationMode('FREE');
   const play = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
       freePlay: true,
@@ -1070,7 +1070,7 @@ function setupNSd1001LookTop(
   }));
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
-  session.localFreePlay = true;
+  session.setManualOperationMode('FREE');
   const play = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
       freePlay: true,

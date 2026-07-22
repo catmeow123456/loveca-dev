@@ -247,7 +247,7 @@ describe('opponent wait target shared workflow', () => {
       [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -422,7 +422,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -547,7 +547,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -650,7 +650,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -779,7 +779,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -875,7 +875,7 @@ describe('opponent wait target shared workflow', () => {
       [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

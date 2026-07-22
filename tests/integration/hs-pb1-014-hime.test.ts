@@ -220,7 +220,7 @@ describe('HS-pb1-014 Hime workflow', () => {
     ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -269,7 +269,7 @@ describe('HS-pb1-014 Hime workflow', () => {
         expectedOpponentSlot === SlotPosition.CENTER ? SlotPosition.LEFT : SlotPosition.CENTER;
       const { session, source, opponentTarget } = startPb1014Session(sourceSlot, opponentStartSlot);
 
-      session.localFreePlay = true;
+      session.setManualOperationMode('FREE');
       const playResult = session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, sourceSlot, { freePlay: true })
       );
@@ -304,7 +304,7 @@ describe('HS-pb1-014 Hime workflow', () => {
       SlotPosition.LEFT,
       SlotPosition.CENTER
     );
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.LEFT, {
         freePlay: true,
@@ -330,7 +330,7 @@ describe('HS-pb1-014 Hime workflow', () => {
       SlotPosition.LEFT,
       SlotPosition.RIGHT
     );
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.LEFT, {
         freePlay: true,
@@ -430,7 +430,7 @@ describe('HS-pb1-014 Hime workflow', () => {
     ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

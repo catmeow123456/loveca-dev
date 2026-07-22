@@ -150,7 +150,7 @@ describe('HS-bp5-001 Kaho workflow', () => {
     };
     p1.memberSlots.cardStates = new Map();
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, kaho.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -268,7 +268,7 @@ describe('HS-bp5-001 Kaho workflow', () => {
     };
     p1.memberSlots.cardStates = new Map();
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, kaho.instanceId, SlotPosition.CENTER, {
         freePlay: true,

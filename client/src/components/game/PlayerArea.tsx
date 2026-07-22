@@ -533,10 +533,10 @@ export const PlayerArea = memo(function PlayerArea({
   };
 
   // ========================================
-  // 拖拽权限控制 - "信任玩家"原则
+  // 拖拽权限控制 - RULES/FREE 操作模式
   // ========================================
-  // 核心原则：主阶段和 Live 大阶段维持较自由的己方桌面操作。
-  // Live 卡与 Live 区/成功区之间的桌面整理不按阶段锁 UI，后端仍校验具体移动是否合法。
+  // RULES 只提交当前权限投影允许的语义化命令；FREE 保留己方桌面整理。
+  // 无论 UI 是否允许拖起，权威命令政策都会重新校验模式、阶段与 pending flow。
   // ========================================
 
   const allowGeneralOwnZoneInteraction =
@@ -2603,7 +2603,7 @@ export const PlayerArea = memo(function PlayerArea({
   };
 
   // 判断手牌是否可拖拽
-  // "信任玩家"原则：己方区域允许自由拖拽，系统自动纠正非法状态
+  // FREE 的己方整理与当前检视流程可以拖手牌；RULES 的最终合法性仍由 intent/命令政策决定
   const canDragFromHand = allowGeneralOwnZoneInteraction || canReceiveInspectionDrop;
 
   const renderHandContextActions = () => {
