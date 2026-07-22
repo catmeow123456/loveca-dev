@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import bcrypt from 'bcrypt';
 import pg from 'pg';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { hashCurrentPassword } from './lib/current-password-hash.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const apiBaseUrl =
@@ -192,7 +192,7 @@ async function ensureAdminCredentials() {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const passwordHash = await bcrypt.hash(adminPassword, 12);
+    const passwordHash = await hashCurrentPassword(adminPassword);
     const { rows } = await client.query(
       `UPDATE users u
        SET password_hash = $2, email_verified = true
