@@ -20,7 +20,11 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { enqueueTriggeredCardEffects } from '../../src/application/card-effect-runner';
 import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
+import { recordAbilityUseForContext } from '../../src/application/card-effects/runtime/workflow-helpers';
+import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   CardType,
   FaceState,
@@ -206,6 +210,54 @@ describe('PL!-bp6-006 Maki workflow', () => {
           action.payload.step === 'ABILITY_USE'
       )
     ).toBe(false);
+  });
+
+  it('PL!-bp6-006 can activate again after the same physical member leaves and re-enters', () => {
+    const maki = createCardInstance(
+      createMemberCard('PL!-bp6-006-SEC', { name: '西木野真姫', cost: 17 }),
+      PLAYER1,
+      'maki-reentry'
+    );
+    const cost = createCardInstance(createMemberCard('reentry-cost'), PLAYER1, 'reentry-cost');
+    let game = registerCards(createGameState('bp6-006-reentry', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      maki,
+      cost,
+    ]);
+    game = placeStageMember(game, maki.instanceId);
+    game = setPlayerZones(game, { hand: [cost.instanceId] });
+    game = recordAbilityUseForContext(game, PLAYER1, {
+      abilityId: BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
+      sourceCardId: maki.instanceId,
+    });
+
+    const leftStage = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      game,
+      PLAYER1,
+      maki.instanceId,
+      enqueueTriggeredCardEffects
+    );
+    expect(leftStage?.sourceSlot).toBe(SlotPosition.CENTER);
+    const replayed = playMembersFromWaitingRoomToEmptySlots(
+      leftStage!.gameState,
+      PLAYER1,
+      [{ cardId: maki.instanceId, toSlot: SlotPosition.CENTER }],
+      OrientationState.ACTIVE
+    );
+    expect(replayed?.playedMembers.map((played) => played.cardId)).toEqual([maki.instanceId]);
+    const session = createMainPhaseSession(replayed!.gameState);
+
+    const activated = session.executeCommand(
+      createActivateAbilityCommand(
+        PLAYER1,
+        maki.instanceId,
+        BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID
+      )
+    );
+
+    expect(activated.success, activated.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
+    });
   });
 
   it('PL!-bp6-006 pays discard cost, chooses a color, takes a μ’s card, and gains BLADE +3', () => {

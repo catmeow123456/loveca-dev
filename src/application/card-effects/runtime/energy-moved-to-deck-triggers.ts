@@ -10,6 +10,7 @@ import { SlotPosition, TriggerCondition } from '../../../shared/types/enums.js';
 import { CardAbilityCategory, CardAbilitySourceZone } from '../ability-definition-types.js';
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
 import { hasAbilityInstance } from './ability-instance.js';
+import { canUseAbilityThisTurn } from './ability-turn-limit.js';
 
 const MEMBER_SLOTS = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 export function getLatestEnergyMovedToDeckEvents(
@@ -46,19 +47,9 @@ export function enqueueEnergyMovedToDeckCardEffects(
           (!d.requiredSourceSlots || d.requiredSourceSlots.includes(sourceSlot))
       );
       for (const definition of definitions) {
-        const used = state.actionHistory.filter(
-          (a) =>
-            a.type === 'RESOLVE_ABILITY' &&
-            a.playerId === player.id &&
-            a.payload.abilityId === definition.abilityId &&
-            a.payload.sourceCardId === sourceCardId &&
-            a.payload.step === 'ABILITY_USE' &&
-            a.payload.turnCount === state.turnCount
-        ).length;
         if (
-          definition.skipQueueWhenTurnLimitReached &&
-          definition.perTurnLimit !== undefined &&
-          used >= definition.perTurnLimit
+          definition.skipQueueWhenTurnLimitReached === true &&
+          !canUseAbilityThisTurn(state, player.id, definition.abilityId, sourceCardId)
         )
           continue;
         const id = `${definition.abilityId}:${sourceCardId}:${event.eventId}`;

@@ -143,7 +143,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - `HeartColor.GRAY` 表示实际提供的无色/灰色 Heart，只计入 LIVE 判定总 Heart 数，不能补指定颜色；`HeartColor.RAINBOW` 仍表示可代替任意颜色的 All Heart。判心数据不得再用 `RAINBOW` 代表无色结果；必要无色 Heart 的旧有结构化投影仍可使用 `RAINBOW`/泛用总数语义，规则层同时规范化 `GRAY` 需求输入。
 - “必要HEART增加/减少”类效果应使用 `applyHeartRequirementModifiers`；它支持粉/黄/紫等指定颜色，也支持泛用/无色/All 需求，并兼容 `RAINBOW` 条目和 `totalRequired` 表达的两种数据形态。`PL!-sd1-022-SD` 这种减少 `[無ハート]` 的效果只是其中的 All 需求负修正。
 - 前端判定面板读取必要 Heart 修正时要注意投影键：`playerViewState.match.liveResult.requirementModifiers` / `requirementReductions` 当前以 `obj_<cardId>` 为 key，而桌面组件通常使用 raw `cardId`。读取时必须兼容 raw/public 两种 key，否则 `022` 这类效果会在 UI 预览里显示未修正的需求。
-- “1回合 N 次”属于能力定义的通用限制，应在 `CARD_ABILITY_DEFINITIONS.perTurnLimit` 登记，由通用 `ABILITY_USE` 记录与校验按 `playerId + abilityId + sourceCardId + turnCount` 计算；它限制的是此来源卡实例，不是同名卡或同一玩家同能力总次数。不要在单张卡效果里临时判断。
+- “1回合 N 次”属于能力定义的通用限制，应在 `CARD_ABILITY_DEFINITIONS.perTurnLimit` 登记，由通用 `ABILITY_USE` 记录与校验按 `playerId + abilityId + sourceCardId + sourceLifecycleId + turnCount` 计算。`sourceCardId` 是跨区域保持不变的实体卡 ID；`sourceLifecycleId` 表示该实体卡当前这一次成为能力来源的规则对象：`STAGE_MEMBER / PLAYED_MEMBER` 取最近一次跨区域 `ON_ENTER_STAGE.eventId`，`LIVE_CARD` 取最近一次跨区域 `ON_ENTER_LIVE_ZONE.eventId`，无入口事件的测试直置对象使用确定性 initial sentinel。成员区内移动、LIVE 区内移动及 ACTIVE/WAITING 变化不重置；离场后再次进入来源区域会生成新 lifecycle，因此不受旧对象的已结算、pending 或 active 次数占用。不要删除旧 `ABILITY_USE` 历史，也不要在单张卡效果里临时清次数。
 
 ## 费用体系约定
 

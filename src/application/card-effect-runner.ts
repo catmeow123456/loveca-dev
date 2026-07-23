@@ -72,6 +72,13 @@ import {
 } from './card-effects/runtime/energy-moved-to-deck-triggers.js';
 import { hasAbilityInstance } from './card-effects/runtime/ability-instance.js';
 import {
+  capturePendingAbilitySourceLifecycles,
+  getAbilitySourceLifecycleId,
+  getActiveEffectSourceLifecycleId,
+  getPendingAbilitySourceLifecycleId,
+  propagateAbilitySourceLifecycle,
+} from './card-effects/runtime/ability-source-lifecycle.js';
+import {
   canUseAbilityThisTurn,
   canUseActivatedAbilityThisTurn,
 } from './card-effects/runtime/ability-turn-limit.js';
@@ -1356,7 +1363,7 @@ export function enqueueTriggeredCardEffects(
     );
   }
 
-  return state;
+  return capturePendingAbilitySourceLifecycles(state);
 }
 
 function getEnergyPlacedByCardEffectEventsFromLog(
@@ -3226,7 +3233,11 @@ export function confirmActiveEffectStep(
     }
   );
   if (registryResult) {
-    return registryResult;
+    return propagateAbilitySourceLifecycle(game, registryResult, {
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      sourceLifecycleId: getActiveEffectSourceLifecycleId(game, effect),
+    });
   }
 
   return game;
@@ -3244,7 +3255,11 @@ export function activateCardAbility(
 
   const registryResult = resolveActivatedAbilityWithRegistry(game, playerId, cardId, abilityId);
   if (registryResult) {
-    return registryResult;
+    return propagateAbilitySourceLifecycle(game, registryResult, {
+      abilityId,
+      sourceCardId: cardId,
+      sourceLifecycleId: getAbilitySourceLifecycleId(game, abilityId, cardId),
+    });
   }
 
   return game;
@@ -3578,7 +3593,13 @@ function startPendingAbilityEffect(
     delegatePendingAbility,
   });
   if (registryResult) {
-    return registryResult;
+    return propagateAbilitySourceLifecycle(game, registryResult, {
+      abilityId: ability.abilityId,
+      sourceCardId: ability.sourceCardId,
+      sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),
+      pendingAbilityId: ability.id,
+      eventIds: ability.eventIds,
+    });
   }
 
   return game;

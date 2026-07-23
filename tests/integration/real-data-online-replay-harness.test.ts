@@ -3025,6 +3025,7 @@ function normalizeActionPayload(value: unknown, key?: string): unknown {
             entryKey === 'timestamp' ||
             entryKey === 'pendingAbilityId' ||
             entryKey === 'pendingAbilityIds' ||
+            entryKey === 'sourceLifecycleId' ||
             entryKey === 'publicEffectSummary'
           ) {
             return [];

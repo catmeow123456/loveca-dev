@@ -33,6 +33,7 @@ import {
   recordAbilityUseForContext,
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
+import { canUseAbilityThisTurn } from '../../runtime/ability-turn-limit.js';
 
 const MILL_EFFECT_COUNT = 3;
 const PAY_ENERGY_STEP_ID = 'SP_BP5_005_PAY_ENERGY_TO_RECOVER_MOVED_CARD';
@@ -157,7 +158,14 @@ function startSpBp5005RenAuto(
       continuePendingCardEffects
     );
   }
-  if (hasPaidSpBp5005RenAutoUseThisTurn(game, player.id, ability.sourceCardId)) {
+  if (
+    !canUseAbilityThisTurn(
+      game,
+      player.id,
+      SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      ability.sourceCardId
+    )
+  ) {
     return consumePendingAutoAbilityWithoutUse(
       game,
       ability,
@@ -423,23 +431,6 @@ function isOwnMainPhase(game: GameState, playerId: string): boolean {
 function isLiellaMemberCard(game: GameState, cardId: string): boolean {
   const card = getCardById(game, cardId);
   return !!card && isMemberCardData(card.data) && cardBelongsToGroup(card.data, 'Liella!');
-}
-
-function hasPaidSpBp5005RenAutoUseThisTurn(
-  game: GameState,
-  playerId: string,
-  sourceCardId: string
-): boolean {
-  return game.actionHistory.some(
-    (action) =>
-      action.type === 'RESOLVE_ABILITY' &&
-      action.playerId === playerId &&
-      action.payload.abilityId ===
-        SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID &&
-      action.payload.sourceCardId === sourceCardId &&
-      action.payload.step === 'ABILITY_USE' &&
-      action.payload.turnCount === game.turnCount
-  );
 }
 
 function getMovedCardIdsFromPendingAbility(ability: PendingAbilityState): readonly string[] {
