@@ -160,7 +160,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 撤销覆盖玩家在同一操作时点内的桌面动作，例如登场、自动扣费、拖拽、横置、效果确认等。
 - 一旦阶段、子阶段、活跃玩家或等待玩家变化，撤销历史会清空。
 - 回合开始自动处理、先后攻操作时点交换、盖牌玩家切换后，不允许新操作者撤销上一时点。
-- 远程对战暂不支持撤销。未来如要支持，应做双方同步/同意机制。
+- 正式联机支持请求式撤销：发起方请求后由对手拒绝、接受一步或授予同一操作窗口内的连续撤销；服务端负责校验并回滚权威状态。观战与历史回放仍不支持撤销。
 
 ## 检视区与效果显示约定
 
@@ -258,7 +258,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 成功 Live 区也是横置卡位。
 - 能量区活跃/等待需要视觉区分；等待能量横置。
 - 成员卡横置/等待使用 `orientation` 传给通用 `Card`。
-- 撤销按钮位于己方成功 Live 卡区下方，不放左上角。
+- 桌面端撤销按钮位于右下角阶段工具条，不放在成功 Live 卡区或左上角；不可撤销时仍保留入口并展示规则层禁用原因。
 - 对局桌面可显示“已自动化卡效”的轻量卡面标记：只在前端对局组件中给正面卡牌加卡顶中间约 4px 小点和 1px 圆角外描边，当前可处理/可发动时点和描边变亮；不写入卡牌数据库、不影响后端规则。当前实现入口为 `client/src/lib/cardEffectAutomationVisuals.ts`，通用卡牌组件只接收可选 `effectVisualState` prop。默认开启；构建时可设置 `VITE_CARD_EFFECT_VISUAL_MARKERS=false` / `0` / `off` 关闭。若后续所有卡效都已完成并决定剥离，删除该 helper、`CardEffectMarker`、`Card.effectVisualState` prop 以及 `PlayerArea` 中的传参即可，不应影响权威规则状态。
 - 新增卡效接入自动化标记时，优先通过能力定义的 `implemented: true` 自动进入标记系统；只有没有 queued/activated ability definition 的 cost-calculator-only 效果，才需要补到 `client/src/lib/cardEffectAutomationVisuals.ts` 的 supplemental set。
 

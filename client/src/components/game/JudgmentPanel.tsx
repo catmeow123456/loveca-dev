@@ -456,6 +456,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const liveCardScoreModifiers = useGameStore(
     (s) => s.playerViewState?.match.liveResult?.liveCardScoreModifiers ?? {}
   );
+  const isMobilePanel = useMediaQuery('(max-width: 767px)');
   const shouldUseHoverPreview = useMediaQuery('(min-width: 1024px)');
   const {
     acceptAutomaticJudgment,
@@ -861,7 +862,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
   return (
     <motion.aside
-      className="safe-bottom safe-top fixed inset-0 z-[90] h-[var(--battle-viewport-height)] w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
+      className="safe-bottom safe-top pointer-events-auto fixed inset-0 z-[var(--z-battle-modal)] h-[var(--battle-viewport-height)] w-full max-w-none overflow-hidden border-[var(--border-default)] bg-[var(--bg-frosted)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl md:left-0 md:top-0 md:h-full md:max-w-[420px] md:overflow-visible md:border-r md:p-4"
+      role="dialog"
+      aria-modal={isMobilePanel}
+      aria-label="判定区"
       initial={{ x: -460, opacity: 0.8 }}
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: -460, opacity: 0.8 }}

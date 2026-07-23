@@ -23,6 +23,8 @@ describe('waiting room judgment stats', () => {
 
     const stats = collectWaitingRoomJudgmentStats([memberWithPrintedHearts, liveWithBladeHearts]);
 
+    expect(stats.memberCount).toBe(1);
+    expect(stats.liveCount).toBe(1);
     expect(stats.hearts[HeartColor.PINK]).toBe(0);
     expect(stats.hearts[HeartColor.RAINBOW]).toBe(0);
     expect(stats.hearts[HeartColor.BLUE]).toBe(1);
@@ -57,6 +59,8 @@ describe('waiting room judgment stats', () => {
       liveWithDrawBlade,
     ]);
 
+    expect(stats.memberCount).toBe(1);
+    expect(stats.liveCount).toBe(3);
     expect(stats.drawBonus).toBe(1);
     expect(stats.noJudgmentCount).toBe(3);
   });

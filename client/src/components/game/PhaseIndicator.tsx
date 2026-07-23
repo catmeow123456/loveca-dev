@@ -3,9 +3,9 @@
  * 显示当前游戏阶段、子阶段和回合数，提供阶段流转按钮
  */
 
-import { memo, useMemo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { BarChart3, Check, Mic, Sparkles, Trophy } from 'lucide-react';
+import { BarChart3, Check, Mic, Sparkles, Trophy, Undo2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { GameCommandType } from '@game/application/game-commands';
@@ -107,20 +107,61 @@ export const PhaseIndicator = memo(function PhaseIndicator({
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const permissionView = useGameStore((s) => s.getPermissionView());
   const matchView = useGameStore((s) => s.getMatchView());
-  const isReadOnly = useGameStore((s) => s.getBattleSurfaceCapabilities().isReadOnly);
+  const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
+  const isReadOnly = capabilities.isReadOnly;
+  const canShowUndo = capabilities.undoPolicy !== 'NONE';
+  const canUndoLastStep = useGameStore((s) => s.canUndoLastStep());
+  const latestUndoLog = useGameStore((s) => {
+    const latestLog = s.ui.logs[s.ui.logs.length - 1];
+    return latestLog &&
+      (latestLog.message === '已发送撤销请求' || latestLog.message.startsWith('请求撤销失败:'))
+      ? latestLog
+      : null;
+  });
   const getCommandHint = useGameStore((s) => s.getCommandHint);
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const currentTurnCount = useGameStore((s) => s.getTurnCountView());
   const isInspectionWindow = matchView?.window?.windowType === 'INSPECTION';
 
   // 方法选择器（使用 useShallow 保持引用稳定）
-  const { endPhase, advancePhase, confirmSubPhase } = useGameStore(
+  const { endPhase, advancePhase, confirmSubPhase, undoLastStep } = useGameStore(
     useShallow((s) => ({
       endPhase: s.endPhase,
       advancePhase: s.advancePhase,
       confirmSubPhase: s.confirmSubPhase,
+      undoLastStep: s.undoLastStep,
     }))
   );
+  const [undoActionFeedback, setUndoActionFeedback] = useState<string | null>(null);
+  const undoActionFeedbackTimeoutRef = useRef<number | null>(null);
+
+  const showUndoActionFeedback = useCallback((message: string, durationMs = 3200) => {
+    if (undoActionFeedbackTimeoutRef.current !== null) {
+      window.clearTimeout(undoActionFeedbackTimeoutRef.current);
+    }
+    setUndoActionFeedback(message);
+    undoActionFeedbackTimeoutRef.current = window.setTimeout(() => {
+      setUndoActionFeedback(null);
+      undoActionFeedbackTimeoutRef.current = null;
+    }, durationMs);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (undoActionFeedbackTimeoutRef.current !== null) {
+        window.clearTimeout(undoActionFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!latestUndoLog) return;
+    showUndoActionFeedback(
+      latestUndoLog.message === '已发送撤销请求'
+        ? '请求已发送，等待对手回应'
+        : latestUndoLog.message.replace(/^请求撤销失败:\s*/, '')
+    );
+  }, [latestUndoLog, showUndoActionFeedback]);
 
   const isMyTurn = useMemo(() => {
     if (isReadOnly) {
@@ -148,6 +189,23 @@ export const PhaseIndicator = memo(function PhaseIndicator({
     actionConfig?.command && actionConfig.command !== 'OPEN_JUDGMENT'
       ? getCommandHint(actionConfig.command)
       : null;
+  const undoGrant = matchView?.undo?.grant ?? null;
+  const hasViewerUndoGrant =
+    !!undoGrant &&
+    !!matchView?.viewerSeat &&
+    undoGrant.requesterSeat === matchView.viewerSeat &&
+    undoGrant.boundaryKey === matchView.undo?.entry?.boundaryKey;
+  const undoButtonLabel =
+    capabilities.undoPolicy === 'REMOTE_REQUEST'
+      ? hasViewerUndoGrant
+        ? '继续撤销'
+        : '请求撤销'
+      : '撤销上一步';
+  const undoDisabledReason =
+    matchView?.undo?.disabledReason ??
+    (capabilities.undoPolicy === 'REMOTE_REQUEST'
+      ? '当前没有可请求撤销的步骤'
+      : '当前没有可撤销的步骤');
 
   // 是否显示操作按钮
   const showActionButton =
@@ -194,23 +252,30 @@ export const PhaseIndicator = memo(function PhaseIndicator({
     }
   };
 
+  const handleUndoAction = () => {
+    if (!canUndoLastStep) {
+      showUndoActionFeedback(undoDisabledReason);
+      return;
+    }
+
+    const result = undoLastStep();
+    if (result.error) {
+      showUndoActionFeedback(result.error);
+      return;
+    }
+    if (result.pending && capabilities.undoPolicy === 'REMOTE_REQUEST') {
+      showUndoActionFeedback('正在发送撤销请求…');
+    }
+  };
+
   return (
-    <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:left-auto md:right-4 md:bottom-4 md:w-64 md:max-w-none md:translate-x-0">
+    <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+0.5rem)] left-1/2 z-[var(--z-phase-indicator)] w-[calc(100vw-1rem)] max-w-[360px] -translate-x-1/2 md:bottom-4 md:left-auto md:right-4 md:top-auto md:w-auto md:max-w-[calc(100vw-2rem)] md:translate-x-0 md:translate-y-0">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_34%,transparent)] shadow-[var(--shadow-sm)] backdrop-blur-[2px] md:w-64 md:rounded-[18px] md:border-[var(--border-default)] md:bg-[var(--bg-frosted)] md:shadow-[var(--shadow-lg)] md:backdrop-blur-xl"
+        className="w-full overflow-hidden rounded-[14px] border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_34%,transparent)] shadow-[var(--shadow-sm)] backdrop-blur-[2px] md:hidden"
       >
-        {turnNumber !== undefined && (
-          <div className="hidden border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-1 text-center md:block">
-            <span className="text-xs text-[var(--text-muted)]">回合</span>
-            <span className="ml-2 text-lg font-bold text-[var(--text-primary)]">
-              {currentTurnCount ?? turnNumber}
-            </span>
-          </div>
-        )}
-
-        <div className="px-2 py-1.5 md:hidden">
+        <div className="px-2 py-1.5">
           <div className="flex min-w-0 items-center gap-1.5">
             <motion.div
               key={phase}
@@ -241,6 +306,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
                   actionConfig.buttonStyle,
                   'text-white shadow-md transition-colors'
                 )}
+                style={{ fontSize: '11px' }}
               >
                 <span className="inline-flex shrink-0 align-middle">{mainButtonIcon}</span>
                 <span className="truncate">{actionConfig.buttonText}</span>
@@ -260,76 +326,8 @@ export const PhaseIndicator = memo(function PhaseIndicator({
             )}
           </div>
         </div>
-
-        <div className="hidden px-4 py-3 md:block">
-          <div className="flex min-w-0 items-center gap-2">
-            <motion.div
-              key={phase}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              className={cn('h-3 w-3 shrink-0 rounded-full', info.colorClass)}
-            />
-            <span className="truncate text-sm font-bold text-[var(--text-primary)]">
-              {info.name}阶段
-            </span>
-          </div>
-
-          {subPhaseConfig && (
-            <motion.div
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="ml-5 mt-2 flex min-w-0 items-center gap-2 text-xs text-[var(--text-secondary)]"
-            >
-              <span className="shrink-0 text-base">{subPhaseConfig.display.icon}</span>
-              <span className="truncate font-medium">{subPhaseConfig.display.name}</span>
-              {subPhaseConfig.display.requiresUserAction && (
-                <span className="shrink-0 rounded px-1.5 py-0.5 text-xs text-[var(--semantic-warning)]" style={{ background: 'color-mix(in srgb, var(--semantic-warning) 16%, transparent)' }}>
-                  需要操作
-                </span>
-              )}
-            </motion.div>
-          )}
-
-          <div
-            className={cn(
-              'mt-2 text-xs px-2 py-1 rounded text-center',
-              isMyTurn
-                ? 'text-[var(--semantic-success)]'
-                : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
-            )}
-            style={isMyTurn ? { background: 'color-mix(in srgb, var(--semantic-success) 16%, transparent)' } : undefined}
-          >
-            {isReadOnly
-              ? '历史回放'
-              : isInspectionWindow
-                ? '检视处理中'
-                : isMyTurn
-                  ? '你的回合'
-                  : '对手回合'}
-          </div>
-        </div>
-
-        {showActionButton && (
-          <div className="hidden space-y-2 px-4 pb-3 md:block">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleAction}
-              className={cn(
-                'min-h-11 w-full rounded-lg py-2 text-sm font-bold',
-                'bg-gradient-to-r',
-                actionConfig.buttonStyle,
-                'text-white shadow-lg transition-colors'
-              )}
-            >
-              <span className="mr-2 inline-flex align-middle">{mainButtonIcon}</span>
-              {actionConfig.buttonText}
-            </motion.button>
-          </div>
-        )}
-
         {phase === GamePhase.GAME_END && (
-          <div className="px-4 pb-3">
+          <div className="px-4 pb-2">
             <div className="flex items-center justify-center gap-2 text-center font-bold text-[var(--accent-gold)]">
               <Trophy size={16} />
               游戏结束
@@ -337,6 +335,101 @@ export const PhaseIndicator = memo(function PhaseIndicator({
           </div>
         )}
       </motion.div>
+
+      <motion.div
+        data-desktop-phase-dock
+        initial={{ opacity: 0, x: 18, scale: 0.98 }}
+        animate={{ opacity: 1, x: 0, scale: 1 }}
+        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+        className="hidden min-h-12 items-center gap-2 rounded-xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] p-1.5 shadow-[var(--shadow-lg)] backdrop-blur-xl md:flex"
+      >
+        <div className="flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-2.5">
+          <span className="font-mono text-[11px] font-bold tabular-nums text-[var(--text-muted)]">
+            T{currentTurnCount ?? turnNumber ?? '-'}
+          </span>
+          <span className="h-4 w-px bg-[var(--border-subtle)]" aria-hidden="true" />
+          <motion.span
+            key={phase}
+            initial={{ scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={cn('h-2.5 w-2.5 shrink-0 rounded-full', info.colorClass)}
+            aria-hidden="true"
+          />
+          <span className="whitespace-nowrap text-xs font-bold text-[var(--text-primary)]">
+            {info.name}阶段
+          </span>
+          {subPhaseConfig && (
+            <span className="max-w-28 truncate text-[11px] font-medium text-[var(--text-secondary)]">
+              {subPhaseConfig.display.icon} {subPhaseConfig.display.name}
+            </span>
+          )}
+        </div>
+
+        <span
+          className={cn(
+            'inline-flex h-8 shrink-0 items-center rounded-md border px-2 text-[11px] font-semibold',
+            isMyTurn
+              ? 'border-emerald-300/30 bg-emerald-500/10 text-[var(--semantic-success)]'
+              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+          )}
+        >
+          {isReadOnly ? '回放' : isInspectionWindow ? '检视' : isMyTurn ? '我方行动' : '对手行动'}
+        </span>
+
+        {showActionButton && (
+          <motion.button
+            whileHover={{ scale: 1.015 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleAction}
+            className={cn(
+              'inline-flex h-9 max-w-40 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r px-3 font-bold text-white shadow-md',
+              actionConfig.buttonStyle
+            )}
+            style={{ fontSize: '12px' }}
+            title={actionConfig.buttonText}
+          >
+            <span className="inline-flex shrink-0">{mainButtonIcon}</span>
+            <span className="truncate">{actionConfig.buttonText}</span>
+          </motion.button>
+        )}
+
+        {canShowUndo && !isReadOnly && (
+          <button
+            type="button"
+            onClick={handleUndoAction}
+            aria-disabled={!canUndoLastStep}
+            className={cn(
+              'inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 font-semibold transition active:scale-[0.98]',
+              canUndoLastStep
+                ? 'border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-primary)] hover:border-[var(--accent-primary)] hover:bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-overlay))]'
+                : 'cursor-help border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_40%,transparent)] text-[var(--text-muted)]'
+            )}
+            style={{ fontSize: '11px' }}
+            title={canUndoLastStep ? undoButtonLabel : undoDisabledReason}
+          >
+            <Undo2 size={13} />
+            {undoButtonLabel}
+          </button>
+        )}
+
+        {phase === GamePhase.GAME_END && (
+          <span className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-300/30 bg-amber-500/10 px-3 text-xs font-bold text-[var(--accent-gold)]">
+            <Trophy size={14} />
+            游戏结束
+          </span>
+        )}
+      </motion.div>
+
+      {undoActionFeedback && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="absolute bottom-full right-0 mb-2 hidden w-64 rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-center font-medium leading-snug text-[var(--text-secondary)] shadow-[var(--shadow-md)] md:block"
+          style={{ fontSize: '11px' }}
+        >
+          {undoActionFeedback}
+        </p>
+      )}
     </div>
   );
 });

@@ -456,7 +456,7 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
 
   return (
     <BattleViewportShell>
-      <div className="absolute left-4 top-4 z-[120] flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2">
+      <div className="absolute left-4 top-4 z-[var(--z-battle-chrome)] flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={onBackHome}
@@ -505,16 +505,16 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
         </div>
       </div>
       {syncNotice ? (
-        <div className="absolute right-4 top-4 z-[120] max-w-[calc(100vw-2rem)] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:max-w-sm">
+        <div className="absolute right-4 top-4 z-[var(--z-battle-chrome)] max-w-[calc(100vw-2rem)] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl md:max-w-sm">
           {syncNotice}
         </div>
       ) : error ? (
-        <div className="absolute right-4 top-4 z-[120] hidden max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--semantic-error)] shadow-[var(--shadow-md)] backdrop-blur-xl md:block">
+        <div className="absolute right-4 top-4 z-[var(--z-battle-chrome)] hidden max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs text-[var(--semantic-error)] shadow-[var(--shadow-md)] backdrop-blur-xl md:block">
           {error}
         </div>
       ) : null}
       {!syncNotice && !error && remoteSession?.spectatorAuthorizationNotice ? (
-        <div className="absolute right-4 top-4 z-[120] max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs leading-5 text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
+        <div className="absolute right-4 top-4 z-[var(--z-battle-chrome)] max-w-sm rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,transparent)] bg-[var(--bg-frosted)] px-3 py-2 text-xs leading-5 text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
           {remoteSession.spectatorAuthorizationNotice.message}
         </div>
       ) : null}

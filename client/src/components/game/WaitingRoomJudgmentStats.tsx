@@ -138,6 +138,35 @@ function WaitingRoomNoJudgmentStatChip({
   );
 }
 
+function WaitingRoomCardTypeStatChip({
+  label,
+  abbreviation,
+  count,
+  accent,
+}: {
+  label: string;
+  abbreviation: string;
+  count: number;
+  accent: 'member' | 'live';
+}) {
+  return (
+    <span
+      className={cn(
+        'inline-flex h-7 shrink-0 items-center gap-1 rounded-full border px-2 text-[11px] font-medium',
+        accent === 'member'
+          ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_11%,transparent)] text-[var(--accent-primary)]'
+          : 'border-[color:color-mix(in_srgb,var(--accent-secondary)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_11%,transparent)] text-[var(--accent-secondary)]'
+      )}
+    >
+      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,currentColor_14%,transparent)] px-1 text-[9px] font-black leading-none">
+        {abbreviation}
+      </span>
+      <span>{label}</span>
+      <span className="font-bold tabular-nums">{count}</span>
+    </span>
+  );
+}
+
 export function WaitingRoomJudgmentStatsDetail({
   stats,
   className,
@@ -153,10 +182,22 @@ export function WaitingRoomJudgmentStatsDetail({
       )}
     >
       <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-        <span className="font-semibold text-[var(--text-primary)]">判心统计</span>
-        <span className="text-[var(--text-muted)]">合计 {stats.totalHearts} 心</span>
+        <span className="font-semibold text-[var(--text-primary)]">休息室统计</span>
+        <span className="text-[var(--text-muted)]">判心合计 {stats.totalHearts} 心</span>
       </div>
       <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+        <WaitingRoomCardTypeStatChip
+          label="成员卡"
+          abbreviation="M"
+          count={stats.memberCount}
+          accent="member"
+        />
+        <WaitingRoomCardTypeStatChip
+          label="LIVE卡"
+          abbreviation="L"
+          count={stats.liveCount}
+          accent="live"
+        />
         {WAITING_ROOM_HEART_ORDER.map((color) => (
           <WaitingRoomHeartStatChip
             key={color}

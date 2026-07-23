@@ -2526,6 +2526,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         failureMessage: '放回顶部失败',
         successMessage: '手牌放回主卡组顶',
         clearHoveredCardId: cardId,
+        deselectCard: true,
         logError: true,
       });
     },

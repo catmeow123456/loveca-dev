@@ -1,7 +1,9 @@
 import type { AnyCardData } from '@game/domain/entities/card';
-import { BladeHeartEffect, HeartColor } from '@game/shared/types/enums';
+import { BladeHeartEffect, CardType, HeartColor } from '@game/shared/types/enums';
 
 export interface WaitingRoomJudgmentStats {
+  readonly memberCount: number;
+  readonly liveCount: number;
   readonly hearts: Record<HeartColor, number>;
   readonly totalHearts: number;
   readonly scoreBonus: number;
@@ -50,6 +52,8 @@ export function collectWaitingRoomJudgmentStats(
   cardDataList: readonly AnyCardData[]
 ): WaitingRoomJudgmentStats {
   const stats = {
+    memberCount: 0,
+    liveCount: 0,
     hearts: createEmptyWaitingRoomHeartCounts(),
     totalHearts: 0,
     scoreBonus: 0,
@@ -58,6 +62,12 @@ export function collectWaitingRoomJudgmentStats(
   };
 
   for (const cardData of cardDataList) {
+    if (cardData.cardType === CardType.MEMBER) {
+      stats.memberCount += 1;
+    } else if (cardData.cardType === CardType.LIVE) {
+      stats.liveCount += 1;
+    }
+
     if (!hasEffectiveBladeHeart(cardData)) {
       stats.noJudgmentCount += 1;
       continue;
