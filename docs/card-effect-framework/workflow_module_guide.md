@@ -1,5 +1,10 @@
 # Workflow Module Guide
 
+> 文档类型：编码标准
+> 适用范围：卡效 workflow family、特殊卡 workflow、runner dispatch 的组织方式
+> 当前状态：现行写法；旧 runner 逻辑按 `migration_roadmap.md` 分批迁移，完整卡效 fallback 不得回流
+> 最后更新：2026-07-24
+
 ## ON_LEAVE_STAGE activate stage member
 
 `workflows/shared/on-leave-activate-stage-member.ts` 服务 `PL!-PR-001` / `PL!-PR-002` 两个同文样本。固定轴为 `ON_LEAVE_STAGE`，且仅 `toZone === WAITING_ROOM` 时生效；候选仅包含双方主舞台的 WAITING 成员，可跳过。它不承载费用、奖励、团体筛选或任意状态 DSL。
@@ -9,10 +14,6 @@ callback, but must not choose the next ability or retain a private queue snapsho
 runtime check-timing scheduler owns rule-processing re-entry, active/non-active priority,
 and live-pool reselection. `orderedResolution` only applies to the selected batch; a newly
 waiting ability cancels the shortcut and reopens player choice.
-
-> 文档类型：编码标准
-> 适用范围：卡效 workflow family、特殊卡 workflow、runner dispatch 的组织方式
-> 当前状态：目标写法；现有旧 runner 逻辑按 `migration_roadmap.md` 分批迁移
 
 workflow 是卡效流程的主要承载层。它可以是一类同型效果，也可以是一张特殊卡的单独流程。
 

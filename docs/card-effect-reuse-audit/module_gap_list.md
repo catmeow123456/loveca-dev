@@ -23,7 +23,7 @@
 | `X08,X11` | `src/domain/rules/cost-calculator.ts` + `play-member.handler.ts` | Stage 1L 已起步：登场费用修正会在规则层生成基础费用、修正后费用、修正明细、换手减免与最终支付方案；`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」已验证按其他手牌数量减费且自身不计入，并已补齐“无法因换手放置入休息室”，在支付方案与实际登场 action 层拦截；`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」已验证舞台存在待机状态『虹咲』成员时自身 -2 费，`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」已验证舞台来源使手牌中 10 费 Liella! 成员登场费用 -2 且先减费再换手，`PL!-bp4-008-P` 费用 4「小泉花阳」验证舞台成员有效费用可作为换手减免读取。 |
 | `T06,S08,T07,B01,T02,F02` | `src/application/card-effect-runner.ts` trigger enqueue + shared effect primitives；`src/domain/rules/live-modifiers.ts` | Stage 1O 已起步：`PL!HS-bp2-012-N` 费用 5「乙宗 梢」验证舞台成员进休息室触发 AUTO；`PL!HS-bp6-017-N` 费用 11「日野下花帆」验证同触发下的弃手后 LIVE/成员各至多 1 张回收；`PL!HS-bp5-003` 费用 2「大泽瑠璃乃」验证离场事件目的地区 `toZone` 与可选站位变换。Stage 1P 已用 `PL!HS-pb1-009-R` 费用 15「日野下花帆」验证舞台成员监听己方「莲之空」成员登场、实例级每回合 2 次、BLADE +2 modifier、LIVE 开始 BLADE 阈值抽弃与手动顺序选择 confirm-only 壳。`PL!HS-sd1-001-SD` 费用 9「日野下花帆」进一步验证 relay 来源条件：离场事件携带换上成员 `replacingCardId`，入队阶段校验费用 >=10 的「莲之空」成员。 |
 | `T04,F14,F15,E06` | `src/application/effects/cheer-selection.ts` + `src/application/effects/cheer.ts` + LIVE 成功 / ON_CHEER 入队 | Stage 1S/1T 已起步：`PL!HS-bp6-001` 费用 4「日野下花帆」验证回卡组顶，`PL!HS-cl1-009` 分数 1「水彩世界」验证回收，`PL!HS-bp6-027-L` 分数 5「月夜見海月」验证公开卡入休息室与追加声援，`PL!S-bp2-021-L` 分数 4「未体験HORIZON」验证卡组底。`PL!S-bp2-004` 费用 11「黒澤ダイヤ」验证重做声援：移动原公开卡后记录 turn1，以原 BLADE 建立 normal `CheerEvent` 并显式重走 ON_CHEER；`replaceCurrentCheerCards` 只替换当前玩家 facts。仍不宣称通用 cheer loop 或重置 DSL。 |
-| success-zone replacement | `src/application/card-effect-runner.ts` narrow hook | `PL!-bp6-024-L` 分数 3「錯覚CROSSROADS」验证成功区放置替代：普通成功结算与 `PL!-sd1-006-SD` 公开手牌 LIVE 放置成功区路径可在放置前打开可跳过选择，目标限定为自己休息室 μ's LIVE。当前只是本卡窄 hook，未抽 replacement DSL，也未改变 pending、费用或事件消费时机。 |
+| success-zone replacement | `src/application/game-session.ts` placement boundary + `workflows/cards/pl-bp6-024-sakkaku-crossroads.ts` | `PL!-bp6-024-L` 分数 3「錯覚CROSSROADS」验证成功区放置替代：普通成功结算由 `GameSession` 在写入成功区前调用窄 workflow，`PL!-sd1-006-SD` 公开手牌 LIVE 路径复用同一入口；runner 只注册 activeEffect handler。目标限定为自己休息室 μ's LIVE，未抽 replacement DSL，也未改变 pending、费用或事件消费时机。 |
 | `S01,S03,X05,X06` | `src/application/effects/member-state.ts` + `stage-targets.ts` + `stage-member-target-selection.ts` + `card-selectors.ts` | `PL!HS-bp6-004-R` 费用 13「百生 吟子」已验证选择对手舞台费用 <= 9 成员并调用 `setMemberOrientation(WAITING)`；舞台目标 helper 已抽到 `stage-targets.ts`，目标 active effect 已抽到 `stage-member-target-selection.ts`，弃置卡姓名归一化判断已抽为 `cardNameIs`。`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」验证 `cardNameAliasIs` 的舞台条件扫描，`PL!HS-bp5-008-R` 费用 4「桂城泉」验证 `costGte` 高费用成员 selector。后续可用第二张同型卡继续验证。 |
 | `X01,L01,L02,X13` | `src/application/effects/conditions.ts` + `card-selectors.ts` + application-local state queries | 第一版纯 query helper 已起步，提供区域计数、selector 计数/阈值、按 selector 返回 cardIds、区域 + selector 组合、成功 LIVE 数、成功 LIVE 分数合计、舞台成员数/存在性、其他舞台成员、LIVE 区排除来源卡计数、来源 BLADE 阈值、舞台成员有效费用查询、团体/姓名 alias selector，以及舞台成员/能量按朝向查询等。`PL!-bp4-008` 费用 4「小泉花阳」验证只读 effective cost 查询边界；现有 `costLte` / `costGte` 仍按印刷费用筛选。当前只替换低风险内联计数与 selector，不做 condition AST、typed formula builder 或 declarative steps；完整剩余清单见 `condition_query_remaining_inventory.md`。 |
 | same-base rarity sync | `CARD_ABILITY_DEFINITIONS.baseCardCodes` + `src/shared/utils/card-code.ts` | 卡效登记、continuous live modifier registry 与费用修正已支持基础编号匹配；`tests/unit/card-effect-rarity-sync.test.ts` 会防止 exact `cardCodes` 漏掉同基础编号其他罕度。`existing_module_map.md` 已按基础编号记录完成/部分/同型/partial 状态。 |
@@ -39,7 +39,7 @@
 | P1-soon | `F03,F04,F05,F06,F13` workflow orchestration | Continue typed look-top workflow extraction | 支付能量前置、动态数量、控顶、公开确认后条件奖励等 workflow 轴 | 无前置费用、弃手前置、控顶、动态数量与条件奖励样例已分别迁入 shared/card workflow；下一步应继续接支付能量、公开手牌与更复杂分支等窄 workflow，不做 declarative steps DSL。 |
 | P1-soon | `B01,B02,B05,B06,B07,B08,T05` condition-bound builders | Typed Live modifier builders and continuous registry config | 001/009/022/`PL!HS-pb1-009-R`/`PL!HS-bp5-001`/`PL!HS-bp5-019-L`/`PL!HS-bp1-003`/`PL!HS-bp2-022-L+`/`PL!HS-sd1-006-SD`/`PL!HS-PR-019-RM` effect-specific condition + builder code | `addLiveModifier` / `replaceLiveModifier` 已是主写入路径；成员有效 BLADE、此 Live 卡分数与玩家合计分数投影已落地，后续仍可抽 typed builder 与条件 DSL。 |
 | P1-soon | `F12` | Draw-then-deck-placement composed steps | none yet | F02 抽 2 弃 1已有第一条 proving path；F12 继续等待实际样例验证 deck placement 与 refresh semantics。 |
-| P2-later | unmatched/P2 special fragments | Custom resolver hook with explicit boundaries | none urgent | 继续允许低频特例留在 runner，但内部必须复用 cost/selector/look-top/move/modifier APIs。 |
+| P2-later | unmatched/P2 special fragments | Card-local workflow with explicit boundaries | `workflows/cards/` | 低频特例可以保留为单卡 workflow，但完整 resolver、卡牌专属 gate、pending 构造和结算主体不得回流 runner；runner 只保留 import/register、通用 runtime hook 与尚未迁出的 trigger/relay/matcher 胶水。 |
 
 ### Public log follow-ups for card-local inspection shapes
 
@@ -90,24 +90,28 @@
 
 已完成的 direct-mill 原语仍只是“卡组底直接进入休息室＋refresh-aware 分组事件”；006/015 gain-heart 与 020/021 requirement/draw/score 在各自 caller 层以 `revealedCardIds` 向双方展示实际移动卡，确认后才写奖励。022 已独立补齐从卡组底声援，但仅为一个 exact 持续能力样本与窄方向 query，没有与 direct-mill 合并，也没有建立任意方向/reward/zone DSL。memberBelow / energyBelow、cost calculator 与其他 bp7 仍是后续独立批次。
 
-# 2026-07-18 memberBelow 缺口收口
+## Historical batch closure notes
 
-- 代码与 focused 回归已收口、最终关闭标记待整组验证全绿：host 卡号白名单与玩家手动创建 `memberBelow` 的命令入口已删除，现在只有卡效 runtime 可写入。
-- 代码与 focused 回归已收口、最终关闭标记待整组验证全绿：BLADE modifier 已分离真实来源与受益成员；完整印刷 Heart 向量可 replacement；两个已选 ON_ENTER 可作为强制子序列。范围包含 target-only 清理、来源实例 Heart 清理、历史 `PLAYED_MEMBER / STAGE_MEMBER` 查询兼容，以及缺 starter/无进展时不中断 continuation。当前全量未绿项包括恢复后的 online cheer 严格 `CardMovedPublic` 投影断言，以及 real-data replay harness 的既有 `deckEdge/revealedCardIds` fixture mismatch；本批未改生产投影、未放宽断言、未更新 replay fixture。
+以下条目只保留当时的抽象边界和数据阻塞背景；当前卡牌完成状态以 `existing_module_map.md` 为准，不在这里维护阶段性测试红绿状态。
+
+### 2026-07-18 memberBelow 缺口收口
+
+- host 卡号白名单与玩家手动创建 `memberBelow` 的命令入口已删除，现在只有卡效 runtime 可写入。
+- BLADE modifier 已分离真实来源与受益成员；完整印刷 Heart 向量可 replacement；两个已选 ON_ENTER 可作为强制子序列。范围包含 target-only 清理、来源实例 Heart 清理、历史 `PLAYED_MEMBER / STAGE_MEMBER` 查询兼容，以及缺 starter/无进展时不中断 continuation。
 - 仍为边界：不扫描未登记 memberBelow continuous；不提供任意区域堆叠 DSL、任意属性拷贝或任意 delegated timing。未实施的其他 BP7 卡继续按单卡/有限 family 审核。
 - `PL!SP-bp7-025-L` 暂缓实施；公开与生产卡牌数据仍登记为 `MEMBER` / `score: null`，在权威数据可以修正前不登记 LIVE definition，不通过放宽触发类型或修改 `llocg_db` 规避。
 - 本批的休息室置底仅覆盖已有序确定的 `WAITING_ROOM -> MAIN_DECK_BOTTOM`；不提供任意 source/destination zone DSL。`PL!S-bp7-019-L` 的 0～2 和 `PL!SP-bp7-004-P` 的可选但恰好3张仍由各自单卡 workflow 持有，不合并成 callback 奖励 DSL。
 
-# 2026-07-19 energyBelow 第三批审查修正收口
+### 2026-07-19 energyBelow 第三批审查修正收口
 
 - 已补齐一个窄 ENERGY_DECK→当前己方顶层成员 energyBelow 原子 helper，真实样本为 005/007/019；004 仍使用既有 ENERGY_ZONE→energyBelow helper，两者不合并成任意区域 DSL。
 - 007 两段 exact continuous 已覆盖 energyBelow 数量与 `own energyZone count - 6`；未建立动态资源表达式 DSL。
 - energyBelow 的移动、交换和离场/换手/替换返还继续由既有成员生命周期负责；below 放置不伪造 ENERGY_DECK→ENERGY_ZONE 事件。若未来规则需要独立 below-placement 诱发，再按真实卡样本设计新事件，当前不扩完整能量事件体系。
 - 四张只登记 exact cardCodes；未知罕贵度与其他 BP7 卡仍是独立后续审核范围。
 - 005 权威分支文案为“活跃2张能量”，不是玩家可选0～2张；WAITING 不足时才按实际可处理数量结算。已展示分支或目标后续 stale 必须消费并 continuation，伪造输入仍拒绝。
-- SP-PB2-022 专属 observer gate 已从 runner 迁入 `runtime/member-slot-moved-observers.ts` 注册的单卡窄 handler并通过回归；未建立 observer DSL。全量仍只有既知 online cheer 投影断言与 real-data replay fixture 漂移两类非本批失败。
+- SP-PB2-022 专属 observer gate 已从 runner 迁入 `runtime/member-slot-moved-observers.ts` 注册的单卡窄 handler；未建立 observer DSL。
 
-# 2026-07-19 BP7 七弹第一批边界与剩余缺口
+### 2026-07-19 BP7 七弹第一批边界与剩余缺口
 
 - `PL!N-bp7-006-SEC` 已补齐两个独立 activated identity。顶4仅对现有 ordered-top 配置补可选 confirm label 与 owner identity 校验，未扩成新的 inspection DSL。
 - 新 exact-cost wrapper 只表示“当前主卡组已足额时，精确顶 N 进休息室，移动后允许标准刷新，并保留原 grouped event 事实”。它与 WithRefresh direct mill 分工明确，不提供任意费用/区域/刷新策略 DSL。
@@ -117,7 +121,7 @@
 - 各公开窗口的 `revealedCardIds` 只承担双方展示，可按卡牌实例去重；原始 `movedCardIds`、refresh count、owner 分组与重复顺序继续由 metadata/action/event 保存。后续新 family 若需要同形语义，仍应先以真实卡样本验证再晋升。
 - 两张都只登记已核实 exact cardCode；`PL!S-bp7-003-SEC` 后续已完成，其他 BP7 卡仍须按独立批次审核，不因本批 helper 而视为已覆盖。
 
-# 2026-07-21 BP7 公开数据待办
+## Current data-blocked BP7 follow-ups
 
 - 本次盘点时本地 `cards.json` 尚无这些卡的数据；来源仅为公开玩家端 `/api/cards` 与本地 definition lookup，未访问生产卡牌数据、管理员 API 或生产后台。
 - 下列公开卡仍未实现，且没有对应 definition、workflow 或 focused test：`PL!N-bp7-028-L` 分数7「Cooking with Love」、`PL!N-bp7-031-L` 分数5「Like a Treasure」、`PL!S-bp7-004-P` 费用13「黑泽黛雅」、`PL!SP-bp7-002-P` 费用2「唐可可」、`PL!SP-bp7-013-N` 费用15「唐可可」、`PL!SP-bp7-026-L` 分数3「Dears」。这些候选尚未进入 `existing_module_map.md`。

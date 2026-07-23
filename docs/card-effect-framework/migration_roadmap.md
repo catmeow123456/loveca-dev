@@ -1,5 +1,10 @@
 # Card Effect Runner Migration Roadmap
 
+> 文档类型：历史/计划文档
+> 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
+> 当前状态：现行迁移路线；完成状态以代码、测试和本文 Roadmap 表为准，顶部专题说明不得替代表内状态
+> 最后更新：2026-07-24
+
 ## bp3-001 / 002 通用 hook（2026-07）
 
 - `REVEALED_CHEER_CARD` 来源收集和 target-member-bound modifier 清理由 runner 调用通用 runtime hook；两个完整卡效仍由各自 workflow registry 持有。
@@ -20,10 +25,6 @@
   created during resolution join the next choice after the current ability finishes.
 - `src/domain/rules/check-timing.ts` remains an older domain model and is not wired as a
   second production scheduler.
-
-> 文档类型：历史/计划文档
-> 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
-> 当前状态：迁移计划；完成状态以代码、测试和本表同步为准
 
 本文记录 runner 去中心化路线。它不是一次性大重写计划；每一阶段都必须保持行为可验证。
 

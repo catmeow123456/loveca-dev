@@ -3,6 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：卡效 condition/query helper 剩余内联查询、候选抽取项与阶段边界
 > 当前状态：持续维护清单；只记录 query/selector 边界，不代表 condition AST、formula builder 或 steps DSL 已落地
+> 最后更新：2026-07-24
 
 审查日期：2026-06-16
 
@@ -70,6 +71,8 @@
 - Batch E-1 low-cost waiting-room candidate query：已把 `PL!S-bp2-006` 费用 11「津岛善子」等待室低费成员候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, costLte(4))`。费用合计与登场流程仍留在 grouped selection / workflow。
 - Batch E-2 Maki exchange candidate query：已把 `PL!-sd1-006` 费用 8「西木野真姬」手牌 LIVE / 成功区 LIVE 候选改为 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))`。公开手牌与区域交换流程仍留在 workflow。
 - Batch E-3 Hasunosora activated candidate query：已把 `PL!HS-bp1-004` 费用 15「夕雾缀理」/ `PL!HS-bp1-003` 费用 13「乙宗梢」/ `PL!HS-bp1-002` 费用 11「村野沙耶香」起动段等待室候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, selector)`。自送费用、能量费用、回收/登场流程仍留在 cost / workflow。
+- Batch E-4 runner zone-selector 收口：runner 已不再保留 `getCardIdsInZone(...) + getCardIdsMatchingSelector(...)` / `countCardsMatchingSelector(...)` 组合查询；剩余区域条件由具体 workflow、domain query 或 `conditions.ts` 的组合 helper 承载。
+- 本回合成员登场事件次数：`countMemberEntriesThisTurn`、`getMemberEntryOrdinalForEvent` 与 `hasMemberEnteredStageThisTurnMatching` 已归属 `domain/rules/member-turn-state.ts`，并从 `application/effects/conditions.ts` re-export。它们读取当前回合 `ON_ENTER_STAGE` 事件窗口，不用当前舞台人数或 `movedToStageThisTurn` 代替事件事实。
 - 有效 Heart 高于印刷 Heart：`memberHasMoreEffectiveHeartsThanPrinted` 已作为纯 domain query 落地，`PL!HS-pb1-029` 与 `PL!HS-PR-028` 共用；同一次判断复用单次 `collectLiveModifiers` 结果，颜色替换不改变数量时不成立。
 - Batch E-4 same-name LIVE candidate query：已把 `PL!HS-bp5-001` 费用 11「日野下花帆」起动段等待室“同名 LIVE”候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, and(typeIs(CardType.LIVE), cardNameContains(revealedName)))`。`cardNameContains` 只做 normalize 后包含判断，不做 alias；公开手牌、选择与后续处理仍留在 workflow。
 - Batch F-1 selected ids selector group count：已补 `countCardIdsMatchingSelectors`，并在 `PL!HS-bp6-017` 费用 11「日野下花帆」的已选 LIVE / 成员各至多 1 张校验中复用。选择上限、activeEffect、移动与确认流程仍留在 workflow。
@@ -85,7 +88,6 @@
 
 | id | current location | current behavior | next action |
 |---|---|---|---|
-| RQ-01 | `card-effect-runner.ts` 中多处 `getCardIdsInZone(...)+getCardIdsMatchingSelector(...)` / `countCardsMatchingSelector(...)` | 区域 + selector 的 id 列表、数量、阈值查询。 | `getCardIdsInZoneMatching` / `countCardsInZoneMatching` / `hasCardInZoneMatching` 已补；已替换 `PL!HS-pb1-020` 等低风险点，剩余重复可随真实卡效小步继续迁。 |
 | RQ-02 | `PL!HS-bp5-001` 费用 11「日野下花帆」登场段 | 检视顶 4 后判断其中是否有 LIVE，决定是否给 BLADE +2。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；奖励写入在 `workflows/cards/hs-bp5-001-kaho.ts`，后续可抽 any/condition reward builder。 |
 | RQ-03 | `PL!-sd1-007` 费用 7「东条希」 | 公开顶 5 后判断其中是否有 LIVE，决定是否抽 1。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；抽牌流程不迁。 |
 | RQ-04 | `PL!HS-PR-019` 费用 2「百生吟子」 | 公开顶 3 后判断 3 张是否全部为绿色 Heart 成员。 | 已用 `allCardIdsMatchingSelector(..., memberHasHeartColor(HeartColor.GREEN))`；奖励写入在 `workflows/shared/mill-top-gain-live-modifier.ts`，后续可抽 all/condition reward builder。 |
@@ -190,8 +192,3 @@ git diff --check
 ```bash
 pnpm test:run tests/integration/live-start-timing.test.ts tests/unit/live-modifiers.test.ts tests/unit/cost-calculator.test.ts
 ```
-# 本回合成员登场事件次数（已落地）
-
-- `countMemberEntriesThisTurn(game, playerId)` 与 `getMemberEntryOrdinalForEvent(game, playerId, eventId)` 已归属 `domain/rules/member-turn-state.ts`，并从 `application/effects/conditions.ts` re-export。
-- 数据源是权威 `GameState.eventLog` 中当前回合的 `ON_ENTER_STAGE` 事件；`GameService.advancePhase` 在真实新回合切换时写入旧回合 `ON_TURN_END`（首回合除外）及新回合 `ON_TURN_START`，供该查询截取当前事件窗口。不读取当前舞台人数、不对实例去重、不读取 `movedToStageThisTurn`，因此离场、同实例再次登场与同批第3/第4事件均保持正确语义。
-- `hasMemberEnteredStageThisTurnMatching(game, playerId, selector)` 在同一 domain 模块提供窄布尔查询，并从 `application/effects/conditions.ts` re-export。它只检查当前回合 `controllerId` 匹配的 `ON_ENTER_STAGE` 事件所指成员实例，再应用现有 selector；成员之后离场仍保持事件事实，单纯站位变换、对方事件、非成员以及仅写入 `movedToStageThisTurn` 的伪数据不命中。当前消费者是 `PL!N-bp1-006` 费用13「近江彼方」第一条起动能力；该 query 不是条件 AST、通用事件扫描 callback 或事件 DSL。

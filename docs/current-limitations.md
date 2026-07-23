@@ -62,7 +62,6 @@
 - [联机模式边界规范](online-mode/boundary-standard.md)
 - [对局记录与回放需求](match-replay/requirements.md)
 - [对局记录与回放设计](match-replay/design.md)
-- [对局记录与回放第一阶段实施计划](match-replay/phase1-implementation-plan.md)
 - [对局回放 checkpoint / bundle 序列化与复水契约](match-replay/serialization-contract.md)
 
 ## 对局规则自动化

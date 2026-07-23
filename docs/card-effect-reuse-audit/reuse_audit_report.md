@@ -1,7 +1,13 @@
 # Loveca card effect reuse audit report
 
+> 文档类型：历史/计划文档
+> 适用范围：2026-06-13 卡效复用只读审查快照与后续重构背景
+> 当前状态：历史审计快照；路径、行号、缺口和优先级均不代表当前实现
+> 替代来源：卡牌状态见 `existing_module_map.md`，模块覆盖见 `effect_module_coverage.md`，当前缺口见 `module_gap_list.md`
+> 最后更新：2026-07-24
+
 审查日期：2026-06-13
-审查范围：只读审查当前 `loveca_battle` 已登记/实现的样例卡效；未修改业务代码。
+审查范围（历史）：只读审查当时 `loveca_battle` 已登记/实现的样例卡效；未修改业务代码。
 输入基准：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`、`loveca_effect_reuse_report.md`、`codex_loveca_reuse_audit_prompt.md`。
 主要实现入口：`src/application/card-effect-runner.ts`。
 

@@ -1,16 +1,17 @@
-# Loveca 远程撤销恢复需求设计与实施计划
+# Loveca 远程撤销恢复实施记录与剩余计划
 
-> 文档类型：需求设计与实施文档
+> 文档类型：历史/计划文档
 > 适用范围：服务端可记录对墙打、正式联机、远程调试联机的撤销能力恢复
-> 当前状态：首版实施中（P0/P1/P2/P3/P4 已落地；P5 远程调试与体验收束未完成）
-> 最后更新：2026-06-23
+> 当前状态：P0-P4 已落地并作为历史实施记录保留；P5 远程调试撤销与回放节点体验尚未实现
+> 当前事实来源：桌面能力与场景边界见 `../battle-mode-purpose-and-boundaries.md`；本文件中的早期代码缺口只解释实施背景
+> 最后更新：2026-07-24
 
 > 2026-06-20 实施标记：已完成服务端可记录对墙打即时撤销首版，包括受控 undo entry、`remoteRevision`、`UNDO_APPLIED` recorder frame、事件明细 timeline 身份、`undoPolicy` 与 `/api/battle/solitaire-matches/:matchId/undo`。已完成正式联机请求式撤销首版，包括 undo request runtime state、`UNDO_REQUESTED/ACCEPTED/REJECTED/EXPIRED` frame、`/api/online/matches/:matchId/undo-requests` 系列接口、`pendingRequest` 投影、前端请求/响应弹窗、超时和新命令失效。远程调试撤销策略、回放时间线撤销节点增强展示仍未实现。
 > 2026-06-23 实施标记：正式联机请求式撤销补充“允许连续撤销”选项。对手接受请求时可授权发起方在同一撤销边界内继续直接撤销，不需要每一步重复确认；授权会在超时、阶段推进、新命令、撤销目标不再连续时失效。正式联机 direct undo 接口仍由服务端校验，未获得连续授权时不能绕过对手同意。
 
 ## 1. 背景
 
-当前本地调试和本地对墙打仍有撤销能力，撤销由浏览器内 `GameSession` 保存权威快照实现。服务端可记录对墙打和正式联机没有撤销按钮，原因不是按钮组件丢失，而是桌面能力模型把所有远程权威会话都标记为 `canUndo=false`。
+本计划启动时，本地调试和本地对墙打已有浏览器内 `GameSession` 权威快照撤销，而服务端可记录对墙打和正式联机尚未开放撤销。P0-P4 完成后，服务端可记录对墙打已经使用即时远程撤销，正式联机已经使用请求式撤销；远程调试联机仍未接入撤销策略。
 
 恢复撤销时不能简单把按钮重新显示出来，也不能让客户端调用本地 `gameSession.undoLastStep()`。远程对局的权威状态在服务端，撤销必须由服务端执行并重新投影给所有相关视角，否则会出现客户端桌面回退、服务端状态未回退、历史记录继续前进的分裂状态。
 
@@ -18,7 +19,7 @@
 
 ## 2. 代码复核结论
 
-基于当前代码，远程撤销可行，但必须先补齐几个底座：
+以下是计划启动时的代码复核基线；其中 P0-P4 对应底座已经落地，保留这些条目用于解释设计原因，不表示当前仍全部缺失：
 
 - `GameSession.undoLastStep()` 会恢复权威状态，也会恢复 `publicEvents`、`privateEventsBySeat`、`sealedAuditRecords`、`commandLog`、`snapshotHistory` 和 `authoritySnapshots`。这适合本地撤销，但远程可记录对局不能只调用裸 `undoLastStep()` 后再从 `GameSession` 增量日志里倒推历史事实。
 - 远程同步当前用 `playerViewState.match.seq` / `RemoteMatchSnapshot.seq` / `sinceSeq` 做去重和短路；这些值当前来自 public event seq。撤销会让 public seq 回到旧值，所以必须引入独立的 `remoteRevision`，并让远程 snapshot 去重、轮询短路和响应 seq 全部使用它。
@@ -168,14 +169,14 @@
 
 ## 6. 场景能力矩阵
 
-| 场景 | 权威来源 | 恢复策略 | 第一版建议 |
-| --- | --- | --- | --- |
-| 本地调试 `LOCAL_DEBUG` | 浏览器本地 | 保留现有立即撤销 | 不改 |
-| 本地对墙打 `SOLITAIRE` | 浏览器本地 | 保留现有立即撤销 | 不改 |
-| 服务端可记录对墙打 `SOLITAIRE` | 服务端 | 玩家单方立即远程撤销 | 优先实现 |
-| 正式联机 `ONLINE` | 服务端 | 发起请求，对手确认后撤销 | 第二阶段实现 |
-| 远程调试联机 `REMOTE_DEBUG` | 服务端 | 默认走请求确认，可配置直接撤销 | 跟随正式联机协议 |
-| 历史回放 `REPLAY_READONLY` | 持久记录 | 不允许撤销 | 不改 |
+| 场景                           | 权威来源   | 当前实现                                             | 剩余计划                                 |
+| ------------------------------ | ---------- | ---------------------------------------------------- | ---------------------------------------- |
+| 本地调试 `LOCAL_DEBUG`         | 浏览器本地 | 立即撤销                                             | 无                                       |
+| 本地对墙打 `SOLITAIRE`         | 浏览器本地 | 立即撤销                                             | 无                                       |
+| 服务端可记录对墙打 `SOLITAIRE` | 服务端     | 玩家单方即时远程撤销                                 | 继续完善回放节点说明                     |
+| 正式联机 `ONLINE`              | 服务端     | 发起请求，对手确认后撤销；可授予同一操作窗口连续撤销 | 继续完善回放节点说明                     |
+| 远程调试联机 `REMOTE_DEBUG`    | 服务端     | 不开放撤销，`undoPolicy = NONE`                      | P5：默认请求确认，并允许开发配置直接撤销 |
+| 历史回放 `REPLAY_READONLY`     | 持久记录   | 不允许撤销                                           | 无                                       |
 
 ## 7. 功能需求
 
@@ -215,11 +216,7 @@
 桌面不应只用 `canUndo` 一个布尔值表达所有场景。建议引入明确的撤销展示策略：
 
 ```ts
-type UndoPolicy =
-  | 'NONE'
-  | 'LOCAL_IMMEDIATE'
-  | 'REMOTE_IMMEDIATE'
-  | 'REMOTE_REQUEST';
+type UndoPolicy = 'NONE' | 'LOCAL_IMMEDIATE' | 'REMOTE_IMMEDIATE' | 'REMOTE_REQUEST';
 ```
 
 前端展示建议：

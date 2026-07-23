@@ -1,7 +1,13 @@
 # Loveca safe card effect refactor plan
 
+> 文档类型：历史/计划文档
+> 适用范围：Stage 1 系列卡效安全迁移的历史步骤、验证思路与 proving card 背景
+> 当前状态：历史实施计划；下方阶段状态和测试结果停留在当时快照，不作为当前代码或卡牌完成状态来源
+> 替代来源：当前路线见 `../card-effect-framework/migration_roadmap.md`，卡牌状态见 `existing_module_map.md`，当前缺口见 `module_gap_list.md`
+> 最后更新：2026-07-24
+
 审查日期：2026-06-14
-状态：Stage 1A-1F 已完成当前 μ's 验证集的主要底座抽取；Stage 1I-1T 已陆续打开 E03/E02 能量、F02 抽弃、S05 站位变换、X11 登场费用修正、S07 卡效登场、X03 分支选择、S08 离场 AUTO、`ON_ENTER_STAGE` 监听 AUTO、舞台目标选择、同编号罕度同步、公开手牌隐私投影、声援公开卡选择、`ON_CHEER` 与追加声援等边界。本批 `绿莲-6弹ver.yaml` 已继续补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-031` 分数 8「ファンファーレ！！！」与 `PL!HS-bp6-027` 分数 5「月夜見海月」，新增验证公开手牌确认窗口、私有候选不向对手投影、条件型 continuous SCORE、此 Live 卡分数与 LIVE 合计分数投影分离、relay 来源条件、分组回收、动态控顶、LIVE 成功舞台成员来源、`cheer-selection.ts`、`cheer.ts` 与追加声援。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
+历史状态快照：Stage 1A-1F 已完成当时 μ's 验证集的主要底座抽取；Stage 1I-1T 已陆续打开 E03/E02 能量、F02 抽弃、S05 站位变换、X11 登场费用修正、S07 卡效登场、X03 分支选择、S08 离场 AUTO、`ON_ENTER_STAGE` 监听 AUTO、舞台目标选择、同编号罕度同步、公开手牌隐私投影、声援公开卡选择、`ON_CHEER` 与追加声援等边界。本批 `绿莲-6弹ver.yaml` 已继续补齐 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-031` 分数 8「ファンファーレ！！！」与 `PL!HS-bp6-027` 分数 5「月夜見海月」，新增验证公开手牌确认窗口、私有候选不向对手投影、条件型 continuous SCORE、此 Live 卡分数与 LIVE 合计分数投影分离、relay 来源条件、分组回收、动态控顶、LIVE 成功舞台成员来源、`cheer-selection.ts`、`cheer.ts` 与追加声援。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由测试防漏同步；普通活跃阶段进入时也已自动重置当前玩家成员与能量。
 
 本计划假设当前行为是 golden。除非明确接受 behavior mismatch，否则每一批都应先补 focused tests，再迁移。
 

@@ -8,14 +8,14 @@
 
 ## 推荐阅读顺序
 
-| 文档 | 类型 | 维护边界 |
-| --- | --- | --- |
-| [联机模式准备文档](preparation.md) | 设计文档 | 正式联机基础闭环、剩余边界、命令/事件/视图约束 |
-| [联机模式边界规范](boundary-standard.md) | 编码标准 | 联机 UI、store selector、命令、投影和公共事件边界 |
-| [可见性与公开对象矩阵](visibility-matrix.md) | 专题说明 | `PlayerViewState`、对象可见性和公开对象投影规则 |
-| [自由拖拽核对表](free-drag-checklist.md) | 专题说明 | 自由拖拽权限模型和最小回归 checklist |
-| [远程撤销恢复需求设计与实施计划](remote-undo-requirements-design.md) | 需求设计与实施文档 | 服务端可记录对墙打、正式联机和远程调试联机的撤销恢复边界 |
-| [Transport Serde 性能说明](transport-serde-performance.md) | 专题说明 | 正式联机 JSON-native 响应热路径、性能基准和后续增量同步边界 |
+| 文档                                                                 | 类型          | 维护边界                                                         |
+| -------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------- |
+| [联机模式准备文档](preparation.md)                                   | 设计文档      | 正式联机基础闭环、剩余边界、命令/事件/视图约束                   |
+| [联机模式边界规范](boundary-standard.md)                             | 编码标准      | 联机 UI、store selector、命令、投影和公共事件边界                |
+| [可见性与公开对象矩阵](visibility-matrix.md)                         | 设计文档      | `PlayerViewState`、对象可见性和公开对象投影规则                  |
+| [自由拖拽核对表](free-drag-checklist.md)                             | 专题说明      | 自由拖拽权限模型和最小回归 checklist                             |
+| [远程撤销恢复实施记录与剩余计划](remote-undo-requirements-design.md) | 历史/计划文档 | 已落地的服务端对墙打/正式联机撤销背景，以及尚未完成的远程调试 P5 |
+| [Transport Serde 性能说明](transport-serde-performance.md)           | 专题说明      | 正式联机 JSON-native 响应热路径、性能基准和后续增量同步边界      |
 
 ## 维护规则
 
