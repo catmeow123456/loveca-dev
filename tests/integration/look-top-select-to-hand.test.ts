@@ -175,6 +175,7 @@ describe('look top select to hand shared workflow', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -268,6 +269,7 @@ describe('look top select to hand shared workflow', () => {
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
 
     const beforeSeq = session.getCurrentPublicEventSeq();
+    session.setManualOperationMode('FREE');
     const moveResult = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -397,11 +399,13 @@ function createBp4006TopCards(): readonly ReturnType<typeof createCardInstance>[
   ];
 }
 
-function setupBp4006(options: {
-  readonly cardCode?: 'PL!-bp4-006-P' | 'PL!-bp4-006-R';
-  readonly successScore?: number;
-  readonly topCards?: readonly ReturnType<typeof createCardInstance>[];
-} = {}): Bp4006Scenario {
+function setupBp4006(
+  options: {
+    readonly cardCode?: 'PL!-bp4-006-P' | 'PL!-bp4-006-R';
+    readonly successScore?: number;
+    readonly topCards?: readonly ReturnType<typeof createCardInstance>[];
+  } = {}
+): Bp4006Scenario {
   const session = createGameSession();
   const deck = createDeck();
   session.createGame('pl-bp4-006-maki', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
@@ -464,6 +468,7 @@ function setupBp4006(options: {
 }
 
 function playBp4006(scenario: Bp4006Scenario): void {
+  scenario.session.setManualOperationMode('FREE');
   const result = scenario.session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.CENTER, {
       freePlay: true,
@@ -529,7 +534,7 @@ describe('PL!-bp4-006 shared success-score look-top configuration', () => {
     }
   });
 
-  it('selects only structured μ\'s MEMBER aliases and keeps all unselected cards private', () => {
+  it("selects only structured μ's MEMBER aliases and keeps all unselected cards private", () => {
     const scenario = setupBp4006();
     playBp4006(scenario);
     const [curlyMuseMember, museLive, otherMember, straightMuseMember] = scenario.topCards;
@@ -683,9 +688,7 @@ describe('PL!-bp4-006 shared success-score look-top configuration', () => {
     expect(finish.success, finish.error).toBe(true);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([selectedCardId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(
-      scenario.topCards
-        .map((card) => card.instanceId)
-        .filter((cardId) => cardId !== selectedCardId)
+      scenario.topCards.map((card) => card.instanceId).filter((cardId) => cardId !== selectedCardId)
     );
   });
 
@@ -728,10 +731,7 @@ describe('PL!-bp4-006 shared success-score look-top configuration', () => {
         slots: { ...player.memberSlots.slots, [SlotPosition.LEFT]: watcher.instanceId },
         cardStates: new Map([
           ...player.memberSlots.cardStates,
-          [
-            watcher.instanceId,
-            { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
-          ],
+          [watcher.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
         ]),
       },
     }));
@@ -820,7 +820,12 @@ function setupNamedMemberLookTop(caseIndex: number, options: { noValidTarget?: b
   forceMainPhaseForPlayer(session);
 
   const source = createCardInstance(
-    createMemberCard(cardCase.sourceCardCode, cardCase.sourceName, caseIndex % 2 === 0 ? 2 : 4, '虹ヶ咲'),
+    createMemberCard(
+      cardCase.sourceCardCode,
+      cardCase.sourceName,
+      caseIndex % 2 === 0 ? 2 : 4,
+      '虹ヶ咲'
+    ),
     PLAYER1,
     `n-pb1-source-${caseIndex}`
   );
@@ -872,8 +877,11 @@ function setupNamedMemberLookTop(caseIndex: number, options: { noValidTarget?: b
     },
   }));
   (session as unknown as { authorityState: GameState }).authorityState = state;
+  session.setManualOperationMode('FREE');
   const play = session.executeCommand(
-    createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, { freePlay: true })
+    createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+      freePlay: true,
+    })
   );
   expect(play.success, play.error).toBe(true);
   return { session, cardCase, validTarget, rejectedTarget, topCards };
@@ -927,12 +935,14 @@ describe('N-pb1 named-member look-top-two shared configurations', () => {
       expect(scenario.session.state?.inspectionZone.cardIds).toEqual([]);
       expect(scenario.session.state?.inspectionZone.revealedCardIds).toEqual([]);
       expect(
-        scenario.session.state?.eventLog.map((entry) => entry.event).find(
-          (event) =>
-            event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
-            event.fromZone === ZoneType.MAIN_DECK &&
-            event.toZone === ZoneType.WAITING_ROOM
-        )
+        scenario.session.state?.eventLog
+          .map((entry) => entry.event)
+          .find(
+            (event) =>
+              event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+              event.fromZone === ZoneType.MAIN_DECK &&
+              event.toZone === ZoneType.WAITING_ROOM
+          )
       ).toMatchObject({ cardInstanceIds: [scenario.rejectedTarget.instanceId] });
     }
   );
@@ -966,10 +976,12 @@ describe('N-pb1 named-member look-top-two shared configurations', () => {
   });
 });
 
-function setupNSd1001LookTop(options: {
-  readonly topCards?: readonly ReturnType<typeof createCardInstance>[];
-  readonly withWaitingRoomWatcher?: boolean;
-} = {}) {
+function setupNSd1001LookTop(
+  options: {
+    readonly topCards?: readonly ReturnType<typeof createCardInstance>[];
+    readonly withWaitingRoomWatcher?: boolean;
+  } = {}
+) {
   const session = createGameSession();
   session.createGame('n-sd1-001-ayumu-look-top', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
   session.initializeGame(createDeck(), createDeck());
@@ -1051,16 +1063,14 @@ function setupNSd1001LookTop(options: {
       },
       cardStates: watcher
         ? new Map([
-            [
-              watcher.instanceId,
-              { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
-            ],
+            [watcher.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
           ])
         : new Map(),
     },
   }));
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
+  session.setManualOperationMode('FREE');
   const play = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
       freePlay: true,
@@ -1105,9 +1115,7 @@ describe('PL!N-sd1-001-SD 费用13「上原歩夢」 shared look-top ability', (
       createConfirmEffectStepCommand(PLAYER1, effect.id, validLive!.instanceId)
     );
     expect(reveal.success, reveal.error).toBe(true);
-    expect(scenario.session.state?.inspectionZone.revealedCardIds).toEqual([
-      validLive!.instanceId,
-    ]);
+    expect(scenario.session.state?.inspectionZone.revealedCardIds).toEqual([validLive!.instanceId]);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([]);
     expect(scenario.session.state?.activeEffect).toMatchObject({
       abilityId: N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -1135,12 +1143,14 @@ describe('PL!N-sd1-001-SD 费用13「上原歩夢」 shared look-top ability', (
       .filter((cardId) => cardId !== validLive!.instanceId);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(waitingRoomCardIds);
     expect(
-      scenario.session.state?.eventLog.map((entry) => entry.event).find(
-        (event) =>
-          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
-          event.fromZone === ZoneType.MAIN_DECK &&
-          event.toZone === ZoneType.WAITING_ROOM
-      )
+      scenario.session.state?.eventLog
+        .map((entry) => entry.event)
+        .find(
+          (event) =>
+            event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+            event.fromZone === ZoneType.MAIN_DECK &&
+            event.toZone === ZoneType.WAITING_ROOM
+        )
     ).toMatchObject({ cardInstanceIds: waitingRoomCardIds });
     expect(
       scenario.session.state?.actionHistory.some(
@@ -1188,12 +1198,14 @@ describe('PL!N-sd1-001-SD 费用13「上原歩夢」 shared look-top ability', (
     );
     expect(shortFinish.success, shortFinish.error).toBe(true);
     expect(
-      short.session.state?.eventLog.map((entry) => entry.event).find(
-        (event) =>
-          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
-          event.fromZone === ZoneType.MAIN_DECK &&
-          event.toZone === ZoneType.WAITING_ROOM
-      )
+      short.session.state?.eventLog
+        .map((entry) => entry.event)
+        .find(
+          (event) =>
+            event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+            event.fromZone === ZoneType.MAIN_DECK &&
+            event.toZone === ZoneType.WAITING_ROOM
+        )
     ).toMatchObject({ cardInstanceIds: shortCards.map((card) => card.instanceId) });
 
     const empty = setupNSd1001LookTop({ topCards: [] });

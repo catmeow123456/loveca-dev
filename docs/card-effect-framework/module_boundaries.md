@@ -129,4 +129,4 @@ Rules:
 
 `LL-bp7-001-R+` 是首个窄特殊成员登场样本。`BEGIN_SPECIAL_MEMBER_PLAY` 在先选成员区后建立可复水 pending；`CONFIRM` 由权威端重验姓名分配、区域、换手与能量并原子结算。客户端不提交数字费用。窄 `specialPlayBaseCost: 10` 只是本次 play 的服务端验证输入；不改写印刷费用，不写登场后 modifier/replacement。该边界不是任意特殊登场或替代费用 DSL。
 
-BEGIN 的权威 guard 必须拒绝任何未结算 `activeEffect` / pending ability/choice/cost、check timing、inspection 或 delegated sequence，不得依赖 UI 隐藏按钮。确认时，空区域只计算非换手方案；已占区域必须将费用查询绑定 `relayMode: 'SINGLE'`，即使被换手成员有效费用为0，费用 action、replacement 事件和 sealed audit 也必须记录同一换手事实。
+BEGIN 的权威 guard 必须拒绝任何未结算 `activeEffect` / pending ability/choice/cost、check timing、inspection 或 delegated sequence，不得依赖 UI 隐藏按钮。确认时，空区域只计算非换手方案；已占区域必须将费用查询绑定 `relayMode: 'SINGLE'`，即使被换手成员有效费用为0，费用 action、replacement 事件和 sealed audit 也必须记录同一换手事实。这里的前提是来牌的 `specialPlayBaseCost: 10` 仍有待支付能量；“被换成员有效费用为0”不等于“来牌当前登场费用为0”。后者不得建立单/双换手方案，覆盖登场时应由重复成员规则处理旧成员。

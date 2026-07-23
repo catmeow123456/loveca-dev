@@ -9,6 +9,9 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView());
   const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
+  const manualOperationMode = useGameStore(
+    (s) => s.playerViewState?.match.manualOperation?.mode ?? 'RULES'
+  );
   const canSubmitScore = useGameStore((s) => s.canUseAction(GameCommandType.SUBMIT_SCORE));
   const selfPlayer = useGameStore((s) => s.getViewingPlayerIdentity());
   const opponentPlayer = useGameStore((s) => s.getOpponentPlayerIdentity());
@@ -41,6 +44,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   if (!shouldShow || !selfPlayer || !opponentPlayer) return null;
 
   const isDebugPassthrough = scoreConfirmPresentation === 'DEBUG_PASSTHROUGH';
+  const canAdjustScore = manualOperationMode === 'FREE';
   const canConfirm = canSubmitScore && !selfConfirmed;
 
   return (
@@ -75,34 +79,46 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
             <div className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] p-3">
               <div className="text-xs text-[var(--semantic-success)]">己方玩家分数</div>
               <div className="mt-1 text-2xl font-bold text-[var(--text-primary)]">{selfScore}</div>
-              <div className="mt-1 text-[11px] text-[var(--text-secondary)]">{selfConfirmed ? '已确认' : '待确认'}</div>
+              <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
+                {selfConfirmed ? '已确认' : '待确认'}
+              </div>
             </div>
             <div className="rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] p-3">
               <div className="text-xs text-[var(--accent-primary)]">对手方玩家分数</div>
-              <div className="mt-1 text-2xl font-bold text-[var(--text-primary)]">{opponentScore}</div>
+              <div className="mt-1 text-2xl font-bold text-[var(--text-primary)]">
+                {opponentScore}
+              </div>
               <div className="mt-1 text-[11px] text-[var(--text-secondary)]">
                 {opponentConfirmed ? '已确认' : '待确认'}
               </div>
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2">
-            <span className="whitespace-nowrap text-xs text-[var(--text-secondary)]">调整己方分数</span>
-            <input
-              type="number"
-              min={0}
-              value={adjustedScore}
-              onChange={(e) =>
-                setAdjustedScore(Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0))
-              }
-              disabled={!canConfirm}
-              className="input-field w-full px-2 py-1.5 text-sm disabled:opacity-50"
-            />
-          </div>
+          {canAdjustScore ? (
+            <div className="mt-4 flex items-center gap-2">
+              <span className="whitespace-nowrap text-xs text-[var(--text-secondary)]">
+                调整己方分数
+              </span>
+              <input
+                type="number"
+                min={0}
+                value={adjustedScore}
+                onChange={(e) =>
+                  setAdjustedScore(Math.max(0, Number.parseInt(e.target.value || '0', 10) || 0))
+                }
+                disabled={!canConfirm}
+                className="input-field w-full px-2 py-1.5 text-sm disabled:opacity-50"
+              />
+            </div>
+          ) : (
+            <div className="mt-4 text-center text-xs text-[var(--text-secondary)]">
+              规则模式将确认当前自动计算的分数
+            </div>
+          )}
 
           <button
             type="button"
-            onClick={() => confirmScore(adjustedScore)}
+            onClick={() => confirmScore(canAdjustScore ? adjustedScore : undefined)}
             disabled={!canConfirm}
             className={
               !canConfirm
@@ -110,11 +126,16 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
                 : 'button-primary mt-4 flex w-full items-center justify-center gap-2 py-2 text-sm font-semibold'
             }
           >
-            {!canSubmitScore
-              ? '等待对手操作'
-              : selfConfirmed
-                ? '已确认我的分数'
-                : <><CheckCircle2 size={16} />确认我的分数</>}
+            {!canSubmitScore ? (
+              '等待对手操作'
+            ) : selfConfirmed ? (
+              '已确认我的分数'
+            ) : (
+              <>
+                <CheckCircle2 size={16} />
+                确认我的分数
+              </>
+            )}
           </button>
         </motion.div>
       </motion.div>

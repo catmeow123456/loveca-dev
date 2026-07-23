@@ -152,6 +152,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, nozomi.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -170,8 +171,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'TRIGGER_ABILITY' &&
-          action.payload.abilityId ===
-            BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
+          action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID
       )
     ).toBe(false);
   });
@@ -313,6 +313,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, nozomi.instanceId, SlotPosition.CENTER, {
         freePlay: true,

@@ -1237,6 +1237,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     now += 1_000;
     const commandResult = await matchService.executeCommand(
@@ -1280,6 +1281,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1398,6 +1400,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1464,12 +1467,7 @@ describe('OnlineRoomService', () => {
     const commandResult = await matchService.executeCommand(
       match.matchId,
       'u1',
-      createPlayMemberToSlotCommand(
-        'ignored-client-player-id',
-        memberCardId!,
-        SlotPosition.CENTER,
-        { freePlay: true }
-      )
+      createPlayMemberToSlotCommand('ignored-client-player-id', memberCardId!, SlotPosition.CENTER)
     );
     expect(commandResult?.success).toBe(true);
     expect(match.session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(
@@ -1528,6 +1526,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const commandResult = await matchService.executeCommand(
@@ -1571,6 +1570,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1661,6 +1661,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     const initialHandCount = match.session.state!.players[0].hand.cardIds.length;
     const initialDeckCount = match.session.state!.players[0].mainDeck.cardIds.length;
@@ -1725,6 +1726,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     const commandResult = await matchService.executeCommand(
       match.matchId,
@@ -1777,6 +1779,7 @@ describe('OnlineRoomService', () => {
       },
     });
     forceMainPhaseForFirst(match);
+    match.session.setManualOperationMode('FREE');
 
     const firstPlayer = match.session.state!.players[0] as unknown as {
       mainDeck: { cardIds: string[] };

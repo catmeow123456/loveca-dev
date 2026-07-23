@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { MemberCardData, EnergyCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
-import { createGameState, emitGameEvent, registerCards, updatePlayer } from '../../src/domain/entities/game';
-import { createEnterStageEvent, createTurnEndEvent, createTurnStartEvent } from '../../src/domain/events/game-events';
+import {
+  createGameState,
+  emitGameEvent,
+  registerCards,
+  updatePlayer,
+} from '../../src/domain/entities/game';
+import {
+  createEnterStageEvent,
+  createTurnEndEvent,
+  createTurnStartEvent,
+} from '../../src/domain/events/game-events';
 import { recordMoveToStage, recordPositionMove } from '../../src/domain/entities/player';
 import {
   addEnergyBelowMember,
@@ -153,12 +162,17 @@ describe('member state effect helpers', () => {
       TriggerCondition.ON_TURN_START,
     ]);
     expect(countMemberEntriesThisTurn(advanced.gameState, 'p1')).toBe(0);
-    expect(getMemberEntryOrdinalForEvent(advanced.gameState, 'p1', game.eventLog[0]!.event.eventId)).toBeNull();
+    expect(
+      getMemberEntryOrdinalForEvent(advanced.gameState, 'p1', game.eventLog[0]!.event.eventId)
+    ).toBeNull();
   });
 
   it('counts authoritative member entry events and returns their current-turn ordinal', () => {
     let game = createGameState('member-entry-ordinal', 'p1', 'P1', 'p2', 'P2');
-    game = emitGameEvent(game, createEnterStageEvent('old', ZoneType.HAND, SlotPosition.LEFT, 'p1', 'p1'));
+    game = emitGameEvent(
+      game,
+      createEnterStageEvent('old', ZoneType.HAND, SlotPosition.LEFT, 'p1', 'p1')
+    );
     game = emitGameEvent(game, createTurnEndEvent(1, 'p1'));
     game = emitGameEvent(game, createTurnStartEvent(2, 'p2'));
     const events = [
@@ -170,7 +184,9 @@ describe('member state effect helpers', () => {
     ];
     for (const event of events) game = emitGameEvent(game, event);
     expect(countMemberEntriesThisTurn(game, 'p1')).toBe(4);
-    expect(events.map((event) => getMemberEntryOrdinalForEvent(game, 'p1', event.eventId))).toEqual([1, null, 2, 3, 4]);
+    expect(events.map((event) => getMemberEntryOrdinalForEvent(game, 'p1', event.eventId))).toEqual(
+      [1, null, 2, 3, 4]
+    );
     expect(getMemberEntryOrdinalForEvent(game, 'p1', 'unknown')).toBeNull();
   });
   it('sets a stage member orientation without toggling unrelated members', () => {
@@ -346,12 +362,7 @@ describe('member state effect helpers', () => {
       return { ...player, memberSlots };
     });
 
-    const result = removeCardFromPlayerZone(
-      game,
-      'p1',
-      member.instanceId,
-      ZoneType.MEMBER_SLOT
-    );
+    const result = removeCardFromPlayerZone(game, 'p1', member.instanceId, ZoneType.MEMBER_SLOT);
 
     expect(result.players[0].memberSlots.slots[SlotPosition.LEFT]).toBeNull();
     expect(result.players[0].memberSlots.energyBelow[SlotPosition.LEFT]).toEqual([]);
@@ -369,19 +380,19 @@ describe('member state effect helpers', () => {
     let game = createGameState('member-state-replace-main-member', 'p1', 'P1', 'p2', 'P2');
     game = registerCards(game, [oldMember, newMember, energy, belowMember]);
     game = updatePlayer(game, 'p1', (player) => {
-      let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.CENTER, oldMember.instanceId);
+      let memberSlots = placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        oldMember.instanceId
+      );
       memberSlots = addEnergyBelowMember(memberSlots, SlotPosition.CENTER, energy.instanceId);
       memberSlots = addMemberBelowMember(memberSlots, SlotPosition.CENTER, belowMember.instanceId);
       return { ...player, memberSlots };
     });
 
-    const result = addCardToPlayerZone(
-      game,
-      'p1',
-      newMember.instanceId,
-      ZoneType.MEMBER_SLOT,
-      { targetSlot: SlotPosition.CENTER }
-    );
+    const result = addCardToPlayerZone(game, 'p1', newMember.instanceId, ZoneType.MEMBER_SLOT, {
+      targetSlot: SlotPosition.CENTER,
+    });
 
     expect(result.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(newMember.instanceId);
     expect(result.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
@@ -702,7 +713,11 @@ describe('member state effect helpers', () => {
     }));
     game = updatePlayer(game, 'p2', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, opponentMember.instanceId),
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.RIGHT,
+        opponentMember.instanceId
+      ),
     }));
 
     expect(
@@ -784,6 +799,13 @@ describe('member state effect helpers', () => {
     expect(
       result?.gameState.players[0].memberSlots.cardStates.get(memberA.instanceId)?.orientation
     ).toBe(OrientationState.ACTIVE);
+    expect(result?.gameState.players[0].movedToStageThisTurn).toEqual([
+      memberA.instanceId,
+      memberB.instanceId,
+    ]);
+    expect(
+      getMovedToStageThisTurnStageMemberIdsMatching(result!.gameState, 'p1', () => true)
+    ).toEqual([memberA.instanceId, memberB.instanceId]);
   });
 
   it('does not emit member events when helper validation fails', () => {
@@ -791,7 +813,9 @@ describe('member state effect helpers', () => {
     let game = createGameState('member-state-failed-event', 'p1', 'P1', 'p2', 'P2');
     game = registerCards(game, [member]);
 
-    expect(setMemberOrientation(game, 'p1', member.instanceId, OrientationState.WAITING)).toBeNull();
+    expect(
+      setMemberOrientation(game, 'p1', member.instanceId, OrientationState.WAITING)
+    ).toBeNull();
     expect(moveMemberBetweenSlots(game, 'p1', member.instanceId, SlotPosition.RIGHT)).toBeNull();
     expect(game.eventLog).toEqual([]);
   });
@@ -811,7 +835,13 @@ describe('member state effect helpers', () => {
 
   it('does not treat moved-to-stage records as member position moves', () => {
     const member = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
-    let game = createGameState('member-turn-enter-stage-not-position-moved', 'p1', 'P1', 'p2', 'P2');
+    let game = createGameState(
+      'member-turn-enter-stage-not-position-moved',
+      'p1',
+      'P1',
+      'p2',
+      'P2'
+    );
     game = registerCards(game, [member]);
     game = updatePlayer(game, 'p1', (player) => ({
       ...recordMoveToStage(player, member.instanceId),
@@ -863,7 +893,11 @@ describe('member state effect helpers', () => {
     });
 
     expect(
-      getPositionMovedStageMemberIdsMatching(game, 'p1', (card) => card.data.groupNames?.includes('Liella!') === true)
+      getPositionMovedStageMemberIdsMatching(
+        game,
+        'p1',
+        (card) => card.data.groupNames?.includes('Liella!') === true
+      )
     ).toEqual([liellaMoved.instanceId]);
     expect(getPositionMovedStageMemberIdsMatching(game, 'p1', () => true)).toEqual([
       liellaMoved.instanceId,

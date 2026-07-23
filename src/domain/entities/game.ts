@@ -30,6 +30,7 @@ import {
   needsRefresh,
 } from './player.js';
 import type { GameEvent } from '../events/game-events.js';
+import type { ManualOperationMode } from '../../shared/types/manual-operation-mode.js';
 
 // ============================================
 // 游戏配置常量
@@ -707,6 +708,8 @@ export interface PendingSpecialMemberPlayState {
 export interface GameState {
   /** 游戏唯一 ID */
   readonly gameId: string;
+  /** 桌面权威操作模式。当前运行时状态必须显式携带。 */
+  readonly manualOperationMode: ManualOperationMode;
 
   /** 游戏创建时间戳 */
   readonly createdAt: number;
@@ -952,6 +955,7 @@ export function createGameState(
 
   return {
     gameId,
+    manualOperationMode: 'RULES',
     createdAt: now,
 
     players: [

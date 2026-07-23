@@ -343,7 +343,7 @@ const AREA_PAGE: BriefingPage = {
 
 const EFFECT_WINDOW_ITEMS: readonly ReactNode[] = [
   '正在处理的效果会出现在中央窗口，先看来源卡和卡文，再选择目标、支付费用或确认继续。',
-  '部分卡还没有实现效果自动化；按卡文处理后，可以用自由移动、免费登场或区域操作把结果人工补齐。',
+  '部分卡还没有实现效果自动化；需要人工补齐时，请先切换到自由模式，再按卡文用自由移动、免费登场或区域操作处理。',
 ];
 
 function createEffectPage(mode: PreMatchBriefingMode): BriefingPage {

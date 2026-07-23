@@ -206,6 +206,7 @@ function startOnEnterScenario(options: {
   );
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
+  session.setManualOperationMode('FREE');
   const playResult = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
       freePlay: true,

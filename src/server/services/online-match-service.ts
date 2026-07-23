@@ -4,7 +4,12 @@ import {
   type GameSession,
   type GameSessionRuntimeStats,
 } from '../../application/game-session.js';
-import { GameCommandType, type GameCommand } from '../../application/game-commands.js';
+import {
+  createConfirmStepCommand,
+  createEndPhaseCommand,
+  GameCommandType,
+  type GameCommand,
+} from '../../application/game-commands.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
@@ -29,6 +34,7 @@ import type {
   OnlineSpectatorSwitchView,
   OnlineSpectatorWaitingView,
   OnlineUndoView,
+  ManualOperationModeView,
   PublicEvent,
   PublicEventsResponse,
   RuntimeRecoveryInfo,
@@ -37,7 +43,9 @@ import type {
   UndoPolicy,
   UndoRuntimeCaptureCursor,
 } from '../../online/index.js';
-import { GameMode, GamePhase } from '../../shared/types/enums.js';
+import { GameMode, GamePhase, SubPhase } from '../../shared/types/enums.js';
+import type { ManualOperationMode } from '../../shared/types/manual-operation-mode.js';
+import { applyAuthoritativeManualOperationModeToCommand } from '../../application/manual-operation-mode.js';
 import {
   buildMatchRecorderBeginInputFromOnlineMatch,
   matchRecorderService,
@@ -45,13 +53,11 @@ import {
   type MatchDecisionRecordInput,
   type AppendMatchRecordFrameInput,
 } from './match-recorder-service.js';
-import {
-  buildMatchDecisionRecordsForCommand,
-  buildMatchDecisionRecordsForStateTransition,
-} from './match-decision-records.js';
+import { buildMatchDecisionRecordsForCommand } from './match-decision-records.js';
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
+const MANUAL_OPERATION_MODE_REQUEST_TTL_MS = 60 * 1000;
 const SPECTATOR_LINK_TTL_MS = 12 * 60 * 60 * 1000;
 const SPECTATOR_SESSION_STALE_MS = 15 * 1000;
 const SPECTATOR_TOMBSTONE_TTL_MS = 5 * 60 * 1000;
@@ -120,8 +126,10 @@ export interface OnlineMatchState {
   recordBranchId: string;
   recordCaptureCursor: UndoRuntimeCaptureCursor;
   pendingUndoRequest: OnlineUndoRequestState | null;
+  pendingManualOperationModeRequest?: OnlineManualOperationModeRequestState | null;
   activeUndoGrant: OnlineUndoGrantState | null;
   readonly appliedUndoKeys: Set<string>;
+  appliedManualOperationKeys?: Map<string, string>;
   recoveryNotice:
     | (RuntimeRecoveryInfo & {
         readonly publicEvents: readonly PublicEvent[];
@@ -171,6 +179,19 @@ interface OnlineUndoRequestState {
   readonly targetUndoEntryId: string;
   readonly targetRevision: number;
   readonly summary: string;
+  readonly createdAt: number;
+  readonly expiresAt: number;
+  readonly idempotencyKey: string | null;
+}
+
+export interface OnlineManualOperationModeRequestState {
+  readonly requestId: string;
+  readonly requesterSeat: Seat;
+  readonly responderSeat: Seat;
+  readonly requesterUserId: string;
+  readonly responderUserId: string;
+  readonly targetMode: 'FREE';
+  readonly targetRevision: number;
   readonly createdAt: number;
   readonly expiresAt: number;
   readonly idempotencyKey: string | null;
@@ -241,6 +262,17 @@ export interface RespondUndoRequestInput {
   readonly expectedRevision: number;
   readonly idempotencyKey?: string | null;
   readonly grantContinuous?: boolean;
+}
+
+export interface ChangeManualOperationModeInput {
+  readonly targetMode: ManualOperationMode;
+  readonly expectedRevision: number;
+  readonly idempotencyKey?: string | null;
+}
+
+export interface RespondManualOperationModeRequestInput {
+  readonly expectedRevision: number;
+  readonly idempotencyKey?: string | null;
 }
 
 interface OnlineMatchServiceDeps {
@@ -378,8 +410,10 @@ export class OnlineMatchService {
         gameEventSeq: 0,
       },
       pendingUndoRequest: null,
+      pendingManualOperationModeRequest: null,
       activeUndoGrant: null,
       appliedUndoKeys: new Set<string>(),
+      appliedManualOperationKeys: new Map<string, string>(),
       recoveryNotice: null,
       updatedAt: now,
       lastActivityAt: now,
@@ -585,6 +619,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expirePendingManualOperationModeRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const currentSeq = match.remoteRevision;
@@ -621,6 +656,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expirePendingManualOperationModeRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const afterSeq = normalizePublicEventCursor(options.afterSeq);
@@ -993,6 +1029,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expirePendingManualOperationModeRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
 
@@ -1090,6 +1127,7 @@ export class OnlineMatchService {
     }
 
     await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expirePendingManualOperationModeRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
     touchMatch(match);
     const afterSeq = normalizePublicEventCursor(options.afterSeq);
@@ -1176,10 +1214,10 @@ export class OnlineMatchService {
       return null;
     }
 
-    const commandWithPlayer: GameCommand = {
-      ...command,
-      playerId: participant.playerId,
-    };
+    const commandWithPlayer = applyAuthoritativeManualOperationModeToCommand(
+      { ...command, playerId: participant.playerId },
+      match.session.manualOperationMode
+    );
     const shouldBuildDecisionRecords = shouldBuildDecisionRecordsForCommand(commandWithPlayer);
     const beforeState = shouldBuildDecisionRecords
       ? match.session.getAuthoritySnapshotForRecord()
@@ -1226,6 +1264,9 @@ export class OnlineMatchService {
     if (match.pendingUndoRequest) {
       await this.expirePendingUndoRequest(match, '新命令已执行，撤销请求失效');
     }
+    if (match.pendingManualOperationModeRequest) {
+      await this.expirePendingManualOperationModeRequest(match, '新操作已执行，自由模式请求失效');
+    }
     if (match.activeUndoGrant) {
       await this.expireActiveUndoGrant(match, '新命令已执行，连续撤销授权失效');
     }
@@ -1264,49 +1305,15 @@ export class OnlineMatchService {
       };
     }
 
-    const beforeState = match.session.getAuthoritySnapshotForRecord();
-    const result = match.session.advancePhase();
-    const afterState = match.session.getAuthoritySnapshotForRecord();
-    const decisionRecords = buildMatchDecisionRecordsForStateTransition({
-      matchId: match.matchId,
-      beforeState,
-      afterState,
-      getSeatForPlayer: (playerId) => getSeatByPlayerId(match, playerId),
-    });
-    touchMatch(match);
-    if (result.success) {
-      incrementRemoteRevision(match);
+    const state = match.session.state;
+    if (!state) {
+      return { success: false, error: '对局尚未开始' };
     }
-    await this.appendSessionRecordFrame(
-      match,
-      result.success ? 'SYSTEM_TRANSITION' : 'COMMAND_REJECTED',
-      {
-        summary: result.success ? '阶段推进后保存权威检查点' : '阶段推进被规则层拒绝',
-        force: true,
-        writeAuthorityCheckpoint: result.success,
-        decisionRecords: result.success ? decisionRecords : [],
-      }
-    );
-    if (!result.success) {
-      return {
-        success: false,
-        error: result.error,
-      };
-    }
-
-    if (match.pendingUndoRequest) {
-      await this.expirePendingUndoRequest(match, '阶段已推进，撤销请求失效');
-    }
-    if (match.activeUndoGrant) {
-      await this.expireActiveUndoGrant(match, '阶段已推进，连续撤销授权失效');
-    }
-
-    await this.sealCompletedMatchIfNeeded(match);
-
-    return {
-      success: true,
-      snapshot: this.buildSnapshotForParticipant(match, participant),
-    };
+    const command =
+      state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE
+        ? createEndPhaseCommand(participant.playerId)
+        : createConfirmStepCommand(participant.playerId, state.currentSubPhase);
+    return this.executeCommand(matchId, userId, command);
   }
 
   getUndoAvailability(matchId: string, userId: string, policy?: UndoPolicy): OnlineUndoView | null {
@@ -1476,6 +1483,13 @@ export class OnlineMatchService {
       return {
         success: false,
         error: '已有撤销请求待处理',
+      };
+    }
+    if (match.pendingManualOperationModeRequest) {
+      touchMatch(match);
+      return {
+        success: false,
+        error: '请先处理当前自由模式请求',
       };
     }
 
@@ -1733,6 +1747,300 @@ export class OnlineMatchService {
       match.appliedUndoKeys.add(rejectedUndoKey);
     }
 
+    return {
+      success: true,
+      snapshot: this.buildSnapshotForParticipant(match, participant),
+    };
+  }
+
+  async changeManualOperationMode(
+    matchId: string,
+    userId: string,
+    input: ChangeManualOperationModeInput
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant || participant.participantKind !== 'USER') {
+      return null;
+    }
+
+    await this.expirePendingUndoRequestIfNeeded(match);
+    await this.expirePendingManualOperationModeRequestIfNeeded(match);
+    await this.expireActiveUndoGrantIfNeeded(match);
+    const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
+    const operationKey = buildManualOperationIdempotencyKey(participant.userId, idempotencyKey);
+    const operationSignature = `CHANGE:${input.targetMode}`;
+    const idempotencyStatus = readManualOperationIdempotencyStatus(
+      match,
+      operationKey,
+      operationSignature
+    );
+    if (idempotencyStatus === 'MATCH') {
+      touchMatch(match);
+      return { success: true, snapshot: this.buildSnapshotForParticipant(match, participant) };
+    }
+    if (idempotencyStatus === 'CONFLICT') {
+      touchMatch(match);
+      return { success: false, error: '重复请求的操作模式参数不一致' };
+    }
+    const pendingRequest = match.pendingManualOperationModeRequest;
+    if (
+      input.targetMode === 'FREE' &&
+      idempotencyKey &&
+      pendingRequest?.idempotencyKey === idempotencyKey &&
+      pendingRequest.requesterUserId === participant.userId
+    ) {
+      touchMatch(match);
+      return {
+        success: true,
+        snapshot: this.buildSnapshotForParticipant(match, participant),
+      };
+    }
+
+    if (input.expectedRevision !== match.remoteRevision) {
+      touchMatch(match);
+      return { success: false, error: '对局状态已更新，请刷新后重试' };
+    }
+    if (match.pendingUndoRequest) {
+      touchMatch(match);
+      return { success: false, error: '请先处理当前撤销请求' };
+    }
+
+    const currentMode = match.session.manualOperationMode;
+    if (currentMode === input.targetMode && !pendingRequest) {
+      recordManualOperationIdempotency(match, operationKey, operationSignature);
+      touchMatch(match);
+      return {
+        success: true,
+        snapshot: this.buildSnapshotForParticipant(match, participant),
+      };
+    }
+
+    const blockedReason = match.session.getManualOperationModeSwitchBlockedReason();
+    if (blockedReason) {
+      touchMatch(match);
+      return { success: false, error: blockedReason };
+    }
+
+    if (match.matchMode === 'ONLINE' && input.targetMode === 'FREE') {
+      if (pendingRequest) {
+        touchMatch(match);
+        return { success: false, error: '已有自由模式请求待处理' };
+      }
+      const responderSeat = getOpponentSeat(participant.seat);
+      const responder = match.participants[responderSeat];
+      const now = this.now();
+      match.pendingManualOperationModeRequest = {
+        requestId: `${match.matchId}:manual-mode-request:${match.remoteRevision + 1}`,
+        requesterSeat: participant.seat,
+        responderSeat,
+        requesterUserId: participant.userId,
+        responderUserId: responder.userId,
+        targetMode: 'FREE',
+        targetRevision: match.remoteRevision,
+        createdAt: now,
+        expiresAt: now + MANUAL_OPERATION_MODE_REQUEST_TTL_MS,
+        idempotencyKey,
+      };
+      match.activeUndoGrant = null;
+      incrementRemoteRevision(match);
+      touchMatch(match);
+      await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
+        summary: `${participant.displayName} 请求开启自由模式`,
+        force: true,
+        writeAuthorityCheckpoint: false,
+        dedupeKey: `${match.recordBranchId}:MANUAL_MODE_REQUESTED:${match.pendingManualOperationModeRequest.requestId}`,
+      });
+      recordManualOperationIdempotency(match, operationKey, operationSignature);
+      return {
+        success: true,
+        snapshot: this.buildSnapshotForParticipant(match, participant),
+      };
+    }
+
+    if (pendingRequest) {
+      touchMatch(match);
+      return { success: false, error: '已有自由模式请求待处理' };
+    }
+    const result = match.session.setManualOperationMode(input.targetMode);
+    if (!result.success) {
+      touchMatch(match);
+      return { success: false, error: result.error };
+    }
+    match.activeUndoGrant = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
+      summary: input.targetMode === 'FREE' ? '已切换为自由模式' : '已切换为规则模式',
+      force: true,
+      writeAuthorityCheckpoint: true,
+      dedupeKey: `${match.recordBranchId}:MANUAL_MODE_CHANGED:${input.targetMode}:${match.remoteRevision}:${idempotencyKey ?? participant.userId}`,
+    });
+    recordManualOperationIdempotency(match, operationKey, operationSignature);
+    return {
+      success: true,
+      snapshot: this.buildSnapshotForParticipant(match, participant),
+    };
+  }
+
+  async acceptManualOperationModeRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondManualOperationModeRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant || participant.participantKind !== 'USER') {
+      return null;
+    }
+
+    await this.expirePendingManualOperationModeRequestIfNeeded(match);
+    const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
+    const operationKey = buildManualOperationIdempotencyKey(participant.userId, idempotencyKey);
+    const operationSignature = `ACCEPT:${requestId}`;
+    const idempotencyStatus = readManualOperationIdempotencyStatus(
+      match,
+      operationKey,
+      operationSignature
+    );
+    if (idempotencyStatus === 'MATCH') {
+      touchMatch(match);
+      return { success: true, snapshot: this.buildSnapshotForParticipant(match, participant) };
+    }
+    if (idempotencyStatus === 'CONFLICT') {
+      touchMatch(match);
+      return { success: false, error: '重复请求的自由模式响应不一致' };
+    }
+    const request = match.pendingManualOperationModeRequest;
+    if (!request || request.requestId !== requestId) {
+      touchMatch(match);
+      return { success: false, error: '自由模式请求不存在或已失效' };
+    }
+    if (request.responderSeat !== participant.seat) {
+      touchMatch(match);
+      return { success: false, error: '只有对方可以同意自由模式请求' };
+    }
+    if (input.expectedRevision !== match.remoteRevision) {
+      touchMatch(match);
+      return { success: false, error: '对局状态已更新，请刷新后重试' };
+    }
+    const blockedReason = match.session.getManualOperationModeSwitchBlockedReason();
+    if (blockedReason) {
+      touchMatch(match);
+      return { success: false, error: blockedReason };
+    }
+
+    const result = match.session.setManualOperationMode('FREE');
+    if (!result.success) {
+      touchMatch(match);
+      return { success: false, error: result.error };
+    }
+    match.pendingManualOperationModeRequest = null;
+    match.activeUndoGrant = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
+      summary: `${participant.displayName} 同意开启自由模式`,
+      force: true,
+      writeAuthorityCheckpoint: true,
+      dedupeKey: `${match.recordBranchId}:MANUAL_MODE_ACCEPTED:${request.requestId}:${match.remoteRevision}`,
+    });
+    recordManualOperationIdempotency(match, operationKey, operationSignature);
+    return {
+      success: true,
+      snapshot: this.buildSnapshotForParticipant(match, participant),
+    };
+  }
+
+  async rejectManualOperationModeRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondManualOperationModeRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'REJECT');
+  }
+
+  async cancelManualOperationModeRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondManualOperationModeRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'CANCEL');
+  }
+
+  private async settleManualOperationModeRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondManualOperationModeRequestInput,
+    action: 'REJECT' | 'CANCEL'
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant || participant.participantKind !== 'USER') {
+      return null;
+    }
+    await this.expirePendingManualOperationModeRequestIfNeeded(match);
+    const idempotencyKey = normalizeOptionalKey(input.idempotencyKey);
+    const operationKey = buildManualOperationIdempotencyKey(participant.userId, idempotencyKey);
+    const operationSignature = `${action}:${requestId}`;
+    const idempotencyStatus = readManualOperationIdempotencyStatus(
+      match,
+      operationKey,
+      operationSignature
+    );
+    if (idempotencyStatus === 'MATCH') {
+      touchMatch(match);
+      return { success: true, snapshot: this.buildSnapshotForParticipant(match, participant) };
+    }
+    if (idempotencyStatus === 'CONFLICT') {
+      touchMatch(match);
+      return { success: false, error: '重复请求的自由模式响应不一致' };
+    }
+    const request = match.pendingManualOperationModeRequest;
+    if (!request || request.requestId !== requestId) {
+      touchMatch(match);
+      return { success: false, error: '自由模式请求不存在或已失效' };
+    }
+    const allowedSeat = action === 'REJECT' ? request.responderSeat : request.requesterSeat;
+    if (participant.seat !== allowedSeat) {
+      touchMatch(match);
+      return {
+        success: false,
+        error:
+          action === 'REJECT' ? '只有对方可以拒绝自由模式请求' : '只有发起方可以取消自由模式请求',
+      };
+    }
+    if (input.expectedRevision !== match.remoteRevision) {
+      touchMatch(match);
+      return { success: false, error: '对局状态已更新，请刷新后重试' };
+    }
+
+    match.pendingManualOperationModeRequest = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
+      summary:
+        action === 'REJECT'
+          ? `${participant.displayName} 拒绝开启自由模式`
+          : `${participant.displayName} 取消了自由模式请求`,
+      force: true,
+      writeAuthorityCheckpoint: false,
+      dedupeKey: `${match.recordBranchId}:MANUAL_MODE_${action}:${request.requestId}:${match.remoteRevision}`,
+    });
+    recordManualOperationIdempotency(match, operationKey, operationSignature);
     return {
       success: true,
       snapshot: this.buildSnapshotForParticipant(match, participant),
@@ -2187,6 +2495,35 @@ export class OnlineMatchService {
     await this.expirePendingUndoRequest(match, '撤销请求已超时');
   }
 
+  private async expirePendingManualOperationModeRequestIfNeeded(
+    match: OnlineMatchState
+  ): Promise<void> {
+    const request = match.pendingManualOperationModeRequest;
+    if (!request || request.expiresAt > this.now()) {
+      return;
+    }
+    await this.expirePendingManualOperationModeRequest(match, '自由模式请求已超时');
+  }
+
+  private async expirePendingManualOperationModeRequest(
+    match: OnlineMatchState,
+    summary: string
+  ): Promise<void> {
+    const request = match.pendingManualOperationModeRequest;
+    if (!request) {
+      return;
+    }
+    match.pendingManualOperationModeRequest = null;
+    incrementRemoteRevision(match);
+    touchMatch(match);
+    await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
+      summary,
+      force: true,
+      writeAuthorityCheckpoint: false,
+      dedupeKey: `${match.recordBranchId}:MANUAL_MODE_EXPIRED:${request.requestId}:${match.remoteRevision}`,
+    });
+  }
+
   private async expirePendingUndoRequest(match: OnlineMatchState, summary: string): Promise<void> {
     const request = match.pendingUndoRequest;
     if (!request) {
@@ -2530,6 +2867,7 @@ function buildSnapshot(
     match: {
       ...projectedViewState.match,
       undo: options.undoView ?? buildOnlineUndoView(match, participant),
+      manualOperation: buildManualOperationModeView(match),
     },
   };
 
@@ -2594,6 +2932,14 @@ function buildReadonlySpectatorSnapshot(
     ...snapshot,
     playerViewState: {
       ...snapshot.playerViewState,
+      match: {
+        ...snapshot.playerViewState.match,
+        manualOperation: {
+          ...buildManualOperationModeView(match),
+          canSwitchNow: false,
+          disabledReason: '观战模式为只读',
+        },
+      },
       permissions: { availableCommands: [] },
     },
     spectatorView: buildSpectatorViewState(link, session),
@@ -2608,6 +2954,32 @@ function buildReadonlyUndoView(): OnlineUndoView {
     entry: null,
     pendingRequest: null,
     grant: null,
+  };
+}
+
+function buildManualOperationModeView(match: OnlineMatchState): ManualOperationModeView {
+  const blockedReason = match.session.getManualOperationModeSwitchBlockedReason();
+  const request = match.pendingManualOperationModeRequest;
+  const disabledReason =
+    blockedReason ??
+    (match.pendingUndoRequest
+      ? '请先处理当前撤销请求'
+      : request
+        ? '请先处理当前自由模式请求'
+        : null);
+  return {
+    mode: match.session.manualOperationMode,
+    canSwitchNow: disabledReason === null,
+    disabledReason,
+    pendingRequest: request
+      ? {
+          requestId: request.requestId,
+          requesterSeat: request.requesterSeat,
+          targetMode: request.targetMode,
+          targetRevision: request.targetRevision,
+          expiresAt: new Date(request.expiresAt).toISOString(),
+        }
+      : null,
   };
 }
 
@@ -2910,6 +3282,41 @@ function incrementRemoteRevision(match: OnlineMatchState): void {
   match.remoteRevision += 1;
 }
 
+function buildManualOperationIdempotencyKey(
+  userId: string,
+  idempotencyKey: string | null
+): string | null {
+  return idempotencyKey ? `${userId}:${idempotencyKey}` : null;
+}
+
+function readManualOperationIdempotencyStatus(
+  match: OnlineMatchState,
+  key: string | null,
+  signature: string
+): 'MATCH' | 'CONFLICT' | null {
+  if (!key) {
+    return null;
+  }
+  const recorded = match.appliedManualOperationKeys?.get(key);
+  if (recorded === undefined) {
+    return null;
+  }
+  return recorded === signature ? 'MATCH' : 'CONFLICT';
+}
+
+function recordManualOperationIdempotency(
+  match: OnlineMatchState,
+  key: string | null,
+  signature: string
+): void {
+  if (!key) {
+    return;
+  }
+  const keys = match.appliedManualOperationKeys ?? new Map<string, string>();
+  keys.set(key, signature);
+  match.appliedManualOperationKeys = keys;
+}
+
 function normalizePublicEventCursor(value: number | undefined): number {
   return value !== undefined && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
@@ -3001,6 +3408,16 @@ function buildOnlineUndoView(
         expiresAt: new Date(match.pendingUndoRequest.expiresAt).toISOString(),
       }
     : null;
+
+  if (match.pendingManualOperationModeRequest) {
+    return {
+      ...base,
+      canUndoNow: false,
+      disabledReason: '请先处理当前自由模式请求',
+      pendingRequest,
+      grant,
+    };
+  }
 
   if (!pendingRequest) {
     return {

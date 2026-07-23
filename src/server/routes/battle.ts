@@ -26,6 +26,12 @@ const remoteUndoSchema = z.object({
   idempotencyKey: z.string().min(1).optional(),
 });
 
+const manualOperationModeSchema = z.object({
+  targetMode: z.enum(['RULES', 'FREE']),
+  expectedRevision: z.number().int().min(0),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
 battleRouter.post('/solitaire-matches', requireAuth, requireGameplayAvailable, async (req, res) => {
   const parsed = deckSelectionSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -162,6 +168,43 @@ battleRouter.post('/solitaire-matches/:matchId/undo', requireAuth, async (req, r
     respondBattleError(res, error);
   }
 });
+
+battleRouter.post(
+  '/solitaire-matches/:matchId/manual-operation-mode',
+  requireAuth,
+  async (req, res) => {
+    const parsed = manualOperationModeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({
+        data: null,
+        error: { code: 'INVALID_REQUEST', message: '操作模式参数非法' },
+      });
+      return;
+    }
+    try {
+      const result = await solitaireMatchService.changeManualOperationMode(
+        readPathParam(req.params.matchId),
+        req.user!.id,
+        parsed.data
+      );
+      if (!result) {
+        respondMatchNotFound(res);
+        return;
+      }
+      res.json({
+        data: result,
+        error: result.success
+          ? null
+          : {
+              code: 'MANUAL_OPERATION_MODE_REJECTED',
+              message: result.error ?? '切换操作模式失败',
+            },
+      });
+    } catch (error) {
+      respondBattleError(res, error);
+    }
+  }
+);
 
 battleRouter.post('/solitaire-matches/:matchId/leave', requireAuth, async (req, res) => {
   try {

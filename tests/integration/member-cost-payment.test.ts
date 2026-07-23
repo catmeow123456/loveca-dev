@@ -21,6 +21,7 @@ import type { DeckConfig } from '../../src/application/game-service';
 import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { createPublicObjectId } from '../../src/online/projector';
+import { canPlayMemberInStageSlotThisTurn } from '../../src/domain/rules/member-turn-state';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -199,11 +200,7 @@ describe('member cost payment', () => {
     const sourceCard = state.cardRegistry.get(sourceCardId!) as unknown as {
       data: MemberCardData;
     };
-    sourceCard.data = createMemberCard(
-      'LL-bp2-001-R+',
-      '渡边 曜&鬼冢夏美&大泽瑠璃乃',
-      20
-    );
+    sourceCard.data = createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20);
 
     const nextHandCardIds = [sourceCardId!, ...otherHandCardIds];
     const nextHandCardIdSet = new Set(nextHandCardIds);
@@ -233,6 +230,123 @@ describe('member cost payment', () => {
         (action) => action.type === 'PAY_COST' && action.payload.amount === 3
       )
     ).toBe(true);
+  });
+
+  it('plays current-cost-zero LL-bp2-001-R+ over an occupied slot without relay metadata', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+
+    session.createGame('ll-bp2-zero-cost-direct-play', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    setActiveEnergyCountForPlayer(session, 0, 0);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      energyDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        energyBelow: Record<SlotPosition, string[]>;
+        memberBelow: Record<SlotPosition, string[]>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const sourceCardId = ownedMemberCardIds[0]!;
+    const occupiedCardId = ownedMemberCardIds[1]!;
+    const memberBelowCardId = ownedMemberCardIds[2]!;
+    const otherHandCardIds = ownedMemberCardIds.slice(3, 23);
+    const energyBelowCardId = player.energyDeck.cardIds[0]!;
+    expect(otherHandCardIds).toHaveLength(20);
+    expect(energyBelowCardId).toBeTruthy();
+
+    (state.cardRegistry.get(sourceCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('LL-bp2-001-R+', '渡边 曜&鬼冢夏美&大泽瑠璃乃', 20, {
+        groupNames: ['莲之空女学院学校偶像俱乐部'],
+      });
+    (state.cardRegistry.get(occupiedCardId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('TEST-OCCUPIED', 'Occupied Member', 4);
+
+    const removedFromDeck = new Set([
+      sourceCardId,
+      occupiedCardId,
+      memberBelowCardId,
+      ...otherHandCardIds,
+    ]);
+    player.hand.cardIds = [sourceCardId, ...otherHandCardIds];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => !removedFromDeck.has(cardId)
+    );
+    player.energyDeck.cardIds = player.energyDeck.cardIds.filter(
+      (cardId) => cardId !== energyBelowCardId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = occupiedCardId;
+    player.memberSlots.memberBelow[SlotPosition.CENTER] = [memberBelowCardId];
+    player.memberSlots.energyBelow[SlotPosition.CENTER] = [energyBelowCardId];
+    player.memberSlots.cardStates = new Map([
+      [occupiedCardId, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const eventLogLengthBeforePlay = state.eventLog.length;
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceCardId, SlotPosition.CENTER)
+    );
+
+    expect(playResult.success, playResult.error).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(sourceCardId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([occupiedCardId, memberBelowCardId])
+    );
+    expect(session.state?.players[0].energyDeck.cardIds).toContain(energyBelowCardId);
+    expect(
+      session.state?.actionHistory.some(
+        (action) => action.type === 'PAY_COST' && action.payload.sourceCardId === sourceCardId
+      )
+    ).toBe(false);
+
+    const playAction = session.state?.actionHistory.find(
+      (action) => action.type === 'PLAY_MEMBER' && action.payload.cardId === sourceCardId
+    );
+    expect(playAction?.payload).toMatchObject({
+      isRelay: false,
+      relayReplacements: [],
+      duplicateMemberRuleRemovedCardId: occupiedCardId,
+    });
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'DUPLICATE_MEMBER' &&
+          action.payload.keptMemberCardId === sourceCardId
+      )
+    ).toBe(true);
+
+    const playEvents = session
+      .state!.eventLog.slice(eventLogLengthBeforePlay)
+      .map((entry) => entry.event);
+    expect(playEvents).toContainEqual(
+      expect.objectContaining({
+        eventType: TriggerCondition.ON_ENTER_STAGE,
+        cardInstanceId: sourceCardId,
+        replacedMemberCardId: undefined,
+        relayReplacements: undefined,
+      })
+    );
+    expect(playEvents).toContainEqual(
+      expect.objectContaining({
+        eventType: TriggerCondition.ON_LEAVE_STAGE,
+        cardInstanceId: occupiedCardId,
+        replacingCardId: undefined,
+      })
+    );
+    expect(playEvents.some((event) => event.eventType === TriggerCondition.ON_RELAY)).toBe(false);
   });
 
   it('allows full-cost direct play over LL-bp2-001-R+ and applies the duplicate-member rule without relay', () => {
@@ -506,7 +620,13 @@ describe('member cost payment', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('hs-bp6-006-miracra-relay-allowed', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'hs-bp6-006-miracra-relay-allowed',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -706,7 +826,13 @@ describe('member cost payment', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('chisato-stage-cost-modifier-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'chisato-stage-cost-modifier-payment',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -784,11 +910,17 @@ describe('member cost payment', () => {
     ).toBe(true);
   });
 
-  it("applies Music S.T.A.R.T!! success zone reduction on a real hand play payment path", () => {
+  it('applies Music S.T.A.R.T!! success zone reduction on a real hand play payment path', () => {
     const session = createGameSession();
     const deck = createDeck(20);
 
-    session.createGame('bp6-019-music-start-cost-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'bp6-019-music-start-cost-payment',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
     setActiveEnergyCountForPlayer(session, 0, 15);
@@ -891,9 +1023,9 @@ describe('member cost payment', () => {
     const memberCardId = [...player.hand.cardIds, ...player.mainDeck.cardIds].find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
-    const successLiveCardIds = player.mainDeck.cardIds.filter(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
-    ).slice(0, 3);
+    const successLiveCardIds = player.mainDeck.cardIds
+      .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE)
+      .slice(0, 3);
     expect(memberCardId).toBeTruthy();
     expect(successLiveCardIds).toHaveLength(3);
     const member = state.cardRegistry.get(memberCardId!) as unknown as { data: MemberCardData };
@@ -918,63 +1050,79 @@ describe('member cost payment', () => {
   it.each([
     { successCount: 1, expectedEffectiveCost: 5 },
     { successCount: 3, expectedEffectiveCost: 7 },
-  ])('uses PL!S-bp3-016-N effective cost for relay and updates with $successCount success Live cards', ({ successCount, expectedEffectiveCost }) => {
-    const session = createGameSession();
-    const deck = createDeck();
-    session.createGame(`s-bp3-016-relay-${successCount}`, PLAYER1, 'Player 1', PLAYER2, 'Player 2');
-    session.initializeGame(deck, deck);
-    forceMainPhaseForPlayer(session);
-    setActiveEnergyCountForPlayer(session, 0, 10);
+  ])(
+    'uses PL!S-bp3-016-N effective cost for relay and updates with $successCount success Live cards',
+    ({ successCount, expectedEffectiveCost }) => {
+      const session = createGameSession();
+      const deck = createDeck();
+      session.createGame(
+        `s-bp3-016-relay-${successCount}`,
+        PLAYER1,
+        'Player 1',
+        PLAYER2,
+        'Player 2'
+      );
+      session.initializeGame(deck, deck);
+      forceMainPhaseForPlayer(session);
+      setActiveEnergyCountForPlayer(session, 0, 10);
 
-    const state = session.state!;
-    const player = state.players[0] as unknown as {
-      hand: { cardIds: string[] };
-      mainDeck: { cardIds: string[] };
-      successZone: { cardIds: string[] };
-      memberSlots: {
-        slots: Record<SlotPosition, string | null>;
-        cardStates: Map<string, { orientation: OrientationState }>;
+      const state = session.state!;
+      const player = state.players[0] as unknown as {
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        successZone: { cardIds: string[] };
+        memberSlots: {
+          slots: Record<SlotPosition, string | null>;
+          cardStates: Map<string, { orientation: OrientationState }>;
+        };
       };
-    };
-    const memberIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
-    );
-    const incomingId = memberIds[0];
-    const hanamaruId = memberIds[1];
-    const successLiveIds = player.mainDeck.cardIds.filter(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
-    ).slice(0, successCount);
-    const incoming = state.cardRegistry.get(incomingId!) as unknown as { data: MemberCardData };
-    incoming.data = createMemberCard('PL!S-test-cost-ten', '10费测试成员', 10);
-    const hanamaru = state.cardRegistry.get(hanamaruId!) as unknown as { data: MemberCardData };
-    hanamaru.data = createMemberCard('PL!S-bp3-016-N', '国木田花丸', 4);
-    player.hand.cardIds = [incomingId!];
-    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
-      (cardId) => cardId !== incomingId && cardId !== hanamaruId && !successLiveIds.includes(cardId)
-    );
-    player.successZone.cardIds = successLiveIds;
-    player.memberSlots.slots[SlotPosition.CENTER] = hanamaruId!;
-    player.memberSlots.cardStates = new Map([
-      [hanamaruId!, { orientation: OrientationState.ACTIVE }],
-    ]);
+      const memberIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+      );
+      const incomingId = memberIds[0];
+      const hanamaruId = memberIds[1];
+      const successLiveIds = player.mainDeck.cardIds
+        .filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE)
+        .slice(0, successCount);
+      const incoming = state.cardRegistry.get(incomingId!) as unknown as { data: MemberCardData };
+      incoming.data = createMemberCard('PL!S-test-cost-ten', '10费测试成员', 10);
+      const hanamaru = state.cardRegistry.get(hanamaruId!) as unknown as { data: MemberCardData };
+      hanamaru.data = createMemberCard('PL!S-bp3-016-N', '国木田花丸', 4);
+      player.hand.cardIds = [incomingId!];
+      player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+        (cardId) =>
+          cardId !== incomingId && cardId !== hanamaruId && !successLiveIds.includes(cardId)
+      );
+      player.successZone.cardIds = successLiveIds;
+      player.memberSlots.slots[SlotPosition.CENTER] = hanamaruId!;
+      player.memberSlots.cardStates = new Map([
+        [hanamaruId!, { orientation: OrientationState.ACTIVE }],
+      ]);
 
-    const result = session.executeCommand(
-      createPlayMemberToSlotCommand(PLAYER1, incomingId!, SlotPosition.CENTER)
-    );
-    expect(result.success, result.error).toBe(true);
-    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
-      eventType: TriggerCondition.ON_ENTER_STAGE,
-      cardInstanceId: incomingId,
-      replacedMemberCardId: hanamaruId,
-      replacedMemberEffectiveCost: expectedEffectiveCost,
-    });
-  });
+      const result = session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, incomingId!, SlotPosition.CENTER)
+      );
+      expect(result.success, result.error).toBe(true);
+      expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+        eventType: TriggerCondition.ON_ENTER_STAGE,
+        cardInstanceId: incomingId,
+        replacedMemberCardId: hanamaruId,
+        replacedMemberEffectiveCost: expectedEffectiveCost,
+      });
+    }
+  );
 
   it('uses PL!SP-pb1-010 continuous effective cost for relay payment at ten energy', () => {
     const session = createGameSession();
     const deck = createDeck();
 
-    session.createGame('sp-pb1-010-effective-cost-relay-payment', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'sp-pb1-010-effective-cost-relay-payment',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
     setActiveEnergyCountForPlayer(session, 0, 10);
@@ -1001,12 +1149,9 @@ describe('member cost payment', () => {
     const margareteCard = state.cardRegistry.get(margareteCardId!) as unknown as {
       data: MemberCardData;
     };
-    margareteCard.data = createMemberCard(
-      'PL!SP-pb1-010-P＋',
-      'ウィーン・マルガレーテ',
-      4,
-      { groupNames: ['Liella!'] }
-    );
+    margareteCard.data = createMemberCard('PL!SP-pb1-010-P＋', 'ウィーン・マルガレーテ', 4, {
+      groupNames: ['Liella!'],
+    });
 
     player.hand.cardIds = [sourceCardId!];
     player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
@@ -1116,8 +1261,7 @@ describe('member cost payment', () => {
 
     player.hand.cardIds = [sourceCardId!];
     player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
-      (cardId) =>
-        cardId !== sourceCardId && cardId !== stageCardId && cardId !== successLiveCardId
+      (cardId) => cardId !== sourceCardId && cardId !== stageCardId && cardId !== successLiveCardId
     );
     player.successZone.cardIds = [successLiveCardId!];
     player.memberSlots.slots[SlotPosition.CENTER] = stageCardId!;
@@ -1141,9 +1285,7 @@ describe('member cost payment', () => {
         (action) => action.type === 'PAY_COST' && action.payload.amount === 4
       )
     ).toBe(true);
-    expect(
-      session.state?.eventLog.at(-1)?.event
-    ).toMatchObject({
+    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
       eventType: TriggerCondition.ON_ENTER_STAGE,
       cardInstanceId: sourceCardId,
       replacedMemberCardId: stageCardId,
@@ -1166,6 +1308,7 @@ describe('member cost payment', () => {
       mainDeck: { cardIds: string[] };
       energyDeck: { cardIds: string[] };
       waitingRoom: { cardIds: string[] };
+      movedToStageThisTurn: string[];
       memberSlots: {
         slots: Record<SlotPosition, string | null>;
         energyBelow: Record<SlotPosition, string[]>;
@@ -1221,6 +1364,17 @@ describe('member cost payment', () => {
       [centerCardId!, { orientation: OrientationState.ACTIVE }],
       [leftCardId!, { orientation: OrientationState.ACTIVE }],
     ]);
+
+    player.movedToStageThisTurn = [leftCardId!];
+    const lockedExtraRelay = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, sourceCardId!, SlotPosition.CENTER, {
+        relayMode: 'DOUBLE',
+        relayReplacementSlots: [SlotPosition.CENTER, SlotPosition.LEFT],
+      })
+    );
+    expect(lockedExtraRelay.success).toBe(false);
+    expect(lockedExtraRelay.error).toContain('本回合刚登场');
+    player.movedToStageThisTurn = [];
 
     const beforeSeq = session.getCurrentPublicEventSeq();
     const playResult = session.executeCommand(
@@ -1348,7 +1502,7 @@ describe('member cost payment', () => {
     expect(normalResult.success).toBe(false);
     expect(player.memberSlots.slots[SlotPosition.CENTER]).toBeNull();
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
     const localFreePlayResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, memberCardId!, SlotPosition.CENTER)
     );
@@ -1359,9 +1513,123 @@ describe('member cost payment', () => {
     expect(session.state?.players[0].energyZone.cardIds).toEqual([]);
   });
 
+  it('成员区的一回合一次限制跟随成员实例，RULES 拒绝而 FREE 可绕过', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame('member-slot-turn-limit', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      movedToStageThisTurn: string[];
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const memberIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const incomingId = memberIds[0]!;
+    const enteredId = memberIds[1]!;
+    player.hand.cardIds = [incomingId];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== incomingId && cardId !== enteredId
+    );
+    player.memberSlots.slots[SlotPosition.RIGHT] = enteredId;
+    player.memberSlots.cardStates = new Map([
+      [enteredId, { orientation: OrientationState.ACTIVE }],
+    ]);
+    player.movedToStageThisTurn = [enteredId];
+
+    expect(canPlayMemberInStageSlotThisTurn(state, PLAYER1, SlotPosition.LEFT)).toBe(true);
+    expect(canPlayMemberInStageSlotThisTurn(state, PLAYER1, SlotPosition.RIGHT)).toBe(false);
+    const rulesResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingId, SlotPosition.RIGHT)
+    );
+    expect(rulesResult.success).toBe(false);
+    expect(rulesResult.error).toContain('本回合刚登场');
+
+    player.memberSlots.slots[SlotPosition.RIGHT] = null;
+    player.memberSlots.slots[SlotPosition.LEFT] = enteredId;
+    expect(canPlayMemberInStageSlotThisTurn(state, PLAYER1, SlotPosition.RIGHT)).toBe(true);
+    expect(canPlayMemberInStageSlotThisTurn(state, PLAYER1, SlotPosition.LEFT)).toBe(false);
+
+    session.setManualOperationMode('FREE');
+    const freeResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingId, SlotPosition.LEFT)
+    );
+    expect(freeResult.success, freeResult.error).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(incomingId);
+  });
+
+  it('FREE 在 LL-bp2-001 上登场时走全额非换手语义而不伪造 relay', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame('ll-bp2-free-non-relay', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+    session.setManualOperationMode('FREE');
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      energyZone: { cardIds: string[] };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    const memberIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const incomingId = memberIds[0]!;
+    const protectedId = memberIds[1]!;
+    (state.cardRegistry.get(incomingId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('FREE-INCOMING', 'Incoming', 20);
+    (state.cardRegistry.get(protectedId) as unknown as { data: MemberCardData }).data =
+      createMemberCard('LL-bp2-001-R+', 'LL protected', 20);
+    player.hand.cardIds = [incomingId];
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== incomingId && cardId !== protectedId
+    );
+    player.energyZone.cardIds = [];
+    player.memberSlots.slots[SlotPosition.CENTER] = protectedId;
+    player.memberSlots.cardStates = new Map([
+      [protectedId, { orientation: OrientationState.ACTIVE }],
+    ]);
+
+    const result = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, incomingId, SlotPosition.CENTER)
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(incomingId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(protectedId);
+    expect(
+      session.state?.actionHistory.find(
+        (action) => action.type === 'PLAY_MEMBER' && action.payload.cardId === incomingId
+      )?.payload
+    ).toMatchObject({
+      isRelay: false,
+      relayReplacements: [],
+      duplicateMemberRuleRemovedCardId: protectedId,
+    });
+    expect(
+      session.state?.eventLog.some((entry) => entry.event.eventType === TriggerCondition.ON_RELAY)
+    ).toBe(false);
+  });
+
   it('free play fallback remains available in solitaire mode', () => {
     const localSession = createGameSession();
-    localSession.localFreePlay = true;
+    const localDeck = createDeck();
+    localSession.createGame('member-local-mode-switch', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    localSession.initializeGame(localDeck, localDeck);
+    forceMainPhaseForPlayer(localSession);
+    expect(localSession.setManualOperationMode('FREE').success).toBe(true);
     expect(localSession.localFreePlay).toBe(true);
     localSession.gameMode = GameMode.SOLITAIRE;
     expect(localSession.localFreePlay).toBe(true);
@@ -1369,7 +1637,13 @@ describe('member cost payment', () => {
     const session = createGameSession({ gameMode: GameMode.SOLITAIRE });
     const deck = createDeck();
 
-    session.createGame('member-solitaire-free-play-guard', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.createGame(
+      'member-solitaire-free-play-guard',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
@@ -1390,7 +1664,7 @@ describe('member cost payment', () => {
     player.energyZone.cardIds = [];
     player.energyZone.cardStates = new Map();
 
-    session.localFreePlay = true;
+    session.setManualOperationMode('FREE');
 
     expect(session.localFreePlay).toBe(true);
     const result = session.executeCommand(

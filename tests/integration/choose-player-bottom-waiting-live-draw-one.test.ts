@@ -463,6 +463,7 @@ function setupOnEnter(options: OnEnterSetupOptions = {}) {
     currentTurnType: TurnType.NORMAL,
     activePlayerIndex: 0,
   });
+  session.setManualOperationMode('FREE');
   const play = session.executeCommand(
     createPlayMemberToSlotCommand(P1, source.instanceId, SlotPosition.CENTER, { freePlay: true })
   );

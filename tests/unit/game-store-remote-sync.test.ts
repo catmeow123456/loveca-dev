@@ -6,6 +6,7 @@ import type {
   PublicEventsResponse,
   RuntimeRecoveryInfo,
 } from '../../src/online/types';
+import type { MatchRecordReplayView } from '../../src/online/replay-types';
 import type { RemoteSnapshot } from '@/lib/remoteMatchClient';
 
 vi.mock('@/lib/imageService', () => ({
@@ -21,6 +22,8 @@ vi.mock('@/lib/remoteMatchClient', () => ({
   fetchRemotePublicEvents: vi.fn(),
   fetchRemoteSnapshotSyncResult: vi.fn(),
   rejectRemoteUndoRequest: vi.fn(),
+  changeRemoteManualOperationMode: vi.fn(),
+  respondRemoteManualOperationModeRequest: vi.fn(),
   undoRemoteMatch: vi.fn(),
 }));
 
@@ -58,6 +61,12 @@ function createViewState(matchId: string, seq: number): PlayerViewState {
       activeSeat: 'FIRST',
       prioritySeat: 'FIRST',
       window: null,
+      manualOperation: {
+        mode: 'RULES',
+        canSwitchNow: true,
+        disabledReason: null,
+        pendingRequest: null,
+      },
       seq,
     },
     table: { zones: {} },
@@ -176,6 +185,60 @@ describe('gameStore remote snapshot sync', () => {
         cardDetail: null,
       },
     });
+  });
+
+  it('历史回放保留当时操作模式但始终禁止切换', async () => {
+    const playerViewState = createViewState('replay-mode', 5);
+    await useGameStore.getState().enterReadonlyReplay({
+      matchId: 'replay-mode',
+      sourceMatchMode: 'ONLINE',
+      viewerSeat: 'FIRST',
+      replayPosition: { timelineSeq: 7, checkpointSeq: 3 },
+      playerViewState: {
+        ...playerViewState,
+        match: {
+          ...playerViewState.match,
+          manualOperation: {
+            mode: 'FREE',
+            canSwitchNow: true,
+            disabledReason: null,
+            pendingRequest: null,
+          },
+        },
+      },
+      recordStatus: 'COMPLETED',
+      recordCompleteness: 'COMPLETE',
+      partialReasonSummary: null,
+    } as unknown as MatchRecordReplayView);
+
+    expect(useGameStore.getState().playerViewState?.match.manualOperation).toMatchObject({
+      mode: 'FREE',
+      canSwitchNow: false,
+      disabledReason: '历史回放为只读',
+    });
+    expect(useGameStore.getState().freePlayEnabled).toBe(true);
+  });
+
+  it('拒绝缺少权威操作模式的当前玩家视图且不会开启自由模式', async () => {
+    const malformedView = createViewState('missing-mode', 1) as PlayerViewState & {
+      match: Partial<PlayerViewState['match']>;
+    };
+    delete malformedView.match.manualOperation;
+    useGameStore.setState({ freePlayEnabled: false });
+
+    await expect(
+      useGameStore.getState().applyRemoteSnapshot({
+        matchId: 'missing-mode',
+        seat: 'FIRST',
+        playerId: 'player-1',
+        seq: 1,
+        currentPublicSeq: 0,
+        playerViewState: malformedView as PlayerViewState,
+      })
+    ).rejects.toThrow('玩家视图缺少有效的权威 manualOperation，已拒绝应用');
+
+    expect(useGameStore.getState().playerViewState).toBeNull();
+    expect(useGameStore.getState().freePlayEnabled).toBe(false);
   });
 
   it('drops a remote snapshot response when the remote session changed while the request was in flight', async () => {

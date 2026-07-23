@@ -150,6 +150,7 @@ function prepareDirectMillSession(params: {
       : []
   );
 
+  session.setManualOperationMode('FREE');
   const playResult = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
       freePlay: true,

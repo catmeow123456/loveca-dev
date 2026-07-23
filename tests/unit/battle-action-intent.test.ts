@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildBattleActionIntents,
+  canUseLegacyManualDropFallback,
   findEnabledBattleActionSlotTarget,
   findEnabledBattleActionTargetByTargetId,
   findEnabledBattleActionTargetForZoneDrop,
@@ -58,7 +59,7 @@ describe('buildBattleActionIntents', () => {
       (intent) => intent.commandType === GameCommandType.PLAY_MEMBER_TO_SLOT
     );
     expect(playIntent?.label).toBe('登场');
-    expect(playIntent?.targets.map((target) => target.label)).toEqual(['登场', '换手登场', '登场']);
+    expect(playIntent?.targets.map((target) => target.label)).toEqual(['登场', '在此登场', '登场']);
     const leftTarget = findEnabledBattleActionSlotTarget(
       intents,
       ZoneType.MEMBER_SLOT,
@@ -69,6 +70,41 @@ describe('buildBattleActionIntents', () => {
       cardId: 'hand-member',
       targetSlot: SlotPosition.LEFT,
     });
+  });
+
+  it('RULES 排除本回合刚登场成员所在槽位，FREE 保留可选', () => {
+    const memberSlots = MEMBER_SLOTS.map((entry) =>
+      entry.slot === SlotPosition.CENTER ? { ...entry, enteredStageThisTurn: true } : entry
+    );
+    const rulesIntents = buildBattleActionIntents({
+      ...BASE_INPUT,
+      manualOperationMode: 'RULES',
+      memberSlots,
+      sourceCardId: 'hand-member',
+      sourceZone: ZoneType.HAND,
+      sourceCardType: CardType.MEMBER,
+    });
+    expect(
+      findEnabledBattleActionSlotTarget(rulesIntents, ZoneType.MEMBER_SLOT, SlotPosition.CENTER)
+    ).toBeNull();
+
+    const freeIntents = buildBattleActionIntents({
+      ...BASE_INPUT,
+      manualOperationMode: 'FREE',
+      memberSlots,
+      sourceCardId: 'hand-member',
+      sourceZone: ZoneType.HAND,
+      sourceCardType: CardType.MEMBER,
+    });
+    expect(
+      findEnabledBattleActionSlotTarget(freeIntents, ZoneType.MEMBER_SLOT, SlotPosition.CENTER)
+    ).not.toBeNull();
+  });
+
+  it('RULES 不允许 GameBoard 落入 legacy 手动 fallback，FREE 保留', () => {
+    expect(canUseLegacyManualDropFallback('RULES')).toBe(false);
+    expect(canUseLegacyManualDropFallback('FREE')).toBe(true);
+    expect(canUseLegacyManualDropFallback(undefined)).toBe(false);
   });
 
   it('creates member movement targets excluding the source slot', () => {

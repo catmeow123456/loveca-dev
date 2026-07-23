@@ -47,7 +47,6 @@ import { isOwnDeskFreeDragWindow } from '@game/application/command-availability'
 import {
   CardAbilitySourceZone,
   getActivatedAbilityUiConfigs,
-  type ActivatedAbilityUiConfig,
 } from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
@@ -77,15 +76,25 @@ import {
   HeartColor,
   ZoneType,
   SubPhase,
-  CardType,
 } from '@game/shared/types/enums';
 import type { Seat } from '@game/online';
+
+export interface SelectedHandCardAction {
+  readonly id: string;
+  readonly text: string;
+  readonly title?: string;
+  readonly align?: 'left' | 'center';
+}
 
 interface PlayerAreaProps {
   playerSeat: Seat;
   isOpponent: boolean;
   isActive: boolean;
   suppressActiveEffectVisuals?: boolean;
+  selectedHandCardActionCardId?: string | null;
+  selectedHandCardActions?: readonly SelectedHandCardAction[];
+  suppressSelectedHandCardActionMenu?: boolean;
+  onSelectedHandCardAction?: (cardId: string, actionId: string) => void;
 }
 
 const INSPECTION_TARGET_IDS = {
@@ -97,15 +106,28 @@ const INSPECTION_TARGET_IDS = {
 } as const;
 const DISABLE_ORDINARY_DROP_FROM_INSPECTION = [ZoneType.INSPECTION_ZONE] as const;
 
-const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
-  configs,
-  onActivate,
+interface CardActionMenuItem {
+  readonly id: string;
+  readonly text: string;
+  readonly title?: string;
+  readonly align?: 'left' | 'center';
+  readonly execute: () => void;
+}
+
+const CardActionMenu = memo(function CardActionMenu({
+  items,
   placement = 'above',
 }: {
-  readonly configs: readonly ActivatedAbilityUiConfig[];
-  readonly onActivate: (config: ActivatedAbilityUiConfig) => void;
+  readonly items: readonly CardActionMenuItem[];
   readonly placement?: 'above' | 'below';
 }) {
+  const preferredWidth = Math.min(
+    420,
+    Math.max(
+      100,
+      items.reduce((longest, item) => Math.max(longest, Array.from(item.text).length), 0) * 14 + 32
+    )
+  );
   const anchorRef = useRef<HTMLSpanElement>(null);
   const [layout, setLayout] = useState<{
     readonly left: number;
@@ -115,7 +137,7 @@ const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
   } | null>(null);
 
   useEffect(() => {
-    if (configs.length === 0) {
+    if (items.length === 0) {
       setLayout(null);
       return;
     }
@@ -126,7 +148,7 @@ const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
       const rect = anchor.getBoundingClientRect();
       const viewportPadding = 8;
       const gap = 4;
-      const width = Math.max(1, Math.min(420, window.innerWidth - viewportPadding * 2));
+      const width = Math.max(1, Math.min(preferredWidth, window.innerWidth - viewportPadding * 2));
       const unclampedCenter = rect.left + rect.width / 2;
       const left = Math.min(
         window.innerWidth - viewportPadding - width / 2,
@@ -167,9 +189,9 @@ const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
       window.removeEventListener('scroll', updateLayout, true);
       resizeObserver?.disconnect();
     };
-  }, [configs.length, placement]);
+  }, [items.length, placement, preferredWidth]);
 
-  if (configs.length === 0) return null;
+  if (items.length === 0) return null;
   return (
     <>
       <span ref={anchorRef} className="pointer-events-none absolute inset-0" aria-hidden="true" />
@@ -186,22 +208,23 @@ const ActivatedAbilityMenu = memo(function ActivatedAbilityMenu({
               transform: placement === 'above' ? 'translate(-50%, -100%)' : 'translate(-50%, 0)',
             }}
           >
-            {configs.map((config) => (
+            {items.map((item) => (
               <button
-                key={config.abilityId}
+                key={item.id}
                 type="button"
                 className={cn(
-                  'w-full shrink-0 rounded-lg border border-rose-300/70 bg-white/95 px-3 py-1.5 text-left font-semibold text-rose-600 shadow-lg',
+                  'w-full shrink-0 rounded-lg border border-rose-300/70 bg-white/95 px-3 py-1.5 font-semibold text-rose-600 shadow-lg',
+                  item.align === 'center' ? 'text-center' : 'text-left',
                   'transition-colors hover:bg-rose-50 active:scale-[0.99]'
                 )}
                 style={{ fontSize: '12px', lineHeight: 1.25 }}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onActivate(config);
+                  item.execute();
                 }}
-                title={config.title}
+                title={item.title}
               >
-                <CardEffectText as="span" text={config.text} />
+                <CardEffectText as="span" text={item.text} />
               </button>
             ))}
           </div>,
@@ -320,6 +343,10 @@ export const PlayerArea = memo(function PlayerArea({
   isOpponent,
   isActive,
   suppressActiveEffectVisuals = false,
+  selectedHandCardActionCardId = null,
+  selectedHandCardActions = [],
+  suppressSelectedHandCardActionMenu = false,
+  onSelectedHandCardAction,
 }: PlayerAreaProps) {
   const playerIdentity = useGameStore((s) => s.getPlayerIdentityForSeat(playerSeat));
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
@@ -534,10 +561,10 @@ export const PlayerArea = memo(function PlayerArea({
   };
 
   // ========================================
-  // 拖拽权限控制 - "信任玩家"原则
+  // 拖拽权限控制 - RULES/FREE 操作模式
   // ========================================
-  // 核心原则：主阶段和 Live 大阶段维持较自由的己方桌面操作。
-  // Live 卡与 Live 区/成功区之间的桌面整理不按阶段锁 UI，后端仍校验具体移动是否合法。
+  // RULES 只提交当前权限投影允许的语义化命令；FREE 保留己方桌面整理。
+  // 无论 UI 是否允许拖起，权威命令政策都会重新校验模式、阶段与 pending flow。
   // ========================================
 
   const allowGeneralOwnZoneInteraction =
@@ -658,16 +685,25 @@ export const PlayerArea = memo(function PlayerArea({
       seat: playerSeat,
       slot: SlotPosition.LEFT,
       cardId: getSeatMemberSlotCardId(playerSeat, SlotPosition.LEFT),
+      enteredStageThisTurn:
+        getCardViewObject(getSeatMemberSlotCardId(playerSeat, SlotPosition.LEFT) ?? '')
+          ?.enteredStageThisTurn === true,
     },
     {
       seat: playerSeat,
       slot: SlotPosition.CENTER,
       cardId: getSeatMemberSlotCardId(playerSeat, SlotPosition.CENTER),
+      enteredStageThisTurn:
+        getCardViewObject(getSeatMemberSlotCardId(playerSeat, SlotPosition.CENTER) ?? '')
+          ?.enteredStageThisTurn === true,
     },
     {
       seat: playerSeat,
       slot: SlotPosition.RIGHT,
       cardId: getSeatMemberSlotCardId(playerSeat, SlotPosition.RIGHT),
+      enteredStageThisTurn:
+        getCardViewObject(getSeatMemberSlotCardId(playerSeat, SlotPosition.RIGHT) ?? '')
+          ?.enteredStageThisTurn === true,
     },
   ] as const;
   const selectedBattleActionIntents =
@@ -685,6 +721,7 @@ export const PlayerArea = memo(function PlayerArea({
           surface: capabilities.surface,
           isReadOnly,
           availableCommandTypes: availableBattleActionCommandTypes,
+          manualOperationMode: matchView?.manualOperation?.mode,
           memberSlots: memberSlotSnapshots,
           liveZoneCount: liveZoneView?.count ?? liveCardIds.length,
           activeEffect: visibleActiveEffect,
@@ -1093,9 +1130,13 @@ export const PlayerArea = memo(function PlayerArea({
             )}
             {card && <CardModifierBadgeStack modifierDelta={card.modifierDelta} />}
             {card && canActivateAbility && (
-              <ActivatedAbilityMenu
-                configs={activatedAbilityConfigs}
-                onActivate={(config) => activateCardAbility(card.instanceId, config.abilityId)}
+              <CardActionMenu
+                items={activatedAbilityConfigs.map((config) => ({
+                  id: config.abilityId,
+                  text: config.text,
+                  title: config.title,
+                  execute: () => activateCardAbility(card.instanceId, config.abilityId),
+                }))}
               />
             )}
             {!cardId && <span className="text-slate-600 text-xs">{position}</span>}
@@ -1251,7 +1292,8 @@ export const PlayerArea = memo(function PlayerArea({
                           ? 'transition-none'
                           : 'transition-[rotate,scale,transform,filter,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-110 hover:z-10 motion-reduce:duration-75',
                         !isActive && 'rotate-90 opacity-55 grayscale',
-                        skipsNextActivePhase && 'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
+                        skipsNextActivePhase &&
+                          'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
                         card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
@@ -1263,12 +1305,12 @@ export const PlayerArea = memo(function PlayerArea({
                         skipsNextActivePhase
                           ? '下次活跃阶段不会自动变为活跃'
                           : isOpponent
-                          ? isActive
-                            ? '活跃'
-                            : '等待'
-                          : allowGeneralOwnZoneInteraction && canTapEnergy
-                            ? '单击切换活跃/等待'
-                            : '当前阶段不可操作'
+                            ? isActive
+                              ? '活跃'
+                              : '等待'
+                            : allowGeneralOwnZoneInteraction && canTapEnergy
+                              ? '单击切换活跃/等待'
+                              : '当前阶段不可操作'
                       }
                     >
                       {imagePath ? (
@@ -1279,7 +1321,12 @@ export const PlayerArea = memo(function PlayerArea({
                         </div>
                       )}
                       {skipsNextActivePhase && (
-                        <span aria-label="下次活跃阶段不会自动变为活跃" className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[7px] font-bold text-white">!</span>
+                        <span
+                          aria-label="下次活跃阶段不会自动变为活跃"
+                          className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[7px] font-bold text-white"
+                        >
+                          !
+                        </span>
                       )}
                     </div>
                   </CardDetailPressTarget>
@@ -1299,8 +1346,7 @@ export const PlayerArea = memo(function PlayerArea({
     const isMainDeck = deckType === 'main';
     const deckZoneType = isMainDeck ? ZoneType.MAIN_DECK : ZoneType.ENERGY_DECK;
     const deckDroppableId = getDroppableId(deckZoneType);
-    const topCardId =
-      count > 0 ? (isMainDeck ? mainDeckCardIds[0] : energyDeckCardIds[0]) : null;
+    const topCardId = count > 0 ? (isMainDeck ? mainDeckCardIds[0] : energyDeckCardIds[0]) : null;
 
     // 点击主卡组：翻顶 1 张到检视区
     const handleClick = () => {
@@ -1626,12 +1672,16 @@ export const PlayerArea = memo(function PlayerArea({
                                 >
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
-                                    <ActivatedAbilityMenu
-                                      configs={activatedAbilityConfigs}
-                                      onActivate={(config) => {
-                                        activateCardAbility(card.instanceId, config.abilityId);
-                                        closeWaitingRoom();
-                                      }}
+                                    <CardActionMenu
+                                      items={activatedAbilityConfigs.map((config) => ({
+                                        id: config.abilityId,
+                                        text: config.text,
+                                        title: config.title,
+                                        execute: () => {
+                                          activateCardAbility(card.instanceId, config.abilityId);
+                                          closeWaitingRoom();
+                                        },
+                                      }))}
                                     />
                                   )}
                                 </div>
@@ -1964,7 +2014,8 @@ export const PlayerArea = memo(function PlayerArea({
                           ? 'cursor-pointer active:scale-95'
                           : 'cursor-default',
                         !isActive && 'rotate-90 opacity-45 grayscale',
-                        skipsNextActivePhase && 'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
+                        skipsNextActivePhase &&
+                          'ring-2 ring-red-500 ring-offset-1 ring-offset-slate-950',
                         card && getActiveEffectTaskCardClass(card.instanceId)
                       )}
                       onClick={() => {
@@ -1976,8 +2027,8 @@ export const PlayerArea = memo(function PlayerArea({
                         skipsNextActivePhase
                           ? '下次活跃阶段不会自动变为活跃'
                           : allowGeneralOwnZoneInteraction && canTapEnergy
-                          ? '点按切换活跃/待机'
-                          : '能量区'
+                            ? '点按切换活跃/待机'
+                            : '能量区'
                       }
                     >
                       {imagePath ? (
@@ -1988,7 +2039,12 @@ export const PlayerArea = memo(function PlayerArea({
                         </div>
                       )}
                       {skipsNextActivePhase && (
-                        <span aria-label="下次活跃阶段不会自动变为活跃" className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[6px] font-bold text-white">!</span>
+                        <span
+                          aria-label="下次活跃阶段不会自动变为活跃"
+                          className="absolute right-0 top-0 rounded-bl bg-red-600 px-0.5 text-[6px] font-bold text-white"
+                        >
+                          !
+                        </span>
                       )}
                     </div>
                   </CardDetailPressTarget>
@@ -2583,7 +2639,7 @@ export const PlayerArea = memo(function PlayerArea({
   };
 
   // 判断手牌是否可拖拽
-  // "信任玩家"原则：己方区域允许自由拖拽，系统自动纠正非法状态
+  // FREE 的己方整理与当前检视流程可以拖手牌；RULES 的最终合法性仍由 intent/命令政策决定
   const canDragFromHand = allowGeneralOwnZoneInteraction || canReceiveInspectionDrop;
 
   const renderHandContextActions = () => {
@@ -2721,6 +2777,32 @@ export const PlayerArea = memo(function PlayerArea({
             viewerSeat === playerSeat &&
             canActivateAbilityCommand &&
             isHandCardSelected;
+          const contextualActions =
+            !suppressSelectedHandCardActionMenu &&
+            isHandCardSelected &&
+            selectedHandCardActionCardId === card.instanceId &&
+            onSelectedHandCardAction
+              ? selectedHandCardActions
+              : [];
+          const handCardMenuItems: readonly CardActionMenuItem[] = [
+            ...(canActivateHandAbility
+              ? activatedAbilityConfigs.map((config) => ({
+                  id: `ability:${config.abilityId}`,
+                  text: config.text,
+                  title: config.title,
+                  execute: () => activateCardAbility(card.instanceId, config.abilityId),
+                }))
+              : []),
+            ...contextualActions.map((action) => ({
+              id: `context:${action.id}`,
+              text: action.text,
+              title: action.title,
+              align: action.align,
+              execute: () => onSelectedHandCardAction?.(card.instanceId, action.id),
+            })),
+          ];
+          const canShowHandCardActionMenu =
+            !suppressSelectedHandCardActionMenu && handCardMenuItems.length > 0;
 
           return (
             <div
@@ -2756,7 +2838,7 @@ export const PlayerArea = memo(function PlayerArea({
                       faceUp={true}
                       selected={isHandCardSelected}
                       effectVisualState={getEffectVisualState(card, {
-                        isActionableNow: canActivateHandAbility,
+                        isActionableNow: canShowHandCardActionMenu,
                       })}
                       className={getActiveEffectTaskCardClass(card.instanceId)}
                       onClick={() => {
@@ -2771,11 +2853,10 @@ export const PlayerArea = memo(function PlayerArea({
                     />
                   </CardDetailPressTarget>
                 </DraggableCard>
-                {canActivateHandAbility && (
-                  <ActivatedAbilityMenu
-                    configs={activatedAbilityConfigs}
+                {canShowHandCardActionMenu && (
+                  <CardActionMenu
+                    items={handCardMenuItems}
                     placement={isOpponent ? 'below' : 'above'}
-                    onActivate={(config) => activateCardAbility(card.instanceId, config.abilityId)}
                   />
                 )}
               </div>

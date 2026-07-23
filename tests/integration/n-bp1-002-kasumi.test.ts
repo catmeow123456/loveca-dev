@@ -13,6 +13,7 @@ import {
   PL_N_BP1_002_ACTIVATED_FROM_WAITING_ROOM_PAY_TWO_DISCARD_ONE_PLAY_SELF_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { N_BP1_002_SELECT_STAGE_SLOT_STEP_ID } from '../../src/application/card-effects/workflows/cards/n-bp1-002-kasumi';
 import {
   CardType,
   FaceState,
@@ -72,6 +73,7 @@ function setupKasumiScenario(options: {
   readonly activeEnergyCount?: number;
   readonly waitingEnergyCount?: number;
   readonly occupiedSlots?: readonly SlotPosition[];
+  readonly enteredThisTurnSlots?: readonly SlotPosition[];
   readonly currentPhase?: GamePhase;
   readonly activePlayerIndex?: number;
 }): KasumiScenario {
@@ -101,7 +103,11 @@ function setupKasumiScenario(options: {
     )
   );
   const activeEnergyCards = Array.from({ length: options.activeEnergyCount ?? 0 }, (_, index) =>
-    createCardInstance(createEnergyCard(`ENE-active-${index}`), PLAYER1, `p1-energy-active-${index}`)
+    createCardInstance(
+      createEnergyCard(`ENE-active-${index}`),
+      PLAYER1,
+      `p1-energy-active-${index}`
+    )
   );
   const waitingEnergyCards = Array.from({ length: options.waitingEnergyCount ?? 0 }, (_, index) =>
     createCardInstance(
@@ -118,14 +124,17 @@ function setupKasumiScenario(options: {
     )
   );
 
-  const state = registerCards(session.state!, [
-    source,
-    ...mainDeckCards,
-    ...handCards,
-    ...activeEnergyCards,
-    ...waitingEnergyCards,
-    ...fillerMembers,
-  ]);
+  const state = {
+    ...registerCards(session.state!, [
+      source,
+      ...mainDeckCards,
+      ...handCards,
+      ...activeEnergyCards,
+      ...waitingEnergyCards,
+      ...fillerMembers,
+    ]),
+    manualOperationMode: 'FREE' as const,
+  };
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
   const mutableState = state as unknown as {
@@ -155,6 +164,7 @@ function setupKasumiScenario(options: {
       slots: Record<SlotPosition, string | null>;
       cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
     };
+    movedToStageThisTurn: string[];
   };
   p1.hand.cardIds = [
     ...(options.sourceZone === 'HAND' ? [source.instanceId] : []),
@@ -170,7 +180,10 @@ function setupKasumiScenario(options: {
   p1.energyZone.cardStates = new Map([
     ...activeEnergyCards.map(
       (card) =>
-        [card.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }] as const
+        [
+          card.instanceId,
+          { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+        ] as const
     ),
     ...waitingEnergyCards.map(
       (card) =>
@@ -194,6 +207,9 @@ function setupKasumiScenario(options: {
       { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
     ])
   );
+  p1.movedToStageThisTurn = (options.enteredThisTurnSlots ?? [])
+    .map((slot) => p1.memberSlots.slots[slot])
+    .filter((cardId): cardId is string => cardId !== null);
 
   return {
     session,
@@ -243,12 +259,7 @@ function confirmSelectedCard(
 
 function confirmSelectedSlot(session: ReturnType<typeof createGameSession>, slot: SlotPosition) {
   return session.executeCommand(
-    createConfirmEffectStepCommand(
-      PLAYER1,
-      session.state!.activeEffect!.id,
-      undefined,
-      slot
-    )
+    createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, undefined, slot)
   );
 }
 
@@ -450,7 +461,7 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
     expect(leaveStageEvent).toMatchObject({
       fromSlot: SlotPosition.LEFT,
       toZone: 'WAITING_ROOM',
-      replacingCardId: scenario.sourceId,
+      replacingCardId: undefined,
     });
     const enterStageEvent = scenario.session.state?.eventLog.find(
       (entry) =>
@@ -460,8 +471,12 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
     expect(enterStageEvent).toMatchObject({
       fromZone: 'WAITING_ROOM',
       toSlot: SlotPosition.LEFT,
-      replacedMemberCardId: scenario.fillerMemberIds[0],
+      replacedMemberCardId: undefined,
+      replacedMemberEffectiveCost: undefined,
+      relayReplacements: undefined,
     });
+    const events = scenario.session.state!.eventLog.map((entry) => entry.event);
+    expect(events.indexOf(enterStageEvent!)).toBeLessThan(events.indexOf(leaveStageEvent!));
 
     const activeEffect = scenario.session.state?.activeEffect;
     expect(activeEffect?.abilityId).toBe(
@@ -470,6 +485,127 @@ describe('PL!N-bp1-002 Kasumi workflow', () => {
     expect(activeEffect?.sourceCardId).toBe(scenario.sourceId);
     expect(activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
     expect(activeEffect?.selectableCardIds).toEqual(scenario.mainDeckCardIds);
+  });
+
+  it('卡效覆盖可将 LL-bp2-001 放入休息室，且不伪造换手事件', () => {
+    const scenario = setupKasumiScenario({
+      sourceZone: 'WAITING_ROOM',
+      handCount: 1,
+      activeEnergyCount: 2,
+      occupiedSlots: [SlotPosition.LEFT],
+    });
+    const protectedId = scenario.fillerMemberIds[0]!;
+    (
+      scenario.session.state!.cardRegistry.get(protectedId) as unknown as {
+        data: MemberCardData;
+      }
+    ).data = createMemberCard('LL-bp2-001-R+', 'LL protected', 20);
+
+    expect(activateKasumi(scenario).success).toBe(true);
+    expect(confirmSelectedCard(scenario.session, scenario.handCardIds[0]!).success).toBe(true);
+    expect(confirmSelectedSlot(scenario.session, SlotPosition.LEFT).success).toBe(true);
+
+    expect(scenario.session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(
+      scenario.sourceId
+    );
+    expect(
+      scenario.session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          entry.event.cardInstanceIds?.includes(protectedId)
+      )
+    ).toBe(true);
+    const enterEvent = scenario.session.state?.eventLog
+      .map((entry) => entry.event)
+      .find(
+        (event) =>
+          event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+          'cardInstanceId' in event &&
+          event.cardInstanceId === scenario.sourceId
+      );
+    expect(enterEvent).toMatchObject({
+      replacedMemberCardId: undefined,
+      replacedMemberEffectiveCost: undefined,
+      relayReplacements: undefined,
+    });
+    expect(
+      scenario.session.state?.eventLog.some(
+        (entry) => entry.event.eventType === TriggerCondition.ON_RELAY
+      )
+    ).toBe(false);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'DUPLICATE_MEMBER' &&
+          action.payload.keptMemberCardId === scenario.sourceId
+      )
+    ).toBe(true);
+  });
+
+  it('支付后只暴露没有本回合刚登场成员的合法成员区', () => {
+    const scenario = setupKasumiScenario({
+      sourceZone: 'WAITING_ROOM',
+      handCount: 1,
+      activeEnergyCount: 2,
+      occupiedSlots: [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT],
+      enteredThisTurnSlots: [SlotPosition.LEFT],
+    });
+
+    expect(activateKasumi(scenario).success).toBe(true);
+    expect(confirmSelectedCard(scenario.session, scenario.handCardIds[0]!).success).toBe(true);
+    expect(scenario.session.state?.activeEffect?.selectableSlots).toEqual([
+      SlotPosition.CENTER,
+      SlotPosition.RIGHT,
+    ]);
+  });
+
+  it('确认登场前重验权威状态，不能使用已失效的成员区候选', () => {
+    const scenario = setupKasumiScenario({
+      sourceZone: 'WAITING_ROOM',
+      handCount: 1,
+      activeEnergyCount: 2,
+      occupiedSlots: [SlotPosition.LEFT],
+    });
+
+    expect(activateKasumi(scenario).success).toBe(true);
+    expect(confirmSelectedCard(scenario.session, scenario.handCardIds[0]!).success).toBe(true);
+    const player = scenario.session.state!.players[0] as unknown as {
+      movedToStageThisTurn: string[];
+    };
+    player.movedToStageThisTurn.push(scenario.fillerMemberIds[0]!);
+
+    expect(confirmSelectedSlot(scenario.session, SlotPosition.LEFT).success).toBe(false);
+    expect(scenario.session.state?.activeEffect?.stepId).toBe(N_BP1_002_SELECT_STAGE_SLOT_STEP_ID);
+    expect(scenario.session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(
+      scenario.fillerMemberIds[0]
+    );
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(scenario.sourceId);
+  });
+
+  it('支付后没有合法成员区时保留费用并空结算', () => {
+    const scenario = setupKasumiScenario({
+      sourceZone: 'WAITING_ROOM',
+      handCount: 1,
+      activeEnergyCount: 2,
+      occupiedSlots: [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT],
+      enteredThisTurnSlots: [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT],
+    });
+
+    expect(activateKasumi(scenario).success).toBe(true);
+    expect(confirmSelectedCard(scenario.session, scenario.handCardIds[0]!).success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(scenario.sourceId);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
+      scenario.handCardIds[0]
+    );
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.step === 'NO_LEGAL_STAGE_SLOT_AFTER_COST'
+      )
+    ).toBe(true);
   });
 
   it('cannot activate without enough energy, without hand, from outside waiting room, outside main phase, or for a non-current player', () => {

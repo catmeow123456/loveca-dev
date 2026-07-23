@@ -1997,9 +1997,9 @@ describe('Live 判定与结算', () => {
     expect(activeResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([
       activeScenario.cheer.instanceId,
     ]);
-    expect(activeResult.gameState.liveResolution.liveResults.get(activeScenario.live.instanceId)).toBe(
-      true
-    );
+    expect(
+      activeResult.gameState.liveResolution.liveResults.get(activeScenario.live.instanceId)
+    ).toBe(true);
     expect(activeResult.gameState.liveResolution.playerScores.get('p1')).toBe(5);
 
     const waitingScenario = createScenario(OrientationState.WAITING, 'waiting');
@@ -2012,9 +2012,9 @@ describe('Live 判定与结算', () => {
 
     expect(waitingResult.success).toBe(true);
     expect(waitingResult.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([]);
-    expect(waitingResult.gameState.liveResolution.liveResults.get(waitingScenario.live.instanceId)).toBe(
-      false
-    );
+    expect(
+      waitingResult.gameState.liveResolution.liveResults.get(waitingScenario.live.instanceId)
+    ).toBe(false);
     expect(waitingResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
   });
 
@@ -2192,12 +2192,26 @@ describe('Live 判定与结算', () => {
       'bottom-cheer-source'
     );
     const top = createCardInstance(
-      { cardCode: 'TOP', name: 'Top', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      {
+        cardCode: 'TOP',
+        name: 'Top',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
       'p1',
       'top'
     );
     const bottom = createCardInstance(
-      { cardCode: 'BOTTOM', name: 'Bottom', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      {
+        cardCode: 'BOTTOM',
+        name: 'Bottom',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
       'p1',
       'bottom'
     );
@@ -2257,12 +2271,26 @@ describe('Live 判定与结算', () => {
       'auto-blade-member'
     );
     const top = createCardInstance(
-      { cardCode: 'AUTO-TOP', name: 'Auto Top', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      {
+        cardCode: 'AUTO-TOP',
+        name: 'Auto Top',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
       'p1',
       'auto-top'
     );
     const bottom = createCardInstance(
-      { cardCode: 'AUTO-BOTTOM', name: 'Auto Bottom', cardType: CardType.MEMBER as const, cost: 1, blade: 1, hearts: [] },
+      {
+        cardCode: 'AUTO-BOTTOM',
+        name: 'Auto Bottom',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
       'p1',
       'auto-bottom'
     );
@@ -2884,6 +2912,7 @@ describe('Live 判定与结算', () => {
     }));
     game = {
       ...game,
+      manualOperationMode: 'FREE',
       currentPhase: GamePhase.LIVE_RESULT_PHASE,
       currentSubPhase: SubPhase.RESULT_ANIMATION,
       liveResolution: {
@@ -2934,9 +2963,11 @@ describe('Live 判定与结算', () => {
     session.createGame('g-settlement-gated-confirm', 'p1', 'P1', 'p2', 'P2');
     (session as unknown as { authorityState: typeof game }).authorityState = game;
 
-    const result = session.executeCommand(createConfirmStepCommand('p1', SubPhase.RESULT_SETTLEMENT));
+    const result = session.executeCommand(
+      createConfirmStepCommand('p1', SubPhase.RESULT_SETTLEMENT)
+    );
     expect(result.success).toBe(false);
-    expect(result.error).toContain('请先选择成功 Live');
+    expect(result.error).toContain('必须选择1张成功 Live');
   });
 
   it('RESULT_SETTLEMENT 选择合法候选后进入成功区，0 分成功 Live 也可作为候选', () => {
@@ -3035,7 +3066,7 @@ describe('Live 判定与结算', () => {
     expect(confirmResult.gameState.players[0].waitingRoom.cardIds).toContain(live.instanceId);
   });
 
-  it('双胜者 RESULT_SETTLEMENT 必须按 liveWinnerIds 顺序处理，先攻 skip 后才允许后攻选择', () => {
+  it('双胜者 RESULT_SETTLEMENT 必须按 liveWinnerIds 顺序选择成功 Live', () => {
     const p1Live = createCardInstance(
       {
         cardCode: 'SERIAL-P1-LIVE',
@@ -3096,11 +3127,18 @@ describe('Live 判定与结算', () => {
         skipSuccessLiveSelection: true,
       })
     );
-    expect(skipP1.success).toBe(true);
-    expect(skipP1.gameState.liveResolution.settlementConfirmedBy).toContain('p1');
-    expect(skipP1.gameState.players[0].successZone.cardIds).not.toContain(p1Live.instanceId);
+    expect(skipP1.success).toBe(false);
+    expect(skipP1.error).toContain('必须选择1张');
 
-    const selectP2 = session.executeCommand(createSelectSuccessLiveCommand('p2', p2Live.instanceId));
+    const selectP1 = session.executeCommand(
+      createSelectSuccessLiveCommand('p1', p1Live.instanceId)
+    );
+    expect(selectP1.success).toBe(true);
+    expect(selectP1.gameState.players[0].successZone.cardIds).toContain(p1Live.instanceId);
+
+    const selectP2 = session.executeCommand(
+      createSelectSuccessLiveCommand('p2', p2Live.instanceId)
+    );
     expect(selectP2.success).toBe(true);
     expect(selectP2.gameState.players[1].successZone.cardIds).toContain(p2Live.instanceId);
   });

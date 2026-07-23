@@ -6,6 +6,7 @@ import type {
   ReplayPayloadKind,
   ReplaySerializedPayloadEnvelope,
 } from '../../online/replay-types.js';
+import type { ManualOperationMode } from '../../shared/types/manual-operation-mode.js';
 
 const SUPPORTED_PAYLOAD_SCHEMA_VERSION = 1;
 const SUPPORTED_SERIALIZER = 'TRANSPORT_V1';
@@ -35,7 +36,11 @@ export function compressLegacyReplayPayloadEnvelopeForMigration(
   expectedPayloadKind?: ReplayPayloadKind
 ): ReplaySerializedPayloadEnvelope {
   const transportPayload = readValidatedTransportPayload(envelope, expectedPayloadKind, 'legacy');
-  return serializeTransportPayload(transportPayload, envelope.payloadKind, envelope.sourceSchemaVersion);
+  return serializeTransportPayload(
+    transportPayload,
+    envelope.payloadKind,
+    envelope.sourceSchemaVersion
+  );
 }
 
 export function rehydrateLegacyReplayPayloadForMigration<T>(
@@ -79,7 +84,21 @@ export function rehydrateReplayPayload<T>(
 }
 
 export function rehydrateAuthorityGameState(envelope: ReplaySerializedPayloadEnvelope): GameState {
-  return rehydrateReplayPayload<GameState>(envelope, 'AUTHORITY_GAME_STATE');
+  const state = rehydrateReplayPayload<LegacyAuthorityGameStatePayload>(
+    envelope,
+    'AUTHORITY_GAME_STATE'
+  );
+  return normalizePersistedAuthorityGameState(state);
+}
+
+export function rehydrateLegacyAuthorityGameStateForMigration(
+  envelope: ReplaySerializedPayloadEnvelope
+): GameState {
+  const state = rehydrateLegacyReplayPayloadForMigration<LegacyAuthorityGameStatePayload>(
+    envelope,
+    'AUTHORITY_GAME_STATE'
+  );
+  return normalizePersistedAuthorityGameState(state);
 }
 
 export function validateReplayPayloadEnvelope(
@@ -98,6 +117,32 @@ export function stableJsonStringify(value: unknown): string {
 }
 
 type ReplayPayloadReadMode = 'current' | 'legacy';
+
+/**
+ * 仅用于历史 AUTHORITY_GAME_STATE 持久化 payload 的窄输入类型。
+ * 当前业务运行时始终使用 manualOperationMode 必填的 GameState。
+ */
+type LegacyAuthorityGameStatePayload = Omit<GameState, 'manualOperationMode'> & {
+  readonly manualOperationMode?: ManualOperationMode;
+};
+
+function normalizePersistedAuthorityGameState(state: LegacyAuthorityGameStatePayload): GameState {
+  if (state.manualOperationMode === undefined) {
+    return {
+      ...state,
+      manualOperationMode: 'FREE',
+    };
+  }
+  if (state.manualOperationMode !== 'RULES' && state.manualOperationMode !== 'FREE') {
+    throw new ReplayPayloadSerializationError(
+      'AUTHORITY_GAME_STATE 缺少有效的 manualOperationMode'
+    );
+  }
+  return {
+    ...state,
+    manualOperationMode: state.manualOperationMode,
+  };
+}
 
 function readValidatedTransportPayload(
   envelope: ReplaySerializedPayloadEnvelope,
@@ -158,9 +203,7 @@ function readLegacyTransportPayload(envelope: ReplaySerializedPayloadEnvelope): 
     envelope.compression !== LEGACY_COMPRESSION ||
     envelope.encoding !== LEGACY_ENCODING
   ) {
-    throw new ReplayPayloadSerializationError(
-      '迁移读取只支持旧 NONE/JSON_VALUE replay payload'
-    );
+    throw new ReplayPayloadSerializationError('迁移读取只支持旧 NONE/JSON_VALUE replay payload');
   }
 
   const stablePayloadJson = stableJsonStringify(envelope.payload);

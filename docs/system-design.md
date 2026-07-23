@@ -275,7 +275,7 @@ sequenceDiagram
 
 ---
 
-## 6. 规则校正与“信任玩家”设计
+## 6. 规则校正与操作模式设计
 
 ```mermaid
 flowchart TD
@@ -291,16 +291,23 @@ flowchart TD
 
 设计说明：
 
-- 用户可在特定窗口进行自由移动与确认
-- 系统负责兜底纠偏，清理非法或不完整状态
+- 新对局默认 `RULES`，玩家输入先经过中央命令政策，只允许当前阶段、pending 和卡效流程明确开放的语义化命令
+- `FREE` 在安全时点显式开启，保留己方区域的兼容移动与人工规则处理；正式联机开启需要对方同意，任意一方可单方恢复 `RULES`
+- 系统规则处理负责客观状态纠偏，但不以“先接受非法命令、再自动清理”替代命令入口校验
 - 胜利检测由规则层统一处理
-- 自动能力当前仍以玩家手动执行为主，系统尚未接入完整自动编排
+- 已登记卡效进入自动能力队列；未登记或未接线卡效需要人工处理时，应先进入 `FREE`
 
 代码路径：
 
+- `src/application/manual-operation-mode.ts`（权威模式读取、切换安全点与命令重写）
+- `src/application/player-command-policy.ts`（`RULES` / `FREE` 中央玩家命令政策）
+- `src/application/game-session.ts`（权威状态、命令校验与模式切换）
 - `src/application/game-service.ts`
 - `src/domain/rules/rule-actions.ts`
 - `src/domain/rules/check-timing.ts`（当前为未接线的完整模型实现）
+- `src/online/projector.ts`（玩家视图、权限与模式投影）
+- `src/server/services/online-match-service.ts`（正式联机协商、席位校验与服务端权威执行）
+- `src/server/services/replay-payload-serialization.ts`（历史 authority checkpoint 的窄复水兼容边界）
 
 ---
 

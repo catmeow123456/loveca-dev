@@ -145,6 +145,7 @@ function setupOnEnterMakiState(options: {
     ],
   ]);
 
+  session.setManualOperationMode('FREE');
   const playResult = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, maki.instanceId, options.slot, {
       freePlay: true,

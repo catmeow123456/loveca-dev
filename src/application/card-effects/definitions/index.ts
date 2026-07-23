@@ -5679,7 +5679,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_EFFECT_TEXT,
     notes:
-      '独立 queued ON_ENTER 单卡 workflow；从自己的私密手牌选择印刷费用4以下的 Liella! 成员，不支付其登场费用，并在确认时按当前成员实例的 movedToStageThisTurn 与 canMemberBeRelayedAway 重新计算可登场区域；替换移动复用 playMemberFromZoneToStageSlotWithReplacement。',
+      '独立 queued ON_ENTER 单卡 workflow；从自己的私密手牌选择印刷费用4以下的 Liella! 成员，不支付其登场费用，并在确认时按当前成员实例的 movedToStageThisTurn 重新计算可登场区域；占用区域不走换手，由 playMemberFromZoneToStageSlotWithReplacement 先产生新成员登场事实，再执行重复成员规则清理，不写 relay metadata。',
   },
   {
     abilityId: SP_SD1_003_LIVE_START_DISCARD_TWO_GAIN_FIVE_BLADE_ABILITY_ID,
@@ -8305,7 +8305,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       title: '支付[E][E]并弃1张手牌，将此卡从休息室登场',
     },
     notes:
-      '休息室来源起动；只在来源卡位于自己休息室时可发动。费用支付后若无空成员区，费用保留并空结算；有空成员区时从休息室 ACTIVE 登场并入队 ON_ENTER_STAGE。',
+      '休息室来源起动；只在来源卡位于自己休息室时可发动。费用支付后按当前权威状态排除存在本回合刚登场成员的成员区，确认时再次重验；若无合法成员区，费用保留并空结算，否则从休息室 ACTIVE 登场。占用区域以重复成员规则处理：新成员 ON_ENTER_STAGE 事实先于旧成员离场/进休息室，且不写换手 metadata。',
   },
   {
     abilityId: PL_N_PB1_014_ON_ENTER_RELAY_FROM_KASUMI_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
@@ -8417,7 +8417,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_PB1_013_ON_ENTER_EFFECT_TEXT,
     notes:
-      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("上原歩夢")。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再用 playMemberFromZoneToEmptySlot 登场并从真实 ON_ENTER_STAGE 事件入队目标能力；不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
+      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("上原歩夢")。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再按 movedToStageThisTurn 区域限制登场；占用区域走重复成员规则而非换手，不检查 canMemberBeRelayedAway、不写 relay metadata。不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
   },
   {
     abilityId: PL_N_PB1_015_ON_ENTER_PAY_TWO_PLAY_LOW_COST_SHIZUKU_MEMBER_ABILITY_ID,
@@ -8429,7 +8429,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_PB1_015_ON_ENTER_EFFECT_TEXT,
     notes:
-      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("桜坂しずく")。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再用 playMemberFromZoneToEmptySlot 登场并从真实 ON_ENTER_STAGE 事件入队目标能力；不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
+      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("桜坂しずく")。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再按 movedToStageThisTurn 区域限制登场；占用区域走重复成员规则而非换手，不检查 canMemberBeRelayedAway、不写 relay metadata。不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
   },
   {
     abilityId: PL_N_PB1_017_ON_ENTER_PAY_TWO_PLAY_LOW_COST_AI_MEMBER_ABILITY_ID,
@@ -8441,7 +8441,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_PB1_017_ON_ENTER_EFFECT_TEXT,
     notes:
-      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("宮下愛")，兼容数据名「宮下 愛」。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再用 playMemberFromZoneToEmptySlot 登场并从真实 ON_ENTER_STAGE 事件入队目标能力；不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
+      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("宮下愛")，兼容数据名「宮下 愛」。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再按 movedToStageThisTurn 区域限制登场；占用区域走重复成员规则而非换手，不检查 canMemberBeRelayedAway、不写 relay metadata。不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
   },
   {
     abilityId: PL_N_PB1_023_ON_ENTER_PAY_TWO_PLAY_LOW_COST_MIA_TAYLOR_MEMBER_ABILITY_ID,
@@ -8453,7 +8453,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_PB1_023_ON_ENTER_EFFECT_TEXT,
     notes:
-      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("ミア・テイラー")。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再用 playMemberFromZoneToEmptySlot 登场并从真实 ON_ENTER_STAGE 事件入队目标能力；不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
+      'shared workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + cardNameAliasIs("ミア・テイラー")。选择成员后通过 TAP_ACTIVE_ENERGY 支付[E][E]，再按 movedToStageThisTurn 区域限制登场；占用区域走重复成员规则而非换手，不检查 canMemberBeRelayedAway、不写 relay metadata。不启用旧卡 BLADE HEART 后置待机策略，不 opt-in waiting-room delegation。',
   },
   {
     abilityId: HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
@@ -11117,7 +11117,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP4_006_ON_ENTER_EFFECT_TEXT,
     notes:
-      'shared ON_ENTER workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + groupAliasIs("虹ヶ咲")，并独有启用 waitSourceIfPlayedMemberHasBladeHeart。选择手牌成员后用 TAP_ACTIVE_ENERGY 支付[E][E]，再选择空成员区；登场复用 playMemberFromZoneToEmptySlot，记录 movedToStageThisTurn 并从真实 ON_ENTER_STAGE 事件入队目标能力。若目标持有 BLADE HEART，来源经 member-state changed wrapper 变 WAITING；不 opt-in waiting-room delegation。',
+      'shared ON_ENTER workflow `on-enter-pay-two-play-low-cost-hand-member.ts`；selector 为 MEMBER + costLte(4) + groupAliasIs("虹ヶ咲")，并独有启用 waitSourceIfPlayedMemberHasBladeHeart。选择手牌成员后用 TAP_ACTIVE_ENERGY 支付[E][E]，再按 movedToStageThisTurn 区域限制登场；占用区域走重复成员规则而非换手，不检查 canMemberBeRelayedAway、不写 relay metadata。新成员记录 movedToStageThisTurn 并从真实 ON_ENTER_STAGE 事件入队；若目标持有 BLADE HEART，来源经 member-state changed wrapper 变 WAITING；不 opt-in waiting-room delegation。',
   },
   {
     abilityId: PL_N_BP4_007_ON_ENTER_EACH_PLAYER_RECOVER_LIVE_ABILITY_ID,
@@ -12474,13 +12474,15 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 1,
-    effectText: '【起动】【1回合1次】将能量区1张能量放置于此成员下方：选择对方舞台上1名原本持有的[ブレード]数量不超过此成员下方能量数量加1的成员，将其变为待机状态。',
+    effectText:
+      '【起动】【1回合1次】将能量区1张能量放置于此成员下方：选择对方舞台上1名原本持有的[ブレード]数量不超过此成员下方能量数量加1的成员，将其变为待机状态。',
     activatedUi: {
       abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
       title: '将能量区1张能量放到此成员下方并使对方成员变为待机状态',
       text: '【起动】【1回合1次】将能量区1张能量放置于此成员下方：选择对方舞台上1名原本持有的[ブレード]数量不超过此成员下方能量数量加1的成员，将其变为待机状态。',
     },
-    notes: 'exact P only；日文权威文本明确费用来自能量区，公开中文 API 的“能量卡组”是数据错误。费用成功后才记录 PAY_COST 与 turn1，并按支付后的 energyBelow 数量加1读取目标 original BLADE。',
+    notes:
+      'exact P only；日文权威文本明确费用来自能量区，公开中文 API 的“能量卡组”是数据错误。费用成功后才记录 PAY_COST 与 turn1，并按支付后的 energyBelow 数量加1读取目标 original BLADE。',
   },
   {
     abilityId: N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID,
@@ -12490,7 +12492,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
     queued: true,
     implemented: true,
-    effectText: '【登场】自己的舞台存在2名名称不同的『DiverDiva』成员时，选择1项。\n・将2张能量变为活跃状态。\n・从自己的能量卡组将1张能量放置于自己舞台上1名『虹ヶ咲』成员下方。',
+    effectText:
+      '【登场】自己的舞台存在2名名称不同的『DiverDiva』成员时，选择1项。\n・将2张能量变为活跃状态。\n・从自己的能量卡组将1张能量放置于自己舞台上1名『虹ヶ咲』成员下方。',
     notes:
       'exact P only；结算时使用结构化小队 matcher 与共享不同名最大分配 identity helper。二选一保留两个印刷分支，当前不可执行的分支标记为不可选；能量卡组分支按目标实例重验当前顶层槽位。',
   },
@@ -12540,7 +12543,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     effectText: '【常时】此成员下方每有1张能量卡，获得[赤ハート]。',
-    notes: 'exact SEC only；continuous registry 只在来源为己方顶层舞台成员时按其当前槽 energyBelow 中合法 ENERGY 数量收集 SOURCE_MEMBER 红 Heart。',
+    notes:
+      'exact SEC only；continuous registry 只在来源为己方顶层舞台成员时按其当前槽 energyBelow 中合法 ENERGY 数量收集 SOURCE_MEMBER 红 Heart。',
   },
   {
     abilityId: N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
@@ -12550,7 +12554,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     effectText: '【常时】自己的能量多于6张期间，获得等同于超过6张部分数量的[赤ハート]。',
-    notes: 'exact SEC only；差值固定为 max(0, own energyZone.cardIds.length - 6)，不计 energyBelow、energyDeck 或对方能量，并与本卡另一段及普通 Heart modifier 叠加。',
+    notes:
+      'exact SEC only；差值固定为 max(0, own energyZone.cardIds.length - 6)，不计 energyBelow、energyDeck 或对方能量，并与本卡另一段及普通 Heart modifier 叠加。',
   },
   {
     abilityId: N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID,
@@ -12561,7 +12566,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: '【LIVE成功时】从自己的能量卡组将1张能量卡放置于此成员下方。',
-    notes: 'exact SEC only；无交互 pending 遵守 manual confirmation；确认后按来源实例重验当前顶层槽位，并使用窄 ENERGY_DECK→energyBelow helper，不产生仅表示放置入能量区的事件。',
+    notes:
+      'exact SEC only；无交互 pending 遵守 manual confirmation；确认后按来源实例重验当前顶层槽位，并使用窄 ENERGY_DECK→energyBelow helper，不产生仅表示放置入能量区的事件。',
   },
   {
     abilityId: N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
@@ -12584,8 +12590,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     triggerToZones: [ZoneType.WAITING_ROOM],
     queued: true,
     implemented: true,
-    effectText: '【自动】此成员从舞台被放置入休息室时，此成员与『虹ヶ咲』成员进行了换手的场合，从自己的能量卡组将1张能量卡放置于因此换手登场的成员下方。',
-    notes: 'exact N only；只绑定真实 LeaveStageEvent.replacingCardId，replacement 必须是结构化虹咲成员；结算时按实例查找当前顶层槽位，不要求来源仍在休息室。',
+    effectText:
+      '【自动】此成员从舞台被放置入休息室时，此成员与『虹ヶ咲』成员进行了换手的场合，从自己的能量卡组将1张能量卡放置于因此换手登场的成员下方。',
+    notes:
+      'exact N only；只绑定真实 LeaveStageEvent.replacingCardId，replacement 必须是结构化虹咲成员；结算时按实例查找当前顶层槽位，不要求来源仍在休息室。',
   },
   {
     abilityId: N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
@@ -12609,7 +12617,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: '【登场】检视自己的卡组顶的卡片。可以将其放置于卡组底。',
-    notes: 'exact SEC only；与 LIVE_START 共享窄的私密顶牌检视 resolver，但保持独立 runtime ability identity。',
+    notes:
+      'exact SEC only；与 LIVE_START 共享窄的私密顶牌检视 resolver，但保持独立 runtime ability identity。',
   },
   {
     abilityId: S_BP7_003_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,

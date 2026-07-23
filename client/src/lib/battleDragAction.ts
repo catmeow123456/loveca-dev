@@ -109,14 +109,20 @@ export function getDragActionDescriptor({
   switch (toZone) {
     case ZoneType.MEMBER_SLOT:
       if (cardType === CardType.ENERGY) {
-        return { label: '附着能量', detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined };
+        return {
+          label: '附着能量',
+          detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined,
+        };
       }
       if (fromZone === ZoneType.MEMBER_SLOT) {
-        return { label: '成员换位', detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined };
+        return {
+          label: '成员换位',
+          detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined,
+        };
       }
       if (cardType === CardType.MEMBER) {
         return {
-          label: targetOccupied ? '换手登场' : '登场',
+          label: targetOccupied ? '在此登场' : '登场',
           detail: targetSlot ? MEMBER_SLOT_LABELS[targetSlot] : undefined,
         };
       }

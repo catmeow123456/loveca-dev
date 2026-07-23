@@ -11,10 +11,7 @@ import type {
   EnterWaitingRoomEvent,
   LeaveStageEvent,
 } from '../../../../domain/events/game-events.js';
-import {
-  costCalculator,
-  canMemberBeRelayedAway,
-} from '../../../../domain/rules/cost-calculator.js';
+import { costCalculator } from '../../../../domain/rules/cost-calculator.js';
 import {
   CardType,
   SlotPosition,
@@ -24,7 +21,10 @@ import {
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { buildPlayMemberCostResources } from '../../../effects/play-member-cost.js';
 import { SP_SD1_002_ON_ENTER_PLAY_LOW_COST_LIELLA_MEMBER_ABILITY_ID } from '../../ability-ids.js';
-import { playMemberFromZoneToStageSlotWithReplacement } from '../../runtime/play-member-to-stage.js';
+import {
+  enqueueCardEffectPlacementTriggersWithStageSnapshot,
+  playMemberFromZoneToStageSlotWithReplacement,
+} from '../../runtime/play-member-to-stage.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -284,24 +284,13 @@ function finishStageSlotSelection(
     step: 'PLAY_LOW_COST_LIELLA_HAND_MEMBER',
     playedCardId: selectedCardId,
     toSlot: selectedSlot,
-    replacedMemberCardId: playResult.replacedMemberCardId,
-    replacedMemberEffectiveCost: playResult.replacedMemberEffectiveCost,
-    relayReplacements: playResult.enterStageEvent.relayReplacements ?? [],
+    duplicateMemberRuleRemovedCardId: playResult.duplicateMemberRuleRemovedCardId,
   });
-  const stateWithTriggers = enqueueTriggeredCardEffects(
+  const stateWithTriggers = enqueueCardEffectPlacementTriggersWithStageSnapshot(
+    game,
     state,
-    [
-      ...(playResult.leaveStageEvents.length > 0 ? [TriggerCondition.ON_LEAVE_STAGE] : []),
-      ...(playResult.enterWaitingRoomEvents.length > 0
-        ? [TriggerCondition.ON_ENTER_WAITING_ROOM]
-        : []),
-      TriggerCondition.ON_ENTER_STAGE,
-    ],
-    {
-      leaveStageEvents: playResult.leaveStageEvents,
-      enterWaitingRoomEvents: playResult.enterWaitingRoomEvents,
-      enterStageEvents: [playResult.enterStageEvent],
-    }
+    playResult,
+    enqueueTriggeredCardEffects
   );
 
   return continuePendingCardEffects({ ...stateWithTriggers, activeEffect: null }, false);
@@ -338,14 +327,7 @@ function getLegalStageSlots(
   ) {
     return [];
   }
-  const incomingMemberData = incomingCard.data;
-
-  return costCalculator
-    .getAvailableSlots(player.movedToStageThisTurn, resources.stageMembers)
-    .filter((slot) => {
-      const currentMember = resources.stageMembers.find((member) => member.position === slot);
-      return !currentMember || canMemberBeRelayedAway(currentMember.data, incomingMemberData);
-    });
+  return costCalculator.getAvailableSlots(player.movedToStageThisTurn, resources.stageMembers);
 }
 
 function createHandSelectionEffect(

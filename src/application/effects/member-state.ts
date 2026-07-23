@@ -171,7 +171,14 @@ export function setMemberOrientation(
   }
   gameState = emitGameEvent(
     gameState,
-    createMemberStateChangedEvent(cardId, playerId, slot, currentState.orientation, orientation, cause)
+    createMemberStateChangedEvent(
+      cardId,
+      playerId,
+      slot,
+      currentState.orientation,
+      orientation,
+      cause
+    )
   );
 
   return {
@@ -388,8 +395,9 @@ export function rearrangeStageMembers(
   const currentStageEntries = player
     ? Object.values(SlotPosition)
         .map((slot) => ({ slot, cardId: player.memberSlots.slots[slot] }))
-        .filter((entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
-          entry.cardId !== null
+        .filter(
+          (entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
+            entry.cardId !== null
         )
     : [];
   const currentStageCardIds = currentStageEntries.map((entry) => entry.cardId);
@@ -516,8 +524,9 @@ export function rearrangeStageMembersByMoveHistory(
   const validSlots = new Set(Object.values(SlotPosition));
   const initialStageEntries = Object.values(SlotPosition)
     .map((slot) => ({ slot, cardId: player.memberSlots.slots[slot] }))
-    .filter((entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
-      entry.cardId !== null
+    .filter(
+      (entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
+        entry.cardId !== null
     );
   const initialCardSlots = new Map(initialStageEntries.map((entry) => [entry.cardId, entry.slot]));
   const currentSlots: Record<SlotPosition, string | null> = {
@@ -710,6 +719,10 @@ export function playMembersFromWaitingRoomToEmptySlots(
     return {
       ...currentPlayer,
       waitingRoom,
+      movedToStageThisTurn: [
+        ...currentPlayer.movedToStageThisTurn,
+        ...placements.map((placement) => placement.cardId),
+      ],
       memberSlots: {
         ...currentPlayer.memberSlots,
         slots,
@@ -743,22 +756,22 @@ export function clearPreviousStageMemberInstanceState(
   memberCardId: string
 ): GameState {
   const liveModifiers = game.liveResolution.liveModifiers.filter((modifier) => {
-    if (
-      modifier.kind === 'SUPPRESS_ABILITY' &&
-      modifier.sourceCardId === memberCardId
-    ) return false;
+    if (modifier.kind === 'SUPPRESS_ABILITY' && modifier.sourceCardId === memberCardId)
+      return false;
     if (!('playerId' in modifier) || modifier.playerId !== playerId) return true;
     if ('memberCardId' in modifier && modifier.memberCardId === memberCardId) return false;
     if (
       modifier.kind === 'HEART' &&
       modifier.target === 'TARGET_MEMBER' &&
       modifier.targetMemberCardId === memberCardId
-    ) return false;
+    )
+      return false;
     if (
       modifier.kind === 'HEART' &&
       modifier.target === 'SOURCE_MEMBER' &&
       modifier.sourceCardId === memberCardId
-    ) return false;
+    )
+      return false;
     if (modifier.kind === 'BLADE') {
       const targetMemberCardId = modifier.targetMemberCardId;
       if (targetMemberCardId !== undefined) {
@@ -835,13 +848,7 @@ export function playMemberBelowCardToEmptySlot(
   });
   gameState = emitGameEvent(
     gameState,
-    createEnterStageEvent(
-      options.cardId,
-      ZoneType.MEMBER_SLOT,
-      options.toSlot,
-      playerId,
-      playerId
-    )
+    createEnterStageEvent(options.cardId, ZoneType.MEMBER_SLOT, options.toSlot, playerId, playerId)
   );
 
   return {

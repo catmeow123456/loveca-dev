@@ -112,6 +112,7 @@ function setup(options: {
   ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
+  session.setManualOperationMode('FREE');
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(
       PLAYER1,

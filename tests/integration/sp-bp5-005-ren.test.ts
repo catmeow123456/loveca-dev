@@ -457,6 +457,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       face: FaceState.FACE_UP,
     });
 
+    scenario.session.setManualOperationMode('FREE');
     const result = scenario.session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, incomingMember.instanceId, SlotPosition.LEFT, {
         freePlay: true,
@@ -499,6 +500,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       face: FaceState.FACE_UP,
     });
 
+    scenario.session.setManualOperationMode('FREE');
     const result = scenario.session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,

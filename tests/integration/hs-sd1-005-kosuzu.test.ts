@@ -160,6 +160,7 @@ function setupScenario(options: {
 }
 
 function playWithRelay(session: GameSession, sourceId: string): void {
+  session.setManualOperationMode('FREE');
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
       freePlay: true,

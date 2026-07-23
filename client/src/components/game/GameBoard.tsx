@@ -27,7 +27,7 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
-import { PlayerArea } from './PlayerArea';
+import { PlayerArea, type SelectedHandCardAction } from './PlayerArea';
 import { GameLog, GameLogContent } from './GameLog';
 import {
   PublicBattleLogButton,
@@ -64,6 +64,7 @@ import {
 } from '@/lib/battleViewport';
 import {
   buildBattleActionIntents,
+  canUseLegacyManualDropFallback,
   findEnabledBattleActionTargetByTargetId,
   findEnabledBattleActionTargetForZoneDrop,
   type BattleActionIntent,
@@ -120,6 +121,31 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import type { PlayerViewState, Seat } from '@game/online';
 
 const INSPECTION_TARGET_PREFIX = 'inspection-target-';
+const SELECTED_HAND_CARD_ACTION_IDS = {
+  doubleRelay: 'double-relay',
+  specialMemberPlay: 'special-member-play',
+} as const;
+const SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS = [
+  {
+    id: SELECTED_HAND_CARD_ACTION_IDS.specialMemberPlay,
+    text: '特殊登场',
+    title: '选择特殊登场区域',
+    align: 'center',
+  },
+] as const satisfies readonly SelectedHandCardAction[];
+const DOUBLE_RELAY_HAND_CARD_ACTIONS = [
+  {
+    id: SELECTED_HAND_CARD_ACTION_IDS.doubleRelay,
+    text: '双换手',
+    title: '依次选择两个换手区域',
+    align: 'center',
+  },
+] as const satisfies readonly SelectedHandCardAction[];
+const SPECIAL_PLAY_AND_DOUBLE_RELAY_HAND_CARD_ACTIONS = [
+  ...SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS,
+  ...DOUBLE_RELAY_HAND_CARD_ACTIONS,
+] as const satisfies readonly SelectedHandCardAction[];
+const NO_SELECTED_HAND_CARD_ACTIONS = [] as const satisfies readonly SelectedHandCardAction[];
 const INSPECTION_TARGET_IDS = [
   `${INSPECTION_TARGET_PREFIX}hand`,
   `${INSPECTION_TARGET_PREFIX}waiting-room`,
@@ -374,11 +400,13 @@ export const GameBoard = memo(function GameBoard({
     setHoveredCard,
     setFreePlayEnabled,
     respondRemoteUndoRequest,
+    respondManualOperationModeRequest,
     getZoneCardIds,
     findViewerCardZone,
     resolveCardDropTarget,
     getCardSlotPosition,
     getSeatMemberSlotCardId,
+    getCardViewObject,
   } = useGameStore(
     useShallow((s) => ({
       setLiveCard: s.setLiveCard,
@@ -416,11 +444,13 @@ export const GameBoard = memo(function GameBoard({
       setHoveredCard: s.setHoveredCard,
       setFreePlayEnabled: s.setFreePlayEnabled,
       respondRemoteUndoRequest: s.respondRemoteUndoRequest,
+      respondManualOperationModeRequest: s.respondManualOperationModeRequest,
       getZoneCardIds: s.getZoneCardIds,
       findViewerCardZone: s.findViewerCardZone,
       resolveCardDropTarget: s.resolveCardDropTarget,
       getCardSlotPosition: s.getCardSlotPosition,
       getSeatMemberSlotCardId: s.getSeatMemberSlotCardId,
+      getCardViewObject: s.getCardViewObject,
     }))
   );
 
@@ -714,6 +744,20 @@ export const GameBoard = memo(function GameBoard({
     !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat === viewerSeat;
   const pendingUndoCanRespond =
     !!pendingUndoRequest && !!viewerSeat && pendingUndoRequest.requesterSeat !== viewerSeat;
+  const manualOperation = matchView?.manualOperation ?? null;
+  const pendingManualOperationRequest = manualOperation?.pendingRequest ?? null;
+  const pendingManualOperationRequesterName = pendingManualOperationRequest
+    ? (getPlayerIdentityForSeat(pendingManualOperationRequest.requesterSeat)?.name ??
+      (pendingManualOperationRequest.requesterSeat === 'FIRST' ? '先攻玩家' : '后攻玩家'))
+    : '';
+  const pendingManualOperationIsRequester =
+    !!pendingManualOperationRequest &&
+    !!viewerSeat &&
+    pendingManualOperationRequest.requesterSeat === viewerSeat;
+  const pendingManualOperationCanRespond =
+    !!pendingManualOperationRequest &&
+    !!viewerSeat &&
+    pendingManualOperationRequest.requesterSeat !== viewerSeat;
   const selectedCardPresentation = selectedCardId
     ? getVisibleCardPresentation(selectedCardId)
     : null;
@@ -751,9 +795,19 @@ export const GameBoard = memo(function GameBoard({
     ? MEMBER_SLOT_ORDER.map((slot) => ({
         slot,
         cardId: getSeatMemberSlotCardId(viewerSeat, slot),
+        enteredStageThisTurn:
+          getCardViewObject(getSeatMemberSlotCardId(viewerSeat, slot) ?? '')
+            ?.enteredStageThisTurn === true,
       })).filter(
-        (entry): entry is { readonly slot: SlotPosition; readonly cardId: string } =>
-          entry.cardId !== null
+        (
+          entry
+        ): entry is {
+          readonly slot: SlotPosition;
+          readonly cardId: string;
+          readonly enteredStageThisTurn: boolean;
+        } =>
+          entry.cardId !== null &&
+          (matchView?.manualOperation?.mode === 'FREE' || !entry.enteredStageThisTurn)
       )
     : [];
   const viewerOccupiedMemberSlotSignature = viewerOccupiedMemberSlots
@@ -768,6 +822,15 @@ export const GameBoard = memo(function GameBoard({
     selectedCardPresentation?.cardData.cardType === CardType.MEMBER &&
     canUseDoubleRelay(selectedCardPresentation) &&
     viewerOccupiedMemberSlots.length >= 2;
+  const selectedHandCardActions =
+    canShowSpecialPlayEntry && canShowDoubleRelayEntry
+      ? SPECIAL_PLAY_AND_DOUBLE_RELAY_HAND_CARD_ACTIONS
+      : canShowSpecialPlayEntry
+        ? SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS
+        : canShowDoubleRelayEntry
+          ? DOUBLE_RELAY_HAND_CARD_ACTIONS
+          : NO_SELECTED_HAND_CARD_ACTIONS;
+  const selectedHandCardActionCardId = selectedHandCardActions.length > 0 ? selectedCardId : null;
   const activeDoubleRelaySelection =
     doubleRelaySelection && doubleRelaySelection.cardId === selectedCardId
       ? doubleRelaySelection
@@ -871,11 +934,7 @@ export const GameBoard = memo(function GameBoard({
     const effectId = activeEffect.id;
     const cancelAutoAdvance = schedulePublicCardSelectionAutoAdvance(
       activeEffect.publicCardSelectionAutoAdvanceAfterMs,
-      () =>
-        autoAdvancePublicCardSelection(
-          effectId,
-          activeEffect.publicCardSelectionAutoAdvanceAt
-        )
+      () => autoAdvancePublicCardSelection(effectId, activeEffect.publicCardSelectionAutoAdvanceAt)
     );
     const fallbackTimer = window.setTimeout(
       () => setPublicSelectionFallbackReady(true),
@@ -1072,13 +1131,6 @@ export const GameBoard = memo(function GameBoard({
     viewerOccupiedMemberSlots,
   ]);
 
-  const handleStartDoubleRelay = useCallback(() => {
-    if (!selectedCardId || !canShowDoubleRelayEntry) {
-      return;
-    }
-    setDoubleRelaySelection({ cardId: selectedCardId, selectedSlots: [] });
-  }, [canShowDoubleRelayEntry, selectedCardId]);
-
   const handleSelectDoubleRelaySlot = useCallback(
     (slot: SlotPosition) => {
       setDoubleRelaySelection((current) => {
@@ -1088,7 +1140,13 @@ export const GameBoard = memo(function GameBoard({
         if (!viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)) {
           return current;
         }
-        if (current.selectedSlots.includes(slot) || current.selectedSlots.length >= 2) {
+        if (current.selectedSlots.includes(slot)) {
+          return {
+            ...current,
+            selectedSlots: current.selectedSlots.filter((selectedSlot) => selectedSlot !== slot),
+          };
+        }
+        if (current.selectedSlots.length >= 2) {
           return current;
         }
         return { ...current, selectedSlots: [...current.selectedSlots, slot] };
@@ -1129,6 +1187,24 @@ export const GameBoard = memo(function GameBoard({
       }
     },
     [beginSpecialMemberPlay, selectedCardId, specialPlayTargetSlots]
+  );
+
+  const handleSelectedHandCardAction = useCallback(
+    (cardId: string, actionId: string) => {
+      if (cardId !== selectedCardId) {
+        return;
+      }
+      if (actionId === SELECTED_HAND_CARD_ACTION_IDS.specialMemberPlay) {
+        setDoubleRelaySelection(null);
+        setSpecialPlayTargetSelectionCardId(cardId);
+        return;
+      }
+      if (actionId === SELECTED_HAND_CARD_ACTION_IDS.doubleRelay) {
+        setSpecialPlayTargetSelectionCardId(null);
+        setDoubleRelaySelection({ cardId, selectedSlots: [] });
+      }
+    },
+    [selectedCardId]
   );
 
   const handleToggleSpecialPlayPayment = useCallback(
@@ -1332,6 +1408,9 @@ export const GameBoard = memo(function GameBoard({
             seat: viewerSeat,
             slot,
             cardId: getSeatMemberSlotCardId(viewerSeat, slot),
+            enteredStageThisTurn:
+              getCardViewObject(getSeatMemberSlotCardId(viewerSeat, slot) ?? '')
+                ?.enteredStageThisTurn === true,
           }))
         : [];
 
@@ -1350,6 +1429,7 @@ export const GameBoard = memo(function GameBoard({
         surface: capabilities.surface,
         isReadOnly,
         availableCommandTypes: getBattleActionCommandTypes(),
+        manualOperationMode: matchView?.manualOperation?.mode,
         memberSlots,
         liveZoneCount,
         activeEffect,
@@ -1363,11 +1443,13 @@ export const GameBoard = memo(function GameBoard({
       currentPhase,
       currentSubPhase,
       getBattleActionCommandTypes,
+      getCardViewObject,
       getCardSlotPosition,
       getKnownCardType,
       getSeatMemberSlotCardId,
       getZoneCardIds,
       isReadOnly,
+      matchView?.manualOperation?.mode,
       viewerSeat,
     ]
   );
@@ -1677,6 +1759,12 @@ export const GameBoard = memo(function GameBoard({
         : findEnabledBattleActionTargetByTargetId(dragIntents, targetId);
       const payload = intentTarget?.target.commandPayload;
       if (payload && executeBattleActionPayload(payload)) {
+        return;
+      }
+
+      // RULES 只执行上方已命中的语义 intent。后续 inspection、
+      // Live Set 与各类区域移动都是 FREE 为兼容旧拖拽保留的 fallback。
+      if (!canUseLegacyManualDropFallback(matchView?.manualOperation?.mode)) {
         return;
       }
 
@@ -2046,6 +2134,7 @@ export const GameBoard = memo(function GameBoard({
       getCardSlotPosition,
       isActiveEffectInspectionWindow,
       isReadOnly,
+      matchView?.manualOperation?.mode,
     ]
   );
 
@@ -2108,10 +2197,17 @@ export const GameBoard = memo(function GameBoard({
         : mobileActionCount === 3
           ? 'grid-cols-3'
           : 'grid-cols-2';
-  const freePlayControlTitle =
-    capabilities.freePlayPolicy === 'SESSION_GLOBAL'
-      ? '开启后本地会话的成员登场/换手不检查也不支付费用'
-      : '开启后本客户端提交的成员登场/换手不检查也不支付费用';
+  const freePlayControlTitle = pendingManualOperationRequest
+    ? '正在等待自由模式请求回应'
+    : manualOperation && !manualOperation.canSwitchNow
+      ? (manualOperation.disabledReason ?? '当前不能切换操作模式')
+      : freePlayEnabled
+        ? '点击恢复规则模式'
+        : capabilities.surface === 'ONLINE'
+          ? '开启自由模式需要对方同意'
+          : '点击开启自由模式';
+  const manualOperationSwitchDisabled =
+    !!pendingManualOperationRequest || manualOperation?.canSwitchNow === false;
 
   return (
     <DndContext
@@ -2237,6 +2333,12 @@ export const GameBoard = memo(function GameBoard({
                     isOpponent={false}
                     isActive={resolvedActiveSeat === selfSeat}
                     suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                    selectedHandCardActionCardId={selectedHandCardActionCardId}
+                    selectedHandCardActions={selectedHandCardActions}
+                    suppressSelectedHandCardActionMenu={
+                      specialPlayTargetSelectionOpen || !!activeDoubleRelaySelection
+                    }
+                    onSelectedHandCardAction={handleSelectedHandCardAction}
                   />
                 </div>
               </div>
@@ -2279,6 +2381,7 @@ export const GameBoard = memo(function GameBoard({
                 <button
                   type="button"
                   onClick={() => setFreePlayEnabled(!freePlayEnabled)}
+                  disabled={manualOperationSwitchDisabled}
                   aria-pressed={freePlayEnabled}
                   className={cn(
                     'relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border px-1.5 py-1.5 text-[10px] font-semibold shadow-none backdrop-blur-[2px] transition',
@@ -2289,7 +2392,7 @@ export const GameBoard = memo(function GameBoard({
                   title={freePlayControlTitle}
                 >
                   <Zap size={16} className={cn(freePlayEnabled && 'fill-current')} />
-                  <span className="truncate">免费</span>
+                  <span className="truncate">{freePlayEnabled ? '自由' : '规则'}</span>
                 </button>
               )}
 
@@ -2479,6 +2582,12 @@ export const GameBoard = memo(function GameBoard({
                 isOpponent={false}
                 isActive={resolvedActiveSeat === selfSeat}
                 suppressActiveEffectVisuals={isActiveEffectUiSuspended}
+                selectedHandCardActionCardId={selectedHandCardActionCardId}
+                selectedHandCardActions={selectedHandCardActions}
+                suppressSelectedHandCardActionMenu={
+                  specialPlayTargetSelectionOpen || !!activeDoubleRelaySelection
+                }
+                onSelectedHandCardAction={handleSelectedHandCardAction}
               />
             </div>
           </>
@@ -2491,41 +2600,32 @@ export const GameBoard = memo(function GameBoard({
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
-        {canShowSpecialPlayEntry && (
-          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[83] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                  特殊登场
-                </div>
-                <div className="mt-0.5 truncate text-sm font-semibold">
-                  {selectedCardPresentation
-                    ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
-                    : '成员登场'}
-                </div>
+        {specialPlayTargetSelectionOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="取消特殊登场"
+              className="modal-backdrop fixed inset-0 z-[93]"
+              onClick={() => setSpecialPlayTargetSelectionCardId(null)}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="选择特殊登场区域"
+              className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                特殊登场
               </div>
-              <button
-                type="button"
-                onClick={() =>
-                  setSpecialPlayTargetSelectionCardId((current) =>
-                    current === selectedCardId ? null : selectedCardId
-                  )
-                }
-                className={cn(
-                  specialPlayTargetSelectionOpen ? 'button-secondary' : 'button-primary',
-                  'inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold'
-                )}
-              >
-                {specialPlayTargetSelectionOpen ? (
-                  <X className="h-4 w-4" />
-                ) : (
-                  <DoorOpen className="h-4 w-4" />
-                )}
-                {specialPlayTargetSelectionOpen ? '取消' : '特殊登场'}
-              </button>
-            </div>
-            {specialPlayTargetSelectionOpen && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-1 text-sm font-semibold">
+                {selectedCardPresentation
+                  ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+                  : '成员登场'}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                选择登场区域，随后选择 3 名指定成员放入休息室。
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
                 {MEMBER_SLOT_ORDER.map((slot) => {
                   const enabled = specialPlayTargetSlots.includes(slot);
                   return (
@@ -2535,7 +2635,7 @@ export const GameBoard = memo(function GameBoard({
                       disabled={!enabled}
                       onClick={() => handleBeginSpecialPlayAtSlot(slot)}
                       className={cn(
-                        'button-secondary inline-flex min-h-10 items-center justify-center px-2 text-xs font-semibold',
+                        'button-secondary inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
                         !enabled && 'cursor-not-allowed opacity-40'
                       )}
                     >
@@ -2544,92 +2644,99 @@ export const GameBoard = memo(function GameBoard({
                   );
                 })}
               </div>
-            )}
-          </div>
-        )}
-
-        {canShowDoubleRelayEntry && !canShowSpecialPlayEntry && (
-          <div className="pointer-events-auto fixed bottom-4 left-4 right-4 z-[82] rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl sm:left-auto sm:w-[min(420px,calc(100vw-2rem))]">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                  双换手
-                </div>
-                <div className="mt-0.5 truncate text-sm font-semibold">
-                  {selectedCardPresentation
-                    ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
-                    : '成员登场'}
-                </div>
-              </div>
-              {!activeDoubleRelaySelection ? (
+              <div className="mt-4 flex justify-end">
                 <button
                   type="button"
-                  onClick={handleStartDoubleRelay}
-                  className="button-primary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-                  title="双换手"
+                  onClick={() => setSpecialPlayTargetSelectionCardId(null)}
+                  className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
                 >
-                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                  双换手
+                  取消
                 </button>
-              ) : (
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeDoubleRelaySelection && (
+          <>
+            <button
+              type="button"
+              aria-label="取消双换手"
+              className="modal-backdrop fixed inset-0 z-[93]"
+              onClick={() => setDoubleRelaySelection(null)}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="选择双换手区域"
+              className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                双换手
+              </div>
+              <div className="mt-1 text-sm font-semibold">
+                {selectedCardPresentation
+                  ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
+                  : '成员登场'}
+              </div>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
+                依次选择两个成员区。第 1 个是登场位置，第 2 个是追加换手位置。
+              </p>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {MEMBER_SLOT_ORDER.map((slot) => {
+                  const isAvailable = viewerOccupiedMemberSlots.some(
+                    (entry) => entry.slot === slot
+                  );
+                  const selectedOrderIndex = doubleRelaySelectedSlots.indexOf(slot);
+                  const isSelected = selectedOrderIndex >= 0;
+                  const isDisabled =
+                    !isAvailable || (!isSelected && doubleRelaySelectedSlots.length >= 2);
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={isDisabled}
+                      onClick={() => handleSelectDoubleRelaySlot(slot)}
+                      className={cn(
+                        'button-secondary relative inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
+                        isSelected &&
+                          'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
+                        isDisabled && 'cursor-not-allowed opacity-40'
+                      )}
+                    >
+                      {MEMBER_SLOT_LABELS[slot]}
+                      {isSelected && (
+                        <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
+                          {selectedOrderIndex + 1}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
                 <button
                   type="button"
                   onClick={() => setDoubleRelaySelection(null)}
-                  className="button-secondary inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-                  title="取消双换手"
+                  className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
                 >
-                  <X className="h-4 w-4" aria-hidden="true" />
                   取消
                 </button>
-              )}
+                <button
+                  type="button"
+                  disabled={!canConfirmDoubleRelay}
+                  onClick={handleConfirmDoubleRelay}
+                  className={cn(
+                    'button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold',
+                    !canConfirmDoubleRelay && 'cursor-not-allowed opacity-50'
+                  )}
+                >
+                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                  双换手登场
+                </button>
+              </div>
             </div>
-            {activeDoubleRelaySelection && (
-              <>
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  {viewerOccupiedMemberSlots.map(({ slot }) => {
-                    const selectedOrderIndex = doubleRelaySelectedSlots.indexOf(slot);
-                    const isSelected = selectedOrderIndex >= 0;
-                    const isDisabled = isSelected || doubleRelaySelectedSlots.length >= 2;
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        disabled={isDisabled}
-                        onClick={() => handleSelectDoubleRelaySlot(slot)}
-                        className={cn(
-                          'button-secondary relative inline-flex min-h-10 items-center justify-center px-2 text-xs font-semibold',
-                          isSelected &&
-                            'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]',
-                          isDisabled && !isSelected && 'cursor-not-allowed opacity-50'
-                        )}
-                      >
-                        {MEMBER_SLOT_LABELS[slot]}
-                        {isSelected && (
-                          <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
-                            {selectedOrderIndex + 1}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-3 flex justify-end">
-                  <button
-                    type="button"
-                    disabled={!canConfirmDoubleRelay}
-                    onClick={handleConfirmDoubleRelay}
-                    className={cn(
-                      'button-primary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold',
-                      !canConfirmDoubleRelay && 'cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                    确认
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          </>
         )}
 
         {showSuccessLiveSelectionModal && successLiveSelectionCollapsed && (
@@ -2734,16 +2841,18 @@ export const GameBoard = memo(function GameBoard({
                 );
               })}
             </div>
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={() => skipSuccessLiveSelection()}
-                className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
-              >
-                <DoorOpen className="h-4 w-4" aria-hidden="true" />
-                全部放置入休息室
-              </button>
-            </div>
+            {successLiveSelection?.canSkipToWaitingRoom === true && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => skipSuccessLiveSelection()}
+                  className="button-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs font-semibold"
+                >
+                  <DoorOpen className="h-4 w-4" aria-hidden="true" />
+                  全部放置入休息室
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -3151,10 +3260,7 @@ export const GameBoard = memo(function GameBoard({
                         const label = activeEffectSelectableObjectsFaceDown
                           ? `第${candidateIndex + 1}张手牌`
                           : cardData
-                            ? formatActiveEffectCardCompactLabel(
-                                cardId,
-                                cardData as AnyCardData
-                              )
+                            ? formatActiveEffectCardCompactLabel(cardId, cardData as AnyCardData)
                             : '选择此卡';
                         const energyStatusLabel = isEnergyCandidate
                           ? `；当前状态：${isWaitingEnergy ? '等待' : '活跃'}`
@@ -3829,6 +3935,81 @@ export const GameBoard = memo(function GameBoard({
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {!isReadOnly && pendingManualOperationRequest && (
+          <div className="pointer-events-auto fixed inset-0 z-[111] flex items-center justify-center px-4">
+            <div className="modal-backdrop absolute inset-0" />
+            <div className="modal-surface modal-accent-indigo relative w-[min(92vw,460px)] p-5 text-[var(--text-primary)]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-[var(--semantic-warning)]/40 bg-[var(--semantic-warning)]/10 text-[var(--semantic-warning)]">
+                  <Zap className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                    自由模式请求
+                  </div>
+                  <div className="mt-1 text-sm font-semibold">
+                    {pendingManualOperationRequesterName} 请求开启自由模式
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                    开启后，双方可免费登场及手动调整己方区域，用于人工处理尚未自动化的规则。
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
+                    不会获得操作对手或读取对手隐藏信息的权限。任意一方都可在安全时点单方恢复规则模式。
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap justify-end gap-2">
+                {pendingManualOperationIsRequester ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      respondManualOperationModeRequest(
+                        pendingManualOperationRequest.requestId,
+                        'cancel'
+                      )
+                    }
+                    className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    取消请求
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={!pendingManualOperationCanRespond}
+                      onClick={() =>
+                        respondManualOperationModeRequest(
+                          pendingManualOperationRequest.requestId,
+                          'reject'
+                        )
+                      }
+                      className="button-secondary inline-flex min-h-10 items-center justify-center gap-1.5 px-3 text-sm font-semibold"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                      拒绝
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!pendingManualOperationCanRespond}
+                      onClick={() =>
+                        respondManualOperationModeRequest(
+                          pendingManualOperationRequest.requestId,
+                          'accept'
+                        )
+                      }
+                      className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold"
+                    >
+                      <Check className="h-4 w-4" aria-hidden="true" />
+                      同意开启
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}

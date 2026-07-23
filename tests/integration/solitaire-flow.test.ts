@@ -124,7 +124,10 @@ const PLAYER2 = 'player2'; // opponent in solitaire mode
  * 创建并初始化一个对墙打模式的游戏会话
  */
 function createSolitaireSession(): GameSession {
-  const session = createGameSession({ gameMode: GameMode.SOLITAIRE });
+  const session = createGameSession({
+    gameMode: GameMode.SOLITAIRE,
+    enableTestOnlyLegacyActions: true,
+  });
   session.createGame('test-solitaire', PLAYER1, '玩家1', PLAYER2, '对手');
   const deck = createTestDeck();
   const result = session.initializeGame(deck, deck);
@@ -141,7 +144,7 @@ function advanceToMainPhase(session: GameSession): void {
   expect(state.currentPhase).toBe(GamePhase.MULLIGAN_PHASE);
 
   // 玩家1不换牌
-  const result = session.dispatch(createMulliganAction(PLAYER1, []));
+  const result = session.dispatchLegacyActionForTesting(createMulliganAction(PLAYER1, []));
   expect(result.success).toBe(true);
 
   // 对墙打模式下，对手自动换牌，然后自动推进到 MAIN_PHASE
@@ -160,7 +163,7 @@ function advanceToLiveSetPhase(session: GameSession): void {
   expect(state.currentTurnType).toBe(TurnType.FIRST_PLAYER_TURN);
 
   // 玩家1结束主要阶段
-  const result = session.dispatch(createEndPhaseAction(PLAYER1));
+  const result = session.dispatchLegacyActionForTesting(createEndPhaseAction(PLAYER1));
   expect(result.success).toBe(true);
 
   // 对墙打模式下：
@@ -196,7 +199,7 @@ describe('对墙打模式（Solitaire）集成测试', () => {
       expect(session.state!.currentPhase).toBe(GamePhase.MULLIGAN_PHASE);
 
       // 玩家1不换牌
-      const result = session.dispatch(createMulliganAction(PLAYER1, []));
+      const result = session.dispatchLegacyActionForTesting(createMulliganAction(PLAYER1, []));
       expect(result.success).toBe(true);
 
       // 应该自动跳过对手换牌，通过 ACTIVE → ENERGY → DRAW 推进到 MAIN_PHASE
@@ -246,7 +249,7 @@ describe('对墙打模式（Solitaire）集成测试', () => {
       const p2HandBefore = getPlayerById(stateBefore, PLAYER2)!.hand.cardIds.length;
 
       // 玩家1结束主要阶段
-      const result = session.dispatch(createEndPhaseAction(PLAYER1));
+      const result = session.dispatchLegacyActionForTesting(createEndPhaseAction(PLAYER1));
       expect(result.success).toBe(true);
 
       const state = session.state!;
@@ -275,7 +278,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
       const subPhase = state.currentSubPhase;
       expect(subPhase).toBeTruthy();
 
-      const result = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+      const result = session.dispatchLegacyActionForTesting(
+        createConfirmSubPhaseAction(PLAYER1, subPhase)
+      );
       expect(result.success).toBe(true);
 
       // 应推进到 PERFORMANCE_PHASE（或更后面）
@@ -300,7 +305,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
     it('进入 PERFORMANCE_PHASE 后，对手演出被自动跳过', () => {
       // 通过 CONFIRM_SUB_PHASE 跳过 Live Set
       const subPhase = session.state!.currentSubPhase;
-      const skipResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+      const skipResult = session.dispatchLegacyActionForTesting(
+        createConfirmSubPhaseAction(PLAYER1, subPhase)
+      );
       expect(skipResult.success).toBe(true);
 
       const state = session.state!;
@@ -321,7 +328,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
     it('Live Result 阶段的对手成功效果子阶段被自动跳过', () => {
       // 通过 CONFIRM_SUB_PHASE 跳过 Live Set（双方都不放卡）
       const subPhase = session.state!.currentSubPhase;
-      const skipResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+      const skipResult = session.dispatchLegacyActionForTesting(
+        createConfirmSubPhaseAction(PLAYER1, subPhase)
+      );
       expect(skipResult.success).toBe(true);
 
       const state = session.state!;
@@ -347,13 +356,15 @@ describe('对墙打模式（Solitaire）集成测试', () => {
         expect(session.state!.currentTurnType).toBe(TurnType.FIRST_PLAYER_TURN);
 
         // 玩家1结束主要阶段 → 对手通常阶段自动跳过 → LIVE_SET_PHASE
-        const endResult = session.dispatch(createEndPhaseAction(PLAYER1));
+        const endResult = session.dispatchLegacyActionForTesting(createEndPhaseAction(PLAYER1));
         expect(endResult.success).toBe(true);
         expect(session.state!.currentPhase).toBe(GamePhase.LIVE_SET_PHASE);
 
         // 跳过 Live Set（通过 CONFIRM_SUB_PHASE）
         const liveSetSubPhase = session.state!.currentSubPhase;
-        const skipResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, liveSetSubPhase));
+        const skipResult = session.dispatchLegacyActionForTesting(
+          createConfirmSubPhaseAction(PLAYER1, liveSetSubPhase)
+        );
         expect(skipResult.success).toBe(true);
 
         // Performance + Live Result 应该自动推进
@@ -369,19 +380,25 @@ describe('对墙打模式（Solitaire）集成测试', () => {
           if (!subPhase || subPhase === SubPhase.NONE) break;
           let confirmResult;
           if (subPhase === SubPhase.RESULT_SCORE_CONFIRM) {
-            confirmResult = session.dispatch(createConfirmScoreAction(PLAYER1, 0));
+            confirmResult = session.dispatchLegacyActionForTesting(
+              createConfirmScoreAction(PLAYER1, 0)
+            );
           } else if (subPhase === SubPhase.RESULT_SETTLEMENT) {
             const player = getPlayerById(session.state!, PLAYER1);
             const liveCardId = player?.liveZone.cardIds[0];
             if (liveCardId) {
-              const selectResult = session.dispatch(
+              const selectResult = session.dispatchLegacyActionForTesting(
                 createSelectSuccessCardAction(PLAYER1, liveCardId)
               );
               expect(selectResult.success).toBe(true);
             }
-            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            confirmResult = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
           } else {
-            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            confirmResult = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
           }
           expect(confirmResult.success).toBe(true);
           safety++;
@@ -392,7 +409,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
           // Performance 阶段需要确认判定
           const subPhase = session.state!.currentSubPhase;
           if (subPhase && subPhase !== SubPhase.NONE) {
-            const confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            const confirmResult = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
             expect(confirmResult.success).toBe(true);
           }
         }
@@ -404,19 +423,25 @@ describe('对墙打模式（Solitaire）集成测试', () => {
           if (!subPhase || subPhase === SubPhase.NONE) break;
           let confirmResult;
           if (subPhase === SubPhase.RESULT_SCORE_CONFIRM) {
-            confirmResult = session.dispatch(createConfirmScoreAction(PLAYER1, 0));
+            confirmResult = session.dispatchLegacyActionForTesting(
+              createConfirmScoreAction(PLAYER1, 0)
+            );
           } else if (subPhase === SubPhase.RESULT_SETTLEMENT) {
             const player = getPlayerById(session.state!, PLAYER1);
             const liveCardId = player?.liveZone.cardIds[0];
             if (liveCardId) {
-              const selectResult = session.dispatch(
+              const selectResult = session.dispatchLegacyActionForTesting(
                 createSelectSuccessCardAction(PLAYER1, liveCardId)
               );
               expect(selectResult.success).toBe(true);
             }
-            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            confirmResult = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
           } else {
-            confirmResult = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            confirmResult = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
           }
           expect(confirmResult.success).toBe(true);
           safety++;
@@ -454,12 +479,14 @@ describe('对墙打模式（Solitaire）集成测试', () => {
           state.currentPhase === GamePhase.MAIN_PHASE &&
           state.currentTurnType === TurnType.FIRST_PLAYER_TURN
         ) {
-          const result = session.dispatch(createEndPhaseAction(PLAYER1));
+          const result = session.dispatchLegacyActionForTesting(createEndPhaseAction(PLAYER1));
           if (!result.success) break;
         } else if (state.currentPhase === GamePhase.LIVE_SET_PHASE) {
           const subPhase = state.currentSubPhase;
           if (subPhase && subPhase !== SubPhase.NONE) {
-            const result = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            const result = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
             if (!result.success) break;
           } else {
             break;
@@ -467,7 +494,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
         } else if (state.currentPhase === GamePhase.PERFORMANCE_PHASE) {
           const subPhase = state.currentSubPhase;
           if (subPhase && subPhase !== SubPhase.NONE) {
-            const result = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            const result = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
             if (!result.success) break;
           } else {
             break; // 无法继续
@@ -475,7 +504,9 @@ describe('对墙打模式（Solitaire）集成测试', () => {
         } else if (state.currentPhase === GamePhase.LIVE_RESULT_PHASE) {
           const subPhase = state.currentSubPhase;
           if (subPhase && subPhase !== SubPhase.NONE) {
-            const result = session.dispatch(createConfirmSubPhaseAction(PLAYER1, subPhase));
+            const result = session.dispatchLegacyActionForTesting(
+              createConfirmSubPhaseAction(PLAYER1, subPhase)
+            );
             if (!result.success) break;
           } else {
             break;

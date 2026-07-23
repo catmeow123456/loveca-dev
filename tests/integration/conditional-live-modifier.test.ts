@@ -492,19 +492,24 @@ function createRelayRequirementLive(
 
 function setupRelayEnteredLiveStartState(options: {
   readonly live: ReturnType<typeof createCardInstance>;
-  readonly secondMode: 'relay' | 'ordinary' | 'preexisting';
+  readonly secondMode: 'relay' | 'ordinary' | 'preexisting' | 'zero-cost-ordinary';
   readonly removeFirstRelay?: boolean;
 }): GameState {
-  const incomingOne = createCardInstance(
-    createMember({ cardCode: 'PL!HS-test-relay-in-1', name: 'Relay In 1', cost: 5 }),
-    PLAYER1,
-    'relay-in-1'
-  );
-  const incomingTwo = createCardInstance(
-    createMember({ cardCode: 'PL!HS-test-relay-in-2', name: 'Relay In 2', cost: 5 }),
-    PLAYER1,
-    'relay-in-2'
-  );
+  const isZeroCostOrdinary = options.secondMode === 'zero-cost-ordinary';
+  const incomingData = (index: number) =>
+    isZeroCostOrdinary
+      ? createMember({
+          cardCode: 'LL-bp2-001-R+',
+          name: '渡辺 曜&鬼塚夏美&大沢瑠璃乃',
+          cost: 20,
+        })
+      : createMember({
+          cardCode: `PL!HS-test-relay-in-${index}`,
+          name: `Relay In ${index}`,
+          cost: 5,
+        });
+  const incomingOne = createCardInstance(incomingData(1), PLAYER1, 'relay-in-1');
+  const incomingTwo = createCardInstance(incomingData(2), PLAYER1, 'relay-in-2');
   const replacedOne = createCardInstance(
     createMember({ cardCode: 'PL!HS-test-replaced-1', name: 'Replaced 1', cost: 3 }),
     PLAYER1,
@@ -520,12 +525,26 @@ function setupRelayEnteredLiveStartState(options: {
     PLAYER1,
     'preexisting'
   );
+  const fillerHand = isZeroCostOrdinary
+    ? Array.from({ length: 20 }, (_, index) =>
+        createCardInstance(
+          createMember({
+            cardCode: `PL!HS-test-zero-cost-hand-${index}`,
+            name: `Hand ${index}`,
+            cost: 1,
+          }),
+          PLAYER1,
+          `zero-cost-hand-${index}`
+        )
+      )
+    : [];
   const registeredCards = [
     options.live,
     incomingOne,
     replacedOne,
     ...(options.secondMode === 'preexisting' ? [preexisting] : [incomingTwo]),
-    ...(options.secondMode === 'relay' ? [replacedTwo] : []),
+    ...(options.secondMode === 'relay' || isZeroCostOrdinary ? [replacedTwo] : []),
+    ...fillerHand,
   ];
 
   const session = createGameSession();
@@ -548,7 +567,7 @@ function setupRelayEnteredLiveStartState(options: {
         face: FaceState.FACE_UP,
       }
     );
-    if (options.secondMode === 'relay') {
+    if (options.secondMode === 'relay' || isZeroCostOrdinary) {
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, replacedTwo.instanceId, {
         orientation: OrientationState.ACTIVE,
         face: FaceState.FACE_UP,
@@ -567,7 +586,11 @@ function setupRelayEnteredLiveStartState(options: {
         cardIds:
           options.secondMode === 'preexisting'
             ? [incomingOne.instanceId]
-            : [incomingOne.instanceId, incomingTwo.instanceId],
+            : [
+                incomingOne.instanceId,
+                incomingTwo.instanceId,
+                ...fillerHand.map((card) => card.instanceId),
+              ],
       },
       liveZone: addCardToStatefulZone(player.liveZone, options.live.instanceId, {
         orientation: OrientationState.ACTIVE,
@@ -585,14 +608,17 @@ function setupRelayEnteredLiveStartState(options: {
     waitingPlayerId: string | null;
   };
   phaseState.currentPhase = GamePhase.MAIN_PHASE;
-  phaseState.currentSubPhase = SubPhase.MAIN_FREE;
+  phaseState.currentSubPhase = SubPhase.NONE;
   phaseState.currentTurnType = TurnType.FIRST_PLAYER_TURN;
   phaseState.activePlayerIndex = 0;
   phaseState.waitingPlayerId = null;
 
+  if (!isZeroCostOrdinary) {
+    session.setManualOperationMode('FREE');
+  }
   const firstRelay = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, incomingOne.instanceId, SlotPosition.LEFT, {
-      freePlay: true,
+      ...(isZeroCostOrdinary ? {} : { freePlay: true }),
     })
   );
   expect(firstRelay.success, firstRelay.error).toBe(true);
@@ -600,7 +626,7 @@ function setupRelayEnteredLiveStartState(options: {
   if (options.secondMode !== 'preexisting') {
     const secondEnter = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, incomingTwo.instanceId, SlotPosition.CENTER, {
-        freePlay: true,
+        ...(isZeroCostOrdinary ? {} : { freePlay: true }),
       })
     );
     expect(secondEnter.success, secondEnter.error).toBe(true);
@@ -1064,6 +1090,79 @@ describe('conditional live modifier workflow', () => {
           action.payload.requirementReduction === 1 &&
           Array.isArray(action.payload.relayEnteredHasunosoraMemberIds) &&
           action.payload.relayEnteredHasunosoraMemberIds.length === 2
+      )
+    ).toBe(true);
+  });
+
+  it('does not let two current-cost-zero LL-bp2-001 occupied plays satisfy ココン東西', () => {
+    const live = createCardInstance(
+      createRelayRequirementLive('PL!HS-bp2-025-L', 'ココン東西', HeartColor.PINK),
+      PLAYER1,
+      'zero-cost-relay-live'
+    );
+    const game = setupRelayEnteredLiveStartState({
+      live,
+      secondMode: 'zero-cost-ordinary',
+    });
+    const incomingIds = new Set(['relay-in-1', 'relay-in-2']);
+    const enterEvents = game.eventLog
+      .map((entry) => entry.event)
+      .filter(
+        (event) =>
+          event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+          'cardInstanceId' in event &&
+          incomingIds.has(event.cardInstanceId)
+      );
+    expect(enterEvents).toHaveLength(2);
+    expect(enterEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ relayReplacements: undefined }),
+        expect.objectContaining({ relayReplacements: undefined }),
+      ])
+    );
+    const playActions = game.actionHistory.filter(
+      (action) =>
+        action.type === 'PLAY_MEMBER' &&
+        typeof action.payload.cardId === 'string' &&
+        incomingIds.has(action.payload.cardId)
+    );
+    expect(playActions).toHaveLength(2);
+    expect(playActions.every((action) => action.payload.isRelay === false)).toBe(true);
+
+    const orderSelection = runLiveStart(game);
+    expect(orderSelection.activeEffect?.canResolveInOrder).toBe(true);
+    const preview = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      live.instanceId
+    );
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID,
+      sourceCardId: live.instanceId,
+      metadata: { confirmOnlyPendingAbility: true },
+    });
+
+    const state = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
+
+    expect(
+      state.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'REQUIREMENT' &&
+          modifier.abilityId ===
+            HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID
+      )
+    ).toBe(false);
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP2_025_LIVE_START_RELAY_ENTERED_HASUNOSORA_PINK_REQUIREMENT_ABILITY_ID &&
+          action.payload.conditionMet === false &&
+          action.payload.requirementReduction === 0 &&
+          Array.isArray(action.payload.relayEnteredHasunosoraMemberIds) &&
+          action.payload.relayEnteredHasunosoraMemberIds.length === 0
       )
     ).toBe(true);
   });

@@ -169,6 +169,7 @@ function setupSbp3009Scenario() {
   clearPlayerZones(player);
   player.hand.cardIds = [source.instanceId, discardCard.instanceId];
   player.mainDeck.cardIds = topCards.map((card) => card.instanceId);
+  session.setManualOperationMode('FREE');
   expect(
     session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -187,32 +188,76 @@ describe('discard look top select to hand shared workflow', () => {
     session.initializeGame(deck, deck);
     forceMainPhaseForPlayer(session);
 
-    const source = createCardInstance(createMemberCard('PL!S-bp3-009-P', '黒澤ルビィ', 9), PLAYER1, 's-bp3-009-source');
-    const discardCard = createCardInstance(createMemberCard('PL!S-test-discard'), PLAYER1, 's-bp3-009-discard');
+    const source = createCardInstance(
+      createMemberCard('PL!S-bp3-009-P', '黒澤ルビィ', 9),
+      PLAYER1,
+      's-bp3-009-source'
+    );
+    const discardCard = createCardInstance(
+      createMemberCard('PL!S-test-discard'),
+      PLAYER1,
+      's-bp3-009-discard'
+    );
     const topCards = [
-      createCardInstance(createMemberCard('PL!S-test-aqours-member', 'Aqours member'), PLAYER1, 's-bp3-009-top-0'),
-      createCardInstance(createMemberCard('PL!SP-test-liella-member', 'Liella member'), PLAYER1, 's-bp3-009-top-1'),
-      createCardInstance(createLiveCard('PL!S-test-aqours-live', 'Aqours LIVE'), PLAYER1, 's-bp3-009-top-2'),
-      ...[3, 4, 5, 6].map((index) => createCardInstance(createMemberCard(`PL!SP-test-${index}`), PLAYER1, `s-bp3-009-top-${index}`)),
+      createCardInstance(
+        createMemberCard('PL!S-test-aqours-member', 'Aqours member'),
+        PLAYER1,
+        's-bp3-009-top-0'
+      ),
+      createCardInstance(
+        createMemberCard('PL!SP-test-liella-member', 'Liella member'),
+        PLAYER1,
+        's-bp3-009-top-1'
+      ),
+      createCardInstance(
+        createLiveCard('PL!S-test-aqours-live', 'Aqours LIVE'),
+        PLAYER1,
+        's-bp3-009-top-2'
+      ),
+      ...[3, 4, 5, 6].map((index) =>
+        createCardInstance(
+          createMemberCard(`PL!SP-test-${index}`),
+          PLAYER1,
+          `s-bp3-009-top-${index}`
+        )
+      ),
     ];
     const state = registerCards(session.state!, [source, discardCard, ...topCards]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
     const p1 = state.players[0] as unknown as {
-      hand: { cardIds: string[] }; mainDeck: { cardIds: string[] }; waitingRoom: { cardIds: string[] };
-      successZone: { cardIds: string[] }; liveZone: { cardIds: string[] };
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: { cardIds: string[] };
     };
     clearPlayerZones(p1);
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
-    expect(session.executeCommand(createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, { freePlay: true })).success).toBe(true);
+    session.setManualOperationMode('FREE');
+    expect(
+      session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+          freePlay: true,
+        })
+      ).success
+    ).toBe(true);
     expect(session.state?.activeEffect).toMatchObject({
       effectText: S_BP3_009_EFFECT_TEXT,
       selectionLabel: '选择要放置入休息室的卡',
       confirmSelectionLabel: '放置入休息室',
       skipSelectionLabel: '不发动',
     });
-    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardCard.instanceId)).success).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          discardCard.instanceId
+        )
+      ).success
+    ).toBe(true);
     expect(session.state?.activeEffect).toMatchObject({
       effectText: S_BP3_009_EFFECT_TEXT,
       inspectionCardIds: topCards.slice(0, 6).map((card) => card.instanceId),
@@ -221,20 +266,42 @@ describe('discard look top select to hand shared workflow', () => {
       confirmSelectionLabel: '公开并加入手牌',
       skipSelectionLabel: '全部放置入休息室',
     });
-    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, topCards[1]!.instanceId)).success).toBe(false);
-    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, topCards[0]!.instanceId)).success).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          topCards[1]!.instanceId
+        )
+      ).success
+    ).toBe(false);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          topCards[0]!.instanceId
+        )
+      ).success
+    ).toBe(true);
     expect(session.state?.activeEffect).toMatchObject({
       effectText: S_BP3_009_EFFECT_TEXT,
       stepText: S_BP3_009_EFFECT_TEXT,
     });
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([topCards[0]!.instanceId]);
     expect(session.state?.players[0].hand.cardIds).not.toContain(topCards[0]!.instanceId);
-    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)).success).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toContain(topCards[0]!.instanceId);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(expect.arrayContaining([
-      discardCard.instanceId,
-      ...topCards.slice(1, 6).map((card) => card.instanceId),
-    ]));
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([
+        discardCard.instanceId,
+        ...topCards.slice(1, 6).map((card) => card.instanceId),
+      ])
+    );
   });
 
   it('PL!S-bp3-009 puts all six inspected cards into one waiting-room event when selecting zero', () => {
@@ -333,6 +400,7 @@ describe('discard look top select to hand shared workflow', () => {
       [pb1003Source.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -476,6 +544,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.mainDeck.cardIds = [...topCards.map((card) => card.instanceId), ...p1.mainDeck.cardIds];
 
     const beforeSeq = session.getCurrentPublicEventSeq();
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -627,6 +696,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -724,6 +794,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -851,6 +922,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -979,6 +1051,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1103,6 +1176,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
     const meiBeforeSeq = session.getCurrentPublicEventSeq();
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1267,6 +1341,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1408,6 +1483,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1540,12 +1616,7 @@ describe('discard look top select to hand shared workflow', () => {
       )
     );
 
-    let state = registerCards(session.state!, [
-      source,
-      discardCard,
-      ...topCards,
-      ...ruleSentinels,
-    ]);
+    let state = registerCards(session.state!, [source, discardCard, ...topCards, ...ruleSentinels]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -1562,6 +1633,7 @@ describe('discard look top select to hand shared workflow', () => {
       ...ruleSentinels.map((card) => card.instanceId),
     ];
 
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -1597,9 +1669,7 @@ describe('discard look top select to hand shared workflow', () => {
       ...topCards.map((card) => card.instanceId),
       ...ruleSentinels.slice(0, 3).map((card) => card.instanceId),
     ]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([
-      ruleSentinels[3]!.instanceId,
-    ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([ruleSentinels[3]!.instanceId]);
   });
 
   it('does not inspect the deck when PL!S-bp2-005 optional discard is declined', () => {
@@ -1650,6 +1720,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -1718,6 +1789,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1780,6 +1852,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1842,6 +1915,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -1944,6 +2018,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2035,6 +2110,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2140,6 +2216,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2202,6 +2279,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId];
     p1.mainDeck.cardIds = topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2265,6 +2343,7 @@ describe('discard look top select to hand shared workflow', () => {
     p1.hand.cardIds = [source.instanceId, discardCard.instanceId];
     p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -2281,13 +2360,9 @@ describe('discard look top select to hand shared workflow', () => {
   it('lets PL!S-pb1-013 inspect four and reveal a green Heart-count member or LIVE', () => {
     const topCards = [
       createCardInstance(
-        createMemberCard(
-          'PL!S-pb1-013-green-member',
-          'Green two member',
-          1,
-          undefined,
-          [createHeartIcon(HeartColor.GREEN, 2)]
-        ),
+        createMemberCard('PL!S-pb1-013-green-member', 'Green two member', 1, undefined, [
+          createHeartIcon(HeartColor.GREEN, 2),
+        ]),
         PLAYER1,
         's-pb1-013-top-green-member'
       ),
@@ -2363,9 +2438,7 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[2]!.instanceId,
       topCards[3]!.instanceId,
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[4]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
   });
 
   it('lets PL!S-pb1-014 inspect four and reveal a red Heart-count member or LIVE', () => {
@@ -2446,9 +2519,7 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[2]!.instanceId,
       topCards[3]!.instanceId,
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[4]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
   });
 
   it('lets PL!S-pb1-015 inspect four and reveal a blue Heart-count member or LIVE', () => {
@@ -2533,9 +2604,7 @@ describe('discard look top select to hand shared workflow', () => {
       topCards[2]!.instanceId,
       topCards[3]!.instanceId,
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[4]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
   });
 
   it('rejects a non-blue Heart-count target for PL!S-pb1-015', () => {
@@ -2672,9 +2741,7 @@ describe('discard look top select to hand shared workflow', () => {
       scenario.discardCard.instanceId,
       ...topCards.slice(0, 4).map((card) => card.instanceId),
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[4]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
   });
 
   it('moves all inspected cards to waiting room when PL!S-pb1-014 has no red legal target', () => {
@@ -2738,9 +2805,7 @@ describe('discard look top select to hand shared workflow', () => {
       scenario.discardCard.instanceId,
       ...topCards.slice(0, 4).map((card) => card.instanceId),
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[4]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
   });
 
   it('moves all inspected cards to waiting room when PL!S-pb1-015 has no blue legal target', () => {
@@ -2804,9 +2869,7 @@ describe('discard look top select to hand shared workflow', () => {
       scenario.discardCard.instanceId,
       ...topCards.slice(0, 4).map((card) => card.instanceId),
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[4]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
   });
 
   it('declines PL!S-pb1-013 before discarding or inspecting', () => {
@@ -2835,9 +2898,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([
       scenario.discardCard.instanceId,
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[0]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[0]!.instanceId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 
@@ -2867,9 +2928,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([
       scenario.discardCard.instanceId,
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[0]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[0]!.instanceId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([]);
   });
 });
@@ -2914,6 +2973,7 @@ describe('PL!N-bp3-012 Lanzhu shared discard-look-top config', () => {
         : [source.instanceId, discardCard.instanceId];
     player.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
     player.waitingRoom.cardIds = waitingCards.map((card) => card.instanceId);
+    session.setManualOperationMode('FREE');
     expect(
       session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
@@ -2927,11 +2987,7 @@ describe('PL!N-bp3-012 Lanzhu shared discard-look-top config', () => {
   function payDiscard(session: ReturnType<typeof createGameSession>, discardCardId: string): void {
     expect(
       session.executeCommand(
-        createConfirmEffectStepCommand(
-          PLAYER1,
-          session.state!.activeEffect!.id,
-          discardCardId
-        )
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardCardId)
       ).success
     ).toBe(true);
   }
@@ -3060,7 +3116,11 @@ describe('PL!N-bp3-012 Lanzhu shared discard-look-top config', () => {
   });
 
   it('declines without paying and safely consumes pending with no hand or no cards', () => {
-    const declineTop = createCardInstance(createMemberCard('PL!N-decline'), PLAYER1, 'n012-decline');
+    const declineTop = createCardInstance(
+      createMemberCard('PL!N-decline'),
+      PLAYER1,
+      'n012-decline'
+    );
     const declined = setup({ topCards: [declineTop] });
     expect(
       declined.session.executeCommand(
@@ -3220,6 +3280,7 @@ describe('PL!N-bp5-009 Rina wait-discard look top shared workflow', () => {
   }
 
   function playRina(session: ReturnType<typeof createGameSession>, sourceId: string): void {
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -3376,8 +3437,6 @@ describe('PL!N-bp5-009 Rina wait-discard look top shared workflow', () => {
       scenario.discardCard.instanceId,
       ...topCards.slice(0, 5).map((card) => card.instanceId),
     ]);
-    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([
-      topCards[5]!.instanceId,
-    ]);
+    expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual([topCards[5]!.instanceId]);
   });
 });

@@ -116,6 +116,24 @@ export async function undoSolitaireMatch(
   return response.data;
 }
 
+export async function changeSolitaireManualOperationMode(
+  matchId: string,
+  input: {
+    readonly targetMode: 'RULES' | 'FREE';
+    readonly expectedRevision: number;
+    readonly idempotencyKey?: string;
+  }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/battle/solitaire-matches/${encodeURIComponent(matchId)}/manual-operation-mode`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '切换操作模式失败');
+  }
+  return response.data;
+}
+
 export async function leaveSolitaireMatch(matchId: string): Promise<void> {
   const response = await apiClient.post<{ readonly left: boolean }>(
     `/api/battle/solitaire-matches/${encodeURIComponent(matchId)}/leave`

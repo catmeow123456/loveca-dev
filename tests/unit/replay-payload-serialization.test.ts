@@ -23,6 +23,7 @@ import type {
 import {
   compressLegacyReplayPayloadEnvelopeForMigration,
   rehydrateAuthorityGameState,
+  rehydrateLegacyAuthorityGameStateForMigration,
   rehydrateLegacyReplayPayloadForMigration,
   serializeReplayPayload,
   stableJsonStringify,
@@ -78,6 +79,44 @@ function createTestDeck(prefix: string): DeckConfig {
 }
 
 describe('replay payload serialization', () => {
+  it('仅在 AUTHORITY_GAME_STATE 复水边界将旧缺失模式字段规范化为自由模式', () => {
+    const session = createGameSession();
+    session.createGame('legacy-manual-operation-mode', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const legacySnapshot = { ...snapshot } as Partial<typeof snapshot>;
+    delete legacySnapshot.manualOperationMode;
+
+    const rehydrated = rehydrateAuthorityGameState(
+      serializeReplayPayload(legacySnapshot, 'AUTHORITY_GAME_STATE', 'GAME_STATE_V1')
+    );
+
+    expect(rehydrated.manualOperationMode).toBe('FREE');
+    const restoredSession = createGameSession();
+    restoredSession.restoreRuntimeState({
+      authorityState: rehydrated,
+      currentPublicSeq: 0,
+    });
+    expect(restoredSession.manualOperationMode).toBe('FREE');
+  });
+
+  it('拒绝持久化 AUTHORITY_GAME_STATE 中的非法操作模式', () => {
+    const session = createGameSession();
+    session.createGame('invalid-manual-operation-mode', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          { ...snapshot, manualOperationMode: 'INVALID' },
+          'AUTHORITY_GAME_STATE',
+          'GAME_STATE_V1'
+        )
+      )
+    ).toThrow('AUTHORITY_GAME_STATE 缺少有效的 manualOperationMode');
+  });
+
   it('旧 authority payload 缺少 pendingSpecialMemberPlay 时按无窗口安全复水与投影', () => {
     const session = createGameSession();
     session.createGame('legacy-special-member-play', PLAYER1, '玩家1', PLAYER2, '玩家2');
@@ -141,7 +180,9 @@ describe('replay payload serialization', () => {
       abilityId: 'legacy-protection',
     });
     expect(protectedState.memberWaitProtections).toHaveLength(1);
-    expect(clearMemberWaitProtectionsUntilLiveEnd(protectedState).memberWaitProtections).toEqual([]);
+    expect(clearMemberWaitProtectionsUntilLiveEnd(protectedState).memberWaitProtections).toEqual(
+      []
+    );
   });
 
   it('authority checkpoint 经 TRANSPORT_V1 GZIP envelope 往返后仍可复水并投影玩家视角', () => {
@@ -294,6 +335,25 @@ describe('replay payload serialization', () => {
     });
     expect(typeof migratedEnvelope.payload).toBe('string');
     expect(rehydrateAuthorityGameState(migratedEnvelope).gameId).toBe('replay-legacy');
+  });
+
+  it('旧 NONE authority payload 只在专用迁移边界补齐自由模式', () => {
+    const session = createGameSession();
+    session.createGame('replay-legacy-mode', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const legacySnapshot = { ...snapshot } as Partial<typeof snapshot>;
+    delete legacySnapshot.manualOperationMode;
+    const legacyEnvelope = createLegacyReplayPayloadEnvelope(
+      legacySnapshot,
+      'AUTHORITY_GAME_STATE',
+      'GAME_STATE_V1'
+    );
+
+    expect(rehydrateLegacyAuthorityGameStateForMigration(legacyEnvelope)).toMatchObject({
+      gameId: 'replay-legacy-mode',
+      manualOperationMode: 'FREE',
+    });
   });
 });
 

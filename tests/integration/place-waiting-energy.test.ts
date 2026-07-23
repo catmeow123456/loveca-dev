@@ -374,6 +374,7 @@ describe('PL!N-pb1-012-P＋ / R 费用11「鐘 嵐珠」 AUTO', () => {
     }));
     (session as unknown as { authorityState: GameState }).authorityState = game;
 
+    session.setManualOperationMode('FREE');
     const result = session.executeCommand(
       createPlayMemberToSlotCommand(P1, incoming.instanceId, SlotPosition.LEFT, { freePlay: true })
     );

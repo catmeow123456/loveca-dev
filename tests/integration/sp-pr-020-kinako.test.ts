@@ -613,6 +613,7 @@ describe('PL!SP-PR-020 Kinako low-cost relay hand play workflow', () => {
     'uses the production play/relay command for a $name-cost replacement',
     ({ replacementCost, shouldOpen }) => {
       const scenario = setupRealRelayScenario(replacementCost);
+      scenario.session.setManualOperationMode('FREE');
       const result = scenario.session.executeCommand(
         createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.CENTER, {
           freePlay: true,
@@ -681,6 +682,7 @@ describe('PL!SP-PR-020 Kinako low-cost relay hand play workflow', () => {
       memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
     }));
     (scenario.session as unknown as { authorityState: GameState }).authorityState = state;
+    scenario.session.setManualOperationMode('FREE');
     const result = scenario.session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, scenario.source.instanceId, SlotPosition.CENTER, {
         freePlay: true,

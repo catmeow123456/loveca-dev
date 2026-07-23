@@ -108,6 +108,8 @@ import {
   fetchRemotePublicEvents,
   fetchRemoteSnapshotSyncResult,
   rejectRemoteUndoRequest,
+  changeRemoteManualOperationMode,
+  respondRemoteManualOperationModeRequest,
   undoRemoteMatch,
   type RemoteCommandExecutionResult,
   type RemoteSessionSource,
@@ -282,7 +284,7 @@ export interface GameStore {
   gameSession: GameSession;
   /** 当前游戏模式 */
   gameMode: GameMode;
-  /** 免费登场兜底开关。远程联机时只作为 PLAY_MEMBER_TO_SLOT.freePlay 的本地偏好。 */
+  /** 权威操作模式的 UI 兼容布尔值；true 表示当前为自由模式。 */
   freePlayEnabled: boolean;
   /** UI 状态 */
   ui: UIState;
@@ -323,6 +325,11 @@ export interface GameStore {
     requestId: string,
     accepted: boolean,
     options?: RemoteUndoResponseOptions
+  ) => CommandDispatchResult;
+  /** 处理联机自由模式请求。 */
+  respondManualOperationModeRequest: (
+    requestId: string,
+    action: 'accept' | 'reject' | 'cancel'
   ) => CommandDispatchResult;
   /** 选择卡牌 */
   selectCard: (cardId: string | null) => void;
@@ -460,7 +467,7 @@ export interface GameStore {
   removeBattleAnimationOcclusion: (eventId: string) => void;
   /** 设置游戏模式（支持游戏内切换） */
   setGameMode: (mode: GameMode) => void;
-  /** 设置免费登场兜底 */
+  /** 请求切换规则模式 / 自由模式 */
   setFreePlayEnabled: (enabled: boolean) => void;
   /** 进入历史对局只读回放 */
   enterReadonlyReplay: (
@@ -706,6 +713,7 @@ interface StoreCommandOptions {
 export const useGameStore = create<GameStore>((set, get) => {
   // 创建游戏会话，设置事件监听
   const gameSession = createGameSession({
+    allowRulesModeSuccessLiveSkip: true,
     onEvent: (event: GameSessionEvent) => {
       handleGameSessionEvent(event, get);
     },
@@ -920,7 +928,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         },
       });
       get().gameSession.gameMode = GameMode.DEBUG;
-      get().gameSession.localFreePlay = false;
     },
 
     leaveCurrentGame: async () => {
@@ -957,7 +964,11 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       const { gameSession } = get();
 
-      const result = gameSession.advancePhase();
+      const viewingPlayerId = get().viewingPlayerId;
+      if (!viewingPlayerId) {
+        return;
+      }
+      const result = gameSession.advancePhase(viewingPlayerId);
 
       if (result.success) {
         // 同步状态
@@ -1033,6 +1044,13 @@ export const useGameStore = create<GameStore>((set, get) => {
         return rejectReadonlyCommand();
       }
       return dispatchRemoteUndoRequestResponse(requestId, accepted, options);
+    },
+
+    respondManualOperationModeRequest: (requestId, action) => {
+      if (isReadonlyBattleSurface()) {
+        return rejectReadonlyCommand();
+      }
+      return dispatchRemoteManualOperationModeRequestResponse(requestId, action);
     },
 
     selectCard: (cardId) => {
@@ -1575,9 +1593,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       const { gameSession, freePlayEnabled } = get();
-      // 同步更新 store 和 session 的模式
+      // 游戏模式只控制自动化策略，不绕过权威的规则/自由模式切换。
       gameSession.gameMode = mode;
-      gameSession.localFreePlay = freePlayEnabled;
       set({ gameMode: mode, freePlayEnabled });
       get().addLog(`切换游戏模式: ${mode === GameMode.SOLITAIRE ? '对墙打' : '调试'}`, 'info');
       // 同步状态以反映模式变更
@@ -1588,12 +1605,17 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (isReadonlyBattleSurface()) {
         return;
       }
-      const { gameSession } = get();
-      if (!get().remoteSession) {
-        gameSession.localFreePlay = enabled;
+      if (get().remoteSession) {
+        dispatchRemoteManualOperationModeChange(enabled ? 'FREE' : 'RULES');
+        return;
       }
-      set({ freePlayEnabled: enabled });
-      get().addLog(enabled ? '免费登场已开启' : '免费登场已关闭', 'info');
+      const result = get().gameSession.setManualOperationMode(enabled ? 'FREE' : 'RULES');
+      if (!result.success) {
+        get().addLog(`切换操作模式失败: ${result.error ?? '当前不能切换'}`, 'error');
+        return;
+      }
+      get().syncState();
+      get().addLog(enabled ? '已切换为自由模式' : '已切换为规则模式', 'info');
     },
 
     enterReadonlyReplay: async (replay, options) => {
@@ -1612,7 +1634,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
-      get().gameSession.localFreePlay = false;
       set((state) => ({
         playerViewState: normalizedPlayerViewState,
         viewingPlayerId: viewerPlayerId,
@@ -1629,7 +1650,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           partialReasonSummary: replay.partialReasonSummary,
         },
         gameMode: GameMode.DEBUG,
-        freePlayEnabled: false,
+        freePlayEnabled: normalizedPlayerViewState.match.manualOperation.mode === 'FREE',
         publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
         ui: {
           ...state.ui,
@@ -1668,13 +1689,11 @@ export const useGameStore = create<GameStore>((set, get) => {
           inputRequestType: null,
         },
       }));
-      get().gameSession.localFreePlay = false;
     },
 
     isReadonlyReplayMode: () => isReadonlyReplayMode(),
 
     connectRemoteSession: (session) => {
-      get().gameSession.localFreePlay = false;
       set((state) => ({
         remoteSession:
           session.source === 'SPECTATOR'
@@ -1902,6 +1921,9 @@ export const useGameStore = create<GameStore>((set, get) => {
 
       set((state) => ({
         playerViewState: normalizedPlayerViewState,
+        freePlayEnabled:
+          normalizedPlayerViewState !== null &&
+          normalizedPlayerViewState.match.manualOperation.mode === 'FREE',
         ui: {
           ...state.ui,
           hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
@@ -2786,6 +2808,9 @@ function applyRemoteSnapshot(
         : state.remoteSession,
       viewingPlayerId: snapshot.playerId,
       playerViewState: normalizedPlayerViewState,
+      freePlayEnabled:
+        normalizedPlayerViewState !== null &&
+        normalizedPlayerViewState.match.manualOperation.mode === 'FREE',
       ui: {
         ...state.ui,
         hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
@@ -3158,9 +3183,16 @@ function normalizePlayerViewState(playerViewState: PlayerViewState | null): Play
   if (!playerViewState) {
     return null;
   }
+  const manualOperationMode = playerViewState.match.manualOperation?.mode;
+  if (manualOperationMode !== 'RULES' && manualOperationMode !== 'FREE') {
+    throw new Error('玩家视图缺少有效的权威 manualOperation，已拒绝应用');
+  }
 
   return {
     ...playerViewState,
+    match: {
+      ...playerViewState.match,
+    },
     permissions: {
       ...playerViewState.permissions,
       availableCommands: playerViewState.permissions?.availableCommands ?? [],
@@ -3305,6 +3337,14 @@ function normalizeReadonlyReplayViewState(playerViewState: PlayerViewState): Pla
 
   return {
     ...normalized,
+    match: {
+      ...normalized.match,
+      manualOperation: {
+        ...normalized.match.manualOperation,
+        canSwitchNow: false,
+        disabledReason: '历史回放为只读',
+      },
+    },
     permissions: {
       ...normalized.permissions,
       availableCommands: [],
@@ -3621,6 +3661,125 @@ function dispatchRemoteUndoLastStep(): CommandDispatchResult {
       .addLog(`撤销失败: ${error instanceof Error ? error.message : '网络请求失败'}`, 'error');
   });
 
+  return { success: false, pending: true };
+}
+
+function dispatchRemoteManualOperationModeChange(
+  targetMode: 'RULES' | 'FREE'
+): CommandDispatchResult {
+  const store = useGameStore.getState();
+  const remoteSession = store.remoteSession;
+  if (!remoteSession) {
+    return { success: false, error: '未连接远程对局' };
+  }
+  const manualOperation = store.playerViewState?.match.manualOperation;
+  if (manualOperation?.pendingRequest) {
+    return { success: false, error: '已有自由模式请求待处理' };
+  }
+  if (manualOperation && !manualOperation.canSwitchNow) {
+    return {
+      success: false,
+      error: manualOperation.disabledReason ?? '当前不能切换操作模式',
+    };
+  }
+
+  void enqueueRemoteSessionOperation(remoteSession, async () => {
+    const result = await changeRemoteManualOperationMode(
+      remoteSession.source,
+      remoteSession.matchId,
+      targetMode,
+      store.playerViewState?.match.seq ?? 0,
+      remoteSession.seat,
+      createClientIdempotencyKey('manual-operation-mode')
+    );
+    if (!isRemoteSessionStillCurrent(remoteSession)) {
+      return;
+    }
+    if (!result.success || !result.snapshot) {
+      applyRemoteFailureSnapshotIfPresent(result, 'remoteManualOperationModeRejected');
+      useGameStore
+        .getState()
+        .addLog(`切换操作模式失败: ${result.error ?? '服务端拒绝了该操作'}`, 'error');
+      return;
+    }
+    applyRemoteSnapshotThenPreload(
+      result.snapshot,
+      useGameStore.setState,
+      'remoteManualOperationMode'
+    );
+    const pendingRequest = result.snapshot.playerViewState.match.manualOperation?.pendingRequest;
+    useGameStore
+      .getState()
+      .addLog(
+        pendingRequest
+          ? '已向对方发送开启自由模式请求'
+          : targetMode === 'FREE'
+            ? '已切换为自由模式'
+            : '已切换为规则模式',
+        'action'
+      );
+  }).catch((error) => {
+    useGameStore
+      .getState()
+      .addLog(
+        `切换操作模式失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+        'error'
+      );
+  });
+  return { success: false, pending: true };
+}
+
+function dispatchRemoteManualOperationModeRequestResponse(
+  requestId: string,
+  action: 'accept' | 'reject' | 'cancel'
+): CommandDispatchResult {
+  const store = useGameStore.getState();
+  const remoteSession = store.remoteSession;
+  if (!remoteSession) {
+    return { success: false, error: '未连接远程对局' };
+  }
+  void enqueueRemoteSessionOperation(remoteSession, async () => {
+    const result = await respondRemoteManualOperationModeRequest(
+      remoteSession.source,
+      remoteSession.matchId,
+      requestId,
+      action,
+      store.playerViewState?.match.seq ?? 0,
+      createClientIdempotencyKey(`manual-operation-mode-${action}`)
+    );
+    if (!isRemoteSessionStillCurrent(remoteSession)) {
+      return;
+    }
+    if (!result.success || !result.snapshot) {
+      applyRemoteFailureSnapshotIfPresent(result, 'remoteManualOperationModeRequestRejected');
+      useGameStore
+        .getState()
+        .addLog(`处理自由模式请求失败: ${result.error ?? '请求已失效'}`, 'error');
+      return;
+    }
+    applyRemoteSnapshotThenPreload(
+      result.snapshot,
+      useGameStore.setState,
+      'remoteManualOperationModeRequest'
+    );
+    useGameStore
+      .getState()
+      .addLog(
+        action === 'accept'
+          ? '已同意开启自由模式'
+          : action === 'reject'
+            ? '已拒绝开启自由模式'
+            : '已取消自由模式请求',
+        'action'
+      );
+  }).catch((error) => {
+    useGameStore
+      .getState()
+      .addLog(
+        `处理自由模式请求失败: ${error instanceof Error ? error.message : '网络请求失败'}`,
+        'error'
+      );
+  });
   return { success: false, pending: true };
 }
 

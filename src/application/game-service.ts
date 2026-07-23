@@ -315,7 +315,10 @@ export class GameService {
   }
 
   /**
-   * 处理玩家动作
+   * 处理已通过上层权限校验的 action 原语。
+   *
+   * 这不是外部玩家入口；生产玩家操作必须先经过
+   * GameSession.executeCommand 的 RULES/FREE 政策与 pending workflow 防线。
    *
    * @param game 当前游戏状态
    * @param action 玩家动作
@@ -377,7 +380,7 @@ export class GameService {
     const handler = getActionHandler(action.type);
     if (handler) {
       const context = this.createHandlerContext();
-      const triggerEventLogStartIndex = game.eventLog.length;
+      let triggerEventLogStartIndex = game.eventLog.length;
       const result = handler(game, action, context);
 
       if (result.success) {
@@ -395,6 +398,9 @@ export class GameService {
           !this.hasPerformanceDraft(preparedState, action.playerId)
         ) {
           preparedState = this.finalizeAutomaticPerformanceJudgment(preparedState, action.playerId);
+          // 自动判定失败的 Live 已在 finalize 中完成离场事件入队与卡效结算，
+          // 后续通用检查时机不能再次消费同一批 eventLog。
+          triggerEventLogStartIndex = preparedState.eventLog.length;
         }
         // 收集处理器触发的事件，通过事件派发循环统一处理
         const events: (GameEventType | string)[] = [...(result.triggeredEvents ?? [])];
@@ -1244,7 +1250,7 @@ export class GameService {
     );
     playerLiveJudgmentHearts.set(playerId, performance.liveJudgmentHearts);
 
-    const state = {
+    let state: GameState = {
       ...stateAfterPerformance,
       liveResolution: {
         ...stateAfterPerformance.liveResolution,
@@ -1255,7 +1261,7 @@ export class GameService {
       },
     };
 
-    return addAction(state, 'LIVE_JUDGMENT', playerId, {
+    state = addAction(state, 'LIVE_JUDGMENT', playerId, {
       action: 'AUTO_PERFORMANCE_JUDGMENT',
       cheerCardIds,
       liveResults: Object.fromEntries(
@@ -1273,6 +1279,37 @@ export class GameService {
       drawCount: performance.cheerResult.drawCount,
       automated: true,
     });
+
+    const failedLiveCardIds = performance.liveJudgments
+      .filter((judgment) => !judgment.isSuccess)
+      .map((judgment) => judgment.liveCardId);
+    if (failedLiveCardIds.length === 0) {
+      return state;
+    }
+
+    const failedLiveCardIdSet = new Set(failedLiveCardIds);
+    state = updatePlayer(state, playerId, (currentPlayer) => {
+      const liveCardIdsToMove = currentPlayer.liveZone.cardIds.filter((cardId) =>
+        failedLiveCardIdSet.has(cardId)
+      );
+      if (liveCardIdsToMove.length === 0) {
+        return currentPlayer;
+      }
+
+      return {
+        ...currentPlayer,
+        liveZone: liveCardIdsToMove.reduce(
+          (zone, cardId) => removeCardFromStatefulZone(zone, cardId),
+          currentPlayer.liveZone
+        ),
+        waitingRoom: liveCardIdsToMove.reduce(
+          (zone, cardId) => addCardToZone(zone, cardId),
+          currentPlayer.waitingRoom
+        ),
+      };
+    });
+
+    return resolveLiveZoneToWaitingRoomTriggers(state, failedLiveCardIds);
   }
 
   private calculatePerformanceBladeCount(
@@ -1472,8 +1509,7 @@ export class GameService {
     const abilityResult = resolvePendingCardEffects(state);
     const finalState = closeCheckTimingContextIfIdle(abilityResult.gameState);
     const hasChanges =
-      ruleActionResult.ruleActions.length > 0 ||
-      abilityResult.resolvedAbilityIds.length > 0;
+      ruleActionResult.ruleActions.length > 0 || abilityResult.resolvedAbilityIds.length > 0;
     return {
       success: true,
       gameState: finalState,
@@ -1595,16 +1631,14 @@ export class GameService {
     ].some((cardId) => liveResults.get(cardId) === true);
 
     // 8.4.2 计算双方基础分数（玩家可在 UI 中调整）
-    const firstScore =
-      firstHasSuccessfulLive
-        ? (game.liveResolution.playerScores.get(firstPlayer.id) ??
-          this.calculateLiveScore(game, firstPlayer.id, liveResults))
-        : 0;
-    const secondScore =
-      secondHasSuccessfulLive
-        ? (game.liveResolution.playerScores.get(secondPlayer.id) ??
-          this.calculateLiveScore(game, secondPlayer.id, liveResults))
-        : 0;
+    const firstScore = firstHasSuccessfulLive
+      ? (game.liveResolution.playerScores.get(firstPlayer.id) ??
+        this.calculateLiveScore(game, firstPlayer.id, liveResults))
+      : 0;
+    const secondScore = secondHasSuccessfulLive
+      ? (game.liveResolution.playerScores.get(secondPlayer.id) ??
+        this.calculateLiveScore(game, secondPlayer.id, liveResults))
+      : 0;
 
     let state = game;
 

@@ -17,6 +17,15 @@ import {
 } from './command-availability.js';
 import { getModeAutomationPolicy, type ModeAutomationStep } from './mode-automation.js';
 import {
+  applyAuthoritativeManualOperationModeToCommand,
+  getManualOperationMode,
+  getManualOperationModeSwitchBlockedReason,
+} from './manual-operation-mode.js';
+import {
+  getPlayerCommandPolicyDecision,
+  getRulesModeConfirmStepBlockedReason,
+} from './player-command-policy.js';
+import {
   CardType,
   FaceState,
   GamePhase,
@@ -27,6 +36,7 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../shared/types/enums.js';
+import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
 import { resolveBlindCardSelectionToken } from '../shared/utils/blind-card-selection.js';
 import type {
   GameEventLogEntry,
@@ -185,8 +195,13 @@ import {
 } from './card-effects/runtime/enter-waiting-room-triggers.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { tapEnergy } from '../domain/entities/zone.js';
-import { costCalculator, type CostPaymentPlan } from '../domain/rules/cost-calculator.js';
+import {
+  canMemberBeRelayedAway,
+  costCalculator,
+  type CostPaymentPlan,
+} from '../domain/rules/cost-calculator.js';
 import { getCheerDeckEdgeForPlayer } from '../domain/rules/cheer-direction.js';
+import { canPlayMemberInStageSlotThisTurn } from '../domain/rules/member-turn-state.js';
 import {
   canLiveCardEnterSuccessZone,
   getCurrentSuccessLiveSettlementPlayerId,
@@ -198,7 +213,11 @@ import {
   getOwnedInspectionCardIds,
   isActiveEffectControlledInspection,
 } from '../domain/rules/inspection-control.js';
-import { GameCommandType } from './game-commands.js';
+import {
+  createConfirmStepCommand,
+  createEndPhaseCommand,
+  GameCommandType,
+} from './game-commands.js';
 import {
   addCardToInspectionZone,
   removeCardFromInspectionZone,
@@ -257,10 +276,18 @@ export type GameSessionEvent =
 export interface GameSessionOptions {
   /** 游戏模式（默认调试模式） */
   gameMode?: GameMode;
+  /** 规则模式下是否允许跳过成功 Live 入区；仅供对墙打与调试桌面开启。 */
+  allowRulesModeSuccessLiveSkip?: boolean;
   /** 事件监听器 */
   onEvent?: (event: GameSessionEvent) => void;
   /** 权威时钟；仅供服务端 deadline 与确定性测试使用。 */
   now?: () => number;
+  /**
+   * 只允许历史测试夹具直接提交旧式 GameAction。
+   *
+   * 生产会话不得开启；玩家输入必须通过 executeCommand。
+   */
+  enableTestOnlyLegacyActions?: boolean;
 }
 
 interface StateTransitionOptions {
@@ -381,7 +408,6 @@ export class GameSession {
   private authoritySnapshots = new Map<number, GameState>();
   private undoHistory: GameSessionUndoEntry[] = [];
   private undoEntrySeq = 0;
-  private _localFreePlay = false;
 
   constructor(options: GameSessionOptions = {}) {
     this.gameService = new GameService();
@@ -410,27 +436,57 @@ export class GameSession {
     this._gameMode = mode;
   }
 
+  get manualOperationMode(): ManualOperationMode {
+    return this.authorityState ? getManualOperationMode(this.authorityState) : 'RULES';
+  }
+
+  private canSkipSuccessLiveSelectionInRulesMode(): boolean {
+    return (
+      this.options.allowRulesModeSuccessLiveSkip === true || this._gameMode === GameMode.SOLITAIRE
+    );
+  }
+
+  getManualOperationModeSwitchBlockedReason(): string | null {
+    if (!this.authorityState) {
+      return '游戏尚未开始';
+    }
+    return getManualOperationModeSwitchBlockedReason(this.authorityState);
+  }
+
   /**
-   * 自由拖拽兜底用：开启后成员登场/换手不检查也不支付费用。
-   * 本地会话可用全局开关；远程联机由 PLAY_MEMBER_TO_SLOT.freePlay 逐命令携带。
+   * 切换权威操作模式。该控制操作不创建 undo entry，也不属于普通桌面操作。
    */
+  setManualOperationMode(mode: ManualOperationMode): GameOperationResult {
+    if (!this.authorityState) {
+      return {
+        success: false,
+        gameState: null as unknown as GameState,
+        error: '游戏尚未开始',
+      };
+    }
+
+    if (this.manualOperationMode === mode) {
+      return { success: true, gameState: this.authorityState };
+    }
+
+    const blockedReason = getManualOperationModeSwitchBlockedReason(this.authorityState);
+    if (blockedReason) {
+      return { success: false, gameState: this.authorityState, error: blockedReason };
+    }
+
+    this.setAuthorityState(
+      {
+        ...this.authorityState,
+        manualOperationMode: mode,
+      },
+      { source: 'SYSTEM' }
+    );
+    return { success: true, gameState: this.authorityState };
+  }
+
+  /** @deprecated 只读兼容视图；切换必须使用 setManualOperationMode。 */
   get localFreePlay(): boolean {
-    return this._localFreePlay;
-  }
-
-  set localFreePlay(enabled: boolean) {
-    this._localFreePlay = enabled;
-  }
-
-  /**
-   * @deprecated Use localFreePlay. Kept only for older local tests and tooling.
-   */
-  get debugFreePlay(): boolean {
-    return this.localFreePlay;
-  }
-
-  set debugFreePlay(enabled: boolean) {
-    this.localFreePlay = enabled;
+    return this.manualOperationMode === 'FREE';
   }
 
   /**
@@ -456,7 +512,6 @@ export class GameSession {
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
     this.undoEntrySeq = 0;
-
     const initialState = this.gameService.createGame(
       gameId,
       player1Id,
@@ -496,12 +551,21 @@ export class GameSession {
   }
 
   /**
-   * 处理玩家动作
+   * 处理旧式 trusted test action。
    *
-   * 执行动作后自动推进阶段（如果需要）。
-   * 对墙打模式下，会在玩家动作完成后自动触发对手跳过动作。
+   * TEST ONLY：仅供显式开启 enableTestOnlyLegacyActions 的历史测试夹具。
+   * 生产玩家入口必须提交语义化 GameCommand，由 executeCommand
+   * 统一执行 RULES/FREE、pending、行动者、审计与撤销校验。
    */
-  dispatch(action: GameAction): GameOperationResult {
+  dispatchLegacyActionForTesting(action: GameAction): GameOperationResult {
+    if (!this.options.enableTestOnlyLegacyActions) {
+      return {
+        success: false,
+        gameState: this.authorityState ?? (null as unknown as GameState),
+        error: '旧式测试动作入口未启用',
+      };
+    }
+
     if (!this.authorityState) {
       return {
         success: false,
@@ -545,7 +609,7 @@ export class GameSession {
    * Stage 3 起用于逐步替代直接暴露给 UI 的万能动作。
    * 当前优先覆盖检视区流程和公开声明类命令。
    */
-  executeCommand(command: GameCommand): GameOperationResult {
+  executeCommand(submittedCommand: GameCommand): GameOperationResult {
     if (!this.authorityState) {
       return {
         success: false,
@@ -553,6 +617,11 @@ export class GameSession {
         error: '游戏尚未开始',
       };
     }
+
+    const command = applyAuthoritativeManualOperationModeToCommand(
+      submittedCommand,
+      this.manualOperationMode
+    );
 
     const idempotencyHit = this.resolveIdempotentCommand(command);
     if (idempotencyHit) {
@@ -693,9 +762,14 @@ export class GameSession {
   }
 
   /**
-   * 手动推进阶段（用于需要玩家确认的阶段转换）
+   * 兼容旧的“推进阶段”玩家入口。
+   *
+   * 玩家请求必须翻译为语义化命令，复用 executeCommand 的模式、
+   * pending workflow、行动者、审计与撤销校验。内部自动推进不经过此入口。
+   *
+   * @deprecated 新 UI 应直接提交 END_PHASE / CONFIRM_STEP。
    */
-  advancePhase(): GameOperationResult {
+  advancePhase(playerId: string): GameOperationResult {
     if (!this.authorityState) {
       return {
         success: false,
@@ -704,31 +778,12 @@ export class GameSession {
       };
     }
 
-    const undoDraft = this.captureUndoDraft(
-      getActivePlayer(this.authorityState).id,
-      'ADVANCE_PHASE'
-    );
-    const result = this.gameService.advancePhase(this.authorityState);
-
-    if (result.success) {
-      this.setAuthorityState(result.gameState, { source: 'SYSTEM' });
-
-      // 发送阶段变更事件
-      this.emitEvent({
-        type: 'PHASE_CHANGED',
-        phase: result.gameState.currentPhase,
-        activePlayerId: getActivePlayer(result.gameState).id,
-      });
-
-      // 继续自动推进（如果新阶段是自动阶段）
-      this.autoAdvance(this.authorityState);
-      this.finalizeUndoEntry(undoDraft);
-    }
-
-    return {
-      ...result,
-      gameState: this.authorityState,
-    };
+    const command =
+      this.authorityState.currentPhase === GamePhase.MAIN_PHASE &&
+      this.authorityState.currentSubPhase === SubPhase.NONE
+        ? createEndPhaseCommand(playerId)
+        : createConfirmStepCommand(playerId, this.authorityState.currentSubPhase);
+    return this.executeCommand(command);
   }
 
   canUndoLastStep(): boolean {
@@ -852,6 +907,7 @@ export class GameSession {
 
   restoreRuntimeState(input: RestoreRuntimeStateInput): void {
     const authorityState = this.cloneForUndo(input.authorityState);
+    getManualOperationMode(authorityState);
     const retainedPublicEvents = this.cloneForUndo([
       ...((input.publicEvents ?? []) as PublicEvent[]),
     ]);
@@ -1008,7 +1064,11 @@ export class GameSession {
   }
 
   private restoreUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
-    this.authorityState = this.cloneForUndo(snapshot.authorityState);
+    const currentManualOperationMode = this.manualOperationMode;
+    this.authorityState = {
+      ...this.cloneForUndo(snapshot.authorityState),
+      manualOperationMode: currentManualOperationMode,
+    };
     this.publicEvents = this.publicEvents.filter((event) => event.seq <= snapshot.publicEventSeq);
     this.publicEventSeq = snapshot.publicEventSeq;
     this.privateEventsBySeat = {
@@ -1189,6 +1249,7 @@ export class GameSession {
       seq: options.seqOverride ?? this.publicEventSeq,
       gameMode: this._gameMode,
       now: this.now(),
+      allowRulesModeSuccessLiveSkip: this.canSkipSuccessLiveSelectionInRulesMode(),
     });
   }
 
@@ -1430,6 +1491,11 @@ export class GameSession {
       return '玩家不存在';
     }
 
+    const policyDecision = getPlayerCommandPolicyDecision(state, command.playerId, command.type);
+    if (!policyDecision.allowed) {
+      return policyDecision.reason ?? '当前不能执行该操作';
+    }
+
     const canActError = this.validateCommandActor(state, command);
     if (canActError) {
       return canActError;
@@ -1465,6 +1531,9 @@ export class GameSession {
         }
         if (!player.hand.cardIds.includes(command.cardId)) {
           return '卡牌当前不在手牌';
+        }
+        if (getManualOperationMode(state) === 'RULES' && command.faceDown !== true) {
+          return 'Live 设置阶段必须将卡牌里侧放置';
         }
         return null;
       }
@@ -1646,6 +1715,15 @@ export class GameSession {
         const card = state.cardRegistry.get(command.cardId);
         if (!card || card.data.cardType !== 'MEMBER') {
           return '只有成员卡可以登场到成员区';
+        }
+        if (
+          getManualOperationMode(state) === 'RULES' &&
+          [
+            command.targetSlot,
+            ...(command.relayMode === 'DOUBLE' ? (command.relayReplacementSlots ?? []) : []),
+          ].some((slot) => !canPlayMemberInStageSlotThisTurn(state, command.playerId, slot))
+        ) {
+          return '该成员区的成员本回合刚登场，不能再在此登场成员';
         }
         return null;
       }
@@ -1835,6 +1913,12 @@ export class GameSession {
         if (state.currentSubPhase !== command.subPhase) {
           return `当前子阶段不是 ${command.subPhase}`;
         }
+        if (getManualOperationMode(state) === 'RULES') {
+          const blockedReason = getRulesModeConfirmStepBlockedReason(state, command.playerId);
+          if (blockedReason) {
+            return blockedReason;
+          }
+        }
         if (command.subPhase === SubPhase.RESULT_SETTLEMENT) {
           const currentSettlementPlayerId = getCurrentSuccessLiveSettlementPlayerId(state);
           const allSettlementsCompleted = haveAllSuccessLiveSettlementsCompleted(state);
@@ -1848,6 +1932,13 @@ export class GameSession {
           }
           const hasCandidates =
             getSuccessLiveSelectionCandidateIds(state, command.playerId).length > 0;
+          if (
+            hasCandidates &&
+            getManualOperationMode(state) === 'RULES' &&
+            !this.canSkipSuccessLiveSelectionInRulesMode()
+          ) {
+            return '规则模式下必须选择1张成功 Live';
+          }
           if (hasCandidates && command.skipSuccessLiveSelection !== true) {
             return '请先选择成功 Live，或使用全部放置入休息室';
           }
@@ -2130,7 +2221,29 @@ export class GameSession {
         }
         return null;
       }
+      case GameCommandType.SUBMIT_JUDGMENT:
+        if (getManualOperationMode(state) === 'RULES' && command.judgmentResults.size > 0) {
+          return '规则模式下应使用当前自动判定结果';
+        }
+        return null;
+      case GameCommandType.SUBMIT_SCORE: {
+        const currentScore = state.liveResolution.playerScores.get(command.playerId) ?? 0;
+        if (
+          getManualOperationMode(state) === 'RULES' &&
+          command.adjustedScore !== undefined &&
+          command.adjustedScore !== currentScore
+        ) {
+          return '规则模式下不能手动修改 Live 得分';
+        }
+        return null;
+      }
       case GameCommandType.SELECT_SUCCESS_LIVE: {
+        if (
+          getManualOperationMode(state) === 'RULES' &&
+          state.currentSubPhase !== SubPhase.RESULT_SETTLEMENT
+        ) {
+          return '请在成功 Live 结算流程中选择卡牌';
+        }
         if (!isCardInOwnedZone(state, command.playerId, ZoneType.LIVE_ZONE, command.cardId)) {
           return '卡牌当前不在己方 Live 区';
         }
@@ -2166,6 +2279,14 @@ export class GameSession {
         return state.currentPhase === GamePhase.MULLIGAN_PHASE ? null : '当前不是换牌阶段';
       case GameCommandType.SET_LIVE_CARD:
         return state.currentPhase === GamePhase.LIVE_SET_PHASE ? null : '当前不是 Live 设置阶段';
+      case GameCommandType.END_PHASE:
+        if (getManualOperationMode(state) === 'FREE') {
+          return null;
+        }
+        return state.currentPhase === GamePhase.MAIN_PHASE &&
+          state.currentSubPhase === SubPhase.NONE
+          ? null
+          : '只能在自己的主要阶段结束阶段';
       case GameCommandType.TAP_ENERGY:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
       case GameCommandType.OPEN_INSPECTION:
@@ -2185,11 +2306,18 @@ export class GameSession {
       case GameCommandType.TAP_MEMBER:
       case GameCommandType.MOVE_MEMBER_TO_SLOT:
       case GameCommandType.ATTACH_ENERGY_TO_MEMBER:
-      case GameCommandType.PLAY_MEMBER_TO_SLOT:
-      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY:
       case GameCommandType.DRAW_CARD_TO_HAND:
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
         return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由整理阶段';
+      case GameCommandType.PLAY_MEMBER_TO_SLOT:
+      case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY:
+        if (getManualOperationMode(state) === 'FREE') {
+          return isOwnDeskFreeDragWindowOpen ? null : '当前不是可自由登场阶段';
+        }
+        return state.currentPhase === GamePhase.MAIN_PHASE &&
+          state.currentSubPhase === SubPhase.NONE
+          ? null
+          : '只能在自己的主要阶段登场成员';
       case GameCommandType.MOVE_TABLE_CARD:
       case GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM:
         return this.isLiveDeskMoveStageExempt(state, command) || isOwnDeskFreeDragWindowOpen
@@ -2226,6 +2354,11 @@ export class GameSession {
           ? null
           : '当前不是分数确认阶段';
       case GameCommandType.SELECT_SUCCESS_LIVE:
+        if (getManualOperationMode(state) === 'RULES') {
+          return state.currentSubPhase === SubPhase.RESULT_SETTLEMENT
+            ? null
+            : '当前不是成功 Live 结算阶段';
+        }
         return state.currentSubPhase === SubPhase.RESULT_SETTLEMENT ||
           state.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT ||
           isSuccessEffectWindow
@@ -2333,6 +2466,7 @@ export class GameSession {
         return '对方正在检视，无法同时开启检视';
       }
       if (
+        getManualOperationMode(state) === 'FREE' &&
         isOwnDeskFreeDragCommand(command.type) &&
         isOwnDeskFreeDragWindow(state.currentPhase, state.currentSubPhase)
       ) {
@@ -2346,6 +2480,7 @@ export class GameSession {
     }
 
     if (
+      getManualOperationMode(state) === 'FREE' &&
       isOwnDeskFreeDragCommand(command.type) &&
       isOwnDeskFreeDragWindow(state.currentPhase, state.currentSubPhase)
     ) {
@@ -3561,8 +3696,20 @@ export class GameSession {
     state: GameState,
     command: PlayMemberToSlotCommand
   ): CommandExecutionResult {
-    if (this._localFreePlay || command.freePlay === true) {
-      return this.applyPlayMemberToSlotWithoutCostPrompt(state, command);
+    if (getManualOperationMode(state) === 'FREE') {
+      const player = getPlayerById(state, command.playerId);
+      const incomingCard = state.cardRegistry.get(command.cardId);
+      const existingCardId = player?.memberSlots.slots[command.targetSlot] ?? null;
+      const existingCard = existingCardId ? state.cardRegistry.get(existingCardId) : null;
+      const useRelay =
+        command.relayMode === 'DOUBLE' ||
+        (incomingCard !== undefined &&
+          existingCard !== null &&
+          existingCard !== undefined &&
+          isMemberCardData(incomingCard.data) &&
+          isMemberCardData(existingCard.data) &&
+          canMemberBeRelayedAway(existingCard.data, incomingCard.data));
+      return this.applyPlayMemberToSlotWithoutCostPrompt(state, command, useRelay);
     }
 
     const costResult = this.preparePlayMemberCostPayment(state, command);
@@ -4935,6 +5082,7 @@ export class GameSession {
 
   private setAuthorityState(nextState: GameState, options: StateTransitionOptions = {}): void {
     const previousState = this.authorityState;
+    getManualOperationMode(nextState);
     assertInspectionStateInvariant(nextState);
     this.authorityState = nextState;
     this.recordPublicStateTransition(previousState, nextState, options);

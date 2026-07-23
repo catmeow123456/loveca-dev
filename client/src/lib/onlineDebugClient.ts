@@ -10,7 +10,9 @@ import { fromTransport, toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
 
 export async function fetchOnlineDebugStatus(matchId: string): Promise<DebugMatchStatus> {
-  const response = await apiClient.get<DebugMatchStatus>(`/api/debug/matches/${encodeURIComponent(matchId)}`);
+  const response = await apiClient.get<DebugMatchStatus>(
+    `/api/debug/matches/${encodeURIComponent(matchId)}`
+  );
   if (!response.data) {
     throw new Error(response.error?.message ?? '读取调试对局状态失败');
   }
@@ -82,6 +84,21 @@ export async function advanceOnlineDebugPhase(
   );
   if (!response.data) {
     throw new Error(response.error?.message ?? '阶段推进失败');
+  }
+  return fromTransport<DebugCommandResult>(response.data);
+}
+
+export async function changeOnlineDebugManualOperationMode(
+  matchId: string,
+  seat: Seat,
+  targetMode: 'RULES' | 'FREE'
+): Promise<DebugCommandResult> {
+  const response = await apiClient.post<unknown>(
+    `/api/debug/matches/${encodeURIComponent(matchId)}/manual-operation-mode`,
+    { seat, targetMode }
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '切换操作模式失败');
   }
   return fromTransport<DebugCommandResult>(response.data);
 }

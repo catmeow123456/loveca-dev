@@ -12,10 +12,7 @@ import type {
   LeaveStageEvent,
   MemberStateChangedEvent,
 } from '../../../../domain/events/game-events.js';
-import {
-  canMemberBeRelayedAway,
-  costCalculator,
-} from '../../../../domain/rules/cost-calculator.js';
+import { costCalculator } from '../../../../domain/rules/cost-calculator.js';
 import {
   CardType,
   OrientationState,
@@ -44,7 +41,10 @@ import {
   PL_N_PB1_023_ON_ENTER_PAY_TWO_PLAY_LOW_COST_MIA_TAYLOR_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
 import { enqueueMemberStateChangedTriggersFromOrientationResult } from '../../runtime/member-state-changed-triggers.js';
-import { playMemberFromZoneToStageSlotWithReplacement } from '../../runtime/play-member-to-stage.js';
+import {
+  enqueueCardEffectPlacementTriggersWithStageSnapshot,
+  playMemberFromZoneToStageSlotWithReplacement,
+} from '../../runtime/play-member-to-stage.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -214,11 +214,7 @@ function finishHandMemberSelection(
 ): GameState {
   const effect = game.activeEffect;
   const config = effect ? CONFIGS[effect.abilityId] : undefined;
-  if (
-    !effect ||
-    !config ||
-    effect.stepId !== SELECT_HAND_MEMBER_STEP_ID
-  ) {
+  if (!effect || !config || effect.stepId !== SELECT_HAND_MEMBER_STEP_ID) {
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
@@ -385,26 +381,15 @@ function finishPlayHandMemberToSlot(
       step: 'PLAY_LOW_COST_HAND_MEMBER_TO_STAGE_SLOT',
       selectedCardId,
       toSlot: selectedSlot,
-      replacedMemberCardId: playResult.replacedMemberCardId,
-      replacedMemberEffectiveCost: playResult.replacedMemberEffectiveCost,
-      relayReplacements: playResult.enterStageEvent.relayReplacements ?? [],
+      duplicateMemberRuleRemovedCardId: playResult.duplicateMemberRuleRemovedCardId,
       paidEnergyCardIds: getStringArrayMetadata(effect.metadata?.paidEnergyCardIds),
     }
   );
-  const stateWithOnEnter = enqueueTriggeredCardEffects(
+  const stateWithOnEnter = enqueueCardEffectPlacementTriggersWithStageSnapshot(
+    game,
     stateWithResolve,
-    [
-      ...(playResult.leaveStageEvents.length > 0 ? [TriggerCondition.ON_LEAVE_STAGE] : []),
-      ...(playResult.enterWaitingRoomEvents.length > 0
-        ? [TriggerCondition.ON_ENTER_WAITING_ROOM]
-        : []),
-      TriggerCondition.ON_ENTER_STAGE,
-    ],
-    {
-      leaveStageEvents: playResult.leaveStageEvents,
-      enterWaitingRoomEvents: playResult.enterWaitingRoomEvents,
-      enterStageEvents: [playResult.enterStageEvent],
-    }
+    playResult,
+    enqueueTriggeredCardEffects
   );
 
   const playedCard = getCardById(stateWithOnEnter, selectedCardId);
@@ -417,7 +402,10 @@ function finishPlayHandMemberToSlot(
     !hasBladeHeart()(playedCard) ||
     sourceState?.orientation === OrientationState.WAITING
   ) {
-    return continuePendingCardEffects(stateWithOnEnter, effect.metadata?.orderedResolution === true);
+    return continuePendingCardEffects(
+      stateWithOnEnter,
+      effect.metadata?.orderedResolution === true
+    );
   }
 
   const waitResult = setMemberOrientation(
@@ -433,7 +421,10 @@ function finishPlayHandMemberToSlot(
     }
   );
   if (!waitResult) {
-    return continuePendingCardEffects(stateWithOnEnter, effect.metadata?.orderedResolution === true);
+    return continuePendingCardEffects(
+      stateWithOnEnter,
+      effect.metadata?.orderedResolution === true
+    );
   }
 
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
@@ -536,14 +527,7 @@ function getLegalStageSlots(
   ) {
     return [];
   }
-  const incomingMemberData = incomingCard.data;
-
-  return costCalculator
-    .getAvailableSlots(player.movedToStageThisTurn, resources.stageMembers)
-    .filter((slot) => {
-      const currentMember = resources.stageMembers.find((member) => member.position === slot);
-      return !currentMember || canMemberBeRelayedAway(currentMember.data, incomingMemberData);
-    });
+  return costCalculator.getAvailableSlots(player.movedToStageThisTurn, resources.stageMembers);
 }
 
 function getStringArrayMetadata(value: unknown): readonly string[] {

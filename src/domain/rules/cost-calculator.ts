@@ -366,28 +366,42 @@ export class CostCalculator {
     const modifiedCost = costInfo.modifiedCost;
     const availableEnergy = resources.activeEnergyIds.length;
     const availablePlans: CostPaymentPlan[] = [];
+    const requiredEnergyCosts: number[] = [];
 
     // 方案1：直接支付（不换手）
-    if (options.relayMode === undefined && availableEnergy >= modifiedCost) {
-      availablePlans.push({
-        totalCost: baseCost,
-        modifiedCost,
-        costModifiers: costInfo.modifiers,
-        costModifierAmount: costInfo.modifierAmount,
-        energyToTap: resources.activeEnergyIds.slice(0, modifiedCost),
-        memberToRelay: null,
-        relayReplacements: [],
-        relayDiscount: 0,
-        actualEnergyCost: modifiedCost,
-        isRelay: false,
-      });
+    if (options.relayMode === undefined) {
+      requiredEnergyCosts.push(modifiedCost);
+      if (availableEnergy >= modifiedCost) {
+        availablePlans.push({
+          totalCost: baseCost,
+          modifiedCost,
+          costModifiers: costInfo.modifiers,
+          costModifierAmount: costInfo.modifierAmount,
+          energyToTap: resources.activeEnergyIds.slice(0, modifiedCost),
+          memberToRelay: null,
+          relayReplacements: [],
+          relayDiscount: 0,
+          actualEnergyCost: modifiedCost,
+          isRelay: false,
+        });
+      }
     }
 
     // 方案2：换手支付
     // 查找目标槽位上的成员（如果有）
     const targetMember = resources.stageMembers.find((m) => m.position === targetPosition);
 
-    if (options.relayMode === 'DOUBLE') {
+    // 综合规则 9.6.2.3.2：只有尚有至少1点待支付能量时才能执行换手减费。
+    // 当前登场费用为0时，覆盖已有成员仍可走普通登场，旧成员由重复成员规则处理。
+    if (modifiedCost === 0 && options.relayMode !== undefined) {
+      return {
+        canPay: false,
+        availablePlans: [],
+        reason: '当前登场费用为0，没有待支付能量，无法进行换手',
+      };
+    }
+
+    if (modifiedCost > 0 && options.relayMode === 'DOUBLE') {
       const doubleRelayPlan = this.createDoubleRelayPlan(
         memberData,
         targetPosition,
@@ -407,6 +421,7 @@ export class CostCalculator {
         0
       );
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
+      requiredEnergyCosts.push(actualCost);
 
       if (availableEnergy >= actualCost) {
         availablePlans.push({
@@ -422,10 +437,15 @@ export class CostCalculator {
           isRelay: true,
         });
       }
-    } else if (targetMember && canMemberBeRelayedAway(targetMember.data, memberData)) {
+    } else if (
+      modifiedCost > 0 &&
+      targetMember &&
+      canMemberBeRelayedAway(targetMember.data, memberData)
+    ) {
       const targetReplacement = this.createRelayReplacementPlan(targetMember);
       const relayDiscount = targetReplacement.effectiveCost;
       const actualCost = Math.max(0, modifiedCost - relayDiscount);
+      requiredEnergyCosts.push(actualCost);
 
       if (availableEnergy >= actualCost) {
         availablePlans.push({
@@ -444,10 +464,12 @@ export class CostCalculator {
     }
 
     if (availablePlans.length === 0) {
+      const minimumRequiredEnergy =
+        requiredEnergyCosts.length > 0 ? Math.min(...requiredEnergyCosts) : modifiedCost;
       return {
         canPay: false,
         availablePlans: [],
-        reason: `费用不足：需要 ${modifiedCost} 能量，可用 ${availableEnergy} 能量`,
+        reason: `费用不足：需要 ${minimumRequiredEnergy} 能量，可用 ${availableEnergy} 能量`,
       };
     }
 
@@ -620,11 +642,14 @@ export class CostCalculator {
     const availableEnergy = resources.activeEnergyIds.length;
     const targetSlotMember =
       resources.stageMembers.find((m) => m.position === targetPosition) ?? null;
-    const possibleRelayDiscount = targetSlotMember
-      ? this.calculateRelayDiscount(targetSlotMember.data, targetSlotMember.effectiveCost)
-      : 0;
     const canRelayTargetMember =
-      targetSlotMember !== null && canMemberBeRelayedAway(targetSlotMember.data, memberData);
+      modifiedCost > 0 &&
+      targetSlotMember !== null &&
+      canMemberBeRelayedAway(targetSlotMember.data, memberData);
+    const possibleRelayDiscount =
+      modifiedCost > 0 && targetSlotMember
+        ? this.calculateRelayDiscount(targetSlotMember.data, targetSlotMember.effectiveCost)
+        : 0;
 
     return {
       baseCost,

@@ -200,6 +200,7 @@ function playSumireWithDoubleRelay(
   targetSlot = SlotPosition.CENTER,
   replacementSlots: readonly SlotPosition[] = [SlotPosition.CENTER, SlotPosition.LEFT]
 ): void {
+  scenario.session.setManualOperationMode('FREE');
   const result = scenario.session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, targetSlot, {
       freePlay: true,
@@ -268,6 +269,7 @@ describe('PL!SP-bp4-004 Sumire on-enter workflow', () => {
 
   it('does not draw or open an effect for single relay metadata', () => {
     const scenario = setupSumireScenario();
+    scenario.session.setManualOperationMode('FREE');
     const result = scenario.session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, SlotPosition.CENTER, {
         freePlay: true,

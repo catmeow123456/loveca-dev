@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  AnyCardData,
-  EnergyCardData,
-  MemberCardData,
-} from '../../src/domain/entities/card';
+import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
@@ -107,7 +103,13 @@ function setupPb1010LiveStartPending(options: {
 } {
   const session = createGameSession();
   const deck = createDeck();
-  session.createGame('opponent-wait-target-hs-pb1-010-live-start', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+  session.createGame(
+    'opponent-wait-target-hs-pb1-010-live-start',
+    PLAYER1,
+    'Player 1',
+    PLAYER2,
+    'Player 2'
+  );
   session.initializeGame(deck, deck);
   const pendingCount = options.pendingCount ?? 1;
   const sources = Array.from({ length: pendingCount }, (_, index) =>
@@ -224,23 +226,54 @@ describe('opponent wait target shared workflow', () => {
       waitingRoom: { cardIds: string[] };
       successZone: { cardIds: string[] };
       liveZone: { cardIds: string[] };
-      memberSlots: { slots: Record<SlotPosition, string | null>; cardStates: Map<string, { orientation: OrientationState; face: FaceState }> };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
     };
     const p2 = state.players[1] as unknown as typeof p1;
     clearPlayerZones(p1);
     clearPlayerZones(p2);
     p1.hand.cardIds = [source.instanceId];
     p1.memberSlots.slots[SlotPosition.LEFT] = highCostOwnMember.instanceId;
-    p1.memberSlots.cardStates = new Map([[highCostOwnMember.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }]]);
+    p1.memberSlots.cardStates = new Map([
+      [
+        highCostOwnMember.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+      ],
+    ]);
     p2.memberSlots.slots[SlotPosition.CENTER] = target.instanceId;
-    p2.memberSlots.cardStates = new Map([[target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }]]);
+    p2.memberSlots.cardStates = new Map([
+      [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
 
-    expect(session.executeCommand(createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, { freePlay: true })).success).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID);
+    session.setManualOperationMode('FREE');
+    expect(
+      session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+          freePlay: true,
+        })
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID
+    );
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
-    expect(session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)).success).toBe(true);
-    expect(session.state?.players[1].memberSlots.cardStates.get(target.instanceId)?.orientation).toBe(OrientationState.WAITING);
-    expect(session.state?.eventLog.some((entry) => entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED && entry.event.cardInstanceId === target.instanceId)).toBe(true);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
+      ).success
+    ).toBe(true);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(target.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+          entry.event.cardInstanceId === target.instanceId
+      )
+    ).toBe(true);
   });
 
   it('shows a confirm-only no-op for PL!HS-pb1-010 LIVE_START when no own cost-ten member exists', () => {
@@ -261,9 +294,9 @@ describe('opponent wait target shared workflow', () => {
     const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
     expect(resolved.activeEffect).toBeNull();
     expect(resolved.pendingAbilities).toEqual([]);
-    expect(
-      resolved.players[1].memberSlots.cardStates.get(targetCardId!)?.orientation
-    ).toBe(OrientationState.ACTIVE);
+    expect(resolved.players[1].memberSlots.cardStates.get(targetCardId!)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
   });
 
   it('shows a confirm-only no-op for PL!HS-pb1-010 LIVE_START when no legal opponent target exists', () => {
@@ -283,9 +316,9 @@ describe('opponent wait target shared workflow', () => {
 
     const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
     expect(resolved.activeEffect).toBeNull();
-    expect(
-      resolved.players[1].memberSlots.cardStates.get(targetCardId!)?.orientation
-    ).toBe(OrientationState.WAITING);
+    expect(resolved.players[1].memberSlots.cardStates.get(targetCardId!)?.orientation).toBe(
+      OrientationState.WAITING
+    );
   });
 
   it('auto-resolves ordered PL!HS-pb1-010 LIVE_START no-op pendings without opening confirm-only', () => {
@@ -311,7 +344,8 @@ describe('opponent wait target shared workflow', () => {
       resolved.actionHistory.filter(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId === HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID
+          action.payload.abilityId ===
+            HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID
       )
     ).toHaveLength(2);
   });
@@ -388,6 +422,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -512,6 +547,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -614,6 +650,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -701,7 +738,11 @@ describe('opponent wait target shared workflow', () => {
       'p2-s-bp6-015-no-target-cost-3'
     );
 
-    const state = registerCards(session.state!, [source, waitingLowCostTarget, activeHighCostTarget]);
+    const state = registerCards(session.state!, [
+      source,
+      waitingLowCostTarget,
+      activeHighCostTarget,
+    ]);
     (session as unknown as { authorityState: GameState }).authorityState = state;
 
     const p1 = state.players[0] as unknown as {
@@ -738,6 +779,7 @@ describe('opponent wait target shared workflow', () => {
       ],
     ]);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -750,7 +792,8 @@ describe('opponent wait target shared workflow', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId === S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID &&
+          action.payload.abilityId ===
+            S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID &&
           action.payload.sourceCardId === source.instanceId &&
           action.payload.step === 'SKIP_NO_TARGET'
       )
@@ -832,6 +875,7 @@ describe('opponent wait target shared workflow', () => {
       [target.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
     ]);
 
+    session.setManualOperationMode('FREE');
     const playResult = session.executeCommand(
       createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
         freePlay: true,
@@ -842,8 +886,9 @@ describe('opponent wait target shared workflow', () => {
       S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID
     );
 
-    (session.state as unknown as { pendingAbilities: GameState['pendingAbilities'] })
-      .pendingAbilities = [
+    (
+      session.state as unknown as { pendingAbilities: GameState['pendingAbilities'] }
+    ).pendingAbilities = [
       ...session.state!.pendingAbilities,
       {
         id: `${S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID}:${nextSource.instanceId}:manual-continuation`,
@@ -861,7 +906,9 @@ describe('opponent wait target shared workflow', () => {
     );
 
     expect(waitResult.success, waitResult.error).toBe(true);
-    expect(session.state?.activeEffect?.abilityId).toBe(S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID);
+    expect(session.state?.activeEffect?.abilityId).toBe(
+      S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
+    );
     expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(
       topCards.map((card) => card.instanceId)
     );

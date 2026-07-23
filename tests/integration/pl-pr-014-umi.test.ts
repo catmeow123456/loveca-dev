@@ -30,6 +30,7 @@ function setup(kinds: readonly ('MEMBER' | 'LIVE')[], options: { deckCount?: num
   const session = createGameSession();
   session.createGame('pl-pr-014-session', P1, 'P1', P2, 'P2');
   setState(session, game);
+  session.setManualOperationMode('FREE');
   const result = session.executeCommand(createPlayMemberToSlotCommand(P1, source.instanceId, SlotPosition.CENTER, { freePlay: true }));
   expect(result.success, result.error).toBe(true);
   return { session, source, opponentHand, deck, waiting };

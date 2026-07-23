@@ -2,6 +2,12 @@
 
 更新时间：2026-07-23
 
+## 2026-07-23：规则/自由模式运行时 fail-closed 收口
+
+- `GameState.manualOperationMode` 与玩家视图 `manualOperation` 改为当前 schema 必填；通用 `GameSession` 恢复、模式读取与客户端玩家视图应用在缺字段时明确拒绝，不再默认放宽为自由模式。客户端自由模式派生只接受显式 `FREE`。
+- 旧 `AUTHORITY_GAME_STATE` checkpoint / replay 缺字段时保留历史宽松语义，但兼容只存在于 authority 持久化复水适配器，返回后即为严格 `GameState`；对墙打恢复、调试回放和历史回放继续经该边界读取。
+- 总体需求、系统设计与对墙打分数说明已同步；全量 552 files / 5456 tests 通过（另有 3 files / 3 tests 按既有条件跳过），shared/server/client TypeScript 通过。
+
 ## 2026-07-23：v3.7.3 发布前准备（未提交）
 
 - `VERSION`、根 `package.json` 与 `client/package.json` 已同步为 `3.7.3`；`pnpm version:check` 与 `git diff --check` 通过。Android 本次不出包，TWA `appVersionName 3.4.0 / appVersionCode 7` 保持不变。
@@ -18,6 +24,18 @@
 - 卡组编辑器的判心筛选和分析统计已新增独立“无色”项，不与 All/Rainbow 混用；成员持有 Heart、LIVE 必要 Heart 与判心 Heart 使用独立选项语义。卡牌数据管理的 BladeHeart 表单可新增/显示 `GRAY`，YAML 编辑和保存往返保留 `double` 展开后的两条灰心记录。
 - 全量 Vitest 543 files / 5396 tests 通过，3 个 performance tests 按默认配置跳过；shared/server/client TypeScript 与前端生产构建通过。最新 XLSX `--dry-run` 读取 2333 行、2329 个可用编号，只报告 2 组已知重复号；三张 BP7 `double` LIVE 目前均属本地库尚未插入的 source-only 卡。Playwright 实测 1600×900 桌面与 390×844 窄屏详情抽屉，`double` 均渲染两枚灰心且无横向溢出。未执行数据库写入或 CloudBase 正式同步。
 
+## 2026-07-22：对墙打与调试模式允许放弃成功 Live 入区
+
+- 在不开放普通桌面整理的前提下，为对墙打、本地调试和远程调试增加窄的结算例外：即使处于 `RULES`，成功 Live 选择窗口也可使用“全部放置入休息室”，方便只测试卡组展开、回合轴或其它非胜利目标。
+- 正式联机 `RULES` 仍必须选择 1 张合法成功 Live；`FREE` 的既有跳过能力不变。会话权威校验与玩家视图投影使用同一能力开关，避免仅显示按钮或把调试例外泄漏到正式联机。
+- focused 验证覆盖正式联机拒绝、本地调试允许、对墙打允许与 `FREE` 兼容，并回归远程调试既有模式切换及 Live 结算/对墙打流程，共 5 files / 112 tests；shared/server/client TypeScript 通过。浏览器交互验收留给项目作者。
+
+## 2026-07-22：0费覆盖登场的换手事件修正
+
+- 按综合规则 9.6.2.3.2 收紧通用费用方案：成员当前登场费用为0时不再生成单/双换手方案；覆盖已有成员仍走非换手登场，旧成员由重复成员规则处理。显式0费换手请求会以“没有待支付能量”拒绝，费用预览不再声称可换手。
+- 保留正费用成员换下有效费用0的成员、10费踩10费及 `LL-bp7-001-R+` 费用15「国木田花丸&优木雪菜&岚千砂都」特殊登场的已有换手语义；自由模式未改。
+- focused 回归覆盖 `LL-bp2-001-R+` 费用20「渡辺 曜&鬼塚夏美&大沢瑠璃乃」动态降为0费后的真实登场事件链，并锁定 `PL!HS-bp2-025-L` 分数3「ココン東西」不把这两次登场计为换手。Runner 不修改。
+
 ## 2026-07-22：认证凭据兼容停机切换修复（未提交）
 
 - `auth-v1-to-v2-credential-cutover.ts` 改为将可识别 v1 bcrypt 摘要包裹为 `$loveca-bcrypt-raw$`，不再覆盖为必须重置；新版认证会在用户以原密码首次成功登录后，原子改写为当前 SHA-256 预哈希 bcrypt 格式。
@@ -29,6 +47,46 @@
 - `prepare-for-release` 新增 loveca-api Docker 镜像构建与发布步骤：本地候选检查后推送 `vX.Y.Z` / `sha-<commit>`，验证版本镜像后再提升 `latest`，发布清单记录平台与 digest；所有 registry 推送动作仍须用户确认。
 - 生产 compose 增加 `LOVECA_API_IMAGE` 镜像入口，release runbook 改为生产机 `pull` 后以 `--no-build` 启动，并明确版本标签/digest 回滚与 GHCR 权限边界。验证仅覆盖技能格式、compose 展开、文档 diff 与命令静态检查；未构建或推送真实镜像，未操作生产环境。
 - `v3.7.2` 发布准备已同步 `VERSION`、根/客户端 package 版本，补充 `3.7.1-to-3.7.2` 停机迁移说明；全量 540 files / 5379 tests、TypeScript 与服务端构建通过。前端主 chunk 增长到 4.48 MB 后触发 Workbox 4 MiB 上限，已按既有预缓存策略提高到 5 MiB 并重跑构建通过；仍保留大 chunk 性能告警，后续单独做代码分包。API 候选镜像等待发布准备提交后构建，未推送镜像、未提升 `latest`、未打 tag、未构建 Android 包。
+
+## 2026-07-22：规则模式拖拽与特殊登场入口交互收口（已验收）
+
+- 规则模式下未命中合法语义动作的拖拽统一静默回弹，不再为手牌区内轻微拖动或其他被禁止的拖放显示笼统错误提示；权威命令校验与自由模式兼容拖放均未改变。
+- 双换手与 `LL-bp7-001-R+` 费用15「国木田花丸&优木雪菜&岚千砂都」的特殊登场入口移入选中手牌上方的卡牌操作菜单，复用手牌起动能力的现有交互，不再占用右下角固定面板；菜单会按显示文字收窄，两个短操作居中显示，不再占满长卡文的最大宽度。
+- 双换手改为中央窗口依次选择两个成员区，第一个仍是登场位置，第二个是追加换手位置；`LL-bp7-001-R+` 先在中央选择登场区域，随后继续使用既有的三名指定成员支付窗口。规则与结算命令未改，项目作者已完成浏览器交互验收，并与费用提示修正合并提交。
+
+## 2026-07-22：换手费用不足提示按最低合法方案显示
+
+- 修正普通成员登场费用不足提示：费用计算器会保留直接登场、单换手和双换手各自的合法候选费用；没有可支付方案时，提示其中最低的实际支付额，不再一律显示换手减免前的登场费用。
+- 4费成员换手覆盖普通2费成员且有0活跃能量时，现在提示“需要 2 能量，可用 0 能量”；实际支付、最优方案选择和换手执行逻辑未改变。
+- `LL-bp2-001` 等不能被换手的目标不产生换手候选，仍按来牌的完整当前费用提示。费用计算与成员支付定向2文件 / 88项及 shared TypeScript 通过；修改行格式检查通过，整份既有文件仍有未修改的 Prettier 基线。
+
+## 2026-07-22：规则/自由模式第三批旧入口与文档收口
+
+- 删除 `GameSession` 的可写 `localFreePlay`、旧 `debugFreePlay` 和 `_localFreePlay` 镜像状态；权威 `manualOperationMode` 成为唯一模式真值，正常切换必须经过 `setManualOperationMode()` 的安全点校验。
+- 生产 `src/client` 对旧 `dispatch(GameAction)` 零调用；该入口已改为默认关闭的 `dispatchLegacyActionForTesting`，只有显式设置 `enableTestOnlyLegacyActions: true` 的三个历史测试夹具可以使用。新增回归锁定普通会话拒绝和 `localFreePlay` 无 setter。
+- 客户端 store 删除退出、回放、远程连接及切换 `GameMode` 时对旧模式 setter 的冗余写入；`GameMode` 只控制自动化策略，不再能顺便绕过权威规则/自由模式。
+- 7 份现行边界、编码、限制、联机、系统和桌面设计文档已同步第二批后的真实行为；对局前说明明确人工补齐前必须先进入自由模式，旧“信任玩家、事后纠正非法状态”注释改为中央命令政策语义。历史归档、回放审计需求和卡效本身“免付登场费用”的描述保持不变。
+- 浏览器交互验收由项目作者自行执行，本批代理只负责调用图审计、代码/文档收口和自动化验证。
+- 自动化验证完成：聚焦 9 文件 / 362 项、全量 Vitest 540 文件 / 5380 项通过，3 个 performance tests 按默认配置跳过；shared/server/client TypeScript 与客户端生产构建通过。新测试及本批主要客户端文件 ESLint 通过；扩大到整份历史测试文件仍会命中既有 type-aware lint 基线，对局前说明仍有未修改的第 64 行 hooks lint 基线。Runner 保持 3624 行且零 diff，`llocg_db` 未修改。
+
+## 2026-07-22：规则/自由模式第二批玩家命令收紧（已实现并验证）
+
+- 新增集中玩家命令政策，按普通规则动作、流程输入、手动调整分类；`RULES` 仅放行当前阶段/子阶段、行动者与 pending workflow 允许的语义命令，`FREE` 保留现有灵活桌面整理。客户端 `freePlay` 不再能绕过权威模式。
+- `RULES` 禁止通用公开区移动、手动能量移动/附着/回收、成员手动换位、任意检视与调整分数；Live 设置、判定、成功 Live 选择、开始/结束主要阶段等保留专用流程。正式联机规则模式不可跳过成功 Live；对墙打与调试桌面后续增加了窄的“全部放置入休息室”结算例外，自由模式继续允许。
+- 普通成员登场的“本回合从非舞台进入舞台”限制跟随成员实例；成员换位后限制跟随，离场后解除。手牌普通登场继续验证 `LL-bp2-001-R+` 全额费用非换手路径；双换手的所有 replacement 区域也统一受限。
+- 卡效登场到占用区域不视为换手。`PL!N-bp1-002`、`PL!SP-sd1-002` 与 shared 支付2能量登场家族改为先产生新成员 `ON_ENTER_STAGE`，再执行重复成员规则；不检查 `canMemberBeRelayedAway`、不写 relay/replacing metadata，并记录 `RULE_ACTION/DUPLICATE_MEMBER`。休息室到空成员区的 shared helper 统一记录 `movedToStageThisTurn`。
+- 权限投影与客户端拖放意图使用同一政策过滤；`RULES` 不再回退到旧的万能 drag/drop，`FREE` 保留该回退。旧 `advancePhase` 玩家入口已翻译为 `END_PHASE` / `CONFIRM_STEP` 命令，内部系统自动转换不经过玩家入口。
+- 规则自动 Live 判定补齐失败 Live 立即从 `LIVE_ZONE` 进入休息室并走 `resolveLiveZoneToWaitingRoomTriggers` 的正式结算；`PL!S-bp6-002` 真实触发会在 pending 期间阻止后续判定确认，不再依赖自由模式的强制成败命令。
+- 旧真实回放只对 `PL!HS-bp5-002` 起动登场与 `PL!-pb1-018` 登场效果的 7 条旧 `movedToStageThisTurn` 差异做严格分类；仅允许玩家 0/1 的记录长度比旧夹具多 1，以及已知成对 `fromZone` / pending metadata 差异。真实复跑结果为 replayed 46、skipped 424，新兼容理由精确命中 7 条。
+- 验证完成：前期残留集合 14 files / 405 tests 通过；全量 Vitest 539 files / 5378 tests 通过，3 个 performance tests 按默认配置跳过；shared/server/client TypeScript 与客户端生产构建通过。新增中央政策及其 focused tests ESLint 通过；扩大到所有被机械迁移的旧测试文件后，仍会报现有 type-aware lint 基线，主生产路径仍仅有旧 `structuredClone` 错误，客户端仍有旧 `GameBoard` hooks 错误。Runner 保持 3624 行且零 diff。
+
+## 2026-07-21：规则/自由模式第一批基础
+
+- 新对局增加权威 `ManualOperationMode = RULES | FREE`，默认 `RULES`；旧 checkpoint/回放缺字段时按 `FREE` 兼容。模式作为对局事实投影、记录和恢复，普通撤销不回滚当前模式。
+- 本地调试、对墙打和远程调试可在共享安全时点直接切换。正式联机 `RULES -> FREE` 需对方同意，支持拒绝/取消/超时；`FREE -> RULES` 可由任意一方单方发起，非安全时点立即拒绝且不排队。模式请求与撤销请求互斥，新命令/阶段推进会使待回应请求失效。
+- 服务端按权威模式重写远程 `PLAY_MEMBER_TO_SLOT.freePlay`，阻断客户端伪造免费登场；UI 改用“规则模式 / 自由模式”文案，观战与历史回放强制只读。
+- 本批只完成模式和切换基础；中央命令白名单、非法区域/能量/成员换位收紧、权限投影收口及普通登场槽位规则仍待后续批次，不得视为已禁止所有非法操作。
+- 聚焦回归 9 文件 / 126 项通过；全量 Vitest 540 文件（537 通过 / 3 默认跳过）、5355 项（5352 通过 / 3 默认跳过）。shared/server/client TypeScript 与 `git diff --check` 通过，新增模式文件及测试 ESLint 通过。
 
 ## 2026-07-21：手动声援公开事件与旧回放兼容修正（未提交）
 

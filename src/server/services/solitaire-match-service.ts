@@ -21,6 +21,7 @@ import {
   type OnlineMatchState,
   type OnlineMatchService,
   type RemoteUndoInput,
+  type ChangeManualOperationModeInput,
 } from './online-match-service.js';
 import {
   solitaireRuntimeRecoveryService,
@@ -219,6 +220,25 @@ export class SolitaireMatchService {
       );
     }
     return this.matchService.undoLatest(matchId, userId, input);
+  }
+
+  async changeManualOperationMode(
+    matchId: string,
+    userId: string,
+    input: ChangeManualOperationModeInput
+  ): Promise<OnlineCommandResult | null> {
+    const resolved = await this.getPlayableOrRecoveredSolitaireMatch(matchId, userId);
+    if (!resolved) {
+      return null;
+    }
+    if (shouldRejectRecoveredWrite(resolved.recovery)) {
+      return this.buildRecoveredWriteRejectedResult(
+        resolved.match,
+        userId,
+        '对局已恢复到最近保存点，请刷新后重试'
+      );
+    }
+    return this.matchService.changeManualOperationMode(matchId, userId, input);
   }
 
   async leaveMatch(matchId: string, userId: string): Promise<boolean | null> {

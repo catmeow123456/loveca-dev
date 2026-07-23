@@ -8,6 +8,7 @@ import type {
 import { fromTransport, toTransport } from '../../online/serde.js';
 import {
   advanceDebugMatchPhase,
+  changeDebugManualOperationMode,
   executeDebugMatchCommand,
   getDebugMatchSnapshot,
   getDebugMatchStatus,
@@ -121,6 +122,25 @@ debugOnlineRouter.post('/matches/:matchId/advance', (req, res) => {
     error: result.success
       ? null
       : { code: 'ADVANCE_REJECTED', message: result.error ?? '阶段推进失败' },
+  });
+});
+
+debugOnlineRouter.post('/matches/:matchId/manual-operation-mode', (req, res) => {
+  const body = req.body as Partial<{ seat: Seat; targetMode: 'RULES' | 'FREE' }> | undefined;
+  const seat = parseSeat(body?.seat);
+  if (!seat || (body?.targetMode !== 'RULES' && body?.targetMode !== 'FREE')) {
+    res.status(400).json({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '操作模式参数非法' },
+    });
+    return;
+  }
+  const result = changeDebugManualOperationMode(req.params.matchId, seat, body.targetMode);
+  res.json({
+    data: toTransport(result),
+    error: result.success
+      ? null
+      : { code: 'MANUAL_OPERATION_MODE_REJECTED', message: result.error ?? '切换操作模式失败' },
   });
 });
 

@@ -197,6 +197,7 @@ describe('PL!N-pb1-002-P＋ / R 费用13「中須かすみ」', () => {
       }));
       (session as unknown as { authorityState: GameState }).authorityState = {
         ...game,
+        manualOperationMode: 'FREE',
         currentPhase: GamePhase.MAIN_PHASE,
         currentSubPhase: SubPhase.NONE,
         activePlayerIndex: 0,

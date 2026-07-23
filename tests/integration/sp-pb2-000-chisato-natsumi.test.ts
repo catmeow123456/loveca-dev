@@ -178,6 +178,7 @@ function setupDoubleRelayScenario(options: {
 }
 
 function playWithDoubleRelay(session: GameSession, sourceId: string): void {
+  session.setManualOperationMode('FREE');
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
       freePlay: true,
@@ -189,6 +190,7 @@ function playWithDoubleRelay(session: GameSession, sourceId: string): void {
 }
 
 function playWithSingleRelay(session: GameSession, sourceId: string): void {
+  session.setManualOperationMode('FREE');
   const result = session.executeCommand(
     createPlayMemberToSlotCommand(PLAYER1, sourceId, SlotPosition.CENTER, {
       freePlay: true,

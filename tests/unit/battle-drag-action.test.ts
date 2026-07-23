@@ -26,7 +26,7 @@ describe('getDragActionDescriptor', () => {
     ).toEqual({ label: '不能登场', blocked: true });
   });
 
-  it('distinguishes member play, replacement play, and position movement', () => {
+  it('distinguishes member play, occupied-slot play, and position movement', () => {
     expect(
       getDragActionDescriptor({
         fromZone: ZoneType.HAND,
@@ -47,7 +47,7 @@ describe('getDragActionDescriptor', () => {
         cardType: CardType.MEMBER,
         currentPhase: GamePhase.MAIN_PHASE,
       })
-    ).toEqual({ label: '换手登场', detail: '右侧' });
+    ).toEqual({ label: '在此登场', detail: '右侧' });
 
     expect(
       getDragActionDescriptor({

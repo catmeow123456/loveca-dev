@@ -1,5 +1,6 @@
 import { createGameSession, type GameSession } from '../../application/game-session.js';
 import type { GameCommand } from '../../application/game-commands.js';
+import { applyAuthoritativeManualOperationModeToCommand } from '../../application/manual-operation-mode.js';
 import type {
   DebugCommandResult,
   DebugMatchSnapshot,
@@ -9,6 +10,7 @@ import type {
 } from '../../online/debug-types.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { Seat } from '../../online/types.js';
+import type { ManualOperationMode } from '../../shared/types/manual-operation-mode.js';
 
 interface DebugSeatState {
   playerId: string;
@@ -22,6 +24,7 @@ interface DebugMatchState {
   updatedAt: number;
   startedAt: number | null;
   session: GameSession | null;
+  revision: number;
   seats: Record<Seat, DebugSeatState>;
 }
 
@@ -60,6 +63,7 @@ export function selectDebugSeatDeck(
 export function resetDebugMatch(matchId: string): DebugMatchStatus {
   const match = getOrCreateDebugMatch(matchId);
   match.session = null;
+  match.revision = 0;
   match.startedAt = null;
   match.seats.FIRST.deck = null;
   match.seats.FIRST.deckName = null;
@@ -76,7 +80,9 @@ export function getDebugMatchSnapshot(matchId: string, seat: Seat): DebugMatchSn
   }
 
   const playerId = match.seats[seat].playerId;
-  const playerViewState = match.session.getPlayerViewState(playerId);
+  const playerViewState = match.session.getPlayerViewState(playerId, {
+    seqOverride: match.revision,
+  });
 
   if (!playerViewState) {
     return null;
@@ -86,7 +92,7 @@ export function getDebugMatchSnapshot(matchId: string, seat: Seat): DebugMatchSn
     matchId,
     seat,
     playerId,
-    seq: match.session.getCurrentPublicEventSeq(),
+    seq: match.revision,
     currentPublicSeq: match.session.getCurrentPublicEventSeq(),
     playerViewState,
     publicEvents: match.session.getPublicEventsSince(0),
@@ -109,10 +115,12 @@ export function executeDebugMatchCommand(
   }
 
   const playerId = match.seats[seat].playerId;
-  const result = match.session.executeCommand({
-    ...command,
-    playerId,
-  });
+  const result = match.session.executeCommand(
+    applyAuthoritativeManualOperationModeToCommand(
+      { ...command, playerId },
+      match.session.manualOperationMode
+    )
+  );
 
   if (!result.success) {
     return {
@@ -121,6 +129,7 @@ export function executeDebugMatchCommand(
     };
   }
 
+  match.revision += 1;
   touchDebugMatch(match);
   return {
     success: true,
@@ -145,7 +154,7 @@ export function advanceDebugMatchPhase(matchId: string, seat: Seat): DebugComman
     };
   }
 
-  const result = match.session.advancePhase();
+  const result = match.session.advancePhase(playerId);
   if (!result.success) {
     return {
       success: false,
@@ -153,6 +162,35 @@ export function advanceDebugMatchPhase(matchId: string, seat: Seat): DebugComman
     };
   }
 
+  match.revision += 1;
+  touchDebugMatch(match);
+  return {
+    success: true,
+    snapshot: getDebugMatchSnapshot(matchId, seat) ?? undefined,
+  };
+}
+
+export function changeDebugManualOperationMode(
+  matchId: string,
+  seat: Seat,
+  targetMode: ManualOperationMode
+): DebugCommandResult {
+  const match = getOrCreateDebugMatch(matchId);
+  if (!match.session) {
+    return { success: false, error: '调试对局尚未开始，请先让双方锁定卡组' };
+  }
+  if (match.session.manualOperationMode === targetMode) {
+    touchDebugMatch(match);
+    return {
+      success: true,
+      snapshot: getDebugMatchSnapshot(matchId, seat) ?? undefined,
+    };
+  }
+  const result = match.session.setManualOperationMode(targetMode);
+  if (!result.success) {
+    return { success: false, error: result.error };
+  }
+  match.revision += 1;
   touchDebugMatch(match);
   return {
     success: true,
@@ -171,6 +209,7 @@ function getOrCreateDebugMatch(matchId: string): DebugMatchState {
     updatedAt: Date.now(),
     startedAt: null,
     session: null,
+    revision: 0,
     seats: {
       FIRST: {
         playerId: getDebugPlayerId('FIRST'),
@@ -198,7 +237,7 @@ function recreateMatchSessionIfReady(match: DebugMatchState): void {
     return;
   }
 
-  const session = createGameSession();
+  const session = createGameSession({ allowRulesModeSuccessLiveSkip: true });
   session.createGame(
     match.matchId,
     match.seats.FIRST.playerId,
@@ -213,6 +252,7 @@ function recreateMatchSessionIfReady(match: DebugMatchState): void {
   }
 
   match.session = session;
+  match.revision = session.getCurrentPublicEventSeq();
   match.startedAt = Date.now();
 }
 

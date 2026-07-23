@@ -54,6 +54,17 @@ const undoRequestResponseSchema = z.object({
   grantContinuous: z.boolean().optional(),
 });
 
+const manualOperationModeSchema = z.object({
+  targetMode: z.enum(['RULES', 'FREE']),
+  expectedRevision: z.number().int().min(0),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
+const manualOperationModeResponseSchema = z.object({
+  expectedRevision: z.number().int().min(0),
+  idempotencyKey: z.string().min(1).optional(),
+});
+
 const spectatorSessionSchema = z.object({
   clientId: z.string().trim().min(1).max(128).optional(),
 });
@@ -928,6 +939,99 @@ onlineRouter.post(
     }
   }
 );
+
+onlineRouter.post('/matches/:matchId/manual-operation-mode', requireAuth, async (req, res) => {
+  const parsed = manualOperationModeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '操作模式参数非法' },
+    });
+    return;
+  }
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    const result = await onlineMatchService.changeManualOperationMode(
+      matchId,
+      req.user!.id,
+      parsed.data
+    );
+    if (!result) {
+      respondMatchForbidden(res);
+      return;
+    }
+    onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id);
+    res.json({
+      data: result,
+      error: result.success
+        ? null
+        : {
+            code: 'MANUAL_OPERATION_MODE_REJECTED',
+            message: result.error ?? '切换操作模式失败',
+          },
+    });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+for (const action of ['accept', 'reject', 'cancel'] as const) {
+  onlineRouter.post(
+    `/matches/:matchId/manual-operation-mode-requests/:requestId/${action}`,
+    requireAuth,
+    async (req, res) => {
+      const parsed = manualOperationModeResponseSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({
+          data: null,
+          error: { code: 'INVALID_REQUEST', message: '自由模式请求响应参数非法' },
+        });
+        return;
+      }
+      try {
+        const matchId = readPathParam(req.params.matchId);
+        const requestId = readPathParam(req.params.requestId);
+        const result =
+          action === 'accept'
+            ? await onlineMatchService.acceptManualOperationModeRequest(
+                matchId,
+                req.user!.id,
+                requestId,
+                parsed.data
+              )
+            : action === 'reject'
+              ? await onlineMatchService.rejectManualOperationModeRequest(
+                  matchId,
+                  req.user!.id,
+                  requestId,
+                  parsed.data
+                )
+              : await onlineMatchService.cancelManualOperationModeRequest(
+                  matchId,
+                  req.user!.id,
+                  requestId,
+                  parsed.data
+                );
+        if (!result) {
+          respondMatchForbidden(res);
+          return;
+        }
+        onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id);
+        res.json({
+          data: result,
+          error: result.success
+            ? null
+            : {
+                code: 'MANUAL_OPERATION_MODE_REQUEST_REJECTED',
+                message: result.error ?? '处理自由模式请求失败',
+              },
+        });
+      } catch (error) {
+        respondOnlineError(res, error);
+      }
+    }
+  );
+}
 
 function respondMatchNotFound(res: Response): void {
   res.status(404).json({

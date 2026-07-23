@@ -587,6 +587,40 @@ export async function rejectOnlineUndoRequest(
   return response.data;
 }
 
+export async function changeOnlineManualOperationMode(
+  matchId: string,
+  input: {
+    readonly targetMode: 'RULES' | 'FREE';
+    readonly expectedRevision: number;
+    readonly idempotencyKey?: string;
+  }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/manual-operation-mode`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '切换操作模式失败');
+  }
+  return response.data;
+}
+
+export async function respondOnlineManualOperationModeRequest(
+  matchId: string,
+  requestId: string,
+  action: 'accept' | 'reject' | 'cancel',
+  input: { readonly expectedRevision: number; readonly idempotencyKey?: string }
+): Promise<OnlineCommandResult> {
+  const response = await apiClient.post<OnlineCommandResult>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/manual-operation-mode-requests/${encodeURIComponent(requestId)}/${action}`,
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '处理自由模式请求失败');
+  }
+  return response.data;
+}
+
 export async function fetchOnlineAdminRooms(): Promise<readonly OnlineAdminRoomSummary[]> {
   const response = await apiClient.get<OnlineAdminRoomSummary[]>('/api/online/admin/rooms');
   if (!response.data) {
