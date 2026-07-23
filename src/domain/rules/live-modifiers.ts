@@ -1332,7 +1332,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    cardCodes: ['PL!SP-PR-025-PR'],
+    cardCodes: ['PL!SP-PR-025-PR', 'PL!-PR-021-PR'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
       countPlayerEnergyCards(game, playerId) === 7

@@ -136,8 +136,11 @@ export function hasAllBladeHeart(): CardSelector {
 
 export function hasNoAbilityOrContinuousAbility(): CardSelector {
   return (card) => {
-    const cardText = card.data.cardText?.trim() ?? '';
-    return cardText.length === 0 || /【常[时時]】/.test(cardText);
+    const cardText = card.data.cardText ?? '';
+    return (
+      hasStrictNoAbilityCardText(cardText) ||
+      /(?:^|[\r\n])\s*(?:【常[时時]】|\{\{jyouji\.png\|常[时時]\}\})/.test(cardText)
+    );
   };
 }
 

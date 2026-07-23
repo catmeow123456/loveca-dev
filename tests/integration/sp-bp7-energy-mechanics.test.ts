@@ -636,7 +636,7 @@ describe('bp7 energy mechanics linkage', () => {
     );
     expect(mixed.activeEffect?.selectableCardIds).toEqual([e1.instanceId, e2.instanceId]);
     expect(mixed.activeEffect?.selectionLabel).toBe('选择要放回能量卡组的能量');
-    expect(mixed.activeEffect?.confirmSelectionLabel).toBe('支付费用');
+    expect(mixed.activeEffect?.confirmSelectionLabel).toBe('放回能量卡组');
     const allMarked = start(
       {
         ...game,
@@ -1442,7 +1442,7 @@ describe('bp7 energy mechanics linkage', () => {
       )
     );
     expect(game.activeEffect?.selectionLabel).toBe('选择要放回能量卡组的能量');
-    expect(game.activeEffect?.confirmSelectionLabel).toBe('支付费用');
+    expect(game.activeEffect?.confirmSelectionLabel).toBe('放回能量卡组');
     game = command(game, undefined, undefined, [cards[0].instanceId, cards[2].instanceId]);
     expect(game.players[0].energyDeck.cardIds).toEqual([cards[0].instanceId, cards[2].instanceId]);
     expect(

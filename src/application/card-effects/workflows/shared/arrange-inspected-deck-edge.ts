@@ -1,10 +1,12 @@
 import {
   addAction,
+  getCardById,
   getOpponent,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { isLiveCardData } from '../../../../domain/entities/card.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
 import {
   BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
@@ -14,6 +16,7 @@ import {
   HS_PB1_024_ON_ENTER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
+  N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
   S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
   S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -69,6 +72,7 @@ interface RegisteredArrangeInspectedDeckEdgeConfig {
   readonly selectMax: number;
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
+  readonly exactLiveSourceCardCode?: string;
   readonly targetPlayerSelection?: {
     readonly stepId: string;
     readonly stepText: string;
@@ -106,6 +110,7 @@ export interface ArrangeInspectedDeckEdgeConfig {
   readonly unselectedDestination: InspectedCardDestination;
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
+  readonly exactLiveSourceCardCode?: string;
   readonly targetPlayerSelection?: RegisteredArrangeInspectedDeckEdgeConfig['targetPlayerSelection'];
   readonly condition?: RegisteredArrangeInspectedDeckEdgeConfig['condition'];
   readonly orderedResolution: boolean;
@@ -113,6 +118,18 @@ export interface ArrangeInspectedDeckEdgeConfig {
 }
 
 const ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS: readonly RegisteredArrangeInspectedDeckEdgeConfig[] = [
+  {
+    abilityId: N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
+    inspectCount: 3,
+    sourceActionLabel: 'LIVE成功',
+    stepId: 'N_BP7_030_ARRANGE_TOP_THREE',
+    stepText: '请选择任意张数的卡片，按卡组顶从上到下的顺序排列；其余的卡片放置入休息室。',
+    selectionLabel: '按放置顺序选择卡片',
+    confirmSelectionLabel: '按此顺序放置于卡组顶',
+    selectMin: 0,
+    selectMax: 3,
+    exactLiveSourceCardCode: 'PL!N-bp7-030-L',
+  },
   {
     abilityId: START_DASH_LIVE_SUCCESS_ABILITY_ID,
     inspectCount: 3,
@@ -281,6 +298,7 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
           unselectedDestination: config.unselectedDestination ?? 'WAITING_ROOM',
           requireAllInspected: config.requireAllInspected,
           requireSourceOnOwnStage: config.requireSourceOnOwnStage,
+          exactLiveSourceCardCode: config.exactLiveSourceCardCode,
           targetPlayerSelection: config.targetPlayerSelection,
           condition: config.condition,
           orderedResolution: options.orderedResolution === true,
@@ -315,6 +333,20 @@ export function startArrangeInspectedDeckEdgeWorkflow(
   ) {
     return consumeArrangePendingAsNoOp(game, config, continuePendingCardEffects, player.id, {
       step: 'SOURCE_NOT_ON_STAGE',
+      inspectedCardIds: [],
+    });
+  }
+  if (
+    config.exactLiveSourceCardCode &&
+    !isExactOwnLiveSource(
+      game,
+      player.id,
+      config.ability.sourceCardId,
+      config.exactLiveSourceCardCode
+    )
+  ) {
+    return consumeArrangePendingAsNoOp(game, config, continuePendingCardEffects, player.id, {
+      step: 'SOURCE_NOT_IN_LIVE_ZONE',
       inspectedCardIds: [],
     });
   }
@@ -575,6 +607,7 @@ function finishArrangeInspectedDeckEdgeTargetPlayerSelection(
       unselectedDestination: registeredConfig.unselectedDestination ?? 'WAITING_ROOM',
       requireAllInspected: registeredConfig.requireAllInspected,
       requireSourceOnOwnStage: registeredConfig.requireSourceOnOwnStage,
+      exactLiveSourceCardCode: registeredConfig.exactLiveSourceCardCode,
       condition: registeredConfig.condition,
       orderedResolution: effect.metadata?.orderedResolution === true,
     },
@@ -770,4 +803,21 @@ function getArrangeInspectedDeckTopPublicSummaryContext(
     requestedInspectCount: context.requestedInspectCount,
     discardedCostCardIds,
   };
+}
+
+function isExactOwnLiveSource(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  exactCardCode: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, sourceCardId);
+  return (
+    player?.liveZone.cardIds.includes(sourceCardId) === true &&
+    sourceCard !== null &&
+    sourceCard.ownerId === playerId &&
+    isLiveCardData(sourceCard.data) &&
+    sourceCard.data.cardCode === exactCardCode
+  );
 }

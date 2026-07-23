@@ -7101,8 +7101,9 @@ describe('sample card effect runner', () => {
       "μ's"
     );
     triggeredMuseCard.data = {
-      ...createMemberCard('BP6-002-TRIGGERED-MUSE', 'Triggered Muse', 2, "μ's"),
-      cardText: '【登场】抽1张卡。',
+      ...createMemberCard('PL!-bp6-002-R', '絢瀬絵里', 2, "μ's"),
+      cardText:
+        "【登场】检视自己卡组顶的2张卡。可以从其中将1张不持有能力的[μ's]的卡片或持有【常时】能力的[μ's]的卡片加入手牌。其余的卡片放置入休息室。",
     };
 
     const topCardIds = [eligibleMuseCardId!, triggeredMuseCardId!];
@@ -7124,6 +7125,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([eligibleMuseCardId]);
+    expect(session.state?.activeEffect?.selectableCardIds).not.toContain(triggeredMuseCardId);
     const startedSummary = session
       .getPublicEventsSince(beforeSeq)
       .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');

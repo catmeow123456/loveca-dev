@@ -6,12 +6,8 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { addEnergyActivePhaseSkips } from '../../../../domain/rules/energy-active-skips.js';
 import { OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
-import {
-  placeEnergyFromDeckToZoneByCardEffect,
-  setEnergyOrientation,
-} from '../../../effects/energy.js';
+import { setEnergyOrientation } from '../../../effects/energy.js';
 import { shouldSelectEnergyForOperation } from '../../../effects/energy-selection.js';
 import {
   SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
@@ -33,11 +29,17 @@ import {
   createOptionalEnergyReturnWindow,
   resolveOptionalEnergyReturn,
 } from '../../runtime/optional-energy-return.js';
+import type { EnqueueTriggeredCardEffectsForEnergyReturn } from '../../runtime/energy-return.js';
+import {
+  placeWaitingEnergyWithActivePhaseSkip,
+  type EnqueueTriggeredCardEffectsForWaitingEnergyPlacement,
+} from '../../runtime/waiting-energy-placement.js';
 
 const SELECT_RETURN = 'SP_BP7_007_SELECT_TWO_ENERGY';
 const SELECT_ACTIVATE = 'SP_BP7_007_SELECT_FIVE_WAITING_ENERGY';
 type Continue = (g: GameState, o: boolean) => GameState;
-type Enqueue = (g: GameState, t: readonly TriggerCondition[]) => GameState;
+type Enqueue = EnqueueTriggeredCardEffectsForWaitingEnergyPlacement &
+  EnqueueTriggeredCardEffectsForEnergyReturn;
 export function registerSpBp7007MeiWorkflowHandlers(deps: {
   enqueueTriggeredCardEffects: Enqueue;
 }): void {
@@ -210,25 +212,20 @@ function place(
   let state = g;
   let ids: readonly string[] = [];
   if (p && findMemberSlot(p, a.sourceCardId) !== null) {
-    const r = placeEnergyFromDeckToZoneByCardEffect(g, p.id, 2, OrientationState.WAITING, {
-      kind: 'CARD_EFFECT',
-      playerId: p.id,
-      sourceCardId: a.sourceCardId,
-      abilityId: a.abilityId,
-      pendingAbilityId: a.id,
+    const r = placeWaitingEnergyWithActivePhaseSkip(g, {
+      count: 2,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: p.id,
+        sourceCardId: a.sourceCardId,
+        abilityId: a.abilityId,
+        pendingAbilityId: a.id,
+      },
+      enqueueTriggeredCardEffects: enq,
     });
     if (r) {
       ids = r.placedEnergyCardIds;
-      state = addEnergyActivePhaseSkips(
-        r.gameState,
-        ids.map((energyCardId) => ({
-          playerId: p.id,
-          energyCardId,
-          sourceCardId: a.sourceCardId,
-          abilityId: a.abilityId,
-        }))
-      );
-      if (ids.length) state = enq(state, [TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT]);
+      state = r.gameState;
     }
   }
   return finish(state, a, o, n, { placedEnergyCardIds: ids });

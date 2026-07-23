@@ -373,6 +373,8 @@ import { registerSpBp7005RenWorkflowHandlers } from './card-effects/workflows/ca
 import { registerSpBp7006KinakoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-006-kinako.js';
 import { registerSpBp7007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-007-mei.js';
 import { registerSpBp7026DearsWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-026-dears.js';
+import { registerSpBp7027WhatAWonderfulDreamWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-027-what-a-wonderful-dream.js';
+import { registerLiveStartReturnOneEnergyCompareScoreWorkflowHandlers } from './card-effects/workflows/shared/live-start-return-one-energy-compare-score.js';
 import { registerSpBp7001KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-001-kanon.js';
 import { registerNBp7003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-003-shizuku.js';
 import { registerNBp7004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-004-karin.js';
@@ -382,8 +384,13 @@ import { registerNBp7007SetsunaWorkflowHandlers } from './card-effects/workflows
 import { registerNBp7009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-009-rina.js';
 import { registerNBp7019SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-019-setsuna.js';
 import { registerNBp7027AudreyWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-027-audrey.js';
+import { registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-025-colorful-dreams-colorful-smiles.js';
+import { registerNBp7026JustBelieveWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-026-just-believe.js';
+import { registerNBp7030CheerModeWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-030-cheer-mode.js';
 import { registerNBp7028CookingWithLoveWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-028-cooking-with-love.js';
 import { registerNBp7031LikeATreasureWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-031-like-a-treasure.js';
+import { registerSBp7025GuiltyNightGuiltyKissWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-025-guilty-night-guilty-kiss.js';
+import { registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-028-mirai-no-oto-ga-kikoeru.js';
 import { registerSBp7003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-003-kanan.js';
 import { registerSBp7004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-004-dia.js';
 import { registerSBp7005YouWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-005-you.js';
@@ -484,6 +491,7 @@ import { registerDiscardCostWaitingRoomToHandWorkflowHandlers } from './card-eff
 import { registerDiscardLookTopSelectToHandWorkflowHandlers } from './card-effects/workflows/shared/discard-look-top-select-to-hand.js';
 import { registerDirectMillTopWorkflowHandlers } from './card-effects/workflows/shared/direct-mill-top.js';
 import { registerDrawThenDiscardWorkflowHandlers } from './card-effects/workflows/shared/draw-then-discard.js';
+import { registerFillWaitingRoomToEightOptionalMilledLiveToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/fill-waiting-room-to-eight-optional-milled-live-to-deck-top.js';
 import { registerGroupedRecoveryWorkflowHandlers } from './card-effects/workflows/shared/grouped-recovery.js';
 import { registerLookTopSelectToHandWorkflowHandlers } from './card-effects/workflows/shared/look-top-select-to-hand.js';
 import { registerActivatedPayEnergySelfPositionChangeWorkflowHandlers } from './card-effects/workflows/shared/activated-pay-energy-self-position-change.js';
@@ -851,6 +859,9 @@ registerMemberOnEnterDrawWorkflowHandlers();
 registerRelayEnterDrawDiscardWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerGroupedRecoveryWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerDirectMillTopWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerFillWaitingRoomToEightOptionalMilledLiveToDeckTopWorkflowHandlers({
+  enqueueTriggeredCardEffects,
+});
 registerNamedHandDiscardLiveStartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartDiscardGainBladeWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1144,6 +1155,8 @@ registerSpBp7005RenWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7007MeiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7026DearsWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerLiveStartReturnOneEnergyCompareScoreWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp7027WhatAWonderfulDreamWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7001KanonWorkflowHandlers();
 registerNBp7003ShizukuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1156,8 +1169,13 @@ registerNBp7007SetsunaWorkflowHandlers();
 registerNBp7009RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7019SetsunaWorkflowHandlers();
 registerNBp7027AudreyWorkflowHandlers();
+registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers();
+registerNBp7026JustBelieveWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp7030CheerModeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7028CookingWithLoveWorkflowHandlers();
 registerNBp7031LikeATreasureWorkflowHandlers();
+registerSBp7025GuiltyNightGuiltyKissWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers();
 registerSBp7003KananWorkflowHandlers({
   enqueueMemberSlotMovedCardEffects: enqueueTriggeredCardEffects,
 });

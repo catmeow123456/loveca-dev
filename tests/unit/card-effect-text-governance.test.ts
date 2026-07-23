@@ -136,6 +136,19 @@ describe('card effect display text governance', () => {
     expect(gameBoardSource).toContain("{activeEffect.skipSelectionLabel ?? '继续处理'}");
   });
 
+  it('renders ordered multi-select confirmation labels through CardEffectText without a count suffix', () => {
+    const gameBoardSource = readFileSync(
+      join(process.cwd(), 'client/src/components/game/GameBoard.tsx'),
+      'utf8'
+    );
+
+    expect(gameBoardSource).toContain("text={activeEffect.confirmSelectionLabel ?? '确认选择'}");
+    expect(gameBoardSource).toMatch(
+      /<CardEffectText\s+as="span"\s+text=\{activeEffect\.confirmSelectionLabel \?\? '确认选择'\}/
+    );
+    expect(gameBoardSource).not.toContain('（${activeEffectOrderedSelection.length}张）');
+  });
+
   it('keeps the shared activated and Echoes Beyond texts at their Excel Chinese source', () => {
     expect(
       CARD_ABILITY_DEFINITIONS.find(

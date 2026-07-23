@@ -31,7 +31,7 @@
 ## Status Legend
 
 | status | meaning |
-|---|---|
+| ------------- | ------------------------------------ |
 | `planned` | 尚未开始。 |
 | `in_progress` | 已有代码或测试起步。 |
 | `partial` | 已迁移部分调用点，但仍有同类旧逻辑。 |
@@ -41,7 +41,7 @@
 ## Roadmap
 
 | phase | status | target | completion standard |
-|---|---|---|---|
+| ----- | ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | R-0 | done | 建立卡效框架总文档与权威关系。 | `README.md`、目标架构、模块边界、迁移路线和旧文档索引落地。 |
 | R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，更多区域移动/公开确认 helper 待真实 workflow 推动。 |
 | R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中时直接保持状态不变并返回；look-top、抽后弃、回收等 workflow 已迁入 registry，runner 不再承载完整卡效 fallback。真实单选/多选卡文分支已使用结构化 `effectChoice` 与固定 1500ms 双方公开 runtime；普通动作选项继续使用原字段。 |
@@ -781,7 +781,7 @@ Shared shape:
 Stable axes to parameterize before implementation:
 
 | axis | HS_BP6_017 | HS_PB1_020 | BP6_005 |
-|---|---|---|---|
+| ------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | discard count | 1 | 2 | 2 |
 | discard optional | yes | yes | yes |
 | start when cannot discard | activeEffect with empty/available hand and skip | direct `CONDITION_NOT_MET` or `NOT_ENOUGH_HAND_TO_DISCARD` | direct `SKIP_NOT_ENOUGH_HAND_TO_DISCARD` |
@@ -839,10 +839,12 @@ Do not:
 - introduce full steps DSL
 - change card text behavior while moving code
 - clean or include long-term untracked asset/database directories
+
 # PL!N-bp3-005 event-ordinal query/filter
 
 - `src/domain/rules/member-turn-state.ts` 新增只读的本回合成员登场次数与指定 `ON_ENTER_STAGE` 事件 ordinal query；以最近 `ON_TURN_START`（缺失时最近 `ON_TURN_END`，再缺失时完整测试事件流）作为稳定回合边界。
 - `OnEnterStageTriggerFilter.enteredOrdinalThisTurn` 是无卡号的通用入队前过滤轴；runner 仅调用 query 做薄 matcher 胶水，不接 T-2 matcher，也不改变 pending 顺序。
+
 # Waiting-room ON_ENTER delegation boundary
 
 已由 `PL!N-bp3-003` 与 `PL!SP-bp2-006` 建立窄 family：definition 显式 opt-in、休息室来源、空 source slot、无真实登场事件。当前不扩展为通用 timing delegation 或 steps DSL。
@@ -852,3 +854,21 @@ Do not:
 `PL!N-bp4-003`, `PL!S-bp3-005`, `PL!-bp4-001`, and `PL!-bp4-023` now share `workflows/shared/conditional-live-draw-one.ts`. The family preserves the two existing action/payload contracts while widening only the proven axes for LIVE_START/LIVE_SUCCESS, STAGE_MEMBER/LIVE_CARD, effective stage-cost totals, and specified-color remaining HEART rebalance. It retains source-safe resolution, manual/confirm-only and ordered pending semantics, and delegates drawing to `drawCardsForPlayer`.
 
 The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` facts for both players, so all card types, ordinary/additional cheer, and cards already moved out of `resolutionZone` remain countable; it does not reuse the movable-target selector. No runner condition, card-number branch, pending construction, or draw body was added.
+
+# 2026-07-23 BP7 LIVE 能量批迁移状态
+
+- `PL!S-bp7-023-L` 分数4「夜空是否全然知晓？」与 `PL!SP-bp7-027-L` 分数5「What a Wonderful Dream!!」的 LIVE 开始段已进入有限 `live-start-return-one-energy-compare-score` family：标准可选能量返回、精确返回事件、来源复验、返还后数量比较、SCORE replacement 与统一 continuation 均不在 runner。
+- `placeWaitingEnergyWithActivePhaseSkip` 抽取了 SP005/SP007 已复制的“WAITING 放置 + 下一活跃阶段 skip marker + 精确 placement event 入队”原子组合，现由这两张成员与 SP027 LIVE 成功段共同证明。旧 `place-waiting-energy.ts` 的 pending workflow 保持原职责。
+- runner 本批只新增 shared/card workflow 的 import/register 和 `enqueueTriggeredCardEffects` 依赖注入；没有增加卡号分支、条件计算、能量移动或 pending body。未建立任意能量比较、placement 或步骤 DSL。
+
+# 2026-07-23 BP7 单体 BLADE 批迁移状态
+
+- `live-start-target-member-gain-blade.ts` 在两个新的 exact LIVE 样本下只增加有限目标身份轴：既有 `GROUP_ALIAS` 保持，新增 `CARD_NAME_ALIAS` 并复用共享 `cardNameAliasIs` 的中日名/组合卡身份；没有开放任意 selector callback。`PL!N-bp7-025-SECL` 分数1「Colorful Dreams! Colorful Smiles!」与 `PL!SP-bp7-025-L` 分数3「Memories」均复用既有 0/1/多目标、来源重验、target-member modifier 与 continuation。
+- `effects/cheer-selection.ts` 新增 event-inclusive Blade Heart 颜色纯 query，替换 `PL!N-bp5-001` 的局部收集实现；可选 `includedColors` 只限制查询结果，不改变 current-cheer 事件事实。N025 LIVE 成功单卡 workflow 使用六色限制，GRAY/RAINBOW/DRAW/SCORE 不计并以 replacement SCORE 避免重复叠加。
+- runner 仅增加 N025 单卡 LIVE_SUCCESS workflow 的 import/register；两个 LIVE_START 段由既有 shared 注册自动接入。前端只在统一 `cardLocalization.ts` 对 exact N025 做数据不落盘的显示勘误，没有修改管理员写入或生产卡牌数据。
+
+# 2026-07-23 BP7 第三、第四批迁移状态
+
+- `PL!N-bp7-026-SECL` 分数5「Just Believe!!!」与 `PL!SP-bp7-028-L` 分数8「能够听见未来的声音」的多步交互和声援判断均归属 card-owned workflow；共享层只提供既有结构化 selector、event-inclusive cheer query、标准移动/事件与 modifier 原子能力。没有新增 selector callback 或通用支付-目标步骤 DSL。
+- `PL!N-bp7-030-L` 分数0「Cheer Mode」的顶3处理复用并窄扩 `arrange-inspected-deck-edge.ts`；LIVE_ZONE→HAND 只下沉为校验明确的 runtime 原子动作，回手后弃1仍由单卡 workflow 编排。`PL!S-bp7-025-L` 分数3「Guilty Night, Guilty Kiss!」继续用 card-owned effectChoice 与成员状态事件 wrapper。
+- runner 相对前两批只再增加四个 workflow import/register，并注入现有 `enqueueTriggeredCardEffects`；没有新增卡号分支、步骤状态、查询、移动或奖励逻辑。

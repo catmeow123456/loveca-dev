@@ -3616,7 +3616,11 @@ export const GameBoard = memo(function GameBoard({
                         canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
                       }`}
                     >
-                      {`${activeEffect.confirmSelectionLabel ?? '确认选择'}（${activeEffectOrderedSelection.length}张）`}
+                      <CardEffectText
+                        as="span"
+                        text={activeEffect.confirmSelectionLabel ?? '确认选择'}
+                        className="inline-flex items-center justify-center gap-1"
+                      />
                     </button>
                   )}
                 {showLegacyActiveEffectControls && activeEffect.canResolveInOrder && (

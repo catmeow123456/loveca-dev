@@ -1,4 +1,4 @@
-import { isMemberCardData, type HeartIcon } from '../../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData, type HeartIcon } from '../../../domain/entities/card.js';
 import {
   emitGameEvent,
   getCardById,
@@ -28,9 +28,11 @@ import { shuffleZone } from '../../../domain/entities/zone.js';
 import { setEnergyOrientation, type EnergyOrientationChange } from '../../effects/energy.js';
 import { resolveEnergySelectionForOperation } from '../../effects/energy-selection.js';
 import {
+  addCardToZone,
   addCardToStatefulZone,
   addMemberBelowMember,
   removeCardFromZone,
+  removeCardFromStatefulZone,
 } from '../../../domain/entities/zone.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
 
@@ -98,6 +100,12 @@ export interface PlaceWaitingRoomLiveCardInLiveZoneResult {
   readonly movedCardId: string;
   readonly remainingCandidateIds: readonly string[];
   readonly enterLiveZoneEvent: EnterLiveZoneEvent;
+}
+
+export interface ReturnLiveZoneCardToHandForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly enterHandEvent: EnterHandEvent;
 }
 
 export interface ActivateWaitingEnergyCardsForPlayerResult {
@@ -443,6 +451,37 @@ export function recoverCardsFromWaitingRoomToHandForPlayer(
     selectedCardIds,
     remainingCandidateIds,
     enterHandEvents,
+  };
+}
+
+export function returnLiveZoneCardToHandForPlayer(
+  game: GameState,
+  playerId: string,
+  cardId: string
+): ReturnLiveZoneCardToHandForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const card = getCardById(game, cardId);
+  if (
+    !player ||
+    !card ||
+    card.ownerId !== playerId ||
+    !isLiveCardData(card.data) ||
+    !player.liveZone.cardIds.includes(cardId)
+  ) {
+    return null;
+  }
+
+  const enterHandEvent = createEnterHandEvent([cardId], ZoneType.LIVE_ZONE, playerId, playerId);
+  const moved = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    liveZone: removeCardFromStatefulZone(currentPlayer.liveZone, cardId),
+    hand: addCardToZone(currentPlayer.hand, cardId),
+  }));
+
+  return {
+    gameState: emitGameEvent(moved, enterHandEvent),
+    movedCardId: cardId,
+    enterHandEvent,
   };
 }
 

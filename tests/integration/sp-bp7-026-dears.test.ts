@@ -429,7 +429,7 @@ describe('PL!SP-bp7-026-L 分数3「Dears」', () => {
         selectionLabel: '选择要放回能量卡组的能量',
         minSelectableCards: 1,
         maxSelectableCards: 1,
-        confirmSelectionLabel: '支付费用',
+        confirmSelectionLabel: '放回能量卡组',
         skipSelectionLabel: '不发动',
       })
     );

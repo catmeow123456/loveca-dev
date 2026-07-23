@@ -1,4 +1,4 @@
-import { isMemberCardData, type CardInstance } from '../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData, type CardInstance } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import {
   getCardById,
@@ -9,7 +9,12 @@ import {
 } from '../../domain/entities/game.js';
 import type { CheerEvent } from '../../domain/events/game-events.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
-import { HeartColor, TriggerCondition, type CardType } from '../../shared/types/enums.js';
+import {
+  BladeHeartEffect,
+  HeartColor,
+  TriggerCondition,
+  type CardType,
+} from '../../shared/types/enums.js';
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
@@ -19,10 +24,7 @@ import {
 export type CheerCardPredicate = (card: CardInstance) => boolean;
 export type CurrentLiveRevealedCheerEventScope = 'ALL' | 'NON_ADDITIONAL' | 'ADDITIONAL_ONLY';
 export type RevealedCheerCardDestination =
-  | 'HAND'
-  | 'MAIN_DECK_TOP'
-  | 'MAIN_DECK_BOTTOM'
-  | 'WAITING_ROOM';
+  'HAND' | 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' | 'WAITING_ROOM';
 
 export interface CurrentLiveRevealedCheerCardSelectionOptions {
   readonly predicate?: CheerCardPredicate;
@@ -33,8 +35,7 @@ export interface CurrentLiveRevealedCheerCardSelectionOptions {
   readonly eventIds?: readonly string[];
 }
 
-export interface CurrentLiveRevealedCheerCardConditionOptions
-  extends CurrentLiveRevealedCheerCardSelectionOptions {
+export interface CurrentLiveRevealedCheerCardConditionOptions extends CurrentLiveRevealedCheerCardSelectionOptions {
   readonly minCount: number;
 }
 
@@ -67,6 +68,43 @@ export interface DistinctCheerCardsCoverHeartColorsResult {
   readonly conditionMet: boolean;
   readonly assignment: readonly DistinctCheerHeartColorAssignment[];
   readonly matchedCardIds: readonly string[];
+}
+
+/**
+ * Collects structured Blade Heart colors from the current LIVE's event-inclusive revealed-cheer
+ * facts. Cards moved out of the resolution zone remain facts; DRAW/SCORE Blade Hearts never count.
+ */
+export function collectCurrentLiveRevealedCheerBladeHeartColors(
+  game: GameState,
+  playerId: string,
+  options: { readonly includedColors?: readonly HeartColor[] } = {}
+): ReadonlySet<HeartColor> {
+  const includedColors = options.includedColors
+    ? new Set<HeartColor>(options.includedColors)
+    : null;
+  const colors = new Set<HeartColor>();
+
+  for (const cardId of selectCurrentLiveRevealedCheerCardIds(game, playerId)) {
+    const card = getCardById(game, cardId);
+    if (
+      !card ||
+      card.ownerId !== playerId ||
+      (!isMemberCardData(card.data) && !isLiveCardData(card.data))
+    ) {
+      continue;
+    }
+    for (const bladeHeart of card.data.bladeHearts ?? []) {
+      if (
+        bladeHeart.effect === BladeHeartEffect.HEART &&
+        bladeHeart.heartColor !== undefined &&
+        (includedColors === null || includedColors.has(bladeHeart.heartColor))
+      ) {
+        colors.add(bladeHeart.heartColor);
+      }
+    }
+  }
+
+  return colors;
 }
 
 /**

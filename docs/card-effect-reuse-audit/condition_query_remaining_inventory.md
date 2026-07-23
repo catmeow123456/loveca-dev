@@ -168,6 +168,12 @@
 | WF-07 | `PL!HS-bp6-001` / `PL!HS-cl1-009` / `PL!HS-bp6-027` / `PL!S-bp2-021` / `PL!S-bp2-004` | 声援公开卡选择已复用 cheer-selection，021 已验证卡组底；004 的重做声援复用窄 CheerEvent query、原公开卡移动与 cheer helper，但仍保留单卡决定/重验/continuation，不扩成通用 cheer loop 或 workflow DSL。 |
 | WF-08 | `PL!SP-bp5-003` / `PL!N-pb1-008` | 批量成员/能量 orientation 目标查询与二选一流程。 |
 
+### 2026-07-23 event-inclusive Blade Heart 色种 query
+
+- `effects/cheer-selection.ts#collectCurrentLiveRevealedCheerBladeHeartColors` 已从 `PL!N-bp5-001` 的局部实现提取为纯 query，并由 `PL!N-bp7-025-SECL` 分数1「Colorful Dreams! Colorful Smiles!」作为第二个真实消费者。
+- query 固定读取当前 LIVE 的 event-inclusive 声援公开事实，只接纳结构化 `BladeHeartEffect.HEART`；可选 `includedColors` 用于 N025 的六色枚举，不能表达任意 effect predicate、奖励或移动。普通 Heart、必要 Heart、DRAW/SCORE 与临时 modifier 不进入该 query。
+- 该稳定形状已收口，不再列为 condition helper 缺口；基于颜色数量的具体阈值、奖励、per-turn 或 pending 语义仍由各自 workflow 持有，不晋升 formula/steps DSL。
+
 ## Remaining Future Directions
 
 Batch G identity migration 已完成。本文档后续只保留真实未完成方向：
@@ -192,3 +198,8 @@ git diff --check
 ```bash
 pnpm test:run tests/integration/live-start-timing.test.ts tests/unit/live-modifiers.test.ts tests/unit/cost-calculator.test.ts
 ```
+# LIVE 卡区逐卡有效分数（2026-07-23）
+
+- `domain/rules/live-zone-score.ts` 新增 `getLiveZoneCardEffectiveScores` / `sumLiveZoneCardEffectiveScore`，只扫描指定玩家当前 `liveZone` 中 owner 正确的合法 LIVE 实例并按实例去重。
+- 每张卡按 `max(0, printed score + liveCardId 绑定 SCORE modifier)` 计算后再求和；玩家级 LIVE 合计 SCORE、声援 SCORE、`playerScores` 草案和非法区域内容都不进入查询。当前真实消费者为 `PL!-PR-020-PR` 费用13「高坂穗乃果」与 `PL!SP-PR-026-PR` 费用13「鬼冢夏美」。
+- query 只读 `GameState`，不创建 pending、activeEffect 或 modifier；不同区域、成功区特殊印刷能力与最终胜负草案继续使用各自现有规则入口，不合并成通用分数 AST。

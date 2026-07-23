@@ -9,6 +9,10 @@ export {
   sumSuccessfulLiveScore,
   successLiveScoreAtLeast,
 } from '../../domain/rules/success-live-score.js';
+export {
+  getLiveZoneCardEffectiveScores,
+  sumLiveZoneCardEffectiveScore,
+} from '../../domain/rules/live-zone-score.js';
 export { hasLiveWithoutLiveStartOrSuccessAbility } from '../../domain/rules/live-zone-ability.js';
 export {
   countMemberEntriesThisTurn,

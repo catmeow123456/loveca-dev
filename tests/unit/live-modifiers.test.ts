@@ -1626,48 +1626,52 @@ describe('live modifier helpers', () => {
     }
   });
 
-  it('collects PL!SP-PR-025 BLADE plus two only when own energy count is exactly seven', () => {
-    const atSeven = createSpPb2EnergyHeartState({
-      cardCode: 'PL!SP-PR-025-PR',
-      energyOrientations: Array(7).fill(OrientationState.WAITING),
-    });
-    const modifiers = collectLiveModifiers(atSeven.game);
-
-    expect(modifiers).toContainEqual({
-      kind: 'BLADE',
-      playerId: 'p1',
-      countDelta: 2,
-      sourceCardId: atSeven.sourceId,
-      abilityId: SP_PR_025_CONTINUOUS_ABILITY_ID,
-    });
-    expect(getMemberEffectiveBladeCount(atSeven.game, 'p1', atSeven.sourceId, modifiers)).toBe(3);
-    expect(getPlayerLiveBladeModifier(atSeven.game.liveResolution, 'p1', modifiers)).toBe(2);
-
-    for (const energyCount of [6, 8] as const) {
-      const state = createSpPb2EnergyHeartState({
-        cardCode: 'PL!SP-PR-025-PR',
-        energyOrientations: Array(energyCount).fill(OrientationState.ACTIVE),
+  it('collects exact-seven-energy BLADE plus two for both exact PR cards', () => {
+    for (const cardCode of ['PL!SP-PR-025-PR', 'PL!-PR-021-PR'] as const) {
+      const atSeven = createSpPb2EnergyHeartState({
+        cardCode,
+        energyOrientations: Array(7).fill(OrientationState.WAITING),
       });
-      expect(
-        collectLiveModifiers(state.game).some(
-          (modifier) => modifier.abilityId === SP_PR_025_CONTINUOUS_ABILITY_ID
-        )
-      ).toBe(false);
+      const modifiers = collectLiveModifiers(atSeven.game);
+
+      expect(modifiers).toContainEqual({
+        kind: 'BLADE',
+        playerId: 'p1',
+        countDelta: 2,
+        sourceCardId: atSeven.sourceId,
+        abilityId: SP_PR_025_CONTINUOUS_ABILITY_ID,
+      });
+      expect(getMemberEffectiveBladeCount(atSeven.game, 'p1', atSeven.sourceId, modifiers)).toBe(3);
+      expect(getPlayerLiveBladeModifier(atSeven.game.liveResolution, 'p1', modifiers)).toBe(2);
+
+      for (const energyCount of [6, 8] as const) {
+        const state = createSpPb2EnergyHeartState({
+          cardCode,
+          energyOrientations: Array(energyCount).fill(OrientationState.ACTIVE),
+        });
+        expect(
+          collectLiveModifiers(state.game).some(
+            (modifier) => modifier.abilityId === SP_PR_025_CONTINUOUS_ABILITY_ID
+          )
+        ).toBe(false);
+      }
     }
   });
 
-  it('does not collect PL!SP-PR-025 BLADE when the source is off-stage or memberBelow', () => {
-    for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
-      const state = createSpPb2EnergyHeartState({
-        cardCode: 'PL!SP-PR-025-PR',
-        energyOrientations: Array(7).fill(OrientationState.ACTIVE),
-        sourcePlacement,
-      });
-      expect(
-        collectLiveModifiers(state.game).some(
-          (modifier) => modifier.abilityId === SP_PR_025_CONTINUOUS_ABILITY_ID
-        )
-      ).toBe(false);
+  it('does not collect exact-seven-energy BLADE when either exact PR source is invalid', () => {
+    for (const cardCode of ['PL!SP-PR-025-PR', 'PL!-PR-021-PR'] as const) {
+      for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
+        const state = createSpPb2EnergyHeartState({
+          cardCode,
+          energyOrientations: Array(7).fill(OrientationState.ACTIVE),
+          sourcePlacement,
+        });
+        expect(
+          collectLiveModifiers(state.game).some(
+            (modifier) => modifier.abilityId === SP_PR_025_CONTINUOUS_ABILITY_ID
+          )
+        ).toBe(false);
+      }
     }
   });
 
