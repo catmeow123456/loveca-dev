@@ -16,10 +16,7 @@ import {
   revealHandCardForActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import {
-  drawCardsForPlayer,
-  moveHandCardToDeckBottomForPlayer,
-} from '../../runtime/actions.js';
+import { drawCardsForPlayer, moveHandCardToDeckBottomForPlayer } from '../../runtime/actions.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -29,9 +26,9 @@ import {
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
 import {
-  finishArrangeInspectedDeckTopWorkflow,
-  startArrangeInspectedDeckTopWorkflow,
-} from '../shared/arrange-inspected-deck-top.js';
+  finishArrangeInspectedDeckEdgeWorkflow,
+  startArrangeInspectedDeckEdgeWorkflow,
+} from '../shared/arrange-inspected-deck-edge.js';
 
 const AUTO_ABILITY_ID = S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID;
 const LIVE_START_ABILITY_ID =
@@ -61,26 +58,36 @@ export function registerSBp2007HanamaruWorkflowHandlers(deps: {
       context.continuePendingCardEffects
     )
   );
-  registerActiveEffectStepHandler(LIVE_START_ABILITY_ID, SELECT_HAND_LIVE_STEP_ID, (game, input, context) =>
-    finishHandLiveSelection(
-      game,
-      input.selectedCardId ?? null,
-      context.continuePendingCardEffects
-    )
+  registerActiveEffectStepHandler(
+    LIVE_START_ABILITY_ID,
+    SELECT_HAND_LIVE_STEP_ID,
+    (game, input, context) =>
+      finishHandLiveSelection(
+        game,
+        input.selectedCardId ?? null,
+        context.continuePendingCardEffects
+      )
   );
   registerActiveEffectStepHandler(
     LIVE_START_ABILITY_ID,
     PLACE_REVEALED_LIVE_BOTTOM_STEP_ID,
     (game, _input, context) =>
-      finishPlaceRevealedLiveBottom(game, context.continuePendingCardEffects, deps.enqueueTriggeredCardEffects)
+      finishPlaceRevealedLiveBottom(
+        game,
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
   );
-  registerActiveEffectStepHandler(LIVE_START_ABILITY_ID, ARRANGE_TOP_TWO_STEP_ID, (game, input, context) =>
-    finishArrangeInspectedDeckTopWorkflow(
-      game,
-      input.selectedCardIds ?? [],
-      context.continuePendingCardEffects,
-      deps.enqueueTriggeredCardEffects
-    )
+  registerActiveEffectStepHandler(
+    LIVE_START_ABILITY_ID,
+    ARRANGE_TOP_TWO_STEP_ID,
+    (game, input, context) =>
+      finishArrangeInspectedDeckEdgeWorkflow(
+        game,
+        input.selectedCardIds ?? [],
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
   );
 }
 
@@ -93,10 +100,17 @@ function resolveOnCheerDrawOne(
   const player = getPlayerById(game, ability.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, ability.sourceCardId) : null;
   if (!player || sourceSlot === null) {
-    return consumePending(game, ability, ability.controllerId, orderedResolution, continuePendingCardEffects, {
-      step: 'SOURCE_NOT_ON_STAGE',
-      sourceSlot,
-    });
+    return consumePending(
+      game,
+      ability,
+      ability.controllerId,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
+        step: 'SOURCE_NOT_ON_STAGE',
+        sourceSlot,
+      }
+    );
   }
 
   const hasOwnNormalCheerTrigger = hasOwnNormalCheerEventForAbility(game, ability, player.id);
@@ -104,9 +118,7 @@ function resolveOnCheerDrawOne(
     cardTypes: CardType.LIVE,
   });
   const conditionMet =
-    hasOwnNormalCheerTrigger &&
-    matchingLiveCardIds.length >= 1 &&
-    player.hand.cardIds.length <= 7;
+    hasOwnNormalCheerTrigger && matchingLiveCardIds.length >= 1 && player.hand.cardIds.length <= 7;
   if (!conditionMet) {
     return consumePending(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
       step: 'CHEER_LIVE_OR_HAND_CONDITION_NOT_MET',
@@ -165,9 +177,16 @@ function startLiveStartRevealAndArrange(
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player || getSourceMemberSlot(game, ability.controllerId, ability.sourceCardId) === null) {
-    return consumePending(game, ability, ability.controllerId, orderedResolution, continuePendingCardEffects, {
-      step: 'SOURCE_NOT_ON_STAGE',
-    });
+    return consumePending(
+      game,
+      ability,
+      ability.controllerId,
+      orderedResolution,
+      continuePendingCardEffects,
+      {
+        step: 'SOURCE_NOT_ON_STAGE',
+      }
+    );
   }
   const selectableCardIds = player.hand.cardIds.filter((cardId) => {
     const card = getCardById(game, cardId);
@@ -214,7 +233,11 @@ function finishHandLiveSelection(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || effect.abilityId !== LIVE_START_ABILITY_ID || effect.stepId !== SELECT_HAND_LIVE_STEP_ID) {
+  if (
+    !effect ||
+    effect.abilityId !== LIVE_START_ABILITY_ID ||
+    effect.stepId !== SELECT_HAND_LIVE_STEP_ID
+  ) {
     return game;
   }
   const player = getPlayerById(game, effect.controllerId);
@@ -277,9 +300,15 @@ function finishPlaceRevealedLiveBottom(
       ? effect.metadata.revealedHandLiveCardId
       : null;
   const candidateCardIds = Array.isArray(effect.metadata?.revealCandidateCardIds)
-    ? effect.metadata.revealCandidateCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
+    ? effect.metadata.revealCandidateCardIds.filter(
+        (cardId): cardId is string => typeof cardId === 'string'
+      )
     : [];
-  if (!player || selectedCardId === null || getSourceMemberSlot(game, effect.controllerId, effect.sourceCardId) === null) {
+  if (
+    !player ||
+    selectedCardId === null ||
+    getSourceMemberSlot(game, effect.controllerId, effect.sourceCardId) === null
+  ) {
     return clearStaleActiveEffect(game, effect, effect.controllerId, continuePendingCardEffects);
   }
   const moveResult = moveHandCardToDeckBottomForPlayer(game, player.id, selectedCardId, {
@@ -289,15 +318,20 @@ function finishPlaceRevealedLiveBottom(
     return clearStaleActiveEffect(game, effect, player.id, continuePendingCardEffects);
   }
 
-  const state = addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-    pendingAbilityId: effect.id,
-    abilityId: effect.abilityId,
-    sourceCardId: effect.sourceCardId,
-    step: 'PLACE_REVEALED_HAND_LIVE_TO_DECK_BOTTOM',
-    revealedHandLiveCardId: selectedCardId,
-    movedCardIds: [moveResult.movedCardId],
-  });
-  return startArrangeInspectedDeckTopWorkflow(
+  const state = addAction(
+    { ...moveResult.gameState, activeEffect: null },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'PLACE_REVEALED_HAND_LIVE_TO_DECK_BOTTOM',
+      revealedHandLiveCardId: selectedCardId,
+      movedCardIds: [moveResult.movedCardId],
+    }
+  );
+  return startArrangeInspectedDeckEdgeWorkflow(
     state,
     {
       ability: {
@@ -363,6 +397,8 @@ function consumePending(
 function removePendingAbility(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }

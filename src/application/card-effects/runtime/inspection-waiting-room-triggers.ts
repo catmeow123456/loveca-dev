@@ -6,6 +6,7 @@ import {
 } from '../../../domain/entities/game.js';
 import { addCardToZone, placeCardInSlot } from '../../../domain/entities/zone.js';
 import {
+  type CardEffectCause,
   createEnterWaitingRoomEvent,
   type EnterWaitingRoomEvent,
 } from '../../../domain/events/game-events.js';
@@ -33,6 +34,10 @@ export interface MoveInspectedDeckTopRestToWaitingRoomResult extends MoveInspect
   readonly deckTopCardIds: readonly string[];
 }
 
+export interface MoveInspectedDeckBottomRestToWaitingRoomResult extends MoveInspectedMultiSelectionResult {
+  readonly deckBottomCardIds: readonly string[];
+}
+
 export interface PartitionInspectedCardsResult extends MoveInspectedDeckTopRestToWaitingRoomResult {
   readonly handCardIds: readonly string[];
 }
@@ -42,17 +47,26 @@ export interface MoveInspectedSelectionToStageResult {
   readonly waitingRoomCardIds: readonly string[];
 }
 
+export interface InspectionWaitingRoomTriggerOptions {
+  readonly cause?: CardEffectCause;
+}
+
 export function enqueueInspectionCardsEnteredWaitingRoom(
   game: GameState,
   playerId: string,
   movedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
 ): GameState {
   if (movedCardIds.length === 0) {
     return game;
   }
 
-  const enterWaitingRoomEvent = createInspectionEnterWaitingRoomEvent(playerId, movedCardIds);
+  const enterWaitingRoomEvent = createInspectionEnterWaitingRoomEvent(
+    playerId,
+    movedCardIds,
+    options.cause
+  );
   return enqueueTriggeredCardEffects(
     emitGameEvent(game, enterWaitingRoomEvent),
     [TriggerCondition.ON_ENTER_WAITING_ROOM],
@@ -64,7 +78,8 @@ export function moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
   game: GameState,
   playerId: string,
   inspectedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
 ): MoveInspectedMultiSelectionResult | null {
   const moveResult = moveInspectedCardsToWaitingRoom(game, playerId, inspectedCardIds);
   if (!moveResult) {
@@ -76,7 +91,8 @@ export function moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
       moveResult.gameState,
       playerId,
       moveResult.movedCardIds,
-      enqueueTriggeredCardEffects
+      enqueueTriggeredCardEffects,
+      options
     ),
     selectedCardIds: [],
     waitingRoomCardIds: moveResult.movedCardIds,
@@ -88,7 +104,8 @@ export function moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers(
   playerId: string,
   inspectedCardIds: readonly string[],
   selectedCardId: string | null,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
 ): MoveInspectedMultiSelectionResult | null {
   const moveResult = moveInspectedSelectionToHandRestToWaitingRoom(
     game,
@@ -105,7 +122,8 @@ export function moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers(
       moveResult.gameState,
       playerId,
       moveResult.waitingRoomCardIds,
-      enqueueTriggeredCardEffects
+      enqueueTriggeredCardEffects,
+      options
     ),
     selectedCardIds: moveResult.selectedCardId ? [moveResult.selectedCardId] : [],
     waitingRoomCardIds: moveResult.waitingRoomCardIds,
@@ -117,7 +135,8 @@ export function moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers(
   playerId: string,
   inspectedCardIds: readonly string[],
   selectedCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
 ): MoveInspectedMultiSelectionResult | null {
   const player = getPlayerById(game, playerId);
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
@@ -143,7 +162,8 @@ export function moveInspectedCardsToHandRestToWaitingRoomAndEnqueueTriggers(
     state,
     player.id,
     waitingRoomCardIds,
-    enqueueTriggeredCardEffects
+    enqueueTriggeredCardEffects,
+    options
   );
 
   return {
@@ -159,10 +179,70 @@ export function moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
   inspectedCardIds: readonly string[],
   deckTopCardIds: readonly string[],
   waitingRoomCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
 ): MoveInspectedDeckTopRestToWaitingRoomResult | null {
+  const moveResult = moveInspectedCardsToDeckEdgeRestToWaitingRoomAndEnqueueTriggers(
+    game,
+    playerId,
+    inspectedCardIds,
+    deckTopCardIds,
+    waitingRoomCardIds,
+    'TOP',
+    enqueueTriggeredCardEffects,
+    options
+  );
+  return moveResult
+    ? {
+        ...moveResult,
+        deckTopCardIds: moveResult.deckEdgeCardIds,
+      }
+    : null;
+}
+
+export function moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers(
+  game: GameState,
+  playerId: string,
+  inspectedCardIds: readonly string[],
+  deckBottomCardIds: readonly string[],
+  waitingRoomCardIds: readonly string[],
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
+): MoveInspectedDeckBottomRestToWaitingRoomResult | null {
+  const moveResult = moveInspectedCardsToDeckEdgeRestToWaitingRoomAndEnqueueTriggers(
+    game,
+    playerId,
+    inspectedCardIds,
+    deckBottomCardIds,
+    waitingRoomCardIds,
+    'BOTTOM',
+    enqueueTriggeredCardEffects,
+    options
+  );
+  return moveResult
+    ? {
+        ...moveResult,
+        deckBottomCardIds: moveResult.deckEdgeCardIds,
+      }
+    : null;
+}
+
+function moveInspectedCardsToDeckEdgeRestToWaitingRoomAndEnqueueTriggers(
+  game: GameState,
+  playerId: string,
+  inspectedCardIds: readonly string[],
+  deckEdgeCardIds: readonly string[],
+  waitingRoomCardIds: readonly string[],
+  deckEdge: 'TOP' | 'BOTTOM',
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions
+):
+  | (MoveInspectedMultiSelectionResult & {
+      readonly deckEdgeCardIds: readonly string[];
+    })
+  | null {
   const player = getPlayerById(game, playerId);
-  const destinationCardIds = [...deckTopCardIds, ...waitingRoomCardIds];
+  const destinationCardIds = [...deckEdgeCardIds, ...waitingRoomCardIds];
   const uniqueDestinationCardIds = new Set(destinationCardIds);
   if (
     !player ||
@@ -178,10 +258,13 @@ export function moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
   let state = updatePlayer(game, player.id, (currentPlayer) => ({
     ...currentPlayer,
     mainDeck:
-      deckTopCardIds.length > 0
+      deckEdgeCardIds.length > 0
         ? {
             ...currentPlayer.mainDeck,
-            cardIds: [...deckTopCardIds, ...currentPlayer.mainDeck.cardIds],
+            cardIds:
+              deckEdge === 'TOP'
+                ? [...deckEdgeCardIds, ...currentPlayer.mainDeck.cardIds]
+                : [...currentPlayer.mainDeck.cardIds, ...[...deckEdgeCardIds].reverse()],
           }
         : currentPlayer.mainDeck,
     waitingRoom:
@@ -197,14 +280,15 @@ export function moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
     state,
     player.id,
     waitingRoomCardIds,
-    enqueueTriggeredCardEffects
+    enqueueTriggeredCardEffects,
+    options
   );
 
   return {
     gameState: state,
-    selectedCardIds: deckTopCardIds,
+    selectedCardIds: deckEdgeCardIds,
     waitingRoomCardIds,
-    deckTopCardIds,
+    deckEdgeCardIds,
   };
 }
 
@@ -215,7 +299,8 @@ export function partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTrigger
   handCardIds: readonly string[],
   deckTopCardIds: readonly string[],
   waitingRoomCardIds: readonly string[],
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
 ): PartitionInspectedCardsResult | null {
   const player = getPlayerById(game, playerId);
   const destinationCardIds = [...handCardIds, ...deckTopCardIds, ...waitingRoomCardIds];
@@ -248,7 +333,8 @@ export function partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTrigger
     state,
     player.id,
     waitingRoomCardIds,
-    enqueueTriggeredCardEffects
+    enqueueTriggeredCardEffects,
+    options
   );
 
   return {
@@ -266,7 +352,8 @@ export function moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers
   inspectedCardIds: readonly string[],
   selectedCardId: string,
   selectedSlot: SlotPosition,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
+  options: InspectionWaitingRoomTriggerOptions = {}
 ): MoveInspectedSelectionToStageResult | null {
   const player = getPlayerById(game, playerId);
   if (
@@ -296,7 +383,8 @@ export function moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers
     state,
     player.id,
     waitingRoomCardIds,
-    enqueueTriggeredCardEffects
+    enqueueTriggeredCardEffects,
+    options
   );
 
   return {
@@ -307,7 +395,8 @@ export function moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers
 
 function createInspectionEnterWaitingRoomEvent(
   playerId: string,
-  movedCardIds: readonly string[]
+  movedCardIds: readonly string[],
+  cause?: CardEffectCause
 ): EnterWaitingRoomEvent {
-  return createEnterWaitingRoomEvent(movedCardIds, ZoneType.MAIN_DECK, playerId, playerId);
+  return createEnterWaitingRoomEvent(movedCardIds, ZoneType.MAIN_DECK, playerId, playerId, cause);
 }

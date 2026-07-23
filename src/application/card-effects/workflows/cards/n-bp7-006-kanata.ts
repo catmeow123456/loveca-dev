@@ -36,9 +36,9 @@ import {
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 import {
-  finishArrangeInspectedDeckTopWorkflow,
-  startArrangeInspectedDeckTopWorkflow,
-} from '../shared/arrange-inspected-deck-top.js';
+  finishArrangeInspectedDeckEdgeWorkflow,
+  startArrangeInspectedDeckEdgeWorkflow,
+} from '../shared/arrange-inspected-deck-edge.js';
 
 const INSPECT_TOP_FOUR_STEP_ID = 'N_BP7_006_ARRANGE_INSPECTED_TOP_FOUR';
 const CHOOSE_ENERGY_OR_BLADE_STEP_ID = 'N_BP7_006_CHOOSE_ENERGY_OR_BLADE';
@@ -67,7 +67,7 @@ export function registerNBp7006KanataWorkflowHandlers(deps: {
     N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
     INSPECT_TOP_FOUR_STEP_ID,
     (game, input, context) =>
-      finishArrangeInspectedDeckTopWorkflow(
+      finishArrangeInspectedDeckEdgeWorkflow(
         game,
         input.selectedCardIds ?? [],
         context.continuePendingCardEffects,
@@ -125,7 +125,7 @@ function startInspectTopFour(
   });
 
   const effectId = `${N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID}:${sourceCardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`;
-  return startArrangeInspectedDeckTopWorkflow(
+  return startArrangeInspectedDeckEdgeWorkflow(
     state,
     {
       ability: {

@@ -2016,6 +2016,115 @@ describe('live modifier helpers', () => {
     expect(getMemberEffectiveCost(withSet!.gameState, 'p1', active.sourceId)).toBe(6);
   });
 
+  it('applies exact PL!SP-bp7-002-P energy-lead stage cost without changing printed selectors', () => {
+    for (const [ownEnergyOrientations, opponentEnergyCount, expectedCost] of [
+      [Array(6).fill(OrientationState.ACTIVE), 5, 2],
+      [Array(7).fill(OrientationState.ACTIVE), 7, 2],
+      [Array(7).fill(OrientationState.ACTIVE), 6, 4],
+      [Array(8).fill(OrientationState.ACTIVE), 7, 4],
+      [Array(7).fill(OrientationState.ACTIVE), 8, 2],
+      [
+        [
+          OrientationState.ACTIVE,
+          OrientationState.WAITING,
+          OrientationState.ACTIVE,
+          OrientationState.WAITING,
+          OrientationState.ACTIVE,
+          OrientationState.WAITING,
+          OrientationState.ACTIVE,
+        ],
+        6,
+        4,
+      ],
+    ] as const) {
+      const state = createSpBp7002EffectiveCostState({
+        ownEnergyOrientations,
+        opponentEnergyCount,
+      });
+      expect(getMemberEffectiveCost(state.game, 'p1', state.sourceId)).toBe(expectedCost);
+      expect(costLte(2)(state.game.cardRegistry.get(state.sourceId)!)).toBe(true);
+    }
+  });
+
+  it('requires exact PL!SP-bp7-002-P to remain a top-level member on its controller stage', () => {
+    for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW', 'HAND', 'WAITING_ROOM'] as const) {
+      const state = createSpBp7002EffectiveCostState({
+        ownEnergyOrientations: Array(7).fill(OrientationState.ACTIVE),
+        opponentEnergyCount: 6,
+        sourcePlacement,
+      });
+      expect(getMemberEffectiveCost(state.game, 'p1', state.sourceId)).toBe(2);
+    }
+
+    const sibling = createSpBp7002EffectiveCostState({
+      cardCode: 'PL!SP-bp7-002-N',
+      ownEnergyOrientations: Array(7).fill(OrientationState.ACTIVE),
+      opponentEnergyCount: 6,
+    });
+    expect(getMemberEffectiveCost(sibling.game, 'p1', sibling.sourceId)).toBe(2);
+  });
+
+  it('evaluates each PL!SP-bp7-002-P instance from its own controller energy state', () => {
+    const state = createSpBp7002EffectiveCostState({
+      ownEnergyOrientations: Array(7).fill(OrientationState.ACTIVE),
+      opponentEnergyCount: 6,
+    });
+    const opponentSource = createCardInstance(
+      {
+        cardCode: 'PL!SP-bp7-002-P',
+        name: '唐可可',
+        groupNames: ['Liella!'],
+        cardType: CardType.MEMBER,
+        cost: 2,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      },
+      'p2',
+      'sp-bp7-002-opponent-source'
+    );
+    let game = registerCards(state.game, [opponentSource]);
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        opponentSource.instanceId
+      ),
+    }));
+
+    expect(getMemberEffectiveCost(game, 'p1', state.sourceId)).toBe(4);
+    expect(getMemberEffectiveCost(game, 'p2', opponentSource.instanceId)).toBe(2);
+  });
+
+  it('stacks PL!SP-bp7-002-P before MEMBER_COST and lets MEMBER_COST_SET override without mutation', () => {
+    const state = createSpBp7002EffectiveCostState({
+      ownEnergyOrientations: Array(7).fill(OrientationState.ACTIVE),
+      opponentEnergyCount: 6,
+    });
+    const withDelta = addMemberCostLiveModifierForMember(state.game, {
+      playerId: 'p1',
+      memberCardId: state.sourceId,
+      sourceCardId: 'test-cost-delta-source',
+      abilityId: 'test:sp-bp7-002-cost-plus-three',
+      countDelta: 3,
+    });
+    expect(withDelta).not.toBeNull();
+    expect(getMemberEffectiveCost(withDelta!.gameState, 'p1', state.sourceId)).toBe(7);
+
+    const withSet = addMemberCostSetLiveModifierForMember(withDelta!.gameState, {
+      playerId: 'p1',
+      memberCardId: state.sourceId,
+      sourceCardId: 'test-cost-set-source',
+      abilityId: 'test:sp-bp7-002-cost-set-one',
+      setTo: 1,
+    });
+    expect(withSet).not.toBeNull();
+    const modifierCount = withSet!.gameState.liveResolution.liveModifiers.length;
+    expect(getMemberEffectiveCost(withSet!.gameState, 'p1', state.sourceId)).toBe(1);
+    expect(getMemberEffectiveCost(withSet!.gameState, 'p1', state.sourceId)).toBe(1);
+    expect(withSet!.gameState.liveResolution.liveModifiers).toHaveLength(modifierCount);
+  });
+
   it('collects PL!SP-pb2-035 BLADE +2 only while the source is on the left side', () => {
     const keke = createCardInstance(
       {
@@ -6096,6 +6205,112 @@ describe('PL!S-bp7-016-N 费用15「国木田花丸」 continuous Heart', () => 
   });
 });
 
+describe('PL!SP-bp7-013-N 费用15「唐可可」 continuous KALEIDOSCORE Heart/BLADE', () => {
+  it('只统计己方主舞台顶层 KALEIDOSCORE，并只为来源动态提供紫 Heart 与 BLADE', () => {
+    const createMember = (
+      cardCode: string,
+      ownerId: string,
+      instanceId: string,
+      unitName?: string
+    ) =>
+      createCardInstance(
+        {
+          cardCode,
+          name: instanceId,
+          groupNames: ['Liella!'],
+          unitName,
+          cardType: CardType.MEMBER,
+          cost: cardCode === 'PL!SP-bp7-013-N' ? 15 : 4,
+          blade: 1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        },
+        ownerId,
+        instanceId
+      );
+    const source = createMember(
+      'PL!SP-bp7-013-N',
+      'p1',
+      'sp-bp7-013-source',
+      'KALEIDOSCORE'
+    );
+    const allyOne = createMember('ALLY-ONE', 'p1', 'sp-bp7-013-ally-one', 'KALEIDOSCORE');
+    const allyTwo = createMember('ALLY-TWO', 'p1', 'sp-bp7-013-ally-two', 'KALEIDOSCORE');
+    const outsider = createMember('OUTSIDER', 'p1', 'sp-bp7-013-outsider', 'CatChu!');
+    const below = createMember('BELOW', 'p1', 'sp-bp7-013-below', 'KALEIDOSCORE');
+    const opponent = createMember('OPPONENT', 'p2', 'sp-bp7-013-opponent', 'KALEIDOSCORE');
+    let game = registerCards(
+      createGameState('sp-bp7-013-continuous', 'p1', 'P1', 'p2', 'P2'),
+      [source, allyOne, allyTwo, outsider, below, opponent]
+    );
+    game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.LEFT, allyOne.instanceId);
+    game = placeMemberOnStage(game, 'p1', SlotPosition.RIGHT, outsider.instanceId);
+    game = placeMemberOnStage(game, 'p2', SlotPosition.CENTER, opponent.instanceId);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: addMemberBelowMember(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        below.instanceId
+      ),
+    }));
+
+    const abilityId =
+      'PL!SP-bp7-013-N:continuous-three-kaleidoscore-gain-purple-heart-blade';
+    const abilityModifiers = (state: GameState) =>
+      collectLiveModifiers(state).filter((modifier) => modifier.abilityId === abilityId);
+
+    expect(abilityModifiers(game)).toEqual([]);
+
+    game = placeMemberOnStage(game, 'p1', SlotPosition.RIGHT, allyTwo.instanceId);
+    const modifiers = abilityModifiers(game);
+    expect(modifiers).toHaveLength(2);
+    expect(modifiers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'HEART',
+          target: 'SOURCE_MEMBER',
+          playerId: 'p1',
+          sourceCardId: source.instanceId,
+          hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+        }),
+        expect.objectContaining({
+          kind: 'BLADE',
+          playerId: 'p1',
+          sourceCardId: source.instanceId,
+          countDelta: 1,
+        }),
+      ])
+    );
+    expect(
+      modifiers.find((modifier) => modifier.kind === 'BLADE')
+    ).not.toHaveProperty('targetMemberCardId');
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', collectLiveModifiers(game))).toEqual(
+      []
+    );
+    expect(getMemberEffectiveHeartIcons(game, 'p1', source.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      createHeartIcon(HeartColor.PURPLE, 1),
+    ]);
+    expect(getMemberEffectiveBladeCount(game, 'p1', source.instanceId)).toBe(2);
+    expect(getMemberEffectiveBladeCount(game, 'p1', allyOne.instanceId)).toBe(1);
+    expect(getMemberEffectiveBladeCount(game, 'p1', allyTwo.instanceId)).toBe(1);
+    expect(abilityModifiers(game)).toHaveLength(2);
+
+    const necessaryMemberLeft = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.RIGHT),
+    }));
+    expect(abilityModifiers(necessaryMemberLeft)).toEqual([]);
+
+    const sourceLeft = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    expect(abilityModifiers(sourceLeft)).toEqual([]);
+  });
+});
+
 describe('PL!N-pb1-001 continuous actual LIVE-card BLADE modifier', () => {
   function setup(options: {
     readonly liveCardCount: number;
@@ -8517,6 +8732,99 @@ function createSpPb2EnergyHeartState(options: {
     game,
     sourceId: source.instanceId,
   };
+}
+
+function createSpBp7002EffectiveCostState(options: {
+  readonly cardCode?: string;
+  readonly ownEnergyOrientations: readonly OrientationState[];
+  readonly opponentEnergyCount: number;
+  readonly sourcePlacement?: 'MAIN_STAGE' | 'OFF_STAGE' | 'MEMBER_BELOW' | 'HAND' | 'WAITING_ROOM';
+}) {
+  const cardCode = options.cardCode ?? 'PL!SP-bp7-002-P';
+  const source = createCardInstance(
+    {
+      cardCode,
+      name: '唐可可',
+      groupNames: ['Liella!'],
+      cardType: CardType.MEMBER,
+      cost: 2,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+    },
+    'p1',
+    `${cardCode}-source`
+  );
+  const host = createStageMember('PL!SP-bp7-test-host', 'p1', 'sp-bp7-002-host', 2);
+  const ownEnergyCards = options.ownEnergyOrientations.map((_, index) =>
+    createCardInstance(
+      {
+        cardCode: `PL!SP-bp7-002-own-energy-${index}`,
+        name: `Own Energy ${index}`,
+        cardType: CardType.ENERGY,
+      },
+      'p1',
+      `sp-bp7-002-own-energy-${index}`
+    )
+  );
+  const opponentEnergyCards = Array.from({ length: options.opponentEnergyCount }, (_, index) =>
+    createCardInstance(
+      {
+        cardCode: `PL!SP-bp7-002-opponent-energy-${index}`,
+        name: `Opponent Energy ${index}`,
+        cardType: CardType.ENERGY,
+      },
+      'p2',
+      `sp-bp7-002-opponent-energy-${index}`
+    )
+  );
+  let game = registerCards(
+    createGameState('sp-bp7-002-effective-cost', 'p1', 'P1', 'p2', 'P2'),
+    [source, host, ...ownEnergyCards, ...opponentEnergyCards]
+  );
+  game = updatePlayer(game, 'p1', (player) => {
+    let memberSlots = player.memberSlots;
+    if (options.sourcePlacement === 'MEMBER_BELOW') {
+      memberSlots = addMemberBelowMember(
+        placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+        SlotPosition.CENTER,
+        source.instanceId
+      );
+    } else if (options.sourcePlacement === undefined || options.sourcePlacement === 'MAIN_STAGE') {
+      memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId);
+    }
+    return {
+      ...player,
+      memberSlots,
+      hand:
+        options.sourcePlacement === 'HAND'
+          ? addCardToZone(player.hand, source.instanceId)
+          : player.hand,
+      waitingRoom:
+        options.sourcePlacement === 'WAITING_ROOM'
+          ? addCardToZone(player.waitingRoom, source.instanceId)
+          : player.waitingRoom,
+      energyZone: ownEnergyCards.reduce(
+        (zone, card, index) =>
+          addCardToStatefulZone(zone, card.instanceId, {
+            orientation: options.ownEnergyOrientations[index],
+            face: FaceState.FACE_UP,
+          }),
+        player.energyZone
+      ),
+    };
+  });
+  game = updatePlayer(game, 'p2', (player) => ({
+    ...player,
+    energyZone: opponentEnergyCards.reduce(
+      (zone, card) =>
+        addCardToStatefulZone(zone, card.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+      player.energyZone
+    ),
+  }));
+  return { game, sourceId: source.instanceId };
 }
 
 function createSpBp4StageCostState(options: {

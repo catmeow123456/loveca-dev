@@ -124,7 +124,8 @@
 ## Current data-blocked BP7 follow-ups
 
 - 本次盘点时本地 `cards.json` 尚无这些卡的数据；来源仅为公开玩家端 `/api/cards` 与本地 definition lookup，未访问生产卡牌数据、管理员 API 或生产后台。
-- 下列公开卡仍未实现，且没有对应 definition、workflow 或 focused test：`PL!N-bp7-028-L` 分数7「Cooking with Love」、`PL!N-bp7-031-L` 分数5「Like a Treasure」、`PL!S-bp7-004-P` 费用13「黑泽黛雅」、`PL!SP-bp7-002-P` 费用2「唐可可」、`PL!SP-bp7-013-N` 费用15「唐可可」、`PL!SP-bp7-026-L` 分数3「Dears」。这些候选尚未进入 `existing_module_map.md`。
+- `PL!N-bp7-031-L` 分数5「Like a Treasure」已在 D 批完成两段 exact definition、共享 direct-mill 接入、LIVE_SUCCESS cause 事件边界、窄回收/加分 workflow 与 focused tests，现以 `existing_module_map.md` 为准，不再属于未实现缺口。
+- `PL!S-bp7-004-P` 费用13「黑泽黛雅」已在 E 批完成两段 exact definition、Aqours 换手入场 filter、双方私密手牌处理与卡组底 inspection/arrange 共享轴，现以 `existing_module_map.md` 为准，不再属于未实现缺口；不要与 `PL!SP-bp7-004-P` 费用13「平安名堇」混淆。
 - `PL!SP-bp7-025-L`「Memories」继续阻塞：公开数据将其标为 `MEMBER` 且 `score: null`，但实际卡牌为 LIVE；须先修正或获得一致的公开权威数据，再进入 definition/workflow 实现。
 
 ## LL-bp7-001-R+ 后的剩余缺口

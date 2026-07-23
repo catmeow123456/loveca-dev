@@ -370,6 +370,13 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 
 020 与 021 都在移动及标准分组事件入队后打开双方公开结果窗口，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 确认后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 确认后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
 
+# arrange-inspected-deck-edge 的卡组边缘轴（2026-07-23）
+
+- 原顶牌 family 已迁为 `workflows/shared/arrange-inspected-deck-edge.ts`。现有配置缺省 `TOP`，旧 abilityId、stepId、选择顺序、公开摘要与回归语义不变。
+- exact `PL!S-bp7-004-P` 费用13「黑泽黛雅」是首个 `BOTTOM` 样本：`inspectBottomCards` 以“最下方在前”建立私密 inspection；玩家 ordered selection 的数字1为最终最下方，未选牌经 bottom inspection wrapper 作为单组 `MAIN_DECK -> WAITING_ROOM` 事件进入休息室。
+- `inspectDeckEdge`、selected/unselected destination 是有限枚举轴；不要加入任意 zone callback。卡组顶公开摘要仍限 `TOP`，底部流程不得复用带“卡组顶”含义的 summary。
+- 同卡登场段仍是窄单卡 `workflows/cards/s-bp7-004-dia.ts`：definition 的 `playedMemberOnEnterTriggerFilter` 只用换手事件快照和被替换成员的结构化 Aqours 身份决定是否入队；双方手牌选择、洗切置底和各抽3不进入 edge arrange family。
+
 # ON_ENTER 舞台有效费用门槛抽牌 family
 
 `workflows/shared/member-on-enter-draw.ts` 现由 `PL!-bp3-009` 费用2「矢澤にこ」与 exact `PL!S-bp7-002-P` 费用4「樱内梨子」证明“主舞台有效费用门槛后登场抽牌”配置。稳定轴仅为 `abilityId`、`drawCount`、最低有效费用、可选团体条件与 action step；三个主舞台顶层通过 `getMemberEffectiveCost` 实时查询，团体通过 `cardBelongsToGroup` 结构化判定。

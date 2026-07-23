@@ -194,7 +194,6 @@ describe('PL!N-bp7-027-L 分数2「オードリー / 奥黛丽」', () => {
       'PL!N-bp7-027-P',
       'PL!N-bp7-027-SECL',
       'PL!N-bp7-026-L',
-      'PL!N-bp7-028-L',
     ]) {
       expect(getCardAbilityDefinitionsForCardCode(code)).toEqual([]);
     }

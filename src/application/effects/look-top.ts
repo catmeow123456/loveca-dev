@@ -21,6 +21,8 @@ export interface InspectTopCardsResult {
   readonly selectableCardIds: readonly string[];
 }
 
+export type InspectDeckEdge = 'TOP' | 'BOTTOM';
+
 export interface InspectTopCardsUntilMatchResult {
   readonly gameState: GameState;
   readonly inspectedCardIds: readonly string[];
@@ -47,16 +49,36 @@ export function inspectTopCards(
   playerId: string,
   config: InspectTopCardsConfig
 ): InspectTopCardsResult | null {
+  return inspectDeckEdgeCards(game, playerId, config, 'TOP');
+}
+
+export function inspectBottomCards(
+  game: GameState,
+  playerId: string,
+  config: InspectTopCardsConfig
+): InspectTopCardsResult | null {
+  return inspectDeckEdgeCards(game, playerId, config, 'BOTTOM');
+}
+
+function inspectDeckEdgeCards(
+  game: GameState,
+  playerId: string,
+  config: InspectTopCardsConfig,
+  deckEdge: InspectDeckEdge
+): InspectTopCardsResult | null {
   let state = applyCheckTopRefreshForPlayer(game, playerId, config.count);
   const player = getPlayerById(state, playerId);
   if (!player) {
     return null;
   }
 
-  const inspectedCardIds = player.mainDeck.cardIds.slice(0, config.count);
+  const inspectedCardIds =
+    deckEdge === 'TOP'
+      ? player.mainDeck.cardIds.slice(0, config.count)
+      : player.mainDeck.cardIds.slice(-config.count).reverse();
   const selectableCardIds = config.selectablePredicate
     ? inspectedCardIds.filter((cardId) => {
-        const card = getCardById(game, cardId);
+        const card = getCardById(state, cardId);
         return card !== null && config.selectablePredicate?.(card) === true;
       })
     : inspectedCardIds;
@@ -65,7 +87,12 @@ export function inspectTopCards(
     ...currentPlayer,
     mainDeck: {
       ...currentPlayer.mainDeck,
-      cardIds: currentPlayer.mainDeck.cardIds.slice(inspectedCardIds.length),
+      cardIds:
+        deckEdge === 'TOP'
+          ? currentPlayer.mainDeck.cardIds.slice(inspectedCardIds.length)
+          : inspectedCardIds.length > 0
+            ? currentPlayer.mainDeck.cardIds.slice(0, -inspectedCardIds.length)
+            : currentPlayer.mainDeck.cardIds,
     },
   }));
   state = applyPendingRefreshForPlayer(state, player.id);

@@ -27,6 +27,7 @@ import {
   moveHandCardToDeckBottomForPlayer,
   moveWaitingRoomCardsToDeckBottomForPlayer,
   recoverCardsFromWaitingRoomToHandForPlayer,
+  shuffleHandCardsToDeckBottomForPlayer,
   shuffleWaitingRoomCardsToDeckBottomForPlayer,
   stackMemberCardBelowStageMember,
 } from '../../src/application/card-effects/runtime/actions';
@@ -41,7 +42,10 @@ import {
   moveTopDeckCardsToWaitingRoomAndEnqueueTriggers,
   moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers,
 } from '../../src/application/card-effects/runtime/main-deck-waiting-room-triggers';
-import { partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers } from '../../src/application/card-effects/runtime/inspection-waiting-room-triggers';
+import {
+  moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers,
+  partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers,
+} from '../../src/application/card-effects/runtime/inspection-waiting-room-triggers';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   revealHandCardForActiveEffect,
@@ -223,6 +227,74 @@ function withRevealHandActiveEffect(
 }
 
 describe('card effect runtime actions', () => {
+  it('shuffles an exact hand subset to deck bottom without changing kept cards', () => {
+    const state = createMutableState();
+    const cardIds = ownedMemberIds(state, PLAYER1, 5);
+    setPlayerZones(state, 0, {
+      handCardIds: cardIds.slice(0, 4),
+      mainDeckCardIds: [cardIds[4]],
+    });
+
+    const result = shuffleHandCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[0], cardIds[2]]);
+
+    expect(result).not.toBeNull();
+    expect(result?.originalCardIds).toEqual([cardIds[0], cardIds[2]]);
+    expect(new Set(result?.movedCardIds)).toEqual(new Set([cardIds[0], cardIds[2]]));
+    expect(result?.gameState.players[0].hand.cardIds).toEqual([cardIds[1], cardIds[3]]);
+    expect(result?.gameState.players[0].mainDeck.cardIds[0]).toBe(cardIds[4]);
+    expect(new Set(result?.gameState.players[0].mainDeck.cardIds.slice(1))).toEqual(
+      new Set([cardIds[0], cardIds[2]])
+    );
+    expect(
+      shuffleHandCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[0], cardIds[0]])
+    ).toBeNull();
+    expect(shuffleHandCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[4]])).toBeNull();
+  });
+
+  it('returns a bottommost-first inspection selection to deck bottom and enqueues the rest once', () => {
+    const mutableState = createMutableState();
+    const cardIds = ownedMemberIds(mutableState, PLAYER1, 4);
+    setPlayerZones(mutableState, 0, { mainDeckCardIds: [cardIds[3]] });
+    const inspectedCardIds = cardIds.slice(0, 3);
+    const state: GameState = {
+      ...mutableState,
+      inspectionZone: { cardIds: inspectedCardIds, revealedCardIds: [] },
+      inspectionContext: { ownerPlayerId: PLAYER1, sourceZone: ZoneType.MAIN_DECK },
+    };
+    const calls: Array<{
+      readonly movedCardIds: readonly string[];
+      readonly fromZone: ZoneType | undefined;
+    }> = [];
+
+    const result = moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers(
+      state,
+      PLAYER1,
+      inspectedCardIds,
+      [cardIds[0], cardIds[2]],
+      [cardIds[1]],
+      (game, _triggerConditions, options) => {
+        calls.push({
+          movedCardIds: options?.enterWaitingRoomEvents?.[0]?.cardInstanceIds ?? [],
+          fromZone: options?.enterWaitingRoomEvents?.[0]?.fromZone,
+        });
+        return game;
+      }
+    );
+
+    expect(result).not.toBeNull();
+    expect(result?.deckBottomCardIds).toEqual([cardIds[0], cardIds[2]]);
+    expect(result?.waitingRoomCardIds).toEqual([cardIds[1]]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
+      cardIds[3],
+      cardIds[2],
+      cardIds[0],
+    ]);
+    expect(result?.gameState.players[0].waitingRoom.cardIds).toContain(cardIds[1]);
+    expect(result?.gameState.inspectionZone.cardIds).toEqual([]);
+    expect(result?.gameState.inspectionContext).toBeNull();
+    expect(calls).toEqual([{ movedCardIds: [cardIds[1]], fromZone: ZoneType.MAIN_DECK }]);
+  });
+
   it('draws cards for one player using existing card-effect draw semantics', () => {
     const state = createMutableState();
     const cardIds = ownedMemberIds(state, PLAYER1, 4);
@@ -1182,7 +1254,9 @@ describe('card effect runtime actions', () => {
     expect(result.activeEffect?.selectableCardMode).toBeUndefined();
     expect(result.activeEffect?.minSelectableCards).toBeUndefined();
     expect(result.activeEffect?.maxSelectableCards).toBeUndefined();
-    expect(result.actionHistory.filter((action) => action.payload.step === 'REVEAL_HAND_CARDS')).toHaveLength(1);
+    expect(
+      result.actionHistory.filter((action) => action.payload.step === 'REVEAL_HAND_CARDS')
+    ).toHaveLength(1);
   });
 
   it('does not update reveal-from-hand effects for invalid candidates, missing hand cards, or missing players', () => {

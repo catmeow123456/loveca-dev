@@ -43,10 +43,15 @@ import {
   S_BP3_007_ACTIVATED_PAY_ENERGY_BOTTOM_WAITING_LIVE_DRAW_ABILITY_ID,
   S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
+  S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
+  S_BP7_004_ON_ENTER_AQOURS_RELAY_KEEP_THREE_HAND_BOTTOM_DRAW_THREE_ABILITY_ID,
   S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID,
   SP_BP7_014_AUTO_ON_MOVE_GAIN_TWO_BLADE_ABILITY_ID,
   SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
   SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID,
+  SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID,
+  SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
+  SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
   N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
@@ -59,6 +64,9 @@ import {
   N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
   N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID,
   N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
+  N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
+  N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
+  N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
   S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
@@ -996,15 +1004,23 @@ describe('card effect classification registry', () => {
       );
       expect(definitions[0]?.perTurnLimit).toBeUndefined();
       expect(definitions[1]?.perTurnLimit).toBeUndefined();
-      expect(definitions.find((definition) => definition.category === CardAbilityCategory.CONTINUOUS)?.triggerCondition).toBeUndefined();
-      expect(definitions.find((definition) => definition.category === CardAbilityCategory.ON_ENTER)?.delegatedOnEnterFromWaitingRoomPolicy).toBeUndefined();
+      expect(
+        definitions.find((definition) => definition.category === CardAbilityCategory.CONTINUOUS)
+          ?.triggerCondition
+      ).toBeUndefined();
+      expect(
+        definitions.find((definition) => definition.category === CardAbilityCategory.ON_ENTER)
+          ?.delegatedOnEnterFromWaitingRoomPolicy
+      ).toBeUndefined();
     }
 
     for (const abilityId of [
       PL_N_PB1_001_ON_ENTER_OPTIONAL_DISCARD_IF_OTHER_COST_ELEVEN_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
       PL_N_PB1_001_CONTINUOUS_TWO_LIVE_CARDS_GAIN_TWO_BLADE_ABILITY_ID,
     ]) {
-      expect(CARD_ABILITY_DEFINITIONS.filter((definition) => definition.abilityId === abilityId)).toHaveLength(1);
+      expect(
+        CARD_ABILITY_DEFINITIONS.filter((definition) => definition.abilityId === abilityId)
+      ).toHaveLength(1);
     }
   });
 
@@ -2294,8 +2310,7 @@ describe('card effect classification registry', () => {
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
         queued: true,
         implemented: true,
-        effectText:
-          '【登场】自己的舞台上存在其他的『虹咲』的成员的场合，将1张能量变为活跃状态。',
+        effectText: '【登场】自己的舞台上存在其他的『虹咲』的成员的场合，将1张能量变为活跃状态。',
       });
     }
 
@@ -2338,8 +2353,7 @@ describe('card effect classification registry', () => {
     const butterflyDefinitions = getCardAbilityDefinitions('PL!N-bp1-028-L');
     expect(butterflyDefinitions).toHaveLength(1);
     expect(butterflyDefinitions[0]).toMatchObject({
-      abilityId:
-        PL_N_BP1_028_LIVE_START_PAY_TWO_ENERGY_NIJIGASAKI_STAGE_THIS_LIVE_SCORE_ABILITY_ID,
+      abilityId: PL_N_BP1_028_LIVE_START_PAY_TWO_ENERGY_NIJIGASAKI_STAGE_THIS_LIVE_SCORE_ABILITY_ID,
       cardCodes: ['PL!N-bp1-028-L'],
       category: CardAbilityCategory.LIVE_START,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
@@ -4038,8 +4052,7 @@ describe('card effect classification registry', () => {
         N_SD1_009_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID
     );
     expect(nSd1009Activated).toMatchObject({
-      abilityId:
-        N_SD1_009_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+      abilityId: N_SD1_009_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
       baseCardCodes: ['PL!N-sd1-009'],
       category: CardAbilityCategory.ACTIVATED,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
@@ -4051,11 +4064,9 @@ describe('card effect classification registry', () => {
     });
     expect(nSd1009Activated?.triggerCondition).toBeUndefined();
     expect(nSd1009Activated?.activatedUi).toEqual({
-      abilityId:
-        N_SD1_009_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+      abilityId: N_SD1_009_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
       title: '支付[E][E]并弃1手，回收1张虹咲LIVE',
-      text:
-        '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。',
+      text: '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。',
     });
 
     const nSd1010OnEnter = getCardAbilityDefinitions('PL!N-sd1-010-SD').find(
@@ -10731,7 +10742,9 @@ describe('card effect classification registry', () => {
     expect(bp5010LiveStart?.notes).toContain('discard-mill-top-recover-member.ts');
 
     for (const cardCode of ['PL!N-bp1-009-P', 'PL!N-bp1-009-R'] as const) {
-      const definitions = getCardAbilityDefinitions(cardCode).filter((ability) => ability.implemented);
+      const definitions = getCardAbilityDefinitions(cardCode).filter(
+        (ability) => ability.implemented
+      );
       expect(definitions).toHaveLength(1);
       expect(definitions[0]).toMatchObject({
         abilityId: PL_N_BP1_009_ON_ENTER_OPTIONAL_DISCARD_MILL_TWO_RECOVER_MEMBER_ABILITY_ID,
@@ -10747,7 +10760,9 @@ describe('card effect classification registry', () => {
     }
 
     for (const cardCode of ['PL!N-bp1-011-P', 'PL!N-bp1-011-R'] as const) {
-      const definitions = getCardAbilityDefinitions(cardCode).filter((ability) => ability.implemented);
+      const definitions = getCardAbilityDefinitions(cardCode).filter(
+        (ability) => ability.implemented
+      );
       expect(definitions).toHaveLength(1);
       expect(definitions[0]).toMatchObject({
         abilityId: PL_N_BP1_011_ON_ENTER_OPTIONAL_DISCARD_REVEAL_UNTIL_LIVE_ABILITY_ID,
@@ -13987,7 +14002,7 @@ describe('PL!SP-bp1 second batch definitions', () => {
   );
 
   it.each(['PL!SP-bp1-025-L'])('does not register excluded candidate %s', (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
   });
 });
 
@@ -14242,7 +14257,7 @@ describe('PL!SP-sd1-003 LIVE_START definition', () => {
   it.each(['PL!SP-sd1-023-SD', 'PL!SP-sd1-023-SRL', 'PL!SP-sd1-025-SD', 'PL!SP-sd1-025-SRL'])(
     'keeps excluded or rules-placeholder card %s without a definition',
     (cardCode) => {
-    expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
     }
   );
 });
@@ -14340,8 +14355,7 @@ describe('PL!N-pb1-012-P＋ / R 费用11「鐘 嵐珠」 definitions', () => {
       expect(definitions[0]?.delegatedOnEnterFromWaitingRoomPolicy).toBeUndefined();
       expect(definitions[0]?.countPendingAsTurnUse).not.toBe(false);
       expect(definitions[1]).toMatchObject({
-        abilityId:
-          PL_N_PB1_012_LIVE_SUCCESS_NIJIGASAKI_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+        abilityId: PL_N_PB1_012_LIVE_SUCCESS_NIJIGASAKI_MEMBER_REVEALED_CHEER_TO_HAND_ABILITY_ID,
         baseCardCodes: ['PL!N-pb1-012'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
@@ -14375,52 +14389,53 @@ describe('PL!N-bp1-006 费用13「近江彼方」与 PL!N-bp1-008 费用9「艾�
   const emmaText =
     '【起动】【1回合1次】将1张手牌的成员卡放置入休息室：从自己的休息室将1张费用低于因支付此费用被放置入休息室的成员卡的成员卡加入手牌。';
 
-  it.each([
-    'PL!N-bp1-006-P',
-    'PL!N-bp1-006-P＋',
-    'PL!N-bp1-006-R＋',
-    'PL!N-bp1-006-SEC',
-  ])('%s has two independent implemented activated definitions', (cardCode) => {
-    const definitions = getCardAbilityDefinitions(cardCode);
-    expect(definitions).toHaveLength(2);
-    const discard = definitions.find(
-      (definition) =>
-        definition.abilityId ===
+  it.each(['PL!N-bp1-006-P', 'PL!N-bp1-006-P＋', 'PL!N-bp1-006-R＋', 'PL!N-bp1-006-SEC'])(
+    '%s has two independent implemented activated definitions',
+    (cardCode) => {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toHaveLength(2);
+      const discard = definitions.find(
+        (definition) =>
+          definition.abilityId ===
+          PL_N_BP1_006_ACTIVATED_DISCARD_ONE_IF_NIJIGASAKI_ENTERED_ACTIVATE_TWO_ENERGY_ABILITY_ID
+      );
+      const draw = definitions.find(
+        (definition) =>
+          definition.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+      );
+      expect(discard).toMatchObject({
+        baseCardCodes: ['PL!N-bp1-006'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+        effectText: kanataDiscardText,
+        activatedUi: { text: kanataDiscardText },
+      });
+      expect(draw).toMatchObject({
+        baseCardCodes: ['PL!SP-bp5-020', 'PL!HS-bp1-007', 'PL!N-bp1-006'],
+        perTurnLimit: 1,
+        effectText: drawText,
+        activatedUi: { text: drawText },
+      });
+      expect(discard?.triggerCondition).toBeUndefined();
+      expect(draw?.triggerCondition).toBeUndefined();
+      expect(draw).toBe(
+        getCardAbilityDefinitions('PL!SP-bp5-020-N').find(
+          (definition) =>
+            definition.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+        )
+      );
+      expect(getActivatedAbilityUiConfigs(cardCode).map((config) => config.abilityId)).toEqual([
+        PL_N_BP1_006_ACTIVATED_DISCARD_ONE_IF_NIJIGASAKI_ENTERED_ACTIVATE_TWO_ENERGY_ABILITY_ID,
+        SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
+      ]);
+      expect(getActivatedAbilityUiConfig(cardCode)?.abilityId).toBe(
         PL_N_BP1_006_ACTIVATED_DISCARD_ONE_IF_NIJIGASAKI_ENTERED_ACTIVATE_TWO_ENERGY_ABILITY_ID
-    );
-    const draw = definitions.find(
-      (definition) =>
-        definition.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
-    );
-    expect(discard).toMatchObject({
-      baseCardCodes: ['PL!N-bp1-006'],
-      category: CardAbilityCategory.ACTIVATED,
-      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
-      queued: false,
-      implemented: true,
-      perTurnLimit: 1,
-      effectText: kanataDiscardText,
-      activatedUi: { text: kanataDiscardText },
-    });
-    expect(draw).toMatchObject({
-      baseCardCodes: ['PL!SP-bp5-020', 'PL!HS-bp1-007', 'PL!N-bp1-006'],
-      perTurnLimit: 1,
-      effectText: drawText,
-      activatedUi: { text: drawText },
-    });
-    expect(discard?.triggerCondition).toBeUndefined();
-    expect(draw?.triggerCondition).toBeUndefined();
-    expect(draw).toBe(getCardAbilityDefinitions('PL!SP-bp5-020-N').find(
-      (definition) => definition.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
-    ));
-    expect(getActivatedAbilityUiConfigs(cardCode).map((config) => config.abilityId)).toEqual([
-      PL_N_BP1_006_ACTIVATED_DISCARD_ONE_IF_NIJIGASAKI_ENTERED_ACTIVATE_TWO_ENERGY_ABILITY_ID,
-      SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
-    ]);
-    expect(getActivatedAbilityUiConfig(cardCode)?.abilityId).toBe(
-      PL_N_BP1_006_ACTIVATED_DISCARD_ONE_IF_NIJIGASAKI_ENTERED_ACTIVATE_TWO_ENERGY_ABILITY_ID
-    );
-  });
+      );
+    }
+  );
 
   it.each(['PL!N-bp1-008-P', 'PL!N-bp1-008-R'])(
     '%s has one implemented discard-member recovery definition',
@@ -14607,23 +14622,28 @@ describe('PL!S-bp7-006-P 费用2「津岛善子」与 PL!S-bp7-015-N 费用5「�
       S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
       '[赤ハート]',
     ],
-  ])('registers exact %s as one implemented queued LIVE_START ability', (cardCode, abilityId, token) => {
-    const definitions = getCardAbilityDefinitions(cardCode);
-    expect(definitions).toEqual([
-      expect.objectContaining({
-        abilityId,
-        cardCodes: [cardCode],
-        category: CardAbilityCategory.LIVE_START,
-        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
-        triggerCondition: TriggerCondition.ON_LIVE_START,
-        queued: true,
-        implemented: true,
-        effectText: expect.stringContaining(token),
-      }),
-    ]);
-    expect(definitions[0]?.baseCardCodes).toBeUndefined();
-    expect(CARD_ABILITY_DEFINITIONS.filter((definition) => definition.abilityId === abilityId)).toHaveLength(1);
-  });
+  ])(
+    'registers exact %s as one implemented queued LIVE_START ability',
+    (cardCode, abilityId, token) => {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toEqual([
+        expect.objectContaining({
+          abilityId,
+          cardCodes: [cardCode],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+          effectText: expect.stringContaining(token),
+        }),
+      ]);
+      expect(definitions[0]?.baseCardCodes).toBeUndefined();
+      expect(
+        CARD_ABILITY_DEFINITIONS.filter((definition) => definition.abilityId === abilityId)
+      ).toHaveLength(1);
+    }
+  );
 
   it('does not speculate unverified rarity-family coverage', () => {
     expect(getCardAbilityDefinitions('PL!S-bp7-006-R')).toEqual([]);
@@ -14683,8 +14703,7 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 definitions', () 
         implemented: true,
       }),
       expect.objectContaining({
-        abilityId:
-          S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID,
+        abilityId: S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID,
         cardCodes: ['PL!S-bp7-022-SECL'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
@@ -14757,6 +14776,46 @@ describe('bp7 exact member definitions batch four', () => {
   );
 });
 
+describe('PL!S-bp7-004-P 费用13「黑泽黛雅」 exact definitions', () => {
+  it('registers the relay-gated ON_ENTER and deck-bottom LIVE_START segments independently', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp7-004-P')).toEqual([
+      expect.objectContaining({
+        abilityId: S_BP7_004_ON_ENTER_AQOURS_RELAY_KEEP_THREE_HAND_BOTTOM_DRAW_THREE_ABILITY_ID,
+        cardCodes: ['PL!S-bp7-004-P'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        playedMemberOnEnterTriggerFilter: {
+          enteredViaRelay: true,
+          replacedMemberGroupAliases: ['Aqours'],
+        },
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】从『Aqours』的成员换手登场的场合，自己和对方各自，选择自身的至多3张手牌，将选择的卡片以外的卡片洗牌，放置于自身的卡组底。此后，自己和对方各自抽3张卡。',
+      }),
+      expect.objectContaining({
+        abilityId: S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
+        cardCodes: ['PL!S-bp7-004-P'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE开始时】检视自己的卡组底的3张卡片。将其中的任意张数的卡片按任意顺序放置于卡组底，其余的卡片放置入休息室。',
+      }),
+    ]);
+    expect(
+      getCardAbilityDefinitions('PL!S-bp7-004-P').every(
+        (definition) => definition.baseCardCodes === undefined
+      )
+    ).toBe(true);
+    expect(getCardAbilityDefinitions('PL!S-bp7-004-N')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-004-SEC')).toEqual([]);
+  });
+});
+
 describe('BP7 memberBelow batch exact definitions', () => {
   it('registers Kanon, Shizuku, and You as exact-only independent ability segments', () => {
     expect(getCardAbilityDefinitions('PL!SP-bp7-001-P')).toEqual([
@@ -14822,20 +14881,45 @@ describe('BP7 memberBelow batch exact definitions', () => {
 describe('BP7 energyBelow batch exact definitions', () => {
   it('registers only the four authorized exact card codes and separates Setsuna segments', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-004-P')).toEqual([
-      expect.objectContaining({ abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID, category: CardAbilityCategory.ACTIVATED, queued: false, perTurnLimit: 1 }),
+      expect.objectContaining({
+        abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
+        category: CardAbilityCategory.ACTIVATED,
+        queued: false,
+        perTurnLimit: 1,
+      }),
     ]);
     expect(getCardAbilityDefinitions('PL!N-bp7-005-P')).toEqual([
-      expect.objectContaining({ abilityId: N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID, category: CardAbilityCategory.ON_ENTER, sourceZone: CardAbilitySourceZone.PLAYED_MEMBER, triggerCondition: TriggerCondition.ON_ENTER_STAGE, queued: true }),
+      expect.objectContaining({
+        abilityId:
+          N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID,
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+      }),
     ]);
-    expect(getCardAbilityDefinitions('PL!N-bp7-007-SEC').map((definition) => definition.abilityId)).toEqual([
+    expect(
+      getCardAbilityDefinitions('PL!N-bp7-007-SEC').map((definition) => definition.abilityId)
+    ).toEqual([
       N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
       N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
       N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID,
     ]);
     expect(getCardAbilityDefinitions('PL!N-bp7-019-N')).toEqual([
-      expect.objectContaining({ abilityId: N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID, category: CardAbilityCategory.AUTO, triggerCondition: TriggerCondition.ON_LEAVE_STAGE, triggerToZones: [ZoneType.WAITING_ROOM], queued: true }),
+      expect.objectContaining({
+        abilityId: N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID,
+        category: CardAbilityCategory.AUTO,
+        triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+        triggerToZones: [ZoneType.WAITING_ROOM],
+        queued: true,
+      }),
     ]);
-    for (const cardCode of ['PL!N-bp7-004-SEC', 'PL!N-bp7-005-SEC', 'PL!N-bp7-007-P', 'PL!N-bp7-019-P']) {
+    for (const cardCode of [
+      'PL!N-bp7-004-SEC',
+      'PL!N-bp7-005-SEC',
+      'PL!N-bp7-007-P',
+      'PL!N-bp7-019-P',
+    ]) {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
     }
   });
@@ -14890,6 +14974,65 @@ describe('BP7 first card-effect batch exact definitions', () => {
   );
 });
 
+describe('PL!SP-bp7 A batch exact continuous definitions', () => {
+  it.each([
+    [
+      'PL!SP-bp7-002-P',
+      SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID,
+      '【常时】只要自己的能量大于等于7张，并且自己的能量比对方多，存在于舞台的此成员的费用+2。',
+    ],
+    [
+      'PL!SP-bp7-013-N',
+      SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
+      '【常时】只要自己的舞台上存在大于等于3名『KALEIDOSCORE』的成员，获得[紫ハート][ブレード]。',
+    ],
+  ] as const)('registers only exact %s', (cardCode, abilityId, effectText) => {
+    const definitions = getCardAbilityDefinitions(cardCode);
+    expect(definitions).toHaveLength(1);
+    expect(definitions).toEqual([
+      expect.objectContaining({
+        abilityId,
+        cardCodes: [cardCode],
+        category: CardAbilityCategory.CONTINUOUS,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        effectText,
+      }),
+    ]);
+    expect(definitions[0]?.baseCardCodes).toBeUndefined();
+    expect(definitions[0]?.triggerCondition).toBeUndefined();
+  });
+
+  it.each(['PL!SP-bp7-002-N', 'PL!SP-bp7-002-R', 'PL!SP-bp7-013-P', 'PL!SP-bp7-013-SEC'])(
+    'does not match unverified sibling rarity %s',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
+});
+
+describe('PL!SP-bp7-026-L exact LIVE_START definition', () => {
+  it('registers only Dears L as an implemented queued LIVE-card ability', () => {
+    expect(getCardAbilityDefinitions('PL!SP-bp7-026-L')).toEqual([
+      expect.objectContaining({
+        abilityId: SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+        cardCodes: ['PL!SP-bp7-026-L'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE开始时】可以将存在于能量区的1张能量放置入能量卡组：自己的舞台上存在「叶月恋」的场合，抽2张卡，将1张手牌放置入休息室。',
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!SP-bp7-026-L')[0]?.baseCardCodes).toBeUndefined();
+    expect(getCardAbilityDefinitions('PL!SP-bp7-026-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!SP-bp7-026-SECL')).toEqual([]);
+  });
+});
+
 describe('PL!N-bp7-027-L exact LIVE_SUCCESS definition', () => {
   it('registers only Audrey L as an implemented queued LIVE-card ability', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-027-L')).toEqual([
@@ -14904,11 +15047,89 @@ describe('PL!N-bp7-027-L exact LIVE_SUCCESS definition', () => {
       }),
     ]);
     expect(getCardAbilityDefinitions('PL!N-bp7-027-L')[0]?.baseCardCodes).toBeUndefined();
+    for (const cardCode of ['PL!N-bp7-027-P', 'PL!N-bp7-027-SECL', 'PL!N-bp7-026-L']) {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  });
+});
+
+describe('PL!N-bp7-028-L exact LIVE_START definition', () => {
+  it('registers only Cooking with Love L as an implemented queued LIVE-card ability', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-028-L')).toEqual([
+      expect.objectContaining({
+        abilityId:
+          N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
+        cardCodes: ['PL!N-bp7-028-L'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE开始时】自己的休息室存在『虹咲』的LIVE卡和不持有BLADE HEART的『虹咲』的成员卡的场合，可以将存在于自己的休息室的所有卡片洗牌，放置于卡组底。如此做时，LIVE结束时为止，存在于自己的舞台的所有『虹咲』的成员获得[桃ハート]。',
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-028-L')[0]?.baseCardCodes).toBeUndefined();
     for (const cardCode of [
-      'PL!N-bp7-027-P',
-      'PL!N-bp7-027-SECL',
-      'PL!N-bp7-026-L',
-      'PL!N-bp7-028-L',
+      'PL!N-bp7-028-P',
+      'PL!N-bp7-028-SECL',
+      'PL!N-bp7-027-L',
+      'PL!N-bp7-029-L',
+    ]) {
+      if (cardCode === 'PL!N-bp7-027-L') {
+        expect(getCardAbilityDefinitions(cardCode)).not.toContainEqual(
+          expect.objectContaining({
+            abilityId:
+              N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
+          })
+        );
+      } else {
+        expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      }
+    }
+  });
+});
+
+describe('PL!N-bp7-031-L exact LIVE_SUCCESS and AUTO definitions', () => {
+  it('registers the two printed segments only for the exact L code', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-031-L')).toEqual([
+      expect.objectContaining({
+        abilityId: N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
+        cardCodes: ['PL!N-bp7-031-L'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+        effectText: '【LIVE成功时】将自己的卡组顶的3张卡片放置入休息室。',
+      }),
+      expect.objectContaining({
+        abilityId: N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
+        cardCodes: ['PL!N-bp7-031-L'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_ENTER_WAITING_ROOM,
+        triggerFromZones: [ZoneType.MAIN_DECK],
+        triggerToZones: [ZoneType.WAITING_ROOM],
+        enterWaitingRoomCause: 'OWN_LIVE_SUCCESS_ABILITY',
+        queued: true,
+        implemented: true,
+        perTurnLimit: 1,
+        countPendingAsTurnUse: false,
+        effectText:
+          '【自动】【1回合1次】每当因自己的【LIVE成功时】能力，从自己的卡组将卡片放置入自己的休息室时，可以将其中的1张『虹咲』的LIVE卡加入手牌。如此做时，此卡的分数+1。',
+      }),
+    ]);
+    expect(
+      getCardAbilityDefinitions('PL!N-bp7-031-L').every(
+        (definition) => definition.baseCardCodes === undefined
+      )
+    ).toBe(true);
+    for (const cardCode of [
+      'PL!N-bp7-031-P',
+      'PL!N-bp7-031-SECL',
+      'PL!N-bp7-030-L',
+      'PL!N-bp7-032-L',
     ]) {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
     }

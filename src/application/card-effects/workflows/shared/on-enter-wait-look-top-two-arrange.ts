@@ -9,15 +9,12 @@ import { PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID } from '../.
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import {
-  getAbilityEffectText,
-  recordPayCostAction,
-} from '../../runtime/workflow-helpers.js';
+import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
-  finishArrangeInspectedDeckTopWorkflow,
-  startArrangeInspectedDeckTopWorkflow,
-} from './arrange-inspected-deck-top.js';
+  finishArrangeInspectedDeckEdgeWorkflow,
+  startArrangeInspectedDeckEdgeWorkflow,
+} from './arrange-inspected-deck-edge.js';
 
 const DECLINE_OPTION_LABEL = '不发动';
 const PL_BP3_014_ON_ENTER_OPTION_STEP_ID = 'PL_BP3_014_ON_ENTER_OPTION';
@@ -49,7 +46,7 @@ export function registerPlBp3014RinWorkflowHandlers(deps: {
     PL_BP3_014_ON_ENTER_LOOK_TOP_TWO_ARRANGE_TO_TOP_ABILITY_ID,
     PL_BP3_014_ON_ENTER_ARRANGE_STEP_ID,
     (game, input, context) =>
-      finishArrangeInspectedDeckTopWorkflow(
+      finishArrangeInspectedDeckEdgeWorkflow(
         game,
         input.selectedCardIds ?? [],
         context.continuePendingCardEffects,
@@ -161,7 +158,7 @@ function finishPlBp3014RinActivateWorkflow(
     orientedMemberCardIds: sourceWaitPayment.orientedMemberCardIds,
   });
 
-  return startArrangeInspectedDeckTopWorkflow(
+  return startArrangeInspectedDeckEdgeWorkflow(
     { ...stateAfterCost, activeEffect: null },
     {
       ability: pendingAbility,

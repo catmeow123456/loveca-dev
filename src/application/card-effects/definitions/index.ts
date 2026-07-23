@@ -6,6 +6,9 @@ import {
   SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
   SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID,
+  SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID,
+  SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
+  SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
   N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
   N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
@@ -18,12 +21,17 @@ import {
   N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
   N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID,
   N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
+  N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
+  N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
+  N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
   S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
   S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
   S_BP7_003_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
   S_BP7_003_ON_ENTER_CHOOSE_WAIT_PROTECTION_OR_POSITION_CHANGE_ABILITY_ID,
+  S_BP7_004_ON_ENTER_AQOURS_RELAY_KEEP_THREE_HAND_BOTTOM_DRAW_THREE_ABILITY_ID,
+  S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
   SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID,
   S_BP7_019_LIVE_SUCCESS_BOTTOM_UP_TO_TWO_AQOURS_CARDS_ABILITY_ID,
   SP_BP7_004_LIVE_START_BOTTOM_THREE_LIELLA_MEMBERS_GAIN_TWO_BLADE_ABILITY_ID,
@@ -2912,7 +2920,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_PB1_013_LIVE_START_EFFECT_TEXT,
     notes:
-      'LIVE 开始时复用 arrange-inspected-deck-top shared workflow：检视卡组顶至多2张，任意张按选择顺序回顶，其余从检视区进休息室并入队等待室触发。',
+      'LIVE 开始时复用 arrange-inspected-deck-edge shared workflow：检视卡组顶至多2张，任意张按选择顺序回顶，其余从检视区进休息室并入队等待室触发。',
   },
   {
     abilityId: HS_PB1_013_LIVE_SUCCESS_HIGHER_COST_STAGE_MEMBER_DRAW_ABILITY_ID,
@@ -4335,7 +4343,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: BP6_016_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      'LIVE 成功时复用 arrange-inspected-deck-top shared workflow；检视至多3张后必须按选择顺序全部回到主卡组顶，未选择路径不进休息室。',
+      'LIVE 成功时复用 arrange-inspected-deck-edge shared workflow；检视至多3张后必须按选择顺序全部回到主卡组顶，未选择路径不进休息室。',
   },
   {
     abilityId: BP6_012_CONTINUOUS_SUCCESS_ZONE_PRINTEMPS_CARD_YELLOW_HEART_ABILITY_ID,
@@ -4606,7 +4614,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_BP2_003_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START 薄 wrapper；先用可选弃1手 activeEffect shell，弃手通过 enter-waiting-room trigger wrapper 支付并记录，再委托 arrange-inspected-deck-top 检视顶3、任意张有序回顶、余下入休息室。真实交互不套 confirm-only。',
+      '单卡 LIVE_START 薄 wrapper；先用可选弃1手 activeEffect shell，弃手通过 enter-waiting-room trigger wrapper 支付并记录，再委托 arrange-inspected-deck-edge 检视顶3、任意张有序回顶、余下入休息室。真实交互不套 confirm-only。',
   },
   {
     abilityId: HS_BP2_007_ON_ENTER_LOWER_COST_CERISE_RELAY_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
@@ -4775,7 +4783,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_BP6_028_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      'LIVE成功时检查本回合余剩Heart总数；不足1时 no-op 消费 pending，满足时复用 arrange-inspected-deck-top 检视顶2并按选择顺序回顶，未选放休息室，不消耗余剩Heart。',
+      'LIVE成功时检查本回合余剩Heart总数；不足1时 no-op 消费 pending，满足时复用 arrange-inspected-deck-edge 检视顶2并按选择顺序回顶，未选放休息室，不消耗余剩Heart。',
   },
   {
     abilityId: HS_BP6_030_LIVE_START_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
@@ -5049,7 +5057,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_PB1_024_ON_ENTER_EFFECT_TEXT,
     notes:
-      '扩展 arrange-inspected-deck-top shared workflow；topCount=2，可选0-2张按顺序回到卡组顶，其余检视卡经 inspection-to-waiting trigger wrapper 放入休息室。PL!HS-bp2-016 与 PL!HS-pb1-024 日文卡文同型，复用同一 ability/workflow。',
+      '扩展 arrange-inspected-deck-edge shared workflow；topCount=2，可选0-2张按顺序回到卡组顶，其余检视卡经 inspection-to-waiting trigger wrapper 放入休息室。PL!HS-bp2-016 与 PL!HS-pb1-024 日文卡文同型，复用同一 ability/workflow。',
   },
   {
     abilityId: HS_PB1_025_LIVE_START_HASUNOSORA_WAITING_TARGET_GREEN_HEART_ABILITY_ID,
@@ -8126,7 +8134,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP1_002_ON_ENTER_EFFECT_TEXT,
     notes:
-      '登场检视顶3；任意0-3张按选择顺序回到主卡组顶，未选牌放置入休息室。复用 arrange-inspected-deck-top shared workflow。',
+      '登场检视顶3；任意0-3张按选择顺序回到主卡组顶，未选牌放置入休息室。复用 arrange-inspected-deck-edge shared workflow。',
   },
   {
     abilityId: S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
@@ -8138,7 +8146,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_PR_ON_ENTER_LOOK_TOP_THREE_EFFECT_TEXT,
     notes:
-      '三张 S-PR 同文登场检视顶3；独立 definition 保留 Excel“卡牌”字面，执行复用 arrange-inspected-deck-top shared workflow。',
+      '三张 S-PR 同文登场检视顶3；独立 definition 保留 Excel“卡牌”字面，执行复用 arrange-inspected-deck-edge shared workflow。',
   },
   {
     abilityId: S_PR_030_031_CONTINUOUS_ANY_STAGE_COST_THIRTEEN_GAIN_TWO_BLADE_ABILITY_ID,
@@ -9182,7 +9190,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_S_PB1_008_LIVE_START_EFFECT_TEXT,
     notes:
-      '复用 arrange-inspected-deck-top shared workflow 的 target-player 轴；控制者先选择自己或对方，随后控制者查看所选玩家主卡组顶至多2张，任意张按选择顺序回该玩家卡组顶，其余从 MAIN_DECK 进入该玩家休息室并入队等待室触发。来源启动时必须仍在自己的主舞台。',
+      '复用 arrange-inspected-deck-edge shared workflow 的 target-player 轴；控制者先选择自己或对方，随后控制者查看所选玩家主卡组顶至多2张，任意张按选择顺序回该玩家卡组顶，其余从 MAIN_DECK 进入该玩家休息室并入队等待室触发。来源启动时必须仍在自己的主舞台。',
   },
   {
     abilityId: PL_S_PB1_009_CONTINUOUS_TOTAL_SUCCESS_LIVE_THREE_GAIN_THREE_BLADE_ABILITY_ID,
@@ -12270,7 +12278,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP2_007_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡花丸 workflow：真实选择公开手牌 LIVE，窄 moveHandCardToDeckBottomForPlayer 置底后复用 arrange-inspected-deck-top 检视顶2并按顺序回顶；检视余牌通过 inspection-to-waiting trigger wrapper 进入休息室。',
+      '单卡花丸 workflow：真实选择公开手牌 LIVE，窄 moveHandCardToDeckBottomForPlayer 置底后复用 arrange-inspected-deck-edge 检视顶2并按顺序回顶；检视余牌通过 inspection-to-waiting trigger wrapper 进入休息室。',
   },
   {
     abilityId: S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
@@ -12434,6 +12442,43 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【自动】此成员从舞台被放置入休息室时，进行了换手的场合，将此卡放置于此换手登场的成员的下方。',
     notes:
       'exact P only；单卡 workflow 只读取 LeaveStageEvent.replacingCardId，结算时重验香音仍在自己休息室，并按 replacement 实例查找其当前顶层槽位；replacement 移槽仍可结算，离场或成为 memberBelow 时 no-op，再通过 stackMemberCardBelowStageMember 执行。',
+  },
+  {
+    abilityId: SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-002-P'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText:
+      '【常时】只要自己的能量大于等于7张，并且自己的能量比对方多，存在于舞台的此成员的费用+2。',
+    notes:
+      'exact P only；getMemberEffectiveCost 仅在来源为控制者主舞台顶层成员、自己能量区至少7张且严格多于对方时为来源自身加2；印刷费用 selector 不变，并在 MEMBER_COST delta 前应用。',
+  },
+  {
+    abilityId: SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-013-N'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText:
+      '【常时】只要自己的舞台上存在大于等于3名『KALEIDOSCORE』的成员，获得[紫ハート][ブレード]。',
+    notes:
+      'exact N only；continuous live modifier registry 只统计控制者 LEFT/CENTER/RIGHT 顶层结构化 KALEIDOSCORE 成员，达到3名时为来源自身动态收集 SOURCE_MEMBER 紫 Heart 与 BLADE 各1。',
+  },
+  {
+    abilityId: SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    cardCodes: ['PL!SP-bp7-026-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】可以将存在于能量区的1张能量放置入能量卡组：自己的舞台上存在「叶月恋」的场合，抽2张卡，将1张手牌放置入休息室。',
+    notes:
+      'exact L only；单卡 workflow 复用 optional-energy-return 与 draw-then-discard。支付成功后才实时检查己方三个主舞台顶层的葉月恋；条件失败仍保留已返回能量，并通过标准事件 wrapper 处理能量返回与手牌进入休息室。',
   },
   {
     abilityId: N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
@@ -12609,6 +12654,50 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       'exact L only；单卡 LIVE_SUCCESS workflow 强制选择己方顶层虹咲成员，并以同一实时 modifier snapshot 比较双方全部其他顶层成员的有效 BLADE；严格最大时 replacement 写来源 LIVE SCORE +1 并按差值同步 playerScores。',
   },
   {
+    abilityId:
+      N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
+    cardCodes: ['PL!N-bp7-028-L'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】自己的休息室存在『虹咲』的LIVE卡和不持有BLADE HEART的『虹咲』的成员卡的场合，可以将存在于自己的休息室的所有卡片洗牌，放置于卡组底。如此做时，LIVE结束时为止，存在于自己的舞台的所有『虹咲』的成员获得[桃ハート]。',
+    notes:
+      'exact L only；真实可选 LIVE_START workflow 在开窗与确认发动时重验来源和两类结构化休息室条件，以确认时完整休息室快照一次洗切置底，再为当前己方三个主舞台顶层虹咲成员逐一写 TARGET_MEMBER 桃 Heart。',
+  },
+  {
+    abilityId: N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
+    cardCodes: ['PL!N-bp7-031-L'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: '【LIVE成功时】将自己的卡组顶的3张卡片放置入休息室。',
+    notes:
+      'exact L only；复用 refresh-aware direct-mill-top，以一个 MAIN_DECK→WAITING_ROOM grouped event 保留实际 movedCardIds 与 LIVE_SUCCESS cause，供同卡第二段自动能力及后续同类能力读取。',
+  },
+  {
+    abilityId: N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
+    cardCodes: ['PL!N-bp7-031-L'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_ENTER_WAITING_ROOM,
+    triggerFromZones: [ZoneType.MAIN_DECK],
+    triggerToZones: [ZoneType.WAITING_ROOM],
+    enterWaitingRoomCause: 'OWN_LIVE_SUCCESS_ABILITY',
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    countPendingAsTurnUse: false,
+    effectText:
+      '【自动】【1回合1次】每当因自己的【LIVE成功时】能力，从自己的卡组将卡片放置入自己的休息室时，可以将其中的1张『虹咲』的LIVE卡加入手牌。如此做时，此卡的分数+1。',
+    notes:
+      'exact L only；通用等待室触发入口要求事件 owner/controller/cause.player 一致且 cause ability definition 为 LIVE_SUCCESS。单卡 workflow 只从该 grouped event 的 movedCardIds 中选择结算时仍在自己休息室的结构化虹咲 LIVE；成功回收后才记录 turn1 并为来源 LIVE 绑定 SCORE +1。',
+  },
+  {
     abilityId: S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
     cardCodes: ['PL!S-bp7-003-SEC'],
     category: CardAbilityCategory.ON_ENTER,
@@ -12643,6 +12732,36 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【登场】从以下选择1项。\n\n·LIVE结束时为止，存在于自己的舞台的原本持有的[BLADE]的数量小于等于3的『Aqours』的成员，不会因对方的效果变为待机状态。\n\n·将此成员站位变换至存在『Aqours』或『Saint Snow』的成员的区域。',
     notes:
       'exact SEC only；保护分支建立 LIVE_END 到期的窄 member-state 规则状态，移动分支复用 S-bp5-111/S-bp5-222 证明的团体区域 query 与标准站位事件 wrapper。',
+  },
+  {
+    abilityId: S_BP7_004_ON_ENTER_AQOURS_RELAY_KEEP_THREE_HAND_BOTTOM_DRAW_THREE_ABILITY_ID,
+    cardCodes: ['PL!S-bp7-004-P'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    playedMemberOnEnterTriggerFilter: {
+      enteredViaRelay: true,
+      replacedMemberGroupAliases: ['Aqours'],
+    },
+    queued: true,
+    implemented: true,
+    effectText:
+      '【登场】从『Aqours』的成员换手登场的场合，自己和对方各自，选择自身的至多3张手牌，将选择的卡片以外的卡片洗牌，放置于自身的卡组底。此后，自己和对方各自抽3张卡。',
+    notes:
+      'exact P only；通用 played-member ON_ENTER filter 以换手事件快照中的被替换成员实例和结构化 Aqours 身份入队。单卡 workflow 让双方依次私密选择至多3张保留手牌，其余实时手牌经 shuffleHandCardsToDeckBottomForPlayer 洗切置底，全部选择完成后复用 drawCardsForEachPlayer 各抽3。',
+  },
+  {
+    abilityId: S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
+    cardCodes: ['PL!S-bp7-004-P'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】检视自己的卡组底的3张卡片。将其中的任意张数的卡片按任意顺序放置于卡组底，其余的卡片放置入休息室。',
+    notes:
+      'exact P only；扩展 arrange-inspected-deck-edge shared workflow 的 BOTTOM 轴。检视牌保持控制者私密；所选按数字1为最下方的顺序置底，其余通过 inspection-to-waiting wrapper 形成一个 grouped MAIN_DECK→WAITING_ROOM 事件。',
   },
   {
     abilityId: S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,

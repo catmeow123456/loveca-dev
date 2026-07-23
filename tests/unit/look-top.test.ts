@@ -6,6 +6,7 @@ import type { DeckConfig } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
 import {
   clearInspectionCards,
+  inspectBottomCards,
   inspectTopCards,
   inspectTopCardsUntilMatch,
   moveInspectedCardsToWaitingRoom,
@@ -86,6 +87,39 @@ function setMainDeckForPlayer(state: GameState, cardIds: readonly string[]): voi
 }
 
 describe('look-top helpers', () => {
+  it('moves bottom cards to inspection in bottommost-first order', () => {
+    const state = createMutableState();
+    const memberCardIds = [...state.cardRegistry.values()]
+      .filter((card) => card.ownerId === PLAYER1 && card.data.cardType === CardType.MEMBER)
+      .slice(0, 4)
+      .map((card) => card.instanceId);
+    setMainDeckForPlayer(state, memberCardIds);
+
+    const result = inspectBottomCards(state, PLAYER1, { count: 3 });
+
+    expect(result).not.toBeNull();
+    expect(result?.inspectedCardIds).toEqual([
+      memberCardIds[3],
+      memberCardIds[2],
+      memberCardIds[1],
+    ]);
+    expect(result?.selectableCardIds).toEqual([
+      memberCardIds[3],
+      memberCardIds[2],
+      memberCardIds[1],
+    ]);
+    expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([memberCardIds[0]]);
+    expect(result?.gameState.inspectionZone.cardIds).toEqual([
+      memberCardIds[3],
+      memberCardIds[2],
+      memberCardIds[1],
+    ]);
+    expect(result?.gameState.inspectionContext).toEqual({
+      ownerPlayerId: PLAYER1,
+      sourceZone: ZoneType.MAIN_DECK,
+    });
+  });
+
   it('moves top cards from main deck to inspection and filters selectable cards', () => {
     const state = createMutableState();
     const ownedP1CardIds = [...state.cardRegistry.values()]
@@ -194,10 +228,7 @@ describe('look-top helpers', () => {
 
     expect(result?.inspectedCardIds).toEqual([member.instanceId, live.instanceId]);
     expect(result?.hitCardId).toBe(live.instanceId);
-    expect(result?.gameState.inspectionZone.cardIds).toEqual([
-      member.instanceId,
-      live.instanceId,
-    ]);
+    expect(result?.gameState.inspectionZone.cardIds).toEqual([member.instanceId, live.instanceId]);
     expect(result?.gameState.players[0].mainDeck.cardIds).not.toContain(member.instanceId);
   });
 
@@ -241,8 +272,9 @@ describe('look-top helpers', () => {
     expect(result!.inspectedCardIds).toHaveLength(5);
     expect(result!.inspectedCardIds.slice(0, 2)).toEqual(originalTopCardIds);
     expect(new Set(result!.inspectedCardIds.slice(2)).size).toBe(3);
-    expect(result!.inspectedCardIds.slice(2).every((cardId) => waitingRoomCardIds.includes(cardId)))
-      .toBe(true);
+    expect(
+      result!.inspectedCardIds.slice(2).every((cardId) => waitingRoomCardIds.includes(cardId))
+    ).toBe(true);
     expect(result!.gameState.inspectionZone.cardIds).toEqual(result!.inspectedCardIds);
     expect(result!.gameState.inspectionZone.revealedCardIds).toEqual(result!.inspectedCardIds);
     expect(result!.gameState.players[0].waitingRoom.cardIds).toEqual([]);

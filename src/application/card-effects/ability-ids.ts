@@ -1558,14 +1558,19 @@ export const SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp7-005-SEC:auto-enter-or-return-place-waiting-energy';
 export const LL_BP7_001_CONTINUOUS_SPECIAL_PLAY_COST_TEN_ABILITY_ID =
   'LL-bp7-001-R+:continuous-special-play-cost-ten';
-export const LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID =
-  'LL-bp7-001-R+:on-enter-recover-live';
+export const LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID = 'LL-bp7-001-R+:on-enter-recover-live';
 export const LL_BP7_001_LIVE_SUCCESS_RECOVER_MEMBER_ABILITY_ID =
   'LL-bp7-001-R+:live-success-recover-member';
 export const SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-001-P:continuous-below-liella-host-gain-blade';
 export const SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID =
   'PL!SP-bp7-001-P:auto-relay-stack-self-below-replacement';
+export const SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID =
+  'PL!SP-bp7-002-P:continuous-energy-seven-more-than-opponent-stage-cost-plus-two';
+export const SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID =
+  'PL!SP-bp7-013-N:continuous-three-kaleidoscore-gain-purple-heart-blade';
+export const SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID =
+  'PL!SP-bp7-026-L:live-start-return-one-energy-ren-draw-two-discard-one';
 export const N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID =
   'PL!N-bp7-003-SEC:activated-mill-five-stack-member-copy-printed-hearts';
 export const N_BP7_003_LIVE_START_DIFFERENT_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
@@ -1590,6 +1595,12 @@ export const N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABIL
   'PL!N-bp7-019-N:auto-relay-nijigasaki-place-energy-below-replacement';
 export const N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID =
   'PL!N-bp7-027-L:live-success-select-nijigasaki-highest-blade-score';
+export const N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID =
+  'PL!N-bp7-028-L:live-start-shuffle-waiting-room-bottom-stage-nijigasaki-gain-pink-heart';
+export const N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID =
+  'PL!N-bp7-031-L:live-success-mill-top-three';
+export const N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID =
+  'PL!N-bp7-031-L:auto-own-live-success-mill-recover-nijigasaki-live-score';
 export const S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID =
   'PL!S-bp7-005-SEC:on-enter-stack-waiting-member-below-stage-member';
 export const S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID =
@@ -1598,6 +1609,10 @@ export const S_BP7_003_LIVE_START_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID =
   'PL!S-bp7-003-SEC:live-start-look-top-one-optional-bottom';
 export const S_BP7_003_ON_ENTER_CHOOSE_WAIT_PROTECTION_OR_POSITION_CHANGE_ABILITY_ID =
   'PL!S-bp7-003-SEC:on-enter-choose-wait-protection-or-position-change';
+export const S_BP7_004_ON_ENTER_AQOURS_RELAY_KEEP_THREE_HAND_BOTTOM_DRAW_THREE_ABILITY_ID =
+  'PL!S-bp7-004-P:on-enter-aqours-relay-keep-three-hand-bottom-draw-three';
+export const S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID =
+  'PL!S-bp7-004-P:live-start-look-bottom-three-arrange-bottom';
 export const S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp7-005-SEC:continuous-aqours-host-with-member-below-gain-blade';
 export const S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID =

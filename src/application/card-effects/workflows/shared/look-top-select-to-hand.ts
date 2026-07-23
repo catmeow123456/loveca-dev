@@ -169,8 +169,7 @@ const PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_SELECT_GREEN_HEART_MEMBER_FROM_TOP_FOUR';
 const PL_S_BP5_007_REVEAL_GREEN_HEART_MEMBER_STEP_ID =
   'PL_S_BP5_007_REVEAL_SELECTED_GREEN_HEART_MEMBER';
-const PL_BP4_006_SELECT_MUSE_MEMBER_STEP_ID =
-  'PL_BP4_006_SELECT_MUSE_MEMBER_FROM_TOP_FIVE';
+const PL_BP4_006_SELECT_MUSE_MEMBER_STEP_ID = 'PL_BP4_006_SELECT_MUSE_MEMBER_FROM_TOP_FIVE';
 const PL_BP4_006_REVEAL_MUSE_MEMBER_STEP_ID = 'PL_BP4_006_REVEAL_SELECTED_MUSE_MEMBER';
 const SP_BP4_002_OPTION_STEP_ID = 'SP_BP4_002_WAIT_OPTION';
 const SP_BP4_002_SELECT_LIELLA_LIVE_STEP_ID = 'SP_BP4_002_SELECT_HIGH_REQUIREMENT_LIELLA_LIVE';
@@ -184,8 +183,7 @@ const N_PB1_021_SELECT_RINA_MEMBER_STEP_ID = 'N_PB1_021_SELECT_RINA_MEMBER_FROM_
 const N_PB1_021_REVEAL_RINA_MEMBER_STEP_ID = 'N_PB1_021_REVEAL_SELECTED_RINA_MEMBER';
 const N_PB1_024_SELECT_LANZHU_MEMBER_STEP_ID = 'N_PB1_024_SELECT_LANZHU_MEMBER_FROM_TOP_TWO';
 const N_PB1_024_REVEAL_LANZHU_MEMBER_STEP_ID = 'N_PB1_024_REVEAL_SELECTED_LANZHU_MEMBER';
-const N_SD1_001_SELECT_NIJIGASAKI_LIVE_STEP_ID =
-  'N_SD1_001_SELECT_NIJIGASAKI_LIVE_FROM_TOP_FIVE';
+const N_SD1_001_SELECT_NIJIGASAKI_LIVE_STEP_ID = 'N_SD1_001_SELECT_NIJIGASAKI_LIVE_FROM_TOP_FIVE';
 const N_SD1_001_REVEAL_NIJIGASAKI_LIVE_STEP_ID = 'N_SD1_001_REVEAL_SELECTED_NIJIGASAKI_LIVE';
 
 function createNamedMemberLookTopTwoConfig(params: {
@@ -230,15 +228,11 @@ const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandW
     selectStepId: N_SD1_001_SELECT_NIJIGASAKI_LIVE_STEP_ID,
     revealStepId: N_SD1_001_REVEAL_NIJIGASAKI_LIVE_STEP_ID,
     selectStepText: getAbilityEffectText(N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID),
-    noTargetStepText: getAbilityEffectText(
-      N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID
-    ),
+    noTargetStepText: getAbilityEffectText(N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID),
     selectionLabel: '选择要公开并加入手牌的虹咲 LIVE',
     confirmSelectionLabel: '公开并加入手牌',
     skipSelectionLabel: '不加入',
-    revealStepText: getAbilityEffectText(
-      N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID
-    ),
+    revealStepText: getAbilityEffectText(N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID),
     revealActionStep: 'REVEAL_SELECTED_NIJIGASAKI_LIVE',
     noCardsMode: 'open-selection',
     includeInspectedCardIdsInFinishAction: true,
@@ -1015,7 +1009,16 @@ function finishLookTopSelectToHandWorkflow(
     player.id,
     inspectedCardIds,
     selectedCardIds,
-    options.enqueueTriggeredCardEffects
+    options.enqueueTriggeredCardEffects,
+    {
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
+    }
   );
   if (!moveResult) {
     return game;

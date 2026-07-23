@@ -25,10 +25,7 @@ import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
 import { drawCardsFromMainDeckToHand, type DrawCardsResult } from '../../effects/draw.js';
 import { shuffleZone } from '../../../domain/entities/zone.js';
-import {
-  setEnergyOrientation,
-  type EnergyOrientationChange,
-} from '../../effects/energy.js';
+import { setEnergyOrientation, type EnergyOrientationChange } from '../../effects/energy.js';
 import { resolveEnergySelectionForOperation } from '../../effects/energy-selection.js';
 import {
   addCardToStatefulZone,
@@ -130,6 +127,12 @@ export interface AddBladeLiveModifierForSourceMemberResult {
 }
 
 export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardIds: readonly string[];
+  readonly originalCardIds: readonly string[];
+}
+
+export interface ShuffleHandCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
   readonly originalCardIds: readonly string[];
@@ -591,6 +594,53 @@ export function addBladeLiveModifierForMember(
   options: BladeLiveModifierForMemberOptions
 ): AddBladeLiveModifierForMemberResult | null {
   return addBladeLiveModifierForMemberRule(game, options);
+}
+
+export function shuffleHandCardsToDeckBottomForPlayer(
+  game: GameState,
+  playerId: string,
+  cardIds: readonly string[]
+): ShuffleHandCardsToDeckBottomForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const uniqueCardIds = new Set(cardIds);
+  if (!player || uniqueCardIds.size !== cardIds.length) {
+    return null;
+  }
+
+  if (cardIds.some((cardId) => !player.hand.cardIds.includes(cardId))) {
+    return null;
+  }
+
+  if (cardIds.length === 0) {
+    return {
+      gameState: game,
+      movedCardIds: [],
+      originalCardIds: [],
+    };
+  }
+
+  const shuffledCardIds = shuffleZone({
+    ...player.hand,
+    cardIds: [...cardIds],
+  }).cardIds;
+  const selectedCardIdSet = new Set(cardIds);
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    hand: {
+      ...currentPlayer.hand,
+      cardIds: currentPlayer.hand.cardIds.filter((cardId) => !selectedCardIdSet.has(cardId)),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [...currentPlayer.mainDeck.cardIds, ...shuffledCardIds],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardIds: shuffledCardIds,
+    originalCardIds: cardIds,
+  };
 }
 
 export function shuffleWaitingRoomCardsToDeckBottomForPlayer(

@@ -239,6 +239,8 @@ const S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID =
   'PL!S-bp7-016-N:continuous-stage-three-gain-red-green-blue-heart';
 const SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-001-P:continuous-below-liella-host-gain-blade';
+const SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID =
+  'PL!SP-bp7-013-N:continuous-three-kaleidoscore-gain-purple-heart-blade';
 const S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp7-005-SEC:continuous-aqours-host-with-member-below-gain-blade';
 const N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID =
@@ -403,6 +405,45 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ],
       });
       return modifier ? [modifier] : [];
+    },
+  },
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    cardCodes: ['PL!SP-bp7-013-N'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const player = getPlayerById(game, playerId);
+      if (!player || !isSourceMainStageMember(game, playerId, sourceCardId)) {
+        return [];
+      }
+      const kaleidoscoreMemberCount = MEMBER_SLOT_ORDER.filter((slot) => {
+        const memberCardId = player.memberSlots.slots[slot];
+        const memberCard = memberCardId ? getCardById(game, memberCardId) : null;
+        return (
+          memberCard?.ownerId === playerId &&
+          isMemberCardData(memberCard.data) &&
+          cardBelongsToUnit(memberCard.data, 'KALEIDOSCORE')
+        );
+      }).length;
+      if (kaleidoscoreMemberCount < 3) {
+        return [];
+      }
+      const heartModifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
+        hearts: [{ color: HeartColor.PURPLE, count: 1 }],
+      });
+      const bladeModifier = createBladeLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
+        countDelta: 1,
+      });
+      return [heartModifier, bladeModifier].filter(
+        (modifier): modifier is HeartModifierState | BladeModifierState => modifier !== null
+      );
     },
   },
   {
