@@ -34,7 +34,7 @@
 - 桌面和移动端已完成主要布局、能量牌架、撤销入口、休息室统计、弹层层级、reduced-motion 和异步竞态收口。
 - 卡牌数据已区分 `GRAY` 无色 Heart 与 `RAINBOW` All Heart；`double` 展开为两个独立 `GRAY` 判心项。
 - 新云端卡组默认包含 12 张 `LL-E-001-SD` 能量卡，并支持复制为新版本、分享管理与 DeckLog/YAML 导入。
-- 当前版本为 `3.7.3`。发布、镜像、数据库迁移和卡牌同步仍按 release skill、runbook 与 migration notes 执行，不能从本文件的旧窗口描述推断生产状态。
+- 当前版本为 `3.8.0`。发布、镜像、数据库迁移和卡牌同步仍按 release skill、runbook 与 migration notes 执行，不能从本文件的旧窗口描述推断生产状态。
 
 ## 当前事实来源
 
