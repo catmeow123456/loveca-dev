@@ -124,11 +124,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const [showImportSheet, setShowImportSheet] = useState(false);
 
   // 初始快照用于 dirty 检测
-  const initialSnapshot = useRef<string>('');
+  const [initialSnapshot, setInitialSnapshot] = useState('');
   const initialOpenHandled = useRef(false);
   const toastTimerRef = useRef<number | null>(null);
   const isDirty = editingDeck
-    ? JSON.stringify(editingDeck) !== initialSnapshot.current ||
+    ? JSON.stringify(editingDeck) !== initialSnapshot ||
       deckName !== editingDeck.player_name ||
       deckDescription !== (editingDeck.description || '')
     : false;
@@ -235,7 +235,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     setDeckName('新卡组');
     setDeckDescription('');
     setSaveError(null);
-    initialSnapshot.current = JSON.stringify(newDeck);
+    setInitialSnapshot(JSON.stringify(newDeck));
     setViewMode('edit');
   };
 
@@ -250,7 +250,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       setDeckName(cloudDeck.name);
       setDeckDescription(cloudDeck.description || '');
       setSaveError(null);
-      initialSnapshot.current = JSON.stringify(localDeck);
+      setInitialSnapshot(JSON.stringify(localDeck));
       setViewMode('edit');
     },
     [resolveDeckRecordCardType]
@@ -261,9 +261,13 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     const targetDeck = cloudDecks.find((deck) => deck.id === initialOpenDeckId);
     if (!targetDeck) return;
 
-    initialOpenHandled.current = true;
-    handleEdit(targetDeck);
-    window.history.replaceState({}, '', '/');
+    const timer = window.setTimeout(() => {
+      if (initialOpenHandled.current) return;
+      initialOpenHandled.current = true;
+      handleEdit(targetDeck);
+      window.history.replaceState({}, '', '/');
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [cloudDecks, handleEdit, initialOpenDeckId]);
 
   const handleDelete = async (deckId: string) => {
@@ -457,7 +461,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     setDeckName(preset.name);
     setDeckDescription(preset.description);
     setSaveError(null);
-    initialSnapshot.current = JSON.stringify(deck);
+    setInitialSnapshot(JSON.stringify(deck));
     setViewMode('edit');
   };
 
@@ -493,7 +497,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         setDeckName(deck.player_name || '导入的卡组');
         setDeckDescription(deck.description || '');
         setSaveError(null);
-        initialSnapshot.current = JSON.stringify(deck);
+        setInitialSnapshot(JSON.stringify(deck));
         setViewMode('edit');
         if (loadResult.warnings.length > 0) {
           showToast(`YAML 已导入，${loadResult.warnings[0]}`);
@@ -583,7 +587,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       setDeckName(deck.player_name || 'DeckLog 导入');
       setDeckDescription(deck.description || '');
       setSaveError(null);
-      initialSnapshot.current = JSON.stringify(deck);
+      setInitialSnapshot(JSON.stringify(deck));
       setViewMode('edit');
       setShowDecklogDialog(false);
       setDecklogInput('');

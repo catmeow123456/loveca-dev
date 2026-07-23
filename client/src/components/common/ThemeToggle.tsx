@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Moon, Sun } from 'lucide-react';
 import { applyTheme, readTheme, toggleTheme, type Theme } from '@/lib/theme';
 
@@ -7,11 +7,7 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className = '' }: ThemeToggleProps) {
-  const [theme, setTheme] = useState<Theme>('dark');
-
-  useEffect(() => {
-    setTheme(readTheme());
-  }, []);
+  const [theme, setTheme] = useState<Theme>(() => readTheme());
 
   const handleToggle = () => {
     const nextTheme = toggleTheme(theme);

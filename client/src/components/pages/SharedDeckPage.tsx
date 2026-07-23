@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Loader2, LogIn, Save, Share2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { apiClient, isApiConfigured, type DeckRecord, type SharedDeckRecord } from '@/lib/apiClient';
@@ -127,6 +127,7 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
   const [forkSuccess, setForkSuccess] = useState<string | null>(null);
   const [isForking, setIsForking] = useState(false);
   const [copyState, setCopyState] = useState<'idle' | 'done' | 'error'>('idle');
+  const copyFeedbackTimerRef = useRef<number | null>(null);
   const { user, profile, offlineMode, offlineUser } = useAuthStore(
     useShallow((s) => ({
       user: s.user,
@@ -188,16 +189,35 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
     [localDeck, validateDeck]
   );
 
+  useEffect(
+    () => () => {
+      if (copyFeedbackTimerRef.current !== null) {
+        window.clearTimeout(copyFeedbackTimerRef.current);
+      }
+    },
+    []
+  );
+
+  const scheduleCopyFeedbackReset = () => {
+    if (copyFeedbackTimerRef.current !== null) {
+      window.clearTimeout(copyFeedbackTimerRef.current);
+    }
+    copyFeedbackTimerRef.current = window.setTimeout(() => {
+      setCopyState('idle');
+      copyFeedbackTimerRef.current = null;
+    }, 2000);
+  };
+
   const handleCopyLink = async () => {
     const shareUrl = `${window.location.origin}/decks/share/${shareId}`;
 
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopyState('done');
-      window.setTimeout(() => setCopyState('idle'), 2000);
+      scheduleCopyFeedbackReset();
     } catch {
       setCopyState('error');
-      window.setTimeout(() => setCopyState('idle'), 2000);
+      scheduleCopyFeedbackReset();
     }
   };
 

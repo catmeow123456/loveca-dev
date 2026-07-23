@@ -54,7 +54,7 @@ import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
 import { DroppableZone } from './interaction';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
-import type { BladeHearts, MemberCardData, LiveCardData } from '@game/domain/entities/card';
+import type { BladeHearts, MemberCardData } from '@game/domain/entities/card';
 import type { LiveResultViewState, Seat } from '@game/online';
 
 interface JudgmentPanelProps {
@@ -480,7 +480,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
   const currentPlayer = activeSeat ? getPlayerIdentityForSeat(activeSeat) : null;
   const mainDeckCount = activeSeat ? (getSeatZone(activeSeat, 'MAIN_DECK')?.count ?? 0) : 0;
-  const liveCardIds = activeSeat ? getSeatZoneCardIds(activeSeat, 'LIVE_ZONE') : [];
+  const liveCardIds = useMemo(
+    () => (activeSeat ? getSeatZoneCardIds(activeSeat, 'LIVE_ZONE') : []),
+    [activeSeat, getSeatZoneCardIds]
+  );
 
   // 直接从 store 订阅解决区卡牌 ID，确保数据变化时触发重渲染
   const cheerCardIds = useGameStore(

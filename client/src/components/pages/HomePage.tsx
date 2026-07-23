@@ -153,8 +153,15 @@ export function HomePage({
   const announcementItems = useMemo(() => buildAnnouncementDisplayItems(siteStatus), [siteStatus]);
   const announcementSeenKey = useMemo(() => buildAnnouncementUnreadKey(siteStatus), [siteStatus]);
   const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
-  const [hasUnreadAnnouncements, setHasUnreadAnnouncements] = useState(false);
-  const [announcementStatusMessage, setAnnouncementStatusMessage] = useState('');
+  const [lastSeenAnnouncementKey, setLastSeenAnnouncementKey] = useState(() =>
+    readAnnouncementSeenKey()
+  );
+  const hasUnreadAnnouncements = Boolean(
+    announcementSeenKey &&
+      announcementItems.length > 0 &&
+      lastSeenAnnouncementKey !== announcementSeenKey
+  );
+  const announcementStatusMessage = hasUnreadAnnouncements ? '公告已更新' : '';
 
   useEffect(() => {
     if (!canUseCloudDecks) {
@@ -164,26 +171,13 @@ export function HomePage({
     void fetchCloudDecks();
   }, [canUseCloudDecks, fetchCloudDecks]);
 
-  useEffect(() => {
-    if (!announcementSeenKey || announcementItems.length === 0) {
-      setHasUnreadAnnouncements(false);
-      return;
-    }
-
-    setHasUnreadAnnouncements(readAnnouncementSeenKey() !== announcementSeenKey);
-  }, [announcementItems.length, announcementSeenKey]);
-
-  useEffect(() => {
-    setAnnouncementStatusMessage(hasUnreadAnnouncements ? '公告已更新' : '');
-  }, [announcementSeenKey, hasUnreadAnnouncements]);
-
   const markCurrentAnnouncementsSeen = useCallback(() => {
     if (!announcementSeenKey) {
       return;
     }
 
     writeAnnouncementSeenKey(announcementSeenKey);
-    setHasUnreadAnnouncements(false);
+    setLastSeenAnnouncementKey(announcementSeenKey);
   }, [announcementSeenKey]);
 
   const openAnnouncements = useCallback(() => {
@@ -203,7 +197,7 @@ export function HomePage({
     const timeoutId = window.setTimeout(() => {
       setIsAnnouncementsOpen(true);
       writeAnnouncementSeenKey(announcementSeenKey);
-      setHasUnreadAnnouncements(false);
+      setLastSeenAnnouncementKey(announcementSeenKey);
     }, ANNOUNCEMENT_AUTO_OPEN_DELAY_MS);
 
     return () => window.clearTimeout(timeoutId);

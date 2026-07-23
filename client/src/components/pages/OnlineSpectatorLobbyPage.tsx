@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, ScanLine } from 'lucide-react';
 import { ThemeToggle } from '@/components/common';
 import {
@@ -6,6 +6,7 @@ import {
   fetchOnlineRoomSpectatorEntry,
 } from '@/lib/onlineClient';
 import type { OnlineRoomSpectatorEntryView, Seat } from '@game/online';
+import { LatestRequestGate } from '@/lib/asyncRequestControl';
 
 interface OnlineSpectatorLobbyPageProps {
   readonly onBackHome: () => void;
@@ -18,6 +19,7 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEntering, setIsEntering] = useState(false);
+  const lookupRequestGateRef = useRef(new LatestRequestGate());
 
   const enabledSeats = useMemo(
     () => entry?.seats.filter((seat) => seat.enabled) ?? [],
@@ -26,28 +28,25 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
   const selectedSeatView = enabledSeats.find((seat) => seat.seat === selectedSeat) ?? null;
   const canEnter = Boolean(entry && selectedSeatView && !isEntering && !isLoading);
 
-  useEffect(() => {
-    if (!roomCodeInput) {
-      return;
-    }
-    void handleLookup();
-    // Run only once for a room code supplied by URL.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleLookup = async () => {
     const roomCode = normalizeRoomCode(roomCodeInput);
     if (!roomCode) {
+      lookupRequestGateRef.current.invalidate();
+      setIsLoading(false);
       setError('请输入 4 到 12 位房间号');
       setEntry(null);
       setSelectedSeat(null);
       return;
     }
 
+    const requestGeneration = lookupRequestGateRef.current.begin();
     setIsLoading(true);
     setError(null);
     try {
       const nextEntry = await fetchOnlineRoomSpectatorEntry(roomCode);
+      if (!lookupRequestGateRef.current.isCurrent(requestGeneration)) {
+        return;
+      }
       const nextEnabledSeats = nextEntry.seats.filter((seat) => seat.enabled);
       setEntry(nextEntry);
       setSelectedSeat(nextEnabledSeats[0]?.seat ?? null);
@@ -56,13 +55,35 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
         setError('该房间当前未开放房间号观战');
       }
     } catch (lookupError) {
+      if (!lookupRequestGateRef.current.isCurrent(requestGeneration)) {
+        return;
+      }
       setEntry(null);
       setSelectedSeat(null);
       setError(lookupError instanceof Error ? lookupError.message : '读取房间号观战入口失败');
     } finally {
-      setIsLoading(false);
+      if (lookupRequestGateRef.current.isCurrent(requestGeneration)) {
+        setIsLoading(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!roomCodeInput) {
+      return;
+    }
+    const timer = window.setTimeout(() => void handleLookup(), 0);
+    return () => window.clearTimeout(timer);
+    // Run only once for a room code supplied by URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(
+    () => () => {
+      lookupRequestGateRef.current.invalidate();
+    },
+    []
+  );
 
   const handleEnter = async () => {
     const roomCode = entry?.roomCode ?? normalizeRoomCode(roomCodeInput);
@@ -118,6 +139,8 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
             <input
               value={roomCodeInput}
               onChange={(event) => {
+                lookupRequestGateRef.current.invalidate();
+                setIsLoading(false);
                 setRoomCodeInput(event.target.value.toUpperCase());
                 setEntry(null);
                 setSelectedSeat(null);

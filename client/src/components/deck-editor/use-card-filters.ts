@@ -29,7 +29,7 @@ function normalizeGroupFilterText(value?: string | null): string {
   return (
     cleanLocalizedText(value)
       ?.normalize('NFKC')
-      .replace(/[『』「」'’\s　]/g, '')
+      .replace(/[『』「」'’\s\u3000]/g, '')
       .replace(/！/g, '!')
       .toLowerCase() ?? ''
   );

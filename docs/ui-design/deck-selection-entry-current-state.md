@@ -2,7 +2,7 @@
 
 > 文档类型: 专题说明
 > 适用范围: 游戏准备页、正式联机房间页、联机调试页的卡组选择与开始/锁组路径
-> 最后更新: 2026-07-04
+> 最后更新: 2026-07-24
 > 当前状态: 描述当前实现事实与明确未落地能力；代码行为以相关代码路径为准
 
 ## 当前范围
@@ -100,9 +100,9 @@
 
 正式联机和联机调试已把主操作提前到列表之前，但没有为所有视口提供始终吸附的操作栏。
 
-### 专门的 Playwright 视口验收
+### 对局入口专项 Playwright 视口验收
 
-当前有人工和 mock API 截图检查记录，但尚未沉淀为稳定的 Playwright 自动化验收用例。
+当前 `client/tests/e2e/mobile-layout.spec.ts` 已用 mock API 覆盖四种移动端/平板视口的页面级横向溢出与截图基线，但尚未补齐对局入口卡组选择的专项交互断言。
 
 待覆盖的视口场景包括：
 
@@ -112,13 +112,13 @@
 
 ## 相关代码路径
 
-| 路径 | 说明 |
-| --- | --- |
-| `client/src/components/common/DeckSelector.tsx` | 共用卡组选择控件 |
-| `client/src/lib/deckDisplay.ts` | 卡组显示项构建与排序 |
-| `client/src/lib/deckSelectionPreferences.ts` | 入口级上次使用卡组本地偏好 |
-| `client/src/components/pages/GameSetupPage.tsx` | 对墙打与本地调试准备流程 |
-| `client/src/components/pages/OnlineRoomPage.tsx` | 正式联机房间准备流程 |
-| `client/src/components/pages/OnlineDebugPage.tsx` | 联机调试准备流程 |
-| `client/src/store/deckStore.ts` | 云端卡组列表加载与本地卡组状态 |
-| `client/src/components/pages/HomePage.tsx` | 首页最近卡组展示，不是入口级上次使用记录 |
+| 路径                                              | 说明                                     |
+| ------------------------------------------------- | ---------------------------------------- |
+| `client/src/components/common/DeckSelector.tsx`   | 共用卡组选择控件                         |
+| `client/src/lib/deckDisplay.ts`                   | 卡组显示项构建与排序                     |
+| `client/src/lib/deckSelectionPreferences.ts`      | 入口级上次使用卡组本地偏好               |
+| `client/src/components/pages/GameSetupPage.tsx`   | 对墙打与本地调试准备流程                 |
+| `client/src/components/pages/OnlineRoomPage.tsx`  | 正式联机房间准备流程                     |
+| `client/src/components/pages/OnlineDebugPage.tsx` | 联机调试准备流程                         |
+| `client/src/store/deckStore.ts`                   | 云端卡组列表加载与本地卡组状态           |
+| `client/src/components/pages/HomePage.tsx`        | 首页最近卡组展示，不是入口级上次使用记录 |

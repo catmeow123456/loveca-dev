@@ -30,6 +30,73 @@ import { formDataToYaml, yamlToFormData } from './yaml-helpers';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 type EditMode = 'form' | 'yaml';
+type CardFormData = CardUpdateInput & {
+  cardCode?: string;
+  cardType?: 'MEMBER' | 'LIVE' | 'ENERGY';
+};
+
+function buildInitialFormData(card: AnyCardData | null): CardFormData {
+  if (!card) {
+    return {
+      cardCode: '',
+      cardType: 'MEMBER',
+      nameJp: null,
+      nameCn: '',
+      workNames: null,
+      groupNames: null,
+      unitName: null,
+      unitNameRaw: null,
+      cost: 0,
+      blade: 0,
+      hearts: [],
+      bladeHearts: null,
+      score: 1,
+      requirements: [],
+      cardTextJp: null,
+      cardTextCn: null,
+      rare: null,
+      product: null,
+      productCode: null,
+      imageSourceUri: null,
+      sourceExternalId: null,
+      sourceFlags: null,
+    };
+  }
+
+  return {
+    nameJp: card.nameJp ?? null,
+    nameCn: card.nameCn ?? null,
+    workNames: card.workNames ? [...card.workNames] : null,
+    groupNames: card.groupNames ? [...card.groupNames] : null,
+    unitName: card.unitName ?? null,
+    unitNameRaw: card.unitNameRaw ?? null,
+    cardTextJp: card.cardTextJp ?? null,
+    cardTextCn: card.cardTextCn ?? null,
+    rare: card.rare ?? null,
+    product: card.product ?? null,
+    productCode: card.productCode ?? null,
+    imageSourceUri: card.imageSourceUri ?? null,
+    sourceExternalId: card.sourceExternalId ?? null,
+    sourceFlags: card.sourceFlags ?? null,
+    ...(card.cardType === CardType.MEMBER
+      ? {
+          cost: card.cost,
+          blade: card.blade,
+          hearts: [...card.hearts],
+          bladeHearts: card.bladeHearts ? [...card.bladeHearts] : null,
+        }
+      : {}),
+    ...(card.cardType === CardType.LIVE
+      ? {
+          score: card.score,
+          requirements: Array.from(card.requirements.colorRequirements.entries()).map(
+            ([color, count]) => ({ color, count })
+          ),
+          bladeHearts: card.bladeHearts ? [...card.bladeHearts] : null,
+        }
+      : {}),
+  };
+}
 
 interface CardEditModalProps {
   card: AnyCardData | null;
@@ -51,9 +118,7 @@ export function CardEditModal({
   isCreating,
 }: CardEditModalProps) {
   const isMobile = useMediaQuery('(max-width: 767px)');
-  const [formData, setFormData] = useState<
-    CardUpdateInput & { cardCode?: string; cardType?: 'MEMBER' | 'LIVE' | 'ENERGY' }
-  >({});
+  const [formData, setFormData] = useState<CardFormData>(() => buildInitialFormData(card));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editMode, setEditMode] = useState<EditMode>('form');
@@ -82,73 +147,6 @@ export function CardEditModal({
       document.body.style.overflow = previousOverflow;
     };
   }, [isOpen]);
-
-  useEffect(() => {
-    if (card) {
-      setFormData({
-        nameJp: card.nameJp ?? null,
-        nameCn: card.nameCn ?? null,
-        workNames: card.workNames ? [...card.workNames] : null,
-        groupNames: card.groupNames ? [...card.groupNames] : null,
-        unitName: card.unitName ?? null,
-        unitNameRaw: card.unitNameRaw ?? null,
-        cardTextJp: card.cardTextJp ?? null,
-        cardTextCn: card.cardTextCn ?? null,
-        rare: card.rare ?? null,
-        product: card.product ?? null,
-        productCode: card.productCode ?? null,
-        imageSourceUri: card.imageSourceUri ?? null,
-        sourceExternalId: card.sourceExternalId ?? null,
-        sourceFlags: card.sourceFlags ?? null,
-        ...(card.cardType === CardType.MEMBER
-          ? {
-              cost: card.cost,
-              blade: card.blade,
-              hearts: [...card.hearts],
-              bladeHearts: card.bladeHearts ? [...card.bladeHearts] : null,
-            }
-          : {}),
-        ...(card.cardType === CardType.LIVE
-          ? {
-              score: card.score,
-              requirements: Array.from(card.requirements.colorRequirements.entries()).map(
-                ([color, count]) => ({ color, count })
-              ),
-              bladeHearts: card.bladeHearts ? [...card.bladeHearts] : null,
-            }
-          : {}),
-      });
-    } else {
-      setFormData({
-        cardCode: '',
-        cardType: 'MEMBER',
-        nameJp: null,
-        nameCn: '',
-        workNames: null,
-        groupNames: null,
-        unitName: null,
-        unitNameRaw: null,
-        cost: 0,
-        blade: 0,
-        hearts: [],
-        bladeHearts: null,
-        score: 1,
-        requirements: [],
-        cardTextJp: null,
-        cardTextCn: null,
-        rare: null,
-        product: null,
-        productCode: null,
-        imageSourceUri: null,
-        sourceExternalId: null,
-        sourceFlags: null,
-      });
-    }
-    setError(null);
-    setEditMode('form');
-    setYamlText('');
-    setYamlError(null);
-  }, [card, isOpen]);
 
   const switchToYaml = () => {
     setYamlText(formDataToYaml(formData, card?.cardType, isCreating));

@@ -18,6 +18,9 @@ import {
 import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
+import { LatestRequestGate } from '@/lib/asyncRequestControl';
+
+const cloudDeckRequestGate = new LatestRequestGate();
 
 interface DeckState {
   player1Deck: DeckConfig | null;
@@ -209,6 +212,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
 
     // 云端卡组方法
     fetchCloudDecks: async () => {
+      const requestGeneration = cloudDeckRequestGate.begin();
       if (useAuthStore.getState().offlineMode) {
         set({
           cloudDecks: [],
@@ -227,6 +231,9 @@ export const useDeckStore = create<DeckState>((set, get) => {
 
       try {
         const result = await apiClient.get<DeckRecord[]>('/api/decks');
+        if (!cloudDeckRequestGate.isCurrent(requestGeneration)) {
+          return;
+        }
 
         if (result.error) {
           set({ isLoadingCloud: false, cloudError: result.error.message });
@@ -235,6 +242,9 @@ export const useDeckStore = create<DeckState>((set, get) => {
 
         set({ cloudDecks: result.data ?? [], isLoadingCloud: false });
       } catch (err) {
+        if (!cloudDeckRequestGate.isCurrent(requestGeneration)) {
+          return;
+        }
         set({
           isLoadingCloud: false,
           cloudError: err instanceof Error ? err.message : '获取卡组失败'

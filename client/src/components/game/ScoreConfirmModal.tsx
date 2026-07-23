@@ -1,9 +1,11 @@
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle2, ShieldCheck } from 'lucide-react';
 import { GameCommandType } from '@game/application/game-commands';
 import { useGameStore } from '@/store/gameStore';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
+import { useKeyedState } from '@/hooks/useKeyedState';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 
 export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
@@ -24,6 +26,9 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const opponentScore = useGameStore((s) => s.getOpponentLiveScore());
   const selfConfirmed = useGameStore((s) => s.isViewerScoreConfirmed());
   const opponentConfirmed = useGameStore((s) => s.isOpponentScoreConfirmed());
+  const matchView = useGameStore((s) => s.getMatchView());
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const scoreInputRef = useRef<HTMLInputElement>(null);
 
   const shouldShow = useMemo(() => {
     return (
@@ -34,12 +39,17 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
     );
   }, [activeEffect, confirmedScoreCount, currentPhase, currentSubPhase]);
 
-  const [adjustedScore, setAdjustedScore] = useState(0);
-
-  useEffect(() => {
-    if (!shouldShow) return;
-    setAdjustedScore(selfScore);
-  }, [shouldShow, selfScore]);
+  const scoreConfirmKey =
+    shouldShow && matchView
+      ? `${matchView.matchId}:${matchView.turnCount}:${SubPhase.RESULT_SCORE_CONFIRM}`
+      : null;
+  const [adjustedScore, setAdjustedScore] = useKeyedState(scoreConfirmKey, selfScore);
+  useDialogAccessibility({
+    isOpen: shouldShow && Boolean(selfPlayer && opponentPlayer),
+    dialogRef,
+    initialFocusRef: scoreInputRef,
+    closeOnEscape: false,
+  });
 
   if (!shouldShow || !selfPlayer || !opponentPlayer) return null;
 
@@ -60,13 +70,21 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
         exit={{ opacity: 0 }}
       >
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="score-confirm-dialog-title"
+          tabIndex={-1}
           className="modal-surface modal-accent-emerald pointer-events-auto w-[min(92vw,640px)] p-5"
           initial={{ y: 16, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 12, opacity: 0 }}
         >
           <div className="mb-4 text-center">
-            <div className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--semantic-success)]">
+            <div
+              id="score-confirm-dialog-title"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--semantic-success)]"
+            >
               <ShieldCheck size={16} />
               Live 分数最终确认
             </div>
@@ -100,6 +118,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
                 调整己方分数
               </span>
               <input
+                ref={scoreInputRef}
                 type="number"
                 min={0}
                 value={adjustedScore}

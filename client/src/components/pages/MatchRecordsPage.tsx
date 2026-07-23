@@ -162,40 +162,46 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   );
 
   useEffect(() => {
-    void loadRecords();
+    const timer = window.setTimeout(() => void loadRecords(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadRecords]);
 
   useEffect(() => {
-    if (!isAdmin || !selectedMatchId) {
-      return;
-    }
-    const reloadKey = `${selectedMatchId}:${adminViewerSeat}`;
-    if (lastViewerSeatReloadKeyRef.current === reloadKey) {
-      return;
-    }
-    lastViewerSeatReloadKeyRef.current = reloadKey;
-    const checkpoint = replay?.replayPosition.checkpointSeq;
-    void loadMatchNode(selectedMatchId, checkpoint);
-  }, [adminViewerSeat, isAdmin, loadMatchNode, replay?.replayPosition.checkpointSeq, selectedMatchId]);
+    const timer = window.setTimeout(() => {
+      if (!selectedMatchId) {
+        latestReplayRequestRef.current += 1;
+        replayBoardOpenRef.current = false;
+        lastViewerSeatReloadKeyRef.current = null;
+        setReplayBoardOpen(false);
+        setDetail(null);
+        setTimeline([]);
+        setReplay(null);
+        leaveReadonlyReplay();
+        return;
+      }
 
-  useEffect(() => {
-    if (!selectedMatchId) {
-      latestReplayRequestRef.current += 1;
+      const reloadKey = `${selectedMatchId}:${isAdmin ? adminViewerSeat : 'participant'}`;
+      if (lastViewerSeatReloadKeyRef.current === reloadKey) {
+        return;
+      }
+      const isViewerSeatChange =
+        lastViewerSeatReloadKeyRef.current?.startsWith(`${selectedMatchId}:`) === true;
+      const checkpoint = isViewerSeatChange ? replay?.replayPosition.checkpointSeq : undefined;
       replayBoardOpenRef.current = false;
+      lastViewerSeatReloadKeyRef.current = reloadKey;
       setReplayBoardOpen(false);
-      setDetail(null);
-      setTimeline([]);
-      setReplay(null);
       leaveReadonlyReplay();
-      return;
-    }
-
-    replayBoardOpenRef.current = false;
-    lastViewerSeatReloadKeyRef.current = `${selectedMatchId}:${adminViewerSeat}`;
-    setReplayBoardOpen(false);
-    leaveReadonlyReplay();
-    void loadMatchNode(selectedMatchId);
-  }, [leaveReadonlyReplay, loadMatchNode, selectedMatchId]);
+      void loadMatchNode(selectedMatchId, checkpoint);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [
+    adminViewerSeat,
+    isAdmin,
+    leaveReadonlyReplay,
+    loadMatchNode,
+    replay?.replayPosition.checkpointSeq,
+    selectedMatchId,
+  ]);
 
   useEffect(() => {
     return () => {

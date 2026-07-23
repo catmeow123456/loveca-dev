@@ -9,7 +9,7 @@
  *     < 768px：侧边栏通过底部抽屉打开
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ListFilter, PanelRightOpen, X } from 'lucide-react';
 import type { AnyCardData } from '@game/domain/entities/card';
@@ -23,6 +23,7 @@ import { CardBrowserGrid } from './CardBrowserGrid';
 import { DeckSidebar } from './DeckSidebar';
 import { CardDetailDrawer } from './CardDetailDrawer';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useKeyedState } from '@/hooks/useKeyedState';
 
 interface CardEditorProps {
   deck: DeckConfig;
@@ -34,14 +35,11 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
   const filters = useCardFilters();
   const mutations = useDeckMutations(deck, onDeckChange, onValidate);
   const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const isDesktop = useMediaQuery('(min-width: 960px)');
   const isMobile = useMediaQuery('(max-width: 767px)');
-
-  useEffect(() => {
-    setSidebarOpen(isDesktop);
-  }, [isDesktop]);
+  const responsiveLayoutKey = isDesktop ? 'desktop' : isMobile ? 'mobile' : 'tablet';
+  const [sidebarOpen, setSidebarOpen] = useKeyedState(responsiveLayoutKey, isDesktop);
 
   const sidebarProps = {
     deck,

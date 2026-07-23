@@ -93,7 +93,7 @@
 
 - 面向手机竖屏的完整触屏操作路径与主视角战斗桌精修。
 - 稳定的移动端底部流程条、全屏资源浏览和卡牌详情任务层。
-- 完整前端 E2E specs；历史 Playwright 输出可能存在于 `client/test-results/` 或根目录 `test-results/`，不作为现行测试入口。
+- 完整业务流程的前端 E2E 覆盖；现行 `client/tests/e2e/` 主要覆盖移动端、响应式布局与局部 UI 回归，`client/test-results/` 或根目录 `test-results/` 仅为运行产物。
 
 相关文档：
 

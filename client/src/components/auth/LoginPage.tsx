@@ -3,7 +3,7 @@
  * 橙色轻亮色调主题
  */
 
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, Eye, EyeOff, LogIn, Mail, WifiOff } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
@@ -34,6 +34,15 @@ export function LoginPage({
 
   const { signIn, enterOfflineMode, resendVerificationEmail, isLoading, error, clearError } =
     useAuthStore();
+
+  useEffect(
+    () => () => {
+      if (cooldownRef.current) {
+        clearInterval(cooldownRef.current);
+      }
+    },
+    []
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

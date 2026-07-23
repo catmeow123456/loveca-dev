@@ -3,7 +3,7 @@
 > 文档类型：设计文档  
 > 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
 > 当前状态：现行系统设计；字段级 schema 以 `src/server/db/schema.ts` 和 `docker/init.sql` 为准
-> 最后更新：2026-07-19
+> 最后更新：2026-07-24
 
 ---
 
@@ -450,7 +450,7 @@ graph TD
     Tests --> Integration[Integration]
     Tests --> Simulation[Simulation]
     Tests --> Performance[Performance\n按需运行]
-    Tests --> E2E[Client E2E\n规划中]
+    Tests --> E2E[Client E2E\n移动端与局部 UI 回归]
 ```
 
 代码路径：
@@ -458,7 +458,7 @@ graph TD
 - 单元与集成：`tests/unit/`、`tests/integration/`
 - 流程仿真：`tests/simulation/`
 - 性能基准：`tests/performance/`
-- 当前仓库未保留可运行的前端 E2E specs；历史 Playwright 输出可能存在于 `client/test-results/` 或根目录 `test-results/`，不作为现行测试入口
+- 前端 E2E：`client/tests/e2e/`，当前主要覆盖移动端、响应式布局与局部 UI 回归；`client/test-results/` 或根目录 `test-results/` 仅为运行产物，不作为测试入口
 
 ---
 
