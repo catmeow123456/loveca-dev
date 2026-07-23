@@ -8,11 +8,11 @@
 
 ## Current Goal
 
-当前阶段目标不是立刻实现完整 steps DSL，而是先完成 `card-effect-runner.ts` 去中心化：
+`card-effect-runner.ts` 的完整卡效 fallback 已清空，当前阶段目标是维护已经落地的去中心化边界，并只在明确开启对应架构窗口时继续收口调度胶水：
 
-- runner 只保留 pending / activeEffect 生命周期、trigger/activated 调度入口和 workflow dispatch。
+- runner 保留 pending / activeEffect 生命周期、trigger/activated 调度入口、workflow registry 注册，以及尚未迁出的 matcher / relay / trigger 条件胶水。
 - 原子动作放入 `src/application/card-effects/runtime/`。
-- 具体卡牌流程放入 `src/application/card-effects/workflows/`。
+- 具体卡牌流程放入 `src/application/card-effects/workflows/cards/`，同型 family 放入 `workflows/shared/`。
 - 能归类的效果按 workflow family 参数化；不能归类的特殊卡也单独放 workflow 文件，不再留在 runner。
 - trigger matcher 继续保持纯 matcher，等 runner 调度边界稳定后再接入。
 - steps-lite 只在真实重复 workflow 已稳定后推进，不做完整解释器。

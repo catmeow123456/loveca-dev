@@ -59,7 +59,7 @@
 | `needs-selector` | 查询形状清楚，但 selector 语义还散落或有别名/fallback 风险。 | 先扩 `card-selectors.ts` 并补 selector 测试，再迁 query。 |
 | `domain-blocked` | 位于 domain 层，不能 import application query。 | 暂不迁；未来决定是否下沉到 domain/shared query。 |
 | `formula-builder` | 查询已经能做，但“数量 -> 奖励/修正”的表达仍分散在 workflow / modifier registry。 | 后续真实重复足够后再抽 typed builder；不要塞进 `conditions.ts`。 |
-| `workflow-step` | 本质是流程/选择/移动/支付串联。 | 等 look-top/reveal-hand/grouped-selection/steps 配置化专题处理。 |
+| `workflow-step` | 本质是流程/选择/移动/支付串联。 | 现有原语与 shared/card workflow 已承载运行时；等真实重复样本证明稳定轴后，再评估 typed builder 或 steps-lite 配置化。 |
 
 ## Completed small batches
 
@@ -171,7 +171,7 @@
 Batch G identity migration 已完成。本文档后续只保留真实未完成方向：
 
 - `formula-builder`：数量 / 阈值到奖励或修正的表达仍分散在 workflow / modifier registry 中，后续需要真实重复样例再抽 typed builder。
-- `workflow-step`：look-top、reveal-hand、grouped-selection、支付选项与移动流程仍未配置化。
+- `workflow-step`：look-top、reveal-hand、grouped-selection、支付选项与移动流程已有原语及 shared/card workflow 承载，但尚未晋升为 declarative steps-lite；这不表示运行时能力缺失。
 - `domain-blocked`：仍有 domain-local turn-state / continuous modifier 查询；这些不应反向依赖 application helper。
 - trigger matcher / steps / condition AST 尚未完成，也不是 Batch G identity migration 的成果。
 

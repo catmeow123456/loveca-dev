@@ -16,12 +16,12 @@ Phase 2 目标是在已有历史记录读取能力基础上，把普通历史页
 
 本阶段不是确定性重演，不重新运行规则引擎，不播放逐命令动画，也不提供修改历史状态的功能。
 
-## 2. 当前基础
+## 2. 实施基线与当前结果
 
-当前暂存区已经具备 Phase 2 的主要后端前提：
+以下是 2026-06-19 开始 Phase 2 时已经具备、并继续保留的后端前提：
 
-- `GET /api/online/match-records/:matchId/replay` 已返回 `MatchRecordReplayView`。
-- `GET /api/battle/match-records/:matchId/replay` 已作为中性历史读取路径接入前端；旧 `/api/online/...` 路径保留兼容。
+- `GET /api/battle/match-records/:matchId/replay` 作为中性规范路径返回 `MatchRecordReplayView` 并接入前端。
+- 旧 `GET /api/online/match-records/:matchId/replay` 只作为兼容 alias 保留。
 - `MatchRecordReplayView.playerViewState` 与实时桌面 store 使用的 `PlayerViewState` 是同一类型。
 - 服务端 `match-replay-read-service` 会从 authority checkpoint 复水，再调用 `projectPlayerViewState(authorityState, viewerPlayerId, ...)` 生成玩家视角投影。
 - `MatchRecordReplayView.sourceMatchMode` / `automationGameMode` 会透传来源模式；对墙打来源回放仍是只读 `REPLAY_READONLY` surface，但会保留 `isSolitairePresentation=true` 的展示语义。
@@ -29,14 +29,14 @@ Phase 2 目标是在已有历史记录读取能力基础上，把普通历史页
 - `MatchRecordsPage` 已能读取列表、详情、timeline 和指定 checkpoint 的 replay，并维护当前 `replay` 状态。
 - `GameBoard` / `PlayerArea` 的主要展示查询都读 `gameStore.playerViewState`，理论上可以直接展示 replay checkpoint。
 
-当前尚未满足 Phase 2 的前端只读前提：
+以下项目是实施前基线中的前端缺口，现已全部完成；保留此清单用于解释 v1.1 的改动来源，不应再据此判断当前能力：
 
-- `gameStore` 只有本地 session 与远程 session 概念，没有独立 replay session。
-- `BattleSurfaceCapabilities` 没有 `REPLAY_READONLY` surface，也没有统一 `isReadOnly` 标志。
-- 部分桌面交互只按阶段窗口判断可操作，不完全依赖 `permissions.availableCommands`。
-- `GameBoard` 的 active effect 与 pending cost 确认按钮当前只按 seat / 能量数量判断，未统一检查只读模式。
-- `DebugControl` 当前会在桌面端渲染，且免费登场控制默认对所有 surface 开启。
-- `MatchRecordsPage` 当前异步加载 detail / timeline / replay 后直接写入本地 state；接入桌面 store 前必须增加请求序号防护，避免旧 checkpoint 请求较晚返回后覆盖当前回放视图。
+- `gameStore` 已有独立 replay session，不把回放伪装成本地或远程联机会话。
+- `BattleSurfaceCapabilities` 已有 `REPLAY_READONLY` surface、`authority: 'REPLAY'` 与统一 `isReadOnly` 标志。
+- 桌面交互与 store 命令出口都检查只读能力，不只依赖阶段窗口或残留的 `permissions.availableCommands`。
+- `GameBoard` 的 active effect、pending cost 等确认入口已统一受只读能力约束。
+- `DebugControl`、免费登场、撤销和操作模式切换不会在 replay surface 开放。
+- `MatchRecordsPage` 的 detail / timeline / replay 异步加载已使用请求代际防护，旧 checkpoint 响应不会覆盖当前回放视图。
 
 ## 3. 实施原则
 
@@ -155,7 +155,7 @@ function getReadonlyReplayViewerPlayerId(replay: MatchRecordReplayView): string 
 
 ### 5.2 Surface capabilities
 
-扩展 `client/src/store/battleSurfaceCapabilities.ts`：
+当前 `client/src/store/battleSurfaceCapabilities.ts` 的类型为：
 
 ```ts
 export type BattleAuthority = 'LOCAL' | 'REMOTE' | 'REPLAY';
@@ -164,16 +164,17 @@ export type BattleSurfaceKind =
   | 'SOLITAIRE'
   | 'ONLINE'
   | 'REMOTE_DEBUG'
+  | 'SPECTATOR_READONLY'
   | 'REPLAY_READONLY';
 ```
 
-新增能力字段：
+只读能力由统一字段表达：
 
 ```ts
 readonly isReadOnly: boolean;
 ```
 
-`REPLAY_READONLY` 建议能力：
+`REPLAY_READONLY` 当前能力：
 
 - `authority: 'REPLAY'`
 - `surface: 'REPLAY_READONLY'`
@@ -182,12 +183,13 @@ readonly isReadOnly: boolean;
 - `canSwitchLocalMode: false`
 - `canShowDebugLog: false`
 - `canUndo: false`
+- `undoPolicy: 'NONE'`
 - `showFreePlayControl: false`
+- `freePlayPolicy: 'COMMAND_FLAG'`
+- `isSolitairePresentation: replaySourceMatchMode === 'SOLITAIRE'`
 - `scoreConfirmPresentation: 'STANDARD_MODAL'`
 
-`getBattleSurfaceCapabilities` 应优先检查 `replaySession`，再检查 `remoteSession` 与本地模式。
-
-实现上可以让 `deriveBattleSurfaceCapabilities` 接受 `replaySession?: ReplayReadonlySessionState | null`，或者在 `getBattleSurfaceCapabilities` 中先行返回 replay capabilities。关键是不让 replay 落回 `LOCAL_DEBUG`，因为当前 `showFreePlayControl` 默认开启且 `canUndo` 会按本地会话放开。
+`deriveBattleSurfaceCapabilities` 当前优先检查 `replaySessionActive`，再派生远程或本地 surface；因此 replay 不会落回 `LOCAL_DEBUG`。`SPECTATOR_READONLY` 同样设置 `isReadOnly: true`，但仍属于 `REMOTE` authority，不能与历史回放的 `REPLAY` authority 合并。
 
 ### 5.3 Store 命令兜底
 

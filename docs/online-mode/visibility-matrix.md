@@ -44,7 +44,8 @@
 
 约束：
 
-- `publicObjectId` 不是权威卡牌实例 ID。
+- 当前 `publicObjectId` 由 `createPublicObjectId(instanceId)` 生成，形状为 `obj_${instanceId}`。它是带命名空间的投影对象 ID，不是另一个独立分配的 opaque 标识，也不能被当作隐藏权威实例身份的安全边界。
+- 客户端只应把 `publicObjectId` 用作一局内的渲染、动画和对象延续键，不应解析前缀、构造新的 ID、据此请求权威对象或假设未来仍可逆。
 - `surface` 和“是否可持续跟踪”不是同一件事。
 - 隐藏区对象可以在服务端保持稳定 `publicObjectId`，但对非持有者不持续投影。
 - 对象重新进入公开链路时，首版可继续沿用同一个 `publicObjectId`。

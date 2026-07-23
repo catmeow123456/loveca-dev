@@ -48,12 +48,7 @@ src/application/card-effects/
     trigger-sources.ts
 
   workflows/
-    activated/
-    on-enter/
-    live-start/
-    live-success/
-    on-cheer/
-    replacement/
+    cards/
     shared/
 
 src/application/effects/
@@ -121,19 +116,19 @@ Responsibilities:
 - 组合 runtime action、selector/query、zone selection、live modifier 等底座。
 - 导出 starter 与 step handler。
 
-同型效果放 family 文件。例如：
+同型效果放 `shared/` family 文件。例如：
 
 ```text
-workflows/activated/self-sacrifice-recover.ts
-workflows/on-enter/look-top-select-to-hand.ts
-workflows/live-start/pay-energy-gain-blade.ts
+workflows/shared/self-sacrifice-waiting-room-to-hand.ts
+workflows/shared/look-top-select-to-hand.ts
+workflows/shared/pay-energy-gain-blade.ts
 ```
 
-特殊效果可一张卡一个文件。例如：
+特殊效果放 `cards/`，可一张卡一个文件。例如：
 
 ```text
-workflows/live-start/hs-bp5-003-rurino.ts
-workflows/replacement/bp6-024-success-zone-replacement.ts
+workflows/cards/hs-bp5-003-rurino.ts
+workflows/cards/pl-bp6-024-sakkaku-crossroads.ts
 ```
 
 ### Runner Layer

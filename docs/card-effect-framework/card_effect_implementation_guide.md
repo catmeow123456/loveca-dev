@@ -61,7 +61,7 @@
 - 卡效定义：`src/application/card-effects/`
 - runtime 原子动作：`src/application/card-effects/runtime/`
 - workflow 目标目录：`src/application/card-effects/workflows/`
-- runner 接线：`src/application/card-effect-runner.ts`，只保留调度入口和未迁移旧逻辑
+- runner 接线：`src/application/card-effect-runner.ts`，只保留调度/生命周期/registry 注册与尚未迁出的 matcher、relay、trigger 条件胶水；完整卡效 fallback 已清空
 
 新增 helper 的条件：
 

@@ -70,7 +70,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 区域/卡牌状态：`src/domain/entities/zone.ts`
 - 费用计算入口：`src/domain/rules/cost-calculator.ts`
 - 卡效定义入口：`src/application/card-effects/definitions/index.ts`
-- 样例卡效执行入口：`src/application/card-effect-runner.ts`
+- 卡效调度入口：`src/application/card-effect-runner.ts`
 - 联机/前端视图投影：`src/online/projector.ts`
 - 前端 store：`client/src/store/gameStore.ts`
 - 主桌面：`client/src/components/game/GameBoard.tsx`
@@ -81,7 +81,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 规则状态必须通过 `GameSession` / `GameService` / command 层改变，不要让 React 组件直接改权威状态。
 - 不要在 React 组件里硬写具体卡效。
 - 不要在 action handler 里散落具体卡效。
-- 具体卡效定义层目前集中在 `src/application/card-effects/definitions/index.ts`；执行、入队、pending 与 resolver 流程仍集中在 `card-effect-runner.ts`，后续应继续逐步抽象成可扩展 runner。
+- 具体卡效定义层集中在 `src/application/card-effects/definitions/index.ts`；具体卡牌流程与同型 family 分别放在 `src/application/card-effects/workflows/cards/` 和 `workflows/shared/`，原子动作与 activeEffect/pending runtime 放在 `src/application/card-effects/runtime/`。`card-effect-runner.ts` 的完整卡效 fallback 已清空，当前只保留调度、生命周期、registry 注册及尚未迁出的 matcher / relay / trigger 条件胶水；不要把具体 resolver 写回 runner。
 - 新增卡效前先在 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
 - 新增卡效时必须先用 `llocg_db/json/cards_cn.json` 或本地卡牌数据确认同基础编号的全部罕度。若同基础编号不同罕度效果文本一致，优先在 `CARD_ABILITY_DEFINITIONS.baseCardCodes` 登记基础编号，并在 resolver / cost calculator / live modifier registry 中使用基础编号判断；不要只给单一罕度写 `cardCodes` 或硬编码 `cardCode === '...-P'`。若只覆盖部分罕度，必须在 `existing_module_map.md` 说明原因。`tests/unit/card-effect-rarity-sync.test.ts` 会阻止 exact `cardCodes` 漏同步同编号罕度。
 - 需要隐藏信息时，以 `projector` / visibility / inspection context 控制前端可见性。
@@ -94,6 +94,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 业务逻辑和运行时读取路径默认不做后向兼容。不要保留旧字段、旧凭据、旧 token、旧协议或旧状态的 fallback、dual-read、登录时懒迁移等兼容分支。
 - 旧数据与旧格式的兼容责任全部属于停机更新迁移。发布时应先停止旧版本及相关写入任务，完成备份、dry-run、迁移、结果校验，再部署只接受新格式的新版本；无法无损转换的数据必须在迁移报告中明确失效、重置或人工恢复策略。
 - 若已有需求明确要求长期读取历史归档或继续支持公开外部协议，应在实现前指出它与本原则的冲突并由用户决定；未经明确授权，不得自行在业务路径中增加后向兼容。
+- 当前有两个已经明确审计的窄例外，不得据此扩散兼容分支：早期 authority checkpoint 缺少 `manualOperationMode` 时，只在历史回放或服务端可记录对墙打恢复的复水边界规范化为 `FREE`；历史记录规范路径是 `/api/battle/match-records...`，旧 `/api/online/match-records...` 只作为已公开协议的临时 alias。两者都不允许 live session/command 路径 dual-read，也不豁免其他旧 payload 的停机迁移。
 
 ## 卡效分类约定
 
@@ -107,13 +108,13 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 ## 卡效步骤约定
 
 - “可以将 N 张手牌放置入休息室：……”属于通用发动代价/费用步骤，不是具体卡牌特例。
-- 当前 N=1 的手牌弃置步骤统一使用 `card-effect-runner.ts` 中的 `createDiscardHandToWaitingRoomActivationEffect` 创建选择步骤，并用 `src/application/effects/effect-costs.ts` 中的 `moveHandCardToWaitingRoomForEffect` 执行移动。
+- 当前 N=1 的可选手牌弃置步骤优先使用 `src/application/card-effects/runtime/active-effect.ts` 中的 `createOptionalDiscardHandToWaitingRoomActiveEffect` 创建选择步骤；实际移动优先走会补 `ON_ENTER_WAITING_ROOM` 的 trigger-safe wrapper，只有明确不需要触发语义的底层费用原语才直接调用 `src/application/effects/effect-costs.ts`。
 - 卡效发动费用应优先登记/执行为通用 `EffectCostDefinition`，当前已覆盖 `DISCARD_HAND_TO_WAITING_ROOM`、`TAP_ACTIVE_ENERGY`、`SEND_SOURCE_MEMBER_TO_WAITING_ROOM`、`SET_SOURCE_MEMBER_ORIENTATION`。新增 `[E]`、弃手、自送休息室、自身待机/活跃等费用时，先扩展/复用 `src/application/effects/effect-costs.ts` 的 `payImmediateEffectCosts` 或 `paySelectedDiscardHandCost`，不要在单张卡里手写横置能量、移动手牌、清空成员槽位或改变来源成员状态。
 - 这类步骤的选择区文案应明确为“请选择要放置入休息室的卡牌”，跳过按钮应为“不发动”，不要写成“请选择要处理的卡牌”或“不加入”。
 - 后续支持 N>1、指定名称/颜色/类型的手牌弃置时，应扩展同一个步骤 helper，而不是在单张卡效果里临时写 UI 文案和移动逻辑。
 - “检视卡组顶 N 张 -> 选择其中若干张 -> 可选公开 -> 加入手牌 -> 其余放置入休息室”也是通用步骤；当前基础区域操作已落在 `src/application/effects/look-top.ts`，不要只为 `PL!-sd1-004-SD`、`PL!-sd1-015-SD` 或 `PL!-sd1-019-SD` 单独写检视/清理/移动流程。
 - “抽 N 张牌”作为卡效步骤时，优先复用 `src/application/effects/draw.ts` 的 `drawCardsFromMainDeckToHand`。当前该 helper 只表达卡效步骤里的“主卡组顶 -> 手牌”，不接管开局/阶段/LIVE 判定等规则流程抽牌；涉及牌库为空后的刷新处理时，应先确认要保持的规则语义，不要悄悄改变既有流程。
-- “抽 N 张后弃 1 张手牌”作为卡效步骤时，优先复用 `card-effect-runner.ts` 的 `startDrawThenDiscardOneEffect` / `finishDrawThenDiscardOneEffect` 壳，并由它组合 `drawCardsFromMainDeckToHand` 与 `moveHandCardToWaitingRoomForEffect`。当前 `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场用它验证 F02；后续弃 M 张时再扩多选，不要复制单卡流程。
+- “抽 N 张后弃 M 张手牌”作为卡效步骤时，优先复用 `src/application/card-effects/workflows/shared/draw-then-discard.ts` 的 `startDrawThenDiscardCardsWorkflow` / `finishDrawThenDiscardCardsWorkflow`，由 shared workflow 组合统一抽牌、精确数量选择、手牌进休息室事件 wrapper 与 pending continuation。`PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场是 F02 样本之一；不要复制单卡流程或把旧壳写回 runner。
 - 能量区卡效步骤优先复用 `src/application/effects/energy.ts`。从能量卡组放置能量到能量区使用 `placeEnergyFromDeckToZone`；将能量变为待机/活跃使用 `setEnergyOrientation` / `setFirstEnergyCardsOrientation`。这些 helper 明确接收目标方向状态；`PL!SP-PR-004-PR` 费用 4「唐 可可」使用它从能量卡组顶放置 1 张待机能量，`PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场使用它将最多 2 张待机能量变为活跃，不改变普通能量阶段默认活跃放置逻辑。
 - 能量没有个体差异；卡效需要处理 N 张能量时，默认由规则层按能量区顺序自动取符合条件的能量，不让玩家逐张选择具体能量卡。若卡牌文本存在“成员或能量”等分支选择，只保留分支选择；选择能量分支后直接处理能量。
 - “从某区域按条件选择卡 -> 移动到目标区域”属于通用目标选择/移动步骤。当前已由 `src/application/effects/zone-selection.ts` 的 `ZoneCardSelectionConfig` / `moveSelectedCardsFromZone` 覆盖 `WAITING_ROOM -> HAND` 的单选路径，并由 `src/application/effects/card-selectors.ts` 提供 `typeIs` / `groupIs` / `unitIs` / `unitAliasIs` / `unitAliasOrTextAliasIs` / `costLte` / `costGte` / `cardNameIs` / `cardNameAliasIs` / `and` 等最小 selector；新增从休息室回收成员/LIVE、按费用/团体/小组/名称筛选等效果时，优先扩展这个底座，不要在单张卡里重复写移出休息室和加入手牌。小组名条件默认使用 `unitAliasIs` 匹配真实 `unitName`，当前别名覆盖 `Cerise Bouquet`/`スリーズブーケ`、`DOLLCHESTRA`、`Mira-Cra Park!`/`みらくらぱーく！`/`みらくらぱーく!`、`EdelNote`；只有需要处理“所有领域中此卡视为……”等文本身份时，才使用 `unitAliasOrTextAliasIs`。成员名条件默认优先用 `cardNameAliasIs`，当前按卡库常见角色覆盖中日名、空白/中点差异与组合卡 `&` 分隔组件；需要严格卡面名完全一致时才用 `cardNameIs`。
@@ -248,7 +249,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
   - 当前实现通过离场事件携带 `replacingCardId` 校验 relay 来源条件，并复用 confirm-only 无输入确认壳。
 - `PL!HS-pb1-020` 费用 9「百生吟子」。
   - 登场：休息室 LIVE 大于等于 3 时，可弃 2 手牌；如此做时回收 1 张 Cerise Bouquet 成员与 1 张「莲之空」LIVE。
-  - 当前实现复用弃手费用和 zone-selection；分组上限仍在 runner 校验。
+  - 当前实现复用弃手费用、`workflows/shared/grouped-recovery.ts` 与 `runtime/grouped-selection.ts`；成员/LIVE 各至多 1 张的分组上限由 shared runtime 校验，不在 runner 写单卡分支。
 - `PL!HS-bp6-001` 费用 4「日野下花帆」 / `PL!HS-cl1-009` 分数 1「水彩世界」。
   - 当前实现打开声援公开卡选择底座：前者 LIVE 成功时可把本次声援公开卡放回卡组顶；后者 LIVE 成功时可从本次声援公开卡中回收费用 4-9 成员。
 

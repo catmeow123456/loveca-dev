@@ -1,6 +1,13 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-23
+更新时间：2026-07-24
+
+## 2026-07-24：docs 与当前实现全面一致性修订
+
+- 对战场景文档补齐 `REPLAY_READONLY` 与 `REPLAY` 权威来源；联机准备文档改正为双方准备后暗选猜拳、胜者决定先后手，并明确正式联机未恢复与服务端可记录对墙打 checkpoint 恢复的差异。
+- 回放文档将 Phase 2 的实施前缺口改为历史基线，规范普通历史读取 `/api/battle/match-records...` 路径，并记录仅限历史复水边界的 `manualOperationMode -> FREE` 窄兼容例外；可见性文档同步 `publicObjectId = obj_${instanceId}` 的真实派生边界。
+- 卡效文档统一为 `workflows/cards/` / `workflows/shared/`，明确 runner 完整卡效 fallback 已清空；修正已迁移的自送回收、手牌公开、抽后弃与目标成员 BLADE 说明。主登记册结构已修复，并补齐 62 个漏记基础编号，当前 842 个 implemented base code 全部可检索。
+- 验证：81 份 Markdown / 270 个相对链接检查为 0 broken；843 条 implemented definition / 842 个 implemented base code 在主登记册中 0 漏记；focused battle/online/replay/card-effect 8 files / 299 tests 与 shared/server/client TypeScript 全部通过；全量 `pnpm test:run` 为 553 files / 5459 tests passed，3 个 performance 文件 / 3 项测试按默认配置跳过；`git diff --check` 通过。未修改或清理既有 `llocg_db` 子模块状态。
 
 ## 2026-07-23：规则/自由模式运行时 fail-closed 收口
 

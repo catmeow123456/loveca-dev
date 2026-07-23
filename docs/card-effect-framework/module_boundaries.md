@@ -82,11 +82,8 @@ Rules:
 
 Target locations:
 
-- `src/application/card-effects/workflows/activated/`
-- `src/application/card-effects/workflows/on-enter/`
-- `src/application/card-effects/workflows/live-start/`
-- `src/application/card-effects/workflows/live-success/`
-- `src/application/card-effects/workflows/replacement/`
+- `src/application/card-effects/workflows/cards/`
+- `src/application/card-effects/workflows/shared/`
 
 Rules:
 
@@ -109,7 +106,7 @@ Target rules:
 - 使用 step handler registry 结算 activeEffect step。
 - 不再新增完整卡牌流程。
 
-短期允许 runner 保留尚未迁出的旧逻辑，但新增复杂卡效应优先进入 `workflows/`。
+完整卡效 fallback 已从 runner 清空。runner 当前只允许保留 pending/activeEffect 生命周期、workflow registry 注册，以及尚未迁出的 matcher / relay / trigger 条件胶水；新增或修改具体卡效不得把 start/finish/resolver 流程写回 runner。
 
 ## Continuous / Domain Modifier
 

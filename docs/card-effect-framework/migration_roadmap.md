@@ -68,9 +68,9 @@ Current helper families:
 
 Next runtime candidates:
 
-- inspect top choose
-- public reveal confirm
-- grouped zone selection
+- 只在新真实样本证明现有参数轴不足时扩展 typed inspection/look-top builder。
+- 继续统一 event wrapper 与窄 observer hook，避免同一公共移动产生两套事件时机。
+- 对已稳定的 workflow family 做 steps-lite 晋升审查；不重复抽取已经落地的公开选卡确认和 grouped selection runtime。
 
 ## R-2 / R-3 Current State
 
@@ -83,7 +83,7 @@ Current dispatch registries:
 - `src/application/card-effects/runtime/activated-registry.ts`
 - `src/application/card-effects/runtime/public-card-selection-confirmation.ts`
 
-They are registry-first / fallback-old-runner entry points. Remaining work is to keep moving old starter/step/activated cases into workflow modules.
+They are registry-first dispatch entry points. Unregistered starter / step / activated handlers keep state unchanged; there is no complete-card fallback in runner. Remaining runner work is limited to matcher / relay / trigger-condition glue until a dedicated architecture window explicitly opens those boundaries.
 
 The public selection confirmation runtime now owns the common pause/reveal/restore lifecycle for audited waiting-room selections. It does not own card predicates or zone movement; stable waiting-room-to-hand shells opt in by default, while custom recovery and deck-top/bottom/position workflows use explicit metadata.
 
@@ -154,9 +154,9 @@ Recent helper modules added outside `actions.ts`:
 - `domain/rules/member-effective-cost.ts`: shared pure query for current member effective cost; application helpers and domain continuous modifiers use the same cost semantics without changing cost payment rules.
 - `starter-registry.ts` / `step-registry.ts` context now exposes `delegatePendingAbility` for workflows that need to start an already constructed synthetic pending ability; it does not discover abilities, pay costs, remove natural pending abilities, or change trigger matcher behavior.
 
-Runner line count after R-4Q-c CHISATO / EMMA single-card workflow migration was about 5285 lines, down from about 5667 after R-4Q-b. R-5B `HS_BP5_003_LEAVE_STAGE_POSITION_CHANGE` migration brought the runner to about 5058 lines. R-5C `HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART` migration brought the runner to about 4830 lines. R-5D `BP6_024_CONTINUOUS_SUCCESS_ZONE_REPLACEMENT` migration brought the runner to about 4595 lines. R-5E `MAKI_ON_ENTER` migration brought the runner to about 4432 lines. R-5F `LL_BP1_001` / `LL_BP2_001` named hand discard Live-start migration brought the runner to about 4239 lines. After R-5U, complete card-effect fallback branches are empty; the runner still keeps matcher / relay / trigger condition glue until those framework boundaries are explicitly reopened.
+Historical migration measurements: R-4Q-c brought the runner to about 5285 lines, R-5B to about 5058, R-5C to about 4830, R-5D to about 4595, R-5E to about 4432, and R-5F to about 4239. The current 2026-07-24 baseline is 3624 lines. Line count is only a migration signal: after R-5U complete-card fallback branches are empty, while matcher / relay / trigger-condition glue remains until those framework boundaries are explicitly reopened.
 
-`PR_017` 已迁到单卡 workflow wrapper，仍没有并入纯 self-sacrifice recovery family。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA`、`HS_BP5_003` 两段效果、`BP6_024` 成功区替代 hook、`MAKI` 登场交换、`PL!S-bp2-024` LIVE 成功抽弃 wrapper 与 LL named hand discard Live-start family 已迁到 workflow wrapper / hook。`PL!S-bp2-024` 不能放置入成功 LIVE 卡区只新增 `success-live-placement` 纯规则 helper，覆盖当前真实入区/替代/交换/手动移动入口；这不是完整 replacement DSL。Remaining near-term R-4/R-5 candidates include complex workflows and helper cleanup only when another stable repeated axis appears.
+`PL!-PR-017` 费用 2「矢泽日香」已与 `PL!S-bp3-008` 费用 4「小原鞠莉」一起迁入 `workflows/shared/self-sacrifice-waiting-room-to-hand.ts`，后处理差异由有限配置轴表达，不再存在 `workflows/cards/pl-pr-017-nico.ts`。`HS_SD1_001`、`SHIKI`、`CHISATO`、`EMMA`、`HS_BP5_003` 两段效果、`BP6_024` 成功区替代 hook、`MAKI` 登场交换、`PL!S-bp2-024` LIVE 成功抽弃 wrapper 与 LL named hand discard Live-start family 已迁到 workflow wrapper / hook。`PL!S-bp2-024` 不能放置入成功 LIVE 卡区只新增 `success-live-placement` 纯规则 helper，覆盖当前真实入区/替代/交换/手动移动入口；这不是完整 replacement DSL。Remaining near-term R-4/R-5 work is helper cleanup only when another stable repeated axis appears.
 
 ## R-4O Conditional Live Modifier Outcome 2026-06-18
 

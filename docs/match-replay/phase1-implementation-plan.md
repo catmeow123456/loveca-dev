@@ -39,7 +39,7 @@ P2-P3 属于第一阶段增强：
 - `src/server/db/schema.ts` 与 `docker/init.sql` 已新增 P0/P1 历史对局记录模型和 P2 decision record 表；P1c-P1e 已提供普通用户历史入口、timeline、authority checkpoint 投影读取、public/private event 明细读取，P2a-P2c 已记录 active effect、部分玩家命令和待处理能力顺序选择。sealed audit 普通读取不会开放，decision record 仍是 partial，尚未覆盖自由拖拽/手动处理原因、完整随机记录与确定性重演。
 - 2026-06-19 起，记录模型已新增 `matchMode` / `automationGameMode` / `originKind` / `originLabel` / `participantKind` / `ownerUserId` 与 `replayLimitations`。正式联机默认写入 `ONLINE / DEBUG / ONLINE_ROOM`；服务端可记录对墙打写入 `SOLITAIRE / SOLITAIRE / SOLITAIRE`，SECOND participant 为 `SYSTEM`，默认对手 deck snapshot source 为 `SOLITAIRE_DEFAULT_DECK`。
 - `src/server/services/solitaire-match-service.ts` 已复用 `OnlineMatchService` 的 recorded runtime，服务端加载用户云端卡组和默认对手 YAML，不接受前端上传运行时卡组事实；`/api/battle/solitaire-matches` 提供创建、snapshot、command、advance 与 leave。第一版对手自动流程仍压缩在玩家命令后的 checkpoint 中，并通过 `SOLITAIRE_AUTOMATION_COMPRESSED` 标记。
-- 历史读取已有中性 `/api/battle/match-records...` alias；旧 `/api/online/match-records...` 仍作为兼容路径保留。前端历史页默认调用 `/api/battle`。
+- 历史读取已有中性 `/api/battle/match-records...` 规范路径；旧 `/api/online/match-records...` 仍作为兼容 alias 保留。前端历史页调用 `/api/battle`。
 
 因此第一阶段的关键仍不是新增一套 replay engine，而是沉淀记录事实边界和只读回放读取模型；E0/P0/P1 已完成基础落地，后续围绕 P2 的决策、随机、手动原因和 P3 UI / 审计能力收束。
 
@@ -369,13 +369,13 @@ P1 在每次命令或系统推进后追加：
 
 ### 6.3 读取 API
 
-建议新增只读路由，路径可按现有 API 风格调整：
+当前普通玩家历史读取以中性 `/api/battle` 为规范路径；旧 `/api/online` 只作为已明确保留的兼容 alias：
 
-- `GET /api/online/match-records`：当前用户参与的历史对局列表。
-- `GET /api/online/match-records/:matchId`：对局详情、参与者、卡组摘要、结果和能力标记。
-- `GET /api/online/match-records/:matchId/replay?checkpointSeq=...`：按当前用户参与视角读取指定 checkpoint 节点。迁移期可兼容旧 `cursor` 查询参数，但新代码应使用 `checkpointSeq`，避免和 timeline 翻页游标混淆。
-- `GET /api/online/match-records/:matchId/timeline`：当前用户可见的时间线摘要。
-- `GET /api/online/admin/match-records/:matchId/audit`：高权限审计读取，后续再开放。
+- `GET /api/battle/match-records`：当前用户参与的历史对局列表。
+- `GET /api/battle/match-records/:matchId`：对局详情、参与者、卡组摘要、结果和能力标记。
+- `GET /api/battle/match-records/:matchId/replay?checkpointSeq=...`：按当前用户参与视角读取指定 checkpoint 节点。新代码使用 `checkpointSeq`，避免和 timeline 翻页游标混淆。
+- `GET /api/battle/match-records/:matchId/timeline`：当前用户可见的时间线摘要。
+- `GET /api/battle/admin/match-records/:matchId/audit`：高权限审计读取的规范预留路径，后续再开放；不要为新增管理接口继续扩展旧 `/api/online` 前缀。
 
 普通玩家 timeline 需要独立的历史投影器，不能直接复用 E0 管理员 timeline 摘要。E0 timeline 可以出现 private/audit/admin 级摘要；P1 timeline 必须按当前用户 seat 过滤私密事实，只展示该玩家可见的公共事件、自己 seat 的私密事件和脱敏后的记录状态。
 
