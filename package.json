@@ -1,6 +1,6 @@
 {
   "name": "loveca",
-  "version": "3.7.2",
+  "version": "3.7.3",
   "description": "Loveca 卡牌游戏后端",
   "type": "module",
   "main": "dist/index.js",

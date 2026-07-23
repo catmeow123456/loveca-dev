@@ -1,6 +1,14 @@
 # Loveca 项目进度及待办
 
-更新时间：2026-07-22
+更新时间：2026-07-23
+
+## 2026-07-23：v3.7.3 发布前准备（未提交）
+
+- `VERSION`、根 `package.json` 与 `client/package.json` 已同步为 `3.7.3`；`pnpm version:check` 与 `git diff --check` 通过。Android 本次不出包，TWA `appVersionName 3.4.0 / appVersionCode 7` 保持不变。
+- 新增 `drizzle/migration-notes/3.7.2-to-3.7.3.md`，记录认证凭据兼容停机切换、卡牌同步 `type` / `double` 口径、dry-run / apply、同版部署、smoke 与回滚边界；本次默认不重跑卡牌同步、不修改对象存储。
+- 发布检查通过：根与客户端 frozen-lockfile 安装、`pnpm typecheck:all`、`pnpm test:run`（546 files / 5405 tests passed，3 个 performance files / tests skipped）、`pnpm build:server`、`pnpm --dir client build`。前端主 chunk 约 4.50 MB，仍有既知分包性能告警。
+- 候选来源 `loveca_20260722221351.xlsx` 的 parse-only dry-run 通过：2333 行、2329 个可用编号，仅报告 `PL!N-bp1-019-PR` 与 `LL-PR-007-PR` 两组已知重复号；未连接数据库、未写入卡牌数据。
+- 工作树另有 6 份用户未跟踪草案，未纳入或删除；`assets/card` / `assets/images` 无差异。发布准备文件尚未提交，因此未构建或推送使用当前 SHA 标签的 API 候选镜像，未提升 `latest`、未打 tag、未构建 Android 包。下一步先审阅并提交发布准备，再从该提交重新确认干净工作树、构建镜像并取得对外动作授权。
 
 ## 2026-07-22：BP7 double 无色判心数据同步与 LIVE 判定支持（未提交）
 
