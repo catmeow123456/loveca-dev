@@ -2,6 +2,12 @@
 
 更新时间：2026-07-23
 
+## 2026-07-23：规则/自由模式运行时 fail-closed 收口
+
+- `GameState.manualOperationMode` 与玩家视图 `manualOperation` 改为当前 schema 必填；通用 `GameSession` 恢复、模式读取与客户端玩家视图应用在缺字段时明确拒绝，不再默认放宽为自由模式。客户端自由模式派生只接受显式 `FREE`。
+- 旧 `AUTHORITY_GAME_STATE` checkpoint / replay 缺字段时保留历史宽松语义，但兼容只存在于 authority 持久化复水适配器，返回后即为严格 `GameState`；对墙打恢复、调试回放和历史回放继续经该边界读取。
+- 总体需求、系统设计与对墙打分数说明已同步；全量 552 files / 5456 tests 通过（另有 3 files / 3 tests 按既有条件跳过），shared/server/client TypeScript 通过。
+
 ## 2026-07-23：v3.7.3 发布前准备（未提交）
 
 - `VERSION`、根 `package.json` 与 `client/package.json` 已同步为 `3.7.3`；`pnpm version:check` 与 `git diff --check` 通过。Android 本次不出包，TWA `appVersionName 3.4.0 / appVersionCode 7` 保持不变。

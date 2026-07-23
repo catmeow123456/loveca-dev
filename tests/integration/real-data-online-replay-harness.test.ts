@@ -18,7 +18,7 @@ import type {
 import { projectPlayerViewState } from '../../src/online/projector';
 import {
   rehydrateAuthorityGameState,
-  rehydrateLegacyReplayPayloadForMigration,
+  rehydrateLegacyAuthorityGameStateForMigration,
 } from '../../src/server/services/replay-payload-serialization';
 import { GameMode, type SlotPosition } from '../../src/shared/types/enums';
 
@@ -1262,7 +1262,7 @@ function readCheckpoint(row: Record<string, string | null>):
       subPhase: readRequired(row, 'sub_phase'),
       state:
         payload.compression === 'NONE'
-          ? rehydrateLegacyReplayPayloadForMigration<GameState>(payload, 'AUTHORITY_GAME_STATE')
+          ? rehydrateLegacyAuthorityGameStateForMigration(payload)
           : rehydrateAuthorityGameState(payload),
     };
   } catch (error) {

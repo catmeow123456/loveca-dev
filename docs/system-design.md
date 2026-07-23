@@ -299,9 +299,15 @@ flowchart TD
 
 代码路径：
 
+- `src/application/manual-operation-mode.ts`（权威模式读取、切换安全点与命令重写）
+- `src/application/player-command-policy.ts`（`RULES` / `FREE` 中央玩家命令政策）
+- `src/application/game-session.ts`（权威状态、命令校验与模式切换）
 - `src/application/game-service.ts`
 - `src/domain/rules/rule-actions.ts`
 - `src/domain/rules/check-timing.ts`（当前为未接线的完整模型实现）
+- `src/online/projector.ts`（玩家视图、权限与模式投影）
+- `src/server/services/online-match-service.ts`（正式联机协商、席位校验与服务端权威执行）
+- `src/server/services/replay-payload-serialization.ts`（历史 authority checkpoint 的窄复水兼容边界）
 
 ---
 

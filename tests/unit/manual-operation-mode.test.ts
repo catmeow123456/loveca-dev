@@ -30,18 +30,24 @@ const P1 = 'p1';
 const P2 = 'p2';
 
 describe('权威操作模式', () => {
-  it('新对局默认规则模式，旧权威态缺字段时按自由模式恢复', () => {
+  it('新对局默认规则模式，当前运行时拒绝缺失模式字段的权威态', () => {
     const fresh = createGameState('fresh', P1, 'P1', P2, 'P2');
     expect(getManualOperationMode(fresh)).toBe('RULES');
 
-    const legacy = { ...fresh, manualOperationMode: undefined };
-    expect(getManualOperationMode(legacy)).toBe('FREE');
+    const missingMode = { ...fresh } as Partial<GameState>;
+    delete missingMode.manualOperationMode;
+    expect(() => getManualOperationMode(missingMode as GameState)).toThrow(
+      '权威游戏状态缺少有效的 manualOperationMode'
+    );
 
     const session = createGameSession();
-    session.restoreRuntimeState({ authorityState: legacy, currentPublicSeq: 0 });
-    expect(session.manualOperationMode).toBe('FREE');
-    expect(session.state?.manualOperationMode).toBe('FREE');
-    expect(session.getPlayerViewState(P1)?.match.manualOperation?.mode).toBe('FREE');
+    expect(() =>
+      session.restoreRuntimeState({
+        authorityState: missingMode as GameState,
+        currentPublicSeq: 0,
+      })
+    ).toThrow('权威游戏状态缺少有效的 manualOperationMode');
+    expect(session.state).toBeNull();
   });
 
   it('本地可在安全点直接切换，普通撤销不回滚模式', () => {
@@ -57,7 +63,7 @@ describe('权威操作模式', () => {
 
     expect(session.undoLastStep().success).toBe(true);
     expect(session.manualOperationMode).toBe('FREE');
-    expect(session.getPlayerViewState(P1)?.match.manualOperation?.mode).toBe('FREE');
+    expect(session.getPlayerViewState(P1)?.match.manualOperation.mode).toBe('FREE');
 
     expect(session.setManualOperationMode('RULES').success).toBe(true);
     expect(session.manualOperationMode).toBe('RULES');

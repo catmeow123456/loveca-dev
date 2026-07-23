@@ -427,7 +427,7 @@ function buildActiveEffectIntents(input: BattleActionIntentInput): readonly Batt
 
 function createPlayMemberIntent(input: BattleActionIntentInput): BattleActionIntent {
   const targets = getViewerMemberSlots(input)
-    .filter((slot) => input.manualOperationMode !== 'RULES' || slot.enteredStageThisTurn !== true)
+    .filter((slot) => input.manualOperationMode === 'FREE' || slot.enteredStageThisTurn !== true)
     .map((slot) => ({
       targetId: targetIdForMemberSlot(slot.slot),
       kind: 'SLOT' as const,

@@ -116,8 +116,8 @@ export interface MatchViewState {
   readonly window: ViewWindowState | null;
   readonly liveResult?: LiveResultViewState;
   readonly undo?: OnlineUndoView;
-  /** 旧回放投影可缺失；客户端对缺失值按自由模式兼容。 */
-  readonly manualOperation?: ManualOperationModeView;
+  /** 当前投影必须显式携带权威操作模式。 */
+  readonly manualOperation: ManualOperationModeView;
   readonly seq: number;
 }
 

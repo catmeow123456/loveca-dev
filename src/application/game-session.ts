@@ -20,7 +20,6 @@ import {
   applyAuthoritativeManualOperationModeToCommand,
   getManualOperationMode,
   getManualOperationModeSwitchBlockedReason,
-  normalizeRestoredManualOperationMode,
 } from './manual-operation-mode.js';
 import {
   getPlayerCommandPolicyDecision,
@@ -907,9 +906,8 @@ export class GameSession {
   }
 
   restoreRuntimeState(input: RestoreRuntimeStateInput): void {
-    const authorityState = normalizeRestoredManualOperationMode(
-      this.cloneForUndo(input.authorityState)
-    );
+    const authorityState = this.cloneForUndo(input.authorityState);
+    getManualOperationMode(authorityState);
     const retainedPublicEvents = this.cloneForUndo([
       ...((input.publicEvents ?? []) as PublicEvent[]),
     ]);
@@ -1068,7 +1066,7 @@ export class GameSession {
   private restoreUndoSnapshot(snapshot: GameSessionUndoSnapshot): void {
     const currentManualOperationMode = this.manualOperationMode;
     this.authorityState = {
-      ...normalizeRestoredManualOperationMode(this.cloneForUndo(snapshot.authorityState)),
+      ...this.cloneForUndo(snapshot.authorityState),
       manualOperationMode: currentManualOperationMode,
     };
     this.publicEvents = this.publicEvents.filter((event) => event.seq <= snapshot.publicEventSeq);
@@ -5084,6 +5082,7 @@ export class GameSession {
 
   private setAuthorityState(nextState: GameState, options: StateTransitionOptions = {}): void {
     const previousState = this.authorityState;
+    getManualOperationMode(nextState);
     assertInspectionStateInvariant(nextState);
     this.authorityState = nextState;
     this.recordPublicStateTransition(previousState, nextState, options);

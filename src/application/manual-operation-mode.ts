@@ -5,22 +5,13 @@ import type { ManualOperationMode } from '../shared/types/manual-operation-mode.
 import { isOwnDeskFreeDragWindow } from './command-availability.js';
 import { GameCommandType, type GameCommand } from './game-commands.js';
 
-/** 旧 checkpoint / 旧回放在没有模式字段时保留历史宽松语义。 */
 export function getManualOperationMode(
   state: Pick<GameState, 'manualOperationMode'>
 ): ManualOperationMode {
-  return state.manualOperationMode ?? 'FREE';
-}
-
-/** 将恢复出的旧权威态规范化为当前 schema。 */
-export function normalizeRestoredManualOperationMode(state: GameState): GameState {
-  if (state.manualOperationMode) {
-    return state;
+  if (state.manualOperationMode !== 'RULES' && state.manualOperationMode !== 'FREE') {
+    throw new Error('权威游戏状态缺少有效的 manualOperationMode');
   }
-  return {
-    ...state,
-    manualOperationMode: 'FREE',
-  };
+  return state.manualOperationMode;
 }
 
 /**

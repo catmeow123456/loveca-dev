@@ -1650,7 +1650,7 @@ export const useGameStore = create<GameStore>((set, get) => {
           partialReasonSummary: replay.partialReasonSummary,
         },
         gameMode: GameMode.DEBUG,
-        freePlayEnabled: normalizedPlayerViewState.match.manualOperation?.mode !== 'RULES',
+        freePlayEnabled: normalizedPlayerViewState.match.manualOperation.mode === 'FREE',
         publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
         ui: {
           ...state.ui,
@@ -1923,7 +1923,7 @@ export const useGameStore = create<GameStore>((set, get) => {
         playerViewState: normalizedPlayerViewState,
         freePlayEnabled:
           normalizedPlayerViewState !== null &&
-          normalizedPlayerViewState.match.manualOperation?.mode !== 'RULES',
+          normalizedPlayerViewState.match.manualOperation.mode === 'FREE',
         ui: {
           ...state.ui,
           hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
@@ -2810,7 +2810,7 @@ function applyRemoteSnapshot(
       playerViewState: normalizedPlayerViewState,
       freePlayEnabled:
         normalizedPlayerViewState !== null &&
-        normalizedPlayerViewState.match.manualOperation?.mode !== 'RULES',
+        normalizedPlayerViewState.match.manualOperation.mode === 'FREE',
       ui: {
         ...state.ui,
         hoveredCardId: resolveHoveredCardId(state.ui.hoveredCardId, normalizedPlayerViewState),
@@ -3183,17 +3183,15 @@ function normalizePlayerViewState(playerViewState: PlayerViewState | null): Play
   if (!playerViewState) {
     return null;
   }
+  const manualOperationMode = playerViewState.match.manualOperation?.mode;
+  if (manualOperationMode !== 'RULES' && manualOperationMode !== 'FREE') {
+    throw new Error('玩家视图缺少有效的权威 manualOperation，已拒绝应用');
+  }
 
   return {
     ...playerViewState,
     match: {
       ...playerViewState.match,
-      manualOperation: playerViewState.match.manualOperation ?? {
-        mode: 'FREE',
-        canSwitchNow: false,
-        disabledReason: '历史对局按自由模式兼容',
-        pendingRequest: null,
-      },
     },
     permissions: {
       ...playerViewState.permissions,
@@ -3341,13 +3339,11 @@ function normalizeReadonlyReplayViewState(playerViewState: PlayerViewState): Pla
     ...normalized,
     match: {
       ...normalized.match,
-      manualOperation: normalized.match.manualOperation
-        ? {
-            ...normalized.match.manualOperation,
-            canSwitchNow: false,
-            disabledReason: '历史回放为只读',
-          }
-        : undefined,
+      manualOperation: {
+        ...normalized.match.manualOperation,
+        canSwitchNow: false,
+        disabledReason: '历史回放为只读',
+      },
     },
     permissions: {
       ...normalized.permissions,

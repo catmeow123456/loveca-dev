@@ -708,10 +708,8 @@ export interface PendingSpecialMemberPlayState {
 export interface GameState {
   /** 游戏唯一 ID */
   readonly gameId: string;
-  /**
-   * 桌面权威操作模式。旧 checkpoint 可缺失，读取时统一按 FREE 兼容。
-   */
-  readonly manualOperationMode?: ManualOperationMode;
+  /** 桌面权威操作模式。当前运行时状态必须显式携带。 */
+  readonly manualOperationMode: ManualOperationMode;
 
   /** 游戏创建时间戳 */
   readonly createdAt: number;
