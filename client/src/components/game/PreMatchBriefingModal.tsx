@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, type ReactNode } from 'react';
+import { memo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,6 +11,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 
 export type PreMatchBriefingMode = 'online' | 'solitaire';
 
@@ -44,28 +45,26 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
   mode,
   onClose,
 }: PreMatchBriefingModalProps) {
+  if (!isOpen) {
+    return null;
+  }
+
+  return <PreMatchBriefingContent key={mode} mode={mode} onClose={onClose} />;
+});
+
+function PreMatchBriefingContent({
+  mode,
+  onClose,
+}: Pick<PreMatchBriefingModalProps, 'mode' | 'onClose'>) {
   const [activePageIndex, setActivePageIndex] = useState(0);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setActivePageIndex(0);
-    }
-  }, [isOpen, mode]);
-
-  if (!isOpen) return null;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  useDialogAccessibility({
+    isOpen: true,
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    onEscape: onClose,
+  });
 
   const content = getBriefingContent(mode);
   const lastPageIndex = content.pages.length - 1;
@@ -87,6 +86,11 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
 
       <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
         <motion.div
+          ref={dialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pre-match-briefing-title"
+          tabIndex={-1}
           className="modal-surface modal-accent-indigo flex w-[min(94vw,760px)] max-h-[88vh] flex-col overflow-hidden"
           initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -98,7 +102,10 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
                 <BookOpen size={18} />
               </div>
               <div>
-                <div className="text-base font-semibold text-[var(--text-primary)]">
+                <div
+                  id="pre-match-briefing-title"
+                  className="text-base font-semibold text-[var(--text-primary)]"
+                >
                   {content.title}
                 </div>
                 <div className="text-xs text-[var(--text-secondary)]">
@@ -107,6 +114,7 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
               </div>
             </div>
             <button
+              ref={closeButtonRef}
               type="button"
               onClick={onClose}
               className="button-icon h-8 w-8"
@@ -204,7 +212,7 @@ export const PreMatchBriefingModal = memo(function PreMatchBriefingModal({
   }
 
   return createPortal(modalContent, document.body);
-});
+}
 
 export default PreMatchBriefingModal;
 

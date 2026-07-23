@@ -61,6 +61,7 @@ import {
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
 import { getOnlineRoomLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
+import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import type { OnlineRoomView, OpeningRpsGesture, OpeningTurnOrderChoice, Seat } from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
@@ -137,7 +138,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   );
 
   useEffect(() => {
-    setBriefingAcknowledged(false);
+    const timer = window.setTimeout(() => setBriefingAcknowledged(false), 0);
+    return () => window.clearTimeout(timer);
   }, [room?.matchId]);
 
   useEffect(() => {
@@ -153,12 +155,13 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       (deck) => deck.id === selectedDeck.id && deck.isValid
     );
     if (!refreshedDeck) {
-      setSelectedDeck(null);
-      return;
+      const timer = window.setTimeout(() => setSelectedDeck(null), 0);
+      return () => window.clearTimeout(timer);
     }
 
     if (refreshedDeck !== selectedDeck) {
-      setSelectedDeck(refreshedDeck);
+      const timer = window.setTimeout(() => setSelectedDeck(refreshedDeck), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [deckDisplayItems, selectedDeck]);
 
@@ -167,7 +170,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       return;
     }
 
-    setSelectedDeck(preferredDeck.deck);
+    const timer = window.setTimeout(() => setSelectedDeck(preferredDeck.deck), 0);
+    return () => window.clearTimeout(timer);
   }, [hasManualSelectedDeck, preferredDeck.deck, selectedDeck]);
 
   useEffect(() => {
@@ -176,8 +180,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       return;
     }
 
-    setRoomCodeInput(savedRoomCode);
-    setJoinedRoomCode(savedRoomCode);
+    const timer = window.setTimeout(() => {
+      setRoomCodeInput(savedRoomCode);
+      setJoinedRoomCode(savedRoomCode);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -201,14 +208,15 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       }
     };
 
-    void pollRoom();
-    const timer = window.setInterval(() => {
-      void pollRoom();
-    }, ROOM_POLL_INTERVAL_MS);
+    const scheduler = new SerialPollingScheduler({
+      intervalMs: ROOM_POLL_INTERVAL_MS,
+      poll: pollRoom,
+    });
+    scheduler.start();
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      scheduler.dispose();
     };
   }, [disconnectRemoteSession, joinedRoomCode]);
 
@@ -225,9 +233,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
 
     let cancelled = false;
-    setIsBootstrappingMatch(true);
-
     const bootstrapMatch = async () => {
+      setIsBootstrappingMatch(true);
       try {
         const snapshot = await fetchOnlineMatchSnapshot(room.matchId!);
         if (cancelled) {

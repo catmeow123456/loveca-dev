@@ -460,18 +460,30 @@ const scenarios: Scenario[] = [
         await expect(page.getByRole('button', { name: '创建卡组', exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: '导入', exact: true })).toBeVisible();
 
-        const titleBox = await page
+        const deckCard = page
           .getByRole('heading', { name: 'E2E 移动验收卡组' })
-          .boundingBox();
-        const editBox = await page.getByRole('button', { name: '编辑', exact: true }).boundingBox();
-        const moreBox = await page
-          .getByRole('button', { name: /E2E 移动验收卡组的更多操作/ })
-          .boundingBox();
-        expect(titleBox).not.toBeNull();
-        expect(editBox).not.toBeNull();
-        expect(moreBox).not.toBeNull();
-        expect(Math.abs((editBox?.y ?? 0) - (titleBox?.y ?? 0))).toBeLessThan(16);
-        expect(Math.abs((editBox?.y ?? 0) - (moreBox?.y ?? 0))).toBeLessThan(2);
+          .locator('xpath=ancestor::div[contains(@class, "relative rounded-xl border p-3")][1]');
+        const alignment = await deckCard.evaluate((card) => {
+          const heading = card.querySelector('h3');
+          const buttons = Array.from(card.querySelectorAll('button'));
+          const editButton = buttons.find((button) => button.textContent?.trim() === '编辑');
+          const moreButton = buttons.find((button) =>
+            button.getAttribute('aria-label')?.includes('E2E 移动验收卡组的更多操作')
+          );
+
+          if (!heading || !editButton || !moreButton) {
+            return null;
+          }
+
+          return {
+            titleY: heading.getBoundingClientRect().y,
+            editY: editButton.getBoundingClientRect().y,
+            moreY: moreButton.getBoundingClientRect().y,
+          };
+        });
+        expect(alignment).not.toBeNull();
+        expect(Math.abs((alignment?.editY ?? 0) - (alignment?.titleY ?? 0))).toBeLessThan(16);
+        expect(Math.abs((alignment?.editY ?? 0) - (alignment?.moreY ?? 0))).toBeLessThan(2);
       }
 
       await page.getByRole('button', { name: /E2E 移动验收卡组的更多操作/ }).click();
@@ -524,12 +536,29 @@ const scenarios: Scenario[] = [
       await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
     },
     action: async (page) => {
-      await expect(page.getByRole('button', { name: /查看卡组/ })).toBeVisible();
-      await expectElementWithinVisualViewport(
-        page,
-        'button:has-text("查看卡组")',
-        'deck editor view-deck button'
-      );
+      const viewportWidth = page.viewportSize()?.width ?? 0;
+      if (viewportWidth < 768) {
+        await expect(page.getByRole('button', { name: /查看卡组/ })).toBeVisible();
+        await expectElementWithinVisualViewport(
+          page,
+          'button:has-text("查看卡组")',
+          'deck editor view-deck button'
+        );
+      } else if (viewportWidth < 960) {
+        await expect(page.getByRole('button', { name: '卡组', exact: true })).toBeVisible();
+        await expectElementWithinVisualViewport(
+          page,
+          'button:has-text("卡组")',
+          'deck editor tablet sidebar toggle'
+        );
+      } else {
+        await expect(page.locator('.workspace-sidebar')).toBeVisible();
+        await expectElementWithinVisualViewport(
+          page,
+          '.workspace-sidebar',
+          'deck editor desktop sidebar'
+        );
+      }
     },
   },
   {
@@ -662,5 +691,89 @@ test.describe('mobile layout baseline', () => {
 
     await expect(page.getByPlaceholder('卡组名称')).toHaveValue('DeckLog E2E 卡组');
     await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+  });
+
+  test('响应式布局切换后不会恢复旧的卡组抽屉状态', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '状态重置回归只需执行一次');
+
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager&openDeckId=e2e-deck');
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+
+    const viewDeckButton = page.getByRole('button', { name: /查看卡组/ });
+    await viewDeckButton.click();
+    await expect(viewDeckButton).toHaveCount(0);
+
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await expect(page.locator('.workspace-sidebar')).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole('button', { name: /查看卡组/ })).toBeVisible();
+  });
+
+  test('观战入口忽略输入变更前返回的旧查询', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '竞态回归只需在一个浏览器尺寸执行');
+
+    await installApiMocks(page, false);
+
+    let notifyRequestStarted: () => void = () => undefined;
+    const requestStarted = new Promise<void>((resolve) => {
+      notifyRequestStarted = resolve;
+    });
+    let releaseResponse: () => void = () => undefined;
+    const responseReleased = new Promise<void>((resolve) => {
+      releaseResponse = resolve;
+    });
+
+    await page.route('**/api/online/rooms/AAAA/spectator-entry', async (route) => {
+      notifyRequestStarted();
+      await responseReleased;
+      await fulfillApi(route, {
+        roomCode: 'AAAA',
+        status: 'IN_GAME',
+        matchId: 'match-stale',
+        seats: [{ seat: 'FIRST', displayName: '旧房间玩家', enabled: true }],
+      });
+    });
+
+    await page.goto('/online/spectate');
+    const roomCodeInput = page.getByLabel('房间号');
+    await roomCodeInput.fill('AAAA');
+    await page.getByRole('button', { name: '查找' }).click();
+    await requestStarted;
+
+    await roomCodeInput.fill('BBBB');
+    releaseResponse();
+
+    await expect(roomCodeInput).toHaveValue('BBBB');
+    await expect(page.getByText(/房间 AAAA/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '查找' })).toBeEnabled();
+  });
+
+  test('系统减少动态效果时全局动画与过渡会被压缩', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '媒体偏好回归只需执行一次');
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await installApiMocks(page, true);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Loveca' })).toBeVisible();
+
+    const motionState = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.className = 'animate-spin transition-all';
+      document.body.append(probe);
+      const styles = window.getComputedStyle(probe);
+      const result = {
+        mediaMatches: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+        animationDurationSeconds: Number.parseFloat(styles.animationDuration),
+        transitionDurationSeconds: Number.parseFloat(styles.transitionDuration),
+      };
+      probe.remove();
+      return result;
+    });
+
+    expect(motionState.mediaMatches).toBe(true);
+    expect(motionState.animationDurationSeconds).toBeLessThanOrEqual(0.001);
+    expect(motionState.transitionDurationSeconds).toBeLessThanOrEqual(0.001);
   });
 });

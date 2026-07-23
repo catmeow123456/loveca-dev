@@ -67,11 +67,15 @@ interface GameSetupPageProps {
   onNavigateToOnlineRoom: () => void;
 }
 
+function createLocalGameId(): string {
+  return `game-${Date.now()}`;
+}
+
 export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: GameSetupPageProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
   const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
-  const [selectedP1Deck, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
-  const [selectedP2Deck, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
+  const [selectedP1DeckState, setSelectedP1Deck] = useState<DeckDisplayItem | null>(null);
+  const [selectedP2DeckState, setSelectedP2Deck] = useState<DeckDisplayItem | null>(null);
   const [hasManualSelectedP1Deck, setHasManualSelectedP1Deck] = useState(false);
   const [hasManualSelectedP2Deck, setHasManualSelectedP2Deck] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -127,11 +131,11 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
       : DECK_SELECTION_PREFERENCE_KEYS.solitaire;
   const p1LastUsedDeckId = useMemo(
     () => readLastUsedDeckId(p1PreferenceKey),
-    [p1PreferenceKey, deckDisplayItems.length]
+    [p1PreferenceKey]
   );
   const p2LastUsedDeckId = useMemo(
     () => readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer2),
-    [deckDisplayItems.length]
+    []
   );
   const p1PreferredDeck = useMemo(
     () => choosePreferredDeck(deckDisplayItems, p1LastUsedDeckId),
@@ -141,63 +145,42 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
     () => choosePreferredDeck(deckDisplayItems, p2LastUsedDeckId),
     [deckDisplayItems, p2LastUsedDeckId]
   );
-
-  useEffect(() => {
-    if (!selectedP1Deck) {
-      return;
+  const selectedP1Deck = useMemo(() => {
+    const refreshedDeck = selectedP1DeckState
+      ? deckDisplayItems.find(
+          (deck) => deck.id === selectedP1DeckState.id && deck.isValid
+        ) ?? null
+      : null;
+    if (refreshedDeck) {
+      return refreshedDeck;
     }
-
-    const refreshedDeck = deckDisplayItems.find(
-      (deck) => deck.id === selectedP1Deck.id && deck.isValid
-    );
-    if (!refreshedDeck) {
-      setSelectedP1Deck(null);
-      return;
+    return !isOnlineMode && !hasManualSelectedP1Deck ? p1PreferredDeck.deck : null;
+  }, [
+    deckDisplayItems,
+    hasManualSelectedP1Deck,
+    isOnlineMode,
+    p1PreferredDeck.deck,
+    selectedP1DeckState,
+  ]);
+  const selectedP2Deck = useMemo(() => {
+    const refreshedDeck = selectedP2DeckState
+      ? deckDisplayItems.find(
+          (deck) => deck.id === selectedP2DeckState.id && deck.isValid
+        ) ?? null
+      : null;
+    if (refreshedDeck) {
+      return refreshedDeck;
     }
-
-    if (refreshedDeck !== selectedP1Deck) {
-      setSelectedP1Deck(refreshedDeck);
-    }
-  }, [deckDisplayItems, selectedP1Deck]);
-
-  useEffect(() => {
-    if (!selectedP2Deck) {
-      return;
-    }
-
-    const refreshedDeck = deckDisplayItems.find(
-      (deck) => deck.id === selectedP2Deck.id && deck.isValid
-    );
-    if (!refreshedDeck) {
-      setSelectedP2Deck(null);
-      return;
-    }
-
-    if (refreshedDeck !== selectedP2Deck) {
-      setSelectedP2Deck(refreshedDeck);
-    }
-  }, [deckDisplayItems, selectedP2Deck]);
-
-  useEffect(() => {
-    if (isOnlineMode || selectedP1Deck || hasManualSelectedP1Deck || !p1PreferredDeck.deck) {
-      return;
-    }
-
-    setSelectedP1Deck(p1PreferredDeck.deck);
-  }, [hasManualSelectedP1Deck, isOnlineMode, p1PreferredDeck.deck, selectedP1Deck]);
-
-  useEffect(() => {
-    if (
-      gameMode !== GameMode.DEBUG ||
-      selectedP2Deck ||
-      hasManualSelectedP2Deck ||
-      !p2PreferredDeck.deck
-    ) {
-      return;
-    }
-
-    setSelectedP2Deck(p2PreferredDeck.deck);
-  }, [gameMode, hasManualSelectedP2Deck, p2PreferredDeck.deck, selectedP2Deck]);
+    return gameMode === GameMode.DEBUG && !hasManualSelectedP2Deck
+      ? p2PreferredDeck.deck
+      : null;
+  }, [
+    deckDisplayItems,
+    gameMode,
+    hasManualSelectedP2Deck,
+    p2PreferredDeck.deck,
+    selectedP2DeckState,
+  ]);
 
   // 处理选择 P1 卡组
   const handleSelectP1 = (deck: DeckDisplayItem) => {
@@ -342,7 +325,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
         gameMode === GameMode.SOLITAIRE
           ? '对手 (AI)'
           : (selectedP2Deck?.cloudDeck?.name ?? 'Player 2');
-      createGame(`game-${Date.now()}`, 'player-1', p1Config.player_name, 'player-2', p2Name);
+      createGame(createLocalGameId(), 'player-1', p1Config.player_name, 'player-2', p2Name);
 
       // 初始化游戏
       initializeGame(

@@ -120,6 +120,14 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
     cancelLongPressForViewportChange,
   ]);
 
+  useEffect(
+    () => () => {
+      clearLongPressTimer();
+      longPressViewportStartRef.current = null;
+    },
+    [clearLongPressTimer]
+  );
+
   const startLongPressDetail = useCallback(
     (cardId: string) => {
       if (!shouldUseTapDetail) {

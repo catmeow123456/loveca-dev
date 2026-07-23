@@ -548,7 +548,8 @@ function normalizeWaitingRoomRevealCandidates(
     if (event.kind !== 'CARD_MOVE' || event.presentation !== 'WAITING_ROOM_REVEAL') {
       return event;
     }
-    const { presentation: _presentation, ...defaultMoveEvent } = event;
+    const defaultMoveEvent = { ...event };
+    delete defaultMoveEvent.presentation;
     return defaultMoveEvent;
   });
 }

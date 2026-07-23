@@ -39,6 +39,7 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import { CardType } from '@game/shared/types/enums';
 import { CardEditModal } from './CardEditModal';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { useKeyedState } from '@/hooks/useKeyedState';
 
 interface CardAdminPageProps {
   onBack: () => void;
@@ -62,8 +63,11 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(28);
   const [batchWorking, setBatchWorking] = useState(false);
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useKeyedState(
+    isMobile ? 'mobile' : 'non-mobile',
+    false
+  );
   const isLoading = initialLoading || refreshing;
 
   const cardTypeOptions = [
@@ -93,10 +97,6 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
   const activeFilterCount = (selectedType !== 'ALL' ? 1 : 0) + (selectedStatus !== 'ALL' ? 1 : 0);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedType, selectedStatus]);
-
-  useEffect(() => {
     if (!mobileFiltersOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -104,12 +104,6 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
       document.body.style.overflow = previousOverflow;
     };
   }, [mobileFiltersOpen]);
-
-  useEffect(() => {
-    if (!isMobile) {
-      setMobileFiltersOpen(false);
-    }
-  }, [isMobile]);
 
   const loadCards = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
     if (mode === 'initial') {
@@ -139,7 +133,8 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
   }, [cards.length, loadCards]);
 
   useEffect(() => {
-    void loadCards('initial');
+    const timer = window.setTimeout(() => void loadCards('initial'), 0);
+    return () => window.clearTimeout(timer);
   }, [loadCards]);
 
   const filteredCards = useMemo(() => {
@@ -156,7 +151,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
           cleanLocalizedText(c.nameJp)?.toLowerCase().includes(q)
       );
     }
-    return result.sort((a, b) => a.cardCode.localeCompare(b.cardCode));
+    return [...result].sort((a, b) => a.cardCode.localeCompare(b.cardCode));
   }, [cards, selectedType, selectedStatus, searchQuery, cardStatusMap]);
 
   const totalPages = Math.ceil(filteredCards.length / pageSize);
@@ -317,7 +312,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                 <input
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setCurrentPage(1);
+                  }}
                   placeholder="搜索卡牌名称或编号..."
                   className="input-field w-full py-2 pl-9 pr-4 text-sm"
                 />
@@ -349,7 +347,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                 {cardTypeOptions.map((opt) => (
                   <button
                     key={opt.value}
-                    onClick={() => setSelectedType(opt.value as CardType | 'ALL')}
+                    onClick={() => {
+                      setSelectedType(opt.value as CardType | 'ALL');
+                      setCurrentPage(1);
+                    }}
                     className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
                       selectedType === opt.value
                         ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
@@ -367,7 +368,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                 {statusOptions.map((opt) => (
                   <button
                     key={opt.value}
-                    onClick={() => setSelectedStatus(opt.value)}
+                    onClick={() => {
+                      setSelectedStatus(opt.value);
+                      setCurrentPage(1);
+                    }}
                     className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
                       selectedStatus === opt.value
                         ? opt.active
@@ -468,7 +472,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                           <button
                             key={opt.value}
                             type="button"
-                            onClick={() => setSelectedType(opt.value as CardType | 'ALL')}
+                            onClick={() => {
+                              setSelectedType(opt.value as CardType | 'ALL');
+                              setCurrentPage(1);
+                            }}
                             className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${
                               selectedType === opt.value
                                 ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
@@ -490,7 +497,10 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                           <button
                             key={opt.value}
                             type="button"
-                            onClick={() => setSelectedStatus(opt.value)}
+                            onClick={() => {
+                              setSelectedStatus(opt.value);
+                              setCurrentPage(1);
+                            }}
                             className={`min-h-11 rounded-xl border px-2 py-2 text-sm transition-all ${
                               selectedStatus === opt.value
                                 ? opt.active
@@ -538,6 +548,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                       onClick={() => {
                         setSelectedType('ALL');
                         setSelectedStatus('ALL');
+                        setCurrentPage(1);
                       }}
                       className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm"
                     >
@@ -748,6 +759,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
       <AnimatePresence>
         {(selectedCard || isCreating) && (
           <CardEditModal
+            key={isCreating ? 'create-card' : selectedCard?.cardCode}
             card={selectedCard}
             isOpen={true}
             onClose={() => {

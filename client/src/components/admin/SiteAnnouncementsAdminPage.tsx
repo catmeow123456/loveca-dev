@@ -25,6 +25,7 @@ import {
   type SiteAnnouncementInput,
   type SiteStatusConfigInput,
 } from '@/lib/siteAnnouncementClient';
+import { useKeyedState } from '@/hooks/useKeyedState';
 
 const SITE_STATUS_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
@@ -101,7 +102,8 @@ export function SiteAnnouncementsAdminPage({
   const [announcementError, setAnnouncementError] = useState<string | null>(null);
   const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
   const [form, setForm] = useState<AnnouncementFormState>(EMPTY_ANNOUNCEMENT_FORM);
-  const [siteStatusForm, setSiteStatusForm] = useState<SiteStatusFormState>(() =>
+  const [siteStatusForm, setSiteStatusForm] = useKeyedState<SiteStatusFormState>(
+    JSON.stringify(siteStatus),
     buildSiteStatusForm(siteStatus)
   );
   const [isSavingSiteStatus, setIsSavingSiteStatus] = useState(false);
@@ -129,12 +131,9 @@ export function SiteAnnouncementsAdminPage({
   }, [onSiteStatusChanged]);
 
   useEffect(() => {
-    void loadAnnouncements();
+    const timer = window.setTimeout(() => void loadAnnouncements(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadAnnouncements]);
-
-  useEffect(() => {
-    setSiteStatusForm(buildSiteStatusForm(siteStatus));
-  }, [siteStatus]);
 
   const saveSiteStatus = useCallback(async () => {
     const input = buildSiteStatusConfigInput(siteStatusForm);

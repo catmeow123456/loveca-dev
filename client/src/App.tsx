@@ -2,25 +2,12 @@
  * Loveca Card Game - Main Application
  */
 
-import { useCallback, useEffect, useLayoutEffect, useState, useRef } from 'react';
+import { lazy, useCallback, useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { BattleViewportShell, GameBoard } from '@/components/game';
+import { BattleViewportShell } from '@/components/game/BattleViewportShell';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { ConfirmDialog } from '@/components/common';
-import { DeckManager } from '@/components/deck/DeckManager';
-import {
-  HomePage,
-  GameSetupPage,
-  OnlineDebugPage,
-  OnlineRoomPage,
-  OnlineSpectatorPage,
-  OnlineSpectatorLobbyPage,
-  MatchRecordsPage,
-  SharedDeckPage,
-} from '@/components/pages';
-import { CardAdminPage } from '@/components/admin/CardAdminPage';
-import { OnlineRoomsAdminPage } from '@/components/admin/OnlineRoomsAdminPage';
-import { SiteAnnouncementsAdminPage } from '@/components/admin/SiteAnnouncementsAdminPage';
+import { HomePage } from '@/components/pages/HomePage';
 import {
   LoginPage,
   RegisterPage,
@@ -50,6 +37,49 @@ import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { cardService } from '@/lib/cardService';
+
+const GameBoard = lazy(() => import('@/components/game/GameBoard'));
+const DeckManager = lazy(() =>
+  import('@/components/deck/DeckManager').then((module) => ({ default: module.DeckManager }))
+);
+const GameSetupPage = lazy(() =>
+  import('@/components/pages/GameSetupPage').then((module) => ({ default: module.GameSetupPage }))
+);
+const OnlineDebugPage = lazy(() =>
+  import('@/components/pages/OnlineDebugPage').then((module) => ({ default: module.OnlineDebugPage }))
+);
+const OnlineRoomPage = lazy(() =>
+  import('@/components/pages/OnlineRoomPage').then((module) => ({ default: module.OnlineRoomPage }))
+);
+const OnlineSpectatorPage = lazy(() =>
+  import('@/components/pages/OnlineSpectatorPage').then((module) => ({
+    default: module.OnlineSpectatorPage,
+  }))
+);
+const OnlineSpectatorLobbyPage = lazy(() =>
+  import('@/components/pages/OnlineSpectatorLobbyPage').then((module) => ({
+    default: module.OnlineSpectatorLobbyPage,
+  }))
+);
+const MatchRecordsPage = lazy(() =>
+  import('@/components/pages/MatchRecordsPage').then((module) => ({
+    default: module.MatchRecordsPage,
+  }))
+);
+const SharedDeckPage = lazy(() =>
+  import('@/components/pages/SharedDeckPage').then((module) => ({ default: module.SharedDeckPage }))
+);
+const CardAdminPage = lazy(() => import('@/components/admin/CardAdminPage'));
+const OnlineRoomsAdminPage = lazy(() =>
+  import('@/components/admin/OnlineRoomsAdminPage').then((module) => ({
+    default: module.OnlineRoomsAdminPage,
+  }))
+);
+const SiteAnnouncementsAdminPage = lazy(() =>
+  import('@/components/admin/SiteAnnouncementsAdminPage').then((module) => ({
+    default: module.SiteAnnouncementsAdminPage,
+  }))
+);
 
 type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email';
 type AppPage =

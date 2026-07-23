@@ -29,6 +29,7 @@ import {
   readLastUsedDeckId,
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
+import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 
 const DEBUG_MATCH_ID = (import.meta.env.VITE_DEBUG_MATCH_ID as string | undefined) ?? 'loveca-online-debug';
 const DEBUG_SERVICE_NAME =
@@ -119,12 +120,13 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
       (deck) => deck.id === selectedDeck.id && deck.isValid
     );
     if (!refreshedDeck) {
-      setSelectedDeck(null);
-      return;
+      const timer = window.setTimeout(() => setSelectedDeck(null), 0);
+      return () => window.clearTimeout(timer);
     }
 
     if (refreshedDeck !== selectedDeck) {
-      setSelectedDeck(refreshedDeck);
+      const timer = window.setTimeout(() => setSelectedDeck(refreshedDeck), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [deckDisplayItems, selectedDeck]);
 
@@ -133,7 +135,8 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
       return;
     }
 
-    setSelectedDeck(preferredDeck.deck);
+    const timer = window.setTimeout(() => setSelectedDeck(preferredDeck.deck), 0);
+    return () => window.clearTimeout(timer);
   }, [hasManualSelectedDeck, preferredDeck.deck, selectedDeck]);
 
   useEffect(() => {
@@ -163,14 +166,15 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
       }
     };
 
-    void pollStatus();
-    const timer = window.setInterval(() => {
-      void pollStatus();
-    }, STATUS_POLL_INTERVAL_MS);
+    const scheduler = new SerialPollingScheduler({
+      intervalMs: STATUS_POLL_INTERVAL_MS,
+      poll: pollStatus,
+    });
+    scheduler.start();
 
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      scheduler.dispose();
     };
   }, [disconnectRemoteDebugSession, mySeat, pollingPaused]);
 

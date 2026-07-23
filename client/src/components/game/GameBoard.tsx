@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   type MouseEvent,
 } from 'react';
@@ -71,6 +72,7 @@ import {
 } from '@/lib/battleActionIntent';
 import { executeBattleActionPayload as executeBattleActionPayloadWithHandlers } from '@/lib/battleActionExecutor';
 import { findBattleObjectLocation } from '@/lib/battleAnimationEvents';
+import { useKeyedState } from '@/hooks/useKeyedState';
 import {
   buildPublicCardSelectionDisplayEntries,
   isPublicCardSelectionAutoAdvanceView,
@@ -196,6 +198,54 @@ type StageFormationMoveHistoryEntry = {
   readonly cardId: string;
   readonly toSlot: SlotPosition;
 };
+
+const EMPTY_STRING_SELECTION: string[] = [];
+const EMPTY_STAGE_FORMATION_HISTORY: StageFormationMoveHistoryEntry[] = [];
+
+function buildActiveEffectInteractionKey(
+  activeEffect: PlayerViewState['activeEffect']
+): string | null {
+  if (!activeEffect) {
+    return null;
+  }
+
+  return JSON.stringify({
+    id: activeEffect.id,
+    stepId: activeEffect.stepId,
+    selectableObjectMode: activeEffect.selectableObjectMode ?? null,
+    selectableObjectIds: activeEffect.selectableObjectIds ?? [],
+    selectableSlots: activeEffect.selectableSlots ?? [],
+    selectableOptions: activeEffect.selectableOptions?.map((option) => option.id) ?? [],
+    effectChoice: activeEffect.effectChoice
+      ? {
+          mode: activeEffect.effectChoice.mode,
+          minSelections: activeEffect.effectChoice.minSelections,
+          maxSelections: activeEffect.effectChoice.maxSelections,
+          options: activeEffect.effectChoice.options.map((option) => ({
+            id: option.id,
+            selectable: option.selectable !== false,
+          })),
+        }
+      : null,
+    numericInput: activeEffect.numericInput ?? null,
+    stageFormation: activeEffect.stageFormation ?? null,
+  });
+}
+
+function buildInitialStageFormationDraft(
+  activeEffect: PlayerViewState['activeEffect']
+): StageFormationDraftSlot[] {
+  return (
+    activeEffect?.stageFormation?.slots.map((slot) => ({
+      slot: slot.slot as SlotPosition,
+      cardId: slot.cardId,
+      objectId: slot.objectId,
+      originalSlot: slot.originalSlot as SlotPosition,
+      energyBelowCount: slot.energyBelowCount,
+      memberBelowCount: slot.memberBelowCount,
+    })) ?? []
+  );
+}
 
 const inspectionFirstCollisionDetection: CollisionDetection = (args) => {
   const dragData = args.active.data.current as { fromZone?: ZoneType } | undefined;
@@ -466,35 +516,48 @@ export const GameBoard = memo(function GameBoard({
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [activeDragFromZone, setActiveDragFromZone] = useState<ZoneType | null>(null);
   const [mobilePanel, setMobilePanel] = useState<MobileBattlePanel | null>(null);
-  const [activeEffectSingleSelection, setActiveEffectSingleSelection] = useState<string | null>(
-    null
+  const activeEffectInteractionKey = buildActiveEffectInteractionKey(activeEffect);
+  const [activeEffectSingleSelection, setActiveEffectSingleSelection] = useKeyedState<
+    string | null
+  >(activeEffectInteractionKey, null);
+  const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useKeyedState(
+    activeEffectInteractionKey,
+    EMPTY_STRING_SELECTION
   );
-  const [activeEffectOrderedSelection, setActiveEffectOrderedSelection] = useState<string[]>([]);
-  const [activeEffectChoiceSelection, setActiveEffectChoiceSelection] = useState<string[]>([]);
-  const [activeEffectNumberInput, setActiveEffectNumberInput] = useState('');
-  const [activeEffectCollapsed, setActiveEffectCollapsed] = useState(false);
-  const [publicSelectionFallbackReady, setPublicSelectionFallbackReady] = useState(false);
+  const [activeEffectChoiceSelection, setActiveEffectChoiceSelection] = useKeyedState(
+    activeEffectInteractionKey,
+    EMPTY_STRING_SELECTION
+  );
+  const [activeEffectNumberInput, setActiveEffectNumberInput] = useKeyedState(
+    activeEffectInteractionKey,
+    ''
+  );
+  const [activeEffectCollapsed, setActiveEffectCollapsed] = useKeyedState(
+    activeEffectInteractionKey,
+    false
+  );
+  const [activeEffectOriginalTextExpanded, setActiveEffectOriginalTextExpanded] = useKeyedState(
+    activeEffectInteractionKey,
+    false
+  );
+  const [stageFormationDraftSlots, setStageFormationDraftSlots] = useKeyedState(
+    activeEffectInteractionKey,
+    buildInitialStageFormationDraft(activeEffect)
+  );
+  const [stageFormationMoveHistory, setStageFormationMoveHistory] = useKeyedState(
+    activeEffectInteractionKey,
+    EMPTY_STAGE_FORMATION_HISTORY
+  );
+  const [selectedStageFormationCardId, setSelectedStageFormationCardId] = useKeyedState<
+    string | null
+  >(activeEffectInteractionKey, null);
+  const [publicSelectionFallbackKey, setPublicSelectionFallbackKey] = useState<string | null>(null);
   const [publicEffectChoiceFallbackKey, setPublicEffectChoiceFallbackKey] = useState<string | null>(
     null
   );
-  const [activeEffectOriginalTextExpanded, setActiveEffectOriginalTextExpanded] = useState(false);
-  const [stageFormationDraftSlots, setStageFormationDraftSlots] = useState<
-    StageFormationDraftSlot[]
-  >([]);
-  const [stageFormationMoveHistory, setStageFormationMoveHistory] = useState<
-    StageFormationMoveHistoryEntry[]
-  >([]);
-  const [selectedStageFormationCardId, setSelectedStageFormationCardId] = useState<string | null>(
-    null
-  );
-  const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useState(false);
   const [activeEffectSuspension, setActiveEffectSuspension] = useState<{
     readonly effectId: string;
     readonly until: number;
-  } | null>(null);
-  const [doubleRelaySelection, setDoubleRelaySelection] = useState<{
-    readonly cardId: string;
-    readonly selectedSlots: readonly SlotPosition[];
   } | null>(null);
   const [specialPlayTargetSelectionCardId, setSpecialPlayTargetSelectionCardId] = useState<
     string | null
@@ -620,18 +683,24 @@ export const GameBoard = memo(function GameBoard({
     !activeEffect &&
     successLiveSelection?.waitingSeat === viewerSeat &&
     successLiveSelectionCardIds.length > 0;
-  useEffect(() => {
-    if (!showSuccessLiveSelectionModal) {
-      setSuccessLiveSelectionCollapsed(false);
-    }
-  }, [showSuccessLiveSelectionModal]);
-  const activeEffectSelectableCardSignature = activeEffectSelectableCardIds.join('|');
+  const successLiveSelectionKey = showSuccessLiveSelectionModal
+    ? `${successLiveSelection?.waitingSeat ?? 'none'}:${successLiveSelectionCardIds.join('|')}`
+    : null;
+  const [successLiveSelectionCollapsed, setSuccessLiveSelectionCollapsed] = useKeyedState(
+    successLiveSelectionKey,
+    false
+  );
   const activeEffectHasEnergyCandidates = activeEffectSelectableCardIds.some(
     (cardId) => getKnownCardType(cardId) === CardType.ENERGY
   );
   const activeEffectRevealedCardIds =
     activeEffect?.revealedObjectIds?.map((objectId) => objectId.replace(/^obj_/, '')) ?? [];
   const isPublicCardSelectionAutoAdvance = isPublicCardSelectionAutoAdvanceView(activeEffect);
+  const publicCardSelectionKey = isPublicCardSelectionAutoAdvance
+    ? `${activeEffect.id}:${activeEffect.publicCardSelectionAutoAdvanceAt}`
+    : null;
+  const publicSelectionFallbackReady =
+    publicCardSelectionKey !== null && publicSelectionFallbackKey === publicCardSelectionKey;
   const isPublicEffectChoiceAutoAdvance = isPublicEffectChoiceAutoAdvanceView(activeEffect);
   const publicEffectChoiceKey = isPublicEffectChoiceAutoAdvance
     ? `${activeEffect.id}:${activeEffect.publicEffectChoiceAutoAdvanceAt}`
@@ -663,23 +732,11 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const activeEffectChoice = activeEffect?.effectChoice ?? null;
   const showLegacyActiveEffectControls = showOrdinaryActiveEffectControls && !activeEffectChoice;
-  const activeEffectChoiceSignature = activeEffectChoice
-    ? `${activeEffectChoice.mode}:${activeEffectChoice.minSelections}:${activeEffectChoice.maxSelections}:${activeEffectChoice.options
-        .map((option) => `${option.id}:${option.selectable === false ? 'disabled' : 'enabled'}`)
-        .join('|')}`
-    : '';
   const normalizedActiveEffectChoiceSelection = activeEffectChoice
     ? normalizeEffectChoiceSelection(activeEffectChoice, activeEffectChoiceSelection)
     : [];
   const activeEffectNumericInput = activeEffect?.numericInput ?? null;
   const activeEffectStageFormation = activeEffect?.stageFormation ?? null;
-  const activeEffectStageFormationSignature =
-    activeEffectStageFormation?.slots
-      .map(
-        (slot) =>
-          `${slot.slot}:${slot.cardId ?? 'empty'}:${slot.energyBelowCount}:${slot.memberBelowCount}`
-      )
-      .join('|') ?? '';
   const activeEffectSelectedNumber =
     activeEffectNumberInput.trim().length > 0 ? Number(activeEffectNumberInput) : null;
   const canConfirmActiveEffectNumber =
@@ -791,28 +848,36 @@ export const GameBoard = memo(function GameBoard({
     specialPlayPaymentDraft && specialPlayPaymentDraft.pendingId === pendingSpecialMemberPlay?.id
       ? specialPlayPaymentDraft.cardIds
       : [];
-  const viewerOccupiedMemberSlots = viewerSeat
-    ? MEMBER_SLOT_ORDER.map((slot) => ({
+  const viewerOccupiedMemberSlots = useMemo(() => {
+    if (!playerViewState || !viewerSeat) {
+      return [];
+    }
+    return MEMBER_SLOT_ORDER.map((slot) => {
+      const cardId = getSeatMemberSlotCardId(viewerSeat, slot);
+      return {
         slot,
-        cardId: getSeatMemberSlotCardId(viewerSeat, slot),
+        cardId,
         enteredStageThisTurn:
-          getCardViewObject(getSeatMemberSlotCardId(viewerSeat, slot) ?? '')
-            ?.enteredStageThisTurn === true,
-      })).filter(
-        (
-          entry
-        ): entry is {
-          readonly slot: SlotPosition;
-          readonly cardId: string;
-          readonly enteredStageThisTurn: boolean;
-        } =>
-          entry.cardId !== null &&
-          (matchView?.manualOperation?.mode === 'FREE' || !entry.enteredStageThisTurn)
-      )
-    : [];
-  const viewerOccupiedMemberSlotSignature = viewerOccupiedMemberSlots
-    .map((entry) => `${entry.slot}:${entry.cardId}`)
-    .join('|');
+          cardId !== null && getCardViewObject(cardId)?.enteredStageThisTurn === true,
+      };
+    }).filter(
+      (
+        entry
+      ): entry is {
+        readonly slot: SlotPosition;
+        readonly cardId: string;
+        readonly enteredStageThisTurn: boolean;
+      } =>
+        entry.cardId !== null &&
+        (matchView?.manualOperation?.mode === 'FREE' || !entry.enteredStageThisTurn)
+    );
+  }, [
+    getCardViewObject,
+    getSeatMemberSlotCardId,
+    matchView?.manualOperation?.mode,
+    playerViewState,
+    viewerSeat,
+  ]);
   const canShowDoubleRelayEntry =
     !isReadOnly &&
     canPlayMemberToSlotCommand &&
@@ -822,6 +887,16 @@ export const GameBoard = memo(function GameBoard({
     selectedCardPresentation?.cardData.cardType === CardType.MEMBER &&
     canUseDoubleRelay(selectedCardPresentation) &&
     viewerOccupiedMemberSlots.length >= 2;
+  const doubleRelaySelectionKey =
+    canShowDoubleRelayEntry && selectedCardId
+      ? `${selectedCardId}:${viewerOccupiedMemberSlots
+          .map((entry) => `${entry.slot}:${entry.cardId}`)
+          .join('|')}`
+      : null;
+  const [doubleRelaySelection, setDoubleRelaySelection] = useKeyedState<{
+    readonly cardId: string;
+    readonly selectedSlots: readonly SlotPosition[];
+  } | null>(doubleRelaySelectionKey, null);
   const selectedHandCardActions =
     canShowSpecialPlayEntry && canShowDoubleRelayEntry
       ? SPECIAL_PLAY_AND_DOUBLE_RELAY_HAND_CARD_ACTIONS
@@ -832,28 +907,23 @@ export const GameBoard = memo(function GameBoard({
           : NO_SELECTED_HAND_CARD_ACTIONS;
   const selectedHandCardActionCardId = selectedHandCardActions.length > 0 ? selectedCardId : null;
   const activeDoubleRelaySelection =
-    doubleRelaySelection && doubleRelaySelection.cardId === selectedCardId
-      ? doubleRelaySelection
+    doubleRelaySelection &&
+    doubleRelaySelection.cardId === selectedCardId &&
+    canShowDoubleRelayEntry
+      ? {
+          ...doubleRelaySelection,
+          selectedSlots: doubleRelaySelection.selectedSlots.filter((slot) =>
+            viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)
+          ),
+        }
       : null;
   const doubleRelaySelectedSlots = activeDoubleRelaySelection?.selectedSlots ?? [];
   const canConfirmDoubleRelay = doubleRelaySelectedSlots.length === 2;
   const isActiveEffectLocallySuspended =
-    !!activeEffect &&
-    activeEffectSuspension?.effectId === activeEffect.id &&
-    activeEffectSuspension.until > Date.now();
-  const shouldSuspendActiveEffectForEntryRender =
-    !!activeEffect &&
-    !!playerViewState &&
-    !entryEffectSuspendedIdsRef.current.has(activeEffect.id) &&
-    didObjectMoveIntoMemberSlot(
-      lastNonActiveEffectViewStateRef.current ?? previousViewStateRef.current,
-      playerViewState,
-      activeEffect.sourceObjectId
-    );
+    !!activeEffect && activeEffectSuspension?.effectId === activeEffect.id;
   const isActiveEffectUiSuspended =
     !!activeEffect &&
-    (shouldSuspendActiveEffectForEntryRender ||
-      isActiveEffectLocallySuspended ||
+    (isActiveEffectLocallySuspended ||
       battleAnimationOcclusions.some(
         (occlusion) => occlusion.objectId === activeEffect.sourceObjectId
       ));
@@ -861,18 +931,25 @@ export const GameBoard = memo(function GameBoard({
   useLayoutEffect(() => {
     if (!playerViewState) {
       previousViewStateRef.current = null;
-      setActiveEffectSuspension(null);
       return;
     }
 
-    if (activeEffect && shouldSuspendActiveEffectForEntryRender) {
+    const shouldSuspendActiveEffectForEntry =
+      !!activeEffect &&
+      !entryEffectSuspendedIdsRef.current.has(activeEffect.id) &&
+      didObjectMoveIntoMemberSlot(
+        lastNonActiveEffectViewStateRef.current ?? previousViewStateRef.current,
+        playerViewState,
+        activeEffect.sourceObjectId
+      );
+    if (activeEffect && shouldSuspendActiveEffectForEntry) {
       entryEffectSuspendedIdsRef.current.add(activeEffect.id);
+      // The panel must remain hidden until the entry animation has claimed the source card.
       setActiveEffectSuspension({
         effectId: activeEffect.id,
         until: Date.now() + ENTER_EFFECT_SURFACE_SUSPEND_MS,
       });
     } else if (!activeEffect) {
-      setActiveEffectSuspension(null);
       entryEffectSuspendedIdsRef.current.clear();
     }
 
@@ -880,12 +957,7 @@ export const GameBoard = memo(function GameBoard({
       lastNonActiveEffectViewStateRef.current = playerViewState;
     }
     previousViewStateRef.current = playerViewState;
-  }, [
-    activeEffect?.id,
-    activeEffect?.sourceObjectId,
-    playerViewState,
-    shouldSuspendActiveEffectForEntryRender,
-  ]);
+  }, [activeEffect, playerViewState]);
 
   useEffect(() => {
     if (!activeEffectSuspension) {
@@ -907,26 +979,6 @@ export const GameBoard = memo(function GameBoard({
   }, [activeEffectSuspension]);
 
   useEffect(() => {
-    setActiveEffectOrderedSelection([]);
-    setActiveEffectSingleSelection(null);
-    setActiveEffectChoiceSelection([]);
-  }, [
-    activeEffect?.id,
-    activeEffect?.stepId,
-    activeEffect?.selectableObjectMode,
-    activeEffectSelectableCardSignature,
-    activeEffectSelectableOptions.length,
-    activeEffectChoiceSignature,
-  ]);
-
-  useEffect(() => {
-    setActiveEffectNumberInput('');
-    setActiveEffectCollapsed(false);
-    setActiveEffectOriginalTextExpanded(false);
-  }, [activeEffect?.id, activeEffect?.stepId]);
-
-  useEffect(() => {
-    setPublicSelectionFallbackReady(false);
     if (!isPublicCardSelectionAutoAdvance || isReadOnly || !canConfirmEffectCommand) {
       return;
     }
@@ -937,7 +989,7 @@ export const GameBoard = memo(function GameBoard({
       () => autoAdvancePublicCardSelection(effectId, activeEffect.publicCardSelectionAutoAdvanceAt)
     );
     const fallbackTimer = window.setTimeout(
-      () => setPublicSelectionFallbackReady(true),
+      () => setPublicSelectionFallbackKey(publicCardSelectionKey),
       activeEffect.publicCardSelectionAutoAdvanceAfterMs + PUBLIC_CARD_SELECTION_FALLBACK_DELAY_MS
     );
 
@@ -949,10 +1001,12 @@ export const GameBoard = memo(function GameBoard({
     activeEffect?.id,
     activeEffect?.stepId,
     activeEffect?.publicCardSelectionAutoAdvanceAt,
+    activeEffect?.publicCardSelectionAutoAdvanceAfterMs,
     canConfirmEffectCommand,
     autoAdvancePublicCardSelection,
     isPublicCardSelectionAutoAdvance,
     isReadOnly,
+    publicCardSelectionKey,
   ]);
 
   useEffect(() => {
@@ -985,28 +1039,6 @@ export const GameBoard = memo(function GameBoard({
     isPublicEffectChoiceAutoAdvance,
     isReadOnly,
   ]);
-
-  useEffect(() => {
-    if (!activeEffectStageFormation) {
-      setStageFormationDraftSlots([]);
-      setStageFormationMoveHistory([]);
-      setSelectedStageFormationCardId(null);
-      return;
-    }
-
-    setStageFormationDraftSlots(
-      activeEffectStageFormation.slots.map((slot) => ({
-        slot: slot.slot as SlotPosition,
-        cardId: slot.cardId,
-        objectId: slot.objectId,
-        originalSlot: slot.originalSlot as SlotPosition,
-        energyBelowCount: slot.energyBelowCount,
-        memberBelowCount: slot.memberBelowCount,
-      }))
-    );
-    setStageFormationMoveHistory([]);
-    setSelectedStageFormationCardId(null);
-  }, [activeEffect?.id, activeEffect?.stepId, activeEffectStageFormationSignature]);
 
   const handleStageFormationSlotClick = useCallback(
     (targetSlot: SlotPosition) => {
@@ -1073,6 +1105,9 @@ export const GameBoard = memo(function GameBoard({
       activeEffectStageFormation,
       canConfirmActiveEffect,
       selectedStageFormationCardId,
+      setSelectedStageFormationCardId,
+      setStageFormationDraftSlots,
+      setStageFormationMoveHistory,
       stageFormationDraftSlots,
     ]
   );
@@ -1108,29 +1143,6 @@ export const GameBoard = memo(function GameBoard({
     stageFormationMoveHistory,
   ]);
 
-  useEffect(() => {
-    if (!doubleRelaySelection) {
-      return;
-    }
-
-    const selectedSlotsStillOccupied = doubleRelaySelection.selectedSlots.every((slot) =>
-      viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)
-    );
-    if (
-      doubleRelaySelection.cardId !== selectedCardId ||
-      !canShowDoubleRelayEntry ||
-      !selectedSlotsStillOccupied
-    ) {
-      setDoubleRelaySelection(null);
-    }
-  }, [
-    canShowDoubleRelayEntry,
-    doubleRelaySelection,
-    selectedCardId,
-    viewerOccupiedMemberSlotSignature,
-    viewerOccupiedMemberSlots,
-  ]);
-
   const handleSelectDoubleRelaySlot = useCallback(
     (slot: SlotPosition) => {
       setDoubleRelaySelection((current) => {
@@ -1152,10 +1164,10 @@ export const GameBoard = memo(function GameBoard({
         return { ...current, selectedSlots: [...current.selectedSlots, slot] };
       });
     },
-    [selectedCardId, viewerOccupiedMemberSlotSignature, viewerOccupiedMemberSlots]
+    [selectedCardId, setDoubleRelaySelection, viewerOccupiedMemberSlots]
   );
 
-  const handleConfirmDoubleRelay = useCallback(() => {
+  const handleConfirmDoubleRelay = () => {
     if (!activeDoubleRelaySelection || activeDoubleRelaySelection.selectedSlots.length !== 2) {
       return;
     }
@@ -1174,7 +1186,7 @@ export const GameBoard = memo(function GameBoard({
     if (result.success || result.pending) {
       setDoubleRelaySelection(null);
     }
-  }, [activeDoubleRelaySelection, addLog, playMemberToSlot]);
+  };
 
   const handleBeginSpecialPlayAtSlot = useCallback(
     (slot: SlotPosition) => {
@@ -1204,7 +1216,7 @@ export const GameBoard = memo(function GameBoard({
         setDoubleRelaySelection({ cardId, selectedSlots: [] });
       }
     },
-    [selectedCardId]
+    [selectedCardId, setDoubleRelaySelection]
   );
 
   const handleToggleSpecialPlayPayment = useCallback(
@@ -2111,12 +2123,8 @@ export const GameBoard = memo(function GameBoard({
       movePublicCardToHand,
       movePublicCardToEnergyDeck,
       moveOwnedCardToZone,
-      moveInspectedCardToTop,
-      moveInspectedCardToBottom,
-      moveInspectedCardToZone,
       moveCardToInspection,
       reorderInspectedCard,
-      moveResolutionCardToZone,
       drawEnergyToZone,
       setLiveCard,
       addLog,

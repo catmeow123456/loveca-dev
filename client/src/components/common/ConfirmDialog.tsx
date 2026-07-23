@@ -1,7 +1,8 @@
-import { memo, useEffect } from 'react';
+import { memo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { AlertTriangle, Loader2, X } from 'lucide-react';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 
 interface ConfirmDialogProps {
   readonly isOpen: boolean;
@@ -24,22 +25,15 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isConfirming) {
-        onCancel();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [isConfirming, isOpen, onCancel]);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  useDialogAccessibility({
+    isOpen,
+    dialogRef,
+    initialFocusRef: cancelButtonRef,
+    onEscape: onCancel,
+    closeOnEscape: !isConfirming,
+  });
 
   if (!isOpen) {
     return null;
@@ -49,6 +43,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({
     <>
       <button
         type="button"
+        tabIndex={-1}
         aria-label="关闭确认框"
         className="modal-backdrop z-[190] cursor-default"
         onClick={() => {
@@ -60,9 +55,11 @@ export const ConfirmDialog = memo(function ConfirmDialog({
 
       <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
         <motion.div
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirm-dialog-title"
+          tabIndex={-1}
           className="modal-surface flex w-[min(92vw,420px)] flex-col overflow-hidden"
           initial={{ opacity: 0, scale: 0.96, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -84,6 +81,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({
               </div>
             </div>
             <button
+              ref={cancelButtonRef}
               type="button"
               onClick={onCancel}
               disabled={isConfirming}

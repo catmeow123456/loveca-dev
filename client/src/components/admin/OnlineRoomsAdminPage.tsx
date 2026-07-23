@@ -36,6 +36,7 @@ import type {
   ReplayRecordFrame,
   Seat,
 } from '@game/online';
+import { LatestRequestGate, SerialPollingScheduler } from '@/lib/asyncRequestControl';
 
 const ADMIN_ROOM_POLL_INTERVAL_MS = 2000;
 
@@ -62,6 +63,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   const [spectatorError, setSpectatorError] = useState<string | null>(null);
   const [viewerSeat, setViewerSeat] = useState<Seat>('FIRST');
   const [selectedCheckpointSeq, setSelectedCheckpointSeq] = useState<number | null>(null);
+  const roomRequestGateRef = useRef(new LatestRequestGate());
 
   // 始终持有最新的 viewerSeat，供异步回放加载读取，避免回调闭包捕获过时座位值。
   const viewerSeatRef = useRef<Seat>(viewerSeat);
@@ -70,20 +72,29 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
   }, [viewerSeat]);
 
   const loadRooms = useCallback(async (showLoading: boolean) => {
+    const requestGeneration = roomRequestGateRef.current.begin();
     if (!showLoading) {
       setIsRefreshing(true);
     }
 
     try {
       const nextRooms = await fetchOnlineAdminRooms();
+      if (!roomRequestGateRef.current.isCurrent(requestGeneration)) {
+        return;
+      }
       setRooms(nextRooms);
       setError(null);
       setLastLoadedAt(Date.now());
     } catch (loadError) {
+      if (!roomRequestGateRef.current.isCurrent(requestGeneration)) {
+        return;
+      }
       setError(loadError instanceof Error ? loadError.message : '读取联机房间监控数据失败');
     } finally {
-      setIsLoading(false);
-      setIsRefreshing(false);
+      if (roomRequestGateRef.current.isCurrent(requestGeneration)) {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
@@ -229,12 +240,22 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
       return;
     }
 
-    const timer = window.setInterval(() => {
-      void loadRooms(false);
-    }, ADMIN_ROOM_POLL_INTERVAL_MS);
+    const scheduler = new SerialPollingScheduler({
+      intervalMs: ADMIN_ROOM_POLL_INTERVAL_MS,
+      poll: () => loadRooms(false),
+      runImmediately: false,
+    });
+    scheduler.start();
 
-    return () => window.clearInterval(timer);
+    return () => scheduler.dispose();
   }, [autoRefresh, loadRooms]);
+
+  useEffect(
+    () => () => {
+      roomRequestGateRef.current.invalidate();
+    },
+    []
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
