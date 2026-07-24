@@ -16,6 +16,7 @@ import {
   isResultSuccessEffectSubPhase,
 } from './command-availability.js';
 import { getModeAutomationPolicy, type ModeAutomationStep } from './mode-automation.js';
+import { resolveSolitaireOpponentEffectCommandForExecution } from './solitaire-effect-automation.js';
 import {
   applyAuthoritativeManualOperationModeToCommand,
   getManualOperationMode,
@@ -1173,7 +1174,11 @@ export class GameSession {
       iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
       this.authorityState.currentPhase !== GamePhase.GAME_END
     ) {
-      const automation = policy.getNextAutomation(this.authorityState, triggerPlayerId);
+      const automation = policy.getNextAutomation(
+        this.authorityState,
+        triggerPlayerId,
+        this.now()
+      );
       if (!automation) {
         break;
       }
@@ -1199,6 +1204,8 @@ export class GameSession {
     switch (automation.kind) {
       case 'ACTION':
         return this.applySystemAutomationAction(automation.action, automation.actorPlayerId);
+      case 'COMMAND':
+        return this.applySystemAutomationCommand(automation.command);
       case 'SKIP_OPPONENT_PERFORMANCE':
         this.skipOpponentPerformance(automation.actorPlayerId);
         return true;
@@ -1231,6 +1238,78 @@ export class GameSession {
     this.resolveReadyScoreConfirm();
     this.autoAdvance(this.authorityState);
 
+    return true;
+  }
+
+  private applySystemAutomationCommand(submittedCommand: GameCommand): boolean {
+    if (!this.authorityState) {
+      return false;
+    }
+
+    const recordedCommand = applyAuthoritativeManualOperationModeToCommand(
+      submittedCommand,
+      this.manualOperationMode
+    );
+    const executionCommand = resolveSolitaireOpponentEffectCommandForExecution(
+      this.authorityState,
+      recordedCommand
+    );
+    const validated = this.validateCommand(this.authorityState, executionCommand);
+    if (validated) {
+      this.recordCommand(recordedCommand, 'REJECTED', validated);
+      this.appendSealedAuditRecord(this.authorityState, {
+        type: 'COMMAND_REJECTED',
+        actorSeat:
+          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        payload: {
+          commandType: recordedCommand.type,
+          playerId: recordedCommand.playerId,
+          idempotencyKey: recordedCommand.idempotencyKey ?? null,
+          error: validated,
+        },
+      });
+      console.warn(
+        '[GameSession] 模式自动化命令校验失败:',
+        recordedCommand.type,
+        validated
+      );
+      return false;
+    }
+
+    const result = this.applyCommand(this.authorityState, executionCommand);
+    if (!result.success) {
+      this.recordCommand(recordedCommand, 'REJECTED', result.error);
+      this.appendSealedAuditRecord(this.authorityState, {
+        type: 'COMMAND_REJECTED',
+        actorSeat:
+          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        payload: {
+          commandType: recordedCommand.type,
+          playerId: recordedCommand.playerId,
+          idempotencyKey: recordedCommand.idempotencyKey ?? null,
+          error: result.error ?? '命令执行失败',
+        },
+      });
+      console.warn(
+        '[GameSession] 模式自动化命令执行失败:',
+        recordedCommand.type,
+        result.error
+      );
+      return false;
+    }
+
+    this.setAuthorityState(result.gameState, {
+      source: 'SYSTEM',
+      actorPlayerId: recordedCommand.playerId,
+      declarationActionType: result.declarationType,
+      declarationPublicValue: result.declarationPublicValue,
+      extraPublicEvents: result.extraPublicEvents,
+      privateEventsBySeat: result.privateEventsBySeat,
+      sealedAuditRecords: result.sealedAuditRecords,
+    });
+    this.recordCommand(recordedCommand, 'ACCEPTED');
+    this.resolveReadyScoreConfirm();
+    this.autoAdvance(this.authorityState);
     return true;
   }
 

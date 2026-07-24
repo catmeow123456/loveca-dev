@@ -29,6 +29,7 @@ import {
 import {
   CardType,
   FaceState,
+  GameMode,
   HeartColor,
   OrientationState,
   SlotPosition,
@@ -138,6 +139,47 @@ function startOnEnter(game: GameState, sourceId: string): GameState {
 }
 
 describe('PL!S-pb1-002 桜内梨子', () => {
+  it('has the solitaire system opponent decline the real optional window through a standard command', () => {
+    const { game, source } = setup();
+    const started = startOnEnter(game, source.instanceId);
+    const session = createGameSession({ gameMode: GameMode.SOLITAIRE });
+    session.createGame('s-pb1-002-riko-solitaire', PLAYER1, 'P1', PLAYER2, '系统对手');
+    (session as unknown as { authorityState: GameState }).authorityState = started;
+
+    (
+      session as unknown as {
+        runModeAutomationLoop(triggerPlayerId: string): void;
+      }
+    ).runModeAutomationLoop(PLAYER1);
+
+    expect(session.state?.activeEffect).toBeNull();
+    expect(getPlayerLiveScoreModifier(session.state!.liveResolution, PLAYER1)).toBe(1);
+    expect(session.getCommandLogSince(0)).toEqual([
+      expect.objectContaining({
+        playerId: PLAYER2,
+        commandType: 'CONFIRM_EFFECT_STEP',
+        status: 'ACCEPTED',
+        payload: expect.objectContaining({
+          selectedCardId: null,
+        }),
+      }),
+    ]);
+    expect(session.getSealedAuditSince(0)).toEqual([
+      expect.objectContaining({
+        type: 'EFFECT_STEP_CONFIRMED',
+        actorSeat: 'SECOND',
+      }),
+    ]);
+    expect(session.getPublicEventsSince(0)).toContainEqual(
+      expect.objectContaining({
+        type: 'PlayerDeclared',
+        source: 'SYSTEM',
+        actorSeat: 'SECOND',
+        declarationType: 'EFFECT_STEP_CONFIRMED',
+      })
+    );
+  });
+
   it('lets the opponent discard a hand LIVE to their waiting room through hand-to-waiting triggers', () => {
     const { game, source, opponentHandCards } = setup({ includeOpponentHandTriggerSource: true });
     const liveId = opponentHandCards[0]!.instanceId;

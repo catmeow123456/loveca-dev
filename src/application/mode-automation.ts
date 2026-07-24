@@ -13,6 +13,8 @@ import {
   createMulliganAction,
   createSelectSuccessCardAction,
 } from './actions.js';
+import type { GameCommand } from './game-commands.js';
+import { buildSolitaireOpponentEffectCommand } from './solitaire-effect-automation.js';
 
 export type ModeAutomationStep =
   | {
@@ -23,10 +25,18 @@ export type ModeAutomationStep =
   | {
       readonly kind: 'SKIP_OPPONENT_PERFORMANCE';
       readonly actorPlayerId: string;
+    }
+  | {
+      readonly kind: 'COMMAND';
+      readonly command: GameCommand;
     };
 
 export interface ModeAutomationPolicy {
-  getNextAutomation(state: GameState, triggerPlayerId: string): ModeAutomationStep | null;
+  getNextAutomation(
+    state: GameState,
+    triggerPlayerId: string,
+    now: number
+  ): ModeAutomationStep | null;
 }
 
 const onlineAutomationPolicy: ModeAutomationPolicy = {
@@ -36,9 +46,24 @@ const onlineAutomationPolicy: ModeAutomationPolicy = {
 };
 
 const solitaireAutomationPolicy: ModeAutomationPolicy = {
-  getNextAutomation(state, triggerPlayerId) {
+  getNextAutomation(state, triggerPlayerId, now) {
     const opponentId = getOpponentId(state, triggerPlayerId);
     if (!opponentId) {
+      return null;
+    }
+
+    const opponentEffectCommand = buildSolitaireOpponentEffectCommand(
+      state,
+      opponentId,
+      now
+    );
+    if (opponentEffectCommand) {
+      return {
+        kind: 'COMMAND',
+        command: opponentEffectCommand,
+      };
+    }
+    if (state.activeEffect) {
       return null;
     }
     if (hasPendingAbilityOrChoice(state)) {

@@ -16,6 +16,7 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { createGameSession } from '../../src/application/game-session';
 import {
   S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
   S_BP7_004_ON_ENTER_AQOURS_RELAY_KEEP_THREE_HAND_BOTTOM_DRAW_THREE_ABILITY_ID,
@@ -23,6 +24,7 @@ import {
 import {
   CardType,
   FaceState,
+  GameMode,
   HeartColor,
   OrientationState,
   SlotPosition,
@@ -238,6 +240,57 @@ describe('PL!S-bp7-004-P 费用13「黑泽黛雅」', () => {
     expect(finished.players[0].mainDeck.cardIds[0]).toBe(scenario.p1DeckIds[3]);
     expect(finished.players[1].mainDeck.cardIds[0]).toBe(scenario.p2DeckIds[3]);
     expect(finished.players[1].mainDeck.cardIds.at(-1)).toBe(scenario.p2HandIds[3]);
+  });
+
+  it('has the solitaire system opponent keep the first three without logging hidden hand IDs', () => {
+    const scenario = setupHandAdjustScenario();
+    const started = resolvePendingCardEffects(
+      enqueueDiaOnEnter(scenario.game, scenario.sourceId, scenario.aqoursReplacementId)
+    ).gameState;
+    const opponentSelection = confirmCards(started, [
+      scenario.p1HandIds[1]!,
+      scenario.p1HandIds[4]!,
+    ]);
+    const session = createGameSession({ gameMode: GameMode.SOLITAIRE });
+    session.restoreRuntimeState({
+      authorityState: opponentSelection,
+      currentPublicSeq: 0,
+    });
+
+    (
+      session as unknown as {
+        runModeAutomationLoop(triggerPlayerId: string): void;
+      }
+    ).runModeAutomationLoop(P1);
+
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.players[1].hand.cardIds).toEqual([
+      ...scenario.p2HandIds.slice(0, 3),
+      ...scenario.p2DeckIds.slice(0, 3),
+    ]);
+    expect(session.state?.players[1].mainDeck.cardIds[0]).toBe(
+      scenario.p2DeckIds[3]
+    );
+    expect(session.state?.players[1].mainDeck.cardIds.at(-1)).toBe(
+      scenario.p2HandIds[3]
+    );
+
+    const systemCommands = session
+      .getCommandLogSince(0)
+      .filter(
+        (record) =>
+          record.playerId === P2 &&
+          record.commandType === 'CONFIRM_EFFECT_STEP' &&
+          record.status === 'ACCEPTED'
+      );
+    expect(systemCommands).toHaveLength(1);
+    expect(systemCommands[0]?.payload).toMatchObject({
+      selectedCardIds: ['blind-card-0', 'blind-card-1', 'blind-card-2'],
+    });
+    const recordedPayload = JSON.stringify(systemCommands[0]?.payload);
+    for (const hiddenCardId of scenario.p2HandIds) {
+      expect(recordedPayload).not.toContain(hiddenCardId);
+    }
   });
 
   it('rejects duplicate and stale hand selections without moving cards', () => {

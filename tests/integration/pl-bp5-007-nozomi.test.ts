@@ -11,10 +11,7 @@ import {
   createHeartRequirement,
 } from '../../src/domain/entities/card';
 import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
-import {
-  createConfirmEffectStepCommand,
-  createPlayMemberToSlotCommand,
-} from '../../src/application/game-commands';
+import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
@@ -24,6 +21,7 @@ import {
 import {
   CardType,
   FaceState,
+  GameMode,
   GamePhase,
   HeartColor,
   OrientationState,
@@ -176,7 +174,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     ).toBe(false);
   });
 
-  it('skips controller discard, opens opponent discard, then draws three for each player', () => {
+  it('skips controller discard, then has the solitaire opponent discard the first required cards', () => {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -357,32 +355,34 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     });
 
     const p2DiscardIds = p2HandCards.slice(0, 2).map((card) => card.instanceId);
-    const discardResult = session.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER2,
-        session.state!.activeEffect!.id,
-        undefined,
-        null,
-        undefined,
-        null,
-        p2DiscardIds
-      )
-    );
+    const solitaireSession = createGameSession({ gameMode: GameMode.SOLITAIRE });
+    solitaireSession.restoreRuntimeState({
+      authorityState: session.state!,
+      currentPublicSeq: 0,
+    });
+    (
+      solitaireSession as unknown as {
+        runModeAutomationLoop(triggerPlayerId: string): void;
+      }
+    ).runModeAutomationLoop(PLAYER1);
 
-    expect(discardResult.success).toBe(true);
-    expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].hand.cardIds).toEqual([
+    expect(solitaireSession.state?.activeEffect).toBeNull();
+    expect(solitaireSession.state?.players[0].hand.cardIds).toEqual([
       ...p1HandCards.map((card) => card.instanceId),
       ...p1DrawCards.map((card) => card.instanceId),
     ]);
-    expect(session.state?.players[1].hand.cardIds).toEqual([
+    expect(solitaireSession.state?.players[1].hand.cardIds).toEqual([
       ...p2HandCards.slice(2).map((card) => card.instanceId),
       ...p2DrawCards.map((card) => card.instanceId),
     ]);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([relayMember.instanceId]);
-    expect(session.state?.players[1].waitingRoom.cardIds).toEqual(p2DiscardIds);
+    expect(solitaireSession.state?.players[0].waitingRoom.cardIds).toEqual([
+      relayMember.instanceId,
+    ]);
+    expect(solitaireSession.state?.players[1].waitingRoom.cardIds).toEqual(
+      p2DiscardIds
+    );
 
-    const discardAction = session.state!.actionHistory.find(
+    const discardAction = solitaireSession.state!.actionHistory.find(
       (action) =>
         action.type === 'RESOLVE_ABILITY' &&
         action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
@@ -395,7 +395,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
       discardedCardIds: p2DiscardIds,
     });
 
-    const drawAction = session.state!.actionHistory.find(
+    const drawAction = solitaireSession.state!.actionHistory.find(
       (action) =>
         action.type === 'RESOLVE_ABILITY' &&
         action.payload.abilityId === BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID &&
@@ -410,7 +410,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
       },
     });
     expect(
-      session.state?.actionHistory.filter(
+      solitaireSession.state?.actionHistory.filter(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId ===
@@ -419,5 +419,22 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
           action.payload.step === 'GAIN_PINK_HEART_AND_BLADE_FROM_HAND_TO_WAITING'
       )
     ).toHaveLength(1);
+
+    const systemCommands = solitaireSession
+      .getCommandLogSince(0)
+      .filter(
+        (record) =>
+          record.playerId === PLAYER2 &&
+          record.commandType === 'CONFIRM_EFFECT_STEP' &&
+          record.status === 'ACCEPTED'
+      );
+    expect(systemCommands).toHaveLength(1);
+    expect(systemCommands[0]?.payload).toMatchObject({
+      selectedCardIds: ['blind-card-0', 'blind-card-1'],
+    });
+    const recordedPayload = JSON.stringify(systemCommands[0]?.payload);
+    for (const hiddenCard of p2HandCards) {
+      expect(recordedPayload).not.toContain(hiddenCard.instanceId);
+    }
   });
 });
