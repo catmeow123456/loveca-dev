@@ -9,6 +9,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
@@ -45,7 +46,7 @@ type EnergyScoreComparison =
 
 interface LiveStartReturnOneEnergyCompareScoreConfig {
   readonly abilityId: string;
-  readonly cardCode: string;
+  readonly baseCardCode: string;
   readonly stageGate?: {
     readonly groupAlias: string;
     readonly minCount: number;
@@ -56,7 +57,7 @@ interface LiveStartReturnOneEnergyCompareScoreConfig {
 const CONFIGS: readonly LiveStartReturnOneEnergyCompareScoreConfig[] = [
   {
     abilityId: S_BP7_023_LIVE_START_RETURN_ONE_ENERGY_DIFFERENCE_SCORE_ABILITY_ID,
-    cardCode: 'PL!S-bp7-023-L',
+    baseCardCode: 'PL!S-bp7-023',
     stageGate: { groupAlias: 'Aqours', minCount: 2 },
     comparison: {
       kind: 'OPPONENT_AHEAD_TIERED',
@@ -66,7 +67,7 @@ const CONFIGS: readonly LiveStartReturnOneEnergyCompareScoreConfig[] = [
   },
   {
     abilityId: SP_BP7_027_LIVE_START_RETURN_ONE_ENERGY_LEAD_SCORE_ABILITY_ID,
-    cardCode: 'PL!SP-bp7-027-L',
+    baseCardCode: 'PL!SP-bp7-027',
     comparison: { kind: 'CONTROLLER_AHEAD', bonus: 1 },
   },
 ];
@@ -107,7 +108,7 @@ function startWorkflow(
   const orderedResolution = options.orderedResolution === true;
   if (
     !player ||
-    !isValidSource(game, ability.controllerId, ability.sourceCardId, config.cardCode)
+    !isValidSource(game, ability.controllerId, ability.sourceCardId, config.baseCardCode)
   ) {
     return finishWorkflow(game, ability, orderedResolution, continuePendingCardEffects, {
       step: 'NO_VALID_SOURCE',
@@ -173,7 +174,7 @@ function finishEnergyReturn(
   const ability = activeEffectToPendingAbility(effect);
   const orderedResolution = effect.metadata?.orderedResolution === true;
   if (
-    !isValidSource(game, effect.controllerId, effect.sourceCardId, config.cardCode) ||
+    !isValidSource(game, effect.controllerId, effect.sourceCardId, config.baseCardCode) ||
     !passesStageGate(game, effect.controllerId, config)
   ) {
     return finishWorkflow(game, ability, orderedResolution, continuePendingCardEffects, {
@@ -205,7 +206,7 @@ function finishEnergyReturn(
       energyReturn.gameState,
       effect.controllerId,
       effect.sourceCardId,
-      config.cardCode
+      config.baseCardCode
     )
   ) {
     return finishWorkflow(
@@ -359,7 +360,7 @@ function isValidSource(
   game: GameState,
   playerId: string,
   sourceCardId: string,
-  cardCode: string
+  baseCardCode: string
 ): boolean {
   const player = getPlayerById(game, playerId);
   const source = getCardById(game, sourceCardId);
@@ -368,7 +369,7 @@ function isValidSource(
     source !== null &&
     source.ownerId === playerId &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === cardCode &&
+    cardCodeMatchesBase(source.data.cardCode, baseCardCode) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

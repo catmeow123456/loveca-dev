@@ -11,7 +11,7 @@ const SP_PB2_006_KINAKO_BASE_CARD_CODE = 'PL!SP-pb2-006';
 const SP_PB1_010_MARGARETE_BASE_CARD_CODE = 'PL!SP-pb1-010';
 const SP_PB1_010_ENERGY_THRESHOLD = 10;
 const SP_PB1_010_STAGE_COST_BONUS = 4;
-const SP_BP7_002_KEKE_CARD_CODE = 'PL!SP-bp7-002-P';
+const SP_BP7_002_KEKE_BASE_CARD_CODE = 'PL!SP-bp7-002';
 const SP_BP7_002_ENERGY_THRESHOLD = 7;
 const SP_BP7_002_STAGE_COST_BONUS = 2;
 const S_BP3_016_HANAMARU_BASE_CARD_CODE = 'PL!S-bp3-016';
@@ -52,7 +52,7 @@ function getSpBp7002StageEnergyLeadCostBonus(
     opponent !== undefined &&
     card.ownerId === playerId &&
     isMemberCardData(card.data) &&
-    card.data.cardCode === SP_BP7_002_KEKE_CARD_CODE &&
+    cardCodeMatchesBase(card.data.cardCode, SP_BP7_002_KEKE_BASE_CARD_CODE) &&
     isMemberOnPlayerStage(game, playerId, memberCardId) &&
     player.energyZone.cardIds.length >= SP_BP7_002_ENERGY_THRESHOLD &&
     player.energyZone.cardIds.length > opponent.energyZone.cardIds.length

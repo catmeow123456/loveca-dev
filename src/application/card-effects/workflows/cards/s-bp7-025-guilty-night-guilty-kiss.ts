@@ -10,6 +10,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addMemberActivePhaseSkip } from '../../../../domain/rules/member-active-skips.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, costLte, typeIs } from '../../../effects/card-selectors.js';
 import { setMembersOrientation } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
@@ -24,7 +25,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
-const EXACT_CARD_CODE = 'PL!S-bp7-025-L';
+const BASE_CARD_CODE = 'PL!S-bp7-025';
 const CHOOSE_EFFECT_STEP_ID = 'S_BP7_025_CHOOSE_LIVE_SUCCESS_EFFECT';
 const SELECT_WAIT_TARGETS_STEP_ID = 'S_BP7_025_SELECT_WAIT_TARGETS';
 const WAIT_OPTION_ID = 'wait-up-to-two-low-cost-members';
@@ -79,7 +80,7 @@ function startChooseEffect(
   if (!player) {
     return game;
   }
-  if (!isExactOwnLiveSource(game, player.id, ability.sourceCardId)) {
+  if (!isOwnLiveSourceForBase(game, player.id, ability.sourceCardId)) {
     return finishPendingAsNoOp(game, ability, orderedResolution, continuePendingCardEffects);
   }
 
@@ -140,7 +141,7 @@ function finishEffectChoice(
   if (!player) {
     return game;
   }
-  if (!isExactOwnLiveSource(game, player.id, effect.sourceCardId)) {
+  if (!isOwnLiveSourceForBase(game, player.id, effect.sourceCardId)) {
     return finishActiveEffect(
       game,
       effect,
@@ -222,7 +223,7 @@ function finishWaitTargets(
   if (!player || !opponent || opponent.id === player.id) {
     return game;
   }
-  if (!isExactOwnLiveSource(game, player.id, effect.sourceCardId)) {
+  if (!isOwnLiveSourceForBase(game, player.id, effect.sourceCardId)) {
     return finishActiveEffect(
       game,
       effect,
@@ -384,7 +385,7 @@ function getWaitTargetCardIds(game: GameState, playerId: string): string[] {
   });
 }
 
-function isExactOwnLiveSource(game: GameState, playerId: string, sourceCardId: string): boolean {
+function isOwnLiveSourceForBase(game: GameState, playerId: string, sourceCardId: string): boolean {
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, sourceCardId);
   return (
@@ -392,6 +393,6 @@ function isExactOwnLiveSource(game: GameState, playerId: string, sourceCardId: s
     sourceCard !== null &&
     sourceCard.ownerId === playerId &&
     isLiveCardData(sourceCard.data) &&
-    sourceCard.data.cardCode === EXACT_CARD_CODE
+    cardCodeMatchesBase(sourceCard.data.cardCode, BASE_CARD_CODE)
   );
 }

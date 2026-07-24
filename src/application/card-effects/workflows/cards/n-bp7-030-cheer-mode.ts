@@ -6,6 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { N_BP7_030_LIVE_SUCCESS_RETURN_SELF_TO_HAND_DISCARD_ONE_ABILITY_ID } from '../../ability-ids.js';
 import { returnLiveZoneCardToHandForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -17,7 +18,7 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
-const EXACT_CARD_CODE = 'PL!N-bp7-030-L';
+const BASE_CARD_CODE = 'PL!N-bp7-030';
 const DISCARD_AFTER_RETURN_STEP_ID = 'N_BP7_030_DISCARD_ONE_AFTER_RETURN';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -58,7 +59,7 @@ function startReturnSelfThenDiscard(
   if (!player) {
     return game;
   }
-  if (!isExactOwnLiveSource(game, player.id, ability.sourceCardId)) {
+  if (!isOwnLiveSourceForBase(game, player.id, ability.sourceCardId)) {
     return finishPendingAsNoOp(game, ability, orderedResolution, continuePendingCardEffects);
   }
 
@@ -184,7 +185,7 @@ function finishPendingAsNoOp(
   );
 }
 
-function isExactOwnLiveSource(game: GameState, playerId: string, sourceCardId: string): boolean {
+function isOwnLiveSourceForBase(game: GameState, playerId: string, sourceCardId: string): boolean {
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, sourceCardId);
   return (
@@ -192,6 +193,6 @@ function isExactOwnLiveSource(game: GameState, playerId: string, sourceCardId: s
     sourceCard !== null &&
     sourceCard.ownerId === playerId &&
     isLiveCardData(sourceCard.data) &&
-    sourceCard.data.cardCode === EXACT_CARD_CODE
+    cardCodeMatchesBase(sourceCard.data.cardCode, BASE_CARD_CODE)
   );
 }

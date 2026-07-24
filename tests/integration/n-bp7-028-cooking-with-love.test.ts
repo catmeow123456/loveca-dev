@@ -228,11 +228,11 @@ function lastResolve(game: GameState) {
 }
 
 describe('PL!N-bp7-028-L 分数7「Cooking with Love」', () => {
-  it('registers an exact queued LIVE_START definition with the public Chinese text', () => {
+  it('registers a base-family queued LIVE_START definition with the public Chinese text', () => {
     expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-028-L')).toEqual([
       expect.objectContaining({
         abilityId: ABILITY_ID,
-        cardCodes: ['PL!N-bp7-028-L'],
+        baseCardCodes: ['PL!N-bp7-028'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -241,10 +241,8 @@ describe('PL!N-bp7-028-L 分数7「Cooking with Love」', () => {
         effectText: EXACT_EFFECT_TEXT,
       }),
     ]);
-    expect(
-      getCardAbilityDefinitionsForCardCode('PL!N-bp7-028-L')[0]?.baseCardCodes
-    ).toBeUndefined();
-    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-028-P')).toEqual([]);
+    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-028-P')).toHaveLength(1);
+    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-029-P')).toEqual([]);
   });
 
   it('enqueues from a real ON_LIVE_START check and opens only the optional action window', () => {
@@ -395,7 +393,7 @@ describe('PL!N-bp7-028-L 分数7「Cooking with Love」', () => {
     ]);
   });
 
-  it('revalidates the condition and exact LIVE source at confirmation without partial movement', () => {
+  it('revalidates the condition and LIVE source at confirmation without partial movement', () => {
     for (const change of ['condition', 'source'] as const) {
       let waiting = start(setup({ mainDeckCardIds: ['deck-card'] }));
       if (change === 'condition') {
@@ -423,9 +421,9 @@ describe('PL!N-bp7-028-L 分数7「Cooking with Love」', () => {
       );
     }
 
-    const wrongExact = start(setup({ sourceCode: 'PL!N-bp7-028-P' }));
-    expect(wrongExact.activeEffect).toBeNull();
-    expect(lastResolve(wrongExact)?.payload.step).toBe('SOURCE_INVALID_AT_START');
+    const adjacent = start(setup({ sourceCode: 'PL!N-bp7-029-P' }));
+    expect(adjacent.activeEffect).toBeNull();
+    expect(lastResolve(adjacent)?.payload.step).toBe('SOURCE_INVALID_AT_START');
   });
 
   it('grants one target-bound pink Heart to every own top-level Nijigasaki member', () => {

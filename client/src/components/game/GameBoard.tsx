@@ -89,8 +89,8 @@ import {
 } from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
 import {
-  LL_BP7_001_SPECIAL_PLAY_UI_CARD_CODE,
   getSpecialMemberPlayTargetSlots,
+  isLlBp7001SpecialPlayCardCode,
 } from '@/lib/specialMemberPlay';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
@@ -831,7 +831,7 @@ export const GameBoard = memo(function GameBoard({
     !pendingCostPayment &&
     !pendingSpecialMemberPlay &&
     selectedCardZone === ZoneType.HAND &&
-    selectedCardPresentation?.cardData.cardCode === LL_BP7_001_SPECIAL_PLAY_UI_CARD_CODE &&
+    isLlBp7001SpecialPlayCardCode(selectedCardPresentation?.cardData.cardCode ?? '') &&
     !!selectedSpecialPlayObjectId &&
     specialMemberPlayHint.scope?.objectIds?.includes(selectedSpecialPlayObjectId) === true;
   const pendingSpecialPlayCandidateIds =

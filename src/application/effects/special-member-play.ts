@@ -2,12 +2,13 @@ import { isMemberCardData } from '../../domain/entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../../domain/entities/game.js';
 import { canMemberBeRelayedAway, costCalculator } from '../../domain/rules/cost-calculator.js';
 import { OrientationState, SlotPosition } from '../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 import {
   assignCardsToRequiredNames,
   cardNameMatchesAnyAlias,
 } from '../../shared/utils/card-identity.js';
 
-export const LL_BP7_001_SPECIAL_PLAY_CARD_CODE = 'LL-bp7-001-R+';
+export const LL_BP7_001_SPECIAL_PLAY_BASE_CARD_CODE = 'LL-bp7-001';
 export const LL_BP7_001_SPECIAL_PLAY_PRINTED_COST = 15;
 export const LL_BP7_001_SPECIAL_PLAY_COST = 10;
 export const LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES = [
@@ -32,7 +33,7 @@ export function isLlBp7001SpecialPlaySource(
     player !== null &&
     source !== null &&
     source.ownerId === playerId &&
-    source.data.cardCode === LL_BP7_001_SPECIAL_PLAY_CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, LL_BP7_001_SPECIAL_PLAY_BASE_CARD_CODE) &&
     isMemberCardData(source.data) &&
     player.hand.cardIds.includes(sourceCardId)
   );

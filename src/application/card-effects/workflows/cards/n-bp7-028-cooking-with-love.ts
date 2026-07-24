@@ -8,6 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
@@ -23,7 +24,7 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 const ABILITY_ID =
   N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID;
-const EXACT_CARD_CODE = 'PL!N-bp7-028-L';
+const BASE_CARD_CODE = 'PL!N-bp7-028';
 const ACTIVATE_STEP_ID = 'N_BP7_028_SHUFFLE_WAITING_ROOM_BOTTOM_OPTION';
 
 const nijigasakiLive = and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲'));
@@ -200,7 +201,7 @@ function isValidSourceLive(game: GameState, playerId: string, sourceCardId: stri
     source !== null &&
     source.ownerId === playerId &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === EXACT_CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

@@ -12,7 +12,7 @@
 | module | covered fragments | current boundary | proving cards |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CARD_ABILITY_DEFINITIONS` in `src/application/card-effects/definitions/index.ts` | `T01,T02,T03,T04,T05,T06,T07` | 集中登记 category、trigger/source zone、queued、per-turn limit、`cardCodes` / `baseCardCodes` 与 UI 文案。ability id 在 `card-effects/ability-ids.ts`，definition 类型在 `card-effects/ability-definition-types.ts`；activeEffect step、activated ability 与 pending starter 结算均为 registry-first，分别走 `step-registry`、`activated-registry` 与 `starter-registry`。完整卡效 fallback 不应回流 runner；runner 仍保留 pending 生命周期、trigger/relay/matcher 胶水与 workflow 注册。 | 当前所有登记卡 |
-| Base card-code matching | card identity | 卡效登记支持 `baseCardCodes`，同基础编号不同罕度自动匹配同一能力；`tests/unit/card-effect-rarity-sync.test.ts` 会阻止 exact `cardCodes` 漏同步同编号罕度。 | `PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp1-006` 费用 11「藤岛 慈」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-pb1-004` 费用 4「百生吟子」、`PL!HS-PR-019` 费用 2「百生吟子」等 |
+| Base card-code matching | card identity | 卡效登记使用 `baseCardCodes`，同基础编号不同罕度自动匹配同一能力；`tests/unit/card-effect-rarity-sync.test.ts` 应阻止 exact `cardCodes` 漏同步，并证明新增/未知罕度无需追加 definition。 | `PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp1-006` 费用 11「藤岛 慈」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-pb1-004` 费用 4「百生吟子」、`PL!HS-PR-019` 费用 2「百生吟子」等 |
 | Trigger enqueue functions in `src/application/card-effect-runner.ts` | `T01,T02,T04,T06,S08,E06` | 支持登场、LIVE 开始、LIVE 成功、自己进行声援时、离场 AUTO、成员状态变化 AUTO、成员槽位移动 AUTO、舞台成员监听登场 AUTO 与同一时点/同事件队列。登场与舞台成员 LIVE 开始会记录来源槽位，能力可通过 `requiredSourceSlots` 统一过滤左/中/右区域条件。LIVE 成功已支持成功 LIVE 卡来源与表演玩家舞台成员来源；`ON_CHEER` 优先消费 `CheerEvent`，追加声援事件不二次触发，旧扫描表演玩家 LIVE 区来源只作 fallback；004 重做声援会显式以 `additional=false` 新事件走同一入队路径，且来源已先记录 turn1。登场 AUTO 优先消费 `EnterStageEvent`；成员状态变化 AUTO 优先消费 `MemberStateChangedEvent`，并可读取玩家操作/规则处理/卡效 cause；离场 AUTO 优先消费 `LeaveStageEvent`，可携带换上成员 `replacingCardId` 与目的地区 `toZone` 做离场/relay 来源条件；LIVE 开始优先消费 `LiveStartEvent`；LIVE 成功优先消费 `LiveSuccessEvent`；pending ability 绑定真实 `eventId`。 | `PL!N-bp4-018` 费用 7「近江彼方」、`PL!-pb1-015` 费用 7「西木野真姬」、`PL!HS-bp2-012` 费用 5「乙宗 梢」、`PL!HS-bp5-003` 费用 2「大泽瑠璃乃」、`PL!HS-bp6-017` 费用 11「日野下花帆」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-009` 费用 15「日野下花帆」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-bp5-019` 分数 6「花结」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-027` 分数 5「月夜見海月」、`PL!S-bp2-004` 费用 11「黒澤ダイヤ」 |
 | Success-zone placement boundary in `src/application/game-session.ts` + `workflows/cards/pl-bp6-024-sakkaku-crossroads.ts` | success-zone placement replacement | 当前是窄 hook，不是 replacement DSL：普通成功结算由 `GameSession` 在写入成功区前调用 workflow，`PL!-sd1-006-SD` 公开手牌 LIVE 路径复用同一入口；workflow 只识别 `PL!-bp6-024` 基础编号并提供可跳过 activeEffect，目标限定为自己休息室 μ's LIVE。runner 只注册该 workflow 的 activeEffect handler，不拥有成功区放置决策。 | `PL!-bp6-024-L` 分数 3「錯覚CROSSROADS」 |
 | `src/application/effects/card-selectors.ts` | `X04,X05,X06,C08` | 提供 `typeIs`、`groupIs`、`unitIs`、`unitAliasIs`、`unitAliasOrTextAliasIs`、`costLte`、`costGte`、`cardNameIs`、`cardNameAliasIs`、`memberHasHeartColor`、`liveRequiresHeartColor`、`hasNoAbilityOrContinuousAbility`、`and/or/not` 等最小 selector；`unitAliasIs` 用于真实导入数据中 `unitName=スリーズブーケ` / 英文效果文本 `Cerise Bouquet` 这类小组名别名条件，`unitAliasOrTextAliasIs` 才会额外读取 `cardText` 处理“视为”类文本身份；`cardNameAliasIs` 覆盖当前卡库常见角色中日名、空白/中点差异、组合卡 `&` 分隔组件与早期中文误译/异体名；`hasNoAbilityOrContinuousAbility` 只读 `CardData.cardText`，空文本视为无能力，含【常时/常時】视为常时能力；`liveRequiresHeartColor` 只读 LIVE `requirements.colorRequirements`。尚未覆盖 cardCode 集合、舞台状态、成功区分数等复杂条件。 | `LL-bp1-001` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-004` 费用 15「夕雾缀理」、`PL!HS-bp6-004` 费用 13「百生 吟子」、`PL!HS-bp2-022` 分数 2「アオクハルカ」、`PL!HS-sd1-006` 费用 15「安养寺姬芽」、`PL!HS-bp5-008` 费用 4「桂城泉」、`PL!HS-pb1-004` 费用 4「百生吟子」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!-bp6-002` 费用 2「绚濑绘里」、`PL!-bp6-005` 费用 11「星空凛」 |
@@ -43,7 +43,7 @@ Continuous modifier 的隐藏信息投影已收口到 definition 必填 `visibil
 
 - `workflows/shared/member-on-enter-draw.ts` 新增有限的主舞台有效费用门槛/可选结构化团体轴，并将 `PL!-bp3-009` 费用2「矢澤にこ」ON_ENTER 段从单卡 workflow 晋升到 shared ownership；`PL!S-bp7-002-P` 费用4「樱内梨子」是第二个真实样本。本轴不接受 callback/条件 AST，不是 ON_ENTER DSL。
 - `workflows/shared/on-move-gain-blade.ts` 新增 +2 配置样本 `PL!SP-bp7-014-N` 费用4「岚千砂都」，并收窄 stale 边界：消费 pending、写可审计 no-op action、统一 continuation，不给 BLADE。旧 +1 样本保持。这不是通用移动奖励 DSL。
-- `domain/rules/live-modifiers.ts` continuous registry 新增 exact `PL!S-bp7-016-N` 费用15「国木田花丸」：己方三个主舞台顶层达3名时为来源动态收集 `SOURCE_MEMBER` 红/绿/蓝 Heart 各1，不写 player-level Heart，不建立 continuous Heart DSL。
+- `domain/rules/live-modifiers.ts` continuous registry 新增基础编号 `PL!S-bp7-016`（当前公开版本 N）费用15「国木田花丸」：己方三个主舞台顶层达3名时为来源动态收集 `SOURCE_MEMBER` 红/绿/蓝 Heart 各1，不写 player-level Heart，不建立 continuous Heart DSL。
 
 ## Compatibility Layers
 
@@ -84,34 +84,34 @@ Continuous modifier 的隐藏信息投影已收口到 definition 必填 `visibil
 
 ## 2026-07-19 BP7 energyBelow 第三批覆盖
 
-| 边界 | exact 样本 | 覆盖状态 |
+| 边界 | 当前公开样本 | 覆盖状态 |
 | ------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ENERGY_ZONE → energyBelow | `PL!N-bp7-004-P` | 继续由既有 `stackEnergyFromEnergyZoneBelowMember` 处理 WAITING-first、特殊 marker 精确选择；公开中文 API 的“能量卡组”不作为规则依据。 |
 | ENERGY_DECK → 当前己方顶层成员 energyBelow | `PL!N-bp7-005-P`、`PL!N-bp7-007-SEC`、`PL!N-bp7-019-N` | 新窄 helper 保持顶牌/剩余顺序、按成员实例追踪移槽、返回精确 IDs；不接受对方/memberBelow/stale 目标。 |
 | 强制二选一 stale continuation | `PL!N-bp7-005-P` | 卡文分支为“活跃2张能量”；不足2张时尽可能处理。原本展示的分支或成员目标确认时失效会消费当前 pending、记录空实际 IDs 并回到统一 continuation；从未展示的伪造输入仍被拒绝。 |
 | exact member-slot-moved observer registry | `PL!SP-pb2-022` | 卡牌专属 5yncri5e!/CENTER 事件筛选与 pending 构造归属单卡 workflow 的窄 registry handler；runner 仅保留通用 observer 调度。 |
-| 动态成员红 Heart | `PL!N-bp7-007-SEC` | exact continuous registry 分别按来源 energyBelow 与 `max(0, own energyZone count - 6)` 收集 SOURCE_MEMBER Heart，可与普通 modifier 叠加。 |
+| 动态成员红 Heart | `PL!N-bp7-007`（当前公开版本 SEC） | 基础编号 continuous registry 分别按来源 energyBelow 与 `max(0, own energyZone count - 6)` 收集 SOURCE_MEMBER Heart，可与普通 modifier 叠加。 |
 | replacement 事件绑定 | `PL!N-bp7-019-N` | 只消费真实 LeaveStageEvent 的 replacingCardId，来源结算时不必仍在休息室；replacement 必须为当前顶层结构化虹咲成员。 |
 
 energyBelow 继续随主成员移动/交换，并在离场、换手或替换时由既有清理路径返回能量卡组。below 放置不发仅表示放置入能量区的事件。本表不宣称任意 below DSL 或完整能量事件体系。
 
 ## 2026-07-19 BP7 七弹第一批卡效覆盖
 
-| 边界 | exact 样本 | 覆盖状态 |
+| 边界 | 当前公开样本 | 覆盖状态 |
 | -------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 支付能量后私密检视并全部有序回顶 | `PL!N-bp7-006-SEC` 第一段 | 复用标准能量支付、inspection 和 ordered-top；只有支付成功才消耗独立 turn1。确认重验 inspection owner、卡集合、覆盖和顺序，对手不投影卡号或顺序。 |
 | exact 顶牌作为费用并保留事件事实 | `PL!N-bp7-006-SEC` 第二段 | `moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers`；当前主卡组不足3张则不可支付，不通过刷新补足。恰好3张时移动后执行规则刷新，条件与公开展示仍只读该 grouped event 保存的 moved IDs。未命中用真实公开结果窗口阻断 continuation；命中由现有二选一窗口兼任公开展示，不产生双弹窗。 |
 | 结构化移动结果命中与强制二选一 | `PL!N-bp7-006-SEC` 第二段 | 团体、LIVE/MEMBER 与 BLADE HEART 分别走 selector/query；不扫休息室。能量分支复用通用 WAITING 能量活跃和 marker 精确选择；BLADE 分支复用真实来源成员实例的 LIVE_END modifier。二选一提交按钮明确为“结算所选效果”。 |
 | 多 owner 同一 refresh-aware direct-mill 效果 | `PL!N-bp7-009-P` | `moveTopDeckCardsForPlayersWithRefreshAndEnqueueTriggers`；每位玩家独立 owner/moved IDs/refresh count/grouped event，主动玩家先处理规则刷新。全部移动完成并统一 enqueue 后，按效果控制者（发动方）、对方的 owner 顺序至多打开两个连续真实公开结果 activeEffect 窗口，每个窗口只展示该 owner 的实际移动结果，并都由效果控制者确认；空结果跳过，最后一个非空结果确认后才只推进一次 continuation，双方均0张时直接结束。metadata/action/event 保留各 owner 原始顺序及重复事实。 |
 
-本表只说明两个窄 runtime 边界及其两张 exact 样本，不表示所有 direct-mill、多玩家效果或费用 pipeline 已配置化。
+本表只说明两个窄 runtime 边界及其当前公开样本，不表示所有 direct-mill、多玩家效果或费用 pipeline 已配置化。
 
 ## 2026-07-20 LL-bp7-001-R+ 覆盖
 
-| 边界 | exact 样本 | 覆盖状态 |
+| 边界 | 当前公开样本 | 覆盖状态 |
 | -------------------- | ----------------------- | -------------------------------------------------------------------------- |
 | 姓名一对一最大分配 | `LL-bp7-001-R+` | shared identity query；联合名成员每张最多占一槽，不依赖贪心候选顺序。 |
-| 可复水特殊登场 | `LL-bp7-001-R+` | exact pending/command/projector；对手仅等待态，旧 payload 缺字段安全默认。 |
+| 可复水特殊登场 | `LL-bp7-001`（当前公开版本 R+） | 基础编号专属 pending/command/projector；对手仅等待态，旧 payload 缺字段安全默认。 |
 | 单次 play 费用基准10 | `LL-bp7-001-R+` | 服务端窄输入；登场后仍是印刷/有效费用15，不写持久修正。 |
 | 休息室回收 | 登场LIVE / LIVE成功成员 | 扩展既有 `waiting-room-to-hand` 与 public confirmation family。 |
 
@@ -119,27 +119,33 @@ energyBelow 继续随主成员移动/交换，并在离场、换手或替换时�
 
 # 2026-07-23 BP7 LIVE 能量返回/待机放置覆盖
 
-| 边界                                 | exact 样本                                                                                        | 覆盖状态                                                                                                                                                |
+| 边界                                 | 当前公开样本                                                                                      | 覆盖状态                                                                                                                                                |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | LIVE 开始可选返还1能量后实时比较     | `PL!S-bp7-023-L` 分数4「夜空是否全然知晓？」、`PL!SP-bp7-027-L` 分数5「What a Wonderful Dream!!」 | 有限 shared family；S023 只统计主舞台顶层 Aqours 并支持对方领先1/+1、至少2/+2，SP027 支持己方严格领先/+1。两者都在返还后比较并 replacement 来源 SCORE。 |
 | 标准能量返回事件                     | 同上及既有 optional-energy-return 调用者                                                          | 实际移动1张后产生一次精确 `ON_ENERGY_MOVED_TO_DECK` event，保留 moved ID 与 `CARD_EFFECT` cause；现有 SP005 observer focused 锁定只入队一次。           |
 | WAITING 放置并跳过下次自己的活跃阶段 | `PL!SP-bp7-005-SEC`、`PL!SP-bp7-007-SEC`、`PL!SP-bp7-027-L` LIVE 成功段                           | 共用窄 runtime helper；marker 只绑定实际放置 IDs，身份取自 event cause，精确 placement event 只入队一次。0张不产生 event/marker。                       |
 | 无资源与 stale 交互                  | S023/SP027                                                                                        | 无能量使用 confirm-only 玩家窗口并在确认后消费 pending；门槛/来源 stale 不移动资源，伪造选择不推进。                                                    |
 
-本表不表示任意能量差表达式、能量区 placement DSL 或统一 pending workflow 已完成；SP027 的 LIVE 成功段仍由 exact card-owned workflow 持有来源校验和确认语义。
+本表不表示任意能量差表达式、能量区 placement DSL 或统一 pending workflow 已完成；SP027 的 LIVE 成功段仍由 card-owned workflow 持有基础编号来源校验和确认语义。
 
 # 2026-07-23 BP7 第三、第四批覆盖
 
-| 边界                              | exact 样本                                            | 覆盖状态                                                                                                              |
+| 边界                              | 当前公开样本                                          | 覆盖状态                                                                                                              |
 | --------------------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | 弃至多2张后选择等量目标           | `PL!N-bp7-026-SECL` 分数5「Just Believe!!!」          | 单卡 workflow；实时限缩弃牌上限，标准弃牌事件，等量且不重复的虹咲顶层目标，target-bound BLADE。                       |
 | event-inclusive 声援条件          | N026 与 `PL!SP-bp7-028-L` 分数8「能够听见未来的声音」 | N026 统计 MEMBER 且无任何 BLADE HEART；SP028 要求非空并全部结构化 Liella!，均使用本次声援事件事实而非仅当前可移动卡。 |
 | 精确9张公开集合洗切置底           | SP028                                                 | public confirmation 为 unordered，恢复时整体重验；只洗切所选子集，提交顺序不参与结果，失败不部分移动或发奖励。        |
-| 顶3任意有序回顶、其余入休息室     | `PL!N-bp7-030-L` 分数0「Cheer Mode」                  | 扩展既有 arrange family 的 exact TOP 配置，支持0～实际检视数与短牌库，余牌继续使用 grouped event。                    |
+| 顶3任意有序回顶、其余入休息室     | `PL!N-bp7-030`（当前公开版本 L）分数0「Cheer Mode」 | 扩展既有 arrange family 的 TOP 配置，来源按基础编号覆盖，支持0～实际检视数与短牌库，余牌继续使用 grouped event。        |
 | LIVE_ZONE→HAND 后强制弃1          | N030                                                  | 窄 runtime 原子动作记录精确 ON_ENTER_HAND；单卡 workflow 可从更新后的手牌弃刚回手来源或其他卡，弃牌走标准事件。       |
 | 公开二选一：对方低费成员待机或抽1 | `PL!S-bp7-025-L` 分数3「Guilty Night, Guilty Kiss!」  | card-owned effectChoice；0～2个印刷费用<=4的对方顶层目标，真实状态变化才写目标玩家下一 Active Phase skip marker。     |
 
 本表不表示通用“支付数量→目标数量”、unordered multi、任意 LIVE 离区、任意 arrange 配置或 effectChoice callback DSL 已完成。
+
+## 2026-07-24 BP7 基础编号覆盖 guard
+
+- 同一基础编号各罕度的卡牌类型与完整卡效相同；BP7 definition、workflow gate、continuous registry 与 cost/modifier 查询统一使用 `baseCardCodes` 或等价基础编号 matcher。当前公开罕度只作为数据事实记录。
+- `cardCodes` 不能作为未知罕度隔离手段。本地 `cards.json` 缺失或 API / Excel 仅有某个罕度时，仍按基础编号登记。
+- classification / rarity-sync 应用同一基础编号的替代罕度验证 definition 与 owner route；continuous/cost/modifier 覆盖也须验证替代罕度，无需为未来新增罕度追加 definition。
 
 # PR 第1至第4批覆盖（2026-07-23）
 

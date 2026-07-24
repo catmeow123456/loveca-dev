@@ -8,6 +8,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
@@ -21,7 +22,7 @@ import {
 } from '../../runtime/workflow-helpers.js';
 
 const ABILITY_ID = N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID;
-const EXACT_CARD_CODE = 'PL!N-bp7-031-L';
+const BASE_CARD_CODE = 'PL!N-bp7-031';
 const SELECT_NIJIGASAKI_LIVE_STEP_ID = 'N_BP7_031_SELECT_MILLED_NIJIGASAKI_LIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -249,7 +250,7 @@ function isValidSourceLive(game: GameState, playerId: string, sourceCardId: stri
     source !== null &&
     source.ownerId === playerId &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === EXACT_CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

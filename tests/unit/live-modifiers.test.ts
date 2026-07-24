@@ -2020,7 +2020,7 @@ describe('live modifier helpers', () => {
     expect(getMemberEffectiveCost(withSet!.gameState, 'p1', active.sourceId)).toBe(6);
   });
 
-  it('applies exact PL!SP-bp7-002-P energy-lead stage cost without changing printed selectors', () => {
+  it('applies the PL!SP-bp7-002 base-family energy-lead stage cost without changing printed selectors', () => {
     for (const [ownEnergyOrientations, opponentEnergyCount, expectedCost] of [
       [Array(6).fill(OrientationState.ACTIVE), 5, 2],
       [Array(7).fill(OrientationState.ACTIVE), 7, 2],
@@ -2050,7 +2050,7 @@ describe('live modifier helpers', () => {
     }
   });
 
-  it('requires exact PL!SP-bp7-002-P to remain a top-level member on its controller stage', () => {
+  it('requires PL!SP-bp7-002 to remain a top-level member on its controller stage', () => {
     for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW', 'HAND', 'WAITING_ROOM'] as const) {
       const state = createSpBp7002EffectiveCostState({
         ownEnergyOrientations: Array(7).fill(OrientationState.ACTIVE),
@@ -2065,7 +2065,14 @@ describe('live modifier helpers', () => {
       ownEnergyOrientations: Array(7).fill(OrientationState.ACTIVE),
       opponentEnergyCount: 6,
     });
-    expect(getMemberEffectiveCost(sibling.game, 'p1', sibling.sourceId)).toBe(2);
+    expect(getMemberEffectiveCost(sibling.game, 'p1', sibling.sourceId)).toBe(4);
+
+    const adjacent = createSpBp7002EffectiveCostState({
+      cardCode: 'PL!SP-bp7-003-N',
+      ownEnergyOrientations: Array(7).fill(OrientationState.ACTIVE),
+      opponentEnergyCount: 6,
+    });
+    expect(getMemberEffectiveCost(adjacent.game, 'p1', adjacent.sourceId)).toBe(2);
   });
 
   it('evaluates each PL!SP-bp7-002-P instance from its own controller energy state', () => {
@@ -6206,6 +6213,30 @@ describe('PL!S-bp7-016-N 费用15「国木田花丸」 continuous Heart', () => 
       memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
     }));
     expect(heartsForSource(sourceLeftStage)).toEqual([]);
+  });
+
+  it('matches a sibling rarity by base card code but not the adjacent base', () => {
+    const collectFor = (cardCode: string) => {
+      const source = createStageMember(cardCode, 'p1', `${cardCode}-source`, 1);
+      const left = createStageMember('ALLY-LEFT', 'p1', `${cardCode}-left`, 1);
+      const right = createStageMember('ALLY-RIGHT', 'p1', `${cardCode}-right`, 1);
+      let game = registerCards(
+        createGameState(`${cardCode}-continuous-base`, 'p1', 'P1', 'p2', 'P2'),
+        [source, left, right]
+      );
+      game = placeMemberOnStage(game, 'p1', SlotPosition.CENTER, source.instanceId);
+      game = placeMemberOnStage(game, 'p1', SlotPosition.LEFT, left.instanceId);
+      game = placeMemberOnStage(game, 'p1', SlotPosition.RIGHT, right.instanceId);
+      return collectLiveModifiers(game).filter(
+        (modifier) =>
+          modifier.abilityId ===
+            'PL!S-bp7-016-N:continuous-stage-three-gain-red-green-blue-heart' &&
+          modifier.sourceCardId === source.instanceId
+      );
+    };
+
+    expect(collectFor('PL!S-bp7-016-P')).toHaveLength(1);
+    expect(collectFor('PL!S-bp7-017-P')).toHaveLength(0);
   });
 });
 

@@ -1,3 +1,5 @@
+import { cardCodeMatchesBase } from '@game/shared/utils/card-code';
+
 export interface LocalizedCardLike {
   readonly cardCode: string;
   readonly nameJp?: string | null;
@@ -23,14 +25,14 @@ const COLOR_BLADE_TO_HEART_SOURCE_CORRECTIONS = [
 
 /**
  * Pure display-time correction for a confirmed upstream card-text error. This does not mutate
- * registry/API data and deliberately applies only to the verified exact rarity.
+ * registry/API data and applies to every rarity sharing the verified base card identity.
  */
 export function correctKnownLocalizedCardText(
   cardCode: string,
   value?: string | null
 ): string | null {
   const text = cleanLocalizedText(value);
-  if (text === null || cardCode !== 'PL!N-bp7-025-SECL') {
+  if (text === null || !cardCodeMatchesBase(cardCode, 'PL!N-bp7-025')) {
     return text;
   }
   return COLOR_BLADE_TO_HEART_SOURCE_CORRECTIONS.reduce(

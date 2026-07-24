@@ -170,7 +170,7 @@ function protectedGame(targets: readonly ReturnType<typeof member>[]): GameState
 }
 
 describe('PL!S-bp7-003-SEC 费用4「松浦果南」 definitions', () => {
-  it('registers three exact queued implemented identities with two ON_ENTER and one LIVE_START', () => {
+  it('registers three base-family queued implemented identities with two ON_ENTER and one LIVE_START', () => {
     const definitions = getCardAbilityDefinitionsForCardCode('PL!S-bp7-003-SEC');
     expect(definitions).toHaveLength(3);
     expect(definitions.map((definition) => definition.abilityId)).toEqual([
@@ -181,7 +181,7 @@ describe('PL!S-bp7-003-SEC 费用4「松浦果南」 definitions', () => {
     expect(new Set(definitions.map((definition) => definition.abilityId)).size).toBe(3);
     expect(definitions).toEqual([
       expect.objectContaining({
-        cardCodes: ['PL!S-bp7-003-SEC'],
+        baseCardCodes: ['PL!S-bp7-003'],
         category: CardAbilityCategory.ON_ENTER,
         sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -190,7 +190,7 @@ describe('PL!S-bp7-003-SEC 费用4「松浦果南」 definitions', () => {
         effectText: '【登场】检视自己的卡组顶的卡片。可以将其放置于卡组底。',
       }),
       expect.objectContaining({
-        cardCodes: ['PL!S-bp7-003-SEC'],
+        baseCardCodes: ['PL!S-bp7-003'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -198,7 +198,7 @@ describe('PL!S-bp7-003-SEC 费用4「松浦果南」 definitions', () => {
         implemented: true,
       }),
       expect.objectContaining({
-        cardCodes: ['PL!S-bp7-003-SEC'],
+        baseCardCodes: ['PL!S-bp7-003'],
         category: CardAbilityCategory.ON_ENTER,
         sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -206,15 +206,14 @@ describe('PL!S-bp7-003-SEC 费用4「松浦果南」 definitions', () => {
         implemented: true,
       }),
     ]);
-    expect(definitions.every((definition) => definition.baseCardCodes === undefined)).toBe(true);
-    for (const code of [
-      'PL!S-bp7-003-P',
-      'PL!S-bp7-003-R',
-      'PL!S-bp7-002-SEC',
-      'PL!S-bp7-004-SEC',
-    ]) {
-      expect(getCardAbilityDefinitionsForCardCode(code)).toEqual([]);
-    }
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-003-P')).toHaveLength(3);
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-003-R')).toHaveLength(3);
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-002-SEC')).not.toContainEqual(
+      expect.objectContaining({ abilityId: LOOK_ENTER })
+    );
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-004-SEC')).not.toContainEqual(
+      expect.objectContaining({ abilityId: LOOK_ENTER })
+    );
   });
 });
 

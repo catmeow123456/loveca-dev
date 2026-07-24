@@ -9,6 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { collectCurrentLiveRevealedCheerBladeHeartColors } from '../../../effects/cheer-selection.js';
 import { N_BP7_025_LIVE_SUCCESS_THREE_BLADE_HEART_COLORS_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import {
@@ -17,7 +18,7 @@ import {
 } from '../../runtime/workflow-helpers.js';
 
 const ABILITY_ID = N_BP7_025_LIVE_SUCCESS_THREE_BLADE_HEART_COLORS_SCORE_ABILITY_ID;
-const EXACT_CARD_CODE = 'PL!N-bp7-025-SECL';
+const BASE_CARD_CODE = 'PL!N-bp7-025';
 const SCORE_BONUS = 1;
 const REQUIRED_COLOR_COUNT = 3;
 const COUNTED_HEART_COLORS = [
@@ -123,7 +124,7 @@ function evaluateLiveSuccess(
     sourceCard !== null &&
     sourceCard.ownerId === player.id &&
     isLiveCardData(sourceCard.data) &&
-    sourceCard.data.cardCode === EXACT_CARD_CODE &&
+    cardCodeMatchesBase(sourceCard.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCard.instanceId);
   const colorSet = sourceInLiveZone
     ? collectCurrentLiveRevealedCheerBladeHeartColors(game, ability.controllerId, {

@@ -83,7 +83,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 不要在 action handler 里散落具体卡效。
 - 具体卡效定义层集中在 `src/application/card-effects/definitions/index.ts`；具体卡牌流程与同型 family 分别放在 `src/application/card-effects/workflows/cards/` 和 `workflows/shared/`，原子动作与 activeEffect/pending runtime 放在 `src/application/card-effects/runtime/`。`card-effect-runner.ts` 的完整卡效 fallback 已清空，当前只保留调度、生命周期、registry 注册及尚未迁出的 matcher / relay / trigger 条件胶水；不要把具体 resolver 写回 runner。
 - 新增卡效前先在 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
-- 新增卡效时必须先用 `llocg_db/json/cards_cn.json` 或本地卡牌数据确认同基础编号的全部罕度。若同基础编号不同罕度效果文本一致，优先在 `CARD_ABILITY_DEFINITIONS.baseCardCodes` 登记基础编号，并在 resolver / cost calculator / live modifier registry 中使用基础编号判断；不要只给单一罕度写 `cardCodes` 或硬编码 `cardCode === '...-P'`。若只覆盖部分罕度，必须在 `existing_module_map.md` 说明原因。`tests/unit/card-effect-rarity-sync.test.ts` 会阻止 exact `cardCodes` 漏同步同编号罕度。
+- 卡牌领域不变量：同一“去掉罕度后缀的基础编号”下，各罕度的卡牌类型与完整卡效相同；罕度后缀不是效果边界。卡效 definition、workflow gate、continuous registry、cost/modifier 查询一律按基础编号覆盖，不得把 `cardCodes` 当作“防止尚未发现的罕度自动获得效果”的保险丝，也不得硬编码 `cardCode === '...-P'`。BP7 默认且必须使用 `baseCardCodes`；公开 API / Excel 当前只出现一个具体罕度，只是印刷数据事实，不缩小规则覆盖。
+- 新增卡效时仍要用 `llocg_db/json/cards.json`、公开玩家 API 或最新 Excel 核对卡牌类型、日文卡文与当前公开罕度；本地 `cards.json` 缺失或只有 API/Excel 数据，不构成 exact `cardCodes` 登记理由。`existing_module_map.md` 应以基础编号登记覆盖范围，可另注“当前公开版本为某罕度”。罕度同步测试应锁定基础编号覆盖，未知罕度出现时无需再追加 definition。
 - 需要隐藏信息时，以 `projector` / visibility / inspection context 控制前端可见性。
 - 本地测试和正式网页桌面应尽量复用同一套组件和命令，不做“双轨 UI”。
 - 自动费用、撤销、检视区、效果弹窗等交互应以玩家视角自然为优先，但底层仍要记录可审计动作。

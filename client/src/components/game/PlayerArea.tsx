@@ -117,9 +117,11 @@ interface CardActionMenuItem {
 const CardActionMenu = memo(function CardActionMenu({
   items,
   placement = 'above',
+  layer = 'battle',
 }: {
   readonly items: readonly CardActionMenuItem[];
   readonly placement?: 'above' | 'below';
+  readonly layer?: 'battle' | 'modal';
 }) {
   const preferredWidth = Math.min(
     420,
@@ -199,7 +201,12 @@ const CardActionMenu = memo(function CardActionMenu({
         createPortal(
           <div
             data-battle-animation-ignore="true"
-            className="fixed z-[140] flex flex-col gap-1 overflow-y-auto overscroll-contain"
+            className={cn(
+              'fixed flex flex-col gap-1 overflow-y-auto overscroll-contain',
+              layer === 'modal'
+                ? 'z-[var(--z-battle-modal-action-menu)]'
+                : 'z-[var(--z-battle-action-menu)]'
+            )}
             style={{
               left: layout.left,
               top: layout.top,
@@ -1673,6 +1680,7 @@ export const PlayerArea = memo(function PlayerArea({
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
                                     <CardActionMenu
+                                      layer="modal"
                                       items={activatedAbilityConfigs.map((config) => ({
                                         id: config.abilityId,
                                         text: config.text,

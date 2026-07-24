@@ -283,12 +283,12 @@ function events(game: GameState, trigger: TriggerCondition) {
   return game.eventLog.filter(({ event }) => event.eventType === trigger);
 }
 
-describe('bp7 energy batch exact definitions', () => {
-  it('registers exact LIVE-card definitions with token-compatible public text', () => {
+describe('bp7 energy batch base-card definitions', () => {
+  it('registers base-family LIVE-card definitions with token-compatible public text', () => {
     expect(getCardAbilityDefinitionsForCardCode(S_CARD_CODE)).toEqual([
       expect.objectContaining({
         abilityId: S_BP7_023_LIVE_START_RETURN_ONE_ENERGY_DIFFERENCE_SCORE_ABILITY_ID,
-        cardCodes: [S_CARD_CODE],
+        baseCardCodes: ['PL!S-bp7-023'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -307,9 +307,15 @@ describe('bp7 energy batch exact definitions', () => {
         effectText: SP_SUCCESS_EFFECT_TEXT,
       }),
     ]);
-    for (const code of ['PL!S-bp7-023-P', 'PL!S-bp7-023-SECL', 'PL!SP-bp7-027-P']) {
-      expect(getCardAbilityDefinitionsForCardCode(code)).toEqual([]);
-    }
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-023-P')).toHaveLength(1);
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-023-SECL')).toHaveLength(1);
+    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-027-P')).toHaveLength(2);
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-024-L')).toEqual([]);
+    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-028-L')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: SP_BP7_027_LIVE_START_RETURN_ONE_ENERGY_LEAD_SCORE_ABILITY_ID,
+      })
+    );
   });
 });
 

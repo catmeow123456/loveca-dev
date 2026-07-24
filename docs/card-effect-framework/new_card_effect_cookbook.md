@@ -44,15 +44,15 @@
 
 ### 顶牌进入休息室的窄边界
 
-- 冒号前的顶牌费用使用 `moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers`：只从当前主卡组完整支付，移动后再处理规则刷新，并保留本次 grouped moved IDs。当前主卡组不足时不能发动；恰好 N 张支付后刷新仍读取原 moved IDs。卡牌命中与后续选择留在单卡 workflow；当前 exact 样本是 `PL!N-bp7-006-SEC`。
-- 同一效果让多个 owner 顶牌直送休息室时使用 `moveTopDeckCardsForPlayersWithRefreshAndEnqueueTriggers`：各 owner 独立执行既有 WithRefresh direct mill，主动玩家优先，全部完成后统一 enqueue。不得合并跨 owner 事件，也不得让第一方触发插入第二方移动；当前 exact 样本是 `PL!N-bp7-009-P`。
+- 冒号前的顶牌费用使用 `moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers`：只从当前主卡组完整支付，移动后再处理规则刷新，并保留本次 grouped moved IDs。当前主卡组不足时不能发动；恰好 N 张支付后刷新仍读取原 moved IDs。卡牌命中与后续选择留在单卡 workflow；当前公开样本是 `PL!N-bp7-006-SEC`，效果按基础编号 `PL!N-bp7-006` 覆盖。
+- 同一效果让多个 owner 顶牌直送休息室时使用 `moveTopDeckCardsForPlayersWithRefreshAndEnqueueTriggers`：各 owner 独立执行既有 WithRefresh direct mill，主动玩家优先，全部完成后统一 enqueue。不得合并跨 owner 事件，也不得让第一方触发插入第二方移动；当前公开样本是 `PL!N-bp7-009-P`，效果按基础编号 `PL!N-bp7-009` 覆盖。
 - 两个 helper 的完整边界与 focused test 轴见 `runtime_action_helpers.md`；不要把它们扩成费用或 direct-mill steps DSL。
 
 ### 检视卡组顶/底并整理
 
 - 优先使用 `workflows/shared/arrange-inspected-deck-edge.ts`。默认边缘为 `TOP`；只有真实卡文明确检视卡组底时才配置 `BOTTOM`，不要从玩家文案或卡号推断方向。
 - `effects/look-top.ts` 的底部检视返回顺序是“最下方在前”。底部 ordered selection 的数字1也表示最终最下方；归位必须走 inspection-to-deck-bottom/waiting-room wrapper，保证 inspection 清理与 grouped `MAIN_DECK -> WAITING_ROOM` 事件一致。
-- 卡组顶的既有公开摘要仍只服务顶牌流程；底牌是私密信息时不得复用会暗示“卡组顶”的 summary。当前 exact 底部样本是 `PL!S-bp7-004-P` 费用13「黑泽黛雅」。
+- 卡组顶的既有公开摘要仍只服务顶牌流程；底牌是私密信息时不得复用会暗示“卡组顶”的 summary。当前公开底部样本是 `PL!S-bp7-004-P` 费用13「黑泽黛雅」，效果按基础编号 `PL!S-bp7-004` 覆盖。
 
 ## Hidden Information Modifier Visibility
 

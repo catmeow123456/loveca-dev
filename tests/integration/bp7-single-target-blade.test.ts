@@ -345,7 +345,7 @@ describe('BP7 single-target BLADE shared family expansion', () => {
     ]);
   });
 
-  it('keeps Chisato 0/1-target paths deterministic and rejects a forged source card code', () => {
+  it('keeps Chisato 0/1-target paths deterministic and rejects an adjacent-base source', () => {
     const none = startLiveStart(setupChisatoTargets(0).game);
     expect(none.activeEffect).toBeNull();
 
@@ -358,7 +358,7 @@ describe('BP7 single-target BLADE shared family expansion', () => {
     ).toHaveLength(1);
 
     const forgedSource = createCardInstance(
-      live('PL!SP-bp7-025-P', 3),
+      live('PL!SP-bp7-024-P', 3),
       PLAYER1,
       'forged-sp-bp7-025-source'
     );

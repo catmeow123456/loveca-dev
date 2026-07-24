@@ -13315,7 +13315,7 @@ describe('HS pb1 newly implemented card classifications', () => {
     }
   });
 
-  it('registers all seven bp7 SEC abilities with exact card codes', () => {
+  it('registers all seven bp7 SEC abilities by base card code across rarities', () => {
     const expectedByCard = new Map<string, readonly string[]>([
       [
         'PL!SP-bp7-005-SEC',
@@ -13348,10 +13348,17 @@ describe('HS pb1 newly implemented card classifications', () => {
         new Set(abilityIds)
       );
       for (const definition of cardDefinitions) {
-        expect(definition.cardCodes).toEqual([cardCode]);
-        expect(definition.baseCardCodes).toBeUndefined();
+        expect(definition.cardCodes).toBeUndefined();
+        expect(definition.baseCardCodes).toEqual([cardCode.replace(/-[^-]+$/, '')]);
         expect(definition.implemented).toBe(true);
       }
+      expect(
+        new Set(
+          getCardAbilityDefinitions(cardCode.replace(/-[^-]+$/, '-P')).map(
+            (definition) => definition.abilityId
+          )
+        )
+      ).toEqual(new Set(abilityIds));
       return cardDefinitions;
     });
     expect(definitions).toHaveLength(8);
@@ -14643,13 +14650,13 @@ describe('PL!S-bp7-006-P 费用2「津岛善子」与 PL!S-bp7-015-N 费用5「�
       '[赤ハート]',
     ],
   ])(
-    'registers exact %s as one implemented queued LIVE_START ability',
+    'registers %s by base card code as one implemented queued LIVE_START ability',
     (cardCode, abilityId, token) => {
       const definitions = getCardAbilityDefinitions(cardCode);
       expect(definitions).toEqual([
         expect.objectContaining({
           abilityId,
-          cardCodes: [cardCode],
+          baseCardCodes: [cardCode.replace(/-[^-]+$/, '')],
           category: CardAbilityCategory.LIVE_START,
           sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
           triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14658,21 +14665,23 @@ describe('PL!S-bp7-006-P 费用2「津岛善子」与 PL!S-bp7-015-N 费用5「�
           effectText: expect.stringContaining(token),
         }),
       ]);
-      expect(definitions[0]?.baseCardCodes).toBeUndefined();
+      expect(definitions[0]?.cardCodes).toBeUndefined();
       expect(
         CARD_ABILITY_DEFINITIONS.filter((definition) => definition.abilityId === abilityId)
       ).toHaveLength(1);
     }
   );
 
-  it('does not speculate unverified rarity-family coverage', () => {
-    expect(getCardAbilityDefinitions('PL!S-bp7-006-R')).toEqual([]);
-    expect(getCardAbilityDefinitions('PL!S-bp7-015-P')).toEqual([]);
+  it('covers sibling rarities without crossing adjacent base numbers', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp7-006-R')).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!S-bp7-015-P')).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!S-bp7-007-R')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-014-P')).toEqual([]);
   });
 });
 
 describe('PL!S-bp7-020-SECL 分数3「快乐派对火车」与 PL!S-bp7-021-L 分数5「我们的旅程永不落幕」 definitions', () => {
-  it('registers the two exact SECL LIVE_START abilities independently', () => {
+  it('registers the two base-scoped LIVE_START abilities independently', () => {
     const definitions = getCardAbilityDefinitions('PL!S-bp7-020-SECL');
     expect(definitions).toHaveLength(2);
     expect(definitions.map((definition) => definition.abilityId)).toEqual([
@@ -14681,22 +14690,22 @@ describe('PL!S-bp7-020-SECL 分数3「快乐派对火车」与 PL!S-bp7-021-L �
     ]);
     for (const definition of definitions) {
       expect(definition).toMatchObject({
-        cardCodes: ['PL!S-bp7-020-SECL'],
+        baseCardCodes: ['PL!S-bp7-020'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
         queued: true,
         implemented: true,
       });
-      expect(definition.baseCardCodes).toBeUndefined();
+      expect(definition.cardCodes).toBeUndefined();
     }
   });
 
-  it('registers the exact L 021 ability without speculative rarity coverage', () => {
+  it('registers 021 by base code and covers sibling rarities', () => {
     expect(getCardAbilityDefinitions('PL!S-bp7-021-L')).toEqual([
       expect.objectContaining({
         abilityId: S_BP7_021_LIVE_START_STAGE_THREE_MILL_BOTTOM_FIVE_MEMBER_REWARDS_ABILITY_ID,
-        cardCodes: ['PL!S-bp7-021-L'],
+        baseCardCodes: ['PL!S-bp7-021'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14704,19 +14713,25 @@ describe('PL!S-bp7-020-SECL 分数3「快乐派对火车」与 PL!S-bp7-021-L �
         implemented: true,
       }),
     ]);
-    expect(getCardAbilityDefinitions('PL!S-bp7-020-L')).toEqual([]);
-    expect(getCardAbilityDefinitions('PL!S-bp7-021-SECL')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-020-L')).toHaveLength(2);
+    expect(getCardAbilityDefinitions('PL!S-bp7-021-SECL')).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!S-bp7-019-SECL')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId:
+          S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
+      })
+    );
   });
 });
 
 describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 definitions', () => {
-  it('registers exact SECL continuous direction and queued LIVE_SUCCESS as independent abilities', () => {
+  it('registers base-scoped continuous direction and queued LIVE_SUCCESS as independent abilities', () => {
     const definitions = getCardAbilityDefinitions('PL!S-bp7-022-SECL');
     expect(definitions).toHaveLength(2);
     expect(definitions).toEqual([
       expect.objectContaining({
         abilityId: S_BP7_022_CONTINUOUS_CHEER_FROM_DECK_BOTTOM_ABILITY_ID,
-        cardCodes: ['PL!S-bp7-022-SECL'],
+        baseCardCodes: ['PL!S-bp7-022'],
         category: CardAbilityCategory.CONTINUOUS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         queued: false,
@@ -14724,7 +14739,7 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 definitions', () 
       }),
       expect.objectContaining({
         abilityId: S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID,
-        cardCodes: ['PL!S-bp7-022-SECL'],
+        baseCardCodes: ['PL!S-bp7-022'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -14734,13 +14749,18 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 definitions', () 
       }),
     ]);
     for (const definition of definitions) {
-      expect(definition.baseCardCodes).toBeUndefined();
+      expect(definition.cardCodes).toBeUndefined();
     }
-    expect(getCardAbilityDefinitions('PL!S-bp7-022-L')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-022-L')).toHaveLength(2);
+    expect(getCardAbilityDefinitions('PL!S-bp7-023-L')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: S_BP7_022_CONTINUOUS_CHEER_FROM_DECK_BOTTOM_ABILITY_ID,
+      })
+    );
   });
 });
 
-describe('bp7 exact member definitions batch four', () => {
+describe('bp7 base-scoped member definitions batch four', () => {
   it.each([
     [
       'PL!S-bp7-002-P',
@@ -14770,12 +14790,12 @@ describe('bp7 exact member definitions batch four', () => {
       1,
     ],
   ] as const)(
-    'registers only exact %s',
+    'registers %s by base card code',
     (cardCode, abilityId, category, sourceZone, triggerCondition, queued, perTurnLimit) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([
         expect.objectContaining({
           abilityId,
-          cardCodes: [cardCode],
+          baseCardCodes: [cardCode.replace(/-[^-]+$/, '')],
           category,
           sourceZone,
           ...(triggerCondition === undefined ? {} : { triggerCondition }),
@@ -14784,24 +14804,24 @@ describe('bp7 exact member definitions batch four', () => {
           ...(perTurnLimit === undefined ? {} : { perTurnLimit }),
         }),
       ]);
-      expect(getCardAbilityDefinitions(cardCode)[0]?.baseCardCodes).toBeUndefined();
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
     }
   );
 
   it.each(['PL!S-bp7-002-N', 'PL!S-bp7-016-P', 'PL!SP-bp7-014-P'])(
-    'does not authorize sibling rarity %s',
+    'authorizes sibling rarity %s',
     (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).not.toEqual([]);
     }
   );
 });
 
-describe('PL!S-bp7-004-P 费用13「黑泽黛雅」 exact definitions', () => {
+describe('PL!S-bp7-004 费用13「黑泽黛雅」 base-scoped definitions', () => {
   it('registers the relay-gated ON_ENTER and deck-bottom LIVE_START segments independently', () => {
     expect(getCardAbilityDefinitions('PL!S-bp7-004-P')).toEqual([
       expect.objectContaining({
         abilityId: S_BP7_004_ON_ENTER_AQOURS_RELAY_KEEP_THREE_HAND_BOTTOM_DRAW_THREE_ABILITY_ID,
-        cardCodes: ['PL!S-bp7-004-P'],
+        baseCardCodes: ['PL!S-bp7-004'],
         category: CardAbilityCategory.ON_ENTER,
         sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -14816,7 +14836,7 @@ describe('PL!S-bp7-004-P 费用13「黑泽黛雅」 exact definitions', () => {
       }),
       expect.objectContaining({
         abilityId: S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
-        cardCodes: ['PL!S-bp7-004-P'],
+        baseCardCodes: ['PL!S-bp7-004'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -14828,16 +14848,22 @@ describe('PL!S-bp7-004-P 费用13「黑泽黛雅」 exact definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!S-bp7-004-P').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!S-bp7-004')
       )
     ).toBe(true);
-    expect(getCardAbilityDefinitions('PL!S-bp7-004-N')).toEqual([]);
-    expect(getCardAbilityDefinitions('PL!S-bp7-004-SEC')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-004-N')).toHaveLength(2);
+    expect(getCardAbilityDefinitions('PL!S-bp7-004-SEC')).toHaveLength(2);
+    expect(getCardAbilityDefinitions('PL!S-bp7-003-P')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
+      })
+    );
   });
 });
 
-describe('BP7 memberBelow batch exact definitions', () => {
-  it('registers Kanon, Shizuku, and You as exact-only independent ability segments', () => {
+describe('BP7 memberBelow batch base-scoped definitions', () => {
+  it('registers Kanon, Shizuku, and You as base-scoped independent ability segments', () => {
     expect(getCardAbilityDefinitions('PL!SP-bp7-001-P')).toEqual([
       expect.objectContaining({
         abilityId: SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
@@ -14893,13 +14919,18 @@ describe('BP7 memberBelow batch exact definitions', () => {
       }),
     ]);
     for (const code of ['PL!SP-bp7-001-SEC', 'PL!N-bp7-003-P', 'PL!S-bp7-005-P']) {
-      expect(getCardAbilityDefinitions(code)).toEqual([]);
+      expect(getCardAbilityDefinitions(code)).not.toEqual([]);
     }
+    expect(getCardAbilityDefinitions('PL!SP-bp7-003-SEC')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
+      })
+    );
   });
 });
 
-describe('BP7 energyBelow batch exact definitions', () => {
-  it('registers only the four authorized exact card codes and separates Setsuna segments', () => {
+describe('BP7 energyBelow batch base-scoped definitions', () => {
+  it('registers the four base codes across rarities and separates Setsuna segments', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-004-P')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
@@ -14940,17 +14971,18 @@ describe('BP7 energyBelow batch exact definitions', () => {
       'PL!N-bp7-007-P',
       'PL!N-bp7-019-P',
     ]) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).not.toEqual([]);
     }
+    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).toEqual([]);
   });
 });
 
-describe('BP7 first card-effect batch exact definitions', () => {
+describe('BP7 first card-effect batch base-scoped definitions', () => {
   it('registers Kanata as two independent activated identities and Rina as one queued on-enter identity', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-006-SEC')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-006-SEC'],
+        baseCardCodes: ['PL!N-bp7-006'],
         category: CardAbilityCategory.ACTIVATED,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         queued: false,
@@ -14959,7 +14991,7 @@ describe('BP7 first card-effect batch exact definitions', () => {
       }),
       expect.objectContaining({
         abilityId: N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-006-SEC'],
+        baseCardCodes: ['PL!N-bp7-006'],
         category: CardAbilityCategory.ACTIVATED,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         queued: false,
@@ -14970,7 +15002,7 @@ describe('BP7 first card-effect batch exact definitions', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-009-P')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-009-P'],
+        baseCardCodes: ['PL!N-bp7-009'],
         category: CardAbilityCategory.ON_ENTER,
         sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -14980,21 +15012,25 @@ describe('BP7 first card-effect batch exact definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!N-bp7-006-SEC').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!N-bp7-006')
       )
     ).toBe(true);
-    expect(getCardAbilityDefinitions('PL!N-bp7-009-P')[0]?.baseCardCodes).toBeUndefined();
+    expect(getCardAbilityDefinitions('PL!N-bp7-009-P')[0]?.cardCodes).toBeUndefined();
   });
 
   it.each(['PL!N-bp7-006-P', 'PL!N-bp7-006-R', 'PL!N-bp7-009-N', 'PL!N-bp7-009-SEC'])(
-    'does not match the unverified nearby code %s',
+    'matches the sibling rarity %s',
     (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).not.toEqual([]);
     }
   );
+  it('does not cross into an adjacent base card number', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).toEqual([]);
+  });
 });
 
-describe('PL!SP-bp7 A batch exact continuous definitions', () => {
+describe('PL!SP-bp7 A batch base-scoped continuous definitions', () => {
   it.each([
     [
       'PL!SP-bp7-002-P',
@@ -15006,13 +15042,13 @@ describe('PL!SP-bp7 A batch exact continuous definitions', () => {
       SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
       '【常时】只要自己的舞台上存在大于等于3名『KALEIDOSCORE』的成员，获得[紫ハート][ブレード]。',
     ],
-  ] as const)('registers only exact %s', (cardCode, abilityId, effectText) => {
+  ] as const)('registers %s by base card code', (cardCode, abilityId, effectText) => {
     const definitions = getCardAbilityDefinitions(cardCode);
     expect(definitions).toHaveLength(1);
     expect(definitions).toEqual([
       expect.objectContaining({
         abilityId,
-        cardCodes: [cardCode],
+        baseCardCodes: [cardCode.replace(/-[^-]+$/, '')],
         category: CardAbilityCategory.CONTINUOUS,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         queued: false,
@@ -15020,24 +15056,24 @@ describe('PL!SP-bp7 A batch exact continuous definitions', () => {
         effectText,
       }),
     ]);
-    expect(definitions[0]?.baseCardCodes).toBeUndefined();
+    expect(definitions[0]?.cardCodes).toBeUndefined();
     expect(definitions[0]?.triggerCondition).toBeUndefined();
   });
 
   it.each(['PL!SP-bp7-002-N', 'PL!SP-bp7-002-R', 'PL!SP-bp7-013-P', 'PL!SP-bp7-013-SEC'])(
-    'does not match unverified sibling rarity %s',
+    'matches sibling rarity %s',
     (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).not.toEqual([]);
     }
   );
 });
 
-describe('PL!SP-bp7-026-L exact LIVE_START definition', () => {
-  it('registers only Dears L as an implemented queued LIVE-card ability', () => {
+describe('PL!SP-bp7-026 base-scoped LIVE_START definition', () => {
+  it('registers Dears across rarities as an implemented queued LIVE-card ability', () => {
     expect(getCardAbilityDefinitions('PL!SP-bp7-026-L')).toEqual([
       expect.objectContaining({
         abilityId: SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-026-L'],
+        baseCardCodes: ['PL!SP-bp7-026'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15047,18 +15083,23 @@ describe('PL!SP-bp7-026-L exact LIVE_START definition', () => {
           '【LIVE开始时】可以将存在于能量区的1张能量放置入能量卡组：自己的舞台上存在「叶月恋」的场合，抽2张卡，将1张手牌放置入休息室。',
       }),
     ]);
-    expect(getCardAbilityDefinitions('PL!SP-bp7-026-L')[0]?.baseCardCodes).toBeUndefined();
-    expect(getCardAbilityDefinitions('PL!SP-bp7-026-P')).toEqual([]);
-    expect(getCardAbilityDefinitions('PL!SP-bp7-026-SECL')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!SP-bp7-026-L')[0]?.cardCodes).toBeUndefined();
+    expect(getCardAbilityDefinitions('PL!SP-bp7-026-P')).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!SP-bp7-026-SECL')).toHaveLength(1);
+    expect(getCardAbilityDefinitions('PL!SP-bp7-025-L')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+      })
+    );
   });
 });
 
-describe('BP7 energy-return LIVE exact definitions', () => {
-  it('registers only PL!S-bp7-023-L LIVE_START', () => {
+describe('BP7 energy-return LIVE base-scoped definitions', () => {
+  it('registers PL!S-bp7-023 across rarities', () => {
     expect(getCardAbilityDefinitions('PL!S-bp7-023-L')).toEqual([
       expect.objectContaining({
         abilityId: S_BP7_023_LIVE_START_RETURN_ONE_ENERGY_DIFFERENCE_SCORE_ABILITY_ID,
-        cardCodes: ['PL!S-bp7-023-L'],
+        baseCardCodes: ['PL!S-bp7-023'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15068,17 +15109,17 @@ describe('BP7 energy-return LIVE exact definitions', () => {
           '【LIVE开始时】自己的舞台上存在大于等于2名『Aqours』的成员的场合，可以将自己的1张能量放置入能量卡组。如此做时，对方的能量比自己多1张的场合，此卡的[スコア]+1。多大于等于2张的场合，改为[スコア]+2。',
       }),
     ]);
-    expect(getCardAbilityDefinitions('PL!S-bp7-023-L')[0]?.baseCardCodes).toBeUndefined();
+    expect(getCardAbilityDefinitions('PL!S-bp7-023-L')[0]?.cardCodes).toBeUndefined();
     for (const cardCode of ['PL!S-bp7-023-P', 'PL!S-bp7-023-SECL']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(1);
     }
   });
 
-  it('registers the two printed segments only for PL!SP-bp7-027-L', () => {
+  it('registers the two printed segments for the PL!SP-bp7-027 family', () => {
     expect(getCardAbilityDefinitions('PL!SP-bp7-027-L')).toEqual([
       expect.objectContaining({
         abilityId: SP_BP7_027_LIVE_START_RETURN_ONE_ENERGY_LEAD_SCORE_ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-027-L'],
+        baseCardCodes: ['PL!SP-bp7-027'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15089,7 +15130,7 @@ describe('BP7 energy-return LIVE exact definitions', () => {
       }),
       expect.objectContaining({
         abilityId: SP_BP7_027_LIVE_SUCCESS_PLACE_SKIPPED_WAITING_ENERGY_ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-027-L'],
+        baseCardCodes: ['PL!SP-bp7-027'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15101,21 +15142,22 @@ describe('BP7 energy-return LIVE exact definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!SP-bp7-027-L').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!SP-bp7-027')
       )
     ).toBe(true);
     for (const cardCode of ['PL!SP-bp7-027-P', 'PL!SP-bp7-027-SECL']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(2);
     }
   });
 });
 
-describe('PL!N-bp7-027-L exact LIVE_SUCCESS definition', () => {
-  it('registers only Audrey L as an implemented queued LIVE-card ability', () => {
+describe('PL!N-bp7-027 base-scoped LIVE_SUCCESS definition', () => {
+  it('registers Audrey across rarities as an implemented queued LIVE-card ability', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-027-L')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-027-L'],
+        baseCardCodes: ['PL!N-bp7-027'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15123,19 +15165,24 @@ describe('PL!N-bp7-027-L exact LIVE_SUCCESS definition', () => {
         implemented: true,
       }),
     ]);
-    expect(getCardAbilityDefinitions('PL!N-bp7-027-L')[0]?.baseCardCodes).toBeUndefined();
-    for (const cardCode of ['PL!N-bp7-027-P', 'PL!N-bp7-027-SECL', 'PL!N-bp7-026-L']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-027-L')[0]?.cardCodes).toBeUndefined();
+    for (const cardCode of ['PL!N-bp7-027-P', 'PL!N-bp7-027-SECL']) {
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(1);
     }
+    expect(getCardAbilityDefinitions('PL!N-bp7-026-L')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
+      })
+    );
   });
 });
 
-describe('BP7 single-target BLADE exact LIVE definitions', () => {
-  it('registers both printed abilities only for PL!N-bp7-025-SECL with corrected HEART text', () => {
+describe('BP7 single-target BLADE base-scoped LIVE definitions', () => {
+  it('registers both printed abilities for PL!N-bp7-025 with corrected HEART text', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-025-SECL')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-025-SECL'],
+        baseCardCodes: ['PL!N-bp7-025'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15146,7 +15193,7 @@ describe('BP7 single-target BLADE exact LIVE definitions', () => {
       }),
       expect.objectContaining({
         abilityId: N_BP7_025_LIVE_SUCCESS_THREE_BLADE_HEART_COLORS_SCORE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-025-SECL'],
+        baseCardCodes: ['PL!N-bp7-025'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15158,19 +15205,25 @@ describe('BP7 single-target BLADE exact LIVE definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!N-bp7-025-SECL').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!N-bp7-025')
       )
     ).toBe(true);
-    for (const cardCode of ['PL!N-bp7-025-L', 'PL!N-bp7-025-SEC', 'PL!N-bp7-024-SECL']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    for (const cardCode of ['PL!N-bp7-025-L', 'PL!N-bp7-025-SEC']) {
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(2);
     }
+    expect(getCardAbilityDefinitions('PL!N-bp7-024-SECL')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+      })
+    );
   });
 
-  it('registers only the exact PL!SP-bp7-025-L LIVE_START ability', () => {
+  it('registers the PL!SP-bp7-025 LIVE_START ability across rarities', () => {
     expect(getCardAbilityDefinitions('PL!SP-bp7-025-L')).toEqual([
       expect.objectContaining({
         abilityId: SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-025-L'],
+        baseCardCodes: ['PL!SP-bp7-025'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15179,19 +15232,24 @@ describe('BP7 single-target BLADE exact LIVE definitions', () => {
         effectText: '【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名『岚千砂都』获得[BLADE]。',
       }),
     ]);
-    expect(getCardAbilityDefinitions('PL!SP-bp7-025-L')[0]?.baseCardCodes).toBeUndefined();
-    for (const cardCode of ['PL!SP-bp7-025-P', 'PL!SP-bp7-025-SECL', 'PL!SP-bp7-024-L']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!SP-bp7-025-L')[0]?.cardCodes).toBeUndefined();
+    for (const cardCode of ['PL!SP-bp7-025-P', 'PL!SP-bp7-025-SECL']) {
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(1);
     }
+    expect(getCardAbilityDefinitions('PL!SP-bp7-024-L')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
+      })
+    );
   });
 });
 
-describe('BP7 remaining exact LIVE definitions', () => {
-  it('registers both printed abilities only for PL!N-bp7-026-SECL', () => {
+describe('BP7 remaining base-scoped LIVE definitions', () => {
+  it('registers both printed abilities for the PL!N-bp7-026 family', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-026-SECL')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-026-SECL'],
+        baseCardCodes: ['PL!N-bp7-026'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15200,7 +15258,7 @@ describe('BP7 remaining exact LIVE definitions', () => {
       }),
       expect.objectContaining({
         abilityId: N_BP7_026_LIVE_SUCCESS_TWO_NO_BLADE_HEART_MEMBERS_SCORE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-026-SECL'],
+        baseCardCodes: ['PL!N-bp7-026'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15210,19 +15268,25 @@ describe('BP7 remaining exact LIVE definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!N-bp7-026-SECL').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!N-bp7-026')
       )
     ).toBe(true);
-    for (const cardCode of ['PL!N-bp7-026-L', 'PL!N-bp7-026-SEC', 'PL!N-bp7-024-SECL']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    for (const cardCode of ['PL!N-bp7-026-L', 'PL!N-bp7-026-SEC']) {
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(2);
     }
+    expect(getCardAbilityDefinitions('PL!N-bp7-024-SECL')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID,
+      })
+    );
   });
 
-  it('registers both printed abilities only for PL!SP-bp7-028-L', () => {
+  it('registers both printed abilities for the PL!SP-bp7-028 family', () => {
     expect(getCardAbilityDefinitions('PL!SP-bp7-028-L')).toEqual([
       expect.objectContaining({
         abilityId: SP_BP7_028_LIVE_START_BOTTOM_NINE_LIELLA_MEMBERS_ALL_STAGE_GAIN_BLADE_ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-028-L'],
+        baseCardCodes: ['PL!SP-bp7-028'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15231,7 +15295,7 @@ describe('BP7 remaining exact LIVE definitions', () => {
       }),
       expect.objectContaining({
         abilityId: SP_BP7_028_LIVE_SUCCESS_ALL_CHEER_LIELLA_SCORE_ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-028-L'],
+        baseCardCodes: ['PL!SP-bp7-028'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15241,19 +15305,20 @@ describe('BP7 remaining exact LIVE definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!SP-bp7-028-L').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!SP-bp7-028')
       )
     ).toBe(true);
     for (const cardCode of ['PL!SP-bp7-028-P', 'PL!SP-bp7-028-SECL']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(2);
     }
   });
 
-  it('registers both printed LIVE_SUCCESS abilities only for PL!N-bp7-030-L', () => {
+  it('registers both printed LIVE_SUCCESS abilities for the PL!N-bp7-030 family', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-030-L')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-030-L'],
+        baseCardCodes: ['PL!N-bp7-030'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15262,7 +15327,7 @@ describe('BP7 remaining exact LIVE definitions', () => {
       }),
       expect.objectContaining({
         abilityId: N_BP7_030_LIVE_SUCCESS_RETURN_SELF_TO_HAND_DISCARD_ONE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-030-L'],
+        baseCardCodes: ['PL!N-bp7-030'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15272,19 +15337,20 @@ describe('BP7 remaining exact LIVE definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!N-bp7-030-L').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!N-bp7-030')
       )
     ).toBe(true);
     for (const cardCode of ['PL!N-bp7-030-P', 'PL!N-bp7-030-SECL']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(2);
     }
   });
 
-  it('registers the exact PL!S-bp7-025-L LIVE_SUCCESS choice ability', () => {
+  it('registers the PL!S-bp7-025 LIVE_SUCCESS choice ability across rarities', () => {
     expect(getCardAbilityDefinitions('PL!S-bp7-025-L')).toEqual([
       expect.objectContaining({
         abilityId: S_BP7_025_LIVE_SUCCESS_CHOOSE_WAIT_TWO_LOW_COST_OR_DRAW_ONE_ABILITY_ID,
-        cardCodes: ['PL!S-bp7-025-L'],
+        baseCardCodes: ['PL!S-bp7-025'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15292,20 +15358,20 @@ describe('BP7 remaining exact LIVE definitions', () => {
         implemented: true,
       }),
     ]);
-    expect(getCardAbilityDefinitions('PL!S-bp7-025-L')[0]?.baseCardCodes).toBeUndefined();
+    expect(getCardAbilityDefinitions('PL!S-bp7-025-L')[0]?.cardCodes).toBeUndefined();
     for (const cardCode of ['PL!S-bp7-025-P', 'PL!S-bp7-025-SECL']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(1);
     }
   });
 });
 
-describe('PL!N-bp7-028-L exact LIVE_START definition', () => {
-  it('registers only Cooking with Love L as an implemented queued LIVE-card ability', () => {
+describe('PL!N-bp7-028 base-scoped LIVE_START definition', () => {
+  it('registers Cooking with Love across rarities as an implemented queued LIVE-card ability', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-028-L')).toEqual([
       expect.objectContaining({
         abilityId:
           N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-028-L'],
+        baseCardCodes: ['PL!N-bp7-028'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15315,33 +15381,27 @@ describe('PL!N-bp7-028-L exact LIVE_START definition', () => {
           '【LIVE开始时】自己的休息室存在『虹咲』的LIVE卡和不持有BLADE HEART的『虹咲』的成员卡的场合，可以将存在于自己的休息室的所有卡片洗牌，放置于卡组底。如此做时，LIVE结束时为止，存在于自己的舞台的所有『虹咲』的成员获得[桃ハート]。',
       }),
     ]);
-    expect(getCardAbilityDefinitions('PL!N-bp7-028-L')[0]?.baseCardCodes).toBeUndefined();
-    for (const cardCode of [
-      'PL!N-bp7-028-P',
-      'PL!N-bp7-028-SECL',
-      'PL!N-bp7-027-L',
-      'PL!N-bp7-029-L',
-    ]) {
-      if (cardCode === 'PL!N-bp7-027-L') {
-        expect(getCardAbilityDefinitions(cardCode)).not.toContainEqual(
-          expect.objectContaining({
-            abilityId:
-              N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
-          })
-        );
-      } else {
-        expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
-      }
+    expect(getCardAbilityDefinitions('PL!N-bp7-028-L')[0]?.cardCodes).toBeUndefined();
+    for (const cardCode of ['PL!N-bp7-028-P', 'PL!N-bp7-028-SECL']) {
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(1);
+    }
+    for (const cardCode of ['PL!N-bp7-027-L', 'PL!N-bp7-029-L']) {
+      expect(getCardAbilityDefinitions(cardCode)).not.toContainEqual(
+        expect.objectContaining({
+          abilityId:
+            N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
+        })
+      );
     }
   });
 });
 
-describe('PL!N-bp7-031-L exact LIVE_SUCCESS and AUTO definitions', () => {
-  it('registers the two printed segments only for the exact L code', () => {
+describe('PL!N-bp7-031 base-scoped LIVE_SUCCESS and AUTO definitions', () => {
+  it('registers the two printed segments for the whole base-code family', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-031-L')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-031-L'],
+        baseCardCodes: ['PL!N-bp7-031'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -15351,7 +15411,7 @@ describe('PL!N-bp7-031-L exact LIVE_SUCCESS and AUTO definitions', () => {
       }),
       expect.objectContaining({
         abilityId: N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
-        cardCodes: ['PL!N-bp7-031-L'],
+        baseCardCodes: ['PL!N-bp7-031'],
         category: CardAbilityCategory.AUTO,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_ENTER_WAITING_ROOM,
@@ -15368,12 +15428,18 @@ describe('PL!N-bp7-031-L exact LIVE_SUCCESS and AUTO definitions', () => {
     ]);
     expect(
       getCardAbilityDefinitions('PL!N-bp7-031-L').every(
-        (definition) => definition.baseCardCodes === undefined
+        (definition) =>
+          definition.cardCodes === undefined && definition.baseCardCodes?.includes('PL!N-bp7-031')
       )
     ).toBe(true);
-    for (const cardCode of ['PL!N-bp7-031-P', 'PL!N-bp7-031-SECL', 'PL!N-bp7-032-L']) {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    for (const cardCode of ['PL!N-bp7-031-P', 'PL!N-bp7-031-SECL']) {
+      expect(getCardAbilityDefinitions(cardCode)).toHaveLength(2);
     }
+    expect(getCardAbilityDefinitions('PL!N-bp7-032-L')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
+      })
+    );
   });
 });
 
@@ -15383,8 +15449,7 @@ describe('2026-07-23 PR batches 2-4 exact definitions', () => {
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([
         expect.objectContaining({
-          abilityId:
-            PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID,
+          abilityId: PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID,
           cardCodes: ['PL!HS-PR-036-PR', 'PL!N-PR-032-PR', 'PL!S-PR-044-PR'],
           category: CardAbilityCategory.ON_ENTER,
           sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,

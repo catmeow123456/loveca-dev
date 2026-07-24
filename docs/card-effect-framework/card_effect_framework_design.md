@@ -135,7 +135,7 @@ defineAbility({
 });
 ```
 
-`baseCardCodes` 是默认推荐形态：同基础编号不同罕度视为同一张卡，效果文本一致时应自动同步。`cardCodes` 只用于确实需要限制到某个具体印刷版本的例外，并应在 `existing_module_map.md` 说明原因。
+`baseCardCodes` 是卡效登记的默认且规范形态：同一基础编号的不同罕度具有相同卡牌类型与完整卡效，罕度后缀不是 effect boundary。尤其 BP7 必须使用 `baseCardCodes` 或等价基础编号 matcher；公开 API / Excel 当前只出现某一罕度或本地卡库缺失都不是 exact 登记理由，`cardCodes` 也不能用于隔离尚未发现的罕度。
 
 ## 4. Framework layers
 

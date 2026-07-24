@@ -6,6 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { SP_BP7_027_LIVE_SUCCESS_PLACE_SKIPPED_WAITING_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -14,7 +15,7 @@ import {
 } from '../../runtime/waiting-energy-placement.js';
 import { maybeStartConfirmablePendingAbilityConfirmation } from '../../runtime/workflow-helpers.js';
 
-const CARD_CODE = 'PL!SP-bp7-027-L';
+const BASE_CARD_CODE = 'PL!SP-bp7-027';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -91,7 +92,7 @@ function isValidSource(game: GameState, playerId: string, sourceCardId: string):
     source !== null &&
     source.ownerId === playerId &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

@@ -1,6 +1,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CARD_ABILITY_DEFINITIONS } from '../../src/application/card-effect-runner';
+import {
+  CARD_ABILITY_DEFINITIONS,
+  getCardAbilityDefinitions,
+} from '../../src/application/card-effect-runner';
 import { getBaseCardCode, normalizeCardCode } from '../../src/shared/utils/card-code';
 
 interface LlocgCardRecord {
@@ -63,7 +66,7 @@ describe('card effect rarity synchronization', () => {
       const baseCardCodes = new Set((definition.baseCardCodes ?? []).map(normalizeCardCode));
 
       for (const baseCardCode of baseCardCodes) {
-        expect(families.has(baseCardCode)).toBe(true);
+        expect(getBaseCardCode(baseCardCode)).toBe(baseCardCode);
       }
 
       for (const cardCode of exactCardCodes) {
@@ -86,5 +89,43 @@ describe('card effect rarity synchronization', () => {
     }
 
     expect(partialExactMatches).toEqual([]);
+  });
+
+  it('registers API-only bp7 cards by base code and resolves every rarity through the same definitions', () => {
+    const bp7ExactCardCodes = CARD_ABILITY_DEFINITIONS.flatMap((definition) =>
+      (definition.cardCodes ?? []).filter((cardCode) =>
+        normalizeCardCode(cardCode).includes('-bp7-')
+      )
+    );
+    expect(bp7ExactCardCodes).toEqual([]);
+
+    const bp7Definitions = CARD_ABILITY_DEFINITIONS.filter((definition) =>
+      (definition.baseCardCodes ?? []).some((cardCode) =>
+        normalizeCardCode(cardCode).includes('-bp7-')
+      )
+    );
+    expect(bp7Definitions.length).toBeGreaterThan(0);
+
+    const bp7BaseCardCodes = [
+      ...new Set(
+        bp7Definitions.flatMap((definition) =>
+          (definition.baseCardCodes ?? [])
+            .map(normalizeCardCode)
+            .filter((cardCode) => cardCode.includes('-bp7-'))
+        )
+      ),
+    ];
+
+    for (const baseCardCode of bp7BaseCardCodes) {
+      expect(getBaseCardCode(baseCardCode)).toBe(baseCardCode);
+      const normalRarityAbilityIds = getCardAbilityDefinitions(`${baseCardCode}-N`).map(
+        (definition) => definition.abilityId
+      );
+      const specialRarityAbilityIds = getCardAbilityDefinitions(`${baseCardCode}-SECL`).map(
+        (definition) => definition.abilityId
+      );
+      expect(normalRarityAbilityIds).toEqual(specialRarityAbilityIds);
+      expect(normalRarityAbilityIds.length).toBeGreaterThan(0);
+    }
   });
 });

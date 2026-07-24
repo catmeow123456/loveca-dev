@@ -7,6 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, cardNameAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { hasStageMemberMatching } from '../../../effects/conditions.js';
 import { SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID } from '../../ability-ids.js';
@@ -24,7 +25,7 @@ import {
   startDrawThenDiscardCardsWorkflow,
 } from '../shared/draw-then-discard.js';
 
-const CARD_CODE = 'PL!SP-bp7-026-L';
+const BASE_CARD_CODE = 'PL!SP-bp7-026';
 const RETURN_ONE_ENERGY_STEP_ID = 'SP_BP7_026_RETURN_ONE_ENERGY';
 const SELECT_DISCARD_AFTER_DRAW_STEP_ID = 'SP_BP7_026_SELECT_DISCARD_AFTER_DRAW';
 const REN_SELECTOR = and(typeIs(CardType.MEMBER), cardNameAliasIs('葉月恋'));
@@ -187,7 +188,7 @@ function isValidDearsSource(game: GameState, playerId: string, sourceCardId: str
     sourceCard !== null &&
     sourceCard.ownerId === playerId &&
     isLiveCardData(sourceCard.data) &&
-    sourceCard.data.cardCode === CARD_CODE &&
+    cardCodeMatchesBase(sourceCard.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

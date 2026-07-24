@@ -21,7 +21,11 @@ import type {
 import { getCardById, getOpponent, getPlayerById } from '../entities/game.js';
 import { findMemberSlot } from '../entities/player.js';
 import { getAllMemberCardIds } from '../entities/zone.js';
-import { getBaseCardCode, normalizeCardCode } from '../../shared/utils/card-code.js';
+import {
+  cardCodeMatchesBase,
+  getBaseCardCode,
+  normalizeCardCode,
+} from '../../shared/utils/card-code.js';
 import {
   cardBelongsToGroup,
   cardBelongsToUnit,
@@ -313,7 +317,7 @@ export interface SuppressLiveAbilityOptions {
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    cardCodes: ['PL!N-bp7-007-SEC'],
+    baseCardCodes: ['PL!N-bp7-007'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
       const count = countEnergyBelowSourceMember(game, playerId, sourceCardId);
@@ -330,7 +334,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    cardCodes: ['PL!N-bp7-007-SEC'],
+    baseCardCodes: ['PL!N-bp7-007'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
       const count = Math.max(0, countPlayerEnergyCards(game, playerId) - 6);
@@ -347,7 +351,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    cardCodes: ['PL!S-bp7-005-SEC'],
+    baseCardCodes: ['PL!S-bp7-005'],
     collect: ({ game, playerId, sourceCardId }) => {
       const player = getPlayerById(game, playerId);
       if (!player || !isSourceMainStageMember(game, playerId, sourceCardId)) {
@@ -385,7 +389,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    cardCodes: ['PL!S-bp7-016-N'],
+    baseCardCodes: ['PL!S-bp7-016'],
     collect: ({ game, playerId, sourceCardId }) => {
       if (
         !isSourceMainStageMember(game, playerId, sourceCardId) ||
@@ -409,7 +413,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    cardCodes: ['PL!SP-bp7-013-N'],
+    baseCardCodes: ['PL!SP-bp7-013'],
     collect: ({ game, playerId, sourceCardId }) => {
       const player = getPlayerById(game, playerId);
       if (!player || !isSourceMainStageMember(game, playerId, sourceCardId)) {
@@ -1765,7 +1769,7 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
         const sourceCard = getCardById(game, sourceCardId);
         if (
           sourceCard?.ownerId !== player.id ||
-          sourceCard.data.cardCode !== 'PL!SP-bp7-001-P' ||
+          !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp7-001') ||
           !isMemberCardData(sourceCard.data)
         ) {
           continue;

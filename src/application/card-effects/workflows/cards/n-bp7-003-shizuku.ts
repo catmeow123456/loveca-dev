@@ -8,6 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, GamePhase, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { selectDifferentNamedCards } from '../../../../shared/utils/card-identity.js';
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import {
@@ -103,7 +104,7 @@ function startActivatedShizuku(
     !player ||
     !source ||
     source.ownerId !== playerId ||
-    source.data.cardCode !== 'PL!N-bp7-003-SEC' ||
+    !cardCodeMatchesBase(source.data.cardCode, 'PL!N-bp7-003') ||
     !isMemberCardData(source.data) ||
     sourceSlot === null
   ) {

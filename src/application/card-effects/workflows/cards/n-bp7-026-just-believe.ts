@@ -10,6 +10,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
 import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
@@ -33,7 +34,7 @@ import {
 const LIVE_START_ABILITY_ID =
   N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID;
 const LIVE_SUCCESS_ABILITY_ID = N_BP7_026_LIVE_SUCCESS_TWO_NO_BLADE_HEART_MEMBERS_SCORE_ABILITY_ID;
-const EXACT_CARD_CODE = 'PL!N-bp7-026-SECL';
+const BASE_CARD_CODE = 'PL!N-bp7-026';
 const SELECT_DISCARD_STEP_ID = 'N_BP7_026_SELECT_UP_TO_TWO_HAND_CARDS';
 const SELECT_TARGETS_STEP_ID = 'N_BP7_026_SELECT_NIJIGASAKI_BLADE_TARGETS';
 const MAX_DISCARD_COUNT = 2;
@@ -459,7 +460,7 @@ function isValidSourceLive(game: GameState, playerId: string, sourceCardId: stri
     source !== null &&
     source.ownerId === player.id &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === EXACT_CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

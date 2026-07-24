@@ -9,6 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { evaluateDistinctCheerCardsCoverHeartColors } from '../../../effects/cheer-selection.js';
 import { S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import type { PendingAbilityStarterOptions } from '../../runtime/starter-registry.js';
@@ -21,7 +22,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 const ABILITY_ID =
   S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID;
-const EXACT_CARD_CODE = 'PL!S-bp7-022-SECL';
+const BASE_CARD_CODE = 'PL!S-bp7-022';
 const REQUIRED_COLORS = [HeartColor.RED, HeartColor.GREEN, HeartColor.BLUE] as const;
 
 export function registerSBp7022KoiNiNaritaiAquariumWorkflowHandlers(): void {
@@ -135,7 +136,7 @@ function isValidSourceLive(game: GameState, playerId: string, sourceCardId: stri
     source !== null &&
     source.ownerId === playerId &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === EXACT_CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

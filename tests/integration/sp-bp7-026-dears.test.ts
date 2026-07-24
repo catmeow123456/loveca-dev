@@ -247,11 +247,11 @@ function waitingRoomEvents(game: GameState) {
 }
 
 describe('PL!SP-bp7-026-L 分数3「Dears」', () => {
-  it('registers the exact queued LIVE_START definition and public Chinese text', () => {
+  it('registers the base-family queued LIVE_START definition and public Chinese text', () => {
     expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-026-L')).toEqual([
       expect.objectContaining({
         abilityId: ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-026-L'],
+        baseCardCodes: ['PL!SP-bp7-026'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -260,10 +260,10 @@ describe('PL!SP-bp7-026-L 分数3「Dears」', () => {
         effectText: EFFECT_TEXT,
       }),
     ]);
-    expect(
-      getCardAbilityDefinitionsForCardCode('PL!SP-bp7-026-L')[0]?.baseCardCodes
-    ).toBeUndefined();
-    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-026-P')).toEqual([]);
+    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-026-P')).toHaveLength(1);
+    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-025-P')).not.toContainEqual(
+      expect.objectContaining({ abilityId: ABILITY_ID })
+    );
   });
 
   it('enqueues from a real LIVE_START check and opens only the optional return window', () => {
@@ -479,7 +479,7 @@ describe('PL!SP-bp7-026-L 分数3「Dears」', () => {
     expect(game.players[0].energyZone.cardIds).toEqual(['energy-0']);
   });
 
-  it('revalidates the exact source before payment and never moves energy when it is stale', () => {
+  it('revalidates the source before payment and never moves energy when it is stale', () => {
     const opened = start(setup({ ownStageNames: ['葉月恋'], deckCount: 2 }));
     const stale = updatePlayer(opened, P1, (player) => ({
       ...player,
@@ -495,7 +495,7 @@ describe('PL!SP-bp7-026-L 分数3「Dears」', () => {
 
   it.each([
     ['no energy', { energyOrientations: [] }],
-    ['wrong exact card code', { sourceCode: 'PL!SP-bp7-026-P' }],
+    ['adjacent base card code', { sourceCode: 'PL!SP-bp7-025-P' }],
     ['wrong owner', { sourceOwnerId: P2 }],
     ['source outside the live zone', { sourceInLiveZone: false }],
   ] as const)('consumes safely for %s', (_label, options) => {

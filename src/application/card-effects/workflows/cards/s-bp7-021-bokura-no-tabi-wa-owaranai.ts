@@ -9,6 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { countCardsMatchingSelector } from '../../../effects/conditions.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
@@ -27,7 +28,7 @@ import {
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 const ABILITY_ID = S_BP7_021_LIVE_START_STAGE_THREE_MILL_BOTTOM_FIVE_MEMBER_REWARDS_ABILITY_ID;
-const EXACT_CARD_CODE = 'PL!S-bp7-021-L';
+const BASE_CARD_CODE = 'PL!S-bp7-021';
 const REVEAL_STEP_ID = 'S_BP7_021_REVEAL_MILLED_BOTTOM_FIVE';
 
 export function registerSBp7021BokuraNoTabiWaOwaranaiWorkflowHandlers(deps: {
@@ -262,7 +263,7 @@ function isValidSourceLive(game: GameState, playerId: string, sourceCardId: stri
     source !== null &&
     source.ownerId === playerId &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === EXACT_CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

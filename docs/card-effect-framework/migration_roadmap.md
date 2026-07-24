@@ -802,7 +802,7 @@ Tests now cover existing success paths plus HS_BP6_017 empty-hand skip, HS_PB1_0
 
 - Opponent wait target family: R-4M migrated `HS_BP6_004_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER`, `HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER`, and `SP_BP4_011_ENTER_OR_MOVE_WAIT_OPPONENT_LOW_BLADE_MEMBER` into `src/application/card-effects/workflows/shared/opponent-wait-target.ts`. The config axes are target selector, start action step, step text, and selection label; the workflow preserves `SKIP_NO_TARGET`, `WAIT_OPPONENT_MEMBER`, member-state event enqueue timing, and source/target payload fields.
 - Fixed pay-energy gain-BLADE family: R-4K migrated `HS_SD1_006`, `BP4_010`, and `HS_PR_001` into `src/application/card-effects/workflows/shared/pay-energy-gain-blade.ts`. The config axes are energy cost count and fixed BLADE bonus. `recordPayCostAction` now lives in `runtime/workflow-helpers.ts` and is also used by `workflows/cards/hs-bp5-001-kaho.ts`.
-- Arrange deck-edge family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-edge.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.ts`. The shared core owns inspection, ordered deck-edge return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core. The 2026-07-23 exact `PL!S-bp7-004-P` 费用13「黑泽黛雅」sample added the bounded `BOTTOM` axis while preserving existing `TOP` identities and summaries.
+- Arrange deck-edge family: R-4L migrated `START_DASH` and `HS_BP6_001` into `src/application/card-effects/workflows/shared/arrange-inspected-deck-edge.ts`, with `PL_BP3_014` handled by the thin wrapper `src/application/card-effects/workflows/shared/on-enter-wait-look-top-two-arrange.ts`. The shared core owns inspection, ordered deck-edge return, unselected waiting-room movement, and inspection cleanup; the wrapper owns only the source-wait option and PAY_COST action before entering the shared core. The 2026-07-23 public-print sample `PL!S-bp7-004-P` 费用13「黑泽黛雅」added the bounded `BOTTOM` axis while preserving existing `TOP` identities and summaries; registration covers base code `PL!S-bp7-004`.
 - Activation energy helper cleanup: R-4Q-a migrated `HS_SD1_001` into a single-card workflow, R-4Q-b migrated `SHIKI`, and R-4Q-c migrated `CHISATO` / `EMMA`. Do not retroactively collapse them into a shared activation-energy family unless another stable repeated axis appears.
 
 ## R-5 Special Workflow Candidates
@@ -820,7 +820,7 @@ These effects may remain card-specific, but should leave runner only after a nar
 
 第二批 `PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」在同一原语上补充两个具体卡牌样本：bottom-mill 后按实际移动集合写来源 LIVE requirement，或在舞台门槛后抽牌并写来源 LIVE SCORE。两张卡的底牌能力现都于实际移动和分组事件后先公开真实 `movedCardIds`，确认窗口期间不写 requirement、不抽牌、不写 SCORE；020 确认后按结构化 Aqours MEMBER 条件 replacement，021 确认后按5张中的 MEMBER 数量执行对应奖励。020 的公开“全舞台成员 ACTIVE”段仍进入既有 `conditional-live-modifier` family；两个 bottom 段保持单卡 workflow。该批没有扩第一批 gain-heart family、没有建立任意 bottom reward DSL、没有覆盖从卡组底声援或其他 bp7。
 
-第三个 exact 样本 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」单独建立声援方向边界：`CheerDeckEdge` 纯 query、zone 底部单张抽取与统一 `revealCheerCardsFromMainDeck`。普通/手动/自动/追加/重做声援不再保留第二套循环，但这仍不是任意牌库方向 DSL；当前只有 022 提供 BOTTOM。本批不改造 bottom direct-mill，不实现其他 bp7。同卡 LIVE_SUCCESS 以 event-inclusive 事实与小型确定性匹配解决“三张不同卡覆盖红绿蓝”，runner 只增加一条 import/register。
+第三个公开印刷样本 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」单独建立声援方向边界，效果按基础编号 `PL!S-bp7-022` 覆盖：`CheerDeckEdge` 纯 query、zone 底部单张抽取与统一 `revealCheerCardsFromMainDeck`。普通/手动/自动/追加/重做声援不再保留第二套循环，但这仍不是任意牌库方向 DSL；当前只有 022 提供 BOTTOM。本批不改造 bottom direct-mill，不实现其他 bp7。同卡 LIVE_SUCCESS 以 event-inclusive 事实与小型确定性匹配解决“三张不同卡覆盖红绿蓝”，runner 只增加一条 import/register。
 
 ## Guardrails
 
@@ -863,12 +863,19 @@ The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` 
 
 # 2026-07-23 BP7 单体 BLADE 批迁移状态
 
-- `live-start-target-member-gain-blade.ts` 在两个新的 exact LIVE 样本下只增加有限目标身份轴：既有 `GROUP_ALIAS` 保持，新增 `CARD_NAME_ALIAS` 并复用共享 `cardNameAliasIs` 的中日名/组合卡身份；没有开放任意 selector callback。`PL!N-bp7-025-SECL` 分数1「Colorful Dreams! Colorful Smiles!」与 `PL!SP-bp7-025-L` 分数3「Memories」均复用既有 0/1/多目标、来源重验、target-member modifier 与 continuation。
+- `live-start-target-member-gain-blade.ts` 在两个新的基础编号 LIVE 样本下只增加有限目标身份轴：既有 `GROUP_ALIAS` 保持，新增 `CARD_NAME_ALIAS` 并复用共享 `cardNameAliasIs` 的中日名/组合卡身份；没有开放任意 selector callback。当前公开版本 `PL!N-bp7-025-SECL` 分数1「Colorful Dreams! Colorful Smiles!」与 `PL!SP-bp7-025-L` 分数3「Memories」均复用既有 0/1/多目标、来源重验、target-member modifier 与 continuation，分别按 `PL!N-bp7-025` / `PL!SP-bp7-025` 覆盖。
 - `effects/cheer-selection.ts` 新增 event-inclusive Blade Heart 颜色纯 query，替换 `PL!N-bp5-001` 的局部收集实现；可选 `includedColors` 只限制查询结果，不改变 current-cheer 事件事实。N025 LIVE 成功单卡 workflow 使用六色限制，GRAY/RAINBOW/DRAW/SCORE 不计并以 replacement SCORE 避免重复叠加。
-- runner 仅增加 N025 单卡 LIVE_SUCCESS workflow 的 import/register；两个 LIVE_START 段由既有 shared 注册自动接入。前端只在统一 `cardLocalization.ts` 对 exact N025 做数据不落盘的显示勘误，没有修改管理员写入或生产卡牌数据。
+- runner 仅增加 N025 单卡 LIVE_SUCCESS workflow 的 import/register；两个 LIVE_START 段由既有 shared 注册自动接入。前端只在统一 `cardLocalization.ts` 对 N025 基础编号做数据不落盘的显示勘误，没有修改管理员写入或生产卡牌数据。
 
 # 2026-07-23 BP7 第三、第四批迁移状态
 
 - `PL!N-bp7-026-SECL` 分数5「Just Believe!!!」与 `PL!SP-bp7-028-L` 分数8「能够听见未来的声音」的多步交互和声援判断均归属 card-owned workflow；共享层只提供既有结构化 selector、event-inclusive cheer query、标准移动/事件与 modifier 原子能力。没有新增 selector callback 或通用支付-目标步骤 DSL。
 - `PL!N-bp7-030-L` 分数0「Cheer Mode」的顶3处理复用并窄扩 `arrange-inspected-deck-edge.ts`；LIVE_ZONE→HAND 只下沉为校验明确的 runtime 原子动作，回手后弃1仍由单卡 workflow 编排。`PL!S-bp7-025-L` 分数3「Guilty Night, Guilty Kiss!」继续用 card-owned effectChoice 与成员状态事件 wrapper。
 - runner 相对前两批只再增加四个 workflow import/register，并注入现有 `enqueueTriggeredCardEffects`；没有新增卡号分支、步骤状态、查询、移动或奖励逻辑。
+
+# 2026-07-24 BP7 基础编号覆盖迁移与防回归
+
+- 卡牌领域不变量：同一去罕度基础编号下，各罕度的卡牌类型与完整卡效相同；罕度后缀不是 effect boundary。BP7 definition、workflow gate、continuous registry、cost/modifier 查询统一迁移到 `baseCardCodes` 或等价基础编号 matcher。
+- 公开 API / Excel 当前只出现某一罕度，以及本地 `cards.json` 尚未收录，只是印刷数据事实，不是 exact `cardCodes` 的例外。禁止用 `cardCodes` 作为“防止未知罕度自动获得效果”的保险丝；`existing_module_map.md` 只登记基础编号覆盖，可附注当前公开罕度。
+- 本次债务检查覆盖 definition、runner/workflow 来源校验、continuous registry 与费用/修正查询；后续若发现 BP7 硬编码完整罕度卡号，必须迁移，不通过手工追加新罕度维持同步。
+- classification 与 rarity-sync guard 应为同一 BP7 基础编号构造或解析另一个罕度，断言 definition、owner route、continuous/cost/modifier 查询仍命中；未知/新增罕度无需新增 definition。该 guard 与 focused behavior tests 分工：前者锁身份覆盖，后者锁规则行为。

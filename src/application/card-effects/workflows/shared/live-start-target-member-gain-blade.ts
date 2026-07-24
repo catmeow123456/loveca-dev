@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import { CardType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   and,
   cardNameAliasIs,
@@ -47,7 +48,7 @@ type TargetMemberIdentity =
 interface LiveStartTargetMemberGainBladeConfig {
   readonly abilityId: string;
   readonly sourceZone: SourceZone;
-  readonly exactSourceCardCode?: string;
+  readonly sourceBaseCardCode?: string;
   readonly bladeAmount: number;
   readonly targetIdentity: TargetMemberIdentity;
   readonly excludeSourceMember: boolean;
@@ -87,7 +88,7 @@ const CONFIGS: readonly LiveStartTargetMemberGainBladeConfig[] = [
   {
     abilityId: N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
     sourceZone: 'LIVE_CARD',
-    exactSourceCardCode: 'PL!N-bp7-025-SECL',
+    sourceBaseCardCode: 'PL!N-bp7-025',
     bladeAmount: 1,
     targetIdentity: { type: 'GROUP_ALIAS', value: '虹ヶ咲', displayName: '虹咲' },
     excludeSourceMember: false,
@@ -97,7 +98,7 @@ const CONFIGS: readonly LiveStartTargetMemberGainBladeConfig[] = [
   {
     abilityId: SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
     sourceZone: 'LIVE_CARD',
-    exactSourceCardCode: 'PL!SP-bp7-025-L',
+    sourceBaseCardCode: 'PL!SP-bp7-025',
     bladeAmount: 1,
     targetIdentity: { type: 'CARD_NAME_ALIAS', value: '嵐千砂都', displayName: '岚千砂都' },
     excludeSourceMember: false,
@@ -359,8 +360,8 @@ function isSourceValid(
     return false;
   }
   if (
-    config.exactSourceCardCode !== undefined &&
-    sourceCard.data.cardCode !== config.exactSourceCardCode
+    config.sourceBaseCardCode !== undefined &&
+    !cardCodeMatchesBase(sourceCard.data.cardCode, config.sourceBaseCardCode)
   ) {
     return false;
   }

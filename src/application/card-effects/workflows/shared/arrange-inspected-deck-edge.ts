@@ -8,6 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
   HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
@@ -72,7 +73,7 @@ interface RegisteredArrangeInspectedDeckEdgeConfig {
   readonly selectMax: number;
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
-  readonly exactLiveSourceCardCode?: string;
+  readonly liveSourceBaseCardCode?: string;
   readonly targetPlayerSelection?: {
     readonly stepId: string;
     readonly stepText: string;
@@ -110,7 +111,7 @@ export interface ArrangeInspectedDeckEdgeConfig {
   readonly unselectedDestination: InspectedCardDestination;
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
-  readonly exactLiveSourceCardCode?: string;
+  readonly liveSourceBaseCardCode?: string;
   readonly targetPlayerSelection?: RegisteredArrangeInspectedDeckEdgeConfig['targetPlayerSelection'];
   readonly condition?: RegisteredArrangeInspectedDeckEdgeConfig['condition'];
   readonly orderedResolution: boolean;
@@ -128,7 +129,7 @@ const ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS: readonly RegisteredArrangeInspected
     confirmSelectionLabel: '按此顺序放置于卡组顶',
     selectMin: 0,
     selectMax: 3,
-    exactLiveSourceCardCode: 'PL!N-bp7-030-L',
+    liveSourceBaseCardCode: 'PL!N-bp7-030',
   },
   {
     abilityId: START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -298,7 +299,7 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
           unselectedDestination: config.unselectedDestination ?? 'WAITING_ROOM',
           requireAllInspected: config.requireAllInspected,
           requireSourceOnOwnStage: config.requireSourceOnOwnStage,
-          exactLiveSourceCardCode: config.exactLiveSourceCardCode,
+          liveSourceBaseCardCode: config.liveSourceBaseCardCode,
           targetPlayerSelection: config.targetPlayerSelection,
           condition: config.condition,
           orderedResolution: options.orderedResolution === true,
@@ -337,12 +338,12 @@ export function startArrangeInspectedDeckEdgeWorkflow(
     });
   }
   if (
-    config.exactLiveSourceCardCode &&
-    !isExactOwnLiveSource(
+    config.liveSourceBaseCardCode &&
+    !isOwnLiveSourceMatchingBase(
       game,
       player.id,
       config.ability.sourceCardId,
-      config.exactLiveSourceCardCode
+      config.liveSourceBaseCardCode
     )
   ) {
     return consumeArrangePendingAsNoOp(game, config, continuePendingCardEffects, player.id, {
@@ -607,7 +608,7 @@ function finishArrangeInspectedDeckEdgeTargetPlayerSelection(
       unselectedDestination: registeredConfig.unselectedDestination ?? 'WAITING_ROOM',
       requireAllInspected: registeredConfig.requireAllInspected,
       requireSourceOnOwnStage: registeredConfig.requireSourceOnOwnStage,
-      exactLiveSourceCardCode: registeredConfig.exactLiveSourceCardCode,
+      liveSourceBaseCardCode: registeredConfig.liveSourceBaseCardCode,
       condition: registeredConfig.condition,
       orderedResolution: effect.metadata?.orderedResolution === true,
     },
@@ -805,11 +806,11 @@ function getArrangeInspectedDeckTopPublicSummaryContext(
   };
 }
 
-function isExactOwnLiveSource(
+function isOwnLiveSourceMatchingBase(
   game: GameState,
   playerId: string,
   sourceCardId: string,
-  exactCardCode: string
+  baseCardCode: string
 ): boolean {
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, sourceCardId);
@@ -818,6 +819,6 @@ function isExactOwnLiveSource(
     sourceCard !== null &&
     sourceCard.ownerId === playerId &&
     isLiveCardData(sourceCard.data) &&
-    sourceCard.data.cardCode === exactCardCode
+    cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
   );
 }

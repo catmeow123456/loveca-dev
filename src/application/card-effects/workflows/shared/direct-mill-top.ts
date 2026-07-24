@@ -6,6 +6,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
@@ -39,7 +40,7 @@ interface DirectMillTopConfig {
   readonly canStart?: (game: GameState, playerId: string) => boolean;
   readonly conditionNotMetStep?: string;
   readonly requiresSourceInLiveZone?: boolean;
-  readonly exactSourceCardCode?: string;
+  readonly sourceBaseCardCode?: string;
 }
 
 const DIRECT_MILL_TOP_CONFIGS: readonly DirectMillTopConfig[] = [
@@ -90,7 +91,7 @@ const DIRECT_MILL_TOP_CONFIGS: readonly DirectMillTopConfig[] = [
     topCount: 3,
     finishStep: 'FINISH_MILL_TOP_THREE',
     requiresSourceInLiveZone: true,
-    exactSourceCardCode: 'PL!N-bp7-031-L',
+    sourceBaseCardCode: 'PL!N-bp7-031',
   },
 ];
 
@@ -146,8 +147,8 @@ function startDirectMillTopWorkflow(
     config.requiresSourceInLiveZone === true &&
     (!player.liveZone.cardIds.includes(ability.sourceCardId) ||
       sourceCard?.ownerId !== player.id ||
-      (config.exactSourceCardCode !== undefined &&
-        sourceCard.data.cardCode !== config.exactSourceCardCode))
+      (config.sourceBaseCardCode !== undefined &&
+        !cardCodeMatchesBase(sourceCard.data.cardCode, config.sourceBaseCardCode)))
   ) {
     return continuePendingCardEffects(
       addAction(

@@ -441,8 +441,8 @@ describe('PL!N-bp7-031-L 分数5「Like a Treasure」', () => {
     });
   });
 
-  it('finishes without use or score when the revealed target or source becomes stale', () => {
-    const scenario = setup();
+  it('accepts a sibling rarity and finishes without use or score when its target or source becomes stale', () => {
+    const scenario = setup({ sourceCode: 'PL!N-bp7-031-P' });
     let game = updatePlayer(scenario.game, P1, (player) => ({
       ...player,
       mainDeck: { ...player.mainDeck, cardIds: [] },
@@ -471,8 +471,8 @@ describe('PL!N-bp7-031-L 分数5「Like a Treasure」', () => {
     expect(game.liveResolution.playerScores.get(P1) ?? 0).toBe(0);
   });
 
-  it('consumes an invalid exact source and an empty moved set without spending the turn use', () => {
-    const invalidSource = setup({ sourceCode: 'PL!N-bp7-031-P' });
+  it('consumes an adjacent-base source and an empty moved set without spending the turn use', () => {
+    const invalidSource = setup({ sourceCode: 'PL!N-bp7-030-P' });
     const deckBefore = invalidSource.game.players[0].mainDeck.cardIds;
     let game = resolve({
       ...invalidSource.game,

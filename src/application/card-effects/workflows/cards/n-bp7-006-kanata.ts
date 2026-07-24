@@ -6,6 +6,7 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   and,
   groupAliasIs,
@@ -414,7 +415,7 @@ function getValidSourceController(
     !player ||
     !source ||
     source.ownerId !== playerId ||
-    source.data.cardCode !== 'PL!N-bp7-006-SEC' ||
+    !cardCodeMatchesBase(source.data.cardCode, 'PL!N-bp7-006') ||
     !isMemberCardData(source.data) ||
     getSourceMemberSlot(game, playerId, sourceCardId) === null
   ) {

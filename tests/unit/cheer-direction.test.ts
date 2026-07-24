@@ -77,23 +77,26 @@ describe('drawFromBottom', () => {
 });
 
 describe('getCheerDeckEdgeForPlayer', () => {
-  it('defaults to TOP and enables BOTTOM only for an exact owned LIVE in that player live zone', () => {
-    const source = live('PL!S-bp7-022-SECL', P1, 'source');
-    let game = gameWithLiveSources(source);
-    expect(getCheerDeckEdgeForPlayer(game, P1)).toBe(CheerDeckEdge.BOTTOM);
-    expect(getCheerDeckEdgeForPlayer(game, P2)).toBe(CheerDeckEdge.TOP);
+  it.each(['PL!S-bp7-022-SECL', 'PL!S-bp7-022-L'])(
+    'enables BOTTOM for every owned LIVE sharing the bp7-022 base: %s',
+    (cardCode) => {
+      const source = live(cardCode, P1, 'source');
+      let game = gameWithLiveSources(source);
+      expect(getCheerDeckEdgeForPlayer(game, P1)).toBe(CheerDeckEdge.BOTTOM);
+      expect(getCheerDeckEdgeForPlayer(game, P2)).toBe(CheerDeckEdge.TOP);
 
-    game = updatePlayer(game, P1, (player) => ({
-      ...player,
-      liveZone: { ...player.liveZone, cardIds: [] },
-    }));
-    expect(getCheerDeckEdgeForPlayer(game, P1)).toBe(CheerDeckEdge.TOP);
-  });
+      game = updatePlayer(game, P1, (player) => ({
+        ...player,
+        liveZone: { ...player.liveZone, cardIds: [] },
+      }));
+      expect(getCheerDeckEdgeForPlayer(game, P1)).toBe(CheerDeckEdge.TOP);
+    }
+  );
 
   it('ignores wrong owner, wrong type, wrong code, opponent sources, and duplicate same-direction sources', () => {
     const wrongOwner = live('PL!S-bp7-022-SECL', P2, 'wrong-owner');
     const wrongType = member('PL!S-bp7-022-SECL', P1, 'wrong-type');
-    const wrongCode = live('PL!S-bp7-022-L', P1, 'wrong-code');
+    const wrongCode = live('PL!S-bp7-023-L', P1, 'wrong-code');
     expect(getCheerDeckEdgeForPlayer(gameWithLiveSources(wrongOwner), P1)).toBe(CheerDeckEdge.TOP);
     expect(getCheerDeckEdgeForPlayer(gameWithLiveSources(wrongType), P1)).toBe(CheerDeckEdge.TOP);
     expect(getCheerDeckEdgeForPlayer(gameWithLiveSources(wrongCode), P1)).toBe(CheerDeckEdge.TOP);
@@ -107,7 +110,7 @@ describe('getCheerDeckEdgeForPlayer', () => {
 });
 
 describe('unified cheer reveal direction', () => {
-  it('preserves TOP order without a source and reveals bottom then next-bottom with the exact source', () => {
+  it('preserves TOP order without a source and reveals bottom then next-bottom with a base-matched source', () => {
     const cards = ['top', 'middle', 'bottom'].map((id) => member(id, P1, id));
     let topGame = registerCards(createGameState('top-cheer', P1, 'P1', P2, 'P2'), cards);
     topGame = updatePlayer(topGame, P1, (player) => ({

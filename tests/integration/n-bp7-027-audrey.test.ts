@@ -175,11 +175,11 @@ function withModifiers(game: GameState, modifiers: readonly LiveModifierState[])
 }
 
 describe('PL!N-bp7-027-L 分数2「オードリー / 奥黛丽」', () => {
-  it('registers only the exact LIVE_SUCCESS ability identity', () => {
+  it('registers the LIVE_SUCCESS ability for the whole base card family', () => {
     expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-027-L')).toEqual([
       expect.objectContaining({
         abilityId: ABILITY_ID,
-        cardCodes: ['PL!N-bp7-027-L'],
+        baseCardCodes: ['PL!N-bp7-027'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -187,16 +187,11 @@ describe('PL!N-bp7-027-L 分数2「オードリー / 奥黛丽」', () => {
         implemented: true,
       }),
     ]);
-    expect(
-      getCardAbilityDefinitionsForCardCode('PL!N-bp7-027-L')[0]?.baseCardCodes
-    ).toBeUndefined();
-    for (const code of [
-      'PL!N-bp7-027-P',
-      'PL!N-bp7-027-SECL',
-      'PL!N-bp7-026-L',
-    ]) {
-      expect(getCardAbilityDefinitionsForCardCode(code)).toEqual([]);
-    }
+    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-027-P')).toHaveLength(1);
+    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-027-SECL')).toHaveLength(1);
+    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-026-L')).not.toContainEqual(
+      expect.objectContaining({ abilityId: ABILITY_ID })
+    );
   });
 
   it('safely ends with no own Nijigasaki target and auto-resolves exactly one target', () => {
@@ -459,15 +454,16 @@ describe('PL!N-bp7-027-L 分数2「オードリー / 奥黛丽」', () => {
     expect(done.liveResolution.playerScores.get(P1)).toBe(3);
   });
 
-  it('consumes an invalid exact source at start and preserves orderedResolution on the real window', () => {
+  it('consumes an adjacent-base source at start and accepts a sibling rarity for the real window', () => {
     const invalid = start(
-      setup({ own: [{ id: 'target', blade: 4 }], sourceCode: 'PL!N-bp7-027-P' }).game
+      setup({ own: [{ id: 'target', blade: 4 }], sourceCode: 'PL!N-bp7-028-P' }).game
     );
     expect(invalid.pendingAbilities).toEqual([]);
     expect(invalid.activeEffect).toBeNull();
     expect(lastResolve(invalid)?.payload).toMatchObject({ step: 'SOURCE_INVALID' });
 
     const scenario = setup({
+      sourceCode: 'PL!N-bp7-027-P',
       own: [
         { id: 'target', blade: 4 },
         { id: 'other', blade: 1 },

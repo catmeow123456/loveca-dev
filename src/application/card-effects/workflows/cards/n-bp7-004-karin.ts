@@ -2,6 +2,7 @@ import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getOpponent, getPlayerById, type GameState } from '../../../../domain/entities/game.js';
 import { collectLiveModifiers, getMemberOriginalBladeCount } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
@@ -38,7 +39,8 @@ function start(game: GameState, playerId: string, sourceCardId: string): GameSta
   if (
     game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE || activePlayerId !== playerId ||
     !player || !opponent || !source || source.ownerId !== playerId ||
-    !isMemberCardData(source.data) || source.data.cardCode !== 'PL!N-bp7-004-P' ||
+    !isMemberCardData(source.data) ||
+    !cardCodeMatchesBase(source.data.cardCode, 'PL!N-bp7-004') ||
     sourceSlot === null || player.energyZone.cardIds.length === 0
   ) return game;
 
