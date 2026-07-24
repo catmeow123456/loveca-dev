@@ -11,6 +11,7 @@
 | 文档                                                                 | 类型          | 维护边界                                                         |
 | -------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------- |
 | [联机模式准备文档](preparation.md)                                   | 设计文档      | 正式联机基础闭环、剩余边界、命令/事件/视图约束                   |
+| [房间返回、退出与恢复设计](room-exit-and-recovery.md)                | 设计文档      | 返回主页、退出房间、公共牌桌配对放弃与房间恢复入口               |
 | [联机模式边界规范](boundary-standard.md)                             | 编码标准      | 联机 UI、store selector、命令、投影和公共事件边界                |
 | [可见性与公开对象矩阵](visibility-matrix.md)                         | 设计文档      | `PlayerViewState`、对象可见性和公开对象投影规则                  |
 | [自由拖拽核对表](free-drag-checklist.md)                             | 专题说明      | 自由拖拽权限模型和最小回归 checklist                             |
@@ -19,7 +20,7 @@
 
 ## 维护规则
 
-- 联机当前事实优先写入 `preparation.md` 或 `current-limitations.md`，不要散落到根层临时计划。
+- 联机基础能力优先写入 `preparation.md`，房间返回/退出/恢复语义写入 `room-exit-and-recovery.md`，跨模块限制写入 `current-limitations.md`；不要散落到根层临时计划。
 - 历史对局读取当前已有中性 `/api/battle/match-records...` 路径；`/api/online/match-records...` 只作为正式联机时期的兼容 alias 保留。涉及 replay / 对墙打记录时，同步检查 [对局记录与回放文档](../match-replay/README.md)。
 - 编码约束写入 `boundary-standard.md`；通用开发规范只保留跨主题规则和链接。
 - 本主题文件之间使用本目录内相对链接，不再在 `docs/` 根层新增 `online-mode-*` 文档。

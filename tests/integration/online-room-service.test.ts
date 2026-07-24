@@ -21,6 +21,10 @@ import {
   OnlineRoomServiceError,
 } from '../../src/server/services/online-room-service';
 import {
+  decodePublicTableRuntimeDeck,
+  encodePublicTableRuntimeDeck,
+} from '../../src/server/services/public-table-deck-snapshot';
+import {
   OnlineMatchService,
   type OnlineMatchState,
 } from '../../src/server/services/online-match-service';
@@ -75,6 +79,11 @@ function createRuntimeDeck(prefix: string): DeckConfig {
   }
 
   return { mainDeck, energyDeck };
+}
+
+function persistPublicTableRuntimeDeck(deck: DeckConfig): DeckConfig {
+  const encoded = encodePublicTableRuntimeDeck(deck);
+  return decodePublicTableRuntimeDeck(JSON.parse(encoded.json));
 }
 
 function expectJsonRoundTrip<T>(value: T): T {
@@ -2342,5 +2351,66 @@ describe('OnlineRoomService', () => {
     expect(serialized).not.toContain('mainDeck');
     expect(serialized).not.toContain('energyDeck');
     expect(serialized).not.toContain('resolvedDeckConfig');
+  });
+
+  it('公共牌桌房间应按 reservationId 幂等创建并直接进入封闭猜拳流程', async () => {
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => 10_000,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const input = {
+      reservationId: '11111111-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-a')),
+        lockedAt: 9_000,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-b')),
+        lockedAt: 9_000,
+      },
+      openingExpiresAt: 190_000,
+    };
+
+    const firstCreate = await service.createPublicTableRoom(input);
+    const retryCreate = await service.createPublicTableRoom(input);
+    expect(retryCreate).toEqual(firstCreate);
+    expect(firstCreate.roomCode).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
+
+    const view = await service.getRoomView(firstCreate.roomCode, 'u1');
+    expect(view.originKind).toBe('PUBLIC_TABLE');
+    expect(view.status).toBe('OPENING');
+    expect(view.members).toHaveLength(2);
+    expect(view.members.every((member) => member.ready && member.startReady)).toBe(true);
+    expect(view.openingRps).not.toBeNull();
+
+    await expect(service.joinRoom(firstCreate.roomCode, 'u3')).rejects.toMatchObject({
+      code: 'ONLINE_ROOM_FORBIDDEN',
+    });
+
+    await service.submitOpeningRps(firstCreate.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(firstCreate.roomCode, 'u2', 'SCISSORS');
+    const started = await service.chooseOpeningTurnOrder(firstCreate.roomCode, 'u1', 'SELF_FIRST');
+    expect(
+      started.spectatorRoomEntry?.seats.map(({ seat, enabled }) => ({ seat, enabled }))
+    ).toEqual([
+      { seat: 'FIRST', enabled: true },
+      { seat: 'SECOND', enabled: true },
+    ]);
+    const match = matchService.getMatch(started.matchId!);
+    expect(match?.originKind).toBe('PUBLIC_TABLE');
+    expect(match?.originLabel).toBe('公共牌桌');
+    const snapshot = await matchService.getMatchSnapshot(started.matchId!, 'u1');
+    expect(snapshot?.matchId).toBe(started.matchId);
+    expect(typeof snapshot?.playerId).toBe('string');
   });
 });

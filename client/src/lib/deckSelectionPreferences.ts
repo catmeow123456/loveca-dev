@@ -3,6 +3,7 @@ import type { DeckDisplayItem } from '@/lib/deckDisplay';
 const LAST_USED_DECK_STORAGE_PREFIX = 'loveca.deckSelection.lastUsed.';
 
 export const DECK_SELECTION_PREFERENCE_KEYS = {
+  publicTable: 'public-table',
   onlineRoom: 'online-room',
   solitaire: 'solitaire',
   localDebugPlayer1: 'local-debug-player-1',

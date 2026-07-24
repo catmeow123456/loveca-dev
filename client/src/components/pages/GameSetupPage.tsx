@@ -129,10 +129,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
     gameMode === GameMode.DEBUG
       ? DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer1
       : DECK_SELECTION_PREFERENCE_KEYS.solitaire;
-  const p1LastUsedDeckId = useMemo(
-    () => readLastUsedDeckId(p1PreferenceKey),
-    [p1PreferenceKey]
-  );
+  const p1LastUsedDeckId = useMemo(() => readLastUsedDeckId(p1PreferenceKey), [p1PreferenceKey]);
   const p2LastUsedDeckId = useMemo(
     () => readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer2),
     []
@@ -147,9 +144,8 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
   );
   const selectedP1Deck = useMemo(() => {
     const refreshedDeck = selectedP1DeckState
-      ? deckDisplayItems.find(
-          (deck) => deck.id === selectedP1DeckState.id && deck.isValid
-        ) ?? null
+      ? (deckDisplayItems.find((deck) => deck.id === selectedP1DeckState.id && deck.isValid) ??
+        null)
       : null;
     if (refreshedDeck) {
       return refreshedDeck;
@@ -164,16 +160,13 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
   ]);
   const selectedP2Deck = useMemo(() => {
     const refreshedDeck = selectedP2DeckState
-      ? deckDisplayItems.find(
-          (deck) => deck.id === selectedP2DeckState.id && deck.isValid
-        ) ?? null
+      ? (deckDisplayItems.find((deck) => deck.id === selectedP2DeckState.id && deck.isValid) ??
+        null)
       : null;
     if (refreshedDeck) {
       return refreshedDeck;
     }
-    return gameMode === GameMode.DEBUG && !hasManualSelectedP2Deck
-      ? p2PreferredDeck.deck
-      : null;
+    return gameMode === GameMode.DEBUG && !hasManualSelectedP2Deck ? p2PreferredDeck.deck : null;
   }, [
     deckDisplayItems,
     gameMode,
@@ -348,10 +341,7 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
     }
 
     if (gameMode === GameMode.SOLITAIRE) {
-      writeLastUsedDeckId(
-        DECK_SELECTION_PREFERENCE_KEYS.solitaire,
-        selectedP1Deck.cloudDeck.id
-      );
+      writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.solitaire, selectedP1Deck.cloudDeck.id);
       return;
     }
 
@@ -618,24 +608,22 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute inset-0 flex justify-center"
+                className="absolute inset-0 flex items-start justify-center"
               >
-                <div className="h-full w-full max-w-3xl">
+                <div
+                  className={`w-full max-w-3xl ${
+                    validDecks.length > 6 || isLoadingCloud ? 'h-full' : ''
+                  }`}
+                >
                   <DeckSelector
-                    cloudDecks={validDecks}
+                    cloudDecks={cloudDecks}
                     selectedId={selectedP1Deck?.id}
                     onSelect={handleSelectP1}
                     isLoading={isLoadingCloud}
                     error={cloudError}
                     onRefresh={fetchCloudDecks}
-                    title={gameMode === GameMode.SOLITAIRE ? '己方卡组' : 'Player 1 卡组'}
-                    subtitle={
-                      gameMode === GameMode.SOLITAIRE
-                        ? '确认这局由你操作的卡组；对手会使用默认卡组。'
-                        : '确认 Player 1 使用的卡组；下一步会选择 Player 2。'
-                    }
-                    selectionLabel={gameMode === GameMode.SOLITAIRE ? '己方卡组' : 'Player 1'}
-                    emptyText="没有可用的卡组，请先创建一个完整的卡组"
+                    title="可用卡组"
+                    emptyText="还没有可用卡组。"
                     density="compact"
                     lastUsedDeckId={p1LastUsedDeckId}
                   />
@@ -650,20 +638,22 @@ export function GameSetupPage({ onBack, onGameStart, onNavigateToOnlineRoom }: G
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute inset-0 flex justify-center"
+                className="absolute inset-0 flex items-start justify-center"
               >
-                <div className="h-full w-full max-w-3xl">
+                <div
+                  className={`w-full max-w-3xl ${
+                    validDecks.length > 6 || isLoadingCloud ? 'h-full' : ''
+                  }`}
+                >
                   <DeckSelector
-                    cloudDecks={validDecks}
+                    cloudDecks={cloudDecks}
                     selectedId={selectedP2Deck?.id}
                     onSelect={handleSelectP2}
                     isLoading={isLoadingCloud}
                     error={cloudError}
                     onRefresh={fetchCloudDecks}
-                    title="Player 2 卡组"
-                    subtitle="确认 Player 2 使用的卡组；确认后会进入本地双人调试桌面。"
-                    selectionLabel="Player 2"
-                    emptyText="没有可用的卡组，请先创建一个完整的卡组"
+                    title="可用卡组"
+                    emptyText="还没有可用卡组。"
                     density="compact"
                     lastUsedDeckId={p2LastUsedDeckId}
                   />

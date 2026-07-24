@@ -2,7 +2,15 @@
  * Loveca Card Game - Main Application
  */
 
-import { lazy, useCallback, useEffect, useLayoutEffect, useState, useRef } from 'react';
+import {
+  lazy,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { BattleViewportShell } from '@/components/game/BattleViewportShell';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
@@ -37,6 +45,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { cardService } from '@/lib/cardService';
+import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const DeckManager = lazy(() =>
@@ -46,10 +55,17 @@ const GameSetupPage = lazy(() =>
   import('@/components/pages/GameSetupPage').then((module) => ({ default: module.GameSetupPage }))
 );
 const OnlineDebugPage = lazy(() =>
-  import('@/components/pages/OnlineDebugPage').then((module) => ({ default: module.OnlineDebugPage }))
+  import('@/components/pages/OnlineDebugPage').then((module) => ({
+    default: module.OnlineDebugPage,
+  }))
 );
 const OnlineRoomPage = lazy(() =>
   import('@/components/pages/OnlineRoomPage').then((module) => ({ default: module.OnlineRoomPage }))
+);
+const PublicTablePage = lazy(() =>
+  import('@/components/pages/PublicTablePage').then((module) => ({
+    default: module.PublicTablePage,
+  }))
 );
 const OnlineSpectatorPage = lazy(() =>
   import('@/components/pages/OnlineSpectatorPage').then((module) => ({
@@ -87,6 +103,7 @@ type AppPage =
   | 'deck-manager'
   | 'game-setup'
   | 'online-room'
+  | 'public-table'
   | 'online-spectator'
   | 'match-records'
   | 'online-debug'
@@ -126,6 +143,7 @@ function getInitialPage(): AppPage {
     page === 'deck-manager' ||
     page === 'game-setup' ||
     page === 'online-room' ||
+    page === 'public-table' ||
     page === 'online-spectator' ||
     page === 'match-records' ||
     page === 'online-debug' ||
@@ -149,6 +167,7 @@ function App() {
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
+  const enterOnlineRoom = useCallback(() => setCurrentPage('online-room'), []);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
   const appConfigRenderKeyRef = useRef(buildPublicAppConfigRenderKey(DEFAULT_APP_CONFIG));
@@ -595,11 +614,21 @@ function App() {
     }
   }
 
+  const withPublicTableLayer = (content: ReactNode) => (
+    <>
+      {content}
+      <PublicTableGlobalLayer
+        enabled={Boolean(user && profile && !offlineMode)}
+        onEnterRoom={enterOnlineRoom}
+      />
+    </>
+  );
+
   // 游戏进行中
   if (effectivePage === 'game' && matchView) {
     const gameBriefingMode = capabilities.surface === 'SOLITAIRE' ? 'solitaire' : null;
 
-    return (
+    return withPublicTableLayer(
       <BattleViewportShell>
         <GameBoard
           onLeaveLocalGame={() => {
@@ -644,7 +673,7 @@ function App() {
 
   // 游戏准备页面
   if (effectivePage === 'game-setup') {
-    return (
+    return withPublicTableLayer(
       <GameSetupPage
         onBack={() => setCurrentPage('home')}
         onGameStart={() => setCurrentPage('game')}
@@ -654,39 +683,47 @@ function App() {
   }
 
   if (effectivePage === 'online-room') {
-    return <OnlineRoomPage onBack={() => setCurrentPage('home')} />;
+    return withPublicTableLayer(<OnlineRoomPage onBack={() => setCurrentPage('home')} />);
+  }
+
+  if (effectivePage === 'public-table') {
+    return withPublicTableLayer(
+      <PublicTablePage onBack={() => setCurrentPage('home')} onEnterRoom={enterOnlineRoom} />
+    );
   }
 
   if (effectivePage === 'online-spectator') {
-    return <OnlineSpectatorLobbyPage onBackHome={() => setCurrentPage('home')} />;
+    return withPublicTableLayer(
+      <OnlineSpectatorLobbyPage onBackHome={() => setCurrentPage('home')} />
+    );
   }
 
   if (effectivePage === 'match-records') {
-    return <MatchRecordsPage onBack={() => setCurrentPage('home')} />;
+    return withPublicTableLayer(<MatchRecordsPage onBack={() => setCurrentPage('home')} />);
   }
 
   if (effectivePage === 'online-debug') {
-    return <OnlineDebugPage onBack={() => setCurrentPage('home')} />;
+    return withPublicTableLayer(<OnlineDebugPage onBack={() => setCurrentPage('home')} />);
   }
 
   // 卡组管理页面
   if (effectivePage === 'deck-manager') {
-    return (
+    return withPublicTableLayer(
       <DeckManager onBack={() => setCurrentPage('home')} initialOpenDeckId={initialOpenDeckId} />
     );
   }
 
   // 卡牌管理页面
   if (effectivePage === 'card-admin' && profile?.role === 'admin') {
-    return <CardAdminPage onBack={() => setCurrentPage('home')} />;
+    return withPublicTableLayer(<CardAdminPage onBack={() => setCurrentPage('home')} />);
   }
 
   if (effectivePage === 'online-admin' && profile?.role === 'admin') {
-    return <OnlineRoomsAdminPage onBack={() => setCurrentPage('home')} />;
+    return withPublicTableLayer(<OnlineRoomsAdminPage onBack={() => setCurrentPage('home')} />);
   }
 
   if (effectivePage === 'announcement-admin' && profile?.role === 'admin') {
-    return (
+    return withPublicTableLayer(
       <SiteAnnouncementsAdminPage
         onBack={() => setCurrentPage('home')}
         siteStatus={appConfig.siteStatus}
@@ -696,11 +733,12 @@ function App() {
   }
 
   // 主页
-  return (
+  return withPublicTableLayer(
     <HomePage
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
+      onNavigateToPublicTable={() => setCurrentPage('public-table')}
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}

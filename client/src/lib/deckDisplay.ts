@@ -1,10 +1,7 @@
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
 import type { DeckRecord } from '@/lib/apiClient';
-import {
-  deckRecordToConfig,
-  type MainDeckEntryTypeResolver,
-} from '@/lib/deckRecordUtils';
+import { deckRecordToConfig, type MainDeckEntryTypeResolver } from '@/lib/deckRecordUtils';
 
 export interface LocalDeck {
   id: string;
@@ -26,6 +23,7 @@ export interface DeckDisplayItem {
   liveCount: number;
   energyCount: number;
   pointTotal: number;
+  previewCardCodes: string[];
   cloudDeck?: DeckRecord;
   localDeck?: LocalDeck;
 }
@@ -56,6 +54,7 @@ export function buildDeckDisplayItems({
       liveCount: stats.liveCount,
       energyCount: stats.energyCount,
       pointTotal: stats.pointTotal,
+      previewCardCodes: collectPreviewCardCodes(deckConfig),
       cloudDeck: deck,
     });
   }
@@ -74,9 +73,14 @@ export function buildDeckDisplayItems({
       liveCount: stats.liveCount,
       energyCount: stats.energyCount,
       pointTotal: stats.pointTotal,
+      previewCardCodes: collectPreviewCardCodes(deck.config),
       localDeck: deck,
     });
   }
 
   return items.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+}
+
+function collectPreviewCardCodes(deck: DeckConfig): string[] {
+  return Array.from(new Set(deck.main_deck.members.map((entry) => entry.card_code))).slice(0, 3);
 }

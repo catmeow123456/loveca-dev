@@ -1,10 +1,11 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
   Check,
   ChevronDown,
   CircleDot,
+  Copy,
   Crown,
   DoorOpen,
   Eye,
@@ -22,7 +23,6 @@ import {
 import {
   ConfirmDialog,
   DeckSelector,
-  DeckStatsRow,
   type DeckDisplayItem,
   PageHeader,
   ThemeToggle,
@@ -32,6 +32,7 @@ import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
+import { usePublicTableStore } from '@/store/publicTableStore';
 import {
   acceptOnlineRoomRestart,
   cancelOnlineRoomRestart,
@@ -62,6 +63,7 @@ import {
 } from '@/lib/deckSelectionPreferences';
 import { getOnlineRoomLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
+import { ApiClientError } from '@/lib/apiClient';
 import type { OnlineRoomView, OpeningRpsGesture, OpeningTurnOrderChoice, Seat } from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
@@ -69,6 +71,12 @@ const MATCH_POLL_INTERVAL_MS = 800;
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
 type OpeningRpsChoiceView = NonNullable<OnlineRoomView['openingRps']>['choices'][number];
+type LobbyPrimaryAction = {
+  kind: 'LOCK' | 'REPLACE' | 'START';
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+};
 type RpsToneClasses = {
   readonly bar: string;
   readonly border: string;
@@ -117,9 +125,13 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
+  const [matchBootstrapError, setMatchBootstrapError] = useState<string | null>(null);
+  const [matchBootstrapRetryToken, setMatchBootstrapRetryToken] = useState(0);
   const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
   const [isUpdatingSpectatorEntry, setIsUpdatingSpectatorEntry] = useState(false);
   const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
+  const [roomCodeCopied, setRoomCodeCopied] = useState(false);
+  const roomCodeCopyTimerRef = useRef<number | null>(null);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
     [cardDataRegistry]
@@ -203,6 +215,13 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
         }
       } catch (pollError) {
         if (!cancelled) {
+          if (pollError instanceof ApiClientError && pollError.code === 'ONLINE_ROOM_NOT_FOUND') {
+            clearOnlineRoomRecovery();
+            disconnectRemoteSession();
+            setRoom(null);
+            setJoinedRoomCode(null);
+            setRoomCodeInput('');
+          }
           setError(pollError instanceof Error ? pollError.message : '读取房间状态失败');
         }
       }
@@ -222,10 +241,11 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
 
   useEffect(() => {
     if (!room?.matchId) {
+      const timer = window.setTimeout(() => setMatchBootstrapError(null), 0);
       if (remoteSession) {
         disconnectRemoteSession();
       }
-      return;
+      return () => window.clearTimeout(timer);
     }
 
     if (remoteSession?.matchId === room.matchId) {
@@ -235,6 +255,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     let cancelled = false;
     const bootstrapMatch = async () => {
       setIsBootstrappingMatch(true);
+      setMatchBootstrapError(null);
       try {
         const snapshot = await fetchOnlineMatchSnapshot(room.matchId!);
         if (cancelled) {
@@ -253,7 +274,9 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
         }
       } catch (bootstrapError) {
         if (!cancelled) {
-          setError(bootstrapError instanceof Error ? bootstrapError.message : '同步联机对局失败');
+          setMatchBootstrapError(
+            bootstrapError instanceof Error ? bootstrapError.message : '同步联机对局失败'
+          );
         }
       } finally {
         if (!cancelled) {
@@ -271,6 +294,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     applyRemoteSnapshot,
     connectRemoteSession,
     disconnectRemoteSession,
+    matchBootstrapRetryToken,
     remoteSession,
     room?.matchId,
   ]);
@@ -317,6 +341,9 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   useEffect(() => {
     return () => {
       disconnectRemoteSession();
+      if (roomCodeCopyTimerRef.current !== null) {
+        window.clearTimeout(roomCodeCopyTimerRef.current);
+      }
     };
   }, [disconnectRemoteSession]);
 
@@ -353,14 +380,20 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     room && room.members.length === 2 && room.members.every((member) => member.ready)
   );
   const canClearSavedRoom = Boolean(joinedRoomCode && !room);
-  const actionState = getRoomActionState({
-    room,
-    myMember,
-    bothReady,
-  });
+  const actionState = selectedDeckCanReplaceLockedDeck
+    ? {
+        title: `改用「${selectedDeck?.name ?? '所选卡组'}」`,
+        detail: `当前已锁定「${myMember?.lockedDeckName ?? '原卡组'}」。`,
+      }
+    : getRoomActionState({
+        room,
+        myMember,
+        bothReady,
+        selectedDeckName: selectedDeck?.name,
+      });
   const leaveConfirmCopy = useMemo(
-    () => getOnlineRoomLeaveConfirmCopy(room?.status),
-    [room?.status]
+    () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind),
+    [room?.originKind, room?.status]
   );
 
   const handleCreateRoom = async () => {
@@ -519,6 +552,32 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setIsLeaveConfirmOpen(true);
   };
 
+  const handleCopyRoomCode = async () => {
+    if (!room) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(room.roomCode);
+      setRoomCodeCopied(true);
+      if (roomCodeCopyTimerRef.current !== null) {
+        window.clearTimeout(roomCodeCopyTimerRef.current);
+      }
+      roomCodeCopyTimerRef.current = window.setTimeout(() => {
+        setRoomCodeCopied(false);
+        roomCodeCopyTimerRef.current = null;
+      }, 1800);
+    } catch {
+      setError('复制房间号失败，请手动复制');
+    }
+  };
+
+  const handleRetryMatchBootstrap = () => {
+    disconnectRemoteSession();
+    setMatchBootstrapError(null);
+    setMatchBootstrapRetryToken((token) => token + 1);
+  };
+
   const handleLeaveRoom = async () => {
     if (!room && !joinedRoomCode) {
       return;
@@ -527,7 +586,15 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setIsSubmitting(true);
     setError(null);
     try {
+      const leftPublicTableRoom = room?.originKind === 'PUBLIC_TABLE';
       await leaveOnlineRoom(room?.roomCode ?? joinedRoomCode!);
+      if (leftPublicTableRoom) {
+        try {
+          await usePublicTableStore.getState().refresh();
+        } catch {
+          // The room has already been left; the next public-table visit will refresh again.
+        }
+      }
       setIsLeaveConfirmOpen(false);
       clearOnlineRoomRecovery();
       disconnectRemoteSession();
@@ -535,6 +602,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       setJoinedRoomCode(null);
       setSelectedDeck(null);
       setHasManualSelectedDeck(false);
+      setRoomCodeInput('');
+      onBack();
     } catch (leaveError) {
       setError(leaveError instanceof Error ? leaveError.message : '离开房间失败');
     } finally {
@@ -630,6 +699,31 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
   };
 
+  const lobbyPrimaryAction: LobbyPrimaryAction | null = room
+    ? selectedDeckCanReplaceLockedDeck
+      ? {
+          kind: 'REPLACE',
+          label: `改用「${selectedDeck?.name ?? '所选卡组'}」`,
+          disabled: !canLockDeck || isSubmitting,
+          onClick: handleLockDeck,
+        }
+      : !myMember?.ready
+        ? {
+            kind: 'LOCK',
+            label: selectedDeck ? `锁定「${selectedDeck.name}」` : '请先选择卡组',
+            disabled: !myMember || !canLockDeck || isSubmitting,
+            onClick: handleLockDeck,
+          }
+        : bothReady && !myMember.startReady
+          ? {
+              kind: 'START',
+              label: '准备开始',
+              disabled: isSubmitting,
+              onClick: handleReadyStart,
+            }
+          : null
+    : null;
+
   if (room?.status === 'IN_GAME' && remoteSession?.matchId === room.matchId && matchView) {
     return (
       <BattleViewportShell>
@@ -675,6 +769,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               onToggleSpectatorRoomEntry={handleToggleSpectatorRoomEntry}
               onRequestRestart={handleRequestRestart}
               onCancelRestart={handleCancelRestart}
+              onBackHome={onBack}
               onLeaveRoom={handleRequestLeaveRoom}
             />
           )}
@@ -761,6 +856,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           onSubmitRps={handleSubmitOpeningRps}
           onReplayRps={handleReplayOpeningRps}
           onChooseTurnOrder={handleChooseOpeningTurnOrder}
+          onBackHome={onBack}
           onLeaveRoom={handleRequestLeaveRoom}
         />
         <ConfirmDialog
@@ -778,13 +874,64 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     );
   }
 
-  if (room?.status === 'IN_GAME' && isBootstrappingMatch) {
+  if (room?.status === 'IN_GAME') {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center">
-        <div className="surface-panel-frosted flex items-center gap-3 px-6 py-4 text-[var(--text-primary)]">
-          <Loader2 size={18} className="animate-spin" />
-          正在同步联机对局...
+        <div className="surface-panel-frosted mx-4 w-full max-w-md px-6 py-5 text-[var(--text-primary)]">
+          <div className="flex items-center gap-3">
+            {isBootstrappingMatch ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <RefreshCw size={18} className="text-[var(--semantic-error)]" />
+            )}
+            <div className="font-semibold">
+              {isBootstrappingMatch ? '正在同步联机对局...' : '联机对局同步失败'}
+            </div>
+          </div>
+          {matchBootstrapError && (
+            <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
+              {matchBootstrapError}
+            </div>
+          )}
+          {!isBootstrappingMatch && (
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={onBack}
+                className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3"
+              >
+                <ArrowLeft size={16} />
+                返回主页
+              </button>
+              <button
+                type="button"
+                onClick={handleRequestLeaveRoom}
+                className="button-ghost inline-flex min-h-10 items-center justify-center border border-[var(--border-default)] px-3"
+              >
+                退出房间
+              </button>
+              <button
+                type="button"
+                onClick={handleRetryMatchBootstrap}
+                className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-3"
+              >
+                <RefreshCw size={16} />
+                重新同步
+              </button>
+            </div>
+          )}
         </div>
+        <ConfirmDialog
+          isOpen={isLeaveConfirmOpen}
+          title={leaveConfirmCopy.title}
+          message={leaveConfirmCopy.message}
+          confirmLabel={leaveConfirmCopy.confirmLabel}
+          isConfirming={isSubmitting}
+          onCancel={() => setIsLeaveConfirmOpen(false)}
+          onConfirm={() => {
+            void handleLeaveRoom();
+          }}
+        />
       </div>
     );
   }
@@ -806,220 +953,153 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
         right={<ThemeToggle />}
       />
 
-      <main className="relative z-10 flex flex-1 justify-center px-4 pb-6 pt-5 sm:p-6">
-        <div className="flex w-full max-w-6xl flex-col gap-6">
-          <div className="surface-panel-frosted flex flex-col gap-4 p-5 lg:flex-row lg:items-end">
-            <div className="flex-1">
-              <div className="mb-2 text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                Room Code
+      <main
+        className={`relative z-10 flex flex-1 justify-center px-4 pt-5 sm:px-6 sm:pt-6 ${
+          room && lobbyPrimaryAction
+            ? 'pb-[calc(env(safe-area-inset-bottom)+6rem)] lg:pb-6'
+            : 'pb-6'
+        }`}
+      >
+        <div className={`flex w-full flex-col gap-4 ${room ? 'max-w-6xl' : 'max-w-4xl'}`}>
+          {!room &&
+            (joinedRoomCode ? (
+              <section className="surface-panel-frosted flex items-center gap-3 px-5 py-4">
+                {!error && (
+                  <Loader2
+                    size={18}
+                    className="shrink-0 animate-spin text-[var(--accent-primary)]"
+                  />
+                )}
+                <div className="min-w-0">
+                  <h2 className="font-bold text-[var(--text-primary)]">
+                    {error ? '无法返回房间' : '正在返回房间'}
+                  </h2>
+                  <p className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">
+                    {joinedRoomCode}
+                  </p>
+                </div>
+              </section>
+            ) : (
+              <section className="surface-panel-frosted p-3 sm:p-4">
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <label className="min-w-0 flex-1">
+                    <span className="sr-only">房间号</span>
+                    <input
+                      value={roomCodeInput}
+                      onChange={(event) => setRoomCodeInput(event.target.value.toUpperCase())}
+                      placeholder="房间号 · 4-12 位字母或数字"
+                      className="h-11 w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 text-base font-semibold tracking-[0.08em] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-primary)]"
+                      maxLength={12}
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3 sm:flex">
+                    <button
+                      type="button"
+                      onClick={handleCreateRoom}
+                      disabled={isSubmitting}
+                      className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5"
+                    >
+                      <Users size={16} />
+                      创建房间
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleJoinRoom}
+                      disabled={isSubmitting}
+                      className="button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5"
+                    >
+                      {isSubmitting ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <DoorOpen size={16} />
+                      )}
+                      加入房间
+                    </button>
+                  </div>
+                </div>
+              </section>
+            ))}
+
+          {!room && error && (
+            <RoomErrorNotice
+              message={error}
+              canClearSavedRoom={canClearSavedRoom}
+              onClearSavedRoom={handleClearSavedRoomAndBack}
+              standalone
+            />
+          )}
+
+          {room ? (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+              <div
+                className={`order-2 overflow-hidden lg:order-1 ${
+                  validDecks.length > 6 || isLoadingCloud
+                    ? 'h-[54dvh] min-h-[360px] lg:h-[calc(100dvh-10rem)] lg:min-h-[460px]'
+                    : ''
+                }`}
+              >
+                <DeckSelector
+                  cloudDecks={cloudDecks}
+                  selectedId={selectedDeck?.id}
+                  onSelect={handleSelectDeck}
+                  isLoading={isLoadingCloud}
+                  error={cloudError}
+                  onRefresh={fetchCloudDecks}
+                  title="选择卡组"
+                  emptyText="还没有可用卡组。"
+                  density="compact"
+                  lastUsedDeckId={lastUsedDeckId}
+                />
               </div>
-              <input
-                value={roomCodeInput}
-                onChange={(event) => setRoomCodeInput(event.target.value.toUpperCase())}
-                placeholder="输入 4-12 位房间号"
-                className="w-full rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-3 text-lg font-semibold tracking-[0.12em] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-primary)]"
-                maxLength={12}
+
+              <OnlineRoomLobbyPanel
+                room={room}
+                myMember={myMember}
+                opponentMember={opponentMember}
+                selectedDeckName={selectedDeck?.name}
+                actionState={actionState}
+                primaryAction={lobbyPrimaryAction}
+                error={error}
+                isSubmitting={isSubmitting}
+                roomCodeCopied={roomCodeCopied}
+                onCopyRoomCode={handleCopyRoomCode}
+                onLeaveRoom={handleRequestLeaveRoom}
               />
             </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={handleCreateRoom}
-                disabled={isSubmitting}
-                className="button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5"
-              >
-                {isSubmitting ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Users size={16} />
-                )}
-                创建房间
-              </button>
-              <button
-                type="button"
-                onClick={handleJoinRoom}
-                disabled={isSubmitting}
-                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5"
-              >
-                <DoorOpen size={16} />
-                加入房间
-              </button>
-            </div>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
-            <div className="order-2 h-[54dvh] min-h-[360px] overflow-hidden lg:order-1 lg:h-[calc(100dvh-14rem)] lg:min-h-[460px]">
+          ) : (
+            <div
+              className={`overflow-hidden ${
+                validDecks.length > 6 || isLoadingCloud
+                  ? 'h-[54dvh] min-h-[360px] lg:h-[calc(100dvh-16rem)] lg:min-h-[460px]'
+                  : ''
+              }`}
+            >
               <DeckSelector
-                cloudDecks={validDecks}
+                cloudDecks={cloudDecks}
                 selectedId={selectedDeck?.id}
                 onSelect={handleSelectDeck}
                 isLoading={isLoadingCloud}
                 error={cloudError}
                 onRefresh={fetchCloudDecks}
-                title="更换卡组"
-                subtitle=""
-                selectionLabel="当前卡组"
-                emptyText="没有可用的合法卡组，请先创建一副合法卡组"
+                title="选择卡组"
+                emptyText="还没有可用卡组。"
                 density="compact"
                 lastUsedDeckId={lastUsedDeckId}
               />
             </div>
-
-            <div className="surface-panel-frosted order-1 flex flex-col gap-4 p-5 lg:order-2">
-              <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                  <Users size={12} />
-                  {room ? `Room ${room.roomCode}` : '等待加入房间'}
-                </div>
-                <h2 className="text-xl font-bold text-[var(--text-primary)]">
-                  {room ? getRoomStatusLabel(room.status) : '正式联机房间'}
-                </h2>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
-                  双方锁组并准备后进入开局猜拳。
-                </p>
-              </div>
-
-              <CurrentDeckSummary
-                deck={selectedDeck}
-                lockedDeckId={myMember?.ready ? myMember.lockedDeckId : null}
-                lockedDeckName={myMember?.ready ? myMember.lockedDeckName : null}
-                emptyText="先选择一副卡组；有默认卡组时会自动填入。"
-              />
-
-              {error && (
-                <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
-                  <div>{error}</div>
-                  {canClearSavedRoom && (
-                    <button
-                      type="button"
-                      onClick={handleClearSavedRoomAndBack}
-                      className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-3 py-2 text-sm font-semibold text-[var(--semantic-error)] transition hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
-                    >
-                      清除保存房间并返回首页
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div className="flex flex-col gap-3">
-                {room && !myMember?.ready && (
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={handleLockDeck}
-                    disabled={!canLockDeck || isSubmitting}
-                    className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${!canLockDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
-                  >
-                    {isSubmitting ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Check size={16} />
-                    )}
-                    锁定这副卡组
-                  </motion.button>
-                )}
-
-                {room && selectedDeckCanReplaceLockedDeck && (
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    onClick={handleLockDeck}
-                    disabled={!canLockDeck || isSubmitting}
-                    className={`button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5 ${!canLockDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
-                  >
-                    {isSubmitting ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <RefreshCw size={16} />
-                    )}
-                    更换为这副卡组
-                  </motion.button>
-                )}
-
-                {room && myMember?.ready && bothReady && (
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    type="button"
-                    onClick={handleReadyStart}
-                    disabled={isSubmitting || myMember.startReady}
-                    className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${
-                      isSubmitting || myMember.startReady ? 'cursor-not-allowed opacity-60' : ''
-                    }`}
-                  >
-                    {isSubmitting ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Swords size={16} />
-                    )}
-                    {myMember.startReady ? '已准备开始' : '准备开始'}
-                  </motion.button>
-                )}
-
-                {joinedRoomCode && (
-                  <button
-                    type="button"
-                    onClick={handleRequestLeaveRoom}
-                    disabled={isSubmitting}
-                    className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5"
-                  >
-                    <RefreshCw size={16} />
-                    离开房间
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-2">
-                <ProgressPill label="进入房间" active={Boolean(room)} done={Boolean(room)} />
-                <ProgressPill
-                  label="锁定卡组"
-                  active={Boolean(room) && !bothReady}
-                  done={bothReady}
-                />
-                <ProgressPill
-                  label="正式开局"
-                  active={Boolean(room) && bothReady}
-                  done={room?.status === 'IN_GAME'}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <RoomMemberCard
-                  title="你"
-                  member={myMember}
-                  isCurrentUser
-                  selectedDeckName={selectedDeck?.name}
-                />
-                <RoomMemberCard title="对手" member={opponentMember} />
-              </div>
-
-              {room && (
-                <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                        当前动作
-                      </div>
-                      <div className="mt-1 text-base font-semibold text-[var(--text-primary)]">
-                        {actionState.title}
-                      </div>
-                    </div>
-                    <div className="rounded-full border border-[var(--border-default)] px-3 py-1 text-xs text-[var(--text-secondary)]">
-                      {getRoomStatusLabel(room.status)}
-                    </div>
-                  </div>
-                  {actionState.detail && (
-                    <div className="mt-2 text-sm text-[var(--text-secondary)]">
-                      {actionState.detail}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
       </main>
+
+      {room && lobbyPrimaryAction && (
+        <div className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-40 rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] p-3 shadow-[var(--shadow-lg)] backdrop-blur-xl lg:hidden">
+          <LobbyPrimaryActionButton
+            action={lobbyPrimaryAction}
+            isSubmitting={isSubmitting}
+            className="w-full"
+          />
+        </div>
+      )}
 
       <ConfirmDialog
         isOpen={isLeaveConfirmOpen}
@@ -1036,118 +1116,263 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   );
 }
 
-function RoomMemberCard({
-  title,
-  member,
-  isCurrentUser = false,
+function OnlineRoomLobbyPanel({
+  room,
+  myMember,
+  opponentMember,
   selectedDeckName,
+  actionState,
+  primaryAction,
+  error,
+  isSubmitting,
+  roomCodeCopied,
+  onCopyRoomCode,
+  onLeaveRoom,
 }: {
-  title: string;
-  member: OnlineRoomView['members'][number] | null;
-  isCurrentUser?: boolean;
+  room: OnlineRoomView;
+  myMember: OnlineRoomView['members'][number] | null;
+  opponentMember: OnlineRoomView['members'][number] | null;
   selectedDeckName?: string;
+  actionState: { title: string; detail?: string };
+  primaryAction: LobbyPrimaryAction | null;
+  error: string | null;
+  isSubmitting: boolean;
+  roomCodeCopied: boolean;
+  onCopyRoomCode: () => void;
+  onLeaveRoom: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="mb-1 text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
-            {title}
-          </div>
-          <div className="text-base font-semibold text-[var(--text-primary)]">
-            {member?.displayName ?? '等待加入'}
-          </div>
+    <aside className="surface-panel-frosted order-1 overflow-hidden lg:order-2">
+      <header className="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
+        <div className="min-w-0">
+          <div className="text-xs text-[var(--text-muted)]">房间</div>
+          <h2 className="mt-0.5 truncate text-xl font-black tracking-[0.08em] text-[var(--text-primary)]">
+            {room.roomCode}
+          </h2>
         </div>
-        {member?.role === 'HOST' && (
-          <div className="inline-flex items-center gap-1 rounded-full border border-[var(--border-default)] px-2 py-1 text-[11px] text-[var(--text-secondary)]">
-            <Crown size={12} />
-            房主
+        <button
+          type="button"
+          onClick={onCopyRoomCode}
+          className="button-ghost inline-flex min-h-10 shrink-0 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+          aria-label="复制房间号"
+        >
+          {roomCodeCopied ? <Check size={15} /> : <Copy size={15} />}
+          {roomCodeCopied ? '已复制' : '复制'}
+        </button>
+      </header>
+
+      <div className="p-5">
+        {error && <RoomErrorNotice message={error} />}
+
+        <div className={error ? 'mt-4' : ''}>
+          <LobbySeatRow
+            label="你"
+            member={myMember}
+            selectedDeckName={selectedDeckName}
+            isCurrentUser
+          />
+
+          <div className="flex items-center gap-3 py-2.5" aria-hidden="true">
+            <div className="h-px flex-1 bg-[var(--border-subtle)]" />
+            <span className="text-[10px] font-black tracking-[0.2em] text-[var(--accent-primary)]">
+              VS
+            </span>
+            <div className="h-px flex-1 bg-[var(--border-subtle)]" />
           </div>
-        )}
+
+          <LobbySeatRow label="对手" member={opponentMember} />
+        </div>
+
+        <div className="mt-5 border-l-2 border-[var(--accent-primary)] pl-3" aria-live="polite">
+          <div className="text-sm font-bold text-[var(--text-primary)]">{actionState.title}</div>
+          {actionState.detail && (
+            <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
+              {actionState.detail}
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        <StatusChip
-          tone={member?.presence === 'LEFT' ? 'warning' : member ? 'success' : 'muted'}
-          label={
-            member
-              ? member.presence === 'LEFT'
-                ? '已离开'
-                : isCurrentUser
-                  ? '已加入'
-                  : '在线'
-              : '空位'
-          }
-        />
-        <StatusChip
-          tone={member?.ready ? 'success' : 'muted'}
-          label={member?.ready ? '已锁组' : '未锁组'}
-        />
-        {member?.ready && (
-          <StatusChip
-            tone={member.startReady ? 'success' : 'muted'}
-            label={member.startReady ? '已准备' : '未准备'}
+      <footer className="border-t border-[var(--border-subtle)] px-5 py-4">
+        {primaryAction && (
+          <LobbyPrimaryActionButton
+            action={primaryAction}
+            isSubmitting={isSubmitting}
+            className="hidden w-full lg:inline-flex"
           />
         )}
-        {member?.seat && (
-          <StatusChip tone="muted" label={member.seat === 'FIRST' ? '先手位' : '后手位'} />
-        )}
+        <button
+          type="button"
+          onClick={onLeaveRoom}
+          disabled={isSubmitting}
+          className={`button-ghost inline-flex min-h-10 w-full items-center justify-center gap-2 text-sm text-[var(--text-secondary)] ${
+            primaryAction ? 'mt-2' : ''
+          }`}
+        >
+          <DoorOpen size={15} />
+          退出房间
+        </button>
+      </footer>
+    </aside>
+  );
+}
+
+function LobbySeatRow({
+  label,
+  member,
+  selectedDeckName,
+  isCurrentUser = false,
+}: {
+  label: string;
+  member: OnlineRoomView['members'][number] | null;
+  selectedDeckName?: string;
+  isCurrentUser?: boolean;
+}) {
+  const memberName = member?.displayName ?? (isCurrentUser ? '正在同步' : '等待玩家加入');
+  const deckName = member?.ready
+    ? (member.lockedDeckName ?? '未命名卡组')
+    : isCurrentUser
+      ? (selectedDeckName ?? '未选择卡组')
+      : member
+        ? '尚未锁定卡组'
+        : '房间空位';
+  const status = getLobbyMemberStatus(member);
+
+  return (
+    <div className="flex min-h-[72px] items-center gap-3">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black ${
+          isCurrentUser
+            ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_34%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-overlay))] text-[var(--accent-primary)]'
+            : 'border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
+        }`}
+      >
+        {isCurrentUser ? '我' : '对'}
       </div>
 
-      {isCurrentUser && !member?.ready && selectedDeckName && (
-        <div className="mt-3 rounded-xl border border-dashed border-[var(--border-default)] px-3 py-2 text-sm text-[var(--text-secondary)]">
-          当前选择：
-          <span className="font-medium text-[var(--text-primary)]">{selectedDeckName}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="text-xs text-[var(--text-muted)]">{label}</span>
+          {member?.role === 'HOST' && (
+            <Crown
+              size={12}
+              className="shrink-0 text-[var(--semantic-warning)]"
+              aria-label="房主"
+            />
+          )}
         </div>
-      )}
+        <div className="mt-0.5 truncate font-bold text-[var(--text-primary)]">{memberName}</div>
+        <div className="mt-0.5 truncate text-xs text-[var(--text-secondary)]">{deckName}</div>
+      </div>
 
-      {member?.ready && (
-        <div className="mt-3 text-sm text-[var(--text-secondary)]">
-          {member.lockedDeckName ?? '未命名卡组'}
-        </div>
+      <span
+        className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${status.className}`}
+      >
+        {status.label}
+      </span>
+    </div>
+  );
+}
+
+function LobbyPrimaryActionButton({
+  action,
+  isSubmitting,
+  className = '',
+}: {
+  action: LobbyPrimaryAction;
+  isSubmitting: boolean;
+  className?: string;
+}) {
+  const icon = isSubmitting ? (
+    <Loader2 size={16} className="animate-spin" />
+  ) : action.kind === 'START' ? (
+    <Swords size={16} />
+  ) : action.kind === 'REPLACE' ? (
+    <RefreshCw size={16} />
+  ) : (
+    <Check size={16} />
+  );
+
+  return (
+    <button
+      type="button"
+      onClick={action.onClick}
+      disabled={action.disabled}
+      className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+    >
+      {icon}
+      <span className="truncate">{action.label}</span>
+    </button>
+  );
+}
+
+function RoomErrorNotice({
+  message,
+  canClearSavedRoom = false,
+  onClearSavedRoom,
+  standalone = false,
+}: {
+  message: string;
+  canClearSavedRoom?: boolean;
+  onClearSavedRoom?: () => void;
+  standalone?: boolean;
+}) {
+  return (
+    <div
+      className={`border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)] ${
+        standalone ? 'surface-panel-frosted rounded-2xl' : 'rounded-xl'
+      }`}
+      role="alert"
+    >
+      <div>{message}</div>
+      {canClearSavedRoom && onClearSavedRoom && (
+        <button
+          type="button"
+          onClick={onClearSavedRoom}
+          className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-3 py-2 font-semibold transition hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
+        >
+          清除保存房间并返回首页
+        </button>
       )}
     </div>
   );
 }
 
-function CurrentDeckSummary({
-  deck,
-  lockedDeckId,
-  lockedDeckName,
-  emptyText,
-}: {
-  deck: DeckDisplayItem | null;
-  lockedDeckId?: string | null;
-  lockedDeckName?: string | null;
-  emptyText: string;
-}) {
-  const hasLockedDeck = Boolean(lockedDeckId || lockedDeckName);
-  const displayName = lockedDeckName ?? deck?.name ?? null;
-  const statsDeck = hasLockedDeck ? (deck?.id === lockedDeckId ? deck : null) : deck;
-
-  return (
-    <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-overlay))] p-4">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
-        {hasLockedDeck ? '已锁定卡组' : '当前卡组'}
-      </div>
-      {displayName ? (
-        <>
-          <div className="mt-1 truncate text-base font-bold text-[var(--text-primary)]">
-            {displayName}
-          </div>
-          {statsDeck && (
-            <DeckStatsRow
-              stats={statsDeck}
-              size="sm"
-              className="mt-2 gap-x-3 text-[var(--text-secondary)]"
-            />
-          )}
-        </>
-      ) : (
-        <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">{emptyText}</div>
-      )}
-    </div>
-  );
+function getLobbyMemberStatus(member: OnlineRoomView['members'][number] | null): {
+  label: string;
+  className: string;
+} {
+  if (!member) {
+    return {
+      label: '等待中',
+      className: 'border-[var(--border-default)] text-[var(--text-muted)]',
+    };
+  }
+  if (member.presence === 'LEFT') {
+    return {
+      label: '已离开',
+      className:
+        'border-[color:color-mix(in_srgb,var(--semantic-warning)_34%,transparent)] text-[var(--semantic-warning)]',
+    };
+  }
+  if (member.startReady) {
+    return {
+      label: '已准备',
+      className:
+        'border-[color:color-mix(in_srgb,var(--semantic-success)_34%,transparent)] text-[var(--semantic-success)]',
+    };
+  }
+  if (member.ready) {
+    return {
+      label: '已锁定',
+      className:
+        'border-[color:color-mix(in_srgb,var(--semantic-success)_34%,transparent)] text-[var(--semantic-success)]',
+    };
+  }
+  return {
+    label: '待锁定',
+    className: 'border-[var(--border-default)] text-[var(--text-muted)]',
+  };
 }
 
 function OnlineOpeningStage({
@@ -1157,6 +1382,7 @@ function OnlineOpeningStage({
   onSubmitRps,
   onReplayRps,
   onChooseTurnOrder,
+  onBackHome,
   onLeaveRoom,
 }: {
   room: OnlineRoomView;
@@ -1165,6 +1391,7 @@ function OnlineOpeningStage({
   onSubmitRps: (gesture: OpeningRpsGesture) => void;
   onReplayRps: () => void;
   onChooseTurnOrder: (choice: OpeningTurnOrderChoice) => void;
+  onBackHome: () => void;
   onLeaveRoom: () => void;
 }) {
   const opening = room.openingRps;
@@ -1196,15 +1423,26 @@ function OnlineOpeningStage({
             <Swords size={14} />
             Room {room.roomCode}
           </div>
-          <button
-            type="button"
-            onClick={onLeaveRoom}
-            disabled={isSubmitting}
-            className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 backdrop-blur-xl"
-          >
-            <DoorOpen size={15} />
-            离开房间
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onBackHome}
+              className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 backdrop-blur-xl sm:px-4"
+            >
+              <ArrowLeft size={15} />
+              <span className="hidden sm:inline">返回主页</span>
+              <span className="sm:hidden">返回</span>
+            </button>
+            <button
+              type="button"
+              onClick={onLeaveRoom}
+              disabled={isSubmitting}
+              className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-[var(--semantic-error)] backdrop-blur-xl sm:px-4"
+            >
+              <DoorOpen size={15} />
+              {room.originKind === 'PUBLIC_TABLE' ? '放弃配对' : '退出房间'}
+            </button>
+          </div>
         </div>
 
         <main className="flex flex-1 items-start justify-center py-3 lg:items-center lg:py-5">
@@ -1705,40 +1943,6 @@ function getOpeningStatusText({
   return `${winnerName ?? '胜者'}选择中`;
 }
 
-function ProgressPill({ label, active, done }: { label: string; active: boolean; done: boolean }) {
-  return (
-    <div
-      className={`rounded-xl px-3 py-2 text-center text-xs font-medium transition ${
-        done
-          ? 'bg-[color:color-mix(in_srgb,var(--semantic-success)_16%,var(--bg-surface))] text-[var(--semantic-success)]'
-          : active
-            ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,var(--bg-surface))] text-[var(--text-primary)]'
-            : 'bg-transparent text-[var(--text-muted)]'
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-function StatusChip({ label, tone }: { label: string; tone: 'success' | 'warning' | 'muted' }) {
-  const className =
-    tone === 'success'
-      ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_32%,transparent)] text-[var(--semantic-success)]'
-      : tone === 'warning'
-        ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_32%,transparent)] text-[var(--semantic-warning)]'
-        : 'border-[var(--border-default)] text-[var(--text-muted)]';
-
-  return (
-    <div
-      className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] ${className}`}
-    >
-      <CircleDot size={10} />
-      {label}
-    </div>
-  );
-}
-
 function getRpsLabel(gesture: OpeningRpsGesture): string {
   switch (gesture) {
     case 'ROCK':
@@ -1837,6 +2041,7 @@ function RoomActionPanel({
   onToggleSpectatorRoomEntry,
   onRequestRestart,
   onCancelRestart,
+  onBackHome,
   onLeaveRoom,
 }: {
   roomCode: string;
@@ -1850,6 +2055,7 @@ function RoomActionPanel({
   onToggleSpectatorRoomEntry: () => void;
   onRequestRestart: () => void;
   onCancelRestart: () => void;
+  onBackHome: () => void;
   onLeaveRoom: () => void;
 }) {
   return (
@@ -1927,12 +2133,20 @@ function RoomActionPanel({
         )}
         <button
           type="button"
+          onClick={onBackHome}
+          className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
+        >
+          <ArrowLeft size={16} />
+          返回主页
+        </button>
+        <button
+          type="button"
           onClick={onLeaveRoom}
           disabled={isSubmitting}
           className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm text-[var(--semantic-error)]"
         >
           {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <DoorOpen size={16} />}
-          离开房间
+          退出房间
         </button>
       </div>
 
@@ -1989,40 +2203,30 @@ function getSpectatorViewLabel(seat: Seat): string {
   return seat === 'FIRST' ? '先攻视角' : '后攻视角';
 }
 
-function getRoomStatusLabel(status: OnlineRoomView['status']): string {
-  switch (status) {
-    case 'PREPARING':
-      return '准备中';
-    case 'READY':
-      return '等待开局';
-    case 'OPENING':
-      return '开局中';
-    case 'IN_GAME':
-      return '对局进行中';
-    default:
-      return status;
-  }
-}
-
 function getRoomActionState({
   room,
   myMember,
   bothReady,
+  selectedDeckName,
 }: {
   room: OnlineRoomView | null;
   myMember: OnlineRoomView['members'][number] | null;
   bothReady: boolean;
+  selectedDeckName?: string;
 }): { title: string; detail?: string } {
   if (!room) {
     return { title: '输入房间号并进入房间' };
   }
 
-  if (room.members.length < 2) {
-    return { title: '等待另一位玩家加入' };
+  if (!myMember?.ready) {
+    return {
+      title: selectedDeckName ? `锁定「${selectedDeckName}」` : '选择一副卡组',
+      detail: selectedDeckName ? '锁定后仍可在开局前更换。' : undefined,
+    };
   }
 
-  if (!myMember?.ready) {
-    return { title: '锁定你的卡组' };
+  if (room.members.length < 2) {
+    return { title: '等待另一位玩家加入' };
   }
 
   if (!bothReady) {
@@ -2035,16 +2239,13 @@ function getRoomActionState({
 
   if (!myMember.startReady) {
     return {
-      title: '准备开始',
-      detail: '等待双方准备。',
+      title: '双方卡组已锁定',
+      detail: '确认后进入开局猜拳。',
     };
   }
 
   if (room.members.some((member) => !member.startReady)) {
-    return {
-      title: '等待对手准备开始',
-      detail: '等待对手。',
-    };
+    return { title: '等待对手准备' };
   }
 
   return { title: '即将进入开局猜拳' };

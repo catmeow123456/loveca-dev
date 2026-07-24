@@ -57,6 +57,13 @@
       "when": 1783500767032,
       "tag": "0007_add_site_status_config",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1784877556100,
+      "tag": "0008_add_public_table_beta",
+      "breakpoints": true
     }
   ]
 }

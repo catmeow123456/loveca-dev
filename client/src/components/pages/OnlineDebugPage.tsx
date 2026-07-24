@@ -31,7 +31,8 @@ import {
 } from '@/lib/deckSelectionPreferences';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 
-const DEBUG_MATCH_ID = (import.meta.env.VITE_DEBUG_MATCH_ID as string | undefined) ?? 'loveca-online-debug';
+const DEBUG_MATCH_ID =
+  (import.meta.env.VITE_DEBUG_MATCH_ID as string | undefined) ?? 'loveca-online-debug';
 const DEBUG_SERVICE_NAME =
   (import.meta.env.VITE_DEBUG_SERVICE_NAME as string | undefined) ?? '联机调试';
 const DEBUG_SEAT = import.meta.env.VITE_DEBUG_SEAT as Seat | undefined;
@@ -286,17 +287,22 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
         <PageHeader
           title="联机调试"
           icon={<Swords size={20} />}
-          left={(
-            <button onClick={onBack} className="button-ghost inline-flex h-10 items-center gap-2 px-3">
+          left={
+            <button
+              onClick={onBack}
+              className="button-ghost inline-flex h-10 items-center gap-2 px-3"
+            >
               <ArrowLeft size={16} />
               返回
             </button>
-          )}
+          }
           right={<ThemeToggle />}
         />
         <main className="flex flex-1 items-center justify-center p-6">
           <div className="surface-panel-frosted max-w-xl p-6 text-center">
-            <h2 className="mb-3 text-xl font-bold text-[var(--text-primary)]">当前构建未配置联机调试 seat</h2>
+            <h2 className="mb-3 text-xl font-bold text-[var(--text-primary)]">
+              当前构建未配置联机调试 seat
+            </h2>
             <p className="text-sm text-[var(--text-secondary)]">
               请使用 `debug-service1` 或 `debug-service2` 启动脚本进入调试入口。
             </p>
@@ -330,30 +336,37 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
       <PageHeader
         title={DEBUG_SERVICE_NAME}
         icon={<Swords size={20} />}
-        left={(
-          <button onClick={onBack} className="button-ghost inline-flex h-10 items-center gap-2 px-3">
+        left={
+          <button
+            onClick={onBack}
+            className="button-ghost inline-flex h-10 items-center gap-2 px-3"
+          >
             <ArrowLeft size={16} />
             返回
           </button>
-        )}
+        }
         right={<ThemeToggle />}
       />
 
       <main className="relative z-10 flex flex-1 justify-center px-4 pb-6 pt-5 sm:p-6">
         <div className="flex w-full max-w-5xl flex-col gap-6">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-            <div className="order-2 h-[54dvh] min-h-[360px] overflow-hidden lg:order-1 lg:h-[calc(100dvh-14rem)] lg:min-h-[460px]">
+            <div
+              className={`order-2 overflow-hidden lg:order-1 ${
+                validDecks.length > 6 || isLoadingCloud
+                  ? 'h-[54dvh] min-h-[360px] lg:h-[calc(100dvh-14rem)] lg:min-h-[460px]'
+                  : ''
+              }`}
+            >
               <DeckSelector
-                cloudDecks={validDecks}
+                cloudDecks={cloudDecks}
                 selectedId={selectedDeck?.id}
                 onSelect={handleSelectDeck}
                 isLoading={isLoadingCloud}
                 error={cloudError}
                 onRefresh={fetchCloudDecks}
-                title="更换调试卡组"
-                subtitle=""
-                selectionLabel="当前卡组"
-                emptyText="没有可用卡组，请先创建一副合法卡组"
+                title="选择卡组"
+                emptyText="还没有可用卡组。"
                 density="compact"
                 lastUsedDeckId={lastUsedDeckId}
               />
@@ -365,7 +378,9 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
                   <Link2 size={12} />
                   Match {DEBUG_MATCH_ID}
                 </div>
-                <h2 className="text-xl font-bold text-[var(--text-primary)]">{DEBUG_SERVICE_NAME}</h2>
+                <h2 className="text-xl font-bold text-[var(--text-primary)]">
+                  {DEBUG_SERVICE_NAME}
+                </h2>
                 <p className="mt-2 text-sm text-[var(--text-secondary)]">
                   当前固定座位：{mySeat === 'FIRST' ? '先攻 / 调试服务1' : '后攻 / 调试服务2'}
                 </p>
@@ -391,7 +406,11 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
                   disabled={!selectedDeck || isSubmitting}
                   className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${!selectedDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
                 >
-                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Users size={16} />}
+                  {isSubmitting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <Users size={16} />
+                  )}
                   锁定我的卡组
                 </motion.button>
 
@@ -414,7 +433,10 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
               />
               <StatusCard
                 title="对手"
-                label={opponentStatus?.playerName || (opponentSeat === 'FIRST' ? '调试服务1' : '调试服务2')}
+                label={
+                  opponentStatus?.playerName ||
+                  (opponentSeat === 'FIRST' ? '调试服务1' : '调试服务2')
+                }
                 ready={opponentStatus?.ready ?? false}
                 deckName={opponentStatus?.deckName}
               />
@@ -486,9 +508,13 @@ function StatusCard({
 }) {
   return (
     <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4">
-      <div className="mb-1 text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">{title}</div>
+      <div className="mb-1 text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">
+        {title}
+      </div>
       <div className="text-base font-semibold text-[var(--text-primary)]">{label}</div>
-      <div className={`mt-2 text-sm ${ready ? 'text-[var(--semantic-success)]' : 'text-[var(--text-muted)]'}`}>
+      <div
+        className={`mt-2 text-sm ${ready ? 'text-[var(--semantic-success)]' : 'text-[var(--text-muted)]'}`}
+      >
         {ready ? `已锁定：${deckName ?? '未命名卡组'}` : '等待锁定卡组'}
       </div>
     </div>

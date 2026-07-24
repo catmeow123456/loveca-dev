@@ -14,6 +14,7 @@
 - `docs/online-mode/preparation.md`：联机模式总览与当前实现边界。
 - `docs/online-mode/visibility-matrix.md`：可见性、投影、公共对象跟踪。
 - `docs/online-mode/free-drag-checklist.md`：自由拖拽权限模型与最小回归测试。
+- `docs/online-mode/room-exit-and-recovery.md`：返回主页、退出房间、公共牌桌配对放弃与房间恢复入口的现行语义。
 - `docs/online-mode/remote-undo-requirements-design.md`：正式联机、服务端可记录对墙打撤销的历史实施记录，以及远程调试撤销的剩余计划；当前桌面场景边界以 `docs/battle-mode-purpose-and-boundaries.md` 为准。
 - `docs/online-mode/transport-serde-performance.md`：正式联机 snapshot / command response 的 JSON-native transport 热路径、性能基准和后续 snapshot diff / 增量同步边界。
 - `docs/match-replay/README.md`：历史记录、玩家视角 checkpoint 回放与运行态恢复专题入口。

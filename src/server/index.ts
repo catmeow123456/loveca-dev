@@ -4,6 +4,7 @@ import { pool } from './db/pool.js';
 import { ensureBucket } from './services/minio-service.js';
 import { onlineMatchService } from './services/online-match-service.js';
 import { onlineRoomService } from './services/online-room-service.js';
+import { publicTableService } from './services/public-table-service.js';
 
 const TOKEN_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 const RUNTIME_CLEANUP_INTERVAL = readPositiveIntEnv('API_RUNTIME_CLEANUP_INTERVAL_MS', 60 * 1000);
@@ -29,10 +30,12 @@ async function cleanupExpiredTokens() {
 async function cleanupExpiredRuntimeState() {
   try {
     const summary = await onlineRoomService.cleanupExpiredRuntimeState();
+    const publicTableSummary = await publicTableService.cleanupExpiredState();
     console.log(
       JSON.stringify({
         event: 'api-runtime-cleanup',
         summary,
+        publicTableSummary,
       })
     );
   } catch (err) {

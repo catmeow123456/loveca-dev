@@ -930,13 +930,14 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                     current === deck.id ? null : deck.id
                                   )
                                 }
-                                className="button-ghost inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                className="button-secondary inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold"
                               >
                                 {copyingDeckId === deck.id ? (
                                   <Loader2 size={16} className="animate-spin" />
                                 ) : (
-                                  <MoreHorizontal size={18} />
+                                  <MoreHorizontal size={14} />
                                 )}
+                                {copyingDeckId === deck.id ? '处理中' : '更多'}
                               </button>
 
                               {openActionsDeckId === deck.id && (

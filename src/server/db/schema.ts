@@ -49,6 +49,10 @@ export type SiteStatusLifecycle =
   | 'CANCELLED';
 export type SiteAnnouncementType = 'MAINTENANCE' | 'UPDATE' | 'NEWS';
 export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
+export type GameplayParticipationKind = 'PUBLIC_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+export type PublicTableTicketState = 'WAITING' | 'RESERVED' | 'MATCHED' | 'CANCELED' | 'EXPIRED';
+export type PublicTableReservationState =
+  'PENDING_CONFIRMATION' | 'CREATING_ROOM' | 'MATCHED' | 'RELEASED';
 
 export type DeckEntry = {
   card_code: string;
@@ -343,6 +347,126 @@ export const siteStatusConfig = pgTable(
   ]
 );
 
+export const publicTableTickets = pgTable(
+  'public_table_tickets',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    environmentId: text('environment_id').notNull().default('PUBLIC_TABLE_V1'),
+    sourceDeckId: uuid('source_deck_id').references(() => decks.id, { onDelete: 'set null' }),
+    sourceDeckName: text('source_deck_name').notNull(),
+    runtimeDeck: jsonb('runtime_deck').$type<unknown>().notNull(),
+    deckContentHash: text('deck_content_hash').notNull(),
+    deckLockedAt: timestamp('deck_locked_at', { withTimezone: true }).notNull().defaultNow(),
+    state: text('state').$type<PublicTableTicketState>().notNull().default('WAITING'),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
+    heartbeatAt: timestamp('heartbeat_at', { withTimezone: true }).notNull().defaultNow(),
+    matchableAfter: timestamp('matchable_after', { withTimezone: true }).notNull().defaultNow(),
+    reservationId: uuid('reservation_id'),
+    matchedRoomGeneration: text('matched_room_generation'),
+    matchedMatchId: text('matched_match_id'),
+    entrySource: text('entry_source').notNull().default('DIRECT'),
+    requeuedFromTicketId: uuid('requeued_from_ticket_id').references(
+      (): AnyPgColumn => publicTableTickets.id,
+      { onDelete: 'set null' }
+    ),
+    terminalReason: text('terminal_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_public_table_tickets_matchable').on(
+      table.environmentId,
+      table.state,
+      table.matchableAfter,
+      table.joinedAt
+    ),
+    index('idx_public_table_tickets_reservation_id').on(table.reservationId),
+    uniqueIndex('uq_public_table_tickets_active_user')
+      .on(table.userId)
+      .where(sql`${table.state} IN ('WAITING', 'RESERVED')`),
+    uniqueIndex('uq_public_table_tickets_requeued_from')
+      .on(table.requeuedFromTicketId)
+      .where(sql`${table.requeuedFromTicketId} IS NOT NULL`),
+    check(
+      'public_table_tickets_state_check',
+      sql`${table.state} IN ('WAITING', 'RESERVED', 'MATCHED', 'CANCELED', 'EXPIRED')`
+    ),
+  ]
+);
+
+export const publicTableReservations = pgTable(
+  'public_table_reservations',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    environmentId: text('environment_id').notNull().default('PUBLIC_TABLE_V1'),
+    firstTicketId: uuid('first_ticket_id')
+      .notNull()
+      .references(() => publicTableTickets.id, { onDelete: 'restrict' }),
+    secondTicketId: uuid('second_ticket_id')
+      .notNull()
+      .references(() => publicTableTickets.id, { onDelete: 'restrict' }),
+    state: text('state')
+      .$type<PublicTableReservationState>()
+      .notNull()
+      .default('PENDING_CONFIRMATION'),
+    firstConfirmedAt: timestamp('first_confirmed_at', { withTimezone: true }),
+    secondConfirmedAt: timestamp('second_confirmed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    bootstrapLeaseUntil: timestamp('bootstrap_lease_until', { withTimezone: true }),
+    roomCode: text('room_code'),
+    roomGeneration: text('room_generation').unique(),
+    matchId: text('match_id'),
+    failureReason: text('failure_reason'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_public_table_reservations_state_expires').on(table.state, table.expiresAt),
+    uniqueIndex('uq_public_table_reservation_ticket_pair').on(
+      table.firstTicketId,
+      table.secondTicketId
+    ),
+    check(
+      'public_table_reservations_state_check',
+      sql`${table.state} IN ('PENDING_CONFIRMATION', 'CREATING_ROOM', 'MATCHED', 'RELEASED')`
+    ),
+    check(
+      'public_table_reservations_distinct_tickets_check',
+      sql`${table.firstTicketId} <> ${table.secondTicketId}`
+    ),
+  ]
+);
+
+export const gameplayParticipations = pgTable(
+  'gameplay_participations',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<GameplayParticipationKind>().notNull(),
+    ticketId: uuid('ticket_id').references(() => publicTableTickets.id, {
+      onDelete: 'cascade',
+    }),
+    roomGeneration: text('room_generation'),
+    matchId: text('match_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_gameplay_participations_kind').on(table.kind),
+    check(
+      'gameplay_participations_kind_check',
+      sql`${table.kind} IN ('PUBLIC_QUEUE', 'ONLINE_ROOM', 'ONLINE_MATCH')`
+    ),
+  ]
+);
+
 export const matchRecords = pgTable(
   'match_records',
   {
@@ -409,7 +533,7 @@ export const matchRecords = pgTable(
     ),
     check(
       'match_records_origin_kind_check',
-      sql`${table.originKind} IN ('ONLINE_ROOM', 'SOLITAIRE')`
+      sql`${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE', 'SOLITAIRE')`
     ),
     check(
       'match_records_status_check',

@@ -16,6 +16,7 @@ import { onlineRouter } from './routes/online.js';
 import { battleRouter } from './routes/battle.js';
 import { appConfigRouter } from './routes/app-config.js';
 import { siteAnnouncementsRouter } from './routes/site-announcements.js';
+import { publicTableRouter } from './routes/public-table.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -74,6 +75,7 @@ export function createApp(): express.Express {
   app.use('/api/site-announcements', siteAnnouncementsRouter);
   app.use('/api/online', onlineRouter);
   app.use('/api/battle', battleRouter);
+  app.use('/api/public-table', publicTableRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

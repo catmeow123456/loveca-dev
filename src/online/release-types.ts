@@ -1,5 +1,6 @@
 import type { Seat } from './types.js';
 import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
+import type { MatchOriginKind } from './replay-types.js';
 
 export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'OPENING' | 'IN_GAME';
 export type OnlineRoomMemberRole = 'HOST' | 'GUEST';
@@ -49,6 +50,7 @@ export interface OnlineRestartRequestView {
 
 export interface OnlineRoomView {
   readonly roomCode: string;
+  readonly originKind: MatchOriginKind;
   readonly status: OnlineRoomStatus;
   readonly ownerUserId: string;
   readonly currentUserId: string;

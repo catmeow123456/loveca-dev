@@ -71,6 +71,7 @@ interface HomePageProps {
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
   onNavigateToOnlineRoom: () => void;
+  onNavigateToPublicTable: () => void;
   onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
@@ -82,7 +83,7 @@ interface HomePageProps {
 
 interface ActionTileProps {
   title: string;
-  description: string;
+  description?: string;
   icon: ComponentType<{ size?: number | string; className?: string }>;
   onClick: () => void;
   disabled?: boolean;
@@ -124,6 +125,7 @@ export function HomePage({
   onNavigateToDeckManager,
   onNavigateToGameSetup,
   onNavigateToOnlineRoom,
+  onNavigateToPublicTable,
   onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
@@ -158,8 +160,8 @@ export function HomePage({
   );
   const hasUnreadAnnouncements = Boolean(
     announcementSeenKey &&
-      announcementItems.length > 0 &&
-      lastSeenAnnouncementKey !== announcementSeenKey
+    announcementItems.length > 0 &&
+    lastSeenAnnouncementKey !== announcementSeenKey
   );
   const announcementStatusMessage = hasUnreadAnnouncements ? '公告已更新' : '';
 
@@ -321,12 +323,15 @@ export function HomePage({
 
   const secondaryActions: ActionTileProps[] = [
     {
+      title: '公共牌桌',
+      icon: Swords,
+      onClick: onNavigateToPublicTable,
+      disabled: !canUseOnlineRoom || !hasLegalDeck,
+      status: canUseOnlineRoom ? '休闲对局 · 不计积分' : '连接后可用',
+      tone: canUseOnlineRoom ? 'primary' : 'muted',
+    },
+    {
       title: '正式联机',
-      description: canUseOnlineRoom
-        ? '创建或加入房间，锁定云端卡组。'
-        : deckSourceStatus === 'offline'
-          ? '登录并连接服务后可创建或加入房间。'
-          : 'API 服务可用后可创建或加入房间。',
       icon: Globe2,
       onClick: onNavigateToOnlineRoom,
       disabled: !canUseOnlineRoom,
@@ -340,11 +345,6 @@ export function HomePage({
     },
     {
       title: '输入房间号观战',
-      description: canUseOnlineRoom
-        ? '直接选择已开放的玩家视角。'
-        : deckSourceStatus === 'offline'
-          ? '连接服务后可通过房间号观战。'
-          : 'API 服务可用后可通过房间号观战。',
       icon: Eye,
       onClick: onNavigateToOnlineSpectator,
       disabled: !canUseOnlineRoom,
@@ -354,9 +354,6 @@ export function HomePage({
     },
     {
       title: '历史对局',
-      description: canUseCloudDecks
-        ? '查看历史记录、timeline 与只读回放节点。'
-        : '连接服务后可读取历史对局记录。',
       icon: History,
       onClick: onNavigateToMatchRecords,
       disabled: !canUseCloudDecks,
@@ -1072,12 +1069,7 @@ function EntryPageHeader({
 function SecondaryEntryPanel({ actions }: { actions: ActionTileProps[] }) {
   return (
     <aside className="surface-panel rounded-lg p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-bold text-[var(--text-primary)]">对局入口</h3>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">正式联机、历史回放与调试入口</p>
-        </div>
-      </div>
+      <h3 className="mb-3 text-sm font-bold text-[var(--text-primary)]">对局入口</h3>
       <div className="grid gap-2">
         {actions.map((action) => (
           <ActionTile key={action.title} {...action} compact />
@@ -1384,7 +1376,9 @@ function ActionTile({
         type="button"
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
-        className={`group flex min-h-[68px] w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+        className={`group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
+          description ? 'min-h-[68px]' : 'min-h-14'
+        } ${
           disabled
             ? 'cursor-not-allowed border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)] opacity-60'
             : 'border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] hover:border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))]'
@@ -1404,9 +1398,11 @@ function ActionTile({
               </span>
             )}
           </div>
-          <p className="mt-0.5 line-clamp-1 text-xs leading-5 text-[var(--text-secondary)]">
-            {description}
-          </p>
+          {description && (
+            <p className="mt-0.5 line-clamp-1 text-xs leading-5 text-[var(--text-secondary)]">
+              {description}
+            </p>
+          )}
         </div>
       </motion.button>
     );
@@ -1450,9 +1446,11 @@ function ActionTile({
             />
           )}
         </div>
-        <p className="mt-1 line-clamp-2 text-sm leading-5 text-[var(--text-secondary)]">
-          {description}
-        </p>
+        {description && (
+          <p className="mt-1 line-clamp-2 text-sm leading-5 text-[var(--text-secondary)]">
+            {description}
+          </p>
+        )}
       </div>
     </motion.button>
   );

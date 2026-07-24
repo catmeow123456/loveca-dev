@@ -55,7 +55,7 @@ export async function fetchOnlineRoom(roomCode: string): Promise<OnlineRoomView>
     `/api/online/rooms/${encodeURIComponent(roomCode)}`
   );
   if (!response.data) {
-    throw new Error(response.error?.message ?? '读取房间状态失败');
+    throw toApiClientError(response, '读取房间状态失败');
   }
   return response.data;
 }

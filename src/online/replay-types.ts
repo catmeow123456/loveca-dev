@@ -19,11 +19,7 @@ export type ReplayCheckpointType = 'AUTHORITY' | 'PLAYER_VIEW' | 'PUBLIC_VIEW';
 export type ReplayVisibilityScope = 'PUBLIC' | 'PRIVATE' | 'ADMIN' | 'SYSTEM';
 
 export type MatchRecordStatus =
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'SURRENDERED'
-  | 'INTERRUPTED'
-  | 'CORRUPTED';
+  'IN_PROGRESS' | 'COMPLETED' | 'SURRENDERED' | 'INTERRUPTED' | 'CORRUPTED';
 
 export type MatchRecordCompleteness = 'FULL' | 'PARTIAL' | 'INCOMPLETE';
 
@@ -33,14 +29,12 @@ export type MatchMode = 'ONLINE' | 'SOLITAIRE';
 
 export type MatchAutomationGameMode = 'DEBUG' | 'SOLITAIRE';
 
-export type MatchOriginKind = 'ONLINE_ROOM' | 'SOLITAIRE';
+export type MatchOriginKind = 'ONLINE_ROOM' | 'PUBLIC_TABLE' | 'SOLITAIRE';
 
 export type MatchParticipantKind = 'USER' | 'SYSTEM';
 
 export type MatchDeckSnapshotSource =
-  | 'ONLINE_RUNTIME_DECK'
-  | 'PUBLISHED_CARDS_SNAPSHOT'
-  | 'SOLITAIRE_DEFAULT_DECK';
+  'ONLINE_RUNTIME_DECK' | 'PUBLISHED_CARDS_SNAPSHOT' | 'SOLITAIRE_DEFAULT_DECK';
 
 export type MatchDeckSnapshotValidationState = 'RUNTIME_ACCEPTED' | 'VALID' | 'INVALID';
 
@@ -75,9 +69,7 @@ export type MatchDecisionType =
 export type MatchDecisionRecordStatus = 'OPENED' | 'SUBMITTED';
 
 export type MatchDecisionTransitionSemantics =
-  | 'STRUCTURED'
-  | 'SNAPSHOT_AUDIT_ONLY'
-  | 'UNSTRUCTURED_MANUAL';
+  'STRUCTURED' | 'SNAPSHOT_AUDIT_ONLY' | 'UNSTRUCTURED_MANUAL';
 
 export interface MatchDecisionCardSummary {
   readonly cardId: string;

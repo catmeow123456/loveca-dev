@@ -6,3 +6,4 @@ export * from './remote-snapshot-order.js';
 export * from './debug-types.js';
 export * from './release-types.js';
 export * from './replay-types.js';
+export * from './public-table-types.js';
