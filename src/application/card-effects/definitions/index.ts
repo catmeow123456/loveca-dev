@@ -7154,18 +7154,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID,
-    cardCodes: ['PL!SP-PR-025-PR', 'PL!-PR-021-PR'],
+    baseCardCodes: ['PL!SP-PR-025', 'PL!-PR-021'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
     implemented: true,
     effectText: SP_PR_025_CONTINUOUS_EFFECT_TEXT,
     notes:
-      'Excel 来源 `docs/card-data-sync/sources/loveca_20260626015115.xlsx`；cards.json 暂未收录。两张 exact PR 卡同文复用同一常时 ability identity，不入 pending；live-modifiers.ts 在来源成员仍在自己的主舞台且自己能量恰好7张时写来源成员 BLADE +2，6张/8张、离场或 memberBelow 时动态失效。',
+      'Excel 来源 `docs/card-data-sync/sources/loveca_20260626015115.xlsx`；cards.json 暂未收录。两张当前公开 PR 卡按各自基础编号复用同一常时 ability identity，不入 pending；live-modifiers.ts 在来源成员仍在自己的主舞台且自己能量恰好7张时写来源成员 BLADE +2，6张/8张、离场或 memberBelow 时动态失效。',
   },
   {
     abilityId: PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID,
-    cardCodes: ['PL!HS-PR-036-PR', 'PL!N-PR-032-PR', 'PL!S-PR-044-PR'],
+    baseCardCodes: ['PL!HS-PR-036', 'PL!N-PR-032', 'PL!S-PR-044'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -7174,11 +7174,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【登场】存在于自己的休息室的卡片的张数不足8张的场合，从自己的卡组顶将等同于差值的数量的卡片放置入休息室。此后，可以从因此放置入休息室的卡片中，将1张LIVE卡放置于卡组顶。',
     notes:
-      'Excel exact PR 同文 family；shared ON_ENTER workflow 在结算开始时固定捕获 8 与休息室张数的差值，复用 refresh-aware direct mill 形成单组 MAIN_DECK→WAITING_ROOM 事件。后段只从本次 movedCardIds 中仍在休息室的 LIVE 选择0或1张，经过双方公开确认后置于主卡组顶。',
+      'Excel 当前公开 PR 同文 family，规则按三个基础编号覆盖；shared ON_ENTER workflow 在结算开始时固定捕获 8 与休息室张数的差值，复用 refresh-aware direct mill 形成单组 MAIN_DECK→WAITING_ROOM 事件。后段只从本次 movedCardIds 中仍在休息室的 LIVE 选择0或1张，经过双方公开确认后置于主卡组顶。',
   },
   {
     abilityId: S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
-    cardCodes: ['PL!S-PR-045-PR'],
+    baseCardCodes: ['PL!S-PR-045'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -7186,11 +7186,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: '【登场】从费用为7的成员换手登场的场合，抽2张卡，将1张手牌放置入休息室。',
     notes:
-      'Excel exact PR；扩展 relay-enter-draw-discard shared family，以本次 ON_ENTER_STAGE pending metadata 的 relayReplacements[].effectiveCost 快照判断费用7。满足后复用 draw-then-discard 抽2弃1，弃手走标准进入休息室 trigger wrapper。',
+      'Excel 当前公开版本为 PR，规则按基础编号覆盖；扩展 relay-enter-draw-discard shared family，以本次 ON_ENTER_STAGE pending metadata 的 relayReplacements[].effectiveCost 快照判断费用7。满足后复用 draw-then-discard 抽2弃1，弃手走标准进入休息室 trigger wrapper。',
   },
   {
     abilityId: PR_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE_ABILITY_ID,
-    cardCodes: ['PL!-PR-020-PR', 'PL!SP-PR-026-PR'],
+    baseCardCodes: ['PL!-PR-020', 'PL!SP-PR-026'],
     category: CardAbilityCategory.LIVE_START,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -7200,7 +7200,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【LIVE开始时】【中央】存在于自己的LIVE卡区的LIVE卡的分数合计大于等于8的场合，获得「【常时】LIVE的合计分数+1。」。',
     requiredSourceSlots: [SlotPosition.CENTER],
     notes:
-      'Excel exact PR 同文 family；扩展 conditional-live-modifier shared workflow。动态 confirm-only 展示己方 LIVE 卡区逐卡有效分数合计；门槛只含印刷分数与 liveCardId 绑定 SCORE modifier，不含玩家 LIVE 合计分数、声援分数或 playerScores 草案。结算时重验来源仍在中央，满足后写来源实例绑定的玩家 SCORE +1。',
+      'Excel 当前公开 PR 同文 family，规则按两个基础编号覆盖；扩展 conditional-live-modifier shared workflow。动态 confirm-only 展示己方 LIVE 卡区逐卡有效分数合计；门槛只含印刷分数与 liveCardId 绑定 SCORE modifier，不含玩家 LIVE 合计分数、声援分数或 playerScores 草案。结算时重验来源仍在中央，满足后写来源实例绑定的玩家 SCORE +1。',
   },
   {
     abilityId: SP_PB2_045_LIVE_START_LIELLA_HEART_FOUR_COUNT_THIS_LIVE_SCORE_ABILITY_ID,

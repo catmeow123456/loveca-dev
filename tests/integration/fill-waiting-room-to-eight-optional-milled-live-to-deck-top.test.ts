@@ -42,8 +42,11 @@ const P2 = 'player2';
 const ABILITY_ID = PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID;
 const SOURCE_CARDS = [
   ['PL!HS-PR-036-PR', '大沢瑠璃乃'],
+  ['PL!HS-PR-036-P', '大沢瑠璃乃'],
   ['PL!N-PR-032-PR', '優木せつ菜'],
+  ['PL!N-PR-032-P', '優木せつ菜'],
   ['PL!S-PR-044-PR', '高海千歌'],
+  ['PL!S-PR-044-P', '高海千歌'],
 ] as const;
 
 registerFillWaitingRoomToEightOptionalMilledLiveToDeckTopWorkflowHandlers({
@@ -154,7 +157,7 @@ function toSession(game: GameState) {
 
 describe('PR shared fill-waiting-room-to-eight workflow', () => {
   for (const [cardCode, name] of SOURCE_CARDS) {
-    it(`${cardCode} 费用5「${name}」使用同一精确磨牌选择流程`, () => {
+    it(`${cardCode} 费用5「${name}」使用同一基础编号磨牌选择流程`, () => {
       const scenario = setup({ sourceCardCode: cardCode, sourceName: name });
       expect(scenario.game.activeEffect).toMatchObject({
         abilityId: ABILITY_ID,

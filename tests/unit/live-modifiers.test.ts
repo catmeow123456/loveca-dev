@@ -1626,8 +1626,13 @@ describe('live modifier helpers', () => {
     }
   });
 
-  it('collects exact-seven-energy BLADE plus two for both exact PR cards', () => {
-    for (const cardCode of ['PL!SP-PR-025-PR', 'PL!-PR-021-PR'] as const) {
+  it('collects exact-seven-energy BLADE plus two across both PR base-code families', () => {
+    for (const cardCode of [
+      'PL!SP-PR-025-PR',
+      'PL!SP-PR-025-P',
+      'PL!-PR-021-PR',
+      'PL!-PR-021-P',
+    ] as const) {
       const atSeven = createSpPb2EnergyHeartState({
         cardCode,
         energyOrientations: Array(7).fill(OrientationState.WAITING),
@@ -1658,8 +1663,8 @@ describe('live modifier helpers', () => {
     }
   });
 
-  it('does not collect exact-seven-energy BLADE when either exact PR source is invalid', () => {
-    for (const cardCode of ['PL!SP-PR-025-PR', 'PL!-PR-021-PR'] as const) {
+  it('does not collect exact-seven-energy BLADE when either PR-family source is invalid', () => {
+    for (const cardCode of ['PL!SP-PR-025-P', 'PL!-PR-021-P'] as const) {
       for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
         const state = createSpPb2EnergyHeartState({
           cardCode,

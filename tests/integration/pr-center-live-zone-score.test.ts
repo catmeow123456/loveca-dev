@@ -35,12 +35,17 @@ import {
 
 const P1 = 'p1';
 const P2 = 'p2';
-const PR_CARD_CODES = ['PL!-PR-020-PR', 'PL!SP-PR-026-PR'] as const;
+const PR_CARD_CODES = [
+  'PL!-PR-020-PR',
+  'PL!-PR-020-P',
+  'PL!SP-PR-026-PR',
+  'PL!SP-PR-026-P',
+] as const;
 
 function memberData(cardCode: (typeof PR_CARD_CODES)[number]): MemberCardData {
   return {
     cardCode,
-    name: cardCode === 'PL!-PR-020-PR' ? '高坂穗乃果' : '鬼冢夏美',
+    name: cardCode.startsWith('PL!-PR-020-') ? '高坂穗乃果' : '鬼冢夏美',
     groupNames: [cardCode.startsWith('PL!SP') ? 'Liella!' : "μ's"],
     cardType: CardType.MEMBER,
     cost: 13,

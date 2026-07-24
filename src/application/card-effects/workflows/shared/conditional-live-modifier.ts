@@ -58,6 +58,7 @@ import {
   normalizeCardName,
   selectDifferentNamedCards,
 } from '../../../../shared/utils/card-identity.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
@@ -108,6 +109,7 @@ const PL_BP5_022_SUCCESS_ZONE_SCORE_REQUIREMENT_STEP_ID =
 const PL_BP5_023_STAGE_NON_PINK_PURPLE_REQUIREMENT_STEP_ID =
   'PL_BP5_023_STAGE_NON_PINK_PURPLE_REQUIREMENT';
 const HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP5_019_REQUIREMENT_REDUCTION';
+const PR_CENTER_LIVE_ZONE_SCORE_EIGHT_BASE_CARD_CODES = ['PL!-PR-020', 'PL!SP-PR-026'] as const;
 const HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
@@ -636,7 +638,9 @@ function getPrCenterLiveZoneScoreEightContext(
     source !== null &&
     source.ownerId === playerId &&
     isMemberCardData(source.data) &&
-    (source.data.cardCode === 'PL!-PR-020-PR' || source.data.cardCode === 'PL!SP-PR-026-PR');
+    PR_CENTER_LIVE_ZONE_SCORE_EIGHT_BASE_CARD_CODES.some((baseCardCode) =>
+      cardCodeMatchesBase(source.data.cardCode, baseCardCode)
+    );
   const liveCardScores = getLiveZoneCardEffectiveScores(game, playerId);
   const liveZoneScoreTotal = liveCardScores.reduce(
     (total, { effectiveScore }) => total + effectiveScore,

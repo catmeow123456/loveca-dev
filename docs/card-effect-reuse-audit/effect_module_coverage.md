@@ -157,3 +157,4 @@ energyBelow 继续随主成员移动/交换，并在离场、换手或替换时�
 | 中央且 LIVE 区有效分数达到8后获得玩家 SCORE +1 | `PL!-PR-020-PR` 费用13「高坂穗乃果」；`PL!SP-PR-026-PR` 费用13「鬼冢夏美」 | `conditional-live-modifier` 新配置 + `live-zone-score.ts` 纯 query；目标绑定来源实例。 |
 
 本批没有建立任意 relay predicate、区域分数 AST、目的地 callback 或奖励 DSL。
+以上卡牌按基础编号覆盖全部罕度；表中的 `-PR` 只表示当前公开印刷，不是 definition、workflow gate 或 continuous registry 的规则边界。

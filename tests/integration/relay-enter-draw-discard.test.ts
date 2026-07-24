@@ -460,9 +460,9 @@ describe('relay enter draw-discard shared workflow', () => {
     ).toBe(true);
   });
 
-  it('uses the captured effective cost 7 when PL!S-PR-045-PR 费用11「津島善子」relays from a currently cost-4 member', () => {
+  it('uses the captured effective cost 7 when PL!S-PR-045-P 费用11「津島善子」relays from a currently cost-4 member', () => {
     const scenario = setupRelayDrawDiscardScenario({
-      sourceCardCode: 'PL!S-PR-045-PR',
+      sourceCardCode: 'PL!S-PR-045-P',
       sourceName: '津島善子',
       sourceCost: 11,
       replacementName: '小泉花陽',

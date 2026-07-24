@@ -4994,8 +4994,13 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
-    const exactEnergySevenBladeCardCodes = ['PL!SP-PR-025-PR', 'PL!-PR-021-PR'] as const;
-    for (const cardCode of exactEnergySevenBladeCardCodes) {
+    const energySevenBladeBaseCardCodes = ['PL!SP-PR-025', 'PL!-PR-021'] as const;
+    for (const cardCode of [
+      'PL!SP-PR-025-PR',
+      'PL!SP-PR-025-P',
+      'PL!-PR-021-PR',
+      'PL!-PR-021-P',
+    ] as const) {
       expect(
         getCardAbilityDefinitions(cardCode).find(
           (ability) =>
@@ -5003,7 +5008,7 @@ describe('card effect classification registry', () => {
         )
       ).toMatchObject({
         abilityId: SP_PR_025_CONTINUOUS_ENERGY_EXACT_SEVEN_GAIN_TWO_BLADE_ABILITY_ID,
-        cardCodes: exactEnergySevenBladeCardCodes,
+        baseCardCodes: energySevenBladeBaseCardCodes,
         effectText: '【常时】只要自己的能量存在恰好7张，获得[ブレード][ブレード]。',
         category: CardAbilityCategory.CONTINUOUS,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
@@ -15443,14 +15448,14 @@ describe('PL!N-bp7-031 base-scoped LIVE_SUCCESS and AUTO definitions', () => {
   });
 });
 
-describe('2026-07-23 PR batches 2-4 exact definitions', () => {
+describe('2026-07-23 PR batches 2-4 base-scoped definitions', () => {
   it.each(['PL!HS-PR-036-PR', 'PL!N-PR-032-PR', 'PL!S-PR-044-PR'])(
     'registers %s in the shared fill-waiting-room family',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([
         expect.objectContaining({
           abilityId: PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID,
-          cardCodes: ['PL!HS-PR-036-PR', 'PL!N-PR-032-PR', 'PL!S-PR-044-PR'],
+          baseCardCodes: ['PL!HS-PR-036', 'PL!N-PR-032', 'PL!S-PR-044'],
           category: CardAbilityCategory.ON_ENTER,
           sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
           triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -15461,11 +15466,11 @@ describe('2026-07-23 PR batches 2-4 exact definitions', () => {
     }
   );
 
-  it('registers only the exact PL!S-PR-045-PR relay draw-discard ability', () => {
+  it('registers the PL!S-PR-045 relay draw-discard ability by base card code', () => {
     expect(getCardAbilityDefinitions('PL!S-PR-045-PR')).toEqual([
       expect.objectContaining({
         abilityId: S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
-        cardCodes: ['PL!S-PR-045-PR'],
+        baseCardCodes: ['PL!S-PR-045'],
         category: CardAbilityCategory.ON_ENTER,
         sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
         triggerCondition: TriggerCondition.ON_ENTER_STAGE,
@@ -15481,7 +15486,7 @@ describe('2026-07-23 PR batches 2-4 exact definitions', () => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([
         expect.objectContaining({
           abilityId: PR_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE_ABILITY_ID,
-          cardCodes: ['PL!-PR-020-PR', 'PL!SP-PR-026-PR'],
+          baseCardCodes: ['PL!-PR-020', 'PL!SP-PR-026'],
           category: CardAbilityCategory.LIVE_START,
           sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
           triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -15494,13 +15499,22 @@ describe('2026-07-23 PR batches 2-4 exact definitions', () => {
   );
 
   it.each([
-    'PL!HS-PR-036-P',
-    'PL!N-PR-032-P',
-    'PL!S-PR-044-P',
-    'PL!S-PR-045-P',
-    'PL!-PR-020-P',
-    'PL!SP-PR-026-P',
-  ])('does not extrapolate the Excel-only exact PR definition to %s', (cardCode) => {
-    expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    ['PL!HS-PR-036-P', PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID],
+    ['PL!N-PR-032-P', PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID],
+    ['PL!S-PR-044-P', PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID],
+    ['PL!S-PR-045-P', S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID],
+    ['PL!-PR-020-P', PR_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE_ABILITY_ID],
+    ['PL!SP-PR-026-P', PR_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE_ABILITY_ID],
+  ])('covers an additional rarity without new registration: %s', (cardCode, abilityId) => {
+    expect(getCardAbilityDefinitions(cardCode)).toContainEqual(
+      expect.objectContaining({ abilityId })
+    );
   });
+
+  it.each(['PL!HS-PR-037-P', 'PL!N-PR-033-P', 'PL!S-PR-046-P', 'PL!-PR-019-P'])(
+    'does not leak the base-scoped PR definitions to adjacent card %s',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
 });
