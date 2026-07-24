@@ -1,15 +1,7 @@
 import type { ModifierIconName } from '@/lib/modifierIconAssets';
 
 export type CardEffectTokenKind =
-  | 'text'
-  | 'ability'
-  | 'limit'
-  | 'slot'
-  | 'heart'
-  | 'blade'
-  | 'cost'
-  | 'score'
-  | 'other';
+  'text' | 'ability' | 'limit' | 'slot' | 'heart' | 'blade' | 'cost' | 'score' | 'other';
 
 export type CardEffectPlaceholderKind = Exclude<CardEffectTokenKind, 'text'>;
 
@@ -31,10 +23,7 @@ export type CardEffectPart = CardEffectTextPart | CardEffectPlaceholderPart;
 
 const TOKEN_PATTERN = /【[^】\r\n]+】|\[[^\]\r\n]+\]/g;
 
-const TOKEN_DEFINITIONS = new Map<
-  string,
-  Omit<CardEffectPlaceholderPart, 'raw'>
->([
+const TOKEN_DEFINITIONS = new Map<string, Omit<CardEffectPlaceholderPart, 'raw'>>([
   ['【登場】', { kind: 'ability', label: '登場' }],
   ['【登场】', { kind: 'ability', label: '登场' }],
   ['【ライブ開始時】', { kind: 'ability', label: 'LIVE開始時' }],
@@ -63,15 +52,15 @@ const TOKEN_DEFINITIONS = new Map<
   ['[E]', { kind: 'cost', label: 'E', icon: 'cost' }],
   ['[スコア]', { kind: 'score', label: 'スコア' }],
   ['[BLADE]', { kind: 'blade', label: 'BLADE', icon: 'blade' }],
-  ['[ALLBLADE]', { kind: 'blade', label: 'ALLBLADE', icon: 'blade' }],
+  ['[ALLBLADE]', { kind: 'blade', label: 'ALLBLADE', icon: 'heart_all' }],
   ['[ブレード]', { kind: 'blade', label: 'ブレード', icon: 'blade' }],
-  ['[ALLブレード]', { kind: 'blade', label: 'ALLブレード', icon: 'blade' }],
-  ['[桃ブレード]', { kind: 'blade', label: '桃ブレード', icon: 'blade' }],
-  ['[赤ブレード]', { kind: 'blade', label: '赤ブレード', icon: 'blade' }],
-  ['[黄ブレード]', { kind: 'blade', label: '黄ブレード', icon: 'blade' }],
-  ['[緑ブレード]', { kind: 'blade', label: '緑ブレード', icon: 'blade' }],
-  ['[青ブレード]', { kind: 'blade', label: '青ブレード', icon: 'blade' }],
-  ['[紫ブレード]', { kind: 'blade', label: '紫ブレード', icon: 'blade' }],
+  ['[ALLブレード]', { kind: 'blade', label: 'ALLブレード', icon: 'heart_all' }],
+  ['[桃ブレード]', { kind: 'blade', label: '桃ブレード', icon: 'heart_pink' }],
+  ['[赤ブレード]', { kind: 'blade', label: '赤ブレード', icon: 'heart_red' }],
+  ['[黄ブレード]', { kind: 'blade', label: '黄ブレード', icon: 'heart_yellow' }],
+  ['[緑ブレード]', { kind: 'blade', label: '緑ブレード', icon: 'heart_green' }],
+  ['[青ブレード]', { kind: 'blade', label: '青ブレード', icon: 'heart_blue' }],
+  ['[紫ブレード]', { kind: 'blade', label: '紫ブレード', icon: 'heart_purple' }],
   ['[桃ハート]', { kind: 'heart', label: '桃ハート', icon: 'heart_pink' }],
   ['[赤ハート]', { kind: 'heart', label: '赤ハート', icon: 'heart_red' }],
   ['[红HEART]', { kind: 'heart', label: '红HEART', icon: 'heart_red' }],

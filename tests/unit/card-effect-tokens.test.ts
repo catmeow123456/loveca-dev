@@ -25,15 +25,17 @@ describe('parseCardEffectText', () => {
     ];
     expect(texts.map(getUnknownCardEffectPlaceholders)).toEqual([[], []]);
     expect(
-      texts.map(
-        (text) => parseCardEffectText(text).filter((part) => part.kind === 'blade').length
-      )
+      texts.map((text) => parseCardEffectText(text).filter((part) => part.kind === 'blade').length)
     ).toEqual([2, 1]);
   });
 
   it('accepts the bp1-007 and PR-028 Chinese effect texts without unknown tokens', () => {
     expect(getUnknownCardEffectPlaceholders('【起动】【1回合1次】[E][E]：抽1张卡。')).toEqual([]);
-    expect(getUnknownCardEffectPlaceholders('【LIVE成功时】自己的舞台中，存在持有的HEART数量比原本持有的HEART数量多的成员的场合，抽1张卡。')).toEqual([]);
+    expect(
+      getUnknownCardEffectPlaceholders(
+        '【LIVE成功时】自己的舞台中，存在持有的HEART数量比原本持有的HEART数量多的成员的场合，抽1张卡。'
+      )
+    ).toEqual([]);
     expect(
       getUnknownCardEffectPlaceholders(
         '【常时】存在于自己的舞台的成员中，中央区域的成员持有最高费用的场合，获得[黄ハート]。'
@@ -101,13 +103,20 @@ describe('parseCardEffectText', () => {
 
   it('parses standardized and legacy modifier aliases used by effect definitions', () => {
     const parts = parseCardEffectText(
-      '获得[BLADE][ALLBLADE][虹ハート][黄HEART][红HEART][蓝HEART][紫HEART][无色HEART]。'
+      '获得[BLADE][ALLBLADE][ALLブレード][桃ブレード][赤ブレード][黄ブレード][緑ブレード][青ブレード][紫ブレード][虹ハート][黄HEART][红HEART][蓝HEART][紫HEART][无色HEART]。'
     );
 
     expect(parts).toEqual([
       { kind: 'text', text: '获得' },
       { kind: 'blade', raw: '[BLADE]', label: 'BLADE', icon: 'blade' },
-      { kind: 'blade', raw: '[ALLBLADE]', label: 'ALLBLADE', icon: 'blade' },
+      { kind: 'blade', raw: '[ALLBLADE]', label: 'ALLBLADE', icon: 'heart_all' },
+      { kind: 'blade', raw: '[ALLブレード]', label: 'ALLブレード', icon: 'heart_all' },
+      { kind: 'blade', raw: '[桃ブレード]', label: '桃ブレード', icon: 'heart_pink' },
+      { kind: 'blade', raw: '[赤ブレード]', label: '赤ブレード', icon: 'heart_red' },
+      { kind: 'blade', raw: '[黄ブレード]', label: '黄ブレード', icon: 'heart_yellow' },
+      { kind: 'blade', raw: '[緑ブレード]', label: '緑ブレード', icon: 'heart_green' },
+      { kind: 'blade', raw: '[青ブレード]', label: '青ブレード', icon: 'heart_blue' },
+      { kind: 'blade', raw: '[紫ブレード]', label: '紫ブレード', icon: 'heart_purple' },
       { kind: 'heart', raw: '[虹ハート]', label: '虹ハート', icon: 'heart_all' },
       { kind: 'heart', raw: '[黄HEART]', label: '黄HEART', icon: 'heart_yellow' },
       { kind: 'heart', raw: '[红HEART]', label: '红HEART', icon: 'heart_red' },
