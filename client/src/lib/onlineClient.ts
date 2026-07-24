@@ -1,10 +1,4 @@
-import {
-  ApiClientError,
-  apiClient,
-  getAccessToken,
-  getApiBaseUrl,
-  toApiClientError,
-} from '@/lib/apiClient';
+import { ApiClientError, apiClient, toApiClientError } from '@/lib/apiClient';
 import type {
   DebugReplayBundle,
   DebugReplayCheckpointView,
@@ -226,25 +220,6 @@ export async function cancelOnlineRoomRestart(
     throw new Error(response.error?.message ?? '取消重开失败');
   }
   return response.data;
-}
-
-export function leaveOnlineRoomOnUnload(roomCode: string): void {
-  const apiBaseUrl = getApiBaseUrl();
-  const accessToken = getAccessToken();
-  if (!apiBaseUrl || !accessToken) {
-    return;
-  }
-
-  void fetch(`${apiBaseUrl}/api/online/rooms/${encodeURIComponent(roomCode)}/leave`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-    credentials: 'include',
-    keepalive: true,
-  }).catch(() => {
-    // Best-effort only. The server-side stale cleanup covers failed unload requests.
-  });
 }
 
 export async function fetchOnlineMatchSnapshot(matchId: string): Promise<OnlineMatchSnapshot>;

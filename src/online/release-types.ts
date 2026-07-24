@@ -2,9 +2,10 @@ import type { Seat } from './types.js';
 import type { RemoteCommandResult, RemoteMatchSnapshot } from './remote-match-types.js';
 import type { MatchOriginKind } from './replay-types.js';
 
-export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'OPENING' | 'IN_GAME';
+export type OnlineRoomStatus = 'PREPARING' | 'READY' | 'OPENING' | 'IN_GAME' | 'ENDED';
 export type OnlineRoomMemberRole = 'HOST' | 'GUEST';
 export type OnlineRoomMemberPresence = 'ACTIVE' | 'LEFT';
+export type OnlineRoomEndReason = 'OPENING_ARRIVAL_TIMEOUT';
 export type OpeningRpsGesture = 'ROCK' | 'PAPER' | 'SCISSORS';
 export type OpeningTurnOrderChoice = 'SELF_FIRST' | 'SELF_SECOND';
 export type OnlineSpectatorViewType = 'PLAYER';
@@ -48,6 +49,11 @@ export interface OnlineRestartRequestView {
   readonly expiresAt: number;
 }
 
+export interface OnlineRoomEndView {
+  readonly reason: OnlineRoomEndReason;
+  readonly endedAt: number;
+}
+
 export interface OnlineRoomView {
   readonly roomCode: string;
   readonly originKind: MatchOriginKind;
@@ -59,7 +65,10 @@ export interface OnlineRoomView {
   readonly currentUserSeat?: Seat;
   readonly members: readonly OnlineRoomMemberView[];
   readonly openingRps: OnlineOpeningRpsView | null;
+  /** 服务端到场确认截止时间；仅公共牌桌开局猜拳开始前可能存在。 */
+  readonly openingArrivalExpiresAt: number | null;
   readonly restartRequest: OnlineRestartRequestView | null;
+  readonly endInfo: OnlineRoomEndView | null;
   readonly matchId: string | null;
   readonly spectatorRoomEntry: OnlineRoomSpectatorEntryView | null;
   readonly spectatorPresence: OnlineSpectatorPresenceView;

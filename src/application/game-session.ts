@@ -30,6 +30,7 @@ import {
   FaceState,
   GamePhase,
   GameMode,
+  GameEndReason,
   OrientationState,
   SlotPosition,
   SubPhase,
@@ -50,6 +51,7 @@ import {
   getLiveSetCardLimitForPlayer,
   getPlayerById,
   hasPendingAbilityOrChoice,
+  markGameEnded,
   updatePlayer,
 } from '../domain/entities/game.js';
 import {
@@ -147,6 +149,7 @@ import type {
   DrawCardToHandCommand,
   DrawEnergyToZoneCommand,
   ReturnHandCardToTopCommand,
+  SurrenderCommand,
   BeginSpecialMemberPlayCommand,
   ConfirmSpecialMemberPlayCommand,
   CancelSpecialMemberPlayCommand,
@@ -1491,6 +1494,14 @@ export class GameSession {
       return '玩家不存在';
     }
 
+    // 认输是终结本局的明确玩家意图。它不能被检视、费用或卡牌效果的中间步骤锁住，
+    // 但一旦已经结束，仍必须由权威状态拒绝重复提交。
+    if (command.type === GameCommandType.SURRENDER) {
+      return state.isEnded || state.currentPhase === GamePhase.GAME_END
+        ? '对局已结束，不能再认输'
+        : null;
+    }
+
     const policyDecision = getPlayerCommandPolicyDecision(state, command.playerId, command.type);
     if (!policyDecision.allowed) {
       return policyDecision.reason ?? '当前不能执行该操作';
@@ -2635,6 +2646,8 @@ export class GameSession {
         return this.applyDrawEnergyToZoneCommand(state, command);
       case GameCommandType.RETURN_HAND_CARD_TO_TOP:
         return this.applyReturnHandCardToTopCommand(state, command);
+      case GameCommandType.SURRENDER:
+        return this.applySurrenderCommand(state, command);
       default:
         return {
           success: false,
@@ -2642,6 +2655,33 @@ export class GameSession {
           error: `未支持的命令: ${(command as GameCommand).type}`,
         };
     }
+  }
+
+  private applySurrenderCommand(state: GameState, command: SurrenderCommand): CommandExecutionResult {
+    const winnerId = state.players.find((player) => player.id !== command.playerId)?.id ?? null;
+    if (!winnerId) {
+      return { success: false, gameState: state, error: '无法确定对手玩家' };
+    }
+
+    const ended = markGameEnded(state, GameEndReason.OPPONENT_SURRENDER, winnerId);
+    return {
+      success: true,
+      gameState: {
+        ...ended,
+        waitingForInput: false,
+        waitingPlayerId: null,
+        availableAbilityIds: [],
+        pendingAbilities: [],
+        checkTimingContext: null,
+        pendingChoice: null,
+        activeEffect: null,
+        pendingCostPayment: null,
+        pendingSpecialMemberPlay: null,
+        delegatedAbilitySequence: null,
+        inspectionContext: null,
+      },
+      declarationType: 'SURRENDER',
+    };
   }
 
   private applyMulliganCommand(state: GameState, command: MulliganCommand): CommandExecutionResult {

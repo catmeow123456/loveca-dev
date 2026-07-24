@@ -9,6 +9,7 @@ import {
   Crown,
   DoorOpen,
   Eye,
+  Flag,
   Hand,
   HandFist,
   Loader2,
@@ -17,6 +18,7 @@ import {
   Scissors,
   Shield,
   Swords,
+  Trophy,
   Users,
   X,
 } from 'lucide-react';
@@ -64,7 +66,14 @@ import {
 import { getOnlineRoomLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
-import type { OnlineRoomView, OpeningRpsGesture, OpeningTurnOrderChoice, Seat } from '@game/online';
+import { GameEndReason, GamePhase } from '@game/shared/types/enums';
+import type {
+  MatchEndView,
+  OnlineRoomView,
+  OpeningRpsGesture,
+  OpeningTurnOrderChoice,
+  Seat,
+} from '@game/online';
 
 const ROOM_POLL_INTERVAL_MS = 1200;
 const MATCH_POLL_INTERVAL_MS = 800;
@@ -103,6 +112,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const disconnectRemoteSession = useGameStore((s) => s.disconnectRemoteSession);
   const syncRemoteState = useGameStore((s) => s.syncRemoteState);
+  const surrender = useGameStore((s) => s.surrender);
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const remoteSession = useGameStore((s) =>
     s.remoteSession?.source === 'ONLINE' ? s.remoteSession : null
@@ -122,6 +132,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.onlineRoom)
   );
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
+  const [isSurrenderConfirmOpen, setIsSurrenderConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
@@ -131,7 +142,12 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   const [isUpdatingSpectatorEntry, setIsUpdatingSpectatorEntry] = useState(false);
   const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
   const [roomCodeCopied, setRoomCodeCopied] = useState(false);
+  const [showOpponentReturnedNotice, setShowOpponentReturnedNotice] = useState(false);
   const roomCodeCopyTimerRef = useRef<number | null>(null);
+  const opponentReturnedTimerRef = useRef<number | null>(null);
+  const previousOpponentPresenceRef = useRef<OnlineRoomView['members'][number]['presence'] | null>(
+    null
+  );
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
     [cardDataRegistry]
@@ -344,12 +360,39 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       if (roomCodeCopyTimerRef.current !== null) {
         window.clearTimeout(roomCodeCopyTimerRef.current);
       }
+      if (opponentReturnedTimerRef.current !== null) {
+        window.clearTimeout(opponentReturnedTimerRef.current);
+      }
     };
   }, [disconnectRemoteSession]);
 
   const myMember = room?.members.find((member) => member.userId === room.currentUserId) ?? null;
   const opponentMember =
     room?.members.find((member) => member.userId !== room.currentUserId) ?? null;
+  useEffect(() => {
+    const presence = opponentMember?.presence ?? null;
+    const previous = previousOpponentPresenceRef.current;
+    previousOpponentPresenceRef.current = presence;
+    if (!presence || previous === presence) {
+      return;
+    }
+
+    if (presence === 'LEFT') {
+      setShowOpponentReturnedNotice(false);
+      return;
+    }
+    if (previous !== 'LEFT') {
+      return;
+    }
+    setShowOpponentReturnedNotice(true);
+    if (opponentReturnedTimerRef.current !== null) {
+      window.clearTimeout(opponentReturnedTimerRef.current);
+    }
+    opponentReturnedTimerRef.current = window.setTimeout(() => {
+      setShowOpponentReturnedNotice(false);
+      opponentReturnedTimerRef.current = null;
+    }, 6_000);
+  }, [opponentMember?.presence]);
   const restartRequest = room?.restartRequest ?? null;
   const isRestartRequester = Boolean(
     restartRequest && restartRequest.requesterUserId === room?.currentUserId
@@ -363,6 +406,10 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     : null;
   const canRequestRestart = Boolean(
     room?.status === 'IN_GAME' && !restartRequest && opponentMember?.presence === 'ACTIVE'
+  );
+  const isMatchCompleted = matchView?.phase === GamePhase.GAME_END;
+  const canSurrender = Boolean(
+    room?.status === 'IN_GAME' && remoteSession?.source === 'ONLINE' && !isMatchCompleted
   );
   const spectatorPresence = room?.spectatorPresence ?? { total: 0, viewers: [] };
   const mySpectatorRoomEntry =
@@ -392,9 +439,15 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
         selectedDeckName: selectedDeck?.name,
       });
   const leaveConfirmCopy = useMemo(
-    () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind),
-    [room?.originKind, room?.status]
+    () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind, isMatchCompleted),
+    [isMatchCompleted, room?.originKind, room?.status]
   );
+  const roomEndMessage = useMemo(() => {
+    if (!room?.endInfo) {
+      return null;
+    }
+    return '等待 60 秒后仍未等到对手进入房间，本次配对已取消。';
+  }, [room?.endInfo]);
 
   const handleCreateRoom = async () => {
     const nextRoomCode = normalizeRoomCode(roomCodeInput);
@@ -550,6 +603,13 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
 
     setIsLeaveConfirmOpen(true);
+  };
+
+  const handleConfirmSurrender = () => {
+    const result = surrender();
+    if (result.success || result.pending) {
+      setIsSurrenderConfirmOpen(false);
+    }
   };
 
   const handleCopyRoomCode = async () => {
@@ -724,6 +784,28 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           : null
     : null;
 
+  if (room?.status === 'ENDED') {
+    return (
+      <div className="app-shell flex min-h-screen items-center justify-center p-4">
+        <div className="surface-panel-frosted w-full max-w-md px-6 py-7 text-center text-[var(--text-primary)]">
+          <DoorOpen className="mx-auto text-[var(--semantic-warning)]" size={28} />
+          <h1 className="mt-4 text-xl font-bold">本次配对未开始</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+            {roomEndMessage ?? '该房间已经结束。'}
+          </p>
+          <button
+            type="button"
+            onClick={handleClearSavedRoomAndBack}
+            className="button-primary mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2"
+          >
+            <ArrowLeft size={16} />
+            返回主页
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (room?.status === 'IN_GAME' && remoteSession?.matchId === room.matchId && matchView) {
     return (
       <BattleViewportShell>
@@ -763,15 +845,36 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               spectatorRoomEntry={mySpectatorRoomEntry}
               isUpdatingSpectatorEntry={isUpdatingSpectatorEntry}
               isSubmitting={isSubmitting}
+              canSurrender={canSurrender}
               canRequestRestart={canRequestRestart}
               restartRequest={restartRequest}
               isRestartRequester={isRestartRequester}
               onToggleSpectatorRoomEntry={handleToggleSpectatorRoomEntry}
               onRequestRestart={handleRequestRestart}
               onCancelRestart={handleCancelRestart}
+              onSurrender={() => setIsSurrenderConfirmOpen(true)}
               onBackHome={onBack}
               onLeaveRoom={handleRequestLeaveRoom}
             />
+          )}
+          {opponentMember?.presence === 'LEFT' && (
+            <div
+              className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+              role="status"
+            >
+              <div>对方暂时不在房间</div>
+              <div className="mt-0.5 text-xs font-normal text-[var(--text-secondary)]">
+                等待对方返回。
+              </div>
+            </div>
+          )}
+          {showOpponentReturnedNotice && opponentMember?.presence === 'ACTIVE' && (
+            <div
+              className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-2.5 text-sm font-medium text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+              role="status"
+            >
+              对方已回到房间。
+            </div>
           )}
           {restartRequest && (
             <div className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
@@ -826,6 +929,14 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           )}
         </div>
         <GameBoard showDesktopPublicBattleLogButton={false} />
+        {matchView.endInfo && (
+          <OnlineMatchEndPanel
+            endInfo={matchView.endInfo}
+            viewerSeat={matchView.viewerSeat}
+            onLeaveRoom={handleRequestLeaveRoom}
+            onBackHome={onBack}
+          />
+        )}
         <PreMatchBriefingModal
           isOpen={!briefingAcknowledged}
           mode="online"
@@ -841,6 +952,14 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           onConfirm={() => {
             void handleLeaveRoom();
           }}
+        />
+        <ConfirmDialog
+          isOpen={isSurrenderConfirmOpen}
+          title="确认认输？"
+          message="认输后本局立即结束，无法恢复。"
+          confirmLabel="确认认输"
+          onCancel={() => setIsSurrenderConfirmOpen(false)}
+          onConfirm={handleConfirmSurrender}
         />
       </BattleViewportShell>
     );
@@ -1407,13 +1526,16 @@ function OnlineOpeningStage({
   const chooserIsMe = opening?.chooserUserId === room.currentUserId;
   const isDraw = Boolean(opening?.revealed && !opening.winnerUserId);
   const reduceMotion = useReducedMotion();
-  const statusText = getOpeningStatusText({
-    opening,
-    myChoice,
-    opponentChoice,
-    winnerName,
-    chooserIsMe,
-  });
+  const isAwaitingOpponentArrival = !opening && room.openingArrivalExpiresAt !== null;
+  const statusText = isAwaitingOpponentArrival
+    ? '等待对手进入'
+    : getOpeningStatusText({
+        opening,
+        myChoice,
+        opponentChoice,
+        winnerName,
+        chooserIsMe,
+      });
 
   return (
     <div className="app-shell min-h-screen overflow-hidden">
@@ -1440,7 +1562,7 @@ function OnlineOpeningStage({
               className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-[var(--semantic-error)] backdrop-blur-xl sm:px-4"
             >
               <DoorOpen size={15} />
-              {room.originKind === 'PUBLIC_TABLE' ? '放弃配对' : '退出房间'}
+              退出房间
             </button>
           </div>
         </div>
@@ -1502,18 +1624,22 @@ function OnlineOpeningStage({
               </div>
 
               <div className="order-2 grid gap-3 lg:order-3">
-                <OpeningRpsControls
-                  opening={opening}
-                  myChoice={myChoice}
-                  isSubmitting={isSubmitting}
-                  chooserIsMe={chooserIsMe}
-                  winnerName={winnerName}
-                  isDraw={isDraw}
-                  reduceMotion={reduceMotion}
-                  onSubmitRps={onSubmitRps}
-                  onReplayRps={onReplayRps}
-                  onChooseTurnOrder={onChooseTurnOrder}
-                />
+                {isAwaitingOpponentArrival ? (
+                  <OpeningArrivalGate expiresAt={room.openingArrivalExpiresAt!} />
+                ) : (
+                  <OpeningRpsControls
+                    opening={opening}
+                    myChoice={myChoice}
+                    isSubmitting={isSubmitting}
+                    chooserIsMe={chooserIsMe}
+                    winnerName={winnerName}
+                    isDraw={isDraw}
+                    reduceMotion={reduceMotion}
+                    onSubmitRps={onSubmitRps}
+                    onReplayRps={onReplayRps}
+                    onChooseTurnOrder={onChooseTurnOrder}
+                  />
+                )}
                 {error && (
                   <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
                     {error}
@@ -1779,6 +1905,25 @@ function OpeningRpsControls({
   );
 }
 
+function OpeningArrivalGate({ expiresAt }: { expiresAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const remainingSeconds = Math.max(0, Math.ceil((expiresAt - now) / 1_000));
+  return (
+    <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_34%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-warning)_7%,var(--bg-overlay))] px-4 py-5 text-center">
+      <div className="text-base font-bold text-[var(--text-primary)]">等待对手进入房间</div>
+      <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">双方到齐后开始猜拳。</p>
+      <div className="mt-3 inline-flex rounded-full border border-[color:color-mix(in_srgb,var(--semantic-warning)_36%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--semantic-warning)]">
+        最多等待 {remainingSeconds} 秒
+      </div>
+    </div>
+  );
+}
+
 function OpeningGestureButton({
   gesture,
   selected,
@@ -2029,18 +2174,91 @@ function getRpsIcon(gesture: OpeningRpsGesture, size: number) {
   }
 }
 
+function OnlineMatchEndPanel({
+  endInfo,
+  viewerSeat,
+  onLeaveRoom,
+  onBackHome,
+}: {
+  endInfo: MatchEndView;
+  viewerSeat: Seat;
+  onLeaveRoom: () => void;
+  onBackHome: () => void;
+}) {
+  const copy = getOnlineMatchEndCopy(endInfo, viewerSeat);
+
+  return (
+    <div className="pointer-events-none fixed inset-x-4 top-1/2 z-[130] -translate-y-1/2">
+      <section
+        className="pointer-events-auto mx-auto w-full max-w-sm rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-gold)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] px-6 py-6 text-center text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+        role="status"
+        aria-live="assertive"
+      >
+        <Trophy className="mx-auto text-[var(--accent-gold)]" size={30} />
+        <h2 className="mt-3 text-xl font-bold">{copy.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{copy.detail}</p>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={onBackHome}
+            className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+          >
+            <ArrowLeft size={16} />
+            返回主页
+          </button>
+          <button
+            type="button"
+            onClick={onLeaveRoom}
+            className="button-primary inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm"
+          >
+            <DoorOpen size={16} />
+            离开对局
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function getOnlineMatchEndCopy(
+  endInfo: MatchEndView,
+  viewerSeat: Seat
+): {
+  title: string;
+  detail: string;
+} {
+  if (endInfo.reason === GameEndReason.OPPONENT_SURRENDER) {
+    if (endInfo.loserSeat === viewerSeat) {
+      return { title: '你已认输', detail: '本局结束。' };
+    }
+    if (endInfo.winnerSeat === viewerSeat) {
+      return { title: '本局获胜', detail: '对方已认输。' };
+    }
+  }
+
+  if (endInfo.winnerSeat === viewerSeat) {
+    return { title: '本局获胜', detail: '你已达成胜利条件。' };
+  }
+  if (endInfo.loserSeat === viewerSeat) {
+    return { title: '本局结束', detail: '对手已达成胜利条件。' };
+  }
+  return { title: '本局结束', detail: '本局以平局结束。' };
+}
+
 function RoomActionPanel({
   roomCode,
   presence,
   spectatorRoomEntry,
   isUpdatingSpectatorEntry,
   isSubmitting,
+  canSurrender,
   canRequestRestart,
   restartRequest,
   isRestartRequester,
   onToggleSpectatorRoomEntry,
   onRequestRestart,
   onCancelRestart,
+  onSurrender,
   onBackHome,
   onLeaveRoom,
 }: {
@@ -2049,12 +2267,14 @@ function RoomActionPanel({
   spectatorRoomEntry: NonNullable<OnlineRoomView['spectatorRoomEntry']>['seats'][number] | null;
   isUpdatingSpectatorEntry: boolean;
   isSubmitting: boolean;
+  canSurrender: boolean;
   canRequestRestart: boolean;
   restartRequest: OnlineRoomView['restartRequest'];
   isRestartRequester: boolean;
   onToggleSpectatorRoomEntry: () => void;
   onRequestRestart: () => void;
   onCancelRestart: () => void;
+  onSurrender: () => void;
   onBackHome: () => void;
   onLeaveRoom: () => void;
 }) {
@@ -2129,6 +2349,16 @@ function RoomActionPanel({
           >
             {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
             取消重开
+          </button>
+        )}
+        {canSurrender && (
+          <button
+            type="button"
+            onClick={onSurrender}
+            className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[color:color-mix(in_srgb,var(--semantic-error)_42%,var(--border-default))] px-3 text-sm text-[var(--semantic-error)]"
+          >
+            <Flag size={16} />
+            认输
           </button>
         )}
         <button

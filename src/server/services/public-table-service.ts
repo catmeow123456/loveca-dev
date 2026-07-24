@@ -23,7 +23,7 @@ import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
 import { siteAnnouncementService } from './site-announcement-service.js';
 
 const ENVIRONMENT_ID = 'PUBLIC_TABLE_V1';
-const HEARTBEAT_GRACE_MS = 90_000;
+const HEARTBEAT_GRACE_MS = 45_000;
 const CONFIRMATION_TTL_MS = 60_000;
 const OPENING_TTL_MS = 3 * 60_000;
 

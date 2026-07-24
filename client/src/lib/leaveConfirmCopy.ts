@@ -16,20 +16,21 @@ export function getSolitaireLeaveConfirmCopy(): LeaveConfirmCopy {
 
 export function getOnlineRoomLeaveConfirmCopy(
   status: OnlineRoomStatus | null | undefined,
-  originKind?: MatchOriginKind
+  _originKind?: MatchOriginKind,
+  isCompleted = false
 ): LeaveConfirmCopy {
-  if (status === 'OPENING' && originKind === 'PUBLIC_TABLE') {
+  if (status === 'IN_GAME' && isCompleted) {
     return {
-      title: '放弃这次配对？',
-      message: '这次配对会结束；如果只是想暂时离开页面，请选择“返回主页”。',
-      confirmLabel: '放弃配对',
+      title: '离开已结束对局？',
+      message: '离开后可立即开始下一局。',
+      confirmLabel: '离开对局',
     };
   }
 
   if (status === 'OPENING' || status === 'IN_GAME') {
     return {
       title: '退出房间？',
-      message: '你的位置会暂时保留，稍后可以回来继续；双方都离开太久时，本局会自动结束。',
+      message: '你的位置会暂时保留，稍后可以回来继续。',
       confirmLabel: '退出房间',
     };
   }

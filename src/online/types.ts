@@ -2,6 +2,7 @@ import {
   BladeHeartEffect,
   CardType,
   FaceState,
+  GameEndReason,
   GameMode,
   HeartColor,
   OrientationState,
@@ -115,10 +116,18 @@ export interface MatchViewState {
   readonly prioritySeat: Seat | null;
   readonly window: ViewWindowState | null;
   readonly liveResult?: LiveResultViewState;
+  /** 对局结束后的公开结果；不会包含任何隐藏区域信息。 */
+  readonly endInfo: MatchEndView | null;
   readonly undo?: OnlineUndoView;
   /** 当前投影必须显式携带权威操作模式。 */
   readonly manualOperation: ManualOperationModeView;
   readonly seq: number;
+}
+
+export interface MatchEndView {
+  readonly reason: GameEndReason;
+  readonly winnerSeat: Seat | null;
+  readonly loserSeat: Seat | null;
 }
 
 export interface ViewParticipant {

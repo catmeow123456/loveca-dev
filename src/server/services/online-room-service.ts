@@ -7,6 +7,7 @@ import type {
   OnlineAdminRoomSummary,
   OnlineOpeningRpsView,
   OnlineRestartRequestView,
+  OnlineRoomEndView,
   OnlineRoomSpectatorEntryView,
   OnlineRoomMemberPresence,
   OnlineRoomMemberRole,
@@ -52,6 +53,7 @@ interface OnlineRoomMemberState {
   lockedDeckAt: number | null;
   startReady: boolean;
   lastSeenAt: number;
+  arrivedAt: number | null;
 }
 
 type OnlineOpeningRpsState = OnlineOpeningRpsView;
@@ -74,6 +76,8 @@ interface OnlineRoomState {
   readonly publicTableReservationId: string | null;
   readonly closedToNewMembers: boolean;
   readonly openingExpiresAt: number | null;
+  openingArrivalExpiresAt: number | null;
+  endInfo: OnlineRoomEndView | null;
   updatedAt: number;
 }
 
@@ -161,6 +165,10 @@ export class OnlineRoomService {
         );
       }
 
+      if (existing.status === 'ENDED') {
+        throw new OnlineRoomServiceError('ONLINE_ROOM_ENDED', '该房间已经结束', 410);
+      }
+
       await this.reactivateMember(existing, member);
       return this.buildRoomView(existing, member);
     }
@@ -195,6 +203,7 @@ export class OnlineRoomService {
           lockedDeckAt: null,
           startReady: false,
           lastSeenAt: now,
+          arrivedAt: now,
         },
       ],
       openingRps: null,
@@ -207,6 +216,8 @@ export class OnlineRoomService {
       publicTableReservationId: null,
       closedToNewMembers: false,
       openingExpiresAt: null,
+      openingArrivalExpiresAt: null,
+      endInfo: null,
       updatedAt: now,
     };
 
@@ -222,6 +233,10 @@ export class OnlineRoomService {
     if (existingMember) {
       await this.reactivateMember(room, existingMember);
       return this.buildRoomView(room, existingMember);
+    }
+
+    if (room.status === 'ENDED') {
+      throw new OnlineRoomServiceError('ONLINE_ROOM_ENDED', '该房间已经结束', 410);
     }
 
     if (room.status === 'OPENING' || room.status === 'IN_GAME') {
@@ -263,6 +278,7 @@ export class OnlineRoomService {
       lockedDeckAt: null,
       startReady: false,
       lastSeenAt: now,
+      arrivedAt: now,
     };
     room.members.push(member);
     room.spectatorRoomEntryEnabledByUserId[userId] = true;
@@ -322,9 +338,10 @@ export class OnlineRoomService {
       publicTableReservationId: input.reservationId,
       closedToNewMembers: true,
       openingExpiresAt: input.openingExpiresAt,
+      openingArrivalExpiresAt: now + 60_000,
+      endInfo: null,
       updatedAt: now,
     };
-    room.openingRps = createOpeningRpsState(room, 1, now);
     this.rooms.set(roomCode, room);
     return { roomCode: room.roomCode, roomGeneration: room.roomGeneration };
   }
@@ -361,7 +378,10 @@ export class OnlineRoomService {
       throw new OnlineRoomServiceError('ONLINE_ROOM_FORBIDDEN', '当前用户不在该房间中', 403);
     }
 
-    await this.reactivateMember(room, member);
+    if (room.status !== 'ENDED') {
+      await this.reactivateMember(room, member);
+      this.markMemberArrivedForOpening(room, member, this.now());
+    }
     return this.buildRoomView(room, member);
   }
 
@@ -392,6 +412,7 @@ export class OnlineRoomService {
 
     room.openingRps = null;
     room.restartRequest = null;
+    room.openingArrivalExpiresAt = null;
     room.status = 'PREPARING';
     touchRoom(room, member.lastSeenAt);
 
@@ -417,6 +438,10 @@ export class OnlineRoomService {
     room.restartRequest = null;
     room.status = room.members.every((candidate) => candidate.startReady) ? 'OPENING' : 'READY';
     if (room.status === 'OPENING') {
+      room.members.forEach((candidate) => {
+        candidate.arrivedAt = now;
+      });
+      room.openingArrivalExpiresAt = null;
       room.openingRps = createOpeningRpsState(room, 1, now);
     }
     touchRoom(room, now);
@@ -689,11 +714,9 @@ export class OnlineRoomService {
     const room = this.getRoomState(roomCodeInput);
     const member = this.requireMember(room, userId);
     const now = this.now();
-
-    if (room.status === 'OPENING' && room.publicTableReservationId) {
-      await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
-      return { room: null };
-    }
+    const completedMatch = Boolean(
+      room.status === 'IN_GAME' && room.matchId && this.matchService.isMatchCompleted(room.matchId)
+    );
 
     if (room.status === 'OPENING' || room.status === 'IN_GAME') {
       member.presence = 'LEFT';
@@ -705,6 +728,35 @@ export class OnlineRoomService {
         room.restartRequest = null;
       }
       touchRoom(room, now);
+
+      if (completedMatch) {
+        await this.participationService?.releaseOnlineRoom([userId], room.roomGeneration);
+        if (room.members.every((candidate) => candidate.presence === 'LEFT')) {
+          const deleted = await this.matchService.deleteMatch(room.matchId!, {
+            reason: 'COMPLETED_ROOM_LEFT',
+            now,
+          });
+          if (!deleted) {
+            throw new OnlineRoomServiceError(
+              'ONLINE_ROOM_LEAVE_SEAL_FAILED',
+              '暂时无法结束本局，请稍后重试',
+              503
+            );
+          }
+          this.matchService.terminateRoomCodeSpectators(
+            room.roomCode,
+            room.roomGeneration,
+            'ROOM_CLOSED',
+            now
+          );
+          this.rooms.delete(room.roomCode);
+          await this.participationService?.releaseOnlineRoom(
+            room.members.map((candidate) => candidate.userId),
+            room.roomGeneration
+          );
+          return { room: null };
+        }
+      }
 
       return {
         room: this.buildRoomView(room, member),
@@ -996,7 +1048,9 @@ export class OnlineRoomService {
         seat: getAssignedSeat(room, member.userId) ?? undefined,
       })),
       openingRps: buildOpeningRpsViewForViewer(room.openingRps, viewer.userId),
+      openingArrivalExpiresAt: room.openingArrivalExpiresAt,
       restartRequest: room.restartRequest,
+      endInfo: room.endInfo,
       matchId: room.matchId,
       spectatorRoomEntry: buildSpectatorRoomEntryView(room),
       spectatorPresence: this.matchService.getRoomCodeSpectatorPresence(
@@ -1150,6 +1204,26 @@ export class OnlineRoomService {
       this.clearRestartRequestIfParticipantInactive(room);
 
       if (
+        room.status === 'ENDED' &&
+        room.endInfo !== null &&
+        now - room.endInfo.endedAt >= ROOM_DESTROY_AFTER_ALL_ABSENT_MS
+      ) {
+        this.rooms.delete(roomCode);
+        destroyedRoomCount += 1;
+        continue;
+      }
+
+      if (
+        room.status === 'OPENING' &&
+        room.openingArrivalExpiresAt !== null &&
+        now >= room.openingArrivalExpiresAt &&
+        room.members.some((member) => member.arrivedAt === null)
+      ) {
+        await this.endRoomForOpeningArrivalTimeout(room, now);
+        continue;
+      }
+
+      if (
         room.status === 'OPENING' &&
         room.publicTableReservationId &&
         room.openingExpiresAt !== null &&
@@ -1249,6 +1323,65 @@ export class OnlineRoomService {
     });
   }
 
+  private async endRoomForOpeningArrivalTimeout(room: OnlineRoomState, now: number): Promise<void> {
+    this.matchService.terminateRoomCodeSpectators(
+      room.roomCode,
+      room.roomGeneration,
+      'ROOM_CLOSED',
+      now
+    );
+    await this.participationService?.releaseOnlineRoom(
+      room.members.map((member) => member.userId),
+      room.roomGeneration
+    );
+    if (room.publicTableReservationId) {
+      await pool.query(
+        `UPDATE public_table_reservations
+         SET failure_reason = 'OPENING_ARRIVAL_TIMEOUT',
+             updated_at = NOW()
+         WHERE id = $1`,
+        [room.publicTableReservationId]
+      );
+      logPublicTableLifecycleEvent({
+        eventType: 'MATCH_INTERRUPTED',
+        eventKey: `${room.publicTableReservationId}:OPENING_ARRIVAL_TIMEOUT`,
+        reservationId: room.publicTableReservationId,
+        roomGeneration: room.roomGeneration,
+        detail: { reason: 'OPENING_ARRIVAL_TIMEOUT' },
+      });
+    }
+    room.status = 'ENDED';
+    room.openingRps = null;
+    room.openingArrivalExpiresAt = null;
+    room.restartRequest = null;
+    room.endInfo = {
+      reason: 'OPENING_ARRIVAL_TIMEOUT',
+      endedAt: now,
+    };
+    touchRoom(room, now);
+  }
+
+  private markMemberArrivedForOpening(
+    room: OnlineRoomState,
+    member: OnlineRoomMemberState,
+    now: number
+  ): void {
+    if (room.status !== 'OPENING' || member.arrivedAt !== null) {
+      return;
+    }
+    member.arrivedAt = now;
+    if (
+      room.openingRps === null &&
+      room.members.every(
+        (candidate) => candidate.arrivedAt !== null && candidate.presence === 'ACTIVE'
+      )
+    ) {
+      room.openingRps = createOpeningRpsState(room, 1, now);
+      room.openingArrivalExpiresAt = null;
+    }
+    touchRoom(room, now);
+  }
+
   private refreshMemberPresence(room: OnlineRoomState, now: number): void {
     for (const member of room.members) {
       if (member.presence === 'ACTIVE' && isMemberPresenceStale(member, now)) {
@@ -1298,6 +1431,7 @@ export class OnlineRoomService {
     });
 
     room.openingRps = null;
+    room.openingArrivalExpiresAt = null;
     room.restartRequest = null;
     room.status = 'PREPARING';
     touchRoom(room, now);
@@ -1386,6 +1520,7 @@ function buildPublicTableMember(
     lockedDeckAt: input.lockedAt,
     startReady: true,
     lastSeenAt: now,
+    arrivedAt: null,
   };
 }
 

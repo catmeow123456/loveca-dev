@@ -39,6 +39,8 @@ export enum GameCommandType {
   DRAW_CARD_TO_HAND = 'DRAW_CARD_TO_HAND',
   DRAW_ENERGY_TO_ZONE = 'DRAW_ENERGY_TO_ZONE',
   RETURN_HAND_CARD_TO_TOP = 'RETURN_HAND_CARD_TO_TOP',
+  /** 主动认输；仅权威会话可决定胜者。 */
+  SURRENDER = 'SURRENDER',
 }
 
 export interface BaseGameCommand {
@@ -313,6 +315,10 @@ export interface ReturnHandCardToTopCommand extends BaseGameCommand {
   readonly cardId: string;
 }
 
+export interface SurrenderCommand extends BaseGameCommand {
+  readonly type: GameCommandType.SURRENDER;
+}
+
 export type GameCommand =
   | MulliganCommand
   | SetLiveCardCommand
@@ -351,7 +357,8 @@ export type GameCommand =
   | SelectSuccessLiveCommand
   | DrawCardToHandCommand
   | DrawEnergyToZoneCommand
-  | ReturnHandCardToTopCommand;
+  | ReturnHandCardToTopCommand
+  | SurrenderCommand;
 
 export function createMulliganCommand(
   playerId: string,
@@ -941,6 +948,14 @@ export function createReturnHandCardToTopCommand(
     type: GameCommandType.RETURN_HAND_CARD_TO_TOP,
     playerId,
     cardId,
+    timestamp: Date.now(),
+  };
+}
+
+export function createSurrenderCommand(playerId: string): SurrenderCommand {
+  return {
+    type: GameCommandType.SURRENDER,
+    playerId,
     timestamp: Date.now(),
   };
 }

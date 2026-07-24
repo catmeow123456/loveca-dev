@@ -43,7 +43,7 @@ import type {
   UndoPolicy,
   UndoRuntimeCaptureCursor,
 } from '../../online/index.js';
-import { GameMode, GamePhase, SubPhase } from '../../shared/types/enums.js';
+import { GameEndReason, GameMode, GamePhase, SubPhase } from '../../shared/types/enums.js';
 import type { ManualOperationMode } from '../../shared/types/manual-operation-mode.js';
 import { applyAuthoritativeManualOperationModeToCommand } from '../../application/manual-operation-mode.js';
 import {
@@ -498,6 +498,11 @@ export class OnlineMatchService {
 
   getMatch(matchId: string): OnlineMatchState | null {
     return this.matches.get(matchId) ?? null;
+  }
+
+  isMatchCompleted(matchId: string): boolean {
+    const match = this.matches.get(matchId);
+    return match?.session.getAuthoritySnapshotForRecord()?.currentPhase === GamePhase.GAME_END;
   }
 
   async restoreMatch(match: OnlineMatchState): Promise<OnlineMatchState> {
@@ -2616,7 +2621,7 @@ export class OnlineMatchService {
     }
 
     await this.sealMatchRecord(match, {
-      status: 'COMPLETED',
+      status: getCompletedMatchRecordStatus(authorityState),
       completeness: this.getSealCompleteness(match, 'FULL'),
       endReason: authorityState.endInfo?.reason ?? 'GAME_END',
       now: authorityState.endInfo?.endTimestamp ?? this.now(),
@@ -2632,7 +2637,7 @@ export class OnlineMatchService {
     const authorityState = match.session.getAuthoritySnapshotForRecord();
     const completed = authorityState?.currentPhase === GamePhase.GAME_END;
     return this.sealMatchRecord(match, {
-      status: completed ? 'COMPLETED' : 'INTERRUPTED',
+      status: completed ? getCompletedMatchRecordStatus(authorityState) : 'INTERRUPTED',
       completeness: completed ? this.getSealCompleteness(match, 'FULL') : 'PARTIAL',
       endReason: completed ? (authorityState.endInfo?.reason ?? 'GAME_END') : reason,
       now: completed ? (authorityState.endInfo?.endTimestamp ?? now) : now,
@@ -3455,6 +3460,14 @@ function getUsableUndoGrant(
 
 function getOpponentSeat(seat: Seat): Seat {
   return seat === 'FIRST' ? 'SECOND' : 'FIRST';
+}
+
+function getCompletedMatchRecordStatus(
+  authorityState: GameState | null
+): Exclude<MatchRecordStatus, 'IN_PROGRESS'> {
+  return authorityState?.endInfo?.reason === GameEndReason.OPPONENT_SURRENDER
+    ? 'SURRENDERED'
+    : 'COMPLETED';
 }
 
 function buildUndoRequestSettlementKey(

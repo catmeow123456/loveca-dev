@@ -73,6 +73,7 @@ import {
   createRevealInspectedCardCommand,
   createMoveResolutionCardToZoneCommand,
   createReturnHandCardToTopCommand,
+  createSurrenderCommand,
   createSelectSuccessLiveCommand,
   createSubmitJudgmentCommand,
   createSubmitScoreCommand,
@@ -435,6 +436,8 @@ export interface GameStore {
   tapEnergy: (cardId: string) => CommandDispatchResult;
   /** 结束当前阶段 */
   endPhase: () => void;
+  /** 主动认输并结束当前对局。 */
+  surrender: () => CommandDispatchResult;
   /** 设置视角玩家 */
   setViewingPlayer: (playerId: string) => void;
   /** 添加日志 */
@@ -2549,6 +2552,14 @@ export const useGameStore = create<GameStore>((set, get) => {
         successMessage: '手牌放回主卡组顶',
         clearHoveredCardId: cardId,
         deselectCard: true,
+        logError: true,
+      });
+    },
+
+    surrender: () => {
+      return runViewerCommand((playerId) => createSurrenderCommand(playerId), {
+        failureMessage: '认输失败',
+        successMessage: '已认输，本局结束',
         logError: true,
       });
     },

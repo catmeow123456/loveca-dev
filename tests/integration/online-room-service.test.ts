@@ -4,6 +4,7 @@ import {
   createMulliganCommand,
   createPlayMemberToSlotCommand,
   createSetLiveCardCommand,
+  createSurrenderCommand,
 } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
 import type { EnergyCardData, LiveCardData, MemberCardData } from '../../src/domain/entities/card';
@@ -2091,6 +2092,42 @@ describe('OnlineRoomService', () => {
     );
   });
 
+  it('认输结束的 match 应立即封存为 SURRENDERED/FULL', async () => {
+    let now = 8_100_000;
+    const recorder = createTestRecorder();
+    const matchService = new OnlineMatchService({ now: () => now, recorder });
+    const match = await matchService.createMatch({
+      roomCode: 'SURRENDER1',
+      startedAt: now,
+      first: {
+        userId: 'u1',
+        displayName: 'Alpha',
+        deck: createRuntimeDeck('A'),
+      },
+      second: {
+        userId: 'u2',
+        displayName: 'Beta',
+        deck: createRuntimeDeck('B'),
+      },
+    });
+    const result = await matchService.executeCommand(
+      match.matchId,
+      'u1',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+    expect(result?.success).toBe(true);
+
+    expect(recorder.sealMatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matchId: match.matchId,
+        status: 'SURRENDERED',
+        completeness: 'FULL',
+        winnerSeat: 'SECOND',
+        endReason: GameEndReason.OPPONENT_SURRENDER,
+      })
+    );
+  });
+
   it('同一用户重复加入同一房间时应复用原成员槽位', async () => {
     const service = new OnlineRoomService({
       matchService: createInMemoryMatchService(),
@@ -2152,6 +2189,11 @@ describe('OnlineRoomService', () => {
     expect(left.room?.status).toBe('IN_GAME');
     expect(left.room?.currentUserPresence).toBe('LEFT');
 
+    const opponentObservedDeparture = await service.getRoomView('rest1', 'u1');
+    expect(
+      opponentObservedDeparture.members.find((member) => member.userId === 'u2')?.presence
+    ).toBe('LEFT');
+
     const commandResult = await matchService.executeCommand(
       started.matchId!,
       'u1',
@@ -2162,10 +2204,51 @@ describe('OnlineRoomService', () => {
     const restored = await service.getRoomView('rest1', 'u2');
     expect(restored.status).toBe('IN_GAME');
     expect(restored.currentUserPresence).toBe('ACTIVE');
+    const opponentObservedReturn = await service.getRoomView('rest1', 'u1');
+    expect(opponentObservedReturn.members.find((member) => member.userId === 'u2')?.presence).toBe(
+      'ACTIVE'
+    );
     const restoredSnapshot = await matchService.getMatchSnapshot(started.matchId!, 'u2');
     expect(restoredSnapshot?.seat).toBe('SECOND');
     expect(restoredSnapshot?.seq).toBe(commandResult?.snapshot?.seq);
     expect(restoredSnapshot?.playerViewState.match.seq).toBe(commandResult?.snapshot?.seq);
+  });
+
+  it('已结束对局的玩家离开时应立即释放本人真人对局占用', async () => {
+    const releaseOnlineRoom = vi.fn(async () => undefined);
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+      participationService: {
+        acquireOnlineRoom: async () => true,
+        markOnlineMatch: async () => undefined,
+        releaseOnlineRoom,
+      },
+    });
+
+    await service.createRoom('post1', 'u1');
+    await service.joinRoom('post1', 'u2');
+    await service.lockDeck('post1', 'u1', 'deck-a');
+    await service.lockDeck('post1', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'post1', 'u1', 'u2', 'u1');
+    const state = matchService.getMatch(started.matchId!)!.session.state as {
+      currentPhase: GamePhase;
+    };
+    state.currentPhase = GamePhase.GAME_END;
+
+    const firstLeft = await service.leaveRoom('post1', 'u2');
+    expect(firstLeft.room?.status).toBe('IN_GAME');
+    expect(releaseOnlineRoom).toHaveBeenCalledWith(['u2'], expect.any(String));
+
+    const secondLeft = await service.leaveRoom('post1', 'u1');
+    expect(secondLeft.room).toBeNull();
+    expect(matchService.getMatch(started.matchId!)).toBeNull();
   });
 
   it('双方都关闭后准备阶段房间应在宽限期后释放', async () => {
@@ -2353,7 +2436,7 @@ describe('OnlineRoomService', () => {
     expect(serialized).not.toContain('resolvedDeckConfig');
   });
 
-  it('公共牌桌房间应按 reservationId 幂等创建并直接进入封闭猜拳流程', async () => {
+  it('公共牌桌房间应按 reservationId 幂等创建，并在双方到场后进入封闭猜拳流程', async () => {
     const matchService = createInMemoryMatchService();
     const service = new OnlineRoomService({
       now: () => 10_000,
@@ -2391,7 +2474,12 @@ describe('OnlineRoomService', () => {
     expect(view.status).toBe('OPENING');
     expect(view.members).toHaveLength(2);
     expect(view.members.every((member) => member.ready && member.startReady)).toBe(true);
-    expect(view.openingRps).not.toBeNull();
+    expect(view.openingRps).toBeNull();
+    expect(view.openingArrivalExpiresAt).toBe(70_000);
+
+    const secondArrival = await service.getRoomView(firstCreate.roomCode, 'u2');
+    expect(secondArrival.openingRps).not.toBeNull();
+    expect(secondArrival.openingArrivalExpiresAt).toBeNull();
 
     await expect(service.joinRoom(firstCreate.roomCode, 'u3')).rejects.toMatchObject({
       code: 'ONLINE_ROOM_FORBIDDEN',
@@ -2412,5 +2500,66 @@ describe('OnlineRoomService', () => {
     const snapshot = await matchService.getMatchSnapshot(started.matchId!, 'u1');
     expect(snapshot?.matchId).toBe(started.matchId);
     expect(typeof snapshot?.playerId).toBe('string');
+
+    const surrendered = await matchService.executeCommand(
+      started.matchId!,
+      'u1',
+      createSurrenderCommand('ignored-client-player-id')
+    );
+    expect(surrendered?.success).toBe(true);
+    expect(surrendered?.snapshot?.playerViewState.match).toMatchObject({
+      phase: GamePhase.GAME_END,
+      endInfo: {
+        reason: GameEndReason.OPPONENT_SURRENDER,
+        winnerSeat: 'SECOND',
+        loserSeat: 'FIRST',
+      },
+    });
+
+    const opponentSnapshot = await matchService.getMatchSnapshot(started.matchId!, 'u2');
+    expect(opponentSnapshot?.playerViewState.match.endInfo).toMatchObject({
+      reason: GameEndReason.OPPONENT_SURRENDER,
+      winnerSeat: 'SECOND',
+      loserSeat: 'FIRST',
+    });
+  });
+
+  it('公共牌桌开局时一方未在 60 秒内到场应结束本次开局', async () => {
+    let now = 10_000;
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '66666666-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('arrival-a')),
+        lockedAt: now,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('arrival-b')),
+        lockedAt: now,
+      },
+      openingExpiresAt: now + 180_000,
+    });
+
+    await service.getRoomView(room.roomCode, 'u1');
+    now += 60_000;
+
+    const ended = await service.getRoomView(room.roomCode, 'u1');
+    expect(ended.status).toBe('ENDED');
+    expect(ended.endInfo).toEqual({
+      reason: 'OPENING_ARRIVAL_TIMEOUT',
+      endedAt: now,
+    });
   });
 });
