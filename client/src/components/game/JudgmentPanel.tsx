@@ -62,6 +62,8 @@ interface JudgmentPanelProps {
   onClose: () => void;
 }
 
+const EMPTY_PUBLIC_OBJECT_IDS: readonly string[] = [];
+
 // ============================================
 // 工具函数
 // ============================================
@@ -140,6 +142,10 @@ function HeartIconValue({
 
 function getPublicObjectId(cardId: string): string {
   return cardId.startsWith('obj_') ? cardId : `obj_${cardId}`;
+}
+
+function getCardIdFromPublicObjectId(publicObjectId: string): string {
+  return publicObjectId.startsWith('obj_') ? publicObjectId.slice(4) : publicObjectId;
 }
 
 const JUDGMENT_INFO_BLOCK_CLASS =
@@ -425,12 +431,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     s.canUseAction(GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)
   );
   const canSubmitJudgment = useGameStore((s) => s.canUseAction(GameCommandType.SUBMIT_JUDGMENT));
-  const getCardViewObject = useGameStore((s) => s.getCardViewObject);
   const getCardFrontInfo = useGameStore((s) => s.getCardFrontInfo);
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
-  const getSeatZone = useGameStore((s) => s.getSeatZone);
-  const getSeatZoneCardIds = useGameStore((s) => s.getSeatZoneCardIds);
   const getSeatMemberSlotCardId = useGameStore((s) => s.getSeatMemberSlotCardId);
+  const tableView = useGameStore((s) => s.playerViewState?.table ?? null);
+  const cardViewObjects = useGameStore((s) => s.playerViewState?.objects ?? null);
   const selectedCardId = useGameStore((s) => s.ui.selectedCardId);
   const battleSurface = useGameStore((s) => s.getBattleSurfaceCapabilities().surface);
   const isReadOnly = useGameStore((s) => s.getBattleSurfaceCapabilities().isReadOnly);
@@ -479,10 +484,13 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   );
 
   const currentPlayer = activeSeat ? getPlayerIdentityForSeat(activeSeat) : null;
-  const mainDeckCount = activeSeat ? (getSeatZone(activeSeat, 'MAIN_DECK')?.count ?? 0) : 0;
+  const mainDeckCount = activeSeat ? (tableView?.zones[`${activeSeat}_MAIN_DECK`]?.count ?? 0) : 0;
+  const liveZoneObjectIds = activeSeat
+    ? (tableView?.zones[`${activeSeat}_LIVE_ZONE`]?.objectIds ?? EMPTY_PUBLIC_OBJECT_IDS)
+    : EMPTY_PUBLIC_OBJECT_IDS;
   const liveCardIds = useMemo(
-    () => (activeSeat ? getSeatZoneCardIds(activeSeat, 'LIVE_ZONE') : []),
-    [activeSeat, getSeatZoneCardIds]
+    () => liveZoneObjectIds.map(getCardIdFromPublicObjectId),
+    [liveZoneObjectIds]
   );
 
   // 直接从 store 订阅解决区卡牌 ID，确保数据变化时触发重渲染
@@ -699,8 +707,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
   const liveJudgmentPreview = useMemo(() => {
     const rows = liveCardIds.map((cardId) => {
-      const viewObject = getCardViewObject(cardId);
-      const frontInfo = viewObject?.surface === 'FRONT' ? getCardFrontInfo(cardId) : null;
+      const viewObject = cardViewObjects?.[getPublicObjectId(cardId)];
+      const frontInfo = viewObject?.surface === 'FRONT' ? (viewObject.frontInfo ?? null) : null;
       if (!frontInfo || frontInfo.cardType !== CardType.LIVE) {
         return {
           cardId,
@@ -760,9 +768,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     };
   }, [
     activeSeat,
+    cardViewObjects,
     getCardImagePath,
-    getCardFrontInfo,
-    getCardViewObject,
     liveCardIds,
     liveRequirementModifiers,
     liveRequirementReductions,

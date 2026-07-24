@@ -32,6 +32,7 @@
 
 - 本地调试、对墙打、正式联机、远程调试、观战和历史回放继续复用共享 `GameBoard` / `PlayerArea`。
 - 桌面和移动端已完成主要布局、能量牌架、撤销入口、休息室统计、弹层层级、reduced-motion 和异步竞态收口。
+- 判定面板显式订阅桌面区域与卡牌投影；对墙打或联机中放置、翻开 LIVE 卡后，LIVE 需求预览不再沿用开局时的空区域缓存。
 - 卡牌数据已区分 `GRAY` 无色 Heart 与 `RAINBOW` All Heart；`double` 展开为两个独立 `GRAY` 判心项。
 - 新云端卡组默认包含 12 张 `LL-E-001-SD` 能量卡，并支持复制为新版本、分享管理与 DeckLog/YAML 导入。
 - 当前版本为 `3.8.0`。发布、镜像、数据库迁移和卡牌同步仍按 release skill、runbook 与 migration notes 执行，不能从本文件的旧窗口描述推断生产状态。
