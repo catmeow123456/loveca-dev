@@ -1731,3 +1731,15 @@ export const HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_I
   'PL!HS-bp8-001:on-enter-mill-three-all-cerise-activate-energy';
 export const HS_BP8_001_AUTO_WAITING_ROOM_TO_DECK_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!HS-bp8-001:auto-waiting-room-to-deck-gain-three-blade';
+export const PL_BP8_005_AUTO_LEAVE_STAGE_BOTTOM_SELF_RECOVER_YELLOW_LIVE_DISCARD_ABILITY_ID =
+  'PL!-bp8-005:auto-leave-stage-bottom-self-recover-yellow-live-discard';
+export const PL_BP8_005_LIVE_START_CHEER_HEART_COLORS_TO_YELLOW_ABILITY_ID =
+  'PL!-bp8-005:live-start-cheer-heart-colors-to-yellow';
+export const PL_PB2_001_LIVE_START_SUCCESS_MUSE_ICON_REWARDS_ABILITY_ID =
+  'PL!-pb2-001:live-start-success-muse-icon-rewards';
+export const PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID =
+  'PL!-pb2-039:live-start-success-muse-two-cheer-ten';
+export const PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID =
+  'PL!-pb2-039:live-success-distinct-muse-stage-cheer-score';
+export const N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID =
+  'PL!N-bp8-002:activated-waiting-room-pay-energy-bottom-self-target-yellow-heart';

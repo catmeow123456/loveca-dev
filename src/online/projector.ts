@@ -382,6 +382,7 @@ export function projectPlayerViewState(
         id: game.activeEffect.id,
         abilityId: game.activeEffect.abilityId,
         sourceObjectId: createPublicObjectId(game.activeEffect.sourceCardId),
+        sourceCardDisplayCode: game.activeEffect.sourceCardDisplayCode,
         controllerSeat: getSeatForPlayer(game, game.activeEffect.controllerId),
         effectText: game.activeEffect.effectText,
         stepId: game.activeEffect.stepId,

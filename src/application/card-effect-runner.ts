@@ -392,6 +392,7 @@ import { registerNBp7006KanataWorkflowHandlers } from './card-effects/workflows/
 import { registerNBp7007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-007-setsuna.js';
 import { registerNBp7009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-009-rina.js';
 import { registerNBp7011MiaTaylorWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-011-mia-taylor.js';
+import { registerNBp8002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-002-kasumi.js';
 import { registerNBp7019SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-019-setsuna.js';
 import { registerNBp7027AudreyWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-027-audrey.js';
 import { registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-025-colorful-dreams-colorful-smiles.js';
@@ -460,6 +461,9 @@ import { registerSpSd1002KekeWorkflowHandlers } from './card-effects/workflows/c
 import { registerSpPr024SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-pr-024-sumire.js';
 import { registerSpPb2000ChisatoNatsumiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-000-chisato-natsumi.js';
 import { registerPlPb2000RinHanayoWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-000-rin-hanayo.js';
+import { registerPlPb2001HonokaWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-001-honoka.js';
+import { registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers } from './card-effects/workflows/cards/pl-pb2-039-bokutachi-wa-hitotsu-no-hikari.js';
+import { registerPlBp8005RinWorkflowHandlers } from './card-effects/workflows/cards/pl-bp8-005-rin.js';
 import { registerSpPb2045ZettaiLoverWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-045-zettai-lover.js';
 import { registerSpPb2046ButterflyWingWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-046-butterfly-wing.js';
 import { registerSpPb2047WelcomeToBokuraNoSekaiWorkflowHandlers } from './card-effects/workflows/cards/sp-pb2-047-welcome-to-bokura-no-sekai.js';
@@ -1192,6 +1196,7 @@ registerNBp7006KanataWorkflowHandlers({
 registerNBp7007SetsunaWorkflowHandlers();
 registerNBp7009RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7011MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp8002KasumiWorkflowHandlers();
 registerNBp7019SetsunaWorkflowHandlers();
 registerNBp7027AudreyWorkflowHandlers();
 registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers();
@@ -1265,6 +1270,9 @@ registerSpSd1002KekeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPr024SumireWorkflowHandlers();
 registerSpPb2000ChisatoNatsumiWorkflowHandlers();
 registerPlPb2000RinHanayoWorkflowHandlers();
+registerPlPb2001HonokaWorkflowHandlers();
+registerPlPb2039BokutachiWaHitotsuNoHikariWorkflowHandlers();
+registerPlBp8005RinWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb2045ZettaiLoverWorkflowHandlers();
 registerSpPb2046ButterflyWingWorkflowHandlers();
 registerSpPb2047WelcomeToBokuraNoSekaiWorkflowHandlers({ enqueueTriggeredCardEffects });

@@ -19,6 +19,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import { SP_PB2_001_ON_ENTER_DISCARD_LOOK_TOP_LOW_COST_LIELLA_MEMBER_PLAY_OR_HAND_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
   FaceState,
@@ -26,6 +27,7 @@ import {
   OrientationState,
   SlotPosition,
   TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -34,10 +36,7 @@ const PLAYER2 = 'player2';
 function confirmActiveEffectStep(
   ...args: Parameters<typeof confirmActiveEffectStepImmediate>
 ): GameState {
-  return continuePublicEffectChoiceForTest(
-    confirmActiveEffectStepImmediate(...args),
-    args[1]
-  );
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStepImmediate(...args), args[1]);
 }
 
 function createMember(
@@ -86,10 +85,13 @@ function pendingAbility(sourceId: string): PendingAbilityState {
   };
 }
 
-function setupState(options: {
-  readonly handCardCount?: number;
-  readonly fillEmptySlots?: boolean;
-} = {}): {
+function setupState(
+  options: {
+    readonly handCardCount?: number;
+    readonly fillEmptySlots?: boolean;
+    readonly noLegalTargets?: boolean;
+  } = {}
+): {
   readonly game: GameState;
   readonly sourceId: string;
   readonly discardId: string;
@@ -111,7 +113,10 @@ function setupState(options: {
     'sp-pb2-001-discard'
   );
   const eligible = createCardInstance(
-    createMember('PL!SP-pb2-001-eligible', { name: 'eligible', cost: 4 }),
+    createMember('PL!SP-pb2-001-eligible', {
+      name: 'eligible',
+      cost: options.noLegalTargets === true ? 5 : 4,
+    }),
     PLAYER1,
     'sp-pb2-001-eligible'
   );
@@ -136,7 +141,10 @@ function setupState(options: {
     'sp-pb2-001-liella-live'
   );
   const fifth = createCardInstance(
-    createMember('PL!SP-pb2-001-fifth', { name: 'fifth', cost: 4 }),
+    createMember('PL!SP-pb2-001-fifth', {
+      name: 'fifth',
+      cost: options.noLegalTargets === true ? 5 : 4,
+    }),
     PLAYER1,
     'sp-pb2-001-fifth'
   );
@@ -245,10 +253,7 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
       scenario.liellaLiveId,
       scenario.fifthId,
     ]);
-    expect(state.activeEffect?.selectableCardIds).toEqual([
-      scenario.eligibleId,
-      scenario.fifthId,
-    ]);
+    expect(state.activeEffect?.selectableCardIds).toEqual([scenario.eligibleId, scenario.fifthId]);
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.eligibleId);
     expect(state.activeEffect?.revealedCardIds).toEqual([scenario.eligibleId]);
@@ -278,7 +283,10 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
 
   it('can play the revealed member to an empty member slot and enqueue ON_ENTER_STAGE', () => {
     const scenario = setupState();
-    let state = discardAndInspect(startAbility(scenario.game, scenario.sourceId), scenario.discardId);
+    let state = discardAndInspect(
+      startAbility(scenario.game, scenario.sourceId),
+      scenario.discardId
+    );
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.eligibleId);
     state = confirmActiveEffectStep(
@@ -323,9 +331,34 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
 
   it('adds the revealed member to hand when no empty member slot exists', () => {
     const scenario = setupState({ fillEmptySlots: true });
-    let state = discardAndInspect(startAbility(scenario.game, scenario.sourceId), scenario.discardId);
+    let state = discardAndInspect(
+      startAbility(scenario.game, scenario.sourceId),
+      scenario.discardId
+    );
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.eligibleId);
+
+    expect(state.activeEffect).toMatchObject({
+      stepId: 'SP_PB2_001_REVEAL_SELECTED_TO_HAND',
+      revealedCardIds: [scenario.eligibleId],
+      selectableCardIds: [],
+      confirmSelectionLabel: '加入手牌',
+    });
+    expect(state.players[0].hand.cardIds).toEqual([]);
+    expect(state.inspectionZone.cardIds).toContain(scenario.eligibleId);
+    const revealedObjectId = createPublicObjectId(scenario.eligibleId);
+    for (const viewerId of [PLAYER1, PLAYER2]) {
+      const view = projectPlayerViewState(state, viewerId);
+      expect(view.activeEffect?.revealedObjectIds).toEqual([revealedObjectId]);
+      expect(view.objects[revealedObjectId]).toMatchObject({
+        surface: 'FRONT',
+        frontInfo: {
+          cardCode: 'PL!SP-pb2-001-eligible',
+        },
+      });
+    }
+
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id);
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).toEqual([scenario.eligibleId]);
@@ -334,7 +367,10 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
 
   it('can reveal no card and moves all inspected cards to waiting room', () => {
     const scenario = setupState();
-    let state = discardAndInspect(startAbility(scenario.game, scenario.sourceId), scenario.discardId);
+    let state = discardAndInspect(
+      startAbility(scenario.game, scenario.sourceId),
+      scenario.discardId
+    );
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, null);
 
@@ -349,6 +385,46 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
       scenario.fifthId,
     ]);
     expect(state.inspectionZone.cardIds).toEqual([]);
+  });
+
+  it('keeps a no-target inspection visible until all inspected cards are confirmed into waiting room', () => {
+    const scenario = setupState({ noLegalTargets: true });
+    let state = discardAndInspect(
+      startAbility(scenario.game, scenario.sourceId),
+      scenario.discardId
+    );
+    const inspectedCardIds = [
+      scenario.eligibleId,
+      scenario.highCostId,
+      scenario.nonLiellaId,
+      scenario.liellaLiveId,
+      scenario.fifthId,
+    ];
+
+    expect(state.activeEffect).toMatchObject({
+      inspectionCardIds: inspectedCardIds,
+      selectableCardIds: [],
+      selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+      stepText: '没有可公开的费用4以下的『Liella!』成员卡。确认后将检视的卡全部放置入休息室。',
+      skipSelectionLabel: '全部放置入休息室',
+    });
+    expect(state.inspectionZone.cardIds).toEqual(inspectedCardIds);
+    expect(state.players[0].waitingRoom.cardIds).toEqual([scenario.discardId]);
+
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, null);
+
+    expect(state.activeEffect).toBeNull();
+    expect(state.inspectionZone.cardIds).toEqual([]);
+    expect(state.players[0].waitingRoom.cardIds).toEqual([scenario.discardId, ...inspectedCardIds]);
+    expect(
+      state.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          entry.event.fromZone === ZoneType.MAIN_DECK &&
+          entry.event.cardInstanceIds?.length === inspectedCardIds.length &&
+          inspectedCardIds.every((cardId) => entry.event.cardInstanceIds?.includes(cardId) === true)
+      )
+    ).toBe(true);
   });
 
   it('consumes pending no-op when there is no hand card to discard', () => {
@@ -369,7 +445,10 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
 
   it('rejects illegal inspected targets and occupied stage slots', () => {
     const scenario = setupState();
-    let state = discardAndInspect(startAbility(scenario.game, scenario.sourceId), scenario.discardId);
+    let state = discardAndInspect(
+      startAbility(scenario.game, scenario.sourceId),
+      scenario.discardId
+    );
     const beforeIllegalTarget = state;
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.highCostId);

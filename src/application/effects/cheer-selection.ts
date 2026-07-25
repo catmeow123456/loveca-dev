@@ -19,6 +19,7 @@ import {
   cardBelongsToGroup,
   cardBelongsToUnit,
   getNormalizedCardNameCandidates,
+  selectDifferentNamedCards,
 } from '../../shared/utils/card-identity.js';
 
 export type CheerCardPredicate = (card: CardInstance) => boolean;
@@ -47,6 +48,13 @@ export interface CurrentLiveRevealedCheerCardConditionResult {
 
 export interface CurrentLiveRevealedDifferentNameCheerCardResult {
   readonly matchingCardIds: readonly string[];
+  readonly differentNameCount: number;
+  readonly normalizedNames: readonly string[];
+}
+
+export interface CurrentLiveDifferentNamedStageAndCheerMemberResult {
+  readonly candidateCardIds: readonly string[];
+  readonly selectedCardIds: readonly string[];
   readonly differentNameCount: number;
   readonly normalizedNames: readonly string[];
 }
@@ -292,6 +300,59 @@ export function countCurrentLiveRevealedDifferentNamedCheerCards(
     matchingCardIds,
     differentNameCount: normalizedNameSet.size,
     normalizedNames: [...normalizedNameSet],
+  };
+}
+
+/**
+ * Counts different member names across the controller's current top-level stage members and the
+ * current LIVE's event-inclusive revealed-cheer facts. The union is matched once so a name shown
+ * in both places contributes only once; member-below cards are intentionally outside the query.
+ */
+export function selectCurrentLiveDifferentNamedStageAndCheerMembers(
+  game: GameState,
+  playerId: string,
+  groupAlias: string
+): CurrentLiveDifferentNamedStageAndCheerMemberResult {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return {
+      candidateCardIds: [],
+      selectedCardIds: [],
+      differentNameCount: 0,
+      normalizedNames: [],
+    };
+  }
+
+  const stageCardIds = Object.values(player.memberSlots.slots).filter(
+    (cardId): cardId is string => typeof cardId === 'string'
+  );
+  const cheerCardIds = selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+    predicate: (card) => isMemberCardData(card.data) && cardBelongsToGroup(card.data, groupAlias),
+  });
+  const candidateCardIds = [...new Set([...stageCardIds, ...cheerCardIds])].filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return (
+      card !== null &&
+      card.ownerId === playerId &&
+      isMemberCardData(card.data) &&
+      cardBelongsToGroup(card.data, groupAlias)
+    );
+  });
+  const selected = selectDifferentNamedCards(
+    candidateCardIds,
+    (cardId) => getCardById(game, cardId)?.data ?? null,
+    {
+      groupName: groupAlias,
+      minCount: 0,
+      getSecondaryKey: (cardId) => cardId,
+    }
+  );
+
+  return {
+    candidateCardIds,
+    selectedCardIds: selected.map((match) => match.item),
+    differentNameCount: selected.length,
+    normalizedNames: selected.map((match) => match.normalizedName),
   };
 }
 

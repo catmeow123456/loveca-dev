@@ -111,27 +111,36 @@ export function liveTotalRequiredHeartGte(minCount: number): CardSelector {
 
 export function hasBladeHeart(): CardSelector {
   return (card) =>
-    (((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0);
+    ((card.data as { readonly bladeHearts?: readonly unknown[] }).bladeHearts?.length ?? 0) > 0;
 }
 
 export function hasScoreBladeHeart(): CardSelector {
   return (card) =>
-    ((card.data as { readonly bladeHearts?: readonly { readonly effect?: unknown }[] }).bladeHearts
-      ?.some((bladeHeart) => bladeHeart.effect === 'SCORE') ?? false);
+    (
+      card.data as { readonly bladeHearts?: readonly { readonly effect?: unknown }[] }
+    ).bladeHearts?.some((bladeHeart) => bladeHeart.effect === 'SCORE') ?? false;
 }
 
 export function hasAllBladeHeart(): CardSelector {
   return (card) =>
-    ((card.data as {
-      readonly bladeHearts?: readonly {
-        readonly effect?: unknown;
-        readonly heartColor?: unknown;
-      }[];
-    }).bladeHearts?.some(
+    (
+      card.data as {
+        readonly bladeHearts?: readonly {
+          readonly effect?: unknown;
+          readonly heartColor?: unknown;
+        }[];
+      }
+    ).bladeHearts?.some(
       (bladeHeart) =>
-        bladeHeart.effect === BladeHeartEffect.HEART &&
-        bladeHeart.heartColor === HeartColor.RAINBOW
-    ) ?? false);
+        bladeHeart.effect === BladeHeartEffect.HEART && bladeHeart.heartColor === HeartColor.RAINBOW
+    ) ?? false;
+}
+
+export function hasDrawBladeHeart(): CardSelector {
+  return (card) =>
+    (
+      card.data as { readonly bladeHearts?: readonly { readonly effect?: unknown }[] }
+    ).bladeHearts?.some((bladeHeart) => bladeHeart.effect === BladeHeartEffect.DRAW) ?? false;
 }
 
 export function hasNoAbilityOrContinuousAbility(): CardSelector {
@@ -169,7 +178,12 @@ export function not(selector: CardSelector): CardSelector {
 }
 
 function normalizeGroupName(value: string | undefined): string {
-  return value?.replace(/[『』「」'’]/g, '').replace(/！/g, '!').toLowerCase() ?? '';
+  return (
+    value
+      ?.replace(/[『』「」'’]/g, '')
+      .replace(/！/g, '!')
+      .toLowerCase() ?? ''
+  );
 }
 
 export function normalizeCardName(value: string | undefined): string {

@@ -1,15 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
-import { createGameState, emitGameEvent, registerCards, updatePlayer } from '../../src/domain/entities/game';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
+import {
+  createGameState,
+  emitGameEvent,
+  registerCards,
+  updatePlayer,
+} from '../../src/domain/entities/game';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   evaluateCurrentLiveRevealedCheerCardCondition,
   moveRevealedCheerCards,
+  selectCurrentLiveDifferentNamedStageAndCheerMembers,
   selectCurrentLiveRevealedCheerCardIds,
 } from '../../src/application/effects/cheer-selection';
 import { revealCheerCardsFromMainDeck } from '../../src/application/effects/cheer';
-import { CardType, HeartColor } from '../../src/shared/types/enums';
+import { placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  CardType,
+  FaceState,
+  HeartColor,
+  OrientationState,
+  SlotPosition,
+} from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -39,9 +56,71 @@ function member(cardCode: string, unitName: string): MemberCardData {
 }
 
 describe('current live revealed cheer selection', () => {
+  it('counts different Muse names across top-level stage and event-inclusive moved-out cheer facts', () => {
+    const stageHonoka = createCardInstance(
+      { ...member('STAGE-HONOKA', ''), name: '高坂穂乃果', groupNames: ["μ's"] },
+      PLAYER1,
+      'stage-honoka'
+    );
+    const cheerHonoka = createCardInstance(
+      { ...member('CHEER-HONOKA', ''), name: '高坂穂乃果', groupNames: ["μ's"] },
+      PLAYER1,
+      'cheer-honoka'
+    );
+    const cheerUmi = createCardInstance(
+      { ...member('CHEER-UMI', ''), name: '園田海未', groupNames: ["μ's"] },
+      PLAYER1,
+      'cheer-umi'
+    );
+    let game = registerCards(
+      createGameState('different-stage-cheer-names', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [stageHonoka, cheerHonoka, cheerUmi]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        stageHonoka.instanceId,
+        {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }
+      ),
+    }));
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        firstPlayerCheerCardIds: [cheerHonoka.instanceId, cheerUmi.instanceId],
+      },
+    };
+    game = emitGameEvent(
+      game,
+      createCheerEvent(PLAYER1, [cheerHonoka.instanceId, cheerUmi.instanceId], 2, {
+        automated: true,
+      })
+    );
+
+    expect(selectCurrentLiveDifferentNamedStageAndCheerMembers(game, PLAYER1, "μ's")).toEqual({
+      candidateCardIds: [stageHonoka.instanceId, cheerHonoka.instanceId, cheerUmi.instanceId],
+      selectedCardIds: [stageHonoka.instanceId, cheerUmi.instanceId],
+      differentNameCount: 2,
+      normalizedNames: ['高坂穂乃果', '園田海未'],
+    });
+  });
+
   it('filters current cheer cards by type, group, unit, and count after they leave resolutionZone', () => {
-    const aqoursLive = createCardInstance(live('PL!S-test-live', ['Aqours']), PLAYER1, 'aqours-live');
-    const liellaLive = createCardInstance(live('PL!SP-test-live', ['Liella!']), PLAYER1, 'liella-live');
+    const aqoursLive = createCardInstance(
+      live('PL!S-test-live', ['Aqours']),
+      PLAYER1,
+      'aqours-live'
+    );
+    const liellaLive = createCardInstance(
+      live('PL!SP-test-live', ['Liella!']),
+      PLAYER1,
+      'liella-live'
+    );
     const kaleidoscoreMember = createCardInstance(
       member('PL!SP-test-kaleidoscore-member', 'KALEIDOSCORE'),
       PLAYER1,
@@ -139,7 +218,12 @@ describe('revealed cheer card movement', () => {
       },
     };
 
-    const result = moveRevealedCheerCards(game, PLAYER1, [revealedLive.instanceId], 'MAIN_DECK_BOTTOM');
+    const result = moveRevealedCheerCards(
+      game,
+      PLAYER1,
+      [revealedLive.instanceId],
+      'MAIN_DECK_BOTTOM'
+    );
 
     expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
       deckTop.instanceId,
@@ -175,9 +259,16 @@ describe('revealed cheer card movement', () => {
     };
 
     expect(
-      moveRevealedCheerCards(game, PLAYER1, [ownLive.instanceId, ownLive.instanceId], 'MAIN_DECK_BOTTOM')
+      moveRevealedCheerCards(
+        game,
+        PLAYER1,
+        [ownLive.instanceId, ownLive.instanceId],
+        'MAIN_DECK_BOTTOM'
+      )
     ).toBeNull();
-    expect(moveRevealedCheerCards(game, PLAYER1, [opponentLive.instanceId], 'MAIN_DECK_BOTTOM')).toBeNull();
+    expect(
+      moveRevealedCheerCards(game, PLAYER1, [opponentLive.instanceId], 'MAIN_DECK_BOTTOM')
+    ).toBeNull();
     expect(
       moveRevealedCheerCards(
         { ...game, resolutionZone: { ...game.resolutionZone, revealedCardIds: [] } },
@@ -202,7 +293,11 @@ describe('reveal cheer current facts', () => {
     const oldFirst = createCardInstance(live('OLD-FIRST', ['Aqours']), PLAYER1, 'old-first');
     const oldSecond = createCardInstance(live('OLD-SECOND', ['Aqours']), PLAYER2, 'old-second');
     const newFirst = createCardInstance(live('NEW-FIRST', ['Aqours']), PLAYER1, 'new-first');
-    const appendedFirst = createCardInstance(live('APPENDED-FIRST', ['Aqours']), PLAYER1, 'appended-first');
+    const appendedFirst = createCardInstance(
+      live('APPENDED-FIRST', ['Aqours']),
+      PLAYER1,
+      'appended-first'
+    );
     let game = registerCards(
       createGameState('cheer-replace-current', PLAYER1, 'P1', PLAYER2, 'P2'),
       [oldFirst, oldSecond, newFirst, appendedFirst]
@@ -224,8 +319,12 @@ describe('reveal cheer current facts', () => {
       automated: true,
       replaceCurrentCheerCards: true,
     });
-    expect(replaced.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([newFirst.instanceId]);
-    expect(replaced.gameState.liveResolution.secondPlayerCheerCardIds).toEqual([oldSecond.instanceId]);
+    expect(replaced.gameState.liveResolution.firstPlayerCheerCardIds).toEqual([
+      newFirst.instanceId,
+    ]);
+    expect(replaced.gameState.liveResolution.secondPlayerCheerCardIds).toEqual([
+      oldSecond.instanceId,
+    ]);
     expect(replaced.cheerEvent).toMatchObject({
       playerId: PLAYER1,
       revealedCardIds: [newFirst.instanceId],
@@ -238,6 +337,8 @@ describe('reveal cheer current facts', () => {
       newFirst.instanceId,
       appendedFirst.instanceId,
     ]);
-    expect(appended.gameState.liveResolution.secondPlayerCheerCardIds).toEqual([oldSecond.instanceId]);
+    expect(appended.gameState.liveResolution.secondPlayerCheerCardIds).toEqual([
+      oldSecond.instanceId,
+    ]);
   });
 });

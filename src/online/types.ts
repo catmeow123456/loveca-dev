@@ -270,6 +270,8 @@ export interface ActiveEffectViewState {
   readonly id: string;
   readonly abilityId: string;
   readonly sourceObjectId: string;
+  /** 来源曾公开时由服务端保留的展示编号；不改变来源对象当前牌区的可见性。 */
+  readonly sourceCardDisplayCode?: string;
   readonly controllerSeat: Seat | null;
   readonly effectText: string;
   readonly stepId: string;

@@ -52,6 +52,15 @@ describe('parseCardEffectText', () => {
     );
   });
 
+  it('maps the DRAW blade-heart token used by PL!-pb2-001-R', () => {
+    expect(getUnknownCardEffectPlaceholders('存在持有[ドロー]的卡片的场合，回收1张卡。')).toEqual(
+      []
+    );
+    expect(parseCardEffectText('[ドロー]')).toEqual([
+      { kind: 'other', raw: '[ドロー]', label: 'ドロー' },
+    ]);
+  });
+
   it('parses Loveca timing and modifier placeholders', () => {
     const parts = parseCardEffectText('【LIVE开始时】可以支付[E]：获得[紫ハート][ブレード]。');
 

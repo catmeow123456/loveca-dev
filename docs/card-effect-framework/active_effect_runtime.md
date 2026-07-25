@@ -62,6 +62,19 @@ Benefits:
 
 选择阶段双方都可以看到印刷选项文本，但只有等待玩家收到动态 `selectable`；公开阶段双方只收到同一组 `selectedOptionIds` 与对应服务端文本。workflow 可以在权威状态暂留 legacy `selectableOptions` 供旧 handler 校验，但 projector 在存在 `effectChoice` 时不得再投影它，前端也不得渲染两套按钮。由选项进入卡牌、成员、槽位或另一个选项步骤时必须清除旧 `effectChoice`；只有下一步本身也是新的卡文选项时才重新创建。
 
+### Inspection And Public-Reveal Confirmation
+
+卡文中的“检视”与“公开”共享 inspection zone，但拥有不同可见性与停留语义：
+
+- 普通检视时，`inspectionCardIds` 是服务端控制列表；检视者看到正面，对手只看到检视区 `BACK` occupancy。只有卡文明示公开的选中牌才加入 `revealedCardIds`。
+- `inspectTopCards(..., { reveal: true })` 会把实际检视集合加入 inspection zone 的公开事实，使双方可以看到正面；它本身不会创建 `activeEffect` step，也不会暂停随后的移动、条件判断、奖励或 pending continuation。
+- 如果卡文要求整组公开，并在公开结果后自动判断或处理，workflow 必须另外建立公开结果确认 step。该 step 同时保存 `inspectionCardIds` 与 `revealedCardIds`，清空卡牌选择数量、旧选项和跳过字段，使用“公开的卡片 / 确认公开结果”。确认前所有牌留在检视区，不能执行基于公开结果的移动、奖励或 pending continuation；此前已经合法支付的费用与 ability use 保持不变。确认时重新校验实际检视集合，再进入卡牌专属条件分支和统一 inspection-to-waiting helper。
+- 普通“检视 N 张选1”优先复用 `look-top-select-to-hand` 等 shared workflow。无目标或主动不选时仍应保留检视结果与真实后果确认；不要为了复用整组公开窗口而把私密检视全部变成双方正面。
+
+公开结果确认是玩家主动阅读并确认当前公开事实的 step，不是 `public-card-selection-confirmation.ts` 的定时展示：后者表示“已从公开来源确定具体移动目标”，会保存原输入并在 deadline 后恢复。它也不是无交互 queued pending 的 manual confirm-only bridge。三者不得互换。
+
+`PL!-bp6-006` 是整组公开后按五张 Heart 条件分支的卡牌薄编排样本；普通检视选1样本继续由 shared workflow 承担。focused 测试必须同时检查双方投影、确认前无移动/奖励/continuation，以及成功、条件失败、无目标和短牌库路径。
+
 ## Granted Activated Abilities
 
 少数常时能力会让舞台上的 host 获得下方成员的起动能力。当前只落地 `PL!SP-pb2-005` 的窄入口：
@@ -79,6 +92,7 @@ Important fields:
 |---|---|
 | `abilityId` | 当前处理能力。 |
 | `sourceCardId` | 来源卡实例。 |
+| `sourceCardDisplayCode` | 来源在公开区域离开后仍用于当前效果窗口与重连显示的卡面快照；只可从曾对双方公开的来源建立，不授予隐藏来源可见性。 |
 | `sourceLifecycleId` | `perTurnLimit` 能力来源规则对象的生命周期；从 pending 或 activated dispatch 捕获并跨 activeEffect steps 保持，避免来源跨区再进入后把旧 active 占用算到新对象。 |
 | `controllerId` | 效果控制者。 |
 | `awaitingPlayerId` | 当前需要输入的玩家。 |
@@ -96,6 +110,17 @@ Important fields:
 | `metadata` | workflow 私有上下文。 |
 
 `inspectionObjectIds` 与普通检视区投影是两条不同边界：非控制方可能仍因检视区的公共 occupancy 看到 `BACK` 对象，但不会获得 activeEffect 的可操作控制列表；卡牌加入 `revealedCardIds` 后，双方对应检视对象可按公开规则显示为 `FRONT`。
+
+### Active-Effect Source Display Snapshot
+
+`sourceCardId` 是权威结算身份，但来源在自己的效果中离开舞台、LIVE 区或其他公开区域后，不能再仅靠当前 zone 投影恢复“处理中的效果”标题和左侧来源卡图。`runtime/active-effect-source-display.ts#preserveActiveEffectSourceDisplay` 因此维护可序列化的 `sourceCardDisplayCode`：
+
+- 只有来源在状态变化前或变化后确实为公共正面，才可捕获卡面编号；隐藏手牌、隐藏卡组和未公开处理区来源不得借此获得快照。
+- 同一 `activeEffect.id` 的后续 step 继承已有快照；public-card-selection 与 public-effect-choice 的中间包装也必须保留该字段。
+- 快照只服务当前效果窗口和断线重连显示，不改变区域 occupancy、`publicObjectId`、事件事实或来源当前规则合法性；workflow 仍按 `sourceCardId` 与实时状态重验。
+- `activeEffect` 结束时快照随状态一起消失，不形成跨效果的公开历史。
+
+focused 测试应覆盖公开来源离区后双方仍得到相同 `sourceCardDisplayCode`、中间确认步骤继续携带快照、从未公开的隐藏来源不生成快照，以及已有快照不会被后续隐藏区域状态覆盖。
 
 ## Metadata Rule
 

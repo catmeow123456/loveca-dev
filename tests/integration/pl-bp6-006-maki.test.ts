@@ -25,6 +25,7 @@ import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application
 import { recordAbilityUseForContext } from '../../src/application/card-effects/runtime/workflow-helpers';
 import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
 import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
+import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
   FaceState,
@@ -334,6 +335,29 @@ describe('PL!-bp6-006 Maki workflow', () => {
     );
     expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
     expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'BP6_006_CONFIRM_REVEALED_RESULT',
+      stepText:
+        "已公开卡组顶5张卡片，且5张均满足所选 Heart 颜色条件。确认公开结果后，选择1张『μ's』卡加入手牌。",
+      inspectionCardIds: revealedCards.map((card) => card.instanceId),
+      revealedCardIds: revealedCards.map((card) => card.instanceId),
+      selectionLabel: '公开的卡片',
+      confirmSelectionLabel: '确认公开结果',
+    });
+    expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
+    const revealedObjectIds = revealedCards.map((card) => createPublicObjectId(card.instanceId));
+    for (const viewerId of [PLAYER1, PLAYER2]) {
+      const view = projectPlayerViewState(session.state!, viewerId);
+      expect(view.activeEffect?.revealedObjectIds).toEqual(revealedObjectIds);
+      for (const objectId of revealedObjectIds) {
+        expect(view.objects[objectId]?.surface).toBe('FRONT');
+      }
+    }
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([
       revealedCards[0]!.instanceId,
       revealedCards[1]!.instanceId,
@@ -448,9 +472,15 @@ describe('PL!-bp6-006 Maki workflow', () => {
     expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
 
     const inspectedCardIds = session.state!.activeEffect!.inspectionCardIds!;
-    const selectedCardId = session.state!.activeEffect!.selectableCardIds![0]!;
     expect(inspectedCardIds).toHaveLength(5);
     expect(inspectedCardIds.slice(0, 2)).toEqual(mainDeckCards.map((card) => card.instanceId));
+    expect(session.state!.activeEffect!.stepId).toBe('BP6_006_CONFIRM_REVEALED_RESULT');
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+    const selectedCardId = session.state!.activeEffect!.selectableCardIds![0]!;
     expect(session.state!.activeEffect!.selectableCardIds).toHaveLength(5);
     expect(
       session.state!.actionHistory.some(
@@ -529,13 +559,37 @@ describe('PL!-bp6-006 Maki workflow', () => {
     );
     expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
 
-    const player = getPlayerById(session.state!, PLAYER1)!;
+    const inspectedCardIds = [...revealedCards.map((card) => card.instanceId), cost.instanceId];
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'BP6_006_CONFIRM_REVEALED_RESULT',
+      stepText:
+        '已公开卡组顶4张卡片，未满足“5张卡片均含有所选 Heart 颜色”的条件。确认公开结果后，将公开卡全部放置入休息室。',
+      inspectionCardIds: inspectedCardIds,
+      revealedCardIds: inspectedCardIds,
+      selectionLabel: '公开的卡片',
+      confirmSelectionLabel: '确认公开结果',
+    });
+    const playerBeforeConfirm = getPlayerById(session.state!, PLAYER1)!;
+    expect(playerBeforeConfirm.waitingRoom.cardIds).toEqual([]);
+    expect(session.state?.inspectionZone.cardIds).toEqual(inspectedCardIds);
+    const revealedObjectIds = inspectedCardIds.map(createPublicObjectId);
+    for (const viewerId of [PLAYER1, PLAYER2]) {
+      const view = projectPlayerViewState(session.state!, viewerId);
+      expect(view.activeEffect?.revealedObjectIds).toEqual(revealedObjectIds);
+      for (const objectId of revealedObjectIds) {
+        expect(view.objects[objectId]?.surface).toBe('FRONT');
+      }
+    }
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
+
+    const playerAfterConfirm = getPlayerById(session.state!, PLAYER1)!;
     expect(session.state?.activeEffect).toBeNull();
-    expect(player.hand.cardIds).toEqual([]);
-    expect(player.waitingRoom.cardIds).toEqual([
-      ...revealedCards.map((card) => card.instanceId),
-      cost.instanceId,
-    ]);
+    expect(playerAfterConfirm.hand.cardIds).toEqual([]);
+    expect(playerAfterConfirm.waitingRoom.cardIds).toEqual(inspectedCardIds);
     expect(session.state!.liveResolution.liveModifiers).toEqual([]);
   });
 
@@ -576,6 +630,18 @@ describe('PL!-bp6-006 Maki workflow', () => {
     );
     expect(chooseHeartColor(session, HeartColor.RED).success).toBe(true);
 
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'BP6_006_CONFIRM_REVEALED_RESULT',
+      stepText:
+        "已公开卡组顶5张卡片，且5张均满足所选 Heart 颜色条件，但其中没有『μ's』卡。确认公开结果后，将公开卡全部放置入休息室。",
+      confirmSelectionLabel: '确认公开结果',
+    });
+    expect(getPlayerById(session.state!, PLAYER1)!.waitingRoom.cardIds).toEqual([]);
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
+      ).success
+    ).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(getPlayerById(session.state!, PLAYER1)!.hand.cardIds).toEqual([]);
     expect(session.state!.liveResolution.liveModifiers).toEqual([]);

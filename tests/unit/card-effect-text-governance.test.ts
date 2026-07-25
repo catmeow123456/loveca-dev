@@ -61,7 +61,7 @@ function collectPlayerVisibleSourceTexts(): DisplayTextSource[] {
   return PLAYER_VISIBLE_SOURCE_ROOTS.flatMap(listTypeScriptFiles).flatMap((relativePath) => {
     const source = readFileSync(join(process.cwd(), relativePath), 'utf8');
     return PLAYER_VISIBLE_SOURCE_FIELDS.flatMap((field) => {
-      const pattern = new RegExp(`\\b${field}\\s*:\\s*(['\\\"\x60])([\\s\\S]*?)\\1`, 'g');
+      const pattern = new RegExp(`\\b${field}\\s*:\\s*(['"\x60])([\\s\\S]*?)\\1`, 'g');
       return [...source.matchAll(pattern)].map((match, index) => ({
         abilityId: relativePath,
         field: `${field}[${index}]`,
@@ -173,8 +173,7 @@ describe('card effect display text governance', () => {
     expect(
       CARD_ABILITY_DEFINITIONS.find(
         (ability) =>
-          ability.abilityId ===
-          'PL!-bp4-013:live-start-discard-target-other-member-gain-pink-heart'
+          ability.abilityId === 'PL!-bp4-013:live-start-discard-target-other-member-gain-pink-heart'
       )?.effectText
     ).toBe(
       '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，1名存在于自己的舞台的此成员以外的成员，获得[桃ハート]。'
@@ -188,7 +187,8 @@ describe('card effect display text governance', () => {
     );
     expect(
       CARD_ABILITY_DEFINITIONS.find(
-        (ability) => ability.abilityId === 'PL!-bp4-024:live-start-target-muse-member-gain-one-blade'
+        (ability) =>
+          ability.abilityId === 'PL!-bp4-024:live-start-target-muse-member-gain-one-blade'
       )?.effectText
     ).toBe("【LIVE开始时】LIVE结束时为止，存在于自己的舞台的1名『μ's』的成员，获得[ブレード]。");
   });
@@ -204,6 +204,25 @@ describe('card effect display text governance', () => {
     expect(violations, formatViolations(violations)).toHaveLength(0);
   });
 
+  it('uses the mapped 【起动】 token in every implemented activated ability button text', () => {
+    const violations = CARD_ABILITY_DEFINITIONS.filter(
+      (ability) => ability.implemented && ability.activatedUi
+    )
+      .filter(
+        (ability) =>
+          !ability.activatedUi!.text.includes('【起动】') ||
+          ability.activatedUi!.text.includes('起动：')
+      )
+      .map((ability) => ({
+        abilityId: ability.abilityId,
+        field: 'activatedUi.text',
+        text: ability.activatedUi!.text,
+        issue: 'use the mapped 【起动】 token instead of legacy 起动： text',
+      }));
+
+    expect(violations, formatViolations(violations)).toHaveLength(0);
+  });
+
   it('does not leave Japanese rule sentences in registry display text', () => {
     const violations = collectRegistryDisplayTexts()
       .map((source) => ({
@@ -211,8 +230,10 @@ describe('card effect display text governance', () => {
         normalizedText: stripIconPlaceholdersAndQuotedNames(source.text),
       }))
       .filter((source) => JAPANESE_RULE_TEXT_PATTERN.test(source.normalizedText))
-      .map(({ normalizedText: _normalizedText, ...source }) => ({
-        ...source,
+      .map((source) => ({
+        abilityId: source.abilityId,
+        field: source.field,
+        text: source.text,
         issue: 'Japanese rule sentence residue',
       }));
 

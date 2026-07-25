@@ -3,7 +3,7 @@
 > 文档类型：历史/计划文档
 > 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
 > 当前状态：现行迁移路线；完成状态以代码、测试和本文 Roadmap 表为准，顶部专题说明不得替代表内状态
-> 最后更新：2026-07-24
+> 最后更新：2026-07-25
 
 ## bp3-001 / 002 通用 hook（2026-07）
 
@@ -112,6 +112,7 @@ Current migrated workflow modules:
 - `workflows/shared/opponent-wait-target.ts`
 - `workflows/shared/conditional-live-modifier.ts`
 - `workflows/shared/revealed-cheer-selection.ts`
+- `workflows/shared/live-start-cheer-count.ts`
 - `workflows/cards/pl-bp6-024-sakkaku-crossroads.ts`
 - `workflows/cards/pl-bp5-005-rin.ts`
 - `workflows/cards/hs-bp6-004-ginko.ts`

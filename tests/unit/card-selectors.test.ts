@@ -13,6 +13,7 @@ import {
   groupIs,
   hasAllBladeHeart,
   hasBladeHeart,
+  hasDrawBladeHeart,
   hasNoAbilityOrContinuousAbility,
   hasScoreBladeHeart,
   liveRequiresHeartColor,
@@ -72,6 +73,18 @@ describe('card selectors', () => {
     expect(costGte(5)(highCostMember)).toBe(true);
     expect(costGte(5)(lowCostMember)).toBe(false);
     expect(costGte(5)(live)).toBe(false);
+  });
+
+  it('matches DRAW blade-heart independently from SCORE and ALL', () => {
+    const draw = memberCard('DRAW', {
+      bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+    });
+    const score = memberCard('SCORE', {
+      bladeHearts: [{ effect: BladeHeartEffect.SCORE }],
+    });
+
+    expect(hasDrawBladeHeart()(draw)).toBe(true);
+    expect(hasDrawBladeHeart()(score)).toBe(false);
   });
 
   it('matches Muse cards by structured groupNames only', () => {
@@ -311,11 +324,7 @@ describe('card selectors', () => {
   });
 
   it('matches exact Hasunosora triple-unit identity cards through unitAliasIs without scanning text broadly', () => {
-    const tripleUnitCardCodes = [
-      'PL!HS-bp2-020-L',
-      'PL!HS-bp5-018-L',
-      'PL!HS-sd1-020-SD',
-    ];
+    const tripleUnitCardCodes = ['PL!HS-bp2-020-L', 'PL!HS-bp5-018-L', 'PL!HS-sd1-020-SD'];
 
     for (const cardCode of tripleUnitCardCodes) {
       const card = liveCard(cardCode, {

@@ -606,6 +606,11 @@ export interface ActiveEffectState {
   /** 能力来源卡牌实例 ID */
   readonly sourceCardId: string;
   /**
+   * 效果窗口专用的公开来源卡编号快照。
+   * 仅当来源卡在本次效果期间已经向双方正面公开时写入；不得由隐藏区身份推断。
+   */
+  readonly sourceCardDisplayCode?: string;
+  /**
    * 能力来源规则对象的生命周期 ID。
    * 仅 perTurnLimit 能力要求传播；用于避免旧 pending/active 占用新对象次数。
    */

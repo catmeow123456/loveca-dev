@@ -489,12 +489,14 @@ export const GameBoard = memo(function GameBoard({
   );
 
   // 卡牌辅助方法（使用 useShallow 保持引用稳定）
-  const { getVisibleCardPresentation, getKnownCardType } = useGameStore(
-    useShallow((s) => ({
-      getVisibleCardPresentation: s.getVisibleCardPresentation,
-      getKnownCardType: s.getKnownCardType,
-    }))
-  );
+  const { getVisibleCardPresentation, getPublicEventCardPresentation, getKnownCardType } =
+    useGameStore(
+      useShallow((s) => ({
+        getVisibleCardPresentation: s.getVisibleCardPresentation,
+        getPublicEventCardPresentation: s.getPublicEventCardPresentation,
+        getKnownCardType: s.getKnownCardType,
+      }))
+    );
 
   // 拖拽状态
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -613,7 +615,13 @@ export const GameBoard = memo(function GameBoard({
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const activeEffectSource = activeEffectSourceCardId
-    ? getVisibleCardPresentation(activeEffectSourceCardId)
+    ? (getVisibleCardPresentation(activeEffectSourceCardId) ??
+      (activeEffect?.sourceCardDisplayCode
+        ? getPublicEventCardPresentation(
+            activeEffect.sourceCardDisplayCode,
+            activeEffect.sourceObjectId
+          )
+        : null))
     : null;
   const activeEffectSourceLabel = activeEffectSource
     ? formatActiveEffectCardCompactLabel(
