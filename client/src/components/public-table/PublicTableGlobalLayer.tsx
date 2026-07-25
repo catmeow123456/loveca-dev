@@ -108,10 +108,10 @@ export function PublicTableGlobalLayer({
         </h2>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
           {creating
-            ? '双方已经确认，即将进入开局猜拳。'
+            ? '双方已确认，正在进入开局。'
             : status.confirmed
-              ? '已确认，等待对方。'
-              : `请在 ${remainingSeconds ?? '—'} 秒内确认开始这局。`}
+              ? '你已确认，等待对方确认。'
+              : `请在 ${remainingSeconds ?? '—'} 秒内确认开局。`}
         </p>
         {error ? <p className="mt-3 text-sm text-[var(--semantic-error)]">{error}</p> : null}
         {!creating ? (
@@ -122,14 +122,14 @@ export function PublicTableGlobalLayer({
               onClick={() => void cancel()}
             >
               <X className="mr-1 inline" size={16} />
-              放弃
+              取消等待
             </button>
             <button
               className="button-primary py-3"
               disabled={loading || status.confirmed}
               onClick={() => void confirm()}
             >
-              确认开始
+              确认开局
             </button>
           </div>
         ) : null}

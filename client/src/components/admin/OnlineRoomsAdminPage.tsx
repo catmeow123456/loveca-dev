@@ -804,7 +804,9 @@ function StatusBadge({ status }: { status: OnlineRoomStatus }) {
         ? 'border-[color:var(--accent-primary)]/40 bg-[color:var(--accent-primary)]/10 text-[var(--accent-primary)]'
         : status === 'READY'
           ? 'border-[color:var(--semantic-warning)]/40 bg-[color:var(--semantic-warning)]/10 text-[var(--semantic-warning)]'
-          : 'border-[color:var(--semantic-info)]/40 bg-[color:var(--semantic-info)]/10 text-[var(--semantic-info)]';
+          : status === 'ENDED'
+            ? 'border-[color:var(--text-muted)]/40 bg-[color:var(--text-muted)]/10 text-[var(--text-muted)]'
+            : 'border-[color:var(--semantic-info)]/40 bg-[color:var(--semantic-info)]/10 text-[var(--semantic-info)]';
   const label =
     status === 'IN_GAME'
       ? '对局中'
@@ -812,7 +814,9 @@ function StatusBadge({ status }: { status: OnlineRoomStatus }) {
         ? '开局中'
         : status === 'READY'
           ? '已就绪'
-          : '准备中';
+          : status === 'ENDED'
+            ? '已结束'
+            : '准备中';
 
   return (
     <span

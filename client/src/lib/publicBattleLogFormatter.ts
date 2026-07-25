@@ -559,6 +559,19 @@ function buildSingleEventView(
         actorSeat: event.actingSeat ?? actorSeat,
       });
     case 'PlayerDeclared':
+      if (event.declarationType === 'SURRENDER') {
+        return buildView({
+          events: [event],
+          options,
+          type: event.type,
+          keyEvent: true,
+          title: actorSeat ? `${formatSeatName(actorSeat, options)}认输` : '玩家认输',
+          detail: '本局结束',
+          cards,
+          hiddenCardCount: 0,
+          actorSeat,
+        });
+      }
       return buildView({
         events: [event],
         options,

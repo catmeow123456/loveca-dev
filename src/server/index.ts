@@ -7,7 +7,7 @@ import { onlineRoomService } from './services/online-room-service.js';
 import { publicTableService } from './services/public-table-service.js';
 
 const TOKEN_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
-const RUNTIME_CLEANUP_INTERVAL = readPositiveIntEnv('API_RUNTIME_CLEANUP_INTERVAL_MS', 60 * 1000);
+const RUNTIME_CLEANUP_INTERVAL = readPositiveIntEnv('API_RUNTIME_CLEANUP_INTERVAL_MS', 10 * 1000);
 const RUNTIME_STATS_LOG_INTERVAL = readPositiveIntEnv(
   'API_RUNTIME_STATS_LOG_INTERVAL_MS',
   60 * 1000

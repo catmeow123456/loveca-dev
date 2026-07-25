@@ -216,8 +216,8 @@ export function PublicTablePage({
                     : status.state === 'CREATING_ROOM'
                       ? '正在准备开局'
                       : status.confirmed
-                        ? '已确认，等待对方'
-                        : '请确认是否开始'}
+                        ? '你已确认，等待对方确认'
+                        : '请在 60 秒内确认开局'}
               </p>
 
               {status.state === 'WAITING' && (
@@ -228,7 +228,7 @@ export function PublicTablePage({
                   onClick={() => void cancel()}
                 >
                   <X size={16} />
-                  结束等待
+                  取消等待
                 </button>
               )}
               {status.state === 'PENDING_CONFIRMATION' && (
@@ -239,7 +239,7 @@ export function PublicTablePage({
                     disabled={loading}
                     onClick={() => void cancel()}
                   >
-                    放弃
+                    取消等待
                   </button>
                   <button
                     type="button"
@@ -247,7 +247,7 @@ export function PublicTablePage({
                     disabled={loading}
                     onClick={() => void confirm()}
                   >
-                    确认开始
+                    确认开局
                   </button>
                 </div>
               )}
@@ -258,7 +258,7 @@ export function PublicTablePage({
                   disabled={loading}
                   onClick={() => void cancel()}
                 >
-                  放弃
+                  取消等待
                 </button>
               )}
               {status.state === 'CREATING_ROOM' && (

@@ -53,6 +53,7 @@ const COMMAND_CATEGORIES = {
   [GameCommandType.DRAW_CARD_TO_HAND]: 'MANUAL_OVERRIDE',
   [GameCommandType.DRAW_ENERGY_TO_ZONE]: 'MANUAL_OVERRIDE',
   [GameCommandType.RETURN_HAND_CARD_TO_TOP]: 'MANUAL_OVERRIDE',
+  [GameCommandType.SURRENDER]: 'NORMAL_RULE_ACTION',
 } as const satisfies Record<GameCommandType, PlayerCommandCategory>;
 
 export function classifyPlayerCommand(commandType: GameCommandType): PlayerCommandCategory {
@@ -73,6 +74,10 @@ export function getPlayerCommandPolicyDecision(
 ): PlayerCommandPolicyDecision {
   const category = classifyPlayerCommand(commandType);
   const mode = getManualOperationMode(state);
+
+  if (commandType === GameCommandType.SURRENDER) {
+    return decision(category, !state.isEnded, state.isEnded ? '对局已结束，不能再认输' : null);
+  }
 
   const pendingSpecialPlay = state.pendingSpecialMemberPlay ?? null;
   if (pendingSpecialPlay) {

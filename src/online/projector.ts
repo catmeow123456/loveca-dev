@@ -341,6 +341,15 @@ export function projectPlayerViewState(
       viewerSeat,
       options.allowRulesModeSuccessLiveSkip === true
     ),
+    endInfo: game.endInfo
+      ? {
+          reason: game.endInfo.reason,
+          winnerSeat: game.endInfo.winnerId
+            ? getSeatForPlayer(game, game.endInfo.winnerId)
+            : null,
+          loserSeat: game.endInfo.loserId ? getSeatForPlayer(game, game.endInfo.loserId) : null,
+        }
+      : null,
     manualOperation: {
       mode: getManualOperationMode(game),
       canSwitchNow: manualOperationSwitchBlockedReason === null,
