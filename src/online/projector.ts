@@ -22,6 +22,7 @@ import {
 } from '../application/effects/special-member-play.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import {
+  getLiveSetCardIdsForPlayer,
   hasPendingAbilityOrChoice,
   type ActiveEffectState,
   type GameState,
@@ -1464,14 +1465,19 @@ function inferAvailableActionTypes(game: GameState): readonly GameCommandType[] 
       return [GameCommandType.MULLIGAN];
     case GamePhase.MAIN_PHASE:
       return [...MAIN_PHASE_ACTIVE_PLAYER_COMMAND_TYPES, GameCommandType.END_PHASE];
-    case GamePhase.LIVE_SET_PHASE:
+    case GamePhase.LIVE_SET_PHASE: {
+      const isLiveSetPlayerWindow =
+        game.currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
+        game.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER;
       return [
         GameCommandType.SET_LIVE_CARD,
+        ...(isLiveSetPlayerWindow ? [GameCommandType.UNSET_LIVE_CARD] : []),
         ...(isOwnDeskFreeDragWindow(game.currentPhase, game.currentSubPhase)
           ? OWN_DESK_FREE_DRAG_COMMAND_TYPES
           : []),
         GameCommandType.CONFIRM_STEP,
       ];
+    }
     case GamePhase.PERFORMANCE_PHASE:
       if (game.currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT) {
         return PERFORMANCE_SUCCESS_INTERACTION_COMMAND_TYPES;
@@ -1640,6 +1646,20 @@ function buildPhaseCommandHint(
           zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'HAND')],
         }),
       });
+    case GameCommandType.UNSET_LIVE_CARD: {
+      const viewer = game.players.find((player) => player.id === viewerPlayerId);
+      const cardIds = getLiveSetCardIdsForPlayer(game, viewerPlayerId).filter(
+        (cardId) => viewer?.liveZone.cardStates.get(cardId)?.face === FaceState.FACE_DOWN
+      );
+      return buildCommandHint(command, {
+        enabled: cardIds.length > 0,
+        reason: cardIds.length > 0 ? undefined : '当前没有可撤回的盖牌',
+        scope: createCommandScope({
+          zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'LIVE_ZONE')],
+          cardIds,
+        }),
+      });
+    }
     case GameCommandType.OPEN_INSPECTION:
       return buildCommandHint(command, {
         scope: createCommandScope({

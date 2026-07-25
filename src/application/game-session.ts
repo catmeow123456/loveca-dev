@@ -48,9 +48,11 @@ import {
   GAME_CONFIG,
   addAction,
   getActivePlayer,
+  getLiveSetCardIdsForPlayer,
   getLiveSetCardLimitForPlayer,
   getPlayerById,
   hasPendingAbilityOrChoice,
+  setLiveSetCardIdsForPlayer,
   updatePlayer,
 } from '../domain/entities/game.js';
 import {
@@ -115,6 +117,7 @@ import type {
   GameCommand,
   MulliganCommand,
   SetLiveCardCommand,
+  UnsetLiveCardCommand,
   TapMemberCommand,
   TapEnergyCommand,
   EndPhaseCommand,
@@ -1616,6 +1619,22 @@ export class GameSession {
         }
         return null;
       }
+      case GameCommandType.UNSET_LIVE_CARD: {
+        const player = state.players.find((candidate) => candidate.id === command.playerId);
+        if (!player) {
+          return '玩家不存在';
+        }
+        if (!player.liveZone.cardIds.includes(command.cardId)) {
+          return '卡牌当前不在己方 Live 区';
+        }
+        if (!getLiveSetCardIdsForPlayer(state, command.playerId).includes(command.cardId)) {
+          return '只能撤回本次 Live 设置阶段盖下的卡牌';
+        }
+        if (player.liveZone.cardStates.get(command.cardId)?.face !== FaceState.FACE_DOWN) {
+          return '只能撤回仍为里侧状态的盖牌';
+        }
+        return null;
+      }
       case GameCommandType.TAP_MEMBER: {
         const player = state.players.find((candidate) => candidate.id === command.playerId);
         if (!player) {
@@ -2358,6 +2377,12 @@ export class GameSession {
         return state.currentPhase === GamePhase.MULLIGAN_PHASE ? null : '当前不是换牌阶段';
       case GameCommandType.SET_LIVE_CARD:
         return state.currentPhase === GamePhase.LIVE_SET_PHASE ? null : '当前不是 Live 设置阶段';
+      case GameCommandType.UNSET_LIVE_CARD:
+        return state.currentPhase === GamePhase.LIVE_SET_PHASE &&
+          (state.currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
+            state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER)
+          ? null
+          : '当前不是 Live 设置操作时点';
       case GameCommandType.END_PHASE:
         if (getManualOperationMode(state) === 'FREE') {
           return null;
@@ -2642,6 +2667,8 @@ export class GameSession {
         return this.applyMulliganCommand(state, command);
       case GameCommandType.SET_LIVE_CARD:
         return this.applySetLiveCardCommand(state, command);
+      case GameCommandType.UNSET_LIVE_CARD:
+        return this.applyUnsetLiveCardCommand(state, command);
       case GameCommandType.TAP_MEMBER:
         return this.applyTapMemberCommand(state, command);
       case GameCommandType.TAP_ENERGY:
@@ -2809,6 +2836,52 @@ export class GameSession {
               ),
               reason: 'SET_LIVE_CARD',
             }),
+      ],
+    };
+  }
+
+  private applyUnsetLiveCardCommand(
+    state: GameState,
+    command: UnsetLiveCardCommand
+  ): CommandExecutionResult {
+    const actorSeat = getSeatForPlayer(state, command.playerId);
+    if (!actorSeat) {
+      return { success: false, gameState: state, error: '玩家不存在' };
+    }
+
+    const result = this.gameService.processAction(
+      state,
+      createManualMoveCardAction(
+        command.playerId,
+        command.cardId,
+        ZoneType.LIVE_ZONE,
+        ZoneType.HAND,
+        { liveDeskMoveExempt: true }
+      )
+    );
+    if (!result.success) {
+      return { success: false, gameState: state, error: result.error };
+    }
+
+    const remainingLiveSetCardIds = getLiveSetCardIdsForPlayer(state, command.playerId).filter(
+      (cardId) => cardId !== command.cardId
+    );
+    const gameState = setLiveSetCardIdsForPlayer(
+      result.gameState,
+      command.playerId,
+      remainingLiveSetCardIds
+    );
+
+    return {
+      success: true,
+      gameState,
+      declarationType: 'UNSET_LIVE_CARD',
+      declarationPublicValue: 'FACE_DOWN',
+      extraPublicEvents: [
+        buildCardMovedPublicEvent(state, gameState, actorSeat, command.cardId, {
+          from: buildZoneRefForMove(state, command.playerId, command.cardId, ZoneType.LIVE_ZONE),
+          to: buildZoneRefForMove(gameState, command.playerId, command.cardId, ZoneType.HAND),
+        }),
       ],
     };
   }

@@ -3,6 +3,7 @@ import { SlotPosition, SubPhase, ZoneType } from '../shared/types/enums.js';
 export enum GameCommandType {
   MULLIGAN = 'MULLIGAN',
   SET_LIVE_CARD = 'SET_LIVE_CARD',
+  UNSET_LIVE_CARD = 'UNSET_LIVE_CARD',
   TAP_MEMBER = 'TAP_MEMBER',
   TAP_ENERGY = 'TAP_ENERGY',
   END_PHASE = 'END_PHASE',
@@ -57,6 +58,11 @@ export interface SetLiveCardCommand extends BaseGameCommand {
   readonly type: GameCommandType.SET_LIVE_CARD;
   readonly cardId: string;
   readonly faceDown: boolean;
+}
+
+export interface UnsetLiveCardCommand extends BaseGameCommand {
+  readonly type: GameCommandType.UNSET_LIVE_CARD;
+  readonly cardId: string;
 }
 
 export interface TapMemberCommand extends BaseGameCommand {
@@ -316,6 +322,7 @@ export interface ReturnHandCardToTopCommand extends BaseGameCommand {
 export type GameCommand =
   | MulliganCommand
   | SetLiveCardCommand
+  | UnsetLiveCardCommand
   | TapMemberCommand
   | TapEnergyCommand
   | EndPhaseCommand
@@ -375,6 +382,18 @@ export function createSetLiveCardCommand(
     playerId,
     cardId,
     faceDown,
+    timestamp: Date.now(),
+  };
+}
+
+export function createUnsetLiveCardCommand(
+  playerId: string,
+  cardId: string
+): UnsetLiveCardCommand {
+  return {
+    type: GameCommandType.UNSET_LIVE_CARD,
+    playerId,
+    cardId,
     timestamp: Date.now(),
   };
 }

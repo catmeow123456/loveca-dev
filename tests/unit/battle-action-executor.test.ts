@@ -4,6 +4,21 @@ import { GameCommandType } from '../../src/application/game-commands';
 import { ZoneType } from '../../src/shared/types/enums';
 
 describe('executeBattleActionPayload', () => {
+  it('executes the dedicated live-set withdrawal payload', () => {
+    const unsetLiveCard = vi.fn();
+
+    const handled = executeBattleActionPayload(
+      {
+        type: GameCommandType.UNSET_LIVE_CARD,
+        cardId: 'set-card',
+      },
+      { unsetLiveCard }
+    );
+
+    expect(handled).toBe(true);
+    expect(unsetLiveCard).toHaveBeenCalledWith('set-card');
+  });
+
   it('executes inspected card target payloads', () => {
     const moveInspectedCardToBottom = vi.fn();
 

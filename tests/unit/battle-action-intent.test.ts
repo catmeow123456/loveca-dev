@@ -35,6 +35,7 @@ const BASE_INPUT = {
     GameCommandType.MOVE_MEMBER_TO_SLOT,
     GameCommandType.ATTACH_ENERGY_TO_MEMBER,
     GameCommandType.SET_LIVE_CARD,
+    GameCommandType.UNSET_LIVE_CARD,
     GameCommandType.MOVE_PUBLIC_CARD_TO_HAND,
     GameCommandType.MOVE_PUBLIC_CARD_TO_WAITING_ROOM,
     GameCommandType.MOVE_PUBLIC_CARD_TO_ENERGY_DECK,
@@ -158,6 +159,25 @@ describe('buildBattleActionIntents', () => {
 
     expect(intents).toHaveLength(1);
     expect(intents[0]?.commandType).toBe(GameCommandType.SET_LIVE_CARD);
+  });
+
+  it('creates a dedicated face-down live withdrawal intent during the live set window', () => {
+    const intents = buildBattleActionIntents({
+      ...BASE_INPUT,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+      sourceCardId: 'set-member',
+      sourceZone: ZoneType.LIVE_ZONE,
+      sourceCardType: CardType.MEMBER,
+    });
+
+    expect(intents).toHaveLength(1);
+    expect(intents[0]?.label).toBe('撤回盖牌');
+    expect(intents[0]?.operationCause).toBe('FLOW_TASK');
+    expect(intents[0]?.targets[0]?.commandPayload).toEqual({
+      type: GameCommandType.UNSET_LIVE_CARD,
+      cardId: 'set-member',
+    });
   });
 
   it('finds a shared drop target for drag and click paths', () => {

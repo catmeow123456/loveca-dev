@@ -54,6 +54,10 @@ export type BattleActionCommandPayload =
       readonly faceDown: boolean;
     }
   | {
+      readonly type: GameCommandType.UNSET_LIVE_CARD;
+      readonly cardId: string;
+    }
+  | {
       readonly type: GameCommandType.MOVE_PUBLIC_CARD_TO_HAND;
       readonly cardId: string;
       readonly fromZone:
@@ -214,6 +218,15 @@ export function buildBattleActionIntents(
     isCommandAvailable(input, GameCommandType.SET_LIVE_CARD)
   ) {
     return [createSetLiveIntent(input)].filter((intent) => intent.targets.length > 0);
+  }
+
+  if (
+    input.sourceZone === ZoneType.LIVE_ZONE &&
+    input.currentPhase === GamePhase.LIVE_SET_PHASE &&
+    isLiveSetPlayerSubPhase(input.currentSubPhase) &&
+    isCommandAvailable(input, GameCommandType.UNSET_LIVE_CARD)
+  ) {
+    return [createUnsetLiveIntent(input)];
   }
 
   const intents: BattleActionIntent[] = [];
@@ -564,6 +577,32 @@ function createSetLiveIntent(input: BattleActionIntentInput): BattleActionIntent
     animationPolicy: 'LOCAL_CLICK_MOVE',
     operationCause: 'FLOW_TASK',
     targets: [target],
+  });
+}
+
+function createUnsetLiveIntent(input: BattleActionIntentInput): BattleActionIntent {
+  return createIntent(input, {
+    commandType: GameCommandType.UNSET_LIVE_CARD,
+    label: '撤回盖牌',
+    detail: '放回手牌',
+    targetKind: 'ZONE',
+    animationPolicy: 'LOCAL_CLICK_MOVE',
+    operationCause: 'FLOW_TASK',
+    targets: [
+      {
+        targetId: 'hand',
+        kind: 'ZONE',
+        zone: ZoneType.HAND,
+        enabled: true,
+        label: '撤回盖牌',
+        detail: '放回手牌',
+        anchor: { zone: ZoneType.HAND, targetId: 'hand' },
+        commandPayload: {
+          type: GameCommandType.UNSET_LIVE_CARD,
+          cardId: input.sourceCardId,
+        },
+      },
+    ],
   });
 }
 

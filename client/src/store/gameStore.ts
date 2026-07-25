@@ -52,6 +52,7 @@ import {
   createDrawCardToHandCommand,
   createDrawEnergyToZoneCommand,
   createSetLiveCardCommand,
+  createUnsetLiveCardCommand,
   createFinishInspectionCommand,
   createFinishInspectionWithArrangementCommand,
   createAttachEnergyToMemberCommand,
@@ -385,6 +386,8 @@ export interface GameStore {
   ) => CommandDispatchResult;
   /** 放置 Live 卡到 Live 区 */
   setLiveCard: (cardId: string, faceDown?: boolean) => CommandDispatchResult;
+  /** 撤回本次 Live 设置阶段盖下的卡牌 */
+  unsetLiveCard: (cardId: string) => CommandDispatchResult;
   /** 确认当前卡牌效果步骤 */
   confirmEffectStep: (
     effectId: string,
@@ -1168,6 +1171,16 @@ export const useGameStore = create<GameStore>((set, get) => {
       return runViewerCommand((playerId) => createSetLiveCardCommand(playerId, cardId, faceDown), {
         failureMessage: '放置 Live 卡失败',
         successMessage: '放置卡牌到 Live 区',
+        deselectCard: true,
+        logError: true,
+      });
+    },
+
+    unsetLiveCard: (cardId) => {
+      return runViewerCommand((playerId) => createUnsetLiveCardCommand(playerId, cardId), {
+        failureMessage: '撤回盖牌失败',
+        successMessage: '已将盖牌撤回手牌',
+        clearHoveredCardId: cardId,
         deselectCard: true,
         logError: true,
       });

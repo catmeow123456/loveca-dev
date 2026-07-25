@@ -6,6 +6,7 @@ import {
   createMoveTableCardCommand,
   createPlayMemberToSlotCommand,
   createSetLiveCardCommand,
+  createUnsetLiveCardCommand,
   createSubmitJudgmentCommand,
   createSubmitScoreCommand,
   createTapMemberCommand,
@@ -23,6 +24,7 @@ import {
 } from '../../src/domain/entities/card';
 import {
   createGameState,
+  getLiveSetCardCountForPlayer,
   registerCards,
   updatePlayer,
   type GameState,
@@ -90,6 +92,55 @@ describe('规则模式玩家命令防火墙', () => {
     const faceUp = session.executeCommand(createSetLiveCardCommand(P1, liveId, false));
     expect(faceUp.success).toBe(false);
     expect(faceUp.error).toContain('里侧');
+  });
+
+  it('规则模式允许在当前 Live 设置时点撤回本轮盖牌，但不放宽通用回手', () => {
+    const session = createInitializedSession();
+    const cardId = findOwnedCardId(session.state!, CardType.MEMBER);
+    forceCardIntoHand(session.state!, P1, cardId);
+    forceWindow(session.state!, GamePhase.LIVE_SET_PHASE, SubPhase.LIVE_SET_FIRST_PLAYER);
+
+    const setResult = session.executeCommand(createSetLiveCardCommand(P1, cardId, true));
+    expect(setResult.success, setResult.error).toBe(true);
+    expect(getLiveSetCardCountForPlayer(session.state!, P1)).toBe(1);
+
+    const unsetHint = session
+      .getPlayerViewState(P1)!
+      .permissions.availableCommands.find(
+        (hint) => hint.command === GameCommandType.UNSET_LIVE_CARD
+      );
+    expect(unsetHint?.enabled).toBe(true);
+    expect(unsetHint?.scope?.objectIds).toContain(`obj_${cardId}`);
+
+    forceWindow(session.state!, GamePhase.LIVE_SET_PHASE, SubPhase.LIVE_SET_FIRST_DRAW);
+    const outsideOperationWindow = session.executeCommand(createUnsetLiveCardCommand(P1, cardId));
+    expect(outsideOperationWindow.success).toBe(false);
+    expect(outsideOperationWindow.error).toContain('操作时点');
+
+    forceWindow(session.state!, GamePhase.LIVE_SET_PHASE, SubPhase.LIVE_SET_FIRST_PLAYER);
+    const unsetResult = session.executeCommand(createUnsetLiveCardCommand(P1, cardId));
+    expect(unsetResult.success, unsetResult.error).toBe(true);
+    expect(session.state!.players[0].hand.cardIds).toContain(cardId);
+    expect(session.state!.players[0].liveZone.cardIds).not.toContain(cardId);
+    expect(getLiveSetCardCountForPlayer(session.state!, P1)).toBe(0);
+
+    const repeatedUnset = session.executeCommand(createUnsetLiveCardCommand(P1, cardId));
+    expect(repeatedUnset.success).toBe(false);
+    expect(repeatedUnset.error).toContain('Live 区');
+  });
+
+  it('不能通过撤回盖牌命令取回非本轮盖下的 Live 区卡牌', () => {
+    const session = createInitializedSession();
+    const liveId = findOwnedCardId(session.state!, CardType.LIVE);
+    forceCardIntoHand(session.state!, P1, liveId);
+    forceWindow(session.state!, GamePhase.LIVE_SET_PHASE, SubPhase.LIVE_SET_FIRST_PLAYER);
+    expect(session.executeCommand(createSetLiveCardCommand(P1, liveId, true)).success).toBe(true);
+    (session.state!.liveSetCardIds as Map<string, readonly string[]>).set(P1, []);
+
+    const result = session.executeCommand(createUnsetLiveCardCommand(P1, liveId));
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('本次 Live 设置阶段');
+    expect(session.state!.players[0].liveZone.cardIds).toContain(liveId);
   });
 
   it('判定、分数和自动子阶段拒绝伪造的直接确认与载荷覆写', () => {
