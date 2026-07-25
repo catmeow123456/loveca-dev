@@ -22,6 +22,24 @@ function createRulesState(): GameState {
 }
 
 describe('player command policy', () => {
+  it('将盖牌与撤回盖牌都视为受规则约束的正常动作', () => {
+    expect(classifyPlayerCommand(GameCommandType.SET_LIVE_CARD)).toBe('NORMAL_RULE_ACTION');
+    expect(classifyPlayerCommand(GameCommandType.UNSET_LIVE_CARD)).toBe('NORMAL_RULE_ACTION');
+
+    const rules = createRulesState();
+    const liveSet = {
+      ...rules,
+      currentPhase: GamePhase.LIVE_SET_PHASE,
+      currentSubPhase: SubPhase.LIVE_SET_FIRST_PLAYER,
+    };
+    expect(
+      getPlayerCommandPolicyDecision(liveSet, P1, GameCommandType.UNSET_LIVE_CARD).allowed
+    ).toBe(true);
+    expect(getPlayerCommandPolicyDecision(rules, P1, GameCommandType.UNSET_LIVE_CARD).allowed).toBe(
+      false
+    );
+  });
+
   it('将手动整理、手动抽放牌与调整判定统一视为自由模式操作', () => {
     const manualCommands = [
       GameCommandType.TAP_MEMBER,

@@ -8,6 +8,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { CardType, GamePhase, SlotPosition, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import type { CardAbilityDefinition } from '../../ability-definition-types.js';
 import {
@@ -268,7 +269,7 @@ function startActivated(game: GameState, playerId: string, sourceCardId: string)
     !player ||
     !source ||
     source.ownerId !== playerId ||
-    source.data.cardCode !== 'PL!S-bp7-005-SEC' ||
+    !cardCodeMatchesBase(source.data.cardCode, 'PL!S-bp7-005') ||
     player.memberSlots.slots[SlotPosition.CENTER] !== sourceCardId ||
     player.hand.cardIds.length < 2 ||
     sourceDefinitions.length === 0 ||

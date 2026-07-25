@@ -290,6 +290,10 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
       false,
       'stage'
     );
+    expect(state.activeEffect?.revealedCardIds).toEqual([scenario.eligibleId]);
+    expect(state.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(state.activeEffect?.selectionLabel).toBeUndefined();
+    expect(state.activeEffect?.confirmSelectionLabel).toBe('登场');
     expect(state.activeEffect?.selectableSlots).toEqual([SlotPosition.LEFT, SlotPosition.RIGHT]);
     state = confirmActiveEffectStep(
       state,

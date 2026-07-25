@@ -89,8 +89,8 @@ import {
 } from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
 import {
-  LL_BP7_001_SPECIAL_PLAY_UI_CARD_CODE,
   getSpecialMemberPlayTargetSlots,
+  isLlBp7001SpecialPlayCardCode,
 } from '@/lib/specialMemberPlay';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
@@ -346,6 +346,9 @@ export const GameBoard = memo(function GameBoard({
     s.getCommandHint(GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY)
   );
   const canSetLiveCardCommand = useGameStore((s) => s.canUseAction(GameCommandType.SET_LIVE_CARD));
+  const canUnsetLiveCardCommand = useGameStore((s) =>
+    s.canUseAction(GameCommandType.UNSET_LIVE_CARD)
+  );
   const canMoveMemberToSlotCommand = useGameStore((s) =>
     s.canUseAction(GameCommandType.MOVE_MEMBER_TO_SLOT)
   );
@@ -416,6 +419,7 @@ export const GameBoard = memo(function GameBoard({
   // 方法选择器（使用 useShallow 保持引用稳定）
   const {
     setLiveCard,
+    unsetLiveCard,
     addLog,
     playMemberToSlot,
     beginSpecialMemberPlay,
@@ -457,9 +461,11 @@ export const GameBoard = memo(function GameBoard({
     getCardSlotPosition,
     getSeatMemberSlotCardId,
     getCardViewObject,
+    isCardInCommandScope,
   } = useGameStore(
     useShallow((s) => ({
       setLiveCard: s.setLiveCard,
+      unsetLiveCard: s.unsetLiveCard,
       addLog: s.addLog,
       playMemberToSlot: s.playMemberToSlot,
       beginSpecialMemberPlay: s.beginSpecialMemberPlay,
@@ -501,6 +507,7 @@ export const GameBoard = memo(function GameBoard({
       getCardSlotPosition: s.getCardSlotPosition,
       getSeatMemberSlotCardId: s.getSeatMemberSlotCardId,
       getCardViewObject: s.getCardViewObject,
+      isCardInCommandScope: s.isCardInCommandScope,
     }))
   );
 
@@ -831,7 +838,7 @@ export const GameBoard = memo(function GameBoard({
     !pendingCostPayment &&
     !pendingSpecialMemberPlay &&
     selectedCardZone === ZoneType.HAND &&
-    selectedCardPresentation?.cardData.cardCode === LL_BP7_001_SPECIAL_PLAY_UI_CARD_CODE &&
+    isLlBp7001SpecialPlayCardCode(selectedCardPresentation?.cardData.cardCode ?? '') &&
     !!selectedSpecialPlayObjectId &&
     specialMemberPlayHint.scope?.objectIds?.includes(selectedSpecialPlayObjectId) === true;
   const pendingSpecialPlayCandidateIds =
@@ -1440,7 +1447,13 @@ export const GameBoard = memo(function GameBoard({
         sourceSeat: viewerSeat,
         surface: capabilities.surface,
         isReadOnly,
-        availableCommandTypes: getBattleActionCommandTypes(),
+        availableCommandTypes: [
+          ...getBattleActionCommandTypes(),
+          ...(canUnsetLiveCardCommand &&
+          isCardInCommandScope(GameCommandType.UNSET_LIVE_CARD, cardId)
+            ? [GameCommandType.UNSET_LIVE_CARD]
+            : []),
+        ],
         manualOperationMode: matchView?.manualOperation?.mode,
         memberSlots,
         liveZoneCount,
@@ -1451,6 +1464,7 @@ export const GameBoard = memo(function GameBoard({
     [
       activeEffect,
       canConfirmActiveEffect,
+      canUnsetLiveCardCommand,
       capabilities.surface,
       currentPhase,
       currentSubPhase,
@@ -1461,6 +1475,7 @@ export const GameBoard = memo(function GameBoard({
       getSeatMemberSlotCardId,
       getZoneCardIds,
       isReadOnly,
+      isCardInCommandScope,
       matchView?.manualOperation?.mode,
       viewerSeat,
     ]
@@ -1519,6 +1534,7 @@ export const GameBoard = memo(function GameBoard({
         moveMemberToSlot,
         attachEnergyToMember,
         setLiveCard,
+        unsetLiveCard,
         movePublicCardToHand,
         movePublicCardToWaitingRoom,
         movePublicCardToEnergyDeck,
@@ -1541,6 +1557,7 @@ export const GameBoard = memo(function GameBoard({
       moveResolutionCardToZone,
       playMemberToSlot,
       setLiveCard,
+      unsetLiveCard,
     ]
   );
 
@@ -3616,7 +3633,11 @@ export const GameBoard = memo(function GameBoard({
                         canConfirmOrderedEffectSelection ? '' : 'cursor-not-allowed opacity-50'
                       }`}
                     >
-                      {`${activeEffect.confirmSelectionLabel ?? '确认选择'}（${activeEffectOrderedSelection.length}张）`}
+                      <CardEffectText
+                        as="span"
+                        text={activeEffect.confirmSelectionLabel ?? '确认选择'}
+                        className="inline-flex items-center justify-center gap-1"
+                      />
                     </button>
                   )}
                 {showLegacyActiveEffectControls && activeEffect.canResolveInOrder && (

@@ -19,9 +19,9 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import {
-  finishArrangeInspectedDeckTopWorkflow,
-  startArrangeInspectedDeckTopWorkflow,
-} from '../shared/arrange-inspected-deck-top.js';
+  finishArrangeInspectedDeckEdgeWorkflow,
+  startArrangeInspectedDeckEdgeWorkflow,
+} from '../shared/arrange-inspected-deck-edge.js';
 
 const SELECT_DISCARD_STEP_ID = 'HS_BP2_003_SELECT_DISCARD_HAND';
 const ARRANGE_TOP_THREE_STEP_ID = 'HS_BP2_003_ARRANGE_TOP_THREE';
@@ -58,7 +58,7 @@ export function registerHsBp2003KozueWorkflowHandlers(deps: {
     HS_BP2_003_LIVE_START_DISCARD_HAND_ARRANGE_TOP_THREE_ABILITY_ID,
     ARRANGE_TOP_THREE_STEP_ID,
     (game, input, context) =>
-      finishArrangeInspectedDeckTopWorkflow(
+      finishArrangeInspectedDeckEdgeWorkflow(
         game,
         input.selectedCardIds ?? [],
         context.continuePendingCardEffects,
@@ -152,7 +152,7 @@ function finishHsBp2003DiscardHand(
     discardedHandCardIds: discardResult.discardedCardIds,
   });
 
-  return startArrangeInspectedDeckTopWorkflow(
+  return startArrangeInspectedDeckEdgeWorkflow(
     { ...stateAfterCost, activeEffect: null },
     {
       ability: {

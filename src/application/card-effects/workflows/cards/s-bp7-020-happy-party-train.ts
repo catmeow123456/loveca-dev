@@ -9,6 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
 import { S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID } from '../../ability-ids.js';
@@ -23,7 +24,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 const ABILITY_ID =
   S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID;
-const EXACT_CARD_CODE = 'PL!S-bp7-020-SECL';
+const BASE_CARD_CODE = 'PL!S-bp7-020';
 const REVEAL_STEP_ID = 'S_BP7_020_REVEAL_MILLED_BOTTOM_ONE';
 
 export function registerSBp7020HappyPartyTrainWorkflowHandlers(deps: {
@@ -186,7 +187,7 @@ function isValidSourceLive(game: GameState, playerId: string, sourceCardId: stri
     source !== null &&
     source.ownerId === playerId &&
     isLiveCardData(source.data) &&
-    source.data.cardCode === EXACT_CARD_CODE &&
+    cardCodeMatchesBase(source.data.cardCode, BASE_CARD_CODE) &&
     player.liveZone.cardIds.includes(sourceCardId)
   );
 }

@@ -25,6 +25,7 @@ import {
 import { registerMemberSlotMovedObserver } from '../../runtime/member-slot-moved-observers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { canUseAbilityThisTurn } from '../../runtime/ability-turn-limit.js';
 import {
   getAbilityEffectText,
   recordAbilityUseForContext,
@@ -112,7 +113,7 @@ function enqueueSpPb2011CenterMemberMovedObserver(
       );
       if (
         !hasTomariCenterMoveAbility ||
-        hasUsedAbilityThisTurn(state, player.id, abilityId, sourceCardId)
+        !canUseAbilityThisTurn(state, player.id, abilityId, sourceCardId)
       ) {
         continue;
       }
@@ -507,21 +508,4 @@ function hasAbilityInstance(game: GameState, pendingAbilityId: string): boolean 
       historyAction.payload.pendingAbilityId === pendingAbilityId
   );
   return alreadyPending || alreadyActive || alreadyResolved;
-}
-
-function hasUsedAbilityThisTurn(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): boolean {
-  return game.actionHistory.some(
-    (historyAction) =>
-      historyAction.type === 'RESOLVE_ABILITY' &&
-      historyAction.playerId === playerId &&
-      historyAction.payload.step === 'ABILITY_USE' &&
-      historyAction.payload.turnCount === game.turnCount &&
-      historyAction.payload.abilityId === abilityId &&
-      historyAction.payload.sourceCardId === sourceCardId
-  );
 }

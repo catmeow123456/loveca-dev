@@ -1,10 +1,12 @@
 import {
   addAction,
+  getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID,
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
@@ -12,6 +14,7 @@ import {
   S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   HS_PB1_027_LIVE_SUCCESS_OPTIONAL_MILL_TOP_FOUR_IF_CERISE_MEMBER_ABILITY_ID,
+  N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
@@ -36,6 +39,8 @@ interface DirectMillTopConfig {
   readonly optionalDecisionStepId?: string;
   readonly canStart?: (game: GameState, playerId: string) => boolean;
   readonly conditionNotMetStep?: string;
+  readonly requiresSourceInLiveZone?: boolean;
+  readonly sourceBaseCardCode?: string;
 }
 
 const DIRECT_MILL_TOP_CONFIGS: readonly DirectMillTopConfig[] = [
@@ -78,6 +83,15 @@ const DIRECT_MILL_TOP_CONFIGS: readonly DirectMillTopConfig[] = [
     conditionNotMetStep: 'SKIP_NO_CERISE_MEMBER_ON_STAGE',
     canStart: (game, playerId) =>
       hasStageMemberMatching(game, playerId, unitAliasIs('Cerise Bouquet')),
+    requiresSourceInLiveZone: true,
+  },
+  {
+    abilityId: N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
+    stepId: 'N_BP7_031_REVEAL_MILLED_TOP_THREE',
+    topCount: 3,
+    finishStep: 'FINISH_MILL_TOP_THREE',
+    requiresSourceInLiveZone: true,
+    sourceBaseCardCode: 'PL!N-bp7-031',
   },
 ];
 
@@ -127,13 +141,44 @@ function startDirectMillTopWorkflow(
   if (!player) {
     return game;
   }
+  const sourceCard = getCardById(game, ability.sourceCardId);
+
+  if (
+    config.requiresSourceInLiveZone === true &&
+    (!player.liveZone.cardIds.includes(ability.sourceCardId) ||
+      sourceCard?.ownerId !== player.id ||
+      (config.sourceBaseCardCode !== undefined &&
+        !cardCodeMatchesBase(sourceCard.data.cardCode, config.sourceBaseCardCode)))
+  ) {
+    return continuePendingCardEffects(
+      addAction(
+        {
+          ...game,
+          pendingAbilities: game.pendingAbilities.filter(
+            (candidate) => candidate.id !== ability.id
+          ),
+        },
+        'RESOLVE_ABILITY',
+        player.id,
+        {
+          pendingAbilityId: ability.id,
+          abilityId: ability.abilityId,
+          sourceCardId: ability.sourceCardId,
+          step: 'SOURCE_INVALID_OR_NOT_IN_LIVE_ZONE',
+        }
+      ),
+      orderedResolution
+    );
+  }
 
   if (config.canStart && !config.canStart(game, player.id)) {
     return continuePendingCardEffects(
       addAction(
         {
           ...game,
-          pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+          pendingAbilities: game.pendingAbilities.filter(
+            (candidate) => candidate.id !== ability.id
+          ),
         },
         'RESOLVE_ABILITY',
         player.id,
@@ -202,7 +247,16 @@ function executeDirectMillTopWorkflow(
     game,
     player.id,
     config.topCount,
-    enqueueTriggeredCardEffects
+    enqueueTriggeredCardEffects,
+    {
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      },
+    }
   );
   if (!millResult) {
     return game;

@@ -137,6 +137,8 @@ import {
 } from '../../src/application/card-effect-runner';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { resolvePendingAbilityStarterWithRegistry } from '../../src/application/card-effects/runtime/starter-registry';
+import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -7099,8 +7101,9 @@ describe('sample card effect runner', () => {
       "μ's"
     );
     triggeredMuseCard.data = {
-      ...createMemberCard('BP6-002-TRIGGERED-MUSE', 'Triggered Muse', 2, "μ's"),
-      cardText: '【登场】抽1张卡。',
+      ...createMemberCard('PL!-bp6-002-R', '絢瀬絵里', 2, "μ's"),
+      cardText:
+        "【登场】检视自己卡组顶的2张卡。可以从其中将1张不持有能力的[μ's]的卡片或持有【常时】能力的[μ's]的卡片加入手牌。其余的卡片放置入休息室。",
     };
 
     const topCardIds = [eligibleMuseCardId!, triggeredMuseCardId!];
@@ -7122,6 +7125,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([eligibleMuseCardId]);
+    expect(session.state?.activeEffect?.selectableCardIds).not.toContain(triggeredMuseCardId);
     const startedSummary = session
       .getPublicEventsSince(beforeSeq)
       .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
@@ -9782,7 +9786,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.actionHistory).toHaveLength(actionCountBeforeInvalidSelection);
   });
 
-  it('limits PL!-sd1-008-SD activated ability to once per turn per source card', () => {
+  it('limits PL!-sd1-008-SD once per turn per stage lifecycle and resets after re-entry', () => {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -9830,12 +9834,12 @@ describe('sample card effect runner', () => {
 
     expect(firstHanayoCardId).toBeTruthy();
     expect(secondHanayoCardId).toBeTruthy();
-    expect(energyCardIds.length).toBeGreaterThanOrEqual(4);
-    expect(deckCardIds.length).toBeGreaterThanOrEqual(21);
+    expect(energyCardIds.length).toBeGreaterThanOrEqual(6);
+    expect(deckCardIds.length).toBeGreaterThanOrEqual(31);
 
     removeFromPlayerZones(p1);
-    setActiveEnergy(p1, energyCardIds.slice(0, 4));
-    p1.mainDeck.cardIds = deckCardIds.slice(0, 21);
+    setActiveEnergy(p1, energyCardIds.slice(0, 6));
+    p1.mainDeck.cardIds = deckCardIds.slice(0, 31);
     p1.memberSlots.slots[SlotPosition.CENTER] = firstHanayoCardId!;
     p1.memberSlots.slots[SlotPosition.RIGHT] = secondHanayoCardId!;
     p1.memberSlots.cardStates = new Map([
@@ -9849,7 +9853,7 @@ describe('sample card effect runner', () => {
 
     expect(firstActivateResult.success).toBe(true);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 10));
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 21));
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 31));
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -9877,15 +9881,47 @@ describe('sample card effect runner', () => {
     expect(secondActivateResult.success).toBe(false);
     expect(secondActivateResult.error).toContain('本回合已发动 1/1 次');
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 10));
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 21));
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(10, 31));
+
+    const moved = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      session.state!,
+      PLAYER1,
+      firstHanayoCardId!,
+      enqueueTriggeredCardEffects
+    );
+    expect(moved?.sourceSlot).toBe(SlotPosition.CENTER);
+    const replayed = playMembersFromWaitingRoomToEmptySlots(
+      moved!.gameState,
+      PLAYER1,
+      [{ cardId: firstHanayoCardId!, toSlot: SlotPosition.CENTER }],
+      OrientationState.ACTIVE
+    );
+    expect(replayed?.playedMembers.map((member) => member.cardId)).toEqual([firstHanayoCardId]);
+    (session as unknown as { authorityState: GameState }).authorityState = replayed!.gameState;
+
+    const replayedCopyActivateResult = session.executeCommand(
+      createActivateAbilityCommand(PLAYER1, firstHanayoCardId!, HANAYO_ACTIVATED_ABILITY_ID)
+    );
+    expect(replayedCopyActivateResult.success).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 20));
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual(deckCardIds.slice(20, 31));
+    const firstSourceUses = session.state!.actionHistory.filter(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId === HANAYO_ACTIVATED_ABILITY_ID &&
+        action.payload.sourceCardId === firstHanayoCardId &&
+        action.payload.step === 'ABILITY_USE'
+    );
+    expect(firstSourceUses).toHaveLength(2);
+    expect(new Set(firstSourceUses.map((action) => action.payload.sourceLifecycleId)).size).toBe(2);
 
     const otherCopyActivateResult = session.executeCommand(
       createActivateAbilityCommand(PLAYER1, secondHanayoCardId!, HANAYO_ACTIVATED_ABILITY_ID)
     );
 
     expect(otherCopyActivateResult.success).toBe(true);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 20));
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckCardIds[20]]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(deckCardIds.slice(0, 30));
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckCardIds[30]]);
     expect(
       session.state?.actionHistory.some(
         (action) =>

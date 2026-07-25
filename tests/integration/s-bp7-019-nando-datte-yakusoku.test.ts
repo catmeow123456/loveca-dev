@@ -167,11 +167,11 @@ function expire(
 }
 
 describe('PL!S-bp7-019-L 「即使千百次也要与你约定！」', () => {
-  it('registers only exact L as a queued LIVE_SUCCESS ability from LIVE_CARD', () => {
+  it('registers the base family as a queued LIVE_SUCCESS ability from LIVE_CARD', () => {
     expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-019-L')).toContainEqual(
       expect.objectContaining({
         abilityId: ABILITY_ID,
-        cardCodes: ['PL!S-bp7-019-L'],
+        baseCardCodes: ['PL!S-bp7-019'],
         category: CardAbilityCategory.LIVE_SUCCESS,
         sourceZone: CardAbilitySourceZone.LIVE_CARD,
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -180,7 +180,12 @@ describe('PL!S-bp7-019-L 「即使千百次也要与你约定！」', () => {
         effectText: expect.stringContaining('至多2张'),
       })
     );
-    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-019-R')).toEqual([]);
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-019-R')).toContainEqual(
+      expect.objectContaining({ abilityId: ABILITY_ID })
+    );
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-018-R')).not.toContainEqual(
+      expect.objectContaining({ abilityId: ABILITY_ID })
+    );
   });
 
   it('offers own waiting-room Aqours MEMBER and LIVE, excluding every other identity/owner/zone', () => {

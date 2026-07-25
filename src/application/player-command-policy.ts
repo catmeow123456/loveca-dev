@@ -16,6 +16,7 @@ export interface PlayerCommandPolicyDecision {
 const COMMAND_CATEGORIES = {
   [GameCommandType.MULLIGAN]: 'NORMAL_RULE_ACTION',
   [GameCommandType.SET_LIVE_CARD]: 'NORMAL_RULE_ACTION',
+  [GameCommandType.UNSET_LIVE_CARD]: 'NORMAL_RULE_ACTION',
   [GameCommandType.TAP_MEMBER]: 'MANUAL_OVERRIDE',
   [GameCommandType.TAP_ENERGY]: 'MANUAL_OVERRIDE',
   [GameCommandType.END_PHASE]: 'NORMAL_RULE_ACTION',
@@ -166,6 +167,7 @@ function getRulesModeTimingBlockedReason(
     case GameCommandType.MULLIGAN:
       return state.currentPhase === GamePhase.MULLIGAN_PHASE ? null : '当前不是换牌阶段';
     case GameCommandType.SET_LIVE_CARD:
+    case GameCommandType.UNSET_LIVE_CARD:
       return state.currentPhase === GamePhase.LIVE_SET_PHASE &&
         (state.currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
           state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER)

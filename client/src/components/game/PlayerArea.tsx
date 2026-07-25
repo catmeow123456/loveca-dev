@@ -117,9 +117,11 @@ interface CardActionMenuItem {
 const CardActionMenu = memo(function CardActionMenu({
   items,
   placement = 'above',
+  layer = 'battle',
 }: {
   readonly items: readonly CardActionMenuItem[];
   readonly placement?: 'above' | 'below';
+  readonly layer?: 'battle' | 'modal';
 }) {
   const preferredWidth = Math.min(
     420,
@@ -199,7 +201,12 @@ const CardActionMenu = memo(function CardActionMenu({
         createPortal(
           <div
             data-battle-animation-ignore="true"
-            className="fixed z-[140] flex flex-col gap-1 overflow-y-auto overscroll-contain"
+            className={cn(
+              'fixed flex flex-col gap-1 overflow-y-auto overscroll-contain',
+              layer === 'modal'
+                ? 'z-[var(--z-battle-modal-action-menu)]'
+                : 'z-[var(--z-battle-action-menu)]'
+            )}
             style={{
               left: layout.left,
               top: layout.top,
@@ -407,6 +414,7 @@ export const PlayerArea = memo(function PlayerArea({
     s.canUseAction(GameCommandType.ATTACH_ENERGY_TO_MEMBER)
   );
   const canSetLiveCard = useGameStore((s) => s.canUseAction(GameCommandType.SET_LIVE_CARD));
+  const canUnsetLiveCard = useGameStore((s) => s.canUseAction(GameCommandType.UNSET_LIVE_CARD));
   const canMovePublicCardToHand = useGameStore((s) =>
     s.canUseAction(GameCommandType.MOVE_PUBLIC_CARD_TO_HAND)
   );
@@ -441,6 +449,7 @@ export const PlayerArea = memo(function PlayerArea({
     moveMemberToSlot,
     attachEnergyToMember,
     setLiveCard,
+    unsetLiveCard,
     confirmEffectStep,
     movePublicCardToHand,
     movePublicCardToWaitingRoom,
@@ -462,6 +471,7 @@ export const PlayerArea = memo(function PlayerArea({
     findViewerCardZone,
     getKnownCardType,
     getCardSlotPosition,
+    isCardInCommandScope,
     openInspection,
     revealInspectedCard,
     finishInspectionWithArrangement,
@@ -477,6 +487,7 @@ export const PlayerArea = memo(function PlayerArea({
       moveMemberToSlot: s.moveMemberToSlot,
       attachEnergyToMember: s.attachEnergyToMember,
       setLiveCard: s.setLiveCard,
+      unsetLiveCard: s.unsetLiveCard,
       confirmEffectStep: s.confirmEffectStep,
       movePublicCardToHand: s.movePublicCardToHand,
       movePublicCardToWaitingRoom: s.movePublicCardToWaitingRoom,
@@ -498,6 +509,7 @@ export const PlayerArea = memo(function PlayerArea({
       findViewerCardZone: s.findViewerCardZone,
       getKnownCardType: s.getKnownCardType,
       getCardSlotPosition: s.getCardSlotPosition,
+      isCardInCommandScope: s.isCardInCommandScope,
       openInspection: s.openInspection,
       revealInspectedCard: s.revealInspectedCard,
       finishInspectionWithArrangement: s.finishInspectionWithArrangement,
@@ -659,6 +671,13 @@ export const PlayerArea = memo(function PlayerArea({
     availableBattleActionCommandTypes.push(GameCommandType.ATTACH_ENERGY_TO_MEMBER);
   }
   if (canSetLiveCard) availableBattleActionCommandTypes.push(GameCommandType.SET_LIVE_CARD);
+  if (
+    canUnsetLiveCard &&
+    selectedCardId &&
+    isCardInCommandScope(GameCommandType.UNSET_LIVE_CARD, selectedCardId)
+  ) {
+    availableBattleActionCommandTypes.push(GameCommandType.UNSET_LIVE_CARD);
+  }
   if (canMovePublicCardToHand) {
     availableBattleActionCommandTypes.push(GameCommandType.MOVE_PUBLIC_CARD_TO_HAND);
   }
@@ -842,6 +861,7 @@ export const PlayerArea = memo(function PlayerArea({
       moveMemberToSlot,
       attachEnergyToMember,
       setLiveCard,
+      unsetLiveCard,
       movePublicCardToHand,
       movePublicCardToWaitingRoom,
       movePublicCardToEnergyDeck,
@@ -1673,6 +1693,7 @@ export const PlayerArea = memo(function PlayerArea({
                                   {waitingRoomCardContent}
                                   {canActivateWaitingRoomAbility && (
                                     <CardActionMenu
+                                      layer="modal"
                                       items={activatedAbilityConfigs.map((config) => ({
                                         id: config.abilityId,
                                         text: config.text,

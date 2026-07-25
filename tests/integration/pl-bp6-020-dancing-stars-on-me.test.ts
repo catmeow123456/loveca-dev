@@ -8,11 +8,13 @@ import {
 import {
   addAction,
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
+import { createEnterLiveZoneEvent } from '../../src/domain/events/game-events';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
@@ -32,6 +34,7 @@ import {
   OrientationState,
   SlotPosition,
   TriggerCondition,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -411,5 +414,79 @@ describe('PL!-bp6-020 Dancing stars on me!', () => {
         BP6_020_AUTO_CENTER_MUSE_LIVE_SUCCESS_RESOLVED_MOVED_THIS_LIVE_SCORE_ABILITY_ID
       )
     ).toBe(1);
+  });
+
+  it('allows the LIVE_START observer again after the same physical LIVE leaves and re-enters', () => {
+    const scenario = setupState();
+    let state = resolvePendingCardEffects(
+      addResolvedMemberAbilityAction(scenario.game, {
+        abilityId:
+          BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
+        sourceCardId: scenario.sourceId,
+      })
+    ).gameState;
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      null,
+      SlotPosition.LEFT
+    );
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: player.liveZone.cardIds.filter((cardId) => cardId !== scenario.liveId),
+      },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [...player.waitingRoom.cardIds, scenario.liveId],
+      },
+      memberSlots: {
+        ...placeCardInSlot(player.memberSlots, SlotPosition.CENTER, scenario.sourceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+        slots: {
+          ...player.memberSlots.slots,
+          [SlotPosition.LEFT]: null,
+          [SlotPosition.CENTER]: scenario.sourceId,
+        },
+      },
+    }));
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      liveZone: {
+        ...player.liveZone,
+        cardIds: [...player.liveZone.cardIds, scenario.liveId],
+      },
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: player.waitingRoom.cardIds.filter((cardId) => cardId !== scenario.liveId),
+      },
+    }));
+    state = emitGameEvent(
+      state,
+      createEnterLiveZoneEvent(
+        scenario.liveId,
+        ZoneType.WAITING_ROOM,
+        PLAYER1,
+        PLAYER1,
+        FaceState.FACE_UP
+      )
+    );
+
+    state = resolvePendingCardEffects(
+      addResolvedMemberAbilityAction(state, {
+        abilityId:
+          BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
+        sourceCardId: scenario.sourceId,
+      })
+    ).gameState;
+
+    expect(state.activeEffect).toMatchObject({
+      abilityId: BP6_020_AUTO_CENTER_MUSE_LIVE_START_RESOLVED_POSITION_CHANGE_ABILITY_ID,
+      sourceCardId: scenario.liveId,
+    });
   });
 });

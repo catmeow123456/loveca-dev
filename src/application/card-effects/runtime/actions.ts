@@ -1,4 +1,4 @@
-import { isMemberCardData, type HeartIcon } from '../../../domain/entities/card.js';
+import { isLiveCardData, isMemberCardData, type HeartIcon } from '../../../domain/entities/card.js';
 import {
   emitGameEvent,
   getCardById,
@@ -25,15 +25,14 @@ import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
 import { drawCardsFromMainDeckToHand, type DrawCardsResult } from '../../effects/draw.js';
 import { shuffleZone } from '../../../domain/entities/zone.js';
-import {
-  setEnergyOrientation,
-  type EnergyOrientationChange,
-} from '../../effects/energy.js';
+import { setEnergyOrientation, type EnergyOrientationChange } from '../../effects/energy.js';
 import { resolveEnergySelectionForOperation } from '../../effects/energy-selection.js';
 import {
+  addCardToZone,
   addCardToStatefulZone,
   addMemberBelowMember,
   removeCardFromZone,
+  removeCardFromStatefulZone,
 } from '../../../domain/entities/zone.js';
 import type { SlotPosition } from '../../../shared/types/enums.js';
 
@@ -103,6 +102,12 @@ export interface PlaceWaitingRoomLiveCardInLiveZoneResult {
   readonly enterLiveZoneEvent: EnterLiveZoneEvent;
 }
 
+export interface ReturnLiveZoneCardToHandForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly enterHandEvent: EnterHandEvent;
+}
+
 export interface ActivateWaitingEnergyCardsForPlayerResult {
   readonly gameState: GameState;
   readonly activatedEnergyCardIds: readonly string[];
@@ -130,6 +135,12 @@ export interface AddBladeLiveModifierForSourceMemberResult {
 }
 
 export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
+  readonly gameState: GameState;
+  readonly movedCardIds: readonly string[];
+  readonly originalCardIds: readonly string[];
+}
+
+export interface ShuffleHandCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
   readonly originalCardIds: readonly string[];
@@ -443,6 +454,37 @@ export function recoverCardsFromWaitingRoomToHandForPlayer(
   };
 }
 
+export function returnLiveZoneCardToHandForPlayer(
+  game: GameState,
+  playerId: string,
+  cardId: string
+): ReturnLiveZoneCardToHandForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const card = getCardById(game, cardId);
+  if (
+    !player ||
+    !card ||
+    card.ownerId !== playerId ||
+    !isLiveCardData(card.data) ||
+    !player.liveZone.cardIds.includes(cardId)
+  ) {
+    return null;
+  }
+
+  const enterHandEvent = createEnterHandEvent([cardId], ZoneType.LIVE_ZONE, playerId, playerId);
+  const moved = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    liveZone: removeCardFromStatefulZone(currentPlayer.liveZone, cardId),
+    hand: addCardToZone(currentPlayer.hand, cardId),
+  }));
+
+  return {
+    gameState: emitGameEvent(moved, enterHandEvent),
+    movedCardId: cardId,
+    enterHandEvent,
+  };
+}
+
 export function placeHandLiveCardInLiveZoneForPlayer(
   game: GameState,
   playerId: string,
@@ -591,6 +633,53 @@ export function addBladeLiveModifierForMember(
   options: BladeLiveModifierForMemberOptions
 ): AddBladeLiveModifierForMemberResult | null {
   return addBladeLiveModifierForMemberRule(game, options);
+}
+
+export function shuffleHandCardsToDeckBottomForPlayer(
+  game: GameState,
+  playerId: string,
+  cardIds: readonly string[]
+): ShuffleHandCardsToDeckBottomForPlayerResult | null {
+  const player = getPlayerById(game, playerId);
+  const uniqueCardIds = new Set(cardIds);
+  if (!player || uniqueCardIds.size !== cardIds.length) {
+    return null;
+  }
+
+  if (cardIds.some((cardId) => !player.hand.cardIds.includes(cardId))) {
+    return null;
+  }
+
+  if (cardIds.length === 0) {
+    return {
+      gameState: game,
+      movedCardIds: [],
+      originalCardIds: [],
+    };
+  }
+
+  const shuffledCardIds = shuffleZone({
+    ...player.hand,
+    cardIds: [...cardIds],
+  }).cardIds;
+  const selectedCardIdSet = new Set(cardIds);
+  const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
+    ...currentPlayer,
+    hand: {
+      ...currentPlayer.hand,
+      cardIds: currentPlayer.hand.cardIds.filter((cardId) => !selectedCardIdSet.has(cardId)),
+    },
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [...currentPlayer.mainDeck.cardIds, ...shuffledCardIds],
+    },
+  }));
+
+  return {
+    gameState,
+    movedCardIds: shuffledCardIds,
+    originalCardIds: cardIds,
+  };
 }
 
 export function shuffleWaitingRoomCardsToDeckBottomForPlayer(

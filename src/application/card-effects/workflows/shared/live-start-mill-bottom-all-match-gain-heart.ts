@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs, typeIs, type CardSelector } from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
 import {
@@ -25,7 +26,7 @@ type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) 
 
 interface MillBottomGainHeartConfig {
   readonly abilityId: string;
-  readonly exactCardCode: string;
+  readonly baseCardCode: string;
   readonly count: number;
   readonly condition: 'GROUP_MEMBER_AQOURS' | 'CARD_TYPE_LIVE';
   readonly heartColor: HeartColor;
@@ -39,7 +40,7 @@ const CONFIGS: readonly MillBottomGainHeartConfig[] = [
   {
     abilityId:
       S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID,
-    exactCardCode: 'PL!S-bp7-006-P',
+    baseCardCode: 'PL!S-bp7-006',
     count: 3,
     condition: 'GROUP_MEMBER_AQOURS',
     heartColor: HeartColor.GREEN,
@@ -50,7 +51,7 @@ const CONFIGS: readonly MillBottomGainHeartConfig[] = [
   },
   {
     abilityId: S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
-    exactCardCode: 'PL!S-bp7-015-N',
+    baseCardCode: 'PL!S-bp7-015',
     count: 1,
     condition: 'CARD_TYPE_LIVE',
     heartColor: HeartColor.RED,
@@ -99,7 +100,7 @@ function startMillBottomGainHeartReveal(
     source !== null &&
     source.ownerId === ability.controllerId &&
     source.data.cardType === CardType.MEMBER &&
-    source.data.cardCode === config.exactCardCode &&
+    cardCodeMatchesBase(source.data.cardCode, config.baseCardCode) &&
     getSourceMemberSlot(game, ability.controllerId, ability.sourceCardId) !== null;
 
   if (!player || !sourceValid) {

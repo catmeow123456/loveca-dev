@@ -16,6 +16,7 @@ import {
   isResultSuccessEffectSubPhase,
 } from './command-availability.js';
 import { getModeAutomationPolicy, type ModeAutomationStep } from './mode-automation.js';
+import { resolveSolitaireOpponentEffectCommandForExecution } from './solitaire-effect-automation.js';
 import {
   applyAuthoritativeManualOperationModeToCommand,
   getManualOperationMode,
@@ -48,9 +49,11 @@ import {
   GAME_CONFIG,
   addAction,
   getActivePlayer,
+  getLiveSetCardIdsForPlayer,
   getLiveSetCardLimitForPlayer,
   getPlayerById,
   hasPendingAbilityOrChoice,
+  setLiveSetCardIdsForPlayer,
   markGameEnded,
   updatePlayer,
 } from '../domain/entities/game.js';
@@ -116,6 +119,7 @@ import type {
   GameCommand,
   MulliganCommand,
   SetLiveCardCommand,
+  UnsetLiveCardCommand,
   TapMemberCommand,
   TapEnergyCommand,
   EndPhaseCommand,
@@ -1176,7 +1180,11 @@ export class GameSession {
       iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
       this.authorityState.currentPhase !== GamePhase.GAME_END
     ) {
-      const automation = policy.getNextAutomation(this.authorityState, triggerPlayerId);
+      const automation = policy.getNextAutomation(
+        this.authorityState,
+        triggerPlayerId,
+        this.now()
+      );
       if (!automation) {
         break;
       }
@@ -1202,6 +1210,8 @@ export class GameSession {
     switch (automation.kind) {
       case 'ACTION':
         return this.applySystemAutomationAction(automation.action, automation.actorPlayerId);
+      case 'COMMAND':
+        return this.applySystemAutomationCommand(automation.command);
       case 'SKIP_OPPONENT_PERFORMANCE':
         this.skipOpponentPerformance(automation.actorPlayerId);
         return true;
@@ -1234,6 +1244,78 @@ export class GameSession {
     this.resolveReadyScoreConfirm();
     this.autoAdvance(this.authorityState);
 
+    return true;
+  }
+
+  private applySystemAutomationCommand(submittedCommand: GameCommand): boolean {
+    if (!this.authorityState) {
+      return false;
+    }
+
+    const recordedCommand = applyAuthoritativeManualOperationModeToCommand(
+      submittedCommand,
+      this.manualOperationMode
+    );
+    const executionCommand = resolveSolitaireOpponentEffectCommandForExecution(
+      this.authorityState,
+      recordedCommand
+    );
+    const validated = this.validateCommand(this.authorityState, executionCommand);
+    if (validated) {
+      this.recordCommand(recordedCommand, 'REJECTED', validated);
+      this.appendSealedAuditRecord(this.authorityState, {
+        type: 'COMMAND_REJECTED',
+        actorSeat:
+          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        payload: {
+          commandType: recordedCommand.type,
+          playerId: recordedCommand.playerId,
+          idempotencyKey: recordedCommand.idempotencyKey ?? null,
+          error: validated,
+        },
+      });
+      console.warn(
+        '[GameSession] 模式自动化命令校验失败:',
+        recordedCommand.type,
+        validated
+      );
+      return false;
+    }
+
+    const result = this.applyCommand(this.authorityState, executionCommand);
+    if (!result.success) {
+      this.recordCommand(recordedCommand, 'REJECTED', result.error);
+      this.appendSealedAuditRecord(this.authorityState, {
+        type: 'COMMAND_REJECTED',
+        actorSeat:
+          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        payload: {
+          commandType: recordedCommand.type,
+          playerId: recordedCommand.playerId,
+          idempotencyKey: recordedCommand.idempotencyKey ?? null,
+          error: result.error ?? '命令执行失败',
+        },
+      });
+      console.warn(
+        '[GameSession] 模式自动化命令执行失败:',
+        recordedCommand.type,
+        result.error
+      );
+      return false;
+    }
+
+    this.setAuthorityState(result.gameState, {
+      source: 'SYSTEM',
+      actorPlayerId: recordedCommand.playerId,
+      declarationActionType: result.declarationType,
+      declarationPublicValue: result.declarationPublicValue,
+      extraPublicEvents: result.extraPublicEvents,
+      privateEventsBySeat: result.privateEventsBySeat,
+      sealedAuditRecords: result.sealedAuditRecords,
+    });
+    this.recordCommand(recordedCommand, 'ACCEPTED');
+    this.resolveReadyScoreConfirm();
+    this.autoAdvance(this.authorityState);
     return true;
   }
 
@@ -1545,6 +1627,22 @@ export class GameSession {
         }
         if (getManualOperationMode(state) === 'RULES' && command.faceDown !== true) {
           return 'Live 设置阶段必须将卡牌里侧放置';
+        }
+        return null;
+      }
+      case GameCommandType.UNSET_LIVE_CARD: {
+        const player = state.players.find((candidate) => candidate.id === command.playerId);
+        if (!player) {
+          return '玩家不存在';
+        }
+        if (!player.liveZone.cardIds.includes(command.cardId)) {
+          return '卡牌当前不在己方 Live 区';
+        }
+        if (!getLiveSetCardIdsForPlayer(state, command.playerId).includes(command.cardId)) {
+          return '只能撤回本次 Live 设置阶段盖下的卡牌';
+        }
+        if (player.liveZone.cardStates.get(command.cardId)?.face !== FaceState.FACE_DOWN) {
+          return '只能撤回仍为里侧状态的盖牌';
         }
         return null;
       }
@@ -2290,6 +2388,12 @@ export class GameSession {
         return state.currentPhase === GamePhase.MULLIGAN_PHASE ? null : '当前不是换牌阶段';
       case GameCommandType.SET_LIVE_CARD:
         return state.currentPhase === GamePhase.LIVE_SET_PHASE ? null : '当前不是 Live 设置阶段';
+      case GameCommandType.UNSET_LIVE_CARD:
+        return state.currentPhase === GamePhase.LIVE_SET_PHASE &&
+          (state.currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
+            state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER)
+          ? null
+          : '当前不是 Live 设置操作时点';
       case GameCommandType.END_PHASE:
         if (getManualOperationMode(state) === 'FREE') {
           return null;
@@ -2574,6 +2678,8 @@ export class GameSession {
         return this.applyMulliganCommand(state, command);
       case GameCommandType.SET_LIVE_CARD:
         return this.applySetLiveCardCommand(state, command);
+      case GameCommandType.UNSET_LIVE_CARD:
+        return this.applyUnsetLiveCardCommand(state, command);
       case GameCommandType.TAP_MEMBER:
         return this.applyTapMemberCommand(state, command);
       case GameCommandType.TAP_ENERGY:
@@ -2770,6 +2876,52 @@ export class GameSession {
               ),
               reason: 'SET_LIVE_CARD',
             }),
+      ],
+    };
+  }
+
+  private applyUnsetLiveCardCommand(
+    state: GameState,
+    command: UnsetLiveCardCommand
+  ): CommandExecutionResult {
+    const actorSeat = getSeatForPlayer(state, command.playerId);
+    if (!actorSeat) {
+      return { success: false, gameState: state, error: '玩家不存在' };
+    }
+
+    const result = this.gameService.processAction(
+      state,
+      createManualMoveCardAction(
+        command.playerId,
+        command.cardId,
+        ZoneType.LIVE_ZONE,
+        ZoneType.HAND,
+        { liveDeskMoveExempt: true }
+      )
+    );
+    if (!result.success) {
+      return { success: false, gameState: state, error: result.error };
+    }
+
+    const remainingLiveSetCardIds = getLiveSetCardIdsForPlayer(state, command.playerId).filter(
+      (cardId) => cardId !== command.cardId
+    );
+    const gameState = setLiveSetCardIdsForPlayer(
+      result.gameState,
+      command.playerId,
+      remainingLiveSetCardIds
+    );
+
+    return {
+      success: true,
+      gameState,
+      declarationType: 'UNSET_LIVE_CARD',
+      declarationPublicValue: 'FACE_DOWN',
+      extraPublicEvents: [
+        buildCardMovedPublicEvent(state, gameState, actorSeat, command.cardId, {
+          from: buildZoneRefForMove(state, command.playerId, command.cardId, ZoneType.LIVE_ZONE),
+          to: buildZoneRefForMove(gameState, command.playerId, command.cardId, ZoneType.HAND),
+        }),
       ],
     };
   }

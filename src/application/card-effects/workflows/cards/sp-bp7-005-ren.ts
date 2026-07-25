@@ -5,19 +5,21 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { addEnergyActivePhaseSkips } from '../../../../domain/rules/energy-active-skips.js';
-import { OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
-import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
+import { TriggerCondition } from '../../../../shared/types/enums.js';
 import {
   SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import {
+  placeWaitingEnergyWithActivePhaseSkip,
+  type EnqueueTriggeredCardEffectsForWaitingEnergyPlacement,
+} from '../../runtime/waiting-energy-placement.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
 type Continue = (game: GameState, ordered: boolean) => GameState;
-type Enqueue = (game: GameState, triggers: readonly TriggerCondition[]) => GameState;
+type Enqueue = EnqueueTriggeredCardEffectsForWaitingEnergyPlacement;
 
 export function registerSpBp7005RenWorkflowHandlers(deps: {
   enqueueTriggeredCardEffects: Enqueue;
@@ -64,31 +66,20 @@ function resolvePlacement(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
     });
-    const result = placeEnergyFromDeckToZoneByCardEffect(
-      state,
-      player.id,
-      1,
-      OrientationState.WAITING,
-      {
+    const result = placeWaitingEnergyWithActivePhaseSkip(state, {
+      count: 1,
+      cause: {
         kind: 'CARD_EFFECT',
         playerId: player.id,
         sourceCardId: ability.sourceCardId,
         abilityId: ability.abilityId,
         pendingAbilityId: ability.id,
-      }
-    );
-    if (result?.placedEnergyCardIds.length) {
+      },
+      enqueueTriggeredCardEffects: enqueue,
+    });
+    if (result) {
       placedEnergyCardIds = result.placedEnergyCardIds;
-      state = addEnergyActivePhaseSkips(
-        result.gameState,
-        placedEnergyCardIds.map((energyCardId) => ({
-          playerId: player.id,
-          energyCardId,
-          sourceCardId: ability.sourceCardId,
-          abilityId: ability.abilityId,
-        }))
-      );
-      state = enqueue(state, [TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT]);
+      state = result.gameState;
     }
   }
   return next(

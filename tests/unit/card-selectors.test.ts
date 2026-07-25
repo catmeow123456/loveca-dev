@@ -478,15 +478,44 @@ describe('card selectors', () => {
     const activatedMember = memberCard('activated-member', {
       cardText: '【起动】将1张手牌放置入休息室。',
     });
+    const noAbilityPlaceholderMember = memberCard('no-ability-placeholder-member', {
+      cardText: '－',
+    });
+    const onEnterReferencingContinuousMember = memberCard(
+      'on-enter-referencing-continuous-member',
+      {
+        cardText:
+          "【登场】检视自己卡组顶的2张卡。可以从其中将1张不持有能力的[μ's]的卡片或持有【常时】能力的[μ's]的卡片加入手牌。",
+      }
+    );
+    const onEnterGrantingContinuousMember = memberCard('on-enter-granting-continuous-member', {
+      cardText: '【登场】LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。',
+    });
+    const onEnterAndContinuousMember = memberCard('on-enter-and-continuous-member', {
+      cardText: '【登场】抽1张卡。\n【常时】获得[ブレード]。',
+    });
+    const rawJpReferenceMember = memberCard('raw-jp-reference-member', {
+      cardText:
+        "{{toujyou.png|登場}}デッキの上から2枚見る。その中から{{jyouji.png|常時}}能力を持つ『μ's』のカードを1枚手札に加えてもよい。",
+    });
+    const rawJpContinuousMember = memberCard('raw-jp-continuous-member', {
+      cardText: '{{toujyou.png|登場}}カードを1枚引く。\n{{jyouji.png|常時}}ブレードを得る。',
+    });
 
     const noAbilityOrContinuous = hasNoAbilityOrContinuousAbility();
 
     expect(noAbilityOrContinuous(noTextMember)).toBe(true);
     expect(noAbilityOrContinuous(blankTextLive)).toBe(true);
+    expect(noAbilityOrContinuous(noAbilityPlaceholderMember)).toBe(true);
     expect(noAbilityOrContinuous(continuousMember)).toBe(true);
     expect(noAbilityOrContinuous(jpContinuousMember)).toBe(true);
+    expect(noAbilityOrContinuous(onEnterAndContinuousMember)).toBe(true);
+    expect(noAbilityOrContinuous(rawJpContinuousMember)).toBe(true);
     expect(noAbilityOrContinuous(onEnterMember)).toBe(false);
     expect(noAbilityOrContinuous(activatedMember)).toBe(false);
+    expect(noAbilityOrContinuous(onEnterReferencingContinuousMember)).toBe(false);
+    expect(noAbilityOrContinuous(onEnterGrantingContinuousMember)).toBe(false);
+    expect(noAbilityOrContinuous(rawJpReferenceMember)).toBe(false);
   });
 
   it('matches member printed BLADE at or below a threshold', () => {

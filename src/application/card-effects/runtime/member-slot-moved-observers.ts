@@ -1,5 +1,6 @@
 import type { GameState } from '../../../domain/entities/game.js';
 import type { MemberSlotMovedEvent } from '../../../domain/events/game-events.js';
+import { capturePendingAbilitySourceLifecycles } from './ability-source-lifecycle.js';
 
 export interface MemberSlotMovedObserverContext {
   readonly events: readonly MemberSlotMovedEvent[];
@@ -24,5 +25,5 @@ export function enqueueMemberSlotMovedObserverCardEffects(
   for (const handler of memberSlotMovedObserverHandlers) {
     state = handler(state, { events });
   }
-  return state;
+  return capturePendingAbilitySourceLifecycles(state);
 }

@@ -1181,6 +1181,83 @@ describe('member cost payment', () => {
     });
   });
 
+  it.each([
+    { opponentEnergyCount: 6, expectedEffectiveCost: 4, expectedPayment: 2 },
+    { opponentEnergyCount: 7, expectedEffectiveCost: 2, expectedPayment: 4 },
+  ])(
+    'uses PL!SP-bp7-002-P effective relay cost $expectedEffectiveCost with opponent energy $opponentEnergyCount',
+    ({ opponentEnergyCount, expectedEffectiveCost, expectedPayment }) => {
+      const session = createGameSession();
+      const deck = createDeck();
+      session.createGame(
+        `sp-bp7-002-effective-relay-${opponentEnergyCount}`,
+        PLAYER1,
+        'Player 1',
+        PLAYER2,
+        'Player 2'
+      );
+      session.initializeGame(deck, deck);
+      forceMainPhaseForPlayer(session);
+      setActiveEnergyCountForPlayer(session, 0, 7);
+      setActiveEnergyCountForPlayer(session, 1, opponentEnergyCount);
+
+      const state = session.state!;
+      const player = state.players[0] as unknown as {
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        memberSlots: {
+          slots: Record<SlotPosition, string | null>;
+          cardStates: Map<string, { orientation: OrientationState }>;
+        };
+      };
+      const ownedMemberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+      );
+      const incomingCardId = ownedMemberCardIds[0];
+      const kekeCardId = ownedMemberCardIds[1];
+      expect(incomingCardId).toBeTruthy();
+      expect(kekeCardId).toBeTruthy();
+
+      const incomingCard = state.cardRegistry.get(incomingCardId!) as unknown as {
+        data: MemberCardData;
+      };
+      incomingCard.data = createMemberCard('PL!SP-test-cost-six', '6费测试成员', 6);
+      const kekeCard = state.cardRegistry.get(kekeCardId!) as unknown as {
+        data: MemberCardData;
+      };
+      kekeCard.data = createMemberCard('PL!SP-bp7-002-P', '唐可可', 2, {
+        groupNames: ['Liella!'],
+      });
+      player.hand.cardIds = [incomingCardId!];
+      player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+        (cardId) => cardId !== incomingCardId && cardId !== kekeCardId
+      );
+      player.memberSlots.slots[SlotPosition.CENTER] = kekeCardId!;
+      player.memberSlots.cardStates = new Map([
+        [kekeCardId!, { orientation: OrientationState.ACTIVE }],
+      ]);
+
+      const result = session.executeCommand(
+        createPlayMemberToSlotCommand(PLAYER1, incomingCardId!, SlotPosition.CENTER)
+      );
+      expect(result.success, result.error).toBe(true);
+      expect(
+        session.state?.actionHistory.some(
+          (action) =>
+            action.type === 'PAY_COST' &&
+            action.payload.sourceCardId === incomingCardId &&
+            action.payload.amount === expectedPayment
+        )
+      ).toBe(true);
+      expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+        eventType: TriggerCondition.ON_ENTER_STAGE,
+        cardInstanceId: incomingCardId,
+        replacedMemberCardId: kekeCardId,
+        replacedMemberEffectiveCost: expectedEffectiveCost,
+      });
+    }
+  );
+
   it('uses PL!-bp4-008-P effective stage cost for relay payment when success Live score is at least 6', () => {
     const session = createGameSession();
     const deck = createDeck();

@@ -26,7 +26,11 @@ import {
   SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
-import { paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
+import {
+  paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
+  sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
+} from '../../src/application/card-effects/runtime/leave-stage-triggers';
+import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
 import {
   CardType,
   FaceState,
@@ -831,5 +835,53 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
 
     confirmPublicSelectionIfNeeded(scenario.session);
     expect(scenario.session.state?.pendingAbilities).toHaveLength(0);
+  });
+
+  it('allows the paid auto again after the same physical source leaves and re-enters', () => {
+    const scenario = setupScenario();
+
+    enqueueRenEnterWaitingRoomEvent(scenario);
+    resolvePending(scenario);
+    const firstUse = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        scenario.movedCardIds[0],
+        undefined,
+        undefined,
+        'pay'
+      )
+    );
+    expect(firstUse.success).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+
+    const leftStage = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      scenario.session.state!,
+      PLAYER1,
+      scenario.sourceId,
+      enqueueTriggeredCardEffects
+    );
+    expect(leftStage?.sourceSlot).toBe(SlotPosition.CENTER);
+    const replayed = playMembersFromWaitingRoomToEmptySlots(
+      leftStage!.gameState,
+      PLAYER1,
+      [{ cardId: scenario.sourceId, toSlot: SlotPosition.CENTER }],
+      OrientationState.ACTIVE
+    );
+    expect(replayed?.playedMembers.map((played) => played.cardId)).toEqual([scenario.sourceId]);
+    setAuthorityState(scenario.session, replayed!.gameState);
+
+    enqueueRenEnterWaitingRoomEvent(scenario, {
+      movedCardIds: [scenario.movedCardIds[1]],
+      fromZone: ZoneType.HAND,
+    });
+    expect(scenario.session.state?.pendingAbilities).toHaveLength(1);
+    resolvePending(scenario);
+
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
+      selectableCardIds: [scenario.movedCardIds[1]],
+    });
   });
 });

@@ -486,6 +486,11 @@ export interface PendingAbilityState {
   readonly abilityId: string;
   /** 能力来源卡牌实例 ID */
   readonly sourceCardId: string;
+  /**
+   * 能力来源规则对象的生命周期 ID。
+   * 仅 perTurnLimit 能力要求捕获；同一实体卡跨区再进入时会获得新值。
+   */
+  readonly sourceLifecycleId?: string;
   /** 能力控制者 ID */
   readonly controllerId: string;
   /** 是否强制发动 */
@@ -599,6 +604,11 @@ export interface ActiveEffectState {
   readonly abilityId: string;
   /** 能力来源卡牌实例 ID */
   readonly sourceCardId: string;
+  /**
+   * 能力来源规则对象的生命周期 ID。
+   * 仅 perTurnLimit 能力要求传播；用于避免旧 pending/active 占用新对象次数。
+   */
+  readonly sourceLifecycleId?: string;
   /** 能力控制者 ID */
   readonly controllerId: string;
   /** 展示给玩家的效果文本 */

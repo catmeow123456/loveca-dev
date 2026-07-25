@@ -7,13 +7,22 @@ import {
 } from '../../../../domain/entities/game.js';
 import { isLiveCardData, isMemberCardData } from '../../../../domain/entities/card.js';
 import { CardType } from '../../../../shared/types/enums.js';
-import { and, groupAliasIs, typeIs, type CardSelector } from '../../../effects/card-selectors.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
+import {
+  and,
+  cardNameAliasIs,
+  groupAliasIs,
+  typeIs,
+  type CardSelector,
+} from '../../../effects/card-selectors.js';
 import { hasLiveWithoutLiveStartOrSuccessAbility } from '../../../effects/conditions.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
   PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
   PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+  N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
   S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+  SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -31,11 +40,17 @@ type LiveStartTargetMemberGainBladeCondition =
   | { readonly type: 'SUCCESS_LIVE_COUNT_AT_LEAST'; readonly count: number }
   | { readonly type: 'LIVE_WITHOUT_LIVE_START_OR_SUCCESS' };
 
+type TargetMemberIdentity =
+  | { readonly type: 'ANY' }
+  | { readonly type: 'GROUP_ALIAS'; readonly value: string; readonly displayName?: string }
+  | { readonly type: 'CARD_NAME_ALIAS'; readonly value: string; readonly displayName?: string };
+
 interface LiveStartTargetMemberGainBladeConfig {
   readonly abilityId: string;
   readonly sourceZone: SourceZone;
+  readonly sourceBaseCardCode?: string;
   readonly bladeAmount: number;
-  readonly targetGroup?: string;
+  readonly targetIdentity: TargetMemberIdentity;
   readonly excludeSourceMember: boolean;
   readonly condition: LiveStartTargetMemberGainBladeCondition;
   readonly bladeCopy: string;
@@ -46,6 +61,7 @@ const CONFIGS: readonly LiveStartTargetMemberGainBladeConfig[] = [
     abilityId: S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
     sourceZone: 'LIVE_CARD',
     bladeAmount: 2,
+    targetIdentity: { type: 'ANY' },
     excludeSourceMember: false,
     condition: { type: 'SUCCESS_LIVE_COUNT_AT_LEAST', count: 2 },
     bladeCopy: '[BLADE][BLADE]',
@@ -55,6 +71,7 @@ const CONFIGS: readonly LiveStartTargetMemberGainBladeConfig[] = [
       PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
     sourceZone: 'STAGE_MEMBER',
     bladeAmount: 2,
+    targetIdentity: { type: 'ANY' },
     excludeSourceMember: true,
     condition: { type: 'LIVE_WITHOUT_LIVE_START_OR_SUCCESS' },
     bladeCopy: '[ブレード][ブレード]',
@@ -63,10 +80,30 @@ const CONFIGS: readonly LiveStartTargetMemberGainBladeConfig[] = [
     abilityId: PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
     sourceZone: 'LIVE_CARD',
     bladeAmount: 1,
-    targetGroup: "μ's",
+    targetIdentity: { type: 'GROUP_ALIAS', value: "μ's" },
     excludeSourceMember: false,
     condition: { type: 'NONE' },
     bladeCopy: '[ブレード]',
+  },
+  {
+    abilityId: N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+    sourceZone: 'LIVE_CARD',
+    sourceBaseCardCode: 'PL!N-bp7-025',
+    bladeAmount: 1,
+    targetIdentity: { type: 'GROUP_ALIAS', value: '虹ヶ咲', displayName: '虹咲' },
+    excludeSourceMember: false,
+    condition: { type: 'NONE' },
+    bladeCopy: '[BLADE]',
+  },
+  {
+    abilityId: SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
+    sourceZone: 'LIVE_CARD',
+    sourceBaseCardCode: 'PL!SP-bp7-025',
+    bladeAmount: 1,
+    targetIdentity: { type: 'CARD_NAME_ALIAS', value: '嵐千砂都', displayName: '岚千砂都' },
+    excludeSourceMember: false,
+    condition: { type: 'NONE' },
+    bladeCopy: '[BLADE]',
   },
 ] as const;
 
@@ -108,7 +145,7 @@ function startLiveStartTargetMemberGainBlade(
   }
 
   const stateWithoutPending = removePendingAbility(game, ability.id);
-  if (!isSourceValid(stateWithoutPending, player.id, ability.sourceCardId, config.sourceZone)) {
+  if (!isSourceValid(stateWithoutPending, player.id, ability.sourceCardId, config)) {
     return continueNoOp(
       stateWithoutPending,
       ability,
@@ -158,11 +195,7 @@ function startLiveStartTargetMemberGainBlade(
     );
   }
 
-  const targetDescription = config.targetGroup
-    ? `自己舞台上的1名『${config.targetGroup}』成员`
-    : config.excludeSourceMember
-      ? '自己舞台上的此成员以外的1名成员'
-      : '自己舞台上的1名成员';
+  const targetDescription = getTargetDescription(config);
   return addAction(
     {
       ...stateWithoutPending,
@@ -216,7 +249,7 @@ function finishTargetMemberSelection(
     : [];
   const validSelection =
     player !== null &&
-    isSourceValid(game, player.id, effect.sourceCardId, config.sourceZone) &&
+    isSourceValid(game, player.id, effect.sourceCardId, config) &&
     conditionMatches(game, player.id, config.condition) &&
     currentTargetMemberCardIds.includes(selectedCardId);
 
@@ -304,8 +337,10 @@ function getCurrentTargetMemberCardIds(
   config: LiveStartTargetMemberGainBladeConfig
 ): readonly string[] {
   const selectors: CardSelector[] = [typeIs(CardType.MEMBER)];
-  if (config.targetGroup) {
-    selectors.push(groupAliasIs(config.targetGroup));
+  if (config.targetIdentity.type === 'GROUP_ALIAS') {
+    selectors.push(groupAliasIs(config.targetIdentity.value));
+  } else if (config.targetIdentity.type === 'CARD_NAME_ALIAS') {
+    selectors.push(cardNameAliasIs(config.targetIdentity.value));
   }
   return getStageMemberCardIdsMatching(game, playerId, and(...selectors)).filter((cardId) => {
     const card = getCardById(game, cardId);
@@ -317,20 +352,40 @@ function isSourceValid(
   game: GameState,
   playerId: string,
   sourceCardId: string,
-  sourceZone: SourceZone
+  config: LiveStartTargetMemberGainBladeConfig
 ): boolean {
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, sourceCardId);
   if (!player || !sourceCard || sourceCard.ownerId !== playerId) {
     return false;
   }
-  if (sourceZone === 'LIVE_CARD') {
+  if (
+    config.sourceBaseCardCode !== undefined &&
+    !cardCodeMatchesBase(sourceCard.data.cardCode, config.sourceBaseCardCode)
+  ) {
+    return false;
+  }
+  if (config.sourceZone === 'LIVE_CARD') {
     return isLiveCardData(sourceCard.data) && player.liveZone.cardIds.includes(sourceCardId);
   }
   return (
     isMemberCardData(sourceCard.data) &&
     getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER)).includes(sourceCardId)
   );
+}
+
+function getTargetDescription(config: LiveStartTargetMemberGainBladeConfig): string {
+  if (config.targetIdentity.type === 'GROUP_ALIAS') {
+    return `自己舞台上的1名『${
+      config.targetIdentity.displayName ?? config.targetIdentity.value
+    }』成员`;
+  }
+  if (config.targetIdentity.type === 'CARD_NAME_ALIAS') {
+    return `自己舞台上的1名「${
+      config.targetIdentity.displayName ?? config.targetIdentity.value
+    }」成员`;
+  }
+  return config.excludeSourceMember ? '自己舞台上的此成员以外的1名成员' : '自己舞台上的1名成员';
 }
 
 function conditionMatches(

@@ -80,7 +80,7 @@ export function createOptionalEnergyReturnWindow(
             selectionLabel: '选择要放回能量卡组的能量',
             minSelectableCards: config.requiredCount,
             maxSelectableCards: config.requiredCount,
-            confirmSelectionLabel: '支付费用',
+            confirmSelectionLabel: '放回能量卡组',
           }
         : {
             selectableOptions: [{ id: 'activate', label: '发动' }],
@@ -110,6 +110,15 @@ export function resolveOptionalEnergyReturn(
   const player = getPlayerById(game, effect.controllerId);
   if (!player) return null;
   const requiresSelection = effect.metadata?.requiresEnergySelection === true;
+  if (
+    (requiresSelection && config.selectedOptionId !== null) ||
+    (!requiresSelection && config.selectedCardIds.length > 0) ||
+    (!requiresSelection &&
+      config.selectedOptionId !== null &&
+      config.selectedOptionId !== 'activate')
+  ) {
+    return null;
+  }
   const selectedEnergyCardIds = requiresSelection
     ? config.selectedCardIds
     : config.selectedOptionId === 'activate' && Array.isArray(effect.metadata?.autoEnergyCardIds)

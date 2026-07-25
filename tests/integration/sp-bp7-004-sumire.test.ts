@@ -177,11 +177,11 @@ function modifiers(game: GameState) {
 }
 
 describe('PL!SP-bp7-004-P 「平安名堇」', () => {
-  it('registers only exact P as a queued LIVE_START stage-member ability', () => {
+  it('registers the base family as a queued LIVE_START stage-member ability', () => {
     expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-004-P')).toContainEqual(
       expect.objectContaining({
         abilityId: ABILITY_ID,
-        cardCodes: ['PL!SP-bp7-004-P'],
+        baseCardCodes: ['PL!SP-bp7-004'],
         category: CardAbilityCategory.LIVE_START,
         sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
         triggerCondition: TriggerCondition.ON_LIVE_START,
@@ -189,7 +189,12 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
         implemented: true,
       })
     );
-    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-004-R')).toEqual([]);
+    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-004-R')).toContainEqual(
+      expect.objectContaining({ abilityId: ABILITY_ID })
+    );
+    expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-003-R')).not.toContainEqual(
+      expect.objectContaining({ abilityId: ABILITY_ID })
+    );
   });
 
   it('no-ops without a window when fewer than three legal cards exist', () => {

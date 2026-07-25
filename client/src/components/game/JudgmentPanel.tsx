@@ -15,6 +15,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
   type ReactNode,
 } from 'react';
@@ -54,6 +55,11 @@ import { isSuccessEffectSubPhase } from '@game/shared/phase-config';
 import { useGameStore } from '@/store/gameStore';
 import { DroppableZone } from './interaction';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
+import {
+  JudgmentSeatSwitcher,
+  resolveJudgmentViewingSeat,
+  type JudgmentViewSelection,
+} from './JudgmentSeatSwitcher';
 import type { BladeHearts, MemberCardData } from '@game/domain/entities/card';
 import type { LiveResultViewState, Seat } from '@game/online';
 
@@ -422,6 +428,19 @@ const SortableCheerCard = memo(function SortableCheerCard({
 
 export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: JudgmentPanelProps) {
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
+  const [viewSelection, setViewSelection] = useState<JudgmentViewSelection>(() => ({
+    activeSeat,
+    viewingSeat: activeSeat,
+  }));
+  // 手动查看只在当前行动座位版本内有效；系统切换行动方时立即回到新的行动方。
+  const activeSeatChanged = viewSelection.activeSeat !== activeSeat;
+  const viewingSeat = resolveJudgmentViewingSeat(viewSelection, activeSeat);
+  if (activeSeatChanged) {
+    setViewSelection({
+      activeSeat,
+      viewingSeat: activeSeat,
+    });
+  }
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const canRevealCheerCard = useGameStore((s) => s.canUseAction(GameCommandType.REVEAL_CHEER_CARD));
   const canMoveResolutionCardToZone = useGameStore((s) =>
@@ -440,13 +459,13 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const battleSurface = useGameStore((s) => s.getBattleSurfaceCapabilities().surface);
   const isReadOnly = useGameStore((s) => s.getBattleSurfaceCapabilities().isReadOnly);
   const liveHeartBonuses = useGameStore((s) => {
-    const active = s.getActiveSeatView();
-    return active ? (s.playerViewState?.match.liveResult?.heartBonuses[active] ?? []) : [];
+    return viewingSeat
+      ? (s.playerViewState?.match.liveResult?.heartBonuses[viewingSeat] ?? [])
+      : [];
   });
   const cheerHeartColorReplacement = useGameStore((s) => {
-    const active = s.getActiveSeatView();
-    return active
-      ? (s.playerViewState?.match.liveResult?.cheerHeartColorReplacements?.[active] ?? null)
+    return viewingSeat
+      ? (s.playerViewState?.match.liveResult?.cheerHeartColorReplacements?.[viewingSeat] ?? null)
       : null;
   });
   const liveRequirementReductions = useGameStore(
@@ -483,10 +502,22 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     }))
   );
 
-  const currentPlayer = activeSeat ? getPlayerIdentityForSeat(activeSeat) : null;
-  const mainDeckCount = activeSeat ? (tableView?.zones[`${activeSeat}_MAIN_DECK`]?.count ?? 0) : 0;
-  const liveZoneObjectIds = activeSeat
-    ? (tableView?.zones[`${activeSeat}_LIVE_ZONE`]?.objectIds ?? EMPTY_PUBLIC_OBJECT_IDS)
+  const activePlayer = activeSeat ? getPlayerIdentityForSeat(activeSeat) : null;
+  const viewedPlayer = viewingSeat ? getPlayerIdentityForSeat(viewingSeat) : null;
+  const playerNames: Record<Seat, string> = {
+    FIRST: getPlayerIdentityForSeat('FIRST')?.name ?? '先攻玩家',
+    SECOND: getPlayerIdentityForSeat('SECOND')?.name ?? '后攻玩家',
+  };
+  const isViewingActiveSeat = activeSeat !== null && viewingSeat === activeSeat;
+  const canRevealViewedCheerCard = isViewingActiveSeat && canRevealCheerCard;
+  const canMoveViewedResolutionCard = isViewingActiveSeat && canMoveResolutionCardToZone;
+  const canSubmitViewedJudgment = isViewingActiveSeat && canSubmitJudgment;
+  const canConfirmViewedOutcome = isViewingActiveSeat && canConfirmPerformanceOutcome;
+  const mainDeckCount = viewingSeat
+    ? (tableView?.zones[`${viewingSeat}_MAIN_DECK`]?.count ?? 0)
+    : 0;
+  const liveZoneObjectIds = viewingSeat
+    ? (tableView?.zones[`${viewingSeat}_LIVE_ZONE`]?.objectIds ?? EMPTY_PUBLIC_OBJECT_IDS)
     : EMPTY_PUBLIC_OBJECT_IDS;
   const liveCardIds = useMemo(
     () => liveZoneObjectIds.map(getCardIdFromPublicObjectId),
@@ -496,10 +527,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   // 直接从 store 订阅解决区卡牌 ID，确保数据变化时触发重渲染
   const cheerCardIds = useGameStore(
     useShallow((s) => {
-      if (!activeSeat || !currentPlayer) {
+      if (!viewingSeat || !viewedPlayer) {
         return [] as string[];
       }
-      return s.getResolutionCardIdsForSeat(activeSeat);
+      return s.getResolutionCardIdsForSeat(viewingSeat);
     })
   );
   const selectedResolutionCardId =
@@ -507,24 +538,25 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const selectedResolutionCardFrontInfo = selectedResolutionCardId
     ? (getCardFrontInfo(selectedResolutionCardId) ?? null)
     : null;
-  const resolutionActionIntents = selectedResolutionCardId
-    ? buildBattleActionIntents({
-        sourceCardId: selectedResolutionCardId,
-        sourceZone: ZoneType.RESOLUTION_ZONE,
-        sourceCardType: selectedResolutionCardFrontInfo?.cardType ?? CardType.MEMBER,
-        currentPhase: null,
-        currentSubPhase,
-        actorSeat: activeSeat,
-        viewerSeat: activeSeat,
-        sourceSeat: activeSeat,
-        surface: battleSurface,
-        isReadOnly,
-        availableCommandTypes: canMoveResolutionCardToZone
-          ? [GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE]
-          : [],
-        memberSlots: [],
-      })
-    : [];
+  const resolutionActionIntents =
+    selectedResolutionCardId && activeSeat && isViewingActiveSeat
+      ? buildBattleActionIntents({
+          sourceCardId: selectedResolutionCardId,
+          sourceZone: ZoneType.RESOLUTION_ZONE,
+          sourceCardType: selectedResolutionCardFrontInfo?.cardType ?? CardType.MEMBER,
+          currentPhase: null,
+          currentSubPhase,
+          actorSeat: activeSeat,
+          viewerSeat: activeSeat,
+          sourceSeat: activeSeat,
+          surface: battleSurface,
+          isReadOnly,
+          availableCommandTypes: canMoveViewedResolutionCard
+            ? [GameCommandType.MOVE_RESOLUTION_CARD_TO_ZONE]
+            : [],
+          memberSlots: [],
+        })
+      : [];
   const resolutionTargetById = (targetId: string) =>
     findEnabledBattleActionTargetByTargetId(resolutionActionIntents, targetId);
   const resolutionHandTarget = resolutionTargetById('resolution-target-hand');
@@ -546,13 +578,13 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   // 前端应援区列表会自动从共享解决区视图同步
 
   const drawCheerCard = useCallback(() => {
-    if (!currentPlayer || !canRevealCheerCard || mainDeckCount === 0) return;
+    if (!activePlayer || !canRevealViewedCheerCard || mainDeckCount === 0) return;
     revealCheerCard();
-  }, [canRevealCheerCard, currentPlayer, mainDeckCount, revealCheerCard]);
+  }, [activePlayer, canRevealViewedCheerCard, mainDeckCount, revealCheerCard]);
 
   const moveToHand = useCallback(
     (cardId: string) => {
-      if (!canMoveResolutionCardToZone) {
+      if (!canMoveViewedResolutionCard) {
         return;
       }
       const result = moveResolutionCardToZone(cardId, ZoneType.HAND);
@@ -560,12 +592,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         setHoveredCard(null);
       }
     },
-    [canMoveResolutionCardToZone, moveResolutionCardToZone, setHoveredCard]
+    [canMoveViewedResolutionCard, moveResolutionCardToZone, setHoveredCard]
   );
 
   const moveToWaitingRoom = useCallback(
     (cardId: string) => {
-      if (!canMoveResolutionCardToZone) {
+      if (!canMoveViewedResolutionCard) {
         return;
       }
       const result = moveResolutionCardToZone(cardId, ZoneType.WAITING_ROOM);
@@ -573,12 +605,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         setHoveredCard(null);
       }
     },
-    [canMoveResolutionCardToZone, moveResolutionCardToZone, setHoveredCard]
+    [canMoveViewedResolutionCard, moveResolutionCardToZone, setHoveredCard]
   );
 
   const returnToDeckTop = useCallback(
     (cardId: string) => {
-      if (!canMoveResolutionCardToZone) {
+      if (!canMoveViewedResolutionCard) {
         return;
       }
       const result = moveResolutionCardToZone(cardId, ZoneType.MAIN_DECK, { position: 'TOP' });
@@ -586,7 +618,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         setHoveredCard(null);
       }
     },
-    [canMoveResolutionCardToZone, moveResolutionCardToZone, setHoveredCard]
+    [canMoveViewedResolutionCard, moveResolutionCardToZone, setHoveredCard]
   );
 
   const toggleSelectedResolutionCard = useCallback(
@@ -594,6 +626,18 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       selectCard(selectedCardId === cardId ? null : cardId);
     },
     [selectCard, selectedCardId]
+  );
+
+  const handleViewingSeatChange = useCallback(
+    (seat: Seat) => {
+      setViewSelection({
+        activeSeat,
+        viewingSeat: seat,
+      });
+      selectCard(null);
+      setHoveredCard(null);
+    },
+    [activeSeat, selectCard, setHoveredCard]
   );
 
   const executeResolutionTarget = useCallback(
@@ -632,11 +676,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       blades.set(c, 0);
     });
 
-    if (!activeSeat) return { memberHearts: members, bladeHearts: blades, totalHearts: members };
+    if (!viewingSeat) return { memberHearts: members, bladeHearts: blades, totalHearts: members };
 
     // 成员心
     Object.values(SlotPosition).forEach((slot) => {
-      const cardId = getSeatMemberSlotCardId(activeSeat, slot);
+      const cardId = getSeatMemberSlotCardId(viewingSeat, slot);
       if (!cardId) return;
       const frontInfo = getCardFrontInfo(cardId);
       if (frontInfo?.cardType === 'MEMBER' && Array.isArray(frontInfo.hearts)) {
@@ -674,7 +718,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
 
     return { memberHearts: members, bladeHearts: blades, totalHearts: total };
   }, [
-    activeSeat,
+    viewingSeat,
     getCardFrontInfo,
     getSeatMemberSlotCardId,
     cheerCards,
@@ -749,7 +793,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       };
     });
 
-    const totalLiveScoreModifier = activeSeat ? (liveScoreModifiers[activeSeat] ?? 0) : 0;
+    const totalLiveScoreModifier = viewingSeat ? (liveScoreModifiers[viewingSeat] ?? 0) : 0;
     const preview = buildLiveJudgmentPreview({
       liveCards: rows.map((row) => ({
         cardId: row.cardId,
@@ -767,7 +811,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       ...preview,
     };
   }, [
-    activeSeat,
+    viewingSeat,
     cardViewObjects,
     getCardImagePath,
     liveCardIds,
@@ -788,7 +832,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   // ---- 判定操作 ----
 
   const handleAcceptAutoJudgment = useCallback(() => {
-    if (!currentPlayer || !canSubmitJudgment) return;
+    if (!activePlayer || !canSubmitViewedJudgment) return;
     const judgmentResult = acceptAutomaticJudgment();
     if (judgmentResult.pending) {
       closeAfterRemoteAdvanceRef.current = true;
@@ -798,10 +842,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       return;
     }
     onClose();
-  }, [acceptAutomaticJudgment, canSubmitJudgment, currentPlayer, onClose]);
+  }, [acceptAutomaticJudgment, activePlayer, canSubmitViewedJudgment, onClose]);
 
   const handleLiveFailed = useCallback(() => {
-    if (!currentPlayer || !canConfirmPerformanceOutcome) return;
+    if (!activePlayer || !canConfirmViewedOutcome) return;
     const result = confirmPerformanceOutcome(false);
     setHoveredCard(null);
     if (result.pending) {
@@ -812,16 +856,10 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       return;
     }
     onClose();
-  }, [
-    currentPlayer,
-    canConfirmPerformanceOutcome,
-    confirmPerformanceOutcome,
-    onClose,
-    setHoveredCard,
-  ]);
+  }, [activePlayer, canConfirmViewedOutcome, confirmPerformanceOutcome, onClose, setHoveredCard]);
 
   const handleLiveSuccess = useCallback(() => {
-    if (!currentPlayer || !canConfirmPerformanceOutcome) return;
+    if (!activePlayer || !canConfirmViewedOutcome) return;
     const result = confirmPerformanceOutcome(true);
     if (result.pending) {
       closeAfterRemoteAdvanceRef.current = true;
@@ -831,7 +869,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
       return;
     }
     onClose();
-  }, [currentPlayer, canConfirmPerformanceOutcome, confirmPerformanceOutcome, onClose]);
+  }, [activePlayer, canConfirmViewedOutcome, confirmPerformanceOutcome, onClose]);
 
   // ESC 关闭
   useEffect(() => {
@@ -844,7 +882,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     }
   }, [isOpen, onClose]);
 
-  if (!isOpen || !currentPlayer) return null;
+  if (!isOpen || !activeSeat || !activePlayer || !viewingSeat || !viewedPlayer) return null;
 
   const totalHeartsCount = Array.from(totalHearts.values()).reduce((s, c) => s + c, 0);
   const hasJudgmentResources = totalHeartsCount > 0 || totalDrawBonus > 0;
@@ -862,13 +900,15 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const previewStatusLabel = getPreviewStatusLabel(liveJudgmentPreview.status);
   const previewScoreText =
     liveJudgmentPreview.totalScore === null ? '--' : String(liveJudgmentPreview.totalScore);
-  const judgmentPanelHint = getJudgmentPanelHint({
-    isPerformanceJudgment,
-    isResultScoreConfirm,
-    isResultAnimation,
-    isResultSettlement,
-    isLiveSuccessWindow,
-  });
+  const judgmentPanelHint = isViewingActiveSeat
+    ? getJudgmentPanelHint({
+        isPerformanceJudgment,
+        isResultScoreConfirm,
+        isResultAnimation,
+        isResultSettlement,
+        isLiveSuccessWindow,
+      })
+    : '当前显示非行动方的判定信息，仅供查看；切回当前行动方后可继续操作。';
 
   return (
     <motion.aside
@@ -891,45 +931,64 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
         <ChevronLeft size={16} />
       </button>
 
-      <div className="mb-3 flex items-start justify-between border-b border-[var(--border-default)] pb-2 pr-11 md:pr-0">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
-            <BarChart3 size={16} className="text-[var(--accent-primary)]" />
-            判定区 / 应援操作窗
+      <div className="mb-3 border-b border-[var(--border-default)] pb-2 pr-11 md:pr-0">
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+            <BarChart3 size={16} className="shrink-0 text-[var(--accent-primary)]" />
+            <span className="truncate">判定区 / 应援操作窗</span>
           </div>
-          <div className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
-            {isPerformanceJudgment
-              ? `当前为 ${currentPlayer?.name ?? '当前玩家'} 的 Live 判定阶段`
-              : isLiveSuccessWindow
-                ? '当前为 Live 成功效果窗口（可继续操作判定区）'
-                : isResultScoreConfirm
-                  ? '当前为分数最终确认阶段'
-                  : isResultAnimation
-                    ? '当前为胜者结果动画阶段'
-                    : isResultSettlement
-                      ? '当前为成功 Live 结算阶段'
-                      : '可随时查看并操作判定区卡牌'}
-          </div>
+          <JudgmentSeatSwitcher
+            activeSeat={activeSeat}
+            viewingSeat={viewingSeat}
+            playerNames={playerNames}
+            onSelect={handleViewingSeatChange}
+          />
+        </div>
+        <div className="mt-0.5 text-[11px] text-[var(--text-secondary)]">
+          {isPerformanceJudgment
+            ? `当前为 ${activePlayer.name} 的 Live 判定阶段`
+            : isLiveSuccessWindow
+              ? '当前为 Live 成功效果窗口（可继续操作判定区）'
+              : isResultScoreConfirm
+                ? '当前为分数最终确认阶段'
+                : isResultAnimation
+                  ? '当前为胜者结果动画阶段'
+                  : isResultSettlement
+                    ? '当前为成功 Live 结算阶段'
+                    : '可随时查看并操作判定区卡牌'}
         </div>
       </div>
 
       <div className="cute-scrollbar touch-scroll h-[calc(100%-4rem)] overflow-y-auto pr-1">
         <div className="mb-4">
-          <div className="mb-2 flex items-center justify-between border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
-            <span className="flex items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
-              <Mic size={15} />
-              {currentPlayer.name} 的应援 ({cheerCards.length} 张)
+          <div className="mb-2 flex min-w-0 items-center justify-between gap-2 border-b border-[color:color-mix(in_srgb,var(--accent-secondary)_35%,transparent)] pb-2">
+            <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-[var(--accent-secondary)]">
+              <Mic size={15} className="shrink-0" />
+              <span className="truncate">
+                {viewedPlayer.name} 的应援 ({cheerCards.length} 张)
+              </span>
             </span>
-            <span className="text-xs text-[var(--text-muted)]">主卡组剩余: {mainDeckCount}</span>
+            <span className="shrink-0 text-xs text-[var(--text-muted)]">
+              主卡组剩余: {mainDeckCount}
+            </span>
           </div>
 
-          <div className={cn('flex gap-2 mb-2', isReadOnly && 'hidden')}>
+          {!isViewingActiveSeat ? (
+            <div
+              role="status"
+              className="mb-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-info)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_10%,transparent)] px-2.5 py-1.5 text-[11px] text-[var(--text-secondary)]"
+            >
+              正在查看{viewingSeat === 'FIRST' ? '先攻' : '后攻'}玩家的判定信息，此视图仅供查看。
+            </div>
+          ) : null}
+
+          <div className={cn('mb-2 flex gap-2', (isReadOnly || !isViewingActiveSeat) && 'hidden')}>
             <button
               onClick={drawCheerCard}
-              disabled={!canRevealCheerCard || mainDeckCount === 0}
+              disabled={!canRevealViewedCheerCard || mainDeckCount === 0}
               className={cn(
                 'px-3 py-1.5 rounded text-xs font-medium',
-                canRevealCheerCard && mainDeckCount > 0
+                canRevealViewedCheerCard && mainDeckCount > 0
                   ? 'button-gold'
                   : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
               )}
@@ -938,10 +997,15 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </button>
           </div>
 
-          <div className={cn('mb-2 grid grid-cols-3 gap-2', isReadOnly && 'hidden')}>
+          <div
+            className={cn(
+              'mb-2 grid grid-cols-3 gap-2',
+              (isReadOnly || !isViewingActiveSeat) && 'hidden'
+            )}
+          >
             <DroppableZone
               id="resolution-target-hand"
-              disabled={!canMoveResolutionCardToZone}
+              disabled={!canMoveViewedResolutionCard}
               title={resolutionHandTarget?.target.label ?? '加入手牌'}
               onClick={() => executeResolutionTarget(resolutionHandTarget)}
               className={cn(
@@ -955,7 +1019,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </DroppableZone>
             <DroppableZone
               id="resolution-target-waiting-room"
-              disabled={!canMoveResolutionCardToZone}
+              disabled={!canMoveViewedResolutionCard}
               title={resolutionWaitingRoomTarget?.target.label ?? '放入休息室'}
               onClick={() => executeResolutionTarget(resolutionWaitingRoomTarget)}
               className={cn(
@@ -971,7 +1035,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </DroppableZone>
             <DroppableZone
               id="resolution-target-main-deck-top"
-              disabled={!canMoveResolutionCardToZone}
+              disabled={!canMoveViewedResolutionCard}
               title={resolutionMainDeckTopTarget?.target.label ?? '回卡组顶'}
               onClick={() => executeResolutionTarget(resolutionMainDeckTopTarget)}
               className={cn(
@@ -990,7 +1054,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
           <div className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2">
             {cheerCards.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)]">
-                点击「翻开一张」从卡组顶翻开应援牌
+                {isViewingActiveSeat
+                  ? '点击「翻开一张」从卡组顶翻开应援牌'
+                  : '该玩家当前没有应援牌'}
               </div>
             ) : (
               <SortableContext items={cheerCardIds} strategy={horizontalListSortingStrategy}>
@@ -1021,10 +1087,12 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                           <SortableCheerCard
                             cardId={id}
                             imagePath={getCardImagePath(frontInfo.cardCode)}
-                            disabled={isReadOnly || !canMoveResolutionCardToZone}
-                            selected={!isReadOnly && selectedCardId === id}
+                            disabled={isReadOnly || !canMoveViewedResolutionCard}
+                            selected={!isReadOnly && isViewingActiveSeat && selectedCardId === id}
                             onClick={() => {
-                              if (!isReadOnly) toggleSelectedResolutionCard(id);
+                              if (!isReadOnly && isViewingActiveSeat) {
+                                toggleSelectedResolutionCard(id);
+                              }
                             }}
                           />
                         ) : (
@@ -1053,15 +1121,15 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                         <div
                           className={cn(
                             'absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100',
-                            isReadOnly && 'hidden'
+                            (isReadOnly || !isViewingActiveSeat) && 'hidden'
                           )}
                         >
                           <button
-                            disabled={!canMoveResolutionCardToZone || !canInspectFront}
+                            disabled={!canMoveViewedResolutionCard || !canInspectFront}
                             onClick={() => moveToHand(id)}
                             className={cn(
                               'text-[10px] px-1.5 py-0.5 rounded text-white',
-                              canMoveResolutionCardToZone && canInspectFront
+                              canMoveViewedResolutionCard && canInspectFront
                                 ? 'bg-cyan-600 hover:bg-cyan-500'
                                 : 'bg-slate-600 cursor-not-allowed'
                             )}
@@ -1069,11 +1137,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                             手牌
                           </button>
                           <button
-                            disabled={!canMoveResolutionCardToZone || !canInspectFront}
+                            disabled={!canMoveViewedResolutionCard || !canInspectFront}
                             onClick={() => moveToWaitingRoom(id)}
                             className={cn(
                               'text-[10px] px-1.5 py-0.5 rounded text-white',
-                              canMoveResolutionCardToZone && canInspectFront
+                              canMoveViewedResolutionCard && canInspectFront
                                 ? 'bg-slate-600 hover:bg-slate-500'
                                 : 'bg-slate-600 cursor-not-allowed'
                             )}
@@ -1081,11 +1149,11 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                             弃置
                           </button>
                           <button
-                            disabled={!canMoveResolutionCardToZone || !canInspectFront}
+                            disabled={!canMoveViewedResolutionCard || !canInspectFront}
                             onClick={() => returnToDeckTop(id)}
                             className={cn(
                               'text-[10px] px-1.5 py-0.5 rounded text-white',
-                              canMoveResolutionCardToZone && canInspectFront
+                              canMoveViewedResolutionCard && canInspectFront
                                 ? 'bg-amber-600 hover:bg-amber-500'
                                 : 'bg-slate-600 cursor-not-allowed'
                             )}
@@ -1208,14 +1276,14 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
           <div
             className={cn(
               'mt-4 space-y-2 border-t border-[var(--border-subtle)] pt-3',
-              isReadOnly && 'hidden'
+              (isReadOnly || !isViewingActiveSeat) && 'hidden'
             )}
           >
             <button
               onClick={handleAcceptAutoJudgment}
-              disabled={!canSubmitJudgment}
+              disabled={!canSubmitViewedJudgment}
               className={cn(
-                canSubmitJudgment
+                canSubmitViewedJudgment
                   ? 'button-gold w-full rounded-lg py-2 text-sm font-bold'
                   : 'w-full rounded-lg bg-[var(--bg-overlay)] py-2 text-sm font-bold text-[var(--text-muted)] cursor-not-allowed'
               )}
@@ -1225,9 +1293,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={handleLiveFailed}
-                disabled={!canConfirmPerformanceOutcome}
+                disabled={!canConfirmViewedOutcome}
                 className={cn(
-                  canConfirmPerformanceOutcome
+                  canConfirmViewedOutcome
                     ? 'button-secondary rounded-lg py-1.5 text-xs font-bold'
                     : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
                 )}
@@ -1236,9 +1304,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
               </button>
               <button
                 onClick={handleLiveSuccess}
-                disabled={!canConfirmPerformanceOutcome}
+                disabled={!canConfirmViewedOutcome}
                 className={cn(
-                  canConfirmPerformanceOutcome
+                  canConfirmViewedOutcome
                     ? 'button-secondary rounded-lg py-1.5 text-xs font-bold'
                     : 'rounded-lg bg-[var(--bg-overlay)] py-1.5 text-xs font-bold text-[var(--text-muted)] cursor-not-allowed'
                 )}

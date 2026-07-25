@@ -20,6 +20,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import {
+  addPlayerScoreLiveModifierForTargetMember,
   addLiveModifier,
   collectLiveModifiers,
   getMemberEffectiveBladeCount,
@@ -41,6 +42,7 @@ import {
   countMemberEntriesThisTurn,
   countOtherLiveZoneCardsMatching,
   countSuccessfulLiveCards,
+  getLiveZoneCardEffectiveScores,
   getCardIdsInZone,
   getCardIdsInZoneMatching,
   getMemberEffectiveCost,
@@ -56,6 +58,7 @@ import {
   normalizeCardName,
   selectDifferentNamedCards,
 } from '../../../../shared/utils/card-identity.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BOKUIMA_LIVE_START_REQUIREMENT_ABILITY_ID,
   BP4_021_LIVE_START_SUCCESS_SCORE_REQUIREMENT_AND_SCORE_ABILITY_ID,
@@ -81,6 +84,7 @@ import {
   PL_N_PB1_042_LIVE_START_SAME_NAME_NIJIGASAKI_REDUCE_REQUIREMENT_ABILITY_ID,
   PL_PB1_029_LIVE_START_NO_SUCCESS_ONLY_LILYWHITE_SCORE_ABILITY_ID,
   PL_PB1_030_LIVE_START_OPPONENT_WAITING_REDUCE_REQUIREMENT_ABILITY_ID,
+  PR_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE_ABILITY_ID,
   SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_ABILITY_ID,
   SP_BP1_026_LIVE_START_DIFFERENT_LIELLA_REPLACE_REQUIREMENT_ABILITY_ID,
   PL_S_BP5_013_LIVE_START_GREEN_REQUIREMENT_GAIN_GREEN_HEART_ABILITY_ID,
@@ -105,6 +109,7 @@ const PL_BP5_022_SUCCESS_ZONE_SCORE_REQUIREMENT_STEP_ID =
 const PL_BP5_023_STAGE_NON_PINK_PURPLE_REQUIREMENT_STEP_ID =
   'PL_BP5_023_STAGE_NON_PINK_PURPLE_REQUIREMENT';
 const HS_BP5_019_REQUIREMENT_REDUCTION_STEP_ID = 'HS_BP5_019_REQUIREMENT_REDUCTION';
+const PR_CENTER_LIVE_ZONE_SCORE_EIGHT_BASE_CARD_CODES = ['PL!-PR-020', 'PL!SP-PR-026'] as const;
 const HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION_STEP_ID =
   'HS_BP2_021_RELAY_ENTERED_REQUIREMENT_REDUCTION';
 const HS_BP2_022_SCORE_BONUS_STEP_ID = 'HS_BP2_022_SCORE_BONUS';
@@ -132,6 +137,8 @@ const PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT_STEP_ID =
   'PL_N_PB1_042_SAME_NAME_NIJIGASAKI_REQUIREMENT';
 const S_BP7_020_ALL_STAGE_MEMBERS_ACTIVE_REQUIREMENT_STEP_ID =
   'S_BP7_020_ALL_STAGE_MEMBERS_ACTIVE_REQUIREMENT';
+const PR_CENTER_LIVE_ZONE_SCORE_EIGHT_STEP_ID =
+  'PR_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -502,6 +509,12 @@ const CONDITIONAL_LIVE_MODIFIER_WORKFLOWS: readonly ConditionalLiveModifierWorkf
     getStartContext: getPlPb1030OpponentWaitingRequirementStartContext,
     finish: finishPlPb1030OpponentWaitingRequirementReduction,
   },
+  {
+    abilityId: PR_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE_ABILITY_ID,
+    stepId: PR_CENTER_LIVE_ZONE_SCORE_EIGHT_STEP_ID,
+    getStartContext: getPrCenterLiveZoneScoreEightStartContext,
+    finish: finishPrCenterLiveZoneScoreEightGainLiveTotalScore,
+  },
 ];
 
 export function registerConditionalLiveModifierWorkflowHandlers(): void {
@@ -600,6 +613,113 @@ function finishPlNBp3005MemberEntriesScore(
       conditionMet: scoreBonus > 0,
       scoreBonus,
       scoreDelta,
+    },
+  };
+}
+
+interface PrCenterLiveZoneScoreEightContext {
+  readonly sourceInOwnCenter: boolean;
+  readonly liveCardScores: ReturnType<typeof getLiveZoneCardEffectiveScores>;
+  readonly liveZoneScoreTotal: number;
+  readonly scoreConditionMet: boolean;
+  readonly conditionMet: boolean;
+}
+
+function getPrCenterLiveZoneScoreEightContext(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): PrCenterLiveZoneScoreEightContext {
+  const player = getPlayerById(game, playerId);
+  const source = getCardById(game, effect.sourceCardId);
+  const sourceInOwnCenter =
+    player !== null &&
+    player.memberSlots.slots[SlotPosition.CENTER] === effect.sourceCardId &&
+    source !== null &&
+    source.ownerId === playerId &&
+    isMemberCardData(source.data) &&
+    PR_CENTER_LIVE_ZONE_SCORE_EIGHT_BASE_CARD_CODES.some((baseCardCode) =>
+      cardCodeMatchesBase(source.data.cardCode, baseCardCode)
+    );
+  const liveCardScores = getLiveZoneCardEffectiveScores(game, playerId);
+  const liveZoneScoreTotal = liveCardScores.reduce(
+    (total, { effectiveScore }) => total + effectiveScore,
+    0
+  );
+  const scoreConditionMet = liveZoneScoreTotal >= 8;
+  return {
+    sourceInOwnCenter,
+    liveCardScores,
+    liveZoneScoreTotal,
+    scoreConditionMet,
+    conditionMet: sourceInOwnCenter && scoreConditionMet,
+  };
+}
+
+function getPrCenterLiveZoneScoreEightStartContext(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierStartContext {
+  const context = getPrCenterLiveZoneScoreEightContext(game, ability, playerId);
+  return {
+    effectText: `${getAbilityEffectText(ability.abilityId)}（当前自己LIVE卡区LIVE卡有效分数合计${context.liveZoneScoreTotal}，${
+      context.scoreConditionMet ? '满足分数条件' : '未满足分数条件'
+    }，实际${context.conditionMet ? '获得LIVE合计[スコア]+1' : '不获得LIVE合计[スコア]修正'}。）`,
+    actionPayload: {
+      sourceInOwnCenter: context.sourceInOwnCenter,
+      liveCardScores: context.liveCardScores,
+      liveZoneScoreTotal: context.liveZoneScoreTotal,
+      scoreConditionMet: context.scoreConditionMet,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.conditionMet ? 1 : 0,
+    },
+  };
+}
+
+function finishPrCenterLiveZoneScoreEightGainLiveTotalScore(
+  game: GameState,
+  effect: PendingAbilityState,
+  playerId: string
+): ConditionalLiveModifierFinishContext {
+  const context = getPrCenterLiveZoneScoreEightContext(game, effect, playerId);
+  const existingModifier = game.liveResolution.liveModifiers.find(
+    (modifier) =>
+      modifier.kind === 'SCORE' &&
+      modifier.playerId === playerId &&
+      modifier.liveCardId === undefined &&
+      modifier.sourceCardId === effect.sourceCardId &&
+      modifier.targetMemberCardId === effect.sourceCardId &&
+      modifier.abilityId === effect.abilityId
+  );
+  let state: GameState = { ...game, activeEffect: null };
+  let modifierApplied = false;
+  if (context.conditionMet && existingModifier === undefined) {
+    const result = addPlayerScoreLiveModifierForTargetMember(state, {
+      playerId,
+      targetMemberCardId: effect.sourceCardId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      countDelta: 1,
+    });
+    if (result) {
+      state = result.gameState;
+      modifierApplied = true;
+    }
+  }
+
+  return {
+    gameState: state,
+    actionPayload: {
+      step: 'APPLY_CENTER_LIVE_ZONE_SCORE_EIGHT_GAIN_LIVE_TOTAL_SCORE',
+      sourceInOwnCenter: context.sourceInOwnCenter,
+      liveCardScores: context.liveCardScores,
+      liveZoneScoreTotal: context.liveZoneScoreTotal,
+      scoreConditionMet: context.scoreConditionMet,
+      conditionMet: context.conditionMet,
+      scoreBonus: context.conditionMet ? 1 : 0,
+      modifierApplied,
+      modifierAlreadyPresent: existingModifier !== undefined,
     },
   };
 }
@@ -2218,7 +2338,11 @@ function getStageBladeTotalContext(
   playerId: string
 ): StageBladeTotalContext {
   const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
-  const stageMemberCardIds = getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER));
+  const stageMemberCardIds = getStageMemberCardIdsMatching(
+    game,
+    playerId,
+    typeIs(CardType.MEMBER)
+  );
   const liveModifiers = collectLiveModifiers(game);
   const stageMemberBladeCounts = stageMemberCardIds.map((memberCardId) =>
     getMemberEffectiveBladeCount(game, playerId, memberCardId, liveModifiers)
@@ -2507,11 +2631,7 @@ function getAllStageMembersActiveRequirementContext(
   playerId: string
 ): AllStageMembersActiveRequirementContext {
   const sourceInLiveZone = isSourceLiveInOwnLiveZone(game, playerId, ability.sourceCardId);
-  const stageMemberCardIds = getStageMemberCardIdsMatching(
-    game,
-    playerId,
-    typeIs(CardType.MEMBER)
-  );
+  const stageMemberCardIds = getStageMemberCardIdsMatching(game, playerId, typeIs(CardType.MEMBER));
   const activeMemberIds = new Set(
     getStageMemberCardIdsByOrientation(game, playerId, OrientationState.ACTIVE)
   );

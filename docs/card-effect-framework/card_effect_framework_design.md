@@ -135,7 +135,7 @@ defineAbility({
 });
 ```
 
-`baseCardCodes` 是默认推荐形态：同基础编号不同罕度视为同一张卡，效果文本一致时应自动同步。`cardCodes` 只用于确实需要限制到某个具体印刷版本的例外，并应在 `existing_module_map.md` 说明原因。
+`baseCardCodes` 是卡效登记的默认且规范形态：同一基础编号的不同罕度具有相同卡牌类型与完整卡效，罕度后缀不是 effect boundary。尤其 BP7 必须使用 `baseCardCodes` 或等价基础编号 matcher；公开 API / Excel 当前只出现某一罕度或本地卡库缺失都不是 exact 登记理由，`cardCodes` 也不能用于隔离尚未发现的罕度。
 
 ## 4. Framework layers
 
@@ -547,7 +547,7 @@ P0/P1 覆盖：
 
 - `PL!HS-pb1-009-R` 费用 15「日野下花帆」第一段登记为 `AUTO` / `STAGE_MEMBER` / `ON_ENTER_STAGE`，来源槽位要求 `CENTER`，`perTurnLimit: 2`。
 - `enqueueTriggeredCardEffects` 的 `ON_ENTER_STAGE` 同时处理登场者自己的 `ON_ENTER` 能力与舞台成员监听登场事件的 AUTO；2026-06-15 起优先消费 `eventLog` / 显式 `EnterStageEvent`，最近 `PLAY_MEMBER` fallback 继续保留。
-- `perTurnLimit` 已从起动专用校验提升为能力通用限制，按 `playerId + abilityId + sourceCardId + turnCount` 统计；`PL!-sd1-008-SD` 费用未登记「小泉 花陽」也同步修正为同一来源卡实例每回合 1 次。
+- `perTurnLimit` 已从起动专用校验提升为能力通用限制，按 `playerId + abilityId + sourceCardId + sourceLifecycleId + turnCount` 统计。实体 `sourceCardId` 跨区不变；成员/登场来源以最近一次跨区 `ON_ENTER_STAGE.eventId`、LIVE 来源以最近一次跨区 `ON_ENTER_LIVE_ZONE.eventId` 区分规则对象，无事件测试直置使用确定性 initial sentinel。成员区内移动、LIVE 区内移动和 ACTIVE/WAITING 变化不重置，跨区再进入则可在同回合重新使用。`PL!-sd1-008-SD` 费用未登记「小泉 花陽」继续证明同一舞台生命周期每回合 1 次及不同实体副本独立。
 - 效果段通过 `addLiveModifier` 写入 BLADE +2，FAQ 覆盖自己登场至中央时也触发。
 - `PL!HS-pb1-009-R` 费用 15「日野下花帆」第二段登记为 `LIVE_START` / `STAGE_MEMBER` 队列能力；LIVE 开始时通过 `getMemberEffectiveBladeCount` 统计印刷 BLADE + 同来源成员 BLADE modifier，达到 8 时复用 F02 抽 2 弃 1 流程。
 - confirm-only active effect 已起步：玩家从顺序选择窗口手动点选无输入 pending ability 时，先显示来源卡、效果文本与“继续处理”按钮，确认后再 resolve；“顺序发动”仍自动连续处理。`PL!HS-pb1-009-R` 费用 15「日野下花帆」第一段用于验证该 UI/runner 壳。

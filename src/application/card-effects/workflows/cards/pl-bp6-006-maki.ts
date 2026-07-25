@@ -30,6 +30,7 @@ import {
   getAbilityEffectText,
   recordAbilityUseForContext,
 } from '../../runtime/workflow-helpers.js';
+import { canUseActivatedAbilityThisTurn } from '../../runtime/ability-turn-limit.js';
 
 const BP6_006_SELECT_DISCARD_COST_STEP_ID = 'BP6_006_SELECT_DISCARD_COST';
 const BP6_006_SELECT_HEART_COLOR_STEP_ID = 'BP6_006_SELECT_HEART_COLOR';
@@ -113,7 +114,7 @@ function startBp6006Activated(game: GameState, playerId: string, cardId: string)
     sourceSlot === null ||
     sourceState?.orientation !== OrientationState.ACTIVE ||
     player.hand.cardIds.length === 0 ||
-    hasTurnUse(
+    !canUseActivatedAbilityThisTurn(
       game,
       player.id,
       BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
@@ -414,21 +415,4 @@ function isCardMatchingBp6006ColorCondition(card: CardInstance, color: HeartColo
 
 function isNormalHeartColor(value: string | null): value is HeartColor {
   return value !== null && NORMAL_HEART_COLORS.some((color) => color === value);
-}
-
-function hasTurnUse(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): boolean {
-  return game.actionHistory.some(
-    (action) =>
-      action.type === 'RESOLVE_ABILITY' &&
-      action.playerId === playerId &&
-      action.payload.abilityId === abilityId &&
-      action.payload.sourceCardId === sourceCardId &&
-      action.payload.step === 'ABILITY_USE' &&
-      action.payload.turnCount === game.turnCount
-  );
 }

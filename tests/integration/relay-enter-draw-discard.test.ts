@@ -1,16 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
-import { registerCards, type GameState } from '../../src/domain/entities/game';
+import type {
+  AnyCardData,
+  EnergyCardData,
+  LiveCardData,
+  MemberCardData,
+} from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
+import {
+  registerCards,
+  updatePlayer,
+  type GameState,
+  type PendingAbilityState,
+} from '../../src/domain/entities/game';
 import {
   createConfirmEffectStepCommand,
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
+import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
   PL_N_PB1_019_ON_ENTER_RELAY_FROM_SETSUNA_DRAW_TWO_DISCARD_TWO_ABILITY_ID,
   PL_N_PB1_022_ON_ENTER_RELAY_FROM_SHIORIKO_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+  S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -48,6 +64,16 @@ function createEnergyCard(cardCode: string): EnergyCardData {
   };
 }
 
+function createLiveCard(cardCode: string, score: number): LiveCardData {
+  return {
+    cardCode,
+    name: cardCode,
+    cardType: CardType.LIVE,
+    score,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+  };
+}
+
 function createDeck(): DeckConfig {
   const mainDeck: AnyCardData[] = Array.from({ length: 60 }, (_, index) =>
     createMemberCard(`MEM-${index}`)
@@ -76,6 +102,7 @@ interface RelayDrawDiscardScenario {
   readonly session: ReturnType<typeof createGameSession>;
   readonly sourceId: string;
   readonly replacementId: string;
+  readonly secondReplacementId: string | null;
   readonly handCardIds: readonly string[];
   readonly drawCardIds: readonly string[];
 }
@@ -86,6 +113,14 @@ function setupRelayDrawDiscardScenario(options: {
   readonly sourceCost: number;
   readonly replacementName: string;
   readonly replacementCardCode?: string;
+  readonly replacementCost?: number;
+  readonly secondReplacement?: {
+    readonly name: string;
+    readonly cardCode?: string;
+    readonly cost: number;
+  };
+  readonly successLiveScore?: number;
+  readonly mainDeckCardCount?: number;
   readonly handCount: number;
 }): RelayDrawDiscardScenario {
   const session = createGameSession();
@@ -104,11 +139,22 @@ function setupRelayDrawDiscardScenario(options: {
     createMemberCard(
       options.replacementCardCode ?? 'PL!N-test-replacement',
       options.replacementName,
-      1
+      options.replacementCost ?? 1
     ),
     PLAYER1,
     'p1-relay-draw-discard-replacement'
   );
+  const secondReplacement = options.secondReplacement
+    ? createCardInstance(
+        createMemberCard(
+          options.secondReplacement.cardCode ?? 'PL!N-test-second-replacement',
+          options.secondReplacement.name,
+          options.secondReplacement.cost
+        ),
+        PLAYER1,
+        'p1-relay-draw-discard-second-replacement'
+      )
+    : null;
   const handCards = Array.from({ length: options.handCount }, (_, index) =>
     createCardInstance(
       createMemberCard(`PL!N-test-hand-${index}`, `Hand ${index}`),
@@ -128,13 +174,23 @@ function setupRelayDrawDiscardScenario(options: {
     PLAYER1,
     'p1-relay-draw-discard-remaining-deck'
   );
+  const successLive =
+    options.successLiveScore === undefined
+      ? null
+      : createCardInstance(
+          createLiveCard('PL!-test-success-live', options.successLiveScore),
+          PLAYER1,
+          'p1-relay-draw-discard-success-live'
+        );
 
   const state = registerCards(session.state!, [
     source,
     replacement,
+    ...(secondReplacement ? [secondReplacement] : []),
     ...handCards,
     ...drawCards,
     remainingDeckCard,
+    ...(successLive ? [successLive] : []),
   ]);
   (session as unknown as { authorityState: GameState }).authorityState = state;
 
@@ -150,23 +206,35 @@ function setupRelayDrawDiscardScenario(options: {
     };
   };
   p1.hand.cardIds = [source.instanceId, ...handCards.map((card) => card.instanceId)];
-  p1.mainDeck.cardIds = [...drawCards.map((card) => card.instanceId), remainingDeckCard.instanceId];
+  p1.mainDeck.cardIds = [
+    ...drawCards.map((card) => card.instanceId),
+    remainingDeckCard.instanceId,
+  ].slice(0, options.mainDeckCardCount ?? 3);
   p1.waitingRoom.cardIds = [];
-  p1.successZone.cardIds = [];
+  p1.successZone.cardIds = successLive ? [successLive.instanceId] : [];
   p1.liveZone.cardIds = [];
   p1.memberSlots.slots = {
-    [SlotPosition.LEFT]: null,
+    [SlotPosition.LEFT]: secondReplacement?.instanceId ?? null,
     [SlotPosition.CENTER]: replacement.instanceId,
     [SlotPosition.RIGHT]: null,
   };
-  p1.memberSlots.cardStates = new Map([
-    [replacement.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
-  ]);
+  p1.memberSlots.cardStates = new Map();
+  p1.memberSlots.cardStates.set(replacement.instanceId, {
+    orientation: OrientationState.ACTIVE,
+    face: FaceState.FACE_UP,
+  });
+  if (secondReplacement) {
+    p1.memberSlots.cardStates.set(secondReplacement.instanceId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+  }
 
   return {
     session,
     sourceId: source.instanceId,
     replacementId: replacement.instanceId,
+    secondReplacementId: secondReplacement?.instanceId ?? null,
     handCardIds: handCards.map((card) => card.instanceId),
     drawCardIds: drawCards.map((card) => card.instanceId),
   };
@@ -180,6 +248,57 @@ function playWithRelay(scenario: RelayDrawDiscardScenario): void {
     })
   );
   expect(result.success).toBe(true);
+}
+
+function startPrCostSevenAbilityFromRelaySnapshot(
+  scenario: RelayDrawDiscardScenario,
+  relayReplacements: readonly {
+    readonly cardId: string;
+    readonly effectiveCost: number;
+  }[]
+): GameState {
+  const sourceState = scenario.session.state!;
+  const replacementCardIds = relayReplacements.map((replacement) => replacement.cardId);
+  const stagedState = updatePlayer(sourceState, PLAYER1, (player) => ({
+    ...player,
+    hand: {
+      ...player.hand,
+      cardIds: player.hand.cardIds.filter((cardId) => cardId !== scenario.sourceId),
+    },
+    waitingRoom: {
+      ...player.waitingRoom,
+      cardIds: [
+        ...player.waitingRoom.cardIds.filter((cardId) => !replacementCardIds.includes(cardId)),
+        ...replacementCardIds,
+      ],
+    },
+    memberSlots: {
+      ...player.memberSlots,
+      slots: {
+        [SlotPosition.LEFT]: null,
+        [SlotPosition.CENTER]: scenario.sourceId,
+        [SlotPosition.RIGHT]: null,
+      },
+      cardStates: new Map([
+        [scenario.sourceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      ]),
+    },
+  }));
+  const ability: PendingAbilityState = {
+    id: 'pending-s-pr-045-cost-seven-relay',
+    abilityId: S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+    sourceCardId: scenario.sourceId,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: TriggerCondition.ON_ENTER_STAGE,
+    eventIds: ['test-double-relay-enter-event'],
+    sourceSlot: SlotPosition.CENTER,
+    metadata: { relayReplacements },
+  };
+  return resolvePendingCardEffects({
+    ...stagedState,
+    pendingAbilities: [ability],
+  }).gameState;
 }
 
 describe('relay enter draw-discard shared workflow', () => {
@@ -339,5 +458,222 @@ describe('relay enter draw-discard shared workflow', () => {
           action.payload.relayReplacementCardIds?.includes(scenario.replacementId)
       )
     ).toBe(true);
+  });
+
+  it('uses the captured effective cost 7 when PL!S-PR-045-P 费用11「津島善子」relays from a currently cost-4 member', () => {
+    const scenario = setupRelayDrawDiscardScenario({
+      sourceCardCode: 'PL!S-PR-045-P',
+      sourceName: '津島善子',
+      sourceCost: 11,
+      replacementName: '小泉花陽',
+      replacementCardCode: 'PL!-bp4-008-P',
+      replacementCost: 4,
+      successLiveScore: 6,
+      handCount: 1,
+    });
+
+    playWithRelay(scenario);
+
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'PLAY_MEMBER' &&
+          action.payload.cardId === scenario.sourceId &&
+          action.payload.relayReplacements?.[0]?.cardId === scenario.replacementId &&
+          action.payload.relayReplacements?.[0]?.effectiveCost === 7
+      )
+    ).toBe(true);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+      selectableCardIds: [...scenario.handCardIds, ...scenario.drawCardIds],
+      selectionLabel: '请选择要放置入休息室的手牌',
+      metadata: {
+        drawCount: 2,
+        discardCount: 1,
+        drawnCardIds: scenario.drawCardIds,
+      },
+    });
+
+    const discardResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        scenario.handCardIds[0]
+      )
+    );
+
+    expect(discardResult.success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.pendingAbilities).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.replacementId,
+      scenario.handCardIds[0],
+    ]);
+    expect(
+      scenario.session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          entry.event.fromZone === ZoneType.HAND &&
+          entry.event.cardInstanceIds?.includes(scenario.handCardIds[0]!)
+      )
+    ).toBe(true);
+  });
+
+  it('consumes PL!S-PR-045-PR 费用11「津島善子」without drawing on an ordinary non-relay entry', () => {
+    const scenario = setupRelayDrawDiscardScenario({
+      sourceCardCode: 'PL!S-PR-045-PR',
+      sourceName: '津島善子',
+      sourceCost: 11,
+      replacementName: 'Cost Seven',
+      replacementCost: 7,
+      handCount: 1,
+    });
+
+    scenario.session.setManualOperationMode('FREE');
+    const result = scenario.session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, scenario.sourceId, SlotPosition.LEFT, {
+        freePlay: true,
+      })
+    );
+
+    expect(result.success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.pendingAbilities).toEqual([]);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual(scenario.handCardIds);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID &&
+          action.payload.reason === 'NOT_RELAY_ENTER'
+      )
+    ).toBe(true);
+  });
+
+  it('does not draw when PL!S-PR-045-PR 费用11「津島善子」relays from effective cost 6', () => {
+    const scenario = setupRelayDrawDiscardScenario({
+      sourceCardCode: 'PL!S-PR-045-PR',
+      sourceName: '津島善子',
+      sourceCost: 11,
+      replacementName: 'Cost Six',
+      replacementCost: 6,
+      handCount: 1,
+    });
+
+    playWithRelay(scenario);
+
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.pendingAbilities).toEqual([]);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual(scenario.handCardIds);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID &&
+          action.payload.step === 'CHECK_RELAY_REPLACEMENT_EFFECTIVE_COST' &&
+          action.payload.reason === 'REPLACEMENT_EFFECTIVE_COST_MISMATCH' &&
+          action.payload.relayReplacementEffectiveCosts?.[0] === 6
+      )
+    ).toBe(true);
+  });
+
+  it('accepts a double-relay event snapshot when either replaced member has effective cost 7', () => {
+    const scenario = setupRelayDrawDiscardScenario({
+      sourceCardCode: 'PL!S-PR-045-PR',
+      sourceName: '津島善子',
+      sourceCost: 11,
+      replacementName: 'Cost Six',
+      replacementCost: 6,
+      secondReplacement: {
+        name: 'Cost Seven',
+        cost: 7,
+      },
+      handCount: 1,
+    });
+
+    const started = startPrCostSevenAbilityFromRelaySnapshot(scenario, [
+      { cardId: scenario.replacementId, effectiveCost: 6 },
+      { cardId: scenario.secondReplacementId!, effectiveCost: 7 },
+    ]);
+
+    expect(started.activeEffect).toMatchObject({
+      abilityId: S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+      selectableCardIds: [...scenario.handCardIds, ...scenario.drawCardIds],
+      metadata: {
+        drawCount: 2,
+        discardCount: 1,
+        drawnCardIds: scenario.drawCardIds,
+      },
+    });
+    expect(started.pendingAbilities).toEqual([]);
+  });
+
+  it('continues drawing through a refresh before PL!S-PR-045-PR 费用11「津島善子」opens the discard step', () => {
+    const scenario = setupRelayDrawDiscardScenario({
+      sourceCardCode: 'PL!S-PR-045-PR',
+      sourceName: '津島善子',
+      sourceCost: 11,
+      replacementName: 'Cost Seven',
+      replacementCost: 7,
+      mainDeckCardCount: 1,
+      handCount: 1,
+    });
+
+    playWithRelay(scenario);
+
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: S_PR_045_ON_ENTER_RELAY_FROM_COST_SEVEN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
+      selectableCardIds: [...scenario.handCardIds, scenario.drawCardIds[0], scenario.replacementId],
+      metadata: {
+        drawnCardIds: [scenario.drawCardIds[0], scenario.replacementId],
+      },
+    });
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RULE_ACTION' &&
+          action.payload.type === 'REFRESH' &&
+          action.payload.affectedPlayerId === PLAYER1
+      )
+    ).toBe(true);
+  });
+
+  it('keeps the discard window open on illegal input, then finishes through unified continuation', () => {
+    const scenario = setupRelayDrawDiscardScenario({
+      sourceCardCode: 'PL!S-PR-045-PR',
+      sourceName: '津島善子',
+      sourceCost: 11,
+      replacementName: 'Cost Seven',
+      replacementCost: 7,
+      handCount: 1,
+    });
+
+    playWithRelay(scenario);
+    const activeEffectId = scenario.session.state!.activeEffect!.id;
+    const handBeforeIllegalInput = [...scenario.session.state!.players[0].hand.cardIds];
+    const illegalResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, activeEffectId, scenario.sourceId)
+    );
+
+    expect(illegalResult.success).toBe(false);
+    expect(scenario.session.state?.activeEffect?.id).toBe(activeEffectId);
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual(handBeforeIllegalInput);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.replacementId,
+    ]);
+
+    const validResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, activeEffectId, scenario.handCardIds[0])
+    );
+
+    expect(validResult.success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(scenario.session.state?.pendingAbilities).toEqual([]);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
+      scenario.replacementId,
+      scenario.handCardIds[0],
+    ]);
   });
 });

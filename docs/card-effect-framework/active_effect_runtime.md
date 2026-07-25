@@ -79,6 +79,7 @@ Important fields:
 |---|---|
 | `abilityId` | 当前处理能力。 |
 | `sourceCardId` | 来源卡实例。 |
+| `sourceLifecycleId` | `perTurnLimit` 能力来源规则对象的生命周期；从 pending 或 activated dispatch 捕获并跨 activeEffect steps 保持，避免来源跨区再进入后把旧 active 占用算到新对象。 |
 | `controllerId` | 效果控制者。 |
 | `awaitingPlayerId` | 当前需要输入的玩家。 |
 | `stepId` | 当前步骤。 |

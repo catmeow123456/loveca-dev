@@ -23,13 +23,14 @@
 
 ## 卡效批处理文档节奏
 
-连续实现多张卡效时，默认采用“快速卡效批处理模式”，不要每张卡都全量刷新设计类文档。文档节奏要偏硬：先保证卡效登记、测试与短进度准确，设计/覆盖/gap 文档只在确有架构变化或批末明确收束时再整理。
+连续实现多张卡效时，默认采用“快速卡效批处理模式”，不要每张卡都全量刷新设计类文档。文档节奏要偏硬：先保证卡效登记与测试准确，设计/覆盖/gap 文档只在确有架构变化或批末明确收束时再整理。
 
 必须实时更新：
 
 - `docs/card-effect-reuse-audit/existing_module_map.md`：主登记册，每张卡/每个效果段落地后更新。
 - focused tests：对应能力登记、关键结算路径、同编号罕度同步或真实数据形态必须覆盖。
-- `PROJECT_PROGRESS_TODO.md`：每个工作窗口只写短记录，列出本窗口完成卡牌、关键 bugfix、验证命令与下一步；不做长篇设计重写。
+
+`PROJECT_PROGRESS_TODO.md` 只在当前基线、仍有效缺口或下一步确有变化时更新；不要写逐窗口完成记录、验证流水账或提交说明替代品，已完成工作由 Git 历史和卡效主登记册追溯。
 
 默认暂不随每张卡更新，只有在“批末收束”或确有新边界时才更新：
 
@@ -40,7 +41,7 @@
 - `docs/card-effect-reuse-audit/module_gap_list.md`
 - `docs/card-effect-reuse-audit/safe_refactor_plan.md`
 
-例外：如果本批引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，应在同一批内同步更新相关设计、覆盖和 gap 文档。若只是复用既有模块追加同构卡效，即使连续做 5-10 张，也先保持主登记册、progress 与测试准确；等用户明确要求“这批收束/提交”时，再做一次批末摘要式收束，避免全文扫描式重写。
+例外：如果本批引入新抽象、新模块、新事件边界，或改变 resolver / cost calculator / live modifier registry / 同编号罕度同步机制，应在同一批内同步更新相关设计、覆盖和 gap 文档。若只是复用既有模块追加同构卡效，即使连续做 5-10 张，也先保持主登记册与测试准确；等用户明确要求“这批收束/提交”时，再做一次批末摘要式收束，避免全文扫描式重写。
 
 ## 测试卡组与卡图资产
 
@@ -83,7 +84,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 不要在 action handler 里散落具体卡效。
 - 具体卡效定义层集中在 `src/application/card-effects/definitions/index.ts`；具体卡牌流程与同型 family 分别放在 `src/application/card-effects/workflows/cards/` 和 `workflows/shared/`，原子动作与 activeEffect/pending runtime 放在 `src/application/card-effects/runtime/`。`card-effect-runner.ts` 的完整卡效 fallback 已清空，当前只保留调度、生命周期、registry 注册及尚未迁出的 matcher / relay / trigger 条件胶水；不要把具体 resolver 写回 runner。
 - 新增卡效前先在 `CARD_ABILITY_DEFINITIONS` 中按规则分类登记，不要先写单卡散逻辑。
-- 新增卡效时必须先用 `llocg_db/json/cards_cn.json` 或本地卡牌数据确认同基础编号的全部罕度。若同基础编号不同罕度效果文本一致，优先在 `CARD_ABILITY_DEFINITIONS.baseCardCodes` 登记基础编号，并在 resolver / cost calculator / live modifier registry 中使用基础编号判断；不要只给单一罕度写 `cardCodes` 或硬编码 `cardCode === '...-P'`。若只覆盖部分罕度，必须在 `existing_module_map.md` 说明原因。`tests/unit/card-effect-rarity-sync.test.ts` 会阻止 exact `cardCodes` 漏同步同编号罕度。
+- 卡牌领域不变量：同一“去掉罕度后缀的基础编号”下，各罕度的卡牌类型与完整卡效相同；罕度后缀不是效果边界。卡效 definition、workflow gate、continuous registry、cost/modifier 查询一律按基础编号覆盖，不得把 `cardCodes` 当作“防止尚未发现的罕度自动获得效果”的保险丝，也不得硬编码 `cardCode === '...-P'`。BP7 默认且必须使用 `baseCardCodes`；公开 API / Excel 当前只出现一个具体罕度，只是印刷数据事实，不缩小规则覆盖。
+- 新增卡效时仍要用 `llocg_db/json/cards.json`、公开玩家 API 或最新 Excel 核对卡牌类型、日文卡文与当前公开罕度；本地 `cards.json` 缺失或只有 API/Excel 数据，不构成 exact `cardCodes` 登记理由。`existing_module_map.md` 应以基础编号登记覆盖范围，可另注“当前公开版本为某罕度”。罕度同步测试应锁定基础编号覆盖，未知罕度出现时无需再追加 definition。
 - 需要隐藏信息时，以 `projector` / visibility / inspection context 控制前端可见性。
 - 本地测试和正式网页桌面应尽量复用同一套组件和命令，不做“双轨 UI”。
 - 自动费用、撤销、检视区、效果弹窗等交互应以玩家视角自然为优先，但底层仍要记录可审计动作。
@@ -143,7 +145,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - `HeartColor.GRAY` 表示实际提供的无色/灰色 Heart，只计入 LIVE 判定总 Heart 数，不能补指定颜色；`HeartColor.RAINBOW` 仍表示可代替任意颜色的 All Heart。判心数据不得再用 `RAINBOW` 代表无色结果；必要无色 Heart 的旧有结构化投影仍可使用 `RAINBOW`/泛用总数语义，规则层同时规范化 `GRAY` 需求输入。
 - “必要HEART增加/减少”类效果应使用 `applyHeartRequirementModifiers`；它支持粉/黄/紫等指定颜色，也支持泛用/无色/All 需求，并兼容 `RAINBOW` 条目和 `totalRequired` 表达的两种数据形态。`PL!-sd1-022-SD` 这种减少 `[無ハート]` 的效果只是其中的 All 需求负修正。
 - 前端判定面板读取必要 Heart 修正时要注意投影键：`playerViewState.match.liveResult.requirementModifiers` / `requirementReductions` 当前以 `obj_<cardId>` 为 key，而桌面组件通常使用 raw `cardId`。读取时必须兼容 raw/public 两种 key，否则 `022` 这类效果会在 UI 预览里显示未修正的需求。
-- “1回合 N 次”属于能力定义的通用限制，应在 `CARD_ABILITY_DEFINITIONS.perTurnLimit` 登记，由通用 `ABILITY_USE` 记录与校验按 `playerId + abilityId + sourceCardId + turnCount` 计算；它限制的是此来源卡实例，不是同名卡或同一玩家同能力总次数。不要在单张卡效果里临时判断。
+- “1回合 N 次”属于能力定义的通用限制，应在 `CARD_ABILITY_DEFINITIONS.perTurnLimit` 登记，由通用 `ABILITY_USE` 记录与校验按 `playerId + abilityId + sourceCardId + sourceLifecycleId + turnCount` 计算。`sourceCardId` 是跨区域保持不变的实体卡 ID；`sourceLifecycleId` 表示该实体卡当前这一次成为能力来源的规则对象：`STAGE_MEMBER / PLAYED_MEMBER` 取最近一次跨区域 `ON_ENTER_STAGE.eventId`，`LIVE_CARD` 取最近一次跨区域 `ON_ENTER_LIVE_ZONE.eventId`，无入口事件的测试直置对象使用确定性 initial sentinel。成员区内移动、LIVE 区内移动及 ACTIVE/WAITING 变化不重置；离场后再次进入来源区域会生成新 lifecycle，因此不受旧对象的已结算、pending 或 active 次数占用。不要删除旧 `ABILITY_USE` 历史，也不要在单张卡效果里临时清次数。
 
 ## 费用体系约定
 

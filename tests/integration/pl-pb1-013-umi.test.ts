@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { activateCardAbility, confirmActiveEffectStep } from '../../src/application/card-effect-runner';
-import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import {
+  createActivateAbilityCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { PL_PB1_013_ACTIVATED_PAY_TWO_ENERGY_REVEAL_HAND_LIVE_SCORE_ABILITY_ID as A } from '../../src/application/card-effects/ability-ids';
 import { createCardInstance, createHeartIcon, createHeartRequirement, type EnergyCardData, type LiveCardData, type MemberCardData } from '../../src/domain/entities/card';
 import { createGameState, registerCards, type GameState } from '../../src/domain/entities/game';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
-import { CardType, FaceState, GamePhase, HeartColor, OrientationState, SlotPosition, SubPhase } from '../../src/shared/types/enums';
+import { CardType, FaceState, GameMode, GamePhase, HeartColor, OrientationState, SlotPosition, SubPhase } from '../../src/shared/types/enums';
 
 const P1 = 'p1', P2 = 'p2';
 const member = (code: string): MemberCardData => ({ cardCode: code, name: code, cardType: CardType.MEMBER, cost: 9, blade: 1, hearts: [createHeartIcon(HeartColor.PINK, 1)], groupNames: ["μ's"] });
@@ -107,6 +110,38 @@ describe('PL!-pb1-013 園田海未', () => {
       s.extraHandCards[0].instanceId,
     ]);
     expect(selected.gameState.activeEffect?.selectableCardIds).toEqual([]);
+  });
+
+  it('lets the solitaire system seat finish the blind selection chain without logging real hand IDs', () => {
+    const s = setup({ handCount: 2 });
+    const session = createGameSession({ gameMode: GameMode.SOLITAIRE });
+    session.restoreRuntimeState({ authorityState: s.game, currentPublicSeq: 0 });
+
+    const activated = session.executeCommand(
+      createActivateAbilityCommand(P1, s.source.instanceId, A)
+    );
+
+    expect(activated.success, activated.error).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.liveResolution.playerScores.get(P1)).toBe(5);
+
+    const systemConfirmCommands = session
+      .getCommandLogSince(0)
+      .filter(
+        (record) =>
+          record.playerId === P2 &&
+          record.commandType === 'CONFIRM_EFFECT_STEP' &&
+          record.status === 'ACCEPTED'
+      );
+    expect(systemConfirmCommands).toHaveLength(2);
+    expect(systemConfirmCommands[0]?.payload).toMatchObject({
+      selectedCardId: expect.stringMatching(/^blind-card-(?:v\d+-)?0$/),
+    });
+    for (const record of systemConfirmCommands) {
+      const payload = JSON.stringify(record.payload);
+      expect(payload).not.toContain(JSON.stringify(s.hand!.instanceId));
+      expect(payload).not.toContain(JSON.stringify(s.extraHandCards[0]!.instanceId));
+    }
   });
 
   it('does not score for a non-LIVE and keeps an earned modifier after the source leaves', () => {

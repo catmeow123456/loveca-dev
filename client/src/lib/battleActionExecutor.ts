@@ -18,6 +18,7 @@ export interface BattleActionExecutionHandlers {
     sourceSlot?: SlotPosition
   ) => CommandResult;
   readonly setLiveCard?: (cardId: string, faceDown: boolean) => CommandResult;
+  readonly unsetLiveCard?: (cardId: string) => CommandResult;
   readonly movePublicCardToHand?: (
     cardId: string,
     fromZone:
@@ -79,6 +80,10 @@ export function executeBattleActionPayload(
     case GameCommandType.SET_LIVE_CARD:
       if (!handlers.setLiveCard) return false;
       handlers.setLiveCard(payload.cardId, payload.faceDown);
+      return true;
+    case GameCommandType.UNSET_LIVE_CARD:
+      if (!handlers.unsetLiveCard) return false;
+      handlers.unsetLiveCard(payload.cardId);
       return true;
     case GameCommandType.MOVE_PUBLIC_CARD_TO_HAND:
       if (!handlers.movePublicCardToHand) return false;

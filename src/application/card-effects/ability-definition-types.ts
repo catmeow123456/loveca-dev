@@ -1,4 +1,9 @@
-import type { CardType, SlotPosition, TriggerCondition, ZoneType } from '../../shared/types/enums.js';
+import type {
+  CardType,
+  SlotPosition,
+  TriggerCondition,
+  ZoneType,
+} from '../../shared/types/enums.js';
 
 export enum CardAbilityCategory {
   CONTINUOUS = 'CONTINUOUS',
@@ -39,6 +44,11 @@ export interface OnEnterStageTriggerFilter {
   readonly enteredOrdinalThisTurn?: number;
 }
 
+export interface PlayedMemberOnEnterTriggerFilter {
+  readonly enteredViaRelay?: boolean;
+  readonly replacedMemberGroupAliases?: readonly string[];
+}
+
 export interface CardAbilityDefinition {
   readonly abilityId: string;
   readonly cardCodes?: readonly string[];
@@ -52,6 +62,8 @@ export interface CardAbilityDefinition {
   readonly requiredSourceSlots?: readonly SlotPosition[];
   readonly triggerFromZones?: readonly ZoneType[];
   readonly triggerToZones?: readonly ZoneType[];
+  readonly enterWaitingRoomCause?: 'OWN_LIVE_SUCCESS_ABILITY';
+  readonly playedMemberOnEnterTriggerFilter?: PlayedMemberOnEnterTriggerFilter;
   readonly onEnterStageTriggerFilter?: OnEnterStageTriggerFilter;
   readonly energyPlacementCause?: 'ANY_CARD_EFFECT' | 'OWN_CARD_EFFECT';
   readonly perTurnLimit?: number;

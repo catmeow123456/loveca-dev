@@ -1,4 +1,5 @@
 import type { GameAction, GameState } from '../../../domain/entities/game.js';
+import { capturePendingAbilitySourceLifecycles } from './ability-source-lifecycle.js';
 
 const ABILITY_USE_STEP = 'ABILITY_USE';
 const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
@@ -34,5 +35,5 @@ export function enqueueResolvedAbilityObserverCardEffects(game: GameState): Game
   for (const handler of resolvedAbilityObserverHandlers) {
     state = handler(state, { resolvedAction });
   }
-  return state;
+  return capturePendingAbilitySourceLifecycles(state);
 }

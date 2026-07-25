@@ -1,5 +1,6 @@
 import { isLiveCardData } from '../entities/card.js';
 import { getCardById, getPlayerById, type GameState } from '../entities/game.js';
+import { cardCodeMatchesBase } from '../../shared/utils/card-code.js';
 
 export const CheerDeckEdge = {
   TOP: 'TOP',
@@ -8,7 +9,7 @@ export const CheerDeckEdge = {
 
 export type CheerDeckEdge = (typeof CheerDeckEdge)[keyof typeof CheerDeckEdge];
 
-const BOTTOM_CHEER_LIVE_CARD_CODES = new Set(['PL!S-bp7-022-SECL']);
+const BOTTOM_CHEER_LIVE_BASE_CARD_CODES = ['PL!S-bp7-022'] as const;
 
 /** Returns the edge used by this player's next individual cheer reveal. */
 export function getCheerDeckEdgeForPlayer(game: GameState, playerId: string): CheerDeckEdge {
@@ -23,7 +24,9 @@ export function getCheerDeckEdgeForPlayer(game: GameState, playerId: string): Ch
       card !== null &&
       card.ownerId === player.id &&
       isLiveCardData(card.data) &&
-      BOTTOM_CHEER_LIVE_CARD_CODES.has(card.data.cardCode) &&
+      BOTTOM_CHEER_LIVE_BASE_CARD_CODES.some((baseCardCode) =>
+        cardCodeMatchesBase(card.data.cardCode, baseCardCode)
+      ) &&
       player.liveZone.cardIds.includes(card.instanceId)
     );
   });

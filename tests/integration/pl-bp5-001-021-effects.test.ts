@@ -19,6 +19,8 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import { createGameSession } from '../../src/application/game-session';
 import {
   PL_BP5_001_LIVE_SUCCESS_DISCARD_LOOK_TOP_BY_LIVE_SCORE_ABILITY_ID,
   PL_BP5_021_LIVE_START_SUNNY_DAY_SONG_ABILITY_ID,
@@ -26,6 +28,7 @@ import {
 import {
   CardType,
   FaceState,
+  GameMode,
   HeartColor,
   OrientationState,
   SlotPosition,
@@ -488,6 +491,49 @@ describe('PL!-bp5-021-L SUNNY DAY SONG', () => {
       ])
     );
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(4);
+  });
+
+  it('has the solitaire opponent discard the first hand card through the legacy implicit single window', () => {
+    const setup = setupSunnyDaySong();
+    const afterDraw = resolvePendingCardEffects(setup.game).gameState;
+    const session = createGameSession({ gameMode: GameMode.SOLITAIRE });
+    session.restoreRuntimeState({
+      authorityState: afterDraw,
+      currentPublicSeq: 0,
+    });
+
+    const result = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        afterDraw.activeEffect!.id,
+        setup.p1Discard.instanceId
+      )
+    );
+
+    expect(result.success, result.error).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'PL_BP5_021_SELECT_MUSE_MEMBER_GAIN_YELLOW_HEART',
+      awaitingPlayerId: PLAYER1,
+    });
+    expect(session.state?.players[1].waitingRoom.cardIds).toEqual([
+      setup.p2Discard.instanceId,
+    ]);
+
+    const systemCommands = session
+      .getCommandLogSince(0)
+      .filter(
+        (record) =>
+          record.playerId === PLAYER2 &&
+          record.commandType === 'CONFIRM_EFFECT_STEP' &&
+          record.status === 'ACCEPTED'
+      );
+    expect(systemCommands).toHaveLength(1);
+    expect(systemCommands[0]?.payload).toMatchObject({
+      selectedCardId: 'blind-card-0',
+    });
+    const recordedPayload = JSON.stringify(systemCommands[0]?.payload);
+    expect(recordedPayload).not.toContain(setup.p2Discard.instanceId);
+    expect(recordedPayload).not.toContain(setup.p2Draw.instanceId);
   });
 
   it('does nothing when own stage has no members', () => {

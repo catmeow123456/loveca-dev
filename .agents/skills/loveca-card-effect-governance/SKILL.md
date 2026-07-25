@@ -44,6 +44,7 @@ git diff -- src/application/card-effect-runner.ts
 - `docs/card-data-sync/sources/loveca_*.xlsx` 是本地私有同步源，可能比 `cards.json` 更新。若新卡在 `cards.json` 缺失、卡文明显滞后，或用户明确说 Excel 已有，应读取最新 Excel 作为兜底事实来源，并在结论中说明来源。
 - 规则实现以日文卡文为准：优先 `cards.json` 的日文 `ability`，兜底用 Excel 的 `多行日文效果`。前台展示文本优先使用 Excel 的 `多行中文效果`。
 - 卡牌完成状态优先查 `docs/card-effect-reuse-audit/existing_module_map.md`，再查 `ability-ids.ts`、`definitions/index.ts` 和最近 workflow/test。
+- 卡牌领域不变量：同一“去掉罕度后缀的基础编号”下，各罕度的卡牌类型与完整卡效相同；罕度后缀不是 effect boundary。公开 API / Excel 当前只出现某一罕度，是印刷数据事实，不缩小 definition、workflow gate、continuous registry 或 modifier 查询的规则覆盖范围。
 
 ## 本地环境与卡文读取注意事项
 
@@ -52,7 +53,7 @@ git diff -- src/application/card-effect-runner.ts
 - 卡号和稀有度存在全角符号差异，例如 `R＋`、`P＋`，不能把 ASCII `R+` / `P+` 查不到误判为缺卡。遇到未命中时，先按 base card code 和 DB 里的真实 `rare_list` 复核。
 - `cards.json` 里同一卡号可能在 FAQ relation、rare_list 等字段重复出现；抽取真实卡文时应读取顶层卡牌对象的 `cost`、`score`、`name`、`ability` 等字段，并在输出中列基础编号、费用/分数、卡名和原文。
 - Excel 兜底优先读取最新 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`；关键列为 `カード番号`、`カード名`、`卡牌中文名`、`多行日文效果`、`多行中文效果`、`真实团体`、`真实小队`。这是私有/gitignored 输入，不要为同步它而 stage 文件或改 submodule。
-- 读取 Excel 时按 exact card number 匹配，再按 base card code 聚合同文 rarity；不要只凭中文译名或裸文本搜索判断是否同卡。
+- 读取 Excel 时可按 exact card number 定位当前公开印刷记录，再按 base card code 聚合校验；不要只凭中文译名或裸文本搜索判断是否同卡，也不要把当前只查到一个罕度误写成 exact 卡效登记。
 
 ## 必读路线
 
@@ -123,7 +124,7 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 - `src/application/card-effects/workflows/cards/` 只放“卡牌维度”的 workflow 文件。文件名必须体现基础编号 + 卡名英文字符/罗马字 slug，不用效果描述、批次名或作者临时命名。
   - 基础编号取去掉稀有度后的 base card code，统一小写 kebab，并保留系列前缀，例如 `PL!-bp6-003` -> `pl-bp6-003`，`PL!N-bp3-030` -> `n-bp3-030`，`PL!SP-pr-018` -> `sp-pr-018`。
   - 卡名部分使用英文字符或罗马字，按 lower-kebab 写入文件名，例如 `pl-bp6-020-dancing-stars-on-me.ts`、`n-bp3-030-love-u-my-friends.ts`、`sp-pr-018-kanon.ts`。
-  - 同基础编号、同文不同 rarity 可共用同一个 `cards/<base>-<name>.ts`，并通过 definition 的 `baseCardCodes` / rarity 覆盖表达；不要为每个 rarity 拆文件。
+  - 同一基础编号的不同 rarity 必须共用同一个 `cards/<base>-<name>.ts`，并通过 definition 的 `baseCardCodes` 覆盖；不要为每个 rarity 拆文件。
 - `cards/` 文件原则上只承载该基础编号/同文 rarity 的卡效。若一个文件开始服务多个基础编号，即使它们来自同一执行批次，也不能继续留在 `cards/` 下，除非其中一个基础编号只是同文/同 base 的覆盖。
 - 多基础编号的同型家族必须迁入 `src/application/card-effects/workflows/shared/`，并以可复用行为命名，而不是卡号或卡名命名。示例形态：`moved-side-blade.ts`、`live-start-score-bonuses.ts`、`discard-cost-recover-live-or-gain-blade.ts`、`aqours-live-start-effects.ts`。
 - 从单卡 workflow 扩展出第二个真实样本时，必须重新判断：
@@ -184,7 +185,7 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 2. 候选卡真实文本确认：从 `llocg_db/json/cards.json` 核对，列卡号、费用/分数、卡名、原文。
 3. 是否已有实现：查 `definitions/index.ts`、workflow、tests、`existing_module_map.md`；已覆盖则跳过并说明来源。
 4. 游戏语言：用中文概括每段效果。
-5. 代码语言：建议 abilityId、definition、workflow/helper，是扩 `baseCardCodes` 还是新增 abilityId/workflow。
+5. 代码语言：建议 abilityId、definition、workflow/helper；卡效登记必须使用 `baseCardCodes`，再判断是扩现有 definition 还是新增 abilityId/workflow。
 6. 可复用 helper/workflow：明确复用项，也明确不复用或不扩展项及原因。
 7. 风险点：pending 顺序、费用支付、skip/decline、公开/手牌隐私、HEART/BLADE modifier、事件消费、测试覆盖。
 8. 测试建议：classification 锁什么，focused integration 放哪里，是否需要 sample 大测试。
@@ -209,7 +210,7 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 
 每次实现或批准新卡效前，强制做一轮复用与晋升检查：
 
-1. 查 `existing_module_map.md`：同基础编号同文优先扩 `baseCardCodes` 或现有 definition。
+1. 查 `existing_module_map.md`：同基础编号必须由 `baseCardCodes` 或现有 definition 统一覆盖。
 2. 查 `workflows/shared/`：已有稳定 family 时扩配置，不新增单卡 workflow。
 3. 查 `workflows/cards/`：如果新增卡与旧单卡 workflow 的操作顺序相同，判断旧单卡是否应晋升为 shared workflow 或窄 helper。
 4. 判断能否晋升时，看真实流程而不是只看文案相似：
@@ -292,7 +293,9 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 
 ### Ability definition
 
-- 同基础编号同文优先 `baseCardCodes`。
+- 同一基础编号的卡牌类型与完整卡效在各罕度间相同，必须使用 `baseCardCodes`；`cardCodes` 不能用作“防止尚未发现的罕度自动获得效果”的保险丝。
+- BP7 definition、workflow gate、continuous registry、cost/modifier 查询默认且必须按基础编号登记。本地 `cards.json` 缺失，或只能从公开 API / Excel 找到当前某个具体罕度，都不是 exact `cardCodes` 的例外理由。
+- `existing_module_map.md` 应登记基础编号覆盖；可以另记“当前公开版本为某罕度”，但不能把该数据事实写成规则边界。罕度同步测试应证明未知/新增罕度无需再追加 definition。
 - 多段效果拆独立 `abilityId`。
 - `category`、`sourceZone`、`triggerCondition`、`queued`、`implemented` 要准确。
 - 不混淆 `AUTO`、`ON_ENTER`、`ACTIVATED`、`CONTINUOUS`。

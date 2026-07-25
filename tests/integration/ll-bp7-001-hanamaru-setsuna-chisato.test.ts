@@ -80,7 +80,7 @@ function deck(): DeckConfig {
   };
 }
 
-function setup() {
+function setup(sourceCardCode = 'LL-bp7-001-R+') {
   const session = createGameSession();
   session.createGame('ll-bp7-001-special-play', PLAYER1, 'P1', PLAYER2, 'P2');
   session.initializeGame(deck(), deck());
@@ -94,7 +94,7 @@ function setup() {
   const player = state.players[0];
   const [sourceId, hanamaruId, setsunaId, chisatoId] = player.hand.cardIds;
   const replacements: readonly [string, MemberCardData][] = [
-    [sourceId, member('LL-bp7-001-R+', '国木田花丸&優木せつ菜&嵐千砂都', 15)],
+    [sourceId, member(sourceCardCode, '国木田花丸&優木せつ菜&嵐千砂都', 15)],
     [hanamaruId, member('PAY-HANAMARU', '国木田花丸')],
     [setsunaId, member('PAY-SETSUNA', '優木せつ菜')],
     [chisatoId, member('PAY-CHISATO', '嵐千砂都')],
@@ -117,7 +117,7 @@ function setup() {
 }
 
 describe('LL-bp7-001-R+ special member play', () => {
-  it('registers exactly the three exact-card ability identities', () => {
+  it('registers the three abilities for every rarity sharing the base card identity', () => {
     const definitions = getCardAbilityDefinitionsForCardCode('LL-bp7-001-R+');
     expect(definitions).toHaveLength(3);
     expect(
@@ -147,7 +147,24 @@ describe('LL-bp7-001-R+ special member play', () => {
         queued: true,
       },
     ]);
-    expect(getCardAbilityDefinitionsForCardCode('LL-bp7-001-R')).toHaveLength(0);
+    expect(getCardAbilityDefinitionsForCardCode('LL-bp7-001-P')).toHaveLength(3);
+    expect(getCardAbilityDefinitionsForCardCode('LL-bp7-002-R+')).toHaveLength(0);
+  });
+
+  it('allows a sibling rarity to use special play while rejecting an adjacent base', () => {
+    const sibling = setup('LL-bp7-001-P');
+    expect(
+      sibling.session.executeCommand(
+        createBeginSpecialMemberPlayCommand(PLAYER1, sibling.sourceId, SlotPosition.CENTER)
+      ).success
+    ).toBe(true);
+
+    const adjacent = setup('LL-bp7-002-R+');
+    expect(
+      adjacent.session.executeCommand(
+        createBeginSpecialMemberPlayCommand(PLAYER1, adjacent.sourceId, SlotPosition.CENTER)
+      ).success
+    ).toBe(false);
   });
 
   it('reuses waiting-room-to-hand with LIVE-only and member-only candidates', () => {

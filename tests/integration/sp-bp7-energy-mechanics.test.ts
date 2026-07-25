@@ -33,6 +33,8 @@ import {
   moveEnergyZoneCardsToEnergyDeckByCardEffect,
   placeEnergyFromDeckToZoneByCardEffect,
 } from '../../src/application/effects/energy';
+import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   CardType,
   FaceState,
@@ -477,6 +479,82 @@ describe('bp7 energy mechanics linkage', () => {
       )
     ).toHaveLength(0);
   });
+  it('allows Ren shared turn1 energy-return route after the same physical member re-enters', () => {
+    const source = makeMember('PL!SP-bp7-005-SEC', 'reentry-ren');
+    const returned = energy('reentry-return-energy');
+    let game = registerCards(createGameState('reentry-turn1', P1, 'P1', P2, 'P2'), [
+      source,
+      returned,
+    ]);
+    game = updatePlayer(game, P1, (player) => ({
+      ...player,
+      energyDeck: { ...player.energyDeck, cardIds: [] },
+      energyZone: addCardToStatefulZone(player.energyZone, returned.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = start(
+      game,
+      pending(
+        SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
+        source.instanceId,
+        TriggerCondition.ON_ENTER_STAGE,
+        'reentry-first-use'
+      )
+    );
+    const firstLifecycle = game.actionHistory.find(
+      (action) =>
+        action.payload.abilityId ===
+          SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID &&
+        action.payload.step === 'ABILITY_USE'
+    )?.payload.sourceLifecycleId;
+    expect(firstLifecycle).toBeDefined();
+
+    const leftStage = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      game,
+      P1,
+      source.instanceId,
+      enqueueTriggeredCardEffects
+    );
+    expect(leftStage?.sourceSlot).toBe(SlotPosition.CENTER);
+    const replayed = playMembersFromWaitingRoomToEmptySlots(
+      leftStage!.gameState,
+      P1,
+      [{ cardId: source.instanceId, toSlot: SlotPosition.CENTER }],
+      OrientationState.ACTIVE
+    );
+    expect(replayed?.playedMembers.map((played) => played.cardId)).toEqual([source.instanceId]);
+
+    const moved = moveEnergyZoneCardsToEnergyDeckByCardEffect(
+      replayed!.gameState,
+      P1,
+      [returned.instanceId],
+      {
+        kind: 'CARD_EFFECT',
+        playerId: P1,
+        sourceCardId: 'reentry-return-source',
+        abilityId: 'reentry-return',
+      }
+    );
+    expect(moved).not.toBeNull();
+    game = enqueueTriggeredCardEffects(
+      moved!.gameState,
+      [TriggerCondition.ON_ENERGY_MOVED_TO_DECK],
+      { energyMovedToDeckEvents: [moved!.energyMovedEvent!] }
+    );
+
+    const reentryPending = game.pendingAbilities.find(
+      (ability) =>
+        ability.abilityId === SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID
+    );
+    expect(reentryPending).toBeDefined();
+    expect(reentryPending?.sourceLifecycleId).not.toBe(firstLifecycle);
+  });
   it('does not trigger Ren turn2 when the opponent effect places energy for the player', () => {
     const source = makeMember('PL!SP-bp7-005-SEC', 'opponent-effect-ren');
     const e1 = energy('opponent-effect-energy');
@@ -558,7 +636,7 @@ describe('bp7 energy mechanics linkage', () => {
     );
     expect(mixed.activeEffect?.selectableCardIds).toEqual([e1.instanceId, e2.instanceId]);
     expect(mixed.activeEffect?.selectionLabel).toBe('选择要放回能量卡组的能量');
-    expect(mixed.activeEffect?.confirmSelectionLabel).toBe('支付费用');
+    expect(mixed.activeEffect?.confirmSelectionLabel).toBe('放回能量卡组');
     const allMarked = start(
       {
         ...game,
@@ -1364,7 +1442,7 @@ describe('bp7 energy mechanics linkage', () => {
       )
     );
     expect(game.activeEffect?.selectionLabel).toBe('选择要放回能量卡组的能量');
-    expect(game.activeEffect?.confirmSelectionLabel).toBe('支付费用');
+    expect(game.activeEffect?.confirmSelectionLabel).toBe('放回能量卡组');
     game = command(game, undefined, undefined, [cards[0].instanceId, cards[2].instanceId]);
     expect(game.players[0].energyDeck.cardIds).toEqual([cards[0].instanceId, cards[2].instanceId]);
     expect(

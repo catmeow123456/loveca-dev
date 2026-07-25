@@ -339,7 +339,16 @@ function startMiaLiveSuccessMillRecover(
     game,
     player.id,
     MILL_COUNT,
-    enqueueTriggeredCardEffects
+    enqueueTriggeredCardEffects,
+    {
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      },
+    }
   );
   if (!millResult) {
     return game;

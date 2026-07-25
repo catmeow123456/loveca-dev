@@ -1,11 +1,5 @@
 import {
-  isLiveCardData,
-  isMemberCardData,
-  type CardInstance,
-} from '../../../../domain/entities/card.js';
-import {
   addAction,
-  getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
@@ -15,8 +9,11 @@ import {
   addHeartLiveModifierForMember,
   addLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
-import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
-import { BladeHeartEffect, HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
+import {
+  collectCurrentLiveRevealedCheerBladeHeartColors,
+  selectCurrentLiveRevealedCheerCardIds,
+} from '../../../effects/cheer-selection.js';
+import { HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
 import { N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -71,7 +68,7 @@ function resolveNBp5001AyumuOnCheer(
   }
 
   const revealedCardIds = selectCurrentLiveRevealedCheerCardIds(game, player.id);
-  const heartColors = collectBladeHeartColorsFromCurrentLiveCheer(game, player.id, revealedCardIds);
+  const heartColors = collectCurrentLiveRevealedCheerBladeHeartColors(game, player.id);
   const bladeHeartTypeCount = heartColors.size;
   const shouldGainHeart = bladeHeartTypeCount >= 3;
   const shouldGainScore = bladeHeartTypeCount >= 6;
@@ -143,35 +140,6 @@ function getOwnCheerEventForAbility(
         eventIds.has(event.eventId)
     );
   return events.at(-1) ?? null;
-}
-
-function collectBladeHeartColorsFromCurrentLiveCheer(
-  game: GameState,
-  playerId: string,
-  revealedCardIds: readonly string[]
-): ReadonlySet<HeartColor> {
-  const colors = new Set<HeartColor>();
-  for (const cardId of revealedCardIds) {
-    const card = getCardById(game, cardId);
-    if (!card || card.ownerId !== playerId) {
-      continue;
-    }
-    for (const color of getBladeHeartColors(card)) {
-      colors.add(color);
-    }
-  }
-  return colors;
-}
-
-function getBladeHeartColors(card: CardInstance): readonly HeartColor[] {
-  if (!isMemberCardData(card.data) && !isLiveCardData(card.data)) {
-    return [];
-  }
-  return (card.data.bladeHearts ?? []).flatMap((bladeHeart) =>
-    bladeHeart.effect === BladeHeartEffect.HEART && bladeHeart.heartColor
-      ? [bladeHeart.heartColor]
-      : []
-  );
 }
 
 function skipPendingAbility(

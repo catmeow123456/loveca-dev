@@ -18,6 +18,7 @@ import { getCardAbilityDefinitionsForCardCode } from '../../definitions/lookup.j
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerMemberSlotMovedObserver } from '../../runtime/member-slot-moved-observers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
+import { canUseAbilityThisTurn } from '../../runtime/ability-turn-limit.js';
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -69,7 +70,7 @@ function enqueueSpBp5004MemberSlotMovedObserver(
     );
     if (
       !hasSumireMoveAbility ||
-      hasUsedAbilityThisTurn(state, player.id, abilityId, event.cardInstanceId)
+      !canUseAbilityThisTurn(state, player.id, abilityId, event.cardInstanceId)
     ) {
       continue;
     }
@@ -301,21 +302,4 @@ function hasAbilityInstance(game: GameState, pendingAbilityId: string): boolean 
       historyAction.payload.pendingAbilityId === pendingAbilityId
   );
   return alreadyPending || alreadyActive || alreadyResolved;
-}
-
-function hasUsedAbilityThisTurn(
-  game: GameState,
-  playerId: string,
-  abilityId: string,
-  sourceCardId: string
-): boolean {
-  return game.actionHistory.some(
-    (historyAction) =>
-      historyAction.type === 'RESOLVE_ABILITY' &&
-      historyAction.playerId === playerId &&
-      historyAction.payload.step === 'ABILITY_USE' &&
-      historyAction.payload.turnCount === game.turnCount &&
-      historyAction.payload.abilityId === abilityId &&
-      historyAction.payload.sourceCardId === sourceCardId
-  );
 }

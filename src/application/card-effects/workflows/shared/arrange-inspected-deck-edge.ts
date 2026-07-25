@@ -1,11 +1,14 @@
 import {
   addAction,
+  getCardById,
   getOpponent,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { isLiveCardData } from '../../../../domain/entities/card.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
+import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   BP6_016_LIVE_SUCCESS_LOOK_TOP_THREE_ARRANGE_ALL_TO_TOP_ABILITY_ID,
   HS_BP6_028_LIVE_SUCCESS_REMAINING_HEART_LOOK_TOP_TWO_ABILITY_ID,
@@ -14,6 +17,8 @@ import {
   HS_PB1_024_ON_ENTER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
+  N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
+  S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
   S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -23,14 +28,17 @@ import {
 } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
-import { moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
+import {
+  moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers,
+  moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers,
+} from '../../runtime/inspection-waiting-room-triggers.js';
 import {
   getAbilityEffectText,
   maybeStartConfirmablePendingAbilityConfirmation,
   maybeStartManualPendingAbilityConfirmation,
 } from '../../runtime/workflow-helpers.js';
 import { countStageMembers } from '../../../effects/conditions.js';
-import { inspectTopCards } from '../../../effects/look-top.js';
+import { inspectBottomCards, inspectTopCards } from '../../../effects/look-top.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 
@@ -39,7 +47,8 @@ const HS_BP6_001_ARRANGE_STEP_ID = 'HS_BP6_001_ARRANGE_STAGE_PLUS_TWO_TOP_DECK';
 const PL_S_PB1_008_CHOOSE_TARGET_PLAYER_STEP_ID = 'PL_S_PB1_008_CHOOSE_TARGET_PLAYER';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
-type InspectedCardDestination = 'MAIN_DECK_TOP' | 'WAITING_ROOM';
+type InspectedDeckEdge = 'TOP' | 'BOTTOM';
+type InspectedCardDestination = 'MAIN_DECK_TOP' | 'MAIN_DECK_BOTTOM' | 'WAITING_ROOM';
 type ArrangeInspectedDeckTopSourceActionLabel = '登场' | 'LIVE开始' | 'LIVE成功';
 
 interface ArrangeInspectedDeckTopPublicSummaryContext {
@@ -51,9 +60,10 @@ interface ArrangeInspectedDeckTopPublicSummaryContext {
   readonly discardedCostCardIds: readonly string[];
 }
 
-interface RegisteredArrangeInspectedDeckTopConfig {
+interface RegisteredArrangeInspectedDeckEdgeConfig {
   readonly abilityId: string;
   readonly inspectCount: number | ((game: GameState, playerId: string) => number);
+  readonly inspectDeckEdge?: InspectedDeckEdge;
   readonly sourceActionLabel: ArrangeInspectedDeckTopSourceActionLabel;
   readonly stepId: string;
   readonly stepText: string;
@@ -63,6 +73,7 @@ interface RegisteredArrangeInspectedDeckTopConfig {
   readonly selectMax: number;
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
+  readonly liveSourceBaseCardCode?: string;
   readonly targetPlayerSelection?: {
     readonly stepId: string;
     readonly stepText: string;
@@ -79,12 +90,13 @@ interface RegisteredArrangeInspectedDeckTopConfig {
   };
 }
 
-export interface ArrangeInspectedDeckTopConfig {
+export interface ArrangeInspectedDeckEdgeConfig {
   readonly ability: Pick<PendingAbilityState, 'id' | 'abilityId' | 'sourceCardId' | 'controllerId'>;
   readonly playerId: string;
   readonly deckOwnerId?: string;
   readonly effectText: string;
   readonly inspectCount: number;
+  readonly inspectDeckEdge?: InspectedDeckEdge;
   readonly stepId: string;
   readonly stepText: string;
   readonly selectionLabel: string;
@@ -99,13 +111,26 @@ export interface ArrangeInspectedDeckTopConfig {
   readonly unselectedDestination: InspectedCardDestination;
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
-  readonly targetPlayerSelection?: RegisteredArrangeInspectedDeckTopConfig['targetPlayerSelection'];
-  readonly condition?: RegisteredArrangeInspectedDeckTopConfig['condition'];
+  readonly liveSourceBaseCardCode?: string;
+  readonly targetPlayerSelection?: RegisteredArrangeInspectedDeckEdgeConfig['targetPlayerSelection'];
+  readonly condition?: RegisteredArrangeInspectedDeckEdgeConfig['condition'];
   readonly orderedResolution: boolean;
   readonly starterOptions?: PendingAbilityStarterOptions;
 }
 
-const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedDeckTopConfig[] = [
+const ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS: readonly RegisteredArrangeInspectedDeckEdgeConfig[] = [
+  {
+    abilityId: N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
+    inspectCount: 3,
+    sourceActionLabel: 'LIVE成功',
+    stepId: 'N_BP7_030_ARRANGE_TOP_THREE',
+    stepText: '请选择任意张数的卡片，按卡组顶从上到下的顺序排列；其余的卡片放置入休息室。',
+    selectionLabel: '按放置顺序选择卡片',
+    confirmSelectionLabel: '按此顺序放置于卡组顶',
+    selectMin: 0,
+    selectMax: 3,
+    liveSourceBaseCardCode: 'PL!N-bp7-030',
+  },
   {
     abilityId: START_DASH_LIVE_SUCCESS_ABILITY_ID,
     inspectCount: 3,
@@ -216,18 +241,32 @@ const ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS: readonly RegisteredArrangeInspectedD
       stepText: '请选择要查看卡组顶的玩家。',
     },
   },
+  {
+    abilityId: S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
+    inspectCount: 3,
+    inspectDeckEdge: 'BOTTOM',
+    sourceActionLabel: 'LIVE开始',
+    stepId: 'S_BP7_004_ARRANGE_BOTTOM_THREE',
+    stepText: '请选择要放置于卡组底的卡牌。数字1会成为卡组最下方的卡，未选择的卡牌将放置入休息室。',
+    selectionLabel: '按卡组底从下到上的顺序选择卡牌',
+    confirmSelectionLabel: '按此顺序放置于卡组底',
+    selectMin: 0,
+    selectMax: 3,
+    selectedDestination: 'MAIN_DECK_BOTTOM',
+    unselectedDestination: 'WAITING_ROOM',
+  },
 ];
 
-export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
+export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  for (const config of ARRANGE_INSPECTED_DECK_TOP_WORKFLOWS) {
+  for (const config of ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS) {
     if (config.targetPlayerSelection) {
       registerActiveEffectStepHandler(
         config.abilityId,
         config.targetPlayerSelection.stepId,
         (game, input, context) =>
-          finishArrangeInspectedDeckTopTargetPlayerSelection(
+          finishArrangeInspectedDeckEdgeTargetPlayerSelection(
             game,
             input.selectedOptionId ?? null,
             config,
@@ -240,13 +279,14 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
         typeof config.inspectCount === 'number'
           ? config.inspectCount
           : config.inspectCount(game, ability.controllerId);
-      return startArrangeInspectedDeckTopWorkflow(
+      return startArrangeInspectedDeckEdgeWorkflow(
         game,
         {
           ability,
           playerId: ability.controllerId,
           effectText: getAbilityEffectText(config.abilityId),
           inspectCount: requestedInspectCount,
+          inspectDeckEdge: config.inspectDeckEdge,
           requestedInspectCount,
           sourceActionLabel: config.sourceActionLabel,
           stepId: config.stepId,
@@ -259,6 +299,7 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
           unselectedDestination: config.unselectedDestination ?? 'WAITING_ROOM',
           requireAllInspected: config.requireAllInspected,
           requireSourceOnOwnStage: config.requireSourceOnOwnStage,
+          liveSourceBaseCardCode: config.liveSourceBaseCardCode,
           targetPlayerSelection: config.targetPlayerSelection,
           condition: config.condition,
           orderedResolution: options.orderedResolution === true,
@@ -268,7 +309,7 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
       );
     });
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
-      finishArrangeInspectedDeckTopWorkflow(
+      finishArrangeInspectedDeckEdgeWorkflow(
         game,
         input.selectedCardIds ?? [],
         context.continuePendingCardEffects,
@@ -278,9 +319,9 @@ export function registerArrangeInspectedDeckTopWorkflowHandlers(deps: {
   }
 }
 
-export function startArrangeInspectedDeckTopWorkflow(
+export function startArrangeInspectedDeckEdgeWorkflow(
   game: GameState,
-  config: ArrangeInspectedDeckTopConfig,
+  config: ArrangeInspectedDeckEdgeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, config.playerId);
@@ -293,6 +334,20 @@ export function startArrangeInspectedDeckTopWorkflow(
   ) {
     return consumeArrangePendingAsNoOp(game, config, continuePendingCardEffects, player.id, {
       step: 'SOURCE_NOT_ON_STAGE',
+      inspectedCardIds: [],
+    });
+  }
+  if (
+    config.liveSourceBaseCardCode &&
+    !isOwnLiveSourceMatchingBase(
+      game,
+      player.id,
+      config.ability.sourceCardId,
+      config.liveSourceBaseCardCode
+    )
+  ) {
+    return consumeArrangePendingAsNoOp(game, config, continuePendingCardEffects, player.id, {
+      step: 'SOURCE_NOT_IN_LIVE_ZONE',
       inspectedCardIds: [],
     });
   }
@@ -397,10 +452,15 @@ export function startArrangeInspectedDeckTopWorkflow(
     );
   }
 
-  const inspection = inspectTopCards(game, deckOwner.id, {
-    count: config.inspectCount,
-    ...(deckOwner.id !== player.id ? { viewerPlayerId: player.id } : {}),
-  });
+  const inspectDeckEdge = config.inspectDeckEdge ?? 'TOP';
+  const inspection = (inspectDeckEdge === 'BOTTOM' ? inspectBottomCards : inspectTopCards)(
+    game,
+    deckOwner.id,
+    {
+      count: config.inspectCount,
+      ...(deckOwner.id !== player.id ? { viewerPlayerId: player.id } : {}),
+    }
+  );
   if (!inspection) {
     return game;
   }
@@ -433,14 +493,19 @@ export function startArrangeInspectedDeckTopWorkflow(
       minSelectableCards,
       maxSelectableCards,
       selectionLabel: config.selectionLabel,
-      confirmSelectionLabel: config.confirmSelectionLabel ?? '按此顺序放回卡组顶',
+      confirmSelectionLabel:
+        config.confirmSelectionLabel ??
+        (inspectDeckEdge === 'BOTTOM' ? '按此顺序放置于卡组底' : '按此顺序放回卡组顶'),
       metadata: {
         sourceZone: ZoneType.MAIN_DECK,
         deckOwnerId: deckOwner.id,
+        inspectDeckEdge,
         selectedDestination: config.selectedDestination,
         unselectedDestination: config.unselectedDestination,
         orderedResolution: config.orderedResolution,
-        ...(config.sourceActionLabel && typeof config.requestedInspectCount === 'number'
+        ...(inspectDeckEdge === 'TOP' &&
+        config.sourceActionLabel &&
+        typeof config.requestedInspectCount === 'number'
           ? {
               publicEffectSummaryContext: {
                 effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
@@ -466,7 +531,9 @@ export function startArrangeInspectedDeckTopWorkflow(
     step: 'START_INSPECTION',
     inspectedCardIds,
     ...(deckOwner.id !== player.id ? { deckOwnerId: deckOwner.id } : {}),
-    ...(config.sourceActionLabel && typeof config.requestedInspectCount === 'number'
+    ...(inspectDeckEdge === 'TOP' &&
+    config.sourceActionLabel &&
+    typeof config.requestedInspectCount === 'number'
       ? {
           publicEffectSummary: {
             effectKind: 'ARRANGE_INSPECTED_DECK_TOP',
@@ -489,10 +556,10 @@ export function startArrangeInspectedDeckTopWorkflow(
   });
 }
 
-function finishArrangeInspectedDeckTopTargetPlayerSelection(
+function finishArrangeInspectedDeckEdgeTargetPlayerSelection(
   game: GameState,
   selectedOptionId: string | null,
-  registeredConfig: RegisteredArrangeInspectedDeckTopConfig,
+  registeredConfig: RegisteredArrangeInspectedDeckEdgeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -512,7 +579,7 @@ function finishArrangeInspectedDeckTopTargetPlayerSelection(
       ? registeredConfig.inspectCount
       : registeredConfig.inspectCount(game, targetPlayer.id);
 
-  return startArrangeInspectedDeckTopWorkflow(
+  return startArrangeInspectedDeckEdgeWorkflow(
     {
       ...game,
       activeEffect: null,
@@ -528,6 +595,7 @@ function finishArrangeInspectedDeckTopTargetPlayerSelection(
       deckOwnerId: targetPlayer.id,
       effectText: effect.effectText,
       inspectCount: requestedInspectCount,
+      inspectDeckEdge: registeredConfig.inspectDeckEdge,
       requestedInspectCount,
       sourceActionLabel: registeredConfig.sourceActionLabel,
       stepId: registeredConfig.stepId,
@@ -540,6 +608,7 @@ function finishArrangeInspectedDeckTopTargetPlayerSelection(
       unselectedDestination: registeredConfig.unselectedDestination ?? 'WAITING_ROOM',
       requireAllInspected: registeredConfig.requireAllInspected,
       requireSourceOnOwnStage: registeredConfig.requireSourceOnOwnStage,
+      liveSourceBaseCardCode: registeredConfig.liveSourceBaseCardCode,
       condition: registeredConfig.condition,
       orderedResolution: effect.metadata?.orderedResolution === true,
     },
@@ -547,7 +616,7 @@ function finishArrangeInspectedDeckTopTargetPlayerSelection(
   );
 }
 
-export function finishArrangeInspectedDeckTopWorkflow(
+export function finishArrangeInspectedDeckEdgeWorkflow(
   game: GameState,
   selectedCardIds: readonly string[],
   continuePendingCardEffects: ContinuePendingCardEffects,
@@ -587,6 +656,10 @@ export function finishArrangeInspectedDeckTopWorkflow(
     ...(effect.metadata?.selectedDestination === 'MAIN_DECK_TOP' ? uniqueSelectedCardIds : []),
     ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_TOP' ? unselectedCardIds : []),
   ];
+  const deckBottomCardIds = [
+    ...(effect.metadata?.selectedDestination === 'MAIN_DECK_BOTTOM' ? uniqueSelectedCardIds : []),
+    ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_BOTTOM' ? unselectedCardIds : []),
+  ];
   const waitingRoomCardIds = [
     ...(effect.metadata?.selectedDestination === 'WAITING_ROOM' ? uniqueSelectedCardIds : []),
     ...(effect.metadata?.unselectedDestination === 'WAITING_ROOM' ? unselectedCardIds : []),
@@ -600,14 +673,35 @@ export function finishArrangeInspectedDeckTopWorkflow(
   if (!deckOwner) {
     return game;
   }
-  const moveResult = moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
-    { ...game, activeEffect: null },
-    deckOwner.id,
-    inspectedCardIds,
-    deckTopCardIds,
-    waitingRoomCardIds,
-    enqueueTriggeredCardEffects
-  );
+  const triggerOptions = {
+    cause: {
+      kind: 'CARD_EFFECT' as const,
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
+  };
+  const moveResult =
+    effect.metadata?.inspectDeckEdge === 'BOTTOM'
+      ? moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers(
+          { ...game, activeEffect: null },
+          deckOwner.id,
+          inspectedCardIds,
+          deckBottomCardIds,
+          waitingRoomCardIds,
+          enqueueTriggeredCardEffects,
+          triggerOptions
+        )
+      : moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
+          { ...game, activeEffect: null },
+          deckOwner.id,
+          inspectedCardIds,
+          deckTopCardIds,
+          waitingRoomCardIds,
+          enqueueTriggeredCardEffects,
+          triggerOptions
+        );
   if (!moveResult) {
     return game;
   }
@@ -619,6 +713,7 @@ export function finishArrangeInspectedDeckTopWorkflow(
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
       selectedCardIds: uniqueSelectedCardIds,
+      ...(deckBottomCardIds.length > 0 ? { deckBottomCardIds } : {}),
       waitingRoomCardIds,
       ...(publicEffectSummaryContext
         ? {
@@ -647,7 +742,7 @@ export function finishArrangeInspectedDeckTopWorkflow(
 
 function consumeArrangePendingAsNoOp(
   game: GameState,
-  config: ArrangeInspectedDeckTopConfig,
+  config: ArrangeInspectedDeckEdgeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   playerId: string,
   payload: Readonly<Record<string, unknown>>
@@ -709,4 +804,21 @@ function getArrangeInspectedDeckTopPublicSummaryContext(
     requestedInspectCount: context.requestedInspectCount,
     discardedCostCardIds,
   };
+}
+
+function isOwnLiveSourceMatchingBase(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  baseCardCode: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, sourceCardId);
+  return (
+    player?.liveZone.cardIds.includes(sourceCardId) === true &&
+    sourceCard !== null &&
+    sourceCard.ownerId === playerId &&
+    isLiveCardData(sourceCard.data) &&
+    cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
+  );
 }

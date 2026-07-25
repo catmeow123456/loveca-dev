@@ -3191,6 +3191,7 @@ function isCheckpointCriticalCommand(command: GameCommand | undefined): boolean 
     case GameCommandType.MULLIGAN:
     case GameCommandType.SELECT_SUCCESS_LIVE:
     case GameCommandType.SET_LIVE_CARD:
+    case GameCommandType.UNSET_LIVE_CARD:
     case GameCommandType.SUBMIT_JUDGMENT:
     case GameCommandType.SUBMIT_SCORE:
       return true;

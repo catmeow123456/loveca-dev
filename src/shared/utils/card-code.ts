@@ -220,7 +220,8 @@ export function validateCardCode(cardCode: string): CardCodeValidationResult {
 /**
  * 获取基础编号（去除末尾稀有度后缀）。
  *
- * 不同稀有度但基础编号相同的卡视为同一张卡（用于卡组构筑"同编号最多4张"规则）。
+ * 不同稀有度但基础编号相同的卡视为同一张卡：既用于卡组构筑“同编号最多4张”，
+ * 也用于卡效 definition、resolver、modifier 与前端门禁共享同一效果身份。
  *
  * 示例:
  *   PL!-bp3-017-N  → PL!-bp3-017
