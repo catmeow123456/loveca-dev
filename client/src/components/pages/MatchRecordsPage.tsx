@@ -575,7 +575,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       </main>
 
       {replayBoardOpen && replay ? (
-        <div className="fixed inset-0 z-[200] overflow-hidden bg-[var(--bg-surface)]">
+        <div className="fixed inset-0 z-[var(--z-battle-replay-surface)] overflow-hidden bg-[var(--bg-surface)]">
           <div className="h-full w-full">
             <GameBoard />
           </div>

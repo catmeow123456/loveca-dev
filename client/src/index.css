@@ -50,11 +50,13 @@
   --z-phase-indicator: 60;
   --z-live-result: 100;
   --z-modal: 101;
+  --z-battle-replay-surface: 110;
   --z-battle-chrome: 120;
   --z-battle-action-menu: 140;
   --z-battle-modal-backdrop: 150;
   --z-battle-modal: 160;
   --z-battle-modal-action-menu: 170;
+  --z-card-detail-backdrop: 190;
   --z-card-detail: 200;
   --z-phase-banner: 1000;
 

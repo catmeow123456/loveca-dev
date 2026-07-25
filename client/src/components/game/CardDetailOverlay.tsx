@@ -368,7 +368,7 @@ function DesktopCardDetailPanel({ card }: { card: VisibleCardPresentation }) {
 
   return (
     <aside
-      className="pointer-events-none fixed bottom-3 right-3 top-3 z-[200]"
+      className="pointer-events-none fixed bottom-3 right-3 top-3 z-[var(--z-card-detail)]"
       aria-label={`${localizedName.title} 卡牌详情`}
     >
       <motion.div
@@ -404,7 +404,7 @@ function MobileCardDetailDrawer({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="modal-backdrop fixed inset-0 z-[119]"
+        className="modal-backdrop fixed inset-0 z-[var(--z-card-detail-backdrop)]"
         onClick={onClose}
       />
 
@@ -416,7 +416,7 @@ function MobileCardDetailDrawer({
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
         transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-        className="safe-bottom fixed inset-x-0 bottom-0 z-[120] flex max-h-[var(--battle-viewport-height-86,86dvh)] min-h-[var(--battle-viewport-height-46,46dvh)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)]"
+        className="safe-bottom fixed inset-x-0 bottom-0 z-[var(--z-card-detail)] flex max-h-[var(--battle-viewport-height-86,86dvh)] min-h-[var(--battle-viewport-height-46,46dvh)] flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)]"
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
