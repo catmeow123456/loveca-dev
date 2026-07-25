@@ -10,7 +10,7 @@ import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import { PL_N_BP5_021_ON_ENTER_MILL_TWO_OPTIONAL_INSERT_LIVE_FOURTH_FROM_TOP_ABILITY_ID } from '../../ability-ids.js';
-import { moveWaitingRoomCardToDeckPositionForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardToDeckPositionAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -185,9 +185,16 @@ function finishRinaWaitingRoomLiveSelection(
     return game;
   }
 
-  const moveResult = moveWaitingRoomCardToDeckPositionForPlayer(game, player.id, selectedCardId, {
+  const moveResult = moveWaitingRoomCardToDeckPositionAndEnqueueTriggers(game, player.id, selectedCardId, {
     candidateCardIds: effect.selectableCardIds,
     positionFromTop: DECK_POSITION_FROM_TOP,
+    cause: {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
   });
   if (!moveResult) {
     return game;

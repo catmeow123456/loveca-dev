@@ -14,6 +14,7 @@ import {
   type RearrangeStageMemberPlacement,
   type StageFormationMoveHistoryEntry,
 } from '../../effects/member-state.js';
+import type { CardAbilityDefinition } from '../ability-definition-types.js';
 import { getNewMemberSlotMovedEvents } from './events.js';
 
 export type EnqueueTriggeredCardEffectsForMemberSlotMoved = (
@@ -154,4 +155,14 @@ export function rearrangeStageMembersByMoveHistoryAndEnqueueTriggers(
     ),
     memberSlotMovedEvents,
   };
+}
+
+export function doesMemberSlotMovedEventMatchAbilityDefinition(
+  event: MemberSlotMovedEvent,
+  definition: CardAbilityDefinition
+): boolean {
+  return (
+    definition.requiredSourceOrientationAtTrigger === undefined ||
+    event.orientationAtMove === definition.requiredSourceOrientationAtTrigger
+  );
 }

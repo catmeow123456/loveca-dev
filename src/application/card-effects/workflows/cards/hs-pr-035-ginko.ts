@@ -18,7 +18,7 @@ import {
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { HS_PR_035_ON_ENTER_BOTTOM_THREE_OPPONENT_WAITING_MEMBERS_WAIT_LOW_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { moveWaitingRoomCardsToDeckBottomForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -153,7 +153,7 @@ function finishSelectOpponentWaitingMembers(
     );
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckBottomForPlayer(
+  const moveResult = moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     game,
     opponentPlayerId,
     selectedCardIds,
@@ -161,6 +161,13 @@ function finishSelectOpponentWaitingMembers(
       candidateCardIds,
       minCount: REQUIRED_WAITING_MEMBER_COUNT,
       maxCount: REQUIRED_WAITING_MEMBER_COUNT,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
     }
   );
   if (!moveResult) return game;

@@ -10,6 +10,7 @@ import {
 import type { GameState } from '../domain/entities/game.js';
 import type { HeartIcon } from '../domain/entities/card.js';
 import type { ActivatedAbilityUiConfig } from '../application/card-effects/ability-definition-types.js';
+import type { CardDefinedSpecialMemberPlayMode } from '../shared/rules/member-play-options.js';
 import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
 
 export type Seat = 'FIRST' | 'SECOND';
@@ -350,12 +351,12 @@ export interface PendingSpecialMemberPlayViewState {
   readonly id: string;
   readonly playerSeat: Seat | null;
   readonly waiting: true;
-  readonly mode?: 'LL_BP7_001_SPECIAL_PLAY';
+  readonly mode?: CardDefinedSpecialMemberPlayMode;
   readonly sourceObjectId?: string;
   readonly targetSlot?: string;
   readonly candidateObjectIds?: readonly string[];
-  readonly minSelectableObjects?: 3;
-  readonly maxSelectableObjects?: 3;
+  readonly minSelectableObjects?: number;
+  readonly maxSelectableObjects?: number;
   readonly stepText?: string;
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;

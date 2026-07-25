@@ -306,6 +306,42 @@ export interface EnergyMovedToDeckEvent extends BaseGameEvent {
   readonly turnCount: number;
 }
 
+export type MainDeckPlacementDestination =
+  | { readonly kind: 'TOP' }
+  | { readonly kind: 'BOTTOM' }
+  | {
+      readonly kind: 'POSITION';
+      readonly positionFromTop: number;
+      readonly insertIndex: number;
+    }
+  | { readonly kind: 'SHUFFLED_BOTTOM' };
+
+export type WaitingRoomCardsMovedToMainDeckCause =
+  | CardEffectCause
+  | {
+      readonly kind: 'RULE_ACTION';
+      readonly playerId: string;
+      readonly ruleAction: 'REFRESH';
+    };
+
+/**
+ * 同一次处理把休息室卡牌放入主卡组的权威批量事件。
+ *
+ * movedCardIds 保留实际入库顺序；洗切放底时即为洗切后的顺序。
+ */
+export interface WaitingRoomCardsMovedToMainDeckEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK;
+  /** 卡组与休息室所属玩家。 */
+  readonly playerId: string;
+  /** 发起本次卡效/规则动作的控制者；监听者归属仍以 playerId 为准。 */
+  readonly controllerId: string;
+  readonly movedCardIds: readonly string[];
+  readonly fromZone: ZoneType.WAITING_ROOM;
+  readonly toZone: ZoneType.MAIN_DECK;
+  readonly destination: MainDeckPlacementDestination;
+  readonly cause: WaitingRoomCardsMovedToMainDeckCause;
+}
+
 // ============================================
 // 状态触发事件
 // ============================================
@@ -364,6 +400,8 @@ export interface MemberSlotMovedEvent extends BaseGameEvent {
   readonly toSlot: SlotPosition;
   /** 同一次站位变换中被交换的成员卡实例 ID */
   readonly swappedCardInstanceId?: string;
+  /** 移动发生瞬间，该成员的横竖状态快照。 */
+  readonly orientationAtMove?: OrientationState;
   /** 区域移动来源（玩家操作、规则处理、卡片效果等） */
   readonly cause?: MemberStateChangeCause;
 }
@@ -413,6 +451,7 @@ export type GameEvent =
   | PayCostEvent
   | EnergyPlacedByCardEffectEvent
   | EnergyMovedToDeckEvent
+  | WaitingRoomCardsMovedToMainDeckEvent
   | MemberStateChangedEvent
   | MemberSlotMovedEvent
   | HandEmptyEvent
@@ -587,8 +626,7 @@ export function createEnterStageEvent(
     ownerId,
     controllerId,
     triggerPlayerId: controllerId,
-    replacedMemberCardId:
-      relay?.replacedMemberCardId ?? firstReplacement?.cardId ?? undefined,
+    replacedMemberCardId: relay?.replacedMemberCardId ?? firstReplacement?.cardId ?? undefined,
     replacedMemberEffectiveCost:
       relay?.replacedMemberEffectiveCost ?? firstReplacement?.effectiveCost ?? undefined,
     relayReplacements: relayReplacements.length > 0 ? relayReplacements : undefined,
@@ -763,6 +801,33 @@ export function createEnergyMovedToDeckEvent(
   };
 }
 
+export function createWaitingRoomCardsMovedToMainDeckEvent(
+  playerId: string,
+  controllerId: string,
+  movedCardIds: readonly string[],
+  destination: MainDeckPlacementDestination,
+  cause: WaitingRoomCardsMovedToMainDeckCause
+): WaitingRoomCardsMovedToMainDeckEvent {
+  if (movedCardIds.length === 0) {
+    throw new Error(
+      'createWaitingRoomCardsMovedToMainDeckEvent requires at least one card instance id'
+    );
+  }
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK,
+    timestamp: Date.now(),
+    playerId,
+    controllerId,
+    movedCardIds: [...movedCardIds],
+    fromZone: ZoneType.WAITING_ROOM,
+    toZone: ZoneType.MAIN_DECK,
+    destination,
+    cause,
+    triggerPlayerId: playerId,
+  };
+}
+
 /**
  * 创建 Live 开始事件
  */
@@ -898,7 +963,8 @@ export function createMemberSlotMovedEvent(
   fromSlot: SlotPosition,
   toSlot: SlotPosition,
   swappedCardInstanceId?: string,
-  cause?: MemberStateChangeCause
+  cause?: MemberStateChangeCause,
+  orientationAtMove?: OrientationState
 ): MemberSlotMovedEvent {
   return {
     eventId: generateEventId(),
@@ -909,6 +975,7 @@ export function createMemberSlotMovedEvent(
     fromSlot,
     toSlot,
     swappedCardInstanceId,
+    orientationAtMove,
     cause,
     triggerPlayerId: controllerId,
   };

@@ -146,7 +146,9 @@ describe('revealed cheer selection: PL!S-bp2-021-L 未体験HORIZON', () => {
       selectableCardMode: 'ORDERED_MULTI',
       minSelectableCards: 0,
       maxSelectableCards: 1,
-      confirmSelectionLabel: '放置于入卡组底',
+      stepText: '请选择至多1张因声援被公开的自己的LIVE卡放置于卡组底。',
+      selectionLabel: '选择要放置于卡组底的声援公开 LIVE',
+      confirmSelectionLabel: '放置于卡组底',
       canSkipSelection: true,
       skipSelectionLabel: '不放置',
     });

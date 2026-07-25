@@ -23,8 +23,8 @@ import {
 } from '../../runtime/active-effect.js';
 import {
   addBladeLiveModifierForSourceMember,
-  shuffleWaitingRoomCardsToDeckBottomForPlayer,
 } from '../../runtime/actions.js';
+import { shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -140,10 +140,17 @@ function finishHsBp6031RecycleWaitingRoomMembers(
     waitingRoomMemberCardIds,
     unitAliasIs('みらくらぱーく！')
   );
-  const recycleResult = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+  const recycleResult = shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     game,
     player.id,
-    waitingRoomMemberCardIds
+    waitingRoomMemberCardIds,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
   );
   if (!recycleResult) {
     return game;

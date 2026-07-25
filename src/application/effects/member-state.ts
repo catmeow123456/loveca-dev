@@ -365,13 +365,22 @@ export function moveMemberBetweenSlots(
       fromSlot,
       toSlot,
       swappedCardId ?? undefined,
-      options.cause
+      options.cause,
+      player.memberSlots.cardStates.get(cardId)?.orientation
     )
   );
   if (swappedCardId) {
     gameState = emitGameEvent(
       gameState,
-      createMemberSlotMovedEvent(swappedCardId, playerId, toSlot, fromSlot, cardId, options.cause)
+      createMemberSlotMovedEvent(
+        swappedCardId,
+        playerId,
+        toSlot,
+        fromSlot,
+        cardId,
+        options.cause,
+        player.memberSlots.cardStates.get(swappedCardId)?.orientation
+      )
     );
   }
 
@@ -495,7 +504,8 @@ export function rearrangeStageMembers(
         member.fromSlot,
         member.toSlot,
         undefined,
-        options.cause
+        options.cause,
+        player.memberSlots.cardStates.get(member.cardId)?.orientation
       )
     );
   }
@@ -641,7 +651,8 @@ export function rearrangeStageMembersByMoveHistory(
         member.fromSlot,
         member.toSlot,
         undefined,
-        options.cause
+        options.cause,
+        player.memberSlots.cardStates.get(member.cardId)?.orientation
       )
     );
   }

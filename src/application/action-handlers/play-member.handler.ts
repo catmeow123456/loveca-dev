@@ -72,13 +72,7 @@ export const handlePlayMember: ActionHandler<PlayMemberAction> = (
   }
 
   const existingCardId = getCardInSlot(player.memberSlots, targetSlot);
-  const relayReplacements = collectRelayReplacements(
-    game,
-    action,
-    ctx,
-    card.data,
-    existingCardId
-  );
+  const relayReplacements = collectRelayReplacements(game, action, ctx, card.data, existingCardId);
   if (!relayReplacements.ok) {
     return failure(game, relayReplacements.error);
   }
@@ -239,7 +233,7 @@ function collectRelayReplacements(
   | { readonly ok: false; readonly error: string } {
   if (action.relayMode === 'DOUBLE') {
     if (!canUseDoubleRelay(incomingMemberData)) {
-      return { ok: false, error: '只有 PL!SP-bp4-004 支持双换手' };
+      return { ok: false, error: '此成员不支持双换手' };
     }
     const selectedSlots = action.relayReplacementSlots ?? [];
     const uniqueSlots = new Set(selectedSlots);
@@ -252,13 +246,10 @@ function collectRelayReplacements(
     if (!existingCardId) {
       return { ok: false, error: '双换手暂不支持拖拽到空成员区' };
     }
-    return collectReplacementsFromSlots(
-      game,
-      action,
-      ctx,
-      incomingMemberData,
-      [action.targetSlot, ...selectedSlots.filter((slot) => slot !== action.targetSlot)]
-    );
+    return collectReplacementsFromSlots(game, action, ctx, incomingMemberData, [
+      action.targetSlot,
+      ...selectedSlots.filter((slot) => slot !== action.targetSlot),
+    ]);
   }
 
   if (!existingCardId) {

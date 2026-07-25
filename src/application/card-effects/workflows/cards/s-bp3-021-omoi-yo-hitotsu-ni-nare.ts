@@ -12,8 +12,8 @@ import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js
 import { S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import {
   addBladeLiveModifierForSourceMember,
-  moveWaitingRoomCardsToDeckTopForPlayer,
 } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -148,10 +148,17 @@ function finishWaitingMemberSelection(
   if (!currentCandidates.includes(selectedCardId)) {
     return finishActive(game, effect, 'WAITING_ROOM_MEMBER_STALE', continuePendingCardEffects);
   }
-  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(game, player.id, [selectedCardId], {
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, [selectedCardId], {
     candidateCardIds: currentCandidates,
     minCount: 1,
     maxCount: 1,
+    cause: {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
   });
   if (!moveResult || moveResult.movedCardIds.length !== 1) {
     return finishActive(

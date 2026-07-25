@@ -22,8 +22,8 @@ import {
 } from '../../ability-ids.js';
 import {
   drawCardsForPlayer,
-  moveWaitingRoomCardsToDeckTopForPlayer,
 } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -366,10 +366,17 @@ function finishKarinStackNijigasakiMembers(
     return game;
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(game, player.id, selectedCardIds, {
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, selectedCardIds, {
     candidateCardIds,
     minCount: 0,
     maxCount: maxSelectableCards,
+    cause: {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
   });
   if (!moveResult) {
     return game;

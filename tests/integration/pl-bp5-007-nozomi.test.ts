@@ -159,7 +159,16 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
 
     expect(playResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.eventLog.at(-1)?.event).toMatchObject({
+    expect(
+      session.state?.eventLog
+        .map((entry) => entry.event)
+        .find(
+          (event) =>
+            event.eventType === TriggerCondition.ON_ENTER_STAGE &&
+            'cardInstanceId' in event &&
+            event.cardInstanceId === nozomi.instanceId
+        )
+    ).toMatchObject({
       eventType: TriggerCondition.ON_ENTER_STAGE,
       cardInstanceId: nozomi.instanceId,
       replacedMemberCardId: effectiveCostRelayMember.instanceId,
@@ -378,9 +387,7 @@ describe('BP5-007 Nozomi hand-adjust workflow', () => {
     expect(solitaireSession.state?.players[0].waitingRoom.cardIds).toEqual([
       relayMember.instanceId,
     ]);
-    expect(solitaireSession.state?.players[1].waitingRoom.cardIds).toEqual(
-      p2DiscardIds
-    );
+    expect(solitaireSession.state?.players[1].waitingRoom.cardIds).toEqual(p2DiscardIds);
 
     const discardAction = solitaireSession.state!.actionHistory.find(
       (action) =>

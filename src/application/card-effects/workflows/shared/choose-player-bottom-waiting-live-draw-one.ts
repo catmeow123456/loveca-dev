@@ -17,8 +17,8 @@ import {
 } from '../../ability-ids.js';
 import {
   drawCardsForPlayer,
-  moveWaitingRoomCardsToDeckBottomForPlayer,
 } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
@@ -339,11 +339,22 @@ function finish(
     );
     return completeEntry(resolved, effect, continuePendingCardEffects);
   }
-  const moved = moveWaitingRoomCardsToDeckBottomForPlayer(
+  const moved = moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     { ...game, activeEffect: null },
     effect.metadata.targetPlayerId,
     [selectedCardId],
-    { candidateCardIds: candidates, minCount: 1, maxCount: 1 }
+    {
+      candidateCardIds: candidates,
+      minCount: 1,
+      maxCount: 1,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
+    }
   );
   if (!moved || moved.movedCardIds.length !== 1) {
     if (!wasRestoredAfterPublicCardSelectionConfirmation(effect)) return game;

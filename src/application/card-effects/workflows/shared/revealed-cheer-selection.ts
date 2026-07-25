@@ -39,6 +39,7 @@ import {
   S_BP6_021_ON_CHEER_SEND_NO_BLADE_AQOURS_MEMBER_ADDITIONAL_CHEER_ABILITY_ID,
   S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
   S_SD1_019_LIVE_SUCCESS_AQOURS_LIVE_REVEALED_CHEER_TO_HAND_ABILITY_ID,
+  SP_BP7_023_LIVE_SUCCESS_LIELLA_REVEALED_CHEER_TO_DECK_TOP_ABILITY_ID,
   SP_BP2_025_LIVE_SUCCESS_TWO_DISTINCT_NAMED_STAGE_MEMBERS_REVEALED_CHEER_TO_HAND_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -83,6 +84,8 @@ export const S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID =
   'S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM';
 export const PL_N_PB1_012_SELECT_NIJIGASAKI_MEMBER_CHEER_TO_HAND_STEP_ID =
   'PL_N_PB1_012_SELECT_REVEALED_CHEER_NIJIGASAKI_MEMBER_TO_HAND';
+export const SP_BP7_023_SELECT_LIELLA_CHEER_TO_DECK_TOP_STEP_ID =
+  'SP_BP7_023_SELECT_REVEALED_CHEER_LIELLA_TO_DECK_TOP';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -165,8 +168,8 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
   {
     abilityId: S_BP2_021_LIVE_SUCCESS_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
     stepId: S_BP2_021_SELECT_REVEALED_CHEER_LIVE_TO_DECK_BOTTOM_STEP_ID,
-    stepText: '请选择至多1张因声援被公开的自己的LIVE卡放置于入卡组底。',
-    selectionLabel: '选择要放置于入卡组底的声援公开 LIVE',
+    stepText: '请选择至多1张因声援被公开的自己的LIVE卡放置于卡组底。',
+    selectionLabel: '选择要放置于卡组底的声援公开 LIVE',
     predicate: typeIs(CardType.LIVE),
     destination: 'MAIN_DECK_BOTTOM',
     optional: true,
@@ -210,10 +213,22 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
   {
     abilityId: HS_BP6_001_LIVE_SUCCESS_CHEER_TO_TOP_ABILITY_ID,
     stepId: HS_BP6_001_SELECT_CHEER_TO_TOP_STEP_ID,
-    stepText: '请选择1张因声援被公开的自己的卡片放置到卡组顶。也可以选择不放置。',
-    selectionLabel: '选择要放回卡组顶的声援公开卡',
+    stepText: '请选择1张因声援被公开的自己的卡片放置于卡组顶。也可以选择不放置。',
+    selectionLabel: '选择要放置于卡组顶的声援公开卡',
     destination: 'MAIN_DECK_TOP',
     optional: true,
+    skipSelectionLabel: '不放置',
+  },
+  {
+    abilityId: SP_BP7_023_LIVE_SUCCESS_LIELLA_REVEALED_CHEER_TO_DECK_TOP_ABILITY_ID,
+    stepId: SP_BP7_023_SELECT_LIELLA_CHEER_TO_DECK_TOP_STEP_ID,
+    stepText: '请选择至多1张因声援被公开的自己的『Liella!』卡片放置于卡组顶。',
+    selectionLabel: '选择要放置于卡组顶的声援公开 Liella! 卡',
+    predicate: groupAliasIs('Liella!'),
+    destination: 'MAIN_DECK_TOP',
+    optional: true,
+    selectMin: 0,
+    selectMax: 1,
     skipSelectionLabel: '不放置',
   },
   {
@@ -849,9 +864,9 @@ function getConfirmSelectionLabel(destination: RevealedCheerCardDestination): st
     return '放置入休息室';
   }
   if (destination === 'MAIN_DECK_BOTTOM') {
-    return '放置于入卡组底';
+    return '放置于卡组底';
   }
-  return '放回卡组顶';
+  return '放置于卡组顶';
 }
 
 function hasAbilityInstance(game: GameState, abilityInstanceId: string): boolean {

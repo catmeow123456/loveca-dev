@@ -19,8 +19,8 @@ import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   addBladeLiveModifierForSourceMember,
   recoverCardsFromWaitingRoomToHandForPlayer,
-  shuffleWaitingRoomCardsToDeckBottomForPlayer,
 } from '../../runtime/actions.js';
+import { shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -128,10 +128,18 @@ function finishHsPb1012RecycleWaitingRoomMembers(
   }
 
   const ownWaitingRoomMemberCardIds = getWaitingRoomMemberCardIds(game, player.id);
-  const ownRecycleResult = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+  const cause = {
+    kind: 'CARD_EFFECT' as const,
+    playerId: effect.controllerId,
+    sourceCardId: effect.sourceCardId,
+    abilityId: effect.abilityId,
+    pendingAbilityId: effect.id,
+  };
+  const ownRecycleResult = shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     game,
     player.id,
-    ownWaitingRoomMemberCardIds
+    ownWaitingRoomMemberCardIds,
+    cause
   );
   if (!ownRecycleResult) {
     return game;
@@ -141,10 +149,11 @@ function finishHsPb1012RecycleWaitingRoomMembers(
     ? getWaitingRoomMemberCardIds(ownRecycleResult.gameState, opponent.id)
     : [];
   const opponentRecycleResult = opponent
-    ? shuffleWaitingRoomCardsToDeckBottomForPlayer(
+    ? shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
         ownRecycleResult.gameState,
         opponent.id,
-        opponentWaitingRoomMemberCardIds
+        opponentWaitingRoomMemberCardIds,
+        cause
       )
     : { gameState: ownRecycleResult.gameState, movedCardIds: [] };
   if (!opponentRecycleResult) {

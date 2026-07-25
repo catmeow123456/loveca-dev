@@ -507,6 +507,7 @@ export function moveCardUniversal(
     state = updatePlayer(state, playerId, (player) => {
       const sourceCardId = getCardInSlot(player.memberSlots, sourceSlot);
       const targetCardId = getCardInSlot(player.memberSlots, targetSlot);
+      const movingCardState = player.memberSlots.cardStates.get(cardId);
 
       // 交换逻辑：成员卡拖到另一个已有成员卡的槽位时，双方位置互换，
       // 且各自下方的能量卡（energyBelow）和成员卡（memberBelow）随成员一起移动。
@@ -559,7 +560,7 @@ export function moveCardUniversal(
       }
       updated = {
         ...updated,
-        memberSlots: placeCardInSlot(updated.memberSlots, targetSlot, cardId),
+        memberSlots: placeCardInSlot(updated.memberSlots, targetSlot, cardId, movingCardState),
       };
       // 3. 将 energyBelow 从来源槽位移到目标槽位（规则 4.5.5.3）
       updated = {
@@ -581,13 +582,23 @@ export function moveCardUniversal(
           playerId,
           sourceSlot,
           targetSlot,
-          targetCardIdBefore ?? undefined
+          targetCardIdBefore ?? undefined,
+          undefined,
+          playerBefore?.memberSlots.cardStates.get(cardId)?.orientation
         )
       );
       if (targetCardIdBefore && targetCardIdBefore !== cardId) {
         state = emitGameEvent(
           state,
-          createMemberSlotMovedEvent(targetCardIdBefore, playerId, targetSlot, sourceSlot, cardId)
+          createMemberSlotMovedEvent(
+            targetCardIdBefore,
+            playerId,
+            targetSlot,
+            sourceSlot,
+            cardId,
+            undefined,
+            playerBefore?.memberSlots.cardStates.get(targetCardIdBefore)?.orientation
+          )
         );
       }
     }

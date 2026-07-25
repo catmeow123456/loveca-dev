@@ -9,7 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { moveWaitingRoomCardsToDeckBottomForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -165,7 +165,7 @@ function finishSelectWaitingMembers(
     return game;
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckBottomForPlayer(
+  const moveResult = moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     { ...game, activeEffect: null },
     targetPlayerId,
     selectedCardIds,
@@ -173,6 +173,13 @@ function finishSelectWaitingMembers(
       candidateCardIds,
       minCount: 0,
       maxCount: MAX_WAITING_MEMBERS,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
     }
   );
   if (!moveResult) {

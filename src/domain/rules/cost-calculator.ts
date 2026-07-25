@@ -51,8 +51,8 @@ export type RelayMode = 'SINGLE' | 'DOUBLE';
 export interface PlayMemberCostOptions {
   readonly relayMode?: RelayMode;
   readonly relayReplacementSlots?: readonly SlotPosition[];
-  /** Server-validated one-play base for the first narrow special-member-play sample. */
-  readonly specialPlayBaseCost?: 10;
+  /** Server-validated one-play base for a narrow special-member-play mode. */
+  readonly specialPlayBaseCost?: number;
 }
 
 /**
@@ -537,7 +537,7 @@ export class CostCalculator {
     | { readonly ok: true; readonly replacements: readonly RelayReplacementPlan[] }
     | { readonly ok: false; readonly reason: string } {
     if (!canUseDoubleRelay(memberData)) {
-      return { ok: false, reason: '只有 PL!SP-bp4-004 支持双换手' };
+      return { ok: false, reason: '此成员不支持双换手' };
     }
 
     const replacementSlots = options.relayReplacementSlots ?? [];
@@ -549,7 +549,9 @@ export class CostCalculator {
       return { ok: false, reason: '双换手必须包含拖拽目标格成员' };
     }
 
-    const targetMember = resources.stageMembers.find((member) => member.position === targetPosition);
+    const targetMember = resources.stageMembers.find(
+      (member) => member.position === targetPosition
+    );
     if (!targetMember) {
       return { ok: false, reason: '双换手暂不支持拖拽到空成员区' };
     }
@@ -731,7 +733,11 @@ function isMiraCraMember(memberData: MemberCardData): boolean {
 }
 
 function matchesMiraCraText(value: string | undefined): boolean {
-  const normalized = value?.replace(/[『』「」'’]/g, '').replace(/！/g, '!').toLowerCase() ?? '';
+  const normalized =
+    value
+      ?.replace(/[『』「」'’]/g, '')
+      .replace(/！/g, '!')
+      .toLowerCase() ?? '';
   return (
     normalized.includes('みらくらぱーく!') ||
     normalized.includes('mira-cra park') ||

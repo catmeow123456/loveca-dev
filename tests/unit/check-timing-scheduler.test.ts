@@ -28,7 +28,11 @@ function pending(id: string, controllerId: string): PendingAbilityState {
 describe('check timing scheduler', () => {
   it('offers every active-player ability before any non-active-player ability', () => {
     const game = createGameState('check-timing-order', 'p1', 'P1', 'p2', 'P2');
-    const abilities = [pending('non-active', 'p2'), pending('active-a', 'p1'), pending('active-x', 'p1')];
+    const abilities = [
+      pending('non-active', 'p2'),
+      pending('active-a', 'p1'),
+      pending('active-x', 'p1'),
+    ];
 
     expect(getCheckTimingAbilityCandidates(game, abilities).map((ability) => ability.id)).toEqual([
       'active-a',
@@ -70,7 +74,9 @@ describe('check timing scheduler', () => {
   });
 
   it('keeps one context while A, X, and Y are added and removed across iterations', () => {
-    let game = openCheckTimingContext(createGameState('check-timing-chain', 'p1', 'P1', 'p2', 'P2'));
+    let game = openCheckTimingContext(
+      createGameState('check-timing-chain', 'p1', 'P1', 'p2', 'P2')
+    );
     const contextId = game.checkTimingContext!.id;
     for (const id of ['A', 'X', 'Y']) {
       game = {
@@ -97,5 +103,23 @@ describe('check timing scheduler', () => {
     const result = processCheckTimingRuleActions(game);
     expect(result.gameEnded).toBe(true);
     expect(result.gameState.checkTimingContext).toBeNull();
+  });
+
+  it('returns the exact grouped waiting-room-to-main-deck event emitted by refresh', () => {
+    let game = createGameState('check-timing-refresh-event', 'p1', 'P1', 'p2', 'P2');
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: [] },
+      waitingRoom: { ...player.waitingRoom, cardIds: ['wait-a', 'wait-b'] },
+    }));
+
+    const result = processCheckTimingRuleActions(game);
+    expect(result.waitingRoomCardsMovedToMainDeckEvents).toHaveLength(1);
+    expect(result.waitingRoomCardsMovedToMainDeckEvents[0]).toMatchObject({
+      playerId: 'p1',
+      movedCardIds: expect.arrayContaining(['wait-a', 'wait-b']),
+      destination: { kind: 'SHUFFLED_BOTTOM' },
+      cause: { kind: 'RULE_ACTION', playerId: 'p1', ruleAction: 'REFRESH' },
+    });
   });
 });

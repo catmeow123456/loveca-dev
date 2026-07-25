@@ -5,6 +5,7 @@ import {
   type ActivatedAbilityUiConfig,
 } from '../ability-definition-types.js';
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
+import { isActivatedAbilityUiConfigAvailableForSource } from './activated-ability-availability.js';
 import { getRenGrantedActivatedAbilityUiConfigs } from './granted-activated-abilities.js';
 
 interface ActivatedAbilityUiQueryOptions {
@@ -23,7 +24,12 @@ export function getActivatedAbilityUiConfigs(
     definition.implemented &&
     definition.sourceZone === sourceZone &&
     definition.activatedUi
-      ? [definition.activatedUi]
+      ? [
+          {
+            ...definition.activatedUi,
+            requiredSourceOrientation: definition.requiredSourceOrientation,
+          },
+        ]
       : []
   );
   const grantedConfigs =
@@ -31,11 +37,7 @@ export function getActivatedAbilityUiConfigs(
     options.game &&
     options.playerId &&
     options.sourceCardId
-      ? getRenGrantedActivatedAbilityUiConfigs(
-          options.game,
-          options.playerId,
-          options.sourceCardId
-        )
+      ? getRenGrantedActivatedAbilityUiConfigs(options.game, options.playerId, options.sourceCardId)
       : [];
 
   const configsByAbilityId = new Map<string, ActivatedAbilityUiConfig>();
@@ -44,11 +46,24 @@ export function getActivatedAbilityUiConfigs(
       configsByAbilityId.set(config.abilityId, config);
     }
   }
-  return [...configsByAbilityId.values()].sort(
-    (left, right) =>
-      (left.displayOrder ?? Number.MAX_SAFE_INTEGER) -
-      (right.displayOrder ?? Number.MAX_SAFE_INTEGER)
-  );
+  return [...configsByAbilityId.values()]
+    .filter(
+      (config) =>
+        !options.game ||
+        !options.playerId ||
+        !options.sourceCardId ||
+        isActivatedAbilityUiConfigAvailableForSource(
+          options.game,
+          options.playerId,
+          options.sourceCardId,
+          config
+        )
+    )
+    .sort(
+      (left, right) =>
+        (left.displayOrder ?? Number.MAX_SAFE_INTEGER) -
+        (right.displayOrder ?? Number.MAX_SAFE_INTEGER)
+    );
 }
 
 export function getActivatedAbilityUiConfig(

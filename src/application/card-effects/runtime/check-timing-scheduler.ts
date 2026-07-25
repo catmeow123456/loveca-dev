@@ -1,4 +1,7 @@
-import type { EnergyMovedToDeckEvent } from '../../../domain/events/game-events.js';
+import type {
+  EnergyMovedToDeckEvent,
+  WaitingRoomCardsMovedToMainDeckEvent,
+} from '../../../domain/events/game-events.js';
 import {
   addAction,
   getCardById,
@@ -22,6 +25,7 @@ export interface CheckTimingRuleProcessingResult {
   readonly gameState: GameState;
   readonly ruleActions: readonly RuleActionResult[];
   readonly energyMovedToDeckEvents: readonly EnergyMovedToDeckEvent[];
+  readonly waitingRoomCardsMovedToMainDeckEvents: readonly WaitingRoomCardsMovedToMainDeckEvent[];
   readonly gameEnded: boolean;
 }
 
@@ -47,8 +51,9 @@ export function processCheckTimingRuleActions(
       );
     }
 
-    const pendingActions = ruleActionProcessor.collectPendingRuleActions(state, (cardId) =>
-      getCardById(state, cardId)?.data.cardType ?? null
+    const pendingActions = ruleActionProcessor.collectPendingRuleActions(
+      state,
+      (cardId) => getCardById(state, cardId)?.data.cardType ?? null
     );
     if (pendingActions.length === 0) {
       break;
@@ -74,6 +79,10 @@ export function processCheckTimingRuleActions(
         gameState: { ...state, checkTimingContext: null },
         ruleActions: appliedRuleActions,
         energyMovedToDeckEvents: collectEnergyMovedToDeckEvents(state, eventLogStartIndex),
+        waitingRoomCardsMovedToMainDeckEvents: collectWaitingRoomCardsMovedToMainDeckEvents(
+          state,
+          eventLogStartIndex
+        ),
         gameEnded: true,
       };
     }
@@ -83,6 +92,10 @@ export function processCheckTimingRuleActions(
     gameState: state,
     ruleActions: appliedRuleActions,
     energyMovedToDeckEvents: collectEnergyMovedToDeckEvents(state, eventLogStartIndex),
+    waitingRoomCardsMovedToMainDeckEvents: collectWaitingRoomCardsMovedToMainDeckEvents(
+      state,
+      eventLogStartIndex
+    ),
     gameEnded: false,
   };
 }
@@ -165,8 +178,10 @@ export function closeCheckTimingContextIfIdle(game: GameState): GameState {
 function applyRuleActionWithLog(game: GameState, result: RuleActionResult): GameState {
   const beforePlayer =
     result.affectedPlayerId !== null ? getPlayerById(game, result.affectedPlayerId) : null;
-  const nextState = applyRuleActionResult(game, result, (cardId) =>
-    getCardById(game, cardId)?.data.cardType ?? null
+  const nextState = applyRuleActionResult(
+    game,
+    result,
+    (cardId) => getCardById(game, cardId)?.data.cardType ?? null
   );
   const afterPlayer =
     result.affectedPlayerId !== null ? getPlayerById(nextState, result.affectedPlayerId) : null;
@@ -192,5 +207,18 @@ function collectEnergyMovedToDeckEvents(
     .filter(
       (event): event is EnergyMovedToDeckEvent =>
         event.eventType === TriggerCondition.ON_ENERGY_MOVED_TO_DECK
+    );
+}
+
+function collectWaitingRoomCardsMovedToMainDeckEvents(
+  game: GameState,
+  eventLogStartIndex: number
+): readonly WaitingRoomCardsMovedToMainDeckEvent[] {
+  return game.eventLog
+    .slice(eventLogStartIndex)
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is WaitingRoomCardsMovedToMainDeckEvent =>
+        event.eventType === TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
     );
 }

@@ -173,7 +173,7 @@ describe('PL!N-pb1-009 Rina LIVE_START workflow', () => {
         PL_N_PB1_009_LIVE_START_NO_BLADE_HEART_MEMBER_LIVE_TO_WAITING_DRAW_GAIN_YELLOW_BLUE_PURPLE_HEART_ABILITY_ID,
       target: 'SOURCE_MEMBER',
     });
-    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+    expect(getLatestResolutionAction(state)?.payload).toMatchObject({
       conditionMet: true,
       qualifyingMovedMemberCardIds: ['qualifying'],
       drawnCardIds: [drawIds[0]],
@@ -185,7 +185,7 @@ describe('PL!N-pb1-009 Rina LIVE_START workflow', () => {
     const state = confirm(setup({ conditionMet: false }).game);
     expect(state.pendingAbilities).toEqual([]);
     expect(state.liveResolution.liveModifiers).toEqual([]);
-    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+    expect(getLatestResolutionAction(state)?.payload).toMatchObject({
       qualifyingMovedMemberCardIds: [],
       conditionMet: false,
       drawnCardIds: [],
@@ -196,7 +196,7 @@ describe('PL!N-pb1-009 Rina LIVE_START workflow', () => {
 
   it('still gives Heart with an empty deck', () => {
     const state = confirm(setup({ deckCount: 0, qualifyingInWaiting: false }).game);
-    expect(state.actionHistory.at(-1)?.payload.drawnCardIds).toEqual([]);
+    expect(getLatestResolutionAction(state)?.payload.drawnCardIds).toEqual([]);
     expect(state.liveResolution.liveModifiers).toHaveLength(1);
   });
 
@@ -205,7 +205,7 @@ describe('PL!N-pb1-009 Rina LIVE_START workflow', () => {
     const state = confirm(game);
     expect(state.players[0].hand.cardIds).toContain(drawIds[0]);
     expect(state.liveResolution.liveModifiers).toEqual([]);
-    expect(state.actionHistory.at(-1)?.payload.heartBonus).toEqual([]);
+    expect(getLatestResolutionAction(state)?.payload.heartBonus).toEqual([]);
   });
 
   it('binds the modifier to the source instance after it changes slots', () => {
@@ -301,3 +301,14 @@ describe('PL!N-pb1-009 Rina LIVE_START workflow', () => {
     expect(finalized.gameState.liveResolution.liveModifiers).toEqual([]);
   });
 });
+
+function getLatestResolutionAction(game: GameState) {
+  return game.actionHistory
+    .filter(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId ===
+          PL_N_PB1_009_LIVE_START_NO_BLADE_HEART_MEMBER_LIVE_TO_WAITING_DRAW_GAIN_YELLOW_BLUE_PURPLE_HEART_ABILITY_ID
+    )
+    .at(-1);
+}

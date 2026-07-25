@@ -14,7 +14,7 @@ import {
 } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
-import { moveWaitingRoomCardsToDeckTopForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import {
   getAbilityEffectText,
   recordPayCostAction,
@@ -242,7 +242,7 @@ function finishStackWaitingMembersToDeckTop(
     return game;
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
@@ -250,6 +250,13 @@ function finishStackWaitingMembersToDeckTop(
       candidateCardIds: effect.selectableCardIds ?? [],
       minCount: 2,
       maxCount: 2,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
     }
   );
   if (!moveResult) return game;

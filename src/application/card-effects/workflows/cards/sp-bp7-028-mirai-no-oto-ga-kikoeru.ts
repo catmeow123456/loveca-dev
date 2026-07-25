@@ -21,8 +21,8 @@ import {
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   addBladeLiveModifierForMember,
-  shuffleWaitingRoomCardsToDeckBottomForPlayer,
 } from '../../runtime/actions.js';
+import { shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -177,10 +177,17 @@ function finishLiveStartSelection(
       : game;
   }
 
-  const shuffleResult = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+  const shuffleResult = shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     { ...game, activeEffect: null },
     player.id,
-    selectedCardIds
+    selectedCardIds,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
   );
   if (!shuffleResult || shuffleResult.movedCardIds.length !== REQUIRED_COUNT) {
     return wasRestoredAfterPublicCardSelectionConfirmation(effect)

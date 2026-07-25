@@ -4,8 +4,12 @@
  */
 
 import { CardType, ZoneType, SlotPosition } from '../../shared/types/enums.js';
-import type { GameState } from '../entities/game.js';
+import { emitGameEvent, getPlayerById, updatePlayer, type GameState } from '../entities/game.js';
 import type { PlayerState } from '../entities/player.js';
+import {
+  createWaitingRoomCardsMovedToMainDeckEvent,
+  type WaitingRoomCardsMovedToMainDeckEvent,
+} from '../events/game-events.js';
 
 // ============================================
 // 规则处理类型
@@ -510,7 +514,6 @@ export class RuleActionProcessor {
 // 规则处理应用函数
 // ============================================
 
-import { emitGameEvent, updatePlayer } from '../entities/game.js';
 import { createEnergyMovedToDeckEvent } from '../events/game-events.js';
 import {
   addCardToZone,
@@ -540,10 +543,10 @@ export function applyRuleActionResult(
     case RuleActionType.REFRESH: {
       // 刷新处理：仅将休息室洗牌后压到现有主卡组下方，保留原主卡组顺序。
       if (result.affectedPlayerId) {
+        const playerBeforeRefresh = getPlayerById(state, result.affectedPlayerId);
+        const waitingRoomCards = [...(playerBeforeRefresh?.waitingRoom.cardIds ?? [])];
+        const shuffledCards = shuffleArray(waitingRoomCards);
         state = updatePlayer(state, result.affectedPlayerId, (player) => {
-          const waitingRoomCards = [...player.waitingRoom.cardIds];
-          const shuffledCards = shuffleArray(waitingRoomCards);
-
           return {
             ...player,
             lastDeckRefreshTurnCount: game.turnCount,
@@ -557,6 +560,21 @@ export function applyRuleActionResult(
             },
           };
         });
+        if (shuffledCards.length > 0) {
+          const refreshEvent: WaitingRoomCardsMovedToMainDeckEvent =
+            createWaitingRoomCardsMovedToMainDeckEvent(
+              result.affectedPlayerId,
+              result.affectedPlayerId,
+              shuffledCards,
+              { kind: 'SHUFFLED_BOTTOM' },
+              {
+                kind: 'RULE_ACTION',
+                playerId: result.affectedPlayerId,
+                ruleAction: 'REFRESH',
+              }
+            );
+          state = emitGameEvent(state, refreshEvent);
+        }
       }
       break;
     }

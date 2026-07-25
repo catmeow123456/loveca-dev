@@ -1,5 +1,6 @@
 import type {
   CardType,
+  OrientationState,
   SlotPosition,
   TriggerCondition,
   ZoneType,
@@ -31,6 +32,8 @@ export interface ActivatedAbilityUiConfig {
   readonly text: string;
   readonly title: string;
   readonly displayOrder?: number;
+  /** Source orientation required to expose this activated ability as currently usable. */
+  readonly requiredSourceOrientation?: OrientationState;
 }
 
 export interface OnEnterStageTriggerFilter {
@@ -60,6 +63,8 @@ export interface CardAbilityDefinition {
   readonly implemented: boolean;
   readonly effectText: string;
   readonly requiredSourceSlots?: readonly SlotPosition[];
+  readonly requiredSourceOrientation?: OrientationState;
+  readonly requiredSourceOrientationAtTrigger?: OrientationState;
   readonly triggerFromZones?: readonly ZoneType[];
   readonly triggerToZones?: readonly ZoneType[];
   readonly enterWaitingRoomCause?: 'OWN_LIVE_SUCCESS_ABILITY';

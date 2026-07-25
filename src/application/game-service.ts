@@ -1505,6 +1505,16 @@ export class GameService {
         energyMovedToDeckEvents: ruleActionResult.energyMovedToDeckEvents,
       });
     }
+    if (ruleActionResult.waitingRoomCardsMovedToMainDeckEvents.length > 0) {
+      state = enqueueTriggeredCardEffects(
+        state,
+        [TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK],
+        {
+          waitingRoomCardsMovedToMainDeckEvents:
+            ruleActionResult.waitingRoomCardsMovedToMainDeckEvents,
+        }
+      );
+    }
 
     const abilityResult = resolvePendingCardEffects(state);
     const finalState = closeCheckTimingContextIfIdle(abilityResult.gameState);

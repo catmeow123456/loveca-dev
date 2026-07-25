@@ -31,7 +31,6 @@ import {
   S_BP6_009_LIVE_SUCCESS_CENTER_CHEER_SCORE_AQOURS_LIVE_SCORE_ABILITY_ID,
   S_BP6_020_GRANTED_LIVE_SUCCESS_DRAW_ONE_ABILITY_ID,
   S_BP6_020_LIVE_START_CHOOSE_ADVENTURE_TYPE_ABILITY_ID,
-  S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
   S_BP6_024_LIVE_SUCCESS_OPPONENT_LOSE_REMAINING_HEARTS_THIS_LIVE_SCORE_ABILITY_ID,
   S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -167,23 +166,6 @@ export function registerSFutureWaterBatch3WorkflowHandlers(): void {
     }
   );
   registerPendingAbilityStarterHandler(
-    S_BP6_022_LIVE_SUCCESS_OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE_ABILITY_ID,
-    (game, ability, options, context) => {
-      const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
-        effectText: getEnergyLeadLiveSuccessConfirmationEffectText(game, ability),
-      });
-      if (confirmation) {
-        return confirmation;
-      }
-      return resolveEnergyLeadLiveSuccessScore(
-        game,
-        ability,
-        options.orderedResolution === true,
-        context.continuePendingCardEffects
-      );
-    }
-  );
-  registerPendingAbilityStarterHandler(
     S_BP6_023_LIVE_SUCCESS_OWN_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
     (game, ability, options, context) => {
       const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
@@ -271,19 +253,6 @@ function getJumpUpHighLiveStartConfirmationEffectText(
   return `${getAbilityEffectText(ability.abilityId)}（当前自己舞台 Aqours 成员 ${
     context.aqoursStageMemberCardIds.length
   }名，实际获得[BLADE]的成员 ${context.applies ? context.aqoursStageMemberCardIds.length : 0}名。）`;
-}
-
-function getEnergyLeadLiveSuccessConfirmationEffectText(
-  game: GameState,
-  ability: PendingAbilityState
-): string {
-  const player = getPlayerById(game, ability.controllerId);
-  const opponent = player ? getOpponent(game, player.id) : null;
-  const ownEnergyCount = player?.energyZone.cardIds.length ?? 0;
-  const opponentEnergyCount = opponent?.energyZone.cardIds.length ?? 0;
-  return `${getAbilityEffectText(ability.abilityId)}（自己能量 ${ownEnergyCount}张，对方能量 ${opponentEnergyCount}张，${
-    opponentEnergyCount > ownEnergyCount ? '满足条件，分数+1' : '未满足条件，不增加分数'
-  }）`;
 }
 
 function getDeckRefreshedLiveSuccessConfirmationEffectText(
@@ -639,53 +608,6 @@ function getBp6020GrantedDrawGuard(
         : null,
     sourceLiveSucceeded,
   };
-}
-
-function resolveEnergyLeadLiveSuccessScore(
-  game: GameState,
-  ability: PendingAbilityState,
-  orderedResolution: boolean,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const player = getPlayerById(game, ability.controllerId);
-  const opponent = player ? getOpponent(game, player.id) : null;
-  if (!player || !opponent) {
-    return game;
-  }
-
-  const ownEnergyCount = player.energyZone.cardIds.length;
-  const opponentEnergyCount = opponent.energyZone.cardIds.length;
-  const scoreBonus = opponentEnergyCount > ownEnergyCount ? 1 : 0;
-  let state: GameState = {
-    ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
-  };
-  if (scoreBonus > 0) {
-    state = addScoreModifierAndRefresh(
-      state,
-      player.id,
-      ability.sourceCardId,
-      ability.abilityId,
-      scoreBonus,
-      ability.sourceCardId
-    );
-  }
-
-  return continuePendingCardEffects(
-    addAction(state, 'RESOLVE_ABILITY', player.id, {
-      pendingAbilityId: ability.id,
-      abilityId: ability.abilityId,
-      sourceCardId: ability.sourceCardId,
-      step:
-        scoreBonus > 0
-          ? 'OPPONENT_ENERGY_MORE_THIS_LIVE_SCORE'
-          : 'NO_OPPONENT_ENERGY_MORE',
-      ownEnergyCount,
-      opponentEnergyCount,
-      scoreBonus,
-    }),
-    orderedResolution
-  );
 }
 
 function resolveDeckRefreshedLiveSuccessScore(

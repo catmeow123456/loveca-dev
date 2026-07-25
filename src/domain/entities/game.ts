@@ -85,6 +85,7 @@ export type GameActionType =
   | 'PHASE_CHANGE'
   | 'TURN_CHANGE'
   | 'TRIGGER_ABILITY'
+  | 'DISPATCH_TRIGGER_EVENT'
   | 'RESOLVE_ABILITY'
   | 'RULE_ACTION'
   | 'TAP_MEMBER'
@@ -696,16 +697,27 @@ export interface PendingCostPaymentState {
   readonly explanation?: string;
 }
 
-export interface PendingSpecialMemberPlayState {
+interface PendingSpecialMemberPlayBaseState {
   readonly id: string;
   readonly playerId: string;
   readonly sourceCardId: string;
   readonly targetSlot: SlotPosition;
-  readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
-  readonly printedCost: 15;
-  readonly specialPlayCost: 10;
   readonly candidateCardIds: readonly string[];
 }
+
+export type PendingSpecialMemberPlayState = PendingSpecialMemberPlayBaseState &
+  (
+    | {
+        readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
+        readonly printedCost: 15;
+        readonly specialPlayCost: 10;
+      }
+    | {
+        readonly mode: 'N_BP7_011_WAITING_MEMBERS_COST_MINUS_TWO';
+        readonly printedCost: 13;
+        readonly specialPlayCost: 11;
+      }
+  );
 
 // ============================================
 // 游戏状态定义
