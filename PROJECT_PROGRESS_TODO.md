@@ -41,7 +41,7 @@
 - 卡牌数据已区分 `GRAY` 无色 Heart 与 `RAINBOW` All Heart；`double` 展开为两个独立 `GRAY` 判心项。
 - 新云端卡组默认包含 12 张 `LL-E-001-SD` 能量卡，并支持复制为新版本、分享管理与 DeckLog/YAML 导入。
 - 已登录用户可从首页进入个人中心，修改用户名、显示名称和密码；邮箱换绑采用新邮箱确认后生效并撤销旧会话的流程。
-- 当前版本为 `3.8.2`。发布、镜像、数据库迁移和卡牌同步仍按 release skill、runbook 与 migration notes 执行，不能从本文件的旧窗口描述推断生产状态。
+- 当前版本为 `3.8.3`。发布、镜像、数据库迁移和卡牌同步仍按 release skill、runbook 与 migration notes 执行，不能从本文件的旧窗口描述推断生产状态。
 
 ## 当前事实来源
 
