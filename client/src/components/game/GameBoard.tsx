@@ -24,7 +24,7 @@ import {
   type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import { useGameStore, type VisibleCardPresentation } from '@/store/gameStore';
 import { PlayerArea, type SelectedHandCardAction } from './PlayerArea';
@@ -93,6 +93,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { GameCommandType } from '@game/application/game-commands';
 import {
+  ArrowRightLeft,
   ChevronRight,
   Check,
   DoorOpen,
@@ -364,6 +365,7 @@ export const GameBoard = memo(function GameBoard({
   const publicLogUnreadCount = useGameStore((s) => s.publicBattleLog.unreadCount);
   const setPublicBattleLogPanelOpen = useGameStore((s) => s.setPublicBattleLogPanelOpen);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
+  const prefersReducedMotion = useReducedMotion() === true;
   const canShowDebugLog = capabilities.canShowDebugLog;
   const canShowPublicBattleLog = capabilities.authority === 'REMOTE';
   const canShowDesktopPublicBattleLogButton =
@@ -431,6 +433,7 @@ export const GameBoard = memo(function GameBoard({
     pushBattleFeedback,
     setHoveredCard,
     setFreePlayEnabled,
+    setViewingPlayer,
     respondRemoteUndoRequest,
     respondManualOperationModeRequest,
     getZoneCardIds,
@@ -477,6 +480,7 @@ export const GameBoard = memo(function GameBoard({
       pushBattleFeedback: s.pushBattleFeedback,
       setHoveredCard: s.setHoveredCard,
       setFreePlayEnabled: s.setFreePlayEnabled,
+      setViewingPlayer: s.setViewingPlayer,
       respondRemoteUndoRequest: s.respondRemoteUndoRequest,
       respondManualOperationModeRequest: s.respondManualOperationModeRequest,
       getZoneCardIds: s.getZoneCardIds,
@@ -2182,6 +2186,22 @@ export const GameBoard = memo(function GameBoard({
           : '点击开启自由模式';
   const manualOperationSwitchDisabled =
     !!pendingManualOperationRequest || manualOperation?.canSwitchNow === false;
+  const handleMobileOpponentAction = () => {
+    if (capabilities.canSwitchPerspective && opponentIdentity) {
+      setMobilePanel(null);
+      setViewingPlayer(opponentIdentity.id);
+      return;
+    }
+    setMobilePanel('opponent');
+  };
+  const handleMobilePerspectiveSelect = (seat: Seat) => {
+    const identity = getPlayerIdentityForSeat(seat);
+    if (!capabilities.canSwitchPerspective || !identity) {
+      return;
+    }
+    setMobilePanel(null);
+    setViewingPlayer(identity.id);
+  };
 
   return (
     <DndContext
@@ -2262,45 +2282,104 @@ export const GameBoard = memo(function GameBoard({
               </div>
 
               <div className="mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
-                <button
-                  type="button"
-                  onClick={() => setMobilePanel('opponent')}
-                  className={cn(
-                    'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
-                    resolvedActiveSeat === opponentSeat
-                      ? 'border-rose-300/50 bg-rose-500/20 text-rose-100'
-                      : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)]'
-                  )}
-                  title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
-                >
-                  <UserRound size={14} className="shrink-0" />
-                  <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
-                    {opponentIdentity?.name ?? '对手'}
-                  </span>
-                  <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                    Live {opponentLiveScore}
-                  </span>
-                </button>
-                <div
-                  className={cn(
-                    'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5',
-                    resolvedActiveSeat === selfSeat
-                      ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                      : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)]'
-                  )}
-                >
-                  <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
-                    {selfIdentity?.name ?? '己方'}
-                  </span>
-                  <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                    Live {viewerLiveScore}
-                  </span>
-                </div>
+                {capabilities.canSwitchPerspective ? (
+                  (['FIRST', 'SECOND'] as const).map((seat) => {
+                    const identity = getPlayerIdentityForSeat(seat);
+                    const isCurrentPerspective = seat === selfSeat;
+                    const liveScore = matchView.liveResult?.scores[seat] ?? 0;
+                    const seatLabel = seat === 'FIRST' ? 'P1' : 'P2';
+                    return (
+                      <button
+                        key={seat}
+                        type="button"
+                        onClick={() => handleMobilePerspectiveSelect(seat)}
+                        aria-pressed={isCurrentPerspective}
+                        aria-label={`${seatLabel} ${identity?.name ?? '玩家'}${
+                          isCurrentPerspective ? '，当前视角' : '，切换至此视角'
+                        }`}
+                        className={cn(
+                          'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition',
+                          isCurrentPerspective
+                            ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_18%,transparent)] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
+                            : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)] hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]'
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold',
+                            isCurrentPerspective
+                              ? 'bg-[var(--accent-primary)] text-white'
+                              : 'bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
+                          )}
+                        >
+                          {seatLabel}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
+                          {identity?.name ?? '玩家'}
+                        </span>
+                        <span className="shrink-0 text-[10px] font-semibold text-[var(--text-muted)]">
+                          Live {liveScore}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleMobileOpponentAction}
+                      className={cn(
+                        'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
+                        resolvedActiveSeat === opponentSeat
+                          ? 'border-rose-300/50 bg-rose-500/20 text-rose-100'
+                          : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)]'
+                      )}
+                      title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
+                    >
+                      <UserRound size={14} className="shrink-0" />
+                      <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
+                        {opponentIdentity?.name ?? '对手'}
+                      </span>
+                      <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                        Live {opponentLiveScore}
+                      </span>
+                    </button>
+                    <div
+                      className={cn(
+                        'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5',
+                        resolvedActiveSeat === selfSeat
+                          ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                          : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)]'
+                      )}
+                    >
+                      <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
+                        {selfIdentity?.name ?? '己方'}
+                      </span>
+                      <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
+                        Live {viewerLiveScore}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
 
             <div className="min-h-0 flex-1 px-2 pb-32 pt-1.5">
-              <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none">
+              <motion.div
+                key={`mobile-perspective-${selfSeat}`}
+                data-perspective-surface="mobile-self"
+                initial={{
+                  opacity: 0,
+                  y: prefersReducedMotion ? 0 : 10,
+                  scale: prefersReducedMotion ? 1 : 0.995,
+                }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{
+                  duration: prefersReducedMotion ? 0.08 : 0.18,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_10%,transparent)] shadow-none"
+              >
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <PlayerArea
                     playerSeat={selfSeat}
@@ -2313,7 +2392,7 @@ export const GameBoard = memo(function GameBoard({
                     onSelectedHandCardAction={handleSelectedHandCardAction}
                   />
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             <div
@@ -2324,12 +2403,29 @@ export const GameBoard = memo(function GameBoard({
             >
               <button
                 type="button"
-                onClick={() => setMobilePanel('opponent')}
+                onClick={handleMobileOpponentAction}
                 className="relative inline-flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-[color:color-mix(in_srgb,var(--border-default)_50%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_28%,transparent)] px-1.5 py-1.5 text-[10px] font-semibold text-[var(--text-secondary)] shadow-none backdrop-blur-[2px] transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-frosted)_42%,transparent)] hover:text-[var(--text-primary)]"
-                title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
+                aria-label={
+                  capabilities.canSwitchPerspective
+                    ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
+                    : undefined
+                }
+                title={
+                  capabilities.canSwitchPerspective
+                    ? `切换至 ${opponentIdentity?.name ?? '对手'} 视角`
+                    : isSolitaire
+                      ? '查看对墙打对手战场'
+                      : '查看对手战场'
+                }
               >
-                <Swords size={16} />
-                <span className="truncate">对手</span>
+                {capabilities.canSwitchPerspective ? (
+                  <ArrowRightLeft size={16} />
+                ) : (
+                  <Swords size={16} />
+                )}
+                <span className="truncate">
+                  {capabilities.canSwitchPerspective ? '换视角' : '对手'}
+                </span>
               </button>
 
               {primaryMobileLogPanel && (
@@ -2509,7 +2605,15 @@ export const GameBoard = memo(function GameBoard({
             )}
 
             {/* 对手区域 (顶部) - 包含成员槽位和对手 Live 区 */}
-            <div
+            <motion.div
+              key={`desktop-opponent-${opponentSeat}`}
+              data-perspective-surface="desktop-opponent"
+              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : -10 }}
+              animate={{ opacity: isSolitaire ? 0.12 : 1, y: 0 }}
+              transition={{
+                duration: prefersReducedMotion ? 0.08 : 0.18,
+                ease: [0.22, 1, 0.36, 1],
+              }}
               className={`relative flex-[5] min-h-0 overflow-hidden ${
                 isSolitaire ? 'opacity-[0.12] pointer-events-none' : ''
               }`}
@@ -2520,7 +2624,7 @@ export const GameBoard = memo(function GameBoard({
                 isActive={resolvedActiveSeat === opponentSeat}
                 suppressActiveEffectVisuals={isActiveEffectUiSuspended}
               />
-            </div>
+            </motion.div>
 
             {/* VS 分隔线 (中央) - 对墙打模式下弱化 */}
             <div
@@ -2548,7 +2652,17 @@ export const GameBoard = memo(function GameBoard({
             </div>
 
             {/* 己方区域 (底部) - 包含己方 Live 区和成员槽位 */}
-            <div className="flex-[5] min-h-0 overflow-hidden">
+            <motion.div
+              key={`desktop-self-${selfSeat}`}
+              data-perspective-surface="desktop-self"
+              initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: prefersReducedMotion ? 0.08 : 0.18,
+                ease: [0.22, 1, 0.36, 1],
+              }}
+              className="flex-[5] min-h-0 overflow-hidden"
+            >
               <PlayerArea
                 playerSeat={selfSeat}
                 isOpponent={false}
@@ -2559,7 +2673,7 @@ export const GameBoard = memo(function GameBoard({
                 suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
                 onSelectedHandCardAction={handleSelectedHandCardAction}
               />
-            </div>
+            </motion.div>
           </>
         )}
 

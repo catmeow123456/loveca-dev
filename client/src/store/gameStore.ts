@@ -95,6 +95,7 @@ import {
 import type { CardDefinedSpecialMemberPlayMode } from '@game/shared/rules/member-play-options';
 import { getPhaseName } from '@game/shared/phase-config';
 import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
+import { getDebugPerspectiveFollowTarget } from '@/lib/debugPerspective';
 import {
   createBattleFeedbackEvent,
   isBattleFeedbackEventExpired,
@@ -756,6 +757,54 @@ export const useGameStore = create<GameStore>((set, get) => {
     }
   };
 
+  const followLocalDebugActionOwner = (): void => {
+    const state = get();
+    const currentViewState = state.playerViewState;
+    const currentPlayerId = state.viewingPlayerId;
+    if (
+      !currentPlayerId ||
+      !currentViewState ||
+      state.remoteSession ||
+      state.replaySession ||
+      state.gameMode !== GameMode.DEBUG ||
+      currentViewState.match.manualOperation.mode !== 'RULES'
+    ) {
+      return;
+    }
+
+    const target = getDebugPerspectiveFollowTarget(currentPlayerId, currentViewState, (playerId) =>
+      state.gameSession.getPlayerViewState(playerId)
+    );
+    if (!target) {
+      return;
+    }
+
+    const normalizedTargetViewState = normalizePlayerViewState(target.viewState);
+    if (!normalizedTargetViewState) {
+      return;
+    }
+
+    set((currentState) => ({
+      viewingPlayerId: target.playerId,
+      playerViewState: normalizedTargetViewState,
+      freePlayEnabled: normalizedTargetViewState.match.manualOperation.mode === 'FREE',
+      ui: {
+        ...currentState.ui,
+        selectedCardId: null,
+        hoveredCardId: null,
+        cardDetail: null,
+        isDragging: false,
+        highlightedZones: [],
+        dragActionHint: null,
+      },
+    }));
+
+    const targetName =
+      normalizedTargetViewState.match.participants[normalizedTargetViewState.match.viewerSeat]
+        ?.name ?? target.playerId;
+    get().addLog(`操作权已交给 ${targetName}，自动切换视角`, 'info');
+  };
+
   const runStoreCommand = (
     command: GameCommand,
     options: StoreCommandOptions
@@ -794,6 +843,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     get().syncState();
     applyCommandSuccessEffects(options);
+    followLocalDebugActionOwner();
     return { success: true };
   };
 
@@ -984,6 +1034,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (result.success) {
         // 同步状态
         get().syncState();
+        followLocalDebugActionOwner();
 
         const currentPhase = get().getCurrentPhaseView();
         if (currentPhase) {
@@ -1313,6 +1364,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (result.success) {
         // 同步状态
         get().syncState();
+        followLocalDebugActionOwner();
 
         if (cardIdsToMulligan.length > 0) {
           get().addLog(`换牌: 换掉 ${cardIdsToMulligan.length} 张卡牌`, 'action');

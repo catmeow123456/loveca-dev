@@ -678,6 +678,7 @@ function App() {
         onBack={() => setCurrentPage('home')}
         onGameStart={() => setCurrentPage('game')}
         onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
+        onNavigateToPublicTable={() => setCurrentPage('public-table')}
       />
     );
   }

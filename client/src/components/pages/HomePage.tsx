@@ -303,7 +303,7 @@ export function HomePage({
           ? {
               state: 'ready' as PrimaryActionState,
               title: '开始游戏',
-              description: '选择模式和卡组，进入对墙打模拟、正式联机或本地调试流程。',
+              description: '选择公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
               cta: '开始游戏',
               icon: Gamepad2,
               onClick: onNavigateToGameSetup,
