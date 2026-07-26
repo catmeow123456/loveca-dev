@@ -88,6 +88,7 @@ import {
 } from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
 import { getMemberPlayOptions, type MemberPlayOptionView } from '@/lib/memberPlayOptions';
+import { isJudgmentPanelAvailable } from '@/lib/judgmentPanelAvailability';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { GameCommandType } from '@game/application/game-commands';
@@ -1199,15 +1200,9 @@ export const GameBoard = memo(function GameBoard({
     [pendingSpecialMemberPlay?.id, pendingSpecialPlayMaxCount]
   );
 
-  const isJudgmentPanelRelevant =
-    (currentPhase === GamePhase.PERFORMANCE_PHASE &&
-      (currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
-        currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT)) ||
-    (currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      (currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
-        currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS));
+  const isJudgmentPanelRelevant = isJudgmentPanelAvailable(currentPhase, currentSubPhase);
 
-  // 左侧判定区抽屉开关（表演判定与成功效果窗口中可唤出）
+  // 左侧判定区抽屉开关（表演判定至成功 Live 结算期间可唤出）
   const [judgmentPanelOpen, setJudgmentPanelOpen] = useState(false);
 
   // 弹窗回调
