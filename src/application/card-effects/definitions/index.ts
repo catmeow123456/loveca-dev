@@ -895,6 +895,10 @@ import {
   N_BP7_011_AUTO_DECK_TO_WAITING_DISCARD_ONE_RECOVER_SELF_ABILITY_ID,
   N_BP7_011_CONTINUOUS_PLAY_SHUFFLE_WAITING_MEMBERS_COST_MINUS_TWO_ABILITY_ID,
   N_BP7_011_LIVE_SUCCESS_NIJIGASAKI_WAITING_CARD_TO_DECK_TOP_ABILITY_ID,
+  PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+  N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
+  PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
+  N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
 } from '../ability-ids.js';
 import {
   CardAbilityCategory,
@@ -2375,12 +2379,68 @@ const HS_PB1_012_ON_ENTER_EFFECT_TEXT =
   '【登场】自己和对方分别将存在于自身休息室的所有成员卡洗牌，放置入自身的卡组底。合计大于等于20张自己与对方的卡片因此被放置入卡组底的场合，从自己的休息室将1张LIVE卡加入手牌，LIVE结束时为止，获得[BLADE][BLADE]。';
 const N_BP4_018_ACTIVE_TO_WAITING_EFFECT_TEXT =
   '【自动】自己主要阶段中，此成员从活跃状态变为待机状态时，抽1张卡，将1张手牌放置入休息室。';
+const PL_N_SD2_007_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】抽1张卡。此回合，对方LIVE成功的场合，再抽1张卡，将1张手牌放置入休息室。';
+const N_SD2_025_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】将存在于自己的舞台的1名『虹咲』的成员变为活跃状态。';
+const PL_N_SD2_026_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】存在于自己的舞台的1名持有的[ブレード]大于等于4的『虹咲』的成员，LIVE结束时为止，获得[赤ハート][赤ハート]。';
+const N_SD2_027_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以将至多3名『虹咲』的成员变为待机状态：每有1名因此变为待机状态的成员，此卡的分数+1。';
 const PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_EFFECT_TEXT =
   '【自动】【1回合1次】因自己的卡片效果，使对方舞台活跃状态且费用小于等于4的成员变为待机状态时，抽1张卡。';
 const PB1_015_CENTER_WAIT_BIBI_MEMBER_EFFECT_TEXT =
   '【登场】/【LIVE开始时】【中央】可以将1名『BiBi』成员变为待机状态：对方将自身舞台上1名活跃状态成员变为待机状态。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!N-sd2-007'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_SD2_007_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_SUCCESS workflow `n-sd2-007-setsuna.ts`；固定抽1，按本回合 liveResolution.liveResults 判断对方是否已有成功 LIVE，满足时复用抽弃底座再抽1并弃1，弃手进入休息室走标准 trigger wrapper。',
+  },
+  {
+    abilityId: N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
+    baseCardCodes: ['PL!N-sd2-025'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_SD2_025_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 shared `activate-own-stage-member.ts`；来源为己方 LIVE，强制选择自己主舞台1名当前非 ACTIVE 的虹咲成员变 ACTIVE，无合法目标时安全结算，方向变化走成员状态变化 wrapper。',
+  },
+  {
+    abilityId: PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
+    baseCardCodes: ['PL!N-sd2-026'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: PL_N_SD2_026_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `n-sd2-026-fire-bird.ts`；选择与提交时均重验己方主舞台虹咲成员的实时有效 BLADE>=4，通过来源 LIVE/abilityId/目标成员绑定 TARGET_MEMBER 红 Heart x2。',
+  },
+  {
+    abilityId: N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
+    baseCardCodes: ['PL!N-sd2-027'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: N_SD2_027_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `n-sd2-027-ketsui-no-hikari.ts`；可选自己主舞台至多3名虹咲成员，复用 wait-stage-members runtime helper 与成员状态变化 wrapper，仅按实际成功变为 WAITING 的人数给来源 LIVE 写 SCORE modifier 并刷新 playerScores。',
+  },
   {
     abilityId: PL_PR_001_002_ON_LEAVE_STAGE_ACTIVATE_MEMBER_ABILITY_ID,
     baseCardCodes: ['PL!-PR-001', 'PL!-PR-002'],

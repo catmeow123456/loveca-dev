@@ -1743,3 +1743,11 @@ export const PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID 
   'PL!-pb2-039:live-success-distinct-muse-stage-cheer-score';
 export const N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID =
   'PL!N-bp8-002:activated-waiting-room-pay-energy-bottom-self-target-yellow-heart';
+export const PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
+  'PL!N-sd2-007:live-success-draw-one-opponent-success-draw-one-discard-one';
+export const N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID =
+  'PL!N-sd2-025:live-start-activate-nijigasaki-stage-member';
+export const PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID =
+  'PL!N-sd2-026:live-start-effective-blade-four-target-gain-red-heart-two';
+export const N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID =
+  'PL!N-sd2-027:live-start-wait-up-to-three-nijigasaki-score-per-waited';

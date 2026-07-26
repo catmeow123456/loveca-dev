@@ -870,6 +870,10 @@ import {
   PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
   PL_BP4_020_LIVE_START_ONLY_MUSE_STAGE_TARGET_MEMBER_POSITION_CHANGE_ABILITY_ID,
   PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+  PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+  N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
+  PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
+  N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 
 const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
@@ -15761,4 +15765,65 @@ describe('PL!S-bp7-007 and PL!HS-bp8-001 base-scoped definitions', () => {
       }),
     ]);
   });
+});
+
+describe('PL!N-sd2 base-scoped definitions', () => {
+  it.each([
+    [
+      'PL!N-sd2-007-P',
+      PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+      'PL!N-sd2-007',
+      CardAbilityCategory.LIVE_SUCCESS,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      TriggerCondition.ON_LIVE_SUCCESS,
+    ],
+    [
+      'PL!N-sd2-025-P',
+      N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
+      'PL!N-sd2-025',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.LIVE_CARD,
+      TriggerCondition.ON_LIVE_START,
+    ],
+    [
+      'PL!N-sd2-026-P',
+      PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
+      'PL!N-sd2-026',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.LIVE_CARD,
+      TriggerCondition.ON_LIVE_START,
+    ],
+    [
+      'PL!N-sd2-027-P',
+      N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
+      'PL!N-sd2-027',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.LIVE_CARD,
+      TriggerCondition.ON_LIVE_START,
+    ],
+  ])(
+    'registers %s by base card code',
+    (cardCode, abilityId, baseCardCode, category, sourceZone, triggerCondition) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId,
+          baseCardCodes: [baseCardCode],
+          category,
+          sourceZone,
+          triggerCondition,
+          queued: true,
+          implemented: true,
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+      expect(getCardAbilityDefinitions(`${baseCardCode}-SEC`)).toHaveLength(1);
+    }
+  );
+
+  it.each(['PL!N-sd2-006-P', 'PL!N-sd2-008-P', 'PL!N-sd2-024-P', 'PL!N-sd2-028-P'])(
+    'does not leak to adjacent card %s',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
 });

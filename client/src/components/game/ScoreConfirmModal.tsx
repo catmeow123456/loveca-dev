@@ -6,6 +6,7 @@ import { useGameStore } from '@/store/gameStore';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
 import { useKeyedState } from '@/hooks/useKeyedState';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
+import { buildScoreConfirmStateKey } from '@/lib/scoreConfirmState';
 
 export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
   const currentPhase = useGameStore((s) => s.getCurrentPhaseView());
@@ -41,7 +42,7 @@ export const ScoreConfirmModal = memo(function ScoreConfirmModal() {
 
   const scoreConfirmKey =
     shouldShow && matchView
-      ? `${matchView.matchId}:${matchView.turnCount}:${SubPhase.RESULT_SCORE_CONFIRM}`
+      ? buildScoreConfirmStateKey(matchView.matchId, matchView.turnCount, matchView.viewerSeat)
       : null;
   const [adjustedScore, setAdjustedScore] = useKeyedState(scoreConfirmKey, selfScore);
   useDialogAccessibility({

@@ -113,6 +113,8 @@ export interface MatchViewState {
   readonly turnCount: number;
   readonly phase: string;
   readonly subPhase: string;
+  /** 当前规则意义上的先攻席位；可能与开局 FIRST 席位不同。 */
+  readonly firstSeat: Seat;
   readonly activeSeat: Seat | null;
   readonly prioritySeat: Seat | null;
   readonly window: ViewWindowState | null;

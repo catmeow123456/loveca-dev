@@ -56,6 +56,7 @@ import { useGameStore } from '@/store/gameStore';
 import { DroppableZone } from './interaction';
 import { CardDetailPressTarget } from './CardDetailPressTarget';
 import {
+  getJudgmentSeatRoleLabel,
   JudgmentSeatSwitcher,
   resolveJudgmentViewingSeat,
   type JudgmentViewSelection,
@@ -428,6 +429,7 @@ const SortableCheerCard = memo(function SortableCheerCard({
 
 export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: JudgmentPanelProps) {
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
+  const firstSeat = useGameStore((s) => s.playerViewState?.match.firstSeat ?? null);
   const [viewSelection, setViewSelection] = useState<JudgmentViewSelection>(() => ({
     activeSeat,
     viewingSeat: activeSeat,
@@ -505,8 +507,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const activePlayer = activeSeat ? getPlayerIdentityForSeat(activeSeat) : null;
   const viewedPlayer = viewingSeat ? getPlayerIdentityForSeat(viewingSeat) : null;
   const playerNames: Record<Seat, string> = {
-    FIRST: getPlayerIdentityForSeat('FIRST')?.name ?? '先攻玩家',
-    SECOND: getPlayerIdentityForSeat('SECOND')?.name ?? '后攻玩家',
+    FIRST: getPlayerIdentityForSeat('FIRST')?.name ?? '玩家 1',
+    SECOND: getPlayerIdentityForSeat('SECOND')?.name ?? '玩家 2',
   };
   const isViewingActiveSeat = activeSeat !== null && viewingSeat === activeSeat;
   const canRevealViewedCheerCard = isViewingActiveSeat && canRevealCheerCard;
@@ -882,7 +884,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     }
   }, [isOpen, onClose]);
 
-  if (!isOpen || !activeSeat || !activePlayer || !viewingSeat || !viewedPlayer) return null;
+  if (!isOpen || !firstSeat || !activeSeat || !activePlayer || !viewingSeat || !viewedPlayer) {
+    return null;
+  }
 
   const totalHeartsCount = Array.from(totalHearts.values()).reduce((s, c) => s + c, 0);
   const hasJudgmentResources = totalHeartsCount > 0 || totalDrawBonus > 0;
@@ -938,6 +942,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             <span className="truncate">判定区 / 应援操作窗</span>
           </div>
           <JudgmentSeatSwitcher
+            firstSeat={firstSeat}
             activeSeat={activeSeat}
             viewingSeat={viewingSeat}
             playerNames={playerNames}
@@ -978,7 +983,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
               role="status"
               className="mb-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-info)_34%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-info)_10%,transparent)] px-2.5 py-1.5 text-[11px] text-[var(--text-secondary)]"
             >
-              正在查看{viewingSeat === 'FIRST' ? '先攻' : '后攻'}玩家的判定信息，此视图仅供查看。
+              正在查看{getJudgmentSeatRoleLabel(viewingSeat, firstSeat)}
+              玩家的判定信息，此视图仅供查看。
             </div>
           ) : null}
 

@@ -318,6 +318,7 @@ export function projectPlayerViewState(
   }
 
   const activeSeat = getSeatByPlayerIndex(game.activePlayerIndex);
+  const firstSeat = getSeatByPlayerIndex(game.firstPlayerIndex);
   const manualOperationSwitchBlockedReason = getManualOperationModeSwitchBlockedReason(game);
   const match: MatchViewState = {
     matchId: game.gameId,
@@ -329,6 +330,7 @@ export function projectPlayerViewState(
     turnCount: game.turnCount,
     phase: game.currentPhase,
     subPhase: game.currentSubPhase,
+    firstSeat,
     activeSeat,
     prioritySeat:
       game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : activeSeat,
@@ -341,9 +343,7 @@ export function projectPlayerViewState(
     endInfo: game.endInfo
       ? {
           reason: game.endInfo.reason,
-          winnerSeat: game.endInfo.winnerId
-            ? getSeatForPlayer(game, game.endInfo.winnerId)
-            : null,
+          winnerSeat: game.endInfo.winnerId ? getSeatForPlayer(game, game.endInfo.winnerId) : null,
           loserSeat: game.endInfo.loserId ? getSeatForPlayer(game, game.endInfo.loserId) : null,
         }
       : null,

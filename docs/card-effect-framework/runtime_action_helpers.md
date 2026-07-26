@@ -450,6 +450,17 @@ Current boundary:
 
 It deliberately does not remove pending abilities, write action history, discard a card, pay costs, continue pending, decide skip semantics, or model grouped / hand-adjust discard flows. Current users are KEKE, HS_BP6_004, HS_BP5_003 live-start Heart, live-start discard-gain-Heart, and discard-look-top selection windows.
 
+## Wait Selected Stage Members + State-Change Triggers
+
+`waitStageMembersAndEnqueueTriggers` lives in `src/application/card-effects/runtime/wait-stage-members.ts`. It is a narrow atomic helper for an already validated list of the same player's main-stage members:
+
+- rechecks that each requested instance is still a top-level main-stage member;
+- applies `ACTIVE -> WAITING` through `setMemberOrientation` with the caller's exact card-effect cause;
+- enqueues only the standard `ON_MEMBER_STATE_CHANGED` events that were actually emitted;
+- returns the updated state, actually changed member IDs, and event IDs.
+
+It deliberately does not choose candidates, filter groups, decide optional/mandatory semantics, create an activeEffect, calculate rewards, or continue pending. `PL!-pb1-008` uses the returned actual count to draw; `PL!N-sd2-027` uses it to update the source LIVE's SCORE. This is an atomic state/event boundary, not a configurable “wait members then run reward callback” workflow.
+
 ## Event wrapper follow-up candidates
 
 当前已完成 hand-discard wrapper、成员区移动 wrapper、当前卡效 workflow 中的成员方向变化事件胶水，以及来源成员自送离场 wrapper。以下只是剩余后续候选，不代表已落地，也不表示 trigger matcher 或 steps DSL 已完成。
