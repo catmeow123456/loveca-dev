@@ -221,6 +221,10 @@ export function propagateAbilitySourceLifecycle(
   after: GameState,
   context: AbilitySourceContext
 ): GameState {
+  if (after === before) {
+    return before;
+  }
+
   after = preserveActiveEffectSourceDisplay(before, after);
   if (!hasPerTurnLimit(context.abilityId)) {
     return after;

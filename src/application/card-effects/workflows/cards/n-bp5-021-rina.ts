@@ -112,9 +112,10 @@ function startRinaOnEnter(
         selectableCardIds,
         selectableCardVisibility: 'PUBLIC',
         selectableCardMode: 'SINGLE',
-        selectionLabel: '选择要放入卡组的LIVE',
-        confirmSelectionLabel: '放入卡组',
+        selectionLabel: '选择要放置于卡组顶第4张的LIVE卡',
+        confirmSelectionLabel: '放置于卡组顶第4张',
         canSkipSelection: true,
+        skipSelectionLabel: '不放置',
         metadata: {
           publicCardSelectionConfirmation: { destination: 'MAIN_DECK_POSITION_4' },
           orderedResolution,

@@ -40,6 +40,17 @@ git diff -- src/application/card-effect-runner.ts
 
 - 判断当前阶段时，以真实代码、当前 diff、`docs/card-effect-framework/migration_roadmap.md` 为准。
 - `docs/card-effect-framework/README.md` 是入口，但 `Current Goal` 可能滞后；不要单独把它当最终状态。
+- 玩家可见卡文三层一致性治理以当前普通玩家 `/api/cards` 返回的
+  `card_text_cn ?? card_text_jp` 为玩家实际看到的卡文事实。必须按基础编号读取所有当前印刷，
+  再按能力时点切分对应完整段落；只允许规范化换行和整段首尾空白，不做语义、标点、token
+  或近似文本合并，也不得把整张多能力卡文直接与单条 definition 比较。
+- 上述玩家可见卡文治理中，`definition.effectText` 必须逐字使用对应能力的完整 API 段落，
+  `activatedUi.text` 必须在源码中直接复用同一个 effectText 常量；`activatedUi.title`
+  可以概括玩家将执行的操作，但正文不得总结、缩写或改写。
+- 普通玩家 API 不可用、基础编号缺失、同基础编号罕度卡文漂移，或同一时点存在多段且无法用
+  完全相等文本自动映射时，明确报告并停止该项修复；不得回退到 `cards.json`、Excel、
+  `cards_cn.json`、definition 现值或人工翻译。已经确认是 API 自身错误时，只允许使用窄的显式
+  例外条目，并逐项记录卡号、错误字段、错误值、正确值、正确依据和原因。
 - 本地卡文以 `llocg_db/json/cards.json` 为主要事实来源；`cards_cn.json` 可做翻译或漂移参照。
 - `docs/card-data-sync/sources/loveca_*.xlsx` 是本地私有同步源，可能比 `cards.json` 更新。若新卡在 `cards.json` 缺失、卡文明显滞后，或用户明确说 Excel 已有，应读取最新 Excel 作为兜底事实来源，并在结论中说明来源。
 - 规则实现以日文卡文为准：优先 `cards.json` 的日文 `ability`，兜底用 Excel 的 `多行日文效果`。前台展示文本优先使用 Excel 的 `多行中文效果`。
@@ -93,9 +104,16 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/inventory
 
 # 从当前前端卡牌 API 的 card_text 生成提交说明骨架；同文卡自动合并一行
 node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-card-effect-commit-message.ts PL!SP-pb1-002 PL!SP-pb1-004 --title "feat(effect): 更新星团SP-pb1卡效"
+
+# 联网审计全部 activatedUi 的 API 段落、definition.effectText 与按钮正文三层一致性
+node --import tsx .agents/skills/loveca-card-effect-governance/scripts/audit-activated-ui-card-text.ts
 ```
 
 - 批次盘点可加 `--unimplemented-only` 筛未实现卡，或加 `--json` 输出结构化结果；不要用脚本输出替代人工复用、FAQ 和规则语义审查。
+- `audit-activated-ui-card-text.ts` 是独立只读联网审计，不得放入普通 Vitest。它按 API `rare`
+  字段聚合基础编号，只在能力时点边界切段；同一时点有多段时，只有 effectText 与其中一段完全
+  相等才自动对应，否则报告歧义。审计结果中的共同摘要和按钮漂移是可确定违规；API 缺失、
+  罕度漂移和同类多段歧义必须保留为未解决项。工具内 API 错误例外清单必须保持窄且显式。
 - 用户要求起草 Loveca 卡效提交说明时，必须先运行 `draft-card-effect-commit-message.ts`，不得只凭实现汇报或人工转抄卡文。脚本逐卡读取当前前端公开 `/api/cards/:code`，按前端相同规则使用 `card_text_cn ?? card_text_jp`；同一基础编号的罕度版本先合并，多个基础编号仅在标准化换行并去除首尾空白后卡文仍完全相同时合并为一行，不做语义、标点或 token 近似合并。默认读取生产同源 API；本地或其他环境可通过 `LOVECA_CARD_API_BASE_URL` 或 `--api-base-url` 覆盖。
 - 提交说明脚本是只读联网工具；运行环境没有网络权限时应先申请只读访问，或将 `--api-base-url` 指向可信的当前本地 API。API 不可用时直接报告阻塞，不得回退到已停止更新的 `cards_cn.json`。
 - 若同一基础编号的不同罕度在前端 API 中存在不同展示卡文，或没有可用 `card_text_cn` / `card_text_jp`，脚本必须报错并停止，不能静默回退到 definition `effectText`、`cards_cn.json` 或人工翻译。
@@ -311,7 +329,13 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 - `client/src/lib/cardEffectTokens.ts` 会把效果文本里的 `【...】` 与 `[...]` 占位文本转换为前端图标或样式。卡效定义里的 `effectText` 必须使用该文件已支持的字面量，不要随手发明新的括号文本。
 - “效果文本用中文”只要求自然语言规则说明使用中文；不要翻译已经由 `cardEffectTokens.ts` 映射的 token。正确示例：`[桃ハート]`、`[赤ハート]`、`[BLADE]`、`[スコア]`。错误示例：`[桃Heart]`、`[红Heart]`、`[blade]`、`[score]`。
 - 前台卡牌详情的效果文本应走卡牌数据本身的 `cardTextCn` / `cardTextJp`，而不是从 `definitions/index.ts` 反推。同步源优先使用 Excel `多行中文效果` -> `card_text_cn`，中文存在时应作为卡牌详情的第一展示文本。
-- `definitions/index.ts` 的 `effectText` 用于 pending / activeEffect / 处理窗口展示。新增或修正卡效时，优先直接采用 Excel `多行中文效果` 的卡牌效果描述，只做已支持 token 的等价替换；不要自行总结、缩写或改写成规则摘要。Excel 中文缺失时，才用日文原文或当前最可靠来源兜底，并在审查/收尾中说明。
+- `definitions/index.ts` 的 `effectText` 用于 pending / activeEffect / 处理窗口展示。新增、修正或审计带
+  `activatedUi` 的能力时，必须采用普通玩家 `/api/cards` 按 `card_text_cn ?? card_text_jp`
+  选出的对应完整能力段落，不做 token 等价替换、翻译、总结、缩写或改写。API 中文缺失时只按
+  同一 API 的日文字段兜底；API 整体不可用或能力段落映射不明确时报告阻塞，不得换用本地卡库
+  或 Excel。结算规则核对仍按本 skill 的规则事实来源执行，不得把显示文本治理扩成结算逻辑变更。
+- `activatedUi.text` 不单独维护文案，必须直接引用该 definition 的 `effectText` 常量。
+  `activatedUi.title` 可以概括操作，不能用作正文或事实来源。
 - 对无交互、有条件触发的 `LIVE开始` / `LIVE成功` 处理窗口，`definitions/index.ts` 的原始效果文本只负责说明卡牌效果本体；manual confirmation 的 `effectText` 必须在其后追加实时条件状态和实际结果，避免玩家只能看到“可以/如果”的卡文却不知道当前是否满足。若不追加，必须明确说明例外理由。
 - `activeEffect` 的前端可见操作文案也按中文处理，包括 `stepText`、`selectionLabel`、`confirmSelectionLabel`、`skipSelectionLabel`、`selectableOptions[].label`、`numericInput.confirmLabel` 等。除“查看原卡文”等明确展示日文原文的入口外，不要把日文按钮或日文步骤提示混入中文 UI。
 - `selectableOptions[].label` 可以使用 `client/src/lib/cardEffectTokens.ts` 已支持的 token（如 `[E]`、`[BLADE]`、`[桃ハート]`、`[赤ハート]`、`[紫ハート]`），由前端统一渲染成图标；不要用 emoji 或手写图片替代，也不要写未映射 token。
@@ -352,6 +376,9 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/draft-car
 ### 测试
 
 - 分类测试：`tests/unit/card-effect-classification.test.ts`。
+- 每个修复过玩家可见卡文的样本必须在 focused test 中用独立完整字符串精确断言
+  `definition.effectText` 与 `activatedUi.text`；不能只断言二者相等，不能使用 `toContain`，
+  也不能联网读取 API 生成期望值。联网全量一致性由独立审计工具负责。
 - workflow integration 覆盖正常结算、skip、无目标、非法选择、pending continuation。
 - 对无交互 queued LIVE pending，focused integration 至少覆盖：
   1. 单 pending 先开 confirm-only `activeEffect`，确认前不结算，确认后才结算；

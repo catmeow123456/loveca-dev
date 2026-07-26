@@ -1056,7 +1056,7 @@ const PL_N_PB1_007_CONTINUOUS_EFFECT_TEXT =
   '【常时】自己的LIVE中LIVE卡的必要Heart包含6种普通颜色各1个以上时，此成员获得[ALLハート]。';
 const PL_N_PB1_011_CONTINUOUS_EFFECT_TEXT = '【常时】此成员下方每有1张能量卡，此成员获得BLADE。';
 const PL_N_PB1_011_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将自己能量区的1张能量放置到此成员下方：从自己的休息室将1张「虹ヶ咲」LIVE卡加入手牌。';
+  '【起动】【1回合1次】将1张存在于自己的能量区的能量卡放置于此成员下方：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。\n\n(成员离开舞台时，将被放置于成员下方的能量卡返回能量卡组。)';
 const PL_N_BP3_008_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将此成员以外的1名『虹咲』的成员变为待机状态：抽1张卡。';
 const PL_N_BP3_008_LIVE_START_EFFECT_TEXT =
@@ -1082,7 +1082,7 @@ const PL_N_BP3_031_LIVE_SUCCESS_EFFECT_TEXT =
 const PL_N_BP3_006_ON_ENTER_EFFECT_TEXT =
   '【登场】将此成员变为待机状态。(待机状态的成员持有的[BLADE]，不会使因声援公开的张数增加。)';
 const PL_N_BP3_007_ACTIVATED_EFFECT_TEXT =
-  '【起动】[E][E]、将此成员从舞台放置入休息室：从自己手牌将1张费用13以下的「優木せつ菜」成员卡，登场到此成员原本所在区域。之后，将自己能量区1张能量放到该成员下方。成员下方的能量不能用于支付费用；该成员离开舞台时，下方能量返回能量卡组。';
+  '【起动】[E][E]将此成员从舞台放置入休息室：将1张自己的手牌中费用小于等于13的「优木雪菜」，登场至此成员曾存在的区域。之后，将1张存在于自己的能量区的能量放置于此成员下方。(被放置于成员下方的能量卡不能用来支付费用。成员离开舞台时，将被放置于成员下方的能量卡放置入能量卡组。)';
 const PL_N_BP3_004_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将此成员变为待机状态，将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。';
 const PL_N_BP3_005_AUTO_EFFECT_TEXT =
@@ -1137,7 +1137,7 @@ const PL_N_BP4_031_LIVE_START_EFFECT_TEXT =
 const PL_N_BP4_028_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的休息室有4张以上卡名不同的『虹ヶ咲』LIVE卡的场合，此卡的[スコア]+1。6张以上的场合，改为[スコア]+2。';
 const BP3_001_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将此成员变为待机状态：抽1张卡，将1张手牌放置入休息室。（待机状态成员持有的 BLADE 不会增加声援公开张数。）';
+  '【起动】【1回合1次】将此成员变为待机状态：抽1张卡，将1张手牌放置入休息室。(待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)';
 const BP3_001_LIVE_START_EFFECT_TEXT = '【LIVE开始时】可以将自己舞台上的成员至多1名变为活跃状态。';
 const S_BP3_010_011_ON_ENTER_EFFECT_TEXT = '【登场】将至多1张存在于自己的舞台的成员变为活跃状态。';
 const PL_BP3_002_ON_ENTER_EFFECT_TEXT =
@@ -1180,13 +1180,13 @@ const PL_PB1_006_ON_ENTER_EFFECT_TEXT =
 const PL_PB1_007_ACTIVATED_EFFECT_TEXT =
   "【起动】【1回合1次】将3张手牌放置入休息室：自己的舞台上存在其他的『lily white』的成员的场合，从自己的休息室将1张『μ's』的LIVE卡加入手牌。起动此能力的费用，每存在1张自己的成功LIVE卡区中的卡片，放置入休息室的手牌的数量减少1张。";
 const PL_PB1_001_ACTIVATED_EFFECT_TEXT =
-  '【起动】【中央】【1回合1次】将此成员变为待机状态，将1张手牌放置入休息室：选择“LIVE卡”或“费用10以上的成员卡”之一。逐张公开自己卡组顶的卡，直到公开所选类型的卡。将那张卡加入手牌，其余因此公开的卡放置入休息室。';
+  '【起动】【中央】【1回合1次】将此成员变为待机状态，将1张手牌放置入休息室：选择LIVE卡或费用大于等于10的成员卡其中1项。直到选择了的卡被公开为止，依次公开1张自己卡组顶的卡。将该卡加入手牌，将因此效果被公开的其他所有卡放置入休息室。';
 const PL_PB1_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，自己舞台上其他成员获得[BLADE]。';
 const PL_PB1_012_ON_ENTER_EFFECT_TEXT =
   '【登场】将至多1名存在于自己的舞台的『Printemps』的成员变为活跃状态。';
 const PL_PB1_013_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E]：由对方在不查看内容的情况下，从自己的手牌中选择1张并公开。若公开的是LIVE卡，直到LIVE结束，此成员使LIVE合计[スコア]+1。';
+  '【起动】【1回合1次】[E][E]：对手在不查看的情况下，从自己的手牌中选出1张并公开。因此被公开的卡片为LIVE卡的场合，LIVE结束时为止，此成员获得「【常时】LIVE的合计分数+1。」。';
 const PL_PB1_014_CONTINUOUS_EFFECT_TEXT =
   '【常时】自己的成功LIVE卡区中有『lilywhite』卡时，手牌中此成员卡的费用减少2。';
 const PL_S_PB1_001_ON_ENTER_EFFECT_TEXT =
@@ -1200,7 +1200,7 @@ const PL_S_PB1_003_LIVE_SUCCESS_EFFECT_TEXT =
 const PL_S_PB1_005_CONTINUOUS_EFFECT_TEXT =
   '【常时】对方的能量比自己多时，此成员获得[BLADE][BLADE][BLADE]。';
 const PL_S_PB1_006_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】公开手牌中的1张LIVE卡；对方可以将1张手牌放置入休息室；未如此做时，LIVE结束时为止，此成员获得[BLADE]x4。';
+  '【起动】【1回合1次】从手牌中将1张LIVE卡公开：对手可以将1张手牌放置入休息室。未如此做的场合，LIVE结束时为止，获得[ブレード][ブレード][ブレード][ブレード]。';
 const PL_S_PB1_007_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】因声援公开的自己的卡中有LIVE卡1张以上时，从自己的能量卡组将1张能量卡以待机状态放置。';
 const PL_S_PB1_008_LIVE_START_EFFECT_TEXT =
@@ -1243,7 +1243,7 @@ const N_BP5_006_CONTINUOUS_EFFECT_TEXT = '【常时】此成员不会在自己�
 const N_BP5_006_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的舞台存在此成员以外的成员的场合，将此成员变为待机状态。';
 const N_BP5_008_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将能量区1张能量放到此成员下方：将2张能量变为活跃状态。';
+  '【起动】【1回合1次】将1张存在于能量区的能量放置于此成员下方：将2张能量变为活跃状态。';
 const N_BP5_009_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态，并将1张手牌放置入休息室：查看自己卡组顶5张卡。可以从其中公开1张费用9以上的『虹ヶ咲』成员卡加入手牌。其余放置入休息室。';
 const PL_BP5_002_ON_ENTER_EFFECT_TEXT =
@@ -1255,13 +1255,13 @@ const N_BP5_010_LIVE_SUCCESS_EFFECT_TEXT =
 const N_BP5_011_ON_ENTER_EFFECT_TEXT =
   '【登场】选择以下1项。・自己的休息室有3张以上卡名不同的LIVE卡的场合，从自己的休息室将1张LIVE卡加入手牌。・自己的休息室有3张以上团体名不同的LIVE卡的场合，从自己的休息室将2张LIVE卡加入手牌。';
 const N_BP5_012_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将能量区1张能量放到此成员下方：抽1张卡，LIVE结束时为止，获得[桃ハート]。';
+  '【起动】【1回合1次】将1张存在于能量区的能量放置于此成员下方：抽1张卡，LIVE结束时为止，获得[桃ハート]。';
 const N_BP5_012_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】LIVE的合计分数高于对方的场合，从自己的能量卡组将此成员下方能量卡数量+1张能量以待机状态放置到能量区。';
 const N_BP5_013_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的舞台存在下方有能量卡的成员的场合，LIVE结束时为止，获得[桃ハート]。';
 const N_BP5_014_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『虹ヶ咲』LIVE卡加入手牌。';
+  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。';
 const PL_BP5_014_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：检视自己卡组顶的4张卡。可以将1张其中持有[青ハート]或[紫ハート]的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const PL_BP5_015_ON_ENTER_EFFECT_TEXT =
@@ -1291,7 +1291,7 @@ const PL_N_BP5_007_LIVE_SUCCESS_EFFECT_TEXT =
 const PL_BP5_111_CONTINUOUS_EFFECT_TEXT =
   '【常时】自己的舞台上每有1名此成员以外的『A-RISE』成员，获得[青ハート]。';
 const PL_BP5_111_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将1张手牌放置入休息室：将1名待机状态成员变为活跃状态。因此将对方舞台上的成员变为活跃状态的场合，从自己的休息室将1张LIVE卡加入手牌。';
+  '【起动】【1回合1次】将1张手牌放置入休息室：将1名待机状态的成员变为活跃状态。因此将存在于对方舞台的成员变为活跃状态的场合，从自己的休息室将1张LIVE卡加入手牌。';
 const PL_BP5_333_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态：将对方舞台上1名费用小于等于9的成员变为待机状态。';
 const PL_BP5_333_CONTINUOUS_EFFECT_TEXT = '【常时】只要此成员为待机状态，获得[青ハート]。';
@@ -1306,7 +1306,7 @@ const LL_BP5_002_LIVE_START_EFFECT_TEXT =
 const LL_BP5_002_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】从自己的休息室将1张与自己舞台上所有成员团体名都不同的卡加入手牌。';
 const PL_N_BP5_003_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将1张手牌放置入休息室：选择自己休息室1张LIVE卡。可以支付与该卡分数相同数量的[E]；如此做时将该LIVE加入手牌。';
+  '【起动】【1回合1次】将1张手牌放置入休息室：选择1张存在于自己休息室的LIVE卡，可以支付与该卡的分数相同数量的[E]。如此做的场合，将该LIVE卡加入手牌。';
 const PL_N_BP4_005_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：将对方舞台上费用4以下的成员至多2人变为待机状态。（待机状态成员持有的[BLADE]不会增加声援公开张数。）';
 const PL_N_BP4_006_ON_ENTER_EFFECT_TEXT =
@@ -1318,7 +1318,7 @@ const PL_N_BP4_007_CONTINUOUS_EFFECT_TEXT =
 const PL_N_BP4_007_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己和对方各自从自己的能量卡组顶将1张能量以待机状态放置到能量区。';
 const PL_N_BP4_008_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将1张手牌放置入休息室：将1张能量或1名『虹ヶ咲』成员变为活跃状态。';
+  '【起动】【1回合1次】将1张手牌放置入休息室：将1张能量或1名『虹咲』的成员变为活跃状态。';
 const PL_N_BP4_023_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1名「虹ヶ咲」成员变为待机状态：抽1张卡，将1张手牌放置入休息室。';
 const PL_N_BP5_021_ON_ENTER_EFFECT_TEXT =
@@ -1418,7 +1418,7 @@ const SP_BP2_003_AUTO_ON_MOVE_PLACE_WAITING_ENERGY_EFFECT_TEXT =
 const SP_BP4_007_AUTO_ON_MOVE_RECOVER_LOW_SCORE_LIELLA_LIVE_EFFECT_TEXT =
   '【自动】【1回合1次】此成员区域移动时，从自己的休息室选择1张[スコア]3以下的『Liella!』LIVE卡加入手牌。';
 const SP_BP2_008_ACTIVATED_PAY_ENERGY_SELF_POSITION_CHANGE_EFFECT_TEXT =
-  '【起动】【1回合1次】[E]：选择与此成员所在区域不同的自己的1个区域，将此成员移动到该区域。若选择区域有成员，则该成员移动到此成员原本所在区域。';
+  '【起动】【1回合1次】[E]：选择1个此成员所在区域不同的自己的区域。将此成员移动至该区域。选择的区域存在成员的场合，将该成员移动至此成员曾存在的区域。';
 const SP_BP2_023_LIVE_START_FEWER_SUCCESS_LIVE_EFFECT_TEXT =
   '【LIVE开始时】自己的成功LIVE卡区的卡片比对方少的场合，此卡的[スコア]+1。';
 const SP_BP1_004_CONTINUOUS_CENTER_GAIN_FIVE_BLADE_EFFECT_TEXT =
@@ -1428,7 +1428,7 @@ const SP_BP1_001_CONTINUOUS_NO_OTHER_STAGE_MEMBER_CANNOT_LIVE_EFFECT_TEXT =
 const SP_BP1_002_ON_ENTER_LEFT_PAY_TWO_ENERGY_DRAW_TWO_EFFECT_TEXT =
   '【登场】可以支付[E][E]：若有登场于舞台的左侧区域，则抽2张卡。';
 const SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_EFFECT_TEXT =
-  '【起动】【1回合1次】公开任意张存在于手牌的成员卡：公开的卡片的费用的合计为，10、20、30、40、50中的任意值的场合，LIVE结束时为止，获得「【常时】LIVE的合计[スコア]+1。」。';
+  '【起动】【1回合1次】公开任意张存在于手牌的成员卡：公开的卡片的费用的合计为，10、20、30、40、50中的任意值的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。';
 const SP_BP1_007_ON_ENTER_ENERGY_ELEVEN_RECOVER_LIVE_EFFECT_TEXT =
   '【登场】自己的能量大于等于11张的场合，从自己的休息室将1张LIVE卡加入手牌。';
 const SP_BP1_008_ON_ENTER_DRAW_ONE_BONUS_IF_MEI_EFFECT_TEXT =
@@ -1470,11 +1470,11 @@ const SP_BP4_005_CONTINUOUS_ENERGY_TEN_GAIN_THREE_BLADE_EFFECT_TEXT =
 const SP_BP4_009_CONTINUOUS_LOWER_STAGE_COST_GAIN_THREE_BLADE_EFFECT_TEXT =
   '【常时】只要自己的舞台成员费用合计低于对方，获得[BLADE][BLADE][BLADE]。';
 const SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_EFFECT_TEXT =
-  '【起动】【1回合1次】[E]将此成员变为待机状态：从自己的能量卡组将1张能量以待机状态放置。';
+  '【起动】【1回合1次】[E]将此成员变为待机状态：从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
 const SP_BP4_016_AUTO_CARD_EFFECT_PLACE_ENERGY_GAIN_PURPLE_HEART_EFFECT_TEXT =
   '【自动】每次因卡片效果，能量卡被放置入自己的能量区时，LIVE结束时为止，获得[紫ハート]。\n(也会因对方的卡片效果发动。)';
 const SP_BP4_018_ACTIVATED_SELF_SACRIFICE_RECOVER_LIELLA_CARD_EFFECT_TEXT =
-  '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『Liella!』卡加入手牌。';
+  '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『Liella!』的卡片加入手牌。';
 const SP_BP4_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_EFFECT_TEXT =
   '【常时】只要自己的能量多于对方，获得[紫ハート]。';
 const SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_EFFECT_TEXT =
@@ -1482,13 +1482,13 @@ const SP_BP4_028_LIVE_START_ACTIVE_ENERGY_SCORE_EFFECT_TEXT =
 const SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_EFFECT_TEXT =
   '【自动】【1回合1次】因自己的卡牌效果，此成员进行区域移动或能量被放置入自己的能量区时，抽1张卡，LIVE结束时为止，此成员获得[红HEART]。';
 const SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_EFFECT_TEXT =
-  '【起动】【1回合1次】将卡组顶3张放置入休息室：LIVE结束时为止，因此放置入休息室的『Liella!』成员卡每有1张，获得[BLADE]。';
+  '【起动】【1回合1次】从卡组顶将3张卡放置入休息室：LIVE结束时为止，每有1张因此放置入休息室的『Liella!』的成员卡，获得[ブレード]。';
 const SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_EFFECT_TEXT =
   '【自动】【1回合1次】自己的主要阶段中，自己的卡从任意区域1张以上放置入休息室时，可以支付[E]。如此做的场合，从那些卡中将1张加入手牌。';
 const SP_BP5_021_ACTIVATED_SELF_SACRIFICE_ENERGY_SIX_PLACE_WAITING_ENERGY_EFFECT_TEXT =
-  '【起动】将此成员从舞台放置入休息室：自己的能量为6张以上的场合，从自己的能量卡组将1张能量以待机状态放置。';
+  '【起动】将此成员从舞台放置入休息室：自己的能量存在大于等于6张的场合，从自己的能量卡组，将1张能量卡以待机状态放置入能量区。';
 const SP_BP5_006_ACTIVATED_MILL_THREE_SELF_POSITION_CHANGE_EFFECT_TEXT =
-  '【起动】【1回合1次】将卡组顶3张放置入休息室：此成员进行站位变换。';
+  '【起动】【1回合1次】从卡组顶将3张卡放置入休息室：此成员进行站位变换。(将此成员移动至当前区域以外的区域。该区域存在成员的场合，将该成员移动至此成员曾存在的区域。)';
 const SP_BP5_008_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将此成员变为待机状态，将1张手牌放置入休息室：检视自己卡组顶的5张卡。可以从其中将1张费用大于等于9的『Liella!』的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const SP_BP5_009_LIVE_START_EFFECT_TEXT =
@@ -1546,7 +1546,7 @@ const SP_SD2_003_LIVE_SUCCESS_DRAW_ONE_PLUS_ONE_IF_MOVED_EFFECT_TEXT =
 const SP_SD2_004_CONTINUOUS_CENTER_GAIN_FOUR_BLADE_EFFECT_TEXT =
   '【常时】【中央】获得[BLADE][BLADE][BLADE][BLADE]。';
 const SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『Liella!』LIVE卡加入手牌。';
+  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『Liella!』的LIVE卡加入手牌。';
 const SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_EFFECT_TEXT =
   '【常时】只要自己的舞台存在费用13以上的成员，获得[黄ハート]。';
 const SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_EFFECT_TEXT =
@@ -1554,7 +1554,7 @@ const SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_EFFE
 const SP_SD2_023_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的成功LIVE卡区有2张以上卡的场合，此卡的分数+5，必要Heart变为[赤ハート]3个、[黄ハート]3个、[紫ハート]3个、[無ハート]3个。';
 const SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E]：此成员进行站位变换。';
+  '【起动】【1回合1次】[E][E]：将此成员站位变换。';
 const SP_SD2_002_AUTO_ON_MOVE_GAIN_PURPLE_HEART_EFFECT_TEXT =
   '【自动】【1回合1次】此成员进行区域移动时，LIVE结束时为止，获得[紫HEART]。\n(也会因对方的卡牌的效果生效。)';
 const SP_SD2_012_AUTO_ON_MOVE_GAIN_RED_HEART_EFFECT_TEXT =
@@ -1594,11 +1594,11 @@ const HS_BP6_012_ON_ENTER_EFFECT_TEXT =
 const HS_BP6_013_WAIT_LOW_BLADE_NON_DOLLCHESTRA_EFFECT_TEXT =
   '【登场】/【LIVE开始时】选择对方舞台上1名原本持有的[BLADE]数量小于等于3个，且不是『DOLLCHESTRA』的成员，变为待机状态。';
 const HS_BP6_014_ACTIVATED_EFFECT_TEXT =
-  '【起动】将此卡从手牌放置入休息室：抽1张卡，LIVE结束时为止，自己舞台上的1名「藤岛慈」或「大泽瑠璃乃」获得[BLADE]。此能力仅可在此卡存在于手牌的场合起动。';
+  '【起动】将此卡从手牌放置入休息室：抽1张卡，LIVE结束时为止，存在于自己的舞台的「藤岛慈」或「大泽瑠璃乃」的其中1人获得[ブレード]。此能力仅可在此卡存在于手牌的场合起动。';
 const HS_BP6_015_ON_ENTER_EFFECT_TEXT =
   '【登场】此成员从手牌以外登场的场合，抽2张卡，将2张手牌放置入休息室。';
 const HS_BP6_016_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E][E][E]：从自己的休息室将1张费用4以下的『莲之空』成员卡登场到没有成员的区域。';
+  '【起动】【1回合1次】[E][E][E][E]：从自己的休息室将1名费用小于等于4的『莲之空』的成员，登场到不存在成员的区域。';
 const HS_BP6_018_LEAVE_STAGE_EFFECT_TEXT =
   '【自动】此成员从舞台放置入休息室时，可以将1张手牌放置入休息室。如此做的场合，LIVE结束时为止，自己的舞台上的1名成员获得[青ハート][BLADE]。';
 const HS_BP6_025_LIVE_START_EFFECT_TEXT =
@@ -1729,7 +1729,7 @@ const HS_PB1_013_LIVE_START_EFFECT_TEXT =
 const HS_PB1_013_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己的舞台上存在费用高于此成员的成员的场合，抽1张卡。';
 const HS_PB1_002_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】公开1张手牌的「村野さやか」的成员卡：将因此公开的卡片放置入此成员下方。';
+  '【起动】【1回合1次】公开1张手牌的「村野沙耶香」的成员卡：将因此公开的卡片放置入此成员下方。';
 const HS_PB1_002_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】LIVE结束时为止，每有1张存在于此成员下方的成员卡，此卡的费用+4然后获得[青ハート]。存在于下方的成员卡因此能力至多计算3张。';
 const BP6_003_LIVE_START_EFFECT_TEXT =
@@ -1764,7 +1764,7 @@ const SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_EFFECT_TEXT = '【登场】自己的能�
 const SP_PR_LIVE_START_DISCARD_GAIN_BLADE_DRAW_IF_LIVE_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE]。因此将LIVE卡放置入休息室的场合，再抽1张卡。';
 const N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_EFFECT_TEXT =
-  '【起动】【1回合1次】公开全部手牌：自己的舞台存在其他成员，且因此公开的手牌中没有LIVE卡的场合，检视卡组顶5张。可以公开其中1张LIVE卡加入手牌，其余放置入休息室。';
+  '【起动】【1回合1次】公开所有手牌：自己的舞台上存在其他的成员，且因支付此费用公开的手牌中不存在LIVE卡的场合，检视自己卡组顶的5张卡。可以将1张其中的LIVE卡公开并加入手牌。其余的卡片放置入休息室。';
 const N_SD1_004_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：LIVE结束时为止，获得[BLADE][BLADE]。';
 const N_BP1_005_LIVE_START_EFFECT_TEXT =
@@ -1795,11 +1795,11 @@ const S_BP5_023_LIVE_START_EFFECT_TEXT =
 const S_BP5_020_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】自己余剩 HEART 合计 3 个以上的场合，失去全部余剩 HEART，此 LIVE 分数 +1。';
 const S_BP5_111_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E]：将此成员位置变换到有『Aqours』或『SaintSnow』成员的区域。';
+  '【起动】【1回合1次】[E]：将此成员站位变换至『Aqours』或『Saint Snow』的成员存在的区域。';
 const S_BP5_111_AUTO_EFFECT_TEXT =
   '【自动】此成员移动区域时，将对方舞台上1名原本持有 BLADE 数小于等于2的成员变为待机状态。';
 const S_BP5_222_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E]：将此成员位置变换到有『Aqours』或『SaintSnow』成员的区域。';
+  '【起动】【1回合1次】[E]：将此成员站位变换至『Aqours』或『Saint Snow』的成员存在的区域。';
 const S_BP5_222_AUTO_EFFECT_TEXT = '【自动】【1回合1次】此成员移动区域时，将2张能量变为活跃状态。';
 const SP_BP4_004_ON_ENTER_EFFECT_TEXT =
   '【登场】【中央】从2名『Liella!』的成员换手登场的场合，抽2张卡，将1张存在于自己休息室的费用小于等于4的『Liella!』的成员卡登场至自己的舞台的不存在成员的区域。';
@@ -1894,13 +1894,13 @@ const SP_BP5_001_ON_ENTER_LIVE_START_EFFECT_TEXT =
 const SP_BP5_001_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将此成员变为待机状态，或将1张手牌放置入休息室：将1张能量变为活跃状态。';
 const SP_BP5_002_ACTIVATED_EFFECT_TEXT =
-  '【起动】【左サイド】【1回合1次】将此成员变为待机状态：抽3张卡，将2张手牌放置入休息室。因此放置入休息室的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，将此成员变为活跃状态。存在2张的场合，LIVE结束时为止，再获得[BLADE][BLADE]。';
+  '【起动】【左侧】【1回合1次】将此成员变为待机状态：抽3张卡，将2张手牌放置入休息室。因此放置入休息室的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，将此成员变为活跃状态。存在2张的场合，LIVE结束时为止，再获得[ブレード][ブレード]。';
 const SP_PB2_000_ON_ENTER_EFFECT_TEXT =
   '【登场】通过换手登场的场合，每有1张因此换手放置入休息室的『Liella!』的成员卡，抽1张卡。每有1张因此换手放置入休息室的不持有BLADE HEART的『Liella!』的成员卡，LIVE结束时为止，获得[ブレード][ブレード]。';
 const SP_PB2_001_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：检视自己卡组顶5张卡。可以公开至多1张其中费用4以下的『Liella!』成员卡，将其登场到自己舞台空成员区或加入手牌。其余放置入休息室。';
 const SP_PB2_002_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将1张手牌中的『Liella!』卡放置入休息室：从以下选择1项。若因此放置入休息室的卡是不持有BLADE HEART的成员卡，改为选择1项以上：从能量卡组将1张能量卡以待机状态放置；或直到LIVE结束时为止，使自己舞台上此成员以外的1名『Liella!』成员获得[紫ハート][紫ハート]。';
+  '【起动】【1回合1次】将手牌的1张『Liella!』的卡片放置入休息室：从以下选择1项。因此将不持有BLADE HEART的成员卡放置入休息室的场合，作为代替选择1项以上。\n\n·从自己的能量卡组，将1张能量卡以待机状态放置入能量区。\n\n·LIVE结束时为止，存在于自己的舞台的1名此成员以外的『Liella!』的成员，获得[紫ハート][紫ハート]。';
 const SP_PB2_003_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】本回合自己的『Liella!』卡的效果使此成员移动过成员区的场合，LIVE的合计分数+1。';
 const SP_PB2_004_LIVE_SUCCESS_EFFECT_TEXT =
@@ -2048,13 +2048,13 @@ const HS_BP5_016_CONTINUOUS_EFFECT_TEXT =
 const ELI_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。';
 const RIN_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。';
 const PR_017_ACTIVATED_EFFECT_TEXT =
-  "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。自己的成功LIVE卡区分数合计大于等于9的场合，将2张能量变为活跃。";
+  "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。自己的成功LIVE卡区中的卡片的分数合计大于等于9的场合，将2张能量变为活跃状态。";
 const PL_PR_003_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张必要HEART中含有大于等于3个[黄ハート]的LIVE卡加入手牌。';
 const PL_PR_004_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将2张手牌放置入休息室：从休息室将1张必要HEART中含有大于等于3个[桃ハート]的LIVE卡加入手牌。';
 const BP4_002_ACTIVATED_EFFECT_TEXT =
-  "【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。此能力仅可在成功LIVE卡区分数合计大于等于6的场合起动。";
+  "【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。此能力仅可在存在于自己的成功LIVE卡区的卡片的分数合计大于等于6的场合起动。";
 const BP4_002_CONTINUOUS_EFFECT_TEXT =
   '【常时】自己的LIVE中的LIVE卡中只要存在不持有【LIVE开始时】能力与【LIVE成功时】能力的卡片，获得[紫ハート][紫ハート]。';
 const BP4_003_EFFECT_TEXT =
@@ -2116,7 +2116,7 @@ const PL_BP4_024_LIVE_START_EFFECT_TEXT =
 const BP5_008_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要存在于自己的成功LIVE卡区的卡片的分数合计大于等于6，获得[黄ハート][黄ハート]。';
 const BP5_009_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张必要[紫ハート]3个以上的LIVE卡加入手牌。';
+  '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张必要HEART中含有大于等于3个[紫ハート]的LIVE卡加入手牌。';
 const BP5_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：将自己卡组顶3张卡放置入休息室。之后，从自己的休息室将1张『A-RISE』成员卡加入手牌。';
 const BP5_011_LIVE_START_SUCCESS_COUNT_CHOOSE_HEART_EFFECT_TEXT =
@@ -2139,15 +2139,15 @@ const BP6_002_ON_ENTER_EFFECT_TEXT =
 const BP6_005_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将2张手牌放置入休息室：从自己的休息室将至多1张持有[黄HEART]的成员，与至多1张必要HEART中含有[黄HEART]的LIVE卡加入手牌。';
 const BP6_006_ACTIVATED_EFFECT_TEXT =
-  "【起动】【1回合1次】将1张手牌放置入休息室：指定1种Heart颜色，公开卡组顶5张。若公开卡中持指定色Heart的成员与必要Heart含指定色的LIVE合计5张，从其中将1张『μ's』卡加入手牌，直到LIVE结束获得[BLADE][BLADE][BLADE]。其余公开卡放置入休息室。";
+  '【起动】【1回合1次】将1张手牌放置入休息室：指定1个任意HEART的颜色。此后，公开自己的卡组顶的5张卡片。因此被公开的卡片中包含持有指定颜色HEART的成员卡和必要HEART包含指定颜色HEART的LIVE卡合计5张的场合，从中将1张『μ’s』的卡片加入手牌，LIVE结束时为止，获得[ブレード][ブレード][ブレード]。被公开的其余卡牌放置入休息室。';
 const BP6_007_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】公开自己卡组顶1张卡并加入手牌。那张卡为不持有BLADE HEART的成员卡的场合，LIVE的合计分数+1。';
 const BP6_008_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将此成员变为待机状态：将自己舞台上其他1名成员变为活跃状态。';
+  '【起动】【1回合1次】将此成员变为待机状态：将存在于自己的舞台的1名其他成员变为活跃状态。';
 const BP6_009_CONTINUOUS_EFFECT_TEXT =
   '【常时】【中央】只要自己舞台的右侧区域和左侧区域均有原本 BLADE 数为2的成员，LIVE合计分数+1。';
 const BP6_010_ACTIVATED_EFFECT_TEXT =
-  '【起动】将此成员从舞台放置入休息室：将对方舞台上1名费用小于等于4的成员变为待机状态。';
+  '【起动】将此成员放置入休息室：将存在于对方舞台的1名费用小于等于4的成员变为待机状态。';
 const BP6_011_LIVE_SUCCESS_EFFECT_TEXT = '【LIVE成功时】抽2张卡，将2张手牌放置入休息室。';
 const BP6_013_ON_ENTER_EFFECT_TEXT =
   "【登场】若自己成功LIVE卡区中的卡的分数合计为6以上，从自己的休息室将1张『μ's』的LIVE卡加入手牌。";
@@ -2193,7 +2193,7 @@ const YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_EFFECT_TEXT =
 const S_BP6_005_ON_ENTER_EFFECT_TEXT =
   '【登场】检视自己卡组顶的2张卡。可以从其中将1张同时持有红Heart、绿Heart、蓝Heart的成员卡公开并加入手牌。其余的卡片放置入休息室。';
 const S_BP6_003_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：将此成员以外的自己舞台上1名『Aqours』成员放置入休息室。如此做时，从自己的休息室将1张费用正好为该成员费用+2的『Aqours』成员卡登场到该成员原本所在区域。';
+  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：将1名此成员以外的『Aqours』的成员从自己的舞台放置入休息室。如此做的场合，从自己的休息室，将1张费用与此成员的费用加2相等的『Aqours』的成员卡，登场至该成员曾存在的区域。';
 const S_BP6_001_ON_ENTER_EFFECT_TEXT =
   '【登场】从休息室登场的场合，将对方舞台右侧或左侧区域1名费用大于等于13的成员变为待机状态。';
 const S_BP6_006_ON_ENTER_EFFECT_TEXT =
@@ -2213,7 +2213,7 @@ const S_SD1_003_ON_ENTER_EFFECT_TEXT =
 const S_SD1_004_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以抽1张卡。如此做时，将2张手牌按喜欢的顺序放置到卡组顶。';
 const S_SD1_005_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『Aqours』LIVE卡加入手牌。';
+  '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『Aqours』的LIVE卡加入手牌。';
 const S_SD1_006_ON_ENTER_EFFECT_TEXT =
   '【登场】可以将1张手牌放置入休息室：从自己的休息室将1张费用2以下的『Aqours』成员卡登场到没有成员的区域。（以此效果登场的成员所在区域，本回合不能登场成员。）';
 const S_SD1_013_ON_ENTER_EFFECT_TEXT = '【登场】将自己卡组顶5张放置入休息室。';
@@ -2230,13 +2230,13 @@ const S_DRAW_ONE_PLACE_HAND_BOTTOM_EFFECT_TEXT = '【登场】抽1张卡，将1�
 const S_BP6_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】自己的LIVE中的LIVE卡的必要Heart中红Heart合计大于等于4的场合，LIVE结束时为止，获得红Heart。';
 const S_SD1_007_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张持有 SCORE 图标的『Aqours』LIVE卡加入手牌。';
+  '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张持有[スコア]的『Aqours』的LIVE卡加入手牌。';
 const S_BP6_008_ACTIVATED_EFFECT_TEXT =
-  '【起动】[E][E]将此成员从舞台放置入休息室：从自己的休息室将1张费用小于等于17的『Aqours』成员卡，登场至此成员曾存在的区域。';
+  '【起动】[E][E]将此成员放置入休息室：从自己的休息室将1名费用小于等于17的『Aqours』的成员卡，登场至此成员所在的区域。';
 const S_SD1_009_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以公开1张手牌中的『Aqours』卡：将因此公开的卡放置到卡组顶或卡组底，LIVE结束时为止，获得[BLADE]。';
 const S_BP3_006_ACTIVATED_EFFECT_TEXT =
-  '【起动】【中央】【1回合1次】将此成员变为待机状态，并将1张手牌放置入休息室：将此成员以外的自己舞台上1名『Aqours』成员放置入休息室。如此做时，从自己的休息室将1张费用正好为该成员费用+2的『Aqours』成员卡登场到该成员原本所在区域。（此能力仅在登场于中心区域时可以起动。）';
+  '【起动】【中央】【1回合1次】将此成员变为待机状态，将1张手牌放置入休息室：将1名此成员以外的『Aqours』的成员从自己的舞台放置入休息室。如此做的场合，从自己的休息室，将1张费用与此成员的费用加2相等的『Aqours』的成员卡，登场至该成员曾存在的区域。(此能力仅可在中央区域登场的场合起动)';
 const S_BP3_025_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】选择自己舞台上1名『Aqours』成员。该成员持有的 BLADE 大于等于6个的场合，此卡的分数+1。';
 const S_BP6_004_LIVE_START_EFFECT_TEXT =
@@ -2302,7 +2302,7 @@ const HS_BP5_004_CONTINUOUS_EFFECT_TEXT =
 const HASUNOSORA_TRIPLE_UNIT_CONTINUOUS_IDENTITY_EFFECT_TEXT =
   '【常时】所有区域中的此卡视为『Cerise Bouquet』、『DOLLCHESTRA』、『Mira-Cra Park!』。';
 const HS_BP2_001_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】[E][E]：从自己的休息室将1张分数小于等于3的『莲之空』的LIVE卡加入手牌。';
+  '【起动】【1回合1次】[E][E]：从自己的休息室将1张费用小于等于3的『莲之空』的LIVE卡加入手牌。';
 const HS_BP2_003_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1张手牌放置入休息室：检视自己卡组顶的3张卡。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的卡片放置入休息室。';
 const HS_BP2_007_ON_ENTER_EFFECT_TEXT =
@@ -2349,7 +2349,7 @@ const HS_CL1_001_LIVE_START_EFFECT_TEXT =
 const HS_CL1_002_ON_ENTER_EFFECT_TEXT =
   '【登场】可以支付[E]：从自己的休息室将1张『DOLLCHESTRA』的卡片加入手牌。';
 const HS_CL1_003_ACTIVATED_EFFECT_TEXT =
-  '【起动】【1回合1次】将此成员变为待机状态：LIVE结束时为止，自己舞台上的1名『みらくらぱーく！』成员获得[BLADE]。';
+  '【起动】【1回合1次】将此成员变为待机状态：LIVE结束时为止，存在于自己的舞台上的1名『Mira-Cra Park!』的成员，获得[ブレード]。';
 const HS_CL1_004_ON_ENTER_EFFECT_TEXT =
   '【登场】选择以下1项：从自己的卡组顶将3张卡放置入休息室；或将对方舞台上1名费用2以下的成员变为待机状态。';
 const HS_CL1_006_ON_ENTER_EFFECT_TEXT = '【登场】LIVE结束时为止，获得[BLADE][BLADE][BLADE]。';
@@ -2391,6 +2391,26 @@ const PB1_015_OWN_EFFECT_WAIT_OPPONENT_LOW_COST_EFFECT_TEXT =
   '【自动】【1回合1次】因自己的卡片效果，使对方舞台活跃状态且费用小于等于4的成员变为待机状态时，抽1张卡。';
 const PB1_015_CENTER_WAIT_BIBI_MEMBER_EFFECT_TEXT =
   '【登场】/【LIVE开始时】【中央】可以将1名『BiBi』成员变为待机状态：对方将自身舞台上1名活跃状态成员变为待机状态。';
+
+const S_BP3_007_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】[E]：选择自己或对方。自己将该玩家存在于休息室的1张LIVE卡放置于该玩家的卡组底。如此做的场合，自己抽1张卡。';
+const S_BP3_008_ACTIVATED_EFFECT_TEXT =
+  '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。其为分数大于等于6的『Aqours』的LIVE卡的场合，将4张能量变为活跃状态。';
+const N_BP7_003_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将卡组顶的5张卡片放置入休息室：将存在于自己的休息室的1张费用小于等于17的『虹咲』的成员卡放置于此卡的下方。如此做时，LIVE结束时为止，此成员原本持有的HEART，变为与因此放置于下方的成员卡持有的HEART相同。';
+const N_BP7_004_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将能量卡组的1张能量卡放置于此卡的下方：将存在于对方的舞台的1名，原本持有的[ブレード]的数量小于等于此卡下方的能量卡的张数+1的成员变为待机状态。';
+const N_BP7_006_INSPECT_TOP_FOUR_ACTIVATED_EFFECT_TEXT =
+  '【起动】【每回合1次】[E]：检视自己卡组顶的4张卡。然后，将其按任意顺序放置于卡组顶。';
+const N_BP7_006_MILL_TOP_THREE_ACTIVATED_EFFECT_TEXT =
+  '【起动】【每回合2次】将卡组顶3张卡放置入休息室：通过此效果放置入休息室的卡中，若存在『虹咲』LIVE卡，或不持有BLADE HEART的『虹咲』成员卡，则从以下选择1项。\n・将2张能量变为活跃状态。\n・LIVE结束时为止，获得[BLADE][BLADE]。';
+const S_BP7_005_ACTIVATED_EFFECT_TEXT =
+  '【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。\n\n*选择的成员卡持有多个【登场】效果时，只能发动其中1个【登场】效果。';
+const SP_BP7_008_ACTIVATED_EFFECT_TEXT = '【起动】将此成员变为待机状态：抽1张卡。';
+const SP_BP7_003_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】公开手牌的1张费用为10或20的成员卡：将因此公开的卡片放置于此成员的下方。此后，抽2张卡。';
+const N_BP8_002_ACTIVATED_EFFECT_TEXT =
+  '【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
@@ -2588,7 +2608,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: ELI_EFFECT_TEXT,
     activatedUi: {
       abilityId: ELI_ACTIVATED_ABILITY_ID,
-      text: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。',
+      text: ELI_EFFECT_TEXT,
       title: '将此成员从舞台放置入休息室，从自己的休息室将1张成员卡加入手牌',
     },
   },
@@ -2632,7 +2652,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: RIN_EFFECT_TEXT,
     activatedUi: {
       abilityId: RIN_ACTIVATED_ABILITY_ID,
-      text: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。',
+      text: RIN_EFFECT_TEXT,
       title: '将此成员从舞台放置入休息室，从自己的休息室将1张LIVE卡加入手牌',
     },
   },
@@ -2648,7 +2668,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       "复用自送休息室起动费用与 WAITING_ROOM -> HAND；回收 μ's LIVE 后按成功 LIVE 分数合计 >=9 自动活跃2张能量。",
     activatedUi: {
       abilityId: PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
-      text: "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ's』LIVE卡加入手牌。成功LIVE分数合计>=9时，将2张能量变为活跃。",
+      text: PR_017_ACTIVATED_EFFECT_TEXT,
       title: "将此成员从舞台放置入休息室，回收1张『μ's』LIVE卡，条件满足时活跃2张能量",
     },
   },
@@ -2698,7 +2718,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     notes: "起动段：成功 LIVE 分数合计 >=6 时可弃2手回收1张 μ's LIVE。",
     activatedUi: {
       abilityId: BP4_002_ACTIVATED_DISCARD_RECOVER_MUSE_LIVE_ABILITY_ID,
-      text: "【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张『μ's』LIVE卡加入手牌。仅可在成功LIVE分数合计>=6时起动。",
+      text: BP4_002_ACTIVATED_EFFECT_TEXT,
       title: "弃2张手牌，从休息室回收1张『μ's』LIVE卡",
     },
   },
@@ -2723,7 +2743,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: BP4_003_EFFECT_TEXT,
     activatedUi: {
       abilityId: BP4_003_ACTIVATED_ABILITY_ID,
-      text: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。',
+      text: BP4_003_EFFECT_TEXT,
       title: '将此成员从舞台放置入休息室，从自己的休息室将1张LIVE卡加入手牌',
     },
   },
@@ -2739,7 +2759,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '复用自送休息室起动费用与 WAITING_ROOM -> HAND；回收目标为休息室中任意「莲之空」卡片（成员或LIVE）。',
     activatedUi: {
       abilityId: HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
-      text: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『莲之空』卡片加入手牌。',
+      text: HS_CL1_008_ACTIVATED_EFFECT_TEXT,
       title: '将此成员从舞台放置入休息室，从自己的休息室回收1张『莲之空』卡片',
     },
   },
@@ -2756,7 +2776,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       "起动段：支付2活跃能量并弃1手；按实际弃置卡是否属于 μ's 分支为看顶4取2或休息室回收1张LIVE。",
     activatedUi: {
       abilityId: BP5_003_ACTIVATED_ENERGY_DISCARD_BRANCH_ABILITY_ID,
-      text: "【起动】【1回合1次】[E][E]将1张手牌放置入休息室：若弃置的是『μ's』卡，检视顶4取2；否则从休息室回收1张LIVE。",
+      text: BP5_003_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E]并弃1张手牌，根据弃置卡分支处理',
     },
   },
@@ -2810,7 +2830,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: PB1_019_EFFECT_TEXT,
     activatedUi: {
       abilityId: PB1_019_ACTIVATED_ABILITY_ID,
-      text: '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。',
+      text: PB1_019_EFFECT_TEXT,
       title: '将此成员从舞台放置入休息室，从自己的休息室将1张成员卡加入手牌',
     },
   },
@@ -2845,7 +2865,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: HANAYO_ACTIVATED_ABILITY_ID,
-      text: '【起动】[E][E]：将自己卡组顶的10张卡放置入休息室。',
+      text: HANAYO_EFFECT_TEXT,
       title: '支付[E][E]，将自己卡组顶的10张卡放置入休息室',
     },
   },
@@ -3049,7 +3069,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: HS_PB1_002_ACTIVATED_REVEAL_SAYAKA_MEMBER_STACK_BELOW_ABILITY_ID,
-      text: '【起动】【1回合1次】公开1张手牌的「村野さやか」成员卡，放到此成员下方。',
+      text: HS_PB1_002_ACTIVATED_EFFECT_TEXT,
       title: '公开同名成员并叠放到下方',
     },
     notes:
@@ -3228,7 +3248,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '三张孤独雨 PR 同文共用窄 shared activated workflow；先公开全部手牌，公开手牌无 LIVE 且有其他舞台成员时才私密检视顶5，可公开1张 LIVE 入手，其余入休息室。',
     activatedUi: {
       abilityId: N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】公开全部手牌；若舞台有其他成员且公开手牌无LIVE，检视顶5，可公开1张LIVE加入手牌，其余入休息室。',
+      text: N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_EFFECT_TEXT,
       title: '公开手牌，无LIVE时检视顶5并可加入1张LIVE',
     },
   },
@@ -3623,12 +3643,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 1,
-    effectText:
-      '【起动】【1回合1次】[E]：选择自己或对方。自己将该玩家存在于休息室的1张LIVE卡放置于该玩家的卡组底。如此做的场合，自己抽1张卡。',
+    effectText: S_BP3_007_ACTIVATED_EFFECT_TEXT,
     notes: '单卡 workflow；复用特殊能量支付、公开选卡确认、休息室到卡组底与抽牌 helper。',
     activatedUi: {
       abilityId: S_BP3_007_ACTIVATED_PAY_ENERGY_BOTTOM_WAITING_LIVE_DRAW_ABILITY_ID,
-      text: '【起动】【1回合1次】支付[E]，选择自己或对方，将该玩家休息室的1张LIVE卡放置于卡组底，随后抽1张卡。',
+      text: S_BP3_007_ACTIVATED_EFFECT_TEXT,
       title: '支付[E]，将休息室的LIVE卡放置于卡组底并抽1张卡',
     },
   },
@@ -3639,13 +3658,12 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
     implemented: true,
-    effectText:
-      '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。其为分数大于等于6的『Aqours』的LIVE卡的场合，将4张能量变为活跃状态。',
+    effectText: S_BP3_008_ACTIVATED_EFFECT_TEXT,
     notes:
       '复用 self-sacrifice-waiting-room-to-hand shared workflow；按本次实际回收卡的结构化 Aqours 身份与印刷分数决定是否活跃至多4张能量。',
     activatedUi: {
       abilityId: S_BP3_008_ACTIVATED_SELF_SACRIFICE_RECOVER_AQOURS_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
-      text: '【起动】将此成员从舞台放置入休息室，从自己的休息室将1张LIVE卡加入手牌；满足条件时将4张能量变为活跃状态。',
+      text: S_BP3_008_ACTIVATED_EFFECT_TEXT,
       title: '将此成员放置入休息室，回收1张LIVE卡',
     },
   },
@@ -4181,7 +4199,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 activated workflow `pl-bp5-009-nico.ts`；主阶段当前玩家、来源仍在己方舞台且手牌至少2张时启动。费用由玩家 exactly 选择2张手牌，走 discardHandCardsToWaitingRoomAndEnqueueTriggers；支付后重扫休息室，用 LIVE 且印刷必要[紫ハート]>=3 selector 回收，允许回收刚弃置的合格 LIVE。无目标时费用保留并 no-op。',
     activatedUi: {
       abilityId: BP5_009_ACTIVATED_DISCARD_TWO_RECOVER_PURPLE_REQUIREMENT_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】将2张手牌放置入休息室，从休息室回收1张必要[紫ハート]3个以上的LIVE卡。',
+      text: BP5_009_ACTIVATED_EFFECT_TEXT,
       title: '弃2手，回收必要紫Heart 3个以上的LIVE',
     },
   },
@@ -4353,7 +4371,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       "单卡 activated workflow；弃1手 cost 成功后才记录 turn1 使用。随后用 selectableOptions 选择颜色，公开顶5并要求公开满5且每张都是持指定色 Heart 的成员或必要 Heart 含指定色的 LIVE；满足且有 μ's 候选时选1入手并写 SOURCE_MEMBER BLADE +3，其余公开卡从 MAIN_DECK 进休息室并入队触发。",
     activatedUi: {
       abilityId: BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
-      text: "【起动】【1回合1次】弃1手，指定Heart颜色，公开顶5。条件满足时将1张『μ's』卡加入手牌并获得[BLADE][BLADE][BLADE]。",
+      text: BP6_006_ACTIVATED_EFFECT_TEXT,
       title: "弃1手，指定颜色公开顶5并尝试加入『μ's』卡",
     },
   },
@@ -4639,7 +4657,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
-      text: '【起动】【1回合1次】[E][E]从自己的休息室将1张费用<=2的成员卡登场到空成员区。',
+      text: HS_BP5_002_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E]，从休息室登场低费成员',
     },
     notes:
@@ -4946,7 +4964,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】[E][E]公开1张手牌LIVE：从自己的休息室将1张同名LIVE加入手牌。',
+      text: HS_BP5_001_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E]并公开手牌LIVE，从休息室回收同名LIVE',
     },
     notes: '起动段以 bespoke C07 手札公开步骤衔接 WAITING_ROOM -> HAND；未抽新公开手牌模块。',
@@ -7711,7 +7729,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '窄单卡 workflow `s-sd1-005-you.ts`；主阶段当前玩家、来源仍在己方舞台、至少2张活跃能量且至少1手牌时可启动。支付2能量并弃1手牌，弃手走 hand -> waiting room trigger wrapper；支付后重扫休息室并强制选择1张 Aqours LIVE 入手，刚弃置的 Aqours LIVE 可成为目标；支付后无目标则费用保留并 no-op。',
     activatedUi: {
       abilityId: S_SD1_005_ACTIVATED_PAY_ENERGY_DISCARD_RECOVER_AQOURS_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『Aqours』LIVE卡加入手牌。',
+      text: S_SD1_005_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E]并弃1张手牌，回收1张 Aqours LIVE',
     },
   },
@@ -7740,7 +7758,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '复用 discard-cost-waiting-room-to-hand；弃2手牌成本走 enter-waiting-room trigger wrapper，之后回收持有 SCORE blade-heart 的 Aqours LIVE。',
     activatedUi: {
       abilityId: S_SD1_007_ACTIVATED_DISCARD_RECOVER_SCORE_AQOURS_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张持有 SCORE 图标的『Aqours』LIVE卡加入手牌。',
+      text: S_SD1_007_ACTIVATED_EFFECT_TEXT,
       title: '弃2张手牌，回收1张持有 SCORE 图标的 Aqours LIVE',
     },
   },
@@ -7756,7 +7774,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '复用自送休息室后原区域登场 workflow；支付2能量并将来源成员从舞台放置入休息室，再从休息室选择费用<=17的 Aqours 成员登场到来源原区域。',
     activatedUi: {
       abilityId: S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
-      text: '【起动】[E][E]并将此成员从舞台放置入休息室：从自己的休息室将1张费用小于等于17的『Aqours』成员登场至原区域。',
+      text: S_BP6_008_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E]并自送，从休息室登场1张 Aqours 成员到原区域',
     },
   },
@@ -8641,7 +8659,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: PL_N_BP1_012_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】[E][E][E]：从自己的休息室将1张LIVE卡加入手牌。',
+      text: PL_N_BP1_012_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E][E]，从自己的休息室将1张LIVE卡加入手牌',
     },
     notes:
@@ -8658,7 +8676,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】[E][E][E]：从自己的休息室将1张『莲之空』的LIVE卡加入手牌。',
+      text: HS_BP1_004_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E][E]，从自己的休息室将1张莲之空LIVE卡加入手牌',
     },
     notes: '起动每回合1次；复用 TAP_ACTIVE_ENERGY 费用与 WAITING_ROOM -> HAND zone-selection。',
@@ -8674,7 +8692,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
-      text: '【起动】【1回合1次】[E]：从自己的休息室将1张费用小于等于4的『莲之空』成员卡加入手牌。',
+      text: HS_BP1_003_ACTIVATED_EFFECT_TEXT,
       title: '支付[E]，从自己的休息室将1张低费用莲之空成员加入手牌',
     },
     notes: '起动段复用 TAP_ACTIVE_ENERGY 与 zone-selection。',
@@ -9765,7 +9783,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '窄单卡 activated workflow `pl-bp3-009-nico.ts`；费用复用 setMemberOrientation 与 member-state trigger wrapper 将此成员 ACTIVE->WAITING，成功后才记录回合次数并强制三选一。选择后复用 addHeartLiveModifierForMember 写 SOURCE_MEMBER 粉/黄/紫 Heart +1。',
     activatedUi: {
       abilityId: PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
-      text: '【起动】【1回合1次】将此成员变为待机状态：选择[桃ハート]或[黄ハート]或[紫ハート]中的1种。LIVE结束时为止，此成员获得1个所选Heart。',
+      text: PL_BP3_009_ACTIVATED_EFFECT_TEXT,
       title: '将此成员变为待机状态，选择1种Heart',
     },
   },
@@ -10931,7 +10949,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: HS_BP1_002_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
-      text: '【起动】[E][E]并将此成员从舞台放置入休息室：从自己的休息室将1张费用小于等于15的『莲之空』成员登场至原区域。',
+      text: HS_BP1_002_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E]并自送，从休息室登场1张莲之空成员到原区域',
     },
     notes: 'P/R 与 RM 文本为“所在区域/曾存在的区域”措辞差异，当前规则行为等价，按基础编号同步。',
@@ -11539,7 +11557,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: N_BP5_008_ACTIVATED_STACK_ENERGY_BELOW_ACTIVATE_TWO_ENERGY_ABILITY_ID,
-      text: '【起动】【1回合1次】将能量区1张能量放到此成员下方，将2张待机能量变为活跃状态。',
+      text: N_BP5_008_ACTIVATED_EFFECT_TEXT,
       title: '将能量放到下方并活跃2能量',
     },
     notes:
@@ -11592,7 +11610,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: N_BP5_012_ACTIVATED_STACK_ENERGY_BELOW_DRAW_GAIN_PINK_HEART_ABILITY_ID,
-      text: '【起动】【1回合1次】将能量区1张能量放到此成员下方，抽1张卡，并获得[桃ハート]。',
+      text: N_BP5_012_ACTIVATED_EFFECT_TEXT,
       title: '堆能量并抽1，获得[桃ハート]',
     },
     notes:
@@ -11633,7 +11651,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: N_BP5_014_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】[E][E]将1张手牌放置入休息室，从休息室回收1张『虹ヶ咲』LIVE。',
+      text: N_BP5_014_ACTIVATED_EFFECT_TEXT,
       title: '支付[E][E]并弃1手牌，回收虹咲LIVE',
     },
     notes:
@@ -11881,7 +11899,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     activatedUi: {
       abilityId: PL_N_BP5_003_ACTIVATED_DISCARD_PAY_SCORE_RECOVER_LIVE_ABILITY_ID,
-      text: '【起动】【1回合1次】将1张手牌放置入休息室：选择自己休息室1张LIVE卡，可以支付与该卡分数相同数量的[E]并加入手牌。',
+      text: PL_N_BP5_003_ACTIVATED_EFFECT_TEXT,
       title: '弃1手牌后选择休息室LIVE，可支付与该卡分数相同数量的[E]加入手牌',
     },
     notes:
@@ -12631,12 +12649,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 1,
-    effectText:
-      '【起动】【1回合1次】将卡组顶的5张卡片放置入休息室：将存在于自己的休息室的1张费用小于等于17的『虹咲』的成员卡放置于此卡的下方。如此做时，LIVE结束时为止，此成员原本持有的HEART，变为与因此放置于下方的成员卡持有的HEART相同。',
+    effectText: N_BP7_003_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId: N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
       title: '将虹咲成员放置于下方',
-      text: '【起动】【1回合1次】将卡组顶的5张卡片放置入休息室：将存在于自己的休息室的1张费用小于等于17的『虹咲』的成员卡放置于此卡的下方。如此做时，LIVE结束时为止，此成员原本持有的HEART，变为与因此放置于下方的成员卡持有的HEART相同。',
+      text: N_BP7_003_ACTIVATED_EFFECT_TEXT,
     },
     notes:
       '按基础编号覆盖同卡全部罕度；refresh-aware direct mill 作为冒号前费用并先公开实际 movedCardIds，随后结构化选择休息室目标、通用 stack helper 压入，并用目标印刷 HeartIcon[] 快照替换来源印刷 Heart。',
@@ -12662,12 +12679,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 1,
-    effectText:
-      '【起动】【1回合1次】将能量区1张能量放置于此成员下方：选择对方舞台上1名原本持有的[ブレード]数量不超过此成员下方能量数量加1的成员，将其变为待机状态。',
+    effectText: N_BP7_004_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
       title: '将能量区1张能量放到此成员下方并使对方成员变为待机状态',
-      text: '【起动】【1回合1次】将能量区1张能量放置于此成员下方：选择对方舞台上1名原本持有的[ブレード]数量不超过此成员下方能量数量加1的成员，将其变为待机状态。',
+      text: N_BP7_004_ACTIVATED_EFFECT_TEXT,
     },
     notes:
       '按基础编号覆盖同卡全部罕度；日文权威文本明确费用来自能量区，公开中文 API 的“能量卡组”是数据错误。费用成功后才记录 PAY_COST 与 turn1，并按支付后的 energyBelow 数量加1读取目标 original BLADE。',
@@ -12693,12 +12709,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 1,
-    effectText:
-      '【起动】【每回合1次】[E]：检视自己卡组顶的4张卡。然后，将其按任意顺序放置于卡组顶。',
+    effectText: N_BP7_006_INSPECT_TOP_FOUR_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId: N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
       title: '支付[E]并重排卡组顶4张',
-      text: '【起动】【每回合1次】[E]：检视自己卡组顶的4张卡。然后，将其按任意顺序放置于卡组顶。',
+      text: N_BP7_006_INSPECT_TOP_FOUR_ACTIVATED_EFFECT_TEXT,
       displayOrder: 1,
     },
     notes:
@@ -12712,12 +12727,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 2,
-    effectText:
-      '【起动】【每回合2次】将卡组顶3张卡放置入休息室：通过此效果放置入休息室的卡中，若存在『虹咲』LIVE卡，或不持有BLADE HEART的『虹咲』成员卡，则从以下选择1项。\n・将2张能量变为活跃状态。\n・LIVE结束时为止，获得[BLADE][BLADE]。',
+    effectText: N_BP7_006_MILL_TOP_THREE_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId: N_BP7_006_ACTIVATED_MILL_TOP_THREE_CHOOSE_ENERGY_OR_BLADE_ABILITY_ID,
       title: '将卡组顶3张作为费用',
-      text: '【起动】【每回合2次】将卡组顶3张卡放置入休息室：通过此效果放置入休息室的卡中，若存在『虹咲』LIVE卡，或不持有BLADE HEART的『虹咲』成员卡，则从以下选择1项。\n・将2张能量变为活跃状态。\n・LIVE结束时为止，获得[BLADE][BLADE]。',
+      text: N_BP7_006_MILL_TOP_THREE_ACTIVATED_EFFECT_TEXT,
       displayOrder: 2,
     },
     notes:
@@ -12939,12 +12953,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 1,
-    effectText:
-      '【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。\n\n*选择的成员卡持有多个【登场】效果时，只能发动其中1个【登场】效果。',
+    effectText: S_BP7_005_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId: S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
       title: '发动两名成员的登场能力',
-      text: '【起动】【中央】【1回合1次】将2张手牌放置入休息室：选择此成员和存在于自己的舞台的1名其他的『Aqours』的成员。将其持有的【登场】能力分别发动1个。\n\n*选择的成员卡持有多个【登场】效果时，只能发动其中1个【登场】效果。',
+      text: S_BP7_005_ACTIVATED_EFFECT_TEXT,
     },
     notes:
       '按基础编号覆盖同卡全部罕度；弃2手后分别查询两名当前槽位可委托的已实现 queued ON_ENTER definition，各选1段与处理顺序，再通过窄 delegated-ability sequence 连续处理，不伪造 EnterStageEvent。',
@@ -13055,9 +13068,9 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     activatedUi: {
       abilityId: SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
       title: '起动能力',
-      text: '【起动】将此成员变为待机状态：抽1张卡。',
+      text: SP_BP7_008_ACTIVATED_EFFECT_TEXT,
     },
-    effectText: '【起动】将此成员变为待机状态：抽1张卡。',
+    effectText: SP_BP7_008_ACTIVATED_EFFECT_TEXT,
     notes:
       '按基础编号覆盖同卡全部罕度；通用起动来源方向要求限制为 ACTIVE。以标准成员状态变更包装器支付 WAIT 成本并记录 PAY_COST 后抽1张。',
   },
@@ -13235,12 +13248,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: false,
     implemented: true,
     perTurnLimit: 1,
-    effectText:
-      '【起动】【1回合1次】公开手牌中1张费用10或20的成员卡：将因此公开的卡放置于此成员下方。然后，抽2张卡。',
+    effectText: SP_BP7_003_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId: SP_BP7_003_ACTIVATED_REVEAL_COST_TEN_OR_TWENTY_MEMBER_STACK_DRAW_TWO_ABILITY_ID,
       title: '公开成员并放置于下方',
-      text: '【起动】【1回合1次】公开手牌中1张费用10或20的成员卡：将因此公开的卡放置于此成员下方。然后，抽2张卡。',
+      text: SP_BP7_003_ACTIVATED_EFFECT_TEXT,
     },
     notes:
       '按基础编号覆盖同卡全部罕度；单卡 workflow 先私密选择费用10或20成员，以 revealedCardIds 建立双方公开确认后再用 stackMemberCardBelowStageMember 执行 HAND→memberBelow，最后复用 drawCardsFromMainDeckToHand 抽2。冒号前公开作为费用，来源或手牌 stale 时不推进窗口。',
@@ -13707,13 +13719,12 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     sourceZone: CardAbilitySourceZone.WAITING_ROOM,
     queued: false,
     implemented: true,
-    effectText:
-      '【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。',
+    effectText: N_BP8_002_ACTIVATED_EFFECT_TEXT,
     activatedUi: {
       abilityId:
         N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID,
       title: '支付[E]并将此卡放置于卡组底，使虹咲成员获得[黄ハート]',
-      text: '【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。',
+      text: N_BP8_002_ACTIVATED_EFFECT_TEXT,
     },
     notes:
       '单卡 workflow n-bp8-002-kasumi.ts；来源为休息室，支付[E]并通过统一休息室到主卡组事件 wrapper 将自身置底，再选择舞台虹咲成员写 TARGET_MEMBER 黄 Heart。',

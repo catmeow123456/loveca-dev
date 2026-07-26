@@ -136,6 +136,11 @@ describe('PL!N-bp5-021-N Rina on-enter workflow', () => {
       milledMember.instanceId,
     ]);
     expect(session.state?.activeEffect?.selectableCardIds).toContain(milledLive.instanceId);
+    expect(session.state?.activeEffect?.selectionLabel).toBe(
+      '选择要放置于卡组顶第4张的LIVE卡'
+    );
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBe('放置于卡组顶第4张');
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不放置');
 
     confirmSelection(session, milledLive.instanceId);
 
@@ -162,6 +167,7 @@ describe('PL!N-bp5-021-N Rina on-enter workflow', () => {
     );
     const session = attachSession(state);
 
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不放置');
     confirmSelection(session, null);
 
     expect(session.state?.activeEffect).toBeNull();

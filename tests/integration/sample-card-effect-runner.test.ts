@@ -7492,6 +7492,50 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(MAKI_ON_ENTER_ABILITY_ID);
     expect(session.state?.activeEffect?.stepId).toBe('MAKI_SELECT_HAND_LIVE');
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([handLive.instanceId]);
+    expect(session.state?.activeEffect?.selectionLabel).toBe('请选择要公开的手牌LIVE卡');
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不发动');
+
+    const noSuccessLiveSession = createGameSession();
+    noSuccessLiveSession.createGame(
+      'sample-maki-on-enter-no-success-live-after-cost',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    (
+      noSuccessLiveSession as unknown as { authorityState: GameState }
+    ).authorityState = updatePlayer(session.state!, PLAYER1, (player) => ({
+      ...player,
+      successZone: { ...player.successZone, cardIds: [] },
+    }));
+    const revealWithoutSuccessTargetResult = noSuccessLiveSession.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        noSuccessLiveSession.state!.activeEffect!.id,
+        handLive.instanceId
+      )
+    );
+    expect(revealWithoutSuccessTargetResult.success).toBe(true);
+    expect(noSuccessLiveSession.state?.activeEffect?.stepId).toBe(
+      'MAKI_SELECT_SUCCESS_LIVE'
+    );
+    expect(noSuccessLiveSession.state?.activeEffect?.selectableCardIds).toEqual([]);
+    expect(noSuccessLiveSession.state?.activeEffect?.canSkipSelection).toBe(false);
+    const finishWithoutSuccessTargetResult = noSuccessLiveSession.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        noSuccessLiveSession.state!.activeEffect!.id
+      )
+    );
+    expect(finishWithoutSuccessTargetResult.success).toBe(true);
+    expect(noSuccessLiveSession.state?.activeEffect).toBeNull();
+    expect(noSuccessLiveSession.state?.players[0].hand.cardIds).toEqual([
+      handLive.instanceId,
+    ]);
+    expect(noSuccessLiveSession.state?.players[0].successZone.cardIds).toEqual([]);
 
     const revealResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, handLive.instanceId)
@@ -7503,6 +7547,19 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.metadata?.handLiveCardId).toBe(handLive.instanceId);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual([handLive.instanceId]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([successLive.instanceId]);
+    expect(session.state?.activeEffect?.selectionLabel).toBe(
+      '选择要加入手牌的成功LIVE卡'
+    );
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBeUndefined();
+
+    const skipSwapResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, null)
+    );
+    expect(skipSwapResult.success).toBe(false);
+    expect(session.state?.activeEffect?.stepId).toBe('MAKI_SELECT_SUCCESS_LIVE');
+
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -14036,6 +14093,44 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
     expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
     expect(session.state?.activeEffect?.selectableCardIds).toEqual(waitingMemberCardIds);
+    expect(session.state?.activeEffect?.selectionLabel).toBe(
+      '选择要从休息室登场的成员'
+    );
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBe('选择登场区域');
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不登场');
+
+    const paidSelectionState = session.state!;
+    const skipAfterPaymentSession = createGameSession();
+    skipAfterPaymentSession.createGame(
+      'sample-yoshiko-play-from-waiting-skip-after-payment',
+      PLAYER1,
+      'Player 1',
+      PLAYER2,
+      'Player 2'
+    );
+    (
+      skipAfterPaymentSession as unknown as { authorityState: GameState }
+    ).authorityState = paidSelectionState;
+    const skipAfterPaymentResult = skipAfterPaymentSession.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        skipAfterPaymentSession.state!.activeEffect!.id,
+        null
+      )
+    );
+    expect(skipAfterPaymentResult.success).toBe(true);
+    expect(
+      skipAfterPaymentSession.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID &&
+          action.payload.step === 'DECLINE_PLAY_WAITING_ROOM_MEMBERS_AFTER_COST'
+      )?.payload
+    ).toMatchObject({
+      selectionSkipped: true,
+      selectedCardIds: [],
+    });
 
     const duplicatePayResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -14438,6 +14533,8 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(0);
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBe('选择登场区域');
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不登场');
     const enterEventCountBeforeFinish = session.state!.eventLog.filter(
       (entry) => entry.event.eventType === TriggerCondition.ON_ENTER_STAGE
     ).length;
@@ -14469,7 +14566,10 @@ describe('sample card effect runner', () => {
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
           action.payload.abilityId === YOSHIKO_ON_ENTER_PLAY_LOW_COST_MEMBERS_ABILITY_ID &&
-          action.payload.step === 'FINISH_NO_SELECTION'
+          action.payload.step === 'FINISH_NO_SELECTION' &&
+          action.payload.selectionSkipped === false &&
+          Array.isArray(action.payload.selectedCardIds) &&
+          action.payload.selectedCardIds.length === 0
       )
     ).toBe(true);
     expect(

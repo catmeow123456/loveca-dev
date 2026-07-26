@@ -1756,8 +1756,12 @@ describe('card effect classification registry', () => {
       expect(miaActivated?.activatedUi).toMatchObject({
         abilityId: PL_N_PB1_011_ACTIVATED_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
       });
-      expect(miaActivated?.activatedUi?.text).toContain('能量区');
-      expect(miaActivated?.activatedUi?.text).toContain('虹ヶ咲');
+      expect(miaActivated?.effectText).toBe(
+        '【起动】【1回合1次】将1张存在于自己的能量区的能量卡放置于此成员下方：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。\n\n(成员离开舞台时，将被放置于成员下方的能量卡返回能量卡组。)'
+      );
+      expect(miaActivated?.activatedUi?.text).toBe(
+        '【起动】【1回合1次】将1张存在于自己的能量区的能量卡放置于此成员下方：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。\n\n(成员离开舞台时，将被放置于成员下方的能量卡返回能量卡组。)'
+      );
     }
 
     for (const cardCode of ['PL!N-pb1-007-R', 'PL!N-pb1-007-P＋']) {
@@ -2017,8 +2021,12 @@ describe('card effect classification registry', () => {
       expect(emmaActivated?.activatedUi).toMatchObject({
         abilityId: N_BP5_008_ACTIVATED_STACK_ENERGY_BELOW_ACTIVATE_TWO_ENERGY_ABILITY_ID,
       });
-      expect(emmaActivated?.activatedUi?.text).toContain('能量区');
-      expect(emmaActivated?.activatedUi?.text).toContain('2张待机能量');
+      expect(emmaActivated?.effectText).toBe(
+        '【起动】【1回合1次】将1张存在于能量区的能量放置于此成员下方：将2张能量变为活跃状态。'
+      );
+      expect(emmaActivated?.activatedUi?.text).toBe(
+        '【起动】【1回合1次】将1张存在于能量区的能量放置于此成员下方：将2张能量变为活跃状态。'
+      );
     }
 
     for (const cardCode of ['PL!N-bp5-002-R', 'PL!N-bp5-002-P', 'PL!N-bp5-002-AR']) {
@@ -2243,12 +2251,12 @@ describe('card effect classification registry', () => {
     expect(nBp5014KasumiActivated?.activatedUi).toMatchObject({
       abilityId: N_BP5_014_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
     });
-    expect(nBp5014KasumiActivated?.effectText).toContain('【起动】');
-    expect(nBp5014KasumiActivated?.effectText).toContain('【1回合1次】');
-    expect(nBp5014KasumiActivated?.effectText).toContain('[E][E]');
-    expect(nBp5014KasumiActivated?.effectText).toContain('虹ヶ咲');
-    expect(nBp5014KasumiActivated?.effectText).not.toContain('ターン1回');
-    expect(nBp5014KasumiActivated?.effectText).not.toContain('手札');
+    expect(nBp5014KasumiActivated?.effectText).toBe(
+      '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。'
+    );
+    expect(nBp5014KasumiActivated?.activatedUi?.text).toBe(
+      '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。'
+    );
 
     const tokimekiAbilities = getCardAbilityDefinitions('PL!N-bp5-026-L');
     const tokimekiLiveStart = tokimekiAbilities.find(
@@ -3698,9 +3706,11 @@ describe('card effect classification registry', () => {
         queued: false,
         implemented: true,
         perTurnLimit: 1,
+        effectText:
+          '【起动】【1回合1次】将1张手牌放置入休息室：将1张能量或1名『虹咲』的成员变为活跃状态。',
         activatedUi: {
           abilityId: PL_N_BP4_008_ACTIVATED_DISCARD_ACTIVATE_ENERGY_OR_NIJIGASAKI_MEMBER_ABILITY_ID,
-          text: '【起动】【1回合1次】将1张手牌放置入休息室：将1张能量或1名『虹ヶ咲』成员变为活跃状态。',
+          text: '【起动】【1回合1次】将1张手牌放置入休息室：将1张能量或1名『虹咲』的成员变为活跃状态。',
         },
       });
     }
@@ -4275,13 +4285,12 @@ describe('card effect classification registry', () => {
         abilityId:
           SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID,
       });
-      expect(spBp5002Activated?.activatedUi?.text).toContain('左サイド');
-      expect(spBp5002Activated?.activatedUi?.text).toContain('抽3张卡');
-      expect(spBp5002Activated?.activatedUi?.text).toContain('将2张手牌放置入休息室');
-      expect(spBp5002Activated?.activatedUi?.text).toContain('大于等于1张不持有BLADE HEART');
-      expect(spBp5002Activated?.activatedUi?.text).toContain('将此成员变为活跃状态');
-      expect(spBp5002Activated?.activatedUi?.text).toContain('存在2张');
-      expect(spBp5002Activated?.activatedUi?.text).toContain('[BLADE][BLADE]');
+      expect(spBp5002Activated?.effectText).toBe(
+        '【起动】【左侧】【1回合1次】将此成员变为待机状态：抽3张卡，将2张手牌放置入休息室。因此放置入休息室的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，将此成员变为活跃状态。存在2张的场合，LIVE结束时为止，再获得[ブレード][ブレード]。'
+      );
+      expect(spBp5002Activated?.activatedUi?.text).toBe(
+        '【起动】【左侧】【1回合1次】将此成员变为待机状态：抽3张卡，将2张手牌放置入休息室。因此放置入休息室的卡片中存在大于等于1张不持有BLADE HEART的成员卡的场合，将此成员变为活跃状态。存在2张的场合，LIVE结束时为止，再获得[ブレード][ブレード]。'
+      );
     }
 
     for (const cardCode of ['PL!SP-pb2-002-R', 'PL!SP-pb2-002-PP']) {
@@ -4302,9 +4311,12 @@ describe('card effect classification registry', () => {
       expect(spPb2002Activated?.activatedUi).toMatchObject({
         abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
       });
-      expect(spPb2002Activated?.activatedUi?.text).toContain('『Liella!』卡');
-      expect(spPb2002Activated?.activatedUi?.text).toContain('能量卡以待机状态放置');
-      expect(spPb2002Activated?.activatedUi?.text).toContain('[紫ハート][紫ハート]');
+      expect(spPb2002Activated?.effectText).toBe(
+        '【起动】【1回合1次】将手牌的1张『Liella!』的卡片放置入休息室：从以下选择1项。因此将不持有BLADE HEART的成员卡放置入休息室的场合，作为代替选择1项以上。\n\n·从自己的能量卡组，将1张能量卡以待机状态放置入能量区。\n\n·LIVE结束时为止，存在于自己的舞台的1名此成员以外的『Liella!』的成员，获得[紫ハート][紫ハート]。'
+      );
+      expect(spPb2002Activated?.activatedUi?.text).toBe(
+        '【起动】【1回合1次】将手牌的1张『Liella!』的卡片放置入休息室：从以下选择1项。因此将不持有BLADE HEART的成员卡放置入休息室的场合，作为代替选择1项以上。\n\n·从自己的能量卡组，将1张能量卡以待机状态放置入能量区。\n\n·LIVE结束时为止，存在于自己的舞台的1名此成员以外的『Liella!』的成员，获得[紫ハート][紫ハート]。'
+      );
     }
 
     for (const cardCode of ['PL!SP-pb2-007-R', 'PL!SP-pb2-007-PP']) {
@@ -5629,7 +5641,7 @@ describe('card effect classification registry', () => {
       ]);
     }
     const setsunaEffectText =
-      '【起动】[E][E]、将此成员从舞台放置入休息室：从自己手牌将1张费用13以下的「優木せつ菜」成员卡，登场到此成员原本所在区域。之后，将自己能量区1张能量放到该成员下方。成员下方的能量不能用于支付费用；该成员离开舞台时，下方能量返回能量卡组。';
+      '【起动】[E][E]将此成员从舞台放置入休息室：将1张自己的手牌中费用小于等于13的「优木雪菜」，登场至此成员曾存在的区域。之后，将1张存在于自己的能量区的能量放置于此成员下方。(被放置于成员下方的能量卡不能用来支付费用。成员离开舞台时，将被放置于成员下方的能量卡放置入能量卡组。)';
     for (const cardCode of ['PL!N-bp3-007-PR', 'PL!N-bp3-007-R', 'PL!N-bp3-007-P']) {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([
         expect.objectContaining({
@@ -6313,8 +6325,12 @@ describe('card effect classification registry', () => {
       expect(sayakaActivated?.activatedUi).toMatchObject({
         abilityId: HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
       });
-      expect(sayakaActivated?.activatedUi?.text).toContain('[E][E]');
-      expect(sayakaActivated?.activatedUi?.text).toContain('费用<=2');
+      expect(sayakaActivated?.effectText).toBe(
+        '【起动】【1回合1次】[E][E]：从自己的休息室将1张费用小于等于2的成员卡，登场至不存在成员的区域。'
+      );
+      expect(sayakaActivated?.activatedUi?.text).toBe(
+        '【起动】【1回合1次】[E][E]：从自己的休息室将1张费用小于等于2的成员卡，登场至不存在成员的区域。'
+      );
     }
 
     for (const cardCode of ['PL!HS-bp5-004-R', 'PL!HS-bp5-004-P', 'PL!HS-bp5-004-AR']) {
@@ -6966,7 +6982,12 @@ describe('card effect classification registry', () => {
         abilityId: HS_CL1_003_ACTIVATED_WAIT_SELF_MIRACRA_MEMBER_GAIN_BLADE_ABILITY_ID,
       },
     });
-    expect(cl1RurinoActivated?.effectText).toContain('[BLADE]');
+    expect(cl1RurinoActivated?.effectText).toBe(
+      '【起动】【1回合1次】将此成员变为待机状态：LIVE结束时为止，存在于自己的舞台上的1名『Mira-Cra Park!』的成员，获得[ブレード]。'
+    );
+    expect(cl1RurinoActivated?.activatedUi?.text).toBe(
+      '【起动】【1回合1次】将此成员变为待机状态：LIVE结束时为止，存在于自己的舞台上的1名『Mira-Cra Park!』的成员，获得[ブレード]。'
+    );
 
     const cl1GinkoOnEnter = getCardAbilityDefinitions('PL!HS-cl1-004-CL').find(
       (ability) =>
@@ -7035,9 +7056,10 @@ describe('card effect classification registry', () => {
           abilityId: S_BP3_006_ACTIVATED_WAIT_SELF_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
         },
       });
-      expect(sBp3006Activated?.effectText).toContain('【中央】');
-      expect(sBp3006Activated?.effectText).not.toContain('【CENTER】');
-      expect(sBp3006Activated?.effectText).toContain('费用正好');
+      const expectedEffectText =
+        '【起动】【中央】【1回合1次】将此成员变为待机状态，将1张手牌放置入休息室：将1名此成员以外的『Aqours』的成员从自己的舞台放置入休息室。如此做的场合，从自己的休息室，将1张费用与此成员的费用加2相等的『Aqours』的成员卡，登场至该成员曾存在的区域。(此能力仅可在中央区域登场的场合起动)';
+      expect(sBp3006Activated?.effectText).toBe(expectedEffectText);
+      expect(sBp3006Activated?.activatedUi?.text).toBe(expectedEffectText);
     }
 
     for (const cardCode of ['PL!S-bp6-003-P', 'PL!S-bp6-003-R']) {
@@ -7056,8 +7078,10 @@ describe('card effect classification registry', () => {
           abilityId: S_BP6_003_ACTIVATED_UPGRADE_OTHER_AQOURS_MEMBER_ABILITY_ID,
         },
       });
-      expect(sBp6003Activated?.effectText).toContain('[E][E]');
-      expect(sBp6003Activated?.effectText).toContain('费用正好');
+      const expectedEffectText =
+        '【起动】【1回合1次】[E][E]将1张手牌放置入休息室：将1名此成员以外的『Aqours』的成员从自己的舞台放置入休息室。如此做的场合，从自己的休息室，将1张费用与此成员的费用加2相等的『Aqours』的成员卡，登场至该成员曾存在的区域。';
+      expect(sBp6003Activated?.effectText).toBe(expectedEffectText);
+      expect(sBp6003Activated?.activatedUi?.text).toBe(expectedEffectText);
     }
 
     for (const cardCode of ['PL!S-bp6-006-P', 'PL!S-bp6-006-R']) {
@@ -13051,8 +13075,12 @@ describe('HS bp2 001 and 017 classifications', () => {
             HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
         },
       });
-      expect(definition?.effectText).toContain('[E][E]');
-      expect(definition?.effectText).toContain('分数小于等于3');
+      expect(definition?.effectText).toBe(
+        '【起动】【1回合1次】[E][E]：从自己的休息室将1张费用小于等于3的『莲之空』的LIVE卡加入手牌。'
+      );
+      expect(definition?.activatedUi?.text).toBe(
+        '【起动】【1回合1次】[E][E]：从自己的休息室将1张费用小于等于3的『莲之空』的LIVE卡加入手牌。'
+      );
       expect(getActivatedAbilityUiConfig(cardCode)?.abilityId).toBe(
         HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID
       );
@@ -14093,11 +14121,11 @@ describe('PL!SP-bp1 final independent batch definitions', () => {
           implemented: true,
           perTurnLimit: 1,
           effectText:
-            '【起动】【1回合1次】公开任意张存在于手牌的成员卡：公开的卡片的费用的合计为，10、20、30、40、50中的任意值的场合，LIVE结束时为止，获得「【常时】LIVE的合计[スコア]+1。」。',
+            '【起动】【1回合1次】公开任意张存在于手牌的成员卡：公开的卡片的费用的合计为，10、20、30、40、50中的任意值的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。',
           activatedUi: {
             abilityId: SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_ID,
             title: '公开任意张手牌成员卡',
-            text: '【起动】【1回合1次】公开任意张存在于手牌的成员卡：公开的卡片的费用的合计为，10、20、30、40、50中的任意值的场合，LIVE结束时为止，获得「【常时】LIVE的合计[スコア]+1。」。',
+            text: '【起动】【1回合1次】公开任意张存在于手牌的成员卡：公开的卡片的费用的合计为，10、20、30、40、50中的任意值的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。',
           },
         }),
       ]);
@@ -15001,11 +15029,13 @@ describe('PL!SP-bp7-003 费用10「岚千砂都」 base-scoped definitions', () 
         queued: false,
         implemented: true,
         perTurnLimit: 1,
+        effectText:
+          '【起动】【1回合1次】公开手牌的1张费用为10或20的成员卡：将因此公开的卡片放置于此成员的下方。此后，抽2张卡。',
         activatedUi: {
           abilityId:
             SP_BP7_003_ACTIVATED_REVEAL_COST_TEN_OR_TWENTY_MEMBER_STACK_DRAW_TWO_ABILITY_ID,
           title: '公开成员并放置于下方',
-          text: '【起动】【1回合1次】公开手牌中1张费用10或20的成员卡：将因此公开的卡放置于此成员下方。然后，抽2张卡。',
+          text: '【起动】【1回合1次】公开手牌的1张费用为10或20的成员卡：将因此公开的卡片放置于此成员的下方。此后，抽2张卡。',
         },
       }),
     ]);

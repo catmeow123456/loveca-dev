@@ -149,7 +149,7 @@ describe('card effect display text governance', () => {
     expect(gameBoardSource).not.toContain('（${activeEffectOrderedSelection.length}张）');
   });
 
-  it('keeps the shared activated and Echoes Beyond texts at their Excel Chinese source', () => {
+  it('keeps the shared activated and Echoes Beyond texts at their pinned authoritative source', () => {
     expect(
       CARD_ABILITY_DEFINITIONS.find(
         (ability) => ability.abilityId === 'PL!SP-bp5-020:activated-pay-two-energy-draw-one'
@@ -168,7 +168,7 @@ describe('card effect display text governance', () => {
         (ability) => ability.abilityId === 'PL!N-bp5-003:activated-discard-pay-score-recover-live'
       )?.effectText
     ).toBe(
-      '【起动】【1回合1次】将1张手牌放置入休息室：选择自己休息室1张LIVE卡。可以支付与该卡分数相同数量的[E]；如此做时将该LIVE加入手牌。'
+      '【起动】【1回合1次】将1张手牌放置入休息室：选择1张存在于自己休息室的LIVE卡，可以支付与该卡的分数相同数量的[E]。如此做的场合，将该LIVE卡加入手牌。'
     );
     expect(
       CARD_ABILITY_DEFINITIONS.find(
