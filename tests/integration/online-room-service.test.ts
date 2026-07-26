@@ -440,6 +440,36 @@ describe('OnlineRoomService', () => {
     expect(publicLog.matchId).toBe(started.matchId);
     expect(publicLog.publicEvents.length).toBeGreaterThan(0);
 
+    const sentChat = matchService.sendMatchChatMessage(started.matchId!, 'u1', {
+      clientMessageId: 'spec-chat-1',
+      text: '观战者也能看到这条消息',
+    });
+    expect(sentChat).toMatchObject({
+      messageSeq: 1,
+      senderSeat: 'SECOND',
+      senderDisplayName: 'Alpha',
+      text: '观战者也能看到这条消息',
+    });
+    expect(
+      matchService.getMatchChatMessages(started.matchId!, 'u2', { afterSeq: 0 })
+    ).toMatchObject({
+      matchId: started.matchId,
+      currentSeq: 1,
+      messages: [sentChat],
+    });
+    expect(matchService.getMatchChatMessages(started.matchId!, 'u3')).toBeNull();
+    expect(
+      matchService.getSpectatorChatMessages(link.token, joined.session.sessionId, {
+        afterSeq: 0,
+        expectedRoomGeneration: link.roomGeneration!,
+        expectedAttachmentGeneration: link.attachmentGeneration,
+      })
+    ).toMatchObject({
+      matchId: started.matchId,
+      currentSeq: 1,
+      messages: [sentChat],
+    });
+
     const roomForPlayer = await service.getRoomView('spec1', 'u1');
     expect(roomForPlayer.spectatorPresence.total).toBe(1);
     expect(roomForPlayer.spectatorPresence.viewers[0]).toMatchObject({
@@ -870,6 +900,12 @@ describe('OnlineRoomService', () => {
     await service.lockDeck('again1', 'u2', 'deck-b');
     const started = await startRoomThroughOpening(service, 'again1', 'u1', 'u2', 'u1');
     const previousMatchId = started.matchId!;
+    expect(
+      matchService.sendMatchChatMessage(previousMatchId, 'u1', {
+        clientMessageId: 'old-match-chat',
+        text: '这条消息只属于旧局',
+      })
+    ).toMatchObject({ messageSeq: 1 });
 
     now += 1_000;
     const requested = await service.requestRestart('again1', 'u1');
@@ -906,6 +942,7 @@ describe('OnlineRoomService', () => {
       }),
     ]);
     expect(matchService.getMatch(previousMatchId)).toBeNull();
+    expect(matchService.getMatchChatMessages(previousMatchId, 'u1')).toBeNull();
     expect(recorder.sealMatch).toHaveBeenCalledWith(
       expect.objectContaining({
         matchId: previousMatchId,
@@ -949,6 +986,10 @@ describe('OnlineRoomService', () => {
     expect(newMatch.matchId).toBeTruthy();
     expect(newMatch.matchId).not.toBe(previousMatchId);
     expect(matchService.getMatch(newMatch.matchId!)).not.toBeNull();
+    expect(matchService.getMatchChatMessages(newMatch.matchId!, 'u1')).toMatchObject({
+      currentSeq: 0,
+      messages: [],
+    });
   });
 
   it('房间号观战会话应跨重开等待并在新局按原玩家身份重新解析席位', async () => {
@@ -2329,6 +2370,34 @@ describe('OnlineRoomService', () => {
     expect(room?.status).toBe('IN_GAME');
     expect(room?.members.find((member) => member.userId === 'u1')?.presence).toBe('ACTIVE');
     expect(matchService.getMatch(started.matchId!)).not.toBeNull();
+  });
+
+  it('迟到的对局请求不应把已退出成员重新标记为活跃', async () => {
+    let now = 3_500_000;
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+      }),
+    });
+
+    await service.createRoom('left1', 'u1');
+    await service.joinRoom('left1', 'u2');
+    await service.lockDeck('left1', 'u1', 'deck-a');
+    await service.lockDeck('left1', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'left1', 'u1', 'u2', 'u1');
+
+    await service.leaveRoom('left1', 'u1');
+    now += 1_000;
+
+    expect(service.touchInGameMemberByMatch(started.matchId!, 'u1')).toBe(false);
+    const room = await service.getRoomIfPresent('left1');
+    expect(room?.members.find((member) => member.userId === 'u1')?.presence).toBe('LEFT');
   });
 
   it('对局中断超过宽限期后成员房间轮询先恢复时不应销毁 match', async () => {

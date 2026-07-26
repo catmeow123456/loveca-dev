@@ -1,0 +1,18 @@
+import type { OnlineMatchChatMessage, Seat } from '@game/online';
+
+export function findLatestOpponentChatMessage(
+  messages: readonly OnlineMatchChatMessage[],
+  viewerSeat: Seat
+): OnlineMatchChatMessage | null {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message && message.senderSeat !== viewerSeat) {
+      return message;
+    }
+  }
+  return null;
+}
+
+export function formatMatchChatPreviewText(text: string): string {
+  return text.replace(/\s+/gu, ' ').trim();
+}

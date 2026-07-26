@@ -7,3 +7,4 @@ export * from './debug-types.js';
 export * from './release-types.js';
 export * from './replay-types.js';
 export * from './public-table-types.js';
+export * from './chat-types.js';

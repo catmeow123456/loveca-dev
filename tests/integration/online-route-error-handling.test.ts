@@ -11,7 +11,7 @@ vi.mock('../../src/server/services/online-room-service.js', () => ({
     displayName: '服务端昵称',
   })),
   onlineRoomService: {
-    touchInGameMemberByMatch: vi.fn(),
+    touchInGameMemberByMatch: vi.fn(() => true),
     markReadyToStart: vi.fn(),
     submitOpeningRps: vi.fn(),
     replayOpeningRps: vi.fn(),
@@ -34,6 +34,7 @@ import {
   OnlineSpectatorServiceError,
   onlineMatchService,
 } from '../../src/server/services/online-match-service';
+import { OnlineMatchChatRuntimeError } from '../../src/server/services/online-match-chat-runtime';
 import { onlineRoomService } from '../../src/server/services/online-room-service';
 
 function createMockResponse() {
@@ -169,6 +170,88 @@ describe('onlineRouter error handling', () => {
         message: '观战同步暂时繁忙，请稍等',
         retryAfterMs: 2_250,
       },
+    });
+  });
+
+  it('观战聊天应绑定当前 token、session 和单局代际并禁止缓存', async () => {
+    vi.spyOn(onlineMatchService, 'getSpectatorChatMessages').mockReturnValue({
+      matchId: 'm1',
+      messages: [],
+      currentSeq: 0,
+      nextAfterSeq: 0,
+      oldestAvailableSeq: 1,
+      truncated: false,
+      hasMore: false,
+    });
+
+    const response = await invokeRoute('/spectator-links/:token/chat/messages', 'get', {
+      params: { token: 'token-1' },
+      query: {
+        sessionId: 'session-1',
+        afterSeq: '4',
+        roomGeneration: 'room-generation-1',
+        attachmentGeneration: '2',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(onlineMatchService.getSpectatorChatMessages).toHaveBeenCalledWith(
+      'token-1',
+      'session-1',
+      {
+        afterSeq: 4,
+        expectedRoomGeneration: 'room-generation-1',
+        expectedAttachmentGeneration: 2,
+      }
+    );
+    expect(response.headers).toMatchObject({
+      'Cache-Control': 'private, no-store',
+      'Referrer-Policy': 'no-referrer',
+      'X-Robots-Tag': 'noindex, nofollow, noarchive',
+    });
+  });
+
+  it('玩家聊天限频应返回结构化等待时间', async () => {
+    vi.spyOn(onlineMatchService, 'sendMatchChatMessage').mockImplementation(() => {
+      throw new OnlineMatchChatRuntimeError(
+        'ONLINE_CHAT_RATE_LIMITED',
+        '消息发送太快，请稍后再试',
+        429,
+        1_250
+      );
+    });
+
+    const response = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
+      params: { matchId: 'm1' },
+      body: { clientMessageId: 'client-message-1', text: '稍等一下' },
+    });
+
+    expect(response.statusCode).toBe(429);
+    expect(response.headers['Retry-After']).toBe('2');
+    expect(response.body).toEqual({
+      data: null,
+      error: {
+        code: 'ONLINE_CHAT_RATE_LIMITED',
+        message: '消息发送太快，请稍后再试',
+        retryAfterMs: 1_250,
+      },
+    });
+  });
+
+  it('已退出当前对局的玩家不能继续发送聊天', async () => {
+    vi.mocked(onlineRoomService.touchInGameMemberByMatch).mockReturnValue(false);
+    const sendMessage = vi.spyOn(onlineMatchService, 'sendMatchChatMessage');
+
+    const response = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
+      params: { matchId: 'm1' },
+      body: { clientMessageId: 'client-message-left', text: '我已经退出了' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(response.body).toEqual({
+      data: null,
+      error: { code: 'ONLINE_MATCH_FORBIDDEN', message: '当前用户不属于该对局' },
     });
   });
 

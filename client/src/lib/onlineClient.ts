@@ -10,6 +10,8 @@ import type {
   MatchRecordTimelineView,
   OnlineAdminRoomSummary,
   OnlineCommandResult,
+  OnlineMatchChatMessage,
+  OnlineMatchChatMessagesResponse,
   OpeningRpsGesture,
   OpeningTurnOrderChoice,
   OnlineMatchSnapshot,
@@ -22,6 +24,7 @@ import type {
   OnlineSpectatorSwitchView,
   PublicEventsResponse,
   Seat,
+  SendOnlineMatchChatMessageInput,
 } from '@game/online';
 import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -269,6 +272,37 @@ export async function fetchOnlineMatchPublicEvents(
   return response.data;
 }
 
+export async function fetchOnlineMatchChatMessages(
+  matchId: string,
+  afterSeq?: number
+): Promise<OnlineMatchChatMessagesResponse> {
+  const search =
+    afterSeq !== undefined && Number.isSafeInteger(afterSeq) && afterSeq >= 0
+      ? `?afterSeq=${afterSeq}`
+      : '';
+  const response = await apiClient.get<OnlineMatchChatMessagesResponse>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/chat/messages${search}`
+  );
+  if (!response.data) {
+    throw toApiClientError(response, '读取局内聊天失败');
+  }
+  return response.data;
+}
+
+export async function sendOnlineMatchChatMessage(
+  matchId: string,
+  input: SendOnlineMatchChatMessageInput
+): Promise<OnlineMatchChatMessage> {
+  const response = await apiClient.post<OnlineMatchChatMessage>(
+    `/api/online/matches/${encodeURIComponent(matchId)}/chat/messages`,
+    input
+  );
+  if (!response.data) {
+    throw toApiClientError(response, '发送消息失败');
+  }
+  return response.data;
+}
+
 export async function createOnlineAdminPlayerSpectatorLink(
   matchId: string,
   viewerSeat: Seat
@@ -461,6 +495,37 @@ export async function fetchOnlineSpectatorPublicEvents(
       throwSpectatorRequestError(token, sessionId, response, '读取观战公开日志失败');
     }
     throw toApiClientError(response, '读取观战公开日志失败');
+  }
+  return response.data;
+}
+
+export async function fetchOnlineSpectatorChatMessages(
+  token: string,
+  sessionId: string,
+  afterSeq?: number,
+  roomGeneration?: string | null,
+  attachmentGeneration?: number
+): Promise<OnlineMatchChatMessagesResponse> {
+  assertSpectatorRequestAllowed(token, sessionId);
+  const params = new URLSearchParams({ sessionId });
+  if (afterSeq !== undefined && Number.isSafeInteger(afterSeq) && afterSeq >= 0) {
+    params.set('afterSeq', String(afterSeq));
+  }
+  if (roomGeneration) {
+    params.set('roomGeneration', roomGeneration);
+  }
+  if (
+    attachmentGeneration !== undefined &&
+    Number.isSafeInteger(attachmentGeneration) &&
+    attachmentGeneration >= 0
+  ) {
+    params.set('attachmentGeneration', String(attachmentGeneration));
+  }
+  const response = await apiClient.get<OnlineMatchChatMessagesResponse>(
+    `/api/online/spectator-links/${encodeURIComponent(token)}/chat/messages?${params.toString()}`
+  );
+  if (!response.data) {
+    throwSpectatorRequestError(token, sessionId, response, '读取观战聊天失败');
   }
   return response.data;
 }

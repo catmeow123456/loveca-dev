@@ -76,6 +76,7 @@ src/
 │   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements, online, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
+│                            # online-match-chat-runtime (single-match in-memory chat),
 │                            # card-registry-service (published-cards cache for online decks),
 │                            # deck-storage-service (cloud deck normalization + validation),
 │                            # site-announcement-service (public site status + admin announcements),

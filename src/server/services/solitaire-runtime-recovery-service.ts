@@ -11,6 +11,7 @@ import type {
   RuntimeRecoveryInfo,
 } from '../../online/index.js';
 import { PUBLIC_EVENTS_RESPONSE_MAX, type OnlineMatchState } from './online-match-service.js';
+import { createOnlineMatchChatRuntime } from './online-match-chat-runtime.js';
 import { rehydrateAuthorityGameState } from './replay-payload-serialization.js';
 import type { ReplaySerializedPayloadEnvelope } from '../../online/replay-types.js';
 import { pool } from '../db/pool.js';
@@ -229,6 +230,7 @@ export class SolitaireRuntimeRecoveryService {
         activeUndoGrant: null,
         appliedUndoKeys: new Set<string>(),
         appliedManualOperationKeys: new Map<string, string>(),
+        chat: createOnlineMatchChatRuntime(),
         updatedAt: restoredAt,
         lastActivityAt: restoredAt,
         recoveryNotice: {

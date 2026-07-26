@@ -14,6 +14,7 @@ import {
   OnlineSpectatorServiceError,
   onlineMatchService,
 } from '../services/online-match-service.js';
+import { OnlineMatchChatRuntimeError } from '../services/online-match-chat-runtime.js';
 import {
   OnlineRoomServiceError,
   loadUserProfileForOnlineMatch,
@@ -79,6 +80,11 @@ const adminPlayerViewSpectatorLinkSchema = z.object({
 
 const roomSpectatorEntrySchema = z.object({
   enabled: z.boolean(),
+});
+
+const matchChatMessageSchema = z.object({
+  clientMessageId: z.string().trim().min(1).max(128),
+  text: z.string().min(1).max(1_000),
 });
 
 onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, async (_req, res) => {
@@ -618,6 +624,54 @@ onlineRouter.get('/matches/:matchId/public-events', requireAuth, async (req, res
   }
 });
 
+onlineRouter.get('/matches/:matchId/chat/messages', requireAuth, (req, res) => {
+  setPrivateNoStoreHeaders(res);
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    if (!onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id)) {
+      respondMatchForbidden(res);
+      return;
+    }
+    const messages = onlineMatchService.getMatchChatMessages(matchId, req.user!.id, {
+      afterSeq: readOptionalSeq(req.query?.afterSeq),
+    });
+    if (!messages) {
+      respondMatchForbidden(res);
+      return;
+    }
+    res.json({ data: messages, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post('/matches/:matchId/chat/messages', requireAuth, (req, res) => {
+  setPrivateNoStoreHeaders(res);
+  const parsed = matchChatMessageSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res
+      .status(400)
+      .json({ data: null, error: { code: 'INVALID_REQUEST', message: '聊天参数非法' } });
+    return;
+  }
+
+  try {
+    const matchId = readPathParam(req.params.matchId);
+    if (!onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id)) {
+      respondMatchForbidden(res);
+      return;
+    }
+    const message = onlineMatchService.sendMatchChatMessage(matchId, req.user!.id, parsed.data);
+    if (!message) {
+      respondMatchForbidden(res);
+      return;
+    }
+    res.status(201).json({ data: message, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
 onlineRouter.post('/spectator-links/:token/sessions', async (req, res) => {
   setSpectatorNoStoreHeaders(res);
   const parsed = spectatorSessionSchema.safeParse(req.body ?? {});
@@ -675,6 +729,24 @@ onlineRouter.get('/spectator-links/:token/public-events', async (req, res) => {
       }
     );
     res.json({ data: events, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/spectator-links/:token/chat/messages', (req, res) => {
+  setSpectatorNoStoreHeaders(res);
+  try {
+    const messages = onlineMatchService.getSpectatorChatMessages(
+      readPathParam(req.params.token),
+      readOptionalString(req.query?.sessionId),
+      {
+        afterSeq: readOptionalSeq(req.query?.afterSeq),
+        expectedRoomGeneration: readOptionalString(req.query?.roomGeneration) ?? undefined,
+        expectedAttachmentGeneration: readOptionalSeq(req.query?.attachmentGeneration),
+      }
+    );
+    res.json({ data: messages, error: null });
   } catch (error) {
     respondOnlineError(res, error);
   }
@@ -1047,6 +1119,21 @@ function respondMatchRecordNotFound(res: Response): void {
 }
 
 function respondOnlineError(res: Response, error: unknown): void {
+  if (error instanceof OnlineMatchChatRuntimeError) {
+    if (error.retryAfterMs !== undefined) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))));
+    }
+    res.status(error.statusCode).json({
+      data: null,
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.retryAfterMs !== undefined ? { retryAfterMs: error.retryAfterMs } : {}),
+      },
+    });
+    return;
+  }
+
   if (error instanceof MatchReplayReadServiceError) {
     res.status(error.statusCode).json({
       data: null,
@@ -1105,10 +1192,14 @@ function respondOnlineError(res: Response, error: unknown): void {
 }
 
 function setSpectatorNoStoreHeaders(res: Response): void {
+  setPrivateNoStoreHeaders(res);
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+}
+
+function setPrivateNoStoreHeaders(res: Response): void {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Referrer-Policy', 'no-referrer');
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
 }
 
 function readPathParam(value: string | string[] | undefined): string {

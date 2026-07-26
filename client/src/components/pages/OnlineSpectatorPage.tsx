@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Eye, Loader2, SwitchCamera } from 'lucide-react';
-import { BattleViewportShell, GameBoard } from '@/components/game';
+import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { ThemeToggle } from '@/components/common';
 import {
@@ -500,6 +500,23 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
           </div>
         ) : null}
         {continuityStatus === 'WATCHING_MATCH' ? <PublicBattleLogButton /> : null}
+        {continuityStatus === 'WATCHING_MATCH' &&
+        remoteSession?.spectatorToken &&
+        remoteSession.spectatorSessionId &&
+        remoteSession.seat ? (
+          <MatchChat
+            key={remoteSession.matchId}
+            access={{
+              kind: 'SPECTATOR',
+              matchId: remoteSession.matchId,
+              viewerSeat: remoteSession.seat,
+              token: remoteSession.spectatorToken,
+              sessionId: remoteSession.spectatorSessionId,
+              roomGeneration: remoteSession.spectatorRoomGeneration,
+              attachmentGeneration: remoteSession.spectatorAttachmentGeneration,
+            }}
+          />
+        ) : null}
         <div className="hidden md:block">
           <ThemeToggle />
         </div>

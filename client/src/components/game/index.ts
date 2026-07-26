@@ -13,3 +13,4 @@ export { CardDetailOverlay } from './CardDetailOverlay';
 
 // 交互组件
 export * from './interaction';
+export * from './MatchChat';

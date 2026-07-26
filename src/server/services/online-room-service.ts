@@ -813,22 +813,23 @@ export class OnlineRoomService {
     return this.cleanupExpiredState();
   }
 
-  touchInGameMemberByMatch(matchId: string, userId: string): void {
+  touchInGameMemberByMatch(matchId: string, userId: string): boolean {
     const room =
       [...this.rooms.values()].find((candidate) => candidate.matchId === matchId) ?? null;
     if (!room || room.status !== 'IN_GAME') {
-      return;
+      return false;
     }
 
     const member = findMember(room, userId);
-    if (!member) {
-      return;
+    if (!member || member.presence === 'LEFT') {
+      return false;
     }
 
     const now = this.now();
     member.presence = 'ACTIVE';
     member.lastSeenAt = now;
     touchRoom(room, now);
+    return true;
   }
 
   async getRoomIfPresent(roomCodeInput: string): Promise<OnlineRoomView | null> {

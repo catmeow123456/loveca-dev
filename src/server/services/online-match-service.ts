@@ -23,6 +23,8 @@ import type {
   MatchParticipantKind,
   OnlineAdminMatchSummary,
   OnlineCommandResult,
+  OnlineMatchChatMessage,
+  OnlineMatchChatMessagesResponse,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineSpectatorJoinView,
@@ -39,6 +41,7 @@ import type {
   PublicEventsResponse,
   RuntimeRecoveryInfo,
   Seat,
+  SendOnlineMatchChatMessageInput,
   UndoEntrySummary,
   UndoPolicy,
   UndoRuntimeCaptureCursor,
@@ -54,6 +57,13 @@ import {
   type AppendMatchRecordFrameInput,
 } from './match-recorder-service.js';
 import { buildMatchDecisionRecordsForCommand } from './match-decision-records.js';
+import {
+  appendOnlineMatchChatMessage,
+  createOnlineMatchChatRuntime,
+  readOnlineMatchChatBlockedTerms,
+  readOnlineMatchChatMessages,
+  type OnlineMatchChatRuntimeState,
+} from './online-match-chat-runtime.js';
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
@@ -137,6 +147,7 @@ export interface OnlineMatchState {
         readonly droppedEventCount: number;
       })
     | null;
+  readonly chat: OnlineMatchChatRuntimeState;
   updatedAt: number;
   lastActivityAt: number;
 }
@@ -290,6 +301,7 @@ interface OnlineMatchServiceDeps {
   readonly spectatorMaxPublicSessions?: number;
   readonly spectatorRequestWindowMs?: number;
   readonly spectatorRequestLimit?: number;
+  readonly chatBlockedTerms?: readonly string[];
 }
 
 export interface DeleteOnlineMatchOptions {
@@ -344,6 +356,7 @@ export class OnlineMatchService {
   private readonly spectatorMaxPublicSessions: number;
   private readonly spectatorRequestWindowMs: number;
   private readonly spectatorRequestLimit: number;
+  private readonly chatBlockedTerms: readonly string[];
   private readonly sealedMatchIds = new Set<string>();
   private readonly partialRecordMatchIds = new Set<string>();
   private serviceRejectedAttemptSeq = 0;
@@ -360,6 +373,7 @@ export class OnlineMatchService {
     this.spectatorRequestLimit =
       deps.spectatorRequestLimit ??
       readPositiveIntEnv('ONLINE_SPECTATOR_REQUEST_LIMIT', DEFAULT_SPECTATOR_REQUEST_LIMIT);
+    this.chatBlockedTerms = deps.chatBlockedTerms ?? readOnlineMatchChatBlockedTerms();
   }
 
   async createMatch(params: CreateOnlineMatchParams): Promise<OnlineMatchState> {
@@ -415,6 +429,7 @@ export class OnlineMatchService {
       appliedUndoKeys: new Set<string>(),
       appliedManualOperationKeys: new Map<string, string>(),
       recoveryNotice: null,
+      chat: createOnlineMatchChatRuntime(),
       updatedAt: now,
       lastActivityAt: now,
     };
@@ -666,6 +681,48 @@ export class OnlineMatchService {
     touchMatch(match);
     const afterSeq = normalizePublicEventCursor(options.afterSeq);
     return buildPublicEventsResponse(match, afterSeq, 'PARTICIPANT');
+  }
+
+  getMatchChatMessages(
+    matchId: string,
+    userId: string,
+    options: { readonly afterSeq?: number } = {}
+  ): OnlineMatchChatMessagesResponse | null {
+    const match = this.matches.get(matchId);
+    if (!match || match.matchMode !== 'ONLINE') {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant || participant.participantKind !== 'USER') {
+      return null;
+    }
+
+    touchMatch(match);
+    return readOnlineMatchChatMessages(match.chat, match.matchId, options.afterSeq);
+  }
+
+  sendMatchChatMessage(
+    matchId: string,
+    userId: string,
+    input: SendOnlineMatchChatMessageInput
+  ): OnlineMatchChatMessage | null {
+    const match = this.matches.get(matchId);
+    if (!match || match.matchMode !== 'ONLINE') {
+      return null;
+    }
+
+    const participant = getParticipantByUserId(match, userId);
+    if (!participant || participant.participantKind !== 'USER') {
+      return null;
+    }
+
+    const message = appendOnlineMatchChatMessage(match.chat, participant, input, {
+      now: this.now(),
+      blockedTerms: this.chatBlockedTerms,
+    });
+    touchMatch(match);
+    return message;
   }
 
   private buildSnapshotForParticipant(
@@ -1137,6 +1194,43 @@ export class OnlineMatchService {
     touchMatch(match);
     const afterSeq = normalizePublicEventCursor(options.afterSeq);
     return buildPublicEventsResponse(match, afterSeq, 'SPECTATOR');
+  }
+
+  getSpectatorChatMessages(
+    tokenInput: string,
+    sessionId: string | null | undefined,
+    options: {
+      readonly afterSeq?: number;
+      readonly expectedRoomGeneration?: string;
+      readonly expectedAttachmentGeneration?: number;
+    } = {}
+  ): OnlineMatchChatMessagesResponse {
+    const now = this.now();
+    this.cleanupExpiredSpectatorState(now);
+    const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
+    const session = this.requireActiveSpectatorSession(link, sessionId, now);
+    this.consumeSpectatorRequest(session, now);
+    this.assertSpectatorGenerationExpectations(link, session, options.expectedRoomGeneration);
+    if (
+      options.expectedAttachmentGeneration !== undefined &&
+      options.expectedAttachmentGeneration !== session.attachmentGeneration
+    ) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_BINDING_CHANGED',
+        '观战对局已经切换，请先同步新的房间状态',
+        409
+      );
+    }
+    if (!match || match.matchMode !== 'ONLINE') {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_WAITING_NEXT_MATCH',
+        '房间正在准备下一局，当前没有可读取的单局聊天',
+        409
+      );
+    }
+
+    touchMatch(match);
+    return readOnlineMatchChatMessages(match.chat, match.matchId, options.afterSeq);
   }
 
   private assertSpectatorGenerationExpectations(

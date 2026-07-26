@@ -29,7 +29,7 @@ import {
   PageHeader,
   ThemeToggle,
 } from '@/components/common';
-import { BattleViewportShell, GameBoard } from '@/components/game';
+import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { useDeckStore } from '@/store/deckStore';
@@ -837,6 +837,14 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
             <div className="hidden md:block">
               <PublicBattleLogButton />
             </div>
+            <MatchChat
+              key={room.matchId}
+              access={{
+                kind: 'PARTICIPANT',
+                matchId: room.matchId,
+                viewerSeat: matchView.viewerSeat,
+              }}
+            />
           </div>
           {isRoomPanelOpen && (
             <RoomActionPanel
