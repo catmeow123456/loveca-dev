@@ -101,7 +101,15 @@ export function getRenGrantedActivatedAbilityUiConfigs(
   hostCardId: string
 ): readonly ActivatedAbilityUiConfig[] {
   return getRenGrantedActivatedAbilityDefinitions(game, playerId, hostCardId).flatMap(
-    (candidate) => (candidate.definition.activatedUi ? [candidate.definition.activatedUi] : [])
+    (candidate) =>
+      candidate.definition.activatedUi
+        ? [
+            {
+              ...candidate.definition.activatedUi,
+              requiredSourceOrientation: candidate.definition.requiredSourceOrientation,
+            },
+          ]
+        : []
   );
 }
 

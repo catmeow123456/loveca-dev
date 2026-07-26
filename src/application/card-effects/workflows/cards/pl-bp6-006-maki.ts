@@ -34,6 +34,7 @@ import { canUseActivatedAbilityThisTurn } from '../../runtime/ability-turn-limit
 
 const BP6_006_SELECT_DISCARD_COST_STEP_ID = 'BP6_006_SELECT_DISCARD_COST';
 const BP6_006_SELECT_HEART_COLOR_STEP_ID = 'BP6_006_SELECT_HEART_COLOR';
+const BP6_006_CONFIRM_REVEALED_RESULT_STEP_ID = 'BP6_006_CONFIRM_REVEALED_RESULT';
 const BP6_006_SELECT_MUSE_REVEALED_CARD_STEP_ID = 'BP6_006_SELECT_MUSE_REVEALED_CARD';
 
 const MUSE = "μ's";
@@ -74,10 +75,14 @@ export function registerPlBp6006MakiWorkflowHandlers(deps: {
   registerActiveEffectStepHandler(
     BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
     BP6_006_SELECT_HEART_COLOR_STEP_ID,
-    (game, input, context) =>
-      finishBp6006ChooseColor(
+    (game, input) => finishBp6006ChooseColor(game, input.selectedOptionId ?? null)
+  );
+  registerActiveEffectStepHandler(
+    BP6_006_ACTIVATED_DISCARD_CHOOSE_COLOR_REVEAL_FIVE_MUSE_HAND_BLADE_ABILITY_ID,
+    BP6_006_CONFIRM_REVEALED_RESULT_STEP_ID,
+    (game, _input, context) =>
+      finishBp6006ConfirmRevealedResult(
         game,
-        input.selectedOptionId ?? null,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
@@ -241,12 +246,7 @@ function finishBp6006DiscardCost(
   );
 }
 
-function finishBp6006ChooseColor(
-  game: GameState,
-  selectedOptionId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects,
-  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
-): GameState {
+function finishBp6006ChooseColor(game: GameState, selectedOptionId: string | null): GameState {
   const effect = game.activeEffect;
   const selectedColor = isNormalHeartColor(selectedOptionId)
     ? (selectedOptionId as HeartColor)
@@ -276,46 +276,28 @@ function finishBp6006ChooseColor(
       })
     : [];
 
-  if (!conditionMet || museCandidateCardIds.length === 0) {
-    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
-      inspection.gameState,
-      player.id,
-      inspectedCardIds,
-      enqueueTriggeredCardEffects
-    );
-    if (!moveResult) {
-      return game;
-    }
-    return continuePendingCardEffects(
-      addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: conditionMet ? 'CONDITION_MET_NO_MUSE_TARGET' : 'CONDITION_NOT_MET',
-        selectedHeartColor: selectedColor,
-        inspectedCardIds,
-        matchingColorCardIds,
-        museCandidateCardIds,
-        waitingRoomCardIds: moveResult.waitingRoomCardIds,
-      }),
-      false
-    );
-  }
-
   return addAction(
     {
       ...inspection.gameState,
       activeEffect: {
         ...effect,
-        stepId: BP6_006_SELECT_MUSE_REVEALED_CARD_STEP_ID,
-        stepText: "条件满足。请选择1张公开的『μ's』卡加入手牌，其余放置入休息室。",
+        stepId: BP6_006_CONFIRM_REVEALED_RESULT_STEP_ID,
+        stepText: formatBp6006RevealResultStepText({
+          inspectedCount: inspectedCardIds.length,
+          conditionMet,
+          hasMuseCandidate: museCandidateCardIds.length > 0,
+        }),
         inspectionCardIds: inspectedCardIds,
-        selectableCardIds: museCandidateCardIds,
+        revealedCardIds: inspectedCardIds,
+        selectableCardIds: undefined,
         selectableCardVisibility: 'PUBLIC',
+        selectableCardMode: undefined,
+        minSelectableCards: undefined,
+        maxSelectableCards: undefined,
         selectableOptions: undefined,
         effectChoice: undefined,
-        selectionLabel: "选择要加入手牌的『μ's』卡",
-        confirmSelectionLabel: '加入手牌',
+        selectionLabel: '公开的卡片',
+        confirmSelectionLabel: '确认公开结果',
         canSkipSelection: false,
         metadata: {
           ...effect.metadata,
@@ -331,8 +313,109 @@ function finishBp6006ChooseColor(
       pendingAbilityId: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'REVEAL_TOP_FIVE_SELECT_MUSE_CARD',
+      step: 'REVEAL_TOP_FIVE_CONFIRM_RESULT',
       selectedHeartColor: selectedColor,
+      inspectedCardIds,
+      matchingColorCardIds,
+      museCandidateCardIds,
+    }
+  );
+}
+
+function finishBp6006ConfirmRevealedResult(
+  game: GameState,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
+  const effect = game.activeEffect;
+  const selectedHeartColor =
+    typeof effect?.metadata?.selectedHeartColor === 'string' &&
+    isNormalHeartColor(effect.metadata.selectedHeartColor)
+      ? effect.metadata.selectedHeartColor
+      : null;
+  const inspectedCardIds = effect?.inspectionCardIds ?? [];
+  if (
+    !effect ||
+    effect.stepId !== BP6_006_CONFIRM_REVEALED_RESULT_STEP_ID ||
+    selectedHeartColor === null ||
+    inspectedCardIds.some((cardId) => !game.inspectionZone.cardIds.includes(cardId))
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+
+  const matchingColorCardIds = inspectedCardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && isCardMatchingBp6006ColorCondition(card, selectedHeartColor);
+  });
+  const conditionMet = inspectedCardIds.length === 5 && matchingColorCardIds.length === 5;
+  const museCandidateCardIds = conditionMet
+    ? inspectedCardIds.filter((cardId) => {
+        const card = getCardById(game, cardId);
+        return card !== null && groupAliasIs(MUSE)(card);
+      })
+    : [];
+
+  if (!conditionMet || museCandidateCardIds.length === 0) {
+    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
+      game,
+      player.id,
+      inspectedCardIds,
+      enqueueTriggeredCardEffects
+    );
+    if (!moveResult) {
+      return game;
+    }
+    return continuePendingCardEffects(
+      addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: conditionMet ? 'CONDITION_MET_NO_MUSE_TARGET' : 'CONDITION_NOT_MET',
+        selectedHeartColor,
+        inspectedCardIds,
+        matchingColorCardIds,
+        museCandidateCardIds,
+        waitingRoomCardIds: moveResult.waitingRoomCardIds,
+      }),
+      false
+    );
+  }
+
+  return addAction(
+    {
+      ...game,
+      activeEffect: {
+        ...effect,
+        stepId: BP6_006_SELECT_MUSE_REVEALED_CARD_STEP_ID,
+        stepText: "条件满足。请选择1张公开的『μ's』卡加入手牌，其余放置入休息室。",
+        selectableCardIds: museCandidateCardIds,
+        selectableCardVisibility: 'PUBLIC',
+        selectableCardMode: 'SINGLE',
+        minSelectableCards: 1,
+        maxSelectableCards: 1,
+        selectionLabel: "选择要加入手牌的『μ's』卡",
+        confirmSelectionLabel: '加入手牌',
+        canSkipSelection: false,
+        metadata: {
+          ...effect.metadata,
+          selectedHeartColor,
+          matchingColorCardIds,
+          museCandidateCardIds,
+        },
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'CONFIRM_REVEAL_RESULT_SELECT_MUSE_CARD',
+      selectedHeartColor,
       inspectedCardIds,
       matchingColorCardIds,
       museCandidateCardIds,
@@ -415,4 +498,18 @@ function isCardMatchingBp6006ColorCondition(card: CardInstance, color: HeartColo
 
 function isNormalHeartColor(value: string | null): value is HeartColor {
   return value !== null && NORMAL_HEART_COLORS.some((color) => color === value);
+}
+
+function formatBp6006RevealResultStepText(input: {
+  readonly inspectedCount: number;
+  readonly conditionMet: boolean;
+  readonly hasMuseCandidate: boolean;
+}): string {
+  if (!input.conditionMet) {
+    return `已公开卡组顶${input.inspectedCount}张卡片，未满足“5张卡片均含有所选 Heart 颜色”的条件。确认公开结果后，将公开卡全部放置入休息室。`;
+  }
+  if (!input.hasMuseCandidate) {
+    return "已公开卡组顶5张卡片，且5张均满足所选 Heart 颜色条件，但其中没有『μ's』卡。确认公开结果后，将公开卡全部放置入休息室。";
+  }
+  return "已公开卡组顶5张卡片，且5张均满足所选 Heart 颜色条件。确认公开结果后，选择1张『μ's』卡加入手牌。";
 }

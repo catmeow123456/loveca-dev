@@ -3,17 +3,19 @@ import {
   addAction,
   getCardById,
   getPlayerById,
-  updatePlayer,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addCardToZone } from '../../../../domain/entities/zone.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import {
+  moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers,
+  moveWaitingRoomCardsToDeckTopAndEnqueueTriggers,
+} from '../../runtime/waiting-room-main-deck-triggers.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -242,12 +244,32 @@ function finishBp6002PlaceWaitingRoomLiveTopBottom(
     return game;
   }
 
-  const moveResult = placeWaitingRoomLiveOnMainDeck(
-    game,
-    player.id,
-    selectedCardId,
-    selectedOptionId
-  );
+  const moveOptions = {
+    candidateCardIds: [selectedCardId],
+    minCount: 1,
+    maxCount: 1,
+    cause: {
+      kind: 'CARD_EFFECT' as const,
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
+  };
+  const moveResult =
+    selectedOptionId === TOP_OPTION_ID
+      ? moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(
+          game,
+          player.id,
+          [selectedCardId],
+          moveOptions
+        )
+      : moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
+          game,
+          player.id,
+          [selectedCardId],
+          moveOptions
+        );
   if (!moveResult) {
     return game;
   }
@@ -426,33 +448,6 @@ function isWaitingRoomAqoursLive(game: GameState, playerId: string, cardId: stri
     isLiveCardData(card.data) &&
     groupAliasIs(AQOURS)(card)
   );
-}
-
-function placeWaitingRoomLiveOnMainDeck(
-  game: GameState,
-  playerId: string,
-  cardId: string,
-  destination: DeckDestination
-): { readonly gameState: GameState } | null {
-  if (!isWaitingRoomAqoursLive(game, playerId, cardId)) {
-    return null;
-  }
-  return {
-    gameState: updatePlayer(game, playerId, (player) => ({
-      ...player,
-      waitingRoom: {
-        ...player.waitingRoom,
-        cardIds: player.waitingRoom.cardIds.filter((candidate) => candidate !== cardId),
-      },
-      mainDeck:
-        destination === TOP_OPTION_ID
-          ? {
-              ...player.mainDeck,
-              cardIds: [cardId, ...player.mainDeck.cardIds],
-            }
-          : addCardToZone(player.mainDeck, cardId),
-    })),
-  };
 }
 
 function sumRequirementColors(colorRequirements: ReadonlyMap<HeartColor, number>): number {

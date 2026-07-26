@@ -215,6 +215,11 @@ describe('PL!S-bp3-021-L 想いよひとつになれ', () => {
     expect(deadline).toBe(12_000);
     expect(getPlayerById(session.state!, P1)!.waitingRoom.cardIds).toContain(waitingId);
     expect(getPlayerById(session.state!, P1)!.mainDeck.cardIds).not.toContain(waitingId);
+    expect(
+      session.state!.eventLog.filter(
+        ({ event }) => event.eventType === TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
+      )
+    ).toHaveLength(0);
     setNow(deadline - 1);
     expect(
       session.executeCommand(
@@ -228,6 +233,11 @@ describe('PL!S-bp3-021-L 想いよひとつになれ', () => {
         .success
     ).toBe(true);
     expect(getPlayerById(session.state!, P1)!.mainDeck.cardIds[0]).toBe(waitingId);
+    expect(
+      session.state!.eventLog.filter(
+        ({ event }) => event.eventType === TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
+      )
+    ).toHaveLength(1);
     const afterFirstResume = session.state!;
     expect(
       session.executeCommand(createAutoAdvancePublicCardSelectionCommand(P1, reveal.id, deadline))

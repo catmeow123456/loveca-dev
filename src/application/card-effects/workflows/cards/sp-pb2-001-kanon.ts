@@ -18,33 +18,29 @@ import {
   TriggerCondition,
   ZoneType,
 } from '../../../../shared/types/enums.js';
-import { inspectTopCards } from '../../../effects/look-top.js';
-import {
-  and,
-  costLte,
-  groupAliasIs,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { SP_PB2_001_ON_ENTER_DISCARD_LOOK_TOP_LOW_COST_LIELLA_MEMBER_PLAY_OR_HAND_ABILITY_ID } from '../../ability-ids.js';
 import {
   createOptionalDiscardHandToWaitingRoomActiveEffect,
   finishSkippedActiveEffect,
 } from '../../runtime/active-effect.js';
-import {
-  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
-} from '../../runtime/enter-waiting-room-triggers.js';
+import { discardOneHandCardToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
 import { getNewEnterStageEvents } from '../../runtime/events.js';
 import {
-  moveInspectedCardsToWaitingRoomAndEnqueueTriggers,
   moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers,
   moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers,
 } from '../../runtime/inspection-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
+import {
+  resolveLookTopSelectToHandSelection,
+  startLookTopSelectToHandWorkflow,
+} from '../shared/look-top-select-to-hand.js';
 
 const SELECT_DISCARD_STEP_ID = 'SP_PB2_001_SELECT_DISCARD';
 const SELECT_INSPECTED_MEMBER_STEP_ID = 'SP_PB2_001_SELECT_LOW_COST_LIELLA_MEMBER';
+const REVEAL_SELECTED_TO_HAND_STEP_ID = 'SP_PB2_001_REVEAL_SELECTED_TO_HAND';
 const SELECT_DESTINATION_STEP_ID = 'SP_PB2_001_SELECT_DESTINATION';
 const SELECT_EMPTY_SLOT_STEP_ID = 'SP_PB2_001_SELECT_EMPTY_SLOT';
 
@@ -104,6 +100,16 @@ export function registerSpPb2001KanonWorkflowHandlers(deps: {
       finishInspectedMemberSelection(
         game,
         input.selectedCardId ?? null,
+        context.continuePendingCardEffects,
+        deps.enqueueTriggeredCardEffects
+      )
+  );
+  registerActiveEffectStepHandler(
+    SP_PB2_001_ON_ENTER_DISCARD_LOOK_TOP_LOW_COST_LIELLA_MEMBER_PLAY_OR_HAND_ABILITY_ID,
+    REVEAL_SELECTED_TO_HAND_STEP_ID,
+    (game, _input, context) =>
+      finishRevealedMemberToHandWithoutEmptySlot(
+        game,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
@@ -214,77 +220,40 @@ function startInspectionAfterDiscard(
     return game;
   }
 
-  const inspection = inspectTopCards(discardResult.gameState, player.id, {
-    count: 5,
-    selectablePredicate: lowCostLiellaMemberSelector,
-  });
-  if (!inspection) {
-    return game;
-  }
-
-  if (inspection.inspectedCardIds.length === 0 || inspection.selectableCardIds.length === 0) {
-    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
-      inspection.gameState,
-      player.id,
-      inspection.inspectedCardIds,
-      enqueueTriggeredCardEffects
-    );
-    if (!moveResult) {
-      return game;
-    }
-    return continuePendingCardEffects(
-      addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step:
-          inspection.inspectedCardIds.length === 0
-            ? 'NO_TOP_CARDS_AFTER_DISCARD'
-            : 'NO_LOW_COST_LIELLA_MEMBER_TARGET',
-        discardCardId,
-        inspectedCardIds: inspection.inspectedCardIds,
-        waitingRoomCardIds: moveResult.waitingRoomCardIds,
-      }),
-      effect.metadata?.orderedResolution === true
-    );
-  }
-
-  return addAction(
+  return startLookTopSelectToHandWorkflow(
+    { ...discardResult.gameState, activeEffect: null },
     {
-      ...inspection.gameState,
-      activeEffect: {
-        id: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        controllerId: effect.controllerId,
-        effectText: effect.effectText,
-        stepId: SELECT_INSPECTED_MEMBER_STEP_ID,
-        stepText:
-          '请选择至多1张费用4以下的『Liella!』成员卡公开。可以不公开，将检视的卡全部放置入休息室。',
-        awaitingPlayerId: player.id,
-        inspectionCardIds: inspection.inspectedCardIds,
-        selectableCardIds: inspection.selectableCardIds,
-        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
-        selectionLabel: '选择要公开的低费用 Liella! 成员',
-        confirmSelectionLabel: '公开',
-        canSkipSelection: true,
-        skipSelectionLabel: '不公开',
-        metadata: {
-          orderedResolution: effect.metadata?.orderedResolution === true,
-          discardCardId,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
+      id: effect.id,
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
-      step: 'START_INSPECTION',
-      discardCardId,
-      inspectedCardIds: inspection.inspectedCardIds,
-      selectableCardIds: inspection.selectableCardIds,
+      controllerId: effect.controllerId,
+    },
+    {
+      effectText: effect.effectText,
+      topCount: 5,
+      selector: lowCostLiellaMemberSelector,
+      countRule: { minCount: 0, maxCount: 1 },
+      revealSelectedBeforeHand: false,
+      selectStepId: SELECT_INSPECTED_MEMBER_STEP_ID,
+      selectStepText:
+        '请选择至多1张费用4以下的『Liella!』成员卡公开。也可以将检视的卡全部放置入休息室。',
+      noTargetStepText:
+        '没有可公开的费用4以下的『Liella!』成员卡。确认后将检视的卡全部放置入休息室。',
+      selectionLabel: '选择要公开的低费用 Liella! 成员',
+      confirmSelectionLabel: '公开',
+      skipSelectionLabel: '全部放置入休息室',
+      startActionStep: 'START_INSPECTION',
+      startActionPayload: {
+        discardCardId,
+      },
+      finishActionStep: 'NO_SELECTION_MOVE_INSPECTED_TO_WAITING_ROOM',
+      noCardsMode: 'open-selection',
+      includeInspectedCardIdsInFinishAction: true,
+    },
+    {
+      orderedResolution: effect.metadata?.orderedResolution === true,
+      continuePendingCardEffects,
+      enqueueTriggeredCardEffects,
     }
   );
 }
@@ -306,29 +275,30 @@ function finishInspectedMemberSelection(
   const inspectedCardIds = effect.inspectionCardIds ?? [];
 
   if (selectedCardId === null) {
-    const moveResult = moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
+    return resolveLookTopSelectToHandSelection(
       game,
-      player.id,
-      inspectedCardIds,
-      enqueueTriggeredCardEffects
-    );
-    if (!moveResult) {
-      return game;
-    }
-    return continuePendingCardEffects(
-      addAction({ ...moveResult.gameState, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: 'NO_SELECTION_MOVE_INSPECTED_TO_WAITING_ROOM',
-        inspectedCardIds,
-        waitingRoomCardIds: moveResult.waitingRoomCardIds,
-      }),
-      effect.metadata?.orderedResolution === true
+      null,
+      undefined,
+      {
+        continuePendingCardEffects,
+        enqueueTriggeredCardEffects,
+      },
+      (state, selectedCardIds) =>
+        selectedCardIds.every((cardId) => {
+          const card = getCardById(state, cardId);
+          return card !== null && lowCostLiellaMemberSelector(card);
+        })
     );
   }
 
-  if (effect.selectableCardIds?.includes(selectedCardId) !== true) {
+  const selectedCard = getCardById(game, selectedCardId);
+  if (
+    effect.selectableCardIds?.includes(selectedCardId) !== true ||
+    !inspectedCardIds.includes(selectedCardId) ||
+    !game.inspectionZone.cardIds.includes(selectedCardId) ||
+    !selectedCard ||
+    !lowCostLiellaMemberSelector(selectedCard)
+  ) {
     return game;
   }
 
@@ -337,20 +307,44 @@ function finishInspectedMemberSelection(
     ? game.inspectionZone.revealedCardIds
     : [...game.inspectionZone.revealedCardIds, selectedCardId];
   if (emptySlots.length === 0) {
-    return moveSelectedInspectedMemberToHandAndFinish(
+    return addAction(
       {
         ...game,
         inspectionZone: {
           ...game.inspectionZone,
           revealedCardIds,
         },
+        activeEffect: {
+          ...effect,
+          stepId: REVEAL_SELECTED_TO_HAND_STEP_ID,
+          stepText:
+            '选择的成员卡已公开。成员区没有空位，确认后将其加入手牌，其余卡片放置入休息室。',
+          revealedCardIds: [selectedCardId],
+          selectableCardIds: [],
+          selectableCardVisibility: undefined,
+          selectableCardMode: undefined,
+          minSelectableCards: undefined,
+          maxSelectableCards: undefined,
+          selectableOptions: undefined,
+          selectionLabel: undefined,
+          confirmSelectionLabel: '加入手牌',
+          canSkipSelection: false,
+          skipSelectionLabel: undefined,
+          metadata: {
+            ...effect.metadata,
+            selectedCardId,
+          },
+        },
       },
-      effect,
+      'RESOLVE_ABILITY',
       player.id,
-      selectedCardId,
-      continuePendingCardEffects,
-      enqueueTriggeredCardEffects,
-      'ADD_SELECTED_MEMBER_TO_HAND_NO_EMPTY_SLOT'
+      {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'REVEAL_SELECTED_LOW_COST_LIELLA_MEMBER_NO_EMPTY_SLOT',
+        selectedCardId,
+      }
     );
   }
 
@@ -407,6 +401,42 @@ function finishInspectedMemberSelection(
       selectedCardId,
       emptySlots,
     }
+  );
+}
+
+function finishRevealedMemberToHandWithoutEmptySlot(
+  game: GameState,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  if (!effect || effect.stepId !== REVEAL_SELECTED_TO_HAND_STEP_ID) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  const selectedCardId =
+    typeof effect.metadata?.selectedCardId === 'string' ? effect.metadata.selectedCardId : null;
+  const selectedCard = selectedCardId ? getCardById(game, selectedCardId) : null;
+  if (
+    !player ||
+    !selectedCardId ||
+    !selectedCard ||
+    !lowCostLiellaMemberSelector(selectedCard) ||
+    !effect.inspectionCardIds?.includes(selectedCardId) ||
+    !game.inspectionZone.cardIds.includes(selectedCardId) ||
+    !game.inspectionZone.revealedCardIds.includes(selectedCardId)
+  ) {
+    return game;
+  }
+
+  return moveSelectedInspectedMemberToHandAndFinish(
+    game,
+    effect,
+    player.id,
+    selectedCardId,
+    continuePendingCardEffects,
+    enqueueTriggeredCardEffects,
+    'ADD_SELECTED_MEMBER_TO_HAND_NO_EMPTY_SLOT'
   );
 }
 
@@ -558,10 +588,7 @@ function finishPlaySelectedMemberToSlot(
     }
   );
 
-  return continuePendingCardEffects(
-    stateWithOnEnter,
-    effect.metadata?.orderedResolution === true
-  );
+  return continuePendingCardEffects(stateWithOnEnter, effect.metadata?.orderedResolution === true);
 }
 
 function moveSelectedInspectedMemberToHandAndFinish(

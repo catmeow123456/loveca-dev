@@ -11,7 +11,7 @@ import { CardType } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
 import { S_BP5_023_LIVE_START_STAGE_AQOURS_SAINTSNOW_COST_STACK_LIVE_ABILITY_ID } from '../../ability-ids.js';
-import { moveWaitingRoomCardsToDeckTopForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -186,7 +186,7 @@ function finishSBp5023AwakenThePowerSelection(
   }
 
   const currentCandidateIds = selectWaitingRoomAqoursOrSaintSnowLiveCardIds(game, player.id);
-  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(
     game,
     player.id,
     uniqueSelectedCardIds,
@@ -196,6 +196,13 @@ function finishSBp5023AwakenThePowerSelection(
       ),
       minCount: 0,
       maxCount: MAX_STACKED_LIVE_CARDS,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
     }
   );
   if (!moveResult) {

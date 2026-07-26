@@ -8,7 +8,6 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useRef,
   type MouseEvent,
 } from 'react';
@@ -88,14 +87,11 @@ import {
   toggleEffectChoiceSelection,
 } from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
-import {
-  getSpecialMemberPlayTargetSlots,
-  isLlBp7001SpecialPlayCardCode,
-} from '@/lib/specialMemberPlay';
+import { getMemberPlayOptions, type MemberPlayOptionView } from '@/lib/memberPlayOptions';
+import { isJudgmentPanelAvailable } from '@/lib/judgmentPanelAvailability';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { GameCommandType } from '@game/application/game-commands';
-import { canUseDoubleRelay } from '@game/shared/rules/double-relay';
 import {
   ChevronRight,
   Check,
@@ -123,30 +119,6 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import type { PlayerViewState, Seat } from '@game/online';
 
 const INSPECTION_TARGET_PREFIX = 'inspection-target-';
-const SELECTED_HAND_CARD_ACTION_IDS = {
-  doubleRelay: 'double-relay',
-  specialMemberPlay: 'special-member-play',
-} as const;
-const SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS = [
-  {
-    id: SELECTED_HAND_CARD_ACTION_IDS.specialMemberPlay,
-    text: '特殊登场',
-    title: '选择特殊登场区域',
-    align: 'center',
-  },
-] as const satisfies readonly SelectedHandCardAction[];
-const DOUBLE_RELAY_HAND_CARD_ACTIONS = [
-  {
-    id: SELECTED_HAND_CARD_ACTION_IDS.doubleRelay,
-    text: '双换手',
-    title: '依次选择两个换手区域',
-    align: 'center',
-  },
-] as const satisfies readonly SelectedHandCardAction[];
-const SPECIAL_PLAY_AND_DOUBLE_RELAY_HAND_CARD_ACTIONS = [
-  ...SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS,
-  ...DOUBLE_RELAY_HAND_CARD_ACTIONS,
-] as const satisfies readonly SelectedHandCardAction[];
 const NO_SELECTED_HAND_CARD_ACTIONS = [] as const satisfies readonly SelectedHandCardAction[];
 const INSPECTION_TARGET_IDS = [
   `${INSPECTION_TARGET_PREFIX}hand`,
@@ -193,6 +165,12 @@ type StageFormationDraftSlot = {
   readonly energyBelowCount: number;
   readonly memberBelowCount: number;
 };
+
+interface MemberPlayOptionSelection {
+  readonly cardId: string;
+  readonly optionId: MemberPlayOptionView['id'];
+  readonly selectedSlots: readonly SlotPosition[];
+}
 
 type StageFormationMoveHistoryEntry = {
   readonly cardId: string;
@@ -512,12 +490,14 @@ export const GameBoard = memo(function GameBoard({
   );
 
   // 卡牌辅助方法（使用 useShallow 保持引用稳定）
-  const { getVisibleCardPresentation, getKnownCardType } = useGameStore(
-    useShallow((s) => ({
-      getVisibleCardPresentation: s.getVisibleCardPresentation,
-      getKnownCardType: s.getKnownCardType,
-    }))
-  );
+  const { getVisibleCardPresentation, getPublicEventCardPresentation, getKnownCardType } =
+    useGameStore(
+      useShallow((s) => ({
+        getVisibleCardPresentation: s.getVisibleCardPresentation,
+        getPublicEventCardPresentation: s.getPublicEventCardPresentation,
+        getKnownCardType: s.getKnownCardType,
+      }))
+    );
 
   // 拖拽状态
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
@@ -566,9 +546,8 @@ export const GameBoard = memo(function GameBoard({
     readonly effectId: string;
     readonly until: number;
   } | null>(null);
-  const [specialPlayTargetSelectionCardId, setSpecialPlayTargetSelectionCardId] = useState<
-    string | null
-  >(null);
+  const [memberPlayOptionSelection, setMemberPlayOptionSelection] =
+    useState<MemberPlayOptionSelection | null>(null);
   const [specialPlayPaymentDraft, setSpecialPlayPaymentDraft] = useState<{
     readonly pendingId: string;
     readonly cardIds: readonly string[];
@@ -637,7 +616,13 @@ export const GameBoard = memo(function GameBoard({
   const mulliganPanelOpen = currentPhase === GamePhase.MULLIGAN_PHASE;
   const activeEffectSourceCardId = activeEffect?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const activeEffectSource = activeEffectSourceCardId
-    ? getVisibleCardPresentation(activeEffectSourceCardId)
+    ? (getVisibleCardPresentation(activeEffectSourceCardId) ??
+      (activeEffect?.sourceCardDisplayCode
+        ? getPublicEventCardPresentation(
+            activeEffect.sourceCardDisplayCode,
+            activeEffect.sourceObjectId
+          )
+        : null))
     : null;
   const activeEffectSourceLabel = activeEffectSource
     ? formatActiveEffectCardCompactLabel(
@@ -826,21 +811,50 @@ export const GameBoard = memo(function GameBoard({
     ? getVisibleCardPresentation(selectedCardId)
     : null;
   const selectedCardZone = selectedCardId ? findViewerCardZone(selectedCardId) : null;
-  const selectedSpecialPlayObjectId = selectedCardId ? `obj_${selectedCardId}` : null;
-  const specialPlayTargetSlots = getSpecialMemberPlayTargetSlots(
+  const selectedMemberPlayObjectId = selectedCardId ? `obj_${selectedCardId}` : null;
+  const projectedMemberPlayOptions = getMemberPlayOptions(
     specialMemberPlayHint,
-    selectedSpecialPlayObjectId
+    selectedMemberPlayObjectId
   );
-  const canShowSpecialPlayEntry =
+  const canShowMemberPlayOptions =
     !isReadOnly &&
-    specialMemberPlayHint?.enabled === true &&
     !activeEffect &&
     !pendingCostPayment &&
     !pendingSpecialMemberPlay &&
-    selectedCardZone === ZoneType.HAND &&
-    isLlBp7001SpecialPlayCardCode(selectedCardPresentation?.cardData.cardCode ?? '') &&
-    !!selectedSpecialPlayObjectId &&
-    specialMemberPlayHint.scope?.objectIds?.includes(selectedSpecialPlayObjectId) === true;
+    selectedCardZone === ZoneType.HAND;
+  const selectedMemberPlayOptions = canShowMemberPlayOptions ? projectedMemberPlayOptions : [];
+  const selectedHandCardActions =
+    selectedMemberPlayOptions.length > 0
+      ? selectedMemberPlayOptions.map((option): SelectedHandCardAction => ({
+          id: option.id,
+          text: option.label,
+          title: option.title,
+          align: 'center',
+        }))
+      : NO_SELECTED_HAND_CARD_ACTIONS;
+  const selectedHandCardActionCardId = selectedHandCardActions.length > 0 ? selectedCardId : null;
+  const activeMemberPlayOption =
+    memberPlayOptionSelection?.cardId === selectedCardId
+      ? (selectedMemberPlayOptions.find(
+          (option) => option.id === memberPlayOptionSelection.optionId
+        ) ?? null)
+      : null;
+  const activeMemberPlayOptionSelection =
+    memberPlayOptionSelection && activeMemberPlayOption
+      ? {
+          ...memberPlayOptionSelection,
+          selectedSlots: memberPlayOptionSelection.selectedSlots.filter((slot) =>
+            activeMemberPlayOption.targetSlots.includes(slot)
+          ),
+        }
+      : null;
+  const memberPlaySelectedSlots = activeMemberPlayOptionSelection?.selectedSlots ?? [];
+  const activeMemberPlaySelectionDescriptor =
+    activeMemberPlayOption?.kind === 'DOUBLE_RELAY' ? activeMemberPlayOption.selection : null;
+  const canConfirmMemberPlayOption =
+    !!activeMemberPlaySelectionDescriptor &&
+    memberPlaySelectedSlots.length >= activeMemberPlaySelectionDescriptor.minTargets &&
+    memberPlaySelectedSlots.length <= activeMemberPlaySelectionDescriptor.maxTargets;
   const pendingSpecialPlayCandidateIds =
     pendingSpecialMemberPlay?.candidateObjectIds?.map((objectId) =>
       objectId.replace(/^obj_/, '')
@@ -849,83 +863,12 @@ export const GameBoard = memo(function GameBoard({
     !!pendingSpecialMemberPlay?.sourceObjectId &&
     !!viewerSeat &&
     pendingSpecialMemberPlay.playerSeat === viewerSeat;
-  const specialPlayTargetSelectionOpen =
-    canShowSpecialPlayEntry && specialPlayTargetSelectionCardId === selectedCardId;
   const specialPlayPaymentSelection =
     specialPlayPaymentDraft && specialPlayPaymentDraft.pendingId === pendingSpecialMemberPlay?.id
       ? specialPlayPaymentDraft.cardIds
       : [];
-  const viewerOccupiedMemberSlots = useMemo(() => {
-    if (!playerViewState || !viewerSeat) {
-      return [];
-    }
-    return MEMBER_SLOT_ORDER.map((slot) => {
-      const cardId = getSeatMemberSlotCardId(viewerSeat, slot);
-      return {
-        slot,
-        cardId,
-        enteredStageThisTurn:
-          cardId !== null && getCardViewObject(cardId)?.enteredStageThisTurn === true,
-      };
-    }).filter(
-      (
-        entry
-      ): entry is {
-        readonly slot: SlotPosition;
-        readonly cardId: string;
-        readonly enteredStageThisTurn: boolean;
-      } =>
-        entry.cardId !== null &&
-        (matchView?.manualOperation?.mode === 'FREE' || !entry.enteredStageThisTurn)
-    );
-  }, [
-    getCardViewObject,
-    getSeatMemberSlotCardId,
-    matchView?.manualOperation?.mode,
-    playerViewState,
-    viewerSeat,
-  ]);
-  const canShowDoubleRelayEntry =
-    !isReadOnly &&
-    canPlayMemberToSlotCommand &&
-    !activeEffect &&
-    !pendingCostPayment &&
-    selectedCardZone === ZoneType.HAND &&
-    selectedCardPresentation?.cardData.cardType === CardType.MEMBER &&
-    canUseDoubleRelay(selectedCardPresentation) &&
-    viewerOccupiedMemberSlots.length >= 2;
-  const doubleRelaySelectionKey =
-    canShowDoubleRelayEntry && selectedCardId
-      ? `${selectedCardId}:${viewerOccupiedMemberSlots
-          .map((entry) => `${entry.slot}:${entry.cardId}`)
-          .join('|')}`
-      : null;
-  const [doubleRelaySelection, setDoubleRelaySelection] = useKeyedState<{
-    readonly cardId: string;
-    readonly selectedSlots: readonly SlotPosition[];
-  } | null>(doubleRelaySelectionKey, null);
-  const selectedHandCardActions =
-    canShowSpecialPlayEntry && canShowDoubleRelayEntry
-      ? SPECIAL_PLAY_AND_DOUBLE_RELAY_HAND_CARD_ACTIONS
-      : canShowSpecialPlayEntry
-        ? SPECIAL_MEMBER_PLAY_HAND_CARD_ACTIONS
-        : canShowDoubleRelayEntry
-          ? DOUBLE_RELAY_HAND_CARD_ACTIONS
-          : NO_SELECTED_HAND_CARD_ACTIONS;
-  const selectedHandCardActionCardId = selectedHandCardActions.length > 0 ? selectedCardId : null;
-  const activeDoubleRelaySelection =
-    doubleRelaySelection &&
-    doubleRelaySelection.cardId === selectedCardId &&
-    canShowDoubleRelayEntry
-      ? {
-          ...doubleRelaySelection,
-          selectedSlots: doubleRelaySelection.selectedSlots.filter((slot) =>
-            viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)
-          ),
-        }
-      : null;
-  const doubleRelaySelectedSlots = activeDoubleRelaySelection?.selectedSlots ?? [];
-  const canConfirmDoubleRelay = doubleRelaySelectedSlots.length === 2;
+  const pendingSpecialPlayRequiredCount = pendingSpecialMemberPlay?.minSelectableObjects ?? 0;
+  const pendingSpecialPlayMaxCount = pendingSpecialMemberPlay?.maxSelectableObjects ?? 0;
   const isActiveEffectLocallySuspended =
     !!activeEffect && activeEffectSuspension?.effectId === activeEffect.id;
   const isActiveEffectUiSuspended =
@@ -1150,81 +1093,93 @@ export const GameBoard = memo(function GameBoard({
     stageFormationMoveHistory,
   ]);
 
-  const handleSelectDoubleRelaySlot = useCallback(
-    (slot: SlotPosition) => {
-      setDoubleRelaySelection((current) => {
-        if (!current || current.cardId !== selectedCardId) {
-          return current;
-        }
-        if (!viewerOccupiedMemberSlots.some((entry) => entry.slot === slot)) {
-          return current;
-        }
-        if (current.selectedSlots.includes(slot)) {
-          return {
-            ...current,
-            selectedSlots: current.selectedSlots.filter((selectedSlot) => selectedSlot !== slot),
-          };
-        }
-        if (current.selectedSlots.length >= 2) {
-          return current;
-        }
-        return { ...current, selectedSlots: [...current.selectedSlots, slot] };
-      });
-    },
-    [selectedCardId, setDoubleRelaySelection, viewerOccupiedMemberSlots]
-  );
-
-  const handleConfirmDoubleRelay = () => {
-    if (!activeDoubleRelaySelection || activeDoubleRelaySelection.selectedSlots.length !== 2) {
+  const handleSelectMemberPlayOptionSlot = (slot: SlotPosition) => {
+    if (
+      !activeMemberPlayOptionSelection ||
+      !activeMemberPlayOption ||
+      !activeMemberPlayOption.targetSlots.includes(slot)
+    ) {
       return;
     }
 
-    const [targetSlot, extraSlot] = activeDoubleRelaySelection.selectedSlots;
-    const result = playMemberToSlot(activeDoubleRelaySelection.cardId, targetSlot, {
+    if (activeMemberPlayOption.kind === 'CARD_DEFINED') {
+      const result = beginSpecialMemberPlay(
+        activeMemberPlayOptionSelection.cardId,
+        slot,
+        activeMemberPlayOption.mode
+      );
+      if (result.success || result.pending) {
+        setMemberPlayOptionSelection(null);
+      }
+      return;
+    }
+
+    const maxTargets = activeMemberPlayOption.selection.maxTargets;
+    setMemberPlayOptionSelection((current) => {
+      if (
+        !current ||
+        current.cardId !== activeMemberPlayOptionSelection.cardId ||
+        current.optionId !== activeMemberPlayOption.id
+      ) {
+        return current;
+      }
+      if (current.selectedSlots.includes(slot)) {
+        return {
+          ...current,
+          selectedSlots: current.selectedSlots.filter((selectedSlot) => selectedSlot !== slot),
+        };
+      }
+      if (current.selectedSlots.length >= maxTargets) {
+        return current;
+      }
+      return { ...current, selectedSlots: [...current.selectedSlots, slot] };
+    });
+  };
+
+  const handleConfirmMemberPlayOption = () => {
+    if (
+      !activeMemberPlayOptionSelection ||
+      activeMemberPlayOption?.kind !== 'DOUBLE_RELAY' ||
+      !canConfirmMemberPlayOption
+    ) {
+      return;
+    }
+
+    const [targetSlot] = activeMemberPlayOptionSelection.selectedSlots;
+    if (!targetSlot) {
+      return;
+    }
+    const result = playMemberToSlot(activeMemberPlayOptionSelection.cardId, targetSlot, {
       relayMode: 'DOUBLE',
-      relayReplacementSlots: activeDoubleRelaySelection.selectedSlots,
+      relayReplacementSlots: activeMemberPlayOptionSelection.selectedSlots,
     });
     if (result.success) {
       addLog(
-        `双换手登场: ${MEMBER_SLOT_LABELS[targetSlot]} + ${MEMBER_SLOT_LABELS[extraSlot]}`,
+        `${activeMemberPlayOption.label}登场: ${activeMemberPlayOptionSelection.selectedSlots
+          .map((slot) => MEMBER_SLOT_LABELS[slot])
+          .join(' + ')}`,
         'action'
       );
     }
     if (result.success || result.pending) {
-      setDoubleRelaySelection(null);
+      setMemberPlayOptionSelection(null);
     }
   };
 
-  const handleBeginSpecialPlayAtSlot = useCallback(
-    (slot: SlotPosition) => {
-      if (!selectedCardId || !specialPlayTargetSlots.includes(slot)) {
-        return;
-      }
-      const result = beginSpecialMemberPlay(selectedCardId, slot);
-      if (result.success || result.pending) {
-        setSpecialPlayTargetSelectionCardId(null);
-      }
-    },
-    [beginSpecialMemberPlay, selectedCardId, specialPlayTargetSlots]
-  );
-
-  const handleSelectedHandCardAction = useCallback(
-    (cardId: string, actionId: string) => {
-      if (cardId !== selectedCardId) {
-        return;
-      }
-      if (actionId === SELECTED_HAND_CARD_ACTION_IDS.specialMemberPlay) {
-        setDoubleRelaySelection(null);
-        setSpecialPlayTargetSelectionCardId(cardId);
-        return;
-      }
-      if (actionId === SELECTED_HAND_CARD_ACTION_IDS.doubleRelay) {
-        setSpecialPlayTargetSelectionCardId(null);
-        setDoubleRelaySelection({ cardId, selectedSlots: [] });
-      }
-    },
-    [selectedCardId, setDoubleRelaySelection]
-  );
+  const handleSelectedHandCardAction = (cardId: string, actionId: string) => {
+    if (cardId !== selectedCardId) {
+      return;
+    }
+    const option = selectedMemberPlayOptions.find((candidate) => candidate.id === actionId);
+    if (!option) {
+      return;
+    }
+    setMemberPlayOptionSelection({
+      cardId,
+      optionId: option.id,
+      selectedSlots: [],
+    });
+  };
 
   const handleToggleSpecialPlayPayment = useCallback(
     (cardId: string) => {
@@ -1236,24 +1191,18 @@ export const GameBoard = memo(function GameBoard({
           pendingId,
           cardIds: cardIds.includes(cardId)
             ? cardIds.filter((candidate) => candidate !== cardId)
-            : cardIds.length < 3
+            : cardIds.length < pendingSpecialPlayMaxCount
               ? [...cardIds, cardId]
               : cardIds,
         };
       });
     },
-    [pendingSpecialMemberPlay?.id]
+    [pendingSpecialMemberPlay?.id, pendingSpecialPlayMaxCount]
   );
 
-  const isJudgmentPanelRelevant =
-    (currentPhase === GamePhase.PERFORMANCE_PHASE &&
-      (currentSubPhase === SubPhase.PERFORMANCE_LIVE_START_EFFECTS ||
-        currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT)) ||
-    (currentPhase === GamePhase.LIVE_RESULT_PHASE &&
-      (currentSubPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS ||
-        currentSubPhase === SubPhase.RESULT_SECOND_SUCCESS_EFFECTS));
+  const isJudgmentPanelRelevant = isJudgmentPanelAvailable(currentPhase, currentSubPhase);
 
-  // 左侧判定区抽屉开关（表演判定与成功效果窗口中可唤出）
+  // 左侧判定区抽屉开关（表演判定至成功 Live 结算期间可唤出）
   const [judgmentPanelOpen, setJudgmentPanelOpen] = useState(false);
 
   // 弹窗回调
@@ -2360,9 +2309,7 @@ export const GameBoard = memo(function GameBoard({
                     suppressActiveEffectVisuals={isActiveEffectUiSuspended}
                     selectedHandCardActionCardId={selectedHandCardActionCardId}
                     selectedHandCardActions={selectedHandCardActions}
-                    suppressSelectedHandCardActionMenu={
-                      specialPlayTargetSelectionOpen || !!activeDoubleRelaySelection
-                    }
+                    suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
                     onSelectedHandCardAction={handleSelectedHandCardAction}
                   />
                 </div>
@@ -2609,9 +2556,7 @@ export const GameBoard = memo(function GameBoard({
                 suppressActiveEffectVisuals={isActiveEffectUiSuspended}
                 selectedHandCardActionCardId={selectedHandCardActionCardId}
                 selectedHandCardActions={selectedHandCardActions}
-                suppressSelectedHandCardActionMenu={
-                  specialPlayTargetSelectionOpen || !!activeDoubleRelaySelection
-                }
+                suppressSelectedHandCardActionMenu={!!activeMemberPlayOptionSelection}
                 onSelectedHandCardAction={handleSelectedHandCardAction}
               />
             </div>
@@ -2625,22 +2570,22 @@ export const GameBoard = memo(function GameBoard({
           onOpenJudgment={handleOpenJudgmentPanel}
         />
 
-        {specialPlayTargetSelectionOpen && (
+        {activeMemberPlayOptionSelection && activeMemberPlayOption && (
           <>
             <button
               type="button"
-              aria-label="取消特殊登场"
+              aria-label={`取消${activeMemberPlayOption.label}`}
               className="modal-backdrop fixed inset-0 z-[93]"
-              onClick={() => setSpecialPlayTargetSelectionCardId(null)}
+              onClick={() => setMemberPlayOptionSelection(null)}
             />
             <div
               role="dialog"
               aria-modal="true"
-              aria-label="选择特殊登场区域"
+              aria-label={activeMemberPlayOption.title}
               className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
             >
               <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                特殊登场
+                {activeMemberPlayOption.label}
               </div>
               <div className="mt-1 text-sm font-semibold">
                 {selectedCardPresentation
@@ -2648,80 +2593,25 @@ export const GameBoard = memo(function GameBoard({
                   : '成员登场'}
               </div>
               <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                选择登场区域，随后选择 3 名指定成员放入休息室。
+                {activeMemberPlayOption.description}
               </p>
               <div className="mt-4 grid grid-cols-3 gap-2">
                 {MEMBER_SLOT_ORDER.map((slot) => {
-                  const enabled = specialPlayTargetSlots.includes(slot);
-                  return (
-                    <button
-                      key={slot}
-                      type="button"
-                      disabled={!enabled}
-                      onClick={() => handleBeginSpecialPlayAtSlot(slot)}
-                      className={cn(
-                        'button-secondary inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
-                        !enabled && 'cursor-not-allowed opacity-40'
-                      )}
-                    >
-                      {MEMBER_SLOT_LABELS[slot]}
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setSpecialPlayTargetSelectionCardId(null)}
-                  className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
-                >
-                  取消
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {activeDoubleRelaySelection && (
-          <>
-            <button
-              type="button"
-              aria-label="取消双换手"
-              className="modal-backdrop fixed inset-0 z-[93]"
-              onClick={() => setDoubleRelaySelection(null)}
-            />
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-label="选择双换手区域"
-              className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
-            >
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                双换手
-              </div>
-              <div className="mt-1 text-sm font-semibold">
-                {selectedCardPresentation
-                  ? formatCardCompactLabel(selectedCardPresentation.cardData as AnyCardData)
-                  : '成员登场'}
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">
-                依次选择两个成员区。第 1 个是登场位置，第 2 个是追加换手位置。
-              </p>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                {MEMBER_SLOT_ORDER.map((slot) => {
-                  const isAvailable = viewerOccupiedMemberSlots.some(
-                    (entry) => entry.slot === slot
-                  );
-                  const selectedOrderIndex = doubleRelaySelectedSlots.indexOf(slot);
+                  const isAvailable = activeMemberPlayOption.targetSlots.includes(slot);
+                  const selectedOrderIndex = memberPlaySelectedSlots.indexOf(slot);
                   const isSelected = selectedOrderIndex >= 0;
                   const isDisabled =
-                    !isAvailable || (!isSelected && doubleRelaySelectedSlots.length >= 2);
+                    !isAvailable ||
+                    (activeMemberPlayOption.kind === 'DOUBLE_RELAY' &&
+                      !isSelected &&
+                      memberPlaySelectedSlots.length >=
+                        activeMemberPlayOption.selection.maxTargets);
                   return (
                     <button
                       key={slot}
                       type="button"
                       disabled={isDisabled}
-                      onClick={() => handleSelectDoubleRelaySlot(slot)}
+                      onClick={() => handleSelectMemberPlayOptionSlot(slot)}
                       className={cn(
                         'button-secondary relative inline-flex min-h-11 items-center justify-center px-2 text-sm font-semibold',
                         isSelected &&
@@ -2730,7 +2620,7 @@ export const GameBoard = memo(function GameBoard({
                       )}
                     >
                       {MEMBER_SLOT_LABELS[slot]}
-                      {isSelected && (
+                      {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && isSelected && (
                         <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
                           {selectedOrderIndex + 1}
                         </span>
@@ -2739,26 +2629,33 @@ export const GameBoard = memo(function GameBoard({
                   );
                 })}
               </div>
-              <div className="mt-4 flex items-center justify-between gap-3">
+              <div
+                className={cn(
+                  'mt-4 flex items-center gap-3',
+                  activeMemberPlayOption.kind === 'DOUBLE_RELAY' ? 'justify-between' : 'justify-end'
+                )}
+              >
                 <button
                   type="button"
-                  onClick={() => setDoubleRelaySelection(null)}
+                  onClick={() => setMemberPlayOptionSelection(null)}
                   className="button-secondary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold"
                 >
                   取消
                 </button>
-                <button
-                  type="button"
-                  disabled={!canConfirmDoubleRelay}
-                  onClick={handleConfirmDoubleRelay}
-                  className={cn(
-                    'button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold',
-                    !canConfirmDoubleRelay && 'cursor-not-allowed opacity-50'
-                  )}
-                >
-                  <Repeat2 className="h-4 w-4" aria-hidden="true" />
-                  双换手登场
-                </button>
+                {activeMemberPlayOption.kind === 'DOUBLE_RELAY' && (
+                  <button
+                    type="button"
+                    disabled={!canConfirmMemberPlayOption}
+                    onClick={handleConfirmMemberPlayOption}
+                    className={cn(
+                      'button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm font-semibold',
+                      !canConfirmMemberPlayOption && 'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    <Repeat2 className="h-4 w-4" aria-hidden="true" />
+                    {activeMemberPlayOption.label}登场
+                  </button>
+                )}
               </div>
             </div>
           </>
@@ -3732,12 +3629,14 @@ export const GameBoard = memo(function GameBoard({
                       <button
                         key={cardId}
                         type="button"
+                        disabled={pendingSpecialPlayRequiredCount === 0}
                         onClick={() => handleToggleSpecialPlayPayment(cardId)}
                         className={cn(
                           'relative flex min-w-0 flex-col items-center rounded-lg border p-1.5 transition-colors',
                           selected
                             ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)]'
-                            : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]'
+                            : 'border-[var(--border-subtle)] bg-[var(--bg-surface)]',
+                          pendingSpecialPlayRequiredCount === 0 && 'cursor-default'
                         )}
                         title={formatCardCompactLabel(presentation.cardData as AnyCardData)}
                       >
@@ -3752,7 +3651,7 @@ export const GameBoard = memo(function GameBoard({
                             className="h-full w-full"
                           />
                         </div>
-                        {selected && (
+                        {selected && pendingSpecialPlayRequiredCount > 0 && (
                           <span className="absolute right-1 top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-bold text-white">
                             {specialPlayPaymentSelection.indexOf(cardId) + 1}
                           </span>
@@ -3771,7 +3670,9 @@ export const GameBoard = memo(function GameBoard({
                   </button>
                   <button
                     type="button"
-                    disabled={specialPlayPaymentSelection.length !== 3}
+                    disabled={
+                      specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount
+                    }
                     onClick={() =>
                       confirmSpecialMemberPlay(
                         pendingSpecialMemberPlay.id,
@@ -3780,7 +3681,8 @@ export const GameBoard = memo(function GameBoard({
                     }
                     className={cn(
                       'button-primary inline-flex min-h-10 items-center justify-center px-4 text-sm font-semibold',
-                      specialPlayPaymentSelection.length !== 3 && 'cursor-not-allowed opacity-50'
+                      specialPlayPaymentSelection.length !== pendingSpecialPlayRequiredCount &&
+                        'cursor-not-allowed opacity-50'
                     )}
                   >
                     {pendingSpecialMemberPlay.confirmSelectionLabel}

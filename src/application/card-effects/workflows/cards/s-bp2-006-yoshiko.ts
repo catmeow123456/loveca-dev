@@ -67,6 +67,7 @@ export function registerYoshikoPlayLowCostMembersWorkflowHandlers(
       startYoshikoSelectStageSlot(
         game,
         input.selectedCardIds ?? [],
+        input.selectedCardId === null,
         context.continuePendingCardEffects
       )
   );
@@ -187,7 +188,8 @@ function startYoshikoWaitingRoomSelectionAfterCost(game: GameState): GameState {
         canSkipSelection: true,
         selectableOptions: undefined,
         selectionLabel: '选择要从休息室登场的成员',
-        confirmSelectionLabel: '确认选择',
+        confirmSelectionLabel: '选择登场区域',
+        skipSelectionLabel: '不登场',
         metadata: {
           ...effect.metadata,
           paidEnergyCardIds: costPayment.paidEnergyCardIds,
@@ -213,6 +215,7 @@ function startYoshikoWaitingRoomSelectionAfterCost(game: GameState): GameState {
 function startYoshikoSelectStageSlot(
   game: GameState,
   selectedCardIds: readonly string[],
+  explicitlySkipped: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -227,6 +230,7 @@ function startYoshikoSelectStageSlot(
 
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
   const selectedAreValid =
+    (!explicitlySkipped || selectedCardIds.length === 0) &&
     uniqueSelectedCardIds.length === selectedCardIds.length &&
     uniqueSelectedCardIds.length <= 2 &&
     uniqueSelectedCardIds.every(
@@ -247,7 +251,11 @@ function startYoshikoSelectStageSlot(
         pendingAbilityId: effect.id,
         abilityId: effect.abilityId,
         sourceCardId: effect.sourceCardId,
-        step: 'FINISH_NO_SELECTION',
+        step: explicitlySkipped
+          ? 'DECLINE_PLAY_WAITING_ROOM_MEMBERS_AFTER_COST'
+          : 'FINISH_NO_SELECTION',
+        selectionSkipped: explicitlySkipped,
+        selectedCardIds: [],
       }),
       effect.metadata?.orderedResolution === true
     );

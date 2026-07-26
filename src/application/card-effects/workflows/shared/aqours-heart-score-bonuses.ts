@@ -1,13 +1,17 @@
 import {
   addAction,
-  getCardById,
   getOpponent,
   getPlayerById,
   type GameState,
   type LiveModifierState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addLiveModifier, collectLiveModifiers, getMemberEffectiveHeartIcons } from '../../../../domain/rules/live-modifiers.js';
+import {
+  addLiveModifier,
+  collectLiveModifiers,
+  getMemberEffectiveHeartIcons,
+} from '../../../../domain/rules/live-modifiers.js';
+import { getSuccessfulLiveCardIdsForPlayerThisTurn } from '../../../../domain/rules/success-live-placement.js';
 import { CardType, HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
@@ -135,8 +139,7 @@ function resolveAqoursHeartScoreBonus(
       heartTotal: context.heartTotal,
       heartThreshold: config.threshold,
       heartThresholdMet: context.heartThresholdMet,
-      opponentNoSurplusSuccessfulLiveThisTurn:
-        context.opponentNoSurplusSuccessfulLiveThisTurn,
+      opponentNoSurplusSuccessfulLiveThisTurn: context.opponentNoSurplusSuccessfulLiveThisTurn,
       scoreBonus: context.scoreBonus,
     }),
     orderedResolution
@@ -201,15 +204,10 @@ function hasOpponentNoSurplusSuccessfulLiveThisTurn(game: GameState, playerId: s
   if (!opponent) {
     return false;
   }
-  const successfulOpponentLiveCardIds = [...game.liveResolution.liveResults.entries()]
-    .filter(([liveCardId, succeeded]) => {
-      if (succeeded !== true) {
-        return false;
-      }
-      const card = getCardById(game, liveCardId);
-      return card?.ownerId === opponent.id;
-    })
-    .map(([liveCardId]) => liveCardId);
+  const successfulOpponentLiveCardIds = getSuccessfulLiveCardIdsForPlayerThisTurn(
+    game,
+    opponent.id
+  );
   if (successfulOpponentLiveCardIds.length === 0) {
     return false;
   }

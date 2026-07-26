@@ -7,6 +7,7 @@ import type {
 import { TriggerCondition, ZoneType } from '../../../shared/types/enums.js';
 import { CardAbilitySourceZone } from '../ability-definition-types.js';
 import { findCardAbilityDefinitionById } from '../definitions/lookup.js';
+import { preserveActiveEffectSourceDisplay } from './active-effect-source-display.js';
 
 const SOURCE_LIFECYCLE_PREFIX = 'source-lifecycle';
 
@@ -220,6 +221,11 @@ export function propagateAbilitySourceLifecycle(
   after: GameState,
   context: AbilitySourceContext
 ): GameState {
+  if (after === before) {
+    return before;
+  }
+
+  after = preserveActiveEffectSourceDisplay(before, after);
   if (!hasPerTurnLimit(context.abilityId)) {
     return after;
   }

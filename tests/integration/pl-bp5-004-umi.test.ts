@@ -34,6 +34,7 @@ import {
   BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
   BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import {
   BladeHeartEffect,
   CardType,
@@ -176,9 +177,7 @@ function setupActivatedState(options: {
       (zone, card, index) =>
         addCardToStatefulZone(zone, card.instanceId, {
           orientation:
-            index < options.activeEnergyCount
-              ? OrientationState.ACTIVE
-              : OrientationState.WAITING,
+            index < options.activeEnergyCount ? OrientationState.ACTIVE : OrientationState.WAITING,
           face: FaceState.FACE_UP,
         }),
       player.energyZone
@@ -239,9 +238,10 @@ function latestPayCostPayload(game: GameState) {
 }
 
 function orientationOf(game: GameState, playerId: string, cardId: string): OrientationState | null {
-  return game.players
-    .find((player) => player.id === playerId)
-    ?.memberSlots.cardStates.get(cardId)?.orientation ?? null;
+  return (
+    game.players.find((player) => player.id === playerId)?.memberSlots.cardStates.get(cardId)
+      ?.orientation ?? null
+  );
 }
 
 function activeEnergyIds(game: GameState): readonly string[] {
@@ -300,6 +300,19 @@ function abilityUseCount(game: GameState): number {
 }
 
 describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
+  it('uses the complete effect text as the activated popup body', () => {
+    const definition = getCardAbilityDefinitionsForCardCode('PL!-bp5-004-AR').find(
+      (candidate) =>
+        candidate.abilityId ===
+        BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID
+    );
+
+    expect(definition?.activatedUi?.text).toBe(definition?.effectText);
+    expect(definition?.activatedUi?.text).toBe(
+      '【起动】[E][E][E][E]：将存在于对方的舞台的1名费用小于等于10的成员变为待机状态。每有1种存在于自己的舞台的成员中持有的团体名，发动此能力所需的费用减少[E]。'
+    );
+  });
+
   it('pays three energy with only Umi on stage and waits only an active opponent cost 10 or lower member', () => {
     const { game, source, legalTarget, highCostTarget, waitingTarget } = setupActivatedState({
       activeEnergyCount: 3,
@@ -319,15 +332,22 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
     expect(state.activeEffect?.selectableCardIds).not.toContain(highCostTarget.instanceId);
     expect(state.activeEffect?.selectableCardIds).not.toContain(waitingTarget.instanceId);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, legalTarget!.instanceId);
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      legalTarget!.instanceId
+    );
 
     expect(state.activeEffect).toBeNull();
     expect(orientationOf(state, PLAYER2, legalTarget!.instanceId)).toBe(OrientationState.WAITING);
-    expect(latestPayload(
-      state,
-      BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
-      'WAIT_OPPONENT_COST_TEN_MEMBER'
-    )).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
+        'WAIT_OPPONENT_COST_TEN_MEMBER'
+      )
+    ).toMatchObject({
       targetCardId: legalTarget!.instanceId,
       reducedEnergyCost: 3,
     });
@@ -405,7 +425,12 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
     });
     expect(state.activeEffect?.selectableCardIds).toEqual([legalTarget!.instanceId]);
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, legalTarget!.instanceId);
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      legalTarget!.instanceId
+    );
     expect(orientationOf(state, PLAYER2, legalTarget!.instanceId)).toBe(OrientationState.WAITING);
 
     state = activateUmi(state, source.instanceId);
@@ -414,11 +439,13 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
       reducedEnergyCost: 0,
       stageGroupKeys: ['hasunosora', 'liella', 'muse', 'nijigasaki'],
     });
-    expect(latestPayload(
-      state,
-      BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
-      'NO_OPPONENT_COST_TEN_TARGET_AFTER_COST'
-    )).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
+        'NO_OPPONENT_COST_TEN_TARGET_AFTER_COST'
+      )
+    ).toMatchObject({
       reducedEnergyCost: 0,
       paidEnergyCardIds: [],
     });
@@ -500,11 +527,13 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
 
     expect(state.activeEffect).toBeNull();
     expect(activeEnergyIds(state)).toHaveLength(0);
-    expect(latestPayload(
-      state,
-      BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
-      'NO_OPPONENT_COST_TEN_TARGET_AFTER_COST'
-    )).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        BP5_004_ACTIVATED_STAGE_GROUP_DYNAMIC_COST_WAIT_OPPONENT_COST_TEN_ABILITY_ID,
+        'NO_OPPONENT_COST_TEN_TARGET_AFTER_COST'
+      )
+    ).toMatchObject({
       reducedEnergyCost: 3,
       paidEnergyCardIds: ['p1-energy-0', 'p1-energy-1', 'p1-energy-2'],
     });
@@ -512,11 +541,18 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
 
   it('gains ALL Heart when own normal cheer reveals three own members without bladeHearts', () => {
     const revealed = [0, 1, 2].map((index) =>
-      createCardInstance(createMember(`PL!-cheer-no-blade-${index}`), PLAYER1, `p1-no-blade-${index}`)
+      createCardInstance(
+        createMember(`PL!-cheer-no-blade-${index}`),
+        PLAYER1,
+        `p1-no-blade-${index}`
+      )
     );
     const { game, source } = setupCheerState(revealed);
 
-    const state = resolveOwnCheer(game, revealed.map((card) => card.instanceId));
+    const state = resolveOwnCheer(
+      game,
+      revealed.map((card) => card.instanceId)
+    );
 
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
@@ -526,11 +562,13 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
       abilityId: BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
       hearts: [{ color: HeartColor.RAINBOW, count: 1 }],
     });
-    expect(latestPayload(
-      state,
-      BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
-      'COUNT_NO_BLADE_HEART_MEMBERS_FROM_CHEER'
-    )).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
+        'COUNT_NO_BLADE_HEART_MEMBERS_FROM_CHEER'
+      )
+    ).toMatchObject({
       noBladeHeartMemberCount: 3,
       conditionMet: true,
     });
@@ -538,24 +576,37 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
 
   it('records turn once without gaining ALL Heart when only two no-blade members are revealed', () => {
     const revealed = [0, 1].map((index) =>
-      createCardInstance(createMember(`PL!-cheer-two-no-blade-${index}`), PLAYER1, `p1-two-${index}`)
+      createCardInstance(
+        createMember(`PL!-cheer-two-no-blade-${index}`),
+        PLAYER1,
+        `p1-two-${index}`
+      )
     );
     const { game } = setupCheerState(revealed);
 
-    const state = resolveOwnCheer(game, revealed.map((card) => card.instanceId));
+    const state = resolveOwnCheer(
+      game,
+      revealed.map((card) => card.instanceId)
+    );
 
     expect(state.liveResolution.liveModifiers).toEqual([]);
     expect(abilityUseCount(state)).toBe(1);
-    expect(latestPayload(
-      state,
-      BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
-      'COUNT_NO_BLADE_HEART_MEMBERS_FROM_CHEER'
-    )).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
+        'COUNT_NO_BLADE_HEART_MEMBERS_FROM_CHEER'
+      )
+    ).toMatchObject({
       noBladeHeartMemberCount: 2,
       conditionMet: false,
     });
 
-    const secondCheer = enqueueCheer(state, PLAYER1, revealed.map((card) => card.instanceId));
+    const secondCheer = enqueueCheer(
+      state,
+      PLAYER1,
+      revealed.map((card) => card.instanceId)
+    );
     expect(secondCheer.pendingAbilities).toEqual([]);
     expect(abilityUseCount(secondCheer)).toBe(1);
   });
@@ -591,21 +642,24 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
     ]);
 
     expect(state.liveResolution.liveModifiers).toEqual([]);
-    expect(latestPayload(
-      state,
-      BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
-      'COUNT_NO_BLADE_HEART_MEMBERS_FROM_CHEER'
-    )).toMatchObject({
+    expect(
+      latestPayload(
+        state,
+        BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
+        'COUNT_NO_BLADE_HEART_MEMBERS_FROM_CHEER'
+      )
+    ).toMatchObject({
       noBladeHeartMemberCardIds: [ownNoBladeA.instanceId, ownNoBladeB.instanceId],
       noBladeHeartMemberCount: 2,
       conditionMet: false,
     });
 
-    const additional = enqueueCheer(game, PLAYER1, [
-      ownNoBladeA.instanceId,
-      ownNoBladeB.instanceId,
-      ownBladeHeart.instanceId,
-    ], { additional: true });
+    const additional = enqueueCheer(
+      game,
+      PLAYER1,
+      [ownNoBladeA.instanceId, ownNoBladeB.instanceId, ownBladeHeart.instanceId],
+      { additional: true }
+    );
     expect(additional.pendingAbilities).toEqual([]);
   });
 
@@ -618,7 +672,11 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
       )
     );
     const { game, source } = setupCheerState(revealed);
-    const queued = enqueueCheer(game, PLAYER1, revealed.map((card) => card.instanceId));
+    const queued = enqueueCheer(
+      game,
+      PLAYER1,
+      revealed.map((card) => card.instanceId)
+    );
     const sourceGone = updatePlayer(queued, PLAYER1, (player) => ({
       ...player,
       memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
@@ -629,11 +687,13 @@ describe('PL!-bp5-004 Umi dynamic activated and on-cheer workflows', () => {
     expect(resolved.pendingAbilities).toEqual([]);
     expect(resolved.liveResolution.liveModifiers).toEqual([]);
     expect(abilityUseCount(resolved)).toBe(0);
-    expect(latestPayload(
-      resolved,
-      BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
-      'SOURCE_NOT_ON_STAGE'
-    )).toMatchObject({
+    expect(
+      latestPayload(
+        resolved,
+        BP5_004_AUTO_ON_CHEER_NO_BLADE_MEMBER_THREE_GAIN_ALL_HEART_ABILITY_ID,
+        'SOURCE_NOT_ON_STAGE'
+      )
+    ).toMatchObject({
       sourceCardId: source.instanceId,
     });
   });

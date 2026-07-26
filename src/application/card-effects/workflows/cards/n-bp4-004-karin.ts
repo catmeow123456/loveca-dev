@@ -3,7 +3,6 @@ import {
   getCardById,
   getOpponent,
   getPlayerById,
-  type ActiveEffectState,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
@@ -22,8 +21,8 @@ import {
 } from '../../ability-ids.js';
 import {
   drawCardsForPlayer,
-  moveWaitingRoomCardsToDeckTopForPlayer,
 } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -84,6 +83,7 @@ export function registerNBp4004KarinWorkflowHandlers(deps: {
       finishKarinStackNijigasakiMembers(
         game,
         input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
+        input.selectedCardId === null,
         context.continuePendingCardEffects
       )
   );
@@ -116,12 +116,12 @@ function startKarinDrawWaitLowCostOpponentMember(
     ability,
     effectText: getAbilityEffectText(ability.abilityId),
     stepId: SELECT_OPPONENT_LOW_COST_MEMBER_STEP_ID,
-    stepText: '可以选择对方舞台上1名费用小于等于9的成员变为待机状态。',
+    stepText: '请选择对方舞台上1名费用小于等于9的活跃状态成员。',
     awaitingPlayerId: player.id,
     targetPlayerId: opponent.id,
     selector: lowCostMemberSelector,
     targetOrientation: OrientationState.WAITING,
-    selectionLabel: '选择对方费用小于等于9的成员',
+    selectionLabel: '选择对方费用小于等于9的活跃状态成员',
     orderedResolution,
     metadata: {
       sourceSlot: ability.sourceSlot,
@@ -143,16 +143,10 @@ function startKarinDrawWaitLowCostOpponentMember(
     );
   }
 
-  const activeEffect: ActiveEffectState = {
-    ...targetSelection.activeEffect,
-    canSkipSelection: true,
-    confirmSelectionLabel: '变为待机',
-  };
-
   return addAction(
     {
       ...stateWithoutPending,
-      activeEffect,
+      activeEffect: targetSelection.activeEffect,
     },
     'RESOLVE_ABILITY',
     player.id,
@@ -189,16 +183,7 @@ function finishKarinOpponentWaitSelection(
   }
 
   if (selectedCardId === null) {
-    return continuePendingCardEffects(
-      addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-        pendingAbilityId: effect.id,
-        abilityId: effect.abilityId,
-        sourceCardId: effect.sourceCardId,
-        step: 'DRAW_ONE_SKIP_WAIT_OPPONENT_MEMBER',
-        drawnCardIds: getStringArrayMetadata(effect.metadata?.drawnCardIds),
-      }),
-      effect.metadata?.orderedResolution === true
-    );
+    return game;
   }
 
   if (effect.selectableCardIds?.includes(selectedCardId) !== true) {
@@ -300,6 +285,7 @@ function startKarinStackNijigasakiMembers(
         selectionLabel: '选择要置顶的虹咲成员',
         confirmSelectionLabel: '放到卡组顶',
         canSkipSelection: true,
+        skipSelectionLabel: '不放置',
         metadata: {
           publicCardSelectionConfirmation: {
             destination: 'MAIN_DECK_TOP',
@@ -330,6 +316,7 @@ function startKarinStackNijigasakiMembers(
 function finishKarinStackNijigasakiMembers(
   game: GameState,
   selectedCardIds: readonly string[],
+  explicitlySkipped: boolean,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -351,6 +338,7 @@ function finishKarinStackNijigasakiMembers(
   const candidateCardIds = effect.selectableCardIds ?? [];
   const selectedCardIdSet = new Set(selectedCardIds);
   const validSelection =
+    (!explicitlySkipped || selectedCardIds.length === 0) &&
     selectedCardIdSet.size === selectedCardIds.length &&
     selectedCardIds.length <= maxSelectableCards &&
     selectedCardIds.every((cardId) => {
@@ -366,10 +354,17 @@ function finishKarinStackNijigasakiMembers(
     return game;
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(game, player.id, selectedCardIds, {
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, selectedCardIds, {
     candidateCardIds,
     minCount: 0,
     maxCount: maxSelectableCards,
+    cause: {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
   });
   if (!moveResult) {
     return game;
@@ -381,9 +376,10 @@ function finishKarinStackNijigasakiMembers(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step:
-        selectedCardIds.length === 0
+        explicitlySkipped
           ? 'SKIP_STACK_NIJIGASAKI_MEMBERS'
           : 'STACK_NIJIGASAKI_MEMBERS_TO_DECK_TOP',
+      selectionSkipped: explicitlySkipped,
       selectedCardIds,
       movedCardIds: moveResult.movedCardIds,
       opponentWaitingMemberIds: getStringArrayMetadata(effect.metadata?.opponentWaitingMemberIds),

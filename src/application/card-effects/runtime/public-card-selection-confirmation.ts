@@ -168,6 +168,7 @@ export function createPublicCardSelectionConfirmationWindowForCardIds(
       id: originalEffect.id,
       abilityId: originalEffect.abilityId,
       sourceCardId: originalEffect.sourceCardId,
+      sourceCardDisplayCode: originalEffect.sourceCardDisplayCode,
       controllerId: originalEffect.controllerId,
       effectText: originalEffect.effectText,
       stepId: PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID,

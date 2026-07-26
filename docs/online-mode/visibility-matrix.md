@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：定义联机首版的容器可见性、卡牌可见面、公开对象跟踪和前端投影规则
 > 当前状态：当前联机投影模型的权威说明，需与 `src/online/projector.ts` 和 `src/online/visibility.ts` 同步
-> 最后更新：2026-07-21
+> 最后更新：2026-07-26
 
 ## 1. 文档目标
 
@@ -136,6 +136,8 @@
 - 权威 activeEffect 使用 `inspectionCardIds` 保存真实实例列表；玩家视图仅在查看者是 `inspectionContext.viewerPlayerId ?? ownerPlayerId` 且同时是 `activeEffect.awaitingPlayerId` 时，投影私有 `inspectionObjectIds` 控制列表。非控制方（包括跨玩家检视中的区域 owner）即使看到检视区 `BACK` 占位，也不接收可操作实例列表或真实卡实例 ID。
 - 检视区内重排、移出、放顶、放底等正式操作，应作为过程变化可感知。
 - 若检视者通过 `revealedCardIds` 公开其中某张牌，该对象可在检视区内从 `BACK` 变为 `FRONT`；公开卡面不把私有 `inspectionObjectIds` 控制列表一并暴露给非控制方。
+- 卡文明确要求“公开”整组卡时，本次实际公开集合同时进入 `revealedCardIds`，双方均看到相同 `FRONT` 对象。`inspectTopCards(..., { reveal: true })` 只建立这一可见性事实，不等于已经提供玩家可阅读的停留时间。
+- 公开后会立即判断、移动或发放奖励的 workflow，应建立独立公开结果确认 step；确认前公开卡仍位于检视区，双方投影保持 `FRONT`，结算状态不得提前推进。普通私密检视不得为了获得停留窗口而把未公开卡全部翻为 `FRONT`。
 
 ### 5.3 从手牌盖放 Live
 
@@ -177,6 +179,14 @@
 - 等待视图不包含卡组选择、准备失败详情、未公开猜拳选择、未确定席位、任何卡牌对象或单局公共事件。
 - 进入等待后，客户端清空旧单局 store 与公共日志；新局首份标准玩家视角投影完整验证前，不显示任何新局牌桌内容。
 - 房间号观战始终只消费某一名获授权玩家的标准 `PlayerViewState`；跨重开连续性不授予额外摘要或上帝视角。
+
+### 5.9 处理中的效果来源卡图
+
+- `activeEffect.sourceCardId` 是权威结算身份；当来源仍处于公开区域时，卡图可由普通对象投影直接显示。
+- 若公开来源在当前效果结算中离开公开区域，服务端可以在 `activeEffect.sourceCardDisplayCode` 保存当前效果专用的卡面快照，使双方在处理窗口与断线重连后继续看到相同来源卡图。
+- 快照只能从状态变化前后曾为公共 `FRONT` 的来源建立。隐藏手牌、隐藏卡组、未公开检视牌或未公开解决区对象不得因成为效果来源而泄露卡面。
+- `sourceCardDisplayCode` 不是新的公开对象，不提供 `publicObjectId`、区域 occupancy、卡牌控制权或当前 zone 信息；它不会使进入隐藏区后的来源继续成为可跟踪对象，也不影响 workflow 对来源当前规则状态的重验。
+- 当前 `activeEffect` 结束后不再投影该快照。
 
 ## 6. 前端渲染约束
 

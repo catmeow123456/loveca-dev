@@ -12,8 +12,8 @@ import { selectWaitingRoomCardIds } from '../../../effects/zone-selection.js';
 import { PL_PB1_006_ON_ENTER_STACK_MUSE_LIVE_DRAW_IF_OPPONENT_WAITING_ABILITY_ID } from '../../ability-ids.js';
 import {
   drawCardsForPlayer,
-  moveWaitingRoomCardsToDeckTopForPlayer,
 } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -130,10 +130,17 @@ function finish(game: GameState, selectedCardId: string | null, cont: Continue):
         'STALE_TARGET'
       );
     }
-    const moved = moveWaitingRoomCardsToDeckTopForPlayer(game, player.id, [selectedCardId], {
+    const moved = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, [selectedCardId], {
       candidateCardIds: effect.selectableCardIds ?? [],
       minCount: 1,
       maxCount: 1,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
     });
     if (!moved) return game;
     state = moved.gameState;

@@ -1,8 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { Seat } from '@game/online';
 
-const JUDGMENT_SEATS: readonly Seat[] = ['FIRST', 'SECOND'];
-
 export interface JudgmentViewSelection {
   activeSeat: Seat | null;
   viewingSeat: Seat | null;
@@ -16,32 +14,40 @@ export function resolveJudgmentViewingSeat(
 }
 
 interface JudgmentSeatSwitcherProps {
+  firstSeat: Seat;
   activeSeat: Seat;
   viewingSeat: Seat;
   playerNames: Readonly<Record<Seat, string>>;
   onSelect: (seat: Seat) => void;
 }
 
-function getSeatLabel(seat: Seat): string {
-  return seat === 'FIRST' ? '先攻' : '后攻';
+function getOtherSeat(seat: Seat): Seat {
+  return seat === 'FIRST' ? 'SECOND' : 'FIRST';
+}
+
+export function getJudgmentSeatRoleLabel(seat: Seat, firstSeat: Seat): '先攻' | '后攻' {
+  return seat === firstSeat ? '先攻' : '后攻';
 }
 
 export function JudgmentSeatSwitcher({
+  firstSeat,
   activeSeat,
   viewingSeat,
   playerNames,
   onSelect,
 }: JudgmentSeatSwitcherProps) {
+  const roleSeats: readonly Seat[] = [firstSeat, getOtherSeat(firstSeat)];
+
   return (
     <div
       role="group"
       aria-label="切换判定查看玩家"
       className="inline-flex rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] p-0.5 shadow-sm"
     >
-      {JUDGMENT_SEATS.map((seat) => {
+      {roleSeats.map((seat) => {
         const isActive = seat === activeSeat;
         const isViewing = seat === viewingSeat;
-        const seatLabel = getSeatLabel(seat);
+        const seatLabel = getJudgmentSeatRoleLabel(seat, firstSeat);
         const playerName = playerNames[seat];
 
         return (

@@ -64,6 +64,12 @@ import {
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
+const WAITING_ROOM_TO_DECK_CAUSE = {
+  kind: 'CARD_EFFECT' as const,
+  playerId: PLAYER1,
+  sourceCardId: 'test-source',
+  abilityId: 'test-ability',
+};
 const PLAYER2 = 'player2';
 
 function createMemberCard(cardCode: string): MemberCardData {
@@ -1584,10 +1590,12 @@ describe('card effect runtime actions', () => {
       waitingRoomCardIds: [cardIds[2], cardIds[3], cardIds[4]],
     });
 
-    const result = shuffleWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [
-      cardIds[3],
-      cardIds[2],
-    ]);
+    const result = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+      state,
+      PLAYER1,
+      [cardIds[3], cardIds[2]],
+      WAITING_ROOM_TO_DECK_CAUSE
+    );
 
     expect(result).not.toBeNull();
     expect(result?.originalCardIds).toEqual([cardIds[3], cardIds[2]]);
@@ -1604,7 +1612,12 @@ describe('card effect runtime actions', () => {
 
   it('allows zero-card waiting-room shuffle to deck bottom without changing state', () => {
     const state = createMutableState();
-    const result = shuffleWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, []);
+    const result = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+      state,
+      PLAYER1,
+      [],
+      WAITING_ROOM_TO_DECK_CAUSE
+    );
 
     expect(result).not.toBeNull();
     expect(result?.gameState).toBe(state);
@@ -1622,11 +1635,28 @@ describe('card effect runtime actions', () => {
     });
 
     expect(
-      shuffleWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[0], cardIds[0]])
+      shuffleWaitingRoomCardsToDeckBottomForPlayer(
+        state,
+        PLAYER1,
+        [cardIds[0], cardIds[0]],
+        WAITING_ROOM_TO_DECK_CAUSE
+      )
     ).toBeNull();
-    expect(shuffleWaitingRoomCardsToDeckBottomForPlayer(state, PLAYER1, [cardIds[2]])).toBeNull();
     expect(
-      shuffleWaitingRoomCardsToDeckBottomForPlayer(state, 'missing-player', [cardIds[0]])
+      shuffleWaitingRoomCardsToDeckBottomForPlayer(
+        state,
+        PLAYER1,
+        [cardIds[2]],
+        WAITING_ROOM_TO_DECK_CAUSE
+      )
+    ).toBeNull();
+    expect(
+      shuffleWaitingRoomCardsToDeckBottomForPlayer(
+        state,
+        'missing-player',
+        [cardIds[0]],
+        WAITING_ROOM_TO_DECK_CAUSE
+      )
     ).toBeNull();
     expect(state.players[0].waitingRoom.cardIds).toEqual([cardIds[0], cardIds[1]]);
     expect(state.players[0].mainDeck.cardIds).toEqual([]);
@@ -1648,6 +1678,7 @@ describe('card effect runtime actions', () => {
         candidateCardIds: [cardIds[2], cardIds[3], cardIds[4]],
         minCount: 0,
         maxCount: 2,
+        cause: WAITING_ROOM_TO_DECK_CAUSE,
       }
     );
 
@@ -1678,6 +1709,7 @@ describe('card effect runtime actions', () => {
       candidateCardIds: [cardIds[1]],
       minCount: 0,
       maxCount: 2,
+      cause: WAITING_ROOM_TO_DECK_CAUSE,
     });
 
     expect(result).not.toBeNull();
@@ -1699,6 +1731,7 @@ describe('card effect runtime actions', () => {
       candidateCardIds: [cardIds[0], cardIds[1], cardIds[2]],
       minCount: 0,
       maxCount: 2,
+      cause: WAITING_ROOM_TO_DECK_CAUSE,
     };
 
     expect(

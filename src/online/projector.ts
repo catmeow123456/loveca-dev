@@ -15,11 +15,8 @@ import {
 } from '../application/manual-operation-mode.js';
 import { isPlayerCommandAllowedByPolicy } from '../application/player-command-policy.js';
 import { getActivatedAbilityUiConfigs } from '../application/card-effects/runtime/activated-ability-ui.js';
-import {
-  canAssignLlBp7001SpecialPlayPayment,
-  getLlBp7001SpecialPlayTargetSlots,
-  isLlBp7001SpecialPlaySource,
-} from '../application/effects/special-member-play.js';
+import { getMemberPlayOptionsByHandCardId } from '../application/member-play-options.js';
+import { getSpecialMemberPlayPendingUiConfig } from '../application/special-member-play-procedures.js';
 import { CardAbilitySourceZone } from '../application/card-effects/ability-definition-types.js';
 import {
   getLiveSetCardIdsForPlayer,
@@ -321,6 +318,7 @@ export function projectPlayerViewState(
   }
 
   const activeSeat = getSeatByPlayerIndex(game.activePlayerIndex);
+  const firstSeat = getSeatByPlayerIndex(game.firstPlayerIndex);
   const manualOperationSwitchBlockedReason = getManualOperationModeSwitchBlockedReason(game);
   const match: MatchViewState = {
     matchId: game.gameId,
@@ -332,6 +330,7 @@ export function projectPlayerViewState(
     turnCount: game.turnCount,
     phase: game.currentPhase,
     subPhase: game.currentSubPhase,
+    firstSeat,
     activeSeat,
     prioritySeat:
       game.waitingPlayerId !== null ? getSeatForPlayer(game, game.waitingPlayerId) : activeSeat,
@@ -344,9 +343,7 @@ export function projectPlayerViewState(
     endInfo: game.endInfo
       ? {
           reason: game.endInfo.reason,
-          winnerSeat: game.endInfo.winnerId
-            ? getSeatForPlayer(game, game.endInfo.winnerId)
-            : null,
+          winnerSeat: game.endInfo.winnerId ? getSeatForPlayer(game, game.endInfo.winnerId) : null,
           loserSeat: game.endInfo.loserId ? getSeatForPlayer(game, game.endInfo.loserId) : null,
         }
       : null,
@@ -385,6 +382,7 @@ export function projectPlayerViewState(
         id: game.activeEffect.id,
         abilityId: game.activeEffect.abilityId,
         sourceObjectId: createPublicObjectId(game.activeEffect.sourceCardId),
+        sourceCardDisplayCode: game.activeEffect.sourceCardDisplayCode,
         controllerSeat: getSeatForPlayer(game, game.activeEffect.controllerId),
         effectText: game.activeEffect.effectText,
         stepId: game.activeEffect.stepId,
@@ -455,8 +453,11 @@ export function projectPlayerViewState(
       }
     : null;
   const pendingSpecialMemberPlayState = game.pendingSpecialMemberPlay ?? null;
+  const pendingSpecialMemberPlayUi = pendingSpecialMemberPlayState
+    ? getSpecialMemberPlayPendingUiConfig(pendingSpecialMemberPlayState)
+    : null;
   const pendingSpecialMemberPlay = pendingSpecialMemberPlayState
-    ? pendingSpecialMemberPlayState.playerId === viewerPlayerId
+    ? pendingSpecialMemberPlayState.playerId === viewerPlayerId && pendingSpecialMemberPlayUi
       ? {
           id: pendingSpecialMemberPlayState.id,
           playerSeat: getSeatForPlayer(game, pendingSpecialMemberPlayState.playerId),
@@ -466,11 +467,7 @@ export function projectPlayerViewState(
           targetSlot: pendingSpecialMemberPlayState.targetSlot,
           candidateObjectIds:
             pendingSpecialMemberPlayState.candidateCardIds.map(createPublicObjectId),
-          minSelectableObjects: 3 as const,
-          maxSelectableObjects: 3 as const,
-          stepText: '请选择「国木田花丸」「优木雪菜」「岚千砂都」的成员卡各1张放置入休息室。',
-          selectionLabel: '选择要放置入休息室的指定成员',
-          confirmSelectionLabel: '放置入休息室并登场',
+          ...pendingSpecialMemberPlayUi,
         }
       : {
           id: pendingSpecialMemberPlayState.id,
@@ -1267,11 +1264,15 @@ function buildPermissionViewState(
 ): PermissionViewState {
   const pendingSpecialPlay = game.pendingSpecialMemberPlay ?? null;
   if (pendingSpecialPlay) {
+    const pendingUi = getSpecialMemberPlayPendingUiConfig(pendingSpecialPlay);
     const hints =
       pendingSpecialPlay.playerId === viewerPlayerId
         ? [
             buildCommandHint(GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY, {
-              params: { pendingId: pendingSpecialPlay.id, requiredCount: 3 },
+              params: {
+                pendingId: pendingSpecialPlay.id,
+                requiredCount: pendingUi?.minSelectableObjects ?? 0,
+              },
             }),
             buildCommandHint(GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY, {
               params: { pendingId: pendingSpecialPlay.id },
@@ -1725,23 +1726,18 @@ function buildPhaseCommandHint(
         }),
       });
     case GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY: {
-      const player = game.players.find((candidate) => candidate.id === viewerPlayerId);
-      const sourceCardIds = (player?.hand.cardIds ?? []).filter(
-        (cardId) =>
-          isLlBp7001SpecialPlaySource(game, viewerPlayerId, cardId) &&
-          canAssignLlBp7001SpecialPlayPayment(game, viewerPlayerId, cardId) &&
-          getLlBp7001SpecialPlayTargetSlots(game, viewerPlayerId, cardId).length > 0
-      );
+      const optionsByCardId = getMemberPlayOptionsByHandCardId(game, viewerPlayerId);
+      const sourceCardIds = [...optionsByCardId.keys()];
       return buildCommandHint(command, {
         scope: createCommandScope({
           zoneKeys: [createOwnedViewZoneKey(viewerSeat, 'HAND')],
           cardIds: sourceCardIds,
         }),
         params: {
-          targetSlotsByObjectId: Object.fromEntries(
-            sourceCardIds.map((cardId) => [
+          memberPlayOptionsByObjectId: Object.fromEntries(
+            [...optionsByCardId.entries()].map(([cardId, options]) => [
               createPublicObjectId(cardId),
-              getLlBp7001SpecialPlayTargetSlots(game, viewerPlayerId, cardId),
+              options,
             ])
           ),
         },

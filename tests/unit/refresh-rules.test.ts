@@ -3,6 +3,7 @@ import { applyRuleActionResult, ruleActionProcessor } from '../../src/domain/rul
 import { createGameState, switchFirstPlayer, updatePlayer } from '../../src/domain/entities/game';
 import { clearTurnMoveRecords } from '../../src/domain/entities/player';
 import { hasPlayerRefreshedDeckThisTurn } from '../../src/domain/rules/deck-turn-state';
+import { TriggerCondition } from '../../src/shared/types/enums';
 
 describe('refresh rules', () => {
   it('refresh should keep existing main deck order and append shuffled waiting room cards to the bottom', () => {
@@ -30,6 +31,19 @@ describe('refresh rules', () => {
     expect(player.mainDeck.cardIds.slice(0, 2)).toEqual(['main-a', 'main-b']);
     expect(player.mainDeck.cardIds.slice(2).sort()).toEqual(['wait-a', 'wait-b', 'wait-c']);
     expect(player.waitingRoom.cardIds).toEqual([]);
+    const events = refreshed.eventLog
+      .map((entry) => entry.event)
+      .filter(
+        (event) => event.eventType === TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      playerId: 'p1',
+      controllerId: 'p1',
+      movedCardIds: player.mainDeck.cardIds.slice(2),
+      destination: { kind: 'SHUFFLED_BOTTOM' },
+      cause: { kind: 'RULE_ACTION', playerId: 'p1', ruleAction: 'REFRESH' },
+    });
   });
 
   it('simultaneous refresh actions should follow current first-player order', () => {
@@ -93,8 +107,15 @@ describe('refresh rules', () => {
   });
 
   it('keeps a second-player refresh valid through that player ACTIVE cleanup in the same global turn', () => {
-    const game = { ...createGameState('refresh-second-player', 'p1', 'P1', 'p2', 'P2'), turnCount: 12 };
-    const refreshed = applyRuleActionResult(game, ruleActionProcessor.executeRefresh('p2'), () => null);
+    const game = {
+      ...createGameState('refresh-second-player', 'p1', 'P1', 'p2', 'P2'),
+      turnCount: 12,
+    };
+    const refreshed = applyRuleActionResult(
+      game,
+      ruleActionProcessor.executeRefresh('p2'),
+      () => null
+    );
     const afterSecondPlayerActive = updatePlayer(refreshed, 'p2', clearTurnMoveRecords);
 
     expect(afterSecondPlayerActive.players[1].lastDeckRefreshTurnCount).toBe(12);
@@ -103,7 +124,11 @@ describe('refresh rules', () => {
 
   it('does not treat an opponent refresh as the controller own refresh', () => {
     const game = { ...createGameState('refresh-opponent', 'p1', 'P1', 'p2', 'P2'), turnCount: 4 };
-    const refreshed = applyRuleActionResult(game, ruleActionProcessor.executeRefresh('p2'), () => null);
+    const refreshed = applyRuleActionResult(
+      game,
+      ruleActionProcessor.executeRefresh('p2'),
+      () => null
+    );
 
     expect(hasPlayerRefreshedDeckThisTurn(refreshed, 'p1')).toBe(false);
     expect(hasPlayerRefreshedDeckThisTurn(refreshed, 'p2')).toBe(true);
@@ -111,10 +136,14 @@ describe('refresh rules', () => {
   });
 
   it('treats legacy player state without the refresh turn count as not refreshed', () => {
-    const game = updatePlayer(createGameState('refresh-legacy', 'p1', 'P1', 'p2', 'P2'), 'p1', (player) => {
-      const { lastDeckRefreshTurnCount: _legacyMissing, ...legacyPlayer } = player;
-      return legacyPlayer;
-    });
+    const game = updatePlayer(
+      createGameState('refresh-legacy', 'p1', 'P1', 'p2', 'P2'),
+      'p1',
+      (player) => {
+        const { lastDeckRefreshTurnCount: _legacyMissing, ...legacyPlayer } = player;
+        return legacyPlayer;
+      }
+    );
 
     expect(hasPlayerRefreshedDeckThisTurn(game, 'p1')).toBe(false);
   });

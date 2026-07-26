@@ -89,7 +89,9 @@ function startMakiOnEnterSelection(
       awaitingPlayerId: player.id,
       selectableCardIds,
       selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+      selectionLabel: '请选择要公开的手牌LIVE卡',
       canSkipSelection: true,
+      skipSelectionLabel: '不发动',
       metadata: { orderedResolution },
     },
     actionPayload: {
@@ -129,7 +131,8 @@ function startMakiSelectSuccessLive(
     nextStepText: '请选择要加入手牌的成功 Live。所公开的手牌 Live 会放置入成功 Live 卡区。',
     selectableCardIds: selectableSuccessLiveCardIds,
     selectableCardVisibility: 'PUBLIC',
-    canSkipSelection: true,
+    selectionLabel: '选择要加入手牌的成功LIVE卡',
+    canSkipSelection: false,
     metadata: {
       handLiveCardId,
     },

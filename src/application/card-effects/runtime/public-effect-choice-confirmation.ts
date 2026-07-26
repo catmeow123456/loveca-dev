@@ -89,6 +89,7 @@ export function createPublicEffectChoiceConfirmationWindow(
       id: originalEffect.id,
       abilityId: originalEffect.abilityId,
       sourceCardId: originalEffect.sourceCardId,
+      sourceCardDisplayCode: originalEffect.sourceCardDisplayCode,
       controllerId: originalEffect.controllerId,
       effectText: originalEffect.effectText,
       stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,

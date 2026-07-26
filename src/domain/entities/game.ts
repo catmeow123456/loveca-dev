@@ -85,6 +85,7 @@ export type GameActionType =
   | 'PHASE_CHANGE'
   | 'TURN_CHANGE'
   | 'TRIGGER_ABILITY'
+  | 'DISPATCH_TRIGGER_EVENT'
   | 'RESOLVE_ABILITY'
   | 'RULE_ACTION'
   | 'TAP_MEMBER'
@@ -605,6 +606,11 @@ export interface ActiveEffectState {
   /** 能力来源卡牌实例 ID */
   readonly sourceCardId: string;
   /**
+   * 效果窗口专用的公开来源卡编号快照。
+   * 仅当来源卡在本次效果期间已经向双方正面公开时写入；不得由隐藏区身份推断。
+   */
+  readonly sourceCardDisplayCode?: string;
+  /**
    * 能力来源规则对象的生命周期 ID。
    * 仅 perTurnLimit 能力要求传播；用于避免旧 pending/active 占用新对象次数。
    */
@@ -696,16 +702,27 @@ export interface PendingCostPaymentState {
   readonly explanation?: string;
 }
 
-export interface PendingSpecialMemberPlayState {
+interface PendingSpecialMemberPlayBaseState {
   readonly id: string;
   readonly playerId: string;
   readonly sourceCardId: string;
   readonly targetSlot: SlotPosition;
-  readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
-  readonly printedCost: 15;
-  readonly specialPlayCost: 10;
   readonly candidateCardIds: readonly string[];
 }
+
+export type PendingSpecialMemberPlayState = PendingSpecialMemberPlayBaseState &
+  (
+    | {
+        readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
+        readonly printedCost: 15;
+        readonly specialPlayCost: 10;
+      }
+    | {
+        readonly mode: 'N_BP7_011_WAITING_MEMBERS_COST_MINUS_TWO';
+        readonly printedCost: 13;
+        readonly specialPlayCost: 11;
+      }
+  );
 
 // ============================================
 // 游戏状态定义

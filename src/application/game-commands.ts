@@ -1,4 +1,5 @@
 import { SlotPosition, SubPhase, ZoneType } from '../shared/types/enums.js';
+import type { CardDefinedSpecialMemberPlayMode } from '../shared/rules/member-play-options.js';
 
 export enum GameCommandType {
   MULLIGAN = 'MULLIGAN',
@@ -185,7 +186,7 @@ export interface BeginSpecialMemberPlayCommand extends BaseGameCommand {
   readonly type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY;
   readonly cardId: string;
   readonly targetSlot: SlotPosition;
-  readonly mode: 'LL_BP7_001_SPECIAL_PLAY';
+  readonly mode: CardDefinedSpecialMemberPlayMode;
 }
 
 export interface ConfirmSpecialMemberPlayCommand extends BaseGameCommand {
@@ -653,14 +654,15 @@ export function createPlayMemberToSlotCommand(
 export function createBeginSpecialMemberPlayCommand(
   playerId: string,
   cardId: string,
-  targetSlot: SlotPosition
+  targetSlot: SlotPosition,
+  mode: BeginSpecialMemberPlayCommand['mode'] = 'LL_BP7_001_SPECIAL_PLAY'
 ): BeginSpecialMemberPlayCommand {
   return {
     type: GameCommandType.BEGIN_SPECIAL_MEMBER_PLAY,
     playerId,
     cardId,
     targetSlot,
-    mode: 'LL_BP7_001_SPECIAL_PLAY',
+    mode,
     timestamp: Date.now(),
   };
 }

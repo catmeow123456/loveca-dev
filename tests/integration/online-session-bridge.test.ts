@@ -98,6 +98,7 @@ describe('GameSession 联机桥接层', () => {
     const view = session.getPlayerViewState(PLAYER1);
     expect(view).not.toBeNull();
     expect(view?.match.viewerSeat).toBe('FIRST');
+    expect(view?.match.firstSeat).toBe('FIRST');
     expect(view?.match.subPhase).toBe(SubPhase.MULLIGAN_FIRST_PLAYER);
     expect(view?.match.seq).toBe(session.getCurrentPublicEventSeq());
     expect(
@@ -125,6 +126,30 @@ describe('GameSession 联机桥接层', () => {
           Array.isArray(event.waitingSeats)
       )
     ).toBe(true);
+  });
+
+  it('PlayerViewState 投影规则中的实时先攻席位，而不是固定开局席位', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-first-seat', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    expect(session.initializeGame(deck, deck).success).toBe(true);
+
+    const state = session.state as unknown as {
+      firstPlayerIndex: number;
+      activePlayerIndex: number;
+    };
+    state.firstPlayerIndex = 1;
+    state.activePlayerIndex = 1;
+
+    expect(session.getPlayerViewState(PLAYER1)?.match).toMatchObject({
+      firstSeat: 'SECOND',
+      activeSeat: 'SECOND',
+    });
+    expect(session.getPlayerViewState(PLAYER2)?.match).toMatchObject({
+      firstSeat: 'SECOND',
+      activeSeat: 'SECOND',
+    });
   });
 
   it('PlayerViewState 会保留对手隐藏区数量，但不会暴露真实卡牌 ID 和实例', () => {

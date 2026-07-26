@@ -13,8 +13,8 @@ import { SP_BP7_004_LIVE_START_BOTTOM_THREE_LIELLA_MEMBERS_GAIN_TWO_BLADE_ABILIT
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   addBladeLiveModifierForMember,
-  moveWaitingRoomCardsToDeckBottomForPlayer,
 } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -142,11 +142,22 @@ function finishSelection(
         )
       : game;
   }
-  const moveResult = moveWaitingRoomCardsToDeckBottomForPlayer(
+  const moveResult = moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     { ...game, activeEffect: null },
     player.id,
     selectedCardIds,
-    { candidateCardIds, minCount: REQUIRED_COUNT, maxCount: REQUIRED_COUNT }
+    {
+      candidateCardIds,
+      minCount: REQUIRED_COUNT,
+      maxCount: REQUIRED_COUNT,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
+    }
   );
   if (!moveResult || moveResult.movedCardIds.length !== REQUIRED_COUNT) {
     return wasRestoredAfterPublicCardSelectionConfirmation(effect)

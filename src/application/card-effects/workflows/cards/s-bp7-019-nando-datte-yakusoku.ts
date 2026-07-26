@@ -9,7 +9,7 @@ import {
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { S_BP7_019_LIVE_SUCCESS_BOTTOM_UP_TO_TWO_AQOURS_CARDS_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { moveWaitingRoomCardsToDeckBottomForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -138,11 +138,22 @@ function finishSelection(
         )
       : game;
   }
-  const moveResult = moveWaitingRoomCardsToDeckBottomForPlayer(
+  const moveResult = moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     { ...game, activeEffect: null },
     player.id,
     selectedCardIds,
-    { candidateCardIds, minCount: 0, maxCount: maxSelectableCards }
+    {
+      candidateCardIds,
+      minCount: 0,
+      maxCount: maxSelectableCards,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
+    }
   );
   if (!moveResult) {
     return wasRestoredAfterPublicCardSelectionConfirmation(effect)

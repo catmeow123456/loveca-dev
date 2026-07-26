@@ -92,6 +92,7 @@ import {
   CardType,
   GameMode,
 } from '@game/shared/types/enums';
+import type { CardDefinedSpecialMemberPlayMode } from '@game/shared/rules/member-play-options';
 import { getPhaseName } from '@game/shared/phase-config';
 import { preloadImage, resolveCardImagePath } from '@/lib/imageService';
 import {
@@ -343,7 +344,11 @@ export interface GameStore {
     slot: SlotPosition,
     options?: PlayMemberToSlotOptions
   ) => CommandDispatchResult;
-  beginSpecialMemberPlay: (cardId: string, slot: SlotPosition) => CommandDispatchResult;
+  beginSpecialMemberPlay: (
+    cardId: string,
+    slot: SlotPosition,
+    mode: CardDefinedSpecialMemberPlayMode
+  ) => CommandDispatchResult;
   confirmSpecialMemberPlay: (
     pendingId: string,
     selectedCardIds: readonly string[]
@@ -1088,12 +1093,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       );
     },
 
-    beginSpecialMemberPlay: (cardId, slot) =>
-      runViewerCommand((playerId) => createBeginSpecialMemberPlayCommand(playerId, cardId, slot), {
-        failureMessage: '特殊登场开始失败',
-        successMessage: '选择特殊登场支付',
-        logError: true,
-      }),
+    beginSpecialMemberPlay: (cardId, slot, mode) =>
+      runViewerCommand(
+        (playerId) => createBeginSpecialMemberPlayCommand(playerId, cardId, slot, mode),
+        {
+          failureMessage: '特殊登场开始失败',
+          successMessage: '选择特殊登场支付',
+          logError: true,
+        }
+      ),
 
     confirmSpecialMemberPlay: (pendingId, selectedCardIds) =>
       runViewerCommand(

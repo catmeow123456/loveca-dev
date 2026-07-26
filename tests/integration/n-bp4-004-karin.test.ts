@@ -190,6 +190,20 @@ describe('PL!N-bp4-004 Karin live-start workflows', () => {
     );
     expect(session.state?.players[0].hand.cardIds).toContain(drawn.instanceId);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
+    expect(session.state?.activeEffect?.stepText).toBe(
+      '请选择对方舞台上1名费用小于等于9的活跃状态成员。'
+    );
+    expect(session.state?.activeEffect?.selectionLabel).toBe(
+      '选择对方费用小于等于9的活跃状态成员'
+    );
+    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
+    expect(session.state?.activeEffect?.canSkipSelection).toBeUndefined();
+
+    const skipResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, null)
+    );
+    expect(skipResult.success).toBe(false);
+    expect(session.state?.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
 
     confirmActiveEffect(session, { selectedCardId: target.instanceId });
 
@@ -220,6 +234,70 @@ describe('PL!N-bp4-004 Karin live-start workflows', () => {
     expect(
       session.state?.players[1].memberSlots.cardStates.get(highCost.instanceId)?.orientation
     ).toBe(OrientationState.ACTIVE);
+  });
+
+  it('keeps placing zero cards distinct from explicitly not placing cards', () => {
+    const drawn = createCardInstance(createMember('PL!N-drawn'), PLAYER1, 'drawn');
+    const waitingTarget = createCardInstance(
+      createMember('OPP-wait', { cost: 4 }),
+      PLAYER2,
+      'wait'
+    );
+    const candidate = createCardInstance(
+      createMember('PL!N-stack-candidate'),
+      PLAYER1,
+      'stack-candidate'
+    );
+    const state = startLiveStart(
+      setupKarinScenario({
+        mainDeckCards: [drawn],
+        waitingRoomCards: [candidate],
+        opponentMembers: {
+          [SlotPosition.CENTER]: {
+            card: waitingTarget,
+            orientation: OrientationState.WAITING,
+          },
+        },
+      })
+    );
+    const selectionSession = attachSession(state);
+    selectPendingAbility(
+      selectionSession,
+      PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_COUNT_ABILITY_ID
+    );
+    const selectionState = selectionSession.state!;
+
+    const zeroCardSession = attachSession(selectionState);
+    confirmActiveEffect(zeroCardSession, { selectedCardIds: [] });
+    expect(
+      zeroCardSession.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_COUNT_ABILITY_ID &&
+          action.payload.step === 'STACK_NIJIGASAKI_MEMBERS_TO_DECK_TOP'
+      )?.payload
+    ).toMatchObject({
+      selectionSkipped: false,
+      selectedCardIds: [],
+      movedCardIds: [],
+    });
+
+    const skipSession = attachSession(selectionState);
+    confirmActiveEffect(skipSession, { selectedCardId: null });
+    expect(
+      skipSession.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            PL_N_BP4_004_LIVE_START_STACK_NIJIGASAKI_MEMBERS_BY_OPPONENT_WAIT_COUNT_ABILITY_ID &&
+          action.payload.step === 'SKIP_STACK_NIJIGASAKI_MEMBERS'
+      )?.payload
+    ).toMatchObject({
+      selectionSkipped: true,
+      selectedCardIds: [],
+      movedCardIds: [],
+    });
   });
 
   it('counts a member waited by the first ability when the stack ability resolves second', () => {
@@ -260,6 +338,9 @@ describe('PL!N-bp4-004 Karin live-start workflows', () => {
     );
 
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(2);
+    expect(session.state?.activeEffect?.minSelectableCards).toBe(0);
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
+    expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不放置');
     confirmActiveEffect(session, {
       selectedCardIds: [topSecond.instanceId, topFirst.instanceId],
     });

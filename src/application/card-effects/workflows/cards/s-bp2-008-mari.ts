@@ -16,7 +16,7 @@ import {
   S_BP2_008_ON_ENTER_WAITING_ROOM_LIVE_TO_DECK_BOTTOM_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { moveWaitingRoomCardsToDeckBottomForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerLiveSuccessAbilityAvailabilityGate } from '../../runtime/live-success-ability-availability-gates.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -151,11 +151,22 @@ function finishWaitingRoomLiveSelection(
     );
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckBottomForPlayer(
+  const moveResult = moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     { ...game, activeEffect: null },
     player.id,
     selectedCardIds,
-    { candidateCardIds, minCount: 0, maxCount: 1 }
+    {
+      candidateCardIds,
+      minCount: 0,
+      maxCount: 1,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: effect.controllerId,
+        sourceCardId: effect.sourceCardId,
+        abilityId: effect.abilityId,
+        pendingAbilityId: effect.id,
+      },
+    }
   );
   if (!moveResult) {
     return game;

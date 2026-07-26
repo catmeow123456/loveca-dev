@@ -12,9 +12,12 @@ import {
   createEnterHandEvent,
   createEnterLiveZoneEvent,
   createEnterWaitingRoomEvent,
+  createWaitingRoomCardsMovedToMainDeckEvent,
+  type CardEffectCause,
   type EnterHandEvent,
   type EnterLiveZoneEvent,
   type EnterWaitingRoomEvent,
+  type WaitingRoomCardsMovedToMainDeckEvent,
 } from '../../../domain/events/game-events.js';
 import {
   addBladeLiveModifierForMember as addBladeLiveModifierForMemberRule,
@@ -138,6 +141,7 @@ export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
   readonly movedCardIds: readonly string[];
   readonly originalCardIds: readonly string[];
+  readonly waitingRoomCardsMovedToMainDeckEvent?: WaitingRoomCardsMovedToMainDeckEvent;
 }
 
 export interface ShuffleHandCardsToDeckBottomForPlayerResult {
@@ -150,6 +154,7 @@ export interface MoveWaitingRoomCardsToDeckBottomForPlayerOptions {
   readonly candidateCardIds: readonly string[];
   readonly minCount: number;
   readonly maxCount: number;
+  readonly cause: CardEffectCause;
 }
 
 export interface MoveWaitingRoomCardsToDeckBottomForPlayerResult {
@@ -157,12 +162,14 @@ export interface MoveWaitingRoomCardsToDeckBottomForPlayerResult {
   readonly movedCardIds: readonly string[];
   readonly selectedCardIds: readonly string[];
   readonly remainingCandidateIds: readonly string[];
+  readonly waitingRoomCardsMovedToMainDeckEvent?: WaitingRoomCardsMovedToMainDeckEvent;
 }
 
 export interface MoveWaitingRoomCardsToDeckTopForPlayerOptions {
   readonly candidateCardIds: readonly string[];
   readonly minCount: number;
   readonly maxCount: number;
+  readonly cause: CardEffectCause;
 }
 
 export interface MoveWaitingRoomCardsToDeckTopForPlayerResult {
@@ -170,11 +177,13 @@ export interface MoveWaitingRoomCardsToDeckTopForPlayerResult {
   readonly movedCardIds: readonly string[];
   readonly selectedCardIds: readonly string[];
   readonly remainingCandidateIds: readonly string[];
+  readonly waitingRoomCardsMovedToMainDeckEvent?: WaitingRoomCardsMovedToMainDeckEvent;
 }
 
 export interface MoveWaitingRoomCardToDeckPositionForPlayerOptions {
   readonly candidateCardIds: readonly string[];
   readonly positionFromTop: number;
+  readonly cause: CardEffectCause;
 }
 
 export interface MoveWaitingRoomCardToDeckPositionForPlayerResult {
@@ -183,6 +192,7 @@ export interface MoveWaitingRoomCardToDeckPositionForPlayerResult {
   readonly insertIndex: number;
   readonly positionFromTop: number;
   readonly remainingCandidateIds: readonly string[];
+  readonly waitingRoomCardsMovedToMainDeckEvent: WaitingRoomCardsMovedToMainDeckEvent;
 }
 
 export interface MoveHandCardToDeckTopForPlayerOptions {
@@ -685,7 +695,8 @@ export function shuffleHandCardsToDeckBottomForPlayer(
 export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
   game: GameState,
   playerId: string,
-  cardIds: readonly string[]
+  cardIds: readonly string[],
+  cause: CardEffectCause
 ): ShuffleWaitingRoomCardsToDeckBottomForPlayerResult | null {
   const player = getPlayerById(game, playerId);
   const uniqueCardIds = new Set(cardIds);
@@ -721,11 +732,19 @@ export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
       cardIds: [...currentPlayer.mainDeck.cardIds, ...shuffledCardIds],
     },
   }));
+  const waitingRoomCardsMovedToMainDeckEvent = createWaitingRoomCardsMovedToMainDeckEvent(
+    playerId,
+    cause.playerId,
+    shuffledCardIds,
+    { kind: 'SHUFFLED_BOTTOM' },
+    cause
+  );
 
   return {
-    gameState,
+    gameState: emitGameEvent(gameState, waitingRoomCardsMovedToMainDeckEvent),
     movedCardIds: shuffledCardIds,
     originalCardIds: cardIds,
+    waitingRoomCardsMovedToMainDeckEvent,
   };
 }
 
@@ -784,14 +803,22 @@ export function moveWaitingRoomCardsToDeckBottomForPlayer(
       cardIds: [...currentPlayer.mainDeck.cardIds, ...selectedCardIds],
     },
   }));
+  const waitingRoomCardsMovedToMainDeckEvent = createWaitingRoomCardsMovedToMainDeckEvent(
+    playerId,
+    options.cause.playerId,
+    selectedCardIds,
+    { kind: 'BOTTOM' },
+    options.cause
+  );
 
   return {
-    gameState,
+    gameState: emitGameEvent(gameState, waitingRoomCardsMovedToMainDeckEvent),
     movedCardIds: selectedCardIds,
     selectedCardIds,
     remainingCandidateIds: options.candidateCardIds.filter(
       (cardId) => !uniqueSelectedCardIds.has(cardId)
     ),
+    waitingRoomCardsMovedToMainDeckEvent,
   };
 }
 
@@ -850,14 +877,22 @@ export function moveWaitingRoomCardsToDeckTopForPlayer(
       cardIds: [...selectedCardIds, ...currentPlayer.mainDeck.cardIds],
     },
   }));
+  const waitingRoomCardsMovedToMainDeckEvent = createWaitingRoomCardsMovedToMainDeckEvent(
+    playerId,
+    options.cause.playerId,
+    selectedCardIds,
+    { kind: 'TOP' },
+    options.cause
+  );
 
   return {
-    gameState,
+    gameState: emitGameEvent(gameState, waitingRoomCardsMovedToMainDeckEvent),
     movedCardIds: selectedCardIds,
     selectedCardIds,
     remainingCandidateIds: options.candidateCardIds.filter(
       (cardId) => !uniqueSelectedCardIds.has(cardId)
     ),
+    waitingRoomCardsMovedToMainDeckEvent,
   };
 }
 
@@ -896,13 +931,21 @@ export function moveWaitingRoomCardToDeckPositionForPlayer(
       ],
     },
   }));
+  const waitingRoomCardsMovedToMainDeckEvent = createWaitingRoomCardsMovedToMainDeckEvent(
+    playerId,
+    options.cause.playerId,
+    [selectedCardId],
+    { kind: 'POSITION', positionFromTop, insertIndex },
+    options.cause
+  );
 
   return {
-    gameState,
+    gameState: emitGameEvent(gameState, waitingRoomCardsMovedToMainDeckEvent),
     movedCardId: selectedCardId,
     insertIndex,
     positionFromTop,
     remainingCandidateIds: options.candidateCardIds.filter((cardId) => cardId !== selectedCardId),
+    waitingRoomCardsMovedToMainDeckEvent,
   };
 }
 

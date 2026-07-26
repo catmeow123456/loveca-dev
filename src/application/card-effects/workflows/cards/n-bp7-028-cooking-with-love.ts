@@ -17,7 +17,7 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { shuffleWaitingRoomCardsToDeckBottomForPlayer } from '../../runtime/actions.js';
+import { shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -131,10 +131,17 @@ function finishCookingWithLove(
 
   const waitingRoomCardIds = [...player.waitingRoom.cardIds];
   const targetMemberCardIds = getStageMemberCardIdsMatching(game, player.id, nijigasakiMember);
-  const shuffleResult = shuffleWaitingRoomCardsToDeckBottomForPlayer(
+  const shuffleResult = shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers(
     game,
     player.id,
-    waitingRoomCardIds
+    waitingRoomCardIds,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
   );
   if (!shuffleResult) {
     return game;

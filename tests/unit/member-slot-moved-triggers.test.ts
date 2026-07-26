@@ -16,7 +16,9 @@ import {
 } from '../../src/application/card-effects/runtime/member-slot-moved-triggers';
 import {
   CardType,
+  FaceState,
   HeartColor,
+  OrientationState,
   SlotPosition,
   TriggerCondition,
 } from '../../src/shared/types/enums';
@@ -41,9 +43,13 @@ describe('member-slot-moved trigger wrapper', () => {
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,
       memberSlots: placeCardInSlot(
-        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId, {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
         SlotPosition.CENTER,
-        memberB.instanceId
+        memberB.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
       ),
     }));
 
@@ -83,6 +89,10 @@ describe('member-slot-moved trigger wrapper', () => {
     expect(result?.memberSlotMovedEvents.map((event) => event.cardInstanceId)).toEqual([
       memberA.instanceId,
       memberB.instanceId,
+    ]);
+    expect(result?.memberSlotMovedEvents.map((event) => event.orientationAtMove)).toEqual([
+      OrientationState.WAITING,
+      OrientationState.ACTIVE,
     ]);
     expect(result?.memberSlotMovedEvents.map((event) => event.cause)).toEqual([
       {
@@ -147,12 +157,17 @@ describe('member-slot-moved trigger wrapper', () => {
       ...player,
       memberSlots: placeCardInSlot(
         placeCardInSlot(
-          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId, {
+            orientation: OrientationState.WAITING,
+            face: FaceState.FACE_UP,
+          }),
           SlotPosition.CENTER,
-          memberB.instanceId
+          memberB.instanceId,
+          { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
         ),
         SlotPosition.RIGHT,
-        memberC.instanceId
+        memberC.instanceId,
+        { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }
       ),
     }));
 
@@ -190,6 +205,11 @@ describe('member-slot-moved trigger wrapper', () => {
       memberA.instanceId,
       memberB.instanceId,
       memberC.instanceId,
+    ]);
+    expect(result?.memberSlotMovedEvents.map((event) => event.orientationAtMove)).toEqual([
+      OrientationState.WAITING,
+      OrientationState.ACTIVE,
+      OrientationState.WAITING,
     ]);
     expect(result?.memberSlotMovedEvents.map((event) => event.cause)).toEqual([
       {
@@ -233,18 +253,29 @@ describe('member-slot-moved trigger wrapper', () => {
     const memberA = createCardInstance(createMemberCard('MEM-A'), 'p1', 'member-a');
     const memberB = createCardInstance(createMemberCard('MEM-B'), 'p1', 'member-b');
     const memberC = createCardInstance(createMemberCard('MEM-C'), 'p1', 'member-c');
-    let game = createGameState('member-slot-moved-wrapper-formation-history', 'p1', 'P1', 'p2', 'P2');
+    let game = createGameState(
+      'member-slot-moved-wrapper-formation-history',
+      'p1',
+      'P1',
+      'p2',
+      'P2'
+    );
     game = registerCards(game, [memberA, memberB, memberC]);
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,
       memberSlots: placeCardInSlot(
         placeCardInSlot(
-          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId),
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, memberA.instanceId, {
+            orientation: OrientationState.WAITING,
+            face: FaceState.FACE_UP,
+          }),
           SlotPosition.CENTER,
-          memberB.instanceId
+          memberB.instanceId,
+          { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
         ),
         SlotPosition.RIGHT,
-        memberC.instanceId
+        memberC.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
       ),
     }));
 
@@ -288,6 +319,10 @@ describe('member-slot-moved trigger wrapper', () => {
     expect(result?.memberSlotMovedEvents.map((event) => event.cardInstanceId)).toEqual([
       memberA.instanceId,
       memberC.instanceId,
+    ]);
+    expect(result?.memberSlotMovedEvents.map((event) => event.orientationAtMove)).toEqual([
+      OrientationState.WAITING,
+      OrientationState.ACTIVE,
     ]);
     expect(result?.memberSlotMovedEvents).not.toContainEqual(
       expect.objectContaining({ cardInstanceId: memberB.instanceId })

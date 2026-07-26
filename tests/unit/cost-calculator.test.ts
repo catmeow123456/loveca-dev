@@ -259,36 +259,43 @@ describe('CostCalculator', () => {
       ]);
     });
 
-    it('allows explicit double relay only for PL!SP-bp4-004 and sums effective costs', () => {
-      const memberData = createMockMemberData(22, '平安名すみれ', 'PL!SP-bp4-004-P');
-      const resources: AvailableResources = {
-        activeEnergyIds: Array.from({ length: 9 }, (_, index) => `e${index}`),
-        stageMembers: [
-          createStageMemberInfo('center-member', 4, SlotPosition.CENTER, { effectiveCost: 9 }),
-          createStageMemberInfo('left-member', 4, SlotPosition.LEFT, { effectiveCost: 4 }),
-        ],
-      };
+    it.each([
+      ['PL!SP-bp4-004-P', 22, '平安名すみれ'],
+      ['PL!SP-pb2-000-DUO', 15, '嵐千砂都&鬼塚夏美'],
+      ['PL!-pb2-000-DUO', 15, '星空凛&小泉花陽'],
+    ] as const)(
+      'allows explicit double relay for %s and sums effective costs',
+      (cardCode, cost, name) => {
+        const memberData = createMockMemberData(cost, name, cardCode);
+        const resources: AvailableResources = {
+          activeEnergyIds: Array.from({ length: 20 }, (_, index) => `e${index}`),
+          stageMembers: [
+            createStageMemberInfo('center-member', 4, SlotPosition.CENTER, { effectiveCost: 9 }),
+            createStageMemberInfo('left-member', 4, SlotPosition.LEFT, { effectiveCost: 4 }),
+          ],
+        };
 
-      const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
-        relayMode: 'DOUBLE',
-        relayReplacementSlots: [SlotPosition.LEFT, SlotPosition.CENTER],
-      });
+        const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources, {
+          relayMode: 'DOUBLE',
+          relayReplacementSlots: [SlotPosition.LEFT, SlotPosition.CENTER],
+        });
 
-      expect(result.canPay).toBe(true);
-      expect(result.availablePlans).toHaveLength(1);
-      expect(result.availablePlans[0]).toMatchObject({
-        memberToRelay: 'center-member',
-        relayDiscount: 13,
-        actualEnergyCost: 9,
-        isRelay: true,
-      });
-      expect(result.availablePlans[0]?.relayReplacements).toEqual([
-        { cardId: 'center-member', slot: SlotPosition.CENTER, effectiveCost: 9 },
-        { cardId: 'left-member', slot: SlotPosition.LEFT, effectiveCost: 4 },
-      ]);
-    });
+        expect(result.canPay).toBe(true);
+        expect(result.availablePlans).toHaveLength(1);
+        expect(result.availablePlans[0]).toMatchObject({
+          memberToRelay: 'center-member',
+          relayDiscount: 13,
+          actualEnergyCost: Math.max(0, cost - 13),
+          isRelay: true,
+        });
+        expect(result.availablePlans[0]?.relayReplacements).toEqual([
+          { cardId: 'center-member', slot: SlotPosition.CENTER, effectiveCost: 9 },
+          { cardId: 'left-member', slot: SlotPosition.LEFT, effectiveCost: 4 },
+        ]);
+      }
+    );
 
-    it('rejects explicit double relay for non PL!SP-bp4-004 members', () => {
+    it('rejects explicit double relay for members without the printed permission', () => {
       const memberData = createMockMemberData(22, 'Other Member', 'PL!SP-bp4-005-P');
       const resources: AvailableResources = {
         activeEnergyIds: Array.from({ length: 20 }, (_, index) => `e${index}`),
@@ -304,7 +311,7 @@ describe('CostCalculator', () => {
       });
 
       expect(result.canPay).toBe(false);
-      expect(result.reason).toContain('PL!SP-bp4-004');
+      expect(result.reason).toBe('此成员不支持双换手');
     });
 
     it.each([
@@ -430,11 +437,7 @@ describe('CostCalculator', () => {
     });
 
     it('应该让 LL-bp2-001-R+ 只按其他手牌数量减少费用，不计算自身', () => {
-      const memberData = createMockMemberData(
-        20,
-        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
-        'LL-bp2-001-R+'
-      );
+      const memberData = createMockMemberData(20, '渡边 曜&鬼冢夏美&大泽瑠璃乃', 'LL-bp2-001-R+');
       const resources: AvailableResources = {
         activeEnergyIds: Array.from({ length: 19 }, (_, index) => `e${index}`),
         stageMembers: [],
@@ -449,11 +452,7 @@ describe('CostCalculator', () => {
     });
 
     it('应该按 LL-bp2-001-R+ 以外的手牌每张减少1点费用', () => {
-      const memberData = createMockMemberData(
-        20,
-        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
-        'LL-bp2-001-R+'
-      );
+      const memberData = createMockMemberData(20, '渡边 曜&鬼冢夏美&大泽瑠璃乃', 'LL-bp2-001-R+');
       const resources: AvailableResources = {
         activeEnergyIds: Array.from({ length: 18 }, (_, index) => `e${index}`),
         stageMembers: [],
@@ -472,19 +471,12 @@ describe('CostCalculator', () => {
     });
 
     it('应该允许 LL-bp2-001-R+ 的手牌减费将费用降到0但不低于0', () => {
-      const memberData = createMockMemberData(
-        20,
-        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
-        'LL-bp2-001-R+'
-      );
+      const memberData = createMockMemberData(20, '渡边 曜&鬼冢夏美&大泽瑠璃乃', 'LL-bp2-001-R+');
       const resources: AvailableResources = {
         activeEnergyIds: [],
         stageMembers: [],
         sourceCardId: 'source-card',
-        handCardIds: [
-          'source-card',
-          ...Array.from({ length: 25 }, (_, index) => `other-${index}`),
-        ],
+        handCardIds: ['source-card', ...Array.from({ length: 25 }, (_, index) => `other-${index}`)],
       };
 
       const result = calculator.checkCanPayCost(memberData, SlotPosition.CENTER, resources);
@@ -497,11 +489,7 @@ describe('CostCalculator', () => {
     });
 
     it('应该先应用 LL-bp2-001-R+ 手牌减费，再计算换手减免', () => {
-      const memberData = createMockMemberData(
-        20,
-        '渡边 曜&鬼冢夏美&大泽瑠璃乃',
-        'LL-bp2-001-R+'
-      );
+      const memberData = createMockMemberData(20, '渡边 曜&鬼冢夏美&大泽瑠璃乃', 'LL-bp2-001-R+');
       const resources: AvailableResources = {
         activeEnergyIds: Array.from({ length: 13 }, (_, index) => `e${index}`),
         stageMembers: [createStageMemberInfo('member-1', 3, SlotPosition.CENTER)],
@@ -1239,22 +1227,45 @@ describe('CostCalculator', () => {
         { cardCode: 'PL!-pb1-014-R', successLiveCards: [] },
         {
           cardCode: 'PL!-pb1-014-R',
-          successLiveCards: [{ cardId: 'other', data: createMockLiveData(1, 'other', 'other', { unitName: 'BiBi' }) }],
+          successLiveCards: [
+            {
+              cardId: 'other',
+              data: createMockLiveData(1, 'other', 'other', { unitName: 'BiBi' }),
+            },
+          ],
         },
         {
           cardCode: 'PL!-pb1-014-R',
-          successLiveCards: [{ cardId: 'text-only', data: createMockLiveData(1, 'lilywhite', 'prefix-lilywhite', { cardText: 'lilywhite' }) }],
+          successLiveCards: [
+            {
+              cardId: 'text-only',
+              data: createMockLiveData(1, 'lilywhite', 'prefix-lilywhite', {
+                cardText: 'lilywhite',
+              }),
+            },
+          ],
         },
         {
           cardCode: 'PL!-pb1-013-R',
-          successLiveCards: [{ cardId: 'lilywhite', data: createMockLiveData(1, 'lilywhite', 'live', { unitName: 'lilywhite' }) }],
+          successLiveCards: [
+            {
+              cardId: 'lilywhite',
+              data: createMockLiveData(1, 'lilywhite', 'live', { unitName: 'lilywhite' }),
+            },
+          ],
         },
       ];
       for (const testCase of cases) {
         const sourceCardId = 'source-hand';
         const info = calculator.calculateModifiedPlayCost(
           createMockMemberData(15, 'member', testCase.cardCode),
-          { activeEnergyIds: [], stageMembers: [], sourceCardId, handCardIds: [sourceCardId], successLiveCards: testCase.successLiveCards }
+          {
+            activeEnergyIds: [],
+            stageMembers: [],
+            sourceCardId,
+            handCardIds: [sourceCardId],
+            successLiveCards: testCase.successLiveCards,
+          }
         );
         expect(info.modifiedCost).toBe(15);
       }
@@ -1267,7 +1278,12 @@ describe('CostCalculator', () => {
         stageMembers: [createStageMemberInfo('relay', 5, SlotPosition.CENTER)],
         sourceCardId,
         handCardIds: [sourceCardId],
-        successLiveCards: [{ cardId: 'lilywhite', data: createMockLiveData(1, 'live', 'live', { unitName: 'lilywhite' }) }],
+        successLiveCards: [
+          {
+            cardId: 'lilywhite',
+            data: createMockLiveData(1, 'live', 'live', { unitName: 'lilywhite' }),
+          },
+        ],
       };
       const result = calculator.checkCanPayCost(
         createMockMemberData(15, '星空 凛', 'PL!-pb1-014-R'),

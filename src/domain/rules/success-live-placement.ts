@@ -16,10 +16,7 @@ export interface AddSuccessLivePlacementRestrictionOptions {
   readonly abilityId: string;
 }
 
-export function isLiveCardProhibitedFromSuccessZone(
-  game: GameState,
-  cardId: string
-): boolean {
+export function isLiveCardProhibitedFromSuccessZone(game: GameState, cardId: string): boolean {
   const card = getCardById(game, cardId);
   return (
     card !== null &&
@@ -118,6 +115,23 @@ export function getSuccessLiveSelectionCandidateIds(
         player.liveZone.cardIds.includes(cardId) &&
         canLiveCardEnterSuccessZone(game, playerId, cardId)
     );
+}
+
+export function getSuccessfulLiveCardIdsForPlayerThisTurn(
+  game: GameState,
+  playerId: string
+): readonly string[] {
+  return [...game.liveResolution.liveResults.entries()].flatMap(([cardId, succeeded]) => {
+    if (succeeded !== true) {
+      return [];
+    }
+    const card = getCardById(game, cardId);
+    return card?.ownerId === playerId && isLiveCardData(card.data) ? [cardId] : [];
+  });
+}
+
+export function hasPlayerSuccessfulLiveThisTurn(game: GameState, playerId: string): boolean {
+  return getSuccessfulLiveCardIdsForPlayerThisTurn(game, playerId).length > 0;
 }
 
 export function getCompletedSuccessLiveSettlementPlayerIds(game: GameState): readonly string[] {

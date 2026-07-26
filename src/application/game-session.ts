@@ -172,6 +172,7 @@ import {
   CardAbilitySourceZone,
 } from './card-effects/ability-definition-types.js';
 import { getRenGrantedActivatedAbilityDefinition } from './card-effects/runtime/granted-activated-abilities.js';
+import { isActivatedAbilityDefinitionAvailableForSource } from './card-effects/runtime/activated-ability-availability.js';
 import {
   attachPublicCardSelectionAutoAdvanceDeadline,
   getPublicCardSelectionAutoAdvanceMetadata,
@@ -187,19 +188,11 @@ import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waitin
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
 import { buildPlayMemberCostResources } from './effects/play-member-cost.js';
 import {
-  LL_BP7_001_SPECIAL_PLAY_COST,
-  LL_BP7_001_SPECIAL_PLAY_PRINTED_COST,
-  LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES,
-  assignLlBp7001SpecialPlayPayment,
-  canAssignLlBp7001SpecialPlayPayment,
-  getLlBp7001SpecialPlayHandCandidateIds,
-  getLlBp7001SpecialPlayTargetSlots,
-  isLlBp7001SpecialPlaySource,
-} from './effects/special-member-play.js';
-import {
-  discardHandCardsToWaitingRoomAndEnqueueTriggers,
-  enqueueEnterWaitingRoomTriggersFromDiscardResult,
-} from './card-effects/runtime/enter-waiting-room-triggers.js';
+  createPendingSpecialMemberPlay,
+  resolveSpecialMemberPlay,
+  validateBeginSpecialMemberPlay,
+  validateConfirmSpecialMemberPlay,
+} from './special-member-play-procedures.js';
 import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
 import { tapEnergy } from '../domain/entities/zone.js';
 import {
@@ -1844,37 +1837,14 @@ export class GameSession {
         ) {
           return '请先完成当前效果、检查时点或检视流程';
         }
-        if (command.mode !== 'LL_BP7_001_SPECIAL_PLAY') {
-          return '不支持的特殊登场方式';
-        }
-        if (!isLlBp7001SpecialPlaySource(state, command.playerId, command.cardId)) {
-          return '特殊登场来源已失效';
-        }
-        if (
-          !getLlBp7001SpecialPlayTargetSlots(state, command.playerId, command.cardId).includes(
-            command.targetSlot
-          )
-        ) {
-          return '该成员区不能用于本次特殊登场';
-        }
-        if (!canAssignLlBp7001SpecialPlayPayment(state, command.playerId, command.cardId)) {
-          return '手牌中没有可完成指定姓名支付的成员';
-        }
-        return null;
+        return validateBeginSpecialMemberPlay(state, command);
       }
       case GameCommandType.CONFIRM_SPECIAL_MEMBER_PLAY: {
         const pending = state.pendingSpecialMemberPlay ?? null;
         if (!pending || pending.id !== command.pendingId || pending.playerId !== command.playerId) {
           return '特殊登场选择窗口已失效';
         }
-        return assignLlBp7001SpecialPlayPayment(
-          state,
-          command.playerId,
-          pending.sourceCardId,
-          command.selectedCardIds
-        ).length === LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length
-          ? null
-          : '必须选择可分别满足三个指定姓名的三张不同成员';
+        return validateConfirmSpecialMemberPlay(state, command, pending);
       }
       case GameCommandType.CANCEL_SPECIAL_MEMBER_PLAY: {
         const pending = state.pendingSpecialMemberPlay ?? null;
@@ -1932,6 +1902,18 @@ export class GameSession {
           }
         } else if (!Object.values(player.memberSlots.slots).includes(command.cardId)) {
           return '起动效果来源成员当前不在舞台';
+        }
+        const sourceDefinition = directDefinition ?? grantedDefinition;
+        if (
+          sourceDefinition &&
+          !isActivatedAbilityDefinitionAvailableForSource(
+            state,
+            command.playerId,
+            command.cardId,
+            sourceDefinition
+          )
+        ) {
+          return '起动效果来源成员当前状态不满足发动条件';
         }
         const limitStatus = getActivatedAbilityLimitStatus(
           state,
@@ -3923,27 +3905,17 @@ export class GameSession {
     state: GameState,
     command: BeginSpecialMemberPlayCommand
   ): CommandExecutionResult {
-    const candidateCardIds = getLlBp7001SpecialPlayHandCandidateIds(
-      state,
-      command.playerId,
-      command.cardId
-    );
     const pendingId = `${state.gameId}-special-member-play-${state.actionSequence + 1}`;
+    const pendingSpecialMemberPlay = createPendingSpecialMemberPlay(state, command, pendingId);
+    if (!pendingSpecialMemberPlay) {
+      return { success: false, gameState: state, error: '不支持的特殊登场方式' };
+    }
     return {
       success: true,
       gameState: addAction(
         {
           ...state,
-          pendingSpecialMemberPlay: {
-            id: pendingId,
-            playerId: command.playerId,
-            sourceCardId: command.cardId,
-            targetSlot: command.targetSlot,
-            mode: command.mode,
-            printedCost: LL_BP7_001_SPECIAL_PLAY_PRINTED_COST,
-            specialPlayCost: LL_BP7_001_SPECIAL_PLAY_COST,
-            candidateCardIds,
-          },
+          pendingSpecialMemberPlay,
         },
         'SPECIAL_MEMBER_PLAY',
         command.playerId,
@@ -3975,140 +3947,21 @@ export class GameSession {
     if (!pending) {
       return { success: false, gameState: state, error: '特殊登场选择窗口已失效' };
     }
-    if (
-      !isLlBp7001SpecialPlaySource(state, command.playerId, pending.sourceCardId) ||
-      !getLlBp7001SpecialPlayTargetSlots(state, command.playerId, pending.sourceCardId).includes(
-        pending.targetSlot
-      )
-    ) {
-      return { success: false, gameState: state, error: '特殊登场来源或目标已失效' };
-    }
-
-    const assignment = assignLlBp7001SpecialPlayPayment(
-      state,
-      command.playerId,
-      pending.sourceCardId,
-      command.selectedCardIds
-    );
-    if (assignment.length !== LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length) {
-      return { success: false, gameState: state, error: '指定姓名支付不完整' };
-    }
-
-    const player = getPlayerById(state, command.playerId);
-    const sourceCard = state.cardRegistry.get(pending.sourceCardId);
-    if (!player || !sourceCard || !isMemberCardData(sourceCard.data)) {
-      return { success: false, gameState: state, error: '特殊登场来源已失效' };
-    }
-    if (
-      sourceCard.data.cost !== LL_BP7_001_SPECIAL_PLAY_PRINTED_COST ||
-      pending.printedCost !== LL_BP7_001_SPECIAL_PLAY_PRINTED_COST ||
-      pending.specialPlayCost !== LL_BP7_001_SPECIAL_PLAY_COST
-    ) {
-      return { success: false, gameState: state, error: '特殊登场费用上下文已失效' };
-    }
-
-    const selectedIds = assignment.map(({ cardId }) => cardId);
-    const selectedSet = new Set(selectedIds);
-    const handAfterNamedPayment = player.hand.cardIds.filter((cardId) => !selectedSet.has(cardId));
-    const resources = buildPlayMemberCostResources(
-      state,
-      command.playerId,
-      pending.sourceCardId,
-      handAfterNamedPayment
-    );
-    if (!resources) {
-      return { success: false, gameState: state, error: '无法计算本次特殊登场费用' };
-    }
-    const costCheck = costCalculator.checkCanPayCost(
-      sourceCard.data,
-      pending.targetSlot,
-      resources,
-      {
-        specialPlayBaseCost: LL_BP7_001_SPECIAL_PLAY_COST,
-        ...(player.memberSlots.slots[pending.targetSlot] ? { relayMode: 'SINGLE' as const } : {}),
-      }
-    );
-    const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
-    if (!plan) {
-      return {
-        success: false,
-        gameState: state,
-        error: costCheck.reason ?? '活跃能量不足以完成本次特殊登场',
-      };
-    }
-
-    // The grouped move is authoritative, while trigger enqueue is deliberately deferred until
-    // the discard, energy payment, ordinary relay, and play have all completed atomically.
-    const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
-      { ...state, pendingSpecialMemberPlay: null },
-      command.playerId,
-      selectedIds,
-      { count: 3, candidateCardIds: pending.candidateCardIds },
-      (game) => game
-    );
-    if (!discardResult?.enterWaitingRoomEvent) {
-      return { success: false, gameState: state, error: '指定姓名支付已失效' };
-    }
-
-    const payment: NonNullable<GameState['pendingCostPayment']> = {
-      id: `${pending.id}-cost`,
-      playerId: command.playerId,
-      source: 'PLAY_MEMBER',
-      sourceCardId: pending.sourceCardId,
-      targetSlot: pending.targetSlot,
-      baseCost: plan.totalCost,
-      finalEnergyCost: plan.actualEnergyCost,
-      relayDiscount: plan.relayDiscount,
-      replacedMemberCardId: plan.memberToRelay,
-      relayReplacements: plan.relayReplacements,
-      payableEnergyCardIds: resources.activeEnergyIds,
-      explanation: this.formatPlayMemberCostExplanation(plan),
-    };
-    const paidState = this.applyCostPaymentToState(
-      discardResult.gameState,
-      payment,
-      plan.energyToTap
-    );
-    const playResult = this.applyPlayMemberToSlotWithoutCostPrompt(
-      paidState,
-      {
-        type: GameCommandType.PLAY_MEMBER_TO_SLOT,
-        playerId: command.playerId,
-        cardId: pending.sourceCardId,
-        targetSlot: pending.targetSlot,
-        relayMode: 'SINGLE',
-        timestamp: command.timestamp,
-      },
-      plan.isRelay
-    );
-    if (!playResult.success) {
-      return { success: false, gameState: state, error: playResult.error };
-    }
-
-    const completedState = enqueueEnterWaitingRoomTriggersFromDiscardResult(
-      playResult.gameState,
-      discardResult,
-      enqueueTriggeredCardEffects
-    );
-    const auditedState = addAction(completedState, 'SPECIAL_MEMBER_PLAY', command.playerId, {
-      step: 'CONFIRM',
-      sourceCardId: pending.sourceCardId,
-      targetSlot: pending.targetSlot,
-      mode: pending.mode,
-      printedCost: pending.printedCost,
-      specialPlayCost: pending.specialPlayCost,
-      namedPayments: assignment,
-      relayReplacement: plan.memberToRelay,
-      relayReplacements: plan.relayReplacements,
-      relayDiscount: plan.relayDiscount,
-      paidEnergyCardIds: [...plan.energyToTap],
-      paidEnergyCount: plan.actualEnergyCost,
-      waitingRoomEventId: discardResult.enterWaitingRoomEvent.eventId,
+    const result = resolveSpecialMemberPlay(state, command, pending, {
+      applyCostPaymentToState: (game, payment, energyCardIds) =>
+        this.applyCostPaymentToState(game, payment, energyCardIds),
+      applyPlayMemberToSlotWithoutCostPrompt: (game, playCommand, isRelayOverride) =>
+        this.applyPlayMemberToSlotWithoutCostPrompt(game, playCommand, isRelayOverride),
+      formatPlayMemberCostExplanation: (plan) => this.formatPlayMemberCostExplanation(plan),
+      enqueueTriggeredCardEffectsForEnterWaitingRoom: enqueueTriggeredCardEffects,
     });
-    const actorSeat = getSeatForPlayer(auditedState, command.playerId);
+    if (!result.success) {
+      return { success: false, gameState: state, error: result.error };
+    }
+    const actorSeat = getSeatForPlayer(result.gameState, command.playerId);
     const discardPublicEvents = actorSeat
-      ? selectedIds.map((cardId) =>
-          buildCardRevealedAndMovedPublicEvent(auditedState, actorSeat, cardId, {
+      ? (result.revealedHandCardIds ?? []).map((cardId) =>
+          buildCardRevealedAndMovedPublicEvent(result.gameState, actorSeat, cardId, {
             from: createOwnedZoneRef(ZoneType.HAND, actorSeat),
             to: createOwnedZoneRef(ZoneType.WAITING_ROOM, actorSeat),
             reason: 'SPECIAL_MEMBER_PLAY_COST',
@@ -4118,32 +3971,20 @@ export class GameSession {
 
     return {
       success: true,
-      gameState: auditedState,
+      gameState: result.gameState,
       declarationType: 'SPECIAL_MEMBER_PLAY_CONFIRMED',
       declarationPublicValue: pending.targetSlot,
-      extraPublicEvents: [...discardPublicEvents, ...(playResult.extraPublicEvents ?? [])],
-      sealedAuditRecords: actorSeat
-        ? [
-            {
-              type: 'SPECIAL_MEMBER_PLAY_CONFIRMED',
-              actorSeat,
-              payload: {
-                sourceCardId: pending.sourceCardId,
-                targetSlot: pending.targetSlot,
-                mode: pending.mode,
-                printedCost: pending.printedCost,
-                specialPlayCost: pending.specialPlayCost,
-                namedPayments: assignment,
-                relayReplacement: plan.memberToRelay,
-                relayReplacements: plan.relayReplacements,
-                relayDiscount: plan.relayDiscount,
-                paidEnergyCardIds: [...plan.energyToTap],
-                paidEnergyCount: plan.actualEnergyCost,
-                waitingRoomEventId: discardResult.enterWaitingRoomEvent.eventId,
+      extraPublicEvents: [...discardPublicEvents, ...(result.extraPublicEvents ?? [])],
+      sealedAuditRecords:
+        actorSeat && result.sealedAuditPayload
+          ? [
+              {
+                type: 'SPECIAL_MEMBER_PLAY_CONFIRMED',
+                actorSeat,
+                payload: result.sealedAuditPayload,
               },
-            },
-          ]
-        : [],
+            ]
+          : [],
     };
   }
 

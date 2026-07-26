@@ -18,6 +18,10 @@ export interface CheerCardHeartColorReplacementWorkflowConfig {
   readonly fromColors: readonly HeartColor[];
   readonly toColor: HeartColor;
   readonly actionStep: string;
+  readonly isSourceAvailable?: (
+    game: GameState,
+    ability: Pick<PendingAbilityState, 'controllerId' | 'sourceCardId'>
+  ) => boolean;
   readonly getConfirmationEffectText?: (
     game: GameState,
     ability: PendingAbilityState,
@@ -32,6 +36,7 @@ export interface CheerCardHeartColorReplacementWorkflowConfig {
 
 export interface CheerCardHeartColorReplacementContext {
   readonly sourceInLiveZone: boolean;
+  readonly sourceAvailable: boolean;
 }
 
 export function registerCheerCardHeartColorReplacementWorkflowHandlers(
@@ -49,7 +54,7 @@ export function registerCheerCardHeartColorReplacementWorkflowHandlers(
           config
         ),
       (game, ability) => {
-        const replacementContext = getCheerCardHeartColorReplacementContext(game, ability);
+        const replacementContext = getCheerCardHeartColorReplacementContext(game, ability, config);
         return {
           effectText:
             config.getConfirmationEffectText?.(game, ability, replacementContext) ??
@@ -69,10 +74,10 @@ function resolveCheerCardHeartColorReplacement(
   config: CheerCardHeartColorReplacementWorkflowConfig
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
+  const replacementContext = getCheerCardHeartColorReplacementContext(game, ability, config);
   const stateWithoutPending = removePending(game, ability.id);
   const stateAfterModifier =
-    player && sourceInLiveZone
+    player && replacementContext.sourceAvailable
       ? addLiveModifier(stateWithoutPending, {
           kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
           playerId: player.id,
@@ -89,10 +94,11 @@ function resolveCheerCardHeartColorReplacement(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       step: config.actionStep,
-      sourceInLiveZone,
+      sourceInLiveZone: replacementContext.sourceInLiveZone,
+      sourceAvailable: replacementContext.sourceAvailable,
       fromColors: config.fromColors,
       toColor: config.toColor,
-      applied: player !== undefined && sourceInLiveZone,
+      applied: player !== undefined && replacementContext.sourceAvailable,
     }),
     orderedResolution
   );
@@ -100,17 +106,22 @@ function resolveCheerCardHeartColorReplacement(
 
 function getCheerCardHeartColorReplacementContext(
   game: GameState,
-  ability: Pick<PendingAbilityState, 'controllerId' | 'sourceCardId'>
+  ability: Pick<PendingAbilityState, 'controllerId' | 'sourceCardId'>,
+  config: CheerCardHeartColorReplacementWorkflowConfig
 ): CheerCardHeartColorReplacementContext {
   const player = getPlayerById(game, ability.controllerId);
+  const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
   return {
-    sourceInLiveZone: player?.liveZone.cardIds.includes(ability.sourceCardId) === true,
+    sourceInLiveZone,
+    sourceAvailable: config.isSourceAvailable?.(game, ability) ?? sourceInLiveZone,
   };
 }
 
 function removePending(game: GameState, pendingAbilityId: string): GameState {
   return {
     ...game,
-    pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== pendingAbilityId),
+    pendingAbilities: game.pendingAbilities.filter(
+      (candidate) => candidate.id !== pendingAbilityId
+    ),
   };
 }

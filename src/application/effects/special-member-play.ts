@@ -7,6 +7,7 @@ import {
   assignCardsToRequiredNames,
   cardNameMatchesAnyAlias,
 } from '../../shared/utils/card-identity.js';
+import { getManualOperationMode } from '../manual-operation-mode.js';
 
 export const LL_BP7_001_SPECIAL_PLAY_BASE_CARD_CODE = 'LL-bp7-001';
 export const LL_BP7_001_SPECIAL_PLAY_PRINTED_COST = 15;
@@ -16,6 +17,9 @@ export const LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES = [
   '優木せつ菜',
   '嵐千砂都',
 ] as const;
+export const N_BP7_011_SPECIAL_PLAY_BASE_CARD_CODE = 'PL!N-bp7-011';
+export const N_BP7_011_SPECIAL_PLAY_PRINTED_COST = 13;
+export const N_BP7_011_SPECIAL_PLAY_COST = 11;
 
 export interface SpecialPlayNameAssignment {
   readonly cardId: string;
@@ -123,6 +127,89 @@ export function getLlBp7001SpecialPlayTargetSlots(
     return [];
   }
   const sourceMemberData = source.data;
+  if (getManualOperationMode(game) === 'FREE') {
+    return [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT];
+  }
+
+  return [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].filter((slot) => {
+    const occupantId = player.memberSlots.slots[slot];
+    if (!occupantId) {
+      return true;
+    }
+    if (player.movedToStageThisTurn.includes(occupantId)) {
+      return false;
+    }
+    const occupant = getCardById(game, occupantId);
+    return (
+      occupant !== null &&
+      isMemberCardData(occupant.data) &&
+      canMemberBeRelayedAway(occupant.data, sourceMemberData) &&
+      costCalculator.canPlayInSlot(slot, player.movedToStageThisTurn, [
+        {
+          cardId: occupantId,
+          data: occupant.data,
+          position: slot,
+          orientation:
+            player.memberSlots.cardStates.get(occupantId)?.orientation ?? OrientationState.ACTIVE,
+        },
+      ])
+    );
+  });
+}
+
+export function isNBp7011SpecialPlaySource(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const source = getCardById(game, sourceCardId);
+  return (
+    player !== null &&
+    source !== null &&
+    source.ownerId === playerId &&
+    cardCodeMatchesBase(source.data.cardCode, N_BP7_011_SPECIAL_PLAY_BASE_CARD_CODE) &&
+    isMemberCardData(source.data) &&
+    source.data.cost === N_BP7_011_SPECIAL_PLAY_PRINTED_COST &&
+    player.hand.cardIds.includes(sourceCardId)
+  );
+}
+
+export function getNBp7011WaitingRoomMemberCardIds(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player || !isNBp7011SpecialPlaySource(game, playerId, sourceCardId)) {
+    return [];
+  }
+  return player.waitingRoom.cardIds.filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return card !== null && card.ownerId === playerId && isMemberCardData(card.data);
+  });
+}
+
+export function getNBp7011SpecialPlayTargetSlots(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly SlotPosition[] {
+  const player = getPlayerById(game, playerId);
+  const source = getCardById(game, sourceCardId);
+  if (
+    !player ||
+    !source ||
+    !isMemberCardData(source.data) ||
+    !isNBp7011SpecialPlaySource(game, playerId, sourceCardId) ||
+    getNBp7011WaitingRoomMemberCardIds(game, playerId, sourceCardId).length === 0
+  ) {
+    return [];
+  }
+  const sourceMemberData = source.data;
+  if (getManualOperationMode(game) === 'FREE') {
+    return [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT];
+  }
 
   return [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT].filter((slot) => {
     const occupantId = player.memberSlots.slots[slot];

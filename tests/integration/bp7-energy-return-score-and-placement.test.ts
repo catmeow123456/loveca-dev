@@ -25,6 +25,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import {
   S_BP7_023_LIVE_START_RETURN_ONE_ENERGY_DIFFERENCE_SCORE_ABILITY_ID,
+  S_BP7_024_LIVE_START_TARGET_AQOURS_MEMBER_ORIGINAL_HEART_GREEN_ABILITY_ID,
   SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP7_027_LIVE_START_RETURN_ONE_ENERGY_LEAD_SCORE_ABILITY_ID,
   SP_BP7_027_LIVE_SUCCESS_PLACE_SKIPPED_WAITING_ENERGY_ABILITY_ID,
@@ -310,7 +311,12 @@ describe('bp7 energy batch base-card definitions', () => {
     expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-023-P')).toHaveLength(1);
     expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-023-SECL')).toHaveLength(1);
     expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-027-P')).toHaveLength(2);
-    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-024-L')).toEqual([]);
+    expect(getCardAbilityDefinitionsForCardCode('PL!S-bp7-024-L')).toEqual([
+      expect.objectContaining({
+        abilityId: S_BP7_024_LIVE_START_TARGET_AQOURS_MEMBER_ORIGINAL_HEART_GREEN_ABILITY_ID,
+        baseCardCodes: ['PL!S-bp7-024'],
+      }),
+    ]);
     expect(getCardAbilityDefinitionsForCardCode('PL!SP-bp7-028-L')).not.toContainEqual(
       expect.objectContaining({
         abilityId: SP_BP7_027_LIVE_START_RETURN_ONE_ENERGY_LEAD_SCORE_ABILITY_ID,

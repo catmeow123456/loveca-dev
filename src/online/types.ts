@@ -10,6 +10,7 @@ import {
 import type { GameState } from '../domain/entities/game.js';
 import type { HeartIcon } from '../domain/entities/card.js';
 import type { ActivatedAbilityUiConfig } from '../application/card-effects/ability-definition-types.js';
+import type { CardDefinedSpecialMemberPlayMode } from '../shared/rules/member-play-options.js';
 import type { ManualOperationMode } from '../shared/types/manual-operation-mode.js';
 
 export type Seat = 'FIRST' | 'SECOND';
@@ -112,6 +113,8 @@ export interface MatchViewState {
   readonly turnCount: number;
   readonly phase: string;
   readonly subPhase: string;
+  /** 当前规则意义上的先攻席位；可能与开局 FIRST 席位不同。 */
+  readonly firstSeat: Seat;
   readonly activeSeat: Seat | null;
   readonly prioritySeat: Seat | null;
   readonly window: ViewWindowState | null;
@@ -269,6 +272,8 @@ export interface ActiveEffectViewState {
   readonly id: string;
   readonly abilityId: string;
   readonly sourceObjectId: string;
+  /** 来源曾公开时由服务端保留的展示编号；不改变来源对象当前牌区的可见性。 */
+  readonly sourceCardDisplayCode?: string;
   readonly controllerSeat: Seat | null;
   readonly effectText: string;
   readonly stepId: string;
@@ -350,12 +355,12 @@ export interface PendingSpecialMemberPlayViewState {
   readonly id: string;
   readonly playerSeat: Seat | null;
   readonly waiting: true;
-  readonly mode?: 'LL_BP7_001_SPECIAL_PLAY';
+  readonly mode?: CardDefinedSpecialMemberPlayMode;
   readonly sourceObjectId?: string;
   readonly targetSlot?: string;
   readonly candidateObjectIds?: readonly string[];
-  readonly minSelectableObjects?: 3;
-  readonly maxSelectableObjects?: 3;
+  readonly minSelectableObjects?: number;
+  readonly maxSelectableObjects?: number;
   readonly stepText?: string;
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;

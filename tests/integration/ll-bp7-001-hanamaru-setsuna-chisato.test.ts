@@ -488,6 +488,57 @@ describe('LL-bp7-001-R+ special member play', () => {
     expect(getMemberEffectiveCost(session.state!, PLAYER1, sourceId)).toBe(15);
   });
 
+  it('FREE keeps the named-card procedure but ignores energy and moved-slot restrictions', () => {
+    const { session, sourceId, paymentIds, activeEnergyIds } = setup();
+    expect(session.setManualOperationMode('FREE').success).toBe(true);
+    const player = session.state!.players[0];
+    const occupantId = player.hand.cardIds.find(
+      (cardId) => cardId !== sourceId && !paymentIds.includes(cardId)
+    )!;
+    const occupant = session.state!.cardRegistry.get(occupantId)!;
+    // Test setup installs an already-entered legal relay target before authority commands.
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    session.state!.cardRegistry.set(occupantId, {
+      ...occupant,
+      data: member('FREE-RELAY', '自由模式换手成员', 2),
+    });
+    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== occupantId);
+    player.memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, occupantId, {
+      orientation: OrientationState.ACTIVE,
+      face: FaceState.FACE_UP,
+    });
+    player.movedToStageThisTurn = [occupantId];
+
+    expect(
+      session.executeCommand(
+        createBeginSpecialMemberPlayCommand(PLAYER1, sourceId, SlotPosition.RIGHT)
+      ).success
+    ).toBe(true);
+    const pendingId = session.state!.pendingSpecialMemberPlay!.id;
+    expect(
+      session.executeCommand(createConfirmSpecialMemberPlayCommand(PLAYER1, pendingId, paymentIds))
+        .success
+    ).toBe(true);
+
+    expect(session.state!.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(sourceId);
+    expect(session.state!.players[0].waitingRoom.cardIds).toEqual(
+      expect.arrayContaining([...paymentIds, occupantId])
+    );
+    for (const energyId of activeEnergyIds) {
+      expect(session.state!.players[0].energyZone.cardStates.get(energyId)?.orientation).toBe(
+        OrientationState.ACTIVE
+      );
+    }
+    expect(session.state!.actionHistory.at(-1)?.payload).toMatchObject({
+      manualOperationMode: 'FREE',
+      relayReplacement: occupantId,
+      relayReplacements: [{ cardId: occupantId, slot: SlotPosition.RIGHT, effectiveCost: 2 }],
+      relayDiscount: 2,
+      paidEnergyCardIds: [],
+      paidEnergyCount: 0,
+    });
+  });
+
   it('rejects stale energy without discarding, paying, relaying, or playing', () => {
     const { session, sourceId, paymentIds } = setup();
     session.executeCommand(

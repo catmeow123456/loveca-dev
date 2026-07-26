@@ -51,6 +51,7 @@ const TOKEN_DEFINITIONS = new Map<string, Omit<CardEffectPlaceholderPart, 'raw'>
   ['【右侧】', { kind: 'slot', label: '右侧' }],
   ['[E]', { kind: 'cost', label: 'E', icon: 'cost' }],
   ['[スコア]', { kind: 'score', label: 'スコア' }],
+  ['[ドロー]', { kind: 'other', label: 'ドロー' }],
   ['[BLADE]', { kind: 'blade', label: 'BLADE', icon: 'blade' }],
   ['[ALLBLADE]', { kind: 'blade', label: 'ALLBLADE', icon: 'heart_all' }],
   ['[ブレード]', { kind: 'blade', label: 'ブレード', icon: 'blade' }],

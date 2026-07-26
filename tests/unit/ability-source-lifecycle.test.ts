@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createCardInstance,
+  createHeartIcon,
+  type MemberCardData,
+} from '../../src/domain/entities/card';
+import {
   addAction,
   createGameState,
   emitGameEvent,
+  registerCards,
+  updatePlayer,
   type ActiveEffectState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
@@ -14,7 +21,9 @@ import {
   createMemberStateChangedEvent,
 } from '../../src/domain/events/game-events';
 import {
+  CardType,
   FaceState,
+  HeartColor,
   OrientationState,
   SlotPosition,
   TriggerCondition,
@@ -55,6 +64,47 @@ function useMemberAbility(game: ReturnType<typeof createState>, sourceCardId = M
 }
 
 describe('per-turn ability source lifecycle', () => {
+  it('preserves exact state identity when a dispatch returns the input unchanged', () => {
+    const sourceData: MemberCardData = {
+      cardCode: 'PL!-test-source-P',
+      name: '测试来源',
+      cardType: CardType.MEMBER,
+      cost: 1,
+      blade: 1,
+      hearts: [createHeartIcon(HeartColor.PINK, 1)],
+    };
+    const source = createCardInstance(sourceData, P1, MEMBER_ID);
+    let busy = registerCards(createState('ability-lifecycle-no-op'), [source]);
+    busy = updatePlayer(busy, P1, (player) => ({
+      ...player,
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [source.instanceId],
+      },
+    }));
+    busy = {
+      ...busy,
+      activeEffect: {
+        id: 'busy',
+        abilityId: HANAYO_ACTIVATED_ABILITY_ID,
+        sourceCardId: source.instanceId,
+        controllerId: P1,
+        effectText: '处理中',
+        stepId: 'busy',
+        stepText: '处理中',
+        awaitingPlayerId: P1,
+      },
+    };
+
+    const propagated = propagateAbilitySourceLifecycle(busy, busy, {
+      abilityId: HANAYO_ACTIVATED_ABILITY_ID,
+      sourceCardId: source.instanceId,
+    });
+
+    expect(propagated).toBe(busy);
+    expect(propagated.activeEffect?.sourceCardDisplayCode).toBeUndefined();
+  });
+
   it('uses a deterministic initial lifecycle and keeps different physical copies independent', () => {
     const initial = createState('ability-lifecycle-initial');
     const firstLifecycle = getAbilitySourceLifecycleId(

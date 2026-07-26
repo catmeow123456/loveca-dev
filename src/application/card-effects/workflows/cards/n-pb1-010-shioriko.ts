@@ -12,8 +12,8 @@ import { getEnergySelectionCandidates } from '../../../effects/energy-selection.
 import { PL_N_PB1_010_ON_ENTER_CHOOSE_ACTIVATE_ONE_ENERGY_OR_STACK_NIJIGASAKI_LIVE_TO_DECK_TOP_ABILITY_ID } from '../../ability-ids.js';
 import {
   activateWaitingEnergyCardsForPlayer,
-  moveWaitingRoomCardsToDeckTopForPlayer,
 } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -231,10 +231,17 @@ function resolveShiorikoStackSelection(
     );
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(game, player.id, selectedCardIds, {
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, selectedCardIds, {
     candidateCardIds: initialCandidateCardIds,
     minCount: 0,
     maxCount: maxSelectableCards,
+    cause: {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
   });
   if (!moveResult) return game;
   return finishAndContinue(

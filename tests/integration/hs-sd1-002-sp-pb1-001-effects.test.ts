@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import type { MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import {
   createGameState,
   registerCards,
@@ -58,8 +62,23 @@ function createLiellaMember(cardCode: string, name = cardCode, cost = 4): Member
   };
 }
 
+function createLiellaLive(cardCode: string, name = cardCode): LiveCardData {
+  return {
+    cardCode,
+    name,
+    groupNames: ['Liella!'],
+    unitName: 'Liella!',
+    cardType: CardType.LIVE,
+    score: 1,
+    requirements: createHeartRequirement({ [HeartColor.RED]: 1 }),
+  };
+}
+
 function createState(cards: readonly ReturnType<typeof createCardInstance>[]): GameState {
-  return registerCards(createGameState('hs-sd1-002-sp-pb1-001', PLAYER1, 'P1', PLAYER2, 'P2'), cards);
+  return registerCards(
+    createGameState('hs-sd1-002-sp-pb1-001', PLAYER1, 'P1', PLAYER2, 'P2'),
+    cards
+  );
 }
 
 function putCards(options: {
@@ -193,9 +212,16 @@ function findBladeModifier(state: GameState, sourceCardId: string) {
   );
 }
 
-function createEnergyCards(count: number, prefix = 'energy'): ReturnType<typeof createCardInstance>[] {
+function createEnergyCards(
+  count: number,
+  prefix = 'energy'
+): ReturnType<typeof createCardInstance>[] {
   return Array.from({ length: count }, (_, index) =>
-    createCardInstance(createLiellaMember(`PL!SP-test-${prefix}-${index}`), PLAYER1, `${prefix}-${index}`)
+    createCardInstance(
+      createLiellaMember(`PL!SP-test-${prefix}-${index}`),
+      PLAYER1,
+      `${prefix}-${index}`
+    )
   );
 }
 
@@ -275,13 +301,28 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
         )
       );
 
-      const afterDiscard = chooseCards(state, hand.map((card) => card.instanceId));
+      const afterDiscard = chooseCards(
+        state,
+        hand.map((card) => card.instanceId)
+      );
       expect(afterDiscard.activeEffect?.inspectionCardIds).toEqual([
         selected.instanceId,
         ...rest.map((card) => card.instanceId),
       ]);
 
-      const resolved = chooseCard(afterDiscard, selected.instanceId);
+      const revealed = chooseCard(afterDiscard, selected.instanceId);
+
+      expect(revealed.activeEffect).toMatchObject({
+        stepId: 'HS_SD1_002_REVEAL_INSPECTED_MEMBER',
+        inspectionCardIds: [selected.instanceId, ...rest.map((card) => card.instanceId)],
+        selectableCardIds: [],
+        stepText: '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
+      });
+      expect(revealed.inspectionZone.revealedCardIds).toContain(selected.instanceId);
+      expect(revealed.players[0]!.hand.cardIds).toEqual([]);
+      expect(revealed.liveResolution.liveModifiers).toEqual([]);
+
+      const resolved = chooseCard(revealed, null);
 
       expect(resolved.players[0]!.hand.cardIds).toEqual([selected.instanceId]);
       expect(resolved.players[0]!.waitingRoom.cardIds).toEqual(rest.map((card) => card.instanceId));
@@ -290,8 +331,20 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
         expect.arrayContaining(hand.map((card) => card.instanceId))
       );
       expect(resolved.inspectionZone.cardIds).toEqual([]);
-      expect(hasWaitingEvent(resolved, ZoneType.HAND, hand.map((card) => card.instanceId))).toBe(true);
-      expect(hasWaitingEvent(resolved, ZoneType.MAIN_DECK, rest.map((card) => card.instanceId))).toBe(true);
+      expect(
+        hasWaitingEvent(
+          resolved,
+          ZoneType.HAND,
+          hand.map((card) => card.instanceId)
+        )
+      ).toBe(true);
+      expect(
+        hasWaitingEvent(
+          resolved,
+          ZoneType.MAIN_DECK,
+          rest.map((card) => card.instanceId)
+        )
+      ).toBe(true);
       expect(findHeartModifier(resolved, source.instanceId)).toMatchObject({
         kind: 'HEART',
         target: 'SOURCE_MEMBER',
@@ -332,7 +385,14 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
         )
       );
 
-      const resolved = chooseCard(chooseCards(state, hand.map((card) => card.instanceId)), selected.instanceId);
+      const revealed = chooseCard(
+        chooseCards(
+          state,
+          hand.map((card) => card.instanceId)
+        ),
+        selected.instanceId
+      );
+      const resolved = chooseCard(revealed, null);
 
       expect(resolved.players[0]!.hand.cardIds).toEqual([selected.instanceId]);
       expect(resolved.liveResolution.liveModifiers).toEqual([]);
@@ -366,17 +426,94 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
         )
       );
 
-      const resolved = chooseCard(chooseCards(state, hand.map((card) => card.instanceId)), null);
+      const resolved = chooseCard(
+        chooseCards(
+          state,
+          hand.map((card) => card.instanceId)
+        ),
+        null
+      );
 
       expect(resolved.players[0]!.hand.cardIds).toEqual([]);
       expect(resolved.players[0]!.waitingRoom.cardIds.slice(0, topCards.length)).toEqual(
         topCards.map((card) => card.instanceId)
       );
-      expect(resolved.players[0]!.waitingRoom.cardIds.slice(topCards.length)).toHaveLength(hand.length);
+      expect(resolved.players[0]!.waitingRoom.cardIds.slice(topCards.length)).toHaveLength(
+        hand.length
+      );
       expect(resolved.players[0]!.waitingRoom.cardIds.slice(topCards.length)).toEqual(
         expect.arrayContaining(hand.map((card) => card.instanceId))
       );
-      expect(hasWaitingEvent(resolved, ZoneType.MAIN_DECK, topCards.map((card) => card.instanceId))).toBe(true);
+      expect(
+        hasWaitingEvent(
+          resolved,
+          ZoneType.MAIN_DECK,
+          topCards.map((card) => card.instanceId)
+        )
+      ).toBe(true);
+      expect(resolved.liveResolution.liveModifiers).toEqual([]);
+    });
+
+    it('keeps five inspected non-members visible until confirming that all enter waiting room', () => {
+      const source = createCardInstance(
+        createHasunosoraMember('PL!HS-sd1-002-SD', '村野さやか', 11),
+        PLAYER1,
+        'sayaka-source'
+      );
+      const hand = [
+        createCardInstance(createLiellaMember('discard-a'), PLAYER1, 'discard-a'),
+        createCardInstance(createLiellaMember('discard-b'), PLAYER1, 'discard-b'),
+      ];
+      const topCards = Array.from({ length: 5 }, (_, index) =>
+        createCardInstance(
+          createLiellaLive(`PL!SP-no-member-${index}`),
+          PLAYER1,
+          `no-member-${index}`
+        )
+      );
+      const state = start(
+        putCards({
+          game: createState([source, ...hand, ...topCards]),
+          hand: hand.map((card) => card.instanceId),
+          deck: topCards.map((card) => card.instanceId),
+          stage: [{ cardId: source.instanceId, slot: SlotPosition.CENTER }],
+        }),
+        pending(
+          HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID,
+          source.instanceId,
+          TriggerCondition.ON_LIVE_START
+        )
+      );
+
+      const inspected = chooseCards(
+        state,
+        hand.map((card) => card.instanceId)
+      );
+      expect(inspected.activeEffect).toMatchObject({
+        inspectionCardIds: topCards.map((card) => card.instanceId),
+        selectableCardIds: [],
+        selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+        stepText: '没有可公开并加入手牌的成员卡。确认后将检视的卡全部放置入休息室。',
+        skipSelectionLabel: '全部放置入休息室',
+      });
+      expect(inspected.inspectionZone.cardIds).toEqual(topCards.map((card) => card.instanceId));
+      expect(
+        inspected.players[0]!.waitingRoom.cardIds.some((cardId) =>
+          topCards.some((card) => card.instanceId === cardId)
+        )
+      ).toBe(false);
+
+      const resolved = chooseCard(inspected, null);
+
+      expect(resolved.activeEffect).toBeNull();
+      expect(resolved.inspectionZone.cardIds).toEqual([]);
+      expect(
+        hasWaitingEvent(
+          resolved,
+          ZoneType.MAIN_DECK,
+          topCards.map((card) => card.instanceId)
+        )
+      ).toBe(true);
       expect(resolved.liveResolution.liveModifiers).toEqual([]);
     });
 

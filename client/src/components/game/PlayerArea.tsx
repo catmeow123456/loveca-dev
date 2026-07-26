@@ -47,6 +47,7 @@ import { isOwnDeskFreeDragWindow } from '@game/application/command-availability'
 import {
   CardAbilitySourceZone,
   getActivatedAbilityUiConfigs,
+  isActivatedAbilityUiConfigAvailableForOrientation,
 } from '@game/application/card-effect-runner';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
@@ -919,11 +920,12 @@ export const PlayerArea = memo(function PlayerArea({
 
     // 堆叠成员卡偏移量：向右下方偏移
     const memberBelowOffsetPercent = 8;
-    const activatedAbilityConfigs =
+    const activatedAbilityConfigs = (
       cardViewObject?.activatedAbilityUiConfigs ??
       (cardViewObject?.activatedAbilityUiConfig
         ? [cardViewObject.activatedAbilityUiConfig]
-        : getActivatedAbilityUiConfigs(card?.cardCode, CardAbilitySourceZone.STAGE_MEMBER));
+        : getActivatedAbilityUiConfigs(card?.cardCode, CardAbilitySourceZone.STAGE_MEMBER))
+    ).filter((config) => isActivatedAbilityUiConfigAvailableForOrientation(config, orientation));
     const canActivateAbility =
       card !== null &&
       activatedAbilityConfigs.length > 0 &&

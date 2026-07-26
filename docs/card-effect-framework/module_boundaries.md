@@ -122,8 +122,21 @@ Rules:
 - 不把 continuous modifier 混入 runner workflow 或 steps DSL。
 - `SOURCE_MEMBER` / `TARGET_MEMBER` Heart 应由有效 Heart 读取路径合并，不写入 legacy `playerHeartBonuses`。
 
-## Narrow special-member-play authority boundary
+## 有限成员登场选项与卡定义特殊登场边界
 
-`LL-bp7-001-R+` 是首个窄特殊成员登场样本。`BEGIN_SPECIAL_MEMBER_PLAY` 在先选成员区后建立可复水 pending；`CONFIRM` 由权威端重验姓名分配、区域、换手与能量并原子结算。客户端不提交数字费用。窄 `specialPlayBaseCost: 10` 只是本次 play 的服务端验证输入；不改写印刷费用，不写登场后 modifier/replacement。该边界不是任意特殊登场或替代费用 DSL。
+手牌成员的额外登场方式统一由 `application/member-play-options.ts` 投影为 `MemberPlayOption`。`DOUBLE_RELAY` 是普通登场命令的有限换手选项，仍提交 `PLAY_MEMBER_TO_SLOT + relayMode=DOUBLE`；只有 `CARD_DEFINED` 进入服务端权威 `BEGIN/CONFIRM_SPECIAL_MEMBER_PLAY`。客户端只渲染服务端给出的 option id、玩家文案、合法槽位与选择描述，不维护基础编号白名单，不自行计算费用或推导程序动作。
 
-BEGIN 的权威 guard 必须拒绝任何未结算 `activeEffect` / pending ability/choice/cost、check timing、inspection 或 delegated sequence，不得依赖 UI 隐藏按钮。确认时，空区域只计算非换手方案；已占区域必须将费用查询绑定 `relayMode: 'SINGLE'`，即使被换手成员有效费用为0，费用 action、replacement 事件和 sealed audit 也必须记录同一换手事实。这里的前提是来牌的 `specialPlayBaseCost: 10` 仍有待支付能量；“被换成员有效费用为0”不等于“来牌当前登场费用为0”。后者不得建立单/双换手方案，覆盖登场时应由重复成员规则处理旧成员。
+`application/special-member-play-procedures.ts` 是显式 procedure registry。当前真实模式包括：
+
+- `LL-bp7-001`：选择指定三名成员作为程序成本，本次特殊登场基准费用为10。
+- `PL!N-bp7-011`：将自己休息室全部成员洗切并放置于主卡组底，本次特殊登场基准费用为11。
+
+每个 procedure 各自拥有 begin/confirm 校验、可序列化 pending、玩家文案配置和原子 resolve。新增真实样本应增加有限 procedure 与 RULES/FREE focused 测试，不得把支付区域、费用公式、任意移动序列或 callback 扩成特殊登场 DSL。
+
+BEGIN 的权威 guard 必须拒绝未结算 `activeEffect`、pending ability/choice/cost、check timing、inspection 或 delegated sequence，不能依赖 UI 隐藏按钮。确认时重验来源、目标槽、程序候选、区域事实、固定费用上下文与当前模式；任一步失败都返回原状态。休息室到主卡组移动必须走中央 grouped event wrapper，登场仍走标准 `ON_ENTER_STAGE`、换手 replacement 与 sealed audit 管线。
+
+RULES 模式按服务端费用计划、换手合法性与 `movedToStageThisTurn` 槽位限制结算；客户端不提交数字费用。`specialPlayBaseCost` 只影响本次 play 的费用上下文，不改写印刷费用或登场后的 modifier。已占槽位必须记录真实单换手/重复成员事实，不能因为被换成员有效费用为0而省略 replacement。
+
+FREE 模式只放宽本次特殊登场的能量支付和目标槽位限制：不检查或支付登场能量，三个成员区均可成为目标且不受 `movedToStageThisTurn` 限制；卡面规定的程序成本/动作仍必须完整执行，占用槽位继续沿用普通 FREE 登场的单换手或重复成员规则。审计必须记录 `manualOperationMode`、实际支付能量和真实 replacement，不能把 FREE 的0能量或换手事实伪装成 RULES 计划。
+
+更完整的执行约束与当前样本见 `runtime_action_helpers.md` 的“卡效特殊登场 + ON_ENTER_STAGE 触发”和 `workflow_module_guide.md` 的“有限成员登场选项与卡定义特殊流程”；本节只定义层级边界，不重复维护 procedure 细节。

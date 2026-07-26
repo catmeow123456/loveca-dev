@@ -8,7 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { ZoneType } from '../../../../shared/types/enums.js';
 import { PR_FILL_WAITING_ROOM_TO_EIGHT_OPTIONAL_MILLED_LIVE_TO_DECK_TOP_ABILITY_ID } from '../../ability-ids.js';
-import { moveWaitingRoomCardsToDeckTopForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -223,10 +223,17 @@ function finishMilledLiveToDeckTopSelection(
     return game;
   }
 
-  const moveResult = moveWaitingRoomCardsToDeckTopForPlayer(game, player.id, [selectedCardId], {
+  const moveResult = moveWaitingRoomCardsToDeckTopAndEnqueueTriggers(game, player.id, [selectedCardId], {
     candidateCardIds: effect.selectableCardIds,
     minCount: 1,
     maxCount: 1,
+    cause: {
+      kind: 'CARD_EFFECT',
+      playerId: effect.controllerId,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    },
   });
   if (!moveResult) {
     return game;

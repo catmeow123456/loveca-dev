@@ -4,7 +4,8 @@ import { addHeartLiveModifierForMember, replaceLiveModifier } from '../../../../
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { drawCardsForPlayer, moveWaitingRoomCardsToDeckBottomForPlayer } from '../../runtime/actions.js';
+import { drawCardsForPlayer } from '../../runtime/actions.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -62,7 +63,12 @@ function finish(game: GameState, selected: readonly string[], cont: Continue): G
   }
   const costs = selected.map((id) => getCardById(game, id)?.data).filter((data): data is NonNullable<typeof data> => data !== undefined).filter(isMemberCardData).map((data) => data.cost);
   if (costs.length !== 2) return game;
-  const moved = moveWaitingRoomCardsToDeckBottomForPlayer({ ...game, activeEffect: null }, effect.controllerId, selected, { candidateCardIds: current, minCount: 2, maxCount: 2 });
+  const moved = moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers({ ...game, activeEffect: null }, effect.controllerId, selected, {
+    candidateCardIds: current,
+    minCount: 2,
+    maxCount: 2,
+    cause: { kind: 'CARD_EFFECT', playerId: effect.controllerId, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId, pendingAbilityId: effect.id },
+  });
   if (!moved) return game;
   const sum = costs[0] + costs[1];
   let state = moved.gameState;

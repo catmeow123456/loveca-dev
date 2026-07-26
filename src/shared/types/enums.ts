@@ -330,6 +330,8 @@ export enum TriggerCondition {
   ON_ENERGY_PLACED_BY_CARD_EFFECT = 'ON_ENERGY_PLACED_BY_CARD_EFFECT',
   /** 能量从能量区放置入能量卡组 */
   ON_ENERGY_MOVED_TO_DECK = 'ON_ENERGY_MOVED_TO_DECK',
+  /** 休息室中的卡牌被放置入主卡组 */
+  ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK = 'ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK',
 
   // ---- Live 相关触发 ----
   /** Live 开始时 */
