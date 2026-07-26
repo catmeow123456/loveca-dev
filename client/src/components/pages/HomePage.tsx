@@ -25,6 +25,7 @@ import {
   ShieldAlert,
   Swords,
   TriangleAlert,
+  UserRound,
   WifiOff,
   X,
 } from 'lucide-react';
@@ -68,6 +69,7 @@ const ANNOUNCEMENT_TYPE_LABELS: Record<SiteAnnouncementType, string> = {
 };
 
 interface HomePageProps {
+  onNavigateToAccount: () => void;
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
   onNavigateToOnlineRoom: () => void;
@@ -122,6 +124,7 @@ interface AnnouncementDisplayItem {
 }
 
 export function HomePage({
+  onNavigateToAccount,
   onNavigateToDeckManager,
   onNavigateToGameSetup,
   onNavigateToOnlineRoom,
@@ -384,6 +387,7 @@ export function HomePage({
         announcementCount={announcementItems.length}
         hasUnreadAnnouncements={hasUnreadAnnouncements}
         onOpenAnnouncements={openAnnouncements}
+        onOpenAccount={profile ? onNavigateToAccount : undefined}
         onSignOut={signOut}
       />
 
@@ -990,6 +994,7 @@ function EntryPageHeader({
   announcementCount,
   hasUnreadAnnouncements,
   onOpenAnnouncements,
+  onOpenAccount,
   onSignOut,
 }: {
   displayUsername: string;
@@ -1002,6 +1007,7 @@ function EntryPageHeader({
   announcementCount: number;
   hasUnreadAnnouncements: boolean;
   onOpenAnnouncements: () => void;
+  onOpenAccount?: () => void;
   onSignOut: () => void;
 }) {
   return (
@@ -1034,6 +1040,17 @@ function EntryPageHeader({
           <span className="hidden max-w-36 truncate text-xs font-medium text-[var(--text-secondary)] sm:block">
             {displayUsername}
           </span>
+          {onOpenAccount ? (
+            <button
+              type="button"
+              onClick={onOpenAccount}
+              className="button-icon"
+              title="个人中心"
+              aria-label="个人中心"
+            >
+              <UserRound size={16} />
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onOpenAnnouncements}

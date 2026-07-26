@@ -68,6 +68,33 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
   return true;
 }
 
+export async function sendEmailChangeVerificationEmail(
+  email: string,
+  token: string
+): Promise<boolean> {
+  const t = getTransporter();
+  if (!t) {
+    console.warn('SMTP not configured, skipping email change verification');
+    return false;
+  }
+
+  const verifyUrl = buildAuthActionUrl('/verify-email-change', token);
+
+  await t.sendMail({
+    from: config.smtp.from,
+    to: email,
+    subject: 'Loveca - 确认新邮箱',
+    html: `
+      <h2>确认新邮箱</h2>
+      <p>请点击以下链接完成 Loveca 账号的邮箱换绑：</p>
+      <p><a href="${verifyUrl}">${verifyUrl}</a></p>
+      <p>此链接 24 小时内有效。确认后，其他设备上的登录会话将失效。</p>
+      <p>如果您没有申请换绑邮箱，请忽略此邮件。</p>
+    `,
+  });
+  return true;
+}
+
 function buildAuthActionUrl(path: string, token: string): string {
   const baseUrl = config.frontendUrl.replace(/\/+$/, '');
   return `${baseUrl}${path}#token=${encodeURIComponent(token)}`;

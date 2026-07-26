@@ -40,6 +40,15 @@ interface UserIdRow {
   user_id: string;
 }
 
+interface EmailChangeRow extends UserIdRow {
+  new_email: string;
+}
+
+export type VerifyEmailChangeResult =
+  | { readonly status: 'success'; readonly userId: string; readonly email: string }
+  | { readonly status: 'invalid' }
+  | { readonly status: 'email-taken' };
+
 // ============================================
 // Password hashing
 // ============================================
@@ -303,6 +312,80 @@ export async function verifyEmailToken(token: string): Promise<{ userId: string 
   }
 }
 
+export async function createEmailChangeToken(userId: string, newEmail: string): Promise<string> {
+  const token = generateRandomToken();
+  const tokenDigest = digestOneTimeToken(token, 'email-change');
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  await pool.query(
+    `INSERT INTO email_change_tokens (user_id, new_email, token, expires_at)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id) DO UPDATE
+     SET new_email = EXCLUDED.new_email,
+         token = EXCLUDED.token,
+         expires_at = EXCLUDED.expires_at,
+         created_at = now()`,
+    [userId, newEmail, tokenDigest, expiresAt]
+  );
+  return token;
+}
+
+export async function cancelEmailChangeToken(userId: string, token: string): Promise<void> {
+  await pool.query('DELETE FROM email_change_tokens WHERE user_id = $1 AND token = $2', [
+    userId,
+    digestOneTimeToken(token, 'email-change'),
+  ]);
+}
+
+export async function verifyEmailChangeToken(token: string): Promise<VerifyEmailChangeResult> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const consumed = await client.query<EmailChangeRow>(
+      `DELETE FROM email_change_tokens
+       WHERE token = $1 AND expires_at > now()
+       RETURNING user_id, new_email`,
+      [digestOneTimeToken(token, 'email-change')]
+    );
+    const row = consumed.rows[0];
+    if (!row) {
+      await client.query('ROLLBACK');
+      return { status: 'invalid' };
+    }
+
+    const updated = await client.query<IdRow>(
+      `UPDATE users
+       SET email = $1, email_verified = true, updated_at = now()
+       WHERE id = $2
+         AND NOT EXISTS (
+           SELECT 1 FROM users other
+           WHERE lower(other.email) = lower($1) AND other.id <> $2
+         )
+       RETURNING id`,
+      [row.new_email, row.user_id]
+    );
+    if (updated.rowCount !== 1) {
+      await client.query('ROLLBACK');
+      return { status: 'email-taken' };
+    }
+
+    await client.query('DELETE FROM refresh_tokens WHERE user_id = $1', [row.user_id]);
+    await client.query('DELETE FROM email_verification_tokens WHERE user_id = $1', [row.user_id]);
+    await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [row.user_id]);
+    await client.query('DELETE FROM email_change_tokens WHERE user_id = $1', [row.user_id]);
+    await client.query('COMMIT');
+    return { status: 'success', userId: row.user_id, email: row.new_email };
+  } catch (error) {
+    await rollbackQuietly(client);
+    if (isUniqueViolation(error)) {
+      return { status: 'email-taken' };
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
 export async function createPasswordResetToken(userId: string): Promise<string> {
   const token = generateRandomToken();
   const tokenDigest = digestOneTimeToken(token, 'password-reset');
@@ -396,6 +479,10 @@ function digestOneTimeToken(token: string, purpose: string): string {
     .update(`${purpose}\0`, 'utf8')
     .update(token, 'utf8')
     .digest('hex');
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return !!error && typeof error === 'object' && (error as { code?: unknown }).code === '23505';
 }
 
 async function rollbackQuietly(client: PoolClient): Promise<void> {

@@ -85,6 +85,11 @@ const MatchRecordsPage = lazy(() =>
 const SharedDeckPage = lazy(() =>
   import('@/components/pages/SharedDeckPage').then((module) => ({ default: module.SharedDeckPage }))
 );
+const AccountCenterPage = lazy(() =>
+  import('@/components/pages/AccountCenterPage').then((module) => ({
+    default: module.AccountCenterPage,
+  }))
+);
 const CardAdminPage = lazy(() => import('@/components/admin/CardAdminPage'));
 const OnlineRoomsAdminPage = lazy(() =>
   import('@/components/admin/OnlineRoomsAdminPage').then((module) => ({
@@ -97,9 +102,16 @@ const SiteAnnouncementsAdminPage = lazy(() =>
   }))
 );
 
-type AuthPage = 'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email';
+type AuthPage =
+  | 'login'
+  | 'register'
+  | 'forgot-password'
+  | 'reset-password'
+  | 'verify-email'
+  | 'verify-email-change';
 type AppPage =
   | 'home'
+  | 'account'
   | 'deck-manager'
   | 'game-setup'
   | 'online-room'
@@ -130,6 +142,10 @@ function getInitialAuthRequest(): InitialAuthRequest {
     return { page: 'verify-email', token };
   }
 
+  if (path === '/verify-email-change') {
+    return { page: 'verify-email-change', token };
+  }
+
   if (path === '/reset-password') {
     return { page: 'reset-password', token };
   }
@@ -141,6 +157,7 @@ function getInitialPage(): AppPage {
   const page = new URLSearchParams(window.location.search).get('page');
   if (
     page === 'deck-manager' ||
+    page === 'account' ||
     page === 'game-setup' ||
     page === 'online-room' ||
     page === 'public-table' ||
@@ -161,7 +178,9 @@ function getInitialPage(): AppPage {
 function App() {
   const [initialAuthRequest] = useState<InitialAuthRequest>(() => getInitialAuthRequest());
   const isInitialAuthActionPage =
-    initialAuthRequest.page === 'reset-password' || initialAuthRequest.page === 'verify-email';
+    initialAuthRequest.page === 'reset-password' ||
+    initialAuthRequest.page === 'verify-email' ||
+    initialAuthRequest.page === 'verify-email-change';
   const [isLoading, setIsLoading] = useState(!isInitialAuthActionPage);
   const [error, setError] = useState<string | null>(null);
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
@@ -356,7 +375,11 @@ function App() {
   useEffect(() => {
     if (!authInitialized) return;
 
-    if (authPage === 'reset-password' || authPage === 'verify-email') {
+    if (
+      authPage === 'reset-password' ||
+      authPage === 'verify-email' ||
+      authPage === 'verify-email-change'
+    ) {
       return;
     }
 
@@ -426,7 +449,11 @@ function App() {
       return;
     }
 
-    if (authPage === 'reset-password' || authPage === 'verify-email') {
+    if (
+      authPage === 'reset-password' ||
+      authPage === 'verify-email' ||
+      authPage === 'verify-email-change'
+    ) {
       return;
     }
 
@@ -534,6 +561,7 @@ function App() {
     setIsLoading(true);
     if (
       window.location.pathname === '/verify-email' ||
+      window.location.pathname === '/verify-email-change' ||
       window.location.pathname === '/reset-password'
     ) {
       window.history.replaceState(null, '', '/');
@@ -547,6 +575,12 @@ function App() {
 
   if (authPage === 'verify-email') {
     return <VerifyEmailPage token={authToken} onSwitchToLogin={switchToLogin} />;
+  }
+
+  if (authPage === 'verify-email-change') {
+    return (
+      <VerifyEmailPage purpose="email-change" token={authToken} onSwitchToLogin={switchToLogin} />
+    );
   }
 
   if (shareId && (isAuthenticated || !shareLoginRequested)) {
@@ -714,6 +748,15 @@ function App() {
     );
   }
 
+  if (effectivePage === 'account' && user && profile && !offlineMode) {
+    return withPublicTableLayer(
+      <AccountCenterPage
+        emailChangeEnabled={emailFeature.enabled}
+        onBack={() => setCurrentPage('home')}
+      />
+    );
+  }
+
   // 卡牌管理页面
   if (effectivePage === 'card-admin' && profile?.role === 'admin') {
     return withPublicTableLayer(<CardAdminPage onBack={() => setCurrentPage('home')} />);
@@ -737,6 +780,7 @@ function App() {
   return withPublicTableLayer(
     <HomePage
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
+      onNavigateToAccount={() => setCurrentPage('account')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToPublicTable={() => setCurrentPage('public-table')}

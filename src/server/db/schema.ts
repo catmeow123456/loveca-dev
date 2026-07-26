@@ -137,6 +137,27 @@ export const emailVerificationTokens = pgTable(
   (table) => [index('idx_email_verification_tokens_token').on(table.token)]
 );
 
+export const emailChangeTokens = pgTable(
+  'email_change_tokens',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .unique()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    newEmail: text('new_email').notNull(),
+    token: text('token').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_email_change_tokens_token').on(table.token),
+    index('idx_email_change_tokens_expires_at').on(table.expiresAt),
+  ]
+);
+
 export const passwordResetTokens = pgTable(
   'password_reset_tokens',
   {

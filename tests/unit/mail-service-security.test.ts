@@ -27,6 +27,7 @@ vi.mock('nodemailer', () => ({
 }));
 
 import {
+  sendEmailChangeVerificationEmail,
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '../../src/server/services/mail-service';
@@ -61,5 +62,17 @@ describe('mail-service auth links', () => {
     expect(mocks.sendMail).toHaveBeenCalledOnce();
     expect(firstMailHtml()).toContain('https://loveca.example/reset-password#token=reset-token');
     expect(firstMailHtml()).not.toContain('/reset-password?token=');
+  });
+
+  it('uses a fragment URL for email-change verification links', async () => {
+    await expect(sendEmailChangeVerificationEmail('new@example.com', 'change-token')).resolves.toBe(
+      true
+    );
+
+    expect(mocks.sendMail).toHaveBeenCalledOnce();
+    expect(firstMailHtml()).toContain(
+      'https://loveca.example/verify-email-change#token=change-token'
+    );
+    expect(firstMailHtml()).not.toContain('/verify-email-change?token=');
   });
 });

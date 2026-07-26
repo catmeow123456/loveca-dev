@@ -14,12 +14,16 @@ const mocks = vi.hoisted(() => ({
   revokeRefreshToken: vi.fn(),
   deleteAllRefreshTokens: vi.fn(),
   signAccessToken: vi.fn(),
+  createEmailChangeToken: vi.fn(),
+  cancelEmailChangeToken: vi.fn(),
+  verifyEmailChangeToken: vi.fn(),
   createEmailVerificationToken: vi.fn(),
   verifyEmailToken: vi.fn(),
   createPasswordResetToken: vi.fn(),
   resetPasswordWithToken: vi.fn(),
   updatePasswordAndInvalidateSessions: vi.fn(),
   sendVerificationEmail: vi.fn(),
+  sendEmailChangeVerificationEmail: vi.fn(),
   sendPasswordResetEmail: vi.fn(),
 }));
 
@@ -49,6 +53,9 @@ vi.mock('../../src/server/services/auth-service.js', () => ({
   revokeRefreshToken: mocks.revokeRefreshToken,
   deleteAllRefreshTokens: mocks.deleteAllRefreshTokens,
   signAccessToken: mocks.signAccessToken,
+  createEmailChangeToken: mocks.createEmailChangeToken,
+  cancelEmailChangeToken: mocks.cancelEmailChangeToken,
+  verifyEmailChangeToken: mocks.verifyEmailChangeToken,
   createEmailVerificationToken: mocks.createEmailVerificationToken,
   verifyEmailToken: mocks.verifyEmailToken,
   createPasswordResetToken: mocks.createPasswordResetToken,
@@ -58,6 +65,7 @@ vi.mock('../../src/server/services/auth-service.js', () => ({
 
 vi.mock('../../src/server/services/mail-service.js', () => ({
   sendVerificationEmail: mocks.sendVerificationEmail,
+  sendEmailChangeVerificationEmail: mocks.sendEmailChangeVerificationEmail,
   sendPasswordResetEmail: mocks.sendPasswordResetEmail,
 }));
 
@@ -443,6 +451,97 @@ describe('authRouter security behavior', () => {
     expect(response.body?.error?.code).toBe('INVALID_TOKEN');
     expect(mocks.verifyEmailToken).toHaveBeenCalledWith('e'.repeat(64));
     expect(mocks.poolQuery).not.toHaveBeenCalled();
+  });
+
+  it('requires the current password before sending an email-change link', async () => {
+    mocks.poolQuery.mockResolvedValue({
+      rows: [{ email: 'user@example.com', password_hash: 'stored-password-hash' }],
+      rowCount: 1,
+    });
+    mocks.verifyPassword.mockResolvedValue(false);
+
+    const response = await invokeRoute('/email-change', 'post', {
+      ip: '198.51.100.33',
+      user: { id: '11111111-1111-4111-8111-111111111111', role: 'user' },
+      body: { newEmail: 'new@example.com', currentPassword: 'wrong-password' },
+    });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.body?.error?.code).toBe('INVALID_PASSWORD');
+    expect(mocks.createEmailChangeToken).not.toHaveBeenCalled();
+    expect(mocks.sendEmailChangeVerificationEmail).not.toHaveBeenCalled();
+  });
+
+  it('sends email-change verification to the normalized new address', async () => {
+    mocks.poolQuery
+      .mockResolvedValueOnce({
+        rows: [{ email: 'user@example.com', password_hash: 'stored-password-hash' }],
+        rowCount: 1,
+      })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    mocks.verifyPassword.mockResolvedValue(true);
+    mocks.createEmailChangeToken.mockResolvedValue('f'.repeat(64));
+    mocks.sendEmailChangeVerificationEmail.mockResolvedValue(true);
+
+    const response = await invokeRoute('/email-change', 'post', {
+      ip: '198.51.100.34',
+      user: { id: '11111111-1111-4111-8111-111111111111', role: 'user' },
+      body: { newEmail: 'NEW@Example.COM', currentPassword: 'current-password' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.createEmailChangeToken).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      'new@example.com'
+    );
+    expect(mocks.sendEmailChangeVerificationEmail).toHaveBeenCalledWith(
+      'new@example.com',
+      'f'.repeat(64)
+    );
+    expect(response.body?.data).toMatchObject({ pendingEmail: 'new@example.com' });
+  });
+
+  it('removes an email-change token when delivery fails', async () => {
+    mocks.poolQuery
+      .mockResolvedValueOnce({
+        rows: [{ email: 'user@example.com', password_hash: 'stored-password-hash' }],
+        rowCount: 1,
+      })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    mocks.verifyPassword.mockResolvedValue(true);
+    mocks.createEmailChangeToken.mockResolvedValue('a'.repeat(64));
+    mocks.sendEmailChangeVerificationEmail.mockResolvedValue(false);
+    mocks.cancelEmailChangeToken.mockResolvedValue(undefined);
+
+    const response = await invokeRoute('/email-change', 'post', {
+      ip: '198.51.100.35',
+      user: { id: '11111111-1111-4111-8111-111111111111', role: 'user' },
+      body: { newEmail: 'newer@example.com', currentPassword: 'current-password' },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.body?.error?.code).toBe('EMAIL_UNAVAILABLE');
+    expect(mocks.cancelEmailChangeToken).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      'a'.repeat(64)
+    );
+  });
+
+  it('confirms an email change and clears the local refresh cookie', async () => {
+    mocks.verifyEmailChangeToken.mockResolvedValue({
+      status: 'success',
+      userId: '11111111-1111-4111-8111-111111111111',
+      email: 'new@example.com',
+    });
+
+    const response = await invokeRoute('/email-change/verify', 'post', {
+      ip: '198.51.100.36',
+      body: { token: 'b'.repeat(64) },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(mocks.verifyEmailChangeToken).toHaveBeenCalledWith('b'.repeat(64));
+    expect(response.cookiesCleared[0]).toMatchObject({ name: 'refresh_token' });
   });
 
   it('rejects unauthenticated current-password changes before hashing the replacement', async () => {

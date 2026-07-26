@@ -59,7 +59,25 @@ CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_token ON public.email_v
 COMMENT ON TABLE public.email_verification_tokens IS '邮箱验证一次性 token 的带密钥摘要';
 
 -- ============================================
--- 4. password_reset_tokens 表
+-- 4. email_change_tokens 表
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.email_change_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID UNIQUE NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  new_email TEXT NOT NULL,
+  token TEXT UNIQUE NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_change_tokens_token ON public.email_change_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_email_change_tokens_expires_at ON public.email_change_tokens(expires_at);
+
+COMMENT ON TABLE public.email_change_tokens IS '待确认邮箱换绑的一次性 token 带密钥摘要';
+
+-- ============================================
+-- 5. password_reset_tokens 表
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS public.password_reset_tokens (
@@ -76,7 +94,7 @@ CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON public.password_re
 COMMENT ON TABLE public.password_reset_tokens IS '密码重置一次性 token 的带密钥摘要';
 
 -- ============================================
--- 5. profiles 表
+-- 6. profiles 表
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS public.profiles (
@@ -100,7 +118,7 @@ COMMENT ON COLUMN public.profiles.role IS '用户角色: user 或 admin';
 COMMENT ON COLUMN public.profiles.deck_count IS '已创建卡组数量（触发器自动维护）';
 
 -- ============================================
--- 6. decks 表
+-- 7. decks 表
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS public.decks (
@@ -158,7 +176,7 @@ COMMENT ON COLUMN public.decks.forked_from_share_id IS '复制来源分享 ID';
 COMMENT ON COLUMN public.decks.forked_at IS '复制保存时间';
 
 -- ============================================
--- 7. cards 表 (合并 003, 004, 005, 006)
+-- 8. cards 表 (合并 003, 004, 005, 006)
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS public.cards (
@@ -210,7 +228,7 @@ COMMENT ON COLUMN public.cards.requirements IS 'Live卡心需求数组，格式:
 COMMENT ON COLUMN public.cards.status IS '卡牌状态: DRAFT(草稿) 或 PUBLISHED(已上线)';
 
 -- ============================================
--- 8. 对局记录与回放表
+-- 9. 对局记录与回放表
 -- ============================================
 
 CREATE TABLE IF NOT EXISTS public.match_records (
@@ -470,7 +488,7 @@ COMMENT ON TABLE public.match_record_private_events IS '历史对局按座位隔
 COMMENT ON TABLE public.match_checkpoints IS '历史对局 checkpoint payload envelope';
 
 -- ============================================
--- 9. 触发器函数
+-- 10. 触发器函数
 -- ============================================
 
 -- 维护 profiles.deck_count
@@ -518,7 +536,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- ============================================
--- 10. 触发器
+-- 11. 触发器
 -- ============================================
 
 CREATE TRIGGER on_deck_change
@@ -538,7 +556,7 @@ CREATE TRIGGER update_user_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.update_user_timestamp();
 
 -- ============================================
--- 11. 清理过期 token 的函数（可定期调用）
+-- 12. 清理过期 token 的函数（可定期调用）
 -- ============================================
 
 CREATE OR REPLACE FUNCTION public.cleanup_expired_tokens()
@@ -552,6 +570,10 @@ BEGIN
   total := total + cnt;
 
   DELETE FROM public.email_verification_tokens WHERE expires_at < now();
+  GET DIAGNOSTICS cnt = ROW_COUNT;
+  total := total + cnt;
+
+  DELETE FROM public.email_change_tokens WHERE expires_at < now();
   GET DIAGNOSTICS cnt = ROW_COUNT;
   total := total + cnt;
 

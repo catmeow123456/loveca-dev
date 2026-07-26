@@ -52,6 +52,11 @@ interface AuthState {
     token?: string,
     currentPassword?: string
   ) => Promise<{ success: boolean; error?: string }>;
+  requestEmailChange: (
+    newEmail: string,
+    currentPassword: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  verifyEmailChange: (token: string) => Promise<{ success: boolean; error?: string }>;
   verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>;
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
   clearError: () => void;
@@ -294,6 +299,64 @@ export const useAuthStore = create<AuthState>()(
           return { success: true };
         } catch (err) {
           const message = err instanceof Error ? err.message : '更新密码失败';
+          set({ isLoading: false, error: message });
+          return { success: false, error: message };
+        }
+      },
+
+      requestEmailChange: async (newEmail, currentPassword) => {
+        if (!isApiConfigured || !get().user) {
+          return { success: false, error: '未登录' };
+        }
+
+        set({ isLoading: true, error: null });
+
+        try {
+          const result = await apiClient.post('/api/auth/email-change', {
+            newEmail,
+            currentPassword,
+          });
+
+          if (result.error) {
+            set({ isLoading: false, error: result.error.message });
+            return { success: false, error: result.error.message };
+          }
+
+          set({ isLoading: false });
+          return { success: true };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : '申请邮箱换绑失败';
+          set({ isLoading: false, error: message });
+          return { success: false, error: message };
+        }
+      },
+
+      verifyEmailChange: async (token) => {
+        if (!isApiConfigured) {
+          return { success: false, error: '服务器未配置' };
+        }
+
+        set({ isLoading: true, error: null });
+
+        try {
+          const result = await apiClient.post('/api/auth/email-change/verify', { token });
+
+          if (result.error) {
+            set({ isLoading: false, error: result.error.message });
+            return { success: false, error: result.error.message };
+          }
+
+          setAccessToken(null);
+          set({
+            user: null,
+            profile: null,
+            offlineMode: false,
+            offlineUser: null,
+            isLoading: false,
+          });
+          return { success: true };
+        } catch (err) {
+          const message = err instanceof Error ? err.message : '邮箱换绑失败';
           set({ isLoading: false, error: message });
           return { success: false, error: message };
         }

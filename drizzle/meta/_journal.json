@@ -64,6 +64,13 @@
       "when": 1784877556100,
       "tag": "0008_add_public_table_beta",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785072724403,
+      "tag": "0009_magenta_nightcrawler",
+      "breakpoints": true
     }
   ]
 }

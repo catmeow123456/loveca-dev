@@ -332,7 +332,7 @@ graph TB
 
 - `gameStore`：对局状态桥接与动作封装
 - `deckStore`：卡组编辑与云端卡组管理
-- `authStore`：认证、会话恢复、离线模式
+- `authStore`：认证、会话恢复、个人资料与凭据更新、离线模式
 - `GameBoard`：拖拽与对局主交互容器
 
 代码路径：
@@ -340,6 +340,7 @@ graph TB
 - `client/src/store/gameStore.ts`
 - `client/src/store/deckStore.ts`
 - `client/src/store/authStore.ts`
+- `client/src/components/pages/AccountCenterPage.tsx`
 - `client/src/components/game/`
 - `client/src/components/pages/GameSetupPage.tsx`
 
@@ -391,7 +392,7 @@ graph LR
 
 - 访问令牌固定使用带 issuer、audience、subject 与角色约束的 HS256 JWT；浏览器只在内存中保存访问令牌。
 - 刷新令牌通过 HttpOnly Cookie 传递，Cookie 保存令牌定位符与随机 secret，数据库只保存 secret 预哈希后的 bcrypt 摘要；刷新和当前设备登出分别在数据库事务中锁定、校验并轮换或撤销目标令牌。
-- 启用 `EMAIL_ENABLED` 后，注册邮箱和登录前验证成为强制门禁，服务启动时校验完整 SMTP 配置。邮箱验证与密码重置只保存带密钥摘要，一次性 token 的消费、账号更新和相关会话撤销在同一事务完成；邮件链接通过 URL fragment 交给前端并在页面初始化时清理。
+- 启用 `EMAIL_ENABLED` 后，注册邮箱和登录前验证成为强制门禁，服务启动时校验完整 SMTP 配置。邮箱验证、密码重置与邮箱换绑只保存带密钥摘要；邮箱换绑先校验当前密码并向新邮箱发送一次性链接，确认时在同一事务中更新邮箱、撤销刷新令牌并清理其他认证 token。邮件链接通过 URL fragment 交给前端并在页面初始化时清理。
 - 认证端点统一返回不可缓存响应，并使用按 IP 与账号标识组合的有界限流；当前部署边界见 `docs/current-limitations.md`。
 - 运行时只接受 v2 刷新 Cookie 和一次性 token 格式；维护窗口中的认证切换将可识别的旧 bcrypt 密码封装成显式兼容状态，成功登录后原子升级为当前 v2 预哈希格式。原始旧 Cookie 和一次性 token 统一失效；已标记重置或未知密码格式会阻断迁移，不以运行时兜底伪装为可登录账号。
 
@@ -405,6 +406,7 @@ graph LR
 - `src/server/services/mail-service.ts`
 - `client/src/lib/apiClient.ts`
 - `client/src/store/authStore.ts`
+- `client/src/components/pages/AccountCenterPage.tsx`
 - `drizzle/data-migrations/auth-v1-to-v2-credential-cutover.ts`
 
 ### 8.2 数据模型设计
@@ -414,6 +416,7 @@ erDiagram
     USERS ||--|| PROFILES : has
     USERS ||--o{ REFRESH_TOKENS : owns
     USERS ||--o{ EMAIL_VERIFICATION_TOKENS : receives
+    USERS ||--o| EMAIL_CHANGE_TOKENS : requests
     USERS ||--o{ PASSWORD_RESET_TOKENS : receives
     PROFILES ||--o{ DECKS : owns
     USERS ||--o{ CARDS : updates

@@ -12,6 +12,8 @@ import {
 import { config } from '../config.js';
 import {
   DUMMY_PASSWORD_HASH,
+  cancelEmailChangeToken,
+  createEmailChangeToken,
   createEmailVerificationToken,
   createPasswordResetToken,
   deleteAllRefreshTokens,
@@ -23,10 +25,15 @@ import {
   rotateRefreshToken,
   signAccessToken,
   updatePasswordAndInvalidateSessions,
+  verifyEmailChangeToken,
   verifyEmailToken,
   verifyPassword,
 } from '../services/auth-service.js';
-import { sendPasswordResetEmail, sendVerificationEmail } from '../services/mail-service.js';
+import {
+  sendEmailChangeVerificationEmail,
+  sendPasswordResetEmail,
+  sendVerificationEmail,
+} from '../services/mail-service.js';
 
 export const authRouter = Router();
 
@@ -71,6 +78,13 @@ const resetPasswordSchema = z.object({
   email: emailSchema,
 });
 
+const requestEmailChangeSchema = z
+  .object({
+    newEmail: emailSchema,
+    currentPassword: z.string().min(1).max(128),
+  })
+  .strict();
+
 const updatePasswordSchema = z.union([
   z
     .object({
@@ -89,6 +103,7 @@ type LoginBody = z.infer<typeof loginSchema>;
 type VerifyEmailBody = z.infer<typeof verifyEmailSchema>;
 type ResendBody = z.infer<typeof resendSchema>;
 type ResetPasswordBody = z.infer<typeof resetPasswordSchema>;
+type RequestEmailChangeBody = z.infer<typeof requestEmailChangeSchema>;
 type UpdatePasswordBody = z.infer<typeof updatePasswordSchema>;
 
 interface UserIdRow {
@@ -102,6 +117,10 @@ interface EmailUserRow {
 
 interface PasswordRow {
   password_hash: string;
+}
+
+interface AccountCredentialRow extends PasswordRow {
+  email: string;
 }
 
 interface AuthSessionRow {
@@ -155,6 +174,24 @@ const passwordUpdateRateLimit = createAuthRateLimitMiddleware([
     limit: 5,
     windowMs: ONE_HOUR,
     key: (req) => bodyIdentityKey('token')(req) ?? req.user?.id ?? null,
+  },
+]);
+const emailChangeRequestRateLimit = createAuthRateLimitMiddleware([
+  { id: 'email-change-ip', limit: 20, windowMs: ONE_HOUR, key: requestIpKey },
+  {
+    id: 'email-change-subject',
+    limit: 5,
+    windowMs: ONE_HOUR,
+    key: (req) => req.user?.id ?? null,
+  },
+]);
+const emailChangeVerifyRateLimit = createAuthRateLimitMiddleware([
+  { id: 'email-change-verify-ip', limit: 30, windowMs: TEN_MINUTES, key: requestIpKey },
+  {
+    id: 'email-change-verify-token',
+    limit: 5,
+    windowMs: ONE_HOUR,
+    key: bodyIdentityKey('token'),
   },
 ]);
 
@@ -512,6 +549,136 @@ authRouter.post(
 
       await waitForAuthEmailResponseFloor(startedAt);
       respondWithGenericEmailMessage(res, '如果邮箱已注册且未验证，验证邮件将会发送');
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================
+// POST /api/auth/email-change
+// ============================================
+
+authRouter.post(
+  '/email-change',
+  requireAuth,
+  validate(requestEmailChangeSchema),
+  emailChangeRequestRateLimit,
+  async (req, res, next) => {
+    try {
+      if (!config.isEmailFeatureEnabled) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'EMAIL_DISABLED', message: '邮箱换绑功能暂不可用' },
+        });
+        return;
+      }
+
+      const { newEmail, currentPassword } = req.body as RequestEmailChangeBody;
+      const current = await pool.query<AccountCredentialRow>(
+        'SELECT email, password_hash FROM users WHERE id = $1',
+        [req.user!.id]
+      );
+      const account = current.rows[0];
+      if (!account) {
+        res.status(404).json({
+          data: null,
+          error: { code: 'USER_NOT_FOUND', message: '用户不存在' },
+        });
+        return;
+      }
+
+      const validPassword = await verifyPassword(currentPassword, account.password_hash);
+      if (!validPassword) {
+        res.status(401).json({
+          data: null,
+          error: { code: 'INVALID_PASSWORD', message: '当前密码错误' },
+        });
+        return;
+      }
+
+      if (account.email.toLowerCase() === newEmail) {
+        res.status(400).json({
+          data: null,
+          error: { code: 'SAME_EMAIL', message: '新邮箱与当前邮箱相同' },
+        });
+        return;
+      }
+
+      const existing = await pool.query<UserIdRow>(
+        'SELECT id FROM users WHERE lower(email) = lower($1) AND id <> $2',
+        [newEmail, req.user!.id]
+      );
+      if (existing.rowCount) {
+        res.status(409).json({
+          data: null,
+          error: { code: 'EMAIL_TAKEN', message: '邮箱已被其他账号使用' },
+        });
+        return;
+      }
+
+      const token = await createEmailChangeToken(req.user!.id, newEmail);
+      let sent = false;
+      try {
+        sent = await sendEmailChangeVerificationEmail(newEmail, token);
+      } catch (error) {
+        console.error('Failed to send email change verification:', error);
+      }
+
+      if (!sent) {
+        await cancelEmailChangeToken(req.user!.id, token);
+        res.status(503).json({
+          data: null,
+          error: { code: 'EMAIL_UNAVAILABLE', message: '验证邮件发送失败，请稍后再试' },
+        });
+        return;
+      }
+
+      res.json({
+        data: {
+          pendingEmail: newEmail,
+          message: '验证邮件已发送，请前往新邮箱确认换绑',
+        },
+        error: null,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ============================================
+// POST /api/auth/email-change/verify
+// ============================================
+
+authRouter.post(
+  '/email-change/verify',
+  validate(verifyEmailSchema),
+  emailChangeVerifyRateLimit,
+  async (req, res, next) => {
+    try {
+      const { token } = req.body as VerifyEmailBody;
+      const result = await verifyEmailChangeToken(token);
+      if (result.status === 'invalid') {
+        res.status(400).json({
+          data: null,
+          error: { code: 'INVALID_TOKEN', message: '换绑链接无效或已过期' },
+        });
+        return;
+      }
+      if (result.status === 'email-taken') {
+        res.status(409).json({
+          data: null,
+          error: { code: 'EMAIL_TAKEN', message: '该邮箱已被其他账号使用，请重新申请换绑' },
+        });
+        return;
+      }
+
+      clearRefreshCookie(res);
+      res.json({
+        data: { email: result.email, message: '邮箱换绑成功，请重新登录' },
+        error: null,
+      });
     } catch (error) {
       next(error);
     }

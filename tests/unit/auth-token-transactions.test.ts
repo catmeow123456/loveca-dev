@@ -24,11 +24,13 @@ vi.mock('bcrypt', () => ({
 }));
 
 import {
+  createEmailChangeToken,
   createEmailVerificationToken,
   createPasswordResetToken,
   resetPasswordWithToken,
   rotateRefreshToken,
   updatePasswordAndInvalidateSessions,
+  verifyEmailChangeToken,
   verifyEmailToken,
 } from '../../src/server/services/auth-service';
 
@@ -55,19 +57,26 @@ describe('auth token transactions', () => {
     mocks.poolQuery.mockResolvedValue({ rows: [], rowCount: 1 });
 
     const emailToken = await createEmailVerificationToken('user-1');
+    const emailChangeToken = await createEmailChangeToken('user-1', 'new@example.com');
     const resetToken = await createPasswordResetToken('user-1');
     const calls = poolQueryCalls();
     const storedEmailToken = calls[0]?.[1]?.[1];
-    const storedResetToken = calls[1]?.[1]?.[1];
+    const storedEmailChangeToken = calls[1]?.[1]?.[2];
+    const storedResetToken = calls[2]?.[1]?.[1];
 
     expect(emailToken).toMatch(/^[a-f0-9]{64}$/);
+    expect(emailChangeToken).toMatch(/^[a-f0-9]{64}$/);
     expect(resetToken).toMatch(/^[a-f0-9]{64}$/);
     expect(storedEmailToken).toMatch(/^[a-f0-9]{64}$/);
+    expect(storedEmailChangeToken).toMatch(/^[a-f0-9]{64}$/);
     expect(storedResetToken).toMatch(/^[a-f0-9]{64}$/);
     expect(storedEmailToken).not.toBe(emailToken);
+    expect(storedEmailChangeToken).not.toBe(emailChangeToken);
     expect(storedResetToken).not.toBe(resetToken);
     expect(calls[0]?.[0]).toContain('DELETE FROM email_verification_tokens');
-    expect(calls[1]?.[0]).toContain('DELETE FROM password_reset_tokens');
+    expect(calls[1]?.[0]).toContain('ON CONFLICT (user_id) DO UPDATE');
+    expect(calls[1]?.[1]?.[1]).toBe('new@example.com');
+    expect(calls[2]?.[0]).toContain('DELETE FROM password_reset_tokens');
   });
 
   it('locks, consumes, and replaces a refresh token in one transaction', async () => {
@@ -134,6 +143,34 @@ describe('auth token transactions', () => {
     const calls = clientQueryCalls();
     expect(calls[1]?.[0]).toContain('DELETE FROM password_reset_tokens');
     expect(calls[2]?.[0]).toContain('UPDATE users SET password_hash');
+    expect(calls[3]?.[0]).toContain('DELETE FROM refresh_tokens');
+    expect(calls.at(-1)?.[0]).toBe('COMMIT');
+  });
+
+  it('atomically applies a verified email change and revokes account sessions', async () => {
+    const rawToken = 'e'.repeat(64);
+    mocks.clientQuery
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: 'user-5', new_email: 'new@example.com' }],
+        rowCount: 1,
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 'user-5' }], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 2 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 1 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: null });
+
+    await expect(verifyEmailChangeToken(rawToken)).resolves.toEqual({
+      status: 'success',
+      userId: 'user-5',
+      email: 'new@example.com',
+    });
+
+    const calls = clientQueryCalls();
+    expect(calls[1]?.[0]).toContain('DELETE FROM email_change_tokens');
+    expect(calls[2]?.[0]).toContain('UPDATE users');
     expect(calls[3]?.[0]).toContain('DELETE FROM refresh_tokens');
     expect(calls.at(-1)?.[0]).toBe('COMMIT');
   });

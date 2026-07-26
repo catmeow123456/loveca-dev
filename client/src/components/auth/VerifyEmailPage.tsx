@@ -12,6 +12,7 @@ import { AuthLayout } from './AuthLayout';
 interface VerifyEmailPageProps {
   onSwitchToLogin: () => void;
   token?: string | null;
+  purpose?: 'registration' | 'email-change';
 }
 
 type VerificationStatus = 'loading' | 'success' | 'error';
@@ -19,26 +20,31 @@ type VerificationStatus = 'loading' | 'success' | 'error';
 const verificationRequests = new Map<string, Promise<{ success: boolean; error?: string }>>();
 
 function getVerificationRequest(
+  requestKey: string,
   token: string,
-  verifyEmail: (token: string) => Promise<{ success: boolean; error?: string }>
+  verify: (token: string) => Promise<{ success: boolean; error?: string }>
 ): Promise<{ success: boolean; error?: string }> {
-  const existing = verificationRequests.get(token);
+  const existing = verificationRequests.get(requestKey);
   if (existing) {
     return existing;
   }
 
-  const request = verifyEmail(token);
-  verificationRequests.set(token, request);
+  const request = verify(token);
+  verificationRequests.set(requestKey, request);
   const clearRequest = () => {
-    if (verificationRequests.get(token) === request) {
-      verificationRequests.delete(token);
+    if (verificationRequests.get(requestKey) === request) {
+      verificationRequests.delete(requestKey);
     }
   };
   void request.then(clearRequest, clearRequest);
   return request;
 }
 
-export function VerifyEmailPage({ onSwitchToLogin, token }: VerifyEmailPageProps) {
+export function VerifyEmailPage({
+  onSwitchToLogin,
+  token,
+  purpose = 'registration',
+}: VerifyEmailPageProps) {
   const verificationToken = token?.trim() ?? '';
   const [status, setStatus] = useState<VerificationStatus>(() =>
     verificationToken ? 'loading' : 'error'
@@ -47,6 +53,8 @@ export function VerifyEmailPage({ onSwitchToLogin, token }: VerifyEmailPageProps
     verificationToken ? null : '验证链接缺少 token，请重新发送验证邮件'
   );
   const verifyEmail = useAuthStore((s) => s.verifyEmail);
+  const verifyEmailChange = useAuthStore((s) => s.verifyEmailChange);
+  const isEmailChange = purpose === 'email-change';
 
   useEffect(() => {
     if (!verificationToken) {
@@ -55,33 +63,38 @@ export function VerifyEmailPage({ onSwitchToLogin, token }: VerifyEmailPageProps
 
     let cancelled = false;
 
-    void getVerificationRequest(verificationToken, verifyEmail).then((result) => {
-      if (cancelled) {
-        return;
-      }
+    const verify = isEmailChange ? verifyEmailChange : verifyEmail;
+    void getVerificationRequest(`${purpose}:${verificationToken}`, verificationToken, verify).then(
+      (result) => {
+        if (cancelled) {
+          return;
+        }
 
-      if (result.success) {
-        setStatus('success');
-        setMessage(null);
-      } else {
-        setStatus('error');
-        setMessage(result.error ?? '邮箱验证失败');
+        if (result.success) {
+          setStatus('success');
+          setMessage(null);
+        } else {
+          setStatus('error');
+          setMessage(result.error ?? '邮箱验证失败');
+        }
       }
-    });
+    );
 
     return () => {
       cancelled = true;
     };
-  }, [verificationToken, verifyEmail]);
+  }, [isEmailChange, purpose, verificationToken, verifyEmail, verifyEmailChange]);
 
   if (status === 'loading') {
     return (
-      <AuthLayout title="正在验证邮箱" subtitle="请稍候">
+      <AuthLayout title={isEmailChange ? '正在确认新邮箱' : '正在验证邮箱'} subtitle="请稍候">
         <div className="space-y-6 text-center">
           <div className="flex justify-center text-[var(--accent-primary)]">
             <Loader2 size={56} className="animate-spin" />
           </div>
-          <p className="text-[var(--text-secondary)]">正在处理邮箱验证链接。</p>
+          <p className="text-[var(--text-secondary)]">
+            正在处理{isEmailChange ? '邮箱换绑' : '邮箱验证'}链接。
+          </p>
         </div>
       </AuthLayout>
     );
@@ -89,7 +102,7 @@ export function VerifyEmailPage({ onSwitchToLogin, token }: VerifyEmailPageProps
 
   if (status === 'success') {
     return (
-      <AuthLayout title="邮箱已验证" subtitle="你现在可以登录了">
+      <AuthLayout title={isEmailChange ? '邮箱已换绑' : '邮箱已验证'} subtitle="你现在可以登录了">
         <div className="space-y-6 text-center">
           <motion.div
             initial={{ scale: 0 }}
@@ -100,7 +113,11 @@ export function VerifyEmailPage({ onSwitchToLogin, token }: VerifyEmailPageProps
             <CheckCircle2 size={56} />
           </motion.div>
 
-          <p className="text-[var(--text-secondary)]">邮箱验证已完成，请返回登录页面继续。</p>
+          <p className="text-[var(--text-secondary)]">
+            {isEmailChange
+              ? '新邮箱已经生效，其他设备上的登录会话已失效。'
+              : '邮箱验证已完成，请返回登录页面继续。'}
+          </p>
 
           <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-bold">
             前往登录
@@ -111,7 +128,10 @@ export function VerifyEmailPage({ onSwitchToLogin, token }: VerifyEmailPageProps
   }
 
   return (
-    <AuthLayout title="验证失败" subtitle="验证链接无效或已过期">
+    <AuthLayout
+      title={isEmailChange ? '换绑失败' : '验证失败'}
+      subtitle={isEmailChange ? '换绑链接无效或已过期' : '验证链接无效或已过期'}
+    >
       <div className="space-y-6 text-center">
         <motion.div
           initial={{ scale: 0 }}
@@ -122,7 +142,9 @@ export function VerifyEmailPage({ onSwitchToLogin, token }: VerifyEmailPageProps
           <XCircle size={56} />
         </motion.div>
 
-        <p className="text-[var(--text-secondary)]">{message ?? '邮箱验证失败'}</p>
+        <p className="text-[var(--text-secondary)]">
+          {message ?? (isEmailChange ? '邮箱换绑失败' : '邮箱验证失败')}
+        </p>
 
         <button
           type="button"
