@@ -1343,15 +1343,17 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LEAVE_STAGE)) {
-    state = removeTargetMemberBoundLiveModifiersForLeaveStageEvents(
-      state,
-      options.leaveStageEvents ?? getLeaveStageEventsFromLog(state)
-    );
+    const leaveStageEvents =
+      options.leaveStageEvents ??
+      getLeaveStageEventsFromLog(state, options.triggerEventLogStartIndex);
+    state = removeTargetMemberBoundLiveModifiersForLeaveStageEvents(state, leaveStageEvents);
+    const eventSources = createOnLeaveStageAbilitySourcesFromEvents(leaveStageEvents);
+    // An exact event list or bounded event-log window is authoritative even when empty.
+    // Falling back to the latest legacy action here would resurrect an older trigger.
+    const authoritativeEventInput =
+      options.leaveStageEvents !== undefined || options.triggerEventLogStartIndex !== undefined;
     const onLeaveSources =
-      options.onLeaveStageSources ??
-      createOnLeaveStageAbilitySourcesFromEvents(
-        options.leaveStageEvents ?? getLeaveStageEventsFromLog(state)
-      );
+      options.onLeaveStageSources ?? eventSources ?? (authoritativeEventInput ? [] : undefined);
     state = enqueueOnLeaveStageCardEffects(state, onLeaveSources);
   }
 
@@ -1480,8 +1482,9 @@ function getLatestEnterStageEventsFromLog(game: GameState): readonly EnterStageE
   return latestEvent ? [latestEvent] : [];
 }
 
-function getLeaveStageEventsFromLog(game: GameState): readonly LeaveStageEvent[] {
+function getLeaveStageEventsFromLog(game: GameState, startIndex = 0): readonly LeaveStageEvent[] {
   return game.eventLog
+    .slice(startIndex)
     .map((entry) => entry.event)
     .filter(
       (event): event is LeaveStageEvent => event.eventType === TriggerCondition.ON_LEAVE_STAGE

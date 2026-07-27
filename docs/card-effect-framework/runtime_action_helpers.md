@@ -9,7 +9,7 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 ## 目标成员绑定的临时 LIVE modifier
 
 - `addPlayerScoreLiveModifierForTargetMember` 在 `domain/rules/live-modifiers.ts` 写入玩家总分 SCORE，同时显式保存 `targetMemberCardId`、审计 `sourceCardId` 和 `abilityId`；不以来源卡替代目标成员身份。
-- `removeTargetMemberBoundLiveModifiersForLeaveStageEvents` 是 LeaveStageEvent 的通用 runtime hook，删除所有绑定离场成员实例的临时 modifier，并通过统一 modifier 底座刷新 `playerScoreBonuses` 等兼容投影。它不识别卡号或 abilityId；成员槽位移动和状态变化不触发删除。
+- `removeTargetMemberBoundLiveModifiersForLeaveStageEvents` 是 LeaveStageEvent 的通用 runtime hook，删除所有绑定离场成员实例的临时 modifier，并通过统一 modifier 底座刷新 `playerScoreBonuses` 等兼容投影。它不识别卡号或 abilityId；成员槽位移动和状态变化不触发删除。普通 action 派发会按 `triggerEventLogStartIndex` 只取得本次新增的 `ON_LEAVE_STAGE` 事件，并让 modifier 清理与离场 AUTO 来源构造复用同一批事件；显式传入的 `leaveStageEvents` 仍为权威输入，历史离场事件不得因后续成员离场而再次消费。
 - 当前真实样本包括 `PL!S-bp3-001` 与 `PL!-pb2-000`。后者在双换手登场能力结算后把来源和受益者都绑定到费用15「星空凛&小泉花阳」的同一成员实例；这不是对所有 SCORE modifier 施加目标语义，没有 `targetMemberCardId` 的旧 modifier 保持原有生命周期。
 
 ## 有限双换手入口
