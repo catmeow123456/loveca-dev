@@ -7,6 +7,7 @@ import {
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import {
+  N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID,
   PL_N_PB1_012_AUTO_TURN_ONCE_OTHER_COST_ELEVEN_MEMBER_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_PB1_005_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -28,6 +29,11 @@ interface PlaceWaitingEnergyConfig {
 }
 
 const PLACE_WAITING_ENERGY_CONFIGS: readonly PlaceWaitingEnergyConfig[] = [
+  {
+    abilityId: N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID,
+    actionStep: 'PLACE_WAITING_ENERGY_AFTER_ENERGY_PLACED_BELOW_MEMBER',
+    recordAbilityUse: true,
+  },
   {
     abilityId: SP_PB1_005_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
     actionStep: 'PLACE_WAITING_ENERGY',

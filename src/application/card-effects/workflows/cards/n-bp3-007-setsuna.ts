@@ -13,7 +13,7 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import { and, cardNameAliasIs, costLte, typeIs } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 
 const SELECT_HAND_SETUNA_STEP_ID = 'N_BP3_007_SELECT_HAND_SETUNA_TO_PLAY';
 const BASE_CARD_CODE = 'PL!N-bp3-007';
@@ -147,7 +147,10 @@ function finishWorkflow(
     toSlot: sourceSlot as SlotPosition,
   });
   if (!playResult) return game;
-  const stackResult = stackEnergyFromEnergyZoneBelowMember(playResult.gameState, player.id, playResult.toSlot, 1);
+  const stackResult = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
+    playResult.gameState, player.id, playResult.toSlot, 1,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: effect.sourceCardId, abilityId: ABILITY_ID }
+  );
   if (!stackResult) return game;
 
   let state = addAction(stackResult.gameState, 'RESOLVE_ABILITY', player.id, {

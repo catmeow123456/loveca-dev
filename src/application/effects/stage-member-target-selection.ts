@@ -4,7 +4,9 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../domain/entities/game.js';
-import type { OrientationState } from '../../shared/types/enums.js';
+import type { MemberStateChangeCause } from '../../domain/events/game-events.js';
+import { isMemberWaitProtectedFromChange } from '../../domain/rules/member-wait-protections.js';
+import { OrientationState } from '../../shared/types/enums.js';
 import type { CardSelector } from './card-selectors.js';
 import {
   setMemberOrientation,
@@ -36,13 +38,18 @@ export function createStageMemberOrientationTargetSelection(
   config: StageMemberOrientationTargetSelectionConfig
 ): StageMemberOrientationTargetSelectionStart {
   const targetPlayer = getPlayerById(game, config.targetPlayerId);
+  const cause = createMemberStateChangeCauseFromSelectionConfig(config);
   const selectableCardIds = getStageMemberCardIdsMatching(
     game,
     config.targetPlayerId,
     config.selector
   ).filter(
     (cardId) =>
-      targetPlayer?.memberSlots.cardStates.get(cardId)?.orientation !== config.targetOrientation
+      targetPlayer?.memberSlots.cardStates.get(cardId)?.orientation !== config.targetOrientation &&
+      !(
+        config.targetOrientation === OrientationState.WAITING &&
+        isMemberWaitProtectedFromChange(game, config.targetPlayerId, cardId, cause)
+      )
   );
 
   if (selectableCardIds.length === 0) {
@@ -104,6 +111,19 @@ export function resolveStageMemberOrientationTargetSelection(
     abilityId: effect.abilityId,
     pendingAbilityId: effect.id,
   });
+}
+
+function createMemberStateChangeCauseFromSelectionConfig(
+  config: StageMemberOrientationTargetSelectionConfig
+): MemberStateChangeCause {
+  return {
+    kind: 'CARD_EFFECT',
+    playerId: config.ability.controllerId,
+    selectionPlayerId: config.awaitingPlayerId,
+    sourceCardId: config.ability.sourceCardId,
+    abilityId: config.ability.abilityId,
+    pendingAbilityId: config.ability.id,
+  };
 }
 
 export function getStageMemberOrientationTargetMetadata(

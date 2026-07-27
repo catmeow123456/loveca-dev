@@ -1571,6 +1571,14 @@ export const SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-001-P:continuous-below-liella-host-gain-blade';
 export const SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID =
   'PL!SP-bp7-001-P:auto-relay-stack-self-below-replacement';
+export const N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!N-bp7-001-P:auto-turn-once-energy-placed-below-place-waiting-energy';
+export const N_BP7_010_ACTIVATED_STACK_ENERGY_PLAY_LOW_COST_NIJIGASAKI_FROM_WAITING_ABILITY_ID =
+  'PL!N-bp7-010-P:activated-stack-energy-play-low-cost-nijigasaki-from-waiting';
+export const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID =
+  'PL!SP-bp7-009-P:continuous-side-red-heart';
+export const SP_BP7_009_LIVE_START_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID =
+  'PL!SP-bp7-009-P:live-start-wait-low-printed-blade-opponent';
 export const SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID =
   'PL!SP-bp7-002-P:continuous-energy-seven-more-than-opponent-stage-cost-plus-two';
 export const SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID =

@@ -8,7 +8,7 @@ import {
 import { CardType, GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -26,6 +26,7 @@ import {
 import { PL_N_PB1_011_ACTIVATED_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID } from '../../ability-ids.js';
 
 const SELECT_RECOVERY_STEP_ID = 'PL_N_PB1_011_SELECT_NIJIGASAKI_LIVE_TO_HAND';
+type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 const nijigasakiLiveSelector = and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲'));
 
@@ -37,7 +38,12 @@ export function registerNPb1011MiaWorkflowHandlers(): void {
   registerActiveEffectStepHandler(
     PL_N_PB1_011_ACTIVATED_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
     SELECT_RECOVERY_STEP_ID,
-    (game, input) => finishMiaRecovery(game, input.selectedCardId ?? null)
+    (game, input, context) =>
+      finishMiaRecovery(
+        game,
+        input.selectedCardId ?? null,
+        context.continuePendingCardEffects
+      )
   );
 }
 
@@ -67,7 +73,10 @@ function startMiaStackEnergyRecoverNijigasakiLive(
     return game;
   }
 
-  const stackResult = stackEnergyFromEnergyZoneBelowMember(game, player.id, sourceSlot, 1);
+  const stackResult = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
+    game, player.id, sourceSlot, 1,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: cardId, abilityId: PL_N_PB1_011_ACTIVATED_STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID }
+  );
   if (!stackResult) {
     return game;
   }
@@ -129,7 +138,11 @@ function startMiaStackEnergyRecoverNijigasakiLive(
   };
 }
 
-function finishMiaRecovery(game: GameState, selectedCardId: string | null): GameState {
+function finishMiaRecovery(
+  game: GameState,
+  selectedCardId: string | null,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
   const effect = game.activeEffect;
   if (
     !effect ||
@@ -142,13 +155,19 @@ function finishMiaRecovery(game: GameState, selectedCardId: string | null): Game
     return game;
   }
 
-  return resolveMiaRecovery(game, [selectedCardId], effect.metadata);
+  return resolveMiaRecovery(
+    game,
+    [selectedCardId],
+    effect.metadata,
+    continuePendingCardEffects
+  );
 }
 
 function resolveMiaRecovery(
   game: GameState,
   selectedCardIds: readonly string[],
-  metadata: NonNullable<GameState['activeEffect']>['metadata'] | undefined
+  metadata: NonNullable<GameState['activeEffect']>['metadata'] | undefined,
+  continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
   if (
@@ -175,24 +194,27 @@ function resolveMiaRecovery(
     return game;
   }
 
-  return addAction(
-    {
-      ...recoveryResult.gameState,
-      activeEffect: null,
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      sourceSlot: metadata?.sourceSlot ?? null,
-      step: 'STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE',
-      paidEnergyCardId: getStringArray(metadata?.stackedEnergyCardIds)[0] ?? null,
-      stackedEnergyCardIds: getStringArray(metadata?.stackedEnergyCardIds),
-      selectedCardId: recoveryResult.movedCardIds[0] ?? null,
-      selectedCardIds: recoveryResult.movedCardIds,
-      recoveryCandidateCardIds: candidateCardIds,
-    }
+  return continuePendingCardEffects(
+    addAction(
+      {
+        ...recoveryResult.gameState,
+        activeEffect: null,
+      },
+      'RESOLVE_ABILITY',
+      player.id,
+      {
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        sourceSlot: metadata?.sourceSlot ?? null,
+        step: 'STACK_ENERGY_BELOW_RECOVER_NIJIGASAKI_LIVE',
+        paidEnergyCardId: getStringArray(metadata?.stackedEnergyCardIds)[0] ?? null,
+        stackedEnergyCardIds: getStringArray(metadata?.stackedEnergyCardIds),
+        selectedCardId: recoveryResult.movedCardIds[0] ?? null,
+        selectedCardIds: recoveryResult.movedCardIds,
+        recoveryCandidateCardIds: candidateCardIds,
+      }
+    ),
+    false
   );
 }
 

@@ -11,6 +11,7 @@ import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection
 import type { DeckConfig } from '../../src/application/game-service';
 import { HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { S_BP7_003_ON_ENTER_CHOOSE_WAIT_PROTECTION_OR_POSITION_CHANGE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { addMemberWaitProtectionUntilLiveEnd } from '../../src/domain/rules/member-wait-protections';
 import {
   CardType,
   FaceState,
@@ -95,7 +96,7 @@ function setAuthorityState(session: ReturnType<typeof createGameSession>, state:
 }
 
 describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () => {
-  it('费用4「松浦果南」保护不过滤候选；由受影响玩家选择时费用15「セラス 柳田 リリエンフェルト」仍正常使其待机', () => {
+  it('费用4「松浦果南」保护会从费用15「セラス 柳田 リリエンフェルト」候选中排除受保护成员', () => {
     const session = createGameSession();
     const deck = createDeck();
     session.createGame('hs-bp6-007-s003-qa', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
@@ -112,21 +113,36 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       PLAYER1,
       's003-protected-target'
     );
+    const unprotectedTarget = createCardInstance(
+      createMemberCard('PL!-test-unprotected', 'Unprotected Member', 4, "μ's", "μ's"),
+      PLAYER1,
+      's003-unprotected-target'
+    );
     const seras = createCardInstance(
       createMemberCard('PL!HS-bp6-007-P', 'セラス 柳田 リリエンフェルト', 15),
       PLAYER2,
       'seras-s003-qa'
     );
-    const state = registerCards(session.state!, [kanan, protectedTarget, seras]);
+    const state = registerCards(session.state!, [
+      kanan,
+      protectedTarget,
+      unprotectedTarget,
+      seras,
+    ]);
     setAuthorityState(session, state);
     clearPlayerZones(state.players[0]);
     clearPlayerZones(state.players[1]);
     state.players[0].hand.cardIds = [kanan.instanceId];
     state.players[1].hand.cardIds = [seras.instanceId];
     state.players[0].memberSlots.slots[SlotPosition.LEFT] = protectedTarget.instanceId;
+    state.players[0].memberSlots.slots[SlotPosition.RIGHT] = unprotectedTarget.instanceId;
     state.players[0].memberSlots.cardStates = new Map([
       [
         protectedTarget.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
+      ],
+      [
+        unprotectedTarget.instanceId,
         { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
       ],
     ]);
@@ -202,19 +218,22 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       controllerId: PLAYER2,
       awaitingPlayerId: PLAYER1,
     });
-    expect(session.state!.activeEffect!.selectableCardIds).toContain(protectedTarget.instanceId);
+    expect(session.state!.activeEffect!.selectableCardIds).toEqual([unprotectedTarget.instanceId]);
 
     expect(
       session.executeCommand(
         createConfirmEffectStepCommand(
           PLAYER1,
           session.state!.activeEffect!.id,
-          protectedTarget.instanceId
+          unprotectedTarget.instanceId
         )
       ).success
     ).toBe(true);
     expect(
       session.state!.players[0].memberSlots.cardStates.get(protectedTarget.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      session.state!.players[0].memberSlots.cardStates.get(unprotectedTarget.instanceId)?.orientation
     ).toBe(OrientationState.WAITING);
     const event = session
       .state!.eventLog
@@ -222,7 +241,7 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
       .filter((candidate) => candidate.eventType === 'ON_MEMBER_STATE_CHANGED')
       .at(-1);
     expect(event).toMatchObject({
-      cardInstanceId: protectedTarget.instanceId,
+      cardInstanceId: unprotectedTarget.instanceId,
       cause: {
         kind: 'CARD_EFFECT',
         playerId: PLAYER2,
@@ -230,6 +249,79 @@ describe('PL!HS-bp6-007 セラス 柳田 リリエンフェルト workflow', () 
         sourceCardId: seras.instanceId,
       },
     });
+  });
+
+  it('费用4「松浦果南」保护覆盖全部活跃成员时不打开选择窗口且仍消费费用15「セラス 柳田 リリエンフェルト」回合次数', () => {
+    const session = createGameSession();
+    const deck = createDeck();
+    session.createGame('hs-bp6-007-s003-all-protected', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+    session.initializeGame(deck, deck);
+    forceMainPhaseForPlayer(session);
+
+    const seras = createCardInstance(
+      createMemberCard('PL!HS-bp6-007-R', 'セラス 柳田 リリエンフェルト', 15),
+      PLAYER1,
+      'seras-all-protected'
+    );
+    const enteringEdelNote = createCardInstance(
+      createMemberCard('PL!HS-test-edelnote-protected', 'Entering EdelNote', 4),
+      PLAYER1,
+      'entering-edelnote-protected'
+    );
+    const protectedTarget = createCardInstance(
+      createMemberCard('PL!S-test-all-protected', 'Protected Aqours', 4, 'AZALEA', 'Aqours'),
+      PLAYER2,
+      'all-protected-target'
+    );
+    let state = registerCards(session.state!, [seras, enteringEdelNote, protectedTarget]);
+    clearPlayerZones(state.players[0]);
+    clearPlayerZones(state.players[1]);
+    state.players[0].hand.cardIds = [enteringEdelNote.instanceId];
+    state.players[0].memberSlots.slots[SlotPosition.CENTER] = seras.instanceId;
+    state.players[0].memberSlots.cardStates = new Map([
+      [seras.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    state.players[1].memberSlots.slots[SlotPosition.CENTER] = protectedTarget.instanceId;
+    state.players[1].memberSlots.cardStates = new Map([
+      [protectedTarget.instanceId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    state = addMemberWaitProtectionUntilLiveEnd(state, {
+      affectedPlayerId: PLAYER2,
+      sourceCardId: 's003-protection-source',
+      abilityId: S_BP7_003_ON_ENTER_CHOOSE_WAIT_PROTECTION_OR_POSITION_CHANGE_ABILITY_ID,
+    });
+    setAuthorityState(session, state);
+
+    session.setManualOperationMode('FREE');
+    const playResult = session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, enteringEdelNote.instanceId, SlotPosition.LEFT, {
+        freePlay: true,
+      })
+    );
+
+    expect(playResult.success).toBe(true);
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(hasAbilityUse(session.state!, seras.instanceId)).toBe(true);
+    expect(
+      session.state?.players[1].memberSlots.cardStates.get(protectedTarget.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(
+      session.state?.eventLog.some(
+        ({ event }) =>
+          event.eventType === 'ON_MEMBER_STATE_CHANGED' &&
+          event.cardInstanceId === protectedTarget.instanceId
+      )
+    ).toBe(false);
+    expect(
+      session.state?.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP6_007_AUTO_TURN_ONCE_EDELNOTE_ENTER_OPPONENT_WAIT_ACTIVE_MEMBER_ABILITY_ID &&
+          action.payload.step === 'NO_OPPONENT_ACTIVE_MEMBER_TARGET'
+      )
+    ).toBe(true);
   });
 
   it('triggers when itself enters and lets the opponent wait their own active member', () => {

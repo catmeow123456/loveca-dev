@@ -12,7 +12,7 @@ import { GamePhase, HeartColor, OrientationState } from '../../../../shared/type
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 import {
   N_BP5_012_ACTIVATED_STACK_ENERGY_BELOW_DRAW_GAIN_PINK_HEART_ABILITY_ID,
   N_BP5_012_LIVE_SUCCESS_LEADING_SCORE_PLACE_WAITING_ENERGY_BY_BELOW_ABILITY_ID,
@@ -73,7 +73,10 @@ function startLanzhuActivatedStackEnergyDrawHeart(
     return game;
   }
 
-  const stackResult = stackEnergyFromEnergyZoneBelowMember(game, player.id, sourceSlot, 1);
+  const stackResult = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
+    game, player.id, sourceSlot, 1,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: cardId, abilityId: N_BP5_012_ACTIVATED_STACK_ENERGY_BELOW_DRAW_GAIN_PINK_HEART_ABILITY_ID }
+  );
   if (!stackResult) {
     return game;
   }

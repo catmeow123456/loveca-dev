@@ -440,7 +440,11 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 - 005/007/019 只共享 `placeEnergyFromEnergyDeckBelowStageMember` 原子动作。target 必须是当前己方顶层成员，移槽跟随实例；离场、换手、替换的既有生命周期会让 energyBelow 返回能量卡组。
 - 005 第一分支卡文是“将2张能量变为活跃状态”，不提供0～2张自由选择；WAITING 不足2张时通用动作才尽可能处理实际数量。已展示的分支或目标确认时 stale 会记录 no-op、消费精确 pending 并统一 continuation；从未展示的伪造输入继续保持原窗口。
 - 007 第二段只读 `own energyZone.cardIds.length - 6`，不计 below/deck/对方。所有 BP7 definition、workflow gate 与 continuous registry 均使用基础编号匹配。
-- energyBelow 放置不复用 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，因为该事件当前专指放置入能量区；本批没有建立完整能量事件体系或任意 below DSL。
+- energyBelow 放置不复用 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，因为该事件当前专指放置入能量区。
+  后续 `PL!N-bp7-001` 落地了独立的 `ON_ENERGY_PLACED_BELOW_MEMBER`：只覆盖卡牌效果实际完成的
+  `ENERGY_ZONE -> MEMBER_SLOT`，由统一 wrapper 在事件发生时 exact dispatch 并写
+  `DISPATCH_TRIGGER_EVENT` 台账；从能量卡组放到成员下方仍不触发。该窄事件边界不是完整能量
+  事件体系或任意 below DSL。
 
 # LIVE 开始返还1能量后比较数量加分 family（2026-07-23）
 

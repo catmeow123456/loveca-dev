@@ -75,6 +75,7 @@ import {
   enqueueUntriggeredEnergyPlacedByCardEffectCardEffects,
   getLatestEnergyPlacedByCardEffectEventsFromLog,
 } from './card-effects/runtime/energy-placement-triggers.js';
+import { enqueueUntriggeredEnergyPlacedBelowMemberCardEffects } from './card-effects/runtime/energy-below-placement-triggers.js';
 import {
   enqueueUntriggeredWaitingRoomCardsMovedToMainDeckCardEffects,
   enqueueWaitingRoomCardsMovedToMainDeckCardEffects,
@@ -395,6 +396,7 @@ import { registerSpBp7001KanonWorkflowHandlers } from './card-effects/workflows/
 import { registerSpBp7003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-003-chisato.js';
 import { registerNBp7003ShizukuWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-003-shizuku.js';
 import { registerNBp7004KarinWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-004-karin.js';
+import { registerNBp7010ShiorikoWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-010-shioriko.js';
 import { registerNBp7005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-005-ai.js';
 import { registerNBp7006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-006-kanata.js';
 import { registerNBp7007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-007-setsuna.js';
@@ -1201,6 +1203,7 @@ registerSpBp7001KanonWorkflowHandlers();
 registerSpBp7003ChisatoWorkflowHandlers();
 registerNBp7003ShizukuWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7004KarinWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerNBp7010ShiorikoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7005AiWorkflowHandlers();
 registerNBp7006KanataWorkflowHandlers({
   enqueueTriggeredCardEffects,
@@ -3068,6 +3071,12 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     return resolvePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers);
   }
 
+  const stateWithEnergyBelowTriggers =
+    enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
+  if (stateWithEnergyBelowTriggers !== game) {
+    return resolvePendingCardEffects(stateWithEnergyBelowTriggers);
+  }
+
   const stateWithEnergyPlacedTriggers = enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game);
   if (stateWithEnergyPlacedTriggers !== game) {
     return resolvePendingCardEffects(stateWithEnergyPlacedTriggers);
@@ -3361,6 +3370,12 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     enqueueUntriggeredWaitingRoomCardsMovedToMainDeckCardEffects(game);
   if (stateWithWaitingRoomToMainDeckTriggers !== game) {
     return continuePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers, orderedResolution);
+  }
+
+  const stateWithEnergyBelowTriggers =
+    enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
+  if (stateWithEnergyBelowTriggers !== game) {
+    return continuePendingCardEffects(stateWithEnergyBelowTriggers, orderedResolution);
   }
 
   const delegatedSequenceState = advanceDelegatedAbilitySequence(game, delegatePendingAbility);

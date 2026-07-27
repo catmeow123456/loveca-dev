@@ -35,8 +35,7 @@ export function isMemberWaitProtectedFromChange(
 ): boolean {
   if (
     cause?.kind !== 'CARD_EFFECT' ||
-    cause.playerId === affectedPlayerId ||
-    cause.selectionPlayerId === affectedPlayerId
+    cause.playerId === affectedPlayerId
   ) {
     return false;
   }

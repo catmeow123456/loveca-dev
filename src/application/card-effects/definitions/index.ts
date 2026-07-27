@@ -12,6 +12,8 @@ import {
   HS_BP8_001_AUTO_WAITING_ROOM_TO_DECK_GAIN_THREE_BLADE_ABILITY_ID,
   HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_ID,
   N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+  N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID,
+  N_BP7_010_ACTIVATED_STACK_ENERGY_PLAY_LOW_COST_NIJIGASAKI_FROM_WAITING_ABILITY_ID,
   N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID,
   N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID,
   PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
@@ -26,6 +28,8 @@ import {
   S_BP7_007_LIVE_START_BOTTOM_AQOURS_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP7_007_ON_ENTER_RECOVER_LOW_COST_MEMBER_OPTIONAL_PLAY_ABILITY_ID,
   SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
+  SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID,
+  SP_BP7_009_LIVE_START_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
   SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
   SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID,
   SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID,
@@ -2415,6 +2419,13 @@ const S_BP7_005_ACTIVATED_EFFECT_TEXT =
 const SP_BP7_008_ACTIVATED_EFFECT_TEXT = '【起动】将此成员变为待机状态：抽1张卡。';
 const SP_BP7_003_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】公开手牌的1张费用为10或20的成员卡：将因此公开的卡片放置于此成员的下方。此后，抽2张卡。';
+const N_BP7_001_AUTO_EFFECT_TEXT =
+  '【自动】【1回合1次】存在于自己的能量区的能量被放置于成员的下方时，从自己的能量卡组，将1张能量以待机状态放置到能量区。';
+const N_BP7_010_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将存在于能量区的1张能量放置于此成员的下方：从自己的休息室将1张费用小于等于2的『虹咲』的成员卡，以待机状态登场至不存在成员的区域。（因此效果登场了的成员所在的区域，此回合不能登场成员。）';
+const SP_BP7_009_CONTINUOUS_EFFECT_TEXT = '【常时】【左侧】【右侧】获得[赤ハート]。';
+const SP_BP7_009_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】【中央】将存在于对方的舞台的1名原本持有的[ブレード]的数量小于等于2的成员变为待机状态。';
 const N_BP8_002_ACTIVATED_EFFECT_TEXT =
   '【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。';
 
@@ -13813,5 +13824,60 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【LIVE开始时】存在于自己的休息室的卡片小于等于9张的场合，选择存在于自己的休息室的至多3张LIVE卡，按任意顺序放置于自己的卡组顶。',
     notes:
       'shared live-start-waiting-live-to-deck-top workflow；实时重验休息室总数<=9，公开选择0至3张己方休息室 LIVE 并走 public-card-selection confirmation，按选择顺序通过统一事件 wrapper 放置于卡组顶；条件失败、无目标、skip 与 stale 恢复均安全继续 pending。',
+  },
+  {
+    abilityId: N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp7-001'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENERGY_PLACED_BELOW_MEMBER,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    skipQueueWhenTurnLimitReached: true,
+    effectText: N_BP7_001_AUTO_EFFECT_TEXT,
+    notes:
+      '事件账本驱动 ON_ENERGY_PLACED_BELOW_MEMBER；共享 place-waiting-energy 结算并记录回合次数。',
+  },
+  {
+    abilityId: N_BP7_010_ACTIVATED_STACK_ENERGY_PLAY_LOW_COST_NIJIGASAKI_FROM_WAITING_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp7-010'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: N_BP7_010_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: N_BP7_010_ACTIVATED_STACK_ENERGY_PLAY_LOW_COST_NIJIGASAKI_FROM_WAITING_ABILITY_ID,
+      title: '放置能量并从休息室登场成员',
+      text: N_BP7_010_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '单卡 activated workflow；支付使用能量下置事件 wrapper，强制选择休息室目标和空区域，以 WAITING 登场并沿用 movedToStageThisTurn 区域限制。',
+  },
+  {
+    abilityId: SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp7-009'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    requiredSourceSlots: [SlotPosition.LEFT, SlotPosition.RIGHT],
+    queued: false,
+    implemented: true,
+    effectText: SP_BP7_009_CONTINUOUS_EFFECT_TEXT,
+    notes: 'live-modifiers 动态来源成员修正；仅己方主舞台左右区域生效。',
+  },
+  {
+    abilityId: SP_BP7_009_LIVE_START_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp7-009'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    requiredSourceSlots: [SlotPosition.CENTER],
+    queued: true,
+    implemented: true,
+    effectText: SP_BP7_009_LIVE_START_EFFECT_TEXT,
+    notes:
+      'shared opponent-wait-target；按印刷 BLADE<=2 选择当前非 WAITING 对方主舞台成员并走标准状态事件 wrapper。',
   },
 ];

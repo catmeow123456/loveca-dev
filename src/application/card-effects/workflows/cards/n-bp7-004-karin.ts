@@ -4,7 +4,7 @@ import { collectLiveModifiers, getMemberOriginalBladeCount } from '../../../../d
 import { CardType, GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { typeIs } from '../../../effects/card-selectors.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID } from '../../ability-ids.js';
@@ -15,6 +15,7 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText, recordAbilityUseForContext, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 
 const SELECT_TARGET_STEP_ID = 'N_BP7_004_SELECT_WAIT_TARGET';
+type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
 export function registerNBp7004KarinWorkflowHandlers(deps: {
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -26,7 +27,13 @@ export function registerNBp7004KarinWorkflowHandlers(deps: {
   registerActiveEffectStepHandler(
     N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
     SELECT_TARGET_STEP_ID,
-    (game, input) => finish(game, input.selectedCardId ?? null, deps.enqueueTriggeredCardEffects)
+    (game, input, context) =>
+      finish(
+        game,
+        input.selectedCardId ?? null,
+        deps.enqueueTriggeredCardEffects,
+        context.continuePendingCardEffects
+      )
   );
 }
 
@@ -47,7 +54,10 @@ function start(game: GameState, playerId: string, sourceCardId: string): GameSta
   const predictedThreshold = (player.memberSlots.energyBelow[sourceSlot] ?? []).length + 2;
   if (getTargets(game, opponent.id, predictedThreshold).length === 0) return game;
 
-  const stacked = stackEnergyFromEnergyZoneBelowMember(game, player.id, sourceSlot, 1);
+  const stacked = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
+    game, player.id, sourceSlot, 1,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId, abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID }
+  );
   if (!stacked || stacked.stackedEnergyCardIds.length !== 1) return game;
   let state = recordPayCostAction(stacked.gameState, player.id, {
     abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID,
@@ -81,25 +91,39 @@ function start(game: GameState, playerId: string, sourceCardId: string): GameSta
   };
 }
 
-function finish(game: GameState, targetCardId: string | null, enqueue: EnqueueTriggeredCardEffectsForMemberStateChanged): GameState {
+function finish(
+  game: GameState,
+  targetCardId: string | null,
+  enqueue: EnqueueTriggeredCardEffectsForMemberStateChanged,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
   const effect = game.activeEffect;
   if (!effect || effect.stepId !== SELECT_TARGET_STEP_ID || !targetCardId || effect.selectableCardIds?.includes(targetCardId) !== true) return game;
   const opponent = getOpponent(game, effect.controllerId);
   const threshold = typeof effect.metadata?.threshold === 'number' ? effect.metadata.threshold : -1;
   if (!opponent || !getTargets(game, opponent.id, threshold).includes(targetCardId)) {
-    return addResolve({ ...game, activeEffect: null }, effect.controllerId, effect.sourceCardId,
-      effect.metadata?.sourceSlot ?? null, threshold, stringArray(effect.metadata?.stackedEnergyCardIds), null, []);
+    return continuePendingCardEffects(
+      addResolve({ ...game, activeEffect: null }, effect.controllerId, effect.sourceCardId,
+        effect.metadata?.sourceSlot ?? null, threshold, stringArray(effect.metadata?.stackedEnergyCardIds), null, []),
+      false
+    );
   }
   const orientation = setMemberOrientation(game, opponent.id, targetCardId, OrientationState.WAITING, {
     kind: 'CARD_EFFECT', playerId: effect.controllerId, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId,
   });
   if (!orientation) {
-    return addResolve({ ...game, activeEffect: null }, effect.controllerId, effect.sourceCardId,
-      effect.metadata?.sourceSlot ?? null, threshold, stringArray(effect.metadata?.stackedEnergyCardIds), null, []);
+    return continuePendingCardEffects(
+      addResolve({ ...game, activeEffect: null }, effect.controllerId, effect.sourceCardId,
+        effect.metadata?.sourceSlot ?? null, threshold, stringArray(effect.metadata?.stackedEnergyCardIds), null, []),
+      false
+    );
   }
   const wrapped = enqueueMemberStateChangedTriggersFromOrientationResult(game, orientation, enqueue);
-  return addResolve({ ...wrapped.gameState, activeEffect: null }, effect.controllerId, effect.sourceCardId,
-    effect.metadata?.sourceSlot ?? null, threshold, stringArray(effect.metadata?.stackedEnergyCardIds), targetCardId, wrapped.memberStateChangedEvents.map((event) => event.eventId));
+  return continuePendingCardEffects(
+    addResolve({ ...wrapped.gameState, activeEffect: null }, effect.controllerId, effect.sourceCardId,
+      effect.metadata?.sourceSlot ?? null, threshold, stringArray(effect.metadata?.stackedEnergyCardIds), targetCardId, wrapped.memberStateChangedEvents.map((event) => event.eventId)),
+    false
+  );
 }
 
 function getTargets(game: GameState, opponentId: string, threshold: number): readonly string[] {

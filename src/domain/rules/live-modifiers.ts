@@ -255,6 +255,8 @@ const SP_BP7_003_CONTINUOUS_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-003-SEC:continuous-member-below-gain-blade';
 const SP_BP7_003_CONTINUOUS_THREE_MEMBER_BELOW_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp7-003-SEC:continuous-three-member-below-live-score';
+const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID =
+  'PL!SP-bp7-009-P:continuous-side-red-heart';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -319,6 +321,24 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!SP-bp7-009'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const sourceSlot = getSourceMainStageSlot(game, playerId, sourceCardId);
+      if (sourceSlot !== SlotPosition.LEFT && sourceSlot !== SlotPosition.RIGHT) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.RED, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp7-003'],

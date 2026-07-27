@@ -19,7 +19,7 @@
 
 本回合成员卡效活跃限制属于窄 domain rule：状态只记录受影响玩家、来源、能力与创建回合，query 只回答当前回合是否有效；具体卡牌 workflow 只负责建立状态，公共成员状态 action 负责执行门禁。该边界不是任意条件或限制 DSL。
 
-费用4「松浦果南」的 LIVE_END 待机保护同样属于窄 domain rule。workflow 只建立包含受影响玩家、来源实例、ability identity、结构化 Aqours 条件与印刷 BLADE 上限的状态；公共成员状态 action 在实际变为 WAITING 时动态查询。保护不参与候选过滤，CARD_EFFECT cause 将效果控制者与实际选择玩家作为不同事实，因此塞拉斯让受影响玩家自行选择时不会被保护阻止。来源离场不清除，只有真实 LIVE_END 清理。这个边界不构成任意免疫、数值 predicate 或 protection DSL。
+费用4「松浦果南」的 LIVE_END 待机保护同样属于窄 domain rule。workflow 只建立包含受影响玩家、来源实例、ability identity、结构化 Aqours 条件与印刷 BLADE 上限的状态；通用 WAITING 目标选择在候选生成时查询，公共成员状态 action 在实际变为 WAITING 时再次查询，防御窗口开启后才获得保护的 stale 目标。CARD_EFFECT cause 将效果控制者与实际选择玩家作为不同事实，但只有效果控制者决定是否属于对方效果，实际选择玩家不能绕过保护。因此费用15「セラス 柳田 リリエンフェルト」让受影响玩家自行选择时，仍须从未受保护成员中选择；全部成员受保护时什么也不发生。来源离场不清除，只有真实 LIVE_END 清理。这个边界不构成任意免疫、数值 predicate 或 protection DSL。
 
 ## Selector / Query
 
