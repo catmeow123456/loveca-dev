@@ -71,6 +71,11 @@ import {
   getLatestEnergyMovedToDeckEvents,
 } from './card-effects/runtime/energy-moved-to-deck-triggers.js';
 import {
+  enqueueEnergyPlacedByCardEffectCardEffects,
+  enqueueUntriggeredEnergyPlacedByCardEffectCardEffects,
+  getLatestEnergyPlacedByCardEffectEventsFromLog,
+} from './card-effects/runtime/energy-placement-triggers.js';
+import {
   enqueueUntriggeredWaitingRoomCardsMovedToMainDeckCardEffects,
   enqueueWaitingRoomCardsMovedToMainDeckCardEffects,
 } from './card-effects/runtime/waiting-room-main-deck-triggers.js';
@@ -679,12 +684,6 @@ interface EnterWaitingRoomAbilitySource {
     | CardAbilitySourceZone.LIVE_CARD;
   readonly sourceSlot?: SlotPosition;
   readonly event: EnterWaitingRoomEvent;
-}
-interface EnergyPlacedByCardEffectAbilitySource {
-  readonly sourceCardId: string;
-  readonly controllerId: string;
-  readonly sourceSlot: SlotPosition;
-  readonly event: EnergyPlacedByCardEffectEvent;
 }
 interface EnqueueTriggeredCardEffectsOptions {
   readonly onEnterSources?: readonly OnEnterAbilitySource[];
@@ -1441,25 +1440,6 @@ export function enqueueTriggeredCardEffects(
   return capturePendingAbilitySourceLifecycles(state);
 }
 
-function getEnergyPlacedByCardEffectEventsFromLog(
-  game: GameState
-): readonly EnergyPlacedByCardEffectEvent[] {
-  return game.eventLog
-    .map((entry) => entry.event)
-    .filter(
-      (event): event is EnergyPlacedByCardEffectEvent =>
-        event.eventType === TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT
-    );
-}
-
-function getLatestEnergyPlacedByCardEffectEventsFromLog(
-  game: GameState
-): readonly EnergyPlacedByCardEffectEvent[] {
-  const events = getEnergyPlacedByCardEffectEventsFromLog(game);
-  const latestEvent = events.at(-1);
-  return latestEvent ? [latestEvent] : [];
-}
-
 function getMemberSlotMovedEventsFromLog(game: GameState): readonly MemberSlotMovedEvent[] {
   return game.eventLog
     .map((entry) => entry.event)
@@ -1630,136 +1610,6 @@ function enqueueEnterWaitingRoomCardEffects(
     }
   }
   return state;
-}
-
-function enqueueEnergyPlacedByCardEffectCardEffects(
-  game: GameState,
-  events: readonly EnergyPlacedByCardEffectEvent[]
-): GameState {
-  let state = game;
-  for (const event of events) {
-    const player = getPlayerById(state, event.targetPlayerId);
-    if (!player || event.placedEnergyCardIds.length === 0) {
-      continue;
-    }
-    for (const sourceSlot of MEMBER_SLOT_ORDER) {
-      const sourceCardId = player.memberSlots.slots[sourceSlot];
-      if (!sourceCardId) {
-        continue;
-      }
-      state = enqueueSingleEnergyPlacedByCardEffectCardEffect(state, {
-        sourceCardId,
-        controllerId: player.id,
-        sourceSlot,
-        event,
-      });
-    }
-  }
-  return state;
-}
-
-function enqueueSingleEnergyPlacedByCardEffectCardEffect(
-  game: GameState,
-  source: EnergyPlacedByCardEffectAbilitySource
-): GameState {
-  const player = getPlayerById(game, source.controllerId);
-  const sourceCard = getCardById(game, source.sourceCardId);
-  if (
-    !player ||
-    !sourceCard ||
-    player.memberSlots.slots[source.sourceSlot] !== source.sourceCardId ||
-    !source.event.placedEnergyCardIds.every((cardId) => player.energyZone.cardIds.includes(cardId))
-  ) {
-    return game;
-  }
-
-  const abilityDefinitions = getQueuedAbilityDefinitionsForCard(
-    sourceCard.data.cardCode,
-    CardAbilityCategory.AUTO,
-    CardAbilitySourceZone.STAGE_MEMBER,
-    source.sourceSlot
-  ).filter(
-    (ability) =>
-      ability.triggerCondition === TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT &&
-      doesEnergyPlacedByCardEffectEventSatisfyAbilityDefinition(ability, source.event)
-  );
-  if (abilityDefinitions.length === 0) {
-    return game;
-  }
-
-  let state = game;
-  for (const abilityDefinition of abilityDefinitions) {
-    const abilityId = abilityDefinition.abilityId;
-    if (
-      abilityDefinition.skipQueueWhenTurnLimitReached === true &&
-      !canUseAbilityThisTurn(state, source.controllerId, abilityId, source.sourceCardId)
-    ) {
-      continue;
-    }
-
-    const pendingAbilityId = `${abilityId}:${source.sourceCardId}:${source.event.eventId}`;
-    if (hasAbilityInstance(state, pendingAbilityId)) {
-      continue;
-    }
-
-    const pendingAbility: PendingAbilityState = {
-      id: pendingAbilityId,
-      abilityId,
-      sourceCardId: source.sourceCardId,
-      controllerId: source.controllerId,
-      mandatory: true,
-      timingId: TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT,
-      eventIds: [source.event.eventId],
-      sourceSlot: source.sourceSlot,
-      metadata: {
-        triggerKind: 'ENERGY_PLACED_BY_CARD_EFFECT',
-        eventId: source.event.eventId,
-        targetPlayerId: source.event.targetPlayerId,
-        placedEnergyCardIds: source.event.placedEnergyCardIds,
-        orientation: source.event.orientation,
-        causedByKind: source.event.cause.kind,
-        causedByPlayerId: source.event.cause.playerId,
-        causedBySourceCardId: source.event.cause.sourceCardId,
-        causedByAbilityId: source.event.cause.abilityId ?? null,
-        causedByPendingAbilityId: source.event.cause.pendingAbilityId ?? null,
-      },
-    };
-
-    state = addAction(
-      {
-        ...state,
-        pendingAbilities: [...state.pendingAbilities, pendingAbility],
-      },
-      'TRIGGER_ABILITY',
-      pendingAbility.controllerId,
-      {
-        pendingAbilityId,
-        abilityId: pendingAbility.abilityId,
-        sourceCardId: source.sourceCardId,
-        timingId: pendingAbility.timingId,
-        sourceSlot: source.sourceSlot,
-        eventId: source.event.eventId,
-        targetPlayerId: source.event.targetPlayerId,
-        placedEnergyCardIds: source.event.placedEnergyCardIds,
-        orientation: source.event.orientation,
-        causedByPlayerId: source.event.cause.playerId,
-        causedBySourceCardId: source.event.cause.sourceCardId,
-        causedByAbilityId: source.event.cause.abilityId ?? null,
-      }
-    );
-  }
-
-  return state;
-}
-
-function doesEnergyPlacedByCardEffectEventSatisfyAbilityDefinition(
-  ability: CardAbilityDefinition,
-  event: EnergyPlacedByCardEffectEvent
-): boolean {
-  if (ability.energyPlacementCause === 'OWN_CARD_EFFECT') {
-    return event.cause.playerId === event.targetPlayerId;
-  }
-  return true;
 }
 
 function isSupportedEnterWaitingRoomTriggerZone(event: EnterWaitingRoomEvent): boolean {
@@ -3378,28 +3228,11 @@ function enqueueLatestResolvedEnergyPlacedByCardEffectTriggers(game: GameState):
     return game;
   }
 
-  const alreadyTriggeredEventIds = getAlreadyTriggeredEventIds(game);
-  const events = getEnergyPlacedByCardEffectEventsFromLog(game).filter(
+  return enqueueUntriggeredEnergyPlacedByCardEffectCardEffects(
+    game,
     (event) =>
       event.cause.abilityId === resolvedAbilityId &&
-      event.cause.sourceCardId === resolvedSourceCardId &&
-      !alreadyTriggeredEventIds.has(event.eventId)
-  );
-  if (events.length === 0) {
-    return game;
-  }
-
-  return enqueueTriggeredCardEffects(game, [TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT], {
-    energyPlacedByCardEffectEvents: events,
-  });
-}
-
-function getAlreadyTriggeredEventIds(game: GameState): ReadonlySet<string> {
-  return new Set(
-    game.actionHistory
-      .filter((action) => action.type === 'TRIGGER_ABILITY')
-      .map((action) => action.payload.eventId)
-      .filter((eventId): eventId is string => typeof eventId === 'string')
+      event.cause.sourceCardId === resolvedSourceCardId
   );
 }
 

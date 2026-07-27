@@ -190,7 +190,14 @@ describe('higher-score-place-waiting-energy shared workflow', () => {
     expect(done.players[0].energyZone.cardStates.get('energy-0')?.orientation).toBe(
       OrientationState.WAITING
     );
-    expect(done.actionHistory.at(-1)?.payload).toMatchObject({
+    expect(
+      done.actionHistory.findLast(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID
+      )?.payload
+    ).toMatchObject({
       abilityId: HS_BP1_023_LIVE_SUCCESS_HIGHER_SCORE_PLACE_WAITING_ENERGY_ABILITY_ID,
       step: 'PLACE_WAITING_ENERGY_IF_HIGHER_SCORE_HASUNOSORA_MEMBER',
       ownScore: 5,

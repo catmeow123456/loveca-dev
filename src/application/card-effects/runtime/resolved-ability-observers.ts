@@ -20,7 +20,7 @@ export function registerResolvedAbilityObserver(handler: ResolvedAbilityObserver
 }
 
 export function enqueueResolvedAbilityObserverCardEffects(game: GameState): GameState {
-  const resolvedAction = game.actionHistory.at(-1);
+  const resolvedAction = getLatestActionBeforeTriggerDispatchAudit(game);
   if (resolvedAction?.type !== 'RESOLVE_ABILITY') {
     return game;
   }
@@ -36,4 +36,15 @@ export function enqueueResolvedAbilityObserverCardEffects(game: GameState): Game
     state = handler(state, { resolvedAction });
   }
   return capturePendingAbilitySourceLifecycles(state);
+}
+
+function getLatestActionBeforeTriggerDispatchAudit(game: GameState): GameAction | undefined {
+  for (let index = game.actionHistory.length - 1; index >= 0; index -= 1) {
+    const action = game.actionHistory[index];
+    if (action?.type === 'DISPATCH_TRIGGER_EVENT') {
+      continue;
+    }
+    return action;
+  }
+  return undefined;
 }

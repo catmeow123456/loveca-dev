@@ -29,8 +29,17 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 - `activatedUi.displayOrder` 仅用于同一张卡具有多条起动能力时锁定卡面展示顺序；未配置时保持 definition / granted 查询的稳定顺序。`getActivatedAbilityUiConfig` 继续作为返回第一项的兼容包装，生产投影和新 UI 使用复数 `getActivatedAbilityUiConfigs`。
 - 在线卡牌对象同时保留旧单数字段与复数字段；前端只展示一个能力选择菜单，玩家选择后才提交对应 `abilityId`，不会并行创建多个效果窗口。当前首个真实多能力样本是 `PL!N-bp1-006` 费用 13「近江彼方」。
 
-## 能量区返回与活跃阶段标记
+## 触发事件派发、能量区返回与活跃阶段标记
 
+- `runtime/trigger-event-dispatch.ts` 统一以 `eventId + triggerCondition` 读取和写入
+  `DISPATCH_TRIGGER_EVENT` 派发台账；“已派发”表示该事件发生时的合法监听来源已经全部检查，
+  不要求实际生成 `TRIGGER_ABILITY`。当前生产接线只覆盖
+  `ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK` 与
+  `ON_ENERGY_PLACED_BY_CARD_EFFECT`，不代表其他事件类型已经迁移。
+- `runtime/energy-placement-triggers.ts` 负责
+  `ON_ENERGY_PLACED_BY_CARD_EFFECT` 的 exact-event 入队和历史补扫。一个事件先扫描目标玩家舞台
+  上全部合法监听来源，生成 0..N 个 pending，再写一次派发台账；无监听者、空/stale payload
+  或全部监听能力达到回合次数上限时仍视为已派发，后续回合不得重新消费该历史事件。
 - 卡牌效果将能量区能量放回能量卡组统一使用 `runtime/energy-return.ts` 的 `resolveEnergyReturnByCardEffect`。该 helper 负责校验并移动指定能量、清除离区 marker、一次写入一个批量 `ON_ENERGY_MOVED_TO_DECK` 事件，并将本次精确事件传给触发入队；返回值包含实际 `movedEnergyCardIds` 与本次 `energyMovedEvent`，caller 不得根据输入数组推测实际移动结果。card workflow 与其他 card-effect runtime 不得直接调用底层 `moveEnergyZoneCardsToEnergyDeckByCardEffect`。
 - `energyActivePhaseSkips` 按具体 energyCardId 绑定，只在该玩家下一次活跃阶段消费；卡牌效果仍可主动将其变为活跃。
 - 当前规则资料没有明确离区后的 marker 保留语义，因此采用“能量离开能量区即清除”的实现假设。

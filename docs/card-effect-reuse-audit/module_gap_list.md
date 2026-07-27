@@ -41,6 +41,12 @@
 | P1-soon | `F12` | Draw-then-deck-placement composed steps | none yet | F02 抽 2 弃 1已有第一条 proving path；F12 继续等待实际样例验证 deck placement 与 refresh semantics。 |
 | P2-later | unmatched/P2 special fragments | Card-local workflow with explicit boundaries | `workflows/cards/` | 低频特例可以保留为单卡 workflow，但完整 resolver、卡牌专属 gate、pending 构造和结算主体不得回流 runner；runner 只保留 import/register、通用 runtime hook 与尚未迁出的 trigger/relay/matcher 胶水。 |
 
+事件派发台账仍属于逐事件类型迁移中的窄底座：当前只有
+`ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK` 与 `ON_ENERGY_PLACED_BY_CARD_EFFECT`
+使用 `DISPATCH_TRIGGER_EVENT` 明确区分“已检查监听来源”和“实际生成 pending”。后者已由
+`PL!SP-bp7-005-SEC` 费用 9「叶月恋」的回合次数上限后旧事件复活回归证明；其他 AUTO
+事件类型没有因此视为完成，也不在没有真实复现或确定代码证据时批量迁移。
+
 ### Public log follow-ups for card-local inspection shapes
 
 本次 shared/common 公共日志只收口共通 workflow；以下单卡或 card-local 特殊检视日志后续分别评估，不纳入本次 shared/common commit。
