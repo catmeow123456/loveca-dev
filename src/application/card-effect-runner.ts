@@ -393,6 +393,7 @@ import { registerNBp7004KarinWorkflowHandlers } from './card-effects/workflows/c
 import { registerNBp7005AiWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-005-ai.js';
 import { registerNBp7006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-006-kanata.js';
 import { registerNBp7007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-007-setsuna.js';
+import { registerNBp7008EmmaVerdeWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-008-emma-verde.js';
 import { registerNBp7009RinaWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-009-rina.js';
 import { registerNBp7011MiaTaylorWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-011-mia-taylor.js';
 import { registerNBp8002KasumiWorkflowHandlers } from './card-effects/workflows/cards/n-bp8-002-kasumi.js';
@@ -402,6 +403,7 @@ import { registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers } from './c
 import { registerNBp7026JustBelieveWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-026-just-believe.js';
 import { registerNBp7030CheerModeWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-030-cheer-mode.js';
 import { registerNBp7028CookingWithLoveWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-028-cooking-with-love.js';
+import { registerNBp7029BurnWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-029-burn.js';
 import { registerNBp7031LikeATreasureWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-031-like-a-treasure.js';
 import { registerSBp7025GuiltyNightGuiltyKissWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-025-guilty-night-guilty-kiss.js';
 import { registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-028-mirai-no-oto-ga-kikoeru.js';
@@ -513,6 +515,9 @@ import { registerDrawThenDiscardWorkflowHandlers } from './card-effects/workflow
 import { registerFillWaitingRoomToEightOptionalMilledLiveToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/fill-waiting-room-to-eight-optional-milled-live-to-deck-top.js';
 import { registerGroupedRecoveryWorkflowHandlers } from './card-effects/workflows/shared/grouped-recovery.js';
 import { registerLookTopSelectToHandWorkflowHandlers } from './card-effects/workflows/shared/look-top-select-to-hand.js';
+import { registerLookTopTenMinusHandTakeTwoWorkflowHandlers } from './card-effects/workflows/shared/look-top-ten-minus-hand-take-two.js';
+import { registerLiveStartWaitingLiveToDeckTopWorkflowHandlers } from './card-effects/workflows/shared/live-start-waiting-live-to-deck-top.js';
+import { registerRelayReplacementGainBladeWorkflowHandlers } from './card-effects/workflows/shared/relay-replacement-gain-blade.js';
 import { registerActivatedPayEnergySelfPositionChangeWorkflowHandlers } from './card-effects/workflows/shared/activated-pay-energy-self-position-change.js';
 import { registerActivatedWaitSelfDiscardDrawWorkflowHandlers } from './card-effects/workflows/shared/activated-wait-self-discard-draw.js';
 import { registerLiveStartDiscardGainHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-discard-gain-heart.js';
@@ -848,6 +853,9 @@ function revealSelectedInspectionCard(
 }
 const ABILITY_ORDER_SELECTION_STEP_ID = 'SELECT_NEXT_PENDING_ABILITY';
 registerLookTopSelectToHandWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerLookTopTenMinusHandTakeTwoWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerLiveStartWaitingLiveToDeckTopWorkflowHandlers();
+registerRelayReplacementGainBladeWorkflowHandlers();
 registerActivatedRevealHandNoLiveLookTopLiveWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerArrangeInspectedDeckEdgeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerConditionalLiveModifierWorkflowHandlers();
@@ -1200,6 +1208,7 @@ registerNBp7006KanataWorkflowHandlers({
   continuePendingCardEffects,
 });
 registerNBp7007SetsunaWorkflowHandlers();
+registerNBp7008EmmaVerdeWorkflowHandlers();
 registerNBp7009RinaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7011MiaTaylorWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp8002KasumiWorkflowHandlers();
@@ -1209,6 +1218,7 @@ registerNBp7025ColorfulDreamsColorfulSmilesWorkflowHandlers();
 registerNBp7026JustBelieveWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7030CheerModeWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7028CookingWithLoveWorkflowHandlers();
+registerNBp7029BurnWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7031LikeATreasureWorkflowHandlers();
 registerSBp7025GuiltyNightGuiltyKissWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers();

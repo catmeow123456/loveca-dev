@@ -1743,6 +1743,18 @@ export const PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID 
   'PL!-pb2-039:live-success-distinct-muse-stage-cheer-score';
 export const N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID =
   'PL!N-bp8-002:activated-waiting-room-pay-energy-bottom-self-target-yellow-heart';
+export const N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!N-bp7-008:on-enter-bottom-up-to-four-no-blade-heart-members-activate-energy';
+export const N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID =
+  'PL!N-bp7-029:live-success-return-energy-below-score';
+export const PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID =
+  'PR:continuous-total-success-live-score-ten-gain-pink-heart';
+export const PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PR:auto-relay-replacement-cost-nine-gain-two-blade';
+export const PR_ON_ENTER_LOOK_TOP_TEN_MINUS_HAND_TAKE_TWO_ABILITY_ID =
+  'PR:on-enter-look-top-ten-minus-hand-take-two';
+export const PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID =
+  'PR:live-start-waiting-room-at-most-nine-stack-live';
 export const PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
   'PL!N-sd2-007:live-success-draw-one-opponent-success-draw-one-discard-one';
 export const N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID =

@@ -1,16 +1,32 @@
 import type { GameState } from '../../domain/entities/game.js';
-import { getCardById, getPlayerById, updatePlayer } from '../../domain/entities/game.js';
+import {
+  emitGameEvent,
+  getCardById,
+  getPlayerById,
+  updatePlayer,
+} from '../../domain/entities/game.js';
 import { isEnergyCardData, isMemberCardData } from '../../domain/entities/card.js';
+import {
+  createEnergyPlacedByCardEffectEvent,
+  type CardEffectCause,
+  type EnergyPlacedByCardEffectEvent,
+} from '../../domain/events/game-events.js';
 import type { PlayerState } from '../../domain/entities/player.js';
 import { findMemberSlot } from '../../domain/entities/player.js';
 import {
+  addCardToStatefulZone,
   addCardToZone,
   addEnergyBelowMember,
   getCardInSlot,
   popEnergyBelowMember,
   removeCardFromStatefulZone,
 } from '../../domain/entities/zone.js';
-import type { SlotPosition } from '../../shared/types/enums.js';
+import {
+  FaceState,
+  OrientationState,
+  TriggerCondition,
+  type SlotPosition,
+} from '../../shared/types/enums.js';
 import { resolveEnergySelectionForOperation } from './energy-selection.js';
 
 export interface StackEnergyBelowResult {
@@ -22,6 +38,115 @@ export interface PlaceEnergyFromEnergyDeckBelowStageMemberResult {
   readonly gameState: GameState;
   readonly targetSlot: SlotPosition;
   readonly placedEnergyCardIds: readonly string[];
+}
+
+export type EnqueueTriggeredCardEffectsForEnergyBelowPlacement = (
+  game: GameState,
+  triggerConditions: readonly TriggerCondition[],
+  options?: {
+    readonly energyPlacedByCardEffectEvents?: readonly EnergyPlacedByCardEffectEvent[];
+  }
+) => GameState;
+
+export interface MoveAllEnergyBelowMemberToEnergyZoneByCardEffectConfig {
+  readonly playerId: string;
+  readonly targetMemberCardId: string;
+  readonly expectedEnergyCardIds: readonly string[];
+  readonly cause: CardEffectCause;
+  readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnergyBelowPlacement;
+}
+
+export interface MoveAllEnergyBelowMemberToEnergyZoneByCardEffectResult {
+  readonly gameState: GameState;
+  readonly targetSlot: SlotPosition;
+  readonly movedEnergyCardIds: readonly string[];
+  readonly energyPlacedEvent: EnergyPlacedByCardEffectEvent;
+}
+
+/**
+ * Moves the complete, caller-snapshotted energy-below stack of one current top-level member
+ * into its owner's energy zone as WAITING/FACE_UP energy.
+ *
+ * The full stack is revalidated atomically: a stale member instance or any changed/missing
+ * energy card rejects the whole move. A real move emits and forwards exactly one standard
+ * ON_ENERGY_PLACED_BY_CARD_EFFECT event; workflow choice, score rewards, and continuation stay
+ * with the caller.
+ */
+export function moveAllEnergyBelowMemberToEnergyZoneByCardEffect(
+  game: GameState,
+  config: MoveAllEnergyBelowMemberToEnergyZoneByCardEffectConfig
+): MoveAllEnergyBelowMemberToEnergyZoneByCardEffectResult | null {
+  const expectedEnergyCardIds = [...config.expectedEnergyCardIds];
+  if (
+    expectedEnergyCardIds.length === 0 ||
+    new Set(expectedEnergyCardIds).size !== expectedEnergyCardIds.length
+  ) {
+    return null;
+  }
+
+  const player = getPlayerById(game, config.playerId);
+  const targetMember = getCardById(game, config.targetMemberCardId);
+  const targetSlot = player ? findMemberSlot(player, config.targetMemberCardId) : null;
+  if (
+    !player ||
+    !targetMember ||
+    targetMember.ownerId !== player.id ||
+    !isMemberCardData(targetMember.data) ||
+    targetSlot === null ||
+    player.memberSlots.slots[targetSlot] !== config.targetMemberCardId
+  ) {
+    return null;
+  }
+
+  const currentEnergyCardIds = player.memberSlots.energyBelow[targetSlot] ?? [];
+  if (
+    currentEnergyCardIds.length !== expectedEnergyCardIds.length ||
+    currentEnergyCardIds.some((cardId, index) => cardId !== expectedEnergyCardIds[index])
+  ) {
+    return null;
+  }
+  for (const energyCardId of expectedEnergyCardIds) {
+    const energyCard = getCardById(game, energyCardId);
+    if (!energyCard || energyCard.ownerId !== player.id || !isEnergyCardData(energyCard.data)) {
+      return null;
+    }
+  }
+
+  const movedState = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    memberSlots: {
+      ...currentPlayer.memberSlots,
+      energyBelow: {
+        ...currentPlayer.memberSlots.energyBelow,
+        [targetSlot]: [],
+      },
+    },
+    energyZone: expectedEnergyCardIds.reduce(
+      (energyZone, energyCardId) =>
+        addCardToStatefulZone(energyZone, energyCardId, {
+          orientation: OrientationState.WAITING,
+          face: FaceState.FACE_UP,
+        }),
+      currentPlayer.energyZone
+    ),
+  }));
+  const energyPlacedEvent = createEnergyPlacedByCardEffectEvent(
+    player.id,
+    expectedEnergyCardIds,
+    OrientationState.WAITING,
+    config.cause
+  );
+  const stateWithEvent = emitGameEvent(movedState, energyPlacedEvent);
+  return {
+    gameState: config.enqueueTriggeredCardEffects(
+      stateWithEvent,
+      [TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT],
+      { energyPlacedByCardEffectEvents: [energyPlacedEvent] }
+    ),
+    targetSlot,
+    movedEnergyCardIds: expectedEnergyCardIds,
+    energyPlacedEvent,
+  };
 }
 
 export function placeEnergyFromEnergyDeckBelowStageMember(
