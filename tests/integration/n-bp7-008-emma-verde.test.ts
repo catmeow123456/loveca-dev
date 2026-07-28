@@ -297,7 +297,7 @@ describe('PL!N-bp7-008-P 费用15「艾玛·维尔德」', () => {
     }
   );
 
-  it('opens an exact special-energy step after the cards moved and clears the old card fields', () => {
+  it('uses the common exact energy-selection adapter before atomically moving cards and activating energy', () => {
     const scenario = setup({
       candidateCount: 3,
       waitingEnergyCount: 5,
@@ -306,15 +306,23 @@ describe('PL!N-bp7-008-P 费用15「艾玛·维尔德」', () => {
     const movedCardIds = scenario.candidates.map((card) => card.instanceId);
     const reveal = submitCards(scenario.game, movedCardIds);
     const energyStep = finishPublicConfirmation(reveal);
-    expect(energyStep.players[0].mainDeck.cardIds).toEqual(movedCardIds);
+    expect(energyStep.players[0].mainDeck.cardIds).toEqual([]);
+    expect(energyStep.players[0].waitingRoom.cardIds).toEqual(expect.arrayContaining(movedCardIds));
+    expect(
+      scenario.waitingEnergies.every(
+        (card) =>
+          energyStep.players[0].energyZone.cardStates.get(card.instanceId)?.orientation ===
+          OrientationState.WAITING
+      )
+    ).toBe(true);
     expect(energyStep.activeEffect).toMatchObject({
-      stepId: 'N_BP7_008_SELECT_ENERGY_TO_ACTIVATE',
+      stepId: 'COMMON_ENERGY_OPERATION_SELECTION',
       stepText: '请选择要变为活跃状态的待机能量。',
       selectableCardIds: scenario.waitingEnergies.map((card) => card.instanceId),
       minSelectableCards: 3,
       maxSelectableCards: 3,
-      selectionLabel: '选择要变为活跃状态的能量',
-      confirmSelectionLabel: '变为活跃状态',
+      selectionLabel: '选择要变为活跃的能量',
+      confirmSelectionLabel: '变为活跃',
       canSkipSelection: false,
     });
     expect(energyStep.activeEffect?.metadata?.publicCardSelectionConfirmation).toBeUndefined();
@@ -326,8 +334,23 @@ describe('PL!N-bp7-008-P 费用15「艾玛·维尔德」', () => {
       scenario.waitingEnergies[2]!.instanceId,
       scenario.waitingEnergies[4]!.instanceId,
     ];
+    expect(
+      submitCards(energyStep, [
+        selectedEnergyCardIds[0]!,
+        selectedEnergyCardIds[0]!,
+        selectedEnergyCardIds[2]!,
+      ])
+    ).toBe(energyStep);
+    expect(
+      submitCards(energyStep, [
+        selectedEnergyCardIds[0]!,
+        selectedEnergyCardIds[1]!,
+        scenario.candidates[0]!.instanceId,
+      ])
+    ).toBe(energyStep);
     const done = submitCards(energyStep, selectedEnergyCardIds);
     expect(done.activeEffect).toBeNull();
+    expect(done.players[0].mainDeck.cardIds).toEqual(movedCardIds);
     expect(
       selectedEnergyCardIds.map(
         (cardId) => done.players[0].energyZone.cardStates.get(cardId)?.orientation
@@ -354,7 +377,7 @@ describe('PL!N-bp7-008-P 费用15「艾玛·维尔德」', () => {
     expect(done.activeEffect).toBeNull();
   });
 
-  it('keeps the completed card move when waiting energy becomes insufficient afterward', () => {
+  it('rejects a stale energy selection without moving cards or advancing the effect', () => {
     const scenario = setup({
       candidateCount: 3,
       waitingEnergyCount: 5,
@@ -373,23 +396,26 @@ describe('PL!N-bp7-008-P 费用15「艾玛·维尔德」', () => {
     }));
     const submittedIds = scenario.waitingEnergies.slice(0, 3).map((card) => card.instanceId);
     const done = submitCards(staleEnergyState, submittedIds);
-    expect(done.players[0].mainDeck.cardIds).toEqual(movedCardIds);
-    expect(done.activeEffect).toBeNull();
+    expect(done).toBe(staleEnergyState);
+    expect(done.players[0].mainDeck.cardIds).toEqual([]);
+    expect(done.players[0].waitingRoom.cardIds).toEqual(expect.arrayContaining(movedCardIds));
+    expect(done.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
     expect(
       scenario.waitingEnergies
         .slice(1, 4)
         .every(
           (card) =>
             done.players[0].energyZone.cardStates.get(card.instanceId)?.orientation ===
-            OrientationState.ACTIVE
+            OrientationState.WAITING
         )
     ).toBe(true);
   });
 
-  it('returns through continuation after moving and activating energy', () => {
+  it('returns through continuation after common energy selection replays the card move', () => {
     const scenario = setup({
       candidateCount: 2,
-      waitingEnergyCount: 1,
+      waitingEnergyCount: 3,
+      markedWaitingIndices: [0],
       continuation: true,
     });
     const firstCardId = scenario.candidates[0]!.instanceId;
@@ -402,7 +428,15 @@ describe('PL!N-bp7-008-P 费用15「艾玛·维尔德」', () => {
       false,
       'n-bp7-008:main'
     );
-    const afterFirst = finishPublicConfirmation(submitCards(firstWindow, [firstCardId]));
+    const energyStep = finishPublicConfirmation(submitCards(firstWindow, [firstCardId]));
+    expect(energyStep.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+    expect(energyStep.players[0].mainDeck.cardIds).toEqual([]);
+    const selectedEnergyCardId = scenario.waitingEnergies[1]!.instanceId;
+    const afterFirst = submitCards(energyStep, [selectedEnergyCardId]);
+    expect(afterFirst.players[0].mainDeck.cardIds).toEqual([firstCardId]);
+    expect(afterFirst.players[0].energyZone.cardStates.get(selectedEnergyCardId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
     expect(afterFirst.activeEffect).toMatchObject({
       abilityId: ABILITY_ID,
       selectableCardIds: [scenario.candidates[1]!.instanceId],

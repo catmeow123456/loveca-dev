@@ -271,7 +271,7 @@ describe('PR relay replacement cost-nine BLADE family', () => {
 
 describe('PR on-enter look top ten minus hand, take up to two family', () => {
   function setup(handCount: number, deckCount: number) {
-    const source = createCardInstance(memberData('PL!HS-PR-039-PR', '百生吟子', 12), P1, 'source');
+    const source = createCardInstance(memberData('PL!HS-PR-039-PR', '百生吟子', 15), P1, 'source');
     const hand = Array.from({ length: handCount }, (_, index) =>
       createCardInstance(memberData(`HAND-${index}`), P1, `hand-${index}`)
     );

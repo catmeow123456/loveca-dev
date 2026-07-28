@@ -6,13 +6,9 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { CardType, OrientationState } from '../../../../shared/types/enums.js';
+import { CardType } from '../../../../shared/types/enums.js';
 import { and, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
-import { setEnergyOrientation } from '../../../effects/energy.js';
-import {
-  getEnergySelectionCandidates,
-  shouldSelectEnergyForOperation,
-} from '../../../effects/energy-selection.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
@@ -25,7 +21,6 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 const ABILITY_ID =
   N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID;
 const SELECT_BOTTOM_STEP_ID = 'N_BP7_008_SELECT_MEMBERS_TO_DECK_BOTTOM';
-const SELECT_ENERGY_STEP_ID = 'N_BP7_008_SELECT_ENERGY_TO_ACTIVATE';
 const MAX_BOTTOM_COUNT = 4;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -43,13 +38,6 @@ export function registerNBp7008EmmaVerdeWorkflowHandlers(): void {
   );
   registerActiveEffectStepHandler(ABILITY_ID, SELECT_BOTTOM_STEP_ID, (game, input, context) =>
     finishBottomSelection(
-      game,
-      input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
-      context.continuePendingCardEffects
-    )
-  );
-  registerActiveEffectStepHandler(ABILITY_ID, SELECT_ENERGY_STEP_ID, (game, input, context) =>
-    finishEnergySelection(
       game,
       input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
       context.continuePendingCardEffects
@@ -209,23 +197,6 @@ function resolveEnergyActivationAfterMove(
     'ACTIVATE_WAITING_ENERGY'
   );
   const activationCount = Math.min(movedCardIds.length, waitingEnergyCardIds.length);
-  if (
-    shouldSelectEnergyForOperation(
-      game,
-      effect.controllerId,
-      'ACTIVATE_WAITING_ENERGY',
-      activationCount
-    )
-  ) {
-    return createEnergySelectionWindow(
-      game,
-      effect,
-      movedCardIds,
-      waitingEnergyCardIds,
-      activationCount
-    );
-  }
-
   const activation = activateWaitingEnergyCardsForPlayer(
     game,
     effect.controllerId,
@@ -244,134 +215,6 @@ function resolveEnergyActivationAfterMove(
     selectedCardIds: movedCardIds,
     movedCardIds,
     activatedEnergyCardIds: activation.activatedEnergyCardIds,
-  });
-}
-
-function createEnergySelectionWindow(
-  game: GameState,
-  previousEffect: ActiveEffectState,
-  movedCardIds: readonly string[],
-  waitingEnergyCardIds: readonly string[],
-  activationCount: number
-): GameState {
-  return {
-    ...game,
-    activeEffect: {
-      id: previousEffect.id,
-      abilityId: previousEffect.abilityId,
-      sourceCardId: previousEffect.sourceCardId,
-      sourceCardDisplayCode: previousEffect.sourceCardDisplayCode,
-      sourceLifecycleId: previousEffect.sourceLifecycleId,
-      controllerId: previousEffect.controllerId,
-      effectText: previousEffect.effectText,
-      stepId: SELECT_ENERGY_STEP_ID,
-      stepText: '请选择要变为活跃状态的待机能量。',
-      awaitingPlayerId: previousEffect.controllerId,
-      selectableCardIds: waitingEnergyCardIds,
-      selectableCardVisibility: 'PUBLIC',
-      selectableCardMode: activationCount > 1 ? 'ORDERED_MULTI' : 'SINGLE',
-      minSelectableCards: activationCount,
-      maxSelectableCards: activationCount,
-      selectionLabel: '选择要变为活跃状态的能量',
-      confirmSelectionLabel: '变为活跃状态',
-      canSkipSelection: false,
-      metadata: {
-        orderedResolution: previousEffect.metadata?.orderedResolution === true,
-        movedCardIds,
-        activationCount,
-      },
-    },
-  };
-}
-
-function finishEnergySelection(
-  game: GameState,
-  selectedEnergyCardIds: readonly string[],
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
-  const effect = game.activeEffect;
-  if (!effect || effect.abilityId !== ABILITY_ID || effect.stepId !== SELECT_ENERGY_STEP_ID) {
-    return game;
-  }
-  const movedCardIds = getStringArray(effect.metadata?.movedCardIds);
-  const originalActivationCount = getNonNegativeInteger(effect.metadata?.activationCount);
-  if (
-    selectedEnergyCardIds.length !== originalActivationCount ||
-    new Set(selectedEnergyCardIds).size !== selectedEnergyCardIds.length ||
-    selectedEnergyCardIds.some((cardId) => effect.selectableCardIds?.includes(cardId) !== true)
-  ) {
-    return game;
-  }
-
-  const waitingEnergyCardIds = getEnergySelectionCandidates(
-    game,
-    effect.controllerId,
-    'ACTIVATE_WAITING_ENERGY'
-  );
-  const currentActivationCount = Math.min(movedCardIds.length, waitingEnergyCardIds.length);
-  if (currentActivationCount === 0) {
-    return finishEffect(game, effect, continuePendingCardEffects, {
-      step: 'ENERGY_BECAME_UNAVAILABLE_AFTER_MOVE',
-      selectedCardIds: movedCardIds,
-      movedCardIds,
-      activatedEnergyCardIds: [],
-    });
-  }
-
-  const stillRequiresSelection = shouldSelectEnergyForOperation(
-    game,
-    effect.controllerId,
-    'ACTIVATE_WAITING_ENERGY',
-    currentActivationCount
-  );
-  if (stillRequiresSelection) {
-    if (
-      currentActivationCount !== selectedEnergyCardIds.length ||
-      selectedEnergyCardIds.some((cardId) => !waitingEnergyCardIds.includes(cardId))
-    ) {
-      return createEnergySelectionWindow(
-        game,
-        effect,
-        movedCardIds,
-        waitingEnergyCardIds,
-        currentActivationCount
-      );
-    }
-    const orientation = setEnergyOrientation(
-      game,
-      effect.controllerId,
-      selectedEnergyCardIds,
-      OrientationState.ACTIVE
-    );
-    if (!orientation || orientation.updatedEnergyCardIds.length !== currentActivationCount) {
-      return createEnergySelectionWindow(
-        game,
-        effect,
-        movedCardIds,
-        waitingEnergyCardIds,
-        currentActivationCount
-      );
-    }
-    return finishEffect(orientation.gameState, effect, continuePendingCardEffects, {
-      step: 'BOTTOM_MEMBERS_ACTIVATE_SELECTED_ENERGY',
-      selectedCardIds: movedCardIds,
-      movedCardIds,
-      activatedEnergyCardIds: orientation.updatedEnergyCardIds,
-    });
-  }
-
-  const activation = activateWaitingEnergyCardsForPlayer(
-    game,
-    effect.controllerId,
-    currentActivationCount
-  );
-  return finishEffect(activation?.gameState ?? game, effect, continuePendingCardEffects, {
-    step: activation
-      ? 'BOTTOM_MEMBERS_ACTIVATE_CURRENT_ENERGY'
-      : 'ENERGY_BECAME_UNAVAILABLE_AFTER_MOVE',
-    selectedCardIds: movedCardIds,
-    movedCardIds,
-    activatedEnergyCardIds: activation?.activatedEnergyCardIds ?? [],
   });
 }
 
