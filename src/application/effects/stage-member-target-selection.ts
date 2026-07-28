@@ -24,6 +24,7 @@ export interface StageMemberOrientationTargetSelectionConfig {
   readonly selector: CardSelector;
   readonly targetOrientation: OrientationState;
   readonly selectionLabel: string;
+  readonly confirmSelectionLabel?: string;
   readonly orderedResolution: boolean;
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
@@ -72,6 +73,7 @@ export function createStageMemberOrientationTargetSelection(
       awaitingPlayerId: config.awaitingPlayerId,
       selectableCardIds,
       selectionLabel: config.selectionLabel,
+      confirmSelectionLabel: config.confirmSelectionLabel,
       metadata: {
         ...config.metadata,
         stageMemberOrientationTarget: true,

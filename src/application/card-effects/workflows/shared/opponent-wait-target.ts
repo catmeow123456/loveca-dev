@@ -17,6 +17,10 @@ import {
   HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
   HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  N_SD2_013_LIVE_START_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+  N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+  N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
@@ -45,6 +49,7 @@ import {
   and,
   costGte,
   costLte,
+  groupAliasIs,
   memberPrintedBladeLte,
   not,
   type CardSelector,
@@ -75,6 +80,8 @@ const PL_PB1_009_SELECT_OPPONENT_ORIGINAL_BLADE_ONE_MEMBER_STEP_ID =
   'PL_PB1_009_SELECT_OPPONENT_ORIGINAL_BLADE_ONE_MEMBER_TO_WAIT';
 const SP_BP7_009_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID =
   'SP_BP7_009_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_TO_WAIT';
+const N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID =
+  'N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_TO_WAIT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -90,6 +97,7 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly minOwnStageHeartTotal?: number;
   readonly minOwnStageDifferentBiBiMemberNameCount?: number;
   readonly minOwnStagePrintedCost?: number;
+  readonly allOwnStageMembersGroupAlias?: string;
   readonly confirmNoTargetWithRealtimeText?: boolean;
 }
 
@@ -137,6 +145,24 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     abilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
     effectTextAbilityId: S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
     stepId: S_BP6_015_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于2的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于2的成员',
+    selector: costLteTwoOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_TWO_MEMBER',
+  },
+  {
+    abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    effectTextAbilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    stepId: SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于2的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于2的成员',
+    selector: costLteTwoOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_TWO_MEMBER',
+  },
+  {
+    abilityId: N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    effectTextAbilityId: N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    stepId: SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID,
     stepText: '请选择对方舞台上1名费用小于等于2的成员变为待机状态。',
     selectionLabel: '选择对方舞台上费用小于等于2的成员',
     selector: costLteTwoOpponentMemberSelector,
@@ -254,6 +280,22 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     selector: memberPrintedBladeLte(2),
     startActionStep: 'START_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER',
   },
+  ...[
+    N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+    N_SD2_013_LIVE_START_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+  ].map(
+    (abilityId) =>
+      ({
+        abilityId,
+        effectTextAbilityId: abilityId,
+        stepId: N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID,
+        stepText: '请选择对方舞台上1名原本持有的[BLADE]数量小于等于2的成员变为待机状态。',
+        selectionLabel: '选择对方舞台上原本[BLADE]小于等于2的成员',
+        selector: memberPrintedBladeLte(2),
+        startActionStep: 'START_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER',
+        allOwnStageMembersGroupAlias: '虹ヶ咲',
+      }) satisfies OpponentWaitTargetWorkflowConfig
+  ),
 ];
 
 export function registerOpponentWaitTargetWorkflowHandlers(deps: {
@@ -293,6 +335,39 @@ function startOpponentWaitTargetWorkflow(
     return game;
   }
   const orderedResolution = options.orderedResolution === true;
+
+  const ownStageMemberCardIds = getStageMemberCardIdsMatching(
+    game,
+    player.id,
+    typeIs(CardType.MEMBER)
+  );
+  const allOwnStageMembersMatchGroup =
+    config.allOwnStageMembersGroupAlias === undefined
+      ? true
+      : ownStageMemberCardIds.length > 0 &&
+        ownStageMemberCardIds.every((cardId) => {
+          const card = game.cardRegistry.get(cardId);
+          return card !== undefined && groupAliasIs(config.allOwnStageMembersGroupAlias!)(card);
+        });
+  if (!allOwnStageMembersMatchGroup) {
+    const state = {
+      ...game,
+      pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+    };
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'SKIP_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        ownStageMemberCardIds,
+        requiredOwnStageGroupAlias: config.allOwnStageMembersGroupAlias,
+        allOwnStageMembersMatchGroup,
+      }),
+      orderedResolution
+    );
+  }
 
   const ownStageHighPrintedCostMemberCount =
     config.minOwnStagePrintedCost === undefined
@@ -401,6 +476,7 @@ function startOpponentWaitTargetWorkflow(
     selector: config.selector,
     targetOrientation: OrientationState.WAITING,
     selectionLabel: config.selectionLabel,
+    confirmSelectionLabel: '变为待机状态',
     orderedResolution,
     metadata: {
       sourceSlot: ability.sourceSlot,

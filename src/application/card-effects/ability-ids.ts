@@ -1765,6 +1765,30 @@ export const PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID =
   'PR:live-start-waiting-room-at-most-nine-stack-live';
 export const PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
   'PL!N-sd2-007:live-success-draw-one-opponent-success-draw-one-discard-one';
+export const N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID =
+  'PL!N-sd2-001:activated-pay-two-energy-recover-nijigasaki-live';
+export const N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID =
+  'PL!N-sd2-015:activated-wait-self-discard-draw-one';
+export const N_SD2_004_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-sd2-004:live-start-pay-energy-gain-two-blade';
+export const N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID =
+  'PL!N-sd2-005:live-start-discard-gain-heart';
+export const N_SD2_006_LIVE_START_WAIT_NIJIGASAKI_MEMBER_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-sd2-006:live-start-wait-nijigasaki-member-gain-two-blade';
+export const N_SD2_008_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!N-sd2-008:live-start-pay-energy-gain-two-blade';
+export const N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID =
+  'PL!N-sd2-013:on-enter-only-nijigasaki-wait-low-printed-blade-opponent';
+export const N_SD2_013_LIVE_START_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID =
+  'PL!N-sd2-013:live-start-only-nijigasaki-wait-low-printed-blade-opponent';
+export const N_SD2_017_LIVE_START_PAY_ENERGY_ACTIVATE_STAGE_MEMBER_ABILITY_ID =
+  'PL!N-sd2-017:live-start-pay-energy-activate-stage-member';
+export const N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID =
+  'PL!N-sd2-019:on-enter-gain-blue-heart';
+export const N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID =
+  'PL!N-sd2-019:live-start-wait-opponent-cost-two-member';
+export const N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID =
+  'PL!N-sd2-021:on-enter-wait-opponent-cost-two-member';
 export const N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID =
   'PL!N-sd2-025:live-start-activate-nijigasaki-stage-member';
 export const PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID =

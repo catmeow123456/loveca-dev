@@ -873,6 +873,18 @@ import {
   PL_BP4_020_LIVE_START_ONLY_MUSE_STAGE_TARGET_MEMBER_POSITION_CHANGE_ABILITY_ID,
   PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
   PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+  N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+  N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+  N_SD2_004_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+  N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  N_SD2_006_LIVE_START_WAIT_NIJIGASAKI_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+  N_SD2_008_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+  N_SD2_013_LIVE_START_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+  N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+  N_SD2_017_LIVE_START_PAY_ENERGY_ACTIVATE_STAGE_MEMBER_ABILITY_ID,
+  N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
+  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
   PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
   N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
@@ -15934,12 +15946,97 @@ describe('PL!S-bp7-007 and PL!HS-bp8-001 base-scoped definitions', () => {
 describe('PL!N-sd2 base-scoped definitions', () => {
   it.each([
     [
+      'PL!N-sd2-001-SD2',
+      N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+      'PL!N-sd2-001',
+      1,
+    ],
+    [
+      'PL!N-sd2-015-SD2',
+      N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+      'PL!N-sd2-015',
+      1,
+    ],
+    ['PL!N-sd2-016-SD2', RIN_ACTIVATED_ABILITY_ID, 'PL!N-sd2-016', undefined],
+    ['PL!N-sd2-024-SD2', PB1_019_ACTIVATED_ABILITY_ID, 'PL!N-sd2-024', undefined],
+  ] as const)(
+    'registers activated DRAFT %s by base card code',
+    (cardCode, abilityId, baseCardCode, perTurnLimit) => {
+      const definition = getCardAbilityDefinitions(cardCode).find(
+        (candidate) => candidate.abilityId === abilityId
+      );
+      expect(definition).toMatchObject({
+        abilityId,
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        ...(perTurnLimit === undefined ? {} : { perTurnLimit }),
+      });
+      expect(definition?.baseCardCodes).toContain(baseCardCode);
+      expect(definition?.cardCodes).toBeUndefined();
+      expect(getCardAbilityDefinitions(`${baseCardCode}-SEC`)).toEqual(
+        expect.arrayContaining([expect.objectContaining({ abilityId })])
+      );
+    }
+  );
+
+  it.each([
+    [
+      'PL!N-sd2-004-SD2',
+      N_SD2_004_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+      'PL!N-sd2-004',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      TriggerCondition.ON_LIVE_START,
+    ],
+    [
+      'PL!N-sd2-005-SD2',
+      N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+      'PL!N-sd2-005',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      TriggerCondition.ON_LIVE_START,
+    ],
+    [
+      'PL!N-sd2-006-SD2',
+      N_SD2_006_LIVE_START_WAIT_NIJIGASAKI_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+      'PL!N-sd2-006',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      TriggerCondition.ON_LIVE_START,
+    ],
+    [
       'PL!N-sd2-007-P',
       PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
       'PL!N-sd2-007',
       CardAbilityCategory.LIVE_SUCCESS,
       CardAbilitySourceZone.STAGE_MEMBER,
       TriggerCondition.ON_LIVE_SUCCESS,
+    ],
+    [
+      'PL!N-sd2-008-SD2',
+      N_SD2_008_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+      'PL!N-sd2-008',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      TriggerCondition.ON_LIVE_START,
+    ],
+    [
+      'PL!N-sd2-017-SD2',
+      N_SD2_017_LIVE_START_PAY_ENERGY_ACTIVATE_STAGE_MEMBER_ABILITY_ID,
+      'PL!N-sd2-017',
+      CardAbilityCategory.LIVE_START,
+      CardAbilitySourceZone.STAGE_MEMBER,
+      TriggerCondition.ON_LIVE_START,
+    ],
+    [
+      'PL!N-sd2-021-SD2',
+      N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+      'PL!N-sd2-021',
+      CardAbilityCategory.ON_ENTER,
+      CardAbilitySourceZone.PLAYED_MEMBER,
+      TriggerCondition.ON_ENTER_STAGE,
     ],
     [
       'PL!N-sd2-025-P',
@@ -15984,7 +16081,62 @@ describe('PL!N-sd2 base-scoped definitions', () => {
     }
   );
 
-  it.each(['PL!N-sd2-006-P', 'PL!N-sd2-008-P', 'PL!N-sd2-024-P', 'PL!N-sd2-028-P'])(
+  it('registers PL!N-sd2-013 ON_ENTER and LIVE_START as independent base-scoped abilities with the complete shared paragraph', () => {
+    const effectText =
+      '【登场】/【LIVE开始时】自己的舞台上仅存在『虹咲』的成员的场合，将存在于对方的舞台的1名原本持有的[ブレード]的数量小于等于2的成员变为待机状态。';
+    expect(getCardAbilityDefinitions('PL!N-sd2-013-SD2')).toEqual([
+      expect.objectContaining({
+        abilityId: N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+        baseCardCodes: ['PL!N-sd2-013'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        effectText,
+      }),
+      expect.objectContaining({
+        abilityId: N_SD2_013_LIVE_START_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+        baseCardCodes: ['PL!N-sd2-013'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        effectText,
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-sd2-013-SEC')).toHaveLength(2);
+  });
+
+  it('registers both PL!N-sd2-019 abilities with their complete independent paragraphs', () => {
+    expect(getCardAbilityDefinitions('PL!N-sd2-019-SD2')).toEqual([
+      expect.objectContaining({
+        abilityId: N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
+        baseCardCodes: ['PL!N-sd2-019'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        effectText: '【登场】LIVE结束时为止，获得[青ハート]。',
+      }),
+      expect.objectContaining({
+        abilityId: N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+        baseCardCodes: ['PL!N-sd2-019'],
+        category: CardAbilityCategory.LIVE_START,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_LIVE_START,
+        effectText: '【LIVE开始时】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。',
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-sd2-019-SEC')).toHaveLength(2);
+  });
+
+  it('keeps exact exported player text for PL!N-sd2-006 and PL!N-sd2-021', () => {
+    expect(getCardAbilityDefinitions('PL!N-sd2-006-SD2')[0]?.effectText).toBe(
+      '【LIVE开始时】可以将1名『虹咲』的成员变为待机状态：LIVE结束时为止，获得[ブレード][ブレード]。'
+    );
+    expect(getCardAbilityDefinitions('PL!N-sd2-021-SD2')[0]?.effectText).toBe(
+      '【登场】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。'
+    );
+  });
+
+  it.each(['PL!N-sd2-009-P', 'PL!N-sd2-010-P', 'PL!N-sd2-012-P', 'PL!N-sd2-028-P'])(
     'does not leak to adjacent card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);

@@ -105,7 +105,7 @@ function latestPayload(game: GameState, abilityId: string) {
     .at(-1)?.payload;
 }
 
-describe('shared on-enter source member gain BLADE workflow', () => {
+describe('shared on-enter source member gain LIVE modifier workflow', () => {
   it.each([
     ['PL!S-PR-016-PR', '黒澤ダイヤ', 9],
     ['PL!S-PR-020-PR', '小原鞠莉', 9],

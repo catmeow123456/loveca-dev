@@ -17,6 +17,7 @@ import {
   HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
   HS_BP1_004_ACTIVATED_RECOVER_HASUNOSORA_LIVE_ABILITY_ID,
   HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+  N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   PL_N_BP1_012_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
@@ -52,10 +53,7 @@ const SP_SD1_007_PAY_ENERGY_STEP_ID = 'SP_SD1_007_PAY_ENERGY_FOR_LIELLA_MEMBER_R
 const SP_SD1_007_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
   'SP_SD1_007_SELECT_LIELLA_MEMBER_FROM_WAITING_ROOM';
 const SP_SD1_007_ENERGY_COST = 2;
-const SP_SD1_007_LIELLA_MEMBER_SELECTOR = and(
-  typeIs(CardType.MEMBER),
-  groupAliasIs('Liella!')
-);
+const SP_SD1_007_LIELLA_MEMBER_SELECTOR = and(typeIs(CardType.MEMBER), groupAliasIs('Liella!'));
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -70,11 +68,30 @@ interface PayEnergyWaitingRoomToHandWorkflowConfig {
   readonly selector: (card: CardInstance) => boolean;
   readonly zoneSelection: ZoneCardSelectionConfig;
   readonly canSkipSelection?: boolean;
+  readonly allowPaymentWithoutInitialTarget?: boolean;
   readonly actionStep: string;
 }
 
 const PAY_ENERGY_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly PayEnergyWaitingRoomToHandWorkflowConfig[] =
   [
+    {
+      abilityId: N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-sd2-001'],
+      energyCost: 2,
+      stepId: 'N_SD2_001_SELECT_NIJIGASAKI_LIVE_FROM_WAITING_ROOM',
+      stepText: '请选择自己的休息室中1张『虹咲』的LIVE卡加入手牌。',
+      selectionLabel: '选择要加入手牌的卡',
+      confirmSelectionLabel: '加入手牌',
+      selector: and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲')),
+      zoneSelection: createWaitingRoomToHandSelectionConfig({
+        minCount: 1,
+        maxCount: 1,
+        optional: false,
+      }),
+      canSkipSelection: false,
+      allowPaymentWithoutInitialTarget: true,
+      actionStep: 'PAY_COST_SELECT_NIJIGASAKI_LIVE',
+    },
     {
       abilityId: HS_BP1_003_ACTIVATED_RECOVER_LOW_COST_HASUNOSORA_MEMBER_ABILITY_ID,
       expectedBaseCardCodes: ['PL!HS-bp1-003'],
@@ -422,8 +439,8 @@ function startPayEnergyWaitingRoomToHandWorkflow(
     return game;
   }
 
-  const selectableCardIds = selectWaitingRoomCardIds(game, player.id, config.selector);
-  if (selectableCardIds.length === 0) {
+  const initialSelectableCardIds = selectWaitingRoomCardIds(game, player.id, config.selector);
+  if (initialSelectableCardIds.length === 0 && config.allowPaymentWithoutInitialTarget !== true) {
     return game;
   }
 
@@ -443,6 +460,15 @@ function startPayEnergyWaitingRoomToHandWorkflow(
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
   });
+  const selectableCardIds = selectWaitingRoomCardIds(state, player.id, config.selector);
+  if (selectableCardIds.length === 0) {
+    return addAction(state, 'RESOLVE_ABILITY', player.id, {
+      abilityId: config.abilityId,
+      sourceCardId: cardId,
+      step: 'NO_TARGET_AFTER_COST',
+      paidEnergyCardIds: costPayment.paidEnergyCardIds,
+    });
+  }
 
   state = {
     ...state,

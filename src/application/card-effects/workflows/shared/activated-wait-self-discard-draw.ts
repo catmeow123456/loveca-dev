@@ -8,7 +8,10 @@ import {
 import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
-import { PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID } from '../../ability-ids.js';
+import {
+  N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+  PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+} from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import {
@@ -44,6 +47,11 @@ const ACTIVATED_WAIT_SELF_DISCARD_DRAW_CONFIGS: readonly ActivatedWaitSelfDiscar
     baseCardCodes: ['PL!-PR-012', 'PL!S-PR-038', 'PL!SP-PR-017'],
     drawCount: 1,
   },
+  {
+    abilityId: N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!N-sd2-015'],
+    drawCount: 1,
+  },
 ];
 
 export function registerActivatedWaitSelfDiscardDrawWorkflowHandlers(deps: {
@@ -53,14 +61,17 @@ export function registerActivatedWaitSelfDiscardDrawWorkflowHandlers(deps: {
     registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
       startActivatedWaitSelfDiscardDraw(game, playerId, cardId, config, deps)
     );
-    registerActiveEffectStepHandler(config.abilityId, PR_WAIT_SELF_SELECT_DISCARD_STEP_ID, (game, input, context) =>
-      finishActivatedWaitSelfDiscardDraw(
-        game,
-        input.selectedCardId ?? null,
-        config,
-        deps,
-        context.continuePendingCardEffects
-      )
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      PR_WAIT_SELF_SELECT_DISCARD_STEP_ID,
+      (game, input, context) =>
+        finishActivatedWaitSelfDiscardDraw(
+          game,
+          input.selectedCardId ?? null,
+          config,
+          deps,
+          context.continuePendingCardEffects
+        )
     );
   }
 }
@@ -88,7 +99,9 @@ function startActivatedWaitSelfDiscardDraw(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !config.baseCardCodes.some((baseCode) => cardCodeMatchesBase(sourceCard.data.cardCode, baseCode)) ||
+    !config.baseCardCodes.some((baseCode) =>
+      cardCodeMatchesBase(sourceCard.data.cardCode, baseCode)
+    ) ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
     sourceState?.orientation !== OrientationState.ACTIVE ||

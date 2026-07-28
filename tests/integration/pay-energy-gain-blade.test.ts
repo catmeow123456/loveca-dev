@@ -26,6 +26,8 @@ import {
 } from '../../src/application/card-effect-runner';
 import {
   HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID,
+  N_SD2_004_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+  N_SD2_008_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
   PL_N_BP1_001_LIVE_START_PAY_ONE_ENERGY_GAIN_ONE_BLADE_ABILITY_ID,
   S_PR_013_LIVE_START_PAY_TWO_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -366,8 +368,7 @@ describe('pay energy gain Blade workflow', () => {
       session.state?.actionHistory.some(
         (action) =>
           action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId ===
-            HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
+          action.payload.abilityId === HS_BP1_004_LIVE_START_PAY_ENERGY_GAIN_BLADE_ABILITY_ID &&
           action.payload.sourceCardId === source.instanceId &&
           action.payload.step === 'PAY_ENERGY_GAIN_BLADE' &&
           action.payload.bladeBonus === 3 &&
@@ -380,7 +381,12 @@ describe('pay energy gain Blade workflow', () => {
   function setupBp1001(options: {
     readonly energyOrientations: readonly OrientationState[];
     readonly markedEnergyIndices?: readonly number[];
-  }): { readonly game: GameState; readonly sourceId: string; readonly otherId: string; readonly energyIds: string[] } {
+  }): {
+    readonly game: GameState;
+    readonly sourceId: string;
+    readonly otherId: string;
+    readonly energyIds: string[];
+  } {
     const source = createCardInstance(
       createMemberCard('PL!N-bp1-001-P', '上原歩夢', 9),
       PLAYER1,
@@ -632,5 +638,82 @@ describe('pay energy gain Blade workflow', () => {
       OrientationState.ACTIVE
     );
     expect(state.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it.each([
+    ['PL!N-sd2-004-SD2', '朝香果林', N_SD2_004_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID],
+    ['PL!N-sd2-008-SD2', '艾玛·维尔德', N_SD2_008_LIVE_START_PAY_ENERGY_GAIN_TWO_BLADE_ABILITY_ID],
+  ] as const)('%s 费用4「%s」支付[E]后仅使来源成员获得两个[BLADE]', (cardCode, name, abilityId) => {
+    const source = createCardInstance(
+      createMemberCard(cardCode, name, 4),
+      PLAYER1,
+      `${cardCode}-source`
+    );
+    const energy = createCardInstance(
+      createEnergyCard(`${cardCode}-energy`),
+      PLAYER1,
+      `${cardCode}-energy`
+    );
+    let game = registerCards(createGameState(`draft-${cardCode}`, PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      energy,
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+      energyZone: addCardToStatefulZone(player.energyZone, energy.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        {
+          id: `${cardCode}-pending`,
+          abilityId,
+          sourceCardId: source.instanceId,
+          controllerId: PLAYER1,
+          mandatory: false,
+          timingId: TriggerCondition.ON_LIVE_START,
+          eventIds: ['live-start-event'],
+          sourceSlot: SlotPosition.CENTER,
+        },
+      ],
+    };
+
+    let state = resolvePendingCardEffects(game).gameState;
+    expect(state.activeEffect).toMatchObject({
+      abilityId,
+      effectText: '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[ブレード][ブレード]。',
+      stepText: '可以支付[E]，获得[BLADE][BLADE]。',
+      selectableOptions: [{ id: 'pay', label: '支付[E]' }],
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      'pay'
+    );
+
+    expect(state.activeEffect).toBeNull();
+    expect(state.players[0].energyZone.cardStates.get(energy.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: source.instanceId,
+      abilityId,
+    });
   });
 });
