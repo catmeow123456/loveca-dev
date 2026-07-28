@@ -430,6 +430,25 @@ describe('bp7 energy mechanics linkage', () => {
           modifier.abilityId === SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID
       )
     ).toHaveLength(2);
+    expect(
+      game.actionHistory.filter(
+        (action) =>
+          action.type === 'DISPATCH_TRIGGER_EVENT' &&
+          action.payload.triggerCondition === TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT
+      )
+    ).toHaveLength(3);
+
+    const nextTurn = { ...game, turnCount: game.turnCount + 1 };
+    const rescanned = enqueueTriggeredCardEffects(nextTurn, [
+      TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT,
+    ]);
+    expect(rescanned).toBe(nextTurn);
+    expect(
+      rescanned.pendingAbilities.filter(
+        (ability) =>
+          ability.abilityId === SP_BP7_005_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_BLADE_ABILITY_ID
+      )
+    ).toHaveLength(0);
   });
   it('consumes Ren shared turn1 when the energy deck is empty', () => {
     const source = makeMember('PL!SP-bp7-005-SEC', 'empty-ren');

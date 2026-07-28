@@ -61,10 +61,12 @@ import {
   N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
   N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
   N_BP7_007_LIVE_SUCCESS_PLACE_ENERGY_DECK_BELOW_SELF_ABILITY_ID,
+  N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
   N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
   N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID,
   N_BP7_027_LIVE_SUCCESS_SELECT_NIJIGASAKI_HIGHEST_BLADE_SCORE_ABILITY_ID,
   N_BP7_028_LIVE_START_SHUFFLE_WAITING_ROOM_BOTTOM_STAGE_NIJIGASAKI_GAIN_PINK_HEART_ABILITY_ID,
+  N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID,
   N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
   N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
@@ -874,6 +876,10 @@ import {
   N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
   PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
   N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
+  PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
+  PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
+  PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
+  PR_ON_ENTER_LOOK_TOP_TEN_MINUS_HAND_TAKE_TWO_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 
 const PB1_019_LIKE_MEMBER_ACTIVATION_CARD_CODES = [
@@ -6939,6 +6945,9 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+    expect(watercolorWorldLiveSuccess?.effectText).toBe(
+      '【LIVE成功时】从因声援被公开的自己的卡片中，将1张费用大于等于4，且小于等于9的『莲之空』的成员卡加入手牌。'
+    );
 
     const kahoLiveStart = getCardAbilityDefinitions('PL!HS-cl1-001-CL').find(
       (ability) =>
@@ -15099,7 +15108,12 @@ describe('BP7 energyBelow batch base-scoped definitions', () => {
     ]) {
       expect(getCardAbilityDefinitions(cardCode)).not.toEqual([]);
     }
-    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).toContainEqual(
+      expect.objectContaining({
+        abilityId:
+          N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+      })
+    );
   });
 });
 
@@ -15151,8 +15165,54 @@ describe('BP7 first card-effect batch base-scoped definitions', () => {
       expect(getCardAbilityDefinitions(cardCode)).not.toEqual([]);
     }
   );
-  it('does not cross into an adjacent base card number', () => {
-    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).toEqual([]);
+  it('does not cross the Kanata or Rina abilities into an adjacent implemented base card number', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: N_BP7_006_ACTIVATED_PAY_ENERGY_INSPECT_TOP_FOUR_ABILITY_ID,
+      })
+    );
+    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID,
+      })
+    );
+  });
+});
+
+describe('2026-07-27 PL!N-bp7 API-only definitions', () => {
+  it('registers Emma Verde by base card code with the exact public text', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-008-P')).toEqual([
+      expect.objectContaining({
+        abilityId:
+          N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+        baseCardCodes: ['PL!N-bp7-008'],
+        category: CardAbilityCategory.ON_ENTER,
+        sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【登场】可以从自己的休息室将至多4张不持有BLADE HEART的成员卡按任意顺序放置于卡组底。每有1张因此放置的卡片，将1张能量变为活跃状态。',
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-008-SEC')[0]?.cardCodes).toBeUndefined();
+  });
+
+  it('registers Burn!! by base card code with the exact public text', () => {
+    expect(getCardAbilityDefinitions('PL!N-bp7-029-L')).toEqual([
+      expect.objectContaining({
+        abilityId: N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID,
+        baseCardCodes: ['PL!N-bp7-029'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        sourceZone: CardAbilitySourceZone.LIVE_CARD,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        queued: true,
+        implemented: true,
+        effectText:
+          '【LIVE成功时】可以将存在于自己的舞台的1名成员的下方的所有能量卡，以待机状态放置于自己的能量卡区。因此放置了大于等于1张能量卡，且自己的能量大于等于10张的场合，此卡的分数+1。',
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-bp7-029-SECL')[0]?.cardCodes).toBeUndefined();
   });
 });
 
@@ -15739,12 +15799,86 @@ describe('2026-07-23 PR batches 2-4 base-scoped definitions', () => {
     );
   });
 
-  it.each(['PL!HS-PR-037-P', 'PL!N-PR-033-P', 'PL!S-PR-046-P', 'PL!-PR-019-P'])(
+  it.each(['PL!HS-PR-037-P', 'PL!N-PR-033-P', 'PL!-PR-019-P'])(
     'does not leak the base-scoped PR definitions to adjacent card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
     }
   );
+});
+
+describe('2026-07-27 PR shared-family definitions', () => {
+  const cases = [
+    {
+      cardCodes: ['PL!-PR-022-PR', 'PL!N-PR-034-SEC'],
+      abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
+      baseCardCodes: ['PL!-PR-022', 'PL!N-PR-034'],
+      category: CardAbilityCategory.CONTINUOUS,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: undefined,
+      queued: false,
+      effectText:
+        '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
+    },
+    {
+      cardCodes: ['PL!-PR-023-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
+      abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
+      baseCardCodes: ['PL!-PR-023', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      category: CardAbilityCategory.AUTO,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
+      queued: true,
+      effectText:
+        '【自动】此成员从舞台被放置入休息室时，此成员曾与费用大于等于9的成员换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。',
+    },
+    {
+      cardCodes: ['PL!HS-PR-039-PR', 'PL!SP-PR-028-SEC'],
+      abilityId: PR_ON_ENTER_LOOK_TOP_TEN_MINUS_HAND_TAKE_TWO_ABILITY_ID,
+      baseCardCodes: ['PL!HS-PR-039', 'PL!SP-PR-028'],
+      category: CardAbilityCategory.ON_ENTER,
+      sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+      triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+      queued: true,
+      effectText:
+        '【登场】检视自己卡组顶的，等同于10减去自己的手牌的张数的数量的卡片。从中将至多2张卡片加入手牌。其余的放置入休息室。',
+    },
+    {
+      cardCodes: ['PL!S-PR-047-PR', 'PL!SP-PR-027-SEC'],
+      abilityId: PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
+      baseCardCodes: ['PL!S-PR-047', 'PL!SP-PR-027'],
+      category: CardAbilityCategory.LIVE_START,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      triggerCondition: TriggerCondition.ON_LIVE_START,
+      queued: true,
+      effectText:
+        '【LIVE开始时】存在于自己的休息室的卡片小于等于9张的场合，选择存在于自己的休息室的至多3张LIVE卡，按任意顺序放置于自己的卡组顶。',
+    },
+  ] as const;
+
+  for (const sample of cases) {
+    it.each(sample.cardCodes)(
+      `registers %s through ${sample.abilityId} by base card code`,
+      (cardCode) => {
+        const definition = getCardAbilityDefinitions(cardCode).find(
+          (candidate) => candidate.abilityId === sample.abilityId
+        );
+        expect(definition).toMatchObject({
+          abilityId: sample.abilityId,
+          baseCardCodes: sample.baseCardCodes,
+          category: sample.category,
+          sourceZone: sample.sourceZone,
+          queued: sample.queued,
+          implemented: true,
+          effectText: sample.effectText,
+        });
+        expect(definition?.cardCodes).toBeUndefined();
+        expect(definition?.triggerCondition).toBe(sample.triggerCondition);
+        if (sample.abilityId === PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID) {
+          expect(definition?.triggerToZones).toEqual([ZoneType.WAITING_ROOM]);
+        }
+      }
+    );
+  }
 });
 
 describe('PL!S-bp7-007 and PL!HS-bp8-001 base-scoped definitions', () => {

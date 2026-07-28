@@ -424,7 +424,7 @@ describe('member wait protection rule boundary', () => {
     ).toBeNull();
   });
 
-  it('distinguishes opponent controller vs actual selection player and leaves candidates unfiltered', () => {
+  it('uses the effect controller for protection while retaining the actual selection player as audit data', () => {
     const target = member('protected-choice', P1, { blade: 2 });
     const game = protectedGame([target]);
     const opponentSelected = setMemberOrientation(
@@ -453,10 +453,8 @@ describe('member wait protection rule boundary', () => {
         sourceCardId: 'opponent',
       }
     );
-    expect(ownerSelected).toMatchObject({ changed: true, blockedByWaitingProtection: false });
-    expect(ownerSelected?.gameState.eventLog.at(-1)?.event).toMatchObject({
-      cause: { kind: 'CARD_EFFECT', playerId: P2, selectionPlayerId: P1 },
-    });
+    expect(ownerSelected).toMatchObject({ changed: false, blockedByWaitingProtection: true });
+    expect(ownerSelected?.gameState.eventLog).toHaveLength(0);
 
     for (const cause of [
       { kind: 'CARD_EFFECT' as const, playerId: P1, sourceCardId: 'own' },
@@ -487,7 +485,7 @@ describe('member wait protection rule boundary', () => {
     expect(result.gameState.eventLog).toHaveLength(1);
   });
 
-  it('keeps a protected member selectable for an opponent choice, blocks the final wait, and completes continuation', () => {
+  it('excludes protected members from opponent-effect targets and keeps the final boundary for newly protected stale targets', () => {
     const target = member('protected-opponent-choice', P1, { blade: 2 });
     const opponentSource = member('PL!-bp5-013-P', P2, { blade: 2, groups: ["\u03bc's"] });
     let game = protectedGame([target]);
@@ -507,12 +505,45 @@ describe('member wait protection rule boundary', () => {
         },
       ],
     };
-    const selecting = start(game);
-    expect(selecting.activeEffect?.selectableCardIds).toContain(target.instanceId);
-    const done = confirmActiveEffectStep(
-      selecting,
+    const noTarget = start(game);
+    expect(noTarget.activeEffect).toBeNull();
+    expect(noTarget.pendingAbilities).toEqual([]);
+    expect(noTarget.players[0].memberSlots.cardStates.get(target.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+    expect(noTarget.eventLog).toHaveLength(0);
+
+    let initiallyUnprotected = registerCards(
+      createGameState('s003-stale-target', P1, 'P1', P2, 'P2'),
+      [target, opponentSource]
+    );
+    initiallyUnprotected = putStage(
+      initiallyUnprotected,
+      P1,
+      SlotPosition.LEFT,
+      target.instanceId
+    );
+    initiallyUnprotected = putStage(
+      initiallyUnprotected,
       P2,
-      selecting.activeEffect!.id,
+      SlotPosition.CENTER,
+      opponentSource.instanceId
+    );
+    initiallyUnprotected = {
+      ...initiallyUnprotected,
+      pendingAbilities: game.pendingAbilities,
+    };
+    const selecting = start(initiallyUnprotected);
+    expect(selecting.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
+    const protectedDuringSelection = addMemberWaitProtectionUntilLiveEnd(selecting, {
+      affectedPlayerId: P1,
+      sourceCardId: SOURCE_ID,
+      abilityId: CHOOSE,
+    });
+    const done = confirmActiveEffectStep(
+      protectedDuringSelection,
+      P2,
+      protectedDuringSelection.activeEffect!.id,
       target.instanceId
     );
     expect(done.activeEffect).toBeNull();

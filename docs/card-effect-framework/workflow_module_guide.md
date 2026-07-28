@@ -55,6 +55,25 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 ## Family Workflow
 
+`relay-replacement-gain-blade.ts` 是 `PL!-PR-023`、`PL!HS-PR-040`、`PL!S-PR-046`
+三个同文基础编号证明的窄离场 family。它只接受绑定当前 pending 的精确
+`LeaveStageEvent`，并以该事件的 `replacingCardId` 重验换手登场成员仍为控制者主舞台顶层、
+印刷费用至少9；不得从最近 action、当前槽位变化或卡名猜测关系。合法时写目标成员实例绑定的
+BLADE +2，离场来源无需仍在舞台；事件或目标 stale 时消费 pending 并 no-op。手动确认使用
+实时条件/结果文案，ordered batch 直接结算。
+
+`look-top-ten-minus-hand-take-two.ts` 是 `PL!HS-PR-039` 与 `PL!SP-PR-028` 的窄动态检视
+family。唯一动态轴是在结算开始按当前手牌锁定 `max(0, 10-handCount)`；检视、0～2张私密
+入手、余牌成组进入休息室及 continuation 全部委托既有 `look-top-select-to-hand` core。
+它不开放任意计数公式、selector 或目的地区域，0张请求直接结束。
+
+`live-start-waiting-live-to-deck-top.ts` 是 `PL!S-PR-047` 与 `PL!SP-PR-027` 的窄
+LIVE_START family。实时条件固定为自己休息室总数至多9，候选固定为其中 LIVE，选择固定为
+0～3张 ordered 置顶。非空选择必须经过 waiting-room public-card-selection confirmation，
+deadline 恢复后整体重验，并调用统一 waiting-room-to-main-deck 事件 wrapper；skip 不创建
+空展示，手动无目标/条件失败用动态 confirm-only，ordered no-op 自动继续。该 family 不扩成
+任意区域阈值、卡种或目的地 DSL。
+
 `workflows/shared/discard-mill-top-recover-member.ts` 是由费用 5「高坂穂乃果」`PL!-bp5-010` 在费用 9「天王寺璃奈」`PL!N-bp1-009` 成为第二个真实样本后晋升的窄 family。稳定轴仅为 abilityId、mill 数量、成员 selector/目标说明、是否在结算开始校验来源仍在舞台，以及稳定 step/action 标签。两者共同保持“可选弃1手 → refresh-aware direct mill → 支付后重扫当前休息室 → 强制回收1张成员”的顺序、标准事件 wrapper、无目标保留费用与 mill、waiting-room-to-hand public confirmation 和统一 continuation；璃奈的 ON_ENTER pending 成立后不因来源离场取消，高坂穂乃果的 LIVE_START 仍要求来源在舞台并只回收『A-RISE』成员。该 family 不是任意“弃牌后做若干动作”的 DSL。
 
 费用 9「ミア・テイラー」`PL!N-bp1-011` 保持 `workflows/cards/n-bp1-011-mia-taylor.ts` 单卡 ownership。它只与上述 family 共享可选弃手和底层区域动作；完整流程是逐张公开至服务端确定的首张 LIVE、展示完整公开结果、确认后一次移动，不存在玩家自由选择命中目标，因此不接 public-card-selection confirmation deadline。
@@ -421,7 +440,11 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 - 005/007/019 只共享 `placeEnergyFromEnergyDeckBelowStageMember` 原子动作。target 必须是当前己方顶层成员，移槽跟随实例；离场、换手、替换的既有生命周期会让 energyBelow 返回能量卡组。
 - 005 第一分支卡文是“将2张能量变为活跃状态”，不提供0～2张自由选择；WAITING 不足2张时通用动作才尽可能处理实际数量。已展示的分支或目标确认时 stale 会记录 no-op、消费精确 pending 并统一 continuation；从未展示的伪造输入继续保持原窗口。
 - 007 第二段只读 `own energyZone.cardIds.length - 6`，不计 below/deck/对方。所有 BP7 definition、workflow gate 与 continuous registry 均使用基础编号匹配。
-- energyBelow 放置不复用 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，因为该事件当前专指放置入能量区；本批没有建立完整能量事件体系或任意 below DSL。
+- energyBelow 放置不复用 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，因为该事件当前专指放置入能量区。
+  后续 `PL!N-bp7-001` 落地了独立的 `ON_ENERGY_PLACED_BELOW_MEMBER`：只覆盖卡牌效果实际完成的
+  `ENERGY_ZONE -> MEMBER_SLOT`，由统一 wrapper 在事件发生时 exact dispatch 并写
+  `DISPATCH_TRIGGER_EVENT` 台账；从能量卡组放到成员下方仍不触发。该窄事件边界不是完整能量
+  事件体系或任意 below DSL。
 
 # LIVE 开始返还1能量后比较数量加分 family（2026-07-23）
 
@@ -458,3 +481,9 @@ family 的有限配置轴仅为 `abilityId` / `baseCardCode`、可选的团体+�
 - `PL!HS-PR-036-PR` 费用5「大泽瑠璃乃」、`PL!N-PR-032-PR` 费用5「优木雪菜」、`PL!S-PR-044-PR` 费用5「高海千歌」建立 `fill-waiting-room-to-eight-optional-milled-live-to-deck-top.ts`。稳定形状仅为：结算开始时固定捕获 `8 - waitingRoom.length`、refresh-aware direct mill、后段只从本次 movedCardIds 中选择0或1张仍在休息室的 LIVE、公开确认后置顶。它不接受任意目标张数、任意 selector、目的地 callback 或奖励 DSL。
 - `PL!S-PR-045-PR` 费用11「津岛善子」作为 `relay-enter-draw-discard.ts` 的第二类真实条件轴，只增加 `REPLACED_MEMBER_EFFECTIVE_COST` 与既有 `REPLACED_MEMBER_NAME` 的有限 union；费用只读 ON_ENTER 事件快照，不在结算时重算。抽牌、弃牌、刷新与进入休息室事件继续由 `draw-then-discard` family 承担。
 - `PL!-PR-020-PR` 费用13「高坂穗乃果」与 `PL!SP-PR-026-PR` 费用13「鬼冢夏美」扩入 `conditional-live-modifier.ts`。动态 confirm-only 与最终 resolver 都读取 `live-zone-score.ts`，结算再次重验来源仍为己方中央；满足时只写来源实例绑定的玩家 LIVE 合计 SCORE +1。本配置不是任意区域分数表达式或 modifier DSL。
+
+# 2026-07-27 BP7 API-only 单卡边界
+
+- `PL!N-bp7-008-P` 费用15「艾玛·维尔德」保留单卡 ON_ENTER 编排：有序休息室选择走既有 WAITING_ROOM→MAIN_DECK_BOTTOM wrapper，能量处理走既有普通/特殊能量选择；不建立“移动任意牌后按张数做任意动作”的 family。
+- `PL!N-bp7-029-L` 分数7「Burn!!」保留单卡 LIVE_SUCCESS 选择、来源校验和 SCORE 奖励。仅把“当前顶层成员下方完整能量堆原子放入能量区，并发出一个标准 placement event”沉到 `effects/energy-below.ts`；helper 不承担卡号、窗口、门槛、分数或 continuation。
+- 两张卡均按基础编号覆盖，公开 API 为卡文权威来源；本地 `cards.json` 与当前 Excel 没有记录。runner 只增加 import/register。

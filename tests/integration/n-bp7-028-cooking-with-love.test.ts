@@ -242,7 +242,9 @@ describe('PL!N-bp7-028-L 分数7「Cooking with Love」', () => {
       }),
     ]);
     expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-028-P')).toHaveLength(1);
-    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-029-P')).toEqual([]);
+    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-029-P')).not.toContainEqual(
+      expect.objectContaining({ abilityId: ABILITY_ID })
+    );
   });
 
   it('enqueues from a real ON_LIVE_START check and opens only the optional action window', () => {

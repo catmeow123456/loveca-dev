@@ -27,6 +27,10 @@ import {
   type ShuffleWaitingRoomCardsToDeckBottomForPlayerResult,
 } from './actions.js';
 import { canUseAbilityThisTurn } from './ability-turn-limit.js';
+import {
+  getDispatchedTriggerEventIds,
+  markTriggerEventDispatched,
+} from './trigger-event-dispatch.js';
 
 const MEMBER_SLOTS = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 
@@ -54,7 +58,10 @@ export function getWaitingRoomCardsMovedToMainDeckEventsFromLog(
 export function enqueueUntriggeredWaitingRoomCardsMovedToMainDeckCardEffects(
   game: GameState
 ): GameState {
-  const alreadyTriggeredEventIds = getDispatchedEventIds(game);
+  const alreadyTriggeredEventIds = getDispatchedTriggerEventIds(
+    game,
+    TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
+  );
   return enqueueWaitingRoomCardsMovedToMainDeckCardEffects(
     game,
     getWaitingRoomCardsMovedToMainDeckEventsFromLog(game).filter(
@@ -68,14 +75,21 @@ export function enqueueWaitingRoomCardsMovedToMainDeckCardEffects(
   events: readonly WaitingRoomCardsMovedToMainDeckEvent[]
 ): GameState {
   let state = game;
-  const dispatchedEventIds = getDispatchedEventIds(game);
+  const dispatchedEventIds = getDispatchedTriggerEventIds(
+    game,
+    TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
+  );
   for (const event of events) {
     if (dispatchedEventIds.has(event.eventId)) {
       continue;
     }
     const player = getPlayerById(state, event.playerId);
     if (!player || event.movedCardIds.length === 0) {
-      state = markEventDispatched(state, event);
+      state = markTriggerEventDispatched(state, {
+        eventId: event.eventId,
+        triggerCondition: TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK,
+        playerId: event.playerId,
+      });
       dispatchedEventIds.add(event.eventId);
       continue;
     }
@@ -144,34 +158,14 @@ export function enqueueWaitingRoomCardsMovedToMainDeckCardEffects(
         );
       }
     }
-    state = markEventDispatched(state, event);
+    state = markTriggerEventDispatched(state, {
+      eventId: event.eventId,
+      triggerCondition: TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK,
+      playerId: event.playerId,
+    });
     dispatchedEventIds.add(event.eventId);
   }
   return state;
-}
-
-function getDispatchedEventIds(game: GameState): Set<string> {
-  return new Set(
-    game.actionHistory
-      .filter(
-        (action) =>
-          action.type === 'DISPATCH_TRIGGER_EVENT' &&
-          action.payload.triggerCondition ===
-            TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK
-      )
-      .map((action) => action.payload.eventId)
-      .filter((eventId): eventId is string => typeof eventId === 'string')
-  );
-}
-
-function markEventDispatched(
-  game: GameState,
-  event: WaitingRoomCardsMovedToMainDeckEvent
-): GameState {
-  return addAction(game, 'DISPATCH_TRIGGER_EVENT', event.playerId, {
-    eventId: event.eventId,
-    triggerCondition: TriggerCondition.ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK,
-  });
 }
 
 function enqueueMovementEvent<T extends { readonly gameState: GameState }>(

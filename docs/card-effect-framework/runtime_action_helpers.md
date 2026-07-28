@@ -9,7 +9,7 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 ## 目标成员绑定的临时 LIVE modifier
 
 - `addPlayerScoreLiveModifierForTargetMember` 在 `domain/rules/live-modifiers.ts` 写入玩家总分 SCORE，同时显式保存 `targetMemberCardId`、审计 `sourceCardId` 和 `abilityId`；不以来源卡替代目标成员身份。
-- `removeTargetMemberBoundLiveModifiersForLeaveStageEvents` 是 LeaveStageEvent 的通用 runtime hook，删除所有绑定离场成员实例的临时 modifier，并通过统一 modifier 底座刷新 `playerScoreBonuses` 等兼容投影。它不识别卡号或 abilityId；成员槽位移动和状态变化不触发删除。
+- `removeTargetMemberBoundLiveModifiersForLeaveStageEvents` 是 LeaveStageEvent 的通用 runtime hook，删除所有绑定离场成员实例的临时 modifier，并通过统一 modifier 底座刷新 `playerScoreBonuses` 等兼容投影。它不识别卡号或 abilityId；成员槽位移动和状态变化不触发删除。普通 action 派发会按 `triggerEventLogStartIndex` 只取得本次新增的 `ON_LEAVE_STAGE` 事件，并让 modifier 清理与离场 AUTO 来源构造复用同一批事件；显式传入的 `leaveStageEvents` 仍为权威输入，历史离场事件不得因后续成员离场而再次消费。
 - 当前真实样本包括 `PL!S-bp3-001` 与 `PL!-pb2-000`。后者在双换手登场能力结算后把来源和受益者都绑定到费用15「星空凛&小泉花阳」的同一成员实例；这不是对所有 SCORE modifier 施加目标语义，没有 `targetMemberCardId` 的旧 modifier 保持原有生命周期。
 
 ## 有限双换手入口
@@ -29,8 +29,25 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 - `activatedUi.displayOrder` 仅用于同一张卡具有多条起动能力时锁定卡面展示顺序；未配置时保持 definition / granted 查询的稳定顺序。`getActivatedAbilityUiConfig` 继续作为返回第一项的兼容包装，生产投影和新 UI 使用复数 `getActivatedAbilityUiConfigs`。
 - 在线卡牌对象同时保留旧单数字段与复数字段；前端只展示一个能力选择菜单，玩家选择后才提交对应 `abilityId`，不会并行创建多个效果窗口。当前首个真实多能力样本是 `PL!N-bp1-006` 费用 13「近江彼方」。
 
-## 能量区返回与活跃阶段标记
+## 触发事件派发、能量区返回与活跃阶段标记
 
+- `runtime/trigger-event-dispatch.ts` 统一以 `eventId + triggerCondition` 读取和写入
+  `DISPATCH_TRIGGER_EVENT` 派发台账；“已派发”表示该事件发生时的合法监听来源已经全部检查，
+  不要求实际生成 `TRIGGER_ABILITY`。当前生产接线只覆盖
+  `ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK`、`ON_ENERGY_PLACED_BY_CARD_EFFECT` 与
+  `ON_ENERGY_PLACED_BELOW_MEMBER`，不代表其他事件类型已经迁移。
+- `runtime/energy-placement-triggers.ts` 负责
+  `ON_ENERGY_PLACED_BY_CARD_EFFECT` 的 exact-event 入队和历史补扫。一个事件先扫描目标玩家舞台
+  上全部合法监听来源，生成 0..N 个 pending，再写一次派发台账；无监听者、空/stale payload
+  或全部监听能力达到回合次数上限时仍视为已派发，后续回合不得重新消费该历史事件。
+- `runtime/energy-below-placement-triggers.ts` 是卡牌效果把 `ENERGY_ZONE` 能量放到当前己方顶层
+  成员下方的统一事件 wrapper。它只在实际非空移动成功后产生一个
+  `ON_ENERGY_PLACED_BELOW_MEMBER`，保存实际能量 IDs、目标成员实例、当时槽位、完整
+  `CARD_EFFECT` cause 与 `ENERGY_ZONE -> MEMBER_SLOT` 区域事实；随后立即扫描事件发生时己方
+  舞台监听来源并写派发台账，runner 的未派发补扫只作恢复防线。无监听者、监听能力已达
+  turn limit 或 payload 后续 stale 均不会让该事件在下一回合复活。所有生产卡效的
+  `ENERGY_ZONE -> energyBelow` 调用必须走这个 wrapper；从 `ENERGY_DECK` 放到成员下方仍是
+  不同动作，不发此事件，也不由此建立任意 below DSL。
 - 卡牌效果将能量区能量放回能量卡组统一使用 `runtime/energy-return.ts` 的 `resolveEnergyReturnByCardEffect`。该 helper 负责校验并移动指定能量、清除离区 marker、一次写入一个批量 `ON_ENERGY_MOVED_TO_DECK` 事件，并将本次精确事件传给触发入队；返回值包含实际 `movedEnergyCardIds` 与本次 `energyMovedEvent`，caller 不得根据输入数组推测实际移动结果。card workflow 与其他 card-effect runtime 不得直接调用底层 `moveEnergyZoneCardsToEnergyDeckByCardEffect`。
 - `energyActivePhaseSkips` 按具体 energyCardId 绑定，只在该玩家下一次活跃阶段消费；卡牌效果仍可主动将其变为活跃。
 - 当前规则资料没有明确离区后的 marker 保留语义，因此采用“能量离开能量区即清除”的实现假设。
@@ -88,7 +105,7 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `addLiveProhibitionUntilLiveEnd` / `clearLiveProhibitionsUntilLiveEnd`                                                                                    | 写入并清除“直到 Live 结束时为止不能 Live”的临时限制。                                             | `PL!HS-bp2-014` 使用 `expiresAt: 'LIVE_END'` 状态；清除点是 Live 结果收尾/离开 Live 结果阶段。该状态独立于场面，不能用来表达随舞台变化即时失效或恢复的常时限制。                                                                                                                                                                                                                                                                                                                                             |
 | `collectContinuousLiveProhibitionSources` / `isPlayerContinuouslyLiveProhibited` / `isPlayerLiveProhibited` / `liveProhibitedPlayerLiveZoneToWaitingRoom` | 从当前场面实时收集常时禁止来源，并把临时或常时任一命中统一交给双方 Live Set 完成后的既有处理。    | `PL!SP-bp1-001` 是首个 continuous 样本：只读取控制者三个主舞台顶层合法 MEMBER，单独一张合法 001 时禁止；其他己方顶层成员使其即时失效，对方成员与 memberBelow 不计入，两张 001 互为其他成员。查询不写状态、不创建 action、不进入 `liveModifiers`。`SET_LIVE_CARD` 仍不拒绝盖牌，玩家分别按规则抽牌；先攻盖下的卡在后攻确认前保持非公开，双方完成后才把受限玩家 liveZone 全部放入休息室。不要扩展成任意 condition callback、期限 DSL 或 phase prohibition framework。                                          |
-| `addMemberWaitProtectionUntilLiveEnd` / `isMemberWaitProtectedFromChange` / `clearMemberWaitProtectionsUntilLiveEnd`                                      | 写入、查询并在真实 LIVE_END 清除费用4「松浦果南」所需的窄成员待机保护。                           | 检查点只在 `setMemberOrientation` / `setMembersOrientation` 的实际 ACTIVE -> WAITING 边界；候选查询不删除受保护成员。CARD_EFFECT cause 的 `playerId` 是效果控制者，`selectionPlayerId` 是作出选择的玩家：对方选择或非选择型效果可被阻止，受影响玩家自己选择则不阻止，因而费用15塞拉斯 QA 正常待机。目标动态限当前主舞台顶层、结构化 Aqours、印刷 BLADE <=3；来源离场不撤销，LIVE_END 才清理。单/批量返回分别明确区分既有 activation prohibition 与 waiting protection。不是任意免疫、期限或 protection DSL。 |
+| `addMemberWaitProtectionUntilLiveEnd` / `isMemberWaitProtectedFromChange` / `clearMemberWaitProtectionsUntilLiveEnd`                                      | 写入、查询并在真实 LIVE_END 清除费用4「松浦果南」所需的窄成员待机保护。                           | 通用 `createStageMemberOrientationTargetSelection` 在 CARD_EFFECT 目标为 WAITING 时用同一 cause 删除受保护候选；`setMemberOrientation` / `setMembersOrientation` 在实际 ACTIVE -> WAITING 边界继续防御 stale/伪造目标。cause 的 `playerId` 是效果控制者并决定是否属于对方效果，`selectionPlayerId` 只记录作出选择的玩家，不能让受影响玩家绕过保护。因此费用15「セラス 柳田 リリエンフェルト」有未保护成员时只能从中选择，全部受保护时什么也不发生。目标动态限当前主舞台顶层、结构化 Aqours、印刷 BLADE <=3；来源离场不撤销，LIVE_END 才清理。单/批量返回分别明确区分既有 activation prohibition 与 waiting protection。不是任意免疫、期限或 protection DSL。 |
 | `addMemberActivePhaseSkip` / `consumeMemberActivePhaseSkipsForPlayer` / `collectContinuousActivePhaseSkippedMemberCardIds`                                | 写入并消费“下一次该玩家活跃阶段此成员不自动 active”的成员级标记，并收集已落地常时活跃阶段跳过。   | 一次性标记仍只支持下一次自己的 active phase；消费点是活跃阶段自动处理。被标记成员保持 WAITING 且不产生 WAITING -> ACTIVE 事件，其他待机成员和能量仍正常 ACTIVE；来源离场时安全消费标记，不影响其他成员。常时跳过目前只覆盖两种真实语义：`PL!N-bp5-006` 自身在自己的活跃阶段不 ACTIVE，以及 `PL!HS-pb1-008` 位于对手舞台时使当前玩家舞台成员不因活跃阶段 ACTIVE。能量仍正常 ACTIVE；来源离开对应舞台后立即失效，不扩展为通用 phase prohibition framework。                                                    |
 | `canLiveCardEnterSuccessZone` / `isLiveCardProhibitedFromSuccessZone` / `getSuccessLiveSelectionCandidateIds`                                             | 读取本轮成功 Live 入成功区是否合法，并为 RESULT_SETTLEMENT 生成当前胜者候选。                     | 当前只落地 `PL!S-bp2-024` 不能放置入成功 LIVE 卡区的真实规则；覆盖自然成功 Live 选择、`PL!-bp6-024` 替代候选、Maki 成功区交换候选与手动/通用移动到 SUCCESS_ZONE 校验。不创建 activeEffect、不移动卡、不抽 replacement DSL。                                                                                                                                                                                                                                                                                  |
 | `buildPlayMemberCostResources` / `getHandMemberEffectivePlayCost`                                                                                         | 从当前 `GameState` 为一张己方手牌成员构造与普通登场一致的费用资源，并只读查询其当前有效登场费用。 | `GameSession.preparePlayMemberCostPayment` 与 `PL!SP-bp1-003` 共用同一资源构造；caller 必须传入权威的完整手牌快照。查询包含当前主舞台顶层成员、成功 LIVE、能量、朝向与本回合移动事实，不移动卡、不支付费用、不复制费用规则，也不把任意资源或费用轴抽成 DSL。                                                                                                                                                                                                                                                 |
@@ -586,3 +603,9 @@ helper 不校验效果来源区域、不创建/消费 pending、不决定确认�
 `runtime/actions.ts#returnLiveZoneCardToHandForPlayer` 是单张己方结构化 LIVE 卡的窄 `LIVE_ZONE -> HAND` 原子移动。它校验 owner、卡型与当前区域，移除 LIVE 区 stateful card state、加入手牌，并记录精确卡 ID 与来源区域的 `ON_ENTER_HAND` 事件；失败时不改变状态。
 
 helper 不决定来源卡号、pending 生命周期或后续弃牌，也不直接扫描/入队 ON_ENTER_HAND definition。真实调用者目前仅为 `PL!N-bp7-030-L` 分数0「Cheer Mode」：单卡 workflow 在回手后从实时手牌强制弃1张，再由统一 continuation 扫描未处理事件。若刚回手的来源又被弃置，结算结束时它已不在 HAND，现有来源区域规则不会为其创建伪 ON_ENTER_HAND pending；本批没有扩大这一全局触发语义。
+
+## 成员下方全部能量放置入能量区（2026-07-27）
+
+`effects/energy-below.ts#moveAllEnergyBelowMemberToEnergyZoneByCardEffect` 是“一名当前己方顶层成员下方的完整能量堆 → 己方能量区”的窄原子动作。调用者必须提供选择窗口建立时锁定的完整 `expectedEnergyCardIds`；helper 逐项重验成员实例、槽位、顺序、owner 与 ENERGY 类型，任一事实变化就整体拒绝，不移动子集。
+
+成功时所有能量以 `WAITING / FACE_UP` 加入能量区，清空该槽位的 energyBelow，并用实际完整 IDs 与必填 `CARD_EFFECT` cause 发出、转发恰好一个 `ON_ENERGY_PLACED_BY_CARD_EFFECT` event。helper 不选择目标、不检查来源卡号或奖励门槛、不创建/消费 pending，也不写 SCORE；这些职责由当前唯一调用者 `PL!N-bp7-029-L` 分数7「Burn!!」的单卡 workflow 持有。

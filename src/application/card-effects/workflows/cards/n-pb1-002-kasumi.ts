@@ -7,7 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 import { PL_N_PB1_002_ON_ENTER_STACK_TWO_ENERGY_BELOW_ABILITY_ID } from '../../ability-ids.js';
 import {
   finishSkippedActiveEffect,
@@ -118,11 +118,12 @@ function finishKasumiStackTwoEnergyBelow(
     );
   }
 
-  const stacked = stackEnergyFromEnergyZoneBelowMember(
+  const stacked = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
     game,
     player.id,
     sourceSlot,
-    REQUIRED_ENERGY_COUNT
+    REQUIRED_ENERGY_COUNT,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId, pendingAbilityId: effect.id }
   );
   if (!stacked) {
     return finishInvalidStacking(game, continuePendingCardEffects, 'STACK_FAILED');

@@ -296,6 +296,17 @@ export interface EnergyPlacedByCardEffectEvent extends BaseGameEvent {
   readonly cause: CardEffectCause;
 }
 
+export interface EnergyPlacedBelowMemberEvent extends BaseGameEvent {
+  readonly eventType: TriggerCondition.ON_ENERGY_PLACED_BELOW_MEMBER;
+  readonly playerId: string;
+  readonly energyCardIds: readonly string[];
+  readonly targetMemberCardId: string;
+  readonly targetSlot: SlotPosition;
+  readonly fromZone: ZoneType.ENERGY_ZONE;
+  readonly toZone: ZoneType.MEMBER_SLOT;
+  readonly cause: CardEffectCause;
+}
+
 export interface EnergyMovedToDeckEvent extends BaseGameEvent {
   readonly eventType: TriggerCondition.ON_ENERGY_MOVED_TO_DECK;
   readonly playerId: string;
@@ -450,6 +461,7 @@ export type GameEvent =
   | DrawEvent
   | PayCostEvent
   | EnergyPlacedByCardEffectEvent
+  | EnergyPlacedBelowMemberEvent
   | EnergyMovedToDeckEvent
   | WaitingRoomCardsMovedToMainDeckEvent
   | MemberStateChangedEvent
@@ -778,6 +790,28 @@ export function createEnergyPlacedByCardEffectEvent(
     orientation,
     cause,
     triggerPlayerId: targetPlayerId,
+  };
+}
+
+export function createEnergyPlacedBelowMemberEvent(
+  playerId: string,
+  energyCardIds: readonly string[],
+  targetMemberCardId: string,
+  targetSlot: SlotPosition,
+  cause: CardEffectCause
+): EnergyPlacedBelowMemberEvent {
+  return {
+    eventId: generateEventId(),
+    eventType: TriggerCondition.ON_ENERGY_PLACED_BELOW_MEMBER,
+    timestamp: Date.now(),
+    playerId,
+    energyCardIds: [...energyCardIds],
+    targetMemberCardId,
+    targetSlot,
+    fromZone: ZoneType.ENERGY_ZONE,
+    toZone: ZoneType.MEMBER_SLOT,
+    cause,
+    triggerPlayerId: playerId,
   };
 }
 

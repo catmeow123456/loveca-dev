@@ -1571,6 +1571,14 @@ export const SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-001-P:continuous-below-liella-host-gain-blade';
 export const SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID =
   'PL!SP-bp7-001-P:auto-relay-stack-self-below-replacement';
+export const N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID =
+  'PL!N-bp7-001-P:auto-turn-once-energy-placed-below-place-waiting-energy';
+export const N_BP7_010_ACTIVATED_STACK_ENERGY_PLAY_LOW_COST_NIJIGASAKI_FROM_WAITING_ABILITY_ID =
+  'PL!N-bp7-010-P:activated-stack-energy-play-low-cost-nijigasaki-from-waiting';
+export const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID =
+  'PL!SP-bp7-009-P:continuous-side-red-heart';
+export const SP_BP7_009_LIVE_START_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID =
+  'PL!SP-bp7-009-P:live-start-wait-low-printed-blade-opponent';
 export const SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID =
   'PL!SP-bp7-002-P:continuous-energy-seven-more-than-opponent-stage-cost-plus-two';
 export const SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID =
@@ -1743,6 +1751,18 @@ export const PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID 
   'PL!-pb2-039:live-success-distinct-muse-stage-cheer-score';
 export const N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID =
   'PL!N-bp8-002:activated-waiting-room-pay-energy-bottom-self-target-yellow-heart';
+export const N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID =
+  'PL!N-bp7-008:on-enter-bottom-up-to-four-no-blade-heart-members-activate-energy';
+export const N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID =
+  'PL!N-bp7-029:live-success-return-energy-below-score';
+export const PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID =
+  'PR:continuous-total-success-live-score-ten-gain-pink-heart';
+export const PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PR:auto-relay-replacement-cost-nine-gain-two-blade';
+export const PR_ON_ENTER_LOOK_TOP_TEN_MINUS_HAND_TAKE_TWO_ABILITY_ID =
+  'PR:on-enter-look-top-ten-minus-hand-take-two';
+export const PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID =
+  'PR:live-start-waiting-room-at-most-nine-stack-live';
 export const PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID =
   'PL!N-sd2-007:live-success-draw-one-opponent-success-draw-one-discard-one';
 export const N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID =

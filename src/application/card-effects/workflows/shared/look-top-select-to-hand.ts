@@ -107,6 +107,7 @@ export interface LookTopSelectToHandWorkflowConfig {
   readonly selectionRequiredWhenHasTargets?: boolean;
   readonly includeInspectedCardIdsInFinishAction?: boolean;
   readonly clampExactCountToInspectedCount?: boolean;
+  readonly clampMaxCountToInspectedCount?: boolean;
   readonly optionalSourceOrientationCost?: 'WAITING';
   readonly optionStepId?: string;
   readonly publicEffectSummaryContext?: LookTopSelectToHandPublicSummaryContext;
@@ -789,12 +790,21 @@ export function startLookTopSelectToHandWorkflow(
     config.selectionRequiredWhenHasTargets === true && selectableCardIds.length > 0
       ? { minCount: 1, maxCount: getMaxSelectableCount(config.countRule) }
       : config.countRule;
-  const countRule =
+  const exactClampedCountRule =
     config.clampExactCountToInspectedCount === true &&
     'exactCount' in configuredCountRule &&
     configuredCountRule.exactCount !== undefined
       ? { exactCount: Math.min(configuredCountRule.exactCount, selectableCardIds.length) }
       : configuredCountRule;
+  const countRule =
+    config.clampMaxCountToInspectedCount === true &&
+    'maxCount' in exactClampedCountRule &&
+    exactClampedCountRule.maxCount !== undefined
+      ? {
+          minCount: Math.min(exactClampedCountRule.minCount, inspectedCardIds.length),
+          maxCount: Math.min(exactClampedCountRule.maxCount, inspectedCardIds.length),
+        }
+      : exactClampedCountRule;
   const shouldUseOrderedMulti = getMaxSelectableCount(countRule) > 1;
   const canSkipSelection = getMinSelectableCount(countRule) === 0;
 

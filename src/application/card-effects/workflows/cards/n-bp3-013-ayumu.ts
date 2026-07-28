@@ -1,5 +1,5 @@
 import { addAction, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 import { PL_N_BP3_013_ON_ENTER_STACK_ENERGY_DRAW_TWO_ABILITY_ID } from '../../ability-ids.js';
 import { finishSkippedActiveEffect, startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
@@ -42,7 +42,10 @@ function finish(game: GameState, continuePending: ContinuePending): GameState {
   const player = getPlayerById(game, effect.controllerId);
   const sourceSlot = player ? getSourceMemberSlot(game, player.id, effect.sourceCardId) : null;
   if (!player || sourceSlot === null || player.energyZone.cardIds.length === 0) return finishStale(game, continuePending, sourceSlot === null ? 'SOURCE_NOT_ON_STAGE' : 'NO_ENERGY');
-  const stacked = stackEnergyFromEnergyZoneBelowMember(game, player.id, sourceSlot, 1);
+  const stacked = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
+    game, player.id, sourceSlot, 1,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId, pendingAbilityId: effect.id }
+  );
   if (!stacked) return finishStale(game, continuePending, 'STACK_FAILED');
   const paid = recordPayCostAction(stacked.gameState, player.id, { pendingAbilityId: effect.id, abilityId: effect.abilityId,
     sourceCardId: effect.sourceCardId, sourceSlot, costType: 'STACK_ENERGY_BELOW', stackedEnergyCardIds: stacked.stackedEnergyCardIds });

@@ -255,6 +255,8 @@ const SP_BP7_003_CONTINUOUS_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-003-SEC:continuous-member-below-gain-blade';
 const SP_BP7_003_CONTINUOUS_THREE_MEMBER_BELOW_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp7-003-SEC:continuous-three-member-below-live-score';
+const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID =
+  'PL!SP-bp7-009-P:continuous-side-red-heart';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -319,6 +321,24 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!SP-bp7-009'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const sourceSlot = getSourceMainStageSlot(game, playerId, sourceCardId);
+      if (sourceSlot !== SlotPosition.LEFT && sourceSlot !== SlotPosition.RIGHT) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.RED, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp7-003'],
@@ -1512,6 +1532,28 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
           ]
         : [],
   },
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!-PR-022', 'PL!N-PR-034'],
+    collect: ({ game, playerId, sourceCardId }) => {
+      const opponent = getOpponent(game, playerId);
+      const totalSuccessfulLiveScore =
+        sumSuccessfulLiveScore(game, playerId) +
+        (opponent ? sumSuccessfulLiveScore(game, opponent.id) : 0);
+      return totalSuccessfulLiveScore >= 10
+        ? [
+            {
+              kind: 'HEART',
+              playerId,
+              target: 'SOURCE_MEMBER',
+              hearts: [{ color: HeartColor.PINK, count: 1 }],
+              sourceCardId,
+              abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
+            },
+          ]
+        : [];
+    },
+  },
   ...createSideSlotBladeContinuousDefinitions([
     {
       baseCardCode: 'PL!SP-bp1-004',
@@ -1649,6 +1691,8 @@ const KARIN_CONTINUOUS_NOT_MOVED_BLADE_ABILITY_ID =
   'PL!N-pb1-004:continuous-not-position-moved-gain-two-blade';
 const N_PR_024_CONTINUOUS_SUCCESS_LIVE_TOTAL_FOUR_GAIN_TWO_BLADE_ABILITY_ID =
   'PL!N-PR-024-PR:continuous-success-live-total-four-gain-two-blade';
+const PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID =
+  'PR:continuous-total-success-live-score-ten-gain-pink-heart';
 const HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID =
   'PL!HS-pb1-014-R:continuous-front-high-cost-pink-heart';
 const S_BP6_009_CONTINUOUS_SUCCESS_LIVE_DIFFERENCE_GAIN_BLADE_ABILITY_ID =

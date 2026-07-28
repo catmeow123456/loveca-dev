@@ -1,6 +1,6 @@
 import { addAction, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
 import { CardType } from '../../../../shared/types/enums.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
@@ -61,7 +61,10 @@ function finish(game: GameState, continuePending: ContinuePending): GameState {
   if (!player || sourceSlot === null || player.energyZone.cardIds.length === 0) {
     return finishStale(game, continuePending, sourceSlot === null ? 'SOURCE_NOT_ON_STAGE' : 'NO_ENERGY');
   }
-  const stacked = stackEnergyFromEnergyZoneBelowMember(game, player.id, sourceSlot, 1);
+  const stacked = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
+    game, player.id, sourceSlot, 1,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: effect.sourceCardId, abilityId: effect.abilityId, pendingAbilityId: effect.id }
+  );
   if (!stacked) return finishStale(game, continuePending, 'STACK_FAILED');
   let state = recordPayCostAction(stacked.gameState, player.id, {
     pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId,

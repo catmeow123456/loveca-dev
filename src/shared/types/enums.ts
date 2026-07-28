@@ -328,6 +328,8 @@ export enum TriggerCondition {
   ON_ENTER_WAITING_ROOM = 'ON_ENTER_WAITING_ROOM',
   /** 卡片效果将能量从能量卡组放置入能量区 */
   ON_ENERGY_PLACED_BY_CARD_EFFECT = 'ON_ENERGY_PLACED_BY_CARD_EFFECT',
+  /** 能量从能量区放置于成员下方 */
+  ON_ENERGY_PLACED_BELOW_MEMBER = 'ON_ENERGY_PLACED_BELOW_MEMBER',
   /** 能量从能量区放置入能量卡组 */
   ON_ENERGY_MOVED_TO_DECK = 'ON_ENERGY_MOVED_TO_DECK',
   /** 休息室中的卡牌被放置入主卡组 */

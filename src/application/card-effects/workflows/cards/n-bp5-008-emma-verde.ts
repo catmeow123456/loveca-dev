@@ -7,7 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { stackEnergyFromEnergyZoneBelowMember } from '../../../effects/energy-below.js';
+import { stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers } from '../../runtime/energy-below-placement-triggers.js';
 import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { N_BP5_008_ACTIVATED_STACK_ENERGY_BELOW_ACTIVATE_TWO_ENERGY_ABILITY_ID } from '../../ability-ids.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
@@ -51,7 +51,10 @@ function startEmmaStackEnergyActivateTwoEnergy(
     return game;
   }
 
-  const stackResult = stackEnergyFromEnergyZoneBelowMember(game, player.id, sourceSlot, 1);
+  const stackResult = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
+    game, player.id, sourceSlot, 1,
+    { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId: cardId, abilityId: N_BP5_008_ACTIVATED_STACK_ENERGY_BELOW_ACTIVATE_TWO_ENERGY_ABILITY_ID }
+  );
   if (!stackResult) {
     return game;
   }
