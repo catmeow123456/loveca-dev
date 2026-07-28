@@ -1368,10 +1368,16 @@ export function enqueueTriggeredCardEffects(
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_LIVE_SUCCESS)) {
-    state = enqueueLiveSuccessCardEffects(
-      state,
-      options.liveSuccessEvents ?? getLatestLiveSuccessEventsFromLog(state)
-    );
+    let liveSuccessEvents: readonly LiveSuccessEvent[] | undefined;
+    if (options.liveSuccessEvents !== undefined) {
+      liveSuccessEvents = options.liveSuccessEvents;
+    } else if (options.triggerEventLogStartIndex !== undefined) {
+      liveSuccessEvents = getLiveSuccessEventsFromLog(state, options.triggerEventLogStartIndex);
+    } else {
+      const latestLiveSuccessEvents = getLatestLiveSuccessEventsFromLog(state);
+      liveSuccessEvents = latestLiveSuccessEvents.length > 0 ? latestLiveSuccessEvents : undefined;
+    }
+    state = enqueueLiveSuccessCardEffects(state, liveSuccessEvents);
   }
 
   if (triggerConditions.includes(TriggerCondition.ON_MEMBER_STATE_CHANGED)) {
@@ -1519,8 +1525,9 @@ function getLatestLiveStartEventsFromLog(game: GameState): readonly LiveStartEve
   return latestEvent ? [latestEvent] : [];
 }
 
-function getLiveSuccessEventsFromLog(game: GameState): readonly LiveSuccessEvent[] {
+function getLiveSuccessEventsFromLog(game: GameState, startIndex = 0): readonly LiveSuccessEvent[] {
   return game.eventLog
+    .slice(startIndex)
     .map((entry) => entry.event)
     .filter(
       (event): event is LiveSuccessEvent => event.eventType === TriggerCondition.ON_LIVE_SUCCESS
@@ -2927,9 +2934,14 @@ function enqueueExactStageMemberCheerCardEffects(
 
 function enqueueLiveSuccessCardEffects(
   game: GameState,
-  liveSuccessEvents: readonly LiveSuccessEvent[] = []
+  liveSuccessEvents?: readonly LiveSuccessEvent[]
 ): GameState {
-  const liveSuccessEvent = liveSuccessEvents.at(-1);
+  // An explicit event list or bounded event-log window is authoritative even when empty.
+  // Only legacy callers without event input may fall back to liveResults.
+  if (liveSuccessEvents !== undefined && liveSuccessEvents.length === 0) {
+    return game;
+  }
+  const liveSuccessEvent = liveSuccessEvents?.at(-1);
   const playerId = liveSuccessEvent?.playerId ?? getLiveSuccessEffectPlayerId(game);
   const player = playerId ? getPlayerById(game, playerId) : null;
   if (!player) {

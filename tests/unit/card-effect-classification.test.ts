@@ -6945,6 +6945,9 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
     });
+    expect(watercolorWorldLiveSuccess?.effectText).toBe(
+      '【LIVE成功时】从因声援被公开的自己的卡片中，将1张费用大于等于4，且小于等于9的『莲之空』的成员卡加入手牌。'
+    );
 
     const kahoLiveStart = getCardAbilityDefinitions('PL!HS-cl1-001-CL').find(
       (ability) =>

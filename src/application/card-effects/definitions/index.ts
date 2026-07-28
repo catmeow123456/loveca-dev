@@ -2366,7 +2366,7 @@ const HS_CL1_006_ON_ENTER_EFFECT_TEXT = '【登场】LIVE结束时为止，获�
 const HS_CL1_008_ACTIVATED_EFFECT_TEXT =
   '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『莲之空』的卡片加入手牌。';
 const HS_CL1_009_LIVE_SUCCESS_EFFECT_TEXT =
-  '【LIVE成功时】从因声援被公开的自己的卡片中，将1张费用大于等于4小于等于9的成员卡加入手牌。';
+  '【LIVE成功时】从因声援被公开的自己的卡片中，将1张费用大于等于4，且小于等于9的『莲之空』的成员卡加入手牌。';
 const HS_CL1_010_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】LIVE结束时为止，自己舞台上1名费用10以上的『莲之空』成员获得[BLADE][BLADE]。';
 const HS_CL1_011_LIVE_SUCCESS_EFFECT_TEXT =
@@ -11158,7 +11158,8 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: HS_CL1_009_LIVE_SUCCESS_EFFECT_TEXT,
-    notes: '复用声援公开卡选择 helper，从仍在处理区的公开声援卡中筛选费用4-9成员加入手牌。',
+    notes:
+      '复用声援公开卡选择 helper，从仍在处理区的公开声援卡中筛选费用4-9的『莲之空』成员加入手牌。',
   },
   {
     abilityId: HS_CL1_010_LIVE_START_HIGH_COST_HASUNOSORA_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,

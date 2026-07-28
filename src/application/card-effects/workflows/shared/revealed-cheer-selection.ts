@@ -234,9 +234,9 @@ const REVEALED_CHEER_SELECTION_WORKFLOWS: readonly RevealedCheerSelectionWorkflo
   {
     abilityId: HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID,
     stepId: HS_CL1_009_SELECT_CHEER_MEMBER_TO_HAND_STEP_ID,
-    stepText: '请选择1张因声援被公开的费用4-9成员卡加入手牌。',
-    selectionLabel: '选择要加入手牌的声援公开成员',
-    predicate: (card) => isMemberCardData(card.data) && costGte(4)(card) && costLte(9)(card),
+    stepText: '请选择1张因声援被公开的费用4-9『莲之空』成员卡加入手牌。',
+    selectionLabel: '选择要加入手牌的声援公开莲之空成员',
+    predicate: and(typeIs(CardType.MEMBER), costGte(4), costLte(9), groupAliasIs('蓮ノ空')),
     destination: 'HAND',
     optional: false,
   },

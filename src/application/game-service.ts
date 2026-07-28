@@ -442,6 +442,8 @@ export class GameService {
   ): GameOperationResult {
     let state = initialState;
     const processedEvents: (GameEventType | string)[] = [];
+    const liveSuccessEventLogStartIndex =
+      options.triggerEventLogStartIndex ?? initialState.eventLog.length;
 
     // 按优先级排序处理：FINALIZE 先于 ADVANCE 先于 CHECK_TIMING
     const sortedEvents = [...events].sort((a, b) => {
@@ -522,11 +524,14 @@ export class GameService {
           ) {
             checkState = this.emitLiveSuccessEventForResultSubPhase(
               checkState,
-              checkState.currentSubPhase
+              checkState.currentSubPhase,
+              liveSuccessEventLogStartIndex
             );
           }
           const checkResult = this.executeCheckTiming(checkState, triggerConditions, {
-            triggerEventLogStartIndex: options.triggerEventLogStartIndex,
+            triggerEventLogStartIndex: triggerConditions.includes(TriggerCondition.ON_LIVE_SUCCESS)
+              ? liveSuccessEventLogStartIndex
+              : options.triggerEventLogStartIndex,
           });
           state = checkResult.gameState;
           processedEvents.push(event);
@@ -823,8 +828,15 @@ export class GameService {
         ...state,
         effectWindowType: EffectWindowType.LIVE_SUCCESS,
       };
-      state = this.emitLiveSuccessEventForResultSubPhase(state, state.currentSubPhase);
-      state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_SUCCESS]).gameState;
+      const liveSuccessEventLogStartIndex = state.eventLog.length;
+      state = this.emitLiveSuccessEventForResultSubPhase(
+        state,
+        state.currentSubPhase,
+        liveSuccessEventLogStartIndex
+      );
+      state = this.executeCheckTiming(state, [TriggerCondition.ON_LIVE_SUCCESS], {
+        triggerEventLogStartIndex: liveSuccessEventLogStartIndex,
+      }).gameState;
     }
 
     return state;
@@ -875,7 +887,11 @@ export class GameService {
     return false;
   }
 
-  private emitLiveSuccessEventForResultSubPhase(state: GameState, subPhase: SubPhase): GameState {
+  private emitLiveSuccessEventForResultSubPhase(
+    state: GameState,
+    subPhase: SubPhase,
+    eventLogStartIndex: number
+  ): GameState {
     const playerId =
       subPhase === SubPhase.RESULT_FIRST_SUCCESS_EFFECTS
         ? state.players[state.firstPlayerIndex]?.id
@@ -895,7 +911,7 @@ export class GameService {
       return state;
     }
 
-    const alreadyLogged = state.eventLog.some((entry) => {
+    const alreadyLogged = state.eventLog.slice(eventLogStartIndex).some((entry) => {
       const event = entry.event;
       if (event.eventType !== TriggerCondition.ON_LIVE_SUCCESS) {
         return false;

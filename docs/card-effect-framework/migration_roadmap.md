@@ -887,3 +887,9 @@ The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` 
 - `ON_ENERGY_PLACED_BY_CARD_EFFECT` 的 exact-event 与历史补扫统一进入 `runtime/energy-placement-triggers.ts`。无监听、来源或能量失效、以及全部监听能力达到回合次数上限时仍记录派发，避免历史事件在后续回合重新获得触发资格。
 - 真实回归由 `PL!SP-bp7-005-SEC` 费用 9「叶月恋」锁定：本回合第 3 次卡效放置能量不会生成超过 `[1回合2次]` 的 pending，但仍消费事件，下一回合补扫不能复活。该问题可由 `PL!SP-bp7-027-L` 分数 5「What a Wonderful Dream!!」的 LIVE 成功放置能量链路触发。
 - runner 只保留通用调用，能量触发主体迁入 runtime；尾部 `DISPATCH_TRIGGER_EVENT` 不再遮挡最近一次 resolved-ability observer。其他事件类型继续等待真实问题或明确代码证据，不批量应用旧事件修复。
+
+# 2026-07-28 LIVE 成功事件窗口修复
+
+- `ON_LIVE_SUCCESS` 不再用整局历史中的“玩家 + 成功 LIVE 实体集合”去重。事件生成只检查本次成功效果 dispatch 窗口，因此同一实体或同一组合在后续回合再次成功时仍会产生独立事件，同一窗口重复检查仍保持幂等。
+- runner 在提供 `triggerEventLogStartIndex` 时只消费该窗口内的 `LiveSuccessEvent`；空窗口是权威事实，不回退到上回合、另一玩家的最新事件或当前 `liveResults`。没有事件窗口和显式事件的 legacy 直接调用暂时保留既有 fallback。
+- 回归样本使用分数 1「水彩世界」锁定同一实体跨回合重复成功、第二玩家窗口与空窗口不复活；这次只修复 LIVE 成功事件边界，不表示其他事件类型已经统一迁移。

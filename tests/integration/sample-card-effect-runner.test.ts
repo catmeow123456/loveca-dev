@@ -12937,8 +12937,11 @@ describe('sample card effect runner', () => {
     const watercolorWorldCardId = ownedP1CardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-cl1-009-CL'
     );
-    const candidateMemberCardId = ownedP1CardIds.find(
+    const otherGroupMemberCardId = ownedP1CardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!N-PR-004-PR'
+    );
+    const candidateMemberCardId = ownedP1CardIds.find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-bp6-001-R＋'
     );
     const highCostMemberCardId = ownedP1CardIds.find(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!-sd1-009-SD'
@@ -12948,6 +12951,7 @@ describe('sample card effect runner', () => {
     );
 
     expect(watercolorWorldCardId).toBeTruthy();
+    expect(otherGroupMemberCardId).toBeTruthy();
     expect(candidateMemberCardId).toBeTruthy();
     expect(highCostMemberCardId).toBeTruthy();
     expect(liveCheerCardId).toBeTruthy();
@@ -12960,7 +12964,12 @@ describe('sample card effect runner', () => {
       [SlotPosition.RIGHT]: null,
     };
 
-    const cheerCardIds = [candidateMemberCardId!, highCostMemberCardId!, liveCheerCardId!];
+    const cheerCardIds = [
+      otherGroupMemberCardId!,
+      candidateMemberCardId!,
+      highCostMemberCardId!,
+      liveCheerCardId!,
+    ];
     const mutableState = state as unknown as {
       currentPhase: GamePhase;
       currentSubPhase: SubPhase;
@@ -12992,6 +13001,13 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_CL1_009_LIVE_SUCCESS_CHEER_MEMBER_TO_HAND_ABILITY_ID
     );
+    expect(session.state?.activeEffect?.effectText).toBe(
+      '【LIVE成功时】从因声援被公开的自己的卡片中，将1张费用大于等于4，且小于等于9的『莲之空』的成员卡加入手牌。'
+    );
+    expect(session.state?.activeEffect?.stepText).toBe(
+      '请选择1张因声援被公开的费用4-9『莲之空』成员卡加入手牌。'
+    );
+    expect(session.state?.activeEffect?.selectionLabel).toBe('选择要加入手牌的声援公开莲之空成员');
     expect(session.state?.activeEffect?.selectableCardVisibility).toBe('PUBLIC');
     expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([candidateMemberCardId]);
@@ -13008,8 +13024,13 @@ describe('sample card effect runner', () => {
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([candidateMemberCardId]);
-    expect(session.state?.resolutionZone.cardIds).toEqual([highCostMemberCardId, liveCheerCardId]);
+    expect(session.state?.resolutionZone.cardIds).toEqual([
+      otherGroupMemberCardId,
+      highCostMemberCardId,
+      liveCheerCardId,
+    ]);
     expect(session.state?.resolutionZone.revealedCardIds).toEqual([
+      otherGroupMemberCardId,
       highCostMemberCardId,
       liveCheerCardId,
     ]);
