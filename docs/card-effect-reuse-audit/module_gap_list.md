@@ -3,7 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：卡效模块缺口、已关闭缺口、下一批抽象候选和剩余风险
 > 当前状态：缺口跟踪文档；卡牌完成状态以 `existing_module_map.md` 为准
-> 最后更新：2026-07-24
+> 最后更新：2026-07-29
 
 本文件基于 `loveca_effect_fragments_catalog.json` 回扫当前已实现卡牌。它只列 Stage 1A-1F 之后仍值得追踪的缺口；已经有主模块的片段不再作为 P0-now 抽象任务重复列出。
 
@@ -42,8 +42,9 @@
 | P2-later | unmatched/P2 special fragments | Card-local workflow with explicit boundaries | `workflows/cards/` | 低频特例可以保留为单卡 workflow，但完整 resolver、卡牌专属 gate、pending 构造和结算主体不得回流 runner；runner 只保留 import/register、通用 runtime hook 与尚未迁出的 trigger/relay/matcher 胶水。 |
 
 事件派发台账仍属于逐事件类型迁移中的窄底座：当前只有
-`ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK` 与 `ON_ENERGY_PLACED_BY_CARD_EFFECT`
-使用 `DISPATCH_TRIGGER_EVENT` 明确区分“已检查监听来源”和“实际生成 pending”。后者已由
+`ON_WAITING_ROOM_CARDS_MOVED_TO_MAIN_DECK`、`ON_ENERGY_PLACED_BY_CARD_EFFECT` 与
+`ON_ENERGY_PLACED_BELOW_MEMBER` 使用 `DISPATCH_TRIGGER_EVENT` 明确区分“已检查监听来源”和
+“实际生成 pending”。其中 `ON_ENERGY_PLACED_BY_CARD_EFFECT` 已由
 `PL!SP-bp7-005-SEC` 费用 9「叶月恋」的回合次数上限后旧事件复活回归证明；其他 AUTO
 事件类型没有因此视为完成，也不在没有真实复现或确定代码证据时批量迁移。
 

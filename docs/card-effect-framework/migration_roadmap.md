@@ -3,7 +3,7 @@
 > 文档类型：历史/计划文档
 > 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
 > 当前状态：现行迁移路线；完成状态以代码、测试和本文 Roadmap 表为准，顶部专题说明不得替代表内状态
-> 最后更新：2026-07-25
+> 最后更新：2026-07-29
 
 ## bp3-001 / 002 通用 hook（2026-07）
 
@@ -883,7 +883,7 @@ The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` 
 
 # 2026-07-27 能量放置事件派发台账
 
-- `runtime/trigger-event-dispatch.ts` 以 `eventId + triggerCondition` 记录事件是否已经检查过全部合法监听来源；是否实际生成 `TRIGGER_ABILITY` 不再承担事件消费语义。当前只由休息室回主卡组与卡效放置能量两个事件类型使用，不表示其他 AUTO 事件已经迁移。
+- `runtime/trigger-event-dispatch.ts` 以 `eventId + triggerCondition` 记录事件是否已经检查过全部合法监听来源；是否实际生成 `TRIGGER_ABILITY` 不再承担事件消费语义。当前由休息室回主卡组、卡效放置能量与能量区能量放置到成员下方三个事件类型使用，不表示其他 AUTO 事件已经迁移。
 - `ON_ENERGY_PLACED_BY_CARD_EFFECT` 的 exact-event 与历史补扫统一进入 `runtime/energy-placement-triggers.ts`。无监听、来源或能量失效、以及全部监听能力达到回合次数上限时仍记录派发，避免历史事件在后续回合重新获得触发资格。
 - 真实回归由 `PL!SP-bp7-005-SEC` 费用 9「叶月恋」锁定：本回合第 3 次卡效放置能量不会生成超过 `[1回合2次]` 的 pending，但仍消费事件，下一回合补扫不能复活。该问题可由 `PL!SP-bp7-027-L` 分数 5「What a Wonderful Dream!!」的 LIVE 成功放置能量链路触发。
 - runner 只保留通用调用，能量触发主体迁入 runtime；尾部 `DISPATCH_TRIGGER_EVENT` 不再遮挡最近一次 resolved-ability observer。其他事件类型继续等待真实问题或明确代码证据，不批量应用旧事件修复。
