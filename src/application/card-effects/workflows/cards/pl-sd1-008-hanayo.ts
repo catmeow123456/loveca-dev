@@ -4,6 +4,7 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
+import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { HANAYO_ACTIVATED_ABILITY_ID } from '../../ability-ids.js';
@@ -14,14 +15,18 @@ import {
   recordPayCostAction,
 } from '../../runtime/workflow-helpers.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 
 export function registerSd1008HanayoWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
-  registerActivatedAbilityHandler(HANAYO_ACTIVATED_ABILITY_ID, (game, playerId, cardId) =>
-    startHanayoActivatedEffect(game, playerId, cardId, deps.enqueueTriggeredCardEffects)
+  registerActivatedAbilityHandler(
+    HANAYO_ACTIVATED_ABILITY_ID,
+    (game, playerId, cardId) =>
+      startHanayoActivatedEffect(game, playerId, cardId, deps.enqueueTriggeredCardEffects),
+    { preflight: canStartHanayoActivatedEffect }
   );
 }
 
@@ -31,21 +36,11 @@ function startHanayoActivatedEffect(
   cardId: string,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
+  if (!canStartHanayoActivatedEffect(game, playerId, cardId)) {
     return game;
   }
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
   const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, cardId);
-  if (
-    activePlayerId !== playerId ||
-    !player ||
-    !sourceCard ||
-    sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!-sd1-008')
-  ) {
-    return game;
-  }
+  if (!player) return game;
 
   const stateWithAbilityUse = recordAbilityUseForContext(game, player.id, {
     abilityId: HANAYO_ACTIVATED_ABILITY_ID,
@@ -85,4 +80,24 @@ function startHanayoActivatedEffect(
     refreshCount: moveResult.refreshCount,
   });
   return state;
+}
+
+function canStartHanayoActivatedEffect(game: GameState, playerId: string, cardId: string): boolean {
+  if (
+    game.activeEffect ||
+    game.currentPhase !== GamePhase.MAIN_PHASE ||
+    game.players[game.activePlayerIndex]?.id !== playerId
+  ) {
+    return false;
+  }
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, cardId);
+  return (
+    player !== null &&
+    sourceCard !== null &&
+    sourceCard.ownerId === playerId &&
+    cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!-sd1-008') &&
+    findMemberSlot(player, cardId) !== null &&
+    getEnergySelectionCandidates(game, playerId, 'TAP_ACTIVE_ENERGY').length >= 2
+  );
 }

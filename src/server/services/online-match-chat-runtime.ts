@@ -3,6 +3,8 @@ import {
   type OnlineMatchChatEntry,
   type OnlineMatchChatMessagesResponse,
   type OnlineMatchEmoteId,
+  type OnlineMatchSystemNotice,
+  type OnlineMatchSystemNoticeCode,
   type Seat,
   type SendOnlineMatchChatEntryInput,
 } from '../../online/index.js';
@@ -18,10 +20,21 @@ const CHAT_BURST_LIMIT = 3;
 const EMOTE_COOLDOWN_MS = 2_000;
 const ONLINE_MATCH_EMOTE_ID_SET = new Set<string>(ONLINE_MATCH_EMOTE_IDS);
 
-type StoredOnlineMatchChatEntry = OnlineMatchChatEntry & {
+type StoredOnlineMatchPlayerChatEntry = Exclude<
+  OnlineMatchChatEntry,
+  { readonly messageType: 'SYSTEM_NOTICE' }
+> & {
   readonly senderUserId: string;
   readonly clientMessageId: string;
 };
+
+interface StoredOnlineMatchSystemNotice extends OnlineMatchSystemNotice {
+  readonly dedupeKey: string;
+}
+
+type StoredOnlineMatchChatEntry =
+  | StoredOnlineMatchPlayerChatEntry
+  | StoredOnlineMatchSystemNotice;
 
 interface ChatRateWindow {
   readonly acceptedAt: number[];
@@ -35,6 +48,7 @@ export interface OnlineMatchChatRuntimeState {
   nextMessageSeq: number;
   readonly messages: StoredOnlineMatchChatEntry[];
   readonly messageSeqByIdempotencyKey: Map<string, number>;
+  readonly systemNoticeSeqByDedupeKey: Map<string, number>;
   readonly rateWindowsByUserId: Map<string, ChatRateWindow>;
   readonly lastEmoteAcceptedAtByUserId: Map<string, number>;
 }
@@ -64,6 +78,7 @@ export function createOnlineMatchChatRuntime(): OnlineMatchChatRuntimeState {
     nextMessageSeq: 1,
     messages: [],
     messageSeqByIdempotencyKey: new Map<string, number>(),
+    systemNoticeSeqByDedupeKey: new Map<string, number>(),
     rateWindowsByUserId: new Map<string, ChatRateWindow>(),
     lastEmoteAcceptedAtByUserId: new Map<string, number>(),
   };
@@ -85,7 +100,8 @@ export function appendOnlineMatchChatMessage(
 
   if (existingMessageSeq !== undefined) {
     const existing = runtime.messages.find(
-      (message) =>
+      (message): message is StoredOnlineMatchPlayerChatEntry =>
+        message.messageType === 'PLAYER' &&
         message.messageSeq === existingMessageSeq &&
         message.senderUserId === sender.userId &&
         message.clientMessageId === clientMessageId
@@ -108,6 +124,7 @@ export function appendOnlineMatchChatMessage(
   consumeChatRateLimit(runtime, sender.userId, options.now);
 
   const sharedFields = {
+    messageType: 'PLAYER',
     messageSeq: runtime.nextMessageSeq,
     senderUserId: sender.userId,
     senderSeat: sender.seat,
@@ -115,7 +132,7 @@ export function appendOnlineMatchChatMessage(
     clientMessageId,
     sentAt: options.now,
   } as const;
-  const stored: StoredOnlineMatchChatEntry =
+  const stored: StoredOnlineMatchPlayerChatEntry =
     normalizedInput.kind === 'TEXT'
       ? { ...sharedFields, kind: 'TEXT', text: normalizedInput.text }
       : { ...sharedFields, kind: 'EMOTE', emoteId: normalizedInput.emoteId };
@@ -128,15 +145,48 @@ export function appendOnlineMatchChatMessage(
   }
 
   while (runtime.messages.length > CHAT_MESSAGE_LIMIT) {
-    const removed = runtime.messages.shift();
-    if (removed) {
-      runtime.messageSeqByIdempotencyKey.delete(
-        buildIdempotencyKey(removed.senderUserId, removed.clientMessageId)
-      );
-    }
+    removeOldestMessage(runtime);
   }
 
   return toMessageView(stored);
+}
+
+export function appendOnlineMatchSystemNotice(
+  runtime: OnlineMatchChatRuntimeState,
+  input: {
+    readonly dedupeKey: string;
+    readonly noticeCode: OnlineMatchSystemNoticeCode;
+    readonly text: string;
+  },
+  options: { readonly now: number }
+): OnlineMatchSystemNotice {
+  const dedupeKey = normalizeSystemDedupeKey(input.dedupeKey);
+  const existingMessageSeq = runtime.systemNoticeSeqByDedupeKey.get(dedupeKey);
+  if (existingMessageSeq !== undefined) {
+    const existing = runtime.messages.find(
+      (message): message is StoredOnlineMatchSystemNotice =>
+        message.messageType === 'SYSTEM_NOTICE' &&
+        message.messageSeq === existingMessageSeq &&
+        message.dedupeKey === dedupeKey
+    );
+    if (existing) return toSystemNoticeView(existing);
+  }
+  const stored: StoredOnlineMatchSystemNotice = {
+    kind: 'SYSTEM_NOTICE',
+    messageType: 'SYSTEM_NOTICE',
+    messageSeq: runtime.nextMessageSeq,
+    dedupeKey,
+    noticeCode: input.noticeCode,
+    text: normalizeChatText(input.text),
+    sentAt: options.now,
+  };
+  runtime.nextMessageSeq += 1;
+  runtime.messages.push(stored);
+  runtime.systemNoticeSeqByDedupeKey.set(dedupeKey, stored.messageSeq);
+  while (runtime.messages.length > CHAT_MESSAGE_LIMIT) {
+    removeOldestMessage(runtime);
+  }
+  return toSystemNoticeView(stored);
 }
 
 export function readOnlineMatchChatMessages(
@@ -332,7 +382,11 @@ function buildIdempotencyKey(userId: string, clientMessageId: string): string {
 }
 
 function toMessageView(message: StoredOnlineMatchChatEntry): OnlineMatchChatEntry {
+  if (message.messageType === 'SYSTEM_NOTICE') {
+    return toSystemNoticeView(message);
+  }
   const sharedFields = {
+    messageType: 'PLAYER',
     messageSeq: message.messageSeq,
     senderSeat: message.senderSeat,
     senderDisplayName: message.senderDisplayName,
@@ -341,4 +395,38 @@ function toMessageView(message: StoredOnlineMatchChatEntry): OnlineMatchChatEntr
   return message.kind === 'TEXT'
     ? { ...sharedFields, kind: 'TEXT', text: message.text }
     : { ...sharedFields, kind: 'EMOTE', emoteId: message.emoteId };
+}
+
+function toSystemNoticeView(message: StoredOnlineMatchSystemNotice): OnlineMatchSystemNotice {
+  return {
+    kind: 'SYSTEM_NOTICE',
+    messageType: 'SYSTEM_NOTICE',
+    messageSeq: message.messageSeq,
+    noticeCode: message.noticeCode,
+    text: message.text,
+    sentAt: message.sentAt,
+  };
+}
+
+function normalizeSystemDedupeKey(value: string): string {
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 160) {
+    throw new OnlineMatchChatRuntimeError(
+      'ONLINE_CHAT_INVALID_SYSTEM_DEDUPE_KEY',
+      '系统消息去重标识非法'
+    );
+  }
+  return normalized;
+}
+
+function removeOldestMessage(runtime: OnlineMatchChatRuntimeState): void {
+  const removed = runtime.messages.shift();
+  if (!removed) return;
+  if (removed.messageType === 'PLAYER') {
+    runtime.messageSeqByIdempotencyKey.delete(
+      buildIdempotencyKey(removed.senderUserId, removed.clientMessageId)
+    );
+  } else {
+    runtime.systemNoticeSeqByDedupeKey.delete(removed.dedupeKey);
+  }
 }

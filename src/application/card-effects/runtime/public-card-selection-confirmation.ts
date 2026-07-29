@@ -131,7 +131,11 @@ export function createPublicCardSelectionConfirmationWindow(
     new Set(selectedCardIds).size !== selectedCardIds.length ||
     selectedCardIds.some((cardId) => !candidates.includes(cardId)) ||
     !selectedCardsRemainInConfiguredSource(game, originalEffect, selectedCardIds, config) ||
-    !matchesSelectionGroups(selectedCardIds, config.groups, config.distinctGroupAssignment === true)
+    !matchesPublicCardSelectionGroups(
+      selectedCardIds,
+      config.groups,
+      config.distinctGroupAssignment === true
+    )
   ) {
     return null;
   }
@@ -251,12 +255,12 @@ export function getPublicCardSelectionDisplayDurationMs(selectedCardCount: numbe
   );
 }
 
-function matchesSelectionGroups(
+export function matchesPublicCardSelectionGroups(
   selectedCardIds: readonly string[],
   groups: PublicCardSelectionConfirmationConfig['groups'],
-  distinctGroupAssignment: boolean
+  distinctGroupAssignment = false
 ): boolean {
-  if (!groups) return true;
+  if (!groups || groups.length === 0) return true;
   if (
     selectedCardIds.some(
       (cardId) => !groups.some((group) => group.candidateCardIds.includes(cardId))

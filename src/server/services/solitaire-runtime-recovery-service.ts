@@ -220,6 +220,7 @@ export class SolitaireRuntimeRecoveryService {
       : currentPublicSeq;
     const session = createGameSession({
       gameMode: record.automation_game_mode === 'SOLITAIRE' ? GameMode.SOLITAIRE : GameMode.DEBUG,
+      now: this.now,
     });
     const privateSeqBySeat = readPrivateSeqBySeat(record.last_private_seq_by_seat);
     session.restoreRuntimeState({
@@ -264,6 +265,7 @@ export class SolitaireRuntimeRecoveryService {
         pendingUndoRequest: null,
         pendingManualOperationModeRequest: null,
         activeUndoGrant: null,
+        machineLiveness: null,
         appliedUndoKeys: new Set<string>(),
         appliedManualOperationKeys: new Map<string, string>(),
         chat: createOnlineMatchChatRuntime(),

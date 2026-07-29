@@ -54,6 +54,7 @@ const COMMAND_CATEGORIES = {
   [GameCommandType.DRAW_ENERGY_TO_ZONE]: 'MANUAL_OVERRIDE',
   [GameCommandType.RETURN_HAND_CARD_TO_TOP]: 'MANUAL_OVERRIDE',
   [GameCommandType.SURRENDER]: 'NORMAL_RULE_ACTION',
+  [GameCommandType.SYSTEM_CONCEDE]: 'DEBUG_ONLY',
 } as const satisfies Record<GameCommandType, PlayerCommandCategory>;
 
 export function classifyPlayerCommand(commandType: GameCommandType): PlayerCommandCategory {

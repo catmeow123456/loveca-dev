@@ -74,13 +74,14 @@
 
 这些文档可以解释背景或后续方向，但不应替代当前事实文档：
 
-| 文档                                                             | 当前用途                                                                       |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| [卡组分享功能方案](deck-management/share-plan.md)                | 历史方案与增强项参考；当前事实以卡组需求/设计文档为准                          |
-| [Android App 打包指南草稿](android-app-packaging-guide-draft.md) | Web/PWA/TWA/Capacitor 打包路线规划；PWA/TWA 前置项已开始实施                   |
-| [历史迁移说明](historical-migrations.md)                         | 早期外部托管方案的历史参考                                                     |
-| [对战模式边界收敛计划](archive/battle-mode-boundary-plan.md)     | 已归档的桌面能力层收敛计划；当前事实以对战模式目的文档、联机边界规范和代码为准 |
-| [文档重构需求](archive/documentation-refactor-requirements.md)   | 已归档的阶段性文档重构需求；不作为当前实现事实来源                             |
+| 文档                                                                                                                                                             | 当前用途                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [卡组分享功能方案](deck-management/share-plan.md)                                                                                                                | 历史方案与增强项参考；当前事实以卡组需求/设计文档为准                                                 |
+| [AI 对战 Phase 0 基线](ai-battle/phase-0-baseline.md)、[可行性分析](ai-battle/feasibility-analysis.md)、[设计与实施草稿](ai-battle/design-and-implementation.md) | 受控卡组 AI 对战的冻结卡组/矩阵、可行性、架构与阶段门槛；当前完成态同时由机器可读 phase baseline 约束 |
+| [Android App 打包指南草稿](android-app-packaging-guide-draft.md)                                                                                                 | Web/PWA/TWA/Capacitor 打包路线规划；PWA/TWA 前置项已开始实施                                          |
+| [历史迁移说明](historical-migrations.md)                                                                                                                         | 早期外部托管方案的历史参考                                                                            |
+| [对战模式边界收敛计划](archive/battle-mode-boundary-plan.md)                                                                                                     | 已归档的桌面能力层收敛计划；当前事实以对战模式目的文档、联机边界规范和代码为准                        |
+| [文档重构需求](archive/documentation-refactor-requirements.md)                                                                                                   | 已归档的阶段性文档重构需求；不作为当前实现事实来源                                                    |
 
 ## 临时记录
 

@@ -1,0 +1,215 @@
+export interface AiBattlePhaseZeroAbilityEvidence {
+  readonly baseCardCode: string;
+  readonly abilityId: string;
+  readonly behaviorTests: readonly string[];
+}
+
+/**
+ * Phase 0 只记录认证证据，不在这里重复声明卡效完成状态。
+ *
+ * 完成状态仍以 existing_module_map.md 为唯一真值；本清单负责把认证卡组实际
+ * 使用的每个 abilityId 绑定到可重复执行的行为测试。definition 或认证卡组
+ * 发生变化时，集合一致性测试会要求同步审查本清单。
+ */
+export const AI_BATTLE_PHASE_ZERO_ABILITY_EVIDENCE = [
+  evidence(
+    'PL!-sd1-001',
+    'PL!-sd1-001-SD:on-enter-take-live-if-two-success:continuous-extra-blade',
+    'tests/unit/live-judgment-settlement.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-001',
+    'PL!-sd1-001-SD:on-enter-take-live-if-two-success',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-002',
+    'PL!-sd1-002-SD:activated-send-self-to-waiting-room-add-member',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-003',
+    'PL!-sd1-003-SD:on-enter-take-low-cost-muse-member',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-003',
+    'PL!-sd1-003-SD:live-start-discard-gain-heart',
+    'tests/integration/live-start-discard-gain-heart.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-004',
+    'PL!-sd1-004-SD:on-enter-look-five-take-muse-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-005',
+    'PL!-sd1-005-SD:activated-send-self-to-waiting-room-add-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-006',
+    'PL!-sd1-006-SD:on-enter-swap-hand-live-success-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-007',
+    'PL!-sd1-007-SD:on-enter-mill-five-draw-if-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-008',
+    'PL!-sd1-008-SD:activated-pay-two-mill-ten',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-009',
+    'PL!-sd1-009-SD:live-start-score-plus-if-25-muse',
+    'tests/integration/sample-card-effect-runner.test.ts',
+    'tests/unit/live-judgment-settlement.test.ts'
+  ),
+  ...['PL!-sd1-011', 'PL!-sd1-012', 'PL!-sd1-015', 'PL!-sd1-016'].map((baseCardCode) =>
+    evidence(
+      baseCardCode,
+      'PL!-sd1:discard-one-look-top-take-one',
+      'tests/integration/sample-card-effect-runner.test.ts'
+    )
+  ),
+  evidence(
+    'PL!-sd1-019',
+    'PL!-sd1-019-SD:live-success-start-dash',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!-sd1-022',
+    'PL!-sd1-022-SD:live-start-reduce-requirement-by-success-live',
+    'tests/integration/sample-card-effect-runner.test.ts',
+    'tests/unit/live-judgment-settlement.test.ts'
+  ),
+  evidence(
+    'PL!HS-PR-014',
+    'PL!-pb1-019-N:activated-send-self-to-waiting-room-add-member',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-sd1-001',
+    'PL!HS-sd1-001-SD:auto-relay-replaced-by-high-cost-hasunosora-activate-energy',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-sd1-009',
+    'PL!-sd1-005-SD:activated-send-self-to-waiting-room-add-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-PR-019',
+    'PL!HS-PR-019-PR:on-enter-mill-three-gain-green-heart-if-all-green-member',
+    'tests/integration/mill-top-gain-live-modifier.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp6-017',
+    'PL!HS-bp6-017-N:auto-leave-stage-discard-recover-live-and-member',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp5-001',
+    'PL!HS-bp5-001-SEC:on-enter-mill-four-gain-blade-if-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp5-001',
+    'PL!HS-bp5-001-SEC:activated-pay-two-reveal-hand-live-recover-same-name-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-sd1-006',
+    'PL!HS-sd1-006-SD:on-enter-if-related-member-activate-energy-recover-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-sd1-006',
+    'PL!HS-sd1-006-SD:live-start-pay-one-gain-two-blade',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-pb1-004',
+    'PL!HS-pb1-004-R:on-enter-pay-energy-discard-mill-three-recover-cerise-live',
+    'tests/integration/hand-discard-enter-waiting-room-trigger-coverage.test.ts',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp6-001',
+    'PL!HS-bp6-001-R+:on-enter-look-stage-member-count-plus-two-top-one',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp6-001',
+    'PL!HS-bp6-001-R+:live-success-move-revealed-cheer-to-top',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-pb1-020',
+    'PL!HS-pb1-020-N:on-enter-if-three-live-discard-two-recover-cerise-member-and-hasunosora-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp1-003',
+    'PL!HS-bp1-003-SEC:activated-pay-one-recover-low-cost-hasunosora-member',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp1-003',
+    'PL!HS-bp1-003-SEC:continuous-three-different-hasunosora-score',
+    'tests/unit/live-modifiers.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp1-002',
+    'PL!HS-bp1-002-RM:activated-pay-two-send-self-play-hasunosora-member',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp5-008',
+    'PL!HS-bp5-008-R:on-enter-wait-self-discard-look-five-take-high-cost-member',
+    'tests/integration/hand-discard-enter-waiting-room-trigger-coverage.test.ts',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-pb1-009',
+    'PL!HS-pb1-009-R:auto-center-hasunosora-enter-gain-two-blade',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-pb1-009',
+    'PL!HS-pb1-009-R:live-start-draw-two-discard-if-eight-blade',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp6-027',
+    'PL!HS-bp6-027-L:on-cheer-send-non-blade-hasunosora-additional-cheer',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp5-019',
+    'PL!HS-bp5-019-L:live-start-reduce-green-requirement-by-live-zone',
+    'tests/integration/conditional-live-modifier.test.ts',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-bp2-022',
+    'PL!HS-bp2-022-L:live-start-score-plus-if-three-cerise-live',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+  evidence(
+    'PL!HS-cl1-009',
+    'PL!HS-cl1-009-CL:live-success-recover-revealed-cheer-low-cost-member',
+    'tests/integration/sample-card-effect-runner.test.ts'
+  ),
+] as const satisfies readonly AiBattlePhaseZeroAbilityEvidence[];
+
+function evidence(
+  baseCardCode: string,
+  abilityId: string,
+  ...behaviorTests: readonly string[]
+): AiBattlePhaseZeroAbilityEvidence {
+  return { baseCardCode, abilityId, behaviorTests };
+}

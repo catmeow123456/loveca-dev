@@ -46,6 +46,14 @@ import type {
   InspectionContextState,
 } from '../domain/entities/game.js';
 import {
+  createRuleRandomFactRecorder,
+  createSecureRuleRandomSource,
+  withRuleRandomSource,
+  type RuleRandomFact,
+  type RuleRandomFactRecorder,
+  type RuleRandomSource,
+} from '../domain/rules/rule-random.js';
+import {
   GAME_CONFIG,
   addAction,
   getActivePlayer,
@@ -154,6 +162,7 @@ import type {
   DrawEnergyToZoneCommand,
   ReturnHandCardToTopCommand,
   SurrenderCommand,
+  SystemConcedeCommand,
   BeginSpecialMemberPlayCommand,
   ConfirmSpecialMemberPlayCommand,
   CancelSpecialMemberPlayCommand,
@@ -198,7 +207,7 @@ import {
   validateBeginSpecialMemberPlay,
   validateConfirmSpecialMemberPlay,
 } from './special-member-play-procedures.js';
-import { isLiveCardData, isMemberCardData } from '../domain/entities/card.js';
+import { isMemberCardData } from '../domain/entities/card.js';
 import { tapEnergy } from '../domain/entities/zone.js';
 import {
   canMemberBeRelayedAway,
@@ -287,6 +296,12 @@ export interface GameSessionOptions {
   onEvent?: (event: GameSessionEvent) => void;
   /** 权威时钟；仅供服务端 deadline 与确定性测试使用。 */
   now?: () => number;
+  /**
+   * 规则随机熵源。生产默认使用安全随机源；测试和 headless 可注入 seeded/replay source。
+   *
+   * GameSession 始终在该源外层记录版本化随机事实，并写入 sealed audit。
+   */
+  ruleRandomSource?: RuleRandomSource;
   /**
    * 只允许历史测试夹具直接提交旧式 GameAction。
    *
@@ -397,6 +412,7 @@ interface GameSessionUndoEntry {
  */
 export class GameSession {
   private gameService: GameService;
+  private readonly ruleRandomFacts: RuleRandomFactRecorder;
   private authorityState: GameState | null = null;
   private _gameMode: GameMode;
   private options: GameSessionOptions;
@@ -420,6 +436,9 @@ export class GameSession {
 
   constructor(options: GameSessionOptions = {}) {
     this.gameService = new GameService();
+    this.ruleRandomFacts = createRuleRandomFactRecorder(
+      options.ruleRandomSource ?? createSecureRuleRandomSource()
+    );
     this._gameMode = options.gameMode ?? GameMode.DEBUG;
     this.options = options;
   }
@@ -539,6 +558,15 @@ export class GameSession {
    * 初始化后自动推进到第一个需要玩家操作的阶段
    */
   initializeGame(player1Deck: DeckConfig, player2Deck: DeckConfig): GameOperationResult {
+    return this.runWithRuleRandomSource(() =>
+      this.initializeGameWithRuleRandomSource(player1Deck, player2Deck)
+    );
+  }
+
+  private initializeGameWithRuleRandomSource(
+    player1Deck: DeckConfig,
+    player2Deck: DeckConfig
+  ): GameOperationResult {
     if (!this.authorityState) {
       return {
         success: false,
@@ -569,6 +597,12 @@ export class GameSession {
    * 统一执行 RULES/FREE、pending、行动者、审计与撤销校验。
    */
   dispatchLegacyActionForTesting(action: GameAction): GameOperationResult {
+    return this.runWithRuleRandomSource(() =>
+      this.dispatchLegacyActionWithRuleRandomSource(action)
+    );
+  }
+
+  private dispatchLegacyActionWithRuleRandomSource(action: GameAction): GameOperationResult {
     if (!this.options.enableTestOnlyLegacyActions) {
       return {
         success: false,
@@ -621,6 +655,12 @@ export class GameSession {
    * 当前优先覆盖检视区流程和公开声明类命令。
    */
   executeCommand(submittedCommand: GameCommand): GameOperationResult {
+    return this.runWithRuleRandomSource(() =>
+      this.executeCommandWithRuleRandomSource(submittedCommand)
+    );
+  }
+
+  private executeCommandWithRuleRandomSource(submittedCommand: GameCommand): GameOperationResult {
     if (!this.authorityState) {
       return {
         success: false,
@@ -633,6 +673,13 @@ export class GameSession {
       submittedCommand,
       this.manualOperationMode
     );
+    if (command.type === GameCommandType.SYSTEM_CONCEDE) {
+      return {
+        success: false,
+        gameState: this.authorityState,
+        error: 'SYSTEM 认输只能通过服务端权威入口执行',
+      };
+    }
 
     const idempotencyHit = this.resolveIdempotentCommand(command);
     if (idempotencyHit) {
@@ -710,6 +757,43 @@ export class GameSession {
       success: true,
       gameState: this.authorityState,
     };
+  }
+
+  executeSystemConcession(command: SystemConcedeCommand): GameOperationResult {
+    if (!this.authorityState) {
+      return {
+        success: false,
+        gameState: null as unknown as GameState,
+        error: '游戏尚未开始',
+      };
+    }
+    if (!getSeatForPlayer(this.authorityState, command.playerId)) {
+      return { success: false, gameState: this.authorityState, error: '玩家不存在' };
+    }
+    if (this.authorityState.isEnded || this.authorityState.currentPhase === GamePhase.GAME_END) {
+      return { success: false, gameState: this.authorityState, error: '对局已结束，不能再认输' };
+    }
+
+    const result = this.applySystemConcedeCommand(this.authorityState, command);
+    const isMachineFailure = command.reason === 'MACHINE_DECISION_FAILURE';
+    this.setAuthorityState(result.gameState, {
+      source: 'SYSTEM',
+      actorPlayerId: command.playerId,
+      declarationActionType: result.declarationType,
+      declarationPublicValue: command.reason,
+      sealedAuditRecords: [
+        {
+          type: isMachineFailure ? 'SYSTEM_MACHINE_FAILURE' : 'SYSTEM_LIVENESS_CONCEDE',
+          actorSeat: getSeatForPlayer(this.authorityState, command.playerId) ?? undefined,
+          payload: {
+            reason: command.reason,
+            playerId: command.playerId,
+          },
+        },
+      ],
+    });
+    this.recordCommand(command, 'ACCEPTED');
+    return { success: true, gameState: this.authorityState };
   }
 
   private resolveIdempotentCommand(command: GameCommand): GameOperationResult | null {
@@ -1155,7 +1239,7 @@ export class GameSession {
   }
 
   private cloneForUndo<T>(value: T): T {
-    return structuredClone(value);
+    return globalThis.structuredClone(value);
   }
 
   private runPostCommitAutomation(triggerPlayerId: string): void {
@@ -1197,11 +1281,7 @@ export class GameSession {
       iterations < MAX_MODE_AUTOMATION_ITERATIONS &&
       this.authorityState.currentPhase !== GamePhase.GAME_END
     ) {
-      const automation = policy.getNextAutomation(
-        this.authorityState,
-        triggerPlayerId,
-        this.now()
-      );
+      const automation = policy.getNextAutomation(this.authorityState, triggerPlayerId, this.now());
       if (!automation) {
         break;
       }
@@ -1282,8 +1362,7 @@ export class GameSession {
       this.recordCommand(recordedCommand, 'REJECTED', validated);
       this.appendSealedAuditRecord(this.authorityState, {
         type: 'COMMAND_REJECTED',
-        actorSeat:
-          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        actorSeat: getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
         payload: {
           commandType: recordedCommand.type,
           playerId: recordedCommand.playerId,
@@ -1291,11 +1370,7 @@ export class GameSession {
           error: validated,
         },
       });
-      console.warn(
-        '[GameSession] 模式自动化命令校验失败:',
-        recordedCommand.type,
-        validated
-      );
+      console.warn('[GameSession] 模式自动化命令校验失败:', recordedCommand.type, validated);
       return false;
     }
 
@@ -1304,8 +1379,7 @@ export class GameSession {
       this.recordCommand(recordedCommand, 'REJECTED', result.error);
       this.appendSealedAuditRecord(this.authorityState, {
         type: 'COMMAND_REJECTED',
-        actorSeat:
-          getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
+        actorSeat: getSeatForPlayer(this.authorityState, recordedCommand.playerId) ?? undefined,
         payload: {
           commandType: recordedCommand.type,
           playerId: recordedCommand.playerId,
@@ -1313,11 +1387,7 @@ export class GameSession {
           error: result.error ?? '命令执行失败',
         },
       });
-      console.warn(
-        '[GameSession] 模式自动化命令执行失败:',
-        recordedCommand.type,
-        result.error
-      );
+      console.warn('[GameSession] 模式自动化命令执行失败:', recordedCommand.type, result.error);
       return false;
     }
 
@@ -1414,6 +1484,14 @@ export class GameSession {
 
   getSealedAuditSince(seq: number): readonly SealedAuditRecord[] {
     return this.sealedAuditRecords.filter((record) => record.seq > seq);
+  }
+
+  getRuleRandomFacts(): readonly RuleRandomFact[] {
+    return this.ruleRandomFacts.getFacts();
+  }
+
+  assertRuleRandomReplayComplete(): void {
+    this.ruleRandomFacts.assertReplayComplete();
   }
 
   getCommandLogSince(seq: number): readonly MatchCommandRecord[] {
@@ -2822,6 +2900,8 @@ export class GameSession {
         return this.applyReturnHandCardToTopCommand(state, command);
       case GameCommandType.SURRENDER:
         return this.applySurrenderCommand(state, command);
+      case GameCommandType.SYSTEM_CONCEDE:
+        return { success: false, gameState: state, error: 'SYSTEM 认输入口非法' };
       default:
         return {
           success: false,
@@ -2831,7 +2911,10 @@ export class GameSession {
     }
   }
 
-  private applySurrenderCommand(state: GameState, command: SurrenderCommand): CommandExecutionResult {
+  private applySurrenderCommand(
+    state: GameState,
+    command: SurrenderCommand
+  ): CommandExecutionResult {
     const winnerId = state.players.find((player) => player.id !== command.playerId)?.id ?? null;
     if (!winnerId) {
       return { success: false, gameState: state, error: '无法确定对手玩家' };
@@ -2855,6 +2938,42 @@ export class GameSession {
         inspectionContext: null,
       },
       declarationType: 'SURRENDER',
+    };
+  }
+
+  private applySystemConcedeCommand(
+    state: GameState,
+    command: SystemConcedeCommand
+  ): CommandExecutionResult {
+    const winnerId = state.players.find((player) => player.id !== command.playerId)?.id ?? null;
+    if (!winnerId) {
+      return { success: false, gameState: state, error: '无法确定对手玩家' };
+    }
+    const ended = markGameEnded(
+      state,
+      command.reason === 'MACHINE_DECISION_FAILURE'
+        ? GameEndReason.SYSTEM_MACHINE_FAILURE
+        : GameEndReason.SYSTEM_LIVENESS_CONCEDE,
+      winnerId
+    );
+    return {
+      success: true,
+      gameState: {
+        ...ended,
+        waitingForInput: false,
+        waitingPlayerId: null,
+        availableAbilityIds: [],
+        pendingAbilities: [],
+        checkTimingContext: null,
+        pendingChoice: null,
+        activeEffect: null,
+        pendingCostPayment: null,
+        pendingSpecialMemberPlay: null,
+        delegatedAbilitySequence: null,
+        inspectionContext: null,
+      },
+      declarationType: 'SYSTEM_CONCEDE',
+      declarationPublicValue: command.reason,
     };
   }
 
@@ -4693,6 +4812,28 @@ export class GameSession {
 
   private now(): number {
     return this.options.now?.() ?? Date.now();
+  }
+
+  private runWithRuleRandomSource<T>(operation: () => T): T {
+    try {
+      return withRuleRandomSource(this.ruleRandomFacts, operation);
+    } finally {
+      this.flushRuleRandomFactsToSealedAudit();
+    }
+  }
+
+  private flushRuleRandomFactsToSealedAudit(): void {
+    const facts = this.ruleRandomFacts.drainPendingFacts();
+    const state = this.authorityState;
+    if (!state) {
+      return;
+    }
+    for (const fact of facts) {
+      this.appendSealedAuditRecord(state, {
+        type: 'RULE_RANDOM_FACT',
+        payload: fact,
+      });
+    }
   }
 
   private applyConfirmStepCommand(

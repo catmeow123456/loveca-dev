@@ -192,8 +192,14 @@ export function registerSelfSacrificeWaitingRoomToHandWorkflowHandlers(
   dependencies: SelfSacrificeWaitingRoomToHandWorkflowDependencies
 ): void {
   for (const config of SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS) {
-    registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
-      startSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config, dependencies)
+    registerActivatedAbilityHandler(
+      config.abilityId,
+      (game, playerId, cardId) =>
+        startSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config, dependencies),
+      {
+        preflight: (game, playerId, cardId) =>
+          canStartSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config),
+      }
     );
     registerActiveEffectStepHandler(config.abilityId, config.stepId, (game, input, context) =>
       finishSelfSacrificeWaitingRoomToHandWorkflow(
@@ -213,30 +219,11 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
   config: SelfSacrificeWaitingRoomToHandWorkflowConfig,
   dependencies: SelfSacrificeWaitingRoomToHandWorkflowDependencies
 ): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
-    return game;
-  }
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
-  if (activePlayerId !== playerId) {
+  if (!canStartSelfSacrificeWaitingRoomToHandWorkflow(game, playerId, cardId, config)) {
     return game;
   }
   const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, cardId);
-  if (
-    !player ||
-    !sourceCard ||
-    sourceCard.ownerId !== playerId ||
-    !isDirectOrRenGrantedActivatedAbilitySource(
-      game,
-      playerId,
-      cardId,
-      config.abilityId,
-      config.expectedBaseCardCodes
-    ) ||
-    !isMemberCardData(sourceCard.data)
-  ) {
-    return game;
-  }
+  if (!player) return game;
   const sourceSlot = findMemberSlot(player, cardId);
   if (!sourceSlot) {
     return game;
@@ -297,6 +284,37 @@ function startSelfSacrificeWaitingRoomToHandWorkflow(
     movedToWaitingRoomCardIds,
     selectableCardIds,
   });
+}
+
+function canStartSelfSacrificeWaitingRoomToHandWorkflow(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  config: SelfSacrificeWaitingRoomToHandWorkflowConfig
+): boolean {
+  if (
+    game.activeEffect ||
+    game.currentPhase !== GamePhase.MAIN_PHASE ||
+    game.players[game.activePlayerIndex]?.id !== playerId
+  ) {
+    return false;
+  }
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, cardId);
+  return (
+    player !== null &&
+    sourceCard !== null &&
+    sourceCard.ownerId === playerId &&
+    isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      config.abilityId,
+      config.expectedBaseCardCodes
+    ) &&
+    isMemberCardData(sourceCard.data) &&
+    findMemberSlot(player, cardId) !== null
+  );
 }
 
 function finishSelfSacrificeWaitingRoomToHandWorkflow(

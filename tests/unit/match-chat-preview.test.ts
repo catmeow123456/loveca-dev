@@ -4,13 +4,15 @@ import {
   formatMatchChatPreviewText,
 } from '../../client/src/lib/matchChatPreview';
 import type { OnlineMatchChatEntry } from '../../src/online/chat-types';
+import type { Seat } from '../../src/online/types';
 
 function createMessage(
   messageSeq: number,
-  senderSeat: OnlineMatchChatEntry['senderSeat'],
+  senderSeat: Seat,
   text: string
 ): OnlineMatchChatEntry {
   return {
+    messageType: 'PLAYER',
     kind: 'TEXT',
     messageSeq,
     senderSeat,
@@ -39,6 +41,7 @@ describe('match chat preview', () => {
   it('同一时间流中也能选择最新的对手表情', () => {
     const ownText = createMessage(1, 'FIRST', '自己的消息');
     const opponentEmote: OnlineMatchChatEntry = {
+      messageType: 'PLAYER',
       kind: 'EMOTE',
       messageSeq: 2,
       senderSeat: 'SECOND',
@@ -48,5 +51,19 @@ describe('match chat preview', () => {
     };
 
     expect(findLatestOpponentChatMessage([ownText, opponentEmote], 'FIRST')).toEqual(opponentEmote);
+  });
+
+  it('系统通知不伪装成任一玩家消息并仍可进入预览', () => {
+    const notice: OnlineMatchChatEntry = {
+      kind: 'SYSTEM_NOTICE',
+      messageType: 'SYSTEM_NOTICE',
+      messageSeq: 4,
+      noticeCode: 'AI_FALLBACK_ENABLED',
+      text: 'AI 已使用保守策略继续本局。',
+      sentAt: 4,
+    };
+
+    expect(findLatestOpponentChatMessage([notice], 'FIRST')).toEqual(notice);
+    expect('senderSeat' in notice).toBe(false);
   });
 });

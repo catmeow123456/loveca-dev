@@ -520,10 +520,10 @@ import {
   addCardToZone,
   removeCardFromZone,
   removeCardFromStatefulZone,
-  shuffleZone,
   removeEnergyBelowMember,
   findEnergyBelowSlot,
 } from '../entities/zone.js';
+import { shuffleWithRuleRandom } from './rule-random.js';
 
 /**
  * 应用规则处理结果到游戏状态
@@ -546,7 +546,7 @@ export function applyRuleActionResult(
       if (result.affectedPlayerId) {
         const playerBeforeRefresh = getPlayerById(state, result.affectedPlayerId);
         const waitingRoomCards = [...(playerBeforeRefresh?.waitingRoom.cardIds ?? [])];
-        const shuffledCards = shuffleArray(waitingRoomCards);
+        const shuffledCards = shuffleWithRuleRandom(waitingRoomCards, 'DECK_REFRESH_SHUFFLE');
         state = updatePlayer(state, result.affectedPlayerId, (player) => {
           return {
             ...player,
@@ -800,24 +800,6 @@ function emitRuleEnergyReturnEventForMoves(
         )
       )
     : game;
-}
-
-function secureRandomInt(max: number): number {
-  const array = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(array);
-  return array[0] % max;
-}
-
-/**
- * 洗牌辅助函数（密码学安全随机数）
- */
-function shuffleArray<T>(array: T[]): T[] {
-  const result = [...array];
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = secureRandomInt(i + 1);
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
 }
 
 // ============================================

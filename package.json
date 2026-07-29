@@ -16,6 +16,7 @@
     "dev:online-service2": "pnpm --dir client dev:debug-service2",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:ai-battle:phase-one-c": "AI_BATTLE_PHASE_ONE_C_FULL=1 vitest run tests/integration/ai-battle-phase-one-c-full-regression.test.ts",
     "test:real-data:online": "RUN_REAL_DATA_ONLINE=1 vitest run tests/integration/real-data-online-replay-harness.test.ts",
     "test:real-data:online:strict": "RUN_REAL_DATA_ONLINE=1 REAL_DATA_STRICT_STAGE_CARD_STATES=1 vitest run tests/integration/real-data-online-replay-harness.test.ts",
     "test:perf:online": "RUN_PERF=1 vitest run tests/performance/online-performance.bench.test.ts",

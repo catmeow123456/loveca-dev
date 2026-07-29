@@ -56,7 +56,9 @@ export const handleSetLiveCard: ActionHandler<SetLiveCardAction> = (
   }
 
   // 检查本次 Live 设置阶段已经由 SET_LIVE_CARD 放置的 Live 卡数量。
-  if (getLiveSetCardCountForPlayer(game, playerId) >= getLiveSetCardLimitForPlayer(game, playerId)) {
+  if (
+    getLiveSetCardCountForPlayer(game, playerId) >= getLiveSetCardLimitForPlayer(game, playerId)
+  ) {
     return failure(game, '已达到 Live 卡放置上限');
   }
 

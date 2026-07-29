@@ -2523,6 +2523,34 @@ function getOnlineMatchEndCopy(
       return { title: '本局获胜', detail: '对方已认输。' };
     }
   }
+  if (endInfo.reason === GameEndReason.SYSTEM_LIVENESS_CONCEDE) {
+    if (endInfo.loserSeat === viewerSeat) {
+      return {
+        title: 'AI 已认输',
+        detail: '本局因 AI 活性保护政策结束。',
+      };
+    }
+    if (endInfo.winnerSeat === viewerSeat) {
+      return {
+        title: '本局获胜',
+        detail: 'AI 已按活性保护政策认输。',
+      };
+    }
+  }
+  if (endInfo.reason === GameEndReason.SYSTEM_MACHINE_FAILURE) {
+    if (endInfo.loserSeat === viewerSeat) {
+      return {
+        title: '对局异常结束',
+        detail: '本局因 AI 决策基础设施异常结束。',
+      };
+    }
+    if (endInfo.winnerSeat === viewerSeat) {
+      return {
+        title: '本局结束',
+        detail: '对方 AI 的决策基础设施发生异常。',
+      };
+    }
+  }
 
   if (endInfo.winnerSeat === viewerSeat) {
     return { title: '本局获胜', detail: '你已达成胜利条件。' };

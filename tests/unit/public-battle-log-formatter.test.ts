@@ -68,6 +68,52 @@ function card(cardCode: string, publicObjectId = `obj-${cardCode}`) {
 }
 
 describe('public battle log formatter', () => {
+  it('renders SYSTEM liveness concession as an audited system terminal', () => {
+    const items = formatPublicBattleLogEvents(
+      [
+        {
+          ...baseEvent(0),
+          type: 'PlayerDeclared',
+          source: 'SYSTEM',
+          actorSeat: 'SECOND',
+          declarationType: 'SYSTEM_CONCEDE',
+          publicValue: 'CONSERVATIVE_DECISION_LIMIT',
+        },
+      ],
+      formatterOptions('FIRST')
+    );
+
+    expect(items[0]).toMatchObject({
+      title: 'AI 按活性保护政策认输',
+      detail: '本局结束',
+      keyEvent: true,
+      actorLabel: 'Test Player 1',
+    });
+  });
+
+  it('renders SYSTEM machine failure separately from liveness concession', () => {
+    const items = formatPublicBattleLogEvents(
+      [
+        {
+          ...baseEvent(1),
+          type: 'PlayerDeclared',
+          source: 'SYSTEM',
+          actorSeat: 'SECOND',
+          declarationType: 'SYSTEM_CONCEDE',
+          publicValue: 'MACHINE_DECISION_FAILURE',
+        },
+      ],
+      formatterOptions('FIRST')
+    );
+
+    expect(items[0]).toMatchObject({
+      title: 'AI 决策基础设施异常',
+      detail: '本局异常结束',
+      keyEvent: true,
+      actorLabel: 'Test Player 1',
+    });
+  });
+
   it('formats actor and zone owner labels from the viewer perspective', () => {
     const items = formatPublicBattleLogEvents(
       [
@@ -446,9 +492,7 @@ describe('public battle log formatter', () => {
     expect(keyItems[0]?.title).toBe('测试管理员 登场');
     expect(keyItems[0]?.detail).toBe('检视卡组顶 5 张，加入 1 张卡，余下 4 张放置入休息室');
     expect(keyItems[0]?.effectSummary?.sourceCard?.cardCode).toBe('PL!SP-bp2-007-R');
-    expect(keyItems[0]?.effectSummary?.discardedCostCards[0]?.cardCode).toBe(
-      'PL!SP-test-discard'
-    );
+    expect(keyItems[0]?.effectSummary?.discardedCostCards[0]?.cardCode).toBe('PL!SP-test-discard');
     expect(keyItems[0]?.effectSummary?.selectedCards[0]?.cardCode).toBe('PL!SP-test-member');
 
     expect(allItems.length).toBeGreaterThan(1);
@@ -783,14 +827,14 @@ describe('public battle log formatter', () => {
       to: zone(ZoneType.HAND, 'FIRST'),
     };
 
-    const keyItems = formatPublicBattleLogEvents(
-      [summary, hiddenHandMoveA, hiddenHandMoveB],
-      { ...formatterOptions('FIRST'), filter: 'KEY' }
-    );
-    const allItems = formatPublicBattleLogEvents(
-      [summary, hiddenHandMoveA, hiddenHandMoveB],
-      { ...formatterOptions('FIRST'), filter: 'ALL' }
-    );
+    const keyItems = formatPublicBattleLogEvents([summary, hiddenHandMoveA, hiddenHandMoveB], {
+      ...formatterOptions('FIRST'),
+      filter: 'KEY',
+    });
+    const allItems = formatPublicBattleLogEvents([summary, hiddenHandMoveA, hiddenHandMoveB], {
+      ...formatterOptions('FIRST'),
+      filter: 'ALL',
+    });
 
     expect(keyItems).toHaveLength(1);
     expect(keyItems[0]?.type).toBe('CardEffectSummary');
@@ -847,10 +891,10 @@ describe('public battle log formatter', () => {
       to: zone(ZoneType.HAND, 'FIRST'),
     };
 
-    const keyItems = formatPublicBattleLogEvents(
-      [summary, publicHandMove, hiddenHandMove],
-      { ...formatterOptions('FIRST'), filter: 'KEY' }
-    );
+    const keyItems = formatPublicBattleLogEvents([summary, publicHandMove, hiddenHandMove], {
+      ...formatterOptions('FIRST'),
+      filter: 'KEY',
+    });
 
     expect(keyItems).toHaveLength(1);
     expect(keyItems[0]?.type).toBe('CardEffectSummary');
@@ -905,10 +949,10 @@ describe('public battle log formatter', () => {
       to: zone(ZoneType.HAND, 'FIRST'),
     };
 
-    const keyItems = formatPublicBattleLogEvents(
-      [summary, coveredHandMove, unrelatedHandMove],
-      { ...formatterOptions('FIRST'), filter: 'KEY' }
-    );
+    const keyItems = formatPublicBattleLogEvents([summary, coveredHandMove, unrelatedHandMove], {
+      ...formatterOptions('FIRST'),
+      filter: 'KEY',
+    });
 
     expect(keyItems).toHaveLength(2);
     expect(keyItems[0]?.type).toBe('CardEffectSummary');
@@ -1160,9 +1204,7 @@ describe('public battle log formatter', () => {
     );
 
     expect(items).toHaveLength(1);
-    expect(items[0]?.detail).toBe(
-      '检视卡组顶 3 张，未放回卡组顶，余下 3 张放置入休息室'
-    );
+    expect(items[0]?.detail).toBe('检视卡组顶 3 张，未放回卡组顶，余下 3 张放置入休息室');
   });
 
   it('keeps hidden arrange-inspected-deck-top card identities concealed', () => {
@@ -1197,9 +1239,7 @@ describe('public battle log formatter', () => {
     );
 
     expect(items).toHaveLength(1);
-    expect(items[0]?.detail).toBe(
-      '检视卡组顶 4 张，按顺序放回卡组顶 1 张，余下 3 张放置入休息室'
-    );
+    expect(items[0]?.detail).toBe('检视卡组顶 4 张，按顺序放回卡组顶 1 张，余下 3 张放置入休息室');
     expect(items[0]?.cards).not.toContainEqual(expect.objectContaining(secretCard));
     expect(items[0]?.effectSummary?.selectedCards).toEqual([]);
     expect(items[0]?.effectSummary?.hiddenSelectedCardCount).toBe(1);

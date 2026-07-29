@@ -1,5 +1,7 @@
 import type { Seat } from './types.js';
 
+export const ONLINE_MATCH_CHAT_SCHEMA_VERSION = 'loveca.online-match-chat/v2' as const;
+
 export const ONLINE_MATCH_EMOTE_IDS = [
   'DEEP_THINKING',
   'THANK_YOU',
@@ -13,20 +15,41 @@ export type OnlineMatchEmoteId = (typeof ONLINE_MATCH_EMOTE_IDS)[number];
 
 interface OnlineMatchChatEntryBase {
   readonly messageSeq: number;
-  readonly senderSeat: Seat;
-  readonly senderDisplayName: string;
   readonly sentAt: number;
 }
 
+interface OnlineMatchPlayerChatMessageBase extends OnlineMatchChatEntryBase {
+  readonly messageType: 'PLAYER';
+  readonly senderSeat: Seat;
+  readonly senderDisplayName: string;
+}
+
+export interface OnlineMatchPlayerTextMessage extends OnlineMatchPlayerChatMessageBase {
+  readonly kind: 'TEXT';
+  readonly text: string;
+}
+
+export interface OnlineMatchPlayerEmoteMessage extends OnlineMatchPlayerChatMessageBase {
+  readonly kind: 'EMOTE';
+  readonly emoteId: OnlineMatchEmoteId;
+}
+
+export type OnlineMatchSystemNoticeCode =
+  'AI_FALLBACK_ENABLED' | 'AI_LIVENESS_CONCEDE' | 'AI_MACHINE_FAILURE';
+
+export interface OnlineMatchSystemNotice extends OnlineMatchChatEntryBase {
+  readonly kind: 'SYSTEM_NOTICE';
+  readonly messageType: 'SYSTEM_NOTICE';
+  readonly noticeCode: OnlineMatchSystemNoticeCode;
+  readonly text: string;
+}
+
 export type OnlineMatchChatEntry =
-  | (OnlineMatchChatEntryBase & {
-      readonly kind: 'TEXT';
-      readonly text: string;
-    })
-  | (OnlineMatchChatEntryBase & {
-      readonly kind: 'EMOTE';
-      readonly emoteId: OnlineMatchEmoteId;
-    });
+  | OnlineMatchPlayerTextMessage
+  | OnlineMatchPlayerEmoteMessage
+  | OnlineMatchSystemNotice;
+
+export type OnlineMatchChatMessage = OnlineMatchChatEntry;
 
 export interface OnlineMatchChatMessagesResponse {
   readonly matchId: string;
@@ -49,3 +72,5 @@ export type SendOnlineMatchChatEntryInput =
       readonly clientMessageId: string;
       readonly emoteId: OnlineMatchEmoteId;
     };
+
+export type SendOnlineMatchChatMessageInput = SendOnlineMatchChatEntryInput;

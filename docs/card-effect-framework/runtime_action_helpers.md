@@ -29,6 +29,7 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 - `runtime/activated-ability-ui.ts` 只读取 implemented `ACTIVATED` definitions 与舞台成员动态获得的起动能力，按 `abilityId` 去重并返回复数 `ActivatedAbilityUiConfig`；它不判断费用是否足够、不记录回合次数，也不创建 `activeEffect`。
 - `activatedUi.displayOrder` 仅用于同一张卡具有多条起动能力时锁定卡面展示顺序；未配置时保持 definition / granted 查询的稳定顺序。`getActivatedAbilityUiConfig` 继续作为返回第一项的兼容包装，生产投影和新 UI 使用复数 `getActivatedAbilityUiConfigs`。
 - 在线卡牌对象同时保留旧单数字段与复数字段；前端只展示一个能力选择菜单，玩家选择后才提交对应 `abilityId`，不会并行创建多个效果窗口。当前首个真实多能力样本是 `PL!N-bp1-006` 费用 13「近江彼方」。
+- `runtime/activated-registry.ts` 允许 workflow 在注册 resolver 时同时登记只读 preflight；preflight 复用同一 workflow 的来源、费用和目标启动判定，只回答当前是否可发动，不支付费用、不记录次数、不创建窗口。机器决策等需要完整枚举合法动作的调用方先读取 UI config 与通用每回合限制，再查询该 preflight；缺少 preflight 必须显式视为覆盖缺口，不能试跑 resolver 或假定不可发动。首批证明范围为 AI 认证卡组中的 7 个不重复起动能力。
 
 ## 触发事件派发、能量区返回与活跃阶段标记
 
@@ -532,6 +533,7 @@ It deliberately does not choose candidates, filter groups, decide optional/manda
 - 入口：`application/member-play-options.ts` 同时把上述 `CARD_DEFINED` procedure 与 `DOUBLE_RELAY` 投影成每个手牌对象的 `memberPlayOptionsByObjectId`。客户端不识别基础编号，也不按具体 mode 拼接标题、说明或槽位。
 - 自由模式：卡定义 procedure 仍执行卡面规定的程序成本/动作，但不检查或支付登场能量，三个成员区均可作为目标且不受 `movedToStageThisTurn` 限制；占用区域继续沿用普通 FREE 登场的单换手/重复成员规则。RULES 模式的费用计划、换手合法性和同回合槽位限制保持不变。
 - 原子性：确认时必须重验来源、目标槽、候选/区域事实和费用常量；先在不可变状态上完成卡牌移动与费用计划，任一步失败都返回原状态，成功后才支付并走标准登场/单换手路径。
+- 只读确认查询：`querySpecialMemberPlayConfirmation` 复用 procedure 当前候选、来源/目标/费用常量与 `costCalculator` 费用计划，返回确认是否可用、稳定 witness 与费用预览；不能完成确认时调用方仍可提交 cancel。查询不试跑 resolve，也不执行程序成本。
 - 事件：所有休息室→主卡组移动必须经过中央事件 wrapper，登场仍经过标准 `ON_ENTER_STAGE` 管线；前端只消费服务端投影的来源、模式和合法槽位。
 - 边界：这是两个显式模式，不是任意替代费用、任意区域支付或特殊登场 DSL。不得让客户端自行推导费用、候选、换手合法性或移动结果。
 

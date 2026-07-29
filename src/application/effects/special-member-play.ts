@@ -101,14 +101,36 @@ export function canAssignLlBp7001SpecialPlayPayment(
   playerId: string,
   sourceCardId: string
 ): boolean {
-  const candidateIds = getLlBp7001SpecialPlayHandCandidateIds(game, playerId, sourceCardId);
   return (
-    assignCardsToRequiredNames(
-      candidateIds,
-      LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES,
-      (cardId) => getCardById(game, cardId)?.data
-    ).length === LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length
+    getLlBp7001SpecialPlayPaymentAssignment(game, playerId, sourceCardId).length ===
+    LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length
   );
+}
+
+export function getLlBp7001SpecialPlayPaymentAssignment(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string,
+  candidateCardIds: readonly string[] = getLlBp7001SpecialPlayHandCandidateIds(
+    game,
+    playerId,
+    sourceCardId
+  )
+): readonly SpecialPlayNameAssignment[] {
+  const currentCandidates = new Set(
+    getLlBp7001SpecialPlayHandCandidateIds(game, playerId, sourceCardId)
+  );
+  const eligibleCandidateIds = [
+    ...new Set(candidateCardIds.filter((cardId) => currentCandidates.has(cardId))),
+  ];
+  return assignCardsToRequiredNames(
+    eligibleCandidateIds,
+    LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES,
+    (cardId) => getCardById(game, cardId)?.data
+  ).map(({ item, requiredName }) => ({
+    cardId: item,
+    requiredName: requiredName as SpecialPlayNameAssignment['requiredName'],
+  }));
 }
 
 export function getLlBp7001SpecialPlayTargetSlots(

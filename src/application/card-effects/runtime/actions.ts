@@ -756,10 +756,13 @@ export function shuffleHandCardsToDeckBottomForPlayer(
     };
   }
 
-  const shuffledCardIds = shuffleZone({
-    ...player.hand,
-    cardIds: [...cardIds],
-  }).cardIds;
+  const shuffledCardIds = shuffleZone(
+    {
+      ...player.hand,
+      cardIds: [...cardIds],
+    },
+    'CARD_EFFECT_HAND_TO_DECK_BOTTOM_SHUFFLE'
+  ).cardIds;
   const selectedCardIdSet = new Set(cardIds);
   const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
     ...currentPlayer,
@@ -804,10 +807,13 @@ export function shuffleWaitingRoomCardsToDeckBottomForPlayer(
     };
   }
 
-  const shuffledCardIds = shuffleZone({
-    ...player.waitingRoom,
-    cardIds: [...cardIds],
-  }).cardIds;
+  const shuffledCardIds = shuffleZone(
+    {
+      ...player.waitingRoom,
+      cardIds: [...cardIds],
+    },
+    'CARD_EFFECT_WAITING_ROOM_TO_DECK_BOTTOM_SHUFFLE'
+  ).cardIds;
   const selectedCardIdSet = new Set(cardIds);
   const gameState = updatePlayer(game, playerId, (currentPlayer) => ({
     ...currentPlayer,

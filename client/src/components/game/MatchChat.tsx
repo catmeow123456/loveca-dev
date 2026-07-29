@@ -12,7 +12,17 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import { Bell, BellOff, Eye, Loader2, MessageCircle, Send, SmilePlus, X } from 'lucide-react';
+import {
+  Bell,
+  BellOff,
+  Eye,
+  Info,
+  Loader2,
+  MessageCircle,
+  Send,
+  SmilePlus,
+  X,
+} from 'lucide-react';
 import type {
   OnlineMatchChatEntry,
   OnlineMatchChatMessagesResponse,
@@ -190,7 +200,10 @@ export const MatchChat = memo(function MatchChat({ access, compact = false }: Ma
           if (isSpectator) {
             return true;
           }
-          return message.senderSeat !== viewerSeat && !isMutedRef.current;
+          return (
+            message.messageType === 'SYSTEM_NOTICE' ||
+            (message.senderSeat !== viewerSeat && !isMutedRef.current)
+          );
         }).length;
         if (unreadIncoming > 0) {
           setUnreadCount((current) => current + unreadIncoming);
@@ -750,6 +763,34 @@ function ChatMessage({
   readonly viewerSeat: Seat;
   readonly spectator: boolean;
 }) {
+  if (message.messageType === 'SYSTEM_NOTICE') {
+    return (
+      <div className="flex justify-center">
+        <div className="flex max-w-[94%] items-start gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_35%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,var(--bg-surface))] px-3 py-2 text-[var(--text-secondary)]">
+          <Info
+            size={14}
+            className="mt-0.5 shrink-0 text-[var(--semantic-warning)]"
+            aria-hidden="true"
+          />
+          <div className="min-w-0">
+            <div className="flex items-center justify-between gap-3 text-[10px] text-[var(--text-muted)]">
+              <span className="font-bold">系统通知</span>
+              <time className="shrink-0 tabular-nums">
+                {new Date(message.sentAt).toLocaleTimeString('zh-CN', {
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </time>
+            </div>
+            <div className="mt-1 whitespace-pre-wrap break-words text-xs leading-5">
+              {message.text}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   const isOwn = !spectator && message.senderSeat === viewerSeat;
   const emote = message.kind === 'EMOTE' ? getMatchEmoteDefinition(message.emoteId) : null;
   return (
@@ -846,7 +887,7 @@ function TextMessagePreview({
   reduceMotion,
   onOpen,
 }: {
-  readonly message: Extract<OnlineMatchChatEntry, { kind: 'TEXT' }>;
+  readonly message: Extract<OnlineMatchChatEntry, { kind: 'TEXT' | 'SYSTEM_NOTICE' }>;
   readonly reduceMotion: boolean;
   readonly onOpen: () => void;
 }) {
@@ -860,14 +901,20 @@ function TextMessagePreview({
       exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -5, scale: 0.99 }}
       transition={{ duration: reduceMotion ? 0.08 : 0.18, ease: 'easeOut' }}
       className="fixed right-2 top-20 z-[var(--z-battle-communication-preview)] flex w-[min(360px,calc(100vw-1rem))] items-center gap-3 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[var(--bg-frosted)] px-3 py-2.5 text-left shadow-[var(--shadow-lg)] backdrop-blur-xl md:right-4"
-      aria-label={`打开聊天查看 ${message.senderDisplayName} 的消息`}
+      aria-label={
+        message.kind === 'SYSTEM_NOTICE'
+          ? '打开聊天查看系统通知'
+          : `打开聊天查看 ${message.senderDisplayName} 的消息`
+      }
     >
       <span
         className="h-8 w-1 shrink-0 rounded-full bg-gradient-to-b from-[var(--accent-primary)] to-[var(--accent-secondary)]"
         aria-hidden="true"
       />
       <span className="min-w-0 flex-1 truncate text-sm text-[var(--text-primary)]">
-        <span className="font-bold">{message.senderDisplayName}：</span>
+        <span className="font-bold">
+          {message.kind === 'SYSTEM_NOTICE' ? '系统通知：' : `${message.senderDisplayName}：`}
+        </span>
         {formatMatchChatPreviewText(message.text)}
       </span>
       <MessageCircle size={15} className="shrink-0 text-[var(--text-muted)]" aria-hidden="true" />

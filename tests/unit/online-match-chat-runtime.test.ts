@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   appendOnlineMatchChatMessage,
+  appendOnlineMatchSystemNotice,
   createOnlineMatchChatRuntime,
   OnlineMatchChatRuntimeError,
   readOnlineMatchChatMessages,
@@ -95,6 +96,7 @@ describe('online match chat runtime', () => {
 
     expect(readOnlineMatchChatMessages(runtime, 'match-1').messages).toEqual(
       emoteIds.map((emoteId, index) => ({
+        messageType: 'PLAYER',
         kind: 'EMOTE',
         messageSeq: index + 1,
         senderSeat: 'FIRST',
@@ -194,6 +196,41 @@ describe('online match chat runtime', () => {
         ),
       { code: 'ONLINE_CHAT_IDEMPOTENCY_CONFLICT', statusCode: 409 }
     );
+  });
+
+  it('系统通知使用独立 schema、服务端去重且没有玩家发送者字段', () => {
+    const runtime = createOnlineMatchChatRuntime();
+    const first = appendOnlineMatchSystemNotice(
+      runtime,
+      {
+        dedupeKey: 'ai-fallback:policy-v1',
+        noticeCode: 'AI_FALLBACK_ENABLED',
+        text: 'AI 已使用保守策略继续本局。',
+      },
+      { now: 1_000 }
+    );
+    const repeated = appendOnlineMatchSystemNotice(
+      runtime,
+      {
+        dedupeKey: 'ai-fallback:policy-v1',
+        noticeCode: 'AI_FALLBACK_ENABLED',
+        text: '这次正文不会造成重复通知',
+      },
+      { now: 2_000 }
+    );
+
+    expect(repeated).toEqual(first);
+    expect(first).toEqual({
+      kind: 'SYSTEM_NOTICE',
+      messageType: 'SYSTEM_NOTICE',
+      messageSeq: 1,
+      noticeCode: 'AI_FALLBACK_ENABLED',
+      text: 'AI 已使用保守策略继续本局。',
+      sentAt: 1_000,
+    });
+    expect('senderSeat' in first).toBe(false);
+    expect(runtime.messages).toHaveLength(1);
+    expect(runtime.rateWindowsByUserId.size).toBe(0);
   });
 
   it('限制短时突发、十秒窗口并返回等待时间', () => {
