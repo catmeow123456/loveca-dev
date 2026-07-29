@@ -4902,14 +4902,14 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: HASUNOSORA_TRIPLE_UNIT_CONTINUOUS_IDENTITY_ABILITY_ID,
-    cardCodes: ['PL!HS-bp2-020-L', 'PL!HS-bp5-018-L', 'PL!HS-sd1-020-SD'],
+    baseCardCodes: ['PL!HS-bp2-020', 'PL!HS-bp5-018', 'PL!HS-sd1-020'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.ANYWHERE,
     queued: false,
     implemented: true,
     effectText: HASUNOSORA_TRIPLE_UNIT_CONTINUOUS_IDENTITY_EFFECT_TEXT,
     notes:
-      'shared exact-code identity family；仅这3张同文常时身份卡在所有区域通过 card identity / unitAliasIs 被视为スリーズブーケ、DOLLCHESTRA、みらくらぱーく！。本登记不表示 bp2-020 / sd1-020 的其他 LIVE开始效果已实现。',
+      'shared base-code identity family；这3个同文基础编号的所有罕度在所有区域通过 card identity / unitAliasIs 被视为スリーズブーケ、DOLLCHESTRA、みらくらぱーく！。本登记不表示 bp2-020 / sd1-020 的其他 LIVE开始效果已实现。',
   },
   {
     abilityId: HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,

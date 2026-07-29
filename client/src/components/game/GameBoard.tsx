@@ -3609,10 +3609,9 @@ export const GameBoard = memo(function GameBoard({
                         as="span"
                         text={option.label}
                         className={cn(
-                          'whitespace-normal break-normal',
                           isActiveEffectOrderSelectionWindow
-                            ? 'block w-full text-left leading-relaxed'
-                            : 'inline-flex items-center justify-center gap-1'
+                            ? 'block w-full whitespace-pre-line break-normal text-left leading-relaxed'
+                            : 'inline-flex items-center justify-center gap-1 whitespace-normal break-normal'
                         )}
                       />
                     </button>

@@ -6514,14 +6514,21 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
 
-    for (const cardCode of ['PL!HS-bp2-020-L', 'PL!HS-bp5-018-L', 'PL!HS-sd1-020-SD']) {
+    for (const cardCode of [
+      'PL!HS-bp2-020-L',
+      'PL!HS-bp5-018-L',
+      'PL!HS-sd1-020-SD',
+      'PL!HS-bp2-020-UNSEEN',
+      'PL!HS-bp5-018-UNSEEN',
+      'PL!HS-sd1-020-UNSEEN',
+    ]) {
       expect(
         getCardAbilityDefinitions(cardCode).find(
           (ability) => ability.abilityId === HASUNOSORA_TRIPLE_UNIT_CONTINUOUS_IDENTITY_ABILITY_ID
         )
       ).toMatchObject({
         abilityId: HASUNOSORA_TRIPLE_UNIT_CONTINUOUS_IDENTITY_ABILITY_ID,
-        cardCodes: ['PL!HS-bp2-020-L', 'PL!HS-bp5-018-L', 'PL!HS-sd1-020-SD'],
+        baseCardCodes: ['PL!HS-bp2-020', 'PL!HS-bp5-018', 'PL!HS-sd1-020'],
         category: CardAbilityCategory.CONTINUOUS,
         sourceZone: CardAbilitySourceZone.ANYWHERE,
         queued: false,

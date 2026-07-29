@@ -314,6 +314,149 @@ describe('live-start discard same UNIT gain Heart and BLADE workflow', () => {
     });
   });
 
+  it.each([
+    {
+      sourceCardCode: 'PL!HS-PR-016-PR',
+      sourceName: '日野下花帆',
+      tripleCardCode: 'PL!HS-bp2-020-L',
+      tripleCardName: 'Link to the FUTURE',
+      ordinaryUnitName: 'スリーズブーケ',
+      ordinaryFirst: false,
+      expectedUnitKey: 'cerise-bouquet',
+      expectedUnitName: 'Cerise Bouquet',
+    },
+    {
+      sourceCardCode: 'PL!HS-PR-017-PR',
+      sourceName: '村野さやか',
+      tripleCardCode: 'PL!HS-bp5-018-L',
+      tripleCardName: 'AURORA FLOWER',
+      ordinaryUnitName: 'DOLLCHESTRA',
+      ordinaryFirst: true,
+      expectedUnitKey: 'dollchestra',
+      expectedUnitName: 'DOLLCHESTRA',
+    },
+    {
+      sourceCardCode: 'PL!HS-PR-016-PR',
+      sourceName: '日野下花帆',
+      tripleCardCode: 'PL!HS-sd1-020-SD',
+      tripleCardName: 'Link to the FUTURE（104期Ver.）',
+      ordinaryUnitName: 'Mira-Cra Park!',
+      ordinaryFirst: false,
+      expectedUnitKey: 'mira-cra-park',
+      expectedUnitName: 'Mira-Cra Park!',
+    },
+  ])(
+    'accepts $tripleCardName as sharing $ordinaryUnitName regardless of entity unitName or selection order',
+    ({
+      sourceCardCode,
+      sourceName,
+      tripleCardCode,
+      tripleCardName,
+      ordinaryUnitName,
+      ordinaryFirst,
+      expectedUnitKey,
+      expectedUnitName,
+    }) => {
+      const tripleUnitLive = createCardInstance(
+        createLiveCard(tripleCardCode, tripleCardName),
+        PLAYER1,
+        `same-unit-triple-${tripleCardCode}`
+      );
+      const ordinaryUnitCard = createCardInstance(
+        createMemberCard(
+          `PL!HS-test-${expectedUnitKey}`,
+          `${ordinaryUnitName} Member`,
+          ordinaryUnitName
+        ),
+        PLAYER1,
+        `same-unit-ordinary-${expectedUnitKey}`
+      );
+      const handCards = ordinaryFirst
+        ? [ordinaryUnitCard, tripleUnitLive]
+        : [tripleUnitLive, ordinaryUnitCard];
+      const session = setupSameUnitSession({
+        sourceCardCode,
+        sourceName,
+        handCards,
+      });
+
+      expect(session.state?.activeEffect?.selectableCardIds).toEqual(
+        handCards.map((card) => card.instanceId)
+      );
+
+      const confirmResult = session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          null,
+          undefined,
+          null,
+          handCards.map((card) => card.instanceId)
+        )
+      );
+
+      expect(confirmResult.success).toBe(true);
+      expect(session.state?.players[0].hand.cardIds).toEqual([]);
+      expect(session.state?.actionHistory).toContainEqual(
+        expect.objectContaining({
+          type: 'RESOLVE_ABILITY',
+          payload: expect.objectContaining({
+            step: 'DISCARD_SAME_UNIT_HAND_CARDS_GAIN_SOURCE_HEART_BLADE',
+            discardedUnitKey: expectedUnitKey,
+            discardedUnitName: expectedUnitName,
+          }),
+        })
+      );
+    }
+  );
+
+  it('allows two continuous triple-UNIT cards to pair in either selection order', () => {
+    for (const reversed of [false, true]) {
+      const linkToTheFuture = createCardInstance(
+        createLiveCard('PL!HS-bp2-020-L', 'Link to the FUTURE'),
+        PLAYER1,
+        `same-unit-link-${reversed}`
+      );
+      const auroraFlower = createCardInstance(
+        createLiveCard('PL!HS-bp5-018-L', 'AURORA FLOWER'),
+        PLAYER1,
+        `same-unit-aurora-${reversed}`
+      );
+      const handCards = reversed
+        ? [auroraFlower, linkToTheFuture]
+        : [linkToTheFuture, auroraFlower];
+      const session = setupSameUnitSession({
+        sourceCardCode: reversed ? 'PL!HS-PR-017-PR' : 'PL!HS-PR-016-PR',
+        sourceName: reversed ? '村野さやか' : '日野下花帆',
+        handCards,
+      });
+
+      const confirmResult = session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          undefined,
+          null,
+          undefined,
+          null,
+          handCards.map((card) => card.instanceId)
+        )
+      );
+
+      expect(confirmResult.success).toBe(true);
+      expect(session.state?.actionHistory).toContainEqual(
+        expect.objectContaining({
+          type: 'RESOLVE_ABILITY',
+          payload: expect.objectContaining({
+            discardedUnitKey: 'cerise-bouquet',
+            discardedUnitName: 'Cerise Bouquet',
+          }),
+        })
+      );
+    }
+  });
+
   it("does not use group names such as μ's or Aqours as UNIT names", () => {
     const museMemberA = createCardInstance(
       createMemberCard('PL!-test-member-a', 'Muse Member A', undefined, "μ's"),

@@ -64,6 +64,8 @@ import {
 import { enqueueMemberSlotMovedObserverCardEffects } from './card-effects/runtime/member-slot-moved-observers.js';
 import { enqueueResolvedAbilityObserverCardEffects } from './card-effects/runtime/resolved-ability-observers.js';
 import { resolvePendingAbilityStarterWithRegistry } from './card-effects/runtime/starter-registry.js';
+import { resolveFirstNonActionablePendingAbilityWithRegistry } from './card-effects/runtime/pending-ability-preflight.js';
+import { getPendingOrderOptionHintWithRegistry } from './card-effects/runtime/pending-order-option-hints.js';
 import { resolveActiveEffectStepWithRegistry } from './card-effects/runtime/step-registry.js';
 import { advanceDelegatedAbilitySequence } from './card-effects/runtime/delegated-ability-sequence.js';
 import {
@@ -3103,6 +3105,21 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     return resolvePendingCardEffects(stateWithResolvedAbilityObservers);
   }
 
+  const stateAfterPendingPreflight = resolveFirstNonActionablePendingAbilityWithRegistry(
+    game,
+    getCurrentCheckTimingAbilityCandidates(game)
+  );
+  if (stateAfterPendingPreflight.resolvedAbilityId) {
+    const continuedResult = resolvePendingCardEffects(stateAfterPendingPreflight.gameState);
+    return {
+      gameState: continuedResult.gameState,
+      resolvedAbilityIds: [
+        stateAfterPendingPreflight.resolvedAbilityId,
+        ...continuedResult.resolvedAbilityIds,
+      ],
+    };
+  }
+
   const pendingAbilities = getCurrentCheckTimingAbilityCandidates(game);
   const ability = pendingAbilities[0];
   if (!ability) {
@@ -3374,7 +3391,9 @@ function getAbilityOrderOptionLabel(
   const sourceCard = getCardById(game, ability.sourceCardId);
   const abilityDefinition = findCardAbilityDefinitionById(ability.abilityId);
   const cardName = sourceCard?.data.name ?? '未知卡牌';
-  return `${index + 1}. ${cardName}：${abilityDefinition?.effectText ?? ability.abilityId}`;
+  const baseLabel = `${index + 1}. ${cardName}：${abilityDefinition?.effectText ?? ability.abilityId}`;
+  const hint = getPendingOrderOptionHintWithRegistry(game, ability);
+  return hint ? `${baseLabel}\n${hint}` : baseLabel;
 }
 
 function continuePendingCardEffects(game: GameState, orderedResolution: boolean): GameState {
@@ -3428,6 +3447,14 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
   const stateWithResolvedAbilityObservers = enqueueResolvedAbilityObserverCardEffects(game);
   if (stateWithResolvedAbilityObservers !== game) {
     return continuePendingCardEffects(stateWithResolvedAbilityObservers, orderedResolution);
+  }
+
+  const stateAfterPendingPreflight = resolveFirstNonActionablePendingAbilityWithRegistry(
+    game,
+    getCurrentCheckTimingAbilityCandidates(game)
+  );
+  if (stateAfterPendingPreflight.resolvedAbilityId) {
+    return continuePendingCardEffects(stateAfterPendingPreflight.gameState, orderedResolution);
   }
 
   const pendingAbilities = getCurrentCheckTimingAbilityCandidates(game);

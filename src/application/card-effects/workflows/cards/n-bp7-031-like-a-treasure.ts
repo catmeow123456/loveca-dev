@@ -14,6 +14,11 @@ import { N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABIL
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { canUseAbilityThisTurn } from '../../runtime/ability-turn-limit.js';
+import {
+  registerPendingAbilityPreflightHandler,
+  type PendingAbilityPreflightResolution,
+} from '../../runtime/pending-ability-preflight.js';
+import { registerPendingOrderOptionHintHandler } from '../../runtime/pending-order-option-hints.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -35,6 +40,8 @@ type AbilityResolutionContext = Pick<
 const isNijigasakiCard = groupAliasIs('虹ヶ咲');
 
 export function registerNBp7031LikeATreasureWorkflowHandlers(): void {
+  registerPendingAbilityPreflightHandler(ABILITY_ID, preflightLikeATreasurePendingAbility);
+  registerPendingOrderOptionHintHandler(ABILITY_ID, getLikeATreasurePendingOrderOptionHint);
   registerPendingAbilityStarterHandler(ABILITY_ID, (game, ability, options, context) =>
     startLikeATreasure(
       game,
@@ -53,6 +60,71 @@ export function registerNBp7031LikeATreasureWorkflowHandlers(): void {
         context.continuePendingCardEffects
       )
   );
+}
+
+function getLikeATreasurePendingOrderOptionHint(
+  game: GameState,
+  ability: PendingAbilityState
+): string | null {
+  const movedCardIds = readStringArrayMetadata(ability.metadata?.movedCardIds);
+  const candidateCardIds = getEligibleMovedNijigasakiLiveIds(
+    game,
+    ability.controllerId,
+    movedCardIds
+  );
+  const namesInOrder: string[] = [];
+  const countsByName = new Map<string, number>();
+  for (const cardId of candidateCardIds) {
+    const cardName = getCardById(game, cardId)?.data.name;
+    if (!cardName) {
+      continue;
+    }
+    if (!countsByName.has(cardName)) {
+      namesInOrder.push(cardName);
+    }
+    countsByName.set(cardName, (countsByName.get(cardName) ?? 0) + 1);
+  }
+  if (namesInOrder.length === 0) {
+    return null;
+  }
+  const candidateNames = namesInOrder
+    .map((name) => {
+      const count = countsByName.get(name) ?? 0;
+      return count > 1 ? `${name}×${count}` : name;
+    })
+    .join('、');
+  return `本次可选择：${candidateNames}`;
+}
+
+function preflightLikeATreasurePendingAbility(
+  game: GameState,
+  ability: PendingAbilityState
+): PendingAbilityPreflightResolution | null {
+  const movedCardIds = readStringArrayMetadata(ability.metadata?.movedCardIds);
+  if (!isValidSourceLive(game, ability.controllerId, ability.sourceCardId)) {
+    return createPendingPreflightResolution('SOURCE_INVALID', movedCardIds);
+  }
+  if (!canUseAbilityThisTurn(game, ability.controllerId, ability.abilityId, ability.sourceCardId)) {
+    return createPendingPreflightResolution('TURN_LIMIT_REACHED', movedCardIds);
+  }
+  if (getEligibleMovedNijigasakiLiveIds(game, ability.controllerId, movedCardIds).length === 0) {
+    return createPendingPreflightResolution('NO_ELIGIBLE_MOVED_NIJIGASAKI_LIVE', movedCardIds);
+  }
+  return null;
+}
+
+function createPendingPreflightResolution(
+  step: string,
+  movedCardIds: readonly string[]
+): PendingAbilityPreflightResolution {
+  return {
+    step,
+    actionPayload: {
+      movedCardIds,
+      recoveredCardIds: [],
+      scoreBonus: 0,
+    },
+  };
 }
 
 function startLikeATreasure(
