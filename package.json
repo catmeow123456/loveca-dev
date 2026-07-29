@@ -17,6 +17,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:ai-battle:phase-one-c": "AI_BATTLE_PHASE_ONE_C_FULL=1 vitest run tests/integration/ai-battle-phase-one-c-full-regression.test.ts",
+    "test:ai-battle:phase-two": "AI_BATTLE_PHASE_TWO_FULL=1 vitest run tests/integration/ai-battle-phase-two-full-regression.test.ts",
     "test:real-data:online": "RUN_REAL_DATA_ONLINE=1 vitest run tests/integration/real-data-online-replay-harness.test.ts",
     "test:real-data:online:strict": "RUN_REAL_DATA_ONLINE=1 REAL_DATA_STRICT_STAGE_CARD_STATES=1 vitest run tests/integration/real-data-online-replay-harness.test.ts",
     "test:perf:online": "RUN_PERF=1 vitest run tests/performance/online-performance.bench.test.ts",
