@@ -17,6 +17,7 @@ describe('waiting room judgment stats', () => {
       cardType: CardType.LIVE,
       bladeHearts: [
         { effect: BladeHeartEffect.HEART, heartColor: HeartColor.BLUE },
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.ORANGE },
         { effect: BladeHeartEffect.SCORE },
       ],
     } as AnyCardData;
@@ -28,7 +29,8 @@ describe('waiting room judgment stats', () => {
     expect(stats.hearts[HeartColor.PINK]).toBe(0);
     expect(stats.hearts[HeartColor.RAINBOW]).toBe(0);
     expect(stats.hearts[HeartColor.BLUE]).toBe(1);
-    expect(stats.totalHearts).toBe(1);
+    expect(stats.hearts[HeartColor.ORANGE]).toBe(1);
+    expect(stats.totalHearts).toBe(2);
     expect(stats.scoreBonus).toBe(1);
     expect(stats.drawBonus).toBe(1);
     expect(stats.noJudgmentCount).toBe(0);

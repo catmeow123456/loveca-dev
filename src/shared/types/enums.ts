@@ -37,6 +37,8 @@ export enum HeartColor {
   BLUE = 'BLUE',
   /** 紫色 */
   PURPLE = 'PURPLE',
+  /** 橙色 */
+  ORANGE = 'ORANGE',
   /**
    * 无色/灰色 Heart - 只计入 Heart 总数，不能代替指定颜色 Heart
    */

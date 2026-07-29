@@ -23,6 +23,7 @@ export const HeartColorSchema = z.enum([
   HeartColor.BLUE,
   HeartColor.YELLOW,
   HeartColor.PURPLE,
+  HeartColor.ORANGE,
   HeartColor.GRAY,
   HeartColor.RAINBOW,
 ]);

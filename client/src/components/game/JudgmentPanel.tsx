@@ -168,6 +168,7 @@ const HEART_LABEL_BY_COLOR: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '绿',
   [HeartColor.BLUE]: '蓝',
   [HeartColor.PURPLE]: '紫',
+  [HeartColor.ORANGE]: '橙',
   [HeartColor.GRAY]: '无色',
   [HeartColor.RAINBOW]: 'All',
 };

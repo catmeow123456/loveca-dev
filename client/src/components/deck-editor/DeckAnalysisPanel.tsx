@@ -21,6 +21,7 @@ const HEART_COLOR_HEX: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '#86efac',
   [HeartColor.BLUE]: '#60a5fa',
   [HeartColor.PURPLE]: '#c084fc',
+  [HeartColor.ORANGE]: '#fb923c',
   [HeartColor.GRAY]: '#9ca3af',
   [HeartColor.RAINBOW]: '#fbbf24',
 };
@@ -32,6 +33,7 @@ const HEART_COLOR_LABEL: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '绿',
   [HeartColor.BLUE]: '蓝',
   [HeartColor.PURPLE]: '紫',
+  [HeartColor.ORANGE]: '橙',
   [HeartColor.GRAY]: '无色',
   [HeartColor.RAINBOW]: '虹',
 };

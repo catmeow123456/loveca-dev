@@ -29,6 +29,29 @@ describe('parseCardEffectText', () => {
     ).toEqual([2, 1]);
   });
 
+  it('maps the official orange Blade Heart and Heart placeholders', () => {
+    const text = '获得[オレンジブレード][オレンジハート][橙HEART]。';
+
+    expect(getUnknownCardEffectPlaceholders(text)).toEqual([]);
+    expect(parseCardEffectText(text)).toEqual([
+      { kind: 'text', text: '获得' },
+      {
+        kind: 'blade',
+        raw: '[オレンジブレード]',
+        label: 'オレンジブレード',
+        icon: 'heart_orange',
+      },
+      {
+        kind: 'heart',
+        raw: '[オレンジハート]',
+        label: 'オレンジハート',
+        icon: 'heart_orange',
+      },
+      { kind: 'heart', raw: '[橙HEART]', label: '橙HEART', icon: 'heart_orange' },
+      { kind: 'text', text: '。' },
+    ]);
+  });
+
   it('accepts the bp1-007 and PR-028 Chinese effect texts without unknown tokens', () => {
     expect(getUnknownCardEffectPlaceholders('【起动】【1回合1次】[E][E]：抽1张卡。')).toEqual([]);
     expect(

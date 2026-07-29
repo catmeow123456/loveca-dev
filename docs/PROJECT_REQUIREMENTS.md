@@ -67,7 +67,7 @@ graph LR
 
 ### 4.2 Heart 与应援
 
-- Heart 包含六种指定颜色、无色/Gray 与 Rainbow/All
+- Heart 包含粉、红、黄、绿、蓝、紫、橙七种指定颜色，以及无色/Gray 与 Rainbow/All
 - 无色/Gray Heart 只计入判定所需 Heart 总数，不能补足指定颜色缺口
 - Rainbow/All Heart 在判定时可用于补足任意指定颜色缺口
 - 演出判定需综合成员提供的 Heart 与应援提供的额外 Heart

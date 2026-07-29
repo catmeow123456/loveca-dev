@@ -190,6 +190,35 @@ describe('HeartPool', () => {
       expect(poolWithRequiredRed.consume(redAndGenericRequirement)?.getTotalCount()).toBe(0);
     });
 
+    it('橙色 Heart 是独立指定色，并可计入无色总数需求', () => {
+      const orangePool = HeartPool.fromHeartIcons([{ color: HeartColor.ORANGE, count: 2 }]);
+
+      expect(
+        orangePool.canSatisfy(
+          createHeartRequirement({
+            [HeartColor.ORANGE]: 2,
+          })
+        )
+      ).toBe(true);
+      expect(
+        orangePool.canSatisfy(
+          createHeartRequirement({
+            [HeartColor.RED]: 1,
+          })
+        )
+      ).toBe(false);
+      expect(
+        orangePool.canSatisfy(
+          createHeartRequirement(
+            {
+              [HeartColor.RAINBOW]: 2,
+            },
+            2
+          )
+        )
+      ).toBe(true);
+    });
+
     it('应该在 Rainbow Heart 不足时返回 false', () => {
       const counts = new Map<HeartColor, number>([
         [HeartColor.PINK, 1],

@@ -9,6 +9,7 @@ import { HeartColor } from '@game/shared/types/enums';
 const WAITING_ROOM_HEART_ORDER = [
   HeartColor.RAINBOW,
   HeartColor.GRAY,
+  HeartColor.ORANGE,
   HeartColor.PINK,
   HeartColor.RED,
   HeartColor.YELLOW,
@@ -26,6 +27,7 @@ const WAITING_ROOM_HEART_LABELS: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '绿',
   [HeartColor.BLUE]: '蓝',
   [HeartColor.PURPLE]: '紫',
+  [HeartColor.ORANGE]: '橙',
 };
 
 function WaitingRoomHeartStatChip({

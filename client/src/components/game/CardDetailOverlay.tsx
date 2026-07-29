@@ -92,7 +92,14 @@ function HeartIconGroup({
   const shouldShowEveryIcon = count <= maxDirectIconCount;
   const repeatedCount = Math.max(0, shouldShowEveryIcon ? count : 1);
   const resolvedLabel =
-    label ?? (color === HeartColor.GRAY ? '无色' : color === HeartColor.RAINBOW ? 'All' : color);
+    label ??
+    (color === HeartColor.GRAY
+      ? '无色'
+      : color === HeartColor.RAINBOW
+        ? 'All'
+        : color === HeartColor.ORANGE
+          ? '橙'
+          : color);
 
   return (
     <div

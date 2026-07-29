@@ -81,7 +81,7 @@ export function getGroupDisplayName(group: string): string {
   return group;
 }
 
-/** 六种指定 Heart 颜色（带 UI 元数据）。 */
+/** 可在卡牌数据中独立表示的指定 Heart 颜色（带 UI 元数据）。 */
 const STANDARD_HEART_COLOR_OPTIONS = [
   { value: HeartColor.PINK, label: '粉', colorClass: 'bg-pink-400' },
   { value: HeartColor.RED, label: '红', colorClass: 'bg-red-400' },
@@ -89,6 +89,7 @@ const STANDARD_HEART_COLOR_OPTIONS = [
   { value: HeartColor.GREEN, label: '绿', colorClass: 'bg-green-400' },
   { value: HeartColor.BLUE, label: '蓝', colorClass: 'bg-blue-400' },
   { value: HeartColor.PURPLE, label: '紫', colorClass: 'bg-purple-400' },
+  { value: HeartColor.ORANGE, label: '橙', colorClass: 'bg-orange-400' },
 ] as const;
 
 /** 成员印刷 Heart：GRAY 是无色，RAINBOW 是可代替指定颜色的 All Heart。 */

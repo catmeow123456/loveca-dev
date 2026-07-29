@@ -16,6 +16,7 @@ const HEART_COLOR_ORDER = [
   HeartColor.GREEN,
   HeartColor.BLUE,
   HeartColor.PURPLE,
+  HeartColor.ORANGE,
   HeartColor.GRAY,
   HeartColor.RAINBOW,
 ] as const;

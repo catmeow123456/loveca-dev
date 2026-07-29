@@ -101,6 +101,7 @@ const KNOWN_TOKEN_KINDS = new Map<string, PlaceholderKind>([
   ['[緑ブレード]', 'blade'],
   ['[青ブレード]', 'blade'],
   ['[紫ブレード]', 'blade'],
+  ['[オレンジブレード]', 'blade'],
   ['[桃ハート]', 'heart'],
   ['[赤ハート]', 'heart'],
   ['[红HEART]', 'heart'],
@@ -111,6 +112,9 @@ const KNOWN_TOKEN_KINDS = new Map<string, PlaceholderKind>([
   ['[蓝HEART]', 'heart'],
   ['[紫ハート]', 'heart'],
   ['[紫HEART]', 'heart'],
+  ['[オレンジハート]', 'heart'],
+  ['[橙ハート]', 'heart'],
+  ['[橙HEART]', 'heart'],
   ['[虹ハート]', 'heart'],
   ['[無ハート]', 'heart'],
   ['[無色ハート]', 'heart'],
@@ -147,12 +151,8 @@ function unzipText(xlsxPath: string, entryName: string): string {
 
 function decodeXmlText(value: string): string {
   return value
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) =>
-      String.fromCodePoint(parseInt(hex, 16))
-    )
-    .replace(/&#(\d+);/g, (_, decimal: string) =>
-      String.fromCodePoint(parseInt(decimal, 10))
-    )
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(parseInt(decimal, 10)))
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, '<')
@@ -379,9 +379,7 @@ function printTextReport(
   console.log('\nToken summary:');
   for (const stat of stats) {
     const knownLabel = stat.known ? stat.kind : 'unknown';
-    console.log(
-      `  ${stat.token}\t${stat.total}\tjp=${stat.jp}\tcn=${stat.cn}\t${knownLabel}`
-    );
+    console.log(`  ${stat.token}\t${stat.total}\tjp=${stat.jp}\tcn=${stat.cn}\t${knownLabel}`);
   }
 
   if (unknownStats.length > 0) {

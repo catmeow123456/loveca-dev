@@ -1,6 +1,6 @@
 # 卡牌数据同步需求
 
-> 更新时间: 2026-07-22
+> 更新时间: 2026-07-29
 > 文档类型: 需求文档
 > 适用范围: `llocg_db` 与 Loveca Excel 到 `cards` 表的同步脚本输入、转换、审核和写入边界
 > 当前状态: 当前同步需求；实现架构与代码路径见 [设计文档](./design.md)
@@ -49,6 +49,8 @@ CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 
 - Loveca Excel 的 `真实小队` 写入 `unit_name_raw`，清洗和别名标准化后写入 `unit_name`。
 - Loveca Excel 的 `基本ハート` 只对 MEMBER 写入 `hearts`，`必要ハート` 只对 LIVE 写入 `requirements`；字段为空或解析失败时保留数据库现值。
 - Loveca Excel 的 `ブレードハート` / `特殊ハート` 写入 `blade_hearts`。
+- Excel 或 CloudBase 的 Heart token `orange` 必须写入独立的 `ORANGE`；同步、Schema、管理页、筛选和判定显示不得将其降级为既有颜色。
+- 当前确认的 `ORANGE` 来源是新推出的官方 BLADE Heart 颜色。本轮只保守补齐结构化数据、同步、管理、筛选、判定与显示能力，不改变既有卡效的颜色集合；只有后续官方规则或新卡卡文明示橙色时，才能把 `ORANGE` 加入对应卡效。
 - Excel 或 CloudBase 的 `特殊ハート` 出现 `double` 时，必须转换为两个灰色/无色 Heart 判心项。灰色 Heart 只计入 LIVE 判定总数，不能替代指定颜色 Heart，也不能复用 `RAINBOW` 的万能色语义。
 - Loveca Excel 的官方 `作品名` / `参加ユニット` 存在已知修正问题，Excel 同步不得读取这两列；`work_names` 只由 llocg_db `series`、旧库迁移或人工维护入口维护。
 - Loveca Excel 的 `収録商品` / `商品编号` 分别写入 `product` / `product_code`。

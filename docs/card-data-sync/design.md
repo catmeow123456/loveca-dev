@@ -1,6 +1,6 @@
 # 卡牌数据同步管线
 
-> 更新时间: 2026-07-22
+> 更新时间: 2026-07-29
 > 文档类型: 设计文档
 > 适用范围: 当前卡牌同步脚本、标准化、差异审核和写入策略
 > 当前状态: 以 `src/scripts/sync-cards-llocg.ts`、`src/scripts/sync-cards-loveca-excel.ts` 与 `src/scripts/sync-cards-cloudbase-new.ts` 为准
@@ -53,6 +53,8 @@ flowchart LR
 - JP 数据作为结构化规则字段主源，CN 数据作为新卡初始中文和补充源。
 - Loveca Excel / CloudBase `loveca` 作为已有卡卡牌类型、中日文本、来源字段、成员持有 Heart、BLADE Heart 和 LIVE 必要 Heart 的优先来源；来源类型缺失或无法映射时跳过该卡，且不覆盖费用、BLADE、LIVE 分数等其他结构化规则字段。
 - 结构化字段必须转换为项目内部模型后再写入。
+- Loveca Excel / CloudBase 的 Heart token `orange` 映射为独立的 `ORANGE`，适用于基本 Heart、BLADE Heart 与必要 Heart；不得降级为 `YELLOW`、`GRAY` 或 `RAINBOW`。
+- 当前已确认的 `orange` 是新推出的官方 BLADE Heart 颜色。同步层同时保留基本 Heart 与必要 Heart 的 `ORANGE` 表示能力，只代表结构化数据可无损承载该 token，不代表既有卡效获得新的颜色选项；历史卡文明示的固定六色集合继续显式维护，不能从 `HeartColor` 全枚举自动生成。
 - Loveca Excel / CloudBase 的 `特殊ハート` token `double` 表示 1 个“双重无色 Heart”图标，写入时展开为两条 `{ effect: 'HEART', heartColor: 'GRAY' }`。`GRAY` 只增加 LIVE 判定总 Heart，不可填补指定颜色需求；不得映射为可代替任意颜色的 `RAINBOW`。
 - 已存在卡牌不允许静默覆盖，必须经过差异审核。
 - dry-run 不连接或写入目标数据库，只用于验证转换与统计。

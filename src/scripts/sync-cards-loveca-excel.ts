@@ -34,6 +34,12 @@ import { Pool } from 'pg';
 import { parse as parseDotenv } from 'dotenv';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
+import {
+  LOVECA_SYNC_BLADE_HEART_COLOR_MAP,
+  LOVECA_SYNC_HEART_COLOR_MAP,
+  LOVECA_SYNC_RAINBOW_HEART_TOKENS,
+  type LovecaSyncHeartColor,
+} from './card-sync-heart-colors.js';
 import { resolveLovecaExcelPath } from './loveca-excel-source.js';
 
 const require = createRequire(import.meta.url);
@@ -51,7 +57,7 @@ type BladeHeartSyncItem = {
   readonly heartColor?: HeartColor;
 };
 
-type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'GRAY' | 'RAINBOW';
+type HeartColor = LovecaSyncHeartColor;
 
 type HeartSyncItem = {
   readonly color: HeartColor;
@@ -300,25 +306,6 @@ const SYNC_FIELDS: readonly (keyof ExcelSyncRecord)[] = [
   'source_external_id',
   'source_flags',
 ];
-
-const EXCEL_HEART_COLOR_MAP: Record<string, Exclude<HeartColor, 'RAINBOW'>> = {
-  pink: 'PINK',
-  red: 'RED',
-  yellow: 'YELLOW',
-  green: 'GREEN',
-  blue: 'BLUE',
-  purple: 'PURPLE',
-  gray: 'GRAY',
-  grey: 'GRAY',
-  colorless: 'GRAY',
-};
-
-const EXCEL_RAINBOW_HEART_TOKENS = new Set(['any', 'all']);
-
-const EXCEL_BLADE_HEART_COLOR_MAP: Record<string, HeartColor> = {
-  ...EXCEL_HEART_COLOR_MAP,
-  all: 'RAINBOW',
-};
 
 const EXCEL_SPECIAL_HEART_EFFECT_MAP: Record<
   string,
@@ -836,7 +823,9 @@ function parseExcelHearts(
   let hasParseError = false;
   for (const [rawKey, rawCount] of Object.entries(heartObject)) {
     const token = normalizeHeartToken(rawKey);
-    const color = EXCEL_RAINBOW_HEART_TOKENS.has(token) ? 'RAINBOW' : EXCEL_HEART_COLOR_MAP[token];
+    const color = LOVECA_SYNC_RAINBOW_HEART_TOKENS.has(token)
+      ? 'RAINBOW'
+      : LOVECA_SYNC_HEART_COLOR_MAP[token];
     const count = parsePositiveIntegerCount(rawCount);
 
     if (!color) {
@@ -870,7 +859,7 @@ function parseExcelBladeHearts(
 
   if (bladeHeartValue) {
     const token = normalizeBladeHeartToken(bladeHeartValue);
-    const heartColor = EXCEL_BLADE_HEART_COLOR_MAP[token];
+    const heartColor = LOVECA_SYNC_BLADE_HEART_COLOR_MAP[token];
     const specialEffect = EXCEL_SPECIAL_HEART_EFFECT_MAP[token];
 
     if (appendDoubleGrayBladeHearts(result, token)) {

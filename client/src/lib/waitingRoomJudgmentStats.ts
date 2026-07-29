@@ -21,6 +21,7 @@ function createEmptyWaitingRoomHeartCounts(): Record<HeartColor, number> {
     [HeartColor.GREEN]: 0,
     [HeartColor.BLUE]: 0,
     [HeartColor.PURPLE]: 0,
+    [HeartColor.ORANGE]: 0,
   };
 }
 

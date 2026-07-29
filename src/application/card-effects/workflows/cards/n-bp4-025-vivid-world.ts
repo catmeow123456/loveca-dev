@@ -44,6 +44,7 @@ const HEART_COLOR_LABELS: Record<HeartColor, string> = {
   [HeartColor.GREEN]: '[緑ハート]',
   [HeartColor.BLUE]: '[青ハート]',
   [HeartColor.PURPLE]: '[紫ハート]',
+  [HeartColor.ORANGE]: '[オレンジハート]',
   [HeartColor.GRAY]: '[無色ハート]',
   [HeartColor.RAINBOW]: '[ALLハート]',
 };

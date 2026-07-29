@@ -31,7 +31,8 @@ const cloudbaseSDK = require('@cloudbase/node-sdk') as {
 
 type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
 type CardStatus = 'DRAFT' | 'PUBLISHED';
-type HeartColor = 'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'GRAY' | 'RAINBOW';
+type HeartColor =
+  'PINK' | 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'PURPLE' | 'ORANGE' | 'GRAY' | 'RAINBOW';
 type BladeHeartEffect = 'HEART' | 'DRAW' | 'SCORE';
 type ImageMode = 'upload' | 'skip' | 'none';
 type ImageFailureSourceFlag =
@@ -345,6 +346,9 @@ const HEART_COLOR_MAP = new Map<string, HeartColor>([
   ['b_heart06', 'PURPLE'],
   ['06', 'PURPLE'],
   ['紫', 'PURPLE'],
+  ['orange', 'ORANGE'],
+  ['オレンジ', 'ORANGE'],
+  ['橙', 'ORANGE'],
   ['gray', 'GRAY'],
   ['grey', 'GRAY'],
   ['colorless', 'GRAY'],
@@ -764,6 +768,7 @@ function parseHeartColor(value: unknown): HeartColor | null {
     direct === 'GREEN' ||
     direct === 'BLUE' ||
     direct === 'PURPLE' ||
+    direct === 'ORANGE' ||
     direct === 'GRAY' ||
     direct === 'RAINBOW'
   ) {

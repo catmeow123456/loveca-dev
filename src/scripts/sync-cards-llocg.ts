@@ -152,6 +152,7 @@ const HEART_COLOR_MAP: Record<string, string> = {
   heart04: 'GREEN',
   heart05: 'BLUE',
   heart06: 'PURPLE',
+  orange: 'ORANGE',
   heart0: 'RAINBOW',
 };
 
@@ -162,6 +163,8 @@ const BLADE_HEART_COLOR_MAP: Record<string, string> = {
   b_heart04: 'GREEN',
   b_heart05: 'BLUE',
   b_heart06: 'PURPLE',
+  orange: 'ORANGE',
+  b_orange: 'ORANGE',
   b_all: 'RAINBOW',
 };
 
