@@ -572,6 +572,20 @@ function buildSingleEventView(
           actorSeat,
         });
       }
+      if (event.declarationType === 'SYSTEM_CONCEDE') {
+        const isMachineDecisionFailure = event.publicValue === 'MACHINE_DECISION_FAILURE';
+        return buildView({
+          events: [event],
+          options,
+          type: event.type,
+          keyEvent: true,
+          title: isMachineDecisionFailure ? 'AI 决策基础设施异常' : 'AI 按活性保护政策认输',
+          detail: isMachineDecisionFailure ? '本局异常结束' : '本局结束',
+          cards,
+          hiddenCardCount: 0,
+          actorSeat,
+        });
+      }
       return buildView({
         events: [event],
         options,
@@ -840,11 +854,7 @@ function shouldHideEventForArrangeInspectedDeckTopSummary(
           isWithinHiddenInspectionMoveBudget(event, summary, events, 'BEFORE');
   }
 
-  if (
-    event.from?.zone !== ZoneType.INSPECTION_ZONE ||
-    !isCompleted ||
-    !isNearbyAfterSummary
-  ) {
+  if (event.from?.zone !== ZoneType.INSPECTION_ZONE || !isCompleted || !isNearbyAfterSummary) {
     return false;
   }
 
@@ -1098,9 +1108,7 @@ function isDiscardLookTopCostMove(
     event.to?.zone === ZoneType.WAITING_ROOM &&
     Boolean(
       event.card &&
-        summary.discardedCostCards?.some(
-          (card) => card.publicObjectId === event.card?.publicObjectId
-        )
+      summary.discardedCostCards?.some((card) => card.publicObjectId === event.card?.publicObjectId)
     )
   );
 }

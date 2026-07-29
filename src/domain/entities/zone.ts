@@ -10,6 +10,7 @@ import {
   OrientationState,
   FaceState,
 } from '../../shared/types/enums.js';
+import { shuffleWithRuleRandom, type RuleRandomPurpose } from '../rules/rule-random.js';
 import {
   CardInstance,
   CardWithState,
@@ -248,10 +249,7 @@ export function addCardToZone(
 /**
  * 向基础区域按给定顺序追加多张卡牌
  */
-export function addCardsToZone(
-  zone: BaseZoneState,
-  cardIds: readonly string[]
-): BaseZoneState {
+export function addCardsToZone(zone: BaseZoneState, cardIds: readonly string[]): BaseZoneState {
   return cardIds.reduce((nextZone, cardId) => addCardToZone(nextZone, cardId), zone);
 }
 
@@ -309,7 +307,8 @@ export function updateCardState(
   newState: Partial<CardZoneState>
 ): StatefulZoneState {
   const currentState =
-    zone.cardStates.get(cardId) ?? (zone.cardIds.includes(cardId) ? createDefaultCardState() : null);
+    zone.cardStates.get(cardId) ??
+    (zone.cardIds.includes(cardId) ? createDefaultCardState() : null);
   if (!currentState) return zone;
 
   const newCardStates = new Map(zone.cardStates);
@@ -462,7 +461,8 @@ export function toggleEnergyOrientation(
   cardId: string
 ): StatefulZoneState {
   const currentState =
-    zone.cardStates.get(cardId) ?? (zone.cardIds.includes(cardId) ? createDefaultCardState() : null);
+    zone.cardStates.get(cardId) ??
+    (zone.cardIds.includes(cardId) ? createDefaultCardState() : null);
   if (!currentState) return zone;
 
   const newOrientation =
@@ -872,7 +872,10 @@ export function drawFromTop(zone: BaseZoneState): { zone: BaseZoneState; cardId:
 /**
  * 从卡组底部抽取一张卡牌。数组末尾为卡组底。
  */
-export function drawFromBottom(zone: BaseZoneState): { zone: BaseZoneState; cardId: string | null } {
+export function drawFromBottom(zone: BaseZoneState): {
+  zone: BaseZoneState;
+  cardId: string | null;
+} {
   if (zone.cardIds.length === 0) {
     return { zone, cardId: null };
   }
@@ -912,33 +915,17 @@ export function addToTop(zone: BaseZoneState, cardId: string): BaseZoneState {
 }
 
 /**
- * 密码学安全的随机整数生成
- * 使用 globalThis.crypto.getRandomValues() 替代 Math.random()
- * globalThis.crypto 在 Node.js 20+ 和浏览器环境均可用
- */
-function secureRandomInt(max: number): number {
-  const array = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(array);
-  return array[0] % max;
-}
-
-/**
  * 洗牌
  * 参考规则 5.5
- * 注意：这是一个不纯的函数，使用密码学安全随机数
+ * 默认使用当前 GameSession 注入的规则随机源；无上下文调用继续使用安全随机源。
  */
-export function shuffleZone(zone: BaseZoneState): BaseZoneState {
-  const shuffled = [...zone.cardIds];
-
-  // Fisher-Yates 洗牌算法
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = secureRandomInt(i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-
+export function shuffleZone(
+  zone: BaseZoneState,
+  purpose: RuleRandomPurpose = 'ZONE_SHUFFLE'
+): BaseZoneState {
   return {
     ...zone,
-    cardIds: shuffled,
+    cardIds: shuffleWithRuleRandom(zone.cardIds, purpose),
   };
 }
 

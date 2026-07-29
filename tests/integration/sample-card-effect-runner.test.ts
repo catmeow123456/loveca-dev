@@ -137,6 +137,7 @@ import {
   BP5_007_ON_ENTER_RELAY_LOW_COST_HAND_ADJUST_DRAW_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { assertCertifiedAiDecisionSurface } from '../helpers/ai-decision-contract';
 import { resolvePendingAbilityStarterWithRegistry } from '../../src/application/card-effects/runtime/starter-registry';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
@@ -219,6 +220,8 @@ const PB1_019_LIKE_MEMBER_ACTIVATION_TEST_CASES = [
 
 const GENERIC_DISCARD_LOOK_TOP_ON_ENTER_CARD_TEST_CASES = [
   { cardCode: 'PL!-sd1-011-SD', name: '高坂 穂乃果', cost: 4 },
+  { cardCode: 'PL!-sd1-012-SD', name: '南 ことり', cost: 4 },
+  { cardCode: 'PL!-sd1-016-SD', name: '東條 希', cost: 4 },
   { cardCode: 'PL!HS-cl1-007-CL', name: 'セラス 柳田 リリエンフェルト', cost: 7 },
   { cardCode: 'PL!HS-pb1-011-R', name: '大沢 瑠璃乃', cost: 7 },
   { cardCode: 'PL!N-PR-004-PR', name: '中須かすみ', cost: 4 },
@@ -272,7 +275,9 @@ function createDeck(): DeckConfig {
     createMemberCard('PL!-sd1-004-SD', '園田 海未', 11),
     createMemberCard('PL!-sd1-007-SD', '東條 希', 7),
     createMemberCard('PL!-sd1-009-SD', '矢澤 にこ', 15),
-    createMemberCard('PL!-sd1-011-SD', '高坂 穂乃果', 11),
+    createMemberCard('PL!-sd1-011-SD', '高坂 穂乃果', 4),
+    createMemberCard('PL!-sd1-012-SD', '南 ことり', 4),
+    createMemberCard('PL!-sd1-016-SD', '東條 希', 4),
     createMemberCard('PL!HS-cl1-007-CL', 'セラス 柳田 リリエンフェルト', 7),
     createMemberCard('PL!HS-pb1-011-R', '大沢 瑠璃乃', 7),
     createMemberCard('PL!N-PR-004-PR', '中須かすみ', 4),
@@ -1483,6 +1488,8 @@ describe('sample card effect runner', () => {
     expect(activeEffect?.awaitingPlayerId).toBe(PLAYER1);
     expect(activeEffect?.revealedCardIds).toEqual(milledCardIds);
     expect(activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(activeEffect?.metadata?.milledCardIds).toEqual(milledCardIds);
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_CONFIRM');
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -1680,6 +1687,7 @@ describe('sample card effect runner', () => {
     expect(activeEffect?.abilityId).toBe(UMI_ON_ENTER_ABILITY_ID);
     expect(activeEffect?.selectableCardIds).toEqual([liveCardId]);
     expect(activeEffect?.canSkipSelection).toBe(true);
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_CARD_SINGLE');
     const startedSummary = session
       .getPublicEventsSince(beforeSeq)
       .find((event) => event.type === 'CardEffectSummary' && event.summaryStatus === 'STARTED');
@@ -2690,6 +2698,15 @@ describe('sample card effect runner', () => {
     );
 
     expect(recoverResult.success).toBe(true);
+    const publicSelectionAutoAdvanceAt =
+      session.state?.activeEffect?.publicCardSelectionAutoAdvanceAt;
+    expect(publicSelectionAutoAdvanceAt).toEqual(expect.any(Number));
+    if (publicSelectionAutoAdvanceAt === undefined) {
+      throw new Error('expected grouped recovery public-selection deadline');
+    }
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_DEADLINE', {
+      now: publicSelectionAutoAdvanceAt,
+    });
     confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([targetMuseLiveId]);
@@ -5207,6 +5224,7 @@ describe('sample card effect runner', () => {
       hasunosoraLive.instanceId,
       ceriseMember.instanceId,
     ]);
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_CARD_GROUPED');
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(discardA.instanceId);
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(discardB.instanceId);
 
@@ -7506,12 +7524,11 @@ describe('sample card effect runner', () => {
       PLAYER2,
       'Player 2'
     );
-    (
-      noSuccessLiveSession as unknown as { authorityState: GameState }
-    ).authorityState = updatePlayer(session.state!, PLAYER1, (player) => ({
-      ...player,
-      successZone: { ...player.successZone, cardIds: [] },
-    }));
+    (noSuccessLiveSession as unknown as { authorityState: GameState }).authorityState =
+      updatePlayer(session.state!, PLAYER1, (player) => ({
+        ...player,
+        successZone: { ...player.successZone, cardIds: [] },
+      }));
     const revealWithoutSuccessTargetResult = noSuccessLiveSession.executeCommand(
       createConfirmEffectStepCommand(
         PLAYER1,
@@ -7527,9 +7544,7 @@ describe('sample card effect runner', () => {
     const finishWithoutSuccessTargetResult = advancePublicRevealDwell(noSuccessLiveSession);
     expect(finishWithoutSuccessTargetResult.success).toBe(true);
     expect(noSuccessLiveSession.state?.activeEffect).toBeNull();
-    expect(noSuccessLiveSession.state?.players[0].hand.cardIds).toEqual([
-      handLive.instanceId,
-    ]);
+    expect(noSuccessLiveSession.state?.players[0].hand.cardIds).toEqual([handLive.instanceId]);
     expect(noSuccessLiveSession.state?.players[0].successZone.cardIds).toEqual([]);
 
     const revealResult = session.executeCommand(
@@ -7545,9 +7560,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.metadata?.handLiveCardId).toBe(handLive.instanceId);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual([handLive.instanceId]);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([successLive.instanceId]);
-    expect(session.state?.activeEffect?.selectionLabel).toBe(
-      '选择要加入手牌的成功LIVE卡'
-    );
+    expect(session.state?.activeEffect?.selectionLabel).toBe('选择要加入手牌的成功LIVE卡');
     expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
     expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
     expect(session.state?.activeEffect?.skipSelectionLabel).toBeUndefined();
@@ -8252,6 +8265,9 @@ describe('sample card effect runner', () => {
       },
     }));
     (session as unknown as { authorityState: GameState }).authorityState = preparedState;
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'MAIN_PHASE', {
+      requiredMainPhaseActionKind: 'ACTIVATE_ABILITY',
+    });
 
     const activateResult = session.executeCommand(
       createActivateAbilityCommand(
@@ -10332,6 +10348,7 @@ describe('sample card effect runner', () => {
       KARIN_LIVE_START_ABILITY_ID,
       NICO_LIVE_START_SCORE_ABILITY_ID,
     ]);
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_ABILITY_ORDER');
 
     const chooseNicoResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, nicoCardId)
@@ -10517,6 +10534,7 @@ describe('sample card effect runner', () => {
       { id: HeartColor.YELLOW, text: '获得[黄ハート]。' },
       { id: HeartColor.PURPLE, text: '获得[紫ハート]。' },
     ]);
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_OPTION');
 
     const heartResult = session.executeCommand(
       createConfirmEffectStepCommand(
@@ -10538,6 +10556,15 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.effectChoice?.selectedOptionIds).toEqual([
       HeartColor.YELLOW,
     ]);
+    const publicEffectChoiceAutoAdvanceAt =
+      session.state?.activeEffect?.publicEffectChoiceAutoAdvanceAt;
+    expect(publicEffectChoiceAutoAdvanceAt).toEqual(expect.any(Number));
+    if (publicEffectChoiceAutoAdvanceAt === undefined) {
+      throw new Error('expected public effect-choice deadline');
+    }
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_DEADLINE', {
+      now: publicEffectChoiceAutoAdvanceAt,
+    });
     autoAdvancePublicEffectChoice(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
@@ -12400,6 +12427,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
     expect(session.state?.activeEffect?.minSelectableCards).toBe(0);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(3);
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_CARD_ORDERED');
     expect(session.state?.inspectionZone.cardIds).toEqual(topCardIds.slice(0, 3));
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([topCardIds[3]]);
     expect(
@@ -14109,9 +14137,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
     expect(session.state?.activeEffect?.selectableOptions).toBeUndefined();
     expect(session.state?.activeEffect?.selectableCardIds).toEqual(waitingMemberCardIds);
-    expect(session.state?.activeEffect?.selectionLabel).toBe(
-      '选择要从休息室登场的成员'
-    );
+    expect(session.state?.activeEffect?.selectionLabel).toBe('选择要从休息室登场的成员');
     expect(session.state?.activeEffect?.confirmSelectionLabel).toBe('选择登场区域');
     expect(session.state?.activeEffect?.canSkipSelection).toBe(true);
     expect(session.state?.activeEffect?.skipSelectionLabel).toBe('不登场');
@@ -14125,15 +14151,10 @@ describe('sample card effect runner', () => {
       PLAYER2,
       'Player 2'
     );
-    (
-      skipAfterPaymentSession as unknown as { authorityState: GameState }
-    ).authorityState = paidSelectionState;
+    (skipAfterPaymentSession as unknown as { authorityState: GameState }).authorityState =
+      paidSelectionState;
     const skipAfterPaymentResult = skipAfterPaymentSession.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        skipAfterPaymentSession.state!.activeEffect!.id,
-        null
-      )
+      createConfirmEffectStepCommand(PLAYER1, skipAfterPaymentSession.state!.activeEffect!.id, null)
     );
     expect(skipAfterPaymentResult.success).toBe(true);
     expect(

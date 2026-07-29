@@ -10,12 +10,6 @@
  * 5. 执行规则检查
  */
 
-function secureRandomInt(max: number): number {
-  const array = new Uint32Array(1);
-  globalThis.crypto.getRandomValues(array);
-  return array[0] % max;
-}
-
 import {
   GamePhase,
   HeartColor,
@@ -30,6 +24,7 @@ import {
   SubPhase,
   EffectWindowType,
 } from '../shared/types/enums.js';
+import { nextRuleRandomInt } from '../domain/rules/rule-random.js';
 import type {
   GameState,
   GameAction as GameHistoryAction,
@@ -286,11 +281,11 @@ export class GameService {
     // 3. 洗牌
     state = updatePlayer(state, game.players[0].id, (p) => ({
       ...p,
-      mainDeck: shuffleZone(p.mainDeck),
+      mainDeck: shuffleZone(p.mainDeck, 'INITIAL_MAIN_DECK_SHUFFLE'),
     }));
     state = updatePlayer(state, game.players[1].id, (p) => ({
       ...p,
-      mainDeck: shuffleZone(p.mainDeck),
+      mainDeck: shuffleZone(p.mainDeck, 'INITIAL_MAIN_DECK_SHUFFLE'),
     }));
 
     // 4. 抽初始手牌（6张）
@@ -975,7 +970,7 @@ export class GameService {
       // 预打散：消除同 card_code 连续排列和 Member/Live 分段的初始聚类，
       // 让后续 shuffleZone 的输入更接近均匀分布
       for (let i = mainDeckIds.length - 1; i > 0; i--) {
-        const j = secureRandomInt(i + 1);
+        const j = nextRuleRandomInt(i + 1, 'INITIAL_MAIN_DECK_PRE_SHUFFLE');
         [mainDeckIds[i], mainDeckIds[j]] = [mainDeckIds[j], mainDeckIds[i]];
       }
 

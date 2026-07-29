@@ -5,8 +5,11 @@ import {
   type GameSessionRuntimeStats,
 } from '../../application/game-session.js';
 import {
+  createAutoAdvancePublicCardSelectionCommand,
+  createAutoAdvancePublicEffectChoiceCommand,
   createConfirmStepCommand,
   createEndPhaseCommand,
+  createSystemConcedeCommand,
   GameCommandType,
   type GameCommand,
 } from '../../application/game-commands.js';
@@ -25,6 +28,7 @@ import type {
   OnlineCommandResult,
   OnlineMatchChatMessage,
   OnlineMatchChatMessagesResponse,
+  OnlineMatchSystemNoticeCode,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
   OnlineSpectatorJoinView,
@@ -60,11 +64,43 @@ import { rankedRatingService } from './ranked-rating-service.js';
 import { buildMatchDecisionRecordsForCommand } from './match-decision-records.js';
 import {
   appendOnlineMatchChatMessage,
+  appendOnlineMatchSystemNotice,
   createOnlineMatchChatRuntime,
   readOnlineMatchChatBlockedTerms,
   readOnlineMatchChatMessages,
   type OnlineMatchChatRuntimeState,
 } from './online-match-chat-runtime.js';
+import { selectConservativeDecision } from '../ai-battle/conservative-decision-policy.js';
+import {
+  SingleMatchSerialExecutor,
+  type SingleMatchCriticalSection,
+} from '../ai-battle/single-match-serial-executor.js';
+import {
+  MachineDecisionCoordinator,
+  MachineAuthoritySnapshot,
+  MachineCommandExecutionResult,
+  type MachineDecisionCoordinatorOptions,
+} from '../ai-battle/machine-decision-coordinator.js';
+import {
+  MachineDecisionScheduler,
+  type MachineDecisionScheduleFailureReason,
+  type MachineDecisionSchedulerOptions,
+  type MachineDecisionScheduleRegistration,
+  type MachineDecisionScheduleResult,
+} from '../ai-battle/machine-decision-scheduler.js';
+import {
+  createMachineLivenessState,
+  DEFAULT_MACHINE_LIVENESS_LIMITS,
+  recordMachineLivenessDecision,
+  type MachineLivenessLimits,
+  type MachineLivenessState,
+} from '../ai-battle/rule-progress.js';
+import {
+  readServerDeadlineDescriptor,
+  ServerDeadlineOwner,
+  type ServerDeadlineOwnerOptions,
+  type ServerDeadlineRegistration,
+} from '../ai-battle/server-deadline-owner.js';
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
@@ -139,6 +175,7 @@ export interface OnlineMatchState {
   pendingUndoRequest: OnlineUndoRequestState | null;
   pendingManualOperationModeRequest?: OnlineManualOperationModeRequestState | null;
   activeUndoGrant: OnlineUndoGrantState | null;
+  machineLiveness: MachineLivenessState | null;
   readonly appliedUndoKeys: Set<string>;
   appliedManualOperationKeys?: Map<string, string>;
   recoveryNotice:
@@ -303,6 +340,27 @@ interface OnlineMatchServiceDeps {
   readonly spectatorRequestWindowMs?: number;
   readonly spectatorRequestLimit?: number;
   readonly chatBlockedTerms?: readonly string[];
+  readonly serialExecutor?: SingleMatchSerialExecutor;
+  readonly deadlineRuntimeEpoch?: string;
+  readonly deadlineIdGenerator?: () => string;
+  readonly deadlineRetryDelayMs?: number;
+  readonly deadlineScheduleTimer?: ServerDeadlineOwnerOptions['scheduleTimer'];
+  readonly deadlineCancelTimer?: ServerDeadlineOwnerOptions['cancelTimer'];
+  /**
+   * Controlled Phase 1B runtime hook. Product entry points remain disabled
+   * until the formal SYSTEM participant phase.
+   */
+  readonly machineDecisionSchedulingEnabled?: boolean;
+  readonly machineDecisionRuntimeEpoch?: string;
+  readonly machineDecisionIdGenerator?: () => string;
+  readonly machineDecisionLeaseTtlMs?: number;
+  readonly machineDecisionSchedulerRuntimeEpoch?: string;
+  readonly machineDecisionSchedulerIdGenerator?: () => string;
+  readonly machineDecisionSchedulerRetryDelayMs?: number;
+  readonly machineDecisionSchedulerMaxCallbackFailures?: number;
+  readonly machineDecisionScheduleTimer?: MachineDecisionSchedulerOptions['scheduleTimer'];
+  readonly machineDecisionCancelTimer?: MachineDecisionSchedulerOptions['cancelTimer'];
+  readonly machineLivenessLimits?: MachineLivenessLimits;
 }
 
 export interface DeleteOnlineMatchOptions {
@@ -361,6 +419,12 @@ export class OnlineMatchService {
   private readonly sealedMatchIds = new Set<string>();
   private readonly partialRecordMatchIds = new Set<string>();
   private serviceRejectedAttemptSeq = 0;
+  private readonly machineDecisionSchedulingEnabled: boolean;
+  private readonly machineLivenessLimits: MachineLivenessLimits;
+  readonly serialExecutor: SingleMatchSerialExecutor;
+  readonly deadlineOwner: ServerDeadlineOwner;
+  readonly machineDecisionCoordinator: MachineDecisionCoordinator;
+  readonly machineDecisionScheduler: MachineDecisionScheduler;
 
   constructor(deps: OnlineMatchServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
@@ -375,12 +439,45 @@ export class OnlineMatchService {
       deps.spectatorRequestLimit ??
       readPositiveIntEnv('ONLINE_SPECTATOR_REQUEST_LIMIT', DEFAULT_SPECTATOR_REQUEST_LIMIT);
     this.chatBlockedTerms = deps.chatBlockedTerms ?? readOnlineMatchChatBlockedTerms();
+    this.serialExecutor = deps.serialExecutor ?? new SingleMatchSerialExecutor();
+    this.machineDecisionSchedulingEnabled = deps.machineDecisionSchedulingEnabled ?? false;
+    this.machineLivenessLimits = deps.machineLivenessLimits ?? DEFAULT_MACHINE_LIVENESS_LIMITS;
+    this.machineDecisionCoordinator = new MachineDecisionCoordinator({
+      executor: this.serialExecutor,
+      now: this.now,
+      runtimeEpoch: deps.machineDecisionRuntimeEpoch,
+      idGenerator: deps.machineDecisionIdGenerator,
+      leaseTtlMs: deps.machineDecisionLeaseTtlMs,
+    } satisfies MachineDecisionCoordinatorOptions);
+    this.machineDecisionScheduler = new MachineDecisionScheduler({
+      runtimeEpoch: deps.machineDecisionSchedulerRuntimeEpoch,
+      idGenerator: deps.machineDecisionSchedulerIdGenerator,
+      retryDelayMs: deps.machineDecisionSchedulerRetryDelayMs,
+      maxConsecutiveCallbackFailures: deps.machineDecisionSchedulerMaxCallbackFailures,
+      scheduleTimer: deps.machineDecisionScheduleTimer,
+      cancelTimer: deps.machineDecisionCancelTimer,
+      onDecisionDue: (registration) => this.handleMachineDecisionDue(registration),
+      onTerminalFailure: (registration, reason) =>
+        this.handleMachineDecisionTerminalFailure(registration, reason),
+    });
+    this.deadlineOwner = new ServerDeadlineOwner({
+      now: this.now,
+      runtimeEpoch: deps.deadlineRuntimeEpoch,
+      idGenerator: deps.deadlineIdGenerator,
+      retryDelayMs: deps.deadlineRetryDelayMs,
+      scheduleTimer: deps.deadlineScheduleTimer,
+      cancelTimer: deps.deadlineCancelTimer,
+      onDeadlineDue: (registration) => this.handleServerDeadlineDue(registration),
+    });
   }
 
   async createMatch(params: CreateOnlineMatchParams): Promise<OnlineMatchState> {
     const matchId = this.idGenerator();
     const automationGameMode = params.automationGameMode ?? 'DEBUG';
-    const session = createGameSession({ gameMode: toGameMode(automationGameMode) });
+    const session = createGameSession({
+      gameMode: toGameMode(automationGameMode),
+      now: this.now,
+    });
     const firstPlayerId = `${matchId}:FIRST:${params.first.userId}`;
     const secondPlayerId = `${matchId}:SECOND:${params.second.userId}`;
     const now = params.startedAt ?? this.now();
@@ -427,6 +524,7 @@ export class OnlineMatchService {
       pendingUndoRequest: null,
       pendingManualOperationModeRequest: null,
       activeUndoGrant: null,
+      machineLiveness: null,
       appliedUndoKeys: new Set<string>(),
       appliedManualOperationKeys: new Map<string, string>(),
       recoveryNotice: null,
@@ -509,11 +607,405 @@ export class OnlineMatchService {
     }
 
     this.matches.set(matchId, state);
+    this.reconcileServerDeadline(state);
+    this.reconcileMachineDecisionScheduling(state);
     return state;
   }
 
   getMatch(matchId: string): OnlineMatchState | null {
     return this.matches.get(matchId) ?? null;
+  }
+
+  /**
+   * Trusted machine-decision read boundary. The coordinator must call this
+   * from the shared per-match critical section so contract generation cannot
+   * race an authority write.
+   */
+  readMachineAuthoritySnapshot(
+    matchId: string,
+    criticalSection?: SingleMatchCriticalSection
+  ): MachineAuthoritySnapshot | null {
+    if (!this.serialExecutor.isExecutingMatch(matchId, criticalSection)) {
+      throw new OnlineMatchServiceError(
+        'ONLINE_MATCH_MACHINE_READ_OUTSIDE_CRITICAL_SECTION',
+        '机器决策权威读取必须位于单局临界区'
+      );
+    }
+    const match = this.matches.get(matchId);
+    const game = match?.session.state;
+    return match && game ? { game, authorityRevision: match.remoteRevision } : null;
+  }
+
+  /**
+   * Internal SYSTEM participant command boundary used by the machine
+   * coordinator. It shares the same executor and rechecks revision inside it.
+   */
+  async executeMachineCommandAtRevision(
+    matchId: string,
+    systemUserId: string,
+    command: GameCommand,
+    expectedRevision: number
+  ): Promise<MachineCommandExecutionResult> {
+    return this.serialExecutor.runExclusive(matchId, (criticalSection) =>
+      this.executeMachineCommandAtRevisionInCriticalSection(
+        matchId,
+        systemUserId,
+        command,
+        expectedRevision,
+        criticalSection
+      )
+    );
+  }
+
+  async executeMachineCommandAtRevisionInCriticalSection(
+    matchId: string,
+    systemUserId: string,
+    command: GameCommand,
+    expectedRevision: number,
+    criticalSection?: SingleMatchCriticalSection
+  ): Promise<MachineCommandExecutionResult> {
+    if (!this.serialExecutor.isExecutingMatch(matchId, criticalSection)) {
+      throw new OnlineMatchServiceError(
+        'ONLINE_MATCH_MACHINE_WRITE_OUTSIDE_CRITICAL_SECTION',
+        '机器命令权威写入必须位于单局临界区'
+      );
+    }
+    const match = this.matches.get(matchId);
+    const participant = match ? getParticipantByUserId(match, systemUserId) : null;
+    if (!match || !participant || participant.participantKind !== 'SYSTEM') {
+      return {
+        success: false,
+        authorityRevision: match?.remoteRevision ?? expectedRevision,
+        error: '机器命令只能由当前对局的 SYSTEM 参赛者提交',
+      };
+    }
+    if (match.remoteRevision !== expectedRevision) {
+      return {
+        success: false,
+        authorityRevision: match.remoteRevision,
+        error: '权威 revision 已变化，机器命令已过期',
+      };
+    }
+    const result = await this.executeCommandInCriticalSection(matchId, systemUserId, command);
+    return {
+      success: result?.success === true,
+      authorityRevision: match.remoteRevision,
+      error: result?.success === false ? result.error : result ? undefined : '对局不存在',
+    };
+  }
+
+  private async handleServerDeadlineDue(registration: ServerDeadlineRegistration): Promise<void> {
+    await this.serialExecutor.runExclusive(registration.matchId, async () => {
+      if (!this.deadlineOwner.isCurrent(registration)) {
+        return;
+      }
+      const match = this.matches.get(registration.matchId);
+      const game = match?.session.state;
+      if (!match || !game) {
+        this.deadlineOwner.cancelMatch(registration.matchId);
+        return;
+      }
+
+      const descriptor = readServerDeadlineDescriptor(game);
+      if (
+        match.remoteRevision !== registration.authorityRevision ||
+        !descriptor ||
+        descriptor.windowSignature !== registration.windowSignature
+      ) {
+        this.reconcileServerDeadline(match);
+        return;
+      }
+      if (this.now() < registration.autoAdvanceAt) {
+        this.reconcileServerDeadline(match);
+        return;
+      }
+
+      const preferredPlayerId = game.activeEffect?.awaitingPlayerId;
+      const participant =
+        Object.values(match.participants).find(
+          (candidate) => candidate.playerId === preferredPlayerId
+        ) ?? match.participants.FIRST;
+      const baseCommand =
+        registration.kind === 'PUBLIC_CARD_SELECTION'
+          ? createAutoAdvancePublicCardSelectionCommand(
+              participant.playerId,
+              registration.effectId,
+              registration.autoAdvanceAt
+            )
+          : createAutoAdvancePublicEffectChoiceCommand(
+              participant.playerId,
+              registration.effectId,
+              registration.autoAdvanceAt
+            );
+      await this.executeCommandInCriticalSection(registration.matchId, participant.userId, {
+        ...baseCommand,
+        timestamp: this.now(),
+      });
+    });
+  }
+
+  private async handleMachineDecisionDue(
+    registration: MachineDecisionScheduleRegistration
+  ): Promise<MachineDecisionScheduleResult> {
+    return this.serialExecutor.runExclusive(registration.matchId, async (criticalSection) => {
+      if (!this.machineDecisionScheduler.isCurrent(registration)) return 'IDLE';
+      const match = this.matches.get(registration.matchId);
+      const game = match?.session.state;
+      if (!match || !game || !this.shouldScheduleMachineDecisions(match)) {
+        return game?.isEnded ? 'TERMINAL' : 'IDLE';
+      }
+      const systemParticipants = (['FIRST', 'SECOND'] as const)
+        .map((seat) => match.participants[seat])
+        .filter((participant) => participant.participantKind === 'SYSTEM');
+      const terminalParticipant = systemParticipants[0];
+      const terminateMachineFailure = async (
+        detail: string
+      ): Promise<MachineDecisionScheduleResult> => {
+        if (!terminalParticipant) return 'BLOCKED';
+        const terminated = await this.terminateMachineDecisionFailureInCriticalSection(
+          match,
+          terminalParticipant,
+          `ai-machine-failure:${registration.runtimeEpoch}`,
+          detail,
+          criticalSection
+        );
+        return terminated ? 'TERMINAL' : 'BLOCKED';
+      };
+      if (terminalParticipant && match.machineLiveness?.terminalReason) {
+        this.appendMachineSystemNotice(
+          match,
+          'AI_LIVENESS_CONCEDE',
+          `ai-liveness-concede:${match.machineLiveness.policyVersion}`,
+          buildMachineLivenessConcessionNotice(match.machineLiveness.terminalReason)
+        );
+        const terminal = await this.executeMachineCommandAtRevisionInCriticalSection(
+          match.matchId,
+          terminalParticipant.userId,
+          {
+            ...createSystemConcedeCommand(
+              terminalParticipant.playerId,
+              match.machineLiveness.terminalReason
+            ),
+            timestamp: this.now(),
+          },
+          match.remoteRevision,
+          criticalSection
+        );
+        return terminal.success
+          ? 'TERMINAL'
+          : terminateMachineFailure('AI 活性终局提交失败，本局已因机器决策异常结束。');
+      }
+      if (readServerDeadlineDescriptor(game)) {
+        return 'IDLE';
+      }
+      const awaitingPlayerId = game.activeEffect?.awaitingPlayerId;
+      for (const participant of systemParticipants) {
+        // Public-display contracts are intentionally visible to both seats,
+        // but only the deadline owner may advance another seat's display.
+        if (awaitingPlayerId && awaitingPlayerId !== participant.playerId) continue;
+        const acquired = this.machineDecisionCoordinator.acquireLeaseInCriticalSection(
+          criticalSection,
+          {
+            matchId: match.matchId,
+            playerId: participant.playerId,
+            ownerId: this.machineDecisionScheduler.runtimeEpoch,
+            readAuthoritySnapshot: (section) =>
+              this.readMachineAuthoritySnapshot(match.matchId, section),
+          }
+        );
+        if (!acquired.ok) {
+          if (acquired.reason === 'NO_DECISION') continue;
+          return acquired.reason === 'LEASE_HELD_BY_OTHER_OWNER'
+            ? 'RETRY'
+            : terminateMachineFailure('AI 无法建立当前决策契约，本局已因机器决策异常结束。');
+        }
+
+        const selected = selectConservativeDecision(acquired.contract);
+        if (!selected.ok) {
+          return terminateMachineFailure(
+            'AI 无法为当前决策生成合法操作，本局已因机器决策异常结束。'
+          );
+        }
+        const before = game;
+        const submitted = await this.machineDecisionCoordinator.submitSelectionInCriticalSection(
+          criticalSection,
+          {
+            matchId: match.matchId,
+            leaseId: acquired.lease.leaseId,
+            ownerId: this.machineDecisionScheduler.runtimeEpoch,
+            selection: selected.selection,
+            readAuthoritySnapshot: (section) =>
+              this.readMachineAuthoritySnapshot(match.matchId, section),
+            executeCommand: (command, expectedRevision, section) =>
+              this.executeMachineCommandAtRevisionInCriticalSection(
+                match.matchId,
+                participant.userId,
+                command,
+                expectedRevision,
+                section
+              ),
+          }
+        );
+        if (submitted.ok) {
+          const after = match.session.state;
+          if (!after) {
+            return terminateMachineFailure('AI 命令执行后权威状态丢失，本局已异常结束。');
+          }
+          const firstConservativeDecision = match.machineLiveness === null;
+          const previous = match.machineLiveness ?? createMachineLivenessState(before, this.now());
+          const liveness = recordMachineLivenessDecision({
+            previous,
+            before,
+            after,
+            systemPlayerId: participant.playerId,
+            now: this.now(),
+            limits: this.machineLivenessLimits,
+          });
+          match.machineLiveness = liveness.state;
+          if (firstConservativeDecision) {
+            this.appendMachineSystemNotice(
+              match,
+              'AI_FALLBACK_ENABLED',
+              `ai-fallback-enabled:${liveness.state.policyVersion}`,
+              'AI 已使用保守策略继续本局。'
+            );
+          }
+          if (liveness.terminalReason && !after.isEnded) {
+            this.appendMachineSystemNotice(
+              match,
+              'AI_LIVENESS_CONCEDE',
+              `ai-liveness-concede:${liveness.state.policyVersion}`,
+              buildMachineLivenessConcessionNotice(liveness.terminalReason)
+            );
+            const terminal = await this.executeMachineCommandAtRevisionInCriticalSection(
+              match.matchId,
+              participant.userId,
+              {
+                ...createSystemConcedeCommand(participant.playerId, liveness.terminalReason),
+                timestamp: this.now(),
+              },
+              match.remoteRevision,
+              criticalSection
+            );
+            return terminal.success
+              ? 'TERMINAL'
+              : terminateMachineFailure('AI 活性终局提交失败，本局已因机器决策异常结束。');
+          }
+          return after.isEnded ? 'TERMINAL' : 'PROGRESSED';
+        }
+        return submitted.reason === 'LEASE_EXPIRED' ||
+          submitted.reason === 'AUTHORITY_REVISION_CHANGED' ||
+          submitted.reason === 'WINDOW_CHANGED' ||
+          submitted.reason === 'LEASE_NOT_FOUND'
+          ? 'RETRY'
+          : terminateMachineFailure('AI 决策命令未能通过权威提交，本局已因机器决策异常结束。');
+      }
+      return 'IDLE';
+    });
+  }
+
+  private async handleMachineDecisionTerminalFailure(
+    registration: MachineDecisionScheduleRegistration,
+    reason: MachineDecisionScheduleFailureReason
+  ): Promise<void> {
+    await this.serialExecutor.runExclusive(registration.matchId, async (criticalSection) => {
+      if (!this.machineDecisionScheduler.isCurrent(registration)) return;
+      const match = this.matches.get(registration.matchId);
+      const game = match?.session.state;
+      if (!match || !game || game.isEnded || !this.shouldScheduleMachineDecisions(match)) {
+        return;
+      }
+      const participant = (['FIRST', 'SECOND'] as const)
+        .map((seat) => match.participants[seat])
+        .find((candidate) => candidate.participantKind === 'SYSTEM');
+      if (!participant) {
+        throw new Error('机器调度终端失败处理找不到 SYSTEM 参赛者');
+      }
+      const terminated = await this.terminateMachineDecisionFailureInCriticalSection(
+        match,
+        participant,
+        `ai-machine-failure:${registration.runtimeEpoch}`,
+        reason === 'BLOCKED'
+          ? 'AI 无法为当前决策生成合法操作，本局已因机器决策异常结束。'
+          : 'AI 决策调度连续发生异常，本局已因机器决策异常结束。',
+        criticalSection
+      );
+      if (!terminated && !match.session.state?.isEnded) {
+        throw new Error('机器决策异常终局提交失败');
+      }
+    });
+  }
+
+  private async terminateMachineDecisionFailureInCriticalSection(
+    match: OnlineMatchState,
+    participant: OnlineMatchParticipant,
+    dedupeKey: string,
+    text: string,
+    criticalSection: SingleMatchCriticalSection
+  ): Promise<boolean> {
+    this.appendMachineSystemNotice(match, 'AI_MACHINE_FAILURE', dedupeKey, text);
+    const terminal = await this.executeMachineCommandAtRevisionInCriticalSection(
+      match.matchId,
+      participant.userId,
+      {
+        ...createSystemConcedeCommand(participant.playerId, 'MACHINE_DECISION_FAILURE'),
+        timestamp: this.now(),
+      },
+      match.remoteRevision,
+      criticalSection
+    );
+    return terminal.success;
+  }
+
+  private incrementAuthorityRevision(match: OnlineMatchState): void {
+    incrementRemoteRevision(match);
+    this.reconcileServerDeadline(match);
+    this.reconcileMachineDecisionScheduling(match);
+  }
+
+  private reconcileServerDeadline(match: OnlineMatchState): void {
+    const game = match.session.state;
+    this.deadlineOwner.reconcileMatch(
+      match.matchId,
+      game ? { game, authorityRevision: match.remoteRevision } : null
+    );
+  }
+
+  private reconcileMachineDecisionScheduling(match: OnlineMatchState): void {
+    if (this.shouldScheduleMachineDecisions(match)) {
+      this.machineDecisionScheduler.requestMatch(match.matchId);
+    } else {
+      this.machineDecisionScheduler.cancelMatch(match.matchId);
+    }
+  }
+
+  private shouldScheduleMachineDecisions(match: OnlineMatchState): boolean {
+    const game = match.session.state;
+    return (
+      this.machineDecisionSchedulingEnabled &&
+      match.matchMode === 'ONLINE' &&
+      !!game &&
+      !game.isEnded &&
+      !match.pendingUndoRequest &&
+      !match.pendingManualOperationModeRequest &&
+      !match.activeUndoGrant &&
+      Object.values(match.participants).some(
+        (participant) => participant.participantKind === 'SYSTEM'
+      )
+    );
+  }
+
+  private appendMachineSystemNotice(
+    match: OnlineMatchState,
+    noticeCode: OnlineMatchSystemNoticeCode,
+    dedupeKey: string,
+    text: string
+  ): OnlineMatchChatMessage {
+    return appendOnlineMatchSystemNotice(
+      match.chat,
+      { noticeCode, dedupeKey, text },
+      { now: this.now() }
+    );
   }
 
   isMatchCompleted(matchId: string): boolean {
@@ -522,13 +1014,30 @@ export class OnlineMatchService {
   }
 
   async restoreMatch(match: OnlineMatchState): Promise<OnlineMatchState> {
+    return this.serialExecutor.runExclusive(match.matchId, (criticalSection) =>
+      this.restoreMatchInCriticalSection(match, criticalSection)
+    );
+  }
+
+  private async restoreMatchInCriticalSection(
+    match: OnlineMatchState,
+    criticalSection: SingleMatchCriticalSection
+  ): Promise<OnlineMatchState> {
     const existing = this.matches.get(match.matchId);
     if (existing) {
+      this.reconcileServerDeadline(existing);
+      this.reconcileMachineDecisionScheduling(existing);
       return existing;
     }
 
+    this.machineDecisionCoordinator.invalidateMatchInCriticalSection(
+      criticalSection,
+      match.matchId
+    );
     this.sealedMatchIds.delete(match.matchId);
     this.matches.set(match.matchId, match);
+    this.reconcileServerDeadline(match);
+    this.reconcileMachineDecisionScheduling(match);
     if (match.recoveryNotice) {
       await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
         summary: buildRecoverySummary(match.recoveryNotice),
@@ -629,6 +1138,16 @@ export class OnlineMatchService {
     userId: string,
     options: { readonly sinceSeq?: number } = {}
   ): Promise<OnlineMatchSnapshotResponse | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.getMatchSnapshotInCriticalSection(matchId, userId, options)
+    );
+  }
+
+  private async getMatchSnapshotInCriticalSection(
+    matchId: string,
+    userId: string,
+    options: { readonly sinceSeq?: number } = {}
+  ): Promise<OnlineMatchSnapshotResponse | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -662,6 +1181,16 @@ export class OnlineMatchService {
   }
 
   async getMatchPublicEvents(
+    matchId: string,
+    userId: string,
+    options: { readonly afterSeq?: number } = {}
+  ): Promise<PublicEventsResponse | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.getMatchPublicEventsInCriticalSection(matchId, userId, options)
+    );
+  }
+
+  private async getMatchPublicEventsInCriticalSection(
     matchId: string,
     userId: string,
     options: { readonly afterSeq?: number } = {}
@@ -1080,9 +1609,31 @@ export class OnlineMatchService {
       readonly expectedAttachmentGeneration?: number;
     } = {}
   ): Promise<OnlineSpectatorSnapshotResponse> {
+    const token = normalizeSpectatorToken(tokenInput);
+    const matchId = token ? this.spectatorLinks.get(token)?.matchId : null;
+    if (!matchId) {
+      return this.getSpectatorSnapshotInCriticalSection(tokenInput, sessionId, options, null);
+    }
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.getSpectatorSnapshotInCriticalSection(tokenInput, sessionId, options, matchId)
+    );
+  }
+
+  private async getSpectatorSnapshotInCriticalSection(
+    tokenInput: string,
+    sessionId: string | null | undefined,
+    options: {
+      readonly sinceSeq?: number;
+      readonly sinceViewVersion?: number;
+      readonly expectedRoomGeneration?: string;
+      readonly expectedAttachmentGeneration?: number;
+    } = {},
+    lockedMatchId: string | null
+  ): Promise<OnlineSpectatorSnapshotResponse> {
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
     const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
+    this.assertSpectatorMatchLock(link, lockedMatchId);
     const session = this.requireActiveSpectatorSession(link, sessionId, now);
     this.consumeSpectatorRequest(session, now);
     this.assertSpectatorGenerationExpectations(link, session, options.expectedRoomGeneration);
@@ -1165,9 +1716,30 @@ export class OnlineMatchService {
       readonly expectedAttachmentGeneration?: number;
     } = {}
   ): Promise<PublicEventsResponse> {
+    const token = normalizeSpectatorToken(tokenInput);
+    const matchId = token ? this.spectatorLinks.get(token)?.matchId : null;
+    if (!matchId) {
+      return this.getSpectatorPublicEventsInCriticalSection(tokenInput, sessionId, options, null);
+    }
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.getSpectatorPublicEventsInCriticalSection(tokenInput, sessionId, options, matchId)
+    );
+  }
+
+  private async getSpectatorPublicEventsInCriticalSection(
+    tokenInput: string,
+    sessionId: string | null | undefined,
+    options: {
+      readonly afterSeq?: number;
+      readonly expectedRoomGeneration?: string;
+      readonly expectedAttachmentGeneration?: number;
+    } = {},
+    lockedMatchId: string | null
+  ): Promise<PublicEventsResponse> {
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
     const { link, match } = this.requireActiveSpectatorLink(tokenInput, now);
+    this.assertSpectatorMatchLock(link, lockedMatchId);
     const session = this.requireActiveSpectatorSession(link, sessionId, now);
     this.consumeSpectatorRequest(session, now);
     this.assertSpectatorGenerationExpectations(link, session, options.expectedRoomGeneration);
@@ -1248,6 +1820,19 @@ export class OnlineMatchService {
     }
   }
 
+  private assertSpectatorMatchLock(
+    link: OnlineSpectatorLinkState,
+    lockedMatchId: string | null
+  ): void {
+    if (lockedMatchId !== null && link.matchId !== lockedMatchId) {
+      throw new OnlineSpectatorServiceError(
+        'ONLINE_SPECTATOR_BINDING_CHANGED',
+        '观战对局已经切换，请重新同步',
+        409
+      );
+    }
+  }
+
   getSpectatorPresenceForMatch(matchId: string): OnlineSpectatorPresenceView {
     const now = this.now();
     this.cleanupExpiredSpectatorState(now);
@@ -1304,6 +1889,16 @@ export class OnlineMatchService {
     userId: string,
     command: GameCommand
   ): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.executeCommandInCriticalSection(matchId, userId, command)
+    );
+  }
+
+  private async executeCommandInCriticalSection(
+    matchId: string,
+    userId: string,
+    command: GameCommand
+  ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -1322,7 +1917,16 @@ export class OnlineMatchService {
     const beforeState = shouldBuildDecisionRecords
       ? match.session.getAuthoritySnapshotForRecord()
       : null;
-    const result = match.session.executeCommand(commandWithPlayer);
+    const result =
+      commandWithPlayer.type === GameCommandType.SYSTEM_CONCEDE
+        ? participant.participantKind === 'SYSTEM'
+          ? match.session.executeSystemConcession(commandWithPlayer)
+          : {
+              success: false,
+              gameState: match.session.state!,
+              error: 'SYSTEM 认输只能由 SYSTEM 参赛者执行',
+            }
+        : match.session.executeCommand(commandWithPlayer);
     const afterState =
       shouldBuildDecisionRecords && result.success
         ? match.session.getAuthoritySnapshotForRecord()
@@ -1343,7 +1947,7 @@ export class OnlineMatchService {
 
     touchMatch(match);
     if (result.success) {
-      incrementRemoteRevision(match);
+      this.incrementAuthorityRevision(match);
     }
     await this.appendSessionRecordFrame(
       match,
@@ -1380,6 +1984,15 @@ export class OnlineMatchService {
   }
 
   async advancePhase(matchId: string, userId: string): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.advancePhaseInCriticalSection(matchId, userId)
+    );
+  }
+
+  private async advancePhaseInCriticalSection(
+    matchId: string,
+    userId: string
+  ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
       return null;
@@ -1413,7 +2026,7 @@ export class OnlineMatchService {
       state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE
         ? createEndPhaseCommand(participant.playerId)
         : createConfirmStepCommand(participant.playerId, state.currentSubPhase);
-    return this.executeCommand(matchId, userId, command);
+    return this.executeCommandInCriticalSection(matchId, userId, command);
   }
 
   getUndoAvailability(matchId: string, userId: string, policy?: UndoPolicy): OnlineUndoView | null {
@@ -1434,6 +2047,16 @@ export class OnlineMatchService {
   }
 
   async undoLatest(
+    matchId: string,
+    userId: string,
+    input: RemoteUndoInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.undoLatestInCriticalSection(matchId, userId, input)
+    );
+  }
+
+  private async undoLatestInCriticalSection(
     matchId: string,
     userId: string,
     input: RemoteUndoInput
@@ -1511,7 +2134,7 @@ export class OnlineMatchService {
     }
 
     match.recordBranchId = `${match.matchId}:branch:${match.remoteRevision + 1}`;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'UNDO_APPLIED', {
       summary: `撤销操作：${availability.entry.label}`,
@@ -1534,6 +2157,16 @@ export class OnlineMatchService {
   }
 
   async createUndoRequest(
+    matchId: string,
+    userId: string,
+    input: CreateUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.createUndoRequestInCriticalSection(matchId, userId, input)
+    );
+  }
+
+  private async createUndoRequestInCriticalSection(
     matchId: string,
     userId: string,
     input: CreateUndoRequestInput
@@ -1633,7 +2266,7 @@ export class OnlineMatchService {
       idempotencyKey,
     };
 
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'UNDO_REQUESTED', {
       summary: `请求撤销：${availability.entry.label}`,
@@ -1649,6 +2282,17 @@ export class OnlineMatchService {
   }
 
   async acceptUndoRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.acceptUndoRequestInCriticalSection(matchId, userId, requestId, input)
+    );
+  }
+
+  private async acceptUndoRequestInCriticalSection(
     matchId: string,
     userId: string,
     requestId: string,
@@ -1747,7 +2391,7 @@ export class OnlineMatchService {
         };
       }
     }
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     // 接受请求这个记录事实仍属于原 recordBranch；权威状态已在上方回滚。
     // 本帧不写 checkpoint，下面的 UNDO_APPLIED 才开启回滚后的新记录分支。
@@ -1761,7 +2405,7 @@ export class OnlineMatchService {
     });
 
     match.recordBranchId = `${match.matchId}:branch:${match.remoteRevision + 1}`;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     await this.appendSessionRecordFrame(match, 'UNDO_APPLIED', {
       summary: `撤销操作：${request.summary}`,
       force: true,
@@ -1782,6 +2426,17 @@ export class OnlineMatchService {
   }
 
   async rejectUndoRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondUndoRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.rejectUndoRequestInCriticalSection(matchId, userId, requestId, input)
+    );
+  }
+
+  private async rejectUndoRequestInCriticalSection(
     matchId: string,
     userId: string,
     requestId: string,
@@ -1835,7 +2490,7 @@ export class OnlineMatchService {
     }
 
     match.pendingUndoRequest = null;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'UNDO_REJECTED', {
       summary: `拒绝撤销请求：${request.summary}`,
@@ -1854,6 +2509,16 @@ export class OnlineMatchService {
   }
 
   async changeManualOperationMode(
+    matchId: string,
+    userId: string,
+    input: ChangeManualOperationModeInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.changeManualOperationModeInCriticalSection(matchId, userId, input)
+    );
+  }
+
+  private async changeManualOperationModeInCriticalSection(
     matchId: string,
     userId: string,
     input: ChangeManualOperationModeInput
@@ -1946,7 +2611,7 @@ export class OnlineMatchService {
         idempotencyKey,
       };
       match.activeUndoGrant = null;
-      incrementRemoteRevision(match);
+      this.incrementAuthorityRevision(match);
       touchMatch(match);
       await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
         summary: `${participant.displayName} 请求开启自由模式`,
@@ -1971,7 +2636,7 @@ export class OnlineMatchService {
       return { success: false, error: result.error };
     }
     match.activeUndoGrant = null;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
       summary: input.targetMode === 'FREE' ? '已切换为自由模式' : '已切换为规则模式',
@@ -1987,6 +2652,17 @@ export class OnlineMatchService {
   }
 
   async acceptManualOperationModeRequest(
+    matchId: string,
+    userId: string,
+    requestId: string,
+    input: RespondManualOperationModeRequestInput
+  ): Promise<OnlineCommandResult | null> {
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.acceptManualOperationModeRequestInCriticalSection(matchId, userId, requestId, input)
+    );
+  }
+
+  private async acceptManualOperationModeRequestInCriticalSection(
     matchId: string,
     userId: string,
     requestId: string,
@@ -2044,7 +2720,7 @@ export class OnlineMatchService {
     }
     match.pendingManualOperationModeRequest = null;
     match.activeUndoGrant = null;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
       summary: `${participant.displayName} 同意开启自由模式`,
@@ -2065,7 +2741,9 @@ export class OnlineMatchService {
     requestId: string,
     input: RespondManualOperationModeRequestInput
   ): Promise<OnlineCommandResult | null> {
-    return this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'REJECT');
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'REJECT')
+    );
   }
 
   async cancelManualOperationModeRequest(
@@ -2074,7 +2752,9 @@ export class OnlineMatchService {
     requestId: string,
     input: RespondManualOperationModeRequestInput
   ): Promise<OnlineCommandResult | null> {
-    return this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'CANCEL');
+    return this.serialExecutor.runExclusive(matchId, () =>
+      this.settleManualOperationModeRequest(matchId, userId, requestId, input, 'CANCEL')
+    );
   }
 
   private async settleManualOperationModeRequest(
@@ -2129,7 +2809,7 @@ export class OnlineMatchService {
     }
 
     match.pendingManualOperationModeRequest = null;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
       summary:
@@ -2148,8 +2828,21 @@ export class OnlineMatchService {
   }
 
   async deleteMatch(matchId: string, options: DeleteOnlineMatchOptions = {}): Promise<boolean> {
+    return this.serialExecutor.runExclusive(matchId, (criticalSection) =>
+      this.deleteMatchInCriticalSection(matchId, options, criticalSection)
+    );
+  }
+
+  private async deleteMatchInCriticalSection(
+    matchId: string,
+    options: DeleteOnlineMatchOptions,
+    criticalSection: SingleMatchCriticalSection
+  ): Promise<boolean> {
     const match = this.matches.get(matchId);
     if (!match) {
+      this.deadlineOwner.cancelMatch(matchId);
+      this.machineDecisionScheduler.cancelMatch(matchId);
+      this.machineDecisionCoordinator.invalidateMatchInCriticalSection(criticalSection, matchId);
       return true;
     }
 
@@ -2163,6 +2856,9 @@ export class OnlineMatchService {
     }
 
     const now = options.now ?? this.now();
+    this.deadlineOwner.cancelMatch(matchId);
+    this.machineDecisionScheduler.cancelMatch(matchId);
+    this.machineDecisionCoordinator.invalidateMatchInCriticalSection(criticalSection, matchId);
     this.matches.delete(matchId);
     for (const [token, link] of this.spectatorLinks) {
       if (link.matchId === matchId) {
@@ -2374,6 +3070,9 @@ export class OnlineMatchService {
   }
 
   clear(): void {
+    this.deadlineOwner.dispose();
+    this.machineDecisionScheduler.dispose();
+    this.machineDecisionCoordinator.dispose();
     this.matches.clear();
     this.spectatorLinks.clear();
     this.spectatorSessions.clear();
@@ -2614,7 +3313,7 @@ export class OnlineMatchService {
       return;
     }
     match.pendingManualOperationModeRequest = null;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
       summary,
@@ -2631,7 +3330,7 @@ export class OnlineMatchService {
     }
 
     match.pendingUndoRequest = null;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'UNDO_EXPIRED', {
       summary: `${summary}：${request.summary}`,
@@ -2675,7 +3374,7 @@ export class OnlineMatchService {
     }
 
     match.activeUndoGrant = null;
-    incrementRemoteRevision(match);
+    this.incrementAuthorityRevision(match);
     touchMatch(match);
     await this.appendSessionRecordFrame(match, 'UNDO_EXPIRED', {
       summary,
@@ -3576,10 +4275,26 @@ function getOpponentSeat(seat: Seat): Seat {
   return seat === 'FIRST' ? 'SECOND' : 'FIRST';
 }
 
+function buildMachineLivenessConcessionNotice(
+  reason: NonNullable<MachineLivenessState['terminalReason']>
+): string {
+  switch (reason) {
+    case 'AI_TURNS_WITHOUT_STRATEGIC_PROGRESS':
+      return 'AI 连续多个回合未产生规则进展，已按活性保护政策认输。';
+    case 'CONSERVATIVE_DECISION_LIMIT':
+      return 'AI 已达到本局保守决策上限，已按活性保护政策认输。';
+    case 'DEGRADED_DURATION_LIMIT':
+      return 'AI 的保守模式持续时间已达到上限，已按活性保护政策认输。';
+    case 'AUTHORITY_PROGRESS_WATCHDOG':
+      return 'AI 连续决策未推动权威状态，已按活性保护政策认输。';
+  }
+}
+
 function getCompletedMatchRecordStatus(
   authorityState: GameState | null
 ): Exclude<MatchRecordStatus, 'IN_PROGRESS'> {
-  return authorityState?.endInfo?.reason === GameEndReason.OPPONENT_SURRENDER
+  return authorityState?.endInfo?.reason === GameEndReason.OPPONENT_SURRENDER ||
+    authorityState?.endInfo?.reason === GameEndReason.SYSTEM_LIVENESS_CONCEDE
     ? 'SURRENDERED'
     : 'COMPLETED';
 }

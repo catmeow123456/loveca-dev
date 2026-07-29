@@ -24,19 +24,14 @@ import { paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import {
-  and,
-  costLte,
-  groupAliasIs,
-  typeIs,
-} from '../../../effects/card-selectors.js';
+import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { playMembersFromWaitingRoomToEmptySlots } from '../../../effects/member-state.js';
 
 const HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
   'HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_TO_PLAY';
-const S_BP6_008_SELECT_WAITING_ROOM_MEMBER_STEP_ID =
-  'S_BP6_008_SELECT_WAITING_ROOM_MEMBER_TO_PLAY';
+const S_BP6_008_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'S_BP6_008_SELECT_WAITING_ROOM_MEMBER_TO_PLAY';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -63,33 +58,40 @@ interface PlayWaitingRoomMemberToSourceSlotConfig {
   readonly targetCostLte: number;
 }
 
-const PLAY_WAITING_ROOM_MEMBER_TO_SOURCE_SLOT_WORKFLOWS: readonly PlayWaitingRoomMemberToSourceSlotConfig[] = [
-  {
-    abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!HS-bp1-002'],
-    selectStepId: HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
-    energyCost: 2,
-    targetGroupAlias: '蓮ノ空',
-    targetGroupLabel: '莲之空',
-    targetCostLte: 15,
-  },
-  {
-    abilityId: S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
-    expectedBaseCardCodes: ['PL!S-bp6-008'],
-    selectStepId: S_BP6_008_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
-    energyCost: 2,
-    targetGroupAlias: 'Aqours',
-    targetGroupLabel: 'Aqours',
-    targetCostLte: 17,
-  },
-];
+const PLAY_WAITING_ROOM_MEMBER_TO_SOURCE_SLOT_WORKFLOWS: readonly PlayWaitingRoomMemberToSourceSlotConfig[] =
+  [
+    {
+      abilityId: HS_BP1_002_ACTIVATED_PLAY_HASUNOSORA_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!HS-bp1-002'],
+      selectStepId: HS_BP1_002_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+      energyCost: 2,
+      targetGroupAlias: '蓮ノ空',
+      targetGroupLabel: '莲之空',
+      targetCostLte: 15,
+    },
+    {
+      abilityId: S_BP6_008_ACTIVATED_PLAY_AQOURS_MEMBER_TO_SOURCE_SLOT_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!S-bp6-008'],
+      selectStepId: S_BP6_008_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+      energyCost: 2,
+      targetGroupAlias: 'Aqours',
+      targetGroupLabel: 'Aqours',
+      targetCostLte: 17,
+    },
+  ];
 
 export function registerPlayWaitingRoomMemberToSourceSlotWorkflowHandlers(
   dependencies: PlayWaitingRoomMemberToSourceSlotWorkflowDependencies
 ): void {
   for (const config of PLAY_WAITING_ROOM_MEMBER_TO_SOURCE_SLOT_WORKFLOWS) {
-    registerActivatedAbilityHandler(config.abilityId, (game, playerId, cardId) =>
-      startActivatedPlayMemberToSourceSlot(game, playerId, cardId, config, dependencies)
+    registerActivatedAbilityHandler(
+      config.abilityId,
+      (game, playerId, cardId) =>
+        startActivatedPlayMemberToSourceSlot(game, playerId, cardId, config, dependencies),
+      {
+        preflight: (game, playerId, cardId) =>
+          canStartActivatedPlayMemberToSourceSlot(game, playerId, cardId, config),
+      }
     );
     registerActiveEffectStepHandler(config.abilityId, config.selectStepId, (game, input, context) =>
       finishPlayMemberToSourceSlot(
@@ -110,26 +112,12 @@ function startActivatedPlayMemberToSourceSlot(
   config: PlayWaitingRoomMemberToSourceSlotConfig,
   dependencies: PlayWaitingRoomMemberToSourceSlotWorkflowDependencies
 ): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
+  if (!canStartActivatedPlayMemberToSourceSlot(game, playerId, cardId, config)) {
     return game;
   }
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
   const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, cardId);
   const sourceSlot = getSourceMemberSlot(game, playerId, cardId);
-  if (
-    activePlayerId !== playerId ||
-    !player ||
-    !sourceCard ||
-    sourceCard.ownerId !== playerId ||
-    !config.expectedBaseCardCodes.some((baseCardCode) =>
-      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
-    ) ||
-    !isMemberCardData(sourceCard.data) ||
-    sourceSlot === null
-  ) {
-    return game;
-  }
+  if (!player || sourceSlot === null) return game;
 
   const costPayment = paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
     game,
@@ -146,11 +134,7 @@ function startActivatedPlayMemberToSourceSlot(
     return game;
   }
 
-  const selector = and(
-    typeIs(CardType.MEMBER),
-    costLte(config.targetCostLte),
-    groupAliasIs(config.targetGroupAlias)
-  );
+  const selector = createPlayWaitingRoomMemberToSourceSlotSelector(config);
   const selectableCardIds = getCardIdsInZoneMatching(
     costPayment.gameState,
     player.id,
@@ -179,8 +163,7 @@ function startActivatedPlayMemberToSourceSlot(
       controllerId: player.id,
       effectText: getAbilityEffectText(config.abilityId),
       stepId: config.selectStepId,
-      stepText:
-        `请选择自己的休息室中1张费用小于等于${config.targetCostLte}的『${config.targetGroupLabel}』成员卡登场至此成员原本所在的区域。`,
+      stepText: `请选择自己的休息室中1张费用小于等于${config.targetCostLte}的『${config.targetGroupLabel}』成员卡登场至此成员原本所在的区域。`,
       awaitingPlayerId: player.id,
       selectableCardIds,
       canSkipSelection: false,
@@ -203,6 +186,52 @@ function startActivatedPlayMemberToSourceSlot(
     sourceSlot: costPayment.sourceSlot,
     selectableCardIds,
   });
+}
+
+function canStartActivatedPlayMemberToSourceSlot(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  config: PlayWaitingRoomMemberToSourceSlotConfig
+): boolean {
+  if (
+    game.activeEffect ||
+    game.currentPhase !== GamePhase.MAIN_PHASE ||
+    game.players[game.activePlayerIndex]?.id !== playerId
+  ) {
+    return false;
+  }
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, cardId);
+  if (
+    !player ||
+    !sourceCard ||
+    sourceCard.ownerId !== playerId ||
+    !config.expectedBaseCardCodes.some((baseCardCode) =>
+      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
+    ) ||
+    !isMemberCardData(sourceCard.data) ||
+    getSourceMemberSlot(game, playerId, cardId) === null ||
+    getEnergySelectionCandidates(game, playerId, 'TAP_ACTIVE_ENERGY').length < config.energyCost
+  ) {
+    return false;
+  }
+
+  const selector = createPlayWaitingRoomMemberToSourceSlotSelector(config);
+  return (
+    selector(sourceCard) ||
+    getCardIdsInZoneMatching(game, playerId, ZoneType.WAITING_ROOM, selector).length > 0
+  );
+}
+
+function createPlayWaitingRoomMemberToSourceSlotSelector(
+  config: PlayWaitingRoomMemberToSourceSlotConfig
+) {
+  return and(
+    typeIs(CardType.MEMBER),
+    costLte(config.targetCostLte),
+    groupAliasIs(config.targetGroupAlias)
+  );
 }
 
 function finishPlayMemberToSourceSlot(

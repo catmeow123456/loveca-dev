@@ -96,7 +96,7 @@ describe('规则模式玩家命令防火墙', () => {
 
   it('规则模式允许在当前 Live 设置时点撤回本轮盖牌，但不放宽通用回手', () => {
     const session = createInitializedSession();
-    const cardId = findOwnedCardId(session.state!, CardType.MEMBER);
+    const cardId = findOwnedCardId(session.state!, CardType.LIVE);
     forceCardIntoHand(session.state!, P1, cardId);
     forceWindow(session.state!, GamePhase.LIVE_SET_PHASE, SubPhase.LIVE_SET_FIRST_PLAYER);
 

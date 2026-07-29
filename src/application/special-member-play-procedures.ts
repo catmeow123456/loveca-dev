@@ -36,6 +36,7 @@ import {
   assignLlBp7001SpecialPlayPayment,
   canAssignLlBp7001SpecialPlayPayment,
   getLlBp7001SpecialPlayHandCandidateIds,
+  getLlBp7001SpecialPlayPaymentAssignment,
   getLlBp7001SpecialPlayTargetSlots,
   getNBp7011SpecialPlayTargetSlots,
   getNBp7011WaitingRoomMemberCardIds,
@@ -71,6 +72,25 @@ export interface SpecialMemberPlayPendingUiConfig {
   readonly stepText: string;
   readonly selectionLabel: string;
   readonly confirmSelectionLabel: string;
+}
+
+export interface SpecialMemberPlayConfirmationQuery {
+  readonly pendingUi: SpecialMemberPlayPendingUiConfig;
+  readonly candidateCardIds: readonly string[];
+  readonly confirmation:
+    | {
+        readonly available: true;
+        readonly witnessCardIds: readonly string[];
+        readonly paymentPreview: {
+          readonly modifiedCost: number;
+          readonly energyCost: number;
+          readonly relayDiscount: number;
+        };
+      }
+    | {
+        readonly available: false;
+        readonly reason: string;
+      };
 }
 
 export interface SpecialMemberPlayProcedureDependencies<TPublicEvent> {
@@ -239,22 +259,15 @@ function playAfterProcedure<TPublicEvent>(
     };
   }
 
-  const resources = buildPlayMemberCostResources(game, pending.playerId, pending.sourceCardId);
-  if (!resources) {
-    return { success: false, gameState: game, error: '无法计算本次特殊登场费用' };
-  }
-  const costCheck = costCalculator.checkCanPayCost(sourceCard.data, pending.targetSlot, resources, {
-    specialPlayBaseCost: specialPlayCost,
-    ...(occupiedTarget ? { relayMode: 'SINGLE' as const } : {}),
-  });
-  const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
-  if (!plan) {
+  const costQuery = querySpecialMemberPlayCostPlan(game, pending, specialPlayCost);
+  if (!costQuery.ok) {
     return {
       success: false,
       gameState: game,
-      error: costCheck.reason ?? '活跃能量不足以完成本次特殊登场',
+      error: costQuery.reason,
     };
   }
+  const { resources, plan } = costQuery;
 
   const payment = buildProcedurePayment(
     pending,
@@ -288,6 +301,40 @@ function playAfterProcedure<TPublicEvent>(
       paidEnergyCount: plan.actualEnergyCost,
     },
   };
+}
+
+function querySpecialMemberPlayCostPlan(
+  game: GameState,
+  pending: PendingSpecialMemberPlayState,
+  specialPlayCost: number
+):
+  | {
+      readonly ok: true;
+      readonly resources: NonNullable<ReturnType<typeof buildPlayMemberCostResources>>;
+      readonly plan: CostPaymentPlan;
+    }
+  | { readonly ok: false; readonly reason: string } {
+  const player = getPlayerById(game, pending.playerId);
+  const sourceCard = game.cardRegistry.get(pending.sourceCardId);
+  if (!player || !sourceCard || !isMemberCardData(sourceCard.data)) {
+    return { ok: false, reason: '特殊登场来源已失效' };
+  }
+  const resources = buildPlayMemberCostResources(game, pending.playerId, pending.sourceCardId);
+  if (!resources) {
+    return { ok: false, reason: '无法计算本次特殊登场费用' };
+  }
+  const occupiedTarget = player.memberSlots.slots[pending.targetSlot] !== null;
+  const costCheck = costCalculator.checkCanPayCost(sourceCard.data, pending.targetSlot, resources, {
+    specialPlayBaseCost: specialPlayCost,
+    ...(occupiedTarget ? { relayMode: 'SINGLE' as const } : {}),
+  });
+  const plan = costCalculator.selectOptimalPlan(costCheck.availablePlans);
+  return plan
+    ? { ok: true, resources, plan }
+    : {
+        ok: false,
+        reason: costCheck.reason ?? '活跃能量不足以完成本次特殊登场',
+      };
 }
 
 const LL_BP7_001_PROCEDURE: SpecialMemberPlayProcedure = {
@@ -544,6 +591,102 @@ export function getSpecialMemberPlayPendingUiConfig(
   pending: PendingSpecialMemberPlayState
 ): SpecialMemberPlayPendingUiConfig | null {
   return getProcedure(pending.mode)?.pendingUi ?? null;
+}
+
+export function querySpecialMemberPlayConfirmation(
+  game: GameState,
+  pending: PendingSpecialMemberPlayState
+): SpecialMemberPlayConfirmationQuery | null {
+  const procedure = getProcedure(pending.mode);
+  if (!procedure) return null;
+
+  if (pending.mode === 'LL_BP7_001_SPECIAL_PLAY') {
+    const currentCandidateIds = getLlBp7001SpecialPlayHandCandidateIds(
+      game,
+      pending.playerId,
+      pending.sourceCardId
+    ).filter((cardId) => pending.candidateCardIds.includes(cardId));
+    const witnessCardIds = getLlBp7001SpecialPlayPaymentAssignment(
+      game,
+      pending.playerId,
+      pending.sourceCardId,
+      currentCandidateIds
+    ).map(({ cardId }) => cardId);
+    const contextError =
+      !isLlBp7001SpecialPlaySource(game, pending.playerId, pending.sourceCardId) ||
+      !getLlBp7001SpecialPlayTargetSlots(game, pending.playerId, pending.sourceCardId).includes(
+        pending.targetSlot
+      ) ||
+      pending.printedCost !== LL_BP7_001_SPECIAL_PLAY_PRINTED_COST ||
+      pending.specialPlayCost !== LL_BP7_001_SPECIAL_PLAY_COST
+        ? '特殊登场来源、目标或费用上下文已失效'
+        : witnessCardIds.length !== LL_BP7_001_SPECIAL_PLAY_REQUIRED_NAMES.length
+          ? '手牌中没有可完成指定姓名支付的成员'
+          : null;
+    return buildSpecialMemberPlayConfirmationQuery(
+      game,
+      pending,
+      procedure.pendingUi,
+      currentCandidateIds,
+      witnessCardIds,
+      contextError
+    );
+  }
+
+  const currentCandidateIds = getNBp7011WaitingRoomMemberCardIds(
+    game,
+    pending.playerId,
+    pending.sourceCardId
+  );
+  const contextError =
+    !isNBp7011SpecialPlaySource(game, pending.playerId, pending.sourceCardId) ||
+    !getNBp7011SpecialPlayTargetSlots(game, pending.playerId, pending.sourceCardId).includes(
+      pending.targetSlot
+    ) ||
+    pending.printedCost !== N_BP7_011_SPECIAL_PLAY_PRINTED_COST ||
+    pending.specialPlayCost !== N_BP7_011_SPECIAL_PLAY_COST ||
+    currentCandidateIds.length === 0
+      ? '特殊登场来源、目标、费用或休息室成员上下文已失效'
+      : null;
+  return buildSpecialMemberPlayConfirmationQuery(
+    game,
+    pending,
+    procedure.pendingUi,
+    currentCandidateIds,
+    [],
+    contextError
+  );
+}
+
+function buildSpecialMemberPlayConfirmationQuery(
+  game: GameState,
+  pending: PendingSpecialMemberPlayState,
+  pendingUi: SpecialMemberPlayPendingUiConfig,
+  candidateCardIds: readonly string[],
+  witnessCardIds: readonly string[],
+  contextError: string | null
+): SpecialMemberPlayConfirmationQuery {
+  const costQuery = contextError
+    ? null
+    : querySpecialMemberPlayCostPlan(game, pending, pending.specialPlayCost);
+  const confirmation =
+    contextError !== null
+      ? ({ available: false, reason: contextError } as const)
+      : costQuery?.ok
+        ? ({
+            available: true,
+            witnessCardIds,
+            paymentPreview: {
+              modifiedCost: costQuery.plan.modifiedCost,
+              energyCost: costQuery.plan.actualEnergyCost,
+              relayDiscount: costQuery.plan.relayDiscount,
+            },
+          } as const)
+        : ({
+            available: false,
+            reason: costQuery?.reason ?? '无法计算本次特殊登场费用',
+          } as const);
+  return { pendingUi, candidateCardIds, confirmation };
 }
 
 export function validateBeginSpecialMemberPlay(

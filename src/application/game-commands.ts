@@ -43,6 +43,8 @@ export enum GameCommandType {
   RETURN_HAND_CARD_TO_TOP = 'RETURN_HAND_CARD_TO_TOP',
   /** 主动认输；仅权威会话可决定胜者。 */
   SURRENDER = 'SURRENDER',
+  /** 仅供服务端 SYSTEM authority 使用的冻结活性认输。 */
+  SYSTEM_CONCEDE = 'SYSTEM_CONCEDE',
 }
 
 export interface BaseGameCommand {
@@ -217,10 +219,7 @@ export interface MovePublicCardToHandCommand extends BaseGameCommand {
   readonly type: GameCommandType.MOVE_PUBLIC_CARD_TO_HAND;
   readonly cardId: string;
   readonly fromZone:
-    | ZoneType.MEMBER_SLOT
-    | ZoneType.LIVE_ZONE
-    | ZoneType.SUCCESS_ZONE
-    | ZoneType.WAITING_ROOM;
+    ZoneType.MEMBER_SLOT | ZoneType.LIVE_ZONE | ZoneType.SUCCESS_ZONE | ZoneType.WAITING_ROOM;
   readonly sourceSlot?: SlotPosition;
 }
 
@@ -330,6 +329,18 @@ export interface SurrenderCommand extends BaseGameCommand {
   readonly type: GameCommandType.SURRENDER;
 }
 
+export type SystemConcessionReason =
+  | 'AI_TURNS_WITHOUT_STRATEGIC_PROGRESS'
+  | 'CONSERVATIVE_DECISION_LIMIT'
+  | 'DEGRADED_DURATION_LIMIT'
+  | 'AUTHORITY_PROGRESS_WATCHDOG'
+  | 'MACHINE_DECISION_FAILURE';
+
+export interface SystemConcedeCommand extends BaseGameCommand {
+  readonly type: GameCommandType.SYSTEM_CONCEDE;
+  readonly reason: SystemConcessionReason;
+}
+
 export type GameCommand =
   | MulliganCommand
   | SetLiveCardCommand
@@ -370,7 +381,8 @@ export type GameCommand =
   | DrawCardToHandCommand
   | DrawEnergyToZoneCommand
   | ReturnHandCardToTopCommand
-  | SurrenderCommand;
+  | SurrenderCommand
+  | SystemConcedeCommand;
 
 export function createMulliganCommand(
   playerId: string,
@@ -398,10 +410,7 @@ export function createSetLiveCardCommand(
   };
 }
 
-export function createUnsetLiveCardCommand(
-  playerId: string,
-  cardId: string
-): UnsetLiveCardCommand {
+export function createUnsetLiveCardCommand(playerId: string, cardId: string): UnsetLiveCardCommand {
   return {
     type: GameCommandType.UNSET_LIVE_CARD,
     playerId,
@@ -997,6 +1006,18 @@ export function createSurrenderCommand(playerId: string): SurrenderCommand {
   return {
     type: GameCommandType.SURRENDER,
     playerId,
+    timestamp: Date.now(),
+  };
+}
+
+export function createSystemConcedeCommand(
+  playerId: string,
+  reason: SystemConcessionReason
+): SystemConcedeCommand {
+  return {
+    type: GameCommandType.SYSTEM_CONCEDE,
+    playerId,
+    reason,
     timestamp: Date.now(),
   };
 }

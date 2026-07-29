@@ -8,14 +8,14 @@
 
 ## Boundary Summary
 
-| 层级 | 可以做 | 不可以做 |
-|---|---|---|
-| selector / query | 只读 `GameState`，返回布尔、计数、cardIds 或派生值。 | 移动卡、创建 activeEffect、改变 pending。 |
-| runtime action | 执行一个稳定原子动作，返回新 `GameState` 与动作结果。 | 表达完整卡文流程、读取 ability 文案、推进 pending。 |
-| activeEffect runtime | 创建/推进/清理选择步骤，统一可见性、metadata 与 step handler。 | 写单卡业务判断。 |
-| workflow | 表达一张或一族卡的流程，组合 runtime action 和 query。 | 重复实现底层移动/选择机制，绕过 runtime。 |
-| runner | 发现、入队、调度、继续 pending。 | 写具体卡牌 start/finish 逻辑。 |
-| domain rule | 纯规则计算或 domain 级状态投影。 | 反向依赖 application workflow。 |
+| 层级                 | 可以做                                                         | 不可以做                                            |
+| -------------------- | -------------------------------------------------------------- | --------------------------------------------------- |
+| selector / query     | 只读 `GameState`，返回布尔、计数、cardIds 或派生值。           | 移动卡、创建 activeEffect、改变 pending。           |
+| runtime action       | 执行一个稳定原子动作，返回新 `GameState` 与动作结果。          | 表达完整卡文流程、读取 ability 文案、推进 pending。 |
+| activeEffect runtime | 创建/推进/清理选择步骤，统一可见性、metadata 与 step handler。 | 写单卡业务判断。                                    |
+| workflow             | 表达一张或一族卡的流程，组合 runtime action 和 query。         | 重复实现底层移动/选择机制，绕过 runtime。           |
+| runner               | 发现、入队、调度、继续 pending。                               | 写具体卡牌 start/finish 逻辑。                      |
+| domain rule          | 纯规则计算或 domain 级状态投影。                               | 反向依赖 application workflow。                     |
 
 本回合成员卡效活跃限制属于窄 domain rule：状态只记录受影响玩家、来源、能力与创建回合，query 只回答当前回合是否有效；具体卡牌 workflow 只负责建立状态，公共成员状态 action 负责执行门禁。该边界不是任意条件或限制 DSL。
 
@@ -135,6 +135,8 @@ Rules:
 - `PL!N-bp7-011`：将自己休息室全部成员洗切并放置于主卡组底，本次特殊登场基准费用为11。
 
 每个 procedure 各自拥有 begin/confirm 校验、可序列化 pending、玩家文案配置和原子 resolve。新增真实样本应增加有限 procedure 与 RULES/FREE focused 测试，不得把支付区域、费用公式、任意移动序列或 callback 扩成特殊登场 DSL。
+
+需要在执行前完整枚举合法确认输入的调用方使用 `querySpecialMemberPlayConfirmation`。该只读查询按具体 procedure 重验来源、目标槽、固定费用上下文、当前程序候选和共享费用计划，并提供可验证 witness；它不移动卡牌、不支付费用、不触发事件。确认 selection 仍调用同一 procedure 的 `validateConfirm`，最终执行仍由 `resolveSpecialMemberPlay` 原子完成。
 
 BEGIN 的权威 guard 必须拒绝未结算 `activeEffect`、pending ability/choice/cost、check timing、inspection 或 delegated sequence，不能依赖 UI 隐藏按钮。确认时重验来源、目标槽、程序候选、区域事实、固定费用上下文与当前模式；任一步失败都返回原状态。休息室到主卡组移动必须走中央 grouped event wrapper，登场仍走标准 `ON_ENTER_STAGE`、换手 replacement 与 sealed audit 管线。
 

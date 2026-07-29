@@ -407,6 +407,10 @@ export enum GameEndReason {
   VICTORY_CONDITION = 'VICTORY_CONDITION',
   /** 对手认输 */
   OPPONENT_SURRENDER = 'OPPONENT_SURRENDER',
+  /** SYSTEM 参赛者因冻结活性政策认输 */
+  SYSTEM_LIVENESS_CONCEDE = 'SYSTEM_LIVENESS_CONCEDE',
+  /** SYSTEM 参赛者因机器决策基础设施故障结束 */
+  SYSTEM_MACHINE_FAILURE = 'SYSTEM_MACHINE_FAILURE',
   /** 双方平局 */
   DRAW = 'DRAW',
   /** 卡牌效果导致 */

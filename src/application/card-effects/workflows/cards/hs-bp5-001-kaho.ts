@@ -33,6 +33,7 @@ import {
   hasCardIdsMatchingSelector,
 } from '../../../effects/conditions.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
+import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -70,7 +71,8 @@ export function registerHsBp5001KahoWorkflowHandlers(deps: {
   );
   registerActivatedAbilityHandler(
     HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
-    startHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive
+    startHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive,
+    { preflight: canStartHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive }
   );
   registerActiveEffectStepHandler(
     HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
@@ -249,35 +251,12 @@ function startHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive(
   playerId: string,
   cardId: string
 ): GameState {
-  if (game.activeEffect || game.currentPhase !== GamePhase.MAIN_PHASE) {
+  if (!canStartHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive(game, playerId, cardId)) {
     return game;
   }
-  const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
   const player = getPlayerById(game, playerId);
-  const sourceCard = getCardById(game, cardId);
-  if (
-    activePlayerId !== playerId ||
-    !player ||
-    !sourceCard ||
-    sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!HS-bp5-001') ||
-    !isMemberCardData(sourceCard.data) ||
-    !findMemberSlot(player, cardId)
-  ) {
-    return game;
-  }
-
-  const selectableHandLiveCardIds = player.hand.cardIds.filter((handCardId) => {
-    const handCard = getCardById(game, handCardId);
-    return (
-      handCard !== null &&
-      isLiveCardData(handCard.data) &&
-      getSameNameWaitingRoomLiveCardIds(game, player.id, handCardId).length > 0
-    );
-  });
-  if (selectableHandLiveCardIds.length === 0) {
-    return game;
-  }
+  if (!player) return game;
+  const selectableHandLiveCardIds = getHsBp5KahoSelectableHandLiveCardIds(game, player.id);
 
   let state = recordAbilityUseForContext(game, player.id, {
     abilityId: HS_BP5_001_ACTIVATED_REVEAL_HAND_LIVE_RECOVER_SAME_NAME_LIVE_ABILITY_ID,
@@ -326,6 +305,48 @@ function startHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive(
     step: 'PAY_COST_SELECT_HAND_LIVE',
     paidEnergyCardIds: costPayment.paidEnergyCardIds,
     selectableCardIds: selectableHandLiveCardIds,
+  });
+}
+
+function canStartHsBp5KahoActivatedRevealHandLiveRecoverSameNameLive(
+  game: GameState,
+  playerId: string,
+  cardId: string
+): boolean {
+  if (
+    game.activeEffect ||
+    game.currentPhase !== GamePhase.MAIN_PHASE ||
+    game.players[game.activePlayerIndex]?.id !== playerId
+  ) {
+    return false;
+  }
+  const player = getPlayerById(game, playerId);
+  const sourceCard = getCardById(game, cardId);
+  return (
+    player !== null &&
+    sourceCard !== null &&
+    sourceCard.ownerId === playerId &&
+    cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!HS-bp5-001') &&
+    isMemberCardData(sourceCard.data) &&
+    findMemberSlot(player, cardId) !== null &&
+    getEnergySelectionCandidates(game, playerId, 'TAP_ACTIVE_ENERGY').length >= 2 &&
+    getHsBp5KahoSelectableHandLiveCardIds(game, playerId).length > 0
+  );
+}
+
+function getHsBp5KahoSelectableHandLiveCardIds(
+  game: GameState,
+  playerId: string
+): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) return [];
+  return player.hand.cardIds.filter((handCardId) => {
+    const handCard = getCardById(game, handCardId);
+    return (
+      handCard !== null &&
+      isLiveCardData(handCard.data) &&
+      getSameNameWaitingRoomLiveCardIds(game, player.id, handCardId).length > 0
+    );
   });
 }
 
