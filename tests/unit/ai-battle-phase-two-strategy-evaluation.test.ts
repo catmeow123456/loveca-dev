@@ -23,11 +23,13 @@ function game(
     decisionCount: reasons.length,
     historyContextDecisionCount: Math.max(0, reasons.length - 1),
     records: reasons.map((reason, index) => ({
-      schemaVersion: 'ai-battle.strategy-decision-record/v1',
+      schemaVersion: 'ai-battle.strategy-decision-record/v2',
       decisionAudit: {
-        schemaVersion: 'ai-battle.strategy-decision-audit/v1',
+        schemaVersion: 'ai-battle.strategy-decision-audit/v2',
         contextSchemaVersion: 'ai-battle.strategy-context/v1',
         observationSchemaVersion: 'ai-battle.observation/v1',
+        decisionContractVersion: 'ai-battle.decision-contract/v1',
+        commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
         contextSha256: `sha256:${'0'.repeat(64)}`,
         authorityRevision: index,
         seat: 'FIRST',

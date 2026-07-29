@@ -136,6 +136,7 @@ export interface MatchEndView {
 export interface ViewParticipant {
   readonly id: string;
   readonly name: string;
+  readonly participantKind: 'USER' | 'SYSTEM';
 }
 
 export interface LiveResultViewState {

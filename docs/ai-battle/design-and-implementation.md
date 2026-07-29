@@ -4,9 +4,9 @@
 >
 > 适用范围：受控卡组 AI 对战的目标架构、职责边界、实施阶段、验收门槛和风险控制
 >
-> 当前状态：修订草稿；同时记录目标设计与阶段实施状态，不代表玩家可用的完整 AI 对战产品已经实现
+> 当前状态：Phase 0～3 已完成；Phase 4 的 LLM 闭环和普通玩家入口尚未实现
 >
-> 日期：2026-07-29
+> 日期：2026-07-30
 >
 > 上游分析：[AI 对战基础设施可行性分析](feasibility-analysis.md)
 >
@@ -829,7 +829,7 @@ AI 需要能够完成：
 - 先后手选择。
 - 进入正式对局。
 
-基础 headless 阶段可以直接创建受控对局；独立 AI 入口阶段复用正式联机创建和开局能力，并由服务端自动完成 SYSTEM 席位的准备、猜拳与先后手选择。公共牌桌接入阶段再把同一系统席位语义接入真人候场流程。
+基础 headless 阶段可以直接创建受控对局。Phase 3 的管理员内部入口不创建临时 `OnlineRoom`，也不伪造第二个可登录 USER 或 room presence；它通过版本化受控赛前解析器标记双方准备完成，复用真人房间同一份猜拳胜负规则，并按冻结政策让 SYSTEM 确定性获胜后选择请求的先后手，再直接创建 USER + SYSTEM `OnlineMatch`。Phase 4 的普通玩家独立入口仍需明确产品房间、presence 和双端进入体验；Phase 5 公共牌桌接入再把同一系统席位语义接入真人候场、双方确认和容量治理流程。
 
 ### 10.3 对局政策
 
@@ -1048,8 +1048,8 @@ AI 不伪装成真人。
 > 窗口行为证据现在还会额外验证保守策略选择能够通过共源 validator 并物化现有命令。由此本节
 > 的五项阶段门槛均已有 focused evidence；版本、受控运行边界、冻结阈值和各门槛测试锚点由
 > `src/server/ai-battle/phase-one-b-baseline.ts` 统一冻结，避免文档完成声明脱离可执行证据。
-> 随机事实、随机合法机器人和多种子整局 playout 已由 Phase 1C 完成，正式 SYSTEM 产品入口仍
-> 属于 Phase 3。
+> 随机事实、随机合法机器人和多种子整局 playout 已由 Phase 1C 完成；正式 SYSTEM 内部入口
+> 后续已由 Phase 3 完成。
 
 目标：
 
@@ -1137,9 +1137,10 @@ AI 不伪装成真人。
 > allowlist 摘要和脱敏决策描述，`strategy-context/v1` 已组合 `compact-rules/v1` 与分别绑定
 > 两个 Phase 0 精确内容哈希的固定卡组 playbook。`explainable-policy/v1` 只消费该 context，
 > 将选择分为 `RULE_FORCED / DETERMINISTIC / HEURISTIC` 并输出短 reason code、summary 与
-> 结构化选择；`strategy-decision-audit/v1` 记录脱敏 context SHA-256、版本、层级、候选与选择，
+> 结构化选择；`strategy-decision-audit/v2` 记录脱敏 context SHA-256、观察/决策契约/命令适配器
+> 版本、策略层级、候选与选择，
 > 不保存私有思维链。`selected-history/v2` 已提供按席位隔离、定长且不保留 contract-local ID 的
-> 精选可见历史；`strategy-decision-record/v1` 将 context 哈希、哈希化 contract 身份、结构化
+> 精选可见历史；`strategy-decision-record/v2` 将 context 哈希、哈希化 contract 身份、结构化
 > 选择、命令执行结果和规则随机事实引用写入受限 headless 评测 artifact。
 > `strategy-evaluation/v1` 已冻结完成率、命令拒绝、历史覆盖、策略层级、成员展开、LIVE 设置和
 > 成功 LIVE 选择指标。八个认证卡组/先后手单元各 8 个确定性种子的 64 局专用回归全部完成，
@@ -1147,9 +1148,9 @@ AI 不伪装成真人。
 > 三层策略，以及成员展开、LIVE 设置、成功 LIVE 选择三项基础策略行为。机器可读完成基线见
 > `phase-two-baseline.ts`。
 >
-> Phase 2 只持久化无真实用户数据的受限测试审计/评测 artifact；正式 match record 写入必须与
-> Phase 3 的 SYSTEM 席位原子提交链路共同接线，避免在不存在正式 AI 参赛者时提前制造第二条
-> 在线写入路径。这不影响本阶段的审计、评测和完成门槛，也不开放 Phase 3 产品入口。
+> Phase 2 只持久化无真实用户数据的受限测试审计/评测 artifact；正式 match record 写入后续已
+> 由 Phase 3 与 SYSTEM 席位原子提交链路共同接线，没有建立第二条在线写入路径。Phase 2
+> 自身的审计、评测和完成门槛保持不变。
 
 目标：
 
@@ -1174,10 +1175,61 @@ AI 不伪装成真人。
 
 ### 阶段 3：正式 SYSTEM 席位与内部受控接入
 
+> 当前进展（2026-07-30）：**COMPLETE**。正式身份
+> `ai-battle.system-participant-identity/v1` 使用保留的 `system:` 执行身份，
+> `loginAllowed=false`，并在每局绑定精确卡组内容哈希、Phase 0
+> 规则/权威卡牌数据/矩阵/证据版本、typed decision contract、命令适配器、
+> 压缩规则、playbook、strategy context、可解释策略、赛前和生命周期政策版本。普通在线命令
+> 入口会拒绝 SYSTEM 参赛者；机器命令只能通过服务端内部提交边界，在既有按局 FIFO 临界区内
+> 复核 participant kind、authority revision、
+> lease、窗口和结构化选择。正式运行态不再使用 Phase 1B 的保守选择器作为主策略：具有正式
+> 绑定的 SYSTEM 席位会从标准玩家投影和 typed contract 构造 Phase 2 strategy context，运行
+> `ai-battle.explainable-policy/v1`，并把脱敏后的
+> `ai-battle.strategy-decision-record/v2` 与对应命令事实写入同一个 match-record frame 事务；
+> audit 明确记录当次 decision contract 与 command adapter 版本。
+>
+> 受控入口为认证管理员使用的 `/api/online/admin/ai-battles`，只接受两个 Phase 0 卡组键和明确
+> AI 席位，不是普通玩家产品入口。它从版本控制 YAML 重新计算 canonical hash，再以发布卡牌
+> registry 生成 runtime deck；YAML 内容漂移会拒绝建局。卡牌规则代码和发布卡牌数据继续按
+> 项目统一版本发布、Phase 0 认证和 focused tests 管理，不再维护一份无法覆盖完整代码语义的
+> AI 专用 runtime 规则哈希；每局实际使用的卡牌数据仍由既有 match-record `cardDataHash` 记录。
+> 真人和 SYSTEM 均进入标准 `OnlineMatchService`、
+> `ONLINE` match、`RULES`、`OnlineMatchSnapshot`、聊天和历史链路，因此前端仍消费共享 `GameBoard` /
+> `PlayerArea`，没有 AI 专用桌面。投影会显式标记 `participantKind=SYSTEM`，开局聊天追加一次
+> `AI_MATCH_READY`，而策略上下文仍不读取聊天。该内部入口按真人 user id 串行执行创建、刷新、
+> 重开和离开，避免并发创建绕过“每名真人最多一局受控 AI 对局”的检查。
+>
+> Phase 3 的自动赛前是 `ai-battle.controlled-pregame-result/v1` 版本化服务端解析结果，不是
+> 一次伪造的双 USER 房间流程：它复用 `OnlineRoomService` 使用的共享猜拳胜负函数，固定
+> SYSTEM 出石头、真人出剪刀，再由 SYSTEM 胜者选择请求的 `FIRST` / `SECOND`。因此管理员
+> 内部入口不会登记临时 `OnlineRoom` 或 room presence。AI match 的聊天 HTTP 路由改为由
+> `OnlineMatchService` 按真实 match participant 授权；普通 USER 对局仍保留 room presence
+> 检查，退出房间的真人不能借此继续发言。
+>
+> 首版生命周期政策已经冻结：刷新恢复同一内存 match；AI 对局不接受撤销协商，也不能切换
+> `FREE`；重开由 SYSTEM 自动同意，封存旧局后创建同配置新局；显式离开先按真人认输结束，再
+> 删除运行态。全局机器调度只接受 `ONLINE + AI_BATTLE + 单一已认证 SYSTEM binding`；普通
+> `ONLINE_ROOM` 的未绑定 SYSTEM 或篡改认证版本的 binding 会在建局时被拒绝，`SOLITAIRE`
+> 则明确排除在战术调度之外。
+> Phase 2 正式主策略只使用始终开启的 authority progress watchdog，不累计“保守决策次数”、
+> “降级持续时间”或“连续无战略进展 AI 回合”；3 回合、256 决策和 5 分钟阈值只在 Phase 4
+> 确认切换到保守降级后开始计数。不可恢复机器故障继续使用独立 SYSTEM 终局与去重通知。
+> `drizzle/0010_simple_the_leader.sql` 增加 `AI_BATTLE` origin、`AI_CERTIFIED_DECK` source、
+> SYSTEM 身份快照和受限策略记录字段。八个认证卡组/先后手单元各以真实
+> USER + SYSTEM `OnlineMatchService` 链路完成 1 局，无 LLM、无 `FREE`。验收使用真实版本控制
+> YAML、canonical hash 和权威测试 card registry
+> 构造运行卡组；每个单元都断言自然规则终局、正式主策略未进入保守降级、至少一条策略记录、
+> 所有策略提交零权威拒绝，且没有 `SYSTEM_MACHINE_FAILURE` / `SYSTEM_LIVENESS_CONCEDE`。
+> 另有 HTTP 管理入口/无房间 AI 聊天、并发创建、策略审计不包含 authority object id，以及
+> recorder SQL JSONB 参数的
+> focused tests。八局完成测试本身使用内存 recorder，数据库字段与原子策略 frame 由独立
+> recorder 单测和单局集成记录 harness 验证，不把八局完成错误表述为八局真实数据库写入。
+> 机器可读完成基线见 `src/server/ai-battle/phase-three-baseline.ts`。
+
 目标：
 
 - 建立不可登录的 AI 系统身份和服务端内部提交授权边界。
-- 复用正式联机 match runtime、赛前能力、投影、命令、记录和聊天。
+- 复用正式联机 match runtime、共享猜拳规则、投影、命令、记录和聊天；内部入口的受控赛前不伪造临时真人房间。
 - 使用阶段 2 的确定性/启发式策略完成内部受控真实链路验证。
 - 提供仅供开发、测试或受限运营使用的内部入口，不在此阶段公开面向普通玩家。
 - 完成刷新、离开、撤销、重开和异常终局的首版政策验证。
@@ -1194,9 +1246,10 @@ AI 不伪装成真人。
 
 - AI 命令不能通过普通用户身份伪造。
 - SYSTEM 席位与真人命令共享同一权威校验、revision 和单局串行写入边界。
+- 同一真人并发创建受控 AI 对局时只能成功创建一局。
 - AI 对战前端不分叉 `GameBoard` / `PlayerArea`。
 - 内部受控入口在不接 LLM 时可以稳定完成真实体验验证。
-- 赛前、刷新和对局异常都有明确结果。
+- 受控赛前、无房间 AI 聊天、刷新和对局异常都有明确结果；普通联机聊天的 room presence 约束不被放宽。
 - 不发生隐藏信息泄漏。
 
 ### 阶段 4：LLM 对战闭环与玩家受控入口
@@ -1300,7 +1353,6 @@ AI 不伪装成真人。
 
 以下问题需要在对应实施阶段开始前明确，但不阻塞当前设计草稿：
 
-- AI 是否接受撤销与重开，以及采用什么默认政策。
 - AI 对局是否进入普通历史、胜率或未来奖励。
 - 公共牌桌等待多久后允许 AI 补位。
 - 玩家能否主动拒绝 AI 对手。
@@ -1312,9 +1364,10 @@ AI 不伪装成真人。
 - 首版卡组为 μ's 预组和绿莲 6 弹，按规范化内容哈希认证。
 - 产品上使用独立 AI 对战入口，底层复用正式联机基础设施，不改造 `SOLITAIRE` 为战术 AI。
 - AI 使用不可登录的 SYSTEM 席位。
+- Phase 3 内部入口的首版生命周期政策为：禁用撤销和 `FREE`，重开由 SYSTEM 自动接受并创建新局，显式离开按真人认输处理，刷新续接当前内存 match。
 - 决策契约是现有规则查询的 typed read model，不建设通用卡效 DSL。
 - 供应商故障通过服务端专用 `SYSTEM_NOTICE` 告知玩家，本局先切换到保守确定性策略；策略必须继续产生规则进展或在冻结活性阈值内安全终局。玩家聊天不进入模型上下文。
-- 保守策略达到 Phase 0 冻结的活性阈值时由 SYSTEM 认输，并使用区别于玩家 `OPPONENT_SURRENDER` 和基础设施失败的权威终局原因；实现该终局前需要扩展当前 `GameEndReason` / 记录投影，不能复用玩家认输原因冒充。
+- 保守策略达到 Phase 0 冻结的活性阈值时由 SYSTEM 认输，并使用区别于玩家 `OPPONENT_SURRENDER` 和基础设施失败的 `SYSTEM_LIVENESS_CONCEDE`；不可恢复机器故障使用 `SYSTEM_MACHINE_FAILURE`。
 
 ## 16. 第一轮实施建议
 

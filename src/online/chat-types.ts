@@ -15,7 +15,7 @@ export interface OnlineMatchPlayerChatMessage extends OnlineMatchChatMessageBase
 }
 
 export type OnlineMatchSystemNoticeCode =
-  'AI_FALLBACK_ENABLED' | 'AI_LIVENESS_CONCEDE' | 'AI_MACHINE_FAILURE';
+  'AI_MATCH_READY' | 'AI_FALLBACK_ENABLED' | 'AI_LIVENESS_CONCEDE' | 'AI_MACHINE_FAILURE';
 
 export interface OnlineMatchSystemNotice extends OnlineMatchChatMessageBase {
   readonly messageType: 'SYSTEM_NOTICE';

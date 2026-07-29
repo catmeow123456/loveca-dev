@@ -38,6 +38,8 @@ import type {
 } from '../../online/replay-types.js';
 import type { PrivateEvent, PublicEvent, Seat } from '../../online/types.js';
 import type { Glicko1Config } from '../rating/glicko.js';
+import type { AiStrategyDecisionRecord } from '../ai-battle/strategy-decision-audit.js';
+import type { AiSystemParticipantBinding } from '../ai-battle/system-participant.js';
 
 export type UserRole = 'user' | 'admin';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
@@ -593,7 +595,7 @@ export const matchRecords = pgTable(
     ),
     check(
       'match_records_origin_kind_check',
-      sql`${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE', 'RANKED', 'SOLITAIRE')`
+      sql`${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE', 'RANKED', 'AI_BATTLE', 'SOLITAIRE')`
     ),
     check(
       'match_records_status_check',
@@ -645,7 +647,7 @@ export const matchDeckSnapshots = pgTable(
     check('match_deck_snapshots_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
     check(
       'match_deck_snapshots_source_check',
-      sql`${table.source} IN ('ONLINE_RUNTIME_DECK', 'PUBLISHED_CARDS_SNAPSHOT', 'SOLITAIRE_DEFAULT_DECK')`
+      sql`${table.source} IN ('ONLINE_RUNTIME_DECK', 'PUBLISHED_CARDS_SNAPSHOT', 'AI_CERTIFIED_DECK', 'SOLITAIRE_DEFAULT_DECK')`
     ),
     check(
       'match_deck_snapshots_validation_state_check',
@@ -672,6 +674,7 @@ export const matchParticipants = pgTable(
       .notNull()
       .default('USER'),
     ownerUserId: text('owner_user_id'),
+    systemIdentitySnapshot: jsonb('system_identity_snapshot').$type<AiSystemParticipantBinding>(),
     deckSnapshotId: uuid('deck_snapshot_id').references(() => matchDeckSnapshots.id, {
       onDelete: 'set null',
     }),
@@ -829,6 +832,7 @@ export const matchDecisionRecords = pgTable(
     transitionSemantics: text('transition_semantics')
       .$type<MatchDecisionTransitionSemantics>()
       .notNull(),
+    strategyRecord: jsonb('strategy_record').$type<AiStrategyDecisionRecord>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
@@ -837,7 +841,7 @@ export const matchDecisionRecords = pgTable(
     index('idx_match_decision_records_waiting_seat').on(table.matchId, table.waitingSeat),
     check(
       'match_decision_records_type_check',
-      sql`${table.decisionType} IN ('ACTIVE_EFFECT_OPENED', 'ACTIVE_EFFECT_SUBMITTED', 'PENDING_ABILITY_ORDER_SUBMITTED', 'ACTIVATE_ABILITY_SUBMITTED', 'MULLIGAN_SUBMITTED', 'SET_LIVE_CARD_SUBMITTED', 'SELECT_SUCCESS_LIVE_SUBMITTED')`
+      sql`${table.decisionType} IN ('ACTIVE_EFFECT_OPENED', 'ACTIVE_EFFECT_SUBMITTED', 'PENDING_ABILITY_ORDER_SUBMITTED', 'ACTIVATE_ABILITY_SUBMITTED', 'MULLIGAN_SUBMITTED', 'SET_LIVE_CARD_SUBMITTED', 'SELECT_SUCCESS_LIVE_SUBMITTED', 'AI_STRATEGY_SUBMITTED')`
     ),
     check('match_decision_records_status_check', sql`${table.status} IN ('OPENED', 'SUBMITTED')`),
     check(

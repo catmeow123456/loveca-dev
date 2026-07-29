@@ -22,6 +22,8 @@ import type {
   ReplayVisibilityScope,
 } from '../../online/replay-types.js';
 import type { PrivateEvent, PublicEvent, Seat } from '../../online/types.js';
+import type { AiStrategyDecisionRecord } from '../ai-battle/strategy-decision-audit.js';
+import type { AiSystemParticipantBinding } from '../ai-battle/system-participant.js';
 import type { OnlineMatchState } from './online-match-service.js';
 import {
   GAME_STATE_SCHEMA_VERSION,
@@ -63,6 +65,7 @@ export interface MatchRecorderParticipantInput {
   readonly playerId: string;
   readonly participantKind?: MatchParticipantKind;
   readonly ownerUserId?: string | null;
+  readonly systemIdentitySnapshot?: AiSystemParticipantBinding | null;
 }
 
 export interface MatchRecorderCardSummary {
@@ -154,6 +157,7 @@ export interface MatchDecisionRecordInput {
   readonly resultSummary?: string | null;
   readonly replayCapability?: ReplayCapability;
   readonly transitionSemantics: MatchDecisionTransitionSemantics;
+  readonly strategyRecord?: AiStrategyDecisionRecord | null;
 }
 
 export interface AppendMatchRecordFrameInput {
@@ -417,9 +421,10 @@ export class MatchRecorderService {
             player_id,
             participant_kind,
             owner_user_id,
+            system_identity_snapshot,
             deck_snapshot_id,
             replay_access
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'PARTICIPANT')`,
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'PARTICIPANT')`,
           [
             input.matchId,
             participant.userId,
@@ -428,6 +433,9 @@ export class MatchRecorderService {
             participant.playerId,
             participant.participantKind ?? 'USER',
             participant.ownerUserId ?? null,
+            participant.systemIdentitySnapshot
+              ? toJsonbParam(participant.systemIdentitySnapshot)
+              : null,
             deckSnapshotIds[seat] ?? null,
           ]
         );
@@ -564,7 +572,8 @@ export class MatchRecorderService {
         input.frameType !== 'COMMAND_REJECTED' &&
         input.writeAuthorityCheckpoint !== false;
       const checkpointSeq = shouldWriteCheckpoint ? cursor.lastCheckpointSeq + 1 : null;
-      const recordTurnCount = input.authorityState?.turnCount ?? input.stateSummary?.turnCount ?? null;
+      const recordTurnCount =
+        input.authorityState?.turnCount ?? input.stateSummary?.turnCount ?? null;
       const timelineTurnCount = recordTurnCount ?? cursor.turnCount;
       const phase = input.authorityState
         ? String(input.authorityState.currentPhase)
@@ -799,6 +808,7 @@ export function buildMatchRecorderBeginInputFromOnlineMatch(
         playerId: match.participants.FIRST.playerId,
         participantKind: match.participants.FIRST.participantKind,
         ownerUserId: match.participants.FIRST.ownerUserId,
+        systemIdentitySnapshot: match.systemParticipantBindings.FIRST ?? null,
       },
       SECOND: {
         seat: 'SECOND',
@@ -807,6 +817,7 @@ export function buildMatchRecorderBeginInputFromOnlineMatch(
         playerId: match.participants.SECOND.playerId,
         participantKind: match.participants.SECOND.participantKind,
         ownerUserId: match.participants.SECOND.ownerUserId,
+        systemIdentitySnapshot: match.systemParticipantBindings.SECOND ?? null,
       },
     },
     deckSnapshots: {
@@ -1129,12 +1140,13 @@ async function insertDecisionRecordRows(
         result_summary,
         replay_capability,
         transition_semantics,
+        strategy_record,
         created_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
         $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
         $21, $22, $23, $24, $25, $26, $27, $28, $29, $30,
-        $31, $32, $33, $34, $35, $36
+        $31, $32, $33, $34, $35, $36, $37
       )
       ON CONFLICT (match_id, decision_id) DO NOTHING`,
       [
@@ -1174,6 +1186,7 @@ async function insertDecisionRecordRows(
         record.resultSummary ?? null,
         record.replayCapability ?? 'DECISION_RECORDS_PARTIAL',
         record.transitionSemantics,
+        record.strategyRecord ? toJsonbParam(record.strategyRecord) : null,
         toDate(input.createdAt),
       ]
     );

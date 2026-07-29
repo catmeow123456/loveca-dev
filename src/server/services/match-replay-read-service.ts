@@ -39,7 +39,7 @@ import type {
   ReplaySerializedPayloadEnvelope,
   ReplayVisibilityScope,
 } from '../../online/replay-types.js';
-import type { Seat } from '../../online/types.js';
+import type { PlayerViewState, Seat } from '../../online/types.js';
 import { GameMode } from '../../shared/types/enums.js';
 import {
   DEBUG_REPLAY_BUNDLE_SCHEMA_VERSION,
@@ -780,7 +780,10 @@ export class MatchReplayReadService {
     assertReplayDataAvailable(access.completeness);
     validateRecordCompatibility(access);
 
-    const checkpoint = await this.getAuthorityCheckpoint(matchId, checkpointSeq);
+    const [checkpoint, participants] = await Promise.all([
+      this.getAuthorityCheckpoint(matchId, checkpointSeq),
+      this.getParticipants(matchId),
+    ]);
     if (!checkpoint) {
       throw new MatchReplayReadServiceError(
         'MATCH_RECORD_CHECKPOINT_NOT_FOUND',
@@ -795,10 +798,13 @@ export class MatchReplayReadService {
     const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
     validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
     await this.validateCardDataCompatibility(matchId, access, authorityState);
-    const playerViewState = projectPlayerViewState(authorityState, access.viewer_player_id, {
-      seq: checkpoint.related_public_seq ?? 0,
-      gameMode: toProjectorGameMode(access.automation_game_mode),
-    });
+    const playerViewState = applyReplayParticipantKinds(
+      projectPlayerViewState(authorityState, access.viewer_player_id, {
+        seq: checkpoint.related_public_seq ?? 0,
+        gameMode: toProjectorGameMode(access.automation_game_mode),
+      }),
+      participants
+    );
     const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
     const mappedFrame = frame ? mapTimelineRow(frame, access.viewer_seat) : null;
     const [publicEvents, privateEvents, decisionRecords] = await Promise.all([
@@ -857,14 +863,8 @@ export class MatchReplayReadService {
     assertReplayDataAvailable(record.completeness);
     validateAdminRecordCompatibility(record);
 
-    const participants = await this.queryClient.query<ParticipantRow>(
-      `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
-      FROM match_participants
-      WHERE match_id = $1
-      ORDER BY seat`,
-      [matchId]
-    );
-    const participant = participants.rows.find((candidate) => candidate.seat === viewerSeat);
+    const participants = await this.getParticipants(matchId);
+    const participant = participants.find((candidate) => candidate.seat === viewerSeat);
     if (!participant) {
       throw new MatchReplayReadServiceError(
         'MATCH_RECORD_VIEWER_SEAT_INVALID',
@@ -888,10 +888,13 @@ export class MatchReplayReadService {
     const authorityState = rehydrateAuthorityCheckpoint(checkpoint);
     validateCheckpointMatchesAuthorityState(matchId, checkpoint, authorityState);
     await this.validateCardDataCompatibility(matchId, record, authorityState);
-    const playerViewState = projectPlayerViewState(authorityState, participant.player_id, {
-      seq: checkpoint.related_public_seq ?? 0,
-      gameMode: toProjectorGameMode(record.automation_game_mode),
-    });
+    const playerViewState = applyReplayParticipantKinds(
+      projectPlayerViewState(authorityState, participant.player_id, {
+        seq: checkpoint.related_public_seq ?? 0,
+        gameMode: toProjectorGameMode(record.automation_game_mode),
+      }),
+      participants
+    );
     const frame = await this.getTimelineFrame(matchId, checkpoint.timeline_seq);
     const mappedFrame = frame ? mapTimelineRow(frame, viewerSeat) : null;
     const [publicEvents, privateEvents, decisionRecords] = await Promise.all([
@@ -946,6 +949,17 @@ export class MatchReplayReadService {
       [matchId, userId]
     );
     return result.rows[0] ?? null;
+  }
+
+  private async getParticipants(matchId: string): Promise<readonly ParticipantRow[]> {
+    const participants = await this.queryClient.query<ParticipantRow>(
+      `SELECT seat, user_id, display_name, player_id, participant_kind, owner_user_id
+      FROM match_participants
+      WHERE match_id = $1
+      ORDER BY seat`,
+      [matchId]
+    );
+    return participants.rows;
   }
 
   private async getAdminRecord(matchId: string): Promise<AdminRecordRow | null> {
@@ -1717,6 +1731,42 @@ function mapParticipantRow(row: ParticipantRow): MatchRecordParticipantView {
     playerId: row.player_id,
     participantKind: row.participant_kind,
     ownerUserId: row.owner_user_id,
+  };
+}
+
+function applyReplayParticipantKinds(
+  playerViewState: PlayerViewState,
+  participants: readonly ParticipantRow[]
+): PlayerViewState {
+  const participantKinds = Object.fromEntries(
+    REPLAY_READ_SEATS.map((seat) => {
+      const participant = participants.find((candidate) => candidate.seat === seat);
+      if (!participant) {
+        throw new MatchReplayReadServiceError(
+          'MATCH_RECORD_PARTICIPANTS_INVALID',
+          `历史对局缺少 ${seat} 参赛者记录`,
+          500
+        );
+      }
+      return [seat, participant.participant_kind];
+    })
+  ) as Readonly<Record<Seat, MatchParticipantKind>>;
+
+  return {
+    ...playerViewState,
+    match: {
+      ...playerViewState.match,
+      participants: {
+        FIRST: {
+          ...playerViewState.match.participants.FIRST,
+          participantKind: participantKinds.FIRST,
+        },
+        SECOND: {
+          ...playerViewState.match.participants.SECOND,
+          participantKind: participantKinds.SECOND,
+        },
+      },
+    },
   };
 }
 

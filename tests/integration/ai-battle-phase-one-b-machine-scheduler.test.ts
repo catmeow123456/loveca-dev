@@ -11,11 +11,30 @@ import {
   type MemberCardData,
 } from '../../src/domain/entities/card';
 import type { MachineDecisionTimerHandle } from '../../src/server/ai-battle/machine-decision-scheduler';
+import {
+  createMachineLivenessState,
+  recordMachineLivenessDecision,
+} from '../../src/server/ai-battle/rule-progress';
+import { createAiSystemParticipantBinding } from '../../src/server/ai-battle/system-participant';
 import { OnlineMatchService } from '../../src/server/services/online-match-service';
 import { CardType, GameEndReason, GamePhase, HeartColor } from '../../src/shared/types/enums';
+import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
 
 interface ManualTimerHandle extends MachineDecisionTimerHandle {
   readonly id: number;
+}
+
+const FORMAL_SYSTEM_BINDING = createAiSystemParticipantBinding('MUSE_STARTER');
+
+function createFormalSystemPlayer() {
+  return {
+    userId: FORMAL_SYSTEM_BINDING.userId,
+    displayName: '机器',
+    deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
+    deckSource: 'AI_CERTIFIED_DECK' as const,
+    participantKind: 'SYSTEM' as const,
+    systemParticipantBinding: FORMAL_SYSTEM_BINDING,
+  };
 }
 
 function createManualTimers() {
@@ -123,6 +142,49 @@ async function drainMachineSchedule(
 }
 
 describe('AI battle Phase 1B automatic machine scheduler', () => {
+  it('rejects ONLINE SYSTEM seats outside a certified AI_BATTLE binding', async () => {
+    const service = new OnlineMatchService({
+      recorder: null,
+      idGenerator: () => 'invalid-system-boundary-match',
+    });
+    const systemWithoutBinding = {
+      userId: FORMAL_SYSTEM_BINDING.userId,
+      displayName: '机器',
+      deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
+      deckSource: 'AI_CERTIFIED_DECK' as const,
+      participantKind: 'SYSTEM' as const,
+    };
+    const human = {
+      userId: 'human-user',
+      displayName: '玩家',
+      deck: createDeck('USER'),
+      participantKind: 'USER' as const,
+    };
+
+    await expect(
+      service.createMatch({
+        roomCode: 'INVALID-SYSTEM',
+        originKind: 'ONLINE_ROOM',
+        first: systemWithoutBinding,
+        second: human,
+      })
+    ).rejects.toMatchObject({ code: 'ONLINE_MATCH_INVALID_SYSTEM_BINDING' });
+    await expect(
+      service.createMatch({
+        roomCode: 'TAMPERED-SYSTEM',
+        originKind: 'AI_BATTLE',
+        first: {
+          ...systemWithoutBinding,
+          systemParticipantBinding: {
+            ...FORMAL_SYSTEM_BINDING,
+            deckContentHash: 'sha256:tampered',
+          },
+        },
+        second: human,
+      })
+    ).rejects.toMatchObject({ code: 'ONLINE_MATCH_INVALID_SYSTEM_BINDING' });
+  });
+
   it('continues adjacent SYSTEM windows and stops when the USER seat must act', async () => {
     const timers = createManualTimers();
     let idSequence = 0;
@@ -140,12 +202,8 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     });
     const match = await service.createMatch({
       roomCode: 'AI-SCHEDULER',
-      first: {
-        userId: 'system-user',
-        displayName: '机器',
-        deck: createDeck('SYSTEM'),
-        participantKind: 'SYSTEM',
-      },
+      originKind: 'AI_BATTLE',
+      first: createFormalSystemPlayer(),
       second: {
         userId: 'human-user',
         displayName: '玩家',
@@ -207,18 +265,14 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     });
     const match = await service.createMatch({
       roomCode: 'AI-RACE',
+      originKind: 'AI_BATTLE',
       first: {
         userId: 'human-user',
         displayName: '玩家',
         deck: createDeck('USER'),
         participantKind: 'USER',
       },
-      second: {
-        userId: 'system-user',
-        displayName: '机器',
-        deck: createDeck('SYSTEM'),
-        participantKind: 'SYSTEM',
-      },
+      second: createFormalSystemPlayer(),
     });
     await drainMachineSchedule(service, timers, match.matchId);
     await service.executeCommand(match.matchId, 'human-user', {
@@ -292,12 +346,8 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     });
     const match = await service.createMatch({
       roomCode: 'AI-BLOCKED',
-      first: {
-        userId: 'system-user',
-        displayName: '机器',
-        deck: createDeck('SYSTEM'),
-        participantKind: 'SYSTEM',
-      },
+      originKind: 'AI_BATTLE',
+      first: createFormalSystemPlayer(),
       second: {
         userId: 'human-user',
         displayName: '玩家',
@@ -318,6 +368,10 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     expect(service.getMatchChatMessages(match.matchId, 'human-user')?.messages).toEqual([
       expect.objectContaining({
         messageType: 'SYSTEM_NOTICE',
+        noticeCode: 'AI_MATCH_READY',
+      }),
+      expect.objectContaining({
+        messageType: 'SYSTEM_NOTICE',
         noticeCode: 'AI_MACHINE_FAILURE',
       }),
     ]);
@@ -331,12 +385,8 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     });
     const match = await source.createMatch({
       roomCode: 'RESTORE-AI',
-      first: {
-        userId: 'system-user',
-        displayName: '机器',
-        deck: createDeck('SYSTEM'),
-        participantKind: 'SYSTEM',
-      },
+      originKind: 'AI_BATTLE',
+      first: createFormalSystemPlayer(),
       second: {
         userId: 'human-user',
         displayName: '玩家',
@@ -367,7 +417,7 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     expect(restoredService.machineDecisionScheduler.getCurrent(match.matchId)).toBeNull();
   });
 
-  it('concedes with a distinct SYSTEM terminal reason at the frozen decision bound', async () => {
+  it('does not apply conservative fallback bounds to the formal primary strategy', async () => {
     const timers = createManualTimers();
     const service = new OnlineMatchService({
       recorder: null,
@@ -387,12 +437,8 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     });
     const match = await service.createMatch({
       roomCode: 'AI-TERMINAL',
-      first: {
-        userId: 'system-user',
-        displayName: '机器',
-        deck: createDeck('SYSTEM'),
-        participantKind: 'SYSTEM',
-      },
+      originKind: 'AI_BATTLE',
+      first: createFormalSystemPlayer(),
       second: {
         userId: 'human-user',
         displayName: '玩家',
@@ -403,30 +449,79 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
 
     await drainMachineSchedule(service, timers, match.matchId);
 
+    expect(match.session.state?.isEnded).toBe(false);
+    expect(match.machineLiveness).toMatchObject({
+      strategyMode: 'PRIMARY',
+      degradedAt: null,
+      conservativeDecisionCount: 0,
+      terminalReason: null,
+    });
+    expect(service.machineDecisionScheduler.getCurrent(match.matchId)).toBeNull();
+    const chat = service.getMatchChatMessages(match.matchId, 'human-user');
+    expect(chat?.messages).toEqual([
+      expect.objectContaining({
+        messageType: 'SYSTEM_NOTICE',
+        noticeCode: 'AI_MATCH_READY',
+      }),
+    ]);
+  });
+
+  it('concedes with a distinct SYSTEM terminal reason when fallback reaches a frozen bound', async () => {
+    const timers = createManualTimers();
+    const service = new OnlineMatchService({
+      recorder: null,
+      idGenerator: () => 'fallback-liveness-terminal-match',
+      now: () => 1_000,
+      machineDecisionSchedulingEnabled: true,
+      machineDecisionRuntimeEpoch: 'fallback-terminal-decision-runtime',
+      machineDecisionSchedulerRuntimeEpoch: 'fallback-terminal-scheduler-runtime',
+      machineDecisionScheduleTimer: timers.scheduleTimer,
+      machineDecisionCancelTimer: timers.cancelTimer,
+    });
+    const match = await service.createMatch({
+      roomCode: 'AI-FALLBACK-TERMINAL',
+      originKind: 'AI_BATTLE',
+      first: createFormalSystemPlayer(),
+      second: {
+        userId: 'human-user',
+        displayName: '玩家',
+        deck: createDeck('USER'),
+        participantKind: 'USER',
+      },
+    });
+    const game = match.session.state!;
+    const liveness = recordMachineLivenessDecision({
+      previous: createMachineLivenessState(game, 1_000, 'CONSERVATIVE_FALLBACK'),
+      before: game,
+      after: game,
+      systemPlayerId: match.participants.FIRST.playerId,
+      now: 1_001,
+      strategyMode: 'CONSERVATIVE_FALLBACK',
+      limits: {
+        maxAiTurnsWithoutRuleProgress: 99,
+        maxConservativeDecisions: 1,
+        maxDegradedDurationMs: 99_000,
+        maxDecisionsWithoutAuthorityProgress: 99,
+      },
+    });
+    expect(liveness.terminalReason).toBe('CONSERVATIVE_DECISION_LIMIT');
+    match.machineLiveness = liveness.state;
+
+    await drainMachineSchedule(service, timers, match.matchId);
+
     expect(match.session.state?.endInfo).toMatchObject({
       reason: GameEndReason.SYSTEM_LIVENESS_CONCEDE,
       winnerId: match.participants.SECOND.playerId,
       loserId: match.participants.FIRST.playerId,
     });
-    expect(match.machineLiveness?.terminalReason).toBe('CONSERVATIVE_DECISION_LIMIT');
-    expect(service.machineDecisionScheduler.getCurrent(match.matchId)).toBeNull();
-    const chat = service.getMatchChatMessages(match.matchId, 'human-user');
-    expect(chat?.messages).toEqual([
-      {
-        messageType: 'SYSTEM_NOTICE',
-        messageSeq: 1,
-        noticeCode: 'AI_FALLBACK_ENABLED',
-        text: 'AI 已使用保守策略继续本局。',
-        sentAt: 1_000,
-      },
-      {
-        messageType: 'SYSTEM_NOTICE',
-        messageSeq: 2,
-        noticeCode: 'AI_LIVENESS_CONCEDE',
-        text: 'AI 已达到本局保守决策上限，已按活性保护政策认输。',
-        sentAt: 1_000,
-      },
-    ]);
+    expect(
+      service
+        .getMatchChatMessages(match.matchId, 'human-user')
+        ?.messages.some(
+          (message) =>
+            message.messageType === 'SYSTEM_NOTICE' && message.noticeCode === 'AI_LIVENESS_CONCEDE'
+        )
+    ).toBe(true);
   });
 
   it('rejects a forged SYSTEM concession from a USER participant', async () => {
@@ -437,18 +532,14 @@ describe('AI battle Phase 1B automatic machine scheduler', () => {
     });
     const match = await service.createMatch({
       roomCode: 'AI-FORGE',
+      originKind: 'AI_BATTLE',
       first: {
         userId: 'human-user',
         displayName: '玩家',
         deck: createDeck('USER'),
         participantKind: 'USER',
       },
-      second: {
-        userId: 'system-user',
-        displayName: '机器',
-        deck: createDeck('SYSTEM'),
-        participantKind: 'SYSTEM',
-      },
+      second: createFormalSystemPlayer(),
     });
 
     const result = await service.executeCommand(match.matchId, 'human-user', {

@@ -73,6 +73,23 @@
 - [对局记录与回放设计](match-replay/design.md)
 - [对局回放 checkpoint / bundle 序列化与复水契约](match-replay/serialization-contract.md)
 
+## AI 对战
+
+AI 对战 Phase 0～3 已完成内部技术闭环：两个认证卡组锁定 canonical YAML 内容哈希与 Phase 0 认证版本，卡牌规则与数据变更继续由版本发布和测试管理；机器行动只消费玩家投影与 typed 决策契约；正式不可登录 SYSTEM 席位只有在 `ONLINE + AI_BATTLE + 单一完整认证 binding` 下才能进入服务端机器调度，并复用权威命令、投影、聊天、历史记录与共享游戏桌。管理员受控入口按真人串行生命周期操作，使用无 LLM 的 Phase 2 可解释策略；正式主策略不累计保守降级阈值，只有真实切换到保守策略后才开始 3 回合/256 决策/5 分钟计数。八个认证单元均验证自然规则终局、正式策略提交零权威拒绝且没有异常 SYSTEM 终局。版本化受控赛前复用共享猜拳规则，但不创建临时 `OnlineRoom` 或 presence。刷新续接同一内存局，禁用撤销与 `FREE`，重开创建同配置新局，离开按真人认输处理。
+
+仍未落地或未完整闭环：
+
+- 普通玩家可见的独立 AI 对战入口、完整 AI Persona、产品告知，以及该入口的房间/presence 与双端进入体验。
+- LLM request envelope、结构化输出校验、超时/重试/取消、预算/限流、模型调用审计及 Prompt/playbook 评测；当前正式 SYSTEM 主策略仍为无 LLM 可解释策略。
+- 公共牌桌 AI 补位、AI presence/容量、多实例决策互斥和进程重启后的进行中 AI 对局恢复。
+- AI 对局是否进入普通历史、胜率、奖励或其他竞技统计仍未确定；当前入口仅限认证管理员进行内部验证。
+
+相关文档：
+
+- [AI 对战可行性分析](ai-battle/feasibility-analysis.md)
+- [AI 对战设计与实施](ai-battle/design-and-implementation.md)
+- [AI 对战 Phase 3 迁移说明](../drizzle/migration-notes/ai-battle-phase-three.md)
+
 ## 对局规则自动化
 
 当前主流程已经支持配置化阶段/子阶段、主要动作处理、Live 判定与结算、基础检查时机纠偏，并已接入卡效自动化第一阶段能力：普通成员登场/换手费用计算与支付、登场费用修正、活跃阶段自动恢复当前玩家成员与能量、Live 判定建议与成功/失败结算、Live modifier，以及第一批已登记真实卡效。

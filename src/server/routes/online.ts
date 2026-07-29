@@ -24,6 +24,10 @@ import {
   MatchReplayReadServiceError,
   matchReplayReadService,
 } from '../services/match-replay-read-service.js';
+import {
+  AiBattlePhaseThreeServiceError,
+  aiBattlePhaseThreeService,
+} from '../services/ai-battle-phase-three-service.js';
 
 export const onlineRouter = Router();
 
@@ -86,6 +90,92 @@ const matchChatMessageSchema = z.object({
   clientMessageId: z.string().trim().min(1).max(128),
   text: z.string().min(1).max(1_000),
 });
+
+const controlledAiBattleSchema = z.object({
+  humanDeckKey: z.enum(['MUSE_STARTER', 'GREEN_HASUNOSORA_B6']),
+  aiDeckKey: z.enum(['MUSE_STARTER', 'GREEN_HASUNOSORA_B6']),
+  aiSeat: z.enum(['FIRST', 'SECOND']),
+});
+
+onlineRouter.post(
+  '/admin/ai-battles',
+  requireAuth,
+  requireAdmin,
+  requireGameplayAvailable,
+  async (req, res) => {
+    const parsed = controlledAiBattleSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      res.status(400).json({
+        data: null,
+        error: { code: 'INVALID_REQUEST', message: '内部 AI 对局参数非法' },
+      });
+      return;
+    }
+    try {
+      const battle = await aiBattlePhaseThreeService.createBattle({
+        humanUserId: req.user!.id,
+        ...parsed.data,
+      });
+      setPrivateNoStoreHeaders(res);
+      res.status(201).json({ data: battle, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
+
+onlineRouter.get('/admin/ai-battles/:matchId', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const battle = await aiBattlePhaseThreeService.refreshBattle(
+      readPathParam(req.params.matchId),
+      req.user!.id
+    );
+    if (!battle) {
+      res.status(404).json({
+        data: null,
+        error: { code: 'AI_BATTLE_NOT_FOUND', message: '内部 AI 对局不存在或已结束' },
+      });
+      return;
+    }
+    setPrivateNoStoreHeaders(res);
+    res.json({ data: battle, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post(
+  '/admin/ai-battles/:matchId/restart',
+  requireAuth,
+  requireAdmin,
+  requireGameplayAvailable,
+  async (req, res) => {
+    try {
+      const battle = await aiBattlePhaseThreeService.restartBattle(
+        readPathParam(req.params.matchId),
+        req.user!.id
+      );
+      setPrivateNoStoreHeaders(res);
+      res.status(201).json({ data: battle, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
+
+onlineRouter.post(
+  '/admin/ai-battles/:matchId/leave',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      await aiBattlePhaseThreeService.leaveBattle(readPathParam(req.params.matchId), req.user!.id);
+      res.json({ data: { left: true }, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
 
 onlineRouter.get('/admin/rooms', requireAuth, requireAdmin, async (_req, res) => {
   try {
@@ -640,7 +730,8 @@ onlineRouter.get('/matches/:matchId/chat/messages', requireAuth, (req, res) => {
   setPrivateNoStoreHeaders(res);
   try {
     const matchId = readPathParam(req.params.matchId);
-    if (!onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id)) {
+    const standaloneAiMatch = onlineMatchService.getMatch(matchId)?.originKind === 'AI_BATTLE';
+    if (!standaloneAiMatch && !onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id)) {
       respondMatchForbidden(res);
       return;
     }
@@ -669,7 +760,8 @@ onlineRouter.post('/matches/:matchId/chat/messages', requireAuth, (req, res) => 
 
   try {
     const matchId = readPathParam(req.params.matchId);
-    if (!onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id)) {
+    const standaloneAiMatch = onlineMatchService.getMatch(matchId)?.originKind === 'AI_BATTLE';
+    if (!standaloneAiMatch && !onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id)) {
       respondMatchForbidden(res);
       return;
     }
@@ -1131,6 +1223,16 @@ function respondMatchRecordNotFound(res: Response): void {
 }
 
 function respondOnlineError(res: Response, error: unknown): void {
+  if (error instanceof AiBattlePhaseThreeServiceError) {
+    res.status(error.statusCode).json({
+      data: null,
+      error: {
+        code: error.code,
+        message: error.message,
+      },
+    });
+    return;
+  }
   if (error instanceof OnlineMatchChatRuntimeError) {
     if (error.retryAfterMs !== undefined) {
       res.setHeader('Retry-After', String(Math.max(1, Math.ceil(error.retryAfterMs / 1000))));

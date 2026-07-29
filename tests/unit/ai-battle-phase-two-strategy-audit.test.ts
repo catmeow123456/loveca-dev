@@ -75,6 +75,8 @@ describe('AI battle Phase 2 strategy decision audit', () => {
       schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
       contextSchemaVersion: 'ai-battle.strategy-context/v1',
       observationSchemaVersion: 'ai-battle.observation/v1',
+      decisionContractVersion: 'ai-battle.decision-contract/v1',
+      commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
       authorityRevision: 12,
       seat: 'FIRST',
       decisionKind: 'SCORE_CONFIRMATION',

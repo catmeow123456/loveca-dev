@@ -35,6 +35,7 @@ import {
   onlineMatchService,
 } from '../../src/server/services/online-match-service';
 import { OnlineMatchChatRuntimeError } from '../../src/server/services/online-match-chat-runtime';
+import { aiBattlePhaseThreeService } from '../../src/server/services/ai-battle-phase-three-service';
 import { onlineRoomService } from '../../src/server/services/online-room-service';
 
 function createMockResponse() {
@@ -252,6 +253,92 @@ describe('onlineRouter error handling', () => {
     expect(response.body).toEqual({
       data: null,
       error: { code: 'ONLINE_MATCH_FORBIDDEN', message: '当前用户不属于该对局' },
+    });
+  });
+
+  it('无真人房间的受控 AI 对局仍按 match participant 授权聊天读写', async () => {
+    const touchInGameMember = vi
+      .spyOn(onlineRoomService, 'touchInGameMemberByMatch')
+      .mockReturnValue(false);
+    vi.spyOn(onlineMatchService, 'getMatch').mockReturnValue({
+      matchId: 'ai-match-1',
+      originKind: 'AI_BATTLE',
+    } as never);
+    const getMessages = vi.spyOn(onlineMatchService, 'getMatchChatMessages').mockReturnValue({
+      matchId: 'ai-match-1',
+      messages: [
+        {
+          messageSeq: 1,
+          sentAt: 1_000,
+          messageType: 'SYSTEM_NOTICE',
+          noticeCode: 'AI_MATCH_READY',
+          text: 'AI 对局已准备完成',
+        },
+      ],
+      currentSeq: 1,
+      nextAfterSeq: 1,
+      oldestAvailableSeq: 1,
+      truncated: false,
+      hasMore: false,
+    });
+    const sendMessage = vi.spyOn(onlineMatchService, 'sendMatchChatMessage').mockReturnValue({
+      messageSeq: 2,
+      sentAt: 1_001,
+      messageType: 'PLAYER',
+      senderSeat: 'FIRST',
+      senderDisplayName: '测试员',
+      text: '开始吧',
+    });
+
+    const readResponse = await invokeRoute('/matches/:matchId/chat/messages', 'get', {
+      params: { matchId: 'ai-match-1' },
+      query: { afterSeq: '0' },
+    });
+    const sendResponse = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
+      params: { matchId: 'ai-match-1' },
+      body: { clientMessageId: 'client-message-ai', text: '开始吧' },
+    });
+
+    expect(readResponse.statusCode).toBe(200);
+    expect(sendResponse.statusCode).toBe(201);
+    expect(touchInGameMember).not.toHaveBeenCalled();
+    expect(getMessages).toHaveBeenCalledWith('ai-match-1', 'u1', {
+      afterSeq: 0,
+    });
+    expect(sendMessage).toHaveBeenCalledWith('ai-match-1', 'u1', {
+      clientMessageId: 'client-message-ai',
+      text: '开始吧',
+    });
+  });
+
+  it('管理员受控 AI 对局入口校验并透传认证卡组与 SYSTEM 席位', async () => {
+    const createBattle = vi.spyOn(aiBattlePhaseThreeService, 'createBattle').mockResolvedValue({
+      schemaVersion: 'ai-battle.phase-three-entry/v1',
+      matchId: 'ai-match-1',
+      roomCode: 'AI-ROOM',
+      humanSeat: 'SECOND',
+      systemSeat: 'FIRST',
+      snapshot: { matchId: 'ai-match-1' },
+    } as never);
+
+    const response = await invokeRoute('/admin/ai-battles', 'post', {
+      body: {
+        humanDeckKey: 'MUSE_STARTER',
+        aiDeckKey: 'GREEN_HASUNOSORA_B6',
+        aiSeat: 'FIRST',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(createBattle).toHaveBeenCalledWith({
+      humanUserId: 'u1',
+      humanDeckKey: 'MUSE_STARTER',
+      aiDeckKey: 'GREEN_HASUNOSORA_B6',
+      aiSeat: 'FIRST',
+    });
+    expect(response.body?.data).toMatchObject({
+      matchId: 'ai-match-1',
+      systemSeat: 'FIRST',
     });
   });
 

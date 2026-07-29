@@ -56,7 +56,7 @@ export const AI_BATTLE_PHASE_ONE_B_GATE_EVIDENCE = [
   evidence(
     'FROZEN_LIVENESS_TERMINAL',
     'tests/integration/ai-battle-phase-one-b-machine-scheduler.test.ts',
-    "it('concedes with a distinct SYSTEM terminal reason at the frozen decision bound'"
+    "it('concedes with a distinct SYSTEM terminal reason when fallback reaches a frozen bound'"
   ),
   evidence(
     'SYSTEM_NOTICE_SCHEMA_AND_DEDUPE',

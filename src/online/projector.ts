@@ -324,8 +324,8 @@ export function projectPlayerViewState(
     matchId: game.gameId,
     viewerSeat,
     participants: {
-      FIRST: { id: game.players[0].id, name: game.players[0].name },
-      SECOND: { id: game.players[1].id, name: game.players[1].name },
+      FIRST: { id: game.players[0].id, name: game.players[0].name, participantKind: 'USER' },
+      SECOND: { id: game.players[1].id, name: game.players[1].name, participantKind: 'USER' },
     },
     turnCount: game.turnCount,
     phase: game.currentPhase,

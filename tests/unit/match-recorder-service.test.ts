@@ -10,6 +10,19 @@ import type {
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
 import { OnlineMatchService } from '../../src/server/services/online-match-service';
+import { AI_OBSERVATION_SCHEMA_VERSION } from '../../src/server/ai-battle/ai-observation';
+import { AI_EXPLAINABLE_DECISION_POLICY_VERSION } from '../../src/server/ai-battle/explainable-decision-policy';
+import {
+  AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
+  createAiStrategyDecisionRecord,
+  type AiStrategyDecisionAudit,
+} from '../../src/server/ai-battle/strategy-decision-audit';
+import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from '../../src/server/ai-battle/strategy-context';
+import {
+  AI_COMPACT_RULES_VERSION,
+  AI_MUSE_STARTER_PLAYBOOK_VERSION,
+} from '../../src/server/ai-battle/strategy-knowledge';
+import { createAiSystemParticipantBinding } from '../../src/server/ai-battle/system-participant';
 import {
   MatchRecorderService,
   buildMatchRecorderBeginInputFromOnlineMatch,
@@ -324,6 +337,101 @@ describe('MatchRecorderService P0a', () => {
       'PRIVATE_EVENTS',
       'DECISION_RECORDS_PARTIAL',
     ]);
+  });
+
+  it('原子写入 SYSTEM 身份快照与受限 AI 策略记录 JSONB', async () => {
+    const { service, calls } = createRecorderHarness();
+    const binding = createAiSystemParticipantBinding('MUSE_STARTER');
+    const beginInput = createBeginInput();
+
+    await service.beginMatch({
+      ...beginInput,
+      originKind: 'AI_BATTLE',
+      participants: {
+        ...beginInput.participants,
+        SECOND: {
+          ...beginInput.participants.SECOND,
+          userId: binding.userId,
+          participantKind: 'SYSTEM',
+          ownerUserId: null,
+          systemIdentitySnapshot: binding,
+        },
+      },
+      deckSnapshots: {
+        ...beginInput.deckSnapshots,
+        SECOND: {
+          ...beginInput.deckSnapshots.SECOND,
+          userId: binding.userId,
+          source: 'AI_CERTIFIED_DECK',
+        },
+      },
+    });
+
+    const systemParticipantInsert = calls
+      .filter((call) => call.text.includes('INSERT INTO match_participants'))
+      .find((call) => call.values[2] === 'SECOND');
+    expect(systemParticipantInsert?.text).toContain('system_identity_snapshot');
+    expect(readJsonbParam(systemParticipantInsert?.values[7])).toMatchObject({
+      schemaVersion: 'ai-battle.system-participant-identity/v1',
+      participantKind: 'SYSTEM',
+      loginAllowed: false,
+      deckKey: 'MUSE_STARTER',
+    });
+
+    const audit: AiStrategyDecisionAudit = {
+      schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
+      contextSchemaVersion: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
+      observationSchemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
+      decisionContractVersion: 'ai-battle.decision-contract/v1',
+      commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+      contextSha256: 'sha256:strategy-context',
+      authorityRevision: 7,
+      seat: 'SECOND',
+      decisionKind: 'PHASE_CONFIRMATION',
+      compactRulesVersion: AI_COMPACT_RULES_VERSION,
+      playbookVersion: AI_MUSE_STARTER_PLAYBOOK_VERSION,
+      policyVersion: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
+      tier: 'RULE_FORCED',
+      reasonCode: 'CONFIRM_PHASE_PROGRESS',
+      summary: 'Confirm the current phase step.',
+      consideredIds: [],
+      selection: { kind: 'CONFIRM_PHASE' },
+    };
+    const strategyRecord = createAiStrategyDecisionRecord({
+      decisionAudit: audit,
+      decisionId: 'match-recorder-1:7:SECOND:phase-confirmation',
+      windowSignature: 'phase-confirmation',
+      commandType: 'CONFIRM_STEP',
+      authorityRevisionAfter: 8,
+      execution: { status: 'ACCEPTED' },
+    });
+
+    await service.appendMatchRecordFrame({
+      matchId: 'match-recorder-1',
+      frameType: 'COMMAND_ACCEPTED',
+      relatedCommandSeq: 2,
+      decisionRecords: [
+        {
+          decisionId: `ai-strategy:${strategyRecord.contractIdentity.decisionIdSha256}`,
+          decisionType: 'AI_STRATEGY_SUBMITTED',
+          status: 'SUBMITTED',
+          waitingSeat: 'SECOND',
+          visibleContextSummary: {
+            selectableCardCount: 0,
+            hasPrivateCandidates: false,
+          },
+          transitionSemantics: 'SNAPSHOT_AUDIT_ONLY',
+          strategyRecord,
+        },
+      ],
+      createdAt: 4_000,
+    });
+
+    const strategyInsert = calls
+      .filter((call) => call.text.includes('INSERT INTO match_decision_records'))
+      .at(-1);
+    expect(strategyInsert?.text).toContain('strategy_record');
+    expect(readJsonbParam(strategyInsert?.values[35])).toEqual(strategyRecord);
   });
 
   it('appendMatchRecordFrame 为成功命令追加 timeline 与独立 authority checkpoint', async () => {

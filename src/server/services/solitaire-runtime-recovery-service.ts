@@ -222,6 +222,7 @@ export class SolitaireRuntimeRecoveryService {
         session,
         participants: participantMap,
         deckSnapshots: runtimeDeckSnapshots,
+        systemParticipantBindings: {},
         startedAt: dateToMs(record.started_at),
         remoteRevision: computeRecoveredRemoteRevision(record, checkpoint),
         recordBranchId: `${record.match_id}:recovery:${checkpoint.checkpoint_seq}:timeline:${record.last_timeline_seq + 1}`,
