@@ -142,3 +142,13 @@ export async function leaveSolitaireMatch(matchId: string): Promise<void> {
     throw new Error(response.error?.message ?? '离开对墙打对局失败');
   }
 }
+
+export async function restartSolitaireMatch(matchId: string): Promise<CreateSolitaireMatchResult> {
+  const response = await apiClient.post<CreateSolitaireMatchResult>(
+    `/api/battle/solitaire-matches/${encodeURIComponent(matchId)}/restart`
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '重新开始对墙打失败');
+  }
+  return response.data;
+}

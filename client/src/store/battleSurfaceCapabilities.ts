@@ -23,6 +23,7 @@ export interface BattleSurfaceCapabilities {
   readonly canSwitchPerspective: boolean;
   readonly canSwitchLocalMode: boolean;
   readonly canShowDebugLog: boolean;
+  readonly canRestart: boolean;
   readonly canUndo: boolean;
   readonly undoPolicy: UndoPolicy;
   readonly showFreePlayControl: boolean;
@@ -49,6 +50,7 @@ export function deriveBattleSurfaceCapabilities(
       canSwitchPerspective: false,
       canSwitchLocalMode: false,
       canShowDebugLog: false,
+      canRestart: false,
       canUndo: false,
       undoPolicy: 'NONE',
       showFreePlayControl: false,
@@ -70,6 +72,7 @@ export function deriveBattleSurfaceCapabilities(
     canSwitchPerspective: surface === 'LOCAL_DEBUG',
     canSwitchLocalMode: authority === 'LOCAL',
     canShowDebugLog: surface === 'LOCAL_DEBUG',
+    canRestart: surface === 'LOCAL_DEBUG' || surface === 'SOLITAIRE',
     canUndo: undoPolicy !== 'NONE',
     undoPolicy,
     showFreePlayControl: !isSpectatorReadonly,

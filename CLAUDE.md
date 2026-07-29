@@ -71,7 +71,7 @@ src/
 │   ├── config.ts            # Environment configuration
 │   ├── db/pool.ts           # PostgreSQL connection pool
 │   ├── db/drizzle.ts        # Drizzle ORM instance (wraps pool)
-│   ├── db/schema.ts         # Drizzle table definitions; keep docker/init.sql aligned for deployment
+│   ├── db/schema.ts         # Drizzle table definitions; keep migrations and init-only DB objects aligned
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
 │   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements, online, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,

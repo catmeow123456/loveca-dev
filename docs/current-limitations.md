@@ -13,11 +13,12 @@
 - `src/server/db/schema.ts`
 - `drizzle.config.ts`
 
-生产 `docker-compose.yml` 和开发 `docker-compose.dev.yml` 都会挂载 `docker/init.sql` 初始化 PostgreSQL。该脚本包含 `cleanup_expired_tokens()`、`update_deck_count()`、`update_deck_timestamp()` 等 Drizzle schema 不表达的函数/触发器，因此不能简单认为 Drizzle schema 与初始化脚本完全等价。
+生产 `docker-compose.yml` 和开发 `docker-compose.dev.yml` 都会挂载 `docker/init.sql` 初始化 PostgreSQL。该脚本包含 `cleanup_expired_tokens()`、`update_deck_count()`、`update_deck_timestamp()` 等 Drizzle schema 不表达的函数/触发器，因此不能简单认为 Drizzle schema 与初始化脚本完全等价。新库必须在初始化脚本执行后继续运行 `pnpm db:migrate`，才会得到当前完整物理 schema。
 
 当前维护边界：
 
 - `docker/init.sql` 已包含当前运行时代码使用的卡组分享字段。
+- 由非幂等增量迁移拥有的表不会在 `docker/init.sql` 中提前创建；例如 `email_change_tokens` 由 `drizzle/0009_magenta_nightcrawler.sql` 创建并同步扩展 token 清理函数，避免新库首次执行迁移时重复建表。
 - 卡组路由自身不手动维护 `profiles.deck_count` 或 `decks.updated_at`。如果数据库由 `docker/init.sql` 初始化，这两个字段由触发器维护；如果只按 Drizzle schema 建库，则不会自动具备这些触发器。
 - 早期外部托管方案只作历史参考，不作为当前部署脚本。
 

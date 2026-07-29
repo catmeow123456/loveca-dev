@@ -263,12 +263,15 @@ function App() {
   const capabilities = useGameStore(useShallow((s) => s.getBattleSurfaceCapabilities()));
   const loadCardData = useGameStore((s) => s.loadCardData);
   const leaveCurrentGame = useGameStore((s) => s.leaveCurrentGame);
+  const restartCurrentGame = useGameStore((s) => s.restartCurrentGame);
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const initDeckStore = useDeckStore((s) => s.init);
   const [gameBriefingAcknowledged, setGameBriefingAcknowledged] = useState(false);
   const [isLeaveCurrentGameConfirmOpen, setIsLeaveCurrentGameConfirmOpen] = useState(false);
   const [isLeavingCurrentGame, setIsLeavingCurrentGame] = useState(false);
+  const [isRestartCurrentGameConfirmOpen, setIsRestartCurrentGameConfirmOpen] = useState(false);
+  const [isRestartingCurrentGame, setIsRestartingCurrentGame] = useState(false);
   const gameBriefingKeyRef = useRef<string | null>(null);
   const solitaireRestoreAttemptedRef = useRef(false);
 
@@ -415,6 +418,20 @@ function App() {
   const gameBriefingKey = matchView ? `${capabilities.surface}:${matchView.matchId}` : null;
   const currentGameLeaveConfirmCopy =
     capabilities.surface === 'SOLITAIRE' ? getSolitaireLeaveConfirmCopy() : null;
+  const currentGameRestartCopy =
+    capabilities.surface === 'SOLITAIRE'
+      ? {
+          title: '重开对局？',
+          message: '当前对局会结束并立即重开。',
+          confirmLabel: '确认重开',
+        }
+      : capabilities.surface === 'LOCAL_DEBUG'
+        ? {
+            title: '重开对局？',
+            message: '当前对局进度会被清空并立即重开。',
+            confirmLabel: '确认重开',
+          }
+        : null;
   const isAuthenticated = !!(user && profile) || (offlineMode && !!offlineUser);
   const shareMatch = window.location.pathname.match(/^\/decks\/share\/([^/]+)$/);
   const shareId = shareMatch?.[1] ?? null;
@@ -665,6 +682,13 @@ function App() {
     return withPublicTableLayer(
       <BattleViewportShell>
         <GameBoard
+          onRestartGame={
+            currentGameRestartCopy
+              ? () => {
+                  setIsRestartCurrentGameConfirmOpen(true);
+                }
+              : undefined
+          }
           onLeaveLocalGame={() => {
             if (currentGameLeaveConfirmCopy) {
               setIsLeaveCurrentGameConfirmOpen(true);
@@ -697,6 +721,25 @@ function App() {
                 setIsLeavingCurrentGame(false);
                 setIsLeaveCurrentGameConfirmOpen(false);
                 setCurrentPage('game-setup');
+              });
+            }}
+          />
+        )}
+        {currentGameRestartCopy && (
+          <ConfirmDialog
+            isOpen={isRestartCurrentGameConfirmOpen}
+            title={currentGameRestartCopy.title}
+            message={currentGameRestartCopy.message}
+            confirmLabel={currentGameRestartCopy.confirmLabel}
+            isConfirming={isRestartingCurrentGame}
+            onCancel={() => setIsRestartCurrentGameConfirmOpen(false)}
+            onConfirm={() => {
+              setIsRestartingCurrentGame(true);
+              void restartCurrentGame().then((result) => {
+                setIsRestartingCurrentGame(false);
+                if (result.success) {
+                  setIsRestartCurrentGameConfirmOpen(false);
+                }
               });
             }}
           />

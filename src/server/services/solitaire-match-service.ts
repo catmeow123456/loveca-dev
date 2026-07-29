@@ -76,6 +76,10 @@ export class SolitaireMatchService {
   private readonly loadUserProfile: (userId: string) => Promise<UserProfileSummary>;
   private readonly loadOwnedDeck: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
   private readonly loadOpponentDeck: (deckPath: string) => Promise<DeckConfig>;
+  private readonly restartOperations = new Map<
+    string,
+    Promise<CreateSolitaireMatchResult | null>
+  >();
 
   constructor(deps: SolitaireMatchServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
@@ -249,6 +253,104 @@ export class SolitaireMatchService {
     return this.matchService.deleteMatch(matchId, { reason: 'SOLITAIRE_PLAYER_LEFT' });
   }
 
+  async restartMatch(matchId: string, userId: string): Promise<CreateSolitaireMatchResult | null> {
+    const operationKey = `${matchId}:${userId}`;
+    const pending = this.restartOperations.get(operationKey);
+    if (pending) {
+      return pending;
+    }
+
+    const operation = this.performRestartMatch(matchId, userId);
+    this.restartOperations.set(operationKey, operation);
+    try {
+      return await operation;
+    } finally {
+      if (this.restartOperations.get(operationKey) === operation) {
+        this.restartOperations.delete(operationKey);
+      }
+    }
+  }
+
+  private async performRestartMatch(
+    matchId: string,
+    userId: string
+  ): Promise<CreateSolitaireMatchResult | null> {
+    const resolved = await this.getPlayableOrRecoveredSolitaireMatch(matchId, userId);
+    if (!resolved) {
+      return null;
+    }
+
+    const previousMatch = resolved.match;
+    const firstParticipant = previousMatch.participants.FIRST;
+    const secondParticipant = previousMatch.participants.SECOND;
+    const firstDeck = previousMatch.deckSnapshots.FIRST;
+    const secondDeck = previousMatch.deckSnapshots.SECOND;
+    const removed = await this.matchService.deleteMatch(matchId, {
+      reason: 'SOLITAIRE_RESTARTED',
+    });
+    if (!removed) {
+      throw new SolitaireMatchServiceError(
+        'SOLITAIRE_RESTART_SEAL_FAILED',
+        '当前对局封存失败，无法重新开始',
+        500
+      );
+    }
+
+    let restarted: OnlineMatchState;
+    try {
+      restarted = await this.matchService.createMatch({
+        roomCode: `SOL-${this.idGenerator()}`,
+        matchMode: 'SOLITAIRE',
+        automationGameMode: 'SOLITAIRE',
+        originKind: 'SOLITAIRE',
+        originLabel: '对墙打',
+        startedAt: this.now(),
+        first: {
+          userId: firstParticipant.userId,
+          displayName: firstParticipant.displayName,
+          deck: cloneDeck(firstDeck),
+          deckId: firstDeck.sourceDeckId,
+          deckName: firstDeck.sourceDeckName,
+          deckSource: firstDeck.source,
+          lockedAt: firstDeck.lockedAt,
+          participantKind: firstParticipant.participantKind,
+          ownerUserId: firstParticipant.ownerUserId,
+        },
+        second: {
+          userId: secondParticipant.userId,
+          displayName: secondParticipant.displayName,
+          deck: cloneDeck(secondDeck),
+          deckId: secondDeck.sourceDeckId,
+          deckName: secondDeck.sourceDeckName,
+          deckSource: secondDeck.source,
+          lockedAt: secondDeck.lockedAt,
+          participantKind: secondParticipant.participantKind,
+          ownerUserId: secondParticipant.ownerUserId,
+        },
+      });
+    } catch (error) {
+      throw toSolitaireMatchServiceError(
+        error,
+        'SOLITAIRE_RESTART_CREATE_FAILED',
+        '旧对局已封存，但新对局创建失败，请返回准备页重试'
+      );
+    }
+
+    const snapshot = await this.matchService.getMatchSnapshot(restarted.matchId, userId);
+    if (!snapshot || 'modified' in snapshot) {
+      throw new SolitaireMatchServiceError(
+        'SOLITAIRE_RESTART_SNAPSHOT_FAILED',
+        '新对局已创建，但初始快照读取失败',
+        500
+      );
+    }
+
+    return {
+      matchId: restarted.matchId,
+      snapshot,
+    };
+  }
+
   private getPlayableSolitaireMatch(matchId: string, userId: string) {
     const match = this.matchService.getMatch(matchId);
     if (!match || !this.isPlayableSolitaireMatch(match, userId)) {
@@ -368,7 +470,10 @@ async function loadDefaultOpponentDeck(deckPath: string): Promise<DeckConfig> {
   };
 }
 
-function cloneDeck(deck: DeckConfig): DeckConfig {
+function cloneDeck(deck: {
+  readonly mainDeck: readonly DeckConfig['mainDeck'][number][];
+  readonly energyDeck: readonly DeckConfig['energyDeck'][number][];
+}): DeckConfig {
   return {
     mainDeck: [...deck.mainDeck],
     energyDeck: [...deck.energyDeck],

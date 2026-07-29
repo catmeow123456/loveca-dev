@@ -12,6 +12,7 @@ vi.mock('../../src/server/services/solitaire-match-service.js', () => ({
     executeCommand: vi.fn(),
     advancePhase: vi.fn(),
     undoLatest: vi.fn(),
+    restartMatch: vi.fn(),
     leaveMatch: vi.fn(),
   },
 }));
@@ -189,6 +190,28 @@ describe('battleRouter solitaire match routes', () => {
       data: null,
       error: { code: 'INVALID_REQUEST', message: '撤销参数非法' },
     });
+  });
+
+  it('重新开始对墙打时透传当前用户并返回新对局快照', async () => {
+    vi.mocked(solitaireMatchService.restartMatch).mockResolvedValue({
+      matchId: 'match-2',
+      snapshot: {
+        matchId: 'match-2',
+        seat: 'FIRST',
+        playerId: 'player-2',
+        seq: 0,
+        playerViewState: {},
+      },
+    } as never);
+
+    const response = await invokeRoute('/solitaire-matches/:matchId/restart', 'post', {
+      params: { matchId: 'match-1' },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(solitaireMatchService.restartMatch).toHaveBeenCalledWith('match-1', 'user-1');
+    expect(response.body?.error).toBeNull();
+    expect(response.body?.data).toMatchObject({ matchId: 'match-2' });
   });
 
   it('管理员历史对局路由全部要求 admin 角色', () => {

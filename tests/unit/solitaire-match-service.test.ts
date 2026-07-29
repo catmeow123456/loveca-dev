@@ -78,15 +78,17 @@ function createHarness(
     } | null;
   } = {}
 ) {
+  let matchSequence = 0;
+  let roomSequence = 0;
   const matchService = new OnlineMatchService({
     recorder: null,
-    idGenerator: () => 'match-solitaire-service-1',
+    idGenerator: () => `match-solitaire-service-${++matchSequence}`,
   });
   const service = new SolitaireMatchService({
     now: () => 1_000,
     matchService,
     recoveryService: options.recoveryService,
-    idGenerator: () => 'room-solitaire-service-1',
+    idGenerator: () => `room-solitaire-service-${++roomSequence}`,
     opponentDeckPath: 'assets/decks/test-opponent.yaml',
     loadUserProfile: async (userId) => ({
       userId,
@@ -199,6 +201,71 @@ describe('SolitaireMatchService', () => {
       service.leaveMatch(result.matchId, 'system:solitaire-opponent')
     ).resolves.toBeNull();
     expect(matchService.getMatch(result.matchId)).not.toBeNull();
+  });
+
+  it('重新开始会封存旧运行态并沿用锁定卡组快照创建全新对墙打', async () => {
+    const { matchService, service } = createHarness();
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const previous = matchService.getMatch(created.matchId);
+    expect(previous).not.toBeNull();
+    const deleteMatch = vi.spyOn(matchService, 'deleteMatch');
+
+    const restarted = await service.restartMatch(created.matchId, 'user-1');
+
+    expect(deleteMatch).toHaveBeenCalledWith(created.matchId, {
+      reason: 'SOLITAIRE_RESTARTED',
+    });
+    expect(restarted?.matchId).toBe('match-solitaire-service-2');
+    expect(restarted?.matchId).not.toBe(created.matchId);
+    expect(matchService.getMatch(created.matchId)).toBeNull();
+    const next = matchService.getMatch(restarted!.matchId);
+    expect(next).toMatchObject({
+      roomCode: 'SOL-room-solitaire-service-2',
+      matchMode: 'SOLITAIRE',
+      automationGameMode: 'SOLITAIRE',
+      originKind: 'SOLITAIRE',
+    });
+    expect(next?.deckSnapshots.FIRST.sourceDeckId).toBe(previous?.deckSnapshots.FIRST.sourceDeckId);
+    expect(next?.deckSnapshots.FIRST.mainDeck.map((card) => card.cardCode)).toEqual(
+      previous?.deckSnapshots.FIRST.mainDeck.map((card) => card.cardCode)
+    );
+    expect(next?.deckSnapshots.SECOND.mainDeck.map((card) => card.cardCode)).toEqual(
+      previous?.deckSnapshots.SECOND.mainDeck.map((card) => card.cardCode)
+    );
+    expect(restarted?.snapshot.playerViewState.match.turnCount).toBe(1);
+  });
+
+  it('非参与用户不能重新开始对墙打', async () => {
+    const { matchService, service } = createHarness();
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    await expect(service.restartMatch(created.matchId, 'other-user')).resolves.toBeNull();
+    expect(matchService.getMatch(created.matchId)).not.toBeNull();
+  });
+
+  it('合并同一用户对同一旧局的并发重开请求', async () => {
+    const { matchService, service } = createHarness();
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const createMatch = vi.spyOn(matchService, 'createMatch');
+
+    const [first, second] = await Promise.all([
+      service.restartMatch(created.matchId, 'user-1'),
+      service.restartMatch(created.matchId, 'user-1'),
+    ]);
+
+    expect(first?.matchId).toBe('match-solitaire-service-2');
+    expect(second?.matchId).toBe(first?.matchId);
+    expect(createMatch).toHaveBeenCalledTimes(1);
+    expect(matchService.getRuntimeStats().matchCount).toBe(1);
   });
 
   it('共用 match cleanup 会释放过期的对墙打运行态', async () => {

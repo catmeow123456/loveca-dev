@@ -127,13 +127,13 @@ tmux attach -t loveca-test
 
 ## 数据库初始化
 
-当前表字段的代码侧来源是 `src/server/db/schema.ts` 和 `drizzle.config.ts`，运行时代码也按该 schema 访问数据库。`docker/init.sql` 是本地开发和新库初始化的基线启动脚本；数据库存在后，后续结构变化应通过 `drizzle/` 下的 Drizzle 迁移文件进入。
+当前表字段的代码侧来源是 `src/server/db/schema.ts` 和 `drizzle.config.ts`，运行时代码也按该 schema 访问数据库。`docker/init.sql` 负责本地开发和新库的基础结构、数据库函数与触发器；新库初始化后仍必须执行 `drizzle/` 下的全部增量迁移。由非幂等增量迁移创建的表不会提前放入 `docker/init.sql`，避免首次迁移时发生重复建表冲突。
 
 ```bash
 pnpm db:migrate
 ```
 
-首次接入迁移时会登记 `drizzle/0000_baseline_current_schema.sql` 这个 no-op 基线；后续新增迁移会继续按顺序执行。详细流程见 [Drizzle 数据库迁移](drizzle/README.md)。
+迁移命令会先登记 `drizzle/0000_baseline_current_schema.sql` 这个 no-op 基线，再按顺序执行后续增量迁移。详细流程见 [Drizzle 数据库迁移](drizzle/README.md)。
 
 早期外部托管方案仅作为历史参考，见 [历史迁移说明](docs/historical-migrations.md)，不作为当前部署脚本。
 

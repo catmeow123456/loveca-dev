@@ -222,6 +222,27 @@ battleRouter.post('/solitaire-matches/:matchId/leave', requireAuth, async (req, 
   }
 });
 
+battleRouter.post(
+  '/solitaire-matches/:matchId/restart',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    try {
+      const result = await solitaireMatchService.restartMatch(
+        readPathParam(req.params.matchId),
+        req.user!.id
+      );
+      if (!result) {
+        respondMatchNotFound(res);
+        return;
+      }
+      res.status(201).json({ data: result, error: null });
+    } catch (error) {
+      respondBattleError(res, error);
+    }
+  }
+);
+
 battleRouter.get('/match-records', requireAuth, async (req, res) => {
   try {
     const records = await matchReplayReadService.listMatchRecordsForUser(req.user!.id, {

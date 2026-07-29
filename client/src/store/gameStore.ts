@@ -119,8 +119,11 @@ import {
   type RemoteSessionSource,
   type RemoteSnapshot,
 } from '@/lib/remoteMatchClient';
-import { leaveSolitaireMatch } from '@/lib/solitaireMatchClient';
-import { clearStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
+import { leaveSolitaireMatch, restartSolitaireMatch } from '@/lib/solitaireMatchClient';
+import {
+  clearStoredSolitaireMatchId,
+  writeStoredSolitaireMatchId,
+} from '@/lib/solitaireMatchRecovery';
 import {
   deriveBattleSurfaceCapabilities,
   type BattleSurfaceCapabilities,
@@ -205,6 +208,15 @@ export interface CommandDispatchResult {
   readonly success: boolean;
   readonly error?: string;
   readonly pending?: boolean;
+}
+
+interface LocalGameRestartSetup {
+  readonly player1Id: string;
+  readonly player1Name: string;
+  readonly player2Id: string;
+  readonly player2Name: string;
+  readonly player1Deck: DeckConfig;
+  readonly player2Deck: DeckConfig;
 }
 
 export interface PlayMemberToSlotOptions {
@@ -318,6 +330,8 @@ export interface GameStore {
   leaveLocalGame: () => void;
   /** 退出当前桌面对局；远程对墙打会先请求服务端封存记录 */
   leaveCurrentGame: () => Promise<void>;
+  /** 使用当前锁定卡组重新开始本地调试或对墙打 */
+  restartCurrentGame: () => Promise<CommandDispatchResult>;
   /** 推进阶段 */
   advancePhase: () => void;
   /** 是否可以撤销本地上一步 */
@@ -730,6 +744,9 @@ export const useGameStore = create<GameStore>((set, get) => {
       handleGameSessionEvent(event, get);
     },
   });
+  let pendingLocalGameIdentity: Omit<LocalGameRestartSetup, 'player1Deck' | 'player2Deck'> | null =
+    null;
+  let localGameRestartSetup: LocalGameRestartSetup | null = null;
 
   const isReadonlyReplayMode = (): boolean => get().replaySession !== null;
 
@@ -934,6 +951,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     createGame: (gameId, player1Id, player1Name, player2Id, player2Name) => {
       const { gameSession } = get();
       gameSession.createGame(gameId, player1Id, player1Name, player2Id, player2Name);
+      pendingLocalGameIdentity = {
+        player1Id,
+        player1Name,
+        player2Id,
+        player2Name,
+      };
+      localGameRestartSetup = null;
 
       // 默认设置玩家1为初始视角
       set({ viewingPlayerId: player1Id, replaySession: null });
@@ -950,6 +974,13 @@ export const useGameStore = create<GameStore>((set, get) => {
       const result = gameSession.initializeGame(player1Deck, player2Deck);
 
       if (result.success) {
+        if (pendingLocalGameIdentity && !get().remoteSession) {
+          localGameRestartSetup = {
+            ...pendingLocalGameIdentity,
+            player1Deck: cloneDeckConfig(player1Deck),
+            player2Deck: cloneDeckConfig(player2Deck),
+          };
+        }
         // 同步状态
         get().syncState();
         get().addLog('游戏初始化完成，双方抽取初始手牌', 'info');
@@ -965,6 +996,8 @@ export const useGameStore = create<GameStore>((set, get) => {
         return;
       }
 
+      pendingLocalGameIdentity = null;
+      localGameRestartSetup = null;
       set({
         playerViewState: null,
         viewingPlayerId: null,
@@ -1012,6 +1045,109 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
 
       get().disconnectRemoteSession();
+    },
+
+    restartCurrentGame: async () => {
+      if (!get().getBattleSurfaceCapabilities().canRestart) {
+        return { success: false, error: '当前对局不支持直接重新开始' };
+      }
+
+      const remoteSession = get().remoteSession;
+      if (remoteSession) {
+        if (remoteSession.source !== 'SOLITAIRE') {
+          return { success: false, error: '当前对局不支持直接重新开始' };
+        }
+
+        try {
+          const restarted = await restartSolitaireMatch(remoteSession.matchId);
+          if (
+            get().remoteSession?.source !== 'SOLITAIRE' ||
+            get().remoteSession?.matchId !== remoteSession.matchId
+          ) {
+            return { success: false, error: '当前对局已发生变化' };
+          }
+
+          clearStoredSolitaireMatchId(remoteSession.matchId);
+          writeStoredSolitaireMatchId(restarted.matchId);
+          get().connectRemoteSession({
+            source: 'SOLITAIRE',
+            matchId: restarted.matchId,
+            seat: restarted.snapshot.seat,
+            playerId: restarted.snapshot.playerId,
+          });
+          await get().applyRemoteSnapshot(restarted.snapshot);
+          get().addLog('对局已重新开始', 'info');
+          get().showPhaseBannerFn('对局重开');
+          setTimeout(() => get().hidePhaseBanner(), 2000);
+          return { success: true };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '重新开始对墙打失败';
+          get().addLog(`重开失败: ${message}`, 'error');
+          get().pushBattleFeedback({
+            tone: 'error',
+            label: '重开失败',
+            detail: message,
+          });
+          return { success: false, error: message };
+        }
+      }
+
+      if (!localGameRestartSetup) {
+        return { success: false, error: '缺少当前对局的开局卡组，无法重新开始' };
+      }
+
+      const setup = localGameRestartSetup;
+      const mode = get().gameMode;
+      gameSession.gameMode = mode;
+      gameSession.createGame(
+        createRestartedLocalGameId(),
+        setup.player1Id,
+        setup.player1Name,
+        setup.player2Id,
+        setup.player2Name
+      );
+      const initialized = gameSession.initializeGame(
+        cloneDeckConfig(setup.player1Deck),
+        cloneDeckConfig(setup.player2Deck)
+      );
+      if (!initialized.success) {
+        const message = initialized.error ?? '游戏初始化失败';
+        get().pushBattleFeedback({
+          tone: 'error',
+          label: '重开失败',
+          detail: message,
+        });
+        return { success: false, error: message };
+      }
+
+      pendingLocalGameIdentity = {
+        player1Id: setup.player1Id,
+        player1Name: setup.player1Name,
+        player2Id: setup.player2Id,
+        player2Name: setup.player2Name,
+      };
+      localGameRestartSetup = {
+        ...setup,
+        player1Deck: cloneDeckConfig(setup.player1Deck),
+        player2Deck: cloneDeckConfig(setup.player2Deck),
+      };
+      set((state) => ({
+        viewingPlayerId: setup.player1Id,
+        replaySession: null,
+        freePlayEnabled: false,
+        publicBattleLog: EMPTY_PUBLIC_BATTLE_LOG,
+        ui: {
+          ...clearTransientBattleUi(state.ui),
+          showPhaseBanner: false,
+          phaseBannerText: '',
+          logs: [],
+        },
+      }));
+      get().syncState();
+      get().addLog('对局已重新开始', 'info');
+      get().showPhaseBannerFn('对局重开');
+      setTimeout(() => get().hidePhaseBanner(), 2000);
+      return { success: true };
     },
 
     advancePhase: () => {
@@ -3510,6 +3646,20 @@ function clearTransientBattleUi(ui: UIState): UIState {
     waitingForInput: false,
     inputRequestType: null,
   };
+}
+
+function cloneDeckConfig(deck: DeckConfig): DeckConfig {
+  return {
+    mainDeck: [...deck.mainDeck],
+    energyDeck: [...deck.energyDeck],
+  };
+}
+
+function createRestartedLocalGameId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `game-${crypto.randomUUID()}`;
+  }
+  return `game-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function isRemoteSessionStillCurrent(

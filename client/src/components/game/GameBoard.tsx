@@ -100,6 +100,7 @@ import {
   EyeOff,
   Maximize2,
   Repeat2,
+  RotateCcw,
   ScrollText,
   Swords,
   Undo2,
@@ -274,11 +275,13 @@ function didObjectMoveIntoMemberSlot(
 
 interface GameBoardProps {
   onLeaveLocalGame?: () => void;
+  onRestartGame?: () => void;
   showDesktopPublicBattleLogButton?: boolean;
 }
 
 export const GameBoard = memo(function GameBoard({
   onLeaveLocalGame,
+  onRestartGame,
   showDesktopPublicBattleLogButton = true,
 }: GameBoardProps) {
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
@@ -2140,6 +2143,7 @@ export const GameBoard = memo(function GameBoard({
     capabilities.surface === 'SOLITAIRE' ||
     capabilities.surface === 'REMOTE_DEBUG';
   const showLeaveLocalGameButton = canShowBattleLeaveButton && Boolean(onLeaveLocalGame);
+  const showRestartGameButton = capabilities.canRestart && Boolean(onRestartGame);
   const leaveLocalGameButtonTitle =
     capabilities.surface === 'REMOTE_DEBUG'
       ? '退出联机调试房间'
@@ -2251,16 +2255,32 @@ export const GameBoard = memo(function GameBoard({
             <div className="safe-top shrink-0 px-2.5 pt-2.5">
               <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_30%,transparent)] px-2.5 py-1.5 shadow-none backdrop-blur-[2px]">
                 <div className="flex items-center justify-between gap-2">
-                  {showLeaveLocalGameButton ? (
-                    <button
-                      type="button"
-                      onClick={onLeaveLocalGame}
-                      className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1.5 px-2.5 text-xs"
-                      title={leaveLocalGameButtonTitle}
-                    >
-                      <DoorOpen size={15} />
-                      离开
-                    </button>
+                  {showLeaveLocalGameButton || showRestartGameButton ? (
+                    <div className="flex shrink-0 items-center gap-1">
+                      {showLeaveLocalGameButton && (
+                        <button
+                          type="button"
+                          onClick={onLeaveLocalGame}
+                          className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
+                          title={leaveLocalGameButtonTitle}
+                        >
+                          <DoorOpen size={15} />
+                          离开
+                        </button>
+                      )}
+                      {showRestartGameButton && (
+                        <button
+                          type="button"
+                          onClick={onRestartGame}
+                          className="button-ghost inline-flex h-9 shrink-0 items-center justify-center gap-1 px-2 text-xs"
+                          title="重开对局"
+                          aria-label="重开对局"
+                        >
+                          <RotateCcw size={15} />
+                          重开
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <div className="h-9 w-9 shrink-0" />
                   )}
@@ -2587,7 +2607,9 @@ export const GameBoard = memo(function GameBoard({
               <ThemeToggle />
             </div>
 
-            {(showLeaveLocalGameButton || canShowDesktopPublicBattleLogButton) && (
+            {(showLeaveLocalGameButton ||
+              showRestartGameButton ||
+              canShowDesktopPublicBattleLogButton) && (
               <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
                 {showLeaveLocalGameButton && (
                   <button
@@ -2598,6 +2620,17 @@ export const GameBoard = memo(function GameBoard({
                   >
                     <DoorOpen size={16} />
                     离开房间
+                  </button>
+                )}
+                {showRestartGameButton && (
+                  <button
+                    type="button"
+                    onClick={onRestartGame}
+                    className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-4 shadow-[var(--shadow-md)] backdrop-blur-xl"
+                    title="重开对局"
+                  >
+                    <RotateCcw size={16} />
+                    重开对局
                   </button>
                 )}
                 {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
