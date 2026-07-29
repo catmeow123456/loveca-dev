@@ -23,6 +23,8 @@ export type MachineLivenessTerminalReason =
   | 'DEGRADED_DURATION_LIMIT'
   | 'AUTHORITY_PROGRESS_WATCHDOG';
 
+export type MachineStrategyMode = 'PRIMARY' | 'CONSERVATIVE_FALLBACK';
+
 export interface MachineLivenessLimits {
   readonly maxAiTurnsWithoutRuleProgress: number;
   readonly maxConservativeDecisions: number;
@@ -32,7 +34,8 @@ export interface MachineLivenessLimits {
 
 export interface MachineLivenessState {
   readonly policyVersion: typeof AI_BATTLE_RULE_PROGRESS_POLICY.version;
-  readonly degradedAt: number;
+  readonly strategyMode: MachineStrategyMode;
+  readonly degradedAt: number | null;
   readonly conservativeDecisionCount: number;
   readonly decisionsWithoutAuthorityProgress: number;
   readonly aiTurnsWithoutStrategicProgress: number;
@@ -104,11 +107,16 @@ export function captureAiRuleProgress(game: GameState): AiRuleProgressSnapshot {
   };
 }
 
-export function createMachineLivenessState(game: GameState, now: number): MachineLivenessState {
+export function createMachineLivenessState(
+  game: GameState,
+  now: number,
+  strategyMode: MachineStrategyMode = 'CONSERVATIVE_FALLBACK'
+): MachineLivenessState {
   const progress = captureAiRuleProgress(game);
   return {
     policyVersion: AI_BATTLE_RULE_PROGRESS_POLICY.version,
-    degradedAt: now,
+    strategyMode,
+    degradedAt: strategyMode === 'CONSERVATIVE_FALLBACK' ? now : null,
     conservativeDecisionCount: 0,
     decisionsWithoutAuthorityProgress: 0,
     aiTurnsWithoutStrategicProgress: 0,
@@ -126,9 +134,11 @@ export function recordMachineLivenessDecision(input: {
   readonly after: GameState;
   readonly systemPlayerId: string;
   readonly now: number;
+  readonly strategyMode?: MachineStrategyMode;
   readonly limits?: MachineLivenessLimits;
 }): MachineLivenessDecisionResult {
   const limits = input.limits ?? DEFAULT_MACHINE_LIVENESS_LIMITS;
+  const strategyMode = input.strategyMode ?? input.previous.strategyMode;
   assertMachineLivenessLimits(limits);
   const beforeProgress = captureAiRuleProgress(input.before);
   const afterProgress = captureAiRuleProgress(input.after);
@@ -139,38 +149,61 @@ export function recordMachineLivenessDecision(input: {
   const beforeTurnKey = getAiTurnKey(input.before, input.systemPlayerId);
   const afterTurnKey = getAiTurnKey(input.after, input.systemPlayerId);
 
-  let activeAiTurnKey = input.previous.activeAiTurnKey;
-  let activeAiTurnHasStrategicProgress = input.previous.activeAiTurnHasStrategicProgress;
-  let aiTurnsWithoutStrategicProgress = input.previous.aiTurnsWithoutStrategicProgress;
-  if (beforeTurnKey && activeAiTurnKey !== beforeTurnKey) {
-    activeAiTurnKey = beforeTurnKey;
-    activeAiTurnHasStrategicProgress = false;
-  }
-  if (strategicRuleProgress) {
-    activeAiTurnHasStrategicProgress = true;
-    aiTurnsWithoutStrategicProgress = 0;
-  }
-  if (beforeTurnKey && afterTurnKey !== beforeTurnKey) {
-    aiTurnsWithoutStrategicProgress = activeAiTurnHasStrategicProgress
-      ? 0
-      : aiTurnsWithoutStrategicProgress + 1;
-    activeAiTurnKey = afterTurnKey;
+  const modeChanged = input.previous.strategyMode !== strategyMode;
+  let activeAiTurnKey = modeChanged ? null : input.previous.activeAiTurnKey;
+  let activeAiTurnHasStrategicProgress = modeChanged
+    ? false
+    : input.previous.activeAiTurnHasStrategicProgress;
+  let aiTurnsWithoutStrategicProgress =
+    strategyMode === 'CONSERVATIVE_FALLBACK' && !modeChanged
+      ? input.previous.aiTurnsWithoutStrategicProgress
+      : 0;
+  if (strategyMode === 'CONSERVATIVE_FALLBACK') {
+    if (beforeTurnKey && activeAiTurnKey !== beforeTurnKey) {
+      activeAiTurnKey = beforeTurnKey;
+      activeAiTurnHasStrategicProgress = false;
+    }
+    if (strategicRuleProgress) {
+      activeAiTurnHasStrategicProgress = true;
+      aiTurnsWithoutStrategicProgress = 0;
+    }
+    if (beforeTurnKey && afterTurnKey !== beforeTurnKey) {
+      aiTurnsWithoutStrategicProgress = activeAiTurnHasStrategicProgress
+        ? 0
+        : aiTurnsWithoutStrategicProgress + 1;
+      activeAiTurnKey = afterTurnKey;
+      activeAiTurnHasStrategicProgress = false;
+    }
+  } else {
+    activeAiTurnKey = null;
     activeAiTurnHasStrategicProgress = false;
   }
 
-  const conservativeDecisionCount = input.previous.conservativeDecisionCount + 1;
+  const conservativeDecisionCount =
+    strategyMode === 'CONSERVATIVE_FALLBACK'
+      ? (modeChanged ? 0 : input.previous.conservativeDecisionCount) + 1
+      : 0;
+  const degradedAt =
+    strategyMode === 'CONSERVATIVE_FALLBACK'
+      ? modeChanged || input.previous.degradedAt === null
+        ? input.now
+        : input.previous.degradedAt
+      : null;
   const decisionsWithoutAuthorityProgress = authorityStateProgress
     ? 0
     : input.previous.decisionsWithoutAuthorityProgress + 1;
   const terminalReason = resolveTerminalReason({
+    strategyMode,
     aiTurnsWithoutStrategicProgress,
     conservativeDecisionCount,
     decisionsWithoutAuthorityProgress,
-    degradedDurationMs: Math.max(0, input.now - input.previous.degradedAt),
+    degradedDurationMs: degradedAt === null ? 0 : Math.max(0, input.now - degradedAt),
     limits,
   });
   const state: MachineLivenessState = {
     ...input.previous,
+    strategyMode,
+    degradedAt,
     conservativeDecisionCount,
     decisionsWithoutAuthorityProgress,
     aiTurnsWithoutStrategicProgress,
@@ -189,6 +222,7 @@ export function recordMachineLivenessDecision(input: {
 }
 
 function resolveTerminalReason(input: {
+  readonly strategyMode: MachineStrategyMode;
   readonly aiTurnsWithoutStrategicProgress: number;
   readonly conservativeDecisionCount: number;
   readonly decisionsWithoutAuthorityProgress: number;
@@ -199,6 +233,9 @@ function resolveTerminalReason(input: {
     input.decisionsWithoutAuthorityProgress >= input.limits.maxDecisionsWithoutAuthorityProgress
   ) {
     return 'AUTHORITY_PROGRESS_WATCHDOG';
+  }
+  if (input.strategyMode === 'PRIMARY') {
+    return null;
   }
   if (input.aiTurnsWithoutStrategicProgress >= input.limits.maxAiTurnsWithoutRuleProgress) {
     return 'AI_TURNS_WITHOUT_STRATEGIC_PROGRESS';

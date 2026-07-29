@@ -12,7 +12,7 @@ import {
 
 describe('AI battle Phase 2 completed baseline', () => {
   it('freezes the completed strategy context, audit, history, and evaluation slices', () => {
-    expect(AI_BATTLE_PHASE_TWO_BASELINE_VERSION).toBe('ai-battle.phase-two/v1');
+    expect(AI_BATTLE_PHASE_TWO_BASELINE_VERSION).toBe('ai-battle.phase-two/v2');
     expect(AI_BATTLE_PHASE_TWO_CERTIFICATION_STATUS).toBe('COMPLETE');
     expect(AI_BATTLE_PHASE_TWO_COMPONENT_STATUS).toEqual({
       playerViewObservation: 'IMPLEMENTED',
@@ -37,8 +37,8 @@ describe('AI battle Phase 2 completed baseline', () => {
       strategyContext: 'ai-battle.strategy-context/v1',
       selectedHistory: 'ai-battle.selected-history/v2',
       explainablePolicy: 'ai-battle.explainable-policy/v1',
-      strategyDecisionAudit: 'ai-battle.strategy-decision-audit/v1',
-      strategyDecisionRecord: 'ai-battle.strategy-decision-record/v1',
+      strategyDecisionAudit: 'ai-battle.strategy-decision-audit/v2',
+      strategyDecisionRecord: 'ai-battle.strategy-decision-record/v2',
       strategyEvaluation: 'ai-battle.strategy-evaluation/v1',
       phaseTwoPlayout: 'ai-battle.phase-two-playout/v1',
     });

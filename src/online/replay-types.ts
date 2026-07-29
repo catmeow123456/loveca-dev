@@ -29,12 +29,16 @@ export type MatchMode = 'ONLINE' | 'SOLITAIRE';
 
 export type MatchAutomationGameMode = 'DEBUG' | 'SOLITAIRE';
 
-export type MatchOriginKind = 'ONLINE_ROOM' | 'PUBLIC_TABLE' | 'RANKED' | 'SOLITAIRE';
+export type MatchOriginKind =
+  'ONLINE_ROOM' | 'PUBLIC_TABLE' | 'RANKED' | 'AI_BATTLE' | 'SOLITAIRE';
 
 export type MatchParticipantKind = 'USER' | 'SYSTEM';
 
 export type MatchDeckSnapshotSource =
-  'ONLINE_RUNTIME_DECK' | 'PUBLISHED_CARDS_SNAPSHOT' | 'SOLITAIRE_DEFAULT_DECK';
+  | 'ONLINE_RUNTIME_DECK'
+  | 'PUBLISHED_CARDS_SNAPSHOT'
+  | 'AI_CERTIFIED_DECK'
+  | 'SOLITAIRE_DEFAULT_DECK';
 
 export type MatchDeckSnapshotValidationState = 'RUNTIME_ACCEPTED' | 'VALID' | 'INVALID';
 
@@ -65,7 +69,8 @@ export type MatchDecisionType =
   | 'ACTIVATE_ABILITY_SUBMITTED'
   | 'MULLIGAN_SUBMITTED'
   | 'SET_LIVE_CARD_SUBMITTED'
-  | 'SELECT_SUCCESS_LIVE_SUBMITTED';
+  | 'SELECT_SUCCESS_LIVE_SUBMITTED'
+  | 'AI_STRATEGY_SUBMITTED';
 
 export type MatchDecisionRecordStatus = 'OPENED' | 'SUBMITTED';
 

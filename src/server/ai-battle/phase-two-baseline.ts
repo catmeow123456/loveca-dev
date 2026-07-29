@@ -18,7 +18,7 @@ import {
   AI_MUSE_STARTER_PLAYBOOK_VERSION,
 } from './strategy-knowledge.js';
 
-export const AI_BATTLE_PHASE_TWO_BASELINE_VERSION = 'ai-battle.phase-two/v1' as const;
+export const AI_BATTLE_PHASE_TWO_BASELINE_VERSION = 'ai-battle.phase-two/v2' as const;
 export const AI_BATTLE_PHASE_TWO_CERTIFICATION_STATUS = 'COMPLETE' as const;
 
 export const AI_BATTLE_PHASE_TWO_COMPONENT_STATUS = {

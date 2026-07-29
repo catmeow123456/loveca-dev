@@ -38,6 +38,7 @@ import {
   gameplayParticipationService,
   type GameplayParticipationPort,
 } from './gameplay-participation-service.js';
+import { resolveOpeningRpsWinner } from './opening-rps.js';
 import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
 import { rankedRatingService } from './ranked-rating-service.js';
 import type {
@@ -2405,7 +2406,10 @@ function revealOpeningRpsRound(
   const [left, right] = choices;
   const winnerUserId =
     left && right && left.gesture && right.gesture
-      ? getRpsWinner(left.userId, left.gesture, right.userId, right.gesture)
+      ? resolveOpeningRpsWinner(
+          { participantId: left.userId, gesture: left.gesture },
+          { participantId: right.userId, gesture: right.gesture }
+        )
       : null;
 
   return {
@@ -2416,25 +2420,6 @@ function revealOpeningRpsRound(
     chooserUserId: winnerUserId,
     revealedAt: now,
   };
-}
-
-function getRpsWinner(
-  leftUserId: string,
-  leftGesture: OpeningRpsGesture,
-  rightUserId: string,
-  rightGesture: OpeningRpsGesture
-): string | null {
-  if (leftGesture === rightGesture) {
-    return null;
-  }
-  if (
-    (leftGesture === 'ROCK' && rightGesture === 'SCISSORS') ||
-    (leftGesture === 'SCISSORS' && rightGesture === 'PAPER') ||
-    (leftGesture === 'PAPER' && rightGesture === 'ROCK')
-  ) {
-    return leftUserId;
-  }
-  return rightUserId;
 }
 
 function buildOpeningRpsViewForViewer(

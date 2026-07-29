@@ -4,14 +4,16 @@ import type { AiStrategyTier, ExplainableDecisionResult } from './explainable-de
 import type { AiStrategyContext } from './strategy-context.js';
 
 export const AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION =
-  'ai-battle.strategy-decision-audit/v1' as const;
+  'ai-battle.strategy-decision-audit/v2' as const;
 export const AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION =
-  'ai-battle.strategy-decision-record/v1' as const;
+  'ai-battle.strategy-decision-record/v2' as const;
 
 export interface AiStrategyDecisionAudit {
   readonly schemaVersion: typeof AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION;
   readonly contextSchemaVersion: AiStrategyContext['schemaVersion'];
   readonly observationSchemaVersion: AiStrategyContext['observation']['schemaVersion'];
+  readonly decisionContractVersion: AiStrategyContext['observation']['decisionContractSchemaVersion'];
+  readonly commandAdapterVersion: AiStrategyContext['observation']['commandAdapterVersion'];
   readonly contextSha256: string;
   readonly authorityRevision: number;
   readonly seat: AiStrategyContext['observation']['viewerSeat'];
@@ -62,6 +64,8 @@ export function createAiStrategyDecisionAudit(
     schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
     contextSchemaVersion: context.schemaVersion,
     observationSchemaVersion: context.observation.schemaVersion,
+    decisionContractVersion: context.observation.decisionContractSchemaVersion,
+    commandAdapterVersion: context.observation.commandAdapterVersion,
     contextSha256: hashCanonicalJson(context),
     authorityRevision: context.observation.authorityRevision,
     seat: context.observation.viewerSeat,

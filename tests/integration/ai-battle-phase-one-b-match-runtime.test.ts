@@ -10,18 +10,17 @@ import {
   type LiveCardData,
   type MemberCardData,
 } from '../../src/domain/entities/card';
-import { MachineDecisionCoordinator } from '../../src/server/ai-battle/machine-decision-coordinator';
 import { selectConservativeDecision } from '../../src/server/ai-battle/conservative-decision-policy';
 import { SingleMatchSerialExecutor } from '../../src/server/ai-battle/single-match-serial-executor';
-import {
-  OnlineMatchService,
-  OnlineMatchServiceError,
-} from '../../src/server/services/online-match-service';
+import { createAiSystemParticipantBinding } from '../../src/server/ai-battle/system-participant';
+import { OnlineMatchService } from '../../src/server/services/online-match-service';
 import { CardType, GamePhase, HeartColor, SubPhase } from '../../src/shared/types/enums';
+import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
 
 const MATCH_ID = 'phase-one-b-match';
 const USER_ID = 'phase-one-b-user';
-const SYSTEM_USER_ID = 'phase-one-b-system';
+const SYSTEM_BINDING = createAiSystemParticipantBinding('MUSE_STARTER');
+const SYSTEM_USER_ID = SYSTEM_BINDING.userId;
 
 function createMember(cardCode: string): MemberCardData {
   return {
@@ -82,11 +81,14 @@ async function createHarness(options: { readonly systemSeat?: 'FIRST' | 'SECOND'
   const system = {
     userId: SYSTEM_USER_ID,
     displayName: '机器',
-    deck: createDeck('SYSTEM'),
+    deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
+    deckSource: 'AI_CERTIFIED_DECK' as const,
     participantKind: 'SYSTEM' as const,
+    systemParticipantBinding: SYSTEM_BINDING,
   };
   const match = await matchService.createMatch({
     roomCode: 'AI1B',
+    originKind: 'AI_BATTLE',
     first: options.systemSeat === 'FIRST' ? system : user,
     second: options.systemSeat === 'FIRST' ? user : system,
   });
@@ -148,7 +150,7 @@ describe('AI battle Phase 1B match runtime boundary', () => {
   });
 
   it('runs lease acquisition and SYSTEM command submission through the same executor', async () => {
-    const { matchService, serialExecutor, match } = await createHarness();
+    const { matchService, match } = await createHarness();
     await expect(
       matchService.executeCommand(match.matchId, USER_ID, {
         type: GameCommandType.MULLIGAN,
@@ -157,19 +159,10 @@ describe('AI battle Phase 1B match runtime boundary', () => {
         timestamp: 1_000,
       })
     ).resolves.toMatchObject({ success: true });
-    const coordinator = new MachineDecisionCoordinator({
-      executor: serialExecutor,
-      runtimeEpoch: 'phase-one-b-runtime',
-      idGenerator: () => 'lease-1',
-      now: () => 1_000,
-    });
-    const systemPlayerId = match.participants.SECOND.playerId;
-    const acquired = await coordinator.acquireLease({
+    const acquired = await matchService.acquireMachineDecisionLease({
       matchId: match.matchId,
-      playerId: systemPlayerId,
+      systemUserId: SYSTEM_USER_ID,
       ownerId: 'machine-worker',
-      readAuthoritySnapshot: (criticalSection) =>
-        matchService.readMachineAuthoritySnapshot(match.matchId, criticalSection),
     });
     if (!acquired.ok) throw new Error(acquired.detail);
     const witness = getAiDecisionWitness({ contract: acquired.contract });
@@ -181,21 +174,11 @@ describe('AI battle Phase 1B match runtime boundary', () => {
     if (!conservative.ok) throw new Error(conservative.detail);
     const revisionBefore = match.remoteRevision;
 
-    const submitted = await coordinator.submitSelection({
+    const submitted = await matchService.submitMachineDecisionSelection({
       matchId: match.matchId,
       leaseId: acquired.lease.leaseId,
       ownerId: 'machine-worker',
       selection: conservative.selection,
-      readAuthoritySnapshot: (criticalSection) =>
-        matchService.readMachineAuthoritySnapshot(match.matchId, criticalSection),
-      executeCommand: (command, expectedRevision, criticalSection) =>
-        matchService.executeMachineCommandAtRevisionInCriticalSection(
-          match.matchId,
-          SYSTEM_USER_ID,
-          command,
-          expectedRevision,
-          criticalSection
-        ),
     });
 
     expect(submitted).toMatchObject({
@@ -208,21 +191,13 @@ describe('AI battle Phase 1B match runtime boundary', () => {
   });
 
   it('rejects an old machine lease after a serialized player write', async () => {
-    const { matchService, serialExecutor, match } = await createHarness({
+    const { matchService, match } = await createHarness({
       systemSeat: 'FIRST',
     });
-    const coordinator = new MachineDecisionCoordinator({
-      executor: serialExecutor,
-      runtimeEpoch: 'phase-one-b-runtime',
-      idGenerator: () => 'lease-1',
-      now: () => 1_000,
-    });
-    const acquired = await coordinator.acquireLease({
+    const acquired = await matchService.acquireMachineDecisionLease({
       matchId: match.matchId,
-      playerId: match.participants.FIRST.playerId,
+      systemUserId: SYSTEM_USER_ID,
       ownerId: 'machine-worker',
-      readAuthoritySnapshot: (criticalSection) =>
-        matchService.readMachineAuthoritySnapshot(match.matchId, criticalSection),
     });
     if (!acquired.ok) throw new Error(acquired.detail);
 
@@ -234,32 +209,29 @@ describe('AI battle Phase 1B match runtime boundary', () => {
       })
     ).resolves.toMatchObject({ success: true });
 
-    const stale = await coordinator.submitSelection({
+    const stale = await matchService.submitMachineDecisionSelection({
       matchId: match.matchId,
       leaseId: acquired.lease.leaseId,
       ownerId: 'machine-worker',
       selection: { kind: 'MULLIGAN', candidateIds: [] },
-      readAuthoritySnapshot: (criticalSection) =>
-        matchService.readMachineAuthoritySnapshot(match.matchId, criticalSection),
-      executeCommand: (command, expectedRevision, criticalSection) =>
-        matchService.executeMachineCommandAtRevisionInCriticalSection(
-          match.matchId,
-          SYSTEM_USER_ID,
-          command,
-          expectedRevision,
-          criticalSection
-        ),
     });
 
     expect(stale).toMatchObject({ ok: false, reason: 'AUTHORITY_REVISION_CHANGED' });
     expect(matchService.getMatch(match.matchId)?.session.state?.isEnded).toBe(true);
   });
 
-  it('rejects trusted authority reads outside the shared critical section', async () => {
+  it('rejects lease acquisition for a USER participant', async () => {
     const { matchService, match } = await createHarness();
 
-    expect(() => matchService.readMachineAuthoritySnapshot(match.matchId)).toThrow(
-      OnlineMatchServiceError
-    );
+    await expect(
+      matchService.acquireMachineDecisionLease({
+        matchId: match.matchId,
+        systemUserId: USER_ID,
+        ownerId: 'forged-worker',
+      })
+    ).resolves.toMatchObject({
+      ok: false,
+      reason: 'INVALID_STATE',
+    });
   });
 });

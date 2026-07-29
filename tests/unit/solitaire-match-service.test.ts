@@ -197,6 +197,41 @@ describe('SolitaireMatchService', () => {
     expect(result.snapshot.playerViewState.uiHints.gameMode).toBe(GameMode.SOLITAIRE);
   });
 
+  it('对墙打的 SYSTEM 占位对手不会触发正式 AI 对局的自由模式限制', async () => {
+    const { service } = createHarness();
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+
+    expect(created.snapshot.playerViewState.match.manualOperation).toMatchObject({
+      mode: 'RULES',
+      disabledReason: '当前正在自动处理流程，请到下一个可操作时点再切换',
+    });
+    const mainPhase = await service.executeCommand(
+      created.matchId,
+      'user-1',
+      createMulliganCommand('ignored-player', [])
+    );
+    expect(mainPhase?.snapshot?.playerViewState.match.manualOperation).toMatchObject({
+      mode: 'RULES',
+      canSwitchNow: true,
+      disabledReason: null,
+    });
+
+    const changed = await service.changeManualOperationMode(created.matchId, 'user-1', {
+      targetMode: 'FREE',
+      expectedRevision: mainPhase!.snapshot!.seq,
+    });
+
+    expect(changed).toMatchObject({ success: true });
+    expect(changed?.snapshot?.playerViewState.match.manualOperation).toMatchObject({
+      mode: 'FREE',
+      canSwitchNow: true,
+      disabledReason: null,
+    });
+  });
+
   it('运行中接口拒绝系统对手与非参与用户，避免系统 participant 被当作真实用户授权', async () => {
     const { matchService, service } = createHarness();
     const result = await service.createMatch({

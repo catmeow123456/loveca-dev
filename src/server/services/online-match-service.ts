@@ -13,6 +13,7 @@ import {
   GameCommandType,
   type GameCommand,
 } from '../../application/game-commands.js';
+import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
@@ -74,15 +75,34 @@ import {
   type OnlineMatchChatRuntimeState,
 } from './online-match-chat-runtime.js';
 import { selectConservativeDecision } from '../ai-battle/conservative-decision-policy.js';
+import { buildAiObservation } from '../ai-battle/ai-observation.js';
+import { selectExplainableDecision } from '../ai-battle/explainable-decision-policy.js';
+import { buildAiStrategyContext } from '../ai-battle/strategy-context.js';
+import {
+  createAiStrategyDecisionAudit,
+  createAiStrategyDecisionRecord,
+  type AiStrategyDecisionAudit,
+  type AiStrategyDecisionRecord,
+} from '../ai-battle/strategy-decision-audit.js';
+import {
+  createAiSelectedHistoryTracker,
+  type AiSelectedHistoryTracker,
+} from '../ai-battle/strategy-history.js';
+import {
+  isCertifiedAiSystemParticipantBinding,
+  type AiSystemParticipantBinding,
+} from '../ai-battle/system-participant.js';
 import {
   SingleMatchSerialExecutor,
   type SingleMatchCriticalSection,
 } from '../ai-battle/single-match-serial-executor.js';
 import {
   MachineDecisionCoordinator,
-  MachineAuthoritySnapshot,
-  MachineCommandExecutionResult,
+  type AcquireMachineDecisionLeaseResult,
+  type MachineAuthoritySnapshot,
+  type MachineCommandExecutionResult,
   type MachineDecisionCoordinatorOptions,
+  type SubmitMachineDecisionResult,
 } from '../ai-battle/machine-decision-coordinator.js';
 import {
   MachineDecisionScheduler,
@@ -97,6 +117,7 @@ import {
   recordMachineLivenessDecision,
   type MachineLivenessLimits,
   type MachineLivenessState,
+  type MachineStrategyMode,
 } from '../ai-battle/rule-progress.js';
 import {
   readServerDeadlineDescriptor,
@@ -140,6 +161,7 @@ export interface CreateOnlineMatchPlayerParams {
   readonly pointValidation: DeckPointValidationFacts;
   readonly participantKind?: MatchParticipantKind;
   readonly ownerUserId?: string | null;
+  readonly systemParticipantBinding?: AiSystemParticipantBinding | null;
 }
 
 export interface CreateOnlineMatchParams {
@@ -188,6 +210,7 @@ export interface OnlineMatchState {
   readonly session: GameSession;
   readonly participants: Readonly<Record<Seat, OnlineMatchParticipant>>;
   readonly deckSnapshots: Readonly<Record<Seat, OnlineMatchDeckSnapshot>>;
+  readonly systemParticipantBindings: Readonly<Partial<Record<Seat, AiSystemParticipantBinding>>>;
   readonly startedAt: number;
   remoteRevision: number;
   recordBranchId: string;
@@ -388,6 +411,17 @@ interface OnlineMatchServiceDeps {
   readonly machineLivenessLimits?: MachineLivenessLimits;
 }
 
+interface MachineStrategyRuntime {
+  readonly binding: AiSystemParticipantBinding;
+  readonly history: AiSelectedHistoryTracker;
+}
+
+export interface MachineStrategySubmissionMetadata {
+  readonly audit: AiStrategyDecisionAudit;
+  readonly decisionId: string;
+  readonly windowSignature: string;
+}
+
 export interface DeleteOnlineMatchOptions {
   readonly reason?: string;
   readonly now?: number;
@@ -420,6 +454,7 @@ export class OnlineSpectatorServiceError extends Error {
 
 export class OnlineMatchService {
   private readonly matches = new Map<string, OnlineMatchState>();
+  private readonly machineStrategyRuntimes = new Map<string, MachineStrategyRuntime>();
   private readonly spectatorLinks = new Map<string, OnlineSpectatorLinkState>();
   private readonly spectatorSessions = new Map<string, OnlineSpectatorSessionState>();
   private readonly spectatorRequestWindows = new Map<
@@ -497,6 +532,9 @@ export class OnlineMatchService {
   }
 
   async createMatch(params: CreateOnlineMatchParams): Promise<OnlineMatchState> {
+    const matchMode = params.matchMode ?? 'ONLINE';
+    const originKind = params.originKind ?? 'ONLINE_ROOM';
+    assertSystemParticipantConfiguration(params.first, params.second, matchMode, originKind);
     const matchId = this.idGenerator();
     const automationGameMode = params.automationGameMode ?? 'DEBUG';
     const session = createGameSession({
@@ -509,9 +547,9 @@ export class OnlineMatchService {
     const state: OnlineMatchState = {
       matchId,
       roomCode: params.roomCode,
-      matchMode: params.matchMode ?? 'ONLINE',
+      matchMode,
       automationGameMode,
-      originKind: params.originKind ?? 'ONLINE_ROOM',
+      originKind,
       originLabel: params.originLabel ?? params.roomCode,
       session,
       participants: {
@@ -535,6 +573,14 @@ export class OnlineMatchService {
       deckSnapshots: {
         FIRST: createRuntimeDeckSnapshot('FIRST', params.first),
         SECOND: createRuntimeDeckSnapshot('SECOND', params.second),
+      },
+      systemParticipantBindings: {
+        ...(params.first.participantKind === 'SYSTEM' && params.first.systemParticipantBinding
+          ? { FIRST: params.first.systemParticipantBinding }
+          : {}),
+        ...(params.second.participantKind === 'SYSTEM' && params.second.systemParticipantBinding
+          ? { SECOND: params.second.systemParticipantBinding }
+          : {}),
       },
       startedAt: now,
       remoteRevision: 0,
@@ -637,6 +683,23 @@ export class OnlineMatchService {
     }
 
     this.matches.set(matchId, state);
+    for (const seat of ['FIRST', 'SECOND'] as const) {
+      const binding = state.systemParticipantBindings[seat];
+      if (binding) {
+        this.machineStrategyRuntimes.set(buildMachineStrategyRuntimeKey(matchId, seat), {
+          binding,
+          history: createAiSelectedHistoryTracker(seat),
+        });
+      }
+    }
+    if (Object.keys(state.systemParticipantBindings).length > 0) {
+      this.appendMachineSystemNotice(
+        state,
+        'AI_MATCH_READY',
+        `ai-match-ready:${matchId}`,
+        '本局对手为不可登录的 Loveca AI，使用已认证固定卡组与可解释策略。'
+      );
+    }
     this.reconcileServerDeadline(state);
     this.reconcileMachineDecisionScheduling(state);
     return state;
@@ -651,7 +714,7 @@ export class OnlineMatchService {
    * from the shared per-match critical section so contract generation cannot
    * race an authority write.
    */
-  readMachineAuthoritySnapshot(
+  private readMachineAuthoritySnapshot(
     matchId: string,
     criticalSection?: SingleMatchCriticalSection
   ): MachineAuthoritySnapshot | null {
@@ -667,32 +730,102 @@ export class OnlineMatchService {
   }
 
   /**
-   * Internal SYSTEM participant command boundary used by the machine
-   * coordinator. It shares the same executor and rechecks revision inside it.
+   * The only service-level entry for beginning a formal AI decision. Resolving
+   * the SYSTEM player here prevents callers from constructing a coordinator
+   * around the lower-level trusted command path.
    */
-  async executeMachineCommandAtRevision(
-    matchId: string,
-    systemUserId: string,
-    command: GameCommand,
-    expectedRevision: number
-  ): Promise<MachineCommandExecutionResult> {
-    return this.serialExecutor.runExclusive(matchId, (criticalSection) =>
-      this.executeMachineCommandAtRevisionInCriticalSection(
-        matchId,
-        systemUserId,
-        command,
-        expectedRevision,
-        criticalSection
-      )
-    );
+  async acquireMachineDecisionLease(input: {
+    readonly matchId: string;
+    readonly systemUserId: string;
+    readonly ownerId: string;
+  }): Promise<AcquireMachineDecisionLeaseResult> {
+    return this.serialExecutor.runExclusive(input.matchId, (criticalSection) => {
+      const match = this.matches.get(input.matchId);
+      const participant = match ? getParticipantByUserId(match, input.systemUserId) : null;
+      if (
+        !match ||
+        match.originKind !== 'AI_BATTLE' ||
+        !participant ||
+        participant.participantKind !== 'SYSTEM' ||
+        !match.systemParticipantBindings[participant.seat]
+      ) {
+        return {
+          ok: false,
+          reason: 'INVALID_STATE',
+          detail: '机器决策 lease 只能为正式 AI 对局的 SYSTEM 参赛者创建',
+        };
+      }
+      return this.machineDecisionCoordinator.acquireLeaseInCriticalSection(criticalSection, {
+        matchId: match.matchId,
+        playerId: participant.playerId,
+        ownerId: input.ownerId,
+        readAuthoritySnapshot: (section) =>
+          this.readMachineAuthoritySnapshot(match.matchId, section),
+      });
+    });
   }
 
-  async executeMachineCommandAtRevisionInCriticalSection(
+  /**
+   * The only service-level entry for submitting a machine choice. The active
+   * lease determines the SYSTEM identity; callers cannot supply a raw command.
+   */
+  async submitMachineDecisionSelection(input: {
+    readonly matchId: string;
+    readonly leaseId: string;
+    readonly ownerId: string;
+    readonly selection: AiDecisionSelection;
+  }): Promise<SubmitMachineDecisionResult> {
+    return this.serialExecutor.runExclusive(input.matchId, async (criticalSection) => {
+      const match = this.matches.get(input.matchId);
+      const activeLease = (['FIRST', 'SECOND'] as const)
+        .map((seat) => this.machineDecisionCoordinator.getActiveLease(input.matchId, seat))
+        .find((lease) => lease?.leaseId === input.leaseId);
+      const participant = match && activeLease ? match.participants[activeLease.seat] : null;
+      if (
+        !match ||
+        match.originKind !== 'AI_BATTLE' ||
+        !activeLease ||
+        !participant ||
+        participant.participantKind !== 'SYSTEM' ||
+        participant.playerId !== activeLease.playerId ||
+        !match.systemParticipantBindings[participant.seat]
+      ) {
+        return {
+          ok: false,
+          reason: 'LEASE_NOT_FOUND',
+          detail: '正式 AI 对局的 decision lease 不存在或已经失效',
+        };
+      }
+      return this.machineDecisionCoordinator.submitSelectionInCriticalSection(criticalSection, {
+        matchId: match.matchId,
+        leaseId: input.leaseId,
+        ownerId: input.ownerId,
+        selection: input.selection,
+        readAuthoritySnapshot: (section) =>
+          this.readMachineAuthoritySnapshot(match.matchId, section),
+        executeCommand: (command, expectedRevision, section) =>
+          this.#executeMachineCommandAtRevisionInCriticalSection(
+            match.matchId,
+            participant.userId,
+            command,
+            expectedRevision,
+            section
+          ),
+      });
+    });
+  }
+
+  /**
+   * Trusted command sink used only after an in-service decision coordinator
+   * has validated the current lease, window and selection.
+   */
+  async #executeMachineCommandAtRevisionInCriticalSection(
     matchId: string,
     systemUserId: string,
     command: GameCommand,
     expectedRevision: number,
-    criticalSection?: SingleMatchCriticalSection
+    criticalSection?: SingleMatchCriticalSection,
+    strategySubmission?: MachineStrategySubmissionMetadata
   ): Promise<MachineCommandExecutionResult> {
     if (!this.serialExecutor.isExecutingMatch(matchId, criticalSection)) {
       throw new OnlineMatchServiceError(
@@ -716,7 +849,10 @@ export class OnlineMatchService {
         error: '权威 revision 已变化，机器命令已过期',
       };
     }
-    const result = await this.executeCommandInCriticalSection(matchId, systemUserId, command);
+    const result = await this.executeCommandInCriticalSection(matchId, systemUserId, command, {
+      trustedSystemSubmission: true,
+      strategySubmission,
+    });
     return {
       success: result?.success === true,
       authorityRevision: match.remoteRevision,
@@ -785,8 +921,15 @@ export class OnlineMatchService {
         return game?.isEnded ? 'TERMINAL' : 'IDLE';
       }
       const systemParticipants = (['FIRST', 'SECOND'] as const)
+        .filter((seat) => !!match.systemParticipantBindings[seat])
         .map((seat) => match.participants[seat])
-        .filter((participant) => participant.participantKind === 'SYSTEM');
+        .filter(
+          (participant) =>
+            participant.participantKind === 'SYSTEM' &&
+            isCertifiedAiSystemParticipantBinding(
+              match.systemParticipantBindings[participant.seat]!
+            )
+        );
       const terminalParticipant = systemParticipants[0];
       const terminateMachineFailure = async (
         detail: string
@@ -808,7 +951,7 @@ export class OnlineMatchService {
           `ai-liveness-concede:${match.machineLiveness.policyVersion}`,
           buildMachineLivenessConcessionNotice(match.machineLiveness.terminalReason)
         );
-        const terminal = await this.executeMachineCommandAtRevisionInCriticalSection(
+        const terminal = await this.#executeMachineCommandAtRevisionInCriticalSection(
           match.matchId,
           terminalParticipant.userId,
           {
@@ -850,8 +993,44 @@ export class OnlineMatchService {
             : terminateMachineFailure('AI 无法建立当前决策契约，本局已因机器决策异常结束。');
         }
 
-        const selected = selectConservativeDecision(acquired.contract);
-        if (!selected.ok) {
+        const strategyRuntime = this.machineStrategyRuntimes.get(
+          buildMachineStrategyRuntimeKey(match.matchId, participant.seat)
+        );
+        let strategySubmission: MachineStrategySubmissionMetadata | undefined;
+        let acceptedHistory:
+          | {
+              readonly observation: ReturnType<typeof buildAiObservation>;
+              readonly result: Extract<
+                ReturnType<typeof selectExplainableDecision>,
+                { readonly ok: true }
+              >;
+            }
+          | undefined;
+        const selected = strategyRuntime
+          ? (() => {
+              const view = match.session.getPlayerViewState(participant.playerId, {
+                seqOverride: match.remoteRevision,
+              });
+              if (!view) return null;
+              const observation = buildAiObservation(view, acquired.contract);
+              const context = buildAiStrategyContext({
+                observation,
+                deckKey: strategyRuntime.binding.deckKey,
+                deckContentHash: strategyRuntime.binding.deckContentHash,
+                selectedHistory: strategyRuntime.history.observe(observation),
+              });
+              const result = selectExplainableDecision(context);
+              if (!result.ok) return null;
+              strategySubmission = {
+                audit: createAiStrategyDecisionAudit(context, result),
+                decisionId: acquired.contract.decisionId,
+                windowSignature: acquired.contract.windowSignature,
+              };
+              acceptedHistory = { observation, result };
+              return result;
+            })()
+          : selectConservativeDecision(acquired.contract);
+        if (!selected?.ok) {
           return terminateMachineFailure(
             'AI 无法为当前决策生成合法操作，本局已因机器决策异常结束。'
           );
@@ -867,28 +1046,42 @@ export class OnlineMatchService {
             readAuthoritySnapshot: (section) =>
               this.readMachineAuthoritySnapshot(match.matchId, section),
             executeCommand: (command, expectedRevision, section) =>
-              this.executeMachineCommandAtRevisionInCriticalSection(
+              this.#executeMachineCommandAtRevisionInCriticalSection(
                 match.matchId,
                 participant.userId,
                 command,
                 expectedRevision,
-                section
+                section,
+                strategySubmission
               ),
           }
         );
         if (submitted.ok) {
+          if (strategyRuntime && acceptedHistory) {
+            strategyRuntime.history.recordAcceptedDecision(
+              acceptedHistory.observation,
+              acceptedHistory.result
+            );
+          }
           const after = match.session.state;
           if (!after) {
             return terminateMachineFailure('AI 命令执行后权威状态丢失，本局已异常结束。');
           }
-          const firstConservativeDecision = match.machineLiveness === null;
-          const previous = match.machineLiveness ?? createMachineLivenessState(before, this.now());
+          const strategyMode: MachineStrategyMode = strategyRuntime
+            ? 'PRIMARY'
+            : 'CONSERVATIVE_FALLBACK';
+          const firstConservativeDecision =
+            strategyMode === 'CONSERVATIVE_FALLBACK' &&
+            match.machineLiveness?.strategyMode !== 'CONSERVATIVE_FALLBACK';
+          const previous =
+            match.machineLiveness ?? createMachineLivenessState(before, this.now(), strategyMode);
           const liveness = recordMachineLivenessDecision({
             previous,
             before,
             after,
             systemPlayerId: participant.playerId,
             now: this.now(),
+            strategyMode,
             limits: this.machineLivenessLimits,
           });
           match.machineLiveness = liveness.state;
@@ -907,7 +1100,7 @@ export class OnlineMatchService {
               `ai-liveness-concede:${liveness.state.policyVersion}`,
               buildMachineLivenessConcessionNotice(liveness.terminalReason)
             );
-            const terminal = await this.executeMachineCommandAtRevisionInCriticalSection(
+            const terminal = await this.#executeMachineCommandAtRevisionInCriticalSection(
               match.matchId,
               participant.userId,
               {
@@ -974,7 +1167,7 @@ export class OnlineMatchService {
     criticalSection: SingleMatchCriticalSection
   ): Promise<boolean> {
     this.appendMachineSystemNotice(match, 'AI_MACHINE_FAILURE', dedupeKey, text);
-    const terminal = await this.executeMachineCommandAtRevisionInCriticalSection(
+    const terminal = await this.#executeMachineCommandAtRevisionInCriticalSection(
       match.matchId,
       participant.userId,
       {
@@ -1019,9 +1212,7 @@ export class OnlineMatchService {
       !match.pendingUndoRequest &&
       !match.pendingManualOperationModeRequest &&
       !match.activeUndoGrant &&
-      Object.values(match.participants).some(
-        (participant) => participant.participantKind === 'SYSTEM'
-      )
+      isFormalAiMatch(match)
     );
   }
 
@@ -1053,6 +1244,7 @@ export class OnlineMatchService {
     match: OnlineMatchState,
     criticalSection: SingleMatchCriticalSection
   ): Promise<OnlineMatchState> {
+    assertRestoredSystemParticipantConfiguration(match);
     const existing = this.matches.get(match.matchId);
     if (existing) {
       this.reconcileServerDeadline(existing);
@@ -1067,6 +1259,15 @@ export class OnlineMatchService {
     this.sealedMatchIds.delete(match.matchId);
     this.synchronizePhaseCompletionGate(match);
     this.matches.set(match.matchId, match);
+    for (const seat of ['FIRST', 'SECOND'] as const) {
+      const binding = match.systemParticipantBindings[seat];
+      if (binding) {
+        this.machineStrategyRuntimes.set(buildMachineStrategyRuntimeKey(match.matchId, seat), {
+          binding,
+          history: createAiSelectedHistoryTracker(seat),
+        });
+      }
+    }
     this.reconcileServerDeadline(match);
     this.reconcileMachineDecisionScheduling(match);
     if (match.recoveryNotice) {
@@ -1934,7 +2135,11 @@ export class OnlineMatchService {
   private async executeCommandInCriticalSection(
     matchId: string,
     userId: string,
-    command: GameCommand
+    command: GameCommand,
+    options: {
+      readonly trustedSystemSubmission?: boolean;
+      readonly strategySubmission?: MachineStrategySubmissionMetadata;
+    } = {}
   ): Promise<OnlineCommandResult | null> {
     const match = this.matches.get(matchId);
     if (!match) {
@@ -1944,6 +2149,12 @@ export class OnlineMatchService {
     const participant = getParticipantByUserId(match, userId);
     if (!participant) {
       return null;
+    }
+    if (participant.participantKind === 'SYSTEM' && !options.trustedSystemSubmission) {
+      return {
+        success: false,
+        error: 'SYSTEM 参赛者只能通过服务端内部授权边界提交命令',
+      };
     }
 
     const commandWithPlayer = applyAuthoritativeManualOperationModeToCommand(
@@ -1970,6 +2181,7 @@ export class OnlineMatchService {
     const beforeState = shouldBuildDecisionRecords
       ? match.session.getAuthoritySnapshotForRecord()
       : null;
+    const ruleRandomFactCountBefore = match.session.getRuleRandomFacts().length;
     const result =
       commandWithPlayer.type === GameCommandType.SYSTEM_CONCEDE
         ? participant.participantKind === 'SYSTEM'
@@ -2003,13 +2215,32 @@ export class OnlineMatchService {
       this.incrementAuthorityRevision(match);
     }
     this.synchronizePhaseCompletionGate(match);
+    const strategyDecisionRecord = options.strategySubmission
+      ? createAiStrategyDecisionRecord({
+          decisionAudit: options.strategySubmission.audit,
+          decisionId: options.strategySubmission.decisionId,
+          windowSignature: options.strategySubmission.windowSignature,
+          commandType: commandWithPlayer.type,
+          authorityRevisionAfter: match.remoteRevision,
+          execution: result.success
+            ? { status: 'ACCEPTED' }
+            : { status: 'REJECTED', errorCode: result.error ?? 'UNKNOWN_COMMAND_REJECTION' },
+          ruleRandomFactRefs: match.session
+            .getRuleRandomFacts()
+            .slice(ruleRandomFactCountBefore)
+            .map((fact) => `rule-random-fact-${String(fact.sequence)}`),
+        })
+      : null;
+    const allDecisionRecords = strategyDecisionRecord
+      ? [...decisionRecords, buildAiStrategyMatchDecisionRecord(strategyDecisionRecord)]
+      : decisionRecords;
     await this.appendSessionRecordFrame(
       match,
       result.success ? 'COMMAND_ACCEPTED' : 'COMMAND_REJECTED',
       {
         command: commandWithPlayer,
         authorityState: afterState,
-        decisionRecords,
+        decisionRecords: allDecisionRecords,
       }
     );
     if (!result.success) {
@@ -2663,6 +2894,10 @@ export class OnlineMatchService {
     if (!participant || participant.participantKind !== 'USER') {
       return null;
     }
+    if (hasFormalAiOpponent(match, participant)) {
+      touchMatch(match);
+      return { success: false, error: 'AI 对战固定使用规则模式，不能切换自由模式' };
+    }
 
     await this.expirePendingUndoRequestIfNeeded(match);
     await this.expirePendingManualOperationModeRequestIfNeeded(match);
@@ -2975,6 +3210,8 @@ export class OnlineMatchService {
       this.deadlineOwner.cancelMatch(matchId);
       this.machineDecisionScheduler.cancelMatch(matchId);
       this.machineDecisionCoordinator.invalidateMatchInCriticalSection(criticalSection, matchId);
+      this.machineStrategyRuntimes.delete(buildMachineStrategyRuntimeKey(matchId, 'FIRST'));
+      this.machineStrategyRuntimes.delete(buildMachineStrategyRuntimeKey(matchId, 'SECOND'));
       return true;
     }
 
@@ -2992,6 +3229,8 @@ export class OnlineMatchService {
     this.machineDecisionScheduler.cancelMatch(matchId);
     this.machineDecisionCoordinator.invalidateMatchInCriticalSection(criticalSection, matchId);
     this.matches.delete(matchId);
+    this.machineStrategyRuntimes.delete(buildMachineStrategyRuntimeKey(matchId, 'FIRST'));
+    this.machineStrategyRuntimes.delete(buildMachineStrategyRuntimeKey(matchId, 'SECOND'));
     for (const [token, link] of this.spectatorLinks) {
       if (link.matchId === matchId) {
         if (options.preserveRoomCodeSpectators && link.source === 'ROOM_CODE') {
@@ -3206,6 +3445,7 @@ export class OnlineMatchService {
     this.machineDecisionScheduler.dispose();
     this.machineDecisionCoordinator.dispose();
     this.matches.clear();
+    this.machineStrategyRuntimes.clear();
     this.spectatorLinks.clear();
     this.spectatorSessions.clear();
     this.spectatorRequestWindows.clear();
@@ -3792,7 +4032,9 @@ export class OnlineMatchService {
   }
 }
 
-export const onlineMatchService = new OnlineMatchService();
+export const onlineMatchService = new OnlineMatchService({
+  machineDecisionSchedulingEnabled: true,
+});
 
 function buildSnapshot(
   match: OnlineMatchState,
@@ -3819,8 +4061,18 @@ function buildSnapshot(
     ...projectedViewState,
     match: {
       ...projectedViewState.match,
+      participants: {
+        FIRST: {
+          ...projectedViewState.match.participants.FIRST,
+          participantKind: match.participants.FIRST.participantKind,
+        },
+        SECOND: {
+          ...projectedViewState.match.participants.SECOND,
+          participantKind: match.participants.SECOND.participantKind,
+        },
+      },
       undo: options.undoView ?? buildOnlineUndoView(match, participant),
-      manualOperation: buildManualOperationModeView(match),
+      manualOperation: buildManualOperationModeView(match, participant),
     },
     permissions: options.phaseCompletionGateProjection
       ? projectPhaseCompletionGateAvailability(
@@ -3949,10 +4201,14 @@ function buildReadonlyUndoView(): OnlineUndoView {
   };
 }
 
-function buildManualOperationModeView(match: OnlineMatchState): ManualOperationModeView {
+function buildManualOperationModeView(
+  match: OnlineMatchState,
+  participant?: OnlineMatchParticipant
+): ManualOperationModeView {
   const blockedReason = match.session.getManualOperationModeSwitchBlockedReason();
   const request = match.pendingManualOperationModeRequest;
   const disabledReason =
+    (participant && hasFormalAiOpponent(match, participant) ? 'AI 对战固定使用规则模式' : null) ??
     blockedReason ??
     (match.pendingUndoRequest
       ? '请先处理当前撤销请求'
@@ -4421,9 +4677,143 @@ function deriveRemoteUndoPolicy(
     return 'REMOTE_IMMEDIATE';
   }
   if (match.matchMode === 'ONLINE' && participant.participantKind === 'USER') {
+    if (hasFormalAiOpponent(match, participant)) {
+      return 'NONE';
+    }
     return 'REMOTE_REQUEST';
   }
   return 'NONE';
+}
+
+function hasFormalAiOpponent(
+  match: OnlineMatchState,
+  participant: OnlineMatchParticipant
+): boolean {
+  const opponentSeat = getOpponentSeat(participant.seat);
+  return (
+    isFormalAiMatch(match) &&
+    match.participants[opponentSeat].participantKind === 'SYSTEM' &&
+    !!match.systemParticipantBindings[opponentSeat]
+  );
+}
+
+function buildMachineStrategyRuntimeKey(matchId: string, seat: Seat): string {
+  return `${matchId}:${seat}`;
+}
+
+function buildAiStrategyMatchDecisionRecord(
+  strategyRecord: AiStrategyDecisionRecord
+): MatchDecisionRecordInput {
+  return {
+    decisionId: `ai-strategy:${strategyRecord.contractIdentity.decisionIdSha256}`,
+    decisionType: 'AI_STRATEGY_SUBMITTED',
+    status: 'SUBMITTED',
+    waitingSeat: strategyRecord.decisionAudit.seat,
+    visibleContextSummary: {
+      selectableCardCount: strategyRecord.decisionAudit.consideredIds.length,
+      hasPrivateCandidates: false,
+    },
+    resultSummary: `${strategyRecord.decisionAudit.tier}:${strategyRecord.decisionAudit.reasonCode}`,
+    replayCapability: 'DECISION_RECORDS_PARTIAL',
+    transitionSemantics: 'SNAPSHOT_AUDIT_ONLY',
+    strategyRecord,
+  };
+}
+
+function assertSystemParticipantBinding(player: CreateOnlineMatchPlayerParams): void {
+  const binding = player.systemParticipantBinding;
+  if (player.participantKind !== 'SYSTEM') {
+    if (!binding) return;
+    throw new OnlineMatchServiceError(
+      'ONLINE_MATCH_INVALID_SYSTEM_BINDING',
+      '非 SYSTEM 参赛者不能携带 SYSTEM 身份绑定'
+    );
+  }
+  if (!binding) {
+    throw new OnlineMatchServiceError(
+      'ONLINE_MATCH_INVALID_SYSTEM_BINDING',
+      '正式 ONLINE SYSTEM 参赛者必须携带完整认证身份绑定'
+    );
+  }
+  if (
+    binding.participantKind !== 'SYSTEM' ||
+    binding.loginAllowed ||
+    binding.userId !== player.userId ||
+    !isCertifiedAiSystemParticipantBinding(binding) ||
+    player.deckSource !== 'AI_CERTIFIED_DECK'
+  ) {
+    throw new OnlineMatchServiceError(
+      'ONLINE_MATCH_INVALID_SYSTEM_BINDING',
+      'SYSTEM 身份绑定与对局参赛者不一致'
+    );
+  }
+}
+
+function assertSystemParticipantConfiguration(
+  first: CreateOnlineMatchPlayerParams,
+  second: CreateOnlineMatchPlayerParams,
+  matchMode: MatchMode,
+  originKind: MatchOriginKind
+): void {
+  const players = [first, second] as const;
+  const systemPlayers = players.filter((player) => player.participantKind === 'SYSTEM');
+  if (matchMode === 'SOLITAIRE') {
+    if (players.some((player) => !!player.systemParticipantBinding)) {
+      throw new OnlineMatchServiceError(
+        'ONLINE_MATCH_INVALID_SYSTEM_BINDING',
+        '单人对墙打 SYSTEM 不使用正式 AI 对战身份绑定'
+      );
+    }
+    return;
+  }
+  if (systemPlayers.length === 0) {
+    if (originKind === 'AI_BATTLE') {
+      throw new OnlineMatchServiceError(
+        'ONLINE_MATCH_INVALID_SYSTEM_BINDING',
+        'AI_BATTLE 必须包含一个正式 SYSTEM 参赛者'
+      );
+    }
+    for (const player of players) assertSystemParticipantBinding(player);
+    return;
+  }
+  if (matchMode !== 'ONLINE' || originKind !== 'AI_BATTLE' || systemPlayers.length !== 1) {
+    throw new OnlineMatchServiceError(
+      'ONLINE_MATCH_INVALID_SYSTEM_BINDING',
+      'ONLINE SYSTEM 只能用于单一正式 AI_BATTLE 对手席位'
+    );
+  }
+  for (const player of players) assertSystemParticipantBinding(player);
+}
+
+function assertRestoredSystemParticipantConfiguration(match: OnlineMatchState): void {
+  const players = (['FIRST', 'SECOND'] as const).map((seat) => ({
+    userId: match.participants[seat].userId,
+    displayName: match.participants[seat].displayName,
+    deck: {
+      mainDeck: match.deckSnapshots[seat].mainDeck,
+      energyDeck: match.deckSnapshots[seat].energyDeck,
+    },
+    deckSource: match.deckSnapshots[seat].source,
+    pointValidation: match.deckSnapshots[seat].pointValidation,
+    participantKind: match.participants[seat].participantKind,
+    systemParticipantBinding: match.systemParticipantBindings[seat] ?? null,
+  }));
+  assertSystemParticipantConfiguration(players[0], players[1], match.matchMode, match.originKind);
+}
+
+function isFormalAiMatch(match: OnlineMatchState): boolean {
+  if (match.matchMode !== 'ONLINE' || match.originKind !== 'AI_BATTLE') return false;
+  const systemSeats = (['FIRST', 'SECOND'] as const).filter(
+    (seat) => match.participants[seat].participantKind === 'SYSTEM'
+  );
+  if (systemSeats.length !== 1) return false;
+  const systemSeat = systemSeats[0]!;
+  const binding = match.systemParticipantBindings[systemSeat];
+  return (
+    !!binding &&
+    binding.userId === match.participants[systemSeat].userId &&
+    isCertifiedAiSystemParticipantBinding(binding)
+  );
 }
 
 function buildOnlineUndoView(

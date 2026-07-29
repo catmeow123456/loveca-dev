@@ -87,6 +87,7 @@ function createRuntimeDeck(prefix: string): DeckConfig {
 interface CreateHarnessOptions {
   readonly accessOverrides?: Readonly<Record<string, unknown>>;
   readonly checkpointOverrides?: Readonly<Record<string, unknown>>;
+  readonly participantKindBySeat?: Partial<Readonly<Record<'FIRST' | 'SECOND', 'USER' | 'SYSTEM'>>>;
   readonly mutatePayload?: (
     payload: ReplaySerializedPayloadEnvelope
   ) => ReplaySerializedPayloadEnvelope;
@@ -109,6 +110,10 @@ function createHarness(options: CreateHarnessOptions = {}) {
     options.mutatePayload?.(
       serializeReplayPayload(authorityState!, 'AUTHORITY_GAME_STATE', GAME_STATE_SCHEMA_VERSION)
     ) ?? serializeReplayPayload(authorityState!, 'AUTHORITY_GAME_STATE', GAME_STATE_SCHEMA_VERSION);
+  const participantKindBySeat = {
+    FIRST: options.participantKindBySeat?.FIRST ?? 'USER',
+    SECOND: options.participantKindBySeat?.SECOND ?? 'USER',
+  } as const;
   const initialTimelineRow = {
     timeline_seq: 1,
     frame_type: 'MATCH_INITIALIZED',
@@ -317,7 +322,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
         userId: 'u1',
         displayName: 'Alpha',
         playerId: 'p1',
-        participantKind: 'USER',
+        participantKind: participantKindBySeat.FIRST,
         ownerUserId: null,
       },
       {
@@ -325,7 +330,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
         userId: 'u2',
         displayName: 'Beta',
         playerId: 'p2',
-        participantKind: 'USER',
+        participantKind: participantKindBySeat.SECOND,
         ownerUserId: null,
       },
     ],
@@ -406,7 +411,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
               user_id: 'u1',
               display_name: 'Alpha',
               player_id: 'p1',
-              participant_kind: 'USER',
+              participant_kind: participantKindBySeat.FIRST,
               owner_user_id: null,
             },
             {
@@ -414,7 +419,7 @@ function createHarness(options: CreateHarnessOptions = {}) {
               user_id: 'u2',
               display_name: 'Beta',
               player_id: 'p2',
-              participant_kind: 'USER',
+              participant_kind: participantKindBySeat.SECOND,
               owner_user_id: null,
             },
           ] as T[],
@@ -616,6 +621,28 @@ describe('MatchReplayReadService P1b', () => {
     expect(
       (replay as unknown as { readonly timelineCursor?: unknown } | null)?.timelineCursor
     ).toBeUndefined();
+  });
+
+  it('用户与管理员回放都从参赛者记录恢复 SYSTEM 身份', async () => {
+    const { service } = createHarness({
+      accessOverrides: {
+        origin_kind: 'AI_BATTLE',
+        origin_label: 'Loveca AI',
+      },
+      participantKindBySeat: { SECOND: 'SYSTEM' },
+    });
+
+    const userReplay = await service.getMatchRecordReplay('match-read-1', 'u1', 1);
+    const adminReplay = await service.getMatchRecordReplayForAdmin('match-read-1', 'FIRST', 1);
+
+    expect(userReplay?.playerViewState.match.participants).toMatchObject({
+      FIRST: { participantKind: 'USER' },
+      SECOND: { participantKind: 'SYSTEM' },
+    });
+    expect(adminReplay?.playerViewState.match.participants).toMatchObject({
+      FIRST: { participantKind: 'USER' },
+      SECOND: { participantKind: 'SYSTEM' },
+    });
   });
 
   it('普通 timeline 与 replay 事件模型只暴露当前玩家可见事实', async () => {

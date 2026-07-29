@@ -199,6 +199,48 @@ describe('machine liveness monitor', () => {
     expect(durationLimit.terminalReason).toBe('DEGRADED_DURATION_LIMIT');
   });
 
+  it('keeps the authority watchdog active without applying fallback limits to primary strategy', () => {
+    const game = createState();
+    const primary = recordMachineLivenessDecision({
+      previous: createMachineLivenessState(game, 1_000, 'PRIMARY'),
+      before: game,
+      after: { ...game, currentSubPhase: SubPhase.FREE_ACTION },
+      systemPlayerId: 'system',
+      now: 10_000,
+      strategyMode: 'PRIMARY',
+      limits: {
+        maxAiTurnsWithoutRuleProgress: 1,
+        maxConservativeDecisions: 1,
+        maxDegradedDurationMs: 1,
+        maxDecisionsWithoutAuthorityProgress: 2,
+      },
+    });
+
+    expect(primary.terminalReason).toBeNull();
+    expect(primary.state).toMatchObject({
+      strategyMode: 'PRIMARY',
+      degradedAt: null,
+      conservativeDecisionCount: 0,
+      aiTurnsWithoutStrategicProgress: 0,
+    });
+
+    const authorityWatchdog = recordMachineLivenessDecision({
+      previous: primary.state,
+      before: game,
+      after: game,
+      systemPlayerId: 'system',
+      now: 10_001,
+      strategyMode: 'PRIMARY',
+      limits: {
+        maxAiTurnsWithoutRuleProgress: 1,
+        maxConservativeDecisions: 1,
+        maxDegradedDurationMs: 1,
+        maxDecisionsWithoutAuthorityProgress: 1,
+      },
+    });
+    expect(authorityWatchdog.terminalReason).toBe('AUTHORITY_PROGRESS_WATCHDOG');
+  });
+
   it('triggers the frozen three-turn strategic no-progress boundary', () => {
     let monitor = createMachineLivenessState(createState(), 1_000);
     let terminalReason = null;
