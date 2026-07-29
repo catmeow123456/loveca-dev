@@ -53,33 +53,34 @@
 - AI 对战 Phase 0 已完成：冻结 `loveca.deck-content/v1` canonical schema、SHA-256 公共内容身份入口、μ's 预组/绿莲 6 弹两个精确内容哈希、规则/权威卡牌数据/场景/证据版本键、八个卡组角色/先后手基础单元、确定性保守排序、双层进展语义和数值化 headless 门槛。
 - 两套卡组已按日文权威卡文逐能力段核对 definitions，并要求全部通过 `baseCardCodes` 覆盖、标记为 implemented、具有正确来源/队列/触发/卡面限制元数据且在卡效主登记册标为完整或同型完整；每个 `baseCardCode + abilityId` 均绑定实际行为测试证据，八个单元使用权威卡牌数据与正式 `DeckLoader` 完成可重复执行的 `RULES` 流程 smoke。卡效完成状态仍只引用主登记册，Phase 0 证据清单不是第二份完成登记册；正式 SYSTEM 席位授权仍属于 Phase 3。
 - Phase 1A / 1B / 1C 已完成。Phase 1A typed contract core 覆盖认证范围内的换牌、主要阶段、LIVE 设置、自动判定确认、卡效输入、分数、成功 LIVE 与阶段确认，并提供 contract-local ID、validator、witness、sampler 和安全命令适配；`ai-battle.phase-one-a-window-matrix/v2` 锁定真实状态证据和 Phase 0 能力集合指纹。Phase 1B 已完成按局 FIFO 临界区、显式锁内 capability、lease 获取与重验、SYSTEM expected-revision 提交、`OnlineMatchService` 权威写入收口、公开展示 deadline owner、只消费 typed contract 的保守策略、逐回调单决策调度、双层进展指纹、冻结活性/机器故障终局与去重 `SYSTEM_NOTICE`。Phase 1C 已完成生产安全、测试 seeded 和严格 replay 的规则随机源与权威事实记录，只消费 typed contract 的可复现随机合法策略、版本化失败诊断与严格失败 tape 重放、固定失败种子语料、8 局 PR smoke、模型全程不可用/中局降级整局验证，以及 8 × 32＝256 局专用 headless 回归；每周定时/手动专用 CI 会在失败时上传完整重放 tape。机器可读完成基线见 `phase-one-c-baseline.ts`。受控调度仍默认关闭且排除 `SOLITAIRE`；正式 SYSTEM 产品入口仍属于 Phase 3。
+- Phase 2 已完成。`ai-battle.observation/v1` 只从对应席位 `PlayerViewState + typed decision contract` 生成绑定 seat/revision/`RULES` 的 allowlist 局面，不输出 match/player/authority object ID、隐藏身份、聊天、权限提示或用户显示文本；`strategy-context/v1` 组合版本化压缩规则、绑定两个 Phase 0 精确内容哈希的固定卡组 playbook 与 `selected-history/v2` 的按席位定长精选可见历史。历史只从脱敏 observation 与权威接受后的结构化策略决策增量生成，不回读权威状态、事件日志或聊天，也不保留 contract-local ID；策略决策记录行动席位，纯视图差异只记录受影响席位与“新近可见”事实，不臆测行动者或具体移动原因。无 LLM 的 `explainable-policy/v1` 将窗口分为 `RULE_FORCED / DETERMINISTIC / HEURISTIC`，只消费 strategy context，输出短 reason code/summary 与结构化选择；`strategy-decision-audit/v1` / `strategy-decision-record/v1` 记录脱敏上下文哈希、哈希化 contract 身份、版本、层级、候选、选择、命令执行结果与规则随机事实引用，并通过受限 headless artifact 持久化。`strategy-evaluation/v1` 冻结完成率、拒绝数、历史覆盖、策略层级、成员展开、LIVE 设置与成功 LIVE 选择指标。八个认证卡组/先后手单元各 8 个种子的 64 局专用回归全部完成，14,975 次选择零权威拒绝，14,847 次上下文携带非空精选历史，覆盖率 99.15%，每局均覆盖三层策略与成员展开、LIVE 设置、成功 LIVE 选择三项基础策略行为；机器可读完成基线见 `phase-two-baseline.ts`。正式 match record 原子接线与 SYSTEM 产品入口仍属于 Phase 3。
 
 ## 当前事实来源
 
-| 主题               | 权威来源                                                                                                                                                                                             |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 项目范围与产品能力 | `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md`                                                                                                                                              |
-| 对战模式与只读边界 | `docs/battle-mode-purpose-and-boundaries.md`                                                                                                                                                         |
-| 联机现状与限制     | `docs/online-mode/preparation.md`、`docs/current-limitations.md`                                                                                                                                     |
-| 对局记录与回放     | `docs/match-replay/requirements.md`、`docs/match-replay/design.md`、`docs/match-replay/serialization-contract.md`                                                                                    |
-| 卡效完成状态       | `docs/card-effect-reuse-audit/existing_module_map.md`                                                                                                                                                |
-| 卡效开发规范       | `AGENTS.md`、`docs/card-effect-framework/`、`docs/card-effect-reuse-audit/`                                                                                                                          |
-| AI 对战阶段基线    | `src/server/ai-battle/phase-zero-baseline.ts`、`src/server/ai-battle/phase-one-a-window-evidence.ts`、`src/server/ai-battle/phase-one-b-baseline.ts`、`src/server/ai-battle/phase-one-c-baseline.ts` |
-| 版本与发布         | `VERSION`、package 版本、release runbook、`drizzle/migration-notes/`                                                                                                                                 |
-| 历史施工过程       | Git 提交历史                                                                                                                                                                                         |
+| 主题               | 权威来源                                                                                                                                                                                                                                           |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 项目范围与产品能力 | `docs/PROJECT_REQUIREMENTS.md`、`docs/system-design.md`                                                                                                                                                                                            |
+| 对战模式与只读边界 | `docs/battle-mode-purpose-and-boundaries.md`                                                                                                                                                                                                       |
+| 联机现状与限制     | `docs/online-mode/preparation.md`、`docs/current-limitations.md`                                                                                                                                                                                   |
+| 对局记录与回放     | `docs/match-replay/requirements.md`、`docs/match-replay/design.md`、`docs/match-replay/serialization-contract.md`                                                                                                                                  |
+| 卡效完成状态       | `docs/card-effect-reuse-audit/existing_module_map.md`                                                                                                                                                                                              |
+| 卡效开发规范       | `AGENTS.md`、`docs/card-effect-framework/`、`docs/card-effect-reuse-audit/`                                                                                                                                                                        |
+| AI 对战阶段基线    | `src/server/ai-battle/phase-zero-baseline.ts`、`src/server/ai-battle/phase-one-a-window-evidence.ts`、`src/server/ai-battle/phase-one-b-baseline.ts`、`src/server/ai-battle/phase-one-c-baseline.ts`、`src/server/ai-battle/phase-two-baseline.ts` |
+| 版本与发布         | `VERSION`、package 版本、release runbook、`drizzle/migration-notes/`                                                                                                                                                                               |
+| 历史施工过程       | Git 提交历史                                                                                                                                                                                                                                       |
 
 ## 仍有效的主要缺口
 
 1. 全卡池完整自动裁判、完整 trigger matcher 接线和更广泛的事件语义仍需按真实卡效分批推进。
 2. 正式联机运行态持久恢复、完整随机记录、完整 decision record、自由拖拽/手动处理原因结构化和确定性重演尚未闭环。
-3. 公共牌桌 Beta 的进行中房间跨进程恢复、开局到场超时后的无过错方自动回队、完整指标聚合与运行后台仍需收束；赛季排位首版功能已完成，剩余前置是预发布/生产迁移演练、告警渠道、运营指标看板、首季配置与 POC 判断口径，生产报告仍不能细分旧样本中 34 条非终局记录的具体状态。AI 对战已完成 Phase 0、1A、1B 与 1C，但 Phase 2 策略上下文/启发式 AI 和 Phase 3 正式 SYSTEM 产品链路尚未实现。
+3. 公共牌桌 Beta 的进行中房间跨进程恢复、开局到场超时后的无过错方自动回队、完整指标聚合与运行后台仍需收束；赛季排位首版功能已完成，剩余前置是预发布/生产迁移演练、告警渠道、运营指标看板、首季配置与 POC 判断口径，生产报告仍不能细分旧样本中 34 条非终局记录的具体状态。AI 对战已完成 Phase 0、1A、1B、1C 与 Phase 2；Phase 3 的不可登录 SYSTEM 身份、正式联机内部授权、match record 原子接线、受控真实链路和赛前/刷新/异常政策仍未实现。
 4. 非对局页面已进入统一视觉系统，首批 macOS 固定主题/视口截图基线已建立；仍需在统一 Chromium 与 CJK 字体环境补 Linux CI 基线、扩大代表页面覆盖，并在不改变规则桌内部布局的前提下推进对局外层 UI。
 5. 前端仍有大 chunk 告警，后续需要继续拆分由全局 store 拉入的 battle runtime。
 6. 发布、镜像推送、生产迁移、卡牌数据正式同步和对象存储写入均是独立高风险动作，必须按对应流程取得授权。
 
 ## 下一步优先级
 
-1. AI 对战进入 Phase 2：建立只基于玩家视角投影与脱敏 typed contract 的紧凑策略上下文、固定卡组 playbook 版本、确定性/启发式策略分层、决策审计和代表性局面快照；先完成无 LLM 可解释基线，不提前开放 Phase 3 正式 SYSTEM 产品入口。
+1. AI 对战进入 Phase 3 前先冻结本次 Phase 2 完成基线；下一批应建立不可登录 SYSTEM 身份和服务端内部提交授权，把 Phase 2 决策审计与正式 match record 原子提交共同接线，并以无 LLM 的可解释策略完成内部受控真实联机验证。未完成身份、记录、刷新、撤销/重开和异常政策验证前，不接 Phase 4 模型调用或公开玩家入口。
 2. 赛季排位下一步是在预发布环境 dry-run 单一 `0010_add_ranked_system.sql`，演练赛季创建、候场开关、自动收口、异常更正和封存，补齐告警/运营指标并冻结首季 POC 口径；经独立发布授权后再执行生产迁移和小规模开放。
 3. 公共牌桌方向先在完整测试环境完成双账号端到端验证，补齐配对确认超时、房间引导失败恢复、开局失联恢复、维护状态矩阵和聚合指标读取，再进入外部社群 Beta。
 4. 卡效开发继续以主登记册选择能推进真实事件边界、when-if、selector、公开/检视 workflow 或 LIVE modifier 的样例；每张卡实时更新登记册和 focused tests。

@@ -1,0 +1,47 @@
+name: AI Battle Phase 2 Strategy Regression
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 19 * * 1'
+
+jobs:
+  strategy-regression:
+    name: Eight by eight explainable strategy playouts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run 64-game strategy regression
+        env:
+          AI_BATTLE_PHASE_TWO_ARTIFACT_DIR: artifacts/ai-battle-phase-two
+        run: pnpm test:ai-battle:phase-two
+
+      - name: Upload strategy audit and evaluation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-battle-phase-two-strategy-evaluation
+          path: artifacts/ai-battle-phase-two
+          if-no-files-found: error
+          retention-days: 30
