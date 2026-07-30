@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Check, Clock3, X } from 'lucide-react';
 import { usePublicTableStore } from '@/store/publicTableStore';
 
@@ -8,12 +8,16 @@ const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
 export function PublicTableGlobalLayer({
   enabled,
+  userId,
   onEnterRoom,
 }: {
   enabled: boolean;
+  userId: string | null;
   onEnterRoom: () => void;
 }) {
   const status = usePublicTableStore((state) => state.status);
+  const sessionUserId = usePublicTableStore((state) => state.sessionUserId);
+  const hydrated = usePublicTableStore((state) => state.hydrated);
   const loading = usePublicTableStore((state) => state.loading);
   const error = usePublicTableStore((state) => state.error);
   const refresh = usePublicTableStore((state) => state.refresh);
@@ -22,34 +26,40 @@ export function PublicTableGlobalLayer({
   const cancel = usePublicTableStore((state) => state.cancel);
   const [now, setNow] = useState(() => Date.now());
   const enteredRoomIdentityRef = useRef<string | null>(null);
-  const activeState = status?.state ?? 'IDLE';
+  const statusReady = enabled && userId !== null && sessionUserId === userId && hydrated;
+  const visibleStatus = statusReady ? status : null;
+  const activeState = visibleStatus?.state ?? 'IDLE';
   const matchedRoomIdentity =
-    status?.state === 'MATCHED' && status.roomCode
-      ? `${status.roomGeneration ?? 'unknown'}:${status.roomCode}`
+    visibleStatus?.state === 'MATCHED' && visibleStatus.roomCode
+      ? `${visibleStatus.roomGeneration ?? 'unknown'}:${visibleStatus.roomCode}`
       : null;
 
   useEffect(() => {
-    if (!enabled) return;
-    void refresh();
-  }, [enabled, refresh]);
+    if (!enabled || !userId || sessionUserId !== userId) return;
+    void refresh().catch(() => undefined);
+  }, [enabled, refresh, sessionUserId, userId]);
 
   useEffect(() => {
-    if (!enabled || activeState === 'IDLE' || activeState === 'MATCHED') return;
-    const poll = window.setInterval(() => void refresh(), POLL_MS);
-    const keepAlive = window.setInterval(() => void heartbeat(), HEARTBEAT_MS);
+    if (!statusReady || activeState === 'IDLE' || activeState === 'MATCHED') return;
+    const poll = window.setInterval(() => {
+      void refresh().catch(() => undefined);
+    }, POLL_MS);
+    const keepAlive = window.setInterval(() => {
+      void heartbeat().catch(() => undefined);
+    }, HEARTBEAT_MS);
     return () => {
       window.clearInterval(poll);
       window.clearInterval(keepAlive);
     };
-  }, [activeState, enabled, heartbeat, refresh]);
+  }, [activeState, heartbeat, refresh, statusReady]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, []);
 
-  useEffect(() => {
-    if (!matchedRoomIdentity || !status?.roomCode) {
+  useLayoutEffect(() => {
+    if (!matchedRoomIdentity || !visibleStatus?.roomCode) {
       enteredRoomIdentityRef.current = null;
       return;
     }
@@ -57,22 +67,27 @@ export function PublicTableGlobalLayer({
       return;
     }
     enteredRoomIdentityRef.current = matchedRoomIdentity;
-    window.sessionStorage.setItem(ONLINE_ROOM_STORAGE_KEY, status.roomCode);
+    window.sessionStorage.setItem(ONLINE_ROOM_STORAGE_KEY, visibleStatus.roomCode);
     onEnterRoom();
-  }, [matchedRoomIdentity, onEnterRoom, status?.roomCode]);
+  }, [matchedRoomIdentity, onEnterRoom, visibleStatus?.roomCode]);
 
   const remainingSeconds = useMemo(() => {
-    if (!status?.confirmationExpiresAt) return null;
-    return Math.max(0, Math.ceil((status.confirmationExpiresAt - now) / 1_000));
-  }, [now, status?.confirmationExpiresAt]);
+    if (!visibleStatus?.confirmationExpiresAt) return null;
+    return Math.max(0, Math.ceil((visibleStatus.confirmationExpiresAt - now) / 1_000));
+  }, [now, visibleStatus?.confirmationExpiresAt]);
 
-  if (!enabled || !status || status.state === 'IDLE' || status.state === 'MATCHED') {
+  if (
+    !statusReady ||
+    !visibleStatus ||
+    visibleStatus.state === 'IDLE' ||
+    visibleStatus.state === 'MATCHED'
+  ) {
     return null;
   }
 
-  if (status.state === 'WAITING') {
-    const waitingSeconds = status.joinedAt
-      ? Math.max(0, Math.floor((now - status.joinedAt) / 1_000))
+  if (visibleStatus.state === 'WAITING') {
+    const waitingSeconds = visibleStatus.joinedAt
+      ? Math.max(0, Math.floor((now - visibleStatus.joinedAt) / 1_000))
       : 0;
     return (
       <div className="fixed inset-x-3 bottom-3 z-[90] mx-auto flex max-w-3xl items-center justify-between gap-3 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-3 shadow-xl">
@@ -82,7 +97,7 @@ export function PublicTableGlobalLayer({
             正在找对手
           </div>
           <div className="mt-1 truncate text-xs text-[var(--text-muted)]">
-            已等待 {formatDuration(waitingSeconds)} · {status.deckName}
+            已等待 {formatDuration(waitingSeconds)} · {visibleStatus.deckName}
           </div>
         </div>
         <button
@@ -96,7 +111,7 @@ export function PublicTableGlobalLayer({
     );
   }
 
-  const creating = status.state === 'CREATING_ROOM';
+  const creating = visibleStatus.state === 'CREATING_ROOM';
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/65 p-4 backdrop-blur-sm">
       <div className="surface-panel w-full max-w-md p-6 text-center">
@@ -109,7 +124,7 @@ export function PublicTableGlobalLayer({
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
           {creating
             ? '双方已确认，正在进入开局。'
-            : status.confirmed
+            : visibleStatus.confirmed
               ? '你已确认，等待对方确认。'
               : `请在 ${remainingSeconds ?? '—'} 秒内确认开局。`}
         </p>
@@ -126,7 +141,7 @@ export function PublicTableGlobalLayer({
             </button>
             <button
               className="button-primary py-3"
-              disabled={loading || status.confirmed}
+              disabled={loading || visibleStatus.confirmed}
               onClick={() => void confirm()}
             >
               确认开局

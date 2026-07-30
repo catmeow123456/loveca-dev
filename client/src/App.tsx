@@ -44,6 +44,7 @@ import {
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
+import { usePublicTableStore } from '@/store/publicTableStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 
@@ -257,6 +258,12 @@ function App() {
     }))
   );
   const initializeAuth = useAuthStore((s) => s.initialize);
+  const setPublicTableSessionUser = usePublicTableStore((s) => s.setSessionUser);
+  const publicTableSessionUserId = user && profile && !offlineMode ? user.id : null;
+
+  useLayoutEffect(() => {
+    setPublicTableSessionUser(publicTableSessionUserId);
+  }, [publicTableSessionUserId, setPublicTableSessionUser]);
 
   // Game state
   const matchView = useGameStore((s) => s.getMatchView());
@@ -670,6 +677,7 @@ function App() {
       {content}
       <PublicTableGlobalLayer
         enabled={Boolean(user && profile && !offlineMode)}
+        userId={publicTableSessionUserId}
         onEnterRoom={enterOnlineRoom}
       />
     </>
@@ -764,9 +772,13 @@ function App() {
     return withPublicTableLayer(<OnlineRoomPage onBack={() => setCurrentPage('home')} />);
   }
 
-  if (effectivePage === 'public-table') {
+  if (effectivePage === 'public-table' && publicTableSessionUserId) {
     return withPublicTableLayer(
-      <PublicTablePage onBack={() => setCurrentPage('home')} onEnterRoom={enterOnlineRoom} />
+      <PublicTablePage
+        userId={publicTableSessionUserId}
+        onBack={() => setCurrentPage('home')}
+        onEnterRoom={enterOnlineRoom}
+      />
     );
   }
 

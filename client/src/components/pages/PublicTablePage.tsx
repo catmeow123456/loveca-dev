@@ -17,9 +17,11 @@ type ShareFeedback = 'idle' | 'done' | 'error';
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
 export function PublicTablePage({
+  userId,
   onBack,
   onEnterRoom,
 }: {
+  userId: string;
   onBack: () => void;
   onEnterRoom: () => void;
 }) {
@@ -29,6 +31,8 @@ export function PublicTablePage({
   const fetchCloudDecks = useDeckStore((state) => state.fetchCloudDecks);
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
   const status = usePublicTableStore((state) => state.status);
+  const sessionUserId = usePublicTableStore((state) => state.sessionUserId);
+  const hydrated = usePublicTableStore((state) => state.hydrated);
   const loading = usePublicTableStore((state) => state.loading);
   const error = usePublicTableStore((state) => state.error);
   const refresh = usePublicTableStore((state) => state.refresh);
@@ -41,6 +45,10 @@ export function PublicTablePage({
     readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.publicTable)
   );
   const [shareFeedback, setShareFeedback] = useState<ShareFeedback>('idle');
+  const [entryStatusCheck, setEntryStatusCheck] = useState<'checking' | 'ready' | 'failed'>(
+    'checking'
+  );
+  const statusCheckAttemptRef = useRef(0);
   const shareFeedbackTimerRef = useRef<number | null>(null);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
@@ -63,10 +71,46 @@ export function PublicTablePage({
     [deckDisplayItems, lastUsedDeckId]
   );
 
+  const retryStatusCheck = () => {
+    const attempt = ++statusCheckAttemptRef.current;
+    setEntryStatusCheck('checking');
+    void refresh().then(
+      () => {
+        if (statusCheckAttemptRef.current === attempt) {
+          setEntryStatusCheck('ready');
+        }
+      },
+      () => {
+        if (statusCheckAttemptRef.current === attempt) {
+          setEntryStatusCheck('failed');
+        }
+      }
+    );
+  };
+
   useEffect(() => {
     void fetchCloudDecks();
-    void refresh();
-  }, [fetchCloudDecks, refresh]);
+  }, [fetchCloudDecks]);
+
+  useEffect(() => {
+    const attempt = ++statusCheckAttemptRef.current;
+    setEntryStatusCheck('checking');
+    void refresh().then(
+      () => {
+        if (statusCheckAttemptRef.current === attempt) {
+          setEntryStatusCheck('ready');
+        }
+      },
+      () => {
+        if (statusCheckAttemptRef.current === attempt) {
+          setEntryStatusCheck('failed');
+        }
+      }
+    );
+    return () => {
+      statusCheckAttemptRef.current += 1;
+    };
+  }, [refresh, userId]);
 
   useEffect(
     () => () => {
@@ -103,7 +147,9 @@ export function PublicTablePage({
     return () => window.clearTimeout(timer);
   }, [hasChosenDeck, preferredDeck.deck, selectedDeck]);
 
-  const active = status && status.state !== 'IDLE';
+  const statusReady = entryStatusCheck === 'ready' && sessionUserId === userId && hydrated;
+  const visibleStatus = statusReady ? status : null;
+  const active = visibleStatus && visibleStatus.state !== 'IDLE';
   const entrySource =
     new URLSearchParams(window.location.search).get('from') === 'share' ? 'SHARED_LINK' : 'DIRECT';
 
@@ -126,10 +172,10 @@ export function PublicTablePage({
   };
 
   const handleEnterMatchedRoom = () => {
-    if (!status?.roomCode) {
+    if (!visibleStatus?.roomCode) {
       return;
     }
-    window.sessionStorage.setItem(ONLINE_ROOM_STORAGE_KEY, status.roomCode);
+    window.sessionStorage.setItem(ONLINE_ROOM_STORAGE_KEY, visibleStatus.roomCode);
     onEnterRoom();
   };
 
@@ -190,37 +236,72 @@ export function PublicTablePage({
 
       <main
         className={`relative z-10 flex flex-1 justify-center px-4 ${
-          active ? 'items-center py-6' : 'pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-5 sm:p-6'
+          !statusReady || active
+            ? 'items-center py-6'
+            : 'pb-[calc(env(safe-area-inset-bottom)+6.5rem)] pt-5 sm:p-6'
         }`}
       >
         <div className="w-full max-w-4xl">
-          {active ? (
+          {!statusReady ? (
+            <section className="surface-panel-frosted mx-auto max-w-md p-5 text-center sm:p-6">
+              {entryStatusCheck === 'failed' ? (
+                <>
+                  <h1 className="text-xl font-bold text-[var(--text-primary)]">无法确认匹配状态</h1>
+                  <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                    请重新读取当前状态后再选择卡组。
+                  </p>
+                  {error && <ActionError message={error} className="mt-3" />}
+                  <button
+                    type="button"
+                    className="button-primary mt-5 inline-flex min-h-11 w-full items-center justify-center px-4"
+                    disabled={loading}
+                    onClick={retryStatusCheck}
+                  >
+                    重新读取
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Loader2
+                    size={22}
+                    className="mx-auto animate-spin text-[var(--accent-primary)]"
+                  />
+                  <h1 className="mt-3 text-lg font-bold text-[var(--text-primary)]">
+                    正在确认公共牌桌状态
+                  </h1>
+                  <p className="mt-1 text-sm text-[var(--text-muted)]">
+                    正在检查是否有尚未结束的候场或对局。
+                  </p>
+                </>
+              )}
+            </section>
+          ) : active && visibleStatus ? (
             <section className="surface-panel-frosted mx-auto max-w-md p-5 text-center sm:p-6">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]">
-                {status.state === 'MATCHED' ? <DoorOpen size={20} /> : <Search size={20} />}
+                {visibleStatus.state === 'MATCHED' ? <DoorOpen size={20} /> : <Search size={20} />}
               </div>
               <h1 className="mt-3 text-xl font-bold text-[var(--text-primary)]">
-                {status.state === 'WAITING'
+                {visibleStatus.state === 'WAITING'
                   ? '正在找对手'
-                  : status.state === 'MATCHED'
+                  : visibleStatus.state === 'MATCHED'
                     ? '对局已准备好'
-                    : status.state === 'CREATING_ROOM'
+                    : visibleStatus.state === 'CREATING_ROOM'
                       ? '正在进入房间'
                       : '找到对手'}
               </h1>
               <p className="mt-1 truncate text-sm text-[var(--text-muted)]">
-                {status.state === 'WAITING'
-                  ? (status.deckName ?? '已选卡组')
-                  : status.state === 'MATCHED'
-                    ? `房间 ${status.roomCode}`
-                    : status.state === 'CREATING_ROOM'
+                {visibleStatus.state === 'WAITING'
+                  ? (visibleStatus.deckName ?? '已选卡组')
+                  : visibleStatus.state === 'MATCHED'
+                    ? `房间 ${visibleStatus.roomCode}`
+                    : visibleStatus.state === 'CREATING_ROOM'
                       ? '正在准备开局'
-                      : status.confirmed
+                      : visibleStatus.confirmed
                         ? '你已确认，等待对方确认'
                         : '请在 60 秒内确认开局'}
               </p>
 
-              {status.state === 'WAITING' && (
+              {visibleStatus.state === 'WAITING' && (
                 <button
                   type="button"
                   className="button-secondary mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 px-4"
@@ -231,7 +312,7 @@ export function PublicTablePage({
                   取消等待
                 </button>
               )}
-              {status.state === 'PENDING_CONFIRMATION' && (
+              {visibleStatus.state === 'PENDING_CONFIRMATION' && (
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <button
                     type="button"
@@ -251,7 +332,7 @@ export function PublicTablePage({
                   </button>
                 </div>
               )}
-              {status.state === 'CONFIRMED' && (
+              {visibleStatus.state === 'CONFIRMED' && (
                 <button
                   type="button"
                   className="button-secondary mt-5 inline-flex min-h-11 w-full items-center justify-center px-4"
@@ -261,13 +342,13 @@ export function PublicTablePage({
                   取消等待
                 </button>
               )}
-              {status.state === 'CREATING_ROOM' && (
+              {visibleStatus.state === 'CREATING_ROOM' && (
                 <Loader2
                   size={18}
                   className="mx-auto mt-5 animate-spin text-[var(--accent-primary)]"
                 />
               )}
-              {status.state === 'MATCHED' && (
+              {visibleStatus.state === 'MATCHED' && (
                 <button
                   type="button"
                   className="button-primary mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 px-4"
