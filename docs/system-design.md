@@ -3,7 +3,7 @@
 > 文档类型：设计文档  
 > 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
 > 当前状态：现行系统设计；字段级 schema 以 `src/server/db/schema.ts` 和 `drizzle/` 增量迁移为准，初始化函数与触发器以 `docker/init.sql` 为准
-> 最后更新：2026-07-25
+> 最后更新：2026-07-30
 
 ---
 
@@ -34,7 +34,7 @@
 graph TB
     subgraph Client[前端应用]
         UI[页面与组件]
-        GS[gameStore/deckStore/authStore]
+        GS[gameStore/deckStore/authStore/rankedStore]
         APIClient[API 客户端]
     end
 
@@ -49,9 +49,10 @@ graph TB
 
     subgraph Server[服务端 API]
         App[Express App]
-        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle]
+        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle/Ranked]
         Middleware[鉴权与校验中间件]
         OnlineSvc[OnlineRoomService + OnlineMatchService + SolitaireMatchService]
+        RankedSvc[Ranked Season/Queue/Rating/Admin Services]
     end
 
     subgraph Infra[基础设施]
@@ -73,6 +74,7 @@ graph TB
     App --> Middleware
     Middleware --> Routes
     Routes --> OnlineSvc
+    Routes --> RankedSvc
     Routes --> PG
     Routes --> MinIO
 ```
@@ -333,6 +335,7 @@ graph TB
 - `gameStore`：对局状态桥接与动作封装
 - `deckStore`：卡组编辑与云端卡组管理
 - `authStore`：认证、会话恢复、个人资料与凭据更新、离线模式
+- `rankedStore`：赛季总览与跨页面排位候场、确认和取消状态
 - `GameBoard`：拖拽与对局主交互容器
 
 代码路径：
@@ -340,6 +343,7 @@ graph TB
 - `client/src/store/gameStore.ts`
 - `client/src/store/deckStore.ts`
 - `client/src/store/authStore.ts`
+- `client/src/store/rankedStore.ts`
 - `client/src/components/pages/AccountCenterPage.tsx`
 - `client/src/components/game/`
 - `client/src/components/pages/GameSetupPage.tsx`
@@ -361,6 +365,8 @@ graph LR
     App --> SiteAnnouncementsR[Site Announcements Route]
     App --> OnlineR[Online Route]
     App --> BattleR[Battle Route]
+    App --> RankedR[Ranked Route]
+    App --> RankedAdminR[Ranked Admin Route]
 
     AuthR --> AuthSvc[auth-service + mail-service]
     DecksR --> Scraper[decklog-scraper]
@@ -369,6 +375,8 @@ graph LR
     SiteAnnouncementsR --> OpsSvc
     OnlineR --> OnlineSvc[online-room-service + online-match-service]
     BattleR --> OnlineSvc
+    RankedR --> RankedSvc[ranked-player-service + ranked-runtime-service]
+    RankedAdminR --> RankedAdminSvc[ranked-admin-service + ranked-season-service + ranked-rating-service]
 ```
 
 代码路径：
@@ -383,6 +391,8 @@ graph LR
 - `src/server/routes/site-announcements.ts`
 - `src/server/routes/online.ts`
 - `src/server/routes/battle.ts`
+- `src/server/routes/ranked.ts`
+- `src/server/routes/ranked-admin.ts`
 - `src/server/site-status.ts`
 - `src/server/services/site-announcement-service.ts`
 - `src/server/middleware/require-gameplay-available.ts`
@@ -437,11 +447,25 @@ erDiagram
 
 字段级数据库定义不在本文档重复维护；当前代码侧 schema 见 `src/server/db/schema.ts`，物理变更顺序见 `drizzle/` 增量迁移，基础初始化结构和数据库函数/触发器见 `docker/init.sql`。新库必须先执行初始化脚本，再执行全部增量迁移。
 
+赛季排位在公共牌桌的持久票据/预留状态机上增加独立 `RANKED` 队列上下文，并以赛季、
+排位对局、追加式评分事件、物化步骤、当前积分投影和跨赛季种子组成可审计结算模型。
+候场与配对按赛季冻结的竞技环境隔离；权威对局封存后由评分服务幂等结算，迟到结果或
+管理员更正按稳定顺序重建派生投影。字段、事务和更正链细节见
+[赛季排位数据与结算设计](matchmaking-and-ladder/RANKED_R2_DATA_AND_SETTLEMENT_DESIGN.md)。
+
 代码路径：
 
 - `src/server/db/schema.ts`
 - `src/server/db/drizzle.ts`
 - `src/server/db/pool.ts`
+- `src/server/services/ranked-season-service.ts`
+- `src/server/services/ranked-player-service.ts`
+- `src/server/services/ranked-rating-service.ts`
+- `src/server/services/ranked-runtime-service.ts`
+- `src/server/services/ranked-admin-service.ts`
+- `src/server/rating/ranked-ledger.ts`
+- `src/server/rating/glicko.ts`
+- `drizzle/0010_add_ranked_system.sql`
 
 ---
 
@@ -461,7 +485,7 @@ graph TD
 - 单元与集成：`tests/unit/`、`tests/integration/`
 - 流程仿真：`tests/simulation/`
 - 性能基准：`tests/performance/`
-- 前端 E2E：`client/tests/e2e/`，当前主要覆盖移动端、响应式布局与局部 UI 回归；`client/test-results/` 或根目录 `test-results/` 仅为运行产物，不作为测试入口
+- 前端 E2E：`client/tests/e2e/`，覆盖移动端、响应式布局、局部 UI 回归，以及排位玩家/管理员真实 API 流程；`client/test-results/` 或根目录 `test-results/` 仅为运行产物，不作为测试入口
 
 ---
 
@@ -479,6 +503,7 @@ graph TD
 - 正式联机房间闭环：创建/加入、云端卡组锁定、双方准备开始、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、请求式重开、主动认输、房间号只读观战、离开/短暂恢复与管理员房间观测。认输由 `GameSession` 以 `OPPONENT_SURRENDER` 结束权威对局，公开投影仅暴露终局原因与胜负席位，记录服务封存为 `SURRENDERED`；赛后离开会释放真人对局占用。普通玩家专用观战链接已完整移除。房间号观战默认开放双方玩家视角，观战会话可在当前已授权视角间切换；preferred 目标按玩家身份保存，授权 fallback 只改变 effective 目标。普通观战资格和会话绑定不可复用的房间代际，当前 match/席位只是可替换单局绑定：双方接受重开后返回结构化局间等待，新局创建后按原玩家身份重新解析席位并自动续看；房间关闭、等待期间参赛成员变化、会话过期或全部授权关闭会稳定终止旧资格。同一房间最多 10 个活跃普通观战会话，等待会话继续占名额，管理员单局观战不占公开名额且不跨局；恢复会话、快照、公开日志与视角切换共享服务端请求限流。普通观战采用请求完成后再计时的串行轮询与会话级退避，频率保护或短暂网络中断时保留最后有效桌面并自动恢复；跨局时以房间/绑定代际隔离响应，客户端等待时清空旧单局 store 与日志，新局完整投影到达后再建立桌面
 - 单局文字聊天：`src/server/services/online-match-chat-runtime.ts` 维护按 `matchId` 隔离的有界内存消息、幂等标识、游标分页、文本校验和发送限频，`src/server/services/online-match-service.ts` 复用参与者身份与观战会话/代际授权，`src/server/services/online-room-service.ts` 阻止已退出成员被迟到轮询重新激活，`src/server/routes/online.ts` 提供当前房间成员读写和观战只读 REST 入口，`client/src/components/game/MatchChat.tsx` 独立轮询并渲染纯文本。聊天不写入 `GameState`、公共事件、数据库、历史记录或回放；重开、双方离开销毁旧对局运行态或 API 服务重启后不恢复
 - 公共牌桌 Beta：`src/server/services/public-table-service.ts` 以 PostgreSQL 候场票据和配对预留实现 FIFO 候场、双方确认、锁定卡组快照与超时清理；`src/server/services/gameplay-participation-service.ts` 约束用户不能同时处于候场、房间或对局；确认成功后由 `src/server/services/online-room-service.ts` 创建封闭的公共牌桌房间，双方需在 60 秒内到场才进入猜拳，超时则结束本次开局，并复用正式联机认输、观战和记录链路。`client/src/components/public-table/PublicTableGlobalLayer.tsx` 和 `client/src/components/pages/PublicTablePage.tsx` 负责跨页面候场状态、确认及单次自动进入房间，持久化 schema 由 `src/server/db/schema.ts` 与 `drizzle/0008_add_public_table_beta.sql` 对齐
+- 赛季排位首版：`src/server/services/public-table-service.ts` 复用票据/预留状态机并以 `queueKind + seasonId + competitiveEnvironmentId` 隔离休闲与排位候场；`src/server/services/ranked-player-service.ts` 提供赛季总览、固定窗口准入、个人战绩和排行榜，`src/server/services/ranked-rating-service.ts` 与 `src/server/rating/ranked-ledger.ts` 负责权威结果幂等结算、迟到结果重建和追加式更正，`src/server/services/ranked-runtime-service.ts` 负责自动收口与结算重试。前端由 `client/src/store/rankedStore.ts`、`client/src/components/pages/RankedPage.tsx` 和 `client/src/components/ranked/RankedGlobalLayer.tsx` 提供跨页面候场闭环，管理员由 `client/src/components/admin/RankedAdminPage.tsx` 管理赛季与异常结算；数据库结构由 `drizzle/0010_add_ranked_system.sql` 提供，尚未执行生产迁移或开放首季
 - 维护期间新对局限制：`src/server/middleware/require-gameplay-available.ts` 会在维护或限制新开局状态下拦截新建/加入房间、准备开局、开局流程、重开接受和服务端对墙打创建/重开；进行中对局的快照、命令、观战、回放和离开入口不被主动中断
 - 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，并在重开时封存旧局、沿用锁定卡组快照创建新的 `matchId`；`client/src/lib/solitaireMatchRecovery.ts` 在同一浏览器标签页保存当前对墙打 matchId 并在刷新或重开后同步恢复目标，`src/server/services/solitaire-runtime-recovery-service.ts` 可在运行态缺失时从最新 authority checkpoint 和公共事件尾部恢复运行中对墙打，`src/server/routes/battle.ts` 提供对墙打创建、重开、运行中快照/命令/推进/离开、公共事件增量读取，以及中性历史读取入口
 - 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
@@ -491,6 +516,7 @@ graph TD
 - 对局记录与回放后续增强：正式联机进程重启后恢复运行中对局、对墙打恢复后的更细粒度追赶、完整随机记录、完整决策覆盖、自由拖拽/手动处理原因结构化、确定性重演、逐命令动画、公开分享回放与长期兼容策略
 - 更完整的自动能力编排与检查时机接线
 - 更高覆盖的性能与稳定性专项测试
+- 排位生产迁移演练、告警渠道、运营指标看板与首季 POC 口径
 
 ---
 

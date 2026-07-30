@@ -35,6 +35,7 @@ import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
+import { useRankedStore } from '@/store/rankedStore';
 import {
   acceptOnlineRoomRestart,
   cancelOnlineRoomRestart,
@@ -378,6 +379,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     }
 
     if (presence === 'LEFT') {
+      // Presence is polled external room state; the transient notice mirrors that transition.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setShowOpponentReturnedNotice(false);
       return;
     }
@@ -647,12 +650,20 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     setError(null);
     try {
       const leftPublicTableRoom = room?.originKind === 'PUBLIC_TABLE';
+      const leftRankedRoom = room?.originKind === 'RANKED';
       await leaveOnlineRoom(room?.roomCode ?? joinedRoomCode!);
       if (leftPublicTableRoom) {
         try {
           await usePublicTableStore.getState().refresh();
         } catch {
           // The room has already been left; the next public-table visit will refresh again.
+        }
+      }
+      if (leftRankedRoom) {
+        try {
+          await useRankedStore.getState().refresh();
+        } catch {
+          // The next ranked visit will refresh the persisted queue state.
         }
       }
       setIsLeaveConfirmOpen(false);

@@ -20,12 +20,27 @@ import {
   encodePublicTableRuntimeDeck,
 } from './public-table-deck-snapshot.js';
 import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
+import { isRankedQueueWindowOpen, type RankedSeasonOpenWindow } from './ranked-season-service.js';
 import { siteAnnouncementService } from './site-announcement-service.js';
 
 const ENVIRONMENT_ID = 'PUBLIC_TABLE_V1';
 const HEARTBEAT_GRACE_MS = 45_000;
 const CONFIRMATION_TTL_MS = 60_000;
 const OPENING_TTL_MS = 3 * 60_000;
+
+export interface MatchmakingQueueContext {
+  readonly queueKind: 'CASUAL' | 'RANKED';
+  readonly participationKind: 'PUBLIC_QUEUE' | 'RANKED_QUEUE';
+  readonly environmentId: string;
+  readonly seasonId: string | null;
+}
+
+export const CASUAL_QUEUE_CONTEXT: MatchmakingQueueContext = Object.freeze({
+  queueKind: 'CASUAL',
+  participationKind: 'PUBLIC_QUEUE',
+  environmentId: ENVIRONMENT_ID,
+  seasonId: null,
+});
 
 interface PublicTableServiceDeps {
   readonly now?: () => number;
@@ -45,6 +60,16 @@ interface StatusRow {
   expires_at: Date | null;
   room_code: string | null;
   room_generation: string | null;
+}
+
+interface RankedAdmissionRow {
+  readonly lifecycle: 'DRAFT' | 'ACTIVE' | 'FINALIZING' | 'CLOSED';
+  readonly queue_admission: 'OPEN' | 'PAUSED';
+  readonly competitive_environment_id: string;
+  readonly platform_time_zone: string;
+  readonly open_windows: RankedSeasonOpenWindow[];
+  readonly starts_at: Date | string;
+  readonly scheduled_ends_at: Date | string;
 }
 
 export class PublicTableServiceError extends Error {
@@ -68,7 +93,9 @@ export class PublicTableService {
     this.roomService = deps.roomService ?? onlineRoomService;
   }
 
-  async getSummary(): Promise<PublicTableSummaryView> {
+  async getSummary(
+    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+  ): Promise<PublicTableSummaryView> {
     const restriction = await siteAnnouncementService.getGameplayRestriction(process.env);
     if (restriction) {
       return {
@@ -83,11 +110,19 @@ export class PublicTableService {
          SELECT 1
          FROM public_table_tickets
          WHERE environment_id = $1
+           AND queue_kind = $4
+           AND season_id IS NOT DISTINCT FROM $5
            AND state = 'WAITING'
            AND heartbeat_at > $2
            AND matchable_after <= $3
        ) AS exists`,
-      [ENVIRONMENT_ID, new Date(this.now() - HEARTBEAT_GRACE_MS), new Date(this.now())]
+      [
+        context.environmentId,
+        new Date(this.now() - HEARTBEAT_GRACE_MS),
+        new Date(this.now()),
+        context.queueKind,
+        context.seasonId,
+      ]
     );
     return {
       open: true,
@@ -99,9 +134,10 @@ export class PublicTableService {
   async join(
     userId: string,
     deckId: string,
-    entrySource = 'DIRECT'
+    entrySource = 'DIRECT',
+    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
   ): Promise<PublicTableStatusView> {
-    const current = await this.getStatus(userId);
+    const current = await this.getStatus(userId, context);
     if (current.state !== 'IDLE') {
       return current;
     }
@@ -124,17 +160,22 @@ export class PublicTableService {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      if (!(await isQueueContextOpen(client, context, now))) {
+        throw new PublicTableServiceError('RANKED_QUEUE_CLOSED', '当前排位赛季不在开放时段', 409);
+      }
       await client.query(
         `INSERT INTO public_table_tickets (
-           id, user_id, environment_id, source_deck_id, source_deck_name,
+           id, user_id, queue_kind, season_id, environment_id, source_deck_id, source_deck_name,
            runtime_deck, deck_content_hash, deck_locked_at, state,
            joined_at, heartbeat_at, matchable_after, entry_source, created_at, updated_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8, 'WAITING', $8, $8, $8, $9, $8, $8)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, 'WAITING', $10, $10, $10, $11, $10, $10)`,
         [
           ticketId,
           userId,
-          ENVIRONMENT_ID,
+          context.queueKind,
+          context.seasonId,
+          context.environmentId,
           deck.deckId,
           deck.deckName,
           encodedDeck.json,
@@ -143,7 +184,14 @@ export class PublicTableService {
           normalizeEntrySource(entrySource),
         ]
       );
-      if (!(await acquirePublicQueueParticipation(client, userId, ticketId))) {
+      if (
+        !(await acquirePublicQueueParticipation(
+          client,
+          userId,
+          ticketId,
+          context.participationKind
+        ))
+      ) {
         throw new PublicTableServiceError(
           'PUBLIC_TABLE_PARTICIPATION_CONFLICT',
           '你已经在寻找对手、准备房间或进行其他真人对局',
@@ -161,18 +209,21 @@ export class PublicTableService {
     } catch (error) {
       await client.query('ROLLBACK');
       if (isUniqueViolation(error)) {
-        return this.getStatus(userId);
+        return this.getStatus(userId, context);
       }
       throw error;
     } finally {
       client.release();
     }
 
-    await this.tryMatch();
-    return this.getStatus(userId);
+    await this.tryMatch(context);
+    return this.getStatus(userId, context);
   }
 
-  async heartbeat(userId: string): Promise<PublicTableStatusView> {
+  async heartbeat(
+    userId: string,
+    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+  ): Promise<PublicTableStatusView> {
     const now = new Date(this.now());
     await pool.query(
       `UPDATE public_table_tickets AS ticket
@@ -180,16 +231,21 @@ export class PublicTableService {
            updated_at = $2
        FROM gameplay_participations AS participation
        WHERE participation.user_id = $1
-         AND participation.kind = 'PUBLIC_QUEUE'
+         AND participation.kind = $3
          AND participation.ticket_id = ticket.id
+         AND ticket.queue_kind = $4
+         AND ticket.season_id IS NOT DISTINCT FROM $5
          AND ticket.state IN ('WAITING', 'RESERVED')`,
-      [userId, now]
+      [userId, now, context.participationKind, context.queueKind, context.seasonId]
     );
-    await this.tryMatch();
-    return this.getStatus(userId);
+    await this.tryMatch(context);
+    return this.getStatus(userId, context);
   }
 
-  async getStatus(userId: string): Promise<PublicTableStatusView> {
+  async getStatus(
+    userId: string,
+    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+  ): Promise<PublicTableStatusView> {
     const result = await pool.query<StatusRow>(
       `SELECT
          ticket.id AS ticket_id,
@@ -210,9 +266,15 @@ export class PublicTableService {
        LEFT JOIN public_table_reservations AS reservation
          ON reservation.id = ticket.reservation_id
        WHERE participation.user_id = $1
+         AND (
+           participation.kind = $2
+           OR participation.kind IN ('ONLINE_ROOM', 'ONLINE_MATCH')
+         )
+         AND ticket.queue_kind = $3
+         AND ticket.season_id IS NOT DISTINCT FROM $4
          AND participation.ticket_id IS NOT NULL
        LIMIT 1`,
-      [userId]
+      [userId, context.participationKind, context.queueKind, context.seasonId]
     );
     const row = result.rows[0];
     if (!row) {
@@ -221,7 +283,10 @@ export class PublicTableService {
     return mapStatusRow(row);
   }
 
-  async cancel(userId: string): Promise<PublicTableStatusView> {
+  async cancel(
+    userId: string,
+    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+  ): Promise<PublicTableStatusView> {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -234,9 +299,11 @@ export class PublicTableService {
          FROM gameplay_participations AS participation
          JOIN public_table_tickets AS ticket ON ticket.id = participation.ticket_id
          WHERE participation.user_id = $1
-           AND participation.kind = 'PUBLIC_QUEUE'
+           AND participation.kind = $2
+           AND ticket.queue_kind = $3
+           AND ticket.season_id IS NOT DISTINCT FROM $4
          FOR UPDATE OF ticket`,
-        [userId]
+        [userId, context.participationKind, context.queueKind, context.seasonId]
       );
       const ticket = ticketResult.rows[0];
       if (!ticket) {
@@ -247,9 +314,15 @@ export class PublicTableService {
       if (ticket.state === 'WAITING' || !ticket.reservation_id) {
         await finishTicket(client, ticket.id, 'CANCELED', 'PLAYER_CANCELED');
       } else {
-        await this.releaseReservationForPlayer(client, ticket.reservation_id, ticket.id, userId);
+        await this.releaseReservationForPlayer(
+          client,
+          ticket.reservation_id,
+          ticket.id,
+          userId,
+          context
+        );
       }
-      await releasePublicQueueParticipation(client, userId, ticket.id);
+      await releasePublicQueueParticipation(client, userId, ticket.id, context.participationKind);
       logPublicTableLifecycleEvent({
         eventType: 'QUEUE_CANCELED',
         eventKey: `${ticket.id}:QUEUE_CANCELED`,
@@ -266,8 +339,11 @@ export class PublicTableService {
     }
   }
 
-  async confirm(userId: string): Promise<PublicTableStatusView> {
-    const current = await this.getStatus(userId);
+  async confirm(
+    userId: string,
+    context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
+  ): Promise<PublicTableStatusView> {
+    const current = await this.getStatus(userId, context);
     if (
       current.state === 'CONFIRMED' ||
       current.state === 'CREATING_ROOM' ||
@@ -299,11 +375,13 @@ export class PublicTableService {
          JOIN public_table_tickets AS ticket ON ticket.id = participation.ticket_id
          JOIN public_table_reservations AS reservation ON reservation.id = ticket.reservation_id
          WHERE participation.user_id = $1
-           AND participation.kind = 'PUBLIC_QUEUE'
+           AND participation.kind = $2
+           AND ticket.queue_kind = $3
+           AND ticket.season_id IS NOT DISTINCT FROM $4
            AND ticket.state = 'RESERVED'
            AND reservation.state IN ('PENDING_CONFIRMATION', 'CREATING_ROOM')
          FOR UPDATE OF ticket, reservation`,
-        [userId]
+        [userId, context.participationKind, context.queueKind, context.seasonId]
       );
       const row = result.rows[0];
       if (!row) {
@@ -377,25 +455,37 @@ export class PublicTableService {
     if (shouldBootstrap && reservationId) {
       await this.bootstrapRoom(reservationId);
     }
-    return this.getStatus(userId);
+    return this.getStatus(userId, context);
   }
 
-  async tryMatch(): Promise<void> {
+  async tryMatch(context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT): Promise<void> {
     const client = await pool.connect();
     const now = this.now();
     try {
       await client.query('BEGIN');
+      if (!(await isQueueContextOpen(client, context, now))) {
+        await client.query('COMMIT');
+        return;
+      }
       const result = await client.query<{ id: string }>(
         `SELECT id
          FROM public_table_tickets
          WHERE environment_id = $1
+           AND queue_kind = $4
+           AND season_id IS NOT DISTINCT FROM $5
            AND state = 'WAITING'
            AND heartbeat_at > $2
            AND matchable_after <= $3
          ORDER BY joined_at ASC, id ASC
          FOR UPDATE SKIP LOCKED
          LIMIT 2`,
-        [ENVIRONMENT_ID, new Date(now - HEARTBEAT_GRACE_MS), new Date(now)]
+        [
+          context.environmentId,
+          new Date(now - HEARTBEAT_GRACE_MS),
+          new Date(now),
+          context.queueKind,
+          context.seasonId,
+        ]
       );
       if (result.rows.length < 2) {
         await client.query('COMMIT');
@@ -405,13 +495,15 @@ export class PublicTableService {
       const reservationId = randomUUID();
       await client.query(
         `INSERT INTO public_table_reservations (
-           id, environment_id, first_ticket_id, second_ticket_id,
+           id, queue_kind, season_id, environment_id, first_ticket_id, second_ticket_id,
            state, created_at, expires_at, updated_at
          )
-         VALUES ($1, $2, $3, $4, 'PENDING_CONFIRMATION', $5, $6, $5)`,
+         VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_CONFIRMATION', $7, $8, $7)`,
         [
           reservationId,
-          ENVIRONMENT_ID,
+          context.queueKind,
+          context.seasonId,
+          context.environmentId,
           first.id,
           second.id,
           new Date(now),
@@ -441,6 +533,29 @@ export class PublicTableService {
     }
   }
 
+  async expireWaitingTickets(
+    context: MatchmakingQueueContext,
+    terminalReason: string
+  ): Promise<number> {
+    const result = await pool.query(
+      `WITH expired AS (
+         UPDATE public_table_tickets
+         SET state = 'EXPIRED',
+             terminal_reason = $4,
+             updated_at = NOW()
+         WHERE queue_kind = $1
+           AND season_id IS NOT DISTINCT FROM $2
+           AND environment_id = $3
+           AND state = 'WAITING'
+         RETURNING id
+       )
+       DELETE FROM gameplay_participations
+       WHERE ticket_id IN (SELECT id FROM expired)`,
+      [context.queueKind, context.seasonId, context.environmentId, terminalReason]
+    );
+    return result.rowCount ?? 0;
+  }
+
   async cleanupExpiredState(): Promise<{
     expiredWaitingTickets: number;
     releasedReservations: number;
@@ -462,8 +577,7 @@ export class PublicTableService {
            RETURNING id
          )
          DELETE FROM gameplay_participations
-         WHERE kind = 'PUBLIC_QUEUE'
-           AND ticket_id IN (SELECT id FROM expired)
+         WHERE ticket_id IN (SELECT id FROM expired)
          RETURNING ticket_id AS id`,
         [new Date(now - HEARTBEAT_GRACE_MS), new Date(now)]
       );
@@ -577,6 +691,8 @@ export class PublicTableService {
   private async bootstrapRoom(reservationId: string): Promise<void> {
     const result = await pool.query<{
       state: string;
+      queue_kind: 'CASUAL' | 'RANKED';
+      season_id: string | null;
       first_ticket_id: string;
       second_ticket_id: string;
       first_user_id: string;
@@ -592,6 +708,8 @@ export class PublicTableService {
     }>(
       `SELECT
          reservation.state,
+         reservation.queue_kind,
+         reservation.season_id,
          reservation.first_ticket_id,
          reservation.second_ticket_id,
          first_ticket.user_id AS first_user_id,
@@ -620,6 +738,9 @@ export class PublicTableService {
     ]);
     const room = await this.roomService.createPublicTableRoom({
       reservationId,
+      originKind: row.queue_kind === 'RANKED' ? 'RANKED' : 'PUBLIC_TABLE',
+      originLabel: row.queue_kind === 'RANKED' ? '赛季排位' : '公共牌桌',
+      rankedSeasonId: row.season_id,
       first: {
         ...firstProfile,
         deckId: row.first_deck_id,
@@ -671,8 +792,12 @@ export class PublicTableService {
              room_generation = $2,
              updated_at = NOW()
          WHERE ticket_id = ANY($1::uuid[])
-           AND kind = 'PUBLIC_QUEUE'`,
-        [[row.first_ticket_id, row.second_ticket_id], room.roomGeneration]
+           AND kind = $3`,
+        [
+          [row.first_ticket_id, row.second_ticket_id],
+          room.roomGeneration,
+          row.queue_kind === 'RANKED' ? 'RANKED_QUEUE' : 'PUBLIC_QUEUE',
+        ]
       );
       logPublicTableLifecycleEvent({
         eventType: 'ROOM_CREATED',
@@ -694,7 +819,8 @@ export class PublicTableService {
     client: PoolClient,
     reservationId: string,
     actorTicketId: string,
-    actorUserId: string
+    actorUserId: string,
+    context: MatchmakingQueueContext
   ): Promise<void> {
     const result = await client.query<{
       first_ticket_id: string;
@@ -734,11 +860,12 @@ export class PublicTableService {
     await client.query(
       `DELETE FROM gameplay_participations
        WHERE ticket_id = $1
+         AND kind = $2
          AND EXISTS (
            SELECT 1 FROM public_table_tickets
            WHERE id = $1 AND state = 'EXPIRED'
          )`,
-      [otherTicketId]
+      [otherTicketId, context.participationKind]
     );
     logPublicTableLifecycleEvent({
       eventType: 'RESERVATION_RELEASED',
@@ -761,7 +888,7 @@ async function expireOrRestoreTimedOutTicket(
     await finishTicket(client, ticketId, 'EXPIRED', 'CONFIRMATION_TIMEOUT');
     await client.query(
       `DELETE FROM gameplay_participations
-       WHERE kind = 'PUBLIC_QUEUE' AND ticket_id = $1`,
+       WHERE ticket_id = $1`,
       [ticketId]
     );
     return;
@@ -847,6 +974,47 @@ function idleStatus(): PublicTableStatusView {
 function normalizeEntrySource(value: string): string {
   const normalized = value.trim().toUpperCase();
   return normalized === 'SHARED_LINK' ? normalized : 'DIRECT';
+}
+
+async function isQueueContextOpen(
+  client: PoolClient,
+  context: MatchmakingQueueContext,
+  now: number
+): Promise<boolean> {
+  if (context.queueKind === 'CASUAL') {
+    return true;
+  }
+  if (!context.seasonId) {
+    return false;
+  }
+  const result = await client.query<RankedAdmissionRow>(
+    `SELECT
+       lifecycle,
+       queue_admission,
+       competitive_environment_id,
+       platform_time_zone,
+       open_windows,
+       starts_at,
+       scheduled_ends_at
+     FROM ranked_seasons
+     WHERE id = $1
+     FOR SHARE`,
+    [context.seasonId]
+  );
+  const season = result.rows[0];
+  return Boolean(
+    season &&
+    season.lifecycle === 'ACTIVE' &&
+    season.queue_admission === 'OPEN' &&
+    season.competitive_environment_id === context.environmentId &&
+    isRankedQueueWindowOpen(
+      new Date(now),
+      season.platform_time_zone,
+      season.open_windows,
+      new Date(season.starts_at),
+      new Date(season.scheduled_ends_at)
+    )
+  );
 }
 
 function isUniqueViolation(error: unknown): boolean {

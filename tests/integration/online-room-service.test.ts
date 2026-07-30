@@ -29,11 +29,19 @@ import {
   OnlineMatchService,
   type OnlineMatchState,
 } from '../../src/server/services/online-match-service';
+import { pool } from '../../src/server/db/pool';
 import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
     query: vi.fn(),
+  },
+}));
+
+vi.mock('../../src/server/services/ranked-rating-service.js', () => ({
+  rankedRatingService: {
+    registerMatch: vi.fn(async () => undefined),
+    settleMatch: vi.fn(async () => undefined),
   },
 }));
 
@@ -2514,6 +2522,9 @@ describe('OnlineRoomService', () => {
     });
     const input = {
       reservationId: '11111111-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE' as const,
+      originLabel: '公共牌桌',
+      rankedSeasonId: null,
       first: {
         userId: 'u1',
         displayName: '玩家一',
@@ -2602,6 +2613,9 @@ describe('OnlineRoomService', () => {
     });
     const room = await service.createPublicTableRoom({
       reservationId: '66666666-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '公共牌桌',
+      rankedSeasonId: null,
       first: {
         userId: 'u1',
         displayName: '玩家一',
@@ -2630,5 +2644,115 @@ describe('OnlineRoomService', () => {
       reason: 'OPENING_ARRIVAL_TIMEOUT',
       endedAt: now,
     });
+  });
+
+  it('排位对局仅单方超过重连期限时应由服务端权威判负', async () => {
+    let now = 20_000;
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '77777777-2222-4333-8444-555555555555',
+      originKind: 'RANKED',
+      originLabel: '赛季排位',
+      rankedSeasonId: '88888888-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-a')),
+        lockedAt: now,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-b')),
+        lockedAt: now,
+      },
+      openingExpiresAt: now + 180_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    now += 170_000;
+    service.touchInGameMemberByMatch(started.matchId!, 'u2');
+    now += 11_000;
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(1);
+    expect(summary.rankedPlatformNoContestCount).toBe(0);
+    expect(matchService.isMatchCompleted(started.matchId!)).toBe(true);
+    const state = matchService.getMatch(started.matchId!)?.session.state;
+    expect(state?.endInfo).toMatchObject({
+      reason: GameEndReason.OPPONENT_SURRENDER,
+      winnerId: expect.stringContaining('u2'),
+    });
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining("result_type = 'DISCONNECT_FORFEIT'"),
+      [started.matchId]
+    );
+  });
+
+  it('排位双方在相同时点超过重连期限时应保留为平台无结果而非随机判负', async () => {
+    let now = 30_000;
+    vi.mocked(pool.query).mockResolvedValue({
+      rows: [{ match_id: 'ranked-match' }],
+      rowCount: 1,
+    } as never);
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '99999999-2222-4333-8444-555555555555',
+      originKind: 'RANKED',
+      originLabel: '赛季排位',
+      rankedSeasonId: 'aaaaaaaa-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-c')),
+        lockedAt: now,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-d')),
+        lockedAt: now,
+      },
+      openingExpiresAt: now + 180_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    now += 180_000;
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(summary.rankedPlatformNoContestCount).toBe(1);
+    expect(summary.destroyedRoomCount).toBe(1);
+    expect(matchService.getMatch(started.matchId!)).toBeNull();
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining("result_type = 'PLATFORM_NO_CONTEST'"),
+      [started.matchId, new Date(now)]
+    );
   });
 });

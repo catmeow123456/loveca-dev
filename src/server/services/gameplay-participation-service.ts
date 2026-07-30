@@ -1,7 +1,8 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 
-export type GameplayParticipationKind = 'PUBLIC_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+export type GameplayParticipationKind =
+  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
 
 export interface GameplayParticipationRef {
   readonly kind: GameplayParticipationKind;
@@ -73,16 +74,17 @@ export class GameplayParticipationService implements GameplayParticipationPort {
 export async function acquirePublicQueueParticipation(
   client: PoolClient,
   userId: string,
-  ticketId: string
+  ticketId: string,
+  kind: Extract<GameplayParticipationKind, 'PUBLIC_QUEUE' | 'RANKED_QUEUE'> = 'PUBLIC_QUEUE'
 ): Promise<boolean> {
   const result = await client.query(
     `INSERT INTO gameplay_participations (
        user_id, kind, ticket_id, updated_at
      )
-     VALUES ($1, 'PUBLIC_QUEUE', $2, NOW())
+     VALUES ($1, $3, $2, NOW())
      ON CONFLICT (user_id) DO NOTHING
      RETURNING user_id`,
-    [userId, ticketId]
+    [userId, ticketId, kind]
   );
   return result.rowCount === 1;
 }
@@ -90,14 +92,15 @@ export async function acquirePublicQueueParticipation(
 export async function releasePublicQueueParticipation(
   client: PoolClient,
   userId: string,
-  ticketId: string
+  ticketId: string,
+  kind: Extract<GameplayParticipationKind, 'PUBLIC_QUEUE' | 'RANKED_QUEUE'> = 'PUBLIC_QUEUE'
 ): Promise<void> {
   await client.query(
     `DELETE FROM gameplay_participations
      WHERE user_id = $1
-       AND kind = 'PUBLIC_QUEUE'
+       AND kind = $3
        AND ticket_id = $2`,
-    [userId, ticketId]
+    [userId, ticketId, kind]
   );
 }
 

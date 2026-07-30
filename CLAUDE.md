@@ -73,9 +73,11 @@ src/
 │   ├── db/drizzle.ts        # Drizzle ORM instance (wraps pool)
 │   ├── db/schema.ts         # Drizzle table definitions; keep migrations and init-only DB objects aligned
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
-│   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements, online, debug-online(dev)
+│   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements,
+│   │                        # online, battle, ranked, ranked-admin, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
+│                            # ranked player/season/rating/runtime/admin services,
 │                            # online-match-chat-runtime (single-match in-memory chat),
 │                            # card-registry-service (published-cards cache for online decks),
 │                            # deck-storage-service (cloud deck normalization + validation),
@@ -94,7 +96,8 @@ client/src/
 ├── store/            # Zustand stores
 │   ├── gameStore.ts  # Game state + GameSession instance
 │   ├── deckStore.ts  # Deck management (local + cloud sync via API)
-│   └── authStore.ts  # JWT auth via self-hosted API
+│   ├── authStore.ts  # JWT auth via self-hosted API
+│   └── rankedStore.ts # Ranked overview and cross-page queue state
 └── lib/
     ├── apiClient.ts  # HTTP client with JWT auth, auto-refresh, offline detection
     ├── appConfig.ts  # Public feature flags loaded from /api/config
@@ -104,6 +107,8 @@ client/src/
     ├── imageUploadService.ts # Browser-side compression + API upload
     ├── onlineClient.ts # Formal online room + match REST client
     ├── onlineDebugClient.ts # Dev-only debug-online REST client
+    ├── rankedClient.ts # Player ranked REST client
+    ├── rankedAdminClient.ts # Admin season and settlement REST client
     └── remoteMatchClient.ts # Shared remote snapshot/command/public-event dispatch
 ```
 

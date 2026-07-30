@@ -2,10 +2,12 @@ import {
   type AnyPgColumn,
   boolean,
   check,
+  doublePrecision,
   index,
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -35,6 +37,7 @@ import type {
   ReplayVisibilityScope,
 } from '../../online/replay-types.js';
 import type { PrivateEvent, PublicEvent, Seat } from '../../online/types.js';
+import type { Glicko1Config } from '../rating/glicko.js';
 
 export type UserRole = 'user' | 'admin';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
@@ -49,10 +52,24 @@ export type SiteStatusLifecycle =
   | 'CANCELLED';
 export type SiteAnnouncementType = 'MAINTENANCE' | 'UPDATE' | 'NEWS';
 export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
-export type GameplayParticipationKind = 'PUBLIC_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+export type GameplayParticipationKind =
+  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+export type MatchmakingQueueKind = 'CASUAL' | 'RANKED';
 export type PublicTableTicketState = 'WAITING' | 'RESERVED' | 'MATCHED' | 'CANCELED' | 'EXPIRED';
 export type PublicTableReservationState =
   'PENDING_CONFIRMATION' | 'CREATING_ROOM' | 'MATCHED' | 'RELEASED';
+export type RankedSeasonLifecycle = 'DRAFT' | 'ACTIVE' | 'FINALIZING' | 'CLOSED';
+export type RankedQueueAdmission = 'OPEN' | 'PAUSED';
+export type RankedMatchRatingStatus = 'PENDING' | 'SETTLED' | 'VOIDED';
+export type RankedMatchResultType =
+  'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | 'PLATFORM_NO_CONTEST';
+export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
+
+export interface RankedSeasonOpenWindow {
+  readonly weekdays: readonly number[];
+  readonly startMinute: number;
+  readonly endMinute: number;
+}
 
 export type DeckEntry = {
   card_code: string;
@@ -377,6 +394,10 @@ export const publicTableTickets = pgTable(
     userId: uuid('user_id')
       .notNull()
       .references(() => profiles.id, { onDelete: 'cascade' }),
+    queueKind: text('queue_kind').$type<MatchmakingQueueKind>().notNull().default('CASUAL'),
+    seasonId: uuid('season_id').references(() => rankedSeasons.id, {
+      onDelete: 'restrict',
+    }),
     environmentId: text('environment_id').notNull().default('PUBLIC_TABLE_V1'),
     sourceDeckId: uuid('source_deck_id').references(() => decks.id, { onDelete: 'set null' }),
     sourceDeckName: text('source_deck_name').notNull(),
@@ -417,6 +438,11 @@ export const publicTableTickets = pgTable(
       'public_table_tickets_state_check',
       sql`${table.state} IN ('WAITING', 'RESERVED', 'MATCHED', 'CANCELED', 'EXPIRED')`
     ),
+    check('public_table_tickets_queue_kind_check', sql`${table.queueKind} IN ('CASUAL', 'RANKED')`),
+    check(
+      'public_table_tickets_ranked_season_check',
+      sql`(${table.queueKind} = 'CASUAL' AND ${table.seasonId} IS NULL) OR (${table.queueKind} = 'RANKED' AND ${table.seasonId} IS NOT NULL)`
+    ),
   ]
 );
 
@@ -426,6 +452,10 @@ export const publicTableReservations = pgTable(
     id: uuid('id')
       .default(sql`gen_random_uuid()`)
       .primaryKey(),
+    queueKind: text('queue_kind').$type<MatchmakingQueueKind>().notNull().default('CASUAL'),
+    seasonId: uuid('season_id').references(() => rankedSeasons.id, {
+      onDelete: 'restrict',
+    }),
     environmentId: text('environment_id').notNull().default('PUBLIC_TABLE_V1'),
     firstTicketId: uuid('first_ticket_id')
       .notNull()
@@ -462,6 +492,14 @@ export const publicTableReservations = pgTable(
       'public_table_reservations_distinct_tickets_check',
       sql`${table.firstTicketId} <> ${table.secondTicketId}`
     ),
+    check(
+      'public_table_reservations_queue_kind_check',
+      sql`${table.queueKind} IN ('CASUAL', 'RANKED')`
+    ),
+    check(
+      'public_table_reservations_ranked_season_check',
+      sql`(${table.queueKind} = 'CASUAL' AND ${table.seasonId} IS NULL) OR (${table.queueKind} = 'RANKED' AND ${table.seasonId} IS NOT NULL)`
+    ),
   ]
 );
 
@@ -483,7 +521,7 @@ export const gameplayParticipations = pgTable(
     index('idx_gameplay_participations_kind').on(table.kind),
     check(
       'gameplay_participations_kind_check',
-      sql`${table.kind} IN ('PUBLIC_QUEUE', 'ONLINE_ROOM', 'ONLINE_MATCH')`
+      sql`${table.kind} IN ('PUBLIC_QUEUE', 'RANKED_QUEUE', 'ONLINE_ROOM', 'ONLINE_MATCH')`
     ),
   ]
 );
@@ -554,7 +592,7 @@ export const matchRecords = pgTable(
     ),
     check(
       'match_records_origin_kind_check',
-      sql`${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE', 'SOLITAIRE')`
+      sql`${table.originKind} IN ('ONLINE_ROOM', 'PUBLIC_TABLE', 'RANKED', 'SOLITAIRE')`
     ),
     check(
       'match_records_status_check',
@@ -884,6 +922,306 @@ export const matchCheckpoints = pgTable(
     check(
       'match_checkpoints_visibility_scope_check',
       sql`${table.visibilityScope} IN ('PUBLIC', 'PRIVATE', 'ADMIN', 'SYSTEM')`
+    ),
+  ]
+);
+
+export const rankedSeasons = pgTable(
+  'ranked_seasons',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    seasonKey: text('season_key').notNull().unique(),
+    name: text('name').notNull(),
+    competitiveEnvironmentId: text('competitive_environment_id').notNull(),
+    lifecycle: text('lifecycle').$type<RankedSeasonLifecycle>().notNull().default('DRAFT'),
+    queueAdmission: text('queue_admission')
+      .$type<RankedQueueAdmission>()
+      .notNull()
+      .default('PAUSED'),
+    platformTimeZone: text('platform_time_zone').notNull().default('Asia/Shanghai'),
+    openWindows: jsonb('open_windows')
+      .$type<RankedSeasonOpenWindow[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    scheduledEndsAt: timestamp('scheduled_ends_at', { withTimezone: true }).notNull(),
+    finalizingDeadlineAt: timestamp('finalizing_deadline_at', { withTimezone: true }).notNull(),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    rulesVersion: text('rules_version').notNull(),
+    cardCatalogVersion: text('card_catalog_version').notNull(),
+    cardCatalogHash: text('card_catalog_hash').notNull(),
+    deckPolicyVersion: text('deck_policy_version').notNull(),
+    ratingAlgorithmVersion: text('rating_algorithm_version').notNull(),
+    ratingConfig: jsonb('rating_config').$type<Glicko1Config>().notNull(),
+    leaderboardMinimumMatchCount: integer('leaderboard_minimum_match_count').notNull().default(10),
+    ledgerRevision: integer('ledger_revision').notNull().default(0),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_ranked_seasons_effective_environment')
+      .on(table.competitiveEnvironmentId)
+      .where(sql`${table.lifecycle} IN ('ACTIVE', 'FINALIZING')`),
+    index('idx_ranked_seasons_lifecycle').on(table.lifecycle, table.startsAt),
+    check(
+      'ranked_seasons_lifecycle_check',
+      sql`${table.lifecycle} IN ('DRAFT', 'ACTIVE', 'FINALIZING', 'CLOSED')`
+    ),
+    check(
+      'ranked_seasons_queue_admission_check',
+      sql`${table.queueAdmission} IN ('OPEN', 'PAUSED')`
+    ),
+    check('ranked_seasons_key_check', sql`btrim(${table.seasonKey}) <> ''`),
+    check('ranked_seasons_name_check', sql`btrim(${table.name}) <> ''`),
+    check(
+      'ranked_seasons_schedule_check',
+      sql`${table.startsAt} < ${table.scheduledEndsAt} AND ${table.scheduledEndsAt} <= ${table.finalizingDeadlineAt}`
+    ),
+    check('ranked_seasons_catalog_hash_check', sql`${table.cardCatalogHash} LIKE 'sha256:%'`),
+    check(
+      'ranked_seasons_leaderboard_minimum_match_count_check',
+      sql`${table.leaderboardMinimumMatchCount} BETWEEN 1 AND 100`
+    ),
+    check('ranked_seasons_ledger_revision_check', sql`${table.ledgerRevision} >= 0`),
+  ]
+);
+
+export const rankedMatches = pgTable(
+  'ranked_matches',
+  {
+    matchId: text('match_id')
+      .primaryKey()
+      .references(() => matchRecords.matchId, { onDelete: 'restrict' }),
+    seasonId: uuid('season_id')
+      .notNull()
+      .references(() => rankedSeasons.id, { onDelete: 'restrict' }),
+    firstUserId: uuid('first_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    secondUserId: uuid('second_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    ratingStatus: text('rating_status')
+      .$type<RankedMatchRatingStatus>()
+      .notNull()
+      .default('PENDING'),
+    winnerSeat: text('winner_seat').$type<'FIRST' | 'SECOND'>(),
+    resultType: text('result_type').$type<RankedMatchResultType>(),
+    usedFree: boolean('used_free').notNull().default(false),
+    rulesVersion: text('rules_version').notNull(),
+    cardCatalogVersion: text('card_catalog_version').notNull(),
+    cardCatalogHash: text('card_catalog_hash').notNull(),
+    deckPolicyVersion: text('deck_policy_version').notNull(),
+    ratingAlgorithmVersion: text('rating_algorithm_version').notNull(),
+    endedAt: timestamp('ended_at', { withTimezone: true }),
+    settledAt: timestamp('settled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_ranked_matches_season_status').on(table.seasonId, table.ratingStatus, table.endedAt),
+    index('idx_ranked_matches_first_user').on(table.seasonId, table.firstUserId),
+    index('idx_ranked_matches_second_user').on(table.seasonId, table.secondUserId),
+    check(
+      'ranked_matches_rating_status_check',
+      sql`${table.ratingStatus} IN ('PENDING', 'SETTLED', 'VOIDED')`
+    ),
+    check(
+      'ranked_matches_winner_seat_check',
+      sql`${table.winnerSeat} IS NULL OR ${table.winnerSeat} IN ('FIRST', 'SECOND')`
+    ),
+    check(
+      'ranked_matches_result_type_check',
+      sql`${table.resultType} IS NULL OR ${table.resultType} IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT', 'PLATFORM_NO_CONTEST')`
+    ),
+    check(
+      'ranked_matches_distinct_players_check',
+      sql`${table.firstUserId} <> ${table.secondUserId}`
+    ),
+    check('ranked_matches_catalog_hash_check', sql`${table.cardCatalogHash} LIKE 'sha256:%'`),
+  ]
+);
+
+export const rankedPlayerSeeds = pgTable(
+  'ranked_player_seeds',
+  {
+    seasonId: uuid('season_id')
+      .notNull()
+      .references(() => rankedSeasons.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    sourceSeasonId: uuid('source_season_id').references(() => rankedSeasons.id, {
+      onDelete: 'set null',
+    }),
+    rating: doublePrecision('rating').notNull(),
+    ratingDeviation: doublePrecision('rating_deviation').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.seasonId, table.userId],
+      name: 'ranked_player_seeds_pk',
+    }),
+    check('ranked_player_seeds_rd_check', sql`${table.ratingDeviation} > 0`),
+  ]
+);
+
+export const rankedPlayerRatings = pgTable(
+  'ranked_player_ratings',
+  {
+    seasonId: uuid('season_id')
+      .notNull()
+      .references(() => rankedSeasons.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    rating: doublePrecision('rating').notNull(),
+    ratingDeviation: doublePrecision('rating_deviation').notNull(),
+    ratedMatchCount: integer('rated_match_count').notNull().default(0),
+    lastRatedAt: timestamp('last_rated_at', { withTimezone: true }),
+    ledgerRevision: integer('ledger_revision').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.seasonId, table.userId],
+      name: 'ranked_player_ratings_pk',
+    }),
+    index('idx_ranked_player_ratings_leaderboard').on(table.seasonId, table.rating, table.userId),
+    check('ranked_player_ratings_rd_check', sql`${table.ratingDeviation} > 0`),
+    check('ranked_player_ratings_match_count_check', sql`${table.ratedMatchCount} >= 0`),
+    check('ranked_player_ratings_revision_check', sql`${table.ledgerRevision} >= 0`),
+  ]
+);
+
+export const rankedRatingEvents = pgTable(
+  'ranked_rating_events',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    seasonId: uuid('season_id')
+      .notNull()
+      .references(() => rankedSeasons.id, { onDelete: 'restrict' }),
+    eventSequence: integer('event_sequence').notNull(),
+    eventType: text('event_type').$type<RankedRatingEventType>().notNull(),
+    idempotencyKey: text('idempotency_key').notNull(),
+    matchId: text('match_id')
+      .notNull()
+      .references(() => rankedMatches.matchId, { onDelete: 'restrict' }),
+    targetEventId: uuid('target_event_id').references((): AnyPgColumn => rankedRatingEvents.id, {
+      onDelete: 'restrict',
+    }),
+    firstUserId: uuid('first_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    secondUserId: uuid('second_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    winnerSeat: text('winner_seat').$type<'FIRST' | 'SECOND'>(),
+    ratedAt: timestamp('rated_at', { withTimezone: true }).notNull(),
+    algorithmVersion: text('algorithm_version').notNull(),
+    reason: text('reason'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_ranked_rating_events_season_sequence').on(table.seasonId, table.eventSequence),
+    uniqueIndex('uq_ranked_rating_events_season_idempotency').on(
+      table.seasonId,
+      table.idempotencyKey
+    ),
+    uniqueIndex('uq_ranked_rating_events_initial_settlement')
+      .on(table.seasonId, table.matchId)
+      .where(sql`${table.eventType} = 'SETTLEMENT'`),
+    uniqueIndex('uq_ranked_rating_events_correction_target')
+      .on(table.targetEventId)
+      .where(sql`${table.targetEventId} IS NOT NULL`),
+    index('idx_ranked_rating_events_match').on(table.seasonId, table.matchId, table.eventSequence),
+    check(
+      'ranked_rating_events_type_check',
+      sql`${table.eventType} IN ('SETTLEMENT', 'VOID', 'REPLACEMENT')`
+    ),
+    check(
+      'ranked_rating_events_target_check',
+      sql`(${table.eventType} = 'SETTLEMENT' AND ${table.targetEventId} IS NULL) OR (${table.eventType} IN ('VOID', 'REPLACEMENT') AND ${table.targetEventId} IS NOT NULL)`
+    ),
+    check(
+      'ranked_rating_events_winner_check',
+      sql`(${table.eventType} = 'VOID' AND ${table.winnerSeat} IS NULL) OR (${table.eventType} IN ('SETTLEMENT', 'REPLACEMENT') AND ${table.winnerSeat} IN ('FIRST', 'SECOND'))`
+    ),
+    check(
+      'ranked_rating_events_reason_check',
+      sql`${table.eventType} = 'SETTLEMENT' OR btrim(COALESCE(${table.reason}, '')) <> ''`
+    ),
+    check(
+      'ranked_rating_events_distinct_players_check',
+      sql`${table.firstUserId} <> ${table.secondUserId}`
+    ),
+    check('ranked_rating_events_sequence_check', sql`${table.eventSequence} > 0`),
+    check('ranked_rating_events_idempotency_check', sql`btrim(${table.idempotencyKey}) <> ''`),
+  ]
+);
+
+export const rankedRatingEventSteps = pgTable(
+  'ranked_rating_event_steps',
+  {
+    eventId: uuid('event_id')
+      .notNull()
+      .references(() => rankedRatingEvents.id, { onDelete: 'restrict' }),
+    stepIndex: integer('step_index').notNull(),
+    sourceResultEventId: uuid('source_result_event_id')
+      .notNull()
+      .references(() => rankedRatingEvents.id, { onDelete: 'restrict' }),
+    matchId: text('match_id')
+      .notNull()
+      .references(() => rankedMatches.matchId, { onDelete: 'restrict' }),
+    firstUserId: uuid('first_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    secondUserId: uuid('second_user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    winnerSeat: text('winner_seat').$type<'FIRST' | 'SECOND'>().notNull(),
+    ratedAt: timestamp('rated_at', { withTimezone: true }).notNull(),
+    firstBeforeRating: doublePrecision('first_before_rating').notNull(),
+    firstBeforeDeviation: doublePrecision('first_before_deviation').notNull(),
+    firstBeforeMatchCount: integer('first_before_match_count').notNull(),
+    firstBeforeLastRatedAt: timestamp('first_before_last_rated_at', { withTimezone: true }),
+    firstAfterRating: doublePrecision('first_after_rating').notNull(),
+    firstAfterDeviation: doublePrecision('first_after_deviation').notNull(),
+    firstAfterMatchCount: integer('first_after_match_count').notNull(),
+    firstAfterLastRatedAt: timestamp('first_after_last_rated_at', { withTimezone: true }),
+    secondBeforeRating: doublePrecision('second_before_rating').notNull(),
+    secondBeforeDeviation: doublePrecision('second_before_deviation').notNull(),
+    secondBeforeMatchCount: integer('second_before_match_count').notNull(),
+    secondBeforeLastRatedAt: timestamp('second_before_last_rated_at', { withTimezone: true }),
+    secondAfterRating: doublePrecision('second_after_rating').notNull(),
+    secondAfterDeviation: doublePrecision('second_after_deviation').notNull(),
+    secondAfterMatchCount: integer('second_after_match_count').notNull(),
+    secondAfterLastRatedAt: timestamp('second_after_last_rated_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.eventId, table.stepIndex],
+      name: 'ranked_rating_event_steps_pk',
+    }),
+    index('idx_ranked_rating_event_steps_source').on(table.sourceResultEventId),
+    index('idx_ranked_rating_event_steps_match').on(table.matchId, table.eventId),
+    check('ranked_rating_event_steps_index_check', sql`${table.stepIndex} >= 0`),
+    check(
+      'ranked_rating_event_steps_winner_check',
+      sql`${table.winnerSeat} IN ('FIRST', 'SECOND')`
+    ),
+    check(
+      'ranked_rating_event_steps_distinct_players_check',
+      sql`${table.firstUserId} <> ${table.secondUserId}`
     ),
   ]
 );

@@ -56,6 +56,7 @@ import {
   type MatchDecisionRecordInput,
   type AppendMatchRecordFrameInput,
 } from './match-recorder-service.js';
+import { rankedRatingService } from './ranked-rating-service.js';
 import { buildMatchDecisionRecordsForCommand } from './match-decision-records.js';
 import {
   appendOnlineMatchChatMessage,
@@ -2771,6 +2772,24 @@ export class OnlineMatchService {
         subPhase: input.authorityState?.currentSubPhase ?? 'UNKNOWN',
       });
       this.sealedMatchIds.add(match.matchId);
+      if (
+        match.originKind === 'RANKED' &&
+        input.completeness === 'FULL' &&
+        (input.status === 'COMPLETED' || input.status === 'SURRENDERED')
+      ) {
+        try {
+          await rankedRatingService.settleMatch(match.matchId);
+        } catch (error) {
+          console.error(
+            JSON.stringify({
+              scope: 'ranked_settlement',
+              event: 'RANKED_SETTLEMENT_DEFERRED',
+              matchId: match.matchId,
+              message: readErrorMessage(error),
+            })
+          );
+        }
+      }
       return true;
     } catch (error) {
       await this.markRecordIncomplete(
