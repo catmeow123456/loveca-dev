@@ -20,6 +20,7 @@ import {
   loadCertifiedAiDeck,
   type LoadedCertifiedAiDeck,
 } from '../ai-battle/certified-deck-loader.js';
+import type { AiBattleDebugTraceView } from '../ai-battle/debug-trace.js';
 import {
   onlineMatchService,
   type OnlineMatchService,
@@ -164,6 +165,18 @@ export class AiBattlePhaseThreeService {
         return null;
       }
       return this.buildView(runtime, match);
+    });
+  }
+
+  async getDebugTrace(
+    matchId: string,
+    humanUserId: string,
+    afterSeq = 0
+  ): Promise<AiBattleDebugTraceView | null> {
+    return this.entryExecutor.runExclusive(buildHumanEntryKey(humanUserId), async () => {
+      const runtime = this.requireOwnedRuntime(matchId, humanUserId, false);
+      if (!runtime) return null;
+      return this.matchService.getAiBattleDebugTrace(matchId, humanUserId, afterSeq);
     });
   }
 

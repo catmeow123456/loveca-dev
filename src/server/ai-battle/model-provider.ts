@@ -1,7 +1,7 @@
 export const AI_MODEL_PROVIDER_PROFILE_VERSION =
-  'ai-battle.model-provider.alibaba-qwen-plus-2025-12-01/v1' as const;
+  'ai-battle.model-provider.alibaba-qwen3.7-flash/v1' as const;
 export const AI_MODEL_PROVIDER_ID = 'ALIBABA_DASHSCOPE' as const;
-export const AI_MODEL_ID = 'qwen-plus-2025-12-01' as const;
+export const AI_MODEL_ID = 'qwen3.7-flash' as const;
 export const AI_MODEL_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1' as const;
 export const AI_MODEL_MAX_COMPLETION_TOKENS = 512 as const;
 export const AI_MODEL_MAX_RESPONSE_BYTES = 1_048_576 as const;

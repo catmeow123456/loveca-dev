@@ -192,6 +192,7 @@ async function createBattleHarness(input: {
     machineDecisionCancelTimer: machineTimers.cancelTimer,
     deadlineScheduleTimer: deadlineTimers.scheduleTimer,
     deadlineCancelTimer: deadlineTimers.cancelTimer,
+    aiDebugTraceEnabled: true,
     modelInvocationRuntime: createAiModelInvocationRuntime({
       provider: input.provider,
       now: () => now,
@@ -306,6 +307,36 @@ describe('AI battle Phase 4 formal model runtime', () => {
     );
     expect(JSON.stringify(record)).not.toContain('must-only-appear-as-hash');
     expect(JSON.stringify(record)).not.toContain('phase-four-match');
+
+    const debugTrace = await harness.matchService.getAiBattleDebugTrace(
+      harness.match.matchId,
+      'phase-four-human'
+    );
+    expect(debugTrace).toMatchObject({
+      enabled: true,
+      entries: [
+        {
+          stage: 'STARTED',
+          decisionKind: 'MULLIGAN',
+          source: 'MODEL',
+        },
+        {
+          stage: 'COMPLETED',
+          decisionKind: 'MULLIGAN',
+          source: 'MODEL',
+          summary: 'Keep one LIVE and improve the opening curve.',
+          selection: { kind: 'MULLIGAN', selectedCount: 0, label: '换牌 0 张' },
+          model: {
+            modelId: AI_MODEL_ID,
+            attemptCount: 1,
+            inputTokens: 900,
+            outputTokens: 50,
+          },
+          executionStatus: 'ACCEPTED',
+        },
+      ],
+    });
+    expect(JSON.stringify(debugTrace)).not.toContain('must-only-appear-as-hash');
   });
 
   it('repairs once, emits one deduplicated notice, and switches the whole match to fallback', async () => {

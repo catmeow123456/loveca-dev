@@ -62,6 +62,11 @@ function createProvider(invoke: AiModelProvider['invoke']): AiModelProvider {
 
 describe('AI battle Phase 4 model provider and governance', () => {
   it('uses the fixed non-thinking structured-output profile without leaking credentials', async () => {
+    expect(AI_MODEL_ID).toBe('qwen3.7-flash');
+    expect(AI_MODEL_PROVIDER_PROFILE_VERSION).toBe(
+      'ai-battle.model-provider.alibaba-qwen3.7-flash/v1'
+    );
+
     let capturedUrl = '';
     let capturedInit: RequestInit | undefined;
     const provider = createAlibabaDashScopeModelProvider({

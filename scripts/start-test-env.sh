@@ -554,7 +554,7 @@ NODE
 }
 
 api_command() {
-  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q FRONTEND_URL=%q node --watch dist/server/index.js' \
+  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q FRONTEND_URL=%q AI_BATTLE_MODEL_ENABLED=%q AI_BATTLE_DEBUG_TRACE_ENABLED=%q DASHSCOPE_API_KEY=%q node --watch dist/server/index.js' \
     "$ROOT_DIR" \
     "$PORT" \
     "$NODE_ENV" \
@@ -567,7 +567,10 @@ api_command() {
     "$MINIO_SECRET_KEY" \
     "$MINIO_BUCKET" \
     "$MINIO_USE_SSL" \
-    "$FRONTEND_URL"
+    "$FRONTEND_URL" \
+    "${AI_BATTLE_MODEL_ENABLED:-1}" \
+    "${AI_BATTLE_DEBUG_TRACE_ENABLED:-0}" \
+    "${DASHSCOPE_API_KEY:-}"
 }
 
 start_tmux_environment() {

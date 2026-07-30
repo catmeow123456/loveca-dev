@@ -75,6 +75,18 @@ import {
   type OnlineMatchChatRuntimeState,
 } from './online-match-chat-runtime.js';
 import { selectConservativeDecision } from '../ai-battle/conservative-decision-policy.js';
+import {
+  appendAiBattleDebugTraceEntry,
+  createAiBattleDebugTraceRuntime,
+  readAiBattleDebugTraceConfigurationStatus,
+  readAiBattleDebugTraceView,
+  summarizeAiDecisionSelection,
+  summarizeAiModelInvocation,
+  type AiBattleDebugDecisionSource,
+  type AiBattleDebugExecutionStatus,
+  type AiBattleDebugTraceRuntime,
+  type AiBattleDebugTraceView,
+} from '../ai-battle/debug-trace.js';
 import { buildAiObservation, type AiObservation } from '../ai-battle/ai-observation.js';
 import { selectExplainableDecision } from '../ai-battle/explainable-decision-policy.js';
 import {
@@ -217,6 +229,7 @@ export interface OnlineMatchState {
   pendingManualOperationModeRequest?: OnlineManualOperationModeRequestState | null;
   activeUndoGrant: OnlineUndoGrantState | null;
   machineLiveness: MachineLivenessState | null;
+  readonly aiDebugTrace?: AiBattleDebugTraceRuntime | null;
   readonly appliedUndoKeys: Set<string>;
   appliedManualOperationKeys?: Map<string, string>;
   recoveryNotice:
@@ -403,6 +416,7 @@ export interface OnlineMatchServiceDeps {
   readonly machineDecisionCancelTimer?: MachineDecisionSchedulerOptions['cancelTimer'];
   readonly machineLivenessLimits?: MachineLivenessLimits;
   readonly modelInvocationRuntime?: AiModelInvocationRuntime | null;
+  readonly aiDebugTraceEnabled?: boolean;
 }
 
 interface MachineStrategyRuntime {
@@ -488,6 +502,7 @@ export class OnlineMatchService {
   private readonly machineDecisionSchedulingEnabled: boolean;
   private readonly machineLivenessLimits: MachineLivenessLimits;
   private readonly modelInvocationRuntime: AiModelInvocationRuntime | null;
+  private readonly aiDebugTraceEnabled: boolean;
   readonly serialExecutor: SingleMatchSerialExecutor;
   readonly deadlineOwner: ServerDeadlineOwner;
   readonly machineDecisionCoordinator: MachineDecisionCoordinator;
@@ -510,6 +525,7 @@ export class OnlineMatchService {
     this.machineDecisionSchedulingEnabled = deps.machineDecisionSchedulingEnabled ?? false;
     this.machineLivenessLimits = deps.machineLivenessLimits ?? DEFAULT_MACHINE_LIVENESS_LIMITS;
     this.modelInvocationRuntime = deps.modelInvocationRuntime ?? null;
+    this.aiDebugTraceEnabled = deps.aiDebugTraceEnabled ?? false;
     this.machineDecisionCoordinator = new MachineDecisionCoordinator({
       executor: this.serialExecutor,
       now: this.now,
@@ -604,6 +620,10 @@ export class OnlineMatchService {
       pendingManualOperationModeRequest: null,
       activeUndoGrant: null,
       machineLiveness: null,
+      aiDebugTrace:
+        originKind === 'AI_BATTLE' && this.aiDebugTraceEnabled
+          ? createAiBattleDebugTraceRuntime()
+          : null,
       appliedUndoKeys: new Set<string>(),
       appliedManualOperationKeys: new Map<string, string>(),
       recoveryNotice: null,
@@ -711,6 +731,26 @@ export class OnlineMatchService {
 
   getMatch(matchId: string): OnlineMatchState | null {
     return this.matches.get(matchId) ?? null;
+  }
+
+  async getAiBattleDebugTrace(
+    matchId: string,
+    userId: string,
+    afterSeq = 0
+  ): Promise<AiBattleDebugTraceView | null> {
+    return this.serialExecutor.runExclusive(matchId, () => {
+      const match = this.matches.get(matchId);
+      const participant = match ? getParticipantByUserId(match, userId) : null;
+      if (
+        !match ||
+        match.originKind !== 'AI_BATTLE' ||
+        !participant ||
+        participant.participantKind !== 'USER'
+      ) {
+        return null;
+      }
+      return readAiBattleDebugTraceView(match.aiDebugTrace ?? null, match.matchId, afterSeq);
+    });
   }
 
   /**
@@ -1233,6 +1273,24 @@ export class OnlineMatchService {
           Object.values(match.participants).find(
             (candidate) => candidate.participantKind === 'USER'
           )?.userId ?? `match:${match.matchId}`;
+        const deterministicResult =
+          strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK'
+            ? createConservativeAuditableResult(acquired.contract)
+            : explainable.tier === 'HEURISTIC'
+              ? null
+              : explainable;
+        const debugSource: AiBattleDebugDecisionSource =
+          strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK'
+            ? 'CONSERVATIVE_FALLBACK'
+            : deterministicResult
+              ? 'RULE'
+              : 'MODEL';
+        this.appendMachineDecisionDebugStart(
+          match,
+          context.observation.decision.kind,
+          context.observation.authorityRevision,
+          debugSource
+        );
         return {
           participant,
           accountKey,
@@ -1240,12 +1298,7 @@ export class OnlineMatchService {
           strategyRuntime,
           observation,
           context,
-          deterministicResult:
-            strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK'
-              ? createConservativeAuditableResult(acquired.contract)
-              : explainable.tier === 'HEURISTIC'
-                ? null
-                : explainable,
+          deterministicResult,
         };
       }
     );
@@ -1410,6 +1463,14 @@ export class OnlineMatchService {
       );
       if (!submitted.ok) {
         if (submitted.reason === 'INVALID_SELECTION') {
+          this.appendMachineDecisionDebugCompletion(
+            match,
+            input.prepared.context.observation.decision.kind,
+            input.result,
+            input.modelInvocation,
+            input.strategyMode,
+            'REJECTED'
+          );
           return { result: 'RETRY' as const, invalidSelection: true };
         }
         const retryable =
@@ -1417,7 +1478,25 @@ export class OnlineMatchService {
           submitted.reason === 'AUTHORITY_REVISION_CHANGED' ||
           submitted.reason === 'WINDOW_CHANGED' ||
           submitted.reason === 'LEASE_NOT_FOUND';
-        if (retryable) return { result: 'RETRY' as const, invalidSelection: false };
+        if (retryable) {
+          this.appendMachineDecisionDebugCompletion(
+            match,
+            input.prepared.context.observation.decision.kind,
+            input.result,
+            input.modelInvocation,
+            input.strategyMode,
+            'STALE'
+          );
+          return { result: 'RETRY' as const, invalidSelection: false };
+        }
+        this.appendMachineDecisionDebugCompletion(
+          match,
+          input.prepared.context.observation.decision.kind,
+          input.result,
+          input.modelInvocation,
+          input.strategyMode,
+          'REJECTED'
+        );
         const terminated = await this.terminateMachineDecisionFailureInCriticalSection(
           match,
           input.prepared.participant,
@@ -1431,6 +1510,14 @@ export class OnlineMatchService {
         };
       }
 
+      this.appendMachineDecisionDebugCompletion(
+        match,
+        input.prepared.context.observation.decision.kind,
+        input.result,
+        input.modelInvocation,
+        input.strategyMode,
+        'ACCEPTED'
+      );
       input.prepared.strategyRuntime.history.recordAcceptedDecision(
         input.prepared.observation,
         input.result
@@ -1597,6 +1684,63 @@ export class OnlineMatchService {
       !match.activeUndoGrant &&
       isFormalAiMatch(match)
     );
+  }
+
+  private appendMachineDecisionDebugStart(
+    match: OnlineMatchState,
+    decisionKind: string,
+    authorityRevision: number,
+    source: AiBattleDebugDecisionSource
+  ): void {
+    if (!match.aiDebugTrace) return;
+    appendAiBattleDebugTraceEntry(match.aiDebugTrace, {
+      createdAt: this.now(),
+      stage: 'STARTED',
+      decisionKind,
+      authorityRevision,
+      source,
+      tier: null,
+      reasonCode: null,
+      summary:
+        source === 'MODEL'
+          ? '正在把当前合法决策窗口交给模型选择。'
+          : source === 'CONSERVATIVE_FALLBACK'
+            ? '模型已降级，正在使用保守策略选择合法操作。'
+            : '当前窗口可由规则或确定性策略直接处理。',
+      selection: null,
+      model: null,
+      executionStatus: null,
+    });
+  }
+
+  private appendMachineDecisionDebugCompletion(
+    match: OnlineMatchState,
+    decisionKind: string,
+    result: AuditableAiDecisionResult,
+    modelInvocation: AiModelInvocationAudit | null,
+    strategyMode: MachineStrategyMode,
+    executionStatus: AiBattleDebugExecutionStatus
+  ): void {
+    if (!match.aiDebugTrace) return;
+    const source: AiBattleDebugDecisionSource =
+      strategyMode === 'CONSERVATIVE_FALLBACK'
+        ? 'CONSERVATIVE_FALLBACK'
+        : modelInvocation
+          ? 'MODEL'
+          : 'RULE';
+    appendAiBattleDebugTraceEntry(match.aiDebugTrace, {
+      createdAt: this.now(),
+      stage: 'COMPLETED',
+      decisionKind,
+      authorityRevision: match.remoteRevision,
+      source,
+      tier: result.tier,
+      reasonCode: result.reasonCode,
+      summary: result.summary,
+      selection: summarizeAiDecisionSelection(result.selection),
+      model: summarizeAiModelInvocation(modelInvocation),
+      executionStatus,
+    });
   }
 
   private appendMachineSystemNotice(
@@ -4321,8 +4465,10 @@ export class OnlineMatchService {
 }
 
 const configuredAiBattleModelProvider = createConfiguredAiBattleModelProvider();
+const configuredAiBattleDebugTrace = readAiBattleDebugTraceConfigurationStatus();
 export const onlineMatchService = new OnlineMatchService({
   machineDecisionSchedulingEnabled: true,
+  aiDebugTraceEnabled: configuredAiBattleDebugTrace.enabled,
   modelInvocationRuntime: configuredAiBattleModelProvider
     ? createAiModelInvocationRuntime({ provider: configuredAiBattleModelProvider })
     : null,

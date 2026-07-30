@@ -59,6 +59,7 @@ import {
   restartAiBattle,
   storeAiBattleMatchId,
 } from '@/lib/aiBattleClient';
+import { createAiBattlePollingScheduler } from '@/lib/aiBattlePolling';
 import { ApiClientError } from '@/lib/apiClient';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
@@ -326,6 +327,8 @@ function App() {
   const restartCurrentGame = useGameStore((s) => s.restartCurrentGame);
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
+  const remoteSession = useGameStore((s) => s.remoteSession);
+  const syncRemoteState = useGameStore((s) => s.syncRemoteState);
   const initDeckStore = useDeckStore((s) => s.init);
   const [gameBriefingAcknowledged, setGameBriefingAcknowledged] = useState(false);
   const [isLeaveCurrentGameConfirmOpen, setIsLeaveCurrentGameConfirmOpen] = useState(false);
@@ -527,6 +530,23 @@ function App() {
     gameBriefingKeyRef.current = gameBriefingKey;
     setGameBriefingAcknowledged(false);
   }, [gameBriefingKey]);
+
+  useEffect(() => {
+    if (currentPage !== 'game' || remoteSession?.source !== 'AI_BATTLE') {
+      return;
+    }
+
+    const scheduler = createAiBattlePollingScheduler({
+      syncRemoteState,
+      onError: (syncError) => {
+        if (import.meta.env.DEV) {
+          console.warn('[App] AI 对局状态同步失败，将继续重试:', syncError);
+        }
+      },
+    });
+    scheduler.start();
+    return () => scheduler.dispose();
+  }, [currentPage, remoteSession?.matchId, remoteSession?.source, syncRemoteState]);
 
   useEffect(() => {
     if (solitaireRestoreAttemptedRef.current) {

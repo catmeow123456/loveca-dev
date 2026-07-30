@@ -345,14 +345,17 @@ describe('onlineRouter error handling', () => {
   it('普通玩家入口明确公开 AI 身份，并只在模型已配置时创建对局', async () => {
     const previousKey = process.env.DASHSCOPE_API_KEY;
     const previousEnabled = process.env.AI_BATTLE_MODEL_ENABLED;
+    const previousDebugTrace = process.env.AI_BATTLE_DEBUG_TRACE_ENABLED;
     process.env.DASHSCOPE_API_KEY = 'route-test-key';
     process.env.AI_BATTLE_MODEL_ENABLED = '1';
+    process.env.AI_BATTLE_DEBUG_TRACE_ENABLED = '1';
     try {
       const configResponse = await invokeRoute('/ai-battles/config', 'get');
       expect(configResponse.statusCode).toBe(200);
       expect(configResponse.body?.data).toMatchObject({
         schemaVersion: 'ai-battle.public-entry-config/v1',
         available: true,
+        debugTraceEnabled: true,
         opponent: {
           displayName: 'Loveca AI',
           participantKind: 'SYSTEM',
@@ -386,7 +389,33 @@ describe('onlineRouter error handling', () => {
       else process.env.DASHSCOPE_API_KEY = previousKey;
       if (previousEnabled === undefined) delete process.env.AI_BATTLE_MODEL_ENABLED;
       else process.env.AI_BATTLE_MODEL_ENABLED = previousEnabled;
+      if (previousDebugTrace === undefined) delete process.env.AI_BATTLE_DEBUG_TRACE_ENABLED;
+      else process.env.AI_BATTLE_DEBUG_TRACE_ENABLED = previousDebugTrace;
     }
+  });
+
+  it('AI 调试轨迹路由只返回当前玩家获授权的内存轨迹', async () => {
+    const getDebugTrace = vi.spyOn(aiBattlePhaseThreeService, 'getDebugTrace').mockResolvedValue({
+      schemaVersion: 'ai-battle.debug-trace/v1',
+      enabled: true,
+      matchId: 'ai-match-1',
+      currentSeq: 2,
+      truncated: false,
+      entries: [{ seq: 2, stage: 'COMPLETED', summary: '选择低费用成员' }],
+    } as never);
+
+    const response = await invokeRoute('/ai-battles/:matchId/debug-trace', 'get', {
+      params: { matchId: 'ai-match-1' },
+      query: { afterSeq: '1' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(getDebugTrace).toHaveBeenCalledWith('ai-match-1', 'u1', 1);
+    expect(response.body?.data).toMatchObject({
+      enabled: true,
+      currentSeq: 2,
+    });
+    expect(response.headers['Cache-Control']).toBe('private, no-store');
   });
 
   it('模型未配置时普通玩家 AI 对局入口返回稳定的 503', async () => {
