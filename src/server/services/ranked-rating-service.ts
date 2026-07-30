@@ -584,7 +584,7 @@ async function loadRegisterContext(
 }
 
 function validateRegisterContext(context: RegisterContextRow): void {
-  if (context.lifecycle !== 'ACTIVE') {
+  if (context.lifecycle !== 'ACTIVE' && context.lifecycle !== 'FINALIZING') {
     throw serviceError('RANKED_SEASON_NOT_ACTIVE', '当前赛季不接受新的排位对局', 409);
   }
   if (

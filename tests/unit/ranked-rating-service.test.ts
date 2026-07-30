@@ -134,6 +134,51 @@ describe('RankedRatingService settlement', () => {
     expect(insert?.values).toContain(CONFIG.algorithmVersion);
   });
 
+  it('allows a pairing formed before season end to start while finalizing', async () => {
+    const { service } = createHarness((text) => {
+      if (text.includes('FROM ranked_seasons AS season')) {
+        return [
+          {
+            season_id: 'season-1',
+            lifecycle: 'FINALIZING',
+            rules_version: 'RULES_V1',
+            card_catalog_version: 'CATALOG_V1',
+            card_catalog_hash: `sha256:${'a'.repeat(64)}`,
+            deck_policy_version: 'DECK_POLICY_V1',
+            rating_algorithm_version: CONFIG.algorithmVersion,
+            match_id: 'match-1',
+            match_status: 'IN_PROGRESS',
+            completeness: 'FULL',
+            origin_kind: 'RANKED',
+            first_user_id: '11111111-1111-4111-8111-111111111111',
+            second_user_id: '22222222-2222-4222-8222-222222222222',
+            match_rules_version: 'RULES_V1',
+          },
+        ];
+      }
+      if (text.includes('FROM ranked_matches') && !text.includes('FOR UPDATE')) {
+        return [
+          {
+            season_id: 'season-1',
+            match_id: 'match-1',
+            first_user_id: '11111111-1111-4111-8111-111111111111',
+            second_user_id: '22222222-2222-4222-8222-222222222222',
+            rating_status: 'PENDING',
+          },
+        ];
+      }
+      return [];
+    });
+
+    await expect(
+      service.registerMatch({ seasonId: 'season-1', matchId: 'match-1' })
+    ).resolves.toMatchObject({
+      seasonId: 'season-1',
+      matchId: 'match-1',
+      ratingStatus: 'PENDING',
+    });
+  });
+
   it('atomically appends both player snapshots and updates the current projection', async () => {
     const { calls, service } = createHarness((text) => {
       if (text.includes('FROM ranked_matches AS ranked_match')) {

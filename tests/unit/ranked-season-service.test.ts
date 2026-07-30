@@ -62,13 +62,18 @@ function seasonRow(overrides: Readonly<Record<string, unknown>> = {}) {
   };
 }
 
-function createHarness(responder: (text: string) => readonly Record<string, unknown>[]) {
+function createHarness(
+  responder: (text: string, values: readonly unknown[]) => readonly Record<string, unknown>[]
+) {
   const calls: string[] = [];
   const client: RankedSeasonQueryClient = {
-    async query<T = unknown>(text: string): Promise<RankedSeasonQueryResult<T>> {
+    async query<T = unknown>(
+      text: string,
+      values: readonly unknown[] = []
+    ): Promise<RankedSeasonQueryResult<T>> {
       await Promise.resolve();
       calls.push(text);
-      return { rows: responder(text) as T[] };
+      return { rows: responder(text, values) as T[] };
     },
   };
   const transaction = vi.fn(
@@ -210,7 +215,8 @@ describe('RankedSeasonService lifecycle', () => {
   });
 
   it('materializes soft-reset seeds from the latest closed season when activating', async () => {
-    const { calls, service } = createHarness((text) => {
+    let seedValues: readonly unknown[] = [];
+    const { calls, service } = createHarness((text, values) => {
       if (text.includes('SELECT *') && text.includes('FOR UPDATE')) {
         return [seasonRow()];
       }
@@ -219,6 +225,9 @@ describe('RankedSeasonService lifecycle', () => {
       }
       if (text.includes("WHERE lifecycle = 'CLOSED'")) {
         return [{ id: 'previous-season' }];
+      }
+      if (text.includes('INSERT INTO ranked_player_seeds')) {
+        seedValues = values;
       }
       return [];
     });
@@ -233,6 +242,43 @@ describe('RankedSeasonService lifecycle', () => {
 
     expect(calls.some((text) => text.includes('INSERT INTO ranked_player_seeds'))).toBe(true);
     expect(calls.some((text) => text.includes('INSERT INTO ranked_player_ratings'))).toBe(true);
+    expect(seedValues).toEqual([
+      'season-1',
+      'previous-season',
+      'RESET_TO_INITIAL',
+      CONFIG.initialRating,
+      CONFIG.initialRatingDeviation,
+      CONFIG.softResetCenter,
+      CONFIG.softResetRetention,
+      CONFIG.softResetMinimumDeviation,
+      CONFIG.maximumRatingDeviation,
+    ]);
+  });
+
+  it('does not close while a formed ranked pairing has not started', async () => {
+    const { service } = createHarness((text) => {
+      if (text.includes('SELECT *') && text.includes('FOR UPDATE')) {
+        return [seasonRow({ lifecycle: 'FINALIZING' })];
+      }
+      if (text.includes('FROM ranked_matches')) {
+        return [{ pending_count: 0 }];
+      }
+      if (text.includes('FROM public_table_reservations')) {
+        return [{ reservation_count: 1 }];
+      }
+      return [];
+    });
+
+    await expect(
+      service.close(
+        'season-1',
+        '11111111-1111-4111-8111-111111111111',
+        new Date('2026-09-02T00:00:00.000Z')
+      )
+    ).rejects.toMatchObject({
+      code: 'RANKED_SEASON_UNSTARTED_RESERVATIONS',
+      statusCode: 409,
+    });
   });
 
   it('allows admission to be restored ahead of a window while effective entry remains closed', async () => {

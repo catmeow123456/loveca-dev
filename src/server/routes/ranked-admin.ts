@@ -25,20 +25,32 @@ const openWindowSchema = z.object({
   endMinute: z.number().int().min(1).max(1440),
 });
 
-const seasonDraftSchema = z.object({
-  seasonKey: z
-    .string()
-    .trim()
-    .regex(/^[a-z0-9][a-z0-9_-]{2,63}$/),
-  name: z.string().trim().min(1).max(100),
-  platformTimeZone: z.string().trim().min(1).max(80),
-  openWindows: z.array(openWindowSchema).min(1).max(32),
-  startsAt: z.coerce.date(),
-  scheduledEndsAt: z.coerce.date(),
-  finalizingDeadlineAt: z.coerce.date(),
-  ratingAlgorithmVersion: z.string().trim().min(1).max(100),
-  leaderboardMinimumMatchCount: z.number().int().min(1).max(100),
-});
+const softResetSchema = z
+  .object({
+    mode: z.enum(['RESET_TO_INITIAL', 'RETAIN_TOWARD_CENTER']),
+    center: z.number().finite(),
+    retention: z.number().finite().min(0).max(1),
+    minimumDeviation: z.number().finite().positive(),
+  })
+  .strict();
+
+const seasonDraftSchema = z
+  .object({
+    seasonKey: z
+      .string()
+      .trim()
+      .regex(/^[a-z0-9][a-z0-9_-]{2,63}$/),
+    name: z.string().trim().min(1).max(100),
+    platformTimeZone: z.string().trim().min(1).max(80),
+    openWindows: z.array(openWindowSchema).min(1).max(32),
+    startsAt: z.coerce.date(),
+    scheduledEndsAt: z.coerce.date(),
+    finalizingDeadlineAt: z.coerce.date(),
+    ratingAlgorithmVersion: z.string().trim().min(1).max(100),
+    softReset: softResetSchema,
+    leaderboardMinimumMatchCount: z.number().int().min(1).max(100),
+  })
+  .strict();
 
 const activeSeasonOperationsSchema = z
   .object({

@@ -410,6 +410,24 @@ export class RankedSeasonService {
           409
         );
       }
+      const unstartedReservations = await client.query<{
+        readonly reservation_count: number | string;
+      }>(
+        `SELECT COUNT(*) AS reservation_count
+         FROM public_table_reservations
+         WHERE queue_kind = 'RANKED'
+           AND season_id = $1
+           AND state IN ('PENDING_CONFIRMATION', 'CREATING_ROOM', 'MATCHED')
+           AND match_id IS NULL`,
+        [seasonId]
+      );
+      if (Number(unstartedReservations.rows[0]?.reservation_count ?? 0) > 0) {
+        throw seasonError(
+          'RANKED_SEASON_UNSTARTED_RESERVATIONS',
+          '仍有已经形成但尚未开局的配对，暂时不能完成赛季结算',
+          409
+        );
+      }
       return updateLifecycle(client, {
         seasonId,
         fromLifecycle: 'FINALIZING',
@@ -448,14 +466,23 @@ async function seedSoftResetRatings(
        $1,
        user_id,
        $2,
-       $3 + $4 * (rating - $3),
-       LEAST($6, GREATEST(rating_deviation, $5))
+       CASE
+         WHEN $3 = 'RESET_TO_INITIAL' THEN $4
+         ELSE $6 + $7 * (rating - $6)
+       END,
+       CASE
+         WHEN $3 = 'RESET_TO_INITIAL' THEN $5
+         ELSE LEAST($9, GREATEST(rating_deviation, $8))
+       END
      FROM ranked_player_ratings
      WHERE season_id = $2
      ON CONFLICT (season_id, user_id) DO NOTHING`,
     [
       seasonId,
       sourceSeasonId,
+      config.softResetMode,
+      config.initialRating,
+      config.initialRatingDeviation,
       config.softResetCenter,
       config.softResetRetention,
       config.softResetMinimumDeviation,

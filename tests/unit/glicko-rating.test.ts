@@ -77,7 +77,7 @@ describe('Glicko-1 rating', () => {
     ).toBe(350);
   });
 
-  it('applies the candidate soft reset and resets placement progress', () => {
+  it('resets returning players to the configured initial values by default', () => {
     const reset = softResetGlickoRatingState({
       rating: 1900,
       ratingDeviation: 80,
@@ -86,8 +86,8 @@ describe('Glicko-1 rating', () => {
     });
 
     expect(reset).toEqual({
-      rating: 1700,
-      ratingDeviation: 200,
+      rating: 1500,
+      ratingDeviation: 350,
       ratedMatchCount: 0,
       lastRatedAt: null,
     });
@@ -99,6 +99,31 @@ describe('Glicko-1 rating', () => {
       })
     ).toBe(true);
     expect(formatGlickoRatingForDisplay(1699.51)).toBe(1700);
+  });
+
+  it('supports a season-configured retention formula', () => {
+    const reset = softResetGlickoRatingState(
+      {
+        rating: 1900,
+        ratingDeviation: 80,
+        ratedMatchCount: 30,
+        lastRatedAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+      {
+        ...CURRENT_GLICKO1_SHADOW_CONFIG,
+        softResetMode: 'RETAIN_TOWARD_CENTER',
+        softResetCenter: 1500,
+        softResetRetention: 0.25,
+        softResetMinimumDeviation: 180,
+      }
+    );
+
+    expect(reset).toEqual({
+      rating: 1600,
+      ratingDeviation: 180,
+      ratedMatchCount: 0,
+      lastRatedAt: null,
+    });
   });
 
   it('keeps the V1 report reproducible while the current V2 placement gate requires ten matches', () => {

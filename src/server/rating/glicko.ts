@@ -12,6 +12,8 @@ export interface GlickoRatingState extends GlickoCompetitor {
   readonly lastRatedAt: Date | null;
 }
 
+export type GlickoSoftResetMode = 'RESET_TO_INITIAL' | 'RETAIN_TOWARD_CENTER';
+
 export interface GlickoPeriodResult {
   readonly opponent: GlickoCompetitor;
   readonly score: GlickoScore;
@@ -28,6 +30,7 @@ export interface Glicko1Config {
   readonly deviationIncreasePerTimeUnit: number;
   readonly placementMatchCount: number;
   readonly displayDecimalPlaces: number;
+  readonly softResetMode: GlickoSoftResetMode;
   readonly softResetCenter: number;
   readonly softResetRetention: number;
   readonly softResetMinimumDeviation: number;
@@ -57,6 +60,7 @@ export const GLICKO1_PER_MATCH_SHADOW_V1: Glicko1Config = Object.freeze({
   ),
   placementMatchCount: 5,
   displayDecimalPlaces: 0,
+  softResetMode: 'RESET_TO_INITIAL',
   softResetCenter: 1500,
   softResetRetention: 0.5,
   softResetMinimumDeviation: 200,
@@ -118,6 +122,12 @@ function assertValidConfig(config: Glicko1Config): void {
   assertFiniteNumber(config.softResetRetention, 'softResetRetention');
   assertFiniteNumber(config.softResetMinimumDeviation, 'softResetMinimumDeviation');
 
+  if (
+    config.softResetMode !== 'RESET_TO_INITIAL' &&
+    config.softResetMode !== 'RETAIN_TOWARD_CENTER'
+  ) {
+    throw new Error('softResetMode must be RESET_TO_INITIAL or RETAIN_TOWARD_CENTER');
+  }
   if (config.minimumRatingDeviation <= 0) {
     throw new Error('minimumRatingDeviation must be greater than zero');
   }
@@ -348,6 +358,9 @@ export function softResetGlickoRatingState(
   assertValidConfig(config);
   assertValidRatingState(state, config);
 
+  if (config.softResetMode === 'RESET_TO_INITIAL') {
+    return createInitialGlickoRatingState(config);
+  }
   return {
     rating:
       config.softResetCenter + config.softResetRetention * (state.rating - config.softResetCenter),

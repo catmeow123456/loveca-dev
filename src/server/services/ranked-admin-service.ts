@@ -10,6 +10,7 @@ import {
   createInitialGlickoRatingState,
   type Glicko1Config,
   type GlickoRatingState,
+  type GlickoSoftResetMode,
 } from '../rating/glicko.js';
 import {
   buildRankedCompetitiveEnvironmentIdentity,
@@ -32,6 +33,7 @@ import {
   type RankedSeasonOpenWindow,
   type RankedSeasonRecord,
 } from './ranked-season-service.js';
+import { stableJsonStringify } from './replay-payload-serialization.js';
 
 export interface RankedAdminSeasonDraftInput {
   readonly seasonKey: string;
@@ -42,6 +44,12 @@ export interface RankedAdminSeasonDraftInput {
   readonly scheduledEndsAt: Date;
   readonly finalizingDeadlineAt: Date;
   readonly ratingAlgorithmVersion: string;
+  readonly softReset: {
+    readonly mode: GlickoSoftResetMode;
+    readonly center: number;
+    readonly retention: number;
+    readonly minimumDeviation: number;
+  };
   readonly leaderboardMinimumMatchCount: number;
 }
 
@@ -223,9 +231,7 @@ export class RankedAdminService {
     input: RankedAdminSeasonDraftInput,
     adminUserId: string
   ): Promise<RankedAdminSeasonView> {
-    const { config, environment } = await this.resolveFormalEnvironment(
-      input.ratingAlgorithmVersion
-    );
+    const { config, environment } = await this.resolveFormalEnvironment(input);
     const season = await this.seasonService.createDraft({
       ...input,
       environment,
@@ -249,9 +255,7 @@ export class RankedAdminService {
     input: RankedAdminSeasonDraftInput,
     adminUserId: string
   ): Promise<RankedAdminSeasonView> {
-    const { config, environment } = await this.resolveFormalEnvironment(
-      input.ratingAlgorithmVersion
-    );
+    const { config, environment } = await this.resolveFormalEnvironment(input);
     const season = await this.seasonService.updateDraft(seasonId, {
       ...input,
       environment,
@@ -294,8 +298,22 @@ export class RankedAdminService {
 
   async activateSeason(seasonId: string, adminUserId: string): Promise<RankedAdminSeasonView> {
     const draft = await this.seasonService.getSeason(seasonId);
-    const { config, environment } = await this.resolveFormalEnvironment(
-      draft.ratingAlgorithmVersion
+    const config = buildSeasonRatingConfig(draft.ratingAlgorithmVersion, {
+      mode: draft.ratingConfig.softResetMode,
+      center: draft.ratingConfig.softResetCenter,
+      retention: draft.ratingConfig.softResetRetention,
+      minimumDeviation: draft.ratingConfig.softResetMinimumDeviation,
+    });
+    if (stableJsonStringify(config) !== stableJsonStringify(draft.ratingConfig)) {
+      throw new RankedAdminServiceError(
+        'RANKED_STORED_CONFIG_INVALID',
+        '赛季草稿包含未获准的评分参数变更',
+        500
+      );
+    }
+    const environment = buildRankedCompetitiveEnvironmentIdentity(
+      await this.getCardCatalogIdentity(true),
+      config
     );
     const season = await this.seasonService.activate(
       seasonId,
@@ -558,8 +576,8 @@ export class RankedAdminService {
     };
   }
 
-  private async resolveFormalEnvironment(algorithmVersion: string) {
-    const config = getFormalRankedAlgorithmConfig(algorithmVersion);
+  private async resolveFormalEnvironment(input: RankedAdminSeasonDraftInput) {
+    const config = buildSeasonRatingConfig(input.ratingAlgorithmVersion, input.softReset);
     const catalog = await this.getCardCatalogIdentity(true);
     return {
       config,
@@ -751,6 +769,34 @@ function writeRankedAdminAudit(event: RankedAdminAuditEvent): void {
 
 function adminError(code: string, message: string, statusCode = 400): RankedAdminServiceError {
   return new RankedAdminServiceError(code, message, statusCode);
+}
+
+function buildSeasonRatingConfig(
+  algorithmVersion: string,
+  softReset: RankedAdminSeasonDraftInput['softReset']
+): Glicko1Config {
+  const baseConfig = getFormalRankedAlgorithmConfig(algorithmVersion);
+  const config: Glicko1Config = {
+    ...baseConfig,
+    softResetMode: softReset.mode,
+    softResetCenter: softReset.center,
+    softResetRetention: softReset.retention,
+    softResetMinimumDeviation: softReset.minimumDeviation,
+  };
+  try {
+    assertValidGlicko1Config(config);
+  } catch (error) {
+    throw new RankedAdminServiceError(
+      'RANKED_SOFT_RESET_CONFIG_INVALID',
+      `软重置参数无效：${readErrorMessage(error)}`,
+      400
+    );
+  }
+  return config;
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export const rankedAdminService = new RankedAdminService();

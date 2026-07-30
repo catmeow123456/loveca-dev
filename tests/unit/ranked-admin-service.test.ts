@@ -76,6 +76,12 @@ describe('RankedAdminService', () => {
           scheduledEndsAt: new Date('2026-09-01T00:00:00.000Z'),
           finalizingDeadlineAt: new Date('2026-09-03T00:00:00.000Z'),
           ratingAlgorithmVersion: GLICKO1_PER_MATCH_SHADOW_V2.algorithmVersion,
+          softReset: {
+            mode: 'RESET_TO_INITIAL',
+            center: 1500,
+            retention: 0.5,
+            minimumDeviation: 200,
+          },
           leaderboardMinimumMatchCount: 10,
         },
         'admin-1'
@@ -84,6 +90,105 @@ describe('RankedAdminService', () => {
       code: 'RANKED_FORMAL_ALGORITHM_UNAVAILABLE',
     });
     expect(getCardCatalogIdentity).not.toHaveBeenCalled();
+  });
+
+  it('freezes administrator-selected soft-reset parameters into the season config', async () => {
+    const createDraft = vi.fn(async (input) => ({
+      id: 'season-1',
+      seasonKey: input.seasonKey,
+      name: input.name,
+      lifecycle: 'DRAFT' as const,
+      queueAdmission: 'PAUSED' as const,
+      competitiveEnvironmentId: input.environment.competitiveEnvironmentId,
+      platformTimeZone: input.platformTimeZone,
+      openWindows: input.openWindows,
+      startsAt: input.startsAt,
+      scheduledEndsAt: input.scheduledEndsAt,
+      finalizingDeadlineAt: input.finalizingDeadlineAt,
+      closedAt: null,
+      rulesVersion: input.environment.rulesVersion,
+      cardCatalogVersion: input.environment.cardCatalogVersion,
+      cardCatalogHash: input.environment.cardCatalogHash,
+      deckPolicyVersion: input.environment.deckPolicyVersion,
+      ratingAlgorithmVersion: input.ratingConfig.algorithmVersion,
+      ratingConfig: input.ratingConfig,
+      leaderboardMinimumMatchCount: input.leaderboardMinimumMatchCount,
+      ledgerRevision: 0,
+    }));
+    const service = new RankedAdminService({
+      seasonService: { createDraft } as never,
+      getCardCatalogIdentity: vi.fn().mockResolvedValue(CATALOG),
+      audit: vi.fn(),
+      now: () => new Date('2026-07-30T00:00:00.000Z'),
+    });
+
+    await service.createDraft(
+      {
+        seasonKey: 'season-2026-01',
+        name: '2026 第一赛季',
+        platformTimeZone: 'Asia/Shanghai',
+        openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+        startsAt: new Date('2026-08-01T00:00:00.000Z'),
+        scheduledEndsAt: new Date('2026-09-01T00:00:00.000Z'),
+        finalizingDeadlineAt: new Date('2026-09-03T00:00:00.000Z'),
+        ratingAlgorithmVersion: GLICKO1_PER_MATCH_V2.algorithmVersion,
+        softReset: {
+          mode: 'RETAIN_TOWARD_CENTER',
+          center: 1600,
+          retention: 0.25,
+          minimumDeviation: 220,
+        },
+        leaderboardMinimumMatchCount: 10,
+      },
+      'admin-1'
+    );
+
+    expect(createDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ratingConfig: expect.objectContaining({
+          softResetMode: 'RETAIN_TOWARD_CENTER',
+          softResetCenter: 1600,
+          softResetRetention: 0.25,
+          softResetMinimumDeviation: 220,
+        }),
+        environment: expect.objectContaining({
+          competitiveEnvironmentId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+        }),
+      })
+    );
+  });
+
+  it('rejects soft-reset parameters outside the selected algorithm range', async () => {
+    const service = new RankedAdminService({
+      getCardCatalogIdentity: vi.fn().mockResolvedValue(CATALOG),
+      audit: vi.fn(),
+    });
+
+    await expect(
+      service.createDraft(
+        {
+          seasonKey: 'season-2026-01',
+          name: '2026 第一赛季',
+          platformTimeZone: 'Asia/Shanghai',
+          openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+          startsAt: new Date('2026-08-01T00:00:00.000Z'),
+          scheduledEndsAt: new Date('2026-09-01T00:00:00.000Z'),
+          finalizingDeadlineAt: new Date('2026-09-03T00:00:00.000Z'),
+          ratingAlgorithmVersion: GLICKO1_PER_MATCH_V2.algorithmVersion,
+          softReset: {
+            mode: 'RETAIN_TOWARD_CENTER',
+            center: 1500,
+            retention: 0.5,
+            minimumDeviation: 500,
+          },
+          leaderboardMinimumMatchCount: 10,
+        },
+        'admin-1'
+      )
+    ).rejects.toMatchObject({
+      code: 'RANKED_SOFT_RESET_CONFIG_INVALID',
+      statusCode: 400,
+    });
   });
 
   it('previews a VOID by replaying the ledger without mutating the projection', async () => {

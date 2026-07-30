@@ -118,7 +118,13 @@ competitiveEnvironmentId = sha256(
 
 ### `ranked_player_seeds`
 
-赛季激活时从最近一个 `CLOSED` 赛季读取最终投影，并按新赛季冻结配置执行软重置。种子保存来源赛季、初始 rating 和 RD；新赛季投影以 `ledgerRevision=0`、场次 0 开始。迟到结算和管理员更正重放都从同一组种子开始，不能退回统一 `1500 / 350`。
+赛季激活时从最近一个 `CLOSED` 赛季读取参赛玩家，并按新赛季冻结配置执行软重置。
+默认 `RESET_TO_INITIAL` 直接使用新赛季的 `initialRating / initialRatingDeviation`；
+管理员也可在草稿期选择 `RETAIN_TOWARD_CENTER`，并配置中心值、原积分保留比例和
+重置后最小 RD。策略与参数保存在 `rating_config`、参与竞技环境哈希，激活后不可修改。
+种子保存来源赛季、重置后 rating 和 RD；新赛季投影以 `ledgerRevision=0`、场次 0
+开始，但玩家侧在首场结算前不展示种子积分。迟到结算和管理员更正重放都从同一组种子
+开始，不能绕过该赛季冻结策略退回其他默认值。
 
 ### 排位票据与预留
 
@@ -190,9 +196,14 @@ SETTLEMENT(match A)
 - `activate` 只允许 `DRAFT -> ACTIVE`，并重新校验部署环境；
 - `OPEN` 只允许在 `ACTIVE` 中设置；实际候场还必须位于配置窗口内，因此可以提前恢复运营准入；
 - `beginFinalizing` 同时强制 `PAUSED`；
-- `close` 只允许 `FINALIZING -> CLOSED`，并要求没有 `PENDING` 对局。
+- `close` 只允许 `FINALIZING -> CLOSED`，并要求没有 `PENDING` 对局，也没有已经形成
+  但尚未写入 `matchId` 的排位预留。
 
-运行时任务会在计划结束后自动进入 `FINALIZING + PAUSED`，重试已经完整封存但仍为 `PENDING` 的结算；到达最长收口期限后，把仍无法形成可靠结果的对局显式记为 `VOIDED / PLATFORM_NO_CONTEST` 并写结构化日志。封存仍要求没有 `PENDING` 对局，不会静默丢弃。
+运行时任务会在计划结束后自动进入 `FINALIZING + PAUSED`，停止新候场，但允许此前
+已经形成的配对继续确认、创建房间并绑定正式排位对局；未开局预留消化完之前不能封存。
+任务同时重试已经完整封存但仍为 `PENDING` 的结算；到达最长收口期限后，把仍无法形成
+可靠结果的对局显式记为 `VOIDED / PLATFORM_NO_CONTEST` 并写结构化日志。封存不会静默
+丢弃配对或对局。
 
 ## 7. 正式算法门槛
 

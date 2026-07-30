@@ -75,6 +75,7 @@ async function seedActiveE2eSeason(): Promise<void> {
     deviationIncreasePerTimeUnit: 18.71887638718005,
     placementMatchCount: 10,
     displayDecimalPlaces: 0,
+    softResetMode: 'RESET_TO_INITIAL',
     softResetCenter: 1500,
     softResetRetention: 0.5,
     softResetMinimumDeviation: 200,
@@ -240,6 +241,12 @@ test.describe('赛季排位管理员 API', () => {
         scheduledEndsAt: '2026-09-01T00:00:00.000Z',
         finalizingDeadlineAt: '2026-09-03T00:00:00.000Z',
         ratingAlgorithmVersion: 'GLICKO1_PER_MATCH_SHADOW_V2',
+        softReset: {
+          mode: 'RESET_TO_INITIAL',
+          center: 1500,
+          retention: 0.5,
+          minimumDeviation: 200,
+        },
         leaderboardMinimumMatchCount: 10,
       },
     });
@@ -259,6 +266,12 @@ test.describe('赛季排位管理员 API', () => {
         scheduledEndsAt: '2026-09-01T00:00:00.000Z',
         finalizingDeadlineAt: '2026-09-03T00:00:00.000Z',
         ratingAlgorithmVersion: 'GLICKO1_PER_MATCH_V1',
+        softReset: {
+          mode: 'RESET_TO_INITIAL',
+          center: 1500,
+          retention: 0.5,
+          minimumDeviation: 200,
+        },
         leaderboardMinimumMatchCount: 7,
       },
     });

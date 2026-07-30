@@ -1,5 +1,21 @@
 import { apiClient } from '@/lib/apiClient';
 
+export interface RankedSoftResetConfig {
+  mode: 'RESET_TO_INITIAL' | 'RETAIN_TOWARD_CENTER';
+  center: number;
+  retention: number;
+  minimumDeviation: number;
+}
+
+export interface RankedRatingConfig {
+  initialRating: number;
+  initialRatingDeviation: number;
+  softResetMode: RankedSoftResetConfig['mode'];
+  softResetCenter: number;
+  softResetRetention: number;
+  softResetMinimumDeviation: number;
+}
+
 export interface RankedAdminSeason {
   id: string;
   seasonKey: string;
@@ -13,6 +29,7 @@ export interface RankedAdminSeason {
   finalizingDeadlineAt: string;
   closedAt: string | null;
   ratingAlgorithmVersion: string;
+  ratingConfig: RankedRatingConfig;
   leaderboardMinimumMatchCount: number;
   ledgerRevision: number;
   withinOpenWindow: boolean;
@@ -38,6 +55,7 @@ export interface RankedEnvironmentPreview {
   algorithms: {
     algorithmVersion: string;
     status: 'SHADOW_CANDIDATE' | 'FORMAL';
+    config: RankedRatingConfig;
   }[];
 }
 
@@ -50,6 +68,7 @@ export interface RankedSeasonDraftPayload {
   scheduledEndsAt: string;
   finalizingDeadlineAt: string;
   ratingAlgorithmVersion: string;
+  softReset: RankedSoftResetConfig;
   leaderboardMinimumMatchCount: number;
 }
 

@@ -408,6 +408,7 @@ export class RankedPlayerService {
     const wins = Number(record?.wins ?? 0);
     const losses = Number(record?.losses ?? 0);
     const ratedMatchCount = rating?.rated_match_count ?? 0;
+    const hasSettledRating = ratedMatchCount > 0;
     const placement = ratedMatchCount < leaderboardMinimumMatchCount;
     let rank: number | null = null;
     if (rating && !placement) {
@@ -428,8 +429,8 @@ export class RankedPlayerService {
       placement,
       placementCompleted: Math.min(ratedMatchCount, leaderboardMinimumMatchCount),
       placementRequired: leaderboardMinimumMatchCount,
-      rating: rating ? Math.round(rating.rating) : null,
-      ratingDeviation: rating ? Math.round(rating.rating_deviation) : null,
+      rating: rating && hasSettledRating ? Math.round(rating.rating) : null,
+      ratingDeviation: rating && hasSettledRating ? Math.round(rating.rating_deviation) : null,
       rank,
       completedMatches,
       wins,

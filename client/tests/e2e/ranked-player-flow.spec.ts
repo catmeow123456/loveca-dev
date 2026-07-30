@@ -139,6 +139,12 @@ async function createActiveSeason(request: APIRequestContext, adminToken: string
         scheduledEndsAt: scheduledEndsAt.toISOString(),
         finalizingDeadlineAt: finalizingDeadlineAt.toISOString(),
         ratingAlgorithmVersion: 'GLICKO1_PER_MATCH_V2',
+        softReset: {
+          mode: 'RESET_TO_INITIAL',
+          center: 1500,
+          retention: 0.5,
+          minimumDeviation: 200,
+        },
         leaderboardMinimumMatchCount: 10,
       },
     })

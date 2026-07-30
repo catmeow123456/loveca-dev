@@ -17,6 +17,7 @@ import {
   type RankedAdminMatch,
   type RankedAdminSeason,
   type RankedCorrectionPreview,
+  type RankedRatingConfig,
   type RankedSeasonDraftPayload,
 } from '@/lib/rankedAdminClient';
 
@@ -27,6 +28,14 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [seasons, setSeasons] = useState<RankedAdminSeason[]>([]);
   const [matches, setMatches] = useState<RankedAdminMatch[]>([]);
   const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V2');
+  const [formalRatingConfig, setFormalRatingConfig] = useState<RankedRatingConfig>({
+    initialRating: 1500,
+    initialRatingDeviation: 300,
+    softResetMode: 'RESET_TO_INITIAL',
+    softResetCenter: 1500,
+    softResetRetention: 0.5,
+    softResetMinimumDeviation: 200,
+  });
   const [selectedSeasonId, setSelectedSeasonId] = useState('');
   const [creating, setCreating] = useState(false);
   const [editingSeason, setEditingSeason] = useState<RankedAdminSeason | null>(null);
@@ -49,7 +58,10 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
         fetchRankedSeasons(),
       ]);
       const formal = environment.algorithms.find((item) => item.status === 'FORMAL');
-      if (formal) setFormalAlgorithm(formal.algorithmVersion);
+      if (formal) {
+        setFormalAlgorithm(formal.algorithmVersion);
+        setFormalRatingConfig(formal.config);
+      }
       setSeasons(seasonList);
       const nextSeasonId =
         selectedSeasonId || seasonList.find((item) => item.lifecycle !== 'CLOSED')?.id || '';
@@ -155,6 +167,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
             <SeasonPanel
               seasons={seasons}
               formalAlgorithm={formalAlgorithm}
+              formalRatingConfig={formalRatingConfig}
               creating={creating}
               editingSeason={editingSeason}
               busy={busy}
@@ -233,6 +246,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
 function SeasonPanel({
   seasons,
   formalAlgorithm,
+  formalRatingConfig,
   creating,
   editingSeason,
   busy,
@@ -247,6 +261,7 @@ function SeasonPanel({
 }: {
   seasons: RankedAdminSeason[];
   formalAlgorithm: string;
+  formalRatingConfig: RankedRatingConfig;
   creating: boolean;
   editingSeason: RankedAdminSeason | null;
   busy: boolean;
@@ -273,13 +288,19 @@ function SeasonPanel({
         </button>
       </div>
       {creating ? (
-        <SeasonDraftForm algorithm={formalAlgorithm} busy={busy} onSubmit={onCreate} />
+        <SeasonDraftForm
+          algorithm={formalAlgorithm}
+          defaultRatingConfig={formalRatingConfig}
+          busy={busy}
+          onSubmit={onCreate}
+        />
       ) : null}
       {editingSeason ? (
         editingSeason.lifecycle === 'DRAFT' ? (
           <SeasonDraftForm
             key={editingSeason.id}
             algorithm={formalAlgorithm}
+            defaultRatingConfig={formalRatingConfig}
             busy={busy}
             season={editingSeason}
             onCancel={onCancelEdit}
@@ -449,20 +470,23 @@ function ActiveSeasonOperationsForm({
 
 function SeasonDraftForm({
   algorithm,
+  defaultRatingConfig,
   busy,
   season,
   onCancel,
   onSubmit,
 }: {
   algorithm: string;
+  defaultRatingConfig: RankedRatingConfig;
   busy: boolean;
   season?: RankedAdminSeason;
   onCancel?: () => void;
   onSubmit: (payload: RankedSeasonDraftPayload) => Promise<unknown>;
 }) {
   const initial = useMemo(
-    () => (season ? createDraftFromSeason(season) : createDraftDefaults(algorithm)),
-    [algorithm, season]
+    () =>
+      season ? createDraftFromSeason(season) : createDraftDefaults(algorithm, defaultRatingConfig),
+    [algorithm, defaultRatingConfig, season]
   );
   const [draft, setDraft] = useState(initial);
   return (
@@ -538,6 +562,77 @@ function SeasonDraftForm({
           required
         />
       </Field>
+      <Field label="新赛季积分重置">
+        <select
+          className="input-field"
+          value={draft.softReset.mode}
+          onChange={(event) =>
+            setDraft({
+              ...draft,
+              softReset: {
+                ...draft.softReset,
+                mode: event.target.value as RankedSeasonDraftPayload['softReset']['mode'],
+              },
+            })
+          }
+        >
+          <option value="RESET_TO_INITIAL">重置为默认值</option>
+          <option value="RETAIN_TOWARD_CENTER">向中心值保留</option>
+        </select>
+      </Field>
+      {draft.softReset.mode === 'RETAIN_TOWARD_CENTER' ? (
+        <>
+          <Field label="重置中心值">
+            <input
+              type="number"
+              className="input-field"
+              value={draft.softReset.center}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  softReset: { ...draft.softReset, center: Number(event.target.value) },
+                })
+              }
+              required
+            />
+          </Field>
+          <Field label="原积分保留比例">
+            <input
+              type="number"
+              min={0}
+              max={1}
+              step={0.01}
+              className="input-field"
+              value={draft.softReset.retention}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  softReset: { ...draft.softReset, retention: Number(event.target.value) },
+                })
+              }
+              required
+            />
+          </Field>
+          <Field label="重置后最小 RD">
+            <input
+              type="number"
+              min={1}
+              className="input-field"
+              value={draft.softReset.minimumDeviation}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  softReset: {
+                    ...draft.softReset,
+                    minimumDeviation: Number(event.target.value),
+                  },
+                })
+              }
+              required
+            />
+          </Field>
+        </>
+      ) : null}
       <OpenWindowFields
         openWindow={draft.openWindows[0]}
         onChange={(openWindow) =>
@@ -829,7 +924,7 @@ function OpenWindowFields({
   );
 }
 
-function createDraftDefaults(algorithm: string) {
+function createDraftDefaults(algorithm: string, ratingConfig: RankedRatingConfig) {
   const start = new Date();
   start.setMinutes(start.getMinutes() - start.getTimezoneOffset(), 0, 0);
   const end = new Date(start);
@@ -845,6 +940,12 @@ function createDraftDefaults(algorithm: string) {
     scheduledEndsAt: end.toISOString().slice(0, 16),
     finalizingDeadlineAt: deadline.toISOString().slice(0, 16),
     ratingAlgorithmVersion: algorithm,
+    softReset: {
+      mode: ratingConfig.softResetMode,
+      center: ratingConfig.softResetCenter,
+      retention: ratingConfig.softResetRetention,
+      minimumDeviation: ratingConfig.softResetMinimumDeviation,
+    },
     leaderboardMinimumMatchCount: 10,
   };
 }
@@ -868,6 +969,12 @@ function createDraftFromSeason(season: RankedAdminSeason) {
     scheduledEndsAt: toLocalInput(season.scheduledEndsAt),
     finalizingDeadlineAt: toLocalInput(season.finalizingDeadlineAt),
     ratingAlgorithmVersion: season.ratingAlgorithmVersion,
+    softReset: {
+      mode: season.ratingConfig.softResetMode,
+      center: season.ratingConfig.softResetCenter,
+      retention: season.ratingConfig.softResetRetention,
+      minimumDeviation: season.ratingConfig.softResetMinimumDeviation,
+    },
     leaderboardMinimumMatchCount: season.leaderboardMinimumMatchCount,
   };
 }

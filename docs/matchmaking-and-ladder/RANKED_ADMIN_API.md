@@ -15,7 +15,10 @@
 `GLICKO1_PER_MATCH_V1` 和新赛季默认版本 `GLICKO1_PER_MATCH_V2`。V2 只把新玩家
 初始 RD 从 350 轻微下调到 300；V1 保留用于既有赛季确定性重建。创建、编辑和激活
 持久赛季只能引用正式版本。正式算法仍必须通过代码审查显式加入注册表，不能由请求
-上传完整评分参数。
+上传完整评分参数；唯一开放的赛季级评分参数是软重置策略。默认
+`RESET_TO_INITIAL` 使用所选正式算法的初始积分/RD；管理员可在草稿期选择
+`RETAIN_TOWARD_CENTER` 并配置中心值、原积分保留比例和重置后最小 RD。
+这些参数写入 `ratingConfig`、参与竞技环境哈希并在激活后冻结。
 
 赛季另存 `leaderboardMinimumMatchCount`，允许 1–100，管理页面默认填写 10。它只
 控制参榜资格，不参与 Glicko 计算，也不改变 `competitiveEnvironmentId`；管理员可在
@@ -34,7 +37,7 @@
 | `POST` | `/seasons/:seasonId/activate`           | 校验当前部署环境后进入 `ACTIVE + PAUSED`          |
 | `PUT`  | `/seasons/:seasonId/admission`          | 在 `ACTIVE` 中切换 `OPEN / PAUSED`                |
 | `POST` | `/seasons/:seasonId/finalize`           | 结束赛季，进入 `FINALIZING` 并停止新匹配          |
-| `POST` | `/seasons/:seasonId/close`              | 无待计分对局时完成赛季结算                        |
+| `POST` | `/seasons/:seasonId/close`              | 无待计分对局和未开局预留时完成赛季结算            |
 | `GET`  | `/matches`                              | 按赛季、结算状态查看排位对局                      |
 | `GET`  | `/matches/:matchId`                     | 查看对局及其追加式评分事件                        |
 | `POST` | `/matches/:matchId/settle`              | 幂等重试权威结果结算                              |
@@ -53,6 +56,24 @@ lifecycle == ACTIVE
 
 因此管理员可以在开放窗口开始前恢复 `OPEN`，无需卡点操作；窗口外的有效准入仍
 为关闭。
+
+草稿创建/编辑请求中的软重置配置形态为：
+
+```json
+{
+  "softReset": {
+    "mode": "RESET_TO_INITIAL",
+    "center": 1500,
+    "retention": 0.5,
+    "minimumDeviation": 200
+  }
+}
+```
+
+`RESET_TO_INITIAL` 不读取公式参数，直接使用所选正式算法的初始积分和初始 RD；
+字段仍完整保存，便于管理员切换到 `RETAIN_TOWARD_CENTER`。保留模式按
+`center + retention × (旧积分 - center)` 计算新积分，并把 RD 提升到至少
+`minimumDeviation`、同时限制在算法允许范围内。服务端拒绝超出正式算法边界的参数。
 
 ## 3. 更正安全契约
 
@@ -84,8 +105,9 @@ lifecycle == ACTIVE
   场次门槛、开放/暂停匹配、结束赛季和完成结算；
 - “对局处理”：按赛季查看等待计分或已计分对局，重试计分，并预览后执行不计分/改判。
 
-页面不直接展示完整算法参数、环境哈希或大段运营说明；这些审计详情继续由 API 和
-日志提供。移动端隐藏非必要的主题按钮，保留返回与刷新，避免标题和操作拥挤。
+页面不直接展示完整算法参数、环境哈希或大段运营说明；草稿表单只展示允许配置的软重置
+策略及其参数，这些审计详情仍由 API 和日志完整提供。移动端隐藏非必要的主题按钮，
+保留返回与刷新，避免标题和操作拥挤。
 
 ## 5. 尚未覆盖
 

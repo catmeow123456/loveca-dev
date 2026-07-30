@@ -140,6 +140,12 @@ describe('rankedAdminRouter', () => {
         scheduledEndsAt: '2026-09-01T00:00:00.000Z',
         finalizingDeadlineAt: '2026-09-03T00:00:00.000Z',
         ratingAlgorithmVersion: 'GLICKO1_PER_MATCH_V1',
+        softReset: {
+          mode: 'RETAIN_TOWARD_CENTER',
+          center: 1600,
+          retention: 0.25,
+          minimumDeviation: 220,
+        },
         leaderboardMinimumMatchCount: 12,
       },
     });
@@ -149,6 +155,12 @@ describe('rankedAdminRouter', () => {
       expect.objectContaining({
         startsAt: expect.any(Date),
         ratingAlgorithmVersion: 'GLICKO1_PER_MATCH_V1',
+        softReset: {
+          mode: 'RETAIN_TOWARD_CENTER',
+          center: 1600,
+          retention: 0.25,
+          minimumDeviation: 220,
+        },
         leaderboardMinimumMatchCount: 12,
       }),
       '22222222-2222-4222-8222-222222222222'
