@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createDrawCardToHandCommand,
   createMulliganCommand,
@@ -29,6 +29,8 @@ import {
   OnlineMatchService,
   type OnlineMatchState,
 } from '../../src/server/services/online-match-service';
+import { pool } from '../../src/server/db/pool';
+import { rankedRatingService } from '../../src/server/services/ranked-rating-service';
 import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
 
 vi.mock('../../src/server/db/pool.js', () => ({
@@ -36,6 +38,45 @@ vi.mock('../../src/server/db/pool.js', () => ({
     query: vi.fn(),
   },
 }));
+
+vi.mock('../../src/server/services/ranked-rating-service.js', () => ({
+  rankedRatingService: {
+    registerMatch: vi.fn(async () => undefined),
+    unregisterPendingMatch: vi.fn(async () => undefined),
+    settleMatch: vi.fn(async () => undefined),
+  },
+}));
+
+beforeEach(() => {
+  vi.mocked(pool.query)
+    .mockReset()
+    .mockImplementation(async (text) => {
+      if (
+        text.includes('UPDATE public_table_reservations') &&
+        text.includes('match_id = $2') &&
+        text.includes('match_id IS NULL')
+      ) {
+        return { rows: [{ id: 'reservation' }], rowCount: 1 } as never;
+      }
+      if (
+        text.includes('UPDATE public_table_tickets') &&
+        text.includes('matched_match_id = $2') &&
+        text.includes('matched_match_id IS NULL')
+      ) {
+        return {
+          rows: [{ id: 'first-ticket' }, { id: 'second-ticket' }],
+          rowCount: 2,
+        } as never;
+      }
+      if (
+        text.includes("SET result_type = 'DISCONNECT_FORFEIT'") ||
+        text.includes("SET rating_status = 'VOIDED'")
+      ) {
+        return { rows: [{ match_id: 'ranked-match' }], rowCount: 1 } as never;
+      }
+      return { rows: [], rowCount: 0 } as never;
+    });
+});
 
 function createTestMemberCard(cardCode: string, name: string): MemberCardData {
   return {
@@ -144,6 +185,43 @@ async function startRoomThroughOpening(
   await service.submitOpeningRps(roomCode, firstUserId, 'ROCK');
   await service.submitOpeningRps(roomCode, secondUserId, 'SCISSORS');
   return service.chooseOpeningTurnOrder(roomCode, firstUserId, 'SELF_FIRST');
+}
+
+async function startRankedPublicTableRoom(
+  service: OnlineRoomService,
+  reservationId: string,
+  seasonId: string,
+  prefix: string,
+  now: number
+) {
+  const room = await service.createPublicTableRoom({
+    reservationId,
+    originKind: 'RANKED',
+    originLabel: '赛季排位',
+    rankedSeasonId: seasonId,
+    first: {
+      userId: 'u1',
+      displayName: '玩家一',
+      deckId: 'deck-a',
+      deckName: '卡组一',
+      deck: persistPublicTableRuntimeDeck(createRuntimeDeck(`${prefix}-a`)),
+      lockedAt: now,
+    },
+    second: {
+      userId: 'u2',
+      displayName: '玩家二',
+      deckId: 'deck-b',
+      deckName: '卡组二',
+      deck: persistPublicTableRuntimeDeck(createRuntimeDeck(`${prefix}-b`)),
+      lockedAt: now,
+    },
+    openingExpiresAt: now + 180_000,
+  });
+  await service.getRoomView(room.roomCode, 'u1');
+  await service.getRoomView(room.roomCode, 'u2');
+  await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+  await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+  return service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
 }
 
 function forceMainPhaseForFirst(match: OnlineMatchState): void {
@@ -2514,6 +2592,9 @@ describe('OnlineRoomService', () => {
     });
     const input = {
       reservationId: '11111111-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE' as const,
+      originLabel: '公共牌桌',
+      rankedSeasonId: null,
       first: {
         userId: 'u1',
         displayName: '玩家一',
@@ -2593,6 +2674,104 @@ describe('OnlineRoomService', () => {
     });
   });
 
+  it('排位开局并发提交先后手时只创建并绑定一场对局', async () => {
+    const matchService = createInMemoryMatchService();
+    const createMatch = vi.spyOn(matchService, 'createMatch');
+    const service = new OnlineRoomService({
+      now: () => 10_000,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '12121212-2222-4333-8444-555555555555',
+      originKind: 'RANKED',
+      originLabel: '赛季排位',
+      rankedSeasonId: '34343434-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('concurrent-a')),
+        lockedAt: 9_000,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('concurrent-b')),
+        lockedAt: 9_000,
+      },
+      openingExpiresAt: 190_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+
+    const [first, duplicate] = await Promise.all([
+      service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST'),
+      service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST'),
+    ]);
+
+    expect(first.matchId).toBeTruthy();
+    expect(duplicate.matchId).toBe(first.matchId);
+    expect(createMatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('排位登记失败且运行态删除失败时应隔离房间并阻止重复开局', async () => {
+    const matchService = createInMemoryMatchService();
+    const createMatch = vi.spyOn(matchService, 'createMatch');
+    const deleteMatch = vi.spyOn(matchService, 'deleteMatch').mockResolvedValueOnce(false);
+    vi.mocked(rankedRatingService.registerMatch).mockRejectedValueOnce(
+      new Error('ranked registration unavailable')
+    );
+    const service = new OnlineRoomService({
+      now: () => 10_000,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '56565656-2222-4333-8444-555555555555',
+      originKind: 'RANKED',
+      originLabel: '赛季排位',
+      rankedSeasonId: '78787878-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('quarantine-a')),
+        lockedAt: 9_000,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('quarantine-b')),
+        lockedAt: 9_000,
+      },
+      openingExpiresAt: 190_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+
+    await expect(
+      service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST')
+    ).rejects.toBeInstanceOf(OnlineRoomServiceError);
+    await expect(
+      service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST')
+    ).rejects.toMatchObject({
+      code: 'ONLINE_MATCH_START_QUARANTINED',
+    });
+    expect(createMatch).toHaveBeenCalledTimes(1);
+    expect(deleteMatch).toHaveBeenCalledTimes(1);
+  });
+
   it('公共牌桌开局时一方未在 60 秒内到场应结束本次开局', async () => {
     let now = 10_000;
     const service = new OnlineRoomService({
@@ -2602,6 +2781,9 @@ describe('OnlineRoomService', () => {
     });
     const room = await service.createPublicTableRoom({
       reservationId: '66666666-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '公共牌桌',
+      rankedSeasonId: null,
       first: {
         userId: 'u1',
         displayName: '玩家一',
@@ -2630,5 +2812,187 @@ describe('OnlineRoomService', () => {
       reason: 'OPENING_ARRIVAL_TIMEOUT',
       endedAt: now,
     });
+  });
+
+  it('排位对局仅单方超过重连期限时应由服务端权威判负', async () => {
+    let now = 20_000;
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '77777777-2222-4333-8444-555555555555',
+      originKind: 'RANKED',
+      originLabel: '赛季排位',
+      rankedSeasonId: '88888888-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-a')),
+        lockedAt: now,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-b')),
+        lockedAt: now,
+      },
+      openingExpiresAt: now + 180_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    now += 170_000;
+    service.touchInGameMemberByMatch(started.matchId!, 'u2');
+    now += 11_000;
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(1);
+    expect(summary.rankedPlatformNoContestCount).toBe(0);
+    expect(matchService.isMatchCompleted(started.matchId!)).toBe(true);
+    const state = matchService.getMatch(started.matchId!)?.session.state;
+    expect(state?.endInfo).toMatchObject({
+      reason: GameEndReason.OPPONENT_SURRENDER,
+      winnerId: expect.stringContaining('u2'),
+    });
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining("result_type = 'DISCONNECT_FORFEIT'"),
+      [started.matchId]
+    );
+  });
+
+  it('断线判负 CAS 等待期间玩家重连时不得继续执行认输', async () => {
+    let now = 20_000;
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      'abababab-2222-4333-8444-555555555555',
+      'cdcdcdcd-2222-4333-8444-555555555555',
+      'reconnect-race',
+      now
+    );
+    vi.mocked(pool.query).mockImplementation(async (text) => {
+      if (text.includes("SET result_type = 'DISCONNECT_FORFEIT'")) {
+        service.touchInGameMemberByMatch(started.matchId!, 'u1');
+        return { rows: [{ match_id: started.matchId }], rowCount: 1 } as never;
+      }
+      return { rows: [], rowCount: 0 } as never;
+    });
+
+    now += 170_000;
+    service.touchInGameMemberByMatch(started.matchId!, 'u2');
+    now += 11_000;
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(matchService.isMatchCompleted(started.matchId!)).toBe(false);
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining('SET result_type = NULL'),
+      [started.matchId]
+    );
+  });
+
+  it('断线判负 CAS 未取得 PENDING 对局时不得执行认输', async () => {
+    let now = 20_000;
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      'efefefef-2222-4333-8444-555555555555',
+      '12121212-3333-4333-8444-555555555555',
+      'cas-zero',
+      now
+    );
+    vi.mocked(pool.query).mockResolvedValue({ rows: [], rowCount: 0 } as never);
+
+    now += 170_000;
+    service.touchInGameMemberByMatch(started.matchId!, 'u2');
+    now += 11_000;
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(matchService.isMatchCompleted(started.matchId!)).toBe(false);
+  });
+
+  it('排位双方在轮询抖动窗口内超过重连期限时应保留为平台无结果而非随机判负', async () => {
+    let now = 30_000;
+    vi.mocked(pool.query).mockImplementation(async (text) => {
+      if (text.includes('UPDATE public_table_tickets') && text.includes('matched_match_id = $2')) {
+        return {
+          rows: [{ id: 'first-ticket' }, { id: 'second-ticket' }],
+          rowCount: 2,
+        } as never;
+      }
+      return {
+        rows: [{ match_id: 'ranked-match' }],
+        rowCount: 1,
+      } as never;
+    });
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '99999999-2222-4333-8444-555555555555',
+      originKind: 'RANKED',
+      originLabel: '赛季排位',
+      rankedSeasonId: 'aaaaaaaa-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-c')),
+        lockedAt: now,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-d')),
+        lockedAt: now,
+      },
+      openingExpiresAt: now + 180_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    now += 1_000;
+    service.touchInGameMemberByMatch(started.matchId!, 'u2');
+    now += 180_000;
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(summary.rankedPlatformNoContestCount).toBe(1);
+    expect(summary.destroyedRoomCount).toBe(1);
+    expect(matchService.getMatch(started.matchId!)).toBeNull();
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining("result_type = 'PLATFORM_NO_CONTEST'"),
+      [started.matchId, new Date(now)]
+    );
   });
 });

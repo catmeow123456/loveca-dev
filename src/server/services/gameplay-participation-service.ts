@@ -1,7 +1,8 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 
-export type GameplayParticipationKind = 'PUBLIC_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+export type GameplayParticipationKind =
+  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
 
 export interface GameplayParticipationRef {
   readonly kind: GameplayParticipationKind;
@@ -13,6 +14,11 @@ export interface GameplayParticipationRef {
 export interface GameplayParticipationPort {
   acquireOnlineRoom(userId: string, roomGeneration: string): Promise<boolean>;
   markOnlineMatch(
+    userIds: readonly string[],
+    roomGeneration: string,
+    matchId: string
+  ): Promise<void>;
+  restoreOnlineRoom?(
     userIds: readonly string[],
     roomGeneration: string,
     matchId: string
@@ -57,6 +63,27 @@ export class GameplayParticipationService implements GameplayParticipationPort {
     );
   }
 
+  async restoreOnlineRoom(
+    userIds: readonly string[],
+    roomGeneration: string,
+    matchId: string
+  ): Promise<void> {
+    if (userIds.length === 0) {
+      return;
+    }
+    await pool.query(
+      `UPDATE gameplay_participations
+       SET kind = 'ONLINE_ROOM',
+           match_id = NULL,
+           updated_at = NOW()
+       WHERE user_id = ANY($1::uuid[])
+         AND room_generation = $2
+         AND kind = 'ONLINE_MATCH'
+         AND match_id = $3`,
+      [userIds, roomGeneration, matchId]
+    );
+  }
+
   async releaseOnlineRoom(userIds: readonly string[], roomGeneration: string): Promise<void> {
     if (userIds.length === 0) {
       return;
@@ -73,16 +100,17 @@ export class GameplayParticipationService implements GameplayParticipationPort {
 export async function acquirePublicQueueParticipation(
   client: PoolClient,
   userId: string,
-  ticketId: string
+  ticketId: string,
+  kind: Extract<GameplayParticipationKind, 'PUBLIC_QUEUE' | 'RANKED_QUEUE'> = 'PUBLIC_QUEUE'
 ): Promise<boolean> {
   const result = await client.query(
     `INSERT INTO gameplay_participations (
        user_id, kind, ticket_id, updated_at
      )
-     VALUES ($1, 'PUBLIC_QUEUE', $2, NOW())
+     VALUES ($1, $3, $2, NOW())
      ON CONFLICT (user_id) DO NOTHING
      RETURNING user_id`,
-    [userId, ticketId]
+    [userId, ticketId, kind]
   );
   return result.rowCount === 1;
 }
@@ -90,14 +118,15 @@ export async function acquirePublicQueueParticipation(
 export async function releasePublicQueueParticipation(
   client: PoolClient,
   userId: string,
-  ticketId: string
+  ticketId: string,
+  kind: Extract<GameplayParticipationKind, 'PUBLIC_QUEUE' | 'RANKED_QUEUE'> = 'PUBLIC_QUEUE'
 ): Promise<void> {
   await client.query(
     `DELETE FROM gameplay_participations
      WHERE user_id = $1
-       AND kind = 'PUBLIC_QUEUE'
+       AND kind = $3
        AND ticket_id = $2`,
-    [userId, ticketId]
+    [userId, ticketId, kind]
   );
 }
 

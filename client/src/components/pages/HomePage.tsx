@@ -20,6 +20,7 @@ import {
   History,
   LogOut,
   MonitorCog,
+  Medal,
   RefreshCw,
   Settings,
   ShieldAlert,
@@ -74,12 +75,14 @@ interface HomePageProps {
   onNavigateToGameSetup: () => void;
   onNavigateToOnlineRoom: () => void;
   onNavigateToPublicTable: () => void;
+  onNavigateToRanked: () => void;
   onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
   onNavigateToOnlineAdmin: () => void;
   onNavigateToAnnouncementAdmin: () => void;
+  onNavigateToRankedAdmin: () => void;
   siteStatus: PublicSiteStatus;
 }
 
@@ -129,12 +132,14 @@ export function HomePage({
   onNavigateToGameSetup,
   onNavigateToOnlineRoom,
   onNavigateToPublicTable,
+  onNavigateToRanked,
   onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
   onNavigateToOnlineAdmin,
   onNavigateToAnnouncementAdmin,
+  onNavigateToRankedAdmin,
   siteStatus,
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser, signOut } = useAuthStore();
@@ -326,6 +331,14 @@ export function HomePage({
 
   const secondaryActions: ActionTileProps[] = [
     {
+      title: '赛季排位',
+      icon: Medal,
+      onClick: onNavigateToRanked,
+      disabled: !canUseOnlineRoom || !hasLegalDeck,
+      status: canUseOnlineRoom ? '固定时段 · 计入积分' : '连接后可用',
+      tone: canUseOnlineRoom ? 'warning' : 'muted',
+    },
+    {
       title: '公共牌桌',
       icon: Swords,
       onClick: onNavigateToPublicTable,
@@ -449,7 +462,16 @@ export function HomePage({
                 <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
                 管理工具
               </div>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <ActionTile
+                  title="赛季排位管理"
+                  description="管理赛季状态与异常结算。"
+                  icon={Medal}
+                  onClick={onNavigateToRankedAdmin}
+                  status="管理员"
+                  tone="primary"
+                  compact
+                />
                 <ActionTile
                   title="卡牌数据管理"
                   description="维护卡牌数据、发布状态和资源信息。"

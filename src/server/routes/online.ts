@@ -585,6 +585,7 @@ onlineRouter.get('/matches/:matchId/snapshot', requireAuth, async (req, res) => 
       return;
     }
 
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     const snapshot = await onlineMatchService.getMatchSnapshot(match.matchId, req.user!.id, {
       sinceSeq: readOptionalSeq(req.query?.sinceSeq),
     });
@@ -593,7 +594,6 @@ onlineRouter.get('/matches/:matchId/snapshot', requireAuth, async (req, res) => 
       return;
     }
 
-    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({ data: snapshot, error: null });
   } catch (error) {
     respondOnlineError(res, error);
@@ -609,6 +609,7 @@ onlineRouter.get('/matches/:matchId/public-events', requireAuth, async (req, res
       return;
     }
 
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     const events = await onlineMatchService.getMatchPublicEvents(match.matchId, req.user!.id, {
       afterSeq: readOptionalSeq(req.query?.afterSeq),
     });
@@ -617,7 +618,6 @@ onlineRouter.get('/matches/:matchId/public-events', requireAuth, async (req, res
       return;
     }
 
-    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({ data: events, error: null });
   } catch (error) {
     respondOnlineError(res, error);
@@ -792,13 +792,13 @@ onlineRouter.post('/matches/:matchId/command', requireAuth, async (req, res) => 
     }
 
     const command = fromTransport<GameCommand>(body.command);
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     const result = await onlineMatchService.executeCommand(match.matchId, req.user!.id, command);
     if (!result) {
       respondMatchForbidden(res);
       return;
     }
 
-    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
       data: result,
       error: result.success
@@ -819,13 +819,13 @@ onlineRouter.post('/matches/:matchId/advance', requireAuth, async (req, res) => 
       return;
     }
 
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     const result = await onlineMatchService.advancePhase(match.matchId, req.user!.id);
     if (!result) {
       respondMatchForbidden(res);
       return;
     }
 
-    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
       data: result,
       error: result.success
@@ -854,13 +854,13 @@ onlineRouter.post('/matches/:matchId/undo', requireAuth, async (req, res) => {
       return;
     }
 
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     const result = await onlineMatchService.undoLatest(match.matchId, req.user!.id, parsed.data);
     if (!result) {
       respondMatchForbidden(res);
       return;
     }
 
-    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
       data: result,
       error: result.success ? null : { code: 'UNDO_REJECTED', message: result.error ?? '撤销失败' },
@@ -887,6 +887,7 @@ onlineRouter.post('/matches/:matchId/undo-requests', requireAuth, async (req, re
       return;
     }
 
+    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     const result = await onlineMatchService.createUndoRequest(
       match.matchId,
       req.user!.id,
@@ -897,7 +898,6 @@ onlineRouter.post('/matches/:matchId/undo-requests', requireAuth, async (req, re
       return;
     }
 
-    onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
     res.json({
       data: result,
       error: result.success
@@ -929,6 +929,7 @@ onlineRouter.post(
         return;
       }
 
+      onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
       const result = await onlineMatchService.acceptUndoRequest(
         match.matchId,
         req.user!.id,
@@ -940,7 +941,6 @@ onlineRouter.post(
         return;
       }
 
-      onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
       res.json({
         data: result,
         error: result.success
@@ -973,6 +973,7 @@ onlineRouter.post(
         return;
       }
 
+      onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
       const result = await onlineMatchService.rejectUndoRequest(
         match.matchId,
         req.user!.id,
@@ -984,7 +985,6 @@ onlineRouter.post(
         return;
       }
 
-      onlineRoomService.touchInGameMemberByMatch(match.matchId, req.user!.id);
       res.json({
         data: result,
         error: result.success
@@ -1008,6 +1008,7 @@ onlineRouter.post('/matches/:matchId/manual-operation-mode', requireAuth, async 
   }
   try {
     const matchId = readPathParam(req.params.matchId);
+    onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id);
     const result = await onlineMatchService.changeManualOperationMode(
       matchId,
       req.user!.id,
@@ -1017,7 +1018,6 @@ onlineRouter.post('/matches/:matchId/manual-operation-mode', requireAuth, async 
       respondMatchForbidden(res);
       return;
     }
-    onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id);
     res.json({
       data: result,
       error: result.success
@@ -1048,6 +1048,7 @@ for (const action of ['accept', 'reject', 'cancel'] as const) {
       try {
         const matchId = readPathParam(req.params.matchId);
         const requestId = readPathParam(req.params.requestId);
+        onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id);
         const result =
           action === 'accept'
             ? await onlineMatchService.acceptManualOperationModeRequest(
@@ -1073,7 +1074,6 @@ for (const action of ['accept', 'reject', 'cancel'] as const) {
           respondMatchForbidden(res);
           return;
         }
-        onlineRoomService.touchInGameMemberByMatch(matchId, req.user!.id);
         res.json({
           data: result,
           error: result.success

@@ -47,6 +47,7 @@ import { useAuthStore } from '@/store/authStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
+import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const DeckManager = lazy(() =>
@@ -66,6 +67,11 @@ const OnlineRoomPage = lazy(() =>
 const PublicTablePage = lazy(() =>
   import('@/components/pages/PublicTablePage').then((module) => ({
     default: module.PublicTablePage,
+  }))
+);
+const RankedPage = lazy(() =>
+  import('@/components/pages/RankedPage').then((module) => ({
+    default: module.RankedPage,
   }))
 );
 const OnlineSpectatorPage = lazy(() =>
@@ -102,6 +108,11 @@ const SiteAnnouncementsAdminPage = lazy(() =>
     default: module.SiteAnnouncementsAdminPage,
   }))
 );
+const RankedAdminPage = lazy(() =>
+  import('@/components/admin/RankedAdminPage').then((module) => ({
+    default: module.RankedAdminPage,
+  }))
+);
 
 type AuthPage =
   | 'login'
@@ -117,13 +128,15 @@ type AppPage =
   | 'game-setup'
   | 'online-room'
   | 'public-table'
+  | 'ranked'
   | 'online-spectator'
   | 'match-records'
   | 'online-debug'
   | 'game'
   | 'card-admin'
   | 'online-admin'
-  | 'announcement-admin';
+  | 'announcement-admin'
+  | 'ranked-admin';
 
 interface InitialAuthRequest {
   page: AuthPage;
@@ -162,6 +175,7 @@ function getInitialPage(): AppPage {
     page === 'game-setup' ||
     page === 'online-room' ||
     page === 'public-table' ||
+    page === 'ranked' ||
     page === 'online-spectator' ||
     page === 'match-records' ||
     page === 'online-debug' ||
@@ -169,6 +183,7 @@ function getInitialPage(): AppPage {
     page === 'card-admin' ||
     page === 'online-admin' ||
     page === 'announcement-admin' ||
+    page === 'ranked-admin' ||
     page === 'platform-config'
   ) {
     return page === 'platform-config' ? 'announcement-admin' : page;
@@ -680,6 +695,11 @@ function App() {
         userId={publicTableSessionUserId}
         onEnterRoom={enterOnlineRoom}
       />
+      <RankedGlobalLayer
+        enabled={Boolean(user && profile && !offlineMode)}
+        showWaitingNotice={effectivePage !== 'ranked'}
+        onEnterRoom={enterOnlineRoom}
+      />
     </>
   );
 
@@ -782,6 +802,12 @@ function App() {
     );
   }
 
+  if (effectivePage === 'ranked') {
+    return withPublicTableLayer(
+      <RankedPage onBack={() => setCurrentPage('home')} onEnterRoom={enterOnlineRoom} />
+    );
+  }
+
   if (effectivePage === 'online-spectator') {
     return withPublicTableLayer(
       <OnlineSpectatorLobbyPage onBackHome={() => setCurrentPage('home')} />
@@ -831,6 +857,10 @@ function App() {
     );
   }
 
+  if (effectivePage === 'ranked-admin' && profile?.role === 'admin') {
+    return withPublicTableLayer(<RankedAdminPage onBack={() => setCurrentPage('home')} />);
+  }
+
   // 主页
   return withPublicTableLayer(
     <HomePage
@@ -839,12 +869,14 @@ function App() {
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToPublicTable={() => setCurrentPage('public-table')}
+      onNavigateToRanked={() => setCurrentPage('ranked')}
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
       onNavigateToOnlineAdmin={() => setCurrentPage('online-admin')}
       onNavigateToAnnouncementAdmin={() => setCurrentPage('announcement-admin')}
+      onNavigateToRankedAdmin={() => setCurrentPage('ranked-admin')}
       siteStatus={appConfig.siteStatus}
     />
   );
