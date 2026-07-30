@@ -1183,8 +1183,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         if (currentPhase) {
           const phaseName = getPhaseName(currentPhase);
           get().addLog(`进入 ${phaseName}`, 'phase');
-          get().showPhaseBannerFn(phaseName);
-          setTimeout(() => get().hidePhaseBanner(), 1500);
         }
       }
     },
@@ -1506,13 +1504,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       if (
         dispatchRemoteCommand(command, '换牌失败', () => {
           get().addLog(successMessage, 'action');
-
-          const currentPhase = useGameStore.getState().getCurrentPhaseView();
-          if (currentPhase && currentPhase !== GamePhase.MULLIGAN_PHASE) {
-            const phaseName = getPhaseName(currentPhase);
-            useGameStore.getState().showPhaseBannerFn(phaseName);
-            setTimeout(() => useGameStore.getState().hidePhaseBanner(), 1500);
-          }
         })
       ) {
         return { success: false, pending: true };
@@ -1530,15 +1521,6 @@ export const useGameStore = create<GameStore>((set, get) => {
         } else {
           get().addLog('确认不换牌', 'action');
         }
-
-        // 如果换牌阶段结束，显示提示
-        const currentPhase = get().getCurrentPhaseView();
-        if (currentPhase && currentPhase !== GamePhase.MULLIGAN_PHASE) {
-          const phaseName = getPhaseName(currentPhase);
-          get().showPhaseBannerFn(phaseName);
-          setTimeout(() => get().hidePhaseBanner(), 1500);
-        }
-
         return { success: true };
       } else {
         get().addLog(`换牌失败: ${result.error}`, 'error');
@@ -3859,8 +3841,6 @@ function dispatchRemoteAdvancePhase(): boolean {
     if (currentPhase) {
       const phaseName = getPhaseName(currentPhase);
       useGameStore.getState().addLog(`进入 ${phaseName}`, 'phase');
-      useGameStore.getState().showPhaseBannerFn(phaseName);
-      setTimeout(() => useGameStore.getState().hidePhaseBanner(), 1500);
     }
   }).catch((error) => {
     useGameStore

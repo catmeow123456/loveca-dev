@@ -39,6 +39,7 @@ import {
 } from '@/lib/modifierIconAssets';
 import {
   buildBattleActionIntents,
+  canUseLegacyManualDropFallback,
   findEnabledBattleActionTargetByTargetId,
 } from '@/lib/battleActionIntent';
 import { executeBattleActionPayload } from '@/lib/battleActionExecutor';
@@ -453,6 +454,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     s.canUseAction(GameCommandType.CONFIRM_PERFORMANCE_OUTCOME)
   );
   const canSubmitJudgment = useGameStore((s) => s.canUseAction(GameCommandType.SUBMIT_JUDGMENT));
+  const manualOperationMode = useGameStore((s) => s.playerViewState?.match.manualOperation.mode);
   const getCardFrontInfo = useGameStore((s) => s.getCardFrontInfo);
   const getPlayerIdentityForSeat = useGameStore((s) => s.getPlayerIdentityForSeat);
   const getSeatMemberSlotCardId = useGameStore((s) => s.getSeatMemberSlotCardId);
@@ -514,6 +516,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
   const isViewingActiveSeat = activeSeat !== null && viewingSeat === activeSeat;
   const canRevealViewedCheerCard = isViewingActiveSeat && canRevealCheerCard;
   const canMoveViewedResolutionCard = isViewingActiveSeat && canMoveResolutionCardToZone;
+  const showManualResolutionTargets =
+    canUseLegacyManualDropFallback(manualOperationMode) && !isReadOnly && isViewingActiveSeat;
   const canSubmitViewedJudgment = isViewingActiveSeat && canSubmitJudgment;
   const canConfirmViewedOutcome = isViewingActiveSeat && canConfirmPerformanceOutcome;
   const mainDeckCount = viewingSeat
@@ -584,45 +588,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     if (!activePlayer || !canRevealViewedCheerCard || mainDeckCount === 0) return;
     revealCheerCard();
   }, [activePlayer, canRevealViewedCheerCard, mainDeckCount, revealCheerCard]);
-
-  const moveToHand = useCallback(
-    (cardId: string) => {
-      if (!canMoveViewedResolutionCard) {
-        return;
-      }
-      const result = moveResolutionCardToZone(cardId, ZoneType.HAND);
-      if (result.success) {
-        setHoveredCard(null);
-      }
-    },
-    [canMoveViewedResolutionCard, moveResolutionCardToZone, setHoveredCard]
-  );
-
-  const moveToWaitingRoom = useCallback(
-    (cardId: string) => {
-      if (!canMoveViewedResolutionCard) {
-        return;
-      }
-      const result = moveResolutionCardToZone(cardId, ZoneType.WAITING_ROOM);
-      if (result.success) {
-        setHoveredCard(null);
-      }
-    },
-    [canMoveViewedResolutionCard, moveResolutionCardToZone, setHoveredCard]
-  );
-
-  const returnToDeckTop = useCallback(
-    (cardId: string) => {
-      if (!canMoveViewedResolutionCard) {
-        return;
-      }
-      const result = moveResolutionCardToZone(cardId, ZoneType.MAIN_DECK, { position: 'TOP' });
-      if (result.success) {
-        setHoveredCard(null);
-      }
-    },
-    [canMoveViewedResolutionCard, moveResolutionCardToZone, setHoveredCard]
-  );
 
   const toggleSelectedResolutionCard = useCallback(
     (cardId: string) => {
@@ -1004,59 +969,56 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </button>
           </div>
 
-          <div
-            className={cn(
-              'mb-2 grid grid-cols-3 gap-2',
-              (isReadOnly || !isViewingActiveSeat) && 'hidden'
-            )}
-          >
-            <DroppableZone
-              id="resolution-target-hand"
-              disabled={!canMoveViewedResolutionCard}
-              title={resolutionHandTarget?.target.label ?? '加入手牌'}
-              onClick={() => executeResolutionTarget(resolutionHandTarget)}
-              className={cn(
-                'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
-                resolutionHandTarget &&
-                  'cursor-pointer border-cyan-300 bg-cyan-500/15 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.24)]'
-              )}
-              activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15"
-            >
-              {resolutionHandTarget ? resolutionHandTarget.target.label : '拖到这里回手'}
-            </DroppableZone>
-            <DroppableZone
-              id="resolution-target-waiting-room"
-              disabled={!canMoveViewedResolutionCard}
-              title={resolutionWaitingRoomTarget?.target.label ?? '放入休息室'}
-              onClick={() => executeResolutionTarget(resolutionWaitingRoomTarget)}
-              className={cn(
-                'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
-                resolutionWaitingRoomTarget &&
-                  'cursor-pointer border-slate-200 bg-slate-500/15 text-slate-50 shadow-[0_0_14px_rgba(226,232,240,0.18)]'
-              )}
-              activeClassName="outline outline-2 outline-slate-300 bg-slate-500/15"
-            >
-              {resolutionWaitingRoomTarget
-                ? resolutionWaitingRoomTarget.target.label
-                : '拖到这里弃置'}
-            </DroppableZone>
-            <DroppableZone
-              id="resolution-target-main-deck-top"
-              disabled={!canMoveViewedResolutionCard}
-              title={resolutionMainDeckTopTarget?.target.label ?? '回卡组顶'}
-              onClick={() => executeResolutionTarget(resolutionMainDeckTopTarget)}
-              className={cn(
-                'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
-                resolutionMainDeckTopTarget &&
-                  'cursor-pointer border-amber-300 bg-amber-500/15 text-amber-50 shadow-[0_0_14px_rgba(251,191,36,0.22)]'
-              )}
-              activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15"
-            >
-              {resolutionMainDeckTopTarget
-                ? resolutionMainDeckTopTarget.target.label
-                : '拖到这里回卡组顶'}
-            </DroppableZone>
-          </div>
+          {showManualResolutionTargets ? (
+            <div className="mb-2 grid grid-cols-3 gap-2">
+              <DroppableZone
+                id="resolution-target-hand"
+                disabled={!canMoveViewedResolutionCard}
+                title={resolutionHandTarget?.target.label ?? '加入手牌'}
+                onClick={() => executeResolutionTarget(resolutionHandTarget)}
+                className={cn(
+                  'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
+                  resolutionHandTarget &&
+                    'cursor-pointer border-cyan-300 bg-cyan-500/15 text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.24)]'
+                )}
+                activeClassName="outline outline-2 outline-cyan-400 bg-cyan-500/15"
+              >
+                {resolutionHandTarget ? resolutionHandTarget.target.label : '拖到这里回手'}
+              </DroppableZone>
+              <DroppableZone
+                id="resolution-target-waiting-room"
+                disabled={!canMoveViewedResolutionCard}
+                title={resolutionWaitingRoomTarget?.target.label ?? '放入休息室'}
+                onClick={() => executeResolutionTarget(resolutionWaitingRoomTarget)}
+                className={cn(
+                  'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
+                  resolutionWaitingRoomTarget &&
+                    'cursor-pointer border-slate-200 bg-slate-500/15 text-slate-50 shadow-[0_0_14px_rgba(226,232,240,0.18)]'
+                )}
+                activeClassName="outline outline-2 outline-slate-300 bg-slate-500/15"
+              >
+                {resolutionWaitingRoomTarget
+                  ? resolutionWaitingRoomTarget.target.label
+                  : '拖到这里弃置'}
+              </DroppableZone>
+              <DroppableZone
+                id="resolution-target-main-deck-top"
+                disabled={!canMoveViewedResolutionCard}
+                title={resolutionMainDeckTopTarget?.target.label ?? '回卡组顶'}
+                onClick={() => executeResolutionTarget(resolutionMainDeckTopTarget)}
+                className={cn(
+                  'rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] px-3 py-2 text-center text-[11px] font-medium text-[var(--text-secondary)]',
+                  resolutionMainDeckTopTarget &&
+                    'cursor-pointer border-amber-300 bg-amber-500/15 text-amber-50 shadow-[0_0_14px_rgba(251,191,36,0.22)]'
+                )}
+                activeClassName="outline outline-2 outline-amber-400 bg-amber-500/15"
+              >
+                {resolutionMainDeckTopTarget
+                  ? resolutionMainDeckTopTarget.target.label
+                  : '拖到这里回卡组顶'}
+              </DroppableZone>
+            </div>
+          ) : null}
 
           <div className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2">
             {cheerCards.length === 0 ? (
@@ -1087,7 +1049,7 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                         key={id}
                         cardId={canInspectFront ? id : null}
                         disabled={!canInspectFront}
-                        className="relative group flex flex-col items-center gap-0.5"
+                        className="relative flex flex-col items-center gap-0.5"
                         enableHover={shouldUseHoverPreview}
                       >
                         {canInspectFront && frontInfo ? (
@@ -1124,49 +1086,6 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
                           {effects.drawBonus > 0 && (
                             <span className="text-cyan-400">📄+{effects.drawBonus}</span>
                           )}
-                        </div>
-                        <div
-                          className={cn(
-                            'absolute -bottom-1 left-1/2 z-10 flex -translate-x-1/2 gap-0.5 whitespace-nowrap rounded bg-[var(--bg-elevated)] px-1 py-0.5 opacity-0 shadow-[var(--shadow-md)] group-hover:opacity-100',
-                            (isReadOnly || !isViewingActiveSeat) && 'hidden'
-                          )}
-                        >
-                          <button
-                            disabled={!canMoveViewedResolutionCard || !canInspectFront}
-                            onClick={() => moveToHand(id)}
-                            className={cn(
-                              'text-[10px] px-1.5 py-0.5 rounded text-white',
-                              canMoveViewedResolutionCard && canInspectFront
-                                ? 'bg-cyan-600 hover:bg-cyan-500'
-                                : 'bg-slate-600 cursor-not-allowed'
-                            )}
-                          >
-                            手牌
-                          </button>
-                          <button
-                            disabled={!canMoveViewedResolutionCard || !canInspectFront}
-                            onClick={() => moveToWaitingRoom(id)}
-                            className={cn(
-                              'text-[10px] px-1.5 py-0.5 rounded text-white',
-                              canMoveViewedResolutionCard && canInspectFront
-                                ? 'bg-slate-600 hover:bg-slate-500'
-                                : 'bg-slate-600 cursor-not-allowed'
-                            )}
-                          >
-                            弃置
-                          </button>
-                          <button
-                            disabled={!canMoveViewedResolutionCard || !canInspectFront}
-                            onClick={() => returnToDeckTop(id)}
-                            className={cn(
-                              'text-[10px] px-1.5 py-0.5 rounded text-white',
-                              canMoveViewedResolutionCard && canInspectFront
-                                ? 'bg-amber-600 hover:bg-amber-500'
-                                : 'bg-slate-600 cursor-not-allowed'
-                            )}
-                          >
-                            放回
-                          </button>
                         </div>
                       </CardDetailPressTarget>
                     );

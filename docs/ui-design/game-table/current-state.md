@@ -12,11 +12,13 @@
 > - `client/src/components/game/BattleActionFeedbackLayer.tsx`
 > - `client/src/components/game/BattleAnimationLayer.tsx`
 > - `client/src/components/game/PhaseIndicator.tsx`
+> - `client/src/components/game/PhaseBanner.tsx`
 > - `client/src/components/game/JudgmentPanel.tsx`
 > - `client/src/components/game/ScoreConfirmModal.tsx`
 > - `client/src/components/game/MulliganPanel.tsx`
 > - `client/src/components/game/CardDetailOverlay.tsx`
 > - `client/src/components/game/GameLog.tsx`
+> - `client/src/lib/phaseAnnouncement.ts`
 > - `client/src/store/gameStore.ts`
 
 ## 1. 设计目标与当前实现取向
@@ -246,17 +248,19 @@ Live 区固定 3 槽，与成员槽横向对齐。
 
 ### 5.1 阶段提示横幅
 
-`PhaseBanner` 为全屏居中提示：
+`PhaseBanner` 是由玩家视图前后快照变化驱动的短时非交互提示：
 
-- 阶段切换时短暂出现
-- 使用深色背景 + 亮色描边
-- 仅负责“阶段名提示”
+- 进入主要阶段、LIVE 设置和 LIVE 开始时短暂出现，并在 LIVE 设置、双方表演的行动权交接时使用更紧凑的提示
+- 除阶段名外，还会展示当前回合、行动玩家和一句当前流程说明
+- 首次取得对局快照、切换对局和历史回放不触发自动报幕；游戏开始和对局重开仍可使用 store 中的显式提示
+- 使用主题磨砂背景、按阶段区分的亮色描边和导轨，且支持 `prefers-reduced-motion`
 - 不承载交互
 
 位置：
 
-- 全屏居中
+- 桌面上方约三分之一处，窄屏保持较小水平留白
 - `pointer-events: none`
+- 层级低于 LIVE 结果、模态框、回放控制层和卡牌详情
 
 ### 5.2 阶段指示器
 
@@ -309,6 +313,8 @@ Live 区固定 3 槽，与成员槽横向对齐。
 
 - 正式区域是 `RESOLUTION_ZONE`
 - `JudgmentPanel` 只是这个区域当前的 UI 载体，不是独立规则区域
+- 解决区回手、弃置和放回卡组顶的拖拽目标只在 `FREE` 下渲染；`RULES` 不展示这些人工整理入口
+- 应援卡下方不重复提供回手、弃置和放回快捷按钮；`FREE` 统一使用上方落点或直接拖拽
 - 表演判定成功后不会立刻进入成功效果窗口；双方表演完成后才进入先攻成功效果、后攻成功效果
 - 当前实现将双方表演后的成功效果窗口挂到 `LIVE_RESULT_PHASE` 的 `RESULT_*_SUCCESS_EFFECTS` 子阶段；这是现行状态机表达，UI 按该状态渲染成功效果窗口
 - 相关定稿见 `docs/ui-design/game-table/resolution-zone-behavior.md`
