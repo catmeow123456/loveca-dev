@@ -30,6 +30,7 @@ import {
   aiBattlePhaseThreeService,
 } from '../services/ai-battle-phase-three-service.js';
 import { AI_MODEL_ID, readAiBattleModelConfigurationStatus } from '../ai-battle/model-provider.js';
+import { readAiBattleDebugTraceConfigurationStatus } from '../ai-battle/debug-trace.js';
 import { AI_BATTLE_FORMAL_SYSTEM_IDENTITY } from '../ai-battle/system-participant.js';
 
 export const onlineRouter = Router();
@@ -112,15 +113,21 @@ const controlledAiBattleSchema = z.object({
   aiSeat: z.enum(['FIRST', 'SECOND']),
 });
 
+const aiBattleDebugTraceQuerySchema = z.object({
+  afterSeq: z.coerce.number().int().min(0).optional(),
+});
+
 const AI_BATTLE_PUBLIC_CONFIG_SCHEMA_VERSION = 'ai-battle.public-entry-config/v1' as const;
 
 onlineRouter.get('/ai-battles/config', requireAuth, (_req, res) => {
   const model = readAiBattleModelConfigurationStatus();
+  const debugTrace = readAiBattleDebugTraceConfigurationStatus();
   setPrivateNoStoreHeaders(res);
   res.json({
     data: {
       schemaVersion: AI_BATTLE_PUBLIC_CONFIG_SCHEMA_VERSION,
       available: model.enabled && model.configured,
+      debugTraceEnabled: debugTrace.enabled,
       opponent: {
         displayName: AI_BATTLE_FORMAL_SYSTEM_IDENTITY.displayName,
         participantKind: AI_BATTLE_FORMAL_SYSTEM_IDENTITY.participantKind,
@@ -183,6 +190,35 @@ onlineRouter.get('/ai-battles/:matchId', requireAuth, async (req, res) => {
     }
     setPrivateNoStoreHeaders(res);
     res.json({ data: battle, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/ai-battles/:matchId/debug-trace', requireAuth, async (req, res) => {
+  const parsedQuery = aiBattleDebugTraceQuerySchema.safeParse(req.query ?? {});
+  if (!parsedQuery.success) {
+    res.status(400).json({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: 'AI 调试轨迹游标非法' },
+    });
+    return;
+  }
+  try {
+    const trace = await aiBattlePhaseThreeService.getDebugTrace(
+      readPathParam(req.params.matchId),
+      req.user!.id,
+      parsedQuery.data.afterSeq ?? 0
+    );
+    if (!trace) {
+      res.status(404).json({
+        data: null,
+        error: { code: 'AI_BATTLE_NOT_FOUND', message: 'AI 对局不存在或无权读取' },
+      });
+      return;
+    }
+    setPrivateNoStoreHeaders(res);
+    res.json({ data: trace, error: null });
   } catch (error) {
     respondOnlineError(res, error);
   }

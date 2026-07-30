@@ -36,6 +36,7 @@ import {
   PublicBattleLogPanel,
 } from './PublicBattleLog';
 import { MatchChat } from './MatchChat';
+import { AiBattleDebugPanel } from './AiBattleDebugPanel';
 import { PhaseIndicator } from './PhaseIndicator';
 import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
@@ -2428,6 +2429,12 @@ export const GameBoard = memo(function GameBoard({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {canShowAiBattleChat && matchView?.matchId && (
+                      <AiBattleDebugPanel
+                        key={`ai-debug-mobile-${matchView.matchId}`}
+                        matchId={matchView.matchId}
+                      />
+                    )}
                     {canShowAiBattleChat && matchView?.viewerSeat && (
                       <MatchChat
                         access={{
@@ -2804,6 +2811,12 @@ export const GameBoard = memo(function GameBoard({
                   </button>
                 )}
                 {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
+                {canShowAiBattleChat && matchView?.matchId && (
+                  <AiBattleDebugPanel
+                    key={`ai-debug-desktop-${matchView.matchId}`}
+                    matchId={matchView.matchId}
+                  />
+                )}
                 {canShowAiBattleChat && matchView?.viewerSeat && (
                   <MatchChat
                     access={{

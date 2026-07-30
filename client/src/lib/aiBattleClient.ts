@@ -6,6 +6,7 @@ export type AiBattleDeckKey = 'MUSE_STARTER' | 'GREEN_HASUNOSORA_B6';
 export interface AiBattlePublicConfig {
   readonly schemaVersion: 'ai-battle.public-entry-config/v1';
   readonly available: boolean;
+  readonly debugTraceEnabled: boolean;
   readonly opponent: {
     readonly displayName: 'Loveca AI';
     readonly participantKind: 'SYSTEM';
@@ -19,6 +20,43 @@ export interface AiBattlePublicConfig {
     readonly description: string;
   }[];
   readonly seats: readonly Seat[];
+}
+
+export interface AiBattleDebugTraceEntry {
+  readonly seq: number;
+  readonly createdAt: number;
+  readonly stage: 'STARTED' | 'COMPLETED';
+  readonly decisionKind: string;
+  readonly authorityRevision: number;
+  readonly source: 'RULE' | 'MODEL' | 'CONSERVATIVE_FALLBACK';
+  readonly tier: string | null;
+  readonly reasonCode: string | null;
+  readonly summary: string;
+  readonly selection: {
+    readonly kind: string;
+    readonly selectedCount: number;
+    readonly label: string;
+  } | null;
+  readonly model: {
+    readonly modelId: string;
+    readonly finalOutcome: 'MODEL_SELECTION' | 'CONSERVATIVE_FALLBACK' | 'CANCELLED';
+    readonly attemptCount: number;
+    readonly outcomes: readonly string[];
+    readonly totalLatencyMs: number;
+    readonly inputTokens: number;
+    readonly outputTokens: number;
+    readonly estimatedCostMicrosCny: number;
+  } | null;
+  readonly executionStatus: 'ACCEPTED' | 'REJECTED' | 'STALE' | null;
+}
+
+export interface AiBattleDebugTraceView {
+  readonly schemaVersion: 'ai-battle.debug-trace/v1';
+  readonly enabled: boolean;
+  readonly matchId: string;
+  readonly currentSeq: number;
+  readonly truncated: boolean;
+  readonly entries: readonly AiBattleDebugTraceEntry[];
 }
 
 export interface AiBattleView {
@@ -57,6 +95,17 @@ export async function fetchAiBattle(matchId: string): Promise<AiBattleView> {
     `/api/online/ai-battles/${encodeURIComponent(matchId)}`
   );
   if (!response.data) throw toApiClientError(response, '恢复 AI 对局失败');
+  return response.data;
+}
+
+export async function fetchAiBattleDebugTrace(
+  matchId: string,
+  afterSeq = 0
+): Promise<AiBattleDebugTraceView> {
+  const response = await apiClient.get<AiBattleDebugTraceView>(
+    `/api/online/ai-battles/${encodeURIComponent(matchId)}/debug-trace?afterSeq=${String(afterSeq)}`
+  );
+  if (!response.data) throw toApiClientError(response, '读取 AI 调试轨迹失败');
   return response.data;
 }
 
