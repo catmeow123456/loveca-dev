@@ -10,6 +10,7 @@ import { createCardInstance, createHeartIcon, createHeartRequirement, type Energ
 import { createGameState, registerCards, type GameState } from '../../src/domain/entities/game';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import { CardType, FaceState, GameMode, GamePhase, HeartColor, OrientationState, SlotPosition, SubPhase } from '../../src/shared/types/enums';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 const P1 = 'p1', P2 = 'p2';
 const member = (code: string): MemberCardData => ({ cardCode: code, name: code, cardType: CardType.MEMBER, cost: 9, blade: 1, hearts: [createHeartIcon(HeartColor.PINK, 1)], groupNames: ["μ's"] });
@@ -72,7 +73,7 @@ describe('PL!-pb1-013 園田海未', () => {
   it('reveals a LIVE to both players, keeps it in hand, then adds SCORE +1 and cleans up', () => {
     const s = setup(); const started = activateCardAbility(s.game, P1, s.source.instanceId, A); const revealed = select(started);
     expect(revealed.activeEffect?.revealedCardIds).toEqual([s.hand!.instanceId]);
-    expect(revealed.activeEffect?.selectableCardIds).toEqual([]);
+    expect(revealed.activeEffect?.selectableCardIds).toBeUndefined();
     expect(revealed.activeEffect?.minSelectableCards).toBeUndefined();
     expect(revealed.activeEffect?.maxSelectableCards).toBeUndefined();
     expect(revealed.activeEffect?.confirmSelectionLabel).toBeUndefined();
@@ -109,7 +110,7 @@ describe('PL!-pb1-013 園田海未', () => {
     expect(selected.gameState.activeEffect?.revealedCardIds).toEqual([
       s.extraHandCards[0].instanceId,
     ]);
-    expect(selected.gameState.activeEffect?.selectableCardIds).toEqual([]);
+    expect(selected.gameState.activeEffect?.selectableCardIds).toBeUndefined();
   });
 
   it('lets the solitaire system seat finish the blind selection chain without logging real hand IDs', () => {
@@ -122,6 +123,7 @@ describe('PL!-pb1-013 園田海未', () => {
     );
 
     expect(activated.success, activated.error).toBe(true);
+    advancePublicRevealDwellIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerScores.get(P1)).toBe(5);
 

@@ -631,6 +631,10 @@ export interface ActiveEffectState {
   readonly publicCardSelectionAutoAdvanceAt?: number;
   /** 效果选项公共展示的服务端权威截止时间。 */
   readonly publicEffectChoiceAutoAdvanceAt?: number;
+  /** 通用公开卡牌展示的服务端权威截止时间。 */
+  readonly publicRevealAutoAdvanceAt?: number;
+  /** 通用公开卡牌展示实例的唯一代数；用于拒绝延迟到达的旧推进命令。 */
+  readonly publicRevealGeneration?: string;
   /** 公共展示中的卡牌是否按选择顺序结算。 */
   readonly publicCardSelectionOrdered?: boolean;
   /** 当前步骤涉及的检视区卡牌 */
@@ -735,6 +739,10 @@ export type PendingSpecialMemberPlayState = PendingSpecialMemberPlayBaseState &
 export interface GameState {
   /** 游戏唯一 ID */
   readonly gameId: string;
+  /** 最近一次生成通用公开展示 token 的运行时 epoch；仅用于权威恢复后的防重放。 */
+  readonly publicRevealGenerationEpoch?: number;
+  /** 通用公开展示 token 的持久化高水位；GameSession undo 不会降低其内存高水位。 */
+  readonly publicRevealGenerationSequence?: number;
   /** 桌面权威操作模式。当前运行时状态必须显式携带。 */
   readonly manualOperationMode: ManualOperationMode;
 

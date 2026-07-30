@@ -19,11 +19,13 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { canUseActivatedAbilityThisTurn } from '../../src/application/card-effect-runner';
 import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   PL_S_PB1_006_ACTIVATED_REVEAL_HAND_LIVE_OPPONENT_DISCARD_OR_GAIN_FOUR_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -79,12 +81,12 @@ function sessionWithState(game: GameState): GameSession {
 }
 
 function setup(options: {
-  readonly ownHandCards?: readonly CardInstance<AnyCardData>[];
-  readonly opponentHandCards?: readonly CardInstance<AnyCardData>[];
-  readonly sourceOnStage?: boolean;
-  readonly currentPhase?: GamePhase;
-  readonly activePlayerIndex?: number;
-  readonly includeOpponentHandTriggerSource?: boolean;
+    readonly ownHandCards?: readonly CardInstance<AnyCardData>[];
+    readonly opponentHandCards?: readonly CardInstance<AnyCardData>[];
+    readonly sourceOnStage?: boolean;
+    readonly currentPhase?: GamePhase;
+    readonly activePlayerIndex?: number;
+    readonly includeOpponentHandTriggerSource?: boolean;
 } = {}) {
   const source = instance(member('PL!S-pb1-006-R', '津島善子', 9), 'yoshiko-source');
   const ownHandCards =
@@ -177,8 +179,7 @@ describe('PL!S-pb1-006 津島善子 activated reveal LIVE', () => {
     expect(reveal.success, reveal.error).toBe(true);
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: ABILITY_ID,
-      awaitingPlayerId: PLAYER2,
-      selectableCardIds: [opponentHandCards[0]!.instanceId],
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: [ownHandCards[0]!.instanceId],
     });
     expect(session.getPlayerViewState(PLAYER1).activeEffect?.revealedObjectIds).toEqual([
@@ -187,6 +188,11 @@ describe('PL!S-pb1-006 津島善子 activated reveal LIVE', () => {
     expect(session.getPlayerViewState(PLAYER2).activeEffect?.revealedObjectIds).toEqual([
       `obj_${ownHandCards[0]!.instanceId}`,
     ]);
+    advancePublicRevealDwellIfNeeded(session);
+    expect(session.state?.activeEffect).toMatchObject({
+      awaitingPlayerId: PLAYER2,
+      selectableCardIds: [opponentHandCards[0]!.instanceId],
+    });
   });
 
   it('lets the opponent discard any one hand card through hand-to-waiting triggers without granting BLADE', () => {
@@ -197,6 +203,7 @@ describe('PL!S-pb1-006 津島善子 activated reveal LIVE', () => {
 
     expect(activate(session, source.instanceId).success).toBe(true);
     expect(confirm(session, PLAYER1, ownHandCards[0]!.instanceId).success).toBe(true);
+    advancePublicRevealDwellIfNeeded(session);
     const discard = confirm(session, PLAYER2, opponentHandCards[0]!.instanceId);
 
     expect(discard.success, discard.error).toBe(true);
@@ -228,6 +235,7 @@ describe('PL!S-pb1-006 津島善子 activated reveal LIVE', () => {
     expect(confirm(declinedSession, PLAYER1, declined.ownHandCards[0]!.instanceId).success).toBe(
       true
     );
+    advancePublicRevealDwellIfNeeded(declinedSession);
     expect(confirm(declinedSession, PLAYER2, null).success).toBe(true);
     expect(
       getMemberEffectiveBladeCount(declinedSession.state!, PLAYER1, declined.source.instanceId)
@@ -238,6 +246,11 @@ describe('PL!S-pb1-006 津島善子 activated reveal LIVE', () => {
     expect(activate(noHandSession, noHand.source.instanceId).success).toBe(true);
     const reveal = confirm(noHandSession, PLAYER1, noHand.ownHandCards[0]!.instanceId);
     expect(reveal.success, reveal.error).toBe(true);
+    expect(noHandSession.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(
+      getMemberEffectiveBladeCount(noHandSession.state!, PLAYER1, noHand.source.instanceId)
+    ).toBe(1);
+    advancePublicRevealDwellIfNeeded(noHandSession);
     expect(noHandSession.state?.activeEffect).toBeNull();
     expect(
       getMemberEffectiveBladeCount(noHandSession.state!, PLAYER1, noHand.source.instanceId)
@@ -322,6 +335,7 @@ describe('PL!S-pb1-006 津島善子 activated reveal LIVE', () => {
 
     expect(activate(session, source.instanceId).success).toBe(true);
     expect(confirm(session, PLAYER1, ownHandCards[0]!.instanceId).success).toBe(true);
+    advancePublicRevealDwellIfNeeded(session);
 
     const sourceLeft = updatePlayer(session.state!, PLAYER1, (player) => ({
       ...player,

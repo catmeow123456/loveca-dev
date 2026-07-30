@@ -18,6 +18,8 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID,
   SP_PB1_001_LIVE_START_PAY_TWO_ENERGY_OR_DISCARD_TWO_ABILITY_ID,
@@ -313,16 +315,19 @@ describe('PL!HS-sd1-002 and PL!SP-pb1-001 effects', () => {
       const revealed = chooseCard(afterDiscard, selected.instanceId);
 
       expect(revealed.activeEffect).toMatchObject({
-        stepId: 'HS_SD1_002_REVEAL_INSPECTED_MEMBER',
-        inspectionCardIds: [selected.instanceId, ...rest.map((card) => card.instanceId)],
-        selectableCardIds: [],
-        stepText: '选择的成员卡已公开。确认后加入手牌，其余卡片放置入休息室。',
+        stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+        revealedCardIds: [selected.instanceId],
+        stepText: '选择的成员卡已公开。展示结束后加入手牌，其余卡片放置入休息室。',
       });
       expect(revealed.inspectionZone.revealedCardIds).toContain(selected.instanceId);
       expect(revealed.players[0]!.hand.cardIds).toEqual([]);
       expect(revealed.liveResolution.liveModifiers).toEqual([]);
 
-      const resolved = chooseCard(revealed, null);
+      const resolved = confirmActiveEffectStepThroughPublicReveal(
+        revealed,
+        PLAYER1,
+        revealed.activeEffect!.id
+      );
 
       expect(resolved.players[0]!.hand.cardIds).toEqual([selected.instanceId]);
       expect(resolved.players[0]!.waitingRoom.cardIds).toEqual(rest.map((card) => card.instanceId));

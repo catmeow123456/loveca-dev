@@ -14,6 +14,7 @@ import {
   CardAbilitySourceZone,
 } from '../../src/application/card-effects/ability-definition-types';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   createCardInstance,
   createHeartIcon,
@@ -278,9 +279,15 @@ describe('PL!HS-bp8-001-P 费用13「日野下花帆」', () => {
       pendingAbilities: [pending(KAHO_ENTER, kaho.instanceId, TriggerCondition.ON_ENTER_STAGE)],
     });
     expect(game.activeEffect).toMatchObject({
-      stepId: 'HS_BP8_001_REVEAL_MILLED_TOP_THREE',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: deckCards.map((card) => card.instanceId),
-      metadata: { allCeriseBouquet: true },
+    });
+    expect(
+      game.actionHistory.findLast((action) => action.payload.step === 'MILL_TOP_THREE')?.payload
+    ).toMatchObject({
+      milledCardIds: deckCards.map((card) => card.instanceId),
+      refreshCount: 1,
+      allCeriseBouquet: true,
     });
     expect(
       game.eventLog

@@ -289,6 +289,12 @@ export interface ActiveEffectViewState {
   readonly publicEffectChoiceAutoAdvanceAt?: number;
   /** 投影时按服务端时钟计算的效果选项剩余展示时长。 */
   readonly publicEffectChoiceAutoAdvanceAfterMs?: number;
+  /** 通用公开卡牌展示的服务端权威截止时间。 */
+  readonly publicRevealAutoAdvanceAt?: number;
+  /** 通用公开卡牌展示实例的唯一代数。 */
+  readonly publicRevealGeneration?: string;
+  /** 投影时按服务端时钟计算的通用公开卡牌剩余展示时长。 */
+  readonly publicRevealAutoAdvanceAfterMs?: number;
   readonly inspectionObjectIds?: readonly string[];
   readonly selectableObjectIds?: readonly string[];
   /** 候选对象只以匿名牌背展示，不含可关联到真实卡牌实例的对象 ID。 */

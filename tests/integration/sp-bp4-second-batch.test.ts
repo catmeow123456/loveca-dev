@@ -232,10 +232,7 @@ describe('PL!SP-bp4 second batch effects', () => {
     expect(reveal.success, reveal.error).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(target.instanceId);
 
-    const finish = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-    expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
       lowRequirement.instanceId,

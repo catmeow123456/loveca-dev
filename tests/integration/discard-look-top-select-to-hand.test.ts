@@ -17,6 +17,7 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
@@ -24,6 +25,7 @@ import {
   N_BP5_009_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
   PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -291,9 +293,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([topCards[0]!.instanceId]);
     expect(session.state?.players[0].hand.cardIds).not.toContain(topCards[0]!.instanceId);
     expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
+      advancePublicRevealDwellIfNeeded(session)?.success
     ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toContain(topCards[0]!.instanceId);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
@@ -443,9 +443,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[3]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -586,9 +584,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[1]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -834,9 +830,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[1]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -963,9 +957,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[2]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -1088,9 +1080,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[0]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([topCards[0]!.instanceId]);
@@ -1235,9 +1225,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[3]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([topCards[3]!.instanceId]);
@@ -1380,9 +1368,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[1]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -1541,9 +1527,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual(selectedCardIds);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -1955,9 +1939,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[2]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -2056,9 +2038,7 @@ describe('discard look top select to hand shared workflow', () => {
     expect(selectResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(topCards[1]!.instanceId);
 
-    const revealConfirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealConfirmResult = advancePublicRevealDwellIfNeeded(session)!;
     expect(revealConfirmResult.success).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([topCards[1]!.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -2427,9 +2407,7 @@ describe('discard look top select to hand shared workflow', () => {
     );
 
     expect(
-      scenario.session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-      ).success
+      advancePublicRevealDwellIfNeeded(scenario.session)?.success
     ).toBe(true);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([topCards[1]!.instanceId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -2508,9 +2486,7 @@ describe('discard look top select to hand shared workflow', () => {
     );
 
     expect(
-      scenario.session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-      ).success
+      advancePublicRevealDwellIfNeeded(scenario.session)?.success
     ).toBe(true);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([topCards[0]!.instanceId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -2593,9 +2569,7 @@ describe('discard look top select to hand shared workflow', () => {
     );
 
     expect(
-      scenario.session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-      ).success
+      advancePublicRevealDwellIfNeeded(scenario.session)?.success
     ).toBe(true);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([topCards[1]!.instanceId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -3039,15 +3013,11 @@ describe('PL!N-bp3-012 Lanzhu shared discard-look-top config', () => {
     ).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([cards[1]!.instanceId]);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
-    expect(session.state?.activeEffect?.selectableCardMode).toBeUndefined();
-    expect(session.state?.activeEffect?.confirmSelectionLabel).toBeUndefined();
-    expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
-    expect(session.state?.activeEffect?.skipSelectionLabel).toBeUndefined();
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual([cards[1]!.instanceId]);
 
     expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
+      advancePublicRevealDwellIfNeeded(session)?.success
     ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([cards[1]!.instanceId]);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
@@ -3343,9 +3313,7 @@ describe('PL!N-bp5-009 Rina wait-discard look top shared workflow', () => {
     );
 
     expect(
-      scenario.session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-      ).success
+      advancePublicRevealDwellIfNeeded(scenario.session)?.success
     ).toBe(true);
 
     const player = scenario.session.state!.players[0]!;

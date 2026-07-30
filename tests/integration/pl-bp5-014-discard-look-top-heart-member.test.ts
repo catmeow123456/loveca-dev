@@ -15,6 +15,7 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import { PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
@@ -175,8 +176,7 @@ describe('PL!-bp5-014 discard look-top blue or purple Heart member workflow', ()
     ).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(purpleMember.instanceId);
     expect(
-      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id))
-        .success
+      advancePublicRevealDwellIfNeeded(session)?.success
     ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([purpleMember.instanceId]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([extra.instanceId]);

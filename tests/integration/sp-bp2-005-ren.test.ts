@@ -306,9 +306,7 @@ describe('PL!SP-bp2-005 P/R 费用4「葉月 恋」', () => {
     expect(revealed.players[0].waitingRoom.cardIds).toEqual([]);
     expect(revealed.activeEffect).toMatchObject({
       stepText:
-        '选择的卡片已公开。确认后加入手牌，其余卡片放置入休息室。',
-      selectableCardIds: [],
-      canSkipSelection: false,
+        '选择的卡片已公开。展示结束后加入手牌，其余卡片放置入休息室。',
     });
 
     const revealEffectId = revealed.activeEffect!.id;
@@ -350,9 +348,10 @@ describe('PL!SP-bp2-005 P/R 费用4「葉月 恋」', () => {
         cardIds: revealed.inspectionZone.cardIds.filter((id) => id !== selected.instanceId),
       },
     };
-    expect(chooseCard(stale)).toBe(stale);
-    expect(stale.players[0].hand.cardIds).not.toContain(selected.instanceId);
-    expect(stale.players[0].waitingRoom.cardIds).toEqual([]);
+    const staleResult = chooseCard(stale);
+    expect(staleResult.activeEffect?.stepId).toBe('SP_BP2_005_REVEAL_SELECTED_LIELLA_CARD');
+    expect(staleResult.players[0].hand.cardIds).not.toContain(selected.instanceId);
+    expect(staleResult.players[0].waitingRoom.cardIds).toEqual([]);
   });
 
   it('牌库不足7张与主卡组空但休息室可 refresh 都沿用 inspectTopCards，付费后无卡不退费', () => {

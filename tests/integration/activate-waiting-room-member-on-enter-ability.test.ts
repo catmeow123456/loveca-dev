@@ -20,6 +20,7 @@ import {
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import type { DeckConfig } from '../../src/application/game-service';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 const member: MemberCardData = { cardCode: 'PL!N-bp3-012-R', name: '鐘 嵐珠', groupNames: ['虹ヶ咲学園スクールアイドル同好会'], unitName: 'R3BIRTH', cardType: CardType.MEMBER, cost: 4, blade: 1, hearts: [createHeartIcon(HeartColor.PURPLE, 1)] };
 
@@ -159,9 +160,7 @@ describe('activate waiting-room member ON_ENTER ability', () => {
     );
     expect(reveal.success, reveal.error).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([selected.instanceId]);
-    const finish = session.executeCommand(
-      createConfirmEffectStepCommand('p1', session.state!.activeEffect!.id)
-    );
+    const finish = advancePublicRevealDwellIfNeeded(session)!;
     expect(finish.success, finish.error).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([selected.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([

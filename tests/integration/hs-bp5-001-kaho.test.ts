@@ -11,13 +11,12 @@ import {
   createHeartRequirement,
 } from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
-import {
-  createConfirmEffectStepCommand,
-  createPlayMemberToSlotCommand,
-} from '../../src/application/game-commands';
+import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import { HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
   GamePhase,
@@ -161,16 +160,13 @@ describe('HS-bp5-001 Kaho workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('HS_BP5_001_REVEAL_TOP_FOUR');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -276,14 +272,18 @@ describe('HS-bp5-001 Kaho workflow', () => {
     );
 
     const activeEffect = session.state?.activeEffect;
-    const milledCardIds = activeEffect?.metadata?.milledCardIds as readonly string[];
+    const startedAction = session.state?.actionHistory.find(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' && action.payload.step === 'MILL_TOP_CARDS'
+    );
+    const milledCardIds = startedAction?.payload.milledCardIds as readonly string[];
 
     expect(playResult.success).toBe(true);
     expect(milledCardIds).toHaveLength(4);
     expect(milledCardIds.slice(0, 3)).toEqual(initialTopCardIds);
-    expect(activeEffect?.metadata?.liveCardIds).toEqual([liveTop.instanceId]);
-    expect(activeEffect?.metadata?.bladeBonus).toBe(2);
-    expect(activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(startedAction?.payload.liveCardIds).toEqual([liveTop.instanceId]);
+    expect(startedAction?.payload.bladeBonus).toBe(2);
+    expect(startedAction?.payload.refreshCount).toBe(1);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(
       session.state?.actionHistory.some(
@@ -294,9 +294,7 @@ describe('HS-bp5-001 Kaho workflow', () => {
       )
     ).toBe(true);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwellIfNeeded(session)!;
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({

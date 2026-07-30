@@ -9,6 +9,7 @@ import { N_BP7_009_ON_ENTER_EACH_PLAYER_MILL_TOP_SEVEN_ABILITY_ID } from '../../
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsForPlayersWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -110,7 +111,7 @@ function resolveEachPlayerMillTopSeven(
   return startPendingActiveEffect(result.gameState, {
     ability,
     playerId: controller.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -129,7 +130,7 @@ function resolveEachPlayerMillTopSeven(
         revealOrderPlayerIds,
         currentRevealPlayerId: firstRevealResult.playerId,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'REVEAL_EACH_PLAYER_MILL_TOP_SEVEN',
@@ -175,7 +176,7 @@ function finishEachPlayerMillTopSevenResult(
     return addAction(
       {
         ...game,
-        activeEffect: {
+        activeEffect: withPublicRevealDwell({
           ...effect,
           stepText: getRevealStepText(nextRevealResult.playerId, controller.id),
           awaitingPlayerId: controller.id,
@@ -185,7 +186,7 @@ function finishEachPlayerMillTopSevenResult(
             ...effect.metadata,
             currentRevealPlayerId: nextRevealResult.playerId,
           },
-        },
+        }),
       },
       'RESOLVE_ABILITY',
       controller.id,

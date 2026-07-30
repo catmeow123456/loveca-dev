@@ -11,13 +11,12 @@ import {
   createHeartRequirement,
 } from '../../src/domain/entities/card';
 import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
-import {
-  createConfirmEffectStepCommand,
-  createPlayMemberToSlotCommand,
-} from '../../src/application/game-commands';
+import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import { HS_BP1_008_ON_ENTER_MILL_THREE_DRAW_IF_ALL_MEMBERS_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
   FaceState,
@@ -159,9 +158,7 @@ function setupOnEnter(options: {
 }
 
 function confirmActiveEffect(session: ReturnType<typeof createGameSession>): void {
-  const result = session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-  );
+  const result = advancePublicRevealDwellIfNeeded(session)!;
   expect(result.success).toBe(true);
 }
 
@@ -182,9 +179,7 @@ describe('PL!HS-bp1-008 Kosuzu workflow', () => {
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(
       topCards.slice(0, 3).map((card) => card.instanceId)
     );
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(
-      topCards.slice(0, 3).map((card) => card.instanceId)
-    );
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
       topCards.slice(0, 3).map((card) => card.instanceId)
@@ -263,7 +258,11 @@ describe('PL!HS-bp1-008 Kosuzu workflow', () => {
     });
 
     const activeEffect = session.state?.activeEffect;
-    const milledCardIds = activeEffect?.metadata?.milledCardIds;
+    const startedAction = session.state?.actionHistory.find(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' && action.payload.step === 'MILL_TOP_CARDS'
+    );
+    const milledCardIds = startedAction?.payload.milledCardIds;
 
     expect(milledCardIds).toEqual(expect.any(Array));
     expect(milledCardIds).toHaveLength(3);
@@ -275,8 +274,8 @@ describe('PL!HS-bp1-008 Kosuzu workflow', () => {
         (milledCardIds as readonly string[])[2]!
       )
     ).toBe(true);
-    expect(activeEffect?.metadata?.conditionMet).toBe(true);
-    expect(activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(startedAction?.payload.conditionMet).toBe(true);
+    expect(startedAction?.payload.refreshCount).toBe(1);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(
       session.state?.actionHistory.some(

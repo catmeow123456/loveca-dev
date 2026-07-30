@@ -24,6 +24,7 @@ import {
   S_BP2_007_AUTO_ON_CHEER_LIVE_HAND_SEVEN_OR_LESS_DRAW_ONE_ABILITY_ID,
   S_BP2_007_LIVE_START_REVEAL_HAND_LIVE_BOTTOM_ARRANGE_TOP_TWO_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
@@ -37,7 +38,6 @@ import {
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 const SELECT_HAND_LIVE_STEP_ID = 'S_BP2_007_SELECT_HAND_LIVE_TO_REVEAL';
-const PLACE_REVEALED_LIVE_BOTTOM_STEP_ID = 'S_BP2_007_PLACE_REVEALED_LIVE_DECK_BOTTOM';
 const ARRANGE_TOP_TWO_STEP_ID = 'S_BP2_007_ARRANGE_TOP_TWO';
 
 function member(cardCode: string): MemberCardData {
@@ -379,10 +379,8 @@ describe('PL!S-bp2-007 国木田花丸', () => {
     });
     const revealed = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id, handLive.instanceId);
     expect(revealed.activeEffect).toMatchObject({
-      stepId: PLACE_REVEALED_LIVE_BOTTOM_STEP_ID,
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: [handLive.instanceId],
-      confirmSelectionLabel: '放置到卡组底并继续',
-      selectableCardIds: undefined,
     });
     expect(revealed.activeEffect?.metadata?.confirmOnlyPendingAbility).toBeUndefined();
     const opponentView = projectPlayerViewState(revealed, PLAYER2);

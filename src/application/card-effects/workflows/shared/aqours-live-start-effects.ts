@@ -216,7 +216,7 @@ function startSd1009RevealHandTopBottomGainBlade(
   });
   if (selectableCardIds.length === 0) {
     return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
-      step: 'NO_AQOURS_HAND_CARD_TO_REVEAL',
+        step: 'NO_AQOURS_HAND_CARD_TO_REVEAL',
     });
   }
 
@@ -292,25 +292,19 @@ function revealSd1009HandCard(
     canSkipSelection: false,
     metadata: { revealedHandCardId: selectedCardId },
     actionPayload: { revealedHandCardId: selectedCardId },
+    effectChoice: {
+      mode: 'SINGLE',
+      options: [
+        { id: TOP_OPTION_ID, text: '将因此公开的卡放置到卡组顶。' },
+        { id: BOTTOM_OPTION_ID, text: '将因此公开的卡放置到卡组底。' },
+      ],
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
+    },
+    restoreNextEffectAfterPublicRevealDwell: true,
   });
-  return stateAfterReveal.activeEffect
-    ? {
-        ...stateAfterReveal,
-        activeEffect: {
-          ...stateAfterReveal.activeEffect,
-          effectChoice: {
-            mode: 'SINGLE',
-            options: [
-              { id: TOP_OPTION_ID, text: '将因此公开的卡放置到卡组顶。' },
-              { id: BOTTOM_OPTION_ID, text: '将因此公开的卡放置到卡组底。' },
-            ],
-            minSelections: 1,
-            maxSelections: 1,
-            publicConfirmation: true,
-          },
-        },
-      }
-    : stateAfterReveal;
+  return stateAfterReveal;
 }
 
 function finishSd1009MoveRevealedHandCard(
@@ -381,7 +375,7 @@ function startBp3025SelectAqoursMember(
   });
   if (selectableCardIds.length === 0) {
     return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
-      step: 'NO_AQOURS_STAGE_MEMBER',
+        step: 'NO_AQOURS_STAGE_MEMBER',
     });
   }
 
@@ -469,7 +463,7 @@ function startBp6004SelectLiveToDeckTop(
   }
   if (player.liveZone.cardIds.length < 2) {
     return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
-      step: 'LIVE_ZONE_LESS_THAN_TWO',
+        step: 'LIVE_ZONE_LESS_THAN_TWO',
     });
   }
 
@@ -478,7 +472,7 @@ function startBp6004SelectLiveToDeckTop(
   );
   if (selectableCardIds.length === 0) {
     return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
-      step: 'NO_NO_LIVE_START_AQOURS_LIVE',
+        step: 'NO_NO_LIVE_START_AQOURS_LIVE',
     });
   }
 
@@ -604,8 +598,8 @@ function startBp6019AllAqoursScoreDrawPlaceHand(
     });
   if (!allStageMembersAreAqours) {
     return skipPendingAbility(game, ability, player.id, orderedResolution, continuePendingCardEffects, {
-      step: 'NOT_ALL_STAGE_MEMBERS_AQOURS',
-      stageMemberCardIds,
+        step: 'NOT_ALL_STAGE_MEMBERS_AQOURS',
+        stageMemberCardIds,
     });
   }
 

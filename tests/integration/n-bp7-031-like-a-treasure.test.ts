@@ -12,6 +12,7 @@ import {
   SP_BP7_026_LIVE_START_RETURN_ONE_ENERGY_REN_DRAW_TWO_DISCARD_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   createCardInstance,
   createHeartIcon,
@@ -249,7 +250,7 @@ describe('PL!N-bp7-031-L 分数5「Like a Treasure」', () => {
     game = resolve(game);
     expect(game.activeEffect).toMatchObject({
       abilityId: LIVE_SUCCESS_ABILITY_ID,
-      stepId: 'N_BP7_031_REVEAL_MILLED_TOP_THREE',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: [
         scenario.nijiLive.instanceId,
         scenario.nijiMember.instanceId,

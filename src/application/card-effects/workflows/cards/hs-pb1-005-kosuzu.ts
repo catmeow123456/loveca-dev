@@ -9,6 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -139,7 +140,7 @@ function finishChooseNumberRevealTop(
   return addAction(
     {
       ...inspectResult.gameState,
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         ...effect,
         stepId: CONFIRM_REVEALED_TOP_STEP_ID,
         stepText: '卡组顶的卡已公开。确认后按选择的数字结算。',
@@ -150,7 +151,7 @@ function finishChooseNumberRevealTop(
           ...effect.metadata,
           selectedNumber,
         },
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     player.id,
@@ -187,9 +188,8 @@ function finishRevealedTopResolution(
   }
 
   const revealedCard = getCardById(game, revealedCardId);
-  const revealedMemberCost = revealedCard && isMemberCardData(revealedCard.data)
-    ? revealedCard.data.cost
-    : null;
+  const revealedMemberCost =
+    revealedCard && isMemberCardData(revealedCard.data) ? revealedCard.data.cost : null;
   const addToHand = revealedMemberCost !== null && revealedMemberCost >= selectedNumber;
   const gainBlade = revealedMemberCost !== null && revealedMemberCost <= selectedNumber;
 

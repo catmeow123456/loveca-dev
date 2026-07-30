@@ -11,6 +11,7 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import {
   PL_BP5_002_ON_ENTER_WAIT_DISCARD_LOOK_TOP_HIGH_COST_MUSE_MEMBER_ABILITY_ID,
@@ -152,8 +153,7 @@ describe('PL!-bp5 wait-discard look-top shared workflow', () => {
     ).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(target.instanceId);
     expect(
-      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id))
-        .success
+      advancePublicRevealDwellIfNeeded(session)?.success
     ).toBe(true);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(

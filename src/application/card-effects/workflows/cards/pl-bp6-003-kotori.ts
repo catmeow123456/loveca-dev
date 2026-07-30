@@ -232,30 +232,22 @@ function revealKotoriHandMember(
     metadata: {
       revealedCardId: selectedCardId,
     },
-  });
-  if (state === game || !state.activeEffect) {
-    return state;
-  }
-  return {
-    ...state,
-    activeEffect: {
-      ...state.activeEffect,
-      selectableOptions: undefined,
-      effectChoice: {
-        mode: 'SINGLE',
-        options: HEART_COLOR_OPTIONS.map((color) => ({
-          id: color,
-          text: `此成员获得${HEART_COLOR_TOKENS[color]}。`,
-        })),
-        minSelections: 1,
-        maxSelections: 1,
-        publicConfirmation: true,
-      },
-      selectionLabel: '选择Heart颜色',
-      confirmSelectionLabel: '获得Heart',
-      canSkipSelection: false,
+    effectChoice: {
+      mode: 'SINGLE',
+      options: HEART_COLOR_OPTIONS.map((color) => ({
+        id: color,
+        text: `此成员获得${HEART_COLOR_TOKENS[color]}。`,
+      })),
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
     },
-  };
+    selectionLabel: '选择Heart颜色',
+    confirmSelectionLabel: '获得Heart',
+    canSkipSelection: false,
+    restoreNextEffectAfterPublicRevealDwell: true,
+  });
+  return state;
 }
 
 function finishKotoriLiveStart(

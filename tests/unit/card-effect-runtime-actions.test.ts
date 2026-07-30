@@ -51,6 +51,11 @@ import {
   revealHandCardForActiveEffect,
   revealHandCardsForActiveEffect,
 } from '../../src/application/card-effects/runtime/active-effect';
+import {
+  PUBLIC_REVEAL_DWELL_STEP_ID,
+  resolvePublicRevealDwellStep,
+} from '../../src/application/card-effects/runtime/public-reveal-dwell';
+import type { ActiveEffectStepHandlerContext } from '../../src/application/card-effects/runtime/step-registry';
 import { getNewMemberSlotMovedEvents } from '../../src/application/card-effects/runtime/events';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
@@ -1182,15 +1187,11 @@ describe('card effect runtime actions', () => {
       actionPayload: { revealedHandCardId: cardIds[1] },
     });
 
-    expect(result.activeEffect?.stepId).toBe('CONFIRM_REVEALED');
+    expect(result.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(result.activeEffect?.stepText).toBe('已公开手牌');
     expect(result.activeEffect?.revealedCardIds).toEqual([cardIds[1]]);
-    expect(result.activeEffect?.selectableCardIds).toEqual([]);
-    expect(result.activeEffect?.selectableCardVisibility).toBe('PUBLIC');
-    expect(result.activeEffect?.metadata).toEqual({
-      orderedResolution: true,
-      revealedHandCardId: cardIds[1],
-    });
+    expect(result.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(result.activeEffect?.selectableCardVisibility).toBeUndefined();
     expect(result.actionHistory.at(-1)?.payload).toMatchObject({
       pendingAbilityId: 'effect-1',
       abilityId: 'test:reveal-hand',
@@ -1200,7 +1201,7 @@ describe('card effect runtime actions', () => {
     });
   });
 
-  it('preserves and deduplicates existing active-effect revealed hand cards', () => {
+  it('shows only the newly revealed hand-card batch in the public dwell', () => {
     const state = createMutableState();
     const cardIds = ownedMemberIds(state, PLAYER1, 3);
     setPlayerZones(state, 0, { handCardIds: cardIds, mainDeckCardIds: [] });
@@ -1218,7 +1219,13 @@ describe('card effect runtime actions', () => {
       actionStep: 'REVEAL_HAND_CARD',
     });
 
-    expect(result.activeEffect?.revealedCardIds).toEqual([cardIds[0], cardIds[1]]);
+    expect(result.activeEffect?.revealedCardIds).toEqual([cardIds[1]]);
+    const restored = resolvePublicRevealDwellStep(
+      result,
+      {} as ActiveEffectStepHandlerContext,
+      (restoredGame) => restoredGame
+    );
+    expect(restored.activeEffect?.revealedCardIds).toEqual([cardIds[0], cardIds[1]]);
   });
 
   it('reveals multiple hand cards in one action and clears prior selection fields', () => {
@@ -1250,10 +1257,8 @@ describe('card effect runtime actions', () => {
     });
 
     expect(result.activeEffect).toMatchObject({
-      stepId: 'CONFIRM_REVEALED_MULTI',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: [cardIds[2], cardIds[0]],
-      selectionLabel: '公开的卡片',
-      confirmSelectionLabel: '确认公开结果',
     });
     expect(result.activeEffect?.selectableCardIds).toBeUndefined();
     expect(result.activeEffect?.selectableCardVisibility).toBeUndefined();

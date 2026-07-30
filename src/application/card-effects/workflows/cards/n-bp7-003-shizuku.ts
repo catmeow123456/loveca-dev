@@ -22,6 +22,7 @@ import {
 } from '../../runtime/actions.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -141,7 +142,7 @@ function startActivatedShizuku(
   return addAction(
     {
       ...state,
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         id: effectId,
         abilityId: N_BP7_003_ACTIVATED_MILL_FIVE_STACK_MEMBER_COPY_PRINTED_HEARTS_ABILITY_ID,
         sourceCardId,
@@ -159,7 +160,7 @@ function startActivatedShizuku(
           milledCardIds: millResult.movedCardIds,
           refreshCount: millResult.refreshCount,
         },
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     playerId,

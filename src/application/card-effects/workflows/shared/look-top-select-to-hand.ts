@@ -34,6 +34,7 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
@@ -960,10 +961,11 @@ function revealLookTopSelectToHandSelection(
         ...game.inspectionZone,
         revealedCardIds,
       },
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         ...effect,
         stepId: metadata.revealStepId,
         stepText: metadata.revealStepText,
+        revealedCardIds: selectedCardIds,
         selectableCardIds: [],
         selectableCardVisibility: undefined,
         selectableCardMode: undefined,
@@ -978,7 +980,7 @@ function revealLookTopSelectToHandSelection(
           selectedCardIds,
           selectedCardId: selectedCardIds[0] ?? null,
         },
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     effect.controllerId,

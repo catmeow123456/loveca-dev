@@ -41,11 +41,7 @@ export function registerMakiOnEnterWorkflowHandlers(): void {
     MAKI_SELECT_HAND_LIVE_STEP_ID,
     (game, input, context) =>
       input.selectedCardId
-        ? startMakiSelectSuccessLive(
-            game,
-            input.selectedCardId,
-            context.continuePendingCardEffects
-          )
+        ? startMakiSelectSuccessLive(game, input.selectedCardId, context.continuePendingCardEffects)
         : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
@@ -140,6 +136,7 @@ function startMakiSelectSuccessLive(
     actionPayload: {
       handLiveCardId,
     },
+    restoreNextEffectAfterPublicRevealDwell: selectableSuccessLiveCardIds.length > 0,
   });
 }
 

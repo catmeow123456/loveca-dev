@@ -265,6 +265,10 @@ export interface ConfirmEffectStepCommand extends BaseGameCommand {
   readonly publicCardSelectionAutoAdvanceAt?: number;
   /** 效果选项公开展示自动推进的预期 deadline；普通确认不携带。 */
   readonly publicEffectChoiceAutoAdvanceAt?: number;
+  /** 通用公开卡牌展示自动推进的预期 deadline；普通确认不携带。 */
+  readonly publicRevealAutoAdvanceAt?: number;
+  /** 通用公开卡牌展示自动推进的预期唯一代数。 */
+  readonly publicRevealGeneration?: string;
   readonly selectedCardId?: string | null;
   readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: SlotPosition | null;
@@ -875,6 +879,22 @@ export function createAutoAdvancePublicCardSelectionCommand(
     playerId,
     effectId,
     publicCardSelectionAutoAdvanceAt: expectedDeadline,
+    timestamp: Date.now(),
+  };
+}
+
+export function createAutoAdvancePublicRevealCommand(
+  playerId: string,
+  effectId: string,
+  expectedDeadline: number,
+  expectedGeneration: string
+): ConfirmEffectStepCommand {
+  return {
+    type: GameCommandType.CONFIRM_EFFECT_STEP,
+    playerId,
+    effectId,
+    publicRevealAutoAdvanceAt: expectedDeadline,
+    publicRevealGeneration: expectedGeneration,
     timestamp: Date.now(),
   };
 }

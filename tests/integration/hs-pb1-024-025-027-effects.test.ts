@@ -1,4 +1,5 @@
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
 import {
@@ -215,15 +216,12 @@ describe('PL!HS-pb1-027-L optional direct mill', () => {
       ).success
     ).toBe(true);
     expect(session.state?.activeEffect).toMatchObject({
-      stepId: 'HS_PB1_027_REVEAL_MILLED_TOP_FOUR',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: topCardIds,
     });
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
 
-    expect(
-      session.executeCommand(createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id))
-        .success
-    ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.activeEffect).toBeNull();
   });
 

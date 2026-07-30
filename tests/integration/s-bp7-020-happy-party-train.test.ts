@@ -27,6 +27,7 @@ import {
   S_BP7_020_LIVE_START_ALL_STAGE_MEMBERS_ACTIVE_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
   S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -149,7 +150,18 @@ function confirm(game: GameState): GameState {
   const waiting = resolvePendingCardEffects(game).gameState;
   if (waiting.activeEffect?.abilityId === MILL_ABILITY) {
     expect(waiting.activeEffect.metadata?.confirmOnlyPendingAbility).not.toBe(true);
-    expect(waiting.activeEffect.stepId).toBe('S_BP7_020_REVEAL_MILLED_BOTTOM_ONE');
+    expect(waiting.activeEffect.stepId).toBe(
+      (waiting.activeEffect.revealedCardIds?.length ?? 0) > 0
+        ? PUBLIC_REVEAL_DWELL_STEP_ID
+        : 'S_BP7_020_REVEAL_MILLED_BOTTOM_ONE'
+    );
+    expect(
+      waiting.actionHistory.findLast((action) => action.payload.step === 'MILL_BOTTOM_CARDS')
+        ?.payload
+    ).toMatchObject({
+      movedCardIds: waiting.activeEffect.revealedCardIds ?? [],
+      refreshCount: expect.any(Number),
+    });
   } else {
     expect(waiting.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
   }
@@ -263,7 +275,7 @@ describe('PL!S-bp7-020-SECL 分数3「快乐派对火车」', () => {
     expect(revealed.players[0].waitingRoom.cardIds).toEqual([bottom.instanceId]);
     expect(revealed.activeEffect?.revealedCardIds).toEqual([bottom.instanceId]);
     expect(revealed.activeEffect?.stepText).toContain('这张卡为『Aqours』成员卡');
-    expect(revealed.activeEffect?.stepText).toContain('确认后此LIVE所需的[無ハート]减少1个');
+    expect(revealed.activeEffect?.stepText).toContain('展示结束后此LIVE所需的[無ハート]减少1个');
     expect(requirementModifiers(revealed)).toEqual([]);
     for (const viewerId of [P1, P2]) {
       expect(projectPlayerViewState(revealed, viewerId).activeEffect?.revealedObjectIds).toEqual([

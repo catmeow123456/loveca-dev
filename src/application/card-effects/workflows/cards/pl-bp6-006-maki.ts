@@ -23,6 +23,7 @@ import {
   moveInspectedCardsToWaitingRoomAndEnqueueTriggers,
   moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers,
 } from '../../runtime/inspection-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -280,7 +281,7 @@ function finishBp6006ChooseColor(game: GameState, selectedOptionId: string | nul
   return addAction(
     {
       ...inspection.gameState,
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         ...effect,
         stepId: BP6_006_CONFIRM_REVEALED_RESULT_STEP_ID,
         stepText: formatBp6006RevealResultStepText({
@@ -306,7 +307,7 @@ function finishBp6006ChooseColor(game: GameState, selectedOptionId: string | nul
           matchingColorCardIds,
           museCandidateCardIds,
         },
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     player.id,

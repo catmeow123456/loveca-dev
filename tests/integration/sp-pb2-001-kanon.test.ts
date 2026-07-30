@@ -19,6 +19,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import { SP_PB2_001_ON_ENTER_DISCARD_LOOK_TOP_LOW_COST_LIELLA_MEMBER_PLAY_OR_HAND_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import {
   CardType,
@@ -37,6 +38,15 @@ function confirmActiveEffectStep(
   ...args: Parameters<typeof confirmActiveEffectStepImmediate>
 ): GameState {
   return continuePublicEffectChoiceForTest(confirmActiveEffectStepImmediate(...args), args[1]);
+}
+
+function advancePublicRevealDwell(game: GameState): GameState {
+  expect(game.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  return confirmActiveEffectStepImmediate(
+    game,
+    game.activeEffect!.awaitingPlayerId,
+    game.activeEffect!.id
+  );
 }
 
 function createMember(
@@ -258,6 +268,7 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.eligibleId);
     expect(state.activeEffect?.revealedCardIds).toEqual([scenario.eligibleId]);
     expect(state.activeEffect?.selectableCardIds).toBeUndefined();
+    state = advancePublicRevealDwell(state);
     state = confirmActiveEffectStep(
       state,
       PLAYER1,
@@ -289,6 +300,7 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
     );
 
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.eligibleId);
+    state = advancePublicRevealDwell(state);
     state = confirmActiveEffectStep(
       state,
       PLAYER1,
@@ -339,10 +351,8 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
     state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.eligibleId);
 
     expect(state.activeEffect).toMatchObject({
-      stepId: 'SP_PB2_001_REVEAL_SELECTED_TO_HAND',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: [scenario.eligibleId],
-      selectableCardIds: [],
-      confirmSelectionLabel: '加入手牌',
     });
     expect(state.players[0].hand.cardIds).toEqual([]);
     expect(state.inspectionZone.cardIds).toContain(scenario.eligibleId);
@@ -358,7 +368,7 @@ describe('PL!SP-pb2-001 Kanon discard look top play or hand', () => {
       });
     }
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id);
+    state = advancePublicRevealDwell(state);
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).toEqual([scenario.eligibleId]);

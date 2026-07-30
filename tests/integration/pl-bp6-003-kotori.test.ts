@@ -10,10 +10,12 @@ import {
 import { addMemberBelowMember, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   createAutoAdvancePublicEffectChoiceCommand,
+  createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   BP6_003_LIVE_START_CENTER_REVEAL_LOW_COST_MUSE_MEMBER_STACK_GAIN_HEART_ABILITY_ID,
   BP6_003_LIVE_SUCCESS_PLAY_MEMBER_BELOW_LOW_COST_MUSE_ABILITY_ID,
@@ -145,6 +147,28 @@ function confirmEffect(
   );
 }
 
+function advancePublicRevealDwell(session: ReturnType<typeof createSessionWithState>) {
+  const effect = session.state!.activeEffect!;
+  expect(effect.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  expect(effect.publicRevealGeneration).toEqual(expect.any(String));
+
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: {
+      ...effect,
+      publicRevealAutoAdvanceAt: 0,
+    },
+  };
+  return session.executeCommand(
+    createAutoAdvancePublicRevealCommand(
+      effect.awaitingPlayerId,
+      effect.id,
+      0,
+      effect.publicRevealGeneration!
+    )
+  );
+}
+
 function confirmEffectChoice(
   session: ReturnType<typeof createSessionWithState>,
   selectedOptionId: string
@@ -214,7 +238,25 @@ describe('PL!-bp6-003 Kotori memberBelow workflow', () => {
     });
 
     expect(confirmEffect(session, handMember.instanceId).success).toBe(true);
-    expect(session.state?.activeEffect?.revealedCardIds).toEqual([handMember.instanceId]);
+    const publicReveal = session.state!.activeEffect!;
+    expect(publicReveal).toMatchObject({
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+      revealedCardIds: [handMember.instanceId],
+    });
+    expect(session.state?.players[0].hand.cardIds).toContain(handMember.instanceId);
+    expect(session.state?.liveResolution.liveModifiers).toEqual([]);
+
+    const earlyAdvance = session.executeCommand({
+      ...createConfirmEffectStepCommand(PLAYER1, publicReveal.id),
+      publicRevealAutoAdvanceAt: publicReveal.publicRevealAutoAdvanceAt,
+      publicRevealGeneration: publicReveal.publicRevealGeneration,
+    });
+    expect(earlyAdvance.success).toBe(false);
+    expect(earlyAdvance.error).toBe('公开卡牌展示尚未结束');
+    expect(session.state?.players[0].hand.cardIds).toContain(handMember.instanceId);
+
+    const advance = advancePublicRevealDwell(session);
+    expect(advance.success, advance.error).toBe(true);
     expect(session.state?.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
       HeartColor.PINK,
       HeartColor.RED,

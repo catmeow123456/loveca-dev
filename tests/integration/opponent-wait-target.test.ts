@@ -19,6 +19,7 @@ import {
   S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   S_BP6_015_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -909,7 +910,8 @@ describe('opponent wait target shared workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual(
       topCards.map((card) => card.instanceId)
     );
   });

@@ -15,6 +15,7 @@ import { countCardsMatchingSelector } from '../../../effects/conditions.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { S_BP7_021_LIVE_START_STAGE_THREE_MILL_BOTTOM_FIVE_MEMBER_REWARDS_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveBottomDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
@@ -130,7 +131,7 @@ function startBokuraNoTabiWaOwaranaiReveal(
   return startPendingActiveEffect(moveResult.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -149,7 +150,7 @@ function startBokuraNoTabiWaOwaranaiReveal(
         fullMove,
         refreshCount: moveResult.refreshCount,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'MILL_BOTTOM_CARDS',

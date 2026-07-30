@@ -795,10 +795,7 @@ describe('PL!SP-bp5-005 Ren activated and auto workflows', () => {
       )
     );
     expect(selectResult.success).toBe(true);
-    const revealConfirmResult = scenario.session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-    );
-    expect(revealConfirmResult.success).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
     const remainderCardIds = topCards.slice(1).map((card) => card.instanceId);
     expect(scenario.session.state?.activeEffect).toMatchObject({
       abilityId: SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,

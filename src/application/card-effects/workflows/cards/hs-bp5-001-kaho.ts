@@ -40,6 +40,7 @@ import {
 import { finishWaitingRoomToHandWorkflow } from '../shared/waiting-room-to-hand.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 
 const HS_BP5_001_SELECT_HAND_LIVE_STEP_ID = 'HS_BP5_001_SELECT_HAND_LIVE_TO_REVEAL';
 const HS_BP5_001_REVEAL_HAND_LIVE_STEP_ID = 'HS_BP5_001_REVEAL_HAND_LIVE';
@@ -148,7 +149,7 @@ function startHsBp5KahoOnEnterMillGainBladeInspection(
     pendingAbilities: millResult.gameState.pendingAbilities.filter(
       (candidate) => candidate.id !== ability.id
     ),
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -166,7 +167,7 @@ function startHsBp5KahoOnEnterMillGainBladeInspection(
         bladeBonus,
         refreshCount: millResult.refreshCount,
       },
-    },
+    }),
   };
 
   return addAction(state, 'RESOLVE_ABILITY', player.id, {

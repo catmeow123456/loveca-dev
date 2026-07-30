@@ -14,6 +14,7 @@ import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
 import { S_BP7_020_LIVE_START_MILL_BOTTOM_ONE_AQOURS_MEMBER_REDUCE_COLORLESS_REQUIREMENT_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveBottomDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -97,7 +98,7 @@ function startHappyPartyTrainBottomMillReveal(
   return startPendingActiveEffect(moveResult.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -114,7 +115,7 @@ function startHappyPartyTrainBottomMillReveal(
         conditionMet,
         refreshCount: moveResult.refreshCount,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'MILL_BOTTOM_CARDS',

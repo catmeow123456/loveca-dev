@@ -7,6 +7,7 @@ import {
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { NOZOMI_ON_ENTER_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -73,7 +74,7 @@ function startNozomiOnEnterInspection(
   return startPendingActiveEffect(millResult.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -90,7 +91,7 @@ function startNozomiOnEnterInspection(
         hasMilledLiveCard,
         refreshCount: millResult.refreshCount,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'MILL_TOP_CARDS',

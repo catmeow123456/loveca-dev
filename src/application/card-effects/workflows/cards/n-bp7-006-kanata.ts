@@ -29,6 +29,10 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveExactTopDeckCardsToWaitingRoomAsCostAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import {
+  createPublicRevealDwellBeforeNextEffect,
+  withPublicRevealDwell,
+} from '../../runtime/public-reveal-dwell.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -203,7 +207,7 @@ function startMillTopThree(
     return addAction(
       {
         ...millResult.gameState,
-        activeEffect: {
+        activeEffect: withPublicRevealDwell({
           id: effectId,
           abilityId,
           sourceCardId,
@@ -220,7 +224,7 @@ function startMillTopThree(
             refreshCount: millResult.refreshCount,
             conditionMet: false,
           },
-        },
+        }),
       },
       'RESOLVE_ABILITY',
       player.id,
@@ -237,9 +241,9 @@ function startMillTopThree(
 
   const effectId = `${abilityId}:${sourceCardId}:turn-${millResult.gameState.turnCount}:action-${millResult.gameState.actionHistory.length}`;
   return addAction(
-    {
-      ...millResult.gameState,
-      activeEffect: {
+    createPublicRevealDwellBeforeNextEffect(
+      millResult.gameState,
+      {
         id: effectId,
         abilityId,
         sourceCardId,
@@ -275,7 +279,8 @@ function startMillTopThree(
           conditionMet: true,
         },
       },
-    },
+      { revealedCardIds: millResult.movedCardIds }
+    ),
     'RESOLVE_ABILITY',
     player.id,
     {

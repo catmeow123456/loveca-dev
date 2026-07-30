@@ -11,22 +11,17 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import {
-  SlotPosition,
-  TriggerCondition,
-  ZoneType,
-} from '../../../../shared/types/enums.js';
+import { SlotPosition, TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
 import { KARIN_LIVE_START_ABILITY_ID } from '../../ability-ids.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import { moveMemberBetweenSlotsAndEnqueueTriggers } from '../../runtime/member-slot-moved-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import {
-  inspectTopCards,
-} from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 
 export const KARIN_REVEAL_STEP_ID = 'KARIN_REVEAL_TOP_CARD';
 export const KARIN_POSITION_CHANGE_STEP_ID = 'KARIN_POSITION_CHANGE';
@@ -118,7 +113,7 @@ function startKarinLiveStartInspection(
   return startPendingActiveEffect(gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -128,11 +123,12 @@ function startKarinLiveStartInspection(
       stepText: '卡组顶1张已公开。确认后费用9以下成员加入手牌；否则放入休息室。',
       awaitingPlayerId: player.id,
       inspectionCardIds: inspectedCardIds,
+      revealedCardIds: inspectedCardIds,
       metadata: {
         sourceZone: ZoneType.MAIN_DECK,
         orderedResolution,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_INSPECTION',

@@ -14,6 +14,7 @@ import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -175,11 +176,14 @@ describe('PL!-bp3-022-L ユメノトビラ live-start reveal workflow', () => {
 
       expect(started.activeEffect).toMatchObject({
         abilityId: PL_BP3_022_LIVE_START_REVEAL_PER_STAGE_MEMBER_GAIN_LIVE_SCORE_ABILITY_ID,
+        stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
         revealedCardIds: scenario.deckCards.map((card) => card.instanceId),
-        selectableCardVisibility: 'PUBLIC',
-        confirmSelectionLabel: '确认公开结果',
       });
-      expect(started.activeEffect?.metadata?.stageMemberCount).toBe(3);
+      expect(
+        started.actionHistory.find(
+          (action) => action.payload.step === 'START_REVEAL_TOP_PER_STAGE_MEMBER'
+        )?.payload.stageMemberCount
+      ).toBe(3);
       expect(started.inspectionZone.revealedCardIds).toEqual(
         scenario.deckCards.map((card) => card.instanceId)
       );
@@ -218,10 +222,14 @@ describe('PL!-bp3-022-L ユメノトビラ live-start reveal workflow', () => {
     }));
 
     const started = start(changed);
-    expect(started.activeEffect?.inspectionCardIds).toEqual(
+    expect(started.activeEffect?.revealedCardIds).toEqual(
       scenario.deckCards.slice(0, 2).map((card) => card.instanceId)
     );
-    expect(started.activeEffect?.metadata?.stageMemberCount).toBe(2);
+    expect(
+      started.actionHistory.find(
+        (action) => action.payload.step === 'START_REVEAL_TOP_PER_STAGE_MEMBER'
+      )?.payload.stageMemberCount
+    ).toBe(2);
   });
 
   it('keeps the reveal-to-waiting movement atomic, with one MAIN_DECK event and no duplicate resolution', () => {
@@ -259,7 +267,7 @@ describe('PL!-bp3-022-L ユメノトビラ live-start reveal workflow', () => {
       waitingTypes: [CardType.MEMBER, CardType.LIVE],
     });
     const refreshedStarted = start(refreshed.game);
-    expect(refreshedStarted.activeEffect?.inspectionCardIds).toHaveLength(3);
+    expect(refreshedStarted.activeEffect?.revealedCardIds).toHaveLength(3);
     expect(
       refreshedStarted.actionHistory.some(
         (action) => action.type === 'RULE_ACTION' && action.payload.type === 'REFRESH'
@@ -272,13 +280,13 @@ describe('PL!-bp3-022-L ユメノトビラ live-start reveal workflow', () => {
       waitingTypes: [CardType.MEMBER],
     });
     const shortStarted = start(short.game);
-    expect(shortStarted.activeEffect?.inspectionCardIds).toHaveLength(2);
+    expect(shortStarted.activeEffect?.revealedCardIds).toHaveLength(2);
     const resolvedShort = confirm(shortStarted);
     expect(resolvedShort.liveResolution.playerScores.get(PLAYER1)).toBe(1);
     expect(inspectionWaitingRoomEvents(resolvedShort)[0]?.cardInstanceIds).toHaveLength(2);
   });
 
-  it('rejects a non-controller confirmation and a stale inspection without partial movement', () => {
+  it('rejects a non-controller confirmation and consumes a stale inspection without partial movement', () => {
     const scenario = setup();
     const started = start(scenario.game);
     expect(confirm(started, PLAYER2)).toBe(started);
@@ -288,8 +296,19 @@ describe('PL!-bp3-022-L ユメノトビラ live-start reveal workflow', () => {
       inspectionZone: { ...started.inspectionZone, cardIds: [] },
     };
     const staleAttempt = confirm(stale);
-    expect(staleAttempt).toBe(stale);
+    expect(staleAttempt.activeEffect).toBeNull();
+    expect(staleAttempt.pendingAbilities).toEqual([]);
     expect(getPlayer(staleAttempt, PLAYER1).waitingRoom.cardIds).toEqual([]);
+    expect(staleAttempt.liveResolution.liveModifiers).toEqual([]);
+    expect(staleAttempt.liveResolution.playerScores.get(PLAYER1) ?? 0).toBe(0);
+    expect(
+      staleAttempt.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.step === 'STALE_REVEALED_CARDS_NO_SCORE' &&
+          action.payload.scoreBonus === 0
+      )
+    ).toBe(true);
   });
 
   it('supports manual source selection among multiple pending reveals, then continues the remaining reveal without duplicate events', () => {

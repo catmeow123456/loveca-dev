@@ -23,6 +23,7 @@ import {
 import {
   moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers,
 } from '../../runtime/inspection-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -296,7 +297,7 @@ function revealHonokaCardsUntilChosen(
   return addAction(
     {
       ...revealResult.gameState,
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         ...effect,
         stepId: CONFIRM_REVEALED_CARDS_STEP_ID,
         stepText: formatRevealConfirmationStepText(revealResult, mode),
@@ -313,7 +314,7 @@ function revealHonokaCardsUntilChosen(
           inspectedCardIds: revealResult.inspectedCardIds,
           hitCardId: revealResult.hitCardId,
         },
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     player.id,

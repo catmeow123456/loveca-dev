@@ -13,6 +13,7 @@ import {
   CardAbilitySourceZone,
 } from '../../src/application/card-effects/ability-definition-types';
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   createCardInstance,
   createHeartIcon,
@@ -242,11 +243,8 @@ describe('PL!SP-bp7-003-SEC 费用10「岚千砂都」', () => {
       scenario.cost20.instanceId
     );
     expect(revealed.activeEffect).toMatchObject({
-      stepId: 'SP_BP7_003_REVEAL_HAND_MEMBER_COST',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: [scenario.cost20.instanceId],
-      selectableCardIds: [],
-      selectableCardVisibility: 'PUBLIC',
-      confirmSelectionLabel: '放置于成员下方',
     });
     expect(revealed.players[0].hand.cardIds).toContain(scenario.cost20.instanceId);
     expect(revealed.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
@@ -360,9 +358,16 @@ describe('PL!SP-bp7-003-SEC 费用10「岚千砂都」', () => {
       ...player,
       memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
     }));
-    expect(confirmActiveEffectStep(sourceStale, P1, sourceStale.activeEffect!.id)).toBe(
-      sourceStale
+    const sourceStaleResult = confirmActiveEffectStep(
+      sourceStale,
+      P1,
+      sourceStale.activeEffect!.id
     );
+    expect(sourceStaleResult.activeEffect?.stepId).toBe('SP_BP7_003_REVEAL_HAND_MEMBER_COST');
+    expect(sourceStaleResult.players[0].mainDeck.cardIds).toEqual([
+      scenario.drawOne.instanceId,
+      scenario.drawTwo.instanceId,
+    ]);
 
     const handStale = updatePlayer(revealed, P1, (player) => ({
       ...player,
@@ -373,7 +378,6 @@ describe('PL!SP-bp7-003-SEC 费用10「岚千砂都」', () => {
       waitingRoom: addCardToStatefulZone(player.waitingRoom, scenario.cost10.instanceId),
     }));
     const result = confirmActiveEffectStep(handStale, P1, handStale.activeEffect!.id);
-    expect(result).toBe(handStale);
     expect(result.activeEffect?.stepId).toBe('SP_BP7_003_REVEAL_HAND_MEMBER_COST');
     expect(result.players[0].mainDeck.cardIds).toEqual([
       scenario.drawOne.instanceId,

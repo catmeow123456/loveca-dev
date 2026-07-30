@@ -17,7 +17,10 @@ import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { createEnterStageEvent } from '../../src/domain/events/game-events';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
-import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import {
+  advancePublicRevealDwellIfNeeded,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import {
@@ -243,6 +246,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
     );
     expect(reveal.success, reveal.error).toBe(true);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual([aqoursHand.instanceId]);
+    advancePublicRevealDwellIfNeeded(session);
 
     const move = session.executeCommand(
       createConfirmEffectStepCommand(

@@ -10,9 +10,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import { replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
-import { inspectTopCards } from '../../../effects/look-top.js';
+import { clearInspectionCards, inspectTopCards } from '../../../effects/look-top.js';
 import { PL_BP3_022_LIVE_START_REVEAL_PER_STAGE_MEMBER_GAIN_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveInspectedCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -88,7 +89,7 @@ function startYumeNoTobiraLiveStart(
   return startPendingActiveEffect(inspection.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -108,7 +109,7 @@ function startYumeNoTobiraLiveStart(
         orderedResolution,
         stageMemberCount,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_REVEAL_TOP_PER_STAGE_MEMBER',
@@ -133,12 +134,42 @@ function finishYumeNoTobiraReveal(
   }
   const player = getPlayerById(game, effect.controllerId);
   const revealedCardIds = effect.inspectionCardIds ?? [];
+  if (!player) {
+    return game;
+  }
   if (
-    !player ||
     revealedCardIds.length === 0 ||
     revealedCardIds.some((cardId) => !game.inspectionZone.cardIds.includes(cardId))
   ) {
-    return game;
+    const remainingInspectionCardIds = revealedCardIds.filter((cardId) =>
+      game.inspectionZone.cardIds.includes(cardId)
+    );
+    const cleanupResult =
+      remainingInspectionCardIds.length > 0
+        ? moveInspectedCardsToWaitingRoomAndEnqueueTriggers(
+            { ...game, activeEffect: null },
+            player.id,
+            remainingInspectionCardIds,
+            enqueueTriggeredCardEffects
+          )
+        : null;
+    const state = clearInspectionCards(
+      cleanupResult?.gameState ?? { ...game, activeEffect: null },
+      revealedCardIds
+    );
+    return continuePendingCardEffects(
+      addAction(state, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'STALE_REVEALED_CARDS_NO_SCORE',
+        stageMemberCount: effect.metadata?.stageMemberCount,
+        revealedCardIds,
+        waitingRoomCardIds: cleanupResult?.waitingRoomCardIds ?? [],
+        scoreBonus: 0,
+      }),
+      effect.metadata?.orderedResolution === true
+    );
   }
 
   const revealedLiveCardIds = revealedCardIds.filter((cardId) => {
@@ -156,7 +187,9 @@ function finishYumeNoTobiraReveal(
   }
 
   const sourceInLiveZone =
-    getPlayerById(moveResult.gameState, player.id)?.liveZone.cardIds.includes(effect.sourceCardId) === true;
+    getPlayerById(moveResult.gameState, player.id)?.liveZone.cardIds.includes(
+      effect.sourceCardId
+    ) === true;
   const scoreUpdate = replaceSourceScoreModifier(moveResult.gameState, {
     playerId: player.id,
     sourceCardId: effect.sourceCardId,

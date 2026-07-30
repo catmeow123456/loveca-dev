@@ -17,6 +17,8 @@ import { resolvePendingCardEffects } from '../../src/application/card-effect-run
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { PL_N_BP1_011_ON_ENTER_OPTIONAL_DISCARD_REVEAL_UNTIL_LIVE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
   FaceState,
@@ -128,11 +130,8 @@ describe('PL!N-bp1-011 Mia Taylor on-enter reveal until LIVE', () => {
     const session = sessionWithState(started);
     expect(submit(session, cost.instanceId).success).toBe(true);
     expect(session.state?.activeEffect).toMatchObject({
-      stepId: 'PL_N_BP1_011_CONFIRM_REVEALED_CARDS',
-      inspectionCardIds: [first.instanceId, second.instanceId, hit.instanceId],
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: [first.instanceId, second.instanceId, hit.instanceId],
-      selectionLabel: '公开的卡片',
-      confirmSelectionLabel: '确认公开结果',
     });
     expect(session.state?.activeEffect?.selectableCardIds).toBeUndefined();
     expect(session.state?.activeEffect?.selectableCardMode).toBeUndefined();
@@ -153,7 +152,7 @@ describe('PL!N-bp1-011 Mia Taylor on-enter reveal until LIVE', () => {
       ]);
     }
 
-    expect(submit(session).success).toBe(true);
+    expect(advancePublicRevealDwellIfNeeded(session)?.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([hit.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
@@ -184,7 +183,7 @@ describe('PL!N-bp1-011 Mia Taylor on-enter reveal until LIVE', () => {
       'PL_N_BP1_011_SELECT_HAND_CARD_TO_DISCARD'
     );
     expect(submit(forgedSession, cost.instanceId).success).toBe(true);
-    expect(forgedSession.state?.activeEffect?.inspectionCardIds).toEqual([hit.instanceId]);
+    expect(forgedSession.state?.activeEffect?.revealedCardIds).toEqual([hit.instanceId]);
     expect(forgedSession.state?.players[0].mainDeck.cardIds).toEqual([after.instanceId]);
 
     const declineStarted = resolvePendingCardEffects(setup().game).gameState;
@@ -207,10 +206,9 @@ describe('PL!N-bp1-011 Mia Taylor on-enter reveal until LIVE', () => {
     ).gameState;
     const noLiveSession = sessionWithState(noLiveStarted);
     expect(submit(noLiveSession, cost.instanceId).success).toBe(true);
-    const inspected = noLiveSession.state!.activeEffect!.inspectionCardIds!;
+    const inspected = noLiveSession.state!.inspectionZone.cardIds;
     expect(new Set(inspected)).toEqual(new Set([first.instanceId, waiting.instanceId, cost.instanceId]));
-    expect(noLiveSession.state?.activeEffect?.metadata?.hitCardId).toBeNull();
-    expect(submit(noLiveSession).success).toBe(true);
+    expect(advancePublicRevealDwellIfNeeded(noLiveSession)?.success).toBe(true);
     expect(noLiveSession.state?.players[0].hand.cardIds).toEqual([]);
     expect(new Set(noLiveSession.state!.players[0].waitingRoom.cardIds)).toEqual(
       new Set(inspected)
@@ -222,7 +220,9 @@ describe('PL!N-bp1-011 Mia Taylor on-enter reveal until LIVE', () => {
     ).gameState;
     const discardHitSession = sessionWithState(discardHitStarted);
     expect(submit(discardHitSession, discardedLive.instanceId).success).toBe(true);
-    expect(discardHitSession.state?.activeEffect?.metadata?.hitCardId).toBe(discardedLive.instanceId);
+    expect(discardHitSession.state?.activeEffect?.revealedCardIds).toEqual([
+      discardedLive.instanceId,
+    ]);
     expect(discardHitSession.state?.inspectionZone.cardIds).toEqual([discardedLive.instanceId]);
   });
 
@@ -251,6 +251,6 @@ describe('PL!N-bp1-011 Mia Taylor on-enter reveal until LIVE', () => {
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([cost.instanceId]);
-    expect(session.state?.activeEffect?.stepId).toBe('PL_N_BP1_011_CONFIRM_REVEALED_CARDS');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
   });
 });

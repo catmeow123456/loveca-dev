@@ -23,6 +23,7 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { projectPlayerViewState } from '../../src/online/projector';
 import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   BladeHeartEffect,
   CardType,
@@ -165,11 +166,13 @@ function confirmCards(game: GameState, cardIds: readonly string[]): GameState {
 }
 
 function choose(game: GameState, optionId: string): GameState {
+  const choosing =
+    game.activeEffect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID ? confirmCurrent(game) : game;
   return continuePublicEffectChoiceForTest(
     confirmActiveEffectStep(
-      game,
+      choosing,
       P1,
-      game.activeEffect!.id,
+      choosing.activeEffect!.id,
       undefined,
       undefined,
       undefined,
@@ -325,16 +328,22 @@ describe('PL!N-bp7-006-SEC 近江彼方', () => {
       },
     });
     expect(choosing.players[0].waitingRoom.cardIds).toEqual([]);
-    expect(choosing.activeEffect?.selectableOptions?.map((option) => option.label)).toEqual([
+    expect(choosing.activeEffect).toMatchObject({
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+      revealedCardIds: costCards.map((card) => card.instanceId),
+    });
+    expect(choosing.activeEffect?.selectableOptions).toBeUndefined();
+    const restoredChoice = confirmCurrent(choosing);
+    expect(restoredChoice.activeEffect?.selectableOptions?.map((option) => option.label)).toEqual([
       '将2张能量变为活跃状态',
       '获得[BLADE][BLADE]',
     ]);
-    expect(choosing.activeEffect).toMatchObject({
+    expect(restoredChoice.activeEffect).toMatchObject({
       stepId: 'N_BP7_006_CHOOSE_ENERGY_OR_BLADE',
       confirmSelectionLabel: '结算所选效果',
       metadata: { conditionMet: true },
     });
-    expect(choosing.activeEffect?.revealedCardIds).toEqual(
+    expect(restoredChoice.activeEffect?.revealedCardIds).toEqual(
       costCards.map((card) => card.instanceId)
     );
     const publicMovedIds = costCards.map((card) => `obj_${card.instanceId}`);
@@ -358,12 +367,14 @@ describe('PL!N-bp7-006-SEC 近江彼方', () => {
     expect(revealing.players[0].waitingRoom.cardIds).toEqual([]);
     expect(revealing.activeEffect).toMatchObject({
       abilityId: MILL,
-      stepId: 'N_BP7_006_REVEAL_MILL_COST_RESULT',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: movedCardIds,
-      selectionLabel: '公开的卡片',
-      confirmSelectionLabel: '确认公开结果',
-      metadata: { movedCardIds, refreshCount: 1, conditionMet: false },
     });
+    expect(
+      revealing.actionHistory.find(
+        (action) => action.payload.step === 'REVEAL_MILL_COST_CONDITION_NOT_MET'
+      )?.payload
+    ).toMatchObject({ movedCardIds, refreshCount: 1, conditionMet: false });
     expect(projectPlayerViewState(revealing, P1).activeEffect?.revealedObjectIds).toEqual(
       publicMovedIds
     );
@@ -433,10 +444,8 @@ describe('PL!N-bp7-006-SEC 近江彼方', () => {
     const scenario = setup({ deckCards: costCards });
     const revealing = activateCardAbility(scenario.game, P1, scenario.source.instanceId, MILL);
     expect(revealing.activeEffect).toMatchObject({
-      stepId: 'N_BP7_006_REVEAL_MILL_COST_RESULT',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: costCards.slice(0, 3).map((card) => card.instanceId),
-      confirmSelectionLabel: '确认公开结果',
-      metadata: { refreshCount: 0, conditionMet: false },
     });
     const done = confirmCurrent(revealing);
     expect(done.activeEffect).toBeNull();
@@ -460,9 +469,10 @@ describe('PL!N-bp7-006-SEC 近江彼方', () => {
       ];
       const scenario = setup({ deckCards: deck });
       const result = activateCardAbility(scenario.game, P1, scenario.source.instanceId, MILL);
-      expect(result.activeEffect?.metadata?.conditionMet).toBe(entry.hit);
-      expect(result.activeEffect?.stepId).toBe(
-        entry.hit ? 'N_BP7_006_CHOOSE_ENERGY_OR_BLADE' : 'N_BP7_006_REVEAL_MILL_COST_RESULT'
+      expect(result.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+      const afterDwell = confirmCurrent(result);
+      expect(afterDwell.activeEffect?.stepId ?? null).toBe(
+        entry.hit ? 'N_BP7_006_CHOOSE_ENERGY_OR_BLADE' : null
       );
     }
 
@@ -471,10 +481,8 @@ describe('PL!N-bp7-006-SEC 近江彼方', () => {
       member(`OTHER-${i}`, `other-${i}`, { group: 'Aqours' })
     );
     const oldOnly = setup({ deckCards: nonHitDeck, waitingCards: [oldHit] });
-    expect(
-      activateCardAbility(oldOnly.game, P1, oldOnly.source.instanceId, MILL).activeEffect?.metadata
-        ?.conditionMet
-    ).toBe(false);
+    expect(activateCardAbility(oldOnly.game, P1, oldOnly.source.instanceId, MILL).activeEffect?.stepId)
+      .toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
   });
 
   it('能量分支对0/1/2/超额 WAITING 与全部 ACTIVE 都按实际数量处理', () => {

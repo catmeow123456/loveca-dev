@@ -5,20 +5,15 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import {
-  CardType,
-  GamePhase,
-  SubPhase,
-} from '../../../../shared/types/enums.js';
+import { CardType, GamePhase, SubPhase } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { typeIs } from '../../../effects/card-selectors.js';
-import {
-  inspectTopCards,
-} from '../../../effects/look-top.js';
+import { inspectTopCards } from '../../../effects/look-top.js';
 import { N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
@@ -104,7 +99,7 @@ function startRevealHandNoLiveLookTopLive(
   return addAction(
     {
       ...state,
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         id: `${N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID}:${cardId}:turn-${state.turnCount}:action-${state.actionHistory.length}`,
         abilityId: N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID,
         sourceCardId: cardId,
@@ -119,7 +114,7 @@ function startRevealHandNoLiveLookTopLive(
         metadata: {
           revealedHandCardIds,
         } satisfies WorkflowMetadata,
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     player.id,
@@ -256,10 +251,11 @@ function revealSelectedTopLive(
         ...game.inspectionZone,
         revealedCardIds,
       },
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         ...effect,
         stepId: REVEAL_SELECTED_LIVE_STEP_ID,
         stepText: '选择的LIVE卡已公开。确认后加入手牌，其余卡片放置入休息室。',
+        revealedCardIds: [selectedCardId],
         selectableCardIds: [],
         selectionLabel: undefined,
         confirmSelectionLabel: '确认',
@@ -269,7 +265,7 @@ function revealSelectedTopLive(
           ...metadata,
           selectedLiveCardId: selectedCardId,
         } satisfies WorkflowMetadata,
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     player.id,

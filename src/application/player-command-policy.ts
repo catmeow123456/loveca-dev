@@ -100,7 +100,9 @@ export function getPlayerCommandPolicyDecision(
     if (state.activeEffect) {
       const canAutoAdvancePublicDisplay =
         state.activeEffect.publicCardSelectionAutoAdvanceAt !== undefined ||
-        state.activeEffect.publicEffectChoiceAutoAdvanceAt !== undefined;
+        state.activeEffect.publicEffectChoiceAutoAdvanceAt !== undefined ||
+        (state.activeEffect.publicRevealAutoAdvanceAt !== undefined &&
+          state.activeEffect.publicRevealGeneration !== undefined);
       const allowed =
         commandType === GameCommandType.CONFIRM_EFFECT_STEP &&
         (state.activeEffect.awaitingPlayerId === playerId || canAutoAdvancePublicDisplay);

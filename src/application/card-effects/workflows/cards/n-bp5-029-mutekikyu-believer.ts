@@ -19,6 +19,10 @@ import { N_BP5_029_LIVE_START_REVEAL_KASUMI_HEARTS_ABILITY_ID } from '../../abil
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveInspectedCardsToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
+import {
+  createPublicRevealDwellBeforeNextEffect,
+  withPublicRevealDwell,
+} from '../../runtime/public-reveal-dwell.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   registerPendingAbilityStarterHandler,
@@ -161,7 +165,7 @@ function startMutekikyuBeliever(
 
     return startPendingActiveEffect(inspection.gameState, {
       ability,
-      activeEffect,
+      activeEffect: withPublicRevealDwell(activeEffect),
       playerId: player.id,
       actionPayload: {
         sourceCardId: ability.sourceCardId,
@@ -197,9 +201,16 @@ function startMutekikyuBeliever(
     },
   };
 
-  return startPendingActiveEffect(inspection.gameState, {
-    ability,
+  const stateWithDwell = createPublicRevealDwellBeforeNextEffect(
+    inspection.gameState,
     activeEffect,
+    {
+      revealedCardIds: inspection.inspectedCardIds,
+    }
+  );
+  return startPendingActiveEffect(stateWithDwell, {
+    ability,
+    activeEffect: stateWithDwell.activeEffect!,
     playerId: player.id,
     actionPayload: {
       sourceCardId: ability.sourceCardId,
@@ -462,10 +473,7 @@ function moveInspectionAndFinishWithoutHeart(
   );
 }
 
-function getActiveMutekikyuEffect(
-  game: GameState,
-  stepId: string
-): ActiveEffectState | null {
+function getActiveMutekikyuEffect(game: GameState, stepId: string): ActiveEffectState | null {
   const effect = game.activeEffect;
   if (
     !effect ||
@@ -477,10 +485,7 @@ function getActiveMutekikyuEffect(
   return effect;
 }
 
-function getActiveInspectionCardIds(
-  game: GameState,
-  effect: ActiveEffectState
-): readonly string[] {
+function getActiveInspectionCardIds(game: GameState, effect: ActiveEffectState): readonly string[] {
   const effectInspectionCardIds = effect.inspectionCardIds ?? [];
   return effectInspectionCardIds.filter((cardId) => game.inspectionZone.cardIds.includes(cardId));
 }
