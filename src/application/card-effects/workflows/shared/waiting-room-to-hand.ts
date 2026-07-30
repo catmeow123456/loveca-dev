@@ -15,6 +15,7 @@ import {
   LL_BP7_001_LIVE_SUCCESS_RECOVER_MEMBER_ABILITY_ID,
   LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
+  N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
   PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
   SP_BP1_007_ON_ENTER_ENERGY_ELEVEN_RECOVER_LIVE_ABILITY_ID,
@@ -24,8 +25,9 @@ import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/p
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { and, costLte, groupIs, typeIs } from '../../../effects/card-selectors.js';
+import { and, costLte, groupIs, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { countSuccessfulLiveCards } from '../../../effects/conditions.js';
+import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
   createWaitingRoomToHandEffectState,
   createWaitingRoomToHandSelectionConfig,
@@ -198,6 +200,20 @@ const WAITING_ROOM_TO_HAND_WORKFLOWS: readonly RegisteredWaitingRoomToHandWorkfl
     countRule: { minCount: 0, maxCount: 1 },
     optional: true,
     selectionRequiredWhenHasTargets: true,
+  },
+  {
+    abilityId: N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
+    stepId: 'N_BP7_002_SELECT_WAITING_ROOM_CARD',
+    stepText: '请选择自己的休息室中1张卡片加入手牌。',
+    selectionLabel: '选择要加入手牌的卡',
+    confirmSelectionLabel: '加入手牌',
+    canStart: (game, playerId) =>
+      getStageMemberCardIdsMatching(game, playerId, unitAliasIs('QU4RTZ')).length >= 3,
+    conditionNotMetActionStep: 'QU4RTZ_STAGE_MEMBER_COUNT_BELOW_THREE',
+    noCandidatesActionStep: 'NO_WAITING_ROOM_CARD_TARGET',
+    candidateBuilder: (game, playerId) => selectWaitingRoomCardIds(game, playerId, () => true),
+    countRule: { exactCount: 1 },
+    optional: false,
   },
 ];
 

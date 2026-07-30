@@ -257,6 +257,8 @@ const SP_BP7_003_CONTINUOUS_THREE_MEMBER_BELOW_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp7-003-SEC:continuous-three-member-below-live-score';
 const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID =
   'PL!SP-bp7-009-P:continuous-side-red-heart';
+const S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID =
+  'PL!S-bp7-009:continuous-front-low-cost-member-lose-blade';
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -321,6 +323,12 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: ['PL!S-bp7-009'],
+    collect: ({ game, playerId, sourceCardId }) =>
+      collectFrontLowCostMemberLoseBladeModifier(game, playerId, sourceCardId),
+  },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!SP-bp7-009'],
@@ -2558,6 +2566,53 @@ function collectPb1014FrontHighCostHeartModifier(
     hearts: [{ color: HeartColor.PINK, count: 1 }],
   });
   return modifier ? [modifier] : [];
+}
+
+function collectFrontLowCostMemberLoseBladeModifier(
+  game: GameState,
+  playerId: string,
+  sourceCardId: string
+): readonly BladeModifierState[] {
+  const player = getPlayerById(game, playerId);
+  const opponent = getOpponent(game, playerId);
+  if (!player || !opponent) {
+    return [];
+  }
+
+  const sourceSlot = MEMBER_SLOT_ORDER.find(
+    (slot) => player.memberSlots.slots[slot] === sourceCardId
+  );
+  if (!sourceSlot) {
+    return [];
+  }
+
+  const opponentSlot = toPlayerLocalSlotForControllerPerspective(
+    sourceSlot,
+    player.id,
+    opponent.id
+  );
+  const targetMemberCardId = opponent.memberSlots.slots[opponentSlot];
+  const targetMemberCard = targetMemberCardId ? getCardById(game, targetMemberCardId) : null;
+  if (
+    !targetMemberCardId ||
+    !targetMemberCard ||
+    targetMemberCard.ownerId !== opponent.id ||
+    !isMemberCardData(targetMemberCard.data) ||
+    targetMemberCard.data.cost > 4
+  ) {
+    return [];
+  }
+
+  return [
+    {
+      kind: 'BLADE',
+      playerId: opponent.id,
+      countDelta: -1,
+      sourceCardId,
+      targetMemberCardId,
+      abilityId: S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
+    },
+  ];
 }
 
 function collectHsPb1007SerasPurpleHeartModifier(

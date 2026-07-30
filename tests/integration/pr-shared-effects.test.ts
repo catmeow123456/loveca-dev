@@ -9,6 +9,7 @@ import {
   PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
   PR_ON_ENTER_LOOK_TOP_TEN_MINUS_HAND_TAKE_TWO_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import { PUBLIC_CARD_SELECTION_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-card-selection-confirmation';
 import {
   createAutoAdvancePublicCardSelectionCommand,
@@ -143,7 +144,7 @@ describe('PR continuous total successful LIVE score Heart family', () => {
 
 describe('PR relay replacement cost-nine BLADE family', () => {
   function setupReplacement(cost = 9, eventReplacingCardId: string | null = 'replacement') {
-    const source = createCardInstance(memberData('PL!-PR-023-PR', '南琴梨'), P1, 'source');
+    const source = createCardInstance(memberData('PL!-PR-024-PR', '南琴梨'), P1, 'source');
     const replacement = createCardInstance(
       memberData('REPLACEMENT', '换手成员', cost),
       P1,
@@ -196,11 +197,24 @@ describe('PR relay replacement cost-nine BLADE family', () => {
 
   it.each([
     ['PL!-PR-023-PR', 'PL!-PR-023'],
+    ['PL!-PR-024-PR', 'PL!-PR-024'],
+    ['PL!-PR-024-UNSEEN', 'PL!-PR-024'],
     ['PL!HS-PR-040-SEC', 'PL!HS-PR-040'],
     ['PL!S-PR-046-P', 'PL!S-PR-046'],
-  ])('definition family covers %s (%s)', (cardCode) => {
+  ])('definition family covers %s (%s)', (cardCode, baseCardCode) => {
     const source = createCardInstance(memberData(cardCode), P1, 'source');
     expect(source.data.cardCode).toBe(cardCode);
+    expect(
+      getCardAbilityDefinitionsForCardCode(cardCode).find(
+        (definition) =>
+          definition.abilityId === PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toMatchObject({
+      baseCardCodes: ['PL!-PR-023', 'PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      effectText:
+        '【自动】此成员从舞台被放置入休息室时，此成员曾与费用大于等于9的成员换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。',
+    });
+    expect(baseCardCode).toBe(cardCode.replace(/-(?:PR|P|SEC|UNSEEN)$/, ''));
   });
 
   it('uses the exact LeaveStageEvent replacement and writes target-bound BLADE +2', () => {

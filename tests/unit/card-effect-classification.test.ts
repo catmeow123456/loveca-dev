@@ -69,11 +69,17 @@ import {
   N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID,
   N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
   N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
+  N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
   S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
   S_BP7_007_ON_ENTER_RECOVER_LOW_COST_MEMBER_OPTIONAL_PLAY_ABILITY_ID,
   S_BP7_007_LIVE_START_BOTTOM_AQOURS_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  S_BP7_008_LIVE_START_MILL_BOTTOM_ONE_RECOVER_KANAN_OR_DIA_ABILITY_ID,
+  S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
+  S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
+  SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+  SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID,
   HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_ID,
   HS_BP8_001_AUTO_WAITING_ROOM_TO_DECK_GAIN_THREE_BLADE_ABILITY_ID,
   S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
@@ -12555,6 +12561,119 @@ describe('card effect classification registry', () => {
   });
 });
 
+describe('2026-07-30 DRAFT recovery and discard-draw definitions', () => {
+  it.each([
+    [
+      'PL!N-bp7-002-SEC',
+      N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
+      'PL!N-bp7-002',
+      '【登场】自己的舞台上存在大于等于3名『QU4RTZ』的成员的场合，从自己的休息室将1张卡片加入手牌。',
+    ],
+    [
+      'PL!SP-bp7-011-SEC',
+      SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID,
+      'PL!SP-bp7-011',
+      '【登场】可以将手牌全部放置入休息室：抽6张卡。',
+    ],
+  ])(
+    'classifies %s as a base-scoped queued ON_ENTER ability',
+    (cardCode, abilityId, baseCardCode, effectText) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId,
+          baseCardCodes: [baseCardCode],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+          effectText,
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+    }
+  );
+
+  it.each(['PL!N-bp7-012-P', 'PL!SP-bp7-012-P'])(
+    'does not leak to adjacent base card %s',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
+});
+
+describe('2026-07-30 DRAFT S-bp7-008 and SP-bp7-010 definitions', () => {
+  it.each(['PL!S-bp7-008-P', 'PL!S-bp7-008-SEC'])(
+    'classifies %s as two independent base-scoped queued abilities',
+    (cardCode) => {
+      const definitions = getCardAbilityDefinitions(cardCode);
+      expect(definitions).toEqual([
+        expect.objectContaining({
+          abilityId: S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
+          baseCardCodes: ['PL!S-bp7-008'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+          effectText:
+            '【登场】检视自己的卡组顶的3张卡片。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的按任意顺序放置于卡组底。',
+        }),
+        expect.objectContaining({
+          abilityId: S_BP7_008_LIVE_START_MILL_BOTTOM_ONE_RECOVER_KANAN_OR_DIA_ABILITY_ID,
+          baseCardCodes: ['PL!S-bp7-008'],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+          effectText:
+            '【LIVE开始时】可以将自己的卡组底的卡片放置入休息室。那张卡片是「松浦果南」或「黑泽黛雅」的场合，将其加入手牌。',
+        }),
+      ]);
+      expect(definitions.every((definition) => definition.cardCodes === undefined)).toBe(true);
+    }
+  );
+
+  it.each(['PL!SP-bp7-010-P', 'PL!SP-bp7-010-SEC'])(
+    'classifies %s as the same base-scoped activated ability',
+    (cardCode) => {
+      const effectText =
+        '【起动】将此成员从舞台放置入休息室：将存在于自己的能量区的1张能量放置于能量卡组。此后，从自己的休息室将1张卡加入手牌。';
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+          baseCardCodes: ['PL!SP-bp7-010'],
+          category: CardAbilityCategory.ACTIVATED,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: false,
+          implemented: true,
+          effectText,
+          activatedUi: expect.objectContaining({
+            abilityId: SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+            text: effectText,
+          }),
+        }),
+      ]);
+      expect(
+        isSupportedActivatedAbilityForCard(
+          SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+          cardCode
+        )
+      ).toBe(true);
+      expect(getActivatedAbilityUiConfig(cardCode)?.text).toBe(effectText);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+    }
+  );
+
+  it.each(['PL!S-bp7-010-P', 'PL!SP-bp7-012-P'])(
+    'does not leak the new definitions to adjacent base card %s',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
+});
+
 describe('PL!N-pb1-009 classification', () => {
   const abilityId =
     'PL!N-pb1-009:live-start-no-blade-heart-member-live-to-waiting-draw-gain-yellow-blue-purple-heart';
@@ -15840,9 +15959,9 @@ describe('2026-07-27 PR shared-family definitions', () => {
         '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
     },
     {
-      cardCodes: ['PL!-PR-023-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
+      cardCodes: ['PL!-PR-023-PR', 'PL!-PR-024-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
       abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-      baseCardCodes: ['PL!-PR-023', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      baseCardCodes: ['PL!-PR-023', 'PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -15898,6 +16017,35 @@ describe('2026-07-27 PR shared-family definitions', () => {
       }
     );
   }
+});
+
+describe('PL!S-bp7-009 黑泽露比 base-scoped continuous definition', () => {
+  it.each(['PL!S-bp7-009-P', 'PL!S-bp7-009-R', 'PL!S-bp7-009-UNSEEN'])(
+    'classifies %s without an exact rarity boundary',
+    (cardCode) => {
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
+          baseCardCodes: ['PL!S-bp7-009'],
+          category: CardAbilityCategory.CONTINUOUS,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          queued: false,
+          implemented: true,
+          effectText: '【常时】存在于此成员正面的区域的费用小于等于4的成员，失去1个[ブレード]。',
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+      expect(getCardAbilityDefinitions(cardCode)[0]?.triggerCondition).toBeUndefined();
+    }
+  );
+
+  it('does not leak to an adjacent base card', () => {
+    expect(getCardAbilityDefinitions('PL!S-bp7-010-P')).not.toContainEqual(
+      expect.objectContaining({
+        abilityId: S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
+      })
+    );
+  });
 });
 
 describe('PL!S-bp7-007 and PL!HS-bp8-001 base-scoped definitions', () => {

@@ -9,6 +9,7 @@ import {
   LL_BP7_001_CONTINUOUS_SPECIAL_PLAY_COST_TEN_ABILITY_ID,
   LL_BP7_001_LIVE_SUCCESS_RECOVER_MEMBER_ABILITY_ID,
   LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
+  N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
   HS_BP8_001_AUTO_WAITING_ROOM_TO_DECK_GAIN_THREE_BLADE_ABILITY_ID,
   HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_ID,
   N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
@@ -27,9 +28,14 @@ import {
   PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID,
   S_BP7_007_LIVE_START_BOTTOM_AQOURS_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP7_007_ON_ENTER_RECOVER_LOW_COST_MEMBER_OPTIONAL_PLAY_ABILITY_ID,
+  S_BP7_008_LIVE_START_MILL_BOTTOM_ONE_RECOVER_KANAN_OR_DIA_ABILITY_ID,
+  S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
+  S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
   SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID,
   SP_BP7_009_LIVE_START_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
+  SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+  SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID,
   SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
   SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID,
   SP_BP7_002_CONTINUOUS_ENERGY_SEVEN_MORE_THAN_OPPONENT_STAGE_COST_PLUS_TWO_ABILITY_ID,
@@ -2457,6 +2463,8 @@ const N_BP7_010_ACTIVATED_EFFECT_TEXT =
 const SP_BP7_009_CONTINUOUS_EFFECT_TEXT = '【常时】【左侧】【右侧】获得[赤ハート]。';
 const SP_BP7_009_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】【中央】将存在于对方的舞台的1名原本持有的[ブレード]的数量小于等于2的成员变为待机状态。';
+const SP_BP7_010_ACTIVATED_EFFECT_TEXT =
+  '【起动】将此成员从舞台放置入休息室：将存在于自己的能量区的1张能量放置于能量卡组。此后，从自己的休息室将1张卡加入手牌。';
 const N_BP8_002_ACTIVATED_EFFECT_TEXT =
   '【起动】[E]将此卡放置于卡组底：LIVE结束时为止，存在于自己的舞台的1名『虹咲』的成员，获得[黄ハート]。此能力仅可在此卡存在于休息室的场合起动。';
 
@@ -13317,6 +13325,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '按基础编号覆盖同卡全部罕度；休息室自由选卡先公开确认，再通过通用 ordered WAITING_ROOM -> MAIN_DECK_BOTTOM wrapper 移动并发出 grouped 事件；来源成员按实际移动张数获得 BLADE。',
   },
   {
+    abilityId: S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-009'],
+    category: CardAbilityCategory.CONTINUOUS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: '【常时】存在于此成员正面的区域的费用小于等于4的成员，失去1个[ブレード]。',
+    notes:
+      'continuous live modifier；按双方玩家视角映射来源正面区域，实时检查对方顶层成员的印刷费用<=4，并为该目标成员生成 BLADE -1。来源移位、离场、成为 memberBelow、对面目标移位或费用条件不符时自然失效。',
+  },
+  {
     abilityId: HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_ID,
     baseCardCodes: ['PL!HS-bp8-001'],
     category: CardAbilityCategory.ON_ENTER,
@@ -13973,7 +13992,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!-PR-023', 'PL!HS-PR-040', 'PL!S-PR-046'],
+    baseCardCodes: ['PL!-PR-023', 'PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -14010,6 +14029,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【LIVE开始时】存在于自己的休息室的卡片小于等于9张的场合，选择存在于自己的休息室的至多3张LIVE卡，按任意顺序放置于自己的卡组顶。',
     notes:
       'shared live-start-waiting-live-to-deck-top workflow；实时重验休息室总数<=9，公开选择0至3张己方休息室 LIVE 并走 public-card-selection confirmation，按选择顺序通过统一事件 wrapper 放置于卡组顶；条件失败、无目标、skip 与 stale 恢复均安全继续 pending。',
+  },
+  {
+    abilityId: N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
+    baseCardCodes: ['PL!N-bp7-002'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【登场】自己的舞台上存在大于等于3名『QU4RTZ』的成员的场合，从自己的休息室将1张卡片加入手牌。',
+    notes:
+      '扩展 waiting-room-to-hand shared workflow；结算时通过 stage-targets 与结构化 QU4RTZ 身份重扫己方三个主舞台顶层，达到3名时强制公开选择休息室任意1张卡加入手牌。',
   },
   {
     abilityId: N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -14065,5 +14097,59 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: SP_BP7_009_LIVE_START_EFFECT_TEXT,
     notes:
       'shared opponent-wait-target；按印刷 BLADE<=2 选择当前非 WAITING 对方主舞台成员并走标准状态事件 wrapper。',
+  },
+  {
+    abilityId: SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp7-011'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: '【登场】可以将手牌全部放置入休息室：抽6张卡。',
+    notes:
+      '单卡 workflow sp-bp7-011-tomari.ts；固定来源整体动作使用“发动 / 不发动”而非自由多选，确认发动时重读全部当前手牌并通过统一 wrapper 成组进入休息室、入队事件后抽6张；空手也可合法发动。',
+  },
+  {
+    abilityId: S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-008'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【登场】检视自己的卡组顶的3张卡片。将其中任意张数的卡片按任意顺序放置于卡组顶，其余的按任意顺序放置于卡组底。',
+    notes:
+      '按基础编号覆盖同卡全部罕度；扩展 arrange-inspected-deck-edge shared workflow 的 TOP/BOTTOM 双分区轴。先有序选择0至实际检视数放置于卡组顶，剩余超过1张时再按卡组底从下到上排序；两部分通过统一 inspection 原子动作一次落位，不产生休息室事件。',
+  },
+  {
+    abilityId: S_BP7_008_LIVE_START_MILL_BOTTOM_ONE_RECOVER_KANAN_OR_DIA_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-008'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【LIVE开始时】可以将自己的卡组底的卡片放置入休息室。那张卡片是「松浦果南」或「黑泽黛雅」的场合，将其加入手牌。',
+    notes:
+      '单卡 workflow s-bp7-008-mari.ts；可选发动后通过 refresh-aware bottom-deck wrapper 将实际底牌成组进入休息室并建立公开展示停留，展示结束时重验该实例仍在休息室且姓名身份命中松浦果南或黑泽黛雅，固定回收同一张卡。',
+  },
+  {
+    abilityId: SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp7-010'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    effectText: SP_BP7_010_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+      title: '离场并将能量放回能量卡组',
+      text: SP_BP7_010_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '按基础编号覆盖同卡全部罕度；单卡 workflow sp-bp7-010-margarete.ts。冒号前只有来源成员自送休息室是费用，使用统一 leave-stage wrapper；后续能量不足或回收目标变化不反向撤销费用。能量返回复用 special-marker-aware 选择与事件 wrapper，之后强制从当前休息室公开选择1张卡加入手牌。',
   },
 ];
