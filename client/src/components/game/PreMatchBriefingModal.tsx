@@ -3,17 +3,19 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import {
   BookOpen,
+  Bot,
   Hand,
   MessageCircle,
   MousePointer2,
   RotateCcw,
+  ShieldCheck,
   type LucideIcon,
   X,
   Zap,
 } from 'lucide-react';
 import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 
-export type PreMatchBriefingMode = 'online' | 'solitaire';
+export type PreMatchBriefingMode = 'online' | 'solitaire' | 'ai-battle';
 
 interface PreMatchBriefingModalProps {
   isOpen: boolean;
@@ -346,6 +348,54 @@ const AREA_PAGE: BriefingPage = {
   ],
 };
 
+const AI_PHASE_PAGE: BriefingPage = {
+  title: '你的操作',
+  summary: '你只操作自己的席位；AI 的回合与效果选择由服务器接管。',
+  sections: [
+    {
+      title: '按正常规则行动',
+      icon: MousePointer2,
+      items: [
+        '换牌、主要阶段、LIVE 放置和效果窗口都使用与正式联机相同的桌面与命令。',
+        '轮到 AI 时无需代替它点击；服务器会生成当前合法选择并把结果同步到桌面。',
+        '等待 AI 选择时可以正常查看桌面；如果牌面已经变化，这次选择会自动作废并重新选择。',
+      ],
+    },
+    {
+      title: '固定限制',
+      icon: ShieldCheck,
+      items: [
+        'AI 对战关闭撤销和自由模式，双方都必须按当前规则操作。',
+        '离开对局会按认输处理；刷新页面会恢复同一局，而不是创建新的 AI 对局。',
+      ],
+    },
+  ],
+};
+
+const AI_AREA_PAGE: BriefingPage = {
+  title: '信息与身份',
+  summary: 'AI 的身份始终公开，隐藏信息仍按当前席位的正常可见性处理。',
+  sections: [
+    {
+      title: '你能确认什么',
+      icon: Bot,
+      items: [
+        '对手固定显示为 Loveca AI，不会由真人登录或在对局中途接管。',
+        '手牌、卡组顺序与检视内容仍遵守玩家视角；AI 不会获得对手隐藏信息。',
+        '聊天只显示在玩家界面，不会交给 AI。',
+      ],
+    },
+    {
+      title: '共享桌面',
+      icon: Hand,
+      items: [
+        '舞台、LIVE 区、休息室、判定区与效果弹窗继续使用正式联机的共享组件。',
+        'AI 只能点击当前允许的卡牌、行动、位置或数字，不能自己编造移牌操作。',
+      ],
+    },
+  ],
+};
+
 const EFFECT_WINDOW_ITEMS: readonly ReactNode[] = [
   '正在处理的效果会出现在中央窗口，先看来源卡和卡文，再选择目标、支付费用或确认继续。',
   '部分卡还没有实现效果自动化；需要人工补齐时，请先切换到自由模式，再按卡文用自由移动、免费登场或区域操作处理。',
@@ -363,20 +413,36 @@ function createEffectPage(mode: PreMatchBriefingMode): BriefingPage {
             '页面卡住或刷新后，一般可以回到原来的房间和对局；如果状态有争议，先和对手确认再继续。',
           ],
         }
-      : {
-          title: '单人模拟',
-          icon: Hand,
-          items: [
-            '对手侧会自动处理一部分无输入流程；如果你要验证某段卡效，可以用手动区域操作把局面摆到需要的位置。',
-            '手动处理完一段卡文后，确认各区域和卡牌状态都符合文本，再继续推进下一步。',
-          ],
-        };
+      : mode === 'ai-battle'
+        ? {
+            title: 'AI 如何行动',
+            icon: Bot,
+            items: [
+              'AI 只会从当前允许的操作中选择，不能跳过规则直接改动牌面。',
+              '你只操作自己的席位。AI 的每次选择也会先检查规则，再同步到共享桌面。',
+              'AI 没有及时行动或连续两次选错时，系统会提示一次，本局接下来只做稳妥操作。',
+            ],
+          }
+        : {
+            title: '单人模拟',
+            icon: Hand,
+            items: [
+              '对手侧会自动处理一部分无输入流程；如果你要验证某段卡效，可以用手动区域操作把局面摆到需要的位置。',
+              '手动处理完一段卡文后，确认各区域和卡牌状态都符合文本，再继续推进下一步。',
+            ],
+          };
 
   const sections: BriefingSection[] = [
     {
       title: '效果处理',
       icon: BookOpen,
-      items: EFFECT_WINDOW_ITEMS,
+      items:
+        mode === 'ai-battle'
+          ? [
+              EFFECT_WINDOW_ITEMS[0],
+              'AI 对战固定使用规则模式。所有效果都必须通过当前合法窗口处理，不能用自由移动或免费登场补结果。',
+            ]
+          : EFFECT_WINDOW_ITEMS,
     },
     communicationSection,
   ];
@@ -392,17 +458,34 @@ function createEffectPage(mode: PreMatchBriefingMode): BriefingPage {
     });
   }
 
+  if (mode === 'ai-battle') {
+    sections.unshift({
+      title: '本模式边界',
+      icon: ShieldCheck,
+      items: [
+        '这是 AI 对战，不是真人匹配；对手名称会始终显示为 Loveca AI。',
+        '本模式每步都会检查规则，并关闭撤销和自由模式。',
+        '聊天内容不会交给 AI；AI 只能看到自己席位本来就能看到的牌面与选项。',
+      ],
+    });
+  }
+
   return {
-    title: mode === 'online' ? '效果和协作' : '效果和模拟',
+    title: mode === 'online' ? '效果和协作' : mode === 'ai-battle' ? 'AI 与异常处理' : '效果和模拟',
     summary:
       mode === 'online'
         ? '自动化未覆盖的卡文先沟通，再用共享桌面把结果落实。'
-        : '自动化未覆盖的卡文按文本处理，再用桌面操作补齐局面。',
+        : mode === 'ai-battle'
+          ? '每个选择都会检查规则；AI 出错时会明确提示，并改用稳妥打法继续。'
+          : '自动化未覆盖的卡文按文本处理，再用桌面操作补齐局面。',
     sections,
   };
 }
 
 function getBriefingPages(mode: PreMatchBriefingMode): readonly BriefingPage[] {
+  if (mode === 'ai-battle') {
+    return [AI_PHASE_PAGE, AI_AREA_PAGE, createEffectPage(mode)];
+  }
   return [PHASE_PAGE, AREA_PAGE, createEffectPage(mode)];
 }
 
@@ -413,6 +496,15 @@ function getBriefingContent(mode: PreMatchBriefingMode): BriefingContent {
       subtitle: '开始前确认阶段重点、区域操作和卡牌效果处理方式',
       pages: getBriefingPages(mode),
       actionLabel: '我知道了，开始模拟',
+    };
+  }
+
+  if (mode === 'ai-battle') {
+    return {
+      title: 'AI 对战提示',
+      subtitle: '先确认怎么操作、AI 能看到什么，以及 AI 出错后怎么继续',
+      pages: getBriefingPages(mode),
+      actionLabel: '我知道了，挑战 AI',
     };
   }
 

@@ -29,6 +29,8 @@ import {
   AiBattlePhaseThreeServiceError,
   aiBattlePhaseThreeService,
 } from '../services/ai-battle-phase-three-service.js';
+import { AI_MODEL_ID, readAiBattleModelConfigurationStatus } from '../ai-battle/model-provider.js';
+import { AI_BATTLE_FORMAL_SYSTEM_IDENTITY } from '../ai-battle/system-participant.js';
 
 export const onlineRouter = Router();
 
@@ -108,6 +110,110 @@ const controlledAiBattleSchema = z.object({
   humanDeckKey: z.enum(['MUSE_STARTER', 'GREEN_HASUNOSORA_B6']),
   aiDeckKey: z.enum(['MUSE_STARTER', 'GREEN_HASUNOSORA_B6']),
   aiSeat: z.enum(['FIRST', 'SECOND']),
+});
+
+const AI_BATTLE_PUBLIC_CONFIG_SCHEMA_VERSION = 'ai-battle.public-entry-config/v1' as const;
+
+onlineRouter.get('/ai-battles/config', requireAuth, (_req, res) => {
+  const model = readAiBattleModelConfigurationStatus();
+  setPrivateNoStoreHeaders(res);
+  res.json({
+    data: {
+      schemaVersion: AI_BATTLE_PUBLIC_CONFIG_SCHEMA_VERSION,
+      available: model.enabled && model.configured,
+      opponent: {
+        displayName: AI_BATTLE_FORMAL_SYSTEM_IDENTITY.displayName,
+        participantKind: AI_BATTLE_FORMAL_SYSTEM_IDENTITY.participantKind,
+        modelId: AI_MODEL_ID,
+        strategy: 'SERVER_MODEL_WITH_CONSERVATIVE_FALLBACK',
+        chatUsedAsModelInput: false,
+      },
+      decks: [
+        {
+          deckKey: 'MUSE_STARTER',
+          displayName: 'μ’s 预组',
+          description: '节奏直接、适合熟悉完整对局流程。',
+        },
+        {
+          deckKey: 'GREEN_HASUNOSORA_B6',
+          displayName: '绿莲 6 弹',
+          description: '资源与效果选择更丰富，适合测试复杂窗口。',
+        },
+      ],
+      seats: ['FIRST', 'SECOND'],
+    },
+    error: null,
+  });
+});
+
+onlineRouter.post('/ai-battles', requireAuth, requireGameplayAvailable, async (req, res) => {
+  if (!requirePublicAiBattleModel(res)) return;
+  const parsed = controlledAiBattleSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: 'AI 对局参数非法' },
+    });
+    return;
+  }
+  try {
+    const battle = await aiBattlePhaseThreeService.createBattle({
+      humanUserId: req.user!.id,
+      ...parsed.data,
+    });
+    setPrivateNoStoreHeaders(res);
+    res.status(201).json({ data: battle, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.get('/ai-battles/:matchId', requireAuth, async (req, res) => {
+  try {
+    const battle = await aiBattlePhaseThreeService.refreshBattle(
+      readPathParam(req.params.matchId),
+      req.user!.id
+    );
+    if (!battle) {
+      res.status(404).json({
+        data: null,
+        error: { code: 'AI_BATTLE_NOT_FOUND', message: 'AI 对局不存在或已结束' },
+      });
+      return;
+    }
+    setPrivateNoStoreHeaders(res);
+    res.json({ data: battle, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
+onlineRouter.post(
+  '/ai-battles/:matchId/restart',
+  requireAuth,
+  requireGameplayAvailable,
+  async (req, res) => {
+    if (!requirePublicAiBattleModel(res)) return;
+    try {
+      const battle = await aiBattlePhaseThreeService.restartBattle(
+        readPathParam(req.params.matchId),
+        req.user!.id
+      );
+      setPrivateNoStoreHeaders(res);
+      res.status(201).json({ data: battle, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
+
+onlineRouter.post('/ai-battles/:matchId/leave', requireAuth, async (req, res) => {
+  try {
+    await aiBattlePhaseThreeService.leaveBattle(readPathParam(req.params.matchId), req.user!.id);
+    res.json({ data: { left: true }, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
 });
 
 onlineRouter.post(
@@ -1240,6 +1346,19 @@ function respondMatchRecordNotFound(res: Response): void {
     data: null,
     error: { code: 'MATCH_RECORD_NOT_FOUND', message: '历史对局记录不存在或不可访问' },
   });
+}
+
+function requirePublicAiBattleModel(res: Response): boolean {
+  const model = readAiBattleModelConfigurationStatus();
+  if (model.enabled && model.configured) return true;
+  res.status(503).json({
+    data: null,
+    error: {
+      code: 'AI_BATTLE_MODEL_UNAVAILABLE',
+      message: 'AI 对战暂未开放，请稍后再试',
+    },
+  });
+  return false;
 }
 
 function respondOnlineError(res: Response, error: unknown): void {

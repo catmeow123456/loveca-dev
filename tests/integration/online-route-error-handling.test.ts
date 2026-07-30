@@ -350,7 +350,7 @@ describe('onlineRouter error handling', () => {
 
   it('管理员受控 AI 对局入口校验并透传认证卡组与 SYSTEM 席位', async () => {
     const createBattle = vi.spyOn(aiBattlePhaseThreeService, 'createBattle').mockResolvedValue({
-      schemaVersion: 'ai-battle.phase-three-entry/v1',
+      schemaVersion: 'ai-battle.phase-four-entry/v1',
       matchId: 'ai-match-1',
       roomCode: 'AI-ROOM',
       humanSeat: 'SECOND',
@@ -377,6 +377,79 @@ describe('onlineRouter error handling', () => {
       matchId: 'ai-match-1',
       systemSeat: 'FIRST',
     });
+  });
+
+  it('普通玩家入口明确公开 AI 身份，并只在模型已配置时创建对局', async () => {
+    const previousKey = process.env.DASHSCOPE_API_KEY;
+    const previousEnabled = process.env.AI_BATTLE_MODEL_ENABLED;
+    process.env.DASHSCOPE_API_KEY = 'route-test-key';
+    process.env.AI_BATTLE_MODEL_ENABLED = '1';
+    try {
+      const configResponse = await invokeRoute('/ai-battles/config', 'get');
+      expect(configResponse.statusCode).toBe(200);
+      expect(configResponse.body?.data).toMatchObject({
+        schemaVersion: 'ai-battle.public-entry-config/v1',
+        available: true,
+        opponent: {
+          displayName: 'Loveca AI',
+          participantKind: 'SYSTEM',
+          strategy: 'SERVER_MODEL_WITH_CONSERVATIVE_FALLBACK',
+          chatUsedAsModelInput: false,
+        },
+      });
+
+      const createBattle = vi.spyOn(aiBattlePhaseThreeService, 'createBattle').mockResolvedValue({
+        schemaVersion: 'ai-battle.phase-four-entry/v1',
+        matchId: 'public-ai-match',
+        humanSeat: 'FIRST',
+        systemSeat: 'SECOND',
+      } as never);
+      const createResponse = await invokeRoute('/ai-battles', 'post', {
+        body: {
+          humanDeckKey: 'MUSE_STARTER',
+          aiDeckKey: 'GREEN_HASUNOSORA_B6',
+          aiSeat: 'SECOND',
+        },
+      });
+      expect(createResponse.statusCode).toBe(201);
+      expect(createBattle).toHaveBeenCalledWith({
+        humanUserId: 'u1',
+        humanDeckKey: 'MUSE_STARTER',
+        aiDeckKey: 'GREEN_HASUNOSORA_B6',
+        aiSeat: 'SECOND',
+      });
+    } finally {
+      if (previousKey === undefined) delete process.env.DASHSCOPE_API_KEY;
+      else process.env.DASHSCOPE_API_KEY = previousKey;
+      if (previousEnabled === undefined) delete process.env.AI_BATTLE_MODEL_ENABLED;
+      else process.env.AI_BATTLE_MODEL_ENABLED = previousEnabled;
+    }
+  });
+
+  it('模型未配置时普通玩家 AI 对局入口返回稳定的 503', async () => {
+    const previousKey = process.env.DASHSCOPE_API_KEY;
+    const previousEnabled = process.env.AI_BATTLE_MODEL_ENABLED;
+    delete process.env.DASHSCOPE_API_KEY;
+    process.env.AI_BATTLE_MODEL_ENABLED = '1';
+    try {
+      const response = await invokeRoute('/ai-battles', 'post', {
+        body: {
+          humanDeckKey: 'MUSE_STARTER',
+          aiDeckKey: 'MUSE_STARTER',
+          aiSeat: 'FIRST',
+        },
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.body?.error).toEqual({
+        code: 'AI_BATTLE_MODEL_UNAVAILABLE',
+        message: 'AI 对战暂未开放，请稍后再试',
+      });
+    } finally {
+      if (previousKey === undefined) delete process.env.DASHSCOPE_API_KEY;
+      else process.env.DASHSCOPE_API_KEY = previousKey;
+      if (previousEnabled === undefined) delete process.env.AI_BATTLE_MODEL_ENABLED;
+      else process.env.AI_BATTLE_MODEL_ENABLED = previousEnabled;
+    }
   });
 
   it('观战建会话应忽略客户端昵称并使用服务端账号展示名', async () => {

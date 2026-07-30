@@ -40,7 +40,7 @@ import {
   changeSolitaireManualOperationMode,
 } from './solitaireMatchClient';
 
-export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'SOLITAIRE' | 'SPECTATOR';
+export type RemoteSessionSource = 'DEBUG' | 'ONLINE' | 'AI_BATTLE' | 'SOLITAIRE' | 'SPECTATOR';
 export type RemoteSnapshot = DebugMatchSnapshot | OnlineMatchSnapshot;
 export type RemoteCommandExecutionResult = DebugCommandResult | OnlineCommandResult;
 

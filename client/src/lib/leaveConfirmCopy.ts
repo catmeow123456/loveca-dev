@@ -14,6 +14,14 @@ export function getSolitaireLeaveConfirmCopy(): LeaveConfirmCopy {
   };
 }
 
+export function getAiBattleLeaveConfirmCopy(): LeaveConfirmCopy {
+  return {
+    title: '结束 AI 对战？',
+    message: '离开会按认输结束当前对局，并清除本次恢复入口。',
+    confirmLabel: '认输并离开',
+  };
+}
+
 export function getOnlineRoomLeaveConfirmCopy(
   status: OnlineRoomStatus | null | undefined,
   originKind?: MatchOriginKind,

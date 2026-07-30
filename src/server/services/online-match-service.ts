@@ -13,7 +13,10 @@ import {
   GameCommandType,
   type GameCommand,
 } from '../../application/game-commands.js';
-import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
+import type {
+  AiDecisionContract,
+  AiDecisionSelection,
+} from '../../application/ai-decisions/index.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
@@ -75,12 +78,27 @@ import {
   type OnlineMatchChatRuntimeState,
 } from './online-match-chat-runtime.js';
 import { selectConservativeDecision } from '../ai-battle/conservative-decision-policy.js';
-import { buildAiObservation } from '../ai-battle/ai-observation.js';
+import { buildAiObservation, type AiObservation } from '../ai-battle/ai-observation.js';
 import { selectExplainableDecision } from '../ai-battle/explainable-decision-policy.js';
-import { buildAiStrategyContext } from '../ai-battle/strategy-context.js';
+import {
+  AI_MODEL_DECISION_POLICY_VERSION,
+  createAiModelInvocationRuntime,
+  type AiModelInvocationAttemptAudit,
+  type AiModelInvocationAudit,
+  type AiModelInvocationRuntime,
+} from '../ai-battle/model-governance.js';
+import { createConfiguredAiBattleModelProvider } from '../ai-battle/model-provider.js';
+import {
+  buildAiModelRequestEnvelope,
+  parseAiModelDecisionOutput,
+  type AiModelRepairFailureCode,
+  type AiModelTransportRetryFailureCode,
+} from '../ai-battle/model-protocol.js';
+import { buildAiStrategyContext, type AiStrategyContext } from '../ai-battle/strategy-context.js';
 import {
   createAiStrategyDecisionAudit,
   createAiStrategyDecisionRecord,
+  type AuditableAiDecisionResult,
   type AiStrategyDecisionAudit,
   type AiStrategyDecisionRecord,
 } from '../ai-battle/strategy-decision-audit.js';
@@ -372,7 +390,7 @@ export interface RespondManualOperationModeRequestInput {
   readonly idempotencyKey?: string | null;
 }
 
-interface OnlineMatchServiceDeps {
+export interface OnlineMatchServiceDeps {
   readonly now?: () => number;
   readonly idGenerator?: () => string;
   readonly recorder?: Pick<
@@ -409,17 +427,30 @@ interface OnlineMatchServiceDeps {
   readonly machineDecisionScheduleTimer?: MachineDecisionSchedulerOptions['scheduleTimer'];
   readonly machineDecisionCancelTimer?: MachineDecisionSchedulerOptions['cancelTimer'];
   readonly machineLivenessLimits?: MachineLivenessLimits;
+  readonly modelInvocationRuntime?: AiModelInvocationRuntime | null;
 }
 
 interface MachineStrategyRuntime {
   readonly binding: AiSystemParticipantBinding;
   readonly history: AiSelectedHistoryTracker;
+  modelMode: 'MODEL' | 'CONSERVATIVE_FALLBACK';
 }
 
 export interface MachineStrategySubmissionMetadata {
   readonly audit: AiStrategyDecisionAudit;
   readonly decisionId: string;
   readonly windowSignature: string;
+  readonly modelInvocation?: AiModelInvocationAudit | null;
+}
+
+interface PreparedModelMachineDecision {
+  readonly participant: OnlineMatchParticipant;
+  readonly accountKey: string;
+  readonly acquired: Extract<AcquireMachineDecisionLeaseResult, { readonly ok: true }>;
+  readonly strategyRuntime: MachineStrategyRuntime;
+  readonly observation: AiObservation;
+  readonly context: AiStrategyContext;
+  readonly deterministicResult: AuditableAiDecisionResult | null;
 }
 
 export interface DeleteOnlineMatchOptions {
@@ -481,6 +512,7 @@ export class OnlineMatchService {
   private serviceRejectedAttemptSeq = 0;
   private readonly machineDecisionSchedulingEnabled: boolean;
   private readonly machineLivenessLimits: MachineLivenessLimits;
+  private readonly modelInvocationRuntime: AiModelInvocationRuntime | null;
   readonly serialExecutor: SingleMatchSerialExecutor;
   readonly deadlineOwner: ServerDeadlineOwner;
   readonly machineDecisionCoordinator: MachineDecisionCoordinator;
@@ -502,6 +534,7 @@ export class OnlineMatchService {
     this.serialExecutor = deps.serialExecutor ?? new SingleMatchSerialExecutor();
     this.machineDecisionSchedulingEnabled = deps.machineDecisionSchedulingEnabled ?? false;
     this.machineLivenessLimits = deps.machineLivenessLimits ?? DEFAULT_MACHINE_LIVENESS_LIMITS;
+    this.modelInvocationRuntime = deps.modelInvocationRuntime ?? null;
     this.machineDecisionCoordinator = new MachineDecisionCoordinator({
       executor: this.serialExecutor,
       now: this.now,
@@ -689,6 +722,7 @@ export class OnlineMatchService {
         this.machineStrategyRuntimes.set(buildMachineStrategyRuntimeKey(matchId, seat), {
           binding,
           history: createAiSelectedHistoryTracker(seat),
+          modelMode: 'MODEL',
         });
       }
     }
@@ -697,7 +731,7 @@ export class OnlineMatchService {
         state,
         'AI_MATCH_READY',
         `ai-match-ready:${matchId}`,
-        '本局对手为不可登录的 Loveca AI，使用已认证固定卡组与可解释策略。'
+        '本局对手是 Loveca AI，使用固定测试卡组并由系统自动操作。'
       );
     }
     this.reconcileServerDeadline(state);
@@ -913,6 +947,14 @@ export class OnlineMatchService {
   private async handleMachineDecisionDue(
     registration: MachineDecisionScheduleRegistration
   ): Promise<MachineDecisionScheduleResult> {
+    return this.modelInvocationRuntime
+      ? this.handleModelMachineDecisionDue(registration)
+      : this.handleExplainableMachineDecisionDue(registration);
+  }
+
+  private async handleExplainableMachineDecisionDue(
+    registration: MachineDecisionScheduleRegistration
+  ): Promise<MachineDecisionScheduleResult> {
     return this.serialExecutor.runExclusive(registration.matchId, async (criticalSection) => {
       if (!this.machineDecisionScheduler.isCurrent(registration)) return 'IDLE';
       const match = this.matches.get(registration.matchId);
@@ -966,7 +1008,7 @@ export class OnlineMatchService {
         );
         return terminal.success
           ? 'TERMINAL'
-          : terminateMachineFailure('AI 活性终局提交失败，本局已因机器决策异常结束。');
+          : terminateMachineFailure('AI 无法继续处理当前操作，本局已结束。');
       }
       if (readServerDeadlineDescriptor(game)) {
         return 'IDLE';
@@ -990,7 +1032,7 @@ export class OnlineMatchService {
           if (acquired.reason === 'NO_DECISION') continue;
           return acquired.reason === 'LEASE_HELD_BY_OTHER_OWNER'
             ? 'RETRY'
-            : terminateMachineFailure('AI 无法建立当前决策契约，本局已因机器决策异常结束。');
+            : terminateMachineFailure('AI 无法读取当前可选操作，本局已结束。');
         }
 
         const strategyRuntime = this.machineStrategyRuntimes.get(
@@ -1031,9 +1073,7 @@ export class OnlineMatchService {
             })()
           : selectConservativeDecision(acquired.contract);
         if (!selected?.ok) {
-          return terminateMachineFailure(
-            'AI 无法为当前决策生成合法操作，本局已因机器决策异常结束。'
-          );
+          return terminateMachineFailure('AI 无法完成当前允许的操作，本局已结束。');
         }
         const before = game;
         const submitted = await this.machineDecisionCoordinator.submitSelectionInCriticalSection(
@@ -1065,7 +1105,7 @@ export class OnlineMatchService {
           }
           const after = match.session.state;
           if (!after) {
-            return terminateMachineFailure('AI 命令执行后权威状态丢失，本局已异常结束。');
+            return terminateMachineFailure('AI 操作后无法继续读取牌局，本局已结束。');
           }
           const strategyMode: MachineStrategyMode = strategyRuntime
             ? 'PRIMARY'
@@ -1090,7 +1130,7 @@ export class OnlineMatchService {
               match,
               'AI_FALLBACK_ENABLED',
               `ai-fallback-enabled:${liveness.state.policyVersion}`,
-              'AI 已使用保守策略继续本局。'
+              'AI 已改用稳妥操作继续本局。'
             );
           }
           if (liveness.terminalReason && !after.isEnded) {
@@ -1112,7 +1152,7 @@ export class OnlineMatchService {
             );
             return terminal.success
               ? 'TERMINAL'
-              : terminateMachineFailure('AI 活性终局提交失败，本局已因机器决策异常结束。');
+              : terminateMachineFailure('AI 无法继续处理当前操作，本局已结束。');
           }
           return after.isEnded ? 'TERMINAL' : 'PROGRESSED';
         }
@@ -1121,9 +1161,381 @@ export class OnlineMatchService {
           submitted.reason === 'WINDOW_CHANGED' ||
           submitted.reason === 'LEASE_NOT_FOUND'
           ? 'RETRY'
-          : terminateMachineFailure('AI 决策命令未能通过权威提交，本局已因机器决策异常结束。');
+          : terminateMachineFailure('AI 的操作未能通过规则检查，本局已结束。');
       }
       return 'IDLE';
+    });
+  }
+
+  /**
+   * Phase 4 model path. Preparation and submission each run in the shared
+   * per-match critical section; the network wait between them deliberately
+   * does not. The decision lease is the only bridge across that wait.
+   */
+  private async handleModelMachineDecisionDue(
+    registration: MachineDecisionScheduleRegistration
+  ): Promise<MachineDecisionScheduleResult> {
+    const prepared = await this.serialExecutor.runExclusive(
+      registration.matchId,
+      async (
+        criticalSection
+      ): Promise<PreparedModelMachineDecision | MachineDecisionScheduleResult> => {
+        if (!this.machineDecisionScheduler.isCurrent(registration)) return 'IDLE';
+        const match = this.matches.get(registration.matchId);
+        const game = match?.session.state;
+        if (!match || !game || !this.shouldScheduleMachineDecisions(match)) {
+          return game?.isEnded ? 'TERMINAL' : 'IDLE';
+        }
+        const participant = (['FIRST', 'SECOND'] as const)
+          .map((seat) => match.participants[seat])
+          .find(
+            (candidate) =>
+              candidate.participantKind === 'SYSTEM' &&
+              !!match.systemParticipantBindings[candidate.seat] &&
+              isCertifiedAiSystemParticipantBinding(
+                match.systemParticipantBindings[candidate.seat]!
+              )
+          );
+        if (!participant) return 'BLOCKED';
+
+        if (match.machineLiveness?.terminalReason) {
+          this.appendMachineSystemNotice(
+            match,
+            'AI_LIVENESS_CONCEDE',
+            `ai-liveness-concede:${match.machineLiveness.policyVersion}`,
+            buildMachineLivenessConcessionNotice(match.machineLiveness.terminalReason)
+          );
+          const terminal = await this.#executeMachineCommandAtRevisionInCriticalSection(
+            match.matchId,
+            participant.userId,
+            {
+              ...createSystemConcedeCommand(
+                participant.playerId,
+                match.machineLiveness.terminalReason
+              ),
+              timestamp: this.now(),
+            },
+            match.remoteRevision,
+            criticalSection
+          );
+          return terminal.success ? 'TERMINAL' : 'BLOCKED';
+        }
+        if (readServerDeadlineDescriptor(game)) return 'IDLE';
+        if (
+          game.activeEffect?.awaitingPlayerId &&
+          game.activeEffect.awaitingPlayerId !== participant.playerId
+        ) {
+          return 'IDLE';
+        }
+
+        const acquired = this.machineDecisionCoordinator.acquireLeaseInCriticalSection(
+          criticalSection,
+          {
+            matchId: match.matchId,
+            playerId: participant.playerId,
+            ownerId: this.machineDecisionScheduler.runtimeEpoch,
+            readAuthoritySnapshot: (section) =>
+              this.readMachineAuthoritySnapshot(match.matchId, section),
+          }
+        );
+        if (!acquired.ok) {
+          if (acquired.reason === 'NO_DECISION') return 'IDLE';
+          return acquired.reason === 'LEASE_HELD_BY_OTHER_OWNER' ? 'RETRY' : 'BLOCKED';
+        }
+
+        const strategyRuntime = this.machineStrategyRuntimes.get(
+          buildMachineStrategyRuntimeKey(match.matchId, participant.seat)
+        );
+        const view = match.session.getPlayerViewState(participant.playerId, {
+          seqOverride: match.remoteRevision,
+        });
+        if (!strategyRuntime || !view) return 'BLOCKED';
+        const observation = buildAiObservation(view, acquired.contract);
+        const context = buildAiStrategyContext({
+          observation,
+          deckKey: strategyRuntime.binding.deckKey,
+          deckContentHash: strategyRuntime.binding.deckContentHash,
+          selectedHistory: strategyRuntime.history.observe(observation),
+        });
+        const explainable = selectExplainableDecision(context);
+        if (!explainable.ok) return 'BLOCKED';
+        const accountKey =
+          Object.values(match.participants).find(
+            (candidate) => candidate.participantKind === 'USER'
+          )?.userId ?? `match:${match.matchId}`;
+        return {
+          participant,
+          accountKey,
+          acquired,
+          strategyRuntime,
+          observation,
+          context,
+          deterministicResult:
+            strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK'
+              ? createConservativeAuditableResult(acquired.contract)
+              : explainable.tier === 'HEURISTIC'
+                ? null
+                : explainable,
+        };
+      }
+    );
+    if (typeof prepared === 'string') return prepared;
+
+    if (prepared.deterministicResult) {
+      const submitted = await this.submitPreparedModelMachineDecision({
+        registration,
+        prepared,
+        result: prepared.deterministicResult,
+        modelInvocation: null,
+        strategyMode:
+          prepared.strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK'
+            ? 'CONSERVATIVE_FALLBACK'
+            : 'PRIMARY',
+      });
+      return submitted.result;
+    }
+
+    const attempts: AiModelInvocationAttemptAudit[] = [];
+    let repairFailureCode: AiModelRepairFailureCode | undefined;
+    let transportRetryFailureCode: AiModelTransportRetryFailureCode | undefined;
+
+    for (let attemptNumber = 1; attemptNumber <= 2; attemptNumber += 1) {
+      const envelope = buildAiModelRequestEnvelope({
+        strategyContext: prepared.context,
+        repairFailureCode,
+        transportRetryFailureCode,
+      });
+      const invoked = await this.modelInvocationRuntime!.invoke({
+        matchId: registration.matchId,
+        accountKey: prepared.accountKey,
+        envelope,
+      });
+      if (!invoked.ok) {
+        attempts.push(invoked.audit);
+        if (invoked.outcome === 'ABORTED') return 'RETRY';
+        if (attemptNumber === 1 && invoked.retryable) {
+          transportRetryFailureCode =
+            invoked.outcome === 'TIMEOUT' ? 'TIMEOUT' : 'PROVIDER_RETRYABLE';
+          continue;
+        }
+        break;
+      }
+
+      const parsed = parseAiModelDecisionOutput(invoked.rawOutput);
+      if (!parsed.ok) {
+        attempts.push(withModelAttemptOutcome(invoked.audit, parsed.reason));
+        if (attemptNumber === 1) {
+          repairFailureCode = parsed.reason;
+          transportRetryFailureCode = undefined;
+          continue;
+        }
+        break;
+      }
+
+      attempts.push(invoked.audit);
+      const modelResult: AuditableAiDecisionResult = {
+        policyVersion: AI_MODEL_DECISION_POLICY_VERSION,
+        tier: 'HEURISTIC',
+        reasonCode: 'MODEL_STRUCTURED_SELECTION',
+        summary: parsed.output.summary,
+        consideredIds: collectModelConsideredIds(prepared.context),
+        selection: parsed.output.selection,
+      };
+      const submitted = await this.submitPreparedModelMachineDecision({
+        registration,
+        prepared,
+        result: modelResult,
+        modelInvocation: this.modelInvocationRuntime!.createAudit(attempts, 'MODEL_SELECTION'),
+        strategyMode: 'PRIMARY',
+      });
+      if (!submitted.invalidSelection) return submitted.result;
+
+      attempts[attempts.length - 1] = withModelAttemptOutcome(
+        attempts[attempts.length - 1]!,
+        'INVALID_SELECTION'
+      );
+      if (attemptNumber === 1) {
+        repairFailureCode = 'INVALID_SELECTION';
+        transportRetryFailureCode = undefined;
+        continue;
+      }
+      break;
+    }
+
+    const fallback = createConservativeAuditableResult(prepared.acquired.contract);
+    if (!fallback) {
+      return this.terminatePreparedModelFailure(
+        registration,
+        prepared.participant,
+        'AI 无法完成当前操作，本局已因 AI 操作异常结束。'
+      );
+    }
+    return (
+      await this.submitPreparedModelMachineDecision({
+        registration,
+        prepared,
+        result: fallback,
+        modelInvocation: this.modelInvocationRuntime!.createAudit(
+          attempts,
+          'CONSERVATIVE_FALLBACK'
+        ),
+        strategyMode: 'CONSERVATIVE_FALLBACK',
+      })
+    ).result;
+  }
+
+  private async submitPreparedModelMachineDecision(input: {
+    readonly registration: MachineDecisionScheduleRegistration;
+    readonly prepared: PreparedModelMachineDecision;
+    readonly result: AuditableAiDecisionResult;
+    readonly modelInvocation: AiModelInvocationAudit | null;
+    readonly strategyMode: MachineStrategyMode;
+  }): Promise<{
+    readonly result: MachineDecisionScheduleResult;
+    readonly invalidSelection: boolean;
+  }> {
+    return this.serialExecutor.runExclusive(input.registration.matchId, async (criticalSection) => {
+      const match = this.matches.get(input.registration.matchId);
+      const game = match?.session.state;
+      if (
+        !match ||
+        !game ||
+        !this.machineDecisionScheduler.isCurrent(input.registration) ||
+        !this.shouldScheduleMachineDecisions(match)
+      ) {
+        return {
+          result: game?.isEnded ? ('TERMINAL' as const) : ('RETRY' as const),
+          invalidSelection: false,
+        };
+      }
+      if (input.strategyMode === 'CONSERVATIVE_FALLBACK') {
+        input.prepared.strategyRuntime.modelMode = 'CONSERVATIVE_FALLBACK';
+      }
+      const before = game;
+      const strategySubmission: MachineStrategySubmissionMetadata = {
+        audit: createAiStrategyDecisionAudit(input.prepared.context, input.result),
+        decisionId: input.prepared.acquired.contract.decisionId,
+        windowSignature: input.prepared.acquired.contract.windowSignature,
+        modelInvocation: input.modelInvocation,
+      };
+      const submitted = await this.machineDecisionCoordinator.submitSelectionInCriticalSection(
+        criticalSection,
+        {
+          matchId: match.matchId,
+          leaseId: input.prepared.acquired.lease.leaseId,
+          ownerId: this.machineDecisionScheduler.runtimeEpoch,
+          selection: input.result.selection,
+          readAuthoritySnapshot: (section) =>
+            this.readMachineAuthoritySnapshot(match.matchId, section),
+          executeCommand: (command, expectedRevision, section) =>
+            this.#executeMachineCommandAtRevisionInCriticalSection(
+              match.matchId,
+              input.prepared.participant.userId,
+              command,
+              expectedRevision,
+              section,
+              strategySubmission
+            ),
+        }
+      );
+      if (!submitted.ok) {
+        if (submitted.reason === 'INVALID_SELECTION') {
+          return { result: 'RETRY' as const, invalidSelection: true };
+        }
+        const retryable =
+          submitted.reason === 'LEASE_EXPIRED' ||
+          submitted.reason === 'AUTHORITY_REVISION_CHANGED' ||
+          submitted.reason === 'WINDOW_CHANGED' ||
+          submitted.reason === 'LEASE_NOT_FOUND';
+        if (retryable) return { result: 'RETRY' as const, invalidSelection: false };
+        const terminated = await this.terminateMachineDecisionFailureInCriticalSection(
+          match,
+          input.prepared.participant,
+          `ai-machine-failure:${input.registration.runtimeEpoch}`,
+          'AI 的操作未能通过规则检查，本局已结束。',
+          criticalSection
+        );
+        return {
+          result: terminated ? ('TERMINAL' as const) : ('BLOCKED' as const),
+          invalidSelection: false,
+        };
+      }
+
+      input.prepared.strategyRuntime.history.recordAcceptedDecision(
+        input.prepared.observation,
+        input.result
+      );
+      const after = match.session.state;
+      if (!after) return { result: 'BLOCKED' as const, invalidSelection: false };
+
+      if (input.strategyMode === 'CONSERVATIVE_FALLBACK') {
+        this.appendMachineSystemNotice(
+          match,
+          'AI_FALLBACK_ENABLED',
+          `ai-fallback-enabled:${AI_MODEL_DECISION_POLICY_VERSION}`,
+          'AI 暂时无法正常选择，本局接下来会只做稳妥操作继续。'
+        );
+      }
+      const previous =
+        match.machineLiveness ?? createMachineLivenessState(before, this.now(), input.strategyMode);
+      const liveness = recordMachineLivenessDecision({
+        previous,
+        before,
+        after,
+        systemPlayerId: input.prepared.participant.playerId,
+        now: this.now(),
+        strategyMode: input.strategyMode,
+        limits: this.machineLivenessLimits,
+      });
+      match.machineLiveness = liveness.state;
+      if (liveness.terminalReason && !after.isEnded) {
+        this.appendMachineSystemNotice(
+          match,
+          'AI_LIVENESS_CONCEDE',
+          `ai-liveness-concede:${liveness.state.policyVersion}`,
+          buildMachineLivenessConcessionNotice(liveness.terminalReason)
+        );
+        const terminal = await this.#executeMachineCommandAtRevisionInCriticalSection(
+          match.matchId,
+          input.prepared.participant.userId,
+          {
+            ...createSystemConcedeCommand(
+              input.prepared.participant.playerId,
+              liveness.terminalReason
+            ),
+            timestamp: this.now(),
+          },
+          match.remoteRevision,
+          criticalSection
+        );
+        return {
+          result: terminal.success ? ('TERMINAL' as const) : ('BLOCKED' as const),
+          invalidSelection: false,
+        };
+      }
+      return {
+        result: after.isEnded ? ('TERMINAL' as const) : ('PROGRESSED' as const),
+        invalidSelection: false,
+      };
+    });
+  }
+
+  private async terminatePreparedModelFailure(
+    registration: MachineDecisionScheduleRegistration,
+    participant: OnlineMatchParticipant,
+    detail: string
+  ): Promise<MachineDecisionScheduleResult> {
+    return this.serialExecutor.runExclusive(registration.matchId, async (criticalSection) => {
+      const match = this.matches.get(registration.matchId);
+      if (!match || match.session.state?.isEnded) return 'TERMINAL';
+      const terminated = await this.terminateMachineDecisionFailureInCriticalSection(
+        match,
+        participant,
+        `ai-machine-failure:${registration.runtimeEpoch}`,
+        detail,
+        criticalSection
+      );
+      return terminated ? 'TERMINAL' : 'BLOCKED';
     });
   }
 
@@ -1149,8 +1561,8 @@ export class OnlineMatchService {
         participant,
         `ai-machine-failure:${registration.runtimeEpoch}`,
         reason === 'BLOCKED'
-          ? 'AI 无法为当前决策生成合法操作，本局已因机器决策异常结束。'
-          : 'AI 决策调度连续发生异常，本局已因机器决策异常结束。',
+          ? 'AI 无法完成当前允许的操作，本局已结束。'
+          : 'AI 连续多次无法正常操作，本局已结束。',
         criticalSection
       );
       if (!terminated && !match.session.state?.isEnded) {
@@ -1181,6 +1593,7 @@ export class OnlineMatchService {
   }
 
   private incrementAuthorityRevision(match: OnlineMatchState): void {
+    this.modelInvocationRuntime?.cancelMatch(match.matchId);
     incrementRemoteRevision(match);
     this.reconcileServerDeadline(match);
     this.reconcileMachineDecisionScheduling(match);
@@ -1265,6 +1678,7 @@ export class OnlineMatchService {
         this.machineStrategyRuntimes.set(buildMachineStrategyRuntimeKey(match.matchId, seat), {
           binding,
           history: createAiSelectedHistoryTracker(seat),
+          modelMode: 'MODEL',
         });
       }
     }
@@ -2225,6 +2639,7 @@ export class OnlineMatchService {
           execution: result.success
             ? { status: 'ACCEPTED' }
             : { status: 'REJECTED', errorCode: result.error ?? 'UNKNOWN_COMMAND_REJECTION' },
+          modelInvocation: options.strategySubmission.modelInvocation,
           ruleRandomFactRefs: match.session
             .getRuleRandomFacts()
             .slice(ruleRandomFactCountBefore)
@@ -3209,6 +3624,7 @@ export class OnlineMatchService {
     if (!match) {
       this.deadlineOwner.cancelMatch(matchId);
       this.machineDecisionScheduler.cancelMatch(matchId);
+      this.modelInvocationRuntime?.cancelMatch(matchId);
       this.machineDecisionCoordinator.invalidateMatchInCriticalSection(criticalSection, matchId);
       this.machineStrategyRuntimes.delete(buildMachineStrategyRuntimeKey(matchId, 'FIRST'));
       this.machineStrategyRuntimes.delete(buildMachineStrategyRuntimeKey(matchId, 'SECOND'));
@@ -3227,6 +3643,7 @@ export class OnlineMatchService {
     const now = options.now ?? this.now();
     this.deadlineOwner.cancelMatch(matchId);
     this.machineDecisionScheduler.cancelMatch(matchId);
+    this.modelInvocationRuntime?.cancelMatch(matchId);
     this.machineDecisionCoordinator.invalidateMatchInCriticalSection(criticalSection, matchId);
     this.matches.delete(matchId);
     this.machineStrategyRuntimes.delete(buildMachineStrategyRuntimeKey(matchId, 'FIRST'));
@@ -3441,6 +3858,9 @@ export class OnlineMatchService {
   }
 
   clear(): void {
+    for (const matchId of this.matches.keys()) {
+      this.modelInvocationRuntime?.cancelMatch(matchId);
+    }
     this.deadlineOwner.dispose();
     this.machineDecisionScheduler.dispose();
     this.machineDecisionCoordinator.dispose();
@@ -4032,9 +4452,49 @@ export class OnlineMatchService {
   }
 }
 
+const configuredAiBattleModelProvider = createConfiguredAiBattleModelProvider();
 export const onlineMatchService = new OnlineMatchService({
   machineDecisionSchedulingEnabled: true,
+  modelInvocationRuntime: configuredAiBattleModelProvider
+    ? createAiModelInvocationRuntime({ provider: configuredAiBattleModelProvider })
+    : null,
 });
+
+function createConservativeAuditableResult(
+  contract: AiDecisionContract
+): AuditableAiDecisionResult | null {
+  const selected = selectConservativeDecision(contract);
+  return selected.ok
+    ? {
+        policyVersion: selected.policyVersion,
+        tier: 'DETERMINISTIC',
+        reasonCode: 'MODEL_FAILURE_CONSERVATIVE_FALLBACK',
+        summary: 'Use the certified conservative choice after model unavailability.',
+        consideredIds: [],
+        selection: selected.selection,
+      }
+    : null;
+}
+
+function collectModelConsideredIds(context: AiStrategyContext): readonly string[] {
+  const decision = context.observation.decision;
+  return [
+    ...new Set([
+      ...decision.candidates.map((candidate) => candidate.candidateId),
+      ...decision.options.map((option) => option.optionId),
+      ...decision.actions.map((action) => action.actionId),
+      ...(decision.input?.groups?.flatMap((group) => group.candidateIds) ?? []),
+      ...(decision.input?.members?.map((member) => member.candidateId) ?? []),
+    ]),
+  ].sort();
+}
+
+function withModelAttemptOutcome(
+  attempt: AiModelInvocationAttemptAudit,
+  outcome: 'INVALID_JSON' | 'INVALID_SCHEMA' | 'INVALID_SELECTION'
+): AiModelInvocationAttemptAudit {
+  return { ...attempt, outcome, usage: { ...attempt.usage } };
+}
 
 function buildSnapshot(
   match: OnlineMatchState,
@@ -4895,13 +5355,13 @@ function buildMachineLivenessConcessionNotice(
 ): string {
   switch (reason) {
     case 'AI_TURNS_WITHOUT_STRATEGIC_PROGRESS':
-      return 'AI 连续多个回合未产生规则进展，已按活性保护政策认输。';
+      return 'AI 连续几个回合没有让牌局继续推进，因此已认输。';
     case 'CONSERVATIVE_DECISION_LIMIT':
-      return 'AI 已达到本局保守决策上限，已按活性保护政策认输。';
+      return 'AI 已用完本局可进行的稳妥操作次数，因此已认输。';
     case 'DEGRADED_DURATION_LIMIT':
-      return 'AI 的保守模式持续时间已达到上限，已按活性保护政策认输。';
+      return 'AI 长时间无法恢复正常选择，因此已认输。';
     case 'AUTHORITY_PROGRESS_WATCHDOG':
-      return 'AI 连续决策未推动权威状态，已按活性保护政策认输。';
+      return 'AI 连续多次没有让牌局继续推进，因此已认输。';
   }
 }
 
