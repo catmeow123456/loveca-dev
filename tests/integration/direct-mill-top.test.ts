@@ -3,6 +3,7 @@ import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/doma
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
+  createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
@@ -16,6 +17,7 @@ import {
   S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -161,6 +163,35 @@ function prepareDirectMillSession(params: {
   return session;
 }
 
+function advancePublicRevealDwell(session: ReturnType<typeof createGameSession>) {
+  const effect = session.state!.activeEffect!;
+  expect(effect.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  const generation = effect.publicRevealGeneration ?? `test-public-reveal:${effect.id}`;
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: {
+      ...effect,
+      publicRevealAutoAdvanceAt: 0,
+      publicRevealGeneration: generation,
+    },
+  };
+  return session.executeCommand(
+    createAutoAdvancePublicRevealCommand(effect.awaitingPlayerId, effect.id, 0, generation)
+  );
+}
+
+function getStartedMillCardIds(session: ReturnType<typeof createGameSession>): readonly string[] {
+  const action = [...session.state!.actionHistory]
+    .reverse()
+    .find(
+      (candidate) =>
+        candidate.type === 'RESOLVE_ABILITY' && candidate.payload.step === 'MILL_TOP_CARDS'
+    );
+  return Array.isArray(action?.payload.milledCardIds)
+    ? action.payload.milledCardIds.filter((cardId): cardId is string => typeof cardId === 'string')
+    : [];
+}
+
 describe('direct mill top shared workflow', () => {
   it('mills top ten for PL!S-bp5-015-N through the shared refresh-aware direct-mill workflow', () => {
     const topCards = Array.from({ length: 10 }, (_, index) =>
@@ -187,9 +218,8 @@ describe('direct mill top shared workflow', () => {
     const topCardIds = topCards.map((card) => card.instanceId);
 
     expect(session.state?.activeEffect?.abilityId).toBe(S_BP5_015_ON_ENTER_MILL_TOP_TEN_ABILITY_ID);
-    expect(session.state?.activeEffect?.stepId).toBe('S_BP5_015_REVEAL_MILLED_TOP_TEN');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
     expect(
       session.state?.eventLog.some((entry) => {
         const event = entry.event;
@@ -211,9 +241,7 @@ describe('direct mill top shared workflow', () => {
       )
     ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(
       session.state?.actionHistory.some(
@@ -254,10 +282,8 @@ describe('direct mill top shared workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_012_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('S_BP6_012_REVEAL_MILLED_TOP_FIVE');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toHaveLength(5);
     expect(
@@ -293,9 +319,7 @@ describe('direct mill top shared workflow', () => {
       )
     ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(
       session.state?.actionHistory.some(
@@ -331,9 +355,8 @@ describe('direct mill top shared workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_BP6_017_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('S_BP6_017_REVEAL_MILLED_TOP_FIVE');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toHaveLength(5);
     expect(
@@ -347,9 +370,7 @@ describe('direct mill top shared workflow', () => {
       )
     ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
   });
@@ -380,10 +401,9 @@ describe('direct mill top shared workflow', () => {
 
     expect(session.state?.activeEffect).toMatchObject({
       abilityId: HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID,
-      stepId: 'HS_BP2_011_REVEAL_MILLED_TOP_FIVE',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       revealedCardIds: topCardIds,
     });
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
     expect(
       session.state?.eventLog.some((entry) => {
         const event = entry.event;
@@ -407,9 +427,7 @@ describe('direct mill top shared workflow', () => {
       )
     ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(session.state?.activeEffect?.abilityId).not.toBe(
       HS_BP2_011_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
@@ -450,7 +468,7 @@ describe('direct mill top shared workflow', () => {
       topCards,
       waitingRoomCards: refreshCards,
     });
-    const milledCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    const milledCardIds = getStartedMillCardIds(session);
     const refreshCardIds = refreshCards.map((card) => card.instanceId);
 
     expect(session.state?.activeEffect?.abilityId).toBe(
@@ -458,7 +476,6 @@ describe('direct mill top shared workflow', () => {
     );
     expect(milledCardIds).toHaveLength(5);
     expect(milledCardIds.slice(0, 2)).toEqual(topCards.map((card) => card.instanceId));
-    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
     expect(milledCardIds).not.toEqual(expect.arrayContaining(refreshCardIds));
     expect(
       session.state?.eventLog.some((entry) => {
@@ -505,12 +522,12 @@ describe('direct mill top shared workflow', () => {
     });
     const topCardIds = topCards.map((card) => card.instanceId);
     const refreshCardIds = refreshCards.map((card) => card.instanceId);
-    const milledCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    const milledCardIds = getStartedMillCardIds(session);
 
     expect(session.state?.activeEffect?.abilityId).toBe(
       S_SD1_013_ON_ENTER_MILL_TOP_FIVE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('S_SD1_013_REVEAL_MILLED_TOP_FIVE');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(milledCardIds).toHaveLength(5);
     expect(milledCardIds.slice(0, 2)).toEqual(topCardIds);
     expect(milledCardIds).not.toEqual(expect.arrayContaining(refreshCardIds));
@@ -535,9 +552,7 @@ describe('direct mill top shared workflow', () => {
       )
     ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(
       session.state?.actionHistory.some(
@@ -576,12 +591,11 @@ describe('direct mill top shared workflow', () => {
       topCards,
       waitingRoomCards: refreshCards,
     });
-    const milledCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    const milledCardIds = getStartedMillCardIds(session);
     const refreshCardIds = refreshCards.map((card) => card.instanceId);
 
     expect(milledCardIds).toHaveLength(5);
     expect(milledCardIds.slice(0, 2)).toEqual(topCards.map((card) => card.instanceId));
-    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
     expect(milledCardIds).not.toEqual(expect.arrayContaining(refreshCardIds));
     expect(
       session.state?.actionHistory.some(

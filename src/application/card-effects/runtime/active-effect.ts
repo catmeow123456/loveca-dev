@@ -6,6 +6,10 @@ import {
   type PendingAbilityState,
 } from '../../../domain/entities/game.js';
 import type { EffectCostDefinition } from '../../effects/effect-costs.js';
+import {
+  createPublicRevealDwellBeforeNextEffect,
+  withPublicRevealDwell,
+} from './public-reveal-dwell.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -92,14 +96,18 @@ export interface RevealHandCardForActiveEffectOptions {
   readonly selectableCardVisibility?: ActiveEffectState['selectableCardVisibility'];
   readonly selectableCardMode?: ActiveEffectState['selectableCardMode'];
   readonly selectableOptions?: ActiveEffectState['selectableOptions'];
+  readonly effectChoice?: ActiveEffectState['effectChoice'];
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;
   readonly canSkipSelection?: boolean;
   readonly skipSelectionLabel?: string;
+  readonly restoreNextEffectAfterPublicRevealDwell?: boolean;
 }
 
-export interface RevealHandCardsForActiveEffectOptions
-  extends Omit<RevealHandCardForActiveEffectOptions, 'selectedCardId'> {
+export interface RevealHandCardsForActiveEffectOptions extends Omit<
+  RevealHandCardForActiveEffectOptions,
+  'selectedCardId'
+> {
   readonly selectedCardIds: readonly string[];
 }
 
@@ -229,44 +237,47 @@ export function revealHandCardsForActiveEffect(
   const revealedCardIds = Array.from(
     new Set([...(effect.revealedCardIds ?? []), ...selectedCardIds])
   );
-
-  return addAction(
-    {
-      ...game,
-      activeEffect: {
-        ...effect,
-        stepId: options.nextStepId,
-        stepText: options.nextStepText,
-        revealedCardIds,
-        selectableCardIds: options.selectableCardIds,
-        selectableCardVisibility: options.selectableCardVisibility,
-        selectableCardMode: options.selectableCardMode,
-        selectableOptions: options.selectableOptions,
-        selectableSlots: undefined,
-        stageFormation: undefined,
-        numericInput: undefined,
-        selectionLabel: options.selectionLabel,
-        confirmSelectionLabel: options.confirmSelectionLabel,
-        minSelectableCards: undefined,
-        maxSelectableCards: undefined,
-        canSkipSelection: options.canSkipSelection,
-        skipSelectionLabel: options.skipSelectionLabel,
-        metadata: {
-          ...effect.metadata,
-          ...options.metadata,
-        },
-      },
+  const nextEffect: ActiveEffectState = {
+    ...effect,
+    stepId: options.nextStepId,
+    stepText: options.nextStepText,
+    revealedCardIds,
+    selectableCardIds: options.selectableCardIds,
+    selectableCardVisibility: options.selectableCardVisibility,
+    selectableCardMode: options.selectableCardMode,
+    selectableOptions: options.selectableOptions,
+    effectChoice: options.effectChoice,
+    selectableSlots: undefined,
+    stageFormation: undefined,
+    numericInput: undefined,
+    selectionLabel: options.selectionLabel,
+    confirmSelectionLabel: options.confirmSelectionLabel,
+    minSelectableCards: undefined,
+    maxSelectableCards: undefined,
+    canSkipSelection: options.canSkipSelection,
+    skipSelectionLabel: options.skipSelectionLabel,
+    metadata: {
+      ...effect.metadata,
+      ...options.metadata,
     },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      pendingAbilityId: effect.id,
-      abilityId: effect.abilityId,
-      sourceCardId: effect.sourceCardId,
-      step: options.actionStep,
-      ...options.actionPayload,
-    }
-  );
+  };
+  const stateWithPublicReveal =
+    options.restoreNextEffectAfterPublicRevealDwell === true
+      ? createPublicRevealDwellBeforeNextEffect(game, nextEffect, {
+          revealedCardIds: selectedCardIds,
+        })
+      : {
+          ...game,
+          activeEffect: withPublicRevealDwell(nextEffect, selectedCardIds),
+        };
+
+  return addAction(stateWithPublicReveal, 'RESOLVE_ABILITY', player.id, {
+    pendingAbilityId: effect.id,
+    abilityId: effect.abilityId,
+    sourceCardId: effect.sourceCardId,
+    step: options.actionStep,
+    ...options.actionPayload,
+  });
 }
 
 export function startConfirmOnlyPendingAbilityEffect(

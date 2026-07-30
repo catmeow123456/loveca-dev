@@ -18,6 +18,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
 import { N_BP5_029_LIVE_START_REVEAL_KASUMI_HEARTS_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
 import {
   BladeHeartEffect,
@@ -224,20 +225,25 @@ function hasInspectionEnterWaitingRoomEvent(
 }
 
 function startLiveStartFromCheckTiming(game: GameState): GameState {
-  const result = new GameService().executeCheckTiming(
-    { ...game, pendingAbilities: [] },
-    [TriggerCondition.ON_LIVE_START]
-  );
+  const result = new GameService().executeCheckTiming({ ...game, pendingAbilities: [] }, [
+    TriggerCondition.ON_LIVE_START,
+  ]);
   expect(result.success, result.error).toBe(true);
   return result.gameState;
+}
+
+function advancePublicRevealDwell(game: GameState): GameState {
+  expect(game.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  return confirmActiveEffectStep(game, game.activeEffect!.awaitingPlayerId, game.activeEffect!.id);
 }
 
 describe('PL!N-bp5-029-L 無敵級*ビリーバー live-start workflow', () => {
   it('queues from the real LIVE_START timing path when stage Kasumi is present', () => {
     const scenario = setupMutekikyuScenario();
-    const started = startLiveStartFromCheckTiming(scenario.game);
+    const publicReveal = startLiveStartFromCheckTiming(scenario.game);
+    const started = advancePublicRevealDwell(publicReveal);
 
-    expect(started.activeEffect?.abilityId).toBe(
+    expect(publicReveal.activeEffect?.abilityId).toBe(
       N_BP5_029_LIVE_START_REVEAL_KASUMI_HEARTS_ABILITY_ID
     );
     expect(started.activeEffect?.stepText).toContain('请选择公开卡中的1张「中須かすみ」卡');
@@ -247,13 +253,14 @@ describe('PL!N-bp5-029-L 無敵級*ビリーバー live-start workflow', () => {
 
   it('reveals top four, selects Kasumi cards, grants each unique printed Heart color, and moves all revealed cards to waiting room', () => {
     const scenario = setupMutekikyuScenario();
-    const started = resolvePendingCardEffects(scenario.game).gameState;
+    const publicReveal = resolvePendingCardEffects(scenario.game).gameState;
+    const started = advancePublicRevealDwell(publicReveal);
 
-    expect(started.activeEffect?.abilityId).toBe(
+    expect(publicReveal.activeEffect?.abilityId).toBe(
       N_BP5_029_LIVE_START_REVEAL_KASUMI_HEARTS_ABILITY_ID
     );
-    expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
-    expect(started.activeEffect?.effectText).toContain('【LIVE开始时】');
+    expect(publicReveal.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
+    expect(publicReveal.activeEffect?.effectText).toContain('【LIVE开始时】');
     expect(started.activeEffect?.stepText).toContain('请选择公开卡中的1张「中須かすみ」卡');
     expect(started.activeEffect?.stepText).not.toContain('确认后');
     expect(started.activeEffect?.selectableCardIds).toEqual([scenario.revealedKasumiId]);
@@ -312,14 +319,11 @@ describe('PL!N-bp5-029-L 無敵級*ビリーバー live-start workflow', () => {
     const scenario = setupMutekikyuScenario({ noRevealedKasumi: true });
     const started = resolvePendingCardEffects(scenario.game).gameState;
 
-    expect(started.activeEffect?.stepText).toBe(
-      '公开卡中没有「中須かすみ」卡。公开的卡全部放置入休息室。'
-    );
-    expect(started.activeEffect?.selectableCardIds).toEqual([]);
+    expect(started.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(started.inspectionZone.revealedCardIds).toEqual(scenario.deckCardIds);
     expect(playerOne(started).waitingRoom.cardIds).toEqual([]);
 
-    const result = confirmActiveEffectStep(started, PLAYER1, started.activeEffect!.id);
+    const result = advancePublicRevealDwell(started);
     expect(result.activeEffect).toBeNull();
     expect(result.pendingAbilities).toEqual([]);
     expect(playerOne(result).waitingRoom.cardIds).toEqual(scenario.deckCardIds);
@@ -331,9 +335,10 @@ describe('PL!N-bp5-029-L 無敵級*ビリーバー live-start workflow', () => {
 
   it('reveals only the available deck cards when the deck has fewer than four cards', () => {
     const scenario = setupMutekikyuScenario({ deckSize: 2 });
-    const started = resolvePendingCardEffects(scenario.game).gameState;
+    const publicReveal = resolvePendingCardEffects(scenario.game).gameState;
+    const started = advancePublicRevealDwell(publicReveal);
 
-    expect(started.inspectionZone.cardIds).toEqual(scenario.deckCardIds);
+    expect(publicReveal.inspectionZone.cardIds).toEqual(scenario.deckCardIds);
     expect(started.activeEffect?.selectableCardIds).toEqual([scenario.revealedKasumiId]);
 
     const targetSelection = confirmActiveEffectStep(
@@ -358,7 +363,7 @@ describe('PL!N-bp5-029-L 無敵級*ビリーバー live-start workflow', () => {
 
   it('moves revealed cards to waiting room and grants no Heart if the selected stage Kasumi disappears before selection resolves', () => {
     const scenario = setupMutekikyuScenario();
-    const started = resolvePendingCardEffects(scenario.game).gameState;
+    const started = advancePublicRevealDwell(resolvePendingCardEffects(scenario.game).gameState);
     const targetSelection = confirmActiveEffectStep(
       started,
       PLAYER1,

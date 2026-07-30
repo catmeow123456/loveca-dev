@@ -12,6 +12,7 @@ import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   SP_BP5_007_ON_ENTER_DISCARD_LOOK_TOP_DISTINCT_GROUPS_ABILITY_ID,
   SP_BP5_008_ON_ENTER_WAIT_DISCARD_LOOK_TOP_ABILITY_ID,
@@ -170,11 +171,7 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
         createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
       ).success
     ).toBe(true);
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
       lowLiella.instanceId,
@@ -275,11 +272,7 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
         )
       ).success
     ).toBe(true);
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([bladeHeartLiella.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
       plainLiella.instanceId,
@@ -404,9 +397,7 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       ).success
     ).toBe(true);
     expect(session.state?.activeEffect).toMatchObject({
-      stepId: 'SP_BP5_007_REVEAL_SELECTED_GROUP_CARDS',
-      selectableCardIds: [],
-      canSkipSelection: false,
+      stepId: 'COMMON_PUBLIC_REVEAL_DWELL',
     });
     expect(session.state?.activeEffect?.selectableCardMode).toBeUndefined();
     expect(session.state?.activeEffect?.minSelectableCards).toBeUndefined();
@@ -417,11 +408,7 @@ describe('PL!SP-bp5 first look-top on-enter batch', () => {
       sunnyPassion.instanceId,
       arise.instanceId,
     ]);
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([
       liellaTwo.instanceId,
       sunnyPassion.instanceId,

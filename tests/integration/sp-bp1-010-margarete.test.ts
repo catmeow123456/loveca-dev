@@ -26,6 +26,7 @@ import {
   SP_BP1_010_ACTIVATED_PAY_TWO_ENERGY_DISCARD_LOOK_TOP_FIVE_LIELLA_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -38,6 +39,7 @@ import {
   TurnType,
   ZoneType,
 } from '../../src/shared/types/enums';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 const P1 = 'player1';
 const P2 = 'player2';
@@ -177,6 +179,13 @@ function confirm(
   cardId?: string,
   selectedCardIds?: readonly string[]
 ) {
+  if (
+    cardId === undefined &&
+    selectedCardIds === undefined &&
+    context.session.state?.activeEffect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID
+  ) {
+    return advancePublicRevealDwellIfNeeded(context.session)!;
+  }
   return context.session.executeCommand(
     createConfirmEffectStepCommand(
       P1,

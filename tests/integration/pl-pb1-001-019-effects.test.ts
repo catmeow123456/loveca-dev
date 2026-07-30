@@ -23,7 +23,10 @@ import {
   createConfirmEffectStepCommand,
 } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
-import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import {
+  advancePublicRevealDwellIfNeeded,
+  confirmPublicSelectionIfNeeded,
+} from '../helpers/public-card-selection-confirmation';
 import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
@@ -33,6 +36,7 @@ import {
   PL_S_PB1_019_LIVE_START_AQOURS_RED_HEART_SUPPRESS_SUCCESS_ABILITY_ID,
   PL_S_PB1_019_LIVE_SUCCESS_PLACE_OPPONENT_WAITING_ENERGY_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -106,6 +110,10 @@ function confirmActiveEffect(
   session: GameSession,
   selectedOptionId?: string | null
 ): GameState {
+  if (session.state?.activeEffect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID) {
+    advancePublicRevealDwellIfNeeded(session);
+    return session.state!;
+  }
   const effectId = session.state!.activeEffect!.id;
   const result = session.executeCommand(
     createConfirmEffectStepCommand(
@@ -118,7 +126,9 @@ function confirmActiveEffect(
     )
   );
   expect(result.success, result.error).toBe(true);
-  confirmPublicSelectionIfNeeded(session);
+  confirmPublicSelectionIfNeeded(session, {
+    advancePublicRevealDwell: selectedOptionId === undefined,
+  });
   return session.state!;
 }
 
@@ -463,8 +473,8 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     const afterReveal = confirmActiveEffect(session, 'LIVE_CARD');
     expect(afterReveal.activeEffect).toMatchObject({
       abilityId: PL_PB1_001_ACTIVATED_WAIT_SELF_DISCARD_REVEAL_UNTIL_CHOSEN_ABILITY_ID,
-      stepText: '已公开2张卡并公开到LIVE卡。确认后将命中的卡加入手牌，其余公开的卡放置入休息室。',
-      inspectionCardIds: deckCards.map((card) => card.instanceId),
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+      stepText: '已公开2张卡并公开到LIVE卡。展示结束后将命中的卡加入手牌，其余公开的卡放置入休息室。',
       revealedCardIds: deckCards.map((card) => card.instanceId),
     });
     expect(afterReveal.inspectionZone.cardIds).toEqual(deckCards.map((card) => card.instanceId));
@@ -505,7 +515,7 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     confirmActiveEffectCard(session, handCards[0]!.instanceId);
     const afterReveal = confirmActiveEffect(session, 'HIGH_COST_MEMBER');
     expect(afterReveal.activeEffect?.stepText).toBe(
-      '已公开2张卡并公开到费用10以上成员卡。确认后将命中的卡加入手牌，其余公开的卡放置入休息室。'
+      '已公开2张卡并公开到费用10以上成员卡。展示结束后将命中的卡加入手牌，其余公开的卡放置入休息室。'
     );
     expect(afterReveal.inspectionZone.cardIds).toEqual([deckCards[0]!.instanceId, highMember.instanceId]);
     expect(afterReveal.players[0].hand.cardIds).not.toContain(highMember.instanceId);
@@ -529,7 +539,9 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     confirmActiveEffectCard(session, handCards[0]!.instanceId);
 
     const afterReveal = confirmActiveEffect(session, 'LIVE_CARD');
-    const inspectedCardIds = afterReveal.activeEffect!.inspectionCardIds!;
+    const inspectedCardIds = afterReveal.actionHistory.findLast(
+      (action) => action.payload.step === 'REVEAL_UNTIL_HIT_START_CONFIRM'
+    )?.payload.inspectedCardIds as readonly string[];
     expect(inspectedCardIds.slice(0, 2)).toEqual(deckCards.map((card) => card.instanceId));
     expect(inspectedCardIds).toContain(waitingHitLive.instanceId);
     expect(afterReveal.inspectionZone.cardIds).toEqual(inspectedCardIds);
@@ -567,7 +579,7 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
     confirmActiveEffectCard(session, handCards[0]!.instanceId);
     const afterReveal = confirmActiveEffect(session, 'LIVE_CARD');
     expect(afterReveal.activeEffect?.stepText).toBe(
-      '已公开3张卡，未公开到LIVE卡。确认后将公开的卡全部放置入休息室。'
+      '已公开3张卡，未公开到LIVE卡。展示结束后将公开的卡全部放置入休息室。'
     );
     expect(afterReveal.inspectionZone.cardIds).toEqual([
       ...deckCards.map((card) => card.instanceId),

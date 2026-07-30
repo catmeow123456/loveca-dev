@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { LiveCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import {
   createGameState,
   registerCards,
@@ -14,6 +18,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { BP6_007_LIVE_SUCCESS_REVEAL_TOP_HAND_NO_BLADE_MEMBER_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   BladeHeartEffect,
   CardType,
@@ -72,13 +77,12 @@ function resolveNozomi(
   options: { readonly waitingRoomCardData?: MemberCardData | LiveCardData } = {}
 ): {
   readonly state: GameState;
+  readonly publicRevealState: GameState;
   readonly sourceCardId: string;
   readonly topCardId: string | null;
 } {
   const source = createCardInstance(createMember('PL!-bp6-007-P'), PLAYER1, 'nozomi');
-  const topCard = topCardData
-    ? createCardInstance(topCardData, PLAYER1, 'top-card')
-    : null;
+  const topCard = topCardData ? createCardInstance(topCardData, PLAYER1, 'top-card') : null;
   const waitingRoomCard = options.waitingRoomCardData
     ? createCardInstance(options.waitingRoomCardData, PLAYER1, 'waiting-card')
     : null;
@@ -109,17 +113,28 @@ function resolveNozomi(
       : player.waitingRoom,
   }));
 
-  const state = confirmIfConfirmOnly(resolvePendingCardEffects({
-    ...game,
-    liveResolution: {
-      ...game.liveResolution,
-      playerScores: new Map([[PLAYER1, 0]]),
-    },
-    pendingAbilities: [createPendingAbility(source.instanceId)],
-  }).gameState);
+  const publicRevealState = confirmIfConfirmOnly(
+    resolvePendingCardEffects({
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        playerScores: new Map([[PLAYER1, 0]]),
+      },
+      pendingAbilities: [createPendingAbility(source.instanceId)],
+    }).gameState
+  );
+  const state =
+    publicRevealState.activeEffect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID
+      ? confirmActiveEffectStep(
+          publicRevealState,
+          publicRevealState.activeEffect.awaitingPlayerId,
+          publicRevealState.activeEffect.id
+        )
+      : publicRevealState;
 
   return {
     state,
+    publicRevealState,
     sourceCardId: source.instanceId,
     topCardId: topCard?.instanceId ?? waitingRoomCard?.instanceId ?? null,
   };
@@ -133,9 +148,17 @@ function confirmIfConfirmOnly(game: GameState): GameState {
 
 describe('PL!-bp6-007 Nozomi LIVE success reveal top to hand', () => {
   it('reveals a no-BLADE-HEART member, moves it to hand, and adds SCORE +1', () => {
-    const { state, sourceCardId, topCardId } = resolveNozomi(
+    const { state, publicRevealState, sourceCardId, topCardId } = resolveNozomi(
       createMember('PL!-test-no-blade-member')
     );
+
+    expect(publicRevealState.activeEffect).toMatchObject({
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+      revealedCardIds: [topCardId],
+    });
+    expect(publicRevealState.players[0]?.hand.cardIds).not.toContain(topCardId);
+    expect(publicRevealState.inspectionZone.cardIds).toContain(topCardId);
+    expect(publicRevealState.liveResolution.playerScores.get(PLAYER1)).toBe(0);
 
     expect(state.players[0]?.mainDeck.cardIds).toEqual([]);
     expect(state.players[0]?.hand.cardIds).toContain(topCardId);
@@ -167,6 +190,53 @@ describe('PL!-bp6-007 Nozomi LIVE success reveal top to hand', () => {
     expect(state.players[0]?.hand.cardIds).toContain(topCardId);
     expect(state.liveResolution.liveModifiers).toEqual([]);
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(0);
+  });
+
+  it('consumes a stale revealed card as a no-op instead of leaving an unresolvable effect', () => {
+    const { publicRevealState, topCardId } = resolveNozomi(
+      createMember('PL!-test-stale-no-blade-member')
+    );
+    const staleState = updatePlayer(
+      {
+        ...publicRevealState,
+        inspectionZone: {
+          ...publicRevealState.inspectionZone,
+          cardIds: [],
+          revealedCardIds: [],
+        },
+      },
+      PLAYER1,
+      (player) => ({
+        ...player,
+        waitingRoom: {
+          ...player.waitingRoom,
+          cardIds: [...player.waitingRoom.cardIds, topCardId!],
+        },
+      })
+    );
+
+    const resolved = confirmActiveEffectStep(
+      staleState,
+      staleState.activeEffect!.awaitingPlayerId,
+      staleState.activeEffect!.id
+    );
+
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.players[0]?.hand.cardIds).not.toContain(topCardId);
+    expect(resolved.players[0]?.waitingRoom.cardIds).toContain(topCardId);
+    expect(resolved.liveResolution.liveModifiers).toEqual([]);
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(0);
+    expect(
+      resolved.actionHistory.some(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.step === 'REVEAL_TOP_CARD_STALE_NO_OP' &&
+          action.payload.revealedCardId === topCardId &&
+          action.payload.movedToHand === false &&
+          action.payload.scoreBonus === 0
+      )
+    ).toBe(true);
   });
 
   it('consumes pending as a no-op when the main deck has no top card', () => {

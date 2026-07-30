@@ -27,6 +27,10 @@ import {
   PUBLIC_EFFECT_CHOICE_RETRY_EFFECT_METADATA_KEY,
   resolvePublicEffectChoiceConfirmationStep,
 } from './public-effect-choice-confirmation.js';
+import {
+  PUBLIC_REVEAL_DWELL_STEP_ID,
+  resolvePublicRevealDwellStep,
+} from './public-reveal-dwell.js';
 import type { DelegatePendingAbility, PendingAbilityStarterOptions } from './starter-registry.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -120,6 +124,20 @@ export function resolveActiveEffectStepWithRegistry(
           restoredEffect,
           restoredInput,
           restoredContext
+        )
+    );
+  }
+  if (effect.stepId === PUBLIC_REVEAL_DWELL_STEP_ID) {
+    return resolvePublicRevealDwellStep(
+      game,
+      context,
+      (restoredGame, restoredEffect, restoredInput, restoredContext) =>
+        resolveRestoredActiveEffectStep(
+          restoredGame,
+          restoredEffect,
+          restoredInput,
+          restoredContext,
+          []
         )
     );
   }

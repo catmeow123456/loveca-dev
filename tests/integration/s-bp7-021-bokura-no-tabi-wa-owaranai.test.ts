@@ -28,6 +28,7 @@ import {
   S_BP7_021_LIVE_START_STAGE_THREE_MILL_BOTTOM_FIVE_MEMBER_REWARDS_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -145,10 +146,20 @@ function confirm(game: GameState): GameState {
   if (!waiting.activeEffect) {
     return waiting;
   }
-  if (waiting.activeEffect.stepId === 'S_BP7_021_REVEAL_MILLED_BOTTOM_FIVE') {
+  if (waiting.activeEffect.metadata?.confirmOnlyPendingAbility === true) {
+    expect(waiting.activeEffect.metadata.confirmOnlyPendingAbility).toBe(true);
+  } else if (
+    waiting.activeEffect.stepId === PUBLIC_REVEAL_DWELL_STEP_ID ||
+    waiting.activeEffect.abilityId === ABILITY_ID
+  ) {
     expect(waiting.activeEffect.metadata?.confirmOnlyPendingAbility).not.toBe(true);
-  } else {
-    expect(waiting.activeEffect.metadata?.confirmOnlyPendingAbility).toBe(true);
+    expect(
+      waiting.actionHistory.findLast((action) => action.payload.step === 'MILL_BOTTOM_CARDS')
+        ?.payload
+    ).toMatchObject({
+      movedCardIds: waiting.activeEffect.revealedCardIds ?? [],
+      refreshCount: expect.any(Number),
+    });
   }
   return confirmActiveEffectStep(waiting, P1, waiting.activeEffect!.id);
 }
@@ -307,10 +318,10 @@ describe('PL!S-bp7-021-L 分数5「我们的旅程永不落幕」', () => {
     const scenario = setup({ stageCount: 3, bottomFive: cards });
     const revealed = resolvePendingCardEffects(scenario.game).gameState;
     const movedCardIds = cards.map((card) => card.instanceId).reverse();
-    expect(revealed.activeEffect?.stepId).toBe('S_BP7_021_REVEAL_MILLED_BOTTOM_FIVE');
+    expect(revealed.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(revealed.activeEffect?.revealedCardIds).toEqual(movedCardIds);
     expect(revealed.activeEffect?.stepText).toContain('其中成员卡5张');
-    expect(revealed.activeEffect?.stepText).toContain('确认后抽1张，此LIVE[スコア]+1');
+    expect(revealed.activeEffect?.stepText).toContain('展示结束后抽1张，此LIVE[スコア]+1');
     expect(revealed.players[0].waitingRoom.cardIds).toEqual(movedCardIds);
     expect(revealed.players[0].hand.cardIds).toEqual([]);
     expect(scoreModifiers(revealed)).toEqual([]);
@@ -363,7 +374,7 @@ describe('PL!S-bp7-021-L 分数5「我们的旅程永不落幕」', () => {
     const order = resolvePendingCardEffects(game).gameState;
     expect(order.activeEffect?.abilityId).toBe(ABILITY_ORDER_SELECTION_ID);
     const reveal = confirmActiveEffectStep(order, P1, order.activeEffect!.id, null, null, true);
-    expect(reveal.activeEffect?.stepId).toBe('S_BP7_021_REVEAL_MILLED_BOTTOM_FIVE');
+    expect(reveal.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(reveal.activeEffect?.revealedCardIds).toHaveLength(5);
     expect(scoreModifiers(reveal)).toEqual([]);
     const reopened = confirmActiveEffectStep(reveal, P1, reveal.activeEffect!.id);

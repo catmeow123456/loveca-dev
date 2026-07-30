@@ -18,6 +18,7 @@ import {
 import type { EnterWaitingRoomEvent } from '../../src/domain/events/game-events';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { projectPlayerViewState } from '../../src/online/projector';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   FaceState,
@@ -196,15 +197,8 @@ describe('PL!N-bp7-009-P 天王寺璃奈', () => {
       expect(view.activeEffect?.revealedObjectIds).toEqual(expectedP1Objects);
     }
     expect(revealing.activeEffect).toMatchObject({
-      stepId: 'N_BP7_009_REVEAL_EACH_PLAYER_MILL_RESULT',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       awaitingPlayerId: P1,
-      selectionLabel: '发动方公开的卡片',
-      confirmSelectionLabel: '确认公开结果',
-      metadata: {
-        orderedResolution: false,
-        revealOrderPlayerIds: [P1, P2],
-        currentRevealPlayerId: P1,
-      },
     });
     expect(revealing.activeEffect?.metadata?.confirmOnlyPendingAbility).toBeUndefined();
 
@@ -213,11 +207,9 @@ describe('PL!N-bp7-009-P 天王寺璃奈', () => {
 
     const revealingOpponent = confirmCurrent(revealing);
     expect(revealingOpponent.activeEffect).toMatchObject({
-      stepId: 'N_BP7_009_REVEAL_EACH_PLAYER_MILL_RESULT',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
       awaitingPlayerId: P1,
-      selectionLabel: '对方公开的卡片',
-      confirmSelectionLabel: '确认公开结果',
-      metadata: { currentRevealPlayerId: P2 },
+      revealedCardIds: scenario.p2Main.slice(0, 7).map((card) => card.instanceId),
     });
     for (const viewerId of [P1, P2]) {
       expect(
@@ -311,11 +303,11 @@ describe('PL!N-bp7-009-P 天王寺璃奈', () => {
     expect(waitingEvents(revealing).map((event) => event.ownerId)).toEqual([P2, P1]);
     expect(revealing.activeEffect).toMatchObject({
       awaitingPlayerId: P1,
-      metadata: { currentRevealPlayerId: P1 },
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
     });
     expect(confirmCurrent(revealing).activeEffect).toMatchObject({
       awaitingPlayerId: P1,
-      metadata: { currentRevealPlayerId: P2 },
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
     });
   });
 
@@ -361,7 +353,11 @@ describe('PL!N-bp7-009-P 天王寺璃奈', () => {
     expect(p1Event.cardInstanceIds).toHaveLength(7);
     expect(new Set(p1Event.cardInstanceIds).size).toBeLessThan(p1Event.cardInstanceIds!.length);
     expect(revealing.activeEffect?.revealedCardIds).toEqual([...new Set(p1Event.cardInstanceIds)]);
-    expect(revealing.activeEffect?.metadata?.movedCardIdsByPlayer).toEqual([
+    expect(
+      revealing.actionHistory.find(
+        (action) => action.payload.step === 'REVEAL_EACH_PLAYER_MILL_TOP_SEVEN'
+      )?.payload.movedCardIdsByPlayer
+    ).toEqual([
       { playerId: P1, movedCardIds: p1Event.cardInstanceIds },
       { playerId: P2, movedCardIds: [] },
     ]);
@@ -382,7 +378,7 @@ describe('PL!N-bp7-009-P 天王寺璃奈', () => {
   it('公开确认前不推进 waiting-room pending；确认后 continuation 只推进一次', () => {
     const scenario = setup({ waitingRoomWatcher: true });
     const revealing = start(scenario.game);
-    expect(revealing.activeEffect?.stepId).toBe('N_BP7_009_REVEAL_EACH_PLAYER_MILL_RESULT');
+    expect(revealing.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(
       revealing.pendingAbilities.some(
         (ability) =>
@@ -400,7 +396,9 @@ describe('PL!N-bp7-009-P 天王寺璃奈', () => {
 
     const eventCount = waitingEvents(revealing).length;
     const revealingOpponent = confirmCurrent(revealing);
-    expect(revealingOpponent.activeEffect?.metadata?.currentRevealPlayerId).toBe(P2);
+    expect(revealingOpponent.activeEffect?.revealedCardIds).toEqual(
+      scenario.p2Main.slice(0, 7).map((card) => card.instanceId)
+    );
     expect(
       revealingOpponent.actionHistory.filter(
         (action) =>

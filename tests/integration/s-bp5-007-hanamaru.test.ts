@@ -7,8 +7,9 @@ import {
 } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
+import { confirmActiveEffectStepThroughPublicReveal } from '../helpers/public-card-selection-confirmation';
 import {
-  finishRevealedLookTopSelectToHandWorkflow,
   resolveLookTopSelectToHandSelection,
   startLookTopSelectToHandWorkflow,
   type LookTopSelectToHandWorkflowConfig,
@@ -161,7 +162,7 @@ describe('PL!S-bp5-007 国木田花丸 LIVE_SUCCESS look-top workflow', () => {
     );
     expect(state.inspectionZone.revealedCardIds).toContain(topCards[0]!.instanceId);
 
-    state = finishRevealedLookTopSelectToHandWorkflow(state, scenario.options);
+    state = confirmActiveEffectStepThroughPublicReveal(state, PLAYER1, state.activeEffect!.id);
 
     expect(state.players[0]!.hand.cardIds).toEqual([topCards[0]!.instanceId]);
     expect(state.players[0]!.waitingRoom.cardIds).toEqual(
@@ -169,7 +170,6 @@ describe('PL!S-bp5-007 国木田花丸 LIVE_SUCCESS look-top workflow', () => {
     );
     expect(state.players[0]!.mainDeck.cardIds).toEqual([topCards[4]!.instanceId]);
     expect(state.inspectionZone.cardIds).toEqual([]);
-    expect(scenario.wasContinued()).toBe(true);
 
     const enterWaitingEvent = state.eventLog.at(-1)?.event;
     expect(enterWaitingEvent).toMatchObject({

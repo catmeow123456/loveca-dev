@@ -9,6 +9,7 @@ import { PL_N_BP3_028_LIVE_START_LOOK_TOP_PER_NIJIGASAKI_REVEAL_LIVE_SCORE_ABILI
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers } from '../../runtime/inspection-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -64,12 +65,12 @@ function startReveal(game: GameState, ability: PendingAbilityState, ordered: boo
   if (!sourceValid(game, ability.controllerId, ability.sourceCardId)) return consume(game, ability, ordered, cont, 'SOURCE_LEFT_BEFORE_REVEAL');
   const inspection = inspectTopCards(game, ability.controllerId, { count: 1, reveal: true });
   if (!inspection || inspection.inspectedCardIds.length === 0) return consume(game, ability, ordered, cont, 'NO_CARD_TO_REVEAL');
-  return startPendingActiveEffect(inspection.gameState, { ability, playerId: ability.controllerId, activeEffect: {
+  return startPendingActiveEffect(inspection.gameState, { ability, playerId: ability.controllerId, activeEffect: withPublicRevealDwell({
     id: ability.id, abilityId: ability.abilityId, sourceCardId: ability.sourceCardId, controllerId: ability.controllerId,
-    effectText: getAbilityEffectText(ability.abilityId), stepId: REVEAL_STEP, stepText: '已公开自己卡组顶的1张卡。确认后将其放回卡组顶并结算分数。', awaitingPlayerId: ability.controllerId,
+    effectText: getAbilityEffectText(ability.abilityId), stepId: REVEAL_STEP, stepText: '已公开自己卡组顶的1张卡。展示结束后将其放回卡组顶并结算分数。', awaitingPlayerId: ability.controllerId,
     inspectionCardIds: inspection.inspectedCardIds, revealedCardIds: inspection.inspectedCardIds, selectableCardIds: [], selectableCardVisibility: 'PUBLIC', selectionLabel: '公开的卡片', confirmSelectionLabel: '确认公开结果', canSkipSelection: false,
     metadata: { orderedResolution: ordered, nijigasakiMemberCount: count },
-  }, actionPayload: { sourceCardId: ability.sourceCardId, step: 'REVEAL_CURRENT_DECK_TOP', revealedCardIds: inspection.inspectedCardIds } });
+  }), actionPayload: { sourceCardId: ability.sourceCardId, step: 'REVEAL_CURRENT_DECK_TOP', revealedCardIds: inspection.inspectedCardIds } });
 }
 
 function finishReveal(game: GameState, cont: Continue, enqueue: EnqueueTriggeredCardEffectsForEnterWaitingRoom): GameState {

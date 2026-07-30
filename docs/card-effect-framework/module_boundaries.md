@@ -70,12 +70,15 @@ Target locations:
 
 - `src/application/card-effects/runtime/active-effect.ts`
 - `src/application/card-effects/runtime/step-registry.ts`
+- `src/application/card-effects/runtime/public-reveal-dwell.ts`
 
 Rules:
 
 - 统一创建选择步骤。
 - 统一校验 `awaitingPlayerId`、`stepId`、候选可见性和选择对象类型。
 - 通过 registry 把 `abilityId + stepId` 分发给 workflow step handler。
+- `public-reveal-dwell.ts` 只负责“隐藏卡牌刚变为双方公开”后的权威定时展示与原 step/下一交互恢复：无输入原 step 使用 `withPublicRevealDwell`，真实下一交互使用 `createPublicRevealDwellBeforeNextEffect`。
+- dwell 只接受本次明确公开的 cardIds，不决定公开集合、不移动卡、不写奖励、不推进 pending，也不包装已有 public-card-selection / public-effect-choice 自动展示。
 - 不写卡文条件。
 
 ## Workflow

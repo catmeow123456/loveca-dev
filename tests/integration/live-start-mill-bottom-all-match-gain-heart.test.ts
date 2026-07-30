@@ -26,6 +26,7 @@ import {
   S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { CardType, HeartColor, SlotPosition, TriggerCondition } from '../../src/shared/types/enums';
 
 const P1 = 'p1';
@@ -109,7 +110,9 @@ function setup(
 function confirmSingle(game: GameState): GameState {
   const revealed = resolvePendingCardEffects(game).gameState;
   expect(revealed.activeEffect?.metadata?.confirmOnlyPendingAbility).not.toBe(true);
-  expect(revealed.activeEffect?.stepId).toContain('REVEAL_MILLED_BOTTOM');
+  if ((revealed.activeEffect?.revealedCardIds?.length ?? 0) > 0) {
+    expect(revealed.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  }
   return confirmActiveEffectStep(revealed, P1, revealed.activeEffect!.id, null);
 }
 

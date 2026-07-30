@@ -10,8 +10,11 @@ import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
+  N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
   PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { getCardAbilityDefinitionsForCardCode as getCardAbilityDefinitions } from '../../src/application/card-effects/definitions/lookup';
+import { getActivatedAbilityUiConfig } from '../../src/application/card-effects/runtime/activated-ability-ui';
 import {
   CardType,
   FaceState,
@@ -93,13 +96,7 @@ function setupScenario(
   );
   const remainingDeckCards =
     (options.drawCount ?? 1) > 0
-      ? [
-          createCardInstance(
-            createMemberCard('REMAINING-0', 'Remaining 0'),
-            PLAYER1,
-            'remaining-0'
-          ),
-        ]
+      ? [createCardInstance(createMemberCard('REMAINING-0', 'Remaining 0'), PLAYER1, 'remaining-0')]
       : [];
   const triggerSource =
     options.addHandToWaitingRoomTriggerSource === true
@@ -183,9 +180,9 @@ function setupScenario(
   };
 }
 
-function activate(scenario: Scenario) {
+function activate(scenario: Scenario, abilityId = PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID) {
   return scenario.session.executeCommand(
-    createActivateAbilityCommand(PLAYER1, scenario.sourceId, PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID)
+    createActivateAbilityCommand(PLAYER1, scenario.sourceId, abilityId)
   );
 }
 
@@ -195,6 +192,65 @@ function sourceOrientation(scenario: Scenario): OrientationState | undefined {
 }
 
 describe('PR shared activated wait self discard draw workflow', () => {
+  it('registers PL!N-sd2-015 by base code with the authorized typo correction', () => {
+    const effectText = '【起动】【1回合1次】将此成员变为待机状态。将1张手牌放置入休息室，抽1张卡。';
+    const definition = getCardAbilityDefinitions('PL!N-sd2-015-SEC').find(
+      (candidate) =>
+        candidate.abilityId === N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID
+    );
+    expect(definition).toMatchObject({
+      baseCardCodes: ['PL!N-sd2-015'],
+      perTurnLimit: 1,
+      effectText,
+    });
+    expect(getActivatedAbilityUiConfig('PL!N-sd2-015-SD2')?.text).toBe(effectText);
+  });
+
+  it('PL!N-sd2-015 waits itself, discards one hand card, and draws one', () => {
+    const scenario = setupScenario('PL!N-sd2-015-SD2', {
+      addHandToWaitingRoomTriggerSource: true,
+    });
+
+    const activateResult = activate(
+      scenario,
+      N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID
+    );
+    expect(activateResult.success, activateResult.error).toBe(true);
+    expect(sourceOrientation(scenario)).toBe(OrientationState.WAITING);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+      selectableCardIds: [scenario.handCardIds[0]],
+      selectionLabel: '选择要放置入休息室的手牌',
+    });
+
+    const finishResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        scenario.handCardIds[0]
+      )
+    );
+    expect(finishResult.success, finishResult.error).toBe(true);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
+      scenario.handCardIds[0]
+    );
+    expect(scenario.session.state?.players[0].hand.cardIds).toEqual([scenario.drawnCardIds[0]]);
+    expect(
+      scenario.session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+          entry.event.cardInstanceId === scenario.sourceId
+      )
+    ).toBe(true);
+    expect(
+      scenario.session.state?.eventLog.some(
+        (entry) =>
+          entry.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          entry.event.cardInstanceId === scenario.handCardIds[0]
+      )
+    ).toBe(true);
+  });
+
   for (const cardCode of ['PL!-PR-012-PR', 'PL!S-PR-038-PR', 'PL!SP-PR-017-PR'] as const) {
     it(`waits, discards, and draws for ${cardCode}`, () => {
       const scenario = setupScenario(cardCode, { addHandToWaitingRoomTriggerSource: true });

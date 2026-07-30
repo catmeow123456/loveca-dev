@@ -29,9 +29,12 @@ import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection
 import type { DeckConfig } from '../../src/application/game-service';
 import {
   HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID,
+  N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   SP_SD1_007_ON_ENTER_PAY_TWO_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { getCardAbilityDefinitionsForCardCode as getCardAbilityDefinitions } from '../../src/application/card-effects/definitions/lookup';
+import { getActivatedAbilityUiConfig } from '../../src/application/card-effects/runtime/activated-ability-ui';
 import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
@@ -180,17 +183,109 @@ function setupScenario(options: {
   };
 }
 
-function activate(scenario: ReturnType<typeof setupScenario>) {
+function activate(
+  scenario: ReturnType<typeof setupScenario>,
+  abilityId = HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID
+) {
   return scenario.session.executeCommand(
-    createActivateAbilityCommand(
-      PLAYER1,
-      scenario.sourceId,
-      HS_BP2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_LOW_SCORE_HASUNOSORA_LIVE_ABILITY_ID
-    )
+    createActivateAbilityCommand(PLAYER1, scenario.sourceId, abilityId)
   );
 }
 
 describe('pay-energy waiting-room-to-hand shared workflow', () => {
+  it('registers PL!N-sd2-001 by base code with exact corrected player text', () => {
+    const effectText = '【起动】【1回合1次】[E][E]：从自己的休息室将1张『虹咲』的LIVE卡加入手牌。';
+    const definition = getCardAbilityDefinitions('PL!N-sd2-001-SEC').find(
+      (candidate) =>
+        candidate.abilityId ===
+        N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID
+    );
+    expect(definition).toMatchObject({
+      baseCardCodes: ['PL!N-sd2-001'],
+      perTurnLimit: 1,
+      effectText,
+    });
+    expect(getActivatedAbilityUiConfig('PL!N-sd2-001-SD2')?.text).toBe(effectText);
+  });
+
+  it('PL!N-sd2-001 pays two energy and recovers only a Nijigasaki LIVE', () => {
+    const eligible = createCardInstance(
+      createLive('NIJIGASAKI-LIVE', 3, ['虹ヶ咲学園スクールアイドル同好会']),
+      PLAYER1,
+      'nijigasaki-live'
+    );
+    const otherGroup = createCardInstance(
+      createLive('OTHER-LIVE', 3, ['Aqours']),
+      PLAYER1,
+      'other-live'
+    );
+    const scenario = setupScenario({
+      sourceCardCode: 'PL!N-sd2-001-SD2',
+      waitingRoomCards: [eligible, otherGroup],
+      energyCount: 2,
+    });
+
+    const result = activate(
+      scenario,
+      N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+      selectableCardIds: [eligible.instanceId],
+      selectionLabel: '选择要加入手牌的卡',
+      confirmSelectionLabel: '加入手牌',
+    });
+    expect(
+      scenario.energyCardIds.map(
+        (cardId) =>
+          scenario.session.state?.players[0].energyZone.cardStates.get(cardId)?.orientation
+      )
+    ).toEqual([OrientationState.WAITING, OrientationState.WAITING]);
+
+    expect(
+      scenario.session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          scenario.session.state!.activeEffect!.id,
+          eligible.instanceId
+        )
+      ).success
+    ).toBe(true);
+    confirmPublicSelectionIfNeeded(scenario.session);
+    expect(scenario.session.state?.players[0].hand.cardIds).toContain(eligible.instanceId);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(otherGroup.instanceId);
+  });
+
+  it('PL!N-sd2-001 keeps a legal two-energy payment when no recovery target exists', () => {
+    const scenario = setupScenario({
+      sourceCardCode: 'PL!N-sd2-001-SD2',
+      waitingRoomCards: [],
+      energyCount: 2,
+    });
+
+    const result = activate(
+      scenario,
+      N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID
+    );
+    expect(result.success, result.error).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(
+      scenario.energyCardIds.map(
+        (cardId) =>
+          scenario.session.state?.players[0].energyZone.cardStates.get(cardId)?.orientation
+      )
+    ).toEqual([OrientationState.WAITING, OrientationState.WAITING]);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.payload.abilityId ===
+            N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID &&
+          action.payload.step === 'NO_TARGET_AFTER_COST'
+      )
+    ).toBe(true);
+  });
+
   it.each(['PL!HS-bp2-001-R', 'PL!HS-bp2-001-P'])(
     '%s pays two active energy and recovers only a score-three-or-less Hasunosora LIVE',
     (sourceCardCode) => {
@@ -542,8 +637,7 @@ describe('PL!SP-sd1-005-SD Ren activated LIVE recovery', () => {
     expect(
       scenario.session.state?.actionHistory.some(
         (action) =>
-          action.payload.abilityId ===
-          SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID
+          action.payload.abilityId === SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID
       )
     ).toBe(false);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(live.instanceId);
@@ -570,8 +664,7 @@ describe('PL!SP-sd1-005-SD Ren activated LIVE recovery', () => {
       scenario.session.state?.actionHistory.find(
         (action) =>
           action.type === 'PAY_COST' &&
-          action.payload.abilityId ===
-            SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID
+          action.payload.abilityId === SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID
       )?.payload.energyCardIds
     ).toEqual(validEnergyCardIds);
   });
@@ -849,13 +942,7 @@ function setupSpSd1007(options: {
   if (!options.realPlay) {
     state = emitGameEvent(
       state,
-      createEnterStageEvent(
-        source.instanceId,
-        ZoneType.HAND,
-        SlotPosition.CENTER,
-        PLAYER1,
-        PLAYER1
-      )
+      createEnterStageEvent(source.instanceId, ZoneType.HAND, SlotPosition.CENTER, PLAYER1, PLAYER1)
     );
     state = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENTER_STAGE]);
     if (options.removeSourceAfterQueue) {
@@ -963,8 +1050,16 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
       PLAYER1,
       'eligible'
     );
-    const liellaLive = createCardInstance(createLive('LIELLA-LIVE', 4, ['Liella!']), PLAYER1, 'live');
-    const otherMember = createCardInstance(createMember('OTHER-MEMBER', ['Aqours']), PLAYER1, 'other');
+    const liellaLive = createCardInstance(
+      createLive('LIELLA-LIVE', 4, ['Liella!']),
+      PLAYER1,
+      'live'
+    );
+    const otherMember = createCardInstance(
+      createMember('OTHER-MEMBER', ['Aqours']),
+      PLAYER1,
+      'other'
+    );
     const opponentOwned = createCardInstance(
       createMember('OPPONENT-LIELLA-MEMBER', ['Liella!']),
       PLAYER2,
@@ -973,7 +1068,9 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
     const scenario = setupSpSd1007({
       waitingRoomCards: [eligible, liellaLive, otherMember, opponentOwned],
     });
-    expect(scenario.session.state?.activeEffect?.metadata).toMatchObject({ orderedResolution: false });
+    expect(scenario.session.state?.activeEffect?.metadata).toMatchObject({
+      orderedResolution: false,
+    });
     paySpSd1007OrdinaryEnergy(scenario);
     expect(scenario.session.state?.activeEffect).toMatchObject({
       selectableCardIds: [eligible.instanceId],
@@ -985,7 +1082,11 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
   });
 
   it('consumes no-target pending without paying or opening an empty selection window', () => {
-    const invalid = createCardInstance(createMember('AQOURS-MEMBER', ['Aqours']), PLAYER1, 'invalid');
+    const invalid = createCardInstance(
+      createMember('AQOURS-MEMBER', ['Aqours']),
+      PLAYER1,
+      'invalid'
+    );
     const scenario = setupSpSd1007({ waitingRoomCards: [invalid] });
     expect(scenario.session.state?.activeEffect).toBeNull();
     expect(scenario.session.state?.pendingAbilities).toEqual([]);
@@ -1050,8 +1151,7 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
     );
     const scenario = setupSpSd1007({ waitingRoomCards: [target] });
     expect(scenario.session.state?.activeEffect).toMatchObject({
-      stepText:
-        '可以支付[E][E]；如此做时，从自己的休息室将1张『Liella!』的成员卡加入手牌。',
+      stepText: '可以支付[E][E]；如此做时，从自己的休息室将1张『Liella!』的成员卡加入手牌。',
       selectableOptions: [{ id: 'pay', label: '支付[E][E]' }],
       skipSelectionLabel: '不发动',
     });
@@ -1177,7 +1277,9 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
           )
         ).success
       ).toBe(false);
-      expect(scenario.session.state?.activeEffect?.stepId).toBe('COMMON_ENERGY_OPERATION_SELECTION');
+      expect(scenario.session.state?.activeEffect?.stepId).toBe(
+        'COMMON_ENERGY_OPERATION_SELECTION'
+      );
       expect(scenario.session.state?.actionHistory).toHaveLength(beforeActions);
     }
     staleState = updatePlayer(scenario.session.state!, PLAYER1, (player) => ({
@@ -1187,10 +1289,7 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
         cardIds: [staleDirectionId, ...player.energyZone.cardIds],
         cardStates: new Map([
           ...player.energyZone.cardStates,
-          [
-            staleDirectionId,
-            { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP },
-          ],
+          [staleDirectionId, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
         ]),
       },
     }));
@@ -1268,13 +1367,25 @@ describe('PL!SP-sd1-007-SD 费用7「米女メイ」queued ON_ENTER recovery', (
       PLAYER1,
       'eligible'
     );
-    const wrongType = createCardInstance(createLive('LIELLA-LIVE', 4, ['Liella!']), PLAYER1, 'wrong-type');
-    const wrongGroup = createCardInstance(createMember('AQOURS-MEMBER', ['Aqours']), PLAYER1, 'wrong-group');
+    const wrongType = createCardInstance(
+      createLive('LIELLA-LIVE', 4, ['Liella!']),
+      PLAYER1,
+      'wrong-type'
+    );
+    const wrongGroup = createCardInstance(
+      createMember('AQOURS-MEMBER', ['Aqours']),
+      PLAYER1,
+      'wrong-group'
+    );
     const scenario = setupSpSd1007({ waitingRoomCards: [eligible, wrongType, wrongGroup] });
     paySpSd1007OrdinaryEnergy(scenario);
     const selection = scenario.session.state!.activeEffect!;
     const initialWaitingRoom = [...scenario.session.state!.players[0].waitingRoom.cardIds];
-    const attempts: Array<{ playerId: string; selectedCardId?: string; selectedCardIds?: string[] }> = [
+    const attempts: Array<{
+      playerId: string;
+      selectedCardId?: string;
+      selectedCardIds?: string[];
+    }> = [
       { playerId: PLAYER1 },
       { playerId: PLAYER1, selectedCardIds: [eligible.instanceId, eligible.instanceId] },
       { playerId: PLAYER1, selectedCardId: 'forged-card' },

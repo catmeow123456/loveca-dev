@@ -38,6 +38,12 @@ export interface MoveInspectedDeckBottomRestToWaitingRoomResult extends MoveInsp
   readonly deckBottomCardIds: readonly string[];
 }
 
+export interface MoveInspectedCardsToDeckTopAndBottomResult {
+  readonly gameState: GameState;
+  readonly deckTopCardIds: readonly string[];
+  readonly deckBottomCardIds: readonly string[];
+}
+
 export interface PartitionInspectedCardsResult extends MoveInspectedDeckTopRestToWaitingRoomResult {
   readonly handCardIds: readonly string[];
 }
@@ -225,6 +231,47 @@ export function moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTrigger
         deckBottomCardIds: moveResult.deckEdgeCardIds,
       }
     : null;
+}
+
+export function moveInspectedCardsToDeckTopAndBottom(
+  game: GameState,
+  playerId: string,
+  inspectedCardIds: readonly string[],
+  deckTopCardIds: readonly string[],
+  deckBottomCardIds: readonly string[]
+): MoveInspectedCardsToDeckTopAndBottomResult | null {
+  const player = getPlayerById(game, playerId);
+  const destinationCardIds = [...deckTopCardIds, ...deckBottomCardIds];
+  const uniqueDestinationCardIds = new Set(destinationCardIds);
+  if (
+    !player ||
+    game.inspectionContext?.ownerPlayerId !== playerId ||
+    uniqueDestinationCardIds.size !== destinationCardIds.length ||
+    uniqueDestinationCardIds.size !== inspectedCardIds.length ||
+    destinationCardIds.some((cardId) => !inspectedCardIds.includes(cardId)) ||
+    inspectedCardIds.some((cardId) => !game.inspectionZone.cardIds.includes(cardId))
+  ) {
+    return null;
+  }
+
+  let state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [
+        ...deckTopCardIds,
+        ...currentPlayer.mainDeck.cardIds,
+        ...[...deckBottomCardIds].reverse(),
+      ],
+    },
+  }));
+  state = clearInspectionCards(state, inspectedCardIds);
+
+  return {
+    gameState: state,
+    deckTopCardIds,
+    deckBottomCardIds,
+  };
 }
 
 function moveInspectedCardsToDeckEdgeRestToWaitingRoomAndEnqueueTriggers(

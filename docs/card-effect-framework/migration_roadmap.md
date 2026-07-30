@@ -3,7 +3,14 @@
 > 文档类型：历史/计划文档
 > 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
 > 当前状态：现行迁移路线；完成状态以代码、测试和本文 Roadmap 表为准，顶部专题说明不得替代表内状态
-> 最后更新：2026-07-29
+> 最后更新：2026-07-30
+
+## Unified Public Reveal Dwell (2026-07)
+
+- `runtime/public-reveal-dwell.ts` 已建立“隐藏卡牌刚变为双方公开”后的通用权威停留：无输入原 step 使用 `withPublicRevealDwell`，真实下一交互使用 `createPublicRevealDwellBeforeNextEffect`。
+- 首批已迁移 94 个基础编号（87 张成员卡、7 张 LIVE 卡），覆盖检视公开、卡组顶/底公开、整手公开及特殊分支；展示期间不执行依赖公开结果的移动、奖励或 continuation，恢复后由原 workflow 重验实时状态。
+- `GameSession` 持有 deadline/generation 校验，双方到期后均可安全推进；客户端不显示普通确认按钮，重连不重置时长，自动推进不建立独立撤销记录。
+- 该 runtime 不替代 public-card-selection confirmation、public-effect-choice 或 queued pending manual confirm-only，也不拥有卡牌条件、区域移动、奖励和 continuation。迁移保持 `card-effect-runner.ts` 不变。
 
 ## bp3-001 / 002 通用 hook（2026-07）
 
@@ -43,7 +50,7 @@
 | phase | status | target | completion standard |
 | ----- | ------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | R-0 | done | 建立卡效框架总文档与权威关系。 | `README.md`、目标架构、模块边界、迁移路线和旧文档索引落地。 |
-| R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，更多区域移动/公开确认 helper 待真实 workflow 推动。 |
+| R-1 | partial | runtime action helpers。 | 抽牌、弃牌、回收等原子动作已有 runtime helper 和测试；看顶仍由 `src/application/effects/look-top.ts` 原语承接，隐藏卡变为公开后的通用停留已由 Public Reveal Dwell 承接；更多区域移动 helper 继续由真实 workflow 推动。 |
 | R-2 | partial | activeEffect step handler registry。 | `confirmActiveEffectStep` 已先查 step registry，未命中时直接保持状态不变并返回；look-top、抽后弃、回收等 workflow 已迁入 registry，runner 不再承载完整卡效 fallback。真实单选/多选卡文分支已使用结构化 `effectChoice` 与固定 1500ms 双方公开 runtime；普通动作选项继续使用原字段。 |
 | R-3 | partial | pending / starter registry。 | `startPendingAbilityEffect` 已先查 starter registry，未命中时直接保持状态不变并返回；新增 queued workflow 必须注册 starter。 |
 | R-4 | partial | workflow family 迁出。 | look-top、discard look-top、draw-then-discard、waiting-room recovery、自送回收、支付能量回收、activated pay-energy draw、BP4-002 弃手回收、grouped recovery、fixed pay-energy gain-BLADE、arrange-top、opponent wait target、conditional live modifier 与 revealed-cheer selection 已离开 runner；grouped recovery 独立 family，不混入普通 recovery family。 |
@@ -66,6 +73,7 @@ Current helper families:
 - activate waiting energy cards
 - source-member BLADE modifier
 - waiting-room shuffle to deck bottom
+- public reveal dwell
 
 Next runtime candidates:
 
@@ -83,10 +91,13 @@ Current dispatch registries:
 - `src/application/card-effects/runtime/starter-registry.ts`
 - `src/application/card-effects/runtime/activated-registry.ts`
 - `src/application/card-effects/runtime/public-card-selection-confirmation.ts`
+- `src/application/card-effects/runtime/public-reveal-dwell.ts`
 
 They are registry-first dispatch entry points. Unregistered starter / step / activated handlers keep state unchanged; there is no complete-card fallback in runner. Remaining runner work is limited to matcher / relay / trigger-condition glue until a dedicated architecture window explicitly opens those boundaries.
 
 The public selection confirmation runtime now owns the common pause/reveal/restore lifecycle for audited waiting-room selections. It does not own card predicates or zone movement; stable waiting-room-to-hand shells opt in by default, while custom recovery and deck-top/bottom/position workflows use explicit metadata.
+
+The Public Reveal Dwell runtime separately owns the timed display after hidden cards become public. It restores either a no-input current step or a real next interaction, but does not preserve a public-zone card-selection input or replace effect-choice/manual-confirm lifecycles.
 
 ## R-4 Current Workflow Modules
 
@@ -817,9 +828,9 @@ These effects may remain card-specific, but should leave runner only after a nar
 
 ## 2026-07 bottom direct-mill slice
 
-`PL!S-bp7-006-P` 费用2「津岛善子」与 `PL!S-bp7-015-N` 费用5「津岛善子」建立了最小卡组底 direct-mill 原语、标准批量事件 wrapper 与窄 shared workflow family。实际移动卡现复用 direct top-mill 的 `activeEffect.revealedCardIds` 公开结果形状向双方展示，确认前不写 Heart、确认后才按实际集合判定；公开窗口取代纯 confirm-only。runner 只新增 import/register 胶水。该切片不表示已完成所有卡组底机制、从卡组底声援、底部堆墓后抽牌/加分/修改 LIVE 需求，也没有引入 steps DSL。
+`PL!S-bp7-006-P` 费用2「津岛善子」与 `PL!S-bp7-015-N` 费用5「津岛善子」建立了最小卡组底 direct-mill 原语、标准批量事件 wrapper 与窄 shared workflow family。实际移动卡通过 Public Reveal Dwell 向双方展示，展示结束前不写 Heart，结束后才按实际集合判定；该定时展示取代纯 confirm-only。runner 只新增 import/register 胶水。该切片不表示已完成所有卡组底机制、从卡组底声援、底部堆墓后抽牌/加分/修改 LIVE 需求，也没有引入 steps DSL。
 
-第二批 `PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」在同一原语上补充两个具体卡牌样本：bottom-mill 后按实际移动集合写来源 LIVE requirement，或在舞台门槛后抽牌并写来源 LIVE SCORE。两张卡的底牌能力现都于实际移动和分组事件后先公开真实 `movedCardIds`，确认窗口期间不写 requirement、不抽牌、不写 SCORE；020 确认后按结构化 Aqours MEMBER 条件 replacement，021 确认后按5张中的 MEMBER 数量执行对应奖励。020 的公开“全舞台成员 ACTIVE”段仍进入既有 `conditional-live-modifier` family；两个 bottom 段保持单卡 workflow。该批没有扩第一批 gain-heart family、没有建立任意 bottom reward DSL、没有覆盖从卡组底声援或其他 bp7。
+第二批 `PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」在同一原语上补充两个具体卡牌样本：bottom-mill 后按实际移动集合写来源 LIVE requirement，或在舞台门槛后抽牌并写来源 LIVE SCORE。两张卡的底牌能力现都于实际移动和分组事件后通过 Public Reveal Dwell 展示真实 `movedCardIds`，展示期间不写 requirement、不抽牌、不写 SCORE；020 展示结束后按结构化 Aqours MEMBER 条件 replacement，021 展示结束后按5张中的 MEMBER 数量执行对应奖励。020 的公开“全舞台成员 ACTIVE”段仍进入既有 `conditional-live-modifier` family；两个 bottom 段保持单卡 workflow。该批没有扩第一批 gain-heart family、没有建立任意 bottom reward DSL、没有覆盖从卡组底声援或其他 bp7。
 
 第三个公开印刷样本 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」单独建立声援方向边界，效果按基础编号 `PL!S-bp7-022` 覆盖：`CheerDeckEdge` 纯 query、zone 底部单张抽取与统一 `revealCheerCardsFromMainDeck`。普通/手动/自动/追加/重做声援不再保留第二套循环，但这仍不是任意牌库方向 DSL；当前只有 022 提供 BOTTOM。本批不改造 bottom direct-mill，不实现其他 bp7。同卡 LIVE_SUCCESS 以 event-inclusive 事实与小型确定性匹配解决“三张不同卡覆盖红绿蓝”，runner 只增加一条 import/register。
 

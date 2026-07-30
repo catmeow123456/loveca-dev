@@ -132,7 +132,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - “成员变为待机/活跃”与“站位变换”作为卡效步骤时，优先复用 `src/application/effects/member-state.ts` 的 `setMemberOrientation` / `moveMemberBetweenSlots`。普通规则流程里的自由横置、拖拽、手动区域移动仍归 `GameSession` / action handler / `zone-operations.ts`，不要为了卡效抽象反向改写桌面规则流程。
 - 事件层已开始向 `GameState.eventLog` 收口：`emitGameEvent` 是权威不可变事件流入口，`EventBus` 只保留作非权威运行时/调试工具。当前普通 `PLAY_MEMBER` 会写入 `ON_ENTER_STAGE`；`member-state.ts`、普通 `TAP_MEMBER` 与活跃阶段重置已在成员方向变化时写入 `ON_MEMBER_STATE_CHANGED`，成员槽位移动/交换会写入 `ON_MEMBER_SLOT_MOVED`；卡效从休息室登场会写入 `ON_ENTER_STAGE`；舞台成员进休息室、换手替换离场、自送费用会写入 `ON_LEAVE_STAGE`；LIVE 翻开进入 LIVE 开始检查时机会写入 `ON_LIVE_START`；LIVE 成功效果窗口会写入 `ON_LIVE_SUCCESS`；自动/手动/追加声援会写入 `ON_CHEER`。`enqueueTriggeredCardEffects` 已消费 `ON_ENTER_STAGE`、`ON_MEMBER_STATE_CHANGED`、`ON_MEMBER_SLOT_MOVED`、`ON_LEAVE_STAGE`、`ON_LIVE_START`、`ON_LIVE_SUCCESS` 与 `ON_CHEER` 事件流，仍保留旧 fallback；`ON_CHEER` 会跳过追加声援事件以避免递归；`PL!N-bp4-018-N` 与 `PL!-pb1-015` 是成员状态变化 AUTO proving path，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」是成员移动 AUTO proving path。
 - “将此成员从舞台放置入休息室”作为发动费用时，仍优先走 `src/application/effects/effect-costs.ts` 的 `SEND_SOURCE_MEMBER_TO_WAITING_ROOM`；不要和 S01/S02/S05 的状态/站位步骤混成同一个概念。
-- 若效果文本写“公开并加入手牌”，必须先把被选牌加入 `inspectionZone.revealedCardIds`，等待玩家确认后再移动到手牌；不能直接加入手牌。
+- 若效果文本写“公开并加入手牌”，必须先把被选牌加入 `inspectionZone.revealedCardIds` 并接入 Public Reveal Dwell，展示结束后再移动到手牌；不能直接加入手牌，也不能要求发动方手动确认公开结果。
 - 若效果文本写“将 1 张加入手牌”而不是“可以将 1 张加入手牌”，选择阶段应强制选择；只有没有合法目标时才允许不选。
 
 ## 卡效高频场景底座
@@ -178,6 +178,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 公开翻 X 张：双方都看正面，`revealedCardIds` 包含公开牌。
 - 自己检视 X 张：控制者看正面，对手看背面。
 - 选择后公开其中一张：先控制者看全部，选择后只公开被选牌，再移动到手牌或其他区域。
+- 隐藏卡牌刚按卡文变为双方公开、且随后会自动结算或进入下一真实交互时，必须使用 shared Public Reveal Dwell；界面不显示普通确认按钮，到期后由任一参与者安全推进。
+- Public Reveal Dwell 只展示本次明确公开的 cardIds，不代替休息室/声援公开区等既有公开来源的 public-card-selection confirmation，也不包装 public-effect-choice 或 queued pending manual confirm-only。
 - 正在处理的效果应在桌面中央显示，标题使用“费用 + 卡名”，正文尽量显示卡牌原效果文本，不要加奇怪解释文案。
 - 正在处理的效果如果需要玩家选择卡牌，应优先显示卡图网格，并支持 hover 查看卡牌详情；不要只用文字按钮让玩家猜卡。
 - 舞台上可发动的起动效果按钮应显示完整效果文本；可以缩小字号和加宽文本框，但不要用省略号截断规则文本。
@@ -186,10 +188,10 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 
 - `PL!-sd1-007-SD`：东条希，费用 7。
   - 登场：公开卡组顶 5 张放入休息室；其中有 LIVE 卡则抽 1。
-  - 当前实现会先进入公开检视区，确认后通过 look-top 底座放入休息室；只有翻到 LIVE 时才通过 `drawCardsFromMainDeckToHand` 抽 1，未翻到 LIVE 不抽。
+  - 当前实现将顶 5 实际放入休息室后，通过 Public Reveal Dwell 向双方展示本次移动批次；展示结束后，只有其中存在 LIVE 时才通过 `drawCardsFromMainDeckToHand` 抽 1。
 - `PL!-sd1-004-SD`：园田海未，费用 11。
   - 登场：检视卡组顶 5 张，可选 1 张 LIVE 公开并加入手牌，其余放入休息室。
-  - 当前实现会先私密检视，选择后公开被选 LIVE，再确认加入手牌。
+  - 当前实现会先私密检视，选择后只将被选 LIVE 经 Public Reveal Dwell 向双方展示，展示结束后加入手牌。
 - `PL!N-pb1-004-P+`：朝香果林，费用 5。
   - LIVE 开始时：公开卡组顶 1 张，费用 9 以下成员加入手牌并进行站位变换，否则放入休息室。
   - 当前实现支持多个 LIVE 开始时效果由玩家选择顺序，也支持“顺序发动”。
@@ -243,9 +245,9 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
   - LIVE 开始：可以将 1 张手牌放置入休息室；LIVE 结束时为止获得 BLADE。若因此弃置的是「百生吟子」成员卡，则共获得 BLADE +2。
   - 当前实现复用舞台成员目标 helper、`setMemberOrientation`、可选弃手步骤与 `addLiveModifier`。同一张此卡在 LIVE 开始产生两条待处理能力时，顺序选择窗口会切到具体效果文本 option，避免同源卡图无法区分。
 - `PL!HS-bp5-001` 费用 11「日野下花帆」。
-  - 登场：公开检视卡组顶 4 张，继续处理后入休息室；其中存在 LIVE 时获得 BLADE +2。
+  - 登场：将卡组顶 4 张放入休息室并公开；其中存在 LIVE 时获得 BLADE +2。
   - 起动：支付 2 能量并公开 1 张手牌 LIVE，从休息室回收同名 LIVE。
-  - 当前实现复用 inspection、live modifier、能量费用与 `WAITING_ROOM -> HAND`；公开手牌候选在确定公开前只投影给等待玩家，公开后通过 `revealedCardIds` 确认窗口向双方展示。
+  - 当前实现复用 direct mill、Public Reveal Dwell、live modifier、能量费用与 `WAITING_ROOM -> HAND`；登场段先展示本次实际进入休息室的 4 张，展示结束后才写 BLADE；起动段的公开手牌候选在确定公开前只投影给等待玩家，公开后向双方定时展示，再进入休息室同名 LIVE 的真实选择步骤。
 - `PL!HS-bp1-003` 费用 13「乙宗梢」。
   - 起动：支付 1 能量回收费用小于等于 4 的「莲之空」成员。
   - 常时：三面均有不同名「莲之空」成员时，获得 LIVE 合计分数 +1。

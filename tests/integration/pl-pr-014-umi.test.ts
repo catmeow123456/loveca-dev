@@ -8,6 +8,7 @@ import { createGameState, registerCards, updatePlayer, type GameState } from '..
 import { createPublicObjectId } from '../../src/online/projector';
 import { CardAbilityCategory, CardAbilitySourceZone } from '../../src/application/card-effects/ability-definition-types';
 import { CardType, GamePhase, HeartColor, SlotPosition, SubPhase, TriggerCondition, TurnType } from '../../src/shared/types/enums';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 const P1 = 'p1';
 const P2 = 'p2';
@@ -49,7 +50,7 @@ function submitBlind(session: ReturnType<typeof createGameSession>, tokens = bli
 }
 
 function confirmReveal(session: ReturnType<typeof createGameSession>) {
-  return session.executeCommand(createConfirmEffectStepCommand(P1, session.state!.activeEffect!.id));
+  return advancePublicRevealDwellIfNeeded(session)!;
 }
 
 describe('PL!-PR-014-PR 费用2「園田海未」', () => {
@@ -109,7 +110,7 @@ describe('PL!-PR-014-PR 费用2「園田海未」', () => {
     expect(submitBlind(s.session).success).toBe(true);
     const selectedIds = s.opponentHand.slice(0, 3).map((card) => card.instanceId);
     const effect = s.session.state?.activeEffect;
-    expect(effect).toMatchObject({ revealedCardIds: selectedIds, stepText: '已公开所选手牌。确认后，根据公开卡中是否包含LIVE卡结算。', selectionLabel: '公开的卡片', confirmSelectionLabel: '确认公开结果' });
+    expect(effect).toMatchObject({ revealedCardIds: selectedIds, stepText: '已公开所选手牌。展示结束后，根据公开卡中是否包含LIVE卡结算。' });
     for (const field of ['selectableCardIds', 'selectableCardVisibility', 'selectableCardMode', 'minSelectableCards', 'maxSelectableCards', 'canSkipSelection', 'skipSelectionLabel'] as const) expect(effect?.[field]).toBeUndefined();
     expect(s.session.state?.players[1].hand.cardIds).toEqual(s.opponentHand.map((card) => card.instanceId));
     for (const viewer of [P1, P2]) {

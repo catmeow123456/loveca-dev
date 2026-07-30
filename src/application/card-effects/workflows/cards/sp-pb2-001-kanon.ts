@@ -4,6 +4,7 @@ import {
   emitGameEvent,
   getCardById,
   getPlayerById,
+  type ActiveEffectState,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
@@ -30,6 +31,10 @@ import {
   moveInspectedSelectionToHandRestToWaitingRoomAndEnqueueTriggers,
   moveInspectedSelectionToStageRestToWaitingRoomAndEnqueueTriggers,
 } from '../../runtime/inspection-waiting-room-triggers.js';
+import {
+  createPublicRevealDwellBeforeNextEffect,
+  withPublicRevealDwell,
+} from '../../runtime/public-reveal-dwell.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -307,6 +312,27 @@ function finishInspectedMemberSelection(
     ? game.inspectionZone.revealedCardIds
     : [...game.inspectionZone.revealedCardIds, selectedCardId];
   if (emptySlots.length === 0) {
+    const nextEffect: ActiveEffectState = {
+      ...effect,
+      stepId: REVEAL_SELECTED_TO_HAND_STEP_ID,
+      stepText:
+        '选择的成员卡已公开。成员区没有空位，展示结束后将其加入手牌，其余卡片放置入休息室。',
+      revealedCardIds: [selectedCardId],
+      selectableCardIds: [],
+      selectableCardVisibility: undefined,
+      selectableCardMode: undefined,
+      minSelectableCards: undefined,
+      maxSelectableCards: undefined,
+      selectableOptions: undefined,
+      selectionLabel: undefined,
+      confirmSelectionLabel: '加入手牌',
+      canSkipSelection: false,
+      skipSelectionLabel: undefined,
+      metadata: {
+        ...effect.metadata,
+        selectedCardId,
+      },
+    };
     return addAction(
       {
         ...game,
@@ -314,27 +340,7 @@ function finishInspectedMemberSelection(
           ...game.inspectionZone,
           revealedCardIds,
         },
-        activeEffect: {
-          ...effect,
-          stepId: REVEAL_SELECTED_TO_HAND_STEP_ID,
-          stepText:
-            '选择的成员卡已公开。成员区没有空位，确认后将其加入手牌，其余卡片放置入休息室。',
-          revealedCardIds: [selectedCardId],
-          selectableCardIds: [],
-          selectableCardVisibility: undefined,
-          selectableCardMode: undefined,
-          minSelectableCards: undefined,
-          maxSelectableCards: undefined,
-          selectableOptions: undefined,
-          selectionLabel: undefined,
-          confirmSelectionLabel: '加入手牌',
-          canSkipSelection: false,
-          skipSelectionLabel: undefined,
-          metadata: {
-            ...effect.metadata,
-            selectedCardId,
-          },
-        },
+        activeEffect: withPublicRevealDwell(nextEffect),
       },
       'RESOLVE_ABILITY',
       player.id,
@@ -348,49 +354,53 @@ function finishInspectedMemberSelection(
     );
   }
 
-  return addAction(
-    {
-      ...game,
-      inspectionZone: {
-        ...game.inspectionZone,
-        revealedCardIds,
-      },
-      activeEffect: {
-        ...effect,
-        stepId: SELECT_DESTINATION_STEP_ID,
-        stepText: '请选择将公开的成员登场到空成员区，或加入手牌。',
-        revealedCardIds: [selectedCardId],
-        selectableCardIds: undefined,
-        selectableCardVisibility: undefined,
-        selectableCardMode: undefined,
-        selectableOptions: [
-          { id: DESTINATION_STAGE_OPTION_ID, label: '登场到空成员区' },
-          { id: DESTINATION_HAND_OPTION_ID, label: '加入手牌' },
-        ],
-        effectChoice: {
-          mode: 'SINGLE',
-          options: [
-            {
-              id: DESTINATION_STAGE_OPTION_ID,
-              text: '将公开的成员卡登场到自己舞台的空成员区。',
-            },
-            { id: DESTINATION_HAND_OPTION_ID, text: '将公开的成员卡加入手牌。' },
-          ],
-          minSelections: 1,
-          maxSelections: 1,
-          publicConfirmation: true,
+  const nextEffect: ActiveEffectState = {
+    ...effect,
+    stepId: SELECT_DESTINATION_STEP_ID,
+    stepText: '请选择将公开的成员登场到空成员区，或加入手牌。',
+    revealedCardIds: [selectedCardId],
+    selectableCardIds: undefined,
+    selectableCardVisibility: undefined,
+    selectableCardMode: undefined,
+    selectableOptions: [
+      { id: DESTINATION_STAGE_OPTION_ID, label: '登场到空成员区' },
+      { id: DESTINATION_HAND_OPTION_ID, label: '加入手牌' },
+    ],
+    effectChoice: {
+      mode: 'SINGLE',
+      options: [
+        {
+          id: DESTINATION_STAGE_OPTION_ID,
+          text: '将公开的成员卡登场到自己舞台的空成员区。',
         },
-        selectionLabel: undefined,
-        confirmSelectionLabel: undefined,
-        canSkipSelection: false,
-        skipSelectionLabel: undefined,
-        metadata: {
-          ...effect.metadata,
-          selectedCardId,
-          emptySlots,
-        },
-      },
+        { id: DESTINATION_HAND_OPTION_ID, text: '将公开的成员卡加入手牌。' },
+      ],
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
     },
+    selectionLabel: undefined,
+    confirmSelectionLabel: undefined,
+    canSkipSelection: false,
+    skipSelectionLabel: undefined,
+    metadata: {
+      ...effect.metadata,
+      selectedCardId,
+      emptySlots,
+    },
+  };
+  return addAction(
+    createPublicRevealDwellBeforeNextEffect(
+      {
+        ...game,
+        inspectionZone: {
+          ...game.inspectionZone,
+          revealedCardIds,
+        },
+      },
+      nextEffect,
+      { revealedCardIds: [selectedCardId] }
+    ),
     'RESOLVE_ABILITY',
     player.id,
     {

@@ -20,6 +20,7 @@ import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js'
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import {
   groupAliasIs,
   memberHasHeartColor,
@@ -181,7 +182,7 @@ function startMillTopGainLiveModifierInspection(
   return startPendingActiveEffect(millResult.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -198,7 +199,7 @@ function startMillTopGainLiveModifierInspection(
         conditionMet,
         refreshCount: millResult.refreshCount,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'MILL_TOP_CARDS',

@@ -58,6 +58,23 @@ export function buildSolitaireOpponentEffectCommand(
   }
 
   if (
+    effect.publicRevealAutoAdvanceAt !== undefined &&
+    effect.publicRevealGeneration !== undefined
+  ) {
+    if (now < effect.publicRevealAutoAdvanceAt) {
+      return null;
+    }
+    return {
+      type: GameCommandType.CONFIRM_EFFECT_STEP,
+      playerId: opponentPlayerId,
+      effectId: effect.id,
+      publicRevealAutoAdvanceAt: effect.publicRevealAutoAdvanceAt,
+      publicRevealGeneration: effect.publicRevealGeneration,
+      timestamp: now,
+    };
+  }
+
+  if (
     effect.effectChoice ||
     effect.numericInput ||
     effect.stageFormation

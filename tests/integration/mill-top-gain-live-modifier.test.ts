@@ -3,6 +3,7 @@ import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/doma
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
+  createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
@@ -16,6 +17,7 @@ import {
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   CardType,
   GamePhase,
@@ -88,6 +90,35 @@ function removeFromPlayerZones(player: {
   player.waitingRoom.cardIds = [];
   player.successZone.cardIds = [];
   player.liveZone.cardIds = [];
+}
+
+function advancePublicRevealDwell(session: ReturnType<typeof createGameSession>) {
+  const effect = session.state!.activeEffect!;
+  expect(effect.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  const generation = effect.publicRevealGeneration ?? `test-public-reveal:${effect.id}`;
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: {
+      ...effect,
+      publicRevealAutoAdvanceAt: 0,
+      publicRevealGeneration: generation,
+    },
+  };
+  return session.executeCommand(
+    createAutoAdvancePublicRevealCommand(effect.awaitingPlayerId, effect.id, 0, generation)
+  );
+}
+
+function getStartedMillPayload(
+  session: ReturnType<typeof createGameSession>
+): Readonly<Record<string, unknown>> {
+  return (
+    [...session.state!.actionHistory]
+      .reverse()
+      .find(
+        (action) => action.type === 'RESOLVE_ABILITY' && action.payload.step === 'MILL_TOP_CARDS'
+      )?.payload ?? {}
+  );
 }
 
 describe('mill-top gain live modifier workflow', () => {
@@ -163,16 +194,13 @@ describe('mill-top gain live modifier workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('HS_PR_019_REVEAL_TOP_THREE');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -266,13 +294,10 @@ describe('mill-top gain live modifier workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('HS_PR_021_REVEAL_TOP_THREE');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -359,13 +384,10 @@ describe('mill-top gain live modifier workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('HS_SD1_013_REVEAL_TOP_THREE');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -407,13 +429,11 @@ describe('mill-top gain live modifier workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('HS_BP5_013_REVEAL_TOP_THREE');
-    const topCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    const topCardIds = session.state!.activeEffect!.revealedCardIds!;
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
@@ -437,9 +457,8 @@ describe('mill-top gain live modifier workflow', () => {
 
     expect(timingResult.success).toBe(true);
     (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
-    const topCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    const topCardIds = session.state!.activeEffect!.revealedCardIds!;
     expect(topCardIds).toHaveLength(0);
-    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(0);
 
     const confirmResult = session.executeCommand(
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
@@ -529,11 +548,12 @@ describe('mill-top gain live modifier workflow', () => {
     );
 
     expect(playResult.success).toBe(true);
-    const milledCardIds = session.state!.activeEffect!.metadata!.milledCardIds as readonly string[];
+    const startPayload = getStartedMillPayload(session);
+    const milledCardIds = startPayload.milledCardIds as readonly string[];
     expect(milledCardIds).toHaveLength(3);
     expect(milledCardIds.slice(0, 2)).toEqual(topCards.map((card) => card.instanceId));
-    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(true);
-    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
+    expect(startPayload.conditionMet).toBe(true);
+    expect(startPayload.refreshCount).toBe(1);
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -544,9 +564,7 @@ describe('mill-top gain live modifier workflow', () => {
       )
     ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
@@ -584,14 +602,10 @@ describe('mill-top gain live modifier workflow', () => {
     expect(session.state?.activeEffect?.abilityId).toBe(
       HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID
     );
-    expect(session.state?.activeEffect?.stepId).toBe('HS_BP6_009_MILL_TOP_FOUR');
-    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(true);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(getStartedMillPayload(session).conditionMet).toBe(true);
 
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    expect(advancePublicRevealDwell(session).success).toBe(true);
 
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
@@ -639,12 +653,8 @@ describe('mill-top gain live modifier workflow', () => {
 
     expect(timingResult.success).toBe(true);
     (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
-    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(false);
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    expect(getStartedMillPayload(session).conditionMet).toBe(false);
+    expect(advancePublicRevealDwell(session).success).toBe(true);
 
     expect(
       session.state?.liveResolution.liveModifiers.some(
@@ -686,15 +696,12 @@ describe('mill-top gain live modifier workflow', () => {
 
     expect(timingResult.success).toBe(true);
     (session as unknown as { authorityState: GameState }).authorityState = timingResult.gameState;
-    expect(session.state?.activeEffect?.metadata?.refreshCount).toBe(1);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toHaveLength(4);
-    expect(session.state?.activeEffect?.metadata?.conditionMet).toBe(true);
+    const startPayload = getStartedMillPayload(session);
+    expect(startPayload.refreshCount).toBe(1);
+    expect(startPayload.milledCardIds).toHaveLength(4);
+    expect(startPayload.conditionMet).toBe(true);
 
-    expect(
-      session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-      ).success
-    ).toBe(true);
+    expect(advancePublicRevealDwell(session).success).toBe(true);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
       playerId: PLAYER1,

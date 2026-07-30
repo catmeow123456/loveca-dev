@@ -40,6 +40,7 @@ import { createTapMemberAction } from '../../src/application/actions';
 import {
   createActivateAbilityCommand,
   createAutoAdvancePublicEffectChoiceCommand,
+  createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
   createConfirmStepCommand,
   createFinishInspectionWithArrangementCommand,
@@ -137,6 +138,7 @@ import {
 } from '../../src/application/card-effect-runner';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { resolvePendingAbilityStarterWithRegistry } from '../../src/application/card-effects/runtime/starter-registry';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
 import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 
@@ -153,6 +155,25 @@ function autoAdvancePublicEffectChoice(session: ReturnType<typeof createGameSess
     session.executeCommand(createAutoAdvancePublicEffectChoiceCommand(PLAYER2, publicChoice.id, 0))
       .success
   ).toBe(true);
+}
+
+function advancePublicRevealDwell(session: ReturnType<typeof createGameSession>) {
+  const effect = session.state!.activeEffect!;
+  expect(effect.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  const generation = effect.publicRevealGeneration ?? `test-public-reveal:${effect.id}`;
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: {
+      ...effect,
+      publicRevealAutoAdvanceAt: 0,
+      publicRevealGeneration: generation,
+    },
+  };
+  const result = session.executeCommand(
+    createAutoAdvancePublicRevealCommand(effect.awaitingPlayerId, effect.id, 0, generation)
+  );
+  expect(result.success, result.error).toBe(true);
+  return result;
 }
 
 const RIN_LIKE_MEMBER_ACTIVATION_TEST_CASES = [
@@ -1461,7 +1482,7 @@ describe('sample card effect runner', () => {
     expect(activeEffect?.abilityId).toBe(NOZOMI_ON_ENTER_ABILITY_ID);
     expect(activeEffect?.awaitingPlayerId).toBe(PLAYER1);
     expect(activeEffect?.revealedCardIds).toEqual(milledCardIds);
-    expect(activeEffect?.metadata?.milledCardIds).toEqual(milledCardIds);
+    expect(activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -1470,9 +1491,7 @@ describe('sample card effect runner', () => {
       )
     ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
@@ -1555,11 +1574,9 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([remainingDeckCardId]);
     expect(activeEffect?.abilityId).toBe(NOZOMI_ON_ENTER_ABILITY_ID);
     expect(activeEffect?.revealedCardIds).toEqual(milledCardIds);
-    expect(activeEffect?.metadata?.milledCardIds).toEqual(milledCardIds);
+    expect(activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
@@ -1690,9 +1707,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -3969,9 +3984,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardCardId]);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -4130,9 +4143,7 @@ describe('sample card effect runner', () => {
     expect(revealResult.success).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([highCostHasunosora.instanceId]);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -5683,9 +5694,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(
       greenMembers.map((card) => card.instanceId)
     );
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(
-      greenMembers.map((card) => card.instanceId)
-    );
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([deckFiller.instanceId]);
@@ -5701,9 +5710,7 @@ describe('sample card effect runner', () => {
       abilityId: HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
     });
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const confirmResult = advancePublicRevealDwell(session);
 
     expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -6400,9 +6407,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([discardCardId]);
 
-    const revealFinishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const revealFinishResult = advancePublicRevealDwell(session);
 
     expect(revealFinishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -7017,9 +7022,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([highCostCardId]);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -7151,9 +7154,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([eligibleMuseCardId]);
     expect(session.state?.players[0].hand.cardIds).toEqual([]);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -7519,17 +7520,11 @@ describe('sample card effect runner', () => {
       )
     );
     expect(revealWithoutSuccessTargetResult.success).toBe(true);
-    expect(noSuccessLiveSession.state?.activeEffect?.stepId).toBe(
-      'MAKI_SELECT_SUCCESS_LIVE'
-    );
-    expect(noSuccessLiveSession.state?.activeEffect?.selectableCardIds).toEqual([]);
-    expect(noSuccessLiveSession.state?.activeEffect?.canSkipSelection).toBe(false);
-    const finishWithoutSuccessTargetResult = noSuccessLiveSession.executeCommand(
-      createConfirmEffectStepCommand(
-        PLAYER1,
-        noSuccessLiveSession.state!.activeEffect!.id
-      )
-    );
+    expect(noSuccessLiveSession.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(noSuccessLiveSession.state?.activeEffect?.revealedCardIds).toEqual([
+      handLive.instanceId,
+    ]);
+    const finishWithoutSuccessTargetResult = advancePublicRevealDwell(noSuccessLiveSession);
     expect(finishWithoutSuccessTargetResult.success).toBe(true);
     expect(noSuccessLiveSession.state?.activeEffect).toBeNull();
     expect(noSuccessLiveSession.state?.players[0].hand.cardIds).toEqual([
@@ -7543,6 +7538,9 @@ describe('sample card effect runner', () => {
 
     expect(revealResult.success).toBe(true);
     expect(session.state?.activeEffect?.abilityId).toBe(MAKI_ON_ENTER_ABILITY_ID);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual([handLive.instanceId]);
+    advancePublicRevealDwell(session);
     expect(session.state?.activeEffect?.stepId).toBe('MAKI_SELECT_SUCCESS_LIVE');
     expect(session.state?.activeEffect?.metadata?.handLiveCardId).toBe(handLive.instanceId);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual([handLive.instanceId]);
@@ -7974,14 +7972,12 @@ describe('sample card effect runner', () => {
       HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID
     );
     expect(session.state?.activeEffect?.revealedCardIds).toEqual(topCardIds);
-    expect(session.state?.activeEffect?.metadata?.milledCardIds).toEqual(topCardIds);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.inspectionZone.cardIds).toEqual([]);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -8287,11 +8283,8 @@ describe('sample card effect runner', () => {
     );
 
     expect(revealResult.success).toBe(true);
-    expect(session.state?.activeEffect?.stepId).toBe('HS_BP5_001_REVEAL_HAND_LIVE');
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual([handLiveCardId]);
-    expect(session.state?.activeEffect?.metadata?.revealedHandLiveCardId).toBe(handLiveCardId);
-    expect(session.state?.activeEffect?.metadata?.revealedHandLiveCardName).toBe('水彩世界');
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([]);
     expect(
       session.state?.actionHistory.some(
         (action) =>
@@ -8303,14 +8296,12 @@ describe('sample card effect runner', () => {
       )
     ).toBe(true);
 
-    const continueAfterRevealResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-
-    expect(continueAfterRevealResult.success).toBe(true);
+    advancePublicRevealDwell(session);
     expect(session.state?.activeEffect?.stepId).toBe(
       'HS_BP5_001_SELECT_WAITING_ROOM_SAME_NAME_LIVE'
     );
+    expect(session.state?.activeEffect?.metadata?.revealedHandLiveCardId).toBe(handLiveCardId);
+    expect(session.state?.activeEffect?.metadata?.revealedHandLiveCardName).toBe('水彩世界');
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([sameNameLiveCardId]);
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(differentNameLiveCardId);
     expect(
@@ -10075,9 +10066,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([lowCostMemberCardId]);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect?.abilityId).toBe(KARIN_LIVE_START_ABILITY_ID);
@@ -10237,8 +10226,14 @@ describe('sample card effect runner', () => {
     expect(orderResult.success).toBe(true);
     expect(session.state?.activeEffect?.abilityId).toBe(KARIN_LIVE_START_ABILITY_ID);
     expect(session.state?.activeEffect?.sourceCardId).toBe(karinCardIds[0]);
+    expect(session.state?.activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual([lowCostMemberCardIds[0]]);
+    advancePublicRevealDwell(session);
     expect(session.state?.activeEffect?.metadata?.orderedResolution).toBe(true);
-    expect(session.state?.inspectionZone.cardIds).toEqual([lowCostMemberCardIds[0]]);
+    expect(session.state?.activeEffect?.selectableSlots).toEqual([
+      SlotPosition.CENTER,
+      SlotPosition.RIGHT,
+    ]);
   });
 
   it('queues PL!-sd1-009-SD with other live-start effects for order selection', () => {
@@ -14864,9 +14859,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.inspectionZone.revealedCardIds).toContain(selectedMemberCardId);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();

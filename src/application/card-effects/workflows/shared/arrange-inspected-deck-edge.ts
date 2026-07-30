@@ -18,6 +18,7 @@ import {
   PL_S_PB1_008_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
   PL_N_BP1_002_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   N_BP7_030_LIVE_SUCCESS_ARRANGE_TOP_THREE_ABILITY_ID,
+  S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
   S_BP7_004_LIVE_START_LOOK_BOTTOM_THREE_ARRANGE_BOTTOM_ABILITY_ID,
   S_PR_ON_ENTER_LOOK_TOP_THREE_ARRANGE_TO_TOP_ABILITY_ID,
   START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -29,6 +30,7 @@ import {
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import {
+  moveInspectedCardsToDeckTopAndBottom,
   moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers,
   moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers,
 } from '../../runtime/inspection-waiting-room-triggers.js';
@@ -80,6 +82,12 @@ interface RegisteredArrangeInspectedDeckEdgeConfig {
   };
   readonly selectedDestination?: InspectedCardDestination;
   readonly unselectedDestination?: InspectedCardDestination;
+  readonly unselectedOrderStep?: {
+    readonly stepId: string;
+    readonly stepText: string;
+    readonly selectionLabel: string;
+    readonly confirmSelectionLabel: string;
+  };
   readonly condition?: (
     game: GameState,
     playerId: string
@@ -109,6 +117,7 @@ export interface ArrangeInspectedDeckEdgeConfig {
   readonly discardedCostCardIds?: readonly string[];
   readonly selectedDestination: InspectedCardDestination;
   readonly unselectedDestination: InspectedCardDestination;
+  readonly unselectedOrderStep?: RegisteredArrangeInspectedDeckEdgeConfig['unselectedOrderStep'];
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
   readonly liveSourceBaseCardCode?: string;
@@ -255,6 +264,26 @@ const ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS: readonly RegisteredArrangeInspected
     selectedDestination: 'MAIN_DECK_BOTTOM',
     unselectedDestination: 'WAITING_ROOM',
   },
+  {
+    abilityId: S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
+    inspectCount: 3,
+    sourceActionLabel: '登场',
+    stepId: 'S_BP7_008_ARRANGE_TOP_THREE_TO_TOP',
+    stepText:
+      '请选择任意张数的卡片，按卡组顶从上到下的顺序排列；下一步将排列其余卡片在卡组底的顺序。',
+    selectionLabel: '按放置顺序选择卡片',
+    confirmSelectionLabel: '按此顺序放置于卡组顶',
+    selectMin: 0,
+    selectMax: 3,
+    selectedDestination: 'MAIN_DECK_TOP',
+    unselectedDestination: 'MAIN_DECK_BOTTOM',
+    unselectedOrderStep: {
+      stepId: 'S_BP7_008_ARRANGE_REMAINING_TO_BOTTOM',
+      stepText: '请按卡组底从下到上的顺序排列其余卡片。数字1会成为卡组最下方的卡。',
+      selectionLabel: '按放置顺序选择卡片',
+      confirmSelectionLabel: '按此顺序放置于卡组底',
+    },
+  },
 ];
 
 export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
@@ -271,6 +300,19 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
             input.selectedOptionId ?? null,
             config,
             context.continuePendingCardEffects
+          )
+      );
+    }
+    if (config.unselectedOrderStep) {
+      registerActiveEffectStepHandler(
+        config.abilityId,
+        config.unselectedOrderStep.stepId,
+        (game, input, context) =>
+          finishArrangeInspectedDeckEdgeUnselectedOrderWorkflow(
+            game,
+            input.selectedCardIds ?? [],
+            context.continuePendingCardEffects,
+            deps.enqueueTriggeredCardEffects
           )
       );
     }
@@ -297,6 +339,7 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
           selectMax: config.selectMax,
           selectedDestination: config.selectedDestination ?? 'MAIN_DECK_TOP',
           unselectedDestination: config.unselectedDestination ?? 'WAITING_ROOM',
+          unselectedOrderStep: config.unselectedOrderStep,
           requireAllInspected: config.requireAllInspected,
           requireSourceOnOwnStage: config.requireSourceOnOwnStage,
           liveSourceBaseCardCode: config.liveSourceBaseCardCode,
@@ -502,6 +545,7 @@ export function startArrangeInspectedDeckEdgeWorkflow(
         inspectDeckEdge,
         selectedDestination: config.selectedDestination,
         unselectedDestination: config.unselectedDestination,
+        unselectedOrderStep: config.unselectedOrderStep,
         orderedResolution: config.orderedResolution,
         ...(inspectDeckEdge === 'TOP' &&
         config.sourceActionLabel &&
@@ -606,6 +650,7 @@ function finishArrangeInspectedDeckEdgeTargetPlayerSelection(
       selectMax: registeredConfig.selectMax,
       selectedDestination: registeredConfig.selectedDestination ?? 'MAIN_DECK_TOP',
       unselectedDestination: registeredConfig.unselectedDestination ?? 'WAITING_ROOM',
+      unselectedOrderStep: registeredConfig.unselectedOrderStep,
       requireAllInspected: registeredConfig.requireAllInspected,
       requireSourceOnOwnStage: registeredConfig.requireSourceOnOwnStage,
       liveSourceBaseCardCode: registeredConfig.liveSourceBaseCardCode,
@@ -652,17 +697,116 @@ export function finishArrangeInspectedDeckEdgeWorkflow(
   const unselectedCardIds = inspectedCardIds.filter(
     (cardId) => !uniqueSelectedCardIds.includes(cardId)
   );
+  const unselectedOrderStep = getUnselectedOrderStep(effect.metadata?.unselectedOrderStep);
+  if (unselectedOrderStep && unselectedCardIds.length > 1) {
+    return addAction(
+      {
+        ...game,
+        activeEffect: {
+          ...effect,
+          stepId: unselectedOrderStep.stepId,
+          stepText: unselectedOrderStep.stepText,
+          selectableCardIds: unselectedCardIds,
+          selectableCardMode: 'ORDERED_MULTI',
+          minSelectableCards: unselectedCardIds.length,
+          maxSelectableCards: unselectedCardIds.length,
+          selectionLabel: unselectedOrderStep.selectionLabel,
+          confirmSelectionLabel: unselectedOrderStep.confirmSelectionLabel,
+          canSkipSelection: false,
+          skipSelectionLabel: undefined,
+          metadata: {
+            ...(effect.metadata ?? {}),
+            firstSelectedCardIds: uniqueSelectedCardIds,
+          },
+        },
+      },
+      'RESOLVE_ABILITY',
+      player.id,
+      {
+        pendingAbilityId: effect.id,
+        abilityId: effect.abilityId,
+        sourceCardId: effect.sourceCardId,
+        step: 'START_UNSELECTED_ORDER',
+        selectedCardIds: uniqueSelectedCardIds,
+        unselectedCardIds,
+      }
+    );
+  }
+
+  return finishArrangeInspectedDeckEdgePlacement(
+    game,
+    effect,
+    uniqueSelectedCardIds,
+    unselectedCardIds,
+    continuePendingCardEffects,
+    enqueueTriggeredCardEffects
+  );
+}
+
+function finishArrangeInspectedDeckEdgeUnselectedOrderWorkflow(
+  game: GameState,
+  orderedUnselectedCardIds: readonly string[],
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
+  const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  const inspectedCardIds = effect?.inspectionCardIds ?? [];
+  const firstSelectedCardIds = getStringArrayMetadata(effect?.metadata?.firstSelectedCardIds);
+  const expectedUnselectedCardIds = inspectedCardIds.filter(
+    (cardId) => !firstSelectedCardIds.includes(cardId)
+  );
+  if (
+    !effect ||
+    !player ||
+    !getUnselectedOrderStep(effect.metadata?.unselectedOrderStep) ||
+    orderedUnselectedCardIds.length !== expectedUnselectedCardIds.length ||
+    new Set(orderedUnselectedCardIds).size !== orderedUnselectedCardIds.length ||
+    orderedUnselectedCardIds.some(
+      (cardId) =>
+        !expectedUnselectedCardIds.includes(cardId) ||
+        effect.selectableCardIds?.includes(cardId) !== true
+    )
+  ) {
+    return game;
+  }
+
+  return finishArrangeInspectedDeckEdgePlacement(
+    game,
+    effect,
+    firstSelectedCardIds,
+    orderedUnselectedCardIds,
+    continuePendingCardEffects,
+    enqueueTriggeredCardEffects
+  );
+}
+
+function finishArrangeInspectedDeckEdgePlacement(
+  game: GameState,
+  effect: NonNullable<GameState['activeEffect']>,
+  uniqueSelectedCardIds: readonly string[],
+  orderedUnselectedCardIds: readonly string[],
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
+): GameState {
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+  const inspectedCardIds = effect.inspectionCardIds ?? [];
   const deckTopCardIds = [
     ...(effect.metadata?.selectedDestination === 'MAIN_DECK_TOP' ? uniqueSelectedCardIds : []),
-    ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_TOP' ? unselectedCardIds : []),
+    ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_TOP' ? orderedUnselectedCardIds : []),
   ];
   const deckBottomCardIds = [
     ...(effect.metadata?.selectedDestination === 'MAIN_DECK_BOTTOM' ? uniqueSelectedCardIds : []),
-    ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_BOTTOM' ? unselectedCardIds : []),
+    ...(effect.metadata?.unselectedDestination === 'MAIN_DECK_BOTTOM'
+      ? orderedUnselectedCardIds
+      : []),
   ];
   const waitingRoomCardIds = [
     ...(effect.metadata?.selectedDestination === 'WAITING_ROOM' ? uniqueSelectedCardIds : []),
-    ...(effect.metadata?.unselectedDestination === 'WAITING_ROOM' ? unselectedCardIds : []),
+    ...(effect.metadata?.unselectedDestination === 'WAITING_ROOM' ? orderedUnselectedCardIds : []),
   ];
   const publicEffectSummaryContext = getArrangeInspectedDeckTopPublicSummaryContext(
     effect.metadata?.publicEffectSummaryContext
@@ -683,25 +827,34 @@ export function finishArrangeInspectedDeckEdgeWorkflow(
     },
   };
   const moveResult =
-    effect.metadata?.inspectDeckEdge === 'BOTTOM'
-      ? moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers(
-          { ...game, activeEffect: null },
-          deckOwner.id,
-          inspectedCardIds,
-          deckBottomCardIds,
-          waitingRoomCardIds,
-          enqueueTriggeredCardEffects,
-          triggerOptions
-        )
-      : moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
+    deckTopCardIds.length + deckBottomCardIds.length === inspectedCardIds.length &&
+    waitingRoomCardIds.length === 0
+      ? moveInspectedCardsToDeckTopAndBottom(
           { ...game, activeEffect: null },
           deckOwner.id,
           inspectedCardIds,
           deckTopCardIds,
-          waitingRoomCardIds,
-          enqueueTriggeredCardEffects,
-          triggerOptions
-        );
+          deckBottomCardIds
+        )
+      : effect.metadata?.inspectDeckEdge === 'BOTTOM'
+        ? moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers(
+            { ...game, activeEffect: null },
+            deckOwner.id,
+            inspectedCardIds,
+            deckBottomCardIds,
+            waitingRoomCardIds,
+            enqueueTriggeredCardEffects,
+            triggerOptions
+          )
+        : moveInspectedCardsToDeckTopRestToWaitingRoomAndEnqueueTriggers(
+            { ...game, activeEffect: null },
+            deckOwner.id,
+            inspectedCardIds,
+            deckTopCardIds,
+            waitingRoomCardIds,
+            enqueueTriggeredCardEffects,
+            triggerOptions
+          );
   if (!moveResult) {
     return game;
   }
@@ -713,6 +866,7 @@ export function finishArrangeInspectedDeckEdgeWorkflow(
       sourceCardId: effect.sourceCardId,
       step: 'FINISH',
       selectedCardIds: uniqueSelectedCardIds,
+      ...(deckTopCardIds.length > 0 ? { deckTopCardIds } : {}),
       ...(deckBottomCardIds.length > 0 ? { deckBottomCardIds } : {}),
       waitingRoomCardIds,
       ...(publicEffectSummaryContext
@@ -804,6 +958,35 @@ function getArrangeInspectedDeckTopPublicSummaryContext(
     requestedInspectCount: context.requestedInspectCount,
     discardedCostCardIds,
   };
+}
+
+function getUnselectedOrderStep(
+  value: unknown
+): RegisteredArrangeInspectedDeckEdgeConfig['unselectedOrderStep'] | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.stepId !== 'string' ||
+    typeof candidate.stepText !== 'string' ||
+    typeof candidate.selectionLabel !== 'string' ||
+    typeof candidate.confirmSelectionLabel !== 'string'
+  ) {
+    return undefined;
+  }
+  return {
+    stepId: candidate.stepId,
+    stepText: candidate.stepText,
+    selectionLabel: candidate.selectionLabel,
+    confirmSelectionLabel: candidate.confirmSelectionLabel,
+  };
+}
+
+function getStringArrayMetadata(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 function isOwnLiveSourceMatchingBase(

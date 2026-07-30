@@ -15,6 +15,7 @@ import { GameService, type DeckConfig } from '../../src/application/game-service
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
   FaceState,
@@ -184,9 +185,7 @@ function submitNumber(session: ReturnType<typeof createGameSession>, selectedNum
 }
 
 function confirmRevealedTop(session: ReturnType<typeof createGameSession>) {
-  return session.executeCommand(
-    createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-  );
+  return advancePublicRevealDwellIfNeeded(session)!;
 }
 
 describe('PL!HS-pb1-005 Kosuzu live-start workflow', () => {
@@ -200,7 +199,6 @@ describe('PL!HS-pb1-005 Kosuzu live-start workflow', () => {
     });
 
     expect(submitNumber(session, 3).success).toBe(true);
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual([topMember.instanceId]);
     expect(session.state?.activeEffect?.revealedCardIds).toEqual([topMember.instanceId]);
 
     expect(confirmRevealedTop(session).success).toBe(true);
@@ -297,7 +295,7 @@ describe('PL!HS-pb1-005 Kosuzu live-start workflow', () => {
     );
 
     expect(submitNumber(session, 2).success).toBe(true);
-    expect(session.state?.activeEffect?.inspectionCardIds).toEqual([waitingMember.instanceId]);
+    expect(session.state?.activeEffect?.revealedCardIds).toEqual([waitingMember.instanceId]);
     expect(
       session.state?.actionHistory.some(
         (action) =>

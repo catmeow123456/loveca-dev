@@ -33,6 +33,7 @@ import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../
 import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
+  N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID as UMI_013_ABILITY_ID,
   PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID as KASUMI_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
@@ -988,5 +989,115 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
         (modifier) => modifier.abilityId === UMI_013_ABILITY_ID
       )
     ).toBe(false);
+  });
+});
+
+describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path', () => {
+  function setupDraftAi(): {
+    readonly game: GameState;
+    readonly sourceId: string;
+    readonly discardId: string;
+  } {
+    const source = createCardInstance(
+      createMemberCard('PL!N-sd2-005-SD2', '宫下爱', 13),
+      PLAYER1,
+      'n-sd2-005-source'
+    );
+    const discard = createCardInstance(
+      createMemberCard('PL!N-sd2-005-discard', 'discard', 1),
+      PLAYER1,
+      'n-sd2-005-discard'
+    );
+    let game = registerCards(createGameState('n-sd2-005', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      discard,
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+      hand: { ...player.hand, cardIds: [discard.instanceId] },
+    }));
+    game = {
+      ...game,
+      pendingAbilities: [
+        {
+          id: 'n-sd2-005-pending',
+          abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+          sourceCardId: source.instanceId,
+          controllerId: PLAYER1,
+          mandatory: false,
+          timingId: TriggerCondition.ON_LIVE_START,
+          eventIds: ['live-start-event'],
+          sourceSlot: SlotPosition.CENTER,
+        },
+      ],
+    };
+    return { game, sourceId: source.instanceId, discardId: discard.instanceId };
+  }
+
+  it('弃1手牌后展示六种普通 Heart，并使来源成员获得所选 Heart', () => {
+    const scenario = setupDraftAi();
+    let state = resolvePendingCardEffects(scenario.game).gameState;
+    expect(state.activeEffect).toMatchObject({
+      abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+      effectText:
+        '【LIVE开始时】可以将1张手牌放置入休息室：指定1个任意的HEART的颜色。LIVE结束时为止，获得1个指定颜色的HEART。',
+      selectableCardIds: [scenario.discardId],
+      selectionLabel: '请选择要放置入休息室的卡牌',
+      confirmSelectionLabel: '放置入休息室',
+      canSkipSelection: true,
+      skipSelectionLabel: '不发动',
+    });
+
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.discardId);
+    expect(state.players[0].waitingRoom.cardIds).toContain(scenario.discardId);
+    expect(state.eventLog).toContainEqual(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          eventType: TriggerCondition.ON_ENTER_WAITING_ROOM,
+          cardInstanceIds: [scenario.discardId],
+        }),
+      })
+    );
+    expect(state.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
+      HeartColor.PINK,
+      HeartColor.RED,
+      HeartColor.YELLOW,
+      HeartColor.GREEN,
+      HeartColor.BLUE,
+      HeartColor.PURPLE,
+    ]);
+
+    const publicChoice = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      [HeartColor.BLUE]
+    );
+    state =
+      publicChoice === state
+        ? state
+        : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
+
+    expect(state.activeEffect).toBeNull();
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: PLAYER1,
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      sourceCardId: scenario.sourceId,
+      abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+    });
   });
 });

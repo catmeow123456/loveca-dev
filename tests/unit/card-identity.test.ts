@@ -5,8 +5,11 @@ import {
   cardBelongsToUnit,
   cardNameAliasMatches,
   cardNameMatchesAnyAlias,
+  cardsShareUnitIdentity,
   getCardGroupIdentityKeys,
   getCardNameCandidates,
+  getCardUnitIdentities,
+  getSharedCardUnitIdentity,
   hasAtLeastDifferentNamedCards,
   KNOWN_GROUP_IDENTITY_NAMES,
   selectDifferentStructuredUnitCardsWithGroup,
@@ -193,6 +196,62 @@ describe('card identity helpers', () => {
     expect(
       cardBelongsToUnit({ cardCode: 'PL!HS-bp5-018-L' }, 'Cerise Bouquet')
     ).toBe(true);
+  });
+
+  it('collects structured and base-code continuous UNIT identities without treating groups as UNITs', () => {
+    expect(getCardUnitIdentities({ unitName: 'みらくらぱーく！' })).toEqual([
+      { key: 'mira-cra-park', name: 'Mira-Cra Park!' },
+    ]);
+    expect(getCardUnitIdentities({ groupNames: ["μ's", 'Aqours'] })).toEqual([]);
+
+    for (const cardCode of [
+      'PL!HS-bp2-020-UNSEEN',
+      'PL!HS-bp5-018-UNSEEN',
+      'PL!HS-sd1-020-UNSEEN',
+    ]) {
+      expect(getCardUnitIdentities({ cardCode })).toEqual([
+        { key: 'cerise-bouquet', name: 'Cerise Bouquet' },
+        { key: 'dollchestra', name: 'DOLLCHESTRA' },
+        { key: 'mira-cra-park', name: 'Mira-Cra Park!' },
+      ]);
+    }
+  });
+
+  it('preserves compound structured UNIT names split by slash or newline without splitting middle dots', () => {
+    const compound = { unitName: 'Aqours/SaintSnow\nA・ZU・NA' };
+
+    expect(getCardUnitIdentities(compound)).toEqual([
+      { key: 'aqours', name: 'Aqours' },
+      { key: 'saintsnow', name: 'SaintSnow' },
+      { key: 'a・zu・na', name: 'A・ZU・NA' },
+    ]);
+    expect(cardBelongsToUnit(compound, 'Aqours')).toBe(true);
+    expect(cardBelongsToUnit(compound, 'SaintSnow')).toBe(true);
+    expect(cardBelongsToUnit(compound, 'Aqours／SaintSnow')).toBe(true);
+    expect(cardBelongsToUnit(compound, 'A・ZU・NA')).toBe(true);
+    expect(cardBelongsToUnit(compound, 'A・ZU')).toBe(false);
+  });
+
+  it('finds a stable shared UNIT identity across aliases and continuous multi-UNIT identities', () => {
+    const auroraFlower = { cardCode: 'PL!HS-bp5-018-NEW_RARITY' };
+    const dollchestraMember = { unitName: 'DOLLCHESTRA' };
+
+    expect(getSharedCardUnitIdentity(auroraFlower, dollchestraMember)).toEqual({
+      key: 'dollchestra',
+      name: 'DOLLCHESTRA',
+    });
+    expect(getSharedCardUnitIdentity(dollchestraMember, auroraFlower)).toEqual({
+      key: 'dollchestra',
+      name: 'DOLLCHESTRA',
+    });
+    expect(cardsShareUnitIdentity(auroraFlower, dollchestraMember)).toBe(true);
+    expect(
+      cardsShareUnitIdentity(
+        { unitName: 'スリーズブーケ' },
+        { unitName: 'DOLLCHESTRA' }
+      )
+    ).toBe(false);
+    expect(cardsShareUnitIdentity({ groupNames: ["μ's"] }, { groupNames: ["μ's"] })).toBe(false);
   });
 
   it.each(THREE_NAME_MEMBER_CASES)(

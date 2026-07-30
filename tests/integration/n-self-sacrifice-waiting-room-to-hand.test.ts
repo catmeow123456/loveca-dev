@@ -13,6 +13,8 @@ import {
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
+import { getCardAbilityDefinitionsForCardCode as getCardAbilityDefinitions } from '../../src/application/card-effects/definitions/lookup';
+import { getActivatedAbilityUiConfig } from '../../src/application/card-effects/runtime/activated-ability-ui';
 import {
   PB1_019_ACTIVATED_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
@@ -148,63 +150,99 @@ function setupScenario(options: {
 
 describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
   it.each([
+    [
+      'PL!N-sd2-016-SD2',
+      RIN_ACTIVATED_ABILITY_ID,
+      'PL!N-sd2-016',
+      '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。',
+    ],
+    [
+      'PL!N-sd2-024-SD2',
+      PB1_019_ACTIVATED_ABILITY_ID,
+      'PL!N-sd2-024',
+      '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张成员卡加入手牌。',
+    ],
+  ] as const)(
+    'registers %s by base code with exact player text',
+    (cardCode, abilityId, baseCardCode, effectText) => {
+      const definition = getCardAbilityDefinitions(cardCode).find(
+        (candidate) => candidate.abilityId === abilityId
+      );
+      expect(definition).toMatchObject({
+        abilityId,
+        effectText,
+      });
+      expect(definition?.baseCardCodes).toContain(baseCardCode);
+      expect(getCardAbilityDefinitions(`${baseCardCode}-SEC`)).toEqual(
+        expect.arrayContaining([expect.objectContaining({ abilityId })])
+      );
+      expect(getActivatedAbilityUiConfig(cardCode)?.text).toBe(effectText);
+    }
+  );
+
+  it.each([
     { cardCode: 'PL!N-bp4-017-N', name: '宮下 愛' },
     { cardCode: 'PL!N-bp4-020-N', name: 'エマ・ヴェルデ' },
-  ] as const)('lets $cardCode recover the source member after paying the cost', ({ cardCode, name }) => {
-    const { session, sourceId, waitingLiveId } = setupScenario({
-      sourceCardCode: cardCode,
-      sourceName: name,
-      includeWaitingLive: true,
-    });
+    { cardCode: 'PL!N-sd2-024-SD2', name: '鐘嵐珠' },
+  ] as const)(
+    'lets $cardCode recover the source member after paying the cost',
+    ({ cardCode, name }) => {
+      const { session, sourceId, waitingLiveId } = setupScenario({
+        sourceCardCode: cardCode,
+        sourceName: name,
+        includeWaitingLive: true,
+      });
 
-    const beforeSeq = session.getCurrentPublicEventSeq();
-    const activateResult = session.executeCommand(
-      createActivateAbilityCommand(PLAYER1, sourceId, PB1_019_ACTIVATED_ABILITY_ID)
-    );
+      const beforeSeq = session.getCurrentPublicEventSeq();
+      const activateResult = session.executeCommand(
+        createActivateAbilityCommand(PLAYER1, sourceId, PB1_019_ACTIVATED_ABILITY_ID)
+      );
 
-    expect(activateResult.success, activateResult.error).toBe(true);
-    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
-    expect(session.state?.players[0].waitingRoom.cardIds).toContain(sourceId);
-    expect(session.state?.activeEffect?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([sourceId]);
-    expect(session.state?.activeEffect?.selectableCardIds).not.toContain(waitingLiveId);
-    expect(
-      session.state?.eventLog.some(
-        (entry) =>
-          entry.event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
-          entry.event.cardInstanceId === sourceId
-      )
-    ).toBe(true);
+      expect(activateResult.success, activateResult.error).toBe(true);
+      expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBeNull();
+      expect(session.state?.players[0].waitingRoom.cardIds).toContain(sourceId);
+      expect(session.state?.activeEffect?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
+      expect(session.state?.activeEffect?.selectableCardIds).toEqual([sourceId]);
+      expect(session.state?.activeEffect?.selectableCardIds).not.toContain(waitingLiveId);
+      expect(
+        session.state?.eventLog.some(
+          (entry) =>
+            entry.event.eventType === TriggerCondition.ON_LEAVE_STAGE &&
+            entry.event.cardInstanceId === sourceId
+        )
+      ).toBe(true);
 
-    const confirmResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, sourceId)
-    );
+      const confirmResult = session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, sourceId)
+      );
 
-    expect(confirmResult.success, confirmResult.error).toBe(true);
-    confirmPublicSelectionIfNeeded(session);
-    expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.players[0].hand.cardIds).toEqual([sourceId]);
-    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(sourceId);
+      expect(confirmResult.success, confirmResult.error).toBe(true);
+      confirmPublicSelectionIfNeeded(session);
+      expect(session.state?.activeEffect).toBeNull();
+      expect(session.state?.players[0].hand.cardIds).toEqual([sourceId]);
+      expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(sourceId);
 
-    const summary = session
-      .getPublicEventsSince(beforeSeq)
-      .find((event) => event.type === 'CardEffectSummary');
-    expect(summary?.type).toBe('CardEffectSummary');
-    if (summary?.type === 'CardEffectSummary') {
-      expect(summary.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
-      expect(summary.effectKind).toBe('SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM');
-      expect(summary.sourceCard?.publicObjectId).toBe(`obj_${sourceId}`);
-      expect(summary.recoveredCards.map((card) => card.publicObjectId)).toEqual([
-        `obj_${sourceId}`,
-      ]);
-      expect(summary.hiddenRecoveredCardCount).toBe(0);
-      expect(summary.noRecoveredCards).toBe(false);
+      const summary = session
+        .getPublicEventsSince(beforeSeq)
+        .find((event) => event.type === 'CardEffectSummary');
+      expect(summary?.type).toBe('CardEffectSummary');
+      if (summary?.type === 'CardEffectSummary') {
+        expect(summary.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
+        expect(summary.effectKind).toBe('SELF_SACRIFICE_RECOVER_FROM_WAITING_ROOM');
+        expect(summary.sourceCard?.publicObjectId).toBe(`obj_${sourceId}`);
+        expect(summary.recoveredCards.map((card) => card.publicObjectId)).toEqual([
+          `obj_${sourceId}`,
+        ]);
+        expect(summary.hiddenRecoveredCardCount).toBe(0);
+        expect(summary.noRecoveredCards).toBe(false);
+      }
     }
-  });
+  );
 
   it.each([
     { cardCode: 'PL!N-PR-019-PR', name: '中須かすみ' },
     { cardCode: 'PL!N-sd1-011-SD', name: 'ミア・テイラー' },
+    { cardCode: 'PL!N-sd2-016-SD2', name: '朝香果林' },
   ] as const)('limits $cardCode recovery targets to LIVE cards', ({ cardCode, name }) => {
     const { session, sourceId, waitingMemberId, waitingLiveId } = setupScenario({
       sourceCardCode: cardCode,

@@ -3,7 +3,7 @@
 > 文档类型：编码标准
 > 适用范围：卡效 workflow family、特殊卡 workflow、runner dispatch 的组织方式
 > 当前状态：现行写法；旧 runner 逻辑按 `migration_roadmap.md` 分批迁移，完整卡效 fallback 不得回流
-> 最后更新：2026-07-25
+> 最后更新：2026-07-30
 
 ## ON_LEAVE_STAGE activate stage member
 
@@ -16,6 +16,14 @@ and live-pool reselection. `orderedResolution` only applies to the selected batc
 waiting ability cancels the shortcut and reopens player choice.
 
 workflow 是卡效流程的主要承载层。它可以是一类同型效果，也可以是一张特殊卡的单独流程。
+
+## Public Reveal Dwell
+
+隐藏卡牌按卡文变为双方公开后，如果接下来会自动移动、判断、发放奖励、推进 pending，或打开另一项真实交互，workflow 必须在两者之间接入 `runtime/public-reveal-dwell.ts`。当前 step 恢复后只需无输入结算时使用 `withPublicRevealDwell`；展示结束后还有真实选卡、选项或槽位交互时使用 `createPublicRevealDwellBeforeNextEffect`，到期只恢复 next effect。
+
+workflow 继续拥有公开集合、卡牌条件、费用、区域移动、奖励、事件和 continuation；dwell 只拥有本次明确公开 cardIds 的权威 deadline/generation、双方展示及恢复。恢复后必须重验实时区域、来源与目标，不得在展示期间提前执行依赖公开结果的结算。不得传入完整私密 `inspectionCardIds`，不得自行实现确认按钮、客户端计时或服务端 `setTimeout`，也不得再次包装已有 public-card-selection / public-effect-choice 自动展示。
+
+Public Reveal Dwell 与 public-card-selection confirmation 不同：前者表示“隐藏信息刚刚公开”，不要求玩家作规则选择；后者表示“玩家从既有公开区域确定了将要移动的具体卡牌”，仍保存原输入并在到期后回到原 workflow。无交互 queued pending 的 manual confirm-only 又是第三种语义，三者不能互换。
 
 ## 有限成员登场选项与卡定义特殊流程
 
@@ -76,13 +84,15 @@ deadline 恢复后整体重验，并调用统一 waiting-room-to-main-deck 事�
 
 `workflows/shared/discard-mill-top-recover-member.ts` 是由费用 5「高坂穂乃果」`PL!-bp5-010` 在费用 9「天王寺璃奈」`PL!N-bp1-009` 成为第二个真实样本后晋升的窄 family。稳定轴仅为 abilityId、mill 数量、成员 selector/目标说明、是否在结算开始校验来源仍在舞台，以及稳定 step/action 标签。两者共同保持“可选弃1手 → refresh-aware direct mill → 支付后重扫当前休息室 → 强制回收1张成员”的顺序、标准事件 wrapper、无目标保留费用与 mill、waiting-room-to-hand public confirmation 和统一 continuation；璃奈的 ON_ENTER pending 成立后不因来源离场取消，高坂穂乃果的 LIVE_START 仍要求来源在舞台并只回收『A-RISE』成员。该 family 不是任意“弃牌后做若干动作”的 DSL。
 
-费用 9「ミア・テイラー」`PL!N-bp1-011` 保持 `workflows/cards/n-bp1-011-mia-taylor.ts` 单卡 ownership。它只与上述 family 共享可选弃手和底层区域动作；完整流程是逐张公开至服务端确定的首张 LIVE、展示完整公开结果、确认后一次移动，不存在玩家自由选择命中目标，因此不接 public-card-selection confirmation deadline。
+费用 9「ミア・テイラー」`PL!N-bp1-011` 保持 `workflows/cards/n-bp1-011-mia-taylor.ts` 单卡 ownership。它只与上述 family 共享可选弃手和底层区域动作；完整流程是逐张公开至服务端确定的首张 LIVE、通过 Public Reveal Dwell 展示完整公开结果、展示结束后一次移动，不存在玩家自由选择命中目标，因此不接 public-card-selection confirmation deadline。
 
 `self-sacrifice-waiting-room-to-hand.ts` 承接“来源成员自送休息室后，从自己的休息室公开确认回收卡牌”的稳定 family。回收后的能量恢复只允许有限条件联合：成功 LIVE 区有效分数总计，或本次实际回收 LIVE 自身的结构化团体与印刷分数；不接受任意 callback。`PL!-PR-017` 与 `PL!S-bp3-008` 是两个真实条件样本。
 
 `live-start-discard-gain-blade.ts` 承接 LIVE_START queued 的“可选弃手，来源成员获得 BLADE”稳定 family。当前配置轴仅为 abilityId、弃置 min/max、`PER_DISCARD / FIXED_TOTAL` 两种有限奖励，以及“弃置 LIVE 后抽1”的窄后处理；不接受任意 callback、奖励公式、任意弃牌后处理或步骤 DSL。`PL!S-bp3-003` 证明0至2张与每张+2，`PL!SP-PR-009/011/012` 保留 exactly 1、+1与弃 LIVE 抽1，`PL!SP-sd1-003` 证明恰好2张与支付成功后固定+5。弃手统一走 trigger-safe wrapper，modifier 绑定来源成员实例，并通过统一 pending continuation 返回检查时点；手牌不足配置下限时直接消费 pending，不建立非法选择窗口。
 
 `live-start-discard-gain-heart.ts` 承接 LIVE_START queued 的“可选弃1手后获得 Heart”稳定 family。`PL!-bp4-013-N` 费用4「園田海未」新增固定单色 + 任意其他主舞台成员样本：`HeartColor.PINK` 已确定，因此成功弃手后直接进入成员选择，不打开只有一个选项的颜色窗口。recipient 仍只有 `SOURCE_MEMBER` / `SELECT_OTHER_STAGE_MEMBER` 两种模式；后者的 `groupAlias` 是有限可选轴，缺省表示任意其他己方主舞台成员，既有 `PL!N-bp3-002` 虹咲样本继续显式配置 `groupAlias: '虹ヶ咲'`。
+
+`PL!N-sd2-005` 进一步证明来源成员在支付后从六种普通 HEART 中指定1色的有限模式；颜色窗口只使用前端已有稳定 token，不接受 ALL 或任意字符串。
 
 该 family 只扫描控制者 LEFT/CENTER/RIGHT 顶层成员，排除来源与 memberBelow；目标确认时重扫来源与候选，支付后无目标或来源/目标 stale 均保留费用并通过统一 continuation 继续。成员 Heart 统一写 `SOURCE_MEMBER` / `TARGET_MEMBER` modifier。family 不接受 selector callback，不表达任意费用、任意目标、任意 modifier 或步骤 DSL。
 
@@ -121,13 +131,13 @@ All production `WAITING_ROOM -> MAIN_DECK` moves use the trigger-safe wrappers i
 
 Revealed-cheer selections use the same lifecycle with `source: 'REVEALED_CHEER'`, including destinations that are already public such as waiting room. The shared runtime validates only current-cheer movable membership and owns pause/display/deadline restoration; `revealed-cheer-selection.ts` or the card workflow still owns printed selectors, costs, turn-use recording, additional cheer, reroll, action payloads, and continuation. Do not treat event-inclusive `CheerEvent.revealedCardIds` condition facts as movable targets. Server-determined all-card actions such as `PL!S-bp2-004` may call the low-level card-id window entry and resume through a narrow synthetic step, but must reject the whole move when the displayed set is no longer exactly movable rather than silently moving a stale subset.
 
-Fixed pay-energy gain-BLADE is a shared live-start family when the only stable axes are active energy cost and fixed BLADE amount. Keep the payment prompt, `PAY_COST` action log, source-member BLADE modifier, skip path, and pending continuation inside the workflow; do not fold payment execution into the action-log helper.
+Fixed pay-energy gain-BLADE is a shared live-start family when the only stable axes are active energy cost and fixed BLADE amount. The `PL!N-sd2-004` / `008` pair proves the fixed +2 axis alongside the earlier +1 samples. Keep the payment prompt, `PAY_COST` action log, source-member BLADE modifier, skip path, and pending continuation inside the workflow; do not fold payment execution into the action-log helper.
 
 On-enter other-identity activate-energy is a narrow shared family proven by `PL!HS-bp6-012` and `PL!N-bp1-004`. Keep its configuration axes to ability id, identity kind (`GROUP` / `UNIT`), alias, activation count, and the internal `RESOLVE_ABILITY` step labels `actionStep` / `noOtherMemberStep`. Those labels are audit payload values, not player-facing action copy or a new UI configuration axis. The workflow must exclude the source card, combine `typeIs(MEMBER)` with `groupAliasIs` or `unitAliasIs`, and delegate WAITING-energy selection and activation to the common energy-operation runtime. Do not fold this into unconditional/count-based on-enter energy activation or widen it into a general condition DSL.
 
 Activated pay-energy draw is a shared family proven by `PL!SP-bp5-020` and `PL!HS-bp1-007`. Keep its axes narrow to ability id, active energy cost, draw count, and action copy. The definition owns the once-per-turn limit; the workflow validates current-player main phase, source membership/definition match, pays through `TAP_ACTIVE_ENERGY`, records `PAY_COST`, then records ability use and draws. Do not add target selection, pending behavior, or a generic activated DSL. `PL!SP-bp1-009` does not join this family because it must continue into a discard step; its thin card wrapper owns legality and the fixed one-ACTIVE-energy payment, then delegates draw/discard state and HAND -> WAITING_ROOM trigger handling to the existing `draw-then-discard` core.
 
-`workflows/shared/pay-energy-waiting-room-to-hand.ts` contains two explicitly separate lifecycles rather than one flag-heavy configuration object. The original `ACTIVATED / STAGE_MEMBER` family validates main phase, active player, current source stage membership, legal target and immediate payment before recording `ABILITY_USE`; its definitions own any per-turn limit. `PL!SP-sd1-007` proves the distinct `queued ON_ENTER / PLAYED_MEMBER / optional payment` lifecycle: once the enter event is queued, later source departure does not cancel it; no legal target consumes only that pending, insufficient ACTIVE energy still opens a decline-only player window, and choosing payment uses `payImmediateEffectCosts` plus actual `PAY_COST.energyCardIds` without recording activated use. After payment it rescans the controller's waiting room, keeps paid cost if no target remains, and otherwise forces one `MEMBER + groupAliasIs('Liella!')` selection through `createWaitingRoomToHandEffectState`, shared public-card-selection confirmation, restore-time current-candidate validation, and unified pending continuation. The two lifecycles share target scanning, payment primitives, recovery state, movement and confirmation helpers only; this is not a generic trigger/cost/selector DSL, and it does not absorb `HS_CL1_002` or other card-local flows with different source-stale or target-type semantics.
+`workflows/shared/pay-energy-waiting-room-to-hand.ts` contains two explicitly separate lifecycles rather than one flag-heavy configuration object. The original `ACTIVATED / STAGE_MEMBER` family validates main phase, active player, current source stage membership and immediate payment before recording `ABILITY_USE`; its definitions own any per-turn limit. Most entries require a legal initial target, while the narrow `allowPaymentWithoutInitialTarget` axis is reserved for text such as `PL!N-sd2-001` where paying `[E][E]` is itself legal and the recovery target is rescanned only after payment; a zero-target result then keeps energy payment and turn use. `PL!SP-sd1-007` proves the distinct `queued ON_ENTER / PLAYED_MEMBER / optional payment` lifecycle: once the enter event is queued, later source departure does not cancel it; no legal target consumes only that pending, insufficient ACTIVE energy still opens a decline-only player window, and choosing payment uses `payImmediateEffectCosts` plus actual `PAY_COST.energyCardIds` without recording activated use. After payment it rescans the controller's waiting room, keeps paid cost if no target remains, and otherwise forces one configured selection through `createWaitingRoomToHandEffectState`, shared public-card-selection confirmation, restore-time current-candidate validation, and unified pending continuation. The two lifecycles share target scanning, payment primitives, recovery state, movement and confirmation helpers only; this is not a generic trigger/cost/selector DSL.
 
 `PL!SP-bp1-010` 也不加入上述 family：它的固定复合费用是两张 ACTIVE 能量加恰好一张弃手，且后续必须完成顶5检视、可选0至1张『Liella!』卡公开入手、余牌成组入休息室。窄单卡 workflow 只编排 `payImmediateEffectCosts`、标准弃手事件 wrapper 与 `look-top-select-to-hand` core；在任何资源移动前预验证两种资源，全部成功后才记录回合次数。这不是任意复合费用或 steps DSL。
 
@@ -153,6 +163,8 @@ Discard-then-draw is a separate shared family when the stable order is private h
 
 Arrange-top workflows may share a core when they inspect the deck top, let the player choose an ordered subset for deck top, and move unselected inspected cards to waiting room. The shared summary label can describe 登场, LIVE开始, or LIVE成功 sources, but the workflow must still own only the inspection / ordered deck-top / inspected-to-waiting-room flow. Keep card-specific opt-in costs, such as waiting the source member before inspection, in a thin card wrapper that calls the shared core after the cost has fully resolved.
 
+The DRAFT `PL!S-bp7-008` ON_ENTER ability proves one narrow additional destination axis: after choosing an ordered 0–3-card top subset, every remaining inspected card must be ordered for the deck bottom. `arrange-inspected-deck-edge.ts` owns that second exact-all ordered step and delegates only the final atomic placement to `moveInspectedCardsToDeckTopAndBottom`; a remainder of zero or one resolves without an unnecessary second prompt. This axis does not permit mixed waiting-room placement, arbitrary destinations, partial bottom subsets, or a generic multi-step DSL.
+
 When such a thin wrapper pays a discard cost before delegating, it may pass the narrow optional `discardedCostCardIds` summary context so STARTED and COMPLETED public summaries report the real cost. The shared arrange core does not select or pay that cost; callers without a discard cost continue to report an empty list.
 
 `CardAbilitySourceZone.WAITING_ROOM` is a narrow source-zone marker for real activated abilities whose source card is in its owner's waiting room. Keep support source-zone-aware in definitions, command validation, and UI entry points; do not broaden it into a generic DSL or trigger matcher surface.
@@ -175,7 +187,9 @@ Discard-look-top-select-to-hand may combine an alias selector with `memberOnly` 
 
 `look-top-select-to-hand.ts` may use the finite `minSuccessfulLiveScore` axis when the printed effect gates the existing inspection flow on the controller's successful-LIVE effective score. The starter must call `sumSuccessfulLiveScore` before `inspectTopCards`; a failed threshold consumes only the current pending, records a player-readable condition result, creates no inspection or active effect, and returns through unified continuation. `PL!-bp4-006` is the proving sample with threshold 3, top 5, and `typeIs(MEMBER) + groupAliasIs("μ's")`. This axis is not an arbitrary condition callback, predicate DSL, or generic zone-movement condition.
 
-Opponent wait target is a shared family when the operation is "choose one opponent stage member and change it to WAITING". Keep selector differences, action step, step text, and selection label in config. The workflow may reuse stage-member orientation selection helpers and event-log delta helpers, but it must enqueue `ON_MEMBER_STATE_CHANGED` only after the orientation change and resolve action have been recorded. A queued LIVE_START no-target branch may opt into a narrow `confirmNoTargetWithRealtimeText` axis when the real card has no interaction after target absence; the appended text must describe the current target count and actual no-op result, and real target selection windows must not receive an extra confirm-only wrapper. Do not merge this family into activation-energy or other orientation-changing workflows unless their event timing, target side, and payload fields are identical.
+Opponent wait target is a shared family when the operation is "choose one opponent stage member and change it to WAITING". Keep selector differences, action step, step text, selection/confirmation copy, and proven finite source-side preconditions in config. `PL!N-sd2-013` adds only the resolve-time condition that every occupied own top-level stage slot is a member of one configured group; `PL!N-sd2-019/021` add the printed-cost-at-most selector while retaining the same single-target operation. The workflow may reuse stage-member orientation selection helpers and event-log delta helpers, but it must enqueue `ON_MEMBER_STATE_CHANGED` only after the orientation change and resolve action have been recorded. A queued LIVE_START no-target branch may opt into a narrow `confirmNoTargetWithRealtimeText` axis when the real card has no interaction after target absence; the appended text must describe the current target count and actual no-op result, and real target selection windows must not receive an extra confirm-only wrapper. Do not merge this family into activation-energy or other orientation-changing workflows unless their event timing, target side, and payload fields are identical.
+
+On-enter source-member LIVE modifier is the behavior-named shared family for a mandatory queued ON_ENTER ability whose whole resolution is a fixed SOURCE_MEMBER modifier until LIVE end. `workflows/shared/on-enter-source-member-gain-live-modifier.ts` was promoted from the earlier BLADE-only module when `PL!N-sd2-019` supplied the second modifier kind. Stable axes are ability id, `BLADE` versus `HEART`, fixed amount, HEART color when applicable, action step, and the narrow manual-confirm bridge required by the card's UI timing. It must revalidate the source instance on the controller's top-level stage, use the standard BLADE/HEART modifier helpers, consume stale pending abilities as no-op, and keep target-other-member, conditional, paid, or player-chosen modifiers outside this family.
 
 Stage formation change is a shared family when the operation is "let the player move/swap current own main stage members, then commit the final stage atomically". Keep trigger timing, source zone, pre-draw, condition predicate, unit/group predicates such as "only 5yncri5e! stage members", and action step names in config. The workflow should expose `stageFormation` activeEffect state instead of enumerating `selectableOptions`, consume decline/skip without moving, and apply confirmed `moveHistory` through `rearrangeStageMembersByMoveHistoryAndEnqueueTriggers` so `RESOLVE_ABILITY` is recorded before all `ON_MEMBER_SLOT_MOVED` triggers are enqueued. Do not trust frontend `movedCardIds`: replay history from the current authoritative stage state, ignore same-slot moves, treat swaps as moving both members, and emit at most one moved event per member while preserving the full `moveHistory` in action payloads.
 
@@ -397,7 +411,7 @@ manual confirm-only 预览与最终结算都实时重算数量和来源 LIVE 状
 
 `workflows/shared/live-start-mill-bottom-all-match-gain-heart.ts` 由当前公开版本 `PL!S-bp7-006-P` 费用2「津岛善子」与 `PL!S-bp7-015-N` 费用5「津岛善子」两个真实样本建立。稳定轴仅为 base card code / abilityId、卡组底移动数量、窄条件（`GROUP_MEMBER + Aqours` 或 `CARD_TYPE + LIVE`）与 Heart 颜色；Heart 固定写给 `SOURCE_MEMBER`。
 
-family 复用 direct top-mill 的公开结果形状：实际卡组底移动与分组等待室事件完成后，以 `activeEffect.revealedCardIds` 向双方展示真实 `movedCardIds`；展示窗口打开时尚未写 Heart，玩家确认公开结果后才按实际移动数与卡牌身份写 modifier 并统一 continuation。该真实公开窗口取代纯 confirm-only，手动点选也不会双弹窗；移动前仍不预读或展示隐藏底牌。本 family 不包含抽牌、加分、LIVE 必要 Heart 修改、声援方向或任意奖励 DSL。
+family 复用 direct top-mill 的公开结果形状：实际卡组底移动与分组等待室事件完成后，以 Public Reveal Dwell 向双方展示真实 `movedCardIds`；展示窗口打开时尚未写 Heart，展示结束后才按实际移动数与卡牌身份写 modifier 并统一 continuation。该定时公开展示取代纯 confirm-only，手动点选也不会双弹窗；移动前仍不预读或展示隐藏底牌。本 family 不包含抽牌、加分、LIVE 必要 Heart 修改、声援方向或任意奖励 DSL。
 
 # bp7 bottom-mill 后 requirement / draw / score 单卡样本
 
@@ -405,7 +419,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 
 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」保持单卡 LIVE_SUCCESS workflow `cards/s-bp7-022-koi-ni-naritai-aquarium.ts`。声援方向是 domain 纯 query 与统一公开入口的规则责任，不在 workflow/runner 传 `useBottom` 布尔值。LIVE_SUCCESS 复用 `selectCurrentLiveRevealedCheerCardIds` 事件事实，再由 `evaluateDistinctCheerCardsCoverHeartColors` 对印刷 Heart 做三色不同 cardId 的确定性小型回溯；它只表达“不同卡覆盖所需颜色”，不是图算法框架或 Heart DSL。结果以来源 LIVE SCORE replacement 和 `playerScores` 差值刷新结算，动态 confirm-only 只显示三色候选数、三张不同卡匹配结果与实际分数。
 
-020 与 021 都在移动及标准分组事件入队后打开双方公开结果窗口，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 确认后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 确认后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
+020 与 021 都在移动及标准分组事件入队后打开 Public Reveal Dwell，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 展示结束后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 展示结束后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
 
 # arrange-inspected-deck-edge 的卡组边缘轴（2026-07-23）
 

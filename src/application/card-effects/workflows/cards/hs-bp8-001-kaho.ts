@@ -18,6 +18,7 @@ import {
   addBladeLiveModifierForSourceMember,
 } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
@@ -95,7 +96,7 @@ function startMillThree(
   return startPendingActiveEffect(mill.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -112,7 +113,7 @@ function startMillThree(
         refreshCount: mill.refreshCount,
         allCeriseBouquet,
       },
-    },
+    }),
     actionPayload: {
       step: 'MILL_TOP_THREE',
       milledCardIds,

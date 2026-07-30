@@ -214,10 +214,7 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
     expect(reveal.success, reveal.error).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toContain(target.instanceId);
 
-    const finish = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-    expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([miss.instanceId]);
     const completedSummary = session.state?.actionHistory
@@ -324,10 +321,7 @@ describe('未来水卡组 执行批次1 focused workflows', () => {
       createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
     );
     expect(reveal.success, reveal.error).toBe(true);
-    const finish = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
-    expect(finish.success, finish.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
     expect(session.state?.players[0].hand.cardIds).toEqual([target.instanceId]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([
       lowCost.instanceId,

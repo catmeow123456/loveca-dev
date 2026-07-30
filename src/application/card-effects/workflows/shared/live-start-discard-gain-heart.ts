@@ -12,6 +12,7 @@ import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js
 import {
   HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   KOTORI_LIVE_START_HEART_ABILITY_ID,
+  N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
   PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
   PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -81,6 +82,11 @@ const LIVE_START_DISCARD_GAIN_HEART_CONFIGS: readonly LiveStartDiscardGainHeartC
     abilityId: HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
     heartSelection: { mode: 'CHOOSE', options: STANDARD_HEART_COLOR_OPTIONS },
     recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: true },
+  },
+  {
+    abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+    heartSelection: { mode: 'CHOOSE', options: STANDARD_HEART_COLOR_OPTIONS },
+    recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: false },
   },
   {
     abilityId: PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,

@@ -38,6 +38,7 @@ import {
   TurnType,
 } from '../../src/shared/types/enums';
 import { confirmIfConfirmOnly } from './confirm-only-pending';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -207,7 +208,7 @@ describe('PL!HS-pb1-002 Sayaka workflow', () => {
       )
     ).toBe(true);
 
-    const stackResult = confirmEffect(scenario.session);
+    const stackResult = advancePublicRevealDwellIfNeeded(scenario.session)!;
     expect(stackResult.success, stackResult.error).toBe(true);
     const player = scenario.session.state!.players[0]!;
     expect(player.hand.cardIds).not.toContain(handSayaka.instanceId);

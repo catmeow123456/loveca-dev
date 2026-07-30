@@ -45,6 +45,7 @@ import {
   createConfirmEffectChoiceCommand,
   createAutoAdvancePublicCardSelectionCommand,
   createAutoAdvancePublicEffectChoiceCommand,
+  createAutoAdvancePublicRevealCommand,
   createConfirmCostPaymentCommand,
   createMulliganCommand,
   createConfirmStepCommand,
@@ -445,6 +446,12 @@ export interface GameStore {
   autoAdvancePublicEffectChoice: (
     effectId: string,
     expectedDeadline: number
+  ) => CommandDispatchResult;
+  /** 通用公开卡牌展示到期后的无交互推进。 */
+  autoAdvancePublicReveal: (
+    effectId: string,
+    expectedDeadline: number,
+    expectedGeneration: string
   ) => CommandDispatchResult;
   /** 确认费用支付 */
   confirmCostPayment: (
@@ -1448,6 +1455,22 @@ export const useGameStore = create<GameStore>((set, get) => {
           createAutoAdvancePublicEffectChoiceCommand(playerId, effectId, expectedDeadline),
         {
           failureMessage: '效果选项公开展示自动推进失败',
+          silentFailure: true,
+        }
+      );
+    },
+
+    autoAdvancePublicReveal: (effectId, expectedDeadline, expectedGeneration) => {
+      return runViewerCommand(
+        (playerId) =>
+          createAutoAdvancePublicRevealCommand(
+            playerId,
+            effectId,
+            expectedDeadline,
+            expectedGeneration
+          ),
+        {
+          failureMessage: '公开卡牌展示自动推进失败',
           silentFailure: true,
         }
       );

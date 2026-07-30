@@ -12,11 +12,13 @@ import {
 } from '../../src/domain/entities/card';
 import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
 import {
+  createAutoAdvancePublicRevealCommand,
   createConfirmEffectStepCommand,
   createMovePublicCardToWaitingRoomCommand,
   createPlayMemberToSlotCommand,
 } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
   HS_BP2_013_LEAVE_STAGE_LOOK_TOP_LIVE_ABILITY_ID,
@@ -110,6 +112,23 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
   state.waitingPlayerId = null;
 }
 
+function advancePublicRevealDwell(session: ReturnType<typeof createGameSession>) {
+  const effect = session.state!.activeEffect!;
+  expect(effect.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
+  const generation = effect.publicRevealGeneration ?? `test-public-reveal:${effect.id}`;
+  (session as unknown as { authorityState: GameState }).authorityState = {
+    ...session.state!,
+    activeEffect: {
+      ...effect,
+      publicRevealAutoAdvanceAt: 0,
+      publicRevealGeneration: generation,
+    },
+  };
+  return session.executeCommand(
+    createAutoAdvancePublicRevealCommand(effect.awaitingPlayerId, effect.id, 0, generation)
+  );
+}
+
 describe('look top select to hand shared workflow', () => {
   it('executes PL!S-sd1-003-SD on-enter to reveal one Aqours LIVE and move the rest to waiting room', () => {
     const session = createGameSession();
@@ -198,9 +217,7 @@ describe('look top select to hand shared workflow', () => {
     expect(revealResult.success, revealResult.error).toBe(true);
     expect(session.state?.inspectionZone.revealedCardIds).toEqual([selectedLiveCardId]);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
     expect(finishResult.success, finishResult.error).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].hand.cardIds).toEqual([selectedLiveCardId]);
@@ -329,9 +346,7 @@ describe('look top select to hand shared workflow', () => {
     );
     expect(session.state?.inspectionZone.revealedCardIds).toContain(selectedLiveCardId);
 
-    const finishResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id)
-    );
+    const finishResult = advancePublicRevealDwell(session);
 
     expect(finishResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
@@ -682,9 +697,7 @@ describe('PL!-bp4-006 shared success-score look-top configuration', () => {
     }));
     (scenario.session as unknown as { authorityState: GameState }).authorityState =
       stateAfterSourceLeft;
-    const finish = scenario.session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-    );
+    const finish = advancePublicRevealDwell(scenario.session);
     expect(finish.success, finish.error).toBe(true);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([selectedCardId]);
     expect(scenario.session.state?.players[0].waitingRoom.cardIds).toEqual(
@@ -922,9 +935,7 @@ describe('N-pb1 named-member look-top-two shared configurations', () => {
         ).toBe('FRONT');
       }
 
-      const finish = scenario.session.executeCommand(
-        createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-      );
+      const finish = advancePublicRevealDwell(scenario.session);
       expect(finish.success, finish.error).toBe(true);
       expect(scenario.session.state?.players[0].hand.cardIds).toEqual([
         scenario.validTarget.instanceId,
@@ -1121,8 +1132,8 @@ describe('PL!N-sd1-001-SD 费用13「上原歩夢」 shared look-top ability', (
       abilityId: N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID,
       stepText:
         '【登场】检视自己卡组顶的5张卡。可以将至多1张其中的『虹咲』的LIVE卡公开并加入手牌。其余的卡片放置入休息室。',
-      selectableCardIds: [],
-      canSkipSelection: false,
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+      revealedCardIds: [validLive!.instanceId],
     });
     expect(
       scenario.session.state?.actionHistory.some(
@@ -1133,9 +1144,7 @@ describe('PL!N-sd1-001-SD 费用13「上原歩夢」 shared look-top ability', (
       )
     ).toBe(false);
 
-    const finish = scenario.session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, scenario.session.state!.activeEffect!.id)
-    );
+    const finish = advancePublicRevealDwell(scenario.session);
     expect(finish.success, finish.error).toBe(true);
     expect(scenario.session.state?.players[0].hand.cardIds).toEqual([validLive!.instanceId]);
     const waitingRoomCardIds = scenario.topCards

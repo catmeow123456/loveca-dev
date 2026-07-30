@@ -372,6 +372,7 @@ export function projectPlayerViewState(
   const activeEffectCardSelection = projectActiveEffectCardSelection(game, viewerSeat, objects);
   const publicCardSelectionAutoAdvanceAt = game.activeEffect?.publicCardSelectionAutoAdvanceAt;
   const publicEffectChoiceAutoAdvanceAt = game.activeEffect?.publicEffectChoiceAutoAdvanceAt;
+  const publicRevealAutoAdvanceAt = game.activeEffect?.publicRevealAutoAdvanceAt;
   for (const skip of game.energyActivePhaseSkips ?? []) {
     const publicObjectId = createPublicObjectId(skip.energyCardId);
     const object = objects[publicObjectId];
@@ -400,6 +401,12 @@ export function projectPlayerViewState(
         publicEffectChoiceAutoAdvanceAfterMs: publicEffectChoiceAutoAdvanceAt
           ? Math.max(0, publicEffectChoiceAutoAdvanceAt - (options.now ?? Date.now()))
           : undefined,
+        publicRevealAutoAdvanceAt,
+        publicRevealGeneration: game.activeEffect.publicRevealGeneration,
+        publicRevealAutoAdvanceAfterMs:
+          publicRevealAutoAdvanceAt !== undefined
+            ? Math.max(0, publicRevealAutoAdvanceAt - (options.now ?? Date.now()))
+            : undefined,
         inspectionObjectIds: isActiveEffectControlledInspection(game, viewerPlayerId)
           ? game.activeEffect.inspectionCardIds?.map(createPublicObjectId)
           : undefined,
@@ -1382,6 +1389,7 @@ function buildActiveEffectCommandHints(
   if (
     game.activeEffect.publicCardSelectionAutoAdvanceAt === undefined &&
     game.activeEffect.publicEffectChoiceAutoAdvanceAt === undefined &&
+    game.activeEffect.publicRevealAutoAdvanceAt === undefined &&
     game.activeEffect.awaitingPlayerId !== viewerPlayerId
   ) {
     return [];
@@ -1399,6 +1407,13 @@ function buildActiveEffectCommandHints(
         ...(game.activeEffect.publicEffectChoiceAutoAdvanceAt !== undefined
           ? {
               publicEffectChoiceAutoAdvanceAt: game.activeEffect.publicEffectChoiceAutoAdvanceAt,
+            }
+          : {}),
+        ...(game.activeEffect.publicRevealAutoAdvanceAt !== undefined &&
+        game.activeEffect.publicRevealGeneration !== undefined
+          ? {
+              publicRevealAutoAdvanceAt: game.activeEffect.publicRevealAutoAdvanceAt,
+              publicRevealGeneration: game.activeEffect.publicRevealGeneration,
             }
           : {}),
       },

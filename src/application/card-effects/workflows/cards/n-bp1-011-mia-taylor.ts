@@ -10,6 +10,7 @@ import {
 import { inspectTopCardsUntilMatch } from '../../../effects/look-top.js';
 import { PL_N_BP1_011_ON_ENTER_OPTIONAL_DISCARD_REVEAL_UNTIL_LIVE_ABILITY_ID } from '../../ability-ids.js';
 import { createOptionalDiscardHandToWaitingRoomActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
@@ -145,10 +146,8 @@ function finishMiaTaylorDiscardCost(
     discardedCardIds: discardResult.discardedCardIds,
     enterWaitingRoomEventId: discardResult.enterWaitingRoomEvent?.eventId,
   });
-  const inspection = inspectTopCardsUntilMatch(
-    stateAfterCost,
-    player.id,
-    (_state, card) => isLiveCardData(card.data)
+  const inspection = inspectTopCardsUntilMatch(stateAfterCost, player.id, (_state, card) =>
+    isLiveCardData(card.data)
   );
   if (!inspection) return game;
   if (inspection.inspectedCardIds.length === 0) {
@@ -168,7 +167,7 @@ function finishMiaTaylorDiscardCost(
   return addAction(
     {
       ...inspection.gameState,
-      activeEffect: {
+      activeEffect: withPublicRevealDwell({
         ...effect,
         stepId: CONFIRM_REVEALED_CARDS_STEP_ID,
         stepText:
@@ -193,7 +192,7 @@ function finishMiaTaylorDiscardCost(
           inspectedCardIds: inspection.inspectedCardIds,
           hitCardId: inspection.hitCardId,
         },
-      },
+      }),
     },
     'RESOLVE_ABILITY',
     player.id,
@@ -257,8 +256,7 @@ function finishMiaTaylorRevealedCards(
 function getMiaTaylorEffect(game: GameState, stepId: string): ActiveEffectState | null {
   const effect = game.activeEffect;
   return effect?.abilityId ===
-    PL_N_BP1_011_ON_ENTER_OPTIONAL_DISCARD_REVEAL_UNTIL_LIVE_ABILITY_ID &&
-    effect.stepId === stepId
+    PL_N_BP1_011_ON_ENTER_OPTIONAL_DISCARD_REVEAL_UNTIL_LIVE_ABILITY_ID && effect.stepId === stepId
     ? effect
     : null;
 }

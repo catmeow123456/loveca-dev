@@ -9,6 +9,7 @@ import {
   HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
   PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import type { GameState } from '../../src/domain/entities/game';
 import type { PlayerState } from '../../src/domain/entities/player';
 import type {
@@ -59,6 +60,8 @@ const LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON =
   'legacy fixture predates dynamic check-timing queue refresh';
 const LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_REPLAY_SKIP_REASON =
   'legacy fixture predates card-effect stage move tracking';
+const LEGACY_PUBLIC_REVEAL_DWELL_REPLAY_SKIP_REASON =
+  'legacy fixture predates automatic public reveal dwell';
 const LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_ABILITY_IDS = new Set([
   HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
   PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID,
@@ -547,15 +550,15 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
 
     expect(replay.failedExecutions).toEqual([]);
     expect(replay.mismatches).toEqual([]);
-    expect(replay.replayedCount).toBe(46);
-    expect(replay.skippedCount).toBe(424);
+    expect(replay.replayedCount).toBe(45);
+    expect(replay.skippedCount).toBe(425);
     expect(plainRecord(replay.replayedByDecisionType)).toEqual({
-      ACTIVE_EFFECT_SUBMITTED: 30,
+      ACTIVE_EFFECT_SUBMITTED: 29,
       PENDING_ABILITY_ORDER_SUBMITTED: 3,
       SELECT_SUCCESS_LIVE_SUBMITTED: 13,
     });
     expect(plainRecord(replay.replayedByCommandType)).toEqual({
-      CONFIRM_EFFECT_STEP: 33,
+      CONFIRM_EFFECT_STEP: 32,
       SELECT_SUCCESS_LIVE: 13,
     });
     expect(plainRecord(replay.skippedReasons)).toEqual({
@@ -570,7 +573,8 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       [LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON]: 2,
       [LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON]: 23,
       [LEGACY_LIVE_SET_TRACKING_REPLAY_SKIP_REASON]: 114,
-      [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 25,
+      [LEGACY_PUBLIC_REVEAL_DWELL_REPLAY_SKIP_REASON]: 13,
+      [LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON]: 13,
       [LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON]: 10,
       'not a submitted player decision': 112,
     });
@@ -1926,6 +1930,9 @@ function getExpectedReplayMismatchSkipReason(
   if (isLegacyEnterStageSourceMetadataReplayMismatch(mismatch)) {
     return LEGACY_ENTER_STAGE_SOURCE_METADATA_REPLAY_SKIP_REASON;
   }
+  if (isLegacyPublicRevealDwellReplayMismatch(mismatch, comparison)) {
+    return LEGACY_PUBLIC_REVEAL_DWELL_REPLAY_SKIP_REASON;
+  }
   if (isLegacyRevealStepReplayMismatch(mismatch)) {
     return LEGACY_REVEAL_STEP_UI_REPLAY_SKIP_REASON;
   }
@@ -1936,6 +1943,42 @@ function getExpectedReplayMismatchSkipReason(
     return null;
   }
   return LEGACY_REFRESH_AWARE_MILL_REPLAY_SKIP_REASON;
+}
+
+function isLegacyPublicRevealDwellReplayMismatch(
+  mismatch: { readonly diffs: readonly unknown[] },
+  comparison:
+    | {
+        readonly actualNormalized: unknown;
+        readonly expectedNormalized: unknown;
+      }
+    | undefined
+): boolean {
+  if (
+    !comparison ||
+    mismatch.diffs.length === 0 ||
+    !mismatch.diffs.every((diff) => {
+      const path = asRecord(diff)?.path;
+      return typeof path === 'string' && path.startsWith('$.activeEffect.');
+    })
+  ) {
+    return false;
+  }
+  const actualEffect = asRecord(asRecord(comparison.actualNormalized)?.activeEffect);
+  const expectedEffect = asRecord(asRecord(comparison.expectedNormalized)?.activeEffect);
+  const continuation = asRecord(
+    asRecord(actualEffect?.metadata)?.publicRevealDwellContinuation
+  );
+  const restoredEffect = asRecord(continuation?.effect);
+  return (
+    actualEffect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID &&
+    (continuation?.mode === 'RESOLVE_CURRENT_STEP' ||
+      continuation?.mode === 'RESTORE_NEXT_EFFECT') &&
+    restoredEffect?.abilityId === expectedEffect?.abilityId &&
+    restoredEffect?.sourceCardId === expectedEffect?.sourceCardId &&
+    restoredEffect?.controllerId === expectedEffect?.controllerId &&
+    restoredEffect?.stepId === expectedEffect?.stepId
+  );
 }
 
 function isLegacyCardEffectStageMoveTrackingReplayMismatch(

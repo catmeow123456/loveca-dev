@@ -17,6 +17,7 @@ import {
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveBottomDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -157,7 +158,7 @@ function startMillBottomGainHeartReveal(
   return startPendingActiveEffect(moveResult.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -174,7 +175,7 @@ function startMillBottomGainHeartReveal(
         conditionMet,
         refreshCount: moveResult.refreshCount,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'MILL_BOTTOM_CARDS',

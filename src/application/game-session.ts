@@ -183,6 +183,11 @@ import {
   getPublicEffectChoiceAutoAdvanceMetadata,
   isPublicEffectChoiceAutoAdvanceEffect,
 } from './card-effects/runtime/public-effect-choice-confirmation.js';
+import {
+  attachPublicRevealAutoAdvanceAuthority,
+  getPublicRevealAutoAdvanceMetadata,
+  isPublicRevealDwellEffect,
+} from './card-effects/runtime/public-reveal-dwell.js';
 import { startSuccessZoneReplacementEffect } from './card-effects/workflows/cards/pl-bp6-024-sakkaku-crossroads.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { syncHsBp6027ManualCheerAdjustment } from './card-effects/workflows/shared/revealed-cheer-selection.js';
@@ -408,6 +413,10 @@ export class GameSession {
   private authoritySnapshots = new Map<number, GameState>();
   private undoHistory: GameSessionUndoEntry[] = [];
   private undoEntrySeq = 0;
+  /** 不随 undo 回退；保证旧客户端 timer 无法命中新建的公开展示。 */
+  private publicRevealGenerationSeq = 0;
+  /** restoreRuntimeState 后递增；使恢复前已经发出的旧 timer token 永久失效。 */
+  private publicRevealGenerationEpoch = 0;
 
   constructor(options: GameSessionOptions = {}) {
     this.gameService = new GameService();
@@ -512,6 +521,8 @@ export class GameSession {
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
     this.undoEntrySeq = 0;
+    this.publicRevealGenerationSeq = 0;
+    this.publicRevealGenerationEpoch = 0;
     const initialState = this.gameService.createGame(
       gameId,
       player1Id,
@@ -651,7 +662,9 @@ export class GameSession {
     const isPublicSelectionAutoAdvance =
       command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
       (command.publicCardSelectionAutoAdvanceAt !== undefined ||
-        command.publicEffectChoiceAutoAdvanceAt !== undefined);
+        command.publicEffectChoiceAutoAdvanceAt !== undefined ||
+        command.publicRevealAutoAdvanceAt !== undefined ||
+        command.publicRevealGeneration !== undefined);
     const undoDraft = isPublicSelectionAutoAdvance
       ? null
       : this.captureUndoDraft(command.playerId, command.type);
@@ -906,7 +919,7 @@ export class GameSession {
   }
 
   restoreRuntimeState(input: RestoreRuntimeStateInput): void {
-    const authorityState = this.cloneForUndo(input.authorityState);
+    let authorityState = this.cloneForUndo(input.authorityState);
     getManualOperationMode(authorityState);
     const retainedPublicEvents = this.cloneForUndo([
       ...((input.publicEvents ?? []) as PublicEvent[]),
@@ -921,7 +934,6 @@ export class GameSession {
     );
 
     assertInspectionStateInvariant(authorityState);
-    this.authorityState = authorityState;
     this.publicEvents = retainedPublicEvents;
     this.publicEventSeq = input.currentPublicSeq;
     this.retainedPublicEventFloorSeq = Math.max(
@@ -934,6 +946,18 @@ export class GameSession {
     this.sealedAuditSeq = input.currentAuditSeq ?? 0;
     this.commandLog = [];
     this.commandSeq = input.currentCommandSeq ?? 0;
+    this.publicRevealGenerationEpoch =
+      Math.max(
+        authorityState.publicRevealGenerationEpoch ?? 0,
+        readPublicRevealGenerationEpoch(authorityState.activeEffect?.publicRevealGeneration)
+      ) + 1;
+    this.publicRevealGenerationSeq = Math.max(
+      authorityState.publicRevealGenerationSequence ?? 0,
+      readPublicRevealGenerationSequence(authorityState.activeEffect?.publicRevealGeneration)
+    );
+    authorityState = this.attachPublicRevealAuthorityForCommit(authorityState);
+    assertInspectionStateInvariant(authorityState);
+    this.authorityState = authorityState;
     this.snapshotHistory = [];
     this.authoritySnapshots = new Map();
     this.undoHistory = [];
@@ -2130,7 +2154,9 @@ export class GameSession {
             command.selectedNumber !== undefined ||
             command.stageFormationMoveHistory !== undefined ||
             command.stageFormationPlacements !== undefined ||
-            command.publicEffectChoiceAutoAdvanceAt !== undefined
+            command.publicEffectChoiceAutoAdvanceAt !== undefined ||
+            command.publicRevealAutoAdvanceAt !== undefined ||
+            command.publicRevealGeneration !== undefined
           ) {
             return '公开展示推进不接受玩家选择';
           }
@@ -2158,9 +2184,42 @@ export class GameSession {
             command.selectedNumber !== undefined ||
             command.stageFormationMoveHistory !== undefined ||
             command.stageFormationPlacements !== undefined ||
-            command.publicCardSelectionAutoAdvanceAt !== undefined
+            command.publicCardSelectionAutoAdvanceAt !== undefined ||
+            command.publicRevealAutoAdvanceAt !== undefined ||
+            command.publicRevealGeneration !== undefined
           ) {
             return '效果选项公开推进不接受玩家选择';
+          }
+          return null;
+        }
+        const publicRevealAutoAdvance = getPublicRevealAutoAdvanceMetadata(state.activeEffect);
+        if (isPublicRevealDwellEffect(state.activeEffect)) {
+          if (!publicRevealAutoAdvance) {
+            return '公开卡牌展示尚未初始化';
+          }
+          if (
+            command.publicRevealAutoAdvanceAt !== publicRevealAutoAdvance.autoAdvanceAt ||
+            command.publicRevealGeneration !== publicRevealAutoAdvance.generation
+          ) {
+            return '公开卡牌展示推进请求已过期';
+          }
+          if (this.now() < publicRevealAutoAdvance.autoAdvanceAt) {
+            return '公开卡牌展示尚未结束';
+          }
+          if (
+            command.selectedCardId !== undefined ||
+            command.selectedCardIds !== undefined ||
+            command.selectedSlot !== undefined ||
+            command.resolveInOrder !== undefined ||
+            command.selectedOptionId !== undefined ||
+            command.selectedEffectOptionIds !== undefined ||
+            command.selectedNumber !== undefined ||
+            command.stageFormationMoveHistory !== undefined ||
+            command.stageFormationPlacements !== undefined ||
+            command.publicCardSelectionAutoAdvanceAt !== undefined ||
+            command.publicEffectChoiceAutoAdvanceAt !== undefined
+          ) {
+            return '公开卡牌展示推进不接受玩家选择';
           }
           return null;
         }
@@ -2169,6 +2228,12 @@ export class GameSession {
         }
         if (command.publicEffectChoiceAutoAdvanceAt !== undefined) {
           return '当前效果不接受效果选项公开推进';
+        }
+        if (
+          command.publicRevealAutoAdvanceAt !== undefined ||
+          command.publicRevealGeneration !== undefined
+        ) {
+          return '当前效果不接受公开卡牌展示推进';
         }
         if (state.activeEffect.awaitingPlayerId !== command.playerId) {
           return '当前不是该玩家确认卡牌效果';
@@ -2554,6 +2619,16 @@ export class GameSession {
     }
 
     if (state.inspectionContext) {
+      const publicRevealAuthority = getPublicRevealAutoAdvanceMetadata(state.activeEffect);
+      if (
+        command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
+        publicRevealAuthority &&
+        command.publicRevealAutoAdvanceAt === publicRevealAuthority.autoAdvanceAt &&
+        command.publicRevealGeneration === publicRevealAuthority.generation
+      ) {
+        // 双方都可推动已经公开的展示；deadline 与无选择载荷仍由 validateCommand 校验。
+        return null;
+      }
       if (state.inspectionContext.ownerPlayerId === command.playerId) {
         return null;
       }
@@ -2592,7 +2667,8 @@ export class GameSession {
       command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
       (state.activeEffect?.awaitingPlayerId === command.playerId ||
         isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
-        isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect))
+        isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect) ||
+        isPublicRevealDwellEffect(state.activeEffect))
     ) {
       return null;
     }
@@ -4514,7 +4590,8 @@ export class GameSession {
   ): CommandExecutionResult {
     const resolveAsPlayerId =
       isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
-      isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect)
+      isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect) ||
+      isPublicRevealDwellEffect(state.activeEffect)
         ? (state.activeEffect.awaitingPlayerId ?? command.playerId)
         : command.playerId;
     const resolvedState = confirmActiveEffectStep(
@@ -5115,13 +5192,41 @@ export class GameSession {
 
   private setAuthorityState(nextState: GameState, options: StateTransitionOptions = {}): void {
     const previousState = this.authorityState;
-    getManualOperationMode(nextState);
-    assertInspectionStateInvariant(nextState);
-    this.authorityState = nextState;
-    this.recordPublicStateTransition(previousState, nextState, options);
-    this.recordPrivateStateTransition(nextState, options);
-    this.recordSealedAuditTransition(nextState, options);
-    this.recordAuthoritySnapshot(nextState);
+    const authoritativeNextState = this.attachPublicRevealAuthorityForCommit(nextState);
+    getManualOperationMode(authoritativeNextState);
+    assertInspectionStateInvariant(authoritativeNextState);
+    this.authorityState = authoritativeNextState;
+    this.recordPublicStateTransition(previousState, authoritativeNextState, options);
+    this.recordPrivateStateTransition(authoritativeNextState, options);
+    this.recordSealedAuditTransition(authoritativeNextState, options);
+    this.recordAuthoritySnapshot(authoritativeNextState);
+  }
+
+  private attachPublicRevealAuthorityForCommit(nextState: GameState): GameState {
+    const existingAuthority = getPublicRevealAutoAdvanceMetadata(nextState.activeEffect);
+    const attachedState = attachPublicRevealAutoAdvanceAuthority(nextState, this.now(), () =>
+      this.createPublicRevealGeneration(nextState)
+    );
+    if (existingAuthority || !getPublicRevealAutoAdvanceMetadata(attachedState.activeEffect)) {
+      return attachedState;
+    }
+    return {
+      ...attachedState,
+      publicRevealGenerationEpoch: this.publicRevealGenerationEpoch,
+      publicRevealGenerationSequence: this.publicRevealGenerationSeq,
+    };
+  }
+
+  private createPublicRevealGeneration(state: GameState): string {
+    this.publicRevealGenerationSeq =
+      Math.max(this.publicRevealGenerationSeq, state.publicRevealGenerationSequence ?? 0) + 1;
+    return [
+      state.gameId,
+      state.activeEffect?.id ?? 'no-effect',
+      'public-reveal',
+      this.publicRevealGenerationEpoch,
+      this.publicRevealGenerationSeq,
+    ].join(':');
   }
 
   private recordPublicStateTransition(
@@ -6627,6 +6732,22 @@ function createComparableCommandPayload(value: unknown): unknown {
 
 function areTransportValuesEqual(left: unknown, right: unknown): boolean {
   return JSON.stringify(toTransport(left)) === JSON.stringify(toTransport(right));
+}
+
+function readPublicRevealGenerationSequence(generation: string | undefined): number {
+  if (!generation) return 0;
+  const separatorIndex = generation.lastIndexOf(':');
+  if (separatorIndex < 0) return 0;
+  const sequence = Number(generation.slice(separatorIndex + 1));
+  return Number.isSafeInteger(sequence) && sequence >= 0 ? sequence : 0;
+}
+
+function readPublicRevealGenerationEpoch(generation: string | undefined): number {
+  if (!generation) return 0;
+  const parts = generation.split(':');
+  if (parts.length < 2) return 0;
+  const epoch = Number(parts[parts.length - 2]);
+  return Number.isSafeInteger(epoch) && epoch >= 0 ? epoch : 0;
 }
 
 /**

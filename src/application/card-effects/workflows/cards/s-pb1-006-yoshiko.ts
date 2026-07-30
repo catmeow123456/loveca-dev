@@ -16,6 +16,10 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
+import {
+  createPublicRevealDwellBeforeNextEffect,
+  withPublicRevealDwell,
+} from '../../runtime/public-reveal-dwell.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -36,12 +40,8 @@ export function registerSPb1006YoshikoWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
   registerActivatedAbilityHandler(ABILITY_ID, startYoshikoRevealLiveOpponentDiscardOrBlade);
-  registerActiveEffectStepHandler(ABILITY_ID, REVEAL_HAND_LIVE_STEP_ID, (game, input, context) =>
-    revealYoshikoHandLive(
-      game,
-      input.selectedCardId ?? null,
-      context.continuePendingCardEffects
-    )
+  registerActiveEffectStepHandler(ABILITY_ID, REVEAL_HAND_LIVE_STEP_ID, (game, input) =>
+    revealYoshikoHandLive(game, input.selectedCardId ?? null)
   );
   registerActiveEffectStepHandler(ABILITY_ID, OPPONENT_DISCARD_STEP_ID, (game, input, context) =>
     finishYoshikoOpponentDiscardOrBlade(
@@ -121,11 +121,7 @@ function startYoshikoRevealLiveOpponentDiscardOrBlade(
   );
 }
 
-function revealYoshikoHandLive(
-  game: GameState,
-  selectedCardId: string | null,
-  continuePendingCardEffects: ContinuePendingCardEffects
-): GameState {
+function revealYoshikoHandLive(game: GameState, selectedCardId: string | null): GameState {
   const effect = getYoshikoActiveEffect(game, REVEAL_HAND_LIVE_STEP_ID);
   if (!effect || !selectedCardId || effect.selectableCardIds?.includes(selectedCardId) !== true) {
     return game;
@@ -143,62 +139,48 @@ function revealYoshikoHandLive(
   }
 
   const opponent = getOpponent(game, player.id);
-  const revealedCardIds = Array.from(
-    new Set([...(effect.revealedCardIds ?? []), selectedCardId])
-  );
+  const revealedCardIds = Array.from(new Set([...(effect.revealedCardIds ?? []), selectedCardId]));
   const opponentHandCardIds = opponent ? [...opponent.hand.cardIds] : [];
-  let state = addAction(
-    {
-      ...game,
-      activeEffect: {
-        ...effect,
-        stepId: OPPONENT_DISCARD_STEP_ID,
-        stepText:
-          opponentHandCardIds.length > 0
-            ? '对方可以将自己手牌1张放置入休息室；不放置时，来源成员获得[BLADE]x4。'
-            : '对方没有手牌可放置。确认后，来源成员获得[BLADE]x4。',
-        awaitingPlayerId: opponent?.id ?? player.id,
-        revealedCardIds,
-        selectableCardIds: opponentHandCardIds,
-        selectableCardVisibility:
-          opponentHandCardIds.length > 0 ? 'AWAITING_PLAYER_ONLY' : 'PUBLIC',
-        selectableCardMode: opponentHandCardIds.length > 0 ? 'SINGLE' : undefined,
-        selectionLabel: opponentHandCardIds.length > 0 ? '选择要放置入休息室的手牌' : undefined,
-        confirmSelectionLabel: opponentHandCardIds.length > 0 ? '放置手牌' : '确认',
-        canSkipSelection: true,
-        skipSelectionLabel: opponentHandCardIds.length > 0 ? '不放置' : '确认',
-        metadata: {
-          ...effect.metadata,
-          revealedHandLiveCardId: selectedCardId,
-        },
-      },
-    },
-    'RESOLVE_ABILITY',
-    player.id,
-    {
-      abilityId: ABILITY_ID,
-      sourceCardId: effect.sourceCardId,
-      step: 'REVEAL_HAND_LIVE',
+  const nextEffect: ActiveEffectState = {
+    ...effect,
+    stepId: OPPONENT_DISCARD_STEP_ID,
+    stepText:
+      opponentHandCardIds.length > 0
+        ? '对方可以将自己手牌1张放置入休息室；不放置时，来源成员获得[BLADE]x4。'
+        : '对方没有手牌可放置。展示结束后，来源成员获得[BLADE]x4。',
+    awaitingPlayerId: opponent?.id ?? player.id,
+    revealedCardIds,
+    selectableCardIds: opponentHandCardIds,
+    selectableCardVisibility: opponentHandCardIds.length > 0 ? 'AWAITING_PLAYER_ONLY' : 'PUBLIC',
+    selectableCardMode: opponentHandCardIds.length > 0 ? 'SINGLE' : undefined,
+    selectionLabel: opponentHandCardIds.length > 0 ? '选择要放置入休息室的手牌' : undefined,
+    confirmSelectionLabel: opponentHandCardIds.length > 0 ? '放置手牌' : undefined,
+    canSkipSelection: true,
+    skipSelectionLabel: opponentHandCardIds.length > 0 ? '不放置' : undefined,
+    metadata: {
+      ...effect.metadata,
       revealedHandLiveCardId: selectedCardId,
-    }
-  );
+    },
+  };
+  const stateWithDwell =
+    opponentHandCardIds.length > 0
+      ? createPublicRevealDwellBeforeNextEffect(game, nextEffect, {
+          revealedCardIds: [selectedCardId],
+        })
+      : {
+          ...game,
+          activeEffect: withPublicRevealDwell(nextEffect),
+        };
+  let state = addAction(stateWithDwell, 'RESOLVE_ABILITY', player.id, {
+    abilityId: ABILITY_ID,
+    sourceCardId: effect.sourceCardId,
+    step: 'REVEAL_HAND_LIVE',
+    revealedHandLiveCardId: selectedCardId,
+  });
   state = recordAbilityUseForContext(state, player.id, {
     abilityId: ABILITY_ID,
     sourceCardId: effect.sourceCardId,
   });
-
-  if (opponentHandCardIds.length === 0) {
-    const nextEffect = getYoshikoActiveEffect(state, OPPONENT_DISCARD_STEP_ID);
-    return nextEffect
-      ? applyBladeOrNoOpAndFinish(
-          state,
-          nextEffect,
-          player.id,
-          'OPPONENT_NO_HAND',
-          continuePendingCardEffects
-        )
-      : state;
-  }
 
   return state;
 }

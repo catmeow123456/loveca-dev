@@ -323,8 +323,15 @@ describe('card selectors', () => {
     expect(unitAliasOrTextAliasIs('みらくらぱーく！')(treatedAsThreeUnits)).toBe(true);
   });
 
-  it('matches exact Hasunosora triple-unit identity cards through unitAliasIs without scanning text broadly', () => {
-    const tripleUnitCardCodes = ['PL!HS-bp2-020-L', 'PL!HS-bp5-018-L', 'PL!HS-sd1-020-SD'];
+  it('matches base-code Hasunosora triple-unit identity cards through unitAliasIs without scanning text broadly', () => {
+    const tripleUnitCardCodes = [
+      'PL!HS-bp2-020-L',
+      'PL!HS-bp5-018-L',
+      'PL!HS-sd1-020-SD',
+      'PL!HS-bp2-020-UNSEEN',
+      'PL!HS-bp5-018-UNSEEN',
+      'PL!HS-sd1-020-UNSEEN',
+    ];
 
     for (const cardCode of tripleUnitCardCodes) {
       const card = liveCard(cardCode, {

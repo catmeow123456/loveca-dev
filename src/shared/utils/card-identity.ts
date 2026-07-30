@@ -1,3 +1,5 @@
+import { getBaseCardCode } from './card-code.js';
+
 export interface CardIdentityLike {
   readonly cardCode?: string;
   readonly name?: string;
@@ -38,6 +40,11 @@ export interface DifferentStructuredUnitCardMatch<T> {
   readonly item: T;
   readonly unitName: string;
   readonly normalizedUnitName: string;
+}
+
+export interface CardUnitIdentity {
+  readonly key: string;
+  readonly name: string;
 }
 
 export interface RequiredCardNameAssignment<T> {
@@ -186,25 +193,77 @@ export const KNOWN_GROUP_IDENTITY_NAMES: readonly GroupIdentityName[] = Object.f
   GROUP_IDENTITY_GROUPS.map((group) => group.canonicalName)
 );
 
-const HASUNOSORA_TRIPLE_UNIT_CARD_CODES = new Set([
-  'PL!HS-bp2-020-L',
-  'PL!HS-bp5-018-L',
-  'PL!HS-sd1-020-SD',
+const HASUNOSORA_TRIPLE_UNIT_BASE_CARD_CODES = new Set([
+  'PL!HS-bp2-020',
+  'PL!HS-bp5-018',
+  'PL!HS-sd1-020',
 ]);
 
-const HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS: readonly (readonly string[])[] = [
-  ['cerise-bouquet', 'Cerise Bouquet', 'スリーズブーケ'],
-  ['dollchestra', 'DOLLCHESTRA'],
-  ['mira-cra-park', 'Mira-Cra Park!', 'みらくらぱーく！', 'みらくらぱーく!'],
+const HASUNOSORA_UNIT_IDENTITIES: readonly {
+  readonly key: string;
+  readonly name: string;
+  readonly aliases: readonly string[];
+}[] = [
+  {
+    key: 'cerise-bouquet',
+    name: 'Cerise Bouquet',
+    aliases: ['cerise-bouquet', 'Cerise Bouquet', 'スリーズブーケ'],
+  },
+  {
+    key: 'dollchestra',
+    name: 'DOLLCHESTRA',
+    aliases: ['dollchestra', 'DOLLCHESTRA'],
+  },
+  {
+    key: 'mira-cra-park',
+    name: 'Mira-Cra Park!',
+    aliases: ['mira-cra-park', 'Mira-Cra Park!', 'みらくらぱーく！', 'みらくらぱーく!'],
+  },
 ];
 
 export function cardBelongsToUnit(card: CardIdentityLike, unitName: string): boolean {
-  if (cardHasHasunosoraTripleUnitIdentity(card, unitName)) {
-    return true;
+  const cardUnitKeys = new Set(getCardUnitIdentities(card).map((identity) => identity.key));
+  return getUnitIdentitiesFromStructuredText(unitName).some((identity) =>
+    cardUnitKeys.has(identity.key)
+  );
+}
+
+export function getCardUnitIdentities(card: CardIdentityLike): readonly CardUnitIdentity[] {
+  const identities: CardUnitIdentity[] = [...getUnitIdentitiesFromStructuredText(card.unitName)];
+
+  if (card.cardCode && HASUNOSORA_TRIPLE_UNIT_BASE_CARD_CODES.has(getBaseCardCode(card.cardCode))) {
+    identities.push(
+      ...HASUNOSORA_UNIT_IDENTITIES.map(({ key, name }) => ({
+        key,
+        name,
+      }))
+    );
   }
 
-  const normalizedAliases = getNormalizedHasunosoraUnitAliases(unitName);
-  return matchesAnyNormalizedAlias(card.unitName, normalizedAliases);
+  return [
+    ...new Map(
+      identities
+        .filter((identity) => identity.key.length > 0)
+        .map((identity) => [identity.key, identity])
+    ).values(),
+  ];
+}
+
+export function getSharedCardUnitIdentity(
+  firstCard: CardIdentityLike,
+  secondCard: CardIdentityLike
+): CardUnitIdentity | null {
+  const secondUnitKeys = new Set(getCardUnitIdentities(secondCard).map((identity) => identity.key));
+  return (
+    getCardUnitIdentities(firstCard).find((identity) => secondUnitKeys.has(identity.key)) ?? null
+  );
+}
+
+export function cardsShareUnitIdentity(
+  firstCard: CardIdentityLike,
+  secondCard: CardIdentityLike
+): boolean {
+  return getSharedCardUnitIdentity(firstCard, secondCard) !== null;
 }
 
 export function cardBelongsToGroup(card: CardIdentityLike, groupName: string): boolean {
@@ -443,22 +502,17 @@ export function cardHasHasunosoraTripleUnitIdentity(
   card: CardIdentityLike,
   unitName: string
 ): boolean {
-  if (!card.cardCode || !HASUNOSORA_TRIPLE_UNIT_CARD_CODES.has(card.cardCode)) {
+  if (
+    !card.cardCode ||
+    !HASUNOSORA_TRIPLE_UNIT_BASE_CARD_CODES.has(getBaseCardCode(card.cardCode))
+  ) {
     return false;
   }
 
   const normalizedUnitName = normalizeGroupIdentityText(unitName);
-  return HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS.some((aliases) =>
-    aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedUnitName)
+  return HASUNOSORA_UNIT_IDENTITIES.some((identity) =>
+    identity.aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedUnitName)
   );
-}
-
-function getNormalizedHasunosoraUnitAliases(unitName: string): readonly string[] {
-  const normalizedUnitName = normalizeGroupIdentityText(unitName);
-  const aliasGroup = HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS.find((aliases) =>
-    aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedUnitName)
-  );
-  return (aliasGroup ?? [unitName]).map((alias) => normalizeGroupIdentityText(alias));
 }
 
 function getGroupIdentity(groupName: string):
@@ -564,12 +618,30 @@ function normalizeGroupIdentityText(value: string | undefined): string {
 
 function normalizeStructuredUnitName(value: string | undefined): string {
   const normalizedValue = normalizeGroupIdentityText(value);
-  const hasunosoraAliasGroup = HASUNOSORA_TRIPLE_UNIT_ALIAS_GROUPS.find((aliases) =>
-    aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedValue)
+  const hasunosoraIdentity = HASUNOSORA_UNIT_IDENTITIES.find((identity) =>
+    identity.aliases.some((alias) => normalizeGroupIdentityText(alias) === normalizedValue)
   );
-  return hasunosoraAliasGroup
-    ? normalizeGroupIdentityText(hasunosoraAliasGroup[0])
-    : normalizedValue;
+  return hasunosoraIdentity?.key ?? normalizedValue;
+}
+
+function createCardUnitIdentity(unitName: string): CardUnitIdentity {
+  const normalizedUnitName = normalizeStructuredUnitName(unitName);
+  const knownIdentity = HASUNOSORA_UNIT_IDENTITIES.find(
+    (identity) => identity.key === normalizedUnitName
+  );
+  return knownIdentity
+    ? { key: knownIdentity.key, name: knownIdentity.name }
+    : { key: normalizedUnitName, name: unitName.trim() };
+}
+
+function getUnitIdentitiesFromStructuredText(
+  unitNames: string | undefined
+): readonly CardUnitIdentity[] {
+  return (unitNames ?? '')
+    .split(/[\/／\r\n]+/g)
+    .map((unitName) => unitName.trim())
+    .filter(Boolean)
+    .map(createCardUnitIdentity);
 }
 
 function splitCardNameCandidates(value: string | undefined): readonly string[] {

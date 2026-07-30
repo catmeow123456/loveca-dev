@@ -11,6 +11,7 @@ import { SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_
 import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card-effects/definitions/lookup';
 import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import { stackMemberCardBelowStageMember } from '../../src/application/card-effects/runtime/actions';
+import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
   createCardInstance,
   createHeartIcon,
@@ -43,6 +44,7 @@ import {
   SubPhase,
   ZoneType,
 } from '../../src/shared/types/enums';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 const P1 = 'player1';
 const P2 = 'player2';
@@ -191,6 +193,9 @@ function submitSelection(context: ReturnType<typeof setup>, selectedCardIds: rea
 }
 
 function confirmReveal(context: ReturnType<typeof setup>) {
+  if (context.session.state?.activeEffect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID) {
+    return advancePublicRevealDwellIfNeeded(context.session)!;
+  }
   return context.session.executeCommand(
     createConfirmEffectStepCommand(P1, context.session.state!.activeEffect!.id)
   );
@@ -302,19 +307,21 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
     expect(activate(context).success).toBe(true);
     expect(submitSelection(context, ['hand-6', 'hand-4']).success).toBe(true);
     expect(context.session.state?.activeEffect).toMatchObject({
-      stepText: '已公开所选手牌。确认后，根据公开卡片的费用合计结算。',
+      stepText: '已公开所选手牌。展示结束后，根据公开卡片的费用合计结算。',
       revealedCardIds: ['hand-6', 'hand-4'],
-      selectionLabel: '公开的卡片',
-      confirmSelectionLabel: '确认公开结果',
-      metadata: {
-        revealedHandMemberCardIds: ['hand-6', 'hand-4'],
-        effectiveCosts: [
-          { cardId: 'hand-6', effectiveCost: 6 },
-          { cardId: 'hand-4', effectiveCost: 4 },
-        ],
-        effectiveCostTotal: 10,
-        conditionMet: true,
-      },
+    });
+    expect(
+      context.session.state?.actionHistory.findLast(
+        (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
+      )?.payload
+    ).toMatchObject({
+      revealedHandMemberCardIds: ['hand-6', 'hand-4'],
+      effectiveCosts: [
+        { cardId: 'hand-6', effectiveCost: 6 },
+        { cardId: 'hand-4', effectiveCost: 4 },
+      ],
+      effectiveCostTotal: 10,
+      conditionMet: true,
     });
     expect(context.session.state?.activeEffect?.selectableCardIds).toBeUndefined();
     expect(context.session.state?.activeEffect?.selectableCardMode).toBeUndefined();
@@ -398,7 +405,9 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
     const context = setup({ handCards: [dynamic, ...fillers] });
     expect(activate(context).success).toBe(true);
     expect(submitSelection(context, [dynamic.instanceId]).success).toBe(true);
-    expect(context.session.state?.activeEffect?.metadata).toMatchObject({
+    expect(context.session.state?.actionHistory.findLast(
+      (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
+    )?.payload).toMatchObject({
       effectiveCosts: [{ cardId: dynamic.instanceId, effectiveCost: 16 }],
       effectiveCostTotal: 16,
       conditionMet: false,
@@ -413,7 +422,9 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
     });
     expect(activate(sameSnapshot).success).toBe(true);
     expect(submitSelection(sameSnapshot, [first.instanceId, second.instanceId]).success).toBe(true);
-    expect(sameSnapshot.session.state?.activeEffect?.metadata).toMatchObject({
+    expect(sameSnapshot.session.state?.actionHistory.findLast(
+      (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
+    )?.payload).toMatchObject({
       effectiveCosts: [
         { cardId: first.instanceId, effectiveCost: 16 },
         { cardId: second.instanceId, effectiveCost: 16 },

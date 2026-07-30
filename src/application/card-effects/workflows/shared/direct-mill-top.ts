@@ -19,6 +19,7 @@ import {
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
+import { withPublicRevealDwell } from '../../runtime/public-reveal-dwell.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -268,7 +269,7 @@ function executeDirectMillTopWorkflow(
   return startPendingActiveEffect(millResult.gameState, {
     ability,
     playerId: player.id,
-    activeEffect: {
+    activeEffect: withPublicRevealDwell({
       id: ability.id,
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
@@ -284,7 +285,7 @@ function executeDirectMillTopWorkflow(
         milledCardIds,
         refreshCount: millResult.refreshCount,
       },
-    },
+    }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'MILL_TOP_CARDS',

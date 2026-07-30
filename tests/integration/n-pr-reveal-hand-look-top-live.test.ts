@@ -19,6 +19,7 @@ import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import { N_PR_REVEAL_HAND_NO_LIVE_LOOK_TOP_FIVE_TAKE_LIVE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { createPublicObjectId } from '../../src/online/projector';
+import { advancePublicRevealDwellIfNeeded } from '../helpers/public-card-selection-confirmation';
 import {
   CardType,
   FaceState,
@@ -188,6 +189,10 @@ function activate(scenario: Scenario) {
 }
 
 function confirmCurrentEffect(scenario: Scenario, selectedCardId?: string | null) {
+  if (selectedCardId === undefined) {
+    const advanced = advancePublicRevealDwellIfNeeded(scenario.session);
+    if (advanced) return advanced;
+  }
   return scenario.session.executeCommand(
     createConfirmEffectStepCommand(
       PLAYER1,

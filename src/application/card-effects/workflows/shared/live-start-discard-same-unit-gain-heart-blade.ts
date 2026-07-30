@@ -1,4 +1,4 @@
-import { createHeartIcon, type CardInstance } from '../../../../domain/entities/card.js';
+import { createHeartIcon } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getCardById,
@@ -8,6 +8,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
+import {
+  getSharedCardUnitIdentity,
+  type CardUnitIdentity,
+} from '../../../../shared/utils/card-identity.js';
 import {
   HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID,
   HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
@@ -24,14 +28,10 @@ import {
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { unitAliasIs } from '../../../effects/card-selectors.js';
 
 const SELECT_SAME_UNIT_HAND_CARDS_STEP_ID = 'HS_PR_SELECT_SAME_UNIT_HAND_CARDS';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
-type CardInstanceWithUnitName = CardInstance & {
-  readonly data: CardInstance['data'] & { readonly unitName: string };
-};
 
 interface SameUnitHeartBladeConfig {
   readonly abilityId: string;
@@ -162,7 +162,7 @@ function finishSameUnitHeartBladeWorkflow(
   const effect = game.activeEffect;
   const player = effect ? getPlayerById(game, effect.controllerId) : null;
   const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
-  const selectedUnitName = getSharedUnitName(game, uniqueSelectedCardIds);
+  const sharedUnitIdentity = getSharedUnitIdentityForCardIds(game, uniqueSelectedCardIds);
   if (
     !effect ||
     effect.abilityId !== config.abilityId ||
@@ -170,7 +170,7 @@ function finishSameUnitHeartBladeWorkflow(
     !player ||
     uniqueSelectedCardIds.length !== selectedCardIds.length ||
     uniqueSelectedCardIds.length !== 2 ||
-    selectedUnitName === null ||
+    sharedUnitIdentity === null ||
     !uniqueSelectedCardIds.every(
       (cardId) =>
         effect.selectableCardIds?.includes(cardId) === true && player.hand.cardIds.includes(cardId)
@@ -226,7 +226,8 @@ function finishSameUnitHeartBladeWorkflow(
       step: 'DISCARD_SAME_UNIT_HAND_CARDS_GAIN_SOURCE_HEART_BLADE',
       sourceSlot: effect.metadata?.sourceSlot,
       discardedCardIds: discardResult.discardedCardIds,
-      discardedUnitName: selectedUnitName,
+      discardedUnitKey: sharedUnitIdentity.key,
+      discardedUnitName: sharedUnitIdentity.name,
       heartBonus,
       bladeBonus: 2,
     }),
@@ -263,33 +264,27 @@ function getSameUnitPairCandidateIds(
   candidateCardIds: readonly string[]
 ): readonly string[] {
   return candidateCardIds.filter((cardId) =>
-    candidateCardIds.some((otherCardId) => otherCardId !== cardId && cardUnitsMatch(game, cardId, otherCardId))
+    candidateCardIds.some(
+      (otherCardId) =>
+        otherCardId !== cardId &&
+        getSharedUnitIdentityForCardIds(game, [cardId, otherCardId]) !== null
+    )
   );
 }
 
-function getSharedUnitName(game: GameState, cardIds: readonly string[]): string | null {
-  const firstCardId = cardIds[0];
-  const firstCard = firstCardId ? getCardById(game, firstCardId) : null;
-  if (!hasUnitName(firstCard)) {
+function getSharedUnitIdentityForCardIds(
+  game: GameState,
+  cardIds: readonly string[]
+): CardUnitIdentity | null {
+  if (cardIds.length !== 2) {
     return null;
   }
 
-  if (!cardIds.every((cardId) => cardId === firstCardId || cardUnitsMatch(game, firstCardId, cardId))) {
+  const firstCard = getCardById(game, cardIds[0]!);
+  const secondCard = getCardById(game, cardIds[1]!);
+  if (!firstCard || !secondCard) {
     return null;
   }
-  return firstCard.data.unitName;
-}
 
-function cardUnitsMatch(game: GameState, firstCardId: string, secondCardId: string): boolean {
-  const firstCard = getCardById(game, firstCardId);
-  const secondCard = getCardById(game, secondCardId);
-  if (!hasUnitName(firstCard) || !hasUnitName(secondCard)) {
-    return false;
-  }
-
-  return unitAliasIs(firstCard.data.unitName)(secondCard) || unitAliasIs(secondCard.data.unitName)(firstCard);
-}
-
-function hasUnitName(card: CardInstance | null | undefined): card is CardInstanceWithUnitName {
-  return typeof card?.data.unitName === 'string' && card.data.unitName.trim().length > 0;
+  return getSharedCardUnitIdentity(firstCard.data, secondCard.data);
 }
