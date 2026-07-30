@@ -15,6 +15,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { LogOut, UserRound } from 'lucide-react';
 import { BattleViewportShell } from '@/components/game/BattleViewportShell';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
+import { AiBattleEndPanel } from '@/components/pages/AiBattleEndPanel';
 import {
   AnnouncementCenterButton,
   ConfirmDialog,
@@ -40,7 +41,7 @@ import {
   type PublicAppConfig,
 } from '@/lib/appConfig';
 import type { PublicSiteStatus, SiteStatusLifecycle } from '@/lib/appConfig';
-import { getSolitaireLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
+import { getAiBattleLeaveConfirmCopy, getSolitaireLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
 import {
   getPublicConfigRefreshDelay,
   shouldRunFocusPublicConfigRefresh,
@@ -51,6 +52,14 @@ import {
   clearStoredSolitaireMatchId,
   readStoredSolitaireMatchId,
 } from '@/lib/solitaireMatchRecovery';
+import {
+  clearStoredAiBattleMatchId,
+  fetchAiBattle,
+  readStoredAiBattleMatchId,
+  restartAiBattle,
+  storeAiBattleMatchId,
+} from '@/lib/aiBattleClient';
+import { ApiClientError } from '@/lib/apiClient';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -100,6 +109,11 @@ const MatchRecordsPage = lazy(() =>
     default: module.MatchRecordsPage,
   }))
 );
+const AiBattlePage = lazy(() =>
+  import('@/components/pages/AiBattlePage').then((module) => ({
+    default: module.AiBattlePage,
+  }))
+);
 const SharedDeckPage = lazy(() =>
   import('@/components/pages/SharedDeckPage').then((module) => ({ default: module.SharedDeckPage }))
 );
@@ -142,6 +156,7 @@ type AppPage =
   | 'public-table'
   | 'ranked'
   | 'online-spectator'
+  | 'ai-battle'
   | 'match-records'
   | 'online-debug'
   | 'game'
@@ -197,6 +212,7 @@ function getInitialPage(): AppPage {
     page === 'public-table' ||
     page === 'ranked' ||
     page === 'online-spectator' ||
+    page === 'ai-battle' ||
     page === 'match-records' ||
     page === 'online-debug' ||
     page === 'game' ||
@@ -314,10 +330,14 @@ function App() {
   const [gameBriefingAcknowledged, setGameBriefingAcknowledged] = useState(false);
   const [isLeaveCurrentGameConfirmOpen, setIsLeaveCurrentGameConfirmOpen] = useState(false);
   const [isLeavingCurrentGame, setIsLeavingCurrentGame] = useState(false);
+  const [leaveCurrentGameError, setLeaveCurrentGameError] = useState<string | null>(null);
   const [isRestartCurrentGameConfirmOpen, setIsRestartCurrentGameConfirmOpen] = useState(false);
   const [isRestartingCurrentGame, setIsRestartingCurrentGame] = useState(false);
   const [isOnlineRoomImmersive, setIsOnlineRoomImmersive] = useState(false);
   const [isOnlineDebugImmersive, setIsOnlineDebugImmersive] = useState(false);
+  const [isRestartingAiBattle, setIsRestartingAiBattle] = useState(false);
+  const [isReturningFromAiBattle, setIsReturningFromAiBattle] = useState(false);
+  const [aiBattleEndError, setAiBattleEndError] = useState<string | null>(null);
   const gameBriefingKeyRef = useRef<string | null>(null);
   const solitaireRestoreAttemptedRef = useRef(false);
 
@@ -464,7 +484,11 @@ function App() {
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
   const gameBriefingKey = matchView ? `${capabilities.surface}:${matchView.matchId}` : null;
   const currentGameLeaveConfirmCopy =
-    capabilities.surface === 'SOLITAIRE' ? getSolitaireLeaveConfirmCopy() : null;
+    capabilities.surface === 'SOLITAIRE'
+      ? getSolitaireLeaveConfirmCopy()
+      : capabilities.surface === 'AI_BATTLE'
+        ? getAiBattleLeaveConfirmCopy()
+        : null;
   const currentGameRestartCopy =
     capabilities.surface === 'SOLITAIRE'
       ? {
@@ -530,8 +554,9 @@ function App() {
       return;
     }
 
-    const storedMatchId = readStoredSolitaireMatchId();
-    if (!storedMatchId) {
+    const storedAiMatchId = readStoredAiBattleMatchId();
+    const storedSolitaireMatchId = readStoredSolitaireMatchId();
+    if (!storedAiMatchId && !storedSolitaireMatchId) {
       solitaireRestoreAttemptedRef.current = true;
       return;
     }
@@ -539,11 +564,25 @@ function App() {
     solitaireRestoreAttemptedRef.current = true;
     let cancelled = false;
 
-    const restoreSolitaireMatch = async () => {
+    const restoreRemoteMatch = async () => {
       try {
-        const snapshot = await fetchSolitaireMatchSnapshot(storedMatchId);
+        if (storedAiMatchId) {
+          const battle = await fetchAiBattle(storedAiMatchId);
+          if (cancelled) return;
+          connectRemoteSession({
+            source: 'AI_BATTLE',
+            matchId: battle.matchId,
+            seat: battle.humanSeat,
+            playerId: battle.snapshot.playerId,
+          });
+          await applyRemoteSnapshot(battle.snapshot);
+          if (!cancelled) setCurrentPage('game');
+          return;
+        }
+
+        const snapshot = await fetchSolitaireMatchSnapshot(storedSolitaireMatchId!);
         if (!snapshot) {
-          clearStoredSolitaireMatchId(storedMatchId);
+          clearStoredSolitaireMatchId(storedSolitaireMatchId!);
           return;
         }
 
@@ -563,16 +602,26 @@ function App() {
           setCurrentPage('game');
         }
       } catch (restoreError) {
+        if (
+          storedAiMatchId &&
+          restoreError instanceof ApiClientError &&
+          (restoreError.status === 404 || restoreError.code === 'AI_BATTLE_NOT_FOUND')
+        ) {
+          clearStoredAiBattleMatchId(storedAiMatchId);
+        }
         if (import.meta.env.DEV) {
-          console.warn('[App] 对墙打刷新恢复失败，将在下次刷新时重试:', restoreError);
+          console.warn('[App] 远程测试对局刷新恢复失败:', restoreError);
         }
       }
     };
 
-    void restoreSolitaireMatch();
+    void restoreRemoteMatch();
 
     return () => {
       cancelled = true;
+      // React StrictMode 会在开发环境中挂载、清理后再挂载一次。
+      // 清理未完成的恢复任务时必须允许下一次挂载重新发起恢复。
+      solitaireRestoreAttemptedRef.current = false;
     };
   }, [
     applyRemoteSnapshot,
@@ -873,7 +922,13 @@ function App() {
 
   // 游戏进行中
   if (effectivePage === 'game' && matchView) {
-    const gameBriefingMode = capabilities.surface === 'SOLITAIRE' ? 'solitaire' : null;
+    const gameBriefingMode =
+      capabilities.surface === 'SOLITAIRE'
+        ? 'solitaire'
+        : capabilities.surface === 'AI_BATTLE'
+          ? 'ai-battle'
+          : null;
+    const leaveDestination = capabilities.surface === 'AI_BATTLE' ? 'ai-battle' : 'game-setup';
 
     return withPublicTableLayer(
       <BattleViewportShell>
@@ -887,37 +942,102 @@ function App() {
           }
           onLeaveLocalGame={() => {
             if (currentGameLeaveConfirmCopy) {
+              setLeaveCurrentGameError(null);
               setIsLeaveCurrentGameConfirmOpen(true);
               return;
             }
 
             void leaveCurrentGame().finally(() => {
-              setCurrentPage('game-setup');
+              setCurrentPage(leaveDestination);
             });
           }}
         />
-        {gameBriefingMode && (
+        {gameBriefingMode && !matchView.endInfo && (
           <PreMatchBriefingModal
             isOpen={!gameBriefingAcknowledged}
             mode={gameBriefingMode}
             onClose={() => setGameBriefingAcknowledged(true)}
           />
         )}
+        {capabilities.surface === 'AI_BATTLE' && matchView.endInfo && matchView.viewerSeat && (
+          <AiBattleEndPanel
+            endInfo={matchView.endInfo}
+            viewerSeat={matchView.viewerSeat}
+            isRestarting={isRestartingAiBattle}
+            isReturning={isReturningFromAiBattle}
+            error={aiBattleEndError}
+            onRestart={() => {
+              setIsRestartingAiBattle(true);
+              setAiBattleEndError(null);
+              void restartAiBattle(matchView.matchId)
+                .then(async (battle) => {
+                  storeAiBattleMatchId(battle.matchId);
+                  connectRemoteSession({
+                    source: 'AI_BATTLE',
+                    matchId: battle.matchId,
+                    seat: battle.humanSeat,
+                    playerId: battle.snapshot.playerId,
+                  });
+                  await applyRemoteSnapshot(battle.snapshot);
+                })
+                .catch((restartError) => {
+                  setAiBattleEndError(
+                    restartError instanceof Error ? restartError.message : '重新开始 AI 对局失败'
+                  );
+                })
+                .finally(() => {
+                  setIsRestartingAiBattle(false);
+                });
+            }}
+            onReturn={() => {
+              setIsReturningFromAiBattle(true);
+              setAiBattleEndError(null);
+              void leaveCurrentGame()
+                .then(() => {
+                  setCurrentPage('ai-battle');
+                })
+                .catch((leaveError) => {
+                  setAiBattleEndError(
+                    leaveError instanceof Error ? leaveError.message : '返回 AI 对战入口失败'
+                  );
+                })
+                .finally(() => {
+                  setIsReturningFromAiBattle(false);
+                });
+            }}
+          />
+        )}
         {currentGameLeaveConfirmCopy && (
           <ConfirmDialog
             isOpen={isLeaveCurrentGameConfirmOpen}
             title={currentGameLeaveConfirmCopy.title}
-            message={currentGameLeaveConfirmCopy.message}
+            message={
+              leaveCurrentGameError
+                ? `${currentGameLeaveConfirmCopy.message} 上次尝试失败：${leaveCurrentGameError}`
+                : currentGameLeaveConfirmCopy.message
+            }
             confirmLabel={currentGameLeaveConfirmCopy.confirmLabel}
             isConfirming={isLeavingCurrentGame}
-            onCancel={() => setIsLeaveCurrentGameConfirmOpen(false)}
+            onCancel={() => {
+              setLeaveCurrentGameError(null);
+              setIsLeaveCurrentGameConfirmOpen(false);
+            }}
             onConfirm={() => {
               setIsLeavingCurrentGame(true);
-              void leaveCurrentGame().finally(() => {
-                setIsLeavingCurrentGame(false);
-                setIsLeaveCurrentGameConfirmOpen(false);
-                setCurrentPage('game-setup');
-              });
+              setLeaveCurrentGameError(null);
+              void leaveCurrentGame()
+                .then(() => {
+                  setIsLeaveCurrentGameConfirmOpen(false);
+                  setCurrentPage(leaveDestination);
+                })
+                .catch((leaveError) => {
+                  setLeaveCurrentGameError(
+                    leaveError instanceof Error ? leaveError.message : '暂时无法离开当前对局'
+                  );
+                })
+                .finally(() => {
+                  setIsLeavingCurrentGame(false);
+                });
             }}
           />
         )}
@@ -1000,6 +1120,15 @@ function App() {
     );
   }
 
+  if (effectivePage === 'ai-battle') {
+    return withPublicTableLayer(
+      <AiBattlePage
+        onBack={() => setCurrentPage('home')}
+        onGameStart={() => setCurrentPage('game')}
+      />
+    );
+  }
+
   if (effectivePage === 'match-records') {
     return withProductFrame(<MatchRecordsPage onBack={() => setCurrentPage('home')} />, 'history');
   }
@@ -1069,6 +1198,7 @@ function App() {
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToRanked={() => setCurrentPage('ranked')}
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
+      onNavigateToAiBattle={() => setCurrentPage('ai-battle')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToCardAdmin={() => setCurrentPage('card-admin')}

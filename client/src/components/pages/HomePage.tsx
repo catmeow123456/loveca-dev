@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from
 import {
   ArrowRight,
   Bell,
+  Bot,
   BookOpen,
   CalendarClock,
   CheckCircle2,
@@ -70,6 +71,7 @@ interface HomePageProps {
   onNavigateToOnlineRoom: () => void;
   onNavigateToRanked: () => void;
   onNavigateToOnlineSpectator: () => void;
+  onNavigateToAiBattle: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToCardAdmin: () => void;
@@ -115,6 +117,7 @@ export function HomePage({
   onNavigateToOnlineRoom,
   onNavigateToRanked,
   onNavigateToOnlineSpectator,
+  onNavigateToAiBattle,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToCardAdmin,
@@ -305,6 +308,15 @@ export function HomePage({
       compact: !canUseOnlineRoom,
       status: canUseOnlineRoom ? '输入房间号' : '连接后可用',
       tone: canUseOnlineRoom ? 'green' : 'muted',
+    },
+    {
+      title: '挑战 Loveca AI',
+      description: '和明确标识的 AI 对手打完整对局，双方使用固定测试卡组。',
+      icon: Bot,
+      onClick: onNavigateToAiBattle,
+      disabled: !canUseOnlineRoom,
+      status: canUseOnlineRoom ? 'AI 对战 · 固定测试卡组' : '连接后可用',
+      tone: canUseOnlineRoom ? 'warning' : 'muted',
     },
     {
       title: '历史对局',

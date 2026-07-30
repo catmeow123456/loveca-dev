@@ -125,6 +125,7 @@ import {
   clearStoredSolitaireMatchId,
   writeStoredSolitaireMatchId,
 } from '@/lib/solitaireMatchRecovery';
+import { clearStoredAiBattleMatchId, leaveAiBattle } from '@/lib/aiBattleClient';
 import {
   deriveBattleSurfaceCapabilities,
   type BattleSurfaceCapabilities,
@@ -1049,6 +1050,19 @@ export const useGameStore = create<GameStore>((set, get) => {
         } finally {
           clearStoredSolitaireMatchId(remoteSession.matchId);
         }
+      }
+
+      if (remoteSession.source === 'AI_BATTLE') {
+        try {
+          await leaveAiBattle(remoteSession.matchId);
+        } catch (error) {
+          get().addLog(
+            `离开 AI 对战失败: ${error instanceof Error ? error.message : String(error)}`,
+            'error'
+          );
+          throw error;
+        }
+        clearStoredAiBattleMatchId(remoteSession.matchId);
       }
 
       get().disconnectRemoteSession();

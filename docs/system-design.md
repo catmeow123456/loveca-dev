@@ -53,11 +53,13 @@ graph TB
         Middleware[鉴权与校验中间件]
         OnlineSvc[OnlineRoomService + OnlineMatchService + SolitaireMatchService]
         RankedSvc[Ranked Season/Queue/Rating/Admin Services]
+        AiSvc[AI Entry + Decision Coordinator + Model Governance]
     end
 
     subgraph Infra[基础设施]
         PG[(PostgreSQL)]
         MinIO[(MinIO)]
+        ModelProvider[DashScope/Qwen]
     end
 
     UI --> GS
@@ -75,6 +77,9 @@ graph TB
     Middleware --> Routes
     Routes --> OnlineSvc
     Routes --> RankedSvc
+    Routes --> AiSvc
+    AiSvc --> OnlineSvc
+    AiSvc --> ModelProvider
     Routes --> PG
     Routes --> MinIO
 ```
@@ -377,6 +382,10 @@ graph LR
     BattleR --> OnlineSvc
     RankedR --> RankedSvc[ranked-player-service + ranked-runtime-service]
     RankedAdminR --> RankedAdminSvc[ranked-admin-service + ranked-season-service + ranked-rating-service]
+    OnlineR --> AiEntry[ai-battle-phase-three-service]
+    AiEntry --> OnlineSvc
+    OnlineSvc --> AiRuntime[ai-battle contract/context/model governance]
+    AiRuntime --> ModelProvider[DashScope/Qwen]
 ```
 
 代码路径：
@@ -396,6 +405,12 @@ graph LR
 - `src/server/site-status.ts`
 - `src/server/services/site-announcement-service.ts`
 - `src/server/middleware/require-gameplay-available.ts`
+- `src/server/services/ai-battle-phase-three-service.ts`
+- `src/server/ai-battle/model-protocol.ts`
+- `src/server/ai-battle/model-governance.ts`
+- `src/server/ai-battle/model-provider.ts`
+- `client/src/components/pages/AiBattlePage.tsx`
+- `client/src/components/pages/AiBattleEndPanel.tsx`
 - `src/server/services/`
 
 认证与会话链路：
@@ -504,7 +519,8 @@ graph TD
 - 单局文字聊天：`src/server/services/online-match-chat-runtime.ts` 维护按 `matchId` 隔离的有界内存消息、幂等标识、游标分页、文本校验和发送限频，`src/server/services/online-match-service.ts` 复用参与者身份与观战会话/代际授权，`src/server/services/online-room-service.ts` 阻止已退出成员被迟到轮询重新激活，`src/server/routes/online.ts` 提供当前房间成员读写和观战只读 REST 入口，`client/src/components/game/MatchChat.tsx` 独立轮询并渲染纯文本。聊天不写入 `GameState`、公共事件、数据库、历史记录或回放；重开、双方离开销毁旧对局运行态或 API 服务重启后不恢复
 - 公共牌桌 Beta：`src/server/services/public-table-service.ts` 以 PostgreSQL 候场票据和配对预留实现 FIFO 候场、双方确认、锁定卡组快照与超时清理；房间创建使用带代际校验的短租约和有限重试，旧创建者不能覆盖接管后的房间。`src/server/services/gameplay-participation-service.ts` 约束用户不能同时处于候场、房间或对局；确认成功后由 `src/server/services/online-room-service.ts` 创建封闭的公共牌桌房间，双方需在 60 秒内到场才进入猜拳，超时则结束本次开局，并复用正式联机认输、观战和记录链路。`client/src/components/public-table/PublicTableGlobalLayer.tsx` 和 `client/src/components/pages/PublicTablePage.tsx` 负责跨页面候场状态、确认及单次自动进入房间，持久化 schema 由 `src/server/db/schema.ts` 与 `drizzle/0008_add_public_table_beta.sql`、`drizzle/0010_add_ranked_system.sql` 对齐
 - 赛季排位首版：`src/server/services/public-table-service.ts` 复用票据/预留状态机并以 `queueKind + seasonId + competitiveEnvironmentId` 隔离休闲与排位候场；`src/server/services/online-room-service.ts` 按房间代际去重开局并补偿预留、赛季、占用和票据绑定，断线裁定以持久状态和在线代际共同防止重连竞态。`src/server/services/ranked-player-service.ts` 提供赛季总览、固定窗口准入、个人战绩和排行榜，`src/server/services/ranked-rating-service.ts` 与 `src/server/rating/ranked-ledger.ts` 负责权威结果幂等结算、迟到结果重建和追加式更正，`src/server/services/ranked-runtime-service.ts` 先排空可靠结算，再终止到期运行态并执行平台无结果收口。前端由 `client/src/store/rankedStore.ts`、`client/src/components/pages/RankedPage.tsx` 和 `client/src/components/ranked/RankedGlobalLayer.tsx` 提供跨页面候场闭环，管理员由 `client/src/components/admin/RankedAdminPage.tsx` 管理赛季与带签名预览的异常结算；数据库结构由 `drizzle/0010_add_ranked_system.sql` 提供，尚未执行生产迁移或开放首季
-- 维护期间新对局限制：`src/server/middleware/require-gameplay-available.ts` 会在维护或限制新开局状态下拦截新建/加入房间、准备开局、开局流程、重开接受和服务端对墙打创建/重开；进行中对局的快照、命令、观战、回放和离开入口不被主动中断
+- AI 对战 Phase 0～4：`src/server/services/ai-battle-phase-three-service.ts` 以不可登录 SYSTEM 身份和两个精确认证卡组创建标准 `ONLINE + AI_BATTLE` 对局；`src/server/ai-battle/` 维护 typed contract、allowlist strategy context、确定性策略、decision lease、模型协议与调用治理。`src/server/services/online-match-service.ts` 只在战术窗口把脱敏上下文交给固定 provider，网络等待移出单局临界区，返回后重验 revision/窗口/契约，并把脱敏调用事实与命令帧原子记录。`client/src/components/pages/AiBattlePage.tsx` 提供登录玩家独立入口，`client/src/store/gameStore.ts` 继续复用标准快照、命令和 `GameBoard`
+- 维护期间新对局限制：`src/server/middleware/require-gameplay-available.ts` 会在维护或限制新开局状态下拦截新建/加入房间、准备开局、开局流程、重开接受、AI 对局创建/重开和服务端对墙打创建/重开；进行中对局的快照、命令、观战、回放和离开入口不被主动中断
 - 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，并在重开时封存旧局、沿用锁定卡组快照创建新的 `matchId`；`client/src/lib/solitaireMatchRecovery.ts` 在同一浏览器标签页保存当前对墙打 matchId 并在刷新或重开后同步恢复目标，`src/server/services/solitaire-runtime-recovery-service.ts` 可在运行态缺失时从最新 authority checkpoint 和公共事件尾部恢复运行中对墙打，`src/server/routes/battle.ts` 提供对墙打创建、重开、运行中快照/命令/推进/离开、公共事件增量读取，以及中性历史读取入口
 - 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
 - 运行中对局公共日志：`src/application/game-session.ts` 维护 `PublicEvent` 序列；正式联机 `/api/online/matches/:matchId/public-events`、正式联机观战 `/api/online/spectator-links/:token/public-events` 与对墙打 `/api/battle/solitaire-matches/:matchId/public-events` 按 `afterSeq` 返回公共事件增量，单次响应受 `ONLINE_PUBLIC_EVENTS_MAX_BATCH` 保护并在截断时返回 `truncated/droppedEventCount`，运行中 snapshot 继续只承载当前玩家视图，并以 `currentPublicSeq` 暴露公共日志增量水位
@@ -514,6 +530,7 @@ graph TD
 
 - WebSocket/SSE 等实时传输增强（当前正式联机使用短间隔 HTTP 轮询）
 - 对局记录与回放后续增强：正式联机进程重启后恢复运行中对局、对墙打恢复后的更细粒度追赶、完整随机记录、完整决策覆盖、自由拖拽/手动处理原因结构化、确定性重演、逐命令动画、公开分享回放与长期兼容策略
+- AI 对战 Phase 5：公共牌桌补位政策与拒绝权、AI presence、多实例决策互斥、进行中恢复、跨实例模型容量、自动熔断、聚合指标和运营告警
 - 更完整的自动能力编排与检查时机接线
 - 更高覆盖的性能与稳定性专项测试
 - 排位生产迁移演练、告警渠道、运营指标看板与首季 POC 口径

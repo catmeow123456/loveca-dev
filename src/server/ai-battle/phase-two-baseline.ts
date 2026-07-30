@@ -6,10 +6,7 @@ import { AI_OBSERVATION_SCHEMA_VERSION } from './ai-observation.js';
 import { AI_EXPLAINABLE_DECISION_POLICY_VERSION } from './explainable-decision-policy.js';
 import { AI_PHASE_TWO_PLAYOUT_SCHEMA_VERSION } from './phase-two-playout.js';
 import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
-import {
-  AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
-  AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION,
-} from './strategy-decision-audit.js';
+import { AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION } from './strategy-decision-audit.js';
 import { AI_STRATEGY_EVALUATION_SCHEMA_VERSION } from './strategy-evaluation.js';
 import { AI_SELECTED_HISTORY_SCHEMA_VERSION } from './strategy-history.js';
 import {
@@ -46,7 +43,7 @@ export const AI_BATTLE_PHASE_TWO_COMPONENT_VERSIONS = {
   selectedHistory: AI_SELECTED_HISTORY_SCHEMA_VERSION,
   explainablePolicy: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
   strategyDecisionAudit: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
-  strategyDecisionRecord: AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION,
+  strategyDecisionRecord: 'ai-battle.strategy-decision-record/v2',
   strategyEvaluation: AI_STRATEGY_EVALUATION_SCHEMA_VERSION,
   phaseTwoPlayout: AI_PHASE_TWO_PLAYOUT_SCHEMA_VERSION,
 } as const;

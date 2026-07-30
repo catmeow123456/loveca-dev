@@ -4,7 +4,7 @@
 >
 > 适用范围：受控卡组 AI 对战的目标架构、职责边界、实施阶段、验收门槛和风险控制
 >
-> 当前状态：Phase 0～3 已完成；Phase 4 的 LLM 闭环和普通玩家入口尚未实现
+> 当前状态：Phase 0～4 已完成；下一阶段为 Phase 5 的公共牌桌补位与生产治理
 >
 > 日期：2026-07-30
 >
@@ -685,7 +685,7 @@ Playbook 是策略知识，不是规则真值。
 
 隐藏区域只表达该座位依法知道的数量或摘要；里侧对象、未公开牌库顺序和可关联隐藏实体的真实对象 ID 不进入 `AiObservation`。当前合法候选需要对象引用时，使用本次决策内稳定、lease 失效即作废的临时 ID。
 
-> 当前进展（2026-07-29）：Phase 2 上下文切片已完成。
+> 当前进展（2026-07-30）：Phase 2 上下文与 Phase 4 模型调用边界均已完成。
 > `src/server/ai-battle/ai-observation.ts` 的 `ai-battle.observation/v1`。适配器的公开输入只有
 > 对应席位的 `PlayerViewState` 与 Phase 1A typed decision contract，并强制绑定 viewer seat、
 > authority revision 和 `RULES` 模式。输出按字段 allowlist 重建回合/窗口、双方区域数量、依法
@@ -695,8 +695,10 @@ Playbook 是策略知识，不是规则真值。
 > `strategy-context/v1` 已在该观察之上组合 `compact-rules/v1` 与两个绑定认证内容哈希的固定卡组
 > playbook；`selected-history/v2` 只从已脱敏观察与权威接受后的结构化策略决策增量生成，保存最近
 > 12 条关键登场、LIVE、能力、费用、效果选择和公开区域变化。它不读取权威状态、事件日志、
-> 聊天或玩家显示文本，也不保留 lease 失效即作废的 candidate/action 临时 ID。完整模型 request
-> envelope 与模型调用仍属于 Phase 4。
+> 聊天或玩家显示文本，也不保留 lease 失效即作废的 candidate/action 临时 ID。完整
+> provider-neutral model request envelope、严格输出 schema 和有限 repair envelope 已由 Phase 4
+> 落地，并已接入固定的服务端 DashScope/Qwen provider、调用事实审计与整局故障处理。模型仍只
+> 接收该脱敏上下文；凭据、原始错误、原始无效输出和玩家聊天都不会写入请求或策略记录。
 
 ### 8.4 当前合法决策
 
@@ -829,7 +831,7 @@ AI 需要能够完成：
 - 先后手选择。
 - 进入正式对局。
 
-基础 headless 阶段可以直接创建受控对局。Phase 3 的管理员内部入口不创建临时 `OnlineRoom`，也不伪造第二个可登录 USER 或 room presence；它通过版本化受控赛前解析器标记双方准备完成，复用真人房间同一份猜拳胜负规则，并按冻结政策让 SYSTEM 确定性获胜后选择请求的先后手，再直接创建 USER + SYSTEM `OnlineMatch`。Phase 4 的普通玩家独立入口仍需明确产品房间、presence 和双端进入体验；Phase 5 公共牌桌接入再把同一系统席位语义接入真人候场、双方确认和容量治理流程。
+基础 headless 阶段可以直接创建受控对局。Phase 3 的管理员内部入口不创建临时 `OnlineRoom`，也不伪造第二个可登录 USER 或 room presence；它通过版本化受控赛前解析器标记双方准备完成，复用真人房间同一份猜拳胜负规则，并按冻结政策让 SYSTEM 确定性获胜后选择请求的先后手，再直接创建 USER + SYSTEM `OnlineMatch`。Phase 4 已在同一赛前流程上提供登录玩家可用的独立 AI 对战入口，允许双方从两个认证卡组中选择并指定 AI 先后手；进入对局后继续复用共享 `GameBoard`。Phase 5 公共牌桌接入再把同一系统席位语义接入真人候场、双方确认和容量治理流程。
 
 ### 10.3 对局政策
 
@@ -1254,6 +1256,39 @@ AI 不伪装成真人。
 
 ### 阶段 4：LLM 对战闭环与玩家受控入口
 
+> 当前进展（2026-07-30）：**COMPLETE**。本阶段已经冻结
+> `ai-battle.model-request-envelope/v1`、`ai-battle.model-system-prompt/v1` 和
+> `ai-battle.model-decision-output/v1`。provider-neutral 请求只从 Phase 2
+> `strategy-context/v1` 构造，包含不可执行数据边界和严格 JSON Schema；出站检查拒绝
+> match/player/authority object identity、聊天、权限及用户显示文本字段。返回值只允许一个
+> typed selection 与单行短摘要，禁止额外字段、自由文本命令和私有推理；解析后仍复用权威
+> typed contract validator，lease/revision/window 与最终命令校验不被替代。修复 envelope
+> 最多只表达第二次协议尝试及有限错误码，不反射原始输出或供应商错误文本。
+>
+> 服务端 provider 固定为 DashScope OpenAI-compatible Chat Completions 与
+> `qwen-plus-2025-12-01` 非思考 JSON 输出；API key 只从服务端环境读取，仓库和响应均不保存
+> 凭据。provider profile 依据阿里云官方的
+> [Qwen-Plus 模型说明](https://help.aliyun.com/zh/model-studio/qwen-plus)与
+> [OpenAI 兼容 Chat Completions 契约](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)
+> 固定模型、JSON 模式和非思考参数。`RULE_FORCED` / `DETERMINISTIC` 窗口继续直接处理，只有 `HEURISTIC` 窗口调用模型。
+> 模型等待发生在按局临界区之外，返回后重新校验 decision lease、revision、窗口与选择；对局
+> 状态变化或删除会取消未完成调用。单次调用 12 秒超时，每个决策最多两次协议尝试；并发、
+> 每分钟请求、单局请求数、输入/输出 token 和估算费用都有服务端上限。
+>
+> 成功选择只把脱敏上下文哈希、版本、结构化选择、单行短摘要、执行结果、延迟、token、估算费用和哈希化
+> provider request id 与命令帧原子记录，不保存完整原始响应。确认失败后只发送一次玩家可见提示，并让本局后续固定
+> 使用 Phase 1B 保守策略；追加模型调用事实后的当前记录 schema 为
+> `ai-battle.strategy-decision-record/v3`，Phase 2/3 的 v2 基线保持历史冻结。
+> `ai-battle.system-participant-identity/v2` 已按局绑定 Prompt、输出
+> schema、provider、模型、决策与调用政策版本。
+>
+> 登录玩家可从首页进入独立 AI 对战页，选择双方固定卡组和 AI 先后手；页面明确显示 Loveca AI
+> 身份、隐藏信息边界和异常后的处理方式，并复用正式 `GameBoard`、快照、命令、记录、离开与
+> 刷新恢复链路。AI 桌面挂载同一局内聊天，因此去重 `SYSTEM_NOTICE` 对玩家可见；终局面板明确
+> 展示结果，并允许按原配置重开或清理旧运行态后返回 AI 对战入口。公共牌桌 AI 补位仍属于
+> Phase 5。当前机器可读完成基线见
+> `src/server/ai-battle/phase-four-baseline.ts`。
+
 目标：
 
 - 在已经接入正式联机的 SYSTEM 席位上建立服务端模型调用边界。
@@ -1282,6 +1317,13 @@ AI 不伪装成真人。
 - 固定卡组行为达到基础可用标准。
 - 玩家始终知道对手是 AI。
 - 受控入口可以稳定完成真实双端体验验证。
+
+完成证据：
+
+- provider/治理与协议单测覆盖固定 profile、凭据隔离、输出 schema、超时、取消、并发、预算和一次修复。
+- 正式 `OnlineMatchService` 集成测试证明 provider 等待不占按局锁、选择与命令帧原子记录、整局切换保守策略，以及使用结构化模型选择完成完整双边对局。
+- 真实 provider 固定评测覆盖换牌、主要阶段、LIVE 设置和强制效果选项，四个场景均在首次尝试返回合法结构化选择。
+- 浏览器实测完成普通玩家建局、共享桌面、真人换牌后 AI 接手、数据库脱敏记录和刷新恢复；桌面/移动端入口均已检查。终局结果、同配置重开和玩家可见系统通知由共享桌面组件与 focused tests/类型检查继续约束。
 
 ### 阶段 5：公共牌桌补位与生产治理
 

@@ -27,7 +27,7 @@ import {
 } from './online-match-service.js';
 import { loadUserProfileForOnlineMatch, type UserProfileSummary } from './online-room-service.js';
 
-export const AI_BATTLE_PHASE_THREE_ENTRY_SCHEMA_VERSION = 'ai-battle.phase-three-entry/v1' as const;
+export const AI_BATTLE_PHASE_FOUR_ENTRY_SCHEMA_VERSION = 'ai-battle.phase-four-entry/v1' as const;
 
 export interface CreateControlledAiBattleInput {
   readonly humanUserId: string;
@@ -37,7 +37,7 @@ export interface CreateControlledAiBattleInput {
 }
 
 export interface ControlledAiBattleView {
-  readonly schemaVersion: typeof AI_BATTLE_PHASE_THREE_ENTRY_SCHEMA_VERSION;
+  readonly schemaVersion: typeof AI_BATTLE_PHASE_FOUR_ENTRY_SCHEMA_VERSION;
   readonly matchId: string;
   readonly roomCode: string;
   readonly humanSeat: Seat;
@@ -131,7 +131,7 @@ export class AiBattlePhaseThreeService {
       if (this.matchService.getMatch(existingMatchId)) {
         throw new AiBattlePhaseThreeServiceError(
           'AI_BATTLE_ALREADY_ACTIVE',
-          '当前账号已有内部 AI 对局，请刷新原对局或先离开',
+          '当前账号已有 AI 对局，请刷新原对局或先离开',
           409
         );
       }
@@ -280,7 +280,7 @@ export class AiBattlePhaseThreeService {
       matchMode: 'ONLINE',
       automationGameMode: 'DEBUG',
       originKind: 'AI_BATTLE',
-      originLabel: 'AI 对战（内部受控）',
+      originLabel: 'AI 对战',
       startedAt: this.now(),
       first: pregame.first,
       second: pregame.second,
@@ -320,7 +320,7 @@ export class AiBattlePhaseThreeService {
       );
     }
     return {
-      schemaVersion: AI_BATTLE_PHASE_THREE_ENTRY_SCHEMA_VERSION,
+      schemaVersion: AI_BATTLE_PHASE_FOUR_ENTRY_SCHEMA_VERSION,
       matchId: match.matchId,
       roomCode: runtime.roomCode,
       humanSeat: runtime.input.aiSeat === 'FIRST' ? 'SECOND' : 'FIRST',
@@ -351,11 +351,7 @@ export class AiBattlePhaseThreeService {
     const runtime = this.runtimeByMatchId.get(matchId) ?? null;
     if (!runtime) {
       if (!required) return null;
-      throw new AiBattlePhaseThreeServiceError(
-        'AI_BATTLE_NOT_FOUND',
-        '内部 AI 对局不存在或已结束',
-        404
-      );
+      throw new AiBattlePhaseThreeServiceError('AI_BATTLE_NOT_FOUND', 'AI 对局不存在或已结束', 404);
     }
     if (runtime.input.humanUserId !== humanUserId) {
       throw new AiBattlePhaseThreeServiceError(

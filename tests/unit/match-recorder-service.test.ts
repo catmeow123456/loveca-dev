@@ -372,7 +372,7 @@ describe('MatchRecorderService P0a', () => {
       .find((call) => call.values[2] === 'SECOND');
     expect(systemParticipantInsert?.text).toContain('system_identity_snapshot');
     expect(readJsonbParam(systemParticipantInsert?.values[7])).toMatchObject({
-      schemaVersion: 'ai-battle.system-participant-identity/v1',
+      schemaVersion: 'ai-battle.system-participant-identity/v2',
       participantKind: 'SYSTEM',
       loginAllowed: false,
       deckKey: 'MUSE_STARTER',

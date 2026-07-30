@@ -9,14 +9,11 @@ import {
   AI_BATTLE_PHASE_ZERO_MATCHUP_MATRIX,
 } from './phase-zero-baseline.js';
 import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
-import { AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION } from './strategy-decision-audit.js';
 import { AI_CONTROLLED_PREGAME_RESULT_SCHEMA_VERSION } from './system-pregame.js';
 import {
   AI_PHASE_THREE_LIFECYCLE_POLICY_VERSION,
   AI_PHASE_THREE_PREGAME_POLICY_VERSION,
-  AI_SYSTEM_IDENTITY_SCHEMA_VERSION,
 } from './system-participant.js';
-import { AI_BATTLE_PHASE_THREE_ENTRY_SCHEMA_VERSION } from '../services/ai-battle-phase-three-service.js';
 
 export const AI_BATTLE_PHASE_THREE_BASELINE_VERSION = 'ai-battle.phase-three/v1' as const;
 export const AI_BATTLE_PHASE_THREE_CERTIFICATION_STATUS = 'COMPLETE' as const;
@@ -47,20 +44,20 @@ export const AI_BATTLE_PHASE_THREE_COMPONENT_STATUS = {
 } as const;
 
 export const AI_BATTLE_PHASE_THREE_COMPONENT_VERSIONS = {
-  identity: AI_SYSTEM_IDENTITY_SCHEMA_VERSION,
+  identity: 'ai-battle.system-participant-identity/v1',
   phaseZeroBaseline: AI_BATTLE_PHASE_ZERO_BASELINE_VERSION,
   phaseZeroRulesEngine: AI_BATTLE_PHASE_ZERO_CERTIFICATION_VERSIONS.rulesEngineVersion,
   phaseZeroAuthoritativeCardData:
     AI_BATTLE_PHASE_ZERO_CERTIFICATION_VERSIONS.authoritativeCardDataVersion,
   decisionContract: AI_DECISION_CONTRACT_SCHEMA_VERSION,
   commandAdapter: AI_DECISION_COMMAND_ADAPTER_VERSION,
-  entry: AI_BATTLE_PHASE_THREE_ENTRY_SCHEMA_VERSION,
+  entry: 'ai-battle.phase-three-entry/v1',
   pregamePolicy: AI_PHASE_THREE_PREGAME_POLICY_VERSION,
   controlledPregameResult: AI_CONTROLLED_PREGAME_RESULT_SCHEMA_VERSION,
   lifecyclePolicy: AI_PHASE_THREE_LIFECYCLE_POLICY_VERSION,
   strategyContext: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
   explainablePolicy: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
-  strategyDecisionRecord: AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION,
+  strategyDecisionRecord: 'ai-battle.strategy-decision-record/v2',
   databaseMigration: 'drizzle/0010_simple_the_leader.sql',
 } as const;
 

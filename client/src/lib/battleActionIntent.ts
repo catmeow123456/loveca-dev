@@ -25,6 +25,7 @@ export type BattleInteractionSurface =
   | 'LOCAL_DEBUG'
   | 'SOLITAIRE'
   | 'ONLINE'
+  | 'AI_BATTLE'
   | 'REMOTE_DEBUG'
   | 'SPECTATOR_READONLY'
   | 'REPLAY_READONLY';

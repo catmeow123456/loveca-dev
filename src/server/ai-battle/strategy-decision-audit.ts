@@ -1,12 +1,13 @@
 import { createHash } from 'node:crypto';
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
-import type { AiStrategyTier, ExplainableDecisionResult } from './explainable-decision-policy.js';
+import type { AiStrategyTier } from './explainable-decision-policy.js';
+import type { AiModelInvocationAudit } from './model-governance.js';
 import type { AiStrategyContext } from './strategy-context.js';
 
 export const AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION =
   'ai-battle.strategy-decision-audit/v2' as const;
 export const AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION =
-  'ai-battle.strategy-decision-record/v2' as const;
+  'ai-battle.strategy-decision-record/v3' as const;
 
 export interface AiStrategyDecisionAudit {
   readonly schemaVersion: typeof AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION;
@@ -31,6 +32,7 @@ export interface AiStrategyDecisionAudit {
 export interface AiStrategyDecisionRecord {
   readonly schemaVersion: typeof AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION;
   readonly decisionAudit: AiStrategyDecisionAudit;
+  readonly modelInvocation: AiModelInvocationAudit | null;
   readonly contractIdentity: {
     readonly decisionIdSha256: string;
     readonly windowSignatureSha256: string;
@@ -49,16 +51,24 @@ export interface AiStrategyDecisionRecordStore {
   list(): readonly AiStrategyDecisionRecord[];
 }
 
+export interface AuditableAiDecisionResult {
+  readonly policyVersion: string;
+  readonly tier: AiStrategyTier;
+  readonly reasonCode: string;
+  readonly summary: string;
+  readonly consideredIds: readonly string[];
+  readonly selection: AiDecisionSelection;
+}
+
 /**
  * Produces the Phase 2 strategy audit fact from the already-redacted context.
  *
- * This is not yet persistence. The eventual match runtime integration can
- * store this fact without receiving the full strategy context in ordinary
- * audit records.
+ * The match runtime persists this fact without receiving the full strategy
+ * context in ordinary audit records.
  */
 export function createAiStrategyDecisionAudit(
   context: AiStrategyContext,
-  result: Extract<ExplainableDecisionResult, { readonly ok: true }>
+  result: AuditableAiDecisionResult
 ): AiStrategyDecisionAudit {
   return {
     schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
@@ -90,6 +100,7 @@ export function createAiStrategyDecisionRecord(input: {
   readonly execution:
     { readonly status: 'ACCEPTED' } | { readonly status: 'REJECTED'; readonly errorCode: string };
   readonly ruleRandomFactRefs?: readonly string[];
+  readonly modelInvocation?: AiModelInvocationAudit | null;
 }): AiStrategyDecisionRecord {
   if (
     input.execution.status === 'ACCEPTED' &&
@@ -104,6 +115,9 @@ export function createAiStrategyDecisionRecord(input: {
       consideredIds: [...input.decisionAudit.consideredIds],
       selection: cloneSelection(input.decisionAudit.selection),
     },
+    modelInvocation: input.modelInvocation
+      ? cloneModelInvocationAudit(input.modelInvocation)
+      : null,
     contractIdentity: {
       decisionIdSha256: hashText(input.decisionId),
       windowSignatureSha256: hashText(input.windowSignature),
@@ -176,8 +190,21 @@ function cloneDecisionRecord(record: AiStrategyDecisionRecord): AiStrategyDecisi
       consideredIds: [...record.decisionAudit.consideredIds],
       selection: cloneSelection(record.decisionAudit.selection),
     },
+    modelInvocation: record.modelInvocation
+      ? cloneModelInvocationAudit(record.modelInvocation)
+      : null,
     contractIdentity: { ...record.contractIdentity },
     execution: { ...record.execution },
     ruleRandomFactRefs: [...record.ruleRandomFactRefs],
+  };
+}
+
+function cloneModelInvocationAudit(audit: AiModelInvocationAudit): AiModelInvocationAudit {
+  return {
+    ...audit,
+    attempts: audit.attempts.map((attempt) => ({
+      ...attempt,
+      usage: { ...attempt.usage },
+    })),
   };
 }

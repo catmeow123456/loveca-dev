@@ -34,6 +34,7 @@ import {
   PublicBattleLogContent,
   PublicBattleLogPanel,
 } from './PublicBattleLog';
+import { MatchChat } from './MatchChat';
 import { PhaseIndicator } from './PhaseIndicator';
 import { PhaseBanner } from './PhaseBanner';
 import { LiveResultAnimation, type LiveScoreInfo } from './LiveResultAnimation';
@@ -2235,15 +2236,22 @@ export const GameBoard = memo(function GameBoard({
   const canShowBattleLeaveButton =
     capabilities.surface === 'LOCAL_DEBUG' ||
     capabilities.surface === 'SOLITAIRE' ||
-    capabilities.surface === 'REMOTE_DEBUG';
+    capabilities.surface === 'REMOTE_DEBUG' ||
+    capabilities.surface === 'AI_BATTLE';
   const showLeaveLocalGameButton = canShowBattleLeaveButton && Boolean(onLeaveLocalGame);
   const showRestartGameButton = capabilities.canRestart && Boolean(onRestartGame);
+  const canShowAiBattleChat =
+    capabilities.surface === 'AI_BATTLE' &&
+    Boolean(matchView?.matchId) &&
+    Boolean(matchView?.viewerSeat);
   const leaveLocalGameButtonTitle =
     capabilities.surface === 'REMOTE_DEBUG'
       ? '退出联机调试房间'
-      : isSolitaire
-        ? '退出对墙打房间'
-        : '退出调试房间';
+      : capabilities.surface === 'AI_BATTLE'
+        ? '离开 AI 对局'
+        : isSolitaire
+          ? '退出对墙打房间'
+          : '退出调试房间';
   const selfIdentity = getPlayerIdentityForSeat(selfSeat);
   const opponentIdentity = getPlayerIdentityForSeat(opponentSeat);
   const phaseInfo = getPhaseConfig(currentPhase)?.display;
@@ -2389,7 +2397,16 @@ export const GameBoard = memo(function GameBoard({
                     </div>
                   </div>
 
-                  <div className="shrink-0">
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {canShowAiBattleChat && matchView?.viewerSeat && (
+                      <MatchChat
+                        access={{
+                          kind: 'PARTICIPANT',
+                          matchId: matchView.matchId,
+                          viewerSeat: matchView.viewerSeat,
+                        }}
+                      />
+                    )}
                     <ThemeToggle className="h-9 w-9" />
                   </div>
                 </div>
@@ -2703,7 +2720,8 @@ export const GameBoard = memo(function GameBoard({
 
             {(showLeaveLocalGameButton ||
               showRestartGameButton ||
-              canShowDesktopPublicBattleLogButton) && (
+              canShowDesktopPublicBattleLogButton ||
+              canShowAiBattleChat) && (
               <div className="absolute left-4 top-4 z-[120] flex items-center gap-3">
                 {showLeaveLocalGameButton && (
                   <button
@@ -2713,7 +2731,7 @@ export const GameBoard = memo(function GameBoard({
                     title={leaveLocalGameButtonTitle}
                   >
                     <DoorOpen size={16} />
-                    离开房间
+                    {capabilities.surface === 'AI_BATTLE' ? '离开对局' : '离开房间'}
                   </button>
                 )}
                 {showRestartGameButton && (
@@ -2728,6 +2746,15 @@ export const GameBoard = memo(function GameBoard({
                   </button>
                 )}
                 {canShowDesktopPublicBattleLogButton && <PublicBattleLogButton />}
+                {canShowAiBattleChat && matchView?.viewerSeat && (
+                  <MatchChat
+                    access={{
+                      kind: 'PARTICIPANT',
+                      matchId: matchView.matchId,
+                      viewerSeat: matchView.viewerSeat,
+                    }}
+                  />
+                )}
               </div>
             )}
 

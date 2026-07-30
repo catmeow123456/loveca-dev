@@ -179,6 +179,9 @@ function getBattleSurfaceLabel(surface: BattleSurfaceKind): string {
     case 'REMOTE_DEBUG':
       return '远程调试';
     case 'ONLINE':
+      return '联机';
+    case 'AI_BATTLE':
+      return 'AI 对战';
     default:
       return '联机';
   }

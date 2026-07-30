@@ -66,6 +66,29 @@ describe('battle surface capabilities', () => {
     );
   });
 
+  it('派生 AI 对战桌面能力并关闭撤销与自由模式', () => {
+    expectCapabilities(
+      deriveBattleSurfaceCapabilities({
+        gameMode: GameMode.DEBUG,
+        remoteSessionSource: 'AI_BATTLE',
+      }),
+      {
+        authority: 'REMOTE',
+        surface: 'AI_BATTLE',
+        canSwitchPerspective: false,
+        canSwitchLocalMode: false,
+        canShowDebugLog: false,
+        canUndo: false,
+        undoPolicy: 'NONE',
+        showFreePlayControl: false,
+        freePlayPolicy: 'COMMAND_FLAG',
+        isSolitairePresentation: false,
+        scoreConfirmPresentation: 'STANDARD_MODAL',
+        isReadOnly: false,
+      }
+    );
+  });
+
   it('派生远程调试联机桌面能力', () => {
     expectCapabilities(
       deriveBattleSurfaceCapabilities({

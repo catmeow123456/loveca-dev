@@ -6,7 +6,7 @@ import type {
   AiObservedCard,
   AiObservation,
 } from './ai-observation.js';
-import type { ExplainableDecisionResult } from './explainable-decision-policy.js';
+import type { AuditableAiDecisionResult } from './strategy-decision-audit.js';
 
 export const AI_SELECTED_HISTORY_SCHEMA_VERSION = 'ai-battle.selected-history/v2' as const;
 export const AI_SELECTED_HISTORY_DEFAULT_LIMIT = 12;
@@ -70,10 +70,7 @@ export interface AiSelectedHistoryTracker {
    * Records an accepted strategy decision. Call only after the authority
    * command succeeds so rejected or stale plans never enter future context.
    */
-  recordAcceptedDecision(
-    observation: AiObservation,
-    result: Extract<ExplainableDecisionResult, { readonly ok: true }>
-  ): void;
+  recordAcceptedDecision(observation: AiObservation, result: AuditableAiDecisionResult): void;
   snapshot(): readonly AiSelectedHistoryItem[];
 }
 
@@ -148,7 +145,7 @@ export function createAiSelectedHistoryTracker(
 
 function selectAcceptedDecisionHistory(
   observation: AiObservation,
-  result: Extract<ExplainableDecisionResult, { readonly ok: true }>
+  result: AuditableAiDecisionResult
 ): Omit<AiSelectedDecisionHistoryItem, 'schemaVersion' | 'historyId'> | null {
   const decision = observation.decision;
   const selection = result.selection;

@@ -4,6 +4,16 @@ import {
 } from '../../application/ai-decisions/index.js';
 import { AI_EXPLAINABLE_DECISION_POLICY_VERSION } from './explainable-decision-policy.js';
 import {
+  AI_MODEL_DECISION_POLICY_VERSION,
+  AI_MODEL_INVOCATION_POLICY_VERSION,
+} from './model-governance.js';
+import { AI_MODEL_ID, AI_MODEL_PROVIDER_PROFILE_VERSION } from './model-provider.js';
+import {
+  AI_MODEL_DECISION_OUTPUT_SCHEMA_VERSION,
+  AI_MODEL_REQUEST_ENVELOPE_SCHEMA_VERSION,
+  AI_MODEL_SYSTEM_PROMPT_VERSION,
+} from './model-protocol.js';
+import {
   AI_BATTLE_PHASE_ZERO_DECKS,
   AI_BATTLE_PHASE_ZERO_BASELINE_VERSION,
   AI_BATTLE_PHASE_ZERO_CERTIFICATION_VERSIONS,
@@ -14,7 +24,7 @@ import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
 import { AI_COMPACT_RULES_VERSION, getAiDeckPlaybook } from './strategy-knowledge.js';
 
 export const AI_SYSTEM_IDENTITY_SCHEMA_VERSION =
-  'ai-battle.system-participant-identity/v1' as const;
+  'ai-battle.system-participant-identity/v2' as const;
 export const AI_PHASE_THREE_PREGAME_POLICY_VERSION = 'ai-battle.phase-three-pregame/v1' as const;
 export const AI_PHASE_THREE_LIFECYCLE_POLICY_VERSION =
   'ai-battle.phase-three-lifecycle/v1' as const;
@@ -46,6 +56,13 @@ export interface AiSystemParticipantBinding {
   readonly playbookVersion: string;
   readonly strategyContextVersion: string;
   readonly policyVersion: string;
+  readonly modelRequestEnvelopeVersion: string;
+  readonly modelOutputSchemaVersion: string;
+  readonly modelSystemPromptVersion: string;
+  readonly modelProviderProfileVersion: string;
+  readonly modelId: string;
+  readonly modelDecisionPolicyVersion: string;
+  readonly modelInvocationPolicyVersion: string;
   readonly pregamePolicyVersion: string;
   readonly lifecyclePolicyVersion: string;
 }
@@ -68,6 +85,13 @@ export function createAiSystemParticipantBinding(
     playbookVersion: playbook.version,
     strategyContextVersion: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
     policyVersion: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
+    modelRequestEnvelopeVersion: AI_MODEL_REQUEST_ENVELOPE_SCHEMA_VERSION,
+    modelOutputSchemaVersion: AI_MODEL_DECISION_OUTPUT_SCHEMA_VERSION,
+    modelSystemPromptVersion: AI_MODEL_SYSTEM_PROMPT_VERSION,
+    modelProviderProfileVersion: AI_MODEL_PROVIDER_PROFILE_VERSION,
+    modelId: AI_MODEL_ID,
+    modelDecisionPolicyVersion: AI_MODEL_DECISION_POLICY_VERSION,
+    modelInvocationPolicyVersion: AI_MODEL_INVOCATION_POLICY_VERSION,
     pregamePolicyVersion: AI_PHASE_THREE_PREGAME_POLICY_VERSION,
     lifecyclePolicyVersion: AI_PHASE_THREE_LIFECYCLE_POLICY_VERSION,
   };
