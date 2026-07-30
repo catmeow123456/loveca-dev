@@ -1,4 +1,5 @@
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { config } from '../config.js';
 import { pool } from '../db/pool.js';
 import {
   getFormalRankedAlgorithmConfig,
@@ -20,6 +21,7 @@ import {
   materializeRankedRatingLedger,
   type RankedRatingEvent,
   type RankedRatingEventType,
+  type RankedResultType,
   type RankedWinnerSeat,
 } from '../rating/ranked-ledger.js';
 import {
@@ -69,6 +71,11 @@ export interface RankedAdminCorrectionPreviewInput {
   readonly matchId: string;
   readonly action: 'VOID' | 'REPLACE';
   readonly replacementWinnerSeat?: RankedWinnerSeat;
+  readonly replacementResultType?: Exclude<RankedResultType, 'PLATFORM_NO_CONTEST'>;
+}
+
+export interface RankedAdminCorrectionExecuteInput extends CorrectRankedMatchInput {
+  readonly previewToken: string;
 }
 
 export interface RankedAdminMatchFilter {
@@ -93,6 +100,7 @@ interface RankedAdminServiceDeps {
   readonly now?: () => Date;
   readonly createId?: () => string;
   readonly audit?: (event: RankedAdminAuditEvent) => void;
+  readonly previewSecret?: string;
 }
 
 interface RankedAdminAuditEvent {
@@ -110,6 +118,7 @@ interface RankedAdminMatchRow {
   readonly rating_status: 'PENDING' | 'SETTLED' | 'VOIDED';
   readonly winner_seat: RankedWinnerSeat | null;
   readonly result_type: string | null;
+  readonly prior_result_type: Exclude<RankedResultType, 'PLATFORM_NO_CONTEST'> | null;
   readonly first_user_id: string;
   readonly first_username: string;
   readonly first_display_name: string | null;
@@ -133,6 +142,7 @@ interface RankedAdminEventRow {
   readonly first_user_id: string;
   readonly second_user_id: string;
   readonly winner_seat: RankedWinnerSeat | null;
+  readonly result_type: RankedResultType;
   readonly rated_at: Date | string;
   readonly algorithm_version: string;
   readonly reason: string | null;
@@ -174,6 +184,7 @@ export class RankedAdminService {
   private readonly now: () => Date;
   private readonly createId: () => string;
   private readonly audit: (event: RankedAdminAuditEvent) => void;
+  private readonly previewSecret: string;
 
   constructor(deps: RankedAdminServiceDeps = {}) {
     this.seasonService = deps.seasonService ?? new RankedSeasonService();
@@ -189,6 +200,7 @@ export class RankedAdminService {
     this.now = deps.now ?? (() => new Date());
     this.createId = deps.createId ?? randomUUID;
     this.audit = deps.audit ?? writeRankedAdminAudit;
+    this.previewSecret = deps.previewSecret ?? config.jwtSecret;
   }
 
   async getEnvironmentPreview() {
@@ -374,6 +386,15 @@ export class RankedAdminService {
          ranked_match.rating_status,
          ranked_match.winner_seat,
          ranked_match.result_type,
+         (
+           SELECT event.result_type
+           FROM ranked_rating_events AS event
+           WHERE event.season_id = ranked_match.season_id
+             AND event.match_id = ranked_match.match_id
+             AND event.event_type IN ('SETTLEMENT', 'REPLACEMENT')
+           ORDER BY event.event_sequence DESC
+           LIMIT 1
+         ) AS prior_result_type,
          ranked_match.first_user_id,
          first_profile.username AS first_username,
          first_profile.display_name AS first_display_name,
@@ -408,6 +429,15 @@ export class RankedAdminService {
          ranked_match.rating_status,
          ranked_match.winner_seat,
          ranked_match.result_type,
+         (
+           SELECT event.result_type
+           FROM ranked_rating_events AS event
+           WHERE event.season_id = ranked_match.season_id
+             AND event.match_id = ranked_match.match_id
+             AND event.event_type IN ('SETTLEMENT', 'REPLACEMENT')
+           ORDER BY event.event_sequence DESC
+           LIMIT 1
+         ) AS prior_result_type,
          ranked_match.first_user_id,
          first_profile.username AS first_username,
          first_profile.display_name AS first_display_name,
@@ -481,6 +511,7 @@ export class RankedAdminService {
       firstUserId: latest.firstUserId,
       secondUserId: latest.secondUserId,
       winnerSeat: input.action === 'VOID' ? null : input.replacementWinnerSeat!,
+      resultType: input.action === 'VOID' ? 'PLATFORM_NO_CONTEST' : input.replacementResultType!,
       ratedAt: latest.ratedAt,
       algorithmVersion: config.algorithmVersion,
     };
@@ -508,12 +539,26 @@ export class RankedAdminService {
           change.ratingDeviationDelta !== 0 ||
           change.ratedMatchCountDelta !== 0
       );
+    const previewToken = createCorrectionPreviewToken(
+      {
+        seasonId: input.seasonId,
+        matchId: input.matchId,
+        targetEventId: latest.eventId,
+        action: input.action,
+        replacementWinnerSeat: input.replacementWinnerSeat ?? null,
+        replacementResultType:
+          input.action === 'VOID' ? 'PLATFORM_NO_CONTEST' : input.replacementResultType!,
+        ledgerRevision: season.ledger_revision,
+      },
+      this.previewSecret
+    );
     return {
       seasonId: input.seasonId,
       matchId: input.matchId,
       action: input.action,
       targetEventId: latest.eventId,
       currentLedgerRevision: season.ledger_revision,
+      previewToken,
       projectedLedgerRevision: season.ledger_revision + 1,
       materializedMatchCount: materialization.steps.length,
       affectedPlayerCount: playerChanges.length,
@@ -522,7 +567,27 @@ export class RankedAdminService {
     };
   }
 
-  async executeCorrection(input: CorrectRankedMatchInput) {
+  async executeCorrection(input: RankedAdminCorrectionExecuteInput) {
+    const expectedToken = createCorrectionPreviewToken(
+      {
+        seasonId: input.seasonId,
+        matchId: input.matchId,
+        targetEventId: input.expectedTargetEventId,
+        action: input.action,
+        replacementWinnerSeat: input.replacementWinnerSeat ?? null,
+        replacementResultType:
+          input.action === 'VOID' ? 'PLATFORM_NO_CONTEST' : input.replacementResultType!,
+        ledgerRevision: input.expectedLedgerRevision,
+      },
+      this.previewSecret
+    );
+    if (!safeTokenEquals(input.previewToken, expectedToken)) {
+      throw adminError(
+        'RANKED_CORRECTION_PREVIEW_MISMATCH',
+        '执行参数与更正预览不一致，请重新预览',
+        409
+      );
+    }
     const result = await this.ratingService.correctMatch(input);
     this.audit({
       event: 'RANKED_MATCH_CORRECTED',
@@ -533,6 +598,9 @@ export class RankedAdminService {
         action: input.action,
         reason: input.reason,
         idempotencyKey: input.idempotencyKey,
+        replacementWinnerSeat: input.replacementWinnerSeat ?? null,
+        replacementResultType:
+          input.action === 'VOID' ? 'PLATFORM_NO_CONTEST' : input.replacementResultType,
         alreadyApplied: result.alreadyApplied,
       },
     });
@@ -601,6 +669,7 @@ export class RankedAdminService {
          first_user_id,
          second_user_id,
          winner_seat,
+         result_type,
          rated_at,
          algorithm_version,
          reason,
@@ -686,6 +755,7 @@ function mapAdminMatch(row: RankedAdminMatchRow) {
     ratingStatus: row.rating_status,
     winnerSeat: row.winner_seat,
     resultType: row.result_type,
+    priorResultType: row.prior_result_type,
     firstPlayer: {
       userId: row.first_user_id,
       username: row.first_username,
@@ -715,6 +785,7 @@ function mapLedgerEvent(row: RankedAdminEventRow): RankedRatingEvent {
     firstUserId: row.first_user_id,
     secondUserId: row.second_user_id,
     winnerSeat: row.winner_seat,
+    resultType: row.result_type,
     ratedAt: new Date(row.rated_at),
     algorithmVersion: row.algorithm_version,
   };
@@ -727,6 +798,7 @@ function mapAdminEvent(row: RankedAdminEventRow) {
     eventType: row.event_type,
     targetEventId: row.target_event_id,
     winnerSeat: row.winner_seat,
+    resultType: row.result_type,
     ratedAt: new Date(row.rated_at),
     algorithmVersion: row.algorithm_version,
     reason: row.reason,
@@ -742,6 +814,14 @@ function validatePreviewInput(input: RankedAdminCorrectionPreviewInput): void {
   if (input.action === 'VOID' && input.replacementWinnerSeat) {
     throw adminError('RANKED_VOID_WINNER_FORBIDDEN', '作废结算不能指定替换胜方');
   }
+  if (
+    input.action === 'REPLACE' &&
+    input.replacementResultType !== 'NORMAL' &&
+    input.replacementResultType !== 'SURRENDER' &&
+    input.replacementResultType !== 'DISCONNECT_FORFEIT'
+  ) {
+    throw adminError('RANKED_REPLACEMENT_RESULT_TYPE_REQUIRED', '替换结算必须指定合法结果类型');
+  }
 }
 
 function readPersistentConfig(algorithmVersion: string, value: unknown): Glicko1Config {
@@ -755,6 +835,31 @@ function readPersistentConfig(algorithmVersion: string, value: unknown): Glicko1
     throw adminError('RANKED_STORED_CONFIG_INVALID', '赛季冻结的正式评分算法版本无效', 500);
   }
   return config;
+}
+
+interface CorrectionPreviewTokenPayload {
+  readonly seasonId: string;
+  readonly matchId: string;
+  readonly targetEventId: string;
+  readonly action: 'VOID' | 'REPLACE';
+  readonly replacementWinnerSeat: RankedWinnerSeat | null;
+  readonly replacementResultType: RankedResultType;
+  readonly ledgerRevision: number;
+}
+
+function createCorrectionPreviewToken(
+  payload: CorrectionPreviewTokenPayload,
+  secret: string
+): string {
+  return createHmac('sha256', secret).update(stableJsonStringify(payload)).digest('base64url');
+}
+
+function safeTokenEquals(actual: string, expected: string): boolean {
+  const actualBuffer = Buffer.from(actual);
+  const expectedBuffer = Buffer.from(expected);
+  return (
+    actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
+  );
 }
 
 function writeRankedAdminAudit(event: RankedAdminAuditEvent): void {

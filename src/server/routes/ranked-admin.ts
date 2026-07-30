@@ -69,6 +69,7 @@ const correctionPreviewSchema = z
     seasonId: z.string().uuid(),
     action: z.enum(['VOID', 'REPLACE']),
     replacementWinnerSeat: z.enum(['FIRST', 'SECOND']).optional(),
+    replacementResultType: z.enum(['NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT']).optional(),
   })
   .superRefine(validateCorrectionChoice);
 
@@ -81,6 +82,8 @@ const correctionExecuteSchema = z
     reason: z.string().trim().min(5).max(1000),
     idempotencyKey: z.string().trim().min(8).max(160),
     expectedLedgerRevision: z.number().int().min(0),
+    expectedTargetEventId: z.string().uuid(),
+    previewToken: z.string().trim().min(32).max(256),
   })
   .superRefine(validateCorrectionChoice);
 
@@ -323,6 +326,7 @@ function validateCorrectionChoice(
   value: {
     readonly action: 'VOID' | 'REPLACE';
     readonly replacementWinnerSeat?: RankedWinnerSeat;
+    readonly replacementResultType?: 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT';
   },
   context: z.RefinementCtx
 ): void {
@@ -338,6 +342,20 @@ function validateCorrectionChoice(
       code: z.ZodIssueCode.custom,
       path: ['replacementWinnerSeat'],
       message: '作废结算不能指定替换胜方',
+    });
+  }
+  if (value.action === 'REPLACE' && !value.replacementResultType) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['replacementResultType'],
+      message: '替换结算必须指定结果类型',
+    });
+  }
+  if (value.action === 'VOID' && value.replacementResultType) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['replacementResultType'],
+      message: '作废结算不能指定替换结果类型',
     });
   }
 }

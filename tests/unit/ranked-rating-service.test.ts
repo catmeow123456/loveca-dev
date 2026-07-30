@@ -432,6 +432,7 @@ describe('RankedRatingService corrections', () => {
             match_id: 'match-2',
             event_sequence: 3,
             winner_seat: null,
+            result_type: 'PLATFORM_NO_CONTEST',
             reason: '另一局的平台故障',
           },
         ];
@@ -448,6 +449,55 @@ describe('RankedRatingService corrections', () => {
         adminUserId: '55555555-5555-4555-8555-555555555555',
         idempotencyKey: 'reused-correction-key',
         expectedLedgerRevision: 3,
+        expectedTargetEventId: 'event-1',
+      })
+    ).rejects.toMatchObject({
+      code: 'RANKED_CORRECTION_IDEMPOTENCY_CONFLICT',
+      statusCode: 409,
+    });
+  });
+
+  it('treats a changed replacement result type as an idempotency conflict', async () => {
+    const { service } = createHarness((text) => {
+      if (text.includes('FROM ranked_seasons') && text.includes('FOR UPDATE')) {
+        return [
+          {
+            season_id: 'season-1',
+            lifecycle: 'ACTIVE',
+            ledger_revision: 3,
+            rating_algorithm_version: CONFIG.algorithmVersion,
+            rating_config: CONFIG,
+          },
+        ];
+      }
+      if (text.includes('idempotency_key = $2')) {
+        return [
+          {
+            id: 'existing-correction',
+            event_type: 'REPLACEMENT',
+            match_id: 'match-1',
+            event_sequence: 3,
+            winner_seat: 'SECOND',
+            result_type: 'SURRENDER',
+            reason: '裁定原胜方记录错误',
+          },
+        ];
+      }
+      return [];
+    });
+
+    await expect(
+      service.correctMatch({
+        seasonId: 'season-1',
+        matchId: 'match-1',
+        action: 'REPLACE',
+        replacementWinnerSeat: 'SECOND',
+        replacementResultType: 'NORMAL',
+        reason: '裁定原胜方记录错误',
+        adminUserId: '55555555-5555-4555-8555-555555555555',
+        idempotencyKey: 'replace-match-1',
+        expectedLedgerRevision: 3,
+        expectedTargetEventId: 'event-2',
       })
     ).rejects.toMatchObject({
       code: 'RANKED_CORRECTION_IDEMPOTENCY_CONFLICT',
@@ -480,6 +530,7 @@ describe('RankedRatingService corrections', () => {
         adminUserId: '55555555-5555-4555-8555-555555555555',
         idempotencyKey: 'void-match-1-stale',
         expectedLedgerRevision: 2,
+        expectedTargetEventId: 'event-1',
       })
     ).rejects.toMatchObject({
       code: 'RANKED_CORRECTION_PREVIEW_STALE',
@@ -524,6 +575,7 @@ describe('RankedRatingService corrections', () => {
             first_user_id: firstUserId,
             second_user_id: secondUserId,
             winner_seat: 'FIRST',
+            result_type: 'NORMAL',
             rated_at: new Date('2026-08-01T00:00:00.000Z'),
             algorithm_version: CONFIG.algorithmVersion,
           },
@@ -536,6 +588,7 @@ describe('RankedRatingService corrections', () => {
             first_user_id: firstUserId,
             second_user_id: thirdUserId,
             winner_seat: 'SECOND',
+            result_type: 'NORMAL',
             rated_at: new Date('2026-08-02T00:00:00.000Z'),
             algorithm_version: CONFIG.algorithmVersion,
           },
@@ -553,6 +606,7 @@ describe('RankedRatingService corrections', () => {
         adminUserId: '55555555-5555-4555-8555-555555555555',
         idempotencyKey: 'void-match-1-v1',
         expectedLedgerRevision: 2,
+        expectedTargetEventId: 'event-1',
       },
       CONFIG
     );

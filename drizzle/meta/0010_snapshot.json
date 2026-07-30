@@ -2943,6 +2943,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "bootstrap_attempt_count": {
+          "name": "bootstrap_attempt_count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "room_code": {
           "name": "room_code",
           "type": "text",
@@ -3646,6 +3653,10 @@
           "name": "ranked_matches_result_type_check",
           "value": "\"ranked_matches\".\"result_type\" IS NULL OR \"ranked_matches\".\"result_type\" IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT', 'PLATFORM_NO_CONTEST')"
         },
+        "ranked_matches_result_consistency_check": {
+          "name": "ranked_matches_result_consistency_check",
+          "value": "(\"ranked_matches\".\"rating_status\" = 'PENDING' AND \"ranked_matches\".\"winner_seat\" IS NULL AND (\"ranked_matches\".\"result_type\" IS NULL OR \"ranked_matches\".\"result_type\" = 'DISCONNECT_FORFEIT')) OR (\"ranked_matches\".\"rating_status\" = 'SETTLED' AND \"ranked_matches\".\"winner_seat\" IN ('FIRST', 'SECOND') AND \"ranked_matches\".\"result_type\" IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT')) OR (\"ranked_matches\".\"rating_status\" = 'VOIDED' AND \"ranked_matches\".\"winner_seat\" IS NULL AND \"ranked_matches\".\"result_type\" = 'PLATFORM_NO_CONTEST')"
+        },
         "ranked_matches_distinct_players_check": {
           "name": "ranked_matches_distinct_players_check",
           "value": "\"ranked_matches\".\"first_user_id\" <> \"ranked_matches\".\"second_user_id\""
@@ -4252,6 +4263,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "result_type": {
+          "name": "result_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "rated_at": {
           "name": "rated_at",
           "type": "timestamp with time zone",
@@ -4489,6 +4506,10 @@
           "name": "ranked_rating_events_winner_check",
           "value": "(\"ranked_rating_events\".\"event_type\" = 'VOID' AND \"ranked_rating_events\".\"winner_seat\" IS NULL) OR (\"ranked_rating_events\".\"event_type\" IN ('SETTLEMENT', 'REPLACEMENT') AND \"ranked_rating_events\".\"winner_seat\" IN ('FIRST', 'SECOND'))"
         },
+        "ranked_rating_events_result_type_check": {
+          "name": "ranked_rating_events_result_type_check",
+          "value": "(\"ranked_rating_events\".\"event_type\" = 'VOID' AND \"ranked_rating_events\".\"result_type\" = 'PLATFORM_NO_CONTEST') OR (\"ranked_rating_events\".\"event_type\" IN ('SETTLEMENT', 'REPLACEMENT') AND \"ranked_rating_events\".\"result_type\" IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT'))"
+        },
         "ranked_rating_events_reason_check": {
           "name": "ranked_rating_events_reason_check",
           "value": "\"ranked_rating_events\".\"event_type\" = 'SETTLEMENT' OR btrim(COALESCE(\"ranked_rating_events\".\"reason\", '')) <> ''"
@@ -4671,8 +4692,8 @@
           "name": "uq_ranked_seasons_effective_environment",
           "columns": [
             {
-              "expression": "competitive_environment_id",
-              "isExpression": false,
+              "expression": "(true)",
+              "isExpression": true,
               "asc": true,
               "nulls": "last"
             }

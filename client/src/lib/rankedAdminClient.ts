@@ -43,6 +43,7 @@ export interface RankedAdminMatch {
   ratingStatus: 'PENDING' | 'SETTLED' | 'VOIDED';
   winnerSeat: 'FIRST' | 'SECOND' | null;
   resultType: string | null;
+  priorResultType: 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | null;
   firstPlayer: { userId: string; username: string; displayName: string | null };
   secondPlayer: { userId: string; username: string; displayName: string | null };
   recordStatus: string;
@@ -82,6 +83,8 @@ export interface RankedCorrectionPreview {
   seasonId: string;
   matchId: string;
   action: 'VOID' | 'REPLACE';
+  targetEventId: string;
+  previewToken: string;
   currentLedgerRevision: number;
   projectedLedgerRevision: number;
   affectedPlayerCount: number;
@@ -159,7 +162,8 @@ export const settleRankedMatch = (matchId: string) =>
 export const previewRankedCorrection = (
   match: RankedAdminMatch,
   action: 'VOID' | 'REPLACE',
-  replacementWinnerSeat?: 'FIRST' | 'SECOND'
+  replacementWinnerSeat?: 'FIRST' | 'SECOND',
+  replacementResultType?: 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT'
 ) =>
   requireData<RankedCorrectionPreview>(
     apiClient.post(
@@ -168,6 +172,7 @@ export const previewRankedCorrection = (
         seasonId: match.seasonId,
         action,
         replacementWinnerSeat,
+        replacementResultType,
       }
     ),
     '更正预览失败'
@@ -178,17 +183,20 @@ export const executeRankedCorrection = (
   preview: RankedCorrectionPreview,
   reason: string,
   idempotencyKey: string,
-  replacementWinnerSeat?: 'FIRST' | 'SECOND'
+  replacementWinnerSeat?: 'FIRST' | 'SECOND',
+  replacementResultType?: 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT'
 ) =>
   requireData(
     apiClient.post(`/api/admin/ranked/matches/${encodeURIComponent(match.matchId)}/corrections`, {
       seasonId: match.seasonId,
       action: preview.action,
       replacementWinnerSeat,
-      replacementResultType: replacementWinnerSeat ? 'NORMAL' : undefined,
+      replacementResultType,
       reason,
       idempotencyKey,
       expectedLedgerRevision: preview.currentLedgerRevision,
+      expectedTargetEventId: preview.targetEventId,
+      previewToken: preview.previewToken,
     }),
     '执行更正失败'
   );

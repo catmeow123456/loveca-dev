@@ -19,6 +19,7 @@ CREATE TABLE "ranked_matches" (
 	CONSTRAINT "ranked_matches_rating_status_check" CHECK ("ranked_matches"."rating_status" IN ('PENDING', 'SETTLED', 'VOIDED')),
 	CONSTRAINT "ranked_matches_winner_seat_check" CHECK ("ranked_matches"."winner_seat" IS NULL OR "ranked_matches"."winner_seat" IN ('FIRST', 'SECOND')),
 	CONSTRAINT "ranked_matches_result_type_check" CHECK ("ranked_matches"."result_type" IS NULL OR "ranked_matches"."result_type" IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT', 'PLATFORM_NO_CONTEST')),
+	CONSTRAINT "ranked_matches_result_consistency_check" CHECK (("ranked_matches"."rating_status" = 'PENDING' AND "ranked_matches"."winner_seat" IS NULL AND ("ranked_matches"."result_type" IS NULL OR "ranked_matches"."result_type" = 'DISCONNECT_FORFEIT')) OR ("ranked_matches"."rating_status" = 'SETTLED' AND "ranked_matches"."winner_seat" IN ('FIRST', 'SECOND') AND "ranked_matches"."result_type" IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT')) OR ("ranked_matches"."rating_status" = 'VOIDED' AND "ranked_matches"."winner_seat" IS NULL AND "ranked_matches"."result_type" = 'PLATFORM_NO_CONTEST')),
 	CONSTRAINT "ranked_matches_distinct_players_check" CHECK ("ranked_matches"."first_user_id" <> "ranked_matches"."second_user_id"),
 	CONSTRAINT "ranked_matches_catalog_hash_check" CHECK ("ranked_matches"."card_catalog_hash" LIKE 'sha256:%')
 );
@@ -92,6 +93,7 @@ CREATE TABLE "ranked_rating_events" (
 	"first_user_id" uuid NOT NULL,
 	"second_user_id" uuid NOT NULL,
 	"winner_seat" text,
+	"result_type" text NOT NULL,
 	"rated_at" timestamp with time zone NOT NULL,
 	"algorithm_version" text NOT NULL,
 	"reason" text,
@@ -100,6 +102,7 @@ CREATE TABLE "ranked_rating_events" (
 	CONSTRAINT "ranked_rating_events_type_check" CHECK ("ranked_rating_events"."event_type" IN ('SETTLEMENT', 'VOID', 'REPLACEMENT')),
 	CONSTRAINT "ranked_rating_events_target_check" CHECK (("ranked_rating_events"."event_type" = 'SETTLEMENT' AND "ranked_rating_events"."target_event_id" IS NULL) OR ("ranked_rating_events"."event_type" IN ('VOID', 'REPLACEMENT') AND "ranked_rating_events"."target_event_id" IS NOT NULL)),
 	CONSTRAINT "ranked_rating_events_winner_check" CHECK (("ranked_rating_events"."event_type" = 'VOID' AND "ranked_rating_events"."winner_seat" IS NULL) OR ("ranked_rating_events"."event_type" IN ('SETTLEMENT', 'REPLACEMENT') AND "ranked_rating_events"."winner_seat" IN ('FIRST', 'SECOND'))),
+	CONSTRAINT "ranked_rating_events_result_type_check" CHECK (("ranked_rating_events"."event_type" = 'VOID' AND "ranked_rating_events"."result_type" = 'PLATFORM_NO_CONTEST') OR ("ranked_rating_events"."event_type" IN ('SETTLEMENT', 'REPLACEMENT') AND "ranked_rating_events"."result_type" IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT'))),
 	CONSTRAINT "ranked_rating_events_reason_check" CHECK ("ranked_rating_events"."event_type" = 'SETTLEMENT' OR btrim(COALESCE("ranked_rating_events"."reason", '')) <> ''),
 	CONSTRAINT "ranked_rating_events_distinct_players_check" CHECK ("ranked_rating_events"."first_user_id" <> "ranked_rating_events"."second_user_id"),
 	CONSTRAINT "ranked_rating_events_sequence_check" CHECK ("ranked_rating_events"."event_sequence" > 0),
@@ -146,6 +149,7 @@ ALTER TABLE "gameplay_participations" DROP CONSTRAINT "gameplay_participations_k
 ALTER TABLE "match_records" DROP CONSTRAINT "match_records_origin_kind_check";--> statement-breakpoint
 ALTER TABLE "public_table_reservations" ADD COLUMN "queue_kind" text DEFAULT 'CASUAL' NOT NULL;--> statement-breakpoint
 ALTER TABLE "public_table_reservations" ADD COLUMN "season_id" uuid;--> statement-breakpoint
+ALTER TABLE "public_table_reservations" ADD COLUMN "bootstrap_attempt_count" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "public_table_tickets" ADD COLUMN "queue_kind" text DEFAULT 'CASUAL' NOT NULL;--> statement-breakpoint
 ALTER TABLE "public_table_tickets" ADD COLUMN "season_id" uuid;--> statement-breakpoint
 ALTER TABLE "ranked_matches" ADD CONSTRAINT "ranked_matches_match_id_match_records_match_id_fk" FOREIGN KEY ("match_id") REFERENCES "public"."match_records"("match_id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -181,7 +185,7 @@ CREATE UNIQUE INDEX "uq_ranked_rating_events_season_idempotency" ON "ranked_rati
 CREATE UNIQUE INDEX "uq_ranked_rating_events_initial_settlement" ON "ranked_rating_events" USING btree ("season_id","match_id") WHERE "ranked_rating_events"."event_type" = 'SETTLEMENT';--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_ranked_rating_events_correction_target" ON "ranked_rating_events" USING btree ("target_event_id") WHERE "ranked_rating_events"."target_event_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_ranked_rating_events_match" ON "ranked_rating_events" USING btree ("season_id","match_id","event_sequence");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_ranked_seasons_effective_environment" ON "ranked_seasons" USING btree ("competitive_environment_id") WHERE "ranked_seasons"."lifecycle" IN ('ACTIVE', 'FINALIZING');--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_ranked_seasons_effective_environment" ON "ranked_seasons" USING btree ((true)) WHERE "ranked_seasons"."lifecycle" IN ('ACTIVE', 'FINALIZING');--> statement-breakpoint
 CREATE INDEX "idx_ranked_seasons_lifecycle" ON "ranked_seasons" USING btree ("lifecycle","starts_at");--> statement-breakpoint
 ALTER TABLE "public_table_reservations" ADD CONSTRAINT "public_table_reservations_season_id_ranked_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."ranked_seasons"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "public_table_tickets" ADD CONSTRAINT "public_table_tickets_season_id_ranked_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."ranked_seasons"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint

@@ -296,7 +296,7 @@ describe('onlineRouter error handling', () => {
     });
   });
 
-  it('public-events 二次读取返回空时按对局不存在处理', async () => {
+  it('public-events 二次读取返回空时仍先登记活动再按对局不存在处理', async () => {
     vi.spyOn(onlineMatchService, 'getMatch').mockReturnValue({ matchId: 'm1' } as never);
     vi.spyOn(onlineMatchService, 'getMatchPublicEvents').mockResolvedValue(null);
 
@@ -313,7 +313,7 @@ describe('onlineRouter error handling', () => {
         message: '联机对局不存在或已失效',
       },
     });
-    expect(onlineRoomService.touchInGameMemberByMatch).not.toHaveBeenCalled();
+    expect(onlineRoomService.touchInGameMemberByMatch).toHaveBeenCalledWith('m1', 'u1');
   });
 
   it('match advance 内部抛错时应返回统一 500 错误', async () => {

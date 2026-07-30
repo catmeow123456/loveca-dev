@@ -80,14 +80,17 @@ lifecycle == ACTIVE
 更正分为两个明确步骤：
 
 1. 预览接口读取当前 `ledgerRevision`，构造未落库的 `VOID` 或
-   `REPLACEMENT`，确定性重放整个赛季，并返回受影响玩家的 rating、RD、场次差异。
+   `REPLACEMENT`，确定性重放整个赛季，并返回受影响玩家的 rating、RD、场次差异、
+   当前目标事件和服务端签名的预览令牌。
 2. 执行接口必须携带预览返回的 `currentLedgerRevision` 作为
-   `expectedLedgerRevision`，并提供原因和稳定幂等键。
+   `expectedLedgerRevision`，同时原样提交 `expectedTargetEventId`、`previewToken`、
+   动作、替代胜方、替代结果类型，并提供原因和稳定幂等键。
 
 若预览后有任何新结算或其他更正推进了流水版本，执行会返回
-`RANKED_CORRECTION_PREVIEW_STALE`，要求管理员重新预览。相同幂等键的成功请求可
-安全重试；若同一幂等键被用于不同对局、动作、胜方或原因，服务端返回冲突。执行仍
-只追加 `VOID / REPLACEMENT` 事件并重建派生投影，不修改或删除历史流水。
+`RANKED_CORRECTION_PREVIEW_STALE`，要求管理员重新预览；目标事件、动作、胜方或结果
+类型与签名预览不一致时同样拒绝执行。相同幂等键的成功请求可安全重试；若同一幂等键
+被用于不同对局、动作、胜方、结果类型或原因，服务端返回冲突。执行仍只追加
+`VOID / REPLACEMENT` 事件并重建派生投影，不修改或删除历史流水。
 
 赛季状态变化、候场开关、结算重试和更正执行都会写结构化
 `ranked_admin` 应用日志；评分更正还在不可变事件中保存管理员、原因和幂等键。

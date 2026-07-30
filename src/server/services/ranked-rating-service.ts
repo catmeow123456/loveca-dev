@@ -13,6 +13,7 @@ import {
   type RankedRatingEvent,
   type RankedRatingEventType,
   type RankedRatingMaterializationStep,
+  type RankedResultType,
   type RankedWinnerSeat,
 } from '../rating/ranked-ledger.js';
 import { stableJsonStringify } from './replay-payload-serialization.js';
@@ -66,6 +67,7 @@ export interface CorrectRankedMatchInput {
   readonly action: 'VOID' | 'REPLACE';
   readonly replacementWinnerSeat?: RankedWinnerSeat;
   readonly replacementResultType?: 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT';
+  readonly expectedTargetEventId: string;
   readonly reason: string;
   readonly adminUserId: string;
   readonly idempotencyKey: string;
@@ -156,6 +158,7 @@ interface RatingEventRow {
   readonly first_user_id: string;
   readonly second_user_id: string;
   readonly winner_seat: RankedWinnerSeat | null;
+  readonly result_type: RankedResultType;
   readonly rated_at: Date | string;
   readonly algorithm_version: string;
 }
@@ -166,6 +169,7 @@ interface ExistingEventRow {
   readonly match_id: string;
   readonly event_sequence: number;
   readonly winner_seat: RankedWinnerSeat | null;
+  readonly result_type: RankedResultType;
   readonly reason: string | null;
 }
 
@@ -252,6 +256,26 @@ export class RankedRatingService {
     });
   }
 
+  async unregisterPendingMatch(matchId: string): Promise<void> {
+    return this.transaction(async (client) => {
+      const result = await client.query(
+        `DELETE FROM ranked_matches AS ranked_match
+         WHERE ranked_match.match_id = $1
+           AND ranked_match.rating_status = 'PENDING'
+           AND NOT EXISTS (
+             SELECT 1
+             FROM ranked_rating_events AS event
+             WHERE event.match_id = ranked_match.match_id
+           )
+         RETURNING ranked_match.match_id`,
+        [matchId]
+      );
+      if ((result.rowCount ?? 0) !== 1) {
+        throw serviceError('RANKED_MATCH_UNREGISTER_CONFLICT', '排位对局已经进入不可回滚状态', 409);
+      }
+    });
+  }
+
   async settleMatch(
     matchId: string,
     expectedConfig?: Glicko1Config
@@ -284,6 +308,7 @@ export class RankedRatingService {
 
       const ratedAt = requireDate(context.ended_at, 'RANKED_MATCH_ENDED_AT_REQUIRED');
       const winnerSeat = requireWinnerSeat(context.winner_seat);
+      const resultType = mapResultType(context);
       const revision = context.ledger_revision + 1;
       const eventId = this.createId();
       const event: RankedRatingEvent = {
@@ -295,6 +320,7 @@ export class RankedRatingService {
         firstUserId: context.first_user_id,
         secondUserId: context.second_user_id,
         winnerSeat,
+        resultType,
         ratedAt,
         algorithmVersion: config.algorithmVersion,
       };
@@ -327,7 +353,7 @@ export class RankedRatingService {
           client,
           matchId,
           winnerSeat,
-          mapResultType(context),
+          resultType,
           ratedAt,
           context.used_free
         );
@@ -398,7 +424,7 @@ export class RankedRatingService {
         client,
         matchId,
         winnerSeat,
-        mapResultType(context),
+        resultType,
         ratedAt,
         context.used_free
       );
@@ -444,10 +470,13 @@ export class RankedRatingService {
           input.action === 'VOID' ? 'VOID' : 'REPLACEMENT';
         const expectedWinnerSeat =
           input.action === 'VOID' ? null : (input.replacementWinnerSeat ?? null);
+        const expectedResultType =
+          input.action === 'VOID' ? 'PLATFORM_NO_CONTEST' : input.replacementResultType;
         if (
           existing.match_id !== input.matchId ||
           existing.event_type !== expectedEventType ||
           existing.winner_seat !== expectedWinnerSeat ||
+          existing.result_type !== expectedResultType ||
           existing.reason !== input.reason.trim()
         ) {
           throw serviceError(
@@ -475,11 +504,18 @@ export class RankedRatingService {
         );
       }
 
-      const match = await lockCorrectionMatch(client, input.seasonId, input.matchId);
+      await lockCorrectionMatch(client, input.seasonId, input.matchId);
       const existingEvents = await loadRatingEvents(client, input.seasonId);
       const latest = [...existingEvents].reverse().find((event) => event.matchId === input.matchId);
       if (!latest) {
         throw serviceError('RANKED_CORRECTION_TARGET_NOT_FOUND', '找不到可以更正的排位结算', 404);
+      }
+      if (latest.eventId !== input.expectedTargetEventId) {
+        throw serviceError(
+          'RANKED_CORRECTION_PREVIEW_STALE',
+          '更正目标已在预览后发生变化，请重新预览',
+          409
+        );
       }
 
       const revision = season.ledger_revision + 1;
@@ -494,6 +530,7 @@ export class RankedRatingService {
         firstUserId: latest.firstUserId,
         secondUserId: latest.secondUserId,
         winnerSeat: input.action === 'VOID' ? null : input.replacementWinnerSeat!,
+        resultType: input.action === 'VOID' ? 'PLATFORM_NO_CONTEST' : input.replacementResultType!,
         ratedAt: latest.ratedAt,
         algorithmVersion: config.algorithmVersion,
       };
@@ -528,9 +565,7 @@ export class RankedRatingService {
           input.seasonId,
           input.action === 'VOID' ? 'VOIDED' : 'SETTLED',
           input.action === 'VOID' ? null : input.replacementWinnerSeat,
-          input.action === 'VOID'
-            ? 'PLATFORM_NO_CONTEST'
-            : (input.replacementResultType ?? match.result_type ?? 'NORMAL'),
+          input.action === 'VOID' ? 'PLATFORM_NO_CONTEST' : input.replacementResultType,
           input.matchId,
         ]
       );
@@ -849,12 +884,13 @@ async function insertRatingEvent(
        first_user_id,
        second_user_id,
        winner_seat,
+       result_type,
        rated_at,
        algorithm_version,
        reason,
        created_by
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
     [
       event.eventId,
       metadata.seasonId,
@@ -866,6 +902,7 @@ async function insertRatingEvent(
       event.firstUserId,
       event.secondUserId,
       event.winnerSeat,
+      event.resultType,
       event.ratedAt,
       event.algorithmVersion,
       metadata.reason,
@@ -1032,7 +1069,7 @@ async function loadInitialSettlementEvent(
   matchId: string
 ): Promise<ExistingEventRow> {
   const result = await client.query<ExistingEventRow>(
-    `SELECT id, event_type, match_id, event_sequence, winner_seat, reason
+    `SELECT id, event_type, match_id, event_sequence, winner_seat, result_type, reason
      FROM ranked_rating_events
      WHERE season_id = $1
        AND match_id = $2
@@ -1086,7 +1123,7 @@ async function findEventByIdempotencyKey(
   idempotencyKey: string
 ): Promise<ExistingEventRow | null> {
   const result = await client.query<ExistingEventRow>(
-    `SELECT id, event_type, match_id, event_sequence, winner_seat, reason
+    `SELECT id, event_type, match_id, event_sequence, winner_seat, result_type, reason
      FROM ranked_rating_events
      WHERE season_id = $1
        AND idempotency_key = $2`,
@@ -1129,6 +1166,7 @@ async function loadRatingEvents(
        first_user_id,
        second_user_id,
        winner_seat,
+       result_type,
        rated_at,
        algorithm_version
      FROM ranked_rating_events
@@ -1145,6 +1183,7 @@ async function loadRatingEvents(
     firstUserId: row.first_user_id,
     secondUserId: row.second_user_id,
     winnerSeat: row.winner_seat,
+    resultType: row.result_type,
     ratedAt: new Date(row.rated_at),
     algorithmVersion: row.algorithm_version,
   }));
@@ -1229,6 +1268,17 @@ function validateCorrectionInput(input: CorrectRankedMatchInput): void {
   ) {
     throw serviceError('RANKED_REPLACEMENT_WINNER_REQUIRED', '替代结算必须指定胜者');
   }
+  if (
+    input.action === 'REPLACE' &&
+    input.replacementResultType !== 'NORMAL' &&
+    input.replacementResultType !== 'SURRENDER' &&
+    input.replacementResultType !== 'DISCONNECT_FORFEIT'
+  ) {
+    throw serviceError('RANKED_REPLACEMENT_RESULT_TYPE_REQUIRED', '替代结算必须指定合法结果类型');
+  }
+  if (input.expectedTargetEventId.trim().length === 0) {
+    throw serviceError('RANKED_CORRECTION_TARGET_REQUIRED', '更正必须绑定预览目标');
+  }
 }
 
 function requireWinnerSeat(value: string | null): RankedWinnerSeat {
@@ -1267,18 +1317,37 @@ function serviceError(code: string, message: string, statusCode = 400): RankedRa
 async function withSerializableTransaction<T>(
   callback: (client: RankedRatingQueryClient) => Promise<T>
 ): Promise<T> {
-  const client: PoolClient = await pool.connect();
-  try {
-    await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
+  for (let attempt = 1; ; attempt += 1) {
+    const client: PoolClient = await pool.connect();
+    try {
+      await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (!isRetryableTransactionError(error) || attempt >= 3) {
+        throw error;
+      }
+      await waitForTransactionRetry(attempt);
+    } finally {
+      client.release();
+    }
   }
+}
+
+function isRetryableTransactionError(error: unknown): boolean {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? (error as { readonly code?: unknown }).code
+      : null;
+  return code === '40001' || code === '40P01';
+}
+
+async function waitForTransactionRetry(attempt: number): Promise<void> {
+  await new Promise((resolve) =>
+    setTimeout(resolve, attempt * 10 + Math.floor(Math.random() * 10))
+  );
 }
 
 export const rankedRatingService = new RankedRatingService();

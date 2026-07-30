@@ -32,7 +32,10 @@ async function cleanupExpiredRuntimeState() {
   try {
     const summary = await onlineRoomService.cleanupExpiredRuntimeState();
     const publicTableSummary = await publicTableService.cleanupExpiredState();
-    const rankedSummary = await rankedRuntimeService.cleanup();
+    const rankedSummary = await rankedRuntimeService.cleanup({
+      terminateRuntimeMatch: (matchId, now, reason) =>
+        onlineRoomService.terminateRankedMatchForNoContest(matchId, reason, now.getTime()),
+    });
     console.log(
       JSON.stringify({
         event: 'api-runtime-cleanup',

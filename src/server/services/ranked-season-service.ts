@@ -898,18 +898,37 @@ function seasonError(code: string, message: string, statusCode = 400): RankedSea
 async function withSerializableTransaction<T>(
   callback: (client: RankedSeasonQueryClient) => Promise<T>
 ): Promise<T> {
-  const client: PoolClient = await pool.connect();
-  try {
-    await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
-    const result = await callback(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  } finally {
-    client.release();
+  for (let attempt = 1; ; attempt += 1) {
+    const client: PoolClient = await pool.connect();
+    try {
+      await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
+      const result = await callback(client);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (!isRetryableTransactionError(error) || attempt >= 3) {
+        throw error;
+      }
+      await waitForTransactionRetry(attempt);
+    } finally {
+      client.release();
+    }
   }
+}
+
+function isRetryableTransactionError(error: unknown): boolean {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? (error as { readonly code?: unknown }).code
+      : null;
+  return code === '40001' || code === '40P01';
+}
+
+async function waitForTransactionRetry(attempt: number): Promise<void> {
+  await new Promise((resolve) =>
+    setTimeout(resolve, attempt * 10 + Math.floor(Math.random() * 10))
+  );
 }
 
 export const rankedSeasonService = new RankedSeasonService();

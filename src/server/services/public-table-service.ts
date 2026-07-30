@@ -27,6 +27,8 @@ const ENVIRONMENT_ID = 'PUBLIC_TABLE_V1';
 const HEARTBEAT_GRACE_MS = 45_000;
 const CONFIRMATION_TTL_MS = 60_000;
 const OPENING_TTL_MS = 3 * 60_000;
+const BOOTSTRAP_LEASE_MS = 30_000;
+const MAX_BOOTSTRAP_ATTEMPTS = 3;
 
 export interface MatchmakingQueueContext {
   readonly queueKind: 'CASUAL' | 'RANKED';
@@ -354,6 +356,7 @@ export class PublicTableService {
     const client = await pool.connect();
     let reservationId: string | null = null;
     let shouldBootstrap = false;
+    let bootstrapLeaseUntil: Date | null = null;
     try {
       await client.query('BEGIN');
       const result = await client.query<{
@@ -428,13 +431,15 @@ export class PublicTableService {
         reservation.first_confirmed_at !== null &&
         reservation.second_confirmed_at !== null;
       if (shouldBootstrap) {
+        bootstrapLeaseUntil = new Date(this.now() + BOOTSTRAP_LEASE_MS);
         await client.query(
           `UPDATE public_table_reservations
            SET state = 'CREATING_ROOM',
                bootstrap_lease_until = $2,
+               bootstrap_attempt_count = 1,
                updated_at = NOW()
            WHERE id = $1`,
-          [row.reservation_id, new Date(this.now() + 30_000)]
+          [row.reservation_id, bootstrapLeaseUntil]
         );
       }
       logPublicTableLifecycleEvent({
@@ -452,8 +457,8 @@ export class PublicTableService {
       client.release();
     }
 
-    if (shouldBootstrap && reservationId) {
-      await this.bootstrapRoom(reservationId);
+    if (shouldBootstrap && reservationId && bootstrapLeaseUntil) {
+      await this.bootstrapRoom(reservationId, bootstrapLeaseUntil);
     }
     return this.getStatus(userId, context);
   }
@@ -559,10 +564,13 @@ export class PublicTableService {
   async cleanupExpiredState(): Promise<{
     expiredWaitingTickets: number;
     releasedReservations: number;
+    recoveredCreatingReservations: number;
   }> {
     const client = await pool.connect();
     let expiredWaitingTickets = 0;
     let releasedReservations = 0;
+    let recoveredCreatingReservations = 0;
+    const bootstrapRecoveries: { readonly id: string; readonly leaseUntil: Date }[] = [];
     const now = this.now();
     try {
       await client.query('BEGIN');
@@ -631,6 +639,66 @@ export class PublicTableService {
         releasedReservations += 1;
       }
 
+      const creatingReservations = await client.query<{
+        id: string;
+        first_ticket_id: string;
+        second_ticket_id: string;
+        bootstrap_attempt_count: number;
+      }>(
+        `SELECT
+           id,
+           first_ticket_id,
+           second_ticket_id,
+           bootstrap_attempt_count
+         FROM public_table_reservations
+         WHERE state = 'CREATING_ROOM'
+           AND bootstrap_lease_until <= $1
+         ORDER BY bootstrap_lease_until
+         FOR UPDATE SKIP LOCKED
+         LIMIT 100`,
+        [new Date(now)]
+      );
+      for (const reservation of creatingReservations.rows) {
+        if (reservation.bootstrap_attempt_count >= MAX_BOOTSTRAP_ATTEMPTS) {
+          await client.query(
+            `UPDATE public_table_reservations
+             SET state = 'RELEASED',
+                 bootstrap_lease_until = NULL,
+                 failure_reason = 'ROOM_BOOTSTRAP_RETRY_EXHAUSTED',
+                 updated_at = $2
+             WHERE id = $1
+               AND state = 'CREATING_ROOM'`,
+            [reservation.id, new Date(now)]
+          );
+          await expireOrRestoreTimedOutTicket(client, reservation.first_ticket_id, false, now);
+          await expireOrRestoreTimedOutTicket(client, reservation.second_ticket_id, false, now);
+          releasedReservations += 1;
+          logPublicTableLifecycleEvent({
+            eventType: 'RESERVATION_RELEASED',
+            eventKey: `${reservation.id}:ROOM_BOOTSTRAP_RETRY_EXHAUSTED`,
+            reservationId: reservation.id,
+            detail: { reason: 'ROOM_BOOTSTRAP_RETRY_EXHAUSTED' },
+          });
+          continue;
+        }
+        const leaseUntil = new Date(now + BOOTSTRAP_LEASE_MS);
+        const claimed = await client.query<{ bootstrap_lease_until: Date }>(
+          `UPDATE public_table_reservations
+           SET bootstrap_lease_until = $2,
+               bootstrap_attempt_count = bootstrap_attempt_count + 1,
+               updated_at = $1
+           WHERE id = $3
+             AND state = 'CREATING_ROOM'
+             AND bootstrap_lease_until <= $1
+           RETURNING bootstrap_lease_until`,
+          [new Date(now), leaseUntil, reservation.id]
+        );
+        const claimedLease = claimed.rows[0]?.bootstrap_lease_until;
+        if (claimedLease) {
+          bootstrapRecoveries.push({ id: reservation.id, leaseUntil: claimedLease });
+        }
+      }
+
       const matchedReservations = await client.query<{
         id: string;
         room_generation: string;
@@ -684,13 +752,29 @@ export class PublicTableService {
       client.release();
     }
 
+    for (const recovery of bootstrapRecoveries) {
+      try {
+        await this.bootstrapRoom(recovery.id, recovery.leaseUntil);
+        recoveredCreatingReservations += 1;
+      } catch (error) {
+        console.error(
+          JSON.stringify({
+            scope: 'public_table',
+            event: 'ROOM_BOOTSTRAP_RECOVERY_DEFERRED',
+            reservationId: recovery.id,
+            message: readErrorMessage(error),
+          })
+        );
+      }
+    }
     await this.tryMatch();
-    return { expiredWaitingTickets, releasedReservations };
+    return { expiredWaitingTickets, releasedReservations, recoveredCreatingReservations };
   }
 
-  private async bootstrapRoom(reservationId: string): Promise<void> {
+  private async bootstrapRoom(reservationId: string, expectedLeaseUntil: Date): Promise<void> {
     const result = await pool.query<{
       state: string;
+      bootstrap_lease_until: Date;
       queue_kind: 'CASUAL' | 'RANKED';
       season_id: string | null;
       first_ticket_id: string;
@@ -708,6 +792,7 @@ export class PublicTableService {
     }>(
       `SELECT
          reservation.state,
+         reservation.bootstrap_lease_until,
          reservation.queue_kind,
          reservation.season_id,
          reservation.first_ticket_id,
@@ -729,7 +814,11 @@ export class PublicTableService {
       [reservationId]
     );
     const row = result.rows[0];
-    if (!row || row.state !== 'CREATING_ROOM') {
+    if (
+      !row ||
+      row.state !== 'CREATING_ROOM' ||
+      new Date(row.bootstrap_lease_until).getTime() !== expectedLeaseUntil.getTime()
+    ) {
       return;
     }
     const [firstProfile, secondProfile] = await Promise.all([
@@ -770,11 +859,17 @@ export class PublicTableService {
              updated_at = NOW()
          WHERE id = $1
            AND state = 'CREATING_ROOM'
+           AND bootstrap_lease_until = $4
          RETURNING id`,
-        [reservationId, room.roomCode, room.roomGeneration]
+        [reservationId, room.roomCode, room.roomGeneration, expectedLeaseUntil]
       );
       if (bound.rowCount !== 1) {
         await client.query('ROLLBACK');
+        this.roomService.discardPublicTableRoom(
+          reservationId,
+          room.roomGeneration,
+          'STALE_BOOTSTRAP_LEASE'
+        );
         return;
       }
       await client.query(
@@ -809,6 +904,11 @@ export class PublicTableService {
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
+      this.roomService.discardPublicTableRoom(
+        reservationId,
+        room.roomGeneration,
+        'BOOTSTRAP_BIND_FAILED'
+      );
       throw error;
     } finally {
       client.release();
@@ -1024,6 +1124,10 @@ function isUniqueViolation(error: unknown): boolean {
     'code' in error &&
     (error as { code?: unknown }).code === '23505'
   );
+}
+
+function readErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export const publicTableService = new PublicTableService();

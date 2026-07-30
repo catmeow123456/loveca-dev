@@ -472,6 +472,7 @@ export const publicTableReservations = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     bootstrapLeaseUntil: timestamp('bootstrap_lease_until', { withTimezone: true }),
+    bootstrapAttemptCount: integer('bootstrap_attempt_count').notNull().default(0),
     roomCode: text('room_code'),
     roomGeneration: text('room_generation').unique(),
     matchId: text('match_id'),
@@ -964,7 +965,7 @@ export const rankedSeasons = pgTable(
   },
   (table) => [
     uniqueIndex('uq_ranked_seasons_effective_environment')
-      .on(table.competitiveEnvironmentId)
+      .on(sql`(true)`)
       .where(sql`${table.lifecycle} IN ('ACTIVE', 'FINALIZING')`),
     index('idx_ranked_seasons_lifecycle').on(table.lifecycle, table.startsAt),
     check(
@@ -1037,6 +1038,10 @@ export const rankedMatches = pgTable(
     check(
       'ranked_matches_result_type_check',
       sql`${table.resultType} IS NULL OR ${table.resultType} IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT', 'PLATFORM_NO_CONTEST')`
+    ),
+    check(
+      'ranked_matches_result_consistency_check',
+      sql`(${table.ratingStatus} = 'PENDING' AND ${table.winnerSeat} IS NULL AND (${table.resultType} IS NULL OR ${table.resultType} = 'DISCONNECT_FORFEIT')) OR (${table.ratingStatus} = 'SETTLED' AND ${table.winnerSeat} IN ('FIRST', 'SECOND') AND ${table.resultType} IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT')) OR (${table.ratingStatus} = 'VOIDED' AND ${table.winnerSeat} IS NULL AND ${table.resultType} = 'PLATFORM_NO_CONTEST')`
     ),
     check(
       'ranked_matches_distinct_players_check',
@@ -1124,6 +1129,7 @@ export const rankedRatingEvents = pgTable(
       .notNull()
       .references(() => profiles.id, { onDelete: 'restrict' }),
     winnerSeat: text('winner_seat').$type<'FIRST' | 'SECOND'>(),
+    resultType: text('result_type').$type<RankedMatchResultType>().notNull(),
     ratedAt: timestamp('rated_at', { withTimezone: true }).notNull(),
     algorithmVersion: text('algorithm_version').notNull(),
     reason: text('reason'),
@@ -1154,6 +1160,10 @@ export const rankedRatingEvents = pgTable(
     check(
       'ranked_rating_events_winner_check',
       sql`(${table.eventType} = 'VOID' AND ${table.winnerSeat} IS NULL) OR (${table.eventType} IN ('SETTLEMENT', 'REPLACEMENT') AND ${table.winnerSeat} IN ('FIRST', 'SECOND'))`
+    ),
+    check(
+      'ranked_rating_events_result_type_check',
+      sql`(${table.eventType} = 'VOID' AND ${table.resultType} = 'PLATFORM_NO_CONTEST') OR (${table.eventType} IN ('SETTLEMENT', 'REPLACEMENT') AND ${table.resultType} IN ('NORMAL', 'SURRENDER', 'DISCONNECT_FORFEIT'))`
     ),
     check(
       'ranked_rating_events_reason_check',

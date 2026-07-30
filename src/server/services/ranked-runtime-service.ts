@@ -23,6 +23,14 @@ export interface RankedRuntimeCleanupSummary {
   readonly voidedExpiredMatches: number;
 }
 
+export interface RankedRuntimeCleanupOptions {
+  readonly terminateRuntimeMatch?: (
+    matchId: string,
+    now: Date,
+    reason: 'RANKED_FINALIZING_DEADLINE_EXCEEDED'
+  ) => Promise<boolean>;
+}
+
 export class RankedRuntimeService {
   private readonly now: () => Date;
 
@@ -30,11 +38,11 @@ export class RankedRuntimeService {
     this.now = options.now ?? (() => new Date());
   }
 
-  async cleanup(): Promise<RankedRuntimeCleanupSummary> {
+  async cleanup(options: RankedRuntimeCleanupOptions = {}): Promise<RankedRuntimeCleanupSummary> {
     const seasonsEnteredFinalizing = await this.transitionEndedSeasons();
     const expiredWaitingTickets = await this.expireClosedWaitingQueues();
-    const settlement = await this.retryPendingSettlements();
-    const voidedExpiredMatches = await this.voidExpiredPendingMatches();
+    const settlement = await this.drainPendingSettlements();
+    const voidedExpiredMatches = await this.voidExpiredPendingMatches(options);
     return {
       seasonsEnteredFinalizing,
       expiredWaitingTickets,
@@ -154,24 +162,94 @@ export class RankedRuntimeService {
     };
   }
 
-  async voidExpiredPendingMatches(): Promise<number> {
-    const result = await pool.query<{ readonly match_id: string; readonly season_id: string }>(
-      `UPDATE ranked_matches AS ranked_match
-       SET rating_status = 'VOIDED',
-           winner_seat = NULL,
-           result_type = 'PLATFORM_NO_CONTEST',
-           ended_at = COALESCE(ranked_match.ended_at, $1),
-           settled_at = $1,
-           updated_at = $1
-       FROM ranked_seasons AS season
-       WHERE season.id = ranked_match.season_id
-         AND season.lifecycle = 'FINALIZING'
+  async drainPendingSettlements(): Promise<{
+    readonly settlementCandidates: number;
+    readonly settledMatches: number;
+    readonly deferredSettlements: number;
+  }> {
+    let settlementCandidates = 0;
+    let settledMatches = 0;
+    let deferredSettlements = 0;
+    while (true) {
+      const batch = await this.retryPendingSettlements();
+      settlementCandidates += batch.settlementCandidates;
+      settledMatches += batch.settledMatches;
+      deferredSettlements += batch.deferredSettlements;
+      if (batch.settlementCandidates < 50 || batch.settledMatches === 0) {
+        break;
+      }
+    }
+    return { settlementCandidates, settledMatches, deferredSettlements };
+  }
+
+  async voidExpiredPendingMatches(options: RankedRuntimeCleanupOptions = {}): Promise<number> {
+    const now = this.now();
+    const candidates = await pool.query<{
+      readonly match_id: string;
+      readonly season_id: string;
+      readonly record_status: string;
+    }>(
+      `SELECT
+         ranked_match.match_id,
+         ranked_match.season_id,
+         record.status AS record_status
+       FROM ranked_matches AS ranked_match
+       JOIN ranked_seasons AS season ON season.id = ranked_match.season_id
+       JOIN match_records AS record ON record.match_id = ranked_match.match_id
+       WHERE season.lifecycle = 'FINALIZING'
          AND season.finalizing_deadline_at <= $1
          AND ranked_match.rating_status = 'PENDING'
-       RETURNING ranked_match.match_id, ranked_match.season_id`,
-      [this.now()]
+         AND NOT (
+           record.completeness = 'FULL'
+           AND record.status IN ('COMPLETED', 'SURRENDERED')
+           AND record.sealed_at IS NOT NULL
+           AND record.ended_at IS NOT NULL
+           AND record.winner_seat IN ('FIRST', 'SECOND')
+         )
+       ORDER BY ranked_match.match_id
+       LIMIT 100
+       FOR UPDATE OF ranked_match SKIP LOCKED`,
+      [now]
     );
-    for (const row of result.rows) {
+    let voidedCount = 0;
+    for (const row of candidates.rows) {
+      if (row.record_status === 'IN_PROGRESS') {
+        const terminated = await options.terminateRuntimeMatch?.(
+          row.match_id,
+          now,
+          'RANKED_FINALIZING_DEADLINE_EXCEEDED'
+        );
+        if (!terminated) {
+          continue;
+        }
+      }
+      const result = await pool.query<{ readonly match_id: string; readonly season_id: string }>(
+        `UPDATE ranked_matches AS ranked_match
+         SET rating_status = 'VOIDED',
+             winner_seat = NULL,
+             result_type = 'PLATFORM_NO_CONTEST',
+             ended_at = COALESCE(ranked_match.ended_at, $2),
+             settled_at = $2,
+             updated_at = $2
+         WHERE ranked_match.match_id = $1
+           AND ranked_match.rating_status = 'PENDING'
+           AND NOT EXISTS (
+             SELECT 1
+             FROM match_records AS record
+             WHERE record.match_id = ranked_match.match_id
+               AND record.completeness = 'FULL'
+               AND record.status IN ('COMPLETED', 'SURRENDERED')
+               AND record.sealed_at IS NOT NULL
+               AND record.ended_at IS NOT NULL
+               AND record.winner_seat IN ('FIRST', 'SECOND')
+           )
+         RETURNING ranked_match.match_id, ranked_match.season_id`,
+        [row.match_id, now]
+      );
+      if ((result.rowCount ?? 0) === 0) {
+        continue;
+      }
+      voidedCount += 1;
       console.warn(
         JSON.stringify({
           scope: 'ranked_settlement',
@@ -182,7 +260,7 @@ export class RankedRuntimeService {
         })
       );
     }
-    return result.rowCount ?? 0;
+    return voidedCount;
   }
 }
 

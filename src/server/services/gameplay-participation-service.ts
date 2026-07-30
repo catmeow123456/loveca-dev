@@ -18,6 +18,11 @@ export interface GameplayParticipationPort {
     roomGeneration: string,
     matchId: string
   ): Promise<void>;
+  restoreOnlineRoom?(
+    userIds: readonly string[],
+    roomGeneration: string,
+    matchId: string
+  ): Promise<void>;
   releaseOnlineRoom(userIds: readonly string[], roomGeneration: string): Promise<void>;
 }
 
@@ -54,6 +59,27 @@ export class GameplayParticipationService implements GameplayParticipationPort {
        WHERE user_id = ANY($1::uuid[])
          AND kind = 'ONLINE_ROOM'
          AND room_generation = $2`,
+      [userIds, roomGeneration, matchId]
+    );
+  }
+
+  async restoreOnlineRoom(
+    userIds: readonly string[],
+    roomGeneration: string,
+    matchId: string
+  ): Promise<void> {
+    if (userIds.length === 0) {
+      return;
+    }
+    await pool.query(
+      `UPDATE gameplay_participations
+       SET kind = 'ONLINE_ROOM',
+           match_id = NULL,
+           updated_at = NOW()
+       WHERE user_id = ANY($1::uuid[])
+         AND room_generation = $2
+         AND kind = 'ONLINE_MATCH'
+         AND match_id = $3`,
       [userIds, roomGeneration, matchId]
     );
   }

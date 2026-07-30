@@ -240,6 +240,8 @@ describe('rankedAdminRouter', () => {
         reason: '裁定原胜方记录错误',
         idempotencyKey: 'correction-match-1-001',
         expectedLedgerRevision: 7,
+        expectedTargetEventId: '33333333-3333-4333-8333-333333333333',
+        previewToken: 'a'.repeat(43),
       },
     });
 
@@ -253,6 +255,8 @@ describe('rankedAdminRouter', () => {
       reason: '裁定原胜方记录错误',
       idempotencyKey: 'correction-match-1-001',
       expectedLedgerRevision: 7,
+      expectedTargetEventId: '33333333-3333-4333-8333-333333333333',
+      previewToken: 'a'.repeat(43),
       adminUserId: '22222222-2222-4222-8222-222222222222',
     });
   });

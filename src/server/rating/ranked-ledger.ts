@@ -7,6 +7,8 @@ import {
 
 export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
 export type RankedWinnerSeat = 'FIRST' | 'SECOND';
+export type RankedResultType =
+  'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | 'PLATFORM_NO_CONTEST';
 
 export interface RankedRatingEvent {
   readonly eventId: string;
@@ -17,6 +19,7 @@ export interface RankedRatingEvent {
   readonly firstUserId: string;
   readonly secondUserId: string;
   readonly winnerSeat: RankedWinnerSeat | null;
+  readonly resultType: RankedResultType;
   readonly ratedAt: Date;
   readonly algorithmVersion: string;
 }

@@ -27,6 +27,7 @@ function event(
     firstUserId: 'alice',
     secondUserId: 'bob',
     winnerSeat: 'FIRST',
+    resultType: 'NORMAL',
     ratedAt: new Date(`2026-08-0${overrides.eventSequence}T00:00:00.000Z`),
     algorithmVersion: CONFIG.algorithmVersion,
     ...overrides,
@@ -133,6 +134,7 @@ describe('ranked rating ledger materialization', () => {
       matchId: 'match-1',
       targetEventId: 'event-1',
       winnerSeat: null,
+      resultType: 'PLATFORM_NO_CONTEST',
       ratedAt: new Date('2026-08-01T00:00:00.000Z'),
     });
     const afterVoid = materializeRankedRatingLedger([...initial, voidEvent], CONFIG);
@@ -173,6 +175,7 @@ describe('ranked rating ledger materialization', () => {
       matchId: 'match-1',
       targetEventId: 'event-1',
       winnerSeat: null,
+      resultType: 'PLATFORM_NO_CONTEST',
       ratedAt: initial.ratedAt,
     });
     const staleReplacement = event({

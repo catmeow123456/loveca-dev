@@ -227,6 +227,7 @@ describe('RankedAdminService', () => {
               first_user_id: firstUserId,
               second_user_id: secondUserId,
               winner_seat: 'FIRST',
+              result_type: 'NORMAL',
               rated_at: ratedAt,
               algorithm_version: FORMAL_CONFIG.algorithmVersion,
               reason: null,
@@ -276,6 +277,8 @@ describe('RankedAdminService', () => {
       projectedLedgerRevision: 2,
       materializedMatchCount: 0,
       affectedPlayerCount: 2,
+      targetEventId: 'event-1',
+      previewToken: expect.any(String),
     });
     expect(preview.playerChanges).toEqual(
       expect.arrayContaining([
@@ -290,5 +293,34 @@ describe('RankedAdminService', () => {
       ])
     );
     expect(query).toHaveBeenCalledTimes(4);
+  });
+
+  it('rejects execution parameters that do not match the signed preview', async () => {
+    const correctMatch = vi.fn();
+    const service = new RankedAdminService({
+      ratingService: { correctMatch } as never,
+      previewSecret: 'ranked-preview-test-secret',
+      audit: vi.fn(),
+    });
+
+    await expect(
+      service.executeCorrection({
+        seasonId: 'season-1',
+        matchId: 'match-1',
+        action: 'REPLACE',
+        replacementWinnerSeat: 'SECOND',
+        replacementResultType: 'NORMAL',
+        reason: '裁定原胜方记录错误',
+        adminUserId: 'admin-1',
+        idempotencyKey: 'replace-match-1',
+        expectedLedgerRevision: 1,
+        expectedTargetEventId: 'event-1',
+        previewToken: 'not-the-preview-token',
+      })
+    ).rejects.toMatchObject({
+      code: 'RANKED_CORRECTION_PREVIEW_MISMATCH',
+      statusCode: 409,
+    });
+    expect(correctMatch).not.toHaveBeenCalled();
   });
 });

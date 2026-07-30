@@ -43,6 +43,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
     match: RankedAdminMatch;
     preview: RankedCorrectionPreview;
     replacementWinnerSeat?: 'FIRST' | 'SECOND';
+    replacementResultType?: 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT';
     idempotencyKey: string;
   } | null>(null);
   const [reason, setReason] = useState('');
@@ -111,11 +112,19 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const preview = await previewRankedCorrection(match, action, replacementWinnerSeat);
+      const replacementResultType =
+        action === 'REPLACE' ? correctionResultTypeForMatch(match) : undefined;
+      const preview = await previewRankedCorrection(
+        match,
+        action,
+        replacementWinnerSeat,
+        replacementResultType
+      );
       setCorrection({
         match,
         preview,
         replacementWinnerSeat,
+        replacementResultType,
         idempotencyKey: crypto.randomUUID(),
       });
       setReason('');
@@ -231,7 +240,8 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
                 correction.preview,
                 reason,
                 correction.idempotencyKey,
-                correction.replacementWinnerSeat
+                correction.replacementWinnerSeat,
+                correction.replacementResultType
               )
             ).then((completed) => {
               if (completed) setCorrection(null);
@@ -734,6 +744,24 @@ function MatchesPanel({
                   </button>
                 </>
               ) : null}
+              {match.ratingStatus === 'VOIDED' ? (
+                <>
+                  <button
+                    className="button-secondary px-3 py-2 text-sm"
+                    disabled={busy}
+                    onClick={() => void onCorrection(match, 'REPLACE', 'FIRST')}
+                  >
+                    恢复为先攻胜
+                  </button>
+                  <button
+                    className="button-secondary px-3 py-2 text-sm"
+                    disabled={busy}
+                    onClick={() => void onCorrection(match, 'REPLACE', 'SECOND')}
+                  >
+                    恢复为后攻胜
+                  </button>
+                </>
+              ) : null}
             </div>
           </div>
         </section>
@@ -760,6 +788,7 @@ function CorrectionDialog({
     match: RankedAdminMatch;
     preview: RankedCorrectionPreview;
     replacementWinnerSeat?: 'FIRST' | 'SECOND';
+    replacementResultType?: 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT';
     idempotencyKey: string;
   };
   reason: string;
@@ -1006,6 +1035,15 @@ function winnerName(match: RankedAdminMatch, winnerSeat: RankedAdminMatch['winne
   if (winnerSeat === 'FIRST') return playerName(match.firstPlayer);
   if (winnerSeat === 'SECOND') return playerName(match.secondPlayer);
   return '无';
+}
+
+function correctionResultTypeForMatch(
+  match: RankedAdminMatch
+): 'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' {
+  if (match.resultType === 'SURRENDER' || match.resultType === 'DISCONNECT_FORFEIT') {
+    return match.resultType;
+  }
+  return match.priorResultType ?? 'NORMAL';
 }
 
 function formatDate(value: string) {

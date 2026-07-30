@@ -141,4 +141,122 @@ describe('PublicTableService ranked admission', () => {
     ).toBe(false);
     expect(mocks.clientQuery).toHaveBeenCalledWith('COMMIT');
   });
+
+  it('reclaims an expired CREATING_ROOM lease and resumes bootstrap', async () => {
+    const now = new Date('2026-07-30T12:00:00.000Z').getTime();
+    const leaseUntil = new Date(now + 30_000);
+    const createPublicTableRoom = vi.fn(async () => ({
+      roomCode: 'ABC234',
+      roomGeneration: 'room-generation',
+    }));
+    const roomService = {
+      createPublicTableRoom,
+      discardPublicTableRoom: vi.fn(),
+      getRoomIdentityForPublicTableReservation: vi.fn(() => null),
+    };
+    mocks.loadProfile.mockImplementation(async (userId: string) => ({
+      userId,
+      displayName: userId,
+    }));
+    mocks.poolQuery.mockImplementation(async (text: string) => {
+      if (text.includes('reservation.bootstrap_lease_until')) {
+        return {
+          rows: [
+            {
+              state: 'CREATING_ROOM',
+              bootstrap_lease_until: leaseUntil,
+              queue_kind: 'CASUAL',
+              season_id: null,
+              first_ticket_id: 'ticket-1',
+              second_ticket_id: 'ticket-2',
+              first_user_id: 'user-1',
+              second_user_id: 'user-2',
+              first_deck_id: 'deck-1',
+              second_deck_id: 'deck-2',
+              first_deck_name: '卡组一',
+              second_deck_name: '卡组二',
+              first_runtime_deck: { mainDeck: [], energyDeck: [] },
+              second_runtime_deck: { mainDeck: [], energyDeck: [] },
+              first_locked_at: new Date(now),
+              second_locked_at: new Date(now),
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    mocks.clientQuery.mockImplementation(async (text: string) => {
+      if (text.includes("WHERE state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
+        return {
+          rows: [
+            {
+              id: 'reservation-1',
+              first_ticket_id: 'ticket-1',
+              second_ticket_id: 'ticket-2',
+              bootstrap_attempt_count: 1,
+            },
+          ],
+        };
+      }
+      if (text.includes('RETURNING bootstrap_lease_until')) {
+        return { rows: [{ bootstrap_lease_until: leaseUntil }], rowCount: 1 };
+      }
+      if (text.includes("SET state = 'MATCHED'") && text.includes('bootstrap_lease_until = $4')) {
+        return { rows: [{ id: 'reservation-1' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const service = new PublicTableService({
+      now: () => now,
+      roomService: roomService as never,
+    });
+
+    await expect(service.cleanupExpiredState()).resolves.toMatchObject({
+      recoveredCreatingReservations: 1,
+    });
+    expect(createPublicTableRoom).toHaveBeenCalledTimes(1);
+    expect(
+      mocks.clientQuery.mock.calls.some(([text]) =>
+        String(text).includes('bootstrap_attempt_count = bootstrap_attempt_count + 1')
+      )
+    ).toBe(true);
+  });
+
+  it('releases an exhausted bootstrap reservation and restores both no-fault tickets', async () => {
+    const now = new Date('2026-07-30T12:00:00.000Z').getTime();
+    mocks.clientQuery.mockImplementation(async (text: string) => {
+      if (text.includes("WHERE state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
+        return {
+          rows: [
+            {
+              id: 'reservation-1',
+              first_ticket_id: 'ticket-1',
+              second_ticket_id: 'ticket-2',
+              bootstrap_attempt_count: 3,
+            },
+          ],
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const createPublicTableRoom = vi.fn();
+    const service = new PublicTableService({
+      now: () => now,
+      roomService: {
+        createPublicTableRoom,
+        getRoomIdentityForPublicTableReservation: vi.fn(() => null),
+      } as never,
+    });
+
+    await expect(service.cleanupExpiredState()).resolves.toMatchObject({
+      releasedReservations: 1,
+      recoveredCreatingReservations: 0,
+    });
+    expect(createPublicTableRoom).not.toHaveBeenCalled();
+    expect(
+      mocks.clientQuery.mock.calls.filter(([text]) =>
+        String(text).includes("heartbeat_at > $2 THEN 'WAITING'")
+      )
+    ).toHaveLength(2);
+  });
 });

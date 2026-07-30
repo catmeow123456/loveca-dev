@@ -95,7 +95,10 @@ competitiveEnvironmentId = sha256(
 - `VOID`：有审计依据的平台故障作废；
 - `REPLACEMENT`：权威结果被确认错误后的替代结果。
 
-每个事件保存赛季内单调序号、幂等键、对局、双方、胜者、算法版本和结算时间。更正必须指向该局最新事件，唯一约束禁止从旧事件产生分叉。
+每个事件保存赛季内单调序号、幂等键、对局、双方、胜者、结果类型、算法版本和结算
+时间。`VOID` 固定为 `PLATFORM_NO_CONTEST`，初始结算和替代结算只接受
+`NORMAL / SURRENDER / DISCONNECT_FORFEIT`。更正必须指向该局最新事件，唯一约束
+禁止从旧事件产生分叉。
 
 ### `ranked_rating_event_steps`
 
@@ -129,6 +132,11 @@ competitiveEnvironmentId = sha256(
 ### 排位票据与预留
 
 现有 `public_table_tickets / public_table_reservations` 增加 `queueKind` 和 `seasonId`。休闲票据固定为 `CASUAL + NULL`，排位票据固定为 `RANKED + seasonId`，数据库约束禁止混合形态。配对仍使用稳定 FIFO，但只能在相同队列、赛季和竞技环境内认领；`gameplay_participations` 使用独立 `RANKED_QUEUE` 占用种类继续保证跨模式互斥。
+
+预留从双方确认进入 `CREATING_ROOM` 时取得短租约并记录创建尝试次数。房间创建和数据库
+绑定以租约时间作为 fencing token；清理任务只接管过期租约，有限重试后释放预留，并
+按心跳恢复无过错票据。这样 API 在确认事务提交后崩溃也不会让预留永久停在创建中，
+旧创建者也不能覆盖新租约已经绑定的房间。
 
 ## 4. 事务与幂等
 
@@ -175,7 +183,11 @@ SETTLEMENT(match A)
 - 重放当前所有有效结果；
 - 写入完整物化步骤并替换当前投影。
 
-`VOID` 后该局不进入胜负和 rating；`REPLACEMENT` 可以在 `VOID` 后恢复为可靠结果。首批管理员路由要求先只读预览全赛季重放影响，再携带预览时的 `ledgerRevision` 执行；若期间流水发生变化则拒绝执行并要求重新预览。接口契约见 [赛季排位管理员 API](./RANKED_ADMIN_API.md)。
+`VOID` 后该局不进入胜负和 rating；`REPLACEMENT` 可以在 `VOID` 后恢复为可靠结果。
+管理员路由要求先只读预览全赛季重放影响，再携带预览时的 `ledgerRevision`、目标事件
+和服务端签名令牌执行。令牌绑定动作、替代胜方和结果类型；若参数被改写、目标事件改变
+或期间流水推进，则拒绝执行并要求重新预览。接口契约见
+[赛季排位管理员 API](./RANKED_ADMIN_API.md)。
 
 ## 6. 赛季服务边界
 
@@ -201,9 +213,10 @@ SETTLEMENT(match A)
 
 运行时任务会在计划结束后自动进入 `FINALIZING + PAUSED`，停止新候场，但允许此前
 已经形成的配对继续确认、创建房间并绑定正式排位对局；未开局预留消化完之前不能封存。
-任务同时重试已经完整封存但仍为 `PENDING` 的结算；到达最长收口期限后，把仍无法形成
-可靠结果的对局显式记为 `VOIDED / PLATFORM_NO_CONTEST` 并写结构化日志。封存不会静默
-丢弃配对或对局。
+任务先分批排空已经完整封存但仍为 `PENDING` 的可靠结算；单批满载时继续读取下一批，
+避免积压结果被最长收口期限误判。到达期限后，完整封存且有可靠胜方的结果继续保持
+`PENDING` 等待重试；其他对局只有在权威内存运行态已终止后，才显式记为
+`VOIDED / PLATFORM_NO_CONTEST` 并写结构化日志。封存不会静默丢弃配对或对局。
 
 ## 7. 正式算法门槛
 
