@@ -3,7 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：卡效 condition/query helper 剩余内联查询、候选抽取项与阶段边界
 > 当前状态：持续维护清单；只记录 query/selector 边界，不代表 condition AST、formula builder 或 steps DSL 已落地
-> 最后更新：2026-07-24
+> 最后更新：2026-07-30
 
 审查日期：2026-06-16
 
@@ -88,9 +88,9 @@
 
 | id | current location | current behavior | next action |
 |---|---|---|---|
-| RQ-02 | `PL!HS-bp5-001` 费用 11「日野下花帆」登场段 | 检视顶 4 后判断其中是否有 LIVE，决定是否给 BLADE +2。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；奖励写入在 `workflows/cards/hs-bp5-001-kaho.ts`，后续可抽 any/condition reward builder。 |
-| RQ-03 | `PL!-sd1-007` 费用 7「东条希」 | 公开顶 5 后判断其中是否有 LIVE，决定是否抽 1。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；抽牌流程不迁。 |
-| RQ-04 | `PL!HS-PR-019` 费用 2「百生吟子」 | 公开顶 3 后判断 3 张是否全部为绿色 Heart 成员。 | 已用 `allCardIdsMatchingSelector(..., memberHasHeartColor(HeartColor.GREEN))`；奖励写入在 `workflows/shared/mill-top-gain-live-modifier.ts`，后续可抽 all/condition reward builder。 |
+| RQ-02 | `PL!HS-bp5-001` 费用 11「日野下花帆」登场段 | 顶 4 实际移入休息室并公开展示后，判断其中是否有 LIVE，决定是否给 BLADE +2。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；Public Reveal Dwell 结束后才由 `workflows/cards/hs-bp5-001-kaho.ts` 写入奖励，后续可抽 any/condition reward builder。 |
+| RQ-03 | `PL!-sd1-007` 费用 7「东条希」 | 顶 5 实际移入休息室并公开展示后，判断其中是否有 LIVE，决定是否抽 1。 | 已用 `hasCardIdsMatchingSelector(..., typeIs(CardType.LIVE))`；Public Reveal Dwell 结束后才执行抽牌，抽牌流程不迁。 |
+| RQ-04 | `PL!HS-PR-019` 费用 2「百生吟子」 | 顶 3 实际移入休息室并公开展示后，判断 3 张是否全部为绿色 Heart 成员。 | 已用 `allCardIdsMatchingSelector(..., memberHasHeartColor(HeartColor.GREEN))`；Public Reveal Dwell 结束后才由 `workflows/shared/mill-top-gain-live-modifier.ts` 写入奖励，后续可抽 all/condition reward builder。 |
 | RQ-05 | `PL!-sd1-006` 费用 8「西木野真姬」 | 扫手牌 LIVE 与成功区 LIVE 作为交换候选。 | 候选查询已用 `getCardIdsInZoneMatching(..., ZoneType.HAND/SUCCESS_ZONE, typeIs(CardType.LIVE))` 收束；公开手牌、选择成功区 LIVE、交换区域与 skip 流程仍是 workflow-step。 |
 | RQ-06 | `PL!HS-pb1-012` 费用 15「百生吟子」 | 双方等待室成员数量合计、移动后成员数量合计，阈值 20。 | `getWaitingRoomMemberCardIds` 已改用 `getCardIdsInZoneMatching`；阈值后续仍是 formula/workflow。 |
 | RQ-07 | `PL!HS-bp6-031` / `PL!HS-pb1-012` 复用的 `shuffleWaitingRoomCardsToDeckBottomForPlayer` | caller 指定等待室成员洗切后放主卡组底，成员数量与 `みらくらぱーく！` 数量仍由 caller 统计。 | 查询部分已有部分 zone helper 复用；底层移动已下沉到 runtime action，但 selector、计数、奖励与后续流程不搬进 `conditions.ts`。 |
@@ -148,7 +148,7 @@
 | FB-02 | `PL!-sd1-022` / `PL!HS-bp5-019` | `count * 2` 转换为必要 Heart 减少。 | 后续可抽 scaling requirement builder。 |
 | FB-03 | `PL!HS-bp1-004` | LIVE 区数量转换为 BLADE 数。 | 后续可抽 count-to-blade builder；当前支付与 BLADE 写入由 `workflows/shared/pay-energy-gain-blade.ts` 承载。 |
 | FB-04 | `PL!HS-pb1-009` | 来源有效 BLADE >= 8 时进入抽 2 弃 1。 | Query 已有；后续若抽 builder，要覆盖“满足条件才进入 workflow”。 |
-| FB-05 | `PL!HS-bp5-001` / `PL!-sd1-007` / `PL!HS-PR-019` | 检视结果满足条件后给 BLADE / 抽牌 / 给 Heart。 | Query 可抽 any/all；奖励和后续步骤属于 builder/workflow。 |
+| FB-05 | `PL!HS-bp5-001` / `PL!-sd1-007` / `PL!HS-PR-019` | 本次实际移入休息室并公开展示的卡满足条件后给 BLADE / 抽牌 / 给 Heart。 | Query 可抽 any/all；Public Reveal Dwell 结束后的奖励和后续步骤属于 builder/workflow。 |
 | FB-06 | `LL-bp1-001` / `LL-bp2-001` | 指定姓名弃置后固定 SCORE 或按弃置数给 BLADE。 | named discard workflow 已有雏形；奖励 builder 可后续抽。 |
 | FB-07 | `PL!HS-bp6-031` / `PL!HS-pb1-012` | 洗回成员数量达到阈值后进入目标选择或回收 + BLADE。 | 阈值 query 可读；后续是 recycle workflow + reward builder。 |
 | FB-08 | `PL!N-pb1-004` | 翻开费用 <=9 成员时入手并站位变换，否则入休息室。 | 条件决定目的地与后续动作，优先归 workflow config。 |

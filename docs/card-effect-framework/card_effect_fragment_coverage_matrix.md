@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：卡效 fragment catalog 的框架归属、优先级和当前覆盖状态
 > 当前状态：覆盖矩阵；具体卡牌完成状态以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准
-> 最后更新：2026-06-16
+> 最后更新：2026-07-30
 
 输入：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`。
 范围：覆盖 catalog 当前 75 个 fragment。这里的“全覆盖”指当前审查包中的 fragment 全覆盖，不代表未来新商品或规则更新不会出现新 fragment。
@@ -41,14 +41,14 @@
 | `F01` | P0 | 抽N张牌 | effect step: `drawCards(n)` | `core_v1` | Stage 1F 已对当前 μ's 验证集收口：`drawCardsFromMainDeckToHand` 覆盖卡效步骤的主卡组顶抽牌到手牌；007 额外抽 1 已迁入，并覆盖翻到/未翻到 LIVE 两条路径。 |
 | `F02` | P0 | 抽N弃M | composed step: `drawThenDiscard(n,m)` | `core_v1` | 已由 `workflows/shared/draw-then-discard.ts` 承载，`startDrawThenDiscardCardsWorkflow` / `finishDrawThenDiscardCardsWorkflow` 支持参数化抽牌数与精确弃牌数，并复用 trigger-safe 手牌进休息室 wrapper。`PL!SP-bp4-008-P` 费用 13「若菜四季」、`PL!HS-bp1-006-P` 费用 11「藤岛慈」、`PL!N-bp4-018-N` 费用 7「近江彼方」、`PL!HS-pb1-009-R` 费用 15「日野下花帆」均为真实样本。 |
 | `F03` | P0 | 看顶N，选任意/固定数量入手，其余进休息室 | look-top pipeline | `core_v1` | Stage 1C 已落地基础检视/选中入手其余入休息室原语，当前 `PL!-sd1-011/012/016-SD` 与 `PL!HS-PR-001-PR` 可验证；`PL!HS-bp6-001` 费用 4「日野下花帆」验证动态检视舞台成员数 + 2 并控顶。 |
-| `F04` | P0 | 看顶N，公开符合条件的卡入手，其余进休息室 | look-top select + reveal pipeline | `core_v1` | Stage 1C 已复用基础检视/清理/移动原语，当前 `PL!-sd1-004-SD`、`PL!-sd1-015-SD`、`PL!-bp3-010-N` 可验证；公开确认步骤已由 `workflows/shared/look-top-select-to-hand.ts` 等 workflow 承载，尚未抽通用 reveal DSL。 |
+| `F04` | P0 | 看顶N，公开符合条件的卡入手，其余进休息室 | look-top select + reveal pipeline | `core_v1` | Stage 1C 已复用基础检视/清理/移动原语，当前 `PL!-sd1-004-SD`、`PL!-sd1-015-SD`、`PL!-bp3-010-N` 可验证；所选隐藏卡公开后的停留由 shared Public Reveal Dwell 承载，卡牌筛选、移动与余牌处理仍归 `workflows/shared/look-top-select-to-hand.ts` 等 workflow，尚未抽通用 reveal DSL。 |
 | `F05` | P0 | 看顶N，任意张按任意顺序放回卡组顶，其余进休息室 | look-top reorder pipeline | `core_v1` | Stage 1C 已复用看顶进入检视区原语，当前 019 可验证；排序完成步骤已由 `workflows/shared/arrange-inspected-deck-edge.ts` 承载，尚未抽通用 steps DSL。 |
-| `F06` | P0 | 从卡组顶将N张置入休息室 | deck move: top -> waitingRoom | `core_v1` | Stage 1C 已落地检视牌入休息室与卡组顶 N 张直接入休息室原语；`PL!HS-bp5-001` 费用 11「日野下花帆」验证公开检视顶 4、点击继续处理后再放置入休息室并按其中是否存在 LIVE 获得 BLADE。 |
+| `F06` | P0 | 从卡组顶将N张置入休息室 | deck move: top -> waitingRoom | `core_v1` | Stage 1C 已落地检视牌入休息室与卡组顶 N 张直接入休息室原语；`PL!HS-bp5-001` 费用 11「日野下花帆」验证顶 4 实际进入休息室后通过 Public Reveal Dwell 展示该批卡，展示结束后才按其中是否存在 LIVE 获得 BLADE。 |
 | `F07` | P0 | 从休息室将卡加入手牌 | zone selection/move | `core_v1` | Stage 1A 第一版已落地到 `src/application/effects/zone-selection.ts`，当前覆盖 `WAITING_ROOM -> HAND` 单选路径；`PL!HS-bp5-001` 费用 11「日野下花帆」验证同名 LIVE 回收，`PL!HS-pb1-020` 费用 9「百生吟子」验证分组回收。 |
 | `F08` | P0 | 从休息室回收LIVE卡 | F07 specialization with selector `type=LIVE` | `core_v1` | Stage 1A 已用 `typeIs(LIVE)` 配置 001/005；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」起动段已验证 `typeIs(LIVE)` + 莲之空 group selector 回收 LIVE；`PL!HS-bp5-001` 费用 11「日野下花帆」验证按公开手牌卡名回收同名 LIVE，`PL!HS-pb1-020` 费用 9「百生吟子」验证莲之空 LIVE 分组回收。 |
 | `F09` | P0 | 从休息室回收成员卡 | F07 specialization with selector `type=MEMBER` | `core_v1` | Stage 1A 已用 `typeIs(MEMBER)` 与组合 selector 配置 002/003；`PL!HS-bp1-003` 费用 13「乙宗梢」验证费用小于等于 4 的莲之空成员回收，`PL!HS-pb1-020` 费用 9「百生吟子」验证 Cerise Bouquet 成员分组回收。 |
 | `F10` | P1 | 从休息室放回卡组顶/底 | zone selection/move + deck position | `core_v2` | 与 F07 共用 source selector，与 F05 共用 deck order。 |
-| `F11` | P2 | 公开卡组顶直到满足条件，目标入手，其余进休息室 | reveal-until pipeline | `special_hook` | 低频且流程特殊；先用 custom step，内部复用 reveal/move。 |
+| `F11` | P2 | 公开卡组顶直到满足条件，目标入手，其余进休息室 | reveal-until pipeline | `special_hook` | 低频且流程特殊；`PL!N-bp1-011` 由单卡 workflow 复用 reveal/move 原语，并以 Public Reveal Dwell 展示服务端确定的完整公开集合；尚无稳定样本支持晋升为通用 pipeline。 |
 | `F12` | P1 | 抽牌后将手牌放到卡组顶/底 | draw + hand selection + deck placement | `core_v2` | 需要 ordered hand selection；等待实际样例再扩展。 |
 | `F13` | P1 | 看/公开卡组顶单张后处理 | peek/reveal top pipeline | `core_v1` | Stage 1C 已复用公开看顶单张进入检视区原语，Karin 样例可验证；后续可继续抽单张 reveal-and-route step。 |
 | `F14` | P1 | 从声援公开的卡中选择加入手牌 | cheer revealed selection | `core_v2` | 2026-06-14 已以 `effects/cheer-selection.ts` 起步，基于 `liveResolution.*CheerCardIds + resolutionZone.revealedCardIds` 选取仍在处理区的本次声援公开卡；`PL!HS-cl1-009-CL` 分数 1「水彩世界」验证费用 4-9 成员加入手牌。 |

@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：卡效自动化框架形状、模块边界、事件/费用/选择/Live modifier 设计
 > 当前状态：设计草案与阶段性落地说明；卡牌完成状态以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准
-> 最后更新：2026-07-06
+> 最后更新：2026-07-30
 
 状态摘要：Stage 1A-1S 已按真实卡效逐步落地 recovery/selector、费用、look-top、Live modifier、成员状态、抽弃、能量、登场费用修正、卡效登场、AUTO proving、舞台目标、公开手牌隐私投影与声援公开卡选择等边界。后续快速批处理已补齐 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」；新增验证指定姓名手牌多选弃置、换手禁止、登场不计入“移动”的成员区位置移动记录，以及未位置移动时 continuous BLADE。
 
@@ -202,7 +202,7 @@ P0/P1 覆盖：
 | `C07` | `revealFromHand(selector, count, optional)` |
 | `X11` | `playCostModifier(condition, amount)` |
 
-2026-06-14 补充：公开手牌、弃手费用、私有检视区选择等步骤若在确定公开前使用 `activeEffect.selectableCardIds`，必须通过 `selectableCardVisibility: 'AWAITING_PLAYER_ONLY'` 标明候选只投影给当前等待玩家。在线投影层同时保留兜底：若候选牌对象对当前视角不存在或不是正面可见，则不投影 `selectableObjectIds`、选择标题与跳过按钮，避免对手通过占位数量读出隐藏区候选数。已公开给双方的隐藏区卡牌使用 `activeEffect.revealedCardIds` 承载，投影为 `revealedObjectIds` 并强制正面可见，用于公开手牌等“公开后继续处理”的确认窗口。公开区候选（休息室、舞台等）继续按 `PUBLIC` 或默认正面可见规则投影给双方。
+2026-06-14 补充：公开手牌、弃手费用、私有检视区选择等步骤若在确定公开前使用 `activeEffect.selectableCardIds`，必须通过 `selectableCardVisibility: 'AWAITING_PLAYER_ONLY'` 标明候选只投影给当前等待玩家。在线投影层同时保留兜底：若候选牌对象对当前视角不存在或不是正面可见，则不投影 `selectableObjectIds`、选择标题与跳过按钮，避免对手通过占位数量读出隐藏区候选数。已公开给双方的隐藏区卡牌使用 `activeEffect.revealedCardIds` 承载并投影为 `revealedObjectIds`，强制正面可见；隐藏卡刚公开后的阅读时间由 shared Public Reveal Dwell 提供，不显示普通确认按钮。公开区候选（休息室、舞台等）继续按 `PUBLIC` 或默认正面可见规则投影给双方，玩家从公开区确定具体移动目标时使用独立的 public-card-selection confirmation。
 
 2026-07-11 补充：卡文明确要求等待玩家从自己不可见的隐藏区卡牌中选择时，使用 `selectableCardVisibility: 'AWAITING_PLAYER_BLIND'`。该模式只向等待玩家投影匿名牌背与不可关联真实实例的位置 token，不提供 `frontInfo`、`cardType` 或稳定真实对象 ID；非等待玩家不接收候选标记。选择提交经过 GameSession token 校验后，由具体 workflow 映射回权威候选并重查当前区域，公开阶段再转入 `revealedCardIds`。不要用普通 `AWAITING_PLAYER_ONLY` 暴露真实对象 ID，也不要把盲选替换为随机自动选择。
 
@@ -308,8 +308,8 @@ P0/P1 覆盖：
 | `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」 | 登场按舞台相关成员条件活跃能量并回收 LIVE；LIVE 开始支付能量得 BLADE | `onEnter -> if stage has nameAlias(Rurino/Ginko/Kosuzu) -> setEnergyActive(1) + selectFromZoneToHand(hasunosora LIVE)`；`onLiveStart -> optional tapEnergy(1) -> grantBlade(2)` |
 | `PL!HS-bp5-008-R` 费用 4「桂城泉」 | 登场可自身待机并弃手，看顶 5 公开高费莲之空成员 | `onEnter -> optional cost(setSourceState(WAITING)+discard1) -> lookTopSelectToHand(5, upTo1, member & hasunosora & cost>=9, reveal=true)` |
 | `PL!HS-pb1-004-R` 费用 4「百生吟子」 | 登场可支付能量并弃手，顶 3 入休息室后回收 Cerise Bouquet LIVE | `onEnter -> optional cost(tapEnergy(1)+discard1) -> moveTopDeckToWaitingRoom(3) -> selectFromZoneToHand(live & unitAlias(Cerise Bouquet))` |
-| `PL!HS-PR-019-RM` 费用 2「百生吟子」 | 登场公开检视顶 3，确认后入休息室，若均为绿色 Heart 成员则得绿色 Heart | `onEnter -> inspectTop(3, reveal=true) -> confirm -> moveInspectedToWaitingRoom -> if all(member & hasGreenHeart) -> grantHeart(GREEN,1)` |
-| `PL!HS-bp5-001` 费用 11「日野下花帆」 | 登场公开检视顶 4 后入休息室并按是否存在 LIVE 得 BLADE；起动公开手牌 LIVE 回收同名 LIVE | `onEnter -> inspectTop(4, reveal=true) -> confirm -> moveInspectedToWR -> if any(LIVE) grantBlade(2)`；`activated(cost=tapEnergy(2)+revealFromHand(LIVE)) -> selectFromZoneToHand(sameName LIVE)` |
+| `PL!HS-PR-019-RM` 费用 2「百生吟子」 | 登场将顶 3 放入休息室并公开，若均为绿色 Heart 成员则得绿色 Heart | `onEnter -> moveTopToWR(3) -> publicRevealDwell(movedCards) -> if all(member & hasGreenHeart) -> grantHeart(GREEN,1)` |
+| `PL!HS-bp5-001` 费用 11「日野下花帆」 | 登场将顶 4 放入休息室并公开，按是否存在 LIVE 得 BLADE；起动公开手牌 LIVE 回收同名 LIVE | `onEnter -> moveTopToWR(4) -> publicRevealDwell(movedCards) -> if any(LIVE) grantBlade(2)`；`activated(cost=tapEnergy(2)+revealFromHand(LIVE)) -> publicRevealDwell -> selectFromZoneToHand(sameName LIVE)` |
 | `PL!HS-bp1-003` 费用 13「乙宗梢」 | 起动回收低费莲之空成员；常时三面不同名莲之空成员时 LIVE 合计分数 +1 | `activated(limit=oncePerTurn,cost=tapEnergy(1)) -> selectFromZoneToHand(member & hasunosora & cost<=4)`；`continuous -> if allStageSlots(hasunosora & distinctName) -> modifyLiveTotalScore(+1)` |
 | `PL!HS-bp1-002` 费用 11「村野沙耶香」 | 起动支付 2 能量并自送，从休息室登场低费莲之空成员到来源原区域 | `activated(cost=tapEnergy(2)+moveSelfToWR) -> playMemberFromWR(member & hasunosora & cost<=15, sourceSlot)` |
 | `PL!HS-sd1-001` 费用 9「日野下花帆」 | 被费用大于等于 10 的莲之空成员换手放置入休息室时，活跃 2 张能量 | `onLeaveStage -> if replacingCard(member & hasunosora & cost>=10) -> setEnergyActive(2)` |
@@ -370,7 +370,7 @@ P0/P1 覆盖：
 
 - `src/application/effects/look-top.ts` 已提供 `inspectTopCards`、`moveInspectedSelectionToHandRestToWaitingRoom`、`moveInspectedCardsToWaitingRoom`、`moveTopDeckCardsToWaitingRoom`、`clearInspectionCards`。
 - 已补 `tests/unit/look-top.test.ts`，直接验证看顶进入检视区、立即公开、选中入手其余入休息室、检视牌全入休息室、卡组顶 N 张直接入休息室、局部清理检视区。
-- `PL!-sd1-004-SD`、`PL!-sd1-007-SD`、`PL!-sd1-011/012/015/016-SD`、`PL!-sd1-019-SD`、`PL!N-pb1-004-P+`、`PL!HS-bp5-008-R` 费用 4「桂城泉」、`PL!HS-pb1-004-R` 费用 4「百生吟子」和 `PL!HS-PR-019-RM` 费用 2「百生吟子」的看顶/公开检视/顶牌入休息室入口已开始复用该底座；各自复杂后续结算仍保留在 runner 中。`PL!HS-PR-019-RM` 费用 2「百生吟子」明确采用“先公开检视，再点击继续处理后入休息室”的玩家窗口。
+- `PL!-sd1-004-SD`、`PL!-sd1-007-SD`、`PL!-sd1-011/012/015/016-SD`、`PL!-sd1-019-SD`、`PL!N-pb1-004-P+`、`PL!HS-bp5-008-R` 费用 4「桂城泉」、`PL!HS-pb1-004-R` 费用 4「百生吟子」和 `PL!HS-PR-019-RM` 费用 2「百生吟子」的看顶/公开检视/顶牌入休息室入口已开始复用该底座。当前隐藏卡公开后的阅读停留统一由 Public Reveal Dwell 承载；inspection 流程可在展示结束后再移动，direct mill 流程则展示本次已经实际进入休息室的卡，但两者都必须等展示结束后再执行依赖公开结果的奖励或 continuation，不再由发动方点击继续处理。
 
 做法：
 
@@ -386,7 +386,7 @@ P0/P1 覆盖：
 当前落地：
 
 - `src/domain/rules/live-modifiers.ts` 已提供 `addLiveModifier`、`replaceLiveModifier`、`projectLiveModifierCompatibility`。
-- `003` Heart、`009` 分数、`022` 必要 Heart 已改为先写 `liveResolution.liveModifiers`，旧的 `playerHeartBonuses`、`playerScoreBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 由投影派生；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」LIVE 开始段已验证支付能量后按 LIVE 区数量写入 `BLADE` modifier；`PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」进一步验证 LIVE 卡来源也可写入绿色 `REQUIREMENT` 与 `SCORE` modifier；其中 `SCORE` 不带 `liveCardId` 表示玩家 LIVE 合计分数修正，携带 `liveCardId` 表示此 Live 卡分数修正；玩家合计分数修正只在至少一首 LIVE 成功时进入最终分数草案，全部失败时分数仍为 0。`PL!HS-PR-019-RM` 费用 2「百生吟子」验证登场公开检视后按条件写入绿色 `HEART` modifier。
+- `003` Heart、`009` 分数、`022` 必要 Heart 已改为先写 `liveResolution.liveModifiers`，旧的 `playerHeartBonuses`、`playerScoreBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 由投影派生；`PL!HS-bp1-004-P` 费用 15「夕雾缀理」LIVE 开始段已验证支付能量后按 LIVE 区数量写入 `BLADE` modifier；`PL!HS-bp5-019-L` 分数 6「花结」与 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」进一步验证 LIVE 卡来源也可写入绿色 `REQUIREMENT` 与 `SCORE` modifier；其中 `SCORE` 不带 `liveCardId` 表示玩家 LIVE 合计分数修正，携带 `liveCardId` 表示此 Live 卡分数修正；玩家合计分数修正只在至少一首 LIVE 成功时进入最终分数草案，全部失败时分数仍为 0。`PL!HS-PR-019-RM` 费用 2「百生吟子」验证登场将顶 3 放入休息室并公开展示后按条件写入绿色 `HEART` modifier。
 - continuous modifier registry 已起步，`001` 常时 BLADE 由 `collectLiveModifiers` 按当前舞台与成功 Live 数动态收集，不写入临时状态；`PL!HS-bp1-003` 费用 13「乙宗梢」验证条件型常时 `SCORE` modifier，三面均为不同名「莲之空」成员时投影 LIVE 合计分数 +1。
 - `tests/unit/live-modifiers.test.ts` 覆盖临时 modifier 写入、替换和兼容投影；既有 Live 判定 / runner tests 覆盖自动判定结果不变。
 - 前端判定面板读取 `requirementModifiers` / `requirementReductions` 时需兼容 raw card id 与 `obj_<cardId>` public object id。2026-06-13 修复过一次 022 UI 预览未应用必要 Heart 减少的回归，根因就是该投影键不一致。
@@ -533,7 +533,7 @@ P0/P1 覆盖：
 - `PL!HS-bp2-012-N` 费用 5「乙宗 梢」登记为 `AUTO` / `STAGE_MEMBER` / `ON_LEAVE_STAGE` 队列能力。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」登记为第二张同触发 AUTO：离场后可弃 1 手牌，若弃手成功，从休息室选择 LIVE 卡和成员卡至多各 1 张加入手牌。
 - `enqueueTriggeredCardEffects` 支持 `ON_LEAVE_STAGE`，当前优先从 `eventLog` 的 `LeaveStageEvent` 构造离场来源；最近 `PLAY_MEMBER` 替换、从成员区移动到休息室的 `MOVE_CARD` 等 action-history 来源仍作为兼容回退。
-- `PL!HS-bp2-012-N` 费用 5「乙宗 梢」解析流程复用 look-top：检视顶 5，选择成员后先公开，确认后入手，其余检视牌放置入休息室。
+- `PL!HS-bp2-012-N` 费用 5「乙宗 梢」解析流程复用 look-top：检视顶 5，选择成员后先公开，经 Public Reveal Dwell 展示后入手，其余检视牌放置入休息室。
 - `PL!HS-bp6-017-N` 费用 11「日野下花帆」解析流程复用弃手费用与 `WAITING_ROOM -> HAND` 移动原语；新增分组选择约束为 LIVE/成员各至多 1 张。
 - 待处理队列的顺序选择窗口支持同 controller 且同 timingId、共享 eventId 或换手 `replacingCardId` 关系，因此 `PL!HS-bp2-012-N` 费用 5「乙宗 梢」被换手替换时，其离场 AUTO 会和新成员登场能力一起让玩家选择顺序。
 - 当前边界：还没有完整标准 `GameEvent -> trigger matcher`，只先覆盖成员槽位移动与舞台离场事件消费；更多区域移动/状态变化 AUTO 后续真实样例继续推动。
