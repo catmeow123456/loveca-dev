@@ -5,6 +5,7 @@ import { createAlibabaDashScopeModelProvider } from '../../src/server/ai-battle/
 import {
   buildAiModelRequestEnvelope,
   parseAiModelDecisionOutput,
+  validateAiModelDecisionGrounding,
   type AiModelRepairFailureCode,
 } from '../../src/server/ai-battle/model-protocol';
 import { AI_BATTLE_PHASE_ZERO_DECKS } from '../../src/server/ai-battle/phase-zero-baseline';
@@ -177,13 +178,14 @@ describe.runIf(realModelEnabled)('AI battle Phase 4 real model prompt/playbook e
       let repairFailureCode: AiModelRepairFailureCode | undefined;
       let accepted = false;
       for (let attempt = 1; attempt <= 2; attempt += 1) {
+        const envelope = buildAiModelRequestEnvelope({
+          strategyContext: context,
+          repairFailureCode,
+        });
         const invoked = await runtime.invoke({
           matchId: `real-eval:${scenario.scenarioId}`,
           accountKey: 'real-eval',
-          envelope: buildAiModelRequestEnvelope({
-            strategyContext: context,
-            repairFailureCode,
-          }),
+          envelope,
         });
         expect(invoked.ok, scenario.scenarioId).toBe(true);
         if (!invoked.ok) break;
@@ -197,6 +199,14 @@ describe.runIf(realModelEnabled)('AI battle Phase 4 real model prompt/playbook e
         }
         if (!scenario.validate(parsed.output.selection)) {
           repairFailureCode = 'INVALID_SELECTION';
+          continue;
+        }
+        const grounding = validateAiModelDecisionGrounding(
+          parsed.output,
+          envelope.strategyContext.semanticContext
+        );
+        if (!grounding.ok) {
+          repairFailureCode = grounding.reason;
           continue;
         }
         accepted = true;

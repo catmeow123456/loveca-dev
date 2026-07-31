@@ -98,7 +98,9 @@ function validOutput(candidateIds: readonly string[] = []) {
       kind: 'MULLIGAN',
       candidateIds,
     },
-    summary: 'Keep the playable opening member.',
+    factRefs: ['decision.base', ...candidateIds.map(() => 'decision.candidate.1.identity')],
+    tradeoff: '保留可登场成员与换牌收益之间取舍。',
+    nextPlan: '权威执行后重新观察手牌。',
   } as const;
 }
 
@@ -156,8 +158,8 @@ describe('AI battle Phase 4 model protocol', () => {
   it('truthfully freezes the completed model and player-entry boundary', () => {
     expect(AI_BATTLE_PHASE_FOUR_STATUS).toBe('COMPLETE');
     expect(AI_BATTLE_PHASE_FOUR_COMPONENT_STATUS).toMatchObject({
-      providerNeutralRequestEnvelope: 'IMPLEMENTED_VERSIONED_ALLOWLIST_CONTEXT_ONLY',
-      strictStructuredOutput: 'IMPLEMENTED_JSON_SCHEMA_NO_UNKNOWN_FIELDS',
+      providerNeutralRequestEnvelope: 'IMPLEMENTED_VERSIONED_ALLOWLIST_TO_SEMANTIC_CONTEXT_ONLY',
+      strictStructuredOutput: 'IMPLEMENTED_JSON_SCHEMA_FACT_REFS_TRADEOFF_AND_PLAN',
       authoritySelectionValidation: 'IMPLEMENTED_REUSES_TYPED_CONTRACT_VALIDATOR',
       serverModelProvider: 'IMPLEMENTED_FIXED_ALIBABA_DASHSCOPE_PROFILE',
       asyncDecisionLifecycle: 'IMPLEMENTED_PROVIDER_WAIT_OUTSIDE_MATCH_LOCK_WITH_REVALIDATION',
@@ -175,7 +177,7 @@ describe('AI battle Phase 4 model protocol', () => {
       publicTableAiReplacementEnabled: false,
     });
     expect(AI_BATTLE_PHASE_FOUR_COMPONENT_VERSIONS.strategyDecisionRecord).toBe(
-      'ai-battle.strategy-decision-record/v3'
+      'ai-battle.strategy-decision-record/v4'
     );
   });
 
@@ -206,6 +208,16 @@ describe('AI battle Phase 4 model protocol', () => {
         strict: true,
         schemaVersion: AI_MODEL_DECISION_OUTPUT_SCHEMA_VERSION,
       },
+      strategyContext: {
+        schemaVersion: 'ai-battle.model-strategy-context/v1',
+        semanticContext: {
+          schemaVersion: 'ai-battle.semantic-decision-context/v1',
+          currentDecision: {
+            kind: 'MULLIGAN',
+            requiredFactIds: ['decision.base'],
+          },
+        },
+      },
     });
     expect(AI_MODEL_DECISION_OUTPUT_JSON_SCHEMA).toMatchObject({
       type: 'object',
@@ -218,6 +230,8 @@ describe('AI battle Phase 4 model protocol', () => {
     expect(serialized).not.toContain(AUTHORITY_CARD_ID);
     expect(serialized).not.toContain('不应出站');
     expect(serialized).not.toContain('"chat"');
+    expect(serialized).not.toContain('"observation"');
+    expect(serialized).not.toContain('"selectedHistory"');
     expect(hashAiModelRequestEnvelope(envelope)).toMatch(/^sha256:[a-f0-9]{64}$/);
     expect(hashAiModelRequestEnvelope(envelope)).toBe(hashAiModelRequestEnvelope(envelope));
   });
@@ -302,16 +316,27 @@ describe('AI battle Phase 4 model protocol', () => {
     expect(
       parseAiModelDecisionOutput({
         ...validOutput(),
-        summary: 'first line\nsecond line',
+        tradeoff: 'first line\nsecond line',
       })
     ).toMatchObject({ ok: false, reason: 'INVALID_SCHEMA' });
+  });
+
+  it('keeps the fact-reference budget large enough for the maximum structured selection', () => {
+    expect(
+      parseAiModelDecisionOutput({
+        ...validOutput(),
+        factRefs: Array.from({ length: 65 }, (_, index) => `fact.${String(index + 1)}`),
+      })
+    ).toMatchObject({ ok: true });
   });
 
   it('reuses the authority-owned typed contract validator before command submission', () => {
     const fixture = createModelProtocolFixture();
     const accepted = parseAndValidateAiModelDecisionOutput(
       validOutput(['candidate-1']),
-      fixture.handle
+      fixture.handle,
+      buildAiModelRequestEnvelope({ strategyContext: fixture.strategyContext }).strategyContext
+        .semanticContext
     );
     expect(accepted).toMatchObject({
       ok: true,
@@ -324,7 +349,12 @@ describe('AI battle Phase 4 model protocol', () => {
     });
 
     expect(
-      parseAndValidateAiModelDecisionOutput(validOutput(['candidate-999']), fixture.handle)
+      parseAndValidateAiModelDecisionOutput(
+        validOutput(['candidate-999']),
+        fixture.handle,
+        buildAiModelRequestEnvelope({ strategyContext: fixture.strategyContext }).strategyContext
+          .semanticContext
+      )
     ).toMatchObject({ ok: false, reason: 'INVALID_SELECTION' });
     expect(
       parseAndValidateAiModelDecisionOutput(
@@ -332,8 +362,38 @@ describe('AI battle Phase 4 model protocol', () => {
           ...validOutput(),
           selection: { kind: 'CONFIRM_PHASE' },
         },
-        fixture.handle
+        fixture.handle,
+        buildAiModelRequestEnvelope({ strategyContext: fixture.strategyContext }).strategyContext
+          .semanticContext
       )
     ).toMatchObject({ ok: false, reason: 'INVALID_SELECTION' });
+  });
+
+  it('requires fact references to exist and ground the selected choice', () => {
+    const fixture = createModelProtocolFixture();
+    const semanticContext = buildAiModelRequestEnvelope({
+      strategyContext: fixture.strategyContext,
+    }).strategyContext.semanticContext;
+
+    expect(
+      parseAndValidateAiModelDecisionOutput(
+        {
+          ...validOutput(['candidate-1']),
+          factRefs: ['decision.base'],
+        },
+        fixture.handle,
+        semanticContext
+      )
+    ).toMatchObject({ ok: false, reason: 'INVALID_FACT_REFERENCE' });
+    expect(
+      parseAndValidateAiModelDecisionOutput(
+        {
+          ...validOutput(),
+          factRefs: ['decision.base', 'state.nonexistent'],
+        },
+        fixture.handle,
+        semanticContext
+      )
+    ).toMatchObject({ ok: false, reason: 'INVALID_FACT_REFERENCE' });
   });
 });

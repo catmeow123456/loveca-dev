@@ -15,8 +15,8 @@ export const AI_BATTLE_PHASE_FOUR_BASELINE_VERSION = 'ai-battle.phase-four/v1' a
 export const AI_BATTLE_PHASE_FOUR_STATUS = 'COMPLETE' as const;
 
 export const AI_BATTLE_PHASE_FOUR_COMPONENT_STATUS = {
-  providerNeutralRequestEnvelope: 'IMPLEMENTED_VERSIONED_ALLOWLIST_CONTEXT_ONLY',
-  strictStructuredOutput: 'IMPLEMENTED_JSON_SCHEMA_NO_UNKNOWN_FIELDS',
+  providerNeutralRequestEnvelope: 'IMPLEMENTED_VERSIONED_ALLOWLIST_TO_SEMANTIC_CONTEXT_ONLY',
+  strictStructuredOutput: 'IMPLEMENTED_JSON_SCHEMA_FACT_REFS_TRADEOFF_AND_PLAN',
   authoritySelectionValidation: 'IMPLEMENTED_REUSES_TYPED_CONTRACT_VALIDATOR',
   promptInjectionBoundary: 'IMPLEMENTED_CONTEXT_DATA_ONLY_AND_FORBIDDEN_KEYS',
   repairEnvelope: 'IMPLEMENTED_ONE_BOUNDED_MACHINE_CODE_ONLY',
@@ -27,7 +27,7 @@ export const AI_BATTLE_PHASE_FOUR_COMPONENT_STATUS = {
   invocationAudit: 'IMPLEMENTED_SANITIZED_ATOMIC_DECISION_FACTS',
   budgetAndRateLimits: 'IMPLEMENTED_CONCURRENCY_RATE_REQUEST_TOKEN_AND_COST_LIMITS',
   fallbackSwitchNotice: 'IMPLEMENTED_ONE_NOTICE_AND_WHOLE_MATCH_CONSERVATIVE_SWITCH',
-  promptModelVersionMatchBinding: 'IMPLEMENTED_SYSTEM_IDENTITY_V2',
+  promptModelVersionMatchBinding: 'IMPLEMENTED_SYSTEM_IDENTITY_V3',
   playerControlledEntry: 'IMPLEMENTED_AUTHENTICATED_FIXED_DECK_ENTRY',
   endToEndModelPlayout: 'IMPLEMENTED_FULL_RUNTIME_PLAYOUT_FIXED_REAL_SCENARIOS_AND_BROWSER_HANDOFF',
 } as const;
@@ -51,7 +51,7 @@ export const AI_BATTLE_PHASE_FOUR_RUNTIME_BOUNDARY = {
   modelCredentialRequiredForNewPublicMatches: true,
   providerCredentialsStoredInRepository: false,
   modelCanReadAuthorityState: false,
-  modelInputSource: 'PHASE_TWO_STRATEGY_CONTEXT_ONLY',
+  modelInputSource: 'PHASE_TWO_ALLOWLIST_TO_SEMANTIC_DECISION_CONTEXT',
   modelCanReturnCommands: false,
   modelSelectionRequiresAuthorityContractValidation: true,
   rawInvalidOutputReflectedIntoRepairPrompt: false,

@@ -4,7 +4,7 @@
 >
 > 适用范围：受控卡组 AI 对战的目标架构、职责边界、实施阶段、验收门槛和风险控制
 >
-> 当前状态：Phase 0～4 已完成；Phase 4.5“语义决策上下文与事实自检”提升为当前最高优先级，完成后再进入 Phase 5
+> 当前状态：Phase 0～4 已完成；Phase 4.5“语义决策上下文与事实自检”已进入实施并为当前最高优先级，完成后再进入 Phase 5
 >
 > 日期：2026-07-31
 >
@@ -729,7 +729,8 @@ Playbook 是策略知识，不是规则真值。
 
 隐藏区域只表达该座位依法知道的数量或摘要；里侧对象、未公开牌库顺序和可关联隐藏实体的真实对象 ID 不进入 `AiObservation`。当前合法候选需要对象引用时，使用本次决策内稳定、lease 失效即作废的临时 ID。
 
-> 当前进展（2026-07-30）：Phase 2 上下文与 Phase 4 模型调用边界均已完成。
+> 当前进展（2026-07-31）：Phase 2 上下文与 Phase 4 模型调用边界均已完成，Phase 4.5
+> 第一批语义上下文后端切片已落地。
 > `src/server/ai-battle/ai-observation.ts` 的 `ai-battle.observation/v1`。适配器的公开输入只有
 > 对应席位的 `PlayerViewState` 与 Phase 1A typed decision contract，并强制绑定 viewer seat、
 > authority revision 和 `RULES` 模式。输出按字段 allowlist 重建回合/窗口、双方区域数量、依法
@@ -737,17 +738,20 @@ Playbook 是策略知识，不是规则真值。
 > 复制 match/player/authority object ID、玩家显示名、权限提示、聊天、private event 或 sealed
 > audit。代表性换牌局面和盲选 active-effect 候选已用 inline snapshot 与禁止字段断言锁定。
 > `strategy-context/v1` 已在该观察之上组合 `compact-rules/v1` 与两个绑定认证内容哈希的固定卡组
-> playbook；`selected-history/v2` 只从已脱敏观察与权威接受后的结构化策略决策增量生成，保存最近
+> playbook；`selected-history/v3` 只从已脱敏观察、权威接受后的结构化选择和相邻可见投影差异生成，保存最近
 > 12 条关键登场、LIVE、能力、费用、效果选择和公开区域变化。它不读取权威状态、事件日志、
 > 聊天或玩家显示文本，也不保留 lease 失效即作废的 candidate/action 临时 ID。完整
 > provider-neutral model request envelope、严格输出 schema 和有限 repair envelope 已由 Phase 4
-> 落地，并已接入固定的服务端 DashScope/Qwen provider、调用事实审计与整局故障处理。模型仍只
-> 接收该脱敏上下文；凭据、原始错误、原始无效输出和玩家聊天都不会写入请求或策略记录。
+> 落地，并已接入固定的服务端 DashScope/Qwen provider、调用事实审计与整局故障处理。Phase 4.5
+> 当前通过 `semantic-decision-context/v1` 从上述 allowlist 输入派生中文局面事实、合法选择和逐动作后果，
+> 实际送模的 `model-strategy-context/v1` 不再直接包含原始 observation 或 selected history；凭据、原始错误、
+> 原始无效输出和玩家聊天也不会写入请求或策略记录。
 >
 > Phase 4 的现场验证随后暴露出一个独立于合法性的语义问题：原始 observation 与 contract 虽然
 > 含有正确的卡牌、槽位、费用计划和 `replacementCount`，但同一动作的“保留谁、替换谁、动作后
-> 场面、能力属于谁”仍分散在不同对象中。Phase 4.5 将在不扩大可见信息的前提下补齐逐动作语义
-> 后果；Phase 4 的现有 v1 协议保持为已完成历史基线，不用 dual-read 或运行时 fallback 延长旧格式。
+> 场面、能力属于谁”仍分散在不同对象中。Phase 4.5 第一批切片已在不扩大可见信息的前提下补齐
+> 主要阶段成员登场/换手与 LIVE 设置语义，并以停机升级替换旧模型协议；更广卡效来源、可选费用和
+> 目标选择语义仍待后续切片覆盖，不保留 dual-read 或运行时 fallback。
 
 ### 8.4 当前合法决策
 
@@ -792,13 +796,14 @@ Playbook 是策略知识，不是规则真值。
 
 历史只辅助策略，不覆盖最新玩家投影。
 
-当前 `selected-history/v2` 使用按席位隔离的定长窗口，只在命令被权威层接受后记录策略选择，并从
-相邻脱敏 observation 的公开区域差异补充可见状态变化。明确的策略决策记录行动席位；纯视图差异
-只记录受影响席位与“新近可见”事实，不推断相邻 observation 无法证明的行动者、登场或移动原因。
-纯确认、deadline 推进和无战术意义的阶段确认不会进入历史。Phase 2 的 64 局专用回归中，14,975
+当前 `selected-history/v3` 使用按席位隔离的定长窗口，只在命令被权威层接受后，根据脱敏 observation
+与结构化选择派生固定 reason/summary，并从相邻脱敏 observation 的公开区域差异补充可见状态变化。
+明确的策略决策记录行动席位；纯视图差异只记录受影响席位与“新近可见”事实，不推断相邻 observation
+无法证明的行动者、登场或移动原因。纯确认、deadline 推进和无战术意义的阶段确认不会进入历史。
+Phase 2 的 64 局专用回归中，14,975
 次决策有 14,847 次上下文携带非空精选历史，覆盖率为 99.15%。
 
-Phase 4.5 必须停止把模型生成的 `summary` 作为后续事实历史的正文来源。若未来需要跨窗口保留计划，只允许保存单独标记为 `MODEL_PLAN_NOTE` 的结构化意图，并且引用当前可见对象/目标；它不能声明卡牌能力、区域状态或已经发生的结果。第一版可以完全不回灌模型计划，优先保证事实链不被模型自己的叙述污染。
+Phase 4.5 第一批切片已停止把模型生成的取舍或计划作为后续事实历史的正文来源。若未来需要跨窗口保留计划，只允许保存单独标记为 `MODEL_PLAN_NOTE` 的结构化意图，并且引用当前可见对象/目标；它不能声明卡牌能力、区域状态或已经发生的结果。当前实现完全不回灌模型计划，优先保证事实链不被模型自己的叙述污染。
 
 ### 8.7 不可信文本边界
 
@@ -1348,18 +1353,20 @@ AI 不伪装成真人。
 > 状态变化或删除会取消未完成调用。单次调用 12 秒超时，每个决策最多两次协议尝试；并发、
 > 每分钟请求、单局请求数、输入/输出 token 和估算费用都有服务端上限。
 >
-> 成功选择只把脱敏上下文哈希、版本、结构化选择、单行短摘要、执行结果、延迟、token、估算费用和哈希化
+> 成功选择只把脱敏上下文哈希、版本、结构化选择、事实引用、单行取舍/计划、执行结果、延迟、token、估算费用和哈希化
 > provider request id 与命令帧原子记录，不保存完整原始响应。确认失败后只发送一次玩家可见提示，并让本局后续固定
 > 使用 Phase 1B 保守策略；追加模型调用事实后的当前记录 schema 为
-> `ai-battle.strategy-decision-record/v3`，Phase 2/3 的 v2 基线保持历史冻结。
-> `ai-battle.system-participant-identity/v2` 已按局绑定 Prompt、输出
-> schema、provider、模型、决策与调用政策版本。
+> `ai-battle.strategy-decision-record/v4`，Phase 2/3 的 v2 基线保持历史冻结。
+> `ai-battle.system-participant-identity/v3` 已按局绑定 Prompt、输出
+> schema、provider、模型、决策/调用政策，以及 model strategy context 与 semantic decision context 版本。
 >
 > 开发环境可通过 `AI_BATTLE_DEBUG_TRACE_ENABLED=1` 开启当前对局的内存调试轨迹。
-> 参与者会在共享桌面看到请求开始、决策窗口、脱敏短摘要、选择类别、调用延迟、token、
-> 估算费用和权威执行结果。生产环境强制关闭；接口不返回私有思维链、完整 Prompt、原始
-> provider 响应、候选内部 ID 或凭据，进程或对局销毁后轨迹随之消失。
-> 这是 Phase 4 已完成的当前实现；Phase 4.5 将把它替换为以实际模型上下文为主的语义调试视图。
+> Phase 4.5 已将共享桌面的旧摘要时间线升级为管理员上下文检查器：普通参与者即使是该局玩家也不能读取；
+> 管理员可在自己进入的 AI 测试对局中按尝试查看实际 provider-neutral system/user 消息、语义上下文分区、
+> 输出契约、严格解析结果，以及作为辅助信息的延迟、token、费用和权威执行结果。展示与运行时调用共用
+> `buildAiModelProviderRequest`，不维护第二份调试 Prompt。生产环境强制关闭；接口不返回私有思维链、原始
+> 无效 provider 响应、provider request id 原值或凭据，内容也不进入聊天、录像、数据库或长期审计；进程或
+> 对局销毁后轨迹随之消失。
 >
 > 登录玩家可从首页进入独立 AI 对战页，选择双方固定卡组和 AI 先后手；页面明确显示 Loveca AI
 > 身份、隐藏信息边界和异常后的处理方式，并复用正式 `GameBoard`、快照、命令、记录、离开与
@@ -1411,7 +1418,26 @@ AI 不伪装成真人。
 
 ### 阶段 4.5：语义决策上下文与事实自检
 
-> 当前进展（2026-07-31）：**PLANNED / CURRENT PRIORITY**。本阶段优先于 Phase 5。
+> 当前进展（2026-07-31）：**IN PROGRESS / CURRENT PRIORITY**。本阶段优先于 Phase 5。
+>
+> 第一批后端切片已经落地：`ai-battle.semantic-decision-context/v1` 只从脱敏
+> `AiObservation + selected-history` 生成中文局面事实、当前决定、稳定 `factId`、合法选择和逐动作后果；
+> provider-neutral 请求已停机升级为 `model-request-envelope/v2`，
+> 实际送模上下文只包含版本化规则/playbook 与 `model-strategy-context/v1` 的语义正文，不再直接发送原始
+> observation 或原始 selected history。`model-decision-output/v2` 要求结构化选择、`factRefs`、简短取舍和
+> 下一步计划，服务端会在权威 typed selection 校验之外检查引用存在且覆盖所选方案的必要事实，并以
+> `INVALID_FACT_REFERENCE` 进入既有一次有限修复路径；当前 SYSTEM binding 同步提升为
+> `system-participant-identity/v3`，按局绑定 model strategy context 与 semantic decision context 版本。
+>
+> 精选历史已提升为 `selected-history/v3`：已接受决定的 reason/summary 只由脱敏 observation、结构化选择和
+> 合法动作派生，模型的自由文本取舍/计划不会作为后续事实回灌。中心位换手回归已经固定为语义快照测试，
+> 明确区分 `PL!HS-bp5-008-R` 费用 4「桂城泉」与
+> `PL!HS-sd1-012-SD` 费用 4「百生吟子」的能力归属、替换对象、动作后槽位和能量。
+>
+> 管理员实际请求上下文检查器已经落地：`debug-trace/v2` 逐次保留与真实调用同源的 system/user 消息、
+> 请求版本/hash、有限修复或重试类型、严格解析结果和最终 outcome；管理员路由同时要求开发开关、管理员认证和
+> 本人进入的 AI 测试对局。当前尚未完成卡效来源/可选费用/目标选择等更广语义回归、真实 provider 新协议评测和
+> 真人抽样复盘。因此当前不能将 Phase 4.5 标记完成，也不能进入 Phase 5。
 >
 > 触发本阶段的回归局面中，中心位已有 `PL!HS-bp5-008-R` 费用 4「桂城泉」，左右槽为空；
 > 手牌中的 `PL!HS-sd1-012-SD` 费用 4「百生吟子」既可以支付 4 能量登场到空槽，也可以通过

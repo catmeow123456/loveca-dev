@@ -23,9 +23,9 @@ function game(
     decisionCount: reasons.length,
     historyContextDecisionCount: Math.max(0, reasons.length - 1),
     records: reasons.map((reason, index) => ({
-      schemaVersion: 'ai-battle.strategy-decision-record/v2',
+      schemaVersion: 'ai-battle.strategy-decision-record/v4',
       decisionAudit: {
-        schemaVersion: 'ai-battle.strategy-decision-audit/v2',
+        schemaVersion: 'ai-battle.strategy-decision-audit/v3',
         contextSchemaVersion: 'ai-battle.strategy-context/v1',
         observationSchemaVersion: 'ai-battle.observation/v1',
         decisionContractVersion: 'ai-battle.decision-contract/v1',
@@ -40,9 +40,13 @@ function game(
         tier: reason.tier,
         reasonCode: reason.reasonCode,
         summary: 'summary',
+        factRefs: [],
+        tradeoff: null,
+        nextPlan: null,
         consideredIds: [],
         selection: { kind: 'CONFIRM_PHASE' },
       },
+      modelInvocation: null,
       contractIdentity: {
         decisionIdSha256: `sha256:${'1'.repeat(64)}`,
         windowSignatureSha256: `sha256:${'2'.repeat(64)}`,

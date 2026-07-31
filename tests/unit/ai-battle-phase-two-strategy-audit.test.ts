@@ -85,6 +85,9 @@ describe('AI battle Phase 2 strategy decision audit', () => {
       policyVersion: 'ai-battle.explainable-policy/v1',
       tier: 'RULE_FORCED',
       reasonCode: 'CONFIRM_AUTHORITY_SCORE',
+      factRefs: [],
+      tradeoff: null,
+      nextPlan: null,
       selection: { kind: 'CONFIRM_SCORE' },
     });
     expect(audit.contextSha256).toMatch(/^sha256:[a-f0-9]{64}$/);
