@@ -338,7 +338,7 @@ export function HomePage({
       actions={headerActions}
       mobileMenuActions={mobileMenuActions}
       footer={
-        <footer className="safe-bottom relative z-10 border-t border-[var(--border-subtle)] px-4 py-3">
+        <footer className="safe-bottom relative z-10 px-4 py-3">
           <AppCredits version={__APP_VERSION__} />
         </footer>
       }
@@ -557,7 +557,6 @@ function SecondaryEntryPanel({ actions }: { actions: ActionTileProps[] }) {
   return (
     <aside className="lobby-entry-panel">
       <div className="lobby-section-heading">
-        <span>QUICK ACCESS</span>
         <h2>常用入口</h2>
       </div>
       <div className="lobby-entry-grid">
@@ -858,6 +857,7 @@ function ActionTile({
         type="button"
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
+        aria-label={status ? `${title}，${status}` : title}
         className={`group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
           compact ? 'lobby-entry-tile' : ''
         } ${description ? 'min-h-[68px]' : 'min-h-14'} ${
@@ -875,7 +875,7 @@ function ActionTile({
           <div className="flex min-w-0 items-center gap-2">
             <h3 className="truncate text-sm font-bold text-[var(--text-primary)]">{title}</h3>
             {status && (
-              <span className="shrink-0 rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
+              <span className="lobby-entry-tile__status shrink-0 rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] text-[var(--text-secondary)]">
                 {status}
               </span>
             )}

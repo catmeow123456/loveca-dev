@@ -1,13 +1,5 @@
 .spectator-lobby-page {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--text-primary) 2.5%, transparent) 1px,
-      transparent 1px
-    ),
-    linear-gradient(color-mix(in srgb, var(--text-primary) 2.5%, transparent) 1px, transparent 1px),
-    var(--bg-deep);
-  background-size: 64px 64px;
+  background: var(--bg-deep);
 }
 
 .spectator-lobby-header-back {
@@ -41,9 +33,11 @@
   width: 100%;
   max-width: 1080px;
   grid-template-columns: minmax(280px, 0.76fr) minmax(480px, 1.24fr);
+  overflow: hidden;
   border: 1px solid var(--border-default);
+  border-radius: 10px;
   background: var(--bg-surface);
-  box-shadow: 15px 18px 0 color-mix(in srgb, var(--text-primary) 9%, transparent);
+  box-shadow: none;
 }
 
 .spectator-lobby-desk--compact {
@@ -70,20 +64,11 @@
   position: absolute;
   z-index: -1;
   inset: 0;
-  background:
-    radial-gradient(
-      circle at 25% 30%,
-      color-mix(in srgb, var(--accent-primary) 12%, transparent),
-      transparent 26%
-    ),
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--text-primary) 3%, transparent) 1px,
-      transparent 1px
-    );
-  background-size:
-    auto,
-    64px 64px;
+  background: radial-gradient(
+    circle at 25% 30%,
+    color-mix(in srgb, var(--accent-primary) 12%, transparent),
+    transparent 26%
+  );
   content: '';
 }
 
@@ -152,7 +137,7 @@
   width: 100%;
   height: 50px;
   border: 1px solid var(--border-default);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--bg-overlay);
   color: var(--text-primary);
   padding: 0 16px;
@@ -189,7 +174,7 @@
   justify-content: center;
   gap: 8px;
   border: 1px solid var(--accent-primary);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--accent-primary);
   color: var(--brand-card-white);
   padding: 0 19px;
@@ -228,7 +213,7 @@
 .spectator-seat {
   min-height: 98px;
   border: 1px solid var(--border-default);
-  border-radius: 0;
+  border-radius: 8px;
   background: var(--bg-overlay);
   color: var(--text-primary);
   padding: 15px;
@@ -289,6 +274,7 @@
 .spectator-lobby-error {
   margin-top: 14px;
   border: 1px solid color-mix(in srgb, var(--semantic-error) 36%, transparent);
+  border-radius: 8px;
   background: color-mix(in srgb, var(--semantic-error) 10%, transparent);
   color: var(--semantic-error);
   padding: 11px 13px;

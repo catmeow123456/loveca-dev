@@ -106,6 +106,8 @@ const INSPECTION_TARGET_IDS = {
   blocker: 'inspection-target-blocker',
 } as const;
 const DISABLE_ORDINARY_DROP_FROM_INSPECTION = [ZoneType.INSPECTION_ZONE] as const;
+const ZONE_META_LABEL_CLASS =
+  'inline-flex items-center whitespace-nowrap rounded-md border border-[var(--border-subtle)] bg-[var(--bg-frosted)] px-1.5 py-0.5 text-[10px] font-semibold leading-none tabular-nums text-[var(--text-secondary)] backdrop-blur-[2px]';
 
 interface CardActionMenuItem {
   readonly id: string;
@@ -1273,7 +1275,7 @@ export const PlayerArea = memo(function PlayerArea({
         activeClassName="ring-2 ring-indigo-500 bg-indigo-500/20"
       >
         <div className="flex items-center gap-1">
-          <span className="text-[10px] text-slate-600 font-medium">
+          <span className={ZONE_META_LABEL_CLASS}>
             能量区 ({activeCount}/{energyCount})
           </span>
           {canUseEnergyControls && renderEnergyOrientationControls('desktop')}
@@ -1993,7 +1995,7 @@ export const PlayerArea = memo(function PlayerArea({
         )}
         activeClassName="ring-2 ring-indigo-500 bg-indigo-500/20"
       >
-        <span className="w-full truncate text-center text-[10px] font-semibold leading-none text-[var(--text-muted)] tabular-nums">
+        <span className={cn(ZONE_META_LABEL_CLASS, 'w-full justify-center overflow-hidden px-1')}>
           能量 {activeCount}/{energyCount}
         </span>
         {showMobileEnergyControls && renderEnergyOrientationControls('mobile')}
@@ -2954,9 +2956,7 @@ export const PlayerArea = memo(function PlayerArea({
               >
                 {playerIdentity.name}
               </div>
-              <div className="text-[10px] font-medium text-slate-500">
-                手牌: {displayedHandCount}
-              </div>
+              <div className={ZONE_META_LABEL_CLASS}>手牌: {displayedHandCount}</div>
             </div>
 
             <div className="min-h-0 flex-1 overflow-visible">{renderMobileTabletop(true)}</div>
@@ -2988,7 +2988,7 @@ export const PlayerArea = memo(function PlayerArea({
             >
               {playerIdentity.name}
             </div>
-            <div className="text-[10px] font-medium text-slate-500">手牌: {displayedHandCount}</div>
+            <div className={ZONE_META_LABEL_CLASS}>手牌: {displayedHandCount}</div>
             {renderHandContextActions()}
           </div>
 
@@ -3030,7 +3030,7 @@ export const PlayerArea = memo(function PlayerArea({
           >
             {playerIdentity.name}
           </div>
-          <div className="text-[10px] text-slate-600 font-medium">手牌: {displayedHandCount}</div>
+          <div className={ZONE_META_LABEL_CLASS}>手牌: {displayedHandCount}</div>
         </div>
 
         {/* 主区域 - 绝对定位布局（成员槽和Live区在底部，靠近中央分隔线） */}
@@ -3111,7 +3111,7 @@ export const PlayerArea = memo(function PlayerArea({
         >
           {playerIdentity.name}
         </div>
-        <div className="text-[10px] text-slate-600 font-medium">手牌: {displayedHandCount}</div>
+        <div className={ZONE_META_LABEL_CLASS}>手牌: {displayedHandCount}</div>
         {renderHandContextActions()}
       </div>
 

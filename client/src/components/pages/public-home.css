@@ -214,7 +214,6 @@
   align-items: flex-start;
   gap: clamp(14px, 1.25vw, 20px);
   margin: 0;
-  font-family: 'Noto Sans SC Loveca', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   font-size: clamp(60px, 5.8vw, 88px);
   font-weight: 600;
 }

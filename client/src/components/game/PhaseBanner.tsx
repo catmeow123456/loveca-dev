@@ -164,7 +164,7 @@ export const PhaseBanner = memo(function PhaseBanner() {
               />
               <p
                 className={cn(
-                  'font-mono text-[9px] font-bold uppercase tracking-[0.22em] sm:text-[10px]',
+                  'text-[9px] font-semibold tracking-[0.08em] [font-family:var(--font-body)] sm:text-[10px]',
                   tone.text
                 )}
               >
@@ -172,10 +172,10 @@ export const PhaseBanner = memo(function PhaseBanner() {
               </p>
               <h1
                 className={cn(
-                  'mt-1 font-black text-[var(--text-primary)]',
+                  'mt-1 font-bold text-[var(--text-primary)] [font-family:var(--font-body)]',
                   announcement.variant === 'HANDOFF'
-                    ? 'text-base tracking-[0.06em] sm:text-lg'
-                    : 'text-2xl tracking-[0.12em] sm:text-3xl'
+                    ? 'text-base tracking-[0.01em] sm:text-lg'
+                    : 'text-2xl tracking-[0.02em] sm:text-3xl'
                 )}
               >
                 {announcement.title}
