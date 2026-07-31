@@ -18,6 +18,18 @@ export function isPublicEffectChoiceAutoAdvanceView(
   );
 }
 
+export function shouldMountEffectChoicePanel(
+  effect: ActiveEffectViewState | null | undefined,
+  isOrderSelectionWindow: boolean,
+  showOrdinaryActiveEffectControls: boolean
+): boolean {
+  return (
+    !isOrderSelectionWindow &&
+    !!effect?.effectChoice &&
+    (showOrdinaryActiveEffectControls || isPublicEffectChoiceAutoAdvanceView(effect))
+  );
+}
+
 export function getSelectedEffectChoiceOptions(
   effectChoice: NonNullable<ActiveEffectViewState['effectChoice']>
 ): readonly NonNullable<ActiveEffectViewState['effectChoice']>['options'][number][] {

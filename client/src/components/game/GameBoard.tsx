@@ -93,6 +93,7 @@ import {
   normalizeEffectChoiceSelection,
   PUBLIC_EFFECT_CHOICE_FALLBACK_DELAY_MS,
   schedulePublicEffectChoiceAutoAdvance,
+  shouldMountEffectChoicePanel,
   toggleEffectChoiceSelection,
 } from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
@@ -771,6 +772,11 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const activeEffectChoice = activeEffect?.effectChoice ?? null;
+  const showActiveEffectChoicePanel = shouldMountEffectChoicePanel(
+    activeEffect,
+    isActiveEffectOrderSelectionWindow,
+    showOrdinaryActiveEffectControls
+  );
   const showLegacyActiveEffectControls = showOrdinaryActiveEffectControls && !activeEffectChoice;
   const normalizedActiveEffectChoiceSelection = activeEffectChoice
     ? normalizeEffectChoiceSelection(activeEffectChoice, activeEffectChoiceSelection)
@@ -3081,42 +3087,40 @@ export const GameBoard = memo(function GameBoard({
                     text={activeEffectDescription}
                     className="text-[13px] leading-relaxed md:text-sm"
                   />
-                  {showOrdinaryActiveEffectControls &&
-                    !isActiveEffectOrderSelectionWindow &&
-                    activeEffectChoice && (
-                      <EffectChoicePanel
-                        activeEffect={activeEffect}
-                        selectedOptionIds={normalizedActiveEffectChoiceSelection}
-                        canChoose={
-                          canConfirmActiveEffect &&
-                          !isPublicEffectChoiceAutoAdvance &&
-                          (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
-                        }
-                        canConfirmMulti={canConfirmActiveEffectChoice}
-                        onSelectSingle={(optionId) =>
-                          confirmEffectChoice(activeEffect.id, {
-                            selectedCardId: activeEffectUsesCardOptionSelection
-                              ? activeEffectSelectedCardId
-                              : undefined,
-                            selectedEffectOptionIds: [optionId],
-                          })
-                        }
-                        onToggleMulti={(optionId) =>
-                          setActiveEffectChoiceSelection((current) => [
-                            ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
-                          ])
-                        }
-                        onConfirmMulti={() =>
-                          confirmEffectChoice(activeEffect.id, {
-                            selectedCardId: activeEffectUsesCardOptionSelection
-                              ? activeEffectSelectedCardId
-                              : undefined,
-                            selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
-                          })
-                        }
-                        onSkip={() => confirmEffectStep(activeEffect.id, null)}
-                      />
-                    )}
+                  {showActiveEffectChoicePanel && activeEffectChoice && (
+                    <EffectChoicePanel
+                      activeEffect={activeEffect}
+                      selectedOptionIds={normalizedActiveEffectChoiceSelection}
+                      canChoose={
+                        canConfirmActiveEffect &&
+                        !isPublicEffectChoiceAutoAdvance &&
+                        (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
+                      }
+                      canConfirmMulti={canConfirmActiveEffectChoice}
+                      onSelectSingle={(optionId) =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: [optionId],
+                        })
+                      }
+                      onToggleMulti={(optionId) =>
+                        setActiveEffectChoiceSelection((current) => [
+                          ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
+                        ])
+                      }
+                      onConfirmMulti={() =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
+                        })
+                      }
+                      onSkip={() => confirmEffectStep(activeEffect.id, null)}
+                    />
+                  )}
                   {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
                     <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
                       <button
