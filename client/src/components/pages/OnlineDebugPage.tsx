@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Link2, Loader2, RefreshCw, Swords, Users } from 'lucide-react';
 import { PageHeader, DeckSelector, DeckStatsRow, type DeckDisplayItem } from '@/components/common';
 import { BattleViewportShell, GameBoard } from '@/components/game';
@@ -42,9 +42,10 @@ function isUnauthorizedErrorMessage(message: string): boolean {
 
 interface OnlineDebugPageProps {
   onBack: () => void;
+  onImmersiveModeChange?: (immersive: boolean) => void;
 }
 
-export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
+export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPageProps) {
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
   const cloudError = useDeckStore((s) => s.cloudError);
@@ -102,6 +103,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   const myStatus = mySeat && status ? status.seats[mySeat] : null;
   const opponentStatus = opponentSeat && status ? status.seats[opponentSeat] : null;
   const isMatchStarted = status?.started ?? false;
+  const isBattleActive = isMatchStarted && Boolean(matchView);
   const displayName = offlineMode
     ? offlineUser?.displayName || DEBUG_SERVICE_NAME
     : profile?.display_name || profile?.username || DEBUG_SERVICE_NAME;
@@ -220,6 +222,11 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
     };
   }, [disconnectRemoteDebugSession]);
 
+  useLayoutEffect(() => {
+    onImmersiveModeChange?.(isBattleActive);
+    return () => onImmersiveModeChange?.(false);
+  }, [isBattleActive, onImmersiveModeChange]);
+
   const handleLockDeck = async () => {
     if (!mySeat || !selectedDeck?.cloudDeck) {
       return;
@@ -302,7 +309,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
     );
   }
 
-  if (isMatchStarted && matchView) {
+  if (isBattleActive) {
     return (
       <BattleViewportShell>
         <GameBoard onLeaveLocalGame={handleLeaveDebugRoom} />

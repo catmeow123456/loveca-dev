@@ -314,6 +314,8 @@ function App() {
   const [isLeavingCurrentGame, setIsLeavingCurrentGame] = useState(false);
   const [isRestartCurrentGameConfirmOpen, setIsRestartCurrentGameConfirmOpen] = useState(false);
   const [isRestartingCurrentGame, setIsRestartingCurrentGame] = useState(false);
+  const [isOnlineRoomImmersive, setIsOnlineRoomImmersive] = useState(false);
+  const [isOnlineDebugImmersive, setIsOnlineDebugImmersive] = useState(false);
   const gameBriefingKeyRef = useRef<string | null>(null);
   const solitaireRestoreAttemptedRef = useRef(false);
 
@@ -838,13 +840,18 @@ function App() {
       </button>
     </div>
   );
-  const withProductFrame = (content: ReactNode, active: ProductNavKey | null) =>
+  const withProductFrame = (
+    content: ReactNode,
+    active: ProductNavKey | null,
+    immersive = false
+  ) =>
     withPublicTableLayer(
       <ProductFrame
         active={active}
         navigation={productNavigation}
         actions={authenticatedHeaderActions}
         mobileMenuActions={authenticatedMobileMenuActions}
+        immersive={immersive}
       >
         {content}
       </ProductFrame>
@@ -940,7 +947,14 @@ function App() {
   }
 
   if (effectivePage === 'online-room') {
-    return withProductFrame(<OnlineRoomPage onBack={() => setCurrentPage('home')} />, 'battle');
+    return withProductFrame(
+      <OnlineRoomPage
+        onBack={() => setCurrentPage('home')}
+        onImmersiveModeChange={setIsOnlineRoomImmersive}
+      />,
+      'battle',
+      isOnlineRoomImmersive
+    );
   }
 
   if (effectivePage === 'public-table' && publicTableSessionUserId) {
@@ -977,7 +991,14 @@ function App() {
   }
 
   if (effectivePage === 'online-debug') {
-    return withProductFrame(<OnlineDebugPage onBack={() => setCurrentPage('home')} />, 'battle');
+    return withProductFrame(
+      <OnlineDebugPage
+        onBack={() => setCurrentPage('home')}
+        onImmersiveModeChange={setIsOnlineDebugImmersive}
+      />,
+      'battle',
+      isOnlineDebugImmersive
+    );
   }
 
   // 卡组管理页面

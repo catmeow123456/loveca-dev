@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -95,9 +95,10 @@ type RpsToneClasses = {
 
 interface OnlineRoomPageProps {
   onBack: () => void;
+  onImmersiveModeChange?: (immersive: boolean) => void;
 }
 
-export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
+export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPageProps) {
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
   const cloudError = useDeckStore((s) => s.cloudError);
@@ -789,6 +790,20 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           : null
     : null;
 
+  const activeBattleContext =
+    room?.status === 'IN_GAME' &&
+    room.matchId &&
+    remoteSession?.matchId === room.matchId &&
+    matchView
+      ? { room, matchId: room.matchId, matchView }
+      : null;
+  const isBattleActive = activeBattleContext !== null;
+
+  useLayoutEffect(() => {
+    onImmersiveModeChange?.(isBattleActive);
+    return () => onImmersiveModeChange?.(false);
+  }, [isBattleActive, onImmersiveModeChange]);
+
   if (room?.status === 'ENDED') {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center p-4">
@@ -811,7 +826,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
     );
   }
 
-  if (room?.status === 'IN_GAME' && remoteSession?.matchId === room.matchId && matchView) {
+  if (activeBattleContext) {
     return (
       <BattleViewportShell>
         <div className="absolute left-4 top-4 z-[120] flex max-w-[calc(100vw-2rem)] flex-col items-start gap-2">
@@ -824,8 +839,12 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               title="打开房间操作"
             >
               <Users size={16} />
-              <span className="hidden text-sm font-semibold sm:inline">房间 {room.roomCode}</span>
-              <span className="text-sm font-semibold sm:hidden">{room.roomCode}</span>
+              <span className="hidden text-sm font-semibold sm:inline">
+                房间 {activeBattleContext.room.roomCode}
+              </span>
+              <span className="text-sm font-semibold sm:hidden">
+                {activeBattleContext.room.roomCode}
+              </span>
               <span className="h-4 w-px bg-[var(--border-default)]" />
               <span
                 className="inline-flex items-center gap-1.5"
@@ -843,17 +862,17 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
               <PublicBattleLogButton />
             </div>
             <MatchChat
-              key={room.matchId}
+              key={activeBattleContext.matchId}
               access={{
                 kind: 'PARTICIPANT',
-                matchId: room.matchId,
-                viewerSeat: matchView.viewerSeat,
+                matchId: activeBattleContext.matchId,
+                viewerSeat: activeBattleContext.matchView.viewerSeat,
               }}
             />
           </div>
           {isRoomPanelOpen && (
             <RoomActionPanel
-              roomCode={room.roomCode}
+              roomCode={activeBattleContext.room.roomCode}
               presence={spectatorPresence}
               spectatorRoomEntry={mySpectatorRoomEntry}
               isUpdatingSpectatorEntry={isUpdatingSpectatorEntry}
@@ -942,10 +961,10 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
           )}
         </div>
         <GameBoard showDesktopPublicBattleLogButton={false} />
-        {matchView.endInfo && (
+        {activeBattleContext.matchView.endInfo && (
           <OnlineMatchEndPanel
-            endInfo={matchView.endInfo}
-            viewerSeat={matchView.viewerSeat}
+            endInfo={activeBattleContext.matchView.endInfo}
+            viewerSeat={activeBattleContext.matchView.viewerSeat}
             onLeaveRoom={handleRequestLeaveRoom}
             onBackHome={onBack}
           />

@@ -26,6 +26,7 @@ interface ProductFrameProps {
   onBack?: () => void;
   titleAction?: ReactNode;
   className?: string;
+  immersive?: boolean;
 }
 
 const NAV_ITEMS: ReadonlyArray<{
@@ -53,6 +54,7 @@ export function ProductFrame({
   onBack,
   titleAction,
   className,
+  immersive = false,
 }: ProductFrameProps) {
   const navigate = (handler: keyof ProductNavigationHandlers) => {
     navigation[handler]();
@@ -60,54 +62,56 @@ export function ProductFrame({
 
   return (
     <div className={cn('app-shell flex h-[100dvh] min-h-0 flex-col overflow-x-hidden', className)}>
-      <ProductHeader
-        brandAriaLabel="前往大厅"
-        onBrandClick={() => navigate('onHome')}
-        navigationKey={active ?? 'secondary'}
-        navigation={
-          <nav className="hidden items-stretch self-stretch md:flex" aria-label="主要导航">
-            {NAV_ITEMS.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => navigate(item.handler)}
-                className={cn('product-nav-item', active === item.key && 'product-nav-item-active')}
-                aria-current={active === item.key ? 'page' : undefined}
-              >
-                {item.label}
-              </button>
-            ))}
-          </nav>
-        }
-        actions={actions}
-        mobileNavigation={
-          <nav className="product-mobile-nav md:hidden" aria-label="移动端主要导航">
-            <div className="mx-auto grid w-full max-w-[1440px] grid-cols-2 gap-px px-4 pb-3 sm:px-6">
+      {!immersive ? (
+        <ProductHeader
+          brandAriaLabel="前往大厅"
+          onBrandClick={() => navigate('onHome')}
+          navigationKey={active ?? 'secondary'}
+          navigation={
+            <nav className="hidden items-stretch self-stretch md:flex" aria-label="主要导航">
               {NAV_ITEMS.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => navigate(item.handler)}
-                  className={cn(
-                    'product-mobile-nav-item',
-                    active === item.key && 'product-mobile-nav-item-active'
-                  )}
+                  className={cn('product-nav-item', active === item.key && 'product-nav-item-active')}
                   aria-current={active === item.key ? 'page' : undefined}
                 >
                   {item.label}
                 </button>
               ))}
-              {mobileMenuActions ? (
-                <div className="col-span-2 mt-2 border-t border-[var(--border-subtle)] pt-2">
-                  {mobileMenuActions}
-                </div>
-              ) : null}
-            </div>
-          </nav>
-        }
-      />
+            </nav>
+          }
+          actions={actions}
+          mobileNavigation={
+            <nav className="product-mobile-nav md:hidden" aria-label="移动端主要导航">
+              <div className="mx-auto grid w-full max-w-[1440px] grid-cols-2 gap-px px-4 pb-3 sm:px-6">
+                {NAV_ITEMS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => navigate(item.handler)}
+                    className={cn(
+                      'product-mobile-nav-item',
+                      active === item.key && 'product-mobile-nav-item-active'
+                    )}
+                    aria-current={active === item.key ? 'page' : undefined}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+                {mobileMenuActions ? (
+                  <div className="col-span-2 mt-2 border-t border-[var(--border-subtle)] pt-2">
+                    {mobileMenuActions}
+                  </div>
+                ) : null}
+              </div>
+            </nav>
+          }
+        />
+      ) : null}
 
-      {title ? (
+      {!immersive && title ? (
         <PageHeader
           title={title}
           description={description}
@@ -117,10 +121,16 @@ export function ProductFrame({
         />
       ) : null}
 
-      <div className="product-frame-content flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div
+        key="product-frame-content"
+        className={cn(
+          'product-frame-content flex min-h-0 flex-1 flex-col',
+          immersive ? 'overflow-hidden' : 'overflow-y-auto'
+        )}
+      >
         {children}
+        {!immersive ? footer : null}
       </div>
-      {footer}
     </div>
   );
 }

@@ -279,7 +279,7 @@
   display: none;
 }
 
-.lobby-page > footer {
+.lobby-page .product-frame-content > footer {
   margin-top: auto;
   background: color-mix(in srgb, var(--bg-deep) 86%, var(--bg-surface));
 }
