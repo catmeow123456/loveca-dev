@@ -167,6 +167,7 @@ onlineRouter.post('/ai-battles', requireAuth, requireGameplayAvailable, async (r
     const battle = await aiBattlePhaseThreeService.createBattle({
       humanUserId: req.user!.id,
       ...parsed.data,
+      ...(req.user!.role === 'admin' ? { enableAdministratorDebugTrace: true } : {}),
     });
     setPrivateNoStoreHeaders(res);
     res.status(201).json({ data: battle, error: null });
@@ -195,34 +196,39 @@ onlineRouter.get('/ai-battles/:matchId', requireAuth, async (req, res) => {
   }
 });
 
-onlineRouter.get('/ai-battles/:matchId/debug-trace', requireAuth, async (req, res) => {
-  const parsedQuery = aiBattleDebugTraceQuerySchema.safeParse(req.query ?? {});
-  if (!parsedQuery.success) {
-    res.status(400).json({
-      data: null,
-      error: { code: 'INVALID_REQUEST', message: 'AI 调试轨迹游标非法' },
-    });
-    return;
-  }
-  try {
-    const trace = await aiBattlePhaseThreeService.getDebugTrace(
-      readPathParam(req.params.matchId),
-      req.user!.id,
-      parsedQuery.data.afterSeq ?? 0
-    );
-    if (!trace) {
-      res.status(404).json({
+onlineRouter.get(
+  '/ai-battles/:matchId/debug-trace',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const parsedQuery = aiBattleDebugTraceQuerySchema.safeParse(req.query ?? {});
+    if (!parsedQuery.success) {
+      res.status(400).json({
         data: null,
-        error: { code: 'AI_BATTLE_NOT_FOUND', message: 'AI 对局不存在或无权读取' },
+        error: { code: 'INVALID_REQUEST', message: 'AI 调试轨迹游标非法' },
       });
       return;
     }
-    setPrivateNoStoreHeaders(res);
-    res.json({ data: trace, error: null });
-  } catch (error) {
-    respondOnlineError(res, error);
+    try {
+      const trace = await aiBattlePhaseThreeService.getDebugTrace(
+        readPathParam(req.params.matchId),
+        req.user!.id,
+        parsedQuery.data.afterSeq ?? 0
+      );
+      if (!trace) {
+        res.status(404).json({
+          data: null,
+          error: { code: 'AI_BATTLE_NOT_FOUND', message: 'AI 对局不存在或无权读取' },
+        });
+        return;
+      }
+      setPrivateNoStoreHeaders(res);
+      res.json({ data: trace, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
   }
-});
+);
 
 onlineRouter.post(
   '/ai-battles/:matchId/restart',
@@ -270,6 +276,7 @@ onlineRouter.post(
       const battle = await aiBattlePhaseThreeService.createBattle({
         humanUserId: req.user!.id,
         ...parsed.data,
+        enableAdministratorDebugTrace: true,
       });
       setPrivateNoStoreHeaders(res);
       res.status(201).json({ data: battle, error: null });

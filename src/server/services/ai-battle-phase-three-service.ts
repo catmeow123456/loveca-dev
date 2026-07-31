@@ -38,6 +38,7 @@ export interface CreateControlledAiBattleInput {
   readonly humanDeckKey: AiBattlePhaseZeroDeckKey;
   readonly aiDeckKey: AiBattlePhaseZeroDeckKey;
   readonly aiSeat: Seat;
+  readonly enableAdministratorDebugTrace?: boolean;
 }
 
 export interface ControlledAiBattleView {
@@ -335,6 +336,7 @@ export class AiBattlePhaseThreeService {
       automationGameMode: 'DEBUG',
       originKind: 'AI_BATTLE',
       originLabel: 'AI 对战',
+      enableAiDebugTrace: input.enableAdministratorDebugTrace === true,
       startedAt: this.now(),
       first: pregame.first,
       second: pregame.second,

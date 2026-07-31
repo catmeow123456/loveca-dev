@@ -114,11 +114,12 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
     const observation = createObservation();
     const selectedHistory = [
       {
-        schemaVersion: 'ai-battle.selected-history/v2',
+        schemaVersion: 'ai-battle.selected-history/v3',
         historyId: 'history-1',
         authorityRevision: 3,
         turnCount: 1,
         actorSeat: 'FIRST',
+        source: 'AUTHORITY_ACCEPTED_SELECTION',
         category: 'LIVE_SET',
         reasonCode: 'SET_HIGHEST_RANKED_LIVE',
         summary: 'Set an achievable LIVE.',
@@ -168,7 +169,8 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
             "category": "LIVE_SET",
             "historyId": "history-1",
             "reasonCode": "SET_HIGHEST_RANKED_LIVE",
-            "schemaVersion": "ai-battle.selected-history/v2",
+            "schemaVersion": "ai-battle.selected-history/v3",
+            "source": "AUTHORITY_ACCEPTED_SELECTION",
             "summary": "Set an achievable LIVE.",
             "turnCount": 1,
           },
@@ -196,6 +198,19 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
         selectedHistory: [{ ...selectedHistory[0], authorityRevision: 5 }],
       })
     ).toThrow('future authority revision');
+    expect(() =>
+      buildAiStrategyContext({
+        observation,
+        deckKey: 'MUSE_STARTER',
+        deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
+        selectedHistory: [
+          {
+            ...selectedHistory[0],
+            source: 'VISIBLE_PROJECTION_DELTA',
+          } as unknown as (typeof selectedHistory)[number],
+        ],
+      })
+    ).toThrow('source does not match');
   });
 
   it('keeps strategy knowledge and context isolated from authority runtime imports', () => {

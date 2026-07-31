@@ -1,7 +1,11 @@
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
-import type { AiModelInvocationAudit } from './model-governance.js';
+import type {
+  AiModelInvocationAttemptOutcome,
+  AiModelInvocationAudit,
+} from './model-governance.js';
+import type { AiModelDecisionOutput, AiModelRequestAttempt } from './model-protocol.js';
 
-export const AI_BATTLE_DEBUG_TRACE_SCHEMA_VERSION = 'ai-battle.debug-trace/v1' as const;
+export const AI_BATTLE_DEBUG_TRACE_SCHEMA_VERSION = 'ai-battle.debug-trace/v2' as const;
 export const AI_BATTLE_DEBUG_TRACE_MAX_ENTRIES = 128;
 
 export type AiBattleDebugDecisionSource = 'RULE' | 'MODEL' | 'CONSERVATIVE_FALLBACK';
@@ -24,6 +28,23 @@ export interface AiBattleDebugSelectionSummary {
   readonly label: string;
 }
 
+export interface AiBattleDebugModelAttemptContext {
+  readonly attemptNumber: 1 | 2;
+  readonly attemptKind: AiModelRequestAttempt['kind'];
+  readonly failureCode: string | null;
+  readonly requestSha256: string;
+  readonly requestEnvelopeVersion: string;
+  readonly promptVersion: string;
+  readonly outputSchemaVersion: string;
+  /** Exact provider-neutral message, excluding credentials and provider routing. */
+  readonly systemMessage: string;
+  /** Exact provider-neutral message, including the current semantic strategy context. */
+  readonly userMessage: string;
+  /** Strictly parsed output only. Invalid/raw provider bodies are never retained. */
+  readonly parsedOutput: AiModelDecisionOutput | null;
+  readonly outcome: AiModelInvocationAttemptOutcome;
+}
+
 export interface AiBattleDebugTraceEntry {
   readonly seq: number;
   readonly createdAt: number;
@@ -36,6 +57,9 @@ export interface AiBattleDebugTraceEntry {
   readonly summary: string;
   readonly selection: AiBattleDebugSelectionSummary | null;
   readonly model: AiBattleDebugModelSummary | null;
+  readonly modelContext: {
+    readonly attempts: readonly AiBattleDebugModelAttemptContext[];
+  } | null;
   readonly executionStatus: AiBattleDebugExecutionStatus | null;
 }
 
@@ -82,6 +106,7 @@ export function appendAiBattleDebugTraceEntry(
           outcomes: [...input.model.outcomes],
         }
       : null,
+    modelContext: cloneModelContext(input.modelContext),
   };
   runtime.nextSeq += 1;
   runtime.entries.push(entry);
@@ -224,5 +249,20 @@ function cloneTraceEntry(entry: AiBattleDebugTraceEntry): AiBattleDebugTraceEntr
     ...entry,
     selection: entry.selection ? { ...entry.selection } : null,
     model: entry.model ? { ...entry.model, outcomes: [...entry.model.outcomes] } : null,
+    modelContext: cloneModelContext(entry.modelContext),
+  };
+}
+
+function cloneModelContext(
+  modelContext: AiBattleDebugTraceEntry['modelContext']
+): AiBattleDebugTraceEntry['modelContext'] {
+  if (!modelContext) return null;
+  return {
+    attempts: modelContext.attempts.map((attempt) => ({
+      ...attempt,
+      parsedOutput: attempt.parsedOutput
+        ? (JSON.parse(JSON.stringify(attempt.parsedOutput)) as AiModelDecisionOutput)
+        : null,
+    })),
   };
 }

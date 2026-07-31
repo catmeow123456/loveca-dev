@@ -37,6 +37,7 @@ import {
 import { OnlineMatchChatRuntimeError } from '../../src/server/services/online-match-chat-runtime';
 import { aiBattlePhaseThreeService } from '../../src/server/services/ai-battle-phase-three-service';
 import { onlineRoomService } from '../../src/server/services/online-room-service';
+import { requireAdmin } from '../../src/server/middleware/require-admin';
 
 function createMockResponse() {
   const response = {
@@ -372,6 +373,7 @@ describe('onlineRouter error handling', () => {
       humanDeckKey: 'MUSE_STARTER',
       aiDeckKey: 'GREEN_HASUNOSORA_B6',
       aiSeat: 'FIRST',
+      enableAdministratorDebugTrace: true,
     });
     expect(response.body?.data).toMatchObject({
       matchId: 'ai-match-1',
@@ -412,6 +414,7 @@ describe('onlineRouter error handling', () => {
           humanDeckKey: 'MUSE_STARTER',
           aiDeckKey: 'GREEN_HASUNOSORA_B6',
           aiSeat: 'SECOND',
+          enableAdministratorDebugTrace: true,
         },
       });
       expect(createResponse.statusCode).toBe(201);
@@ -431,9 +434,9 @@ describe('onlineRouter error handling', () => {
     }
   });
 
-  it('AI 调试轨迹路由只返回当前玩家获授权的内存轨迹', async () => {
+  it('AI 调试轨迹路由只向管理员返回当前测试对局的内存上下文', async () => {
     const getDebugTrace = vi.spyOn(aiBattlePhaseThreeService, 'getDebugTrace').mockResolvedValue({
-      schemaVersion: 'ai-battle.debug-trace/v1',
+      schemaVersion: 'ai-battle.debug-trace/v2',
       enabled: true,
       matchId: 'ai-match-1',
       currentSeq: 2,
@@ -444,6 +447,7 @@ describe('onlineRouter error handling', () => {
     const response = await invokeRoute('/ai-battles/:matchId/debug-trace', 'get', {
       params: { matchId: 'ai-match-1' },
       query: { afterSeq: '1' },
+      user: { id: 'u1', role: 'admin' },
     });
 
     expect(response.statusCode).toBe(200);
@@ -453,6 +457,25 @@ describe('onlineRouter error handling', () => {
       currentSeq: 2,
     });
     expect(response.headers['Cache-Control']).toBe('private, no-store');
+
+    const route = onlineRouter.stack.find(
+      (candidate) =>
+        'route' in candidate &&
+        candidate.route?.path === '/ai-battles/:matchId/debug-trace' &&
+        candidate.route.methods.get
+    );
+    expect(route?.route?.stack.map((layer) => layer.handle)).toContain(requireAdmin);
+  });
+
+  it('AI 调试轨迹的管理员中间件拒绝普通玩家', () => {
+    const response = createMockResponse();
+    const next = vi.fn();
+
+    requireAdmin({ user: { id: 'u1', role: 'user' } } as Request, response, next);
+
+    expect(response.statusCode).toBe(403);
+    expect(response.body?.error).toEqual({ code: 'FORBIDDEN', message: '需要管理员权限' });
+    expect(next).not.toHaveBeenCalled();
   });
 
   it('模型未配置时普通玩家 AI 对局入口返回稳定的 503', async () => {

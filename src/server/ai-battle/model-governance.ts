@@ -5,6 +5,7 @@ import {
   AI_MODEL_PROVIDER_ID,
   AI_MODEL_PROVIDER_PROFILE_VERSION,
   type AiModelProvider,
+  type AiModelProviderRequest,
   type AiModelProviderResult,
   type AiModelProviderUsage,
 } from './model-provider.js';
@@ -50,6 +51,7 @@ export type AiModelInvocationAttemptOutcome =
   | 'INVALID_JSON'
   | 'INVALID_SCHEMA'
   | 'INVALID_SELECTION'
+  | 'INVALID_FACT_REFERENCE'
   | 'TIMEOUT'
   | 'ABORTED'
   | 'PROVIDER_RETRYABLE'
@@ -116,6 +118,30 @@ export interface CreateAiModelInvocationRuntimeInput {
     delayMs: number
   ) => ReturnType<typeof setTimeout>;
   readonly cancelTimeout?: (handle: ReturnType<typeof setTimeout>) => void;
+}
+
+/**
+ * Serializes the exact provider-neutral messages used by the runtime.
+ *
+ * The development-only administrator context inspector calls this same
+ * function, so its view cannot drift from the payload handed to the provider.
+ * Credentials and provider routing remain outside these messages.
+ */
+export function buildAiModelProviderRequest(
+  envelope: AiModelRequestEnvelope
+): AiModelProviderRequest {
+  return {
+    systemMessage: JSON.stringify({
+      schemaVersion: envelope.schemaVersion,
+      promptVersion: envelope.promptVersion,
+      systemInstruction: envelope.systemInstruction,
+      responseContract: envelope.responseContract,
+    }),
+    userMessage: JSON.stringify({
+      attempt: envelope.attempt,
+      strategyContext: envelope.strategyContext,
+    }),
+  };
 }
 
 interface MatchBudgetState {
@@ -284,18 +310,7 @@ export function createAiModelInvocationRuntime(
       let providerResult: AiModelProviderResult;
       try {
         providerResult = await input.provider.invoke(
-          {
-            systemMessage: JSON.stringify({
-              schemaVersion: envelope.schemaVersion,
-              promptVersion: envelope.promptVersion,
-              systemInstruction: envelope.systemInstruction,
-              responseContract: envelope.responseContract,
-            }),
-            userMessage: JSON.stringify({
-              attempt: envelope.attempt,
-              strategyContext: envelope.strategyContext,
-            }),
-          },
+          buildAiModelProviderRequest(envelope),
           controller.signal
         );
       } catch {

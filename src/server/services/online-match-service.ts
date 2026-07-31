@@ -87,6 +87,7 @@ import {
   summarizeAiModelInvocation,
   type AiBattleDebugDecisionSource,
   type AiBattleDebugExecutionStatus,
+  type AiBattleDebugModelAttemptContext,
   type AiBattleDebugTraceRuntime,
   type AiBattleDebugTraceView,
 } from '../ai-battle/debug-trace.js';
@@ -94,6 +95,7 @@ import { buildAiObservation, type AiObservation } from '../ai-battle/ai-observat
 import { selectExplainableDecision } from '../ai-battle/explainable-decision-policy.js';
 import {
   AI_MODEL_DECISION_POLICY_VERSION,
+  buildAiModelProviderRequest,
   createAiModelInvocationRuntime,
   type AiModelInvocationAttemptAudit,
   type AiModelInvocationAudit,
@@ -103,7 +105,10 @@ import { createConfiguredAiBattleModelProvider } from '../ai-battle/model-provid
 import {
   buildAiModelRequestEnvelope,
   parseAiModelDecisionOutput,
+  validateAiModelDecisionGrounding,
+  type AiModelDecisionOutput,
   type AiModelRepairFailureCode,
+  type AiModelRequestEnvelope,
   type AiModelTransportRetryFailureCode,
 } from '../ai-battle/model-protocol.js';
 import { buildAiStrategyContext, type AiStrategyContext } from '../ai-battle/strategy-context.js';
@@ -200,6 +205,7 @@ export interface CreateOnlineMatchParams {
   readonly automationGameMode?: MatchAutomationGameMode;
   readonly originKind?: MatchOriginKind;
   readonly originLabel?: string;
+  readonly enableAiDebugTrace?: boolean;
   readonly startedAt?: number;
   readonly first: CreateOnlineMatchPlayerParams;
   readonly second: CreateOnlineMatchPlayerParams;
@@ -465,6 +471,7 @@ interface PreparedModelMachineDecision {
   readonly observation: AiObservation;
   readonly context: AiStrategyContext;
   readonly deterministicResult: AuditableAiDecisionResult | null;
+  readonly captureModelContext: boolean;
 }
 
 export interface DeleteOnlineMatchOptions {
@@ -646,7 +653,9 @@ export class OnlineMatchService {
       activeUndoGrant: null,
       machineLiveness: null,
       aiDebugTrace:
-        originKind === 'AI_BATTLE' && this.aiDebugTraceEnabled
+        originKind === 'AI_BATTLE' &&
+        this.aiDebugTraceEnabled &&
+        params.enableAiDebugTrace === true
           ? createAiBattleDebugTraceRuntime()
           : null,
       appliedUndoKeys: new Set<string>(),
@@ -1329,6 +1338,7 @@ export class OnlineMatchService {
           observation,
           context,
           deterministicResult,
+          captureModelContext: Boolean(match.aiDebugTrace),
         };
       }
     );
@@ -1340,6 +1350,7 @@ export class OnlineMatchService {
         prepared,
         result: prepared.deterministicResult,
         modelInvocation: null,
+        modelContextAttempts: [],
         strategyMode:
           prepared.strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK'
             ? 'CONSERVATIVE_FALLBACK'
@@ -1349,8 +1360,24 @@ export class OnlineMatchService {
     }
 
     const attempts: AiModelInvocationAttemptAudit[] = [];
+    const modelContextAttempts: AiBattleDebugModelAttemptContext[] = [];
     let repairFailureCode: AiModelRepairFailureCode | undefined;
     let transportRetryFailureCode: AiModelTransportRetryFailureCode | undefined;
+    const captureModelContextAttempt = (
+      envelope: AiModelRequestEnvelope,
+      audit: AiModelInvocationAttemptAudit,
+      parsedOutput: AiModelDecisionOutput | null
+    ): void => {
+      if (!prepared.captureModelContext) return;
+      modelContextAttempts.push(
+        createAiBattleDebugModelAttemptContext({
+          envelope,
+          providerRequest: buildAiModelProviderRequest(envelope),
+          audit,
+          parsedOutput,
+        })
+      );
+    };
 
     for (let attemptNumber = 1; attemptNumber <= 2; attemptNumber += 1) {
       const envelope = buildAiModelRequestEnvelope({
@@ -1365,6 +1392,7 @@ export class OnlineMatchService {
       });
       if (!invoked.ok) {
         attempts.push(invoked.audit);
+        captureModelContextAttempt(envelope, invoked.audit, null);
         if (invoked.outcome === 'ABORTED') return 'RETRY';
         if (attemptNumber === 1 && invoked.retryable) {
           transportRetryFailureCode =
@@ -1376,7 +1404,9 @@ export class OnlineMatchService {
 
       const parsed = parseAiModelDecisionOutput(invoked.rawOutput);
       if (!parsed.ok) {
-        attempts.push(withModelAttemptOutcome(invoked.audit, parsed.reason));
+        const attemptAudit = withModelAttemptOutcome(invoked.audit, parsed.reason);
+        attempts.push(attemptAudit);
+        captureModelContextAttempt(envelope, attemptAudit, null);
         if (attemptNumber === 1) {
           repairFailureCode = parsed.reason;
           transportRetryFailureCode = undefined;
@@ -1385,12 +1415,32 @@ export class OnlineMatchService {
         break;
       }
 
+      const grounding = validateAiModelDecisionGrounding(
+        parsed.output,
+        envelope.strategyContext.semanticContext
+      );
+      if (!grounding.ok) {
+        const attemptAudit = withModelAttemptOutcome(invoked.audit, grounding.reason);
+        attempts.push(attemptAudit);
+        captureModelContextAttempt(envelope, attemptAudit, parsed.output);
+        if (attemptNumber === 1) {
+          repairFailureCode = grounding.reason;
+          transportRetryFailureCode = undefined;
+          continue;
+        }
+        break;
+      }
+
       attempts.push(invoked.audit);
+      captureModelContextAttempt(envelope, invoked.audit, parsed.output);
       const modelResult: AuditableAiDecisionResult = {
         policyVersion: AI_MODEL_DECISION_POLICY_VERSION,
         tier: 'HEURISTIC',
         reasonCode: 'MODEL_STRUCTURED_SELECTION',
-        summary: parsed.output.summary,
+        summary: `${parsed.output.tradeoff} 下一步：${parsed.output.nextPlan}`,
+        factRefs: parsed.output.factRefs,
+        tradeoff: parsed.output.tradeoff,
+        nextPlan: parsed.output.nextPlan,
         consideredIds: collectModelConsideredIds(prepared.context),
         selection: parsed.output.selection,
       };
@@ -1399,6 +1449,7 @@ export class OnlineMatchService {
         prepared,
         result: modelResult,
         modelInvocation: this.modelInvocationRuntime!.createAudit(attempts, 'MODEL_SELECTION'),
+        modelContextAttempts,
         strategyMode: 'PRIMARY',
       });
       if (!submitted.invalidSelection) return submitted.result;
@@ -1407,6 +1458,12 @@ export class OnlineMatchService {
         attempts[attempts.length - 1]!,
         'INVALID_SELECTION'
       );
+      if (modelContextAttempts.length > 0) {
+        modelContextAttempts[modelContextAttempts.length - 1] = {
+          ...modelContextAttempts[modelContextAttempts.length - 1]!,
+          outcome: 'INVALID_SELECTION',
+        };
+      }
       if (attemptNumber === 1) {
         repairFailureCode = 'INVALID_SELECTION';
         transportRetryFailureCode = undefined;
@@ -1432,6 +1489,7 @@ export class OnlineMatchService {
           attempts,
           'CONSERVATIVE_FALLBACK'
         ),
+        modelContextAttempts,
         strategyMode: 'CONSERVATIVE_FALLBACK',
       })
     ).result;
@@ -1442,6 +1500,7 @@ export class OnlineMatchService {
     readonly prepared: PreparedModelMachineDecision;
     readonly result: AuditableAiDecisionResult;
     readonly modelInvocation: AiModelInvocationAudit | null;
+    readonly modelContextAttempts: readonly AiBattleDebugModelAttemptContext[];
     readonly strategyMode: MachineStrategyMode;
   }): Promise<{
     readonly result: MachineDecisionScheduleResult;
@@ -1497,7 +1556,8 @@ export class OnlineMatchService {
             match,
             input.prepared.context.observation.decision.kind,
             input.result,
-            input.modelInvocation,
+            withLastModelInvocationOutcome(input.modelInvocation, 'INVALID_SELECTION'),
+            withLastModelContextOutcome(input.modelContextAttempts, 'INVALID_SELECTION'),
             input.strategyMode,
             'REJECTED'
           );
@@ -1514,6 +1574,7 @@ export class OnlineMatchService {
             input.prepared.context.observation.decision.kind,
             input.result,
             input.modelInvocation,
+            input.modelContextAttempts,
             input.strategyMode,
             'STALE'
           );
@@ -1524,6 +1585,7 @@ export class OnlineMatchService {
           input.prepared.context.observation.decision.kind,
           input.result,
           input.modelInvocation,
+          input.modelContextAttempts,
           input.strategyMode,
           'REJECTED'
         );
@@ -1545,6 +1607,7 @@ export class OnlineMatchService {
         input.prepared.context.observation.decision.kind,
         input.result,
         input.modelInvocation,
+        input.modelContextAttempts,
         input.strategyMode,
         'ACCEPTED'
       );
@@ -1739,6 +1802,7 @@ export class OnlineMatchService {
             : '当前窗口可由规则或确定性策略直接处理。',
       selection: null,
       model: null,
+      modelContext: null,
       executionStatus: null,
     });
   }
@@ -1748,6 +1812,7 @@ export class OnlineMatchService {
     decisionKind: string,
     result: AuditableAiDecisionResult,
     modelInvocation: AiModelInvocationAudit | null,
+    modelContextAttempts: readonly AiBattleDebugModelAttemptContext[],
     strategyMode: MachineStrategyMode,
     executionStatus: AiBattleDebugExecutionStatus
   ): void {
@@ -1769,6 +1834,7 @@ export class OnlineMatchService {
       summary: result.summary,
       selection: summarizeAiDecisionSelection(result.selection),
       model: summarizeAiModelInvocation(modelInvocation),
+      modelContext: modelContextAttempts.length > 0 ? { attempts: modelContextAttempts } : null,
       executionStatus,
     });
   }
@@ -4637,7 +4703,7 @@ function collectModelConsideredIds(context: AiStrategyContext): readonly string[
 
 function withModelAttemptOutcome(
   attempt: AiModelInvocationAttemptAudit,
-  outcome: 'INVALID_JSON' | 'INVALID_SCHEMA' | 'INVALID_SELECTION'
+  outcome: 'INVALID_JSON' | 'INVALID_SCHEMA' | 'INVALID_SELECTION' | 'INVALID_FACT_REFERENCE'
 ): AiModelInvocationAttemptAudit {
   return { ...attempt, outcome, usage: { ...attempt.usage } };
 }
@@ -5509,6 +5575,51 @@ function buildMachineLivenessConcessionNotice(
     case 'AUTHORITY_PROGRESS_WATCHDOG':
       return 'AI 连续多次没有让牌局继续推进，因此已认输。';
   }
+}
+
+function createAiBattleDebugModelAttemptContext(input: {
+  readonly envelope: AiModelRequestEnvelope;
+  readonly providerRequest: ReturnType<typeof buildAiModelProviderRequest>;
+  readonly audit: AiModelInvocationAttemptAudit;
+  readonly parsedOutput: AiModelDecisionOutput | null;
+}): AiBattleDebugModelAttemptContext {
+  return {
+    attemptNumber: input.envelope.attempt.attemptNumber,
+    attemptKind: input.envelope.attempt.kind,
+    failureCode:
+      'failureCode' in input.envelope.attempt ? input.envelope.attempt.failureCode : null,
+    requestSha256: input.audit.requestSha256,
+    requestEnvelopeVersion: input.audit.requestEnvelopeVersion,
+    promptVersion: input.audit.promptVersion,
+    outputSchemaVersion: input.audit.outputSchemaVersion,
+    systemMessage: input.providerRequest.systemMessage,
+    userMessage: input.providerRequest.userMessage,
+    parsedOutput: input.parsedOutput,
+    outcome: input.audit.outcome,
+  };
+}
+
+function withLastModelContextOutcome(
+  attempts: readonly AiBattleDebugModelAttemptContext[],
+  outcome: AiModelInvocationAttemptAudit['outcome']
+): readonly AiBattleDebugModelAttemptContext[] {
+  if (attempts.length === 0) return attempts;
+  return attempts.map((attempt, index) =>
+    index === attempts.length - 1 ? { ...attempt, outcome } : attempt
+  );
+}
+
+function withLastModelInvocationOutcome(
+  invocation: AiModelInvocationAudit | null,
+  outcome: AiModelInvocationAttemptAudit['outcome']
+): AiModelInvocationAudit | null {
+  if (!invocation || invocation.attempts.length === 0) return invocation;
+  return {
+    ...invocation,
+    attempts: invocation.attempts.map((attempt, index) =>
+      index === invocation.attempts.length - 1 ? { ...attempt, outcome } : attempt
+    ),
+  };
 }
 
 function getCompletedMatchRecordStatus(

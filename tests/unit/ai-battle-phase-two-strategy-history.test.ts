@@ -116,9 +116,11 @@ describe('AI battle Phase 2 selected visible history', () => {
         authorityRevision: 4,
         turnCount: 1,
         actorSeat: 'FIRST',
+        source: 'AUTHORITY_ACCEPTED_SELECTION',
         category: 'MEMBER_PLAY',
-        reasonCode: 'SELECT_HIGHEST_RANKED_MAIN_ACTION',
-        summary: 'Choose the highest-ranked legal main-phase action.',
+        reasonCode: 'ACCEPTED_MEMBER_PLAY',
+        summary:
+          '权威已接受成员登场：PL!-sd1-001-SD 费用 2「高坂穗乃果」登场到中央；支付 0 张能量，不进行换手替换。',
         cards: [
           {
             cardCode: 'PL!-sd1-001-SD',
@@ -191,7 +193,12 @@ describe('AI battle Phase 2 selected visible history', () => {
     });
 
     expect(tracker.snapshot()).toHaveLength(2);
-    expect(tracker.snapshot().map((item) => item.summary)).toEqual(['Play one.', 'Play another.']);
+    expect(tracker.snapshot().map((item) => item.summary)).toEqual([
+      '权威已接受成员登场：PL!-sd1-001-SD 费用 2「高坂穗乃果」登场到中央；支付 0 张能量，不进行换手替换。',
+      '权威已接受成员登场：PL!-sd1-001-SD 费用 2「高坂穗乃果」登场到中央；支付 0 张能量，不进行换手替换。',
+    ]);
+    expect(JSON.stringify(tracker.snapshot())).not.toContain('Play one.');
+    expect(JSON.stringify(tracker.snapshot())).not.toContain('Play another.');
   });
 
   it('describes stage-area deltas without inventing an actor or an enter-stage event', () => {
@@ -219,6 +226,7 @@ describe('AI battle Phase 2 selected visible history', () => {
         authorityRevision: 2,
         turnCount: 1,
         affectedSeat: 'FIRST',
+        source: 'VISIBLE_PROJECTION_DELTA',
         category: 'VISIBLE_STATE_CHANGE',
         reasonCode: 'VISIBLE_MEMBER_CENTER_ADDITION',
         summary: "A card is newly visible in the opponent's stage area.",

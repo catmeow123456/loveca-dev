@@ -4,7 +4,7 @@
 >
 > 适用范围：受控卡组 AI 对战的可行性、现有基础、关键缺口、风险和成立条件
 >
-> 当前状态：Phase 0～4 已完成；登录玩家已经可以从独立入口测试两套固定卡组。Phase 4.5“语义决策上下文与事实自检”现为最高优先级，公共牌桌 AI 补位后移到 Phase 5
+> 当前状态：Phase 0～4 已完成；登录玩家已经可以从独立入口测试两套固定卡组。Phase 4.5“语义决策上下文与事实自检”已进入实施并仍为最高优先级，公共牌桌 AI 补位后移到 Phase 5
 >
 > 日期：2026-07-31
 >
@@ -12,7 +12,7 @@
 >
 > 分析范围：只评估可行性、现有基础、基础设施缺口、风险和成立条件；不展开具体接口字段、数据表设计、模型选型、Prompt 正文、实施阶段或工期估算。规范性的职责、概念、阶段门槛和验证矩阵统一由下游设计文档维护，本文件不作为第二份实施规范。第 6、7 节只是便于阅读的非规范摘要；与下游设计不一致时，以设计文档为准。当前实现事实仍以 [`PROJECT_PROGRESS_TODO.md`](../../PROJECT_PROGRESS_TODO.md)、[`docs/current-limitations.md`](../current-limitations.md) 和对应专题文档为准。
 >
-> 实施更新（2026-07-31）：Phase 0、Phase 1A、Phase 1B、Phase 1C、Phase 2、Phase 3 与 Phase 4 已完成。typed contract 已覆盖认证卡组可达的规则/卡效窗口，并以版本化矩阵绑定真实状态证据、合法 witness、sampler、命令适配和 Phase 0 能力集合指纹；core 已支持但不在两套认证卡组中可达的输入会明确留在认证范围外。单实例机器调度、共享单局执行器、decision lease、服务端 deadline owner、保守策略、活性终局与系统通知已经落地。规则随机已具备安全生产源、seeded 测试源、权威事实记录与严格回放；只消费 typed contract 的随机合法机器人已通过八个基础单元各 32 个种子的 256 局有界 headless 回归。Phase 2 已补齐 allowlist observation、压缩规则、固定卡组 playbook、定长精选可见历史、三层可解释策略、受限审计 artifact 和策略质量评测，并通过八单元各 8 个种子的 64 局回归。Phase 3 已建立不可登录 SYSTEM 身份、精确卡组与策略版本绑定、不可伪造的服务端内部授权、管理员受控入口、复用共享猜拳规则的版本化受控赛前、按真人串行的入口生命周期、无临时真人房间 AI match 的 participant 聊天授权、正式 match record 原子策略记录和刷新/撤销/自由模式/重开/离开政策；八个认证单元已各用真实 USER + SYSTEM 联机 runtime 完成 1 局。Phase 4 已接入固定的服务端 DashScope/Qwen provider、严格结构化模型选择、锁外等待与返回后重验、超时/两次尝试/取消、并发和单局预算、脱敏原子审计、整局保守策略切换，以及登录玩家可用的固定卡组 AI 对战入口。当前模型 profile 已切换为 `qwen3.7-flash`；Phase 4 曾完成真实 provider 四个固定战术窗口评测，模型切换后沿用同一场景复验。浏览器已验证真人换牌后 AI 接手、共享桌面和刷新恢复。真实对局同时暴露出“合法选择不等于事实落地正确”：模型可能跨对象混淆卡牌能力、换手对象和动作后槽位，而现有 validator 只验证选择合法。该缺口被提升为 [Phase 4.5](design-and-implementation.md#阶段-45语义决策上下文与事实自检)，在不建设复杂收益值/后悔值引擎的前提下，以权威派生的语言化行动后果、事实引用和一致性校验补齐；完成后才进入 Phase 5。既有阶段精确边界见设计文档的 [Phase 1A](design-and-implementation.md#阶段-1a认证范围-typed-决策契约)、[Phase 1B](design-and-implementation.md#阶段-1b单实例机器调度与保守策略)、[Phase 1C](design-and-implementation.md#阶段-1c可复现随机机器人与-headless-playout)、[Phase 2](design-and-implementation.md#阶段-2策略上下文与确定性-ai)、[Phase 3](design-and-implementation.md#阶段-3正式-system-席位与内部受控接入) 与 [Phase 4](design-and-implementation.md#阶段-4llm-对战闭环与玩家受控入口)。因此下文保留的初始缺口只描述分析形成时的历史状态；当前成熟度以第 9 节和项目进度文档为准。
+> 实施更新（2026-07-31）：Phase 0、Phase 1A、Phase 1B、Phase 1C、Phase 2、Phase 3 与 Phase 4 已完成。typed contract 已覆盖认证卡组可达的规则/卡效窗口，并以版本化矩阵绑定真实状态证据、合法 witness、sampler、命令适配和 Phase 0 能力集合指纹；core 已支持但不在两套认证卡组中可达的输入会明确留在认证范围外。单实例机器调度、共享单局执行器、decision lease、服务端 deadline owner、保守策略、活性终局与系统通知已经落地。规则随机已具备安全生产源、seeded 测试源、权威事实记录与严格回放；只消费 typed contract 的随机合法机器人已通过八个基础单元各 32 个种子的 256 局有界 headless 回归。Phase 2 已补齐 allowlist observation、压缩规则、固定卡组 playbook、定长精选可见历史、三层可解释策略、受限审计 artifact 和策略质量评测，并通过八单元各 8 个种子的 64 局回归。Phase 3 已建立不可登录 SYSTEM 身份、精确卡组与策略版本绑定、不可伪造的服务端内部授权、管理员受控入口、复用共享猜拳规则的版本化受控赛前、按真人串行的入口生命周期、无临时真人房间 AI match 的 participant 聊天授权、正式 match record 原子策略记录和刷新/撤销/自由模式/重开/离开政策；八个认证单元已各用真实 USER + SYSTEM 联机 runtime 完成 1 局。Phase 4 已接入固定的服务端 DashScope/Qwen provider、严格结构化模型选择、锁外等待与返回后重验、超时/两次尝试/取消、并发和单局预算、脱敏原子审计、整局保守策略切换，以及登录玩家可用的固定卡组 AI 对战入口。当前模型 profile 已切换为 `qwen3.7-flash`；Phase 4 曾完成真实 provider 四个固定战术窗口评测，模型切换后沿用同一场景复验。浏览器已验证真人换牌后 AI 接手、共享桌面和刷新恢复。真实对局同时暴露出“合法选择不等于事实落地正确”：模型可能跨对象混淆卡牌能力、换手对象和动作后槽位，而现有 validator 只验证选择合法。该缺口被提升为 [Phase 4.5](design-and-implementation.md#阶段-45语义决策上下文与事实自检)。Phase 4.5 第一批切片现已落地：实际模型请求只发送从 allowlist observation/纯净历史派生的版本化中文语义事实和逐动作后果；模型输出包含事实引用、简短取舍和计划，服务端检查引用存在性与所选方案必要事实；模型自由文本也已与权威精选历史隔离。管理员实际请求上下文检查器已通过与运行时共用的 provider-neutral 序列化边界接入共享桌面，只在开发开关、管理员认证和本人 AI 测试对局三重约束下展示 system/user 消息、语义分区、输出契约与严格解析结果，并保持纯内存、非持久化。更广卡效语义回归、真实 provider 新协议评测和真人抽样复盘仍待完成，因此本阶段仍为进行中，完成后才进入 Phase 5。既有阶段精确边界见设计文档的 [Phase 1A](design-and-implementation.md#阶段-1a认证范围-typed-决策契约)、[Phase 1B](design-and-implementation.md#阶段-1b单实例机器调度与保守策略)、[Phase 1C](design-and-implementation.md#阶段-1c可复现随机机器人与-headless-playout)、[Phase 2](design-and-implementation.md#阶段-2策略上下文与确定性-ai)、[Phase 3](design-and-implementation.md#阶段-3正式-system-席位与内部受控接入) 与 [Phase 4](design-and-implementation.md#阶段-4llm-对战闭环与玩家受控入口)。因此下文保留的初始缺口只描述分析形成时的历史状态；当前成熟度以第 9 节和项目进度文档为准。
 
 ## 1. 结论
 
@@ -30,7 +30,7 @@
 - **已由 Phase 3/4 解决**：不可登录 AI 身份、精确专属卡组、Phase 2 策略版本以及模型/Prompt/provider/调用政策版本快照已进入正式 match runtime 与记录。
 - **已由 Phase 2 解决（无 LLM 策略范围）**：初始版本缺少将压缩规则、固定卡组玩法、当前局面、合法决策和精选关键历史组合成稳定策略输入的对战上下文。
 - **已由 Phase 4 解决**：provider-neutral request envelope、严格结构化返回、权威 contract 复验、有限 repair、服务端 LLM provider、超时、重试、取消、整局保守策略切换，以及成本、速率与并发治理均已落地。
-- **当前最高优先级缺口**：Phase 4 的上下文可以列出正确卡牌、槽位和合法动作，但尚未为每个动作完整表达“来源、目标、实际支付、替换/保留对象、动作后场面和能力归属”；模型自由文本摘要还可能进入后续精选历史。需要先完成 Phase 4.5 的语义决策上下文、事实分层和事实一致性校验。
+- **当前最高优先级缺口**：Phase 4.5 第一批切片已为主要阶段成员登场/换手与 LIVE 设置动作补充语义后果、基础事实引用校验、纯净精选历史和管理员实际请求上下文检查器；仍需覆盖更广卡效来源、可选费用和目标选择语义，完成真实 provider 新协议评测与真人抽样复盘。
 - **独立入口已解决，公共补位仍缺少**：Phase 3 完成 SYSTEM 受控自动赛前和正式联机参与，Phase 4 增加登录玩家可用的独立入口；该赛前复用共享猜拳胜负规则，但不创建临时 `OnlineRoom` 或 presence。公共牌桌 AI 补位、presence 与多实例容量仍属于 Phase 5。
 - **当前仍缺少**：进程重启后的进行中正式联机对局恢复闭环。
 - **持续边界**：卡池自动裁判尚未完整覆盖；首版不需要追求全卡池，但进入 AI 对局的卡组必须在 `RULES` 中完成本局所需裁定，AI 不能依靠 Prompt 替规则引擎补做未实现卡效。
@@ -71,7 +71,7 @@
 
 用户看到的是稳定的 AI 身份：名称、头像、简介、专属卡组和风格。
 
-系统内部还需要区分它是否是可登录的普通账号，还是不可登录、只能由服务端驱动的系统参赛者。Phase 3 以 `ai-battle.system-participant-identity/v1` 冻结了不可登录身份、精确卡组哈希、Phase 0 认证版本、决策契约/命令适配器版本与无 LLM 策略版本；Phase 4 按停机升级原则将当前身份提升为 v2，追加 Prompt、输出 schema、provider、模型、决策与调用政策版本。卡牌规则代码和发布卡牌数据继续随项目版本统一发布并由 Phase 0 与 focused tests 验证；全局机器调度只接受 `ONLINE + AI_BATTLE + 单一完整认证 SYSTEM binding`，未绑定或认证字段被篡改的 SYSTEM 不能进入调度。
+系统内部还需要区分它是否是可登录的普通账号，还是不可登录、只能由服务端驱动的系统参赛者。Phase 3 以 `ai-battle.system-participant-identity/v1` 冻结了不可登录身份、精确卡组哈希、Phase 0 认证版本、决策契约/命令适配器版本与无 LLM 策略版本；Phase 4 按停机升级原则曾将身份提升为 v2，追加 Prompt、输出 schema、provider、模型、决策与调用政策版本；Phase 4.5 第一批切片又将当前身份提升为 v3，绑定实际 model strategy context 与 semantic decision context 版本。卡牌规则代码和发布卡牌数据继续随项目版本统一发布并由 Phase 0 与 focused tests 验证；全局机器调度只接受 `ONLINE + AI_BATTLE + 单一完整认证 SYSTEM binding`，未绑定或认证字段被篡改的 SYSTEM 不能进入调度。
 
 从现有架构看，更自然的方向是保留 `SYSTEM` participant 语义，并为其增加不可登录的公开身份、专属卡组和策略版本配置；不应把 AI 做成持有密码、登录令牌和普通用户权限的账号。玩家侧稳定 Persona 与服务端执行身份可以绑定，但不能靠预先注册几个普通用户解决。
 
@@ -295,7 +295,7 @@ Phase 4.5 因此不增加复杂收益计算，而是把上下文升级为“权�
 
 当前场面始终以最新 `PlayerViewState` 为准，决策可行性始终以最新决策契约为准，历史只作为策略辅助而不是状态真值。进程重启、调用超时或 lease 过期后，应丢弃旧模型结果，从最新玩家投影、固定版本的规则/卡组 Prompt 和仍保留的精选可见历史重新构造输入；不需要恢复模型正在生成的私有推理，也不需要完整重放全部历史才能继续对局。局内聊天不进入这份精选历史。
 
-Phase 4 已有的开发调试轨迹主要展示请求开始、短摘要、选择、延迟、token、费用和执行结果。Phase 4.5 应把它替换为管理员专用的“模型上下文检查器”：直接按 system prompt、卡组 playbook、当前权威事实、逐行动后果、精选历史、输出约束/repair 指令和解析后结构化结果分区展示实际规范化请求内容。展示必须复用真正的 provider-neutral request envelope，不能维护一份与真实请求可能漂移的调试文案；调用指标只保留为辅助信息。
+Phase 4.5 已把 Phase 4 的摘要/指标调试轨迹替换为管理员专用的“模型上下文检查器”：按 system prompt、卡组 playbook、当前权威事实、逐行动后果、精选历史、输出约束/repair 指令和解析后结构化结果分区展示实际规范化请求内容。展示与运行时共用 `buildAiModelProviderRequest` 生成 provider-neutral system/user 消息，不维护一份可能与真实请求漂移的调试文案；调用指标只作为辅助信息。
 
 这不是普通参与者功能。实际上下文可能包含 AI 席位的手牌等私有信息，只允许在开发环境开关开启、管理员完成认证且进入管理员 AI 测试会话时查看；普通玩家即使是对局参与者也不能读取，生产环境强制关闭。启用后该局明确属于非公平开发测试。上下文不进入聊天或持久审计，并继续排除 API key、认证 header、供应商内部 payload、原始 provider 响应、服务端错误、权威对象 ID 和模型私有思维链。
 
@@ -346,7 +346,7 @@ Phase 4 已提供版本化 provider-neutral 请求、严格结构化输出解析
 
 调用记录只保留版本、请求哈希、结构化选择、单行短摘要、结果类别、延迟、token、估算费用和哈希化 provider request id，不保存完整原始响应、供应商错误、凭据或聊天。Phase 5 仍需增加跨实例容量、生产告警、聚合看板和自动熔断；这些不改变 Phase 4 已完成的单实例安全边界。
 
-为便于本地验证，Phase 4 当前可用 `AI_BATTLE_DEBUG_TRACE_ENABLED=1` 在局内查看脱敏决策摘要和调用/执行指标，轨迹仅在当前服务进程内存中保留。Phase 4.5 将不再把“AI 思考/行动日志”作为调试主界面，而改为管理员专用的实际模型上下文检查器，并允许管理员查看真正生效的 system prompt 与动态语义上下文。生产环境仍强制关闭；即使在开发环境，也不把私有思维链、原始 provider 响应、供应商内部 payload 或凭据变成调试接口。
+为便于本地验证，设置 `AI_BATTLE_DEBUG_TRACE_ENABLED=1` 后，管理员可在自己进入的 AI 测试对局中使用实际模型上下文检查器，查看真正生效的 system prompt、动态语义上下文、输出契约和严格解析结果；轨迹仅在当前服务进程内存中保留。生产环境仍强制关闭，普通参与者无权读取；即使在开发环境，也不把私有思维链、原始无效 provider 响应、供应商内部 payload 或凭据变成调试接口。
 
 LLM 应负责在合法策略选项中做判断，而不能成为规则引擎、随机源或状态写入入口。
 
@@ -399,7 +399,7 @@ AI 对战还会额外产生以下恢复要求：
 
 ### 5.10 AI 决策审计和复盘
 
-Phase 4 已把 AI 专属调用事实接入 match record：当前 `strategy-decision-record/v3` 在既有命令、窗口和权威 checkpoint 基础上，额外关联模型请求哈希、版本、结构化选择、调用结果、延迟、token、估算费用和哈希化 provider request id。完整 decision record 与确定性重演在整个项目范围内仍是阶段性闭环，但已不再缺少本阶段所需的模型调用事实。
+Phase 4 已把 AI 专属调用事实接入 match record，Phase 4.5 第一批切片将当前记录升级为 `strategy-decision-record/v4`：在既有命令、窗口和权威 checkpoint 基础上，额外关联模型请求哈希、版本、结构化选择、事实引用、单行取舍/计划、调用结果、延迟、token、估算费用和哈希化 provider request id。完整 decision record 与确定性重演在整个项目范围内仍是阶段性闭环，但已不再缺少当前模型协议所需的调用事实。
 
 为了定位“模型为什么没有行动”“是否看到了不该看的信息”“为什么选择了非法目标”这类问题，至少需要能够关联：
 
@@ -568,7 +568,7 @@ AI 长时间无响应、反复非法操作、机械地逐个确认、持续空�
 | 正式联机进行中恢复          | 尚未闭环                                                                                                                                                        |
 | 对局记录与复盘基础          | Phase 4 已把 SYSTEM/卡组/策略/Prompt/provider/模型版本、脱敏选择、单行短摘要和调用事实与命令帧原子接线，不保存完整原始响应或供应商错误                          |
 | AI 策略质量评估             | Phase 2 的 64 局和 Phase 4 四场景合法性基线继续有效；真实对局已暴露能力误归属与动作后场面幻觉，Phase 4.5 将增加事实一致性、取舍完整性和真人抽样复盘             |
-| 管理员 AI 调试              | Phase 4 现有内存轨迹以摘要/指标为主；Phase 4.5 将改为管理员专用的实际 system prompt 与动态语义上下文检查器，普通参与者和生产环境不可访问                        |
+| 管理员 AI 调试              | Phase 4.5 已落地管理员专用的实际 system prompt 与动态语义上下文检查器；与真实请求共用序列化边界，只保留当前进程内存，普通参与者和生产环境不可访问               |
 | 生产限流、成本与故障治理    | Phase 4 已完成单实例并发、速率、请求/token/费用上限和整局故障切换；跨实例容量、自动熔断、告警与聚合看板属于 Phase 5                                             |
 
 ## 10. 最终判断
@@ -586,6 +586,6 @@ Phase 0～4 已完成首版受控 AI 对战的规则、调用、合法性、故�
 5. **语言推理质量闭环**：Phase 4.5 用权威派生的语义局面与逐行动后果、事实引用与一致性校验、纯净精选历史和管理员上下文检查器补齐“合法但依据错误”的缺口，不建设通用后悔值/收益值引擎。
 6. **公共补位与生产治理**：Phase 5 再建设公共牌桌补位、presence、多实例互斥、进行中恢复、跨实例容量和运营监控。
 
-具体职责、阶段门槛和验证矩阵以[设计与实施草稿](design-and-implementation.md)为唯一规范来源。Phase 4 的机器可读完成状态见 `src/server/ai-battle/phase-four-baseline.ts`；Phase 4.5 当前尚未实施，公共牌桌仍不会自动把等待中的玩家替换为 AI。
+具体职责、阶段门槛和验证矩阵以[设计与实施草稿](design-and-implementation.md)为唯一规范来源。Phase 4 的机器可读完成状态见 `src/server/ai-battle/phase-four-baseline.ts`；Phase 4.5 当前仍在实施，公共牌桌仍不会自动把等待中的玩家替换为 AI。
 
-Phase 0 已完成，内容身份、规则/权威卡牌数据/场景/证据版本键、逐 `baseCardCode + abilityId` 行为证据、真实卡牌数据八单元 smoke、确定性保守排序、双层进展语义和数值门槛见 [`phase-0-baseline.md`](phase-0-baseline.md)。Phase 1A 已完成认证范围 typed 决策契约与 v2 可达窗口矩阵；Phase 1B 已完成共享单局执行器、lease、服务端 deadline、保守策略、活性终局和去重 `SYSTEM_NOTICE`。Phase 1C 已完成安全/seeded/replay 规则随机事实、随机合法策略、失败 tape 与严格回放、8 局固定 smoke 和 256 局专用回归。Phase 2 已完成 allowlist observation、压缩规则、两个内容哈希绑定 playbook、精选可见历史、strategy context、三层可解释策略、哈希化执行审计和 64 局策略质量回归。Phase 3 已完成不可登录 SYSTEM 身份、canonical YAML 内容认证、共享猜拳赛前、标准联机投影/聊天/历史和八个真实 USER + SYSTEM 整局。Phase 4 已完成 SYSTEM 身份 v2 的模型版本绑定、服务端结构化模型选择、调用治理与脱敏审计、故障切换、独立玩家入口和浏览器真实链路验证。Phase 4.5 现为下一实施阶段；`SOLITAIRE` 仍明确排除在战术机器调度之外。
+Phase 0 已完成，内容身份、规则/权威卡牌数据/场景/证据版本键、逐 `baseCardCode + abilityId` 行为证据、真实卡牌数据八单元 smoke、确定性保守排序、双层进展语义和数值门槛见 [`phase-0-baseline.md`](phase-0-baseline.md)。Phase 1A 已完成认证范围 typed 决策契约与 v2 可达窗口矩阵；Phase 1B 已完成共享单局执行器、lease、服务端 deadline、保守策略、活性终局和去重 `SYSTEM_NOTICE`。Phase 1C 已完成安全/seeded/replay 规则随机事实、随机合法策略、失败 tape 与严格回放、8 局固定 smoke 和 256 局专用回归。Phase 2 已完成 allowlist observation、压缩规则、两个内容哈希绑定 playbook、精选可见历史、strategy context、三层可解释策略、哈希化执行审计和 64 局策略质量回归。Phase 3 已完成不可登录 SYSTEM 身份、canonical YAML 内容认证、共享猜拳赛前、标准联机投影/聊天/历史和八个真实 USER + SYSTEM 整局。Phase 4 已完成 SYSTEM 身份 v2 的模型版本绑定、服务端结构化模型选择、调用治理与脱敏审计、故障切换、独立玩家入口和浏览器真实链路验证。Phase 4.5 当前已落地第一批语义上下文、事实引用、纯净历史与管理员上下文检查器，仍需更广语义与真实模型质量收束；`SOLITAIRE` 仍明确排除在战术机器调度之外。

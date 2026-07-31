@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AI_MODEL_INVOCATION_AUDIT_SCHEMA_VERSION,
+  buildAiModelProviderRequest,
   createAiModelInvocationRuntime,
 } from '../../src/server/ai-battle/model-governance';
 import {
@@ -20,9 +21,9 @@ const TEST_CREDENTIAL = 'test-only-credential';
 
 function createEnvelope(attemptNumber: 1 | 2 = 1): AiModelRequestEnvelope {
   return {
-    schemaVersion: 'ai-battle.model-request-envelope/v1',
-    promptVersion: 'ai-battle.model-system-prompt/v1',
-    outputSchemaVersion: 'ai-battle.model-decision-output/v1',
+    schemaVersion: 'ai-battle.model-request-envelope/v2',
+    promptVersion: 'ai-battle.model-system-prompt/v2',
+    outputSchemaVersion: 'ai-battle.model-decision-output/v2',
     attempt:
       attemptNumber === 1
         ? { kind: 'INITIAL', attemptNumber: 1 }
@@ -40,12 +41,12 @@ function createEnvelope(attemptNumber: 1 | 2 = 1): AiModelRequestEnvelope {
       },
     },
     strategyContext: {
-      schemaVersion: 'ai-battle.strategy-context/v2',
+      schemaVersion: 'ai-battle.model-strategy-context/v1',
     } as AiModelRequestEnvelope['strategyContext'],
     responseContract: {
       format: 'JSON_SCHEMA',
       strict: true,
-      schemaVersion: 'ai-battle.model-decision-output/v1',
+      schemaVersion: 'ai-battle.model-decision-output/v2',
       jsonSchema: { type: 'object' },
     },
   };
@@ -61,6 +62,24 @@ function createProvider(invoke: AiModelProvider['invoke']): AiModelProvider {
 }
 
 describe('AI battle Phase 4 model provider and governance', () => {
+  it('serializes the exact provider-neutral messages through one shared boundary', () => {
+    const envelope = createEnvelope();
+    const request = buildAiModelProviderRequest(envelope);
+
+    expect(JSON.parse(request.systemMessage)).toEqual({
+      schemaVersion: envelope.schemaVersion,
+      promptVersion: envelope.promptVersion,
+      systemInstruction: envelope.systemInstruction,
+      responseContract: envelope.responseContract,
+    });
+    expect(JSON.parse(request.userMessage)).toEqual({
+      attempt: envelope.attempt,
+      strategyContext: envelope.strategyContext,
+    });
+    expect(request.systemMessage).not.toContain(TEST_CREDENTIAL);
+    expect(request.userMessage).not.toContain(TEST_CREDENTIAL);
+  });
+
   it('uses the fixed non-thinking structured-output profile without leaking credentials', async () => {
     expect(AI_MODEL_ID).toBe('qwen3.7-flash');
     expect(AI_MODEL_PROVIDER_PROFILE_VERSION).toBe(
@@ -82,7 +101,7 @@ describe('AI battle Phase 4 model provider and governance', () => {
                 {
                   message: {
                     content:
-                      '{"schemaVersion":"ai-battle.model-decision-output/v1","selection":{"kind":"CONFIRM_PHASE"},"summary":"Continue."}',
+                      '{"schemaVersion":"ai-battle.model-decision-output/v2","selection":{"kind":"CONFIRM_PHASE"},"factRefs":["decision.base"],"tradeoff":"Continue now.","nextPlan":"Observe the next window."}',
                   },
                   finish_reason: 'stop',
                 },

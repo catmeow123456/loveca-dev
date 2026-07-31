@@ -390,7 +390,7 @@ describe('MatchRecorderService P0a', () => {
       .find((call) => call.values[2] === 'SECOND');
     expect(systemParticipantInsert?.text).toContain('system_identity_snapshot');
     expect(readJsonbParam(systemParticipantInsert?.values[7])).toMatchObject({
-      schemaVersion: 'ai-battle.system-participant-identity/v2',
+      schemaVersion: 'ai-battle.system-participant-identity/v3',
       participantKind: 'SYSTEM',
       loginAllowed: false,
       deckKey: 'MUSE_STARTER',
@@ -412,6 +412,9 @@ describe('MatchRecorderService P0a', () => {
       tier: 'RULE_FORCED',
       reasonCode: 'CONFIRM_PHASE_PROGRESS',
       summary: 'Confirm the current phase step.',
+      factRefs: [],
+      tradeoff: null,
+      nextPlan: null,
       consideredIds: [],
       selection: { kind: 'CONFIRM_PHASE' },
     };

@@ -5,9 +5,9 @@ import type { AiModelInvocationAudit } from './model-governance.js';
 import type { AiStrategyContext } from './strategy-context.js';
 
 export const AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION =
-  'ai-battle.strategy-decision-audit/v2' as const;
+  'ai-battle.strategy-decision-audit/v3' as const;
 export const AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION =
-  'ai-battle.strategy-decision-record/v3' as const;
+  'ai-battle.strategy-decision-record/v4' as const;
 
 export interface AiStrategyDecisionAudit {
   readonly schemaVersion: typeof AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION;
@@ -25,6 +25,9 @@ export interface AiStrategyDecisionAudit {
   readonly tier: AiStrategyTier;
   readonly reasonCode: string;
   readonly summary: string;
+  readonly factRefs: readonly string[];
+  readonly tradeoff: string | null;
+  readonly nextPlan: string | null;
   readonly consideredIds: readonly string[];
   readonly selection: AiDecisionSelection;
 }
@@ -56,6 +59,9 @@ export interface AuditableAiDecisionResult {
   readonly tier: AiStrategyTier;
   readonly reasonCode: string;
   readonly summary: string;
+  readonly factRefs?: readonly string[];
+  readonly tradeoff?: string;
+  readonly nextPlan?: string;
   readonly consideredIds: readonly string[];
   readonly selection: AiDecisionSelection;
 }
@@ -86,6 +92,9 @@ export function createAiStrategyDecisionAudit(
     tier: result.tier,
     reasonCode: result.reasonCode,
     summary: result.summary,
+    factRefs: [...(result.factRefs ?? [])],
+    tradeoff: result.tradeoff ?? null,
+    nextPlan: result.nextPlan ?? null,
     consideredIds: [...result.consideredIds],
     selection: cloneSelection(result.selection),
   };
@@ -112,6 +121,7 @@ export function createAiStrategyDecisionRecord(input: {
     schemaVersion: AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION,
     decisionAudit: {
       ...input.decisionAudit,
+      factRefs: [...input.decisionAudit.factRefs],
       consideredIds: [...input.decisionAudit.consideredIds],
       selection: cloneSelection(input.decisionAudit.selection),
     },
@@ -187,6 +197,7 @@ function cloneDecisionRecord(record: AiStrategyDecisionRecord): AiStrategyDecisi
     ...record,
     decisionAudit: {
       ...record.decisionAudit,
+      factRefs: [...record.decisionAudit.factRefs],
       consideredIds: [...record.decisionAudit.consideredIds],
       selection: cloneSelection(record.decisionAudit.selection),
     },

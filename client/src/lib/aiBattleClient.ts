@@ -47,11 +47,32 @@ export interface AiBattleDebugTraceEntry {
     readonly outputTokens: number;
     readonly estimatedCostMicrosCny: number;
   } | null;
+  readonly modelContext: {
+    readonly attempts: readonly {
+      readonly attemptNumber: 1 | 2;
+      readonly attemptKind: 'INITIAL' | 'REPAIR' | 'RETRY';
+      readonly failureCode: string | null;
+      readonly requestSha256: string;
+      readonly requestEnvelopeVersion: string;
+      readonly promptVersion: string;
+      readonly outputSchemaVersion: string;
+      readonly systemMessage: string;
+      readonly userMessage: string;
+      readonly parsedOutput: {
+        readonly schemaVersion: string;
+        readonly selection: Readonly<Record<string, unknown>> & { readonly kind: string };
+        readonly factRefs: readonly string[];
+        readonly tradeoff: string;
+        readonly nextPlan: string;
+      } | null;
+      readonly outcome: string;
+    }[];
+  } | null;
   readonly executionStatus: 'ACCEPTED' | 'REJECTED' | 'STALE' | null;
 }
 
 export interface AiBattleDebugTraceView {
-  readonly schemaVersion: 'ai-battle.debug-trace/v1';
+  readonly schemaVersion: 'ai-battle.debug-trace/v2';
   readonly enabled: boolean;
   readonly matchId: string;
   readonly currentSeq: number;

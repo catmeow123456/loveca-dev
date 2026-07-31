@@ -6,7 +6,10 @@ import {
   type AiCompactRules,
   type AiDeckPlaybook,
 } from './strategy-knowledge.js';
-import type { AiSelectedHistoryItem } from './strategy-history.js';
+import {
+  AI_SELECTED_HISTORY_SCHEMA_VERSION,
+  type AiSelectedHistoryItem,
+} from './strategy-history.js';
 
 export const AI_STRATEGY_CONTEXT_SCHEMA_VERSION = 'ai-battle.strategy-context/v1' as const;
 
@@ -43,8 +46,18 @@ export function buildAiStrategyContext(input: BuildAiStrategyContextInput): AiSt
   }
   const selectedHistory = input.selectedHistory ?? [];
   for (const item of selectedHistory) {
+    if (item.schemaVersion !== AI_SELECTED_HISTORY_SCHEMA_VERSION) {
+      throw new Error('AI selected history requires the current schema version');
+    }
     if (item.authorityRevision > input.observation.authorityRevision) {
       throw new Error('AI selected history cannot contain a future authority revision');
+    }
+    const expectedSource =
+      item.category === 'VISIBLE_STATE_CHANGE'
+        ? 'VISIBLE_PROJECTION_DELTA'
+        : 'AUTHORITY_ACCEPTED_SELECTION';
+    if (item.source !== expectedSource) {
+      throw new Error('AI selected history source does not match its factual category');
     }
   }
 
