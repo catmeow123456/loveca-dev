@@ -191,6 +191,25 @@ async function installApiMocks(page: Page, authenticated: boolean) {
             passwordResetEnabled: false,
           },
         },
+        siteStatus: {
+          lifecycle: 'NORMAL',
+          generatedAt: NOW,
+          maintenance: null,
+          announcements: [
+            {
+              id: 'e2e-announcement',
+              type: 'UPDATE',
+              title: '移动端公告验收',
+              summary: '公开首页与登录后页面应使用同一个公告中心。',
+              detail: '用于验证公告入口、抽屉和已读状态。',
+              publishedAt: NOW,
+              startsAt: null,
+              endsAt: null,
+              priority: 10,
+              impactScopes: [],
+            },
+          ],
+        },
       });
       return;
     }
@@ -203,6 +222,24 @@ async function installApiMocks(page: Page, authenticated: boolean) {
 
       await fulfillApi(route, {
         accessToken: 'e2e-token',
+        user: { id: 'e2e-user', email: 'e2e@example.test', emailVerified: true },
+        profile: {
+          id: 'e2e-profile',
+          username: 'e2e_admin',
+          display_name: 'E2E Admin',
+          avatar_url: null,
+          role: 'admin',
+          deck_count: 1,
+          created_at: NOW,
+          updated_at: NOW,
+        },
+      });
+      return;
+    }
+
+    if (url.pathname === '/api/auth/login' && method === 'POST') {
+      await fulfillApi(route, {
+        accessToken: 'e2e-login-token',
         user: { id: 'e2e-user', email: 'e2e@example.test', emailVerified: true },
         profile: {
           id: 'e2e-profile',
@@ -423,11 +460,35 @@ type Scenario = {
 
 const scenarios: Scenario[] = [
   {
-    name: 'auth-login',
+    name: 'public-home',
     path: '/',
     authenticated: false,
     ready: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Loveca 在线对战' })).toBeVisible();
+    },
+  },
+  {
+    name: 'auth-login',
+    path: '/login',
+    authenticated: false,
+    ready: async (page) => {
       await expect(page.getByRole('heading', { name: '进入 Loveca' })).toBeVisible();
+    },
+  },
+  {
+    name: 'auth-register',
+    path: '/register',
+    authenticated: false,
+    ready: async (page) => {
+      await expect(page.getByRole('heading', { name: '创建账号' })).toBeVisible();
+    },
+  },
+  {
+    name: 'spectator-lobby',
+    path: '/online/spectate',
+    authenticated: false,
+    ready: async (page) => {
+      await expect(page.getByLabel('房间号')).toBeVisible();
     },
   },
   {
@@ -435,7 +496,7 @@ const scenarios: Scenario[] = [
     path: '/',
     authenticated: true,
     ready: async (page) => {
-      await expect(page.getByRole('heading', { name: 'Loveca' })).toBeVisible();
+      await expect(page.getByRole('button', { name: '前往大厅' })).toBeVisible();
     },
   },
   {
@@ -443,7 +504,7 @@ const scenarios: Scenario[] = [
     path: '/?page=game-setup',
     authenticated: true,
     ready: async (page) => {
-      await expect(page.getByText('游戏准备')).toBeVisible();
+      await expect(page.getByText('对局准备')).toBeVisible();
     },
   },
   {
@@ -545,10 +606,12 @@ const scenarios: Scenario[] = [
           'deck editor view-deck button'
         );
       } else if (viewportWidth < 960) {
-        await expect(page.getByRole('button', { name: '卡组', exact: true })).toBeVisible();
+        await expect(
+          page.getByRole('main').getByRole('button', { name: '卡组', exact: true })
+        ).toBeVisible();
         await expectElementWithinVisualViewport(
           page,
-          'button:has-text("卡组")',
+          'main button:has-text("卡组")',
           'deck editor tablet sidebar toggle'
         );
       } else {
@@ -605,6 +668,78 @@ const scenarios: Scenario[] = [
     },
   },
   {
+    name: 'online-debug',
+    path: '/?page=online-debug',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('联机调试', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'public-table',
+    path: '/?page=public-table',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('公共牌桌', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'ranked',
+    path: '/?page=ranked',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('赛季排位', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'authenticated-spectator-lobby',
+    path: '/?page=online-spectator',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByLabel('房间号')).toBeVisible();
+    },
+  },
+  {
+    name: 'match-records',
+    path: '/?page=match-records',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('历史对局', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'account',
+    path: '/?page=account',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('个人中心', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'online-admin',
+    path: '/?page=online-admin',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('联机房间监控', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'announcement-admin',
+    path: '/?page=announcement-admin',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('平台配置', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'ranked-admin',
+    path: '/?page=ranked-admin',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('赛季排位管理', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
     name: 'shared-deck',
     path: '/decks/share/e2e-share',
     authenticated: false,
@@ -628,6 +763,55 @@ test.describe('mobile layout baseline', () => {
     });
   }
 
+  test('公开首页保留卡组与对局入口的后续意图', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '入口意图回归只需执行一次');
+
+    await installApiMocks(page, false);
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Loveca 在线对战' })).toBeVisible();
+
+    await page.getByRole('button', { name: '管理卡组', exact: true }).click();
+    await expect(page.getByText('登录后继续构筑与管理云端卡组。')).toBeVisible();
+    await expect(page.getByRole('button', { name: '卡组管理需要登录' })).toBeDisabled();
+    await page.getByPlaceholder('输入你的用户名或邮箱').fill('e2e_admin');
+    await page.getByPlaceholder('输入你的密码').fill('test_password');
+    await page.getByRole('button', { name: '登录', exact: true }).click();
+    await expect(page.getByText('卡组管理', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: '返回' }).click();
+    await page.getByRole('button', { name: '打开导航菜单' }).click();
+    await page.getByRole('button', { name: '退出登录', exact: true }).click();
+    await page.getByRole('button', { name: '开始对战', exact: true }).click();
+    await expect(page.getByText('登录后继续选择对战方式和本次使用的卡组。')).toBeVisible();
+
+    await page.getByRole('button', { name: '进入离线模式' }).click();
+    await expect(page.getByText('选择对战方式', { exact: true })).toBeVisible();
+  });
+
+  test('公开首页与登录后页面共用公告中心行为', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '公告行为回归只需执行一次');
+
+    await installApiMocks(page, false);
+    await page.goto('/');
+    await page.getByRole('button', { name: /公告，1 条内容/ }).click();
+    const publicAnnouncementDialog = page.getByRole('dialog', { name: '公告' });
+    await expect(publicAnnouncementDialog).toBeVisible();
+    await expect(
+      publicAnnouncementDialog.getByText('移动端公告验收', { exact: true })
+    ).toBeVisible();
+    await page.getByRole('button', { name: '关闭公告' }).click();
+
+    await installApiMocks(page, true);
+    await page.reload();
+    await expect(page.getByRole('button', { name: '前往大厅' })).toBeVisible();
+    await page.getByRole('button', { name: /公告，1 条内容/ }).click();
+    const authenticatedAnnouncementDialog = page.getByRole('dialog', { name: '公告' });
+    await expect(authenticatedAnnouncementDialog).toBeVisible();
+    await expect(
+      authenticatedAnnouncementDialog.getByText('移动端公告验收', { exact: true })
+    ).toBeVisible();
+  });
+
   test('新建卡组默认包含 12 张能量卡', async ({ page }, testInfo) => {
     await installApiMocks(page, true);
     await page.goto('/?page=deck-manager');
@@ -638,7 +822,9 @@ test.describe('mobile layout baseline', () => {
 
     const viewDeckButton = page.getByRole('button', { name: /查看卡组/ });
     if (await viewDeckButton.isVisible()) await viewDeckButton.click();
-    const tabletDeckToggle = page.getByRole('button', { name: '卡组' });
+    const tabletDeckToggle = page
+      .getByRole('main')
+      .getByRole('button', { name: '卡组', exact: true });
     if (await tabletDeckToggle.isVisible()) await tabletDeckToggle.click();
 
     await expect(page.getByText('12/12', { exact: true })).toBeVisible();
@@ -756,7 +942,7 @@ test.describe('mobile layout baseline', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await installApiMocks(page, true);
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Loveca' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '前往大厅' })).toBeVisible();
 
     const motionState = await page.evaluate(() => {
       const probe = document.createElement('div');

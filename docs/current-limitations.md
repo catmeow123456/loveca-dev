@@ -108,7 +108,6 @@
 - [游戏桌 UI 现状](ui-design/game-table/current-state.md)
 - [移动端适配需求](ui-design/mobile-adaptation-requirements.md)
 - [移动端现状差距清单](ui-design/mobile-adaptation-gap-analysis.md)
-- [移动端改进方向](ui-design/game-table/mobile-improvement-directions.md)
 
 ## Android App 打包
 

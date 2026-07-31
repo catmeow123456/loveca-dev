@@ -25,7 +25,7 @@ import {
   ListFilter,
   X,
 } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import { cardService, type CardUpdateInput, type CardCreateInput } from '@/lib/cardService';
 import { cleanLocalizedText, getCardLocalizedInfo } from '@/lib/cardLocalization';
@@ -269,10 +269,9 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
             className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-2.5 py-2 sm:min-h-11 sm:px-3"
           >
             <ArrowLeft size={16} />
-            <span className="hidden sm:inline">返回</span>
+            <span className="hidden sm:inline">返回大厅</span>
           </button>
         }
-        right={<ThemeToggle />}
       />
 
       <div className="relative z-10 flex-1 overflow-y-auto p-4 sm:p-6">

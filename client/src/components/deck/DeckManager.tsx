@@ -41,7 +41,6 @@ import {
   DeckStatsRow,
   getDeckPointTextClass,
   PageHeader,
-  ThemeToggle,
 } from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import {
@@ -626,15 +625,15 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         left={
           <button
             onClick={viewMode === 'edit' ? handleCancelEdit : onBack}
+            aria-label={viewMode === 'edit' ? '取消编辑' : '返回大厅'}
             className="button-ghost inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
           >
             <ArrowLeft size={16} />
-            <span className="hidden sm:inline">{viewMode === 'edit' ? '取消' : '返回'}</span>
+            <span className="hidden sm:inline">{viewMode === 'edit' ? '取消' : '返回大厅'}</span>
           </button>
         }
         right={
           <>
-            <ThemeToggle />
             <div className="status-pill min-w-0 max-w-full px-2.5 py-1 text-xs">
               {offlineMode ? (
                 <WifiOff size={12} className="text-[var(--semantic-warning)]" />
@@ -951,7 +950,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                     role="menuitem"
                                     onClick={() => handleCopyDeck(deck)}
                                     disabled={copyingDeckId === deck.id}
-                                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
                                   >
                                     <CopyPlus size={15} className="text-[var(--accent-primary)]" />
                                     复制为新版本
@@ -966,7 +965,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                           setOpenActionsDeckId(null);
                                           void handleCopyShareLink(deck);
                                         }}
-                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
                                       >
                                         <Copy size={15} /> 复制分享链接
                                       </button>
@@ -977,7 +976,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                           setOpenActionsDeckId(null);
                                           handleOpenShare(deck);
                                         }}
-                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
                                       >
                                         <ExternalLink size={15} /> 打开分享页
                                       </button>
@@ -989,7 +988,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                           void handleDisableShare(deck.id);
                                         }}
                                         disabled={sharingDeckId === deck.id}
-                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-warning)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-warning)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
                                       >
                                         <EyeOff size={15} /> 关闭分享
                                       </button>
@@ -1003,7 +1002,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                         void handleEnableShare(deck.id);
                                       }}
                                       disabled={sharingDeckId === deck.id}
-                                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
                                     >
                                       <Globe size={15} /> 开启分享
                                     </button>
@@ -1199,7 +1198,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                     setDecklogWarnings([]);
                     setShowDecklogDialog(true);
                   }}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)]">
                     <Globe size={19} />
@@ -1214,7 +1213,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                   </span>
                 </button>
 
-                <label className="flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]">
+                <label className="flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)] text-[var(--semantic-info)]">
                     <Upload size={19} />
                   </span>
@@ -1325,7 +1324,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                           className={`relative min-h-[74px] rounded-2xl border px-3 py-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                             isSelected
                               ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] shadow-sm'
-                              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]'
                           }`}
                         >
                           <span className="flex items-center justify-between gap-2">
@@ -1440,7 +1439,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                     disabled={decklogLoading || !decklogInput.trim()}
                     className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-sm font-semibold transition-all ${
                       decklogLoading || !decklogInput.trim()
-                        ? 'cursor-not-allowed bg-[var(--bg-hover)] text-[var(--text-muted)]'
+                        ? 'cursor-not-allowed bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                         : 'button-primary text-white'
                     }`}
                   >

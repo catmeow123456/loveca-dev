@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Loader2, Medal, RefreshCw } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import {
   createRankedSeason,
   executeRankedCorrection,
@@ -141,7 +141,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
         title="赛季排位管理"
         icon={<Medal size={20} />}
         left={
-          <button className="button-icon" onClick={onBack} aria-label="返回首页">
+          <button className="button-icon" onClick={onBack} aria-label="返回大厅">
             <ArrowLeft size={16} />
           </button>
         }
@@ -150,16 +150,13 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
             <button className="button-icon" onClick={() => void load()} aria-label="刷新">
               <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
             </button>
-            <span className="hidden sm:block">
-              <ThemeToggle />
-            </span>
           </>
         }
       />
 
       <main className="relative z-10 flex-1 px-4 py-5 sm:px-6">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-4 flex gap-1 rounded-xl bg-[var(--bg-subtle)] p-1">
+          <div className="mb-4 flex gap-1 rounded-xl bg-[var(--bg-elevated)] p-1">
             <TabButton active={tab === 'season'} onClick={() => setTab('season')}>
               赛季
             </TabButton>
@@ -932,7 +929,7 @@ function OpenWindowFields({
                 className={`h-9 rounded-lg text-xs ${
                   selected
                     ? 'bg-[var(--accent-primary)] text-white'
-                    : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
+                    : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                 }`}
                 onClick={() => {
                   const weekdays = selected

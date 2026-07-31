@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } from 'lucide-react';
-import { DeckSelector, PageHeader, ThemeToggle, type DeckDisplayItem } from '@/components/common';
+import { DeckSelector, PageHeader, type DeckDisplayItem } from '@/components/common';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
 import {
   choosePreferredDeck,
@@ -108,13 +108,12 @@ export function RankedPage({
             type="button"
             onClick={onBack}
             className="button-icon"
-            title="返回首页"
-            aria-label="返回首页"
+            title="返回大厅"
+            aria-label="返回大厅"
           >
             <ArrowLeft size={16} />
           </button>
         }
-        right={<ThemeToggle />}
       />
 
       <main className="relative z-10 flex flex-1 justify-center px-4 py-5 sm:px-6">

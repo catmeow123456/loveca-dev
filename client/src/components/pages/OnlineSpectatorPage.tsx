@@ -536,11 +536,11 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
         </div>
       ) : null}
       {continuityStatus === 'WAITING_NEXT_MATCH' ? (
-        <div className="absolute inset-0 z-[115] flex items-center justify-center bg-[var(--bg-base)] px-4">
+        <div className="absolute inset-0 z-[115] flex items-center justify-center bg-[var(--bg-deep)] px-4">
           <SpectatorWaitingPanel onBackHome={onBackHome} />
         </div>
       ) : isSwitchingView || continuityStatus === 'SWITCHING_MATCH' ? (
-        <div className="absolute inset-0 z-[110] flex items-center justify-center bg-[var(--bg-base)]">
+        <div className="absolute inset-0 z-[110] flex items-center justify-center bg-[var(--bg-deep)]">
           <div className="surface-panel-frosted flex items-center gap-3 px-6 py-4 text-sm text-[var(--text-primary)]">
             <Loader2 size={18} className="animate-spin" />
             正在切换观战视角...
@@ -561,7 +561,7 @@ function SpectatorWaitingPanel({
   readonly notice?: string | null;
 }) {
   return (
-    <div className="surface-panel-frosted w-full max-w-md p-6 text-center shadow-[var(--shadow-xl)]">
+    <div className="surface-panel-frosted w-full max-w-md p-6 text-center shadow-[var(--shadow-lg)]">
       <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[var(--bg-overlay)] text-[var(--accent-primary)]">
         <Loader2 size={20} className="animate-spin" />
       </div>

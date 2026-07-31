@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import type { PublicSiteStatus, SiteAnnouncementType, SiteStatusLifecycle } from '@/lib/appConfig';
 import {
   createAdminSiteAnnouncement,
@@ -248,10 +248,9 @@ export function SiteAnnouncementsAdminPage({
             className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-3"
           >
             <ArrowLeft size={16} />
-            <span className="hidden sm:inline">返回</span>
+            <span className="hidden sm:inline">返回大厅</span>
           </button>
         }
-        right={<ThemeToggle />}
       />
 
       <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6">

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Link2, Loader2, RefreshCw, Swords, Users } from 'lucide-react';
 import { PageHeader, DeckSelector, DeckStatsRow, type DeckDisplayItem } from '@/components/common';
-import { ThemeToggle } from '@/components/common';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -293,10 +292,9 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
               className="button-ghost inline-flex h-10 items-center gap-2 px-3"
             >
               <ArrowLeft size={16} />
-              返回
+              返回大厅
             </button>
           }
-          right={<ThemeToggle />}
         />
         <main className="flex flex-1 items-center justify-center p-6">
           <div className="surface-panel-frosted max-w-xl p-6 text-center">
@@ -342,10 +340,9 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
             className="button-ghost inline-flex h-10 items-center gap-2 px-3"
           >
             <ArrowLeft size={16} />
-            返回
+            返回大厅
           </button>
         }
-        right={<ThemeToggle />}
       />
 
       <main className="relative z-10 flex flex-1 justify-center px-4 pb-6 pt-5 sm:p-6">

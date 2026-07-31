@@ -17,7 +17,7 @@ import {
   Upload,
   Users,
 } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import {
   createOnlineAdminPlayerSpectatorLink,
   exportDebugReplayBundle,
@@ -288,14 +288,11 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
             className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-3"
           >
             <ArrowLeft size={16} />
-            <span className="hidden sm:inline">返回</span>
+            <span className="hidden sm:inline">返回大厅</span>
           </button>
         }
         right={
           <>
-            <div className="hidden sm:block">
-              <ThemeToggle />
-            </div>
             <button
               type="button"
               onClick={() => setAutoRefresh((value) => !value)}

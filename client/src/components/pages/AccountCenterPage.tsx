@@ -13,7 +13,7 @@ import {
   Send,
   UserRound,
 } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 
 interface AccountCenterPageProps {
@@ -157,11 +157,10 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
         title="个人中心"
         icon={<UserRound size={19} />}
         left={
-          <button type="button" onClick={onBack} className="button-icon" aria-label="返回主页">
+          <button type="button" onClick={onBack} className="button-icon" aria-label="返回大厅">
             <ArrowLeft size={17} />
           </button>
         }
-        right={<ThemeToggle />}
       />
 
       <main className="relative z-10 px-4 pb-10 pt-5 sm:px-6 sm:pt-6 lg:px-8">

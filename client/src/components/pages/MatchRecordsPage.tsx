@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import { GameBoard } from '@/components/game';
 import {
   exportAdminMatchRecordBundle,
@@ -361,7 +361,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         title="历史对局"
         icon={<History size={18} />}
         left={
-          <button type="button" onClick={onBack} className="button-icon" aria-label="返回主页">
+          <button type="button" onClick={onBack} className="button-icon" aria-label="返回大厅">
             <ArrowLeft size={16} />
           </button>
         }
@@ -377,7 +377,6 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
             >
               <RefreshCw size={16} className={isLoadingRecords ? 'animate-spin' : ''} />
             </button>
-            <ThemeToggle />
           </>
         }
       />

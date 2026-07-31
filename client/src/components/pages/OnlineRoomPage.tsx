@@ -22,13 +22,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import {
-  ConfirmDialog,
-  DeckSelector,
-  type DeckDisplayItem,
-  PageHeader,
-  ThemeToggle,
-} from '@/components/common';
+import { ConfirmDialog, DeckSelector, type DeckDisplayItem, PageHeader } from '@/components/common';
 import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
@@ -810,7 +804,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
             className="button-primary mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2"
           >
             <ArrowLeft size={16} />
-            返回主页
+            返回大厅
           </button>
         </div>
       </div>
@@ -1039,7 +1033,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3"
               >
                 <ArrowLeft size={16} />
-                返回主页
+                返回大厅
               </button>
               <button
                 type="button"
@@ -1085,10 +1079,9 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
             className="button-ghost inline-flex h-10 items-center gap-2 px-3"
           >
             <ArrowLeft size={16} />
-            返回
+            返回大厅
           </button>
         }
-        right={<ThemeToggle />}
       />
 
       <main
@@ -1469,7 +1462,7 @@ function RoomErrorNotice({
           onClick={onClearSavedRoom}
           className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-3 py-2 font-semibold transition hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
         >
-          清除保存房间并返回首页
+          清除保存房间并返回大厅
         </button>
       )}
     </div>
@@ -1571,7 +1564,7 @@ function OnlineOpeningStage({
               className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 backdrop-blur-xl sm:px-4"
             >
               <ArrowLeft size={15} />
-              <span className="hidden sm:inline">返回主页</span>
+              <span className="hidden sm:inline">返回大厅</span>
               <span className="sm:hidden">返回</span>
             </button>
             <button
@@ -2223,7 +2216,7 @@ function OnlineMatchEndPanel({
             className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
           >
             <ArrowLeft size={16} />
-            返回主页
+            返回大厅
           </button>
           <button
             type="button"
@@ -2386,7 +2379,7 @@ function RoomActionPanel({
           className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
         >
           <ArrowLeft size={16} />
-          返回主页
+          返回大厅
         </button>
         <button
           type="button"

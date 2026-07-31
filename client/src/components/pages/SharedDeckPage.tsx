@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Loader2, LogIn, Save, Share2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
-import { apiClient, isApiConfigured, type DeckRecord, type SharedDeckRecord } from '@/lib/apiClient';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import {
+  apiClient,
+  isApiConfigured,
+  type DeckRecord,
+  type SharedDeckRecord,
+} from '@/lib/apiClient';
+import { PageHeader, ProductHeader, ThemeToggle } from '@/components/common';
 import { calculateDeckStats, DeckStatsRow } from '@/components/common/DeckStats';
 import { Card } from '@/components/card/Card';
 import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
@@ -12,10 +17,7 @@ import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { isLiveCardData, isMemberCardData, type AnyCardData } from '@game/domain/entities/card';
 import type { CardEntry } from '@game/domain/card-data/deck-loader';
-import {
-  createDeckRecordCardTypeResolver,
-  deckRecordToConfig,
-} from '@/lib/deckRecordUtils';
+import { createDeckRecordCardTypeResolver, deckRecordToConfig } from '@/lib/deckRecordUtils';
 
 interface SharedDeckPageProps {
   shareId: string;
@@ -23,7 +25,10 @@ interface SharedDeckPageProps {
   onRequestLogin: () => void;
 }
 
-function sortEntries(entries: CardEntry[], getCardData: (cardCode: string) => AnyCardData | undefined): CardEntry[] {
+function sortEntries(
+  entries: CardEntry[],
+  getCardData: (cardCode: string) => AnyCardData | undefined
+): CardEntry[] {
   const getSortValue = (entry: CardEntry) => {
     const cardData = getCardData(entry.card_code);
     if (!cardData) return Number.POSITIVE_INFINITY;
@@ -83,7 +88,9 @@ function SharedDeckSection({ title, entries, sort, onViewDetail }: SharedDeckSec
                   className="flex aspect-[63/88] flex-col items-center justify-center rounded-lg border border-dashed border-[var(--border-default)] bg-[var(--bg-elevated)] p-2 text-center"
                 >
                   <div className="text-[10px] text-[var(--text-muted)]">{entry.card_code}</div>
-                  <div className="mt-1 text-xs font-semibold text-[var(--text-secondary)]">x{entry.count}</div>
+                  <div className="mt-1 text-xs font-semibold text-[var(--text-secondary)]">
+                    x{entry.count}
+                  </div>
                 </div>
               );
             }
@@ -94,7 +101,10 @@ function SharedDeckSection({ title, entries, sort, onViewDetail }: SharedDeckSec
                 className="relative cursor-pointer"
                 style={{ aspectRatio: '63/88' }}
                 onClick={() => onViewDetail(cardData)}
-                onContextMenu={(e) => { e.preventDefault(); onViewDetail(cardData); }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  onViewDetail(cardData);
+                }}
               >
                 <Card
                   cardData={cardData}
@@ -246,9 +256,14 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
 
   return (
     <div className="app-shell flex min-h-screen flex-col">
+      <ProductHeader
+        brandAriaLabel="返回 Loveca 首页"
+        onBrandClick={onBackHome}
+        actions={<ThemeToggle />}
+      />
       <PageHeader
         title="卡组分享"
-        left={(
+        left={
           <button
             onClick={onBackHome}
             className="button-ghost inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
@@ -256,19 +271,20 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
             <ArrowLeft size={16} />
             <span className="hidden sm:inline">返回</span>
           </button>
-        )}
-        right={(
+        }
+        right={
           <>
-            <ThemeToggle />
             <button
               onClick={handleCopyLink}
               className="button-secondary inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
             >
               <Copy size={14} />
-              <span className="hidden sm:inline">{copyState === 'done' ? '已复制' : copyState === 'error' ? '复制失败' : '复制链接'}</span>
+              <span className="hidden sm:inline">
+                {copyState === 'done' ? '已复制' : copyState === 'error' ? '复制失败' : '复制链接'}
+              </span>
             </button>
           </>
-        )}
+        }
       />
 
       <main className="relative z-10 flex-1 overflow-y-auto p-4 sm:p-6">
@@ -276,7 +292,10 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
           {isLoading && (
             <div className="flex items-center justify-center py-24">
               <div className="text-center">
-                <Loader2 size={32} className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]" />
+                <Loader2
+                  size={32}
+                  className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]"
+                />
                 <div className="text-sm text-[var(--text-secondary)]">加载分享卡组中...</div>
               </div>
             </div>
@@ -305,11 +324,15 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                       )}
                     </div>
                     {deck.description && (
-                      <p className="max-w-3xl text-sm text-[var(--text-secondary)]">{deck.description}</p>
+                      <p className="max-w-3xl text-sm text-[var(--text-secondary)]">
+                        {deck.description}
+                      </p>
                     )}
                     <div className="mt-3">
                       <DeckStatsRow
-                        stats={calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType })}
+                        stats={calculateDeckStats(deck, {
+                          resolveCardType: resolveDeckRecordCardType,
+                        })}
                         updatedAt={deck.shared_at || deck.updated_at}
                         size="md"
                       />
@@ -334,7 +357,11 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                           isForking ? 'cursor-wait opacity-60' : ''
                         }`}
                       >
-                        {isForking ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                        {isForking ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Save size={14} />
+                        )}
                         {isAuthenticated ? '保存到我的卡组' : '登录后保存到我的卡组'}
                       </button>
                     )}
@@ -386,14 +413,18 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                 </div>
 
                 <aside className="surface-panel h-fit rounded-2xl p-4">
-                  <div className="mb-3 text-sm font-semibold text-[var(--text-primary)]">构筑状态</div>
+                  <div className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
+                    构筑状态
+                  </div>
                   {validation.valid ? (
                     <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] p-3 text-sm text-[var(--semantic-success)]">
                       该卡组满足当前构筑要求。
                     </div>
                   ) : (
                     <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-3">
-                      <div className="mb-2 text-sm font-medium text-[var(--semantic-error)]">该卡组当前不完整</div>
+                      <div className="mb-2 text-sm font-medium text-[var(--semantic-error)]">
+                        该卡组当前不完整
+                      </div>
                       <ul className="space-y-1 text-xs text-[var(--semantic-error)]/80">
                         {validation.errors.map((err) => (
                           <li key={err}>{err}</li>
@@ -403,10 +434,14 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                   )}
 
                   <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
-                    <div className="mb-2 text-sm font-semibold text-[var(--text-primary)]">卡组统计</div>
+                    <div className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
+                      卡组统计
+                    </div>
                     <div className="mb-4">
                       <DeckStatsRow
-                        stats={calculateDeckStats(deck, { resolveCardType: resolveDeckRecordCardType })}
+                        stats={calculateDeckStats(deck, {
+                          resolveCardType: resolveDeckRecordCardType,
+                        })}
                         size="md"
                         className="justify-between"
                       />

@@ -12,5 +12,9 @@ export {
 } from './DeckStats';
 export { ConfirmDialog } from './ConfirmDialog';
 export { PageHeader } from './PageHeader';
+export { ProductFrame, type ProductNavigationHandlers, type ProductNavKey } from './ProductFrame';
+export { ProductBrand } from './ProductBrand';
+export { ProductHeader } from './ProductHeader';
 export { ThemeToggle } from './ThemeToggle';
 export { AppCredits } from './AppCredits';
+export { AnnouncementCenterButton } from './AnnouncementCenterButton';

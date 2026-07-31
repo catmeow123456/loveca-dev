@@ -12,10 +12,19 @@ import {
   type ReactNode,
 } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { UserRound } from 'lucide-react';
 import { BattleViewportShell } from '@/components/game/BattleViewportShell';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
-import { ConfirmDialog } from '@/components/common';
+import {
+  AnnouncementCenterButton,
+  ConfirmDialog,
+  ProductFrame,
+  ThemeToggle,
+  type ProductNavigationHandlers,
+  type ProductNavKey,
+} from '@/components/common';
 import { HomePage } from '@/components/pages/HomePage';
+import { PublicHomePage } from '@/components/pages/PublicHomePage';
 import {
   LoginPage,
   RegisterPage,
@@ -115,6 +124,7 @@ const RankedAdminPage = lazy(() =>
 );
 
 type AuthPage =
+  | 'landing'
   | 'login'
   | 'register'
   | 'forgot-password'
@@ -164,7 +174,15 @@ function getInitialAuthRequest(): InitialAuthRequest {
     return { page: 'reset-password', token };
   }
 
-  return { page: 'login', token: null };
+  if (path === '/login') {
+    return { page: 'login', token: null };
+  }
+
+  if (path === '/register') {
+    return { page: 'register', token: null };
+  }
+
+  return { page: 'landing', token: null };
 }
 
 function getInitialPage(): AppPage {
@@ -273,6 +291,8 @@ function App() {
     }))
   );
   const initializeAuth = useAuthStore((s) => s.initialize);
+  const enterOfflineMode = useAuthStore((s) => s.enterOfflineMode);
+  const signOut = useAuthStore((s) => s.signOut);
   const setPublicTableSessionUser = usePublicTableStore((s) => s.setSessionUser);
   const publicTableSessionUserId = user && profile && !offlineMode ? user.id : null;
 
@@ -418,6 +438,7 @@ function App() {
 
         loadCardData(cards, imageMap);
         initDeckStore();
+        setError(null);
         setIsLoading(false);
       } catch (err) {
         if (import.meta.env.DEV) {
@@ -576,8 +597,9 @@ function App() {
     );
   }
 
-  // 显示加载状态
-  if (isLoading) {
+  // 公开首页与认证表单不依赖完整卡池；卡牌数据在后台加载，避免用整页启动屏
+  // 阻断访客入口。共享卡组、观战和已登录工作区仍等待卡池准备完成。
+  if (isLoading && (isAuthenticated || shareId || spectatorToken || spectatorLobbyRequested)) {
     return (
       <div className="app-shell h-screen flex items-center justify-center px-4">
         <div className="text-center">
@@ -588,8 +610,9 @@ function App() {
     );
   }
 
-  // 显示错误状态
-  if (error) {
+  // 已进入账户/离线会话后仍保持原有启动失败边界；公开首页可以在卡牌 API
+  // 暂时不可用时继续展示，并把状态降级到相关操作附近。
+  if (error && isAuthenticated) {
     return <StartupErrorPage error={error} siteStatus={appConfig.siteStatus} />;
   }
 
@@ -658,12 +681,56 @@ function App() {
   }
 
   if (!isAuthenticated) {
-    switch (authPage) {
+    const visibleAuthPage = shareLoginRequested && authPage === 'landing' ? 'login' : authPage;
+    const loginSubtitle =
+      currentPage === 'deck-manager'
+        ? '登录后继续构筑与管理云端卡组。'
+        : currentPage === 'game-setup'
+          ? '登录后继续选择对战方式和本次使用的卡组。'
+          : '登录账号，进入你的 Loveca 大厅。';
+    const returnToLanding = () => {
+      setCurrentPage('home');
+      setAuthPage('landing');
+    };
+
+    switch (visibleAuthPage) {
+      case 'landing':
+        return (
+          <PublicHomePage
+            onLogin={() => {
+              setCurrentPage('home');
+              setAuthPage('login');
+            }}
+            onRegister={() => {
+              setCurrentPage('home');
+              setAuthPage('register');
+            }}
+            onManageDecks={() => {
+              setCurrentPage('deck-manager');
+              setAuthPage('login');
+            }}
+            onStartGame={() => {
+              setCurrentPage('game-setup');
+              setAuthPage('login');
+            }}
+            onSpectate={() => {
+              window.location.href = '/online/spectate';
+            }}
+            onTryOffline={() => {
+              setCurrentPage('game-setup');
+              setError(null);
+              enterOfflineMode('Guest');
+            }}
+            serviceAvailable={!error}
+            siteStatus={appConfig.siteStatus}
+          />
+        );
       case 'register':
         return (
           <RegisterPage
             emailVerificationRequired={emailFeature.verificationRequired}
             onSwitchToLogin={() => setAuthPage('login')}
+            onBackHome={returnToLanding}
           />
         );
       case 'forgot-password':
@@ -673,6 +740,9 @@ function App() {
               passwordResetEnabled={emailFeature.passwordResetEnabled}
               onSwitchToRegister={() => setAuthPage('register')}
               onSwitchToForgotPassword={() => setAuthPage('forgot-password')}
+              onBackHome={returnToLanding}
+              subtitle={loginSubtitle}
+              offlineModeDisabled={currentPage === 'deck-manager'}
             />
           );
         return <ForgotPasswordPage onSwitchToLogin={() => setAuthPage('login')} />;
@@ -682,6 +752,9 @@ function App() {
             passwordResetEnabled={emailFeature.passwordResetEnabled}
             onSwitchToRegister={() => setAuthPage('register')}
             onSwitchToForgotPassword={() => setAuthPage('forgot-password')}
+            onBackHome={returnToLanding}
+            subtitle={loginSubtitle}
+            offlineModeDisabled={currentPage === 'deck-manager'}
           />
         );
     }
@@ -702,6 +775,70 @@ function App() {
       />
     </>
   );
+
+  const productNavigation: ProductNavigationHandlers = {
+    onHome: () => setCurrentPage('home'),
+    onDecks: () => setCurrentPage('deck-manager'),
+    onBattle: () => setCurrentPage('game-setup'),
+    onSpectate: () => setCurrentPage('online-spectator'),
+    onHistory: () => setCurrentPage('match-records'),
+  };
+  const handleSignOut = () => {
+    void signOut().finally(() => {
+      setCurrentPage('home');
+      setAuthPage('landing');
+    });
+  };
+  const authenticatedHeaderActions = (
+    <>
+      <AnnouncementCenterButton siteStatus={appConfig.siteStatus} />
+      <ThemeToggle />
+      {profile ? (
+        <button
+          type="button"
+          onClick={() => setCurrentPage('account')}
+          className="button-icon !hidden md:!inline-flex"
+          title="账户"
+          aria-label="账户"
+        >
+          <UserRound size={16} />
+        </button>
+      ) : null}
+    </>
+  );
+  const authenticatedMobileMenuActions = (
+    <div className="grid grid-cols-2 gap-2">
+      {profile ? (
+        <button
+          type="button"
+          onClick={() => setCurrentPage('account')}
+          className="button-secondary min-h-11 px-3 text-sm font-semibold"
+        >
+          账户
+        </button>
+      ) : (
+        <div />
+      )}
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className="button-secondary min-h-11 px-3 text-sm font-semibold"
+      >
+        退出登录
+      </button>
+    </div>
+  );
+  const withProductFrame = (content: ReactNode, active: ProductNavKey | null) =>
+    withPublicTableLayer(
+      <ProductFrame
+        active={active}
+        navigation={productNavigation}
+        actions={authenticatedHeaderActions}
+        mobileMenuActions={authenticatedMobileMenuActions}
+      >
+        {content}
+      </ProductFrame>
+    );
 
   // 游戏进行中
   if (effectivePage === 'game' && matchView) {
@@ -776,10 +913,13 @@ function App() {
     );
   }
 
-  // 游戏准备页面
+  // 对局准备页面
   if (effectivePage === 'game-setup') {
     return withPublicTableLayer(
       <GameSetupPage
+        navigation={productNavigation}
+        headerActions={authenticatedHeaderActions}
+        mobileMenuActions={authenticatedMobileMenuActions}
         onBack={() => setCurrentPage('home')}
         onGameStart={() => setCurrentPage('game')}
         onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
@@ -789,86 +929,97 @@ function App() {
   }
 
   if (effectivePage === 'online-room') {
-    return withPublicTableLayer(<OnlineRoomPage onBack={() => setCurrentPage('home')} />);
+    return withProductFrame(<OnlineRoomPage onBack={() => setCurrentPage('home')} />, 'battle');
   }
 
   if (effectivePage === 'public-table' && publicTableSessionUserId) {
-    return withPublicTableLayer(
+    return withProductFrame(
       <PublicTablePage
         userId={publicTableSessionUserId}
         onBack={() => setCurrentPage('home')}
         onEnterRoom={enterOnlineRoom}
-      />
+      />,
+      'battle'
     );
   }
 
   if (effectivePage === 'ranked') {
-    return withPublicTableLayer(
-      <RankedPage onBack={() => setCurrentPage('home')} onEnterRoom={enterOnlineRoom} />
+    return withProductFrame(
+      <RankedPage onBack={() => setCurrentPage('home')} onEnterRoom={enterOnlineRoom} />,
+      'battle'
     );
   }
 
   if (effectivePage === 'online-spectator') {
     return withPublicTableLayer(
-      <OnlineSpectatorLobbyPage onBackHome={() => setCurrentPage('home')} />
+      <OnlineSpectatorLobbyPage
+        navigation={productNavigation}
+        headerActions={authenticatedHeaderActions}
+        mobileMenuActions={authenticatedMobileMenuActions}
+        onBackHome={() => setCurrentPage('home')}
+      />
     );
   }
 
   if (effectivePage === 'match-records') {
-    return withPublicTableLayer(<MatchRecordsPage onBack={() => setCurrentPage('home')} />);
+    return withProductFrame(<MatchRecordsPage onBack={() => setCurrentPage('home')} />, 'history');
   }
 
   if (effectivePage === 'online-debug') {
-    return withPublicTableLayer(<OnlineDebugPage onBack={() => setCurrentPage('home')} />);
+    return withProductFrame(<OnlineDebugPage onBack={() => setCurrentPage('home')} />, 'battle');
   }
 
   // 卡组管理页面
   if (effectivePage === 'deck-manager') {
-    return withPublicTableLayer(
-      <DeckManager onBack={() => setCurrentPage('home')} initialOpenDeckId={initialOpenDeckId} />
+    return withProductFrame(
+      <DeckManager onBack={() => setCurrentPage('home')} initialOpenDeckId={initialOpenDeckId} />,
+      'decks'
     );
   }
 
   if (effectivePage === 'account' && user && profile && !offlineMode) {
-    return withPublicTableLayer(
+    return withProductFrame(
       <AccountCenterPage
         emailChangeEnabled={emailFeature.enabled}
         onBack={() => setCurrentPage('home')}
-      />
+      />,
+      null
     );
   }
 
   // 卡牌管理页面
   if (effectivePage === 'card-admin' && profile?.role === 'admin') {
-    return withPublicTableLayer(<CardAdminPage onBack={() => setCurrentPage('home')} />);
+    return withProductFrame(<CardAdminPage onBack={() => setCurrentPage('home')} />, null);
   }
 
   if (effectivePage === 'online-admin' && profile?.role === 'admin') {
-    return withPublicTableLayer(<OnlineRoomsAdminPage onBack={() => setCurrentPage('home')} />);
+    return withProductFrame(<OnlineRoomsAdminPage onBack={() => setCurrentPage('home')} />, null);
   }
 
   if (effectivePage === 'announcement-admin' && profile?.role === 'admin') {
-    return withPublicTableLayer(
+    return withProductFrame(
       <SiteAnnouncementsAdminPage
         onBack={() => setCurrentPage('home')}
         siteStatus={appConfig.siteStatus}
         onSiteStatusChanged={refreshAppConfig}
-      />
+      />,
+      null
     );
   }
 
   if (effectivePage === 'ranked-admin' && profile?.role === 'admin') {
-    return withPublicTableLayer(<RankedAdminPage onBack={() => setCurrentPage('home')} />);
+    return withProductFrame(<RankedAdminPage onBack={() => setCurrentPage('home')} />, null);
   }
 
   // 主页
   return withPublicTableLayer(
     <HomePage
+      navigation={productNavigation}
+      headerActions={authenticatedHeaderActions}
+      mobileMenuActions={authenticatedMobileMenuActions}
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
-      onNavigateToAccount={() => setCurrentPage('account')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
-      onNavigateToPublicTable={() => setCurrentPage('public-table')}
       onNavigateToRanked={() => setCurrentPage('ranked')}
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}

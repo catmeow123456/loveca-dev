@@ -1,18 +1,32 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Loader2, ScanLine } from 'lucide-react';
-import { ThemeToggle } from '@/components/common';
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { ArrowLeft, ArrowRight, Eye, Loader2, ScanLine } from 'lucide-react';
+import {
+  ProductFrame,
+  ProductHeader,
+  ThemeToggle,
+  type ProductNavigationHandlers,
+} from '@/components/common';
 import {
   createOnlineRoomSpectatorEntryLink,
   fetchOnlineRoomSpectatorEntry,
 } from '@/lib/onlineClient';
 import type { OnlineRoomSpectatorEntryView, Seat } from '@game/online';
 import { LatestRequestGate } from '@/lib/asyncRequestControl';
+import './online-spectator-lobby.css';
 
 interface OnlineSpectatorLobbyPageProps {
   readonly onBackHome: () => void;
+  readonly navigation?: ProductNavigationHandlers;
+  readonly headerActions?: ReactNode;
+  readonly mobileMenuActions?: ReactNode;
 }
 
-export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPageProps) {
+export function OnlineSpectatorLobbyPage({
+  onBackHome,
+  navigation,
+  headerActions,
+  mobileMenuActions,
+}: OnlineSpectatorLobbyPageProps) {
   const [roomCodeInput, setRoomCodeInput] = useState(() => readInitialRoomCode());
   const [entry, setEntry] = useState<OnlineRoomSpectatorEntryView | null>(null);
   const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
@@ -30,7 +44,7 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
 
   const handleLookup = async () => {
     const roomCode = normalizeRoomCode(roomCodeInput);
-    if (!roomCode) {
+    if (roomCode.length < 4) {
       lookupRequestGateRef.current.invalidate();
       setIsLoading(false);
       setError('请输入 4 到 12 位房间号');
@@ -108,34 +122,26 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
     void handleLookup();
   };
 
-  return (
-    <div className="app-shell flex min-h-screen flex-col overflow-x-hidden">
-      <header className="relative z-10 border-b border-[var(--border-subtle)] px-4 py-3 sm:px-6">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onBackHome}
-            className="button-ghost inline-flex min-h-10 items-center gap-2 px-3 text-sm"
-          >
-            <ArrowLeft size={16} />
-            返回
-          </button>
-          <div className="flex items-center gap-2">
-            <div className="hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] sm:block">
-              房间号观战
-            </div>
-            <ThemeToggle />
+  const pageContent = (
+    <main className="spectator-lobby-main">
+      <section className="spectator-lobby-desk">
+        <header className="spectator-lobby-intro">
+          <div className="spectator-lobby-intro__icon">
+            <Eye size={25} aria-hidden="true" />
           </div>
-        </div>
-      </header>
+          <span>SPECTATOR DESK</span>
+          <h1>输入房间号观战</h1>
+          <p>选择先攻或后攻玩家的视角，只读观看正在进行的对局。</p>
+        </header>
 
-      <main className="relative z-10 flex flex-1 items-center justify-center px-4 py-5 sm:px-6">
-        <section className="surface-panel-frosted flex w-full max-w-3xl flex-col gap-5 p-5 sm:p-6">
-          <h1 className="text-2xl font-bold leading-tight text-[var(--text-primary)] sm:text-3xl">
-            输入房间号观战
-          </h1>
+        <div className="spectator-lobby-console">
+          <div className="spectator-lobby-section-heading">
+            <span>ROOM LOOKUP</span>
+            <h2>查找对局</h2>
+            <p>房间号由创建房间的玩家提供。</p>
+          </div>
 
-          <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+          <form onSubmit={handleSubmit} className="spectator-lobby-search">
             <input
               value={roomCodeInput}
               onChange={(event) => {
@@ -146,8 +152,8 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
                 setSelectedSeat(null);
                 setError(null);
               }}
-              className="h-12 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 text-lg font-bold tracking-[0.18em] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-primary)] focus:ring-2 focus:ring-[color:color-mix(in_srgb,var(--accent-primary)_20%,transparent)]"
-              placeholder="房间号"
+              className="spectator-lobby-room-input"
+              placeholder="例如 ABCD12"
               maxLength={12}
               autoCapitalize="characters"
               autoComplete="off"
@@ -156,32 +162,32 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
             <button
               type="submit"
               disabled={isLoading || isEntering}
-              className="button-primary inline-flex h-12 items-center justify-center gap-2 px-5 text-sm"
+              className="spectator-lobby-search-button"
             >
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ScanLine size={16} />}
               查找
             </button>
           </form>
 
+          <div className="spectator-lobby-section-heading spectator-lobby-section-heading--seats">
+            <span>PLAYER VIEW</span>
+            <h2>选择观看视角</h2>
+          </div>
           <SeatScanner entry={entry} selectedSeat={selectedSeat} onSelectSeat={setSelectedSeat} />
 
           {error ? (
-            <div className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_36%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
+            <div className="spectator-lobby-error" role="alert">
               {error}
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs leading-5 text-[var(--text-muted)]">
-              {entry ? `房间 ${entry.roomCode} · ${enabledSeats.length} 个视角开放` : ''}
-            </div>
+          <footer className="spectator-lobby-actions">
+            <div>{entry ? `房间 ${entry.roomCode} · ${enabledSeats.length} 个视角开放` : ''}</div>
             <button
               type="button"
               onClick={() => void handleEnter()}
               disabled={!canEnter}
-              className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${
-                !canEnter ? 'cursor-not-allowed opacity-55' : ''
-              }`}
+              className="spectator-lobby-enter-button"
             >
               {isEntering ? (
                 <Loader2 size={16} className="animate-spin" />
@@ -190,9 +196,46 @@ export function OnlineSpectatorLobbyPage({ onBackHome }: OnlineSpectatorLobbyPag
               )}
               进入观战
             </button>
-          </div>
-        </section>
-      </main>
+          </footer>
+        </div>
+      </section>
+    </main>
+  );
+
+  if (navigation) {
+    return (
+      <ProductFrame
+        active="spectate"
+        navigation={navigation}
+        actions={headerActions}
+        mobileMenuActions={mobileMenuActions}
+        title="房间号观战"
+        description="选择对局中的一个玩家视角"
+        backLabel="返回大厅"
+        onBack={onBackHome}
+        className="spectator-lobby-page"
+      >
+        {pageContent}
+      </ProductFrame>
+    );
+  }
+
+  return (
+    <div className="app-shell spectator-lobby-page flex min-h-screen flex-col overflow-x-hidden">
+      <ProductHeader
+        brandAriaLabel="返回 Loveca 首页"
+        brandHref="/"
+        actions={
+          <>
+            <button type="button" onClick={onBackHome} className="spectator-lobby-header-back">
+              <ArrowLeft size={15} aria-hidden="true" />
+              返回首页
+            </button>
+            <ThemeToggle />
+          </>
+        }
+      />
+      {pageContent}
     </div>
   );
 }
@@ -209,8 +252,8 @@ function SeatScanner({
   const seats = entry?.seats ?? [];
 
   return (
-    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] p-3">
-      <div className="grid gap-2 sm:grid-cols-2">
+    <div className="spectator-seat-scanner">
+      <div className="spectator-seat-grid">
         {(['FIRST', 'SECOND'] as const).map((seat) => {
           const seatView = seats.find((candidate) => candidate.seat === seat) ?? null;
           const enabled = seatView?.enabled === true;
@@ -221,30 +264,22 @@ function SeatScanner({
               type="button"
               onClick={() => enabled && onSelectSeat(seat)}
               disabled={!enabled}
-              className={`min-h-[5.5rem] rounded-lg border px-4 py-3 text-left transition ${
+              className={`spectator-seat ${
                 selected
-                  ? 'border-[var(--accent-primary)] bg-[color:color-mix(in_srgb,var(--accent-primary)_13%,transparent)] shadow-[var(--shadow-sm)]'
+                  ? 'spectator-seat--selected'
                   : enabled
-                    ? 'border-[var(--border-default)] bg-[var(--bg-surface)] hover:border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-default))]'
-                    : 'cursor-not-allowed border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-muted)_65%,transparent)] opacity-65'
+                    ? 'spectator-seat--enabled'
+                    : 'spectator-seat--disabled'
               }`}
             >
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-bold text-[var(--text-primary)]">
-                  {getSeatLabel(seat)}
-                </div>
-                <div
-                  className={`rounded-md border px-2 py-0.5 text-[11px] font-semibold ${
-                    enabled
-                      ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_45%,transparent)] text-[var(--semantic-success)]'
-                      : 'border-[var(--border-subtle)] text-[var(--text-muted)]'
-                  }`}
-                >
+              <div className="spectator-seat__topline">
+                <div>{getSeatLabel(seat)}</div>
+                <div className={enabled ? 'spectator-seat__status--open' : ''}>
                   {enabled ? '开放' : '关闭'}
                 </div>
               </div>
-              <div className="mt-3 truncate text-xs text-[var(--text-secondary)]">
-                {seatView?.displayName ?? '等待对局'}
+              <div className="spectator-seat__player">
+                {seatView?.displayName ?? '输入房间号后显示玩家'}
               </div>
             </button>
           );
