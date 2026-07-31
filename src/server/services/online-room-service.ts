@@ -17,6 +17,10 @@ import type {
   OnlineSpectatorLinkView,
 } from '../../online/release-types.js';
 import type { MatchOriginKind } from '../../online/replay-types.js';
+import {
+  RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS,
+  RANKED_RECONNECT_GRACE_PERIOD_MS,
+} from '../../online/ranked-policy.js';
 import type { Seat } from '../../online/types.js';
 import { pool } from '../db/pool.js';
 import {
@@ -38,8 +42,6 @@ import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
 import { rankedRatingService } from './ranked-rating-service.js';
 
 const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
-const RANKED_DISCONNECT_FORFEIT_MS = 3 * 60 * 1000;
-const RANKED_DOUBLE_DISCONNECT_AMBIGUITY_MS = MEMBER_PRESENCE_STALE_MS;
 const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
 const RESTART_REQUEST_TTL_MS = 60 * 1000;
 const PUBLIC_TABLE_ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -759,7 +761,15 @@ export class OnlineRoomService {
       room.status === 'IN_GAME' && room.matchId && this.matchService.isMatchCompleted(room.matchId)
     );
 
-    if (room.status === 'OPENING' || room.status === 'IN_GAME') {
+    if (room.status === 'IN_GAME' && !completedMatch) {
+      throw new OnlineRoomServiceError(
+        'ONLINE_ROOM_LEAVE_FORBIDDEN',
+        '对局进行中不能直接退出房间；暂时离开请返回大厅，结束本局请使用认输',
+        409
+      );
+    }
+
+    if (room.status === 'IN_GAME') {
       member.presence = 'LEFT';
       member.voluntarilyLeft = true;
       member.lastSeenAt = now;
@@ -771,35 +781,48 @@ export class OnlineRoomService {
       }
       touchRoom(room, now);
 
-      if (completedMatch) {
-        await this.participationService?.releaseOnlineRoom([userId], room.roomGeneration);
-        if (room.members.every((candidate) => candidate.presence === 'LEFT')) {
-          const deleted = await this.matchService.deleteMatch(room.matchId!, {
-            reason: 'COMPLETED_ROOM_LEFT',
-            now,
-          });
-          if (!deleted) {
-            throw new OnlineRoomServiceError(
-              'ONLINE_ROOM_LEAVE_SEAL_FAILED',
-              '暂时无法结束本局，请稍后重试',
-              503
-            );
-          }
-          this.matchService.terminateRoomCodeSpectators(
-            room.roomCode,
-            room.roomGeneration,
-            'ROOM_CLOSED',
-            now
+      await this.participationService?.releaseOnlineRoom([userId], room.roomGeneration);
+      if (room.members.every((candidate) => candidate.presence === 'LEFT')) {
+        const deleted = await this.matchService.deleteMatch(room.matchId!, {
+          reason: 'COMPLETED_ROOM_LEFT',
+          now,
+        });
+        if (!deleted) {
+          throw new OnlineRoomServiceError(
+            'ONLINE_ROOM_LEAVE_SEAL_FAILED',
+            '暂时无法结束本局，请稍后重试',
+            503
           );
-          this.rooms.delete(room.roomCode);
-          await this.participationService?.releaseOnlineRoom(
-            room.members.map((candidate) => candidate.userId),
-            room.roomGeneration
-          );
-          return { room: null };
         }
+        this.matchService.terminateRoomCodeSpectators(
+          room.roomCode,
+          room.roomGeneration,
+          'ROOM_CLOSED',
+          now
+        );
+        this.rooms.delete(room.roomCode);
+        await this.participationService?.releaseOnlineRoom(
+          room.members.map((candidate) => candidate.userId),
+          room.roomGeneration
+        );
+        return { room: null };
       }
 
+      return {
+        room: this.buildRoomView(room, member),
+      };
+    }
+
+    if (room.status === 'OPENING' && room.originKind === 'PUBLIC_TABLE') {
+      await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
+      return { room: null };
+    }
+
+    if (room.status === 'OPENING' && room.originKind === 'RANKED') {
+      member.presence = 'LEFT';
+      member.voluntarilyLeft = true;
+      member.lastSeenAt = now;
+      touchRoom(room, now);
       return {
         room: this.buildRoomView(room, member),
       };
@@ -849,6 +872,46 @@ export class OnlineRoomService {
     return {
       room: this.buildRoomView(room, room.members[0]),
     };
+  }
+
+  async abandonRoomForLocalGame(
+    roomCodeInput: string,
+    userId: string
+  ): Promise<{ room: OnlineRoomView | null }> {
+    await this.cleanupExpiredState();
+
+    const room = this.getRoomState(roomCodeInput);
+    this.requireMember(room, userId);
+    const now = this.now();
+    const matchId = room.matchId;
+
+    if (
+      room.status === 'IN_GAME' &&
+      matchId &&
+      !this.matchService.isMatchCompleted(matchId)
+    ) {
+      const result = await this.matchService.executeCommand(matchId, userId, {
+        ...createSurrenderCommand(userId),
+        timestamp: now,
+        idempotencyKey: `local-game-abandon:${matchId}:${userId}:${now}`,
+      });
+      if (!result) {
+        throw new OnlineRoomServiceError(
+          'ONLINE_MATCH_GONE',
+          '当前对局不存在或已失效，无法放弃',
+          404
+        );
+      }
+      if (!result.success) {
+        throw new OnlineRoomServiceError(
+          'ONLINE_ROOM_ABANDON_FAILED',
+          result.error ?? '放弃当前对局失败',
+          409
+        );
+      }
+    }
+
+    return this.leaveRoom(room.roomCode, userId);
   }
 
   async cleanupExpiredRuntimeState(): Promise<OnlineRoomRuntimeCleanupSummary> {
@@ -1164,6 +1227,7 @@ export class OnlineRoomService {
         seat: getAssignedSeat(room, member.userId) ?? undefined,
       })),
       openingRps: buildOpeningRpsViewForViewer(room.openingRps, viewer.userId),
+      openingExpiresAt: room.openingExpiresAt,
       openingArrivalExpiresAt: room.openingArrivalExpiresAt,
       restartRequest: room.restartRequest,
       endInfo: room.endInfo,
@@ -1456,7 +1520,7 @@ export class OnlineRoomService {
           !this.matchService.isMatchCompleted(room.matchId)
         ) {
           const overdueMembers = [...room.members]
-            .filter((member) => now - member.lastSeenAt >= RANKED_DISCONNECT_FORFEIT_MS)
+            .filter((member) => now - member.lastSeenAt >= RANKED_RECONNECT_GRACE_PERIOD_MS)
             .sort(
               (first, second) =>
                 first.lastSeenAt - second.lastSeenAt || first.userId.localeCompare(second.userId)
@@ -1465,7 +1529,7 @@ export class OnlineRoomService {
             overdueMembers.length === room.members.length &&
             overdueMembers.length > 1 &&
             overdueMembers[overdueMembers.length - 1]!.lastSeenAt - overdueMembers[0]!.lastSeenAt <=
-              RANKED_DOUBLE_DISCONNECT_AMBIGUITY_MS;
+              RANKED_DOUBLE_DISCONNECT_NO_CONTEST_WINDOW_MS;
           if (hasIndistinguishableDoubleDisconnect) {
             const presenceSnapshot = capturePresenceSnapshot(overdueMembers);
             const voided = await pool.query(
@@ -1645,6 +1709,42 @@ export class OnlineRoomService {
     reason: 'PLAYER_ABANDONED_OPENING' | 'OPENING_TIMEOUT',
     now: number
   ): Promise<void> {
+    if (
+      room.publicTableReservationId &&
+      room.originKind === 'PUBLIC_TABLE' &&
+      reason === 'PLAYER_ABANDONED_OPENING'
+    ) {
+      await pool.query(
+        `WITH released_reservation AS (
+           UPDATE public_table_reservations
+           SET state = 'RELEASED',
+               failure_reason = $2,
+               updated_at = $4
+           WHERE id = $1
+             AND state = 'MATCHED'
+             AND room_generation = $3
+           RETURNING id
+         ), canceled_tickets AS (
+           UPDATE public_table_tickets
+           SET state = 'CANCELED',
+               terminal_reason = $2,
+               updated_at = $4
+           WHERE reservation_id IN (SELECT id FROM released_reservation)
+           RETURNING id
+         )
+         DELETE FROM gameplay_participations
+         WHERE room_generation = $3`,
+        [room.publicTableReservationId, reason, room.roomGeneration, new Date(now)]
+      );
+    } else if (room.publicTableReservationId) {
+      await pool.query(
+        `UPDATE public_table_reservations
+         SET failure_reason = $2,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [room.publicTableReservationId, reason]
+      );
+    }
     this.matchService.terminateRoomCodeSpectators(
       room.roomCode,
       room.roomGeneration,
@@ -1659,13 +1759,6 @@ export class OnlineRoomService {
     if (!room.publicTableReservationId) {
       return;
     }
-    await pool.query(
-      `UPDATE public_table_reservations
-       SET failure_reason = $2,
-           updated_at = NOW()
-       WHERE id = $1`,
-      [room.publicTableReservationId, reason]
-    );
     if (room.originKind === 'PUBLIC_TABLE') {
       logPublicTableLifecycleEvent({
         eventType: 'MATCH_INTERRUPTED',
@@ -1921,7 +2014,7 @@ function isPresenceSnapshotCurrent(
       member !== undefined &&
       member.lastSeenAt === expected.lastSeenAt &&
       member.presenceGeneration === expected.presenceGeneration &&
-      adjudicatedAt - member.lastSeenAt >= RANKED_DISCONNECT_FORFEIT_MS
+      adjudicatedAt - member.lastSeenAt >= RANKED_RECONNECT_GRACE_PERIOD_MS
     );
   });
 }

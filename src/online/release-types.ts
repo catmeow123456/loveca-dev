@@ -65,6 +65,8 @@ export interface OnlineRoomView {
   readonly currentUserSeat?: Seat;
   readonly members: readonly OnlineRoomMemberView[];
   readonly openingRps: OnlineOpeningRpsView | null;
+  /** 服务端开局流程截止时间；公共牌桌与赛季排位房间可用。 */
+  readonly openingExpiresAt?: number | null;
   /** 服务端到场确认截止时间；仅公共牌桌开局猜拳开始前可能存在。 */
   readonly openingArrivalExpiresAt: number | null;
   readonly restartRequest: OnlineRestartRequestView | null;

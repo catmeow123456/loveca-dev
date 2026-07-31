@@ -492,13 +492,13 @@ register_test_users() {
   done
 }
 
-seed_test_admin_decks() {
-  if [[ "${TEST_SEED_ADMIN_DECKS:-1}" == "0" ]]; then
-    log "skipping test admin deck seed"
+seed_test_admin_fixtures() {
+  if [[ "${TEST_SEED_ADMIN_DECKS:-1}" == "0" && "${TEST_SEED_RANKED_SEASON:-1}" == "0" ]]; then
+    log "skipping test admin fixtures"
     return
   fi
 
-  log "seeding test admin user and recommended deck"
+  log "seeding test admin fixtures"
   node scripts/seed-test-env-admin-decks.mjs
 }
 
@@ -620,7 +620,7 @@ main() {
   start_tmux_environment
   wait_for_api
   register_test_users
-  seed_test_admin_decks
+  seed_test_admin_fixtures
 
   log "ready"
   log "frontend: http://127.0.0.1:${FRONTEND_PORT}"

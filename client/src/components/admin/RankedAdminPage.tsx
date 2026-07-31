@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Medal, RefreshCw } from 'lucide-react';
+import { BookOpen, Loader2, Medal, RefreshCw } from 'lucide-react';
 import { PageHeader } from '@/components/common';
+import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
   createRankedSeason,
   executeRankedCorrection,
@@ -39,6 +40,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [selectedSeasonId, setSelectedSeasonId] = useState('');
   const [creating, setCreating] = useState(false);
   const [editingSeason, setEditingSeason] = useState<RankedAdminSeason | null>(null);
+  const [noticeSeason, setNoticeSeason] = useState<RankedAdminSeason | null>(null);
   const [correction, setCorrection] = useState<{
     match: RankedAdminMatch;
     preview: RankedCorrectionPreview;
@@ -208,6 +210,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
               onAdmission={(season, admission) =>
                 run(() => setRankedAdmission(season.id, admission))
               }
+              onOpenSeasonNotice={setNoticeSeason}
             />
           ) : (
             <MatchesPanel
@@ -247,6 +250,12 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
           }
         />
       ) : null}
+      <RankedSeasonNoticeDialog
+        isOpen={noticeSeason !== null}
+        seasonName={noticeSeason?.name}
+        leaderboardMatchCount={noticeSeason?.leaderboardMinimumMatchCount}
+        onClose={() => setNoticeSeason(null)}
+      />
     </div>
   );
 }
@@ -266,6 +275,7 @@ function SeasonPanel({
   onUpdateActive,
   onAction,
   onAdmission,
+  onOpenSeasonNotice,
 }: {
   seasons: RankedAdminSeason[];
   formalAlgorithm: string;
@@ -287,6 +297,7 @@ function SeasonPanel({
     action: 'activate' | 'finalize' | 'close'
   ) => Promise<unknown>;
   onAdmission: (season: RankedAdminSeason, admission: 'OPEN' | 'PAUSED') => Promise<unknown>;
+  onOpenSeasonNotice: (season: RankedAdminSeason) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -336,6 +347,13 @@ function SeasonPanel({
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
+                    onClick={() => onOpenSeasonNotice(season)}
+                  >
+                    <BookOpen size={15} />
+                    查看公告
+                  </button>
                   {season.lifecycle === 'DRAFT' ? (
                     <>
                       <button

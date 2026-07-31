@@ -57,6 +57,15 @@ export async function fetchOnlineRoom(roomCode: string): Promise<OnlineRoomView>
   return response.data;
 }
 
+export async function abandonOnlineRoomForLocalGame(roomCode: string): Promise<void> {
+  const response = await apiClient.post<{ room: OnlineRoomView | null }>(
+    `/api/online/rooms/${encodeURIComponent(roomCode)}/abandon-for-local-game`
+  );
+  if (!response.data) {
+    throw toApiClientError(response, '放弃联机对局失败');
+  }
+}
+
 export async function fetchOnlineRoomSpectatorEntry(
   roomCode: string
 ): Promise<OnlineRoomSpectatorEntryView> {

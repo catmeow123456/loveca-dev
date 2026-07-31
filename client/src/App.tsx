@@ -46,6 +46,7 @@ import {
   shouldRunFocusPublicConfigRefresh,
 } from '@/lib/publicConfigRefresh';
 import { fetchSolitaireMatchSnapshot } from '@/lib/solitaireMatchClient';
+import { abandonOnlineRoomForLocalGame } from '@/lib/onlineClient';
 import {
   clearStoredSolitaireMatchId,
   readStoredSolitaireMatchId,
@@ -54,6 +55,7 @@ import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
+import { useRankedStore } from '@/store/rankedStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
@@ -791,6 +793,18 @@ function App() {
       setAuthPage('landing');
     });
   };
+  const handleAbandonSavedRoomForLocalGame = async () => {
+    const roomCode = window.sessionStorage.getItem('loveca.online.room');
+    if (roomCode) {
+      await abandonOnlineRoomForLocalGame(roomCode);
+      window.sessionStorage.removeItem('loveca.online.room');
+      await Promise.allSettled([
+        usePublicTableStore.getState().refresh(),
+        useRankedStore.getState().refresh(),
+      ]);
+    }
+    setCurrentPage('game-setup');
+  };
   const authenticatedHeaderActions = (
     <>
       <AnnouncementCenterButton siteStatus={appConfig.siteStatus} />
@@ -1051,6 +1065,7 @@ function App() {
       mobileMenuActions={authenticatedMobileMenuActions}
       onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
+      onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToRanked={() => setCurrentPage('ranked')}
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}

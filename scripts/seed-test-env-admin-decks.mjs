@@ -23,6 +23,11 @@ const loginRetryCount = Number(process.env.TEST_ADMIN_LOGIN_RETRIES ?? '5');
 const loginRetryDelayMs = Number(process.env.TEST_ADMIN_LOGIN_RETRY_DELAY_MS ?? '1000');
 const requestRetryCount = Number(process.env.TEST_API_REQUEST_RETRIES ?? '5');
 const requestRetryDelayMs = Number(process.env.TEST_API_REQUEST_RETRY_DELAY_MS ?? '1000');
+const shouldSeedAdminDeck = process.env.TEST_SEED_ADMIN_DECKS !== '0';
+const shouldSeedRankedSeason = process.env.TEST_SEED_RANKED_SEASON !== '0';
+const rankedSeasonKey = process.env.TEST_RANKED_SEASON_KEY ?? 'test-ranked-season';
+const rankedSeasonName = process.env.TEST_RANKED_SEASON_NAME ?? '测试赛季';
+const rankedSeasonTimeZone = process.env.TEST_RANKED_SEASON_TIME_ZONE ?? 'Asia/Shanghai';
 
 function log(message) {
   console.log(`[test-env-seed] ${message}`);
@@ -279,14 +284,95 @@ async function upsertAdminDeck(token, deckPayload) {
   }
 }
 
-async function main() {
-  const deckConfig = await readDeckConfig();
-  const deckPayload = toApiDeckPayload(deckConfig);
+function createRankedSeasonSchedule() {
+  const startsAt = new Date();
+  startsAt.setUTCDate(startsAt.getUTCDate() - 1);
+  const scheduledEndsAt = new Date(startsAt);
+  scheduledEndsAt.setUTCFullYear(scheduledEndsAt.getUTCFullYear() + 1);
+  const finalizingDeadlineAt = new Date(scheduledEndsAt);
+  finalizingDeadlineAt.setUTCDate(finalizingDeadlineAt.getUTCDate() + 7);
+  return { startsAt, scheduledEndsAt, finalizingDeadlineAt };
+}
 
+async function seedRankedSeason(token) {
+  if (!shouldSeedRankedSeason) {
+    log('skipping test ranked season seed');
+    return;
+  }
+
+  const { payload: environmentPayload } = await requestJson('/admin/ranked/environment', { token });
+  const algorithm = environmentPayload?.data?.algorithms?.find(
+    (candidate) => candidate?.status === 'FORMAL'
+  );
+  if (!algorithm?.algorithmVersion || !algorithm?.config) {
+    throw new Error('No formal ranked algorithm is available for the test season');
+  }
+
+  const { payload: seasonsPayload } = await requestJson('/admin/ranked/seasons', { token });
+  let season = seasonsPayload?.data?.find((candidate) => candidate?.seasonKey === rankedSeasonKey);
+  if (!season) {
+    const { startsAt, scheduledEndsAt, finalizingDeadlineAt } = createRankedSeasonSchedule();
+    const { payload } = await requestJson('/admin/ranked/seasons', {
+      method: 'POST',
+      allowedStatuses: [201],
+      token,
+      body: {
+        seasonKey: rankedSeasonKey,
+        name: rankedSeasonName,
+        platformTimeZone: rankedSeasonTimeZone,
+        openWindows: [{ weekdays: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1440 }],
+        startsAt: startsAt.toISOString(),
+        scheduledEndsAt: scheduledEndsAt.toISOString(),
+        finalizingDeadlineAt: finalizingDeadlineAt.toISOString(),
+        ratingAlgorithmVersion: algorithm.algorithmVersion,
+        softReset: {
+          mode: algorithm.config.softResetMode,
+          center: algorithm.config.softResetCenter,
+          retention: algorithm.config.softResetRetention,
+          minimumDeviation: algorithm.config.softResetMinimumDeviation,
+        },
+        leaderboardMinimumMatchCount: 1,
+      },
+    });
+    season = payload?.data;
+    log(`created test ranked season: ${rankedSeasonKey}`);
+  }
+
+  if (!season?.id) {
+    throw new Error(`Test ranked season response is missing an id: ${rankedSeasonKey}`);
+  }
+  if (season.lifecycle === 'DRAFT') {
+    const { payload } = await requestJson(`/admin/ranked/seasons/${season.id}/activate`, {
+      method: 'POST',
+      token,
+    });
+    season = payload?.data;
+    log(`activated test ranked season: ${rankedSeasonKey}`);
+  }
+  if (season?.lifecycle !== 'ACTIVE') {
+    throw new Error(`Test ranked season is not active: ${rankedSeasonKey}`);
+  }
+  if (season.queueAdmission !== 'OPEN') {
+    await requestJson(`/admin/ranked/seasons/${season.id}/admission`, {
+      method: 'PUT',
+      token,
+      body: { admission: 'OPEN' },
+    });
+    log(`opened test ranked season matchmaking: ${rankedSeasonKey}`);
+  }
+}
+
+async function main() {
   await registerAdminUser();
   await ensureAdminCredentials();
   const token = await loginAdmin();
-  await upsertAdminDeck(token, deckPayload);
+  if (shouldSeedAdminDeck) {
+    const deckConfig = await readDeckConfig();
+    await upsertAdminDeck(token, toApiDeckPayload(deckConfig));
+  } else {
+    log('skipping test admin deck seed');
+  }
+  await seedRankedSeason(token);
 }
 
 main().catch((error) => {

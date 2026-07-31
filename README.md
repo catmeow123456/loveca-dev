@@ -93,7 +93,7 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm test-env:start
 ```
 
-脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户：
+脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户，并创建、激活且开放一个全年有效的“测试赛季”；赛季时区为 `Asia/Shanghai`，每天开放 `00:00–00:00`：
 
 ```text
 test_player_1 / test_password_1
@@ -118,6 +118,8 @@ TEST_RESET_DATA=0 \
 TEST_USERS='alice:password123:Alice,bob:password123:Bob' \
 pnpm test-env:start
 ```
+
+可通过 `TEST_SEED_ADMIN_DECKS=0` 或 `TEST_SEED_RANKED_SEASON=0` 分别跳过管理员卡组或测试赛季；测试赛季的标识、名称和时区可由 `TEST_RANKED_SEASON_KEY`、`TEST_RANKED_SEASON_NAME`、`TEST_RANKED_SEASON_TIME_ZONE` 覆盖。
 
 启动后进入 tmux 查看日志：
 

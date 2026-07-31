@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState }
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
+  BookOpen,
   Check,
   ChevronDown,
   CircleDot,
@@ -26,6 +27,7 @@ import { ConfirmDialog, DeckSelector, type DeckDisplayItem, PageHeader } from '@
 import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
+import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
@@ -61,6 +63,7 @@ import {
 import { getOnlineRoomLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
+import { RANKED_RECONNECT_GRACE_PERIOD_LABEL } from '@game/online/ranked-policy';
 import { GameEndReason, GamePhase } from '@game/shared/types/enums';
 import type {
   MatchEndView,
@@ -73,6 +76,7 @@ import type {
 const ROOM_POLL_INTERVAL_MS = 1200;
 const MATCH_POLL_INTERVAL_MS = 800;
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
+const RANKED_RETURN_TO_LOBBY_CONFIRM_MESSAGE = `返回大厅后可在 ${RANKED_RECONNECT_GRACE_PERIOD_LABEL}内回到对局；超时未返回将判负。`;
 
 type OpeningRpsChoiceView = NonNullable<OnlineRoomView['openingRps']>['choices'][number];
 type LobbyPrimaryAction = {
@@ -114,6 +118,12 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     s.remoteSession?.source === 'ONLINE' ? s.remoteSession : null
   );
   const matchView = useGameStore((s) => s.getMatchView());
+  const rankedOverview = useRankedStore((s) => s.overview);
+  const rankedSeasonName = rankedOverview?.season?.name ?? null;
+  const rankedLeaderboardMatchCount =
+    rankedOverview?.player?.placementRequired ??
+    rankedOverview?.season?.placementMatchCount ??
+    null;
 
   const validDecks = useMemo(
     () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
@@ -128,8 +138,12 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     readLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.onlineRoom)
   );
   const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
+  const [isRankedReturnConfirmOpen, setIsRankedReturnConfirmOpen] = useState(false);
   const [isSurrenderConfirmOpen, setIsSurrenderConfirmOpen] = useState(false);
+  const [shouldLeaveAfterSurrender, setShouldLeaveAfterSurrender] = useState(false);
+  const [isOpeningTransitionPending, setIsOpeningTransitionPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [restartError, setRestartError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBootstrappingMatch, setIsBootstrappingMatch] = useState(false);
   const [matchBootstrapError, setMatchBootstrapError] = useState<string | null>(null);
@@ -137,6 +151,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
   const [briefingAcknowledged, setBriefingAcknowledged] = useState(false);
   const [isUpdatingSpectatorEntry, setIsUpdatingSpectatorEntry] = useState(false);
   const [isRoomPanelOpen, setIsRoomPanelOpen] = useState(false);
+  const [isRankedNoticeOpen, setIsRankedNoticeOpen] = useState(false);
   const [roomCodeCopied, setRoomCodeCopied] = useState(false);
   const [showOpponentReturnedNotice, setShowOpponentReturnedNotice] = useState(false);
   const roomCodeCopyTimerRef = useRef<number | null>(null);
@@ -403,7 +418,10 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
         ?.displayName ?? '对手')
     : null;
   const canRequestRestart = Boolean(
-    room?.status === 'IN_GAME' && !restartRequest && opponentMember?.presence === 'ACTIVE'
+    room?.status === 'IN_GAME' &&
+      room.originKind !== 'RANKED' &&
+      !restartRequest &&
+      opponentMember?.presence === 'ACTIVE'
   );
   const isMatchCompleted = matchView?.phase === GamePhase.GAME_END;
   const canSurrender = Boolean(
@@ -437,8 +455,8 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
         selectedDeckName: selectedDeck?.name,
       });
   const leaveConfirmCopy = useMemo(
-    () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind, isMatchCompleted),
-    [isMatchCompleted, room?.originKind, room?.status]
+    () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind),
+    [room?.originKind, room?.status]
   );
   const roomEndMessage = useMemo(() => {
     if (!room?.endInfo) {
@@ -532,6 +550,10 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
       return;
     }
 
+    const entersOpening = opponentMember?.startReady === true;
+    if (entersOpening) {
+      setIsOpeningTransitionPending(true);
+    }
     setIsSubmitting(true);
     setError(null);
     try {
@@ -540,6 +562,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     } catch (readyError) {
       setError(readyError instanceof Error ? readyError.message : '准备开始失败');
     } finally {
+      setIsOpeningTransitionPending(false);
       setIsSubmitting(false);
     }
   };
@@ -607,6 +630,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     const result = surrender();
     if (result.success || result.pending) {
       setIsSurrenderConfirmOpen(false);
+      setShouldLeaveAfterSurrender(true);
     }
   };
 
@@ -677,6 +701,22 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     }
   };
 
+  const handleRequestBackToLobby = () => {
+    if (room?.status === 'IN_GAME' && room.originKind === 'RANKED' && !isMatchCompleted) {
+      setIsRankedReturnConfirmOpen(true);
+      return;
+    }
+    onBack();
+  };
+
+  useEffect(() => {
+    if (!shouldLeaveAfterSurrender || !isMatchCompleted) {
+      return;
+    }
+    setShouldLeaveAfterSurrender(false);
+    void handleLeaveRoom();
+  }, [isMatchCompleted, shouldLeaveAfterSurrender]);
+
   const handleRequestRestart = async () => {
     if (!room) {
       return;
@@ -684,11 +724,14 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
 
     setIsSubmitting(true);
     setError(null);
+    setRestartError(null);
     try {
       const nextRoom = await requestOnlineRoomRestart(room.roomCode);
       setRoom(nextRoom);
     } catch (restartError) {
-      setError(restartError instanceof Error ? restartError.message : '请求重开失败');
+      const message = restartError instanceof Error ? restartError.message : '请求重开失败';
+      setError(message);
+      setRestartError(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -797,12 +840,13 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     matchView
       ? { room, matchId: room.matchId, matchView }
       : null;
-  const isBattleActive = activeBattleContext !== null;
+  const isImmersiveRoomStage =
+    activeBattleContext !== null || room?.status === 'OPENING' || isOpeningTransitionPending;
 
   useLayoutEffect(() => {
-    onImmersiveModeChange?.(isBattleActive);
+    onImmersiveModeChange?.(isImmersiveRoomStage);
     return () => onImmersiveModeChange?.(false);
-  }, [isBattleActive, onImmersiveModeChange]);
+  }, [isImmersiveRoomStage, onImmersiveModeChange]);
 
   if (room?.status === 'ENDED') {
     return (
@@ -879,14 +923,16 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
               isSubmitting={isSubmitting}
               canSurrender={canSurrender}
               canRequestRestart={canRequestRestart}
+              restartError={restartError}
               restartRequest={restartRequest}
               isRestartRequester={isRestartRequester}
+              isRankedRoom={activeBattleContext.room.originKind === 'RANKED'}
               onToggleSpectatorRoomEntry={handleToggleSpectatorRoomEntry}
+              onOpenRankedNotice={() => setIsRankedNoticeOpen(true)}
               onRequestRestart={handleRequestRestart}
               onCancelRestart={handleCancelRestart}
               onSurrender={() => setIsSurrenderConfirmOpen(true)}
-              onBackHome={onBack}
-              onLeaveRoom={handleRequestLeaveRoom}
+              onBackHome={isMatchCompleted ? handleLeaveRoom : handleRequestBackToLobby}
             />
           )}
           {opponentMember?.presence === 'LEFT' && (
@@ -965,8 +1011,9 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
           <OnlineMatchEndPanel
             endInfo={activeBattleContext.matchView.endInfo}
             viewerSeat={activeBattleContext.matchView.viewerSeat}
-            onLeaveRoom={handleRequestLeaveRoom}
-            onBackHome={onBack}
+            error={error}
+            isLeaving={isSubmitting}
+            onBackHome={handleLeaveRoom}
           />
         )}
         <PreMatchBriefingModal
@@ -974,22 +1021,28 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
           mode="online"
           onClose={() => setBriefingAcknowledged(true)}
         />
+        <RankedSeasonNoticeDialog
+          isOpen={isRankedNoticeOpen}
+          seasonName={rankedSeasonName}
+          leaderboardMatchCount={rankedLeaderboardMatchCount}
+          onClose={() => setIsRankedNoticeOpen(false)}
+        />
         <ConfirmDialog
-          isOpen={isLeaveConfirmOpen}
-          title={leaveConfirmCopy.title}
-          message={leaveConfirmCopy.message}
-          confirmLabel={leaveConfirmCopy.confirmLabel}
-          isConfirming={isSubmitting}
-          onCancel={() => setIsLeaveConfirmOpen(false)}
+          isOpen={isRankedReturnConfirmOpen}
+          title="返回大厅？"
+          message={RANKED_RETURN_TO_LOBBY_CONFIRM_MESSAGE}
+          confirmLabel="返回大厅"
+          onCancel={() => setIsRankedReturnConfirmOpen(false)}
           onConfirm={() => {
-            void handleLeaveRoom();
+            setIsRankedReturnConfirmOpen(false);
+            onBack();
           }}
         />
         <ConfirmDialog
           isOpen={isSurrenderConfirmOpen}
-          title="确认认输？"
-          message="认输后本局立即结束，无法恢复。"
-          confirmLabel="确认认输"
+          title="确认认输并退出房间？"
+          message="本局将立即结束，无法恢复。"
+          confirmLabel="认输并退出房间"
           onCancel={() => setIsSurrenderConfirmOpen(false)}
           onConfirm={handleConfirmSurrender}
         />
@@ -997,93 +1050,89 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     );
   }
 
-  if (room?.status === 'OPENING') {
+  if (room && (room.status === 'OPENING' || isOpeningTransitionPending)) {
     return (
-      <>
-        <OnlineOpeningStage
-          room={room}
-          error={error}
-          isSubmitting={isSubmitting}
-          onSubmitRps={handleSubmitOpeningRps}
-          onReplayRps={handleReplayOpeningRps}
-          onChooseTurnOrder={handleChooseOpeningTurnOrder}
-          onBackHome={onBack}
-          onLeaveRoom={handleRequestLeaveRoom}
-        />
-        <ConfirmDialog
-          isOpen={isLeaveConfirmOpen}
-          title={leaveConfirmCopy.title}
-          message={leaveConfirmCopy.message}
-          confirmLabel={leaveConfirmCopy.confirmLabel}
-          isConfirming={isSubmitting}
-          onCancel={() => setIsLeaveConfirmOpen(false)}
-          onConfirm={() => {
-            void handleLeaveRoom();
-          }}
-        />
-      </>
+      <OnlineOpeningStage
+        room={room}
+        error={error}
+        isSubmitting={isSubmitting}
+        onSubmitRps={handleSubmitOpeningRps}
+        onReplayRps={handleReplayOpeningRps}
+        onChooseTurnOrder={handleChooseOpeningTurnOrder}
+      />
     );
   }
 
   if (room?.status === 'IN_GAME') {
     return (
-      <div className="app-shell flex min-h-screen items-center justify-center">
-        <div className="product-workbench mx-4 w-full max-w-md px-6 py-5 text-[var(--text-primary)]">
-          <div className="flex items-center gap-3">
-            {isBootstrappingMatch ? (
-              <Loader2 size={18} className="animate-spin" />
-            ) : (
-              <RefreshCw size={18} className="text-[var(--semantic-error)]" />
+      <>
+        <div className="app-shell flex min-h-screen items-center justify-center">
+          <div className="product-workbench mx-4 w-full max-w-md px-6 py-5 text-[var(--text-primary)]">
+            <div className="flex items-center gap-3">
+              {isBootstrappingMatch ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <RefreshCw size={18} className="text-[var(--semantic-error)]" />
+              )}
+              <div className="font-semibold">
+                {isBootstrappingMatch ? '正在同步联机对局...' : '联机对局同步失败'}
+              </div>
+            </div>
+            {matchBootstrapError && (
+              <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
+                {matchBootstrapError}
+              </div>
             )}
-            <div className="font-semibold">
-              {isBootstrappingMatch ? '正在同步联机对局...' : '联机对局同步失败'}
-            </div>
+            {room.originKind === 'RANKED' ? (
+              <button
+                type="button"
+                onClick={() => setIsRankedNoticeOpen(true)}
+                className="button-ghost mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 border border-[var(--border-default)] px-3"
+              >
+                <BookOpen size={16} />
+                查看赛季公告
+              </button>
+            ) : null}
+            {!isBootstrappingMatch && (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={handleRequestBackToLobby}
+                  className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3"
+                >
+                  <ArrowLeft size={16} />
+                  返回大厅
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRetryMatchBootstrap}
+                  className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-3"
+                >
+                  <RefreshCw size={16} />
+                  重新同步
+                </button>
+              </div>
+            )}
           </div>
-          {matchBootstrapError && (
-            <div className="mt-3 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
-              {matchBootstrapError}
-            </div>
-          )}
-          {!isBootstrappingMatch && (
-            <div className="mt-4 grid gap-3 sm:grid-cols-3">
-              <button
-                type="button"
-                onClick={onBack}
-                className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3"
-              >
-                <ArrowLeft size={16} />
-                返回大厅
-              </button>
-              <button
-                type="button"
-                onClick={handleRequestLeaveRoom}
-                className="button-ghost inline-flex min-h-10 items-center justify-center border border-[var(--border-default)] px-3"
-              >
-                退出房间
-              </button>
-              <button
-                type="button"
-                onClick={handleRetryMatchBootstrap}
-                className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-3"
-              >
-                <RefreshCw size={16} />
-                重新同步
-              </button>
-            </div>
-          )}
         </div>
+        <RankedSeasonNoticeDialog
+          isOpen={isRankedNoticeOpen}
+          seasonName={rankedSeasonName}
+          leaderboardMatchCount={rankedLeaderboardMatchCount}
+          onClose={() => setIsRankedNoticeOpen(false)}
+        />
         <ConfirmDialog
-          isOpen={isLeaveConfirmOpen}
-          title={leaveConfirmCopy.title}
-          message={leaveConfirmCopy.message}
-          confirmLabel={leaveConfirmCopy.confirmLabel}
-          isConfirming={isSubmitting}
-          onCancel={() => setIsLeaveConfirmOpen(false)}
+          isOpen={isRankedReturnConfirmOpen}
+          title="返回大厅？"
+          message={RANKED_RETURN_TO_LOBBY_CONFIRM_MESSAGE}
+          confirmLabel="返回大厅"
+          onCancel={() => setIsRankedReturnConfirmOpen(false)}
           onConfirm={() => {
-            void handleLeaveRoom();
+            setIsRankedReturnConfirmOpen(false);
+            onBack();
           }}
         />
-      </div>
+      </>
     );
   }
 
@@ -1244,17 +1293,19 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
         </div>
       )}
 
-      <ConfirmDialog
-        isOpen={isLeaveConfirmOpen}
-        title={leaveConfirmCopy.title}
-        message={leaveConfirmCopy.message}
-        confirmLabel={leaveConfirmCopy.confirmLabel}
-        isConfirming={isSubmitting}
-        onCancel={() => setIsLeaveConfirmOpen(false)}
-        onConfirm={() => {
-          void handleLeaveRoom();
-        }}
-      />
+      {leaveConfirmCopy && (
+        <ConfirmDialog
+          isOpen={isLeaveConfirmOpen}
+          title={leaveConfirmCopy.title}
+          message={leaveConfirmCopy.message}
+          confirmLabel={leaveConfirmCopy.confirmLabel}
+          isConfirming={isSubmitting}
+          onCancel={() => setIsLeaveConfirmOpen(false)}
+          onConfirm={() => {
+            void handleLeaveRoom();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1525,8 +1576,6 @@ function OnlineOpeningStage({
   onSubmitRps,
   onReplayRps,
   onChooseTurnOrder,
-  onBackHome,
-  onLeaveRoom,
 }: {
   room: OnlineRoomView;
   error: string | null;
@@ -1534,8 +1583,6 @@ function OnlineOpeningStage({
   onSubmitRps: (gesture: OpeningRpsGesture) => void;
   onReplayRps: () => void;
   onChooseTurnOrder: (choice: OpeningTurnOrderChoice) => void;
-  onBackHome: () => void;
-  onLeaveRoom: () => void;
 }) {
   const opening = room.openingRps;
   const myMember = room.members.find((member) => member.userId === room.currentUserId) ?? null;
@@ -1564,34 +1611,7 @@ function OnlineOpeningStage({
   return (
     <div className="min-h-full">
       <div className="relative z-10 flex min-h-full flex-col px-3 py-3 sm:px-6 sm:py-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)] backdrop-blur-xl">
-            <Swords size={14} />
-            Room {room.roomCode}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onBackHome}
-              className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 backdrop-blur-xl sm:px-4"
-            >
-              <ArrowLeft size={15} />
-              <span className="hidden sm:inline">返回大厅</span>
-              <span className="sm:hidden">返回</span>
-            </button>
-            <button
-              type="button"
-              onClick={onLeaveRoom}
-              disabled={isSubmitting}
-              className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 text-[var(--semantic-error)] backdrop-blur-xl sm:px-4"
-            >
-              <DoorOpen size={15} />
-              退出房间
-            </button>
-          </div>
-        </div>
-
-        <main className="online-opening-stage-main flex flex-1 justify-center py-3 lg:py-5">
+        <main className="online-opening-stage-main flex flex-1 justify-center lg:py-2">
           <section className="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-surface)_90%,transparent)] shadow-[var(--shadow-lg)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,color-mix(in_srgb,var(--accent-primary)_14%,transparent),transparent_28%),radial-gradient(circle_at_82%_14%,color-mix(in_srgb,var(--semantic-info)_12%,transparent),transparent_30%),linear-gradient(180deg,color-mix(in_srgb,var(--accent-primary)_5%,transparent),transparent_42%)]" />
             <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,var(--accent-primary),var(--semantic-info),var(--accent-secondary),var(--semantic-success))]" />
@@ -1606,6 +1626,7 @@ function OnlineOpeningStage({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <OpeningDeadlineCountdown expiresAt={room.openingExpiresAt ?? null} />
                   <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_84%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text-primary)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm">
                     <CircleDot size={14} className="text-[var(--accent-primary)]" />第{' '}
                     {opening?.round ?? 1} 轮
@@ -1948,6 +1969,40 @@ function OpeningArrivalGate({ expiresAt }: { expiresAt: number }) {
   );
 }
 
+function OpeningDeadlineCountdown({ expiresAt }: { expiresAt: number | null }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (expiresAt === null) {
+      return;
+    }
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [expiresAt]);
+
+  if (expiresAt === null) {
+    return null;
+  }
+
+  const remainingSeconds = Math.max(0, Math.ceil((expiresAt - now) / 1_000));
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  const isUrgent = remainingSeconds <= 60;
+
+  return (
+    <div
+      className={`inline-flex items-center rounded-full border px-2.5 py-1.5 font-mono text-[11px] tabular-nums sm:px-3 sm:py-2 sm:text-xs ${
+        isUrgent
+          ? 'border-[color:color-mix(in_srgb,var(--semantic-warning)_30%,transparent)] text-[var(--semantic-warning)]'
+          : 'border-[var(--border-subtle)] text-[var(--text-muted)]'
+      }`}
+      aria-label={`开局剩余 ${minutes} 分 ${seconds} 秒`}
+    >
+      剩余 {String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}
+    </div>
+  );
+}
+
 function OpeningGestureButton({
   gesture,
   selected,
@@ -2201,12 +2256,14 @@ function getRpsIcon(gesture: OpeningRpsGesture, size: number) {
 function OnlineMatchEndPanel({
   endInfo,
   viewerSeat,
-  onLeaveRoom,
+  error,
+  isLeaving,
   onBackHome,
 }: {
   endInfo: MatchEndView;
   viewerSeat: Seat;
-  onLeaveRoom: () => void;
+  error: string | null;
+  isLeaving: boolean;
   onBackHome: () => void;
 }) {
   const copy = getOnlineMatchEndCopy(endInfo, viewerSeat);
@@ -2221,22 +2278,20 @@ function OnlineMatchEndPanel({
         <Trophy className="mx-auto text-[var(--accent-gold)]" size={30} />
         <h2 className="mt-3 text-xl font-bold">{copy.title}</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{copy.detail}</p>
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        {error && (
+          <div className="mt-4 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-3 py-2 text-sm text-[var(--semantic-error)]">
+            {error}
+          </div>
+        )}
+        <div className="mt-5">
           <button
             type="button"
             onClick={onBackHome}
-            className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+            disabled={isLeaving}
+            className="button-primary inline-flex min-h-11 w-full items-center justify-center gap-2 px-3 text-sm"
           >
-            <ArrowLeft size={16} />
+            {isLeaving ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeft size={16} />}
             返回大厅
-          </button>
-          <button
-            type="button"
-            onClick={onLeaveRoom}
-            className="button-primary inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm"
-          >
-            <DoorOpen size={16} />
-            离开对局
           </button>
         </div>
       </section>
@@ -2277,14 +2332,16 @@ function RoomActionPanel({
   isSubmitting,
   canSurrender,
   canRequestRestart,
+  restartError,
   restartRequest,
   isRestartRequester,
+  isRankedRoom,
   onToggleSpectatorRoomEntry,
+  onOpenRankedNotice,
   onRequestRestart,
   onCancelRestart,
   onSurrender,
   onBackHome,
-  onLeaveRoom,
 }: {
   roomCode: string;
   presence: OnlineRoomView['spectatorPresence'];
@@ -2293,25 +2350,39 @@ function RoomActionPanel({
   isSubmitting: boolean;
   canSurrender: boolean;
   canRequestRestart: boolean;
+  restartError: string | null;
   restartRequest: OnlineRoomView['restartRequest'];
   isRestartRequester: boolean;
+  isRankedRoom: boolean;
   onToggleSpectatorRoomEntry: () => void;
+  onOpenRankedNotice: () => void;
   onRequestRestart: () => void;
   onCancelRestart: () => void;
   onSurrender: () => void;
   onBackHome: () => void;
-  onLeaveRoom: () => void;
 }) {
   return (
     <div className="w-[min(380px,calc(100vw-2rem))] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
       <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] pb-3">
         <div>
-          <div className="text-[11px] uppercase text-[var(--text-muted)]">正式联机房间</div>
+          <div className="text-[11px] uppercase text-[var(--text-muted)]">
+            {isRankedRoom ? '赛季排位房间' : '正式联机房间'}
+          </div>
           <div className="mt-1 font-semibold">Room {roomCode}</div>
         </div>
       </div>
 
       <div className="mt-3 grid gap-2">
+        {isRankedRoom ? (
+          <button
+            type="button"
+            onClick={onOpenRankedNotice}
+            className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[color:color-mix(in_srgb,var(--accent-primary)_34%,var(--border-default))] px-3 text-sm text-[var(--accent-primary)]"
+          >
+            <BookOpen size={16} />
+            查看赛季公告
+          </button>
+        ) : null}
         {spectatorRoomEntry ? (
           <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-3">
             <div className="flex items-start justify-between gap-3">
@@ -2346,7 +2417,7 @@ function RoomActionPanel({
             </div>
           </div>
         ) : null}
-        {!restartRequest && (
+        {!isRankedRoom && !restartRequest && (
           <button
             type="button"
             onClick={onRequestRestart}
@@ -2375,6 +2446,23 @@ function RoomActionPanel({
             取消重开
           </button>
         )}
+        {restartError ? (
+          <div
+            className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] px-3 py-2 text-xs leading-5 text-[var(--semantic-error)]"
+            role="alert"
+          >
+            {restartError}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onBackHome}
+          disabled={isSubmitting}
+          className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
+        >
+          {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeft size={16} />}
+          返回大厅
+        </button>
         {canSurrender && (
           <button
             type="button"
@@ -2382,26 +2470,9 @@ function RoomActionPanel({
             className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[color:color-mix(in_srgb,var(--semantic-error)_42%,var(--border-default))] px-3 text-sm text-[var(--semantic-error)]"
           >
             <Flag size={16} />
-            认输
+            认输并退出房间
           </button>
         )}
-        <button
-          type="button"
-          onClick={onBackHome}
-          className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
-        >
-          <ArrowLeft size={16} />
-          返回大厅
-        </button>
-        <button
-          type="button"
-          onClick={onLeaveRoom}
-          disabled={isSubmitting}
-          className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm text-[var(--semantic-error)]"
-        >
-          {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <DoorOpen size={16} />}
-          退出房间
-        </button>
       </div>
 
       <div className="mt-3 border-t border-[var(--border-subtle)] pt-3">

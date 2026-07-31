@@ -66,6 +66,7 @@ interface HomePageProps {
   mobileMenuActions: ReactNode;
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
+  onAbandonSavedRoomForLocalGame: () => Promise<void>;
   onNavigateToOnlineRoom: () => void;
   onNavigateToRanked: () => void;
   onNavigateToOnlineSpectator: () => void;
@@ -100,7 +101,7 @@ interface PrimaryActionConfig {
   cta: string;
   icon: ComponentType<{ size?: number | string; className?: string }>;
   onClick: () => void;
-  supportAction?: { label: string; onClick: () => void };
+  supportAction?: { label: string; onClick: () => void; disabled?: boolean };
   notice?: string;
 }
 
@@ -110,6 +111,7 @@ export function HomePage({
   mobileMenuActions,
   onNavigateToDeckManager,
   onNavigateToGameSetup,
+  onAbandonSavedRoomForLocalGame,
   onNavigateToOnlineRoom,
   onNavigateToRanked,
   onNavigateToOnlineSpectator,
@@ -128,6 +130,8 @@ export function HomePage({
   const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const [savedRoomCode] = useState(() => window.sessionStorage.getItem(ONLINE_ROOM_STORAGE_KEY));
+  const [isAbandoningSavedRoom, setIsAbandoningSavedRoom] = useState(false);
+  const [savedRoomActionError, setSavedRoomActionError] = useState<string | null>(null);
 
   const hasOnlineDebugEntry = Boolean(import.meta.env.VITE_DEBUG_SEAT);
   const isAdmin = profile?.role === 'admin';
@@ -207,6 +211,18 @@ export function HomePage({
   const hasLegalDeck = validCloudDecks.length > 0;
   const isInitialDeckLoading = canUseCloudDecks && isLoadingCloud && cloudDecks.length === 0;
 
+  const handleAbandonSavedRoomForLocalGame = async () => {
+    setIsAbandoningSavedRoom(true);
+    setSavedRoomActionError(null);
+    try {
+      await onAbandonSavedRoomForLocalGame();
+    } catch (error) {
+      setSavedRoomActionError(error instanceof Error ? error.message : '放弃联机对局失败');
+    } finally {
+      setIsAbandoningSavedRoom(false);
+    }
+  };
+
   const primaryAction: PrimaryActionConfig = canReturnSavedRoom
     ? {
         state: 'saved-room' as PrimaryActionState,
@@ -216,10 +232,14 @@ export function HomePage({
         icon: DoorOpen,
         onClick: onNavigateToOnlineRoom,
         supportAction: {
-          label: '另开本地对局',
-          onClick: onNavigateToGameSetup,
+          label: isAbandoningSavedRoom ? '正在放弃联机对局...' : '另开本地对局',
+          disabled: isAbandoningSavedRoom,
+          onClick: () => {
+            void handleAbandonSavedRoomForLocalGame();
+          },
         },
-        notice: '保存房间仍会保留，可稍后返回；另开本地对局不会清除它。',
+        notice:
+          savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
       }
     : deckSourceStatus !== 'online'
       ? {
@@ -564,7 +584,7 @@ function HomeActionBar({
   cta: string;
   icon: ComponentType<{ size?: number | string; className?: string }>;
   onClick: () => void;
-  supportAction?: { label: string; onClick: () => void };
+  supportAction?: { label: string; onClick: () => void; disabled?: boolean };
   state: PrimaryActionState;
   notice?: string;
 }) {
@@ -592,6 +612,7 @@ function HomeActionBar({
             <button
               type="button"
               onClick={supportAction.onClick}
+              disabled={supportAction.disabled}
               className="lobby-action-bar__secondary"
             >
               {supportAction.label}

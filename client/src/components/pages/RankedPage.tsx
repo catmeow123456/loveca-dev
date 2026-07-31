@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } from 'lucide-react';
+import { BookOpen, DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } from 'lucide-react';
 import { DeckSelector, PageHeader, type DeckDisplayItem } from '@/components/common';
+import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
 import {
   choosePreferredDeck,
@@ -43,6 +44,7 @@ export function RankedPage({
   );
   const [seasonOptions, setSeasonOptions] = useState<RankedSeasonPublicView[]>([]);
   const [historicalOverview, setHistoricalOverview] = useState<RankedOverviewView | null>(null);
+  const [isSeasonNoticeOpen, setIsSeasonNoticeOpen] = useState(false);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
     [cardDataRegistry]
@@ -117,6 +119,7 @@ export function RankedPage({
               onCancel={cancel}
               onConfirm={confirm}
               onEnterRoom={handleEnterRoom}
+              onOpenSeasonNotice={() => setIsSeasonNoticeOpen(true)}
             />
           ) : (
             <>
@@ -143,7 +146,10 @@ export function RankedPage({
                   ))}
                 </select>
               ) : null}
-              <SeasonSummary overview={displayedOverview} />
+              <SeasonSummary
+                overview={displayedOverview}
+                onOpenSeasonNotice={() => setIsSeasonNoticeOpen(true)}
+              />
               {!historicalOverview && overview?.availability.canJoin ? (
                 <>
                   <div className="mt-4">
@@ -189,14 +195,25 @@ export function RankedPage({
           )}
         </div>
       </main>
+      <RankedSeasonNoticeDialog
+        isOpen={isSeasonNoticeOpen}
+        seasonName={displayedOverview?.season?.name}
+        leaderboardMatchCount={
+          displayedOverview?.player?.placementRequired ??
+          displayedOverview?.season?.placementMatchCount
+        }
+        onClose={() => setIsSeasonNoticeOpen(false)}
+      />
     </div>
   );
 }
 
 function SeasonSummary({
   overview,
+  onOpenSeasonNotice,
 }: {
   overview: ReturnType<typeof useRankedStore.getState>['overview'];
+  onOpenSeasonNotice: () => void;
 }) {
   if (!overview) {
     return (
@@ -207,7 +224,7 @@ function SeasonSummary({
   return (
     <section className="product-workbench border-l-4 border-l-[var(--accent-primary)] p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="text-sm font-semibold text-[var(--text-primary)]">
             {overview.season?.name ?? '暂无赛季'}
           </div>
@@ -220,18 +237,28 @@ function SeasonSummary({
                 : ''}
           </div>
         </div>
-        {player ? (
-          <div className="text-right">
-            <div className="text-xl font-bold text-[var(--text-primary)]">
-              {player.rating ?? '—'}
+        <div className="flex shrink-0 items-start gap-3">
+          <button
+            type="button"
+            onClick={onOpenSeasonNotice}
+            className="button-ghost inline-flex min-h-9 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-xs font-semibold"
+          >
+            <BookOpen size={14} />
+            赛季公告
+          </button>
+          {player ? (
+            <div className="text-right">
+              <div className="text-xl font-bold text-[var(--text-primary)]">
+                {player.rating ?? '—'}
+              </div>
+              <div className="text-xs text-[var(--text-muted)]">
+                {player.placement
+                  ? `${player.placementCompleted} / ${player.placementRequired} 场 · 满 ${player.placementRequired} 场进入排行榜`
+                  : '赛季积分'}
+              </div>
             </div>
-            <div className="text-xs text-[var(--text-muted)]">
-              {player.placement
-                ? `${player.placementCompleted} / ${player.placementRequired} 场 · 满 ${player.placementRequired} 场进入排行榜`
-                : '赛季积分'}
-            </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
       {player ? (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t border-[var(--border-subtle)] pt-3 text-sm">
@@ -320,6 +347,7 @@ function QueueState({
   onCancel,
   onConfirm,
   onEnterRoom,
+  onOpenSeasonNotice,
 }: {
   status: NonNullable<ReturnType<typeof useRankedStore.getState>['overview']>['queue'];
   loading: boolean;
@@ -327,6 +355,7 @@ function QueueState({
   onCancel: () => Promise<void>;
   onConfirm: () => Promise<void>;
   onEnterRoom: () => void;
+  onOpenSeasonNotice: () => void;
 }) {
   const waiting = status.state === 'WAITING';
   const matched = status.state === 'MATCHED';
@@ -359,6 +388,14 @@ function QueueState({
               ? `房间 ${status.roomCode}`
               : '请确认开局'}
       </p>
+      <button
+        type="button"
+        onClick={onOpenSeasonNotice}
+        className="button-ghost mt-4 inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-4 text-sm"
+      >
+        <BookOpen size={15} />
+        查看赛季公告
+      </button>
       {error ? <ErrorMessage message={error} /> : null}
       {waiting || status.state === 'CONFIRMED' ? (
         <button
