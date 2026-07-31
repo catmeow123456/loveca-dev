@@ -941,6 +941,71 @@ test.describe('mobile layout baseline', () => {
     await attachScreenshot(page, testInfo, 'deck-manager-new-default-energy');
   });
 
+  test('手机端查看卡组抽屉顶部完整可见', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '短视口回归只需执行一次');
+
+    await page.setViewportSize({ width: 390, height: 667 });
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager&openDeckId=e2e-deck');
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+
+    await page.getByRole('button', { name: /查看卡组/ }).click();
+    const deckDrawer = page.getByRole('dialog', { name: '当前卡组' });
+    await expect(deckDrawer).toBeVisible();
+    await waitForStableApp(page);
+    await expectElementWithinVisualViewport(
+      page,
+      '[aria-labelledby="mobile-deck-drawer-title"]',
+      'mobile deck drawer'
+    );
+
+    const topEdgeReceivesPointer = await deckDrawer.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const probe = document.elementFromPoint(rect.left + rect.width / 2, rect.top + 4);
+      return probe === element || element.contains(probe);
+    });
+    expect(topEdgeReceivesPointer).toBe(true);
+
+    await attachScreenshot(page, testInfo, 'deck-editor-mobile-drawer');
+    await deckDrawer.getByRole('button', { name: '关闭卡组面板' }).click();
+    await expect(page.getByRole('button', { name: /查看卡组/ })).toBeVisible();
+  });
+
+  test('手机端卡牌详情顶部与关闭按钮完整可见', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '短视口回归只需执行一次');
+
+    await page.setViewportSize({ width: 390, height: 667 });
+    await installApiMocks(page, true);
+    await page.goto('/?page=deck-manager&openDeckId=e2e-deck');
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+
+    await page
+      .getByAltText('移动验收成员 001')
+      .first()
+      .locator('xpath=ancestor::div[contains(@class, "group-hover/card")][1]')
+      .click({ position: { x: 16, y: 16 } });
+    const cardDetailDrawer = page.getByRole('dialog', { name: '卡牌详情' });
+    await expect(cardDetailDrawer).toBeVisible();
+    await waitForStableApp(page);
+    await expectElementWithinVisualViewport(
+      page,
+      '[aria-labelledby="card-detail-drawer-title"]',
+      'mobile card detail drawer'
+    );
+
+    const closeButton = cardDetailDrawer.getByRole('button', { name: '关闭卡牌详情' });
+    await expect(closeButton).toBeVisible();
+    await expectElementWithinVisualViewport(
+      page,
+      'button[aria-label="关闭卡牌详情"]',
+      'mobile card detail close button'
+    );
+
+    await attachScreenshot(page, testInfo, 'deck-editor-mobile-card-detail');
+    await closeButton.click();
+    await expect(cardDetailDrawer).toHaveCount(0);
+  });
+
   test('复制为新版本后直接打开独立副本编辑器', async ({ page }) => {
     await installApiMocks(page, true);
     await page.goto('/?page=deck-manager');

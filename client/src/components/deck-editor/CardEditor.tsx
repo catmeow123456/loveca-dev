@@ -10,6 +10,7 @@
  */
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight, ListFilter, PanelRightOpen, X } from 'lucide-react';
 import type { AnyCardData } from '@game/domain/entities/card';
@@ -164,49 +165,62 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
         </div>
       )}
 
-      {isMobile && sidebarOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="modal-backdrop fixed inset-0 z-40"
-            onClick={() => setSidebarOpen(false)}
-          />
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-            className="safe-bottom fixed inset-x-0 bottom-0 z-50 h-[84dvh] rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
-          >
-            <div className="flex h-full min-h-0 flex-col overflow-hidden">
-              <div className="workspace-toolbar shrink-0 px-4 py-3">
-                <div className="mb-2 flex justify-center">
-                  <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
-                </div>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold text-[var(--text-primary)]">当前卡组</div>
-                    <div className="text-xs text-[var(--text-muted)]">向下滑动查看完整构筑</div>
+      {isMobile &&
+        sidebarOpen &&
+        createPortal(
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="modal-backdrop fixed inset-0 z-40"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mobile-deck-drawer-title"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+              className="safe-bottom fixed inset-x-0 bottom-0 z-50 h-[min(84dvh,calc(100dvh_-_env(safe-area-inset-top)_-_0.75rem))] rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+            >
+              <div className="flex h-full min-h-0 flex-col overflow-hidden">
+                <div className="workspace-toolbar shrink-0 px-4 py-3">
+                  <div className="mb-2 flex justify-center">
+                    <div className="h-1.5 w-12 rounded-full bg-[var(--border-default)]" />
                   </div>
-                  <button
-                    type="button"
-                    aria-label="关闭卡组面板"
-                    onClick={() => setSidebarOpen(false)}
-                    className="button-icon h-8 w-8"
-                  >
-                    <X size={16} />
-                  </button>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div
+                        id="mobile-deck-drawer-title"
+                        className="text-sm font-semibold text-[var(--text-primary)]"
+                      >
+                        当前卡组
+                      </div>
+                      <div className="text-xs text-[var(--text-muted)]">
+                        向下滑动查看完整构筑
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="关闭卡组面板"
+                      onClick={() => setSidebarOpen(false)}
+                      className="button-icon h-8 w-8"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <DeckSidebar {...sidebarProps} compactHeader />
                 </div>
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <DeckSidebar {...sidebarProps} compactHeader />
-              </div>
-            </div>
-          </motion.div>
-        </>
-      )}
+            </motion.div>
+          </>,
+          document.body
+        )}
 
       {isMobile && mobileFiltersOpen && (
         <>

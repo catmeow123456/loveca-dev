@@ -4,6 +4,7 @@
  */
 
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Layers3, Package, Sparkles, Tag, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -52,7 +53,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
     }
   }, [card, onClose]);
 
-  return (
+  return createPortal(
     <AnimatePresence>
       {card && (
         <>
@@ -61,11 +62,14 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="modal-backdrop fixed inset-0 z-40"
+            className="modal-backdrop fixed inset-0 z-[60]"
             onClick={onClose}
           />
 
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="card-detail-drawer-title"
             initial={isMobile ? { y: '100%' } : { x: '100%' }}
             animate={isMobile ? { y: 0 } : { x: 0 }}
             exit={isMobile ? { y: '100%' } : { x: '100%' }}
@@ -74,13 +78,23 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                 ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }
                 : { type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }
             }
-            className="workspace-sidebar safe-bottom fixed inset-x-0 bottom-0 top-auto z-50 flex max-h-[88dvh] transform-gpu flex-col rounded-t-[28px] border-t border-[var(--border-default)] shadow-[var(--shadow-lg)] will-change-transform md:inset-y-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-[min(92vw,760px)] md:rounded-none md:border-l md:border-t-0"
+            className="workspace-sidebar safe-bottom fixed inset-x-0 bottom-0 top-auto z-[70] flex max-h-[min(88dvh,calc(100dvh_-_env(safe-area-inset-top)_-_0.75rem))] transform-gpu flex-col rounded-t-[28px] border-t border-[var(--border-default)] shadow-[var(--shadow-lg)] will-change-transform md:inset-y-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-[min(92vw,760px)] md:rounded-none md:border-l md:border-t-0"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 头部 */}
-            <div className="workspace-toolbar flex items-center justify-between px-4 py-3 sm:px-5">
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">卡牌详情</h3>
-              <button onClick={onClose} className="button-icon h-7 w-7">
+            <div className="workspace-toolbar flex shrink-0 items-center justify-between px-4 py-3 sm:px-5">
+              <h3
+                id="card-detail-drawer-title"
+                className="text-sm font-semibold text-[var(--text-primary)]"
+              >
+                卡牌详情
+              </h3>
+              <button
+                type="button"
+                aria-label="关闭卡牌详情"
+                onClick={onClose}
+                className="button-icon h-8 w-8"
+              >
                 <X size={16} />
               </button>
             </div>
@@ -182,6 +196,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
