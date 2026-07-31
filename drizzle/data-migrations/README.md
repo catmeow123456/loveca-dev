@@ -7,4 +7,4 @@ Run them only from the matching `drizzle/migration-notes/` release instructions,
 Current scripts:
 
 - `auth-v1-to-v2-credential-cutover.ts`: wraps recognizable v1 bcrypt password hashes in an explicit compatibility format before deploying the v2 runtime. Successful logins upgrade those hashes to the current pre-hashed format. Follow `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md`; reset-required or unknown credentials block apply because their original passwords cannot be guaranteed.
-- `purge-expired-match-replay-data.ts`: removes replay payload rows and deck contents from sealed matches outside the retention window while preserving match metadata. Follow `drizzle/migration-notes/3.8.4-to-3.8.5-match-replay-retention.md`; apply requires a stopped writer, a verified backup, and explicit confirmation.
+- `purge-expired-match-replay-data.ts`: removes replay payload rows and deck contents from sealed matches outside the retention window while preserving match metadata. Follow `drizzle/migration-notes/3.8.4-to-3.9.0-match-replay-retention.md`; apply requires a stopped writer, a verified backup, and explicit confirmation.

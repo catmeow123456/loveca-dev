@@ -2,15 +2,28 @@ import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execFileSync } from 'node:child_process';
 import path from 'path';
 import { createReadStream, existsSync, readFileSync, statSync } from 'fs';
 
 // 产品版本由仓库根目录 VERSION 维护，并通过 version:check 与 package 版本保持一致。
 const appVersion = readFileSync(path.resolve(__dirname, '../VERSION'), 'utf-8').trim();
 const cacheVersion = `v${appVersion}`;
+const resolveGitCommitSha = (): string | undefined => {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: path.resolve(__dirname, '..'),
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return undefined;
+  }
+};
 const appBuildId =
   process.env.VITE_APP_BUILD_ID?.trim() ||
   process.env.GIT_COMMIT_SHA?.trim() ||
+  resolveGitCommitSha() ||
   `${appVersion}-${new Date().toISOString()}`;
 const localImagesDir = path.resolve(__dirname, '../assets/images');
 
