@@ -1543,8 +1543,8 @@ function OnlineOpeningStage({
       });
 
   return (
-    <div className="app-shell min-h-screen overflow-hidden">
-      <div className="relative z-10 flex min-h-screen flex-col px-3 py-3 sm:px-6 sm:py-5">
+    <div className="min-h-full">
+      <div className="relative z-10 flex min-h-full flex-col px-3 py-3 sm:px-6 sm:py-5">
         <div className="flex items-center justify-between gap-3">
           <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)] backdrop-blur-xl">
             <Swords size={14} />
@@ -1572,11 +1572,11 @@ function OnlineOpeningStage({
           </div>
         </div>
 
-        <main className="flex flex-1 items-start justify-center py-3 lg:items-center lg:py-5">
+        <main className="online-opening-stage-main flex flex-1 justify-center py-3 lg:py-5">
           <section className="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-surface)_90%,transparent)] shadow-[var(--shadow-lg)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,color-mix(in_srgb,var(--accent-primary)_14%,transparent),transparent_28%),radial-gradient(circle_at_82%_14%,color-mix(in_srgb,var(--semantic-info)_12%,transparent),transparent_30%),linear-gradient(180deg,color-mix(in_srgb,var(--accent-primary)_5%,transparent),transparent_42%)]" />
             <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,var(--accent-primary),var(--semantic-info),var(--accent-secondary),var(--semantic-success))]" />
-            <div className="relative grid gap-3 p-3 sm:gap-5 sm:p-6 lg:min-h-[560px] lg:grid-rows-[auto_1fr_auto]">
+            <div className="online-opening-stage-layout relative grid gap-3 p-3 sm:gap-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
                 <div>
                   <h1 className="text-xl font-black text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
@@ -1600,7 +1600,7 @@ function OnlineOpeningStage({
                 </div>
               </div>
 
-              <div className="order-3 grid grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] lg:order-2 lg:grid-cols-[minmax(0,1fr)_104px_minmax(0,1fr)] lg:gap-4">
+              <div className="online-opening-stage-player-grid grid grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_104px_minmax(0,1fr)] lg:gap-4">
                 <OpeningPlayerPanel
                   title="你"
                   member={myMember}
@@ -1628,7 +1628,7 @@ function OnlineOpeningStage({
                 />
               </div>
 
-              <div className="order-2 grid gap-3 lg:order-3">
+              <div className="online-opening-stage-controls grid gap-3">
                 {isAwaitingOpponentArrival ? (
                   <OpeningArrivalGate expiresAt={room.openingArrivalExpiresAt!} />
                 ) : (

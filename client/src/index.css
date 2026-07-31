@@ -540,6 +540,37 @@ select {
   overflow: hidden;
 }
 
+.online-opening-stage-main {
+  align-items: flex-start;
+}
+
+.online-opening-stage-player-grid {
+  order: 3;
+}
+
+.online-opening-stage-controls {
+  order: 2;
+}
+
+@media (min-width: 1024px) and (min-height: 760px) {
+  .online-opening-stage-main {
+    align-items: center;
+  }
+
+  .online-opening-stage-layout {
+    min-height: 560px;
+    grid-template-rows: auto 1fr auto;
+  }
+
+  .online-opening-stage-player-grid {
+    order: 2;
+  }
+
+  .online-opening-stage-controls {
+    order: 3;
+  }
+}
+
 .product-back-link {
   display: inline-flex;
   margin-bottom: 0.25rem;

@@ -1006,6 +1006,151 @@ test.describe('mobile layout baseline', () => {
     await expect(cardDetailDrawer).toHaveCount(0);
   });
 
+  test('桌面缩放等效短视口中联机猜拳操作保持可达', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet-1024x768', '桌面短视口回归只需执行一次');
+
+    await page.setViewportSize({ width: 1280, height: 560 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.addInitScript(() => {
+      window.sessionStorage.setItem('loveca.online.room', 'ZOOM');
+    });
+    await installApiMocks(page, true);
+
+    let selectedGesture: 'ROCK' | 'PAPER' | 'SCISSORS' | null = null;
+    let openingRevealed = false;
+    const openingRoom = () => ({
+      roomCode: 'ZOOM',
+      originKind: 'ONLINE_ROOM',
+      status: 'OPENING',
+      ownerUserId: 'e2e-user',
+      currentUserId: 'e2e-user',
+      currentUserRole: 'HOST',
+      currentUserPresence: 'ACTIVE',
+      currentUserSeat: 'FIRST',
+      members: [
+        {
+          userId: 'e2e-user',
+          displayName: 'E2E Admin',
+          role: 'HOST',
+          presence: 'ACTIVE',
+          lockedDeckId: 'e2e-deck',
+          lockedDeckName: 'E2E 移动验收卡组',
+          ready: true,
+          startReady: true,
+          seat: 'FIRST',
+        },
+        {
+          userId: 'opponent-user',
+          displayName: '测试对手',
+          role: 'GUEST',
+          presence: 'ACTIVE',
+          lockedDeckId: 'opponent-deck',
+          lockedDeckName: '测试对手卡组',
+          ready: true,
+          startReady: true,
+          seat: 'SECOND',
+        },
+      ],
+      openingRps: {
+        round: 1,
+        choices: [
+          { userId: 'e2e-user', selected: selectedGesture !== null, gesture: selectedGesture },
+          {
+            userId: 'opponent-user',
+            selected: openingRevealed,
+            gesture: openingRevealed ? 'SCISSORS' : null,
+          },
+        ],
+        revealed: openingRevealed,
+        winnerUserId: openingRevealed ? 'e2e-user' : null,
+        chooserUserId: openingRevealed ? 'e2e-user' : null,
+        revealedAt: openingRevealed ? Date.now() : null,
+      },
+      openingArrivalExpiresAt: null,
+      restartRequest: null,
+      endInfo: null,
+      matchId: null,
+      spectatorRoomEntry: null,
+      spectatorPresence: { total: 0, viewers: [] },
+      updatedAt: Date.now(),
+    });
+
+    await page.route('**/api/online/rooms/ZOOM**', async (route) => {
+      const request = route.request();
+      if (request.method() === 'POST' && request.url().endsWith('/opening-rps')) {
+        selectedGesture = (request.postDataJSON() as { gesture: typeof selectedGesture }).gesture;
+      }
+      await fulfillApi(route, openingRoom());
+    });
+
+    await page.goto('/?page=online-room');
+    await expect(page.getByRole('heading', { name: '开局猜拳' })).toBeVisible();
+    await waitForStableApp(page);
+
+    const expectGesturesWithinViewport = async (label: string) => {
+      for (const gesture of ['石头', '剪刀', '布']) {
+        await expectElementWithinVisualViewport(
+          page,
+          `button[aria-label="${gesture}"]`,
+          `${label} opening RPS ${gesture} button`
+        );
+      }
+    };
+    const openingSectionOrder = () =>
+      page.evaluate(() => {
+        const controls = document.querySelector('.online-opening-stage-controls');
+        const players = document.querySelector('.online-opening-stage-player-grid');
+        return {
+          controlsTop: controls?.getBoundingClientRect().top ?? 0,
+          playersTop: players?.getBoundingClientRect().top ?? 0,
+        };
+      });
+
+    await expectGesturesWithinViewport('150% zoom equivalent');
+    const shortDesktopOrder = await openingSectionOrder();
+    expect(shortDesktopOrder.controlsTop).toBeLessThan(shortDesktopOrder.playersTop);
+    await attachScreenshot(page, testInfo, 'online-opening-short-desktop');
+
+    await page.setViewportSize({ width: 1600, height: 900 });
+    await waitForStableApp(page);
+    await expectGesturesWithinViewport('wide desktop');
+    const wideDesktopOrder = await openingSectionOrder();
+    expect(wideDesktopOrder.playersTop).toBeLessThan(wideDesktopOrder.controlsTop);
+
+    await page.setViewportSize({ width: 800, height: 450 });
+    await waitForStableApp(page);
+    await expectGesturesWithinViewport('200% zoom equivalent');
+    const highlyZoomedOrder = await openingSectionOrder();
+    expect(highlyZoomedOrder.controlsTop).toBeLessThan(highlyZoomedOrder.playersTop);
+
+    await page.getByRole('button', { name: '石头' }).click();
+    await expect(page.getByRole('button', { name: '石头' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+
+    openingRevealed = true;
+    await page.reload();
+    await expect(page.getByRole('button', { name: '我先手' })).toBeVisible();
+    await waitForStableApp(page);
+    await expectElementWithinVisualViewport(
+      page,
+      'button:has-text("我先手")',
+      'highly zoomed opening first-player button'
+    );
+    await expectElementWithinVisualViewport(
+      page,
+      'button:has-text("我后手")',
+      'highly zoomed opening second-player button'
+    );
+
+    const turnOrderRequest = page.waitForRequest(
+      (request) => request.url().endsWith('/opening-turn-order') && request.method() === 'POST'
+    );
+    await page.getByRole('button', { name: '我先手' }).click();
+    expect((await turnOrderRequest).postDataJSON()).toEqual({ choice: 'SELF_FIRST' });
+  });
+
   test('复制为新版本后直接打开独立副本编辑器', async ({ page }) => {
     await installApiMocks(page, true);
     await page.goto('/?page=deck-manager');
