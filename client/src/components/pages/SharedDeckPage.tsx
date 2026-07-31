@@ -295,7 +295,7 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
           )}
 
           {!isLoading && error && (
-            <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-5">
+            <div className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-5">
               <div className="text-sm font-medium text-[var(--semantic-error)]">{error}</div>
             </div>
           )}
@@ -306,7 +306,9 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-bold text-[var(--text-primary)]">{deck.name}</h2>
+                      <h2 className="text-2xl font-semibold text-[var(--text-primary)]">
+                        {deck.name}
+                      </h2>
                       <span className="rounded-full border border-[var(--border-subtle)] px-2 py-0.5 text-xs text-[var(--text-secondary)]">
                         {deck.author_display_name || deck.author_username}
                       </span>

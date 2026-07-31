@@ -297,7 +297,7 @@ export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPa
         />
         <main className="product-page-main flex flex-1 items-center justify-center">
           <div className="product-workbench max-w-xl p-6 text-center">
-            <h2 className="mb-3 text-xl font-bold text-[var(--text-primary)]">
+            <h2 className="mb-3 text-xl font-semibold text-[var(--text-primary)]">
               当前构建未配置联机调试 seat
             </h2>
             <p className="text-sm text-[var(--text-secondary)]">
@@ -361,13 +361,14 @@ export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPa
               />
             </div>
 
-            <div className="product-workbench order-1 flex flex-col gap-4 border-l-2 border-l-[var(--accent-primary)] p-5 lg:order-2">
+            <div className="product-workbench order-1 flex flex-col gap-4 p-5 lg:order-2">
               <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] px-3 py-1 text-xs text-[var(--text-secondary)]">
                   <Link2 size={12} />
-                  Match {DEBUG_MATCH_ID}
+                  <span>调试对局</span>
+                  <span className="font-mono tracking-[0.08em]">{DEBUG_MATCH_ID}</span>
                 </div>
-                <h2 className="text-xl font-bold text-[var(--text-primary)]">
+                <h2 className="text-xl font-semibold text-[var(--text-primary)]">
                   {DEBUG_SERVICE_NAME}
                 </h2>
                 <p className="mt-2 text-sm text-[var(--text-secondary)]">
@@ -459,8 +460,8 @@ function DebugDeckSummary({
   const statsDeck = hasLockedDeck ? (deck?.id === lockedDeckId ? deck : null) : deck;
 
   return (
-    <div className="rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-overlay))] p-4">
-      <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--text-muted)]">
+    <div className="rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_9%,var(--bg-overlay))] p-4">
+      <div className="text-[11px] font-semibold text-[var(--text-muted)]">
         {hasLockedDeck ? '已锁定卡组' : '当前卡组'}
       </div>
       {displayName ? (
@@ -498,9 +499,7 @@ function StatusCard({
 }) {
   return (
     <div className="product-list-row p-3">
-      <div className="mb-1 text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">
-        {title}
-      </div>
+      <div className="mb-1 text-xs font-semibold text-[var(--text-muted)]">{title}</div>
       <div className="text-base font-semibold text-[var(--text-primary)]">{label}</div>
       <div
         className={`mt-2 text-sm ${ready ? 'text-[var(--semantic-success)]' : 'text-[var(--text-muted)]'}`}

@@ -786,7 +786,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                       </div>
                     </div>
 
-                    <div className="mb-3 text-xs font-semibold tracking-wider text-[var(--text-muted)]">
+                    <div className="mb-3 text-xs font-semibold text-[var(--text-muted)]">
                       推荐卡组
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
@@ -802,7 +802,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                           >
                             <div className="flex items-start justify-between mb-3">
                               <div>
-                                <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">
+                                <h3 className="mb-0.5 text-base font-semibold text-[var(--text-primary)]">
                                   {preset.name}
                                 </h3>
                                 <p className="text-xs text-[var(--text-secondary)]">
@@ -1343,7 +1343,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
 
               <div className="touch-scroll flex-1 overflow-y-auto px-5 pb-5 sm:px-6">
                 <fieldset className="mb-5">
-                  <legend className="mb-2 text-xs font-semibold tracking-wide text-[var(--text-muted)]">
+                  <legend className="mb-2 text-xs font-semibold text-[var(--text-muted)]">
                     DECKLOG 站点
                   </legend>
                   <div className="grid grid-cols-2 gap-2">
@@ -1392,7 +1392,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                 <div>
                   <label
                     htmlFor="decklog-import-input"
-                    className="mb-2 block text-xs font-semibold tracking-wide text-[var(--text-muted)]"
+                    className="mb-2 block text-xs font-semibold text-[var(--text-muted)]"
                   >
                     卡组链接或编号
                   </label>

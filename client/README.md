@@ -12,8 +12,12 @@ React + Vite + TypeScript 客户端，负责牌桌、卡组管理、卡牌管理
 pnpm --dir client dev
 pnpm --dir client build
 pnpm --dir client lint
+pnpm --dir client test:e2e:mobile
+pnpm --dir client test:e2e:visual
 pnpm --dir client preview
 ```
+
+视觉基线仅在明确接受页面变化时通过 `pnpm --dir client test:e2e:visual:update` 更新；不同运行平台使用各自的截图目录。
 
 ## 主要目录
 

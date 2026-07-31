@@ -465,7 +465,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
                   <div className="touch-scroll flex-1 space-y-5 overflow-y-auto p-4">
                     <section>
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                      <div className="mb-2 text-xs font-semibold text-[var(--text-muted)]">
                         卡牌类型
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -490,7 +490,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
                     </section>
 
                     <section>
-                      <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                      <div className="mb-2 text-xs font-semibold text-[var(--text-muted)]">
                         发布状态
                       </div>
                       <div className="grid grid-cols-3 gap-2">
@@ -516,7 +516,7 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
                     {filteredCards.length > 0 && (
                       <section>
-                        <div className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                        <div className="mb-2 text-xs font-semibold text-[var(--text-muted)]">
                           批量状态
                         </div>
                         <div className="grid grid-cols-2 gap-2">

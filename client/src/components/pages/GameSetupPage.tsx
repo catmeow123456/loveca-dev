@@ -29,8 +29,10 @@ import {
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import {
+  ActionButton,
   DeckSelector,
   getDeckPointTextClass,
+  Panel,
   ProductFrame,
   type DeckDisplayItem,
   type ProductNavigationHandlers,
@@ -111,8 +113,8 @@ function ModeChoice({
         'group relative isolate flex w-full min-w-0 overflow-hidden border text-left outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-[var(--mode-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)]',
         toneClass,
         featured
-          ? 'min-h-[112px] items-center gap-4 rounded-lg p-5 sm:min-h-[124px] sm:px-7'
-          : 'min-h-[96px] items-center gap-4 rounded-md p-4 sm:min-h-[108px] sm:p-5',
+          ? 'min-h-[92px] items-center gap-4 rounded-lg p-4 sm:min-h-[100px] sm:px-5'
+          : 'min-h-[80px] items-center gap-3 rounded-lg p-3 sm:min-h-[88px] sm:p-4',
         selected
           ? 'border-[color:color-mix(in_srgb,var(--mode-accent)_62%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--mode-accent)_10%,var(--bg-surface))]'
           : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[color:color-mix(in_srgb,var(--mode-accent)_35%,var(--border-default))]',
@@ -123,7 +125,7 @@ function ModeChoice({
       <span
         className={cn(
           'relative flex shrink-0 items-center justify-center border border-[color:color-mix(in_srgb,var(--mode-accent)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--mode-accent)_12%,var(--bg-overlay))] text-[var(--mode-accent)]',
-          featured ? 'h-14 w-14 rounded-lg' : 'h-11 w-11 rounded-md'
+          featured ? 'h-12 w-12 rounded-lg' : 'h-10 w-10 rounded-lg'
         )}
       >
         <Icon size={featured ? 25 : 20} strokeWidth={1.8} />
@@ -132,8 +134,8 @@ function ModeChoice({
       <span className="relative min-w-0 flex-1 pr-7">
         <span
           className={cn(
-            'block font-black tracking-[-0.02em] text-[var(--text-primary)]',
-            featured ? 'text-2xl' : 'text-lg'
+            'block font-semibold tracking-normal text-[var(--text-primary)]',
+            featured ? 'text-xl' : 'text-base sm:text-lg'
           )}
         >
           {title}
@@ -501,16 +503,13 @@ export function GameSetupPage({
                 <div
                   className={`relative flex min-h-9 items-center justify-center gap-1.5 rounded-md px-2 text-center transition-colors sm:justify-start sm:px-3 ${
                     isActive
-                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+                      ? 'bg-[var(--bg-surface)] text-[var(--text-primary)]'
                       : isDone
                         ? 'text-[var(--semantic-success)]'
                         : 'text-[var(--text-muted)]'
                   }`}
                   aria-current={isActive ? 'step' : undefined}
                 >
-                  {isActive && (
-                    <span className="absolute inset-y-1 left-1 hidden w-0.5 rounded-full bg-[var(--accent-primary)] sm:block" />
-                  )}
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-bold ${
                       isActive
@@ -584,7 +583,7 @@ export function GameSetupPage({
             key={currentStep}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-5 text-center text-xl font-bold text-[var(--text-primary)] sm:mb-6 sm:text-2xl"
+            className="mb-5 text-center text-xl font-semibold text-[var(--text-primary)] sm:mb-6 sm:text-2xl"
           >
             {getStepTitle()}
           </motion.h2>
@@ -601,13 +600,13 @@ export function GameSetupPage({
                 className="absolute inset-0 overflow-y-auto overscroll-contain"
               >
                 <div className="mx-auto w-full max-w-5xl pb-4">
-                  <header className="mx-auto mb-5 text-center sm:mb-6">
-                    <h1 className="text-3xl font-black tracking-[-0.035em] text-[var(--text-primary)] sm:text-4xl">
+                  <header className="mx-auto mb-4 text-center sm:mb-5">
+                    <h1 className="text-2xl font-semibold tracking-normal text-[var(--text-primary)] sm:text-3xl">
                       选择对战方式
                     </h1>
                   </header>
 
-                  <div className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_36%,transparent)] p-2 sm:p-3">
+                  <Panel tone="muted" padding="compact" className="p-2 sm:p-3">
                     <ModeChoice
                       mode="PUBLIC_TABLE"
                       title="公共牌桌"
@@ -662,7 +661,7 @@ export function GameSetupPage({
                         onSelect={handleSelectMode}
                       />
                     </div>
-                  </div>
+                  </Panel>
                 </div>
               </motion.div>
             )}
@@ -748,18 +747,18 @@ export function GameSetupPage({
                   </div>
 
                   <div
-                    className={`mb-8 grid w-full gap-4 sm:gap-6 ${gameMode === GameMode.SOLITAIRE ? 'grid-cols-1 max-w-md mx-auto' : 'md:grid-cols-2'}`}
+                    className={`mb-6 grid w-full gap-4 ${gameMode === GameMode.SOLITAIRE ? 'mx-auto max-w-md grid-cols-1' : 'md:grid-cols-2'}`}
                   >
-                    <div className="surface-panel p-5 sm:p-6">
+                    <Panel>
                       <div className="flex items-center gap-3 mb-4">
                         <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]">
                           <UserRound size={22} />
                         </div>
                         <div className="min-w-0">
-                          <div className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
+                          <div className="text-xs text-[var(--text-muted)]">
                             {gameMode === GameMode.SOLITAIRE ? '己方' : 'Player 1'}
                           </div>
-                          <div className="truncate text-lg font-bold text-[var(--text-primary)]">
+                          <div className="truncate text-lg font-semibold text-[var(--text-primary)]">
                             {selectedP1Deck?.name || '未选择'}
                           </div>
                         </div>
@@ -786,19 +785,17 @@ export function GameSetupPage({
                           </span>
                         </div>
                       )}
-                    </div>
+                    </Panel>
 
                     {gameMode === GameMode.DEBUG && (
-                      <div className="surface-panel p-5 sm:p-6">
+                      <Panel>
                         <div className="flex items-center gap-3 mb-4">
                           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] text-[var(--accent-secondary)]">
                             <UserRound size={22} />
                           </div>
                           <div className="min-w-0">
-                            <div className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
-                              Player 2
-                            </div>
-                            <div className="truncate text-lg font-bold text-[var(--text-primary)]">
+                            <div className="text-xs text-[var(--text-muted)]">Player 2</div>
+                            <div className="truncate text-lg font-semibold text-[var(--text-primary)]">
                               {selectedP2Deck?.name || '未选择'}
                             </div>
                           </div>
@@ -825,11 +822,11 @@ export function GameSetupPage({
                             </span>
                           </div>
                         )}
-                      </div>
+                      </Panel>
                     )}
 
                     {gameMode === GameMode.SOLITAIRE && (
-                      <div className="surface-panel flex items-start gap-3 p-4">
+                      <Panel padding="compact" className="flex items-start gap-3">
                         <Bot size={22} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
                         <div className="min-w-0 text-sm text-[var(--text-secondary)]">
                           <div>默认对手卡组已准备完成，进入桌面后会显示对墙打模拟提示。</div>
@@ -845,12 +842,12 @@ export function GameSetupPage({
                               : '本地模拟：本局不会保存历史'}
                           </div>
                         </div>
-                      </div>
+                      </Panel>
                     )}
                   </div>
 
                   {error && (
-                    <div className="mb-6 w-full rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
+                    <div className="mb-5 w-full rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
                       <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
                         <WandSparkles size={16} />
                         <span>{error}</span>
@@ -863,7 +860,7 @@ export function GameSetupPage({
                     whileTap={{ scale: 0.98 }}
                     onClick={handleStartGame}
                     disabled={isStarting}
-                    className={`button-primary w-full px-8 py-4 text-base font-bold sm:w-auto sm:px-12 sm:text-lg ${isStarting ? 'cursor-not-allowed opacity-50' : ''}`}
+                    className={`button-primary min-h-11 w-full px-8 text-base font-semibold sm:w-auto sm:px-10 ${isStarting ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
                     {isStarting ? (
                       <span className="flex items-center gap-2">
@@ -898,28 +895,29 @@ export function GameSetupPage({
             )}
           >
             {currentStep > 0 && (
-              <button
+              <ActionButton
+                variant="ghost"
                 onClick={handlePrev}
-                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-6 py-2 font-medium"
+                className="border border-[var(--border-default)] px-6"
               >
                 <ChevronLeft size={16} />
                 上一步
-              </button>
+              </ActionButton>
             )}
 
             {currentStep < maxStep && (
-              <button
+              <ActionButton
                 onClick={handleNext}
                 disabled={!canProceed()}
                 className={cn(
-                  'button-primary inline-flex min-h-11 items-center justify-center gap-2 px-6 py-2 font-medium',
+                  'px-6',
                   currentStep === 0 && 'w-full sm:w-auto sm:min-w-56',
                   !canProceed() && 'cursor-not-allowed opacity-50'
                 )}
               >
                 {getNextButtonLabel()}
                 <ChevronRight size={16} />
-              </button>
+              </ActionButton>
             )}
           </div>
         </div>

@@ -25,7 +25,7 @@
   flex: 1;
   align-items: center;
   justify-content: center;
-  padding: clamp(28px, 5vw, 72px) clamp(20px, 5vw, 72px);
+  padding: clamp(24px, 4vw, 48px) clamp(20px, 5vw, 64px);
 }
 
 .spectator-lobby-desk {
@@ -49,7 +49,7 @@
   position: relative;
   isolation: isolate;
   display: flex;
-  min-height: 520px;
+  min-height: 440px;
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
@@ -57,7 +57,7 @@
   border-right: 1px solid var(--border-subtle);
   background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface));
   color: var(--text-primary);
-  padding: clamp(32px, 5vw, 58px);
+  padding: clamp(24px, 4vw, 40px);
 }
 
 .spectator-lobby-intro::after {
@@ -73,19 +73,18 @@
 }
 
 .spectator-lobby-intro > span,
-.spectator-lobby-section-heading > span {
+.spectator-lobby-section-heading .ui-section-heading__eyebrow {
   color: var(--accent-primary);
-  font-family: var(--font-mono);
   font-size: 0.625rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }
 
 .spectator-lobby-intro h1 {
   margin: 12px 0 0;
   font-size: clamp(2rem, 4vw, 3.25rem);
-  font-weight: 750;
-  letter-spacing: -0.045em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.13;
 }
 
@@ -101,29 +100,29 @@
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  padding: clamp(28px, 4vw, 52px);
+  padding: clamp(24px, 4vw, 40px);
 }
 
-.spectator-lobby-section-heading > span {
-  color: var(--accent-primary);
+.spectator-lobby-section-heading {
+  display: flex;
 }
 
-.spectator-lobby-section-heading h2 {
-  margin: 8px 0 0;
+.spectator-lobby-section-heading .ui-section-heading__title {
+  margin-top: 6px;
   color: var(--text-primary);
   font-size: 1.35rem;
-  font-weight: 800;
-  letter-spacing: -0.025em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
-.spectator-lobby-section-heading p {
+.spectator-lobby-section-heading .ui-section-heading__description {
   margin: 7px 0 0;
   color: var(--text-muted);
   font-size: 0.75rem;
 }
 
 .spectator-lobby-section-heading--seats {
-  margin-top: 32px;
+  margin-top: 24px;
 }
 
 .spectator-lobby-search {
@@ -144,8 +143,8 @@
   outline: none;
   font-family: var(--font-mono);
   font-size: 1rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   transition:
     border-color 150ms ease,
@@ -179,7 +178,7 @@
   color: var(--brand-card-white);
   padding: 0 19px;
   font-size: 0.8125rem;
-  font-weight: 750;
+  font-weight: 600;
   transition:
     background 150ms ease,
     transform 150ms ease;
@@ -248,17 +247,17 @@
   justify-content: space-between;
   gap: 12px;
   font-size: 0.8125rem;
-  font-weight: 800;
+  font-weight: 600;
 }
 
-.spectator-seat__topline > div:last-child {
+.spectator-seat__status.ui-status-badge {
+  min-height: 1.375rem;
   color: var(--text-muted);
-  font-family: var(--font-mono);
   font-size: 0.625rem;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
 }
 
-.spectator-seat__topline .spectator-seat__status--open {
+.spectator-seat__topline .ui-status-badge--success {
   color: var(--semantic-success);
 }
 

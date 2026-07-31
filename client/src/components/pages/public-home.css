@@ -27,7 +27,7 @@
   background: var(--brand-card-white);
   color: var(--brand-stage-ink);
   padding: 10px 14px;
-  font-weight: 800;
+  font-weight: 600;
   transition: transform 160ms ease;
 }
 
@@ -181,9 +181,8 @@
   gap: clamp(36px, 6vw, 94px);
   align-items: center;
   background:
-    linear-gradient(90deg, rgb(255 255 255 / 2%) 1px, transparent 1px),
-    linear-gradient(rgb(255 255 255 / 2%) 1px, transparent 1px), var(--brand-stage-ink);
-  background-size: 64px 64px;
+    radial-gradient(circle at 72% 28%, rgb(233 86 120 / 9%), transparent 34%),
+    var(--brand-stage-ink);
   color: var(--brand-card-white);
 }
 
@@ -198,8 +197,8 @@
   margin-bottom: 22px;
   color: rgb(255 253 249 / 58%);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .public-home__eyebrow span {
@@ -221,14 +220,14 @@
 .public-home__hero-title-brand {
   color: rgb(255 253 249 / 84%);
   font-size: 0.76em;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 0.9;
   white-space: nowrap;
 }
 
 .public-home__hero-title-product {
   font-size: 1em;
-  letter-spacing: -0.015em;
+  letter-spacing: 0;
   line-height: 1;
   white-space: nowrap;
 }
@@ -251,7 +250,7 @@
 .public-home__primary-cta,
 .public-home__secondary-cta {
   display: inline-flex;
-  min-height: 50px;
+  min-height: 44px;
   cursor: pointer;
   align-items: center;
   justify-content: center;
@@ -259,7 +258,7 @@
   border-radius: 8px;
   padding: 0 20px;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
   transition:
     transform 160ms ease,
     background 160ms ease,
@@ -324,9 +323,9 @@
 .public-home__table-preview {
   overflow: hidden;
   border: 1px solid rgb(255 253 249 / 18%);
-  border-radius: 14px;
+  border-radius: 10px;
   background: color-mix(in srgb, var(--brand-stage-ink) 88%, black);
-  box-shadow: 24px 28px 0 rgb(11 7 14 / 24%);
+  box-shadow: 0 18px 40px rgb(11 7 14 / 24%);
 }
 
 .public-home__table-bar,
@@ -338,10 +337,9 @@
   min-height: 40px;
   padding: 0 15px;
   color: rgb(255 253 249 / 45%);
-  font-family: var(--font-mono);
   font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 0.13em;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .public-home__table-bar {
@@ -391,10 +389,9 @@
 .public-home__zone small,
 .public-home__stage-slots small {
   color: rgb(255 253 249 / 34%);
-  font-family: var(--font-mono);
   font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0;
   text-align: center;
 }
 
@@ -461,10 +458,9 @@
 
 .public-home__turn-marker span {
   color: var(--brand-cue-orange);
-  font-family: var(--font-mono);
   font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.17em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .public-home__turn-marker strong {
@@ -473,7 +469,7 @@
 
 .public-home__table-caption {
   border-top: 1px solid rgb(255 253 249 / 12%);
-  letter-spacing: 0.05em;
+  letter-spacing: 0.01em;
 }
 
 .public-home__table-caption small {
@@ -518,10 +514,9 @@
 .public-home__path-label {
   align-self: start;
   color: color-mix(in srgb, var(--brand-card-white) 58%, var(--brand-stage-ink));
-  font-family: var(--font-mono);
   font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .public-home__path-copy {
@@ -552,8 +547,8 @@
 .public-home__announcements {
   display: grid;
   grid-template-columns: minmax(250px, 0.42fr) minmax(0, 1fr);
-  gap: clamp(36px, 7vw, 100px);
-  padding: 72px clamp(24px, 7vw, 100px);
+  gap: clamp(32px, 5vw, 64px);
+  padding: 56px clamp(24px, 7vw, 80px);
   border-top: 1px solid rgb(29 19 33 / 12%);
   border-bottom: 1px solid rgb(29 19 33 / 12%);
   background: var(--brand-card-white);
@@ -562,17 +557,16 @@
 
 .public-home__announcements-header > div > span {
   color: color-mix(in srgb, var(--brand-coral) 64%, var(--brand-stage-plum));
-  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .public-home__announcements-header h2 {
   margin: 10px 0 0;
   font-size: clamp(26px, 3vw, 38px);
-  font-weight: 850;
-  letter-spacing: -0.04em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.2;
 }
 
@@ -605,9 +599,8 @@
   align-items: center;
   gap: 9px;
   color: color-mix(in srgb, var(--brand-coral) 58%, var(--brand-stage-plum));
-  font-family: var(--font-mono);
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .public-home__announcement time {
@@ -621,7 +614,7 @@
 
 .public-home__announcement h3 {
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .public-home__announcement p {
@@ -661,7 +654,7 @@
 .public-home__latest-products {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 100px clamp(24px, 7vw, 100px) 108px;
+  padding: 64px clamp(24px, 7vw, 80px) 72px;
 }
 
 .public-home__latest-products-header {
@@ -675,17 +668,16 @@
 
 .public-home__latest-products-header > div > span {
   color: color-mix(in srgb, var(--brand-coral) 64%, var(--brand-stage-plum));
-  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
 .public-home__latest-products-header h2 {
   margin: 12px 0 0;
   font-size: clamp(32px, 3.6vw, 48px);
-  font-weight: 900;
-  letter-spacing: -0.045em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.18;
 }
 
@@ -704,7 +696,7 @@
   gap: 7px;
   color: color-mix(in srgb, var(--brand-coral) 58%, var(--brand-stage-plum));
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -726,13 +718,13 @@
   grid-template-columns: 170px minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid rgb(29 19 33 / 14%);
+  border-radius: 10px;
   background: var(--brand-card-white);
 }
 
 .public-home__product--featured {
   grid-row: 1 / 3;
   grid-template-columns: minmax(260px, 0.96fr) minmax(260px, 1.04fr);
-  border-top: 3px solid var(--brand-coral);
 }
 
 .public-home__product-media {
@@ -740,11 +732,7 @@
   min-height: 210px;
   align-items: center;
   justify-content: center;
-  background:
-    linear-gradient(90deg, rgb(29 19 33 / 3%) 1px, transparent 1px),
-    linear-gradient(rgb(29 19 33 / 3%) 1px, transparent 1px),
-    color-mix(in srgb, var(--brand-paper) 92%, var(--brand-stage-plum));
-  background-size: 32px 32px;
+  background: color-mix(in srgb, var(--brand-paper) 92%, var(--brand-stage-plum));
   padding: 24px;
 }
 
@@ -785,9 +773,8 @@
   flex-wrap: wrap;
   gap: 7px;
   color: rgb(29 19 33 / 52%);
-  font-family: var(--font-mono);
   font-size: 9px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .public-home__product-meta span {
@@ -809,8 +796,8 @@
 .public-home__product-body h3 {
   margin: 15px 0 0;
   font-size: clamp(19px, 2vw, 27px);
-  font-weight: 850;
-  letter-spacing: -0.035em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.3;
 }
 
@@ -860,7 +847,7 @@
   margin: 0;
   color: var(--brand-cue-orange);
   font-size: 11px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .public-home__closing h2 {
@@ -870,12 +857,12 @@
 }
 
 .public-home__closing > button {
-  min-height: 46px;
+  min-height: 44px;
   cursor: pointer;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 0 17px;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 600;
 }
 
 .public-home__closing > button:nth-of-type(1) {
@@ -971,8 +958,7 @@ html[data-theme='light'] .public-home__announcement-link span {
 
 html[data-theme='light'] .public-home__hero {
   background:
-    linear-gradient(90deg, rgb(29 19 33 / 3%) 1px, transparent 1px),
-    linear-gradient(rgb(29 19 33 / 3%) 1px, transparent 1px), var(--brand-paper);
+    radial-gradient(circle at 72% 28%, rgb(233 86 120 / 6%), transparent 34%), var(--brand-paper);
   color: var(--brand-stage-ink);
 }
 
@@ -1004,7 +990,7 @@ html[data-theme='light'] .public-home__offline-link {
 html[data-theme='light'] .public-home__table-preview {
   border-color: rgb(29 19 33 / 14%);
   background: var(--brand-card-white);
-  box-shadow: 24px 28px 0 rgb(29 19 33 / 14%);
+  box-shadow: 0 18px 42px rgb(29 19 33 / 12%);
 }
 
 html[data-theme='light'] .public-home__table-bar,
@@ -1172,7 +1158,7 @@ html[data-theme='light'] .public-home__table-caption {
   .public-home__table-preview {
     width: calc(100% + 18px);
     border-radius: 10px 0 0 10px;
-    box-shadow: 13px 16px 0 rgb(11 7 14 / 22%);
+    box-shadow: 0 14px 30px rgb(11 7 14 / 18%);
   }
 
   .public-home__playmat {

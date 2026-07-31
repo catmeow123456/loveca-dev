@@ -211,7 +211,7 @@ function AnnouncementCenterDrawer({
           ) : (
             <div className="py-10 text-center">
               <Bell className="mx-auto text-[var(--text-muted)]" size={20} />
-              <h3 className="mt-3 text-sm font-bold text-[var(--text-primary)]">暂无公告</h3>
+              <h3 className="mt-3 text-sm font-semibold text-[var(--text-primary)]">暂无公告</h3>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 新的维护安排、版本更新和动态会显示在这里。
               </p>
@@ -239,7 +239,7 @@ function AnnouncementDetailRow({ item }: { item: AnnouncementDisplayItem }) {
     <article className="py-4">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className={cn('text-[11px] font-bold', toneClass)}>{item.label}</span>
-        <h3 className="min-w-0 text-sm font-bold leading-5 text-[var(--text-primary)]">
+        <h3 className="min-w-0 text-sm font-semibold leading-5 text-[var(--text-primary)]">
           {item.title}
         </h3>
         {item.action ? (

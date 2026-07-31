@@ -119,7 +119,7 @@ export function VerifyEmailPage({
               : '邮箱验证已完成，请返回登录页面继续。'}
           </p>
 
-          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-bold">
+          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-semibold">
             前往登录
           </button>
         </div>

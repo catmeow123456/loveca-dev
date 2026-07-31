@@ -30,10 +30,9 @@
 .lobby-action-bar__label,
 .lobby-section-heading > span {
   color: var(--accent-primary);
-  font-family: var(--font-mono);
   font-size: 0.625rem;
-  font-weight: 800;
-  letter-spacing: 0.15em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   line-height: 1.2;
 }
 
@@ -41,8 +40,8 @@
   margin: 4px 0 0;
   color: var(--text-primary);
   font-size: clamp(1.6rem, 2vw, 1.95rem);
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.15;
 }
 
@@ -56,7 +55,7 @@
   background: var(--bg-surface);
   padding: 6px 10px;
   font-size: 0.6875rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .lobby-primary {
@@ -68,7 +67,6 @@
   isolation: isolate;
   overflow: hidden;
   border: 1px solid var(--border-subtle);
-  border-left: 3px solid var(--accent-primary);
   border-radius: 10px;
   background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface));
   color: var(--text-primary);
@@ -124,8 +122,8 @@
 .lobby-action-bar h2 {
   margin: 0;
   font-size: clamp(1.25rem, 1.6vw, 1.55rem);
-  font-weight: 700;
-  letter-spacing: -0.015em;
+  font-weight: 600;
+  letter-spacing: 0;
   line-height: 1.15;
 }
 
@@ -162,7 +160,7 @@
   border-radius: 8px;
   padding: 0 16px;
   font-size: 0.8125rem;
-  font-weight: 700;
+  font-weight: 600;
   transition:
     border-color 150ms ease,
     background 150ms ease,
@@ -236,7 +234,7 @@
   margin: 0;
   color: var(--text-primary);
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .lobby-entry-grid {

@@ -88,7 +88,7 @@ function WaitingRoomSpecialStatChip({
     >
       <span
         className={cn(
-          'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-black leading-none',
+          'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none',
           count > 0
             ? accent === 'score'
               ? 'bg-[color:color-mix(in_srgb,var(--accent-gold)_18%,transparent)] text-[var(--accent-gold)]'
@@ -126,7 +126,7 @@ function WaitingRoomNoJudgmentStatChip({
     >
       <span
         className={cn(
-          'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-black leading-none',
+          'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none',
           count > 0
             ? 'bg-[color:color-mix(in_srgb,var(--text-muted)_18%,transparent)] text-[var(--text-primary)]'
             : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
@@ -160,7 +160,7 @@ function WaitingRoomCardTypeStatChip({
           : 'border-[color:color-mix(in_srgb,var(--accent-secondary)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_11%,transparent)] text-[var(--accent-secondary)]'
       )}
     >
-      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,currentColor_14%,transparent)] px-1 text-[9px] font-black leading-none">
+      <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,currentColor_14%,transparent)] px-1 text-[9px] font-bold leading-none">
         {abbreviation}
       </span>
       <span>{label}</span>

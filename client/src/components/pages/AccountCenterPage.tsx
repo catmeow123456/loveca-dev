@@ -11,7 +11,14 @@ import {
   Send,
   UserRound,
 } from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import {
+  ActionButton,
+  PageHeader,
+  Panel,
+  SectionHeading,
+  StatusBadge,
+  TextInput,
+} from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 
 interface AccountCenterPageProps {
@@ -171,8 +178,7 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
               <form onSubmit={submitProfile} className="grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="用户名">
-                    <input
-                      className="input-field px-3.5 py-2.5"
+                    <TextInput
                       value={username}
                       onChange={(event) => setUsername(event.target.value)}
                       autoComplete="username"
@@ -180,8 +186,7 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                     />
                   </Field>
                   <Field label="显示名称">
-                    <input
-                      className="input-field px-3.5 py-2.5"
+                    <TextInput
                       value={displayName}
                       onChange={(event) => setDisplayName(event.target.value)}
                       autoComplete="nickname"
@@ -205,25 +210,18 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text-primary)]">
                   {user.email}
                 </span>
-                <span
-                  className={`status-pill px-2.5 py-1 text-xs ${
-                    user.emailVerified
-                      ? 'text-[var(--semantic-success)]'
-                      : 'text-[var(--semantic-warning)]'
-                  }`}
-                >
+                <StatusBadge tone={user.emailVerified ? 'success' : 'warning'}>
                   {user.emailVerified ? <BadgeCheck size={14} /> : <Mail size={14} />}
                   {user.emailVerified ? '已验证' : '未验证'}
-                </span>
+                </StatusBadge>
               </div>
 
               {emailChangeEnabled ? (
                 <form onSubmit={submitEmailChange} className="grid gap-4">
                   <div className="grid gap-4 sm:grid-cols-2">
                     <Field label="新邮箱">
-                      <input
+                      <TextInput
                         type="email"
-                        className="input-field px-3.5 py-2.5"
                         value={newEmail}
                         onChange={(event) => setNewEmail(event.target.value)}
                         placeholder="name@example.com"
@@ -232,9 +230,8 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                       />
                     </Field>
                     <Field label="当前密码">
-                      <input
+                      <TextInput
                         type="password"
-                        className="input-field px-3.5 py-2.5"
                         value={emailPassword}
                         onChange={(event) => setEmailPassword(event.target.value)}
                         autoComplete="current-password"
@@ -260,9 +257,8 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
               <form onSubmit={submitPassword} className="grid gap-4">
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field label="当前密码">
-                    <input
+                    <TextInput
                       type="password"
-                      className="input-field px-3.5 py-2.5"
                       value={currentPassword}
                       onChange={(event) => setCurrentPassword(event.target.value)}
                       autoComplete="current-password"
@@ -270,9 +266,8 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                     />
                   </Field>
                   <Field label="新密码">
-                    <input
+                    <TextInput
                       type="password"
-                      className="input-field px-3.5 py-2.5"
                       value={newPassword}
                       onChange={(event) => setNewPassword(event.target.value)}
                       autoComplete="new-password"
@@ -281,9 +276,8 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                     />
                   </Field>
                   <Field label="确认新密码">
-                    <input
+                    <TextInput
                       type="password"
-                      className="input-field px-3.5 py-2.5"
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}
                       autoComplete="new-password"
@@ -324,14 +318,16 @@ function IdentityPass({
   deckCount: number;
 }) {
   return (
-    <section className="product-workbench p-5">
+    <Panel as="section">
       <div className="flex items-center gap-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-stage-plum)] text-lg font-black text-[var(--brand-card-white)]">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-stage-plum)] text-lg font-bold text-[var(--brand-card-white)]">
           {initials}
         </div>
         <div className="min-w-0">
-          <h2 className="truncate text-lg font-black text-[var(--text-primary)]">{displayName}</h2>
-          <p className="truncate font-mono text-xs text-[var(--text-secondary)]">@{username}</p>
+          <h2 className="truncate text-lg font-semibold text-[var(--text-primary)]">
+            {displayName}
+          </h2>
+          <p className="truncate text-xs text-[var(--text-secondary)]">@{username}</p>
         </div>
       </div>
 
@@ -342,7 +338,7 @@ function IdentityPass({
         <PassRow label="邮箱状态" value={emailVerified ? '已验证' : '待验证'} />
         <PassRow label="云端卡组" value={`${deckCount} 副`} />
       </dl>
-    </section>
+    </Panel>
   );
 }
 
@@ -369,18 +365,13 @@ function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="product-workbench">
+    <Panel as="section" padding="none">
       <div className="flex items-start gap-2.5 border-b border-[var(--border-subtle)] px-4 py-3 sm:px-5">
         <span className="mt-0.5 shrink-0 text-[var(--accent-primary)]">{icon}</span>
-        <div>
-          <h2 className="text-sm font-bold text-[var(--text-primary)]">{title}</h2>
-          {description ? (
-            <p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">{description}</p>
-          ) : null}
-        </div>
+        <SectionHeading className="min-w-0 flex-1" title={title} description={description} />
       </div>
       <div className="px-4 py-4 sm:px-5">{children}</div>
-    </section>
+    </Panel>
   );
 }
 
@@ -436,13 +427,9 @@ function SubmitButton({
   icon: ReactNode;
 }) {
   return (
-    <button
-      type="submit"
-      disabled={loading}
-      className="button-primary inline-flex min-h-10 items-center justify-center gap-2 px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-55"
-    >
+    <ActionButton type="submit" disabled={loading} className="disabled:opacity-55">
       {loading ? <Loader2 size={16} className="animate-spin" /> : icon}
       {loading ? loadingLabel : idleLabel}
-    </button>
+    </ActionButton>
   );
 }

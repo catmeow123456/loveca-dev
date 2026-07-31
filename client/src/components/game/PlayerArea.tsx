@@ -1217,9 +1217,9 @@ export const PlayerArea = memo(function PlayerArea({
       >
         <button
           type="button"
-          style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '-0.02em' }}
+          style={{ fontSize: '10px', fontWeight: 500 }}
           className={cn(
-            'inline-flex min-w-0 items-center justify-center overflow-hidden text-[10px] font-medium leading-none tracking-[-0.02em] text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] disabled:cursor-not-allowed disabled:text-[var(--text-muted)] disabled:opacity-45 disabled:hover:bg-transparent',
+            'inline-flex min-w-0 items-center justify-center overflow-hidden text-[10px] font-medium leading-none text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] disabled:cursor-not-allowed disabled:text-[var(--text-muted)] disabled:opacity-45 disabled:hover:bg-transparent',
             isDesktop ? 'h-[18px] rounded-[4px]' : 'h-7 rounded-md'
           )}
           disabled={!canUseEnergyControls || isDragging || !hasWaitingEnergy}
@@ -1235,9 +1235,9 @@ export const PlayerArea = memo(function PlayerArea({
         </button>
         <button
           type="button"
-          style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '-0.02em' }}
+          style={{ fontSize: '10px', fontWeight: 500 }}
           className={cn(
-            'inline-flex min-w-0 items-center justify-center overflow-hidden text-[10px] font-medium leading-none tracking-[-0.02em] text-[var(--accent-secondary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] disabled:cursor-not-allowed disabled:text-[var(--text-muted)] disabled:opacity-45 disabled:hover:bg-transparent',
+            'inline-flex min-w-0 items-center justify-center overflow-hidden text-[10px] font-medium leading-none text-[var(--accent-secondary)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] disabled:cursor-not-allowed disabled:text-[var(--text-muted)] disabled:opacity-45 disabled:hover:bg-transparent',
             isDesktop ? 'h-[18px] rounded-[4px]' : 'h-7 rounded-md'
           )}
           disabled={!canUseEnergyControls || isDragging || !hasActiveEnergy}
@@ -1730,7 +1730,7 @@ export const PlayerArea = memo(function PlayerArea({
                                 )}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                                <div className="text-[10px] font-semibold text-[var(--text-muted)]">
                                   已选卡牌
                                 </div>
                                 <div className="truncate text-xs font-semibold text-[var(--text-primary)]">
@@ -2452,7 +2452,7 @@ export const PlayerArea = memo(function PlayerArea({
               activeClassName=""
             >
               <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+                <span className="text-[11px] font-semibold text-[var(--text-secondary)]">
                   检视区
                 </span>
                 <div className="rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_88%,transparent)] px-2 py-1 text-[11px] font-semibold text-[var(--text-secondary)] shadow-[var(--shadow-sm)]">

@@ -579,7 +579,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
 
 function SectionLabel({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-[var(--text-muted)]">
+    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--text-muted)]">
       {icon}
       {children}
     </div>

@@ -18,3 +18,15 @@ export { ProductHeader } from './ProductHeader';
 export { ThemeToggle } from './ThemeToggle';
 export { AppCredits } from './AppCredits';
 export { AnnouncementCenterButton } from './AnnouncementCenterButton';
+export {
+  ActionButton,
+  Panel,
+  SectionHeading,
+  StatusBadge,
+  TextInput,
+  type ActionButtonProps,
+  type PanelProps,
+  type SectionHeadingProps,
+  type StatusBadgeProps,
+  type TextInputProps,
+} from './VisualPrimitives';

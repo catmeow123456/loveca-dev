@@ -108,9 +108,7 @@ function PreMatchBriefingContent({
                 >
                   {content.title}
                 </div>
-                <div className="text-xs text-[var(--text-secondary)]">
-                  {content.subtitle}
-                </div>
+                <div className="text-xs text-[var(--text-secondary)]">{content.subtitle}</div>
               </div>
             </div>
             <button
@@ -226,7 +224,7 @@ function RuleTerm({ children }: { readonly children: ReactNode }) {
 
 function PhaseTerm({ children }: { readonly children: ReactNode }) {
   return (
-    <strong className="mx-0.5 inline-flex items-center rounded-[4px] bg-[color:color-mix(in_srgb,var(--semantic-warning)_18%,var(--bg-surface))] px-1.5 py-[1px] align-baseline font-extrabold leading-5 text-[var(--text-primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_42%,transparent)]">
+    <strong className="mx-0.5 inline-flex items-center rounded-[4px] bg-[color:color-mix(in_srgb,var(--semantic-warning)_18%,var(--bg-surface))] px-1.5 py-[1px] align-baseline font-semibold leading-5 text-[var(--text-primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--semantic-warning)_42%,transparent)]">
       {children}
     </strong>
   );
@@ -239,9 +237,7 @@ const PHASE_PAGE: BriefingPage = {
     {
       title: '自动阶段',
       icon: Zap,
-      items: [
-        '活跃、能量、抽卡这几步大多由系统自动处理；正常情况下确认当前手牌和能量状态即可。',
-      ],
+      items: ['活跃、能量、抽卡这几步大多由系统自动处理；正常情况下确认当前手牌和能量状态即可。'],
     },
     {
       title: '主要阶段',

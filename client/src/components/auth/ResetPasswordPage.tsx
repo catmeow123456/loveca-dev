@@ -71,7 +71,7 @@ export function ResetPasswordPage({ onSwitchToLogin, token }: ResetPasswordPageP
 
           <p className="text-[var(--text-secondary)]">你的密码已成功重置，请使用新密码登录。</p>
 
-          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-bold">
+          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-semibold">
             前往登录
           </button>
         </div>
@@ -125,7 +125,7 @@ export function ResetPasswordPage({ onSwitchToLogin, token }: ResetPasswordPageP
         <button
           type="submit"
           disabled={isLoading}
-          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-bold ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
+          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-semibold ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">

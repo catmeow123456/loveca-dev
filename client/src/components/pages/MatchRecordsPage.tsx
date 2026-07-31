@@ -661,7 +661,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         <div className="fixed inset-x-3 bottom-3 z-[220] md:hidden">
           <div className="flex items-center gap-3 rounded-xl border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl">
             <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--accent-primary)]">
+              <div className="text-[10px] font-semibold text-[var(--accent-primary)]">
                 当前回放节点
               </div>
               <div className="truncate text-xs text-[var(--text-muted)]">
@@ -1234,7 +1234,7 @@ function PanelTitle({
     <div className="flex items-center justify-between gap-3">
       <div className="flex min-w-0 items-center gap-2">
         <span className="text-[var(--accent-primary)]">{icon}</span>
-        <h2 className="truncate text-sm font-bold text-[var(--text-primary)]">{title}</h2>
+        <h2 className="truncate text-sm font-semibold text-[var(--text-primary)]">{title}</h2>
       </div>
       <span className="max-w-[45%] shrink-0 truncate text-right text-xs text-[var(--text-muted)]">
         {detail}

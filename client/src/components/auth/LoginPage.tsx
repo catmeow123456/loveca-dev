@@ -235,7 +235,7 @@ export function LoginPage({
         <button
           type="submit"
           disabled={isLoading || !isApiConfigured}
-          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-bold ${isLoading || !isApiConfigured ? 'cursor-not-allowed opacity-50' : ''}`}
+          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-semibold ${isLoading || !isApiConfigured ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
