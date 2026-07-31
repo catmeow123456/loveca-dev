@@ -1,7 +1,5 @@
 import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { motion, useReducedMotion } from 'framer-motion';
 import {
-  ArrowLeft,
   AtSign,
   BadgeCheck,
   CheckCircle2,
@@ -30,7 +28,6 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
   const updateProfile = useAuthStore((state) => state.updateProfile);
   const requestEmailChange = useAuthStore((state) => state.requestEmailChange);
   const updatePassword = useAuthStore((state) => state.updatePassword);
-  const reduceMotion = useReducedMotion();
 
   const [username, setUsername] = useState(profile?.username ?? '');
   const [displayName, setDisplayName] = useState(profile?.display_name ?? profile?.username ?? '');
@@ -143,29 +140,18 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
     }
   };
 
-  const motionProps = reduceMotion
-    ? {}
-    : {
-        initial: { opacity: 0, y: 12 },
-        animate: { opacity: 1, y: 0 },
-        transition: { duration: 0.28 },
-      };
-
   return (
     <div className="app-shell min-h-screen overflow-x-hidden">
       <PageHeader
         title="个人中心"
         icon={<UserRound size={19} />}
-        left={
-          <button type="button" onClick={onBack} className="button-icon" aria-label="返回大厅">
-            <ArrowLeft size={17} />
-          </button>
-        }
+        onBack={onBack}
+        backLabel="返回大厅"
       />
 
-      <main className="relative z-10 px-4 pb-10 pt-5 sm:px-6 sm:pt-6 lg:px-8">
+      <main className="product-page-main">
         <div className="mx-auto grid w-full max-w-5xl items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          <motion.aside {...motionProps} className="lg:sticky lg:top-5">
+          <aside className="lg:sticky lg:top-5">
             <IdentityPass
               initials={initials}
               username={profile.username}
@@ -174,13 +160,9 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
               emailVerified={user.emailVerified}
               deckCount={profile.deck_count}
             />
-          </motion.aside>
+          </aside>
 
-          <motion.div
-            {...motionProps}
-            transition={reduceMotion ? undefined : { duration: 0.28, delay: 0.05 }}
-            className="grid gap-4"
-          >
+          <div className="grid gap-4">
             <SettingsSection
               icon={<AtSign size={18} />}
               title="公开身份"
@@ -319,7 +301,7 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
                 </FormFooter>
               </form>
             </SettingsSection>
-          </motion.div>
+          </div>
         </div>
       </main>
     </div>
@@ -342,9 +324,9 @@ function IdentityPass({
   deckCount: number;
 }) {
   return (
-    <section className="surface-panel rounded-xl p-5">
+    <section className="product-workbench p-5">
       <div className="flex items-center gap-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg text-lg font-black text-white shadow-[var(--shadow-glow)] [background:var(--gradient-button)]">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-stage-plum)] text-lg font-black text-[var(--brand-card-white)]">
           {initials}
         </div>
         <div className="min-w-0">
@@ -387,7 +369,7 @@ function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="surface-panel overflow-hidden rounded-xl">
+    <section className="product-workbench">
       <div className="flex items-start gap-2.5 border-b border-[var(--border-subtle)] px-4 py-3 sm:px-5">
         <span className="mt-0.5 shrink-0 text-[var(--accent-primary)]">{icon}</span>
         <div>

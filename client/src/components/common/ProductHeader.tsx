@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProductBrand } from './ProductBrand';
@@ -24,11 +24,9 @@ export function ProductHeader({
   navigationKey,
   className,
 }: ProductHeaderProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setMenuOpen(false);
-  }, [navigationKey]);
+  const [menuState, setMenuState] = useState({ open: false, navigationKey });
+  const menuOpen = menuState.open && menuState.navigationKey === navigationKey;
+  const closeMenu = () => setMenuState({ open: false, navigationKey });
 
   return (
     <header className={cn('product-header safe-top relative z-30', className)}>
@@ -43,7 +41,7 @@ export function ProductHeader({
             <button
               type="button"
               className="button-icon md:!hidden"
-              onClick={() => setMenuOpen((open) => !open)}
+              onClick={() => setMenuState({ open: !menuOpen, navigationKey })}
               aria-expanded={menuOpen}
               aria-controls="product-mobile-navigation"
               aria-label={menuOpen ? '关闭导航菜单' : '打开导航菜单'}
@@ -55,7 +53,7 @@ export function ProductHeader({
       </div>
 
       {menuOpen && mobileNavigation ? (
-        <div id="product-mobile-navigation" onClick={() => setMenuOpen(false)}>
+        <div id="product-mobile-navigation" onClick={closeMenu}>
           {mobileNavigation}
         </div>
       ) : null}

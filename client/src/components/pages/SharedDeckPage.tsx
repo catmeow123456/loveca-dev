@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Copy, Loader2, LogIn, Save, Share2 } from 'lucide-react';
+import { Copy, Loader2, Save, Share2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   apiClient,
@@ -65,8 +65,8 @@ function SharedDeckSection({ title, entries, sort, onViewDetail }: SharedDeckSec
   );
 
   return (
-    <section className="surface-panel rounded-2xl p-4">
-      <div className="mb-3 flex items-center justify-between">
+    <section className="product-section">
+      <div className="product-section-heading">
         <h2 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h2>
         <span className="text-xs text-[var(--text-muted)]">
           {entries.reduce((sum, entry) => sum + entry.count, 0)} 张
@@ -115,7 +115,7 @@ function SharedDeckSection({ title, entries, sort, onViewDetail }: SharedDeckSec
                   className="rounded"
                 />
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex items-center justify-center rounded-b bg-gradient-to-t from-black/75 via-black/35 to-transparent px-1 py-1.5">
-                  <span className="min-w-[24px] text-center text-xs font-bold text-white">
+                  <span className="min-w-[24px] text-center text-xs font-bold text-[var(--brand-card-white)]">
                     {entry.count}
                   </span>
                 </div>
@@ -262,16 +262,9 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
         actions={<ThemeToggle />}
       />
       <PageHeader
-        title="卡组分享"
-        left={
-          <button
-            onClick={onBackHome}
-            className="button-ghost inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">返回</span>
-          </button>
-        }
+        title="共享卡组"
+        onBack={onBackHome}
+        backLabel="返回首页"
         right={
           <>
             <button
@@ -287,8 +280,8 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
         }
       />
 
-      <main className="relative z-10 flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="workspace-shell mx-auto max-w-6xl p-4 sm:p-6">
+      <main className="product-page-main flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-6xl">
           {isLoading && (
             <div className="flex items-center justify-center py-24">
               <div className="text-center">
@@ -308,8 +301,8 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
           )}
 
           {!isLoading && !error && deck && localDeck && (
-            <div className="space-y-4">
-              <section className="surface-panel rounded-2xl p-5">
+            <div>
+              <section className="border-b border-[var(--border-default)] pb-6">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -340,15 +333,6 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {!isAuthenticated && (
-                      <button
-                        onClick={onRequestLogin}
-                        className="button-secondary inline-flex min-h-10 items-center gap-1.5 px-4 py-2 text-sm"
-                      >
-                        <LogIn size={14} />
-                        登录
-                      </button>
-                    )}
                     {!isOwner && (
                       <button
                         onClick={handleFork}
@@ -390,8 +374,8 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                 )}
               </section>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-                <div className="space-y-4">
+              <div className="grid gap-8 pt-2 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div>
                   <SharedDeckSection
                     title="成员卡"
                     entries={localDeck.main_deck.members}
@@ -412,7 +396,7 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                   />
                 </div>
 
-                <aside className="surface-panel h-fit rounded-2xl p-4">
+                <aside className="product-workbench mt-5 h-fit p-4 xl:sticky xl:top-4">
                   <div className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
                     构筑状态
                   </div>
@@ -436,15 +420,6 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                   <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
                     <div className="mb-2 text-sm font-semibold text-[var(--text-primary)]">
                       卡组统计
-                    </div>
-                    <div className="mb-4">
-                      <DeckStatsRow
-                        stats={calculateDeckStats(deck, {
-                          resolveCardType: resolveDeckRecordCardType,
-                        })}
-                        size="md"
-                        className="justify-between"
-                      />
                     </div>
                     <div className="-mx-1">
                       <DeckAnalysisPanel deck={localDeck} />

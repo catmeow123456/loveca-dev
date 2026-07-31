@@ -246,7 +246,7 @@ export function HomePage({
           ? {
               state: 'ready' as PrimaryActionState,
               title: '开始对战',
-              description: '选择公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
+              description: '选择赛季排位、公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
               cta: '开始对战',
               icon: Gamepad2,
               onClick: onNavigateToGameSetup,
@@ -278,12 +278,12 @@ export function HomePage({
       tone: canUseOnlineRoom && hasLegalDeck ? 'warning' : 'muted',
     },
     {
-      title: '输入房间号观战',
+      title: '房间观战',
       icon: Eye,
       onClick: onNavigateToOnlineSpectator,
       disabled: !canUseOnlineRoom,
       compact: !canUseOnlineRoom,
-      status: canUseOnlineRoom ? '只读观战' : '连接后可用',
+      status: canUseOnlineRoom ? '输入房间号' : '连接后可用',
       tone: canUseOnlineRoom ? 'green' : 'muted',
     },
     {
@@ -329,7 +329,6 @@ export function HomePage({
             <div>
               <span className="lobby-intro__eyebrow">PLAYER LOBBY</span>
               <h1>欢迎回来，{displayUsername}</h1>
-              <p>检查卡组状态，然后选择今天的对战方式。</p>
             </div>
             <div className={`lobby-connection ${connectionStatus.tone}`}>
               <ConnectionStatusIcon size={15} aria-hidden="true" />

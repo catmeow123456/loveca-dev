@@ -53,12 +53,6 @@
   line-height: 1.15;
 }
 
-.lobby-intro p {
-  margin: 9px 0 0;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
 .lobby-connection {
   display: inline-flex;
   flex: none;
@@ -80,9 +74,10 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  border: 1px solid rgb(255 253 249 / 12%);
-  background: var(--brand-stage-plum);
-  color: var(--brand-card-white);
+  border: 1px solid var(--border-active);
+  border-left: 4px solid var(--accent-primary);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface));
+  color: var(--text-primary);
   padding: clamp(24px, 3vw, 38px);
   box-shadow: 12px 14px 0 color-mix(in srgb, var(--text-primary) 9%, transparent);
 }
@@ -92,8 +87,16 @@
   z-index: -1;
   inset: 0;
   background:
-    radial-gradient(circle at 80% 50%, rgb(233 86 120 / 14%), transparent 32%),
-    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px);
+    radial-gradient(
+      circle at 80% 50%,
+      color-mix(in srgb, var(--accent-primary) 12%, transparent),
+      transparent 32%
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--text-primary) 3%, transparent) 1px,
+      transparent 1px
+    );
   background-size:
     auto,
     64px 64px;
@@ -102,7 +105,7 @@
 }
 
 .lobby-action-bar__label {
-  color: var(--brand-cue-orange);
+  color: var(--accent-primary);
 }
 
 .lobby-action-bar__content {
@@ -127,9 +130,9 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgb(255 253 249 / 16%);
-  background: rgb(255 253 249 / 6%);
-  color: var(--brand-coral);
+  border: 1px solid var(--border-default);
+  background: var(--bg-elevated);
+  color: var(--accent-primary);
 }
 
 .lobby-action-bar h2 {
@@ -143,7 +146,7 @@
 .lobby-action-bar p {
   max-width: 680px;
   margin: 7px 0 0;
-  color: rgb(255 253 249 / 68%);
+  color: var(--text-secondary);
   font-size: 0.8125rem;
   line-height: 1.65;
 }
@@ -151,7 +154,7 @@
 .lobby-action-bar small {
   display: block;
   margin-top: 5px;
-  color: rgb(255 253 249 / 45%);
+  color: var(--text-muted);
   font-size: 0.6875rem;
   line-height: 1.55;
 }
@@ -187,9 +190,9 @@
 }
 
 .lobby-action-bar__secondary {
-  border: 1px solid rgb(255 253 249 / 22%);
+  border: 1px solid var(--border-default);
   background: transparent;
-  color: rgb(255 253 249 / 78%);
+  color: var(--text-secondary);
 }
 
 .lobby-action-bar__primary:hover,
@@ -198,7 +201,8 @@
 }
 
 .lobby-action-bar__secondary:hover {
-  border-color: rgb(255 253 249 / 42%);
+  border-color: var(--border-active);
+  color: var(--text-primary);
 }
 
 .lobby-workspace {

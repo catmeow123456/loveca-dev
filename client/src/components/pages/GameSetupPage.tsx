@@ -1,6 +1,6 @@
 /**
  * GameSetupPage - 对局准备页面
- * Step 0: 选择对战方式（公共牌桌 / 房间联机 / 对墙打 / 双人调试）
+ * Step 0: 选择对战方式（公共牌桌 / 赛季排位 / 房间联机 / 对墙打 / 双人调试）
  * Step 1: 选择卡组（调试模式选 2 副，对墙打模式选 1 副）
  * Step 2: 确认并开始对局
  */
@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Globe2,
   Layers3,
+  Medal,
   Play,
   Swords,
   Star,
@@ -60,7 +61,7 @@ import { writeStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
 import { cn } from '@/lib/utils';
 
 type SetupStep = 0 | 1 | 2 | 3;
-type SetupMode = 'PUBLIC_TABLE' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
+type SetupMode = 'PUBLIC_TABLE' | 'RANKED' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
 
 interface GameSetupPageProps {
   navigation: ProductNavigationHandlers;
@@ -70,6 +71,7 @@ interface GameSetupPageProps {
   onGameStart: () => void;
   onNavigateToOnlineRoom: () => void;
   onNavigateToPublicTable: () => void;
+  onNavigateToRanked: () => void;
 }
 
 function createLocalGameId(): string {
@@ -166,6 +168,7 @@ export function GameSetupPage({
   onGameStart,
   onNavigateToOnlineRoom,
   onNavigateToPublicTable,
+  onNavigateToRanked,
 }: GameSetupPageProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
   const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
@@ -176,8 +179,9 @@ export function GameSetupPage({
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isPublicTableMode = setupMode === 'PUBLIC_TABLE';
+  const isRankedMode = setupMode === 'RANKED';
   const isOnlineMode = setupMode === 'ONLINE';
-  const isRemoteEntryMode = isPublicTableMode || isOnlineMode;
+  const isRemoteEntryMode = isPublicTableMode || isRankedMode || isOnlineMode;
   const gameMode = setupMode === GameMode.DEBUG ? GameMode.DEBUG : GameMode.SOLITAIRE;
   const isDebugMode = gameMode === GameMode.DEBUG;
   const maxStep: SetupStep = isRemoteEntryMode ? 1 : isDebugMode ? 3 : 2;
@@ -312,6 +316,12 @@ export function GameSetupPage({
         }
         return;
       }
+      if (isRankedMode) {
+        if (canUseOnlineRoom && validDecks.length > 0) {
+          onNavigateToRanked();
+        }
+        return;
+      }
       setCurrentStep(1);
     } else if (currentStep === 1) {
       if (gameMode === GameMode.DEBUG && selectedP1Deck) {
@@ -337,7 +347,10 @@ export function GameSetupPage({
 
   // 是否可以进入下一步
   const canProceed = () => {
-    if (currentStep === 0) return isRemoteEntryMode ? canUseOnlineRoom : gameMode !== undefined;
+    if (currentStep === 0) {
+      if (isRankedMode) return canUseOnlineRoom && validDecks.length > 0;
+      return isRemoteEntryMode ? canUseOnlineRoom : gameMode !== undefined;
+    }
     if (currentStep === 1) return selectedP1Deck !== null;
     if (currentStep === 2 && gameMode === GameMode.DEBUG) return selectedP2Deck !== null;
     return false;
@@ -468,7 +481,7 @@ export function GameSetupPage({
         ? [0, 1, 2]
         : [0, 1, 2, 3];
     const labels = isRemoteEntryMode
-      ? ['模式', isPublicTableMode ? '匹配' : '房间']
+      ? ['模式', isPublicTableMode ? '匹配' : isRankedMode ? '排位' : '房间']
       : gameMode === GameMode.SOLITAIRE
         ? ['模式', '卡组', '确认']
         : ['模式', 'P1', 'P2', '确认'];
@@ -539,6 +552,10 @@ export function GameSetupPage({
         return canUseOnlineRoom ? '进入公共牌桌' : '公共牌桌暂不可用';
       }
       if (isOnlineMode) return canUseOnlineRoom ? '进入联机房间' : '联机暂不可用';
+      if (isRankedMode) {
+        if (!canUseOnlineRoom) return '赛季排位暂不可用';
+        return validDecks.length > 0 ? '进入赛季排位' : '需要符合规则的卡组';
+      }
       if (gameMode === GameMode.SOLITAIRE) return '下一步：选择己方卡组';
       return '下一步：选择 P1 卡组';
     }
@@ -603,7 +620,17 @@ export function GameSetupPage({
                       onSelect={handleSelectMode}
                     />
 
-                    <div className="mt-2 grid gap-2 md:grid-cols-3">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <ModeChoice
+                        mode="RANKED"
+                        title="赛季排位"
+                        description="在开放时段匹配并计入积分"
+                        icon={Medal}
+                        toneClass="[--mode-accent:var(--semantic-warning)]"
+                        selected={setupMode === 'RANKED'}
+                        available={canUseOnlineRoom && validDecks.length > 0}
+                        onSelect={handleSelectMode}
+                      />
                       <ModeChoice
                         mode="ONLINE"
                         title="房间联机"

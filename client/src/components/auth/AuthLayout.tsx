@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { ArrowLeft, CircleDot, Layers3, Radio } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { AppCredits, ThemeToggle } from '@/components/common';
+import { AppCredits, ProductHeader, ThemeToggle } from '@/components/common';
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -20,19 +20,11 @@ export function AuthLayout({
 }: AuthLayoutProps) {
   return (
     <div className="app-shell fixed inset-0 overflow-y-auto">
-      <header className="product-header safe-top relative z-20">
-        <div className="mx-auto flex min-h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-          <button
-            type="button"
-            onClick={onBackHome}
-            disabled={!onBackHome}
-            className="product-brand disabled:cursor-default"
-            aria-label={onBackHome ? '返回首页' : undefined}
-          >
-            <img src="/icon.jpg" alt="" className="product-brand-mark" />
-            <span>Loveca</span>
-          </button>
-          <div className="flex items-center gap-2">
+      <ProductHeader
+        brandAriaLabel={onBackHome ? '返回首页' : 'Loveca'}
+        onBrandClick={onBackHome}
+        actions={
+          <>
             {onBackHome ? (
               <button
                 type="button"
@@ -44,9 +36,9 @@ export function AuthLayout({
               </button>
             ) : null}
             <ThemeToggle />
-          </div>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="safe-bottom relative mx-auto grid min-h-[calc(100dvh-4rem)] w-full max-w-6xl items-stretch lg:grid-cols-[minmax(0,0.92fr)_minmax(420px,0.78fr)]">
         <motion.section

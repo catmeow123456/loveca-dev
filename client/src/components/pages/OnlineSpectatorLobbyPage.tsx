@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ArrowRight, Eye, Loader2, ScanLine } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Loader2, ScanLine } from 'lucide-react';
 import {
   ProductFrame,
   ProductHeader,
@@ -124,15 +124,16 @@ export function OnlineSpectatorLobbyPage({
 
   const pageContent = (
     <main className="spectator-lobby-main">
-      <section className="spectator-lobby-desk">
-        <header className="spectator-lobby-intro">
-          <div className="spectator-lobby-intro__icon">
-            <Eye size={25} aria-hidden="true" />
-          </div>
-          <span>SPECTATOR DESK</span>
-          <h1>输入房间号观战</h1>
-          <p>选择先攻或后攻玩家的视角，只读观看正在进行的对局。</p>
-        </header>
+      <section
+        className={`spectator-lobby-desk ${navigation ? 'spectator-lobby-desk--compact' : ''}`}
+      >
+        {!navigation ? (
+          <header className="spectator-lobby-intro">
+            <span>SPECTATOR DESK</span>
+            <h1>房间观战</h1>
+            <p>输入房间号观看对局。</p>
+          </header>
+        ) : null}
 
         <div className="spectator-lobby-console">
           <div className="spectator-lobby-section-heading">
@@ -209,8 +210,8 @@ export function OnlineSpectatorLobbyPage({
         navigation={navigation}
         actions={headerActions}
         mobileMenuActions={mobileMenuActions}
-        title="房间号观战"
-        description="选择对局中的一个玩家视角"
+        title="房间观战"
+        description="输入房间号"
         backLabel="返回大厅"
         onBack={onBackHome}
         className="spectator-lobby-page"

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import {
   AlertTriangle,
-  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -360,11 +358,8 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       <PageHeader
         title="历史对局"
         icon={<History size={18} />}
-        left={
-          <button type="button" onClick={onBack} className="button-icon" aria-label="返回大厅">
-            <ArrowLeft size={16} />
-          </button>
-        }
+        onBack={onBack}
+        backLabel="返回大厅"
         right={
           <>
             <button
@@ -383,12 +378,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
 
       <main className="relative z-10 flex-1 px-3 pb-24 pt-4 sm:px-4 sm:pb-24 lg:px-5 lg:pb-4 xl:px-6">
         <div className="mx-auto grid w-full max-w-[1480px] items-start gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.28 }}
-            className="surface-panel flex min-w-0 flex-col overflow-hidden rounded-lg p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:h-[calc(100dvh-6.5rem)]"
-          >
+          <section className="product-workbench flex min-w-0 flex-col overflow-hidden p-3 sm:p-4 lg:sticky lg:top-[5.75rem] lg:h-[calc(100dvh-6.5rem)]">
             <PanelTitle
               icon={<History size={16} />}
               title="对局列表"
@@ -414,7 +404,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
             ) : records.length === 0 ? (
               <EmptyPanel title="暂无历史对局" detail="完成正式联机或对墙打后会在这里显示。" />
             ) : (
-              <div className="mt-3 grid gap-1.5 overflow-x-hidden lg:min-h-0 lg:flex-1 lg:content-start lg:overflow-y-auto lg:pr-1">
+              <div className="mt-3 overflow-x-hidden border-y border-[var(--border-subtle)] lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                 {records.map((record) => (
                   <MatchRecordButton
                     key={record.matchId}
@@ -425,14 +415,9 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                 ))}
               </div>
             )}
-          </motion.section>
+          </section>
 
-          <motion.section
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.28, delay: 0.04 }}
-            className="grid min-w-0 gap-4"
-          >
+          <section className="grid min-w-0 gap-4">
             {error ? (
               <div className="rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-4 py-3 text-sm text-[var(--semantic-error)]">
                 {error}
@@ -613,7 +598,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                 )}
               </section>
             ) : null}
-          </motion.section>
+          </section>
         </div>
       </main>
 
@@ -715,10 +700,10 @@ function MatchRecordButton({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full rounded-md border px-2.5 py-2 text-left transition ${
+      className={`w-full border-b border-[var(--border-subtle)] px-2.5 py-2.5 text-left transition last:border-b-0 ${
         selected
-          ? 'border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--accent-primary)_11%,var(--bg-surface))]'
-          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]'
+          ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_11%,var(--bg-surface))]'
+          : 'bg-transparent hover:bg-[var(--bg-elevated)]'
       }`}
     >
       <div className="flex items-start justify-between gap-2">

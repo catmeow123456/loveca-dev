@@ -39,15 +39,13 @@
   position: absolute;
   inset: 0 0 auto;
   z-index: 20;
-  border-bottom-color: rgb(255 253 249 / 14%);
-  background: rgb(29 19 33 / 94%);
-  color: var(--brand-card-white);
+  border-bottom-color: var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+  color: var(--text-primary);
 }
 
 .public-home__header .product-header-inner {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
+  display: flex;
 }
 
 .public-home__header .product-brand {
@@ -55,7 +53,6 @@
   color: inherit;
 }
 
-.public-home__header .product-brand-mark,
 .public-home__footer img {
   width: 36px;
   height: 36px;
@@ -69,60 +66,46 @@
   gap: 1px;
 }
 
-.public-home__header .product-brand-copy strong {
-  font-size: 16px;
-  letter-spacing: -0.02em;
-}
-
-.public-home__header .product-brand-copy small {
-  color: var(--brand-cue-orange);
-  font-size: 7px;
-}
-
 .public-home__nav {
   display: flex;
+  align-self: stretch;
   align-items: center;
-  gap: 27px;
+  gap: 0;
 }
 
 .public-home__nav button,
 .public-home__nav a,
-.public-home__account button,
 .public-home__announcement-link {
+  display: inline-flex;
+  min-height: 4rem;
   cursor: pointer;
+  align-items: center;
   border: 0;
   background: transparent;
-  color: rgb(255 253 249 / 68%);
-  padding: 8px 0;
-  font-size: 13px;
-  font-weight: 650;
+  color: var(--text-secondary);
+  padding: 0 1rem;
   text-decoration: none;
   transition: color 150ms ease;
 }
 
 .public-home__nav button:hover,
 .public-home__nav a:hover,
-.public-home__account button:hover,
 .public-home__announcement-link:hover {
-  color: var(--brand-card-white);
+  color: var(--text-primary);
 }
 
 .public-home__account {
   display: flex;
   align-items: center;
-  gap: 16px;
-}
-
-.public-home__header .product-header-actions {
-  justify-self: end;
+  gap: 0.375rem;
 }
 
 .public-home__announcement-link,
 .public-home__theme-toggle.button-icon {
   position: relative;
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 2.5rem;
+  height: 2.5rem;
   align-items: center;
   justify-content: center;
   border-radius: 7px;
@@ -168,19 +151,26 @@
 }
 
 .public-home__theme-toggle.button-icon {
-  min-height: 34px;
-  color: rgb(255 253 249 / 68%);
+  min-height: 2.5rem;
+  color: var(--text-secondary);
 }
 
 .public-home__theme-toggle.button-icon span {
   display: inline-flex;
 }
 
+.public-home__login-button,
 .public-home__register-button {
-  border: 1px solid rgb(255 253 249 / 24%);
-  border-radius: 7px;
-  color: var(--brand-card-white);
-  padding: 9px 13px;
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.875rem;
+}
+
+.public-home__login-button {
+  border-color: var(--border-subtle);
+  background: color-mix(in srgb, var(--bg-surface) 48%, transparent);
 }
 
 .public-home__hero {
@@ -956,7 +946,6 @@ html[data-theme='light'] .public-home__header .product-brand-mark {
 
 html[data-theme='light'] .public-home__nav button,
 html[data-theme='light'] .public-home__nav a,
-html[data-theme='light'] .public-home__account button,
 html[data-theme='light'] .public-home__announcement-link,
 html[data-theme='light'] .public-home__theme-toggle.button-icon {
   color: rgb(29 19 33 / 62%);
@@ -964,13 +953,16 @@ html[data-theme='light'] .public-home__theme-toggle.button-icon {
 
 html[data-theme='light'] .public-home__nav button:hover,
 html[data-theme='light'] .public-home__nav a:hover,
-html[data-theme='light'] .public-home__account button:hover,
 html[data-theme='light'] .public-home__announcement-link:hover {
   color: var(--brand-stage-ink);
 }
 
+html[data-theme='light'] .public-home__login-button,
 html[data-theme='light'] .public-home__register-button {
   border-color: rgb(29 19 33 / 18%);
+}
+
+html[data-theme='light'] .public-home__register-button {
   color: var(--brand-stage-ink);
 }
 
@@ -1133,28 +1125,16 @@ html[data-theme='light'] .public-home__table-caption {
 
 @media (max-width: 680px) {
   .public-home__header .product-brand-mark {
-    width: 33px;
-    height: 33px;
+    width: 2rem;
+    height: 2rem;
   }
 
-  .public-home__header .product-brand-copy strong {
+  .public-home__header .product-brand-wordmark {
     font-size: 15px;
   }
 
-  .public-home__header .product-brand-copy small {
-    display: none;
-  }
-
   .public-home__login-button {
-    border: 1px solid rgb(255 253 249 / 24%);
-    border-radius: 7px;
-    color: var(--brand-card-white);
-    padding: 8px 12px;
-  }
-
-  html[data-theme='light'] .public-home__login-button {
-    border-color: rgb(29 19 33 / 18%);
-    color: var(--brand-stage-ink);
+    padding: 0 0.75rem;
   }
 
   .public-home__hero {

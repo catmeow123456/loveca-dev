@@ -131,6 +131,8 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
             transition={{ type: 'tween', duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
           >
             <button
+              type="button"
+              aria-label={sidebarOpen ? '收起卡组面板' : '展开卡组面板'}
               onClick={() => setSidebarOpen((v) => !v)}
               className="absolute left-0 top-1/2 z-10 flex -translate-x-full -translate-y-1/2 flex-col items-center gap-1 rounded-l-lg border border-r-0 border-[var(--border-default)] bg-[var(--bg-frosted)] px-1 py-3 text-[var(--text-secondary)] shadow-[var(--shadow-md)] backdrop-blur-xl transition-colors duration-150 hover:text-[var(--text-primary)]"
             >
@@ -190,6 +192,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
                   </div>
                   <button
                     type="button"
+                    aria-label="关闭卡组面板"
                     onClick={() => setSidebarOpen(false)}
                     className="button-icon h-8 w-8"
                   >
@@ -213,6 +216,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
               <div className="text-sm font-semibold text-[var(--text-primary)]">筛选条件</div>
               <button
                 type="button"
+                aria-label="关闭筛选条件"
                 onClick={() => setMobileFiltersOpen(false)}
                 className="button-icon h-8 w-8"
               >

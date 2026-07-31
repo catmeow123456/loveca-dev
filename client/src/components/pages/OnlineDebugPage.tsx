@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowLeft, Link2, Loader2, RefreshCw, Swords, Users } from 'lucide-react';
+import { Link2, Loader2, RefreshCw, Swords, Users } from 'lucide-react';
 import { PageHeader, DeckSelector, DeckStatsRow, type DeckDisplayItem } from '@/components/common';
 import { BattleViewportShell, GameBoard } from '@/components/game';
 import { useDeckStore } from '@/store/deckStore';
@@ -286,18 +285,11 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
         <PageHeader
           title="联机调试"
           icon={<Swords size={20} />}
-          left={
-            <button
-              onClick={onBack}
-              className="button-ghost inline-flex h-10 items-center gap-2 px-3"
-            >
-              <ArrowLeft size={16} />
-              返回大厅
-            </button>
-          }
+          onBack={onBack}
+          backLabel="返回大厅"
         />
-        <main className="flex flex-1 items-center justify-center p-6">
-          <div className="surface-panel-frosted max-w-xl p-6 text-center">
+        <main className="product-page-main flex flex-1 items-center justify-center">
+          <div className="product-workbench max-w-xl p-6 text-center">
             <h2 className="mb-3 text-xl font-bold text-[var(--text-primary)]">
               当前构建未配置联机调试 seat
             </h2>
@@ -321,7 +313,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
   if (isMatchStarted) {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center">
-        <div className="surface-panel-frosted flex items-center gap-3 px-6 py-4 text-[var(--text-primary)]">
+        <div className="product-workbench flex items-center gap-3 px-6 py-4 text-[var(--text-primary)]">
           <Loader2 size={18} className="animate-spin" />
           正在同步调试对局...
         </div>
@@ -334,18 +326,11 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
       <PageHeader
         title={DEBUG_SERVICE_NAME}
         icon={<Swords size={20} />}
-        left={
-          <button
-            onClick={onBack}
-            className="button-ghost inline-flex h-10 items-center gap-2 px-3"
-          >
-            <ArrowLeft size={16} />
-            返回大厅
-          </button>
-        }
+        onBack={onBack}
+        backLabel="返回大厅"
       />
 
-      <main className="relative z-10 flex flex-1 justify-center px-4 pb-6 pt-5 sm:p-6">
+      <main className="product-page-main relative z-10 flex flex-1 justify-center">
         <div className="flex w-full max-w-5xl flex-col gap-6">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
             <div
@@ -369,7 +354,7 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
               />
             </div>
 
-            <div className="surface-panel-frosted order-1 flex flex-col gap-4 p-5 lg:order-2">
+            <div className="product-workbench order-1 flex flex-col gap-4 border-l-2 border-l-[var(--accent-primary)] p-5 lg:order-2">
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] px-3 py-1 text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
                   <Link2 size={12} />
@@ -396,9 +381,8 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
               )}
 
               <div className="flex flex-col gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
+                <button
+                  type="button"
                   onClick={handleLockDeck}
                   disabled={!selectedDeck || isSubmitting}
                   className={`button-primary inline-flex min-h-11 items-center justify-center gap-2 px-5 ${!selectedDeck || isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
@@ -409,38 +393,40 @@ export function OnlineDebugPage({ onBack }: OnlineDebugPageProps) {
                     <Users size={16} />
                   )}
                   锁定我的卡组
-                </motion.button>
+                </button>
 
                 <button
                   type="button"
                   onClick={handleReset}
                   disabled={isSubmitting}
-                  className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-5"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_32%,var(--border-default))] px-5 text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)]"
                 >
                   <RefreshCw size={16} />
                   重置调试房间
                 </button>
               </div>
 
-              <StatusCard
-                title="你"
-                label={myStatus?.playerName || displayName}
-                ready={myStatus?.ready ?? false}
-                deckName={myStatus?.deckName}
-              />
-              <StatusCard
-                title="对手"
-                label={
-                  opponentStatus?.playerName ||
-                  (opponentSeat === 'FIRST' ? '调试服务1' : '调试服务2')
-                }
-                ready={opponentStatus?.ready ?? false}
-                deckName={opponentStatus?.deckName}
-              />
+              <div className="product-list border-y border-[var(--border-subtle)]">
+                <StatusCard
+                  title="你"
+                  label={myStatus?.playerName || displayName}
+                  ready={myStatus?.ready ?? false}
+                  deckName={myStatus?.deckName}
+                />
+                <StatusCard
+                  title="对手"
+                  label={
+                    opponentStatus?.playerName ||
+                    (opponentSeat === 'FIRST' ? '调试服务1' : '调试服务2')
+                  }
+                  ready={opponentStatus?.ready ?? false}
+                  deckName={opponentStatus?.deckName}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="surface-panel-frosted p-5 text-sm text-[var(--text-secondary)]">
+          <div className="product-section px-1 py-4 text-sm text-[var(--text-secondary)]">
             <p>使用方式：</p>
             <p>1. 在 `debug-service1` 和 `debug-service2` 两个端口分别打开此页面。</p>
             <p>2. 双方各自锁定一副卡组；两边都就绪后，会自动进入同一个调试对局。</p>
@@ -504,7 +490,7 @@ function StatusCard({
   deckName?: string | null;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4">
+    <div className="product-list-row p-3">
       <div className="mb-1 text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">
         {title}
       </div>

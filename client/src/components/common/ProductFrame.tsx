@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { ProductHeader } from './ProductHeader';
+import { PageHeader } from './PageHeader';
 
 export type ProductNavKey = 'home' | 'decks' | 'battle' | 'spectate' | 'history';
 
@@ -107,26 +108,13 @@ export function ProductFrame({
       />
 
       {title ? (
-        <div className="product-titlebar relative z-20">
-          <div className="mx-auto flex min-h-[76px] w-full max-w-[1440px] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
-            <div className="min-w-0 flex-1">
-              {onBack && backLabel ? (
-                <button type="button" onClick={onBack} className="product-back-link">
-                  ← {backLabel}
-                </button>
-              ) : null}
-              <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-                <h1 className="text-xl font-black tracking-[-0.025em] text-[var(--text-primary)] sm:text-2xl">
-                  {title}
-                </h1>
-                {description ? (
-                  <p className="text-sm text-[var(--text-secondary)]">{description}</p>
-                ) : null}
-              </div>
-            </div>
-            {titleAction ? <div className="shrink-0">{titleAction}</div> : null}
-          </div>
-        </div>
+        <PageHeader
+          title={title}
+          description={description}
+          onBack={onBack}
+          backLabel={backLabel}
+          right={titleAction}
+        />
       ) : null}
 
       <div className="product-frame-content flex min-h-0 flex-1 flex-col overflow-y-auto">

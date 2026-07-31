@@ -64,6 +64,8 @@ export const BrowserCardCell = memo(function BrowserCardCell({
           onClick={(e) => e.stopPropagation()}
         >
           <button
+            type="button"
+            aria-label={`从卡组移除 ${localizedName.displayNameCn}`}
             onClick={exactCount > 0 ? onRemove : undefined}
             disabled={exactCount === 0}
             className={`flex h-8 w-8 items-center justify-center rounded-full shadow-sm sm:h-7 sm:w-7 ${
@@ -78,6 +80,8 @@ export const BrowserCardCell = memo(function BrowserCardCell({
             {exactCount}
           </span>
           <button
+            type="button"
+            aria-label={`向卡组添加 ${localizedName.displayNameCn}`}
             onClick={onAdd}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-[var(--semantic-success)]/85 text-white shadow-sm sm:h-7 sm:w-7"
           >

@@ -13,9 +13,13 @@ interface SearchBarProps {
 export function SearchBar({ value, onChange, resultCount }: SearchBarProps) {
   return (
     <div className="relative">
-      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+      <Search
+        size={15}
+        className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+      />
       <input
         type="text"
+        aria-label="搜索卡牌名称或编号"
         placeholder="搜索卡牌名称或编号..."
         className="input-field w-full py-2.5 pl-9 pr-12 text-sm sm:pr-18"
         value={value}
@@ -25,6 +29,8 @@ export function SearchBar({ value, onChange, resultCount }: SearchBarProps) {
         <span className="hidden text-xs text-[var(--text-muted)] sm:inline">{resultCount} 张</span>
         {value && (
           <button
+            type="button"
+            aria-label="清除卡牌搜索"
             onClick={() => onChange('')}
             className="rounded-full p-1 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]"
           >

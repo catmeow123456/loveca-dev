@@ -20,8 +20,6 @@
   background: transparent;
   color: var(--text-secondary);
   padding: 0 8px;
-  font-size: 0.75rem;
-  font-weight: 700;
 }
 
 .spectator-lobby-header-back:hover {
@@ -48,6 +46,11 @@
   box-shadow: 15px 18px 0 color-mix(in srgb, var(--text-primary) 9%, transparent);
 }
 
+.spectator-lobby-desk--compact {
+  max-width: 720px;
+  grid-template-columns: 1fr;
+}
+
 .spectator-lobby-intro {
   position: relative;
   isolation: isolate;
@@ -57,8 +60,9 @@
   align-items: flex-start;
   justify-content: center;
   overflow: hidden;
-  background: var(--brand-stage-plum);
-  color: var(--brand-card-white);
+  border-right: 1px solid var(--border-subtle);
+  background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-surface));
+  color: var(--text-primary);
   padding: clamp(32px, 5vw, 58px);
 }
 
@@ -67,29 +71,25 @@
   z-index: -1;
   inset: 0;
   background:
-    radial-gradient(circle at 25% 30%, rgb(233 86 120 / 17%), transparent 26%),
-    linear-gradient(90deg, rgb(255 255 255 / 3%) 1px, transparent 1px);
+    radial-gradient(
+      circle at 25% 30%,
+      color-mix(in srgb, var(--accent-primary) 12%, transparent),
+      transparent 26%
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--text-primary) 3%, transparent) 1px,
+      transparent 1px
+    );
   background-size:
     auto,
     64px 64px;
   content: '';
 }
 
-.spectator-lobby-intro__icon {
-  display: flex;
-  width: 54px;
-  height: 54px;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 34px;
-  border: 1px solid rgb(255 253 249 / 18%);
-  background: rgb(255 253 249 / 6%);
-  color: var(--brand-coral);
-}
-
 .spectator-lobby-intro > span,
 .spectator-lobby-section-heading > span {
-  color: var(--brand-cue-orange);
+  color: var(--accent-primary);
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 800;
@@ -106,7 +106,7 @@
 
 .spectator-lobby-intro p {
   margin: 20px 0 0;
-  color: rgb(255 253 249 / 72%);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   line-height: 1.75;
 }
@@ -319,13 +319,9 @@
 
   .spectator-lobby-intro {
     min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--border-subtle);
     padding: 34px;
-  }
-
-  .spectator-lobby-intro__icon {
-    width: 46px;
-    height: 46px;
-    margin-bottom: 24px;
   }
 }
 

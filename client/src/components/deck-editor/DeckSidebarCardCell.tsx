@@ -18,14 +18,22 @@ interface DeckSidebarCardCellProps {
 }
 
 export const DeckSidebarCardCell = memo(function DeckSidebarCardCell({
-  cardData, imagePath, count, onAdd, onRemove, onViewDetail,
+  cardData,
+  imagePath,
+  count,
+  onAdd,
+  onRemove,
+  onViewDetail,
 }: DeckSidebarCardCellProps) {
   return (
     <div
       className="relative w-full cursor-pointer touch-pan-y transition-[filter] duration-200 hover:brightness-110"
       style={{ aspectRatio: '63/88' }}
       onClick={onViewDetail}
-      onContextMenu={(e) => { e.preventDefault(); onViewDetail(); }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onViewDetail();
+      }}
     >
       <Card
         cardData={cardData}
@@ -51,6 +59,8 @@ export const DeckSidebarCardCell = memo(function DeckSidebarCardCell({
         onClick={(e) => e.stopPropagation()}
       >
         <button
+          type="button"
+          aria-label={`从卡组移除 ${cardData.name}`}
           onClick={count > 0 ? onRemove : undefined}
           disabled={count === 0}
           className={`w-5 h-5 flex items-center justify-center rounded-full shadow-sm ${
@@ -61,10 +71,10 @@ export const DeckSidebarCardCell = memo(function DeckSidebarCardCell({
         >
           <Minus size={10} />
         </button>
-        <span className="text-white text-xs font-bold min-w-[14px] text-center">
-          {count}
-        </span>
+        <span className="text-white text-xs font-bold min-w-[14px] text-center">{count}</span>
         <button
+          type="button"
+          aria-label={`向卡组添加 ${cardData.name}`}
           onClick={onAdd}
           className="flex h-5 w-5 items-center justify-center rounded-full border border-white/15 bg-[var(--semantic-success)]/85 text-white shadow-sm"
         >

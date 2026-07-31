@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { UserRound } from 'lucide-react';
+import { LogOut, UserRound } from 'lucide-react';
 import { BattleViewportShell } from '@/components/game/BattleViewportShell';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import {
@@ -804,6 +804,16 @@ function App() {
           <UserRound size={16} />
         </button>
       ) : null}
+      <button
+        type="button"
+        onClick={handleSignOut}
+        className="button-ghost !hidden min-h-10 items-center gap-2 px-3 text-sm md:!inline-flex"
+        title="退出登录"
+        aria-label="退出登录"
+      >
+        <LogOut size={16} />
+        <span className="hidden lg:inline">退出登录</span>
+      </button>
     </>
   );
   const authenticatedMobileMenuActions = (
@@ -924,6 +934,7 @@ function App() {
         onGameStart={() => setCurrentPage('game')}
         onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
         onNavigateToPublicTable={() => setCurrentPage('public-table')}
+        onNavigateToRanked={() => setCurrentPage('ranked')}
       />
     );
   }

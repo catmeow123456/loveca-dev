@@ -11,10 +11,7 @@ export function ProductBrand({ ariaLabel, className, href, onClick }: ProductBra
   const content = (
     <>
       <img src="/icon.jpg" alt="" className="product-brand-mark" />
-      <span className="product-brand-copy">
-        <strong>Loveca</strong>
-        <small>PLAYER TABLE</small>
-      </span>
+      <strong className="product-brand-wordmark">Loveca</strong>
     </>
   );
   const rootClassName = cn(
@@ -28,6 +25,10 @@ export function ProductBrand({ ariaLabel, className, href, onClick }: ProductBra
         {content}
       </a>
     );
+  }
+
+  if (!onClick) {
+    return <div className={cn('product-brand', className)}>{content}</div>;
   }
 
   return (

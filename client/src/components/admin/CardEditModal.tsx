@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useState, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { X, Trash2, Wand2, Upload } from 'lucide-react';
 import { CardType, HeartColor, BladeHeartEffect } from '@game/shared/types/enums';
 import type { AnyCardData } from '@game/domain/entities/card';
@@ -118,6 +118,7 @@ export function CardEditModal({
   isCreating,
 }: CardEditModalProps) {
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const reduceMotion = useReducedMotion();
   const [formData, setFormData] = useState<CardFormData>(() => buildInitialFormData(card));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,11 +143,16 @@ export function CardEditModal({
   useEffect(() => {
     if (!isOpen) return;
     const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
     document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   const switchToYaml = () => {
     setYamlText(formDataToYaml(formData, card?.cardType, isCreating));
@@ -419,32 +425,52 @@ export function CardEditModal({
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
+      initial={reduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      exit={reduceMotion ? undefined : { opacity: 0 }}
       className="fixed inset-0 z-50 flex items-stretch justify-center p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
       <motion.div
-        initial={isMobile ? { y: '100%', opacity: 0.96 } : { scale: 0.9, opacity: 0, y: 20 }}
+        initial={
+          reduceMotion
+            ? false
+            : isMobile
+              ? { y: '100%', opacity: 0.96 }
+              : { scale: 0.9, opacity: 0, y: 20 }
+        }
         animate={isMobile ? { y: 0, opacity: 1 } : { scale: 1, opacity: 1, y: 0 }}
-        exit={isMobile ? { y: '100%', opacity: 0.96 } : { scale: 0.9, opacity: 0, y: 20 }}
+        exit={
+          reduceMotion
+            ? undefined
+            : isMobile
+              ? { y: '100%', opacity: 0.96 }
+              : { scale: 0.9, opacity: 0, y: 20 }
+        }
         transition={
           isMobile ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] } : undefined
         }
         className="modal-surface modal-accent-rose relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden rounded-none border-0 sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-[var(--radius-xl)] sm:border"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="card-edit-modal-title"
       >
         <div className="modal-header safe-top flex shrink-0 items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
-          <h2 className="min-w-0 truncate text-base font-bold text-[var(--text-primary)] sm:text-lg">
+          <h2
+            id="card-edit-modal-title"
+            className="min-w-0 truncate text-base font-bold text-[var(--text-primary)] sm:text-lg"
+          >
             {isCreating ? '创建新卡牌' : `编辑卡牌: ${card?.cardCode}`}
           </h2>
           <div className="flex shrink-0 items-center gap-2">
             <div className="flex overflow-hidden rounded-lg border border-[var(--border-default)]">
               <button
+                type="button"
                 onClick={() => (editMode === 'yaml' ? switchToForm() : undefined)}
+                aria-pressed={editMode === 'form'}
                 className={`px-3 py-1.5 text-xs transition-all ${
                   editMode === 'form'
                     ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
@@ -454,7 +480,9 @@ export function CardEditModal({
                 表单
               </button>
               <button
+                type="button"
                 onClick={() => (editMode === 'form' ? switchToYaml() : undefined)}
+                aria-pressed={editMode === 'yaml'}
                 className={`px-3 py-1.5 text-xs transition-all ${
                   editMode === 'yaml'
                     ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
@@ -464,7 +492,12 @@ export function CardEditModal({
                 YAML
               </button>
             </div>
-            <button onClick={onClose} className="button-icon h-8 w-8 sm:h-7 sm:w-7">
+            <button
+              type="button"
+              onClick={onClose}
+              className="button-icon h-8 w-8 sm:h-7 sm:w-7"
+              aria-label="关闭卡牌编辑器"
+            >
               <X size={16} />
             </button>
           </div>
@@ -595,7 +628,8 @@ export function CardEditModal({
                               <button
                                 type="button"
                                 onClick={() => toggleGroup(g)}
-                                className="px-1 text-red-400/70 hover:text-red-300"
+                                className="px-1 text-[color:color-mix(in_srgb,var(--semantic-error)_72%,transparent)] hover:text-[var(--semantic-error)]"
+                                aria-label={`移除团体 ${displayLabel}`}
                               >
                                 ✕
                               </button>
@@ -698,6 +732,7 @@ export function CardEditModal({
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {MEMBER_HEART_COLOR_OPTIONS.map((opt) => (
                         <button
+                          type="button"
                           key={opt.value}
                           onClick={() => addOrIncrementHeart(opt.value as HeartColor)}
                           className={chipButtonClass}
@@ -716,25 +751,31 @@ export function CardEditModal({
                         return (
                           <div key={i} className={selectedChipClass}>
                             <span
-                              className={`inline-block w-2.5 h-2.5 rounded-full ${opt?.colorClass ?? 'bg-gray-400'}`}
+                              className={`inline-block w-2.5 h-2.5 rounded-full ${opt?.colorClass ?? 'bg-[var(--heart-gray)]'}`}
                             />
                             <span>{opt?.label ?? heart.color}</span>
                             <span className="mx-0.5 text-[var(--text-muted)]">×{heart.count}</span>
                             <button
+                              type="button"
                               onClick={() => decrementHeart(i)}
                               className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              aria-label={`减少 ${opt?.label ?? heart.color} 心图标`}
                             >
                               −
                             </button>
                             <button
+                              type="button"
                               onClick={() => incrementHeart(i)}
                               className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              aria-label={`增加 ${opt?.label ?? heart.color} 心图标`}
                             >
                               +
                             </button>
                             <button
+                              type="button"
                               onClick={() => removeHeart(i)}
-                              className="px-1 text-red-400/70 hover:text-red-300"
+                              className="px-1 text-[color:color-mix(in_srgb,var(--semantic-error)_72%,transparent)] hover:text-[var(--semantic-error)]"
+                              aria-label={`移除 ${opt?.label ?? heart.color} 心图标`}
                             >
                               ✕
                             </button>
@@ -775,6 +816,7 @@ export function CardEditModal({
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {REQUIREMENT_HEART_COLOR_OPTIONS.map((opt) => (
                         <button
+                          type="button"
                           key={opt.value}
                           onClick={() => addOrIncrementReq(opt.value as HeartColor)}
                           className={chipButtonClass}
@@ -797,25 +839,31 @@ export function CardEditModal({
                         return (
                           <div key={i} className={selectedChipClass}>
                             <span
-                              className={`inline-block w-2.5 h-2.5 rounded-full ${opt?.colorClass ?? 'bg-gray-400'}`}
+                              className={`inline-block w-2.5 h-2.5 rounded-full ${opt?.colorClass ?? 'bg-[var(--heart-gray)]'}`}
                             />
                             <span>{opt?.label ?? req.color}</span>
                             <span className="mx-0.5 text-[var(--text-muted)]">×{req.count}</span>
                             <button
+                              type="button"
                               onClick={() => decrementReq(i)}
                               className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              aria-label={`减少 ${opt?.label ?? req.color} 心需求`}
                             >
                               −
                             </button>
                             <button
+                              type="button"
                               onClick={() => incrementReq(i)}
                               className="px-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                              aria-label={`增加 ${opt?.label ?? req.color} 心需求`}
                             >
                               +
                             </button>
                             <button
+                              type="button"
                               onClick={() => removeRequirement(i)}
-                              className="px-1 text-red-400/70 hover:text-red-300"
+                              className="px-1 text-[color:color-mix(in_srgb,var(--semantic-error)_72%,transparent)] hover:text-[var(--semantic-error)]"
+                              aria-label={`移除 ${opt?.label ?? req.color} 心需求`}
                             >
                               ✕
                             </button>
@@ -842,12 +890,14 @@ export function CardEditModal({
                     {/* 效果按钮面板 */}
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       <button
+                        type="button"
                         onClick={() => addBladeHeart(BladeHeartEffect.DRAW)}
                         className={chipButtonClass}
                       >
                         抽卡
                       </button>
                       <button
+                        type="button"
                         onClick={() => addBladeHeart(BladeHeartEffect.SCORE)}
                         className={chipButtonClass}
                       >
@@ -856,6 +906,7 @@ export function CardEditModal({
                       <span className="mx-1 border-l border-[var(--border-subtle)]" />
                       {BLADE_HEART_COLOR_OPTIONS.map((opt) => (
                         <button
+                          type="button"
                           key={opt.value}
                           onClick={() =>
                             addBladeHeart(BladeHeartEffect.HEART, opt.value as HeartColor)
@@ -882,7 +933,7 @@ export function CardEditModal({
                           const opt = BLADE_HEART_COLOR_OPTIONS.find(
                             (option) => option.value === item.heartColor
                           );
-                          pillColor = opt?.colorClass ?? 'bg-gray-400';
+                          pillColor = opt?.colorClass ?? 'bg-[var(--heart-gray)]';
                           pillLabel = opt?.label ?? item.heartColor;
                         }
                         return (
@@ -894,8 +945,10 @@ export function CardEditModal({
                             )}
                             <span>{pillLabel}</span>
                             <button
+                              type="button"
                               onClick={() => removeBladeHeart(i)}
-                              className="px-1 text-red-400/70 hover:text-red-300"
+                              className="px-1 text-[color:color-mix(in_srgb,var(--semantic-error)_72%,transparent)] hover:text-[var(--semantic-error)]"
+                              aria-label={`移除${pillLabel}附加效果`}
                             >
                               ✕
                             </button>
@@ -926,7 +979,7 @@ export function CardEditModal({
                   >
                     {aiExtracting ? (
                       <>
-                        <span className="inline-block w-3 h-3 border-2 border-purple-200 border-t-transparent rounded-full animate-spin" />
+                        <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--text-primary))] border-t-transparent" />
                         提取中...
                       </>
                     ) : (
@@ -1023,9 +1076,9 @@ export function CardEditModal({
                           <div
                             className={`h-full transition-all ${
                               uploadProgress.status === 'error'
-                                ? 'bg-red-500'
+                                ? 'bg-[var(--semantic-error)]'
                                 : uploadProgress.status === 'done'
-                                  ? 'bg-green-500'
+                                  ? 'bg-[var(--semantic-success)]'
                                   : 'bg-[var(--accent-primary)]'
                             }`}
                             style={{ width: `${uploadProgress.progress}%` }}
@@ -1049,9 +1102,10 @@ export function CardEditModal({
           <div>
             {!isCreating && (
               <button
+                type="button"
                 onClick={handleDelete}
                 disabled={saving}
-                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm text-red-400 transition-all hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50 sm:w-auto"
+                className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] disabled:opacity-50 sm:w-auto"
               >
                 <Trash2 size={14} /> 删除
               </button>
@@ -1059,6 +1113,7 @@ export function CardEditModal({
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
             <button
+              type="button"
               onClick={onClose}
               disabled={saving}
               className="button-ghost inline-flex min-h-11 items-center justify-center px-4 py-2 text-sm"
@@ -1066,6 +1121,7 @@ export function CardEditModal({
               取消
             </button>
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={saving}
               className="button-primary inline-flex min-h-11 items-center justify-center px-6 py-2 text-sm font-medium disabled:opacity-50"

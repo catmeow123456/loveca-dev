@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ArrowLeft,
   Bell,
   Megaphone,
   Pencil,
@@ -241,19 +240,11 @@ export function SiteAnnouncementsAdminPage({
       <PageHeader
         title="平台配置"
         icon={<Megaphone size={20} />}
-        left={
-          <button
-            type="button"
-            onClick={onBack}
-            className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-3"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">返回大厅</span>
-          </button>
-        }
+        onBack={onBack}
+        backLabel="返回大厅"
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-4 px-3 py-4 sm:px-4 sm:py-6">
+      <main className="product-page-main flex flex-col gap-4">
         <SiteStatusControlPanel
           siteStatus={siteStatus}
           maintenanceSummary={maintenance?.summary ?? null}
@@ -264,7 +255,7 @@ export function SiteAnnouncementsAdminPage({
           onSave={() => void saveSiteStatus()}
         />
 
-        <section className="surface-panel-frosted p-4">
+        <section className="product-workbench p-4">
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <Megaphone size={16} className="text-[var(--accent-primary)]" />
@@ -301,7 +292,7 @@ export function SiteAnnouncementsAdminPage({
           ) : null}
 
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-            <div className="grid content-start gap-2">
+            <div className="product-list content-start overflow-hidden rounded-lg border border-[var(--border-subtle)]">
               {isLoadingAnnouncements ? (
                 <div className="flex min-h-40 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-sm text-[var(--text-secondary)]">
                   <RefreshCw size={16} className="mr-2 animate-spin text-[var(--accent-primary)]" />
@@ -362,7 +353,7 @@ function SiteStatusControlPanel({
     siteStatus.lifecycle === 'MAINTENANCE' || siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES';
 
   return (
-    <section className="surface-panel-frosted p-4">
+    <section className="product-workbench p-4">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <div
@@ -576,7 +567,7 @@ function AnnouncementEditor({
 }) {
   return (
     <form
-      className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3"
+      className="h-fit rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-3 xl:sticky xl:top-4"
       onSubmit={(event) => {
         event.preventDefault();
         onSave(false);
@@ -744,10 +735,10 @@ function AdminAnnouncementRow({
 
   return (
     <div
-      className={`rounded-lg border px-3 py-3 transition ${
+      className={`product-list-row px-3 py-3 transition ${
         selected
-          ? 'border-[color:var(--accent-primary)]/55 bg-[color:var(--accent-primary)]/10'
-          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:bg-[var(--bg-overlay)]'
+          ? 'bg-[color:var(--accent-primary)]/10'
+          : 'bg-transparent hover:bg-[var(--bg-elevated)]'
       }`}
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

@@ -54,8 +54,8 @@ const PRODUCT_PATHS = [
   },
   {
     label: '观战',
-    title: '输入房间号观战',
-    detail: '输入房间号，观看正在进行的对局',
+    title: '房间观战',
+    detail: '输入房间号观看对局',
     note: '无需登录',
     icon: Eye,
     action: 'spectate' as const,
@@ -141,18 +141,20 @@ export function PublicHomePage({
         brandHref="#top"
         navigation={
           <nav className="public-home__nav" aria-label="产品导航">
-            <button type="button" onClick={onManageDecks}>
+            <button type="button" className="product-nav-item" onClick={onManageDecks}>
               卡组
             </button>
-            <button type="button" onClick={onStartGame}>
+            <button type="button" className="product-nav-item" onClick={onStartGame}>
               对战
             </button>
-            <button type="button" onClick={onSpectate}>
+            <button type="button" className="product-nav-item" onClick={onSpectate}>
               观战
             </button>
-            <a href="#latest-products">最新商品</a>
+            <a className="product-nav-item" href="#latest-products">
+              最新商品
+            </a>
             <AnnouncementCenterButton
-              className="public-home__nav-announcement"
+              className="product-nav-item public-home__nav-announcement"
               siteStatus={siteStatus}
               label="公告"
             />
@@ -167,10 +169,18 @@ export function PublicHomePage({
               indicatorClassName="public-home__announcement-indicator"
             />
             <ThemeToggle className="public-home__theme-toggle" />
-            <button type="button" className="public-home__login-button" onClick={onLogin}>
+            <button
+              type="button"
+              className="button-ghost public-home__login-button"
+              onClick={onLogin}
+            >
               登录
             </button>
-            <button type="button" className="public-home__register-button" onClick={onRegister}>
+            <button
+              type="button"
+              className="button-secondary public-home__register-button"
+              onClick={onRegister}
+            >
               创建账号
             </button>
           </div>

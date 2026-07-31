@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, DoorOpen, Loader2, Search, Share2, Swords, X } from 'lucide-react';
+import { Check, DoorOpen, Loader2, Search, Share2, Swords, X } from 'lucide-react';
 import { DeckSelector, PageHeader, type DeckDisplayItem } from '@/components/common';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -93,21 +93,24 @@ export function PublicTablePage({
   }, [fetchCloudDecks]);
 
   useEffect(() => {
-    const attempt = ++statusCheckAttemptRef.current;
-    setEntryStatusCheck('checking');
-    void refresh().then(
-      () => {
-        if (statusCheckAttemptRef.current === attempt) {
-          setEntryStatusCheck('ready');
+    const timer = window.setTimeout(() => {
+      const attempt = ++statusCheckAttemptRef.current;
+      setEntryStatusCheck('checking');
+      void refresh().then(
+        () => {
+          if (statusCheckAttemptRef.current === attempt) {
+            setEntryStatusCheck('ready');
+          }
+        },
+        () => {
+          if (statusCheckAttemptRef.current === attempt) {
+            setEntryStatusCheck('failed');
+          }
         }
-      },
-      () => {
-        if (statusCheckAttemptRef.current === attempt) {
-          setEntryStatusCheck('failed');
-        }
-      }
-    );
+      );
+    }, 0);
     return () => {
+      window.clearTimeout(timer);
       statusCheckAttemptRef.current += 1;
     };
   }, [refresh, userId]);
@@ -205,17 +208,8 @@ export function PublicTablePage({
       <PageHeader
         title="公共牌桌"
         icon={<Swords size={20} />}
-        left={
-          <button
-            type="button"
-            onClick={onBack}
-            className="button-icon"
-            title="返回大厅"
-            aria-label="返回大厅"
-          >
-            <ArrowLeft size={16} />
-          </button>
-        }
+        onBack={onBack}
+        backLabel="返回大厅"
         right={
           <>
             <button
@@ -242,7 +236,7 @@ export function PublicTablePage({
       >
         <div className="w-full max-w-4xl">
           {!statusReady ? (
-            <section className="surface-panel-frosted mx-auto max-w-md p-5 text-center sm:p-6">
+            <section className="product-workbench mx-auto max-w-md p-5 text-center sm:p-6">
               {entryStatusCheck === 'failed' ? (
                 <>
                   <h1 className="text-xl font-bold text-[var(--text-primary)]">无法确认匹配状态</h1>
@@ -275,7 +269,7 @@ export function PublicTablePage({
               )}
             </section>
           ) : active && visibleStatus ? (
-            <section className="surface-panel-frosted mx-auto max-w-md p-5 text-center sm:p-6">
+            <section className="product-workbench mx-auto max-w-md p-5 text-center sm:p-6">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]">
                 {visibleStatus.state === 'MATCHED' ? <DoorOpen size={20} /> : <Search size={20} />}
               </div>
@@ -390,7 +384,7 @@ export function PublicTablePage({
 
               {error && <ActionError message={error} className="mt-3" />}
 
-              <div className="surface-panel-frosted fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20 flex items-center gap-3 p-3 shadow-[var(--shadow-md)] sm:static sm:mt-4 sm:p-4">
+              <div className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20 flex items-center gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 shadow-[var(--shadow-lg)] sm:static sm:mt-4 sm:p-4 sm:shadow-none">
                 <div className="min-w-0 flex-1 truncate font-semibold text-[var(--text-primary)]">
                   {selectedDeck?.name ?? '选择一副卡组'}
                 </div>

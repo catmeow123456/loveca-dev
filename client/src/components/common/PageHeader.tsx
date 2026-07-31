@@ -1,29 +1,57 @@
 import type { ReactNode } from 'react';
+import { ArrowLeft } from 'lucide-react';
 
 interface PageHeaderProps {
   title: ReactNode;
+  description?: ReactNode;
   icon?: ReactNode;
   left?: ReactNode;
   right?: ReactNode;
+  backLabel?: string;
+  onBack?: () => void;
   className?: string;
 }
 
-export function PageHeader({ title, icon, left, right, className = '' }: PageHeaderProps) {
-  return (
-    <header
-      className={`page-header relative z-10 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] backdrop-blur-xl sm:px-6 sm:pb-3.5 sm:pt-[calc(env(safe-area-inset-top)+0.875rem)] ${className}`.trim()}
-    >
-      <div className="mx-auto grid min-h-10 w-full max-w-[1440px] grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3">
-        <div className="flex min-w-0 items-center justify-start gap-2">{left}</div>
+export function PageHeader({
+  title,
+  description,
+  icon,
+  left,
+  right,
+  backLabel = '返回',
+  onBack,
+  className = '',
+}: PageHeaderProps) {
+  const leading =
+    left ??
+    (onBack ? (
+      <button
+        type="button"
+        onClick={onBack}
+        className="button-ghost inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
+        aria-label={backLabel}
+      >
+        <ArrowLeft size={16} />
+        <span className="hidden sm:inline">{backLabel}</span>
+      </button>
+    ) : null);
 
-        <div className="flex min-w-0 items-center justify-center gap-2.5 px-1 text-center">
-          {icon ? <span className="shrink-0 text-[var(--accent-primary)]">{icon}</span> : null}
-          <div className="min-w-0 truncate text-[15px] font-bold tracking-[-0.01em] text-[var(--text-primary)] sm:text-base">
-            {title}
+  return (
+    <header className={`page-header product-titlebar relative z-20 ${className}`.trim()}>
+      <div className="page-header-inner">
+        {leading ? <div className="page-header-leading">{leading}</div> : null}
+
+        <div className="page-header-heading">
+          <div className="flex min-w-0 items-center gap-2.5">
+            {icon ? <span className="shrink-0 text-[var(--accent-primary)]">{icon}</span> : null}
+            <h1 className="page-header-title min-w-0 truncate">{title}</h1>
           </div>
+          {description ? (
+            <p className="page-header-description mt-0.5 truncate">{description}</p>
+          ) : null}
         </div>
 
-        <div className="flex min-w-0 items-center justify-end gap-2">{right}</div>
+        {right ? <div className="page-header-actions">{right}</div> : null}
       </div>
     </header>
   );
