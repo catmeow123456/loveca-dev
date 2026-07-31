@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } from 'lucide-react';
-import { DeckSelector, PageHeader, ThemeToggle, type DeckDisplayItem } from '@/components/common';
+import { DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } from 'lucide-react';
+import { DeckSelector, PageHeader, type DeckDisplayItem } from '@/components/common';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
 import {
   choosePreferredDeck,
@@ -103,18 +103,8 @@ export function RankedPage({
       <PageHeader
         title="赛季排位"
         icon={<Medal size={20} />}
-        left={
-          <button
-            type="button"
-            onClick={onBack}
-            className="button-icon"
-            title="返回首页"
-            aria-label="返回首页"
-          >
-            <ArrowLeft size={16} />
-          </button>
-        }
-        right={<ThemeToggle />}
+        onBack={onBack}
+        backLabel="返回大厅"
       />
 
       <main className="relative z-10 flex flex-1 justify-center px-4 py-5 sm:px-6">
@@ -174,7 +164,7 @@ export function RankedPage({
                     />
                   </div>
                   {error ? <ErrorMessage message={error} /> : null}
-                  <div className="surface-panel-frosted sticky bottom-3 mt-4 flex items-center gap-3 p-3 shadow-[var(--shadow-md)] sm:p-4">
+                  <div className="sticky bottom-3 mt-4 flex items-center gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 shadow-[var(--shadow-lg)] sm:p-4 sm:shadow-none">
                     <div className="min-w-0 flex-1 truncate font-semibold text-[var(--text-primary)]">
                       {selectedDeck?.name ?? '选择一副卡组'}
                     </div>
@@ -209,11 +199,13 @@ function SeasonSummary({
   overview: ReturnType<typeof useRankedStore.getState>['overview'];
 }) {
   if (!overview) {
-    return <div className="surface-panel p-5 text-sm text-[var(--text-muted)]">正在读取赛季…</div>;
+    return (
+      <div className="product-workbench p-5 text-sm text-[var(--text-muted)]">正在读取赛季…</div>
+    );
   }
   const player = overview.player;
   return (
-    <section className="surface-panel p-4 sm:p-5">
+    <section className="product-workbench border-l-4 border-l-[var(--accent-primary)] p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-[var(--text-primary)]">
@@ -278,7 +270,7 @@ function SeasonLists({
   return (
     <div className={`mt-4 grid gap-4 ${hasBothLists ? 'md:grid-cols-2' : ''}`}>
       {overview.recentMatches.length > 0 ? (
-        <section className="surface-panel p-4">
+        <section className="product-workbench p-4">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">最近对局</h2>
           <div className="mt-2 divide-y divide-[var(--border-subtle)]">
             {overview.recentMatches.slice(0, 5).map((match) => (
@@ -304,7 +296,7 @@ function SeasonLists({
         </section>
       ) : null}
       {overview.leaderboard.length > 0 ? (
-        <section className="surface-panel p-4">
+        <section className="product-workbench p-4">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">排行榜</h2>
           <div className="mt-2 divide-y divide-[var(--border-subtle)]">
             {overview.leaderboard.slice(0, 10).map((entry) => (
@@ -339,7 +331,7 @@ function QueueState({
   const waiting = status.state === 'WAITING';
   const matched = status.state === 'MATCHED';
   return (
-    <section className="surface-panel-frosted mx-auto mt-[12vh] max-w-md p-6 text-center">
+    <section className="product-workbench mx-auto mt-[12vh] max-w-md p-6 text-center">
       <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent-primary)]/12 text-[var(--accent-primary)]">
         {matched ? (
           <DoorOpen size={20} />

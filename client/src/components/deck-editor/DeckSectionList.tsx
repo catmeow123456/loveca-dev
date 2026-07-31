@@ -26,24 +26,35 @@ interface DeckSectionListProps {
 const ACCENT_STYLES = {
   orange: {
     accentLine: 'from-[var(--accent-secondary)]/90 to-[var(--accent-gold)]/70',
-    validTone: 'border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]',
-    invalidTone: 'border-[var(--accent-secondary)]/25 bg-[var(--accent-secondary)]/12 text-[var(--accent-secondary)]',
+    validTone:
+      'border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]',
+    invalidTone:
+      'border-[var(--accent-secondary)]/25 bg-[var(--accent-secondary)]/12 text-[var(--accent-secondary)]',
   },
   rose: {
-    accentLine: 'from-[var(--accent-primary)]/90 to-pink-400/70',
-    validTone: 'border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]',
-    invalidTone: 'border-[var(--accent-primary)]/25 bg-[var(--accent-primary)]/12 text-[var(--accent-primary)]',
+    accentLine: 'from-[var(--accent-primary)]/90 to-[var(--brand-coral)]/70',
+    validTone:
+      'border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]',
+    invalidTone:
+      'border-[var(--accent-primary)]/25 bg-[var(--accent-primary)]/12 text-[var(--accent-primary)]',
   },
   sky: {
-    accentLine: 'from-[var(--semantic-info)]/90 to-sky-300/70',
-    validTone: 'border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]',
-    invalidTone: 'border-[var(--semantic-info)]/25 bg-[var(--semantic-info)]/12 text-[var(--semantic-info)]',
+    accentLine: 'from-[var(--semantic-info)]/90 to-[var(--accent-primary)]/70',
+    validTone:
+      'border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]',
+    invalidTone:
+      'border-[var(--semantic-info)]/25 bg-[var(--semantic-info)]/12 text-[var(--semantic-info)]',
   },
 };
 
 export function DeckSectionList({
-  entries, title, expectedCount, accentColor,
-  onAddCard, onRemoveCard, onViewDetail,
+  entries,
+  title,
+  expectedCount,
+  accentColor,
+  onAddCard,
+  onRemoveCard,
+  onViewDetail,
   defaultCollapsed = false,
 }: DeckSectionListProps) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -58,7 +69,7 @@ export function DeckSectionList({
   const isValid = count === expectedCount;
   const styles = ACCENT_STYLES[accentColor];
 
-  const toggle = useCallback(() => setCollapsed(prev => !prev), []);
+  const toggle = useCallback(() => setCollapsed((prev) => !prev), []);
   const sortedEntries = useMemo(() => {
     const getSortValue = (entry: CardEntry): number => {
       const cardData = getCardData(entry.card_code);
@@ -78,8 +89,10 @@ export function DeckSectionList({
   return (
     <div className="mb-3">
       {/* 标题栏 */}
-      <div
-        className="surface-panel flex cursor-pointer items-center justify-between rounded-xl px-3 py-2 transition-all duration-200 hover:-translate-y-[1px] hover:shadow-[var(--shadow-sm)]"
+      <button
+        type="button"
+        aria-expanded={!collapsed}
+        className="flex w-full cursor-pointer items-center justify-between border-b border-[var(--border-subtle)] px-1 py-2 text-left transition-colors hover:bg-[var(--bg-elevated)]"
         onClick={toggle}
       >
         <div className="flex items-center gap-2">
@@ -90,13 +103,17 @@ export function DeckSectionList({
           />
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
         </div>
-        <div className={`status-pill border px-2.5 py-0.5 text-xs font-medium ${
-          isValid ? styles.validTone : styles.invalidTone
-        }`}>
+        <div
+          className={`status-pill border px-2.5 py-0.5 text-xs font-medium ${
+            isValid ? styles.validTone : styles.invalidTone
+          }`}
+        >
           {isValid ? <Check size={10} /> : <Circle size={8} />}
-          <span>{count} / {expectedCount}</span>
+          <span>
+            {count} / {expectedCount}
+          </span>
         </div>
-      </div>
+      </button>
 
       {/* 可折叠内容 */}
       <AnimatePresence initial={false}>

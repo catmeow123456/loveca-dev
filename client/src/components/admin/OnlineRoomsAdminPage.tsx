@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent, ReactNode } from 'react';
 import {
-  ArrowLeft,
   Activity,
   Clock3,
   Database,
@@ -17,7 +16,7 @@ import {
   Upload,
   Users,
 } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import {
   createOnlineAdminPlayerSpectatorLink,
   exportDebugReplayBundle,
@@ -281,21 +280,10 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
       <PageHeader
         title="联机房间监控"
         icon={<ShieldCheck size={20} />}
-        left={
-          <button
-            type="button"
-            onClick={onBack}
-            className="button-ghost inline-flex h-10 items-center justify-center gap-2 px-3"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">返回</span>
-          </button>
-        }
+        onBack={onBack}
+        backLabel="返回大厅"
         right={
           <>
-            <div className="hidden sm:block">
-              <ThemeToggle />
-            </div>
             <button
               type="button"
               onClick={() => setAutoRefresh((value) => !value)}
@@ -318,7 +306,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
         }
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-5 px-3 py-4 sm:px-4 sm:py-6">
+      <main className="product-page-main flex flex-col gap-5">
         {error ? (
           <div className="rounded-lg border border-[color:var(--semantic-error)]/40 bg-[color:var(--semantic-error)]/10 px-4 py-3 text-sm text-[var(--semantic-error)]">
             {error}
@@ -330,7 +318,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
           </div>
         ) : null}
 
-        <section className="surface-panel overflow-hidden">
+        <section className="product-workbench">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-4 py-4 sm:px-5">
             <div className="flex min-w-0 items-start gap-3">
               <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] text-[var(--accent-primary)]">
@@ -451,7 +439,7 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
           )}
         </section>
 
-        <section className="surface-panel overflow-hidden">
+        <section className="product-workbench">
           <div className="border-b border-[var(--border-subtle)] px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2">

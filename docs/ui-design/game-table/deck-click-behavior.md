@@ -6,7 +6,7 @@
 > 目的：固定“点击主卡组 / 点击能量卡组”在牌桌上的默认语义，避免继续沿用当前代码里偏调试工具化的理解。
 >
 > 本文是 `docs/ui-design/game-table/` 下的子文档。
-> 若与 `game-table-ui-current-state.md` 的旧描述冲突，以本文为准。
+> 若与 [游戏桌 UI 现状](current-state.md) 的概述冲突，以本文为准。
 
 ## 1. 设计目标
 

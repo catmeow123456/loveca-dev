@@ -154,7 +154,7 @@ export const PublicBattleLogContent = memo(function PublicBattleLogContent({
               className={cn(
                 'min-h-8 rounded px-2.5 text-xs font-semibold transition-colors',
                 filter === value
-                  ? 'bg-[var(--accent-primary)] text-[var(--bg-base)]'
+                  ? 'bg-[var(--accent-primary)] text-[var(--brand-card-white)]'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               )}
             >

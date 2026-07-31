@@ -22,13 +22,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import {
-  ConfirmDialog,
-  DeckSelector,
-  type DeckDisplayItem,
-  PageHeader,
-  ThemeToggle,
-} from '@/components/common';
+import { ConfirmDialog, DeckSelector, type DeckDisplayItem, PageHeader } from '@/components/common';
 import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
@@ -798,7 +792,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   if (room?.status === 'ENDED') {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center p-4">
-        <div className="surface-panel-frosted w-full max-w-md px-6 py-7 text-center text-[var(--text-primary)]">
+        <div className="product-workbench w-full max-w-md px-6 py-7 text-center text-[var(--text-primary)]">
           <DoorOpen className="mx-auto text-[var(--semantic-warning)]" size={28} />
           <h1 className="mt-4 text-xl font-bold">本次配对未开始</h1>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
@@ -810,7 +804,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
             className="button-primary mt-6 inline-flex min-h-11 w-full items-center justify-center gap-2"
           >
             <ArrowLeft size={16} />
-            返回主页
+            返回大厅
           </button>
         </div>
       </div>
@@ -1015,7 +1009,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
   if (room?.status === 'IN_GAME') {
     return (
       <div className="app-shell flex min-h-screen items-center justify-center">
-        <div className="surface-panel-frosted mx-4 w-full max-w-md px-6 py-5 text-[var(--text-primary)]">
+        <div className="product-workbench mx-4 w-full max-w-md px-6 py-5 text-[var(--text-primary)]">
           <div className="flex items-center gap-3">
             {isBootstrappingMatch ? (
               <Loader2 size={18} className="animate-spin" />
@@ -1039,7 +1033,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] px-3"
               >
                 <ArrowLeft size={16} />
-                返回主页
+                返回大厅
               </button>
               <button
                 type="button"
@@ -1079,16 +1073,8 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
       <PageHeader
         title="正式联机"
         icon={<Swords size={20} />}
-        left={
-          <button
-            onClick={onBack}
-            className="button-ghost inline-flex h-10 items-center gap-2 px-3"
-          >
-            <ArrowLeft size={16} />
-            返回
-          </button>
-        }
-        right={<ThemeToggle />}
+        onBack={onBack}
+        backLabel="返回大厅"
       />
 
       <main
@@ -1101,7 +1087,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
         <div className={`flex w-full flex-col gap-4 ${room ? 'max-w-6xl' : 'max-w-4xl'}`}>
           {!room &&
             (joinedRoomCode ? (
-              <section className="surface-panel-frosted flex items-center gap-3 px-5 py-4">
+              <section className="product-workbench flex items-center gap-3 px-5 py-4">
                 {!error && (
                   <Loader2
                     size={18}
@@ -1118,7 +1104,7 @@ export function OnlineRoomPage({ onBack }: OnlineRoomPageProps) {
                 </div>
               </section>
             ) : (
-              <section className="surface-panel-frosted p-3 sm:p-4">
+              <section className="product-workbench p-3 sm:p-4">
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <label className="min-w-0 flex-1">
                     <span className="sr-only">房间号</span>
@@ -1280,7 +1266,7 @@ function OnlineRoomLobbyPanel({
   onLeaveRoom: () => void;
 }) {
   return (
-    <aside className="surface-panel-frosted order-1 overflow-hidden lg:order-2">
+    <aside className="product-workbench order-1 overflow-hidden lg:order-2">
       <header className="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
         <div className="min-w-0">
           <div className="text-xs text-[var(--text-muted)]">房间</div>
@@ -1458,7 +1444,7 @@ function RoomErrorNotice({
   return (
     <div
       className={`border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)] ${
-        standalone ? 'surface-panel-frosted rounded-2xl' : 'rounded-xl'
+        standalone ? 'product-workbench' : 'rounded-xl'
       }`}
       role="alert"
     >
@@ -1469,7 +1455,7 @@ function RoomErrorNotice({
           onClick={onClearSavedRoom}
           className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-3 py-2 font-semibold transition hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
         >
-          清除保存房间并返回首页
+          清除保存房间并返回大厅
         </button>
       )}
     </div>
@@ -1571,7 +1557,7 @@ function OnlineOpeningStage({
               className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 backdrop-blur-xl sm:px-4"
             >
               <ArrowLeft size={15} />
-              <span className="hidden sm:inline">返回主页</span>
+              <span className="hidden sm:inline">返回大厅</span>
               <span className="sm:hidden">返回</span>
             </button>
             <button
@@ -2223,7 +2209,7 @@ function OnlineMatchEndPanel({
             className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
           >
             <ArrowLeft size={16} />
-            返回主页
+            返回大厅
           </button>
           <button
             type="button"
@@ -2386,7 +2372,7 @@ function RoomActionPanel({
           className="button-ghost inline-flex min-h-10 items-center justify-start gap-2 border border-[var(--border-default)] px-3 text-sm"
         >
           <ArrowLeft size={16} />
-          返回主页
+          返回大厅
         </button>
         <button
           type="button"

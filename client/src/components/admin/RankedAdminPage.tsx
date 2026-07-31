@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Loader2, Medal, RefreshCw } from 'lucide-react';
-import { PageHeader, ThemeToggle } from '@/components/common';
+import { Loader2, Medal, RefreshCw } from 'lucide-react';
+import { PageHeader } from '@/components/common';
 import {
   createRankedSeason,
   executeRankedCorrection,
@@ -140,26 +140,24 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
       <PageHeader
         title="赛季排位管理"
         icon={<Medal size={20} />}
-        left={
-          <button className="button-icon" onClick={onBack} aria-label="返回首页">
-            <ArrowLeft size={16} />
-          </button>
-        }
+        onBack={onBack}
+        backLabel="返回大厅"
         right={
           <>
             <button className="button-icon" onClick={() => void load()} aria-label="刷新">
               <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
             </button>
-            <span className="hidden sm:block">
-              <ThemeToggle />
-            </span>
           </>
         }
       />
 
-      <main className="relative z-10 flex-1 px-4 py-5 sm:px-6">
+      <main className="product-page-main flex-1">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-4 flex gap-1 rounded-xl bg-[var(--bg-subtle)] p-1">
+          <div
+            className="mb-4 flex gap-1 border-b border-[var(--border-subtle)] pb-1"
+            role="tablist"
+            aria-label="排位管理视图"
+          >
             <TabButton active={tab === 'season'} onClick={() => setTab('season')}>
               赛季
             </TabButton>
@@ -326,82 +324,89 @@ function SeasonPanel({
           />
         )
       ) : null}
-      {seasons.map((season) => (
-        <section key={season.id} className="surface-panel p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-[var(--text-primary)]">{season.name}</h2>
-              <p className="mt-1 text-xs text-[var(--text-muted)]">
-                {season.seasonKey} · {lifecycleLabel(season.lifecycle)}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {season.lifecycle === 'DRAFT' ? (
-                <>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() => onEdit(season)}
-                  >
-                    编辑
-                  </button>
-                  <button
-                    className="button-primary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() => void onAction(season, 'activate')}
-                  >
-                    开始赛季
-                  </button>
-                </>
-              ) : null}
-              {season.lifecycle === 'ACTIVE' ? (
-                <>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() => onEdit(season)}
-                  >
-                    编辑
-                  </button>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() =>
-                      void onAdmission(season, season.queueAdmission === 'OPEN' ? 'PAUSED' : 'OPEN')
-                    }
-                  >
-                    {season.queueAdmission === 'OPEN' ? '暂停匹配' : '开放匹配'}
-                  </button>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() => void onAction(season, 'finalize')}
-                  >
-                    结束赛季
-                  </button>
-                </>
-              ) : null}
-              {season.lifecycle === 'FINALIZING' ? (
-                <button
-                  className="button-primary px-3 py-2 text-sm"
-                  disabled={busy}
-                  onClick={() => void onAction(season, 'close')}
-                >
-                  完成结算
-                </button>
-              ) : null}
-            </div>
-          </div>
-          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
-            <span>匹配：{season.queueAdmission === 'OPEN' ? '开放' : '暂停'}</span>
-            <span>排行榜：满 {season.leaderboardMinimumMatchCount} 场</span>
-            <span>{formatOpenWindows(season.openWindows)}</span>
-            <span>结束：{formatDate(season.scheduledEndsAt)}</span>
-          </div>
-        </section>
-      ))}
+      {seasons.length > 0 ? (
+        <div className="product-workbench">
+          {seasons.map((season) => (
+            <section key={season.id} className="product-list-row p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold text-[var(--text-primary)]">{season.name}</h2>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">
+                    {season.seasonKey} · {lifecycleLabel(season.lifecycle)}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {season.lifecycle === 'DRAFT' ? (
+                    <>
+                      <button
+                        className="button-secondary px-3 py-2 text-sm"
+                        disabled={busy}
+                        onClick={() => onEdit(season)}
+                      >
+                        编辑
+                      </button>
+                      <button
+                        className="button-primary px-3 py-2 text-sm"
+                        disabled={busy}
+                        onClick={() => void onAction(season, 'activate')}
+                      >
+                        开始赛季
+                      </button>
+                    </>
+                  ) : null}
+                  {season.lifecycle === 'ACTIVE' ? (
+                    <>
+                      <button
+                        className="button-secondary px-3 py-2 text-sm"
+                        disabled={busy}
+                        onClick={() => onEdit(season)}
+                      >
+                        编辑
+                      </button>
+                      <button
+                        className="button-secondary px-3 py-2 text-sm"
+                        disabled={busy}
+                        onClick={() =>
+                          void onAdmission(
+                            season,
+                            season.queueAdmission === 'OPEN' ? 'PAUSED' : 'OPEN'
+                          )
+                        }
+                      >
+                        {season.queueAdmission === 'OPEN' ? '暂停匹配' : '开放匹配'}
+                      </button>
+                      <button
+                        className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-warning)_35%,var(--border-default))] px-3 py-2 text-sm text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)]"
+                        disabled={busy}
+                        onClick={() => void onAction(season, 'finalize')}
+                      >
+                        结束赛季
+                      </button>
+                    </>
+                  ) : null}
+                  {season.lifecycle === 'FINALIZING' ? (
+                    <button
+                      className="button-primary px-3 py-2 text-sm"
+                      disabled={busy}
+                      onClick={() => void onAction(season, 'close')}
+                    >
+                      完成结算
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
+                <span>匹配：{season.queueAdmission === 'OPEN' ? '开放' : '暂停'}</span>
+                <span>排行榜：满 {season.leaderboardMinimumMatchCount} 场</span>
+                <span>{formatOpenWindows(season.openWindows)}</span>
+                <span>结束：{formatDate(season.scheduledEndsAt)}</span>
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : null}
       {seasons.length === 0 && !creating ? (
-        <div className="surface-panel p-8 text-center text-sm text-[var(--text-muted)]">
+        <div className="product-workbench p-8 text-center text-sm text-[var(--text-muted)]">
           还没有赛季
         </div>
       ) : null}
@@ -433,7 +438,7 @@ function ActiveSeasonOperationsForm({
   );
   return (
     <form
-      className="surface-panel grid gap-3 p-4 sm:grid-cols-2"
+      className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
         void onSubmit({ name, openWindows, leaderboardMinimumMatchCount });
@@ -501,7 +506,7 @@ function SeasonDraftForm({
   const [draft, setDraft] = useState(initial);
   return (
     <form
-      className="surface-panel grid gap-3 p-4 sm:grid-cols-2"
+      className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
         void onSubmit({
@@ -698,76 +703,80 @@ function MatchesPanel({
           </option>
         ))}
       </select>
-      {matches.map((match) => (
-        <section key={match.matchId} className="surface-panel p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                {playerName(match.firstPlayer)} vs {playerName(match.secondPlayer)}
+      {matches.length > 0 ? (
+        <div className="product-workbench">
+          {matches.map((match) => (
+            <section key={match.matchId} className="product-list-row p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                    {playerName(match.firstPlayer)} vs {playerName(match.secondPlayer)}
+                  </div>
+                  <div className="mt-1 text-xs text-[var(--text-muted)]">
+                    {ratingStatusLabel(match.ratingStatus)} ·{' '}
+                    {match.endedAt ? formatDate(match.endedAt) : '进行中'}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {match.ratingStatus === 'PENDING' ? (
+                    <button
+                      className="button-primary px-3 py-2 text-sm"
+                      disabled={busy}
+                      onClick={() => void onSettle(match)}
+                    >
+                      重试计分
+                    </button>
+                  ) : null}
+                  {match.ratingStatus === 'SETTLED' ? (
+                    <>
+                      <button
+                        className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_32%,var(--border-default))] px-3 py-2 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
+                        disabled={busy}
+                        onClick={() => void onCorrection(match, 'VOID')}
+                      >
+                        设为不计分
+                      </button>
+                      <button
+                        className="button-secondary px-3 py-2 text-sm"
+                        disabled={busy}
+                        onClick={() =>
+                          void onCorrection(
+                            match,
+                            'REPLACE',
+                            match.winnerSeat === 'FIRST' ? 'SECOND' : 'FIRST'
+                          )
+                        }
+                      >
+                        改判
+                      </button>
+                    </>
+                  ) : null}
+                  {match.ratingStatus === 'VOIDED' ? (
+                    <>
+                      <button
+                        className="button-secondary px-3 py-2 text-sm"
+                        disabled={busy}
+                        onClick={() => void onCorrection(match, 'REPLACE', 'FIRST')}
+                      >
+                        恢复为先攻胜
+                      </button>
+                      <button
+                        className="button-secondary px-3 py-2 text-sm"
+                        disabled={busy}
+                        onClick={() => void onCorrection(match, 'REPLACE', 'SECOND')}
+                      >
+                        恢复为后攻胜
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               </div>
-              <div className="mt-1 text-xs text-[var(--text-muted)]">
-                {ratingStatusLabel(match.ratingStatus)} ·{' '}
-                {match.endedAt ? formatDate(match.endedAt) : '进行中'}
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {match.ratingStatus === 'PENDING' ? (
-                <button
-                  className="button-primary px-3 py-2 text-sm"
-                  disabled={busy}
-                  onClick={() => void onSettle(match)}
-                >
-                  重试计分
-                </button>
-              ) : null}
-              {match.ratingStatus === 'SETTLED' ? (
-                <>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() => void onCorrection(match, 'VOID')}
-                  >
-                    设为不计分
-                  </button>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() =>
-                      void onCorrection(
-                        match,
-                        'REPLACE',
-                        match.winnerSeat === 'FIRST' ? 'SECOND' : 'FIRST'
-                      )
-                    }
-                  >
-                    改判
-                  </button>
-                </>
-              ) : null}
-              {match.ratingStatus === 'VOIDED' ? (
-                <>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() => void onCorrection(match, 'REPLACE', 'FIRST')}
-                  >
-                    恢复为先攻胜
-                  </button>
-                  <button
-                    className="button-secondary px-3 py-2 text-sm"
-                    disabled={busy}
-                    onClick={() => void onCorrection(match, 'REPLACE', 'SECOND')}
-                  >
-                    恢复为后攻胜
-                  </button>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </section>
-      ))}
+            </section>
+          ))}
+        </div>
+      ) : null}
       {matches.length === 0 ? (
-        <div className="surface-panel p-8 text-center text-sm text-[var(--text-muted)]">
+        <div className="product-workbench p-8 text-center text-sm text-[var(--text-muted)]">
           没有排位对局
         </div>
       ) : null}
@@ -802,12 +811,15 @@ function CorrectionDialog({
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 p-4">
       <form
         className="surface-panel w-full max-w-md p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ranked-correction-title"
         onSubmit={(event) => {
           event.preventDefault();
           onExecute();
         }}
       >
-        <h2 className="font-semibold text-[var(--text-primary)]">
+        <h2 id="ranked-correction-title" className="font-semibold text-[var(--text-primary)]">
           {correction.preview.action === 'VOID' ? '设为不计分' : '改判结果'}
         </h2>
         {correction.preview.action === 'REPLACE' && correction.replacementWinnerSeat ? (
@@ -844,7 +856,15 @@ function CorrectionDialog({
           >
             取消
           </button>
-          <button type="submit" className="button-primary min-h-11" disabled={busy}>
+          <button
+            type="submit"
+            className={`min-h-11 rounded-lg border px-4 font-semibold transition-colors disabled:opacity-50 ${
+              correction.preview.action === 'VOID'
+                ? 'border-[color:color-mix(in_srgb,var(--semantic-error)_42%,transparent)] bg-[var(--semantic-error)] text-white hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_86%,black)]'
+                : 'button-primary'
+            }`}
+            disabled={busy}
+          >
             确认执行
           </button>
         </div>
@@ -864,10 +884,11 @@ function TabButton({
 }) {
   return (
     <button
+      type="button"
+      role="tab"
+      aria-selected={active}
       className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold ${
-        active
-          ? 'bg-[var(--bg-overlay)] text-[var(--text-primary)] shadow-sm'
-          : 'text-[var(--text-muted)]'
+        active ? 'bg-[var(--bg-overlay)] text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
       }`}
       onClick={onClick}
     >
@@ -932,7 +953,7 @@ function OpenWindowFields({
                 className={`h-9 rounded-lg text-xs ${
                   selected
                     ? 'bg-[var(--accent-primary)] text-white'
-                    : 'bg-[var(--bg-subtle)] text-[var(--text-muted)]'
+                    : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                 }`}
                 onClick={() => {
                   const weekdays = selected

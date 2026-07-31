@@ -14,12 +14,18 @@ interface LoginPageProps {
   passwordResetEnabled: boolean;
   onSwitchToRegister: () => void;
   onSwitchToForgotPassword: () => void;
+  onBackHome?: () => void;
+  subtitle?: string;
+  offlineModeDisabled?: boolean;
 }
 
 export function LoginPage({
   passwordResetEnabled,
   onSwitchToRegister,
   onSwitchToForgotPassword,
+  onBackHome,
+  subtitle = '登录账号，或直接体验离线对局。',
+  offlineModeDisabled = false,
 }: LoginPageProps) {
   const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -118,7 +124,12 @@ export function LoginPage({
   const displayError = localError || error;
 
   return (
-    <AuthLayout title="进入 Loveca" subtitle="登录账号，或继续离线测试。" eyebrow="Loveca 对战入口">
+    <AuthLayout
+      title="进入 Loveca"
+      subtitle={subtitle}
+      eyebrow="Loveca 对战入口"
+      onBackHome={onBackHome}
+    >
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-medium text-[var(--text-primary)]">
@@ -242,10 +253,11 @@ export function LoginPage({
         <button
           type="button"
           onClick={handleOfflineMode}
-          className="button-secondary flex w-full items-center justify-center gap-2 py-3 font-medium"
+          disabled={offlineModeDisabled}
+          className="button-secondary flex w-full items-center justify-center gap-2 py-3 font-medium disabled:cursor-not-allowed disabled:opacity-50"
         >
           <WifiOff size={18} />
-          离线模式游玩
+          {offlineModeDisabled ? '卡组管理需要登录' : '进入离线模式'}
         </button>
 
         <div className="relative py-4">

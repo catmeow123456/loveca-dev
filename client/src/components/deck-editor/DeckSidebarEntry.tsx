@@ -28,14 +28,19 @@ export function DeckSidebarEntry({
 
   return (
     <div
-      className="surface-panel flex items-center rounded-2xl p-2 transition-all duration-200 hover:-translate-y-[1px] hover:border-[var(--border-active)] hover:shadow-[var(--shadow-sm)]"
+      className="flex items-center border-b border-[var(--border-subtle)] px-1 py-2 transition-colors duration-150 last:border-b-0 hover:bg-[var(--bg-overlay)]"
       onContextMenu={(e) => {
         e.preventDefault();
         onViewDetail();
       }}
     >
       {/* 缩略图 */}
-      <div className="w-14 h-20 flex-shrink-0 mr-3 relative cursor-pointer" onClick={onViewDetail}>
+      <button
+        type="button"
+        className="relative mr-3 h-20 w-14 flex-shrink-0 cursor-pointer"
+        onClick={onViewDetail}
+        aria-label={`查看 ${localizedName.displayNameCn} 详情`}
+      >
         <Card
           cardData={cardData}
           imagePath={imagePath}
@@ -44,7 +49,7 @@ export function DeckSidebarEntry({
           showHover={false}
           className="rounded"
         />
-      </div>
+      </button>
 
       {/* 卡名 & 编号 */}
       <div className="flex-1 min-w-0">
@@ -63,8 +68,10 @@ export function DeckSidebarEntry({
       {/* 常驻 +/- 按钮 & 数量 */}
       <div className="flex items-center gap-1 ml-2 flex-shrink-0">
         <button
+          type="button"
           onClick={onRemove}
           className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--semantic-error)]/25 bg-[var(--semantic-error)]/12 text-[var(--semantic-error)]"
+          aria-label={`从卡组移除 ${localizedName.displayNameCn}`}
         >
           <Minus size={12} />
         </button>
@@ -72,8 +79,10 @@ export function DeckSidebarEntry({
           {count}
         </span>
         <button
+          type="button"
           onClick={onAdd}
           className="flex h-6 w-6 items-center justify-center rounded-full border border-[var(--semantic-success)]/25 bg-[var(--semantic-success)]/12 text-[var(--semantic-success)]"
+          aria-label={`向卡组添加 ${localizedName.displayNameCn}`}
         >
           <Plus size={12} />
         </button>

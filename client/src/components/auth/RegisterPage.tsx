@@ -13,9 +13,14 @@ import { isApiConfigured } from '@/lib/apiClient';
 interface RegisterPageProps {
   emailVerificationRequired: boolean;
   onSwitchToLogin: () => void;
+  onBackHome?: () => void;
 }
 
-export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: RegisterPageProps) {
+export function RegisterPage({
+  emailVerificationRequired,
+  onSwitchToLogin,
+  onBackHome,
+}: RegisterPageProps) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -103,6 +108,7 @@ export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: Reg
     return (
       <AuthLayout
         title="注册成功！"
+        onBackHome={onBackHome}
         subtitle={
           verificationRequiredForResult
             ? verificationEmailSent
@@ -146,7 +152,7 @@ export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: Reg
   }
 
   return (
-    <AuthLayout title="创建账号" subtitle="加入 Loveca 卡牌游戏">
+    <AuthLayout title="创建账号" subtitle="加入 Loveca 卡牌游戏" onBackHome={onBackHome}>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* 用户名输入 */}
         <div>
@@ -240,7 +246,7 @@ export function RegisterPage({ emailVerificationRequired, onSwitchToLogin }: Reg
         {!isApiConfigured && (
           <div className="flex items-center gap-2 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_12%,transparent)] p-3 text-sm text-[var(--semantic-warning)]">
             <WifiOff size={16} />
-            服务器未配置，无法注册。请使用离线模式游玩。
+            服务器未配置，无法注册。你仍可进入离线模式。
           </div>
         )}
 

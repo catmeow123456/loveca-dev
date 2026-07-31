@@ -5,9 +5,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
-  ArrowLeft,
   Plus,
   Upload,
   Download,
@@ -28,6 +27,7 @@ import {
   EyeOff,
   Link2,
   MoreHorizontal,
+  Search,
   X,
 } from 'lucide-react';
 import { useDeckStore } from '@/store/deckStore';
@@ -41,7 +41,6 @@ import {
   DeckStatsRow,
   getDeckPointTextClass,
   PageHeader,
-  ThemeToggle,
 } from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import {
@@ -122,6 +121,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const [copyingDeckId, setCopyingDeckId] = useState<string | null>(null);
   const [openActionsDeckId, setOpenActionsDeckId] = useState<string | null>(null);
   const [showImportSheet, setShowImportSheet] = useState(false);
+  const [deckSearchQuery, setDeckSearchQuery] = useState('');
 
   // 初始快照用于 dirty 检测
   const [initialSnapshot, setInitialSnapshot] = useState('');
@@ -158,12 +158,20 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const [decklogWarnings, setDecklogWarnings] = useState<string[]>([]);
   const [mobileMetaExpanded, setMobileMetaExpanded] = useState(false);
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const reduceMotion = useReducedMotion();
 
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
     [cardDataRegistry]
   );
+  const visibleDecks = useMemo(() => {
+    const query = deckSearchQuery.trim().toLocaleLowerCase('zh-CN');
+    if (!query) return cloudDecks;
+    return cloudDecks.filter((deck) =>
+      `${deck.name} ${deck.description ?? ''}`.toLocaleLowerCase('zh-CN').includes(query)
+    );
+  }, [cloudDecks, deckSearchQuery]);
 
   useEffect(() => {
     fetchCloudDecks();
@@ -623,18 +631,10 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     <div className="app-shell app-viewport-shell flex flex-col">
       <PageHeader
         title={viewMode === 'list' ? '卡组管理' : editingDeckId ? '编辑卡组' : '创建卡组'}
-        left={
-          <button
-            onClick={viewMode === 'edit' ? handleCancelEdit : onBack}
-            className="button-ghost inline-flex h-10 items-center justify-center gap-1.5 px-2.5 py-2 text-sm sm:px-3"
-          >
-            <ArrowLeft size={16} />
-            <span className="hidden sm:inline">{viewMode === 'edit' ? '取消' : '返回'}</span>
-          </button>
-        }
+        onBack={viewMode === 'edit' ? handleCancelEdit : onBack}
+        backLabel={viewMode === 'edit' ? '取消编辑' : '返回大厅'}
         right={
           <>
-            <ThemeToggle />
             <div className="status-pill min-w-0 max-w-full px-2.5 py-1 text-xs">
               {offlineMode ? (
                 <WifiOff size={12} className="text-[var(--semantic-warning)]" />
@@ -655,15 +655,30 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         {viewMode === 'list' ? (
           <motion.main
             key="list"
-            initial={{ opacity: 0, x: -20 }}
+            initial={reduceMotion ? false : { opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
+            exit={reduceMotion ? undefined : { opacity: 0, x: 20 }}
             className="relative z-10 flex-1 overflow-y-auto p-3 sm:p-6"
           >
-            <div className="workspace-shell mx-auto max-w-5xl p-3 sm:p-6">
-              <div className="mb-5 sm:flex sm:justify-end">
+            <div className="product-workbench product-workbench--popover mx-auto max-w-6xl">
+              <div className="product-workbench-toolbar">
+                <label className="relative order-2 w-full sm:order-1 sm:max-w-sm">
+                  <Search
+                    size={15}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+                    aria-hidden="true"
+                  />
+                  <span className="sr-only">搜索卡组</span>
+                  <input
+                    type="search"
+                    value={deckSearchQuery}
+                    onChange={(event) => setDeckSearchQuery(event.target.value)}
+                    placeholder="搜索卡组名称或备注"
+                    className="input-field h-10 w-full pl-9 pr-3 text-sm"
+                  />
+                </label>
                 {isMobile ? (
-                  <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2">
+                  <div className="order-1 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2 sm:order-2 sm:w-auto">
                     <button
                       onClick={handleCreateNew}
                       className="button-primary inline-flex min-h-11 items-center justify-center gap-1.5 px-5 py-2 text-sm font-bold"
@@ -682,7 +697,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                     </button>
                   </div>
                 ) : (
-                  <div className="flex flex-wrap items-center justify-end gap-3">
+                  <div className="order-2 flex flex-wrap items-center justify-end gap-2">
                     <button
                       onClick={() => {
                         if (cloudFeaturesUnavailable) {
@@ -724,321 +739,344 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                 )}
               </div>
 
-              {isLoadingCloud && cloudDecks.length === 0 && (
-                <div className="flex items-center justify-center py-20">
-                  <div className="text-center">
-                    <Loader2
-                      size={32}
-                      className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]"
-                    />
-                    <div className="text-sm text-[var(--text-secondary)]">加载卡组中...</div>
-                  </div>
-                </div>
-              )}
-
-              {cloudError && (
-                <div className="mb-6 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
-                  <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
-                    <AlertTriangle size={14} />
-                    <span>{cloudError}</span>
-                    <button
-                      onClick={fetchCloudDecks}
-                      className="ml-auto text-sm underline underline-offset-2"
-                    >
-                      重试
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {saveError && (
-                <div className="mb-6 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
-                  <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
-                    <AlertTriangle size={14} />
-                    <span>{saveError}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Empty State with Presets */}
-              {!isLoadingCloud && cloudDecks.length === 0 && (
-                <div className="py-8">
-                  <div className="text-center mb-6">
-                    <div className="mb-1 text-base text-[var(--text-secondary)]">还没有卡组</div>
-                    <div className="text-sm text-[var(--text-muted)]">
-                      从推荐卡组开始，或自由创建
+              <div className="p-3 sm:p-5">
+                {isLoadingCloud && cloudDecks.length === 0 && (
+                  <div className="flex items-center justify-center py-20">
+                    <div className="text-center">
+                      <Loader2
+                        size={32}
+                        className="mx-auto mb-3 animate-spin text-[var(--accent-primary)]"
+                      />
+                      <div className="text-sm text-[var(--text-secondary)]">加载卡组中...</div>
                     </div>
                   </div>
+                )}
 
-                  <div className="mb-3 text-xs font-semibold tracking-wider text-[var(--text-muted)]">
-                    推荐卡组
+                {cloudError && (
+                  <div className="mb-6 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
+                    <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
+                      <AlertTriangle size={14} />
+                      <span>{cloudError}</span>
+                      <button
+                        onClick={fetchCloudDecks}
+                        className="ml-auto text-sm underline underline-offset-2"
+                      >
+                        重试
+                      </button>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
-                    {PRESET_DECKS.map((preset) => {
-                      const { memberCount, liveCount, energyCount, pointTotal } =
-                        calculateDeckConfigStats(preset.deck);
-                      return (
-                        <div
-                          key={preset.id}
-                          onClick={() => handleUsePreset(preset)}
-                          className="group cursor-pointer rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] p-4 transition-all duration-200 hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]"
-                        >
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">
-                                {preset.name}
-                              </h3>
-                              <p className="text-xs text-[var(--text-secondary)]">
-                                {preset.description}
-                              </p>
-                            </div>
-                            <span className="chip-badge ml-3 flex-shrink-0 px-2 py-0.5 text-xs">
-                              {preset.tag}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
-                              <span>成员 {memberCount}/48</span>
-                              <span>Live {liveCount}/12</span>
-                              <span>能量 {energyCount}/12</span>
-                              <span className={getDeckPointTextClass(pointTotal)}>
-                                点数 {pointTotal}/{DECK_POINT_LIMIT}pt
+                )}
+
+                {saveError && (
+                  <div className="mb-6 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
+                    <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
+                      <AlertTriangle size={14} />
+                      <span>{saveError}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty State with Presets */}
+                {!isLoadingCloud && cloudDecks.length === 0 && (
+                  <div className="py-8">
+                    <div className="text-center mb-6">
+                      <div className="mb-1 text-base text-[var(--text-secondary)]">还没有卡组</div>
+                      <div className="text-sm text-[var(--text-muted)]">
+                        从推荐卡组开始，或自由创建
+                      </div>
+                    </div>
+
+                    <div className="mb-3 text-xs font-semibold tracking-wider text-[var(--text-muted)]">
+                      推荐卡组
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
+                      {PRESET_DECKS.map((preset) => {
+                        const { memberCount, liveCount, energyCount, pointTotal } =
+                          calculateDeckConfigStats(preset.deck);
+                        return (
+                          <button
+                            type="button"
+                            key={preset.id}
+                            onClick={() => handleUsePreset(preset)}
+                            className="group w-full rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] p-4 text-left transition-colors duration-150 hover:border-[var(--border-default)] hover:bg-[var(--bg-overlay)]"
+                          >
+                            <div className="flex items-start justify-between mb-3">
+                              <div>
+                                <h3 className="mb-0.5 text-base font-bold text-[var(--text-primary)]">
+                                  {preset.name}
+                                </h3>
+                                <p className="text-xs text-[var(--text-secondary)]">
+                                  {preset.description}
+                                </p>
+                              </div>
+                              <span className="chip-badge ml-3 flex-shrink-0 px-2 py-0.5 text-xs">
+                                {preset.tag}
                               </span>
                             </div>
-                            <span className="text-xs text-[var(--accent-primary)] transition-colors">
-                              使用此卡组 →
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3 text-xs text-[var(--text-muted)]">
+                                <span>成员 {memberCount}/48</span>
+                                <span>Live {liveCount}/12</span>
+                                <span>能量 {energyCount}/12</span>
+                                <span className={getDeckPointTextClass(pointTotal)}>
+                                  点数 {pointTotal}/{DECK_POINT_LIMIT}pt
+                                </span>
+                              </div>
+                              <span className="text-xs text-[var(--accent-primary)] transition-colors">
+                                使用此卡组 →
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                  <div className="text-center">
+                    <div className="text-center">
+                      <button
+                        type="button"
+                        onClick={handleCreateNew}
+                        className="button-primary px-6 py-2.5 text-sm font-bold"
+                      >
+                        <Plus size={14} className="inline mr-1.5 -mt-0.5" />
+                        从空白创建
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {cloudDecks.length > 0 && visibleDecks.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <Search size={20} className="mx-auto text-[var(--text-muted)]" />
+                    <div className="mt-3 text-sm font-semibold text-[var(--text-primary)]">
+                      没有匹配的卡组
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      换一个名称或备注关键词。
+                    </p>
                     <button
-                      onClick={handleCreateNew}
-                      className="button-primary px-6 py-2.5 text-sm font-bold"
+                      type="button"
+                      onClick={() => setDeckSearchQuery('')}
+                      className="button-ghost mt-3 px-3 py-2 text-sm"
                     >
-                      <Plus size={14} className="inline mr-1.5 -mt-0.5" />
-                      从空白创建
+                      清除搜索
                     </button>
                   </div>
-                </div>
-              )}
+                ) : null}
 
-              {/* Deck Grid */}
-              <div className="grid gap-3">
-                {cloudDecks.map((deck, index) => {
-                  const deckConfig = deckRecordToConfig(deck, {
-                    resolveCardType: resolveDeckRecordCardType,
-                  });
-                  const stats = calculateDeckStats(deck, {
-                    resolveCardType: resolveDeckRecordCardType,
-                  });
-                  const deckValidity = validateDeckConfig(deckConfig).valid;
-                  const isDeleting = deleteConfirm === deck.id;
+                {/* Deck list */}
+                <div className="product-list -mx-3 sm:-mx-5">
+                  {visibleDecks.map((deck) => {
+                    const deckConfig = deckRecordToConfig(deck, {
+                      resolveCardType: resolveDeckRecordCardType,
+                    });
+                    const stats = calculateDeckStats(deck, {
+                      resolveCardType: resolveDeckRecordCardType,
+                    });
+                    const deckValidity = validateDeckConfig(deckConfig).valid;
+                    const isDeleting = deleteConfirm === deck.id;
 
-                  return (
-                    <motion.div
-                      key={deck.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.04 }}
-                      className={`relative rounded-xl border p-3 sm:p-4 transition-all duration-200 ${
-                        openActionsDeckId === deck.id ? 'z-20' : 'z-0'
-                      } ${
-                        isDeleting
-                          ? 'border-[color:color-mix(in_srgb,var(--semantic-error)_45%,transparent)]'
-                          : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_84%,transparent)] hover:border-[var(--border-default)]'
-                      }`}
-                    >
-                      {isDeleting ? (
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="text-sm text-[var(--semantic-error)]">
-                            确定要删除 "{deck.name}" 吗？此操作不可撤销。
-                          </div>
-                          <div className="flex items-center gap-2 self-end sm:self-auto">
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="button-ghost px-3 py-1.5 text-sm"
-                            >
-                              取消
-                            </button>
-                            <button
-                              onClick={() => handleDelete(deck.id)}
-                              className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] px-3 py-1.5 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_20%,transparent)]"
-                            >
-                              确认删除
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2.5">
-                          <div className="col-start-1 row-start-1 min-w-0">
-                            <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">
-                              {deck.name}
-                            </h3>
-                            {deck.description && (
-                              <p className="line-clamp-1 text-xs text-[var(--text-secondary)] sm:line-clamp-2 sm:text-sm">
-                                {deck.description}
-                              </p>
-                            )}
-                            <div className="mt-1 text-[11px] text-[var(--text-muted)] sm:hidden">
-                              {new Date(deck.updated_at).toLocaleDateString('zh-CN')}
+                    return (
+                      <div
+                        key={deck.id}
+                        className={`product-list-row px-3 py-3 sm:px-5 sm:py-4 ${
+                          openActionsDeckId === deck.id ? 'z-20' : 'z-0'
+                        } ${
+                          isDeleting
+                            ? 'bg-[color:color-mix(in_srgb,var(--semantic-error)_8%,transparent)]'
+                            : ''
+                        }`}
+                      >
+                        {isDeleting ? (
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="text-sm text-[var(--semantic-error)]">
+                              确定要删除 "{deck.name}" 吗？此操作不可撤销。
+                            </div>
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                              <button
+                                onClick={() => setDeleteConfirm(null)}
+                                className="button-ghost px-3 py-1.5 text-sm"
+                              >
+                                取消
+                              </button>
+                              <button
+                                onClick={() => handleDelete(deck.id)}
+                                className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_14%,transparent)] px-3 py-1.5 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_20%,transparent)]"
+                              >
+                                确认删除
+                              </button>
                             </div>
                           </div>
-                          <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-1 min-[560px]:col-span-1 min-[560px]:col-start-2 min-[560px]:row-start-1 min-[560px]:justify-end">
-                            {deck.share_enabled && (
-                              <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-info)]">
-                                <Globe size={10} /> 已分享
-                              </span>
-                            )}
-                            {deckValidity ? (
-                              <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
-                                <Check size={10} /> 完整
-                              </span>
-                            ) : (
-                              <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
-                                <Circle size={8} /> 未完成
-                              </span>
-                            )}
-                          </div>
+                        ) : (
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 gap-y-2.5">
+                            <div className="col-start-1 row-start-1 min-w-0">
+                              <h3 className="mb-0.5 truncate text-[15px] font-bold text-[var(--text-primary)] sm:text-base">
+                                {deck.name}
+                              </h3>
+                              {deck.description && (
+                                <p className="line-clamp-1 text-xs text-[var(--text-secondary)] sm:line-clamp-2 sm:text-sm">
+                                  {deck.description}
+                                </p>
+                              )}
+                              <div className="mt-1 text-[11px] text-[var(--text-muted)] sm:hidden">
+                                {new Date(deck.updated_at).toLocaleDateString('zh-CN')}
+                              </div>
+                            </div>
+                            <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-1 min-[560px]:col-span-1 min-[560px]:col-start-2 min-[560px]:row-start-1 min-[560px]:justify-end">
+                              {deck.share_enabled && (
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-info)]">
+                                  <Globe size={10} /> 已分享
+                                </span>
+                              )}
+                              {deckValidity ? (
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
+                                  <Check size={10} /> 完整
+                                </span>
+                              ) : (
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px]">
+                                  <Circle size={8} /> 未完成
+                                </span>
+                              )}
+                            </div>
 
-                          <div className="col-span-2 row-start-3 min-w-0 self-center min-[560px]:col-span-1 min-[560px]:col-start-1 min-[560px]:row-start-2">
-                            <DeckStatsRow
-                              stats={stats}
-                              updatedAt={isMobile ? undefined : deck.updated_at}
-                              size={isMobile ? 'sm' : 'md'}
-                              className="min-w-0"
-                            />
-                          </div>
-                          <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1.5 min-[560px]:row-start-2">
-                            <button
-                              onClick={() => handleEdit(deck)}
-                              className="button-secondary flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold"
-                            >
-                              <Pencil size={12} /> 编辑
-                            </button>
-                            <div className="relative" data-deck-actions-root={deck.id}>
+                            <div className="col-span-2 row-start-3 min-w-0 self-center min-[560px]:col-span-1 min-[560px]:col-start-1 min-[560px]:row-start-2">
+                              <DeckStatsRow
+                                stats={stats}
+                                updatedAt={isMobile ? undefined : deck.updated_at}
+                                size={isMobile ? 'sm' : 'md'}
+                                className="min-w-0"
+                              />
+                            </div>
+                            <div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1.5 min-[560px]:row-start-2">
                               <button
-                                type="button"
-                                aria-label={`${deck.name}的更多操作`}
-                                aria-haspopup="menu"
-                                aria-expanded={openActionsDeckId === deck.id}
-                                onClick={() =>
-                                  setOpenActionsDeckId((current) =>
-                                    current === deck.id ? null : deck.id
-                                  )
-                                }
-                                className="button-secondary inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold"
+                                onClick={() => handleEdit(deck)}
+                                className="button-secondary flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold"
                               >
-                                {copyingDeckId === deck.id ? (
-                                  <Loader2 size={16} className="animate-spin" />
-                                ) : (
-                                  <MoreHorizontal size={14} />
-                                )}
-                                {copyingDeckId === deck.id ? '处理中' : '更多'}
+                                <Pencil size={12} /> 编辑
                               </button>
-
-                              {openActionsDeckId === deck.id && (
-                                <div
-                                  role="menu"
-                                  aria-label={`${deck.name}的操作`}
-                                  className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-52 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1.5 shadow-2xl"
+                              <div className="relative" data-deck-actions-root={deck.id}>
+                                <button
+                                  type="button"
+                                  aria-label={`${deck.name}的更多操作`}
+                                  aria-haspopup="menu"
+                                  aria-expanded={openActionsDeckId === deck.id}
+                                  onClick={() =>
+                                    setOpenActionsDeckId((current) =>
+                                      current === deck.id ? null : deck.id
+                                    )
+                                  }
+                                  className="button-secondary inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold"
                                 >
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    onClick={() => handleCopyDeck(deck)}
-                                    disabled={copyingDeckId === deck.id}
-                                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
-                                  >
-                                    <CopyPlus size={15} className="text-[var(--accent-primary)]" />
-                                    复制为新版本
-                                  </button>
+                                  {copyingDeckId === deck.id ? (
+                                    <Loader2 size={16} className="animate-spin" />
+                                  ) : (
+                                    <MoreHorizontal size={14} />
+                                  )}
+                                  {copyingDeckId === deck.id ? '处理中' : '更多'}
+                                </button>
 
-                                  {deck.share_enabled && deck.share_id ? (
-                                    <>
+                                {openActionsDeckId === deck.id && (
+                                  <div
+                                    role="menu"
+                                    aria-label={`${deck.name}的操作`}
+                                    className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-52 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1.5 shadow-2xl"
+                                  >
+                                    <button
+                                      type="button"
+                                      role="menuitem"
+                                      onClick={() => handleCopyDeck(deck)}
+                                      disabled={copyingDeckId === deck.id}
+                                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
+                                    >
+                                      <CopyPlus
+                                        size={15}
+                                        className="text-[var(--accent-primary)]"
+                                      />
+                                      复制为新版本
+                                    </button>
+
+                                    {deck.share_enabled && deck.share_id ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          role="menuitem"
+                                          onClick={() => {
+                                            setOpenActionsDeckId(null);
+                                            void handleCopyShareLink(deck);
+                                          }}
+                                          className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
+                                        >
+                                          <Copy size={15} /> 复制分享链接
+                                        </button>
+                                        <button
+                                          type="button"
+                                          role="menuitem"
+                                          onClick={() => {
+                                            setOpenActionsDeckId(null);
+                                            handleOpenShare(deck);
+                                          }}
+                                          className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
+                                        >
+                                          <ExternalLink size={15} /> 打开分享页
+                                        </button>
+                                        <button
+                                          type="button"
+                                          role="menuitem"
+                                          onClick={() => {
+                                            setOpenActionsDeckId(null);
+                                            void handleDisableShare(deck.id);
+                                          }}
+                                          disabled={sharingDeckId === deck.id}
+                                          className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-warning)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
+                                        >
+                                          <EyeOff size={15} /> 关闭分享
+                                        </button>
+                                      </>
+                                    ) : (
                                       <button
                                         type="button"
                                         role="menuitem"
                                         onClick={() => {
                                           setOpenActionsDeckId(null);
-                                          void handleCopyShareLink(deck);
-                                        }}
-                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
-                                      >
-                                        <Copy size={15} /> 复制分享链接
-                                      </button>
-                                      <button
-                                        type="button"
-                                        role="menuitem"
-                                        onClick={() => {
-                                          setOpenActionsDeckId(null);
-                                          handleOpenShare(deck);
-                                        }}
-                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)]"
-                                      >
-                                        <ExternalLink size={15} /> 打开分享页
-                                      </button>
-                                      <button
-                                        type="button"
-                                        role="menuitem"
-                                        onClick={() => {
-                                          setOpenActionsDeckId(null);
-                                          void handleDisableShare(deck.id);
+                                          void handleEnableShare(deck.id);
                                         }}
                                         disabled={sharingDeckId === deck.id}
-                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-warning)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
                                       >
-                                        <EyeOff size={15} /> 关闭分享
+                                        <Globe size={15} /> 开启分享
                                       </button>
-                                    </>
-                                  ) : (
+                                    )}
+
+                                    <div className="my-1 border-t border-[var(--border-subtle)]" />
                                     <button
                                       type="button"
                                       role="menuitem"
                                       onClick={() => {
                                         setOpenActionsDeckId(null);
-                                        void handleEnableShare(deck.id);
+                                        setDeleteConfirm(deck.id);
                                       }}
-                                      disabled={sharingDeckId === deck.id}
-                                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-hover)] disabled:cursor-wait disabled:opacity-60"
+                                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
                                     >
-                                      <Globe size={15} /> 开启分享
+                                      <Trash2 size={15} /> 删除卡组
                                     </button>
-                                  )}
-
-                                  <div className="my-1 border-t border-[var(--border-subtle)]" />
-                                  <button
-                                    type="button"
-                                    role="menuitem"
-                                    onClick={() => {
-                                      setOpenActionsDeckId(null);
-                                      setDeleteConfirm(deck.id);
-                                    }}
-                                    className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
-                                  >
-                                    <Trash2 size={15} /> 删除卡组
-                                  </button>
-                                </div>
-                              )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  );
-                })}
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </motion.main>
         ) : (
           <motion.main
             key="edit"
-            initial={{ opacity: 0, x: 20 }}
+            initial={reduceMotion ? false : { opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            exit={reduceMotion ? undefined : { opacity: 0, x: -20 }}
             className="relative z-10 flex flex-1 flex-col overflow-hidden p-4 pt-6"
           >
             <div className="workspace-shell flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -1063,7 +1101,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                         <Save size={14} />
                         <span>{isSaving ? '保存中' : '保存'}</span>
                         {isDirty && !isSaving && (
-                          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--semantic-warning)]" />
                         )}
                       </button>
                     </div>
@@ -1130,7 +1168,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                         <Save size={14} />
                         {isSaving ? '保存中...' : '保存'}
                         {isDirty && !isSaving && (
-                          <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+                          <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--semantic-warning)]" />
                         )}
                       </button>
                     </div>
@@ -1199,7 +1237,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                     setDecklogWarnings([]);
                     setShowDecklogDialog(true);
                   }}
-                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] text-[var(--accent-primary)]">
                     <Globe size={19} />
@@ -1214,7 +1252,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                   </span>
                 </button>
 
-                <label className="flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]">
+                <label className="flex min-h-16 w-full cursor-pointer items-center gap-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-4 py-3 text-left transition-colors hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)] text-[var(--semantic-info)]">
                     <Upload size={19} />
                   </span>
@@ -1324,8 +1362,8 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                           }}
                           className={`relative min-h-[74px] rounded-2xl border px-3 py-2.5 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                             isSelected
-                              ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)] shadow-sm'
-                              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                              ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_55%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
+                              : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)] hover:bg-[var(--bg-elevated)]'
                           }`}
                         >
                           <span className="flex items-center justify-between gap-2">
@@ -1440,7 +1478,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                     disabled={decklogLoading || !decklogInput.trim()}
                     className={`inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-5 py-2 text-sm font-semibold transition-all ${
                       decklogLoading || !decklogInput.trim()
-                        ? 'cursor-not-allowed bg-[var(--bg-hover)] text-[var(--text-muted)]'
+                        ? 'cursor-not-allowed bg-[var(--bg-elevated)] text-[var(--text-muted)]'
                         : 'button-primary text-white'
                     }`}
                   >
@@ -1464,9 +1502,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -16, scale: 0.96 }}
+            initial={reduceMotion ? false : { opacity: 0, y: -16, scale: 0.96 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: -10, scale: 0.98 }}
             transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
             className="pointer-events-none fixed right-4 top-20 z-[70] max-w-[min(88vw,360px)]"
           >

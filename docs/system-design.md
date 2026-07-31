@@ -496,7 +496,7 @@ graph TD
 - 配置化阶段/子阶段驱动的主流程
 - 动作处理器体系与规则动作校正链路
 - Live 结算主流程、手动判定确认与分数确认链路
-- 本地双人调试模式与对墙打模式：`client/src/components/pages/GameSetupPage.tsx` 统一提供公共牌桌、房间联机、对墙打和双人调试入口，并保留本地模式的分步选组；`client/src/lib/debugPerspective.ts` 与 `client/src/store/gameStore.ts` 在本地双人调试的 `RULES` 模式下按玩家视图权限自动跟随当前操作方，`client/src/components/game/GameBoard.tsx` 同时为桌面和移动端保留显式视角切换与确认式重开入口
+- 本地双人调试模式与对墙打模式：`client/src/components/pages/GameSetupPage.tsx` 统一提供公共牌桌、赛季排位、房间联机、对墙打和双人调试入口，并保留本地模式的分步选组；`client/src/lib/debugPerspective.ts` 与 `client/src/store/gameStore.ts` 在本地双人调试的 `RULES` 模式下按玩家视图权限自动跟随当前操作方，`client/src/components/game/GameBoard.tsx` 同时为桌面和移动端保留显式视角切换与确认式重开入口
 - 认证、卡组、卡牌、图片管理 API
 - 平台状态与公告配置：`src/server/site-status.ts` 定义公开站点状态契约，`src/server/services/site-announcement-service.ts` 组装数据库优先、环境变量兜底的维护状态和公告，`src/server/routes/site-announcements.ts` 提供管理员维护开关与公告管理 API，`src/server/routes/app-config.ts` 通过 `/api/config` 暴露公开 `siteStatus`
 - 云端卡组与离线模式并存

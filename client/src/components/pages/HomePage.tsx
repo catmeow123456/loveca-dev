@@ -3,8 +3,7 @@
  * 登录后的主界面，突出开始入口、卡组准备状态和联机入口。
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import {
   ArrowRight,
   Bell,
@@ -16,9 +15,7 @@ import {
   DoorOpen,
   Eye,
   Gamepad2,
-  Globe2,
   History,
-  LogOut,
   MonitorCog,
   Medal,
   RefreshCw,
@@ -26,11 +23,15 @@ import {
   ShieldAlert,
   Swords,
   TriangleAlert,
-  UserRound,
   WifiOff,
-  X,
 } from 'lucide-react';
-import { AppCredits, ThemeToggle, DeckStatsRow, formatRelativeTime } from '@/components/common';
+import {
+  AppCredits,
+  ProductFrame,
+  DeckStatsRow,
+  formatRelativeTime,
+  type ProductNavigationHandlers,
+} from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
@@ -41,17 +42,13 @@ import {
 } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems, type DeckDisplayItem } from '@/lib/deckDisplay';
 import type {
-  PublicSiteAnnouncement,
   PublicSiteMaintenanceStatus,
   PublicSiteStatus,
-  SiteAnnouncementType,
   SiteStatusLifecycle,
 } from '@/lib/appConfig';
-import { buildAnnouncementUnreadKey } from '@/lib/appConfig';
+import './home-page.css';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
-const ANNOUNCEMENT_SEEN_STORAGE_KEY = 'loveca.home.announcements.seen.v1';
-const ANNOUNCEMENT_AUTO_OPEN_DELAY_MS = 720;
 
 const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
   NORMAL: '正常',
@@ -63,18 +60,13 @@ const LIFECYCLE_LABELS: Record<SiteStatusLifecycle, string> = {
   CANCELLED: '已取消',
 };
 
-const ANNOUNCEMENT_TYPE_LABELS: Record<SiteAnnouncementType, string> = {
-  MAINTENANCE: '维护',
-  UPDATE: '更新',
-  NEWS: '动态',
-};
-
 interface HomePageProps {
-  onNavigateToAccount: () => void;
+  navigation: ProductNavigationHandlers;
+  headerActions: ReactNode;
+  mobileMenuActions: ReactNode;
   onNavigateToDeckManager: () => void;
   onNavigateToGameSetup: () => void;
   onNavigateToOnlineRoom: () => void;
-  onNavigateToPublicTable: () => void;
   onNavigateToRanked: () => void;
   onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
@@ -112,26 +104,13 @@ interface PrimaryActionConfig {
   notice?: string;
 }
 
-interface AnnouncementDisplayItem {
-  id: string;
-  label: string;
-  title: string;
-  summary: string;
-  detail: string | null;
-  timestamp: string | null;
-  timestampLabel: '开始' | '发布';
-  endsAt: string | null;
-  impactScopes: readonly string[];
-  action: string | null;
-  tone: 'default' | 'info' | 'warning';
-}
-
 export function HomePage({
-  onNavigateToAccount,
+  navigation,
+  headerActions,
+  mobileMenuActions,
   onNavigateToDeckManager,
   onNavigateToGameSetup,
   onNavigateToOnlineRoom,
-  onNavigateToPublicTable,
   onNavigateToRanked,
   onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
@@ -142,7 +121,7 @@ export function HomePage({
   onNavigateToRankedAdmin,
   siteStatus,
 }: HomePageProps) {
-  const { profile, offlineMode, offlineUser, signOut } = useAuthStore();
+  const { profile, offlineMode, offlineUser } = useAuthStore();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
   const cloudError = useDeckStore((s) => s.cloudError);
@@ -160,19 +139,6 @@ export function HomePage({
   const canUseCloudDecks = deckSourceStatus === 'online';
   const canUseOnlineRoom = canUseCloudDecks;
   const canReturnSavedRoom = Boolean(savedRoomCode && canUseOnlineRoom);
-  const announcementItems = useMemo(() => buildAnnouncementDisplayItems(siteStatus), [siteStatus]);
-  const announcementSeenKey = useMemo(() => buildAnnouncementUnreadKey(siteStatus), [siteStatus]);
-  const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
-  const [lastSeenAnnouncementKey, setLastSeenAnnouncementKey] = useState(() =>
-    readAnnouncementSeenKey()
-  );
-  const hasUnreadAnnouncements = Boolean(
-    announcementSeenKey &&
-    announcementItems.length > 0 &&
-    lastSeenAnnouncementKey !== announcementSeenKey
-  );
-  const announcementStatusMessage = hasUnreadAnnouncements ? '公告已更新' : '';
-
   useEffect(() => {
     if (!canUseCloudDecks) {
       return;
@@ -180,38 +146,6 @@ export function HomePage({
 
     void fetchCloudDecks();
   }, [canUseCloudDecks, fetchCloudDecks]);
-
-  const markCurrentAnnouncementsSeen = useCallback(() => {
-    if (!announcementSeenKey) {
-      return;
-    }
-
-    writeAnnouncementSeenKey(announcementSeenKey);
-    setLastSeenAnnouncementKey(announcementSeenKey);
-  }, [announcementSeenKey]);
-
-  const openAnnouncements = useCallback(() => {
-    setIsAnnouncementsOpen(true);
-    markCurrentAnnouncementsSeen();
-  }, [markCurrentAnnouncementsSeen]);
-
-  const closeAnnouncements = useCallback(() => {
-    setIsAnnouncementsOpen(false);
-  }, []);
-
-  useEffect(() => {
-    if (!hasUnreadAnnouncements || !announcementSeenKey || announcementItems.length === 0) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setIsAnnouncementsOpen(true);
-      writeAnnouncementSeenKey(announcementSeenKey);
-      setLastSeenAnnouncementKey(announcementSeenKey);
-    }, ANNOUNCEMENT_AUTO_OPEN_DELAY_MS);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [announcementItems.length, announcementSeenKey, hasUnreadAnnouncements]);
 
   const displayUsername = offlineMode
     ? offlineUser?.displayName || 'Guest'
@@ -234,6 +168,7 @@ export function HomePage({
           label: '本地服务未配置',
           tone: 'text-[var(--text-secondary)]',
         };
+  const ConnectionStatusIcon = connectionStatus.icon;
 
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
@@ -310,16 +245,16 @@ export function HomePage({
         : hasLegalDeck
           ? {
               state: 'ready' as PrimaryActionState,
-              title: '开始游戏',
-              description: '选择公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
-              cta: '开始游戏',
+              title: '开始对战',
+              description: '选择赛季排位、公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
+              cta: '开始对战',
               icon: Gamepad2,
               onClick: onNavigateToGameSetup,
             }
           : {
               state: 'needs-deck' as PrimaryActionState,
-              title: '准备卡组',
-              description: '还没有可用于开局的合法卡组。先创建或修正一副卡组。',
+              title: '构筑卡组',
+              description: '还没有符合构筑规则的卡组。请先创建或调整一副卡组。',
               cta: '去卡组管理',
               icon: BookOpen,
               onClick: onNavigateToDeckManager,
@@ -335,37 +270,20 @@ export function HomePage({
       icon: Medal,
       onClick: onNavigateToRanked,
       disabled: !canUseOnlineRoom || !hasLegalDeck,
-      status: canUseOnlineRoom ? '固定时段 · 计入积分' : '连接后可用',
-      tone: canUseOnlineRoom ? 'warning' : 'muted',
+      status: !canUseOnlineRoom
+        ? '连接后可用'
+        : !hasLegalDeck
+          ? '需要符合规则的卡组'
+          : '固定时段 · 计入积分',
+      tone: canUseOnlineRoom && hasLegalDeck ? 'warning' : 'muted',
     },
     {
-      title: '公共牌桌',
-      icon: Swords,
-      onClick: onNavigateToPublicTable,
-      disabled: !canUseOnlineRoom || !hasLegalDeck,
-      status: canUseOnlineRoom ? '休闲对局 · 不计积分' : '连接后可用',
-      tone: canUseOnlineRoom ? 'primary' : 'muted',
-    },
-    {
-      title: '正式联机',
-      icon: Globe2,
-      onClick: onNavigateToOnlineRoom,
-      disabled: !canUseOnlineRoom,
-      compact: !canUseOnlineRoom,
-      status: canUseOnlineRoom
-        ? '房间对战'
-        : deckSourceStatus === 'offline'
-          ? '连接后可用'
-          : '服务未配置',
-      tone: canUseOnlineRoom ? 'blue' : 'muted',
-    },
-    {
-      title: '输入房间号观战',
+      title: '房间观战',
       icon: Eye,
       onClick: onNavigateToOnlineSpectator,
       disabled: !canUseOnlineRoom,
       compact: !canUseOnlineRoom,
-      status: canUseOnlineRoom ? '只读观战' : '连接后可用',
+      status: canUseOnlineRoom ? '输入房间号' : '连接后可用',
       tone: canUseOnlineRoom ? 'green' : 'muted',
     },
     {
@@ -393,24 +311,32 @@ export function HomePage({
   }
 
   return (
-    <div className="app-shell flex min-h-screen flex-col overflow-x-hidden">
-      <EntryPageHeader
-        displayUsername={displayUsername}
-        connectionStatus={connectionStatus}
-        announcementCount={announcementItems.length}
-        hasUnreadAnnouncements={hasUnreadAnnouncements}
-        onOpenAnnouncements={openAnnouncements}
-        onOpenAccount={profile ? onNavigateToAccount : undefined}
-        onSignOut={signOut}
-      />
+    <ProductFrame
+      active="home"
+      navigation={navigation}
+      className="lobby-page"
+      actions={headerActions}
+      mobileMenuActions={mobileMenuActions}
+      footer={
+        <footer className="safe-bottom relative z-10 border-t border-[var(--border-subtle)] px-4 py-3">
+          <AppCredits version={__APP_VERSION__} />
+        </footer>
+      }
+    >
+      <main className="lobby-main">
+        <div className="lobby-content">
+          <header className="lobby-intro">
+            <div>
+              <span className="lobby-intro__eyebrow">PLAYER LOBBY</span>
+              <h1>欢迎回来，{displayUsername}</h1>
+            </div>
+            <div className={`lobby-connection ${connectionStatus.tone}`}>
+              <ConnectionStatusIcon size={15} aria-hidden="true" />
+              <span>{connectionStatus.label}</span>
+            </div>
+          </header>
 
-      <main className="relative z-10 flex-1 px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-          <motion.section
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-          >
+          <section className="lobby-primary">
             <SiteStatusBanner siteStatus={siteStatus} />
             <HomeActionBar
               title={primaryAction.title}
@@ -422,14 +348,9 @@ export function HomePage({
               state={primaryAction.state}
               notice={primaryAction.notice}
             />
-          </motion.section>
+          </section>
 
-          <motion.section
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35, delay: 0.06 }}
-            className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"
-          >
+          <section className="lobby-workspace">
             <DeckWorkspacePanel
               cloudDeckCount={canUseCloudDecks ? cloudDecks.length : 0}
               validDeckCount={validCloudDecks.length}
@@ -443,21 +364,11 @@ export function HomePage({
               onManageDecks={onNavigateToDeckManager}
             />
 
-            <div className="grid gap-4">
-              <SecondaryEntryPanel actions={secondaryActions} />
-              <div className="hidden md:block">
-                <SiteAnnouncementsPanel siteStatus={siteStatus} />
-              </div>
-            </div>
-          </motion.section>
+            <SecondaryEntryPanel actions={secondaryActions} />
+          </section>
 
           {isAdmin && (
-            <motion.section
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35, delay: 0.14 }}
-              className="border-t border-[var(--border-subtle)] pt-4"
-            >
+            <section className="border-t border-[var(--border-subtle)] pt-4">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                 <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
                 管理工具
@@ -500,206 +411,11 @@ export function HomePage({
                   compact
                 />
               </div>
-            </motion.section>
+            </section>
           )}
         </div>
       </main>
-
-      <AnnouncementCenterDrawer
-        isOpen={isAnnouncementsOpen}
-        items={announcementItems}
-        onClose={closeAnnouncements}
-      />
-      <div className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-        {announcementStatusMessage}
-      </div>
-
-      <footer className="safe-bottom relative z-10 border-t border-[var(--border-subtle)] px-4 py-3">
-        <AppCredits version={__APP_VERSION__} />
-      </footer>
-    </div>
-  );
-}
-
-function AnnouncementCenterDrawer({
-  isOpen,
-  items,
-  onClose,
-}: {
-  isOpen: boolean;
-  items: readonly AnnouncementDisplayItem[];
-  onClose: () => void;
-}) {
-  const dialogRef = useRef<HTMLElement | null>(null);
-  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const previouslyFocusedElementRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    previouslyFocusedElementRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    document.body.style.overflow = 'hidden';
-    const focusFrame = window.requestAnimationFrame(() => {
-      closeButtonRef.current?.focus();
-    });
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onClose();
-        return;
-      }
-
-      if (event.key === 'Tab' && dialogRef.current) {
-        trapFocusInDialog(event, dialogRef.current);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.cancelAnimationFrame(focusFrame);
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
-      const previousElement = previouslyFocusedElementRef.current;
-      previouslyFocusedElementRef.current = null;
-      if (previousElement && document.contains(previousElement)) {
-        previousElement.focus();
-      }
-    };
-  }, [isOpen, onClose]);
-
-  return (
-    <AnimatePresence>
-      {isOpen ? (
-        <motion.div
-          className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 px-0 backdrop-blur-[2px] sm:items-center sm:px-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              onClose();
-            }
-          }}
-        >
-          <motion.section
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="announcement-center-title"
-            tabIndex={-1}
-            className="safe-bottom flex max-h-[88dvh] w-full flex-col overflow-hidden rounded-t-[24px] border border-b-0 border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] sm:max-w-2xl sm:rounded-lg sm:border"
-            initial={{ y: 42, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 28, opacity: 0 }}
-            transition={{ type: 'spring', stiffness: 360, damping: 34 }}
-          >
-            <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] px-4 py-3 sm:px-5">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] text-[var(--accent-primary)]">
-                  <Bell size={18} />
-                </div>
-                <div className="min-w-0">
-                  <h2
-                    id="announcement-center-title"
-                    className="text-base font-bold text-[var(--text-primary)]"
-                  >
-                    公告栏
-                  </h2>
-                  <p className="mt-0.5 text-xs leading-5 text-[var(--text-muted)]">
-                    {items.length > 0
-                      ? `${items.length} 条维护、更新与动态`
-                      : `当前版本 ${__APP_VERSION__}`}
-                  </p>
-                </div>
-              </div>
-              <button
-                ref={closeButtonRef}
-                type="button"
-                className="button-icon h-9 w-9 shrink-0"
-                onClick={onClose}
-                aria-label="关闭公告栏"
-                title="关闭公告栏"
-              >
-                <X size={16} />
-              </button>
-            </header>
-
-            <div className="touch-scroll max-h-[calc(88dvh-5.25rem)] overflow-y-auto px-4 py-3 sm:max-h-[64vh] sm:px-5">
-              {items.length > 0 ? (
-                <div className="grid gap-3">
-                  {items.map((item) => (
-                    <AnnouncementDetailCard key={item.id} item={item} />
-                  ))}
-                </div>
-              ) : (
-                <InlineEmptyState
-                  icon={Bell}
-                  title="暂无公告"
-                  detail="可正常进入对局；新的维护、更新和动态会显示在这里。"
-                  tone="muted"
-                />
-              )}
-            </div>
-          </motion.section>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
-  );
-}
-
-function AnnouncementDetailCard({ item }: { item: AnnouncementDisplayItem }) {
-  const metaParts = [
-    item.timestamp ? `${item.timestampLabel} ${formatStatusDateTime(item.timestamp)}` : null,
-    item.endsAt ? `结束 ${formatStatusDateTime(item.endsAt)}` : null,
-    item.impactScopes.length > 0 ? `影响 ${item.impactScopes.join('、')}` : null,
-  ].filter((part): part is string => part !== null);
-  const toneClass = {
-    default: 'text-[var(--accent-primary)]',
-    info: 'text-[var(--semantic-info)]',
-    warning: 'text-[var(--semantic-warning)]',
-  }[item.tone];
-
-  return (
-    <article className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3.5 py-3 shadow-[var(--shadow-sm)]">
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span
-              className={`shrink-0 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}
-            >
-              {item.label}
-            </span>
-            <h3 className="min-w-0 text-sm font-bold leading-5 text-[var(--text-primary)]">
-              {item.title}
-            </h3>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{item.summary}</p>
-          {item.detail ? (
-            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[var(--text-muted)]">
-              {item.detail}
-            </p>
-          ) : null}
-        </div>
-        {item.action ? (
-          <span className="shrink-0 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-1 text-[11px] font-semibold text-[var(--text-primary)]">
-            {item.action}
-          </span>
-        ) : null}
-      </div>
-      {metaParts.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 border-t border-[var(--border-subtle)] pt-2 text-[11px] leading-5 text-[var(--text-muted)]">
-          {metaParts.map((part) => (
-            <span key={part}>{part}</span>
-          ))}
-        </div>
-      ) : null}
-    </article>
+    </ProductFrame>
   );
 }
 
@@ -747,98 +463,6 @@ function SiteStatusBanner({ siteStatus }: { siteStatus: PublicSiteStatus }) {
           </div>
         ) : null}
       </div>
-    </div>
-  );
-}
-
-function SiteAnnouncementsPanel({ siteStatus }: { siteStatus: PublicSiteStatus }) {
-  const announcements = siteStatus.announcements.slice(0, 3);
-  const maintenance = siteStatus.maintenance;
-
-  return (
-    <aside className="surface-panel rounded-lg p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <Bell size={16} className="text-[var(--accent-primary)]" />
-            <h3 className="text-sm font-bold text-[var(--text-primary)]">公告 / 更新</h3>
-          </div>
-          <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-            {maintenance ? '维护状态与近期更新' : `当前版本 ${__APP_VERSION__}`}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid gap-2">
-        {maintenance ? (
-          <AnnouncementRow
-            label={LIFECYCLE_LABELS[siteStatus.lifecycle]}
-            title={maintenance.title}
-            summary={maintenance.summary}
-            startsAt={maintenance.startsAt}
-            tone={siteStatus.lifecycle === 'MAINTENANCE' ? 'warning' : 'info'}
-          />
-        ) : null}
-
-        {announcements.map((announcement) => (
-          <AnnouncementRow
-            key={announcement.id}
-            label={ANNOUNCEMENT_TYPE_LABELS[announcement.type]}
-            title={announcement.title}
-            summary={announcement.summary}
-            startsAt={announcement.startsAt ?? announcement.publishedAt}
-            tone={announcement.type === 'MAINTENANCE' ? 'warning' : 'default'}
-          />
-        ))}
-
-        {!maintenance && announcements.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-3">
-            <div className="text-sm font-semibold text-[var(--text-primary)]">暂无新的维护通知</div>
-            <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
-              可正常进入对局；近期版本与发布摘要会在这里显示。
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </aside>
-  );
-}
-
-function AnnouncementRow({
-  label,
-  title,
-  summary,
-  startsAt,
-  tone,
-}: {
-  label: string;
-  title: string;
-  summary: string;
-  startsAt: string | null;
-  tone: 'default' | 'info' | 'warning';
-}) {
-  const toneClass = {
-    default: 'text-[var(--accent-primary)]',
-    info: 'text-[var(--semantic-info)]',
-    warning: 'text-[var(--semantic-warning)]',
-  }[tone];
-
-  return (
-    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5">
-      <div className="flex min-w-0 items-center gap-2">
-        <span
-          className={`shrink-0 rounded-md border border-[var(--border-subtle)] px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}
-        >
-          {label}
-        </span>
-        <h4 className="min-w-0 truncate text-sm font-bold text-[var(--text-primary)]">{title}</h4>
-      </div>
-      <p className="mt-1 line-clamp-2 text-xs leading-5 text-[var(--text-secondary)]">{summary}</p>
-      {startsAt ? (
-        <div className="mt-1 text-[11px] text-[var(--text-muted)]">
-          {formatStatusDateTime(startsAt)}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -909,207 +533,14 @@ function formatStatusDateTime(value: string): string {
   )}:${pad(date.getMinutes())} ${offset}`;
 }
 
-function buildAnnouncementDisplayItems(siteStatus: PublicSiteStatus): AnnouncementDisplayItem[] {
-  const items: AnnouncementDisplayItem[] = [];
-  const maintenance = siteStatus.maintenance;
-
-  if (maintenance) {
-    const isWarning =
-      siteStatus.lifecycle === 'MAINTENANCE' || siteStatus.lifecycle === 'RESTRICTING_NEW_GAMES';
-    items.push({
-      id: `maintenance:${maintenance.id}`,
-      label: LIFECYCLE_LABELS[siteStatus.lifecycle],
-      title: maintenance.title,
-      summary: maintenance.summary,
-      detail: maintenance.detail,
-      timestamp: maintenance.startsAt,
-      timestampLabel: '开始',
-      endsAt: maintenance.estimatedEndsAt,
-      impactScopes: maintenance.impactScopes,
-      action: maintenance.action,
-      tone: isWarning ? 'warning' : 'info',
-    });
-  }
-
-  for (const announcement of siteStatus.announcements) {
-    items.push(buildAnnouncementDisplayItem(announcement));
-  }
-
-  return items;
-}
-
-function buildAnnouncementDisplayItem(
-  announcement: PublicSiteAnnouncement
-): AnnouncementDisplayItem {
-  return {
-    id: `announcement:${announcement.id}`,
-    label: ANNOUNCEMENT_TYPE_LABELS[announcement.type],
-    title: announcement.title,
-    summary: announcement.summary,
-    detail: announcement.detail,
-    timestamp: announcement.startsAt ?? announcement.publishedAt,
-    timestampLabel: announcement.startsAt ? '开始' : '发布',
-    endsAt: announcement.endsAt,
-    impactScopes: announcement.impactScopes,
-    action: null,
-    tone: announcement.type === 'MAINTENANCE' ? 'warning' : 'default',
-  };
-}
-
-function readAnnouncementSeenKey(): string | null {
-  try {
-    return window.localStorage.getItem(ANNOUNCEMENT_SEEN_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeAnnouncementSeenKey(value: string): void {
-  try {
-    window.localStorage.setItem(ANNOUNCEMENT_SEEN_STORAGE_KEY, value);
-  } catch {
-    // localStorage can be unavailable in private or restricted contexts.
-  }
-}
-
-const DIALOG_FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'textarea:not([disabled])',
-  'input:not([disabled])',
-  'select:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',');
-
-function trapFocusInDialog(event: KeyboardEvent, dialog: HTMLElement): void {
-  const focusableElements = Array.from(
-    dialog.querySelectorAll<HTMLElement>(DIALOG_FOCUSABLE_SELECTOR)
-  ).filter(
-    (element) => !element.hasAttribute('disabled') && element.getAttribute('aria-hidden') !== 'true'
-  );
-
-  if (focusableElements.length === 0) {
-    event.preventDefault();
-    dialog.focus();
-    return;
-  }
-
-  const firstElement = focusableElements[0];
-  const lastElement = focusableElements[focusableElements.length - 1];
-  const activeElement = document.activeElement;
-
-  if (event.shiftKey && activeElement === firstElement) {
-    event.preventDefault();
-    lastElement.focus();
-    return;
-  }
-
-  if (!event.shiftKey && activeElement === lastElement) {
-    event.preventDefault();
-    firstElement.focus();
-  }
-}
-
-function EntryPageHeader({
-  displayUsername,
-  connectionStatus,
-  announcementCount,
-  hasUnreadAnnouncements,
-  onOpenAnnouncements,
-  onOpenAccount,
-  onSignOut,
-}: {
-  displayUsername: string;
-  connectionStatus: {
-    icon: ComponentType<{ size?: number | string; className?: string }>;
-    label: string;
-    detail?: string;
-    tone: string;
-  };
-  announcementCount: number;
-  hasUnreadAnnouncements: boolean;
-  onOpenAnnouncements: () => void;
-  onOpenAccount?: () => void;
-  onSignOut: () => void;
-}) {
-  return (
-    <header className="relative z-10 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] px-4 pb-2.5 pt-[calc(env(safe-area-inset-top)+0.625rem)] backdrop-blur-sm sm:px-6 lg:px-8">
-      <div className="mx-auto flex min-h-10 max-w-6xl items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <img
-            src="/icon.jpg"
-            alt="Loveca"
-            className="h-9 w-9 shrink-0 rounded-md border border-[var(--border-subtle)] object-cover"
-          />
-          <div className="flex min-w-0 items-center gap-2">
-            <h1 className="truncate text-sm font-bold text-[var(--text-primary)] sm:text-base">
-              Loveca
-            </h1>
-            <span className="hidden h-4 w-px bg-[var(--border-subtle)] sm:block" />
-            <div
-              className="hidden min-w-0 items-center gap-1.5 text-xs text-[var(--text-muted)] sm:flex"
-              title={connectionStatus.label}
-            >
-              <span
-                className={`h-1.5 w-1.5 shrink-0 rounded-full bg-current ${connectionStatus.tone}`}
-              />
-              <span className="truncate">{connectionStatus.label}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex min-w-0 items-center justify-end gap-1.5 sm:gap-2">
-          <span className="hidden max-w-36 truncate text-xs font-medium text-[var(--text-secondary)] sm:block">
-            {displayUsername}
-          </span>
-          {onOpenAccount ? (
-            <button
-              type="button"
-              onClick={onOpenAccount}
-              className="button-icon"
-              title="个人中心"
-              aria-label="个人中心"
-            >
-              <UserRound size={16} />
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onOpenAnnouncements}
-            className="button-icon relative"
-            title="公告栏"
-            aria-label={
-              hasUnreadAnnouncements
-                ? `公告栏，${announcementCount} 条未读公告`
-                : `公告栏，${announcementCount} 条公告`
-            }
-          >
-            <Bell size={16} />
-            {hasUnreadAnnouncements ? (
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border border-[var(--bg-surface)] bg-[var(--semantic-warning)]" />
-            ) : null}
-          </button>
-          <ThemeToggle />
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="button-icon"
-            title="登出"
-            aria-label="登出"
-          >
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
-    </header>
-  );
-}
-
 function SecondaryEntryPanel({ actions }: { actions: ActionTileProps[] }) {
   return (
-    <aside className="surface-panel rounded-lg p-4">
-      <h3 className="mb-3 text-sm font-bold text-[var(--text-primary)]">对局入口</h3>
-      <div className="grid gap-2">
+    <aside className="lobby-entry-panel">
+      <div className="lobby-section-heading">
+        <span>QUICK ACCESS</span>
+        <h2>常用入口</h2>
+      </div>
+      <div className="lobby-entry-grid">
         {actions.map((action) => (
           <ActionTile key={action.title} {...action} compact />
         ))}
@@ -1138,38 +569,30 @@ function HomeActionBar({
   notice?: string;
 }) {
   return (
-    <div className="surface-panel rounded-lg px-4 py-4 sm:px-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] text-[var(--accent-primary)]">
+    <div className="lobby-action-bar">
+      <span className="lobby-action-bar__label">NEXT ACTION</span>
+      <div className="lobby-action-bar__content">
+        <div className="lobby-action-bar__copy">
+          <div className="lobby-action-bar__icon">
             <Icon size={18} className={state === 'loading' ? 'animate-spin' : ''} />
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-xl font-bold tracking-normal text-[var(--text-primary)] sm:text-2xl">
-              {title}
-            </h2>
-            <p className="mt-1 max-w-3xl text-sm leading-5 text-[var(--text-secondary)]">
-              {description}
-            </p>
-            {notice && <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">{notice}</p>}
+            <h2>{title}</h2>
+            <p>{description}</p>
+            {notice && <small>{notice}</small>}
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row lg:justify-end">
-          <motion.button
-            whileTap={{ scale: 0.99 }}
-            type="button"
-            onClick={onClick}
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] bg-[var(--accent-primary)] px-5 text-sm font-bold text-white shadow-[0_10px_22px_color-mix(in_srgb,var(--accent-primary)_18%,transparent)] transition hover:-translate-y-0.5 hover:bg-[var(--accent-primary-hover)] sm:w-auto"
-          >
+        <div className="lobby-action-bar__actions">
+          <button type="button" onClick={onClick} className="lobby-action-bar__primary">
             {cta}
             <ArrowRight size={16} />
-          </motion.button>
+          </button>
           {supportAction && (
             <button
               type="button"
               onClick={supportAction.onClick}
-              className="button-secondary inline-flex min-h-11 w-full items-center justify-center gap-2 px-4 text-sm font-semibold sm:w-auto"
+              className="lobby-action-bar__secondary"
             >
               {supportAction.label}
             </button>
@@ -1215,9 +638,9 @@ function DeckWorkspacePanel({
           ? '正在同步云端卡组列表。'
           : validDeckCount > 0
             ? cloudDeckCount === validDeckCount
-              ? `${validDeckCount} 副云端卡组可直接开局。`
-              : `${validDeckCount} / ${cloudDeckCount} 副云端卡组可直接开局。`
-            : `共 ${cloudDeckCount} 副云端卡组，暂无可直接开局的合法卡组。`;
+              ? `${validDeckCount} 副云端卡组可用于对局。`
+              : `${validDeckCount} / ${cloudDeckCount} 副云端卡组可用于对局。`
+            : `共 ${cloudDeckCount} 副云端卡组，暂无符合构筑规则的卡组。`;
 
   const emptyState = isInitialLoading
     ? {
@@ -1249,8 +672,8 @@ function DeckWorkspacePanel({
             }
           : {
               icon: BookOpen,
-              title: '暂无合法卡组',
-              detail: '先创建或修正一副合法卡组，再开始对局。',
+              title: '暂无可用卡组',
+              detail: '请先创建或调整一副符合构筑规则的卡组，再开始对局。',
               tone: 'warning' as const,
             };
   const hasVisibleValidDecks = !isInitialLoading && validDecks.length > 0;
@@ -1261,8 +684,8 @@ function DeckWorkspacePanel({
       : false;
 
   return (
-    <div className="surface-panel flex min-h-full flex-col rounded-lg p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-3 border-b border-[var(--border-subtle)] pb-4 sm:items-center">
+    <section className="lobby-deck-panel">
+      <div className="lobby-deck-panel__header">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <BookOpen size={17} className="text-[var(--accent-primary)]" />
@@ -1326,7 +749,7 @@ function DeckWorkspacePanel({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -1410,14 +833,13 @@ function ActionTile({
 
   if (compact) {
     return (
-      <motion.button
-        whileTap={disabled ? undefined : { scale: 0.99 }}
+      <button
         type="button"
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         className={`group flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-          description ? 'min-h-[68px]' : 'min-h-14'
-        } ${
+          compact ? 'lobby-entry-tile' : ''
+        } ${description ? 'min-h-[68px]' : 'min-h-14'} ${
           disabled
             ? 'cursor-not-allowed border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)] opacity-60'
             : 'border-[var(--border-default)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] hover:border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))]'
@@ -1443,14 +865,12 @@ function ActionTile({
             </p>
           )}
         </div>
-      </motion.button>
+      </button>
     );
   }
 
   return (
-    <motion.button
-      whileHover={disabled ? undefined : { y: -2 }}
-      whileTap={disabled ? undefined : { scale: 0.99 }}
+    <button
       type="button"
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
@@ -1491,6 +911,6 @@ function ActionTile({
           </p>
         )}
       </div>
-    </motion.button>
+    </button>
   );
 }

@@ -27,27 +27,28 @@ export function CardTypeTabs({ selected, onSelect, compact = false }: CardTypeTa
       }`}
     >
       <div className={`flex gap-1 ${compact ? 'min-w-max' : ''}`}>
-      {TABS.map(({ type, label, Icon, colors }) => {
-        const isActive = selected === type;
-        return (
-          <button
-            key={type}
-            onClick={() => onSelect(type)}
-            className={`flex items-center justify-center rounded-lg font-medium transition-all duration-200 ${
-              compact
-                ? `min-h-9 shrink-0 gap-1.5 px-3 py-1.5 text-xs`
-                : 'min-h-11 flex-1 gap-1 px-1 py-2 text-xs sm:gap-1.5 sm:px-2 sm:text-sm'
-            } ${
-              isActive
-                ? `${colors.bg} ${colors.border} ${colors.text} shadow-[var(--shadow-sm)]`
-                : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            <Icon size={15} />
-            <span className="truncate">{label}</span>
-          </button>
-        );
-      })}
+        {TABS.map(({ type, label, Icon, colors }) => {
+          const isActive = selected === type;
+          return (
+            <button
+              type="button"
+              key={type}
+              onClick={() => onSelect(type)}
+              className={`flex items-center justify-center rounded-lg font-medium transition-colors duration-150 ${
+                compact
+                  ? `min-h-9 shrink-0 gap-1.5 px-3 py-1.5 text-xs`
+                  : 'min-h-11 flex-1 gap-1 px-1 py-2 text-xs sm:gap-1.5 sm:px-2 sm:text-sm'
+              } ${
+                isActive
+                  ? `${colors.bg} ${colors.border} ${colors.text}`
+                  : 'bg-transparent text-[var(--text-secondary)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <Icon size={15} />
+              <span className="truncate">{label}</span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

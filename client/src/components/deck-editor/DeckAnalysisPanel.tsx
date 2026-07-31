@@ -15,15 +15,15 @@ interface DeckAnalysisPanelProps {
 }
 
 const HEART_COLOR_HEX: Record<HeartColor, string> = {
-  [HeartColor.PINK]: '#f9a8d4',
-  [HeartColor.RED]: '#f87171',
-  [HeartColor.YELLOW]: '#fde047',
-  [HeartColor.GREEN]: '#86efac',
-  [HeartColor.BLUE]: '#60a5fa',
-  [HeartColor.PURPLE]: '#c084fc',
-  [HeartColor.ORANGE]: '#fb923c',
-  [HeartColor.GRAY]: '#9ca3af',
-  [HeartColor.RAINBOW]: '#fbbf24',
+  [HeartColor.PINK]: 'var(--heart-pink)',
+  [HeartColor.RED]: 'var(--heart-red)',
+  [HeartColor.YELLOW]: 'var(--heart-yellow)',
+  [HeartColor.GREEN]: 'var(--heart-green)',
+  [HeartColor.BLUE]: 'var(--heart-blue)',
+  [HeartColor.PURPLE]: 'var(--heart-purple)',
+  [HeartColor.ORANGE]: 'var(--heart-orange)',
+  [HeartColor.GRAY]: 'var(--heart-gray)',
+  [HeartColor.RAINBOW]: 'var(--heart-yellow)',
 };
 
 const HEART_COLOR_LABEL: Record<HeartColor, string> = {
@@ -164,7 +164,7 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
       costData.push({
         label: String(c),
         value: costMap.get(c) ?? 0,
-        color: '#fb923c',
+        color: 'var(--accent-secondary)',
       });
     }
 
@@ -183,7 +183,7 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
       liveScoreData.push({
         label: String(score),
         value: liveScoreMap.get(score) ?? 0,
-        color: '#38bdf8',
+        color: 'var(--semantic-info)',
       });
     }
 
@@ -221,9 +221,17 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
       }));
 
     const bladeData: BarDatum[] = [
-      { label: '抽卡', value: effectCounts[BladeHeartEffect.DRAW], color: '#38bdf8' },
-      { label: '加分', value: effectCounts[BladeHeartEffect.SCORE], color: '#fbbf24' },
-      { label: '无判', value: noJudgmentCount, color: '#94a3b8' },
+      {
+        label: '抽卡',
+        value: effectCounts[BladeHeartEffect.DRAW],
+        color: 'var(--semantic-info)',
+      },
+      {
+        label: '加分',
+        value: effectCounts[BladeHeartEffect.SCORE],
+        color: 'var(--semantic-warning)',
+      },
+      { label: '无判', value: noJudgmentCount, color: 'var(--heart-gray)' },
       ...colorBars,
     ];
 
@@ -249,7 +257,7 @@ export function DeckAnalysisPanel({ deck }: DeckAnalysisPanelProps) {
       {/* Live 分数分布 */}
       <section>
         <h4 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[var(--text-primary)]">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky-400" />
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--semantic-info)]" />
           LIVE 分数分布
         </h4>
         <div className="surface-panel rounded-2xl border border-[var(--border-subtle)] px-2 py-1">

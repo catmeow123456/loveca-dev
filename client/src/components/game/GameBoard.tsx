@@ -2987,7 +2987,7 @@ export const GameBoard = memo(function GameBoard({
                         />
                       </CardDetailPressTarget>
                     ) : (
-                      <div className="flex aspect-[2/3] w-full items-center justify-center rounded-md border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-tertiary)]">
+                      <div className="flex aspect-[2/3] w-full items-center justify-center rounded-md border border-dashed border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
                         不可见
                       </div>
                     )}
@@ -3223,7 +3223,7 @@ export const GameBoard = memo(function GameBoard({
                                 />
                               </CardDetailPressTarget>
                             ) : (
-                              <div className="order-1 row-span-2 flex h-[73px] w-[52px] items-center justify-center rounded-md border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-tertiary)] md:order-none md:row-span-1 md:h-[112px] md:w-[80px]">
+                              <div className="order-1 row-span-2 flex h-[73px] w-[52px] items-center justify-center rounded-md border border-dashed border-[var(--border-default)] text-xs font-semibold text-[var(--text-muted)] md:order-none md:row-span-1 md:h-[112px] md:w-[80px]">
                                 空
                               </div>
                             )}
@@ -4025,7 +4025,9 @@ export const GameBoard = memo(function GameBoard({
                 </p>
               )}
               {pendingCostEnergyIds.length < pendingCostPayment.finalEnergyCost && (
-                <p className="mt-1 text-xs text-[var(--danger)]">可用能量不足，无法支付。</p>
+                <p className="mt-1 text-xs text-[var(--semantic-error)]">
+                  可用能量不足，无法支付。
+                </p>
               )}
             </div>
             {!isReadOnly && (

@@ -1,22 +1,21 @@
 /**
- * GameSetupPage - 游戏准备页面
- * Step 0: 选择游戏模式（公共牌桌 / 房间联机 / 对墙打 / 双人调试）
+ * GameSetupPage - 对局准备页面
+ * Step 0: 选择对战方式（公共牌桌 / 赛季排位 / 房间联机 / 对墙打 / 双人调试）
  * Step 1: 选择卡组（调试模式选 2 副，对墙打模式选 1 副）
- * Step 2: 确认并开始游戏
+ * Step 2: 确认并开始对局
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft,
   Bot,
   Bug,
   Check,
   ChevronLeft,
   ChevronRight,
-  Gamepad2,
   Globe2,
   Layers3,
+  Medal,
   Play,
   Swords,
   Star,
@@ -32,9 +31,9 @@ import { useGameStore } from '@/store/gameStore';
 import {
   DeckSelector,
   getDeckPointTextClass,
-  PageHeader,
-  ThemeToggle,
+  ProductFrame,
   type DeckDisplayItem,
+  type ProductNavigationHandlers,
 } from '@/components/common';
 import { DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 import { DeckLoader } from '@game/domain/card-data/deck-loader';
@@ -62,13 +61,17 @@ import { writeStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
 import { cn } from '@/lib/utils';
 
 type SetupStep = 0 | 1 | 2 | 3;
-type SetupMode = 'PUBLIC_TABLE' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
+type SetupMode = 'PUBLIC_TABLE' | 'RANKED' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
 
 interface GameSetupPageProps {
+  navigation: ProductNavigationHandlers;
+  headerActions: ReactNode;
+  mobileMenuActions: ReactNode;
   onBack: () => void;
   onGameStart: () => void;
   onNavigateToOnlineRoom: () => void;
   onNavigateToPublicTable: () => void;
+  onNavigateToRanked: () => void;
 }
 
 function createLocalGameId(): string {
@@ -105,22 +108,22 @@ function ModeChoice({
       disabled={!available}
       aria-pressed={selected}
       className={cn(
-        'group relative isolate flex w-full min-w-0 overflow-hidden border text-left outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[var(--mode-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)]',
+        'group relative isolate flex w-full min-w-0 overflow-hidden border text-left outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-[var(--mode-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)]',
         toneClass,
         featured
-          ? 'min-h-[116px] items-center gap-4 rounded-[24px] p-5 sm:min-h-[132px] sm:px-7'
-          : 'min-h-[108px] items-center gap-4 rounded-[20px] p-4 sm:min-h-[122px] sm:p-5',
+          ? 'min-h-[112px] items-center gap-4 rounded-lg p-5 sm:min-h-[124px] sm:px-7'
+          : 'min-h-[96px] items-center gap-4 rounded-md p-4 sm:min-h-[108px] sm:p-5',
         selected
-          ? 'border-[color:color-mix(in_srgb,var(--mode-accent)_62%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--mode-accent)_13%,var(--bg-surface))] shadow-[0_0_0_1px_color-mix(in_srgb,var(--mode-accent)_20%,transparent),var(--shadow-md)]'
-          : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_76%,transparent)] hover:-translate-y-0.5 hover:border-[color:color-mix(in_srgb,var(--mode-accent)_35%,var(--border-default))] hover:bg-[color:color-mix(in_srgb,var(--mode-accent)_6%,var(--bg-surface))] hover:shadow-[var(--shadow-sm)]',
+          ? 'border-[color:color-mix(in_srgb,var(--mode-accent)_62%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--mode-accent)_10%,var(--bg-surface))]'
+          : 'border-[var(--border-subtle)] bg-[var(--bg-surface)] hover:border-[color:color-mix(in_srgb,var(--mode-accent)_35%,var(--border-default))]',
         !available &&
-          'cursor-not-allowed opacity-[0.48] grayscale-[0.25] hover:translate-y-0 hover:border-[var(--border-subtle)] hover:shadow-none'
+          'cursor-not-allowed opacity-[0.48] grayscale-[0.25] hover:border-[var(--border-subtle)]'
       )}
     >
       <span
         className={cn(
           'relative flex shrink-0 items-center justify-center border border-[color:color-mix(in_srgb,var(--mode-accent)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--mode-accent)_12%,var(--bg-overlay))] text-[var(--mode-accent)]',
-          featured ? 'h-14 w-14 rounded-2xl' : 'h-11 w-11 rounded-xl'
+          featured ? 'h-14 w-14 rounded-lg' : 'h-11 w-11 rounded-md'
         )}
       >
         <Icon size={featured ? 25 : 20} strokeWidth={1.8} />
@@ -158,10 +161,14 @@ function ModeChoice({
 }
 
 export function GameSetupPage({
+  navigation,
+  headerActions,
+  mobileMenuActions,
   onBack,
   onGameStart,
   onNavigateToOnlineRoom,
   onNavigateToPublicTable,
+  onNavigateToRanked,
 }: GameSetupPageProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
   const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
@@ -172,8 +179,9 @@ export function GameSetupPage({
   const [isStarting, setIsStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isPublicTableMode = setupMode === 'PUBLIC_TABLE';
+  const isRankedMode = setupMode === 'RANKED';
   const isOnlineMode = setupMode === 'ONLINE';
-  const isRemoteEntryMode = isPublicTableMode || isOnlineMode;
+  const isRemoteEntryMode = isPublicTableMode || isRankedMode || isOnlineMode;
   const gameMode = setupMode === GameMode.DEBUG ? GameMode.DEBUG : GameMode.SOLITAIRE;
   const isDebugMode = gameMode === GameMode.DEBUG;
   const maxStep: SetupStep = isRemoteEntryMode ? 1 : isDebugMode ? 3 : 2;
@@ -308,6 +316,12 @@ export function GameSetupPage({
         }
         return;
       }
+      if (isRankedMode) {
+        if (canUseOnlineRoom && validDecks.length > 0) {
+          onNavigateToRanked();
+        }
+        return;
+      }
       setCurrentStep(1);
     } else if (currentStep === 1) {
       if (gameMode === GameMode.DEBUG && selectedP1Deck) {
@@ -333,13 +347,16 @@ export function GameSetupPage({
 
   // 是否可以进入下一步
   const canProceed = () => {
-    if (currentStep === 0) return isRemoteEntryMode ? canUseOnlineRoom : gameMode !== undefined;
+    if (currentStep === 0) {
+      if (isRankedMode) return canUseOnlineRoom && validDecks.length > 0;
+      return isRemoteEntryMode ? canUseOnlineRoom : gameMode !== undefined;
+    }
     if (currentStep === 1) return selectedP1Deck !== null;
     if (currentStep === 2 && gameMode === GameMode.DEBUG) return selectedP2Deck !== null;
     return false;
   };
 
-  // 开始游戏
+  // 开始对局
   const handleStartGame = async () => {
     if (!selectedP1Deck) return;
 
@@ -464,7 +481,7 @@ export function GameSetupPage({
         ? [0, 1, 2]
         : [0, 1, 2, 3];
     const labels = isRemoteEntryMode
-      ? ['模式', isPublicTableMode ? '匹配' : '房间']
+      ? ['模式', isPublicTableMode ? '匹配' : isRankedMode ? '排位' : '房间']
       : gameMode === GameMode.SOLITAIRE
         ? ['模式', '卡组', '确认']
         : ['模式', 'P1', 'P2', '确认'];
@@ -473,7 +490,7 @@ export function GameSetupPage({
         <ol
           className="grid gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_58%,transparent)] p-1"
           style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
-          aria-label="游戏准备步骤"
+          aria-label="对局准备步骤"
         >
           {steps.map((step, idx) => {
             const isActive = currentStep === step;
@@ -519,13 +536,13 @@ export function GameSetupPage({
   const getStepTitle = () => {
     switch (currentStep) {
       case 0:
-        return '选择游戏模式';
+        return '选择对战方式';
       case 1:
         return gameMode === GameMode.SOLITAIRE ? '选择己方卡组' : '选择 Player 1 的卡组';
       case 2:
-        return gameMode === GameMode.SOLITAIRE ? '确认并开始游戏' : '选择 Player 2 的卡组';
+        return gameMode === GameMode.SOLITAIRE ? '确认并开始对局' : '选择 Player 2 的卡组';
       case 3:
-        return '确认并开始游戏';
+        return '确认并开始对局';
     }
   };
 
@@ -535,6 +552,10 @@ export function GameSetupPage({
         return canUseOnlineRoom ? '进入公共牌桌' : '公共牌桌暂不可用';
       }
       if (isOnlineMode) return canUseOnlineRoom ? '进入联机房间' : '联机暂不可用';
+      if (isRankedMode) {
+        if (!canUseOnlineRoom) return '赛季排位暂不可用';
+        return validDecks.length > 0 ? '进入赛季排位' : '需要符合规则的卡组';
+      }
       if (gameMode === GameMode.SOLITAIRE) return '下一步：选择己方卡组';
       return '下一步：选择 P1 卡组';
     }
@@ -545,25 +566,16 @@ export function GameSetupPage({
   };
 
   return (
-    <div className="app-shell flex min-h-screen flex-col">
-      <PageHeader
-        title="游戏准备"
-        icon={<Gamepad2 size={20} />}
-        left={
-          <button
-            type="button"
-            onClick={onBack}
-            className="button-icon"
-            title="返回首页"
-            aria-label="返回首页"
-          >
-            <ArrowLeft size={16} />
-          </button>
-        }
-        right={<ThemeToggle />}
-        className="sm:px-6"
-      />
-
+    <ProductFrame
+      active="battle"
+      navigation={navigation}
+      actions={headerActions}
+      mobileMenuActions={mobileMenuActions}
+      title="对局准备"
+      description="选择对战方式和本次使用的卡组"
+      backLabel="返回大厅"
+      onBack={onBack}
+    >
       <main className="relative z-10 flex flex-1 flex-col overflow-hidden px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-5 sm:px-6 sm:pb-[calc(env(safe-area-inset-bottom)+1.5rem)] sm:pt-6">
         {currentStep > 0 && renderStepIndicator()}
 
@@ -591,11 +603,11 @@ export function GameSetupPage({
                 <div className="mx-auto w-full max-w-5xl pb-4">
                   <header className="mx-auto mb-5 text-center sm:mb-6">
                     <h1 className="text-3xl font-black tracking-[-0.035em] text-[var(--text-primary)] sm:text-4xl">
-                      选择游戏模式
+                      选择对战方式
                     </h1>
                   </header>
 
-                  <div className="rounded-[30px] border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_44%,transparent)] p-2 shadow-[var(--shadow-sm)] backdrop-blur-md sm:p-3">
+                  <div className="rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_36%,transparent)] p-2 sm:p-3">
                     <ModeChoice
                       mode="PUBLIC_TABLE"
                       title="公共牌桌"
@@ -608,7 +620,17 @@ export function GameSetupPage({
                       onSelect={handleSelectMode}
                     />
 
-                    <div className="mt-2 grid gap-2 md:grid-cols-3">
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <ModeChoice
+                        mode="RANKED"
+                        title="赛季排位"
+                        description="在开放时段匹配并计入积分"
+                        icon={Medal}
+                        toneClass="[--mode-accent:var(--semantic-warning)]"
+                        selected={setupMode === 'RANKED'}
+                        available={canUseOnlineRoom && validDecks.length > 0}
+                        onSelect={handleSelectMode}
+                      />
                       <ModeChoice
                         mode="ONLINE"
                         title="房间联机"
@@ -624,7 +646,7 @@ export function GameSetupPage({
                         title="对墙打"
                         description="单人测试完整流程"
                         icon={Target}
-                        toneClass="[--mode-accent:var(--heart-green)]"
+                        toneClass="[--mode-accent:var(--semantic-success)]"
                         selected={setupMode === GameMode.SOLITAIRE}
                         available
                         onSelect={handleSelectMode}
@@ -716,9 +738,9 @@ export function GameSetupPage({
                 className="absolute inset-0 flex justify-center items-start sm:items-center"
               >
                 <div className="flex w-full max-w-2xl flex-col items-center">
-                  <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2 text-sm font-medium text-[var(--text-primary)]">
+                  <div className="mb-6 inline-flex items-center gap-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2 text-sm font-medium text-[var(--text-primary)]">
                     {gameMode === GameMode.SOLITAIRE ? (
-                      <Target size={16} className="text-[var(--heart-green)]" />
+                      <Target size={16} className="text-[var(--semantic-success)]" />
                     ) : (
                       <Bug size={16} className="text-[var(--accent-primary)]" />
                     )}
@@ -730,7 +752,7 @@ export function GameSetupPage({
                   >
                     <div className="surface-panel p-5 sm:p-6">
                       <div className="flex items-center gap-3 mb-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]">
                           <UserRound size={22} />
                         </div>
                         <div className="min-w-0">
@@ -769,7 +791,7 @@ export function GameSetupPage({
                     {gameMode === GameMode.DEBUG && (
                       <div className="surface-panel p-5 sm:p-6">
                         <div className="flex items-center gap-3 mb-4">
-                          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] text-[var(--accent-secondary)]">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[color:color-mix(in_srgb,var(--accent-secondary)_12%,transparent)] text-[var(--accent-secondary)]">
                             <UserRound size={22} />
                           </div>
                           <div className="min-w-0">
@@ -841,7 +863,7 @@ export function GameSetupPage({
                     whileTap={{ scale: 0.98 }}
                     onClick={handleStartGame}
                     disabled={isStarting}
-                    className={`button-gold w-full px-8 py-4 text-base font-bold sm:w-auto sm:px-12 sm:text-lg ${isStarting ? 'cursor-not-allowed opacity-50' : ''}`}
+                    className={`button-primary w-full px-8 py-4 text-base font-bold sm:w-auto sm:px-12 sm:text-lg ${isStarting ? 'cursor-not-allowed opacity-50' : ''}`}
                   >
                     {isStarting ? (
                       <span className="flex items-center gap-2">
@@ -851,7 +873,7 @@ export function GameSetupPage({
                     ) : (
                       <span className="flex items-center gap-2">
                         <Play size={18} />
-                        <span>开始游戏！</span>
+                        <span>开始对局</span>
                       </span>
                     )}
                   </motion.button>
@@ -863,7 +885,7 @@ export function GameSetupPage({
 
         <div
           className={cn(
-            'sticky bottom-0 mt-5 w-full self-center rounded-[20px] border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] p-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:static sm:mt-6 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none',
+            'sticky bottom-0 mt-5 w-full self-center rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] p-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:static sm:mt-6 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none',
             currentStep === 0 ? 'max-w-5xl' : 'max-w-2xl'
           )}
         >
@@ -902,6 +924,6 @@ export function GameSetupPage({
           </div>
         </div>
       </main>
-    </div>
+    </ProductFrame>
   );
 }

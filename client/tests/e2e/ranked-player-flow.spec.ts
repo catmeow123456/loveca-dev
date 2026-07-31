@@ -165,6 +165,7 @@ async function createActiveSeason(request: APIRequestContext, adminToken: string
 
 async function loginUi(page: Page, username: string, password: string): Promise<void> {
   await page.goto('/');
+  await page.getByRole('button', { name: '登录', exact: true }).click();
   await page.getByPlaceholder('输入你的用户名或邮箱').fill(username);
   await page.getByPlaceholder('输入你的密码').fill(password);
   const loginResponse = page.waitForResponse(

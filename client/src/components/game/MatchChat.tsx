@@ -328,7 +328,7 @@ export const MatchChat = memo(function MatchChat({ access }: MatchChatProps) {
         ? createPortal(
             <aside
               aria-label={isSpectator ? '观战聊天面板' : '局内聊天面板'}
-              className="fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-2 right-2 z-[var(--z-battle-chat)] flex h-[min(68dvh,560px)] min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-xl)] backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-20 md:h-auto md:w-[min(370px,calc(100vw-2rem))]"
+              className="fixed bottom-[max(0.5rem,env(safe-area-inset-bottom))] left-2 right-2 z-[var(--z-battle-chat)] flex h-[min(68dvh,560px)] min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-lg)] backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-20 md:h-auto md:w-[min(370px,calc(100vw-2rem))]"
             >
               <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-3 py-2.5">
                 <div className="flex min-w-0 items-center gap-2.5">
