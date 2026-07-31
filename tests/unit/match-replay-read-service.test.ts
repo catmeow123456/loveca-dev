@@ -519,6 +519,35 @@ describe('MatchReplayReadService P1b', () => {
     expect(JSON.stringify(records)).not.toContain('database stack');
   });
 
+  it('已清理记录保留详情元信息，但拒绝读取回放数据', async () => {
+    const { service } = createHarness({
+      accessOverrides: {
+        completeness: 'METADATA_ONLY',
+        replay_capabilities: [],
+        replay_limitations: ['REPLAY_DATA_PURGED'],
+        partial_reason: '回放数据已按保留策略清理',
+      },
+    });
+
+    const detail = await service.getMatchRecordDetail('match-read-1', 'u1');
+
+    expect(detail).toMatchObject({
+      matchId: 'match-read-1',
+      completeness: 'METADATA_ONLY',
+      replayCapabilities: [],
+      replayLimitations: ['REPLAY_DATA_PURGED'],
+      partialReasonSummary: '回放数据已超过保留期，仅保留对局元信息',
+    });
+    await expect(service.getMatchRecordTimeline('match-read-1', 'u1')).rejects.toMatchObject({
+      code: 'MATCH_RECORD_REPLAY_DATA_PURGED',
+      statusCode: 410,
+    });
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_REPLAY_DATA_PURGED',
+      statusCode: 410,
+    });
+  });
+
   it('读取对墙打历史时保留来源模式、限制标记并按 SOLITAIRE 投影', async () => {
     const { service } = createHarness({
       accessOverrides: {

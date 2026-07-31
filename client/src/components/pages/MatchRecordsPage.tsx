@@ -116,14 +116,27 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
       setError(null);
       try {
         const adminSeat = adminViewerSeatRef.current;
-        const [nextDetail, nextTimeline, nextReplay] = isAdminRef.current
+        const nextDetail = isAdminRef.current
+          ? await fetchAdminMatchRecordDetail(matchId)
+          : await fetchMatchRecordDetail(matchId);
+        if (requestId !== latestReplayRequestRef.current) {
+          return;
+        }
+        if (nextDetail.completeness === 'METADATA_ONLY') {
+          setDetail(nextDetail);
+          setTimeline([]);
+          setReplay(null);
+          replayBoardOpenRef.current = false;
+          setReplayBoardOpen(false);
+          leaveReadonlyReplay();
+          return;
+        }
+        const [nextTimeline, nextReplay] = isAdminRef.current
           ? await Promise.all([
-              fetchAdminMatchRecordDetail(matchId),
               fetchAdminMatchRecordTimeline(matchId, adminSeat),
               fetchAdminMatchRecordReplay(matchId, { checkpointSeq, viewerSeat: adminSeat }),
             ])
           : await Promise.all([
-              fetchMatchRecordDetail(matchId),
               fetchMatchRecordTimeline(matchId),
               fetchMatchRecordReplay(matchId, { checkpointSeq }),
             ]);
@@ -369,7 +382,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
         }
       />
 
-      <main className="relative z-10 flex-1 px-3 py-4 sm:px-4 lg:px-5 xl:px-6">
+      <main className="relative z-10 flex-1 px-3 pb-24 pt-4 sm:px-4 sm:pb-24 lg:px-5 lg:pb-4 xl:px-6">
         <div className="mx-auto grid w-full max-w-[1480px] items-start gap-4 lg:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]">
           <motion.section
             initial={{ opacity: 0, y: 12 }}
@@ -442,8 +455,13 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     <button
                       type="button"
                       onClick={() => void handleExportSelectedRecord()}
-                      disabled={isExporting}
+                      disabled={isExporting || selectedRecord.completeness === 'METADATA_ONLY'}
                       className="button-ghost inline-flex h-9 items-center justify-center gap-1.5 border border-[var(--border-default)] px-3 text-xs font-semibold disabled:opacity-50"
+                      title={
+                        selectedRecord.completeness === 'METADATA_ONLY'
+                          ? '该记录的回放数据已清理'
+                          : '导出回放'
+                      }
                     >
                       <Download size={14} />
                       导出
@@ -501,7 +519,18 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                     <ReplayMetricGrid replay={replay} />
                   </div>
                 ) : (
-                  <EmptyPanel title="暂无 checkpoint" detail="选择带 checkpoint 的 timeline 节点。" />
+                  <EmptyPanel
+                    title={
+                      selectedRecord?.completeness === 'METADATA_ONLY'
+                        ? '回放数据已清理'
+                        : '暂无 checkpoint'
+                    }
+                    detail={
+                      selectedRecord?.completeness === 'METADATA_ONLY'
+                        ? '该对局仅保留结果、参与者和卡组来源等元信息。'
+                        : '选择带 checkpoint 的 timeline 节点。'
+                    }
+                  />
                 )}
               </div>
 
@@ -514,7 +543,18 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                 {isLoadingNode && timeline.length === 0 ? (
                   <LoadingPanel label="读取 timeline" />
                 ) : timeline.length === 0 ? (
-                  <EmptyPanel title="暂无 timeline" detail="该记录还没有可读时间线。" />
+                  <EmptyPanel
+                    title={
+                      selectedRecord?.completeness === 'METADATA_ONLY'
+                        ? '时间线已清理'
+                        : '暂无 timeline'
+                    }
+                    detail={
+                      selectedRecord?.completeness === 'METADATA_ONLY'
+                        ? '完整回放仅保留最近 10 天。'
+                        : '该记录还没有可读时间线。'
+                    }
+                  />
                 ) : (
                   <div className="mt-3 grid max-h-[560px] gap-2 overflow-x-hidden overflow-y-auto pr-1">
                     {timeline.map((entry) => (
@@ -560,11 +600,15 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
                   </div>
                 ) : (
                   <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--text-muted)]">
-                    <span className="chip-badge px-2 py-1">公开事件 {replay.visibleEvents.length}</span>
+                    <span className="chip-badge px-2 py-1">
+                      公开事件 {replay.visibleEvents.length}
+                    </span>
                     <span className="chip-badge px-2 py-1">
                       私密事件 {replay.visiblePrivateEvents.length}
                     </span>
-                    <span className="chip-badge px-2 py-1">决策 {replay.visibleDecisions.length}</span>
+                    <span className="chip-badge px-2 py-1">
+                      决策 {replay.visibleDecisions.length}
+                    </span>
                     <span className="chip-badge px-2 py-1">区域 {visibleZones.length}</span>
                   </div>
                 )}
@@ -629,6 +673,30 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
           ) : null}
         </div>
       ) : null}
+      {!replayBoardOpen && replay ? (
+        <div className="fixed inset-x-3 bottom-3 z-[220] md:hidden">
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] px-3 py-2.5 shadow-[var(--shadow-lg)] backdrop-blur-xl">
+            <div className="min-w-0 flex-1">
+              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--accent-primary)]">
+                当前回放节点
+              </div>
+              <div className="truncate text-xs text-[var(--text-muted)]">
+                Checkpoint {replay.replayPosition.checkpointSeq} ·{' '}
+                {selectedRecord ? formatRecordTitle(selectedRecord) : '历史对局'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleOpenReplayBoard()}
+              disabled={isLoadingNode}
+              className="button-primary inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Eye size={14} />
+              打开回放
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -656,9 +724,7 @@ function MatchRecordButton({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-sm font-bold text-[var(--text-primary)]">
-            {title}
-          </div>
+          <div className="truncate text-sm font-bold text-[var(--text-primary)]">{title}</div>
           <div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-[var(--text-muted)]">
             <span>{formatDateTime(record.startedAt)}</span>
             <span>T{record.turnCount}</span>
@@ -808,7 +874,10 @@ function MatchRecordSummary({
 
   return (
     <div className="mt-3 grid gap-2 sm:grid-cols-2">
-      <InfoTile label="对局" value={`${formatMatchModeLabel(record.matchMode)} · ${formatRecordStatus(record)}`} />
+      <InfoTile
+        label="对局"
+        value={`${formatMatchModeLabel(record.matchMode)} · ${formatRecordStatus(record)}`}
+      />
       <InfoTile
         label="玩家"
         value={`FIRST ${first?.displayName ?? '-'} / SECOND ${second?.displayName ?? '-'}`}
@@ -1190,13 +1259,7 @@ function PanelTitle({
   );
 }
 
-function InfoTile({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function InfoTile({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid min-w-0 grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-2 rounded-md border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2.5 py-1.5">
       <div className="text-[11px] font-medium text-[var(--text-muted)]">{label}</div>
@@ -1247,7 +1310,7 @@ function StatusPill({
         : 'border-[var(--border-subtle)] text-[var(--text-muted)]';
   return (
     <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${tone}`}>
-      {status}
+      {completeness === 'METADATA_ONLY' ? '仅元信息' : status}
     </span>
   );
 }
@@ -1335,7 +1398,9 @@ function formatMatchModeLabel(mode: MatchRecordSummaryView['matchMode']): string
   return mode === 'SOLITAIRE' ? '对墙打' : '正式联机';
 }
 
-function formatRecordStatus(record: Pick<MatchRecordSummaryView, 'status' | 'completeness'>): string {
+function formatRecordStatus(
+  record: Pick<MatchRecordSummaryView, 'status' | 'completeness'>
+): string {
   const status =
     record.status === 'IN_PROGRESS'
       ? '进行中'
@@ -1346,7 +1411,11 @@ function formatRecordStatus(record: Pick<MatchRecordSummaryView, 'status' | 'com
           : record.status === 'INTERRUPTED'
             ? '中断'
             : '异常';
-  return record.completeness === 'FULL' ? status : `${status} · 部分`;
+  return record.completeness === 'METADATA_ONLY'
+    ? `${status} · 仅元信息`
+    : record.completeness === 'FULL'
+      ? status
+      : `${status} · 部分`;
 }
 
 function formatRecordTitle(record: MatchRecordSummaryView): string {

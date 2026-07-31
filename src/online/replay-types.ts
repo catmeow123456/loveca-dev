@@ -21,7 +21,7 @@ export type ReplayVisibilityScope = 'PUBLIC' | 'PRIVATE' | 'ADMIN' | 'SYSTEM';
 export type MatchRecordStatus =
   'IN_PROGRESS' | 'COMPLETED' | 'SURRENDERED' | 'INTERRUPTED' | 'CORRUPTED';
 
-export type MatchRecordCompleteness = 'FULL' | 'PARTIAL' | 'INCOMPLETE';
+export type MatchRecordCompleteness = 'FULL' | 'PARTIAL' | 'INCOMPLETE' | 'METADATA_ONLY';
 
 export type MatchRecordReplayAccess = 'PARTICIPANT' | 'ADMIN';
 
@@ -55,7 +55,8 @@ export type ReplayLimitation =
   | 'GAME_EVENTS_SNAPSHOT'
   | 'DECISION_RECORDS_UNAVAILABLE'
   | 'DECK_SNAPSHOT_FROM_RUNTIME_STATE'
-  | 'SOLITAIRE_AUTOMATION_COMPRESSED';
+  | 'SOLITAIRE_AUTOMATION_COMPRESSED'
+  | 'REPLAY_DATA_PURGED';
 
 export type MatchDecisionType =
   | 'ACTIVE_EFFECT_OPENED'

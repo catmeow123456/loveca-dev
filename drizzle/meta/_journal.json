@@ -78,6 +78,13 @@
       "when": 1785388097197,
       "tag": "0010_add_ranked_system",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785432776510,
+      "tag": "0011_add_match_replay_retention",
+      "breakpoints": true
     }
   ]
 }

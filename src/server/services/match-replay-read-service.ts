@@ -56,6 +56,7 @@ import {
 } from './replay-payload-serialization.js';
 
 const REPLAY_READ_SEATS: readonly Seat[] = ['FIRST', 'SECOND'];
+export const MATCH_REPLAY_HISTORY_RETENTION_DAYS = 10;
 export const MATCH_REPLAY_TIMELINE_ROW_LIMIT = readPositiveIntEnv(
   'MATCH_REPLAY_TIMELINE_ROW_LIMIT',
   10_000
@@ -431,6 +432,8 @@ export class MatchReplayReadService {
     const result = await this.queryClient.query<RecordAccessRow>(
       `${recordAccessSelectSql()}
       WHERE viewer.user_id = $1
+        AND record.sealed_at IS NOT NULL
+        AND record.sealed_at >= now() - interval '${MATCH_REPLAY_HISTORY_RETENTION_DAYS} days'
       ORDER BY record.started_at DESC, record.match_id ASC
       LIMIT $2 OFFSET $3`,
       [userId, limit, offset]
@@ -465,6 +468,7 @@ export class MatchReplayReadService {
     if (!record) {
       return null;
     }
+    assertReplayDataAvailable(record.completeness);
     validateAdminRecordCompatibility(record);
     assertExportWithinLimit(record);
 
@@ -690,6 +694,7 @@ export class MatchReplayReadService {
     if (!access) {
       return null;
     }
+    assertReplayDataAvailable(access.completeness);
     assertTimelineWithinLimit(access, 'USER_TIMELINE');
 
     const timeline = await this.queryClient.query<TimelineRow>(
@@ -743,6 +748,7 @@ export class MatchReplayReadService {
     if (!record) {
       return null;
     }
+    assertReplayDataAvailable(record.completeness);
     assertTimelineWithinLimit(record, 'ADMIN_TIMELINE');
 
     const timeline = await this.getAllTimelineRowsForExport(matchId);
@@ -771,6 +777,7 @@ export class MatchReplayReadService {
     if (!access) {
       return null;
     }
+    assertReplayDataAvailable(access.completeness);
     validateRecordCompatibility(access);
 
     const checkpoint = await this.getAuthorityCheckpoint(matchId, checkpointSeq);
@@ -847,6 +854,7 @@ export class MatchReplayReadService {
     if (!record) {
       return null;
     }
+    assertReplayDataAvailable(record.completeness);
     validateAdminRecordCompatibility(record);
 
     const participants = await this.queryClient.query<ParticipantRow>(
@@ -1437,6 +1445,16 @@ function validateRecordCompatibility(access: RecordAccessRow): void {
   }
 }
 
+function assertReplayDataAvailable(completeness: MatchRecordCompleteness): void {
+  if (completeness === 'METADATA_ONLY') {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_REPLAY_DATA_PURGED',
+      '该历史对局仅保留元信息，具体回放数据已按保留策略清理',
+      410
+    );
+  }
+}
+
 function validateAdminRecordCompatibility(
   access: Pick<AdminRecordRow, 'record_version' | 'rules_version' | 'card_data_version'>
 ): void {
@@ -1650,7 +1668,7 @@ function mapRecordSummaryRow(row: RecordAccessRow): MatchRecordSummaryView {
     lastCheckpointSeq: row.last_checkpoint_seq,
     replayCapabilities: readCapabilities(row.replay_capabilities),
     replayLimitations: readLimitations(row.replay_limitations),
-    partialReasonSummary: sanitizePartialReason(row.partial_reason),
+    partialReasonSummary: summarizeRecordLimitation(row.completeness, row.partial_reason),
   };
 }
 
@@ -1686,7 +1704,7 @@ function mapAdminRecordSummaryRow(row: AdminRecordRow): MatchRecordSummaryView {
     lastCheckpointSeq: row.last_checkpoint_seq,
     replayCapabilities: readCapabilities(row.replay_capabilities),
     replayLimitations: readLimitations(row.replay_limitations),
-    partialReasonSummary: sanitizePartialReason(row.partial_reason),
+    partialReasonSummary: summarizeRecordLimitation(row.completeness, row.partial_reason),
     participants,
   };
 }
@@ -2167,6 +2185,15 @@ function coerceSeq(value: unknown): number {
 
 function sanitizePartialReason(partialReason: string | null): string | null {
   return partialReason ? '记录不完整，部分回放节点可能缺失' : null;
+}
+
+function summarizeRecordLimitation(
+  completeness: MatchRecordCompleteness,
+  partialReason: string | null
+): string | null {
+  return completeness === 'METADATA_ONLY'
+    ? '回放数据已超过保留期，仅保留对局元信息'
+    : sanitizePartialReason(partialReason);
 }
 
 function clampListLimit(value: number | undefined): number {

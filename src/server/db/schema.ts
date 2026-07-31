@@ -601,7 +601,7 @@ export const matchRecords = pgTable(
     ),
     check(
       'match_records_completeness_check',
-      sql`${table.completeness} IN ('FULL', 'PARTIAL', 'INCOMPLETE')`
+      sql`${table.completeness} IN ('FULL', 'PARTIAL', 'INCOMPLETE', 'METADATA_ONLY')`
     ),
     check(
       'match_records_winner_seat_check',
