@@ -36,8 +36,8 @@ import {
   type AiLegalMainPhaseAction,
 } from './main-phase-legal-actions.js';
 
-export const AI_DECISION_CONTRACT_SCHEMA_VERSION = 'ai-battle.decision-contract/v1' as const;
-export const AI_DECISION_COMMAND_ADAPTER_VERSION = 'ai-battle.decision-command-adapter/v1' as const;
+export const AI_DECISION_CONTRACT_SCHEMA_VERSION = 'ai-battle.decision-contract/v2' as const;
+export const AI_DECISION_COMMAND_ADAPTER_VERSION = 'ai-battle.decision-command-adapter/v2' as const;
 
 export interface AiDecisionCandidate {
   /** 只在当前 contract 内有效，不包含权威实体 ID。 */
@@ -210,11 +210,18 @@ export interface AiEffectAbilityOrderInput {
   readonly canResolveInOrder: boolean;
 }
 
-export interface AiEffectDeadlineInput {
-  readonly kind: 'DEADLINE_CONFIRMATION';
-  readonly deadlineKind: 'PUBLIC_CARD_SELECTION' | 'PUBLIC_EFFECT_CHOICE';
-  readonly autoAdvanceAt: number;
-}
+export type AiEffectDeadlineInput =
+  | {
+      readonly kind: 'DEADLINE_CONFIRMATION';
+      readonly deadlineKind: 'PUBLIC_CARD_SELECTION' | 'PUBLIC_EFFECT_CHOICE';
+      readonly autoAdvanceAt: number;
+    }
+  | {
+      readonly kind: 'DEADLINE_CONFIRMATION';
+      readonly deadlineKind: 'PUBLIC_REVEAL';
+      readonly autoAdvanceAt: number;
+      readonly generation: string;
+    };
 
 export type AiEffectDecisionInput =
   | AiEffectConfirmationInput
@@ -1171,7 +1178,8 @@ function buildActiveEffectContract(
 ): AiDecisionContractBuildResult {
   const isPublicDeadline =
     effect.publicCardSelectionAutoAdvanceAt !== undefined ||
-    effect.publicEffectChoiceAutoAdvanceAt !== undefined;
+    effect.publicEffectChoiceAutoAdvanceAt !== undefined ||
+    effect.publicRevealAutoAdvanceAt !== undefined;
   if (!isPublicDeadline && effect.awaitingPlayerId !== playerId) {
     return { ok: false, reason: 'NO_DECISION', detail: '当前效果不等待该席位' };
   }
@@ -1247,6 +1255,30 @@ function buildEffectInput(
             kind: 'DEADLINE_CONFIRMATION',
             deadlineKind: 'PUBLIC_EFFECT_CHOICE',
             autoAdvanceAt: effect.publicEffectChoiceAutoAdvanceAt,
+          },
+        };
+  }
+  if (effect.publicRevealAutoAdvanceAt !== undefined) {
+    if (!effect.publicRevealGeneration) {
+      return {
+        ok: false,
+        reason: 'INVALID_STATE',
+        detail: '公开卡牌展示缺少 generation',
+      };
+    }
+    return now < effect.publicRevealAutoAdvanceAt
+      ? {
+          ok: false,
+          reason: 'NO_DECISION',
+          detail: '公开卡牌展示 deadline 尚未到期',
+        }
+      : {
+          ok: true,
+          input: {
+            kind: 'DEADLINE_CONFIRMATION',
+            deadlineKind: 'PUBLIC_REVEAL',
+            autoAdvanceAt: effect.publicRevealAutoAdvanceAt,
+            generation: effect.publicRevealGeneration,
           },
         };
   }
@@ -1486,9 +1518,18 @@ function materializeEffectCommand(
   };
   const input = contract.input;
   if (selection.kind === 'CONFIRM_DEADLINE' && input.kind === 'DEADLINE_CONFIRMATION') {
-    return input.deadlineKind === 'PUBLIC_CARD_SELECTION'
-      ? { ...command, publicCardSelectionAutoAdvanceAt: input.autoAdvanceAt }
-      : { ...command, publicEffectChoiceAutoAdvanceAt: input.autoAdvanceAt };
+    switch (input.deadlineKind) {
+      case 'PUBLIC_CARD_SELECTION':
+        return { ...command, publicCardSelectionAutoAdvanceAt: input.autoAdvanceAt };
+      case 'PUBLIC_EFFECT_CHOICE':
+        return { ...command, publicEffectChoiceAutoAdvanceAt: input.autoAdvanceAt };
+      case 'PUBLIC_REVEAL':
+        return {
+          ...command,
+          publicRevealAutoAdvanceAt: input.autoAdvanceAt,
+          publicRevealGeneration: input.generation,
+        };
+    }
   }
   if (selection.kind === 'SELECT_EFFECT_CARDS') {
     if (selection.candidateIds.length === 0) {

@@ -39,7 +39,8 @@ function createDeadlineState(input: {
   readonly effectId?: string;
   readonly stepId?: string;
   readonly autoAdvanceAt: number;
-  readonly kind?: 'CARD' | 'CHOICE';
+  readonly kind?: 'CARD' | 'CHOICE' | 'REVEAL';
+  readonly publicRevealGeneration?: string;
 }): GameState {
   const game = createGameState('deadline-owner', 'p1', 'P1', 'p2', 'P2');
   return {
@@ -55,7 +56,12 @@ function createDeadlineState(input: {
       awaitingPlayerId: 'p1',
       ...(input.kind === 'CHOICE'
         ? { publicEffectChoiceAutoAdvanceAt: input.autoAdvanceAt }
-        : { publicCardSelectionAutoAdvanceAt: input.autoAdvanceAt }),
+        : input.kind === 'REVEAL'
+          ? {
+              publicRevealAutoAdvanceAt: input.autoAdvanceAt,
+              publicRevealGeneration: input.publicRevealGeneration ?? 'reveal-generation-1',
+            }
+          : { publicCardSelectionAutoAdvanceAt: input.autoAdvanceAt }),
     },
   };
 }
@@ -174,5 +180,45 @@ describe('ServerDeadlineOwner', () => {
     await vi.waitFor(() => {
       expect(timers.read(2)).toMatchObject({ delayMs: 50, cancelled: false });
     });
+  });
+
+  it('binds a public reveal deadline to its generation and replaces a changed window', () => {
+    const timers = createManualTimers();
+    let idSequence = 0;
+    const owner = new ServerDeadlineOwner({
+      now: () => 1_000,
+      runtimeEpoch: 'epoch-a',
+      idGenerator: () => `deadline-${++idSequence}`,
+      scheduleTimer: timers.scheduleTimer,
+      cancelTimer: timers.cancelTimer,
+      onDeadlineDue: vi.fn(),
+    });
+    const first = owner.reconcileMatch('match-a', {
+      game: createDeadlineState({
+        autoAdvanceAt: 1_250,
+        kind: 'REVEAL',
+        publicRevealGeneration: 'reveal-generation-1',
+      }),
+      authorityRevision: 7,
+    });
+    const second = owner.reconcileMatch('match-a', {
+      game: createDeadlineState({
+        autoAdvanceAt: 1_250,
+        kind: 'REVEAL',
+        publicRevealGeneration: 'reveal-generation-2',
+      }),
+      authorityRevision: 7,
+    });
+
+    expect(first).toMatchObject({
+      kind: 'PUBLIC_REVEAL',
+      publicRevealGeneration: 'reveal-generation-1',
+    });
+    expect(second).toMatchObject({
+      kind: 'PUBLIC_REVEAL',
+      publicRevealGeneration: 'reveal-generation-2',
+    });
+    expect(second?.registrationId).not.toBe(first?.registrationId);
+    expect(timers.read(1)?.cancelled).toBe(true);
   });
 });

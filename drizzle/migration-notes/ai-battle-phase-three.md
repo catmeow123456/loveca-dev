@@ -1,13 +1,17 @@
 # AI 对战 Phase 3 数据库迁移说明
 
-适用迁移：`drizzle/0010_simple_the_leader.sql`
+适用迁移：`drizzle/0012_add_ai_battle_system_fields.sql`
+
+执行前提：已经按 journal 顺序完成 `0010_add_ranked_system.sql` 与
+`0011_add_match_replay_retention.sql`。本迁移的 snapshot 前驱是 `0011_snapshot.json`，
+不得把旧分支上的 AI `0010` 改名后直接执行。
 
 ## 变更范围
 
-- `match_records.origin_kind` 增加 `AI_BATTLE`。
+- `match_records.origin_kind` 在保留 `RANKED` 的前提下增加 `AI_BATTLE`。
 - `match_deck_snapshots.source` 增加 `AI_CERTIFIED_DECK`。
-- `match_participants.system_identity_snapshot` 保存不可登录 SYSTEM v1 身份、精确卡组内容哈希、Phase 0 认证版本和策略版本绑定。
-- `match_decision_records.strategy_record` 保存脱敏后的 `ai-battle.strategy-decision-record/v2`。
+- `match_participants.system_identity_snapshot` 保存不可登录 SYSTEM 身份、精确卡组内容哈希、Phase 0 认证版本和策略版本绑定；当前写入版本为 v3。
+- `match_decision_records.strategy_record` 保存脱敏后的 AI 策略记录；当前写入版本为 `ai-battle.strategy-decision-record/v4`。
 - `match_decision_records.decision_type` 增加 `AI_STRATEGY_SUBMITTED`。
 
 策略记录和对应命令记录由同一次 `appendMatchRecordFrame` 数据库事务写入。普通玩家回放读取路径不选择 `strategy_record`，该字段只作为受限 SYSTEM/private 审计数据保留。
@@ -34,6 +38,11 @@ WHERE conname IN (
 )
 ORDER BY conname;
 
+-- origin kind 结果必须同时包含 RANKED 与 AI_BATTLE。
+SELECT pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conname = 'match_records_origin_kind_check';
+
 SELECT count(*) AS invalid_system_snapshots
 FROM match_participants
 WHERE system_identity_snapshot IS NOT NULL
@@ -45,7 +54,8 @@ WHERE strategy_record IS NOT NULL
   AND decision_type <> 'AI_STRATEGY_SUBMITTED';
 ```
 
-两个 invalid 结果必须为 0。迁移不会改写既有对局；旧记录的新增列保持 `NULL`。
+两个 invalid 结果必须为 0。三个约束必须分别接受 `RANKED + AI_BATTLE`、
+`AI_CERTIFIED_DECK` 与 `AI_STRATEGY_SUBMITTED`。迁移不会改写既有对局；旧记录的新增列保持 `NULL`。
 
 ## 回滚
 

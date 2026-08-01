@@ -16,7 +16,7 @@ describe('AI battle Phase 1B certified baseline', () => {
     expect(AI_BATTLE_PHASE_ONE_B_COMPONENT_VERSIONS).toEqual({
       decisionLease: 'ai-battle.decision-lease/v1',
       machineSchedule: 'ai-battle.machine-decision-schedule/v1',
-      serverDeadline: 'ai-battle.server-deadline/v1',
+      serverDeadline: 'ai-battle.server-deadline/v2',
       conservativePolicy: 'ai-battle.conservative-policy/v1',
       ruleProgressSnapshot: 'ai-battle.rule-progress-snapshot/v1',
       onlineMatchChat: 'loveca.online-match-chat/v2',

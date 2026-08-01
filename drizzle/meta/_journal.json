@@ -85,6 +85,13 @@
       "when": 1785432776510,
       "tag": "0011_add_match_replay_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785608217367,
+      "tag": "0012_add_ai_battle_system_fields",
+      "breakpoints": true
     }
   ]
 }

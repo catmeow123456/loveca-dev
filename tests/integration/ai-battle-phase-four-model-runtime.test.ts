@@ -637,8 +637,9 @@ async function driveHumanAndSystemToTerminal(input: {
   for (let decisionCount = 0; decisionCount < 5_000; decisionCount += 1) {
     if (input.match.session.state?.isEnded) return;
     if (input.deadlineTimers.pendingCount() > 0) {
+      const revisionBeforeDeadline = input.match.remoteRevision;
       input.deadlineTimers.fireNext();
-      await waitForMachineCallback(input.matchService, input.match.matchId);
+      await waitForAuthorityRevision(input.matchService, input.match, revisionBeforeDeadline + 1);
       continue;
     }
     if (input.machineTimers.pendingCount() > 0) {
@@ -695,5 +696,13 @@ async function waitForAuthorityRevision(
     }
     await Promise.resolve();
   }
-  throw new Error(`${match.matchId} authority revision did not reach ${String(minimumRevision)}`);
+  throw new Error(
+    `${match.matchId} authority revision did not reach ${String(minimumRevision)}: ${JSON.stringify(
+      {
+        currentRevision: match.remoteRevision,
+        activeEffect: match.session.state?.activeEffect,
+        pendingSerialOperations: service.serialExecutor.hasPendingOperations(match.matchId),
+      }
+    )}`
+  );
 }

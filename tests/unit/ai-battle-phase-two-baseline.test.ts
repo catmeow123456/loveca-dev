@@ -29,8 +29,8 @@ describe('AI battle Phase 2 completed baseline', () => {
     });
     expect(AI_BATTLE_PHASE_TWO_COMPONENT_VERSIONS).toEqual({
       observation: 'ai-battle.observation/v1',
-      decisionContract: 'ai-battle.decision-contract/v1',
-      commandAdapter: 'ai-battle.decision-command-adapter/v1',
+      decisionContract: 'ai-battle.decision-contract/v2',
+      commandAdapter: 'ai-battle.decision-command-adapter/v2',
       compactRules: 'ai-battle.compact-rules/v1',
       museStarterPlaybook: 'ai-battle.playbook.muse-starter/v1',
       greenHasunosoraB6Playbook: 'ai-battle.playbook.green-hasunosora-b6/v1',

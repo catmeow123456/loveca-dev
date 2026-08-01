@@ -12,7 +12,7 @@ export const AI_BATTLE_PHASE_ZERO_CERTIFICATION_SOURCES = {
 } as const;
 
 export const AI_BATTLE_PHASE_ZERO_CERTIFICATION_VERSIONS = {
-  rulesEngineVersion: '3.8.4',
+  rulesEngineVersion: '3.9.1',
   authoritativeCardDataVersion:
     'sha256:4b7f3abc93ec10ba86a2bf0090c9b3475a0846b52075728d545f55a168ef353d',
   matchupMatrixVersion: 'ai-battle.phase-zero-matchups/v1',

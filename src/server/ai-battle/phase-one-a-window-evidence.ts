@@ -57,8 +57,8 @@ export const AI_BATTLE_PHASE_ONE_A_WINDOW_EVIDENCE = [
   ),
   evidence(
     'ACTIVE_EFFECT_CONFIRM',
-    'tests/integration/sample-card-effect-runner.test.ts',
-    "assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_CONFIRM')"
+    'tests/unit/ai-decision-contract.test.ts',
+    "assertCertifiedAiDecisionSurface(confirmState, PLAYER_ID, 'ACTIVE_EFFECT_CONFIRM')"
   ),
   evidence(
     'ACTIVE_EFFECT_CARD_SINGLE',
