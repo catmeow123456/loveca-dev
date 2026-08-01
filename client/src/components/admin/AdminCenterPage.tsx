@@ -8,6 +8,7 @@ import {
   Scale,
   Settings,
   SmilePlus,
+  Sparkles,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common';
 
@@ -20,6 +21,7 @@ interface AdminCenterPageProps {
   readonly onOpenDeckPoints: () => void;
   readonly onOpenOnlineRooms: () => void;
   readonly onOpenRanked: () => void;
+  readonly onOpenThemeTable: () => void;
 }
 
 interface AdminModule {
@@ -99,6 +101,12 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           icon: Medal,
           onOpen: props.onOpenRanked,
         },
+        {
+          title: '轮换主题牌桌',
+          description: '编排活动、冻结预组与实测组合',
+          icon: Sparkles,
+          onOpen: props.onOpenThemeTable,
+        },
       ],
     },
   ];
@@ -118,7 +126,7 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
             <p className="text-sm text-[var(--text-secondary)]">
               管理公开内容、卡牌规则与联机运营。
             </p>
-            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">7 项工具</span>
+            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">8 项工具</span>
           </div>
 
           <div className="product-workbench divide-y divide-[var(--border-subtle)]">

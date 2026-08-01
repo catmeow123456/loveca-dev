@@ -57,6 +57,8 @@ export interface OnlineRoomEndView {
 export interface OnlineRoomView {
   readonly roomCode: string;
   readonly originKind: MatchOriginKind;
+  /** 仅主题牌桌房间存在，用于开局前故障恢复后的客户端状态回收。 */
+  readonly themeTableVersionId?: string | null;
   readonly status: OnlineRoomStatus;
   readonly ownerUserId: string;
   readonly currentUserId: string;

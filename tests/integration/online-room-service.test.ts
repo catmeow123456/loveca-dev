@@ -31,6 +31,7 @@ import {
 } from '../../src/server/services/online-match-service';
 import { pool } from '../../src/server/db/pool';
 import { rankedRatingService } from '../../src/server/services/ranked-rating-service';
+import { recoverNoFaultThemeOpeningPlayers } from '../../src/server/services/theme-table-recovery-service';
 import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
 import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
 
@@ -73,7 +74,14 @@ vi.mock('../../src/server/services/ranked-rating-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/theme-table-recovery-service.js', () => ({
+  recoverNoFaultThemeOpeningPlayers: vi.fn(async () => ({ handled: false, requeued: [] })),
+}));
+
 beforeEach(() => {
+  vi.mocked(recoverNoFaultThemeOpeningPlayers)
+    .mockReset()
+    .mockResolvedValue({ handled: false, requeued: [] });
   vi.mocked(pool.query)
     .mockReset()
     .mockImplementation(async (text) => {
@@ -3248,6 +3256,67 @@ describe('OnlineRoomService', () => {
     expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
       expect.stringMatching(/SET state = 'RELEASED'[\s\S]*SET state = 'CANCELED'/),
       [reservationId, 'PLAYER_ABANDONED_OPENING', room.roomGeneration, new Date(10_000)]
+    );
+  });
+
+  it('主题牌桌开局阶段一方离开时应调用无过错回队并跳过普通双方取消', async () => {
+    vi.mocked(recoverNoFaultThemeOpeningPlayers).mockResolvedValue({
+      handled: true,
+      requeued: [
+        {
+          userId: 'u2',
+          previousTicketId: 'ticket-2',
+          ticketId: 'ticket-2-requeued',
+        },
+      ],
+    });
+    const service = new OnlineRoomService({
+      now: () => 10_000,
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+    });
+    const reservationId = '24242424-2222-4333-8444-555555555555';
+    const room = await service.createPublicTableRoom({
+      reservationId,
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '轮换主题牌桌',
+      rankedSeasonId: null,
+      themeTableVersionId: '25252525-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'theme-deck-a',
+        deckName: '主题预组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-abandon-a')),
+        lockedAt: 9_000,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'theme-deck-b',
+        deckName: '主题预组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-abandon-b')),
+        lockedAt: 9_000,
+      },
+      openingExpiresAt: 190_000,
+    });
+
+    await expect(service.getRoomView(room.roomCode, 'u2')).resolves.toMatchObject({
+      themeTableVersionId: '25252525-2222-4333-8444-555555555555',
+    });
+
+    await service.leaveRoom(room.roomCode, 'u1');
+
+    expect(recoverNoFaultThemeOpeningPlayers).toHaveBeenCalledWith({
+      reservationId,
+      roomGeneration: room.roomGeneration,
+      faultUserIds: ['u1'],
+      reason: 'PLAYER_ABANDONED_OPENING',
+      now: 10_000,
+    });
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringMatching(/SET state = 'RELEASED'[\s\S]*SET state = 'CANCELED'/),
+      expect.anything()
     );
   });
 

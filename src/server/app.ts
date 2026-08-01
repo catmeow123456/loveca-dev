@@ -24,6 +24,8 @@ import { playerBadgesRouter } from './routes/player-badges.js';
 import { matchEmotesRouter } from './routes/match-emotes.js';
 import { aiEffectExtractionRouter } from './routes/ai-effect-extraction.js';
 import { playerWallpapersRouter } from './routes/player-wallpapers.js';
+import { themeTableRouter } from './routes/theme-table.js';
+import { themeTableAdminRouter } from './routes/theme-table-admin.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -89,6 +91,8 @@ export function createApp(): express.Express {
   app.use('/api/player-wallpapers', playerWallpapersRouter);
   app.use('/api/match-emotes', matchEmotesRouter);
   app.use('/api/ai-effect-extraction', aiEffectExtractionRouter);
+  app.use('/api/theme-table', themeTableRouter);
+  app.use('/api/admin/theme-table', themeTableAdminRouter);
   app.use('/api/admin/ranked', rankedAdminRouter);
   app.use('/api/admin/deck-point-tables', deckPointTablesAdminRouter);
   if (config.isDev) {

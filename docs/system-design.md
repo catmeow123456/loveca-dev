@@ -34,7 +34,7 @@
 graph TB
     subgraph Client[前端应用]
         UI[页面与组件]
-        GS[gameStore/deckStore/authStore/rankedStore]
+        GS[gameStore/deckStore/authStore/rankedStore/themeTableStore]
         APIClient[API 客户端]
     end
 
@@ -49,10 +49,11 @@ graph TB
 
     subgraph Server[服务端 API]
         App[Express App]
-        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle/Ranked]
+        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle/Ranked/Theme Table]
         Middleware[鉴权与校验中间件]
         OnlineSvc[OnlineRoomService + OnlineMatchService + SolitaireMatchService]
         RankedSvc[Ranked Season/Queue/Rating/Admin Services]
+        ThemeSvc[Theme Table Player/Admin/Allocation/Recovery Services]
     end
 
     subgraph Infra[基础设施]
@@ -75,6 +76,7 @@ graph TB
     Middleware --> Routes
     Routes --> OnlineSvc
     Routes --> RankedSvc
+    Routes --> ThemeSvc
     Routes --> PG
     Routes --> MinIO
 ```
@@ -336,6 +338,7 @@ graph TB
 - `deckStore`：卡组编辑、浏览器本地卡组持久化与云端卡组管理
 - `authStore`：认证、会话恢复、个人资料与凭据更新、离线模式
 - `rankedStore`：赛季总览与跨页面排位候场、确认和取消状态
+- `themeTableStore`：主题活动总览与跨页面候场、确认、分配和开局前恢复状态
 - `GameBoard`：拖拽与对局主交互容器
 
 代码路径：
@@ -344,6 +347,9 @@ graph TB
 - `client/src/store/deckStore.ts`
 - `client/src/store/authStore.ts`
 - `client/src/store/rankedStore.ts`
+- `client/src/store/themeTableStore.ts`
+- `client/src/components/pages/ThemeTablePage.tsx`
+- `client/src/components/theme-table/ThemeTableGlobalLayer.tsx`
 - `client/src/components/pages/AccountCenterPage.tsx`
 - `client/src/components/game/`
 - `client/src/components/pages/GameSetupPage.tsx`
@@ -368,6 +374,8 @@ graph LR
     App --> RankedR[Ranked Route]
     App --> RankedAdminR[Ranked Admin Route]
     App --> PlayerBadgesR[Player Badges Route]
+    App --> ThemeR[Theme Table Route]
+    App --> ThemeAdminR[Theme Table Admin Route]
 
     AuthR --> AuthSvc[auth-service + mail-service]
     DecksR --> Scraper[decklog-scraper]
@@ -379,6 +387,8 @@ graph LR
     RankedR --> RankedSvc[ranked-player-service + ranked-runtime-service]
     RankedAdminR --> RankedAdminSvc[ranked-admin-service + ranked-season-service + ranked-rating-service]
     PlayerBadgesR --> PlayerBadgeSvc[player-badge-service]
+    ThemeR --> ThemeSvc[theme-table-player-service + public-table-service]
+    ThemeAdminR --> ThemeAdminSvc[theme-table-admin-service]
 ```
 
 代码路径：
@@ -398,6 +408,8 @@ graph LR
 - `src/server/routes/ranked.ts`
 - `src/server/routes/ranked-admin.ts`
 - `src/server/routes/player-badges.ts`
+- `src/server/routes/theme-table.ts`
+- `src/server/routes/theme-table-admin.ts`
 - `src/server/site-status.ts`
 - `src/server/services/site-announcement-service.ts`
 - `src/server/middleware/require-gameplay-available.ts`
@@ -463,6 +475,8 @@ erDiagram
 3 场时保存第 3 场对局与当时 revision 作为证据。个人中心只通过本人端点读取；历史补发使用
 显式赛季、默认 dry-run 且要求 ledger revision 的停机数据迁移脚本。
 
+轮换主题牌桌在同一持久票据/预留状态机上增加独立 `THEME` 队列与活动环境身份。活动版本冻结规则环境、卡牌目录、分配算法和评估口径；管理员拥有的合法云端卡组会复制为不可变服务端预组，已批准组合在双方确认后于事务内完成组合抽取、座位交换、分配记录和票据锁组。开局前责任方离场或未到场时，恢复服务终结旧预留，并在活动仍开放时为无过错方创建保留原 `joinedAt` 的新票据。详细边界见[轮换主题牌桌策划与设计](matchmaking-and-ladder/ROTATING_THEME_TABLE_DESIGN.md)。
+
 代码路径：
 
 - `src/server/db/schema.ts`
@@ -476,11 +490,16 @@ erDiagram
 - `src/server/services/ranked-v3-migration-service.ts`
 - `src/server/services/player-badge-service.ts`
 - `src/server/player-badges/award.ts`
+- `src/server/services/theme-table-player-service.ts`
+- `src/server/services/theme-table-admin-service.ts`
+- `src/server/services/theme-table-allocation-service.ts`
+- `src/server/services/theme-table-recovery-service.ts`
 - `src/server/rating/ranked-ledger.ts`
 - `src/server/rating/glicko.ts`
 - `scripts/migrate-ranked-season-v3.ts`
 - `drizzle/0010_add_ranked_system.sql`
 - `drizzle/0019_add_player_badges.sql`
+- `drizzle/0026_add_theme_table_v1.sql`
 
 ---
 
@@ -521,6 +540,7 @@ graph TD
 - 运营管理中心与 AI 私密配置：`client/src/components/admin/AdminCenterPage.tsx` 将内容与平台、卡牌与规则、对局与赛季模块收敛到单一管理员入口，既有页面和接口继续复用。`src/server/services/ai-effect-extraction-service.ts` 以 PostgreSQL 单例和 revision 事务审计保存运行时配置，使用部署主密钥加密 API Key，并在每次候选测试或提取时执行上游允许列表、DNS 私网阻断、HTTPS、禁重定向、超时、大小、并发和管理员级限频。浏览器只向 `/api/ai-effect-extraction/admin/extract` 提交 `cardCode`，服务端读取 `cards` 与 MinIO 卡图，返回文本只进入 `CardEditModal` 待确认状态；旧 Vite DashScope 代理已经移除
 - 公共牌桌 Beta：`src/server/services/public-table-service.ts` 以 PostgreSQL 候场票据和配对预留实现 FIFO 候场、双方确认、锁定卡组快照与超时清理；房间创建使用带代际校验的短租约和有限重试，旧创建者不能覆盖接管后的房间。`src/server/services/gameplay-participation-service.ts` 约束用户不能同时处于候场、房间或对局；确认成功后由 `src/server/services/online-room-service.ts` 创建封闭的公共牌桌房间，双方需在 60 秒内到场才进入猜拳，超时则结束本次开局，并复用正式联机认输、观战和记录链路。`client/src/components/public-table/PublicTableGlobalLayer.tsx` 和 `client/src/components/pages/PublicTablePage.tsx` 负责跨页面候场状态、确认及单次自动进入房间，持久化 schema 由 `src/server/db/schema.ts` 与 `drizzle/0008_add_public_table_beta.sql`、`drizzle/0010_add_ranked_system.sql` 对齐
 - 赛季排位首版：`src/server/services/public-table-service.ts` 复用票据/预留状态机并以 `queueKind + seasonId + competitiveEnvironmentId` 隔离休闲与排位候场；`src/server/services/online-room-service.ts` 按房间代际去重开局并补偿预留、赛季、占用和票据绑定，断线裁定以持久状态和在线代际共同防止重连竞态。`src/server/services/ranked-player-service.ts` 提供赛季总览、固定窗口准入、个人战绩和排行榜，`src/server/services/ranked-rating-service.ts`、`src/server/rating/ranked-rating.ts` 与 `src/server/rating/ranked-ledger.ts` 负责权威结果幂等结算、版本化积分调度、迟到结果重建和追加式更正，`src/server/services/ranked-runtime-service.ts` 先排空可靠结算，再终止到期运行态并执行平台无结果收口。前端由 `client/src/store/rankedStore.ts`、`client/src/components/pages/RankedPage.tsx` 和 `client/src/components/ranked/RankedGlobalLayer.tsx` 提供跨页面候场闭环；管理员由 `client/src/components/admin/RankedAdminPage.tsx` 管理赛季及纯文本公告、查看候场/运行/结算健康与赛季经营分布、按用户查询当前评分、独立定级/参榜进度及上下各最多 3 名的公开榜单上下文、按状态分页检索排位对局并核对双方加减分，以及执行带签名预览的异常结算和参数回算，聚合读取由 `src/server/services/ranked-admin-service.ts` 提供。玩家上下文以单条 SQL 读取当前 `ledgerRevision` 和榜单窗口，不创建额外排名副本。排位基线、评分修订和赛季公告数据库结构分别由 `drizzle/0010_add_ranked_system.sql`、`drizzle/0017_add_ranked_rating_revisions.sql`、`drizzle/0018_add_ranked_season_announcement.sql` 提供。名为 V1 的首个生产赛季当前使用 `GLICKO1_PER_MATCH_V3`；未来新赛季默认 V4，使用 `ratingScale=800 / minimumRD=100 / 5 场定级 / 1800 中心成长池`，详见 [V4 评分设计](matchmaking-and-ladder/RANKED_V4_RATING_DESIGN.md)。V2→V3 停机迁移文档保留为历史运维与审计资料
+- 轮换主题牌桌第一版：`src/server/services/theme-table-admin-service.ts` 冻结活动、服务端预组和实测组合并控制发布生命周期，`src/server/services/theme-table-allocation-service.ts` 在双方确认后的事务内冻结组合、座位和票据卡组，`src/server/services/theme-table-recovery-service.ts` 处理开局前责任方离场或未到场后的无过错回队。玩家入口由 `src/server/services/theme-table-player-service.ts`、`client/src/store/themeTableStore.ts`、`client/src/components/pages/ThemeTablePage.tsx` 和 `client/src/components/theme-table/ThemeTableGlobalLayer.tsx` 提供，管理工作台位于 `client/src/components/admin/ThemeTableAdminPage.tsx`；数据库结构由 `drizzle/0026_add_theme_table_v1.sql` 提供，当前仅为开发/内测基线
 - 赛季环境卡牌使用率：`src/server/services/ranked-deck-observation-service.ts` 在排位注册的可串行化事务中原子保存双方主卡组最小事实，以基础卡号合并罕度并生成稳定构筑指纹；`src/server/services/ranked-environment-service.ts` 只聚合最终 `SETTLED` 且两席事实完整的对局，按玩家等权计算 Top 30，并由 `/api/ranked/environment` 独立提供，避免排位候场总览轮询重复展开卡组 JSON。`client/src/components/pages/RankedPage.tsx` 展示当前或历史赛季排名、样本量与覆盖率；管理员对局详情从同一长期事实按需读取双方主卡组，不依赖会被定期清空的回放卡组负载。结构由 `drizzle/0020_add_ranked_deck_observations.sql` 提供，历史回填和清理保护见 `drizzle/migration-notes/ranked-season-environment.md`；能量卡组与逐张实例不属于长期事实，卡组流派分类与饼图不在首批范围
 - 玩家徽章：`src/server/player-badges/award.ts` 在正常结算、迟到结果重建和追加式更正的评分事务中按持久规则幂等授予首届排位 3 场纪念徽章，并将第 3 场有效对局作为证据；`src/server/services/player-badge-service.ts` 与 `/api/player-badges/me` 只提供本人读取。`client/src/components/player-badges/BadgeShelf.tsx` 在个人中心展示可扩展徽章栏；历史补发由 `drizzle/data-migrations/award-first-ranked-season-badge.ts` 在显式校验赛季和 ledger revision 后执行
 - 玩家游戏桌壁纸：`src/server/services/player-wallpaper-service.ts`、`src/server/routes/player-wallpapers.ts` 与 `drizzle/0024_add_player_wallpapers.sql` 在独立私有 MinIO bucket 和 PostgreSQL 中维护本人壁纸、北京时间每日发布额度、幂等结果与管理员移除审计；`client/src/store/playerWallpaperStore.ts` 只在当前账号会话内加载鉴权 Blob，`client/src/components/game/BoardBackground.tsx` 为个人中心预览和所有共享 `GameBoard` 提供同一背景层。壁纸不进入权威对局、玩家投影、checkpoint、历史或回放；详细边界见[玩家游戏桌壁纸设计](player-wallpaper/design.md)
@@ -538,6 +558,7 @@ graph TD
 - 更完整的自动能力编排与检查时机接线
 - 更高覆盖的性能与稳定性专项测试
 - V4 新赛季上线前的历史对局回放验证、外部告警渠道和跨日运营趋势
+- 轮换主题牌桌的真实预组试打、完整组合指标与告警、进行中房间跨进程恢复、双浏览器验收和生产开放
 
 ---
 

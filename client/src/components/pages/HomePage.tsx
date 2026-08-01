@@ -17,6 +17,7 @@ import {
   History,
   Medal,
   RefreshCw,
+  Sparkles,
   ShieldAlert,
   Swords,
   TriangleAlert,
@@ -64,6 +65,7 @@ interface HomePageProps {
   onAbandonSavedRoomForLocalGame: () => Promise<void>;
   onNavigateToOnlineRoom: () => void;
   onNavigateToRanked: () => void;
+  onNavigateToThemeTable: () => void;
   onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
@@ -106,6 +108,7 @@ export function HomePage({
   onAbandonSavedRoomForLocalGame,
   onNavigateToOnlineRoom,
   onNavigateToRanked,
+  onNavigateToThemeTable,
   onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
@@ -273,6 +276,14 @@ export function HomePage({
                 };
 
   const secondaryActions: ActionTileProps[] = [
+    {
+      title: '轮换主题牌桌',
+      icon: Sparkles,
+      onClick: onNavigateToThemeTable,
+      disabled: !canUseOnlineRoom,
+      status: canUseOnlineRoom ? '平台预组 · 非计分' : '连接后可用',
+      tone: canUseOnlineRoom ? 'blue' : 'muted',
+    },
     {
       title: '赛季排位',
       icon: Medal,
