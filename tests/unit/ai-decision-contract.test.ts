@@ -328,6 +328,9 @@ describe('AI Phase 1A typed decision contract', () => {
   });
 
   it('supplies valid number, slot, formation, and deadline witnesses', () => {
+    const confirmState = createState({ activeEffect: createEffect() });
+    assertCertifiedAiDecisionSurface(confirmState, PLAYER_ID, 'ACTIVE_EFFECT_CONFIRM');
+
     const numberHandle = build(
       createState({
         activeEffect: createEffect({
@@ -420,6 +423,24 @@ describe('AI Phase 1A typed decision contract', () => {
     ).toMatchObject({
       ok: true,
       command: { publicCardSelectionAutoAdvanceAt: NOW },
+    });
+
+    const publicRevealDeadlineHandle = build(
+      createState({
+        activeEffect: createEffect({
+          publicRevealAutoAdvanceAt: NOW,
+          publicRevealGeneration: 'public-reveal-generation-1',
+        }),
+      })
+    );
+    expect(
+      materializeAiDecisionCommand(publicRevealDeadlineHandle, { kind: 'CONFIRM_DEADLINE' }, NOW)
+    ).toMatchObject({
+      ok: true,
+      command: {
+        publicRevealAutoAdvanceAt: NOW,
+        publicRevealGeneration: 'public-reveal-generation-1',
+      },
     });
   });
 

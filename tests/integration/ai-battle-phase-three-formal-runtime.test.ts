@@ -236,14 +236,14 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
         deckKey: 'MUSE_STARTER',
         deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
         phaseZeroBaselineVersion: 'ai-battle.phase-zero/v1',
-        decisionContractVersion: 'ai-battle.decision-contract/v1',
-        commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+        decisionContractVersion: 'ai-battle.decision-contract/v2',
+        commandAdapterVersion: 'ai-battle.decision-command-adapter/v2',
       },
     });
     expect(
       recorderHarness.beginInputs[0].participants.FIRST.systemIdentitySnapshot
         ?.phaseZeroCertificationVersions.rulesEngineVersion
-    ).toBe('3.8.4');
+    ).toBe('3.9.1');
     expect(recorderHarness.beginInputs[0].deckSnapshots.FIRST.source).toBe('AI_CERTIFIED_DECK');
     expect(battle.pregame).toMatchObject({
       rpsResolution: 'SERVER_DETERMINISTIC',
@@ -292,8 +292,8 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
       decisionAudit: {
         seat: 'FIRST',
         policyVersion: 'ai-battle.explainable-policy/v1',
-        decisionContractVersion: 'ai-battle.decision-contract/v1',
-        commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+        decisionContractVersion: 'ai-battle.decision-contract/v2',
+        commandAdapterVersion: 'ai-battle.decision-command-adapter/v2',
       },
       execution: { status: 'ACCEPTED' },
     });
@@ -463,7 +463,7 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
         deadlineTimers,
         now: () => now,
         advanceNow: () => {
-          now += 1;
+          now += 3_000;
         },
       });
       expect(match.session.state?.isEnded, scenario.scenarioId).toBe(true);
@@ -535,6 +535,8 @@ async function driveHumanAndSystemToTerminal(input: {
       continue;
     }
 
+    await input.matchService.getMatchSnapshot(input.match.matchId, human.userId);
+    input.advanceNow();
     const state = input.match.session.state!;
     const contract = buildAiDecisionContract(
       state,
@@ -572,7 +574,6 @@ async function driveHumanAndSystemToTerminal(input: {
       throw new Error(`${input.match.matchId} USER command rejected: ${result?.error}`);
     }
     history.recordAcceptedDecision(observation, selected);
-    input.advanceNow();
   }
   throw new Error(`${input.match.matchId} exceeded 5,000 decisions`);
 }

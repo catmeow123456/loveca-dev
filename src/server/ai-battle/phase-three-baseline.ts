@@ -58,7 +58,7 @@ export const AI_BATTLE_PHASE_THREE_COMPONENT_VERSIONS = {
   strategyContext: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
   explainablePolicy: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
   strategyDecisionRecord: 'ai-battle.strategy-decision-record/v2',
-  databaseMigration: 'drizzle/0010_simple_the_leader.sql',
+  databaseMigration: 'drizzle/0021_add_ai_battle_system_fields.sql',
 } as const;
 
 export const AI_BATTLE_PHASE_THREE_RUNTIME_BOUNDARY = {

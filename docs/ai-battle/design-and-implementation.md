@@ -1294,7 +1294,7 @@ AI 不伪装成真人。
 > Phase 2 正式主策略只使用始终开启的 authority progress watchdog，不累计“保守决策次数”、
 > “降级持续时间”或“连续无战略进展 AI 回合”；3 回合、256 决策和 5 分钟阈值只在 Phase 4
 > 确认切换到保守降级后开始计数。不可恢复机器故障继续使用独立 SYSTEM 终局与去重通知。
-> `drizzle/0010_simple_the_leader.sql` 增加 `AI_BATTLE` origin、`AI_CERTIFIED_DECK` source、
+> `drizzle/0021_add_ai_battle_system_fields.sql` 增加 `AI_BATTLE` origin、`AI_CERTIFIED_DECK` source、
 > SYSTEM 身份快照和受限策略记录字段。八个认证卡组/先后手单元各以真实
 > USER + SYSTEM `OnlineMatchService` 链路完成 1 局，无 LLM、无 `FREE`。验收使用真实版本控制
 > YAML、canonical hash 和权威测试 card registry

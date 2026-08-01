@@ -7,6 +7,7 @@ import {
 import {
   createAutoAdvancePublicCardSelectionCommand,
   createAutoAdvancePublicEffectChoiceCommand,
+  createAutoAdvancePublicRevealCommand,
   createConfirmStepCommand,
   createEndPhaseCommand,
   createSystemConcedeCommand,
@@ -974,22 +975,46 @@ export class OnlineMatchService {
         Object.values(match.participants).find(
           (candidate) => candidate.playerId === preferredPlayerId
         ) ?? match.participants.FIRST;
-      const baseCommand =
-        registration.kind === 'PUBLIC_CARD_SELECTION'
-          ? createAutoAdvancePublicCardSelectionCommand(
-              participant.playerId,
-              registration.effectId,
-              registration.autoAdvanceAt
-            )
-          : createAutoAdvancePublicEffectChoiceCommand(
-              participant.playerId,
-              registration.effectId,
-              registration.autoAdvanceAt
-            );
-      await this.executeCommandInCriticalSection(registration.matchId, participant.userId, {
-        ...baseCommand,
-        timestamp: this.now(),
-      });
+      let baseCommand: GameCommand;
+      switch (registration.kind) {
+        case 'PUBLIC_CARD_SELECTION':
+          baseCommand = createAutoAdvancePublicCardSelectionCommand(
+            participant.playerId,
+            registration.effectId,
+            registration.autoAdvanceAt
+          );
+          break;
+        case 'PUBLIC_EFFECT_CHOICE':
+          baseCommand = createAutoAdvancePublicEffectChoiceCommand(
+            participant.playerId,
+            registration.effectId,
+            registration.autoAdvanceAt
+          );
+          break;
+        case 'PUBLIC_REVEAL':
+          if (!registration.publicRevealGeneration) {
+            throw new Error('公开展示 deadline registration 缺少 generation');
+          }
+          baseCommand = createAutoAdvancePublicRevealCommand(
+            participant.playerId,
+            registration.effectId,
+            registration.autoAdvanceAt,
+            registration.publicRevealGeneration
+          );
+          break;
+      }
+      const result = await this.executeCommandInCriticalSection(
+        registration.matchId,
+        participant.userId,
+        {
+          ...baseCommand,
+          timestamp: this.now(),
+        },
+        { trustedSystemSubmission: participant.participantKind === 'SYSTEM' }
+      );
+      if (!result?.success) {
+        throw new Error(result?.error ?? '服务端 deadline 推进失败：对局不存在');
+      }
     });
   }
 
@@ -2785,7 +2810,10 @@ export class OnlineMatchService {
       { ...command, playerId: participant.playerId },
       match.session.manualOperationMode
     );
-    const gateError = this.getPhaseCompletionGateError(match, participant, commandWithPlayer);
+    const gateError =
+      participant.participantKind === 'SYSTEM' && options.trustedSystemSubmission
+        ? null
+        : this.getPhaseCompletionGateError(match, participant, commandWithPlayer);
     if (gateError) {
       touchMatch(match);
       const rejectedAttemptSeq = ++this.serviceRejectedAttemptSeq;

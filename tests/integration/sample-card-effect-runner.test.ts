@@ -1489,7 +1489,14 @@ describe('sample card effect runner', () => {
     expect(activeEffect?.awaitingPlayerId).toBe(PLAYER1);
     expect(activeEffect?.revealedCardIds).toEqual(milledCardIds);
     expect(activeEffect?.stepId).toBe(PUBLIC_REVEAL_DWELL_STEP_ID);
-    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_CONFIRM');
+    if (!activeEffect?.publicRevealGeneration) {
+      throw new Error('公开展示 active effect 缺少 generation');
+    }
+    (session as unknown as { authorityState: GameState }).authorityState = {
+      ...session.state!,
+      activeEffect: { ...activeEffect, publicRevealAutoAdvanceAt: 0 },
+    };
+    assertCertifiedAiDecisionSurface(session.state!, PLAYER1, 'ACTIVE_EFFECT_DEADLINE');
     expect(
       session.state?.actionHistory.some(
         (action) =>

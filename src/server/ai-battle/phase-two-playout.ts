@@ -137,7 +137,8 @@ export function runAiPhaseTwoExplainablePlayout(
     now = Math.max(
       now + 1,
       state.activeEffect?.publicCardSelectionAutoAdvanceAt ?? 0,
-      state.activeEffect?.publicEffectChoiceAutoAdvanceAt ?? 0
+      state.activeEffect?.publicEffectChoiceAutoAdvanceAt ?? 0,
+      state.activeEffect?.publicRevealAutoAdvanceAt ?? 0
     );
     const next = findNextDecision(state, seats, authorityRevision, now);
     if (!next) {

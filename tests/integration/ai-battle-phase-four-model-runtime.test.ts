@@ -42,6 +42,13 @@ interface ManualTimerHandle extends MachineDecisionTimerHandle, ServerDeadlineTi
   readonly id: number;
 }
 
+const TEST_POINT_TABLE_RULES = {
+  version: 'test-point-table-v1',
+  pointLimit: 100,
+  effectiveFrom: '2026-08-11T00:00:00.000Z',
+  entries: {},
+} as const;
+
 function createManualTimers(onAdvance?: (delayMs: number) => void) {
   let sequence = 0;
   const jobs = new Map<
@@ -269,6 +276,7 @@ async function createBattleHarness(input: {
     now: () => now,
     loadUserProfile: (userId) => Promise.resolve({ userId, displayName: 'Phase 4 玩家' }),
     loadCertifiedDeck: () => Promise.resolve(deck),
+    getCurrentPointTableRules: () => Promise.resolve(TEST_POINT_TABLE_RULES),
   });
   const battle = await entry.createBattle({
     humanUserId: 'phase-four-human',
@@ -285,7 +293,7 @@ async function createBattleHarness(input: {
     deadlineTimers,
     now: () => now,
     advanceNow: () => {
-      now += 2_000;
+      now += 3_000;
     },
   };
 }
@@ -637,8 +645,9 @@ async function driveHumanAndSystemToTerminal(input: {
   for (let decisionCount = 0; decisionCount < 5_000; decisionCount += 1) {
     if (input.match.session.state?.isEnded) return;
     if (input.deadlineTimers.pendingCount() > 0) {
+      const revisionBeforeDeadline = input.match.remoteRevision;
       input.deadlineTimers.fireNext();
-      await waitForMachineCallback(input.matchService, input.match.matchId);
+      await waitForAuthorityRevision(input.matchService, input.match, revisionBeforeDeadline + 1);
       continue;
     }
     if (input.machineTimers.pendingCount() > 0) {
@@ -647,6 +656,8 @@ async function driveHumanAndSystemToTerminal(input: {
       continue;
     }
 
+    await input.matchService.getMatchSnapshot(input.match.matchId, human.userId);
+    input.advanceNow();
     const contract = buildAiDecisionContract(
       input.match.session.state!,
       human.playerId,
@@ -678,7 +689,6 @@ async function driveHumanAndSystemToTerminal(input: {
     );
     if (!result?.success) throw new Error(result?.error ?? 'USER command rejected');
     history.recordAcceptedDecision(observation, selected);
-    input.advanceNow();
   }
   throw new Error(`${input.match.matchId} exceeded 5,000 decisions`);
 }
@@ -695,5 +705,13 @@ async function waitForAuthorityRevision(
     }
     await Promise.resolve();
   }
-  throw new Error(`${match.matchId} authority revision did not reach ${String(minimumRevision)}`);
+  throw new Error(
+    `${match.matchId} authority revision did not reach ${String(minimumRevision)}: ${JSON.stringify(
+      {
+        currentRevision: match.remoteRevision,
+        activeEffect: match.session.state?.activeEffect,
+        pendingSerialOperations: service.serialExecutor.hasPendingOperations(match.matchId),
+      }
+    )}`
+  );
 }

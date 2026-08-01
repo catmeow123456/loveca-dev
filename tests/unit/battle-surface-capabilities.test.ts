@@ -78,6 +78,7 @@ describe('battle surface capabilities', () => {
         canSwitchPerspective: false,
         canSwitchLocalMode: false,
         canShowDebugLog: false,
+        canRestart: false,
         canUndo: false,
         undoPolicy: 'NONE',
         showFreePlayControl: false,

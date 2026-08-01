@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { GameState } from '../../domain/entities/game.js';
 
-export const SERVER_DEADLINE_SCHEMA_VERSION = 'ai-battle.server-deadline/v1' as const;
+export const SERVER_DEADLINE_SCHEMA_VERSION = 'ai-battle.server-deadline/v2' as const;
 
-export type ServerDeadlineKind = 'PUBLIC_CARD_SELECTION' | 'PUBLIC_EFFECT_CHOICE';
+export type ServerDeadlineKind = 'PUBLIC_CARD_SELECTION' | 'PUBLIC_EFFECT_CHOICE' | 'PUBLIC_REVEAL';
 
 export interface ServerDeadlineRegistration {
   readonly schemaVersion: typeof SERVER_DEADLINE_SCHEMA_VERSION;
@@ -15,6 +15,7 @@ export interface ServerDeadlineRegistration {
   readonly stepId: string;
   readonly kind: ServerDeadlineKind;
   readonly autoAdvanceAt: number;
+  readonly publicRevealGeneration?: string;
   readonly windowSignature: string;
 }
 
@@ -123,6 +124,7 @@ export class ServerDeadlineOwner {
       stepId: descriptor.stepId,
       kind: descriptor.kind,
       autoAdvanceAt: descriptor.autoAdvanceAt,
+      publicRevealGeneration: descriptor.publicRevealGeneration,
       windowSignature: descriptor.windowSignature,
     };
     const active: ActiveServerDeadline = { registration, timerHandle: null };
@@ -196,6 +198,7 @@ interface ServerDeadlineDescriptor {
   readonly stepId: string;
   readonly kind: ServerDeadlineKind;
   readonly autoAdvanceAt: number;
+  readonly publicRevealGeneration?: string;
   readonly windowSignature: string;
 }
 
@@ -206,7 +209,11 @@ export function readServerDeadlineDescriptor(game: GameState): ServerDeadlineDes
 
   const cardSelectionDeadline = effect.publicCardSelectionAutoAdvanceAt;
   const effectChoiceDeadline = effect.publicEffectChoiceAutoAdvanceAt;
-  if (cardSelectionDeadline !== undefined && effectChoiceDeadline !== undefined) {
+  const publicRevealDeadline = effect.publicRevealAutoAdvanceAt;
+  const deadlineCount = [cardSelectionDeadline, effectChoiceDeadline, publicRevealDeadline].filter(
+    (deadline) => deadline !== undefined
+  ).length;
+  if (deadlineCount !== 1) {
     return null;
   }
   const kind: ServerDeadlineKind | null =
@@ -214,22 +221,34 @@ export function readServerDeadlineDescriptor(game: GameState): ServerDeadlineDes
       ? 'PUBLIC_CARD_SELECTION'
       : effectChoiceDeadline !== undefined
         ? 'PUBLIC_EFFECT_CHOICE'
-        : null;
-  const autoAdvanceAt = cardSelectionDeadline ?? effectChoiceDeadline;
+        : publicRevealDeadline !== undefined
+          ? 'PUBLIC_REVEAL'
+          : null;
+  const autoAdvanceAt = cardSelectionDeadline ?? effectChoiceDeadline ?? publicRevealDeadline;
+  const publicRevealGeneration =
+    kind === 'PUBLIC_REVEAL' ? effect.publicRevealGeneration : undefined;
   if (
     !kind ||
     autoAdvanceAt === undefined ||
     !Number.isFinite(autoAdvanceAt) ||
-    autoAdvanceAt < 0
+    autoAdvanceAt < 0 ||
+    (kind === 'PUBLIC_REVEAL' && !publicRevealGeneration)
   ) {
     return null;
   }
-  const windowSignature = JSON.stringify([effect.id, effect.stepId, kind, autoAdvanceAt]);
+  const windowSignature = JSON.stringify([
+    effect.id,
+    effect.stepId,
+    kind,
+    autoAdvanceAt,
+    publicRevealGeneration ?? null,
+  ]);
   return {
     effectId: effect.id,
     stepId: effect.stepId,
     kind,
     autoAdvanceAt,
+    publicRevealGeneration,
     windowSignature,
   };
 }

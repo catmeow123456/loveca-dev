@@ -579,7 +579,12 @@ function fail(
 function readActiveEffectDeadline(game: GameState): number | null {
   const effect = game.activeEffect;
   if (!effect) return null;
-  return effect.publicCardSelectionAutoAdvanceAt ?? effect.publicEffectChoiceAutoAdvanceAt ?? null;
+  return (
+    effect.publicCardSelectionAutoAdvanceAt ??
+    effect.publicEffectChoiceAutoAdvanceAt ??
+    effect.publicRevealAutoAdvanceAt ??
+    null
+  );
 }
 
 function cloneSelection(selection: AiDecisionSelection): AiDecisionSelection {
