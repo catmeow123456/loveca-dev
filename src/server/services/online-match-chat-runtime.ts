@@ -1,8 +1,10 @@
-import type {
-  OnlineMatchChatMessage,
-  OnlineMatchChatMessagesResponse,
-  Seat,
-  SendOnlineMatchChatMessageInput,
+import {
+  ONLINE_MATCH_EMOTE_IDS,
+  type OnlineMatchChatEntry,
+  type OnlineMatchChatMessagesResponse,
+  type OnlineMatchEmoteId,
+  type Seat,
+  type SendOnlineMatchChatEntryInput,
 } from '../../online/index.js';
 
 const CHAT_MESSAGE_LIMIT = 500;
@@ -13,21 +15,28 @@ const CHAT_RATE_WINDOW_MS = 10_000;
 const CHAT_RATE_WINDOW_LIMIT = 5;
 const CHAT_BURST_WINDOW_MS = 1_000;
 const CHAT_BURST_LIMIT = 3;
+const EMOTE_COOLDOWN_MS = 2_000;
+const ONLINE_MATCH_EMOTE_ID_SET = new Set<string>(ONLINE_MATCH_EMOTE_IDS);
 
-interface StoredOnlineMatchChatMessage extends OnlineMatchChatMessage {
+type StoredOnlineMatchChatEntry = OnlineMatchChatEntry & {
   readonly senderUserId: string;
   readonly clientMessageId: string;
-}
+};
 
 interface ChatRateWindow {
   readonly acceptedAt: number[];
 }
 
+type NormalizedChatEntryInput =
+  | { readonly kind: 'TEXT'; readonly text: string }
+  | { readonly kind: 'EMOTE'; readonly emoteId: OnlineMatchEmoteId };
+
 export interface OnlineMatchChatRuntimeState {
   nextMessageSeq: number;
-  readonly messages: StoredOnlineMatchChatMessage[];
+  readonly messages: StoredOnlineMatchChatEntry[];
   readonly messageSeqByIdempotencyKey: Map<string, number>;
   readonly rateWindowsByUserId: Map<string, ChatRateWindow>;
+  readonly lastEmoteAcceptedAtByUserId: Map<string, number>;
 }
 
 export interface OnlineMatchChatSender {
@@ -56,20 +65,21 @@ export function createOnlineMatchChatRuntime(): OnlineMatchChatRuntimeState {
     messages: [],
     messageSeqByIdempotencyKey: new Map<string, number>(),
     rateWindowsByUserId: new Map<string, ChatRateWindow>(),
+    lastEmoteAcceptedAtByUserId: new Map<string, number>(),
   };
 }
 
 export function appendOnlineMatchChatMessage(
   runtime: OnlineMatchChatRuntimeState,
   sender: OnlineMatchChatSender,
-  input: SendOnlineMatchChatMessageInput,
+  input: SendOnlineMatchChatEntryInput,
   options: {
     readonly now: number;
     readonly blockedTerms: readonly string[];
   }
-): OnlineMatchChatMessage {
+): OnlineMatchChatEntry {
+  const normalizedInput = normalizeChatEntryInput(input);
   const clientMessageId = normalizeClientMessageId(input.clientMessageId);
-  const text = normalizeChatText(input.text);
   const idempotencyKey = buildIdempotencyKey(sender.userId, clientMessageId);
   const existingMessageSeq = runtime.messageSeqByIdempotencyKey.get(idempotencyKey);
 
@@ -80,7 +90,7 @@ export function appendOnlineMatchChatMessage(
         message.senderUserId === sender.userId &&
         message.clientMessageId === clientMessageId
     );
-    if (existing && existing.text === text) {
+    if (existing && hasSameChatPayload(existing, normalizedInput)) {
       return toMessageView(existing);
     }
     throw new OnlineMatchChatRuntimeError(
@@ -90,21 +100,32 @@ export function appendOnlineMatchChatMessage(
     );
   }
 
-  assertTextAllowed(text, options.blockedTerms);
+  if (normalizedInput.kind === 'TEXT') {
+    assertTextAllowed(normalizedInput.text, options.blockedTerms);
+  } else {
+    assertEmoteCooldownAvailable(runtime, sender.userId, options.now);
+  }
   consumeChatRateLimit(runtime, sender.userId, options.now);
 
-  const stored: StoredOnlineMatchChatMessage = {
+  const sharedFields = {
     messageSeq: runtime.nextMessageSeq,
     senderUserId: sender.userId,
     senderSeat: sender.seat,
     senderDisplayName: sender.displayName,
     clientMessageId,
-    text,
     sentAt: options.now,
-  };
+  } as const;
+  const stored: StoredOnlineMatchChatEntry =
+    normalizedInput.kind === 'TEXT'
+      ? { ...sharedFields, kind: 'TEXT', text: normalizedInput.text }
+      : { ...sharedFields, kind: 'EMOTE', emoteId: normalizedInput.emoteId };
+
   runtime.nextMessageSeq += 1;
   runtime.messages.push(stored);
   runtime.messageSeqByIdempotencyKey.set(idempotencyKey, stored.messageSeq);
+  if (stored.kind === 'EMOTE') {
+    runtime.lastEmoteAcceptedAtByUserId.set(sender.userId, options.now);
+  }
 
   while (runtime.messages.length > CHAT_MESSAGE_LIMIT) {
     const removed = runtime.messages.shift();
@@ -156,6 +177,16 @@ export function readOnlineMatchChatBlockedTerms(
       .map((term) => term.trim())
       .filter(Boolean) ?? [];
   return [...new Set([...defaults, ...configured].map(normalizeComparableText).filter(Boolean))];
+}
+
+function normalizeChatEntryInput(input: SendOnlineMatchChatEntryInput): NormalizedChatEntryInput {
+  if (input.kind === 'TEXT') {
+    return { kind: 'TEXT', text: normalizeChatText(input.text) };
+  }
+  if (input.kind === 'EMOTE' && isOnlineMatchEmoteId(input.emoteId)) {
+    return { kind: 'EMOTE', emoteId: input.emoteId };
+  }
+  throw new OnlineMatchChatRuntimeError('ONLINE_CHAT_EMOTE_UNAVAILABLE', '这个表情暂时不可用', 422);
 }
 
 function normalizeClientMessageId(value: string): string {
@@ -221,6 +252,23 @@ function normalizeComparableText(value: string): string {
     .replace(/[\s\u200B-\u200D\uFEFF._\-*]+/gu, '');
 }
 
+function assertEmoteCooldownAvailable(
+  runtime: OnlineMatchChatRuntimeState,
+  userId: string,
+  now: number
+): void {
+  const lastAcceptedAt = runtime.lastEmoteAcceptedAtByUserId.get(userId);
+  if (lastAcceptedAt === undefined || now - lastAcceptedAt >= EMOTE_COOLDOWN_MS) {
+    return;
+  }
+  throw new OnlineMatchChatRuntimeError(
+    'ONLINE_CHAT_EMOTE_COOLDOWN',
+    '表情发送太快，请稍后再试',
+    429,
+    Math.max(1, EMOTE_COOLDOWN_MS - (now - lastAcceptedAt))
+  );
+}
+
 function consumeChatRateLimit(
   runtime: OnlineMatchChatRuntimeState,
   userId: string,
@@ -253,6 +301,22 @@ function consumeChatRateLimit(
   runtime.rateWindowsByUserId.set(userId, { acceptedAt });
 }
 
+function hasSameChatPayload(
+  existing: StoredOnlineMatchChatEntry,
+  input: NormalizedChatEntryInput
+): boolean {
+  if (existing.kind !== input.kind) {
+    return false;
+  }
+  return existing.kind === 'TEXT' && input.kind === 'TEXT'
+    ? existing.text === input.text
+    : existing.kind === 'EMOTE' && input.kind === 'EMOTE' && existing.emoteId === input.emoteId;
+}
+
+function isOnlineMatchEmoteId(value: unknown): value is OnlineMatchEmoteId {
+  return typeof value === 'string' && ONLINE_MATCH_EMOTE_ID_SET.has(value);
+}
+
 function hasDisallowedControlCharacter(character: string): boolean {
   const codePoint = character.codePointAt(0);
   return (
@@ -267,12 +331,14 @@ function buildIdempotencyKey(userId: string, clientMessageId: string): string {
   return JSON.stringify([userId, clientMessageId]);
 }
 
-function toMessageView(message: StoredOnlineMatchChatMessage): OnlineMatchChatMessage {
-  return {
+function toMessageView(message: StoredOnlineMatchChatEntry): OnlineMatchChatEntry {
+  const sharedFields = {
     messageSeq: message.messageSeq,
     senderSeat: message.senderSeat,
     senderDisplayName: message.senderDisplayName,
-    text: message.text,
     sentAt: message.sentAt,
-  };
+  } as const;
+  return message.kind === 'TEXT'
+    ? { ...sharedFields, kind: 'TEXT', text: message.text }
+    : { ...sharedFields, kind: 'EMOTE', emoteId: message.emoteId };
 }

@@ -223,7 +223,7 @@ describe('onlineRouter error handling', () => {
 
     const response = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
       params: { matchId: 'm1' },
-      body: { clientMessageId: 'client-message-1', text: '稍等一下' },
+      body: { kind: 'TEXT', clientMessageId: 'client-message-1', text: '稍等一下' },
     });
 
     expect(response.statusCode).toBe(429);
@@ -238,13 +238,47 @@ describe('onlineRouter error handling', () => {
     });
   });
 
+  it('未知表情返回不可用错误，表情请求不接受自定义显示字段', async () => {
+    const sendMessage = vi.spyOn(onlineMatchService, 'sendMatchChatMessage');
+    const unknownResponse = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
+      params: { matchId: 'm1' },
+      body: { kind: 'EMOTE', clientMessageId: 'unknown-emote', emoteId: 'TAUNT' },
+    });
+
+    expect(unknownResponse.statusCode).toBe(422);
+    expect(unknownResponse.body).toEqual({
+      data: null,
+      error: {
+        code: 'ONLINE_CHAT_EMOTE_UNAVAILABLE',
+        message: '这个表情暂时不可用',
+      },
+    });
+
+    const customResponse = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
+      params: { matchId: 'm1' },
+      body: {
+        kind: 'EMOTE',
+        clientMessageId: 'custom-emote',
+        emoteId: 'THANK_YOU',
+        imageUrl: 'https://example.com/custom.webp',
+      },
+    });
+
+    expect(customResponse.statusCode).toBe(400);
+    expect(customResponse.body).toEqual({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '聊天参数非法' },
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
   it('已退出当前对局的玩家不能继续发送聊天', async () => {
     vi.mocked(onlineRoomService.touchInGameMemberByMatch).mockReturnValue(false);
     const sendMessage = vi.spyOn(onlineMatchService, 'sendMatchChatMessage');
 
     const response = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
       params: { matchId: 'm1' },
-      body: { clientMessageId: 'client-message-left', text: '我已经退出了' },
+      body: { kind: 'TEXT', clientMessageId: 'client-message-left', text: '我已经退出了' },
     });
 
     expect(response.statusCode).toBe(403);

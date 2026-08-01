@@ -1,9 +1,9 @@
-import type { OnlineMatchChatMessage, Seat } from '@game/online';
+import type { OnlineMatchChatEntry, Seat } from '@game/online';
 
 export function findLatestOpponentChatMessage(
-  messages: readonly OnlineMatchChatMessage[],
+  messages: readonly OnlineMatchChatEntry[],
   viewerSeat: Seat
-): OnlineMatchChatMessage | null {
+): OnlineMatchChatEntry | null {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (message && message.senderSeat !== viewerSeat) {

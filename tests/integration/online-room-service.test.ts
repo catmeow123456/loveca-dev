@@ -519,10 +519,12 @@ describe('OnlineRoomService', () => {
     expect(publicLog.publicEvents.length).toBeGreaterThan(0);
 
     const sentChat = matchService.sendMatchChatMessage(started.matchId!, 'u1', {
+      kind: 'TEXT',
       clientMessageId: 'spec-chat-1',
       text: '观战者也能看到这条消息',
     });
     expect(sentChat).toMatchObject({
+      kind: 'TEXT',
       messageSeq: 1,
       senderSeat: 'SECOND',
       senderDisplayName: 'Alpha',
@@ -546,6 +548,30 @@ describe('OnlineRoomService', () => {
       matchId: started.matchId,
       currentSeq: 1,
       messages: [sentChat],
+    });
+
+    const sentEmote = matchService.sendMatchChatMessage(started.matchId!, 'u2', {
+      kind: 'EMOTE',
+      clientMessageId: 'spec-emote-1',
+      emoteId: 'DEEP_THINKING',
+    });
+    expect(sentEmote).toMatchObject({
+      kind: 'EMOTE',
+      messageSeq: 2,
+      senderSeat: 'FIRST',
+      senderDisplayName: 'Beta',
+      emoteId: 'DEEP_THINKING',
+    });
+    expect(
+      matchService.getSpectatorChatMessages(link.token, joined.session.sessionId, {
+        afterSeq: 1,
+        expectedRoomGeneration: link.roomGeneration!,
+        expectedAttachmentGeneration: link.attachmentGeneration,
+      })
+    ).toMatchObject({
+      matchId: started.matchId,
+      currentSeq: 2,
+      messages: [sentEmote],
     });
 
     const roomForPlayer = await service.getRoomView('spec1', 'u1');
@@ -1015,6 +1041,7 @@ describe('OnlineRoomService', () => {
     const previousMatchId = started.matchId!;
     expect(
       matchService.sendMatchChatMessage(previousMatchId, 'u1', {
+        kind: 'TEXT',
         clientMessageId: 'old-match-chat',
         text: '这条消息只属于旧局',
       })

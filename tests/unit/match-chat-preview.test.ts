@@ -3,14 +3,15 @@ import {
   findLatestOpponentChatMessage,
   formatMatchChatPreviewText,
 } from '../../client/src/lib/matchChatPreview';
-import type { OnlineMatchChatMessage } from '../../src/online/chat-types';
+import type { OnlineMatchChatEntry } from '../../src/online/chat-types';
 
 function createMessage(
   messageSeq: number,
-  senderSeat: OnlineMatchChatMessage['senderSeat'],
+  senderSeat: OnlineMatchChatEntry['senderSeat'],
   text: string
-): OnlineMatchChatMessage {
+): OnlineMatchChatEntry {
   return {
+    kind: 'TEXT',
     messageSeq,
     senderSeat,
     senderDisplayName: senderSeat === 'FIRST' ? 'Alpha' : 'Beta',
@@ -33,5 +34,19 @@ describe('match chat preview', () => {
 
   it('将多行和连续空白收敛为单行预览', () => {
     expect(formatMatchChatPreviewText('  等一下\n我看下   卡文  ')).toBe('等一下 我看下 卡文');
+  });
+
+  it('同一时间流中也能选择最新的对手表情', () => {
+    const ownText = createMessage(1, 'FIRST', '自己的消息');
+    const opponentEmote: OnlineMatchChatEntry = {
+      kind: 'EMOTE',
+      messageSeq: 2,
+      senderSeat: 'SECOND',
+      senderDisplayName: 'Beta',
+      emoteId: 'DEEP_THINKING',
+      sentAt: 2,
+    };
+
+    expect(findLatestOpponentChatMessage([ownText, opponentEmote], 'FIRST')).toEqual(opponentEmote);
   });
 });

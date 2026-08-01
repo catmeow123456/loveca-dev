@@ -2947,6 +2947,7 @@ export const PlayerArea = memo(function PlayerArea({
 
             <div className="flex shrink-0 flex-row-reverse items-center gap-2 border-b border-slate-700/30 pb-1">
               <div
+                data-player-identity-seat={playerSeat}
                 className={cn(
                   'rounded-full px-2 py-0.5 text-xs font-bold',
                   isActive
@@ -2979,6 +2980,7 @@ export const PlayerArea = memo(function PlayerArea({
 
           <div className="flex min-w-0 shrink-0 items-center gap-2 border-t border-slate-700/30 pt-1">
             <div
+              data-player-identity-seat={playerSeat}
               className={cn(
                 'rounded-full px-2 py-0.5 text-xs font-bold',
                 isActive
@@ -2988,7 +2990,6 @@ export const PlayerArea = memo(function PlayerArea({
             >
               {playerIdentity.name}
             </div>
-            <div className={ZONE_META_LABEL_CLASS}>手牌: {displayedHandCount}</div>
             {renderHandContextActions()}
           </div>
 
@@ -3023,6 +3024,7 @@ export const PlayerArea = memo(function PlayerArea({
         {/* 玩家信息 - 紧凑 */}
         <div className="flex items-center gap-2 my-1 flex-shrink-0 flex-row-reverse">
           <div
+            data-player-identity-seat={playerSeat}
             className={cn(
               'px-2 py-0.5 rounded-full text-xs font-bold',
               isActive ? 'bg-rose-500 text-white' : 'bg-slate-700 text-slate-300'
@@ -3104,6 +3106,7 @@ export const PlayerArea = memo(function PlayerArea({
       {/* 玩家信息 - 紧凑 */}
       <div className="flex items-center gap-2 my-1 flex-shrink-0">
         <div
+          data-player-identity-seat={playerSeat}
           className={cn(
             'px-2 py-0.5 rounded-full text-xs font-bold',
             isActive ? 'bg-rose-500 text-white' : 'bg-slate-700 text-slate-300'

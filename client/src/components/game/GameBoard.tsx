@@ -2441,6 +2441,7 @@ export const GameBoard = memo(function GameBoard({
                   <>
                     <button
                       type="button"
+                      data-player-identity-seat={opponentSeat}
                       onClick={handleMobileOpponentAction}
                       className={cn(
                         'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',

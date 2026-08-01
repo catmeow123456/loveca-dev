@@ -10,7 +10,7 @@ import type {
   MatchRecordTimelineView,
   OnlineAdminRoomSummary,
   OnlineCommandResult,
-  OnlineMatchChatMessage,
+  OnlineMatchChatEntry,
   OnlineMatchChatMessagesResponse,
   OpeningRpsGesture,
   OpeningTurnOrderChoice,
@@ -24,7 +24,7 @@ import type {
   OnlineSpectatorSwitchView,
   PublicEventsResponse,
   Seat,
-  SendOnlineMatchChatMessageInput,
+  SendOnlineMatchChatEntryInput,
 } from '@game/online';
 import { toTransport } from '@game/online';
 import type { GameCommand } from '@game/application/game-commands';
@@ -300,9 +300,9 @@ export async function fetchOnlineMatchChatMessages(
 
 export async function sendOnlineMatchChatMessage(
   matchId: string,
-  input: SendOnlineMatchChatMessageInput
-): Promise<OnlineMatchChatMessage> {
-  const response = await apiClient.post<OnlineMatchChatMessage>(
+  input: SendOnlineMatchChatEntryInput
+): Promise<OnlineMatchChatEntry> {
+  const response = await apiClient.post<OnlineMatchChatEntry>(
     `/api/online/matches/${encodeURIComponent(matchId)}/chat/messages`,
     input
   );

@@ -23,7 +23,7 @@ import type {
   MatchParticipantKind,
   OnlineAdminMatchSummary,
   OnlineCommandResult,
-  OnlineMatchChatMessage,
+  OnlineMatchChatEntry,
   OnlineMatchChatMessagesResponse,
   OnlineMatchSnapshot,
   OnlineMatchSnapshotResponse,
@@ -41,7 +41,7 @@ import type {
   PublicEventsResponse,
   RuntimeRecoveryInfo,
   Seat,
-  SendOnlineMatchChatMessageInput,
+  SendOnlineMatchChatEntryInput,
   UndoEntrySummary,
   UndoPolicy,
   UndoRuntimeCaptureCursor,
@@ -706,8 +706,8 @@ export class OnlineMatchService {
   sendMatchChatMessage(
     matchId: string,
     userId: string,
-    input: SendOnlineMatchChatMessageInput
-  ): OnlineMatchChatMessage | null {
+    input: SendOnlineMatchChatEntryInput
+  ): OnlineMatchChatEntry | null {
     const match = this.matches.get(matchId);
     if (!match || match.matchMode !== 'ONLINE') {
       return null;

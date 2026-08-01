@@ -20,7 +20,7 @@ describe('online match chat runtime', () => {
       appendOnlineMatchChatMessage(
         runtime,
         FIRST_SENDER,
-        { clientMessageId: `message-${index}`, text: `消息 ${index}` },
+        { kind: 'TEXT', clientMessageId: `message-${index}`, text: `消息 ${index}` },
         { now: index * 2_001, blockedTerms: [] }
       );
     }
@@ -45,7 +45,7 @@ describe('online match chat runtime', () => {
 
   it('相同提交标识与正文幂等，冲突正文被拒绝', () => {
     const runtime = createOnlineMatchChatRuntime();
-    const input = { clientMessageId: 'stable-message', text: '  好局  ' };
+    const input = { kind: 'TEXT' as const, clientMessageId: 'stable-message', text: '  好局  ' };
 
     const first = appendOnlineMatchChatMessage(runtime, FIRST_SENDER, input, {
       now: 1_000,
@@ -63,7 +63,7 @@ describe('online match chat runtime', () => {
         appendOnlineMatchChatMessage(
           runtime,
           FIRST_SENDER,
-          { clientMessageId: 'stable-message', text: '不同正文' },
+          { kind: 'TEXT', clientMessageId: 'stable-message', text: '不同正文' },
           { now: 1_002, blockedTerms: [] }
         ),
       {
@@ -73,13 +73,136 @@ describe('online match chat runtime', () => {
     );
   });
 
+  it('允许六个白名单表情进入同一消息序列并拒绝未知表情', () => {
+    const runtime = createOnlineMatchChatRuntime();
+    const emoteIds = [
+      'DEEP_THINKING',
+      'THANK_YOU',
+      'NICE_TO_MEET_YOU',
+      'NICE_PLAY',
+      'GOOD_GAME',
+      'SORRY_TO_KEEP_YOU_WAITING',
+    ] as const;
+
+    emoteIds.forEach((emoteId, index) => {
+      appendOnlineMatchChatMessage(
+        runtime,
+        FIRST_SENDER,
+        { kind: 'EMOTE', clientMessageId: `emote-${index}`, emoteId },
+        { now: index * 2_001, blockedTerms: [] }
+      );
+    });
+
+    expect(readOnlineMatchChatMessages(runtime, 'match-1').messages).toEqual(
+      emoteIds.map((emoteId, index) => ({
+        kind: 'EMOTE',
+        messageSeq: index + 1,
+        senderSeat: 'FIRST',
+        senderDisplayName: 'Alpha',
+        emoteId,
+        sentAt: index * 2_001,
+      }))
+    );
+    expectRuntimeError(
+      () =>
+        appendOnlineMatchChatMessage(
+          runtime,
+          FIRST_SENDER,
+          {
+            kind: 'EMOTE',
+            clientMessageId: 'unknown-emote',
+            emoteId: 'TAUNT' as never,
+          },
+          { now: 20_000, blockedTerms: [] }
+        ),
+      { code: 'ONLINE_CHAT_EMOTE_UNAVAILABLE', statusCode: 422 }
+    );
+  });
+
+  it('表情额外遵守两秒冷却，文字仍与表情共用综合限频', () => {
+    const runtime = createOnlineMatchChatRuntime();
+    appendOnlineMatchChatMessage(
+      runtime,
+      FIRST_SENDER,
+      { kind: 'EMOTE', clientMessageId: 'thinking', emoteId: 'DEEP_THINKING' },
+      { now: 1_000, blockedTerms: [] }
+    );
+
+    expectRuntimeError(
+      () =>
+        appendOnlineMatchChatMessage(
+          runtime,
+          FIRST_SENDER,
+          { kind: 'EMOTE', clientMessageId: 'thanks-too-soon', emoteId: 'THANK_YOU' },
+          { now: 2_250, blockedTerms: [] }
+        ),
+      {
+        code: 'ONLINE_CHAT_EMOTE_COOLDOWN',
+        statusCode: 429,
+        retryAfterMs: 750,
+      }
+    );
+    appendOnlineMatchChatMessage(
+      runtime,
+      FIRST_SENDER,
+      { kind: 'TEXT', clientMessageId: 'text-between', text: '还在看卡文' },
+      { now: 2_250, blockedTerms: [] }
+    );
+    const accepted = appendOnlineMatchChatMessage(
+      runtime,
+      FIRST_SENDER,
+      { kind: 'EMOTE', clientMessageId: 'thanks-later', emoteId: 'THANK_YOU' },
+      { now: 3_000, blockedTerms: [] }
+    );
+    expect(accepted).toMatchObject({ kind: 'EMOTE', messageSeq: 3, emoteId: 'THANK_YOU' });
+  });
+
+  it('幂等提交同时比较条目种类和表情编号', () => {
+    const runtime = createOnlineMatchChatRuntime();
+    const input = {
+      kind: 'EMOTE' as const,
+      clientMessageId: 'stable-emote',
+      emoteId: 'GOOD_GAME' as const,
+    };
+    const first = appendOnlineMatchChatMessage(runtime, FIRST_SENDER, input, {
+      now: 1_000,
+      blockedTerms: [],
+    });
+    expect(
+      appendOnlineMatchChatMessage(runtime, FIRST_SENDER, input, {
+        now: 1_001,
+        blockedTerms: [],
+      })
+    ).toEqual(first);
+    expectRuntimeError(
+      () =>
+        appendOnlineMatchChatMessage(
+          runtime,
+          FIRST_SENDER,
+          { kind: 'EMOTE', clientMessageId: 'stable-emote', emoteId: 'THANK_YOU' },
+          { now: 3_001, blockedTerms: [] }
+        ),
+      { code: 'ONLINE_CHAT_IDEMPOTENCY_CONFLICT', statusCode: 409 }
+    );
+    expectRuntimeError(
+      () =>
+        appendOnlineMatchChatMessage(
+          runtime,
+          FIRST_SENDER,
+          { kind: 'TEXT', clientMessageId: 'stable-emote', text: '好局！' },
+          { now: 3_001, blockedTerms: [] }
+        ),
+      { code: 'ONLINE_CHAT_IDEMPOTENCY_CONFLICT', statusCode: 409 }
+    );
+  });
+
   it('限制短时突发、十秒窗口并返回等待时间', () => {
     const runtime = createOnlineMatchChatRuntime();
     for (let index = 0; index < 3; index += 1) {
       appendOnlineMatchChatMessage(
         runtime,
         FIRST_SENDER,
-        { clientMessageId: `burst-${index}`, text: `消息 ${index}` },
+        { kind: 'TEXT', clientMessageId: `burst-${index}`, text: `消息 ${index}` },
         { now: 2_000, blockedTerms: [] }
       );
     }
@@ -89,7 +212,7 @@ describe('online match chat runtime', () => {
         appendOnlineMatchChatMessage(
           runtime,
           FIRST_SENDER,
-          { clientMessageId: 'burst-blocked', text: '第四条' },
+          { kind: 'TEXT', clientMessageId: 'burst-blocked', text: '第四条' },
           { now: 2_000, blockedTerms: [] }
         ),
       {
@@ -102,13 +225,13 @@ describe('online match chat runtime', () => {
     appendOnlineMatchChatMessage(
       runtime,
       FIRST_SENDER,
-      { clientMessageId: 'window-four', text: '第四条' },
+      { kind: 'TEXT', clientMessageId: 'window-four', text: '第四条' },
       { now: 3_000, blockedTerms: [] }
     );
     appendOnlineMatchChatMessage(
       runtime,
       FIRST_SENDER,
-      { clientMessageId: 'window-five', text: '第五条' },
+      { kind: 'TEXT', clientMessageId: 'window-five', text: '第五条' },
       { now: 3_000, blockedTerms: [] }
     );
     expectRuntimeError(
@@ -116,7 +239,7 @@ describe('online match chat runtime', () => {
         appendOnlineMatchChatMessage(
           runtime,
           FIRST_SENDER,
-          { clientMessageId: 'window-blocked', text: '第六条' },
+          { kind: 'TEXT', clientMessageId: 'window-blocked', text: '第六条' },
           { now: 3_000, blockedTerms: [] }
         ),
       {
@@ -155,7 +278,7 @@ describe('online match chat runtime', () => {
           appendOnlineMatchChatMessage(
             runtime,
             FIRST_SENDER,
-            { clientMessageId: `invalid-${index}`, text: testCase.text },
+            { kind: 'TEXT', clientMessageId: `invalid-${index}`, text: testCase.text },
             { now: 1_000, blockedTerms: testCase.blockedTerms ?? [] }
           ),
         {
@@ -171,7 +294,7 @@ describe('online match chat runtime', () => {
       appendOnlineMatchChatMessage(
         runtime,
         FIRST_SENDER,
-        { clientMessageId: `retained-${index}`, text: `消息 ${index}` },
+        { kind: 'TEXT', clientMessageId: `retained-${index}`, text: `消息 ${index}` },
         { now: index * 2_001, blockedTerms: [] }
       );
     }
