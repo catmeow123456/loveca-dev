@@ -19,6 +19,7 @@ import {
   MonitorCog,
   Medal,
   RefreshCw,
+  Sparkles,
   Settings,
   ShieldAlert,
   Swords,
@@ -69,6 +70,7 @@ interface HomePageProps {
   onAbandonSavedRoomForLocalGame: () => Promise<void>;
   onNavigateToOnlineRoom: () => void;
   onNavigateToRanked: () => void;
+  onNavigateToThemeTable: () => void;
   onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
@@ -76,6 +78,7 @@ interface HomePageProps {
   onNavigateToOnlineAdmin: () => void;
   onNavigateToAnnouncementAdmin: () => void;
   onNavigateToRankedAdmin: () => void;
+  onNavigateToThemeTableAdmin: () => void;
   siteStatus: PublicSiteStatus;
 }
 
@@ -114,6 +117,7 @@ export function HomePage({
   onAbandonSavedRoomForLocalGame,
   onNavigateToOnlineRoom,
   onNavigateToRanked,
+  onNavigateToThemeTable,
   onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
@@ -121,6 +125,7 @@ export function HomePage({
   onNavigateToOnlineAdmin,
   onNavigateToAnnouncementAdmin,
   onNavigateToRankedAdmin,
+  onNavigateToThemeTableAdmin,
   siteStatus,
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser } = useAuthStore();
@@ -238,8 +243,7 @@ export function HomePage({
             void handleAbandonSavedRoomForLocalGame();
           },
         },
-        notice:
-          savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
+        notice: savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
       }
     : deckSourceStatus !== 'online'
       ? {
@@ -285,6 +289,14 @@ export function HomePage({
             };
 
   const secondaryActions: ActionTileProps[] = [
+    {
+      title: '轮换主题牌桌',
+      icon: Sparkles,
+      onClick: onNavigateToThemeTable,
+      disabled: !canUseOnlineRoom,
+      status: canUseOnlineRoom ? '平台预组 · 非计分' : '连接后可用',
+      tone: canUseOnlineRoom ? 'blue' : 'muted',
+    },
     {
       title: '赛季排位',
       icon: Medal,
@@ -393,7 +405,16 @@ export function HomePage({
                 <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
                 管理工具
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <ActionTile
+                  title="主题牌桌管理"
+                  description="编排活动、冻结预组与实测组合。"
+                  icon={Sparkles}
+                  onClick={onNavigateToThemeTableAdmin}
+                  status="管理员"
+                  tone="green"
+                  compact
+                />
                 <ActionTile
                   title="赛季排位管理"
                   description="管理赛季状态与异常结算。"

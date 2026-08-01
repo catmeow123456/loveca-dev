@@ -19,6 +19,8 @@ import { siteAnnouncementsRouter } from './routes/site-announcements.js';
 import { publicTableRouter } from './routes/public-table.js';
 import { rankedRouter } from './routes/ranked.js';
 import { rankedAdminRouter } from './routes/ranked-admin.js';
+import { themeTableRouter } from './routes/theme-table.js';
+import { themeTableAdminRouter } from './routes/theme-table-admin.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -79,6 +81,8 @@ export function createApp(): express.Express {
   app.use('/api/battle', battleRouter);
   app.use('/api/public-table', publicTableRouter);
   app.use('/api/ranked', rankedRouter);
+  app.use('/api/theme-table', themeTableRouter);
+  app.use('/api/admin/theme-table', themeTableAdminRouter);
   app.use('/api/admin/ranked', rankedAdminRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);

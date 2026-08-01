@@ -22,6 +22,9 @@ import {
 import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
 import { isRankedQueueWindowOpen, type RankedSeasonOpenWindow } from './ranked-season-service.js';
 import { siteAnnouncementService } from './site-announcement-service.js';
+import { freezeThemeTableAssignment } from './theme-table-allocation-service.js';
+import { getCurrentRankedCardCatalogIdentity } from '../rating/ranked-environment.js';
+import { REPLAY_RULES_VERSION } from './replay-constants.js';
 
 const ENVIRONMENT_ID = 'PUBLIC_TABLE_V1';
 const HEARTBEAT_GRACE_MS = 45_000;
@@ -31,10 +34,11 @@ const BOOTSTRAP_LEASE_MS = 30_000;
 const MAX_BOOTSTRAP_ATTEMPTS = 3;
 
 export interface MatchmakingQueueContext {
-  readonly queueKind: 'CASUAL' | 'RANKED';
-  readonly participationKind: 'PUBLIC_QUEUE' | 'RANKED_QUEUE';
+  readonly queueKind: 'CASUAL' | 'RANKED' | 'THEME';
+  readonly participationKind: 'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE';
   readonly environmentId: string;
   readonly seasonId: string | null;
+  readonly themeTableVersionId?: string | null;
 }
 
 export const CASUAL_QUEUE_CONTEXT: MatchmakingQueueContext = Object.freeze({
@@ -42,6 +46,7 @@ export const CASUAL_QUEUE_CONTEXT: MatchmakingQueueContext = Object.freeze({
   participationKind: 'PUBLIC_QUEUE',
   environmentId: ENVIRONMENT_ID,
   seasonId: null,
+  themeTableVersionId: null,
 });
 
 interface PublicTableServiceDeps {
@@ -72,6 +77,17 @@ interface RankedAdmissionRow {
   readonly open_windows: RankedSeasonOpenWindow[];
   readonly starts_at: Date | string;
   readonly scheduled_ends_at: Date | string;
+}
+
+interface ThemeAdmissionRow {
+  readonly lifecycle: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
+  readonly environment_id: string;
+  readonly rules_environment_id: string;
+  readonly card_catalog_hash: string;
+  readonly platform_time_zone: string;
+  readonly open_windows: RankedSeasonOpenWindow[];
+  readonly starts_at: Date | string;
+  readonly ends_at: Date | string;
 }
 
 export class PublicTableServiceError extends Error {
@@ -114,6 +130,7 @@ export class PublicTableService {
          WHERE environment_id = $1
            AND queue_kind = $4
            AND season_id IS NOT DISTINCT FROM $5
+           AND theme_table_version_id IS NOT DISTINCT FROM $6
            AND state = 'WAITING'
            AND heartbeat_at > $2
            AND matchable_after <= $3
@@ -124,6 +141,7 @@ export class PublicTableService {
         new Date(this.now()),
         context.queueKind,
         context.seasonId,
+        context.themeTableVersionId ?? null,
       ]
     );
     return {
@@ -135,7 +153,7 @@ export class PublicTableService {
 
   async join(
     userId: string,
-    deckId: string,
+    deckId: string | null,
     entrySource = 'DIRECT',
     context: MatchmakingQueueContext = CASUAL_QUEUE_CONTEXT
   ): Promise<PublicTableStatusView> {
@@ -152,10 +170,10 @@ export class PublicTableService {
       );
     }
 
-    const [deck] = await Promise.all([
-      loadOwnedDeckForOnlineMatch(userId, deckId),
-      loadUserProfileForOnlineMatch(userId),
-    ]);
+    const deck =
+      context.queueKind === 'THEME'
+        ? await loadThemeQueuePlaceholder(userId, deckId)
+        : await loadPlayerQueueDeck(userId, deckId);
     const now = this.now();
     const ticketId = randomUUID();
     const encodedDeck = encodePublicTableRuntimeDeck(deck.runtimeDeck);
@@ -163,20 +181,26 @@ export class PublicTableService {
     try {
       await client.query('BEGIN');
       if (!(await isQueueContextOpen(client, context, now))) {
-        throw new PublicTableServiceError('RANKED_QUEUE_CLOSED', '当前排位赛季不在开放时段', 409);
+        throw new PublicTableServiceError(
+          context.queueKind === 'THEME' ? 'THEME_TABLE_CLOSED' : 'RANKED_QUEUE_CLOSED',
+          context.queueKind === 'THEME' ? '当前不在主题牌桌开放时段' : '当前排位赛季不在开放时段',
+          409
+        );
       }
       await client.query(
         `INSERT INTO public_table_tickets (
-           id, user_id, queue_kind, season_id, environment_id, source_deck_id, source_deck_name,
+           id, user_id, queue_kind, season_id, theme_table_version_id, environment_id,
+           source_deck_id, source_deck_name,
            runtime_deck, deck_content_hash, deck_locked_at, state,
            joined_at, heartbeat_at, matchable_after, entry_source, created_at, updated_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, 'WAITING', $10, $10, $10, $11, $10, $10)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11, 'WAITING', $11, $11, $11, $12, $11, $11)`,
         [
           ticketId,
           userId,
           context.queueKind,
           context.seasonId,
+          context.themeTableVersionId ?? null,
           context.environmentId,
           deck.deckId,
           deck.deckName,
@@ -237,8 +261,16 @@ export class PublicTableService {
          AND participation.ticket_id = ticket.id
          AND ticket.queue_kind = $4
          AND ticket.season_id IS NOT DISTINCT FROM $5
+         AND ticket.theme_table_version_id IS NOT DISTINCT FROM $6
          AND ticket.state IN ('WAITING', 'RESERVED')`,
-      [userId, now, context.participationKind, context.queueKind, context.seasonId]
+      [
+        userId,
+        now,
+        context.participationKind,
+        context.queueKind,
+        context.seasonId,
+        context.themeTableVersionId ?? null,
+      ]
     );
     await this.tryMatch(context);
     return this.getStatus(userId, context);
@@ -274,9 +306,16 @@ export class PublicTableService {
          )
          AND ticket.queue_kind = $3
          AND ticket.season_id IS NOT DISTINCT FROM $4
+         AND ticket.theme_table_version_id IS NOT DISTINCT FROM $5
          AND participation.ticket_id IS NOT NULL
        LIMIT 1`,
-      [userId, context.participationKind, context.queueKind, context.seasonId]
+      [
+        userId,
+        context.participationKind,
+        context.queueKind,
+        context.seasonId,
+        context.themeTableVersionId ?? null,
+      ]
     );
     const row = result.rows[0];
     if (!row) {
@@ -304,8 +343,15 @@ export class PublicTableService {
            AND participation.kind = $2
            AND ticket.queue_kind = $3
            AND ticket.season_id IS NOT DISTINCT FROM $4
+           AND ticket.theme_table_version_id IS NOT DISTINCT FROM $5
          FOR UPDATE OF ticket`,
-        [userId, context.participationKind, context.queueKind, context.seasonId]
+        [
+          userId,
+          context.participationKind,
+          context.queueKind,
+          context.seasonId,
+          context.themeTableVersionId ?? null,
+        ]
       );
       const ticket = ticketResult.rows[0];
       if (!ticket) {
@@ -363,6 +409,7 @@ export class PublicTableService {
         ticket_id: string;
         reservation_id: string;
         first_ticket_id: string;
+        second_ticket_id: string;
         first_confirmed_at: Date | null;
         second_confirmed_at: Date | null;
         expires_at: Date;
@@ -371,6 +418,7 @@ export class PublicTableService {
            ticket.id AS ticket_id,
            reservation.id AS reservation_id,
            reservation.first_ticket_id,
+           reservation.second_ticket_id,
            reservation.first_confirmed_at,
            reservation.second_confirmed_at,
            reservation.expires_at
@@ -381,10 +429,17 @@ export class PublicTableService {
            AND participation.kind = $2
            AND ticket.queue_kind = $3
            AND ticket.season_id IS NOT DISTINCT FROM $4
+           AND ticket.theme_table_version_id IS NOT DISTINCT FROM $5
            AND ticket.state = 'RESERVED'
            AND reservation.state IN ('PENDING_CONFIRMATION', 'CREATING_ROOM')
          FOR UPDATE OF ticket, reservation`,
-        [userId, context.participationKind, context.queueKind, context.seasonId]
+        [
+          userId,
+          context.participationKind,
+          context.queueKind,
+          context.seasonId,
+          context.themeTableVersionId ?? null,
+        ]
       );
       const row = result.rows[0];
       if (!row) {
@@ -431,6 +486,23 @@ export class PublicTableService {
         reservation.first_confirmed_at !== null &&
         reservation.second_confirmed_at !== null;
       if (shouldBootstrap) {
+        if (context.queueKind === 'THEME') {
+          if (!context.themeTableVersionId) {
+            throw new PublicTableServiceError(
+              'THEME_TABLE_CONTEXT_INVALID',
+              '主题牌桌版本信息缺失',
+              409
+            );
+          }
+          await freezeThemeTableAssignment(
+            client,
+            row.reservation_id,
+            context.themeTableVersionId,
+            row.first_ticket_id,
+            row.second_ticket_id,
+            this.now()
+          );
+        }
         bootstrapLeaseUntil = new Date(this.now() + BOOTSTRAP_LEASE_MS);
         await client.query(
           `UPDATE public_table_reservations
@@ -478,6 +550,7 @@ export class PublicTableService {
          WHERE environment_id = $1
            AND queue_kind = $4
            AND season_id IS NOT DISTINCT FROM $5
+           AND theme_table_version_id IS NOT DISTINCT FROM $6
            AND state = 'WAITING'
            AND heartbeat_at > $2
            AND matchable_after <= $3
@@ -490,6 +563,7 @@ export class PublicTableService {
           new Date(now),
           context.queueKind,
           context.seasonId,
+          context.themeTableVersionId ?? null,
         ]
       );
       if (result.rows.length < 2) {
@@ -500,14 +574,16 @@ export class PublicTableService {
       const reservationId = randomUUID();
       await client.query(
         `INSERT INTO public_table_reservations (
-           id, queue_kind, season_id, environment_id, first_ticket_id, second_ticket_id,
+           id, queue_kind, season_id, theme_table_version_id, environment_id,
+           first_ticket_id, second_ticket_id,
            state, created_at, expires_at, updated_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_CONFIRMATION', $7, $8, $7)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING_CONFIRMATION', $8, $9, $8)`,
         [
           reservationId,
           context.queueKind,
           context.seasonId,
+          context.themeTableVersionId ?? null,
           context.environmentId,
           first.id,
           second.id,
@@ -546,17 +622,24 @@ export class PublicTableService {
       `WITH expired AS (
          UPDATE public_table_tickets
          SET state = 'EXPIRED',
-             terminal_reason = $4,
+             terminal_reason = $5,
              updated_at = NOW()
          WHERE queue_kind = $1
            AND season_id IS NOT DISTINCT FROM $2
            AND environment_id = $3
+           AND theme_table_version_id IS NOT DISTINCT FROM $4
            AND state = 'WAITING'
          RETURNING id
        )
        DELETE FROM gameplay_participations
        WHERE ticket_id IN (SELECT id FROM expired)`,
-      [context.queueKind, context.seasonId, context.environmentId, terminalReason]
+      [
+        context.queueKind,
+        context.seasonId,
+        context.environmentId,
+        context.themeTableVersionId ?? null,
+        terminalReason,
+      ]
     );
     return result.rowCount ?? 0;
   }
@@ -775,8 +858,10 @@ export class PublicTableService {
     const result = await pool.query<{
       state: string;
       bootstrap_lease_until: Date;
-      queue_kind: 'CASUAL' | 'RANKED';
+      queue_kind: 'CASUAL' | 'RANKED' | 'THEME';
       season_id: string | null;
+      theme_table_version_id: string | null;
+      theme_name: string | null;
       first_ticket_id: string;
       second_ticket_id: string;
       first_user_id: string;
@@ -795,6 +880,8 @@ export class PublicTableService {
          reservation.bootstrap_lease_until,
          reservation.queue_kind,
          reservation.season_id,
+         reservation.theme_table_version_id,
+         theme.name AS theme_name,
          reservation.first_ticket_id,
          reservation.second_ticket_id,
          first_ticket.user_id AS first_user_id,
@@ -810,6 +897,7 @@ export class PublicTableService {
        FROM public_table_reservations AS reservation
        JOIN public_table_tickets AS first_ticket ON first_ticket.id = reservation.first_ticket_id
        JOIN public_table_tickets AS second_ticket ON second_ticket.id = reservation.second_ticket_id
+       LEFT JOIN theme_table_versions AS theme ON theme.id = reservation.theme_table_version_id
        WHERE reservation.id = $1`,
       [reservationId]
     );
@@ -828,8 +916,14 @@ export class PublicTableService {
     const room = await this.roomService.createPublicTableRoom({
       reservationId,
       originKind: row.queue_kind === 'RANKED' ? 'RANKED' : 'PUBLIC_TABLE',
-      originLabel: row.queue_kind === 'RANKED' ? '赛季排位' : '公共牌桌',
+      originLabel:
+        row.queue_kind === 'RANKED'
+          ? '赛季排位'
+          : row.queue_kind === 'THEME'
+            ? `轮换主题牌桌 · ${row.theme_name ?? '主题活动'}`
+            : '公共牌桌',
       rankedSeasonId: row.season_id,
+      themeTableVersionId: row.theme_table_version_id,
       first: {
         ...firstProfile,
         deckId: row.first_deck_id,
@@ -891,7 +985,11 @@ export class PublicTableService {
         [
           [row.first_ticket_id, row.second_ticket_id],
           room.roomGeneration,
-          row.queue_kind === 'RANKED' ? 'RANKED_QUEUE' : 'PUBLIC_QUEUE',
+          row.queue_kind === 'RANKED'
+            ? 'RANKED_QUEUE'
+            : row.queue_kind === 'THEME'
+              ? 'THEME_QUEUE'
+              : 'PUBLIC_QUEUE',
         ]
       );
       logPublicTableLifecycleEvent({
@@ -1084,6 +1182,33 @@ async function isQueueContextOpen(
   if (context.queueKind === 'CASUAL') {
     return true;
   }
+  if (context.queueKind === 'THEME') {
+    if (!context.themeTableVersionId) return false;
+    const result = await client.query<ThemeAdmissionRow>(
+      `SELECT lifecycle, environment_id, rules_environment_id, card_catalog_hash,
+              platform_time_zone, open_windows, starts_at, ends_at
+       FROM theme_table_versions
+       WHERE id = $1
+       FOR SHARE`,
+      [context.themeTableVersionId]
+    );
+    const theme = result.rows[0];
+    const catalog = theme ? await getCurrentRankedCardCatalogIdentity() : null;
+    return Boolean(
+      theme &&
+      theme.lifecycle === 'ACTIVE' &&
+      theme.environment_id === context.environmentId &&
+      theme.rules_environment_id === REPLAY_RULES_VERSION &&
+      theme.card_catalog_hash === catalog?.cardCatalogHash &&
+      isRankedQueueWindowOpen(
+        new Date(now),
+        theme.platform_time_zone,
+        theme.open_windows,
+        new Date(theme.starts_at),
+        new Date(theme.ends_at)
+      )
+    );
+  }
   if (!context.seasonId) {
     return false;
   }
@@ -1115,6 +1240,32 @@ async function isQueueContextOpen(
       new Date(season.scheduled_ends_at)
     )
   );
+}
+
+async function loadPlayerQueueDeck(userId: string, deckId: string | null) {
+  if (!deckId) {
+    throw new PublicTableServiceError('PUBLIC_TABLE_DECK_REQUIRED', '请选择合法的云端卡组');
+  }
+  const [deck] = await Promise.all([
+    loadOwnedDeckForOnlineMatch(userId, deckId),
+    loadUserProfileForOnlineMatch(userId),
+  ]);
+  return deck;
+}
+
+async function loadThemeQueuePlaceholder(userId: string, deckId: string | null) {
+  if (deckId !== null) {
+    throw new PublicTableServiceError(
+      'THEME_TABLE_PERSONAL_DECK_FORBIDDEN',
+      '主题牌桌不使用个人卡组'
+    );
+  }
+  await loadUserProfileForOnlineMatch(userId);
+  return {
+    deckId: null,
+    deckName: '确认后随机分配',
+    runtimeDeck: { mainDeck: [], energyDeck: [] },
+  };
 }
 
 function isUniqueViolation(error: unknown): boolean {

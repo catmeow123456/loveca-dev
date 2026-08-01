@@ -2,7 +2,7 @@ import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
 
 export type GameplayParticipationKind =
-  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
 
 export interface GameplayParticipationRef {
   readonly kind: GameplayParticipationKind;
@@ -101,7 +101,10 @@ export async function acquirePublicQueueParticipation(
   client: PoolClient,
   userId: string,
   ticketId: string,
-  kind: Extract<GameplayParticipationKind, 'PUBLIC_QUEUE' | 'RANKED_QUEUE'> = 'PUBLIC_QUEUE'
+  kind: Extract<
+    GameplayParticipationKind,
+    'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE'
+  > = 'PUBLIC_QUEUE'
 ): Promise<boolean> {
   const result = await client.query(
     `INSERT INTO gameplay_participations (
@@ -119,7 +122,10 @@ export async function releasePublicQueueParticipation(
   client: PoolClient,
   userId: string,
   ticketId: string,
-  kind: Extract<GameplayParticipationKind, 'PUBLIC_QUEUE' | 'RANKED_QUEUE'> = 'PUBLIC_QUEUE'
+  kind: Extract<
+    GameplayParticipationKind,
+    'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE'
+  > = 'PUBLIC_QUEUE'
 ): Promise<void> {
   await client.query(
     `DELETE FROM gameplay_participations

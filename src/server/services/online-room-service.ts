@@ -40,6 +40,7 @@ import {
 } from './gameplay-participation-service.js';
 import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
 import { rankedRatingService } from './ranked-rating-service.js';
+import { recoverNoFaultThemeOpeningPlayers } from './theme-table-recovery-service.js';
 
 const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
 const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
@@ -83,6 +84,7 @@ interface OnlineRoomState {
   readonly originLabel: string;
   readonly publicTableReservationId: string | null;
   readonly rankedSeasonId: string | null;
+  readonly themeTableVersionId: string | null;
   readonly closedToNewMembers: boolean;
   readonly openingExpiresAt: number | null;
   openingArrivalExpiresAt: number | null;
@@ -124,6 +126,7 @@ export interface CreatePublicTableRoomInput {
   readonly originKind: Extract<MatchOriginKind, 'PUBLIC_TABLE' | 'RANKED'>;
   readonly originLabel: string;
   readonly rankedSeasonId: string | null;
+  readonly themeTableVersionId?: string | null;
   readonly first: PublicTableRoomMemberInput;
   readonly second: PublicTableRoomMemberInput;
   readonly openingExpiresAt: number;
@@ -233,6 +236,7 @@ export class OnlineRoomService {
       originLabel: roomCode,
       publicTableReservationId: null,
       rankedSeasonId: null,
+      themeTableVersionId: null,
       closedToNewMembers: false,
       openingExpiresAt: null,
       openingArrivalExpiresAt: null,
@@ -359,6 +363,7 @@ export class OnlineRoomService {
       originLabel: input.originLabel,
       publicTableReservationId: input.reservationId,
       rankedSeasonId: input.rankedSeasonId,
+      themeTableVersionId: input.themeTableVersionId ?? null,
       closedToNewMembers: true,
       openingExpiresAt: input.openingExpiresAt,
       openingArrivalExpiresAt: now + 60_000,
@@ -814,7 +819,7 @@ export class OnlineRoomService {
     }
 
     if (room.status === 'OPENING' && room.originKind === 'PUBLIC_TABLE') {
-      await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
+      await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now, [userId]);
       return { room: null };
     }
 
@@ -885,11 +890,7 @@ export class OnlineRoomService {
     const now = this.now();
     const matchId = room.matchId;
 
-    if (
-      room.status === 'IN_GAME' &&
-      matchId &&
-      !this.matchService.isMatchCompleted(matchId)
-    ) {
+    if (room.status === 'IN_GAME' && matchId && !this.matchService.isMatchCompleted(matchId)) {
       const result = await this.matchService.executeCommand(matchId, userId, {
         ...createSurrenderCommand(userId),
         timestamp: now,
@@ -1209,6 +1210,7 @@ export class OnlineRoomService {
     return {
       roomCode: room.roomCode,
       originKind: room.originKind,
+      ...(room.themeTableVersionId ? { themeTableVersionId: room.themeTableVersionId } : {}),
       status: room.status,
       ownerUserId: room.ownerUserId,
       currentUserId: viewer.userId,
@@ -1342,6 +1344,13 @@ export class OnlineRoomService {
             409
           );
         }
+        await pool.query(
+          `UPDATE theme_table_assignments
+           SET match_id = $2
+           WHERE reservation_id = $1
+             AND match_id IS NULL`,
+          [room.publicTableReservationId, match.matchId]
+        );
         reservationClaimed = true;
       }
       if (room.rankedSeasonId) {
@@ -1443,6 +1452,13 @@ export class OnlineRoomService {
                    updated_at = NOW()
                WHERE reservation_id = $1
                  AND matched_match_id = $2`,
+              [room.publicTableReservationId, match.matchId]
+            );
+            await pool.query(
+              `UPDATE theme_table_assignments
+               SET match_id = NULL
+               WHERE reservation_id = $1
+                 AND match_id = $2`,
               [room.publicTableReservationId, match.matchId]
             );
           } catch {
@@ -1707,9 +1723,21 @@ export class OnlineRoomService {
   private async closePublicTableOpening(
     room: OnlineRoomState,
     reason: 'PLAYER_ABANDONED_OPENING' | 'OPENING_TIMEOUT',
-    now: number
+    now: number,
+    faultUserIds: readonly string[] = []
   ): Promise<void> {
+    const themeRecovery =
+      room.publicTableReservationId && room.themeTableVersionId
+        ? await recoverNoFaultThemeOpeningPlayers({
+            reservationId: room.publicTableReservationId,
+            roomGeneration: room.roomGeneration,
+            faultUserIds,
+            reason,
+            now,
+          })
+        : { handled: false, requeued: [] };
     if (
+      !themeRecovery.handled &&
       room.publicTableReservationId &&
       room.originKind === 'PUBLIC_TABLE' &&
       reason === 'PLAYER_ABANDONED_OPENING'
@@ -1736,7 +1764,7 @@ export class OnlineRoomService {
          WHERE room_generation = $3`,
         [room.publicTableReservationId, reason, room.roomGeneration, new Date(now)]
       );
-    } else if (room.publicTableReservationId) {
+    } else if (!themeRecovery.handled && room.publicTableReservationId) {
       await pool.query(
         `UPDATE public_table_reservations
          SET failure_reason = $2,
@@ -1765,7 +1793,10 @@ export class OnlineRoomService {
         eventKey: `${room.publicTableReservationId}:OPENING_ENDED`,
         reservationId: room.publicTableReservationId,
         roomGeneration: room.roomGeneration,
-        detail: { reason },
+        detail: {
+          reason,
+          requeuedUserIds: themeRecovery.requeued.map((entry) => entry.userId),
+        },
       });
     } else {
       logRankedRoomLifecycleEvent(room, 'RANKED_OPENING_ENDED', { reason });
@@ -1773,6 +1804,18 @@ export class OnlineRoomService {
   }
 
   private async endRoomForOpeningArrivalTimeout(room: OnlineRoomState, now: number): Promise<void> {
+    const themeRecovery =
+      room.publicTableReservationId && room.themeTableVersionId
+        ? await recoverNoFaultThemeOpeningPlayers({
+            reservationId: room.publicTableReservationId,
+            roomGeneration: room.roomGeneration,
+            faultUserIds: room.members
+              .filter((member) => member.arrivedAt === null)
+              .map((member) => member.userId),
+            reason: 'OPENING_ARRIVAL_TIMEOUT',
+            now,
+          })
+        : { handled: false, requeued: [] };
     this.matchService.terminateRoomCodeSpectators(
       room.roomCode,
       room.roomGeneration,
@@ -1783,7 +1826,7 @@ export class OnlineRoomService {
       room.members.map((member) => member.userId),
       room.roomGeneration
     );
-    if (room.publicTableReservationId) {
+    if (room.publicTableReservationId && !themeRecovery.handled) {
       await pool.query(
         `UPDATE public_table_reservations
          SET failure_reason = 'OPENING_ARRIVAL_TIMEOUT',
@@ -1802,6 +1845,18 @@ export class OnlineRoomService {
       } else {
         logRankedRoomLifecycleEvent(room, 'RANKED_OPENING_ARRIVAL_TIMEOUT');
       }
+    }
+    if (room.publicTableReservationId && themeRecovery.handled) {
+      logPublicTableLifecycleEvent({
+        eventType: 'MATCH_INTERRUPTED',
+        eventKey: `${room.publicTableReservationId}:OPENING_ARRIVAL_TIMEOUT`,
+        reservationId: room.publicTableReservationId,
+        roomGeneration: room.roomGeneration,
+        detail: {
+          reason: 'OPENING_ARRIVAL_TIMEOUT',
+          requeuedUserIds: themeRecovery.requeued.map((entry) => entry.userId),
+        },
+      });
     }
     room.status = 'ENDED';
     room.openingRps = null;

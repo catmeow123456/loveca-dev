@@ -32,6 +32,7 @@ import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
+import { useThemeTableStore } from '@/store/themeTableStore';
 import {
   acceptOnlineRoomRestart,
   cancelOnlineRoomRestart,
@@ -119,6 +120,8 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
   );
   const matchView = useGameStore((s) => s.getMatchView());
   const rankedOverview = useRankedStore((s) => s.overview);
+  const themeQueueState = useThemeTableStore((s) => s.overview?.queue.state ?? 'IDLE');
+  const refreshThemeTable = useThemeTableStore((s) => s.refresh);
   const rankedSeasonName = rankedOverview?.season?.name ?? null;
   const rankedLeaderboardMatchCount =
     rankedOverview?.player?.placementRequired ??
@@ -159,6 +162,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
   const previousOpponentPresenceRef = useRef<OnlineRoomView['members'][number]['presence'] | null>(
     null
   );
+  const wasThemeTableRoomRef = useRef(false);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
     [cardDataRegistry]
@@ -237,17 +241,32 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
       try {
         const nextRoom = await fetchOnlineRoom(joinedRoomCode);
         if (!cancelled) {
+          wasThemeTableRoomRef.current = Boolean(nextRoom.themeTableVersionId);
           setRoom(nextRoom);
           setError(null);
         }
       } catch (pollError) {
         if (!cancelled) {
           if (pollError instanceof ApiClientError && pollError.code === 'ONLINE_ROOM_NOT_FOUND') {
+            const shouldRefreshThemeQueue = wasThemeTableRoomRef.current;
             clearOnlineRoomRecovery();
             disconnectRemoteSession();
             setRoom(null);
             setJoinedRoomCode(null);
             setRoomCodeInput('');
+            if (shouldRefreshThemeQueue) {
+              await refreshThemeTable().catch(() => undefined);
+            }
+            if (!cancelled) {
+              setError(
+                shouldRefreshThemeQueue
+                  ? null
+                  : pollError instanceof Error
+                    ? pollError.message
+                    : '读取房间状态失败'
+              );
+            }
+            return;
           }
           setError(pollError instanceof Error ? pollError.message : '读取房间状态失败');
         }
@@ -264,7 +283,12 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
       cancelled = true;
       scheduler.dispose();
     };
-  }, [disconnectRemoteSession, joinedRoomCode]);
+  }, [disconnectRemoteSession, joinedRoomCode, refreshThemeTable]);
+
+  useEffect(() => {
+    if (room?.status !== 'ENDED' || !room.themeTableVersionId) return;
+    void refreshThemeTable().catch(() => undefined);
+  }, [refreshThemeTable, room?.status, room?.themeTableVersionId]);
 
   useEffect(() => {
     if (!room?.matchId) {
@@ -458,12 +482,11 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind),
     [room?.originKind, room?.status]
   );
-  const roomEndMessage = useMemo(() => {
-    if (!room?.endInfo) {
-      return null;
-    }
-    return '等待 60 秒后仍未等到对手进入房间，本次配对已取消。';
-  }, [room?.endInfo]);
+  const roomEndMessage = !room?.endInfo
+    ? null
+    : room.themeTableVersionId && themeQueueState === 'WAITING'
+      ? '本次配对未能开始；你没有造成中断，已保留原候场顺序并自动返回主题牌桌队列。'
+      : '等待 60 秒后仍未等到对手进入房间，本次配对已取消。';
 
   const handleCreateRoom = async () => {
     const nextRoomCode = normalizeRoomCode(roomCodeInput);
@@ -673,7 +696,10 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
       await leaveOnlineRoom(room?.roomCode ?? joinedRoomCode!);
       if (leftPublicTableRoom) {
         try {
-          await usePublicTableStore.getState().refresh();
+          await Promise.allSettled([
+            usePublicTableStore.getState().refresh(),
+            useThemeTableStore.getState().refresh(),
+          ]);
         } catch {
           // The room has already been left; the next public-table visit will refresh again.
         }

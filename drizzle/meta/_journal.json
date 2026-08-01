@@ -85,6 +85,13 @@
       "when": 1785432776510,
       "tag": "0011_add_match_replay_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785605644204,
+      "tag": "0012_add_theme_table_v1",
+      "breakpoints": true
     }
   ]
 }

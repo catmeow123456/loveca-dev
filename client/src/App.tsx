@@ -56,9 +56,11 @@ import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
+import { useThemeTableStore } from '@/store/themeTableStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
+import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobalLayer';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const DeckManager = lazy(() =>
@@ -83,6 +85,11 @@ const PublicTablePage = lazy(() =>
 const RankedPage = lazy(() =>
   import('@/components/pages/RankedPage').then((module) => ({
     default: module.RankedPage,
+  }))
+);
+const ThemeTablePage = lazy(() =>
+  import('@/components/pages/ThemeTablePage').then((module) => ({
+    default: module.ThemeTablePage,
   }))
 );
 const OnlineSpectatorPage = lazy(() =>
@@ -124,6 +131,11 @@ const RankedAdminPage = lazy(() =>
     default: module.RankedAdminPage,
   }))
 );
+const ThemeTableAdminPage = lazy(() =>
+  import('@/components/admin/ThemeTableAdminPage').then((module) => ({
+    default: module.ThemeTableAdminPage,
+  }))
+);
 
 type AuthPage =
   | 'landing'
@@ -141,6 +153,7 @@ type AppPage =
   | 'online-room'
   | 'public-table'
   | 'ranked'
+  | 'theme-table'
   | 'online-spectator'
   | 'match-records'
   | 'online-debug'
@@ -148,7 +161,8 @@ type AppPage =
   | 'card-admin'
   | 'online-admin'
   | 'announcement-admin'
-  | 'ranked-admin';
+  | 'ranked-admin'
+  | 'theme-table-admin';
 
 interface InitialAuthRequest {
   page: AuthPage;
@@ -196,6 +210,7 @@ function getInitialPage(): AppPage {
     page === 'online-room' ||
     page === 'public-table' ||
     page === 'ranked' ||
+    page === 'theme-table' ||
     page === 'online-spectator' ||
     page === 'match-records' ||
     page === 'online-debug' ||
@@ -204,6 +219,7 @@ function getInitialPage(): AppPage {
     page === 'online-admin' ||
     page === 'announcement-admin' ||
     page === 'ranked-admin' ||
+    page === 'theme-table-admin' ||
     page === 'platform-config'
   ) {
     return page === 'platform-config' ? 'announcement-admin' : page;
@@ -777,6 +793,11 @@ function App() {
         showWaitingNotice={effectivePage !== 'ranked'}
         onEnterRoom={enterOnlineRoom}
       />
+      <ThemeTableGlobalLayer
+        enabled={Boolean(user && profile && !offlineMode)}
+        showWaitingNotice={effectivePage !== 'theme-table'}
+        onEnterRoom={enterOnlineRoom}
+      />
     </>
   );
 
@@ -801,6 +822,7 @@ function App() {
       await Promise.allSettled([
         usePublicTableStore.getState().refresh(),
         useRankedStore.getState().refresh(),
+        useThemeTableStore.getState().refresh(),
       ]);
     }
     setCurrentPage('game-setup');
@@ -854,11 +876,7 @@ function App() {
       </button>
     </div>
   );
-  const withProductFrame = (
-    content: ReactNode,
-    active: ProductNavKey | null,
-    immersive = false
-  ) =>
+  const withProductFrame = (content: ReactNode, active: ProductNavKey | null, immersive = false) =>
     withPublicTableLayer(
       <ProductFrame
         active={active}
@@ -989,6 +1007,10 @@ function App() {
     );
   }
 
+  if (effectivePage === 'theme-table') {
+    return withProductFrame(<ThemeTablePage onBack={() => setCurrentPage('home')} />, 'battle');
+  }
+
   if (effectivePage === 'online-spectator') {
     return withPublicTableLayer(
       <OnlineSpectatorLobbyPage
@@ -1057,6 +1079,10 @@ function App() {
     return withProductFrame(<RankedAdminPage onBack={() => setCurrentPage('home')} />, null);
   }
 
+  if (effectivePage === 'theme-table-admin' && profile?.role === 'admin') {
+    return withProductFrame(<ThemeTableAdminPage onBack={() => setCurrentPage('home')} />, null);
+  }
+
   // 主页
   return withPublicTableLayer(
     <HomePage
@@ -1068,6 +1094,7 @@ function App() {
       onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToRanked={() => setCurrentPage('ranked')}
+      onNavigateToThemeTable={() => setCurrentPage('theme-table')}
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
@@ -1075,6 +1102,7 @@ function App() {
       onNavigateToOnlineAdmin={() => setCurrentPage('online-admin')}
       onNavigateToAnnouncementAdmin={() => setCurrentPage('announcement-admin')}
       onNavigateToRankedAdmin={() => setCurrentPage('ranked-admin')}
+      onNavigateToThemeTableAdmin={() => setCurrentPage('theme-table-admin')}
       siteStatus={appConfig.siteStatus}
     />
   );
