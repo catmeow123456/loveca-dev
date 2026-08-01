@@ -590,7 +590,7 @@ When a runtime helper becomes available:
 
 # Delegatable definition query
 
-`getWaitingRoomDelegatableOnEnterDefinitions(cardCode)` 是休息室虚拟登场的窄查询：只返回显式 `delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW'` 的 implemented + queued + ON_ENTER + PLAYED_MEMBER definition。它不解析文本或 notes，也不改变既有 COMPASS / N-PR-026 的 `getDelegatableQueuedAbilityDefinitions` 语义。
+`getWaitingRoomDelegatableOnEnterDefinitions(cardCode)` 是休息室虚拟登场的窄查询：只返回显式 `delegatedOnEnterFromWaitingRoomPolicy.decision === 'ALLOW'` 的 implemented + queued + ON_ENTER + PLAYED_MEMBER definition。policy 是带窄 `reason` 的 typed ALLOW/DENY 决策；未登记或 DENY 均不会成为候选。它不解析文本或 notes，也不改变既有 COMPASS / N-PR-026 的 `getDelegatableQueuedAbilityDefinitions` 语义。
 
 # Hand reveal activeEffect helper
 

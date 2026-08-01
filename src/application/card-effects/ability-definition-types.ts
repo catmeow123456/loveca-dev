@@ -52,6 +52,21 @@ export interface PlayedMemberOnEnterTriggerFilter {
   readonly replacedMemberGroupAliases?: readonly string[];
 }
 
+export type WaitingRoomOnEnterDelegationPolicy =
+  | {
+      readonly decision: 'ALLOW';
+      readonly reason:
+        | 'SOURCE_INDEPENDENT'
+        | 'PLAYER_RESOURCE_COST'
+        | 'OTHER_STAGE_MEMBER_COST'
+        | 'SOURCE_SLOT_ABSENT_NO_EFFECT';
+    }
+  | {
+      readonly decision: 'DENY';
+      readonly reason:
+        'SOURCE_MEMBER_COST_UNPAYABLE' | 'SOURCE_MEMBER_POSITION_CHANGE' | 'SOURCE_SLOT_REQUIRED';
+    };
+
 export interface CardAbilityDefinition {
   readonly abilityId: string;
   readonly cardCodes?: readonly string[];
@@ -76,7 +91,7 @@ export interface CardAbilityDefinition {
   readonly observerOnly?: boolean;
   readonly skipQueueWhenTurnLimitReached?: boolean;
   readonly activatedUi?: ActivatedAbilityUiConfig;
-  /** Explicit opt-in for resolving this ON_ENTER ability with its member still in the waiting room. */
-  readonly delegatedOnEnterFromWaitingRoomPolicy?: 'ALLOW';
+  /** Explicit compatibility decision for resolving this ON_ENTER ability with its source still in the waiting room. */
+  readonly delegatedOnEnterFromWaitingRoomPolicy?: WaitingRoomOnEnterDelegationPolicy;
   readonly notes?: string;
 }

@@ -1,10 +1,17 @@
-import { getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
+import {
+  getPlayerById,
+  type GameState,
+  type PendingAbilityState,
+} from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID } from '../../ability-ids.js';
-import { finishSkippedActiveEffect, startPendingActiveEffect } from '../../runtime/active-effect.js';
+import {
+  finishSkippedActiveEffect,
+  startPendingActiveEffect,
+} from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -80,7 +87,12 @@ function startSpBp2005RenWorkflow(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  if (!player || findMemberSlot(player, ability.sourceCardId) === null) {
+  const delegatedOnEnterFromWaitingRoom =
+    ability.metadata?.delegatedOnEnterFromWaitingRoom === true;
+  if (
+    !player ||
+    (!delegatedOnEnterFromWaitingRoom && findMemberSlot(player, ability.sourceCardId) === null)
+  ) {
     return consumePendingAbility(game, ability, orderedResolution, continuePendingCardEffects);
   }
   const activeEnergyCardIds = player.energyZone.cardIds.filter(
@@ -105,7 +117,7 @@ function startSpBp2005RenWorkflow(
       selectableOptions: [{ id: 'pay', label: '支付[E][E]' }],
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
-      metadata: { orderedResolution },
+      metadata: { orderedResolution, delegatedOnEnterFromWaitingRoom },
     },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
@@ -125,7 +137,8 @@ function payAndStartInspection(
     !effect ||
     effect.stepId !== PAY_TWO_ENERGY_STEP_ID ||
     !player ||
-    findMemberSlot(player, effect.sourceCardId) === null
+    (effect.metadata?.delegatedOnEnterFromWaitingRoom !== true &&
+      findMemberSlot(player, effect.sourceCardId) === null)
   ) {
     return effect
       ? finishSkippedActiveEffect(game, continuePendingCardEffects, {
@@ -161,15 +174,12 @@ function payAndStartInspection(
       revealSelectedBeforeHand: true,
       selectStepId: SELECT_LIELLA_CARD_STEP_ID,
       revealStepId: REVEAL_LIELLA_CARD_STEP_ID,
-      selectStepText:
-        '请选择至多1张『Liella!』卡片公开并加入手牌。也可以不加入。',
-      noTargetStepText:
-        '没有可加入手牌的『Liella!』卡片。确认后其余卡片放置入休息室。',
+      selectStepText: '请选择至多1张『Liella!』卡片公开并加入手牌。也可以不加入。',
+      noTargetStepText: '没有可加入手牌的『Liella!』卡片。确认后其余卡片放置入休息室。',
       selectionLabel: '选择要公开并加入手牌的『Liella!』卡片',
       confirmSelectionLabel: '公开并加入手牌',
       skipSelectionLabel: '不加入',
-      revealStepText:
-        '选择的卡片已公开。确认后加入手牌，其余卡片放置入休息室。',
+      revealStepText: '选择的卡片已公开。确认后加入手牌，其余卡片放置入休息室。',
       startActionStep: 'START_LOOK_TOP_SEVEN_LIELLA_CARD',
       revealActionStep: 'REVEAL_SELECTED_LIELLA_CARD',
       finishActionStep: 'TAKE_LIELLA_CARD_REST_TO_WAITING_ROOM',

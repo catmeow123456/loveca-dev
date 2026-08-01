@@ -1212,7 +1212,10 @@ describe('card effect classification registry', () => {
             queued: true,
             implemented: true,
             effectText: cardCase.effectText,
-            delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+            delegatedOnEnterFromWaitingRoomPolicy: {
+              decision: 'ALLOW',
+              reason: 'SOURCE_INDEPENDENT',
+            },
           }),
         ]);
       }
@@ -10938,7 +10941,7 @@ describe('card effect classification registry', () => {
         SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID
     );
     expect(bp5013Keke).toMatchObject({
-      cardCodes: ['PL!SP-bp5-013-N'],
+      baseCardCodes: ['PL!SP-bp5-013'],
       category: CardAbilityCategory.ON_ENTER,
       sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
       triggerCondition: TriggerCondition.ON_ENTER_STAGE,
