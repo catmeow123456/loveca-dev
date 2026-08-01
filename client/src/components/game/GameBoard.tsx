@@ -93,6 +93,7 @@ import {
   normalizeEffectChoiceSelection,
   PUBLIC_EFFECT_CHOICE_FALLBACK_DELAY_MS,
   schedulePublicEffectChoiceAutoAdvance,
+  shouldMountEffectChoicePanel,
   toggleEffectChoiceSelection,
 } from '@/lib/effectChoiceUi';
 import { cn } from '@/lib/utils';
@@ -771,6 +772,11 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectSelectableSlots = activeEffect?.selectableSlots ?? [];
   const activeEffectSelectableOptions = activeEffect?.selectableOptions ?? [];
   const activeEffectChoice = activeEffect?.effectChoice ?? null;
+  const showActiveEffectChoicePanel = shouldMountEffectChoicePanel(
+    activeEffect,
+    isActiveEffectOrderSelectionWindow,
+    showOrdinaryActiveEffectControls
+  );
   const showLegacyActiveEffectControls = showOrdinaryActiveEffectControls && !activeEffectChoice;
   const normalizedActiveEffectChoiceSelection = activeEffectChoice
     ? normalizeEffectChoiceSelection(activeEffectChoice, activeEffectChoiceSelection)
@@ -2760,7 +2766,7 @@ export const GameBoard = memo(function GameBoard({
               }}
             >
               <span
-                className="px-4 text-lg font-bold tracking-[0.2em]"
+                className="px-4 text-lg font-bold tracking-[0.08em]"
                 style={{
                   color: isSolitaire ? 'var(--text-muted)' : 'var(--accent-primary)',
                   textShadow: isSolitaire
@@ -2819,7 +2825,7 @@ export const GameBoard = memo(function GameBoard({
               aria-label={activeMemberPlayOption.title}
               className="pointer-events-auto fixed left-1/2 top-1/2 z-[94] w-[min(92vw,460px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
             >
-              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+              <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                 {activeMemberPlayOption.label}
               </div>
               <div className="mt-1 text-sm font-semibold">
@@ -2903,7 +2909,7 @@ export const GameBoard = memo(function GameBoard({
           >
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                   成功 Live
                 </div>
                 <div className="mt-0.5 truncate text-sm font-semibold">
@@ -2932,7 +2938,7 @@ export const GameBoard = memo(function GameBoard({
           >
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                   成功 Live
                 </div>
                 <div className="mt-1 text-sm font-semibold">选择放置入成功 LIVE 卡区的 Live</div>
@@ -3020,9 +3026,7 @@ export const GameBoard = memo(function GameBoard({
           >
             <div className="flex items-center gap-3">
               <div className="min-w-0 flex-1">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
-                  处理中
-                </div>
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">处理中</div>
                 <div className="mt-0.5 truncate text-sm font-semibold">{activeEffectTitle}</div>
                 <div className="mt-1 line-clamp-1 text-xs text-[var(--text-secondary)]">
                   {isActiveEffectOrderSelectionWindow
@@ -3058,7 +3062,7 @@ export const GameBoard = memo(function GameBoard({
             >
               <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--border-subtle)] p-3 md:mb-3 md:border-b-0 md:p-0">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                     处理中的效果
                   </div>
                   <div className="mt-1 text-sm font-semibold">{activeEffectTitle}</div>
@@ -3083,42 +3087,40 @@ export const GameBoard = memo(function GameBoard({
                     text={activeEffectDescription}
                     className="text-[13px] leading-relaxed md:text-sm"
                   />
-                  {showOrdinaryActiveEffectControls &&
-                    !isActiveEffectOrderSelectionWindow &&
-                    activeEffectChoice && (
-                      <EffectChoicePanel
-                        activeEffect={activeEffect}
-                        selectedOptionIds={normalizedActiveEffectChoiceSelection}
-                        canChoose={
-                          canConfirmActiveEffect &&
-                          !isPublicEffectChoiceAutoAdvance &&
-                          (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
-                        }
-                        canConfirmMulti={canConfirmActiveEffectChoice}
-                        onSelectSingle={(optionId) =>
-                          confirmEffectChoice(activeEffect.id, {
-                            selectedCardId: activeEffectUsesCardOptionSelection
-                              ? activeEffectSelectedCardId
-                              : undefined,
-                            selectedEffectOptionIds: [optionId],
-                          })
-                        }
-                        onToggleMulti={(optionId) =>
-                          setActiveEffectChoiceSelection((current) => [
-                            ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
-                          ])
-                        }
-                        onConfirmMulti={() =>
-                          confirmEffectChoice(activeEffect.id, {
-                            selectedCardId: activeEffectUsesCardOptionSelection
-                              ? activeEffectSelectedCardId
-                              : undefined,
-                            selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
-                          })
-                        }
-                        onSkip={() => confirmEffectStep(activeEffect.id, null)}
-                      />
-                    )}
+                  {showActiveEffectChoicePanel && activeEffectChoice && (
+                    <EffectChoicePanel
+                      activeEffect={activeEffect}
+                      selectedOptionIds={normalizedActiveEffectChoiceSelection}
+                      canChoose={
+                        canConfirmActiveEffect &&
+                        !isPublicEffectChoiceAutoAdvance &&
+                        (!activeEffectUsesCardOptionSelection || !!activeEffectSelectedCardId)
+                      }
+                      canConfirmMulti={canConfirmActiveEffectChoice}
+                      onSelectSingle={(optionId) =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: [optionId],
+                        })
+                      }
+                      onToggleMulti={(optionId) =>
+                        setActiveEffectChoiceSelection((current) => [
+                          ...toggleEffectChoiceSelection(activeEffectChoice, current, optionId),
+                        ])
+                      }
+                      onConfirmMulti={() =>
+                        confirmEffectChoice(activeEffect.id, {
+                          selectedCardId: activeEffectUsesCardOptionSelection
+                            ? activeEffectSelectedCardId
+                            : undefined,
+                          selectedEffectOptionIds: normalizedActiveEffectChoiceSelection,
+                        })
+                      }
+                      onSkip={() => confirmEffectStep(activeEffect.id, null)}
+                    />
+                  )}
                   {!isActiveEffectOrderSelectionWindow && hasActiveEffectOriginalText && (
                     <div className="mt-3 border-t border-[var(--border-subtle)] pt-2.5 md:pt-3">
                       <button
@@ -3919,7 +3921,7 @@ export const GameBoard = memo(function GameBoard({
           <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[97] w-[min(94vw,720px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_97%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
             {controlsPendingSpecialPlay ? (
               <>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                   {pendingSpecialMemberPlay.selectionLabel}
                 </div>
                 <p className="mt-2 text-sm leading-relaxed">{pendingSpecialMemberPlay.stepText}</p>
@@ -4002,7 +4004,7 @@ export const GameBoard = memo(function GameBoard({
           <div className="pointer-events-auto fixed left-1/2 top-1/2 z-[96] w-[min(92vw,540px)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-[var(--border-active)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] p-4 text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                   支付登场费用
                 </div>
                 <div className="mt-1 text-sm font-semibold">
@@ -4112,7 +4114,7 @@ export const GameBoard = memo(function GameBoard({
                   <Undo2 className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                     撤销请求
                   </div>
                   <div className="mt-1 text-sm font-semibold">
@@ -4184,7 +4186,7 @@ export const GameBoard = memo(function GameBoard({
                   <Zap className="h-5 w-5" aria-hidden="true" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-primary)]">
+                  <div className="text-[11px] font-semibold text-[var(--accent-primary)]">
                     自由模式请求
                   </div>
                   <div className="mt-1 text-sm font-semibold">

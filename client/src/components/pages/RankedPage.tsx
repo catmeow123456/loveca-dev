@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookOpen, DoorOpen, Loader2, Medal, Search, ShieldCheck, Swords, X } from 'lucide-react';
-import { DeckSelector, PageHeader, type DeckDisplayItem } from '@/components/common';
+import {
+  ActionButton,
+  DeckSelector,
+  PageHeader,
+  Panel,
+  type DeckDisplayItem,
+} from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
 import {
@@ -170,13 +176,15 @@ export function RankedPage({
                     />
                   </div>
                   {error ? <ErrorMessage message={error} /> : null}
-                  <div className="sticky bottom-3 mt-4 flex items-center gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 shadow-[var(--shadow-lg)] sm:p-4 sm:shadow-none">
+                  <Panel
+                    padding="compact"
+                    className="sticky bottom-3 mt-4 flex items-center gap-3 shadow-[var(--shadow-lg)] sm:shadow-none"
+                  >
                     <div className="min-w-0 flex-1 truncate font-semibold text-[var(--text-primary)]">
                       {selectedDeck?.name ?? '选择一副卡组'}
                     </div>
-                    <button
-                      type="button"
-                      className="button-primary inline-flex min-h-11 shrink-0 items-center gap-2 px-6 disabled:opacity-45"
+                    <ActionButton
+                      className="shrink-0 px-6 disabled:opacity-45"
                       disabled={!selectedDeck || loading}
                       onClick={() => void handleJoin()}
                     >
@@ -186,8 +194,8 @@ export function RankedPage({
                         <Swords size={16} />
                       )}
                       开始排位
-                    </button>
-                  </div>
+                    </ActionButton>
+                  </Panel>
                 </>
               ) : null}
               <SeasonLists overview={displayedOverview} />
@@ -216,13 +224,11 @@ function SeasonSummary({
   onOpenSeasonNotice: () => void;
 }) {
   if (!overview) {
-    return (
-      <div className="product-workbench p-5 text-sm text-[var(--text-muted)]">正在读取赛季…</div>
-    );
+    return <Panel className="text-sm text-[var(--text-muted)]">正在读取赛季…</Panel>;
   }
   const player = overview.player;
   return (
-    <section className="product-workbench border-l-4 border-l-[var(--accent-primary)] p-4 sm:p-5">
+    <Panel as="section">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-[var(--text-primary)]">
@@ -281,7 +287,7 @@ function SeasonSummary({
           ) : null}
         </div>
       ) : null}
-    </section>
+    </Panel>
   );
 }
 
@@ -297,7 +303,7 @@ function SeasonLists({
   return (
     <div className={`mt-4 grid gap-4 ${hasBothLists ? 'md:grid-cols-2' : ''}`}>
       {overview.recentMatches.length > 0 ? (
-        <section className="product-workbench p-4">
+        <Panel as="section" padding="compact">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">最近对局</h2>
           <div className="mt-2 divide-y divide-[var(--border-subtle)]">
             {overview.recentMatches.slice(0, 5).map((match) => (
@@ -320,10 +326,10 @@ function SeasonLists({
               </div>
             ))}
           </div>
-        </section>
+        </Panel>
       ) : null}
       {overview.leaderboard.length > 0 ? (
-        <section className="product-workbench p-4">
+        <Panel as="section" padding="compact">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">排行榜</h2>
           <div className="mt-2 divide-y divide-[var(--border-subtle)]">
             {overview.leaderboard.slice(0, 10).map((entry) => (
@@ -334,7 +340,7 @@ function SeasonLists({
               </div>
             ))}
           </div>
-        </section>
+        </Panel>
       ) : null}
     </div>
   );
@@ -360,7 +366,7 @@ function QueueState({
   const waiting = status.state === 'WAITING';
   const matched = status.state === 'MATCHED';
   return (
-    <section className="product-workbench mx-auto mt-[12vh] max-w-md p-6 text-center">
+    <Panel as="section" padding="spacious" className="mx-auto mt-6 max-w-md text-center">
       <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[var(--accent-primary)]/12 text-[var(--accent-primary)]">
         {matched ? (
           <DoorOpen size={20} />
@@ -370,7 +376,7 @@ function QueueState({
           <ShieldCheck size={20} />
         )}
       </div>
-      <h1 className="mt-3 text-xl font-bold text-[var(--text-primary)]">
+      <h1 className="mt-3 text-xl font-semibold text-[var(--text-primary)]">
         {waiting
           ? '正在匹配对手'
           : matched
@@ -398,40 +404,39 @@ function QueueState({
       </button>
       {error ? <ErrorMessage message={error} /> : null}
       {waiting || status.state === 'CONFIRMED' ? (
-        <button
-          className="button-secondary mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2"
+        <ActionButton
+          variant="secondary"
+          className="mt-5 w-full"
           disabled={loading}
           onClick={() => void onCancel().catch(() => undefined)}
         >
           <X size={16} />
           取消匹配
-        </button>
+        </ActionButton>
       ) : null}
       {status.state === 'PENDING_CONFIRMATION' ? (
         <div className="mt-5 grid grid-cols-2 gap-3">
-          <button className="button-secondary min-h-11" onClick={() => void onCancel()}>
+          <ActionButton variant="secondary" onClick={() => void onCancel()}>
             取消
-          </button>
-          <button className="button-primary min-h-11" onClick={() => void onConfirm()}>
-            确认开局
-          </button>
+          </ActionButton>
+          <ActionButton onClick={() => void onConfirm()}>确认开局</ActionButton>
         </div>
       ) : null}
       {status.state === 'CREATING_ROOM' ? (
         <Loader2 size={18} className="mx-auto mt-5 animate-spin text-[var(--accent-primary)]" />
       ) : null}
       {matched ? (
-        <button className="button-primary mt-5 min-h-11 w-full" onClick={onEnterRoom}>
+        <ActionButton className="mt-5 w-full" onClick={onEnterRoom}>
           返回房间
-        </button>
+        </ActionButton>
       ) : null}
-    </section>
+    </Panel>
   );
 }
 
 function ErrorMessage({ message }: { message: string }) {
   return (
-    <p className="mt-3 rounded-xl bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
+    <p className="mt-3 rounded-lg bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
       {message}
     </p>
   );

@@ -164,14 +164,18 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
             </motion.div>
 
             <motion.h1
-              className="text-4xl font-black leading-none text-[color:color-mix(in_srgb,white_58%,var(--semantic-info))] sm:text-5xl md:text-6xl"
+              className="text-4xl font-bold leading-none text-[color:color-mix(in_srgb,white_58%,var(--semantic-info))] sm:text-5xl md:text-6xl"
               style={{
                 textShadow:
                   '0 1px 0 rgba(255,255,255,0.36), 0 12px 28px rgba(0,0,0,0.34), 0 0 26px color-mix(in srgb, var(--semantic-info) 42%, transparent)',
               }}
               initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12, filter: 'blur(6px)' }}
               animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0, filter: 'blur(0px)' }}
-              transition={{ delay: reduceMotion ? 0 : 0.2, duration: 0.34, ease: [0.2, 0.8, 0.2, 1] }}
+              transition={{
+                delay: reduceMotion ? 0 : 0.2,
+                duration: 0.34,
+                ease: [0.2, 0.8, 0.2, 1],
+              }}
             >
               {title}
             </motion.h1>
@@ -192,7 +196,11 @@ export const LiveResultAnimation = memo(function LiveResultAnimation({
                 className="mt-8 w-full border-y border-[color:color-mix(in_srgb,var(--semantic-info)_38%,white)] bg-[color:color-mix(in_srgb,white_30%,var(--bg-frosted))] px-3 py-4 shadow-[0_14px_38px_rgba(80,100,130,0.22)] backdrop-blur-md sm:px-5"
                 initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 18 }}
                 animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                transition={{ delay: reduceMotion ? 0 : 0.48, duration: 0.28, ease: [0.2, 0.8, 0.2, 1] }}
+                transition={{
+                  delay: reduceMotion ? 0 : 0.48,
+                  duration: 0.28,
+                  ease: [0.2, 0.8, 0.2, 1],
+                }}
               >
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
                   <ScoreLane
@@ -259,7 +267,8 @@ function ScoreLane({
   readonly align: 'left' | 'right';
 }) {
   const percent = Math.max(8, Math.min(100, (score / maxScore) * 100));
-  const alignClass = align === 'right' ? 'sm:items-end sm:text-right' : 'sm:items-start sm:text-left';
+  const alignClass =
+    align === 'right' ? 'sm:items-end sm:text-right' : 'sm:items-start sm:text-left';
   const headerClass = align === 'right' ? 'sm:flex-row-reverse' : '';
   const scoreRowClass = align === 'right' ? 'sm:flex-row-reverse' : '';
   const trackJustifyClass = align === 'right' ? 'sm:justify-end' : 'sm:justify-start';
@@ -284,7 +293,7 @@ function ScoreLane({
       <div className={cn('flex min-h-11 w-full items-end gap-3', scoreRowClass)}>
         <motion.span
           className={cn(
-            'block min-w-[3ch] text-4xl font-black leading-none',
+            'block min-w-[3ch] text-4xl font-bold leading-none tabular-nums',
             won
               ? 'text-[color:color-mix(in_srgb,var(--accent-gold-light)_68%,white)]'
               : 'text-[color:color-mix(in_srgb,white_34%,var(--text-primary))]'

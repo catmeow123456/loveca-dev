@@ -143,7 +143,7 @@ export function RegisterPage({
             <p className="text-[var(--text-secondary)]">账号已创建成功，现在可以直接登录了。</p>
           )}
 
-          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-bold">
+          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-semibold">
             前往登录
           </button>
         </div>
@@ -253,7 +253,7 @@ export function RegisterPage({
         <button
           type="submit"
           disabled={isLoading || !isApiConfigured}
-          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-bold ${isLoading || !isApiConfigured ? 'cursor-not-allowed opacity-50' : ''}`}
+          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-semibold ${isLoading || !isApiConfigured ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">

@@ -419,9 +419,9 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     : null;
   const canRequestRestart = Boolean(
     room?.status === 'IN_GAME' &&
-      room.originKind !== 'RANKED' &&
-      !restartRequest &&
-      opponentMember?.presence === 'ACTIVE'
+    room.originKind !== 'RANKED' &&
+    !restartRequest &&
+    opponentMember?.presence === 'ACTIVE'
   );
   const isMatchCompleted = matchView?.phase === GamePhase.GAME_END;
   const canSurrender = Boolean(
@@ -853,7 +853,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
       <div className="app-shell flex min-h-screen items-center justify-center p-4">
         <div className="product-workbench w-full max-w-md px-6 py-7 text-center text-[var(--text-primary)]">
           <DoorOpen className="mx-auto text-[var(--semantic-warning)]" size={28} />
-          <h1 className="mt-4 text-xl font-bold">本次配对未开始</h1>
+          <h1 className="mt-4 text-xl font-semibold">本次配对未开始</h1>
           <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
             {roomEndMessage ?? '该房间已经结束。'}
           </p>
@@ -958,9 +958,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
             <div className="w-[min(420px,calc(100vw-2rem))] rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_94%,transparent)] px-3 py-3 text-sm text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--accent-primary)]">
-                    重开请求
-                  </div>
+                  <div className="text-xs font-semibold text-[var(--accent-primary)]">重开请求</div>
                   <div className="mt-1 font-semibold">
                     {isRestartRequester ? '已发送重开请求' : `${restartRequesterName} 请求重开`}
                   </div>
@@ -1163,7 +1161,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
                   />
                 )}
                 <div className="min-w-0">
-                  <h2 className="font-bold text-[var(--text-primary)]">
+                  <h2 className="font-semibold text-[var(--text-primary)]">
                     {error ? '无法返回房间' : '正在返回房间'}
                   </h2>
                   <p className="mt-0.5 truncate text-sm text-[var(--text-secondary)]">
@@ -1180,7 +1178,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
                       value={roomCodeInput}
                       onChange={(event) => setRoomCodeInput(event.target.value.toUpperCase())}
                       placeholder="房间号 · 4-12 位字母或数字"
-                      className="h-11 w-full rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 text-base font-semibold tracking-[0.08em] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-primary)]"
+                      className="h-11 w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 font-mono text-base font-semibold tracking-[0.08em] text-[var(--text-primary)] outline-none transition focus:border-[var(--accent-primary)]"
                       maxLength={12}
                     />
                   </label>
@@ -1340,7 +1338,7 @@ function OnlineRoomLobbyPanel({
       <header className="flex items-center justify-between gap-3 border-b border-[var(--border-subtle)] px-5 py-4">
         <div className="min-w-0">
           <div className="text-xs text-[var(--text-muted)]">房间</div>
-          <h2 className="mt-0.5 truncate text-xl font-black tracking-[0.08em] text-[var(--text-primary)]">
+          <h2 className="mt-0.5 truncate font-mono text-xl font-bold tracking-[0.08em] text-[var(--text-primary)]">
             {room.roomCode}
           </h2>
         </div>
@@ -1368,7 +1366,7 @@ function OnlineRoomLobbyPanel({
 
           <div className="flex items-center gap-3 py-2.5" aria-hidden="true">
             <div className="h-px flex-1 bg-[var(--border-subtle)]" />
-            <span className="text-[10px] font-black tracking-[0.2em] text-[var(--accent-primary)]">
+            <span className="text-[10px] font-bold tracking-[0.08em] text-[var(--accent-primary)]">
               VS
             </span>
             <div className="h-px flex-1 bg-[var(--border-subtle)]" />
@@ -1377,7 +1375,7 @@ function OnlineRoomLobbyPanel({
           <LobbySeatRow label="对手" member={opponentMember} />
         </div>
 
-        <div className="mt-5 border-l-2 border-[var(--accent-primary)] pl-3" aria-live="polite">
+        <div className="mt-5" aria-live="polite">
           <div className="text-sm font-bold text-[var(--text-primary)]">{actionState.title}</div>
           {actionState.detail && (
             <div className="mt-1 text-sm leading-5 text-[var(--text-secondary)]">
@@ -1435,7 +1433,7 @@ function LobbySeatRow({
   return (
     <div className="flex min-h-[72px] items-center gap-3">
       <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-black ${
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-bold ${
           isCurrentUser
             ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_34%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-overlay))] text-[var(--accent-primary)]'
             : 'border-[var(--border-default)] bg-[var(--bg-overlay)] text-[var(--text-secondary)]'
@@ -1618,7 +1616,7 @@ function OnlineOpeningStage({
             <div className="online-opening-stage-layout relative grid gap-3 p-3 sm:gap-5 sm:p-6">
               <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
                 <div>
-                  <h1 className="text-xl font-black text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
+                  <h1 className="text-xl font-semibold tracking-normal text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
                     开局猜拳
                   </h1>
                   <p className="mt-1 max-w-2xl text-xs font-semibold text-[var(--text-secondary)] sm:mt-2 sm:text-sm sm:leading-relaxed">
@@ -1752,9 +1750,7 @@ function OpeningPlayerPanel({
       />
       <div className="min-w-0">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)] sm:text-xs lg:tracking-[0.16em]">
-            {title}
-          </div>
+          <div className="text-[10px] text-[var(--text-muted)] sm:text-xs">{title}</div>
           <div className="mt-0.5 truncate text-sm font-bold text-[var(--text-primary)] sm:text-base lg:mt-1 lg:text-lg">
             {member?.displayName ?? '等待玩家'}
           </div>
@@ -1790,10 +1786,10 @@ function OpeningPlayerPanel({
           </span>
         </div>
         <div className="min-w-0 text-right lg:text-center">
-          <div className="truncate text-sm font-black text-[var(--text-primary)] sm:text-base lg:text-lg">
+          <div className="truncate text-sm font-bold text-[var(--text-primary)] sm:text-base lg:text-lg">
             {label}
           </div>
-          <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--text-muted)] lg:mt-1 lg:text-xs lg:tracking-[0.14em]">
+          <div className="mt-0.5 text-[10px] font-semibold text-[var(--text-muted)] lg:mt-1 lg:text-xs">
             {status}
           </div>
         </div>
@@ -2048,12 +2044,12 @@ function OpeningGestureButton({
         <span className="hidden sm:block">{getRpsIcon(gesture, 46)}</span>
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-black leading-tight text-[var(--text-primary)] sm:text-lg">
+        <div className="text-sm font-bold leading-tight text-[var(--text-primary)] sm:text-lg">
           {getRpsLabel(gesture)}
         </div>
       </div>
       {selected && (
-        <div className="absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] font-black text-white shadow-[var(--shadow-md)] sm:right-2 sm:top-2 sm:h-6 sm:min-w-6">
+        <div className="absolute right-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[10px] text-white shadow-[var(--shadow-md)] sm:right-2 sm:top-2 sm:h-6 sm:min-w-6">
           <Check size={11} className="sm:hidden" />
           <Check size={13} className="hidden sm:block" />
         </div>
@@ -2117,7 +2113,7 @@ function OpeningTurnOrderButton({
       />
       <div className="flex items-center justify-between gap-2 sm:gap-4">
         <div>
-          <div className="text-sm font-black text-[var(--text-primary)] sm:text-lg">{title}</div>
+          <div className="text-sm font-bold text-[var(--text-primary)] sm:text-lg">{title}</div>
           {detail && <div className="mt-1 text-sm text-[var(--text-secondary)]">{detail}</div>}
         </div>
         <div
@@ -2276,7 +2272,7 @@ function OnlineMatchEndPanel({
         aria-live="assertive"
       >
         <Trophy className="mx-auto text-[var(--accent-gold)]" size={30} />
-        <h2 className="mt-3 text-xl font-bold">{copy.title}</h2>
+        <h2 className="mt-3 text-xl font-semibold">{copy.title}</h2>
         <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{copy.detail}</p>
         {error && (
           <div className="mt-4 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-3 py-2 text-sm text-[var(--semantic-error)]">
@@ -2387,9 +2383,7 @@ function RoomActionPanel({
           <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-overlay)] px-3 py-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                  房间号观战
-                </div>
+                <div className="text-[11px] font-semibold text-[var(--text-muted)]">房间号观战</div>
                 <div className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
                   {spectatorRoomEntry.enabled
                     ? `观战者可在首页输入房间号 ${roomCode} 进入你的视角。`

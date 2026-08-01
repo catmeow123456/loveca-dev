@@ -77,7 +77,7 @@ export function DeckSelector({
         }`}
       >
         <div className="min-w-0">
-          <h2 className="truncate text-base font-bold text-[var(--text-primary)]">{title}</h2>
+          <h2 className="truncate text-base font-semibold text-[var(--text-primary)]">{title}</h2>
           {subtitle && (
             <p className="mt-0.5 truncate text-sm text-[var(--text-muted)]">{subtitle}</p>
           )}
@@ -198,7 +198,7 @@ export function DeckSelector({
                 </div>
 
                 <div className={`${isCompact ? 'px-3 py-2.5' : 'px-3.5 py-3'}`}>
-                  <div className="truncate text-sm font-bold text-[var(--text-primary)]">
+                  <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
                     {deck.name}
                   </div>
                 </div>

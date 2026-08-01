@@ -418,8 +418,7 @@ export function CardEditModal({
     'flex items-center gap-1 rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_40%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-sm text-[var(--text-primary)]';
   const sectionClass =
     'rounded-2xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_74%,transparent)] p-4';
-  const sectionTitleClass =
-    'mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]';
+  const sectionTitleClass = 'mb-3 text-xs font-semibold text-[var(--text-muted)]';
 
   if (!isOpen) return null;
 
@@ -452,7 +451,7 @@ export function CardEditModal({
         transition={
           isMobile ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] } : undefined
         }
-        className="modal-surface modal-accent-rose relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden rounded-none border-0 sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-[var(--radius-xl)] sm:border"
+        className="modal-surface modal-accent-rose relative flex h-dvh max-h-dvh w-full flex-col overflow-hidden rounded-none border-0 sm:h-auto sm:max-h-[90vh] sm:max-w-2xl sm:rounded-[var(--radius-lg)] sm:border"
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

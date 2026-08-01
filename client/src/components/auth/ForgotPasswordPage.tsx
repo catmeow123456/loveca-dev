@@ -57,18 +57,15 @@ export function ForgotPasswordPage({ onSwitchToLogin }: ForgotPasswordPageProps)
           </motion.div>
 
           <p className="text-[var(--text-secondary)]">
-            我们已向 <span className="font-medium text-[var(--accent-primary)]">{email}</span> 发送了密码重置邮件，
-            请点击邮件中的链接重置密码。
+            我们已向 <span className="font-medium text-[var(--accent-primary)]">{email}</span>{' '}
+            发送了密码重置邮件， 请点击邮件中的链接重置密码。
           </p>
 
           <p className="text-sm text-[var(--text-muted)]">
             如果没有收到邮件，请检查垃圾邮件文件夹。
           </p>
 
-          <button
-            onClick={onSwitchToLogin}
-            className="button-primary w-full py-3 font-bold"
-          >
+          <button onClick={onSwitchToLogin} className="button-primary w-full py-3 font-semibold">
             返回登录
           </button>
         </div>
@@ -107,7 +104,7 @@ export function ForgotPasswordPage({ onSwitchToLogin }: ForgotPasswordPageProps)
         <button
           type="submit"
           disabled={isLoading}
-          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-bold ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
+          className={`button-primary flex w-full items-center justify-center gap-2 py-3 font-semibold ${isLoading ? 'cursor-not-allowed opacity-50' : ''}`}
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">

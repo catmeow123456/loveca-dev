@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
 import type { ActiveEffectViewState } from '../../src/online/types';
 import { EffectChoicePanel } from '../../client/src/components/game/EffectChoicePanel';
+import { shouldMountEffectChoicePanel } from '../../client/src/lib/effectChoiceUi';
 
 const requireFromClient = createRequire(new URL('../../client/package.json', import.meta.url));
 const { createElement } = requireFromClient('react') as {
@@ -39,13 +40,27 @@ function effect(overrides: Partial<ActiveEffectViewState> = {}): ActiveEffectVie
 
 function renderPanel(
   activeEffect: ActiveEffectViewState,
-  selectedOptionIds: readonly string[] = []
+  selectedOptionIds: readonly string[] = [],
+  options: {
+    readonly canChoose?: boolean;
+    readonly isOrderSelectionWindow?: boolean;
+    readonly showOrdinaryActiveEffectControls?: boolean;
+  } = {}
 ): string {
+  if (
+    !shouldMountEffectChoicePanel(
+      activeEffect,
+      options.isOrderSelectionWindow === true,
+      options.showOrdinaryActiveEffectControls ?? true
+    )
+  ) {
+    return '';
+  }
   return renderToStaticMarkup(
     createElement(EffectChoicePanel, {
       activeEffect,
       selectedOptionIds,
-      canChoose: true,
+      canChoose: options.canChoose ?? true,
       canConfirmMulti: selectedOptionIds.length > 0,
       onSelectSingle: vi.fn(),
       onToggleMulti: vi.fn(),
@@ -76,7 +91,7 @@ describe('EffectChoicePanel', () => {
     ).not.toContain('不改变');
   });
 
-  it('公开阶段只显示服务端选中的效果文本', () => {
+  it('公开阶段保持挂载并只显示服务端选中的非交互效果', () => {
     const publicEffect = effect({
       effectChoice: {
         ...effect().effectChoice!,
@@ -85,11 +100,36 @@ describe('EffectChoicePanel', () => {
       publicEffectChoiceAutoAdvanceAt: 11_500,
       publicEffectChoiceAutoAdvanceAfterMs: 1_500,
     });
-    const html = renderPanel(publicEffect);
+    expect(shouldMountEffectChoicePanel(publicEffect, false, false)).toBe(true);
+
+    const html = renderPanel(publicEffect, [], {
+      canChoose: false,
+      showOrdinaryActiveEffectControls: false,
+    });
     expect(html).toContain('已选择的效果');
     expect(html).toContain('获得');
     expect(html).toContain('aria-label="BLADE"');
     expect(html).not.toContain('抽1张。');
     expect(html).not.toContain('获得已选效果');
+    expect(html).not.toContain('<button');
+  });
+
+  it('只在普通控件可见或公开结果阶段挂载选项面板', () => {
+    const activeEffect = effect();
+    expect(shouldMountEffectChoicePanel(activeEffect, false, true)).toBe(true);
+    expect(shouldMountEffectChoicePanel(activeEffect, false, false)).toBe(false);
+  });
+
+  it('队列顺序选择窗口不挂载卡牌效果选项面板', () => {
+    const activeEffect = effect({
+      effectChoice: {
+        ...effect().effectChoice!,
+        selectedOptionIds: ['blade'],
+      },
+      publicEffectChoiceAutoAdvanceAt: 11_500,
+      publicEffectChoiceAutoAdvanceAfterMs: 1_500,
+    });
+    expect(shouldMountEffectChoicePanel(activeEffect, true, false)).toBe(false);
+    expect(renderPanel(activeEffect, [], { isOrderSelectionWindow: true })).toBe('');
   });
 });

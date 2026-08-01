@@ -6,10 +6,7 @@
 import { Check, Cloud, Database, Layers3, Star, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
 import { calculateDeckConfigStats, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
-import {
-  deckRecordToConfig,
-  type MainDeckEntryTypeResolver,
-} from '@/lib/deckRecordUtils';
+import { deckRecordToConfig, type MainDeckEntryTypeResolver } from '@/lib/deckRecordUtils';
 
 // 卡组统计数据
 export interface DeckStatsData {
@@ -37,7 +34,9 @@ export function isDeckStatsValid(stats: DeckStatsData): boolean {
 }
 
 export function getDeckPointTextClass(pointTotal: number): string {
-  return pointTotal > DECK_POINT_LIMIT ? 'text-[var(--semantic-error)]' : 'text-[var(--text-secondary)]';
+  return pointTotal > DECK_POINT_LIMIT
+    ? 'text-[var(--semantic-error)]'
+    : 'text-[var(--text-secondary)]';
 }
 
 // 格式化时间的辅助函数
@@ -48,7 +47,7 @@ export function formatRelativeTime(date: Date | string): string {
   const minutes = Math.floor(diff / 60000);
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
-  
+
   if (minutes < 1) return '刚刚';
   if (minutes < 60) return `${minutes} 分钟前`;
   if (hours < 24) return `${hours} 小时前`;
@@ -73,33 +72,45 @@ interface DeckStatsRowProps {
  * DeckStatsRow - 卡组统计行组件
  * 显示成员卡、Live卡、能量卡数量
  */
-export function DeckStatsRow({ 
-  stats, 
-  showMax = true, 
-  className = '', 
+export function DeckStatsRow({
+  stats,
+  showMax = true,
+  className = '',
   size = 'sm',
   updatedAt,
 }: DeckStatsRowProps) {
   const textSize = size === 'sm' ? 'text-xs' : 'text-sm';
   const gapSize = size === 'sm' ? 'gap-4' : 'gap-5';
-  
+
   return (
     <div className={`flex flex-wrap items-center ${gapSize} ${textSize} ${className}`}>
       <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
         <UserRound size={size === 'sm' ? 12 : 14} />
-        <span>{stats.memberCount}{showMax && '/48'}</span>
+        <span>
+          {stats.memberCount}
+          {showMax && '/48'}
+        </span>
       </div>
       <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
         <Layers3 size={size === 'sm' ? 12 : 14} />
-        <span>{stats.liveCount}{showMax && '/12'}</span>
+        <span>
+          {stats.liveCount}
+          {showMax && '/12'}
+        </span>
       </div>
       <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
         <Zap size={size === 'sm' ? 12 : 14} />
-        <span>{stats.energyCount}{showMax && '/12'}</span>
+        <span>
+          {stats.energyCount}
+          {showMax && '/12'}
+        </span>
       </div>
       <div className={`flex items-center gap-1.5 ${getDeckPointTextClass(stats.pointTotal)}`}>
         <Star size={size === 'sm' ? 12 : 14} />
-        <span>{stats.pointTotal}{showMax && `/${DECK_POINT_LIMIT}`}pt</span>
+        <span>
+          {stats.pointTotal}
+          {showMax && `/${DECK_POINT_LIMIT}`}pt
+        </span>
       </div>
       {updatedAt && (
         <>
@@ -126,13 +137,17 @@ interface DeckValidityBadgeProps {
  */
 export function DeckValidityBadge({ stats, className = '' }: DeckValidityBadgeProps) {
   const isValid = isDeckStatsValid(stats);
-  
+
   return isValid ? (
-    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30 ${className}`}>
+    <span
+      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 bg-green-500/20 text-green-300 rounded-full border border-green-400/30 ${className}`}
+    >
       <Check size={11} /> 完整
     </span>
   ) : (
-    <span className={`text-xs px-2 py-0.5 bg-red-500/20 text-red-300 rounded-full border border-red-400/30 ${className}`}>
+    <span
+      className={`text-xs px-2 py-0.5 bg-red-500/20 text-red-300 rounded-full border border-red-400/30 ${className}`}
+    >
       ○ 不完整
     </span>
   );
@@ -167,21 +182,15 @@ export function DeckCard({
   onClick,
   actions,
 }: DeckCardProps) {
-  const validity = isValid ?? (
-    isDeckStatsValid(stats)
-  );
+  const validity = isValid ?? isDeckStatsValid(stats);
 
   const CardContent = (
     <>
       {/* Top Row */}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
-          {isSelected && (
-            <Check size={14} className="text-[var(--accent-primary)]" />
-          )}
-          <h3 className={`font-bold ${
-            isSelected ? 'text-orange-200' : 'text-orange-100'
-          }`}>
+          {isSelected && <Check size={14} className="text-[var(--accent-primary)]" />}
+          <h3 className={`font-semibold ${isSelected ? 'text-orange-200' : 'text-orange-100'}`}>
             {name}
           </h3>
         </div>
@@ -208,20 +217,12 @@ export function DeckCard({
       </div>
 
       {/* Description */}
-      {description && (
-        <p className="text-sm text-orange-300/60 mb-3 line-clamp-2">
-          {description}
-        </p>
-      )}
+      {description && <p className="text-sm text-orange-300/60 mb-3 line-clamp-2">{description}</p>}
 
       {/* Stats Row */}
       <div className="flex items-center justify-between">
         <DeckStatsRow stats={stats} updatedAt={updatedAt} />
-        {actions && (
-          <div className="flex items-center gap-2">
-            {actions}
-          </div>
-        )}
+        {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
     </>
   );
@@ -242,11 +243,13 @@ export function DeckCard({
   }
 
   return (
-    <div className={`p-4 rounded-xl border ${
-      isSelected
-        ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 border-orange-400/50 shadow-lg shadow-orange-500/10'
-        : 'bg-[#3d3020]/60 border-orange-300/20'
-    }`}>
+    <div
+      className={`p-4 rounded-xl border ${
+        isSelected
+          ? 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 border-orange-400/50 shadow-lg shadow-orange-500/10'
+          : 'bg-[#3d3020]/60 border-orange-300/20'
+      }`}
+    >
       {CardContent}
     </div>
   );

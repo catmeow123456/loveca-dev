@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, DoorOpen, Loader2, Search, Share2, Swords, X } from 'lucide-react';
-import { DeckSelector, PageHeader, type DeckDisplayItem } from '@/components/common';
+import {
+  ActionButton,
+  DeckSelector,
+  PageHeader,
+  Panel,
+  StatusBadge,
+  type DeckDisplayItem,
+} from '@/components/common';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
@@ -212,15 +219,14 @@ export function PublicTablePage({
         backLabel="返回大厅"
         right={
           <>
-            <button
-              type="button"
+            <ActionButton
               onClick={() => void handleCopyInvitation()}
-              className="button-icon"
+              variant="icon"
               title="复制求战邀请"
               aria-label="复制求战邀请"
             >
               {shareFeedback === 'done' ? <Check size={16} /> : <Share2 size={16} />}
-            </button>
+            </ActionButton>
           </>
         }
       />
@@ -236,22 +242,23 @@ export function PublicTablePage({
       >
         <div className="w-full max-w-4xl">
           {!statusReady ? (
-            <section className="product-workbench mx-auto max-w-md p-5 text-center sm:p-6">
+            <Panel as="section" padding="spacious" className="mx-auto max-w-md text-center">
               {entryStatusCheck === 'failed' ? (
                 <>
-                  <h1 className="text-xl font-bold text-[var(--text-primary)]">无法确认匹配状态</h1>
+                  <h1 className="text-xl font-semibold text-[var(--text-primary)]">
+                    无法确认匹配状态
+                  </h1>
                   <p className="mt-2 text-sm text-[var(--text-secondary)]">
                     请重新读取当前状态后再选择卡组。
                   </p>
                   {error && <ActionError message={error} className="mt-3" />}
-                  <button
-                    type="button"
-                    className="button-primary mt-5 inline-flex min-h-11 w-full items-center justify-center px-4"
+                  <ActionButton
+                    className="mt-5 w-full"
                     disabled={loading}
                     onClick={retryStatusCheck}
                   >
                     重新读取
-                  </button>
+                  </ActionButton>
                 </>
               ) : (
                 <>
@@ -259,7 +266,7 @@ export function PublicTablePage({
                     size={22}
                     className="mx-auto animate-spin text-[var(--accent-primary)]"
                   />
-                  <h1 className="mt-3 text-lg font-bold text-[var(--text-primary)]">
+                  <h1 className="mt-3 text-lg font-semibold text-[var(--text-primary)]">
                     正在确认公共牌桌状态
                   </h1>
                   <p className="mt-1 text-sm text-[var(--text-muted)]">
@@ -267,13 +274,13 @@ export function PublicTablePage({
                   </p>
                 </>
               )}
-            </section>
+            </Panel>
           ) : active && visibleStatus ? (
-            <section className="product-workbench mx-auto max-w-md p-5 text-center sm:p-6">
+            <Panel as="section" padding="spacious" className="mx-auto max-w-md text-center">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] text-[var(--accent-primary)]">
                 {visibleStatus.state === 'MATCHED' ? <DoorOpen size={20} /> : <Search size={20} />}
               </div>
-              <h1 className="mt-3 text-xl font-bold text-[var(--text-primary)]">
+              <h1 className="mt-3 text-xl font-semibold text-[var(--text-primary)]">
                 {visibleStatus.state === 'WAITING'
                   ? '正在找对手'
                   : visibleStatus.state === 'MATCHED'
@@ -295,45 +302,39 @@ export function PublicTablePage({
               </p>
 
               {visibleStatus.state === 'WAITING' && (
-                <button
-                  type="button"
-                  className="button-secondary mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 px-4"
+                <ActionButton
+                  variant="secondary"
+                  className="mt-5 w-full"
                   disabled={loading}
                   onClick={() => void cancel()}
                 >
                   <X size={16} />
                   取消等待
-                </button>
+                </ActionButton>
               )}
               {visibleStatus.state === 'PENDING_CONFIRMATION' && (
                 <div className="mt-5 grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    className="button-secondary inline-flex min-h-11 items-center justify-center px-4"
+                  <ActionButton
+                    variant="secondary"
                     disabled={loading}
                     onClick={() => void cancel()}
                   >
                     取消等待
-                  </button>
-                  <button
-                    type="button"
-                    className="button-primary inline-flex min-h-11 items-center justify-center px-4"
-                    disabled={loading}
-                    onClick={() => void confirm()}
-                  >
+                  </ActionButton>
+                  <ActionButton disabled={loading} onClick={() => void confirm()}>
                     确认开局
-                  </button>
+                  </ActionButton>
                 </div>
               )}
               {visibleStatus.state === 'CONFIRMED' && (
-                <button
-                  type="button"
-                  className="button-secondary mt-5 inline-flex min-h-11 w-full items-center justify-center px-4"
+                <ActionButton
+                  variant="secondary"
+                  className="mt-5 w-full"
                   disabled={loading}
                   onClick={() => void cancel()}
                 >
                   取消等待
-                </button>
+                </ActionButton>
               )}
               {visibleStatus.state === 'CREATING_ROOM' && (
                 <Loader2
@@ -342,17 +343,13 @@ export function PublicTablePage({
                 />
               )}
               {visibleStatus.state === 'MATCHED' && (
-                <button
-                  type="button"
-                  className="button-primary mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 px-4"
-                  onClick={handleEnterMatchedRoom}
-                >
+                <ActionButton className="mt-5 w-full" onClick={handleEnterMatchedRoom}>
                   <DoorOpen size={16} />
                   返回房间
-                </button>
+                </ActionButton>
               )}
               {error && <ActionError message={error} className="mt-3" />}
-            </section>
+            </Panel>
           ) : (
             <>
               <div className="mb-3 flex items-center justify-between gap-3 px-1">
@@ -384,20 +381,22 @@ export function PublicTablePage({
 
               {error && <ActionError message={error} className="mt-3" />}
 
-              <div className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20 flex items-center gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-3 shadow-[var(--shadow-lg)] sm:static sm:mt-4 sm:p-4 sm:shadow-none">
+              <Panel
+                padding="compact"
+                className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-20 flex items-center gap-3 shadow-[var(--shadow-lg)] sm:static sm:mt-4 sm:shadow-none"
+              >
                 <div className="min-w-0 flex-1 truncate font-semibold text-[var(--text-primary)]">
                   {selectedDeck?.name ?? '选择一副卡组'}
                 </div>
-                <button
-                  type="button"
-                  className="button-primary inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-6 disabled:cursor-not-allowed disabled:opacity-45"
+                <ActionButton
+                  className="shrink-0 px-6 disabled:opacity-45"
                   disabled={!selectedDeck || loading}
                   onClick={() => void handleJoin()}
                 >
                   {loading && <Loader2 size={16} className="animate-spin" />}
                   {loading ? '请稍候' : '找对手'}
-                </button>
-              </div>
+                </ActionButton>
+              </Panel>
             </>
           )}
         </div>
@@ -412,24 +411,21 @@ function ShareToast({ feedback }: { feedback: ShareFeedback }) {
   }
 
   return (
-    <div
-      className={`fixed right-4 top-20 z-[120] rounded-full border px-4 py-2 text-sm font-medium shadow-[var(--shadow-md)] ${
-        feedback === 'done'
-          ? 'border-[color:color-mix(in_srgb,var(--semantic-success)_35%,var(--border-default))] bg-[var(--bg-overlay)] text-[var(--semantic-success)]'
-          : 'border-[color:color-mix(in_srgb,var(--semantic-error)_35%,var(--border-default))] bg-[var(--bg-overlay)] text-[var(--semantic-error)]'
-      }`}
+    <StatusBadge
+      tone={feedback === 'done' ? 'success' : 'danger'}
+      className="fixed right-4 top-20 z-[120] bg-[var(--bg-overlay)] px-4 py-2 shadow-[var(--shadow-md)]"
       role="status"
       aria-live="polite"
     >
       {feedback === 'done' ? '邀请已复制' : '无法复制邀请'}
-    </div>
+    </StatusBadge>
   );
 }
 
 function ActionError({ message, className = '' }: { message: string; className?: string }) {
   return (
     <p
-      className={`rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_9%,transparent)] px-3 py-2 text-sm text-[var(--semantic-error)] ${className}`}
+      className={`rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_32%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_9%,transparent)] px-3 py-2 text-sm text-[var(--semantic-error)] ${className}`}
     >
       {message}
     </p>

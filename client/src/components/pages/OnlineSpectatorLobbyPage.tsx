@@ -1,8 +1,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft, ArrowRight, Loader2, ScanLine } from 'lucide-react';
 import {
+  ActionButton,
+  Panel,
   ProductFrame,
   ProductHeader,
+  SectionHeading,
+  StatusBadge,
+  TextInput,
   ThemeToggle,
   type ProductNavigationHandlers,
 } from '@/components/common';
@@ -124,7 +129,9 @@ export function OnlineSpectatorLobbyPage({
 
   const pageContent = (
     <main className="spectator-lobby-main">
-      <section
+      <Panel
+        as="section"
+        padding="none"
         className={`spectator-lobby-desk ${navigation ? 'spectator-lobby-desk--compact' : ''}`}
       >
         {!navigation ? (
@@ -136,14 +143,15 @@ export function OnlineSpectatorLobbyPage({
         ) : null}
 
         <div className="spectator-lobby-console">
-          <div className="spectator-lobby-section-heading">
-            <span>ROOM LOOKUP</span>
-            <h2>查找对局</h2>
-            <p>房间号由创建房间的玩家提供。</p>
-          </div>
+          <SectionHeading
+            className="spectator-lobby-section-heading"
+            eyebrow="ROOM LOOKUP"
+            title="查找对局"
+            description="房间号由创建房间的玩家提供。"
+          />
 
           <form onSubmit={handleSubmit} className="spectator-lobby-search">
-            <input
+            <TextInput
               value={roomCodeInput}
               onChange={(event) => {
                 lookupRequestGateRef.current.invalidate();
@@ -160,20 +168,21 @@ export function OnlineSpectatorLobbyPage({
               autoComplete="off"
               aria-label="房间号"
             />
-            <button
+            <ActionButton
               type="submit"
               disabled={isLoading || isEntering}
               className="spectator-lobby-search-button"
             >
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ScanLine size={16} />}
               查找
-            </button>
+            </ActionButton>
           </form>
 
-          <div className="spectator-lobby-section-heading spectator-lobby-section-heading--seats">
-            <span>PLAYER VIEW</span>
-            <h2>选择观看视角</h2>
-          </div>
+          <SectionHeading
+            className="spectator-lobby-section-heading spectator-lobby-section-heading--seats"
+            eyebrow="PLAYER VIEW"
+            title="选择观看视角"
+          />
           <SeatScanner entry={entry} selectedSeat={selectedSeat} onSelectSeat={setSelectedSeat} />
 
           {error ? (
@@ -184,7 +193,7 @@ export function OnlineSpectatorLobbyPage({
 
           <footer className="spectator-lobby-actions">
             <div>{entry ? `房间 ${entry.roomCode} · ${enabledSeats.length} 个视角开放` : ''}</div>
-            <button
+            <ActionButton
               type="button"
               onClick={() => void handleEnter()}
               disabled={!canEnter}
@@ -196,10 +205,10 @@ export function OnlineSpectatorLobbyPage({
                 <ArrowRight size={16} />
               )}
               进入观战
-            </button>
+            </ActionButton>
           </footer>
         </div>
-      </section>
+      </Panel>
     </main>
   );
 
@@ -275,9 +284,12 @@ function SeatScanner({
             >
               <div className="spectator-seat__topline">
                 <div>{getSeatLabel(seat)}</div>
-                <div className={enabled ? 'spectator-seat__status--open' : ''}>
+                <StatusBadge
+                  tone={enabled ? 'success' : 'neutral'}
+                  className="spectator-seat__status"
+                >
                   {enabled ? '开放' : '关闭'}
-                </div>
+                </StatusBadge>
               </div>
               <div className="spectator-seat__player">
                 {seatView?.displayName ?? '输入房间号后显示玩家'}
