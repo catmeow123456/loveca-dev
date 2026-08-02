@@ -159,6 +159,37 @@ describe('RankedV3MigrationService', () => {
     ).resolves.toMatchObject({ appendedDirectiveCount: 1 });
   });
 
+  it('preserves seed-only player projections when rebuilding the season for V3', async () => {
+    const seedOnlyState = {
+      rating: 1625,
+      ratingDeviation: 240,
+      ratedMatchCount: 0,
+      lastRatedAt: null,
+    };
+    const seeds = new Map([['seed-only-player', seedOnlyState]]);
+    const current = snapshot();
+    const seeded = snapshot({
+      seeds,
+      currentRatings: materializeRankedRatingLedger(current.events, GLICKO1_PER_MATCH_V2, seeds)
+        .players,
+    });
+    const { service, applyPlan } = harness(seeded);
+
+    await service.migrate({
+      seasonId: seeded.season.id,
+      cardCatalog: CATALOG,
+      apply: true,
+      expectedLedgerRevision: seeded.season.ledgerRevision,
+      adminUserId: 'admin-1',
+    });
+
+    const plan = applyPlan.mock.calls[0]![0];
+    expect(plan.materialization.players.get('seed-only-player')).toEqual(seedOnlyState);
+    expect(plan.report.playerChanges).not.toContainEqual(
+      expect.objectContaining({ userId: 'seed-only-player', after: null })
+    );
+  });
+
   it('blocks migration while any ranked runtime state remains active', async () => {
     const current = snapshot();
     const blocked = snapshot({
