@@ -37,6 +37,7 @@ import type {
   OnlineSpectatorWaitingView,
   OnlineUndoView,
   ManualOperationModeView,
+  PermissionViewState,
   PublicEvent,
   PublicEventsResponse,
   RuntimeRecoveryInfo,
@@ -77,6 +78,8 @@ const DEFAULT_SPECTATOR_MAX_PUBLIC_SESSIONS = 10;
 const DEFAULT_SPECTATOR_REQUEST_WINDOW_MS = 10 * 1000;
 const DEFAULT_SPECTATOR_REQUEST_LIMIT = 60;
 const DEFAULT_AUTHORITY_CHECKPOINT_INTERVAL_FRAMES = 5;
+const ONLINE_PHASE_COMPLETION_GATE_MS = 3_000;
+const ONLINE_PHASE_COMPLETION_GATE_REASON = '阶段开始 3 秒后才能确认完成';
 export const PUBLIC_EVENTS_RESPONSE_MAX = readPositiveIntEnv('ONLINE_PUBLIC_EVENTS_MAX_BATCH', 500);
 
 export interface OnlineMatchParticipant {
@@ -122,6 +125,19 @@ export interface OnlineMatchDeckSnapshot {
   readonly lockedAt: number | null;
 }
 
+export interface OnlinePhaseCompletionGate {
+  readonly windowKey: string;
+  readonly command: GameCommandType.END_PHASE | GameCommandType.CONFIRM_STEP;
+  readonly actingSeat: Seat;
+  readonly notBefore: number;
+}
+
+interface OnlinePhaseCompletionGateRuntime {
+  readonly observedWindowIdentity: string | null;
+  readonly entryGeneration: number;
+  readonly gate: OnlinePhaseCompletionGate | null;
+}
+
 export interface OnlineMatchState {
   readonly matchId: string;
   readonly roomCode: string;
@@ -148,6 +164,11 @@ export interface OnlineMatchState {
         readonly droppedEventCount: number;
       })
     | null;
+  /**
+   * 非确定性联机运行态，不进入 GameState/checkpoint/回放。
+   * 恢复时缺少此字段会以当前服务端时间保守重建。
+   */
+  phaseCompletionGateRuntime?: OnlinePhaseCompletionGateRuntime;
   readonly chat: OnlineMatchChatRuntimeState;
   updatedAt: number;
   lastActivityAt: number;
@@ -430,6 +451,11 @@ export class OnlineMatchService {
       appliedUndoKeys: new Set<string>(),
       appliedManualOperationKeys: new Map<string, string>(),
       recoveryNotice: null,
+      phaseCompletionGateRuntime: {
+        observedWindowIdentity: null,
+        entryGeneration: 0,
+        gate: null,
+      },
       chat: createOnlineMatchChatRuntime(),
       updatedAt: now,
       lastActivityAt: now,
@@ -528,6 +554,7 @@ export class OnlineMatchService {
     }
 
     this.sealedMatchIds.delete(match.matchId);
+    this.synchronizePhaseCompletionGate(match);
     this.matches.set(match.matchId, match);
     if (match.recoveryNotice) {
       await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
@@ -731,6 +758,8 @@ export class OnlineMatchService {
     participant: OnlineMatchParticipant,
     options: { readonly undoView?: OnlineUndoView } = {}
   ): OnlineMatchSnapshot {
+    const now = this.now();
+    const phaseCompletionGate = this.synchronizePhaseCompletionGate(match, now);
     const recoveryNotice = participant.seat === 'FIRST' ? match.recoveryNotice : null;
     const recovery = recoveryNotice
       ? {
@@ -744,6 +773,10 @@ export class OnlineMatchService {
       : undefined;
     const snapshot = buildSnapshot(match, participant, {
       ...options,
+      phaseCompletionGateProjection: {
+        now,
+        gate: phaseCompletionGate,
+      },
       publicEvents: recoveryNotice?.publicEvents,
       truncated: recoveryNotice?.truncated,
       droppedEventCount: recoveryNotice?.droppedEventCount,
@@ -1318,6 +1351,22 @@ export class OnlineMatchService {
       { ...command, playerId: participant.playerId },
       match.session.manualOperationMode
     );
+    const gateError = this.getPhaseCompletionGateError(match, participant, commandWithPlayer);
+    if (gateError) {
+      touchMatch(match);
+      const rejectedAttemptSeq = ++this.serviceRejectedAttemptSeq;
+      await this.appendSessionRecordFrame(match, 'COMMAND_REJECTED', {
+        command: commandWithPlayer,
+        summary: `服务层拒绝命令：${commandWithPlayer.type}；原因：${gateError}`,
+        force: true,
+        writeAuthorityCheckpoint: false,
+        dedupeKey: `service-rejected:phase-completion-gate:${participant.seat}:${rejectedAttemptSeq}`,
+      });
+      return {
+        success: false,
+        error: gateError,
+      };
+    }
     const shouldBuildDecisionRecords = shouldBuildDecisionRecordsForCommand(commandWithPlayer);
     const beforeState = shouldBuildDecisionRecords
       ? match.session.getAuthoritySnapshotForRecord()
@@ -1345,6 +1394,7 @@ export class OnlineMatchService {
     if (result.success) {
       incrementRemoteRevision(match);
     }
+    this.synchronizePhaseCompletionGate(match);
     await this.appendSessionRecordFrame(
       match,
       result.success ? 'COMMAND_ACCEPTED' : 'COMMAND_REJECTED',
@@ -1414,6 +1464,77 @@ export class OnlineMatchService {
         ? createEndPhaseCommand(participant.playerId)
         : createConfirmStepCommand(participant.playerId, state.currentSubPhase);
     return this.executeCommand(matchId, userId, command);
+  }
+
+  private getPhaseCompletionGateError(
+    match: OnlineMatchState,
+    participant: OnlineMatchParticipant,
+    command: GameCommand
+  ): string | null {
+    const now = this.now();
+    const gate = this.synchronizePhaseCompletionGate(match, now);
+    if (
+      !gate ||
+      gate.command !== command.type ||
+      gate.actingSeat !== participant.seat ||
+      now >= gate.notBefore
+    ) {
+      return null;
+    }
+    return ONLINE_PHASE_COMPLETION_GATE_REASON;
+  }
+
+  private synchronizePhaseCompletionGate(
+    match: OnlineMatchState,
+    now = this.now()
+  ): OnlinePhaseCompletionGate | null {
+    if (match.matchMode !== 'ONLINE') {
+      return null;
+    }
+
+    const descriptor = describeOnlinePhaseCompletionWindow(match);
+    const runtime = match.phaseCompletionGateRuntime;
+    if (!descriptor) {
+      if (!runtime) {
+        match.phaseCompletionGateRuntime = {
+          observedWindowIdentity: null,
+          entryGeneration: 0,
+          gate: null,
+        };
+      } else if (runtime.observedWindowIdentity !== null || runtime.gate !== null) {
+        match.phaseCompletionGateRuntime = {
+          observedWindowIdentity: null,
+          entryGeneration: runtime.entryGeneration,
+          gate: null,
+        };
+      }
+      return null;
+    }
+
+    if (
+      runtime?.observedWindowIdentity === descriptor.identity &&
+      runtime.gate?.command === descriptor.command &&
+      runtime.gate.actingSeat === descriptor.actingSeat
+    ) {
+      return runtime.gate;
+    }
+
+    const entryGeneration = (runtime?.entryGeneration ?? 0) + 1;
+    const notBefore = now + ONLINE_PHASE_COMPLETION_GATE_MS;
+    const gate: OnlinePhaseCompletionGate = {
+      // `notBefore` also makes a conservative post-recovery gate distinct from
+      // a lost pre-recovery runtime whose local generation happened to match.
+      windowKey: `${descriptor.identity}|entry:${entryGeneration}|notBefore:${notBefore}`,
+      command: descriptor.command,
+      actingSeat: descriptor.actingSeat,
+      notBefore,
+    };
+    match.phaseCompletionGateRuntime = {
+      observedWindowIdentity: descriptor.identity,
+      entryGeneration,
+      gate,
+    };
+    return gate;
   }
 
   getUndoAvailability(matchId: string, userId: string, policy?: UndoPolicy): OnlineUndoView | null {
@@ -1510,6 +1631,10 @@ export class OnlineMatchService {
       };
     }
 
+    // The authority state has already moved at this point. Reconcile before the
+    // first await so a concurrent command cannot observe the restored window
+    // with the previous window's gate.
+    this.synchronizePhaseCompletionGate(match);
     match.recordBranchId = `${match.matchId}:branch:${match.remoteRevision + 1}`;
     incrementRemoteRevision(match);
     touchMatch(match);
@@ -1723,6 +1848,9 @@ export class OnlineMatchService {
       };
     }
 
+    // Keep the non-deterministic runtime gate in lockstep with the authority
+    // rollback before recorder I/O yields to another request.
+    this.synchronizePhaseCompletionGate(match);
     match.pendingUndoRequest = null;
     match.activeUndoGrant = null;
     if (input.grantContinuous) {
@@ -2968,6 +3096,10 @@ function buildSnapshot(
   participant: OnlineMatchParticipant,
   options: {
     readonly undoView?: OnlineUndoView;
+    readonly phaseCompletionGateProjection?: {
+      readonly now: number;
+      readonly gate: OnlinePhaseCompletionGate | null;
+    };
     readonly publicEvents?: readonly PublicEvent[];
     readonly truncated?: boolean;
     readonly droppedEventCount?: number;
@@ -2987,6 +3119,14 @@ function buildSnapshot(
       undo: options.undoView ?? buildOnlineUndoView(match, participant),
       manualOperation: buildManualOperationModeView(match),
     },
+    permissions: options.phaseCompletionGateProjection
+      ? projectPhaseCompletionGateAvailability(
+          projectedViewState.permissions,
+          participant.seat,
+          options.phaseCompletionGateProjection.gate,
+          options.phaseCompletionGateProjection.now
+        )
+      : projectedViewState.permissions,
   };
 
   return {
@@ -3003,6 +3143,37 @@ function buildSnapshot(
       : {}),
     ...(options.recovery !== undefined ? { recovery: options.recovery } : {}),
   };
+}
+
+function projectPhaseCompletionGateAvailability(
+  permissions: PermissionViewState,
+  viewerSeat: Seat,
+  gate: OnlinePhaseCompletionGate | null,
+  now: number
+): PermissionViewState {
+  if (!gate || gate.actingSeat !== viewerSeat || now >= gate.notBefore) {
+    return permissions;
+  }
+
+  let projected = false;
+  const availableCommands = permissions.availableCommands.map((hint) => {
+    if (projected || hint.command !== gate.command || !hint.enabled) {
+      return hint;
+    }
+    projected = true;
+    return {
+      ...hint,
+      enabled: false,
+      reason: ONLINE_PHASE_COMPLETION_GATE_REASON,
+      availability: {
+        kind: 'TIME_GATE' as const,
+        windowKey: gate.windowKey,
+        availableAfterMs: Math.max(0, gate.notBefore - now),
+      },
+    };
+  });
+
+  return projected ? { availableCommands } : permissions;
 }
 
 function buildRecoverySummary(recovery: RuntimeRecoveryInfo): string {
@@ -3395,6 +3566,55 @@ function getSeatByPlayerId(
     return 'SECOND';
   }
   return null;
+}
+
+function describeOnlinePhaseCompletionWindow(match: OnlineMatchState): {
+  readonly identity: string;
+  readonly command: GameCommandType.END_PHASE | GameCommandType.CONFIRM_STEP;
+  readonly actingSeat: Seat;
+} | null {
+  const state = match.session.state;
+  if (!state) {
+    return null;
+  }
+
+  let command: GameCommandType.END_PHASE | GameCommandType.CONFIRM_STEP;
+  let actingPlayerId: string | undefined;
+  if (state.currentPhase === GamePhase.MAIN_PHASE && state.currentSubPhase === SubPhase.NONE) {
+    command = GameCommandType.END_PHASE;
+    actingPlayerId = state.players[state.activePlayerIndex]?.id;
+  } else if (
+    state.currentPhase === GamePhase.LIVE_SET_PHASE &&
+    (state.currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER ||
+      state.currentSubPhase === SubPhase.LIVE_SET_SECOND_PLAYER)
+  ) {
+    command = GameCommandType.CONFIRM_STEP;
+    const actingPlayerIndex =
+      state.currentSubPhase === SubPhase.LIVE_SET_FIRST_PLAYER
+        ? state.firstPlayerIndex
+        : state.firstPlayerIndex === 0
+          ? 1
+          : 0;
+    actingPlayerId = state.players[actingPlayerIndex]?.id;
+  } else {
+    return null;
+  }
+
+  const actingSeat = getSeatByPlayerId(match, actingPlayerId);
+  if (!actingSeat) {
+    return null;
+  }
+
+  return {
+    identity: [
+      `turn:${state.turnCount}`,
+      `phase:${state.currentPhase}`,
+      `subPhase:${state.currentSubPhase}`,
+      `actingSeat:${actingSeat}`,
+    ].join('|'),
+    command,
+    actingSeat,
+  };
 }
 
 function incrementRemoteRevision(match: OnlineMatchState): void {

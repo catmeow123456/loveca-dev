@@ -22,6 +22,7 @@ export interface GlickoPeriodResult {
 export interface Glicko1Config {
   readonly algorithmVersion: string;
   readonly ratingPeriodMode: 'PER_MATCH';
+  readonly ratingScale: number;
   readonly initialRating: number;
   readonly initialRatingDeviation: number;
   readonly minimumRatingDeviation: number;
@@ -49,6 +50,7 @@ const SHADOW_V1_DAYS_TO_MAXIMUM_DEVIATION = 365;
 export const GLICKO1_PER_MATCH_SHADOW_V1: Glicko1Config = Object.freeze({
   algorithmVersion: 'GLICKO1_PER_MATCH_SHADOW_V1',
   ratingPeriodMode: 'PER_MATCH',
+  ratingScale: 400,
   initialRating: 1500,
   initialRatingDeviation: SHADOW_V1_MAXIMUM_DEVIATION,
   minimumRatingDeviation: 30,
@@ -98,9 +100,18 @@ export const GLICKO1_PER_MATCH_V2: Glicko1Config = Object.freeze({
   initialRatingDeviation: 300,
 });
 
-export const CURRENT_GLICKO1_SHADOW_CONFIG = GLICKO1_PER_MATCH_SHADOW_V2;
+/**
+ * Third persistent season configuration. It keeps the V2 initial state and
+ * placement policy, but uses a wider rating scale so large rating gaps do not
+ * imply implausibly extreme expected scores or one-match corrections.
+ */
+export const GLICKO1_PER_MATCH_V3: Glicko1Config = Object.freeze({
+  ...GLICKO1_PER_MATCH_V2,
+  algorithmVersion: 'GLICKO1_PER_MATCH_V3',
+  ratingScale: 800,
+});
 
-const GLICKO_Q = Math.log(10) / 400;
+export const CURRENT_GLICKO1_SHADOW_CONFIG = GLICKO1_PER_MATCH_SHADOW_V2;
 
 function assertFiniteNumber(value: number, label: string): void {
   if (!Number.isFinite(value)) {
@@ -112,6 +123,7 @@ function assertValidConfig(config: Glicko1Config): void {
   if (config.algorithmVersion.trim().length === 0) {
     throw new Error('algorithmVersion must not be empty');
   }
+  assertFiniteNumber(config.ratingScale, 'ratingScale');
   assertFiniteNumber(config.initialRating, 'initialRating');
   assertFiniteNumber(config.initialRatingDeviation, 'initialRatingDeviation');
   assertFiniteNumber(config.minimumRatingDeviation, 'minimumRatingDeviation');
@@ -127,6 +139,9 @@ function assertValidConfig(config: Glicko1Config): void {
     config.softResetMode !== 'RETAIN_TOWARD_CENTER'
   ) {
     throw new Error('softResetMode must be RESET_TO_INITIAL or RETAIN_TOWARD_CENTER');
+  }
+  if (config.ratingScale <= 0) {
+    throw new Error('ratingScale must be greater than zero');
   }
   if (config.minimumRatingDeviation <= 0) {
     throw new Error('minimumRatingDeviation must be greater than zero');
@@ -202,8 +217,13 @@ function clampRatingDeviation(value: number, config: Glicko1Config): number {
   return Math.min(config.maximumRatingDeviation, Math.max(config.minimumRatingDeviation, value));
 }
 
-function glickoOpponentImpact(opponentDeviation: number): number {
-  return 1 / Math.sqrt(1 + (3 * GLICKO_Q ** 2 * opponentDeviation ** 2) / Math.PI ** 2);
+function getGlickoQ(config: Glicko1Config): number {
+  return Math.log(10) / config.ratingScale;
+}
+
+function glickoOpponentImpact(opponentDeviation: number, config: Glicko1Config): number {
+  const q = getGlickoQ(config);
+  return 1 / Math.sqrt(1 + (3 * q ** 2 * opponentDeviation ** 2) / Math.PI ** 2);
 }
 
 export function calculateGlickoExpectedScore(
@@ -215,8 +235,8 @@ export function calculateGlickoExpectedScore(
   assertValidCompetitor(player, config);
   assertValidCompetitor(opponent, config);
 
-  const impact = glickoOpponentImpact(opponent.ratingDeviation);
-  return 1 / (1 + 10 ** ((-impact * (player.rating - opponent.rating)) / 400));
+  const impact = glickoOpponentImpact(opponent.ratingDeviation, config);
+  return 1 / (1 + 10 ** ((-impact * (player.rating - opponent.rating)) / config.ratingScale));
 }
 
 export function createInitialGlickoRatingState(
@@ -281,21 +301,22 @@ export function rateGlickoPeriod(
 
   let inverseVarianceSum = 0;
   let ratingDeltaSum = 0;
+  const q = getGlickoQ(config);
   for (const result of results) {
     assertValidCompetitor(result.opponent, config);
     assertValidScore(result.score);
 
-    const impact = glickoOpponentImpact(result.opponent.ratingDeviation);
+    const impact = glickoOpponentImpact(result.opponent.ratingDeviation, config);
     const expectedScore =
-      1 / (1 + 10 ** ((-impact * (player.rating - result.opponent.rating)) / 400));
+      1 / (1 + 10 ** ((-impact * (player.rating - result.opponent.rating)) / config.ratingScale));
     inverseVarianceSum += impact ** 2 * expectedScore * (1 - expectedScore);
     ratingDeltaSum += impact * (result.score - expectedScore);
   }
 
-  const estimatedVariance = 1 / (GLICKO_Q ** 2 * inverseVarianceSum);
+  const estimatedVariance = 1 / (q ** 2 * inverseVarianceSum);
   const precision = 1 / player.ratingDeviation ** 2 + 1 / estimatedVariance;
   const ratingDeviation = clampRatingDeviation(Math.sqrt(1 / precision), config);
-  const rating = player.rating + (GLICKO_Q / precision) * ratingDeltaSum;
+  const rating = player.rating + (q / precision) * ratingDeltaSum;
 
   return { rating, ratingDeviation };
 }

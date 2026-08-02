@@ -2,6 +2,7 @@ import {
   GLICKO1_PER_MATCH_SHADOW_V2,
   GLICKO1_PER_MATCH_V1,
   GLICKO1_PER_MATCH_V2,
+  GLICKO1_PER_MATCH_V3,
   type Glicko1Config,
 } from './glicko.js';
 
@@ -12,6 +13,7 @@ export interface RankedAlgorithmDescriptor {
 }
 
 const FORMAL_RANKED_CONFIGS: readonly Glicko1Config[] = Object.freeze([
+  GLICKO1_PER_MATCH_V3,
   GLICKO1_PER_MATCH_V2,
   GLICKO1_PER_MATCH_V1,
 ]);

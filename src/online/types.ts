@@ -240,12 +240,25 @@ export interface ViewCommandScope {
   readonly objectIds?: readonly string[];
 }
 
+/**
+ * 联机服务端投影的窄时间门禁。
+ *
+ * `availableAfterMs` 是生成当前 snapshot 时的剩余时间，客户端只用它
+ * 驱动显示和本地倒计时；命令能否执行始终由服务端再次校验。
+ */
+export interface ViewCommandTimeGateAvailability {
+  readonly kind: 'TIME_GATE';
+  readonly windowKey: string;
+  readonly availableAfterMs: number;
+}
+
 export interface ViewCommandHint {
   readonly command: string;
   readonly enabled: boolean;
   readonly reason?: string;
   readonly scope?: ViewCommandScope;
   readonly params?: Readonly<Record<string, unknown>>;
+  readonly availability?: ViewCommandTimeGateAvailability;
 }
 
 export interface PermissionViewState {

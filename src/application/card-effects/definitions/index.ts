@@ -3136,7 +3136,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: GENERIC_DISCARD_LOOK_TOP_EFFECT_TEXT,
-    delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'PLAYER_RESOURCE_COST',
+    },
   },
   {
     abilityId: START_DASH_LIVE_SUCCESS_ABILITY_ID,
@@ -3182,6 +3185,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP1_012_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'PLAYER_RESOURCE_COST',
+    },
     notes:
       '固定支付1张活跃能量的可选登场 family；支付后复用 look-top-select-to-hand 检视卡组顶3张，强制从实际检视卡中选择1张私密加入手牌，其余成组进入休息室。',
   },
@@ -3442,6 +3449,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_PR_ON_ENTER_ENERGY_SEVEN_DRAW_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       'shared workflow `member-on-enter-draw.ts` 的能量阈值配置轴；结算时自己能量区7张以上才抽1，未满足也消费 pending/no-op。',
   },
@@ -4027,6 +4038,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: KEKE_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'PLAYER_RESOURCE_COST',
+    },
     notes: '复用 C01 弃手步骤，并通过 E03 helper 从能量卡组放置待机能量。',
   },
   {
@@ -4480,6 +4495,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP2_002_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes: '复用 look-top 检视/公开/入手流程；检视3张，可公开费用>=11的卡加入手牌，其余进休息室。',
   },
   {
@@ -5883,6 +5902,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     requiredSourceSlots: [SlotPosition.LEFT],
     effectText: SP_BP1_002_ON_ENTER_LEFT_PAY_TWO_ENERGY_DRAW_TWO_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_SLOT_ABSENT_NO_EFFECT',
+    },
     notes:
       '单卡 workflow `sp-bp1-002-keke.ts`；LEFT 条件读取 ON_ENTER 事件快照 sourceSlot，可选支付2张 ACTIVE 能量后抽2张，来源后续移动或离场不改变已发生的登场区域事实。',
   },
@@ -6253,6 +6276,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP5_008_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'DENY',
+      reason: 'SOURCE_MEMBER_COST_UNPAYABLE',
+    },
     notes:
       '复用 wait-discard-look-top 参数化 workflow；登场时可将来源成员变为待机状态并弃1手牌，之后看顶5张，用 costGte(9)+Liella! 成员 selector 公开加入手牌，其余放置入休息室。',
   },
@@ -6318,13 +6345,17 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID,
-    cardCodes: ['PL!SP-bp5-013-N'],
+    baseCardCodes: ['PL!SP-bp5-013'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
     triggerCondition: TriggerCondition.ON_ENTER_STAGE,
     queued: true,
     implemented: true,
     effectText: SP_BP5_013_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'PLAYER_RESOURCE_COST',
+    },
     notes:
       '单卡 ON_ENTER workflow；可选弃1手牌成本走 enter-waiting-room trigger wrapper，之后看顶5张，可公开1张 SunnyPassion 成员或持有 BLADE HEART 的 Liella! 成员加入手牌，其余入休息室。',
   },
@@ -6457,6 +6488,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP5_014_ON_ENTER_OTHER_STAGE_MEMBER_MOVED_DRAW_ONE_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '单卡 ON_ENTER workflow；通过 getPositionMovedStageMemberIdsMatching 读取当前舞台 turn-state，排除来源自身，条件不满足也消费 pending 并记录 movedOtherMemberCardIds。',
   },
@@ -6470,6 +6505,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP5_015_ON_ENTER_CENTER_GAIN_TWO_BLADE_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'DENY',
+      reason: 'SOURCE_SLOT_REQUIRED',
+    },
     notes:
       '单卡 workflow `sp-bp5-015-sumire.ts`；登场入队由 requiredSourceSlots 限定 CENTER，结算时再次重查来源仍在自己 CENTER 后复用 addBladeLiveModifierForSourceMember 写 BLADE +2。',
   },
@@ -6854,7 +6893,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP4_001_ON_ENTER_EFFECT_TEXT,
-    delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '条件型登场直接结算；舞台成员全员按 groupAliasIs("Liella!") 判定，能量区 >= 7 时从能量卡组顶放置 1 张 WAITING 能量。',
   },
@@ -6867,6 +6909,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'DENY',
+      reason: 'SOURCE_MEMBER_COST_UNPAYABLE',
+    },
     notes:
       '扩展 look-top-select-to-hand shared workflow；登场时可选将来源成员变为 WAITING 作为费用，费用支付后检视顶4张，用 Liella! LIVE + requirements.totalRequired >= 8 selector 公开加入手牌，剩余检视牌通过 inspection-to-waiting wrapper 放置入休息室。',
   },
@@ -7102,6 +7148,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_PB2_009_ON_ENTER_LIVE_START_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'OTHER_STAGE_MEMBER_COST',
+    },
     notes:
       '单卡 workflow `sp-pb2-009-natsumi.ts`；可选将己方舞台1名当前非 WAITING 的 Liella! 成员变 WAITING，费用成员与对方目标阈值均按印刷 BLADE 计算。费用变 WAITING 走成员状态变化 trigger wrapper；支付后若对方目标消失不退费。',
   },
@@ -7287,6 +7337,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_PB2_024_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '复用 opponent-wait-target shared workflow；目标为对方舞台费用<=2且当前非 WAITING 的成员。无合法目标时消费 pending no-op；成功 WAITING 后入队 ON_MEMBER_STATE_CHANGED。',
   },
@@ -7688,6 +7742,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: GENERIC_ON_ENTER_SELF_POSITION_CHANGE_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'DENY',
+      reason: 'SOURCE_MEMBER_POSITION_CHANGE',
+    },
     notes:
       '登场可选自身站位变换；复用 shared self-position-change workflow 与 S05 member-state helper。',
   },
@@ -8743,7 +8801,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_N_PB1_016_ON_ENTER_EFFECT_TEXT,
-    delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '复用 look-top-select-to-hand；用 MEMBER + cardNameAliasIs("朝香果林") selector 检视顶2，可公开0至1张指定成员入手，余牌经 inspection-to-waiting wrapper 进入休息室；已审计并允许从休息室委托发动。',
   },
@@ -8756,7 +8817,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_N_PB1_018_ON_ENTER_EFFECT_TEXT,
-    delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '复用 look-top-select-to-hand；用 MEMBER + cardNameAliasIs("近江彼方") selector 检视顶2，可公开0至1张指定成员入手，余牌经 inspection-to-waiting wrapper 进入休息室；已审计并允许从休息室委托发动。',
   },
@@ -8769,7 +8833,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_N_PB1_021_ON_ENTER_EFFECT_TEXT,
-    delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '复用 look-top-select-to-hand；用 MEMBER + cardNameAliasIs("天王寺璃奈") selector 检视顶2，可公开0至1张指定成员入手，余牌经 inspection-to-waiting wrapper 进入休息室；已审计并允许从休息室委托发动。',
   },
@@ -8782,7 +8849,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_N_PB1_024_ON_ENTER_EFFECT_TEXT,
-    delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '复用 look-top-select-to-hand；用 MEMBER + cardNameAliasIs("鐘嵐珠") selector 兼容「鐘 嵐珠」空格差异，检视顶2，可公开0至1张指定成员入手，余牌经 inspection-to-waiting wrapper 进入休息室；已审计并允许从休息室委托发动。',
   },
@@ -9125,7 +9195,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_N_BP3_012_ON_ENTER_EFFECT_TEXT,
-    delegatedOnEnterFromWaitingRoomPolicy: 'ALLOW',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'PLAYER_RESOURCE_COST',
+    },
     notes:
       '复用 discard-look-top-select-to-hand shared workflow；可选弃1手后检视顶4，可公开0至1张『虹ヶ咲』成员或LIVE并加入手牌，其余通过 inspection-to-waiting 事件路径进入休息室。',
   },
@@ -10506,6 +10579,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: SP_BP2_005_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'PLAYER_RESOURCE_COST',
+    },
     notes:
       '单卡 ON_ENTER 薄 wrapper；可选支付[E][E]复用 payImmediateEffectCosts / recordPayCostAction，支付后复用 look-top-select-to-hand 的检视、公开、入手与 remainder 入休息室流程。',
   },
@@ -13656,6 +13733,10 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: '【登场】自己的舞台存在其他『5yncri5e!』成员时，抽1张卡。',
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
     notes:
       '扩展 shared member-on-enter-draw；结算时实时扫描控制者自己的主舞台成员槽，按 cardId 排除来源自身，其他同名实例仍可满足 5yncri5e! unit 条件。',
   },

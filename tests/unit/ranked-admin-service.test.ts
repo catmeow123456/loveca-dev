@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   GLICKO1_PER_MATCH_V1,
   GLICKO1_PER_MATCH_V2,
+  GLICKO1_PER_MATCH_V3,
   GLICKO1_PER_MATCH_SHADOW_V2,
   createInitialGlickoRatingState,
   rateGlickoHeadToHead,
@@ -87,7 +88,7 @@ describe('RankedAdminService', () => {
     ]);
   });
 
-  it('keeps prior algorithms available while preferring V2 for new seasons', async () => {
+  it('keeps prior algorithms available while preferring V3 for new seasons', async () => {
     const service = new RankedAdminService({
       getCardCatalogIdentity: vi.fn().mockResolvedValue(CATALOG),
       audit: vi.fn(),
@@ -98,12 +99,16 @@ describe('RankedAdminService', () => {
     expect(preview.persistentSeasonReady).toBe(true);
     expect(
       preview.algorithms.find((algorithm) => algorithm.status === 'FORMAL')?.algorithmVersion
-    ).toBe(GLICKO1_PER_MATCH_V2.algorithmVersion);
+    ).toBe(GLICKO1_PER_MATCH_V3.algorithmVersion);
     expect(preview.algorithms).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           algorithmVersion: GLICKO1_PER_MATCH_SHADOW_V2.algorithmVersion,
           status: 'SHADOW_CANDIDATE',
+        }),
+        expect.objectContaining({
+          algorithmVersion: GLICKO1_PER_MATCH_V3.algorithmVersion,
+          status: 'FORMAL',
         }),
         expect.objectContaining({
           algorithmVersion: GLICKO1_PER_MATCH_V2.algorithmVersion,

@@ -40,8 +40,9 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [matchTotal, setMatchTotal] = useState(0);
   const [matchPage, setMatchPage] = useState(0);
   const [matchUserQuery, setMatchUserQuery] = useState('');
-  const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V2');
+  const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V3');
   const [formalRatingConfig, setFormalRatingConfig] = useState<RankedRatingConfig>({
+    ratingScale: 800,
     initialRating: 1500,
     initialRatingDeviation: 300,
     softResetMode: 'RESET_TO_INITIAL',

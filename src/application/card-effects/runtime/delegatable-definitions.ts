@@ -46,7 +46,7 @@ export function getWaitingRoomDelegatableOnEnterDefinitions(
       definition.category === CardAbilityCategory.ON_ENTER &&
       definition.sourceZone === CardAbilitySourceZone.PLAYED_MEMBER &&
       definition.triggerCondition === TriggerCondition.ON_ENTER_STAGE &&
-      definition.delegatedOnEnterFromWaitingRoomPolicy === 'ALLOW'
+      definition.delegatedOnEnterFromWaitingRoomPolicy?.decision === 'ALLOW'
   );
 }
 

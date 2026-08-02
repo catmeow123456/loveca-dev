@@ -8,6 +8,7 @@ export interface RankedSoftResetConfig {
 }
 
 export interface RankedRatingConfig {
+  ratingScale: number;
   initialRating: number;
   initialRatingDeviation: number;
   softResetMode: RankedSoftResetConfig['mode'];

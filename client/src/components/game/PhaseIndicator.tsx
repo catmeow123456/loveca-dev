@@ -9,8 +9,16 @@ import { BarChart3, Check, Mic, Sparkles, Trophy, Undo2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import { GameCommandType } from '@game/application/game-commands';
+import type { ViewCommandHint } from '@game/online/types';
 import { GamePhase, SubPhase } from '@game/shared/types/enums';
 import { useGameStore } from '@/store/gameStore';
+import {
+  createPhaseCompletionTimeGateDeadline,
+  dispatchPhaseAction,
+  getPhaseCompletionTimeGateCountdownSeconds,
+  getPhaseCompletionTimeGateRemainingMs,
+  isPhaseCompletionTimeGateHint,
+} from '@/lib/phaseCompletionTimeGate';
 import {
   getPhaseConfig,
   getSubPhaseConfig,
@@ -22,6 +30,56 @@ interface PhaseIndicatorProps {
   turnNumber?: number;
   /** 打开判定面板的回调 */
   onOpenJudgment?: () => void;
+}
+
+function usePhaseCompletionTimeGateCountdown(actionHint: ViewCommandHint | null): number | null {
+  const availability = isPhaseCompletionTimeGateHint(actionHint) ? actionHint.availability : null;
+  const sourceKey = availability
+    ? `${availability.windowKey}:${availability.availableAfterMs}`
+    : null;
+  const deadline = useMemo(
+    () => (availability ? createPhaseCompletionTimeGateDeadline(availability) : 0),
+    // sourceKey contains both the server window identity and projected remaining milliseconds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sourceKey]
+  );
+  const [, setCountdownRevision] = useState(0);
+
+  useEffect(() => {
+    if (!sourceKey) {
+      return;
+    }
+
+    let timer: number | null = null;
+    const refresh = () => {
+      setCountdownRevision((revision) => revision + 1);
+      if (timer !== null && getPhaseCompletionTimeGateRemainingMs(deadline) <= 0) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    };
+    const startTimer = () => {
+      refresh();
+      if (timer === null && getPhaseCompletionTimeGateRemainingMs(deadline) > 0) {
+        timer = window.setInterval(refresh, 100);
+      }
+    };
+
+    if (getPhaseCompletionTimeGateRemainingMs(deadline) > 0) {
+      timer = window.setInterval(refresh, 100);
+    }
+    document.addEventListener('visibilitychange', startTimer);
+    window.addEventListener('focus', startTimer);
+    return () => {
+      if (timer !== null) {
+        window.clearInterval(timer);
+      }
+      document.removeEventListener('visibilitychange', startTimer);
+      window.removeEventListener('focus', startTimer);
+    };
+  }, [deadline, sourceKey]);
+
+  return availability ? getPhaseCompletionTimeGateCountdownSeconds(deadline) : null;
 }
 
 /**
@@ -171,14 +229,16 @@ export const PhaseIndicator = memo(function PhaseIndicator({
       return false;
     }
     if (permissionView) {
-      return (permissionView.availableCommands ?? []).some((hint) => hint.enabled);
+      return (permissionView.availableCommands ?? []).some(
+        (hint) => hint.enabled || isPhaseCompletionTimeGateHint(hint)
+      );
     }
     return false;
   }, [isInspectionWindow, isReadOnly, permissionView]);
 
   // 判断是否是先攻玩家的回合
   const isFirstPlayerTurn = activeSeat === 'FIRST';
-  
+
   // 从配置中获取阶段和子阶段信息
   const phaseConfig = getPhaseConfig(phase);
   const subPhaseConfig = currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase) : null;
@@ -189,6 +249,19 @@ export const PhaseIndicator = memo(function PhaseIndicator({
     actionConfig?.command && actionConfig.command !== 'OPEN_JUDGMENT'
       ? getCommandHint(actionConfig.command)
       : null;
+  const phaseCompletionCountdownSeconds = usePhaseCompletionTimeGateCountdown(actionHint);
+  const hasPhaseCompletionTimeGate = phaseCompletionCountdownSeconds !== null;
+  const isPhaseCompletionTimeGateLocked =
+    phaseCompletionCountdownSeconds !== null && phaseCompletionCountdownSeconds > 0;
+  const phaseActionEnabled =
+    actionConfig?.command === 'OPEN_JUDGMENT'
+      ? isMyTurn
+      : actionHint?.enabled === true ||
+        (hasPhaseCompletionTimeGate && !isPhaseCompletionTimeGateLocked);
+  const actionButtonText =
+    actionConfig && isPhaseCompletionTimeGateLocked
+      ? `${actionConfig.buttonText} · ${phaseCompletionCountdownSeconds}s`
+      : actionConfig?.buttonText;
   const undoGrant = matchView?.undo?.grant ?? null;
   const hasViewerUndoGrant =
     !!undoGrant &&
@@ -212,7 +285,7 @@ export const PhaseIndicator = memo(function PhaseIndicator({
     !!actionConfig &&
     !isReadOnly &&
     !isInspectionWindow &&
-    (actionConfig.command === 'OPEN_JUDGMENT' ? isMyTurn : actionHint?.enabled === true);
+    (phaseActionEnabled || hasPhaseCompletionTimeGate);
 
   const mainButtonIcon =
     currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT
@@ -227,29 +300,16 @@ export const PhaseIndicator = memo(function PhaseIndicator({
 
   // 处理主按钮点击
   const handleAction = () => {
-    if (isReadOnly) {
-      return;
-    }
-
-    // 演出判定阶段：打开判定面板（不直接 confirmSubPhase）
-    if (currentSubPhase === SubPhase.PERFORMANCE_JUDGMENT && onOpenJudgment) {
-      onOpenJudgment();
-      return;
-    }
-
-    // 如果有子阶段，确认子阶段完成
-    if (currentSubPhase && currentSubPhase !== SubPhase.NONE) {
-      confirmSubPhase(currentSubPhase);
-      return;
-    }
-    
-    if (phase === GamePhase.MAIN_PHASE) {
-      // 主要阶段结束 -> 进入 Live 阶段
-      endPhase();
-    } else {
-      // 其他阶段 -> 推进到下一阶段
-      advancePhase();
-    }
+    dispatchPhaseAction({
+      isReadOnly,
+      isPhaseCompletionTimeGateLocked,
+      currentSubPhase,
+      phase,
+      onOpenJudgment,
+      endPhase,
+      advancePhase,
+      confirmSubPhase,
+    });
   };
 
   const handleUndoAction = () => {
@@ -298,18 +358,36 @@ export const PhaseIndicator = memo(function PhaseIndicator({
             </div>
             {showActionButton ? (
               <motion.button
-                whileTap={{ scale: 0.98 }}
+                whileTap={isPhaseCompletionTimeGateLocked ? undefined : { scale: 0.98 }}
                 onClick={handleAction}
+                disabled={isPhaseCompletionTimeGateLocked}
+                aria-disabled={isPhaseCompletionTimeGateLocked}
+                aria-label={
+                  isPhaseCompletionTimeGateLocked
+                    ? `${actionConfig.buttonText}，${actionHint?.reason ?? '暂时不可用'}`
+                    : actionConfig.buttonText
+                }
+                title={
+                  isPhaseCompletionTimeGateLocked ? actionHint?.reason : actionConfig.buttonText
+                }
+                data-phase-completion-gate={
+                  hasPhaseCompletionTimeGate
+                    ? isPhaseCompletionTimeGateLocked
+                      ? 'locked'
+                      : 'open'
+                    : undefined
+                }
                 className={cn(
                   'inline-flex min-h-8 max-w-[128px] shrink-0 items-center justify-center gap-1 rounded-md px-2 text-[11px] font-bold',
                   'bg-gradient-to-r',
                   actionConfig.buttonStyle,
-                  'text-white shadow-md transition-colors'
+                  'text-white shadow-md transition-colors',
+                  isPhaseCompletionTimeGateLocked && 'cursor-not-allowed opacity-60'
                 )}
                 style={{ fontSize: '11px' }}
               >
                 <span className="inline-flex shrink-0 align-middle">{mainButtonIcon}</span>
-                <span className="truncate">{actionConfig.buttonText}</span>
+                <span className="truncate">{actionButtonText}</span>
               </motion.button>
             ) : (
               <span
@@ -378,18 +456,33 @@ export const PhaseIndicator = memo(function PhaseIndicator({
 
         {showActionButton && (
           <motion.button
-            whileHover={{ scale: 1.015 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={isPhaseCompletionTimeGateLocked ? undefined : { scale: 1.015 }}
+            whileTap={isPhaseCompletionTimeGateLocked ? undefined : { scale: 0.98 }}
             onClick={handleAction}
+            disabled={isPhaseCompletionTimeGateLocked}
+            aria-disabled={isPhaseCompletionTimeGateLocked}
+            aria-label={
+              isPhaseCompletionTimeGateLocked
+                ? `${actionConfig.buttonText}，${actionHint?.reason ?? '暂时不可用'}`
+                : actionConfig.buttonText
+            }
+            data-phase-completion-gate={
+              hasPhaseCompletionTimeGate
+                ? isPhaseCompletionTimeGateLocked
+                  ? 'locked'
+                  : 'open'
+                : undefined
+            }
             className={cn(
               'inline-flex h-9 max-w-40 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r px-3 font-bold text-white shadow-md',
-              actionConfig.buttonStyle
+              actionConfig.buttonStyle,
+              isPhaseCompletionTimeGateLocked && 'cursor-not-allowed opacity-60'
             )}
             style={{ fontSize: '12px' }}
-            title={actionConfig.buttonText}
+            title={isPhaseCompletionTimeGateLocked ? actionHint?.reason : actionConfig.buttonText}
           >
             <span className="inline-flex shrink-0">{mainButtonIcon}</span>
-            <span className="truncate">{actionConfig.buttonText}</span>
+            <span className="truncate">{actionButtonText}</span>
           </motion.button>
         )}
 
