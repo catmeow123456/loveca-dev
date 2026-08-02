@@ -1,0 +1,43 @@
+name: Release Tag Integrity
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  tag-integrity:
+    name: Tag Integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout without submodules
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify tag, main ancestry, and release CI
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/check-version-consistency.mjs
+          tag_commit="$(git rev-parse "refs/tags/${GITHUB_REF_NAME}^{commit}")"
+          git fetch --no-tags --recurse-submodules=no origin \
+            +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor "${tag_commit}" refs/remotes/origin/main
+          node scripts/check-release-ci.mjs \
+            --repo "${GITHUB_REPOSITORY}" \
+            --sha "${tag_commit}"

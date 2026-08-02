@@ -2,7 +2,7 @@
 
 > 文档类型：专题说明
 > 适用范围：当前自托管生产发布、部署前检查、部署步骤、健康检查和回滚
-> 当前状态：2026-07-22 现行发布 runbook；生产 Nginx、TLS、对象存储和备份实现仍由部署环境维护
+> 当前状态：2026-08-02 现行发布 runbook；生产 Nginx、TLS、对象存储和备份实现仍由部署环境维护
 
 本文记录当前仓库能够稳定承接的生产发布步骤。它不是完整 IaC 方案，也不表示生产 `docker-compose.yml` 已覆盖前端、Nginx、MinIO、TLS 或自动迁移任务。
 
@@ -28,11 +28,23 @@
   git push origin v3.3.0
   ```
 
+- 独立的 `Release Tag Integrity` workflow 只做轻量完整性校验：不初始化子模块、不安装依赖，只检查 tag 与三处版本一致、tag commit 位于作者仓库 `main`，并再次确认该 SHA 已通过作者 `main` 的完整 `Quality Gates`。它不替代发布前门禁；必须先完成第 3 节检查，再推 tag。tag 守卫失败时不得创建 GitHub Release 或提升 `latest`；此前已推送的不可变版本/提交镜像可以保留核查，但不能推广为当前版本。
+
 - API 镜像使用 `vX.Y.Z` 与 `sha-<12位提交>` 作为可追溯标签；`latest` 只在版本镜像验证通过后提升。生产部署可以拉取 `latest`，但必须记录实际 digest，回滚使用上一版版本标签或 digest。
 
 ## 3. 发布前检查
 
-1. 确认 CI 或本地等价命令通过：
+1. 先完成版本号、migration note、release description 和 release commit 的审查。这里仅审查相对于发布前作者 `main` 新增的 release-only diff，不重复审查已经通过 PR 合并的业务代码；发布提交通常只包含版本字段和必要发布文档，不得夹带新的业务代码、依赖、迁移 SQL 或 workflow。经授权推送到作者仓库 `main` 后，禁用子模块递归地 fetch 作者远端，要求远端 `main` 精确等于当前 HEAD。随后固定完整 `RELEASE_SHA`，并复用这个**同一 SHA** 的 GitHub Actions `Quality Gates`。仓库脚本会限定作者仓库、`main` push、完整 commit SHA 和 workflow，并进一步检查 run 内名为 `Quality Gates` 的 job；成功输出的 run ID 与 URL 必须进入发布记录：
+
+   ```bash
+   RELEASE_SHA="$(git rev-parse HEAD)"
+   pnpm version:check
+   node scripts/check-release-ci.mjs \
+     --repo catmeow123456/loveca-dev \
+     --sha "${RELEASE_SHA}"
+   ```
+
+   父提交、PR head、fork、tag run 或其他 SHA 的成功结果都不能复用。run 尚未完成时继续等待；缺失、失败、取消、超时、job 缺失、SHA 不同或查询失败时保持发布阻塞。用户在看到实际状态后可以明确授权执行下列本地完整检查，用于诊断或提前验证：
 
    ```bash
    pnpm install --frozen-lockfile
@@ -42,6 +54,10 @@
    pnpm build:server
    pnpm --dir client build
    ```
+
+   本地检查结果必须逐项记录，但不会使远端 exact-SHA CI 变成成功，也不能解锁镜像推送、tag、GitHub Release、`latest` 或安装包分发。最终仍须等待远端 CI 成功。CI 因临时基础设施问题失败或取消时，可以核查后重跑同一 SHA；若需要修改代码或发布文件，则形成新的 release SHA，并从推送与 CI 门禁重新开始。若 exact-SHA CI 已成功，则跳过上述本地依赖安装、类型检查、测试和普通代码构建，避免重复执行同一质量门禁。
+
+   等待 CI 时可以并行校对不写入 git 的 Release 文案、准备发布命令，并按第 4 节构建和检查不对外发布的 API、前端或 Android 候选产物。每个产物必须来自同一 `RELEASE_SHA`，且构建时不得存在会影响产物的未提交文件。版本字段、migration note 或其他跟踪文件一旦改变，原 SHA 与候选产物立即失效，必须形成新提交、重新推送、重新等待 CI，并重建受影响产物。CI 失败时，并行生成的候选产物不得发布。
 
 2. 检查工作树和发布差异：
 
@@ -82,18 +98,21 @@
    - 对象存储 bucket 已有独立备份或快照。
    - 如果本次包含数据库迁移，确认迁移 SQL 已审查，并明确是否可逆。
 
-## 4. 构建
+## 4. 发布产物构建
 
-在发布机或 CI 构建环境执行代码构建：
+第 3 节的 CI 是质量门禁，不等于发布机已经取得可部署产物。所有产物必须来自同一个 `RELEASE_SHA` 并记录来源；不要为了“再检查一次”重复构建，但本次确实需要交付的产物仍必须生成。本地候选产物可以在 exact-SHA CI 运行期间并行构建和检查，以缩短等待时间；只有 CI 与候选产物检查都成功后，才可推送镜像、推 tag 或分发产物。GitHub Release 与 `latest` 还必须等待 `Release Tag Integrity` 成功。
+
+前端 `client/dist` 若由本机交付，执行：
 
 ```bash
+test "$(git rev-parse HEAD)" = "${RELEASE_SHA}"
 pnpm install --frozen-lockfile
-pnpm version:check
-pnpm build:server
 pnpm --dir client build
 ```
 
-构建并发布 API 镜像。推送 registry 与提升 `latest` 都是对外动作，执行前必须确认目标仓库、生产平台与用户授权；以下以 `linux/amd64` 为例，实际值必须与生产机一致。推送前分别检查版本标签与提交标签，不要把检查命令和推送命令合并成一段直接执行。任一标签已存在时不得覆盖：两个标签必须都存在、指向相同 digest，且 revision 与当前 `GIT_SHA` 一致，才能复用既有镜像；其他情况一律停止发布并核查。
+若前端由部署环境或独立产物 workflow 基于同一 SHA 构建，则不在本机重复构建，并在发布记录中保存构建来源。Android/PWA 产物按 Android 打包文档单独生成。
+
+构建并发布 API 镜像。下面的本地 `docker build`、runtime 检查和 inspect 可以与 CI 并行；registry 查询、推送以及提升 `latest` 都是对外动作，必须等待 exact-SHA CI 和候选镜像检查成功，并在执行前确认目标仓库、生产平台与用户授权。以下以 `linux/amd64` 为例，实际值必须与生产机一致。推送前分别检查版本标签与提交标签，不要把检查命令和推送命令合并成一段直接执行。任一标签已存在时不得覆盖：两个标签必须都存在、指向相同 digest，且 revision 与当前 `GIT_SHA` 一致，才能复用既有镜像；其他情况一律停止发布并核查。
 
 ```bash
 API_IMAGE_REPOSITORY=ghcr.io/catmeow123456/loveca-api
@@ -127,6 +146,11 @@ docker buildx build --pull \
   --push .
 
 docker buildx imagetools inspect "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+```
+
+推送 tag 并等待 `Release Tag Integrity` 成功后，才提升 `latest`；提升前再次取得授权：
+
+```bash
 docker buildx imagetools create \
   --tag "${API_IMAGE_REPOSITORY}:latest" \
   "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
