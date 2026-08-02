@@ -50,7 +50,7 @@ CloudBase 来源验证可运行：
 pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudbase-limit=3 --dry-run
 ```
 
-`loveca` 是当前默认且已确认可读取的 CloudBase 卡牌集合。CloudBase 凭据从环境变量或 `.env` 读取：`CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。
+`loveca` 是该同步入口固定使用的 CloudBase 卡牌集合，结构应与本地 Excel 表格一致；脚本拒绝改用其他集合。CloudBase 凭据从环境变量或 `.env` 读取：`CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。数据库连接 `DATABASE_URL` 同样可从 `.env` 读取；连接数据库的 dry-run 会完整打印每张卡的所有待同步字段及旧值/新值，并对中日卡效文本差异给出显式 warning。
 
 CloudBase 新卡 dry-run 可运行：
 

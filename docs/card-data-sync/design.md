@@ -1,6 +1,6 @@
 # 卡牌数据同步管线
 
-> 更新时间: 2026-07-29
+> 更新时间: 2026-08-02
 > 文档类型: 设计文档
 > 适用范围: 当前卡牌同步脚本、标准化、差异审核和写入策略
 > 当前状态: 以 `src/scripts/sync-cards-llocg.ts`、`src/scripts/sync-cards-loveca-excel.ts` 与 `src/scripts/sync-cards-cloudbase-new.ts` 为准
@@ -57,7 +57,7 @@ flowchart LR
 - 当前已确认的 `orange` 是新推出的官方 BLADE Heart 颜色。同步层同时保留基本 Heart 与必要 Heart 的 `ORANGE` 表示能力，只代表结构化数据可无损承载该 token，不代表既有卡效获得新的颜色选项；历史卡文明示的固定六色集合继续显式维护，不能从 `HeartColor` 全枚举自动生成。
 - Loveca Excel / CloudBase 的 `特殊ハート` token `double` 表示 1 个“双重无色 Heart”图标，写入时展开为两条 `{ effect: 'HEART', heartColor: 'GRAY' }`。`GRAY` 只增加 LIVE 判定总 Heart，不可填补指定颜色需求；不得映射为可代替任意颜色的 `RAINBOW`。
 - 已存在卡牌不允许静默覆盖，必须经过差异审核。
-- dry-run 不连接或写入目标数据库，只用于验证转换与统计。
+- dry-run 在提供 `DATABASE_URL`（可来自进程环境或 `.env`）时会只读连接目标数据库并输出字段差异，但绝不写入；未提供数据库连接时只验证来源解析与统计。
 
 ## 3. 数据源合并
 
@@ -101,7 +101,7 @@ CloudBase 新卡导入同样先标准化卡牌编号。DB 已存在卡号跳过�
 | 数据库存在且同步字段无差异 | 跳过         |
 | 数据库存在且同步字段有差异 | 加入人工审核 |
 
-`sync-cards-llocg.ts` 比较已有卡时会先保留数据库中的 `name_jp` / `name_cn` / `card_text_jp` / `card_text_cn` / `product`，这些字段的上游差异只计入 ignored 统计，不进入人工审核，也不写入 UPDATE。人工审核是防止外部数据覆盖人工修订的核心保护。存在待审核更新时，脚本必须要求可交互终端；不可交互环境不得直接更新已有卡牌。
+`sync-cards-llocg.ts` 比较已有卡时会先保留数据库中的 `name_jp` / `name_cn` / `card_text_jp` / `card_text_cn` / `product`，这些字段的上游差异只计入 ignored 统计，不进入人工审核，也不写入 UPDATE。人工审核是防止外部数据覆盖人工修订的核心保护。存在待审核更新时，脚本必须要求可交互终端；不可交互环境不得直接更新已有卡牌。Loveca 文本/来源同步必须逐卡输出每个待同步字段的数据库旧值与来源新值，不得截断待同步字段清单；中日卡效文本任一侧存在差异时另行显示显式 warning。Excel 与 CloudBase 来源复用同一套报告逻辑。
 
 ## 6. 发布状态设计
 
@@ -126,7 +126,7 @@ Loveca 文本/来源同步不会插入 source-only 新卡，也不会因来源�
 
 维护者应先使用 dry-run 观察数据量、CN 匹配、CN-only、能量卡和字段缺失情况，再进行正式运行。Loveca Excel 原始文件放在本地 `docs/card-data-sync/sources/`，该目录不进入仓库；需要同步时由维护者在本地提供对应 `.xlsx`。未传 `--xlsx=...` 时，Loveca Excel 同步脚本和占位符调查脚本会自动选择该目录下文件名时间戳最新的 `loveca_YYYYMMDDHHMMSS.xlsx`，例如当前本地默认会选中 `loveca_20260629130944.xlsx`；需要复查旧输入时可显式传入 `--xlsx=docs/card-data-sync/sources/loveca_20260626015115.xlsx`。
 
-CloudBase 来源通过 `--source=cloudbase --cloudbase-collection=<collection>` 启用，默认集合为 `loveca`，凭据读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。集合文档必须至少提供卡牌编号字段；脚本会按现有 Excel 列名和常见 snake/camelCase 别名读取字段，再复用同一套转换、重复卡号处理、DB 对比和写入流程。`real_unit` 只是小队字典，可显式用于连通性 dry-run，但不能作为卡牌同步来源。
+CloudBase 来源通过 `--source=cloudbase` 启用，卡牌集合固定为 `loveca`，不接受其他集合；凭据读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。集合文档结构应与本地 Excel 表格一致；脚本也兼容对应字段的 snake/camelCase 名称，再复用同一套转换、重复卡号处理、DB 对比、完整字段差异报告和写入流程。
 
 CloudBase 新卡导入通过 `sync-cards-cloudbase-new.ts --cloudbase-collection=<collection>` 启用，同样读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。当前确认可读取的卡牌集合为 `loveca`，也是脚本默认值；`real_card` 不存在。正式运行必须显式选择 `--upload-images` 或 `--skip-images`；`--upload-images` 还需要 `MINIO_ENDPOINT`、`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY` 等对象存储环境变量。图片对象默认不覆盖，图片失败默认阻止该卡插入，除非显式传入 `--allow-missing-images` 并在 source flags 中记录失败原因。`--skip-images` 不写入 `image_filename`，只保留 `image_source_uri`，避免前端把尚未上传的对象误判为可用卡图。
 

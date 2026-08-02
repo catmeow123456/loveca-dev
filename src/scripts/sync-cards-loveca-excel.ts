@@ -23,7 +23,7 @@
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --dry-run
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --yes
- * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudbase-collection=loveca --dry-run
+ * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --dry-run
  */
 
 import { execFileSync } from 'node:child_process';
@@ -127,7 +127,7 @@ interface ExcelSyncRecord {
 interface PendingUpdate {
   readonly existing: ExistingCardRow;
   readonly next: ExcelSyncRecord;
-  readonly changedFields: string[];
+  readonly changedFields: (keyof ExcelSyncRecord)[];
   readonly conflictFields: string[];
 }
 
@@ -349,10 +349,12 @@ function parseArgs(argv: readonly string[]): Args {
       xlsxPath = arg.slice('--xlsx='.length);
     } else if (arg.startsWith('--cloudbase-collection=')) {
       const value = cleanString(arg.slice('--cloudbase-collection='.length));
-      if (!value) {
-        throw new Error('--cloudbase-collection requires a non-empty value');
+      if (value !== DEFAULT_CLOUDBASE_COLLECTION) {
+        throw new Error(
+          `CloudBase source is fixed to the ${DEFAULT_CLOUDBASE_COLLECTION} collection`
+        );
       }
-      cloudbaseCollection = value;
+      cloudbaseCollection = DEFAULT_CLOUDBASE_COLLECTION;
     } else if (arg.startsWith('--cloudbase-limit=')) {
       cloudbaseLimit = parseNonNegativeIntegerArg(arg, '--cloudbase-limit=');
     } else if (arg.startsWith('--cloudbase-batch-size=')) {
@@ -1035,8 +1037,11 @@ function nonEmptyArray<T>(value: readonly T[] | null | undefined): boolean {
   return Array.isArray(value) && value.length > 0;
 }
 
-function collectChangedFields(existing: ExistingCardRow, next: ExcelSyncRecord): string[] {
-  const result: string[] = [];
+function collectChangedFields(
+  existing: ExistingCardRow,
+  next: ExcelSyncRecord
+): (keyof ExcelSyncRecord)[] {
+  const result: (keyof ExcelSyncRecord)[] = [];
   for (const field of SYNC_FIELDS) {
     if (!syncFieldValuesEqual(field, existing[field], next[field])) {
       result.push(field);
@@ -1117,10 +1122,19 @@ function summarizeDuplicateRows(rows: readonly ExcelCardRow[]): Map<string, Exce
 
 function printUpdateSummary(updates: readonly PendingUpdate[]) {
   const conflictCount = updates.filter((update) => update.conflictFields.length > 0).length;
+  const cardEffectDifferenceCount = updates.filter((update) =>
+    update.changedFields.some(isCardEffectField)
+  ).length;
   console.log(`  Pending updates: ${updates.length}`);
   console.log(`  Updates with warning/conflict: ${conflictCount}`);
+  console.log(`  Cards with card-effect text differences: ${cardEffectDifferenceCount}`);
 
-  for (const update of updates.slice(0, 60)) {
+  if (updates.length === 0) {
+    return;
+  }
+
+  console.log('\nPending update details:');
+  for (const update of updates) {
     const conflictSuffix =
       update.conflictFields.length > 0 ? ` warnings=${update.conflictFields.join(',')}` : '';
     const displayName =
@@ -1131,9 +1145,54 @@ function printUpdateSummary(updates: readonly PendingUpdate[]) {
     console.log(
       `  ${update.next.card_code} ${displayName ?? ''}: fields=${update.changedFields.join(',')}${conflictSuffix}`
     );
+    for (const field of update.changedFields) {
+      const warningPrefix = isCardEffectField(field) ? 'WARNING card-effect difference: ' : '';
+      console.log(
+        `    ${warningPrefix}${syncFieldLabel(field)}: ${formatValue(update.existing[field])} -> ${formatValue(update.next[field])}`
+      );
+    }
   }
-  if (updates.length > 60) {
-    console.log(`  ... and ${updates.length - 60} more`);
+}
+
+function isCardEffectField(field: keyof ExcelSyncRecord): field is 'card_text_jp' | 'card_text_cn' {
+  return field === 'card_text_jp' || field === 'card_text_cn';
+}
+
+function syncFieldLabel(field: keyof ExcelSyncRecord): string {
+  switch (field) {
+    case 'card_code':
+      return `${field} (${FIELD_NAMES.cardCode})`;
+    case 'card_type':
+      return `${field} (${FIELD_NAMES.cardType})`;
+    case 'name_jp':
+      return `${field} (${FIELD_NAMES.nameJp})`;
+    case 'name_cn':
+      return `${field} (${FIELD_NAMES.nameCn})`;
+    case 'group_names':
+      return `${field} (${FIELD_NAMES.groupNames})`;
+    case 'unit_name':
+    case 'unit_name_raw':
+      return `${field} (${FIELD_NAMES.unitName})`;
+    case 'card_text_jp':
+      return `${field} (${FIELD_NAMES.effectJa})`;
+    case 'card_text_cn':
+      return `${field} (${FIELD_NAMES.effectCn})`;
+    case 'hearts':
+      return `${field} (${FIELD_NAMES.baseHeart})`;
+    case 'blade_hearts':
+      return `${field} (${FIELD_NAMES.bladeHeart}/${FIELD_NAMES.specialHeart})`;
+    case 'requirements':
+      return `${field} (${FIELD_NAMES.requiredHeart})`;
+    case 'product':
+      return `${field} (${FIELD_NAMES.product})`;
+    case 'product_code':
+      return `${field} (${FIELD_NAMES.productCode})`;
+    case 'image_source_uri':
+      return `${field} (${FIELD_NAMES.imageSourceUri})`;
+    case 'source_external_id':
+      return `${field} (${FIELD_NAMES.sourceExternalId})`;
+    case 'source_flags':
+      return field;
   }
 }
 
@@ -1148,7 +1207,7 @@ function printConflictDetails(updates: readonly PendingUpdate[]) {
   }
 
   console.log('\nConflict warnings:');
-  for (const update of conflicts.slice(0, 40)) {
+  for (const update of conflicts) {
     const displayName =
       update.next.name_cn ??
       update.next.name_jp ??
@@ -1164,9 +1223,6 @@ function printConflictDetails(updates: readonly PendingUpdate[]) {
         `    ${field}: ${formatValue(update.existing[fieldKey])} -> ${formatValue(update.next[fieldKey])}`
       );
     }
-  }
-  if (conflicts.length > 40) {
-    console.log(`  ... and ${conflicts.length - 40} more conflict rows`);
   }
 }
 
@@ -1343,7 +1399,8 @@ async function main() {
     }
   }
 
-  if (!process.env.DATABASE_URL) {
+  const databaseUrl = readEnvValue('DATABASE_URL');
+  if (!databaseUrl) {
     if (!args.dryRun) {
       throw new Error(
         'DATABASE_URL is required unless --dry-run is used for parse-only validation'
@@ -1353,7 +1410,7 @@ async function main() {
     return;
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString: databaseUrl });
   try {
     const { rows: existingRows } = await pool.query<ExistingCardRow>(`
       SELECT

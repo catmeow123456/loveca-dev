@@ -51,6 +51,18 @@ export interface RankedAdminMatch {
   endedAt: string | null;
 }
 
+export interface RankedAdminMatchPage {
+  matches: RankedAdminMatch[];
+  total: number;
+}
+
+export interface RankedAdminMatchFilters {
+  seasonId?: string;
+  userQuery?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface RankedEnvironmentPreview {
   persistentSeasonReady: boolean;
   algorithms: {
@@ -145,13 +157,24 @@ export const setRankedAdmission = (seasonId: string, admission: 'OPEN' | 'PAUSED
     '更新匹配状态失败'
   );
 
-export const fetchRankedMatches = (seasonId?: string) =>
-  requireData<RankedAdminMatch[]>(
-    apiClient.get(
-      `/api/admin/ranked/matches${seasonId ? `?seasonId=${encodeURIComponent(seasonId)}` : ''}`
-    ),
-    '读取排位对局失败'
+export async function fetchRankedMatches(
+  filters: RankedAdminMatchFilters = {}
+): Promise<RankedAdminMatchPage> {
+  const search = new URLSearchParams();
+  if (filters.seasonId) search.set('seasonId', filters.seasonId);
+  if (filters.userQuery?.trim()) search.set('userQuery', filters.userQuery.trim());
+  if (filters.limit !== undefined) search.set('limit', String(filters.limit));
+  if (filters.offset !== undefined) search.set('offset', String(filters.offset));
+  const query = search.toString();
+  const response = await apiClient.get<RankedAdminMatch[]>(
+    `/api/admin/ranked/matches${query ? `?${query}` : ''}`
   );
+  if (!response.data) throw new Error(response.error?.message ?? '读取排位对局失败');
+  return {
+    matches: response.data,
+    total: response.total ?? response.data.length,
+  };
+}
 
 export const settleRankedMatch = (matchId: string) =>
   requireData(

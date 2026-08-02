@@ -312,7 +312,7 @@ test.describe('赛季排位管理员 API', () => {
       error: null;
     };
     expect(Array.isArray(matchPayload.data)).toBe(true);
-    expect(matchPayload.total).toBe(matchPayload.data.length);
+    expect(matchPayload.total).toBeGreaterThanOrEqual(matchPayload.data.length);
     expect(matchPayload.error).toBeNull();
 
     const monitoring = await request.get('/api/admin/ranked/monitoring/summary', {

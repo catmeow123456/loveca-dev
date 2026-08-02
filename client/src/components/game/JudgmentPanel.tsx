@@ -514,7 +514,8 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
     SECOND: getPlayerIdentityForSeat('SECOND')?.name ?? '玩家 2',
   };
   const isViewingActiveSeat = activeSeat !== null && viewingSeat === activeSeat;
-  const canRevealViewedCheerCard = isViewingActiveSeat && canRevealCheerCard;
+  const isFreeOperationMode = canUseLegacyManualDropFallback(manualOperationMode);
+  const canRevealViewedCheerCard = isFreeOperationMode && isViewingActiveSeat && canRevealCheerCard;
   const canMoveViewedResolutionCard = isViewingActiveSeat && canMoveResolutionCardToZone;
   const showManualResolutionTargets =
     canUseLegacyManualDropFallback(manualOperationMode) && !isReadOnly && isViewingActiveSeat;
@@ -954,20 +955,22 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
             </div>
           ) : null}
 
-          <div className={cn('mb-2 flex gap-2', (isReadOnly || !isViewingActiveSeat) && 'hidden')}>
-            <button
-              onClick={drawCheerCard}
-              disabled={!canRevealViewedCheerCard || mainDeckCount === 0}
-              className={cn(
-                'px-3 py-1.5 rounded text-xs font-medium',
-                canRevealViewedCheerCard && mainDeckCount > 0
-                  ? 'button-gold'
-                  : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
-              )}
-            >
-              ↓ 翻开一张
-            </button>
-          </div>
+          {isFreeOperationMode && !isReadOnly && isViewingActiveSeat ? (
+            <div className="mb-2 flex gap-2">
+              <button
+                onClick={drawCheerCard}
+                disabled={!canRevealViewedCheerCard || mainDeckCount === 0}
+                className={cn(
+                  'px-3 py-1.5 rounded text-xs font-medium',
+                  canRevealViewedCheerCard && mainDeckCount > 0
+                    ? 'button-gold'
+                    : 'bg-[var(--bg-overlay)] text-[var(--text-muted)] cursor-not-allowed'
+                )}
+              >
+                ↓ 翻开一张
+              </button>
+            </div>
+          ) : null}
 
           {showManualResolutionTargets ? (
             <div className="mb-2 grid grid-cols-3 gap-2">
@@ -1023,9 +1026,9 @@ export const JudgmentPanel = memo(function JudgmentPanel({ isOpen, onClose }: Ju
           <div className="cute-scrollbar h-[140px] overflow-x-auto overflow-y-hidden rounded border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_56%,transparent)] p-2">
             {cheerCards.length === 0 ? (
               <div className="flex h-full items-center justify-center text-xs text-[var(--text-muted)]">
-                {isViewingActiveSeat
+                {isFreeOperationMode && isViewingActiveSeat
                   ? '点击「翻开一张」从卡组顶翻开应援牌'
-                  : '该玩家当前没有应援牌'}
+                  : '当前没有应援牌'}
               </div>
             ) : (
               <SortableContext items={cheerCardIds} strategy={horizontalListSortingStrategy}>

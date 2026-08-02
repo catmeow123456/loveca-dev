@@ -54,6 +54,7 @@ function createMockResponse() {
     statusCode: number;
     body: {
       data: unknown;
+      total?: number;
       error: { code: string; message: string } | null;
     } | null;
   };
@@ -208,6 +209,33 @@ describe('rankedAdminRouter', () => {
     expect(response.statusCode).toBe(400);
     expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
     expect(rankedAdminService.updateActiveOperations).not.toHaveBeenCalled();
+  });
+
+  it('validates and forwards paginated user search for all ranked matches', async () => {
+    vi.mocked(rankedAdminService.listMatches).mockResolvedValue({
+      matches: [{ matchId: 'match-21' }],
+      total: 47,
+    } as never);
+
+    const response = await invokeRoute('/matches', 'get', {
+      query: {
+        userQuery: ' 小能苗 ',
+        limit: '20',
+        offset: '20',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.listMatches).toHaveBeenCalledWith({
+      userQuery: '小能苗',
+      limit: 20,
+      offset: 20,
+    });
+    expect(response.body).toMatchObject({
+      data: [{ matchId: 'match-21' }],
+      total: 47,
+      error: null,
+    });
   });
 
   it('requires preview-before-execute payloads to express a valid correction choice', async () => {

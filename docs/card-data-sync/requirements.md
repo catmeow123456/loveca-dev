@@ -1,6 +1,6 @@
 # 卡牌数据同步需求
 
-> 更新时间: 2026-07-29
+> 更新时间: 2026-08-02
 > 文档类型: 需求文档
 > 适用范围: `llocg_db` 与 Loveca Excel 到 `cards` 表的同步脚本输入、转换、审核和写入边界
 > 当前状态: 当前同步需求；实现架构与代码路径见 [设计文档](./design.md)
@@ -83,6 +83,7 @@ CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 
 Loveca Excel 同步的交互确认规则：
 
 - 字段冲突应输出 warning。
+- Excel 与 CloudBase 来源都必须逐卡、逐字段完整输出所有待同步字段的数据库旧值与来源新值，不得只列字段名或按条数截断；`card_text_jp` / `card_text_cn` 任一侧不一致时必须明确提示卡效文本差异。
 - 维护者输入回车、`y` 或 `yes` 时，视为确认更新。
 - 非交互环境必须显式使用 `--yes` 才允许正式更新。
 - Excel 内部标准化卡号重复时，不按遍历顺序选择；该卡号应跳过并报告 warning。
@@ -119,6 +120,7 @@ dry-run 输出应帮助维护者判断：
 - CN 匹配与 CN-only 数量是否异常。
 - 能量卡、结构化字段和图片字段是否存在明显缺失。
 - Loveca Excel 行数、可用唯一卡号数、重复卡号、Excel-only 与 DB-only 数量是否合理。
+- Loveca Excel / CloudBase 与数据库之间的完整待同步字段，以及中日卡效文本差异 warning。
 - CloudBase 新卡候选数量、DB 已存在跳过数量、重复卡号、字段解析 warning、缺规则字段、图片 basename 冲突和可插入候选是否合理。
 
 ## 8. 正式运行要求

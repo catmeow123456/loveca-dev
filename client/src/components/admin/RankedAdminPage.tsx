@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Loader2, Medal, RefreshCw } from 'lucide-react';
+import {
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Medal,
+  RefreshCw,
+  Search,
+} from 'lucide-react';
 import { PageHeader } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
@@ -23,11 +31,15 @@ import {
 } from '@/lib/rankedAdminClient';
 
 type Tab = 'season' | 'matches';
+const MATCH_PAGE_SIZE = 20;
 
 export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>('season');
   const [seasons, setSeasons] = useState<RankedAdminSeason[]>([]);
   const [matches, setMatches] = useState<RankedAdminMatch[]>([]);
+  const [matchTotal, setMatchTotal] = useState(0);
+  const [matchPage, setMatchPage] = useState(0);
+  const [matchUserQuery, setMatchUserQuery] = useState('');
   const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V2');
   const [formalRatingConfig, setFormalRatingConfig] = useState<RankedRatingConfig>({
     initialRating: 1500,
@@ -52,6 +64,37 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const loadMatchPage = async ({
+    seasonId = selectedSeasonId,
+    userQuery = matchUserQuery,
+    page = matchPage,
+  }: {
+    seasonId?: string;
+    userQuery?: string;
+    page?: number;
+  } = {}) => {
+    const result = await fetchRankedMatches({
+      seasonId: seasonId || undefined,
+      userQuery: userQuery || undefined,
+      limit: MATCH_PAGE_SIZE,
+      offset: page * MATCH_PAGE_SIZE,
+    });
+    setMatches(result.matches);
+    setMatchTotal(result.total);
+  };
+
+  const refreshMatchPage = async (options: Parameters<typeof loadMatchPage>[0]) => {
+    setBusy(true);
+    setError(null);
+    try {
+      await loadMatchPage(options);
+    } catch (loadError) {
+      setError(readError(loadError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const load = async () => {
     setBusy(true);
     setError(null);
@@ -66,10 +109,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
         setFormalRatingConfig(formal.config);
       }
       setSeasons(seasonList);
-      const nextSeasonId =
-        selectedSeasonId || seasonList.find((item) => item.lifecycle !== 'CLOSED')?.id || '';
-      setSelectedSeasonId(nextSeasonId);
-      setMatches(await fetchRankedMatches(nextSeasonId || undefined));
+      await loadMatchPage();
     } catch (loadError) {
       setError(readError(loadError));
     } finally {
@@ -80,16 +120,9 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-    // The initial request intentionally uses the first active season.
+    // Initial load intentionally defaults to all seasons and the first result page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!selectedSeasonId) return;
-    void fetchRankedMatches(selectedSeasonId)
-      .then(setMatches)
-      .catch((loadError) => setError(readError(loadError)));
-  }, [selectedSeasonId]);
 
   const run = async (operation: () => Promise<unknown>) => {
     setBusy(true);
@@ -216,9 +249,26 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
             <MatchesPanel
               seasons={seasons}
               matches={matches}
+              total={matchTotal}
+              page={matchPage}
+              pageSize={MATCH_PAGE_SIZE}
+              userQuery={matchUserQuery}
               selectedSeasonId={selectedSeasonId}
               busy={busy}
-              onSelectSeason={setSelectedSeasonId}
+              onSelectSeason={(seasonId) => {
+                setSelectedSeasonId(seasonId);
+                setMatchPage(0);
+                void refreshMatchPage({ seasonId, page: 0 });
+              }}
+              onSearch={(userQuery) => {
+                setMatchUserQuery(userQuery);
+                setMatchPage(0);
+                void refreshMatchPage({ userQuery, page: 0 });
+              }}
+              onPageChange={(page) => {
+                setMatchPage(page);
+                void refreshMatchPage({ page });
+              }}
               onSettle={(match) => run(() => settleRankedMatch(match.matchId))}
               onCorrection={startCorrection}
             />
@@ -689,17 +739,29 @@ function SeasonDraftForm({
 function MatchesPanel({
   seasons,
   matches,
+  total,
+  page,
+  pageSize,
+  userQuery,
   selectedSeasonId,
   busy,
   onSelectSeason,
+  onSearch,
+  onPageChange,
   onSettle,
   onCorrection,
 }: {
   seasons: RankedAdminSeason[];
   matches: RankedAdminMatch[];
+  total: number;
+  page: number;
+  pageSize: number;
+  userQuery: string;
   selectedSeasonId: string;
   busy: boolean;
   onSelectSeason: (id: string) => void;
+  onSearch: (userQuery: string) => void;
+  onPageChange: (page: number) => void;
   onSettle: (match: RankedAdminMatch) => Promise<unknown>;
   onCorrection: (
     match: RankedAdminMatch,
@@ -707,32 +769,70 @@ function MatchesPanel({
     replacementWinnerSeat?: 'FIRST' | 'SECOND'
   ) => Promise<void>;
 }) {
+  const [searchInput, setSearchInput] = useState(userQuery);
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
   return (
     <div className="space-y-3">
-      <select
-        className="input-field max-w-xs"
-        value={selectedSeasonId}
-        onChange={(event) => onSelectSeason(event.target.value)}
+      <form
+        className="product-workbench grid gap-3 p-3 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSearch(searchInput.trim());
+        }}
       >
-        <option value="">全部赛季</option>
-        {seasons.map((season) => (
-          <option key={season.id} value={season.id}>
-            {season.name}
-          </option>
-        ))}
-      </select>
+        <select
+          className="input-field"
+          value={selectedSeasonId}
+          aria-label="筛选赛季"
+          onChange={(event) => onSelectSeason(event.target.value)}
+        >
+          <option value="">全部赛季</option>
+          {seasons.map((season) => (
+            <option key={season.id} value={season.id}>
+              {season.name}
+            </option>
+          ))}
+        </select>
+        <input
+          className="input-field"
+          value={searchInput}
+          aria-label="搜索对局用户"
+          placeholder="搜索用户名、显示名称或用户 ID"
+          onChange={(event) => setSearchInput(event.target.value)}
+        />
+        <button className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm">
+          <Search size={15} />
+          搜索
+        </button>
+      </form>
+      <div className="flex items-center justify-between text-xs text-[var(--text-muted)]">
+        <span>共 {total} 场对局</span>
+        {userQuery ? <span>当前搜索：{userQuery}</span> : <span>显示全部用户</span>}
+      </div>
       {matches.length > 0 ? (
         <div className="product-workbench">
           {matches.map((match) => (
             <section key={match.matchId} className="product-list-row p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
-                    {playerName(match.firstPlayer)} vs {playerName(match.secondPlayer)}
+                  <div className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-[var(--text-primary)]">
+                    <MatchPlayerResult
+                      name={playerName(match.firstPlayer)}
+                      result={seatResult(match, 'FIRST')}
+                    />
+                    <span className="text-[var(--text-muted)]">vs</span>
+                    <MatchPlayerResult
+                      name={playerName(match.secondPlayer)}
+                      result={seatResult(match, 'SECOND')}
+                    />
                   </div>
                   <div className="mt-1 text-xs text-[var(--text-muted)]">
-                    {ratingStatusLabel(match.ratingStatus)} ·{' '}
-                    {match.endedAt ? formatDate(match.endedAt) : '进行中'}
+                    {match.seasonKey} · {ratingStatusLabel(match.ratingStatus)} ·{' '}
+                    {match.winnerSeat
+                      ? `胜者：${winnerName(match, match.winnerSeat)} · ${resultTypeLabel(match.resultType)}`
+                      : '胜负未定'}{' '}
+                    · {match.endedAt ? formatDate(match.endedAt) : '进行中'}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -795,10 +895,54 @@ function MatchesPanel({
       ) : null}
       {matches.length === 0 ? (
         <div className="product-workbench p-8 text-center text-sm text-[var(--text-muted)]">
-          没有排位对局
+          没有符合条件的排位对局
+        </div>
+      ) : null}
+      {total > 0 ? (
+        <div className="flex items-center justify-center gap-3 pt-1">
+          <button
+            type="button"
+            className="button-secondary inline-flex h-9 items-center gap-1 px-3 text-xs"
+            disabled={busy || page === 0}
+            onClick={() => onPageChange(page - 1)}
+          >
+            <ChevronLeft size={14} />
+            上一页
+          </button>
+          <span className="min-w-20 text-center text-xs text-[var(--text-muted)]">
+            {page + 1} / {pageCount}
+          </span>
+          <button
+            type="button"
+            className="button-secondary inline-flex h-9 items-center gap-1 px-3 text-xs"
+            disabled={busy || page + 1 >= pageCount}
+            onClick={() => onPageChange(page + 1)}
+          >
+            下一页
+            <ChevronRight size={14} />
+          </button>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function MatchPlayerResult({ name, result }: { name: string; result: 'WIN' | 'LOSS' | 'PENDING' }) {
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="truncate">{name}</span>
+      <span
+        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+          result === 'WIN'
+            ? 'bg-[color:color-mix(in_srgb,var(--semantic-success)_16%,transparent)] text-[var(--semantic-success)]'
+            : result === 'LOSS'
+              ? 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+              : 'bg-[color:color-mix(in_srgb,var(--semantic-warning)_14%,transparent)] text-[var(--semantic-warning)]'
+        }`}
+      >
+        {result === 'WIN' ? '胜' : result === 'LOSS' ? '负' : '待定'}
+      </span>
+    </span>
   );
 }
 
@@ -1074,6 +1218,24 @@ function winnerName(match: RankedAdminMatch, winnerSeat: RankedAdminMatch['winne
   if (winnerSeat === 'FIRST') return playerName(match.firstPlayer);
   if (winnerSeat === 'SECOND') return playerName(match.secondPlayer);
   return '无';
+}
+
+function seatResult(match: RankedAdminMatch, seat: 'FIRST' | 'SECOND'): 'WIN' | 'LOSS' | 'PENDING' {
+  if (!match.winnerSeat) return 'PENDING';
+  return match.winnerSeat === seat ? 'WIN' : 'LOSS';
+}
+
+function resultTypeLabel(value: string | null): string {
+  return (
+    {
+      NORMAL: '正常结束',
+      SURRENDER: '认输',
+      DISCONNECT_FORFEIT: '断线判负',
+      PLATFORM_NO_CONTEST: '平台无结果',
+    }[value ?? ''] ??
+    value ??
+    '结果待定'
+  );
 }
 
 function correctionResultTypeForMatch(

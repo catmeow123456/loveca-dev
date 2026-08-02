@@ -22,6 +22,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
 import {
   buildBattleActionIntents,
+  canUseLegacyManualDropFallback,
   findEnabledBattleActionTargetByTargetId,
   findEnabledBattleActionSlotTarget,
   findEnabledBattleActionZoneTarget,
@@ -587,6 +588,7 @@ export const PlayerArea = memo(function PlayerArea({
     !isOpponent &&
     currentPhase !== null &&
     isOwnDeskFreeDragWindow(currentPhase, currentSubPhase);
+  const isFreeOperationMode = canUseLegacyManualDropFallback(matchView?.manualOperation?.mode);
   const allowLiveZoneDeskInteraction = !isReadOnly && !isOpponent;
   const dropScope = `seat-${playerSeat}`;
   const getDroppableId = (zoneType: ZoneType, slotPosition?: SlotPosition) =>
@@ -752,11 +754,13 @@ export const PlayerArea = memo(function PlayerArea({
       : [];
 
   const canDrawFromMainDeck =
+    isFreeOperationMode &&
     !isOpponent &&
     mainDeckCardIds.length > 0 &&
     allowGeneralOwnZoneInteraction &&
     canDrawCardToHand;
   const canReturnSelectedHandCard =
+    isFreeOperationMode &&
     !!selectedHandCardId &&
     allowGeneralOwnZoneInteraction &&
     canReturnHandCardToTop &&
@@ -1444,7 +1448,7 @@ export const PlayerArea = memo(function PlayerArea({
             {count}
           </div>
         </div>
-        {isMainDeck && !isOpponent && !isReadOnly && !isMobileBoard && (
+        {isMainDeck && isFreeOperationMode && !isOpponent && !isReadOnly && !isMobileBoard && (
           <div className="mt-1 flex flex-col items-center gap-1">
             {renderDrawActionButton('DESKTOP_DECK')}
             {renderReturnSelectedHandCardButton('DESKTOP_DECK')}
@@ -2668,7 +2672,12 @@ export const PlayerArea = memo(function PlayerArea({
   const canDragFromHand = allowGeneralOwnZoneInteraction || canReceiveInspectionDrop;
 
   const renderHandContextActions = () => {
-    if (isOpponent || isReadOnly || !isMobileBoard) {
+    if (
+      isOpponent ||
+      isReadOnly ||
+      !isMobileBoard ||
+      (!isFreeOperationMode && !selectedHandCardId)
+    ) {
       return null;
     }
 
@@ -2683,8 +2692,8 @@ export const PlayerArea = memo(function PlayerArea({
         }}
         className="ml-auto flex min-w-0 items-center gap-1 rounded-lg border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_76%,transparent)] p-0.5 shadow-[var(--shadow-sm)] backdrop-blur"
       >
-        {renderDrawActionButton('MOBILE_HAND')}
-        {renderReturnSelectedHandCardButton('MOBILE_HAND')}
+        {isFreeOperationMode ? renderDrawActionButton('MOBILE_HAND') : null}
+        {isFreeOperationMode ? renderReturnSelectedHandCardButton('MOBILE_HAND') : null}
         {selectedHandCardId && (
           <button
             type="button"

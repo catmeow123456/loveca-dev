@@ -28,6 +28,65 @@ const CATALOG = {
 };
 
 describe('RankedAdminService', () => {
+  it('lists all ranked matches with user search, stable pagination, and a separate total', async () => {
+    const createdAt = new Date('2026-08-02T10:00:00.000Z');
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ total: '41' }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            match_id: 'match-21',
+            season_id: 'season-1',
+            season_key: 'season-2026-01',
+            rating_status: 'SETTLED',
+            winner_seat: 'SECOND',
+            result_type: 'NORMAL',
+            prior_result_type: 'NORMAL',
+            first_user_id: 'user-1',
+            first_username: 'player_one',
+            first_display_name: '玩家一',
+            second_user_id: 'user-2',
+            second_username: 'player_two',
+            second_display_name: '玩家二',
+            record_status: 'COMPLETED',
+            completeness: 'FULL',
+            sealed_at: createdAt,
+            ended_at: createdAt,
+            settled_at: createdAt,
+            created_at: createdAt,
+          },
+        ],
+      });
+    const service = new RankedAdminService({ query, audit: vi.fn() });
+
+    const page = await service.listMatches({
+      userQuery: 'player_100%',
+      limit: 20,
+      offset: 20,
+    });
+
+    expect(page).toMatchObject({
+      total: 41,
+      matches: [
+        {
+          matchId: 'match-21',
+          winnerSeat: 'SECOND',
+          firstPlayer: { username: 'player_one' },
+          secondPlayer: { username: 'player_two' },
+        },
+      ],
+    });
+    expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining('SELECT COUNT(*) AS total'), [
+      '%player\\_100\\%%',
+    ]);
+    expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining('LIMIT $2 OFFSET $3'), [
+      '%player\\_100\\%%',
+      20,
+      20,
+    ]);
+  });
+
   it('keeps prior algorithms available while preferring V2 for new seasons', async () => {
     const service = new RankedAdminService({
       getCardCatalogIdentity: vi.fn().mockResolvedValue(CATALOG),

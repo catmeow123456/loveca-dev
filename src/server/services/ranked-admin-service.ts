@@ -81,7 +81,9 @@ export interface RankedAdminCorrectionExecuteInput extends CorrectRankedMatchInp
 export interface RankedAdminMatchFilter {
   readonly seasonId?: string;
   readonly ratingStatus?: 'PENDING' | 'SETTLED' | 'VOIDED';
+  readonly userQuery?: string;
   readonly limit: number;
+  readonly offset: number;
 }
 
 interface RankedAdminQueryResult<T> {
@@ -131,6 +133,10 @@ interface RankedAdminMatchRow {
   readonly ended_at: Date | string | null;
   readonly settled_at: Date | string | null;
   readonly created_at: Date | string;
+}
+
+interface RankedAdminMatchCountRow {
+  readonly total: number | string;
 }
 
 interface RankedAdminEventRow {
@@ -376,8 +382,32 @@ export class RankedAdminService {
       values.push(filter.ratingStatus);
       conditions.push(`ranked_match.rating_status = $${values.length}`);
     }
-    values.push(filter.limit);
+    if (filter.userQuery?.trim()) {
+      values.push(`%${escapeLikePattern(filter.userQuery.trim())}%`);
+      conditions.push(`(
+        ranked_match.first_user_id::text ILIKE $${values.length} ESCAPE '\\'
+        OR ranked_match.second_user_id::text ILIKE $${values.length} ESCAPE '\\'
+        OR first_profile.username ILIKE $${values.length} ESCAPE '\\'
+        OR COALESCE(first_profile.display_name, '') ILIKE $${values.length} ESCAPE '\\'
+        OR second_profile.username ILIKE $${values.length} ESCAPE '\\'
+        OR COALESCE(second_profile.display_name, '') ILIKE $${values.length} ESCAPE '\\'
+      )`);
+    }
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const from = `FROM ranked_matches AS ranked_match
+       JOIN ranked_seasons AS season ON season.id = ranked_match.season_id
+       JOIN match_records AS record ON record.match_id = ranked_match.match_id
+       JOIN profiles AS first_profile ON first_profile.id = ranked_match.first_user_id
+       JOIN profiles AS second_profile ON second_profile.id = ranked_match.second_user_id`;
+    const countResult = await this.query<RankedAdminMatchCountRow>(
+      `SELECT COUNT(*) AS total
+       ${from}
+       ${where}`,
+      values
+    );
+    const pageValues = [...values, filter.limit, filter.offset];
+    const limitParam = pageValues.length - 1;
+    const offsetParam = pageValues.length;
     const result = await this.query<RankedAdminMatchRow>(
       `SELECT
          ranked_match.match_id,
@@ -407,17 +437,16 @@ export class RankedAdminService {
          COALESCE(ranked_match.ended_at, record.ended_at) AS ended_at,
          ranked_match.settled_at,
          ranked_match.created_at
-       FROM ranked_matches AS ranked_match
-       JOIN ranked_seasons AS season ON season.id = ranked_match.season_id
-       JOIN match_records AS record ON record.match_id = ranked_match.match_id
-       JOIN profiles AS first_profile ON first_profile.id = ranked_match.first_user_id
-       JOIN profiles AS second_profile ON second_profile.id = ranked_match.second_user_id
+       ${from}
        ${where}
-       ORDER BY ranked_match.created_at DESC
-       LIMIT $${values.length}`,
-      values
+       ORDER BY ranked_match.created_at DESC, ranked_match.match_id ASC
+       LIMIT $${limitParam} OFFSET $${offsetParam}`,
+      pageValues
     );
-    return result.rows.map(mapAdminMatch);
+    return {
+      matches: result.rows.map(mapAdminMatch),
+      total: Number(countResult.rows[0]?.total ?? 0),
+    };
   }
 
   async getMatch(matchId: string) {
@@ -902,6 +931,10 @@ function buildSeasonRatingConfig(
 
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
 }
 
 export const rankedAdminService = new RankedAdminService();
