@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createHeartIcon, type MemberCardData } from '../../src/domain/entities/card';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
-import { GLICKO1_PER_MATCH_SHADOW_V2, type Glicko1Config } from '../../src/server/rating/glicko';
+import {
+  GLICKO1_PER_MATCH_SHADOW_V2,
+  GLICKO1_PER_MATCH_V2,
+  GLICKO1_PER_MATCH_V3,
+  type Glicko1Config,
+} from '../../src/server/rating/glicko';
 import {
   buildRankedCardCatalogIdentity,
   buildRankedCompetitiveEnvironmentIdentity,
@@ -191,6 +196,33 @@ describe('ranked rating ledger materialization', () => {
     expect(() =>
       resolveEffectiveRankedResults([initial, voidEvent, staleReplacement], CONFIG)
     ).toThrow('correction must target the latest event');
+  });
+
+  it('allows mixed history only when every old directive is superseded by V3', () => {
+    const oldSettlement = event({
+      eventId: 'old-v2',
+      eventSequence: 1,
+      algorithmVersion: GLICKO1_PER_MATCH_V2.algorithmVersion,
+    });
+    const migrated = event({
+      eventId: 'migration-v3',
+      eventSequence: 2,
+      eventType: 'REPLACEMENT',
+      matchId: oldSettlement.matchId,
+      targetEventId: oldSettlement.eventId,
+      ratedAt: oldSettlement.ratedAt,
+      algorithmVersion: GLICKO1_PER_MATCH_V3.algorithmVersion,
+    });
+
+    expect(() => materializeRankedRatingLedger([oldSettlement], GLICKO1_PER_MATCH_V3)).toThrow(
+      'latest rating directive must use GLICKO1_PER_MATCH_V3'
+    );
+    const materialized = materializeRankedRatingLedger(
+      [oldSettlement, migrated],
+      GLICKO1_PER_MATCH_V3
+    );
+    expect(materialized.effectiveResults).toEqual([migrated]);
+    expect(materialized.steps[0]?.sourceResultEventId).toBe(migrated.eventId);
   });
 });
 

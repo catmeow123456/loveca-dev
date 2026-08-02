@@ -75,7 +75,7 @@ export function resolveEffectiveRankedResults(
   const latestByMatch = new Map<string, RankedRatingEvent>();
 
   for (const event of ordered) {
-    validateEvent(event, config, seenEventIds, seenSequences);
+    validateEvent(event, seenEventIds, seenSequences);
     const latest = latestByMatch.get(event.matchId);
 
     if (event.eventType === 'SETTLEMENT') {
@@ -113,6 +113,15 @@ export function resolveEffectiveRankedResults(
     latestByMatch.set(event.matchId, event);
     seenEventIds.add(event.eventId);
     seenSequences.add(event.eventSequence);
+  }
+
+  for (const latest of latestByMatch.values()) {
+    if (latest.algorithmVersion !== config.algorithmVersion) {
+      throw ledgerError(
+        'RANKED_EFFECTIVE_EVENT_ALGORITHM_MISMATCH',
+        `latest rating directive must use ${config.algorithmVersion}: ${latest.matchId}`
+      );
+    }
   }
 
   return [...latestByMatch.values()]
@@ -183,7 +192,6 @@ export function materializeRankedRatingLedger(
 
 function validateEvent(
   event: RankedRatingEvent,
-  config: Glicko1Config,
   seenEventIds: ReadonlySet<string>,
   seenSequences: ReadonlySet<number>
 ): void {
@@ -215,11 +223,8 @@ function validateEvent(
   if (!Number.isFinite(event.ratedAt.getTime())) {
     throw ledgerError('RANKED_EVENT_TIME_INVALID', 'ratedAt must be a valid Date');
   }
-  if (event.algorithmVersion !== config.algorithmVersion) {
-    throw ledgerError(
-      'RANKED_EVENT_ALGORITHM_MISMATCH',
-      'rating event algorithmVersion does not match the configured algorithm'
-    );
+  if (event.algorithmVersion.trim().length === 0 || event.algorithmVersion.includes('SHADOW')) {
+    throw ledgerError('RANKED_EVENT_ALGORITHM_INVALID', 'rating event algorithmVersion is invalid');
   }
   if (event.eventType === 'VOID') {
     if (event.winnerSeat !== null) {

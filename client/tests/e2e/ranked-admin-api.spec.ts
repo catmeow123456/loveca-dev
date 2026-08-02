@@ -67,6 +67,7 @@ async function seedActiveE2eSeason(): Promise<void> {
   const ratingConfig = {
     algorithmVersion: 'GLICKO1_PER_MATCH_E2E_V1',
     ratingPeriodMode: 'PER_MATCH',
+    ratingScale: 400,
     initialRating: 1500,
     initialRatingDeviation: 350,
     minimumRatingDeviation: 30,
@@ -212,6 +213,13 @@ test.describe('赛季排位管理员 API', () => {
         expect.objectContaining({
           algorithmVersion: 'GLICKO1_PER_MATCH_SHADOW_V2',
           status: 'SHADOW_CANDIDATE',
+        }),
+        expect.objectContaining({
+          algorithmVersion: 'GLICKO1_PER_MATCH_V3',
+          status: 'FORMAL',
+          environment: expect.objectContaining({
+            competitiveEnvironmentId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+          }),
         }),
         expect.objectContaining({
           algorithmVersion: 'GLICKO1_PER_MATCH_V2',

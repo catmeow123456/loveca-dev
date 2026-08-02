@@ -3,7 +3,9 @@ import {
   CURRENT_GLICKO1_SHADOW_CONFIG,
   GLICKO1_PER_MATCH_SHADOW_V1,
   GLICKO1_PER_MATCH_SHADOW_V2,
+  GLICKO1_PER_MATCH_V1,
   GLICKO1_PER_MATCH_V2,
+  GLICKO1_PER_MATCH_V3,
   createInitialGlickoRatingState,
   formatGlickoRatingForDisplay,
   increaseGlickoDeviationForInactivity,
@@ -158,6 +160,61 @@ describe('Glicko-1 rating', () => {
     expect(GLICKO1_PER_MATCH_V2.initialRatingDeviation).toBe(300);
     expect(Math.round(splitSeries.first.rating)).toBe(1547);
     expect(Math.round(splitSeries.second.rating)).toBe(1453);
+  });
+
+  it('keeps V1 and V2 on the published 400 scale', () => {
+    const ratedAt = new Date('2026-08-01T01:00:00.000Z');
+    const v1 = rateGlickoHeadToHead(
+      createInitialGlickoRatingState(GLICKO1_PER_MATCH_V1),
+      createInitialGlickoRatingState(GLICKO1_PER_MATCH_V1),
+      1,
+      ratedAt,
+      GLICKO1_PER_MATCH_V1
+    );
+    const v2 = rateGlickoHeadToHead(
+      createInitialGlickoRatingState(GLICKO1_PER_MATCH_V2),
+      createInitialGlickoRatingState(GLICKO1_PER_MATCH_V2),
+      1,
+      ratedAt,
+      GLICKO1_PER_MATCH_V2
+    );
+
+    expect(GLICKO1_PER_MATCH_V1.ratingScale).toBe(400);
+    expect(GLICKO1_PER_MATCH_V2.ratingScale).toBe(400);
+    expect(v1.first.rating).toBeCloseTo(1662.2120026057648, 10);
+    expect(v2.first.rating).toBeCloseTo(1634.8650130551375, 10);
+  });
+
+  it('uses the V3 800 scale to reduce the reported asymmetric swing', () => {
+    const lastRatedAt = new Date('2026-08-01T00:00:00.000Z');
+    const ratedAt = new Date('2026-08-01T01:00:00.000Z');
+    const player = {
+      rating: 1558,
+      ratingDeviation: 135,
+      ratedMatchCount: 10,
+      lastRatedAt,
+    };
+    const opponent = {
+      rating: 1154,
+      ratingDeviation: 149,
+      ratedMatchCount: 10,
+      lastRatedAt,
+    };
+    const win = rateGlickoHeadToHead(player, opponent, 1, ratedAt, GLICKO1_PER_MATCH_V3);
+    const loss = rateGlickoHeadToHead(player, opponent, 0, ratedAt, GLICKO1_PER_MATCH_V3);
+    const firstMatch = rateGlickoHeadToHead(
+      createInitialGlickoRatingState(GLICKO1_PER_MATCH_V3),
+      createInitialGlickoRatingState(GLICKO1_PER_MATCH_V3),
+      1,
+      ratedAt,
+      GLICKO1_PER_MATCH_V3
+    );
+
+    expect(GLICKO1_PER_MATCH_V3.ratingScale).toBe(800);
+    expect(Math.round(win.first.rating - player.rating)).toBe(12);
+    expect(Math.round(loss.first.rating - player.rating)).toBe(-38);
+    expect(firstMatch.first.rating - 1500).toBeCloseTo(101.51853449121472, 10);
+    expect(firstMatch.first.ratingDeviation).toBeCloseTo(279.51371412461964, 10);
   });
 
   it('rejects invalid time order and invalid scores', () => {
