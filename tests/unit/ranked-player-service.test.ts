@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { GLICKO1_PER_MATCH_V2 } from '../../src/server/rating/glicko';
 import { RankedPlayerService } from '../../src/server/services/ranked-player-service';
 
@@ -16,8 +16,31 @@ import { pool } from '../../src/server/db/pool';
 describe('RankedPlayerService', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('keeps an active season open when the published card catalog changes', () => {
+    const service = new RankedPlayerService({
+      now: () => new Date('2026-08-03T04:00:00.000Z'),
+    });
+    const buildAvailability = Reflect.get(service, 'buildAvailability') as (
+      season: Record<string, unknown>
+    ) => { state: string; canJoin: boolean };
+    const availability = buildAvailability.call(service, {
+      lifecycle: 'ACTIVE',
+      queue_admission: 'OPEN',
+      competitive_environment_id: `sha256:${'a'.repeat(64)}`,
+      platform_time_zone: 'Asia/Shanghai',
+      open_windows: [{ weekdays: [1], startMinute: 0, endMinute: 1440 }],
+      starts_at: new Date('2026-08-01T00:00:00.000Z'),
+      scheduled_ends_at: new Date('2026-09-01T00:00:00.000Z'),
+    });
+
+    expect(availability).toMatchObject({ state: 'OPEN', canJoin: true });
+  });
+
   it('hides a seeded rating until the player has a settled match', async () => {
-    vi.mocked(pool.query).mockImplementation((text) => {
+    // The mocked pg query overload otherwise resolves to its callback signature.
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const queryMock = pool.query as unknown as Mock<(text: unknown) => Promise<never>>;
+    queryMock.mockImplementation((text: unknown) => {
       const sql = String(text);
       if (sql.includes('FROM gameplay_participations')) {
         return Promise.resolve({ rows: [], rowCount: 0 } as never);

@@ -7,10 +7,6 @@ import type {
   RankedSeasonPublicView,
 } from '../../online/ranked-types.js';
 import { pool } from '../db/pool.js';
-import {
-  buildRankedCompetitiveEnvironmentIdentity,
-  getCurrentRankedCardCatalogIdentity,
-} from '../rating/ranked-environment.js';
 import { assertValidGlicko1Config, type Glicko1Config } from '../rating/glicko.js';
 import { publicTableService, type MatchmakingQueueContext } from './public-table-service.js';
 import {
@@ -124,9 +120,9 @@ export class RankedPlayerService {
       };
     }
 
-    const config = readRatingConfig(season.rating_config);
-    const [availability, player, recentMatches, leaderboard] = await Promise.all([
-      this.buildAvailability(season, config),
+    readRatingConfig(season.rating_config);
+    const availability = this.buildAvailability(season);
+    const [player, recentMatches, leaderboard] = await Promise.all([
       this.loadPlayerSeason(season.id, userId, season.leaderboard_minimum_match_count),
       this.loadRecentMatches(season.id, userId),
       this.loadLeaderboard(season.id, season.leaderboard_minimum_match_count),
@@ -158,8 +154,8 @@ export class RankedPlayerService {
 
   async join(userId: string, deckId: string) {
     const season = await this.requireActiveSeason();
-    const config = readRatingConfig(season.rating_config);
-    const availability = await this.buildAvailability(season, config);
+    readRatingConfig(season.rating_config);
+    const availability = this.buildAvailability(season);
     if (!availability.canJoin) {
       throw playerError('RANKED_QUEUE_CLOSED', availability.message, 409);
     }
@@ -171,10 +167,8 @@ export class RankedPlayerService {
     const season = await this.loadSeasonById(context.seasonId!);
     const status = await publicTableService.getStatus(userId, context);
     if (status.state === 'WAITING') {
-      const availability = await this.buildAvailability(
-        season,
-        readRatingConfig(season.rating_config)
-      );
+      readRatingConfig(season.rating_config);
+      const availability = this.buildAvailability(season);
       if (!availability.canJoin) {
         await publicTableService.expireWaitingTickets(context, 'RANKED_WINDOW_CLOSED');
         return publicTableService.getStatus(userId, context);
@@ -201,10 +195,7 @@ export class RankedPlayerService {
     return publicTableService.cancel(userId, context);
   }
 
-  private async buildAvailability(
-    season: PublicSeasonRow,
-    config: Glicko1Config
-  ): Promise<RankedAvailabilityView> {
+  private buildAvailability(season: PublicSeasonRow): RankedAvailabilityView {
     const now = this.now();
     const startsAt = new Date(season.starts_at);
     const scheduledEndsAt = new Date(season.scheduled_ends_at);
@@ -249,16 +240,6 @@ export class RankedPlayerService {
         state: 'PAUSED',
         canJoin: false,
         message: '排位暂时关闭',
-        ...base,
-      };
-    }
-    const catalog = await getCurrentRankedCardCatalogIdentity();
-    const currentEnvironment = buildRankedCompetitiveEnvironmentIdentity(catalog, config);
-    if (currentEnvironment.competitiveEnvironmentId !== season.competitive_environment_id) {
-      return {
-        state: 'ENVIRONMENT_CHANGED',
-        canJoin: false,
-        message: '当前版本与赛季环境不一致',
         ...base,
       };
     }

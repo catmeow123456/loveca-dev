@@ -38,7 +38,7 @@ cardCatalogHash =
   sha256(PUBLISHED_RUNTIME_CARD_CATALOG_V1 + 按 cardCode 排序的规则相关卡牌字段)
 ```
 
-哈希包含编号、类型、名称/团体/小组、卡文、费用、BLADE、Heart、分数和必要 Heart 等会影响卡组合法性或规则结果的字段；不包含图片文件名、图片来源和同步审计标记。换图不会切换赛季环境，修改费用或卡效数据会切换。
+哈希包含编号、类型、名称/团体/小组、卡文、费用、BLADE、Heart、分数和必要 Heart 等会影响卡组合法性或规则结果的字段；不包含图片文件名、图片来源和同步审计标记。它保存赛季创建/激活时的发布卡池审计快照，但活动赛季的玩家准入不会重新比较当前卡池哈希；赛季期间新增卡牌或修订卡牌数据不关闭候场。
 
 完整环境身份再组合：
 
@@ -53,10 +53,10 @@ competitiveEnvironmentId = sha256(
 
 它与现有 `match_records.cardDataHash` 职责不同：
 
-- `competitiveEnvironmentId`：全局、赛季级、用于候场和部署校验；
+- `competitiveEnvironmentId`：全局、赛季级，保存草稿确认时的环境快照并隔离候场上下文；
 - `match_records.cardDataHash`：本局双方卡组快照、用于重放完整性。
 
-赛季从 `DRAFT` 开始时保存环境身份；进入 `ACTIVE` 前再次计算当前部署身份，任一字段不同都拒绝开始。
+赛季从 `DRAFT` 开始时保存环境身份；进入 `ACTIVE` 前再次计算当前部署身份，任一字段不同都拒绝开始。进入 `ACTIVE` 后，规则、卡组政策与评分配置继续冻结；发布卡池允许变化，不作为玩家候场准入门槛。
 
 ## 3. 数据模型
 
