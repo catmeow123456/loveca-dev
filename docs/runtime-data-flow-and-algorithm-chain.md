@@ -141,6 +141,8 @@ LIVE 修正分两类：
 - 旧的 `playerScoreBonuses`、`playerHeartBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 只作为兼容投影保留，不作为新增逻辑主写入路径。
 - 必要 Heart 修正需要兼容指定颜色、All/无色需求、`RAINBOW` 和 `totalRequired` 两种数据形态。
 - LIVE 判定的 Heart 分配以 `HeartPool` 为单一规则入口：先以同色 Heart、再以 `RAINBOW`/All 满足指定颜色，然后用剩余任意 Heart 满足总数需求。`GRAY` 只参与最后的总数分配，前端成功预判与缺口计算必须复用同一入口。
+- 已实现的 `LIVE_SUCCESS / LIVE_CARD` ability definition 可以通过 `remainingHeartAllocationPreference` 声明“判定后至少保留某一指定颜色 Heart”的分配偏好，并可用 `requiredStageGroupAlias` 限定收集该偏好的舞台条件。`GameService` 在 LIVE 判定前只从本次设置的 LIVE 卡收集有效偏好，再传入 `LiveResolver` / `HeartPool`；workflow 不得在 LIVE 成功后倒推或改写已经完成的 Heart 消耗。
+- 分配偏好不改变 LIVE 需求是否可满足，只在全部合法消耗方案中先最大化能够成立的余 Heart 偏好数量，再按 LIVE/definition 的稳定顺序裁决，最后使用固定 Heart 颜色顺序保证权威结果不受输入顺序影响。偏好检查只读取实际剩余的指定颜色；`RAINBOW`/All 不视为该指定颜色。无偏好时继续使用固定颜色顺序的确定性分配。
 
 ### 2.7 记录与回放结构
 
