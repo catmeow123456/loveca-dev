@@ -8,7 +8,6 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import {
@@ -22,6 +21,7 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
 import {
   registerPendingAbilityStarterHandler,
@@ -90,7 +90,13 @@ function startSpBp5005RenActivated(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp5-005') ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_BP5_005_ACTIVATED_MILL_THREE_GAIN_BLADE_BY_LIELLA_MEMBER_ABILITY_ID,
+      ['PL!SP-bp5-005']
+    ) ||
     sourceSlot === null
   ) {
     return game;

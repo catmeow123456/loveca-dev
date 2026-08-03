@@ -6,12 +6,12 @@ import {
   type GameState,
 } from '../../../../domain/entities/game.js';
 import { GamePhase, ZoneType } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { drawCardsFromMainDeckToHand } from '../../../effects/draw.js';
 import { SP_BP7_003_ACTIVATED_REVEAL_COST_TEN_OR_TWENTY_MEMBER_STACK_DRAW_TWO_ABILITY_ID } from '../../ability-ids.js';
 import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -54,8 +54,14 @@ function startSpBp7003ChisatoActivated(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp7-003') ||
     !isMemberCardData(sourceCard.data) ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      sourceCardId,
+      SP_BP7_003_ACTIVATED_REVEAL_COST_TEN_OR_TWENTY_MEMBER_STACK_DRAW_TWO_ABILITY_ID,
+      ['PL!SP-bp7-003']
+    ) ||
     getSourceMemberSlot(game, playerId, sourceCardId) === null
   ) {
     return game;

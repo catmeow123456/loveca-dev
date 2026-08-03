@@ -5,16 +5,14 @@ import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { SP_BP1_010_ACTIVATED_PAY_TWO_ENERGY_DISCARD_LOOK_TOP_FIVE_LIELLA_ABILITY_ID } from '../../ability-ids.js';
-import {
-  doesCardAbilityDefinitionMatchCardCode,
-  findCardAbilityDefinitionById,
-} from '../../definitions/lookup.js';
+import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { finishSkippedActiveEffect } from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
   getAbilityEffectText,
@@ -30,6 +28,7 @@ import {
 const SELECT_DISCARD_COST_STEP_ID = 'SP_BP1_010_SELECT_DISCARD_COST';
 const SELECT_LIELLA_CARD_STEP_ID = 'SP_BP1_010_SELECT_LIELLA_CARD_FROM_TOP_FIVE';
 const REVEAL_LIELLA_CARD_STEP_ID = 'SP_BP1_010_REVEAL_SELECTED_LIELLA_CARD';
+const BASE_CARD_CODE = 'PL!SP-bp1-010';
 
 export function registerSpBp1010MargareteWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
@@ -105,7 +104,13 @@ function startSpBp1010MargareteActivated(
     !isMemberCardData(sourceCard.data) ||
     findMemberSlot(player, cardId) === null ||
     !definition ||
-    !doesCardAbilityDefinitionMatchCardCode(definition, sourceCard.data.cardCode)
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_BP1_010_ACTIVATED_PAY_TWO_ENERGY_DISCARD_LOOK_TOP_FIVE_LIELLA_ABILITY_ID,
+      [BASE_CARD_CODE]
+    )
   ) {
     return game;
   }

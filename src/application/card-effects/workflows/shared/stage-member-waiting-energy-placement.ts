@@ -8,7 +8,6 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { placeEnergyFromDeckToZoneByCardEffect } from '../../../effects/energy.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
@@ -84,7 +83,13 @@ function startSd1011PayEnergyPlaceWaitingEnergy(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-sd1-011') ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
+      ['PL!SP-sd1-011']
+    ) ||
     !isMemberCardData(sourceCard.data) ||
     findMemberSlot(player, cardId) === null
   ) {
@@ -211,7 +216,13 @@ function startBp4010PayEnergyWaitSelfPlaceEnergy(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp4-010') ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_BP4_010_ACTIVATED_PAY_ENERGY_WAIT_SELF_PLACE_WAITING_ENERGY_ABILITY_ID,
+      ['PL!SP-bp4-010']
+    ) ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
     sourceState?.orientation !== OrientationState.ACTIVE

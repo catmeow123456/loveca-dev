@@ -3,7 +3,7 @@
 > 文档类型：编码标准
 > 适用范围：卡效 workflow family、特殊卡 workflow、runner dispatch 的组织方式
 > 当前状态：现行写法；旧 runner 逻辑按 `migration_roadmap.md` 分批迁移，完整卡效 fallback 不得回流
-> 最后更新：2026-07-30
+> 最后更新：2026-08-03
 
 ## ON_LEAVE_STAGE activate stage member
 
@@ -16,6 +16,16 @@ and live-pool reselection. `orderedResolution` only applies to the selected batc
 waiting ability cancels the shortcut and reopens player choice.
 
 workflow 是卡效流程的主要承载层。它可以是一类同型效果，也可以是一张特殊卡的单独流程。
+
+## Granted Activated Ability Source Contract
+
+当前 `PL!SP-pb2-005` 会让舞台上的 Ren host 获得同槽下方自己『Liella!』成员已经实现的 `ACTIVATED / STAGE_MEMBER` 能力。GameSession 的中央命令校验只负责允许合法命令进入 workflow；workflow 自己在后续步骤重复检查来源时仍必须兼容同一宿主契约。
+
+- 只要 abilityId 可以由该 host 获得，启动 handler 以及能量选择恢复、公开确认恢复、支付确认、finish 等所有来源复核点，都使用 `isDirectOrRenGrantedActivatedAbilitySource`。不得只替换第一个 `cardCodeMatchesBase` / `doesCardAbilityDefinitionMatchCardCode` 后就结束审查。
+- helper 的 `directBaseCardCodes` 保存该 abilityId 的全部原生来源；Ren-granted 分支继续检查 host、同槽下方授予卡、definition 与槽位限制。workflow 自己原有的 owner、成员类型、舞台位置、状态、资源与目标校验也必须保留，不得以“支持宿主”为由完全删除来源拥有能力或其他合法性校验。
+- `sourceCardId` 始终是实际发动的 host 实例，不是下方授予能力的卡。“此成员”的费用与效果、`ABILITY_USE`、per-turn identity、`sourceLifecycleId`、activeEffect 和 action audit 都绑定 host；memberBelow 实例只证明 host 当前拥有该 abilityId。
+- shared family 只能对明确的 abilityId/config 开启 Ren-granted 来源。相同文件内其他作品、其他 abilityId 继续使用原 direct-only 边界；同一 abilityId 有多个原生基础编号时，必须全部保留在 `directBaseCardCodes`。
+- 新增或修改可被获得的『Liella!』起动能力时，同步扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，并执行 direct-only source gate 静态审计。代表性测试还要证明待机、离场、移动、modifier 或向下叠卡等“此成员”语义作用于 host。
 
 ## Public Reveal Dwell
 

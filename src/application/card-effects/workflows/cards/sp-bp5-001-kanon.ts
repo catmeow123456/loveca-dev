@@ -38,6 +38,7 @@ import {
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { drawCardsForPlayer, activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { discardOneHandCardToWaitingRoomAndEnqueueTriggers } from '../../runtime/enter-waiting-room-triggers.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -490,7 +491,13 @@ function startActivatedEnergyActivation(
     !sourceCard ||
     sourceCard.ownerId !== player.id ||
     !isMemberCardData(sourceCard.data) ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp5-001') ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      player.id,
+      cardId,
+      SP_BP5_001_ACTIVATED_WAIT_SELF_OR_DISCARD_ACTIVATE_ENERGY_ABILITY_ID,
+      ['PL!SP-bp5-001']
+    ) ||
     sourceSlot === null
   ) {
     return game;
@@ -575,6 +582,7 @@ function finishActivatedCostChoice(
         stepId: ACTIVATED_DISCARD_STEP_ID,
         stepText: '请选择1张手牌放置入休息室。',
         effectChoice: undefined,
+        selectableOptions: undefined,
         selectableCardIds: player.hand.cardIds,
         selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
         selectionLabel: '选择要放置入休息室的手牌',

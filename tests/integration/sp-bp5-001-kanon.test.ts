@@ -497,6 +497,39 @@ describe('PL!SP-bp5-001 Kanon workflows', () => {
     expect(abilityUseCount(scenario.session.state!)).toBe(1);
   });
 
+  it('activated discard step clears the previous source-wait option', () => {
+    const scenario = setupActivatedSession({
+      sourceOrientation: OrientationState.ACTIVE,
+      waitingEnergyCount: 1,
+    });
+    expect(activate(scenario.session).success).toBe(true);
+    expect(
+      scenario.session.state?.activeEffect?.selectableOptions?.map((option) => option.id)
+    ).toEqual(['wait-self', 'discard-hand']);
+
+    confirmSessionOption(scenario.session, 'discard-hand');
+
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      stepText: '请选择1张手牌放置入休息室。',
+      selectableCardIds: [scenario.handCard.instanceId],
+      selectionLabel: '选择要放置入休息室的手牌',
+      confirmSelectionLabel: '放置入休息室',
+    });
+    expect(scenario.session.state?.activeEffect?.effectChoice).toBeUndefined();
+    expect(scenario.session.state?.activeEffect?.selectableOptions).toBeUndefined();
+
+    confirmSessionCard(scenario.session, scenario.handCard.instanceId);
+
+    expect(
+      scenario.session.state?.players[0].memberSlots.cardStates.get(scenario.source.instanceId)
+        ?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(scenario.session.state?.players[0].waitingRoom.cardIds).toContain(
+      scenario.handCard.instanceId
+    );
+    expect(abilityUseCount(scenario.session.state!)).toBe(1);
+  });
+
   it('activated ability does not start without a legal cost', () => {
     const noCost = setupActivatedSession({
       sourceOrientation: OrientationState.WAITING,
