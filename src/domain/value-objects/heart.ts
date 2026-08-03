@@ -16,6 +16,34 @@ import type { HeartIcon, HeartRequirement } from '../entities/card.js';
  */
 export type HeartCounts = Map<HeartColor, number>;
 
+export interface RemainingHeartPreference {
+  readonly color: HeartColor;
+  readonly minCount: number;
+}
+
+export interface HeartAllocationOptions {
+  readonly remainingHeartPreferences?: readonly RemainingHeartPreference[];
+}
+
+const HEART_COLOR_PRIORITY = [
+  HeartColor.PINK,
+  HeartColor.RED,
+  HeartColor.YELLOW,
+  HeartColor.GREEN,
+  HeartColor.BLUE,
+  HeartColor.PURPLE,
+  HeartColor.ORANGE,
+  HeartColor.GRAY,
+  HeartColor.RAINBOW,
+] as const;
+
+interface HeartConsumptionCandidate {
+  readonly usedCounts: ReadonlyMap<HeartColor, number>;
+  readonly remainingCounts: ReadonlyMap<HeartColor, number>;
+  readonly usedNonRainbowCount: number;
+  readonly rainbowDeficit: number;
+}
+
 /**
  * 创建空的 Heart 计数
  */
@@ -184,14 +212,23 @@ export class HeartPool {
    * @returns 分配方案（各颜色使用的 Heart 数量，包括 Rainbow 分配）或 null
    */
   allocateForRequirement(
-    requirement: HeartRequirement
+    requirement: HeartRequirement,
+    options: HeartAllocationOptions = {}
   ): Map<HeartColor, { normal: number; rainbow: number }> | null {
-    const remainingColorCounts = new Map(this._colorCounts);
-    let remainingRainbow = this._rainbowCount;
+    const candidate = this.selectConsumptionCandidate(
+      requirement,
+      options.remainingHeartPreferences ?? []
+    );
+    if (!candidate) {
+      return null;
+    }
+
     const allocation = new Map<HeartColor, { normal: number; rainbow: number }>();
-    let specificRequiredTotal = 0;
 
     const addUsage = (color: HeartColor, normal: number, rainbow: number): void => {
+      if (normal <= 0 && rainbow <= 0) {
+        return;
+      }
       const current = allocation.get(color) ?? { normal: 0, rainbow: 0 };
       allocation.set(color, {
         normal: current.normal + normal,
@@ -199,55 +236,151 @@ export class HeartPool {
       });
     };
 
-    // 先满足指定颜色。需求中的 RAINBOW/GRAY 都表示泛用数量；
-    // 资源中的 GRAY 是普通的无色 Heart，只会在后续总数步骤中被消费。
-    for (const [color, required] of requirement.colorRequirements) {
+    const specificNormalUsed = new Map<HeartColor, number>();
+    let rainbowUsedForSpecificRequirements = 0;
+    for (const color of HEART_COLOR_PRIORITY) {
       if (color === HeartColor.RAINBOW || color === HeartColor.GRAY) {
         continue;
       }
 
-      specificRequiredTotal += required;
-      const available = remainingColorCounts.get(color) ?? 0;
-      const normalUsed = Math.min(available, required);
+      const required = requirement.colorRequirements.get(color) ?? 0;
+      const normalUsed = Math.min(candidate.usedCounts.get(color) ?? 0, required);
       const rainbowUsed = required - normalUsed;
-      if (rainbowUsed > remainingRainbow) {
-        return null;
-      }
-
-      remainingColorCounts.set(color, available - normalUsed);
-      remainingRainbow -= rainbowUsed;
+      specificNormalUsed.set(color, normalUsed);
+      rainbowUsedForSpecificRequirements += rainbowUsed;
       addUsage(color, normalUsed, rainbowUsed);
     }
 
-    // 再用剩余任意 Heart 满足总数需求（包含 Live 需求里的 ALL 心）。
-    let genericNeeded = Math.max(0, requirement.totalRequired - specificRequiredTotal);
-    for (const [color, available] of remainingColorCounts) {
-      if (genericNeeded <= 0) {
-        break;
-      }
-
-      const normalUsed = Math.min(available, genericNeeded);
-      if (normalUsed <= 0) {
+    for (const color of HEART_COLOR_PRIORITY) {
+      if (color === HeartColor.RAINBOW) {
         continue;
       }
-
-      remainingColorCounts.set(color, available - normalUsed);
-      genericNeeded -= normalUsed;
-      addUsage(color, normalUsed, 0);
+      const genericNormalUsed =
+        (candidate.usedCounts.get(color) ?? 0) - (specificNormalUsed.get(color) ?? 0);
+      addUsage(color, genericNormalUsed, 0);
     }
 
-    if (genericNeeded > 0) {
-      const rainbowUsed = Math.min(remainingRainbow, genericNeeded);
-      remainingRainbow -= rainbowUsed;
-      genericNeeded -= rainbowUsed;
-      addUsage(HeartColor.RAINBOW, 0, rainbowUsed);
-    }
+    const totalRainbowUsed = candidate.usedCounts.get(HeartColor.RAINBOW) ?? 0;
+    addUsage(HeartColor.RAINBOW, 0, totalRainbowUsed - rainbowUsedForSpecificRequirements);
 
-    if (genericNeeded > 0) {
+    return allocation;
+  }
+
+  private selectConsumptionCandidate(
+    requirement: HeartRequirement,
+    preferences: readonly RemainingHeartPreference[]
+  ): HeartConsumptionCandidate | null {
+    const nonRainbowColors = HEART_COLOR_PRIORITY.filter((color) => color !== HeartColor.RAINBOW);
+    const specificRequiredTotal = nonRainbowColors.reduce(
+      (total, color) =>
+        color === HeartColor.GRAY ? total : total + (requirement.colorRequirements.get(color) ?? 0),
+      0
+    );
+    const totalToConsume = Math.max(requirement.totalRequired, specificRequiredTotal);
+    if (this.getTotalCount() < totalToConsume) {
       return null;
     }
 
-    return allocation;
+    let candidates = new Map<string, HeartConsumptionCandidate>();
+    candidates.set('0:0', {
+      usedCounts: new Map(),
+      remainingCounts: new Map(),
+      usedNonRainbowCount: 0,
+      rainbowDeficit: 0,
+    });
+
+    for (const color of nonRainbowColors) {
+      const available = this.getColorCount(color);
+      const required =
+        color === HeartColor.GRAY ? 0 : (requirement.colorRequirements.get(color) ?? 0);
+      const nextCandidates = new Map<string, HeartConsumptionCandidate>();
+
+      for (const candidate of candidates.values()) {
+        const maxUsed = Math.min(available, totalToConsume - candidate.usedNonRainbowCount);
+        for (let used = 0; used <= maxUsed; used++) {
+          const usedNonRainbowCount = candidate.usedNonRainbowCount + used;
+          const rainbowDeficit = candidate.rainbowDeficit + Math.max(0, required - used);
+          const usedCounts = new Map(candidate.usedCounts);
+          usedCounts.set(color, used);
+          const remainingCounts = new Map(candidate.remainingCounts);
+          remainingCounts.set(color, available - used);
+          const nextCandidate: HeartConsumptionCandidate = {
+            usedCounts,
+            remainingCounts,
+            usedNonRainbowCount,
+            rainbowDeficit,
+          };
+          const key = `${usedNonRainbowCount}:${rainbowDeficit}`;
+          const current = nextCandidates.get(key);
+          if (!current || this.isPreferredCandidate(nextCandidate, current, preferences)) {
+            nextCandidates.set(key, nextCandidate);
+          }
+        }
+      }
+
+      candidates = nextCandidates;
+    }
+
+    let selected: HeartConsumptionCandidate | null = null;
+    for (const candidate of candidates.values()) {
+      const rainbowUsed = totalToConsume - candidate.usedNonRainbowCount;
+      if (
+        rainbowUsed < candidate.rainbowDeficit ||
+        rainbowUsed < 0 ||
+        rainbowUsed > this._rainbowCount
+      ) {
+        continue;
+      }
+
+      const usedCounts = new Map(candidate.usedCounts);
+      usedCounts.set(HeartColor.RAINBOW, rainbowUsed);
+      const remainingCounts = new Map(candidate.remainingCounts);
+      remainingCounts.set(HeartColor.RAINBOW, this._rainbowCount - rainbowUsed);
+      const completeCandidate: HeartConsumptionCandidate = {
+        ...candidate,
+        usedCounts,
+        remainingCounts,
+      };
+      if (!selected || this.isPreferredCandidate(completeCandidate, selected, preferences)) {
+        selected = completeCandidate;
+      }
+    }
+
+    return selected;
+  }
+
+  private isPreferredCandidate(
+    candidate: HeartConsumptionCandidate,
+    current: HeartConsumptionCandidate,
+    preferences: readonly RemainingHeartPreference[]
+  ): boolean {
+    const candidatePreferenceResults = preferences.map(
+      (preference) => (candidate.remainingCounts.get(preference.color) ?? 0) >= preference.minCount
+    );
+    const currentPreferenceResults = preferences.map(
+      (preference) => (current.remainingCounts.get(preference.color) ?? 0) >= preference.minCount
+    );
+    const candidateSatisfiedCount = candidatePreferenceResults.filter(Boolean).length;
+    const currentSatisfiedCount = currentPreferenceResults.filter(Boolean).length;
+    if (candidateSatisfiedCount !== currentSatisfiedCount) {
+      return candidateSatisfiedCount > currentSatisfiedCount;
+    }
+
+    for (let index = 0; index < preferences.length; index++) {
+      if (candidatePreferenceResults[index] !== currentPreferenceResults[index]) {
+        return candidatePreferenceResults[index] === true;
+      }
+    }
+
+    for (const color of HEART_COLOR_PRIORITY) {
+      const candidateRemaining = candidate.remainingCounts.get(color) ?? 0;
+      const currentRemaining = current.remainingCounts.get(color) ?? 0;
+      if (candidateRemaining !== currentRemaining) {
+        return candidateRemaining < currentRemaining;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -257,8 +390,8 @@ export class HeartPool {
    * @param requirement Heart 需求
    * @returns 消耗后的新 HeartPool，如果无法满足则返回 null
    */
-  consume(requirement: HeartRequirement): HeartPool | null {
-    const allocation = this.allocateForRequirement(requirement);
+  consume(requirement: HeartRequirement, options: HeartAllocationOptions = {}): HeartPool | null {
+    const allocation = this.allocateForRequirement(requirement, options);
     if (allocation === null) {
       return null;
     }
@@ -267,9 +400,11 @@ export class HeartPool {
     const newCounts = new Map<HeartColor, number>();
     let totalRainbowUsed = 0;
 
-    // 复制当前颜色计数
-    for (const [color, count] of this._colorCounts) {
-      newCounts.set(color, count);
+    // 固定颜色顺序，避免输入卡牌或成员顺序影响权威余 Heart 的序列化结果。
+    for (const color of HEART_COLOR_PRIORITY) {
+      if (color !== HeartColor.RAINBOW) {
+        newCounts.set(color, this.getColorCount(color));
+      }
     }
 
     // 扣除使用的 Heart

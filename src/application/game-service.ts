@@ -154,6 +154,7 @@ import {
   getPlayerLiveScoreModifier,
 } from '../domain/rules/live-modifiers.js';
 import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
+import { collectRemainingHeartAllocationPreferences } from './effects/remaining-heart-allocation.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { clearLiveProhibitionsUntilLiveEnd } from '../domain/rules/live-prohibitions.js';
 import { clearLiveStartSuppressionsUntilLiveEnd } from '../domain/rules/live-start-suppressions.js';
@@ -1228,12 +1229,25 @@ export class GameService {
       stageMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
     }
     const liveCards = this.getPlayerLiveCards(game, playerId);
+    const remainingHeartPreferences = collectRemainingHeartAllocationPreferences(
+      game,
+      playerId,
+      liveCards.map((liveCard) => liveCard.cardId)
+    );
     const cheerCardIds = this.getCurrentPerformanceCheerCardIds(game, playerId);
     const cheerCards = cheerCardIds.map((cardId) => ({
       cardId,
       bladeHearts: this.getCardBladeHearts(game, playerId, cardId, liveModifiers),
     }));
-    const performance = liveResolver.performLive(playerId, stageMemberCards, liveCards, cheerCards);
+    const performance = liveResolver.performLive(
+      playerId,
+      stageMemberCards,
+      liveCards,
+      cheerCards,
+      {
+        remainingHeartPreferences,
+      }
+    );
 
     let stateAfterPerformance = game;
     for (let i = 0; i < performance.cheerResult.drawCount; i++) {

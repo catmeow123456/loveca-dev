@@ -1,5 +1,6 @@
 import type {
   CardType,
+  HeartColor,
   OrientationState,
   SlotPosition,
   TriggerCondition,
@@ -52,6 +53,12 @@ export interface PlayedMemberOnEnterTriggerFilter {
   readonly replacedMemberGroupAliases?: readonly string[];
 }
 
+export interface RemainingHeartAllocationPreferenceDefinition {
+  readonly color: HeartColor;
+  readonly minCount: number;
+  readonly requiredStageGroupAlias?: string;
+}
+
 export type WaitingRoomOnEnterDelegationPolicy =
   | {
       readonly decision: 'ALLOW';
@@ -91,6 +98,8 @@ export interface CardAbilityDefinition {
   readonly observerOnly?: boolean;
   readonly skipQueueWhenTurnLimitReached?: boolean;
   readonly activatedUi?: ActivatedAbilityUiConfig;
+  /** Preference used by automatic LIVE Heart allocation before this LIVE_SUCCESS ability resolves. */
+  readonly remainingHeartAllocationPreference?: RemainingHeartAllocationPreferenceDefinition;
   /** Explicit compatibility decision for resolving this ON_ENTER ability with its source still in the waiting room. */
   readonly delegatedOnEnterFromWaitingRoomPolicy?: WaitingRoomOnEnterDelegationPolicy;
   readonly notes?: string;

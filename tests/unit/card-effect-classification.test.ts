@@ -129,6 +129,7 @@ import {
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
+  HeartColor,
   OrientationState,
   SlotPosition,
   TriggerCondition,
@@ -8549,6 +8550,11 @@ describe('card effect classification registry', () => {
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
       queued: true,
       implemented: true,
+      remainingHeartAllocationPreference: {
+        color: HeartColor.GREEN,
+        minCount: 1,
+        requiredStageGroupAlias: '虹ヶ咲',
+      },
     });
 
     const kosuzuLiveSuccess = getCardAbilityDefinitions('PL!HS-pb1-021-N').find(
@@ -10666,6 +10672,10 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
       effectText: '【LIVE成功时】剩余HEART中自己持有大于等于1个[桃ハート]的场合，抽1张卡。',
+      remainingHeartAllocationPreference: {
+        color: HeartColor.PINK,
+        minCount: 1,
+      },
     });
 
     for (const cardCode of [

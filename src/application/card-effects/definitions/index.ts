@@ -1,5 +1,6 @@
 import {
   CardType,
+  HeartColor,
   OrientationState,
   SlotPosition,
   TriggerCondition,
@@ -9225,8 +9226,13 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_N_BP3_027_LIVE_SUCCESS_EFFECT_TEXT,
+    remainingHeartAllocationPreference: {
+      color: HeartColor.GREEN,
+      minCount: 1,
+      requiredStageGroupAlias: '虹ヶ咲',
+    },
     notes:
-      'LIVE成功时直接结算；读取本次 LIVE 判定后的 playerRemainingHearts，要求绿色剩余 Heart >=1 且舞台存在虹ヶ咲成员，满足时从能量卡组放置1张待机能量。剩余 Heart 条件不消费，RAINBOW/ALL 不算绿色。',
+      'LIVE 判定前声明绿色余 Heart >=1 的自动分配偏好，仅在舞台存在虹ヶ咲成员时参与；分配后读取 playerRemainingHearts，满足时从能量卡组放置1张待机能量。条件不消费剩余 Heart，RAINBOW/ALL 不算绿色。',
   },
   {
     abilityId: BP3_001_ACTIVATED_WAIT_SELF_DRAW_DISCARD_ABILITY_ID,
@@ -9885,8 +9891,12 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText: PL_BP4_023_LIVE_SUCCESS_EFFECT_TEXT,
+    remainingHeartAllocationPreference: {
+      color: HeartColor.PINK,
+      minCount: 1,
+    },
     notes:
-      '复用 shared `conditional-live-draw-one.ts` 与 remaining-hearts 指定颜色 rebalance 语义；预览只计算可合法还原后的粉色剩余HEART数量，正式结算且来源仍在自己LIVE区时才应用 rebalance。有效粉色数量>=1时复用 drawCardsForPlayer 抽1，其他单色与不可合法还原的 RAINBOW 不成立。',
+      'LIVE 判定前声明粉色余 Heart >=1 的自动分配偏好；结算继续复用 shared `conditional-live-draw-one.ts` 与 remaining-hearts 兼容 rebalance，来源仍在自己LIVE区且有效粉色数量>=1时抽1。其他单色与不可合法还原的 RAINBOW 不成立。',
   },
   {
     abilityId: BP3_006_LIVE_START_DISCARD_GAIN_BLADE_BY_SUCCESS_COUNT_ABILITY_ID,

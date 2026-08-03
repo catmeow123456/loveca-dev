@@ -16,8 +16,9 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
+import { collectRemainingHeartAllocationPreferences } from '../../src/application/effects/remaining-heart-allocation';
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession } from '../../src/application/game-session';
@@ -31,6 +32,7 @@ import {
   SlotPosition,
   SubPhase,
   TriggerCondition,
+  TurnType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -177,6 +179,89 @@ function resolveTwoCopies(game: ReturnType<typeof prepareScenario>['game']) {
 }
 
 describe('PL!N-bp3-027-L La Bella Patria', () => {
+  it('declares the green allocation preference only with a Nijigasaki stage member', () => {
+    const withNijigasaki = prepareScenario({
+      remainingHearts: [],
+      hasNijigasakiStageMember: true,
+    });
+    const withoutNijigasaki = prepareScenario({
+      remainingHearts: [],
+      hasNijigasakiStageMember: false,
+    });
+
+    expect(
+      collectRemainingHeartAllocationPreferences(
+        withNijigasaki.game,
+        PLAYER1,
+        withNijigasaki.liveCards.map((card) => card.instanceId)
+      )
+    ).toEqual([{ color: HeartColor.GREEN, minCount: 1 }]);
+    expect(
+      collectRemainingHeartAllocationPreferences(
+        withoutNijigasaki.game,
+        PLAYER1,
+        withoutNijigasaki.liveCards.map((card) => card.instanceId)
+      )
+    ).toEqual([]);
+  });
+
+  it('automatic judgment preserves green for the reported mixed-heart case', () => {
+    const live = createCardInstance(createLive(), PLAYER1, 'reported-case-live');
+    const member = createCardInstance(
+      {
+        ...createMember('PL!N-reported-case-member'),
+        blade: 0,
+        hearts: [
+          createHeartIcon(HeartColor.YELLOW, 2),
+          createHeartIcon(HeartColor.GREEN, 3),
+          createHeartIcon(HeartColor.BLUE, 1),
+          createHeartIcon(HeartColor.PURPLE, 1),
+        ],
+      },
+      PLAYER1,
+      'reported-case-member'
+    );
+    let game = createGameState('n-bp3-027-reported-case', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [live, member]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: PLAYER1,
+      },
+    };
+
+    const result = new GameService().processAction(game, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: PLAYER1,
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
+    expect(result.gameState.liveResolution.playerRemainingHearts.get(PLAYER1)).toEqual([
+      { color: HeartColor.GREEN, count: 1 },
+      { color: HeartColor.PURPLE, count: 1 },
+    ]);
+  });
+
   it('places one waiting energy with green remaining heart and Nijigasaki stage member', () => {
     const { game, energies } = prepareScenario({
       remainingHearts: [{ color: HeartColor.GREEN, count: 1 }],
