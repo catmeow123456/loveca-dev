@@ -51,9 +51,6 @@ function start(game: GameState, playerId: string, sourceCardId: string): GameSta
     sourceSlot === null || player.energyZone.cardIds.length === 0
   ) return game;
 
-  const predictedThreshold = (player.memberSlots.energyBelow[sourceSlot] ?? []).length + 2;
-  if (getTargets(game, opponent.id, predictedThreshold).length === 0) return game;
-
   const stacked = stackEnergyFromEnergyZoneBelowMemberAndEnqueueTriggers(
     game, player.id, sourceSlot, 1,
     { kind: 'CARD_EFFECT', playerId: player.id, sourceCardId, abilityId: N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID }

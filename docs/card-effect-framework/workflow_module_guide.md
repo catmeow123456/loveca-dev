@@ -73,7 +73,7 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 ## Family Workflow
 
-`relay-replacement-gain-blade.ts` 是 `PL!-PR-023`、`PL!HS-PR-040`、`PL!S-PR-046`
+`relay-replacement-gain-blade.ts` 是 `PL!-PR-024`、`PL!HS-PR-040`、`PL!S-PR-046`
 三个同文基础编号证明的窄离场 family。它只接受绑定当前 pending 的精确
 `LeaveStageEvent`，并以该事件的 `replacingCardId` 重验换手登场成员仍为控制者主舞台顶层、
 印刷费用至少9；不得从最近 action、当前槽位变化或卡名猜测关系。合法时写目标成员实例绑定的
@@ -174,6 +174,8 @@ Discard-then-draw is a separate shared family when the stable order is private h
 Arrange-top workflows may share a core when they inspect the deck top, let the player choose an ordered subset for deck top, and move unselected inspected cards to waiting room. The shared summary label can describe 登场, LIVE开始, or LIVE成功 sources, but the workflow must still own only the inspection / ordered deck-top / inspected-to-waiting-room flow. Keep card-specific opt-in costs, such as waiting the source member before inspection, in a thin card wrapper that calls the shared core after the cost has fully resolved.
 
 The DRAFT `PL!S-bp7-008` ON_ENTER ability proves one narrow additional destination axis: after choosing an ordered 0–3-card top subset, every remaining inspected card must be ordered for the deck bottom. `arrange-inspected-deck-edge.ts` owns that second exact-all ordered step and delegates only the final atomic placement to `moveInspectedCardsToDeckTopAndBottom`; a remainder of zero or one resolves without an unnecessary second prompt. This axis does not permit mixed waiting-room placement, arbitrary destinations, partial bottom subsets, or a generic multi-step DSL.
+
+The DRAFT `PL!S-bp7-010-N` 费用4「高海千歌」remains card-owned in `workflows/cards/s-bp7-010-chika.ts`: it privately inspects exactly one bottom card, then offers the two destination results of placing that same card fourth from the top or retaining it at the bottom. The destination choice uses the existing public-effect-choice lifecycle so both players see the selected result before any movement, while the inspected card itself remains private to its owner. The workflow owns the queued ON_ENTER window, private projection, stale revalidation and continuation; `moveInspectedCardToDeckPositionFromTop` owns only the atomic inspection-to-position move, while the bottom result reuses `moveInspectedCardsToDeckTopAndBottom`. This first arbitrary-position inspection sample does not extend `arrange-inspected-deck-edge.ts` or establish a configurable deck-position workflow family.
 
 When such a thin wrapper pays a discard cost before delegating, it may pass the narrow optional `discardedCostCardIds` summary context so STARTED and COMPLETED public summaries report the real cost. The shared arrange core does not select or pay that cost; callers without a discard cost continue to report an empty list.
 
@@ -427,7 +429,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 
 `PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」只共享第一批 refresh-aware bottom helper，不形成新的 shared reward family。020 的底1 Aqours MEMBER 后必要[無ハート]-1 留在 `cards/s-bp7-020-happy-party-train.ts`；同卡公开的“己方主舞台成员全部 ACTIVE”段扩展 `conditional-live-modifier.ts`，以至少1名顶层成员避免空集合误判。021 留在 `cards/s-bp7-021-bokura-no-tabi-wa-owaranai.ts`，结算时重查三名顶层成员门槛，完整移动5张后按实际 MEMBER 数抽牌并以 replacement 写来源 LIVE SCORE。
 
-`PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」保持单卡 LIVE_SUCCESS workflow `cards/s-bp7-022-koi-ni-naritai-aquarium.ts`。声援方向是 domain 纯 query 与统一公开入口的规则责任，不在 workflow/runner 传 `useBottom` 布尔值。LIVE_SUCCESS 复用 `selectCurrentLiveRevealedCheerCardIds` 事件事实，再由 `evaluateDistinctCheerCardsCoverHeartColors` 对印刷 Heart 做三色不同 cardId 的确定性小型回溯；它只表达“不同卡覆盖所需颜色”，不是图算法框架或 Heart DSL。结果以来源 LIVE SCORE replacement 和 `playerScores` 差值刷新结算，动态 confirm-only 只显示三色候选数、三张不同卡匹配结果与实际分数。
+`PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」保持单卡 LIVE_SUCCESS workflow `cards/s-bp7-022-koi-ni-naritai-aquarium.ts`。声援方向是 domain 纯 query 与统一公开入口的规则责任，不在 workflow/runner 传 `useBottom` 布尔值。LIVE_SUCCESS 复用 `selectCurrentLiveRevealedCheerCardIds` 事件事实，再由 `evaluateDistinctCheerCardsCoverHeartColors` 通过 `getCheerCardEffectiveBladeHearts` 对声援产生的有效彩色判心做三色不同 cardId 的确定性小型回溯；成员卡的印刷 `hearts`、DRAW/SCORE 等非 HEART 判定不计入，它只表达“不同卡覆盖所需判心颜色”，不是图算法框架或 Heart DSL。结果以来源 LIVE SCORE replacement 和 `playerScores` 差值刷新结算，动态 confirm-only 只显示三色判心候选数、三张不同卡匹配结果与实际分数。
 
 020 与 021 都在移动及标准分组事件入队后打开 Public Reveal Dwell，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 展示结束后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 展示结束后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
 

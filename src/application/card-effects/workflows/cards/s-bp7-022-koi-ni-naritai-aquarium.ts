@@ -34,14 +34,14 @@ export function registerSBp7022KoiNiNaritaiAquariumWorkflowHandlers(): void {
         ability,
         options,
         context.continuePendingCardEffects
-    ),
+      ),
     (game, ability) => {
       const { cheerEvaluation: evaluation, scoreBonus } = evaluateResolution(game, ability);
       const redCount = evaluation.candidateCountsByColor.get(HeartColor.RED) ?? 0;
       const greenCount = evaluation.candidateCountsByColor.get(HeartColor.GREEN) ?? 0;
       const blueCount = evaluation.candidateCountsByColor.get(HeartColor.BLUE) ?? 0;
       return {
-        effectText: `${getAbilityEffectText(ability.abilityId)}（当前持有[赤ハート]的『Aqours』成员候选${redCount}张，持有[緑ハート]的候选${greenCount}张，持有[青ハート]的候选${blueCount}张；需要三张不同卡，${
+        effectText: `${getAbilityEffectText(ability.abilityId)}（当前声援时产生[赤ハート]的『Aqours』成员候选${redCount}张，产生[緑ハート]的候选${greenCount}张，产生[青ハート]的候选${blueCount}张；需要三张不同卡，${
           scoreBonus > 0
             ? '可完成匹配，实际此LIVE[スコア]+1。'
             : evaluation.conditionMet

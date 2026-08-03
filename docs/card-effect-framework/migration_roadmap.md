@@ -832,7 +832,7 @@ These effects may remain card-specific, but should leave runner only after a nar
 
 第二批 `PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」在同一原语上补充两个具体卡牌样本：bottom-mill 后按实际移动集合写来源 LIVE requirement，或在舞台门槛后抽牌并写来源 LIVE SCORE。两张卡的底牌能力现都于实际移动和分组事件后通过 Public Reveal Dwell 展示真实 `movedCardIds`，展示期间不写 requirement、不抽牌、不写 SCORE；020 展示结束后按结构化 Aqours MEMBER 条件 replacement，021 展示结束后按5张中的 MEMBER 数量执行对应奖励。020 的公开“全舞台成员 ACTIVE”段仍进入既有 `conditional-live-modifier` family；两个 bottom 段保持单卡 workflow。该批没有扩第一批 gain-heart family、没有建立任意 bottom reward DSL、没有覆盖从卡组底声援或其他 bp7。
 
-第三个公开印刷样本 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」单独建立声援方向边界，效果按基础编号 `PL!S-bp7-022` 覆盖：`CheerDeckEdge` 纯 query、zone 底部单张抽取与统一 `revealCheerCardsFromMainDeck`。普通/手动/自动/追加/重做声援不再保留第二套循环，但这仍不是任意牌库方向 DSL；当前只有 022 提供 BOTTOM。本批不改造 bottom direct-mill，不实现其他 bp7。同卡 LIVE_SUCCESS 以 event-inclusive 事实与小型确定性匹配解决“三张不同卡覆盖红绿蓝”，runner 只增加一条 import/register。
+第三个公开印刷样本 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」单独建立声援方向边界，效果按基础编号 `PL!S-bp7-022` 覆盖：`CheerDeckEdge` 纯 query、zone 底部单张抽取与统一 `revealCheerCardsFromMainDeck`。普通/手动/自动/追加/重做声援不再保留第二套循环，但这仍不是任意牌库方向 DSL；当前只有 022 提供 BOTTOM。本批不改造 bottom direct-mill，不实现其他 bp7。同卡 LIVE_SUCCESS 以 event-inclusive 事实、有效 Blade Heart 判心读取与小型确定性匹配解决“三张不同卡覆盖红绿蓝判心”，runner 只增加一条 import/register。
 
 ## Guardrails
 

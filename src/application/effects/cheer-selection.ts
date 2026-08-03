@@ -9,6 +9,7 @@ import {
 } from '../../domain/entities/game.js';
 import type { CheerEvent } from '../../domain/events/game-events.js';
 import { addCardToZone } from '../../domain/entities/zone.js';
+import { getCheerCardEffectiveBladeHearts } from '../../domain/rules/live-modifiers.js';
 import {
   BladeHeartEffect,
   HeartColor,
@@ -116,8 +117,8 @@ export function collectCurrentLiveRevealedCheerBladeHeartColors(
 }
 
 /**
- * Evaluates event-inclusive current-cheer facts. Printed member Hearts only; Blade Hearts and
- * temporary LIVE modifiers are intentionally outside this query.
+ * Evaluates event-inclusive current-cheer facts using each card's effective colored judgment
+ * Hearts. Ordinary printed member Hearts and non-HEART Blade effects never count.
  */
 export function evaluateDistinctCheerCardsCoverHeartColors(
   game: GameState,
@@ -147,7 +148,10 @@ export function evaluateDistinctCheerCardsCoverHeartColors(
           card !== null &&
           card.ownerId === playerId &&
           isMemberCardData(card.data) &&
-          card.data.hearts.some((heart) => heart.color === color && heart.count > 0)
+          getCheerCardEffectiveBladeHearts(game, playerId, cardId).some(
+            (bladeHeart) =>
+              bladeHeart.effect === BladeHeartEffect.HEART && bladeHeart.heartColor === color
+          )
         );
       })
     );

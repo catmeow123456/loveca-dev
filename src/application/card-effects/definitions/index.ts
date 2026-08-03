@@ -27,11 +27,13 @@ import {
   PL_PB2_001_LIVE_START_SUCCESS_MUSE_ICON_REWARDS_ABILITY_ID,
   PL_PB2_039_LIVE_START_SUCCESS_MUSE_TWO_CHEER_TEN_ABILITY_ID,
   PL_PB2_039_LIVE_SUCCESS_DISTINCT_MUSE_STAGE_CHEER_SCORE_ABILITY_ID,
+  S_BP7_001_ON_ENTER_DISCARD_RECOVER_HIGH_COST_MEMBER_GAIN_BLADE_ABILITY_ID,
   S_BP7_007_LIVE_START_BOTTOM_AQOURS_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP7_007_ON_ENTER_RECOVER_LOW_COST_MEMBER_OPTIONAL_PLAY_ABILITY_ID,
   S_BP7_008_LIVE_START_MILL_BOTTOM_ONE_RECOVER_KANAN_OR_DIA_ABILITY_ID,
   S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
   S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
+  S_BP7_010_ON_ENTER_LOOK_BOTTOM_ONE_OPTIONAL_DECK_FOURTH_ABILITY_ID,
   SP_BP7_005_AUTO_ENTER_OR_RETURN_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID,
   SP_BP7_009_LIVE_START_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
@@ -12984,7 +12986,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       text: N_BP7_004_ACTIVATED_EFFECT_TEXT,
     },
     notes:
-      '按基础编号覆盖同卡全部罕度；日文权威文本明确费用来自能量区，公开中文 API 的“能量卡组”是数据错误。费用成功后才记录 PAY_COST 与 turn1，并按支付后的 energyBelow 数量加1读取目标 original BLADE。',
+      '按基础编号覆盖同卡全部罕度；日文权威文本明确费用来自能量区，公开中文 API 的“能量卡组”是数据错误。启动不预检后续目标；费用成功后才记录 PAY_COST 与 turn1，并按支付后的 energyBelow 数量加1读取目标 original BLADE，无合法目标时保留费用并 no-op。',
   },
   {
     abilityId: N_BP7_005_ON_ENTER_DIVERDIVA_CHOOSE_ACTIVATE_TWO_OR_PLACE_ENERGY_BELOW_ABILITY_ID,
@@ -13151,6 +13153,19 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【自动】【1回合1次】每当因自己的【LIVE成功时】能力，从自己的卡组将卡片放置入自己的休息室时，可以将其中的1张『虹咲』的LIVE卡加入手牌。如此做时，此卡的分数+1。',
     notes:
       '按基础编号覆盖同卡全部罕度；通用等待室触发入口要求事件 owner/controller/cause.player 一致且 cause ability definition 为 LIVE_SUCCESS。单卡 workflow 只从该 grouped event 的 movedCardIds 中选择结算时仍在自己休息室的结构化虹咲 LIVE；成功回收后才记录 turn1 并为来源 LIVE 绑定 SCORE +1。',
+  },
+  {
+    abilityId: S_BP7_001_ON_ENTER_DISCARD_RECOVER_HIGH_COST_MEMBER_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-001'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText:
+      '【登场】可以将1张手牌放置入休息室：从自己的休息室将1张费用大于等于10的成员卡加入手牌。因此将「樱内梨子」或「渡边曜」加入手牌的场合，LIVE结束时为止，获得[ブレード][ブレード]。',
+    notes:
+      '2026-08-03 DRAFT 权威导出文本；按基础编号覆盖同卡全部罕度。可选弃置1张手牌后重扫休息室费用>=10的成员，经 public-card-selection confirmation 公开确认并实际回手；命中结构化姓名「樱内梨子」或「渡边曜」时，为登场来源成员写入至 LIVE 结束的 BLADE +2。',
   },
   {
     abilityId: S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID,
@@ -13421,6 +13436,18 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: '【常时】存在于此成员正面的区域的费用小于等于4的成员，失去1个[ブレード]。',
     notes:
       'continuous live modifier；按双方玩家视角映射来源正面区域，实时检查对方顶层成员的印刷费用<=4，并为该目标成员生成 BLADE -1。来源移位、离场、成为 memberBelow、对面目标移位或费用条件不符时自然失效。',
+  },
+  {
+    abilityId: S_BP7_010_ON_ENTER_LOOK_BOTTOM_ONE_OPTIONAL_DECK_FOURTH_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-010'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: '【登场】检视自己的卡组底的卡片。可以将其放置于卡组顶第4张处。',
+    notes:
+      '2026-08-03 DRAFT 权威导出文本；按基础编号覆盖同卡全部罕度。只对控制者私密检视卡组底1张，可选将该实例插入卡组顶第4张；短牌库时放到底部，不公开。',
   },
   {
     abilityId: HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_ID,
@@ -13876,7 +13903,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【LIVE成功时】自己因声援公开的卡中，存在分别持有[赤ハート]、[緑ハート]、[青ハート]的三张不同『Aqours』成员卡时，此LIVE的[スコア]+1。',
     notes:
-      '单卡 workflow s-bp7-022-koi-ni-naritai-aquarium.ts；按基础编号覆盖同卡全部罕度；复用 event-inclusive current-cheer 事实与稳定的不同卡颜色匹配 query。',
+      '单卡 workflow s-bp7-022-koi-ni-naritai-aquarium.ts；按基础编号覆盖同卡全部罕度；复用 event-inclusive current-cheer 事实，按每张成员在本次声援中产生的有效 Blade Heart 判心颜色做稳定的不同卡匹配，不读取成员卡印刷 data.hearts。',
   },
   {
     abilityId: S_BP7_019_LIVE_SUCCESS_BOTTOM_UP_TO_TWO_AQOURS_CARDS_ABILITY_ID,
@@ -14071,7 +14098,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   },
   {
     abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
-    baseCardCodes: ['PL!-PR-022', 'PL!N-PR-034'],
+    baseCardCodes: ['PL!-PR-023', 'PL!N-PR-034'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -14079,11 +14106,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
     notes:
-      'continuous live modifier；按双方成功 LIVE 区的有效分数合计动态判断，达到10时来源成员获得 SOURCE_MEMBER 桃 Heart。PUBLIC visibility，不进入 workflow/runner。',
+      'continuous live modifier；按双方成功 LIVE 区的有效分数合计动态判断，达到10时来源成员获得 SOURCE_MEMBER 桃 Heart。PL!-PR-023 为绚濑绘里的正式编号；PL!-PR-022 是另一张暂未实现的卡。PUBLIC visibility，不进入 workflow/runner。',
   },
   {
     abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!-PR-023', 'PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
+    baseCardCodes: ['PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -14093,7 +14120,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【自动】此成员从舞台被放置入休息室时，此成员曾与费用大于等于9的成员换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。',
     notes:
-      'shared relay-replacement-gain-blade workflow；只读取 pending 绑定的 LeaveStageEvent/replacingCardId，重验替换成员仍为己方舞台顶层且印刷费用>=9，再写 targetMemberCardId 绑定的 BLADE +2。来源离场不阻止结算；陈旧事件或目标安全 no-op。',
+      'shared relay-replacement-gain-blade workflow；PL!-PR-024 为南小鸟的正式编号，不覆盖旧错误编号 PL!-PR-023。只读取 pending 绑定的 LeaveStageEvent/replacingCardId，重验替换成员仍为己方舞台顶层且印刷费用>=9，再写 targetMemberCardId 绑定的 BLADE +2。来源离场不阻止结算；陈旧事件或目标安全 no-op。',
   },
   {
     abilityId: PR_ON_ENTER_LOOK_TOP_TEN_MINUS_HAND_TAKE_TWO_ABILITY_ID,

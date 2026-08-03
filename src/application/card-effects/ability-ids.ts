@@ -1653,6 +1653,8 @@ export const N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID =
   'PL!N-bp7-031-L:live-success-mill-top-three';
 export const N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID =
   'PL!N-bp7-031-L:auto-own-live-success-mill-recover-nijigasaki-live-score';
+export const S_BP7_001_ON_ENTER_DISCARD_RECOVER_HIGH_COST_MEMBER_GAIN_BLADE_ABILITY_ID =
+  'PL!S-bp7-001:on-enter-discard-recover-high-cost-member-gain-blade';
 export const S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID =
   'PL!S-bp7-005-SEC:on-enter-stack-waiting-member-below-stage-member';
 export const S_BP7_003_ON_ENTER_LOOK_TOP_ONE_OPTIONAL_BOTTOM_ABILITY_ID =
@@ -1737,6 +1739,8 @@ export const S_BP7_007_LIVE_START_BOTTOM_AQOURS_MEMBERS_GAIN_BLADE_ABILITY_ID =
   'PL!S-bp7-007:live-start-bottom-aqours-members-gain-blade';
 export const S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID =
   'PL!S-bp7-009:continuous-front-low-cost-member-lose-blade';
+export const S_BP7_010_ON_ENTER_LOOK_BOTTOM_ONE_OPTIONAL_DECK_FOURTH_ABILITY_ID =
+  'PL!S-bp7-010:on-enter-look-bottom-one-optional-deck-fourth';
 export const HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!HS-bp8-001:on-enter-mill-three-all-cerise-activate-energy';
 export const HS_BP8_001_AUTO_WAITING_ROOM_TO_DECK_GAIN_THREE_BLADE_ABILITY_ID =

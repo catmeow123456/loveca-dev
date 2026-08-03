@@ -1,5 +1,6 @@
 import {
   emitGameEvent,
+  getCardById,
   getPlayerById,
   updatePlayer,
   type GameState,
@@ -42,6 +43,13 @@ export interface MoveInspectedCardsToDeckTopAndBottomResult {
   readonly gameState: GameState;
   readonly deckTopCardIds: readonly string[];
   readonly deckBottomCardIds: readonly string[];
+}
+
+export interface MoveInspectedCardToDeckPositionFromTopResult {
+  readonly gameState: GameState;
+  readonly movedCardId: string;
+  readonly positionFromTop: number;
+  readonly insertIndex: number;
 }
 
 export interface PartitionInspectedCardsResult extends MoveInspectedDeckTopRestToWaitingRoomResult {
@@ -271,6 +279,58 @@ export function moveInspectedCardsToDeckTopAndBottom(
     gameState: state,
     deckTopCardIds,
     deckBottomCardIds,
+  };
+}
+
+/**
+ * 将从主卡组检视的单1张卡放置到卡组顶数第 N 张的可达位置。
+ *
+ * 当剩余卡组不足 `positionFromTop - 1` 张时，放置到卡组底。
+ * 本 helper 仅完成 inspection -> MAIN_DECK 的窄移动，不创建事件、action、
+ * activeEffect 或 pending ability。
+ */
+export function moveInspectedCardToDeckPositionFromTop(
+  game: GameState,
+  playerId: string,
+  inspectedCardId: string,
+  positionFromTop: number
+): MoveInspectedCardToDeckPositionFromTopResult | null {
+  const player = getPlayerById(game, playerId);
+  const card = getCardById(game, inspectedCardId);
+  if (
+    !player ||
+    !card ||
+    card.ownerId !== player.id ||
+    game.inspectionContext?.ownerPlayerId !== player.id ||
+    game.inspectionContext.sourceZone !== ZoneType.MAIN_DECK ||
+    game.inspectionZone.cardIds.length !== 1 ||
+    game.inspectionZone.cardIds[0] !== inspectedCardId ||
+    player.mainDeck.cardIds.includes(inspectedCardId) ||
+    !Number.isInteger(positionFromTop) ||
+    positionFromTop <= 0
+  ) {
+    return null;
+  }
+
+  const insertIndex = Math.min(positionFromTop - 1, player.mainDeck.cardIds.length);
+  let state = updatePlayer(game, player.id, (currentPlayer) => ({
+    ...currentPlayer,
+    mainDeck: {
+      ...currentPlayer.mainDeck,
+      cardIds: [
+        ...currentPlayer.mainDeck.cardIds.slice(0, insertIndex),
+        inspectedCardId,
+        ...currentPlayer.mainDeck.cardIds.slice(insertIndex),
+      ],
+    },
+  }));
+  state = clearInspectionCards(state, [inspectedCardId]);
+
+  return {
+    gameState: state,
+    movedCardId: inspectedCardId,
+    positionFromTop,
+    insertIndex,
   };
 }
 
