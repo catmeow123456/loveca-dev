@@ -264,17 +264,22 @@ flowchart TD
     Performance --> LiveStart[写入 ON_LIVE_START 并进入 LIVE_START 队列]
     LiveStart --> Modifiers[收集常时与临时 live modifiers]
     Modifiers --> Cheer[按光棒/修正执行声援]
-    Cheer --> Judge[Heart / Requirement / Score / Blade 判定]
+    Cheer --> CheerDraw[立即结算本批 DRAW BLADE HEART]
+    CheerDraw --> CheerTiming[进入适用的 ON_CHEER 检查时点]
+    CheerTiming --> Judge[Heart / Requirement / Score / Blade 判定]
     Judge --> Draft[生成成功/失败与分数草案]
     Draft --> Success[成功 LIVE 进入 LIVE_SUCCESS 队列]
     Success --> Confirm[玩家确认分数与结算]
     Confirm --> Cleanup[清理 Live 结束前临时状态]
 ```
 
+每个普通、追加或重做声援批次都在公开完成后独立结算 DRAW；`FREE` 中每次手动“翻开一张”也视为一个独立批次。追加声援不递归触发 `ON_CHEER`，但它的 DRAW 仍立即结算；重做声援不能撤销原批已完成的抽牌。最终“接受判定结果”只确认 Heart、分数与 LIVE 成败，不再延迟结算声援 DRAW。
+
 分析 LIVE bug 时优先确认：
 
 - LIVE 卡是否已经进入正确 LIVE 区和当前表演窗口。
 - `ON_LIVE_START` 是否写入并触发了来源正确的 pending ability。
+- 声援公开后是否已结算本批 DRAW，并且该抽牌是否早于 `ON_CHEER` 自动效果的条件检查。
 - 修正是常时动态收集，还是临时写入 `liveResolution.liveModifiers`。
 - 必要 Heart 修正是否按颜色、All/无色、`RAINBOW` 和 `totalRequired` 正确合并。
 - 判心来源中的 `GRAY` 是否只增加总数，`RAINBOW`/All 是否依然先填补指定颜色，前端“还差”是否与服务端分配结果一致。

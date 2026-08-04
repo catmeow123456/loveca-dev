@@ -189,7 +189,8 @@ function createLiveStartPendingAbility(
 function openMiraiTicketCheerSelection(
   cost: number,
   deckCount: number,
-  bottomCheer = false
+  bottomCheer = false,
+  drawBladeHeartIndex: number | null = null
 ): {
   readonly session: ReturnType<typeof createSessionFromGame>;
   readonly targetId: string;
@@ -214,7 +215,10 @@ function openMiraiTicketCheerSelection(
     : null;
   const additionalDeckCards = Array.from({ length: deckCount }, (_, index) =>
     createCardInstance(
-      createMemberCard(`PL!S-additional-${cost}-${index}`),
+      createMemberCard(`PL!S-additional-${cost}-${index}`, {
+        bladeHearts:
+          index === drawBladeHeartIndex ? [{ effect: BladeHeartEffect.DRAW }] : undefined,
+      }),
       PLAYER1,
       `additional-${cost}-${index}`
     )
@@ -307,6 +311,51 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
       }
     }
   );
+
+  it('PL!S-bp6-021 additional cheer keeps top reveal order and resolves its DRAW immediately once', () => {
+    const { session, targetId, additionalDeckIds } = openMiraiTicketCheerSelection(17, 5, false, 0);
+    const selected = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [targetId]
+      )
+    );
+    expect(selected.success, selected.error).toBe(true);
+    confirmPublicSelectionIfNeeded(session);
+
+    expect(session.state?.resolutionZone.revealedCardIds).toEqual(additionalDeckIds.slice(0, 3));
+    expect(session.state?.players[0].hand.cardIds).toEqual([additionalDeckIds[3]]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([additionalDeckIds[4]]);
+    const additionalEvent = session
+      .state!.eventLog.map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_CHEER)
+      .at(-1);
+    expect(additionalEvent).toMatchObject({
+      revealedCardIds: additionalDeckIds.slice(0, 3),
+      additional: true,
+      deckEdge: 'TOP',
+    });
+    expect(
+      session.state!.actionHistory.filter(
+        (action) =>
+          action.type === 'CHEER' && action.payload.cheerEventId === additionalEvent?.eventId
+      )
+    ).toHaveLength(1);
+    expect(
+      session.state!.actionHistory.find(
+        (action) =>
+          action.type === 'CHEER' && action.payload.cheerEventId === additionalEvent?.eventId
+      )?.payload
+    ).toMatchObject({
+      bladeHeartDrawCount: 1,
+      bladeHeartDrawnCardIds: [additionalDeckIds[3]],
+    });
+  });
 
   it('PL!S-bp6-021 treats LL-bp2-001 mixed-series member as an Aqours cheer candidate', () => {
     const sourceLive = createCardInstance(
@@ -519,7 +568,7 @@ describe('未来水卡组 执行最终批次 focused workflows', () => {
         .at(-1)
     ).toMatchObject({ revealedCardIds: expected, additional: true, deckEdge: 'BOTTOM' });
     expect(
-      session.state!.actionHistory.findLast((action) => action.type === 'CHEER')?.payload
+      session.state!.actionHistory.filter((action) => action.type === 'CHEER').at(-1)?.payload
     ).toMatchObject({
       cheerCardIds: expected,
       additional: true,

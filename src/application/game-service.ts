@@ -1249,10 +1249,10 @@ export class GameService {
       }
     );
 
-    let stateAfterPerformance = game;
-    for (let i = 0; i < performance.cheerResult.drawCount; i++) {
-      stateAfterPerformance = this.drawCard(stateAfterPerformance, playerId);
-    }
+    // DRAW BLADE HEART is a one-shot part of each cheer batch and has already
+    // resolved before the ON_CHEER check timing. Final judgment only derives the
+    // remaining HEART/SCORE contribution from the current cheer cards.
+    const stateAfterPerformance = game;
 
     const liveResults = new Map(stateAfterPerformance.liveResolution.liveResults);
     for (const judgment of performance.liveJudgments) {

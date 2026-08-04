@@ -19,8 +19,10 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { revealCheerCardsFromMainDeck } from '../../src/application/effects/cheer';
 import { SP_PB2_020_AUTO_ON_CHEER_DISCARD_LIELLA_LIVE_ADDITIONAL_CHEER_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
+  BladeHeartEffect,
   CardType,
   FaceState,
   HeartColor,
@@ -63,11 +65,7 @@ function setupState(): {
   readonly liellaMemberId: string;
   readonly additionalDeckIds: readonly string[];
 } {
-  const source = createCardInstance(
-    createMember('PL!SP-pb2-020-R'),
-    PLAYER1,
-    'sp-pb2-020-source'
-  );
+  const source = createCardInstance(createMember('PL!SP-pb2-020-R'), PLAYER1, 'sp-pb2-020-source');
   const liellaLive = createCardInstance(
     createLive('PL!SP-test-liella-live'),
     PLAYER1,
@@ -160,6 +158,126 @@ function abilityUseCount(game: GameState): number {
 }
 
 describe('PL!SP-pb2-020 Natsumi on-cheer additional cheer workflow', () => {
+  it('resolves the original DRAW before choosing the drawn Liella! LIVE, then resolves the additional DRAW', () => {
+    const scenario = setupState();
+    const originalDrawCheer = createCardInstance(
+      {
+        ...createMember('PL!SP-original-draw-cheer'),
+        bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+      },
+      PLAYER1,
+      'sp-pb2-020-original-draw-cheer'
+    );
+    const drawnLiellaLive = createCardInstance(
+      createLive('PL!SP-drawn-liella-live'),
+      PLAYER1,
+      'sp-pb2-020-drawn-liella-live'
+    );
+    const additionalDrawCheer = createCardInstance(
+      {
+        ...createMember('PL!SP-additional-draw-cheer'),
+        bladeHearts: [{ effect: BladeHeartEffect.DRAW }],
+      },
+      PLAYER1,
+      'sp-pb2-020-additional-draw-cheer'
+    );
+    const additionalPlainCheer = createCardInstance(
+      createMember('PL!SP-additional-plain-cheer'),
+      PLAYER1,
+      'sp-pb2-020-additional-plain-cheer'
+    );
+    const additionalDrawn = createCardInstance(
+      createMember('PL!SP-additional-drawn'),
+      PLAYER1,
+      'sp-pb2-020-additional-drawn'
+    );
+    const sentinel = createCardInstance(
+      createMember('PL!SP-additional-sentinel'),
+      PLAYER1,
+      'sp-pb2-020-additional-sentinel'
+    );
+    const deck = [
+      originalDrawCheer,
+      drawnLiellaLive,
+      additionalDrawCheer,
+      additionalPlainCheer,
+      additionalDrawn,
+      sentinel,
+    ];
+    let game = registerCards(scenario.game, deck);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      hand: { ...player.hand, cardIds: [] },
+      mainDeck: { ...player.mainDeck, cardIds: deck.map((card) => card.instanceId) },
+    }));
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        firstPlayerCheerCardIds: [],
+      },
+      resolutionZone: {
+        ...game.resolutionZone,
+        cardIds: [],
+        revealedCardIds: [],
+      },
+    };
+
+    const firstCheer = revealCheerCardsFromMainDeck(game, PLAYER1, 1, { automated: true });
+    expect(firstCheer.gameState.players[0].hand.cardIds).toEqual([drawnLiellaLive.instanceId]);
+    let state = enqueueTriggeredCardEffects(firstCheer.gameState, [TriggerCondition.ON_CHEER], {
+      cheerEvents: [firstCheer.cheerEvent],
+    });
+    state = resolvePendingCardEffects(state).gameState;
+    expect(state.activeEffect?.selectableCardIds).toEqual([drawnLiellaLive.instanceId]);
+
+    state = confirmActiveEffectStep(
+      state,
+      PLAYER1,
+      state.activeEffect!.id,
+      drawnLiellaLive.instanceId
+    );
+
+    expect(state.players[0].waitingRoom.cardIds).toContain(drawnLiellaLive.instanceId);
+    expect(state.resolutionZone.revealedCardIds).toEqual([
+      originalDrawCheer.instanceId,
+      additionalDrawCheer.instanceId,
+      additionalPlainCheer.instanceId,
+    ]);
+    expect(state.players[0].hand.cardIds).toEqual([additionalDrawn.instanceId]);
+    expect(state.players[0].mainDeck.cardIds).toEqual([sentinel.instanceId]);
+    const cheerEvents = state.eventLog
+      .map((entry) => entry.event)
+      .filter((event) => event.eventType === TriggerCondition.ON_CHEER);
+    expect(cheerEvents).toHaveLength(2);
+    expect(cheerEvents[1]).toMatchObject({
+      revealedCardIds: [additionalDrawCheer.instanceId, additionalPlainCheer.instanceId],
+      additional: true,
+      deckEdge: 'TOP',
+    });
+    for (const event of cheerEvents) {
+      const cheerActions = state.actionHistory.filter(
+        (action) => action.type === 'CHEER' && action.payload.cheerEventId === event.eventId
+      );
+      expect(cheerActions).toHaveLength(1);
+      expect(cheerActions[0]?.payload).toMatchObject({
+        bladeHeartDrawCount: 1,
+      });
+    }
+    expect(
+      state.actionHistory.find(
+        (action) =>
+          action.type === 'CHEER' && action.payload.cheerEventId === cheerEvents[0]?.eventId
+      )?.payload
+    ).toMatchObject({ bladeHeartDrawnCardIds: [drawnLiellaLive.instanceId] });
+    expect(
+      state.actionHistory.find(
+        (action) =>
+          action.type === 'CHEER' && action.payload.cheerEventId === cheerEvents[1]?.eventId
+      )?.payload
+    ).toMatchObject({ bladeHeartDrawnCardIds: [additionalDrawn.instanceId] });
+  });
+
   it('discards one Liella! live from hand and performs two additional cheer', () => {
     const scenario = setupState();
     let state = resolvePendingCardEffects(enqueueCheer(scenario.game)).gameState;
@@ -169,12 +287,7 @@ describe('PL!SP-pb2-020 Natsumi on-cheer additional cheer workflow', () => {
     );
     expect(state.activeEffect?.selectableCardIds).toEqual([scenario.liellaLiveId]);
 
-    state = confirmActiveEffectStep(
-      state,
-      PLAYER1,
-      state.activeEffect!.id,
-      scenario.liellaLiveId
-    );
+    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.liellaLiveId);
 
     expect(state.activeEffect).toBeNull();
     expect(state.players[0].hand.cardIds).not.toContain(scenario.liellaLiveId);
@@ -185,7 +298,9 @@ describe('PL!SP-pb2-020 Natsumi on-cheer additional cheer workflow', () => {
     expect(
       state.eventLog
         .map((entry) => entry.event)
-        .filter((event) => event.eventType === TriggerCondition.ON_CHEER && event.additional === true)
+        .filter(
+          (event) => event.eventType === TriggerCondition.ON_CHEER && event.additional === true
+        )
     ).toHaveLength(1);
     expect(abilityUseCount(state)).toBe(1);
   });
@@ -202,7 +317,9 @@ describe('PL!SP-pb2-020 Natsumi on-cheer additional cheer workflow', () => {
     expect(
       state.eventLog
         .map((entry) => entry.event)
-        .filter((event) => event.eventType === TriggerCondition.ON_CHEER && event.additional === true)
+        .filter(
+          (event) => event.eventType === TriggerCondition.ON_CHEER && event.additional === true
+        )
     ).toHaveLength(0);
     expect(abilityUseCount(state)).toBe(0);
   });

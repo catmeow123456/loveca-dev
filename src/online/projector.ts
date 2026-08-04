@@ -101,6 +101,7 @@ interface ActiveEffectCardSelectionProjection {
   readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
   readonly minSelectableObjects?: number;
   readonly maxSelectableObjects?: number;
+  readonly autoSubmitSingleSelection?: boolean;
   readonly selectionLabel?: string;
   readonly confirmSelectionLabel?: string;
   readonly canSkipSelection?: boolean;
@@ -581,6 +582,7 @@ function projectActiveEffectCardSelection(
       selectableObjectMode: effect.selectableCardMode,
       minSelectableObjects: effect.minSelectableCards,
       maxSelectableObjects: effect.maxSelectableCards,
+      autoSubmitSingleSelection: effect.autoSubmitSingleSelection,
       selectionLabel: effect.selectionLabel,
       confirmSelectionLabel: effect.confirmSelectionLabel,
       canSkipSelection: effect.canSkipSelection,
@@ -603,6 +605,7 @@ function projectActiveEffectCardSelection(
     selectableObjectMode: effect.selectableCardMode,
     minSelectableObjects: effect.minSelectableCards,
     maxSelectableObjects: effect.maxSelectableCards,
+    autoSubmitSingleSelection: effect.autoSubmitSingleSelection,
     selectionLabel: effect.selectionLabel,
     confirmSelectionLabel: effect.confirmSelectionLabel,
     canSkipSelection: effect.canSkipSelection,

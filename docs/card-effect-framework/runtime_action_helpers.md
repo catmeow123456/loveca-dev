@@ -572,7 +572,7 @@ Target helper family:
 
 - `domain/rules/cheer-direction.ts` 的 `getCheerDeckEdgeForPlayer` 只读当前 GameState；默认 TOP，当前唯一真实 BOTTOM 样本的公开版本是 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」，规则按基础编号匹配 owner 正确且仍在自己 LIVE 区的来源实例。它不写 modifier、pending 或事件，也不是 continuous DSL。
 - `drawFromBottom` 是与 `drawFromTop` 对称的 zone 小原语：移除数组末尾一张，不反转剩余顺序，不创建事件/action/刷新。
-- `revealCheerCardsFromMainDeck` 在每次公开前先处理即时 refresh，再重读当前边缘，取牌后再处理 refresh。普通、手动、自动、追加与重做声援共用该入口；`CheerEvent` 与 `CHEER` action 只记录实际公开顺序及 `deckEdge`，不记录剩余卡组顺序。旧事件缺少该字段时按 TOP 读取。
+- `revealCheerCardsFromMainDeck` 在每次公开前先处理即时 refresh，再重读当前边缘，取牌后再处理 refresh。普通、手动、自动、追加与重做声援共用该入口；每批在 `CheerEvent` 写入后立即且仅一次结算 DRAW BLADE HEART，之后才进入适用的 `ON_CHEER` 检查时点或继续当前卡效。`CheerEvent` 与原有唯一一条 `CHEER` action 记录实际公开顺序及 `deckEdge`；存在 DRAW 时，`CHEER` action 还记录 `cheerEventId`、`bladeHeartDrawCount` 与 `bladeHeartDrawnCardIds`，但不记录剩余卡组顺序。旧事件缺少 `deckEdge` 时按 TOP 读取。
 - 该边界没有与 `moveBottomDeckCardsToWaitingRoom*` 合并：后者仍只负责 `MAIN_DECK -> WAITING_ROOM`，声援的目的地是 resolution zone。
 
 ## Migration Requirement

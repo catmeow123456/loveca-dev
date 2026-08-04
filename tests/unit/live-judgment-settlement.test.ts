@@ -171,7 +171,8 @@ describe('Live 判定与结算', () => {
     ]);
     expect(revealResult.gameState.liveResolution.liveResults.size).toBe(0);
     expect(revealResult.gameState.liveResolution.playerScores.size).toBe(0);
-    expect(revealResult.gameState.players[0].hand.cardIds).not.toContain(drawnCard.instanceId);
+    expect(revealResult.gameState.players[0].hand.cardIds).toContain(drawnCard.instanceId);
+    const handAfterCheerBladeHearts = [...revealResult.gameState.players[0].hand.cardIds];
 
     const acceptResult = service.processAction(revealResult.gameState, {
       type: 'CONFIRM_JUDGMENT',
@@ -185,7 +186,7 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.gameState.liveResolution.liveResults.get(liveB.instanceId)).toBe(true);
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(6);
     expect(acceptResult.gameState.liveResolution.scoreConfirmedBy).toEqual([]);
-    expect(acceptResult.gameState.players[0].hand.cardIds).toContain(drawnCard.instanceId);
+    expect(acceptResult.gameState.players[0].hand.cardIds).toEqual(handAfterCheerBladeHearts);
   });
 
   it('多张 Live 中任意一张失败时，接受自动判定应将整轮 Live 记为失败', () => {

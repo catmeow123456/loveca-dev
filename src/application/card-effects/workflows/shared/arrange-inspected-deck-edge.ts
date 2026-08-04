@@ -73,6 +73,7 @@ interface RegisteredArrangeInspectedDeckEdgeConfig {
   readonly confirmSelectionLabel?: string;
   readonly selectMin: number;
   readonly selectMax: number;
+  readonly autoSubmitSingleSelection?: boolean;
   readonly requireAllInspected?: boolean;
   readonly requireSourceOnOwnStage?: boolean;
   readonly liveSourceBaseCardCode?: string;
@@ -111,6 +112,7 @@ export interface ArrangeInspectedDeckEdgeConfig {
   readonly confirmSelectionLabel?: string;
   readonly selectMin: number;
   readonly selectMax: number;
+  readonly autoSubmitSingleSelection?: boolean;
   readonly requestedInspectCount?: number;
   readonly sourceActionLabel?: ArrangeInspectedDeckTopSourceActionLabel;
   readonly sourceOrientationCost?: 'WAITING';
@@ -213,6 +215,7 @@ const ARRANGE_INSPECTED_DECK_EDGE_WORKFLOWS: readonly RegisteredArrangeInspected
     selectionLabel: '选择1张放回卡组顶',
     selectMin: 1,
     selectMax: 1,
+    autoSubmitSingleSelection: true,
   },
   {
     abilityId: HS_PB1_013_LIVE_START_LOOK_TOP_TWO_ARRANGE_ABILITY_ID,
@@ -337,6 +340,7 @@ export function registerArrangeInspectedDeckEdgeWorkflowHandlers(deps: {
           confirmSelectionLabel: config.confirmSelectionLabel,
           selectMin: config.selectMin,
           selectMax: config.selectMax,
+          autoSubmitSingleSelection: config.autoSubmitSingleSelection,
           selectedDestination: config.selectedDestination ?? 'MAIN_DECK_TOP',
           unselectedDestination: config.unselectedDestination ?? 'WAITING_ROOM',
           unselectedOrderStep: config.unselectedOrderStep,
@@ -535,6 +539,7 @@ export function startArrangeInspectedDeckEdgeWorkflow(
       selectableCardMode: 'ORDERED_MULTI',
       minSelectableCards,
       maxSelectableCards,
+      autoSubmitSingleSelection: config.autoSubmitSingleSelection,
       selectionLabel: config.selectionLabel,
       confirmSelectionLabel:
         config.confirmSelectionLabel ??

@@ -8084,6 +8084,8 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
     expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.autoSubmitSingleSelection).toBe(true);
+    expect(session.getPlayerViewState(PLAYER1)?.activeEffect?.autoSubmitSingleSelection).toBe(true);
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
     expect(session.state?.inspectionZone.cardIds).toEqual(topCardIds);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([restCardId]);
