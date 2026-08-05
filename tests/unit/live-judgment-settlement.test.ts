@@ -49,6 +49,15 @@ import {
   addLiveModifier,
   collectLiveModifiers,
 } from '../../src/domain/rules/live-modifiers';
+import {
+  rehydrateAuthorityGameState,
+  serializeReplayPayload,
+} from '../../src/server/services/replay-payload-serialization';
+import { LEGACY_GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
+import {
+  HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
+  S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 
 describe('Live 判定与结算', () => {
   it('进入判定子阶段时应先自动翻应援，接受后才生成 Live 成功与分数草案', () => {
@@ -2434,6 +2443,90 @@ describe('Live 判定与结算', () => {
       sourceCardId: scenario.source.instanceId,
     });
     expect(autoRevealCheerCount(result!.gameState)).toBe(6);
+  });
+
+  it('旧 checkpoint 的 SOURCE 叠加与多 TARGET BLADE 迁移后仍产生正确实际声援数', () => {
+    const sourceScenario = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 0 });
+    const sourceLegacyState = {
+      ...sourceScenario.game,
+      liveResolution: {
+        ...sourceScenario.game.liveResolution,
+        liveModifiers: [
+          {
+            kind: 'BLADE',
+            playerId: 'p1',
+            countDelta: 2,
+            sourceCardId: sourceScenario.left.instanceId,
+            abilityId: HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
+          },
+          {
+            kind: 'BLADE',
+            playerId: 'p1',
+            countDelta: 2,
+            sourceCardId: sourceScenario.left.instanceId,
+            abilityId: HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
+          },
+        ],
+      },
+    };
+    const rehydratedSource = rehydrateAuthorityGameState(
+      serializeReplayPayload(
+        sourceLegacyState,
+        'AUTHORITY_GAME_STATE',
+        LEGACY_GAME_STATE_SCHEMA_VERSION
+      )
+    );
+    expect(rehydratedSource.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({
+        target: 'SOURCE_MEMBER',
+        sourceCardId: sourceScenario.left.instanceId,
+      }),
+      expect.objectContaining({
+        target: 'SOURCE_MEMBER',
+        sourceCardId: sourceScenario.left.instanceId,
+      }),
+    ]);
+    expect(autoRevealCheerCount(rehydratedSource)).toBe(5);
+
+    const targetScenario = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 4 });
+    const targetLegacyState = {
+      ...targetScenario.game,
+      liveResolution: {
+        ...targetScenario.game.liveResolution,
+        liveModifiers: [targetScenario.left.instanceId, targetScenario.center.instanceId].map(
+          (legacyBeneficiaryId) => ({
+            kind: 'BLADE',
+            playerId: 'p1',
+            countDelta: 1,
+            sourceCardId: legacyBeneficiaryId,
+            abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          })
+        ),
+      },
+    };
+    const rehydratedTargets = rehydrateAuthorityGameState(
+      serializeReplayPayload(
+        targetLegacyState,
+        'AUTHORITY_GAME_STATE',
+        LEGACY_GAME_STATE_SCHEMA_VERSION
+      )
+    );
+    expect(rehydratedTargets.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: targetScenario.left.instanceId,
+      }),
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: targetScenario.center.instanceId,
+      }),
+    ]);
+    expect(
+      rehydratedTargets.liveResolution.liveModifiers.every(
+        (modifier) => !('sourceCardId' in modifier)
+      )
+    ).toBe(true);
+    expect(autoRevealCheerCount(rehydratedTargets)).toBe(7);
   });
 
   it('指定成员 BLADE 只通过活跃受益成员计入，多目标也不重复计数', () => {

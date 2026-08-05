@@ -18,6 +18,7 @@ import {
   type MatchRecorderQueryResult,
 } from '../../src/server/services/match-recorder-service';
 import { rehydrateAuthorityGameState } from '../../src/server/services/replay-payload-serialization';
+import { GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
@@ -308,7 +309,7 @@ describe('MatchRecorderService P0a', () => {
     expect(payloadEnvelope).toMatchObject({
       serializer: 'TRANSPORT_V1',
       payloadKind: 'AUTHORITY_GAME_STATE',
-      sourceSchemaVersion: 'GAME_STATE_V1',
+      sourceSchemaVersion: GAME_STATE_SCHEMA_VERSION,
       compressed: true,
       compression: 'GZIP',
       encoding: 'BASE64_JSON',

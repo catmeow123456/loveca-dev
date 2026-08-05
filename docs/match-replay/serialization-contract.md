@@ -2,8 +2,8 @@
 
 > 文档类型：实现契约 / review 基线
 > 适用范围：`DebugReplayBundle`、`Replay Checkpoint`、历史回放读取前的权威状态复水
-> 当前状态：v0.4；authority checkpoint 新写入统一使用 GZIP/BASE64_JSON envelope
-> 最后更新：2026-07-01
+> 当前状态：v0.5；authority checkpoint 新写入统一使用 GZIP/BASE64_JSON envelope 与 GAME_STATE_V2
+> 最后更新：2026-08-05
 
 ## 1. 契约目的
 
@@ -27,6 +27,8 @@
 - 读取后：先解压和 JSON parse，再 `fromTransport<T>(payload)` 复水。
 - 普通玩家读取：复水后的 authority checkpoint 只能在服务端投影为 `PlayerViewState` 后返回，不能把权威 payload 交给前端隐藏。
 - 历史回放正式读取、管理员读取与管理员导入只接受 `GZIP/BASE64_JSON` payload；旧 `NONE/JSON_VALUE` 只能由停机迁移工具读取并立即转写为新格式。
+- 新 authority state 写入 `GAME_STATE_V2`；其中 BLADE modifier 必须显式且互斥地写入 `SOURCE_MEMBER` / `TARGET_MEMBER` / `PLAYER`。
+- `GAME_STATE_V1` 只在 authority 复水边界按冻结的 abilityId 审计表做窄迁移；未审计、缺 abilityId 或同 abilityId 历史上混合多种作用域时必须拒绝，不得通过 `sourceCardId` 的卡牌类型推测。
 
 如果未来新增 replay 专用 serializer，应满足同等或更强的复水能力，并通过 payload schema version 与 `serializer` 字段区分，不能静默替换旧格式。
 
@@ -188,7 +190,18 @@ Bundle 顶层必须明确来源类型，不能把运行中调试导出和正式�
 9. 对 authority checkpoint，服务端调用历史 replay projector 生成指定玩家 `PlayerViewState`。
 10. 返回普通玩家可见 DTO。
 
-`manualOperationMode` 有一个经过审计的窄历史兼容例外：早期 authority checkpoint 可能没有该字段，复水器只在历史回放或服务端可记录对墙打恢复边界把它规范化为 `FREE`，避免把旧记录误解释成当前默认 `RULES`。该规则不允许 live command/session 路径 dual-read，不接受其他缺失字段，也不改变下述 `NONE/JSON_VALUE` 必须停机迁移的要求。
+`manualOperationMode` 有一个经过审计的窄历史兼容例外：早期 `GAME_STATE_V1` authority checkpoint 可能没有该字段，复水器只在历史回放或服务端可记录对墙打恢复边界把它规范化为 `FREE`，避免把旧记录误解释成当前默认 `RULES`；`GAME_STATE_V2` 缺少该字段必须拒绝。该规则不允许 live command/session 路径 dual-read，也不改变下述 `NONE/JSON_VALUE` 必须停机迁移的要求。
+
+BLADE 作用域另有一个只限 `AUTHORITY_GAME_STATE` 的 `GAME_STATE_V1` 窄迁移例外：
+
+- 已有合法 `target` 的 V1 对象按 V2 形状严格校验并原样保留。
+- 无 `target`、有 `targetMemberCardId` 的旧对象可以无卡牌类型推测地迁移为 `TARGET_MEMBER`，并保留真实 `sourceCardId`。
+- 无 `targetMemberCardId` 的旧对象只能查询全量卡效审计后冻结的 abilityId→scope/旧存储形状表。`SOURCE_MEMBER` 保留 `sourceCardId`；仅历史 workflow 明确把受益者写成 `sourceCardId` 的 `TARGET_MEMBER` 才将该值移到 `targetMemberCardId`，由于 modifier 本体已丢失真实来源，不伪造恢复 `sourceCardId`。历史上本应写入 `targetMemberCardId` 的 TARGET ability 若缺少该字段必须拒绝，不得把真实来源误当受益者。
+- 当前生产 workflow 没有 `PLAYER` BLADE 写入；迁移器不会因来源为 LIVE 或 MEMBER 而自动转为 `PLAYER`。
+- 同一 abilityId 曾同时产生 SOURCE 和 TARGET 且旧对象都无 target 时，作用域无法由 modifier 唯一恢复，必须拒绝该 checkpoint，不得猜测。
+- V2 中缺 `target`、`SOURCE_MEMBER` 缺 `sourceCardId`、`TARGET_MEMBER` 缺 `targetMemberCardId`、`PLAYER` 却带 `targetMemberCardId` 都是不可复水的非法形状。
+
+该迁移只改变复水出的内存对象，不改写原 checkpoint。旧 TARGET 已丢失的真实来源只能在 V1 fixture 的 `liveResolution.liveModifiers` 比较中，按“审计表确认受益者曾存于 `sourceCardId`、同 abilityId、同 `TARGET_MEMBER`、同 `targetMemberCardId`”窄条件忽略新状态多出的 `sourceCardId`；不得删除或忽略 `target`。
 
 不得：
 
@@ -206,7 +219,7 @@ DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/3.5.0-to-3.6
 DATABASE_URL=postgresql://... pnpm exec tsx drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints.ts --apply --yes --batch-size=100 --report=tmp/replay-checkpoint-compress-apply.json
 ```
 
-脚本要求每条旧记录满足 `payload_compression = 'NONE'`、envelope 为 `NONE/JSON_VALUE`、hash/byte length 校验通过且可复水为匹配元数据的 `AUTHORITY_GAME_STATE`。已迁移记录必须满足 `payload_compression = 'GZIP'`、envelope 为 `GZIP/BASE64_JSON` 且正式复水通过。任一不一致或无法复水都会成为 blocking error，`--apply` 不会写入。
+脚本只接受 `GAME_STATE_V1` 的未压缩历史输入；每条旧记录必须满足 `payload_compression = 'NONE'`、envelope 为 `NONE/JSON_VALUE`、hash/byte length 校验通过且可按 V1 窄迁移复水为匹配元数据的 `AUTHORITY_GAME_STATE`。已迁移记录可以是表字段与 envelope 一致的 V1 或 V2，但必须满足 `payload_compression = 'GZIP'`、envelope 为 `GZIP/BASE64_JSON` 且正式复水通过。压缩迁移只改变传输格式，不升级 `schema_version`、`sourceSchemaVersion` 或 payload hash。任一不一致或无法复水都会成为 blocking error，`--apply` 不会写入。
 
 ## 9. RecordFrame 最小契约
 

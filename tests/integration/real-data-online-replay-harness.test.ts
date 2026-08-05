@@ -8,7 +8,9 @@ import { GameCommandType, type GameCommand } from '../../src/application/game-co
 import {
   HS_BP5_002_ACTIVATED_PAY_TWO_ENERGY_PLAY_LOW_COST_MEMBER_ABILITY_ID,
   PL_PB1_018_ON_ENTER_BOTH_PLAY_LOW_COST_MEMBERS_WAITING_ABILITY_ID,
+  S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { getLegacyPersistedBladeAudit } from '../../src/application/card-effects/legacy-persisted-blade-scopes';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import type { GameState } from '../../src/domain/entities/game';
 import type { PlayerState } from '../../src/domain/entities/player';
@@ -21,6 +23,7 @@ import {
   rehydrateAuthorityGameState,
   rehydrateLegacyAuthorityGameStateForMigration,
 } from '../../src/server/services/replay-payload-serialization';
+import { LEGACY_GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
 import { GameMode, type SlotPosition } from '../../src/shared/types/enums';
 
 const LEGACY_FIXTURE_PATH =
@@ -241,6 +244,7 @@ interface CheckpointRecord {
   readonly turnCount: number;
   readonly phase: string;
   readonly subPhase: string;
+  readonly schemaVersion: string;
   readonly state: GameState;
 }
 
@@ -568,8 +572,8 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       [LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON]: 1,
       [LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_REPLAY_SKIP_REASON]: 7,
       [LEGACY_CHEER_FACT_METADATA_REPLAY_SKIP_REASON]: 4,
-      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 38,
-      [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 17,
+      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 37,
+      [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 18,
       [LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON]: 2,
       [LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON]: 23,
       [LEGACY_LIVE_SET_TRACKING_REPLAY_SKIP_REASON]: 114,
@@ -664,43 +668,64 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
     ).toBeNull();
   });
 
-  it('only bridges missing legacy BLADE target metadata during replay comparison', () => {
+  it('only bridges unrecoverable legacy TARGET_MEMBER source provenance', () => {
     const expected = {
       liveResolution: {
-        liveModifiers: [{ kind: 'BLADE', playerId: 'p1', countDelta: 1 }],
-      },
-    };
-    const actual = {
-      liveResolution: {
         liveModifiers: [
-          { kind: 'BLADE', target: 'PLAYER', playerId: 'p1', countDelta: 1 },
+          {
+            kind: 'BLADE',
+            target: 'TARGET_MEMBER',
+            playerId: 'p1',
+            targetMemberCardId: 'beneficiary',
+            abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+            countDelta: 1,
+          },
         ],
       },
     };
-    expect(alignLegacyBladeTargetsForReplayComparison(actual, expected)).toEqual(expected);
+    const targetModifier = {
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      sourceCardId: 'true-live-source',
+      targetMemberCardId: 'beneficiary',
+      abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+      countDelta: 1,
+    };
+    const actual = { liveResolution: { liveModifiers: [targetModifier] } };
 
-    const explicitExpected = {
-      liveResolution: {
-        liveModifiers: [
-          { kind: 'BLADE', target: 'TARGET_MEMBER', playerId: 'p1', countDelta: 1 },
-        ],
-      },
-    };
-    expect(alignLegacyBladeTargetsForReplayComparison(actual, explicitExpected)).toEqual(actual);
     expect(
-      alignLegacyBladeTargetsForReplayComparison(
+      alignUnrecoverableLegacyBladeSourceProvenance(
+        actual,
+        expected,
+        LEGACY_GAME_STATE_SCHEMA_VERSION
+      )
+    ).toEqual(expected);
+    expect(
+      alignUnrecoverableLegacyBladeSourceProvenance(
         {
           liveResolution: {
-            liveModifiers: [
-              { kind: 'BLADE', target: 'UNKNOWN', playerId: 'p1', countDelta: 1 },
-            ],
+            liveModifiers: [{ ...targetModifier, target: 'PLAYER' }],
           },
         },
-        expected
+        expected,
+        LEGACY_GAME_STATE_SCHEMA_VERSION
       )
-    ).toMatchObject({
-      liveResolution: { liveModifiers: [{ target: 'UNKNOWN' }] },
-    });
+    ).not.toEqual(expected);
+    expect(
+      alignUnrecoverableLegacyBladeSourceProvenance(
+        {
+          liveResolution: {
+            liveModifiers: [{ ...targetModifier, targetMemberCardId: 'different-beneficiary' }],
+          },
+        },
+        expected,
+        LEGACY_GAME_STATE_SCHEMA_VERSION
+      )
+    ).not.toEqual(expected);
+    expect(
+      alignUnrecoverableLegacyBladeSourceProvenance(actual, expected, 'GAME_STATE_V2')
+    ).not.toEqual(expected);
   });
 
   it('allows only the two known legacy card-effect stage-move tracking drifts', () => {
@@ -1276,6 +1301,7 @@ function readCheckpoint(row: Record<string, string | null>):
       readonly turnCount: number;
       readonly phase: string;
       readonly subPhase: string;
+      readonly schemaVersion: string;
       readonly state: GameState;
     }
   | { readonly ok: false; readonly error: string } {
@@ -1286,6 +1312,26 @@ function readCheckpoint(row: Record<string, string | null>):
       return {
         ok: false,
         error: `checkpoint payload_hash mismatch for ${readRequired(row, 'match_id')}#${readRequired(
+          row,
+          'checkpoint_seq'
+        )}`,
+      };
+    }
+    const schemaVersion = readRequired(row, 'schema_version');
+    if (schemaVersion !== payload.sourceSchemaVersion) {
+      return {
+        ok: false,
+        error: `checkpoint schema_version mismatch for ${readRequired(row, 'match_id')}#${readRequired(
+          row,
+          'checkpoint_seq'
+        )}`,
+      };
+    }
+    const payloadCompression = readRequired(row, 'payload_compression');
+    if (payloadCompression !== payload.compression) {
+      return {
+        ok: false,
+        error: `checkpoint payload_compression mismatch for ${readRequired(row, 'match_id')}#${readRequired(
           row,
           'checkpoint_seq'
         )}`,
@@ -1303,8 +1349,9 @@ function readCheckpoint(row: Record<string, string | null>):
       turnCount: readNumber(row, 'turn_count'),
       phase: readRequired(row, 'phase'),
       subPhase: readRequired(row, 'sub_phase'),
+      schemaVersion,
       state:
-        payload.compression === 'NONE'
+        payloadCompression === 'NONE'
           ? rehydrateLegacyAuthorityGameStateForMigration(payload)
           : rehydrateAuthorityGameState(payload),
     };
@@ -1873,9 +1920,10 @@ function buildEngineReplayAudit(
     }
 
     const expectedNormalized = normalizeEngineState(afterCheckpoint.state);
-    const actualNormalized = alignLegacyBladeTargetsForReplayComparison(
+    const actualNormalized = alignUnrecoverableLegacyBladeSourceProvenance(
       normalizeEngineState(result.gameState),
-      expectedNormalized
+      expectedNormalized,
+      afterCheckpoint.schemaVersion
     );
     const actualFingerprint = fingerprintNormalizedEngineState(actualNormalized);
     const expectedFingerprint = fingerprintNormalizedEngineState(expectedNormalized);
@@ -2008,9 +2056,7 @@ function isLegacyPublicRevealDwellReplayMismatch(
   }
   const actualEffect = asRecord(asRecord(comparison.actualNormalized)?.activeEffect);
   const expectedEffect = asRecord(asRecord(comparison.expectedNormalized)?.activeEffect);
-  const continuation = asRecord(
-    asRecord(actualEffect?.metadata)?.publicRevealDwellContinuation
-  );
+  const continuation = asRecord(asRecord(actualEffect?.metadata)?.publicRevealDwellContinuation);
   const restoredEffect = asRecord(continuation?.effect);
   return (
     actualEffect?.stepId === PUBLIC_REVEAL_DWELL_STEP_ID &&
@@ -2862,35 +2908,61 @@ function fingerprintNormalizedEngineState(state: unknown): string {
   return JSON.stringify(sortObjectKeys(state));
 }
 
-function alignLegacyBladeTargetsForReplayComparison(actual: unknown, expected: unknown): unknown {
-  if (Array.isArray(actual)) {
-    const expectedArray = Array.isArray(expected) ? expected : [];
-    return actual.map((entry, index) =>
-      alignLegacyBladeTargetsForReplayComparison(entry, expectedArray[index])
-    );
+function alignUnrecoverableLegacyBladeSourceProvenance(
+  actual: unknown,
+  expected: unknown,
+  sourceSchemaVersion: string
+): unknown {
+  if (sourceSchemaVersion !== LEGACY_GAME_STATE_SCHEMA_VERSION) {
+    return actual;
+  }
+  const actualRecord = asRecord(actual);
+  const expectedRecord = asRecord(expected);
+  const actualLiveResolution = asRecord(actualRecord?.liveResolution);
+  const expectedLiveResolution = asRecord(expectedRecord?.liveResolution);
+  const actualModifiers = actualLiveResolution?.liveModifiers;
+  const expectedModifiers = expectedLiveResolution?.liveModifiers;
+  if (!actualRecord || !actualLiveResolution || !Array.isArray(actualModifiers)) {
+    return actual;
   }
 
+  const expectedModifierArray = Array.isArray(expectedModifiers) ? expectedModifiers : [];
+  return {
+    ...actualRecord,
+    liveResolution: {
+      ...actualLiveResolution,
+      liveModifiers: actualModifiers.map((modifier, index) =>
+        alignUnrecoverableLegacyBladeModifierSource(modifier, expectedModifierArray[index])
+      ),
+    },
+  };
+}
+
+function alignUnrecoverableLegacyBladeModifierSource(actual: unknown, expected: unknown): unknown {
   const actualRecord = asRecord(actual);
+  const expectedRecord = asRecord(expected);
   if (!actualRecord) {
     return actual;
   }
-  const expectedRecord = asRecord(expected);
-  const actualTarget = actualRecord.target;
-  const omitsLegacyBladeTarget =
+  const audit =
+    typeof actualRecord.abilityId === 'string'
+      ? getLegacyPersistedBladeAudit(actualRecord.abilityId)
+      : undefined;
+  const omitsUnrecoverableTargetSource =
     actualRecord.kind === 'BLADE' &&
+    actualRecord.target === 'TARGET_MEMBER' &&
     expectedRecord?.kind === 'BLADE' &&
-    !hasOwn(expectedRecord, 'target') &&
-    (actualTarget === 'SOURCE_MEMBER' ||
-      actualTarget === 'TARGET_MEMBER' ||
-      actualTarget === 'PLAYER');
+    expectedRecord.target === 'TARGET_MEMBER' &&
+    !hasOwn(expectedRecord, 'sourceCardId') &&
+    audit?.scope === 'TARGET_MEMBER' &&
+    audit.targetStorage === 'SOURCE_CARD_ID' &&
+    actualRecord.abilityId === expectedRecord.abilityId &&
+    actualRecord.targetMemberCardId === expectedRecord.targetMemberCardId;
 
   return Object.fromEntries(
-    Object.entries(actualRecord)
-      .filter(([key]) => !(omitsLegacyBladeTarget && key === 'target'))
-      .map(([key, value]) => [
-        key,
-        alignLegacyBladeTargetsForReplayComparison(value, expectedRecord?.[key]),
-      ])
+    Object.entries(actualRecord).filter(
+      ([key]) => !(omitsUnrecoverableTargetSource && key === 'sourceCardId')
+    )
   );
 }
 
