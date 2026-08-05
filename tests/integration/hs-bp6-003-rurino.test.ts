@@ -498,6 +498,7 @@ describe('HS-bp6-003 Rurino workflow', () => {
     });
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: pb1003Source.instanceId,
       abilityId: HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,

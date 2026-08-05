@@ -1878,6 +1878,7 @@ describe('card effect runtime actions', () => {
     expect(result?.bladeBonus).toBe(2);
     expect(result?.modifier).toEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId,

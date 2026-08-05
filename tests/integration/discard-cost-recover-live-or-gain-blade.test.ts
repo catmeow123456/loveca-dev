@@ -369,6 +369,7 @@ describe('PL!N discard/recover and BLADE workflows', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discard.instanceId]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,
@@ -430,6 +431,7 @@ describe('PL!N discard/recover and BLADE workflows', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discard.instanceId]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: source.instanceId,

@@ -140,6 +140,7 @@ describe('PL!SP-pb2-040 Mei live start workflow', () => {
     );
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: scenario.sourceId,

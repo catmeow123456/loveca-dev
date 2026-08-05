@@ -35,7 +35,7 @@ function setup(options: { readonly withOpponentTarget?: boolean } = {}) {
 describe('PL!N-bp7-004-P 朝香果林', () => {
   it('从能量区支付后以 energyBelow+1 阈值比较 original Blade，相等可选且临时 BLADE 不影响', () => {
     const { game, karin, target, energy } = setup();
-    const boosted = addLiveModifier(game, { kind: 'BLADE', playerId: P2, countDelta: 5, sourceCardId: target.instanceId, abilityId: 'temporary' });
+    const boosted = addLiveModifier(game, { kind: 'BLADE', target: 'SOURCE_MEMBER', playerId: P2, countDelta: 5, sourceCardId: target.instanceId, abilityId: 'temporary' });
     const selecting = activateCardAbility(boosted, P1, karin.instanceId, N_BP7_004_ACTIVATED_STACK_ENERGY_BELOW_WAIT_ORIGINAL_BLADE_ABILITY_ID);
     expect(selecting.players[0].energyZone.cardIds).toEqual([]);
     expect(selecting.players[0].memberSlots.energyBelow[SlotPosition.CENTER]).toEqual([energy.instanceId]);

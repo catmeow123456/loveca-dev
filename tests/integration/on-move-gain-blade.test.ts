@@ -232,6 +232,7 @@ describe('on-move BLADE shared workflow', () => {
       expect(bladeModifiers(state, testCase.abilityId)).toEqual([
         {
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId: PLAYER1,
           sourceCardId: source.instanceId,
           abilityId: testCase.abilityId,
@@ -252,6 +253,7 @@ describe('on-move BLADE shared workflow', () => {
     expect(bladeModifiers(state, testCase.abilityId)).toEqual([
       {
         kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
         playerId: PLAYER1,
         sourceCardId: source.instanceId,
         abilityId: testCase.abilityId,

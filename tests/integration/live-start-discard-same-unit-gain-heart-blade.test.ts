@@ -251,6 +251,7 @@ describe('live-start discard same UNIT gain Heart and BLADE workflow', () => {
     });
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'same-unit-source',
       abilityId: HS_PR_016_LIVE_START_DISCARD_SAME_UNIT_GAIN_GREEN_HEART_BLADE_ABILITY_ID,
@@ -307,6 +308,7 @@ describe('live-start discard same UNIT gain Heart and BLADE workflow', () => {
     });
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'same-unit-source',
       abilityId: HS_PR_017_LIVE_START_DISCARD_SAME_UNIT_GAIN_BLUE_HEART_BLADE_ABILITY_ID,

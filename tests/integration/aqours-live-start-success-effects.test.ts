@@ -212,6 +212,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
     for (const member of members) {
       expect(resolved.liveResolution.liveModifiers).toContainEqual({
         kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
         playerId: PLAYER1,
         countDelta: 1,
         sourceCardId: member.instanceId,
@@ -369,6 +370,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       for (const aqoursMember of aqoursMembers) {
         expect(bladeModifiers).toContainEqual({
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId: PLAYER1,
           countDelta: 1,
           sourceCardId: aqoursMember.instanceId,
@@ -525,6 +527,7 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
 
     expect(collectLiveModifiers(game)).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: ruby.instanceId,

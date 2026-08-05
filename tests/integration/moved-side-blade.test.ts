@@ -136,6 +136,7 @@ describe('PL!SP-bp4-017/020 moved-side BLADE workflow', () => {
       expect(movedSideBladeModifiers(state, testCase.abilityId)).toEqual([
         {
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId: PLAYER1,
           sourceCardId: source.instanceId,
           abilityId: testCase.abilityId,

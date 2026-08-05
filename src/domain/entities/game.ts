@@ -276,10 +276,30 @@ export type LiveModifierState =
     }
   | {
       readonly kind: 'BLADE';
+      readonly target: 'SOURCE_MEMBER';
       readonly playerId: string;
       readonly countDelta: number;
-      /** Recipient member; omitted for legacy source-member modifiers. */
-      readonly targetMemberCardId?: string;
+      /** Ability source and recipient member. */
+      readonly sourceCardId: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
+      readonly kind: 'BLADE';
+      readonly target: 'TARGET_MEMBER';
+      readonly playerId: string;
+      readonly countDelta: number;
+      /** Concrete recipient member; sourceCardId remains the ability source. */
+      readonly targetMemberCardId: string;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
+      readonly kind: 'BLADE';
+      readonly target: 'PLAYER';
+      readonly playerId: string;
+      readonly countDelta: number;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;

@@ -233,6 +233,7 @@ describe('PR relay replacement cost-nine BLADE family', () => {
     expect(resolved.pendingAbilities).toEqual([]);
     expect(resolved.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'TARGET_MEMBER',
       playerId: P1,
       countDelta: 2,
       sourceCardId: source.instanceId,

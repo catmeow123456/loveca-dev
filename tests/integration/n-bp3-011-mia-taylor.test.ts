@@ -40,7 +40,7 @@ describe('PL!N-bp3-011 ミア・テイラー', () => {
   it('三项全部满足时来源获得 BLADE +3', () => {
     const { game, target, source } = setup();
     const done = choose(start(game), target.instanceId);
-    expect(bonus(done)).toContainEqual({ kind: 'BLADE', playerId: P1, countDelta: 3, sourceCardId: source.instanceId, abilityId: ABILITY_ID });
+    expect(bonus(done)).toContainEqual({ kind: 'BLADE', target: 'SOURCE_MEMBER', playerId: P1, countDelta: 3, sourceCardId: source.instanceId, abilityId: ABILITY_ID });
     expect(done.actionHistory.at(-1)?.payload).toMatchObject({ targetMemberCardId: target.instanceId, heartMatches: true, costMatches: true, originalBladeMatches: true, bladeBonus: 3 });
   });
 
@@ -75,7 +75,7 @@ describe('PL!N-bp3-011 ミア・テイラー', () => {
   it('普通 BLADE modifier 不参与 original Blade 比较', () => {
     const scenario = setup('R', { sourceBlade: 1, targetBlade: 1 });
     const window = start(scenario.game);
-    const withOrdinaryBlade = addLiveModifier(window, { kind: 'BLADE', playerId: P2, countDelta: 9, sourceCardId: scenario.target.instanceId, abilityId: 'ordinary-blade' });
+    const withOrdinaryBlade = addLiveModifier(window, { kind: 'BLADE', target: 'SOURCE_MEMBER', playerId: P2, countDelta: 9, sourceCardId: scenario.target.instanceId, abilityId: 'ordinary-blade' });
     const done = choose(withOrdinaryBlade, scenario.target.instanceId);
     expect(done.actionHistory.at(-1)?.payload.originalBladeMatches).toBe(true);
   });

@@ -389,6 +389,7 @@ describe('PL!HS-pb1-001-R/P+ Hino Kaho workflow', () => {
     });
     expect(resolved.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: scenario.sourceId,
       abilityId: HS_PB1_001_LIVE_START_PAY_TWO_ENERGY_GAIN_GREEN_HEART_BLADE_ABILITY_ID,

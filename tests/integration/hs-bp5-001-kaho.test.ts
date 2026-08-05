@@ -299,6 +299,7 @@ describe('HS-bp5-001 Kaho workflow', () => {
     expect(finishResult.success).toBe(true);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: kaho.instanceId,

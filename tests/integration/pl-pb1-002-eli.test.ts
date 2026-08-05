@@ -392,6 +392,7 @@ describe('PL!-pb1-002-R / PL!-pb1-002-P+ Eli workflows', () => {
     }).game;
     game = addLiveModifier(game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER2,
       countDelta: 5,
       sourceCardId: lowPrinted.card.instanceId,

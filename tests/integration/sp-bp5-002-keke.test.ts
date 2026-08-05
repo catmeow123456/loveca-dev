@@ -301,6 +301,7 @@ describe('PL!SP-bp5-002 Keke activated workflow', () => {
     expect(sourceOrientation(scenario)).toBe(OrientationState.ACTIVE);
     expect(scenario.session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: scenario.sourceId,
       abilityId: SP_BP5_002_ACTIVATED_WAIT_DRAW_THREE_DISCARD_TWO_NO_BLADE_HEART_REWARD_ABILITY_ID,

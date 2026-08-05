@@ -137,6 +137,7 @@ describe('PL!N-bp4-029-L Rise Up High! live-start workflow', () => {
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(2);
     expect(bladeModifiers(state)).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: target.instanceId,
@@ -203,6 +204,7 @@ describe('PL!N-bp4-029-L Rise Up High! live-start workflow', () => {
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(bladeModifiers(session.state!)).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: right.instanceId,

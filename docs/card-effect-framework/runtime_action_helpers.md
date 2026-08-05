@@ -389,7 +389,7 @@ Current boundary:
 - 不调用 zone-operations 的普通移动/登场回退，不 enqueue trigger；这不是进入休息室或登场事件。
 - 不扫描候选、不公开手牌、不写 action history、不处理 LIVE 修正或 pending continue；这些都由 workflow 负责。
 
-`addBladeLiveModifierForMember` 允许 `sourceCardId` 保留真实能力来源，同时以 `targetMemberCardId` 绑定受益成员，并拒绝不是当前己方顶层舞台成员的目标；旧 `addBladeLiveModifierForSourceMember` 仅委托该 core。有 target 时离场清理只认 target，审计 source 离场仍保留；旧无 target BLADE 继续 source-bound。真实样本包括 `PL!SP-bp7-001-P` 的下方来源、`PL!S-bp7-005-SEC` 的多 host 常时，以及 `live-start-target-member-gain-blade.ts` family 中真实来源与选中成员不同的 `PL!S-bp2-025-L` / `PL!-bp4-014` / `PL!-bp4-024`。该 family 在写入前仍由 workflow 重验来源，写入后的 LIVE 来源离区不撤销目标 modifier。`MEMBER_ORIGINAL_HEART_REPLACEMENT.hearts` 只支持完整印刷 `HeartIcon[]` 快照，普通 Heart bonus 仍在替换后追加，来源成员实例离场/重登时清理；真实样本为 `PL!N-bp7-003-SEC`。
+`BLADE` live modifier 必须显式声明 `target: 'SOURCE_MEMBER' | 'TARGET_MEMBER' | 'PLAYER'`，读取端不再根据 `sourceCardId` 所属卡牌类型推断受益对象。`SOURCE_MEMBER` 表示能力来源成员本身就是受益者；显式 `TARGET_MEMBER` / `PLAYER` 与所有新增写入都必须让 `sourceCardId` 保留真实能力来源。`addBladeLiveModifierForMember` 以选中成员与真实来源是否同一实例，分别写入 `SOURCE_MEMBER` 或带 `targetMemberCardId` 的 `TARGET_MEMBER`，并拒绝不是当前己方顶层舞台成员的目标；`addBladeLiveModifierForSourceMember` 仅委托该 core。少量历史 workflow 仍把受益成员作为 source helper 参数，这些来源语义误用不在本批迁移范围，后续应单独清理。成员级 modifier 只通过对应的活跃受益成员计入声援，`PLAYER` 则直接计入玩家合计一次；成员离场只清理以该成员为 `SOURCE_MEMBER` 或 `TARGET_MEMBER` 受益者的 modifier，不会因 `PLAYER` modifier 的来源恰好是成员而误清理。真实样本包括 `PL!SP-bp7-001-P` 的下方来源、`PL!S-bp7-005-SEC` 的多 host 常时，以及 `live-start-target-member-gain-blade.ts` family 中真实来源与选中成员不同的 `PL!S-bp2-025-L` / `PL!-bp4-014` / `PL!-bp4-024`。该 family 在写入前仍由 workflow 重验来源，写入后的 LIVE 来源离区不撤销目标 modifier。`MEMBER_ORIGINAL_HEART_REPLACEMENT.hearts` 只支持完整印刷 `HeartIcon[]` 快照，普通 Heart bonus 仍在替换后追加，来源成员实例离场/重登时清理；真实样本为 `PL!N-bp7-003-SEC`。
 
 ### `playMemberBelowCardToEmptySlot`
 
@@ -438,7 +438,7 @@ Return:
 
 Current boundary:
 
-- 只验证 player 与 source member 归属，并调用 `addLiveModifier` 写入 `kind: 'BLADE'`。
+- 只验证 player 与 source member 归属，并写入 `kind: 'BLADE', target: 'SOURCE_MEMBER'`。
 - 不生成 action history；`bladeBonus`、费用、弃置、公开、洗回等 payload 仍由 caller 保持原样。
 - 不处理 `TARGET_MEMBER` BLADE，例如 `PL!HS-bp6-031` 指定安养寺姬芽获得 BLADE +3。
 - 不处理 `PL!-sd1-001`、`PL!N-pb1-004` 这类 continuous / dynamic projection。

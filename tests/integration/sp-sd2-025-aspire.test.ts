@@ -136,6 +136,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
     expect(aspireBladeModifiers(state)).toEqual([
       {
         kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
         playerId: PLAYER1,
         countDelta: 1,
         sourceCardId: 'moved-liella',

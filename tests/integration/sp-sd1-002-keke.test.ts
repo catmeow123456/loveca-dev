@@ -415,7 +415,7 @@ describe('PL!SP-sd1-002-SD 唐 可可 queued on-enter workflow', () => {
             targetMemberCardId: replaced.instanceId,
             hearts: [createHeartIcon(HeartColor.RED, 1)],
           },
-          { kind: 'BLADE', playerId: P1, sourceCardId: replaced.instanceId, countDelta: 2 },
+          { kind: 'BLADE', target: 'SOURCE_MEMBER', playerId: P1, sourceCardId: replaced.instanceId, countDelta: 2 },
           {
             kind: 'SCORE',
             target: 'TARGET_MEMBER',

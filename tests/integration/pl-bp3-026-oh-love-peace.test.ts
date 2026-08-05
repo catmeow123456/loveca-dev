@@ -201,6 +201,7 @@ function setupLiveSuccess(options: {
   if (options.addBladeModifier) {
     game = addLiveModifier(game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: ownMember.instanceId,
       abilityId: 'test:blade-modifier',
@@ -331,6 +332,7 @@ describe('PL!-bp3-026 Oh,Love&Peace! workflow', () => {
     ).toBe(true);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'target',
       abilityId: PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID,
@@ -378,6 +380,7 @@ describe('PL!-bp3-026 Oh,Love&Peace! workflow', () => {
     ).toBe(false);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'target-b',
       abilityId: PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID,

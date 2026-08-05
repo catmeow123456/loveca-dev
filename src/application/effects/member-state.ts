@@ -784,12 +784,10 @@ export function clearPreviousStageMemberInstanceState(
     )
       return false;
     if (modifier.kind === 'BLADE') {
-      const targetMemberCardId = modifier.targetMemberCardId;
-      if (targetMemberCardId !== undefined) {
-        if (targetMemberCardId === memberCardId) return false;
-      } else if (modifier.sourceCardId === memberCardId) {
+      if (modifier.target === 'TARGET_MEMBER' && modifier.targetMemberCardId === memberCardId)
         return false;
-      }
+      if (modifier.target === 'SOURCE_MEMBER' && modifier.sourceCardId === memberCardId)
+        return false;
     }
     return true;
   });

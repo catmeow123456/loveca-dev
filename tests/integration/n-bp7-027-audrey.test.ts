@@ -294,6 +294,7 @@ describe('PL!N-bp7-027-L 分数2「オードリー / 奥黛丽」', () => {
     const bonusGame = withModifiers(bonusScenario.game, [
       {
         kind: 'BLADE',
+        target: 'TARGET_MEMBER',
         playerId: P1,
         countDelta: 2,
         sourceCardId: 'bonus-source',
@@ -333,6 +334,7 @@ describe('PL!N-bp7-027-L 分数2「オードリー / 奥黛丽」', () => {
     const changed = withModifiers(waiting, [
       {
         kind: 'BLADE',
+        target: 'TARGET_MEMBER',
         playerId: P1,
         countDelta: 2,
         sourceCardId: 'late-source',

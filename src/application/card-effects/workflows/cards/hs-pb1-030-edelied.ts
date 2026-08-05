@@ -4,12 +4,11 @@ import {
   getCardById,
   getPlayerById,
   type GameState,
-  type LiveModifierState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
+  addBladeLiveModifierForMember,
   addHeartLiveModifierForMember,
-  addLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { and, normalizeCardName, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
@@ -148,12 +147,17 @@ function finishSelectBladeTarget(
     return game;
   }
 
-  const bladeModifier = createTargetMemberBladeModifier(
-    player.id,
-    selectedCardId,
-    effect.abilityId
-  );
-  let state = addLiveModifier(game, bladeModifier);
+  const bladeResult = addBladeLiveModifierForMember(game, {
+    playerId: player.id,
+    memberCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    abilityId: effect.abilityId,
+    countDelta: BLADE_BONUS,
+  });
+  if (!bladeResult) {
+    return game;
+  }
+  let state = bladeResult.gameState;
   const heartCandidateIds = getDifferentNameEdelNoteMemberCardIds(state, player.id, selectedCardId);
   const orderedResolution = effect.metadata?.orderedResolution === true;
 
@@ -278,20 +282,6 @@ function getDifferentNameEdelNoteMemberCardIds(
     const card = getCardById(game, cardId);
     return normalizeCardName(card?.data.name) !== bladeTargetName;
   });
-}
-
-function createTargetMemberBladeModifier(
-  playerId: string,
-  memberCardId: string,
-  abilityId: string
-): Extract<LiveModifierState, { readonly kind: 'BLADE' }> {
-  return {
-    kind: 'BLADE',
-    playerId,
-    countDelta: BLADE_BONUS,
-    sourceCardId: memberCardId,
-    abilityId,
-  };
 }
 
 function getStringMetadata(value: unknown): string | null {

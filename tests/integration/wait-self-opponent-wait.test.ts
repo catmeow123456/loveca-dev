@@ -222,6 +222,7 @@ function setupOnEnterState(): {
   ]);
   state = addLiveModifier(state, {
     kind: 'BLADE',
+    target: 'SOURCE_MEMBER',
     playerId: PLAYER2,
     countDelta: 1,
     sourceCardId: blade3Effective4.instanceId,

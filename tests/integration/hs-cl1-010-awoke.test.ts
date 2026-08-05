@@ -185,6 +185,7 @@ describe('PL!HS-cl1-010-CL AWOKE workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: target.instanceId,
@@ -260,6 +261,7 @@ describe('PL!HS-cl1-010-CL AWOKE workflow', () => {
 
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: target.instanceId,

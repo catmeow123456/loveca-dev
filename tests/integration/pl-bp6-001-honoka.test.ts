@@ -248,6 +248,7 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
       expect.arrayContaining([
         {
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId: PLAYER1,
           countDelta: 1,
           sourceCardId: museSide.instanceId,
@@ -255,6 +256,7 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
         },
         {
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId: PLAYER1,
           countDelta: 1,
           sourceCardId: honoka.instanceId,

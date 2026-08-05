@@ -195,13 +195,22 @@ function finishNamedHandDiscardLiveStartEffect(
   const stateAfterReward =
     rewardAmount === 0
       ? discardResult.gameState
-      : addLiveModifier(discardResult.gameState, {
-          kind: rewardKind === 'SCORE' ? 'SCORE' : 'BLADE',
-          playerId: player.id,
-          countDelta: rewardAmount,
-          sourceCardId: effect.sourceCardId,
-          abilityId: effect.abilityId,
-        });
+      : rewardKind === 'SCORE'
+        ? addLiveModifier(discardResult.gameState, {
+            kind: 'SCORE',
+            playerId: player.id,
+            countDelta: rewardAmount,
+            sourceCardId: effect.sourceCardId,
+            abilityId: effect.abilityId,
+          })
+        : addLiveModifier(discardResult.gameState, {
+            kind: 'BLADE',
+            target: 'SOURCE_MEMBER',
+            playerId: player.id,
+            countDelta: rewardAmount,
+            sourceCardId: effect.sourceCardId,
+            abilityId: effect.abilityId,
+          });
   const state = { ...stateAfterReward, activeEffect: null };
 
   return continuePendingCardEffects(

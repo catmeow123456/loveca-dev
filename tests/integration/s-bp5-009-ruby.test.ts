@@ -250,6 +250,7 @@ describe('PL!S-bp5-009 黒澤ルビィ', () => {
     expect(player.hand.cardIds).toEqual([waitingCards[0]!.instanceId]);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,

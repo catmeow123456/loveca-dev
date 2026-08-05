@@ -156,6 +156,7 @@ describe('PL!S-bp7-001-P 费用9「高海千歌」登场效果', () => {
     expect(state.players[0].hand.cardIds).toEqual([riko.instanceId]);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: P1,
       countDelta: 2,
       sourceCardId: SOURCE_ID,

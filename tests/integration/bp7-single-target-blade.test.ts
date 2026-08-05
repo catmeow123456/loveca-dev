@@ -17,6 +17,7 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { GameService } from '../../src/application/game-service';
 import {
   N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
   N_BP7_025_LIVE_SUCCESS_THREE_BLADE_HEART_COLORS_SCORE_ABILITY_ID,
@@ -50,6 +51,7 @@ function member(options: {
   readonly name: string;
   readonly groupNames?: readonly string[];
   readonly bladeHearts?: readonly BladeHeartItem[];
+  readonly blade?: number;
 }): MemberCardData {
   return {
     cardCode: options.cardCode,
@@ -57,7 +59,7 @@ function member(options: {
     groupNames: options.groupNames,
     cardType: CardType.MEMBER,
     cost: 4,
-    blade: 1,
+    blade: options.blade ?? 1,
     hearts: [],
     bladeHearts: options.bladeHearts,
   };
@@ -279,11 +281,77 @@ describe('BP7 single-target BLADE shared family expansion', () => {
       )
     ).toEqual([
       expect.objectContaining({
+        target: 'TARGET_MEMBER',
         sourceCardId: scenario.sourceId,
         targetMemberCardId: scenario.targetIds[1],
         countDelta: 1,
       }),
     ]);
+  });
+
+  it('PL!N-bp7-025 实际结算目标 +1 后以 1+4+1 只公开 6 张声援', () => {
+    const source = createCardInstance(
+      live('PL!N-bp7-025-SECL'),
+      PLAYER1,
+      'n-bp7-025-cross-layer-source'
+    );
+    const left = createCardInstance(
+      member({
+        cardCode: 'CROSS-LAYER-NIJI-LEFT',
+        name: '上原步梦',
+        groupNames: ['虹ヶ咲'],
+        blade: 1,
+      }),
+      PLAYER1,
+      'n-bp7-025-cross-layer-left'
+    );
+    const center = createCardInstance(
+      member({
+        cardCode: 'CROSS-LAYER-NIJI-CENTER',
+        name: '中须霞',
+        groupNames: ['虹咲'],
+        blade: 4,
+      }),
+      PLAYER1,
+      'n-bp7-025-cross-layer-center'
+    );
+    const cheerCards = Array.from({ length: 8 }, (_, index) =>
+      createCardInstance(
+        member({ cardCode: `CROSS-LAYER-CHEER-${index}`, name: `Cheer ${index}` }),
+        PLAYER1,
+        `n-bp7-025-cross-layer-cheer-${index}`
+      )
+    );
+    let game = registerCards(
+      createGameState('n-bp7-025-cross-layer', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, left, center, ...cheerCards]
+    );
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      liveZone: addCardToZone(player.liveZone, source.instanceId),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, left.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.CENTER,
+        center.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+      mainDeck: cheerCards.reduce(
+        (zone, card) => addCardToZone(zone, card.instanceId),
+        player.mainDeck
+      ),
+    }));
+
+    const resolved = choose(startLiveStart(game), left.instanceId);
+    const done = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(resolved, PLAYER1);
+
+    expect(done.liveResolution.firstPlayerCheerCardIds).toHaveLength(6);
   });
 
   it('keeps 0-target safe consumption, one-target auto resolution, and stale source/target safety', () => {
@@ -338,6 +406,7 @@ describe('BP7 single-target BLADE shared family expansion', () => {
       bladeModifiers(resolved, SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID)
     ).toEqual([
       expect.objectContaining({
+        target: 'TARGET_MEMBER',
         sourceCardId: scenario.sourceId,
         targetMemberCardId: scenario.targetIds[2],
         countDelta: 1,

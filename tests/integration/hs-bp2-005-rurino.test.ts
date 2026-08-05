@@ -496,6 +496,7 @@ describe('PL!HS-bp2-005 Rurino workflow', () => {
     );
     expect(full.session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: full.source.instanceId,
       abilityId: HS_BP2_005_LIVE_START_PAY_ENERGY_FULL_STAGE_GAIN_TWO_BLADE_ABILITY_ID,

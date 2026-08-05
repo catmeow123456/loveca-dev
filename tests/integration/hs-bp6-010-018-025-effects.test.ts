@@ -386,6 +386,7 @@ describe('PL!HS-bp6-018 Sayaka workflow', () => {
     });
     expect(game.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: target.instanceId,

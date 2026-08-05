@@ -267,6 +267,7 @@ describe('未来水卡组 执行批次2 focused workflows', () => {
     ]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: source.instanceId,

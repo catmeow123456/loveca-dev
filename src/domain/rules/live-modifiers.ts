@@ -69,6 +69,7 @@ type LiveModifierCompatibilityProjection = Pick<
 
 export interface LiveModifierMatch {
   readonly kind?: LiveModifierState['kind'];
+  readonly target?: 'SOURCE_MEMBER' | 'TARGET_MEMBER' | 'PLAYER';
   readonly playerId?: string;
   readonly liveCardId?: string;
   readonly sourceCardId?: string;
@@ -255,8 +256,7 @@ const SP_BP7_003_CONTINUOUS_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID =
   'PL!SP-bp7-003-SEC:continuous-member-below-gain-blade';
 const SP_BP7_003_CONTINUOUS_THREE_MEMBER_BELOW_LIVE_SCORE_ABILITY_ID =
   'PL!SP-bp7-003-SEC:continuous-three-member-below-live-score';
-const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID =
-  'PL!SP-bp7-009-P:continuous-side-red-heart';
+const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID = 'PL!SP-bp7-009-P:continuous-side-red-heart';
 const S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID =
   'PL!S-bp7-009:continuous-front-low-cost-member-lose-blade';
 
@@ -543,6 +543,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: successLiveCount,
               sourceCardId,
@@ -634,6 +635,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -708,6 +710,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       return [
         {
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId,
           countDelta: 2,
           sourceCardId,
@@ -738,6 +741,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         heartModifier,
         {
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId,
           countDelta: 2,
           sourceCardId,
@@ -924,6 +928,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: highCostNonCeriseMemberCount * 2,
               sourceCardId,
@@ -942,6 +947,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 3,
               sourceCardId,
@@ -958,6 +964,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -979,6 +986,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: otherMiracraMemberCount,
               sourceCardId,
@@ -996,6 +1004,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -1012,6 +1021,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: -3,
               sourceCardId,
@@ -1059,6 +1069,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: opponentWaitingMemberCount,
               sourceCardId,
@@ -1104,6 +1115,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 1,
               sourceCardId,
@@ -1130,6 +1142,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: successLiveDifference,
               sourceCardId,
@@ -1153,6 +1166,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 3,
               sourceCardId,
@@ -1212,6 +1226,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         : [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -1244,6 +1259,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: energyBelowCount,
               sourceCardId,
@@ -1262,6 +1278,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 3,
               sourceCardId,
@@ -1279,6 +1296,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 3,
               sourceCardId,
@@ -1318,6 +1336,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -1334,6 +1353,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -1351,6 +1371,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 3,
               sourceCardId,
@@ -1369,6 +1390,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 3,
               sourceCardId,
@@ -1407,6 +1429,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -1423,6 +1446,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 4,
               sourceCardId,
@@ -1461,6 +1485,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -1492,6 +1517,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             heartModifier,
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 1,
               sourceCardId,
@@ -1532,6 +1558,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: 2,
               sourceCardId,
@@ -2048,9 +2075,11 @@ function collectLoveWingBellCenterMuseBladeModifier(
   return [
     {
       kind: 'BLADE',
+      target: 'TARGET_MEMBER',
       playerId,
       countDelta: 1,
-      sourceCardId: centerCardId,
+      sourceCardId,
+      targetMemberCardId: centerCardId,
       abilityId: PL_BP4_020_CONTINUOUS_SUCCESS_ZONE_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
     },
   ];
@@ -2153,6 +2182,7 @@ function createSideSlotBladeContinuousDefinitions(
         ? [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId,
               countDelta: definition.countDelta,
               sourceCardId,
@@ -2606,6 +2636,7 @@ function collectFrontLowCostMemberLoseBladeModifier(
   return [
     {
       kind: 'BLADE',
+      target: 'TARGET_MEMBER',
       playerId: opponent.id,
       countDelta: -1,
       sourceCardId,
@@ -2650,6 +2681,7 @@ function collectHsBp5002SayakaContinuousModifiers(
     heartModifier,
     {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId,
       countDelta: 1,
       sourceCardId,
@@ -3188,22 +3220,17 @@ export function removeStageMemberBoundLiveModifiers(
   if (memberCardIdSet.size === 0) {
     return game;
   }
-  const liveModifiers = game.liveResolution.liveModifiers.filter(
-    (modifier) => {
-      const targetMemberCardId =
-        'targetMemberCardId' in modifier ? modifier.targetMemberCardId : undefined;
-      const targetBound =
-        targetMemberCardId !== undefined && memberCardIdSet.has(targetMemberCardId);
-      const memberBound =
-        'memberCardId' in modifier && memberCardIdSet.has(modifier.memberCardId);
-      const legacySourceBoundBlade =
-        modifier.kind === 'BLADE' &&
-        targetMemberCardId === undefined &&
-        modifier.sourceCardId !== undefined &&
-        memberCardIdSet.has(modifier.sourceCardId);
-      return !(targetBound || memberBound || legacySourceBoundBlade);
-    }
-  );
+  const liveModifiers = game.liveResolution.liveModifiers.filter((modifier) => {
+    const targetMemberCardId =
+      'targetMemberCardId' in modifier ? modifier.targetMemberCardId : undefined;
+    const targetBound = targetMemberCardId !== undefined && memberCardIdSet.has(targetMemberCardId);
+    const memberBound = 'memberCardId' in modifier && memberCardIdSet.has(modifier.memberCardId);
+    const sourceMemberBoundBlade =
+      modifier.kind === 'BLADE' &&
+      modifier.target === 'SOURCE_MEMBER' &&
+      memberCardIdSet.has(modifier.sourceCardId);
+    return !(targetBound || memberBound || sourceMemberBoundBlade);
+  });
   return liveModifiers.length === game.liveResolution.liveModifiers.length
     ? game
     : setLiveModifiers(game, liveModifiers);
@@ -3303,16 +3330,24 @@ export function createBladeLiveModifierForMember(
     return null;
   }
 
-  return {
-    kind: 'BLADE',
+  const baseModifier = {
+    kind: 'BLADE' as const,
     playerId: options.playerId,
     countDelta: options.countDelta,
     sourceCardId: options.sourceCardId,
     abilityId: options.abilityId,
-    ...(options.memberCardId === options.sourceCardId
-      ? {}
-      : { targetMemberCardId: options.memberCardId }),
   };
+
+  return options.memberCardId === options.sourceCardId
+    ? {
+        ...baseModifier,
+        target: 'SOURCE_MEMBER',
+      }
+    : {
+        ...baseModifier,
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: options.memberCardId,
+      };
 }
 
 export function addBladeLiveModifierForMember(
@@ -3485,6 +3520,12 @@ function matchesLiveModifier(modifier: LiveModifierState, match: LiveModifierMat
     }
   }
 
+  if (match.target !== undefined) {
+    if (!('target' in modifier) || modifier.target !== match.target) {
+      return false;
+    }
+  }
+
   if (match.liveCardId !== undefined) {
     if (!('liveCardId' in modifier) || modifier.liveCardId !== match.liveCardId) {
       return false;
@@ -3555,10 +3596,9 @@ export function getPlayerLiveBladeModifier(
   playerId: string,
   liveModifiers: readonly LiveModifierState[] = liveResolution.liveModifiers
 ): number {
-  return getBladeModifiers(playerId, liveModifiers).reduce(
-    (total, modifier) => total + modifier.countDelta,
-    0
-  );
+  return getBladeModifiers(playerId, liveModifiers)
+    .filter((modifier) => modifier.target === 'PLAYER')
+    .reduce((total, modifier) => total + modifier.countDelta, 0);
 }
 
 export function getEffectivePerformanceCheerCount(
@@ -3586,8 +3626,10 @@ export function getMemberEffectiveBladeCount(
   }
 
   const modifierBladeCount = getBladeModifiers(playerId, liveModifiers)
-    .filter(
-      (modifier) => (modifier.targetMemberCardId ?? modifier.sourceCardId) === sourceCardId
+    .filter((modifier) =>
+      modifier.target === 'SOURCE_MEMBER'
+        ? modifier.sourceCardId === sourceCardId
+        : modifier.target === 'TARGET_MEMBER' && modifier.targetMemberCardId === sourceCardId
     )
     .reduce((total, modifier) => total + modifier.countDelta, 0);
 

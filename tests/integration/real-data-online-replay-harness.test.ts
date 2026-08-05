@@ -568,8 +568,8 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
       [LEGACY_ACTIVE_EFFECT_CONFIRM_LABEL_REPLAY_SKIP_REASON]: 1,
       [LEGACY_CARD_EFFECT_STAGE_MOVE_TRACKING_REPLAY_SKIP_REASON]: 7,
       [LEGACY_CHEER_FACT_METADATA_REPLAY_SKIP_REASON]: 4,
-      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 37,
-      [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 18,
+      [LEGACY_CONFIRM_ONLY_LIVE_PENDING_REPLAY_SKIP_REASON]: 38,
+      [LEGACY_DYNAMIC_CHECK_TIMING_REPLAY_SKIP_REASON]: 17,
       [LEGACY_ENTER_HAND_EVENT_REPLAY_SKIP_REASON]: 2,
       [LEGACY_SELF_SACRIFICE_RECOVERY_REPLAY_SKIP_REASON]: 23,
       [LEGACY_LIVE_SET_TRACKING_REPLAY_SKIP_REASON]: 114,
@@ -662,6 +662,45 @@ describeRealData('real online replay data harness: 2026-06-27 CST online-only', 
         diffsTruncated: true,
       })
     ).toBeNull();
+  });
+
+  it('only bridges missing legacy BLADE target metadata during replay comparison', () => {
+    const expected = {
+      liveResolution: {
+        liveModifiers: [{ kind: 'BLADE', playerId: 'p1', countDelta: 1 }],
+      },
+    };
+    const actual = {
+      liveResolution: {
+        liveModifiers: [
+          { kind: 'BLADE', target: 'PLAYER', playerId: 'p1', countDelta: 1 },
+        ],
+      },
+    };
+    expect(alignLegacyBladeTargetsForReplayComparison(actual, expected)).toEqual(expected);
+
+    const explicitExpected = {
+      liveResolution: {
+        liveModifiers: [
+          { kind: 'BLADE', target: 'TARGET_MEMBER', playerId: 'p1', countDelta: 1 },
+        ],
+      },
+    };
+    expect(alignLegacyBladeTargetsForReplayComparison(actual, explicitExpected)).toEqual(actual);
+    expect(
+      alignLegacyBladeTargetsForReplayComparison(
+        {
+          liveResolution: {
+            liveModifiers: [
+              { kind: 'BLADE', target: 'UNKNOWN', playerId: 'p1', countDelta: 1 },
+            ],
+          },
+        },
+        expected
+      )
+    ).toMatchObject({
+      liveResolution: { liveModifiers: [{ target: 'UNKNOWN' }] },
+    });
   });
 
   it('allows only the two known legacy card-effect stage-move tracking drifts', () => {
@@ -1833,11 +1872,14 @@ function buildEngineReplayAudit(
       continue;
     }
 
-    const actualFingerprint = fingerprintEngineState(result.gameState);
-    const expectedFingerprint = fingerprintEngineState(afterCheckpoint.state);
+    const expectedNormalized = normalizeEngineState(afterCheckpoint.state);
+    const actualNormalized = alignLegacyBladeTargetsForReplayComparison(
+      normalizeEngineState(result.gameState),
+      expectedNormalized
+    );
+    const actualFingerprint = fingerprintNormalizedEngineState(actualNormalized);
+    const expectedFingerprint = fingerprintNormalizedEngineState(expectedNormalized);
     if (actualFingerprint !== expectedFingerprint) {
-      const actualNormalized = normalizeEngineState(result.gameState);
-      const expectedNormalized = normalizeEngineState(afterCheckpoint.state);
       const collectedDiffs = findFirstDifferences(
         actualNormalized,
         expectedNormalized,
@@ -2816,8 +2858,40 @@ function createReplaySession(state: GameState): GameSession {
   return session;
 }
 
-function fingerprintEngineState(state: GameState): string {
-  return JSON.stringify(sortObjectKeys(normalizeEngineState(state)));
+function fingerprintNormalizedEngineState(state: unknown): string {
+  return JSON.stringify(sortObjectKeys(state));
+}
+
+function alignLegacyBladeTargetsForReplayComparison(actual: unknown, expected: unknown): unknown {
+  if (Array.isArray(actual)) {
+    const expectedArray = Array.isArray(expected) ? expected : [];
+    return actual.map((entry, index) =>
+      alignLegacyBladeTargetsForReplayComparison(entry, expectedArray[index])
+    );
+  }
+
+  const actualRecord = asRecord(actual);
+  if (!actualRecord) {
+    return actual;
+  }
+  const expectedRecord = asRecord(expected);
+  const actualTarget = actualRecord.target;
+  const omitsLegacyBladeTarget =
+    actualRecord.kind === 'BLADE' &&
+    expectedRecord?.kind === 'BLADE' &&
+    !hasOwn(expectedRecord, 'target') &&
+    (actualTarget === 'SOURCE_MEMBER' ||
+      actualTarget === 'TARGET_MEMBER' ||
+      actualTarget === 'PLAYER');
+
+  return Object.fromEntries(
+    Object.entries(actualRecord)
+      .filter(([key]) => !(omitsLegacyBladeTarget && key === 'target'))
+      .map(([key, value]) => [
+        key,
+        alignLegacyBladeTargetsForReplayComparison(value, expectedRecord?.[key]),
+      ])
+  );
 }
 
 function summarizeReplayComparisonState(state: GameState): unknown {

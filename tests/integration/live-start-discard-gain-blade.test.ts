@@ -283,6 +283,7 @@ describe('SP PR LIVE start discard gain BLADE and draw if LIVE shared workflow',
     expect(session.state?.players[0].hand.cardIds).not.toContain(drawCardId);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId,
@@ -398,6 +399,7 @@ describe('SP PR LIVE start discard gain BLADE and draw if LIVE shared workflow',
       } else {
         expect(session.state?.liveResolution.liveModifiers).toContainEqual({
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId: PLAYER1,
           countDelta: discardCount * 2,
           sourceCardId: source.instanceId,
@@ -547,6 +549,7 @@ describe('SP PR LIVE start discard gain BLADE and draw if LIVE shared workflow',
     expect(scenario.session.state?.liveResolution.liveModifiers).toEqual([
       {
         kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
         playerId: PLAYER1,
         countDelta: 5,
         sourceCardId: scenario.sourceCardId,

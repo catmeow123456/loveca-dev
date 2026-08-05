@@ -158,9 +158,11 @@ describe('PL!HS-pb1-030-L Edelied workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
-      sourceCardId: members[0].instanceId,
+      targetMemberCardId: members[0].instanceId,
+      sourceCardId: live.instanceId,
       abilityId: HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID,
     });
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
@@ -197,7 +199,7 @@ describe('PL!HS-pb1-030-L Edelied workflow', () => {
   });
 
   it('keeps the first BLADE target when there is no different-name EdelNote Heart target', () => {
-    const { state, members } = buildLiveStartState([
+    const { state, live, members } = buildLiveStartState([
       {
         card: createMember('PL!HS-test-seras-a', 'セラス 柳田 リリエンフェルト'),
         id: 'seras-a',
@@ -223,7 +225,9 @@ describe('PL!HS-pb1-030-L Edelied workflow', () => {
     expect(session.state?.liveResolution.liveModifiers).toContainEqual(
       expect.objectContaining({
         kind: 'BLADE',
-        sourceCardId: members[0].instanceId,
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: members[0].instanceId,
+        sourceCardId: live.instanceId,
         countDelta: 2,
       })
     );

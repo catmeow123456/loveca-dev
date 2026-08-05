@@ -274,6 +274,7 @@ describe('PL!SP-pb2-009 Natsumi wait Liella member then opponent lower printed B
     const scenario = setupState({ ownPayBlade: 2, lowOpponentBlade: 1 });
     const modified = addLiveModifier(scenario.game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 5,
       sourceCardId: scenario.ownPayId,

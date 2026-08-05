@@ -138,6 +138,7 @@ describe('PL!-bp3-006 Maki LIVE start discard gain BLADE by success count', () =
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(discardCardId);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 4,
       sourceCardId,

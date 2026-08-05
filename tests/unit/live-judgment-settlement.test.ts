@@ -43,7 +43,11 @@ import {
   confirmActiveEffectStep,
   NICO_LIVE_START_SCORE_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
-import { collectLiveModifiers } from '../../src/domain/rules/live-modifiers';
+import {
+  addBladeLiveModifierForMember,
+  addLiveModifier,
+  collectLiveModifiers,
+} from '../../src/domain/rules/live-modifiers';
 
 describe('Live 判定与结算', () => {
   it('进入判定子阶段时应先自动翻应援，接受后才生成 Live 成功与分数草案', () => {
@@ -373,6 +377,7 @@ describe('Live 判定与结算', () => {
     expect(revealResult.gameState.liveResolution.liveModifiers).toEqual([]);
     expect(collectLiveModifiers(revealResult.gameState)).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: 'p1',
       countDelta: 2,
       sourceCardId: honoka.instanceId,
@@ -1892,7 +1897,7 @@ describe('Live 判定与结算', () => {
         ...game.liveResolution,
         isInLive: true,
         performingPlayerId: 'p1',
-        liveModifiers: [{ kind: 'BLADE', playerId: 'p1', countDelta: 1 }],
+        liveModifiers: [{ kind: 'BLADE', target: 'PLAYER', playerId: 'p1', countDelta: 1 }],
       },
     };
 
@@ -1975,6 +1980,7 @@ describe('Live 判定与结算', () => {
           liveModifiers: [
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId: 'p1',
               countDelta: 1,
               sourceCardId: member.instanceId,
@@ -2314,6 +2320,195 @@ describe('Live 判定与结算', () => {
     ).autoRevealPerformanceCheer(game, 'p1');
     expect(done.liveResolution.firstPlayerCheerCardIds).toEqual([bottom.instanceId]);
     expect(done.eventLog.at(-1)?.event).toMatchObject({ deckEdge: 'BOTTOM' });
+  });
+
+  function createExplicitBladeScopeScenario(options: {
+    readonly leftBlade: number;
+    readonly leftOrientation?: OrientationState;
+    readonly centerBlade: number;
+    readonly centerOrientation?: OrientationState;
+  }) {
+    const source = createCardInstance(
+      {
+        cardCode: 'PL!N-bp7-025-SECL',
+        name: 'Colorful Dreams! Colorful Smiles!',
+        cardType: CardType.LIVE as const,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'explicit-blade-source'
+    );
+    const left = createCardInstance(
+      {
+        cardCode: 'EXPLICIT-BLADE-LEFT',
+        name: 'Blade Left',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: options.leftBlade,
+        hearts: [],
+      },
+      'p1',
+      'explicit-blade-left'
+    );
+    const center = createCardInstance(
+      {
+        cardCode: 'EXPLICIT-BLADE-CENTER',
+        name: 'Blade Center',
+        cardType: CardType.MEMBER as const,
+        cost: 1,
+        blade: options.centerBlade,
+        hearts: [],
+      },
+      'p1',
+      'explicit-blade-center'
+    );
+    const cheerCards = Array.from({ length: 12 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `EXPLICIT-BLADE-CHEER-${index}`,
+          name: `Blade Cheer ${index}`,
+          cardType: CardType.MEMBER as const,
+          cost: 1,
+          blade: 0,
+          hearts: [],
+        },
+        'p1',
+        `explicit-blade-cheer-${index}`
+      )
+    );
+    let game = registerCards(createGameState('explicit-blade-scope', 'p1', 'P1', 'p2', 'P2'), [
+      source,
+      left,
+      center,
+      ...cheerCards,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      liveZone: addCardToStatefulZone(player.liveZone, source.instanceId),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, left.instanceId, {
+          orientation: options.leftOrientation ?? OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.CENTER,
+        center.instanceId,
+        {
+          orientation: options.centerOrientation ?? OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }
+      ),
+      mainDeck: {
+        ...player.mainDeck,
+        cardIds: cheerCards.map((card) => card.instanceId),
+      },
+    }));
+    return { game, source, left, center };
+  }
+
+  function autoRevealCheerCount(game: ReturnType<typeof createGameState>): number {
+    const done = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(
+          state: ReturnType<typeof createGameState>,
+          playerId: string
+        ): ReturnType<typeof createGameState>;
+      }
+    ).autoRevealPerformanceCheer(game, 'p1');
+    return done.liveResolution.firstPlayerCheerCardIds.length;
+  }
+
+  it('LIVE 来源给指定成员 BLADE +1 只计入该活跃成员一次', () => {
+    const scenario = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 4 });
+    const result = addBladeLiveModifierForMember(scenario.game, {
+      playerId: 'p1',
+      memberCardId: scenario.left.instanceId,
+      sourceCardId: scenario.source.instanceId,
+      abilityId: 'target-member-plus-one',
+      countDelta: 1,
+    });
+    expect(result?.modifier).toMatchObject({
+      target: 'TARGET_MEMBER',
+      targetMemberCardId: scenario.left.instanceId,
+      sourceCardId: scenario.source.instanceId,
+    });
+    expect(autoRevealCheerCount(result!.gameState)).toBe(6);
+  });
+
+  it('指定成员 BLADE 只通过活跃受益成员计入，多目标也不重复计数', () => {
+    const waiting = createExplicitBladeScopeScenario({
+      leftBlade: 4,
+      leftOrientation: OrientationState.WAITING,
+      centerBlade: 1,
+    });
+    const waitingResult = addBladeLiveModifierForMember(waiting.game, {
+      playerId: 'p1',
+      memberCardId: waiting.left.instanceId,
+      sourceCardId: waiting.source.instanceId,
+      abilityId: 'waiting-target-plus-one',
+      countDelta: 1,
+    });
+    expect(autoRevealCheerCount(waitingResult!.gameState)).toBe(1);
+
+    const multiple = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 4 });
+    const first = addBladeLiveModifierForMember(multiple.game, {
+      playerId: 'p1',
+      memberCardId: multiple.left.instanceId,
+      sourceCardId: multiple.source.instanceId,
+      abilityId: 'multi-target-left',
+      countDelta: 1,
+    });
+    const second = addBladeLiveModifierForMember(first!.gameState, {
+      playerId: 'p1',
+      memberCardId: multiple.center.instanceId,
+      sourceCardId: multiple.source.instanceId,
+      abilityId: 'multi-target-center',
+      countDelta: 1,
+    });
+    expect(autoRevealCheerCount(second!.gameState)).toBe(7);
+  });
+
+  it('PLAYER BLADE 即使来源是成员也只计入一次', () => {
+    const scenario = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 0 });
+    const game = addLiveModifier(scenario.game, {
+      kind: 'BLADE',
+      target: 'PLAYER',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: scenario.left.instanceId,
+      abilityId: 'member-source-player-blade',
+    });
+    expect(autoRevealCheerCount(game)).toBe(3);
+  });
+
+  it('PLAYER BLADE 即使来源是 LIVE 也只计入一次', () => {
+    const scenario = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 0 });
+    const game = addLiveModifier(scenario.game, {
+      kind: 'BLADE',
+      target: 'PLAYER',
+      playerId: 'p1',
+      countDelta: 2,
+      sourceCardId: scenario.source.instanceId,
+      abilityId: 'live-source-player-blade',
+    });
+    expect(autoRevealCheerCount(game)).toBe(3);
+  });
+
+  it('SOURCE_MEMBER BLADE 在来源成员待机时不计入', () => {
+    const scenario = createExplicitBladeScopeScenario({
+      leftBlade: 4,
+      leftOrientation: OrientationState.WAITING,
+      centerBlade: 1,
+    });
+    const result = addBladeLiveModifierForMember(scenario.game, {
+      playerId: 'p1',
+      memberCardId: scenario.left.instanceId,
+      sourceCardId: scenario.left.instanceId,
+      abilityId: 'waiting-source-plus-two',
+      countDelta: 2,
+    });
+    expect(result?.modifier).toMatchObject({ target: 'SOURCE_MEMBER' });
+    expect(autoRevealCheerCount(result!.gameState)).toBe(1);
   });
 
   it('结算阶段应只统计判定成功的 Live 分数', () => {

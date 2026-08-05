@@ -122,6 +122,7 @@ describe('shared on-enter source member gain LIVE modifier workflow', () => {
     expect(getMemberEffectiveBladeCount(state, PLAYER1, sourceId)).toBe(2);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: sourceId,
@@ -147,6 +148,7 @@ describe('shared on-enter source member gain LIVE modifier workflow', () => {
     expect(getMemberEffectiveBladeCount(state, PLAYER1, sourceId)).toBe(3);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: sourceId,
@@ -172,6 +174,7 @@ describe('shared on-enter source member gain LIVE modifier workflow', () => {
     expect(getMemberEffectiveBladeCount(state, PLAYER1, sourceId)).toBe(4);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 3,
       sourceCardId: sourceId,
