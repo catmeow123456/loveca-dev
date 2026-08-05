@@ -189,6 +189,7 @@ describe('PL!SP-bp4-025 Special Color', () => {
     );
     state = addLiveModifier(state, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: scenario.centerMemberId,

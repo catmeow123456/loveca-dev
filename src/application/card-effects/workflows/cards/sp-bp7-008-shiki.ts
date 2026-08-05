@@ -7,13 +7,13 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { GamePhase, OrientationState } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
   SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
   SP_BP7_008_AUTO_ON_MOVE_ACTIVATE_SELF_ABILITY_ID,
 } from '../../ability-ids.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -76,7 +76,13 @@ function activateWaitSelfDrawOne(
     !card ||
     card.ownerId !== playerId ||
     !isMemberCardData(card.data) ||
-    !cardCodeMatchesBase(card.data.cardCode, BASE_CARD_CODE) ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
+      [BASE_CARD_CODE]
+    ) ||
     sourceSlot === null ||
     sourceState?.orientation !== OrientationState.ACTIVE
   ) {

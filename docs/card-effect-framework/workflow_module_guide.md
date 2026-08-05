@@ -3,7 +3,7 @@
 > 文档类型：编码标准
 > 适用范围：卡效 workflow family、特殊卡 workflow、runner dispatch 的组织方式
 > 当前状态：现行写法；旧 runner 逻辑按 `migration_roadmap.md` 分批迁移，完整卡效 fallback 不得回流
-> 最后更新：2026-07-30
+> 最后更新：2026-08-03
 
 ## ON_LEAVE_STAGE activate stage member
 
@@ -16,6 +16,16 @@ and live-pool reselection. `orderedResolution` only applies to the selected batc
 waiting ability cancels the shortcut and reopens player choice.
 
 workflow 是卡效流程的主要承载层。它可以是一类同型效果，也可以是一张特殊卡的单独流程。
+
+## Granted Activated Ability Source Contract
+
+当前 `PL!SP-pb2-005` 会让舞台上的 Ren host 获得同槽下方自己『Liella!』成员已经实现的 `ACTIVATED / STAGE_MEMBER` 能力。GameSession 的中央命令校验只负责允许合法命令进入 workflow；workflow 自己在后续步骤重复检查来源时仍必须兼容同一宿主契约。
+
+- 只要 abilityId 可以由该 host 获得，启动 handler 以及能量选择恢复、公开确认恢复、支付确认、finish 等所有来源复核点，都使用 `isDirectOrRenGrantedActivatedAbilitySource`。不得只替换第一个 `cardCodeMatchesBase` / `doesCardAbilityDefinitionMatchCardCode` 后就结束审查。
+- helper 的 `directBaseCardCodes` 保存该 abilityId 的全部原生来源；Ren-granted 分支继续检查 host、同槽下方授予卡、definition 与槽位限制。workflow 自己原有的 owner、成员类型、舞台位置、状态、资源与目标校验也必须保留，不得以“支持宿主”为由完全删除来源拥有能力或其他合法性校验。
+- `sourceCardId` 始终是实际发动的 host 实例，不是下方授予能力的卡。“此成员”的费用与效果、`ABILITY_USE`、per-turn identity、`sourceLifecycleId`、activeEffect 和 action audit 都绑定 host；memberBelow 实例只证明 host 当前拥有该 abilityId。
+- shared family 只能对明确的 abilityId/config 开启 Ren-granted 来源。相同文件内其他作品、其他 abilityId 继续使用原 direct-only 边界；同一 abilityId 有多个原生基础编号时，必须全部保留在 `directBaseCardCodes`。
+- 新增或修改可被获得的『Liella!』起动能力时，同步扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，并执行 direct-only source gate 静态审计。代表性测试还要证明待机、离场、移动、modifier 或向下叠卡等“此成员”语义作用于 host。
 
 ## Public Reveal Dwell
 
@@ -63,7 +73,7 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 ## Family Workflow
 
-`relay-replacement-gain-blade.ts` 是 `PL!-PR-023`、`PL!HS-PR-040`、`PL!S-PR-046`
+`relay-replacement-gain-blade.ts` 是 `PL!-PR-024`、`PL!HS-PR-040`、`PL!S-PR-046`
 三个同文基础编号证明的窄离场 family。它只接受绑定当前 pending 的精确
 `LeaveStageEvent`，并以该事件的 `replacingCardId` 重验换手登场成员仍为控制者主舞台顶层、
 印刷费用至少9；不得从最近 action、当前槽位变化或卡名猜测关系。合法时写目标成员实例绑定的
@@ -164,6 +174,8 @@ Discard-then-draw is a separate shared family when the stable order is private h
 Arrange-top workflows may share a core when they inspect the deck top, let the player choose an ordered subset for deck top, and move unselected inspected cards to waiting room. The shared summary label can describe 登场, LIVE开始, or LIVE成功 sources, but the workflow must still own only the inspection / ordered deck-top / inspected-to-waiting-room flow. Keep card-specific opt-in costs, such as waiting the source member before inspection, in a thin card wrapper that calls the shared core after the cost has fully resolved.
 
 The DRAFT `PL!S-bp7-008` ON_ENTER ability proves one narrow additional destination axis: after choosing an ordered 0–3-card top subset, every remaining inspected card must be ordered for the deck bottom. `arrange-inspected-deck-edge.ts` owns that second exact-all ordered step and delegates only the final atomic placement to `moveInspectedCardsToDeckTopAndBottom`; a remainder of zero or one resolves without an unnecessary second prompt. This axis does not permit mixed waiting-room placement, arbitrary destinations, partial bottom subsets, or a generic multi-step DSL.
+
+The DRAFT `PL!S-bp7-010-N` 费用4「高海千歌」remains card-owned in `workflows/cards/s-bp7-010-chika.ts`: it privately inspects exactly one bottom card, then offers the two destination results of placing that same card fourth from the top or retaining it at the bottom. The destination choice uses the existing public-effect-choice lifecycle so both players see the selected result before any movement, while the inspected card itself remains private to its owner. The workflow owns the queued ON_ENTER window, private projection, stale revalidation and continuation; `moveInspectedCardToDeckPositionFromTop` owns only the atomic inspection-to-position move, while the bottom result reuses `moveInspectedCardsToDeckTopAndBottom`. This first arbitrary-position inspection sample does not extend `arrange-inspected-deck-edge.ts` or establish a configurable deck-position workflow family.
 
 When such a thin wrapper pays a discard cost before delegating, it may pass the narrow optional `discardedCostCardIds` summary context so STARTED and COMPLETED public summaries report the real cost. The shared arrange core does not select or pay that cost; callers without a discard cost continue to report an empty list.
 
@@ -417,7 +429,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 
 `PL!S-bp7-020-SECL` 分数3「快乐派对火车」与 `PL!S-bp7-021-L` 分数5「我们的旅程永不落幕」只共享第一批 refresh-aware bottom helper，不形成新的 shared reward family。020 的底1 Aqours MEMBER 后必要[無ハート]-1 留在 `cards/s-bp7-020-happy-party-train.ts`；同卡公开的“己方主舞台成员全部 ACTIVE”段扩展 `conditional-live-modifier.ts`，以至少1名顶层成员避免空集合误判。021 留在 `cards/s-bp7-021-bokura-no-tabi-wa-owaranai.ts`，结算时重查三名顶层成员门槛，完整移动5张后按实际 MEMBER 数抽牌并以 replacement 写来源 LIVE SCORE。
 
-`PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」保持单卡 LIVE_SUCCESS workflow `cards/s-bp7-022-koi-ni-naritai-aquarium.ts`。声援方向是 domain 纯 query 与统一公开入口的规则责任，不在 workflow/runner 传 `useBottom` 布尔值。LIVE_SUCCESS 复用 `selectCurrentLiveRevealedCheerCardIds` 事件事实，再由 `evaluateDistinctCheerCardsCoverHeartColors` 对印刷 Heart 做三色不同 cardId 的确定性小型回溯；它只表达“不同卡覆盖所需颜色”，不是图算法框架或 Heart DSL。结果以来源 LIVE SCORE replacement 和 `playerScores` 差值刷新结算，动态 confirm-only 只显示三色候选数、三张不同卡匹配结果与实际分数。
+`PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」保持单卡 LIVE_SUCCESS workflow `cards/s-bp7-022-koi-ni-naritai-aquarium.ts`。声援方向是 domain 纯 query 与统一公开入口的规则责任，不在 workflow/runner 传 `useBottom` 布尔值。LIVE_SUCCESS 复用 `selectCurrentLiveRevealedCheerCardIds` 事件事实，再由 `evaluateDistinctCheerCardsCoverHeartColors` 通过 `getCheerCardEffectiveBladeHearts` 对声援产生的有效彩色判心做三色不同 cardId 的确定性小型回溯；成员卡的印刷 `hearts`、DRAW/SCORE 等非 HEART 判定不计入，它只表达“不同卡覆盖所需判心颜色”，不是图算法框架或 Heart DSL。结果以来源 LIVE SCORE replacement 和 `playerScores` 差值刷新结算，动态 confirm-only 只显示三色判心候选数、三张不同卡匹配结果与实际分数。
 
 020 与 021 都在移动及标准分组事件入队后打开 Public Reveal Dwell，窗口期间不写必要 Heart、抽牌或 SCORE modifier。020 展示结束后才按公开的实际移动卡是否为结构化 Aqours MEMBER 写来源 LIVE requirement replacement；021 展示结束后才按公开的5张中 MEMBER 数量执行0奖励、抽1或抽1且来源 LIVE SCORE +1。两者都不在移动前预读或展示隐藏底牌，舞台不足3名时 021 仍以动态 confirm-only 说明不移动。两个 workflow 本身不承担从卡组底声援；该机制已由 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」的独立 direction query 与统一 cheer helper 覆盖。本边界仍不实现其他 bp7、不建立任意 bottom reward DSL，也不改变第一批 gain-heart family 的 ownership。
 
@@ -443,7 +455,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 # BP7 memberBelow 与委托序列边界（2026-07-18）
 
 - 卡效将成员放到舞台主成员下方时，workflow 先用结构化 selector 产生候选并处理公开/交互，最后才调用 `stackMemberCardBelowStageMember`。helper 仅做 `HAND / WAITING_ROOM -> memberBelow` 原子移动和 stale 防线。
-- 普通 continuous collector 仍只扫描舞台顶层成员；memberBelow 来源必须 exact 登记。当能力来源与受益成员不同，使用 `addBladeLiveModifierForMember` 保留 `sourceCardId`，以 `targetMemberCardId` 绑定清理；目标必须是当前己方顶层成员。有 target 时审计 source 离场不清除，target 离场才清除；旧无 target BLADE 仍保持 source-bound。
+- 普通 continuous collector 仍只扫描舞台顶层成员；memberBelow 来源必须 exact 登记。所有 BLADE modifier 必须显式声明 `PLAYER / SOURCE_MEMBER / TARGET_MEMBER` 作用对象，不允许再通过缺失 target 或来源卡类型推断作用域。`SOURCE_MEMBER` 表示来源成员本身就是受益者；显式 `TARGET_MEMBER / PLAYER` 与新增写入的 `sourceCardId` 必须保留真实能力来源。当能力来源与受益成员不同，使用 `addBladeLiveModifierForMember` 写入 `TARGET_MEMBER` 与 `targetMemberCardId`；目标必须是当前己方顶层成员。审计 source 离场不清除已授予的 `TARGET_MEMBER` modifier，target 离场才清除。历史 workflow 中将受益成员误作 source helper 参数的调用另批迁移，不在本批范围。
 - 舞台成员的窄 ON_ENTER 查询只兼容已实现 queued definition 的历史 `PLAYED_MEMBER / STAGE_MEMBER` 两种 sourceZone，并按真实 source slot 检查 `requiredSourceSlots`。`PL!S-pb1-001`、`PL!S-pb1-002`、`PL!S-bp5-004` 有 focused 合法样本；这不是等待室虚拟登场 policy。
 - `delegated-ability-sequence` 只接受已选定的 queued ON_ENTER pending 列表，每个子项重验真实舞台实例、槽位和当前 definition。进展只认真实 `activeEffect`、游戏终局、sequence 清空，或 remaining/resolved/skipped 实际继续推进；仅新增 actionHistory 或替换 pending 数组不算进展。子项 stale、starter 缺失或委托无进展均记录 no-op 并继续，审计分别保存 pending ID 与 abilityId。它不伪造登场事件、不支付普通登场费用、不接受任意 timing 或卡文解析。
 

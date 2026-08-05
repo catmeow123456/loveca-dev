@@ -121,13 +121,13 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 这类步骤的选择区文案应明确为“请选择要放置入休息室的卡牌”，跳过按钮应为“不发动”，不要写成“请选择要处理的卡牌”或“不加入”。
 - 后续支持 N>1、指定名称/颜色/类型的手牌弃置时，应扩展同一个步骤 helper，而不是在单张卡效果里临时写 UI 文案和移动逻辑。
 - “检视卡组顶 N 张 -> 选择其中若干张 -> 可选公开 -> 加入手牌 -> 其余放置入休息室”也是通用步骤；当前基础区域操作已落在 `src/application/effects/look-top.ts`，不要只为 `PL!-sd1-004-SD`、`PL!-sd1-015-SD` 或 `PL!-sd1-019-SD` 单独写检视/清理/移动流程。
-- “抽 N 张牌”作为卡效步骤时，优先复用 `src/application/effects/draw.ts` 的 `drawCardsFromMainDeckToHand`。当前该 helper 只表达卡效步骤里的“主卡组顶 -> 手牌”，不接管开局/阶段/LIVE 判定等规则流程抽牌；涉及牌库为空后的刷新处理时，应先确认要保持的规则语义，不要悄悄改变既有流程。
+- “抽 N 张牌”优先复用 `src/application/effects/draw.ts` 的 `drawCardsFromMainDeckToHand`，该 helper 只表达“主卡组顶 -> 手牌”及逐张刷新语义。卡效抽牌与 `effects/cheer.ts` 中每批声援的 DRAW BLADE HEART 规则处理共用该移动原语；开局、阶段和其他 LIVE 规则是否抽牌仍由各自 caller 决定。涉及牌库为空后的刷新处理时，应先确认要保持的规则语义，不要悄悄改变既有流程。
 - “抽 N 张后弃 M 张手牌”作为卡效步骤时，优先复用 `src/application/card-effects/workflows/shared/draw-then-discard.ts` 的 `startDrawThenDiscardCardsWorkflow` / `finishDrawThenDiscardCardsWorkflow`，由 shared workflow 组合统一抽牌、精确数量选择、手牌进休息室事件 wrapper 与 pending continuation。`PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场是 F02 样本之一；不要复制单卡流程或把旧壳写回 runner。
 - 能量区卡效步骤优先复用 `src/application/effects/energy.ts`。从能量卡组放置能量到能量区使用 `placeEnergyFromDeckToZone`；将能量变为待机/活跃使用 `setEnergyOrientation` / `setFirstEnergyCardsOrientation`。这些 helper 明确接收目标方向状态；`PL!SP-PR-004-PR` 费用 4「唐 可可」使用它从能量卡组顶放置 1 张待机能量，`PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场使用它将最多 2 张待机能量变为活跃，不改变普通能量阶段默认活跃放置逻辑。
 - 能量没有个体差异；卡效需要处理 N 张能量时，默认由规则层按能量区顺序自动取符合条件的能量，不让玩家逐张选择具体能量卡。若卡牌文本存在“成员或能量”等分支选择，只保留分支选择；选择能量分支后直接处理能量。
 - “从某区域按条件选择卡 -> 移动到目标区域”属于通用目标选择/移动步骤。当前已由 `src/application/effects/zone-selection.ts` 的 `ZoneCardSelectionConfig` / `moveSelectedCardsFromZone` 覆盖 `WAITING_ROOM -> HAND` 的单选路径，并由 `src/application/effects/card-selectors.ts` 提供 `typeIs` / `groupIs` / `unitIs` / `unitAliasIs` / `unitAliasOrTextAliasIs` / `costLte` / `costGte` / `cardNameIs` / `cardNameAliasIs` / `and` 等最小 selector；新增从休息室回收成员/LIVE、按费用/团体/小组/名称筛选等效果时，优先扩展这个底座，不要在单张卡里重复写移出休息室和加入手牌。小组名条件默认使用 `unitAliasIs` 匹配真实 `unitName`，当前别名覆盖 `Cerise Bouquet`/`スリーズブーケ`、`DOLLCHESTRA`、`Mira-Cra Park!`/`みらくらぱーく！`/`みらくらぱーく!`、`EdelNote`；只有需要处理“所有领域中此卡视为……”等文本身份时，才使用 `unitAliasOrTextAliasIs`。成员名条件默认优先用 `cardNameAliasIs`，当前按卡库常见角色覆盖中日名、空白/中点差异与组合卡 `&` 分隔组件；需要严格卡面名完全一致时才用 `cardNameIs`。
 - “按区域/选择器/来源状态查询条件”已由 `src/application/effects/conditions.ts` 起步：当前只提供纯函数 query，不做 AST、不做声明式 steps。已覆盖区域卡牌计数、selector 计数与阈值、成功 LIVE 数、舞台成员数、舞台成员存在性、其他舞台成员、LIVE 区排除来源卡计数，以及来源成员有效 BLADE 阈值查询；`PL!-sd1-009-SD`、`PL!-sd1-022-SD`、`PL!HS-bp5-019-L`、`PL!HS-bp2-022-L+`、`PL!HS-pb1-009-R`、`PL!HS-sd1-006-SD`、`PL!HS-bp6-001`、`PL!HS-bp6-031-L`、`PL!HS-bp1-006-P` 等条件计数已开始复用该层。
-- “从因声援公开的卡中选择并移动”优先复用 `src/application/effects/cheer-selection.ts`。该 helper 以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到本次声援公开且仍在处理区的卡，再按 selector 移动到手牌、卡组顶或休息室；追加声援优先复用 `src/application/effects/cheer.ts`，写入 `CheerEvent(additional=true)` 并补公开卡与本次声援登记，但不二次触发 `ON_CHEER`。后续放回卡组底、重做声援等效果继续扩展同一入口，不要重新扫描整个解决区。
+- “从因声援公开的卡中选择并移动”优先复用 `src/application/effects/cheer-selection.ts`。该 helper 以 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 找到本次声援公开且仍在处理区的卡，再按 selector 移动到手牌、卡组顶或休息室；普通、追加、重做与手动声援都必须复用 `src/application/effects/cheer.ts`。该入口每批先写入 `CheerEvent`、立即且仅一次结算该批 DRAW BLADE HEART，之后才进入适用的 `ON_CHEER` 检查时点或继续当前卡效。追加声援写入 `additional=true` 但不二次触发 `ON_CHEER`；重做声援可替换原 Heart/Score 贡献，不得撤销原批已完成的抽牌。后续放回卡组底等效果继续扩展同一入口，不要重新扫描整个解决区。
 - “按条件选择舞台成员 -> 改变成员状态”已由 `src/application/effects/stage-member-target-selection.ts` 起步：用 `stage-targets.ts` + `card-selectors.ts` 生成候选 active effect，并在结算时调用 `setMemberOrientation`。新增选择自己/对方舞台成员并变为待机/活跃的效果时，优先复用该配置入口。
 - “成员变为待机/活跃”与“站位变换”作为卡效步骤时，优先复用 `src/application/effects/member-state.ts` 的 `setMemberOrientation` / `moveMemberBetweenSlots`。普通规则流程里的自由横置、拖拽、手动区域移动仍归 `GameSession` / action handler / `zone-operations.ts`，不要为了卡效抽象反向改写桌面规则流程。
 - 事件层已开始向 `GameState.eventLog` 收口：`emitGameEvent` 是权威不可变事件流入口，`EventBus` 只保留作非权威运行时/调试工具。当前普通 `PLAY_MEMBER` 会写入 `ON_ENTER_STAGE`；`member-state.ts`、普通 `TAP_MEMBER` 与活跃阶段重置已在成员方向变化时写入 `ON_MEMBER_STATE_CHANGED`，成员槽位移动/交换会写入 `ON_MEMBER_SLOT_MOVED`；卡效从休息室登场会写入 `ON_ENTER_STAGE`；舞台成员进休息室、换手替换离场、自送费用会写入 `ON_LEAVE_STAGE`；LIVE 翻开进入 LIVE 开始检查时机会写入 `ON_LIVE_START`；LIVE 成功效果窗口会写入 `ON_LIVE_SUCCESS`；自动/手动/追加声援会写入 `ON_CHEER`。`enqueueTriggeredCardEffects` 已消费 `ON_ENTER_STAGE`、`ON_MEMBER_STATE_CHANGED`、`ON_MEMBER_SLOT_MOVED`、`ON_LEAVE_STAGE`、`ON_LIVE_START`、`ON_LIVE_SUCCESS` 与 `ON_CHEER` 事件流，仍保留旧 fallback；`ON_CHEER` 会跳过追加声援事件以避免递归；`PL!N-bp4-018-N` 与 `PL!-pb1-015` 是成员状态变化 AUTO proving path，`PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」是成员移动 AUTO proving path。
@@ -182,6 +182,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - Public Reveal Dwell 只展示本次明确公开的 cardIds，不代替休息室/声援公开区等既有公开来源的 public-card-selection confirmation，也不包装 public-effect-choice 或 queued pending manual confirm-only。
 - 正在处理的效果应在桌面中央显示，标题使用“费用 + 卡名”，正文尽量显示卡牌原效果文本，不要加奇怪解释文案。
 - 正在处理的效果如果需要玩家选择卡牌，应优先显示卡图网格，并支持 hover 查看卡牌详情；不要只用文字按钮让玩家猜卡。
+- 精确选择 1 张的 `ORDERED_MULTI` 步骤默认仍保留选择后的确认按钮；只有效果步骤显式声明 `autoSubmitSingleSelection` 时才允许点击卡牌后立即提交，不得仅根据运行时 `min=1/max=1` 推断，以免误伤弃牌费用、隐藏手牌公开或动态退化成单选的流程。
 - 舞台上可发动的起动效果按钮应显示完整效果文本；可以缩小字号和加宽文本框，但不要用省略号截断规则文本。
 
 ## 当前样例卡效
@@ -293,9 +294,9 @@ pnpm --dir client build
 
 ## 下一步优先级
 
-1. 本批 `绿莲-6弹ver.yaml` 已完成 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-031` 分数 8「ファンファーレ！！！」与 `PL!HS-bp6-027` 分数 5「月夜見海月」。下一窗口继续选择能推进 when-if、名称/数值 selector 配置化、公开/看顶 workflow、更多移动或状态事件边界的真实 AUTO / LIVE 成功 / LIVE 开始卡；重做声援等待真实样例。
+1. 本批 `绿莲-6弹ver.yaml` 已完成 `PL!HS-bp5-001` 费用 11「日野下花帆」、`PL!HS-bp1-003` 费用 13「乙宗梢」、`PL!HS-bp1-002` 费用 11「村野沙耶香」、`PL!HS-sd1-001` 费用 9「日野下花帆」、`PL!HS-pb1-020` 费用 9「百生吟子」、`PL!HS-bp6-001` 费用 4「日野下花帆」、`PL!HS-cl1-009` 分数 1「水彩世界」、`PL!HS-bp6-031` 分数 8「ファンファーレ！！！」与 `PL!HS-bp6-027` 分数 5「月夜見海月」。重做声援已由 `PL!S-bp2-004` 费用 11「黒澤ダイヤ」与 `PL!S-bp3-020` 分数 1「ダイスキだったらダイジョウブ！」验证；下一窗口继续选择能推进 when-if、名称/数值 selector 配置化、公开/看顶 workflow、更多移动或状态事件边界的真实 AUTO / LIVE 成功 / LIVE 开始卡。
 2. 继续减少 effect runner 的 inline orchestration，但不要直接上大型 resolver DSL。优先把重复出现的 recovery / look-top workflow / Live modifier builder 配置化。
 3. Step 12 / Stage 1G 自动能力框架已由离场与登场监听两类 AUTO 最小起步；完整 `GameEvent` / trigger matcher / when-if / 更广泛移动或状态变化事件仍后续分批做。
 4. 仍然 inline 的效果要明确标注：`PL!-sd1-006-SD` 公开手牌 + 成功区交换、003/`PL!HS-bp1-006-P` Heart 选项步骤、009/022/001 条件/倍率，以及仍未配置化的 condition / option orchestration。`PL!N-pb1-004` 费用 11「朝香果林」未进行成员区位置移动时 BLADE +2 已由 continuous modifier registry 覆盖，不再作为缺口追踪。
-5. 继续完善 LIVE 自动判定流水线，确保加棒、加心、加分、必要 Heart 增减、抽卡等结果都进入同一套预判和人工确认入口。
+5. 继续完善 LIVE 自动判定流水线：加棒、加心、加分和必要 Heart 增减进入统一判定；声援 DRAW 必须在每批公开后、`ON_CHEER` 检查时点前立即结算，不得延迟到玩家接受判定结果。
 6. 为撤销、LIVE 自动判定、起动次数限制、效果队列顺序补更多边界测试。

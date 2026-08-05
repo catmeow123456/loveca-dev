@@ -266,6 +266,97 @@ describe('HeartPool', () => {
       expect(consumed!.getTotalCount()).toBe(0);
     });
 
+    it('应自动保留能使更多余 Heart 卡效成立的颜色且不受输入顺序影响', () => {
+      const requirement = createHeartRequirement({
+        [HeartColor.YELLOW]: 2,
+        [HeartColor.GREEN]: 2,
+        [HeartColor.RAINBOW]: 1,
+      });
+      const options = {
+        remainingHeartPreferences: [{ color: HeartColor.GREEN, minCount: 1 }],
+      } as const;
+      const forwardPool = HeartPool.fromHeartIcons([
+        { color: HeartColor.YELLOW, count: 2 },
+        { color: HeartColor.GREEN, count: 3 },
+        { color: HeartColor.BLUE, count: 1 },
+        { color: HeartColor.PURPLE, count: 1 },
+      ]);
+      const reversePool = HeartPool.fromHeartIcons([
+        { color: HeartColor.PURPLE, count: 1 },
+        { color: HeartColor.BLUE, count: 1 },
+        { color: HeartColor.GREEN, count: 3 },
+        { color: HeartColor.YELLOW, count: 2 },
+      ]);
+
+      expect(forwardPool.consume(requirement, options)?.toArray()).toEqual([
+        { color: HeartColor.GREEN, count: 1 },
+        { color: HeartColor.PURPLE, count: 1 },
+      ]);
+      expect(reversePool.consume(requirement, options)?.toArray()).toEqual([
+        { color: HeartColor.GREEN, count: 1 },
+        { color: HeartColor.PURPLE, count: 1 },
+      ]);
+    });
+
+    it('余 Heart 卡效成立数相同时应按偏好顺序保留颜色', () => {
+      const pool = HeartPool.fromHeartIcons([
+        { color: HeartColor.PINK, count: 1 },
+        { color: HeartColor.YELLOW, count: 1 },
+        { color: HeartColor.GREEN, count: 1 },
+      ]);
+      const requirement = createHeartRequirement({
+        [HeartColor.YELLOW]: 1,
+        [HeartColor.RAINBOW]: 1,
+      });
+
+      expect(
+        pool
+          .consume(requirement, {
+            remainingHeartPreferences: [
+              { color: HeartColor.GREEN, minCount: 1 },
+              { color: HeartColor.PINK, minCount: 1 },
+            ],
+          })
+          ?.toArray()
+      ).toEqual([{ color: HeartColor.GREEN, count: 1 }]);
+    });
+
+    it('应先最大化成立卡效数，再使用偏好顺序裁决', () => {
+      const pool = HeartPool.fromHeartIcons([
+        { color: HeartColor.PINK, count: 1 },
+        { color: HeartColor.YELLOW, count: 1 },
+        { color: HeartColor.GREEN, count: 1 },
+      ]);
+      const requirement = createHeartRequirement({
+        [HeartColor.YELLOW]: 1,
+        [HeartColor.RAINBOW]: 1,
+      });
+
+      expect(
+        pool
+          .consume(requirement, {
+            remainingHeartPreferences: [
+              { color: HeartColor.PINK, minCount: 1 },
+              { color: HeartColor.GREEN, minCount: 1 },
+              { color: HeartColor.GREEN, minCount: 1 },
+            ],
+          })
+          ?.toArray()
+      ).toEqual([{ color: HeartColor.GREEN, count: 1 }]);
+    });
+
+    it('无余 Heart 偏好时应按固定颜色枚举顺序消费泛用需求', () => {
+      const pool = HeartPool.fromHeartIcons([
+        { color: HeartColor.PURPLE, count: 1 },
+        { color: HeartColor.BLUE, count: 1 },
+      ]);
+      const requirement = createHeartRequirement({ [HeartColor.RAINBOW]: 1 });
+
+      expect(pool.consume(requirement)?.toArray()).toEqual([
+        { color: HeartColor.PURPLE, count: 1 },
+      ]);
+    });
+
     it('需求输入中的 GRAY 也应规范为泛用总数，允许任意 Heart 满足', () => {
       const pool = HeartPool.fromHeartIcons([
         { color: HeartColor.PINK, count: 1 },

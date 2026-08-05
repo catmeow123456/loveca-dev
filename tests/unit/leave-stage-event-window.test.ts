@@ -79,6 +79,7 @@ function setupLeaveStageHistory() {
   }));
   game = addLiveModifier(game, {
     kind: 'BLADE',
+    target: 'SOURCE_MEMBER',
     playerId: P1,
     countDelta: 2,
     sourceCardId: historicalMember.instanceId,
@@ -86,6 +87,7 @@ function setupLeaveStageHistory() {
   });
   game = addLiveModifier(game, {
     kind: 'BLADE',
+    target: 'SOURCE_MEMBER',
     playerId: P1,
     countDelta: 3,
     sourceCardId: currentLeaver.instanceId,

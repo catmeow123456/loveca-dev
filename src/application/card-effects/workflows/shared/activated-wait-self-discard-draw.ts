@@ -18,6 +18,7 @@ import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -39,6 +40,7 @@ interface ActivatedWaitSelfDiscardDrawConfig {
   readonly abilityId: string;
   readonly baseCardCodes: readonly string[];
   readonly drawCount: number;
+  readonly allowsRenGrantedSource?: boolean;
 }
 
 const ACTIVATED_WAIT_SELF_DISCARD_DRAW_CONFIGS: readonly ActivatedWaitSelfDiscardDrawConfig[] = [
@@ -46,6 +48,7 @@ const ACTIVATED_WAIT_SELF_DISCARD_DRAW_CONFIGS: readonly ActivatedWaitSelfDiscar
     abilityId: PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
     baseCardCodes: ['PL!-PR-012', 'PL!S-PR-038', 'PL!SP-PR-017'],
     drawCount: 1,
+    allowsRenGrantedSource: true,
   },
   {
     abilityId: N_SD2_015_ACTIVATED_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
@@ -94,14 +97,24 @@ function startActivatedWaitSelfDiscardDraw(
   const sourceCard = getCardById(game, cardId);
   const sourceSlot = getSourceMemberSlot(game, playerId, cardId);
   const sourceState = player?.memberSlots.cardStates.get(cardId);
+  const sourceHasAbility =
+    config.allowsRenGrantedSource === true
+      ? isDirectOrRenGrantedActivatedAbilitySource(
+          game,
+          playerId,
+          cardId,
+          config.abilityId,
+          config.baseCardCodes
+        )
+      : config.baseCardCodes.some((baseCode) =>
+          cardCodeMatchesBase(sourceCard?.data.cardCode ?? '', baseCode)
+        );
   if (
     activePlayerId !== playerId ||
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !config.baseCardCodes.some((baseCode) =>
-      cardCodeMatchesBase(sourceCard.data.cardCode, baseCode)
-    ) ||
+    !sourceHasAbility ||
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
     sourceState?.orientation !== OrientationState.ACTIVE ||

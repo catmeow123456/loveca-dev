@@ -2,13 +2,13 @@ import { addAction, getCardById, getPlayerById, type GameState, type PendingAbil
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { CardType, GamePhase, SubPhase } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, costLte, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID, SP_BP2_006_ON_ENTER_RELAY_RECOVER_REPLACED_LIELLA_MEMBER_ABILITY_ID } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { discardOneHandCardToWaitingRoomAndEnqueueTriggers, type EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getWaitingRoomDelegatableOnEnterDefinitions } from '../../runtime/delegatable-definitions.js';
@@ -81,7 +81,13 @@ function startActivated(game: GameState, playerId: string, cardId: string): Game
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, 'PL!SP-bp2-006') ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_BP2_006_ACTIVATED_DISCARD_LOW_COST_LIELLA_MEMBER_ACTIVATE_ON_ENTER_ABILITY_ID,
+      ['PL!SP-bp2-006']
+    ) ||
     findMemberSlot(player, cardId) === null ||
     ids.length === 0
   ) return game;

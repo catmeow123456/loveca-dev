@@ -545,6 +545,7 @@ describe('PlayerViewState projector', () => {
     }));
     state = addLiveModifier(state, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: sourceMember.instanceId,
@@ -756,6 +757,7 @@ describe('PlayerViewState projector', () => {
     let { state, lanzhuId } = createLanzhuHiddenLiveModifierState();
     state = addLiveModifier(state, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: lanzhuId,

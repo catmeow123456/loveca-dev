@@ -439,6 +439,7 @@ describe('mill-top gain live modifier workflow', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'p1-hs-bp5-013-kosuzu',
       abilityId: HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
@@ -609,6 +610,7 @@ describe('mill-top gain live modifier workflow', () => {
 
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'p1-hs-bp6-009-kaho',
       abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
@@ -704,6 +706,7 @@ describe('mill-top gain live modifier workflow', () => {
     expect(advancePublicRevealDwell(session).success).toBe(true);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'p1-hs-bp6-009-refresh-kaho',
       abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,

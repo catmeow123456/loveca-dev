@@ -345,6 +345,7 @@ describe('existing successful-LIVE score consumers', () => {
     expect(sumSuccessfulLiveScore(game, PLAYER2)).toBe(6);
     expect(collectLiveModifiers(game)).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: nico.instanceId,

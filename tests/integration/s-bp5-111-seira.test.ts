@@ -256,6 +256,7 @@ function setupScenario(
             ...game.liveResolution.liveModifiers,
             {
               kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
               playerId: PLAYER2,
               countDelta: -2,
               sourceCardId: highOpponent.instanceId,

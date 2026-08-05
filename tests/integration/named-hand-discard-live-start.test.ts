@@ -211,6 +211,7 @@ describe('named hand discard live-start workflow', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([matchingHandCard.instanceId]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: source.instanceId,

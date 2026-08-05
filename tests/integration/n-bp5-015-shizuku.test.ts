@@ -147,6 +147,7 @@ describe('PL!N-bp5-015-N Shizuku live-start workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,
@@ -199,6 +200,7 @@ describe('PL!N-bp5-015-N Shizuku live-start workflow', () => {
 
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,
@@ -272,6 +274,7 @@ describe('PL!N-bp5-015-N Shizuku live-start workflow', () => {
     });
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,

@@ -6029,6 +6029,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([youCardId, copyCardId]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId,
@@ -6240,6 +6241,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: prCardId,
@@ -7986,6 +7988,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual(topCardIds);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: kahoCardId,
@@ -8084,6 +8087,8 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.selectableCardMode).toBe('ORDERED_MULTI');
     expect(session.state?.activeEffect?.minSelectableCards).toBe(1);
     expect(session.state?.activeEffect?.maxSelectableCards).toBe(1);
+    expect(session.state?.activeEffect?.autoSubmitSingleSelection).toBe(true);
+    expect(session.getPlayerViewState(PLAYER1)?.activeEffect?.autoSubmitSingleSelection).toBe(true);
     expect(session.state?.activeEffect?.inspectionCardIds).toEqual(topCardIds);
     expect(session.state?.inspectionZone.cardIds).toEqual(topCardIds);
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([restCardId]);
@@ -11046,6 +11051,7 @@ describe('sample card effect runner', () => {
     ).toBe(OrientationState.WAITING);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: tsuzuriCardId,
@@ -11378,6 +11384,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: himeCardId,
@@ -11477,6 +11484,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: honokaCardId,
@@ -11668,6 +11676,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: harunoCardId,
@@ -16141,6 +16150,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: kahoCardId,
@@ -16462,6 +16472,7 @@ describe('sample card effect runner', () => {
 
     const preparedState = addLiveModifier(state, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: kahoCardId,
@@ -16570,6 +16581,7 @@ describe('sample card effect runner', () => {
 
     let preparedState = addLiveModifier(state, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: kahoCardId,
@@ -16577,6 +16589,7 @@ describe('sample card effect runner', () => {
     });
     preparedState = addLiveModifier(preparedState, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: kahoCardId,
@@ -17711,6 +17724,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardGinkoCardId]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: ginkoCardId,
@@ -18668,6 +18682,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: ginko.instanceId,
@@ -18706,6 +18721,7 @@ describe('sample card effect runner', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: ginko.instanceId,
@@ -18881,6 +18897,7 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 3,
       sourceCardId: hime.instanceId,

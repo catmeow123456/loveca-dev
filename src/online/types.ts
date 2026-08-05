@@ -315,6 +315,8 @@ export interface ActiveEffectViewState {
   readonly selectableObjectMode?: 'SINGLE' | 'ORDERED_MULTI';
   readonly minSelectableObjects?: number;
   readonly maxSelectableObjects?: number;
+  /** 精确单选步骤是否在点击卡牌后立即提交。 */
+  readonly autoSubmitSingleSelection?: boolean;
   readonly selectableSlots?: readonly string[];
   readonly selectableOptions?: readonly { readonly id: string; readonly label: string }[];
   readonly effectChoice?: {

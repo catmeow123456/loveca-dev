@@ -328,6 +328,7 @@ describe('PL!SP-bp4-024 Nonfiction workflow', () => {
     expect(nonfictionBladeModifiers(state)).toEqual([
       {
         kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
         playerId: PLAYER1,
         countDelta: 2,
         sourceCardId: leftMember.instanceId,

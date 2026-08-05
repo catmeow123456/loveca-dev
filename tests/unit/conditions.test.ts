@@ -323,6 +323,7 @@ describe('effect conditions', () => {
     game = registerCards(game, [kaho]);
     game = addLiveModifier(game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: 'p1',
       countDelta: 2,
       sourceCardId: kaho.instanceId,
@@ -330,6 +331,7 @@ describe('effect conditions', () => {
     });
     game = addLiveModifier(game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: 'p1',
       countDelta: 3,
       sourceCardId: 'other-source',

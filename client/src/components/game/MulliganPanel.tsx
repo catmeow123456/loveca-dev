@@ -1,7 +1,7 @@
 /**
  * 换牌面板 (Mulligan Panel)
  * 游戏开始时，玩家可选择要换的牌
- * 选中的牌洗入牌库，然后重新抽取相同数量的牌
+ * 选中的牌先暂时放在一旁，抽取相同数量后再放回主卡组并洗牌
  */
 
 import { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
@@ -242,7 +242,7 @@ export const MulliganPanel = memo(function MulliganPanel({ isOpen }: MulliganPan
                 <div className="shrink-0 border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--accent-secondary)_8%,transparent)] px-4 py-3 sm:px-6">
                   <p className="text-sm text-[var(--text-secondary)]">
                     点击选择要换掉的卡牌（可选 0-6
-                    张），确认后将这些牌洗入牌库并重新抽取相同数量的牌
+                    张），确认后先抽取相同数量的牌，再将换掉的牌放回主卡组并洗牌
                   </p>
                 </div>
 

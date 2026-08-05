@@ -341,6 +341,7 @@ describe('PL!SP-bp4 second batch effects', () => {
     }
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,
@@ -390,6 +391,7 @@ describe('PL!SP-bp4 second batch effects', () => {
     expect(payOne.success, payOne.error).toBe(true);
     expect(oneEnergySession.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: source.instanceId,

@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：卡效 fragment catalog 的框架归属、优先级和当前覆盖状态
 > 当前状态：覆盖矩阵；具体卡牌完成状态以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准
-> 最后更新：2026-07-30
+> 最后更新：2026-08-04
 
 输入：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`。
 范围：覆盖 catalog 当前 75 个 fragment。这里的“全覆盖”指当前审查包中的 fragment 全覆盖，不代表未来新商品或规则更新不会出现新 fragment。
@@ -77,12 +77,12 @@
 | `E03` | P1 | 从能量卡组放置能量 | energy deck movement | `core_v2` | Stage 1I 已起步：`src/application/effects/energy.ts` 提供 `placeEnergyFromDeckToZone`，`PL!SP-PR-004-PR` 验证从能量卡组顶放置 1 张待机能量。 |
 | `E04` | P2 | 能量放到成员下/从成员下返回 | attach/return energy under member | `special_hook` | 与附属卡/成员下方结构相关，先保留 hook。 |
 | `E05` | P2 | 能量数量作为条件 | condition: energy count | `core_v2` | 可纳入 condition AST。 |
-| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | `PL!HS-bp6-027-L` 分数 5「月夜見海月」验证追加声援：事件带 `additional=true` 且不二次触发 `ON_CHEER`。`PL!S-bp2-004` 费用 11「黒澤ダイヤ」验证重做声援：先记录来源 turn1，按原 `totalBlade` 生成 `additional=false` 的普通 `CheerEvent` 并显式走标准 `ON_CHEER` 入队；`replaceCurrentCheerCards=true` 只替换当前玩家的 current cheer IDs，令 Q107 后续查询只见第二次声援。不是通用 cheer loop 或重置 DSL。 |
+| `E06` | P2 | 追加声援/重做声援 | cheer action step | `core_v2` | `PL!HS-bp6-027-L` 分数 5「月夜見海月」验证追加声援：事件带 `additional=true` 且不二次触发 `ON_CHEER`。`PL!S-bp2-004` 费用 11「黒澤ダイヤ」验证重做声援：先记录来源 turn1，按原 `totalBlade` 生成 `additional=false` 的普通 `CheerEvent` 并显式走标准 `ON_CHEER` 入队；`replaceCurrentCheerCards=true` 只替换当前玩家的 current cheer IDs，令 Q107 后续查询只见第二次声援。2026-08-04 起，每批追加/重做声援也在公开后立即且仅一次结算 DRAW BLADE HEART；追加结算后继续当前卡效，重做的新批次再进入标准 `ON_CHEER`，原批抽牌不撤销。不是通用 cheer loop 或重置 DSL。 |
 | `L01` | P1 | 参照成功LIVE区 | zone query: success live zone | `core_v1` | `conditions.ts` 已提供 `countSuccessfulLiveCards`，001/022 等已开始复用第一版 query helper；完整 condition AST 仍后续。 |
 | `L02` | P1 | 参照LIVE卡置场/正在LIVE | zone query: current live/live zone | `core_v1` | `conditions.ts` 已提供 LIVE 区排除来源卡计数 helper，`PL!HS-bp5-019-L` 分数 6「花结」已开始复用；Live modifier 和成功时能力仍继续按样例扩。 |
 | `L03` | P2 | ALL_BLADE当任意颜色HEART | special marker rule | `special_hook` | 属于判定规则 override，不是普通 effect step。 |
 | `L04` | P2 | SCORE标记增加成功LIVE合计分数 | cheer marker resolver | `core_v2` | 可纳入 marker resolution subsystem。 |
-| `L05` | P2 | DRAW标记抽牌 | cheer marker resolver | `core_v2` | 同 L04。 |
+| `L05` | P2 | DRAW标记抽牌 | cheer marker resolver | `core_v2` | 已由 `src/application/effects/cheer.ts` 中央结算：每批声援公开并写入 `CheerEvent` 后，立即按本批 DRAW 数量抽牌，然后才进入适用的 `ON_CHEER` 检查时点或继续当前卡效；接受最终判定结果不再抽牌。 |
 | `L06` | P2 | 不可放入成功LIVE区 | replacement/prohibition rule | `special_hook` | 需要 replacement/prohibition hook，不先通用化。 |
 | `X01` | P0 | 如果/条件成立才执行 | condition combinator | `core_v1` | `conditions.ts` 已起步为纯函数 query/threshold helper，覆盖区域计数、舞台成员存在性、其他舞台成员、来源 BLADE 阈值等；整个 DSL / condition AST 仍后续。 |
 | `X02` | P0 | 支付/执行成功后“如此做的场合” | previous step result binding | `core_v1` | 不能用模糊 boolean，需要 step result。 |
@@ -110,4 +110,4 @@
 
 Stage 1A-1S 已把 `F07/F08/F09`、`C01/C02/C03/C04/C07/C08/E01`、`F03/F04/F05/F06/F13/F14/F15`、`F01/F02`、`B01/B02/B03/B05/B06/B07/B08/T05`、`S01/S02/S05/S07/S08/S09`、`E02/E03` 与 `X08/X11` 的当前验证集主路径落到模块底座或明确的 proving path。本批 `LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」、`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」与 `PL!N-pb1-004` 费用 11「朝香果林」补齐指定姓名手牌弃置、换手禁止、未位置移动时 continuous BLADE。2026-06-15 已加 `GameState.eventLog` / `emitGameEvent` 与 member-state 的成员状态/位置事件写入，并用 `PL!N-bp4-018-N`、`PL!-pb1-015` 完成 `ON_MEMBER_STATE_CHANGED` 消费 proving path，用 `PL!SP-bp4-011-P` 费用 7「鬼冢冬毬」完成 `ON_MEMBER_SLOT_MOVED` 消费 proving path；`ON_LIVE_START` / `ON_LIVE_SUCCESS` 也已分别在 LIVE 翻开与成功效果窗口写入 `LiveStartEvent` / `LiveSuccessEvent` 并由对应队列消费。卡效登记已支持 `baseCardCodes`，同基础编号不同罕度由 `tests/unit/card-effect-rarity-sync.test.ts` 防漏同步；`existing_module_map.md` 是主登记册。
 
-下一批建议继续按真实样例小步评估 condition / look-top / reveal-hand / grouped selection 的 typed/declarative 配置轴；这些场景的运行时原语与 shared/card workflow 已经存在，待抽取的是稳定配置边界。condition/query 已有第一版纯函数 helper，但完整 AST 与公式 builder 继续后置。重做声援已有 004 窄样本，更完整 cheer loop 语义仍后置，完整事件层继续后置。
+下一批建议继续按真实样例小步评估 condition / look-top / reveal-hand / grouped selection 的 typed/declarative 配置轴；这些场景的运行时原语与 shared/card workflow 已经存在，待抽取的是稳定配置边界。condition/query 已有第一版纯函数 helper，但完整 AST 与公式 builder 继续后置。重做声援已有 004 窄样本，每批 DRAW BLADE HEART 时序已收口；仍后置的是任意替换/重置等更完整 cheer loop 配置语义与完整事件层。

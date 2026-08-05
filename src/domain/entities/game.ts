@@ -276,10 +276,30 @@ export type LiveModifierState =
     }
   | {
       readonly kind: 'BLADE';
+      readonly target: 'SOURCE_MEMBER';
       readonly playerId: string;
       readonly countDelta: number;
-      /** Recipient member; omitted for legacy source-member modifiers. */
-      readonly targetMemberCardId?: string;
+      /** Ability source and recipient member. */
+      readonly sourceCardId: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
+      readonly kind: 'BLADE';
+      readonly target: 'TARGET_MEMBER';
+      readonly playerId: string;
+      readonly countDelta: number;
+      /** Concrete recipient member; sourceCardId remains the ability source. */
+      readonly targetMemberCardId: string;
+      readonly sourceCardId?: string;
+      readonly abilityId?: string;
+      readonly visibilityDependency?: LiveModifierVisibilityDependency;
+    }
+  | {
+      readonly kind: 'BLADE';
+      readonly target: 'PLAYER';
+      readonly playerId: string;
+      readonly countDelta: number;
       readonly sourceCardId?: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
@@ -649,6 +669,8 @@ export interface ActiveEffectState {
   readonly minSelectableCards?: number;
   /** 多选步骤最多选择数量 */
   readonly maxSelectableCards?: number;
+  /** 精确单选步骤是否在点击卡牌后立即提交；仅由明确适用的效果步骤开启。 */
+  readonly autoSubmitSingleSelection?: boolean;
   /** 当前步骤可选择的成员槽位 */
   readonly selectableSlots?: readonly SlotPosition[];
   /** 当前步骤可选择的通用选项 */

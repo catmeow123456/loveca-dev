@@ -763,6 +763,11 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectMinSelectableCards = activeEffect?.minSelectableObjects ?? 0;
   const activeEffectMaxSelectableCards =
     activeEffect?.maxSelectableObjects ?? activeEffectSelectableCardIds.length;
+  const activeEffectUsesImmediateOrderedSingleSelect =
+    activeEffect?.autoSubmitSingleSelection === true &&
+    activeEffectUsesOrderedMultiSelect &&
+    activeEffectMinSelectableCards === 1 &&
+    activeEffectMaxSelectableCards === 1;
   const canConfirmOrderedEffectSelection =
     canConfirmActiveEffect &&
     activeEffectUsesOrderedMultiSelect &&
@@ -815,12 +820,18 @@ export const GameBoard = memo(function GameBoard({
   const activeEffectSelectableBadgeLabel = isActiveEffectOrderSelectionWindow
     ? `队列 ${activeEffectSelectableCardIds.length} 个`
     : `${
-        activeEffectUsesOrderedMultiSelect
-          ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
-          : activeEffectUsesCardOptionSelection
-            ? `已选 ${activeEffectSelectedCardId ? 1 : 0} / 1`
-            : `候选 ${activeEffectSelectableCardIds.length} 张`
-      }${activeEffectMinSelectableCards > 0 ? `｜至少 ${activeEffectMinSelectableCards}` : ''}`;
+        activeEffectUsesImmediateOrderedSingleSelect
+          ? '点击卡牌即结算'
+          : activeEffectUsesOrderedMultiSelect
+            ? `已选 ${activeEffectOrderedSelection.length} / ${activeEffectMaxSelectableCards}`
+            : activeEffectUsesCardOptionSelection
+              ? `已选 ${activeEffectSelectedCardId ? 1 : 0} / 1`
+              : `候选 ${activeEffectSelectableCardIds.length} 张`
+      }${
+        !activeEffectUsesImmediateOrderedSingleSelect && activeEffectMinSelectableCards > 0
+          ? `｜至少 ${activeEffectMinSelectableCards}`
+          : ''
+      }`;
   const pendingCostSourceCardId = pendingCostPayment?.sourceObjectId.replace(/^obj_/, '') ?? null;
   const pendingCostSource = pendingCostSourceCardId
     ? getVisibleCardPresentation(pendingCostSourceCardId)
@@ -3539,6 +3550,17 @@ export const GameBoard = memo(function GameBoard({
                             onClick={() => {
                               setHoveredCard(null);
                               if (activeEffectUsesOrderedMultiSelect) {
+                                if (activeEffectUsesImmediateOrderedSingleSelect) {
+                                  confirmEffectStep(
+                                    activeEffect.id,
+                                    undefined,
+                                    undefined,
+                                    undefined,
+                                    undefined,
+                                    [cardId]
+                                  );
+                                  return;
+                                }
                                 setActiveEffectOrderedSelection((current) => {
                                   const currentSelectable = current.filter((selectedId) =>
                                     activeEffectSelectableCardIds.includes(selectedId)
@@ -3817,6 +3839,7 @@ export const GameBoard = memo(function GameBoard({
                 )}
                 {showLegacyActiveEffectControls &&
                   activeEffectUsesOrderedMultiSelect &&
+                  !activeEffectUsesImmediateOrderedSingleSelect &&
                   (activeEffectSelectableCardIds.length > 0 ||
                     activeEffectMinSelectableCards === 0) && (
                     <button

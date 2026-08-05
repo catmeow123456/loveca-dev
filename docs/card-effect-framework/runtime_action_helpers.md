@@ -123,6 +123,8 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 | `placeEnergyFromEnergyDeckBelowStageMember`                                                                                                               | 从玩家 ENERGY_DECK 顶将实际至多 N 张合法 ENERGY 放到指定成员实例下方。                            | 只接受该玩家当前己方顶层舞台 MEMBER，并按实例查找当前槽位；空卡组返回空 IDs，非法/stale/memberBelow/对方目标返回 null，异常顶牌不跳过。保持卡组顶 index 0 与剩余顺序，返回精确 `targetSlot/placedEnergyCardIds`。不创建 activeEffect、不推进 pending、不发只表示 ENERGY_DECK→ENERGY_ZONE 的 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，也不是任意区域/任意 below DSL。                                                                                                                                                                                                                                                                                               |
 | `moveMemberBetweenSlotsAndEnqueueTriggers` / `rearrangeStageMembersAndEnqueueTriggers` / `rearrangeStageMembersByMoveHistoryAndEnqueueTriggers`           | 成员区实际移动后，将本次新产生的 `ON_MEMBER_SLOT_MOVED` 事件显式交给 runner 入队。                | workflow 默认使用这层 wrapper；只包底层移动 helper + 本次新事件入队；caller 仍负责选择/校验、action payload、pending continue；不从 `eventLog` 查 latest/all，不做通用站位 DSL。卡效移动应传 `cause: { kind: 'CARD_EFFECT', ... }`，玩家手动移动保持不传 cause。批量站位变换 wrapper 支持 caller 先写 `RESOLVE_ABILITY`，再统一 enqueue 所有本次移动事件。                                                                                                                                                                                                                                                                                                   |
 
+`moveInspectedCardToDeckPositionFromTop` 是窄 `INSPECTION_ZONE -> MAIN_DECK_POSITION_N` 原子 helper：只接受当前 inspection owner 从主卡组检视的唯一1张卡，重验卡牌 owner、sourceZone、目标未在主卡组且 `positionFromTop` 为正整数。实际 `insertIndex` 为 `min(positionFromTop - 1, remainingDeckLength)`，短卡组因此夹到卡组底；成功后清理 inspection/context，但不创建事件、action、activeEffect 或 pending。当前真实样本是 DRAFT `PL!S-bp7-010-N` 费用4「高海千歌」的卡组底私密检视后可选置入卡组顶第4张；不是任意 inspection 区域移动或卡组位置 DSL。
+
 `runtime/member-slot-moved-observers.ts` 是窄注册调度器，不是任意 observer DSL。`PL!SP-pb2-022` 的 5yncri5e!/CENTER 条件、同次交换匹配事件优先和 pending 审计快照全部归属其单卡 workflow handler；runner 只在普通成员移动入队后调用 `enqueueMemberSlotMovedObserverCardEffects`，不得保留该卡 abilityId、团体或位置 gate。observer 的回合次数预占必须复用 `runtime/ability-turn-limit.ts`，按 `playerId + abilityId + sourceCardId + sourceLifecycleId` 统一统计已结算 use、pending 与 activeEffect；不得只查已结算 action 或 exact eventId pending。
 
 `runtime/ability-source-lifecycle.ts` 统一解释“1回合 N 次”的来源规则对象。实体 `CardInstance.instanceId` 跨区保持稳定，成员或 LIVE 卡跨区域重新进入来源区域时则由最近的 `ON_ENTER_STAGE.eventId` / `ON_ENTER_LIVE_ZONE.eventId` 形成新的 `sourceLifecycleId`；成员区到成员区、LIVE 区到 LIVE 区和方向状态变化不产生新 lifecycle。没有入口事件的测试直置对象使用稳定 initial sentinel。per-turn pending 在入队后按自身 `eventIds` 的 eventLog sequence 回溯并捕获 lifecycle，activeEffect 与 `ABILITY_USE` 在通用 dispatch 边界传播同一值，因此旧 pending/active 不会占用新对象次数，审计历史也无需删除。
@@ -387,7 +389,7 @@ Current boundary:
 - 不调用 zone-operations 的普通移动/登场回退，不 enqueue trigger；这不是进入休息室或登场事件。
 - 不扫描候选、不公开手牌、不写 action history、不处理 LIVE 修正或 pending continue；这些都由 workflow 负责。
 
-`addBladeLiveModifierForMember` 允许 `sourceCardId` 保留真实能力来源，同时以 `targetMemberCardId` 绑定受益成员，并拒绝不是当前己方顶层舞台成员的目标；旧 `addBladeLiveModifierForSourceMember` 仅委托该 core。有 target 时离场清理只认 target，审计 source 离场仍保留；旧无 target BLADE 继续 source-bound。真实样本包括 `PL!SP-bp7-001-P` 的下方来源、`PL!S-bp7-005-SEC` 的多 host 常时，以及 `live-start-target-member-gain-blade.ts` family 中真实来源与选中成员不同的 `PL!S-bp2-025-L` / `PL!-bp4-014` / `PL!-bp4-024`。该 family 在写入前仍由 workflow 重验来源，写入后的 LIVE 来源离区不撤销目标 modifier。`MEMBER_ORIGINAL_HEART_REPLACEMENT.hearts` 只支持完整印刷 `HeartIcon[]` 快照，普通 Heart bonus 仍在替换后追加，来源成员实例离场/重登时清理；真实样本为 `PL!N-bp7-003-SEC`。
+`BLADE` live modifier 必须显式声明 `target: 'SOURCE_MEMBER' | 'TARGET_MEMBER' | 'PLAYER'`，读取端不再根据 `sourceCardId` 所属卡牌类型推断受益对象。`SOURCE_MEMBER` 表示能力来源成员本身就是受益者；显式 `TARGET_MEMBER` / `PLAYER` 与所有新增写入都必须让 `sourceCardId` 保留真实能力来源。`addBladeLiveModifierForMember` 以选中成员与真实来源是否同一实例，分别写入 `SOURCE_MEMBER` 或带 `targetMemberCardId` 的 `TARGET_MEMBER`，并拒绝不是当前己方顶层舞台成员的目标；`addBladeLiveModifierForSourceMember` 仅委托该 core。少量历史 workflow 仍把受益成员作为 source helper 参数，这些来源语义误用不在本批迁移范围，后续应单独清理。成员级 modifier 只通过对应的活跃受益成员计入声援，`PLAYER` 则直接计入玩家合计一次；成员离场只清理以该成员为 `SOURCE_MEMBER` 或 `TARGET_MEMBER` 受益者的 modifier，不会因 `PLAYER` modifier 的来源恰好是成员而误清理。真实样本包括 `PL!SP-bp7-001-P` 的下方来源、`PL!S-bp7-005-SEC` 的多 host 常时，以及 `live-start-target-member-gain-blade.ts` family 中真实来源与选中成员不同的 `PL!S-bp2-025-L` / `PL!-bp4-014` / `PL!-bp4-024`。该 family 在写入前仍由 workflow 重验来源，写入后的 LIVE 来源离区不撤销目标 modifier。`MEMBER_ORIGINAL_HEART_REPLACEMENT.hearts` 只支持完整印刷 `HeartIcon[]` 快照，普通 Heart bonus 仍在替换后追加，来源成员实例离场/重登时清理；真实样本为 `PL!N-bp7-003-SEC`。
 
 ### `playMemberBelowCardToEmptySlot`
 
@@ -436,7 +438,7 @@ Return:
 
 Current boundary:
 
-- 只验证 player 与 source member 归属，并调用 `addLiveModifier` 写入 `kind: 'BLADE'`。
+- 只验证 player 与 source member 归属，并写入 `kind: 'BLADE', target: 'SOURCE_MEMBER'`。
 - 不生成 action history；`bladeBonus`、费用、弃置、公开、洗回等 payload 仍由 caller 保持原样。
 - 不处理 `TARGET_MEMBER` BLADE，例如 `PL!HS-bp6-031` 指定安养寺姬芽获得 BLADE +3。
 - 不处理 `PL!-sd1-001`、`PL!N-pb1-004` 这类 continuous / dynamic projection。
@@ -570,7 +572,7 @@ Target helper family:
 
 - `domain/rules/cheer-direction.ts` 的 `getCheerDeckEdgeForPlayer` 只读当前 GameState；默认 TOP，当前唯一真实 BOTTOM 样本的公开版本是 `PL!S-bp7-022-SECL` 分数8「想在水族馆恋爱」，规则按基础编号匹配 owner 正确且仍在自己 LIVE 区的来源实例。它不写 modifier、pending 或事件，也不是 continuous DSL。
 - `drawFromBottom` 是与 `drawFromTop` 对称的 zone 小原语：移除数组末尾一张，不反转剩余顺序，不创建事件/action/刷新。
-- `revealCheerCardsFromMainDeck` 在每次公开前先处理即时 refresh，再重读当前边缘，取牌后再处理 refresh。普通、手动、自动、追加与重做声援共用该入口；`CheerEvent` 与 `CHEER` action 只记录实际公开顺序及 `deckEdge`，不记录剩余卡组顺序。旧事件缺少该字段时按 TOP 读取。
+- `revealCheerCardsFromMainDeck` 在每次公开前先处理即时 refresh，再重读当前边缘，取牌后再处理 refresh。普通、手动、自动、追加与重做声援共用该入口；每批在 `CheerEvent` 写入后立即且仅一次结算 DRAW BLADE HEART，之后才进入适用的 `ON_CHEER` 检查时点或继续当前卡效。`CheerEvent` 与原有唯一一条 `CHEER` action 记录实际公开顺序及 `deckEdge`；存在 DRAW 时，`CHEER` action 还记录 `cheerEventId`、`bladeHeartDrawCount` 与 `bladeHeartDrawnCardIds`，但不记录剩余卡组顺序。旧事件缺少 `deckEdge` 时按 TOP 读取。
 - 该边界没有与 `moveBottomDeckCardsToWaitingRoom*` 合并：后者仍只负责 `MAIN_DECK -> WAITING_ROOM`，声援的目的地是 resolution zone。
 
 ## Migration Requirement

@@ -4,12 +4,10 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase } from '../../../../shared/types/enums.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { SP_BP1_009_ACTIVATED_PAY_ONE_ENERGY_DRAW_ONE_DISCARD_ONE_ABILITY_ID } from '../../ability-ids.js';
-import {
-  doesCardAbilityDefinitionMatchCardCode,
-  findCardAbilityDefinitionById,
-} from '../../definitions/lookup.js';
+import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
 import {
@@ -18,6 +16,7 @@ import {
 } from '../shared/draw-then-discard.js';
 
 const SELECT_DISCARD_AFTER_DRAW_STEP_ID = 'SP_BP1_009_SELECT_DISCARD_AFTER_DRAW';
+const BASE_CARD_CODE = 'PL!SP-bp1-009';
 
 export function registerSpBp1009NatsumiWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
@@ -63,7 +62,13 @@ function startSpBp1009NatsumiActivated(
     !isMemberCardData(sourceCard.data) ||
     sourceSlot === null ||
     !definition ||
-    !doesCardAbilityDefinitionMatchCardCode(definition, sourceCard.data.cardCode)
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      SP_BP1_009_ACTIVATED_PAY_ONE_ENERGY_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
+      [BASE_CARD_CODE]
+    )
   ) {
     return game;
   }

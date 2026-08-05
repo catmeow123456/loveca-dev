@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
-import {
-  createPlayMemberToSlotCommand,
-} from '../../src/application/game-commands';
-import {
-  resolvePendingCardEffects,
-} from '../../src/application/card-effect-runner';
+import { createPlayMemberToSlotCommand } from '../../src/application/game-commands';
+import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
 import {
@@ -49,9 +45,7 @@ function createMember(
     cost: options.cost ?? 7,
     blade: 1,
     hearts: [createHeartIcon(HeartColor.RED, 1)],
-    ...(options.hasBladeHeart
-      ? { bladeHearts: [{ effect: BladeHeartEffect.DRAW }] }
-      : {}),
+    ...(options.hasBladeHeart ? { bladeHearts: [{ effect: BladeHeartEffect.DRAW }] } : {}),
   };
 }
 
@@ -85,13 +79,15 @@ function forceMainPhase(session: GameSession): void {
   mutableState.activePlayerIndex = 0;
 }
 
-function setupDoubleRelayScenario(options: {
-  readonly sourceCardCode?: string;
-  readonly leftGroupName?: string;
-  readonly centerGroupName?: string;
-  readonly leftHasBladeHeart?: boolean;
-  readonly centerHasBladeHeart?: boolean;
-} = {}): {
+function setupDoubleRelayScenario(
+  options: {
+    readonly sourceCardCode?: string;
+    readonly leftGroupName?: string;
+    readonly centerGroupName?: string;
+    readonly leftHasBladeHeart?: boolean;
+    readonly centerHasBladeHeart?: boolean;
+  } = {}
+): {
   readonly session: GameSession;
   readonly sourceId: string;
   readonly leftReplacementId: string;
@@ -207,8 +203,7 @@ function latestResolvePayload(game: GameState) {
     .find(
       (action) =>
         action.type === 'RESOLVE_ABILITY' &&
-        action.payload.abilityId ===
-          SP_PB2_000_ON_ENTER_DOUBLE_RELAY_DRAW_AND_GAIN_BLADE_ABILITY_ID
+        action.payload.abilityId === SP_PB2_000_ON_ENTER_DOUBLE_RELAY_DRAW_AND_GAIN_BLADE_ABILITY_ID
     )?.payload;
 }
 
@@ -218,9 +213,7 @@ describe('PL!SP-pb2-000 Chisato and Natsumi on-enter workflow', () => {
     playWithSingleRelay(scenario.session, scenario.sourceId);
 
     expect(scenario.session.state?.players[0].hand.cardIds).toContain(scenario.drawCardIds[0]);
-    expect(scenario.session.state?.players[0].hand.cardIds).not.toContain(
-      scenario.drawCardIds[1]
-    );
+    expect(scenario.session.state?.players[0].hand.cardIds).not.toContain(scenario.drawCardIds[1]);
     expect(latestResolvePayload(scenario.session.state!)).toMatchObject({
       conditionMet: true,
       relayReplacementCardIds: [scenario.centerReplacementId],
@@ -231,6 +224,7 @@ describe('PL!SP-pb2-000 Chisato and Natsumi on-enter workflow', () => {
     });
     expect(scenario.session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: scenario.sourceId,
@@ -290,6 +284,7 @@ describe('PL!SP-pb2-000 Chisato and Natsumi on-enter workflow', () => {
     });
     expect(scenario.session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 4,
       sourceCardId: scenario.sourceId,

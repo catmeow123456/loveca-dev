@@ -230,6 +230,7 @@ describe('PL!SP-pb2-022 Tomari on-move blade workflow', () => {
 
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 4,
       sourceCardId: scenario.sourceId,
@@ -283,6 +284,7 @@ describe('PL!SP-pb2-022 Tomari on-move blade workflow', () => {
 
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 4,
       sourceCardId: scenario.sourceId,
@@ -364,6 +366,7 @@ describe('PL!SP-pb2-022 Tomari on-move blade workflow', () => {
 
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 4,
       sourceCardId: scenario.sourceId,

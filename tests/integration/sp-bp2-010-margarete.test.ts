@@ -136,8 +136,7 @@ function cheerCountModifier(game: GameState) {
   return game.liveResolution.liveModifiers.find(
     (modifier) =>
       modifier.kind === 'CHEER_COUNT' &&
-      modifier.abilityId ===
-        SP_BP2_010_LIVE_START_OTHER_MEMBER_CHEER_COUNT_MINUS_EIGHT_ABILITY_ID
+      modifier.abilityId === SP_BP2_010_LIVE_START_OTHER_MEMBER_CHEER_COUNT_MINUS_EIGHT_ABILITY_ID
   );
 }
 
@@ -184,6 +183,7 @@ describe('PL!SP-bp2-010 Margarete live-start cheer count workflow', () => {
     });
     const state = addLiveModifier(resolveLiveStart(game), {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,
@@ -217,12 +217,14 @@ describe('PL!SP-bp2-010 Margarete live-start cheer count workflow', () => {
     expect(state.activeEffect).toBeNull();
     expect(cheerCountModifier(state)).toBeUndefined();
     expect(
-      [...state.actionHistory].reverse().find(
-        (action) =>
-          action.type === 'RESOLVE_ABILITY' &&
-          action.payload.abilityId ===
-            SP_BP2_010_LIVE_START_OTHER_MEMBER_CHEER_COUNT_MINUS_EIGHT_ABILITY_ID
-      )?.payload
+      [...state.actionHistory]
+        .reverse()
+        .find(
+          (action) =>
+            action.type === 'RESOLVE_ABILITY' &&
+            action.payload.abilityId ===
+              SP_BP2_010_LIVE_START_OTHER_MEMBER_CHEER_COUNT_MINUS_EIGHT_ABILITY_ID
+        )?.payload
     ).toMatchObject({
       conditionMet: false,
       cheerCountDelta: 0,

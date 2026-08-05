@@ -368,6 +368,7 @@ describe('PL!SP-pb2-046-L Butterfly Wing workflow', () => {
     ).toBe(true);
     expect(gameState.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: member!.instanceId,

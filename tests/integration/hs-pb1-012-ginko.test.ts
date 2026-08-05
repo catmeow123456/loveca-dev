@@ -292,6 +292,7 @@ describe('HS-pb1-012 Ginko recycle members workflow', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: ginkoId,
@@ -349,6 +350,7 @@ describe('HS-pb1-012 Ginko recycle members workflow', () => {
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: ginkoId,

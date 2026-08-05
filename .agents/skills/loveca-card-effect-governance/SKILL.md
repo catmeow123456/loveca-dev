@@ -276,6 +276,19 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/audit-act
 - workflow 内重复小胶水是否应该抽到 runtime、active-effect、workflow helpers 或 events。
 - 不强行抽象没有足够真实样本的复杂卡。
 
+### Granted activated ability 来源门禁
+
+- 新增或修改自己『Liella!』成员的 `ACTIVATED / STAGE_MEMBER` definition 或 workflow 时，必须检查该 abilityId 是否可由 `PL!SP-pb2-005` 宿主获得；不能因为本次任务只描述原卡，就跳过宿主兼容性审查。
+- 对可获得的 abilityId，workflow 的启动、能量选择恢复、公开确认恢复、支付确认、finish 等所有来源资格复核点必须使用 `isDirectOrRenGrantedActivatedAbilitySource`。不得只替换首个 gate，也不得继续用 `cardCodeMatchesBase` / `doesCardAbilityDefinitionMatchCardCode` 硬性要求宿主匹配原卡。
+- helper 的 `directBaseCardCodes` 必须包含同一 abilityId 的全部原生来源；shared config 只能对明确目标开启 Ren-granted 来源，其他作品、其他 abilityId 继续保持原边界。不得完全删除来源拥有能力校验，不能扩大为任意成员调用。
+- `sourceCardId`、`sourceLifecycleId`、每回合次数、费用、action audit 和“此成员”的待机/离场/移动/modifier/向下叠卡都绑定实际发动的宿主实例；不得替换为下方授予能力的卡牌实例 ID。
+- 必须扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，至少覆盖原卡直发、合法宿主、无对应下方卡、无关成员、下方移除、原卡与宿主次数隔离、宿主第二次拒绝；多阶段能力还要覆盖后续确认/支付能够继续完成。
+- 收尾时对本批 workflow 运行静态审计，并逐项解释残留 direct-only gate 为什么属于非目标能力：
+
+```bash
+rg -n "isDirectOrRenGrantedActivatedAbilitySource|cardCodeMatchesBase|doesCardAbilityDefinitionMatchCardCode" src/application/card-effects/workflows
+```
+
 ### Runtime helper / event wrapper
 
 - 支付、活跃、放置于成员下方、返回能量卡组等效果统一通过通用能量操作底座处理，并保持各自动作的资源合法性与数量语义：支付候选仅为 ACTIVE 且必须足额；活跃候选仅为 WAITING，至多活跃按实际可处理数量结算；放置于成员下方与返回能量卡组的候选为能量区全部能量，自动处理时固定按 WAITING 优先、ACTIVE 其次。只有候选超出处理数量且至少一张合法候选带特殊 marker 时，才打开通用能量选择窗口并要求精确选择；候选恰好等于处理数量或没有特殊能量时按上述顺序自动处理。单卡 workflow 不得自行复制或绕过这套判断，不得使用 `energyZone.cardIds[0]`、`.slice(...)` 等存储顺序选择，也不得因文案治理改变候选、顺序、数量、非法输入或 continuation 语义。

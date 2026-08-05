@@ -7,8 +7,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import type { LiveModifierState } from '../../../../domain/entities/game.js';
-import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { addBladeLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { groupAliasIs, memberPrintedBladeLte } from '../../../effects/card-selectors.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
@@ -42,12 +41,7 @@ export function registerBp5024PrivateWarsWorkflowHandlers(deps: {
   registerPendingAbilityStarterHandler(
     PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID,
     (game, ability, options, context) =>
-      startPrivateWarsWorkflow(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      )
+      startPrivateWarsWorkflow(game, ability, options, context.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
     PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID,
@@ -100,7 +94,11 @@ function startPrivateWarsWorkflow(
   }
 
   const context = getPrivateWarsContext(game, ability);
-  if (!context.sourceLiveInOwnLiveZone || !context.hasOwnAriseMember || context.branchOptions.length === 0) {
+  if (
+    !context.sourceLiveInOwnLiveZone ||
+    !context.hasOwnAriseMember ||
+    context.branchOptions.length === 0
+  ) {
     const confirmation = maybeStartConfirmablePendingAbilityConfirmation(game, ability, options, {
       effectText: getPrivateWarsRealtimeEffectText(game, ability),
       stepText: getPrivateWarsRealtimeStepText(game, ability),
@@ -340,26 +338,31 @@ function finishPrivateWarsActivateWaitingMember(
     enqueueTriggeredCardEffects,
     {
       prepareGameStateBeforeEnqueue: (stateAfterOrientation, result, memberStateChangedEvents) => {
-        const bladeModifier: LiveModifierState = {
-          kind: 'BLADE',
+        const bladeResult = addBladeLiveModifierForMember(stateAfterOrientation, {
           playerId: target.playerId,
+          memberCardId: selectedCardId,
           countDelta: 1,
-          sourceCardId: selectedCardId,
-          abilityId: effect.abilityId,
-        };
-        const stateWithModifier = addLiveModifier(stateAfterOrientation, bladeModifier);
-        return addAction({ ...stateWithModifier, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
-          pendingAbilityId: effect.id,
-          abilityId: effect.abilityId,
           sourceCardId: effect.sourceCardId,
-          step: 'PRIVATE_WARS_ACTIVATE_WAITING_MEMBER_GAIN_BLADE',
-          targetPlayerId: target.playerId,
-          targetCardId: selectedCardId,
-          previousOrientation: result.previousOrientation,
-          nextOrientation: result.nextOrientation,
-          memberStateChangedEventIds: memberStateChangedEvents.map((event) => event.eventId),
-          bladeBonus: 1,
+          abilityId: effect.abilityId,
         });
+        const stateWithModifier = bladeResult?.gameState ?? stateAfterOrientation;
+        return addAction(
+          { ...stateWithModifier, activeEffect: null },
+          'RESOLVE_ABILITY',
+          player.id,
+          {
+            pendingAbilityId: effect.id,
+            abilityId: effect.abilityId,
+            sourceCardId: effect.sourceCardId,
+            step: 'PRIVATE_WARS_ACTIVATE_WAITING_MEMBER_GAIN_BLADE',
+            targetPlayerId: target.playerId,
+            targetCardId: selectedCardId,
+            previousOrientation: result.previousOrientation,
+            nextOrientation: result.nextOrientation,
+            memberStateChangedEventIds: memberStateChangedEvents.map((event) => event.eventId),
+            bladeBonus: 1,
+          }
+        );
       },
     }
   );
@@ -537,7 +540,10 @@ interface PrivateWarsContext {
   readonly branchOptions: readonly { readonly id: string; readonly label: string }[];
 }
 
-function getPrivateWarsContext(game: GameState, ability: Pick<PendingAbilityState, 'controllerId' | 'sourceCardId'>): PrivateWarsContext {
+function getPrivateWarsContext(
+  game: GameState,
+  ability: Pick<PendingAbilityState, 'controllerId' | 'sourceCardId'>
+): PrivateWarsContext {
   const player = getPlayerById(game, ability.controllerId);
   const opponent = player ? getOpponent(game, player.id) : null;
   const sourceLiveInOwnLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
@@ -552,7 +558,9 @@ function getPrivateWarsContext(game: GameState, ability: Pick<PendingAbilityStat
           ...getWaitingStageMemberCardIds(game, opponent.id),
         ]
       : [];
-  const waitOpponentMemberCardIds = opponent ? getOpponentLowPrintedBladeTargetIds(game, opponent.id) : [];
+  const waitOpponentMemberCardIds = opponent
+    ? getOpponentLowPrintedBladeTargetIds(game, opponent.id)
+    : [];
   const branchOptions = [
     ...(activateWaitingMemberCardIds.length > 0
       ? [{ id: ACTIVATE_WAITING_MEMBER_OPTION_ID, label: '待机成员变为活跃并获得[BLADE]' }]
@@ -597,7 +605,10 @@ function findWaitingStageMember(
   return null;
 }
 
-function getOpponentLowPrintedBladeTargetIds(game: GameState, opponentPlayerId: string): readonly string[] {
+function getOpponentLowPrintedBladeTargetIds(
+  game: GameState,
+  opponentPlayerId: string
+): readonly string[] {
   const opponent = getPlayerById(game, opponentPlayerId);
   if (!opponent) {
     return [];

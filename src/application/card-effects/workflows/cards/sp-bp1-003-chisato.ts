@@ -8,15 +8,12 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addPlayerScoreLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { GamePhase, SubPhase } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { getHandMemberEffectivePlayCost } from '../../../effects/play-member-cost.js';
 import { SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_ID as ABILITY_ID } from '../../ability-ids.js';
-import {
-  doesCardAbilityDefinitionMatchCardCode,
-  findCardAbilityDefinitionById,
-} from '../../definitions/lookup.js';
+import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { revealHandCardsForActiveEffect } from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -66,9 +63,14 @@ function startChisatoActivatedWorkflow(
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
-    !cardCodeMatchesBase(sourceCard.data.cardCode, BASE_CARD_CODE) ||
     !definition ||
-    !doesCardAbilityDefinitionMatchCardCode(definition, sourceCard.data.cardCode) ||
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      sourceCardId,
+      ABILITY_ID,
+      [BASE_CARD_CODE]
+    ) ||
     getSourceMemberSlot(game, playerId, sourceCardId) === null
   ) {
     return game;
@@ -238,9 +240,14 @@ function isValidSource(game: GameState, effect: ActiveEffectState): boolean {
     sourceCard &&
     sourceCard.ownerId === effect.controllerId &&
     isMemberCardData(sourceCard.data) &&
-    cardCodeMatchesBase(sourceCard.data.cardCode, BASE_CARD_CODE) &&
     definition &&
-    doesCardAbilityDefinitionMatchCardCode(definition, sourceCard.data.cardCode) &&
+    isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      effect.controllerId,
+      effect.sourceCardId,
+      ABILITY_ID,
+      [BASE_CARD_CODE]
+    ) &&
     getSourceMemberSlot(game, effect.controllerId, effect.sourceCardId) !== null
   );
 }

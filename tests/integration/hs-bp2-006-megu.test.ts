@@ -112,6 +112,7 @@ describe('PL!HS-bp2-006 Megu workflow and continuous modifier', () => {
     const modifiers = collectLiveModifiers(state);
     expect(modifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: megu.instanceId,

@@ -6,10 +6,10 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase, SlotPosition } from '../../../../shared/types/enums.js';
-import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import {
   moveMemberBetweenSlotsAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForMemberSlotMoved,
@@ -94,8 +94,12 @@ function startActivatedPayEnergySelfPositionChange(
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !config.baseCardCodes.some((baseCardCode) =>
-      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      config.abilityId,
+      config.baseCardCodes
     ) ||
     sourceSlot === null
   ) {

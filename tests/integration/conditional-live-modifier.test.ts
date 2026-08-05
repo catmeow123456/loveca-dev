@@ -698,6 +698,7 @@ function setupNoBrandGirlsState(
   if (options.bladeModifier) {
     game = addLiveModifier(game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: options.bladeModifier,
       sourceCardId: center.instanceId,
@@ -1499,6 +1500,7 @@ describe('conditional live modifier workflow', () => {
     expect(gainedPreview.activeEffect?.effectText).toContain('[BLADE]合计9');
     const gainedBeforeConfirmation = addLiveModifier(gainedPreview, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: gainedScenario.members[0]!.instanceId,
@@ -1520,6 +1522,7 @@ describe('conditional live modifier workflow', () => {
     const lostScenario = setupBp3023StageBladeScenario({ blades: [3, 3, 3] });
     let lostGame = addLiveModifier(lostScenario.game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: lostScenario.members[0]!.instanceId,
@@ -1715,6 +1718,7 @@ describe('conditional live modifier workflow', () => {
     const scenario = setupDreamWithYouScenario({ blades: [3, 3, 3] });
     const withBladeModifier = addLiveModifier(scenario.game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: scenario.members[0]!.instanceId,
@@ -1769,6 +1773,7 @@ describe('conditional live modifier workflow', () => {
     expect(preview.activeEffect?.effectText).toContain('[BLADE]合计9');
     const changed = addLiveModifier(preview, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: scenario.members[0]!.instanceId,
@@ -1791,6 +1796,7 @@ describe('conditional live modifier workflow', () => {
     const scenario = setupDreamWithYouScenario({ blades: [3, 3, 3] });
     let game = addLiveModifier(scenario.game, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: scenario.members[0]!.instanceId,
@@ -2062,6 +2068,7 @@ describe('conditional live modifier workflow', () => {
     expect(preview.activeEffect?.effectText).toContain('有效[ブレード]8');
     const changed = addLiveModifier(preview, {
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: scenario.center.instanceId,

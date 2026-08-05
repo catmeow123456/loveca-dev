@@ -222,6 +222,7 @@ describe('PL!HS-pb1-005 Kosuzu live-start workflow', () => {
     expect(session.state?.players[0].mainDeck.cardIds[0]).toBe(topMember.instanceId);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'kosuzu-source',
       abilityId: HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID,
@@ -243,6 +244,7 @@ describe('PL!HS-pb1-005 Kosuzu live-start workflow', () => {
     expect(session.state?.players[0].mainDeck.cardIds).toEqual([]);
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       sourceCardId: 'kosuzu-source',
       abilityId: HS_PB1_005_LIVE_START_CHOOSE_NUMBER_REVEAL_TOP_HAND_OR_BLADE_ABILITY_ID,

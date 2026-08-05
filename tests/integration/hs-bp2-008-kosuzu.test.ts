@@ -134,6 +134,7 @@ describe('PL!HS-bp2-008 徒町小鈴', () => {
       expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(3);
       expect(session.state?.liveResolution.liveModifiers).toContainEqual({
         kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
         playerId: PLAYER1,
         countDelta: 2,
         sourceCardId: sourceId,

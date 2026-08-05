@@ -90,6 +90,7 @@ describe('PL!S-bp7-009 黑泽露比 front low-cost member BLADE reduction', () =
       expect(rubyModifiers(game)).toEqual([
         {
           kind: 'BLADE',
+          target: 'TARGET_MEMBER',
           playerId: PLAYER2,
           countDelta: -1,
           sourceCardId: source.instanceId,
@@ -212,6 +213,7 @@ describe('PL!S-bp7-009 黑泽露比 front low-cost member BLADE reduction', () =
     expect(rubyModifiers(game)).toEqual([
       {
         kind: 'BLADE',
+        target: 'TARGET_MEMBER',
         playerId: PLAYER1,
         countDelta: -1,
         sourceCardId: source.instanceId,

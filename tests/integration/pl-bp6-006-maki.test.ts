@@ -377,6 +377,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
     expect(player.mainDeck.cardIds).toEqual([cost.instanceId]);
     expect(session.state!.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 3,
       sourceCardId: maki.instanceId,
@@ -501,6 +502,7 @@ describe('PL!-bp6-006 Maki workflow', () => {
     );
     expect(session.state!.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 3,
       sourceCardId: maki.instanceId,

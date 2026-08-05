@@ -63,7 +63,9 @@
 
 2026-06-14 更新：`ON_LIVE_SUCCESS` 已不再只从成功的 LIVE 卡本身入队，也会在存在成功 LIVE 时扫描表演玩家舞台成员来源。`PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证了舞台成员来源 LIVE 成功时效果；`PL!HS-cl1-009-CL` 分数 1「水彩世界」与同卡共同打开 `effects/cheer-selection.ts`，通过 `liveResolution.first/secondPlayerCheerCardIds` 与 `resolutionZone.revealedCardIds` 选取“因声援公开且仍在处理区”的卡，再按卡效配置移动到手牌或卡组顶。
 
-2026-06-15 更新：`ON_CHEER` 已以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」落地。当前自动/手动/追加声援会写入 `CheerEvent`，入队优先消费 eventLog 中最新非追加事件，旧扫描表演玩家 LIVE 区来源只作 fallback；追加声援事件带 `additional=true`，只补公开卡与 `liveResolution.*CheerCardIds` 登记，不二次触发 `ON_CHEER`，避免为未来非一回合一次卡制造递归语义。`PL!S-bp2-004` 费用 11「黒澤ダイヤ」已验证另一条窄边界：重做声援会生成 `additional=false` 的普通 `CheerEvent`，显式重新走标准 `ON_CHEER` 入队；来源能力在新事件入队前记录 turn1，避免自身递归。
+2026-06-15 更新：`ON_CHEER` 已以 `PL!HS-bp6-027-L` 分数 5「月夜見海月」落地。当前自动/手动/追加声援会写入 `CheerEvent`，入队优先消费 eventLog 中最新非追加事件，旧扫描表演玩家 LIVE 区来源只作 fallback；追加声援事件带 `additional=true`，不二次触发 `ON_CHEER`，避免为未来非一回合一次卡制造递归语义。`PL!S-bp2-004` 费用 11「黒澤ダイヤ」已验证另一条窄边界：重做声援会生成 `additional=false` 的普通 `CheerEvent`，显式重新走标准 `ON_CHEER` 入队；来源能力在新事件入队前记录 turn1，避免自身递归。
+
+2026-08-04 更新：普通、追加、重做与 `FREE` 手动单张声援已统一到 `effects/cheer.ts`。每个 `CheerEvent` 批次公开完成后，先立即且仅一次结算该批 DRAW BLADE HEART，然后才进入适用的 `ON_CHEER` 检查时点或继续当前卡效。追加声援虽不递归触发 `ON_CHEER`，仍须立即结算 DRAW；重做声援只替换原批当前 Heart/Score 贡献，不撤销已完成的抽牌。最终判定确认不再执行声援 DRAW。
 
 ## 3. Proposed ability definition shape
 
@@ -136,6 +138,8 @@ defineAbility({
 ```
 
 `baseCardCodes` 是卡效登记的默认且规范形态：同一基础编号的不同罕度具有相同卡牌类型与完整卡效，罕度后缀不是 effect boundary。尤其 BP7 必须使用 `baseCardCodes` 或等价基础编号 matcher；公开 API / Excel 当前只出现某一罕度或本地卡库缺失都不是 exact 登记理由，`cardCodes` 也不能用于隔离尚未发现的罕度。
+
+`remainingHeartAllocationPreference` 是 `LIVE_SUCCESS / LIVE_CARD` definition 的窄声明字段，用于存在余 Heart 条件的已实现能力在 LIVE 判定前表达 `{ color, minCount, requiredStageGroupAlias? }`。它不是额外需求或结算步骤：收集器只接受 `implemented` 且触发条件为 `ON_LIVE_SUCCESS` 的 definition，舞台团体条件在收集时实时检查；`HeartPool` 仍先保证原 LIVE 需求合法，再在合法方案中最大化可满足的偏好数量并按 definition 顺序稳定裁决。workflow 结算只读取判定后的 `playerRemainingHearts`，不得把 `RAINBOW`/All 当作指定颜色，也不得再次消费或重分配 Heart。
 
 ## 4. Framework layers
 
@@ -422,7 +426,7 @@ P0/P1 覆盖：
 当前落地：
 
 - `src/application/effects/draw.ts` 已提供 `drawCardsFromMainDeckToHand`。
-- 当前 helper 定位为卡效步骤底座，表达“主卡组顶 -> 手牌”的抽牌移动；它不接管开局、阶段、LIVE 判定等规则流程抽牌，也不合并 `GameService.drawTopMainDeckCard` 的调试/规则流程入口。
+- 当前 helper 定位为“主卡组顶 -> 手牌”的逐张抽牌移动底座；卡效抽牌和 `effects/cheer.ts` 的 DRAW BLADE HEART 规则处理共用它。它不自行决定开局、阶段或 LIVE 规则何时应抽，也不合并 `GameService.drawTopMainDeckCard` 的调试/其他规则流程入口。
 - 卡效抽 N 张按逐张抽牌处理，抽牌过程中会沿用主卡组更新规则：主卡组为空且休息室有卡时先刷新再继续抽；刷新后仍无可抽卡时只抽实际可抽数量。
 - `PL!-sd1-007-SD` 费用 7「东条希」的额外抽 1 已迁入该 helper，action payload 仍保留单个 `drawnCardId` 以保持 golden behavior。
 - `tests/unit/draw.test.ts` 覆盖抽 N、牌库不足、空牌库、刷新后继续抽与非法数量；007 focused tests 覆盖翻到 LIVE 抽 1 与未翻到 LIVE 不抽。
@@ -571,7 +575,7 @@ P0/P1 覆盖：
 
 当前落地：
 
-- `src/application/effects/cheer.ts` 抽出声援公开 helper，负责从主卡组顶公开到解决区、登记 `liveResolution.first/secondPlayerCheerCardIds` / `secondPlayerCheerCardIds`、写入 `CheerEvent`，并沿用即时 refresh 检查。
+- `src/application/effects/cheer.ts` 抽出声援公开 helper，负责从当前规则指定的主卡组边缘公开到解决区、登记 `liveResolution.first/secondPlayerCheerCardIds`、写入 `CheerEvent`、立即结算本批 DRAW BLADE HEART，并沿用即时 refresh 检查。同一批仍只保留一条 `CHEER` action；存在 DRAW 时在该 action 记录 `cheerEventId`、`bladeHeartDrawCount` 与 `bladeHeartDrawnCardIds`。
 - `PL!HS-bp6-027-L` 分数 5「月夜見海月」结算时按实际移动入休息室张数追加等量声援。
 - 当前边界：追加声援仍不再次触发 `ON_CHEER`。`PL!S-bp2-004` 费用 11「黒澤ダイヤ」已验证重做声援：`replaceCurrentCheerCards=true` 只替换当前玩家的 current cheer IDs，默认/false 仍保持追加登记；新普通事件显式重新入队，Q107 的后续查询只看到第二次声援。该窄选项不构成通用 cheer loop、替代效果 DSL 或全部声援重置语义。
 

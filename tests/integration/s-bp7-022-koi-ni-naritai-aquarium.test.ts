@@ -22,7 +22,12 @@ import {
 } from '../../src/application/card-effect-runner';
 import { S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { GameService } from '../../src/application/game-service';
-import { CardType, HeartColor, TriggerCondition } from '../../src/shared/types/enums';
+import {
+  BladeHeartEffect,
+  CardType,
+  HeartColor,
+  TriggerCondition,
+} from '../../src/shared/types/enums';
 
 const P1 = 'p1';
 const P2 = 'p2';
@@ -31,8 +36,12 @@ const ABILITY_ID =
 
 function member(
   id: string,
-  hearts: readonly HeartColor[],
-  options: { readonly ownerId?: string; readonly groupNames?: readonly string[] } = {}
+  judgmentHeartColors: readonly HeartColor[],
+  options: {
+    readonly ownerId?: string;
+    readonly groupNames?: readonly string[];
+    readonly printedHearts?: readonly HeartColor[];
+  } = {}
 ) {
   const data: MemberCardData = {
     cardCode: id,
@@ -41,7 +50,11 @@ function member(
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
-    hearts: hearts.map((color) => createHeartIcon(color, 1)),
+    hearts: (options.printedHearts ?? []).map((color) => createHeartIcon(color, 1)),
+    bladeHearts: judgmentHeartColors.map((heartColor) => ({
+      effect: BladeHeartEffect.HEART,
+      heartColor,
+    })),
   };
   return createCardInstance(data, options.ownerId ?? P1, id);
 }
@@ -139,9 +152,9 @@ function modifiers(game: GameState) {
 }
 
 function lastResolve(game: GameState) {
-  return game.actionHistory.findLast(
-    (action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === ABILITY_ID
-  );
+  return [...game.actionHistory]
+    .reverse()
+    .find((action) => action.type === 'RESOLVE_ABILITY' && action.payload.abilityId === ABILITY_ID);
 }
 
 describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 LIVE_SUCCESS', () => {
@@ -173,6 +186,26 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 LIVE_SUCCESS', ()
       matchedCardIds: ['red', 'green', 'blue'],
       scoreBonus: 1,
     });
+  });
+
+  it('does not count printed red/green/blue Hearts when the cheer cards produce no colored judgment Hearts', () => {
+    const done = confirm(
+      setup({
+        normal: [
+          member('printed-red', [], { printedHearts: [HeartColor.RED] }),
+          member('printed-green', [], { printedHearts: [HeartColor.GREEN] }),
+          member('printed-blue', [], { printedHearts: [HeartColor.BLUE] }),
+        ],
+      }).game
+    );
+    expect(lastResolve(done)?.payload).toMatchObject({
+      redCandidateCount: 0,
+      greenCandidateCount: 0,
+      blueCandidateCount: 0,
+      conditionMet: false,
+      scoreBonus: 0,
+    });
+    expect(modifiers(done)).toEqual([]);
   });
 
   it('lets additional cheer fill the missing color and keeps moved-out current facts eligible', () => {
@@ -328,7 +361,9 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 LIVE_SUCCESS', ()
       }).game
     ).gameState;
     expect(waiting.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
-    expect(waiting.activeEffect?.effectText).toContain('持有[赤ハート]的『Aqours』成员候选1张');
+    expect(waiting.activeEffect?.effectText).toContain(
+      '声援时产生[赤ハート]的『Aqours』成员候选1张'
+    );
     expect(waiting.activeEffect?.effectText).toContain('需要三张不同卡');
     expect(waiting.activeEffect?.effectText).toContain('可完成匹配，实际此LIVE[スコア]+1');
     expect(waiting.activeEffect?.effectText).not.toMatch(/cardId|source|pending|payload|eventId|stale|resolutionZone/);

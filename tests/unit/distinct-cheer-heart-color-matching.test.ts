@@ -8,6 +8,7 @@ import {
 import { createGameState, emitGameEvent, registerCards } from '../../src/domain/entities/game';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import { evaluateDistinctCheerCardsCoverHeartColors } from '../../src/application/effects/cheer-selection';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import {
   BladeHeartEffect,
   CardType,
@@ -20,8 +21,13 @@ const COLORS = [HeartColor.RED, HeartColor.GREEN, HeartColor.BLUE] as const;
 
 function member(
   id: string,
-  hearts: readonly HeartColor[],
-  options: { readonly ownerId?: string; readonly groupNames?: readonly string[]; readonly bladeBlue?: boolean } = {}
+  judgmentHeartColors: readonly HeartColor[],
+  options: {
+    readonly ownerId?: string;
+    readonly groupNames?: readonly string[];
+    readonly printedHearts?: readonly HeartColor[];
+    readonly includeNonHeartBladeEffects?: boolean;
+  } = {}
 ) {
   const data: MemberCardData = {
     cardCode: id,
@@ -30,10 +36,16 @@ function member(
     cardType: CardType.MEMBER,
     cost: 1,
     blade: 1,
-    hearts: hearts.map((color) => createHeartIcon(color, 1)),
-    bladeHearts: options.bladeBlue
-      ? [{ effect: BladeHeartEffect.HEART, heartColor: HeartColor.BLUE }]
-      : [],
+    hearts: (options.printedHearts ?? []).map((color) => createHeartIcon(color, 1)),
+    bladeHearts: [
+      ...judgmentHeartColors.map((heartColor) => ({
+        effect: BladeHeartEffect.HEART as const,
+        heartColor,
+      })),
+      ...(options.includeNonHeartBladeEffects
+        ? [{ effect: BladeHeartEffect.DRAW as const }, { effect: BladeHeartEffect.SCORE as const }]
+        : []),
+    ],
   };
   return createCardInstance(data, options.ownerId ?? P1, id);
 }
@@ -73,7 +85,7 @@ function evaluate(game: ReturnType<typeof setup>) {
   });
 }
 
-describe('distinct cheer cards cover printed Heart colors', () => {
+describe('distinct cheer cards cover effective judgment Heart colors', () => {
   it('matches three different single-color Aqours members deterministically', () => {
     const result = evaluate(
       setup([
@@ -132,8 +144,11 @@ describe('distinct cheer cards cover printed Heart colors', () => {
     expect(result.conditionMet).toBe(false);
   });
 
-  it('ignores non-Aqours, LIVE, energy, opponent-owned cards, and BLADE HEART colors', () => {
-    const bladeOnly = member('blade-blue', [], { bladeBlue: true });
+  it('ignores non-Aqours, LIVE, energy, opponent-owned cards, printed Hearts, and non-HEART Blade effects', () => {
+    const printedBlue = member('printed-blue', [], {
+      printedHearts: [HeartColor.BLUE],
+      includeNonHeartBladeEffects: true,
+    });
     const result = evaluate(
       setup([
         member('red', [HeartColor.RED]),
@@ -141,12 +156,35 @@ describe('distinct cheer cards cover printed Heart colors', () => {
         live('blue-live'),
         energy('blue-energy'),
         member('opponent-blue', [HeartColor.BLUE], { ownerId: P2 }),
-        bladeOnly,
+        printedBlue,
       ])
     );
-    expect(result.matchingCardIds).toEqual(['red', 'blade-blue']);
+    expect(result.matchingCardIds).toEqual(['red', 'printed-blue']);
     expect(result.candidateCountsByColor.get(HeartColor.BLUE)).toBe(0);
     expect(result.conditionMet).toBe(false);
+  });
+
+  it('uses the effective judgment color after this-LIVE cheer Heart replacement', () => {
+    let game = setup([
+      member('red', [HeartColor.RED]),
+      member('green', [HeartColor.GREEN]),
+      member('purple-to-blue', [HeartColor.PURPLE]),
+    ]);
+    game = addLiveModifier(game, {
+      kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+      playerId: P1,
+      fromColors: [HeartColor.PURPLE],
+      toColor: HeartColor.BLUE,
+      sourceCardId: 'replacement-source',
+      abilityId: 'test-purple-to-blue',
+    });
+    const result = evaluate(game);
+    expect(result.conditionMet).toBe(true);
+    expect(result.assignment).toEqual([
+      { color: HeartColor.RED, cardId: 'red' },
+      { color: HeartColor.GREEN, cardId: 'green' },
+      { color: HeartColor.BLUE, cardId: 'purple-to-blue' },
+    ]);
   });
 
   it('deduplicates a repeated current-cheer fact for the same cardId', () => {

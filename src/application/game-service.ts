@@ -150,10 +150,12 @@ import {
   getLiveCardScoreModifier,
   getMemberEffectiveBladeCount,
   getMemberEffectiveHeartIcons,
+  getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
 } from '../domain/rules/live-modifiers.js';
 import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
+import { collectRemainingHeartAllocationPreferences } from './effects/remaining-heart-allocation.js';
 import { resolveLiveZoneToWaitingRoomTriggers } from './effects/live-zone-waiting-room-triggers.js';
 import { clearLiveProhibitionsUntilLiveEnd } from '../domain/rules/live-prohibitions.js';
 import { clearLiveStartSuppressionsUntilLiveEnd } from '../domain/rules/live-start-suppressions.js';
@@ -1228,17 +1230,30 @@ export class GameService {
       stageMemberCards.push(this.createTemporaryLiveHeartSource(heartBonuses));
     }
     const liveCards = this.getPlayerLiveCards(game, playerId);
+    const remainingHeartPreferences = collectRemainingHeartAllocationPreferences(
+      game,
+      playerId,
+      liveCards.map((liveCard) => liveCard.cardId)
+    );
     const cheerCardIds = this.getCurrentPerformanceCheerCardIds(game, playerId);
     const cheerCards = cheerCardIds.map((cardId) => ({
       cardId,
       bladeHearts: this.getCardBladeHearts(game, playerId, cardId, liveModifiers),
     }));
-    const performance = liveResolver.performLive(playerId, stageMemberCards, liveCards, cheerCards);
+    const performance = liveResolver.performLive(
+      playerId,
+      stageMemberCards,
+      liveCards,
+      cheerCards,
+      {
+        remainingHeartPreferences,
+      }
+    );
 
-    let stateAfterPerformance = game;
-    for (let i = 0; i < performance.cheerResult.drawCount; i++) {
-      stateAfterPerformance = this.drawCard(stateAfterPerformance, playerId);
-    }
+    // DRAW BLADE HEART is a one-shot part of each cheer batch and has already
+    // resolved before the ON_CHEER check timing. Final judgment only derives the
+    // remaining HEART/SCORE contribution from the current cheer cards.
+    const stateAfterPerformance = game;
 
     const liveResults = new Map(stateAfterPerformance.liveResolution.liveResults);
     for (const judgment of performance.liveJudgments) {
@@ -1342,24 +1357,13 @@ export class GameService {
         total + getMemberEffectiveBladeCount(game, player.id, cardId, liveModifiers),
       0
     );
-    const nonMemberSourceBladeCount = liveModifiers.reduce((total, modifier) => {
-      if (modifier.kind !== 'BLADE' || modifier.playerId !== player.id) {
-        return total;
-      }
+    const playerBladeCount = getPlayerLiveBladeModifier(
+      game.liveResolution,
+      player.id,
+      liveModifiers
+    );
 
-      if (modifier.sourceCardId === undefined) {
-        return total + modifier.countDelta;
-      }
-
-      const sourceCard = getCardById(game, modifier.sourceCardId);
-      if (!sourceCard || !isMemberCardData(sourceCard.data)) {
-        return total + modifier.countDelta;
-      }
-
-      return total;
-    }, 0);
-
-    const totalBlade = memberBladeCount + nonMemberSourceBladeCount;
+    const totalBlade = memberBladeCount + playerBladeCount;
     return getEffectivePerformanceCheerCount(game, player.id, totalBlade, liveModifiers);
   }
 

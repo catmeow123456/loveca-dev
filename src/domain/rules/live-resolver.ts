@@ -11,7 +11,11 @@ import type {
   LiveCardData,
   BladeHeartItem,
 } from '../entities/card.js';
-import { HeartPool, createHeartCountsFromIcons } from '../value-objects/heart.js';
+import {
+  HeartPool,
+  createHeartCountsFromIcons,
+  type RemainingHeartPreference,
+} from '../value-objects/heart.js';
 
 function mergeLiveRequirements(liveCards: readonly { data: LiveCardData }[]): HeartRequirement {
   const colorRequirements = new Map<HeartColor, number>();
@@ -86,6 +90,10 @@ export interface PerformanceResult {
   readonly remainingHearts: readonly HeartIcon[];
   /** Live 判定时用于判定的 Heart 总量（plain data） */
   readonly liveJudgmentHearts: readonly HeartIcon[];
+}
+
+export interface LiveResolutionOptions {
+  readonly remainingHeartPreferences?: readonly RemainingHeartPreference[];
 }
 
 /**
@@ -248,7 +256,8 @@ export class LiveResolver {
    */
   judgeMultipleLives(
     liveCards: readonly { cardId: string; data: LiveCardData }[],
-    heartPool: HeartPool
+    heartPool: HeartPool,
+    options: LiveResolutionOptions = {}
   ): { judgments: LiveCardJudgment[]; remainingPool: HeartPool } {
     if (liveCards.length === 0) {
       return {
@@ -258,7 +267,9 @@ export class LiveResolver {
     }
 
     const mergedRequirement = mergeLiveRequirements(liveCards);
-    const remainingPool = heartPool.consume(mergedRequirement);
+    const remainingPool = heartPool.consume(mergedRequirement, {
+      remainingHeartPreferences: options.remainingHeartPreferences,
+    });
     const isOverallSuccess = remainingPool !== null;
     const judgments = liveCards.map((liveCard) => ({
       liveCardId: liveCard.cardId,
@@ -287,7 +298,8 @@ export class LiveResolver {
     playerId: string,
     activeMembers: readonly MemberCardData[],
     liveCards: readonly { cardId: string; data: LiveCardData }[],
-    cheerRevealedCards: readonly { cardId: string; bladeHearts?: readonly BladeHeartItem[] }[]
+    cheerRevealedCards: readonly { cardId: string; bladeHearts?: readonly BladeHeartItem[] }[],
+    options: LiveResolutionOptions = {}
   ): PerformanceResult {
     // 1. 收集成员 Heart
     const memberHeartPool = this.collectMemberHearts(activeMembers);
@@ -299,7 +311,11 @@ export class LiveResolver {
     const totalHeartPool = memberHeartPool.merge(cheerResult.bonusHearts);
 
     // 4. 判定 Live 卡
-    const { judgments, remainingPool } = this.judgeMultipleLives(liveCards, totalHeartPool);
+    const { judgments, remainingPool } = this.judgeMultipleLives(
+      liveCards,
+      totalHeartPool,
+      options
+    );
 
     // 5. 多张 Live 同时判定时，必须全部成功才算整轮 Live 成功
     const isOverallSuccess = judgments.length > 0 && judgments.every((j) => j.isSuccess);

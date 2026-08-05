@@ -4,12 +4,9 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import { GamePhase } from '../../../../shared/types/enums.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID } from '../../ability-ids.js';
-import {
-  doesCardAbilityDefinitionMatchCardCode,
-  findCardAbilityDefinitionById,
-} from '../../definitions/lookup.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import {
   getAbilityEffectText,
   recordAbilityUseForContext,
@@ -18,6 +15,7 @@ import {
 
 interface ActivatedPayEnergyDrawConfig {
   readonly abilityId: string;
+  readonly directBaseCardCodes: readonly string[];
   readonly energyCost: number;
   readonly drawCount: number;
   readonly actionStep: string;
@@ -26,6 +24,7 @@ interface ActivatedPayEnergyDrawConfig {
 const CONFIGS: readonly ActivatedPayEnergyDrawConfig[] = [
   {
     abilityId: SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID,
+    directBaseCardCodes: ['PL!SP-bp5-020', 'PL!HS-bp1-007', 'PL!N-bp1-006'],
     energyCost: 2,
     drawCount: 1,
     actionStep: 'PAY_TWO_ENERGY_DRAW_ONE',
@@ -51,7 +50,6 @@ function resolveActivatedPayEnergyDraw(
   }
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, cardId);
-  const definition = findCardAbilityDefinitionById(config.abilityId);
   if (
     game.players[game.activePlayerIndex]?.id !== playerId ||
     !player ||
@@ -59,8 +57,13 @@ function resolveActivatedPayEnergyDraw(
     sourceCard.ownerId !== playerId ||
     !isMemberCardData(sourceCard.data) ||
     findMemberSlot(player, cardId) === null ||
-    !definition ||
-    !doesCardAbilityDefinitionMatchCardCode(definition, sourceCard.data.cardCode)
+    !isDirectOrRenGrantedActivatedAbilitySource(
+      game,
+      playerId,
+      cardId,
+      config.abilityId,
+      config.directBaseCardCodes
+    )
   ) {
     return game;
   }

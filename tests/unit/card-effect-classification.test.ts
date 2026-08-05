@@ -70,6 +70,7 @@ import {
   N_BP7_031_LIVE_SUCCESS_MILL_TOP_THREE_ABILITY_ID,
   N_BP7_031_AUTO_OWN_LIVE_SUCCESS_MILL_RECOVER_NIJIGASAKI_LIVE_SCORE_ABILITY_ID,
   N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
+  S_BP7_001_ON_ENTER_DISCARD_RECOVER_HIGH_COST_MEMBER_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
   S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
@@ -78,6 +79,7 @@ import {
   S_BP7_008_LIVE_START_MILL_BOTTOM_ONE_RECOVER_KANAN_OR_DIA_ABILITY_ID,
   S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID,
   S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID,
+  S_BP7_010_ON_ENTER_LOOK_BOTTOM_ONE_OPTIONAL_DECK_FOURTH_ABILITY_ID,
   SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
   SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID,
   HS_BP8_001_ON_ENTER_MILL_THREE_ALL_CERISE_ACTIVATE_ENERGY_ABILITY_ID,
@@ -129,6 +131,7 @@ import {
 } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
+  HeartColor,
   OrientationState,
   SlotPosition,
   TriggerCondition,
@@ -8549,6 +8552,11 @@ describe('card effect classification registry', () => {
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
       queued: true,
       implemented: true,
+      remainingHeartAllocationPreference: {
+        color: HeartColor.GREEN,
+        minCount: 1,
+        requiredStageGroupAlias: '虹ヶ咲',
+      },
     });
 
     const kosuzuLiveSuccess = getCardAbilityDefinitions('PL!HS-pb1-021-N').find(
@@ -10666,6 +10674,10 @@ describe('card effect classification registry', () => {
       queued: true,
       implemented: true,
       effectText: '【LIVE成功时】剩余HEART中自己持有大于等于1个[桃ハート]的场合，抽1张卡。',
+      remainingHeartAllocationPreference: {
+        color: HeartColor.PINK,
+        minCount: 1,
+      },
     });
 
     for (const cardCode of [
@@ -12669,12 +12681,52 @@ describe('2026-07-30 DRAFT S-bp7-008 and SP-bp7-010 definitions', () => {
     }
   );
 
-  it.each(['PL!S-bp7-010-P', 'PL!SP-bp7-012-P'])(
+  it.each(['PL!S-bp7-011-P', 'PL!SP-bp7-012-P'])(
     'does not leak the new definitions to adjacent base card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
     }
   );
+});
+
+describe('2026-08-03 DRAFT PL!S-bp7-001-P 费用9「高海千歌」与 PL!S-bp7-010-N 费用4「高海千歌」 definitions', () => {
+  const samples = [
+    {
+      cardCodes: ['PL!S-bp7-001-P', 'PL!S-bp7-001-UNSEEN'],
+      abilityId: S_BP7_001_ON_ENTER_DISCARD_RECOVER_HIGH_COST_MEMBER_GAIN_BLADE_ABILITY_ID,
+      baseCardCode: 'PL!S-bp7-001',
+      effectText:
+        '【登场】可以将1张手牌放置入休息室：从自己的休息室将1张费用大于等于10的成员卡加入手牌。因此将「樱内梨子」或「渡边曜」加入手牌的场合，LIVE结束时为止，获得[ブレード][ブレード]。',
+    },
+    {
+      cardCodes: ['PL!S-bp7-010-N', 'PL!S-bp7-010-UNSEEN'],
+      abilityId: S_BP7_010_ON_ENTER_LOOK_BOTTOM_ONE_OPTIONAL_DECK_FOURTH_ABILITY_ID,
+      baseCardCode: 'PL!S-bp7-010',
+      effectText: '【登场】检视自己的卡组底的卡片。可以将其放置于卡组顶第4张处。',
+    },
+  ] as const;
+
+  for (const sample of samples) {
+    it.each(sample.cardCodes)(
+      'classifies %s as one base-scoped queued ON_ENTER ability',
+      (cardCode) => {
+        const definitions = getCardAbilityDefinitions(cardCode);
+        expect(definitions).toEqual([
+          expect.objectContaining({
+            abilityId: sample.abilityId,
+            baseCardCodes: [sample.baseCardCode],
+            category: CardAbilityCategory.ON_ENTER,
+            sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+            triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+            queued: true,
+            implemented: true,
+            effectText: sample.effectText,
+          }),
+        ]);
+        expect(definitions[0]?.cardCodes).toBeUndefined();
+      }
+    );
+  }
 });
 
 describe('PL!N-pb1-009 classification', () => {
@@ -15951,9 +16003,9 @@ describe('2026-07-23 PR batches 2-4 base-scoped definitions', () => {
 describe('2026-07-27 PR shared-family definitions', () => {
   const cases = [
     {
-      cardCodes: ['PL!-PR-022-PR', 'PL!N-PR-034-SEC'],
+      cardCodes: ['PL!-PR-023-PR', 'PL!N-PR-034-SEC'],
       abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
-      baseCardCodes: ['PL!-PR-022', 'PL!N-PR-034'],
+      baseCardCodes: ['PL!-PR-023', 'PL!N-PR-034'],
       category: CardAbilityCategory.CONTINUOUS,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: undefined,
@@ -15962,9 +16014,9 @@ describe('2026-07-27 PR shared-family definitions', () => {
         '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
     },
     {
-      cardCodes: ['PL!-PR-023-PR', 'PL!-PR-024-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
+      cardCodes: ['PL!-PR-024-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
       abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-      baseCardCodes: ['PL!-PR-023', 'PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      baseCardCodes: ['PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -16020,6 +16072,16 @@ describe('2026-07-27 PR shared-family definitions', () => {
       }
     );
   }
+
+  it('keeps corrected PR numbers isolated', () => {
+    expect(getCardAbilityDefinitions('PL!-PR-022-PR')).toEqual([]);
+    expect(
+      getCardAbilityDefinitions('PL!-PR-023-PR').map((definition) => definition.abilityId)
+    ).toEqual([PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID]);
+    expect(
+      getCardAbilityDefinitions('PL!-PR-024-PR').map((definition) => definition.abilityId)
+    ).toEqual([PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID]);
+  });
 });
 
 describe('PL!S-bp7-009 黑泽露比 base-scoped continuous definition', () => {

@@ -24,6 +24,7 @@ import {
 } from '../../ability-ids.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { isDirectOrRenGrantedActivatedAbilitySource } from '../../runtime/granted-activated-abilities.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -69,6 +70,7 @@ interface PayEnergyWaitingRoomToHandWorkflowConfig {
   readonly zoneSelection: ZoneCardSelectionConfig;
   readonly canSkipSelection?: boolean;
   readonly allowPaymentWithoutInitialTarget?: boolean;
+  readonly allowsRenGrantedSource?: boolean;
   readonly actionStep: string;
 }
 
@@ -166,6 +168,7 @@ const PAY_ENERGY_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly PayEnergyWaitingRoomTo
         optional: false,
       }),
       canSkipSelection: false,
+      allowsRenGrantedSource: true,
       actionStep: 'PAY_COST_SELECT_WAITING_ROOM_LIVE',
     },
   ];
@@ -425,14 +428,24 @@ function startPayEnergyWaitingRoomToHandWorkflow(
   const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
   const player = getPlayerById(game, playerId);
   const sourceCard = getCardById(game, cardId);
+  const sourceHasAbility =
+    config.allowsRenGrantedSource === true
+      ? isDirectOrRenGrantedActivatedAbilitySource(
+          game,
+          playerId,
+          cardId,
+          config.abilityId,
+          config.expectedBaseCardCodes
+        )
+      : config.expectedBaseCardCodes.some((baseCardCode) =>
+          cardCodeMatchesBase(sourceCard?.data.cardCode ?? '', baseCardCode)
+        );
   if (
     activePlayerId !== playerId ||
     !player ||
     !sourceCard ||
     sourceCard.ownerId !== playerId ||
-    !config.expectedBaseCardCodes.some((baseCardCode) =>
-      cardCodeMatchesBase(sourceCard.data.cardCode, baseCardCode)
-    ) ||
+    !sourceHasAbility ||
     !isMemberCardData(sourceCard.data) ||
     !findMemberSlot(player, cardId)
   ) {

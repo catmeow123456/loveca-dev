@@ -160,6 +160,7 @@ describe('PL!SP-bp2-009 Natsumi workflow', () => {
     expect(state.pendingAbilities).toEqual([]);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,
@@ -207,6 +208,7 @@ describe('PL!SP-bp2-009 Natsumi workflow', () => {
 
     expect(changedHandState.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,

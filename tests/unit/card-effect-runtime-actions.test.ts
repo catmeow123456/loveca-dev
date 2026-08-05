@@ -43,6 +43,7 @@ import {
   moveTopDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers,
 } from '../../src/application/card-effects/runtime/main-deck-waiting-room-triggers';
 import {
+  moveInspectedCardToDeckPositionFromTop,
   moveInspectedCardsToDeckBottomRestToWaitingRoomAndEnqueueTriggers,
   partitionInspectedCardsToHandDeckTopWaitingRoomAndEnqueueTriggers,
 } from '../../src/application/card-effects/runtime/inspection-waiting-room-triggers';
@@ -1877,6 +1878,7 @@ describe('card effect runtime actions', () => {
     expect(result?.bladeBonus).toBe(2);
     expect(result?.modifier).toEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId,
@@ -2042,5 +2044,169 @@ describe('card effect runtime actions', () => {
         targetSlot: emptySlotState.hostSlot,
       })
     ).toBeNull();
+  });
+
+  describe('moveInspectedCardToDeckPositionFromTop', () => {
+    function createInspectionState(remainingDeckCount: number): {
+      readonly game: GameState;
+      readonly inspectedCardId: string;
+      readonly remainingDeckCardIds: readonly string[];
+    } {
+      const inspectedCardId = 'inspected-position-card';
+      const remainingDeckCardIds = Array.from(
+        { length: remainingDeckCount },
+        (_, index) => `position-deck-${index + 1}`
+      );
+      const cards = [inspectedCardId, ...remainingDeckCardIds].map((cardId) =>
+        createCardInstance(createMemberCard(`PL!TEST-${cardId}`), PLAYER1, cardId)
+      );
+      let game = registerCards(
+        createGameState('inspection-position-helper', PLAYER1, 'P1', PLAYER2, 'P2'),
+        cards
+      );
+      game = updatePlayer(game, PLAYER1, (player) => ({
+        ...player,
+        mainDeck: { ...player.mainDeck, cardIds: remainingDeckCardIds },
+      }));
+      game = {
+        ...game,
+        inspectionZone: {
+          ...game.inspectionZone,
+          cardIds: [inspectedCardId],
+          revealedCardIds: [inspectedCardId],
+        },
+        inspectionContext: {
+          ownerPlayerId: PLAYER1,
+          viewerPlayerId: PLAYER1,
+          sourceZone: ZoneType.MAIN_DECK,
+        },
+      };
+      return { game, inspectedCardId, remainingDeckCardIds };
+    }
+
+    it('inserts the inspected card at the requested fourth-from-top position and clears inspection', () => {
+      const scenario = createInspectionState(4);
+      const result = moveInspectedCardToDeckPositionFromTop(
+        scenario.game,
+        PLAYER1,
+        scenario.inspectedCardId,
+        4
+      );
+
+      expect(result).toMatchObject({
+        movedCardId: scenario.inspectedCardId,
+        positionFromTop: 4,
+        insertIndex: 3,
+      });
+      expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
+        ...scenario.remainingDeckCardIds.slice(0, 3),
+        scenario.inspectedCardId,
+        scenario.remainingDeckCardIds[3],
+      ]);
+      expect(result?.gameState.inspectionZone.cardIds).toEqual([]);
+      expect(result?.gameState.inspectionZone.revealedCardIds).toEqual([]);
+      expect(result?.gameState.inspectionContext).toBeNull();
+      expect(result?.gameState.actionHistory).toEqual(scenario.game.actionHistory);
+      expect(result?.gameState.eventLog).toEqual(scenario.game.eventLog);
+    });
+
+    it('clamps a position beyond the remaining short deck to its bottom', () => {
+      const scenario = createInspectionState(2);
+      const result = moveInspectedCardToDeckPositionFromTop(
+        scenario.game,
+        PLAYER1,
+        scenario.inspectedCardId,
+        4
+      );
+
+      expect(result?.insertIndex).toBe(2);
+      expect(result?.positionFromTop).toBe(4);
+      expect(result?.gameState.players[0].mainDeck.cardIds).toEqual([
+        ...scenario.remainingDeckCardIds,
+        scenario.inspectedCardId,
+      ]);
+    });
+
+    it('rejects invalid identity, inspection ownership/source, duplicates and invalid positions without mutation', () => {
+      const scenario = createInspectionState(4);
+      const invalidCalls: readonly (() => ReturnType<
+        typeof moveInspectedCardToDeckPositionFromTop
+      >)[] = [
+        () =>
+          moveInspectedCardToDeckPositionFromTop(
+            scenario.game,
+            'missing-player',
+            scenario.inspectedCardId,
+            4
+          ),
+        () =>
+          moveInspectedCardToDeckPositionFromTop(
+            {
+              ...scenario.game,
+              inspectionContext: { ownerPlayerId: PLAYER2, sourceZone: ZoneType.MAIN_DECK },
+            },
+            PLAYER1,
+            scenario.inspectedCardId,
+            4
+          ),
+        () =>
+          moveInspectedCardToDeckPositionFromTop(
+            {
+              ...scenario.game,
+              inspectionContext: { ownerPlayerId: PLAYER1, sourceZone: ZoneType.WAITING_ROOM },
+            },
+            PLAYER1,
+            scenario.inspectedCardId,
+            4
+          ),
+        () =>
+          moveInspectedCardToDeckPositionFromTop(
+            {
+              ...scenario.game,
+              inspectionZone: {
+                ...scenario.game.inspectionZone,
+                cardIds: [scenario.inspectedCardId, scenario.remainingDeckCardIds[0]],
+              },
+            },
+            PLAYER1,
+            scenario.inspectedCardId,
+            4
+          ),
+        () =>
+          moveInspectedCardToDeckPositionFromTop(
+            updatePlayer(scenario.game, PLAYER1, (player) => ({
+              ...player,
+              mainDeck: {
+                ...player.mainDeck,
+                cardIds: [...player.mainDeck.cardIds, scenario.inspectedCardId],
+              },
+            })),
+            PLAYER1,
+            scenario.inspectedCardId,
+            4
+          ),
+        () =>
+          moveInspectedCardToDeckPositionFromTop(
+            scenario.game,
+            PLAYER1,
+            scenario.inspectedCardId,
+            0
+          ),
+        () =>
+          moveInspectedCardToDeckPositionFromTop(
+            scenario.game,
+            PLAYER1,
+            scenario.inspectedCardId,
+            1.5
+          ),
+      ];
+
+      for (const invalidCall of invalidCalls) {
+        expect(invalidCall()).toBeNull();
+      }
+      expect(scenario.game.players[0].mainDeck.cardIds).toEqual(scenario.remainingDeckCardIds);
+      expect(scenario.game.inspectionZone.cardIds).toEqual([scenario.inspectedCardId]);
+      expect(scenario.game.inspectionContext?.ownerPlayerId).toBe(PLAYER1);
+    });
   });
 });

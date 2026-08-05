@@ -94,7 +94,7 @@ function attachSession(state: GameState) {
 }
 
 describe('PR continuous total successful LIVE score Heart family', () => {
-  it.each(['PL!-PR-022-PR', 'PL!N-PR-034-SEC'])(
+  it.each(['PL!-PR-023-PR', 'PL!N-PR-034-SEC'])(
     'grants one public SOURCE_MEMBER pink Heart for %s only at total effective score 10',
     (cardCode) => {
       const source = createCardInstance(memberData(cardCode), P1, 'source');
@@ -196,7 +196,6 @@ describe('PR relay replacement cost-nine BLADE family', () => {
   }
 
   it.each([
-    ['PL!-PR-023-PR', 'PL!-PR-023'],
     ['PL!-PR-024-PR', 'PL!-PR-024'],
     ['PL!-PR-024-UNSEEN', 'PL!-PR-024'],
     ['PL!HS-PR-040-SEC', 'PL!HS-PR-040'],
@@ -210,11 +209,22 @@ describe('PR relay replacement cost-nine BLADE family', () => {
           definition.abilityId === PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID
       )
     ).toMatchObject({
-      baseCardCodes: ['PL!-PR-023', 'PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      baseCardCodes: ['PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
       effectText:
         '【自动】此成员从舞台被放置入休息室时，此成员曾与费用大于等于9的成员换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。',
     });
     expect(baseCardCode).toBe(cardCode.replace(/-(?:PR|P|SEC|UNSEEN)$/, ''));
+  });
+
+  it('does not grant the relay ability to corrected Eri or the unimplemented adjacent card', () => {
+    for (const cardCode of ['PL!-PR-022-PR', 'PL!-PR-023-PR']) {
+      expect(
+        getCardAbilityDefinitionsForCardCode(cardCode).some(
+          (definition) =>
+            definition.abilityId === PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID
+        )
+      ).toBe(false);
+    }
   });
 
   it('uses the exact LeaveStageEvent replacement and writes target-bound BLADE +2', () => {
@@ -223,6 +233,7 @@ describe('PR relay replacement cost-nine BLADE family', () => {
     expect(resolved.pendingAbilities).toEqual([]);
     expect(resolved.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'TARGET_MEMBER',
       playerId: P1,
       countDelta: 2,
       sourceCardId: source.instanceId,

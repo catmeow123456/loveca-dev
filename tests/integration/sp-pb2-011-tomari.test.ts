@@ -268,6 +268,7 @@ describe('PL!SP-pb2-011 Tomari center move option workflow', () => {
 
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: scenario.sourceId,

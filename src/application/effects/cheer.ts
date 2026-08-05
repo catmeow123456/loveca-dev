@@ -8,17 +8,16 @@ import {
 } from '../../domain/entities/game.js';
 import { createCheerEvent, type CheerEvent } from '../../domain/events/game-events.js';
 import { drawFromBottom, drawFromTop } from '../../domain/entities/zone.js';
-import {
-  CheerDeckEdge,
-  getCheerDeckEdgeForPlayer,
-} from '../../domain/rules/cheer-direction.js';
+import { CheerDeckEdge, getCheerDeckEdgeForPlayer } from '../../domain/rules/cheer-direction.js';
 import {
   RuleActionType,
   applyRuleActionResult,
   ruleActionProcessor,
   type RuleActionResult,
 } from '../../domain/rules/rule-actions.js';
-import type { CardType } from '../../shared/types/enums.js';
+import { getCheerCardEffectiveBladeHearts } from '../../domain/rules/live-modifiers.js';
+import { BladeHeartEffect, type CardType } from '../../shared/types/enums.js';
+import { drawCardsFromMainDeckToHand } from './draw.js';
 
 export interface RevealCheerCardsOptions {
   readonly automated?: boolean;
@@ -31,6 +30,13 @@ export interface RevealCheerCardsResult {
   readonly gameState: GameState;
   readonly cheerCardIds: readonly string[];
   readonly cheerEvent: CheerEvent;
+}
+
+interface ResolveCheerDrawBladeHeartsResult {
+  readonly gameState: GameState;
+  readonly drawCount: number;
+  readonly drawnCardIds: readonly string[];
+  readonly alreadyResolved: boolean;
 }
 
 export function revealCheerCardsFromMainDeck(
@@ -87,10 +93,10 @@ export function revealCheerCardsFromMainDeck(
     additional: options.additional === true,
     deckEdge,
   });
-  state = emitGameEvent(
-    state,
-    cheerEvent
-  );
+  state = emitGameEvent(state, cheerEvent);
+
+  const drawResolution = resolveCheerDrawBladeHearts(state, cheerEvent);
+  state = drawResolution.gameState;
 
   state = addAction(state, 'CHEER', playerId, {
     cheerCount,
@@ -99,12 +105,76 @@ export function revealCheerCardsFromMainDeck(
     automated: options.automated === true,
     additional: options.additional === true,
     deckEdge,
+    ...(drawResolution.drawCount > 0
+      ? {
+          cheerEventId: cheerEvent.eventId,
+          bladeHeartDrawCount: drawResolution.drawCount,
+          bladeHeartDrawnCardIds: drawResolution.drawnCardIds,
+        }
+      : {}),
   });
 
   return {
     gameState: state,
     cheerCardIds,
     cheerEvent,
+  };
+}
+
+/**
+ * Resolve the one-shot DRAW BLADE HEART effects for one completed cheer batch.
+ *
+ * Cheer-triggered AUTO abilities are only checked after this step. Persistent
+ * HEART/SCORE contributions remain derived from the current cheer cards during
+ * final LIVE judgment, so a later reroll can replace those contributions without
+ * attempting to undo cards that were already drawn.
+ */
+function resolveCheerDrawBladeHearts(
+  game: GameState,
+  cheerEvent: CheerEvent
+): ResolveCheerDrawBladeHeartsResult {
+  const resolvedAction = game.actionHistory.find(
+    (action) =>
+      action.type === 'CHEER' &&
+      action.payload.cheerEventId === cheerEvent.eventId &&
+      typeof action.payload.bladeHeartDrawCount === 'number' &&
+      Array.isArray(action.payload.bladeHeartDrawnCardIds)
+  );
+  if (resolvedAction) {
+    const drawCount =
+      typeof resolvedAction.payload.bladeHeartDrawCount === 'number'
+        ? resolvedAction.payload.bladeHeartDrawCount
+        : 0;
+    const drawnCardIds = Array.isArray(resolvedAction.payload.bladeHeartDrawnCardIds)
+      ? resolvedAction.payload.bladeHeartDrawnCardIds.filter(
+          (cardId): cardId is string => typeof cardId === 'string'
+        )
+      : [];
+    return {
+      gameState: game,
+      drawCount,
+      drawnCardIds,
+      alreadyResolved: true,
+    };
+  }
+
+  const drawCount = cheerEvent.revealedCardIds.reduce(
+    (count, cardId) =>
+      count +
+      getCheerCardEffectiveBladeHearts(game, cheerEvent.playerId, cardId).filter(
+        (bladeHeart) => bladeHeart.effect === BladeHeartEffect.DRAW
+      ).length,
+    0
+  );
+  const drawResult =
+    drawCount > 0 ? drawCardsFromMainDeckToHand(game, cheerEvent.playerId, drawCount) : null;
+  const drawnCardIds = drawResult?.drawnCardIds ?? [];
+
+  return {
+    gameState: drawResult?.gameState ?? game,
+    drawCount,
+    drawnCardIds,
+    alreadyResolved: false,
   };
 }
 

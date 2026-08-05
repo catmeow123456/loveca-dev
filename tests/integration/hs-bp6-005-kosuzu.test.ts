@@ -200,6 +200,7 @@ describe('PL!HS-bp6-005 Kosuzu workflows', () => {
         },
         {
           kind: 'BLADE',
+          target: 'SOURCE_MEMBER',
           playerId: PLAYER1,
           sourceCardId: source.instanceId,
           abilityId:

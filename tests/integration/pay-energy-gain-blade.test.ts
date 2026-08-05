@@ -233,6 +233,7 @@ describe('pay energy gain Blade workflow', () => {
     }
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,
@@ -359,6 +360,7 @@ describe('pay energy gain Blade workflow', () => {
     );
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 3,
       sourceCardId: source.instanceId,
@@ -499,6 +501,7 @@ describe('pay energy gain Blade workflow', () => {
     ).toEqual([scenario.energyIds[0]]);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
       sourceCardId: scenario.sourceId,
@@ -710,6 +713,7 @@ describe('pay energy gain Blade workflow', () => {
     );
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
       sourceCardId: source.instanceId,

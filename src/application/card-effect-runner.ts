@@ -419,11 +419,13 @@ import { registerNBp7029BurnWorkflowHandlers } from './card-effects/workflows/ca
 import { registerNBp7031LikeATreasureWorkflowHandlers } from './card-effects/workflows/cards/n-bp7-031-like-a-treasure.js';
 import { registerSBp7025GuiltyNightGuiltyKissWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-025-guilty-night-guilty-kiss.js';
 import { registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-028-mirai-no-oto-ga-kikoeru.js';
+import { registerSBp7001ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-001-chika.js';
 import { registerSBp7003KananWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-003-kanan.js';
 import { registerSBp7004DiaWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-004-dia.js';
 import { registerSBp7005YouWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-005-you.js';
 import { registerSBp7007HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-007-hanamaru.js';
 import { registerSBp7008MariWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-008-mari.js';
+import { registerSBp7010ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-010-chika.js';
 import { registerSpBp7010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-010-margarete.js';
 import { registerSBp7019NandoDatteYakusokuWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-019-nando-datte-yakusoku.js';
 import { registerSpBp7004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-004-sumire.js';
@@ -1234,6 +1236,7 @@ registerNBp7029BurnWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp7031LikeATreasureWorkflowHandlers();
 registerSBp7025GuiltyNightGuiltyKissWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7028MiraiNoOtoGaKikoeruWorkflowHandlers();
+registerSBp7001ChikaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7003KananWorkflowHandlers({
   enqueueMemberSlotMovedCardEffects: enqueueTriggeredCardEffects,
 });
@@ -1241,6 +1244,7 @@ registerSBp7004DiaWorkflowHandlers();
 registerSBp7005YouWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7007HanamaruWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7008MariWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSBp7010ChikaWorkflowHandlers();
 registerSpBp7010MargareteWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7019NandoDatteYakusokuWorkflowHandlers();
 registerSpBp7004SumireWorkflowHandlers();
