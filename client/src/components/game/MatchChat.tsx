@@ -56,9 +56,10 @@ type MatchChatAccess =
 
 interface MatchChatProps {
   readonly access: MatchChatAccess;
+  readonly compact?: boolean;
 }
 
-export const MatchChat = memo(function MatchChat({ access }: MatchChatProps) {
+export const MatchChat = memo(function MatchChat({ access, compact = false }: MatchChatProps) {
   const [messages, setMessages] = useState<readonly OnlineMatchChatEntry[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isEmoteMenuOpen, setIsEmoteMenuOpen] = useState(false);
@@ -349,17 +350,23 @@ export const MatchChat = memo(function MatchChat({ access }: MatchChatProps) {
     <div className="relative">
       <button
         ref={chatButtonRef}
+        data-match-chat-trigger
         type="button"
         onClick={handleChatButton}
-        className="button-ghost relative inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:min-h-11"
+        className={cn(
+          'button-ghost relative inline-flex items-center justify-center border border-[var(--border-default)] bg-[var(--bg-frosted)] shadow-[var(--shadow-md)] backdrop-blur-xl',
+          compact ? 'h-9 w-9 p-0' : 'min-h-10 gap-2 px-3 sm:min-h-11'
+        )}
         aria-label={isSpectator ? '观战聊天' : '局内聊天'}
         aria-expanded={isChatOpen}
         title={isSpectator ? '观战聊天' : '局内聊天'}
       >
         <MessageCircle size={16} />
-        <span className="hidden text-sm font-semibold sm:inline">
-          {isSpectator ? '聊天' : '局内聊天'}
-        </span>
+        {!compact ? (
+          <span className="hidden text-sm font-semibold sm:inline">
+            {isSpectator ? '聊天' : '局内聊天'}
+          </span>
+        ) : null}
         {unreadCount > 0 ? <UnreadBadge count={unreadCount} /> : null}
       </button>
 
@@ -368,12 +375,13 @@ export const MatchChat = memo(function MatchChat({ access }: MatchChatProps) {
           <div ref={emoteAnchorRootRef} className="relative">
             <button
               ref={emoteLauncherButtonRef}
+              data-match-emote-launcher
               type="button"
               onClick={() => {
                 setEmoteSendError(null);
                 setIsEmoteMenuOpen((open) => !open);
               }}
-              className="button-ghost inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent-primary)_42%,var(--border-default))] bg-[var(--bg-frosted)] p-0 text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+              className="button-ghost inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent-primary)_42%,var(--border-default))] bg-[var(--bg-frosted)] p-0 text-[var(--accent-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl"
               aria-label="快捷表情"
               aria-expanded={isEmoteMenuOpen}
               title="快捷表情"
@@ -643,7 +651,11 @@ function useIdentityAnchorStyle(seat: Seat, kind: 'launcher' | 'preview'): CSSPr
     let frame = 0;
     let resizeObserver: ResizeObserver | null = null;
     const update = () => {
-      const anchor = document.querySelector<HTMLElement>(`[data-player-identity-seat="${seat}"]`);
+      const anchorSelector =
+        kind === 'launcher'
+          ? `[data-player-communication-seat="${seat}"]`
+          : `[data-player-identity-seat="${seat}"]`;
+      const anchor = document.querySelector<HTMLElement>(anchorSelector);
       if (!anchor) {
         setStyle(null);
         return;
@@ -651,8 +663,8 @@ function useIdentityAnchorStyle(seat: Seat, kind: 'launcher' | 'preview'): CSSPr
       const rect = anchor.getBoundingClientRect();
       if (kind === 'launcher') {
         setStyle({
-          left: Math.min(window.innerWidth - 48, Math.max(8, rect.right + 6)),
-          top: Math.max(8, rect.top + rect.height / 2 - 20),
+          left: Math.min(window.innerWidth - 48, Math.max(8, rect.left)),
+          top: Math.max(8, rect.top + 2),
         });
       } else {
         const showBelow = rect.top < window.innerHeight / 2;

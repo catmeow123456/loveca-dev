@@ -40,6 +40,7 @@ import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   acceptOnlineRoomRestart,
   cancelOnlineRoomRestart,
@@ -166,6 +167,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
   const [isRankedNoticeOpen, setIsRankedNoticeOpen] = useState(false);
   const [roomCodeCopied, setRoomCodeCopied] = useState(false);
   const [showOpponentReturnedNotice, setShowOpponentReturnedNotice] = useState(false);
+  const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
   const roomCodeCopyTimerRef = useRef<number | null>(null);
   const opponentReturnedTimerRef = useRef<number | null>(null);
   const previousOpponentPresenceRef = useRef<OnlineRoomView['members'][number]['presence'] | null>(
@@ -903,47 +905,49 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
   if (activeBattleContext) {
     return (
       <BattleViewportShell>
-        <div className="absolute left-4 top-4 z-[120] flex max-w-[calc(100vw-2rem)] flex-col items-start gap-2">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsRoomPanelOpen((open) => !open)}
-              aria-expanded={isRoomPanelOpen}
-              className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3.5 shadow-[var(--shadow-md)] backdrop-blur-xl sm:px-4"
-              title="打开房间操作"
-            >
-              <Users size={16} />
-              <span className="hidden text-sm font-semibold sm:inline">
-                房间 {activeBattleContext.room.roomCode}
-              </span>
-              <span className="text-sm font-semibold sm:hidden">
-                {activeBattleContext.room.roomCode}
-              </span>
-              <span className="h-4 w-px bg-[var(--border-default)]" />
-              <span
-                className="inline-flex items-center gap-1.5"
-                title="公开观战人数，不包含管理员观战"
+        <div className="absolute left-2 top-[calc(env(safe-area-inset-top)+4rem)] z-[120] flex max-w-[calc(100vw-1rem)] flex-col items-start gap-2 md:left-4 md:top-4 md:max-w-[calc(100vw-2rem)]">
+          {!isMobileBattlefield ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsRoomPanelOpen((open) => !open)}
+                aria-expanded={isRoomPanelOpen}
+                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3.5 shadow-[var(--shadow-md)] backdrop-blur-xl sm:px-4"
+                title="打开房间操作"
               >
-                <Eye size={15} />
-                <span className="text-sm">{spectatorPresence.total}</span>
-              </span>
-              <ChevronDown
-                size={15}
-                className={`transition-transform ${isRoomPanelOpen ? 'rotate-180' : ''}`}
+                <Users size={16} />
+                <span className="hidden text-sm font-semibold sm:inline">
+                  房间 {activeBattleContext.room.roomCode}
+                </span>
+                <span className="text-sm font-semibold sm:hidden">
+                  {activeBattleContext.room.roomCode}
+                </span>
+                <span className="h-4 w-px bg-[var(--border-default)]" />
+                <span
+                  className="inline-flex items-center gap-1.5"
+                  title="公开观战人数，不包含管理员观战"
+                >
+                  <Eye size={15} />
+                  <span className="text-sm">{spectatorPresence.total}</span>
+                </span>
+                <ChevronDown
+                  size={15}
+                  className={`transition-transform ${isRoomPanelOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              <div className="hidden md:block">
+                <PublicBattleLogButton />
+              </div>
+              <MatchChat
+                key={activeBattleContext.matchId}
+                access={{
+                  kind: 'PARTICIPANT',
+                  matchId: activeBattleContext.matchId,
+                  viewerSeat: activeBattleContext.matchView.viewerSeat,
+                }}
               />
-            </button>
-            <div className="hidden md:block">
-              <PublicBattleLogButton />
             </div>
-            <MatchChat
-              key={activeBattleContext.matchId}
-              access={{
-                kind: 'PARTICIPANT',
-                matchId: activeBattleContext.matchId,
-                viewerSeat: activeBattleContext.matchView.viewerSeat,
-              }}
-            />
-          </div>
+          ) : null}
           {isRoomPanelOpen && (
             <RoomActionPanel
               roomCode={activeBattleContext.room.roomCode}
@@ -1039,7 +1043,39 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
             </div>
           )}
         </div>
-        <GameBoard showDesktopPublicBattleLogButton={false} />
+        <GameBoard
+          showDesktopPublicBattleLogButton={false}
+          mobileHeaderActions={
+            isMobileBattlefield ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsRoomPanelOpen((open) => !open)}
+                  aria-label={`房间操作，房间 ${activeBattleContext.room.roomCode}，${spectatorPresence.total} 人观战`}
+                  aria-expanded={isRoomPanelOpen}
+                  className="button-ghost relative inline-flex h-9 w-9 items-center justify-center border border-[var(--border-default)] bg-[var(--bg-frosted)] p-0 shadow-[var(--shadow-md)] backdrop-blur-xl"
+                  title="打开房间操作"
+                >
+                  <Users size={16} />
+                  {spectatorPresence.total > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent-primary)] px-1 text-[9px] font-bold leading-none text-white">
+                      {Math.min(spectatorPresence.total, 99)}
+                    </span>
+                  ) : null}
+                </button>
+                <MatchChat
+                  key={activeBattleContext.matchId}
+                  compact
+                  access={{
+                    kind: 'PARTICIPANT',
+                    matchId: activeBattleContext.matchId,
+                    viewerSeat: activeBattleContext.matchView.viewerSeat,
+                  }}
+                />
+              </>
+            ) : undefined
+          }
+        />
         {activeBattleContext.matchView.endInfo && (
           <OnlineMatchEndPanel
             endInfo={activeBattleContext.matchView.endInfo}

@@ -1282,7 +1282,9 @@ export const PlayerArea = memo(function PlayerArea({
           <span className={ZONE_META_LABEL_CLASS}>
             能量区 ({activeCount}/{energyCount})
           </span>
-          {canUseEnergyControls && renderEnergyOrientationControls('desktop')}
+          {isFreeOperationMode &&
+            canUseEnergyControls &&
+            renderEnergyOrientationControls('desktop')}
         </div>
         {/* 横向布局 */}
         <div className="flex gap-1 flex-wrap max-w-[300px]">
@@ -1985,7 +1987,7 @@ export const PlayerArea = memo(function PlayerArea({
     const activeCount = energyZoneCardIds.filter((id) => {
       return getEnergyCardOrientation(id) === OrientationState.ACTIVE;
     }).length;
-    const showMobileEnergyControls = !isReadOnly && !isOpponent;
+    const showMobileEnergyControls = !isReadOnly && !isOpponent && isFreeOperationMode;
 
     return (
       <DroppableZone
@@ -2999,6 +3001,7 @@ export const PlayerArea = memo(function PlayerArea({
             >
               {playerIdentity.name}
             </div>
+            <div data-player-communication-seat={playerSeat} className="h-10 w-10 shrink-0" />
             {renderHandContextActions()}
           </div>
 
@@ -3123,6 +3126,7 @@ export const PlayerArea = memo(function PlayerArea({
         >
           {playerIdentity.name}
         </div>
+        <div data-player-communication-seat={playerSeat} className="h-10 w-10 shrink-0" />
         <div className={ZONE_META_LABEL_CLASS}>手牌: {displayedHandCount}</div>
         {renderHandContextActions()}
       </div>

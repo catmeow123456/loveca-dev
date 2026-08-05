@@ -21,7 +21,8 @@ test.describe('联机对局快捷表情', () => {
   test.describe.configure({ mode: 'serial' });
   test.setTimeout(120_000);
 
-  test.beforeEach(({}, testInfo) => {
+  test.beforeEach(({ browser }, testInfo) => {
+    void browser;
     test.skip(
       testInfo.project.name !== 'tablet-1024x768',
       '本用例在单个 project 内自行覆盖桌面、移动端与观战 context'
@@ -107,6 +108,26 @@ test.describe('联机对局快捷表情', () => {
       await attachPlayerToRoom(secondPage, roomCode);
       await finishOpeningMulligan(firstPage, secondPage);
 
+      const mobileOpponentStatus = secondPage.getByRole('button', {
+        name: /Test Player 1，手牌 \d+ 张，查看对手战场/u,
+      });
+      const mobileSelfStatus = secondPage.getByRole('button', {
+        name: /Test Player 2，手牌 \d+ 张，返回己方战场/u,
+      });
+      await expect(
+        secondPage.locator('[data-mobile-player-status-seat][aria-pressed="true"]')
+      ).toHaveCount(1);
+      await expect(
+        secondPage.locator('[data-mobile-player-status-seat][data-mobile-active-player="true"]')
+      ).toHaveCount(1);
+      await expect(mobileSelfStatus).toHaveAttribute('aria-pressed', 'true');
+      await mobileOpponentStatus.click();
+      await expect(secondPage.getByText('对手战场', { exact: true })).toBeVisible();
+      await expect(mobileOpponentStatus).toHaveAttribute('aria-pressed', 'true');
+      await mobileSelfStatus.click();
+      await expect(secondPage.getByText('对手战场', { exact: true })).toBeHidden();
+      await expect(mobileSelfStatus).toHaveAttribute('aria-pressed', 'true');
+
       const firstChatButton = firstPage.getByRole('button', { name: '局内聊天', exact: true });
       await firstChatButton.click();
       await expect(firstPage.getByLabel('局内聊天面板')).toBeVisible();
@@ -115,11 +136,13 @@ test.describe('联机对局快捷表情', () => {
         name: '快捷表情',
         exact: true,
       });
-      await expectNearby(
-        firstEmoteLauncher,
-        firstPage.locator('[data-player-identity-seat]').filter({ hasText: 'Test Player 1' }),
-        100
-      );
+      const firstIdentity = firstPage
+        .locator('[data-player-identity-seat]')
+        .filter({ hasText: 'Test Player 1' });
+      const firstHandCount = firstIdentity.locator('..').getByText(/^手牌: \d+$/u);
+      await expect(firstHandCount).toBeVisible();
+      await expectNearby(firstEmoteLauncher, firstIdentity, 100);
+      await expectNoOverlap(firstEmoteLauncher, firstHandCount);
       await firstEmoteLauncher.click();
       const quickMenu = firstPage.getByRole('dialog', { name: '快捷表情' });
       await expect(quickMenu).toBeVisible();
@@ -151,12 +174,22 @@ test.describe('联机对局快捷表情', () => {
         name: '快捷表情',
         exact: true,
       });
+      const secondChatButton = secondPage.getByRole('button', {
+        name: '局内聊天',
+        exact: true,
+      });
+      await expectContainedWithin(
+        secondChatButton,
+        secondPage.locator('[data-mobile-header-actions]')
+      );
       const secondIdentity = secondPage
         .locator('[data-player-identity-seat]')
         .filter({ hasText: 'Test Player 2' });
-      const secondHandCount = secondIdentity.locator('..').getByText(/^手牌: \d+$/u);
-      await expect(secondHandCount).toHaveCount(0);
+      const secondHandCount = secondPage.locator('[data-mobile-player-hand-count="SECOND"]');
+      await expect(secondHandCount).toBeVisible();
+      await expect(secondHandCount).toHaveText(/^手牌 \d+$/u);
       await expectNearby(secondEmoteLauncher, secondIdentity, 100);
+      await expectNoOverlap(secondEmoteLauncher, secondIdentity);
       await secondEmoteLauncher.click();
       await secondPage
         .getByRole('dialog', { name: '快捷表情' })
@@ -361,4 +394,33 @@ async function expectNearby(first: Locator, second: Locator, maxDistance: number
     firstBox!.y - (secondBox!.y + secondBox!.height)
   );
   expect(Math.hypot(horizontalGap, verticalGap)).toBeLessThanOrEqual(maxDistance);
+}
+
+async function expectNoOverlap(first: Locator, second: Locator): Promise<void> {
+  const firstBox = await first.boundingBox();
+  const secondBox = await second.boundingBox();
+  expect(firstBox).not.toBeNull();
+  expect(secondBox).not.toBeNull();
+  const overlapWidth = Math.max(
+    0,
+    Math.min(firstBox!.x + firstBox!.width, secondBox!.x + secondBox!.width) -
+      Math.max(firstBox!.x, secondBox!.x)
+  );
+  const overlapHeight = Math.max(
+    0,
+    Math.min(firstBox!.y + firstBox!.height, secondBox!.y + secondBox!.height) -
+      Math.max(firstBox!.y, secondBox!.y)
+  );
+  expect(overlapWidth * overlapHeight).toBe(0);
+}
+
+async function expectContainedWithin(inner: Locator, outer: Locator): Promise<void> {
+  const innerBox = await inner.boundingBox();
+  const outerBox = await outer.boundingBox();
+  expect(innerBox).not.toBeNull();
+  expect(outerBox).not.toBeNull();
+  expect(innerBox!.x).toBeGreaterThanOrEqual(outerBox!.x);
+  expect(innerBox!.y).toBeGreaterThanOrEqual(outerBox!.y);
+  expect(innerBox!.x + innerBox!.width).toBeLessThanOrEqual(outerBox!.x + outerBox!.width);
+  expect(innerBox!.y + innerBox!.height).toBeLessThanOrEqual(outerBox!.y + outerBox!.height);
 }

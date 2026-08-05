@@ -10,6 +10,7 @@ import {
   useLayoutEffect,
   useRef,
   type MouseEvent,
+  type ReactNode,
 } from 'react';
 import {
   DndContext,
@@ -162,6 +163,16 @@ function formatCardCompactLabel(cardData: AnyCardData): string {
 
 type MobileBattlePanel = 'opponent' | 'log' | 'publicLog';
 
+function getMobilePlayerStatusStateClass(isViewed: boolean, isActive: boolean): string {
+  if (isActive) {
+    return 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_20%,transparent)] text-[var(--text-primary)] shadow-[0_0_0_1px_color-mix(in_srgb,var(--accent-primary)_16%,transparent)]';
+  }
+
+  return isViewed
+    ? 'border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_34%,transparent)] text-[var(--text-primary)] shadow-[var(--shadow-sm)]'
+    : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)]';
+}
+
 interface DragBattleActionIntentCache {
   readonly key: string;
   readonly cardId: string;
@@ -290,12 +301,14 @@ interface GameBoardProps {
   onLeaveLocalGame?: () => void;
   onRestartGame?: () => void;
   showDesktopPublicBattleLogButton?: boolean;
+  mobileHeaderActions?: ReactNode;
 }
 
 export const GameBoard = memo(function GameBoard({
   onLeaveLocalGame,
   onRestartGame,
   showDesktopPublicBattleLogButton = true,
+  mobileHeaderActions,
 }: GameBoardProps) {
   // 配置拖拽传感器：需要移动 5px 才开始拖拽，避免与双击冲突
   const sensors = useSensors(
@@ -2235,7 +2248,7 @@ export const GameBoard = memo(function GameBoard({
     );
   }
 
-  if (!viewerSeat || !currentPhase) {
+  if (!viewerSeat || !currentPhase || !playerViewState) {
     return null;
   }
 
@@ -2257,6 +2270,8 @@ export const GameBoard = memo(function GameBoard({
         : '退出调试房间';
   const selfIdentity = getPlayerIdentityForSeat(selfSeat);
   const opponentIdentity = getPlayerIdentityForSeat(opponentSeat);
+  const selfHandCount = playerViewState.table.zones[`${selfSeat}_HAND`]?.count ?? 0;
+  const opponentHandCount = playerViewState.table.zones[`${opponentSeat}_HAND`]?.count ?? 0;
   const phaseInfo = getPhaseConfig(currentPhase)?.display;
   const subPhaseInfo =
     currentSubPhase !== SubPhase.NONE ? getSubPhaseConfig(currentSubPhase)?.display : null;
@@ -2386,6 +2401,10 @@ export const GameBoard = memo(function GameBoard({
                         </button>
                       )}
                     </div>
+                  ) : mobileHeaderActions ? (
+                    <div data-mobile-header-actions className="flex shrink-0 items-center gap-1">
+                      {mobileHeaderActions}
+                    </div>
                   ) : (
                     <div className="h-9 w-9 shrink-0" />
                   )}
@@ -2406,20 +2425,21 @@ export const GameBoard = memo(function GameBoard({
                 </div>
               </div>
 
-              <div className="mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
+              <div className="relative z-[95] mt-1.5 grid grid-cols-2 items-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--border-default)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_18%,transparent)] px-1.5 py-1.5 shadow-none backdrop-blur-[2px]">
                 {capabilities.canSwitchPerspective ? (
                   (['FIRST', 'SECOND'] as const).map((seat) => {
                     const identity = getPlayerIdentityForSeat(seat);
                     const isCurrentPerspective = seat === selfSeat;
-                    const liveScore = matchView.liveResult?.scores[seat] ?? 0;
+                    const handCount = playerViewState.table.zones[`${seat}_HAND`]?.count ?? 0;
                     const seatLabel = seat === 'FIRST' ? 'P1' : 'P2';
                     return (
                       <button
                         key={seat}
                         type="button"
+                        data-player-identity-seat={seat}
                         onClick={() => handleMobilePerspectiveSelect(seat)}
                         aria-pressed={isCurrentPerspective}
-                        aria-label={`${seatLabel} ${identity?.name ?? '玩家'}${
+                        aria-label={`${seatLabel} ${identity?.name ?? '玩家'}，手牌 ${handCount} 张${
                           isCurrentPerspective ? '，当前视角' : '，切换至此视角'
                         }`}
                         className={cn(
@@ -2442,8 +2462,11 @@ export const GameBoard = memo(function GameBoard({
                         <span className="min-w-0 flex-1 truncate text-[11px] font-semibold">
                           {identity?.name ?? '玩家'}
                         </span>
-                        <span className="shrink-0 text-[10px] font-semibold text-[var(--text-muted)]">
-                          Live {liveScore}
+                        <span
+                          data-mobile-player-hand-count={seat}
+                          className="shrink-0 text-[10px] font-semibold text-[var(--text-muted)] tabular-nums"
+                        >
+                          手牌 {handCount}
                         </span>
                       </button>
                     );
@@ -2453,12 +2476,19 @@ export const GameBoard = memo(function GameBoard({
                     <button
                       type="button"
                       data-player-identity-seat={opponentSeat}
+                      data-mobile-player-status-seat={opponentSeat}
+                      data-mobile-active-player={
+                        resolvedActiveSeat === opponentSeat ? 'true' : undefined
+                      }
                       onClick={handleMobileOpponentAction}
+                      aria-pressed={mobilePanel === 'opponent'}
+                      aria-label={`${opponentIdentity?.name ?? '对手'}，手牌 ${opponentHandCount} 张，${isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}${resolvedActiveSeat === opponentSeat ? '，当前行动玩家' : ''}`}
                       className={cn(
                         'flex min-w-0 items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
-                        resolvedActiveSeat === opponentSeat
-                          ? 'border-rose-300/50 bg-rose-500/20 text-rose-100'
-                          : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)] text-[var(--text-secondary)]'
+                        getMobilePlayerStatusStateClass(
+                          mobilePanel === 'opponent',
+                          resolvedActiveSeat === opponentSeat
+                        )
                       )}
                       title={isSolitaire ? '查看对墙打对手战场' : '查看对手战场'}
                     >
@@ -2466,25 +2496,41 @@ export const GameBoard = memo(function GameBoard({
                       <span className="min-w-0 truncate text-[11px] font-semibold text-[var(--text-primary)]">
                         {opponentIdentity?.name ?? '对手'}
                       </span>
-                      <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                        Live {opponentLiveScore}
+                      <span
+                        data-mobile-player-hand-count={opponentSeat}
+                        className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
+                      >
+                        手牌 {opponentHandCount}
                       </span>
                     </button>
-                    <div
+                    <button
+                      type="button"
+                      data-mobile-player-status-seat={selfSeat}
+                      data-mobile-active-player={
+                        resolvedActiveSeat === selfSeat ? 'true' : undefined
+                      }
+                      onClick={() => setMobilePanel(null)}
+                      aria-pressed={mobilePanel !== 'opponent'}
+                      aria-label={`${selfIdentity?.name ?? '己方'}，手牌 ${selfHandCount} 张，返回己方战场${resolvedActiveSeat === selfSeat ? '，当前行动玩家' : ''}`}
                       className={cn(
-                        'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5',
-                        resolvedActiveSeat === selfSeat
-                          ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
-                          : 'border-transparent bg-[color:color-mix(in_srgb,var(--bg-overlay)_16%,transparent)]'
+                        'flex min-w-0 items-center justify-end gap-1.5 rounded-lg border px-2 py-1.5 text-left transition hover:border-[var(--border-default)] hover:bg-[color:color-mix(in_srgb,var(--bg-overlay)_42%,transparent)]',
+                        getMobilePlayerStatusStateClass(
+                          mobilePanel !== 'opponent',
+                          resolvedActiveSeat === selfSeat
+                        )
                       )}
+                      title="返回己方战场"
                     >
                       <span className="min-w-0 truncate text-right text-[11px] font-semibold text-[var(--text-primary)]">
                         {selfIdentity?.name ?? '己方'}
                       </span>
-                      <span className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)]">
-                        Live {viewerLiveScore}
+                      <span
+                        data-mobile-player-hand-count={selfSeat}
+                        className="shrink-0 rounded-full border border-[var(--border-subtle)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text-secondary)] tabular-nums"
+                      >
+                        手牌 {selfHandCount}
                       </span>
-                    </div>
+                    </button>
                   </>
                 )}
               </div>

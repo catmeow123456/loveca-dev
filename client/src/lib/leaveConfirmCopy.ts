@@ -23,7 +23,7 @@ export function getOnlineRoomLeaveConfirmCopy(
     if ((originKind === 'ONLINE_ROOM' || originKind === 'PUBLIC_TABLE') && isMatchCompleted) {
       return {
         title: '要离开这个房间吗？',
-        message: '离开后就不能回到这个房间，也不能再和对手来一局了。',
+        message: '离开后将无法返回当前房间，也无法与当前对手再次对局。',
         confirmLabel: '离开房间',
       };
     }
