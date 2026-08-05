@@ -16,7 +16,7 @@ import {
   PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID,
   PL_BP3_026_LIVE_SUCCESS_HIGHER_STAGE_HEART_TOTAL_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
@@ -372,9 +372,10 @@ function resolveOhLovePeaceBladeTarget(
   targetMemberCardId: string,
   discardedHandCardIds: readonly string[]
 ): GameState {
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId,
-    sourceCardId: targetMemberCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId,
     abilityId: effect.abilityId,
     amount: 3,
   });

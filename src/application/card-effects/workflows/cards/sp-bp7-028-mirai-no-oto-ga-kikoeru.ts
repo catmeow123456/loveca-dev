@@ -20,7 +20,7 @@ import {
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
-  addBladeLiveModifierForMember,
+  addBladeLiveModifierForTargetMember,
 } from '../../runtime/actions.js';
 import { shuffleWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
@@ -208,12 +208,12 @@ function finishLiveStartSelection(
   );
   let state = shuffleResult.gameState;
   for (const memberCardId of targetMemberCardIds) {
-    const result = addBladeLiveModifierForMember(state, {
+    const result = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      memberCardId,
       sourceCardId: effect.sourceCardId,
+      targetMemberCardId: memberCardId,
       abilityId: effect.abilityId,
-      countDelta: 1,
+      amount: 1,
     });
     if (!result) return game;
     state = result.gameState;

@@ -3634,7 +3634,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP5_022_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow `s-bp5-022-self-control.ts`；无交互 queued pending 走 manual confirm-only，并实时展示本回合移动过且仍在自己舞台的成员数量与实际 [BLADE] 结果。结算时复用 getPositionMovedStageMemberIdsMatching 与 addBladeLiveModifierForSourceMember，为每名目标成员写 SOURCE_MEMBER BLADE +1。',
+      '单卡 LIVE_START workflow `s-bp5-022-self-control.ts`；无交互 queued pending 走 manual confirm-only，并实时展示本回合移动过且仍在自己舞台的成员数量与实际 [BLADE] 结果。结算时复用 getPositionMovedStageMemberIdsMatching 与 addBladeLiveModifierForTargetMember，以此 LIVE 为真实来源，为每名目标成员写 TARGET_MEMBER BLADE +1。',
   },
   {
     abilityId: S_BP5_022_LIVE_SUCCESS_MORE_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -4248,7 +4248,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP3_001_EFFECT_TEXT,
     notes:
-      '单卡 workflow `n-bp3-001-ayumu.ts`；真实可选发动窗口。支付复用 WAITING-first stackEnergyFromEnergyZoneBelowMember，成功后复用 drawCardsForPlayer，并用舞台 selector 与 addBladeLiveModifierForSourceMember 为当前己方主舞台全部成员（含来源）各写 BLADE +2。',
+      '单卡 workflow `n-bp3-001-ayumu.ts`；真实可选发动窗口。支付复用 WAITING-first stackEnergyFromEnergyZoneBelowMember，成功后复用 drawCardsForPlayer，并用舞台 selector 与 addBladeLiveModifierForTargetMember 为当前己方主舞台全部成员（含来源）各写 TARGET_MEMBER BLADE +2；sourceCardId 保留步梦来源，受益成员分别写 targetMemberCardId。',
   },
   {
     abilityId: PL_N_BP3_013_ON_ENTER_STACK_ENERGY_DRAW_TWO_ABILITY_ID,
@@ -4389,7 +4389,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_BP4_020_CONTINUOUS_EFFECT_TEXT,
     notes:
-      "成功区 continuous registry 每次动态收集；每张合法 020 独立为己方 CENTER 顶层结构化 μ's 成员产生 BLADE +1，以获得 BLADE 的成员实例作为 sourceCardId，不写入持久 modifier。",
+      "成功区 continuous registry 每次动态收集；每张合法 020 独立为己方 CENTER 顶层结构化 μ's 成员产生 TARGET_MEMBER BLADE +1，sourceCardId 保留来源 LIVE，targetMemberCardId 指向受益的 CENTER 成员，不写入持久 modifier。",
   },
   {
     abilityId: PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
@@ -11152,7 +11152,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_EFFECT_TEXT,
     notes:
-      '单卡 workflow `sp-bp4-023-dazzling-game.ts` 第一段；来源 LIVE 必须仍在自己 liveZone。两步选择：先选「涩谷香音」/「薇恩・玛格丽特」/「鬼冢冬毬」之一，再选不同 cardId 的另1名 Liella! 成员；第二目标不按名字去重，因此另一张同名 Liella! 成员可选。结算用现有成员 BLADE modifier 形状写入两个实际目标各 BLADE +1。',
+      '单卡 workflow `sp-bp4-023-dazzling-game.ts` 第一段；来源 LIVE 必须仍在自己 liveZone。两步选择：先选「涩谷香音」/「薇恩・玛格丽特」/「鬼冢冬毬」之一，再选不同 cardId 的另1名 Liella! 成员；第二目标不按名字去重，因此另一张同名 Liella! 成员可选。结算为两个实际目标分别写 TARGET_MEMBER BLADE +1，sourceCardId 保留 Dazzling Game 来源且各自记录 targetMemberCardId。',
   },
   {
     abilityId: SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
@@ -11405,7 +11405,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       title: '发动大沢瑠璃乃的起动能力',
     },
     notes:
-      '单卡 activated workflow；主阶段、自己回合、来源在己方舞台且为 ACTIVE 时可发动。费用用 setMemberOrientation + member-state trigger wrapper 将来源变 WAITING，费用成功后才 recordAbilityUse；之后选择自己舞台1名みらくらぱーく！成员获得 SOURCE_MEMBER BLADE +1，目标可为已 WAITING 的来源自身。',
+      '单卡 activated workflow；主阶段、自己回合、来源在己方舞台且为 ACTIVE 时可发动。费用用 setMemberOrientation + member-state trigger wrapper 将来源变 WAITING，费用成功后才 recordAbilityUse；之后选择自己舞台1名みらくらぱーく！成员获得 TARGET_MEMBER BLADE +1，sourceCardId 保留瑠璃乃来源，受益成员写 targetMemberCardId；目标可为已 WAITING 的来源自身。',
   },
   {
     abilityId: HS_CL1_004_ON_ENTER_MILL_THREE_OR_WAIT_OPPONENT_LOW_COST_ABILITY_ID,
@@ -11453,7 +11453,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_CL1_010_LIVE_START_EFFECT_TEXT,
     notes:
-      'LIVE开始时选择己方舞台有效费用>=10的「莲之空」成员；以目标成员作为 BLADE modifier sourceCardId 写入 BLADE +2。',
+      'LIVE开始时选择己方舞台有效费用>=10的「莲之空」成员；显式写 TARGET_MEMBER BLADE +2，sourceCardId 保留 AWOKE，受益成员写 targetMemberCardId。',
   },
   {
     abilityId: HS_CL1_011_LIVE_SUCCESS_PAY_ENERGY_RECOVER_MEMBER_OR_HASUNOSORA_LIVE_ABILITY_ID,
@@ -11760,7 +11760,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP4_026_FACE_UP_LIVE_ZONE_EFFECT_TEXT,
     notes:
-      '单卡 workflow `n-bp4-026-dive.ts` 第二段；ON_ENTER_LIVE_ZONE 只对 FACE_UP 入队，结算时仍重查来源仍在自己的 LIVE 区且正面。选择自己舞台上1名『虹ヶ咲』成员并复用 addBladeLiveModifierForSourceMember 写目标成员 [BLADE][BLADE]；face-down、来源离开 LIVE 区、无目标或非法/陈旧目标安全 no-op/保持窗口。',
+      '单卡 workflow `n-bp4-026-dive.ts` 第二段；ON_ENTER_LIVE_ZONE 只对 FACE_UP 入队，结算时仍重查来源仍在自己的 LIVE 区且正面。选择自己舞台上1名『虹ヶ咲』成员并复用 addBladeLiveModifierForTargetMember 写 TARGET_MEMBER [BLADE][BLADE]；sourceCardId 保留 DIVE! 来源，受益成员写 targetMemberCardId；face-down、来源离开 LIVE 区、无目标或非法/陈旧目标安全 no-op/保持窗口。',
   },
   {
     abilityId: PL_N_BP4_031_LIVE_START_NIJIGASAKI_STAGE_COST_DRAW_THREE_HAND_TO_TOP_ABILITY_ID,
@@ -12487,7 +12487,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_S_BP5_004_ON_ENTER_EFFECT_TEXT,
     notes:
-      '单卡 ON_ENTER workflow `s-bp5-004-dia.ts`；分支选择只展示当前合法分支。Aqours 分支选择自己舞台上此成员以外的 Aqours 成员，通过 addBladeLiveModifierForSourceMember 写目标成员 BLADE，payload 保留 Dia 来源与 targetMemberCardId。SaintSnow 分支选择自己舞台 SaintSnow 成员与不同目标槽，移动走 moveMemberBetweenSlotsAndEnqueueTriggers 保留交换与 ON_MEMBER_SLOT_MOVED 触发。',
+      '单卡 ON_ENTER workflow `s-bp5-004-dia.ts`；分支选择只展示当前合法分支。Aqours 分支选择自己舞台上此成员以外的 Aqours 成员，通过 addBladeLiveModifierForTargetMember 写 TARGET_MEMBER BLADE，sourceCardId 保留 Dia 来源且 targetMemberCardId 单独记录受益成员。SaintSnow 分支选择自己舞台 SaintSnow 成员与不同目标槽，移动走 moveMemberBetweenSlotsAndEnqueueTriggers 保留交换与 ON_MEMBER_SLOT_MOVED 触发。',
   },
   {
     abilityId: PL_S_BP5_005_LIVE_START_DISCARD_CHOOSE_HEART_NON_AQOURS_ENTERED_MEMBERS_ABILITY_ID,

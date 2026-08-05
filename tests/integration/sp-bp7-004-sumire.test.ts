@@ -279,6 +279,7 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
     expect(scenario.session.state?.players[0].mainDeck.cardIds).toEqual(selectedIds);
     expect(modifiers(scenario.session.state!)).toEqual([
       expect.objectContaining({
+        target: 'SOURCE_MEMBER',
         sourceCardId: scenario.source.instanceId,
         countDelta: 2,
         abilityId: ABILITY_ID,
@@ -353,6 +354,7 @@ describe('PL!SP-bp7-004-P 「平安名堇」', () => {
     expect(expire(scenario.session, scenario.setNow).success).toBe(true);
     expect(modifiers(scenario.session.state!)).toEqual([
       expect.objectContaining({
+        target: 'SOURCE_MEMBER',
         sourceCardId: scenario.source.instanceId,
         abilityId: ABILITY_ID,
         countDelta: 2,

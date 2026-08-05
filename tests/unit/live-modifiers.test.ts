@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { GameService } from '../../src/application/game-service';
 import {
   createCardInstance,
   createHeartIcon,
@@ -19,6 +21,7 @@ import {
   addMemberBelowMember,
   placeCardInSlot,
   removeCardFromSlot,
+  removeMemberBelowMember,
 } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
@@ -10724,6 +10727,17 @@ describe('BP7 memberBelow target-aware modifiers', () => {
       'p1',
       'other-below-member'
     );
+    const cheerCards = Array.from({ length: 9 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `bp7-cheer-${index}`,
+          name: `bp7 cheer ${index}`,
+          cardType: CardType.ENERGY,
+        },
+        'p1',
+        `bp7-cheer-${index}`
+      )
+    );
     let game = registerCards(createGameState('bp7-continuous', 'p1', 'P1', 'p2', 'P2'), [
       kanon,
       you,
@@ -10731,9 +10745,11 @@ describe('BP7 memberBelow target-aware modifiers', () => {
       aqoursHost,
       belowMember,
       otherBelowMember,
+      ...cheerCards,
     ]);
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
       memberSlots: addMemberBelowMember(
         addMemberBelowMember(
           placeCardInSlot(
@@ -10748,8 +10764,56 @@ describe('BP7 memberBelow target-aware modifiers', () => {
         belowMember.instanceId
       ),
     }));
+    expect(
+      collectLiveModifiers(game).filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID
+      )
+    ).toEqual([
+      {
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: 'p1',
+        countDelta: 1,
+        sourceCardId: kanon.instanceId,
+        targetMemberCardId: liellaHost.instanceId,
+        abilityId: SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
+      },
+    ]);
     expect(getMemberEffectiveBladeCount(game, 'p1', liellaHost.instanceId)).toBe(2);
     expect(getMemberEffectiveBladeCount(game, 'p1', you.instanceId)).toBe(7);
+    const afterCheer = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(game, 'p1');
+    expect(afterCheer.liveResolution.firstPlayerCheerCardIds).toHaveLength(9);
+
+    const sourceRemoved = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeMemberBelowMember(player.memberSlots, SlotPosition.LEFT, kanon.instanceId),
+    }));
+    expect(
+      collectLiveModifiers(sourceRemoved).filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID
+      )
+    ).toEqual([]);
+    expect(getMemberEffectiveBladeCount(sourceRemoved, 'p1', liellaHost.instanceId)).toBe(1);
+
+    const targetRemoved = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+    }));
+    expect(
+      collectLiveModifiers(targetRemoved).filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId === SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID
+      )
+    ).toEqual([]);
 
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,

@@ -17,7 +17,7 @@ import {
   BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
   PL_BP4_011_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -248,9 +248,10 @@ function finishLiveStartWaitSelfCenterMuseGainBlade(
     );
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(stateAfterCost, {
+  const bladeResult = addBladeLiveModifierForTargetMember(stateAfterCost, {
     playerId: player.id,
-    sourceCardId: targetMemberCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId,
     abilityId: effect.abilityId,
     amount: config.bladeAmount,
   });

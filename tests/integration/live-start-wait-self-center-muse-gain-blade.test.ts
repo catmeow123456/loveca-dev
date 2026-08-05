@@ -11,8 +11,11 @@ import {
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { GameService } from '../../src/application/game-service';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   BP4_017_LIVE_START_WAIT_SELF_CENTER_MUSE_GAIN_BLADE_ABILITY_ID,
   N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID,
@@ -207,10 +210,15 @@ describe('live-start wait-self center Muse gain BLADE shared workflow', () => {
         state.players[0].memberSlots.cardStates.get(scenario.source.instanceId)?.orientation
       ).toBe(OrientationState.WAITING);
       expect(bladeModifiers(state, workflow.abilityId)).toEqual([
-        expect.objectContaining({
-          sourceCardId: scenario.center.instanceId,
+        {
+          kind: 'BLADE',
+          target: 'TARGET_MEMBER',
+          playerId: PLAYER1,
+          sourceCardId: scenario.source.instanceId,
+          targetMemberCardId: scenario.center.instanceId,
           countDelta: workflow.bladeAmount,
-        }),
+          abilityId: workflow.abilityId,
+        },
       ]);
       expect(latestPayload(state, workflow.abilityId)).toMatchObject({
         step: workflow.successStep,
@@ -218,6 +226,28 @@ describe('live-start wait-self center Muse gain BLADE shared workflow', () => {
         targetMemberCardId: scenario.center.instanceId,
         bladeBonus: workflow.bladeAmount,
       });
+
+      const cheerCards = Array.from({ length: 5 }, (_, index) =>
+        createMember(`PL!-cheer-${index}`, `cheer-${index}`)
+      );
+      const withCheerDeck = updatePlayer(registerCards(state, cheerCards), PLAYER1, (player) => ({
+        ...player,
+        mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+      }));
+      const judged = (
+        new GameService() as unknown as {
+          autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+        }
+      ).autoRevealPerformanceCheer(withCheerDeck, PLAYER1);
+      expect(judged.liveResolution.firstPlayerCheerCardIds).toHaveLength(1 + workflow.bladeAmount);
+
+      const targetLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+        state,
+        PLAYER1,
+        scenario.center.instanceId,
+        enqueueTriggeredCardEffects
+      )!;
+      expect(bladeModifiers(targetLeft.gameState, workflow.abilityId)).toHaveLength(0);
     }
   );
 
@@ -372,10 +402,15 @@ describe('live-start wait-self center Muse gain BLADE shared workflow', () => {
       startAbility(scenario.game, scenario.workflow.abilityId, scenario.source.instanceId)
     );
     expect(bladeModifiers(state, scenario.workflow.abilityId)).toEqual([
-      expect.objectContaining({
+      {
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: PLAYER1,
         sourceCardId: scenario.source.instanceId,
+        targetMemberCardId: scenario.source.instanceId,
         countDelta: 2,
-      }),
+        abilityId: scenario.workflow.abilityId,
+      },
     ]);
     expect(latestPayload(state, scenario.workflow.abilityId)).toMatchObject({
       sourceCardId: scenario.source.instanceId,

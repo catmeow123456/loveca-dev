@@ -11,10 +11,14 @@ import {
 import { placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { PL_S_BP5_004_ON_ENTER_CHOOSE_AQOURS_BLADE_OR_SAINTSNOW_POSITION_CHANGE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
+import {
+  sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers,
+} from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   CardType,
   FaceState,
@@ -161,8 +165,10 @@ describe('PL!S-bp5-004 黒澤ダイヤ', () => {
     expect(state.liveResolution.liveModifiers).toContainEqual(
       expect.objectContaining({
         kind: 'BLADE',
+        target: 'TARGET_MEMBER',
         playerId: PLAYER1,
-        sourceCardId: aqoursTarget.instanceId,
+        sourceCardId: source.instanceId,
+        targetMemberCardId: aqoursTarget.instanceId,
         abilityId: ABILITY_ID,
         countDelta: 1,
       })
@@ -171,8 +177,35 @@ describe('PL!S-bp5-004 黒澤ダイヤ', () => {
       sourceCardId: source.instanceId,
       step: 'GRANT_AQOURS_TARGET_BLADE',
       targetMemberCardId: aqoursTarget.instanceId,
-      bladeModifierSourceCardId: aqoursTarget.instanceId,
+      bladeModifierSourceCardId: source.instanceId,
     });
+
+    const sourceLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      state,
+      PLAYER1,
+      source.instanceId,
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    expect(sourceLeft.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: source.instanceId,
+        targetMemberCardId: aqoursTarget.instanceId,
+      })
+    );
+    const targetLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      sourceLeft,
+      PLAYER1,
+      aqoursTarget.instanceId,
+      enqueueTriggeredCardEffects
+    )!.gameState;
+    expect(targetLeft.liveResolution.liveModifiers).not.toContainEqual(
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: source.instanceId,
+        targetMemberCardId: aqoursTarget.instanceId,
+      })
+    );
   });
 
   it('position-changes a SaintSnow member to an empty slot and emits a moved event', () => {
@@ -316,7 +349,7 @@ describe('PL!S-bp5-004 黒澤ダイヤ', () => {
     expect(state.liveResolution.liveModifiers).not.toContainEqual(
       expect.objectContaining({
         kind: 'BLADE',
-        sourceCardId: aqoursTarget.instanceId,
+        targetMemberCardId: aqoursTarget.instanceId,
       })
     );
     expect(latestPayload(state)).toMatchObject({

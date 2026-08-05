@@ -44,7 +44,8 @@ import {
   NICO_LIVE_START_SCORE_ABILITY_ID,
 } from '../../src/application/card-effect-runner';
 import {
-  addBladeLiveModifierForMember,
+  addBladeLiveModifierForSourceMember,
+  addBladeLiveModifierForTargetMember,
   addLiveModifier,
   collectLiveModifiers,
 } from '../../src/domain/rules/live-modifiers';
@@ -2420,9 +2421,9 @@ describe('Live 判定与结算', () => {
 
   it('LIVE 来源给指定成员 BLADE +1 只计入该活跃成员一次', () => {
     const scenario = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 4 });
-    const result = addBladeLiveModifierForMember(scenario.game, {
+    const result = addBladeLiveModifierForTargetMember(scenario.game, {
       playerId: 'p1',
-      memberCardId: scenario.left.instanceId,
+      targetMemberCardId: scenario.left.instanceId,
       sourceCardId: scenario.source.instanceId,
       abilityId: 'target-member-plus-one',
       countDelta: 1,
@@ -2441,9 +2442,9 @@ describe('Live 判定与结算', () => {
       leftOrientation: OrientationState.WAITING,
       centerBlade: 1,
     });
-    const waitingResult = addBladeLiveModifierForMember(waiting.game, {
+    const waitingResult = addBladeLiveModifierForTargetMember(waiting.game, {
       playerId: 'p1',
-      memberCardId: waiting.left.instanceId,
+      targetMemberCardId: waiting.left.instanceId,
       sourceCardId: waiting.source.instanceId,
       abilityId: 'waiting-target-plus-one',
       countDelta: 1,
@@ -2451,16 +2452,16 @@ describe('Live 判定与结算', () => {
     expect(autoRevealCheerCount(waitingResult!.gameState)).toBe(1);
 
     const multiple = createExplicitBladeScopeScenario({ leftBlade: 1, centerBlade: 4 });
-    const first = addBladeLiveModifierForMember(multiple.game, {
+    const first = addBladeLiveModifierForTargetMember(multiple.game, {
       playerId: 'p1',
-      memberCardId: multiple.left.instanceId,
+      targetMemberCardId: multiple.left.instanceId,
       sourceCardId: multiple.source.instanceId,
       abilityId: 'multi-target-left',
       countDelta: 1,
     });
-    const second = addBladeLiveModifierForMember(first!.gameState, {
+    const second = addBladeLiveModifierForTargetMember(first!.gameState, {
       playerId: 'p1',
-      memberCardId: multiple.center.instanceId,
+      targetMemberCardId: multiple.center.instanceId,
       sourceCardId: multiple.source.instanceId,
       abilityId: 'multi-target-center',
       countDelta: 1,
@@ -2500,9 +2501,8 @@ describe('Live 判定与结算', () => {
       leftOrientation: OrientationState.WAITING,
       centerBlade: 1,
     });
-    const result = addBladeLiveModifierForMember(scenario.game, {
+    const result = addBladeLiveModifierForSourceMember(scenario.game, {
       playerId: 'p1',
-      memberCardId: scenario.left.instanceId,
       sourceCardId: scenario.left.instanceId,
       abilityId: 'waiting-source-plus-two',
       countDelta: 2,

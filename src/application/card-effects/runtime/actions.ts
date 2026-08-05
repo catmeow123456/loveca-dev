@@ -23,9 +23,6 @@ import {
   addBladeLiveModifierForPlayer as addBladeLiveModifierForPlayerRule,
   addBladeLiveModifierForSourceMember as addBladeLiveModifierForSourceMemberRule,
   addBladeLiveModifierForTargetMember as addBladeLiveModifierForTargetMemberRule,
-  addBladeLiveModifierForMember as addBladeLiveModifierForMemberRule,
-  type AddBladeLiveModifierForMemberResult,
-  type BladeLiveModifierForMemberOptions,
 } from '../../../domain/rules/live-modifiers.js';
 import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared/types/enums.js';
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
@@ -682,14 +679,6 @@ export function addBladeLiveModifierForPlayer(
     abilityId: options.abilityId,
     countDelta: options.amount,
   });
-}
-
-/** Legacy compatibility wrapper; new workflows must choose source, target, or player explicitly. */
-export function addBladeLiveModifierForMember(
-  game: GameState,
-  options: BladeLiveModifierForMemberOptions
-): AddBladeLiveModifierForMemberResult | null {
-  return addBladeLiveModifierForMemberRule(game, options);
 }
 
 export function shuffleHandCardsToDeckBottomForPlayer(

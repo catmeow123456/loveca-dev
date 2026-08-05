@@ -17,8 +17,8 @@ import {
   SP_BP4_024_LIVE_START_LEFT_LIELLA_RED_HEART_THREE_GAIN_TWO_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
-  addBladeLiveModifierForSourceMember,
-  type AddBladeLiveModifierForSourceMemberResult,
+  addBladeLiveModifierForTargetMember,
+  type AddBladeLiveModifierForTargetMemberResult,
 } from '../../runtime/actions.js';
 import {
   getAbilityEffectText,
@@ -148,9 +148,10 @@ function resolveLeftLiellaRedHeartBlade(
   };
   const bladeResult =
     conditionMet && leftMemberCardId
-      ? addBladeLiveModifierForSourceMember(stateWithoutPending, {
+      ? addBladeLiveModifierForTargetMember(stateWithoutPending, {
           playerId: player.id,
-          sourceCardId: leftMemberCardId,
+          sourceCardId: ability.sourceCardId,
+          targetMemberCardId: leftMemberCardId,
           abilityId: ability.abilityId,
           amount: 2,
         })
@@ -283,7 +284,7 @@ function refreshPlayerScoreDraft(game: GameState, playerId: string, scoreBonus: 
 
 function getStateAfterBladeModifier(
   fallbackState: GameState,
-  bladeResult: AddBladeLiveModifierForSourceMemberResult | null
+  bladeResult: AddBladeLiveModifierForTargetMemberResult | null
 ): GameState {
   return bladeResult?.gameState ?? fallbackState;
 }

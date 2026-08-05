@@ -13,7 +13,7 @@ import {
   S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP5_022_LIVE_SUCCESS_MORE_CHEER_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -78,9 +78,10 @@ function resolveSBp5022SelfControlLiveStart(
   const appliedTargetMemberCardIds: string[] = [];
   if (evaluation.conditionMet) {
     for (const targetMemberCardId of evaluation.targetMemberCardIds) {
-      const bladeResult = addBladeLiveModifierForSourceMember(state, {
+      const bladeResult = addBladeLiveModifierForTargetMember(state, {
         playerId: player.id,
-        sourceCardId: targetMemberCardId,
+        sourceCardId: ability.sourceCardId,
+        targetMemberCardId,
         abilityId: ability.abilityId,
         amount: 1,
       });

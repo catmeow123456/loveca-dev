@@ -13,7 +13,11 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromStatefulZone,
+} from '../../src/domain/entities/zone';
 import {
   ABILITY_ORDER_SELECTION_ID,
   confirmActiveEffectStep,
@@ -27,8 +31,12 @@ import { GameService } from '../../src/application/game-service';
 import { projectPlayerViewState } from '../../src/online/projector';
 import {
   addLiveModifier,
+  collectLiveModifiers,
   getCheerCardEffectiveBladeHearts,
+  getEffectivePerformanceCheerCount,
   getMemberEffectiveBladeCount,
+  getPlayerLiveBladeModifier,
+  removeStageMemberBoundLiveModifiers,
 } from '../../src/domain/rules/live-modifiers';
 import {
   BladeHeartEffect,
@@ -207,6 +215,30 @@ function resolveBladeAbility(game: GameState, liveId: string): GameState {
   }).gameState;
 }
 
+function bladeSelectionModifiers(game: GameState) {
+  return game.liveResolution.liveModifiers.filter(
+    (modifier) =>
+      modifier.kind === 'BLADE' &&
+      modifier.abilityId ===
+        SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID
+  );
+}
+
+function performanceCheerCount(game: GameState, memberCardIds: readonly string[]): number {
+  const modifiers = collectLiveModifiers(game);
+  const memberBladeCount = memberCardIds.reduce(
+    (total, memberCardId) =>
+      total + getMemberEffectiveBladeCount(game, PLAYER1, memberCardId, modifiers),
+    0
+  );
+  return getEffectivePerformanceCheerCount(
+    game,
+    PLAYER1,
+    memberBladeCount + getPlayerLiveBladeModifier(game.liveResolution, PLAYER1, modifiers),
+    modifiers
+  );
+}
+
 function resolveCheerReplacementAbility(game: GameState, liveId: string): GameState {
   return confirmIfConfirmOnly(
     resolvePendingCardEffects({
@@ -355,8 +387,41 @@ describe('PL!SP-bp4-023 Dazzling Game', () => {
       secondStep.activeEffect!.id,
       scenario.otherLiella.instanceId
     );
+    expect(bladeSelectionModifiers(resolved)).toEqual([
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: scenario.live.instanceId,
+        targetMemberCardId: scenario.named.instanceId,
+        countDelta: 1,
+      }),
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: scenario.live.instanceId,
+        targetMemberCardId: scenario.otherLiella.instanceId,
+        countDelta: 1,
+      }),
+    ]);
     expect(getMemberEffectiveBladeCount(resolved, PLAYER1, scenario.named.instanceId)).toBe(2);
     expect(getMemberEffectiveBladeCount(resolved, PLAYER1, scenario.otherLiella.instanceId)).toBe(2);
+    expect(
+      performanceCheerCount(resolved, [
+        scenario.named.instanceId,
+        scenario.otherLiella.instanceId,
+        scenario.nonLiella.instanceId,
+      ])
+    ).toBe(5);
+
+    const sourceLeftLiveZone = updatePlayer(resolved, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, scenario.live.instanceId),
+    }));
+    expect(bladeSelectionModifiers(sourceLeftLiveZone)).toHaveLength(2);
+    const namedLeftStage = removeStageMemberBoundLiveModifiers(sourceLeftLiveZone, [
+      scenario.named.instanceId,
+    ]);
+    expect(bladeSelectionModifiers(namedLeftStage)).toEqual([
+      expect.objectContaining({ targetMemberCardId: scenario.otherLiella.instanceId }),
+    ]);
   });
 
   it('excludes the selected named card itself but allows another same-name Liella member', () => {

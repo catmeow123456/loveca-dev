@@ -36,7 +36,7 @@ import {
   S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
-  addBladeLiveModifierForSourceMember,
+  addBladeLiveModifierForTargetMember,
   clearRemainingHeartsForPlayer,
   drawCardsForPlayer,
 } from '../../runtime/actions.js';
@@ -383,9 +383,10 @@ function resolveMyMaiTonightLiveStart(
   const appliedTargetMemberCardIds: string[] = [];
 
   for (const targetMemberCardId of targetMemberCardIds) {
-    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+    const bladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      sourceCardId: targetMemberCardId,
+      sourceCardId: ability.sourceCardId,
+      targetMemberCardId,
       abilityId: ability.abilityId,
       amount: 1,
     });
@@ -431,9 +432,10 @@ function resolveJumpUpHighLiveStart(
   const appliedTargetMemberCardIds: string[] = [];
 
   for (const targetMemberCardId of targetMemberCardIds) {
-    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+    const bladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      sourceCardId: targetMemberCardId,
+      sourceCardId: ability.sourceCardId,
+      targetMemberCardId,
       abilityId: ability.abilityId,
       amount: 1,
     });

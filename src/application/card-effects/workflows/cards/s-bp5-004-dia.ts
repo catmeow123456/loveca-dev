@@ -11,7 +11,7 @@ import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { PL_S_BP5_004_ON_ENTER_CHOOSE_AQOURS_BLADE_OR_SAINTSNOW_POSITION_CHANGE_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   moveMemberBetweenSlotsAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForMemberSlotMoved,
@@ -292,11 +292,12 @@ function finishDiaAqoursBladeTarget(
     });
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(
+  const bladeResult = addBladeLiveModifierForTargetMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      sourceCardId: selectedCardId,
+      sourceCardId: effect.sourceCardId,
+      targetMemberCardId: selectedCardId,
       abilityId: effect.abilityId,
       amount: 1,
     }
@@ -315,7 +316,7 @@ function finishDiaAqoursBladeTarget(
       sourceCardId: effect.sourceCardId,
       step: 'GRANT_AQOURS_TARGET_BLADE',
       targetMemberCardId: selectedCardId,
-      bladeModifierSourceCardId: selectedCardId,
+      bladeModifierSourceCardId: effect.sourceCardId,
       bladeBonus: bladeResult.bladeBonus,
     }),
     effect.metadata?.orderedResolution === true

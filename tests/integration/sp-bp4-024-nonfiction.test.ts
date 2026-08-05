@@ -15,8 +15,16 @@ import {
   addCardToStatefulZone,
   addCardToZone,
   placeCardInSlot,
+  removeCardFromStatefulZone,
 } from '../../src/domain/entities/zone';
-import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
+import {
+  addLiveModifier,
+  collectLiveModifiers,
+  getEffectivePerformanceCheerCount,
+  getMemberEffectiveBladeCount,
+  getPlayerLiveBladeModifier,
+  removeStageMemberBoundLiveModifiers,
+} from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
@@ -231,6 +239,21 @@ function nonfictionBladeModifiers(game: GameState) {
   );
 }
 
+function performanceCheerCount(game: GameState, memberCardIds: readonly string[]): number {
+  const modifiers = collectLiveModifiers(game);
+  const memberBladeCount = memberCardIds.reduce(
+    (total, memberCardId) =>
+      total + getMemberEffectiveBladeCount(game, PLAYER1, memberCardId, modifiers),
+    0
+  );
+  return getEffectivePerformanceCheerCount(
+    game,
+    PLAYER1,
+    memberBladeCount + getPlayerLiveBladeModifier(game.liveResolution, PLAYER1, modifiers),
+    modifiers
+  );
+}
+
 describe('PL!SP-bp4-024 Nonfiction workflow', () => {
   it('adds SCORE +1 and refreshes playerScores when own center Liella cost is higher', () => {
     const { game, live } = setupState({
@@ -318,7 +341,7 @@ describe('PL!SP-bp4-024 Nonfiction workflow', () => {
   });
 
   it('gives BLADE +2 to the own left Liella member with three red Hearts', () => {
-    const { game, leftMember } = setupState({
+    const { game, live, leftMember, ownCenter } = setupState({
       ownCenterCost: 6,
       opponentCenterCost: 7,
       leftRedHearts: 3,
@@ -328,17 +351,30 @@ describe('PL!SP-bp4-024 Nonfiction workflow', () => {
     expect(nonfictionBladeModifiers(state)).toEqual([
       {
         kind: 'BLADE',
-        target: 'SOURCE_MEMBER',
+        target: 'TARGET_MEMBER',
         playerId: PLAYER1,
         countDelta: 2,
-        sourceCardId: leftMember.instanceId,
+        sourceCardId: live.instanceId,
+        targetMemberCardId: leftMember.instanceId,
         abilityId: SP_BP4_024_LIVE_START_LEFT_LIELLA_RED_HEART_THREE_GAIN_TWO_BLADE_ABILITY_ID,
       },
     ]);
+    expect(performanceCheerCount(state, [leftMember.instanceId, ownCenter.instanceId])).toBe(4);
+
+    const sourceLeftLiveZone = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, live.instanceId),
+    }));
+    expect(nonfictionBladeModifiers(sourceLeftLiveZone)).toHaveLength(1);
+    expect(
+      nonfictionBladeModifiers(
+        removeStageMemberBoundLiveModifiers(sourceLeftLiveZone, [leftMember.instanceId])
+      )
+    ).toEqual([]);
   });
 
   it('counts effective red Heart modifiers for the own left member', () => {
-    const { game, leftMember } = setupState({
+    const { game, live, leftMember } = setupState({
       ownCenterCost: 6,
       opponentCenterCost: 7,
       leftRedHearts: 2,
@@ -355,7 +391,9 @@ describe('PL!SP-bp4-024 Nonfiction workflow', () => {
 
     expect(nonfictionBladeModifiers(state)).toHaveLength(1);
     expect(nonfictionBladeModifiers(state)[0]).toMatchObject({
-      sourceCardId: leftMember.instanceId,
+      target: 'TARGET_MEMBER',
+      sourceCardId: live.instanceId,
+      targetMemberCardId: leftMember.instanceId,
       countDelta: 2,
     });
     expect(
@@ -371,7 +409,7 @@ describe('PL!SP-bp4-024 Nonfiction workflow', () => {
   });
 
   it('counts target-member red Heart modifiers for the own left member', () => {
-    const { game, leftMember } = setupState({
+    const { game, live, leftMember } = setupState({
       ownCenterCost: 6,
       opponentCenterCost: 7,
       leftRedHearts: 1,
@@ -389,7 +427,9 @@ describe('PL!SP-bp4-024 Nonfiction workflow', () => {
 
     expect(nonfictionBladeModifiers(state)).toHaveLength(1);
     expect(nonfictionBladeModifiers(state)[0]).toMatchObject({
-      sourceCardId: leftMember.instanceId,
+      target: 'TARGET_MEMBER',
+      sourceCardId: live.instanceId,
+      targetMemberCardId: leftMember.instanceId,
       countDelta: 2,
     });
     expect(

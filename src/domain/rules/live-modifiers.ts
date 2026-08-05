@@ -274,14 +274,6 @@ export interface AddHeartLiveModifierForMemberResult {
   readonly heartBonus: readonly HeartIcon[];
 }
 
-export interface BladeLiveModifierForMemberOptions {
-  readonly playerId: string;
-  readonly memberCardId: string;
-  readonly sourceCardId: string;
-  readonly abilityId: string;
-  readonly countDelta: number;
-}
-
 export interface BladeLiveModifierForSourceMemberOptions {
   readonly playerId: string;
   readonly sourceCardId: string;
@@ -304,7 +296,7 @@ export interface BladeLiveModifierForPlayerOptions {
   readonly countDelta: number;
 }
 
-export interface AddBladeLiveModifierForMemberResult {
+export interface AddBladeLiveModifierResult {
   readonly gameState: GameState;
   readonly modifier: BladeModifierState;
   readonly bladeBonus: number;
@@ -375,9 +367,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
     collect: ({ game, playerId, sourceCardId }) => {
       const count = countMemberCardsBelowSourceMember(game, playerId, sourceCardId);
       if (count === 0) return [];
-      const modifier = createBladeLiveModifierForMember(game, {
+      const modifier = createBladeLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP7_003_CONTINUOUS_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
         countDelta: count,
@@ -462,9 +453,9 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         ) {
           return [];
         }
-        const modifier = createBladeLiveModifierForMember(game, {
+        const modifier = createBladeLiveModifierForTargetMember(game, {
           playerId,
-          memberCardId: hostCardId,
+          targetMemberCardId: hostCardId,
           sourceCardId,
           abilityId: S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
           countDelta: 1,
@@ -524,9 +515,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         abilityId: SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
         hearts: [{ color: HeartColor.PURPLE, count: 1 }],
       });
-      const bladeModifier = createBladeLiveModifierForMember(game, {
+      const bladeModifier = createBladeLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
         countDelta: 1,
@@ -1911,9 +1901,9 @@ function collectContinuousLiveModifiers(game: GameState): readonly LiveModifierS
         ) {
           continue;
         }
-        const modifier = createBladeLiveModifierForMember(game, {
+        const modifier = createBladeLiveModifierForTargetMember(game, {
           playerId: player.id,
-          memberCardId: hostCardId,
+          targetMemberCardId: hostCardId,
           sourceCardId,
           abilityId: SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
           countDelta: 1,
@@ -3378,7 +3368,7 @@ export function createBladeLiveModifierForSourceMember(
 export function addBladeLiveModifierForSourceMember(
   game: GameState,
   options: BladeLiveModifierForSourceMemberOptions
-): AddBladeLiveModifierForMemberResult | null {
+): AddBladeLiveModifierResult | null {
   const modifier = createBladeLiveModifierForSourceMember(game, options);
   return modifier
     ? {
@@ -3414,7 +3404,7 @@ export function createBladeLiveModifierForTargetMember(
 export function addBladeLiveModifierForTargetMember(
   game: GameState,
   options: BladeLiveModifierForTargetMemberOptions
-): AddBladeLiveModifierForMemberResult | null {
+): AddBladeLiveModifierResult | null {
   const modifier = createBladeLiveModifierForTargetMember(game, options);
   return modifier
     ? {
@@ -3449,47 +3439,8 @@ export function createBladeLiveModifierForPlayer(
 export function addBladeLiveModifierForPlayer(
   game: GameState,
   options: BladeLiveModifierForPlayerOptions
-): AddBladeLiveModifierForMemberResult | null {
+): AddBladeLiveModifierResult | null {
   const modifier = createBladeLiveModifierForPlayer(game, options);
-  return modifier
-    ? {
-        gameState: addLiveModifier(game, modifier),
-        modifier,
-        bladeBonus: options.countDelta,
-      }
-    : null;
-}
-
-/**
- * Legacy compatibility entry point. New callers must choose the explicit
- * SOURCE_MEMBER, TARGET_MEMBER, or PLAYER API instead of relying on
- * instance-id equality.
- */
-export function createBladeLiveModifierForMember(
-  game: GameState,
-  options: BladeLiveModifierForMemberOptions
-): BladeModifierState | null {
-  return options.memberCardId === options.sourceCardId
-    ? createBladeLiveModifierForSourceMember(game, {
-        playerId: options.playerId,
-        sourceCardId: options.sourceCardId,
-        abilityId: options.abilityId,
-        countDelta: options.countDelta,
-      })
-    : createBladeLiveModifierForTargetMember(game, {
-        playerId: options.playerId,
-        targetMemberCardId: options.memberCardId,
-        sourceCardId: options.sourceCardId,
-        abilityId: options.abilityId,
-        countDelta: options.countDelta,
-      });
-}
-
-export function addBladeLiveModifierForMember(
-  game: GameState,
-  options: BladeLiveModifierForMemberOptions
-): AddBladeLiveModifierForMemberResult | null {
-  const modifier = createBladeLiveModifierForMember(game, options);
   return modifier
     ? {
         gameState: addLiveModifier(game, modifier),

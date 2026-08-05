@@ -271,7 +271,7 @@ describe('PL!-bp5 first confirmed batch effects', () => {
   });
 
   it('PL!-bp5-024 activates a waiting member from either stage and gives that member BLADE', () => {
-    const { game, opponentTargetId } = setupPrivateWars({ opponentWaiting: true });
+    const { game, liveCardId, opponentTargetId } = setupPrivateWars({ opponentWaiting: true });
     const started = startLiveStart(game);
 
     const branch = confirmActiveEffectStepThroughPublicReveal(
@@ -289,12 +289,39 @@ describe('PL!-bp5 first confirmed batch effects', () => {
       OrientationState.ACTIVE
     );
     expect(getMemberEffectiveBladeCount(resolved, PLAYER2, opponentTargetId)).toBe(4);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER2,
+      countDelta: 1,
+      sourceCardId: liveCardId,
+      targetMemberCardId: opponentTargetId,
+      abilityId: PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID,
+    });
     expect(latestPayload(resolved, PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID)).toMatchObject({
       step: 'PRIVATE_WARS_ACTIVATE_WAITING_MEMBER_GAIN_BLADE',
       targetPlayerId: PLAYER2,
       targetCardId: opponentTargetId,
       bladeBonus: 1,
     });
+
+    const cheerCards = Array.from({ length: 5 }, (_, index) =>
+      createCardInstance(
+        member(`opponent-cheer-${index}`, `Opponent Cheer ${index}`),
+        PLAYER2,
+        `opponent-cheer-${index}`
+      )
+    );
+    const withCheerDeck = updatePlayer(registerCards(resolved, cheerCards), PLAYER2, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+    }));
+    const judged = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(withCheerDeck, PLAYER2);
+    expect(judged.liveResolution.secondPlayerCheerCardIds).toHaveLength(4);
   });
 
   it('PL!-bp5-024 waits an opponent member with printed BLADE at most 3', () => {

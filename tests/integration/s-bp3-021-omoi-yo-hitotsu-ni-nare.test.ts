@@ -150,7 +150,7 @@ describe('PL!S-bp3-021-L 想いよひとつになれ', () => {
   });
 
   it('first reveals without moving, then moves exactly one and grants BLADE only after choosing an own main-stage member', () => {
-    const { game, waitingId, stageId } = setup();
+    const { game, sourceId, waitingId, stageId } = setup();
     const started = resolvePendingCardEffects(game).gameState;
     const revealed = confirmActiveEffectStep(started, P1, started.activeEffect!.id, waitingId);
     expect(revealed.activeEffect).toMatchObject({
@@ -176,8 +176,10 @@ describe('PL!S-bp3-021-L 想いよひとつになれ', () => {
     expect(resolved.liveResolution.liveModifiers).toContainEqual(
       expect.objectContaining({
         kind: 'BLADE',
+        target: 'TARGET_MEMBER',
         playerId: P1,
-        sourceCardId: stageId,
+        sourceCardId: sourceId,
+        targetMemberCardId: stageId,
         abilityId: S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID,
         countDelta: 1,
       })

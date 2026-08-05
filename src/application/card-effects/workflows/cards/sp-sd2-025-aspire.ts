@@ -8,7 +8,7 @@ import {
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { getPositionMovedStageMemberIdsMatching } from '../../../effects/conditions.js';
 import { SP_SD2_025_LIVE_START_MOVED_LIELLA_MEMBERS_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -59,9 +59,10 @@ function resolveSpSd2025AspireLiveStart(
   const appliedTargetMemberCardIds: string[] = [];
 
   for (const targetMemberCardId of targetMemberCardIds) {
-    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+    const bladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      sourceCardId: targetMemberCardId,
+      sourceCardId: ability.sourceCardId,
+      targetMemberCardId,
       abilityId: ability.abilityId,
       amount: 1,
     });

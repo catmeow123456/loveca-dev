@@ -11,7 +11,19 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromSlot,
+  removeCardFromStatefulZone,
+} from '../../src/domain/entities/zone';
+import {
+  collectLiveModifiers,
+  getEffectivePerformanceCheerCount,
+  getMemberEffectiveBladeCount,
+  getPlayerLiveBladeModifier,
+  removeStageMemberBoundLiveModifiers,
+} from '../../src/domain/rules/live-modifiers';
 import { moveMemberBetweenSlots } from '../../src/application/effects/member-state';
 import { GameService } from '../../src/application/game-service';
 import { SP_SD2_025_LIVE_START_MOVED_LIELLA_MEMBERS_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
@@ -118,9 +130,24 @@ function aspireBladeModifiers(game: GameState) {
   );
 }
 
+function performanceCheerCount(game: GameState, memberCardIds: readonly string[]): number {
+  const modifiers = collectLiveModifiers(game);
+  const memberBladeCount = memberCardIds.reduce(
+    (total, memberCardId) =>
+      total + getMemberEffectiveBladeCount(game, PLAYER1, memberCardId, modifiers),
+    0
+  );
+  return getEffectivePerformanceCheerCount(
+    game,
+    PLAYER1,
+    memberBladeCount + getPlayerLiveBladeModifier(game.liveResolution, PLAYER1, modifiers),
+    modifiers
+  );
+}
+
 describe('PL!SP-sd2-025 Aspire workflow', () => {
   it('gives BLADE +1 to a moved Liella member', () => {
-    const { game } = setupState({
+    const { game, live } = setupState({
       members: [
         {
           id: 'moved-liella',
@@ -136,13 +163,26 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
     expect(aspireBladeModifiers(state)).toEqual([
       {
         kind: 'BLADE',
-        target: 'SOURCE_MEMBER',
+        target: 'TARGET_MEMBER',
         playerId: PLAYER1,
         countDelta: 1,
-        sourceCardId: 'moved-liella',
+        sourceCardId: live.instanceId,
+        targetMemberCardId: 'moved-liella',
         abilityId: SP_SD2_025_LIVE_START_MOVED_LIELLA_MEMBERS_GAIN_BLADE_ABILITY_ID,
       },
     ]);
+    expect(performanceCheerCount(state, ['moved-liella'])).toBe(2);
+
+    const sourceLeftLiveZone = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, live.instanceId),
+    }));
+    expect(aspireBladeModifiers(sourceLeftLiveZone)).toHaveLength(1);
+    expect(
+      aspireBladeModifiers(
+        removeStageMemberBoundLiveModifiers(sourceLeftLiveZone, ['moved-liella'])
+      )
+    ).toEqual([]);
   });
 
   it('does not give BLADE to an unmoved Liella member', () => {
@@ -179,7 +219,7 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
   });
 
   it('gives BLADE to multiple moved Liella members in stable stage order', () => {
-    const { game } = setupState({
+    const { game, live } = setupState({
       members: [
         {
           id: 'liella-left',
@@ -198,14 +238,25 @@ describe('PL!SP-sd2-025 Aspire workflow', () => {
     const movedState = moveMember(game, 'liella-left', SlotPosition.CENTER);
     const state = resolveLiveStart(movedState);
 
-    expect(aspireBladeModifiers(state).map((modifier) => modifier.sourceCardId)).toEqual([
+    expect(aspireBladeModifiers(state).map((modifier) => modifier.targetMemberCardId)).toEqual([
       'liella-center',
       'liella-left',
     ]);
     expect(aspireBladeModifiers(state)).toEqual([
-      expect.objectContaining({ sourceCardId: 'liella-center', countDelta: 1 }),
-      expect.objectContaining({ sourceCardId: 'liella-left', countDelta: 1 }),
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: live.instanceId,
+        targetMemberCardId: 'liella-center',
+        countDelta: 1,
+      }),
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: live.instanceId,
+        targetMemberCardId: 'liella-left',
+        countDelta: 1,
+      }),
     ]);
+    expect(performanceCheerCount(state, ['liella-center', 'liella-left'])).toBe(4);
   });
 
   it('does not give BLADE to a moved Liella member that has left the stage', () => {

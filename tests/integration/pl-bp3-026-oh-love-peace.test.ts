@@ -332,12 +332,31 @@ describe('PL!-bp3-026 Oh,Love&Peace! workflow', () => {
     ).toBe(true);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
-      sourceCardId: 'target',
+      sourceCardId: setup.liveId,
+      targetMemberCardId: 'target',
       abilityId: PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID,
       countDelta: 3,
     });
+
+    const cheerCards = Array.from({ length: 5 }, (_, index) =>
+      createCardInstance(
+        createMember(`PL!-test-cheer-${index}`, `Cheer ${index}`),
+        PLAYER1,
+        `cheer-${index}`
+      )
+    );
+    const withCheerDeck = updatePlayer(registerCards(state, cheerCards), PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+    }));
+    const judged = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(withCheerDeck, PLAYER1);
+    expect(judged.liveResolution.firstPlayerCheerCardIds).toHaveLength(4);
   });
 
   it('opens target selection for multiple stage members and only grants BLADE to the selected member', () => {
@@ -375,14 +394,18 @@ describe('PL!-bp3-026 Oh,Love&Peace! workflow', () => {
 
     expect(
       state.liveResolution.liveModifiers.some(
-        (modifier) => modifier.kind === 'BLADE' && modifier.sourceCardId === 'target-a'
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
+          modifier.targetMemberCardId === 'target-a'
       )
     ).toBe(false);
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
-      sourceCardId: 'target-b',
+      sourceCardId: setup.liveId,
+      targetMemberCardId: 'target-b',
       abilityId: PL_BP3_026_LIVE_START_DISCARD_TWO_TARGET_MEMBER_GAIN_THREE_BLADE_ABILITY_ID,
       countDelta: 3,
     });

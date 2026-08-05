@@ -13,7 +13,7 @@ import {
   BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   BP6_001_LIVE_SUCCESS_CHEER_NO_BLADE_MUSE_MEMBER_DRAW_DISCARD_ABILITY_ID,
 } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -101,9 +101,10 @@ function resolveHonokaLiveStart(
   const appliedTargetMemberCardIds: string[] = [];
 
   for (const targetMemberCardId of targetMemberCardIds) {
-    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+    const bladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      sourceCardId: targetMemberCardId,
+      sourceCardId: ability.sourceCardId,
+      targetMemberCardId,
       abilityId: ability.abilityId,
       amount: 1,
     });
