@@ -22,12 +22,16 @@ import {
 } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
-  addBladeLiveModifierForMember,
+  addBladeLiveModifierForPlayer,
+  addBladeLiveModifierForTargetMember,
   addPlayerScoreLiveModifierForTargetMember,
   addMemberCostLiveModifierForMember,
   addMemberCostSetLiveModifierForMember,
   addLiveModifier,
   collectLiveModifiers,
+  createBladeLiveModifierForPlayer,
+  createBladeLiveModifierForSourceMember,
+  createBladeLiveModifierForTargetMember,
   createHeartLiveModifierForMember,
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
@@ -10365,6 +10369,112 @@ describe('PL!SP-bp1-004 continuous center BLADE', () => {
 });
 
 describe('BP7 memberBelow target-aware modifiers', () => {
+  it('keeps PLAYER BLADE while its member source is waiting or leaves the stage', () => {
+    const source = createCardInstance(
+      {
+        cardCode: 'player-blade-source',
+        name: 'player-blade-source',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'player-blade-source'
+    );
+    let game = registerCards(createGameState('player-blade', 'p1', 'P1', 'p2', 'P2'), [source]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.WAITING,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+
+    const options = {
+      playerId: 'p1',
+      sourceCardId: source.instanceId,
+      abilityId: 'player-blade',
+      countDelta: 2,
+    };
+    expect(createBladeLiveModifierForPlayer(game, options)).toEqual({
+      kind: 'BLADE',
+      target: 'PLAYER',
+      playerId: 'p1',
+      sourceCardId: source.instanceId,
+      abilityId: 'player-blade',
+      countDelta: 2,
+    });
+
+    const result = addBladeLiveModifierForPlayer(game, options);
+    expect(getPlayerLiveBladeModifier(result!.gameState.liveResolution, 'p1')).toBe(2);
+    const afterLeave = updatePlayer(result!.gameState, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    const afterCleanup = removeStageMemberBoundLiveModifiers(afterLeave, [source.instanceId]);
+    expect(afterCleanup.liveResolution.liveModifiers).toEqual([result!.modifier]);
+    expect(getPlayerLiveBladeModifier(afterCleanup.liveResolution, 'p1')).toBe(2);
+  });
+
+  it('keeps an explicit TARGET_MEMBER when source and target are the same instance', () => {
+    const member = createCardInstance(
+      {
+        cardCode: 'same-source-target',
+        name: 'same-source-target',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 2,
+        hearts: [],
+      },
+      'p1',
+      'same-source-target'
+    );
+    let game = registerCards(createGameState('same-source-target-blade', 'p1', 'P1', 'p2', 'P2'), [
+      member,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+    }));
+
+    const options = {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      targetMemberCardId: member.instanceId,
+      abilityId: 'same-source-target-blade',
+      countDelta: 3,
+    };
+    expect(
+      createBladeLiveModifierForSourceMember(game, {
+        playerId: 'p1',
+        sourceCardId: member.instanceId,
+        abilityId: 'same-id-source-blade',
+        countDelta: 3,
+      })
+    ).toEqual({
+      kind: 'BLADE',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'same-id-source-blade',
+      countDelta: 3,
+    });
+    expect(createBladeLiveModifierForTargetMember(game, options)).toEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      targetMemberCardId: member.instanceId,
+      abilityId: 'same-source-target-blade',
+      countDelta: 3,
+    });
+
+    const result = addBladeLiveModifierForTargetMember(game, options);
+    expect(result?.modifier.target).toBe('TARGET_MEMBER');
+    expect(getMemberEffectiveBladeCount(result!.gameState, 'p1', member.instanceId)).toBe(5);
+  });
+
   it('keeps BLADE ability source separate from its target and cleans up by target', () => {
     const source = createCardInstance(
       {
@@ -10396,23 +10506,32 @@ describe('BP7 memberBelow target-aware modifiers', () => {
     ]);
     game = updatePlayer(game, 'p1', (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, target.instanceId),
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.LEFT, source.instanceId),
+        SlotPosition.CENTER,
+        target.instanceId
+      ),
     }));
-    const result = addBladeLiveModifierForMember(game, {
+    const result = addBladeLiveModifierForTargetMember(game, {
       playerId: 'p1',
-      memberCardId: target.instanceId,
+      targetMemberCardId: target.instanceId,
       sourceCardId: source.instanceId,
       abilityId: 'target-aware-blade',
       countDelta: 3,
     });
     expect(result?.modifier).toMatchObject({
+      target: 'TARGET_MEMBER',
       sourceCardId: source.instanceId,
       targetMemberCardId: target.instanceId,
       countDelta: 3,
     });
     expect(getMemberEffectiveBladeCount(result!.gameState, 'p1', target.instanceId)).toBe(5);
     expect(getMemberEffectiveBladeCount(result!.gameState, 'p1', source.instanceId)).toBe(1);
-    const afterSourceLeaves = removeStageMemberBoundLiveModifiers(result!.gameState, [
+    const sourceLeftStage = updatePlayer(result!.gameState, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+    }));
+    const afterSourceLeaves = removeStageMemberBoundLiveModifiers(sourceLeftStage, [
       source.instanceId,
     ]);
     expect(afterSourceLeaves.liveResolution.liveModifiers).toEqual([result!.modifier]);
@@ -10429,8 +10548,12 @@ describe('BP7 memberBelow target-aware modifiers', () => {
       target.instanceId
     );
     expect(afterTargetReenters.liveResolution.liveModifiers).toEqual([]);
+    const targetLeftStage = updatePlayer(result!.gameState, 'p1', (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
     expect(
-      removeStageMemberBoundLiveModifiers(result!.gameState, [target.instanceId]).liveResolution
+      removeStageMemberBoundLiveModifiers(targetLeftStage, [target.instanceId]).liveResolution
         .liveModifiers
     ).toEqual([]);
   });
@@ -10465,9 +10588,9 @@ describe('BP7 memberBelow target-aware modifiers', () => {
       target,
     ]);
     expect(
-      addBladeLiveModifierForMember(game, {
+      addBladeLiveModifierForTargetMember(game, {
         playerId: 'p1',
-        memberCardId: target.instanceId,
+        targetMemberCardId: target.instanceId,
         sourceCardId: source.instanceId,
         abilityId: 'guard',
         countDelta: 1,

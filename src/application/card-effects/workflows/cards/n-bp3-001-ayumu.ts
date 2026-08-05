@@ -5,7 +5,7 @@ import { typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { finishSkippedActiveEffect, startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { addBladeLiveModifierForSourceMember, drawCardsForPlayer } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember, drawCardsForPlayer } from '../../runtime/actions.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
@@ -75,7 +75,7 @@ function finish(game: GameState, continuePending: ContinuePending): GameState {
   const targetMemberCardIds = getStageMemberCardIdsMatching(state, player.id, typeIs(CardType.MEMBER));
   const appliedTargetMemberCardIds: string[] = [];
   for (const targetMemberCardId of targetMemberCardIds) {
-    const result = addBladeLiveModifierForSourceMember(state, { playerId: player.id, sourceCardId: targetMemberCardId, abilityId: effect.abilityId, amount: 2 });
+    const result = addBladeLiveModifierForTargetMember(state, { playerId: player.id, sourceCardId: effect.sourceCardId, targetMemberCardId, abilityId: effect.abilityId, amount: 2 });
     if (result) { state = result.gameState; appliedTargetMemberCardIds.push(targetMemberCardId); }
   }
   return continuePending(addAction({ ...state, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {

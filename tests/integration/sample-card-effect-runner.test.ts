@@ -18897,10 +18897,11 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
       countDelta: 3,
-      sourceCardId: hime.instanceId,
+      sourceCardId: fanfareLive.instanceId,
+      targetMemberCardId: hime.instanceId,
       abilityId: HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
     });
     expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, hime.instanceId)).toBe(4);

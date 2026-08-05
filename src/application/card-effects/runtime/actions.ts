@@ -20,6 +20,9 @@ import {
   type WaitingRoomCardsMovedToMainDeckEvent,
 } from '../../../domain/events/game-events.js';
 import {
+  addBladeLiveModifierForPlayer as addBladeLiveModifierForPlayerRule,
+  addBladeLiveModifierForSourceMember as addBladeLiveModifierForSourceMemberRule,
+  addBladeLiveModifierForTargetMember as addBladeLiveModifierForTargetMemberRule,
   addBladeLiveModifierForMember as addBladeLiveModifierForMemberRule,
   type AddBladeLiveModifierForMemberResult,
   type BladeLiveModifierForMemberOptions,
@@ -136,6 +139,25 @@ export interface AddBladeLiveModifierForSourceMemberResult {
   readonly modifier: Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
   readonly bladeBonus: number;
 }
+
+export interface AddBladeLiveModifierForTargetMemberOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly targetMemberCardId: string;
+  readonly abilityId: string;
+  readonly amount: number;
+}
+
+export type AddBladeLiveModifierForTargetMemberResult = AddBladeLiveModifierForSourceMemberResult;
+
+export interface AddBladeLiveModifierForPlayerOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly amount: number;
+}
+
+export type AddBladeLiveModifierForPlayerResult = AddBladeLiveModifierForSourceMemberResult;
 
 export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
@@ -629,15 +651,40 @@ export function addBladeLiveModifierForSourceMember(
   game: GameState,
   options: AddBladeLiveModifierForSourceMemberOptions
 ): AddBladeLiveModifierForSourceMemberResult | null {
-  return addBladeLiveModifierForMember(game, {
+  return addBladeLiveModifierForSourceMemberRule(game, {
     playerId: options.playerId,
-    memberCardId: options.sourceCardId,
     sourceCardId: options.sourceCardId,
     abilityId: options.abilityId,
     countDelta: options.amount,
   });
 }
 
+export function addBladeLiveModifierForTargetMember(
+  game: GameState,
+  options: AddBladeLiveModifierForTargetMemberOptions
+): AddBladeLiveModifierForTargetMemberResult | null {
+  return addBladeLiveModifierForTargetMemberRule(game, {
+    playerId: options.playerId,
+    sourceCardId: options.sourceCardId,
+    targetMemberCardId: options.targetMemberCardId,
+    abilityId: options.abilityId,
+    countDelta: options.amount,
+  });
+}
+
+export function addBladeLiveModifierForPlayer(
+  game: GameState,
+  options: AddBladeLiveModifierForPlayerOptions
+): AddBladeLiveModifierForPlayerResult | null {
+  return addBladeLiveModifierForPlayerRule(game, {
+    playerId: options.playerId,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+    countDelta: options.amount,
+  });
+}
+
+/** Legacy compatibility wrapper; new workflows must choose source, target, or player explicitly. */
 export function addBladeLiveModifierForMember(
   game: GameState,
   options: BladeLiveModifierForMemberOptions

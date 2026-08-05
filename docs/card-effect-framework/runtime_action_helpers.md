@@ -94,7 +94,9 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 | `playMemberFromZoneToStageSlotWithReplacement` | 将 HAND / WAITING_ROOM 的 1 张成员因卡效登场到指定成员区，占用区域执行重复成员规则。 | 只校验来源区、owner 与 MEMBER；caller 必须在展示和确认时重验 `movedToStageThisTurn` 区域限制。占用区域不是换手：不调用 `canMemberBeRelayedAway`，不写 `replacingCardId` / `replacedMemberCardId` / effective-cost / `relayReplacements`，不产生 `ON_RELAY`。权威状态原子处理 energyBelow 返能量卡组与旧成员/memberBelow 进休息室，但事件顺序为新成员 `ON_ENTER_STAGE` 先于旧成员 `ON_LEAVE_STAGE` / `ON_ENTER_WAITING_ROOM`，并记录 `RULE_ACTION/DUPLICATE_MEMBER`。caller 决定费用、selector、窗口、action、trigger enqueue 与 continuation。当前真实调用者为 `PL!SP-sd1-002`、`PL!N-bp1-002` 与 shared `on-enter-pay-two-play-low-cost-hand-member`。 |
 | `rearrangeStageMembers`                        | 按最终布局一次性重排当前自己舞台上的主成员。                                         | 输入必须覆盖当前全部主舞台成员；cardId 与目标成员区唯一，成员必须属于该玩家且当前在舞台。energyBelow/memberBelow 跟随各自主成员移动；空槽清空下方堆叠；只为实际 fromSlot != toSlot 的成员记录 `positionMovedThisTurn` 与 `ON_MEMBER_SLOT_MOVED`。                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `rearrangeStageMembersByMoveHistory`           | 从当前权威舞台状态 replay 站位变换操作序列，再一次性写入最终舞台。                   | 每步校验 `cardId` 当前在己方舞台、`toSlot` 合法；移到同槽忽略；移到空槽记移动者 moved；移到已有成员槽按交换处理且双方 moved。最终 energyBelow/memberBelow 跟随各自主成员移动；可用 `expectedPlacements` 校验前端提交的最终布局。为降低旧触发器重复连锁风险，同一成员一次站位变换最多发 1 个 `ON_MEMBER_SLOT_MOVED`，事件槽位取该成员第一次真实移动；完整 `moveHistory` 由 workflow 写入 action payload。                                                                                                                                                                                                                                                |
-| `addBladeLiveModifierForSourceMember`          | 为指定来源成员写入本次 LIVE 期间的 BLADE live modifier。                             | 只做 source member BLADE 写入；不处理支付、弃手、公开、洗回、成功区判断、target member BLADE 或 action payload。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `addBladeLiveModifierForSourceMember`          | 为真实能力来源成员本身写入 `SOURCE_MEMBER` BLADE。                               | source 必须是该玩家的顶层舞台成员；不根据卡型或 ID 相等性推测 scope。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `addBladeLiveModifierForTargetMember`          | 为指定受益成员写入 `TARGET_MEMBER` BLADE，分别保留真实 source 与 target。              | target 必须是该玩家的顶层舞台成员；`sourceCardId === targetMemberCardId` 仍写 TARGET，不折叠为 SOURCE。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `addBladeLiveModifierForPlayer`                | 为玩家本次 LIVE 写入 `PLAYER` BLADE。                                                | 只验证 player 存在且 amount 为正整数；`sourceCardId` 仅保留真实来源，不检查来源卡型或区域，来源 WAITING/离场不撤销。                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `clearRemainingHeartsForPlayer`                | 清空指定玩家本次 LIVE 判定后的余剰/剩余 Heart。                                      | 只操作 `liveResolution.playerRemainingHearts` 的 plain `HeartIcon[]`；返回 `lostHearts` 与 `lostTotalCount`；不写 action，不消费 pending，不用于只读取剩余 Heart 的卡。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## Adjacent Runtime Rule Helpers
@@ -389,7 +391,7 @@ Current boundary:
 - 不调用 zone-operations 的普通移动/登场回退，不 enqueue trigger；这不是进入休息室或登场事件。
 - 不扫描候选、不公开手牌、不写 action history、不处理 LIVE 修正或 pending continue；这些都由 workflow 负责。
 
-`BLADE` live modifier 必须显式声明 `target: 'SOURCE_MEMBER' | 'TARGET_MEMBER' | 'PLAYER'`，读取端不再根据 `sourceCardId` 所属卡牌类型推断受益对象。`SOURCE_MEMBER` 表示能力来源成员本身就是受益者；显式 `TARGET_MEMBER` / `PLAYER` 与所有新增写入都必须让 `sourceCardId` 保留真实能力来源。`addBladeLiveModifierForMember` 以选中成员与真实来源是否同一实例，分别写入 `SOURCE_MEMBER` 或带 `targetMemberCardId` 的 `TARGET_MEMBER`，并拒绝不是当前己方顶层舞台成员的目标；`addBladeLiveModifierForSourceMember` 仅委托该 core。少量历史 workflow 仍把受益成员作为 source helper 参数，这些来源语义误用不在本批迁移范围，后续应单独清理。成员级 modifier 只通过对应的活跃受益成员计入声援，`PLAYER` 则直接计入玩家合计一次；成员离场只清理以该成员为 `SOURCE_MEMBER` 或 `TARGET_MEMBER` 受益者的 modifier，不会因 `PLAYER` modifier 的来源恰好是成员而误清理。真实样本包括 `PL!SP-bp7-001-P` 的下方来源、`PL!S-bp7-005-SEC` 的多 host 常时，以及 `live-start-target-member-gain-blade.ts` family 中真实来源与选中成员不同的 `PL!S-bp2-025-L` / `PL!-bp4-014` / `PL!-bp4-024`。该 family 在写入前仍由 workflow 重验来源，写入后的 LIVE 来源离区不撤销目标 modifier。`MEMBER_ORIGINAL_HEART_REPLACEMENT.hearts` 只支持完整印刷 `HeartIcon[]` 快照，普通 Heart bonus 仍在替换后追加，来源成员实例离场/重登时清理；真实样本为 `PL!N-bp7-003-SEC`。
+`BLADE` live modifier 必须显式声明 `target: 'SOURCE_MEMBER' | 'TARGET_MEMBER' | 'PLAYER'`，读取端不再根据 `sourceCardId` 所属卡牌类型推断受益对象。新 workflow 必须在 `addBladeLiveModifierForSourceMember`、`addBladeLiveModifierForTargetMember` 和 `addBladeLiveModifierForPlayer` 中显式选择 scope，并始终用 `sourceCardId` 保留真实能力来源。TARGET API 不根据 source/target ID 相等而折叠 scope；PLAYER API 不根据 source 卡型或区域推断生命周期。旧 `create/addBladeLiveModifierForMember` 仅为分批迁移保留，它仍有 ID 相等性推断，不得用于新卡效。成员级 modifier 只通过对应的活跃受益成员计入声援，`PLAYER` 则直接计入玩家合计一次；成员离场只清理以该成员为 `SOURCE_MEMBER` 或 `TARGET_MEMBER` 受益者的 modifier，不会因 `PLAYER` modifier 的来源恰好是成员而误清理。真实样本包括 `PL!SP-bp7-001-P` 的下方来源、`PL!S-bp7-005-SEC` 的多 host 常时，以及 `live-start-target-member-gain-blade.ts` family 中真实来源与选中成员不同的 `PL!S-bp2-025-L` / `PL!-bp4-014` / `PL!-bp4-024`。该 family 在写入前仍由 workflow 重验来源，写入后的 LIVE 来源离区不撤销目标 modifier。`MEMBER_ORIGINAL_HEART_REPLACEMENT.hearts` 只支持完整印刷 `HeartIcon[]` 快照，普通 Heart bonus 仍在替换后追加，来源成员实例离场/重登时清理；真实样本为 `PL!N-bp7-003-SEC`。
 
 ### `playMemberBelowCardToEmptySlot`
 
@@ -420,15 +422,17 @@ Current boundary:
 
 ## Live Modifier Action Parameters
 
-### `addBladeLiveModifierForSourceMember`
+### Explicit BLADE writers
 
 | parameter      | meaning                                        |
 | -------------- | ---------------------------------------------- |
 | `game`         | 当前 `GameState`。                             |
 | `playerId`     | 获得 BLADE modifier 的玩家。                   |
-| `sourceCardId` | 获得 BLADE 的来源成员实例。                    |
+| `sourceCardId` | 真实能力来源卡实例。                         |
 | `abilityId`    | 写入 modifier 的能力来源。                     |
 | `amount`       | 正整数 BLADE 数量；`amount <= 0` 返回 `null`。 |
+
+`addBladeLiveModifierForTargetMember` 另传 `targetMemberCardId`，它可以与 `sourceCardId` 相同，但仍写入 `target: 'TARGET_MEMBER'`。`addBladeLiveModifierForPlayer` 不传 member target，`sourceCardId` 只用于来源追踪。
 
 Return:
 
@@ -438,9 +442,9 @@ Return:
 
 Current boundary:
 
-- 只验证 player 与 source member 归属，并写入 `kind: 'BLADE', target: 'SOURCE_MEMBER'`。
+- source writer 验证 source 是己方顶层舞台成员；target writer 验证显式 target 是己方顶层舞台成员；player writer 只验证 player 与 amount。
 - 不生成 action history；`bladeBonus`、费用、弃置、公开、洗回等 payload 仍由 caller 保持原样。
-- 不处理 `TARGET_MEMBER` BLADE，例如 `PL!HS-bp6-031` 指定安养寺姬芽获得 BLADE +3。
+- 不根据 source 卡型、所在区域或 source/target ID 是否相等推测 scope。
 - 不处理 `PL!-sd1-001`、`PL!N-pb1-004` 这类 continuous / dynamic projection。
 
 ## Reveal-From-Hand ActiveEffect Helper

@@ -230,12 +230,14 @@ function findHeartModifier(state: GameState, targetMemberCardId: string) {
   );
 }
 
-function findBladeModifier(state: GameState, sourceCardId: string) {
+function findBladeModifier(state: GameState, sourceCardId: string, targetMemberCardId: string) {
   return state.liveResolution.liveModifiers.find(
     (modifier) =>
       modifier.kind === 'BLADE' &&
       modifier.playerId === PLAYER1 &&
-      modifier.sourceCardId === sourceCardId
+      modifier.target === 'TARGET_MEMBER' &&
+      modifier.sourceCardId === sourceCardId &&
+      modifier.targetMemberCardId === targetMemberCardId
   );
 }
 
@@ -311,7 +313,12 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
       hearts: [{ color: HeartColor.PINK, count: 1 }],
       abilityId: HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
     });
-    expect(findBladeModifier(resolved, setup.target.instanceId)).toMatchObject({
+    expect(
+      findBladeModifier(resolved, setup.source.instanceId, setup.target.instanceId)
+    ).toMatchObject({
+      target: 'TARGET_MEMBER',
+      sourceCardId: setup.source.instanceId,
+      targetMemberCardId: setup.target.instanceId,
       countDelta: 1,
       abilityId: HS_SD1_003_LIVE_START_PAY_ENERGY_TARGET_OTHER_HASUNOSORA_HEART_BLADE_ABILITY_ID,
     });
@@ -636,7 +643,12 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
     const resolved = chooseCard(selected, setup.target.instanceId);
 
     expect(hasHandToWaitingEvent(resolved, [hand.instanceId])).toBe(true);
-    expect(findBladeModifier(resolved, setup.target.instanceId)).toMatchObject({
+    expect(
+      findBladeModifier(resolved, setup.live.instanceId, setup.target.instanceId)
+    ).toMatchObject({
+      target: 'TARGET_MEMBER',
+      sourceCardId: setup.live.instanceId,
+      targetMemberCardId: setup.target.instanceId,
       countDelta: 1,
       abilityId:
         HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID,
@@ -658,7 +670,12 @@ describe('PL!HS-sd1-003/008/020 workflows', () => {
     );
     const resolved = chooseCard(selected, setup.target.instanceId);
 
-    expect(findBladeModifier(resolved, setup.target.instanceId)).toMatchObject({
+    expect(
+      findBladeModifier(resolved, setup.live.instanceId, setup.target.instanceId)
+    ).toMatchObject({
+      target: 'TARGET_MEMBER',
+      sourceCardId: setup.live.instanceId,
+      targetMemberCardId: setup.target.instanceId,
       countDelta: 3,
     });
   });

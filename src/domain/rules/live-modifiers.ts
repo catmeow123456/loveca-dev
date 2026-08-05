@@ -282,6 +282,28 @@ export interface BladeLiveModifierForMemberOptions {
   readonly countDelta: number;
 }
 
+export interface BladeLiveModifierForSourceMemberOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly countDelta: number;
+}
+
+export interface BladeLiveModifierForTargetMemberOptions {
+  readonly playerId: string;
+  readonly targetMemberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly countDelta: number;
+}
+
+export interface BladeLiveModifierForPlayerOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly countDelta: number;
+}
+
 export interface AddBladeLiveModifierForMemberResult {
   readonly gameState: GameState;
   readonly modifier: BladeModifierState;
@@ -3312,42 +3334,155 @@ export function addHeartLiveModifierForMember(
   };
 }
 
-export function createBladeLiveModifierForMember(
+function isOwnTopLevelStageMember(
   game: GameState,
-  options: BladeLiveModifierForMemberOptions
+  playerId: string,
+  memberCardId: string
+): boolean {
+  const player = getPlayerById(game, playerId);
+  const memberCard = getCardById(game, memberCardId);
+  return Boolean(
+    player &&
+    memberCard &&
+    memberCard.ownerId === playerId &&
+    isMemberCardData(memberCard.data) &&
+    Object.values(player.memberSlots.slots).includes(memberCardId)
+  );
+}
+
+function isValidPositiveBladeCountDelta(countDelta: number): boolean {
+  return Number.isInteger(countDelta) && countDelta > 0;
+}
+
+export function createBladeLiveModifierForSourceMember(
+  game: GameState,
+  options: BladeLiveModifierForSourceMemberOptions
 ): BladeModifierState | null {
-  const player = getPlayerById(game, options.playerId);
-  const memberCard = getCardById(game, options.memberCardId);
   if (
-    !player ||
-    !memberCard ||
-    memberCard.ownerId !== options.playerId ||
-    !isMemberCardData(memberCard.data) ||
-    !Object.values(player.memberSlots.slots).includes(options.memberCardId) ||
-    !Number.isInteger(options.countDelta) ||
-    options.countDelta <= 0
+    !isOwnTopLevelStageMember(game, options.playerId, options.sourceCardId) ||
+    !isValidPositiveBladeCountDelta(options.countDelta)
   ) {
     return null;
   }
 
-  const baseModifier = {
-    kind: 'BLADE' as const,
+  return {
+    kind: 'BLADE',
+    target: 'SOURCE_MEMBER',
     playerId: options.playerId,
     countDelta: options.countDelta,
     sourceCardId: options.sourceCardId,
     abilityId: options.abilityId,
   };
+}
 
-  return options.memberCardId === options.sourceCardId
+export function addBladeLiveModifierForSourceMember(
+  game: GameState,
+  options: BladeLiveModifierForSourceMemberOptions
+): AddBladeLiveModifierForMemberResult | null {
+  const modifier = createBladeLiveModifierForSourceMember(game, options);
+  return modifier
     ? {
-        ...baseModifier,
-        target: 'SOURCE_MEMBER',
+        gameState: addLiveModifier(game, modifier),
+        modifier,
+        bladeBonus: options.countDelta,
       }
-    : {
-        ...baseModifier,
-        target: 'TARGET_MEMBER',
+    : null;
+}
+
+export function createBladeLiveModifierForTargetMember(
+  game: GameState,
+  options: BladeLiveModifierForTargetMemberOptions
+): BladeModifierState | null {
+  if (
+    !isOwnTopLevelStageMember(game, options.playerId, options.targetMemberCardId) ||
+    !isValidPositiveBladeCountDelta(options.countDelta)
+  ) {
+    return null;
+  }
+
+  return {
+    kind: 'BLADE',
+    target: 'TARGET_MEMBER',
+    playerId: options.playerId,
+    countDelta: options.countDelta,
+    sourceCardId: options.sourceCardId,
+    targetMemberCardId: options.targetMemberCardId,
+    abilityId: options.abilityId,
+  };
+}
+
+export function addBladeLiveModifierForTargetMember(
+  game: GameState,
+  options: BladeLiveModifierForTargetMemberOptions
+): AddBladeLiveModifierForMemberResult | null {
+  const modifier = createBladeLiveModifierForTargetMember(game, options);
+  return modifier
+    ? {
+        gameState: addLiveModifier(game, modifier),
+        modifier,
+        bladeBonus: options.countDelta,
+      }
+    : null;
+}
+
+export function createBladeLiveModifierForPlayer(
+  game: GameState,
+  options: BladeLiveModifierForPlayerOptions
+): BladeModifierState | null {
+  if (
+    !getPlayerById(game, options.playerId) ||
+    !isValidPositiveBladeCountDelta(options.countDelta)
+  ) {
+    return null;
+  }
+
+  return {
+    kind: 'BLADE',
+    target: 'PLAYER',
+    playerId: options.playerId,
+    countDelta: options.countDelta,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+  };
+}
+
+export function addBladeLiveModifierForPlayer(
+  game: GameState,
+  options: BladeLiveModifierForPlayerOptions
+): AddBladeLiveModifierForMemberResult | null {
+  const modifier = createBladeLiveModifierForPlayer(game, options);
+  return modifier
+    ? {
+        gameState: addLiveModifier(game, modifier),
+        modifier,
+        bladeBonus: options.countDelta,
+      }
+    : null;
+}
+
+/**
+ * Legacy compatibility entry point. New callers must choose the explicit
+ * SOURCE_MEMBER, TARGET_MEMBER, or PLAYER API instead of relying on
+ * instance-id equality.
+ */
+export function createBladeLiveModifierForMember(
+  game: GameState,
+  options: BladeLiveModifierForMemberOptions
+): BladeModifierState | null {
+  return options.memberCardId === options.sourceCardId
+    ? createBladeLiveModifierForSourceMember(game, {
+        playerId: options.playerId,
+        sourceCardId: options.sourceCardId,
+        abilityId: options.abilityId,
+        countDelta: options.countDelta,
+      })
+    : createBladeLiveModifierForTargetMember(game, {
+        playerId: options.playerId,
         targetMemberCardId: options.memberCardId,
-      };
+        sourceCardId: options.sourceCardId,
+        abilityId: options.abilityId,
+        countDelta: options.countDelta,
+      });
 }
 
 export function addBladeLiveModifierForMember(

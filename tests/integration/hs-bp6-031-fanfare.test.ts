@@ -208,6 +208,50 @@ function setupFanfareRecycleScenario(options: {
 }
 
 describe('HS-bp6-031 Fanfare recycle workflow', () => {
+  it('records the LIVE as source, the selected Hime as target, and reveals four cheer cards', () => {
+    const { session, fanfareLiveId, himeId } = setupFanfareRecycleScenario({
+      miraCraCount: 15,
+      includeHime: true,
+    });
+
+    const activateResult = session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        'activate'
+      )
+    );
+    expect(activateResult.success).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'HS_BP6_031_SELECT_HIME_BLADE_TARGET',
+      selectableCardIds: [himeId],
+    });
+
+    const targetResult = session.executeCommand(
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, himeId!)
+    );
+    expect(targetResult.success).toBe(true);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 3,
+      sourceCardId: fanfareLiveId,
+      targetMemberCardId: himeId,
+      abilityId: HS_BP6_031_LIVE_START_RECYCLE_MIRACRA_MEMBERS_GAIN_BLADE_ABILITY_ID,
+    });
+
+    const judged = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(session.state!, PLAYER1);
+    expect(judged.liveResolution.firstPlayerCheerCardIds).toHaveLength(4);
+  });
+
   it('declines without recycling members or adding Blade', () => {
     const { session, waitingMemberIds, deckFillerId } = setupFanfareRecycleScenario({
       miraCraCount: 15,

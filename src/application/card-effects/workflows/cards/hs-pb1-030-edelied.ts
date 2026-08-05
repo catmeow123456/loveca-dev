@@ -6,14 +6,12 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import {
-  addBladeLiveModifierForMember,
-  addHeartLiveModifierForMember,
-} from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { and, normalizeCardName, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { HS_PB1_030_LIVE_START_EDELNOTE_MEMBER_BLADE_DIFFERENT_NAME_PURPLE_HEART_ABILITY_ID } from '../../ability-ids.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -147,12 +145,12 @@ function finishSelectBladeTarget(
     return game;
   }
 
-  const bladeResult = addBladeLiveModifierForMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
-    memberCardId: selectedCardId,
     sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
-    countDelta: BLADE_BONUS,
+    amount: BLADE_BONUS,
   });
   if (!bladeResult) {
     return game;

@@ -30,6 +30,7 @@ import {
   PL_N_BP4_026_AUTO_WAITING_TO_HAND_PLACE_DIVE_LIVE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../src/application/card-effects/runtime/actions';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import { GameService } from '../../src/application/game-service';
 import {
   CardType,
@@ -499,7 +500,9 @@ describe('PL!N-bp4-026-L DIVE! AUTO effects', () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: 'BLADE',
-          sourceCardId: target.instanceId,
+          target: 'TARGET_MEMBER',
+          sourceCardId: dive.instanceId,
+          targetMemberCardId: target.instanceId,
           countDelta: 2,
         }),
       ])
@@ -549,11 +552,29 @@ describe('PL!N-bp4-026-L DIVE! AUTO effects', () => {
       expect.arrayContaining([
         expect.objectContaining({
           kind: 'BLADE',
-          sourceCardId: target.instanceId,
+          target: 'TARGET_MEMBER',
+          sourceCardId: dive.instanceId,
+          targetMemberCardId: target.instanceId,
           countDelta: 2,
         }),
       ])
     );
+
+    const targetLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      resolved,
+      PLAYER1,
+      target.instanceId,
+      enqueueTriggeredCardEffects
+    );
+    expect(targetLeft).not.toBeNull();
+    expect(
+      targetLeft!.gameState.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId ===
+            PL_N_BP4_026_AUTO_FACE_UP_LIVE_ZONE_NIJIGASAKI_MEMBER_BLADE_ABILITY_ID
+      )
+    ).toBe(false);
 
     const faceDownEvent = createEnterLiveZoneEvent(
       dive.instanceId,

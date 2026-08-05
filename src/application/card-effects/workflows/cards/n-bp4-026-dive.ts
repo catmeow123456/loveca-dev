@@ -14,7 +14,7 @@ import {
   PL_N_BP4_026_AUTO_WAITING_TO_HAND_PLACE_DIVE_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
-  addBladeLiveModifierForSourceMember,
+  addBladeLiveModifierForTargetMember,
   placeHandLiveCardInLiveZoneForPlayer,
 } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -304,9 +304,10 @@ function finishNijigasakiMemberBlade(
     return game;
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
-    sourceCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
     amount: BLADE_BONUS,
   });

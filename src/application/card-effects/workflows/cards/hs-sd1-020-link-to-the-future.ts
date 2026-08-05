@@ -10,7 +10,7 @@ import { CardType } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { HS_SD1_020_LIVE_START_DISCARD_UP_TO_THREE_HASUNOSORA_MEMBERS_TARGET_BLADE_ABILITY_ID } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
@@ -251,11 +251,12 @@ function finishHsSd1020Target(
     return game;
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(
+  const bladeResult = addBladeLiveModifierForTargetMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      sourceCardId: selectedCardId,
+      sourceCardId: effect.sourceCardId,
+      targetMemberCardId: selectedCardId,
       abilityId: effect.abilityId,
       amount: bladeBonus,
     }

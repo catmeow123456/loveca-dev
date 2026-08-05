@@ -385,7 +385,7 @@ describe('PL!HS-bp2-007 百生吟子 LIVE-start discard and same-name target', (
   });
 
   it('gives an ordinary same-name target green Heart and BLADE', () => {
-    const { session, handCardId, targetId } = startLiveStartScenario({
+    const { session, sourceId, handCardId, targetId } = startLiveStartScenario({
       testId: 'ordinary-target',
       handCardData: kaho(),
       targetCardData: kaho(),
@@ -403,6 +403,15 @@ describe('PL!HS-bp2-007 百生吟子 LIVE-start discard and same-name target', (
       count: 1,
     });
     expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, targetId!)).toBe(2);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: sourceId,
+      targetMemberCardId: targetId,
+      abilityId: HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
+    });
   });
 
   it('uses Q62 multi-name identity to target LL-bp1-001-R＋ for a discarded 日野下花帆', () => {
