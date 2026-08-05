@@ -1,4 +1,12 @@
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -61,6 +69,10 @@ import {
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
 import { getOnlineRoomLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
+import {
+  getOnlineRoomPostMatchActionState,
+  type OnlineRoomPostMatchActionState,
+} from '@/lib/onlineRoomPostMatch';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
 import { RANKED_RECONNECT_GRACE_PERIOD_LABEL } from '@game/online/ranked-policy';
@@ -455,8 +467,23 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
         selectedDeckName: selectedDeck?.name,
       });
   const leaveConfirmCopy = useMemo(
-    () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind),
-    [room?.originKind, room?.status]
+    () => getOnlineRoomLeaveConfirmCopy(room?.status, room?.originKind, isMatchCompleted),
+    [isMatchCompleted, room?.originKind, room?.status]
+  );
+  const postMatchActionState = useMemo(
+    () =>
+      room
+        ? getOnlineRoomPostMatchActionState({
+            originKind: room.originKind,
+            restartRole: isRestartRequester
+              ? 'REQUESTER'
+              : isRestartResponder
+                ? 'RESPONDER'
+                : 'NONE',
+            opponentActive: opponentMember?.presence === 'ACTIVE',
+          })
+        : null,
+    [isRestartRequester, isRestartResponder, opponentMember?.presence, room]
   );
   const roomEndMessage = useMemo(() => {
     if (!room?.endInfo) {
@@ -660,7 +687,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     setMatchBootstrapRetryToken((token) => token + 1);
   };
 
-  const handleLeaveRoom = async () => {
+  const handleLeaveRoom = useCallback(async () => {
     if (!room && !joinedRoomCode) {
       return;
     }
@@ -699,7 +726,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [disconnectRemoteSession, joinedRoomCode, onBack, room]);
 
   const handleRequestBackToLobby = () => {
     if (room?.status === 'IN_GAME' && room.originKind === 'RANKED' && !isMatchCompleted) {
@@ -713,9 +740,12 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     if (!shouldLeaveAfterSurrender || !isMatchCompleted) {
       return;
     }
-    setShouldLeaveAfterSurrender(false);
-    void handleLeaveRoom();
-  }, [isMatchCompleted, shouldLeaveAfterSurrender]);
+    const timer = window.setTimeout(() => {
+      setShouldLeaveAfterSurrender(false);
+      void handleLeaveRoom();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [handleLeaveRoom, isMatchCompleted, shouldLeaveAfterSurrender]);
 
   const handleRequestRestart = async () => {
     if (!room) {
@@ -927,12 +957,17 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
               restartRequest={restartRequest}
               isRestartRequester={isRestartRequester}
               isRankedRoom={activeBattleContext.room.originKind === 'RANKED'}
+              isReplayableRoom={activeBattleContext.room.originKind !== 'RANKED'}
               onToggleSpectatorRoomEntry={handleToggleSpectatorRoomEntry}
               onOpenRankedNotice={() => setIsRankedNoticeOpen(true)}
               onRequestRestart={handleRequestRestart}
               onCancelRestart={handleCancelRestart}
               onSurrender={() => setIsSurrenderConfirmOpen(true)}
-              onBackHome={isMatchCompleted ? handleLeaveRoom : handleRequestBackToLobby}
+              onBackHome={
+                isMatchCompleted && activeBattleContext.room.originKind === 'RANKED'
+                  ? handleLeaveRoom
+                  : handleRequestBackToLobby
+              }
             />
           )}
           {opponentMember?.presence === 'LEFT' && (
@@ -1010,8 +1045,15 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
             endInfo={activeBattleContext.matchView.endInfo}
             viewerSeat={activeBattleContext.matchView.viewerSeat}
             error={error}
-            isLeaving={isSubmitting}
-            onBackHome={handleLeaveRoom}
+            isSubmitting={isSubmitting}
+            actionState={postMatchActionState!}
+            onRequestRestart={handleRequestRestart}
+            onCancelRestart={handleCancelRestart}
+            onAcceptRestart={handleAcceptRestart}
+            onRejectRestart={handleRejectRestart}
+            onBackLobby={handleRequestBackToLobby}
+            onLeaveRoom={handleRequestLeaveRoom}
+            onReleaseAndBack={handleLeaveRoom}
           />
         )}
         <PreMatchBriefingModal
@@ -1044,6 +1086,19 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
           onCancel={() => setIsSurrenderConfirmOpen(false)}
           onConfirm={handleConfirmSurrender}
         />
+        {leaveConfirmCopy && (
+          <ConfirmDialog
+            isOpen={isLeaveConfirmOpen}
+            title={leaveConfirmCopy.title}
+            message={leaveConfirmCopy.message}
+            confirmLabel={leaveConfirmCopy.confirmLabel}
+            isConfirming={isSubmitting}
+            onCancel={() => setIsLeaveConfirmOpen(false)}
+            onConfirm={() => {
+              void handleLeaveRoom();
+            }}
+          />
+        )}
       </BattleViewportShell>
     );
   }
@@ -2253,21 +2308,38 @@ function OnlineMatchEndPanel({
   endInfo,
   viewerSeat,
   error,
-  isLeaving,
-  onBackHome,
+  isSubmitting,
+  actionState,
+  onRequestRestart,
+  onCancelRestart,
+  onAcceptRestart,
+  onRejectRestart,
+  onBackLobby,
+  onLeaveRoom,
+  onReleaseAndBack,
 }: {
   endInfo: MatchEndView;
   viewerSeat: Seat;
   error: string | null;
-  isLeaving: boolean;
-  onBackHome: () => void;
+  isSubmitting: boolean;
+  actionState: OnlineRoomPostMatchActionState;
+  onRequestRestart: () => void;
+  onCancelRestart: () => void;
+  onAcceptRestart: () => void;
+  onRejectRestart: () => void;
+  onBackLobby: () => void;
+  onLeaveRoom: () => void;
+  onReleaseAndBack: () => void;
 }) {
   const copy = getOnlineMatchEndCopy(endInfo, viewerSeat);
+  const isReplayableRoom = actionState.kind === 'REPLAYABLE_ROOM';
 
   return (
     <div className="pointer-events-none fixed inset-x-4 top-1/2 z-[130] -translate-y-1/2">
       <section
-        className="pointer-events-auto mx-auto w-full max-w-sm rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-gold)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] px-6 py-6 text-center text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl"
+        className={`pointer-events-auto mx-auto w-full rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-gold)_45%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-frosted)_96%,transparent)] px-6 py-6 text-center text-[var(--text-primary)] shadow-[var(--shadow-lg)] backdrop-blur-xl ${
+          isReplayableRoom ? 'max-w-md' : 'max-w-sm'
+        }`}
         role="status"
         aria-live="assertive"
       >
@@ -2279,17 +2351,113 @@ function OnlineMatchEndPanel({
             {error}
           </div>
         )}
-        <div className="mt-5">
-          <button
-            type="button"
-            onClick={onBackHome}
-            disabled={isLeaving}
-            className="button-primary inline-flex min-h-11 w-full items-center justify-center gap-2 px-3 text-sm"
-          >
-            {isLeaving ? <Loader2 size={16} className="animate-spin" /> : <ArrowLeft size={16} />}
-            返回大厅
-          </button>
-        </div>
+        {isReplayableRoom ? (
+          <div className="mt-5 space-y-3">
+            {actionState.restartAction === 'RESPOND' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={onRejectRestart}
+                  disabled={isSubmitting}
+                  className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+                >
+                  <X size={16} />
+                  暂不再来一局
+                </button>
+                <button
+                  type="button"
+                  onClick={onAcceptRestart}
+                  disabled={isSubmitting}
+                  className="button-primary inline-flex min-h-11 items-center justify-center gap-2 px-3 text-sm"
+                >
+                  {isSubmitting ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <RotateCcw size={16} />
+                  )}
+                  同意再来一局
+                </button>
+              </div>
+            ) : actionState.restartAction === 'WAITING' ? (
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={onCancelRestart}
+                  disabled={isSubmitting}
+                  className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+                >
+                  <X size={16} />
+                  取消请求
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="button-primary inline-flex min-h-11 cursor-wait items-center justify-center gap-2 px-3 text-sm opacity-70"
+                >
+                  <Loader2 size={16} className="animate-spin" />
+                  等待对手同意
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onRequestRestart}
+                disabled={isSubmitting || actionState.restartDisabledReason !== null}
+                className={`button-primary inline-flex min-h-11 w-full items-center justify-center gap-2 px-3 text-sm ${
+                  actionState.restartDisabledReason !== null ? 'cursor-not-allowed opacity-60' : ''
+                }`}
+              >
+                {isSubmitting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <RotateCcw size={16} />
+                )}
+                再来一局
+              </button>
+            )}
+            {actionState.restartDisabledReason && (
+              <p className="text-xs leading-5 text-[var(--text-muted)]" role="status">
+                {actionState.restartDisabledReason}
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={onBackLobby}
+                disabled={isSubmitting}
+                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[var(--border-default)] px-3 text-sm"
+              >
+                <ArrowLeft size={16} />
+                返回大厅
+              </button>
+              <button
+                type="button"
+                onClick={onLeaveRoom}
+                disabled={isSubmitting}
+                className="button-ghost inline-flex min-h-11 items-center justify-center gap-2 border border-[color:color-mix(in_srgb,var(--semantic-error)_42%,var(--border-default))] px-3 text-sm text-[var(--semantic-error)]"
+              >
+                <DoorOpen size={16} />
+                离开房间
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-5">
+            <button
+              type="button"
+              onClick={onReleaseAndBack}
+              disabled={isSubmitting}
+              className="button-primary inline-flex min-h-11 w-full items-center justify-center gap-2 px-3 text-sm"
+            >
+              {isSubmitting ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <ArrowLeft size={16} />
+              )}
+              返回大厅
+            </button>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -2332,6 +2500,7 @@ function RoomActionPanel({
   restartRequest,
   isRestartRequester,
   isRankedRoom,
+  isReplayableRoom,
   onToggleSpectatorRoomEntry,
   onOpenRankedNotice,
   onRequestRestart,
@@ -2350,6 +2519,7 @@ function RoomActionPanel({
   restartRequest: OnlineRoomView['restartRequest'];
   isRestartRequester: boolean;
   isRankedRoom: boolean;
+  isReplayableRoom: boolean;
   onToggleSpectatorRoomEntry: () => void;
   onOpenRankedNotice: () => void;
   onRequestRestart: () => void;
@@ -2411,7 +2581,7 @@ function RoomActionPanel({
             </div>
           </div>
         ) : null}
-        {!isRankedRoom && !restartRequest && (
+        {isReplayableRoom && !restartRequest && (
           <button
             type="button"
             onClick={onRequestRestart}

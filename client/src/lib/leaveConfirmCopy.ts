@@ -16,9 +16,17 @@ export function getSolitaireLeaveConfirmCopy(): LeaveConfirmCopy {
 
 export function getOnlineRoomLeaveConfirmCopy(
   status: OnlineRoomStatus | null | undefined,
-  originKind?: MatchOriginKind
+  originKind?: MatchOriginKind,
+  isMatchCompleted = false
 ): LeaveConfirmCopy | null {
   if (status === 'IN_GAME') {
+    if ((originKind === 'ONLINE_ROOM' || originKind === 'PUBLIC_TABLE') && isMatchCompleted) {
+      return {
+        title: '要离开这个房间吗？',
+        message: '离开后就不能回到这个房间，也不能再和对手来一局了。',
+        confirmLabel: '离开房间',
+      };
+    }
     return null;
   }
 

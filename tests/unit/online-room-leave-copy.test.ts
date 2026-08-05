@@ -7,6 +7,21 @@ describe('联机房间离开文案', () => {
     expect(getOnlineRoomLeaveConfirmCopy('IN_GAME', 'PUBLIC_TABLE')).toBeNull();
   });
 
+  it.each(['ONLINE_ROOM', 'PUBLIC_TABLE'] as const)(
+    '%s 赛后提供真正离开房间的确认',
+    (originKind) => {
+      expect(getOnlineRoomLeaveConfirmCopy('IN_GAME', originKind, true)).toEqual({
+        title: '要离开这个房间吗？',
+        message: '离开后就不能回到这个房间，也不能再和对手来一局了。',
+        confirmLabel: '离开房间',
+      });
+    }
+  );
+
+  it('排位赛后不提供独立离房动作', () => {
+    expect(getOnlineRoomLeaveConfirmCopy('IN_GAME', 'RANKED', true)).toBeNull();
+  });
+
   it('公共牌桌开局使用终结本次匹配的放弃配对语义', () => {
     expect(getOnlineRoomLeaveConfirmCopy('OPENING', 'PUBLIC_TABLE')).toEqual({
       title: '放弃本次配对？',

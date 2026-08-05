@@ -1132,6 +1132,107 @@ describe('OnlineRoomService', () => {
     });
   });
 
+  it('私有房间赛后双方同意再来一局应回到原房间准备阶段', async () => {
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      matchService,
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+      loadOwnedDeck: (_userId, deckId) =>
+        Promise.resolve({
+          deckId,
+          deckName: deckId,
+          runtimeDeck: createRuntimeDeck(deckId),
+        }),
+    });
+
+    await service.createRoom('again2', 'u1');
+    await service.joinRoom('again2', 'u2');
+    await service.lockDeck('again2', 'u1', 'deck-a');
+    await service.lockDeck('again2', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'again2', 'u1', 'u2', 'u1');
+    const game = matchService.getMatch(started.matchId!)!.session.state as {
+      currentPhase: GamePhase;
+    };
+    game.currentPhase = GamePhase.GAME_END;
+
+    const requested = await service.requestRestart('again2', 'u1');
+    const restarted = await service.acceptRestartRequest(
+      'again2',
+      'u2',
+      requested.restartRequest!.requestId
+    );
+
+    expect(restarted).toMatchObject({
+      roomCode: 'AGAIN2',
+      status: 'PREPARING',
+      matchId: null,
+      restartRequest: null,
+    });
+    expect(restarted.members).toEqual([
+      expect.objectContaining({ userId: 'u1', presence: 'ACTIVE', startReady: false }),
+      expect.objectContaining({ userId: 'u2', presence: 'ACTIVE', startReady: false }),
+    ]);
+  });
+
+  it('公共牌桌赛后双方同意再来一局应回到原房间准备阶段', async () => {
+    const matchService = createInMemoryMatchService();
+    const service = new OnlineRoomService({
+      now: () => 1_000,
+      matchService,
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '12121212-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '公共牌桌',
+      rankedSeasonId: null,
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'deck-a',
+        deckName: '卡组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-restart-a')),
+        lockedAt: 1_000,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'deck-b',
+        deckName: '卡组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-restart-b')),
+        lockedAt: 1_000,
+      },
+      openingExpiresAt: 181_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+    const game = matchService.getMatch(started.matchId!)!.session.state as {
+      currentPhase: GamePhase;
+    };
+    game.currentPhase = GamePhase.GAME_END;
+
+    const requested = await service.requestRestart(room.roomCode, 'u1');
+    const restarted = await service.acceptRestartRequest(
+      room.roomCode,
+      'u2',
+      requested.restartRequest!.requestId
+    );
+
+    expect(restarted).toMatchObject({
+      originKind: 'PUBLIC_TABLE',
+      status: 'PREPARING',
+      matchId: null,
+      restartRequest: null,
+    });
+    expect(restarted.members).toEqual([
+      expect.objectContaining({ userId: 'u1', presence: 'ACTIVE', startReady: false }),
+      expect.objectContaining({ userId: 'u2', presence: 'ACTIVE', startReady: false }),
+    ]);
+  });
+
   it('房间号观战会话应跨重开等待并在新局按原玩家身份重新解析席位', async () => {
     let now = 4_500_000;
     const matchService = new OnlineMatchService({ now: () => now, recorder: null });
