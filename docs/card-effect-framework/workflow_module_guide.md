@@ -67,7 +67,7 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 `workflows/shared/choose-player-bottom-waiting-members.ts` 由旧 `PL!N-bp3-010` 与 `PL!S-bp7-013` 证明。family 只承载“选自己／对方 -> 效果控制者从该玩家休息室有序选0～2张 MEMBER -> public-card-selection confirmation -> 按选择顺序置该玩家卡组底”的完整核心，不扩展为任意卡种、数量、目的地或后续奖励 DSL。旧 N-bp3-010 step ID 继续是持久恢复合同。
 
-`runtime/member-state-changed-observers.ts` 是与 member-slot observer 对称的通用 registry；runner 只在通用 member-state definition matcher 之后调用它。使用该 registry 自行绑定精确事件的 definition 必须标记 `observerOnly: true`，通用 matcher 必须排除这些 definition，防止未来增加 matcher 时双重入队。`member-waited-discard-activate.ts` 当前只覆盖 `PL!N-bp7-022` / `PL!N-sd2-010` 的己方虹咲成员 `ACTIVE -> WAITING`、可选弃1手、精确目标再活跃核心；LIVE_PHASE 门禁与目标 BLADE +2 是有限配置轴。只有成功弃手才记录 turn use，目标后续 stale 不回滚费用。
+`runtime/member-state-changed-observers.ts` 是与 member-slot observer 对称的通用 registry；runner 只在通用 member-state definition matcher 之后调用它。使用该 registry 自行绑定精确事件的 definition 必须标记 `observerOnly: true`，通用 matcher 必须排除这些 definition，防止未来增加 matcher 时双重入队。`member-waited-discard-activate.ts` 当前只覆盖 `PL!N-bp7-022` / `PL!N-sd2-010` 的己方虹咲成员 `ACTIVE -> WAITING`、可选弃1手、精确目标再活跃核心；完整规则 Live 阶段（`LIVE_SET_PHASE` / `PERFORMANCE_PHASE` / `LIVE_RESULT_PHASE`）门禁与目标 BLADE +2 是有限配置轴。只有成功弃手才记录 turn use，目标后续 stale 不回滚费用。
 
 `workflows/shared/own-card-effect-place-energy-gain-source-blade.ts` 由 `PL!SP-bp7-005` / `PL!SP-bp7-016` 证明，只消费 pending `eventIds` 绑定的 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，要求 cause.playerId 和 targetPlayerId 均为控制者且来源仍在己方主舞台。`place-waiting-energy.ts` 另只新增 `skipNextActivePhase` 有限轴；该轴必须调用 `placeWaitingEnergyWithActivePhaseSkip`，使放置事件、WAITING 状态、精确能量卡 marker 与 continuation 保持同一原子语义。
 
@@ -431,11 +431,11 @@ manual confirm-only 预览与最终结算都实时重算数量和来源 LIVE 状
 
 `domain/rules/live-zone-ability.ts#hasLiveWithoutLiveStartOrSuccessAbility` 是只读 `GameState` 的游戏级 query：仅扫描指定玩家当前 LIVE 区中 owner 正确的合法 LIVE 实例，并按 `cardText` 印刷文本识别中日 LIVE_START / LIVE_SUCCESS 标记，不查询 ability definition 的实现状态。`PL!-bp4-002` 的 continuous modifier 与 `PL!-bp4-014` 的 shared workflow 是当前两个真实消费者；query 不创建 pending、activeEffect 或 modifier。
 
-# LIVE_START 卡组底全匹配后获得 Heart family
+# 卡组底全匹配后获得来源成员 Heart family
 
-`workflows/shared/live-start-mill-bottom-all-match-gain-heart.ts` 由当前公开版本 `PL!S-bp7-006-P` 费用2「津岛善子」与 `PL!S-bp7-015-N` 费用5「津岛善子」两个真实样本建立。稳定轴仅为 base card code / abilityId、卡组底移动数量、窄条件（`GROUP_MEMBER + Aqours` 或 `CARD_TYPE + LIVE`）与 Heart 颜色；Heart 固定写给 `SOURCE_MEMBER`。
+`workflows/shared/mill-bottom-all-match-gain-source-member-hearts.ts` 由 `PL!S-bp7-006-P` 费用2「津岛善子」、`PL!S-bp7-015-N` 费用5「津岛善子」与 DRAFT `PL!S-bp7-017-N` 费用4「小原鞠莉」三个真实样本建立。稳定轴仅为 base card code / abilityId、卡组底移动数量、窄条件（`GROUP_MEMBER + Aqours`、`CARD_TYPE + LIVE` 或 `MEMBER + printed cost >= 10`）与 Heart 集合；Heart 固定写给 `SOURCE_MEMBER`。family 允许已证明的 `LIVE_START / ON_ENTER` 入口差异，不把 timing 写进 workflow 名称。
 
-family 复用 direct top-mill 的公开结果形状：实际卡组底移动与分组等待室事件完成后，以 Public Reveal Dwell 向双方展示真实 `movedCardIds`；展示窗口打开时尚未写 Heart，展示结束后才按实际移动数与卡牌身份写 modifier 并统一 continuation。该定时公开展示取代纯 confirm-only，手动点选也不会双弹窗；移动前仍不预读或展示隐藏底牌。本 family 不包含抽牌、加分、LIVE 必要 Heart 修改、声援方向或任意奖励 DSL。
+family 复用 direct top-mill 的公开结果形状：实际卡组底移动与分组等待室事件完成后，以 Public Reveal Dwell 向双方展示真实 `movedCardIds`；展示窗口打开时尚未写 Heart，展示结束后才按实际移动数与卡牌身份写 modifier 并统一 continuation。该定时公开展示取代纯 confirm-only，手动点选也不会双弹窗；移动前仍不预读或展示隐藏底牌。`PL!S-bp7-011` 的 WAIT 费用、再活跃与 BLADE 奖励不进入该 family；本 family 也不包含抽牌、加分、LIVE 必要 Heart 修改、声援方向或任意奖励 DSL。
 
 # bp7 bottom-mill 后 requirement / draw / score 单卡样本
 
@@ -460,7 +460,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 
 # ON_MEMBER_SLOT_MOVED 来源成员 BLADE family
 
-`workflows/shared/on-move-gain-blade.ts` 的实际配置轴为 `abilityId`、BLADE `amount` 与 action step。`PL!SP-sd2-011` 费用4「鬼冢冬比」、`PL!HS-bp5-014-N` 费用4「安養寺 姫芽」保持 +1，当前公开版本 `PL!SP-bp7-014-N` 费用4「岚千砂都」配置 +2且按基础编号覆盖。family 只在来源自身移动事件入队后结算，不按 `triggerPlayerId` 过滤，次数保持来源实例语义。
+`workflows/shared/on-move-gain-blade.ts` 的实际配置轴为 `abilityId`、BLADE `amount` 与 action step。`PL!SP-sd2-011` 费用4「鬼冢冬毬」、`PL!HS-bp5-014-N` 费用4「安養寺 姫芽」保持 +1，当前公开版本 `PL!SP-bp7-014-N` 费用4「岚千砂都」配置 +2且按基础编号覆盖。family 只在来源自身移动事件入队后结算，不按 `triggerPlayerId` 过滤，次数保持来源实例语义。
 
 来源在事件后、结算前失效，或 `addBladeLiveModifierForSourceMember` 返回 null 时，family 删除当前 pending、记录不含成功 `bladeBonus` 的 no-op `RESOLVE_ABILITY`，再回到统一 continuation；不改变其他 pending 顺序。玩家卡文/确认文案不暴露该引擎安全原因。本 family 不扩展为通用移动奖励 DSL。
 
@@ -525,3 +525,10 @@ family 的有限配置轴仅为 `abilityId` / `baseCardCode`、可选的团体+�
 - `PL!N-bp7-008-P` 费用15「艾玛·维尔德」保留单卡 ON_ENTER 编排：有序休息室选择走既有 WAITING_ROOM→MAIN_DECK_BOTTOM wrapper，能量处理走既有普通/特殊能量选择；不建立“移动任意牌后按张数做任意动作”的 family。
 - `PL!N-bp7-029-L` 分数7「Burn!!」保留单卡 LIVE_SUCCESS 选择、来源校验和 SCORE 奖励。仅把“当前顶层成员下方完整能量堆原子放入能量区，并发出一个标准 placement event”沉到 `effects/energy-below.ts`；helper 不承担卡号、窗口、门槛、分数或 continuation。
 - 两张卡均按基础编号覆盖，公开 API 为卡文权威来源；本地 `cards.json` 与当前 Excel 没有记录。runner 只增加 import/register。
+
+# 2026-08-06 DRAFT 第三批 shared 边界
+
+- `stage-formation-change.ts` 只增加已证明的团体条件与“本次真实移动指定团体成员后给来源 BLADE”有限奖励轴。`PL!S-bp7-012` 的判定读取 atomic rearrange 返回的 `rearrangedMembers`，同槽输入、skip 或来源 stale 不伪造奖励；未增加任意奖励 callback。
+- `activated-self-position-change.ts` 仅持有强制自身站位变换窗口、来源／恋授予资格复核、标准 slot-moved wrapper 与 stale-after-cost continuation。它不知道能量费用种类；旧 `activated-pay-energy-self-position-change.ts` 与新 `PL!SP-bp7-022` 分别在开窗前支付活跃能量 `[E]` 费用或返回能量费用。
+- `runtime/public-card-selection-confirmation.ts` 的 `distinctGroupAssignment` 是显式 opt-in：开启时，一张实体卡即使具有多小队身份也只能贡献一个 selection group，通过小型回溯查找可行一对一分配。缺省关闭，不改变旧 grouped-recovery 语义；当前只有 `PL!SP-bp7-012` 使用。
+- `PL!S-bp7-011` 的“来源 WAIT 费用 + 底2 + 再活跃 + BLADE”与 `PL!SP-bp7-012` 的“三小队各1张置底后抽1”保持卡牌专属 workflow；只复用事件 wrapper、公开停留、选择确认和统一 continuation，不为本批构造任意步骤 DSL。

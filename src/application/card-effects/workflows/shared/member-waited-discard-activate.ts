@@ -9,10 +9,10 @@ import {
 import type { MemberStateChangedEvent } from '../../../../domain/events/game-events.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import {
+  GamePhase,
   OrientationState,
   SlotPosition,
   TriggerCondition,
-  TurnType,
 } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
@@ -55,7 +55,7 @@ type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForEnterWaitingRoo
 
 interface MemberWaitedDiscardActivateConfig {
   readonly abilityId: string;
-  readonly requiredTurnType?: TurnType;
+  readonly requiredGamePhases?: readonly GamePhase[];
   readonly bladeBonus: number;
   readonly actionStep: string;
 }
@@ -63,7 +63,11 @@ interface MemberWaitedDiscardActivateConfig {
 const CONFIGS: readonly MemberWaitedDiscardActivateConfig[] = [
   {
     abilityId: N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
-    requiredTurnType: TurnType.LIVE_PHASE,
+    requiredGamePhases: [
+      GamePhase.LIVE_SET_PHASE,
+      GamePhase.PERFORMANCE_PHASE,
+      GamePhase.LIVE_RESULT_PHASE,
+    ],
     bladeBonus: 0,
     actionStep: 'DISCARD_ACTIVATE_WAITED_NIJIGASAKI_MEMBER',
   },
@@ -149,8 +153,8 @@ function enqueueMemberWaitedDiscardActivateObservers(
         const config = CONFIGS.find((candidate) => candidate.abilityId === definition.abilityId);
         if (
           !config ||
-          (config.requiredTurnType !== undefined &&
-            game.currentTurnType !== config.requiredTurnType) ||
+          (config.requiredGamePhases !== undefined &&
+            !config.requiredGamePhases.includes(game.currentPhase)) ||
           !canUseAbilityThisTurn(state, player.id, definition.abilityId, sourceCardId)
         ) {
           continue;

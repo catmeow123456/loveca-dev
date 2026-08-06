@@ -27,6 +27,7 @@ import { addCardToZone, placeCardInSlot, removeCardFromSlot } from '../../src/do
 import {
   CardType,
   FaceState,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
@@ -227,7 +228,12 @@ describe('PL!N-bp7-017 optional energy-deck placement below a Nijigasaki member'
 });
 
 describe('shared own Nijigasaki member waited -> optional discard -> exact reactivation', () => {
-  function setup(abilityId: string, sourceCode: string, turnType: TurnType) {
+  function setup(
+    abilityId: string,
+    sourceCode: string,
+    turnType: TurnType,
+    currentPhase = GamePhase.MAIN_PHASE
+  ) {
     const source = member(sourceCode, 'shioriko');
     const target = member('TARGET-NIJIGASAKI', 'target');
     const hand = member('HAND-CARD', 'hand-card');
@@ -245,7 +251,7 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
       hand: addCardToZone(player.hand, hand.instanceId),
     }));
     return {
-      game: { ...game, currentTurnType: turnType },
+      game: { ...game, currentPhase, currentTurnType: turnType },
       source,
       target,
       hand,
@@ -253,16 +259,21 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
     };
   }
 
-  it('applies the LIVE gate, preserves exact event target, and skip does not consume turn1', () => {
+  it('applies the complete Live-stage GamePhase gate and skip does not consume turn1', () => {
     const scenario = setup(
       N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
       'PL!N-bp7-022-N',
-      TurnType.FIRST_PLAYER_TURN
+      TurnType.FIRST_PLAYER_TURN,
+      GamePhase.MAIN_PHASE
     );
     const outsideLive = enqueueWaitingTransition(scenario.game, scenario.target.instanceId);
     expect(outsideLive.pendingAbilities).toHaveLength(0);
 
-    const liveGame = { ...scenario.game, currentTurnType: TurnType.LIVE_PHASE };
+    const liveGame = {
+      ...scenario.game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+    };
     const triggered = enqueueWaitingTransition(liveGame, scenario.target.instanceId);
     expect(triggered.pendingAbilities).toHaveLength(1);
     expect(triggered.pendingAbilities[0]?.metadata?.changedCardId).toBe(scenario.target.instanceId);
@@ -288,11 +299,31 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
     expect(retriggered.pendingAbilities).toHaveLength(1);
   });
 
+  it.each([GamePhase.LIVE_SET_PHASE, GamePhase.LIVE_RESULT_PHASE])(
+    'also triggers during the %s portion of the rules Live stage',
+    (currentPhase) => {
+      const scenario = setup(
+        N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+        'PL!N-bp7-022-TEST',
+        TurnType.LIVE_PHASE,
+        currentPhase
+      );
+
+      const triggered = enqueueWaitingTransition(scenario.game, scenario.target.instanceId);
+
+      expect(triggered.pendingAbilities).toHaveLength(1);
+      expect(triggered.pendingAbilities[0]?.metadata?.changedCardId).toBe(
+        scenario.target.instanceId
+      );
+    }
+  );
+
   it('pays discard through the event wrapper, records turn1 only on success, then activates', () => {
     const scenario = setup(
       N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
       'PL!N-bp7-022-R',
-      TurnType.LIVE_PHASE
+      TurnType.SECOND_PLAYER_TURN,
+      GamePhase.PERFORMANCE_PHASE
     );
     const choosing = resolvePendingCardEffects(
       enqueueWaitingTransition(scenario.game, scenario.target.instanceId)
@@ -330,7 +361,8 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
     const scenario = setup(
       N_SD2_010_AUTO_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID,
       'PL!N-sd2-010-SD2',
-      TurnType.FIRST_PLAYER_TURN
+      TurnType.FIRST_PLAYER_TURN,
+      GamePhase.MAIN_PHASE
     );
     const noHand = updatePlayer(scenario.game, P1, (player) => ({
       ...player,

@@ -396,7 +396,9 @@ import { registerSpBp7006KinakoWorkflowHandlers } from './card-effects/workflows
 import { registerSpBp7007MeiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-007-mei.js';
 import { registerSpBp7008ShikiWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-008-shiki.js';
 import { registerSpBp7011TomariWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-011-tomari.js';
+import { registerSpBp7012KanonWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-012-kanon.js';
 import { registerSpBp7015SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-015-sumire.js';
+import { registerSpBp7022TomariWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-022-tomari.js';
 import { registerSpBp7026DearsWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-026-dears.js';
 import { registerSpBp7027WhatAWonderfulDreamWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-027-what-a-wonderful-dream.js';
 import { registerLiveStartReturnOneEnergyCompareScoreWorkflowHandlers } from './card-effects/workflows/shared/live-start-return-one-energy-compare-score.js';
@@ -432,6 +434,7 @@ import { registerSBp7005YouWorkflowHandlers } from './card-effects/workflows/car
 import { registerSBp7007HanamaruWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-007-hanamaru.js';
 import { registerSBp7008MariWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-008-mari.js';
 import { registerSBp7010ChikaWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-010-chika.js';
+import { registerSBp7011RikoWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-011-riko.js';
 import { registerSpBp7010MargareteWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-010-margarete.js';
 import { registerSBp7019NandoDatteYakusokuWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-019-nando-datte-yakusoku.js';
 import { registerSpBp7004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-bp7-004-sumire.js';
@@ -455,7 +458,7 @@ import { registerSpBp5006KinakoWorkflowHandlers } from './card-effects/workflows
 import { registerSpPb1003ChisatoWorkflowHandlers } from './card-effects/workflows/cards/sp-pb1-003-chisato.js';
 import { registerSpPb1004SumireWorkflowHandlers } from './card-effects/workflows/cards/sp-pb1-004-sumire.js';
 import { registerPlaceWaitingEnergyWorkflowHandlers } from './card-effects/workflows/shared/place-waiting-energy.js';
-import { registerLiveStartMillBottomAllMatchGainHeartWorkflowHandlers } from './card-effects/workflows/shared/live-start-mill-bottom-all-match-gain-heart.js';
+import { registerMillBottomAllMatchGainSourceMemberHeartsWorkflowHandlers } from './card-effects/workflows/shared/mill-bottom-all-match-gain-source-member-hearts.js';
 import { registerSBp7020HappyPartyTrainWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-020-happy-party-train.js';
 import { registerSBp7021BokuraNoTabiWaOwaranaiWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-021-bokura-no-tabi-wa-owaranai.js';
 import { registerSBp7022KoiNiNaritaiAquariumWorkflowHandlers } from './card-effects/workflows/cards/s-bp7-022-koi-ni-naritai-aquarium.js';
@@ -1217,7 +1220,9 @@ registerSpBp7006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7007MeiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7008ShikiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7011TomariWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerSpBp7012KanonWorkflowHandlers();
 registerSpBp7015SumireWorkflowHandlers();
+registerSpBp7022TomariWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7026DearsWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerLiveStartReturnOneEnergyCompareScoreWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7027WhatAWonderfulDreamWorkflowHandlers({ enqueueTriggeredCardEffects });
@@ -1258,6 +1263,7 @@ registerSBp7005YouWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7007HanamaruWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7008MariWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7010ChikaWorkflowHandlers();
+registerSBp7011RikoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpBp7010MargareteWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7019NandoDatteYakusokuWorkflowHandlers();
 registerSpBp7004SumireWorkflowHandlers();
@@ -1284,7 +1290,9 @@ registerSpBp5006KinakoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb1003ChisatoWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSpPb1004SumireWorkflowHandlers();
 registerPlaceWaitingEnergyWorkflowHandlers({ enqueueTriggeredCardEffects });
-registerLiveStartMillBottomAllMatchGainHeartWorkflowHandlers({ enqueueTriggeredCardEffects });
+registerMillBottomAllMatchGainSourceMemberHeartsWorkflowHandlers({
+  enqueueTriggeredCardEffects,
+});
 registerSBp7020HappyPartyTrainWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7021BokuraNoTabiWaOwaranaiWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerSBp7022KoiNiNaritaiAquariumWorkflowHandlers();

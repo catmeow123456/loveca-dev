@@ -145,9 +145,9 @@ describe('waiting-room ON_ENTER delegatability', () => {
 
     expect(missing).toEqual([]);
     expect(conflicting).toEqual([]);
-    expect(new Set(rows.flatMap((row) => [...row.abilityIds])).size).toBe(18);
-    expect(rows).toHaveLength(33);
-    expect(rows.filter((row) => row.decisions.has('ALLOW'))).toHaveLength(26);
+    expect(new Set(rows.flatMap((row) => [...row.abilityIds])).size).toBe(19);
+    expect(rows).toHaveLength(34);
+    expect(rows.filter((row) => row.decisions.has('ALLOW'))).toHaveLength(27);
     expect(rows.filter((row) => row.decisions.has('DENY')).map((row) => row.baseCardCode)).toEqual([
       'PL!SP-bp4-002',
       'PL!SP-bp4-013',

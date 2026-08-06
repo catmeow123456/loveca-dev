@@ -1814,6 +1814,16 @@ export const SP_BP7_016_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_ONE_BLADE_ABILITY_ID =
   'PL!SP-bp7-016:auto-own-effect-place-energy-gain-one-blade';
 export const SP_BP7_017_ON_ENTER_PLACE_SKIPPED_WAITING_ENERGY_ABILITY_ID =
   'PL!SP-bp7-017:on-enter-place-skipped-waiting-energy';
+export const S_BP7_011_ACTIVATED_WAIT_SELF_MILL_BOTTOM_TWO_ALL_AQOURS_MEMBERS_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!S-bp7-011:activated-wait-self-mill-bottom-two-all-aqours-members-activate-gain-two-blade';
+export const S_BP7_012_ON_ENTER_ONLY_AQOURS_OR_SAINT_SNOW_STAGE_FORMATION_CHANGE_SAINT_SNOW_MOVED_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!S-bp7-012:on-enter-only-aqours-or-saint-snow-stage-formation-change-saint-snow-moved-gain-two-blade';
+export const S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID =
+  'PL!S-bp7-017:on-enter-mill-bottom-one-cost-ten-member-gain-red-blue-heart';
+export const SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID =
+  'PL!SP-bp7-012:on-enter-bottom-catchu-kaleidoscore-fiveyncrise-draw-one';
+export const SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID =
+  'PL!SP-bp7-022:activated-return-energy-self-position-change';
 export const N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID =
   'PL!N-bp7-008:on-enter-bottom-up-to-four-no-blade-heart-members-activate-energy';
 export const N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID =

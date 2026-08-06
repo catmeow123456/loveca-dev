@@ -14,6 +14,7 @@ import {
   SP_BP7_003_ACTIVATED_REVEAL_COST_TEN_OR_TWENTY_MEMBER_STACK_DRAW_TWO_ABILITY_ID,
   SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
   SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID,
+  SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
   SP_SD1_005_ACTIVATED_PAY_THREE_ENERGY_RECOVER_LIVE_ABILITY_ID,
   SP_SD1_011_ACTIVATED_PAY_TWO_ENERGY_PLACE_WAITING_ENERGY_ABILITY_ID,
   SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
@@ -123,6 +124,11 @@ const CASES = [
     label: 'PL!SP-bp7-008 费用11「若菜四季」',
     directCode: 'PL!SP-bp7-008-P',
     abilityId: SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
+  },
+  {
+    label: 'PL!SP-bp7-022 费用2「鬼塚冬毬」',
+    directCode: 'PL!SP-bp7-022-N',
+    abilityId: SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
   },
   {
     label: 'PL!SP-PR-017 费用4「ウィーン・マルガレーテ」',
@@ -517,6 +523,36 @@ describe('PL!SP-pb2-005 恋宿主的多阶段复核与“此成员”实际作�
     expect(slots.slots[SlotPosition.RIGHT]).toBe(scenario.sourceId);
     expect(slots.memberBelow[SlotPosition.RIGHT]).toContain(scenario.grantedCardId);
     expect(slots.slots[SlotPosition.CENTER]).toBeNull();
+  });
+
+  it('bp7-022 由恋宿主支付返回能量费用，并在后续步骤移动宿主及其下方卡', () => {
+    const cardCase = CASES.find(
+      (entry) =>
+        entry.abilityId === SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID
+    )!;
+    const scenario = setupScenario(cardCase, 'REN');
+
+    expect(activate(scenario).success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toMatchObject({
+      abilityId: cardCase.abilityId,
+      sourceCardId: scenario.sourceId,
+      selectableSlots: expect.arrayContaining([SlotPosition.RIGHT]),
+    });
+    expect(scenario.session.state?.players[0].energyDeck.cardIds).toContain(scenario.energyIds[8]);
+    expect(confirmSlot(scenario, SlotPosition.RIGHT).success).toBe(true);
+
+    const slots = scenario.session.state!.players[0].memberSlots;
+    expect(slots.slots[SlotPosition.RIGHT]).toBe(scenario.sourceId);
+    expect(slots.memberBelow[SlotPosition.RIGHT]).toContain(scenario.grantedCardId);
+    expect(slots.slots[SlotPosition.CENTER]).toBeNull();
+    expect(
+      scenario.session.state?.actionHistory.find(
+        (action) => action.type === 'PAY_COST' && action.payload.abilityId === cardCase.abilityId
+      )?.payload
+    ).toMatchObject({
+      sourceCardId: scenario.sourceId,
+      returnedEnergyCardIds: [scenario.energyIds[8]],
+    });
   });
 
   it('bp5-005 将按本次牌库成员数获得的 BLADE 绑定恋宿主', () => {

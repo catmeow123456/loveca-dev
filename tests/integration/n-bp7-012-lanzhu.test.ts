@@ -8,19 +8,24 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { placeCardInSlot } from '../../src/domain/entities/zone';
+import { addCardToZone, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
-import { N_BP7_012_LIVE_START_WAIT_NIJIGASAKI_MEMBER_CHOOSE_HEART_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  N_BP7_012_LIVE_START_WAIT_NIJIGASAKI_MEMBER_CHOOSE_HEART_ABILITY_ID,
+  N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
   TriggerCondition,
+  TurnType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -135,6 +140,92 @@ function latestPayload(game: GameState) {
 }
 
 describe('PL!N-bp7-012 Lanzhu LIVE_START wait-cost choose-Heart workflow', () => {
+  it.each([TurnType.FIRST_PLAYER_TURN, TurnType.SECOND_PLAYER_TURN])(
+    'queues N-bp7-022 in PERFORMANCE_PHASE/%s without interrupting the mandatory Heart step',
+    (currentTurnType) => {
+      const scenario = setup();
+      const listener = createCardInstance(
+        member('PL!N-bp7-022-N', '三船栞子'),
+        PLAYER1,
+        'n-bp7-022-listener'
+      );
+      const discardCard = createCardInstance(
+        member('PL!N-test-discard', '弃手费用'),
+        PLAYER1,
+        'n-bp7-022-discard'
+      );
+      const deckCard = createCardInstance(
+        member('PL!N-test-deck', '卡组留牌'),
+        PLAYER1,
+        'n-bp7-022-deck-card'
+      );
+      let game = registerCards(scenario.game, [listener, discardCard, deckCard]);
+      game = updatePlayer(game, PLAYER1, (player) => {
+        let memberSlots = removeCardFromSlot(player.memberSlots, SlotPosition.RIGHT);
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.RIGHT, listener.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        });
+        return {
+          ...player,
+          memberSlots,
+          hand: addCardToZone(player.hand, discardCard.instanceId),
+          mainDeck: addCardToZone(player.mainDeck, deckCard.instanceId),
+        };
+      });
+      game = {
+        ...game,
+        currentPhase: GamePhase.PERFORMANCE_PHASE,
+        currentTurnType,
+      };
+
+      const costWindow = resolvePendingCardEffects(game).gameState;
+      const heartWindow = confirmActiveEffectStep(
+        costWindow,
+        PLAYER1,
+        costWindow.activeEffect!.id,
+        scenario.target.instanceId
+      );
+
+      expect(heartWindow.activeEffect).toMatchObject({
+        abilityId: N_BP7_012_LIVE_START_WAIT_NIJIGASAKI_MEMBER_CHOOSE_HEART_ABILITY_ID,
+        stepId: 'N_BP7_012_SELECT_HEART_COLOR',
+        canSkipSelection: false,
+      });
+      const nBp7022Pending = heartWindow.pendingAbilities.find(
+        (ability) =>
+          ability.abilityId ===
+          N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID
+      );
+      expect(nBp7022Pending).toMatchObject({
+        sourceCardId: listener.instanceId,
+        metadata: { changedCardId: scenario.target.instanceId },
+      });
+
+      const nBp7022Window = selectHeart(heartWindow, HeartColor.GREEN);
+      expect(nBp7022Window.activeEffect).toMatchObject({
+        abilityId: N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+        selectableCardIds: [discardCard.instanceId],
+        canSkipSelection: true,
+        skipSelectionLabel: '不发动',
+      });
+      expect(
+        nBp7022Window.players[0].memberSlots.cardStates.get(scenario.target.instanceId)?.orientation
+      ).toBe(OrientationState.WAITING);
+
+      const resolved = confirmActiveEffectStep(
+        nBp7022Window,
+        PLAYER1,
+        nBp7022Window.activeEffect!.id,
+        discardCard.instanceId
+      );
+      expect(
+        resolved.players[0].memberSlots.cardStates.get(scenario.target.instanceId)?.orientation
+      ).toBe(OrientationState.ACTIVE);
+      expect(resolved.players[0].waitingRoom.cardIds).toContain(discardCard.instanceId);
+    }
+  );
+
   it('pays by waiting one active Nijigasaki member, emits the event, then forces one standard Heart choice', () => {
     const scenario = setup();
     const costWindow = resolvePendingCardEffects(scenario.game).gameState;

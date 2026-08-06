@@ -12610,7 +12610,9 @@ describe('2026-07-30 DRAFT recovery and discard-draw definitions', () => {
   );
 
   it.each(['PL!SP-bp7-012-P'])('does not leak to adjacent base card %s', (cardCode) => {
-    expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    expect(getCardAbilityDefinitions(cardCode)).not.toContainEqual(
+      expect.objectContaining({ abilityId: SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID })
+    );
   });
 });
 
@@ -12678,12 +12680,14 @@ describe('2026-07-30 DRAFT S-bp7-008 and SP-bp7-010 definitions', () => {
     }
   );
 
-  it.each(['PL!S-bp7-011-P', 'PL!SP-bp7-012-P'])(
-    'does not leak the new definitions to adjacent base card %s',
-    (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
-    }
-  );
+  it.each([
+    ['PL!S-bp7-011-P', S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID],
+    ['PL!SP-bp7-012-P', SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID],
+  ])('does not leak the adjacent definition to %s', (cardCode, adjacentAbilityId) => {
+    expect(getCardAbilityDefinitions(cardCode)).not.toContainEqual(
+      expect.objectContaining({ abilityId: adjacentAbilityId })
+    );
+  });
 });
 
 describe('2026-08-03 DRAFT PL!S-bp7-001-P 费用9「高海千歌」与 PL!S-bp7-010-N 费用4「高海千歌」 definitions', () => {

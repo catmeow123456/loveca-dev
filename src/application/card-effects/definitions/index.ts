@@ -47,6 +47,11 @@ import {
   SP_BP7_015_LIVE_START_PAY_ENERGY_THREE_CATCHU_DRAW_ONE_ABILITY_ID,
   SP_BP7_016_AUTO_OWN_EFFECT_PLACE_ENERGY_GAIN_ONE_BLADE_ABILITY_ID,
   SP_BP7_017_ON_ENTER_PLACE_SKIPPED_WAITING_ENERGY_ABILITY_ID,
+  S_BP7_011_ACTIVATED_WAIT_SELF_MILL_BOTTOM_TWO_ALL_AQOURS_MEMBERS_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID,
+  S_BP7_012_ON_ENTER_ONLY_AQOURS_OR_SAINT_SNOW_STAGE_FORMATION_CHANGE_SAINT_SNOW_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
+  S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+  SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
+  SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
   PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
   PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
   PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
@@ -2553,6 +2558,16 @@ const SP_BP7_016_AUTO_EFFECT_TEXT =
   '【自动】【1回合1次】因为自己的卡片的效果，将能量放置于自己的能量区时，LIVE结束时为止，获得[ブレード]。';
 const SP_BP7_017_ON_ENTER_EFFECT_TEXT =
   '【登场】从自己的能量卡组，将1张能量以待机状态放置于能量区。该能量卡，在下回合的活跃阶段不会变为活跃状态。';
+const S_BP7_011_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将此成员变为待机状态：将自己的卡组底的2张卡片放置入休息室。那些全部为『Aqours』的成员卡的场合，将此成员变为活跃状态，LIVE结束时为止，获得[ブレード][ブレード]。';
+const S_BP7_012_ON_ENTER_EFFECT_TEXT =
+  '【登场】自己的舞台上仅存在『Aqours』或『Saint Snow』的成员的场合，可以进行队列变换。因该效果将『Saint Snow』的成员移动的场合，LIVE结束时为止，获得[ブレード][ブレード]。';
+const S_BP7_017_ON_ENTER_EFFECT_TEXT =
+  '【登场】将自己的卡组底的卡片放置入休息室。那张卡片是费用大于等于10的成员卡的场合，LIVE结束时为止，获得[赤ハート][青ハート]。';
+const SP_BP7_012_ON_ENTER_EFFECT_TEXT =
+  '【登场】可以从自己的休息室，选择『CatChu!』和『KALEIDOSCORE』和『5yncri5e!』的卡片各1张，将那些卡片按任意顺序放置于卡组底。如此做时，抽1张卡。';
+const SP_BP7_022_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将存在于能量区的1张能量放置于能量卡组：将此成员站位变换。(将此成员移动至当前区域以外的区域。该区域存在成员的场合，将该成员移动至此成员曾存在的区域。)';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
   {
@@ -13908,7 +13923,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【LIVE开始时】从自己的卡组最下方将3张卡放置入休息室。放置的卡全部是『Aqours』成员卡的场合，直到LIVE结束时为止，此成员获得[緑ハート]。',
     notes:
-      'shared live-start-mill-bottom-all-match-gain-heart workflow；按基础编号覆盖同卡全部罕度；确认窗口不预读未公开的卡组底，条件只在卡牌实际进入休息室后判定。',
+      'shared mill-bottom-all-match-gain-source-member-hearts workflow；按基础编号覆盖同卡全部罕度；确认窗口不预读未公开的卡组底，条件只在卡牌实际进入休息室后判定。',
   },
   {
     abilityId: S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
@@ -13921,7 +13936,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【LIVE开始时】从自己的卡组最下方将1张卡放置入休息室。放置的卡是LIVE卡的场合，直到LIVE结束时为止，此成员获得[赤ハート]。',
     notes:
-      'shared live-start-mill-bottom-all-match-gain-heart workflow；按基础编号覆盖同卡全部罕度；确认窗口不预读未公开的卡组底，条件只在卡牌实际进入休息室后判定。',
+      'shared mill-bottom-all-match-gain-source-member-hearts workflow；按基础编号覆盖同卡全部罕度；确认窗口不预读未公开的卡组底，条件只在卡牌实际进入休息室后判定。',
   },
   {
     abilityId:
@@ -14653,7 +14668,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     observerOnly: true,
     effectText: N_BP7_022_AUTO_EFFECT_TEXT,
     notes:
-      '仅在 LIVE_PHASE 中消费本次 ON_MEMBER_STATE_CHANGED 事件中己方舞台虹咲成员 ACTIVE -> WAITING 的精确目标。可选弃1手后重验同一目标并变 ACTIVE；弃手与状态变化均走统一事件 wrapper。',
+      '仅在规则 Live 阶段的 LIVE_SET_PHASE、PERFORMANCE_PHASE、LIVE_RESULT_PHASE 中消费本次 ON_MEMBER_STATE_CHANGED 事件中己方舞台虹咲成员 ACTIVE -> WAITING 的精确目标。可选弃1手后重验同一目标并变 ACTIVE；弃手与状态变化均走统一事件 wrapper。',
   },
   {
     abilityId: N_SD2_010_ON_ENTER_DRAW_TWO_ABILITY_ID,
@@ -14748,5 +14763,91 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     },
     notes:
       '复用 waiting-energy-placement runtime；将能量卡组顶1张以 WAITING 放入能量区，并仅对该张登记下一次自己 ACTIVE_PHASE skip。能量卡组为空时安全结算，不伪造放置或 skip 记录；效果不依赖来源槽位，显式允许休息室委托。',
+  },
+  {
+    abilityId:
+      S_BP7_011_ACTIVATED_WAIT_SELF_MILL_BOTTOM_TWO_ALL_AQOURS_MEMBERS_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-011'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    requiredSourceOrientation: OrientationState.ACTIVE,
+    effectText: S_BP7_011_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId:
+        S_BP7_011_ACTIVATED_WAIT_SELF_MILL_BOTTOM_TWO_ALL_AQOURS_MEMBERS_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID,
+      title: '将此成员变为待机状态，检查卡组底2张',
+      text: S_BP7_011_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '将来源变 WAITING 作为费用并经 member-state wrapper 入队；费用完成后以 refresh-aware bottom-deck wrapper 将2张卡成组放入休息室并公开，全部为 Aqours MEMBER 时再活跃来源并授予来源 BLADE +2。',
+  },
+  {
+    abilityId:
+      S_BP7_012_ON_ENTER_ONLY_AQOURS_OR_SAINT_SNOW_STAGE_FORMATION_CHANGE_SAINT_SNOW_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-012'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP7_012_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'DENY',
+      reason: 'SOURCE_SLOT_REQUIRED',
+    },
+    notes:
+      '扩展 shared stage-formation-change；结算时要求己方主舞台成员全部属于 Aqours 或 Saint Snow，可选重排。仅本次真实移动至少1名 Saint Snow 成员时，来源仍在舞台才获得 BLADE +2。',
+  },
+  {
+    abilityId: S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!S-bp7-017'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: S_BP7_017_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'DENY',
+      reason: 'SOURCE_SLOT_REQUIRED',
+    },
+    notes:
+      '扩展 bottom-deck mill shared family；以 refresh-aware wrapper 将卡组底1张放入休息室并公开，实际移动卡为印刷费用至少10的 MEMBER 且来源仍在舞台时，来源获得红、蓝 Heart 各1。',
+  },
+  {
+    abilityId: SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp7-012'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: SP_BP7_012_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
+    notes:
+      '单卡 workflow 复用 waiting-room-to-deck-bottom 与公开确认原子模块；整段可选，选择3张不同卡且分别覆盖 CatChu!、KALEIDOSCORE、5yncri5e!，按选择顺序置卡组底，三张全部成功移动后抽1。',
+  },
+  {
+    abilityId: SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
+    baseCardCodes: ['PL!SP-bp7-022'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: SP_BP7_022_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
+      title: '将1张能量放回能量卡组，站位变换自身',
+      text: SP_BP7_022_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '扩展 activated self-position-change family；将能量区1张能量放回能量卡组作为费用并派发标准事件，费用成功后强制将来源移动至其他区域，来源后续 stale 不回滚费用。',
   },
 ];
