@@ -30,6 +30,7 @@ import { GameService } from '../../src/application/game-service';
 import {
   HS_BP2_017_ON_ENTER_WAITING_ROOM_TEN_DRAW_ONE_ABILITY_ID,
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+  N_SD2_010_ON_ENTER_DRAW_TWO_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
   S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
@@ -173,6 +174,55 @@ function pendingAbility(
 }
 
 describe('member on-enter draw shared workflow', () => {
+  it('draws two for PL!N-sd2-010 on enter', () => {
+    const source = createCardInstance(
+      createMember('PL!N-sd2-010-SD2', '三船栞子', 17),
+      PLAYER1,
+      'n-sd2-010-source'
+    );
+    const drawCards = [0, 1].map((index) =>
+      createCardInstance(
+        createMember(`PL!N-sd2-010-draw-${index}`),
+        PLAYER1,
+        `n-sd2-010-draw-${index}`
+      )
+    );
+    let game = registerCards(createGameState('n-sd2-010-draw-two', PLAYER1, 'P1', PLAYER2, 'P2'), [
+      source,
+      ...drawCards,
+    ]);
+    game = updatePlayer(game, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: drawCards.map((card) => card.instanceId) },
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }),
+    }));
+
+    const state = resolvePendingCardEffects({
+      ...game,
+      pendingAbilities: [
+        pendingAbility(
+          'n-sd2-010-on-enter',
+          source.instanceId,
+          SlotPosition.CENTER,
+          N_SD2_010_ON_ENTER_DRAW_TWO_ABILITY_ID
+        ),
+      ],
+    }).gameState;
+
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.players[0].hand.cardIds).toEqual(drawCards.map((card) => card.instanceId));
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: N_SD2_010_ON_ENTER_DRAW_TWO_ABILITY_ID,
+      step: 'ON_ENTER_DRAW_TWO',
+      requestedDrawCount: 2,
+      drawnCardIds: drawCards.map((card) => card.instanceId),
+      drawCount: 2,
+    });
+  });
+
   it.each([
     ['PL!HS-bp5-011-N', '大沢瑠璃乃', SlotPosition.LEFT],
     ['PL!SP-sd2-009-SD2', '鬼塚夏美', SlotPosition.RIGHT],

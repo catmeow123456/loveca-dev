@@ -7,40 +7,47 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID } from '../../ability-ids.js';
+import {
+  PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
+  S_BP7_013_ON_ENTER_CHOOSE_PLAYER_BOTTOM_UP_TO_TWO_WAITING_MEMBERS_ABILITY_ID,
+} from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
+import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
+// Keep the promoted family's original step IDs so persisted PL!N-bp3-010 windows remain valid.
 const SELECT_PLAYER_STEP_ID = 'PL_N_BP3_010_SELECT_PLAYER';
 const SELECT_WAITING_MEMBERS_STEP_ID = 'PL_N_BP3_010_SELECT_WAITING_MEMBERS';
 const MAX_WAITING_MEMBERS = 2;
 
+const ABILITY_IDS = [
+  PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
+  S_BP7_013_ON_ENTER_CHOOSE_PLAYER_BOTTOM_UP_TO_TWO_WAITING_MEMBERS_ABILITY_ID,
+] as const;
+
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-export function registerNBp3010ShiorikoWorkflowHandlers(): void {
-  registerPendingAbilityStarterHandler(
-    PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
-    (game, ability, options) =>
+export function registerChoosePlayerBottomWaitingMembersWorkflowHandlers(): void {
+  for (const abilityId of ABILITY_IDS) {
+    registerPendingAbilityStarterHandler(abilityId, (game, ability, options) =>
       startSelectTargetPlayer(game, ability, options.orderedResolution === true)
-  );
-  registerActiveEffectStepHandler(
-    PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
-    SELECT_PLAYER_STEP_ID,
-    (game, input) => startSelectWaitingMembers(game, input.selectedOptionId ?? null)
-  );
-  registerActiveEffectStepHandler(
-    PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
-    SELECT_WAITING_MEMBERS_STEP_ID,
-    (game, input, context) =>
-      finishSelectWaitingMembers(
-        game,
-        input.selectedCardIds ?? [],
-        context.continuePendingCardEffects
-      )
-  );
+    );
+    registerActiveEffectStepHandler(abilityId, SELECT_PLAYER_STEP_ID, (game, input) =>
+      startSelectWaitingMembers(game, input.selectedOptionId ?? null)
+    );
+    registerActiveEffectStepHandler(
+      abilityId,
+      SELECT_WAITING_MEMBERS_STEP_ID,
+      (game, input, context) =>
+        finishSelectWaitingMembers(
+          game,
+          input.selectedCardIds ?? [],
+          context.continuePendingCardEffects
+        )
+    );
+  }
 }
 
 function startSelectTargetPlayer(
@@ -62,9 +69,7 @@ function startSelectTargetPlayer(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       controllerId: ability.controllerId,
-      effectText: getAbilityEffectText(
-        PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID
-      ),
+      effectText: getAbilityEffectText(ability.abilityId),
       stepId: SELECT_PLAYER_STEP_ID,
       stepText: '请选择要处理休息室的玩家。',
       awaitingPlayerId: player.id,
@@ -75,9 +80,7 @@ function startSelectTargetPlayer(
         { id: opponent.id, label: '对方' },
       ],
       canSkipSelection: false,
-      metadata: {
-        orderedResolution,
-      },
+      metadata: { orderedResolution },
     },
     actionPayload: {
       sourceCardId: ability.sourceCardId,
@@ -91,7 +94,7 @@ function startSelectWaitingMembers(game: GameState, selectedOptionId: string | n
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID ||
+    !isSupportedAbilityId(effect.abilityId) ||
     effect.stepId !== SELECT_PLAYER_STEP_ID
   ) {
     return game;
@@ -100,11 +103,7 @@ function startSelectWaitingMembers(game: GameState, selectedOptionId: string | n
   const player = getPlayerById(game, effect.controllerId);
   const opponent = player ? getOpponent(game, player.id) : null;
   const targetPlayer =
-    selectedOptionId === player?.id
-      ? player
-      : selectedOptionId === opponent?.id
-        ? opponent
-        : null;
+    selectedOptionId === player?.id ? player : selectedOptionId === opponent?.id ? opponent : null;
   if (!player || !targetPlayer) {
     return game;
   }
@@ -119,8 +118,7 @@ function startSelectWaitingMembers(game: GameState, selectedOptionId: string | n
     activeEffect: {
       ...effect,
       stepId: SELECT_WAITING_MEMBERS_STEP_ID,
-      stepText:
-        '请选择该玩家休息室中至多2张成员卡。选择顺序会成为放置到卡组底的顺序。',
+      stepText: '请选择该玩家休息室中至多2张成员卡。选择顺序会成为放置到卡组底的顺序。',
       selectableCardIds: candidateCardIds,
       selectableCardVisibility: 'PUBLIC',
       selectableCardMode: 'ORDERED_MULTI',
@@ -152,7 +150,7 @@ function finishSelectWaitingMembers(
   const effect = game.activeEffect;
   if (
     !effect ||
-    effect.abilityId !== PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID ||
+    !isSupportedAbilityId(effect.abilityId) ||
     effect.stepId !== SELECT_WAITING_MEMBERS_STEP_ID
   ) {
     return game;
@@ -199,6 +197,10 @@ function finishSelectWaitingMembers(
     }),
     effect.metadata?.orderedResolution === true
   );
+}
+
+function isSupportedAbilityId(value: string): boolean {
+  return ABILITY_IDS.some((abilityId) => abilityId === value);
 }
 
 function getTargetPlayerId(metadata: Readonly<Record<string, unknown>> | undefined): string | null {

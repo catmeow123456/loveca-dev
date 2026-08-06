@@ -3,7 +3,7 @@
 > 文档类型：编码标准
 > 适用范围：卡效 workflow family、特殊卡 workflow、runner dispatch 的组织方式
 > 当前状态：现行写法；旧 runner 逻辑按 `migration_roadmap.md` 分批迁移，完整卡效 fallback 不得回流
-> 最后更新：2026-08-03
+> 最后更新：2026-08-06
 
 ## ON_LEAVE_STAGE activate stage member
 
@@ -60,6 +60,18 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 `SINGLE` 固定提交一个原子 ID；`MULTI` 以 `minSelections` / `maxSelections` 表达数量，按 options 的卡文顺序结算，不创建 `A+B` 组合 option。印刷选项应保持完整，即使当前没有合法资源/目标也保留该项并设 `selectable: false`。真实分支的提交统一先进入 1500ms 双方公开，再由原 handler 重验来源、资源、目标和规则条件；如果选项后还要选卡或选成员，也不能跳过该公开阶段。
 
 选目标卡/成员/槽位、选择作用玩家、pending/ability 顺序、动态委托能力、单纯发动/不发动、支付/不支付、数字输入与继续/停止不属于 `effectChoice`。真正的 skip 仍使用 `canSkipSelection` + `skipSelectionLabel`，没有选择正向效果时不创建空公开窗口。迁移期只有旧 handler 仍依赖 `effect.selectableOptions` 校验时才在权威状态保留 legacy 字段；projector/UI 在存在 `effectChoice` 时必须隐藏它。选项进入下一步骤时清除旧 `effectChoice`，避免后续窗口重复公开或误用旧选择。
+
+## 2026-08-06 DRAFT 第二批 family 与 observer 边界
+
+`workflows/shared/live-start-wait-nijigasaki-member-gain-live-modifier.ts` 由旧 `PL!N-sd2-006` 在 `PL!N-bp7-012` 成为第二个真实样本时晋升。稳定核心是 LIVE_START 可选将己方活跃虹咲成员 WAITING 作为费用，再给来源成员写 LIVE modifier；有限奖励轴只有固定 BLADE 与六色普通 Heart 强制单选。费用经 member-state wrapper 支付并先入队事件；后续来源 stale 只取消 modifier，不回滚已支付费用。晋升必须保留旧 N-sd2-006 持久 step ID。
+
+`workflows/shared/choose-player-bottom-waiting-members.ts` 由旧 `PL!N-bp3-010` 与 `PL!S-bp7-013` 证明。family 只承载“选自己／对方 -> 效果控制者从该玩家休息室有序选0～2张 MEMBER -> public-card-selection confirmation -> 按选择顺序置该玩家卡组底”的完整核心，不扩展为任意卡种、数量、目的地或后续奖励 DSL。旧 N-bp3-010 step ID 继续是持久恢复合同。
+
+`runtime/member-state-changed-observers.ts` 是与 member-slot observer 对称的通用 registry；runner 只在通用 member-state definition matcher 之后调用它。使用该 registry 自行绑定精确事件的 definition 必须标记 `observerOnly: true`，通用 matcher 必须排除这些 definition，防止未来增加 matcher 时双重入队。`member-waited-discard-activate.ts` 当前只覆盖 `PL!N-bp7-022` / `PL!N-sd2-010` 的己方虹咲成员 `ACTIVE -> WAITING`、可选弃1手、精确目标再活跃核心；LIVE_PHASE 门禁与目标 BLADE +2 是有限配置轴。只有成功弃手才记录 turn use，目标后续 stale 不回滚费用。
+
+`workflows/shared/own-card-effect-place-energy-gain-source-blade.ts` 由 `PL!SP-bp7-005` / `PL!SP-bp7-016` 证明，只消费 pending `eventIds` 绑定的 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，要求 cause.playerId 和 targetPlayerId 均为控制者且来源仍在己方主舞台。`place-waiting-energy.ts` 另只新增 `skipNextActivePhase` 有限轴；该轴必须调用 `placeWaitingEnergyWithActivePhaseSkip`，使放置事件、WAITING 状态、精确能量卡 marker 与 continuation 保持同一原子语义。
+
+`mill-top-gain-live-modifier.ts` 的新条件是有限 union `DISTINCT_MEMBER_BLADE_HEART_COLORS`；只读本次实际 milled IDs 中 MEMBER 的印刷 `BladeHeartEffect.HEART/heartColor`，不统计 LIVE 的 BLADE HEART、DRAW/SCORE 效果或普通 `hearts`。它仍共用 refresh-aware direct mill、grouped waiting-room event、Public Reveal Dwell 和来源 stale 后不回滚区域移动的原有边界，不接受任意 condition callback。
 
 ## When To Create A Workflow Module
 

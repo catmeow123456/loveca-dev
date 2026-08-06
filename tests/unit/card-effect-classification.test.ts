@@ -12609,12 +12609,9 @@ describe('2026-07-30 DRAFT recovery and discard-draw definitions', () => {
     }
   );
 
-  it.each(['PL!N-bp7-012-P', 'PL!SP-bp7-012-P'])(
-    'does not leak to adjacent base card %s',
-    (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
-    }
-  );
+  it.each(['PL!SP-bp7-012-P'])('does not leak to adjacent base card %s', (cardCode) => {
+    expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+  });
 });
 
 describe('2026-07-30 DRAFT S-bp7-008 and SP-bp7-010 definitions', () => {
@@ -16356,7 +16353,7 @@ describe('PL!N-sd2 base-scoped definitions', () => {
     );
   });
 
-  it.each(['PL!N-sd2-002-P', 'PL!N-sd2-010-P', 'PL!N-sd2-018-P', 'PL!N-sd2-028-P'])(
+  it.each(['PL!N-sd2-002-P', 'PL!N-sd2-018-P', 'PL!N-sd2-028-P'])(
     'does not leak to adjacent card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
