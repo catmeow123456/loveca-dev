@@ -16,16 +16,25 @@ import {
   LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID,
+  N_BP7_014_AUTO_LEAVE_STAGE_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
   PL_S_PB1_001_ON_ENTER_OPPONENT_HAND_TWO_MORE_RECOVER_LIVE_ABILITY_ID,
   PR_018_ON_ENTER_RECOVER_HIGH_SCORE_LIVE_ABILITY_ID,
   SP_BP1_007_ON_ENTER_ENERGY_ELEVEN_RECOVER_LIVE_ABILITY_ID,
+  SP_BP7_019_ON_ENTER_THREE_FIVEYNCRISE_RECOVER_LIVE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { recoverCardsFromWaitingRoomToHandForPlayer } from '../../runtime/actions.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
-import { and, costLte, groupIs, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
+import {
+  and,
+  costLte,
+  groupAliasIs,
+  groupIs,
+  typeIs,
+  unitAliasIs,
+} from '../../../effects/card-selectors.js';
 import { countSuccessfulLiveCards } from '../../../effects/conditions.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import {
@@ -212,6 +221,33 @@ const WAITING_ROOM_TO_HAND_WORKFLOWS: readonly RegisteredWaitingRoomToHandWorkfl
     conditionNotMetActionStep: 'QU4RTZ_STAGE_MEMBER_COUNT_BELOW_THREE',
     noCandidatesActionStep: 'NO_WAITING_ROOM_CARD_TARGET',
     candidateBuilder: (game, playerId) => selectWaitingRoomCardIds(game, playerId, () => true),
+    countRule: { exactCount: 1 },
+    optional: false,
+  },
+  {
+    abilityId: N_BP7_014_AUTO_LEAVE_STAGE_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
+    stepId: 'N_BP7_014_SELECT_WAITING_ROOM_NIJIGASAKI_LIVE',
+    stepText: '请选择自己的休息室中1张『虹咲』LIVE卡加入手牌。',
+    selectionLabel: '选择要加入手牌的虹咲LIVE卡',
+    confirmSelectionLabel: '加入手牌',
+    noCandidatesActionStep: 'NO_WAITING_ROOM_NIJIGASAKI_LIVE_TARGET',
+    candidateBuilder: (game, playerId) =>
+      selectWaitingRoomCardIds(game, playerId, and(typeIs(CardType.LIVE), groupAliasIs('虹ヶ咲'))),
+    countRule: { exactCount: 1 },
+    optional: false,
+  },
+  {
+    abilityId: SP_BP7_019_ON_ENTER_THREE_FIVEYNCRISE_RECOVER_LIVE_ABILITY_ID,
+    stepId: 'SP_BP7_019_SELECT_WAITING_ROOM_LIVE',
+    stepText: '请选择自己的休息室中1张LIVE卡加入手牌。',
+    selectionLabel: '选择要加入手牌的LIVE卡',
+    confirmSelectionLabel: '加入手牌',
+    canStart: (game, playerId) =>
+      getStageMemberCardIdsMatching(game, playerId, unitAliasIs('5yncri5e!')).length >= 3,
+    conditionNotMetActionStep: 'FIVEYNCRISE_STAGE_MEMBER_COUNT_BELOW_THREE',
+    noCandidatesActionStep: 'NO_WAITING_ROOM_LIVE_TARGET',
+    candidateBuilder: (game, playerId) =>
+      selectWaitingRoomCardIds(game, playerId, typeIs(CardType.LIVE)),
     countRule: { exactCount: 1 },
     optional: false,
   },

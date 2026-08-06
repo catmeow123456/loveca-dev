@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  S_BP7_014_CONTINUOUS_OPPONENT_MORE_ENERGY_GAIN_RED_HEART_ABILITY_ID,
+  SP_BP7_001_CONTINUOUS_BELOW_LIELLA_HOST_GAIN_BLADE_ABILITY_ID,
+  SP_BP7_020_CONTINUOUS_MORE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+  SP_BP7_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import { GameService } from '../../src/application/game-service';
 import {
   createCardInstance,
@@ -8051,6 +8056,165 @@ describe('PL!S-pb1-005 continuous opponent energy lead BLADE', () => {
       ).toBe(false);
     }
   });
+});
+
+describe('BP7 continuous energy-comparison modifier family', () => {
+  type SourcePlacement = 'STAGE' | 'MEMBER_BELOW' | 'OFF_STAGE';
+
+  function setupEnergyComparisonScenario(options: {
+    readonly cardCode: string;
+    readonly ownEnergyCount: number;
+    readonly opponentEnergyCount: number;
+    readonly sourcePlacement?: SourcePlacement;
+  }) {
+    const source = createCardInstance(
+      {
+        cardCode: options.cardCode,
+        name: options.cardCode,
+        groupNames: options.cardCode.startsWith('PL!S-') ? ['Aqours'] : ['Liella!'],
+        cardType: CardType.MEMBER,
+        cost: 4,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      `${options.cardCode}-source`
+    );
+    const host = createCardInstance(
+      {
+        cardCode: 'TEST-HOST',
+        name: 'Host',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      `${options.cardCode}-host`
+    );
+    const ownEnergy = Array.from({ length: options.ownEnergyCount }, (_, index) =>
+      createCardInstance(
+        { cardCode: `OWN-ENERGY-${index}`, name: 'Energy', cardType: CardType.ENERGY },
+        'p1',
+        `${options.cardCode}-own-energy-${index}`
+      )
+    );
+    const opponentEnergy = Array.from({ length: options.opponentEnergyCount }, (_, index) =>
+      createCardInstance(
+        { cardCode: `OPPONENT-ENERGY-${index}`, name: 'Energy', cardType: CardType.ENERGY },
+        'p2',
+        `${options.cardCode}-opponent-energy-${index}`
+      )
+    );
+
+    let game = registerCards(
+      createGameState(`bp7-energy-comparison-${options.cardCode}`, 'p1', 'P1', 'p2', 'P2'),
+      [source, host, ...ownEnergy, ...opponentEnergy]
+    );
+    game = updatePlayer(game, 'p1', (player) => {
+      let memberSlots = player.memberSlots;
+      if (options.sourcePlacement === 'MEMBER_BELOW') {
+        memberSlots = addMemberBelowMember(
+          placeCardInSlot(memberSlots, SlotPosition.CENTER, host.instanceId),
+          SlotPosition.CENTER,
+          source.instanceId
+        );
+      } else if (options.sourcePlacement !== 'OFF_STAGE') {
+        memberSlots = placeCardInSlot(memberSlots, SlotPosition.CENTER, source.instanceId);
+      }
+      return {
+        ...player,
+        memberSlots,
+        energyZone: ownEnergy.reduce(
+          (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+          player.energyZone
+        ),
+      };
+    });
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      energyZone: opponentEnergy.reduce(
+        (zone, energy) => addCardToStatefulZone(zone, energy.instanceId),
+        player.energyZone
+      ),
+    }));
+    return { game, sourceId: source.instanceId };
+  }
+
+  const cases = [
+    {
+      cardCode: 'PL!S-bp7-014-P',
+      ownEnergyCount: 1,
+      opponentEnergyCount: 2,
+      abilityId: S_BP7_014_CONTINUOUS_OPPONENT_MORE_ENERGY_GAIN_RED_HEART_ABILITY_ID,
+      expectedModifier: (sourceCardId: string) => ({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+        sourceCardId,
+        abilityId: S_BP7_014_CONTINUOUS_OPPONENT_MORE_ENERGY_GAIN_RED_HEART_ABILITY_ID,
+      }),
+    },
+    {
+      cardCode: 'PL!SP-bp7-020-R',
+      ownEnergyCount: 2,
+      opponentEnergyCount: 1,
+      abilityId: SP_BP7_020_CONTINUOUS_MORE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+      expectedModifier: (sourceCardId: string) => ({
+        kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        countDelta: 2,
+        sourceCardId,
+        abilityId: SP_BP7_020_CONTINUOUS_MORE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+      }),
+    },
+    {
+      cardCode: 'PL!SP-bp7-021-P',
+      ownEnergyCount: 2,
+      opponentEnergyCount: 1,
+      abilityId: SP_BP7_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID,
+      expectedModifier: (sourceCardId: string) => ({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: 'p1',
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+        sourceCardId,
+        abilityId: SP_BP7_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID,
+      }),
+    },
+  ] as const;
+
+  it.each(cases)('collects $cardCode only while its energy comparison is true', (testCase) => {
+    const matching = setupEnergyComparisonScenario(testCase);
+    expect(collectLiveModifiers(matching.game)).toContainEqual(
+      testCase.expectedModifier(matching.sourceId)
+    );
+
+    const tied = setupEnergyComparisonScenario({
+      ...testCase,
+      ownEnergyCount: 2,
+      opponentEnergyCount: 2,
+    });
+    expect(
+      collectLiveModifiers(tied.game).some((modifier) => modifier.abilityId === testCase.abilityId)
+    ).toBe(false);
+  });
+
+  it.each(cases)(
+    'excludes $cardCode after leaving the top-level main stage or while below another member',
+    (testCase) => {
+      for (const sourcePlacement of ['OFF_STAGE', 'MEMBER_BELOW'] as const) {
+        const scenario = setupEnergyComparisonScenario({ ...testCase, sourcePlacement });
+        expect(
+          collectLiveModifiers(scenario.game).some(
+            (modifier) => modifier.abilityId === testCase.abilityId
+          )
+        ).toBe(false);
+      }
+    }
+  );
 });
 
 describe('PL!S-pb1-009 continuous total success LIVE BLADE', () => {

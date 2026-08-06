@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
+  N_BP7_013_ON_ENTER_THREE_AZUNA_DRAW_ONE_ABILITY_ID,
   PL_PB1_005_ON_ENTER_HAS_SUCCESS_LIVE_DRAW_ONE_ABILITY_ID,
   PL_BP5_015_ON_ENTER_SUCCESS_LIVE_SCORE_THREE_DRAW_ABILITY_ID,
   PL_BP4_016_ON_ENTER_SUCCESS_SCORE_THREE_DRAW_ONE_ABILITY_ID,
@@ -30,6 +31,7 @@ import { SlotPosition } from '../../../../shared/types/enums.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { getMemberEffectiveCost } from '../../../effects/conditions.js';
+import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -54,6 +56,8 @@ interface MemberOnEnterDrawConfig {
   readonly bonusStageMemberName?: string;
   readonly minStageMemberEffectiveCost?: number;
   readonly requiredStageMemberGroupAlias?: string;
+  readonly requiredStageUnitAlias?: string;
+  readonly minStageUnitMemberCount?: number;
 }
 
 const MEMBER_SLOT_ORDER = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
@@ -125,6 +129,13 @@ const MEMBER_ON_ENTER_DRAW_CONFIGS: readonly MemberOnEnterDrawConfig[] = [
     actionStep: 'AQOURS_COST_NINE_STAGE_MEMBER_DRAW_ONE',
     minStageMemberEffectiveCost: 9,
     requiredStageMemberGroupAlias: 'Aqours',
+  },
+  {
+    abilityId: N_BP7_013_ON_ENTER_THREE_AZUNA_DRAW_ONE_ABILITY_ID,
+    drawCount: 1,
+    actionStep: 'AZUNA_STAGE_MEMBER_THREE_DRAW_ONE',
+    requiredStageUnitAlias: 'A・ZU・NA',
+    minStageUnitMemberCount: 3,
   },
 ];
 
@@ -311,6 +322,28 @@ function resolveMemberOnEnterDraw(
       orderedResolution
     );
   }
+  const qualifyingStageUnitMemberCardIds =
+    config.requiredStageUnitAlias === undefined
+      ? []
+      : getStageMemberCardIdsMatching(game, player.id, unitAliasIs(config.requiredStageUnitAlias));
+  const hasRequiredStageUnitMemberCount =
+    config.minStageUnitMemberCount === undefined ||
+    qualifyingStageUnitMemberCardIds.length >= config.minStageUnitMemberCount;
+  if (!hasRequiredStageUnitMemberCount) {
+    return continuePendingCardEffects(
+      addAction(stateAfterUseRecord, 'RESOLVE_ABILITY', player.id, {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'STAGE_UNIT_MEMBER_COUNT_CONDITION_NOT_MET',
+        sourceSlot: ability.sourceSlot,
+        requiredStageUnitAlias: config.requiredStageUnitAlias,
+        minStageUnitMemberCount: config.minStageUnitMemberCount,
+        qualifyingStageUnitMemberCardIds,
+      }),
+      orderedResolution
+    );
+  }
 
   const hasBonusStageMember =
     config.bonusStageMemberName !== undefined &&
@@ -328,10 +361,10 @@ function resolveMemberOnEnterDraw(
   const drawResult =
     requestedDrawCount === 0
       ? { gameState: stateAfterUseRecord, drawnCardIds: [] as readonly string[] }
-      : drawCardsForPlayer(stateAfterUseRecord, player.id, requestedDrawCount) ?? {
+      : (drawCardsForPlayer(stateAfterUseRecord, player.id, requestedDrawCount) ?? {
           gameState: stateAfterUseRecord,
           drawnCardIds: [] as readonly string[],
-        };
+        });
 
   return continuePendingCardEffects(
     addAction(drawResult.gameState, 'RESOLVE_ABILITY', player.id, {
@@ -351,6 +384,10 @@ function resolveMemberOnEnterDraw(
       requiredSuccessLiveCardCount: config.minSuccessLiveCardCount,
       requiredOtherStageUnitAlias: config.requiredOtherStageUnitAlias,
       hasRequiredOtherStageUnitMember,
+      requiredStageUnitAlias: config.requiredStageUnitAlias,
+      minStageUnitMemberCount: config.minStageUnitMemberCount,
+      qualifyingStageUnitMemberCardIds,
+      hasRequiredStageUnitMemberCount,
       bonusStageMemberName: config.bonusStageMemberName,
       hasBonusStageMember,
       minStageMemberEffectiveCost: config.minStageMemberEffectiveCost,

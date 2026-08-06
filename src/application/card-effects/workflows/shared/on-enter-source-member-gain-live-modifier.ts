@@ -9,6 +9,7 @@ import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-mod
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   HS_CL1_006_ON_ENTER_GAIN_THREE_BLADE_ABILITY_ID,
+  N_BP7_024_ON_ENTER_THREE_R3BIRTH_GAIN_PINK_HEART_ABILITY_ID,
   N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
   S_BP6_013_ON_ENTER_GAIN_TWO_BLADE_ABILITY_ID,
   S_PR_016_ON_ENTER_GAIN_ONE_BLADE_ABILITY_ID,
@@ -16,6 +17,8 @@ import {
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerManualConfirmablePendingAbilityStarterHandler } from '../../runtime/workflow-helpers.js';
+import { unitAliasIs } from '../../../effects/card-selectors.js';
+import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -26,6 +29,8 @@ type OnEnterSourceMemberLiveModifierConfig =
       readonly amount: number;
       readonly actionStep: string;
       readonly manualConfirmable?: boolean;
+      readonly requiredStageUnitAlias?: string;
+      readonly minStageUnitMemberCount?: number;
     }
   | {
       readonly abilityId: string;
@@ -34,6 +39,8 @@ type OnEnterSourceMemberLiveModifierConfig =
       readonly amount: number;
       readonly actionStep: string;
       readonly manualConfirmable?: boolean;
+      readonly requiredStageUnitAlias?: string;
+      readonly minStageUnitMemberCount?: number;
     };
 
 const ON_ENTER_SOURCE_MEMBER_LIVE_MODIFIER_CONFIGS: readonly OnEnterSourceMemberLiveModifierConfig[] =
@@ -63,6 +70,15 @@ const ON_ENTER_SOURCE_MEMBER_LIVE_MODIFIER_CONFIGS: readonly OnEnterSourceMember
       amount: 1,
       actionStep: 'ON_ENTER_SOURCE_MEMBER_GAIN_BLUE_HEART',
       manualConfirmable: true,
+    },
+    {
+      abilityId: N_BP7_024_ON_ENTER_THREE_R3BIRTH_GAIN_PINK_HEART_ABILITY_ID,
+      kind: 'HEART',
+      color: HeartColor.PINK,
+      amount: 1,
+      actionStep: 'ON_ENTER_THREE_R3BIRTH_GAIN_PINK_HEART',
+      requiredStageUnitAlias: 'R3BIRTH',
+      minStageUnitMemberCount: 3,
     },
   ];
 
@@ -118,22 +134,34 @@ function resolveOnEnterSourceMemberLiveModifier(
   }
 
   const sourceOnStage = getAllMemberCardIds(player.memberSlots).includes(ability.sourceCardId);
-  const modifierResult = !sourceOnStage
-    ? null
-    : config.kind === 'BLADE'
-      ? addBladeLiveModifierForSourceMember(stateWithoutPending, {
-          playerId: player.id,
-          sourceCardId: ability.sourceCardId,
-          abilityId: ability.abilityId,
-          amount: config.amount,
-        })
-      : addHeartLiveModifierForMember(stateWithoutPending, {
-          playerId: player.id,
-          memberCardId: ability.sourceCardId,
-          sourceCardId: ability.sourceCardId,
-          abilityId: ability.abilityId,
-          hearts: [{ color: config.color, count: config.amount }],
-        });
+  const qualifyingStageUnitMemberCardIds =
+    config.requiredStageUnitAlias === undefined
+      ? []
+      : getStageMemberCardIdsMatching(
+          stateWithoutPending,
+          player.id,
+          unitAliasIs(config.requiredStageUnitAlias)
+        );
+  const stageUnitMemberConditionMet =
+    config.minStageUnitMemberCount === undefined ||
+    qualifyingStageUnitMemberCardIds.length >= config.minStageUnitMemberCount;
+  const modifierResult =
+    !sourceOnStage || !stageUnitMemberConditionMet
+      ? null
+      : config.kind === 'BLADE'
+        ? addBladeLiveModifierForSourceMember(stateWithoutPending, {
+            playerId: player.id,
+            sourceCardId: ability.sourceCardId,
+            abilityId: ability.abilityId,
+            amount: config.amount,
+          })
+        : addHeartLiveModifierForMember(stateWithoutPending, {
+            playerId: player.id,
+            memberCardId: ability.sourceCardId,
+            sourceCardId: ability.sourceCardId,
+            abilityId: ability.abilityId,
+            hearts: [{ color: config.color, count: config.amount }],
+          });
   const modifierApplied = modifierResult !== null;
 
   return continuePendingCardEffects(
@@ -144,6 +172,10 @@ function resolveOnEnterSourceMemberLiveModifier(
       sourceSlot: ability.sourceSlot,
       step: modifierApplied ? config.actionStep : `SOURCE_MEMBER_GAIN_${config.kind}_NO_OP`,
       sourceOnStage,
+      requiredStageUnitAlias: config.requiredStageUnitAlias,
+      minStageUnitMemberCount: config.minStageUnitMemberCount,
+      qualifyingStageUnitMemberCardIds,
+      stageUnitMemberConditionMet,
       modifierKind: config.kind,
       modifierAmount: modifierApplied ? config.amount : 0,
       expectedModifierAmount: config.amount,

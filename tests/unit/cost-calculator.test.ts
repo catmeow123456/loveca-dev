@@ -1191,6 +1191,118 @@ describe('CostCalculator', () => {
       expect(info.modifierAmount).toBe(0);
     });
 
+    it('reduces every PL!N-sd2-003 rarity in hand by 2 when own success zone has a structured Nijigasaki LIVE', () => {
+      for (const cardCode of ['PL!N-sd2-003-SD2', 'PL!N-sd2-003-P']) {
+        const sourceCardId = `${cardCode}-hand`;
+        const info = calculator.calculateModifiedPlayCost(
+          createMockMemberData(9, '桜坂しずく', cardCode),
+          {
+            activeEnergyIds: [],
+            stageMembers: [],
+            sourceCardId,
+            handCardIds: [sourceCardId],
+            successLiveCards: [
+              {
+                cardId: 'nijigasaki-success-live',
+                data: createMockLiveData(3, '虹ヶ咲LIVE', 'PL!N-test-live', {
+                  groupNames: ['虹ヶ咲学園スクールアイドル同好会'],
+                }),
+              },
+            ],
+          }
+        );
+
+        expect(info).toMatchObject({ baseCost: 9, modifiedCost: 7, modifierAmount: 2 });
+        expect(info.modifiers).toEqual([
+          {
+            id: 'PL!N-sd2-003:hand-self-cost-minus-two-if-success-nijigasaki-live',
+            label: '自己的成功LIVE卡区存在虹咲卡时，此卡费用减少2',
+            amount: 2,
+            sourceCardId: 'nijigasaki-success-live',
+          },
+        ]);
+      }
+    });
+
+    it('does not apply PL!N-sd2-003 reduction outside its own hand or from non-Nijigasaki success cards', () => {
+      const nijigasakiLive = {
+        cardId: 'nijigasaki-success-live',
+        data: createMockLiveData(3, '虹ヶ咲LIVE', 'PL!N-test-live', {
+          groupNames: ['虹ヶ咲'],
+        }),
+      };
+      const cases: readonly {
+        readonly memberData: MemberCardData;
+        readonly sourceCardId?: string;
+        readonly handCardIds?: readonly string[];
+        readonly successLiveCards: readonly {
+          readonly cardId: string;
+          readonly data: LiveCardData;
+        }[];
+      }[] = [
+        {
+          memberData: createMockMemberData(9, '桜坂しずく', 'PL!N-sd2-003-SD2'),
+          sourceCardId: 'source-not-in-hand',
+          handCardIds: ['another-card'],
+          successLiveCards: [nijigasakiLive],
+        },
+        {
+          memberData: createMockMemberData(9, '桜坂しずく', 'PL!N-sd2-003-SD2'),
+          sourceCardId: 'source-in-hand',
+          handCardIds: ['source-in-hand'],
+          successLiveCards: [
+            {
+              cardId: 'aqours-success-live',
+              data: createMockLiveData(3, 'Aqours LIVE', 'PL!S-test-live', {
+                groupNames: ['Aqours'],
+              }),
+            },
+          ],
+        },
+        {
+          memberData: createMockMemberData(9, '中須かすみ', 'PL!N-sd2-014-SD2'),
+          sourceCardId: 'other-source-in-hand',
+          handCardIds: ['other-source-in-hand'],
+          successLiveCards: [nijigasakiLive],
+        },
+      ];
+
+      for (const testCase of cases) {
+        const info = calculator.calculateModifiedPlayCost(testCase.memberData, {
+          activeEnergyIds: [],
+          stageMembers: [],
+          sourceCardId: testCase.sourceCardId,
+          handCardIds: testCase.handCardIds,
+          successLiveCards: testCase.successLiveCards,
+        });
+        expect(info.modifiedCost).toBe(9);
+        expect(info.modifierAmount).toBe(0);
+      }
+    });
+
+    it('does not stack PL!N-sd2-003 reduction for multiple Nijigasaki success LIVE cards', () => {
+      const sourceCardId = 'shizuku-hand';
+      const info = calculator.calculateModifiedPlayCost(
+        createMockMemberData(9, '桜坂しずく', 'PL!N-sd2-003-SD2'),
+        {
+          activeEnergyIds: [],
+          stageMembers: [],
+          sourceCardId,
+          handCardIds: [sourceCardId],
+          successLiveCards: [0, 1].map((index) => ({
+            cardId: `nijigasaki-success-live-${index}`,
+            data: createMockLiveData(3, '虹ヶ咲LIVE', `PL!N-test-live-${index}`, {
+              groupNames: ['虹ヶ咲'],
+            }),
+          })),
+        }
+      );
+
+      expect(info.modifiedCost).toBe(7);
+      expect(info.modifierAmount).toBe(2);
+      expect(info.modifiers).toHaveLength(1);
+    });
+
     it('reduces PL!-pb1-014 R/P＋ from own hand by 2 for one or more structured lilywhite success LIVE cards', () => {
       for (const cardCode of ['PL!-pb1-014-R', 'PL!-pb1-014-P＋']) {
         for (const sourceCount of [1, 2]) {

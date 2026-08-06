@@ -125,6 +125,22 @@ interface EnergyThresholdHeartContinuousDefinition {
   readonly abilityId: string;
 }
 
+interface EnergyComparisonContinuousDefinition {
+  readonly baseCardCode: string;
+  readonly comparison: 'SELF_MORE' | 'OPPONENT_MORE';
+  readonly abilityId: string;
+  readonly reward:
+    | {
+        readonly kind: 'HEART';
+        readonly heartColor: HeartColor;
+        readonly count: number;
+      }
+    | {
+        readonly kind: 'BLADE';
+        readonly countDelta: number;
+      };
+}
+
 interface ActiveEnergyHeartContinuousDefinition {
   readonly baseCardCode: string;
   readonly heartColor: HeartColor;
@@ -232,6 +248,12 @@ const SP_BP4_009_CONTINUOUS_LOWER_STAGE_COST_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!SP-bp4-009:continuous-lower-stage-cost-gain-three-blade';
 const SP_BP4_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID =
   'PL!SP-bp4-021:continuous-more-energy-gain-purple-heart';
+const S_BP7_014_CONTINUOUS_OPPONENT_MORE_ENERGY_GAIN_RED_HEART_ABILITY_ID =
+  'PL!S-bp7-014:continuous-opponent-more-energy-gain-red-heart';
+const SP_BP7_020_CONTINUOUS_MORE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID =
+  'PL!SP-bp7-020:continuous-more-energy-gain-two-blade';
+const SP_BP7_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID =
+  'PL!SP-bp7-021:continuous-more-energy-gain-purple-heart';
 const PL_S_BP5_010_CONTINUOUS_RED_HEART_FIVE_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID =
   'PL!S-bp5-010:continuous-red-heart-five-opponent-live-requirement-plus-one';
 const PL_S_BP5_011_CONTINUOUS_BLUE_HEART_FIVE_OPPONENT_LIVE_REQUIREMENT_PLUS_ONE_ABILITY_ID =
@@ -259,6 +281,39 @@ const SP_BP7_003_CONTINUOUS_THREE_MEMBER_BELOW_LIVE_SCORE_ABILITY_ID =
 const SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID = 'PL!SP-bp7-009-P:continuous-side-red-heart';
 const S_BP7_009_CONTINUOUS_FRONT_LOW_COST_MEMBER_LOSE_BLADE_ABILITY_ID =
   'PL!S-bp7-009:continuous-front-low-cost-member-lose-blade';
+
+const ENERGY_COMPARISON_CONTINUOUS_DEFINITIONS: readonly EnergyComparisonContinuousDefinition[] = [
+  {
+    baseCardCode: 'PL!S-pb1-005',
+    comparison: 'OPPONENT_MORE',
+    abilityId: PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
+    reward: { kind: 'BLADE', countDelta: 3 },
+  },
+  {
+    baseCardCode: 'PL!SP-bp4-021',
+    comparison: 'SELF_MORE',
+    abilityId: SP_BP4_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID,
+    reward: { kind: 'HEART', heartColor: HeartColor.PURPLE, count: 1 },
+  },
+  {
+    baseCardCode: 'PL!S-bp7-014',
+    comparison: 'OPPONENT_MORE',
+    abilityId: S_BP7_014_CONTINUOUS_OPPONENT_MORE_ENERGY_GAIN_RED_HEART_ABILITY_ID,
+    reward: { kind: 'HEART', heartColor: HeartColor.RED, count: 1 },
+  },
+  {
+    baseCardCode: 'PL!SP-bp7-020',
+    comparison: 'SELF_MORE',
+    abilityId: SP_BP7_020_CONTINUOUS_MORE_ENERGY_GAIN_TWO_BLADE_ABILITY_ID,
+    reward: { kind: 'BLADE', countDelta: 2 },
+  },
+  {
+    baseCardCode: 'PL!SP-bp7-021',
+    comparison: 'SELF_MORE',
+    abilityId: SP_BP7_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID,
+    reward: { kind: 'HEART', heartColor: HeartColor.PURPLE, count: 1 },
+  },
+];
 
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
@@ -337,6 +392,9 @@ export interface SuppressLiveAbilityOptions {
 }
 
 const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefinition[] = [
+  ...ENERGY_COMPARISON_CONTINUOUS_DEFINITIONS.map(
+    createEnergyComparisonContinuousModifierDefinition
+  ),
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-bp7-009'],
@@ -1283,24 +1341,6 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    baseCardCodes: ['PL!S-pb1-005'],
-    collect: ({ game, playerId, sourceCardId }) =>
-      isSourceMainStageMember(game, playerId, sourceCardId) &&
-      countOpponentEnergyCards(game, playerId) > countPlayerEnergyCards(game, playerId)
-        ? [
-            {
-              kind: 'BLADE',
-              target: 'SOURCE_MEMBER',
-              playerId,
-              countDelta: 3,
-              sourceCardId,
-              abilityId: PL_S_PB1_005_CONTINUOUS_OPPONENT_ENERGY_MORE_GAIN_THREE_BLADE_ABILITY_ID,
-            },
-          ]
-        : [],
-  },
-  {
-    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
     baseCardCodes: ['PL!S-pb1-009'],
     collect: ({ game, playerId, sourceCardId }) =>
       isSourceMainStageMember(game, playerId, sourceCardId) &&
@@ -1410,27 +1450,6 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
             },
           ]
         : [],
-  },
-  {
-    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    baseCardCodes: ['PL!SP-bp4-021'],
-    collect: ({ game, playerId, sourceCardId }) => {
-      if (
-        !isSourceMainStageMember(game, playerId, sourceCardId) ||
-        countPlayerEnergyCards(game, playerId) <= countOpponentEnergyCards(game, playerId)
-      ) {
-        return [];
-      }
-
-      const modifier = createHeartLiveModifierForMember(game, {
-        playerId,
-        memberCardId: sourceCardId,
-        sourceCardId,
-        abilityId: SP_BP4_021_CONTINUOUS_MORE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID,
-        hearts: [{ color: HeartColor.PURPLE, count: 1 }],
-      });
-      return modifier ? [modifier] : [];
-    },
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
@@ -2456,6 +2475,52 @@ function countMemberCardsBelowSourceMember(
     const memberCard = getCardById(game, memberCardId);
     return memberCard?.ownerId === playerId && isMemberCardData(memberCard.data);
   }).length;
+}
+
+function createEnergyComparisonContinuousModifierDefinition(
+  config: EnergyComparisonContinuousDefinition
+): ContinuousLiveModifierDefinition {
+  return {
+    visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
+    baseCardCodes: [config.baseCardCode],
+    collect: ({ game, playerId, sourceCardId }) => {
+      if (!isSourceMainStageMember(game, playerId, sourceCardId)) {
+        return [];
+      }
+
+      const ownEnergyCount = countPlayerEnergyCards(game, playerId);
+      const opponentEnergyCount = countOpponentEnergyCards(game, playerId);
+      const comparisonMatches =
+        config.comparison === 'SELF_MORE'
+          ? ownEnergyCount > opponentEnergyCount
+          : opponentEnergyCount > ownEnergyCount;
+      if (!comparisonMatches) {
+        return [];
+      }
+
+      if (config.reward.kind === 'BLADE') {
+        return [
+          {
+            kind: 'BLADE',
+            target: 'SOURCE_MEMBER',
+            playerId,
+            countDelta: config.reward.countDelta,
+            sourceCardId,
+            abilityId: config.abilityId,
+          },
+        ];
+      }
+
+      const modifier = createHeartLiveModifierForMember(game, {
+        playerId,
+        memberCardId: sourceCardId,
+        sourceCardId,
+        abilityId: config.abilityId,
+        hearts: [{ color: config.reward.heartColor, count: config.reward.count }],
+      });
+      return modifier ? [modifier] : [];
+    },
+  };
 }
 
 function countPlayerEnergyCards(game: GameState, playerId: string): number {

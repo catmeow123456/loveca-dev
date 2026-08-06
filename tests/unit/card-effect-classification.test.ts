@@ -8532,7 +8532,7 @@ describe('card effect classification registry', () => {
         PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID
     );
     expect(poppinUpLiveSuccess).toMatchObject({
-      cardCodes: ['PL!N-bp1-026-L'],
+      baseCardCodes: ['PL!N-bp1-026'],
       category: CardAbilityCategory.LIVE_SUCCESS,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -14951,7 +14951,7 @@ describe('PL!S-bp7-006-P 费用2「津岛善子」与 PL!S-bp7-015-N 费用5「�
   it('covers sibling rarities without crossing adjacent base numbers', () => {
     expect(getCardAbilityDefinitions('PL!S-bp7-006-R')).toHaveLength(1);
     expect(getCardAbilityDefinitions('PL!S-bp7-015-P')).toHaveLength(1);
-    expect(getCardAbilityDefinitions('PL!S-bp7-014-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-014-P')).toHaveLength(1);
   });
 });
 
@@ -16356,7 +16356,7 @@ describe('PL!N-sd2 base-scoped definitions', () => {
     );
   });
 
-  it.each(['PL!N-sd2-009-P', 'PL!N-sd2-010-P', 'PL!N-sd2-012-P', 'PL!N-sd2-028-P'])(
+  it.each(['PL!N-sd2-002-P', 'PL!N-sd2-010-P', 'PL!N-sd2-018-P', 'PL!N-sd2-028-P'])(
     'does not leak to adjacent card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
