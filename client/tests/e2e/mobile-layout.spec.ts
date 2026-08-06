@@ -877,6 +877,67 @@ test.describe('mobile layout baseline', () => {
     await expect(page.getByText('赛季排位', { exact: true }).first()).toBeVisible();
   });
 
+  test('手机端对墙打确认页的开始与返回操作互不遮挡', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '短视口回归只需执行一次');
+
+    await page.setViewportSize({ width: 390, height: 667 });
+    await installApiMocks(page, true);
+    await page.goto('/?page=game-setup');
+    await expect(page.getByText('选择对战方式', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: '下一步：选择己方卡组' }).click();
+    await expect(page.getByRole('button', { name: 'E2E 移动验收卡组' })).toBeVisible();
+    await page.getByRole('button', { name: '下一步：确认对局' }).click();
+    await waitForStableApp(page);
+
+    const previousButton = page.getByRole('button', { name: '上一步' });
+    const startButton = page.getByRole('button', { name: '开始对局' });
+    await expect(previousButton).toBeVisible();
+    await expect(startButton).toBeVisible();
+    await expect(page.getByText('在线记录：本局会保存到历史并可复盘')).toBeVisible();
+    await expectElementWithinVisualViewport(page, 'button:has-text("上一步")', '对墙打上一步');
+    await expectElementWithinVisualViewport(page, 'button:has-text("开始对局")', '对墙打开始对局');
+
+    const actionGeometry = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('button'));
+      const previous = buttons.find((button) => button.textContent?.trim() === '上一步');
+      const start = buttons.find((button) => button.textContent?.trim() === '开始对局');
+      if (!previous || !start) return null;
+
+      const previousRect = previous.getBoundingClientRect();
+      const startRect = start.getBoundingClientRect();
+      const receivesPointerAtCenter = (button: HTMLButtonElement, rect: DOMRect) => {
+        const target = document.elementFromPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2
+        );
+        return target === button || button.contains(target);
+      };
+
+      return {
+        overlaps: !(
+          previousRect.right <= startRect.left ||
+          startRect.right <= previousRect.left ||
+          previousRect.bottom <= startRect.top ||
+          startRect.bottom <= previousRect.top
+        ),
+        previousReceivesPointer: receivesPointerAtCenter(previous, previousRect),
+        startReceivesPointer: receivesPointerAtCenter(start, startRect),
+      };
+    });
+
+    expect(actionGeometry).toEqual({
+      overlaps: false,
+      previousReceivesPointer: true,
+      startReceivesPointer: true,
+    });
+    await startButton.click({ trial: true });
+    await attachScreenshot(page, testInfo, 'game-setup-solitaire-mobile-confirm');
+
+    await previousButton.click();
+    await expect(page.getByText('选择己方卡组', { exact: true })).toBeVisible();
+  });
+
   test('浅色主题的主行动区使用主题语义背景', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-390x844', '主题回归只需执行一次');
 

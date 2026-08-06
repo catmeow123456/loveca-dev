@@ -8,12 +8,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Bot,
   Bug,
   Check,
   ChevronLeft,
   ChevronRight,
   Globe2,
+  History,
   Layers3,
   Medal,
   Play,
@@ -187,6 +187,9 @@ export function GameSetupPage({
   const gameMode = setupMode === GameMode.DEBUG ? GameMode.DEBUG : GameMode.SOLITAIRE;
   const isDebugMode = gameMode === GameMode.DEBUG;
   const maxStep: SetupStep = isRemoteEntryMode ? 1 : isDebugMode ? 3 : 2;
+  const isConfirmStep =
+    (currentStep === 2 && gameMode === GameMode.SOLITAIRE) ||
+    (currentStep === 3 && gameMode === GameMode.DEBUG);
   const offlineMode = useAuthStore((s) => s.offlineMode);
   const authenticatedUser = useAuthStore((s) => s.user);
   const canUseOnlineRoom = !offlineMode && isApiConfigured;
@@ -727,16 +730,15 @@ export function GameSetupPage({
             )}
 
             {/* Confirm */}
-            {((currentStep === 2 && gameMode === GameMode.SOLITAIRE) ||
-              (currentStep === 3 && gameMode === GameMode.DEBUG)) && (
+            {isConfirmStep && (
               <motion.div
                 key="step-confirm"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 20 }}
-                className="absolute inset-0 flex justify-center items-start sm:items-center"
+                className="absolute inset-0 flex overflow-y-auto overscroll-contain"
               >
-                <div className="flex w-full max-w-2xl flex-col items-center">
+                <div className="mx-auto my-auto flex w-full max-w-2xl shrink-0 flex-col items-center py-1">
                   <div className="mb-6 inline-flex items-center gap-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-overlay)] px-4 py-2 text-sm font-medium text-[var(--text-primary)]">
                     {gameMode === GameMode.SOLITAIRE ? (
                       <Target size={16} className="text-[var(--semantic-success)]" />
@@ -827,20 +829,17 @@ export function GameSetupPage({
 
                     {gameMode === GameMode.SOLITAIRE && (
                       <Panel padding="compact" className="flex items-start gap-3">
-                        <Bot size={22} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
-                        <div className="min-w-0 text-sm text-[var(--text-secondary)]">
-                          <div>默认对手卡组已准备完成，进入桌面后会显示对墙打模拟提示。</div>
-                          <div
-                            className={`mt-1 text-xs ${
-                              canUseRecordedSolitaire
-                                ? 'text-[var(--semantic-success)]'
-                                : 'text-[var(--text-muted)]'
-                            }`}
-                          >
-                            {canUseRecordedSolitaire
-                              ? '在线记录：本局会保存到历史并可复盘'
-                              : '本地模拟：本局不会保存历史'}
-                          </div>
+                        <History size={18} className="mt-0.5 shrink-0 text-[var(--text-muted)]" />
+                        <div
+                          className={`min-w-0 text-xs ${
+                            canUseRecordedSolitaire
+                              ? 'text-[var(--semantic-success)]'
+                              : 'text-[var(--text-muted)]'
+                          }`}
+                        >
+                          {canUseRecordedSolitaire
+                            ? '在线记录：本局会保存到历史并可复盘'
+                            : '本地模拟：本局不会保存历史'}
                         </div>
                       </Panel>
                     )}
@@ -854,26 +853,6 @@ export function GameSetupPage({
                       </div>
                     </div>
                   )}
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleStartGame}
-                    disabled={isStarting}
-                    className={`button-primary min-h-11 w-full px-8 text-base font-semibold sm:w-auto sm:px-10 ${isStarting ? 'cursor-not-allowed opacity-50' : ''}`}
-                  >
-                    {isStarting ? (
-                      <span className="flex items-center gap-2">
-                        <WandSparkles size={18} className="animate-spin" />
-                        <span>准备中...</span>
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <Play size={18} />
-                        <span>开始对局</span>
-                      </span>
-                    )}
-                  </motion.button>
                 </div>
               </motion.div>
             )}
@@ -888,10 +867,12 @@ export function GameSetupPage({
         >
           <div
             className={cn(
-              'flex gap-2',
-              currentStep === 0
-                ? 'justify-stretch sm:justify-end'
-                : 'flex-col-reverse sm:flex-row sm:justify-between'
+              'gap-2',
+              isConfirmStep
+                ? 'grid grid-cols-[auto_minmax(0,1fr)] sm:flex sm:justify-between'
+                : currentStep === 0
+                  ? 'flex justify-stretch sm:justify-end'
+                  : 'flex flex-col-reverse sm:flex-row sm:justify-between'
             )}
           >
             {currentStep > 0 && (
@@ -917,6 +898,29 @@ export function GameSetupPage({
               >
                 {getNextButtonLabel()}
                 <ChevronRight size={16} />
+              </ActionButton>
+            )}
+
+            {isConfirmStep && (
+              <ActionButton
+                onClick={() => void handleStartGame()}
+                disabled={isStarting}
+                className={cn(
+                  'min-w-0 px-4 text-base font-semibold sm:px-10',
+                  isStarting && 'cursor-not-allowed opacity-50'
+                )}
+              >
+                {isStarting ? (
+                  <>
+                    <WandSparkles size={18} className="animate-spin" />
+                    准备中...
+                  </>
+                ) : (
+                  <>
+                    <Play size={18} />
+                    开始对局
+                  </>
+                )}
               </ActionButton>
             )}
           </div>
