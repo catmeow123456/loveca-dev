@@ -22,6 +22,9 @@ import {
 import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
 import { isRankedQueueWindowOpen, type RankedSeasonOpenWindow } from './ranked-season-service.js';
 import { siteAnnouncementService } from './site-announcement-service.js';
+import type { DeckPointTableRules } from '../../domain/rules/deck-point-table.js';
+import { deckPointTableService } from './deck-point-table-service.js';
+import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-validation.js';
 
 const ENVIRONMENT_ID = 'PUBLIC_TABLE_V1';
 const HEARTBEAT_GRACE_MS = 45_000;
@@ -47,6 +50,7 @@ export const CASUAL_QUEUE_CONTEXT: MatchmakingQueueContext = Object.freeze({
 interface PublicTableServiceDeps {
   readonly now?: () => number;
   readonly roomService?: OnlineRoomService;
+  readonly getCurrentPointTableRules?: () => Promise<DeckPointTableRules>;
 }
 
 interface StatusRow {
@@ -89,10 +93,13 @@ export class PublicTableServiceError extends Error {
 export class PublicTableService {
   private readonly now: () => number;
   private readonly roomService: OnlineRoomService;
+  private readonly getCurrentPointTableRules: () => Promise<DeckPointTableRules>;
 
   constructor(deps: PublicTableServiceDeps = {}) {
     this.now = deps.now ?? (() => Date.now());
     this.roomService = deps.roomService ?? onlineRoomService;
+    this.getCurrentPointTableRules =
+      deps.getCurrentPointTableRules ?? (() => deckPointTableService.getCurrentRules());
   }
 
   async getSummary(
@@ -168,10 +175,14 @@ export class PublicTableService {
       await client.query(
         `INSERT INTO public_table_tickets (
            id, user_id, queue_kind, season_id, environment_id, source_deck_id, source_deck_name,
-           runtime_deck, deck_content_hash, deck_locked_at, state,
+           runtime_deck, deck_content_hash, point_table_version, point_total, point_limit,
+           deck_locked_at, state,
            joined_at, heartbeat_at, matchable_after, entry_source, created_at, updated_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, 'WAITING', $10, $10, $10, $11, $10, $10)`,
+         VALUES (
+           $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12,
+           $13, 'WAITING', $13, $13, $13, $14, $13, $13
+         )`,
         [
           ticketId,
           userId,
@@ -182,6 +193,9 @@ export class PublicTableService {
           deck.deckName,
           encodedDeck.json,
           encodedDeck.contentHash,
+          deck.pointValidation.pointTableVersion,
+          deck.pointValidation.pointTotal,
+          deck.pointValidation.pointLimit,
           new Date(now),
           normalizeEntrySource(entrySource),
         ]
@@ -789,6 +803,12 @@ export class PublicTableService {
       second_runtime_deck: unknown;
       first_locked_at: Date;
       second_locked_at: Date;
+      first_point_table_version: string;
+      second_point_table_version: string;
+      first_point_total: number;
+      second_point_total: number;
+      first_point_limit: number;
+      second_point_limit: number;
     }>(
       `SELECT
          reservation.state,
@@ -806,7 +826,13 @@ export class PublicTableService {
          first_ticket.runtime_deck AS first_runtime_deck,
          second_ticket.runtime_deck AS second_runtime_deck,
          first_ticket.deck_locked_at AS first_locked_at,
-         second_ticket.deck_locked_at AS second_locked_at
+         second_ticket.deck_locked_at AS second_locked_at,
+         first_ticket.point_table_version AS first_point_table_version,
+         second_ticket.point_table_version AS second_point_table_version,
+         first_ticket.point_total AS first_point_total,
+         second_ticket.point_total AS second_point_total,
+         first_ticket.point_limit AS first_point_limit,
+         second_ticket.point_limit AS second_point_limit
        FROM public_table_reservations AS reservation
        JOIN public_table_tickets AS first_ticket ON first_ticket.id = reservation.first_ticket_id
        JOIN public_table_tickets AS second_ticket ON second_ticket.id = reservation.second_ticket_id
@@ -825,6 +851,80 @@ export class PublicTableService {
       loadUserProfileForOnlineMatch(row.first_user_id),
       loadUserProfileForOnlineMatch(row.second_user_id),
     ]);
+    const firstDeck = decodePublicTableRuntimeDeck(row.first_runtime_deck);
+    const secondDeck = decodePublicTableRuntimeDeck(row.second_runtime_deck);
+    const currentPointTable = await this.getCurrentPointTableRules();
+    const firstPointReview = revalidateRuntimeDeckPointSnapshot(
+      firstDeck,
+      {
+        pointTableVersion: row.first_point_table_version,
+        pointTotal: row.first_point_total,
+        pointLimit: row.first_point_limit,
+      },
+      currentPointTable
+    );
+    const secondPointReview = revalidateRuntimeDeckPointSnapshot(
+      secondDeck,
+      {
+        pointTableVersion: row.second_point_table_version,
+        pointTotal: row.second_point_total,
+        pointLimit: row.second_point_limit,
+      },
+      currentPointTable
+    );
+    if (!firstPointReview.valid || !secondPointReview.valid) {
+      await pool.query(
+        `WITH released_reservation AS (
+           UPDATE public_table_reservations
+           SET state = 'RELEASED',
+               bootstrap_lease_until = NULL,
+               failure_reason = 'POINT_TABLE_CHANGED',
+               updated_at = NOW()
+           WHERE id = $1
+             AND state = 'CREATING_ROOM'
+             AND bootstrap_lease_until = $2
+           RETURNING id
+         ), canceled_tickets AS (
+           UPDATE public_table_tickets
+           SET state = 'CANCELED',
+               terminal_reason = 'POINT_TABLE_CHANGED',
+               updated_at = NOW()
+           WHERE reservation_id IN (SELECT id FROM released_reservation)
+           RETURNING id
+         )
+         DELETE FROM gameplay_participations
+         WHERE ticket_id IN (SELECT id FROM canceled_tickets)`,
+        [reservationId, expectedLeaseUntil]
+      );
+      throw new PublicTableServiceError(
+        'PUBLIC_TABLE_POINT_TABLE_CHANGED',
+        '当前PT限制表已更新，候场卡组不再合法，请修改卡组后重新候场',
+        409
+      );
+    }
+    if (firstPointReview.changed || secondPointReview.changed) {
+      await pool.query(
+        `UPDATE public_table_tickets AS ticket
+         SET point_table_version = updated.point_table_version,
+             point_total = updated.point_total,
+             point_limit = updated.point_limit,
+             updated_at = NOW()
+         FROM (VALUES
+           ($1::uuid, $3::varchar, $4::integer, $5::integer),
+           ($2::uuid, $3::varchar, $6::integer, $7::integer)
+         ) AS updated(id, point_table_version, point_total, point_limit)
+         WHERE ticket.id = updated.id`,
+        [
+          row.first_ticket_id,
+          row.second_ticket_id,
+          currentPointTable.version,
+          firstPointReview.facts.pointTotal,
+          firstPointReview.facts.pointLimit,
+          secondPointReview.facts.pointTotal,
+          secondPointReview.facts.pointLimit,
+        ]
+      );
+    }
     const room = await this.roomService.createPublicTableRoom({
       reservationId,
       originKind: row.queue_kind === 'RANKED' ? 'RANKED' : 'PUBLIC_TABLE',
@@ -834,15 +934,17 @@ export class PublicTableService {
         ...firstProfile,
         deckId: row.first_deck_id,
         deckName: row.first_deck_name,
-        deck: decodePublicTableRuntimeDeck(row.first_runtime_deck),
+        deck: firstDeck,
         lockedAt: row.first_locked_at.getTime(),
+        pointValidation: firstPointReview.facts,
       },
       second: {
         ...secondProfile,
         deckId: row.second_deck_id,
         deckName: row.second_deck_name,
-        deck: decodePublicTableRuntimeDeck(row.second_runtime_deck),
+        deck: secondDeck,
         lockedAt: row.second_locked_at.getTime(),
+        pointValidation: secondPointReview.facts,
       },
       openingExpiresAt: this.now() + OPENING_TTL_MS,
     });

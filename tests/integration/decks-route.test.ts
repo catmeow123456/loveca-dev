@@ -114,6 +114,7 @@ describe('decksRouter', () => {
       main_deck: [],
       energy_deck: [{ card_code: 'LL-E-001-SD', count: 12 }],
       validation: { valid: false, errors: ['主卡组不完整'] },
+      pointTable: { version: 'test' },
     });
     mocks.poolQuery.mockResolvedValue({ rows: [{ id: 'created-deck' }] });
 
@@ -135,6 +136,7 @@ describe('decksRouter', () => {
       main_deck: [],
       energy_deck: [],
       validation: { valid: false, errors: ['能量卡组不完整'] },
+      pointTable: { version: 'test' },
     });
     mocks.poolQuery.mockResolvedValue({ rows: [{ id: 'created-empty-energy-deck' }] });
 
@@ -166,6 +168,7 @@ describe('decksRouter', () => {
       main_deck: source.main_deck,
       energy_deck: source.energy_deck,
       validation: { valid: true, errors: [] },
+      pointTable: { version: 'test' },
     });
     mocks.poolQuery
       .mockResolvedValueOnce({ rows: [source] })
@@ -190,6 +193,7 @@ describe('decksRouter', () => {
       JSON.stringify(source.energy_deck),
       true,
       JSON.stringify([]),
+      'test',
       'deck-1',
     ]);
     expect(mocks.poolQuery.mock.calls[2]?.[0]).toContain('false, false');
@@ -210,6 +214,7 @@ describe('decksRouter', () => {
       main_deck: [],
       energy_deck: [],
       validation: { valid: false, errors: [] },
+      pointTable: { version: 'test' },
     });
     mocks.poolQuery
       .mockResolvedValueOnce({ rows: [source] })

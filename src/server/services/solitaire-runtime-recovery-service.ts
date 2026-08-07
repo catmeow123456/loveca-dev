@@ -75,6 +75,9 @@ interface DeckSnapshotRow {
   readonly source: MatchDeckSnapshotSource;
   readonly main_deck: unknown;
   readonly energy_deck: unknown;
+  readonly point_table_version: string;
+  readonly point_total: number;
+  readonly point_limit: number;
   readonly locked_at: Date | string | number | null;
 }
 
@@ -334,6 +337,9 @@ export class SolitaireRuntimeRecoveryService {
         source,
         main_deck,
         energy_deck,
+        point_table_version,
+        point_total,
+        point_limit,
         locked_at
       FROM match_deck_snapshots
       WHERE match_id = $1
@@ -481,6 +487,11 @@ function mapDeckSnapshotRow(
       resolveDeckCardData(cardsByCode, cardCode)
     ),
     lockedAt: nullableDateToMs(row.locked_at),
+    pointValidation: {
+      pointTableVersion: row.point_table_version,
+      pointTotal: row.point_total,
+      pointLimit: row.point_limit,
+    },
   };
 }
 

@@ -1,9 +1,11 @@
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckRecordLike } from '@game/domain/card-data/deck-record-utils';
+import type { DeckPointTableRules } from '@game/domain/rules/deck-point-table';
 import {
   createDeckRecordCardDataTypeResolver,
   normalizeDeckRecordPayload,
 } from '@game/domain/card-data/deck-record-utils';
+import { getCurrentDeckPointTableRules } from '@/store/deckPointTableStore';
 
 export type {
   DeckRecordDeckPayload,
@@ -26,11 +28,13 @@ export {
 
 export function isDeckRecordValidForCurrentCardPool(
   deck: DeckRecordLike,
-  cardDataRegistry: ReadonlyMap<string, AnyCardData>
+  cardDataRegistry: ReadonlyMap<string, AnyCardData>,
+  pointTable: DeckPointTableRules = getCurrentDeckPointTableRules()
 ): boolean {
   const result = normalizeDeckRecordPayload(
     deck,
-    createDeckRecordCardDataTypeResolver(cardDataRegistry)
+    createDeckRecordCardDataTypeResolver(cardDataRegistry),
+    pointTable
   );
 
   return result.sourceErrors.length === 0 && result.validation.valid;

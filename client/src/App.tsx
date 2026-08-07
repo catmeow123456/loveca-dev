@@ -124,6 +124,11 @@ const RankedAdminPage = lazy(() =>
     default: module.RankedAdminPage,
   }))
 );
+const DeckPointTablesAdminPage = lazy(() =>
+  import('@/components/admin/DeckPointTablesAdminPage').then((module) => ({
+    default: module.DeckPointTablesAdminPage,
+  }))
+);
 
 type AuthPage =
   | 'landing'
@@ -148,7 +153,8 @@ type AppPage =
   | 'card-admin'
   | 'online-admin'
   | 'announcement-admin'
-  | 'ranked-admin';
+  | 'ranked-admin'
+  | 'deck-point-admin';
 
 interface InitialAuthRequest {
   page: AuthPage;
@@ -204,6 +210,7 @@ function getInitialPage(): AppPage {
     page === 'online-admin' ||
     page === 'announcement-admin' ||
     page === 'ranked-admin' ||
+    page === 'deck-point-admin' ||
     page === 'platform-config'
   ) {
     return page === 'platform-config' ? 'announcement-admin' : page;
@@ -854,11 +861,7 @@ function App() {
       </button>
     </div>
   );
-  const withProductFrame = (
-    content: ReactNode,
-    active: ProductNavKey | null,
-    immersive = false
-  ) =>
+  const withProductFrame = (content: ReactNode, active: ProductNavKey | null, immersive = false) =>
     withPublicTableLayer(
       <ProductFrame
         active={active}
@@ -1057,6 +1060,13 @@ function App() {
     return withProductFrame(<RankedAdminPage onBack={() => setCurrentPage('home')} />, null);
   }
 
+  if (effectivePage === 'deck-point-admin' && profile?.role === 'admin') {
+    return withProductFrame(
+      <DeckPointTablesAdminPage onBack={() => setCurrentPage('home')} />,
+      null
+    );
+  }
+
   // 主页
   return withPublicTableLayer(
     <HomePage
@@ -1075,6 +1085,7 @@ function App() {
       onNavigateToOnlineAdmin={() => setCurrentPage('online-admin')}
       onNavigateToAnnouncementAdmin={() => setCurrentPage('announcement-admin')}
       onNavigateToRankedAdmin={() => setCurrentPage('ranked-admin')}
+      onNavigateToDeckPointAdmin={() => setCurrentPage('deck-point-admin')}
       siteStatus={appConfig.siteStatus}
     />
   );

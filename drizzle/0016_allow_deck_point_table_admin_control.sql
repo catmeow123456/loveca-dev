@@ -1,0 +1,9 @@
+ALTER TABLE "deck_point_table_audit_logs" DROP CONSTRAINT "deck_point_table_audit_logs_action_check";--> statement-breakpoint
+ALTER TABLE "deck_point_tables" DROP CONSTRAINT "deck_point_tables_effective_from_check";--> statement-breakpoint
+ALTER TABLE "deck_point_tables" DROP CONSTRAINT "deck_point_tables_retirement_reason_check";--> statement-breakpoint
+ALTER TABLE "deck_point_table_audit_logs" DROP CONSTRAINT "deck_point_table_audit_logs_table_id_deck_point_tables_id_fk";
+--> statement-breakpoint
+ALTER TABLE "deck_point_table_audit_logs" ADD CONSTRAINT "deck_point_table_audit_logs_table_id_deck_point_tables_id_fk" FOREIGN KEY ("table_id") REFERENCES "public"."deck_point_tables"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "deck_point_table_audit_logs" ADD CONSTRAINT "deck_point_table_audit_logs_action_check" CHECK ("deck_point_table_audit_logs"."action" IN ('DRAFT_CREATED', 'TABLE_UPDATED', 'PUBLISHED_IMMEDIATELY', 'PUBLISHED_SCHEDULED', 'SCHEDULE_ACTIVATED', 'RETIRED_BY_REPLACEMENT', 'SCHEDULE_CANCELLED', 'MANUALLY_DISCARDED', 'ACTIVATED_AS_REPLACEMENT', 'ROLLBACK_DRAFT_CREATED'));--> statement-breakpoint
+ALTER TABLE "deck_point_tables" ADD CONSTRAINT "deck_point_tables_effective_from_check" CHECK (("deck_point_tables"."lifecycle" = 'DRAFT' AND "deck_point_tables"."effective_from" IS NULL) OR ("deck_point_tables"."lifecycle" IN ('SCHEDULED', 'ACTIVE') AND "deck_point_tables"."effective_from" IS NOT NULL) OR "deck_point_tables"."lifecycle" = 'RETIRED');--> statement-breakpoint
+ALTER TABLE "deck_point_tables" ADD CONSTRAINT "deck_point_tables_retirement_reason_check" CHECK (("deck_point_tables"."lifecycle" = 'RETIRED' AND "deck_point_tables"."retirement_reason" IS NOT NULL AND "deck_point_tables"."retirement_reason" IN ('REPLACED', 'SCHEDULE_CANCELLED', 'MANUALLY_DISCARDED')) OR ("deck_point_tables"."lifecycle" <> 'RETIRED' AND "deck_point_tables"."retirement_reason" IS NULL));

@@ -66,6 +66,9 @@ export interface DeckRecord {
   energy_deck: { card_code: string; count: number }[];
   is_valid: boolean;
   validation_errors: string[];
+  validated_point_table_version: string;
+  point_total?: number | null;
+  point_limit?: number;
   is_public: boolean;
   share_id?: string | null;
   share_enabled?: boolean;
@@ -409,8 +412,11 @@ export const apiClient = {
     });
   },
 
-  delete<T>(path: string): Promise<ApiResponse<T>> {
-    return apiFetch<T>(path, { method: 'DELETE' });
+  delete<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {
+    return apiFetch<T>(path, {
+      method: 'DELETE',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
   },
 
   /** Try to restore session from refresh token cookie */

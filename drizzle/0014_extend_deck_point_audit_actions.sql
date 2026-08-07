@@ -1,0 +1,2 @@
+ALTER TABLE "deck_point_table_audit_logs" DROP CONSTRAINT "deck_point_table_audit_logs_action_check";--> statement-breakpoint
+ALTER TABLE "deck_point_table_audit_logs" ADD CONSTRAINT "deck_point_table_audit_logs_action_check" CHECK ("deck_point_table_audit_logs"."action" IN ('DRAFT_CREATED', 'DRAFT_UPDATED', 'PUBLISHED_IMMEDIATELY', 'PUBLISHED_SCHEDULED', 'SCHEDULE_ACTIVATED', 'RETIRED_BY_REPLACEMENT', 'SCHEDULE_CANCELLED', 'ROLLBACK_DRAFT_CREATED'));

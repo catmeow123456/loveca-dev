@@ -10,6 +10,7 @@ import type {
   PublicEventsResponse,
 } from '../../online/index.js';
 import { getPublishedCardRegistry } from './card-registry-service.js';
+import type { DeckPointTableRules } from '../../domain/rules/deck-point-table.js';
 import {
   loadOwnedDeckForOnlineMatch,
   loadUserProfileForOnlineMatch,
@@ -28,6 +29,8 @@ import {
   type SolitaireRecoveredMatch,
   type SolitaireRuntimeRecoveryService,
 } from './solitaire-runtime-recovery-service.js';
+import { deckPointTableService } from './deck-point-table-service.js';
+import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-validation.js';
 
 const DEFAULT_SOLITAIRE_OPPONENT_DECK_PATH =
   process.env.SOLITAIRE_DEFAULT_OPPONENT_DECK_PATH ?? 'assets/decks/缪预组.yaml';
@@ -43,6 +46,7 @@ interface SolitaireMatchServiceDeps {
   readonly loadUserProfile?: (userId: string) => Promise<UserProfileSummary>;
   readonly loadOwnedDeck?: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
   readonly loadOpponentDeck?: (deckPath: string) => Promise<DeckConfig>;
+  readonly getCurrentPointTableRules?: () => Promise<DeckPointTableRules>;
 }
 
 export interface CreateSolitaireMatchInput {
@@ -76,6 +80,7 @@ export class SolitaireMatchService {
   private readonly loadUserProfile: (userId: string) => Promise<UserProfileSummary>;
   private readonly loadOwnedDeck: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
   private readonly loadOpponentDeck: (deckPath: string) => Promise<DeckConfig>;
+  private readonly getCurrentPointTableRules: () => Promise<DeckPointTableRules>;
   private readonly restartOperations = new Map<
     string,
     Promise<CreateSolitaireMatchResult | null>
@@ -91,6 +96,8 @@ export class SolitaireMatchService {
     this.loadUserProfile = deps.loadUserProfile ?? loadUserProfileForOnlineMatch;
     this.loadOwnedDeck = deps.loadOwnedDeck ?? loadOwnedDeckForOnlineMatch;
     this.loadOpponentDeck = deps.loadOpponentDeck ?? loadDefaultOpponentDeck;
+    this.getCurrentPointTableRules =
+      deps.getCurrentPointTableRules ?? (() => deckPointTableService.getCurrentRules());
   }
 
   async createMatch(input: CreateSolitaireMatchInput): Promise<CreateSolitaireMatchResult> {
@@ -100,6 +107,22 @@ export class SolitaireMatchService {
       this.loadOpponentDeck(this.opponentDeckPath),
     ]);
     const roomCode = `SOL-${this.idGenerator()}`;
+    const opponentPointReview = revalidateRuntimeDeckPointSnapshot(
+      opponentDeck,
+      {
+        pointTableVersion: userDeck.pointTable.version,
+        pointTotal: 0,
+        pointLimit: userDeck.pointTable.pointLimit,
+      },
+      userDeck.pointTable
+    );
+    if (!opponentPointReview.valid) {
+      throw new SolitaireMatchServiceError(
+        'SOLITAIRE_OPPONENT_DECK_POINT_INVALID',
+        '当前对墙打系统卡组超出PT上限，暂时无法开始对局',
+        503
+      );
+    }
 
     const match = await this.matchService.createMatch({
       roomCode,
@@ -118,6 +141,7 @@ export class SolitaireMatchService {
         lockedAt: this.now(),
         participantKind: 'USER',
         ownerUserId: null,
+        pointValidation: userDeck.pointValidation,
       },
       second: {
         userId: SOLITAIRE_SYSTEM_USER_ID,
@@ -128,6 +152,7 @@ export class SolitaireMatchService {
         deckSource: 'SOLITAIRE_DEFAULT_DECK',
         lockedAt: this.now(),
         participantKind: 'SYSTEM',
+        pointValidation: opponentPointReview.facts,
         ownerUserId: profile.userId,
       },
     });
@@ -285,6 +310,24 @@ export class SolitaireMatchService {
     const secondParticipant = previousMatch.participants.SECOND;
     const firstDeck = previousMatch.deckSnapshots.FIRST;
     const secondDeck = previousMatch.deckSnapshots.SECOND;
+    const currentPointTable = await this.getCurrentPointTableRules();
+    const firstPointReview = revalidateRuntimeDeckPointSnapshot(
+      cloneDeck(firstDeck),
+      firstDeck.pointValidation,
+      currentPointTable
+    );
+    const secondPointReview = revalidateRuntimeDeckPointSnapshot(
+      cloneDeck(secondDeck),
+      secondDeck.pointValidation,
+      currentPointTable
+    );
+    if (!firstPointReview.valid || !secondPointReview.valid) {
+      throw new SolitaireMatchServiceError(
+        'SOLITAIRE_RESTART_POINT_TABLE_CHANGED',
+        '当前PT限制表已更新，原对局卡组不再合法，请返回准备页调整卡组',
+        409
+      );
+    }
     const removed = await this.matchService.deleteMatch(matchId, {
       reason: 'SOLITAIRE_RESTARTED',
     });
@@ -315,6 +358,7 @@ export class SolitaireMatchService {
           lockedAt: firstDeck.lockedAt,
           participantKind: firstParticipant.participantKind,
           ownerUserId: firstParticipant.ownerUserId,
+          pointValidation: firstPointReview.facts,
         },
         second: {
           userId: secondParticipant.userId,
@@ -326,6 +370,7 @@ export class SolitaireMatchService {
           lockedAt: secondDeck.lockedAt,
           participantKind: secondParticipant.participantKind,
           ownerUserId: secondParticipant.ownerUserId,
+          pointValidation: secondPointReview.facts,
         },
       });
     } catch (error) {

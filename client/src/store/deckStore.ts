@@ -19,6 +19,10 @@ import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
 import { LatestRequestGate } from '@/lib/asyncRequestControl';
+import {
+  getCurrentDeckPointTableRules,
+  useDeckPointTableStore,
+} from '@/store/deckPointTableStore';
 
 const cloudDeckRequestGate = new LatestRequestGate();
 
@@ -206,7 +210,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
     },
 
     validateDeck: (deck) => {
-      const validation = validateDeckConfig(deck);
+      const validation = validateDeckConfig(deck, getCurrentDeckPointTableRules());
       return { valid: validation.valid, errors: validation.errors };
     },
 
@@ -230,6 +234,12 @@ export const useDeckStore = create<DeckState>((set, get) => {
       set({ isLoadingCloud: true, cloudError: null });
 
       try {
+        // Load the public rules contract before publishing cloud decks to consumers, so
+        // deck lists do not briefly validate against a stale built-in snapshot online.
+        await useDeckPointTableStore.getState().refresh();
+        if (!cloudDeckRequestGate.isCurrent(requestGeneration)) {
+          return;
+        }
         const result = await apiClient.get<DeckRecord[]>('/api/decks');
         if (!cloudDeckRequestGate.isCurrent(requestGeneration)) {
           return;
@@ -350,6 +360,15 @@ export const useDeckStore = create<DeckState>((set, get) => {
       }
     },
   };
+});
+
+// Existing deck screens memoize projections by the cloud deck array. Re-publish that
+// immutable array when the active PT rules change so already-open screens recalculate.
+useDeckPointTableStore.subscribe((state, previousState) => {
+  if (state.rules === previousState.rules || useDeckStore.getState().cloudDecks.length === 0) {
+    return;
+  }
+  useDeckStore.setState((state) => ({ cloudDecks: [...state.cloudDecks] }));
 });
 
 declare global {

@@ -26,6 +26,11 @@ import { CardType, GamePhase, HeartColor, SubPhase } from '../../src/shared/type
 const FIRST_USER_ID = 'phase-gate-first-user';
 const SECOND_USER_ID = 'phase-gate-second-user';
 const GATE_ERROR = '阶段开始 3 秒后才能确认完成';
+const TEST_POINT_VALIDATION = {
+  pointTableVersion: 'test-point-table',
+  pointTotal: 0,
+  pointLimit: 9,
+} as const;
 
 function createMember(cardCode: string): MemberCardData {
   return {
@@ -82,11 +87,13 @@ async function createMatch(
       userId: FIRST_USER_ID,
       displayName: '先攻玩家',
       deck: createDeck('first'),
+      pointValidation: TEST_POINT_VALIDATION,
     },
     second: {
       userId: SECOND_USER_ID,
       displayName: '后攻玩家',
       deck: createDeck('second'),
+      pointValidation: TEST_POINT_VALIDATION,
     },
   });
 }

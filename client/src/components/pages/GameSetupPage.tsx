@@ -37,7 +37,6 @@ import {
   type DeckDisplayItem,
   type ProductNavigationHandlers,
 } from '@/components/common';
-import { DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
 import { DeckLoader } from '@game/domain/card-data/deck-loader';
 import { CardDataRegistry } from '@game/domain/card-data/loader';
 import { loadSolitaireOpponentDeck } from '@game/application/solitaire-deck';
@@ -61,6 +60,7 @@ import { isApiConfigured } from '@/lib/apiClient';
 import { createSolitaireMatch } from '@/lib/solitaireMatchClient';
 import { writeStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
 import { cn } from '@/lib/utils';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 type SetupStep = 0 | 1 | 2 | 3;
 type SetupMode = 'PUBLIC_TABLE' | 'RANKED' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
@@ -194,6 +194,7 @@ export function GameSetupPage({
   const authenticatedUser = useAuthStore((s) => s.user);
   const canUseOnlineRoom = !offlineMode && isApiConfigured;
   const canUseRecordedSolitaire = canUseOnlineRoom && authenticatedUser !== null;
+  const pointTable = useDeckPointTableRules();
 
   // Deck store
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
@@ -216,8 +217,11 @@ export function GameSetupPage({
 
   // 只显示有效的卡组
   const validDecks = useMemo(
-    () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
-    [cardDataRegistry, cloudDecks]
+    () =>
+      cloudDecks.filter((deck) =>
+        isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry, pointTable)
+      ),
+    [cardDataRegistry, cloudDecks, pointTable]
   );
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
@@ -228,8 +232,9 @@ export function GameSetupPage({
       buildDeckDisplayItems({
         cloudDecks: validDecks,
         resolveDeckRecordCardType,
+        pointTable,
       }),
-    [resolveDeckRecordCardType, validDecks]
+    [pointTable, resolveDeckRecordCardType, validDecks]
   );
   const p1PreferenceKey =
     gameMode === GameMode.DEBUG
@@ -780,10 +785,10 @@ export function GameSetupPage({
                             {selectedP1Deck.energyCount}/12
                           </span>
                           <span
-                            className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP1Deck.pointTotal)}`}
+                            className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP1Deck.pointTotal, pointTable.pointLimit)}`}
                           >
                             <Star size={14} />
-                            {selectedP1Deck.pointTotal}/{DECK_POINT_LIMIT}pt
+                            {selectedP1Deck.pointTotal}/{pointTable.pointLimit}pt
                           </span>
                         </div>
                       )}
@@ -817,10 +822,10 @@ export function GameSetupPage({
                               {selectedP2Deck.energyCount}/12
                             </span>
                             <span
-                              className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP2Deck.pointTotal)}`}
+                              className={`inline-flex items-center gap-1 ${getDeckPointTextClass(selectedP2Deck.pointTotal, pointTable.pointLimit)}`}
                             >
                               <Star size={14} />
-                              {selectedP2Deck.pointTotal}/{DECK_POINT_LIMIT}pt
+                              {selectedP2Deck.pointTotal}/{pointTable.pointLimit}pt
                             </span>
                           </div>
                         )}

@@ -89,6 +89,9 @@ export interface MatchRecorderDeckSnapshotInput {
   readonly energyDeck: readonly string[];
   readonly cardSummaries: Readonly<Record<string, MatchRecorderCardSummary>>;
   readonly validationState: MatchDeckSnapshotValidationState;
+  readonly pointTableVersion: string;
+  readonly pointTotal: number;
+  readonly pointLimit: number;
   readonly cardDataVersion: string;
   readonly cardDataHash: string;
   readonly lockedAt: number | null;
@@ -375,10 +378,13 @@ export class MatchRecorderService {
             energy_deck,
             card_summaries,
             validation_state,
+            point_table_version,
+            point_total,
+            point_limit,
             card_data_version,
             card_data_hash,
             locked_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           RETURNING id`,
           [
             input.matchId,
@@ -391,6 +397,9 @@ export class MatchRecorderService {
             toJsonbParam([...snapshot.energyDeck]),
             toJsonbParam(snapshot.cardSummaries),
             snapshot.validationState,
+            snapshot.pointTableVersion,
+            snapshot.pointTotal,
+            snapshot.pointLimit,
             snapshot.cardDataVersion,
             snapshot.cardDataHash,
             toNullableDate(snapshot.lockedAt),
@@ -564,7 +573,8 @@ export class MatchRecorderService {
         input.frameType !== 'COMMAND_REJECTED' &&
         input.writeAuthorityCheckpoint !== false;
       const checkpointSeq = shouldWriteCheckpoint ? cursor.lastCheckpointSeq + 1 : null;
-      const recordTurnCount = input.authorityState?.turnCount ?? input.stateSummary?.turnCount ?? null;
+      const recordTurnCount =
+        input.authorityState?.turnCount ?? input.stateSummary?.turnCount ?? null;
       const timelineTurnCount = recordTurnCount ?? cursor.turnCount;
       const phase = input.authorityState
         ? String(input.authorityState.currentPhase)
@@ -1259,6 +1269,9 @@ function buildDeckSnapshotInput(
     energyDeck: snapshot.energyDeck.map((card) => card.cardCode),
     cardSummaries: Object.fromEntries(allCards.map((card) => [card.cardCode, summarizeCard(card)])),
     validationState: 'RUNTIME_ACCEPTED',
+    pointTableVersion: snapshot.pointValidation.pointTableVersion,
+    pointTotal: snapshot.pointValidation.pointTotal,
+    pointLimit: snapshot.pointValidation.pointLimit,
     cardDataVersion: REPLAY_CARD_DATA_VERSION,
     cardDataHash,
     lockedAt: snapshot.lockedAt,

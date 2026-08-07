@@ -8,7 +8,8 @@ import { DeckSectionList } from './DeckSectionList';
 import { DeckAnalysisPanel } from './DeckAnalysisPanel';
 import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
-import { calculateDeckConfigStats, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
+import { calculateDeckConfigStats } from '@game/domain/rules/deck-construction';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 interface DeckSidebarProps {
   deck: DeckConfig;
@@ -28,7 +29,11 @@ export function DeckSidebar({
   compactHeader = false,
 }: DeckSidebarProps) {
   const [showAnalysis, setShowAnalysis] = useState(false);
-  const { memberCount, liveCount, energyCount, pointTotal } = calculateDeckConfigStats(deck);
+  const pointTable = useDeckPointTableRules();
+  const { memberCount, liveCount, energyCount, pointTotal } = calculateDeckConfigStats(
+    deck,
+    pointTable
+  );
 
   return (
     <div className="workspace-sidebar flex h-full min-h-0 w-full flex-col overflow-hidden md:w-[420px] xl:w-[480px]">
@@ -55,8 +60,8 @@ export function DeckSidebar({
             </div>
             <div className="flex items-center gap-1.5">
               <Star size={12} className="text-[var(--accent-primary)]" />
-              <span className={pointTotal <= DECK_POINT_LIMIT ? 'text-[var(--semantic-success)]' : 'text-[var(--semantic-error)]'}>
-                {pointTotal}/{DECK_POINT_LIMIT}pt
+              <span className={pointTotal <= pointTable.pointLimit ? 'text-[var(--semantic-success)]' : 'text-[var(--semantic-error)]'}>
+                {pointTotal}/{pointTable.pointLimit}pt
               </span>
             </div>
           </div>

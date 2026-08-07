@@ -2,6 +2,7 @@ import type { AnyCardData } from '../entities/card.js';
 import type { CardEntry, DeckConfig } from './deck-loader.js';
 import { validateDeckConfig, type DeckConfigValidation } from '../rules/deck-construction.js';
 import { CardType } from '../../shared/types/enums.js';
+import type { DeckPointTableRules } from '../rules/deck-point-table.js';
 
 export type MainDeckEntryType = 'MEMBER' | 'LIVE';
 
@@ -120,7 +121,8 @@ export function deckConfigToRecordPayload(deck: DeckConfig): DeckRecordDeckPaylo
 
 export function normalizeDeckRecordPayload(
   deck: DeckRecordLike,
-  resolveCardDataType: CardDataTypeResolver
+  resolveCardDataType: CardDataTypeResolver,
+  pointTable: DeckPointTableRules
 ): DeckRecordNormalizationResult {
   const sourceErrors: string[] = [];
   const members: CardEntry[] = [];
@@ -183,7 +185,7 @@ export function normalizeDeckRecordPayload(
     main_deck: normalizedMainDeck,
     energy_deck: normalizedEnergyDeck,
     config,
-    validation: validateDeckConfig(config),
+    validation: validateDeckConfig(config, pointTable),
     sourceErrors,
   };
 }

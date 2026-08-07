@@ -18,6 +18,7 @@ import { useGameStore } from '@/store/gameStore';
 import { isLiveCardData, isMemberCardData, type AnyCardData } from '@game/domain/entities/card';
 import type { CardEntry } from '@game/domain/card-data/deck-loader';
 import { createDeckRecordCardTypeResolver, deckRecordToConfig } from '@/lib/deckRecordUtils';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 interface SharedDeckPageProps {
   shareId: string;
@@ -129,6 +130,7 @@ function SharedDeckSection({ title, entries, sort, onViewDetail }: SharedDeckSec
 }
 
 export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDeckPageProps) {
+  const pointTable = useDeckPointTableRules();
   const [deck, setDeck] = useState<SharedDeckRecord | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -325,7 +327,7 @@ export function SharedDeckPage({ shareId, onBackHome, onRequestLogin }: SharedDe
                     )}
                     <div className="mt-3">
                       <DeckStatsRow
-                        stats={calculateDeckStats(deck, {
+                        stats={calculateDeckStats(deck, pointTable, {
                           resolveCardType: resolveDeckRecordCardType,
                         })}
                         updatedAt={deck.shared_at || deck.updated_at}

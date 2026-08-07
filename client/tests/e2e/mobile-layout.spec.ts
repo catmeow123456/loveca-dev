@@ -149,6 +149,9 @@ const DECK_RECORD: DeckRecord = {
   energy_deck: [{ card_code: ENERGY_CARD.card_code, count: 12 }],
   is_valid: true,
   validation_errors: [],
+  validated_point_table_version: '2026-04-03',
+  point_total: 0,
+  point_limit: 9,
   is_public: false,
   share_id: 'e2e-share',
   share_enabled: true,
@@ -159,6 +162,76 @@ const DECK_RECORD: DeckRecord = {
   created_at: NOW,
   updated_at: NOW,
 };
+
+const DECK_POINT_TABLES = [
+  {
+    id: 'point-table-active',
+    version: '2026-04-03',
+    displayName: '2026年4月PT限制表',
+    lifecycle: 'ACTIVE',
+    pointLimit: 9,
+    effectiveFrom: '2026-04-02T16:00:00.000Z',
+    publishedAt: '2026-04-01T00:00:00.000Z',
+    retirementReason: null,
+    platformTimeZone: 'Asia/Shanghai',
+    entries: [
+      {
+        baseCardCode: 'PL!N-bp1-003',
+        points: 4,
+        cardNameJp: '桜坂しずく',
+        cardType: 'MEMBER',
+        cost: 10,
+      },
+    ],
+    revision: 1,
+    createdBy: 'e2e-profile',
+    updatedBy: 'e2e-profile',
+    createdAt: '2026-04-01T00:00:00.000Z',
+    updatedAt: '2026-04-01T00:00:00.000Z',
+  },
+  {
+    id: 'point-table-scheduled',
+    version: '2026-08-08',
+    displayName: '2026年8月PT限制表',
+    lifecycle: 'SCHEDULED',
+    pointLimit: 9,
+    effectiveFrom: '2026-08-07T16:00:00.000Z',
+    publishedAt: NOW,
+    retirementReason: null,
+    platformTimeZone: 'Asia/Shanghai',
+    entries: [
+      {
+        baseCardCode: 'PL!N-pb1-011',
+        points: 2,
+        cardNameCn: '米娅·泰勒',
+        cardType: 'MEMBER',
+        cost: 15,
+      },
+    ],
+    revision: 2,
+    createdBy: 'e2e-profile',
+    updatedBy: 'e2e-profile',
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+  {
+    id: 'point-table-cancelled',
+    version: 'cancelled-preview',
+    displayName: '已取消的PT排期',
+    lifecycle: 'RETIRED',
+    pointLimit: 9,
+    effectiveFrom: '2026-08-14T16:00:00.000Z',
+    publishedAt: NOW,
+    retirementReason: 'SCHEDULE_CANCELLED',
+    platformTimeZone: 'Asia/Shanghai',
+    entries: [],
+    revision: 3,
+    createdBy: 'e2e-profile',
+    updatedBy: 'e2e-profile',
+    createdAt: NOW,
+    updatedAt: NOW,
+  },
+] as const;
 
 async function fulfillApi(route: Route, data: unknown, status = 200, error: ApiError = null) {
   await route.fulfill({
@@ -260,6 +333,71 @@ async function installApiMocks(page: Page, authenticated: boolean) {
         route,
         Object.fromEntries(CARD_RECORDS.map((card) => [card.card_code, card.status]))
       );
+      return;
+    }
+
+    if (url.pathname === '/api/admin/deck-point-tables' && method === 'GET') {
+      await fulfillApi(route, DECK_POINT_TABLES);
+      return;
+    }
+
+    if (url.pathname === '/api/admin/deck-point-tables' && method === 'POST') {
+      const input = request.postDataJSON() as {
+        version: string;
+        displayName: string;
+        pointLimit: number;
+        entries: Array<{ baseCardCode: string; points: number }>;
+      };
+      await fulfillApi(route, {
+        id: 'point-table-new-draft',
+        ...input,
+        lifecycle: 'DRAFT',
+        effectiveFrom: null,
+        publishedAt: null,
+        retirementReason: null,
+        platformTimeZone: 'Asia/Shanghai',
+        revision: 1,
+        createdBy: 'e2e-profile',
+        updatedBy: 'e2e-profile',
+        createdAt: NOW,
+        updatedAt: NOW,
+      });
+      return;
+    }
+
+    const deckPointTableMatch = url.pathname.match(/^\/api\/admin\/deck-point-tables\/([^/]+)$/);
+    if (deckPointTableMatch && method === 'PUT') {
+      const source = DECK_POINT_TABLES.find((table) => table.id === deckPointTableMatch[1]);
+      const input = request.postDataJSON() as {
+        version: string;
+        displayName: string;
+        pointLimit: number;
+        effectiveDateTime?: string;
+        entries: Array<{ baseCardCode: string; points: number }>;
+      };
+      await fulfillApi(route, {
+        ...source,
+        ...input,
+        effectiveFrom: input.effectiveDateTime
+          ? new Date(`${input.effectiveDateTime}+08:00`).toISOString()
+          : source?.effectiveFrom,
+        revision: (source?.revision ?? 0) + 1,
+        updatedAt: NOW,
+      });
+      return;
+    }
+
+    if (deckPointTableMatch && method === 'DELETE') {
+      await fulfillApi(route, { id: deckPointTableMatch[1], deleted: true });
+      return;
+    }
+
+    const pointTableActionMatch = url.pathname.match(
+      /^\/api\/admin\/deck-point-tables\/([^/]+)\/(publish|discard|cancel-schedule)$/
+    );
+    if (pointTableActionMatch && method === 'POST') {
+      const source = DECK_POINT_TABLES.find((table) => table.id === pointTableActionMatch[1]);
+      await fulfillApi(route, source);
       return;
     }
 
@@ -772,6 +910,34 @@ const scenarios: Scenario[] = [
     authenticated: true,
     ready: async (page) => {
       await expect(page.getByText('赛季排位管理', { exact: true }).first()).toBeVisible();
+    },
+  },
+  {
+    name: 'deck-point-admin',
+    path: '/?page=deck-point-admin',
+    authenticated: true,
+    ready: async (page) => {
+      await expect(page.getByText('卡组规则管理', { exact: true }).first()).toBeVisible();
+      await expect(page.getByText('2026年4月PT限制表', { exact: true }).first()).toBeVisible();
+      await expect(page.getByText('历史原因：已取消排期', { exact: true })).toBeVisible();
+    },
+    action: async (page) => {
+      await page.getByRole('button', { name: /2026年8月PT限制表/ }).click();
+      const effectiveInput = page.locator('input[type="datetime-local"]').first();
+      await expect(effectiveInput).toHaveAttribute('step', '1');
+      await expect(effectiveInput).toHaveAttribute('value', '2026-08-08T00:00:00');
+      await page.getByLabel('显示名称').fill('2026年8月PT限制表·秒级');
+      const updateRequest = page.waitForRequest(
+        (request) =>
+          request.method() === 'PUT' &&
+          request.url().endsWith('/api/admin/deck-point-tables/point-table-scheduled')
+      );
+      await page.getByRole('button', { name: '保存修改' }).click();
+      expect((await updateRequest).postDataJSON()).toMatchObject({
+        displayName: '2026年8月PT限制表·秒级',
+        effectiveDateTime: '2026-08-08T00:00:00',
+        expectedRevision: 2,
+      });
     },
   },
   {

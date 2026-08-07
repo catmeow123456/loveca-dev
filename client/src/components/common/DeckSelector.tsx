@@ -4,6 +4,7 @@ import type { DeckRecord } from '@/lib/apiClient';
 import { useGameStore } from '@/store/gameStore';
 import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems, type DeckDisplayItem, type LocalDeck } from '@/lib/deckDisplay';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 export type { DeckDisplayItem, LocalDeck };
 
@@ -39,6 +40,7 @@ export function DeckSelector({
   lastUsedDeckId = null,
 }: DeckSelectorProps) {
   const isCompact = density === 'compact';
+  const pointTable = useDeckPointTableRules();
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
   const getCardImagePath = useGameStore((state) => state.getCardImagePath);
   const resolveDeckRecordCardType = useMemo(
@@ -51,8 +53,9 @@ export function DeckSelector({
         cloudDecks,
         localDecks,
         resolveDeckRecordCardType,
+        pointTable,
       }),
-    [cloudDecks, localDecks, resolveDeckRecordCardType]
+    [cloudDecks, localDecks, pointTable, resolveDeckRecordCardType]
   );
   const selectableDecks = useMemo(
     () =>

@@ -29,6 +29,7 @@ import type {
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { BladeHeartEffect, HeartColor } from '@game/shared/types/enums';
 import { getCardPoint } from '@game/domain/rules/deck-construction';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 function DetailMetric({
   iconSrc,
@@ -465,7 +466,8 @@ function CardDetailContent({
   card: VisibleCardPresentation;
   density: 'desktop' | 'mobile';
 }) {
-  const point = getCardPoint(card.cardCode);
+  const pointTable = useDeckPointTableRules();
+  const point = getCardPoint(card.cardCode, pointTable);
   const isMobile = density === 'mobile';
   const typeDetails = card.eventOnlyMissingData ? null : isMemberCardData(card.cardData) ? (
     <MemberCardDetails data={card.cardData} compact={!isMobile} />

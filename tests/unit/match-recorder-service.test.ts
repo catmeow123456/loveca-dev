@@ -9,6 +9,12 @@ import type {
 } from '../../src/domain/entities/card';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
+
+const TEST_POINT_VALIDATION = {
+  pointTableVersion: 'test-point-table',
+  pointTotal: 0,
+  pointLimit: 9,
+} as const;
 import { OnlineMatchService } from '../../src/server/services/online-match-service';
 import {
   MatchRecorderService,
@@ -128,6 +134,9 @@ function createBeginInput(): BeginMatchRecordInput {
           },
         },
         validationState: 'RUNTIME_ACCEPTED',
+        pointTableVersion: '2026-08-08',
+        pointTotal: 7,
+        pointLimit: 9,
         cardDataVersion: 'ONLINE_RUNTIME_CARD_DATA_SNAPSHOT',
         cardDataHash,
         lockedAt: 900,
@@ -149,6 +158,9 @@ function createBeginInput(): BeginMatchRecordInput {
           },
         },
         validationState: 'RUNTIME_ACCEPTED',
+        pointTableVersion: '2026-08-08',
+        pointTotal: 8,
+        pointLimit: 9,
         cardDataVersion: 'ONLINE_RUNTIME_CARD_DATA_SNAPSHOT',
         cardDataHash,
         lockedAt: 950,
@@ -277,6 +289,11 @@ describe('MatchRecorderService P0a', () => {
         cost: 1,
       },
     });
+    expect(firstDeckInsert?.values.slice(10, 13)).toEqual(['2026-08-08', 7, 9]);
+    const secondDeckInsert = calls.filter((call) =>
+      call.text.includes('INSERT INTO match_deck_snapshots')
+    )[1];
+    expect(secondDeckInsert?.values.slice(10, 13)).toEqual(['2026-08-08', 8, 9]);
   });
 
   it('recordInitialCheckpoint 分配 recorder checkpointSeq，并保存可复水 payload envelope', async () => {
@@ -802,6 +819,7 @@ describe('MatchRecorderService P0a', () => {
         deckName: 'Alpha Deck',
         lockedAt: 900,
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -810,6 +828,7 @@ describe('MatchRecorderService P0a', () => {
         deckName: 'Beta Deck',
         lockedAt: 950,
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
 
@@ -848,6 +867,7 @@ describe('MatchRecorderService P0a', () => {
         deckSource: 'PUBLISHED_CARDS_SNAPSHOT',
         lockedAt: 900,
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'system:solitaire-opponent',
@@ -858,6 +878,7 @@ describe('MatchRecorderService P0a', () => {
         participantKind: 'SYSTEM',
         ownerUserId: 'u1',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
 
