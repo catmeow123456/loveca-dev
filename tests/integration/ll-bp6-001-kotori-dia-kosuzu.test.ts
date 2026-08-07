@@ -283,6 +283,60 @@ describe('LL-bp6-001 Kotori & Dia & Kosuzu workflow', () => {
     expect(resolved.liveResolution.liveModifiers).toEqual([]);
   });
 
+  it('LL-bp6-001 live-start recognizes production Chinese names for all three named members', () => {
+    const source = createCardInstance(
+      createMemberCard('LL-bp6-001-R＋'),
+      PLAYER1,
+      'll-live-kotori-alias-source'
+    );
+    const kotoriPrints = [
+      'PL!-PR-003-PR',
+      'PL!-bp6-003-P',
+      'PL!-bp6-003-P＋',
+      'PL!-bp6-003-R＋',
+      'PL!-bp6-003-SEC',
+    ].map((cardCode, index) =>
+      createCardInstance(
+        createMemberCard(cardCode, { name: '南琴梨（南小鸟）', cost: 15 }),
+        PLAYER1,
+        `kotori-production-name-${index}`
+      )
+    );
+    const dia = createCardInstance(
+      createMemberCard('PL!S-bp5-004-P', { name: '黑泽黛雅' }),
+      PLAYER1,
+      'dia-production-name'
+    );
+    const kosuzu = createCardInstance(
+      createMemberCard('PL!HS-bp5-005-P', { name: '徒町小铃' }),
+      PLAYER1,
+      'kosuzu-production-name'
+    );
+    const namedMembers = [...kotoriPrints, dia, kosuzu];
+    let game = registerCards(
+      createGameState('ll-bp6-001-kotori-alias', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, ...namedMembers]
+    );
+    game = placeStageMember(game, source.instanceId);
+    game = setPlayerZones(game, { hand: namedMembers.map((card) => card.instanceId) });
+    game = {
+      ...game,
+      pendingAbilities: [
+        createPendingAbility(
+          LL_BP6_001_LIVE_START_DISCARD_NAMED_MEMBERS_GAIN_HEARTS_ABILITY_ID,
+          source.instanceId,
+          TriggerCondition.ON_LIVE_START
+        ),
+      ],
+    };
+
+    const resolved = resolvePendingCardEffects(game).gameState;
+
+    expect(resolved.activeEffect?.selectableCardIds).toEqual(
+      namedMembers.map((card) => card.instanceId)
+    );
+  });
+
   it('LL-bp6-001 live-start only allows the three named members and deduplicates printed heart colors', () => {
     const source = createCardInstance(createMemberCard('LL-bp6-001-R＋'), PLAYER1, 'll-live');
     const kotori = createCardInstance(

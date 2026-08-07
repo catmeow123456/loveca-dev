@@ -148,6 +148,31 @@ describe('card identity helpers', () => {
     expect(cardNameAliasMatches(llBp2001, '藤島慈')).toBe(false);
   });
 
+  it.each(['南ことり', '南琴梨', '南琴梨（南小鸟）', '南小鸟'])(
+    'matches Kotori alias %s against the canonical Japanese name',
+    (name) => {
+      expect(cardNameAliasMatches({ name }, '南ことり')).toBe(true);
+      expect(cardNameAliasMatches({ name: '南ことり' }, name)).toBe(true);
+    }
+  );
+
+  it.each(['矢澤にこ', '矢澤 にこ', '矢泽日香', '矢泽日香（妮可）', '矢泽妮可', '妮可'])(
+    'matches Nico alias %s against the canonical Japanese name',
+    (name) => {
+      expect(cardNameAliasMatches({ name }, '矢澤にこ')).toBe(true);
+      expect(cardNameAliasMatches({ name: '矢澤にこ' }, name)).toBe(true);
+    }
+  );
+
+  it('matches the production Chinese names for Dia and Kosuzu', () => {
+    for (const name of ['黒澤ダイヤ', '黒澤 ダイヤ', '黑泽黛雅']) {
+      expect(cardNameAliasMatches({ name }, '黒澤ダイヤ')).toBe(true);
+    }
+    for (const name of ['徒町小鈴', '徒町 小鈴', '徒町小铃']) {
+      expect(cardNameAliasMatches({ name }, '徒町小鈴')).toBe(true);
+    }
+  });
+
   it('normalizes official groupNames and series text to canonical group identities', () => {
     expect(cardBelongsToGroup({ groupNames: ['ラブライブ！'] }, "μ's")).toBe(true);
     expect(cardBelongsToGroup({ groupNames: ['ラブライブ！スーパースター!!'] }, 'Liella!')).toBe(
