@@ -327,6 +327,39 @@ describe('replay payload serialization', () => {
         )
       )
     ).toThrow('TARGET_MEMBER BLADE 缺少 targetMemberCardId');
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withModifiers([
+            {
+              kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
+              playerId: PLAYER1,
+              countDelta: 1,
+            },
+          ]),
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('SOURCE_MEMBER BLADE 绑定字段无效');
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withModifiers([
+            {
+              kind: 'BLADE',
+              target: 'PLAYER',
+              playerId: PLAYER1,
+              countDelta: 1,
+              targetMemberCardId: 'unexpected-target',
+            },
+          ]),
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('PLAYER BLADE 不应绑定 targetMemberCardId');
   });
 
   it('仅在 AUTHORITY_GAME_STATE 复水边界将旧缺失模式字段规范化为自由模式', () => {

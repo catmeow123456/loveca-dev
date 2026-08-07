@@ -186,6 +186,10 @@ describe('versioned deck point table', () => {
     expect(sql).toContain('jsonb_array_elements_text(snapshot."main_deck")');
     expect(sql).toContain("jsonb_array_elements(ticket.runtime_deck->'mainDeck')");
     expect(sql).toContain('"point_table_version" = \'2026-04-03\'');
+    expect(sql.match(/JOIN "deck_point_table_entries"/g)).toHaveLength(2);
+    expect(sql.match(/cardinality\(string_to_array\(/g)).toHaveLength(2);
+    expect(sql.match(/replace\([^\n]+, '＋', '\+'\)/g)).toHaveLength(4);
+    expect(sql).not.toContain("WHEN 'LL-bp2-001'");
   });
 
   it('migrates flexible administrator control without weakening the single-active index', () => {
