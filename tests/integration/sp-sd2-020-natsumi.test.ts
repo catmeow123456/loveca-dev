@@ -9,6 +9,13 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  collectLiveModifiers,
+  getEffectivePerformanceCheerCount,
+  getMemberEffectiveBladeCount,
+  getPlayerLiveBladeModifier,
+  removeStageMemberBoundLiveModifiers,
+} from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
 import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
@@ -153,7 +160,33 @@ function bladeModifierCardIds(game: GameState | null): readonly string[] {
           modifier.abilityId ===
             SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID
       )
-      .map((modifier) => modifier.sourceCardId) ?? []
+      .map((modifier) =>
+        modifier.target === 'TARGET_MEMBER' ? modifier.targetMemberCardId : modifier.sourceCardId
+      ) ?? []
+  );
+}
+
+function bladeModifiers(game: GameState) {
+  return game.liveResolution.liveModifiers.filter(
+    (modifier) =>
+      modifier.kind === 'BLADE' &&
+      modifier.abilityId ===
+        SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID
+  );
+}
+
+function performanceCheerCount(game: GameState, memberCardIds: readonly string[]): number {
+  const modifiers = collectLiveModifiers(game);
+  const memberBladeCount = memberCardIds.reduce(
+    (total, memberCardId) =>
+      total + getMemberEffectiveBladeCount(game, PLAYER1, memberCardId, modifiers),
+    0
+  );
+  return getEffectivePerformanceCheerCount(
+    game,
+    PLAYER1,
+    memberBladeCount + getPlayerLiveBladeModifier(game.liveResolution, PLAYER1, modifiers),
+    modifiers
   );
 }
 
@@ -211,6 +244,35 @@ describe('PL!SP-sd2-020 鬼塚夏美 LIVE start workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.pendingAbilities).toEqual([]);
     expect(bladeModifierCardIds(session.state)).toEqual([sourceCardId, targetCardIds[0]]);
+    expect(bladeModifiers(session.state!)).toEqual([
+      expect.objectContaining({
+        target: 'SOURCE_MEMBER',
+        sourceCardId,
+        countDelta: 1,
+      }),
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId,
+        targetMemberCardId: targetCardIds[0],
+        countDelta: 1,
+      }),
+    ]);
+    expect(performanceCheerCount(session.state!, [sourceCardId, targetCardIds[0]!])).toBe(4);
+
+    const afterSourceLeaves = removeStageMemberBoundLiveModifiers(session.state!, [sourceCardId]);
+    expect(bladeModifiers(afterSourceLeaves)).toEqual([
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId,
+        targetMemberCardId: targetCardIds[0],
+      }),
+    ]);
+    const afterTargetLeaves = removeStageMemberBoundLiveModifiers(session.state!, [
+      targetCardIds[0]!,
+    ]);
+    expect(bladeModifiers(afterTargetLeaves)).toEqual([
+      expect.objectContaining({ target: 'SOURCE_MEMBER', sourceCardId }),
+    ]);
   });
 
   it('opens a target choice for multiple other Liella members', () => {

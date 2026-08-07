@@ -7,13 +7,13 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addBladeLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { OrientationState } from '../../../../shared/types/enums.js';
 import { groupAliasIs, memberPrintedBladeLte } from '../../../effects/card-selectors.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { PL_BP5_024_LIVE_START_PRIVATE_WARS_CHOICE_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
   type EnqueueTriggeredCardEffectsForMemberStateChanged,
@@ -338,12 +338,12 @@ function finishPrivateWarsActivateWaitingMember(
     enqueueTriggeredCardEffects,
     {
       prepareGameStateBeforeEnqueue: (stateAfterOrientation, result, memberStateChangedEvents) => {
-        const bladeResult = addBladeLiveModifierForMember(stateAfterOrientation, {
+        const bladeResult = addBladeLiveModifierForTargetMember(stateAfterOrientation, {
           playerId: target.playerId,
-          memberCardId: selectedCardId,
-          countDelta: 1,
           sourceCardId: effect.sourceCardId,
+          targetMemberCardId: selectedCardId,
           abilityId: effect.abilityId,
+          amount: 1,
         });
         const stateWithModifier = bladeResult?.gameState ?? stateAfterOrientation;
         return addAction(

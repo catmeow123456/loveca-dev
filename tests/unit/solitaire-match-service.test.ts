@@ -18,7 +18,17 @@ import {
 } from '../../src/server/services/online-match-service';
 import { SolitaireMatchService } from '../../src/server/services/solitaire-match-service';
 import type { SolitaireRecoveredMatch } from '../../src/server/services/solitaire-runtime-recovery-service';
+import {
+  toDeckPointTableRules,
+  type DeckPointTableRules,
+} from '../../src/domain/rules/deck-point-table';
 
+const TEST_POINT_TABLE = toDeckPointTableRules({
+  version: 'test-point-table',
+  pointLimit: 9,
+  effectiveFrom: '2026-01-01T00:00:00.000Z',
+  entries: [],
+});
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
     query: vi.fn(),
@@ -76,6 +86,9 @@ function createHarness(
     readonly recoveryService?: {
       recoverMatch: (matchId: string, userId: string) => Promise<SolitaireRecoveredMatch | null>;
     } | null;
+    readonly getCurrentPointTableRules?: () => Promise<DeckPointTableRules>;
+    readonly pointTable?: DeckPointTableRules;
+    readonly loadOpponentDeck?: () => Promise<DeckConfig>;
   } = {}
 ) {
   let matchSequence = 0;
@@ -98,8 +111,16 @@ function createHarness(
       deckId,
       deckName: `${userId} 的卡组`,
       runtimeDeck: createRuntimeDeck('USER'),
+      pointValidation: {
+        pointTableVersion: (options.pointTable ?? TEST_POINT_TABLE).version,
+        pointTotal: 0,
+        pointLimit: (options.pointTable ?? TEST_POINT_TABLE).pointLimit,
+      },
+      pointTable: options.pointTable ?? TEST_POINT_TABLE,
     }),
-    loadOpponentDeck: async () => createRuntimeDeck('OPP'),
+    loadOpponentDeck: options.loadOpponentDeck ?? (() => Promise.resolve(createRuntimeDeck('OPP'))),
+    getCurrentPointTableRules:
+      options.getCurrentPointTableRules ?? (() => Promise.resolve(TEST_POINT_TABLE)),
   });
 
   return { matchService, service };
@@ -203,6 +224,27 @@ describe('SolitaireMatchService', () => {
     expect(matchService.getMatch(result.matchId)).not.toBeNull();
   });
 
+  it('初次对墙打会把系统对手能量卡纳入PT校验并阻止超限开局', async () => {
+    const pointTable = toDeckPointTableRules({
+      version: 'energy-point-table',
+      pointLimit: 9,
+      effectiveFrom: '2026-08-07T16:00:00.000Z',
+      entries: [{ baseCardCode: 'OPP-ENE-0', points: 10 }],
+    });
+    const { matchService, service } = createHarness({ pointTable });
+
+    await expect(
+      service.createMatch({
+        userId: 'user-1',
+        deckId: '11111111-1111-4111-8111-111111111111',
+      })
+    ).rejects.toMatchObject({
+      code: 'SOLITAIRE_OPPONENT_DECK_POINT_INVALID',
+      statusCode: 503,
+    });
+    expect(matchService.getRuntimeStats().matchCount).toBe(0);
+  });
+
   it('重新开始会封存旧运行态并沿用锁定卡组快照创建全新对墙打', async () => {
     const { matchService, service } = createHarness();
     const created = await service.createMatch({
@@ -236,6 +278,34 @@ describe('SolitaireMatchService', () => {
       previous?.deckSnapshots.SECOND.mainDeck.map((card) => card.cardCode)
     );
     expect(restarted?.snapshot.playerViewState.match.turnCount).toBe(1);
+  });
+
+  it('跨PT生效点重开时先重验快照，超限时保留旧局不封存', async () => {
+    const rolledOverRules = toDeckPointTableRules({
+      version: 'after-rollover',
+      pointLimit: 9,
+      effectiveFrom: '2026-08-07T16:00:00.000Z',
+      entries: Array.from({ length: 10 }, (_, index) => ({
+        baseCardCode: `USER-MEM-${index}`,
+        points: 1,
+      })),
+    });
+    const { matchService, service } = createHarness({
+      getCurrentPointTableRules: () => Promise.resolve(rolledOverRules),
+    });
+    const created = await service.createMatch({
+      userId: 'user-1',
+      deckId: '11111111-1111-4111-8111-111111111111',
+    });
+    const deleteMatch = vi.spyOn(matchService, 'deleteMatch');
+
+    await expect(service.restartMatch(created.matchId, 'user-1')).rejects.toMatchObject({
+      code: 'SOLITAIRE_RESTART_POINT_TABLE_CHANGED',
+      statusCode: 409,
+    });
+    expect(deleteMatch).not.toHaveBeenCalled();
+    expect(matchService.getMatch(created.matchId)).not.toBeNull();
+    expect(matchService.getRuntimeStats().matchCount).toBe(1);
   });
 
   it('非参与用户不能重新开始对墙打', async () => {

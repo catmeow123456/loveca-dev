@@ -13,7 +13,7 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
@@ -163,9 +163,10 @@ function finishHonokaDiscardForOtherMembersBlade(
   const appliedTargetMemberCardIds: string[] = [];
 
   for (const targetMemberCardId of targetMemberCardIds) {
-    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+    const bladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      sourceCardId: targetMemberCardId,
+      sourceCardId: effect.sourceCardId,
+      targetMemberCardId,
       abilityId: effect.abilityId,
       amount: 1,
     });

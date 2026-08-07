@@ -85,6 +85,41 @@
       "when": 1785432776510,
       "tag": "0011_add_match_replay_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786030342073,
+      "tag": "0012_add_deck_point_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786030464409,
+      "tag": "0013_add_deck_point_snapshot_facts",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786030799596,
+      "tag": "0014_extend_deck_point_audit_actions",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1786030959201,
+      "tag": "0015_add_deck_point_retirement_reason",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1786059986324,
+      "tag": "0016_allow_deck_point_table_admin_control",
+      "breakpoints": true
     }
   ]
 }

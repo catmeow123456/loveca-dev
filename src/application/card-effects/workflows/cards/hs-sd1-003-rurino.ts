@@ -15,7 +15,7 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText, recordPayCostAction } from '../../runtime/workflow-helpers.js';
@@ -235,9 +235,10 @@ function finishHsSd1003Target(
     return game;
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(heartResult.gameState, {
+  const bladeResult = addBladeLiveModifierForTargetMember(heartResult.gameState, {
     playerId: player.id,
-    sourceCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
     amount: 1,
   });

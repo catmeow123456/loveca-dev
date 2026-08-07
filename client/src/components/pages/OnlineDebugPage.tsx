@@ -21,6 +21,7 @@ import {
   isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import {
   choosePreferredDeck,
   getOnlineDebugDeckPreferenceKey,
@@ -46,6 +47,7 @@ interface OnlineDebugPageProps {
 }
 
 export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPageProps) {
+  const pointTable = useDeckPointTableRules();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
   const cloudError = useDeckStore((s) => s.cloudError);
@@ -85,16 +87,20 @@ export function OnlineDebugPage({ onBack, onImmersiveModeChange }: OnlineDebugPa
     [cardDataRegistry]
   );
   const validDecks = useMemo(
-    () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
-    [cardDataRegistry, cloudDecks]
+    () =>
+      cloudDecks.filter((deck) =>
+        isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry, pointTable)
+      ),
+    [cardDataRegistry, cloudDecks, pointTable]
   );
   const deckDisplayItems = useMemo(
     () =>
       buildDeckDisplayItems({
         cloudDecks: validDecks,
         resolveDeckRecordCardType,
+        pointTable,
       }),
-    [resolveDeckRecordCardType, validDecks]
+    [pointTable, resolveDeckRecordCardType, validDecks]
   );
   const preferredDeck = useMemo(
     () => choosePreferredDeck(deckDisplayItems, lastUsedDeckId),

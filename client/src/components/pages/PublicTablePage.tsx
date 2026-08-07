@@ -13,6 +13,7 @@ import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
 import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import {
   choosePreferredDeck,
   DECK_SELECTION_PREFERENCE_KEYS,
@@ -37,6 +38,7 @@ export function PublicTablePage({
   const cloudError = useDeckStore((state) => state.cloudError);
   const fetchCloudDecks = useDeckStore((state) => state.fetchCloudDecks);
   const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
+  const pointTable = useDeckPointTableRules();
   const status = usePublicTableStore((state) => state.status);
   const sessionUserId = usePublicTableStore((state) => state.sessionUserId);
   const hydrated = usePublicTableStore((state) => state.hydrated);
@@ -66,8 +68,9 @@ export function PublicTablePage({
       buildDeckDisplayItems({
         cloudDecks,
         resolveDeckRecordCardType,
+        pointTable,
       }),
-    [cloudDecks, resolveDeckRecordCardType]
+    [cloudDecks, pointTable, resolveDeckRecordCardType]
   );
   const validDeckCount = useMemo(
     () => deckDisplayItems.filter((deck) => deck.isValid).length,

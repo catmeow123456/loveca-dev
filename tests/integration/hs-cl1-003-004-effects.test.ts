@@ -274,6 +274,15 @@ describe('PL!HS-cl1-003-CL Rurino activated workflow', () => {
     expect(confirmResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, otherMiracraId)).toBe(2);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: sourceId,
+      targetMemberCardId: otherMiracraId,
+      abilityId: HS_CL1_003_ACTIVATED_WAIT_SELF_MIRACRA_MEMBER_GAIN_BLADE_ABILITY_ID,
+    });
     expect(
       latestPayload(
         session.state!,
@@ -313,6 +322,15 @@ describe('PL!HS-cl1-003-CL Rurino activated workflow', () => {
 
     expect(confirmResult.success).toBe(true);
     expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(2);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: sourceId,
+      targetMemberCardId: sourceId,
+      abilityId: HS_CL1_003_ACTIVATED_WAIT_SELF_MIRACRA_MEMBER_GAIN_BLADE_ABILITY_ID,
+    });
   });
 
   it('keeps the paid cost and no-ops if the selected target disappears before confirmation', () => {

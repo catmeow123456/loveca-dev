@@ -5,6 +5,7 @@ import { createGameState, registerCards, updatePlayer, type GameState } from '..
 import { addMemberBelowMember, placeCardInSlot, removeCardFromSlot } from '../../src/domain/entities/zone';
 import { confirmActiveEffectStep, resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import { PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { GameService } from '../../src/application/game-service';
 import { getMemberEffectiveBladeCount } from '../../src/domain/rules/live-modifiers';
 import { CardType, FaceState, HeartColor, OrientationState, SlotPosition, TriggerCondition } from '../../src/shared/types/enums';
 
@@ -13,6 +14,9 @@ const member = (code: string): MemberCardData => ({ cardCode: code, name: code, 
 const energy = (code: string): EnergyCardData => ({ cardCode: code, name: code, cardType: CardType.ENERGY });
 
 function setup(): { game: GameState; ids: Record<string, string> } {
+  const cheerCards = Array.from({ length: 8 }, (_, index) =>
+    createCardInstance(member(`CHEER-${index}`), P1, `cheer-${index}`)
+  );
   const cards = [
     createCardInstance(member('PL!N-bp3-001-R＋'), P1, 'source'),
     createCardInstance(member('ALLY-L'), P1, 'ally-left'), createCardInstance(member('ALLY-R'), P1, 'ally-right'),
@@ -20,11 +24,12 @@ function setup(): { game: GameState; ids: Record<string, string> } {
     createCardInstance(energy('EW'), P1, 'waiting-energy'),
     createCardInstance(member('BELOW'), P1, 'member-below'), createCardInstance(member('DEPARTED'), P1, 'departed'),
     createCardInstance(member('OPPONENT'), P2, 'opponent'),
+    ...cheerCards,
   ];
   let game = registerCards(createGameState('bp3-001', P1, 'P1', P2, 'P2'), cards);
   game = updatePlayer(game, P1, (p) => ({ ...p,
     memberSlots: addMemberBelowMember(placeCardInSlot(placeCardInSlot(placeCardInSlot(p.memberSlots, SlotPosition.CENTER, 'source'), SlotPosition.LEFT, 'ally-left', { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }), SlotPosition.RIGHT, 'ally-right'), SlotPosition.CENTER, 'member-below'),
-    mainDeck: { ...p.mainDeck, cardIds: ['draw'] },
+    mainDeck: { ...p.mainDeck, cardIds: ['draw', ...cheerCards.map((card) => card.instanceId)] },
     energyZone: { ...p.energyZone, cardIds: ['active-energy', 'waiting-energy'], cardStates: new Map([
       ['active-energy', { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
       ['waiting-energy', { orientation: OrientationState.WAITING, face: FaceState.FACE_UP }],
@@ -49,6 +54,15 @@ describe('PL!N-bp3-001 Ayumu', () => {
     expect(getMemberEffectiveBladeCount(done, P1, 'member-below')).toBe(1);
     expect(getMemberEffectiveBladeCount(done, P1, 'departed')).toBe(1);
     expect(getMemberEffectiveBladeCount(done, P2, 'opponent')).toBe(1);
+    expect(
+      done.liveResolution.liveModifiers.filter(
+        (modifier) => modifier.kind === 'BLADE' && modifier.abilityId === PL_N_BP3_001_LIVE_START_STACK_ENERGY_DRAW_STAGE_GAIN_TWO_BLADE_ABILITY_ID
+      )
+    ).toEqual(
+      [ids.left, ids.source, ids.right].map((targetMemberCardId) =>
+        expect.objectContaining({ target: 'TARGET_MEMBER', sourceCardId: ids.source, targetMemberCardId, countDelta: 2 })
+      )
+    );
     const payload = done.actionHistory.at(-1)?.payload;
     expect(payload).toMatchObject({ stackedEnergyCardIds: ['waiting-energy'], targetMemberCardIds: ['ally-left', 'source', 'ally-right'], appliedTargetMemberCardIds: ['ally-left', 'source', 'ally-right'], bladeBonusPerMember: 2 });
     expect(
@@ -57,6 +71,8 @@ describe('PL!N-bp3-001 Ayumu', () => {
           entry.event.eventType === TriggerCondition.ON_ENERGY_PLACED_BY_CARD_EFFECT
       )
     ).toBe(false);
+    const cheered = (new GameService() as unknown as { autoRevealPerformanceCheer(state: GameState, playerId: string): GameState }).autoRevealPerformanceCheer(done, P1);
+    expect(cheered.liveResolution.firstPlayerCheerCardIds).toHaveLength(6);
   });
 
   it('declines without payment/reward and keeps illegal input unchanged', () => {

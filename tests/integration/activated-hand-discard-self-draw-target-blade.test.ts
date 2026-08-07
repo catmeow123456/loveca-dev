@@ -291,6 +291,15 @@ describe('activated hand-discard-self draw target BLADE shared family', () => {
       withTarget.targetIds[0]
     );
     expect(getMemberEffectiveBladeCount(done, P1, withTarget.targetIds[0]!)).toBe(2);
+    expect(done.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: P1,
+      countDelta: 1,
+      sourceCardId: withTarget.sourceId,
+      targetMemberCardId: withTarget.targetIds[0],
+      abilityId: HS_ABILITY,
+    });
 
     const noTarget = setupHs(false);
     const resolved = activate(noTarget, HS_ABILITY);
@@ -616,6 +625,15 @@ describe('activated hand-discard-self draw target BLADE shared family', () => {
     );
     expect(granted.players[0].waitingRoom.cardIds).toContain(scenario.sourceId);
     expect(getMemberEffectiveBladeCount(granted, P1, scenario.targetIds[0]!)).toBe(2);
+    expect(granted.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: P1,
+      countDelta: 1,
+      sourceCardId: scenario.sourceId,
+      targetMemberCardId: scenario.targetIds[0],
+      abilityId: N_ABILITY,
+    });
 
     const moved = moveMemberBetweenSlotsAndEnqueueTriggers(
       granted,
@@ -642,7 +660,11 @@ describe('activated hand-discard-self draw target BLADE shared family', () => {
     )!;
     expect(
       left.gameState.liveResolution.liveModifiers.some(
-        (modifier) => modifier.kind === 'BLADE' && modifier.sourceCardId === scenario.targetIds[0]
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
+          modifier.sourceCardId === scenario.sourceId &&
+          modifier.targetMemberCardId === scenario.targetIds[0]
       )
     ).toBe(false);
   });
@@ -668,8 +690,10 @@ describe('activated hand-discard-self draw target BLADE shared family', () => {
       second.liveResolution.liveModifiers.filter(
         (modifier) =>
           modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
           modifier.abilityId === N_ABILITY &&
-          modifier.sourceCardId === scenario.targetIds[0]
+          modifier.targetMemberCardId === scenario.targetIds[0] &&
+          [scenario.sourceId, secondSource.instanceId].includes(modifier.sourceCardId)
       )
     ).toHaveLength(2);
   });

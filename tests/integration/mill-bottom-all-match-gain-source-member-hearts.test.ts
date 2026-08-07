@@ -24,21 +24,28 @@ import { createPublicObjectId, projectPlayerViewState } from '../../src/online/p
 import {
   S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
+  S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
   SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
-import { CardType, HeartColor, SlotPosition, TriggerCondition } from '../../src/shared/types/enums';
+import {
+  CardType,
+  HeartColor,
+  SlotPosition,
+  TriggerCondition,
+  ZoneType,
+} from '../../src/shared/types/enums';
 
 const P1 = 'p1';
 const P2 = 'p2';
 
-function member(id: string, groupNames: readonly string[] = ['Aqours'], ownerId = P1) {
+function member(id: string, groupNames: readonly string[] = ['Aqours'], ownerId = P1, cost = 1) {
   const data: MemberCardData = {
     cardCode: id,
     name: id,
     groupNames,
     cardType: CardType.MEMBER,
-    cost: 1,
+    cost,
     blade: 1,
     hearts: [createHeartIcon(HeartColor.GREEN, 1)],
   };
@@ -122,7 +129,7 @@ function heartModifiers(game: GameState, abilityId: string) {
   );
 }
 
-describe('LIVE_START bottom-mill all-match gain source-member Heart family', () => {
+describe('bottom-mill all-match gain source-member Heart family', () => {
   it('enters the real ON_LIVE_START queue from the exact stage-member definition', () => {
     const scenario = setup(
       S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
@@ -544,5 +551,160 @@ describe('LIVE_START bottom-mill all-match gain source-member Heart family', () 
           SP_BP5_005_AUTO_MAIN_PHASE_CARD_ENTER_WAITING_ROOM_PAY_ENERGY_RECOVER_ABILITY_ID
       )
     ).toBe(true);
+  });
+
+  it('PL!S-bp7-017-N 费用4「小原鞠莉」登场将卡组底1张费用10成员公开展示后给来源红、蓝 Heart', () => {
+    const expectedText =
+      '【登场】将自己的卡组底的卡片放置入休息室。那张卡片是费用大于等于10的成员卡的场合，LIVE结束时为止，获得[赤ハート][青ハート]。';
+    const scenario = setup(
+      S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+      'PL!S-bp7-017-N',
+      [member('top'), member('cost-ten-bottom', ['Aqours'], P1, 10)]
+    );
+    const onEnterGame: GameState = {
+      ...scenario.game,
+      pendingAbilities: [
+        {
+          ...pending(
+            S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+            scenario.source.instanceId,
+            's017'
+          ),
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+        },
+      ],
+    };
+
+    const revealed = resolvePendingCardEffects(onEnterGame).gameState;
+    expect(revealed.activeEffect).toMatchObject({
+      abilityId: S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+      effectText: expectedText,
+      revealedCardIds: ['cost-ten-bottom'],
+    });
+    expect(revealed.activeEffect?.stepText).toContain('这些卡均为费用大于等于10的成员卡');
+    expect(
+      heartModifiers(
+        revealed,
+        S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID
+      )
+    ).toEqual([]);
+    for (const viewerId of [P1, P2]) {
+      expect(projectPlayerViewState(revealed, viewerId).activeEffect?.revealedObjectIds).toEqual([
+        createPublicObjectId('cost-ten-bottom'),
+      ]);
+    }
+
+    const done = confirmActiveEffectStep(revealed, P1, revealed.activeEffect!.id);
+    expect(
+      heartModifiers(
+        done,
+        S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({
+        target: 'SOURCE_MEMBER',
+        sourceCardId: scenario.source.instanceId,
+        hearts: [
+          { color: HeartColor.RED, count: 1 },
+          { color: HeartColor.BLUE, count: 1 },
+        ],
+      }),
+    ]);
+    const waitingEvent = done.eventLog.find(
+      ({ event }) =>
+        event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+        event.cardInstanceId === 'cost-ten-bottom'
+    );
+    expect(waitingEvent?.event).toMatchObject({
+      fromZone: ZoneType.MAIN_DECK,
+      toZone: ZoneType.WAITING_ROOM,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: P1,
+        sourceCardId: scenario.source.instanceId,
+        abilityId:
+          S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+        pendingAbilityId: 's017',
+      },
+    });
+  });
+
+  it.each([
+    ['费用9成员', member('cost-nine-bottom', ['Aqours'], P1, 9)],
+    ['LIVE卡', live('bottom-live')],
+  ])('PL!S-bp7-017-N 不会因%s获得 Heart', (_label, bottomCard) => {
+    const scenario = setup(
+      S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+      'PL!S-bp7-017-N',
+      [bottomCard]
+    );
+    const game: GameState = {
+      ...scenario.game,
+      pendingAbilities: [
+        {
+          ...pending(
+            S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+            scenario.source.instanceId,
+            's017-fail'
+          ),
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+        },
+      ],
+    };
+    expect(
+      heartModifiers(
+        confirmSingle(game),
+        S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID
+      )
+    ).toEqual([]);
+  });
+
+  it('PL!S-bp7-017-N 依刷新后的实际底牌判定，但展示期间来源离场时不给 Heart', () => {
+    const scenario = setup(
+      S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+      'PL!S-bp7-017-N',
+      [],
+      [member('refreshed-cost-ten', ['Aqours'], P1, 10)]
+    );
+    const game: GameState = {
+      ...scenario.game,
+      pendingAbilities: [
+        {
+          ...pending(
+            S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+            scenario.source.instanceId,
+            's017-refresh'
+          ),
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+        },
+      ],
+    };
+    let revealed = resolvePendingCardEffects(game).gameState;
+    expect(
+      revealed.actionHistory.some(
+        (action) =>
+          action.payload.abilityId ===
+            S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID &&
+          action.payload.step === 'MILL_BOTTOM_CARDS' &&
+          typeof action.payload.refreshCount === 'number' &&
+          action.payload.refreshCount > 0
+      )
+    ).toBe(true);
+    expect(revealed.activeEffect?.revealedCardIds).toEqual(['refreshed-cost-ten']);
+    revealed = updatePlayer(revealed, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+      waitingRoom: {
+        ...player.waitingRoom,
+        cardIds: [...player.waitingRoom.cardIds, scenario.source.instanceId],
+      },
+    }));
+    const done = confirmActiveEffectStep(revealed, P1, revealed.activeEffect!.id);
+    expect(
+      heartModifiers(
+        done,
+        S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID
+      )
+    ).toEqual([]);
   });
 });

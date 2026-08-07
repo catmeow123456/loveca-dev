@@ -18,8 +18,11 @@ import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { createCheerEvent } from '../../src/domain/events/game-events';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { GameService } from '../../src/application/game-service';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import {
   BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   BP6_001_LIVE_SUCCESS_CHEER_NO_BLADE_MUSE_MEMBER_DRAW_DISCARD_ABILITY_ID,
@@ -248,27 +251,70 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
       expect.arrayContaining([
         {
           kind: 'BLADE',
-          target: 'SOURCE_MEMBER',
+          target: 'TARGET_MEMBER',
           playerId: PLAYER1,
           countDelta: 1,
-          sourceCardId: museSide.instanceId,
+          sourceCardId: honoka.instanceId,
+          targetMemberCardId: museSide.instanceId,
           abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
         },
         {
           kind: 'BLADE',
-          target: 'SOURCE_MEMBER',
+          target: 'TARGET_MEMBER',
           playerId: PLAYER1,
           countDelta: 1,
           sourceCardId: honoka.instanceId,
+          targetMemberCardId: honoka.instanceId,
           abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
         },
       ])
     );
     expect(
       resolved.liveResolution.liveModifiers.some(
-        (modifier) => modifier.sourceCardId === nonMuse.instanceId
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
+          modifier.targetMemberCardId === nonMuse.instanceId
       )
     ).toBe(false);
+
+    const cheerCards = Array.from({ length: 6 }, (_, index) =>
+      createCardInstance(createMemberCard(`PL!-cheer-${index}`), PLAYER1, `cheer-${index}`)
+    );
+    const withCheerDeck = updatePlayer(registerCards(resolved, cheerCards), PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+    }));
+    const judged = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(withCheerDeck, PLAYER1);
+    expect(judged.liveResolution.firstPlayerCheerCardIds).toHaveLength(5);
+
+    const sourceLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      resolved,
+      PLAYER1,
+      honoka.instanceId,
+      enqueueTriggeredCardEffects
+    )!;
+    expect(
+      sourceLeft.gameState.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
+          modifier.targetMemberCardId === honoka.instanceId
+      )
+    ).toBe(false);
+    expect(sourceLeft.gameState.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: honoka.instanceId,
+      targetMemberCardId: museSide.instanceId,
+      abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+    });
   });
 
   it.each([
@@ -454,11 +500,15 @@ describe('PL!-bp6-001 高坂穂乃果 workflow', () => {
         expect.objectContaining({
           kind: 'BLADE',
           sourceCardId: honoka.instanceId,
+          target: 'TARGET_MEMBER',
+          targetMemberCardId: honoka.instanceId,
           abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
         }),
         expect.objectContaining({
           kind: 'BLADE',
-          sourceCardId: museSide.instanceId,
+          sourceCardId: honoka.instanceId,
+          target: 'TARGET_MEMBER',
+          targetMemberCardId: museSide.instanceId,
           abilityId: BP6_001_LIVE_START_CENTER_MUSE_LIVE_STAGE_MUSE_MEMBERS_GAIN_BLADE_ABILITY_ID,
         }),
       ])

@@ -240,6 +240,7 @@ describe('PL!N-bp7-026-SECL 分数5「Just Believe!!!」', () => {
     expect(resolved.liveResolution.liveModifiers).toContainEqual(
       expect.objectContaining({
         kind: 'BLADE',
+        target: 'TARGET_MEMBER',
         playerId: P1,
         sourceCardId: scenario.source.instanceId,
         targetMemberCardId: scenario.targets[0]!.instanceId,
@@ -278,6 +279,7 @@ describe('PL!N-bp7-026-SECL 分数5「Just Believe!!!」', () => {
       expect.arrayContaining(
         selectedTargetIds.map((targetMemberCardId) =>
           expect.objectContaining({
+            target: 'TARGET_MEMBER',
             sourceCardId: scenario.source.instanceId,
             targetMemberCardId,
             countDelta: 1,

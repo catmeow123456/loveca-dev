@@ -20,6 +20,7 @@ import type {
 } from '../domain/card-data/deck-record-utils';
 import { normalizeDeckRecordPayload } from '../domain/card-data/deck-record-utils';
 import { CardType } from '../shared/types/enums';
+import { toDeckPointTableRules, type DeckPointTableRules } from '../domain/rules/deck-point-table';
 
 const DATABASE_URL = process.env.DATABASE_URL;
 const APPLY = process.argv.includes('--apply');
@@ -40,6 +41,7 @@ interface DeckRow {
   energy_deck: unknown;
   is_valid: boolean;
   validation_errors: unknown;
+  validated_point_table_version: string;
 }
 
 interface NormalizedDeckReport {
@@ -56,6 +58,7 @@ interface NormalizedDeckReport {
   validationChanged: boolean;
   normalizedMainDeck: DeckRecordMainEntry[];
   normalizedEnergyDeck: DeckRecordEnergyEntry[];
+  pointTableVersion: string;
 }
 
 interface MigrationSummary {
@@ -192,7 +195,8 @@ function normalizeMainDeckTypes(
 function analyzeDeck(
   deck: DeckRow,
   allCardTypes: ReadonlyMap<string, CardTypeValue>,
-  publishedCardTypes: ReadonlyMap<string, CardTypeValue>
+  publishedCardTypes: ReadonlyMap<string, CardTypeValue>,
+  pointTable: DeckPointTableRules
 ): NormalizedDeckReport {
   const mainDeck = readMainDeck(deck.main_deck, deck.name);
   const energyDeck = readEnergyDeck(deck.energy_deck, deck.name);
@@ -205,7 +209,8 @@ function analyzeDeck(
       main_deck: mainDeckTypeFix.entries,
       energy_deck: energyDeck.entries,
     },
-    (cardCode) => publishedCardTypes.get(cardCode) as CardType | undefined
+    (cardCode) => publishedCardTypes.get(cardCode) as CardType | undefined,
+    pointTable
   );
 
   const validationErrors = [
@@ -232,9 +237,11 @@ function analyzeDeck(
     energyDeckChanged: stableJson(deck.energy_deck) !== stableJson(normalizedEnergyDeck),
     validationChanged:
       deck.is_valid !== newIsValid ||
-      stableJson(oldValidationErrors) !== stableJson(validationErrors),
+      stableJson(oldValidationErrors) !== stableJson(validationErrors) ||
+      deck.validated_point_table_version !== pointTable.version,
     normalizedMainDeck,
     normalizedEnergyDeck,
+    pointTableVersion: pointTable.version,
   };
 }
 
@@ -249,13 +256,15 @@ async function updateDeck(client: PoolClient, report: NormalizedDeckReport): Pro
          energy_deck = $2,
          is_valid = $3,
          validation_errors = $4,
+         validated_point_table_version = $5,
          updated_at = now()
-     WHERE id = $5`,
+     WHERE id = $6`,
     [
       JSON.stringify(report.normalizedMainDeck),
       JSON.stringify(report.normalizedEnergyDeck),
       report.newIsValid,
       JSON.stringify(report.validationErrors),
+      report.pointTableVersion,
       report.id,
     ]
   );
@@ -334,14 +343,56 @@ async function main(): Promise<void> {
         .filter((card) => card.status === 'PUBLISHED')
         .map((card) => [card.card_code, card.card_type] as const)
     );
+    // Dry-run must remain read-only, so project the online resolver's current
+    // table without invoking its transactional lazy activation/audit writes:
+    // an elapsed SCHEDULED table wins, otherwise use the sole ACTIVE table.
+    // RETIRED (including cancelled schedules) is deliberately excluded.
+    const { rows: pointTables } = await pool.query<{
+      id: string;
+      version: string;
+      point_limit: number;
+      effective_from: Date;
+    }>(
+      `SELECT id, version, point_limit, effective_from
+       FROM deck_point_tables
+       WHERE (lifecycle = 'SCHEDULED' AND effective_from <= now())
+          OR lifecycle = 'ACTIVE'
+       ORDER BY
+         CASE WHEN lifecycle = 'SCHEDULED' THEN 0 ELSE 1 END,
+         effective_from DESC
+       LIMIT 1`
+    );
+    const currentPointTable = pointTables[0];
+    if (!currentPointTable) throw new Error('当前没有已生效的PT限制表');
+    const { rows: pointEntries } = await pool.query<{
+      base_card_code: string;
+      points: number;
+    }>(
+      `SELECT base_card_code, points
+       FROM deck_point_table_entries
+       WHERE table_id = $1`,
+      [currentPointTable.id]
+    );
+    const pointTable = toDeckPointTableRules({
+      version: currentPointTable.version,
+      pointLimit: currentPointTable.point_limit,
+      effectiveFrom: currentPointTable.effective_from.toISOString(),
+      entries: pointEntries.map((entry) => ({
+        baseCardCode: entry.base_card_code,
+        points: entry.points,
+      })),
+    });
 
     const { rows: decks } = await pool.query<DeckRow>(
-      `SELECT id, name, description, main_deck, energy_deck, is_valid, validation_errors
+      `SELECT id, name, description, main_deck, energy_deck, is_valid, validation_errors,
+              validated_point_table_version
        FROM decks
        ORDER BY updated_at DESC`
     );
 
-    const reports = decks.map((deck) => analyzeDeck(deck, allCardTypes, publishedCardTypes));
+    const reports = decks.map((deck) =>
+      analyzeDeck(deck, allCardTypes, publishedCardTypes, pointTable)
+    );
     reports.forEach(printDeckReport);
     printSummary(createSummary(reports));
 

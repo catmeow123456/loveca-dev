@@ -43,10 +43,10 @@ import type { Seat } from '../../online/types.js';
 import { GameMode } from '../../shared/types/enums.js';
 import {
   DEBUG_REPLAY_BUNDLE_SCHEMA_VERSION,
-  GAME_STATE_SCHEMA_VERSION,
   REPLAY_CARD_DATA_VERSION,
   REPLAY_RECORD_SCHEMA_VERSION,
   REPLAY_RULES_VERSION,
+  SUPPORTED_GAME_STATE_SCHEMA_VERSIONS,
 } from './replay-constants.js';
 import {
   ReplayPayloadSerializationError,
@@ -1482,9 +1482,18 @@ function validateAdminRecordCompatibility(
 }
 
 function validateCheckpointCompatibility(checkpoint: CheckpointRow): void {
+  const sourceSchemaVersion = checkpoint.payload.sourceSchemaVersion;
+  if (checkpoint.schema_version !== sourceSchemaVersion) {
+    throw new MatchReplayReadServiceError(
+      'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+      '历史对局权威状态版本记录不一致',
+      409
+    );
+  }
   if (
-    checkpoint.schema_version !== GAME_STATE_SCHEMA_VERSION ||
-    checkpoint.payload.sourceSchemaVersion !== GAME_STATE_SCHEMA_VERSION
+    !SUPPORTED_GAME_STATE_SCHEMA_VERSIONS.some(
+      (supportedVersion) => supportedVersion === sourceSchemaVersion
+    )
   ) {
     throw new MatchReplayReadServiceError(
       'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
@@ -1523,8 +1532,7 @@ function rehydrateAuthorityCheckpoint(checkpoint: CheckpointRow): GameState {
     return rehydrateAuthorityGameState(checkpoint.payload);
   } catch (error) {
     if (error instanceof ReplayPayloadSerializationError) {
-      const isIntegrityError =
-        error.message.includes('hash') || error.message.includes('byte length');
+      const isIntegrityError = error.reason === 'CORRUPTED';
       throw new MatchReplayReadServiceError(
         isIntegrityError
           ? 'MATCH_RECORD_CHECKPOINT_CORRUPTED'

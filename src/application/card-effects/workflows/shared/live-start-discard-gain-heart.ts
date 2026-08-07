@@ -22,7 +22,7 @@ import {
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
 import {
-  discardOneHandCardToWaitingRoomAndEnqueueTriggers,
+  discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
 } from '../../runtime/enter-waiting-room-triggers.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -44,16 +44,16 @@ const STANDARD_HEART_COLOR_OPTIONS = [
   HeartColor.PURPLE,
 ] as const;
 
-const HEART_COLOR_OPTION_TEXTS: Readonly<Record<HeartColor, string>> = {
-  [HeartColor.PINK]: '获得[桃ハート]。',
-  [HeartColor.RED]: '获得[赤ハート]。',
-  [HeartColor.YELLOW]: '获得[黄ハート]。',
-  [HeartColor.GREEN]: '获得[緑ハート]。',
-  [HeartColor.BLUE]: '获得[青ハート]。',
-  [HeartColor.PURPLE]: '获得[紫ハート]。',
-  [HeartColor.ORANGE]: '获得[オレンジハート]。',
-  [HeartColor.GRAY]: '获得[無色ハート]。',
-  [HeartColor.RAINBOW]: '获得[虹ハート]。',
+const HEART_COLOR_TOKENS: Readonly<Record<HeartColor, string>> = {
+  [HeartColor.PINK]: '[桃ハート]',
+  [HeartColor.RED]: '[赤ハート]',
+  [HeartColor.YELLOW]: '[黄ハート]',
+  [HeartColor.GREEN]: '[緑ハート]',
+  [HeartColor.BLUE]: '[青ハート]',
+  [HeartColor.PURPLE]: '[紫ハート]',
+  [HeartColor.ORANGE]: '[オレンジハート]',
+  [HeartColor.GRAY]: '[無色ハート]',
+  [HeartColor.RAINBOW]: '[虹ハート]',
 };
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -68,6 +68,8 @@ type HeartSelection =
 
 interface LiveStartDiscardGainHeartConfig {
   readonly abilityId: string;
+  readonly discardCount: number;
+  readonly heartCount: number;
   readonly heartSelection: HeartSelection;
   readonly recipient: HeartRecipient;
 }
@@ -75,26 +77,36 @@ interface LiveStartDiscardGainHeartConfig {
 const LIVE_START_DISCARD_GAIN_HEART_CONFIGS: readonly LiveStartDiscardGainHeartConfig[] = [
   {
     abilityId: KOTORI_LIVE_START_HEART_ABILITY_ID,
+    discardCount: 1,
+    heartCount: 1,
     heartSelection: { mode: 'CHOOSE', options: KOTORI_HEART_COLOR_OPTIONS },
     recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: false },
   },
   {
     abilityId: HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+    discardCount: 1,
+    heartCount: 1,
     heartSelection: { mode: 'CHOOSE', options: STANDARD_HEART_COLOR_OPTIONS },
     recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: true },
   },
   {
     abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+    discardCount: 2,
+    heartCount: 2,
     heartSelection: { mode: 'CHOOSE', options: STANDARD_HEART_COLOR_OPTIONS },
     recipient: { mode: 'SOURCE_MEMBER', requiresOtherStageMember: false },
   },
   {
     abilityId: PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID,
+    discardCount: 1,
+    heartCount: 1,
     heartSelection: { mode: 'CHOOSE', options: STANDARD_HEART_COLOR_OPTIONS },
     recipient: { mode: 'SELECT_OTHER_STAGE_MEMBER', groupAlias: '虹ヶ咲' },
   },
   {
     abilityId: PL_BP4_013_LIVE_START_DISCARD_TARGET_OTHER_MEMBER_GAIN_PINK_HEART_ABILITY_ID,
+    discardCount: 1,
+    heartCount: 1,
     heartSelection: { mode: 'FIXED', color: HeartColor.PINK },
     recipient: { mode: 'SELECT_OTHER_STAGE_MEMBER' },
   },
@@ -104,26 +116,26 @@ export function registerLiveStartDiscardGainHeartWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
   for (const config of LIVE_START_DISCARD_GAIN_HEART_CONFIGS) {
-    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options) =>
+    registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
       startLiveStartDiscardGainHeartEffect(
         game,
         ability,
         options.orderedResolution === true,
-        config
+        config,
+        context.continuePendingCardEffects
       )
     );
     registerActiveEffectStepHandler(
       config.abilityId,
       KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID,
       (game, input, context) =>
-        input.selectedCardId
-          ? startLiveStartDiscardGainHeartChoice(
-              game,
-              input.selectedCardId,
-              context.continuePendingCardEffects,
-              deps.enqueueTriggeredCardEffects
-            )
-          : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
+        startLiveStartDiscardGainHeartChoice(
+          game,
+          input.selectedCardIds ?? (input.selectedCardId ? [input.selectedCardId] : []),
+          config,
+          context.continuePendingCardEffects,
+          deps.enqueueTriggeredCardEffects
+        )
     );
     registerActiveEffectStepHandler(
       config.abilityId,
@@ -152,11 +164,22 @@ function startLiveStartDiscardGainHeartEffect(
   game: GameState,
   ability: PendingAbilityState,
   orderedResolution: boolean,
-  config: LiveStartDiscardGainHeartConfig
+  config: LiveStartDiscardGainHeartConfig,
+  continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
+  }
+
+  if (config.discardCount > 1 && player.hand.cardIds.length < config.discardCount) {
+    return skipPendingAbilityWithoutActiveEffect(
+      game,
+      ability,
+      player.id,
+      orderedResolution,
+      continuePendingCardEffects
+    );
   }
 
   const selectableCardIds = player.hand.cardIds;
@@ -171,7 +194,15 @@ function startLiveStartDiscardGainHeartEffect(
       stepId: KOTORI_LIVE_START_SELECT_DISCARD_STEP_ID,
       selectableCardIds,
       orderedResolution,
+      discardCount: config.discardCount,
+      ...(config.discardCount > 1
+        ? {
+            stepText: `请选择${config.discardCount}张要放置入休息室的手牌。也可以选择不发动此效果。`,
+            selectionLabel: '选择要放置入休息室的卡',
+          }
+        : {}),
       metadata: {
+        heartCount: config.heartCount,
         ...(config.heartSelection.mode === 'CHOOSE'
           ? { heartColorOptions: [...config.heartSelection.options] }
           : { fixedHeartColor: config.heartSelection.color }),
@@ -191,24 +222,38 @@ function startLiveStartDiscardGainHeartEffect(
 
 function startLiveStartDiscardGainHeartChoice(
   game: GameState,
-  discardCardId: string,
+  selectedCardIds: readonly string[],
+  config: LiveStartDiscardGainHeartConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || !effect.selectableCardIds?.includes(discardCardId)) {
+  if (!effect || effect.abilityId !== config.abilityId) {
     return game;
   }
+  if (selectedCardIds.length === 0) {
+    return finishSkippedActiveEffect(game, continuePendingCardEffects);
+  }
   const player = getPlayerById(game, effect.controllerId);
-  if (!player || !player.hand.cardIds.includes(discardCardId)) {
+  const uniqueSelectedCardIds = [...new Set(selectedCardIds)];
+  if (
+    !player ||
+    selectedCardIds.length !== config.discardCount ||
+    uniqueSelectedCardIds.length !== selectedCardIds.length ||
+    uniqueSelectedCardIds.some(
+      (cardId) =>
+        effect.selectableCardIds?.includes(cardId) !== true || !player.hand.cardIds.includes(cardId)
+    )
+  ) {
     return game;
   }
 
-  const discardResult = discardOneHandCardToWaitingRoomAndEnqueueTriggers(
+  const discardResult = discardHandCardsToWaitingRoomAndEnqueueTriggers(
     game,
     player.id,
-    discardCardId,
+    uniqueSelectedCardIds,
     {
+      count: config.discardCount,
       candidateCardIds: effect.selectableCardIds ?? [],
     },
     enqueueTriggeredCardEffects
@@ -232,6 +277,7 @@ function startLiveStartDiscardGainHeartChoice(
       {
         step: 'DISCARD_HAND_CARD',
         discardCardId: discardResult.discardedCardIds[0],
+        discardCardIds: discardResult.discardedCardIds,
       }
     );
   }
@@ -249,6 +295,7 @@ function startLiveStartDiscardGainHeartChoice(
         sourceCardId: effect.sourceCardId,
         step: 'DISCARD_HAND_CARD_NO_OTHER_MEMBER',
         discardCardId: discardResult.discardedCardIds[0],
+        discardCardIds: discardResult.discardedCardIds,
       }),
       effect.metadata?.orderedResolution === true
     );
@@ -268,7 +315,7 @@ function startLiveStartDiscardGainHeartChoice(
           mode: 'SINGLE',
           options: getHeartColorOptionsForEffect(effect.metadata).map((color) => ({
             id: color,
-            text: HEART_COLOR_OPTION_TEXTS[color],
+            text: getHeartColorOptionText(color, getHeartCountForEffect(effect.metadata)),
           })),
           minSelections: 1,
           maxSelections: 1,
@@ -280,6 +327,7 @@ function startLiveStartDiscardGainHeartChoice(
         metadata: {
           ...effect.metadata,
           discardCardId: discardResult.discardedCardIds[0],
+          discardCardIds: discardResult.discardedCardIds,
         },
       },
     },
@@ -291,6 +339,7 @@ function startLiveStartDiscardGainHeartChoice(
       sourceCardId: effect.sourceCardId,
       step: 'DISCARD_HAND_CARD',
       discardCardId: discardResult.discardedCardIds[0],
+      discardCardIds: discardResult.discardedCardIds,
     }
   );
 }
@@ -325,7 +374,8 @@ function finishLiveStartDiscardGainHeartBonus(
     );
   }
 
-  const heartBonus = { color: selectedColor, count: 1 };
+  const heartCount = getHeartCountForEffect(effect.metadata);
+  const heartBonus = { color: selectedColor, count: heartCount };
   const modifierResult = addHeartLiveModifierForMember(
     { ...game, activeEffect: null },
     {
@@ -347,6 +397,7 @@ function finishLiveStartDiscardGainHeartBonus(
       sourceCardId: effect.sourceCardId,
       step: 'APPLY_HEART_BONUS',
       heartColor: selectedColor,
+      heartCount,
     }),
     effect.metadata?.orderedResolution === true
   );
@@ -456,7 +507,9 @@ function finishLiveStartDiscardGainHeartTarget(
       memberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
-      hearts: [{ color: selectedColor as HeartColor, count: 1 }],
+      hearts: [
+        { color: selectedColor as HeartColor, count: getHeartCountForEffect(effect.metadata) },
+      ],
     }
   );
   if (!modifierResult) {
@@ -476,6 +529,7 @@ function finishLiveStartDiscardGainHeartTarget(
       step: 'APPLY_HEART_BONUS_TO_TARGET_MEMBER',
       targetMemberCardId: selectedCardId,
       heartColor: selectedColor,
+      heartCount: getHeartCountForEffect(effect.metadata),
     }),
     effect.metadata?.orderedResolution === true
   );
@@ -545,4 +599,41 @@ function getFixedHeartColorForEffect(
 ): HeartColor | null {
   const color = metadata?.fixedHeartColor;
   return Object.values(HeartColor).includes(color as HeartColor) ? (color as HeartColor) : null;
+}
+
+function getHeartColorOptionText(color: HeartColor, count: number): string {
+  return `获得${HEART_COLOR_TOKENS[color].repeat(count)}。`;
+}
+
+function getHeartCountForEffect(metadata: Readonly<Record<string, unknown>> | undefined): number {
+  const heartCount = metadata?.heartCount;
+  return typeof heartCount === 'number' && Number.isInteger(heartCount) && heartCount > 0
+    ? heartCount
+    : 1;
+}
+
+function skipPendingAbilityWithoutActiveEffect(
+  game: GameState,
+  ability: PendingAbilityState,
+  playerId: string,
+  orderedResolution: boolean,
+  continuePendingCardEffects: ContinuePendingCardEffects
+): GameState {
+  return continuePendingCardEffects(
+    addAction(
+      {
+        ...game,
+        pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
+      },
+      'RESOLVE_ABILITY',
+      playerId,
+      {
+        pendingAbilityId: ability.id,
+        abilityId: ability.abilityId,
+        sourceCardId: ability.sourceCardId,
+        step: 'INSUFFICIENT_HAND_TO_DISCARD',
+      }
+    ),
+    orderedResolution
+  );
 }

@@ -260,7 +260,7 @@ describe('PL!N-bp1-003 费用10「桜坂しずく」LIVE开始能力', () => {
     );
   });
 
-  it('does not pay after the source leaves, and keeps paid energy without granting Heart if it leaves later', () => {
+  it('keeps legal payment while granting no Heart when the source leaves before or after payment', () => {
     const before = setup({ orientations: [OrientationState.ACTIVE] });
     let state = open(before.game);
     state = updatePlayer(state, PLAYER1, (player) => ({
@@ -271,10 +271,13 @@ describe('PL!N-bp1-003 费用10「桜坂しずく」LIVE开始能力', () => {
       },
     }));
     state = confirmOption(state, 'pay');
-    expect(state.activeEffect).toBeNull();
+    expect(state.activeEffect?.stepId).toBe('N_BP1_003_CHOOSE_HEART');
     expect(state.players[0].energyZone.cardStates.get(before.energyIds[0])?.orientation).toBe(
-      OrientationState.ACTIVE
+      OrientationState.WAITING
     );
+    state = confirmEffectChoice(state, HeartColor.BLUE);
+    expect(state.activeEffect).toBeNull();
+    expect(state.liveResolution.liveModifiers).toEqual([]);
 
     const after = setup({ orientations: [OrientationState.ACTIVE] });
     state = confirmOption(open(after.game), 'pay');

@@ -32,10 +32,36 @@ import {
 import { pool } from '../../src/server/db/pool';
 import { rankedRatingService } from '../../src/server/services/ranked-rating-service';
 import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
+import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
+
+const TEST_POINT_TABLE = toDeckPointTableRules({
+  version: 'test-point-table',
+  pointLimit: 9,
+  effectiveFrom: '2026-01-01T00:00:00.000Z',
+  entries: [],
+});
+const TEST_POINT_VALIDATION = {
+  pointTableVersion: TEST_POINT_TABLE.version,
+  pointTotal: 0,
+  pointLimit: TEST_POINT_TABLE.pointLimit,
+} as const;
 
 vi.mock('../../src/server/db/pool.js', () => ({
   pool: {
     query: vi.fn(),
+  },
+}));
+
+vi.mock('../../src/server/services/deck-point-table-service.js', () => ({
+  deckPointTableService: {
+    getCurrentRules: vi.fn(() =>
+      Promise.resolve({
+        version: 'test-point-table',
+        pointLimit: 9,
+        effectiveFrom: '2026-01-01T00:00:00.000Z',
+        entries: {},
+      })
+    ),
   },
 }));
 
@@ -206,6 +232,7 @@ async function startRankedPublicTableRoom(
       deckName: '卡组一',
       deck: persistPublicTableRuntimeDeck(createRuntimeDeck(`${prefix}-a`)),
       lockedAt: now,
+      pointValidation: TEST_POINT_VALIDATION,
     },
     second: {
       userId: 'u2',
@@ -214,6 +241,7 @@ async function startRankedPublicTableRoom(
       deckName: '卡组二',
       deck: persistPublicTableRuntimeDeck(createRuntimeDeck(`${prefix}-b`)),
       lockedAt: now,
+      pointValidation: TEST_POINT_VALIDATION,
     },
     openingExpiresAt: now + 180_000,
   });
@@ -313,6 +341,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -404,6 +434,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -596,6 +628,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -771,6 +805,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -832,6 +868,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -882,6 +920,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -947,6 +987,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -980,6 +1022,59 @@ describe('OnlineRoomService', () => {
     });
   });
 
+  it('新PT表生效后开局必须重验锁定快照，超限时退回准备阶段', async () => {
+    const oldRules = toDeckPointTableRules({
+      version: 'before-rollover',
+      pointLimit: 9,
+      effectiveFrom: '2026-08-07T14:59:59.000Z',
+      entries: [],
+    });
+    const newRules = toDeckPointTableRules({
+      version: 'after-rollover',
+      pointLimit: 9,
+      effectiveFrom: '2026-08-07T16:00:00.000Z',
+      entries: [{ baseCardCode: 'deck-a-MEM', points: 1 }],
+    });
+    const service = new OnlineRoomService({
+      matchService: createInMemoryMatchService(),
+      getCurrentPointTableRules: () => Promise.resolve(newRules),
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (userId, deckId) => ({
+        deckId,
+        deckName: `${userId}-${deckId}`,
+        runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: {
+          pointTableVersion: oldRules.version,
+          pointTotal: 0,
+          pointLimit: oldRules.pointLimit,
+        },
+        pointTable: oldRules,
+      }),
+    });
+
+    await service.createRoom('pt001', 'u1');
+    await service.joinRoom('pt001', 'u2');
+    await service.lockDeck('pt001', 'u1', 'deck-a');
+    await service.lockDeck('pt001', 'u2', 'deck-b');
+    await service.markReadyToStart('pt001', 'u1');
+    await service.markReadyToStart('pt001', 'u2');
+    await service.submitOpeningRps('pt001', 'u1', 'ROCK');
+    await service.submitOpeningRps('pt001', 'u2', 'SCISSORS');
+
+    await expect(service.chooseOpeningTurnOrder('pt001', 'u1', 'SELF_FIRST')).rejects.toMatchObject(
+      { code: 'ONLINE_DECK_POINT_TABLE_CHANGED', statusCode: 409 }
+    );
+    const room = await service.getRoomView('pt001', 'u1');
+    expect(room.status).toBe('PREPARING');
+    expect(room.matchId).toBeNull();
+    expect(room.members.find((member) => member.userId === 'u1')).toMatchObject({
+      lockedDeckId: null,
+      ready: false,
+      startReady: false,
+    });
+    expect(room.members.find((member) => member.userId === 'u2')?.lockedDeckId).toBe('deck-b');
+  });
+
   it('另开本地对局时应权威认输并离开原联机房间', async () => {
     let now = 3_500_000;
     const matchService = new OnlineMatchService({ now: () => now, recorder: null });
@@ -991,6 +1086,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -1030,6 +1127,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -1142,6 +1241,8 @@ describe('OnlineRoomService', () => {
           deckId,
           deckName: deckId,
           runtimeDeck: createRuntimeDeck(deckId),
+          pointValidation: TEST_POINT_VALIDATION,
+          pointTable: TEST_POINT_TABLE,
         }),
     });
 
@@ -1193,6 +1294,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-restart-a')),
         lockedAt: 1_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -1201,6 +1303,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-restart-b')),
         lockedAt: 1_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: 181_000,
     });
@@ -1247,6 +1350,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: `${userId}-${deckId}`,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -1356,6 +1461,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -1394,6 +1501,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -1431,6 +1540,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -1477,11 +1588,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
 
@@ -1519,11 +1632,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -1563,11 +1678,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -1682,11 +1799,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -1737,11 +1856,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -1808,11 +1929,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -1852,11 +1975,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -1943,11 +2068,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -2008,11 +2135,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -2061,11 +2190,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     forceMainPhaseForFirst(match);
@@ -2119,11 +2250,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
 
@@ -2157,11 +2290,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     const nonActiveUserId = match.session.isActivePlayer(match.participants.FIRST.playerId)
@@ -2203,11 +2338,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
 
@@ -2244,6 +2381,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2282,6 +2421,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2316,11 +2457,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     const state = match.session.state as {
@@ -2377,11 +2520,13 @@ describe('OnlineRoomService', () => {
         userId: 'u1',
         displayName: 'Alpha',
         deck: createRuntimeDeck('A'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
         displayName: 'Beta',
         deck: createRuntimeDeck('B'),
+        pointValidation: TEST_POINT_VALIDATION,
       },
     });
     const result = await matchService.executeCommand(
@@ -2410,6 +2555,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2430,6 +2577,8 @@ describe('OnlineRoomService', () => {
           deckId,
           deckName: deckId,
           runtimeDeck: createRuntimeDeck(deckId),
+          pointValidation: TEST_POINT_VALIDATION,
+          pointTable: TEST_POINT_TABLE,
         }),
     });
 
@@ -2451,6 +2600,8 @@ describe('OnlineRoomService', () => {
           deckId,
           deckName: deckId,
           runtimeDeck: createRuntimeDeck(deckId),
+          pointValidation: TEST_POINT_VALIDATION,
+          pointTable: TEST_POINT_TABLE,
         }),
       participationService: {
         acquireOnlineRoom: () => Promise.resolve(true),
@@ -2487,6 +2638,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2517,6 +2670,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
       participationService: {
         acquireOnlineRoom: async () => true,
@@ -2554,6 +2709,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2580,6 +2737,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2606,6 +2765,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2635,6 +2796,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2660,6 +2823,8 @@ describe('OnlineRoomService', () => {
         deckId,
         deckName: deckId,
         runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
       }),
     });
 
@@ -2683,6 +2848,8 @@ describe('OnlineRoomService', () => {
           deckId,
           deckName: deckId,
           runtimeDeck: createRuntimeDeck(deckId),
+          pointValidation: TEST_POINT_VALIDATION,
+          pointTable: TEST_POINT_TABLE,
         }),
     });
 
@@ -2748,6 +2915,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-a')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -2756,6 +2924,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('public-b')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: 190_000,
     };
@@ -2846,6 +3015,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('abandon-a')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -2854,6 +3024,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('abandon-b')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: 190_000,
     });
@@ -2889,6 +3060,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('concurrent-a')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -2897,6 +3069,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('concurrent-b')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: 190_000,
     });
@@ -2939,6 +3112,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('quarantine-a')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -2947,6 +3121,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('quarantine-b')),
         lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: 190_000,
     });
@@ -2986,6 +3161,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('arrival-a')),
         lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -2994,6 +3170,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('arrival-b')),
         lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: now + 180_000,
     });
@@ -3029,6 +3206,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-a')),
         lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -3037,6 +3215,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-b')),
         lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: now + 180_000,
     });
@@ -3159,6 +3338,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组一',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-c')),
         lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       second: {
         userId: 'u2',
@@ -3167,6 +3347,7 @@ describe('OnlineRoomService', () => {
         deckName: '卡组二',
         deck: persistPublicTableRuntimeDeck(createRuntimeDeck('ranked-d')),
         lockedAt: now,
+        pointValidation: TEST_POINT_VALIDATION,
       },
       openingExpiresAt: now + 180_000,
     });

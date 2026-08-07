@@ -10,8 +10,10 @@ import {
   PL_S_PB1_002_ON_ENTER_OPPONENT_DISCARD_LIVE_OR_SOURCE_SCORE_ABILITY_ID,
   S_BP7_002_ON_ENTER_AQOURS_COST_NINE_DRAW_ONE_ABILITY_ID,
   S_BP7_005_ACTIVATED_DISCARD_TWO_DELEGATE_TWO_ON_ENTER_ABILITY_ID,
+  S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
   S_BP7_005_ON_ENTER_STACK_WAITING_MEMBER_BELOW_STAGE_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { GameService } from '../../src/application/game-service';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
   createGameState,
@@ -21,9 +23,11 @@ import {
 } from '../../src/domain/entities/game';
 import {
   addCardToStatefulZone,
+  addMemberBelowMember,
   placeCardInSlot,
   removeCardFromSlot,
 } from '../../src/domain/entities/zone';
+import { collectLiveModifiers } from '../../src/domain/rules/live-modifiers';
 import {
   CardType,
   FaceState,
@@ -73,6 +77,122 @@ function live(id: string, ownerId = P1) {
 }
 
 describe('PL!S-bp7-005-SEC 渡边曜', () => {
+  it('常时效果以每张曜为真实来源、以每名下方有成员的 Aqours host 为显式目标，且实时影响实际声援数', () => {
+    const sources = [
+      member('PL!S-bp7-005-SEC', 'you-a'),
+      member('PL!S-bp7-005-SEC', 'you-b'),
+    ];
+    const host = member('PL!S-test-host', 'aqours-host');
+    const belowCards = [
+      member('PL!S-test-below-a', 'below-a'),
+      member('PL!S-test-below-b', 'below-b'),
+      member('PL!S-test-below-host', 'below-host'),
+    ];
+    const cheerCards = Array.from({ length: 10 }, (_, index) => energy(`cheer-${index}`));
+    let game = registerCards(
+      createGameState('you-continuous-targets', P1, 'P1', P2, 'P2'),
+      [...sources, host, ...belowCards, ...cheerCards]
+    );
+    game = updatePlayer(game, P1, (player) => {
+      let memberSlots = placeCardInSlot(
+        placeCardInSlot(
+          placeCardInSlot(player.memberSlots, SlotPosition.LEFT, sources[0]!.instanceId),
+          SlotPosition.CENTER,
+          sources[1]!.instanceId
+        ),
+        SlotPosition.RIGHT,
+        host.instanceId
+      );
+      memberSlots = addMemberBelowMember(memberSlots, SlotPosition.LEFT, belowCards[0]!.instanceId);
+      memberSlots = addMemberBelowMember(
+        memberSlots,
+        SlotPosition.CENTER,
+        belowCards[1]!.instanceId
+      );
+      memberSlots = addMemberBelowMember(
+        memberSlots,
+        SlotPosition.RIGHT,
+        belowCards[2]!.instanceId
+      );
+      return {
+        ...player,
+        memberSlots,
+        mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+      };
+    });
+
+    const modifiers = collectLiveModifiers(game).filter(
+      (modifier) =>
+        modifier.kind === 'BLADE' &&
+        modifier.abilityId ===
+          S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID
+    );
+    const targetIds = [...sources.map((source) => source.instanceId), host.instanceId];
+    expect(modifiers).toHaveLength(6);
+    for (const source of sources) {
+      for (const targetMemberCardId of targetIds) {
+        expect(modifiers).toContainEqual({
+          kind: 'BLADE',
+          target: 'TARGET_MEMBER',
+          playerId: P1,
+          countDelta: 1,
+          sourceCardId: source.instanceId,
+          targetMemberCardId,
+          abilityId: S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID,
+        });
+      }
+    }
+
+    const afterCheer = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(game, P1);
+    expect(afterCheer.liveResolution.firstPlayerCheerCardIds).toHaveLength(9);
+
+    const firstSourceLeft = updatePlayer(game, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+    }));
+    const afterSourceLeaves = collectLiveModifiers(firstSourceLeft).filter(
+      (modifier) =>
+        modifier.kind === 'BLADE' &&
+        modifier.abilityId ===
+          S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID
+    );
+    expect(afterSourceLeaves).toHaveLength(2);
+    expect(afterSourceLeaves).toEqual(
+      expect.arrayContaining(
+        [sources[1]!.instanceId, host.instanceId].map((targetMemberCardId) =>
+          expect.objectContaining({
+            target: 'TARGET_MEMBER',
+            sourceCardId: sources[1]!.instanceId,
+            targetMemberCardId,
+          })
+        )
+      )
+    );
+
+    const targetLeft = updatePlayer(firstSourceLeft, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.RIGHT),
+    }));
+    expect(
+      collectLiveModifiers(targetLeft).filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.abilityId ===
+            S_BP7_005_CONTINUOUS_AQOURS_HOST_WITH_MEMBER_BELOW_GAIN_BLADE_ABILITY_ID
+      )
+    ).toEqual([
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: sources[1]!.instanceId,
+        targetMemberCardId: sources[1]!.instanceId,
+      }),
+    ]);
+  });
+
   it('ON_ENTER 可将休息室成员压到自身或其他顶层成员下方', () => {
     const you = member('PL!S-bp7-005-SEC', 'you');
     const host = member('HOST', 'host');

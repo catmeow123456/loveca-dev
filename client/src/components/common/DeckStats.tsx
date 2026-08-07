@@ -5,8 +5,10 @@
 
 import { Check, Cloud, Database, Layers3, Star, UserRound, Zap } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
-import { calculateDeckConfigStats, DECK_POINT_LIMIT } from '@game/domain/rules/deck-construction';
+import { calculateDeckConfigStats } from '@game/domain/rules/deck-construction';
+import type { DeckPointTableRules } from '@game/domain/rules/deck-point-table';
 import { deckRecordToConfig, type MainDeckEntryTypeResolver } from '@/lib/deckRecordUtils';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 // 卡组统计数据
 export interface DeckStatsData {
@@ -19,24 +21,23 @@ export interface DeckStatsData {
 // 从云端卡组计算统计数据
 export function calculateDeckStats(
   deck: DeckRecord,
+  pointTable: DeckPointTableRules,
   options: { resolveCardType?: MainDeckEntryTypeResolver } = {}
 ): DeckStatsData {
-  return calculateDeckConfigStats(deckRecordToConfig(deck, options));
+  return calculateDeckConfigStats(deckRecordToConfig(deck, options), pointTable);
 }
 
-export function isDeckStatsValid(stats: DeckStatsData): boolean {
+export function isDeckStatsValid(stats: DeckStatsData, pointLimit: number): boolean {
   return (
     stats.memberCount === 48 &&
     stats.liveCount === 12 &&
     stats.energyCount === 12 &&
-    stats.pointTotal <= DECK_POINT_LIMIT
+    stats.pointTotal <= pointLimit
   );
 }
 
-export function getDeckPointTextClass(pointTotal: number): string {
-  return pointTotal > DECK_POINT_LIMIT
-    ? 'text-[var(--semantic-error)]'
-    : 'text-[var(--text-secondary)]';
+export function getDeckPointTextClass(pointTotal: number, pointLimit: number): string {
+  return pointTotal > pointLimit ? 'text-[var(--semantic-error)]' : 'text-[var(--text-secondary)]';
 }
 
 // 格式化时间的辅助函数
@@ -79,6 +80,7 @@ export function DeckStatsRow({
   size = 'sm',
   updatedAt,
 }: DeckStatsRowProps) {
+  const pointTable = useDeckPointTableRules();
   const textSize = size === 'sm' ? 'text-xs' : 'text-sm';
   const gapSize = size === 'sm' ? 'gap-4' : 'gap-5';
 
@@ -105,11 +107,13 @@ export function DeckStatsRow({
           {showMax && '/12'}
         </span>
       </div>
-      <div className={`flex items-center gap-1.5 ${getDeckPointTextClass(stats.pointTotal)}`}>
+      <div
+        className={`flex items-center gap-1.5 ${getDeckPointTextClass(stats.pointTotal, pointTable.pointLimit)}`}
+      >
         <Star size={size === 'sm' ? 12 : 14} />
         <span>
           {stats.pointTotal}
-          {showMax && `/${DECK_POINT_LIMIT}`}pt
+          {showMax && `/${pointTable.pointLimit}`}pt
         </span>
       </div>
       {updatedAt && (
@@ -136,7 +140,8 @@ interface DeckValidityBadgeProps {
  * 显示卡组是否完整（48+12+12）
  */
 export function DeckValidityBadge({ stats, className = '' }: DeckValidityBadgeProps) {
-  const isValid = isDeckStatsValid(stats);
+  const pointTable = useDeckPointTableRules();
+  const isValid = isDeckStatsValid(stats, pointTable.pointLimit);
 
   return isValid ? (
     <span
@@ -182,7 +187,8 @@ export function DeckCard({
   onClick,
   actions,
 }: DeckCardProps) {
-  const validity = isValid ?? isDeckStatsValid(stats);
+  const pointTable = useDeckPointTableRules();
+  const validity = isValid ?? isDeckStatsValid(stats, pointTable.pointLimit);
 
   const CardContent = (
     <>

@@ -50,11 +50,7 @@ import {
   type CardEntry,
   type DeckConfig,
 } from '@game/domain/card-data/deck-loader';
-import {
-  calculateDeckConfigStats,
-  validateDeckConfig,
-  DECK_POINT_LIMIT,
-} from '@game/domain/rules/deck-construction';
+import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
 import * as yaml from 'yaml';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
@@ -63,6 +59,7 @@ import {
   deckRecordToConfig,
 } from '@/lib/deckRecordUtils';
 import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 type ViewMode = 'list' | 'edit';
 type DecklogSource = 'jp' | 'en';
@@ -159,6 +156,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const [mobileMetaExpanded, setMobileMetaExpanded] = useState(false);
   const isMobile = useMediaQuery('(max-width: 767px)');
   const reduceMotion = useReducedMotion();
+  const pointTable = useDeckPointTableRules();
 
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
   const resolveDeckRecordCardType = useMemo(
@@ -792,7 +790,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
                       {PRESET_DECKS.map((preset) => {
                         const { memberCount, liveCount, energyCount, pointTotal } =
-                          calculateDeckConfigStats(preset.deck);
+                          calculateDeckConfigStats(preset.deck, pointTable);
                         return (
                           <button
                             type="button"
@@ -818,8 +816,13 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                 <span>成员 {memberCount}/48</span>
                                 <span>Live {liveCount}/12</span>
                                 <span>能量 {energyCount}/12</span>
-                                <span className={getDeckPointTextClass(pointTotal)}>
-                                  点数 {pointTotal}/{DECK_POINT_LIMIT}pt
+                                <span
+                                  className={getDeckPointTextClass(
+                                    pointTotal,
+                                    pointTable.pointLimit
+                                  )}
+                                >
+                                  点数 {pointTotal}/{pointTable.pointLimit}pt
                                 </span>
                               </div>
                               <span className="text-xs text-[var(--accent-primary)] transition-colors">
@@ -869,10 +872,10 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                     const deckConfig = deckRecordToConfig(deck, {
                       resolveCardType: resolveDeckRecordCardType,
                     });
-                    const stats = calculateDeckStats(deck, {
+                    const stats = calculateDeckStats(deck, pointTable, {
                       resolveCardType: resolveDeckRecordCardType,
                     });
-                    const deckValidity = validateDeckConfig(deckConfig).valid;
+                    const deckValidity = validateDeckConfig(deckConfig, pointTable).valid;
                     const isDeleting = deleteConfirm === deck.id;
 
                     return (

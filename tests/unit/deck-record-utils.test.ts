@@ -6,6 +6,14 @@ import {
   normalizeDeckRecordPayload,
 } from '../../src/domain/card-data/deck-record-utils';
 import { CardType, HeartColor } from '../../src/shared/types/enums';
+import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
+
+const TEST_POINT_TABLE = toDeckPointTableRules({
+  version: 'test',
+  pointLimit: 9,
+  effectiveFrom: '2026-01-01T00:00:00.000Z',
+  entries: [],
+});
 
 function createMemberCard(cardCode: string): AnyCardData {
   return {
@@ -74,7 +82,8 @@ describe('deck record utils', () => {
           count: 4,
         })),
       },
-      createDeckRecordCardDataTypeResolver(cards)
+      createDeckRecordCardDataTypeResolver(cards),
+      TEST_POINT_TABLE
     );
 
     expect(result.sourceErrors).toEqual([]);
@@ -94,7 +103,8 @@ describe('deck record utils', () => {
         main_deck: [{ card_code: 'LL-bp9-999-N', count: 1 }],
         energy_deck: [],
       },
-      createDeckRecordCardDataTypeResolver(cards)
+      createDeckRecordCardDataTypeResolver(cards),
+      TEST_POINT_TABLE
     );
 
     expect(result.sourceErrors).toContain('卡牌不存在或未发布: LL-bp9-999-N');
@@ -108,7 +118,8 @@ describe('deck record utils', () => {
         main_deck: [{ card_code: 'LL-E-000-SD', count: 1 }],
         energy_deck: [{ card_code: 'LL-bp1-000-N', count: 1 }],
       },
-      createDeckRecordCardDataTypeResolver(cards)
+      createDeckRecordCardDataTypeResolver(cards),
+      TEST_POINT_TABLE
     );
 
     expect(result.sourceErrors).toContain('主卡组不能包含能量卡: LL-E-000-SD');

@@ -252,6 +252,23 @@ export class CostCalculator {
       }
     }
 
+    if (
+      cardCodeMatchesBase(memberData.cardCode, 'PL!N-sd2-003') &&
+      isSourceCardBeingPlayedFromHand(resources)
+    ) {
+      const nijigasakiLiveSource = resources.successLiveCards?.find((successLiveCard) =>
+        cardBelongsToGroup(successLiveCard.data, '虹ヶ咲')
+      );
+      if (nijigasakiLiveSource) {
+        modifiers.push({
+          id: 'PL!N-sd2-003:hand-self-cost-minus-two-if-success-nijigasaki-live',
+          label: '自己的成功LIVE卡区存在虹咲卡时，此卡费用减少2',
+          amount: Math.min(memberData.cost, 2),
+          sourceCardId: nijigasakiLiveSource.cardId,
+        });
+      }
+    }
+
     modifiers.push(...this.collectSuccessLiveSourcePlayCostModifiers(memberData, resources));
     modifiers.push(...this.collectStageSourcePlayCostModifiers(memberData, resources));
 

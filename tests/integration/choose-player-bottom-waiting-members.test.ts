@@ -10,6 +10,7 @@ import {
   registerCards,
   updatePlayer,
   type GameState,
+  type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import {
   addCardToStatefulZone,
@@ -18,9 +19,13 @@ import {
 } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
+import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 import { GameService } from '../../src/application/game-service';
-import { PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,
+  S_BP7_013_ON_ENTER_CHOOSE_PLAYER_BOTTOM_UP_TO_TWO_WAITING_MEMBERS_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
@@ -61,7 +66,11 @@ function setupState(): {
 } {
   const source = createCardInstance(createMember('PL!N-bp3-010-R', '三船栞子'), PLAYER1, 'source');
   const live = createCardInstance(createLive('PL!N-test-live-L'), PLAYER1, 'live');
-  const deckTop = createCardInstance(createMember('PL!N-test-deck-top', 'Deck Top'), PLAYER1, 'deck-top');
+  const deckTop = createCardInstance(
+    createMember('PL!N-test-deck-top', 'Deck Top'),
+    PLAYER1,
+    'deck-top'
+  );
   const ownA = createCardInstance(createMember('PL!N-own-a', 'Own A'), PLAYER1, 'own-a');
   const ownB = createCardInstance(createMember('PL!N-own-b', 'Own B'), PLAYER1, 'own-b');
   const ownC = createCardInstance(createMember('PL!N-own-c', 'Own C'), PLAYER1, 'own-c');
@@ -153,6 +162,34 @@ function startLiveStartSelection(game: GameState): GameSession {
   return session;
 }
 
+function startOnEnterSelection(game: GameState): GameSession {
+  const sourceCardId = game.players[0].memberSlots.slots[SlotPosition.CENTER]!;
+  const pending: PendingAbilityState = {
+    id: 's-bp7-013-on-enter',
+    abilityId: S_BP7_013_ON_ENTER_CHOOSE_PLAYER_BOTTOM_UP_TO_TWO_WAITING_MEMBERS_ABILITY_ID,
+    sourceCardId,
+    controllerId: PLAYER1,
+    mandatory: true,
+    timingId: TriggerCondition.ON_ENTER_STAGE,
+    sourceSlot: SlotPosition.CENTER,
+    eventIds: ['s-bp7-013-enter-event'],
+  };
+  const state = resolvePendingCardEffects({ ...game, pendingAbilities: [pending] }).gameState;
+  const session = createGameSession();
+  session.createGame('s-bp7-013-dia-session', PLAYER1, 'P1', PLAYER2, 'P2');
+  (session as unknown as { authorityState: GameState }).authorityState = state;
+  expect(session.state?.activeEffect).toMatchObject({
+    abilityId: S_BP7_013_ON_ENTER_CHOOSE_PLAYER_BOTTOM_UP_TO_TWO_WAITING_MEMBERS_ABILITY_ID,
+    effectText:
+      '【登场】选择自己或对方。自己将存在于该玩家的休息室的至多2张成员卡按任意顺序放置于卡组底。',
+    selectableOptions: [
+      { id: PLAYER1, label: '自己' },
+      { id: PLAYER2, label: '对方' },
+    ],
+  });
+  return session;
+}
+
 function selectTargetPlayer(session: GameSession, playerId: string): void {
   const effect = session.state!.activeEffect!;
   const result = session.executeCommand(
@@ -183,7 +220,83 @@ function moveSelectedCards(session: GameSession, selectedCardIds: readonly strin
   }
 }
 
-describe('PL!N-bp3-010 三船栞子', () => {
+describe('choose-player bottom waiting members shared workflow', () => {
+  it('resolves PL!S-bp7-013 through ordered public selection before moving cards', () => {
+    const { game, ids } = setupState();
+    const session = startOnEnterSelection(game);
+
+    selectTargetPlayer(session, PLAYER2);
+    const effect = session.state!.activeEffect!;
+    expect(effect).toMatchObject({
+      selectableCardMode: 'ORDERED_MULTI',
+      selectableCardIds: [ids.oppA, ids.oppB, ids.oppC],
+      minSelectableCards: 0,
+      maxSelectableCards: 2,
+      confirmSelectionLabel: '按此顺序放置于卡组底',
+      skipSelectionLabel: '不放置',
+    });
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          effect.id,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [ids.oppB, ids.oppA]
+        )
+      ).success
+    ).toBe(true);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: 'COMMON_PUBLIC_CARD_SELECTION_CONFIRMATION',
+      revealedCardIds: [ids.oppB, ids.oppA],
+      publicCardSelectionOrdered: true,
+    });
+    expect(session.state?.players[1].waitingRoom.cardIds).toEqual([ids.oppA, ids.oppB, ids.oppC]);
+    confirmPublicSelectionIfNeeded(session);
+    expect(session.state?.players[1].mainDeck.cardIds).toEqual([
+      ids.oppDeckTop,
+      ids.oppB,
+      ids.oppA,
+    ]);
+    expect(session.state?.pendingAbilities).toEqual([]);
+  });
+
+  it('does not advance PL!S-bp7-013 when the chosen waiting-room member is stale', () => {
+    const { game, ids } = setupState();
+    const session = startOnEnterSelection(game);
+    selectTargetPlayer(session, PLAYER1);
+    const effect = session.state!.activeEffect!;
+    (session as unknown as { authorityState: GameState }).authorityState = updatePlayer(
+      session.state!,
+      PLAYER1,
+      (player) => ({
+        ...player,
+        waitingRoom: {
+          ...player.waitingRoom,
+          cardIds: player.waitingRoom.cardIds.filter((cardId) => cardId !== ids.ownA),
+        },
+      })
+    );
+
+    expect(
+      session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          effect.id,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [ids.ownA]
+        )
+      ).success
+    ).toBe(false);
+    expect(session.state?.activeEffect?.stepId).toBe(effect.stepId);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([ids.deckTop]);
+  });
+
   it('chooses own waiting-room members and moves up to two to own deck bottom in selected order', () => {
     const { game, ids } = setupState();
     const session = startLiveStartSelection(game);
@@ -203,11 +316,7 @@ describe('PL!N-bp3-010 三船栞子', () => {
 
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.pendingAbilities).toEqual([]);
-    expect(session.state?.players[0].mainDeck.cardIds).toEqual([
-      ids.deckTop,
-      ids.ownB,
-      ids.ownA,
-    ]);
+    expect(session.state?.players[0].mainDeck.cardIds).toEqual([ids.deckTop, ids.ownB, ids.ownA]);
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([ids.ownC, ids.ownLive]);
     expect(session.state?.actionHistory.at(-1)?.payload).toMatchObject({
       abilityId: PL_N_BP3_010_LIVE_START_SELECT_PLAYER_BOTTOM_WAITING_MEMBERS_ABILITY_ID,

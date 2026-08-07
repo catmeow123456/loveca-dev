@@ -9,6 +9,7 @@ import { CardType } from '@game/shared/types/enums';
 import { MAX_SAME_CODE_COUNT } from '../../../../src/domain/rules/deck-validator';
 import { validateDeckConfig } from '../../../../src/domain/rules/deck-construction';
 import { getBaseCardCode } from '@/lib/cardUtils';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 export interface UseDeckMutationsReturn {
   addCard: (card: AnyCardData) => void;
@@ -42,6 +43,7 @@ export function useDeckMutations(
   onDeckChange: (deck: DeckConfig) => void,
   onValidate?: (deck: DeckConfig) => { valid: boolean; errors: string[] },
 ): UseDeckMutationsReturn {
+  const pointTable = useDeckPointTableRules();
 
   const baseCodeCountInDeck = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -61,9 +63,9 @@ export function useDeckMutations(
     if (onValidate) {
       return onValidate(deck);
     }
-    const result = validateDeckConfig(deck);
+    const result = validateDeckConfig(deck, pointTable);
     return { valid: result.valid, errors: result.errors };
-  }, [deck, onValidate]);
+  }, [deck, onValidate, pointTable]);
 
   const addCard = useCallback((card: AnyCardData) => {
     // 分区满量检查

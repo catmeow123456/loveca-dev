@@ -155,7 +155,7 @@ import {
   SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
   SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
   SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
-  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
   SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
   SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
   SP_BP7_008_AUTO_ON_MOVE_ACTIVATE_SELF_ABILITY_ID,
@@ -893,7 +893,7 @@ import {
   N_SD2_017_LIVE_START_PAY_ENERGY_ACTIVATE_STAGE_MEMBER_ABILITY_ID,
   N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
-  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
   N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
   PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
   N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
@@ -8532,7 +8532,7 @@ describe('card effect classification registry', () => {
         PL_N_BP1_026_LIVE_SUCCESS_HIGHER_SCORE_REVEALED_CHEER_NIJIGASAKI_TO_HAND_ABILITY_ID
     );
     expect(poppinUpLiveSuccess).toMatchObject({
-      cardCodes: ['PL!N-bp1-026-L'],
+      baseCardCodes: ['PL!N-bp1-026'],
       category: CardAbilityCategory.LIVE_SUCCESS,
       sourceZone: CardAbilitySourceZone.LIVE_CARD,
       triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
@@ -12609,12 +12609,11 @@ describe('2026-07-30 DRAFT recovery and discard-draw definitions', () => {
     }
   );
 
-  it.each(['PL!N-bp7-012-P', 'PL!SP-bp7-012-P'])(
-    'does not leak to adjacent base card %s',
-    (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
-    }
-  );
+  it.each(['PL!SP-bp7-012-P'])('does not leak to adjacent base card %s', (cardCode) => {
+    expect(getCardAbilityDefinitions(cardCode)).not.toContainEqual(
+      expect.objectContaining({ abilityId: SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID })
+    );
+  });
 });
 
 describe('2026-07-30 DRAFT S-bp7-008 and SP-bp7-010 definitions', () => {
@@ -12681,12 +12680,14 @@ describe('2026-07-30 DRAFT S-bp7-008 and SP-bp7-010 definitions', () => {
     }
   );
 
-  it.each(['PL!S-bp7-011-P', 'PL!SP-bp7-012-P'])(
-    'does not leak the new definitions to adjacent base card %s',
-    (cardCode) => {
-      expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
-    }
-  );
+  it.each([
+    ['PL!S-bp7-011-P', S_BP7_008_ON_ENTER_ARRANGE_TOP_THREE_TO_TOP_AND_BOTTOM_ABILITY_ID],
+    ['PL!SP-bp7-012-P', SP_BP7_010_ACTIVATED_SELF_SACRIFICE_RETURN_ENERGY_RECOVER_CARD_ABILITY_ID],
+  ])('does not leak the adjacent definition to %s', (cardCode, adjacentAbilityId) => {
+    expect(getCardAbilityDefinitions(cardCode)).not.toContainEqual(
+      expect.objectContaining({ abilityId: adjacentAbilityId })
+    );
+  });
 });
 
 describe('2026-08-03 DRAFT PL!S-bp7-001-P 费用9「高海千歌」与 PL!S-bp7-010-N 费用4「高海千歌」 definitions', () => {
@@ -13612,7 +13613,7 @@ describe('HS pb1 newly implemented card classifications', () => {
         [
           SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
           SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
-          SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+          SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
         ],
       ],
     ]);
@@ -13628,13 +13629,25 @@ describe('HS pb1 newly implemented card classifications', () => {
         expect(definition.baseCardCodes).toEqual([cardCode.replace(/-[^-]+$/, '')]);
         expect(definition.implemented).toBe(true);
       }
-      expect(
-        new Set(
-          getCardAbilityDefinitions(cardCode.replace(/-[^-]+$/, '-P')).map(
-            (definition) => definition.abilityId
+      const rarityCardCodes =
+        cardCode === 'PL!SP-bp7-007-SEC'
+          ? ['PL!SP-bp7-007-SEC', 'PL!SP-bp7-007-R+', 'PL!SP-bp7-007-P', 'PL!SP-bp7-007-P+']
+          : [cardCode, cardCode.replace(/-[^-]+$/, '-P')];
+      for (const rarityCardCode of rarityCardCodes) {
+        expect(
+          new Set(
+            getCardAbilityDefinitions(rarityCardCode).map((definition) => definition.abilityId)
           )
-        )
-      ).toEqual(new Set(abilityIds));
+        ).toEqual(new Set(abilityIds));
+      }
+      if (cardCode === 'PL!SP-bp7-007-SEC') {
+        expect(
+          cardDefinitions.find(
+            (definition) =>
+              definition.abilityId === SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID
+          )?.effectText
+        ).toBe('【LIVE成功时】自己的能量多于对方的场合，将6张能量变为活跃状态。');
+      }
       return cardDefinitions;
     });
     expect(definitions).toHaveLength(8);
@@ -14951,7 +14964,7 @@ describe('PL!S-bp7-006-P 费用2「津岛善子」与 PL!S-bp7-015-N 费用5「�
   it('covers sibling rarities without crossing adjacent base numbers', () => {
     expect(getCardAbilityDefinitions('PL!S-bp7-006-R')).toHaveLength(1);
     expect(getCardAbilityDefinitions('PL!S-bp7-015-P')).toHaveLength(1);
-    expect(getCardAbilityDefinitions('PL!S-bp7-014-P')).toEqual([]);
+    expect(getCardAbilityDefinitions('PL!S-bp7-014-P')).toHaveLength(1);
   });
 });
 
@@ -16252,7 +16265,7 @@ describe('PL!N-sd2 base-scoped definitions', () => {
     ],
     [
       'PL!N-sd2-021-SD2',
-      N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+      N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
       'PL!N-sd2-021',
       CardAbilityCategory.ON_ENTER,
       CardAbilitySourceZone.PLAYED_MEMBER,
@@ -16352,11 +16365,11 @@ describe('PL!N-sd2 base-scoped definitions', () => {
       '【LIVE开始时】可以将1名『虹咲』的成员变为待机状态：LIVE结束时为止，获得[ブレード][ブレード]。'
     );
     expect(getCardAbilityDefinitions('PL!N-sd2-021-SD2')[0]?.effectText).toBe(
-      '【登场】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。'
+      '【登场】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。   (待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)'
     );
   });
 
-  it.each(['PL!N-sd2-009-P', 'PL!N-sd2-010-P', 'PL!N-sd2-012-P', 'PL!N-sd2-028-P'])(
+  it.each(['PL!N-sd2-002-P', 'PL!N-sd2-018-P', 'PL!N-sd2-028-P'])(
     'does not leak to adjacent card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);

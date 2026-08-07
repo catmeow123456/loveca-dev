@@ -1,8 +1,8 @@
 # 卡牌数据管理系统 - 设计文档
 
-> 版本: 1.4.0
+> 版本: 1.4.1
 > 创建日期: 2026-03-03
-> 更新日期: 2026-06-30
+> 更新日期: 2026-08-06
 > 文档类型: 设计文档
 > 适用范围: 卡牌数据模型、管理端、前端服务、同步脚本与图片能力
 > 当前状态: 主体已实现；跨模块已知限制见 [当前实现限制](../current-limitations.md)
@@ -76,7 +76,7 @@ flowchart TB
 
 领域对象仍保留 `name`、`cardText` 作为运行时展示字段。这些字段由读取转换层按 `name_cn/name_jp`、`card_text_cn/card_text_jp` 派生，数据库不再持久化重复的 `name`、`card_text`、`group_name` 单列。真实团体只通过结构化 `groupNames` 暴露。
 
-特殊点数不属于卡牌表字段，也不进入通用卡牌实体；点数规则由构筑规则模块维护，避免把构筑限制写入基础卡牌资料。
+特殊点数不属于卡牌表字段，也不进入通用卡牌实体；点数规则由独立的版本化 PT 表与构筑规则模块维护，仅使用 PUBLISHED 卡牌校验基础编号是否存在，避免把构筑限制写入基础卡牌资料。
 
 ## 4. 状态与可见性
 
@@ -167,7 +167,8 @@ flowchart LR
 | `src/domain/entities/card.ts`                   | 卡牌领域模型                                |
 | `src/domain/card-data/schema.ts`                | 卡牌数据校验 schema                         |
 | `src/domain/card-data/loader.ts`                | 卡牌注册表结构与按编号/名称查找能力         |
-| `src/domain/rules/deck-construction.ts`         | 特殊点数与构筑点数规则                      |
+| `src/domain/rules/deck-construction.ts`         | 消费显式 PT 表快照的构筑点数计算            |
+| `src/domain/rules/deck-point-table.ts`          | 版本化 PT 表的领域契约与校验                |
 | `src/server/db/schema.ts`                       | 持久化 schema                               |
 | `src/server/routes/cards.ts`                    | 卡牌 API 路由                               |
 | `src/server/services/card-registry-service.ts`  | 后端从数据库加载并缓存 PUBLISHED 卡牌注册表 |

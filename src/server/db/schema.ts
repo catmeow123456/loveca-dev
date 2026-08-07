@@ -42,6 +42,20 @@ import type { Glicko1Config } from '../rating/glicko.js';
 export type UserRole = 'user' | 'admin';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
 export type CardStatus = 'DRAFT' | 'PUBLISHED';
+export type DeckPointTableLifecycle = 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'RETIRED';
+export type DeckPointTableRetirementReason =
+  'REPLACED' | 'SCHEDULE_CANCELLED' | 'MANUALLY_DISCARDED';
+export type DeckPointTableAuditAction =
+  | 'DRAFT_CREATED'
+  | 'TABLE_UPDATED'
+  | 'PUBLISHED_IMMEDIATELY'
+  | 'PUBLISHED_SCHEDULED'
+  | 'SCHEDULE_ACTIVATED'
+  | 'RETIRED_BY_REPLACEMENT'
+  | 'SCHEDULE_CANCELLED'
+  | 'MANUALLY_DISCARDED'
+  | 'ACTIVATED_AS_REPLACEMENT'
+  | 'ROLLBACK_DRAFT_CREATED';
 export type SiteStatusLifecycle =
   | 'NORMAL'
   | 'SCHEDULED'
@@ -236,6 +250,7 @@ export const decks = pgTable(
     validationErrors: jsonb('validation_errors')
       .$type<string[]>()
       .default(sql`'[]'::jsonb`),
+    validatedPointTableVersion: text('validated_point_table_version').notNull(),
     isPublic: boolean('is_public').notNull().default(false),
     shareId: uuid('share_id')
       .default(sql`gen_random_uuid()`)
@@ -313,6 +328,95 @@ export const cards = pgTable(
       sql`(${table.nameJp} IS NOT NULL AND btrim(${table.nameJp}) <> '') OR (${table.nameCn} IS NOT NULL AND btrim(${table.nameCn}) <> '')`
     ),
     check('cards_status_check', sql`${table.status} IN ('DRAFT', 'PUBLISHED')`),
+  ]
+);
+
+export const deckPointTables = pgTable(
+  'deck_point_tables',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    version: text('version').notNull().unique(),
+    displayName: text('display_name').notNull(),
+    lifecycle: text('lifecycle').$type<DeckPointTableLifecycle>().notNull().default('DRAFT'),
+    retirementReason: text('retirement_reason').$type<DeckPointTableRetirementReason>(),
+    pointLimit: integer('point_limit').notNull().default(9),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }),
+    publishedAt: timestamp('published_at', { withTimezone: true }),
+    revision: integer('revision').notNull().default(1),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_deck_point_tables_lifecycle_effective').on(table.lifecycle, table.effectiveFrom),
+    uniqueIndex('uq_deck_point_tables_active')
+      .on(sql`(true)`)
+      .where(sql`${table.lifecycle} = 'ACTIVE'`),
+    uniqueIndex('uq_deck_point_tables_scheduled')
+      .on(sql`(true)`)
+      .where(sql`${table.lifecycle} = 'SCHEDULED'`),
+    check('deck_point_tables_version_check', sql`btrim(${table.version}) <> ''`),
+    check('deck_point_tables_display_name_check', sql`btrim(${table.displayName}) <> ''`),
+    check('deck_point_tables_point_limit_check', sql`${table.pointLimit} BETWEEN 1 AND 99`),
+    check('deck_point_tables_revision_check', sql`${table.revision} > 0`),
+    check(
+      'deck_point_tables_lifecycle_check',
+      sql`${table.lifecycle} IN ('DRAFT', 'SCHEDULED', 'ACTIVE', 'RETIRED')`
+    ),
+    check(
+      'deck_point_tables_effective_from_check',
+      sql`(${table.lifecycle} = 'DRAFT' AND ${table.effectiveFrom} IS NULL) OR (${table.lifecycle} IN ('SCHEDULED', 'ACTIVE') AND ${table.effectiveFrom} IS NOT NULL) OR ${table.lifecycle} = 'RETIRED'`
+    ),
+    check(
+      'deck_point_tables_retirement_reason_check',
+      sql`(${table.lifecycle} = 'RETIRED' AND ${table.retirementReason} IS NOT NULL AND ${table.retirementReason} IN ('REPLACED', 'SCHEDULE_CANCELLED', 'MANUALLY_DISCARDED')) OR (${table.lifecycle} <> 'RETIRED' AND ${table.retirementReason} IS NULL)`
+    ),
+  ]
+);
+
+export const deckPointTableEntries = pgTable(
+  'deck_point_table_entries',
+  {
+    tableId: uuid('table_id')
+      .notNull()
+      .references(() => deckPointTables.id, { onDelete: 'cascade' }),
+    baseCardCode: text('base_card_code').notNull(),
+    points: integer('points').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.tableId, table.baseCardCode] }),
+    index('idx_deck_point_table_entries_base_code').on(table.baseCardCode),
+    check('deck_point_table_entries_base_code_check', sql`btrim(${table.baseCardCode}) <> ''`),
+    check('deck_point_table_entries_points_check', sql`${table.points} BETWEEN 1 AND 99`),
+  ]
+);
+
+export const deckPointTableAuditLogs = pgTable(
+  'deck_point_table_audit_logs',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    tableId: uuid('table_id')
+      .notNull()
+      .references(() => deckPointTables.id, { onDelete: 'cascade' }),
+    action: text('action').$type<DeckPointTableAuditAction>().notNull(),
+    adminUserId: uuid('admin_user_id').references(() => users.id, { onDelete: 'set null' }),
+    detail: jsonb('detail')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_deck_point_table_audit_logs_table_created').on(table.tableId, table.createdAt),
+    check(
+      'deck_point_table_audit_logs_action_check',
+      sql`${table.action} IN ('DRAFT_CREATED', 'TABLE_UPDATED', 'PUBLISHED_IMMEDIATELY', 'PUBLISHED_SCHEDULED', 'SCHEDULE_ACTIVATED', 'RETIRED_BY_REPLACEMENT', 'SCHEDULE_CANCELLED', 'MANUALLY_DISCARDED', 'ACTIVATED_AS_REPLACEMENT', 'ROLLBACK_DRAFT_CREATED')`
+    ),
   ]
 );
 
@@ -403,6 +507,9 @@ export const publicTableTickets = pgTable(
     sourceDeckName: text('source_deck_name').notNull(),
     runtimeDeck: jsonb('runtime_deck').$type<unknown>().notNull(),
     deckContentHash: text('deck_content_hash').notNull(),
+    pointTableVersion: text('point_table_version').notNull(),
+    pointTotal: integer('point_total').notNull(),
+    pointLimit: integer('point_limit').notNull(),
     deckLockedAt: timestamp('deck_locked_at', { withTimezone: true }).notNull().defaultNow(),
     state: text('state').$type<PublicTableTicketState>().notNull().default('WAITING'),
     joinedAt: timestamp('joined_at', { withTimezone: true }).notNull().defaultNow(),
@@ -439,6 +546,8 @@ export const publicTableTickets = pgTable(
       sql`${table.state} IN ('WAITING', 'RESERVED', 'MATCHED', 'CANCELED', 'EXPIRED')`
     ),
     check('public_table_tickets_queue_kind_check', sql`${table.queueKind} IN ('CASUAL', 'RANKED')`),
+    check('public_table_tickets_point_total_check', sql`${table.pointTotal} >= 0`),
+    check('public_table_tickets_point_limit_check', sql`${table.pointLimit} > 0`),
     check(
       'public_table_tickets_ranked_season_check',
       sql`(${table.queueKind} = 'CASUAL' AND ${table.seasonId} IS NULL) OR (${table.queueKind} = 'RANKED' AND ${table.seasonId} IS NOT NULL)`
@@ -634,6 +743,9 @@ export const matchDeckSnapshots = pgTable(
       .$type<MatchDeckSnapshotValidationState>()
       .notNull()
       .default('RUNTIME_ACCEPTED'),
+    pointTableVersion: text('point_table_version').notNull(),
+    pointTotal: integer('point_total').notNull(),
+    pointLimit: integer('point_limit').notNull(),
     cardDataVersion: text('card_data_version').notNull(),
     cardDataHash: text('card_data_hash').notNull(),
     lockedAt: timestamp('locked_at', { withTimezone: true }),
@@ -651,6 +763,8 @@ export const matchDeckSnapshots = pgTable(
       'match_deck_snapshots_validation_state_check',
       sql`${table.validationState} IN ('RUNTIME_ACCEPTED', 'VALID', 'INVALID')`
     ),
+    check('match_deck_snapshots_point_total_check', sql`${table.pointTotal} >= 0`),
+    check('match_deck_snapshots_point_limit_check', sql`${table.pointLimit} > 0`),
   ]
 );
 

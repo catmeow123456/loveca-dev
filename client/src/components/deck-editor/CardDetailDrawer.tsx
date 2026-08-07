@@ -18,6 +18,7 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getCardPoint } from '@game/domain/rules/deck-construction';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
 interface CardDetailDrawerProps {
   card: AnyCardData | null;
@@ -34,11 +35,12 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 }
 
 export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
+  const pointTable = useDeckPointTableRules();
   const isMobile = useMediaQuery('(max-width: 767px)');
   const { getCardImagePath } = useGameStore(
     useShallow((s) => ({ getCardImagePath: s.getCardImagePath }))
   );
-  const point = card ? getCardPoint(card.cardCode) : 0;
+  const point = card ? getCardPoint(card.cardCode, pointTable) : 0;
   const isLivePreview = !!card && isLiveCardData(card);
   const groupDisplayText = card ? getCardGroupDisplayText(card) : null;
 

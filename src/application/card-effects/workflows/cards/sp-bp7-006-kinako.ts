@@ -279,14 +279,24 @@ function score(
   const returned = p ? hasPlayerMovedEnergyFromZoneToDeckThisTurn(game, p.id) : false;
   const valid = !!p && p.memberSlots.slots[SlotPosition.CENTER] === a.sourceCardId && returned;
   let state = game;
-  if (valid)
+  if (valid && p) {
     state = addLiveModifier(state, {
       kind: 'SCORE',
-      playerId: p!.id,
+      playerId: p.id,
       countDelta: 1,
       sourceCardId: a.sourceCardId,
       abilityId: a.abilityId,
     });
+    const playerScores = new Map(state.liveResolution.playerScores);
+    playerScores.set(p.id, (playerScores.get(p.id) ?? 0) + 1);
+    state = {
+      ...state,
+      liveResolution: {
+        ...state.liveResolution,
+        playerScores,
+      },
+    };
+  }
   return finish(state, a, ordered, next, { conditionMet: valid, scoreBonus: valid ? 1 : 0 });
 }
 

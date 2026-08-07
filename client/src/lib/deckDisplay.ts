@@ -2,6 +2,8 @@ import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
 import type { DeckRecord } from '@/lib/apiClient';
 import { deckRecordToConfig, type MainDeckEntryTypeResolver } from '@/lib/deckRecordUtils';
+import type { DeckPointTableRules } from '@game/domain/rules/deck-point-table';
+import { getCurrentDeckPointTableRules } from '@/store/deckPointTableStore';
 
 export interface LocalDeck {
   id: string;
@@ -32,22 +34,24 @@ export function buildDeckDisplayItems({
   cloudDecks = [],
   localDecks = [],
   resolveDeckRecordCardType,
+  pointTable = getCurrentDeckPointTableRules(),
 }: {
   cloudDecks?: DeckRecord[];
   localDecks?: LocalDeck[];
   resolveDeckRecordCardType?: MainDeckEntryTypeResolver;
+  pointTable?: DeckPointTableRules;
 }): DeckDisplayItem[] {
   const items: DeckDisplayItem[] = [];
 
   for (const deck of cloudDecks) {
     const deckConfig = deckRecordToConfig(deck, { resolveCardType: resolveDeckRecordCardType });
-    const stats = calculateDeckConfigStats(deckConfig);
+    const stats = calculateDeckConfigStats(deckConfig, pointTable);
 
     items.push({
       id: deck.id,
       name: deck.name,
       description: deck.description || undefined,
-      isValid: validateDeckConfig(deckConfig).valid,
+      isValid: validateDeckConfig(deckConfig, pointTable).valid,
       isCloud: true,
       updatedAt: new Date(deck.updated_at),
       memberCount: stats.memberCount,
@@ -60,7 +64,7 @@ export function buildDeckDisplayItems({
   }
 
   for (const deck of localDecks) {
-    const stats = calculateDeckConfigStats(deck.config);
+    const stats = calculateDeckConfigStats(deck.config, pointTable);
 
     items.push({
       id: deck.id,

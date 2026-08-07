@@ -19,12 +19,15 @@ import type {
   ReplayCompression,
   ReplaySerializedPayloadEnvelope,
 } from '../../src/online/replay-types.js';
-import { GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants.js';
+import {
+  LEGACY_GAME_STATE_SCHEMA_VERSION,
+  SUPPORTED_GAME_STATE_SCHEMA_VERSIONS,
+} from '../../src/server/services/replay-constants.js';
 import {
   ReplayPayloadSerializationError,
   compressLegacyReplayPayloadEnvelopeForMigration,
   rehydrateAuthorityGameState,
-  rehydrateLegacyReplayPayloadForMigration,
+  rehydrateLegacyAuthorityGameStateForMigration,
   stableJsonStringify,
 } from '../../src/server/services/replay-payload-serialization.js';
 
@@ -420,15 +423,28 @@ function analyzeCheckpointRow(row: CheckpointRow): AnalyzeRowResult {
         'payload_compression 与 envelope compression 不一致'
       );
     }
-    if (row.schema_version !== GAME_STATE_SCHEMA_VERSION || envelope.sourceSchemaVersion !== GAME_STATE_SCHEMA_VERSION) {
-      return blockingError(row, 'SCHEMA_VERSION_UNSUPPORTED', 'checkpoint GameState schema version 不兼容');
+    if (
+      row.schema_version !== envelope.sourceSchemaVersion ||
+      !SUPPORTED_GAME_STATE_SCHEMA_VERSIONS.some(
+        (supportedVersion) => supportedVersion === envelope.sourceSchemaVersion
+      )
+    ) {
+      return blockingError(
+        row,
+        'SCHEMA_VERSION_UNSUPPORTED',
+        'checkpoint GameState schema version 不兼容'
+      );
     }
 
     if (isLegacyEnvelope(envelope, row.payload_compression)) {
-      const authorityState = rehydrateLegacyReplayPayloadForMigration<GameState>(
-        envelope,
-        'AUTHORITY_GAME_STATE'
-      );
+      if (envelope.sourceSchemaVersion !== LEGACY_GAME_STATE_SCHEMA_VERSION) {
+        return blockingError(
+          row,
+          'SCHEMA_VERSION_UNSUPPORTED',
+          `未压缩历史 checkpoint 只支持 ${LEGACY_GAME_STATE_SCHEMA_VERSION}`
+        );
+      }
+      const authorityState = rehydrateLegacyAuthorityGameStateForMigration(envelope);
       const validationError = validateAuthorityState(row, authorityState);
       if (validationError) {
         return validationError;

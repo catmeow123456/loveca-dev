@@ -19,6 +19,7 @@ import { siteAnnouncementsRouter } from './routes/site-announcements.js';
 import { publicTableRouter } from './routes/public-table.js';
 import { rankedRouter } from './routes/ranked.js';
 import { rankedAdminRouter } from './routes/ranked-admin.js';
+import { deckPointTablesAdminRouter, deckPointTablesRouter } from './routes/deck-point-tables.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -72,6 +73,7 @@ export function createApp(): express.Express {
   app.use('/api/config', appConfigRouter);
   app.use('/api/cards', cardsRouter);
   app.use('/api/decks', decksRouter);
+  app.use('/api/deck-point-tables', deckPointTablesRouter);
   app.use('/api/profiles', profilesRouter);
   app.use('/api/images', imagesRouter);
   app.use('/api/site-announcements', siteAnnouncementsRouter);
@@ -80,6 +82,7 @@ export function createApp(): express.Express {
   app.use('/api/public-table', publicTableRouter);
   app.use('/api/ranked', rankedRouter);
   app.use('/api/admin/ranked', rankedAdminRouter);
+  app.use('/api/admin/deck-point-tables', deckPointTablesAdminRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

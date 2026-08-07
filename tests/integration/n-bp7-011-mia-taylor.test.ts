@@ -232,7 +232,8 @@ describe('PL!N-bp7-011-SEC 费用13「米娅·泰勒」', () => {
       }),
     ]);
     expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-011-P')).toHaveLength(3);
-    expect(getCardAbilityDefinitionsForCardCode('PL!N-bp7-012-SEC')).toHaveLength(0);
+    // cards.json 中真实存在、且已确认没有卡效定义的虹咲能量卡。
+    expect(getCardAbilityDefinitionsForCardCode('PL!N-sd2-000-SECS')).toHaveLength(0);
   });
 
   it('triggers from a real grouped MAIN_DECK-to-WAITING_ROOM move, then discards one and recovers itself', () => {

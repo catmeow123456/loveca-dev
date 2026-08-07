@@ -12,7 +12,7 @@ import { CardType } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -173,9 +173,10 @@ function finishRiseUpHighBladeTarget(
     return game;
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
-    sourceCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
     amount: BLADE_BONUS,
   });
@@ -206,9 +207,10 @@ function applyBladeAndContinue(
   continuePendingCardEffects: ContinuePendingCardEffects,
   payload: Record<string, unknown>
 ): GameState {
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId,
-    sourceCardId: targetMemberCardId,
+    sourceCardId: ability.sourceCardId,
+    targetMemberCardId,
     abilityId: ability.abilityId,
     amount: BLADE_BONUS,
   });

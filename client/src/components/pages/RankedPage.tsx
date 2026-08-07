@@ -9,6 +9,7 @@ import {
 } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import {
   choosePreferredDeck,
   DECK_SELECTION_PREFERENCE_KEYS,
@@ -31,6 +32,7 @@ export function RankedPage({
   onBack: () => void;
   onEnterRoom: () => void;
 }) {
+  const pointTable = useDeckPointTableRules();
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
   const isLoadingCloud = useDeckStore((state) => state.isLoadingCloud);
   const cloudError = useDeckStore((state) => state.cloudError);
@@ -56,8 +58,8 @@ export function RankedPage({
     [cardDataRegistry]
   );
   const deckDisplayItems = useMemo(
-    () => buildDeckDisplayItems({ cloudDecks, resolveDeckRecordCardType }),
-    [cloudDecks, resolveDeckRecordCardType]
+    () => buildDeckDisplayItems({ cloudDecks, resolveDeckRecordCardType, pointTable }),
+    [cloudDecks, pointTable, resolveDeckRecordCardType]
   );
   const preferredDeck = useMemo(
     () => choosePreferredDeck(deckDisplayItems, lastUsedDeckId),

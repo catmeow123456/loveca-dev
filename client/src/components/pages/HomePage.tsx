@@ -19,6 +19,7 @@ import {
   MonitorCog,
   Medal,
   RefreshCw,
+  Scale,
   Settings,
   ShieldAlert,
   Swords,
@@ -36,11 +37,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { isApiConfigured } from '@/lib/apiClient';
-import {
-  createDeckRecordCardTypeResolver,
-  isDeckRecordValidForCurrentCardPool,
-} from '@/lib/deckRecordUtils';
-import { buildDeckDisplayItems, type DeckDisplayItem } from '@/lib/deckDisplay';
+import type { DeckDisplayItem } from '@/lib/deckDisplay';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { buildHomeDeckProjection } from '@/lib/homeDeckProjection';
 import type {
   PublicSiteMaintenanceStatus,
   PublicSiteStatus,
@@ -76,6 +75,7 @@ interface HomePageProps {
   onNavigateToOnlineAdmin: () => void;
   onNavigateToAnnouncementAdmin: () => void;
   onNavigateToRankedAdmin: () => void;
+  onNavigateToDeckPointAdmin: () => void;
   siteStatus: PublicSiteStatus;
 }
 
@@ -121,6 +121,7 @@ export function HomePage({
   onNavigateToOnlineAdmin,
   onNavigateToAnnouncementAdmin,
   onNavigateToRankedAdmin,
+  onNavigateToDeckPointAdmin,
   siteStatus,
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser } = useAuthStore();
@@ -129,6 +130,7 @@ export function HomePage({
   const cloudError = useDeckStore((s) => s.cloudError);
   const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
   const cardDataRegistry = useGameStore((s) => s.cardDataRegistry);
+  const pointTable = useDeckPointTableRules();
   const [savedRoomCode] = useState(() => window.sessionStorage.getItem(ONLINE_ROOM_STORAGE_KEY));
   const [isAbandoningSavedRoom, setIsAbandoningSavedRoom] = useState(false);
   const [savedRoomActionError, setSavedRoomActionError] = useState<string | null>(null);
@@ -174,40 +176,15 @@ export function HomePage({
         };
   const ConnectionStatusIcon = connectionStatus.icon;
 
-  const resolveDeckRecordCardType = useMemo(
-    () => createDeckRecordCardTypeResolver(cardDataRegistry),
-    [cardDataRegistry]
-  );
-
-  const validCloudDecks = useMemo(
+  const { deckItems, validCloudDecks, validDeckItems } = useMemo(
     () =>
-      !canUseCloudDecks
-        ? []
-        : cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
-    [canUseCloudDecks, cardDataRegistry, cloudDecks]
-  );
-
-  const deckItems = useMemo(
-    () =>
-      !canUseCloudDecks
-        ? []
-        : buildDeckDisplayItems({
-            cloudDecks,
-            resolveDeckRecordCardType,
-          }),
-    [canUseCloudDecks, cloudDecks, resolveDeckRecordCardType]
+      canUseCloudDecks
+        ? buildHomeDeckProjection({ cloudDecks, cardDataRegistry, pointTable })
+        : { deckItems: [], validCloudDecks: [], validDeckItems: [] },
+    [canUseCloudDecks, cardDataRegistry, cloudDecks, pointTable]
   );
 
   const latestDeck = deckItems[0] ?? null;
-  const validDeckItems = useMemo(
-    () =>
-      buildDeckDisplayItems({
-        cloudDecks: validCloudDecks,
-        resolveDeckRecordCardType,
-      }),
-    [resolveDeckRecordCardType, validCloudDecks]
-  );
-
   const hasLegalDeck = validCloudDecks.length > 0;
   const isInitialDeckLoading = canUseCloudDecks && isLoadingCloud && cloudDecks.length === 0;
 
@@ -393,7 +370,7 @@ export function HomePage({
                 <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
                 管理工具
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <ActionTile
                   title="赛季排位管理"
                   description="管理赛季状态与异常结算。"
@@ -410,6 +387,15 @@ export function HomePage({
                   onClick={onNavigateToCardAdmin}
                   status="管理员"
                   tone="warning"
+                  compact
+                />
+                <ActionTile
+                  title="卡组规则管理"
+                  description="管理PT限制表、规则版本与生效时间。"
+                  icon={Scale}
+                  onClick={onNavigateToDeckPointAdmin}
+                  status="管理员"
+                  tone="blue"
                   compact
                 />
                 <ActionTile

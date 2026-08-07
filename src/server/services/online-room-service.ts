@@ -40,6 +40,12 @@ import {
 } from './gameplay-participation-service.js';
 import { logPublicTableLifecycleEvent } from './public-table-telemetry.js';
 import { rankedRatingService } from './ranked-rating-service.js';
+import type {
+  DeckPointTableRules,
+  DeckPointValidationFacts,
+} from '../../domain/rules/deck-point-table.js';
+import { deckPointTableService } from './deck-point-table-service.js';
+import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-validation.js';
 
 const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
 const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
@@ -56,6 +62,7 @@ interface OnlineRoomMemberState {
   lockedDeckId: string | null;
   lockedDeckName: string | null;
   resolvedDeckConfig: RuntimeDeckConfig | null;
+  pointValidation: DeckPointValidationFacts | null;
   lockedDeckAt: number | null;
   startReady: boolean;
   lastSeenAt: number;
@@ -100,6 +107,8 @@ export interface OwnedDeckSummary {
   readonly deckId: string;
   readonly deckName: string;
   readonly runtimeDeck: RuntimeDeckConfig;
+  readonly pointValidation: DeckPointValidationFacts;
+  readonly pointTable: DeckPointTableRules;
 }
 
 interface OnlineRoomServiceDeps {
@@ -107,6 +116,7 @@ interface OnlineRoomServiceDeps {
   readonly matchService?: OnlineMatchService;
   readonly loadUserProfile?: (userId: string) => Promise<UserProfileSummary>;
   readonly loadOwnedDeck?: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
+  readonly getCurrentPointTableRules?: () => Promise<DeckPointTableRules>;
   readonly participationService?: GameplayParticipationPort | null;
 }
 
@@ -116,6 +126,7 @@ export interface PublicTableRoomMemberInput {
   readonly deckId: string | null;
   readonly deckName: string;
   readonly deck: RuntimeDeckConfig;
+  readonly pointValidation: DeckPointValidationFacts;
   readonly lockedAt: number;
 }
 
@@ -156,6 +167,7 @@ export class OnlineRoomService {
   private readonly matchService: OnlineMatchService;
   private readonly loadUserProfile: (userId: string) => Promise<UserProfileSummary>;
   private readonly loadOwnedDeck: (userId: string, deckId: string) => Promise<OwnedDeckSummary>;
+  private readonly getCurrentPointTableRules: () => Promise<DeckPointTableRules>;
   private readonly participationService: GameplayParticipationPort | null;
 
   constructor(deps: OnlineRoomServiceDeps = {}) {
@@ -163,6 +175,8 @@ export class OnlineRoomService {
     this.matchService = deps.matchService ?? onlineMatchService;
     this.loadUserProfile = deps.loadUserProfile ?? loadUserProfileForOnlineMatch;
     this.loadOwnedDeck = deps.loadOwnedDeck ?? loadOwnedDeckForOnlineMatch;
+    this.getCurrentPointTableRules =
+      deps.getCurrentPointTableRules ?? (() => deckPointTableService.getCurrentRules());
     this.participationService = deps.participationService ?? null;
   }
 
@@ -216,6 +230,7 @@ export class OnlineRoomService {
           lockedDeckId: null,
           lockedDeckName: null,
           resolvedDeckConfig: null,
+          pointValidation: null,
           lockedDeckAt: null,
           startReady: false,
           lastSeenAt: now,
@@ -295,6 +310,7 @@ export class OnlineRoomService {
       lockedDeckId: null,
       lockedDeckName: null,
       resolvedDeckConfig: null,
+      pointValidation: null,
       lockedDeckAt: null,
       startReady: false,
       lastSeenAt: now,
@@ -427,6 +443,7 @@ export class OnlineRoomService {
     member.lockedDeckId = deck.deckId;
     member.lockedDeckName = deck.deckName;
     member.resolvedDeckConfig = deck.runtimeDeck;
+    member.pointValidation = deck.pointValidation;
     member.lockedDeckAt = this.now();
     room.members.forEach((candidate) => {
       candidate.startReady = false;
@@ -885,11 +902,7 @@ export class OnlineRoomService {
     const now = this.now();
     const matchId = room.matchId;
 
-    if (
-      room.status === 'IN_GAME' &&
-      matchId &&
-      !this.matchService.isMatchCompleted(matchId)
-    ) {
+    if (room.status === 'IN_GAME' && matchId && !this.matchService.isMatchCompleted(matchId)) {
       const result = await this.matchService.executeCommand(matchId, userId, {
         ...createSurrenderCommand(userId),
         timestamp: now,
@@ -1277,11 +1290,73 @@ export class OnlineRoomService {
   private async startMatch(room: OnlineRoomState, firstUserId: string) {
     const host = room.members.find((member) => member.role === 'HOST');
     const guest = room.members.find((member) => member.role === 'GUEST');
-    if (!host || !guest || !host.resolvedDeckConfig || !guest.resolvedDeckConfig) {
+    if (
+      !host ||
+      !guest ||
+      !host.resolvedDeckConfig ||
+      !guest.resolvedDeckConfig ||
+      !host.pointValidation ||
+      !guest.pointValidation
+    ) {
       throw new OnlineRoomServiceError('ONLINE_MATCH_GONE', '房间状态异常，无法开始对局', 409);
     }
     const hostDeck = host.resolvedDeckConfig;
     const guestDeck = guest.resolvedDeckConfig;
+    const currentPointTable = await this.getCurrentPointTableRules();
+    const hostPointReview = revalidateRuntimeDeckPointSnapshot(
+      hostDeck,
+      host.pointValidation,
+      currentPointTable
+    );
+    const guestPointReview = revalidateRuntimeDeckPointSnapshot(
+      guestDeck,
+      guest.pointValidation,
+      currentPointTable
+    );
+    if (!hostPointReview.valid || !guestPointReview.valid) {
+      await this.handlePointTableChangedBeforeStart(
+        room,
+        [
+          { member: host, valid: hostPointReview.valid },
+          { member: guest, valid: guestPointReview.valid },
+        ],
+        this.now()
+      );
+      throw new OnlineRoomServiceError(
+        'ONLINE_DECK_POINT_TABLE_CHANGED',
+        room.publicTableReservationId
+          ? '当前PT限制表已更新，候场卡组不再合法，请修改卡组后重新候场'
+          : '当前PT限制表已更新，有已锁定卡组不再合法，请返回准备阶段重新锁定卡组',
+        409
+      );
+    }
+    host.pointValidation = hostPointReview.facts;
+    guest.pointValidation = guestPointReview.facts;
+    if (room.publicTableReservationId && (hostPointReview.changed || guestPointReview.changed)) {
+      await pool.query(
+        `UPDATE public_table_tickets
+         SET point_table_version = $2,
+             point_total = CASE
+               WHEN user_id = $3::uuid THEN $4::integer
+               WHEN user_id = $5::uuid THEN $6::integer
+               ELSE point_total
+             END,
+             point_limit = $7,
+             updated_at = NOW()
+         WHERE reservation_id = $1
+           AND user_id = ANY($8::uuid[])`,
+        [
+          room.publicTableReservationId,
+          currentPointTable.version,
+          host.userId,
+          hostPointReview.facts.pointTotal,
+          guest.userId,
+          guestPointReview.facts.pointTotal,
+          currentPointTable.pointLimit,
+          [host.userId, guest.userId],
+        ]
+      );
+    }
 
     const firstMember =
       firstUserId === host.userId ? host : firstUserId === guest.userId ? guest : null;
@@ -1300,6 +1375,7 @@ export class OnlineRoomService {
         deckId: firstMember.lockedDeckId,
         deckName: firstMember.lockedDeckName,
         lockedAt: firstMember.lockedDeckAt,
+        pointValidation: firstMember.pointValidation!,
       },
       second: {
         userId: secondMember.userId,
@@ -1308,6 +1384,7 @@ export class OnlineRoomService {
         deckId: secondMember.lockedDeckId,
         deckName: secondMember.lockedDeckName,
         lockedAt: secondMember.lockedDeckAt,
+        pointValidation: secondMember.pointValidation!,
       },
       originKind: room.originKind,
       originLabel: room.originLabel,
@@ -1315,6 +1392,64 @@ export class OnlineRoomService {
 
     const match = await this.matchService.createMatch(params);
     return match;
+  }
+
+  private async handlePointTableChangedBeforeStart(
+    room: OnlineRoomState,
+    reviews: readonly { readonly member: OnlineRoomMemberState; readonly valid: boolean }[],
+    now: number
+  ): Promise<void> {
+    if (!room.publicTableReservationId) {
+      for (const { member, valid } of reviews) {
+        member.startReady = false;
+        if (!valid) {
+          member.lockedDeckId = null;
+          member.lockedDeckName = null;
+          member.resolvedDeckConfig = null;
+          member.pointValidation = null;
+          member.lockedDeckAt = null;
+        }
+      }
+      room.status = 'PREPARING';
+      room.openingRps = null;
+      room.openingArrivalExpiresAt = null;
+      touchRoom(room, now);
+      return;
+    }
+
+    await pool.query(
+      `WITH released_reservation AS (
+         UPDATE public_table_reservations
+         SET state = 'RELEASED',
+             failure_reason = 'POINT_TABLE_CHANGED',
+             updated_at = $3
+         WHERE id = $1
+           AND state = 'MATCHED'
+           AND room_generation = $2
+         RETURNING id
+       ), canceled_tickets AS (
+         UPDATE public_table_tickets
+         SET state = 'CANCELED',
+             terminal_reason = 'POINT_TABLE_CHANGED',
+             updated_at = $3
+         WHERE reservation_id IN (SELECT id FROM released_reservation)
+         RETURNING id
+       )
+       DELETE FROM gameplay_participations
+       WHERE room_generation = $2`,
+      [room.publicTableReservationId, room.roomGeneration, new Date(now)]
+    );
+    this.matchService.terminateRoomCodeSpectators(
+      room.roomCode,
+      room.roomGeneration,
+      'ROOM_CLOSED',
+      now
+    );
+    this.rooms.delete(room.roomCode);
+    await this.participationService?.releaseOnlineRoom(
+      room.members.map((member) => member.userId),
+      room.roomGeneration
+    );
   }
 
   private async startMatchForRoom(room: OnlineRoomState, firstUserId: string, now: number) {
@@ -1977,6 +2112,7 @@ function buildPublicTableMember(
     lockedDeckId: input.deckId,
     lockedDeckName: input.deckName,
     resolvedDeckConfig: input.deck,
+    pointValidation: input.pointValidation,
     lockedDeckAt: input.lockedAt,
     startReady: true,
     lastSeenAt: now,
@@ -2395,5 +2531,11 @@ export async function loadOwnedDeckForOnlineMatch(
       mainDeck: [...loadResult.deck.mainDeck],
       energyDeck: [...loadResult.deck.energyDeck],
     },
+    pointValidation: {
+      pointTableVersion: preparedDeck.pointTable.version,
+      pointTotal: preparedDeck.validation.stats.pointTotal,
+      pointLimit: preparedDeck.pointTable.pointLimit,
+    },
+    pointTable: preparedDeck.pointTable,
   };
 }

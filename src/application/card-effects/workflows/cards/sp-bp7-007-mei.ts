@@ -11,7 +11,7 @@ import { setEnergyOrientation } from '../../../effects/energy.js';
 import { shouldSelectEnergyForOperation } from '../../../effects/energy-selection.js';
 import {
   SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
-  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
   SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
@@ -36,7 +36,7 @@ import {
 } from '../../runtime/waiting-energy-placement.js';
 
 const SELECT_RETURN = 'SP_BP7_007_SELECT_TWO_ENERGY';
-const SELECT_ACTIVATE = 'SP_BP7_007_SELECT_FIVE_WAITING_ENERGY';
+const SELECT_ACTIVATE = 'SP_BP7_007_SELECT_SIX_WAITING_ENERGY';
 type Continue = (g: GameState, o: boolean) => GameState;
 type Enqueue = EnqueueTriggeredCardEffectsForWaitingEnergyPlacement &
   EnqueueTriggeredCardEffectsForEnergyReturn;
@@ -85,11 +85,11 @@ export function registerSpBp7007MeiWorkflowHandlers(deps: {
     }
   );
   registerPendingAbilityStarterHandler(
-    SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+    SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
     (g, a, o, c) => startActivate(g, a, o, c.continuePendingCardEffects)
   );
   registerActiveEffectStepHandler(
-    SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+    SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
     SELECT_ACTIVATE,
     (g, i, c) => finishActivateSelection(g, i.selectedCardIds ?? [], c.continuePendingCardEffects)
   );
@@ -246,7 +246,7 @@ function getActivationSnapshot(game: GameState, ability: PendingAbilityState) {
     opponent,
     waitingEnergyCardIds,
     conditionMet,
-    actualCount: conditionMet ? Math.min(5, waitingEnergyCardIds.length) : 0,
+    actualCount: conditionMet ? Math.min(6, waitingEnergyCardIds.length) : 0,
   };
 }
 
@@ -267,8 +267,8 @@ function startActivate(
   const requiresSelection =
     sourceValid &&
     snapshot.conditionMet &&
-    snapshot.waitingEnergyCardIds.length > 5 &&
-    shouldSelectEnergyForOperation(game, ability.controllerId, 'ACTIVATE_WAITING_ENERGY', 5);
+    snapshot.waitingEnergyCardIds.length > 6 &&
+    shouldSelectEnergyForOperation(game, ability.controllerId, 'ACTIVATE_WAITING_ENERGY', 6);
   if (requiresSelection) {
     return {
       ...game,
@@ -279,13 +279,13 @@ function startActivate(
         controllerId: ability.controllerId,
         effectText: getAbilityEffectText(ability.abilityId),
         stepId: SELECT_ACTIVATE,
-        stepText: '请选择5张待机能量变为活跃状态。',
+        stepText: '请选择6张待机能量变为活跃状态。',
         awaitingPlayerId: ability.controllerId,
         selectableCardIds: snapshot.waitingEnergyCardIds,
         selectableCardMode: 'ORDERED_MULTI',
         selectionLabel: '选择要变为活跃的能量',
-        minSelectableCards: 5,
-        maxSelectableCards: 5,
+        minSelectableCards: 6,
+        maxSelectableCards: 6,
         confirmSelectionLabel: '变为活跃',
         canSkipSelection: false,
         metadata: { orderedResolution: options.orderedResolution === true },
@@ -332,7 +332,7 @@ function finishActivateSelection(
   next: Continue
 ): GameState {
   const effect = game.activeEffect;
-  if (!effect || effect.stepId !== SELECT_ACTIVATE || selectedCardIds.length !== 5) return game;
+  if (!effect || effect.stepId !== SELECT_ACTIVATE || selectedCardIds.length !== 6) return game;
   const player = getPlayerById(game, effect.controllerId);
   if (!player || findMemberSlot(player, effect.sourceCardId) === null) return game;
   const opponent = getOpponent(game, player.id);
@@ -340,7 +340,7 @@ function finishActivateSelection(
     return game;
   const unique = new Set(selectedCardIds);
   if (
-    unique.size !== 5 ||
+    unique.size !== 6 ||
     selectedCardIds.some(
       (id) =>
         effect.selectableCardIds?.includes(id) !== true ||
@@ -348,7 +348,7 @@ function finishActivateSelection(
     )
   )
     return game;
-  if (!shouldSelectEnergyForOperation(game, player.id, 'ACTIVATE_WAITING_ENERGY', 5)) return game;
+  if (!shouldSelectEnergyForOperation(game, player.id, 'ACTIVATE_WAITING_ENERGY', 6)) return game;
   const result = setEnergyOrientation(game, player.id, selectedCardIds, OrientationState.ACTIVE);
   if (!result) return game;
   return finish(

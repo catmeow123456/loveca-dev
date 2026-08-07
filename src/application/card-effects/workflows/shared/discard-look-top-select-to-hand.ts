@@ -15,15 +15,21 @@ import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.j
 import {
   BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
   GENERIC_DISCARD_LOOK_TOP_ABILITY_ID,
+  N_BP7_018_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_NIJIGASAKI_MEMBER_ABILITY_ID,
+  N_SD2_012_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+  N_SD2_014_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
   PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
   PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
+  SP_BP7_018_ON_ENTER_DISCARD_LIVE_LOOK_TOP_FIVE_TAKE_ONE_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
   and,
   groupAliasIs,
+  hasBladeHeart,
   liveRequiresPrintedHeartColorAtLeast,
   memberHasHeartColor,
   memberHasPrintedHeartColorAtLeast,
+  not,
   or,
   typeIs,
   unitAliasIs,
@@ -60,6 +66,7 @@ const DISCARD_LOOK_TOP_FIVE_MEMBER_BASE_CARD_CODES = ['PL!-sd1-015', 'PL!HS-bp2-
 const DISCARD_LOOK_TOP_FOUR_MEMBER_BASE_CARD_CODES = ['PL!S-bp3-004'] as const;
 const S_BP2_005_RED_GREEN_BLUE_HEART_MEMBER_BASE_CARD_CODE = 'PL!S-bp2-005';
 const PL_BP5_014_BLUE_OR_PURPLE_HEART_MEMBER_BASE_CARD_CODE = 'PL!-bp5-014';
+const SP_BP7_018_DISCARD_LIVE_LOOK_TOP_FIVE_BASE_CARD_CODE = 'PL!SP-bp7-018';
 const DISCARD_LOOK_TOP_PRINTED_HEART_COUNT_CARD_CONFIGS: readonly {
   readonly baseCardCode: string;
   readonly heartColor: HeartColor;
@@ -80,6 +87,8 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
   readonly selectorKind: DiscardLookTopAliasSelectorKind;
   readonly topCount: number;
   readonly memberOnly?: boolean;
+  readonly noBladeHeartOnly?: boolean;
+  readonly publicSelectorLabel?: string;
   readonly effectTextAbilityId?: string;
 }[] = [
   { baseCardCode: 'PL!HS-bp1-009', alias: 'みらくらぱーく！', selectorKind: 'UNIT', topCount: 5 },
@@ -125,6 +134,33 @@ const DISCARD_LOOK_TOP_ALIAS_CARD_CONFIGS: readonly {
     memberOnly: false,
     effectTextAbilityId: PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
   },
+  {
+    baseCardCode: 'PL!N-bp7-018',
+    alias: '虹ヶ咲',
+    selectorKind: 'GROUP',
+    topCount: 5,
+    memberOnly: true,
+    noBladeHeartOnly: true,
+    publicSelectorLabel: '虹咲',
+    effectTextAbilityId:
+      N_BP7_018_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_NIJIGASAKI_MEMBER_ABILITY_ID,
+  },
+  {
+    baseCardCode: 'PL!N-sd2-012',
+    alias: '虹ヶ咲',
+    selectorKind: 'GROUP',
+    topCount: 3,
+    publicSelectorLabel: '虹咲',
+    effectTextAbilityId: N_SD2_012_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+  },
+  {
+    baseCardCode: 'PL!N-sd2-014',
+    alias: '虹ヶ咲',
+    selectorKind: 'GROUP',
+    topCount: 3,
+    publicSelectorLabel: '虹咲',
+    effectTextAbilityId: N_SD2_014_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+  },
 ] as const;
 
 type DiscardLookTopAliasSelectorKind = 'UNIT' | 'GROUP';
@@ -137,6 +173,8 @@ interface DiscardLookTopMetadata {
   readonly liveOnly: boolean;
   readonly cardSelectorAlias?: string;
   readonly cardSelectorKind?: DiscardLookTopAliasSelectorKind;
+  readonly noBladeHeartOnly: boolean;
+  readonly publicSelectorLabel?: string;
   readonly redGreenBlueHeartMemberOnly: boolean;
   readonly blueOrPurpleHeartMemberOnly: boolean;
   readonly printedHeartCountColor?: HeartColor;
@@ -155,6 +193,10 @@ export function registerDiscardLookTopSelectToHandWorkflowHandlers(deps: {
     BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID,
     PL_N_BP3_012_ON_ENTER_DISCARD_LOOK_TOP_NIJIGASAKI_CARD_ABILITY_ID,
     PL_BP5_014_ON_ENTER_DISCARD_LOOK_TOP_BLUE_OR_PURPLE_HEART_MEMBER_ABILITY_ID,
+    N_BP7_018_ON_ENTER_DISCARD_LOOK_TOP_FIVE_NO_BLADE_NIJIGASAKI_MEMBER_ABILITY_ID,
+    N_SD2_012_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+    N_SD2_014_ON_ENTER_DISCARD_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+    SP_BP7_018_ON_ENTER_DISCARD_LIVE_LOOK_TOP_FIVE_TAKE_ONE_ABILITY_ID,
   ]) {
     registerPendingAbilityStarterHandler(abilityId, (game, ability, options, context) =>
       startDiscardLookTopSelectToHandWorkflow(game, ability, {
@@ -215,8 +257,17 @@ function startDiscardLookTopSelectToHandWorkflow(
     return game;
   }
 
-  const selectableCardIds = player.hand.cardIds.filter((cardId) => cardId !== ability.sourceCardId);
   const cardCode = sourceCard.data.cardCode;
+  const selectableCardIds = player.hand.cardIds.filter((cardId) => {
+    if (cardId === ability.sourceCardId) {
+      return false;
+    }
+    if (!isSpBp7018DiscardLiveLookTopFiveCard(cardCode)) {
+      return true;
+    }
+    const card = getCardById(game, cardId);
+    return card !== null && isLiveCardData(card.data);
+  });
   const selectableCardType = getDiscardLookTopSelectableCardType(cardCode);
   const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   const printedHeartCountConfig = getDiscardLookTopPrintedHeartCountCardConfig(cardCode);
@@ -226,6 +277,8 @@ function startDiscardLookTopSelectToHandWorkflow(
     liveOnly: selectableCardType === 'LIVE',
     cardSelectorAlias: aliasCardConfig?.alias,
     cardSelectorKind: aliasCardConfig?.selectorKind,
+    noBladeHeartOnly: aliasCardConfig?.noBladeHeartOnly === true,
+    publicSelectorLabel: aliasCardConfig?.publicSelectorLabel,
     redGreenBlueHeartMemberOnly: isSBp2005RedGreenBlueHeartMemberCard(cardCode),
     printedHeartCountColor: printedHeartCountConfig?.heartColor,
     printedHeartCountLabel: printedHeartCountConfig?.heartLabel,
@@ -256,6 +309,7 @@ function startDiscardLookTopSelectToHandWorkflow(
         cardSelectorKind: metadata.cardSelectorKind,
         memberOnly: metadata.memberOnly,
         liveOnly: metadata.liveOnly,
+        discardLiveOnly: isSpBp7018DiscardLiveLookTopFiveCard(cardCode),
       },
       options.continuePendingCardEffects
     );
@@ -377,58 +431,64 @@ function createLookTopConfig(
     selectStepText: metadata.printedHeartCountLabel
       ? `请选择至多1张持有2个以上${metadata.printedHeartCountLabel}的成员卡，或必要Heart包含2个以上${metadata.printedHeartCountLabel}的LIVE卡，公开并加入手牌。其余放置入休息室。`
       : metadata.blueOrPurpleHeartMemberOnly
-      ? '请选择至多1张持有[青ハート]或[紫ハート]的成员卡公开并加入手牌。其余放置入休息室。'
-      : metadata.redGreenBlueHeartMemberOnly
-      ? '请选择至多3张持有赤/绿/蓝 HEART 的成员卡公开并加入手牌。其余放置入休息室。'
-      : metadata.liveOnly
-        ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
-        : metadata.cardSelectorAlias && metadata.memberOnly
-          ? metadata.cardSelectorAlias === 'Aqours'
-            ? '请选择至多1张Aqours成员卡公开并加入手牌，其余放置入休息室。'
-            : `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
-          : metadata.cardSelectorAlias
-            ? `请选择其中1张${metadata.cardSelectorAlias}的卡加入手牌，其余放置入休息室。`
-            : metadata.memberOnly
-              ? '请选择其中1张成员卡加入手牌，其余放置入休息室。'
-              : '请选择其中1张卡加入手牌，其余放置入休息室。',
+        ? '请选择至多1张持有[青ハート]或[紫ハート]的成员卡公开并加入手牌。其余放置入休息室。'
+        : metadata.redGreenBlueHeartMemberOnly
+          ? '请选择至多3张持有赤/绿/蓝 HEART 的成员卡公开并加入手牌。其余放置入休息室。'
+          : metadata.liveOnly
+            ? '请选择其中1张LIVE卡加入手牌，其余放置入休息室。'
+            : metadata.cardSelectorAlias && metadata.memberOnly
+              ? metadata.cardSelectorAlias === 'Aqours'
+                ? '请选择至多1张Aqours成员卡公开并加入手牌，其余放置入休息室。'
+                : `请选择其中1张${metadata.cardSelectorAlias}的成员卡加入手牌，其余放置入休息室。`
+              : metadata.cardSelectorAlias
+                ? `请选择其中1张${metadata.cardSelectorAlias}的卡加入手牌，其余放置入休息室。`
+                : metadata.memberOnly
+                  ? '请选择其中1张成员卡加入手牌，其余放置入休息室。'
+                  : '请选择其中1张卡加入手牌，其余放置入休息室。',
     noTargetStepText: metadata.printedHeartCountLabel
       ? `没有可加入手牌的持有2个以上${metadata.printedHeartCountLabel}的成员卡或必要Heart包含2个以上${metadata.printedHeartCountLabel}的LIVE卡。确认后其余卡片放置入休息室。`
       : metadata.blueOrPurpleHeartMemberOnly
-      ? '没有可加入手牌的持有[青ハート]或[紫ハート]的成员卡。确认后其余卡片放置入休息室。'
-      : metadata.redGreenBlueHeartMemberOnly
-      ? '没有可加入手牌的持有赤/绿/蓝 HEART 的成员卡。确认后其余卡片放置入休息室。'
-      : metadata.liveOnly
-        ? '没有可加入手牌的LIVE卡。确认后其余卡片放置入休息室。'
-        : metadata.cardSelectorAlias && metadata.memberOnly
-          ? `没有可加入手牌的${metadata.cardSelectorAlias}成员卡。确认后其余卡片放置入休息室。`
-          : metadata.cardSelectorAlias
-            ? `没有可加入手牌的${metadata.cardSelectorAlias}的卡。确认后其余卡片放置入休息室。`
-            : metadata.memberOnly
-              ? '没有可加入手牌的成员卡。确认后其余卡片放置入休息室。'
-              : '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
+        ? '没有可加入手牌的持有[青ハート]或[紫ハート]的成员卡。确认后其余卡片放置入休息室。'
+        : metadata.redGreenBlueHeartMemberOnly
+          ? '没有可加入手牌的持有赤/绿/蓝 HEART 的成员卡。确认后其余卡片放置入休息室。'
+          : metadata.liveOnly
+            ? '没有可加入手牌的LIVE卡。确认后其余卡片放置入休息室。'
+            : metadata.cardSelectorAlias && metadata.memberOnly
+              ? `没有可加入手牌的${metadata.cardSelectorAlias}成员卡。确认后其余卡片放置入休息室。`
+              : metadata.cardSelectorAlias
+                ? `没有可加入手牌的${metadata.cardSelectorAlias}的卡。确认后其余卡片放置入休息室。`
+                : metadata.memberOnly
+                  ? '没有可加入手牌的成员卡。确认后其余卡片放置入休息室。'
+                  : '没有可加入手牌的卡片。确认后其余卡片放置入休息室。',
     selectionLabel: metadata.selectionRequired
       ? '请选择要加入手牌的卡牌'
-      : metadata.printedHeartCountLabel
-      ? `请选择要公开并加入手牌的${metadata.printedHeartCountLabel}条件卡`
-      : metadata.blueOrPurpleHeartMemberOnly
-        ? '请选择要公开并加入手牌的青/紫 Heart 成员卡'
-      : metadata.redGreenBlueHeartMemberOnly
-        ? '请选择要公开并加入手牌的赤/绿/蓝 HEART 成员卡'
-        : metadata.liveOnly
-          ? '请选择要加入手牌的LIVE卡'
-          : metadata.cardSelectorAlias && metadata.memberOnly
-            ? metadata.cardSelectorAlias === 'Aqours'
-              ? '选择要公开并加入手牌的卡'
-              : `请选择要加入手牌的${metadata.cardSelectorAlias}成员卡`
-            : metadata.memberOnly
-              ? '请选择要加入手牌的成员卡'
-              : '请选择要加入手牌的卡牌',
+      : metadata.publicSelectorLabel
+        ? metadata.memberOnly
+          ? `选择要公开并加入手牌的${metadata.publicSelectorLabel}成员卡`
+          : `选择要公开并加入手牌的${metadata.publicSelectorLabel}卡`
+        : metadata.printedHeartCountLabel
+          ? `请选择要公开并加入手牌的${metadata.printedHeartCountLabel}条件卡`
+          : metadata.blueOrPurpleHeartMemberOnly
+            ? '请选择要公开并加入手牌的青/紫 Heart 成员卡'
+            : metadata.redGreenBlueHeartMemberOnly
+              ? '请选择要公开并加入手牌的赤/绿/蓝 HEART 成员卡'
+              : metadata.liveOnly
+                ? '请选择要加入手牌的LIVE卡'
+                : metadata.cardSelectorAlias && metadata.memberOnly
+                  ? metadata.cardSelectorAlias === 'Aqours'
+                    ? '选择要公开并加入手牌的卡'
+                    : `请选择要加入手牌的${metadata.cardSelectorAlias}成员卡`
+                  : metadata.memberOnly
+                    ? '请选择要加入手牌的成员卡'
+                    : '请选择要加入手牌的卡牌',
     confirmSelectionLabel:
-      metadata.cardSelectorAlias === 'Aqours' && metadata.memberOnly
+      metadata.publicSelectorLabel !== undefined ||
+      (metadata.cardSelectorAlias === 'Aqours' && metadata.memberOnly)
         ? '公开并加入手牌'
         : '加入手牌',
     skipSelectionLabel:
-      metadata.cardSelectorAlias === 'Aqours' && metadata.memberOnly
+      metadata.publicSelectorLabel !== undefined ||
+      (metadata.cardSelectorAlias === 'Aqours' && metadata.memberOnly)
         ? '全部放置入休息室'
         : '不加入',
     revealStepText: effectText,
@@ -466,7 +526,13 @@ function createDiscardLookTopSelector(
   }
   if (metadata.cardSelectorAlias && metadata.cardSelectorKind === 'GROUP') {
     return metadata.memberOnly
-      ? and(typeIs(CardType.MEMBER), groupAliasIs(metadata.cardSelectorAlias))
+      ? metadata.noBladeHeartOnly
+        ? and(
+            typeIs(CardType.MEMBER),
+            groupAliasIs(metadata.cardSelectorAlias),
+            not(hasBladeHeart())
+          )
+        : and(typeIs(CardType.MEMBER), groupAliasIs(metadata.cardSelectorAlias))
       : groupAliasIs(metadata.cardSelectorAlias);
   }
   if (metadata.cardSelectorAlias && metadata.cardSelectorKind === 'UNIT') {
@@ -494,6 +560,9 @@ function getDiscardLookTopMetadata(
     cardSelectorAlias:
       typeof metadata?.cardSelectorAlias === 'string' ? metadata.cardSelectorAlias : undefined,
     cardSelectorKind: getDiscardLookTopAliasSelectorKind(metadata?.cardSelectorKind),
+    noBladeHeartOnly: metadata?.noBladeHeartOnly === true,
+    publicSelectorLabel:
+      typeof metadata?.publicSelectorLabel === 'string' ? metadata.publicSelectorLabel : undefined,
     redGreenBlueHeartMemberOnly: metadata?.redGreenBlueHeartMemberOnly === true,
     blueOrPurpleHeartMemberOnly: metadata?.blueOrPurpleHeartMemberOnly === true,
     printedHeartCountColor: getHeartColorFromMetadata(metadata?.printedHeartCountColor),
@@ -515,7 +584,9 @@ function getDiscardLookTopAliasSelectorKind(
 }
 
 function getHeartColorFromMetadata(value: unknown): HeartColor | undefined {
-  return Object.values(HeartColor).includes(value as HeartColor) ? (value as HeartColor) : undefined;
+  return Object.values(HeartColor).includes(value as HeartColor)
+    ? (value as HeartColor)
+    : undefined;
 }
 
 function getDiscardLookTopMaxSelectCount(cardCode: string | undefined): number {
@@ -549,6 +620,9 @@ function getDiscardLookTopCount(cardCode: string | undefined): number {
   }
   if (isPlBp5014BlueOrPurpleHeartMemberCard(cardCode)) {
     return 4;
+  }
+  if (isSpBp7018DiscardLiveLookTopFiveCard(cardCode)) {
+    return 5;
   }
   if (getDiscardLookTopPrintedHeartCountCardConfig(cardCode)) {
     return 4;
@@ -592,6 +666,7 @@ function isDiscardLookTopSelectionRequired(cardCode: string | undefined): boolea
     'PL!N-bp1-010',
     'PL!N-sd1-002',
     'PL!N-sd1-003',
+    SP_BP7_018_DISCARD_LIVE_LOOK_TOP_FIVE_BASE_CARD_CODE,
   ].some((baseCardCode) => cardCodeMatchesBase(cardCode, baseCardCode));
 }
 
@@ -638,6 +713,9 @@ function getDiscardLookTopEffectText(cardCode: string | undefined): string {
   }
   if (isDiscardLookTopFiveLiveCard(cardCode)) {
     return getAbilityEffectText(BP3_010_ON_ENTER_LOOK_LIVE_EFFECT_ID);
+  }
+  if (isSpBp7018DiscardLiveLookTopFiveCard(cardCode)) {
+    return getAbilityEffectText(SP_BP7_018_ON_ENTER_DISCARD_LIVE_LOOK_TOP_FIVE_TAKE_ONE_ABILITY_ID);
   }
   const aliasCardConfig = getDiscardLookTopAliasCardConfig(cardCode);
   if (aliasCardConfig) {
@@ -698,6 +776,13 @@ function isPlBp5014BlueOrPurpleHeartMemberCard(cardCode: string | undefined): bo
   return (
     cardCode !== undefined &&
     cardCodeMatchesBase(cardCode, PL_BP5_014_BLUE_OR_PURPLE_HEART_MEMBER_BASE_CARD_CODE)
+  );
+}
+
+function isSpBp7018DiscardLiveLookTopFiveCard(cardCode: string | undefined): boolean {
+  return (
+    cardCode !== undefined &&
+    cardCodeMatchesBase(cardCode, SP_BP7_018_DISCARD_LIVE_LOOK_TOP_FIVE_BASE_CARD_CODE)
   );
 }
 

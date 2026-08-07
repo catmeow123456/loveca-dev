@@ -15,6 +15,8 @@ import {
   BP4_003_ACTIVATED_ABILITY_ID,
   ELI_ACTIVATED_ABILITY_ID,
   HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
+  N_BP7_015_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
+  N_BP7_021_ACTIVATED_SELF_SACRIFICE_RECOVER_LIVE_ABILITY_ID,
   PB1_019_ACTIVATED_ABILITY_ID,
   PR_017_ACTIVATED_RECOVER_MUSE_LIVE_ACTIVATE_ENERGY_ABILITY_ID,
   RIN_ACTIVATED_ABILITY_ID,
@@ -57,6 +59,8 @@ const HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD_STEP_ID =
   'HS_CL1_008_SELECT_WAITING_ROOM_HASUNOSORA_CARD';
 const SP_BP4_018_SELECT_WAITING_ROOM_LIELLA_CARD_STEP_ID =
   'SP_BP4_018_SELECT_WAITING_ROOM_LIELLA_CARD';
+const N_BP7_015_SELECT_WAITING_ROOM_MEMBER_STEP_ID = 'N_BP7_015_SELECT_WAITING_ROOM_MEMBER';
+const N_BP7_021_SELECT_WAITING_ROOM_LIVE_STEP_ID = 'N_BP7_021_SELECT_WAITING_ROOM_LIVE';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForLeaveStage;
@@ -161,6 +165,26 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
       stepId: SP_BP4_018_SELECT_WAITING_ROOM_LIELLA_CARD_STEP_ID,
       selectablePredicate: groupAliasIs('Liella!'),
       selectionRequiredWhenHasTargets: true,
+    },
+    {
+      abilityId: N_BP7_015_ACTIVATED_SELF_SACRIFICE_RECOVER_MEMBER_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-bp7-015'],
+      stepId: N_BP7_015_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
+      selectablePredicate: typeIs(CardType.MEMBER),
+      selectionRequiredWhenHasTargets: true,
+      stepText: '请选择自己的休息室中1张成员卡加入手牌。',
+      selectionLabel: '选择要加入手牌的成员卡',
+      confirmSelectionLabel: '加入手牌',
+    },
+    {
+      abilityId: N_BP7_021_ACTIVATED_SELF_SACRIFICE_RECOVER_LIVE_ABILITY_ID,
+      expectedBaseCardCodes: ['PL!N-bp7-021'],
+      stepId: N_BP7_021_SELECT_WAITING_ROOM_LIVE_STEP_ID,
+      selectablePredicate: typeIs(CardType.LIVE),
+      selectionRequiredWhenHasTargets: true,
+      stepText: '请选择自己的休息室中1张LIVE卡加入手牌。',
+      selectionLabel: '选择要加入手牌的LIVE卡',
+      confirmSelectionLabel: '加入手牌',
     },
   ];
 

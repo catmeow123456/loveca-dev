@@ -6,7 +6,9 @@ import { validate } from '../middleware/validate.js';
 import { scrapeDecklog, extractDecklogInput } from '../services/decklog-scraper.js';
 import {
   DeckPayloadValidationError,
+  getCurrentDeckValidationContext,
   prepareDeckPayloadForStorage,
+  prepareDeckPayloadWithContext,
 } from '../services/deck-storage-service.js';
 import { ENERGY_DECK_SIZE, MAX_SAME_CODE_COUNT } from '../../domain/rules/deck-validator.js';
 import { createDefaultEnergyDeck } from '../../domain/card-data/deck-defaults.js';
@@ -91,7 +93,8 @@ decksRouter.get('/', requireAuth, async (req, res, next) => {
       'SELECT * FROM decks WHERE user_id = $1 ORDER BY updated_at DESC',
       [req.user!.id]
     );
-    res.json({ data: rows, total: rows.length, error: null });
+    const currentRows = await projectCurrentDeckValidation(rows);
+    res.json({ data: currentRows, total: currentRows.length, error: null });
   } catch (err) {
     next(err);
   }
@@ -106,7 +109,8 @@ decksRouter.get('/public', async (_req, res, next) => {
     const { rows } = await pool.query(
       'SELECT * FROM decks WHERE is_public = true OR share_enabled = true ORDER BY updated_at DESC'
     );
-    res.json({ data: rows, total: rows.length, error: null });
+    const currentRows = await projectCurrentDeckValidation(rows);
+    res.json({ data: currentRows, total: currentRows.length, error: null });
   } catch (err) {
     next(err);
   }
@@ -205,7 +209,8 @@ decksRouter.get('/share/:shareId', async (req, res, next) => {
       return;
     }
 
-    res.json({ data: rows[0], error: null });
+    const [currentDeck] = await projectCurrentDeckValidation([rows[0]]);
+    res.json({ data: currentDeck, error: null });
   } catch (err) {
     next(err);
   }
@@ -263,9 +268,10 @@ decksRouter.post(
       const { rows: created } = await pool.query(
         `INSERT INTO decks (
         user_id, name, description, main_deck, energy_deck, is_valid, validation_errors,
-        is_public, share_enabled, forked_from_deck_id, forked_from_share_id, forked_at
+        validated_point_table_version, is_public, share_enabled,
+        forked_from_deck_id, forked_from_share_id, forked_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, false, false, $8, $9, now())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, false, $9, $10, now())
       RETURNING *`,
         [
           req.user!.id,
@@ -275,6 +281,7 @@ decksRouter.post(
           JSON.stringify(preparedDeck.energy_deck),
           preparedDeck.validation.valid,
           JSON.stringify(preparedDeck.validation.errors),
+          preparedDeck.pointTable.version,
           sourceDeck.id,
           sourceDeck.share_id,
         ]
@@ -318,7 +325,8 @@ decksRouter.get('/:id', requireAuth, async (req, res, next) => {
       return;
     }
 
-    res.json({ data: deck, error: null });
+    const [currentDeck] = await projectCurrentDeckValidation([deck]);
+    res.json({ data: currentDeck, error: null });
   } catch (err) {
     next(err);
   }
@@ -358,9 +366,9 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
     const { rows } = await pool.query(
       `INSERT INTO decks (
         user_id, name, description, main_deck, energy_deck, is_valid, validation_errors,
-        is_public, share_enabled, shared_at
+        validated_point_table_version, is_public, share_enabled, shared_at
       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         req.user!.id,
@@ -370,6 +378,7 @@ decksRouter.post('/', requireAuth, validate(createDeckSchema), async (req, res, 
         JSON.stringify(preparedDeck.energy_deck),
         preparedDeck.validation.valid,
         JSON.stringify(preparedDeck.validation.errors),
+        preparedDeck.pointTable.version,
         b.is_public,
         shareEnabled,
         shareEnabled ? new Date().toISOString() : null,
@@ -441,9 +450,9 @@ decksRouter.post('/:id/copy', requireAuth, async (req, res, next) => {
     const { rows: created } = await pool.query(
       `INSERT INTO decks (
         user_id, name, description, main_deck, energy_deck, is_valid, validation_errors,
-        is_public, share_enabled, forked_from_deck_id, forked_at
+        validated_point_table_version, is_public, share_enabled, forked_from_deck_id, forked_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, false, false, $8, now())
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, false, false, $9, now())
       RETURNING *`,
       [
         req.user!.id,
@@ -453,6 +462,7 @@ decksRouter.post('/:id/copy', requireAuth, async (req, res, next) => {
         JSON.stringify(preparedDeck.energy_deck),
         preparedDeck.validation.valid,
         JSON.stringify(preparedDeck.validation.errors),
+        preparedDeck.pointTable.version,
         sourceDeck.id,
       ]
     );
@@ -594,45 +604,50 @@ decksRouter.put('/:id', requireAuth, validate(updateDeckSchema), async (req, res
       idx++;
     }
 
-    if ('main_deck' in updates || 'energy_deck' in updates) {
-      let preparedDeck;
-      try {
-        preparedDeck = await prepareDeckPayloadForStorage({
-          name: updates.name ?? existing[0].name,
-          description: updates.description ?? existing[0].description,
-          main_deck: updates.main_deck ?? existing[0].main_deck ?? [],
-          energy_deck: updates.energy_deck ?? existing[0].energy_deck ?? [],
+    // Every save, including metadata-only edits, refreshes authoritative deck
+    // validity and its PT version. Otherwise a rename after table rollover can
+    // persist stale validation facts indefinitely.
+    let preparedDeck;
+    try {
+      preparedDeck = await prepareDeckPayloadForStorage({
+        name: updates.name ?? existing[0].name,
+        description: updates.description ?? existing[0].description,
+        main_deck: updates.main_deck ?? existing[0].main_deck ?? [],
+        energy_deck: updates.energy_deck ?? existing[0].energy_deck ?? [],
+      });
+    } catch (error) {
+      if (error instanceof DeckPayloadValidationError) {
+        res.status(400).json({
+          data: null,
+          error: {
+            code: 'DECK_PAYLOAD_INVALID',
+            message: getDeckPayloadErrorMessage(error),
+          },
         });
-      } catch (error) {
-        if (error instanceof DeckPayloadValidationError) {
-          res.status(400).json({
-            data: null,
-            error: {
-              code: 'DECK_PAYLOAD_INVALID',
-              message: getDeckPayloadErrorMessage(error),
-            },
-          });
-          return;
-        }
-        throw error;
+        return;
       }
-
-      fields.push(`main_deck = $${idx}`);
-      values.push(JSON.stringify(preparedDeck.main_deck));
-      idx++;
-
-      fields.push(`energy_deck = $${idx}`);
-      values.push(JSON.stringify(preparedDeck.energy_deck));
-      idx++;
-
-      fields.push(`is_valid = $${idx}`);
-      values.push(preparedDeck.validation.valid);
-      idx++;
-
-      fields.push(`validation_errors = $${idx}`);
-      values.push(JSON.stringify(preparedDeck.validation.errors));
-      idx++;
+      throw error;
     }
+
+    fields.push(`main_deck = $${idx}`);
+    values.push(JSON.stringify(preparedDeck.main_deck));
+    idx++;
+
+    fields.push(`energy_deck = $${idx}`);
+    values.push(JSON.stringify(preparedDeck.energy_deck));
+    idx++;
+
+    fields.push(`is_valid = $${idx}`);
+    values.push(preparedDeck.validation.valid);
+    idx++;
+
+    fields.push(`validation_errors = $${idx}`);
+    values.push(JSON.stringify(preparedDeck.validation.errors));
+    idx++;
+
+    fields.push(`validated_point_table_version = $${idx}`);
+    values.push(preparedDeck.pointTable.version);
+    idx++;
 
     if ('is_public' in updates) {
       fields.push(`is_public = $${idx}`);
@@ -700,3 +715,64 @@ decksRouter.delete('/:id', requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+interface DeckValidationProjectionSource {
+  readonly name?: unknown;
+  readonly description?: unknown;
+  readonly main_deck?: unknown;
+  readonly energy_deck?: unknown;
+}
+
+interface CurrentDeckValidationProjection {
+  readonly is_valid: boolean;
+  readonly validation_errors: readonly string[];
+  readonly validated_point_table_version: string;
+  readonly point_total: number | null;
+  readonly point_limit: number;
+}
+
+type CurrentDeckValidationRow<T extends DeckValidationProjectionSource> = Omit<
+  T,
+  keyof CurrentDeckValidationProjection
+> &
+  CurrentDeckValidationProjection;
+
+async function projectCurrentDeckValidation<T extends DeckValidationProjectionSource>(
+  rows: readonly T[]
+): Promise<CurrentDeckValidationRow<T>[]> {
+  if (rows.length === 0) return [];
+  const context = await getCurrentDeckValidationContext();
+  return rows.map<CurrentDeckValidationRow<T>>((row) => {
+    try {
+      const prepared = prepareDeckPayloadWithContext(
+        {
+          name: String(row.name ?? ''),
+          description: typeof row.description === 'string' ? row.description : null,
+          main_deck: Array.isArray(row.main_deck) ? row.main_deck : [],
+          energy_deck: Array.isArray(row.energy_deck) ? row.energy_deck : [],
+        },
+        context
+      );
+      return {
+        ...row,
+        is_valid: prepared.validation.valid,
+        validation_errors: prepared.validation.errors,
+        validated_point_table_version: context.pointTable.version,
+        point_total: prepared.validation.stats.pointTotal,
+        point_limit: context.pointTable.pointLimit,
+      };
+    } catch (error) {
+      if (!(error instanceof DeckPayloadValidationError)) {
+        throw error;
+      }
+      return {
+        ...row,
+        is_valid: false,
+        validation_errors: [...error.errors],
+        validated_point_table_version: context.pointTable.version,
+        point_total: null,
+        point_limit: context.pointTable.pointLimit,
+      };
+    }
+  });
+}

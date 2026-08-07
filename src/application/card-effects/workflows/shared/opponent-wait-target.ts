@@ -20,7 +20,7 @@ import {
   N_SD2_013_LIVE_START_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
   N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
   N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
-  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
   PB1_011_ON_ENTER_DIFFERENT_BIBI_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   PL_PB1_009_ON_ENTER_WAIT_OPPONENT_ORIGINAL_BLADE_ONE_ABILITY_ID,
   PL_BP5_013_ON_ENTER_WAIT_OPPONENT_COST_LTE_FOUR_MEMBER_ABILITY_ID,
@@ -82,6 +82,8 @@ const SP_BP7_009_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID =
   'SP_BP7_009_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_TO_WAIT';
 const N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID =
   'N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_TO_WAIT';
+const N_SD2_021_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID =
+  'N_SD2_021_SELECT_OPPONENT_COST_FOUR_MEMBER_TO_WAIT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -151,13 +153,13 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     startActionStep: 'START_SELECT_OPPONENT_COST_TWO_MEMBER',
   },
   {
-    abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
-    effectTextAbilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
-    stepId: SP_PB2_SELECT_OPPONENT_COST_TWO_MEMBER_STEP_ID,
-    stepText: '请选择对方舞台上1名费用小于等于2的成员变为待机状态。',
-    selectionLabel: '选择对方舞台上费用小于等于2的成员',
-    selector: costLteTwoOpponentMemberSelector,
-    startActionStep: 'START_SELECT_OPPONENT_COST_TWO_MEMBER',
+    abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
+    effectTextAbilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
+    stepId: N_SD2_021_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于4的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于4的成员',
+    selector: costLteFourOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_FOUR_MEMBER',
   },
   {
     abilityId: N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -315,6 +317,7 @@ export function registerOpponentWaitTargetWorkflowHandlers(deps: {
       finishOpponentWaitTargetWorkflow(
         game,
         input.selectedCardId ?? null,
+        config,
         context.continuePendingCardEffects,
         deps.enqueueTriggeredCardEffects
       )
@@ -539,6 +542,7 @@ function startOpponentWaitTargetWorkflow(
 function finishOpponentWaitTargetWorkflow(
   game: GameState,
   selectedCardId: string | null,
+  config: OpponentWaitTargetWorkflowConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
 ): GameState {
@@ -556,12 +560,27 @@ function finishOpponentWaitTargetWorkflow(
     return game;
   }
 
+  const currentTarget = getPlayerById(game, targetMetadata.targetPlayerId);
+  const currentTargetState = currentTarget?.memberSlots.cardStates.get(selectedCardId);
+  const currentMatchingTargetIds = getStageMemberCardIdsMatching(
+    game,
+    targetMetadata.targetPlayerId,
+    config.selector
+  );
+  if (
+    !currentTargetState ||
+    currentTargetState.orientation === targetMetadata.targetOrientation ||
+    !currentMatchingTargetIds.includes(selectedCardId)
+  ) {
+    return game;
+  }
+
   const orientationChange = resolveStageMemberOrientationTargetSelection(
     game,
     effect,
     selectedCardId
   );
-  if (!orientationChange) {
+  if (!orientationChange || !orientationChange.changed) {
     return game;
   }
 

@@ -386,10 +386,11 @@ describe('PL!HS-bp6-018 Sayaka workflow', () => {
     });
     expect(game.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
-      sourceCardId: target.instanceId,
+      sourceCardId: source.instanceId,
+      targetMemberCardId: target.instanceId,
       abilityId: HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID,
     });
   });

@@ -11,7 +11,18 @@ import {
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromStatefulZone,
+} from '../../src/domain/entities/zone';
+import {
+  collectLiveModifiers,
+  getEffectivePerformanceCheerCount,
+  getMemberEffectiveBladeCount,
+  getPlayerLiveBladeModifier,
+  removeStageMemberBoundLiveModifiers,
+} from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
@@ -207,7 +218,23 @@ function bladeModifierFor(state: GameState, targetMemberCardId: string) {
     (modifier) =>
       modifier.kind === 'BLADE' &&
       modifier.abilityId === SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID &&
-      modifier.sourceCardId === targetMemberCardId
+      modifier.target === 'TARGET_MEMBER' &&
+      modifier.targetMemberCardId === targetMemberCardId
+  );
+}
+
+function performanceCheerCount(state: GameState, memberCardIds: readonly string[]): number {
+  const modifiers = collectLiveModifiers(state);
+  const memberBladeCount = memberCardIds.reduce(
+    (total, memberCardId) =>
+      total + getMemberEffectiveBladeCount(state, PLAYER1, memberCardId, modifiers),
+    0
+  );
+  return getEffectivePerformanceCheerCount(
+    state,
+    PLAYER1,
+    memberBladeCount + getPlayerLiveBladeModifier(state.liveResolution, PLAYER1, modifiers),
+    modifiers
   );
 }
 
@@ -235,12 +262,34 @@ describe('PL!SP-bp1-024 Tiny Stars workflow', () => {
       hearts: [{ color: HeartColor.BLUE, count: 1 }],
       sourceCardId: live.instanceId,
     });
-    expect(bladeModifierFor(state, 'kanon')).toMatchObject({ countDelta: 1 });
+    expect(bladeModifierFor(state, 'kanon')).toMatchObject({
+      target: 'TARGET_MEMBER',
+      sourceCardId: live.instanceId,
+      targetMemberCardId: 'kanon',
+      countDelta: 1,
+    });
     expect(heartModifierFor(state, 'keke')).toMatchObject({
       hearts: [{ color: HeartColor.PINK, count: 1 }],
       sourceCardId: live.instanceId,
     });
-    expect(bladeModifierFor(state, 'keke')).toMatchObject({ countDelta: 1 });
+    expect(bladeModifierFor(state, 'keke')).toMatchObject({
+      target: 'TARGET_MEMBER',
+      sourceCardId: live.instanceId,
+      targetMemberCardId: 'keke',
+      countDelta: 1,
+    });
+    expect(performanceCheerCount(state, ['kanon', 'keke'])).toBe(4);
+
+    const sourceLeftLiveZone = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, live.instanceId),
+    }));
+    expect(bladeModifierFor(sourceLeftLiveZone, 'kanon')).toBeDefined();
+    expect(bladeModifierFor(sourceLeftLiveZone, 'keke')).toBeDefined();
+
+    const afterKanonLeaves = removeStageMemberBoundLiveModifiers(sourceLeftLiveZone, ['kanon']);
+    expect(bladeModifierFor(afterKanonLeaves, 'kanon')).toBeUndefined();
+    expect(bladeModifierFor(afterKanonLeaves, 'keke')).toBeDefined();
   });
 
   it('opens target selection for multiple same-name candidates and modifies only the selected member', () => {

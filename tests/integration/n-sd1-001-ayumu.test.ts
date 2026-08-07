@@ -11,9 +11,11 @@ import {
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   confirmActiveEffectStep,
+  enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import { N_SD1_001_LIVE_START_PAY_ONE_ENERGY_OTHER_NIJIGASAKI_MEMBERS_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
@@ -258,11 +260,15 @@ describe('PL!N-sd1-001-SD 费用13「上原歩夢」 LIVE开始 ability', () => 
     ).toEqual([scenario.energyIds[0]]);
     expect(abilityModifiers(state)).toEqual([
       expect.objectContaining({
-        sourceCardId: scenario.activeTarget.instanceId,
+        target: 'TARGET_MEMBER',
+        sourceCardId: scenario.source.instanceId,
+        targetMemberCardId: scenario.activeTarget.instanceId,
         countDelta: 1,
       }),
       expect.objectContaining({
-        sourceCardId: scenario.waitingTarget.instanceId,
+        target: 'TARGET_MEMBER',
+        sourceCardId: scenario.source.instanceId,
+        targetMemberCardId: scenario.waitingTarget.instanceId,
         countDelta: 1,
       }),
     ]);
@@ -273,9 +279,49 @@ describe('PL!N-sd1-001-SD 费用13「上原歩夢」 LIVE开始 ability', () => 
       scenario.opponentMember.instanceId,
     ]) {
       expect(
-        abilityModifiers(state).some((modifier) => modifier.sourceCardId === excludedCardId)
+        abilityModifiers(state).some(
+          (modifier) =>
+            'targetMemberCardId' in modifier && modifier.targetMemberCardId === excludedCardId
+        )
       ).toBe(false);
     }
+
+    const cheerCards = Array.from({ length: 4 }, (_, index) =>
+      createCardInstance(
+        member(`PL!N-test-cheer-${index}`, `Cheer ${index}`),
+        PLAYER1,
+        `n-sd1-001-cheer-${index}`
+      )
+    );
+    const stateWithCheerDeck = updatePlayer(
+      registerCards(state, cheerCards),
+      PLAYER1,
+      (player) => ({
+        ...player,
+        mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+      })
+    );
+    const cheered = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(game: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(stateWithCheerDeck, PLAYER1);
+    expect(cheered.liveResolution.firstPlayerCheerCardIds).toHaveLength(3);
+
+    const targetLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      state,
+      PLAYER1,
+      scenario.activeTarget.instanceId,
+      enqueueTriggeredCardEffects
+    );
+    expect(targetLeft).not.toBeNull();
+    expect(abilityModifiers(targetLeft!.gameState)).toEqual([
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        sourceCardId: scenario.source.instanceId,
+        targetMemberCardId: scenario.waitingTarget.instanceId,
+      }),
+    ]);
   });
 
   it('declines without payment and keeps invalid options in the original window', () => {

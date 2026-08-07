@@ -11,10 +11,12 @@ import {
   type MigrationQueryClient,
 } from '../../drizzle/data-migrations/3.5.0-to-3.6.0-compress-match-replay-checkpoints';
 import {
+  rehydrateAuthorityGameState,
   serializeReplayPayload,
   stableJsonStringify,
   toReplayJsonValue,
 } from '../../src/server/services/replay-payload-serialization';
+import { S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { GamePhase, SubPhase } from '../../src/shared/types/enums';
 
 interface QueryCall {
@@ -43,6 +45,10 @@ function createMinimalState(matchId: string, turnCount = 1): GameState {
     turnCount,
     currentPhase: GamePhase.MAIN_PHASE,
     currentSubPhase: SubPhase.NONE,
+    manualOperationMode: 'FREE',
+    liveResolution: {
+      liveModifiers: [],
+    },
   } as GameState;
 }
 
@@ -132,8 +138,7 @@ function createHarness(rows: HarnessRow[]): {
         return {
           rows: [
             {
-              total_count: mutableRows.filter((row) => row.checkpoint_type === 'AUTHORITY')
-                .length,
+              total_count: mutableRows.filter((row) => row.checkpoint_type === 'AUTHORITY').length,
             },
           ] as T[],
         };
@@ -226,21 +231,34 @@ describe('compress-match-replay-checkpoints', () => {
     );
   });
 
-  it('dry-run validates legacy and current checkpoints and plans only legacy updates', async () => {
+  it('dry-run validates legacy V1 and compressed V1/V2 checkpoints and plans only legacy updates', async () => {
     const legacyRow = createRow({ id: 'legacy-1', checkpoint_seq: 1 });
-    const currentPayload = serializeReplayPayload(
+    const currentV1Payload = serializeReplayPayload(
       createMinimalState('match-1', 2),
       'AUTHORITY_GAME_STATE',
       'GAME_STATE_V1'
     );
-    const currentRow = createRow({
-      id: 'current-2',
+    const currentV1Row = createRow({
+      id: 'current-v1-2',
       checkpoint_seq: 2,
       timeline_seq: 11,
       turn_count: 2,
-      payload: currentPayload,
+      payload: currentV1Payload,
     });
-    const { client } = createHarness([legacyRow, currentRow]);
+    const currentV2Payload = serializeReplayPayload(
+      createMinimalState('match-1', 3),
+      'AUTHORITY_GAME_STATE',
+      'GAME_STATE_V2'
+    );
+    const currentV2Row = createRow({
+      id: 'current-v2-3',
+      checkpoint_seq: 3,
+      timeline_seq: 12,
+      turn_count: 3,
+      schema_version: 'GAME_STATE_V2',
+      payload: currentV2Payload,
+    });
+    const { client } = createHarness([legacyRow, currentV1Row, currentV2Row]);
 
     const report = await runCheckpointCompressionMigration(client, {
       mode: 'dry-run',
@@ -253,9 +271,9 @@ describe('compress-match-replay-checkpoints', () => {
 
     expect(report.blockingErrors).toEqual([]);
     expect(report.stats).toMatchObject({
-      scannedCheckpointCount: 2,
+      scannedCheckpointCount: 3,
       legacyCheckpointCount: 1,
-      alreadyMigratedCheckpointCount: 1,
+      alreadyMigratedCheckpointCount: 2,
       updatePlannedCount: 1,
     });
     expect(report.applied.updatedCount).toBe(0);
@@ -264,8 +282,53 @@ describe('compress-match-replay-checkpoints', () => {
     expect(report.stats.targetCompressedPayloadBytes).toBeGreaterThan(0);
   });
 
+  it('rejects an uncompressed checkpoint that claims the V2 schema', async () => {
+    const payload = createLegacyReplayPayloadEnvelope(
+      createMinimalState('match-1'),
+      'AUTHORITY_GAME_STATE',
+      'GAME_STATE_V2'
+    );
+    const harness = createHarness([createRow({ schema_version: 'GAME_STATE_V2', payload })]);
+
+    const report = await runCheckpointCompressionMigration(harness.client, {
+      mode: 'apply',
+      matchId: null,
+      batchSize: 10,
+      limit: null,
+      reportPath: null,
+      yes: true,
+    });
+
+    expect(report.blockingErrors).toEqual([
+      expect.objectContaining({ code: 'SCHEMA_VERSION_UNSUPPORTED' }),
+    ]);
+    expect(report.applied.updatedCount).toBe(0);
+    expect(harness.calls.some((call) => call.text === 'BEGIN')).toBe(false);
+  });
+
   it('apply rewrites legacy checkpoints in a single transaction and is rerunnable', async () => {
-    const row = createRow({ id: 'legacy-1' });
+    const legacySourceCardId = 'legacy-beneficiary';
+    const legacyState = {
+      ...createMinimalState('match-1'),
+      liveResolution: {
+        liveModifiers: [
+          {
+            kind: 'BLADE',
+            playerId: 'p1',
+            countDelta: 1,
+            sourceCardId: legacySourceCardId,
+            abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          },
+        ],
+      },
+    };
+    const legacyPayload = createLegacyReplayPayloadEnvelope(
+      legacyState,
+      'AUTHORITY_GAME_STATE',
+      'GAME_STATE_V1'
+    );
+    const row = createRow({ id: 'legacy-1', payload: legacyPayload });
+    const originalPayloadHash = row.payload_hash;
     const harness = createHarness([row]);
 
     const report = await runCheckpointCompressionMigration(harness.client, {
@@ -282,6 +345,18 @@ describe('compress-match-replay-checkpoints', () => {
     expect(report.remainingInvalidCheckpointCount).toBe(0);
     expect(harness.rows[0].payload_compression).toBe('GZIP');
     expect(harness.rows[0].payload.compression).toBe('GZIP');
+    expect(harness.rows[0].schema_version).toBe('GAME_STATE_V1');
+    expect(harness.rows[0].payload.sourceSchemaVersion).toBe('GAME_STATE_V1');
+    expect(harness.rows[0].payload_hash).toBe(originalPayloadHash);
+    expect(harness.rows[0].payload.payloadHash).toBe(originalPayloadHash);
+    expect(
+      rehydrateAuthorityGameState(harness.rows[0].payload).liveResolution.liveModifiers
+    ).toEqual([
+      expect.objectContaining({
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: legacySourceCardId,
+      }),
+    ]);
     expect(harness.calls.map((call) => call.text)).toEqual(
       expect.arrayContaining(['BEGIN', 'COMMIT'])
     );

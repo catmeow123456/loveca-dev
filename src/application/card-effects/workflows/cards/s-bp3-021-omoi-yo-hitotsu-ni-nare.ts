@@ -10,9 +10,7 @@ import { CardType, ZoneType } from '../../../../shared/types/enums.js';
 import { typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { S_BP3_021_LIVE_START_WAITING_MEMBER_TO_DECK_TOP_GRANT_STAGE_BLADE_ABILITY_ID } from '../../ability-ids.js';
-import {
-  addBladeLiveModifierForSourceMember,
-} from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { moveWaitingRoomCardsToDeckTopAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -222,9 +220,10 @@ function finishStageMemberSelection(
   if (!selectOwnStageMemberIds(game, player.id).includes(selectedCardId)) {
     return finishActive(game, effect, 'STAGE_MEMBER_STALE', continuePendingCardEffects);
   }
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
-    sourceCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
     amount: 1,
   });

@@ -18,7 +18,7 @@ import {
   N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
   N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
-  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
 import {
@@ -34,6 +34,8 @@ const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
 const SD2_013_EFFECT_TEXT =
   '【登场】/【LIVE开始时】自己的舞台上仅存在『虹咲』的成员的场合，将存在于对方的舞台的1名原本持有的[ブレード]的数量小于等于2的成员变为待机状态。';
+const SD2_021_EFFECT_TEXT =
+  '【登场】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。   (待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)';
 
 function member(options: {
   readonly cardCode: string;
@@ -298,25 +300,13 @@ describe('PL!N-sd2 opponent-wait-target family', () => {
     });
   });
 
-  it.each([
-    [
-      N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
-      TriggerCondition.ON_LIVE_START,
-      '【LIVE开始时】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。',
-    ],
-    [
-      N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
-      TriggerCondition.ON_ENTER_STAGE,
-      '【登场】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。',
-    ],
-  ])('selects only an active opponent cost<=2 member for %s', (abilityId, timingId, effectText) => {
+  it('selects only an active opponent cost<=2 member for PL!N-sd2-019', () => {
+    const abilityId = N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID;
+    const timingId = TriggerCondition.ON_LIVE_START;
+    const effectText =
+      '【LIVE开始时】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。';
     const source = createCardInstance(
-      member({
-        cardCode:
-          abilityId === N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID
-            ? 'PL!N-sd2-019-SD2'
-            : 'PL!N-sd2-021-SD2',
-      }),
+      member({ cardCode: 'PL!N-sd2-019-SD2' }),
       PLAYER1,
       'source'
     );
@@ -364,6 +354,118 @@ describe('PL!N-sd2 opponent-wait-target family', () => {
     );
     expect(resolved.players[1].memberSlots.cardStates.get(legal.instanceId)?.orientation).toBe(
       OrientationState.WAITING
+    );
+  });
+
+  it('lets PL!N-sd2-021 wait a cost-four target but excludes a cost-five target', () => {
+    const source = createCardInstance(
+      member({ cardCode: 'PL!N-sd2-021-SD2' }),
+      PLAYER1,
+      'rina-source'
+    );
+    const legal = createCardInstance(
+      member({ cardCode: 'cost-four', cost: 4 }),
+      PLAYER2,
+      'cost-four'
+    );
+    const tooExpensive = createCardInstance(
+      member({ cardCode: 'cost-five', cost: 5 }),
+      PLAYER2,
+      'cost-five'
+    );
+    let game = createGameState('sd2-021-cost-four', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [source, legal, tooExpensive]);
+    game = putOnStage(game, PLAYER1, source.instanceId, SlotPosition.CENTER);
+    game = putOnStage(game, PLAYER2, legal.instanceId, SlotPosition.LEFT);
+    game = putOnStage(game, PLAYER2, tooExpensive.instanceId, SlotPosition.RIGHT);
+    game = {
+      ...game,
+      pendingAbilities: [
+        pending({
+          id: 'pending-sd2-021-cost-four',
+          abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
+          sourceCardId: source.instanceId,
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+          sourceSlot: SlotPosition.CENTER,
+        }),
+      ],
+    };
+
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect).toMatchObject({
+      abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
+      effectText: SD2_021_EFFECT_TEXT,
+      selectableCardIds: [legal.instanceId],
+      selectionLabel: '选择对方舞台上费用小于等于4的成员',
+      confirmSelectionLabel: '变为待机状态',
+    });
+
+    const resolved = confirmActiveEffectStep(
+      preview,
+      PLAYER1,
+      preview.activeEffect!.id,
+      legal.instanceId
+    );
+    expect(resolved.players[1].memberSlots.cardStates.get(legal.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(resolved.players[1].memberSlots.cardStates.get(tooExpensive.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
+    );
+  });
+
+  it('revalidates the PL!N-sd2-021 cost-four selector when the target is submitted', () => {
+    const source = createCardInstance(
+      member({ cardCode: 'PL!N-sd2-021-SD2' }),
+      PLAYER1,
+      'rina-recheck-source'
+    );
+    const target = createCardInstance(
+      member({ cardCode: 'cost-four', cost: 4 }),
+      PLAYER2,
+      'cost-four-recheck'
+    );
+    let game = createGameState('sd2-021-recheck', PLAYER1, 'P1', PLAYER2, 'P2');
+    game = registerCards(game, [source, target]);
+    game = putOnStage(game, PLAYER1, source.instanceId, SlotPosition.CENTER);
+    game = putOnStage(game, PLAYER2, target.instanceId, SlotPosition.CENTER);
+    game = {
+      ...game,
+      pendingAbilities: [
+        pending({
+          id: 'pending-sd2-021-recheck',
+          abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
+          sourceCardId: source.instanceId,
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+          sourceSlot: SlotPosition.CENTER,
+        }),
+      ],
+    };
+
+    const preview = resolvePendingCardEffects(game).gameState;
+    expect(preview.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
+    const staleCardRegistry = new Map(preview.cardRegistry);
+    staleCardRegistry.set(target.instanceId, {
+      ...target,
+      data: {
+        ...target.data,
+        cost: 5,
+      } as MemberCardData,
+    });
+    const stale = {
+      ...preview,
+      cardRegistry: staleCardRegistry,
+    };
+
+    const rejected = confirmActiveEffectStep(
+      stale,
+      PLAYER1,
+      stale.activeEffect!.id,
+      target.instanceId
+    );
+    expect(rejected.activeEffect).toEqual(stale.activeEffect);
+    expect(rejected.players[1].memberSlots.cardStates.get(target.instanceId)?.orientation).toBe(
+      OrientationState.ACTIVE
     );
   });
 });

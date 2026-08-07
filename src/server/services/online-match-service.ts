@@ -13,6 +13,7 @@ import {
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
+import type { DeckPointValidationFacts } from '../../domain/rules/deck-point-table.js';
 import type {
   MatchRecordCompleteness,
   MatchRecordStatus,
@@ -99,6 +100,7 @@ export interface CreateOnlineMatchPlayerParams {
   readonly deckName?: string | null;
   readonly deckSource?: MatchDeckSnapshotSource;
   readonly lockedAt?: number | null;
+  readonly pointValidation: DeckPointValidationFacts;
   readonly participantKind?: MatchParticipantKind;
   readonly ownerUserId?: string | null;
 }
@@ -123,6 +125,7 @@ export interface OnlineMatchDeckSnapshot {
   readonly mainDeck: readonly AnyCardData[];
   readonly energyDeck: readonly AnyCardData[];
   readonly lockedAt: number | null;
+  readonly pointValidation: DeckPointValidationFacts;
 }
 
 export interface OnlinePhaseCompletionGate {
@@ -3519,6 +3522,7 @@ function createRuntimeDeckSnapshot(
     mainDeck: deck.mainDeck,
     energyDeck: deck.energyDeck,
     lockedAt: params.lockedAt ?? null,
+    pointValidation: params.pointValidation,
   };
 }
 

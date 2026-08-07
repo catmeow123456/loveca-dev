@@ -19,7 +19,9 @@ import { createGameSession } from '../../src/application/game-session';
 import { enqueueTriggeredCardEffects } from '../../src/application/card-effect-runner';
 import {
   activateWaitingEnergyCardsForPlayer,
+  addBladeLiveModifierForPlayer,
   addBladeLiveModifierForSourceMember,
+  addBladeLiveModifierForTargetMember,
   discardHandCardsToWaitingRoomForPlayer,
   discardOneHandCardToWaitingRoomForPlayer,
   drawCardsForEachPlayer,
@@ -1357,6 +1359,44 @@ describe('card effect runtime actions', () => {
     });
   });
 
+  it('creates an exact multi-select shell for an optional discard-two-hand cost', () => {
+    const activeEffect = createOptionalDiscardHandToWaitingRoomActiveEffect({
+      ability: {
+        id: 'pending-discard-two',
+        abilityId: 'test:optional-discard-two',
+        sourceCardId: 'source-card',
+        controllerId: PLAYER1,
+      },
+      playerId: PLAYER1,
+      effectText: '弃2张手牌测试',
+      stepId: 'SELECT_TWO_DISCARD',
+      selectableCardIds: ['hand-1', 'hand-2', 'hand-3'],
+      orderedResolution: false,
+      discardCount: 2,
+    });
+
+    expect(activeEffect).toMatchObject({
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: 2,
+      maxSelectableCards: 2,
+    });
+    expect(activeEffect.metadata).toMatchObject({
+      effectCosts: [
+        {
+          kind: 'DISCARD_HAND_TO_WAITING_ROOM',
+          minCount: 2,
+          maxCount: 2,
+          optional: true,
+        },
+      ],
+      handToWaitingRoomCost: {
+        minCount: 2,
+        maxCount: 2,
+        optional: true,
+      },
+    });
+  });
+
   it('merges optional discard metadata patches with orderedResolution and cost metadata', () => {
     const activeEffect = createOptionalDiscardHandToWaitingRoomActiveEffect({
       ability: {
@@ -1926,6 +1966,78 @@ describe('card effect runtime actions', () => {
       })
     ).toBeNull();
     expect(state.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('writes an explicit target member BLADE even when source and target ids are equal', () => {
+    let state = createMutableState();
+    const [memberCardId] = ownedMemberIds(state, PLAYER1, 1);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, memberCardId),
+    }));
+
+    const result = addBladeLiveModifierForTargetMember(state, {
+      playerId: PLAYER1,
+      sourceCardId: memberCardId,
+      targetMemberCardId: memberCardId,
+      abilityId: 'test-explicit-target-blade',
+      amount: 2,
+    });
+
+    expect(result?.modifier).toEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: memberCardId,
+      targetMemberCardId: memberCardId,
+      abilityId: 'test-explicit-target-blade',
+    });
+    expect(result?.gameState.liveResolution.liveModifiers).toEqual([result?.modifier]);
+  });
+
+  it('writes a player BLADE without inferring anything from the source card id', () => {
+    const state = createMutableState();
+
+    const result = addBladeLiveModifierForPlayer(state, {
+      playerId: PLAYER1,
+      sourceCardId: 'source-that-does-not-need-zone-validation',
+      abilityId: 'test-player-blade',
+      amount: 2,
+    });
+
+    expect(result?.modifier).toEqual({
+      kind: 'BLADE',
+      target: 'PLAYER',
+      playerId: PLAYER1,
+      countDelta: 2,
+      sourceCardId: 'source-that-does-not-need-zone-validation',
+      abilityId: 'test-player-blade',
+    });
+    expect(
+      addBladeLiveModifierForPlayer(state, {
+        playerId: 'missing-player',
+        sourceCardId: 'source',
+        abilityId: 'invalid-player-blade',
+        amount: 2,
+      })
+    ).toBeNull();
+    expect(
+      addBladeLiveModifierForPlayer(state, {
+        playerId: PLAYER1,
+        sourceCardId: 'source',
+        abilityId: 'invalid-player-blade',
+        amount: 0,
+      })
+    ).toBeNull();
+    expect(
+      addBladeLiveModifierForPlayer(state, {
+        playerId: PLAYER1,
+        sourceCardId: 'source',
+        abilityId: 'invalid-player-blade',
+        amount: 1.5,
+      })
+    ).toBeNull();
   });
 
   it('moves a member card from hand below a top-level stage host without enqueueing triggers', () => {

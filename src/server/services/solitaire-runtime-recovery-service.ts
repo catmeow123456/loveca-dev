@@ -12,10 +12,14 @@ import type {
 } from '../../online/index.js';
 import { PUBLIC_EVENTS_RESPONSE_MAX, type OnlineMatchState } from './online-match-service.js';
 import { createOnlineMatchChatRuntime } from './online-match-chat-runtime.js';
-import { rehydrateAuthorityGameState } from './replay-payload-serialization.js';
+import {
+  ReplayPayloadSerializationError,
+  rehydrateAuthorityGameState,
+} from './replay-payload-serialization.js';
 import type { ReplaySerializedPayloadEnvelope } from '../../online/replay-types.js';
 import { pool } from '../db/pool.js';
 import { GameMode } from '../../shared/types/enums.js';
+import { SUPPORTED_GAME_STATE_SCHEMA_VERSIONS } from './replay-constants.js';
 
 interface SolitaireRuntimeRecoveryServiceDeps {
   readonly now?: () => number;
@@ -71,6 +75,9 @@ interface DeckSnapshotRow {
   readonly source: MatchDeckSnapshotSource;
   readonly main_deck: unknown;
   readonly energy_deck: unknown;
+  readonly point_table_version: string;
+  readonly point_total: number;
+  readonly point_limit: number;
   readonly locked_at: Date | string | number | null;
 }
 
@@ -80,8 +87,10 @@ interface CheckpointRow {
   readonly related_public_seq: number | null;
   readonly related_command_seq: number | null;
   readonly related_game_event_seq: number | null;
+  readonly schema_version: string;
   readonly payload: ReplaySerializedPayloadEnvelope;
   readonly payload_compression: string;
+  readonly payload_hash: string;
 }
 
 interface PublicEventRow {
@@ -143,14 +152,41 @@ export class SolitaireRuntimeRecoveryService {
         409
       );
     }
+    if (checkpoint.payload_hash !== checkpoint.payload.payloadHash) {
+      throw new SolitaireRuntimeRecoveryServiceError(
+        'SOLITAIRE_MATCH_RECOVERY_CORRUPTED',
+        '对墙打检查点 hash 不一致，无法恢复',
+        409
+      );
+    }
+    if (checkpoint.schema_version !== checkpoint.payload.sourceSchemaVersion) {
+      throw new SolitaireRuntimeRecoveryServiceError(
+        'SOLITAIRE_MATCH_RECOVERY_CORRUPTED',
+        '对墙打检查点权威状态版本不一致，无法恢复',
+        409
+      );
+    }
+    if (
+      !SUPPORTED_GAME_STATE_SCHEMA_VERSIONS.some(
+        (supportedVersion) => supportedVersion === checkpoint.schema_version
+      )
+    ) {
+      throw new SolitaireRuntimeRecoveryServiceError(
+        'SOLITAIRE_MATCH_RECOVERY_UNSUPPORTED',
+        '对墙打检查点权威状态版本不兼容，无法恢复',
+        409
+      );
+    }
 
     let authorityState: GameState;
     try {
       authorityState = rehydrateAuthorityGameState(checkpoint.payload);
     } catch (error) {
+      const unsupported =
+        error instanceof ReplayPayloadSerializationError && error.reason === 'UNSUPPORTED';
       throw new SolitaireRuntimeRecoveryServiceError(
-        'SOLITAIRE_MATCH_RECOVERY_CORRUPTED',
-        '对墙打检查点复水失败，无法恢复',
+        unsupported ? 'SOLITAIRE_MATCH_RECOVERY_UNSUPPORTED' : 'SOLITAIRE_MATCH_RECOVERY_CORRUPTED',
+        unsupported ? '对墙打检查点权威状态不兼容，无法恢复' : '对墙打检查点复水失败，无法恢复',
         409
       );
     }
@@ -301,6 +337,9 @@ export class SolitaireRuntimeRecoveryService {
         source,
         main_deck,
         energy_deck,
+        point_table_version,
+        point_total,
+        point_limit,
         locked_at
       FROM match_deck_snapshots
       WHERE match_id = $1
@@ -318,8 +357,10 @@ export class SolitaireRuntimeRecoveryService {
         related_public_seq,
         related_command_seq,
         related_game_event_seq,
+        schema_version,
         payload,
-        payload_compression
+        payload_compression,
+        payload_hash
       FROM match_checkpoints
       WHERE match_id = $1
         AND checkpoint_type = 'AUTHORITY'
@@ -446,6 +487,11 @@ function mapDeckSnapshotRow(
       resolveDeckCardData(cardsByCode, cardCode)
     ),
     lockedAt: nullableDateToMs(row.locked_at),
+    pointValidation: {
+      pointTableVersion: row.point_table_version,
+      pointTotal: row.point_total,
+      pointLimit: row.point_limit,
+    },
   };
 }
 

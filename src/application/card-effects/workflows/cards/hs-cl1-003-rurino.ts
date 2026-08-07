@@ -11,7 +11,7 @@ import { unitAliasIs } from '../../../effects/card-selectors.js';
 import { setMemberOrientation } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { HS_CL1_003_ACTIVATED_WAIT_SELF_MIRACRA_MEMBER_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -184,9 +184,10 @@ function finishHsCl1003Rurino(
     );
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
-    sourceCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
     amount: 1,
   });

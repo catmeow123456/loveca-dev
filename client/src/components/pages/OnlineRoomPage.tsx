@@ -63,6 +63,7 @@ import {
   isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
+import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import {
   choosePreferredDeck,
   DECK_SELECTION_PREFERENCE_KEYS,
@@ -116,6 +117,7 @@ interface OnlineRoomPageProps {
 }
 
 export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPageProps) {
+  const pointTable = useDeckPointTableRules();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
   const cloudError = useDeckStore((s) => s.cloudError);
@@ -139,8 +141,11 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
     null;
 
   const validDecks = useMemo(
-    () => cloudDecks.filter((deck) => isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry)),
-    [cardDataRegistry, cloudDecks]
+    () =>
+      cloudDecks.filter((deck) =>
+        isDeckRecordValidForCurrentCardPool(deck, cardDataRegistry, pointTable)
+      ),
+    [cardDataRegistry, cloudDecks, pointTable]
   );
   const [roomCodeInput, setRoomCodeInput] = useState('');
   const [joinedRoomCode, setJoinedRoomCode] = useState<string | null>(null);
@@ -182,8 +187,9 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
       buildDeckDisplayItems({
         cloudDecks: validDecks,
         resolveDeckRecordCardType,
+        pointTable,
       }),
-    [resolveDeckRecordCardType, validDecks]
+    [pointTable, resolveDeckRecordCardType, validDecks]
   );
   const preferredDeck = useMemo(
     () => choosePreferredDeck(deckDisplayItems, lastUsedDeckId),

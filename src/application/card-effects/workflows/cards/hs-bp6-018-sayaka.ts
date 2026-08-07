@@ -14,7 +14,7 @@ import {
   finishSkippedActiveEffect,
   startPendingActiveEffect,
 } from '../../runtime/active-effect.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   discardOneHandCardToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
@@ -242,9 +242,10 @@ function finishHsBp6018SayakaTarget(
     return game;
   }
 
-  const bladeResult = addBladeLiveModifierForSourceMember(heartResult.gameState, {
+  const bladeResult = addBladeLiveModifierForTargetMember(heartResult.gameState, {
     playerId: player.id,
-    sourceCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
     amount: 1,
   });

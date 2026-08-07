@@ -185,10 +185,11 @@ describe('PL!HS-cl1-010-CL AWOKE workflow', () => {
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
-      sourceCardId: target.instanceId,
+      sourceCardId: live.instanceId,
+      targetMemberCardId: target.instanceId,
       abilityId: HS_CL1_010_LIVE_START_HIGH_COST_HASUNOSORA_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
     });
     expect(
@@ -261,10 +262,11 @@ describe('PL!HS-cl1-010-CL AWOKE workflow', () => {
 
     expect(session.state?.liveResolution.liveModifiers).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
       countDelta: 2,
-      sourceCardId: target.instanceId,
+      sourceCardId: live.instanceId,
+      targetMemberCardId: target.instanceId,
       abilityId: HS_CL1_010_LIVE_START_HIGH_COST_HASUNOSORA_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
     });
     expect(

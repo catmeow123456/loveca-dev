@@ -12,7 +12,7 @@ import {
   SP_BP1_024_LIVE_SUCCESS_STAGE_KANON_KEKE_DRAW_ABILITY_ID,
 } from '../../ability-ids.js';
 import {
-  addBladeLiveModifierForSourceMember,
+  addBladeLiveModifierForTargetMember,
   drawCardsForPlayer,
 } from '../../runtime/actions.js';
 import {
@@ -324,9 +324,10 @@ function resolveTinyStarsLiveStartTargets(
       state = heartResult.gameState;
       kanonHeartBonus = heartResult.heartBonus;
     }
-    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+    const bladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      sourceCardId: targets.kanonTargetId,
+      sourceCardId: ability.sourceCardId,
+      targetMemberCardId: targets.kanonTargetId,
       abilityId: ability.abilityId,
       amount: 1,
     });
@@ -348,9 +349,10 @@ function resolveTinyStarsLiveStartTargets(
       state = heartResult.gameState;
       kekeHeartBonus = heartResult.heartBonus;
     }
-    const bladeResult = addBladeLiveModifierForSourceMember(state, {
+    const bladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId: player.id,
-      sourceCardId: targets.kekeTargetId,
+      sourceCardId: ability.sourceCardId,
+      targetMemberCardId: targets.kekeTargetId,
       abilityId: ability.abilityId,
       amount: 1,
     });

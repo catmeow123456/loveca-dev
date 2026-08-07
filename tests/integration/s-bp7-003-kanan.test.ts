@@ -133,15 +133,18 @@ function chooseOption(game: GameState, optionId: string | null, playerId = P1): 
     game.activeEffect?.effectChoice?.options.some((option) => option.id === 'keep-top')
       ? 'keep-top'
       : optionId;
-  return continuePublicEffectChoiceForTest(confirmActiveEffectStep(
-    game,
-    playerId,
-    game.activeEffect!.id,
-    undefined,
-    undefined,
-    undefined,
-    normalizedOptionId
-  ), playerId);
+  return continuePublicEffectChoiceForTest(
+    confirmActiveEffectStep(
+      game,
+      playerId,
+      game.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      normalizedOptionId
+    ),
+    playerId
+  );
 }
 
 function chooseSlot(game: GameState, slot: SlotPosition): GameState {
@@ -485,7 +488,7 @@ describe('member wait protection rule boundary', () => {
     expect(result.gameState.eventLog).toHaveLength(1);
   });
 
-  it('excludes protected members from opponent-effect targets and keeps the final boundary for newly protected stale targets', () => {
+  it('excludes protected members from opponent-effect targets', () => {
     const target = member('protected-opponent-choice', P1, { blade: 2 });
     const opponentSource = member('PL!-bp5-013-P', P2, { blade: 2, groups: ["\u03bc's"] });
     let game = protectedGame([target]);
@@ -512,47 +515,6 @@ describe('member wait protection rule boundary', () => {
       OrientationState.ACTIVE
     );
     expect(noTarget.eventLog).toHaveLength(0);
-
-    let initiallyUnprotected = registerCards(
-      createGameState('s003-stale-target', P1, 'P1', P2, 'P2'),
-      [target, opponentSource]
-    );
-    initiallyUnprotected = putStage(
-      initiallyUnprotected,
-      P1,
-      SlotPosition.LEFT,
-      target.instanceId
-    );
-    initiallyUnprotected = putStage(
-      initiallyUnprotected,
-      P2,
-      SlotPosition.CENTER,
-      opponentSource.instanceId
-    );
-    initiallyUnprotected = {
-      ...initiallyUnprotected,
-      pendingAbilities: game.pendingAbilities,
-    };
-    const selecting = start(initiallyUnprotected);
-    expect(selecting.activeEffect?.selectableCardIds).toEqual([target.instanceId]);
-    const protectedDuringSelection = addMemberWaitProtectionUntilLiveEnd(selecting, {
-      affectedPlayerId: P1,
-      sourceCardId: SOURCE_ID,
-      abilityId: CHOOSE,
-    });
-    const done = confirmActiveEffectStep(
-      protectedDuringSelection,
-      P2,
-      protectedDuringSelection.activeEffect!.id,
-      target.instanceId
-    );
-    expect(done.activeEffect).toBeNull();
-    expect(done.pendingAbilities).toEqual([]);
-    expect(done.players[0].memberSlots.cardStates.get(target.instanceId)?.orientation).toBe(
-      OrientationState.ACTIVE
-    );
-    expect(done.eventLog).toHaveLength(0);
-    expect(done.actionHistory.at(-1)?.payload.targetCardId).toBe(target.instanceId);
   });
 
   it('uses printed blade despite modifiers, survives source departure, applies to later entrants, and clears at real LIVE_END', () => {

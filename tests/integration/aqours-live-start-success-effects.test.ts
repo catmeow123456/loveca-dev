@@ -22,6 +22,7 @@ import {
   enqueueTriggeredCardEffects,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
+import { GameService } from '../../src/application/game-service';
 import {
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
   S_BP2_022_LIVE_SUCCESS_DECK_REFRESHED_THIS_TURN_THIS_LIVE_SCORE_ABILITY_ID,
@@ -185,10 +186,18 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       createCardInstance(createMemberCard('PL!S-stage-center'), PLAYER1, 'stage-center'),
       createCardInstance(createMemberCard('PL!S-stage-right'), PLAYER1, 'stage-right'),
     ];
+    const cheerCards = Array.from({ length: 7 }, (_, index) =>
+      createCardInstance(
+        createMemberCard(`PL!S-cheer-${index}`),
+        PLAYER1,
+        `bp2-023-cheer-${index}`
+      )
+    );
     let game = registerCards(createGameState('bp2-023', PLAYER1, 'P1', PLAYER2, 'P2'), [
       sourceLive,
       otherAqoursLive,
       ...members,
+      ...cheerCards,
     ]);
     game = placeLiveZone(game, [sourceLive.instanceId, otherAqoursLive.instanceId]);
     game = placeStageMembers(game, [
@@ -212,13 +221,25 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
     for (const member of members) {
       expect(resolved.liveResolution.liveModifiers).toContainEqual({
         kind: 'BLADE',
-        target: 'SOURCE_MEMBER',
+        target: 'TARGET_MEMBER',
         playerId: PLAYER1,
         countDelta: 1,
-        sourceCardId: member.instanceId,
+        sourceCardId: sourceLive.instanceId,
+        targetMemberCardId: member.instanceId,
         abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
       });
     }
+
+    const withCheerDeck = updatePlayer(resolved, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+    }));
+    const afterCheer = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(withCheerDeck, PLAYER1);
+    expect(afterCheer.liveResolution.firstPlayerCheerCardIds).toHaveLength(6);
   });
 
   it('PL!S-bp2-023 does not give BLADE when the localized source LIVE is the only LIVE card', () => {
@@ -370,16 +391,27 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
       for (const aqoursMember of aqoursMembers) {
         expect(bladeModifiers).toContainEqual({
           kind: 'BLADE',
-          target: 'SOURCE_MEMBER',
+          target: 'TARGET_MEMBER',
           playerId: PLAYER1,
           countDelta: 1,
-          sourceCardId: aqoursMember.instanceId,
+          sourceCardId: sourceLive.instanceId,
+          targetMemberCardId: aqoursMember.instanceId,
           abilityId: S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
         });
       }
-      expect(bladeModifiers.some((modifier) => modifier.sourceCardId === nonAqoursMember.instanceId)).toBe(false);
       expect(
-        bladeModifiers.some((modifier) => modifier.sourceCardId === opponentAqoursMember.instanceId)
+        bladeModifiers.some(
+          (modifier) =>
+            modifier.target === 'TARGET_MEMBER' &&
+            modifier.targetMemberCardId === nonAqoursMember.instanceId
+        )
+      ).toBe(false);
+      expect(
+        bladeModifiers.some(
+          (modifier) =>
+            modifier.target === 'TARGET_MEMBER' &&
+            modifier.targetMemberCardId === opponentAqoursMember.instanceId
+        )
       ).toBe(false);
     }
   );
@@ -483,14 +515,24 @@ describe('未来水卡组 执行批次3 focused workflows', () => {
     );
 
     expect(resolved.activeEffect).toBeNull();
-    expect(
-      resolved.liveResolution.liveModifiers.filter(
-        (modifier) =>
-          modifier.kind === 'BLADE' &&
-          modifier.abilityId === S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID &&
-          modifier.sourceCardId === aqoursMember.instanceId
+    const stackedModifiers = resolved.liveResolution.liveModifiers.filter(
+      (modifier) =>
+        modifier.kind === 'BLADE' &&
+        modifier.target === 'TARGET_MEMBER' &&
+        modifier.targetMemberCardId === aqoursMember.instanceId &&
+        modifier.abilityId === S_SD1_022_LIVE_START_AQOURS_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID
+    );
+    expect(stackedModifiers).toHaveLength(2);
+    expect(stackedModifiers).toEqual(
+      expect.arrayContaining(
+        sourceLives.map((sourceLive) =>
+          expect.objectContaining({
+            sourceCardId: sourceLive.instanceId,
+            targetMemberCardId: aqoursMember.instanceId,
+          })
+        )
       )
-    ).toHaveLength(2);
+    );
   });
 
   it('PL!S-bp6-009 continuous BLADE equals the opponent success Live count lead', () => {

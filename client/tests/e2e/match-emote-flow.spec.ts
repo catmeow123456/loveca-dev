@@ -319,11 +319,11 @@ async function seedPlayerDecks(): Promise<Record<'test_player_1' | 'test_player_
       const inserted = await client.query<{ readonly id: string }>(
         `INSERT INTO decks (
            user_id, name, description, main_deck, energy_deck,
-           is_valid, validation_errors, is_public
+           is_valid, validation_errors, validated_point_table_version, is_public
          )
          SELECT
            player.id, $2, source.description, source.main_deck, source.energy_deck,
-           source.is_valid, source.validation_errors, false
+           source.is_valid, source.validation_errors, source.validated_point_table_version, false
          FROM profiles AS player
          CROSS JOIN LATERAL (
            SELECT *

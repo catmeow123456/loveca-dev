@@ -8,11 +8,18 @@ import {
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
-import { groupAliasIs, typeIs, type CardSelector } from '../../../effects/card-selectors.js';
+import {
+  and,
+  costGte,
+  groupAliasIs,
+  typeIs,
+  type CardSelector,
+} from '../../../effects/card-selectors.js';
 import { allCardIdsMatchingSelector } from '../../../effects/conditions.js';
 import {
   S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID,
   S_BP7_015_LIVE_START_MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART_ABILITY_ID,
+  S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import type { EnqueueTriggeredCardEffectsForEnterWaitingRoom } from '../../runtime/enter-waiting-room-triggers.js';
 import { moveBottomDeckCardsToWaitingRoomWithRefreshAndEnqueueTriggers } from '../../runtime/main-deck-waiting-room-triggers.js';
@@ -25,26 +32,29 @@ import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-interface MillBottomGainHeartConfig {
+interface MillBottomGainSourceMemberHeartsConfig {
   readonly abilityId: string;
   readonly baseCardCode: string;
   readonly count: number;
-  readonly condition: 'GROUP_MEMBER_AQOURS' | 'CARD_TYPE_LIVE';
-  readonly heartColor: HeartColor;
+  readonly condition: 'GROUP_MEMBER_AQOURS' | 'CARD_TYPE_LIVE' | 'MEMBER_COST_GTE_10';
+  readonly hearts: readonly {
+    readonly color: HeartColor;
+    readonly count: number;
+  }[];
   readonly revealStepId: string;
   readonly conditionLabel: string;
   readonly rewardLabel: string;
   readonly actionStep: string;
 }
 
-const CONFIGS: readonly MillBottomGainHeartConfig[] = [
+const CONFIGS: readonly MillBottomGainSourceMemberHeartsConfig[] = [
   {
     abilityId:
       S_BP7_006_LIVE_START_MILL_BOTTOM_THREE_ALL_AQOURS_MEMBERS_GAIN_GREEN_HEART_ABILITY_ID,
     baseCardCode: 'PL!S-bp7-006',
     count: 3,
     condition: 'GROUP_MEMBER_AQOURS',
-    heartColor: HeartColor.GREEN,
+    hearts: [{ color: HeartColor.GREEN, count: 1 }],
     revealStepId: 'S_BP7_006_REVEAL_MILLED_BOTTOM_THREE',
     conditionLabel: '『Aqours』成员卡',
     rewardLabel: '[緑ハート]',
@@ -55,20 +65,34 @@ const CONFIGS: readonly MillBottomGainHeartConfig[] = [
     baseCardCode: 'PL!S-bp7-015',
     count: 1,
     condition: 'CARD_TYPE_LIVE',
-    heartColor: HeartColor.RED,
+    hearts: [{ color: HeartColor.RED, count: 1 }],
     revealStepId: 'S_BP7_015_REVEAL_MILLED_BOTTOM_ONE',
     conditionLabel: 'LIVE卡',
     rewardLabel: '[赤ハート]',
     actionStep: 'MILL_BOTTOM_ONE_LIVE_GAIN_RED_HEART',
   },
+  {
+    abilityId: S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
+    baseCardCode: 'PL!S-bp7-017',
+    count: 1,
+    condition: 'MEMBER_COST_GTE_10',
+    hearts: [
+      { color: HeartColor.RED, count: 1 },
+      { color: HeartColor.BLUE, count: 1 },
+    ],
+    revealStepId: 'S_BP7_017_REVEAL_MILLED_BOTTOM_ONE',
+    conditionLabel: '费用大于等于10的成员卡',
+    rewardLabel: '[赤ハート][青ハート]',
+    actionStep: 'MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART',
+  },
 ];
 
-export function registerLiveStartMillBottomAllMatchGainHeartWorkflowHandlers(deps: {
+export function registerMillBottomAllMatchGainSourceMemberHeartsWorkflowHandlers(deps: {
   readonly enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom;
 }): void {
   for (const config of CONFIGS) {
     registerPendingAbilityStarterHandler(config.abilityId, (game, ability, options, context) =>
-      startMillBottomGainHeartReveal(
+      startMillBottomGainSourceMemberHeartsReveal(
         game,
         ability,
         config,
@@ -81,15 +105,15 @@ export function registerLiveStartMillBottomAllMatchGainHeartWorkflowHandlers(dep
       config.abilityId,
       config.revealStepId,
       (game, _input, context) =>
-        finishMillBottomGainHeart(game, config, context.continuePendingCardEffects)
+        finishMillBottomGainSourceMemberHearts(game, config, context.continuePendingCardEffects)
     );
   }
 }
 
-function startMillBottomGainHeartReveal(
+function startMillBottomGainSourceMemberHeartsReveal(
   game: GameState,
   ability: PendingAbilityState,
-  config: MillBottomGainHeartConfig,
+  config: MillBottomGainSourceMemberHeartsConfig,
   orderedResolution: boolean,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForEnterWaitingRoom,
   continuePendingCardEffects: ContinuePendingCardEffects
@@ -152,8 +176,8 @@ function startMillBottomGainHeartReveal(
     allCardIdsMatchingSelector(moveResult.gameState, movedCardIds, selector);
   const refreshText = moveResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
   const rewardText = conditionMet
-    ? `这些卡均为${config.conditionLabel}。确认后获得${config.rewardLabel}。`
-    : `这些卡不满足均为${config.conditionLabel}。确认后不获得${config.rewardLabel}。`;
+    ? `这些卡均为${config.conditionLabel}。展示结束后获得${config.rewardLabel}。`
+    : `这些卡不满足均为${config.conditionLabel}。展示结束后不获得${config.rewardLabel}。`;
 
   return startPendingActiveEffect(moveResult.gameState, {
     ability,
@@ -186,9 +210,9 @@ function startMillBottomGainHeartReveal(
   });
 }
 
-function finishMillBottomGainHeart(
+function finishMillBottomGainSourceMemberHearts(
   game: GameState,
-  config: MillBottomGainHeartConfig,
+  config: MillBottomGainSourceMemberHeartsConfig,
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const effect = game.activeEffect;
@@ -211,7 +235,7 @@ function finishMillBottomGainHeart(
       memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
-      hearts: [{ color: config.heartColor, count: 1 }],
+      hearts: config.hearts,
     });
     if (modifierResult) {
       state = modifierResult.gameState;
@@ -229,15 +253,18 @@ function finishMillBottomGainHeart(
       refreshCount:
         typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
       conditionMet,
-      heartBonus: modifierApplied ? [{ color: config.heartColor, count: 1 }] : [],
+      heartBonus: modifierApplied ? config.hearts : [],
     }),
     effect.metadata?.orderedResolution === true
   );
 }
 
-function getConditionSelector(config: MillBottomGainHeartConfig): CardSelector {
+function getConditionSelector(config: MillBottomGainSourceMemberHeartsConfig): CardSelector {
   if (config.condition === 'CARD_TYPE_LIVE') {
     return typeIs(CardType.LIVE);
+  }
+  if (config.condition === 'MEMBER_COST_GTE_10') {
+    return and(typeIs(CardType.MEMBER), costGte(10));
   }
   const member = typeIs(CardType.MEMBER);
   const aqours = groupAliasIs('Aqours');

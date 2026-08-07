@@ -29,6 +29,24 @@ import {
   stableJsonStringify,
   toReplayJsonValue,
 } from '../../src/server/services/replay-payload-serialization';
+import {
+  GAME_STATE_SCHEMA_VERSION,
+  LEGACY_GAME_STATE_SCHEMA_VERSION,
+} from '../../src/server/services/replay-constants';
+import {
+  HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+  N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+  N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID,
+  PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+  PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+  PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
+  S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+  S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+  SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
+  SP_BP7_028_LIVE_START_BOTTOM_NINE_LIELLA_MEMBERS_ALL_STAGE_GAIN_BLADE_ABILITY_ID,
+  SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
+import { getLegacyPersistedBladeScopeEntries } from '../../src/application/card-effects/legacy-persisted-blade-scopes';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -79,6 +97,271 @@ function createTestDeck(prefix: string): DeckConfig {
 }
 
 describe('replay payload serialization', () => {
+  it('冻结全量已审计持久化 BLADE abilityId 作用域清单', () => {
+    const entries = getLegacyPersistedBladeScopeEntries();
+    const scopes = entries.map(([, scope]) => scope);
+    expect(scopes).toHaveLength(106);
+    expect(scopes.filter((scope) => scope === 'SOURCE_MEMBER')).toHaveLength(67);
+    expect(scopes.filter((scope) => scope === 'TARGET_MEMBER')).toHaveLength(38);
+    expect(scopes.filter((scope) => scope === 'PLAYER')).toHaveLength(0);
+    expect(scopes.filter((scope) => scope === 'AMBIGUOUS')).toHaveLength(1);
+    expect(
+      entries.filter(([, , targetStorage]) => targetStorage === 'SOURCE_CARD_ID')
+    ).toHaveLength(30);
+    expect(
+      entries.filter(([, , targetStorage]) => targetStorage === 'TARGET_MEMBER_CARD_ID')
+    ).toHaveLength(8);
+    expect(
+      new Set(
+        entries
+          .filter(([, , targetStorage]) => targetStorage === 'TARGET_MEMBER_CARD_ID')
+          .map(([abilityId]) => abilityId)
+      )
+    ).toEqual(
+      new Set([
+        N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+        N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID,
+        PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+        PL_BP4_024_LIVE_START_TARGET_MUSE_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
+        PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
+        S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
+        SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
+        SP_BP7_028_LIVE_START_BOTTOM_NINE_LIELLA_MEMBERS_ALL_STAGE_GAIN_BLADE_ABILITY_ID,
+      ])
+    );
+  });
+
+  it('GAME_STATE_V1 只按已审计 abilityId 迁移无 target BLADE', () => {
+    const session = createGameSession();
+    session.createGame('legacy-blade-targets', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const legacySnapshot = {
+      ...snapshot,
+      liveResolution: {
+        ...snapshot.liveResolution,
+        liveModifiers: [
+          {
+            kind: 'BLADE',
+            playerId: PLAYER1,
+            countDelta: 2,
+            sourceCardId: 'source-member',
+            abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+          },
+          {
+            kind: 'BLADE',
+            playerId: PLAYER1,
+            countDelta: 1,
+            sourceCardId: 'legacy-beneficiary',
+            abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+          },
+          {
+            kind: 'BLADE',
+            playerId: PLAYER1,
+            countDelta: 1,
+            sourceCardId: 'live-source',
+            targetMemberCardId: 'structural-target',
+            abilityId: 'legacy-explicit-recipient',
+          },
+        ],
+      },
+    };
+
+    const rehydrated = rehydrateAuthorityGameState(
+      serializeReplayPayload(
+        legacySnapshot,
+        'AUTHORITY_GAME_STATE',
+        LEGACY_GAME_STATE_SCHEMA_VERSION
+      )
+    );
+
+    expect(rehydrated.liveResolution.liveModifiers).toEqual([
+      {
+        kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
+        playerId: PLAYER1,
+        countDelta: 2,
+        sourceCardId: 'source-member',
+        abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+      },
+      {
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: PLAYER1,
+        countDelta: 1,
+        targetMemberCardId: 'legacy-beneficiary',
+        abilityId: S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+      },
+      {
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: PLAYER1,
+        countDelta: 1,
+        sourceCardId: 'live-source',
+        targetMemberCardId: 'structural-target',
+        abilityId: 'legacy-explicit-recipient',
+      },
+    ]);
+  });
+
+  it('GAME_STATE_V1 拒绝未审计、历史结构字段缺失或混合作用域的无 target BLADE', () => {
+    const session = createGameSession();
+    session.createGame('unsafe-legacy-blade', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const withLegacyBlade = (abilityId: string) => ({
+      ...snapshot,
+      liveResolution: {
+        ...snapshot.liveResolution,
+        liveModifiers: [
+          {
+            kind: 'BLADE',
+            playerId: PLAYER1,
+            countDelta: 1,
+            sourceCardId: 'ambiguous-member',
+            abilityId,
+          },
+        ],
+      },
+    });
+
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withLegacyBlade('unknown:legacy-blade'),
+          'AUTHORITY_GAME_STATE',
+          LEGACY_GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('旧 BLADE abilityId 未经作用域审计');
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withLegacyBlade(N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID),
+          'AUTHORITY_GAME_STATE',
+          LEGACY_GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('缺少历史必填的 targetMemberCardId');
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withLegacyBlade(
+            SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID
+          ),
+          'AUTHORITY_GAME_STATE',
+          LEGACY_GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('曾同时写入多种作用域');
+  });
+
+  it('GAME_STATE_V2 只接受完整且互斥的 BLADE 作用域', () => {
+    const session = createGameSession();
+    session.createGame('strict-v2-blade', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const withModifiers = (liveModifiers: readonly unknown[]) => ({
+      ...snapshot,
+      liveResolution: { ...snapshot.liveResolution, liveModifiers },
+    });
+    const explicitModifiers = [
+      {
+        kind: 'BLADE',
+        target: 'SOURCE_MEMBER',
+        playerId: PLAYER1,
+        countDelta: 1,
+        sourceCardId: 'source-member',
+      },
+      {
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: PLAYER1,
+        countDelta: 2,
+        sourceCardId: 'live-source',
+        targetMemberCardId: 'target-member',
+      },
+      { kind: 'BLADE', target: 'PLAYER', playerId: PLAYER1, countDelta: 3 },
+    ];
+
+    expect(
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withModifiers(explicitModifiers),
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      ).liveResolution.liveModifiers
+    ).toEqual(explicitModifiers);
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withModifiers([
+            {
+              kind: 'BLADE',
+              playerId: PLAYER1,
+              countDelta: 1,
+              sourceCardId: 'source-member',
+              abilityId: HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+            },
+          ]),
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('GAME_STATE_V2 BLADE 缺少显式 target');
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withModifiers([
+            {
+              kind: 'BLADE',
+              target: 'TARGET_MEMBER',
+              playerId: PLAYER1,
+              countDelta: 1,
+              sourceCardId: 'source-only',
+            },
+          ]),
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('TARGET_MEMBER BLADE 缺少 targetMemberCardId');
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withModifiers([
+            {
+              kind: 'BLADE',
+              target: 'SOURCE_MEMBER',
+              playerId: PLAYER1,
+              countDelta: 1,
+            },
+          ]),
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('SOURCE_MEMBER BLADE 绑定字段无效');
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          withModifiers([
+            {
+              kind: 'BLADE',
+              target: 'PLAYER',
+              playerId: PLAYER1,
+              countDelta: 1,
+              targetMemberCardId: 'unexpected-target',
+            },
+          ]),
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('PLAYER BLADE 不应绑定 targetMemberCardId');
+  });
+
   it('仅在 AUTHORITY_GAME_STATE 复水边界将旧缺失模式字段规范化为自由模式', () => {
     const session = createGameSession();
     session.createGame('legacy-manual-operation-mode', PLAYER1, '玩家1', PLAYER2, '玩家2');
@@ -98,6 +381,25 @@ describe('replay payload serialization', () => {
       currentPublicSeq: 0,
     });
     expect(restoredSession.manualOperationMode).toBe('FREE');
+  });
+
+  it('GAME_STATE_V2 拒绝缺失的 manualOperationMode', () => {
+    const session = createGameSession();
+    session.createGame('strict-v2-manual-operation-mode', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const incompleteSnapshot = { ...snapshot } as Partial<typeof snapshot>;
+    delete incompleteSnapshot.manualOperationMode;
+
+    expect(() =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          incompleteSnapshot,
+          'AUTHORITY_GAME_STATE',
+          GAME_STATE_SCHEMA_VERSION
+        )
+      )
+    ).toThrow('AUTHORITY_GAME_STATE 缺少有效的 manualOperationMode');
   });
 
   it('拒绝持久化 AUTHORITY_GAME_STATE 中的非法操作模式', () => {
@@ -354,6 +656,13 @@ describe('replay payload serialization', () => {
       gameId: 'replay-legacy-mode',
       manualOperationMode: 'FREE',
     });
+
+    expect(() =>
+      rehydrateLegacyAuthorityGameStateForMigration({
+        ...legacyEnvelope,
+        sourceSchemaVersion: GAME_STATE_SCHEMA_VERSION,
+      })
+    ).toThrow('旧 AUTHORITY_GAME_STATE 迁移只支持 GAME_STATE_V1');
   });
 });
 

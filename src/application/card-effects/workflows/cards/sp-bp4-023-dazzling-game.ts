@@ -16,7 +16,7 @@ import {
   SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
   SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import {
@@ -291,16 +291,18 @@ function finishSelectOtherLiellaMember(
     );
   }
 
-  const namedBladeResult = addBladeLiveModifierForSourceMember(game, {
+  const namedBladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
-    sourceCardId: namedMemberCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: namedMemberCardId,
     abilityId: effect.abilityId,
     amount: 1,
   });
   const otherBladeResult = namedBladeResult
-    ? addBladeLiveModifierForSourceMember(namedBladeResult.gameState, {
+    ? addBladeLiveModifierForTargetMember(namedBladeResult.gameState, {
         playerId: player.id,
-        sourceCardId: selectedCardId,
+        sourceCardId: effect.sourceCardId,
+        targetMemberCardId: selectedCardId,
         abilityId: effect.abilityId,
         amount: 1,
       })

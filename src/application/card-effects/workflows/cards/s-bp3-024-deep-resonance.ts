@@ -15,7 +15,7 @@ import { setMemberOrientation } from '../../../effects/member-state.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
 import { CardType } from '../../../../shared/types/enums.js';
 import { S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID } from '../../ability-ids.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   enqueueMemberStateChangedTriggersFromOrientationResult,
@@ -211,9 +211,10 @@ function finishBlade(
   if (effect.selectableCardIds?.includes(selectedCardId) !== true) return game;
   if (!context.ownBladeTargetIds.includes(selectedCardId))
     return finishActive(game, effect, 'BLADE_TARGET_STALE', continuePendingCardEffects, context);
-  const result = addBladeLiveModifierForSourceMember(game, {
+  const result = addBladeLiveModifierForTargetMember(game, {
     playerId: effect.controllerId,
-    sourceCardId: selectedCardId,
+    sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
     amount: 2,
   });

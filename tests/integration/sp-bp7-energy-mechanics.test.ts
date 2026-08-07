@@ -26,12 +26,13 @@ import {
   SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
   SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
   SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
-  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
   SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
   moveEnergyZoneCardsToEnergyDeckByCardEffect,
   placeEnergyFromDeckToZoneByCardEffect,
+  setEnergyOrientation,
 } from '../../src/application/effects/energy';
 import { playMembersFromWaitingRoomToEmptySlots } from '../../src/application/effects/member-state';
 import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
@@ -49,6 +50,7 @@ import {
   ruleActionProcessor,
   type RuleActionResult,
 } from '../../src/domain/rules/rule-actions';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 
 const P1 = 'p1',
   P2 = 'p2';
@@ -904,7 +906,7 @@ describe('bp7 energy mechanics linkage', () => {
     expect(game.players[0].energyZone.cardIds).toEqual([e1.instanceId]);
   });
 
-  it('scores for this-turn energy-zone return only and ignores an older-turn event', () => {
+  it('adds the score draft exactly once, stacks with an existing SCORE modifier, and ignores an older-turn event', () => {
     const kinako = makeMember('PL!SP-bp7-006-SEC', 'score-kinako');
     const e1 = energy('score-energy');
     let game = registerCards(createGameState('score', P1, 'P1', P2, 'P2'), [kinako, e1]);
@@ -925,6 +927,21 @@ describe('bp7 energy mechanics linkage', () => {
       sourceCardId: 'source',
       abilityId: 'return',
     })!.gameState;
+    const existingScoreModifier = {
+      kind: 'SCORE',
+      playerId: P1,
+      countDelta: 1,
+      sourceCardId: 'existing-score-source',
+      abilityId: 'existing-score-ability',
+    } as const;
+    game = addLiveModifier(game, existingScoreModifier);
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        playerScores: new Map([[P1, 9]]),
+      },
+    };
     game = start(
       game,
       pending(
@@ -936,9 +953,23 @@ describe('bp7 energy mechanics linkage', () => {
     );
     expect(game.activeEffect?.effectText).toContain('本回合发生过自己的能量从能量区返回能量卡组');
     expect(game.activeEffect?.effectText).toContain('条件满足，实际[スコア]+1');
-    expect(game.liveResolution.liveModifiers.some((x) => x.kind === 'SCORE')).toBe(false);
+    expect(game.liveResolution.playerScores.get(P1)).toBe(9);
+    expect(game.liveResolution.liveModifiers.filter((x) => x.kind === 'SCORE')).toEqual([
+      existingScoreModifier,
+    ]);
     game = command(game);
-    expect(game.liveResolution.liveModifiers.some((x) => x.kind === 'SCORE')).toBe(true);
+    expect(game.liveResolution.playerScores.get(P1)).toBe(10);
+    expect(game.liveResolution.playerScoreBonuses.get(P1)).toBe(2);
+    expect(game.liveResolution.liveModifiers.filter((x) => x.kind === 'SCORE')).toEqual([
+      existingScoreModifier,
+      {
+        kind: 'SCORE',
+        playerId: P1,
+        countDelta: 1,
+        sourceCardId: kinako.instanceId,
+        abilityId: SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
+      },
+    ]);
     const nextTurn = { ...game, turnCount: game.turnCount + 1, activeEffect: null };
     let resolved = start(
       nextTurn,
@@ -951,6 +982,8 @@ describe('bp7 energy mechanics linkage', () => {
     );
     expect(resolved.activeEffect?.effectText).toContain('条件未满足，实际不增加分数');
     resolved = command(resolved);
+    expect(resolved.liveResolution.playerScores.get(P1)).toBe(10);
+    expect(resolved.liveResolution.liveModifiers.filter((x) => x.kind === 'SCORE')).toHaveLength(2);
     const payload = resolved.actionHistory
       .filter((x) => x.payload.pendingAbilityId === 'score-old')
       .at(-1)?.payload;
@@ -983,6 +1016,13 @@ describe('bp7 energy mechanics linkage', () => {
       sourceCardId: 'return',
       abilityId: 'return',
     })!.gameState;
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        playerScores: new Map([[P1, 4]]),
+      },
+    };
     game = resolvePendingCardEffects({
       ...game,
       pendingAbilities: [
@@ -1005,10 +1045,12 @@ describe('bp7 energy mechanics linkage', () => {
     expect(game.liveResolution.liveModifiers.some((modifier) => modifier.kind === 'SCORE')).toBe(
       false
     );
+    expect(game.liveResolution.playerScores.get(P1)).toBe(4);
     game = command(game);
     expect(game.liveResolution.liveModifiers.some((modifier) => modifier.kind === 'SCORE')).toBe(
       true
     );
+    expect(game.liveResolution.playerScores.get(P1)).toBe(5);
   });
   it('resolves Kinako score automatically in ordered resolution', () => {
     const kinako = makeMember('PL!SP-bp7-006-SEC', 'ordered-score-kinako');
@@ -1037,6 +1079,13 @@ describe('bp7 energy mechanics linkage', () => {
       sourceCardId: 'return',
       abilityId: 'return',
     })!.gameState;
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        playerScores: new Map([[P1, 6]]),
+      },
+    };
     game = resolvePendingCardEffects({
       ...game,
       pendingAbilities: [
@@ -1059,12 +1108,13 @@ describe('bp7 energy mechanics linkage', () => {
     expect(game.liveResolution.liveModifiers.some((modifier) => modifier.kind === 'SCORE')).toBe(
       true
     );
+    expect(game.liveResolution.playerScores.get(P1)).toBe(7);
   });
-  it('places two marked energy in one event and activates up to five waiting energy even when marked', () => {
+  it('places two marked energy in one event and precisely selects six from marked overflow', () => {
     const mei = makeMember('PL!SP-bp7-007-SEC', 'mei');
     const kinako = makeMember('PL!SP-bp7-006-SEC', 'mei-chain-kinako');
     const recoveryTarget = makeMember('PL!SP-bp7-005-SEC', 'mei-chain-target');
-    const cards = Array.from({ length: 7 }, (_, i) => energy(`m-e${i}`));
+    const cards = Array.from({ length: 9 }, (_, i) => energy(`m-e${i}`));
     let game = registerCards(createGameState('m', P1, 'P1', P2, 'P2'), [
       mei,
       kinako,
@@ -1105,7 +1155,7 @@ describe('bp7 energy mechanics linkage', () => {
     ).toHaveLength(1);
     game = updatePlayer(game, P1, (p) => ({
       ...p,
-      energyZone: cards.slice(2, 6).reduce(
+      energyZone: cards.slice(2).reduce(
         (z, c) =>
           addCardToStatefulZone(z, c.instanceId, {
             orientation: OrientationState.WAITING,
@@ -1117,7 +1167,7 @@ describe('bp7 energy mechanics linkage', () => {
     game = start(
       game,
       pending(
-        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
         mei.instanceId,
         TriggerCondition.ON_LIVE_SUCCESS,
         'activate'
@@ -1126,14 +1176,19 @@ describe('bp7 energy mechanics linkage', () => {
     expect(game.activeEffect?.selectionLabel).toBe('选择要变为活跃的能量');
     expect(game.activeEffect?.confirmSelectionLabel).toBe('变为活跃');
     expect(game.activeEffect?.canSkipSelection).toBe(false);
-    const selected = game.activeEffect!.selectableCardIds!.slice(0, 5);
+    expect(game.activeEffect).toMatchObject({
+      stepText: '请选择6张待机能量变为活跃状态。',
+      minSelectableCards: 6,
+      maxSelectableCards: 6,
+    });
+    const selected = game.activeEffect!.selectableCardIds!.slice(2, 8);
     game = command(game, undefined, undefined, selected);
     expect(
       game.players[0].energyZone.cardIds.filter(
         (id) =>
           game.players[0].energyZone.cardStates.get(id)?.orientation === OrientationState.ACTIVE
       )
-    ).toHaveLength(5);
+    ).toHaveLength(6);
     expect(
       selected.every(
         (id) =>
@@ -1163,9 +1218,9 @@ describe('bp7 energy mechanics linkage', () => {
       ...activeCandidates,
     ]);
     expect(game.activeEffect?.selectionLabel).toBe('选择要放回能量卡组的能量');
-    expect(
-      game.players[0].energyZone.cardStates.get(game.players[0].energyZone.cardIds[5]!)?.orientation
-    ).toBe(OrientationState.WAITING);
+    expect(game.players[0].energyZone.cardStates.get(cards[0]!.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
     expect(game.energyActivePhaseSkips).toHaveLength(2);
   });
   it('marks only the energy actually placed when Mei energy deck has fewer than two cards', () => {
@@ -1284,7 +1339,7 @@ describe('bp7 energy mechanics linkage', () => {
     let game = start(
       scenario.game,
       pending(
-        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
         scenario.mei.instanceId,
         TriggerCondition.ON_LIVE_SUCCESS,
         'condition-false'
@@ -1300,38 +1355,17 @@ describe('bp7 energy mechanics linkage', () => {
       )
     ).toHaveLength(0);
   });
-  it('automatically activates all fewer-than-five waiting energy after confirmation', () => {
-    const scenario = setupMeiActivationScenario({ waitingCount: 4 });
+  it('automatically activates all fewer-than-six waiting energy after confirmation', () => {
+    const scenario = setupMeiActivationScenario({ waitingCount: 5 });
     let game = start(
       scenario.game,
       pending(
-        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
         scenario.mei.instanceId,
         TriggerCondition.ON_LIVE_SUCCESS,
-        'activate-four'
+        'activate-five'
       )
     );
-    expect(game.activeEffect?.effectText).toContain('条件满足，实际将4张能量变为活跃状态');
-    game = command(game);
-    expect(
-      game.players[0].energyZone.cardIds.filter(
-        (id) =>
-          game.players[0].energyZone.cardStates.get(id)?.orientation === OrientationState.ACTIVE
-      )
-    ).toHaveLength(4);
-  });
-  it('automatically activates five when more-than-five candidates are equivalent', () => {
-    const scenario = setupMeiActivationScenario({ waitingCount: 6 });
-    let game = start(
-      scenario.game,
-      pending(
-        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
-        scenario.mei.instanceId,
-        TriggerCondition.ON_LIVE_SUCCESS,
-        'activate-five-equivalent'
-      )
-    );
-    expect(game.activeEffect?.selectableCardIds).toBeUndefined();
     expect(game.activeEffect?.effectText).toContain('条件满足，实际将5张能量变为活跃状态');
     game = command(game);
     expect(
@@ -1340,6 +1374,89 @@ describe('bp7 energy mechanics linkage', () => {
           game.players[0].energyZone.cardStates.get(id)?.orientation === OrientationState.ACTIVE
       )
     ).toHaveLength(5);
+  });
+  it('automatically activates exactly six waiting energy after confirmation', () => {
+    const scenario = setupMeiActivationScenario({ waitingCount: 6 });
+    let game = start(
+      scenario.game,
+      pending(
+        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
+        scenario.mei.instanceId,
+        TriggerCondition.ON_LIVE_SUCCESS,
+        'activate-exactly-six'
+      )
+    );
+    expect(game.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(game.activeEffect?.effectText).toContain('条件满足，实际将6张能量变为活跃状态');
+    game = command(game);
+    expect(
+      game.players[0].energyZone.cardIds.filter(
+        (id) =>
+          game.players[0].energyZone.cardStates.get(id)?.orientation === OrientationState.ACTIVE
+      )
+    ).toHaveLength(6);
+  });
+  it('automatically activates six from excess equivalent unmarked energy', () => {
+    const scenario = setupMeiActivationScenario({ waitingCount: 8 });
+    let game = start(
+      scenario.game,
+      pending(
+        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
+        scenario.mei.instanceId,
+        TriggerCondition.ON_LIVE_SUCCESS,
+        'activate-six-equivalent'
+      )
+    );
+    expect(game.activeEffect?.selectableCardIds).toBeUndefined();
+    expect(game.activeEffect?.effectText).toContain('条件满足，实际将6张能量变为活跃状态');
+    game = command(game);
+    expect(
+      game.players[0].energyZone.cardIds.filter(
+        (id) =>
+          game.players[0].energyZone.cardStates.get(id)?.orientation === OrientationState.ACTIVE
+      )
+    ).toHaveLength(6);
+    expect(
+      game.players[0].energyZone.cardIds.filter(
+        (id) =>
+          game.players[0].energyZone.cardStates.get(id)?.orientation === OrientationState.WAITING
+      )
+    ).toHaveLength(2);
+  });
+  it('rejects wrong-count, duplicate, outsider, and stale six-energy selections', () => {
+    const scenario = setupMeiActivationScenario({ waitingCount: 8, markedIndices: [0] });
+    const game = start(
+      scenario.game,
+      pending(
+        SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
+        scenario.mei.instanceId,
+        TriggerCondition.ON_LIVE_SUCCESS,
+        'activate-six-validation'
+      )
+    );
+    const candidates = game.activeEffect!.selectableCardIds!;
+    expect(candidates).toHaveLength(8);
+    for (const selectedCardIds of [
+      candidates.slice(0, 5),
+      [...candidates.slice(0, 5), candidates[0]!],
+      [...candidates.slice(0, 5), 'missing-energy'],
+    ]) {
+      const result = tryCommand(game, undefined, selectedCardIds);
+      expect(result.success).toBe(false);
+      expect(result.gameState.activeEffect?.id).toBe(game.activeEffect?.id);
+      expect(result.gameState.actionHistory).toEqual(game.actionHistory);
+    }
+
+    const stale = setEnergyOrientation(
+      game,
+      P1,
+      [candidates[0]!],
+      OrientationState.ACTIVE
+    )!.gameState;
+    const staleResult = tryCommand(stale, undefined, candidates.slice(0, 6));
+    expect(staleResult.success).toBe(false);
+    expect(staleResult.gameState.activeEffect?.id).toBe(game.activeEffect?.id);
+    expect(staleResult.gameState.actionHistory).toEqual(stale.actionHistory);
   });
   it('keeps Mei live-start cost optional and emits one batch event for two energy', () => {
     const mei = makeMember('PL!SP-bp7-007-SEC', 'mei2');

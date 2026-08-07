@@ -10,7 +10,10 @@ import { SlotPosition } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
+import {
+  addBladeLiveModifierForSourceMember,
+  addBladeLiveModifierForTargetMember,
+} from '../../runtime/actions.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import {
   registerPendingAbilityStarterHandler,
@@ -311,9 +314,10 @@ function resolveBladeModifiers(
   }
 
   if (targetCardId) {
-    const targetBladeResult = addBladeLiveModifierForSourceMember(state, {
+    const targetBladeResult = addBladeLiveModifierForTargetMember(state, {
       playerId,
-      sourceCardId: targetCardId,
+      sourceCardId: ability.sourceCardId,
+      targetMemberCardId: targetCardId,
       abilityId: ability.abilityId,
       amount: 1,
     });

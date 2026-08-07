@@ -24,6 +24,7 @@ import {
   PL_N_PB1_021_ON_ENTER_LOOK_TOP_TWO_RINA_MEMBER_ABILITY_ID,
   PL_N_PB1_024_ON_ENTER_LOOK_TOP_TWO_LANZHU_MEMBER_ABILITY_ID,
   N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID,
+  N_SD2_009_ON_ENTER_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
   S_BP6_005_ON_ENTER_LOOK_TOP_THREE_COLOR_MEMBER_ABILITY_ID,
   S_SD1_003_ON_ENTER_LOOK_TOP_AQOURS_LIVE_ABILITY_ID,
   SP_BP4_002_ON_ENTER_WAIT_LOOK_TOP_HIGH_REQUIREMENT_LIELLA_LIVE_ABILITY_ID,
@@ -187,6 +188,8 @@ const N_PB1_024_SELECT_LANZHU_MEMBER_STEP_ID = 'N_PB1_024_SELECT_LANZHU_MEMBER_F
 const N_PB1_024_REVEAL_LANZHU_MEMBER_STEP_ID = 'N_PB1_024_REVEAL_SELECTED_LANZHU_MEMBER';
 const N_SD1_001_SELECT_NIJIGASAKI_LIVE_STEP_ID = 'N_SD1_001_SELECT_NIJIGASAKI_LIVE_FROM_TOP_FIVE';
 const N_SD1_001_REVEAL_NIJIGASAKI_LIVE_STEP_ID = 'N_SD1_001_REVEAL_SELECTED_NIJIGASAKI_LIVE';
+const N_SD2_009_SELECT_NIJIGASAKI_CARD_STEP_ID = 'N_SD2_009_SELECT_NIJIGASAKI_CARD_FROM_TOP_THREE';
+const N_SD2_009_REVEAL_NIJIGASAKI_CARD_STEP_ID = 'N_SD2_009_REVEAL_SELECTED_NIJIGASAKI_CARD';
 
 function createNamedMemberLookTopTwoConfig(params: {
   readonly abilityId: string;
@@ -221,6 +224,35 @@ function createNamedMemberLookTopTwoConfig(params: {
 }
 
 const LOOK_TOP_SELECT_TO_HAND_WORKFLOWS: readonly RegisteredLookTopSelectToHandWorkflowConfig[] = [
+  {
+    abilityId: N_SD2_009_ON_ENTER_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID,
+    topCount: 3,
+    selector: groupAliasIs('虹ヶ咲'),
+    countRule: { minCount: 0, maxCount: 1 },
+    revealSelectedBeforeHand: true,
+    selectStepId: N_SD2_009_SELECT_NIJIGASAKI_CARD_STEP_ID,
+    revealStepId: N_SD2_009_REVEAL_NIJIGASAKI_CARD_STEP_ID,
+    selectStepText: getAbilityEffectText(
+      N_SD2_009_ON_ENTER_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID
+    ),
+    noTargetStepText: getAbilityEffectText(
+      N_SD2_009_ON_ENTER_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID
+    ),
+    selectionLabel: '选择要公开并加入手牌的虹咲卡',
+    confirmSelectionLabel: '公开并加入手牌',
+    skipSelectionLabel: '全部放置入休息室',
+    revealStepText: getAbilityEffectText(
+      N_SD2_009_ON_ENTER_LOOK_TOP_THREE_NIJIGASAKI_CARD_ABILITY_ID
+    ),
+    revealActionStep: 'REVEAL_SELECTED_NIJIGASAKI_CARD',
+    includeInspectedCardIdsInFinishAction: true,
+    publicEffectSummaryContext: {
+      effectKind: 'DISCARD_LOOK_TOP_SELECT_TO_HAND',
+      sourceActionLabel: '登场',
+      inspectSourceZone: ZoneType.MAIN_DECK,
+      requestedInspectCount: 3,
+    },
+  },
   {
     abilityId: N_SD1_001_ON_ENTER_LOOK_TOP_NIJIGASAKI_LIVE_ABILITY_ID,
     topCount: 5,

@@ -21,6 +21,7 @@ import {
 import type { ReplaySerializedPayloadEnvelope } from '../../src/online/replay-types';
 import {
   GAME_STATE_SCHEMA_VERSION,
+  LEGACY_GAME_STATE_SCHEMA_VERSION,
   REPLAY_CARD_DATA_VERSION,
   REPLAY_RECORD_SCHEMA_VERSION,
   REPLAY_RULES_VERSION,
@@ -832,6 +833,7 @@ describe('MatchReplayReadService P1b', () => {
 
   it('权威状态 schema 不兼容时拒绝复水投影', async () => {
     const { service } = createHarness({
+      checkpointOverrides: { schema_version: 'GAME_STATE_V0' },
       mutatePayload: (payload) => ({
         ...payload,
         sourceSchemaVersion: 'GAME_STATE_V0',
@@ -840,6 +842,42 @@ describe('MatchReplayReadService P1b', () => {
 
     await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
       code: 'MATCH_RECORD_CHECKPOINT_UNSUPPORTED',
+      statusCode: 409,
+    });
+  });
+
+  it('表字段与 envelope 一致时允许按窄迁移读取 GAME_STATE_V1', async () => {
+    const { service } = createHarness({
+      checkpointOverrides: { schema_version: LEGACY_GAME_STATE_SCHEMA_VERSION },
+      mutatePayload: (payload) => ({
+        ...payload,
+        sourceSchemaVersion: LEGACY_GAME_STATE_SCHEMA_VERSION,
+      }),
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).resolves.toMatchObject({
+      checkpointInfo: { checkpointSeq: 1 },
+    });
+  });
+
+  it('checkpoint 表字段与 envelope 的权威状态版本不一致时拒绝', async () => {
+    const { service } = createHarness({
+      checkpointOverrides: { schema_version: LEGACY_GAME_STATE_SCHEMA_VERSION },
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_CHECKPOINT_CORRUPTED',
+      statusCode: 409,
+    });
+  });
+
+  it('非法 base64 checkpoint 按内容损坏拒绝，而不是版本不支持', async () => {
+    const { service } = createHarness({
+      mutatePayload: (payload) => ({ ...payload, payload: '!' }),
+    });
+
+    await expect(service.getMatchRecordReplay('match-read-1', 'u1', 1)).rejects.toMatchObject({
+      code: 'MATCH_RECORD_CHECKPOINT_CORRUPTED',
       statusCode: 409,
     });
   });

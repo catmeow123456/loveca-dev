@@ -19,7 +19,7 @@ import {
   N_BP7_026_LIVE_SUCCESS_TWO_NO_BLADE_HEART_MEMBERS_SCORE_ABILITY_ID,
 } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
-import { addBladeLiveModifierForMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   discardHandCardsToWaitingRoomAndEnqueueTriggers,
   type EnqueueTriggeredCardEffectsForEnterWaitingRoom,
@@ -353,13 +353,13 @@ function resolveBladeTargets(
   }
 
   let state = game;
-  for (const memberCardId of targetCardIds) {
-    const result = addBladeLiveModifierForMember(state, {
+  for (const targetMemberCardId of targetCardIds) {
+    const result = addBladeLiveModifierForTargetMember(state, {
       playerId: effect.controllerId,
-      memberCardId,
       sourceCardId: effect.sourceCardId,
+      targetMemberCardId,
       abilityId: effect.abilityId,
-      countDelta: 1,
+      amount: 1,
     });
     if (!result) return game;
     state = result.gameState;

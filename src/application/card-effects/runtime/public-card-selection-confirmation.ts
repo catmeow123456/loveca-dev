@@ -23,6 +23,7 @@ export interface PublicCardSelectionConfirmationConfig {
   readonly source?: PublicCardSelectionSource;
   readonly ordered?: boolean;
   readonly sourcePlayerId?: string;
+  readonly distinctGroupAssignment?: boolean;
   readonly groups?: readonly {
     readonly candidateCardIds: readonly string[];
     readonly minCount: number;
@@ -102,6 +103,7 @@ export function getPublicCardSelectionConfirmationConfig(
     ordered: candidate.ordered === true,
     sourcePlayerId:
       typeof candidate.sourcePlayerId === 'string' ? candidate.sourcePlayerId : undefined,
+    distinctGroupAssignment: candidate.distinctGroupAssignment === true,
     groups,
   };
 }
@@ -129,7 +131,7 @@ export function createPublicCardSelectionConfirmationWindow(
     new Set(selectedCardIds).size !== selectedCardIds.length ||
     selectedCardIds.some((cardId) => !candidates.includes(cardId)) ||
     !selectedCardsRemainInConfiguredSource(game, originalEffect, selectedCardIds, config) ||
-    !matchesSelectionGroups(selectedCardIds, config.groups)
+    !matchesSelectionGroups(selectedCardIds, config.groups, config.distinctGroupAssignment === true)
   ) {
     return null;
   }
@@ -251,7 +253,8 @@ export function getPublicCardSelectionDisplayDurationMs(selectedCardCount: numbe
 
 function matchesSelectionGroups(
   selectedCardIds: readonly string[],
-  groups: PublicCardSelectionConfirmationConfig['groups']
+  groups: PublicCardSelectionConfirmationConfig['groups'],
+  distinctGroupAssignment: boolean
 ): boolean {
   if (!groups) return true;
   if (
@@ -261,12 +264,48 @@ function matchesSelectionGroups(
   ) {
     return false;
   }
-  return groups.every((group) => {
-    const count = selectedCardIds.filter((cardId) =>
-      group.candidateCardIds.includes(cardId)
-    ).length;
-    return count >= group.minCount && count <= group.maxCount;
-  });
+
+  if (!distinctGroupAssignment) {
+    return groups.every((group) => {
+      const count = selectedCardIds.filter((cardId) =>
+        group.candidateCardIds.includes(cardId)
+      ).length;
+      return count >= group.minCount && count <= group.maxCount;
+    });
+  }
+
+  // A physical card can satisfy at most one selection group even when its
+  // structured identity belongs to multiple groups. Search for a valid
+  // assignment instead of counting the same selected card in every matching
+  // group.
+  const groupCounts = groups.map(() => 0);
+  const search = (selectedIndex: number): boolean => {
+    if (selectedIndex >= selectedCardIds.length) {
+      return groups.every(
+        (group, groupIndex) =>
+          groupCounts[groupIndex]! >= group.minCount && groupCounts[groupIndex]! <= group.maxCount
+      );
+    }
+
+    const selectedCardId = selectedCardIds[selectedIndex]!;
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+      const group = groups[groupIndex]!;
+      if (
+        groupCounts[groupIndex]! >= group.maxCount ||
+        !group.candidateCardIds.includes(selectedCardId)
+      ) {
+        continue;
+      }
+      groupCounts[groupIndex] += 1;
+      if (search(selectedIndex + 1)) {
+        return true;
+      }
+      groupCounts[groupIndex] -= 1;
+    }
+    return false;
+  };
+
+  return search(0);
 }
 
 export function resolvePublicCardSelectionConfirmationStep(

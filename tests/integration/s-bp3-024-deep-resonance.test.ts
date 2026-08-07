@@ -26,6 +26,7 @@ import {
 import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import { S_BP3_024_LIVE_START_CENTER_HIGH_COST_AQOURS_CHOOSE_BLADE_OR_WAIT_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import { ABILITY_ORDER_SELECTION_ID } from '../../src/application/card-effect-runner';
+import { GameService } from '../../src/application/game-service';
 import {
   CardType,
   FaceState,
@@ -70,10 +71,7 @@ const pending = (sourceCardId: string): PendingAbilityState => ({
 function confirmActiveEffectStep(
   ...args: Parameters<typeof confirmActiveEffectStepImmediate>
 ): GameState {
-  return continuePublicEffectChoiceForTest(
-    confirmActiveEffectStepImmediate(...args),
-    args[1]
-  );
+  return continuePublicEffectChoiceForTest(confirmActiveEffectStepImmediate(...args), args[1]);
 }
 
 function setup(
@@ -236,7 +234,7 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
   });
 
   it('grants BLADE +2 to the selected own member without changing orientation or producing a state-change event', () => {
-    const { game, own } = setup();
+    const { game, source, own } = setup();
     const branch = resolvePendingCardEffects(game).gameState;
     const target = confirmActiveEffectStep(
       branch,
@@ -249,7 +247,13 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
     );
     const resolved = confirmActiveEffectStep(target, P1, target.activeEffect!.id, own.instanceId);
     expect(resolved.liveResolution.liveModifiers).toContainEqual(
-      expect.objectContaining({ kind: 'BLADE', sourceCardId: own.instanceId, countDelta: 2 })
+      expect.objectContaining({
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        sourceCardId: source.instanceId,
+        targetMemberCardId: own.instanceId,
+        countDelta: 2,
+      })
     );
     expect(resolved.players[0]!.memberSlots.cardStates.get(own.instanceId)?.orientation).toBe(
       OrientationState.WAITING
@@ -257,6 +261,29 @@ describe('PL!S-bp3-024-L Deep Resonance', () => {
     expect(
       resolved.eventLog.filter((entry) => entry.event.type === 'ON_MEMBER_STATE_CHANGED')
     ).toHaveLength(0);
+
+    const cheerCards = Array.from({ length: 3 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `deep-resonance-cheer-${index}`,
+          name: `deep resonance cheer ${index}`,
+          cardType: CardType.ENERGY,
+        },
+        P1,
+        `deep-resonance-cheer-${index}`
+      )
+    );
+    let cheerGame = registerCards(resolved, cheerCards);
+    cheerGame = updatePlayer(cheerGame, P1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+    }));
+    const afterCheer = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(cheerGame, P1);
+    expect(afterCheer.liveResolution.firstPlayerCheerCardIds).toHaveLength(1);
   });
 
   it('uses opponent printed cost <=4, excludes WAITING targets, and emits exactly one state-change event', () => {

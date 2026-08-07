@@ -10,12 +10,13 @@ import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { SlotPosition } from '../../../../shared/types/enums.js';
 import {
   HS_BP2_006_ON_ENTER_STAGE_FORMATION_CHANGE_ABILITY_ID,
+  S_BP7_012_ON_ENTER_ONLY_AQOURS_OR_SAINT_SNOW_STAGE_FORMATION_CHANGE_SAINT_SNOW_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
   SP_PB2_014_ON_ENTER_FIVEYNCRISE_STAGE_FORMATION_CHANGE_ABILITY_ID,
   SP_BP4_027_LIVE_SUCCESS_LIELLA_STAGE_FORMATION_CHANGE_ABILITY_ID,
   SP_PB2_050_LIVE_START_FIVEYNCRISE_STAGE_FORMATION_CHANGE_ABILITY_ID,
   SP_SD2_001_LIVE_START_DRAW_STAGE_FORMATION_CHANGE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { drawCardsForPlayer } from '../../runtime/actions.js';
+import { addBladeLiveModifierForSourceMember, drawCardsForPlayer } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
   rearrangeStageMembersByMoveHistoryAndEnqueueTriggers,
@@ -43,6 +44,10 @@ interface StageFormationChangeConfig {
   readonly condition: (game: GameState, playerId: string) => boolean;
   readonly preDrawCount?: number;
   readonly conditionLabel: string;
+  readonly movedGroupSourceBladeReward?: {
+    readonly groupName: string;
+    readonly amount: number;
+  };
 }
 
 interface StageMemberEntry {
@@ -78,6 +83,16 @@ const STAGE_FORMATION_CHANGE_CONFIGS: readonly StageFormationChangeConfig[] = [
     condition: hasStageMember,
     conditionLabel: 'HAS_STAGE_MEMBER',
   },
+  {
+    abilityId:
+      S_BP7_012_ON_ENTER_ONLY_AQOURS_OR_SAINT_SNOW_STAGE_FORMATION_CHANGE_SAINT_SNOW_MOVED_GAIN_TWO_BLADE_ABILITY_ID,
+    condition: hasOnlyAqoursOrSaintSnowStageMembers,
+    conditionLabel: 'ONLY_AQOURS_OR_SAINT_SNOW_STAGE_MEMBERS',
+    movedGroupSourceBladeReward: {
+      groupName: 'Saint Snow',
+      amount: 2,
+    },
+  },
 ];
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -101,6 +116,7 @@ export function registerStageFormationChangeWorkflowHandlers(deps: {
           game,
           input.stageFormationMoveHistory,
           input.stageFormationPlacements,
+          config,
           context.continuePendingCardEffects,
           deps.enqueueTriggeredCardEffects
         )
@@ -191,6 +207,7 @@ function finishStageFormationChangeWorkflow(
   game: GameState,
   moveHistory: readonly StageFormationMoveHistoryEntry[] | undefined,
   expectedPlacements: readonly RearrangeStageMemberPlacement[] | undefined,
+  config: StageFormationChangeConfig,
   continuePendingCardEffects: ContinuePendingCardEffects,
   enqueueTriggeredCardEffects: EnqueueTriggeredCardEffectsForMemberSlotMoved
 ): GameState {
@@ -236,10 +253,34 @@ function finishStageFormationChangeWorkflow(
         abilityId: effect.abilityId,
         pendingAbilityId: effect.id,
       },
-      prepareGameStateBeforeEnqueue: (state, result) =>
-        addAction(
+      prepareGameStateBeforeEnqueue: (state, result) => {
+        const movedGroupReward = config.movedGroupSourceBladeReward;
+        const movedRewardMemberCardIds = movedGroupReward
+          ? result.rearrangedMembers
+              .filter((member) => {
+                const card = getCardById(state, member.cardId);
+                return (
+                  card !== null &&
+                  isMemberCardData(card.data) &&
+                  cardBelongsToGroup(card.data, movedGroupReward.groupName)
+                );
+              })
+              .map((member) => member.cardId)
+          : [];
+        const bladeResult =
+          movedGroupReward && movedRewardMemberCardIds.length > 0
+            ? addBladeLiveModifierForSourceMember(state, {
+                playerId: player.id,
+                sourceCardId: effect.sourceCardId,
+                abilityId: effect.abilityId,
+                amount: movedGroupReward.amount,
+              })
+            : null;
+        const stateAfterReward = bladeResult?.gameState ?? state;
+
+        return addAction(
           {
-            ...state,
+            ...stateAfterReward,
             activeEffect: null,
           },
           'RESOLVE_ABILITY',
@@ -254,8 +295,16 @@ function finishStageFormationChangeWorkflow(
             finalSlots: result.finalSlots,
             rearrangedMembers: result.rearrangedMembers,
             drawnCardIds: effect.metadata?.drawnCardIds ?? [],
+            ...(movedGroupReward
+              ? {
+                  movedRewardGroupName: movedGroupReward.groupName,
+                  movedRewardMemberCardIds,
+                  bladeBonus: bladeResult?.bladeBonus ?? 0,
+                }
+              : {}),
           }
-        ),
+        );
+      },
     }
   );
   if (!rearrangeResult) {
@@ -335,7 +384,21 @@ function hasStageMember(game: GameState, playerId: string): boolean {
 
 function hasOnlyLiellaStageMembers(game: GameState, playerId: string): boolean {
   const members = getStageMembers(game, playerId);
-  return members.length > 0 && members.every((member) => cardBelongsToGroup(member.card.data, 'Liella!'));
+  return (
+    members.length > 0 && members.every((member) => cardBelongsToGroup(member.card.data, 'Liella!'))
+  );
+}
+
+function hasOnlyAqoursOrSaintSnowStageMembers(game: GameState, playerId: string): boolean {
+  const members = getStageMembers(game, playerId);
+  return (
+    members.length > 0 &&
+    members.every(
+      (member) =>
+        cardBelongsToGroup(member.card.data, 'Aqours') ||
+        cardBelongsToGroup(member.card.data, 'Saint Snow')
+    )
+  );
 }
 
 function hasAtLeastTwoFiveyncriseStageMembers(game: GameState, playerId: string): boolean {
@@ -355,5 +418,10 @@ function hasOnlyFiveyncriseStageMembers(game: GameState, playerId: string): bool
 }
 
 function normalizeUnitName(value: string | undefined): string {
-  return value?.replace(/[『』「」'’\s　・･·]/g, '').replace(/！/g, '!').toLowerCase() ?? '';
+  return (
+    value
+      ?.replace(/[『』「」'’\s\u3000・･·]/g, '')
+      .replace(/！/g, '!')
+      .toLowerCase() ?? ''
+  );
 }

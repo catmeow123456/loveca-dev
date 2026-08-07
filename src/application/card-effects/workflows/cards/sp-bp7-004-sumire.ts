@@ -12,7 +12,7 @@ import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/
 import { SP_BP7_004_LIVE_START_BOTTOM_THREE_LIELLA_MEMBERS_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
 import {
-  addBladeLiveModifierForMember,
+  addBladeLiveModifierForSourceMember,
 } from '../../runtime/actions.js';
 import { moveWaitingRoomCardsToDeckBottomAndEnqueueTriggers } from '../../runtime/waiting-room-main-deck-triggers.js';
 import { wasRestoredAfterPublicCardSelectionConfirmation } from '../../runtime/public-card-selection-confirmation.js';
@@ -176,12 +176,11 @@ function finishSelection(
     return card !== null && isMemberCardData(card.data) && noBladeHeartSelector(card);
   });
   const bladeResult = rewardConditionMet
-    ? addBladeLiveModifierForMember(moveResult.gameState, {
+    ? addBladeLiveModifierForSourceMember(moveResult.gameState, {
         playerId: player.id,
-        memberCardId: effect.sourceCardId,
         sourceCardId: effect.sourceCardId,
         abilityId: effect.abilityId,
-        countDelta: 2,
+        amount: 2,
       })
     : null;
   const resolvedState = bladeResult?.gameState ?? moveResult.gameState;

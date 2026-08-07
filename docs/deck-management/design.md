@@ -1,10 +1,10 @@
 # 用户卡组管理系统 - 设计文档
 
-> 版本: 1.4.0
+> 版本: 1.5.0
 > 创建日期: 2026-03-03
-> 最后更新: 2026-06-12
+> 最后更新: 2026-08-06
 > 文档类型: 设计文档
-> 适用范围: 卡组管理 UI、deckStore、卡组 API、分享/复制与 DeckLog 导入能力
+> 适用范围: 卡组管理 UI、deckStore、卡组 API、PT 限制表、分享/复制与 DeckLog 导入能力
 > 当前状态: 已实现；部署和 schema 差异见 [当前实现限制](../current-limitations.md)
 
 本文档说明卡组管理系统的架构、数据边界和关键设计取舍，不维护具体 SQL、接口参数、React 状态变量或函数级实现细节。
@@ -31,6 +31,7 @@ flowchart TB
 
     subgraph State["状态与转换"]
         DeckStore[deckStore]
+        PointStore[deckPointTableStore]
         Converter[deckRecordUtils]
         Registry[gameStore.cardDataRegistry]
     end
@@ -43,12 +44,15 @@ flowchart TB
 
     subgraph Backend["服务端"]
         DeckRoutes[卡组 API]
+        PointRoutes[PT 限制表 API]
+        PointService[deck-point-table-service]
         DeckLog[decklog-scraper]
     end
 
     subgraph Storage["存储"]
         Decks[(decks 表)]
         Cards[(cards 表)]
+        PointTables[(deck_point_tables / entries / audit_logs)]
     end
 
     Manager --> DeckStore
@@ -59,10 +63,15 @@ flowchart TB
     Selector --> DeckStore
     Detail --> Registry
     DeckStore --> Converter
+    DeckStore --> PointStore
     Converter --> Loader
     DeckStore --> DeckRoutes
     DeckRoutes --> Decks
     DeckRoutes --> DeckLog
+    DeckRoutes --> PointService
+    PointStore --> PointRoutes
+    PointRoutes --> PointService
+    PointService --> PointTables
     Registry --> Cards
     Validator --> Construction
 ```
@@ -71,12 +80,12 @@ flowchart TB
 
 卡组在系统内有两个主要形态：
 
-| 形态 | 使用位置 | 设计目的 |
-| --- | --- | --- |
-| `DeckConfig` | 构筑、游戏入口、本地槽位 | 面向领域规则，明确区分成员卡、Live 卡和能量卡 |
-| `DeckRecord` | 云端持久化、分享、列表 | 面向存储与权限，包含所有者、分享状态、校验状态和更新时间 |
+| 形态         | 使用位置                 | 设计目的                                                 |
+| ------------ | ------------------------ | -------------------------------------------------------- |
+| `DeckConfig` | 构筑、游戏入口、本地槽位 | 面向领域规则，明确区分成员卡、Live 卡和能量卡            |
+| `DeckRecord` | 云端持久化、分享、列表   | 面向存储与权限，包含所有者、分享状态、校验状态和更新时间 |
 
-`DeckRecord` 与 `DeckConfig` 的转换由共享领域工具 `src/domain/card-data/deck-record-utils.ts` 维护，客户端通过 `client/src/lib/deckRecordUtils.ts` 复用该实现。转换层负责处理旧数据兼容、主卡组中 MEMBER/LIVE 的分流，以及保存时的持久化形态整理。
+`DeckRecord` 与 `DeckConfig` 的转换由共享领域工具 `src/domain/card-data/deck-record-utils.ts` 维护，客户端通过 `client/src/lib/deckRecordUtils.ts` 复用该实现。转换层负责处理旧数据兼容、主卡组中 MEMBER/LIVE 的分流，以及保存时的持久化形态整理。云端卡组另保留最近一次服务端校验使用的 PT 表版本；候场票据与对局卡组快照则冻结版本、总点数和上限，便于后续追溯。
 
 ## 4. 构筑规则
 
@@ -86,20 +95,22 @@ flowchart TB
 - 能量卡组必须满足固定张数要求。
 - 同基础编号的卡牌在主卡组中合计不能超过上限，不同稀有度视为同一基础编号。
 - 主卡组不能包含能量卡；能量卡组只能包含能量卡。
-- 特殊点数按基础编号计算，卡组总点数不能超过规则上限。
+- 特殊点数按基础编号计算，卡组总点数不能超过当前生效 PT 表的规则上限。
 
-基础编号提取由共享工具维护，确保构筑、统计和展示中的“同卡”定义一致。
+基础编号提取由共享工具维护，确保构筑、统计和展示中的“同卡”定义一致。PT 表是独立的版本化领域数据，不属于卡牌基础资料；任何成功管理操作后都必须有且仅有一张 ACTIVE 表，并最多保留一张 SCHEDULED 表。定时版本接收精确到秒的北京时间（`Asia/Shanghai`）；管理员可修改任意生命周期的表内容及已发布表的生效时间。排期表被调整到当前或过去时在同一事务内立即切换；废弃 ACTIVE 表必须原子提升另一张替代表，不允许出现无 ACTIVE 表的已提交状态。
 
 ## 5. 前端职责
 
-| 模块 | 职责 |
-| --- | --- |
-| DeckManager | 卡组列表、创建、编辑、删除、导入导出、分享入口和 DeckLog 导入入口 |
-| CardEditor | 卡牌浏览、筛选、添加/移除、卡组预览和详情查看 |
-| DeckStats | 数量、点数、校验状态和更新时间等摘要展示 |
-| DeckSelector | 游戏开始前选择本地或云端卡组 |
-| deckStore | 云端卡组加载与保存、本地玩家槽位、当前编辑卡组状态 |
-| deckRecordUtils | 云端记录与领域卡组配置之间的转换 |
+| 模块                     | 职责                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------ |
+| DeckManager              | 卡组列表、创建、编辑、删除、导入导出、分享入口和 DeckLog 导入入口                    |
+| CardEditor               | 卡牌浏览、筛选、添加/移除、卡组预览和详情查看                                        |
+| DeckStats                | 数量、点数、校验状态和更新时间等摘要展示                                             |
+| DeckSelector             | 游戏开始前选择本地或云端卡组                                                         |
+| deckStore                | 云端卡组加载与保存、本地玩家槽位、当前编辑卡组状态                                   |
+| deckPointTableStore      | 读取普通玩家可见的当前 PT 表，并在真正离线或启动接口不可用时提供已确认的内置展示快照 |
+| deckRecordUtils          | 云端记录与领域卡组配置之间的转换                                                     |
+| DeckPointTablesAdminPage | 管理任意状态的 PT 表、差异预览、立即/定时发布、取消排期、废弃/替换、删除与历史复制   |
 
 卡牌浏览与构筑只使用 `gameStore.cardDataRegistry` 中的 PUBLISHED 卡牌，因此普通玩家不能把 DRAFT 卡加入卡组。
 
@@ -122,7 +133,9 @@ flowchart TB
 - 公开或开启分享的卡组可以被非所有者读取。
 - 分享卡组可被登录用户复制到自己的账号，复制后与原卡组独立维护。
 - 卡组保存会记录校验状态和校验错误，允许未完成卡组暂存，但进入对局前仍需满足规则。
-- 服务端保存、更新和复制分享卡组时会基于当前 PUBLISHED 卡池重新规范化卡组记录并计算 `is_valid` / `validation_errors`；客户端提交的派生校验字段不作为可信事实。
+- 服务端保存、更新和复制分享卡组时会基于当前 PUBLISHED 卡池和当前 ACTIVE PT 表重新规范化卡组记录并计算 `is_valid` / `validation_errors`；客户端提交的派生校验字段不作为可信事实。
+- 锁组或公共候场会冻结当时的 PT 版本、总点数和上限；真正创建新对局、公共候场 bootstrap 和对墙打重开前会再以当前 ACTIVE 表重验运行时快照。旧快照在新表下仍合法时更新事实后开局，不合法时在创建新对局或封存旧对墙打之前阻止。
+- PT 表管理路由只对管理员开放，写操作使用 revision 乐观锁并记录审计日志。发布还必须带上差异预览时看到的 ACTIVE 表 ID，若期间已有其他版本生效则返回冲突并要求重新预览。普通公开接口只返回当前规则所需的版本、生效时间、上限和基础编号点数。
 
 服务端 schema 与初始化脚本的差异不在本文重复维护，统一记录在 [当前实现限制](../current-limitations.md)。
 
@@ -201,26 +214,32 @@ DeckLog 导入是辅助构筑入口，而不是持久化事实来源：
 
 ## 12. 相关代码路径
 
-| 路径 | 说明 |
-| --- | --- |
-| `client/src/components/deck/DeckManager.tsx` | 卡组管理页面 |
-| `client/src/components/common/DeckStats.tsx` | 卡组统计与状态展示 |
-| `client/src/components/common/DeckSelector.tsx` | 游戏开始前卡组选择 |
-| `client/src/components/deck-editor/CardEditor.tsx` | 卡组编辑器 |
-| `client/src/components/deck-editor/CardDetailDrawer.tsx` | 编辑器与分享页卡牌详情 |
-| `client/src/store/deckStore.ts` | 卡组状态管理 |
-| `client/src/lib/deckRecordUtils.ts` | 客户端复用共享卡组记录转换工具的出口 |
-| `client/src/lib/apiClient.ts` | REST 客户端与卡组记录类型 |
-| `src/domain/card-data/deck-record-utils.ts` | `DeckRecord` 与 `DeckConfig` 转换、旧格式规范化和服务端保存前校验 |
-| `src/domain/card-data/deck-loader.ts` | `DeckConfig` 与卡组加载模型 |
-| `src/domain/rules/deck-validator.ts` | 卡组基础验证规则 |
-| `src/domain/rules/deck-construction.ts` | 构筑限制与点数规则 |
-| `src/shared/utils/card-code.ts` | 基础卡号提取 |
-| `src/server/routes/decks.ts` | 卡组 API 路由 |
-| `src/server/services/deck-storage-service.ts` | 服务端卡组保存前规范化与发布卡池校验 |
-| `src/server/services/decklog-scraper.ts` | DeckLog 导入服务 |
-| `src/server/db/schema.ts` | 持久化 schema |
-| `src/scripts/normalize-deck-records.ts` | 生产卡组记录检查与旧格式迁移脚本 |
+| 路径                                                       | 说明                                                              |
+| ---------------------------------------------------------- | ----------------------------------------------------------------- |
+| `client/src/components/deck/DeckManager.tsx`               | 卡组管理页面                                                      |
+| `client/src/components/common/DeckStats.tsx`               | 卡组统计与状态展示                                                |
+| `client/src/components/common/DeckSelector.tsx`            | 游戏开始前卡组选择                                                |
+| `client/src/components/deck-editor/CardEditor.tsx`         | 卡组编辑器                                                        |
+| `client/src/components/deck-editor/CardDetailDrawer.tsx`   | 编辑器与分享页卡牌详情                                            |
+| `client/src/store/deckStore.ts`                            | 卡组状态管理                                                      |
+| `client/src/store/deckPointTableStore.ts`                  | 当前 PT 表客户端快照                                              |
+| `client/src/components/admin/DeckPointTablesAdminPage.tsx` | PT 表管理页                                                       |
+| `client/src/lib/deckRecordUtils.ts`                        | 客户端复用共享卡组记录转换工具的出口                              |
+| `client/src/lib/apiClient.ts`                              | REST 客户端与卡组记录类型                                         |
+| `src/domain/card-data/deck-record-utils.ts`                | `DeckRecord` 与 `DeckConfig` 转换、旧格式规范化和服务端保存前校验 |
+| `src/domain/card-data/deck-loader.ts`                      | `DeckConfig` 与卡组加载模型                                       |
+| `src/domain/rules/deck-validator.ts`                       | 卡组基础验证规则                                                  |
+| `src/domain/rules/deck-construction.ts`                    | 构筑限制与点数规则                                                |
+| `src/domain/rules/deck-point-table.ts`                     | PT 表领域契约、校验、差异与北京时间转换                           |
+| `src/shared/utils/card-code.ts`                            | 基础卡号提取                                                      |
+| `src/server/routes/decks.ts`                               | 卡组 API 路由                                                     |
+| `src/server/services/deck-storage-service.ts`              | 服务端卡组保存前规范化与发布卡池校验                              |
+| `src/server/routes/deck-point-tables.ts`                   | 公开当前 PT 表与管理员版本管理 API                                |
+| `src/server/services/deck-point-table-service.ts`          | PT 表状态机、发布、生效解析与审计                                 |
+| `src/server/services/deck-point-snapshot-validation.ts`    | 锁定运行时卡组在新 ACTIVE PT 表下的开局/重开重验                  |
+| `src/server/services/decklog-scraper.ts`                   | DeckLog 导入服务                                                  |
+| `src/server/db/schema.ts`                                  | 持久化 schema                                                     |
+| `src/scripts/normalize-deck-records.ts`                    | 生产卡组记录检查与旧格式迁移脚本                                  |
 
 ## 13. 相关文档
 

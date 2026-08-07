@@ -30,7 +30,18 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
+import {
+  addCardToStatefulZone,
+  placeCardInSlot,
+  removeCardFromStatefulZone,
+} from '../../src/domain/entities/zone';
+import {
+  collectLiveModifiers,
+  getEffectivePerformanceCheerCount,
+  getMemberEffectiveBladeCount,
+  getPlayerLiveBladeModifier,
+  removeStageMemberBoundLiveModifiers,
+} from '../../src/domain/rules/live-modifiers';
 import {
   CardType,
   FaceState,
@@ -217,6 +228,21 @@ function bladeModifiers(game: GameState) {
   );
 }
 
+function performanceCheerCount(game: GameState, activeMemberCardIds: readonly string[]): number {
+  const modifiers = collectLiveModifiers(game);
+  const memberBladeCount = activeMemberCardIds.reduce(
+    (total, memberCardId) =>
+      total + getMemberEffectiveBladeCount(game, P1, memberCardId, modifiers),
+    0
+  );
+  return getEffectivePerformanceCheerCount(
+    game,
+    P1,
+    memberBladeCount + getPlayerLiveBladeModifier(game.liveResolution, P1, modifiers),
+    modifiers
+  );
+}
+
 function withCheerFacts(game: GameState, revealedCardIds: readonly string[]): GameState {
   const event = createCheerEvent(P1, revealedCardIds, revealedCardIds.length, {
     automated: true,
@@ -327,12 +353,36 @@ describe('PL!SP-bp7-028-L 分数8「能够听见未来的声音」', () => {
       expect.arrayContaining(
         scenario.stageMembers.map((stageMember) =>
           expect.objectContaining({
+            target: 'TARGET_MEMBER',
             sourceCardId: scenario.source.instanceId,
             targetMemberCardId: stageMember.instanceId,
             countDelta: 1,
           })
         )
       )
+    );
+    expect(
+      performanceCheerCount(state, [
+        scenario.stageMembers[0]!.instanceId,
+        scenario.stageMembers[2]!.instanceId,
+      ])
+    ).toBe(4);
+
+    const sourceLeftLiveZone = updatePlayer(state, P1, (player) => ({
+      ...player,
+      liveZone: removeCardFromStatefulZone(player.liveZone, scenario.source.instanceId),
+    }));
+    expect(bladeModifiers(sourceLeftLiveZone)).toHaveLength(3);
+    const firstTargetLeftStage = removeStageMemberBoundLiveModifiers(sourceLeftLiveZone, [
+      scenario.stageMembers[0]!.instanceId,
+    ]);
+    expect(bladeModifiers(firstTargetLeftStage)).toHaveLength(2);
+    expect(bladeModifiers(firstTargetLeftStage)).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          targetMemberCardId: scenario.stageMembers[0]!.instanceId,
+        }),
+      ])
     );
   });
 

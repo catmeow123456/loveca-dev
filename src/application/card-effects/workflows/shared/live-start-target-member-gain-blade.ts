@@ -24,7 +24,7 @@ import {
   S_BP2_025_LIVE_START_SUCCESS_TWO_TARGET_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
   SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
 } from '../../ability-ids.js';
-import { addBladeLiveModifierForMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import { registerActiveEffectStepHandler } from '../../runtime/step-registry.js';
 import { getAbilityEffectText } from '../../runtime/workflow-helpers.js';
@@ -267,12 +267,12 @@ function finishTargetMemberSelection(
     );
   }
 
-  const bladeResult = addBladeLiveModifierForMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId: player.id,
-    memberCardId: selectedCardId,
     sourceCardId: effect.sourceCardId,
+    targetMemberCardId: selectedCardId,
     abilityId: effect.abilityId,
-    countDelta: config.bladeAmount,
+    amount: config.bladeAmount,
   });
   if (!bladeResult) {
     return finishSelectionWithoutBlade(game, effect, player.id, continuePendingCardEffects, {
@@ -304,12 +304,12 @@ function applyBladeAndContinue(
   continuePendingCardEffects: ContinuePendingCardEffects,
   step: string
 ): GameState {
-  const bladeResult = addBladeLiveModifierForMember(game, {
+  const bladeResult = addBladeLiveModifierForTargetMember(game, {
     playerId,
-    memberCardId: targetMemberCardId,
     sourceCardId: ability.sourceCardId,
+    targetMemberCardId,
     abilityId: ability.abilityId,
-    countDelta: config.bladeAmount,
+    amount: config.bladeAmount,
   });
   if (!bladeResult) {
     return continueNoOp(game, ability, playerId, orderedResolution, continuePendingCardEffects, {

@@ -1,17 +1,25 @@
 import {
   addAction,
+  getCardById,
   getPlayerById,
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
+import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
-import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
+import {
+  BladeHeartEffect,
+  CardType,
+  HeartColor,
+  ZoneType,
+} from '../../../../shared/types/enums.js';
 import {
   HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
   HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
+  N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
 } from '../../ability-ids.js';
 import { addBladeLiveModifierForSourceMember } from '../../runtime/actions.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -45,12 +53,22 @@ type MillTopReward =
       readonly actionPayloadKey: 'bladeBonus';
     };
 
+type MillTopCondition =
+  | {
+      readonly kind: 'ALL_MATCH';
+      readonly selector: CardSelector;
+      readonly label: string;
+    }
+  | {
+      readonly kind: 'DISTINCT_MEMBER_BLADE_HEART_COLORS';
+      readonly minCount: number;
+    };
+
 interface MillTopGainLiveModifierConfig {
   readonly abilityId: string;
   readonly stepId: string;
   readonly topCount: number;
-  readonly conditionSelector: CardSelector;
-  readonly conditionLabel: string;
+  readonly condition: MillTopCondition;
   readonly reward: MillTopReward;
   readonly finishStep: string;
 }
@@ -60,8 +78,11 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
     abilityId: HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
     stepId: 'HS_PR_019_REVEAL_TOP_THREE',
     topCount: 3,
-    conditionSelector: memberHasHeartColor(HeartColor.GREEN),
-    conditionLabel: '持有绿色Heart的成员',
+    condition: {
+      kind: 'ALL_MATCH',
+      selector: memberHasHeartColor(HeartColor.GREEN),
+      label: '持有绿色Heart的成员',
+    },
     reward: {
       type: 'heart',
       heartColor: HeartColor.GREEN,
@@ -74,8 +95,11 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
     abilityId: HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
     stepId: 'HS_PR_021_REVEAL_TOP_THREE',
     topCount: 3,
-    conditionSelector: memberHasHeartColor(HeartColor.PINK),
-    conditionLabel: '持有桃Heart的成员',
+    condition: {
+      kind: 'ALL_MATCH',
+      selector: memberHasHeartColor(HeartColor.PINK),
+      label: '持有桃Heart的成员',
+    },
     reward: {
       type: 'heart',
       heartColor: HeartColor.PINK,
@@ -88,8 +112,11 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
     abilityId: HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
     stepId: 'HS_SD1_013_REVEAL_TOP_THREE',
     topCount: 3,
-    conditionSelector: memberHasHeartColor(HeartColor.BLUE),
-    conditionLabel: '持有蓝Heart的成员',
+    condition: {
+      kind: 'ALL_MATCH',
+      selector: memberHasHeartColor(HeartColor.BLUE),
+      label: '持有蓝Heart的成员',
+    },
     reward: {
       type: 'heart',
       heartColor: HeartColor.BLUE,
@@ -102,8 +129,11 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
     abilityId: HS_BP5_013_LIVE_START_MILL_GAIN_BLADE_ABILITY_ID,
     stepId: 'HS_BP5_013_REVEAL_TOP_THREE',
     topCount: 3,
-    conditionSelector: typeIs(CardType.MEMBER),
-    conditionLabel: '成员卡',
+    condition: {
+      kind: 'ALL_MATCH',
+      selector: typeIs(CardType.MEMBER),
+      label: '成员卡',
+    },
     reward: {
       type: 'blade',
       amount: 2,
@@ -116,8 +146,11 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
     abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
     stepId: 'HS_BP6_009_MILL_TOP_FOUR',
     topCount: 4,
-    conditionSelector: groupAliasIs('蓮ノ空'),
-    conditionLabel: '『莲之空』卡',
+    condition: {
+      kind: 'ALL_MATCH',
+      selector: groupAliasIs('蓮ノ空'),
+      label: '『莲之空』卡',
+    },
     reward: {
       type: 'blade',
       amount: 1,
@@ -125,6 +158,22 @@ const MILL_TOP_GAIN_LIVE_MODIFIER_CONFIGS: readonly MillTopGainLiveModifierConfi
       actionPayloadKey: 'bladeBonus',
     },
     finishStep: 'FINISH_MILL_TOP_FOUR_CHECK_HASUNOSORA_GAIN_BLADE',
+  },
+  {
+    abilityId: N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
+    stepId: 'N_BP7_020_MILL_TOP_THREE',
+    topCount: 3,
+    condition: {
+      kind: 'DISTINCT_MEMBER_BLADE_HEART_COLORS',
+      minCount: 2,
+    },
+    reward: {
+      type: 'heart',
+      heartColor: HeartColor.GREEN,
+      label: '[緑ハート]',
+      actionPayloadKey: 'heartBonus',
+    },
+    finishStep: 'FINISH_MILL_TOP_THREE_CHECK_BLADE_HEART_COLORS_GAIN_GREEN_HEART',
   },
 ];
 
@@ -163,7 +212,16 @@ function startMillTopGainLiveModifierInspection(
     game,
     player.id,
     config.topCount,
-    enqueueTriggeredCardEffects
+    enqueueTriggeredCardEffects,
+    {
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: player.id,
+        sourceCardId: ability.sourceCardId,
+        abilityId: ability.abilityId,
+        pendingAbilityId: ability.id,
+      },
+    }
   );
   if (!millResult) {
     return game;
@@ -171,13 +229,12 @@ function startMillTopGainLiveModifierInspection(
 
   const milledCardIds = millResult.movedCardIds;
   const revealedCardIds = [...new Set(milledCardIds)];
-  const conditionMet =
-    milledCardIds.length === config.topCount &&
-    allCardIdsMatchingSelector(millResult.gameState, milledCardIds, config.conditionSelector);
+  const condition = evaluateCondition(millResult.gameState, milledCardIds, config);
+  const conditionMet = condition.conditionMet;
   const refreshText = millResult.refreshCount > 0 ? '期间发生卡组更新。' : '';
   const rewardText = conditionMet
-    ? `这些卡均为${config.conditionLabel}。确认后获得${config.reward.label}。`
-    : `这些卡不满足均为${config.conditionLabel}。确认后不获得奖励。`;
+    ? `${condition.description}确认后获得${config.reward.label}。`
+    : `${condition.description}确认后不获得奖励。`;
 
   return startPendingActiveEffect(millResult.gameState, {
     ability,
@@ -197,6 +254,7 @@ function startMillTopGainLiveModifierInspection(
         orderedResolution,
         milledCardIds,
         conditionMet,
+        bladeHeartColors: condition.bladeHeartColors,
         refreshCount: millResult.refreshCount,
       },
     }),
@@ -205,6 +263,7 @@ function startMillTopGainLiveModifierInspection(
       step: 'MILL_TOP_CARDS',
       milledCardIds,
       conditionMet,
+      bladeHeartColors: condition.bladeHeartColors,
       refreshCount: millResult.refreshCount,
     },
   });
@@ -232,8 +291,10 @@ function finishMillTopGainLiveModifier(
     ...game,
     activeEffect: null,
   };
+  let rewardApplied = false;
 
-  if (conditionMet) {
+  const sourceStillOnStage = Object.values(player.memberSlots.slots).includes(effect.sourceCardId);
+  if (conditionMet && sourceStillOnStage) {
     const modifierResult =
       config.reward.type === 'heart'
         ? addHeartLiveModifierForMember(state, {
@@ -249,10 +310,10 @@ function finishMillTopGainLiveModifier(
             abilityId: effect.abilityId,
             amount: config.reward.amount,
           });
-    if (!modifierResult) {
-      return game;
+    if (modifierResult) {
+      state = modifierResult.gameState;
+      rewardApplied = true;
     }
-    state = modifierResult.gameState;
   }
 
   return continuePendingCardEffects(
@@ -263,12 +324,56 @@ function finishMillTopGainLiveModifier(
       step: config.finishStep,
       milledCardIds,
       conditionMet,
+      bladeHeartColors: getStringArrayMetadata(effect.metadata?.bladeHeartColors),
+      rewardApplied,
       refreshCount:
         typeof effect.metadata?.refreshCount === 'number' ? effect.metadata.refreshCount : 0,
-      ...createRewardActionPayload(config.reward, conditionMet),
+      ...createRewardActionPayload(config.reward, rewardApplied),
     }),
     effect.metadata?.orderedResolution === true
   );
+}
+
+function evaluateCondition(
+  game: GameState,
+  milledCardIds: readonly string[],
+  config: MillTopGainLiveModifierConfig
+): {
+  readonly conditionMet: boolean;
+  readonly description: string;
+  readonly bladeHeartColors: readonly HeartColor[];
+} {
+  if (config.condition.kind === 'ALL_MATCH') {
+    const conditionMet =
+      milledCardIds.length === config.topCount &&
+      allCardIdsMatchingSelector(game, milledCardIds, config.condition.selector);
+    return {
+      conditionMet,
+      description: conditionMet
+        ? `这些卡均为${config.condition.label}。`
+        : `这些卡不满足均为${config.condition.label}。`,
+      bladeHeartColors: [],
+    };
+  }
+
+  const colors = new Set<HeartColor>();
+  for (const cardId of milledCardIds) {
+    const card = getCardById(game, cardId);
+    if (!card || !isMemberCardData(card.data)) {
+      continue;
+    }
+    for (const bladeHeart of card.data.bladeHearts ?? []) {
+      if (bladeHeart.effect === BladeHeartEffect.HEART && bladeHeart.heartColor !== undefined) {
+        colors.add(bladeHeart.heartColor);
+      }
+    }
+  }
+  const bladeHeartColors = [...colors];
+  return {
+    conditionMet: bladeHeartColors.length >= config.condition.minCount,
+    description: `这些成员卡的BLADE HEART颜色共${bladeHeartColors.length}种。`,
+    bladeHeartColors,
+  };
 }
 
 function createRewardActionPayload(

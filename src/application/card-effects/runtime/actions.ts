@@ -20,9 +20,9 @@ import {
   type WaitingRoomCardsMovedToMainDeckEvent,
 } from '../../../domain/events/game-events.js';
 import {
-  addBladeLiveModifierForMember as addBladeLiveModifierForMemberRule,
-  type AddBladeLiveModifierForMemberResult,
-  type BladeLiveModifierForMemberOptions,
+  addBladeLiveModifierForPlayer as addBladeLiveModifierForPlayerRule,
+  addBladeLiveModifierForSourceMember as addBladeLiveModifierForSourceMemberRule,
+  addBladeLiveModifierForTargetMember as addBladeLiveModifierForTargetMemberRule,
 } from '../../../domain/rules/live-modifiers.js';
 import { CardType, FaceState, OrientationState, ZoneType } from '../../../shared/types/enums.js';
 import { paySelectedDiscardHandCost } from '../../effects/effect-costs.js';
@@ -136,6 +136,25 @@ export interface AddBladeLiveModifierForSourceMemberResult {
   readonly modifier: Extract<LiveModifierState, { readonly kind: 'BLADE' }>;
   readonly bladeBonus: number;
 }
+
+export interface AddBladeLiveModifierForTargetMemberOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly targetMemberCardId: string;
+  readonly abilityId: string;
+  readonly amount: number;
+}
+
+export type AddBladeLiveModifierForTargetMemberResult = AddBladeLiveModifierForSourceMemberResult;
+
+export interface AddBladeLiveModifierForPlayerOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly amount: number;
+}
+
+export type AddBladeLiveModifierForPlayerResult = AddBladeLiveModifierForSourceMemberResult;
 
 export interface ShuffleWaitingRoomCardsToDeckBottomForPlayerResult {
   readonly gameState: GameState;
@@ -629,20 +648,37 @@ export function addBladeLiveModifierForSourceMember(
   game: GameState,
   options: AddBladeLiveModifierForSourceMemberOptions
 ): AddBladeLiveModifierForSourceMemberResult | null {
-  return addBladeLiveModifierForMember(game, {
+  return addBladeLiveModifierForSourceMemberRule(game, {
     playerId: options.playerId,
-    memberCardId: options.sourceCardId,
     sourceCardId: options.sourceCardId,
     abilityId: options.abilityId,
     countDelta: options.amount,
   });
 }
 
-export function addBladeLiveModifierForMember(
+export function addBladeLiveModifierForTargetMember(
   game: GameState,
-  options: BladeLiveModifierForMemberOptions
-): AddBladeLiveModifierForMemberResult | null {
-  return addBladeLiveModifierForMemberRule(game, options);
+  options: AddBladeLiveModifierForTargetMemberOptions
+): AddBladeLiveModifierForTargetMemberResult | null {
+  return addBladeLiveModifierForTargetMemberRule(game, {
+    playerId: options.playerId,
+    sourceCardId: options.sourceCardId,
+    targetMemberCardId: options.targetMemberCardId,
+    abilityId: options.abilityId,
+    countDelta: options.amount,
+  });
+}
+
+export function addBladeLiveModifierForPlayer(
+  game: GameState,
+  options: AddBladeLiveModifierForPlayerOptions
+): AddBladeLiveModifierForPlayerResult | null {
+  return addBladeLiveModifierForPlayerRule(game, {
+    playerId: options.playerId,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+    countDelta: options.amount,
+  });
 }
 
 export function shuffleHandCardsToDeckBottomForPlayer(

@@ -184,7 +184,7 @@ function selfControlScoreModifiers(game: GameState) {
 
 describe('PL!S-bp5-022-L SELF CONTROL!!', () => {
   it('LIVE_START confirms before giving BLADE only to members moved this turn and still on own stage', () => {
-    const { game } = setupLiveStart();
+    const { game, sources } = setupLiveStart();
     const moved = moveMember(game, 'moved-member', SlotPosition.CENTER);
     const preview = runLiveStart(moved);
 
@@ -198,6 +198,38 @@ describe('PL!S-bp5-022-L SELF CONTROL!!', () => {
     const resolved = confirmActiveEffectStep(preview, PLAYER1, preview.activeEffect!.id);
     expect(getMemberEffectiveBladeCount(resolved, PLAYER1, 'moved-member')).toBe(2);
     expect(getMemberEffectiveBladeCount(resolved, PLAYER1, 'unmoved-member')).toBe(1);
+    expect(resolved.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: sources[0]!.instanceId,
+      targetMemberCardId: 'moved-member',
+      abilityId: S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
+    });
+
+    const cheerCards = Array.from({ length: 4 }, (_, index) =>
+      createCardInstance(
+        {
+          cardCode: `PL!S-cheer-${index}`,
+          name: `cheer-${index}`,
+          cardType: CardType.ENERGY,
+        },
+        PLAYER1,
+        `cheer-${index}`
+      )
+    );
+    let withCheerDeck = registerCards(resolved, cheerCards);
+    withCheerDeck = updatePlayer(withCheerDeck, PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((card) => card.instanceId) },
+    }));
+    const afterCheer = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(withCheerDeck, PLAYER1);
+    expect(afterCheer.liveResolution.firstPlayerCheerCardIds).toHaveLength(3);
   });
 
   it('LIVE_START ignores moved members that have left the stage', () => {
@@ -233,6 +265,24 @@ describe('PL!S-bp5-022-L SELF CONTROL!!', () => {
     );
     expect(ordered.activeEffect).toBeNull();
     expect(getMemberEffectiveBladeCount(ordered, PLAYER1, 'moved-member')).toBe(3);
+    expect(
+      ordered.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
+          modifier.targetMemberCardId === 'moved-member' &&
+          modifier.abilityId === S_BP5_022_LIVE_START_MOVED_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID
+      )
+    ).toEqual(
+      expect.arrayContaining(
+        sources.map((source) =>
+          expect.objectContaining({
+            sourceCardId: source.instanceId,
+            targetMemberCardId: 'moved-member',
+          })
+        )
+      )
+    );
 
     const manualSelection = runLiveStart(moved);
     const preview = confirmActiveEffectStep(

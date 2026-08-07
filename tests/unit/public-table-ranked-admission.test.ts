@@ -29,6 +29,19 @@ vi.mock('../../src/server/services/site-announcement-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/deck-point-table-service.js', () => ({
+  deckPointTableService: {
+    getCurrentRules: vi.fn(() =>
+      Promise.resolve({
+        version: 'test-point-table',
+        pointLimit: 9,
+        effectiveFrom: '2026-01-01T00:00:00.000Z',
+        entries: {},
+      })
+    ),
+  },
+}));
+
 vi.mock('../../src/server/services/gameplay-participation-service.js', () => ({
   acquirePublicQueueParticipation: mocks.acquireParticipation,
   releasePublicQueueParticipation: vi.fn(),
@@ -179,6 +192,12 @@ describe('PublicTableService ranked admission', () => {
               second_runtime_deck: { mainDeck: [], energyDeck: [] },
               first_locked_at: new Date(now),
               second_locked_at: new Date(now),
+              first_point_table_version: 'before-rollover',
+              second_point_table_version: 'before-rollover',
+              first_point_total: 0,
+              second_point_total: 0,
+              first_point_limit: 9,
+              second_point_limit: 9,
             },
           ],
         };
@@ -215,6 +234,29 @@ describe('PublicTableService ranked admission', () => {
       recoveredCreatingReservations: 1,
     });
     expect(createPublicTableRoom).toHaveBeenCalledTimes(1);
+    expect(createPublicTableRoom).toHaveBeenCalledWith(
+      expect.objectContaining({
+        first: expect.objectContaining({
+          pointValidation: {
+            pointTableVersion: 'test-point-table',
+            pointTotal: 0,
+            pointLimit: 9,
+          },
+        }),
+        second: expect.objectContaining({
+          pointValidation: {
+            pointTableVersion: 'test-point-table',
+            pointTotal: 0,
+            pointLimit: 9,
+          },
+        }),
+      })
+    );
+    expect(
+      mocks.poolQuery.mock.calls.some(([text]) =>
+        String(text).includes('SET point_table_version = updated.point_table_version')
+      )
+    ).toBe(true);
     expect(
       mocks.clientQuery.mock.calls.some(([text]) =>
         String(text).includes('bootstrap_attempt_count = bootstrap_attempt_count + 1')
@@ -258,5 +300,94 @@ describe('PublicTableService ranked admission', () => {
         String(text).includes("heartbeat_at > $2 THEN 'WAITING'")
       )
     ).toHaveLength(2);
+  });
+
+  it('公共候场 bootstrap 遇新PT表超限时释放预约且不创建房间', async () => {
+    const now = new Date('2026-08-07T16:00:00.000Z').getTime();
+    const leaseUntil = new Date(now + 30_000);
+    const createPublicTableRoom = vi.fn();
+    mocks.loadProfile.mockImplementation(async (userId: string) => ({
+      userId,
+      displayName: userId,
+    }));
+    mocks.poolQuery.mockImplementation(async (text: string) => {
+      if (text.includes('reservation.bootstrap_lease_until')) {
+        return {
+          rows: [
+            {
+              state: 'CREATING_ROOM',
+              bootstrap_lease_until: leaseUntil,
+              queue_kind: 'CASUAL',
+              season_id: null,
+              first_ticket_id: '11111111-1111-4111-8111-111111111111',
+              second_ticket_id: '22222222-2222-4222-8222-222222222222',
+              first_user_id: 'user-1',
+              second_user_id: 'user-2',
+              first_deck_id: 'deck-1',
+              second_deck_id: 'deck-2',
+              first_deck_name: '卡组一',
+              second_deck_name: '卡组二',
+              first_runtime_deck: {
+                mainDeck: [{ cardCode: 'LL-bp2-001-R' }],
+                energyDeck: [],
+              },
+              second_runtime_deck: { mainDeck: [], energyDeck: [] },
+              first_locked_at: new Date(now - 1_000),
+              second_locked_at: new Date(now - 1_000),
+              first_point_table_version: 'before-rollover',
+              second_point_table_version: 'before-rollover',
+              first_point_total: 0,
+              second_point_total: 0,
+              first_point_limit: 9,
+              second_point_limit: 9,
+            },
+          ],
+        };
+      }
+      return { rows: [], rowCount: text.includes('released_reservation') ? 1 : 0 };
+    });
+    mocks.clientQuery.mockImplementation(async (text: string) => {
+      if (text.includes("WHERE state = 'CREATING_ROOM'") && text.includes('FOR UPDATE')) {
+        return {
+          rows: [
+            {
+              id: 'reservation-1',
+              first_ticket_id: '11111111-1111-4111-8111-111111111111',
+              second_ticket_id: '22222222-2222-4222-8222-222222222222',
+              bootstrap_attempt_count: 1,
+            },
+          ],
+        };
+      }
+      if (text.includes('RETURNING bootstrap_lease_until')) {
+        return { rows: [{ bootstrap_lease_until: leaseUntil }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const service = new PublicTableService({
+      now: () => now,
+      getCurrentPointTableRules: () =>
+        Promise.resolve({
+          version: 'after-rollover',
+          pointLimit: 9,
+          effectiveFrom: '2026-08-07T16:00:00.000Z',
+          entries: { 'LL-bp2-001': 10 },
+        }),
+      roomService: {
+        createPublicTableRoom,
+        discardPublicTableRoom: vi.fn(),
+        getRoomIdentityForPublicTableReservation: vi.fn(() => null),
+      } as never,
+    });
+
+    await expect(service.cleanupExpiredState()).resolves.toMatchObject({
+      recoveredCreatingReservations: 0,
+    });
+    expect(createPublicTableRoom).not.toHaveBeenCalled();
+    expect(
+      mocks.poolQuery.mock.calls.some(([text]) =>
+        String(text).includes("failure_reason = 'POINT_TABLE_CHANGED'")
+      )
+    ).toBe(true);
   });
 });

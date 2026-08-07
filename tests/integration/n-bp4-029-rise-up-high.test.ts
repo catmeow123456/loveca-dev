@@ -137,10 +137,11 @@ describe('PL!N-bp4-029-L Rise Up High! live-start workflow', () => {
     expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(2);
     expect(bladeModifiers(state)).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
-      sourceCardId: target.instanceId,
+      sourceCardId: liveId,
+      targetMemberCardId: target.instanceId,
       abilityId: PL_N_BP4_029_LIVE_START_TURN_ONE_SCORE_TARGET_NIJIGASAKI_BLADE_ABILITY_ID,
     });
     expect(state.activeEffect).toBeNull();
@@ -181,7 +182,7 @@ describe('PL!N-bp4-029-L Rise Up High! live-start workflow', () => {
   it('opens target selection when multiple Nijigasaki stage members are available', () => {
     const left = createCardInstance(createMember('PL!N-left-member'), PLAYER1, 'left-member');
     const right = createCardInstance(createMember('PL!N-right-member'), PLAYER1, 'right-member');
-    const { game } = setupRiseScenario({
+    const { game, liveId } = setupRiseScenario({
       turnCount: 1,
       members: {
         [SlotPosition.LEFT]: left,
@@ -204,10 +205,11 @@ describe('PL!N-bp4-029-L Rise Up High! live-start workflow', () => {
     expect(confirmResult.success, confirmResult.error).toBe(true);
     expect(bladeModifiers(session.state!)).toContainEqual({
       kind: 'BLADE',
-      target: 'SOURCE_MEMBER',
+      target: 'TARGET_MEMBER',
       playerId: PLAYER1,
       countDelta: 1,
-      sourceCardId: right.instanceId,
+      sourceCardId: liveId,
+      targetMemberCardId: right.instanceId,
       abilityId: PL_N_BP4_029_LIVE_START_TURN_ONE_SCORE_TARGET_NIJIGASAKI_BLADE_ABILITY_ID,
     });
     expect(session.state?.activeEffect).toBeNull();

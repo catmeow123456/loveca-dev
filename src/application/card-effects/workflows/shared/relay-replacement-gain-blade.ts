@@ -10,7 +10,7 @@ import { findMemberSlot } from '../../../../domain/entities/player.js';
 import type { LeaveStageEvent } from '../../../../domain/events/game-events.js';
 import { TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
 import { PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
-import { addBladeLiveModifierForMember } from '../../runtime/actions.js';
+import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -76,12 +76,12 @@ function resolveRelayReplacementGainBlade(
   const player = getPlayerById(stateWithoutPending, ability.controllerId);
   const bladeResult =
     player && context.conditionMet && context.replacingCardId
-      ? addBladeLiveModifierForMember(stateWithoutPending, {
+      ? addBladeLiveModifierForTargetMember(stateWithoutPending, {
           playerId: player.id,
-          memberCardId: context.replacingCardId,
           sourceCardId: ability.sourceCardId,
+          targetMemberCardId: context.replacingCardId,
           abilityId: ability.abilityId,
-          countDelta: 2,
+          amount: 2,
         })
       : null;
   const resolvedState = bladeResult?.gameState ?? stateWithoutPending;

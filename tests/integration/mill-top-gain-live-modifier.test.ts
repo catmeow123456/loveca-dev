@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
-import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
+import type {
+  AnyCardData,
+  EnergyCardData,
+  LiveCardData,
+  MemberCardData,
+} from '../../src/domain/entities/card';
+import {
+  createCardInstance,
+  createHeartIcon,
+  createHeartRequirement,
+} from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import {
   createAutoAdvancePublicRevealCommand,
@@ -16,9 +25,11 @@ import {
   HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
   HS_PR_021_ON_ENTER_MILL_GAIN_PINK_HEART_ABILITY_ID,
   HS_SD1_013_ON_ENTER_MILL_GAIN_BLUE_HEART_ABILITY_ID,
+  N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import {
+  BladeHeartEffect,
   CardType,
   GamePhase,
   HeartColor,
@@ -27,6 +38,7 @@ import {
   SubPhase,
   TriggerCondition,
   TurnType,
+  ZoneType,
 } from '../../src/shared/types/enums';
 
 const PLAYER1 = 'player1';
@@ -35,7 +47,8 @@ const PLAYER2 = 'player2';
 function createMemberCard(
   cardCode: string,
   name = cardCode,
-  heartColor = HeartColor.PINK
+  heartColor = HeartColor.PINK,
+  bladeHearts?: MemberCardData['bladeHearts']
 ): MemberCardData {
   return {
     cardCode,
@@ -45,6 +58,19 @@ function createMemberCard(
     cost: 1,
     blade: 1,
     hearts: [createHeartIcon(heartColor, 1)],
+    ...(bladeHearts ? { bladeHearts } : {}),
+  };
+}
+
+function createBladeLiveCard(cardCode: string, heartColor: HeartColor): LiveCardData {
+  return {
+    cardCode,
+    name: cardCode,
+    groupNames: ['虹咲'],
+    cardType: CardType.LIVE,
+    score: 1,
+    requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+    bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor }],
   };
 }
 
@@ -119,6 +145,64 @@ function getStartedMillPayload(
         (action) => action.type === 'RESOLVE_ABILITY' && action.payload.step === 'MILL_TOP_CARDS'
       )?.payload ?? {}
   );
+}
+
+function createNBp7020OnEnterSession(options: {
+  readonly topCards: readonly ReturnType<typeof createCardInstance>[];
+  readonly waitingCards?: readonly ReturnType<typeof createCardInstance>[];
+}): {
+  readonly session: ReturnType<typeof createGameSession>;
+  readonly sourceId: string;
+} {
+  const session = createGameSession();
+  const deck = createDeck();
+  session.createGame('n-bp7-020-on-enter', PLAYER1, 'Player 1', PLAYER2, 'Player 2');
+  session.initializeGame(deck, deck);
+  forceMainPhaseForPlayer(session);
+
+  const source = createCardInstance(
+    createMemberCard('PL!N-bp7-020-N', '艾玛·维尔德'),
+    PLAYER1,
+    'p1-n-bp7-020-source'
+  );
+  const state = registerCards(session.state!, [
+    source,
+    ...options.topCards,
+    ...(options.waitingCards ?? []),
+  ]);
+  (session as unknown as { authorityState: GameState }).authorityState = state;
+
+  const p1 = state.players[0] as unknown as {
+    hand: { cardIds: string[] };
+    mainDeck: { cardIds: string[] };
+    waitingRoom: { cardIds: string[] };
+    successZone: { cardIds: string[] };
+    liveZone: { cardIds: string[] };
+    memberSlots: {
+      slots: Record<SlotPosition, string | null>;
+      cardStates: Map<string, { orientation: OrientationState }>;
+    };
+  };
+  removeFromPlayerZones(p1);
+  p1.hand.cardIds = [source.instanceId];
+  p1.mainDeck.cardIds = options.topCards.map((card) => card.instanceId);
+  p1.waitingRoom.cardIds = (options.waitingCards ?? []).map((card) => card.instanceId);
+  p1.memberSlots.slots = {
+    [SlotPosition.LEFT]: null,
+    [SlotPosition.CENTER]: null,
+    [SlotPosition.RIGHT]: null,
+  };
+  p1.memberSlots.cardStates = new Map();
+
+  session.setManualOperationMode('FREE');
+  expect(
+    session.executeCommand(
+      createPlayMemberToSlotCommand(PLAYER1, source.instanceId, SlotPosition.CENTER, {
+        freePlay: true,
+      })
+    ).success
+  ).toBe(true);
+  return { session, sourceId: source.instanceId };
 }
 
 describe('mill-top gain live modifier workflow', () => {
@@ -711,6 +795,182 @@ describe('mill-top gain live modifier workflow', () => {
       sourceCardId: 'p1-hs-bp6-009-refresh-kaho',
       abilityId: HS_BP6_009_LIVE_START_MILL_FOUR_ALL_HASUNOSORA_GAIN_BLADE_ABILITY_ID,
       countDelta: 1,
+    });
+  });
+
+  it('PL!N-bp7-020 counts distinct printed Blade Heart colors only on actually milled MEMBER cards', () => {
+    const pinkMember = createCardInstance(
+      createMemberCard('n-bp7-020-pink', 'Pink Member', HeartColor.PINK, [
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.PINK },
+      ]),
+      PLAYER1,
+      'p1-n-bp7-020-pink'
+    );
+    const redLive = createCardInstance(
+      createBladeLiveCard('n-bp7-020-red-live', HeartColor.RED),
+      PLAYER1,
+      'p1-n-bp7-020-red-live'
+    );
+    const drawMember = createCardInstance(
+      createMemberCard('n-bp7-020-draw', 'Draw Member', HeartColor.BLUE, [
+        { effect: BladeHeartEffect.DRAW },
+      ]),
+      PLAYER1,
+      'p1-n-bp7-020-draw'
+    );
+    const remaining = createCardInstance(
+      createEnergyCard('n-bp7-020-remaining'),
+      PLAYER1,
+      'p1-n-bp7-020-remaining'
+    );
+    const { session, sourceId } = createNBp7020OnEnterSession({
+      topCards: [pinkMember, redLive, drawMember, remaining],
+    });
+
+    expect(session.state?.activeEffect).toMatchObject({
+      abilityId: N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
+      effectText:
+        '【登场】将自己的卡组顶的3张卡片放置入休息室。那些成员卡中存在大于等于2种BLADE HEART的颜色的场合，LIVE结束时为止，获得[緑ハート]。',
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+      revealedCardIds: [pinkMember.instanceId, redLive.instanceId, drawMember.instanceId],
+    });
+    expect(getStartedMillPayload(session)).toMatchObject({
+      conditionMet: false,
+      bladeHeartColors: [HeartColor.PINK],
+    });
+    expect(advancePublicRevealDwell(session).success).toBe(true);
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.sourceCardId === sourceId &&
+          modifier.abilityId ===
+            N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID
+      )
+    ).toBe(false);
+  });
+
+  it('PL!N-bp7-020 keeps refresh semantics, one grouped causal event, and gains green Heart for two MEMBER colors', () => {
+    const pinkMember = createCardInstance(
+      createMemberCard('n-bp7-020-refresh-pink', 'Refresh Pink', HeartColor.PINK, [
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.PINK },
+      ]),
+      PLAYER1,
+      'p1-n-bp7-020-refresh-pink'
+    );
+    const greenMember = createCardInstance(
+      createMemberCard('n-bp7-020-refresh-green', 'Refresh Green', HeartColor.GREEN, [
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GREEN },
+        { effect: BladeHeartEffect.HEART, heartColor: HeartColor.GREEN },
+      ]),
+      PLAYER1,
+      'p1-n-bp7-020-refresh-green'
+    );
+    const waitingLive = createCardInstance(
+      createBladeLiveCard('n-bp7-020-refresh-live', HeartColor.RED),
+      PLAYER1,
+      'p1-n-bp7-020-refresh-live'
+    );
+    const waitingEnergy = createCardInstance(
+      createEnergyCard('n-bp7-020-refresh-energy'),
+      PLAYER1,
+      'p1-n-bp7-020-refresh-energy'
+    );
+    const { session, sourceId } = createNBp7020OnEnterSession({
+      topCards: [pinkMember, greenMember],
+      waitingCards: [waitingLive, waitingEnergy],
+    });
+    const payload = getStartedMillPayload(session);
+    const milledCardIds = payload.milledCardIds as string[];
+
+    expect(payload).toMatchObject({
+      conditionMet: true,
+      bladeHeartColors: [HeartColor.PINK, HeartColor.GREEN],
+      refreshCount: 1,
+    });
+    expect(milledCardIds).toHaveLength(3);
+    const events = session
+      .state!.eventLog.map((entry) => entry.event)
+      .filter(
+        (event) =>
+          event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM &&
+          event.fromZone === ZoneType.MAIN_DECK
+      );
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      cardInstanceIds: milledCardIds,
+      ownerId: PLAYER1,
+      controllerId: PLAYER1,
+      cause: {
+        kind: 'CARD_EFFECT',
+        playerId: PLAYER1,
+        sourceCardId: sourceId,
+        abilityId: N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
+      },
+    });
+
+    expect(advancePublicRevealDwell(session).success).toBe(true);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: PLAYER1,
+      sourceCardId: sourceId,
+      abilityId: N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID,
+      hearts: [{ color: HeartColor.GREEN, count: 1 }],
+    });
+  });
+
+  it('PL!N-bp7-020 preserves the completed mill when its source leaves before the dwell finishes', () => {
+    const milledCards = [HeartColor.PINK, HeartColor.GREEN, HeartColor.BLUE].map((color, index) =>
+      createCardInstance(
+        createMemberCard(`n-bp7-020-stale-${index}`, `Stale ${index}`, color, [
+          { effect: BladeHeartEffect.HEART, heartColor: color },
+        ]),
+        PLAYER1,
+        `p1-n-bp7-020-stale-${index}`
+      )
+    );
+    const remaining = createCardInstance(
+      createEnergyCard('n-bp7-020-stale-remaining'),
+      PLAYER1,
+      'p1-n-bp7-020-stale-remaining'
+    );
+    const { session, sourceId } = createNBp7020OnEnterSession({
+      topCards: [...milledCards, remaining],
+    });
+    const beforeFinish = session.state!;
+    const p1 = beforeFinish.players[0] as unknown as {
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        cardStates: Map<string, { orientation: OrientationState }>;
+      };
+    };
+    p1.memberSlots.slots[SlotPosition.CENTER] = null;
+    p1.memberSlots.cardStates.delete(sourceId);
+    (session as unknown as { authorityState: GameState }).authorityState = beforeFinish;
+
+    expect(advancePublicRevealDwell(session).success).toBe(true);
+    expect(session.state?.players[0].waitingRoom.cardIds).toEqual(
+      milledCards.map((card) => card.instanceId)
+    );
+    expect(session.state?.activeEffect).toBeNull();
+    expect(session.state?.pendingAbilities).toEqual([]);
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.kind === 'HEART' && modifier.sourceCardId === sourceId
+      )
+    ).toBe(false);
+    const finishAction = [...(session.state?.actionHistory ?? [])]
+      .reverse()
+      .find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            N_BP7_020_ON_ENTER_MILL_THREE_TWO_BLADE_HEART_COLORS_GAIN_GREEN_HEART_ABILITY_ID
+      );
+    expect(finishAction?.payload).toMatchObject({
+      conditionMet: true,
+      rewardApplied: false,
     });
   });
 });

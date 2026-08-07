@@ -15,8 +15,13 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
+import {
+  enqueueTriggeredCardEffects,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
+import { GameService } from '../../src/application/game-service';
+import { sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers } from '../../src/application/card-effects/runtime/leave-stage-triggers';
 import { addMemberEffectActivationProhibitionUntilTurnEnd } from '../../src/domain/rules/member-effect-activation-prohibitions';
 import {
   PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID,
@@ -275,17 +280,78 @@ describe('PL!-pb1-010 / PL!-pb1-028 LIVE start workflows', () => {
           entry.event.cardInstanceIds?.includes(handCards[0]!.instanceId) === true
       )
     ).toBe(true);
-    const bladeSourceIds = resolved.liveResolution.liveModifiers
-      .filter(
+    const bladeModifiers = resolved.liveResolution.liveModifiers.filter(
+      (modifier) =>
+        modifier.kind === 'BLADE' &&
+        modifier.abilityId ===
+          PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID
+    );
+    expect(bladeModifiers).toEqual(
+      expect.arrayContaining(
+        otherMembers.map((target) => ({
+          kind: 'BLADE',
+          target: 'TARGET_MEMBER',
+          playerId: PLAYER1,
+          countDelta: 1,
+          sourceCardId: source.instanceId,
+          targetMemberCardId: target.instanceId,
+          abilityId: PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID,
+        }))
+      )
+    );
+
+    const cheerCards = Array.from({ length: 6 }, (_, index) =>
+      card(member(`PL!-test-cheer-${index}`, `cheer-${index}`, 'Printemps'), `cheer-${index}`)
+    );
+    const withCheerDeck = updatePlayer(registerCards(resolved, cheerCards), PLAYER1, (player) => ({
+      ...player,
+      mainDeck: { ...player.mainDeck, cardIds: cheerCards.map((entry) => entry.instanceId) },
+    }));
+    const judged = (
+      new GameService() as unknown as {
+        autoRevealPerformanceCheer(state: GameState, playerId: string): GameState;
+      }
+    ).autoRevealPerformanceCheer(withCheerDeck, PLAYER1);
+    expect(judged.liveResolution.firstPlayerCheerCardIds).toHaveLength(5);
+
+    const sourceLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      resolved,
+      PLAYER1,
+      source.instanceId,
+      enqueueTriggeredCardEffects
+    )!;
+    expect(
+      sourceLeft.gameState.liveResolution.liveModifiers.filter(
         (modifier) =>
           modifier.kind === 'BLADE' &&
           modifier.abilityId ===
             PL_PB1_010_LIVE_START_DISCARD_HAND_OTHER_MEMBERS_GAIN_BLADE_ABILITY_ID
       )
-      .map((modifier) => modifier.sourceCardId)
-      .sort();
-    expect(bladeSourceIds).toEqual(otherMembers.map((entry) => entry.instanceId).sort());
-    expect(bladeSourceIds).not.toContain(source.instanceId);
+    ).toHaveLength(2);
+
+    const targetLeft = sendStageMemberToWaitingRoomAndEnqueueLeaveStageTriggers(
+      sourceLeft.gameState,
+      PLAYER1,
+      otherMembers[0]!.instanceId,
+      enqueueTriggeredCardEffects
+    )!;
+    expect(
+      targetLeft.gameState.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
+          modifier.targetMemberCardId === otherMembers[0]!.instanceId
+      )
+    ).toBe(false);
+    expect(
+      targetLeft.gameState.liveResolution.liveModifiers.some(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.target === 'TARGET_MEMBER' &&
+          modifier.sourceCardId === source.instanceId &&
+          modifier.targetMemberCardId === otherMembers[1]!.instanceId
+      )
+    ).toBe(true);
   });
 
   it('PL!-pb1-010 decline, no hand, and no other member branches consume pending and continue', () => {

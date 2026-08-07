@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { AnyCardData, EnergyCardData, MemberCardData } from '../../src/domain/entities/card';
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
-import { registerCards, type GameState } from '../../src/domain/entities/game';
+import { registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
+import { removeCardFromSlot } from '../../src/domain/entities/zone';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
@@ -66,7 +67,7 @@ function forceMainPhaseForPlayer(session: ReturnType<typeof createGameSession>):
   };
   mutableState.currentPhase = GamePhase.MAIN_PHASE;
   mutableState.currentSubPhase = SubPhase.NONE;
-  mutableState.currentTurnType = TurnType.NORMAL;
+  mutableState.currentTurnType = TurnType.FIRST_PLAYER_TURN;
   mutableState.activePlayerIndex = 0;
 }
 
@@ -235,9 +236,7 @@ describe('activated pay-energy self position-change shared workflow', () => {
     expect(scenario.session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBe(
       scenario.sourceId
     );
-    expect(scenario.session.state?.players[0].positionMovedThisTurn).toContain(
-      scenario.sourceId
-    );
+    expect(scenario.session.state?.players[0].positionMovedThisTurn).toContain(scenario.sourceId);
     expect(
       scenario.session.state?.liveResolution.liveModifiers.filter(
         (modifier) =>
@@ -301,9 +300,7 @@ describe('activated pay-energy self position-change shared workflow', () => {
     );
 
     expect(moveResult.success).toBe(true);
-    expect(scenario.session.state?.players[0].positionMovedThisTurn).toEqual([
-      scenario.sourceId,
-    ]);
+    expect(scenario.session.state?.players[0].positionMovedThisTurn).toEqual([scenario.sourceId]);
     expect(
       scenario.session.state?.eventLog.some(
         (entry) =>
@@ -345,5 +342,45 @@ describe('activated pay-energy self position-change shared workflow', () => {
       scenario.sourceId,
       scenario.otherId,
     ]);
+  });
+
+  it('retains the paid energy and clears the mandatory window if the source becomes stale', () => {
+    const scenario = setupScenario({
+      cardCode: 'PL!SP-bp2-008-R',
+      sourceName: '若菜四季',
+      sourceCost: 9,
+      abilityId: SP_BP2_008_ACTIVATED_PAY_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
+      energyCount: 1,
+    });
+
+    activate(scenario);
+    const stale = updatePlayer(scenario.session.state!, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.CENTER),
+    }));
+    (scenario.session as unknown as { authorityState: GameState }).authorityState = stale;
+
+    const finishResult = scenario.session.executeCommand(
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        scenario.session.state!.activeEffect!.id,
+        undefined,
+        SlotPosition.RIGHT
+      )
+    );
+
+    expect(finishResult.success).toBe(true);
+    expect(scenario.session.state?.activeEffect).toBeNull();
+    expect(
+      scenario.session.state?.players[0].energyZone.cardStates.get(scenario.energyCardIds[0])
+        ?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      scenario.session.state?.actionHistory.some(
+        (action) =>
+          action.payload.abilityId === scenario.abilityId &&
+          action.payload.step === 'POSITION_CHANGE_SOURCE_STALE_AFTER_COST'
+      )
+    ).toBe(true);
   });
 });
