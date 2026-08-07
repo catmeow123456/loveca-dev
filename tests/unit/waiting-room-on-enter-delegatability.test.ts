@@ -9,6 +9,8 @@ import { getCardAbilityDefinitionsForCardCode } from '../../src/application/card
 import {
   SP_BP2_005_ON_ENTER_PAY_TWO_ENERGY_LOOK_TOP_SEVEN_LIELLA_CARD_ABILITY_ID,
   SP_BP5_013_ON_ENTER_DISCARD_LOOK_TOP_SUNNYPASSION_OR_BLADE_HEART_LIELLA_ABILITY_ID,
+  SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
+  SP_BP7_018_ON_ENTER_DISCARD_LIVE_LOOK_TOP_FIVE_TAKE_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { TriggerCondition } from '../../src/shared/types/enums';
 import { getBaseCardCode, normalizeCardCode } from '../../src/shared/utils/card-code';
@@ -136,6 +138,20 @@ describe('waiting-room ON_ENTER delegatability', () => {
 
   it('governs every implemented cost-four-or-less Liella! ON_ENTER definition used by SP-BP2-006', () => {
     const rows = getSpBp2006EligibleWaitingRoomDelegationRows();
+    const batchCardsPendingPinnedCardData = [
+      {
+        baseCardCode: 'PL!SP-bp7-012',
+        cardCode: 'PL!SP-bp7-012-P',
+        abilityId: SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
+        policy: { decision: 'ALLOW', reason: 'SOURCE_INDEPENDENT' },
+      },
+      {
+        baseCardCode: 'PL!SP-bp7-018',
+        cardCode: 'PL!SP-bp7-018-P',
+        abilityId: SP_BP7_018_ON_ENTER_DISCARD_LIVE_LOOK_TOP_FIVE_TAKE_ONE_ABILITY_ID,
+        policy: { decision: 'ALLOW', reason: 'PLAYER_RESOURCE_COST' },
+      },
+    ] as const;
     const missing = rows.flatMap((row) =>
       [...row.missingAbilityIds].map((abilityId) => `${row.baseCardCode}: ${abilityId}`)
     );
@@ -145,9 +161,26 @@ describe('waiting-room ON_ENTER delegatability', () => {
 
     expect(missing).toEqual([]);
     expect(conflicting).toEqual([]);
-    expect(new Set(rows.flatMap((row) => [...row.abilityIds])).size).toBe(19);
-    expect(rows).toHaveLength(34);
-    expect(rows.filter((row) => row.decisions.has('ALLOW'))).toHaveLength(27);
+    for (const card of batchCardsPendingPinnedCardData) {
+      expect(
+        getCardAbilityDefinitionsForCardCode(card.cardCode).find(
+          (definition) => definition.abilityId === card.abilityId
+        )?.delegatedOnEnterFromWaitingRoomPolicy
+      ).toEqual(card.policy);
+    }
+
+    // The PR intentionally does not advance llocg_db until these cards can be published. Keep the
+    // real-card governance totals strict for either pinned cards.json or the newer audit checkout.
+    const availableBatchCardCount = batchCardsPendingPinnedCardData.filter((card) =>
+      rows.some((row) => row.baseCardCode === card.baseCardCode)
+    ).length;
+    expect(new Set(rows.flatMap((row) => [...row.abilityIds])).size).toBe(
+      17 + availableBatchCardCount
+    );
+    expect(rows).toHaveLength(32 + availableBatchCardCount);
+    expect(rows.filter((row) => row.decisions.has('ALLOW'))).toHaveLength(
+      25 + availableBatchCardCount
+    );
     expect(rows.filter((row) => row.decisions.has('DENY')).map((row) => row.baseCardCode)).toEqual([
       'PL!SP-bp4-002',
       'PL!SP-bp4-013',
