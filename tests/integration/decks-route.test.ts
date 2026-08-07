@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   poolQuery: vi.fn(),
+  getCurrentDeckValidationContext: vi.fn(),
+  prepareDeckPayloadWithContext: vi.fn(),
   prepareDeckPayloadForStorage: vi.fn(),
 }));
 
@@ -19,6 +21,8 @@ vi.mock('../../src/server/services/deck-storage-service.js', () => ({
       this.errors = errors;
     }
   },
+  getCurrentDeckValidationContext: mocks.getCurrentDeckValidationContext,
+  prepareDeckPayloadWithContext: mocks.prepareDeckPayloadWithContext,
   prepareDeckPayloadForStorage: mocks.prepareDeckPayloadForStorage,
 }));
 
@@ -28,8 +32,9 @@ vi.mock('../../src/server/services/decklog-scraper.js', () => ({
 }));
 
 import { decksRouter } from '../../src/server/routes/decks';
+import { DeckPayloadValidationError } from '../../src/server/services/deck-storage-service.js';
 
-type RouteMethod = 'post';
+type RouteMethod = 'get' | 'post';
 
 interface RouterLayer {
   handle: RequestHandler;
@@ -77,8 +82,8 @@ function toError(error: unknown): Error {
   return new Error('Route middleware failed');
 }
 
-async function invokePost(path: string, options: Partial<Request> = {}) {
-  const route = findRoute(path, 'post');
+async function invokeRoute(path: string, method: RouteMethod, options: Partial<Request> = {}) {
+  const route = findRoute(path, method);
   const response = createMockResponse();
   const request = {
     params: {},
@@ -106,8 +111,66 @@ async function invokePost(path: string, options: Partial<Request> = {}) {
   return response;
 }
 
+function invokeGet(path: string, options: Partial<Request> = {}) {
+  return invokeRoute(path, 'get', options);
+}
+
+function invokePost(path: string, options: Partial<Request> = {}) {
+  return invokeRoute(path, 'post', options);
+}
+
 describe('decksRouter', () => {
   afterEach(() => vi.clearAllMocks());
+
+  it('读取卡组时将已知载荷校验错误投影为无效状态', async () => {
+    const row = {
+      id: 'invalid-deck',
+      name: '异常卡组',
+      description: null,
+      main_deck: 'invalid-main-deck',
+      energy_deck: [],
+      is_valid: true,
+      validation_errors: [],
+    };
+    mocks.poolQuery.mockResolvedValueOnce({ rows: [row] });
+    mocks.getCurrentDeckValidationContext.mockResolvedValueOnce({
+      registry: {},
+      pointTable: { version: 'pt-test', pointLimit: 10 },
+    });
+    mocks.prepareDeckPayloadWithContext.mockImplementationOnce(() => {
+      throw new DeckPayloadValidationError(['主卡组格式错误']);
+    });
+
+    const response = await invokeGet('/');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body?.data).toEqual([
+      {
+        ...row,
+        is_valid: false,
+        validation_errors: ['主卡组格式错误'],
+        validated_point_table_version: 'pt-test',
+        point_total: null,
+        point_limit: 10,
+      },
+    ]);
+  });
+
+  it('读取卡组时将未知校验异常传递给 Express 错误处理', async () => {
+    const failure = new TypeError('校验器内部故障');
+    mocks.poolQuery.mockResolvedValueOnce({
+      rows: [{ id: 'valid-deck', name: '原本合法的卡组', main_deck: [], energy_deck: [] }],
+    });
+    mocks.getCurrentDeckValidationContext.mockResolvedValueOnce({
+      registry: {},
+      pointTable: { version: 'pt-test', pointLimit: 10 },
+    });
+    mocks.prepareDeckPayloadWithContext.mockImplementationOnce(() => {
+      throw failure;
+    });
+
+    await expect(invokeGet('/')).rejects.toBe(failure);
+  });
 
   it('创建请求未提供能量卡时自动补齐默认 12 张', async () => {
     mocks.prepareDeckPayloadForStorage.mockResolvedValue({

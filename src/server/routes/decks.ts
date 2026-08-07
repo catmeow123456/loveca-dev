@@ -716,12 +716,33 @@ decksRouter.delete('/:id', requireAuth, async (req, res, next) => {
   }
 });
 
-async function projectCurrentDeckValidation<T extends Record<string, any>>(
+interface DeckValidationProjectionSource {
+  readonly name?: unknown;
+  readonly description?: unknown;
+  readonly main_deck?: unknown;
+  readonly energy_deck?: unknown;
+}
+
+interface CurrentDeckValidationProjection {
+  readonly is_valid: boolean;
+  readonly validation_errors: readonly string[];
+  readonly validated_point_table_version: string;
+  readonly point_total: number | null;
+  readonly point_limit: number;
+}
+
+type CurrentDeckValidationRow<T extends DeckValidationProjectionSource> = Omit<
+  T,
+  keyof CurrentDeckValidationProjection
+> &
+  CurrentDeckValidationProjection;
+
+async function projectCurrentDeckValidation<T extends DeckValidationProjectionSource>(
   rows: readonly T[]
-): Promise<T[]> {
+): Promise<CurrentDeckValidationRow<T>[]> {
   if (rows.length === 0) return [];
   const context = await getCurrentDeckValidationContext();
-  return rows.map((row) => {
+  return rows.map<CurrentDeckValidationRow<T>>((row) => {
     try {
       const prepared = prepareDeckPayloadWithContext(
         {
@@ -741,12 +762,13 @@ async function projectCurrentDeckValidation<T extends Record<string, any>>(
         point_limit: context.pointTable.pointLimit,
       };
     } catch (error) {
-      const errors =
-        error instanceof DeckPayloadValidationError ? [...error.errors] : ['卡组校验失败'];
+      if (!(error instanceof DeckPayloadValidationError)) {
+        throw error;
+      }
       return {
         ...row,
         is_valid: false,
-        validation_errors: errors,
+        validation_errors: [...error.errors],
         validated_point_table_version: context.pointTable.version,
         point_total: null,
         point_limit: context.pointTable.pointLimit,
