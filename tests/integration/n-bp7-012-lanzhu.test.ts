@@ -199,7 +199,7 @@ describe('PL!N-bp7-012 Lanzhu LIVE_START wait-cost choose-Heart workflow', () =>
       );
       expect(nBp7022Pending).toMatchObject({
         sourceCardId: listener.instanceId,
-        metadata: { changedCardId: scenario.target.instanceId },
+        metadata: { changedCardIds: [scenario.target.instanceId] },
       });
 
       const nBp7022Window = selectHeart(heartWindow, HeartColor.GREEN);

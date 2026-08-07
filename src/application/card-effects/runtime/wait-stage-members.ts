@@ -43,20 +43,21 @@ export function waitStageMembersAndEnqueueTriggers(
     if (!orientationResult?.changed) {
       continue;
     }
-    const triggerResult = enqueueMemberStateChangedTriggersFromOrientationResult(
-      state,
-      orientationResult,
-      options.enqueueTriggeredCardEffects
-    );
-    state = triggerResult.gameState;
+    state = orientationResult.gameState;
     actuallyWaitedMemberCardIds.push(memberCardId);
-    memberStateChangedEventIds.push(
-      ...triggerResult.memberStateChangedEvents.map((event) => event.eventId)
-    );
   }
 
+  const triggerResult = enqueueMemberStateChangedTriggersFromOrientationResult(
+    game,
+    { gameState: state },
+    options.enqueueTriggeredCardEffects
+  );
+  memberStateChangedEventIds.push(
+    ...triggerResult.memberStateChangedEvents.map((event) => event.eventId)
+  );
+
   return {
-    gameState: state,
+    gameState: triggerResult.gameState,
     actuallyWaitedMemberCardIds,
     memberStateChangedEventIds,
   };

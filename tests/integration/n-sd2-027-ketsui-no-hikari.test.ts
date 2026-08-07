@@ -13,16 +13,21 @@ import {
 } from '../../src/domain/entities/game';
 import {
   addCardToStatefulZone,
+  addCardToZone,
   placeCardInSlot,
   removeCardFromSlot,
   removeCardFromStatefulZone,
 } from '../../src/domain/entities/zone';
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
-import { N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+  N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   CardType,
   FaceState,
+  GamePhase,
   HeartColor,
   OrientationState,
   SlotPosition,
@@ -137,6 +142,50 @@ function scoreModifiers(game: GameState) {
   );
 }
 
+function setupWithBp7ShiorikoListener() {
+  const source = createCardInstance(ketsuiNoHikari(), P1, 'ketsui-listener-scenario');
+  const left = createCardInstance(member('LEFT-TARGET'), P1, 'left-target');
+  const shioriko = createCardInstance(
+    member('PL!N-bp7-022-N'),
+    P1,
+    'bp7-shioriko-listener'
+  );
+  const right = createCardInstance(member('RIGHT-TARGET'), P1, 'right-target');
+  const discard = createCardInstance(member('DISCARD-CARD'), P1, 'discard-card');
+  const deckFiller = createCardInstance(member('DECK-FILLER'), P1, 'deck-filler');
+  let game = registerCards(
+    createGameState('n-sd2-027-bp7-022-batch', P1, 'P1', P2, 'P2'),
+    [source, left, shioriko, right, discard, deckFiller]
+  );
+  game = updatePlayer(game, P1, (player) => ({
+    ...player,
+    liveZone: addCardToStatefulZone(player.liveZone, source.instanceId),
+    hand: addCardToZone(player.hand, discard.instanceId),
+    mainDeck: addCardToZone(player.mainDeck, deckFiller.instanceId),
+    memberSlots: [
+      [SlotPosition.LEFT, left],
+      [SlotPosition.CENTER, shioriko],
+      [SlotPosition.RIGHT, right],
+    ].reduce(
+      (slots, [slot, card]) =>
+        placeCardInSlot(slots, slot as SlotPosition, (card as typeof left).instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+      player.memberSlots
+    ),
+  }));
+  game = {
+    ...game,
+    currentPhase: GamePhase.PERFORMANCE_PHASE,
+    liveResolution: {
+      ...game.liveResolution,
+      playerScores: new Map([[P1, 5]]),
+    },
+  };
+  return { game, source, left, shioriko, right, discard };
+}
+
 describe('PL!N-sd2-027 決意の光', () => {
   it('opens one optional public multi-target window for own active main-stage Nijigasaki members', () => {
     const scenario = setup({
@@ -195,6 +244,81 @@ describe('PL!N-sd2-027 決意の光', () => {
         (action) => action.payload.step === 'WAIT_NIJIGASAKI_MEMBERS_GAIN_SCORE'
       )?.payload
     ).toMatchObject({ requestedCount: 2, actualWaitedCount: 2, scoreBonus: 2 });
+  });
+
+  it('batches simultaneous waits so bp7 Shioriko pays once and chooses a non-first target', () => {
+    const scenario = setupWithBp7ShiorikoListener();
+    const afterKetsui = choose(start(scenario.game), [
+      scenario.left.instanceId,
+      scenario.right.instanceId,
+    ]);
+
+    const waitingEvents = afterKetsui.eventLog.filter(
+      (entry) =>
+        entry.event.eventType === TriggerCondition.ON_MEMBER_STATE_CHANGED &&
+        entry.event.nextOrientation === OrientationState.WAITING
+    );
+    expect(waitingEvents.map((entry) => entry.event.cardInstanceId)).toEqual([
+      scenario.left.instanceId,
+      scenario.right.instanceId,
+    ]);
+    expect(scoreModifiers(afterKetsui)).toEqual([
+      expect.objectContaining({ countDelta: 2, liveCardId: scenario.source.instanceId }),
+    ]);
+    expect(afterKetsui.liveResolution.playerScores.get(P1)).toBe(7);
+    expect(
+      afterKetsui.actionHistory.filter(
+        (action) =>
+          action.type === 'TRIGGER_ABILITY' &&
+          action.payload.abilityId ===
+            N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID
+      )
+    ).toHaveLength(1);
+    expect(afterKetsui.activeEffect).toMatchObject({
+      abilityId: N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+      stepId: 'NIJIGASAKI_MEMBER_WAITED_SELECT_DISCARD',
+      metadata: {
+        changedCardIds: [scenario.left.instanceId, scenario.right.instanceId],
+        triggerEventIds: waitingEvents.map((entry) => entry.event.eventId),
+      },
+    });
+
+    const selectingTarget = confirmActiveEffectStep(
+      afterKetsui,
+      P1,
+      afterKetsui.activeEffect!.id,
+      scenario.discard.instanceId
+    );
+    expect(selectingTarget.activeEffect).toMatchObject({
+      stepId: 'NIJIGASAKI_MEMBER_WAITED_SELECT_ACTIVATE_TARGET',
+      selectableCardIds: [scenario.left.instanceId, scenario.right.instanceId],
+      selectableCardMode: 'SINGLE',
+      selectionLabel: '选择要变为活跃状态的成员',
+      confirmSelectionLabel: '变为活跃状态',
+      canSkipSelection: false,
+    });
+
+    const resolved = confirmActiveEffectStep(
+      selectingTarget,
+      P1,
+      selectingTarget.activeEffect!.id,
+      scenario.right.instanceId
+    );
+    expect(
+      resolved.players[0].memberSlots.cardStates.get(scenario.left.instanceId)?.orientation
+    ).toBe(OrientationState.WAITING);
+    expect(
+      resolved.players[0].memberSlots.cardStates.get(scenario.right.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(resolved.players[0].waitingRoom.cardIds).toContain(scenario.discard.instanceId);
+    expect(
+      resolved.actionHistory.filter(
+        (action) =>
+          action.payload.abilityId ===
+            N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID &&
+          action.payload.step === 'ABILITY_USE'
+      )
+    ).toHaveLength(1);
   });
 
   it('counts only targets that remain legal and actually change orientation', () => {

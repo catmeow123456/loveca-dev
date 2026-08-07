@@ -38,6 +38,9 @@ import {
   PL_N_BP3_002_LIVE_START_DISCARD_CHOOSE_HEART_OTHER_NIJIGASAKI_MEMBER_ABILITY_ID as KASUMI_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
+  getCardAbilityDefinitionsForCardCode as getCardAbilityDefinitions,
+} from '../../src/application/card-effects/definitions/lookup';
+import {
   CardType,
   FaceState,
   GamePhase,
@@ -993,32 +996,50 @@ describe('PL!-bp4-013-N 園田海未 fixed pink Heart shared path', () => {
 });
 
 describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path', () => {
-  function setupDraftAi(): {
+  const EFFECT_TEXT =
+    '【LIVE开始时】可以将2张手牌放置入休息室：指定1个任意的HEART的颜色。LIVE结束时为止，获得2个指定颜色的HEART。';
+
+  function setupDraftAi(handCount = 3): {
     readonly game: GameState;
     readonly sourceId: string;
-    readonly discardId: string;
+    readonly discardIds: readonly string[];
   } {
     const source = createCardInstance(
       createMemberCard('PL!N-sd2-005-SD2', '宫下爱', 13),
       PLAYER1,
       'n-sd2-005-source'
     );
-    const discard = createCardInstance(
-      createMemberCard('PL!N-sd2-005-discard', 'discard', 1),
+    const triggerSource = createCardInstance(
+      createMemberCard('PL!HS-pb1-003-R', '大泽瑠璃乃', 15),
       PLAYER1,
-      'n-sd2-005-discard'
+      'n-sd2-005-trigger-source'
     );
-    let game = registerCards(createGameState('n-sd2-005', PLAYER1, 'P1', PLAYER2, 'P2'), [
-      source,
-      discard,
-    ]);
+    const discardCards = Array.from({ length: 3 }, (_, index) =>
+      createCardInstance(
+        createMemberCard(`PL!N-sd2-005-discard-${index}`, `discard-${index}`, 1),
+        PLAYER1,
+        `n-sd2-005-discard-${index}`
+      )
+    );
+    let game = registerCards(
+      createGameState('n-sd2-005', PLAYER1, 'P1', PLAYER2, 'P2'),
+      [source, triggerSource, ...discardCards]
+    );
     game = updatePlayer(game, PLAYER1, (player) => ({
       ...player,
-      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
-        orientation: OrientationState.ACTIVE,
-        face: FaceState.FACE_UP,
-      }),
-      hand: { ...player.hand, cardIds: [discard.instanceId] },
+      memberSlots: placeCardInSlot(
+        placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId, {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }),
+        SlotPosition.LEFT,
+        triggerSource.instanceId,
+        { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }
+      ),
+      hand: {
+        ...player.hand,
+        cardIds: discardCards.slice(0, handCount).map((card) => card.instanceId),
+      },
     }));
     game = {
       ...game,
@@ -1035,31 +1056,115 @@ describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path
         },
       ],
     };
-    return { game, sourceId: source.instanceId, discardId: discard.instanceId };
+    return {
+      game,
+      sourceId: source.instanceId,
+      discardIds: discardCards.map((card) => card.instanceId),
+    };
   }
 
-  it('弃1手牌后展示六种普通 Heart，并使来源成员获得所选 Heart', () => {
+  const selectDiscardCards = (game: GameState, selectedCardIds: readonly string[]) =>
+    confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      game.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      selectedCardIds
+    );
+
+  it('通过基础编号登记完整新卡文，并打开精确弃2张的可选费用窗口', () => {
     const scenario = setupDraftAi();
-    let state = resolvePendingCardEffects(scenario.game).gameState;
+    const definition = getCardAbilityDefinitions('PL!N-sd2-005-SEC').find(
+      (candidate) =>
+        candidate.abilityId === N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID
+    );
+    expect(definition?.effectText).toBe(EFFECT_TEXT);
+
+    const state = resolvePendingCardEffects(scenario.game).gameState;
+    expect(state.activeEffect?.effectText).toBe(EFFECT_TEXT);
     expect(state.activeEffect).toMatchObject({
       abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
-      effectText:
-        '【LIVE开始时】可以将1张手牌放置入休息室：指定1个任意的HEART的颜色。LIVE结束时为止，获得1个指定颜色的HEART。',
-      selectableCardIds: [scenario.discardId],
-      selectionLabel: '请选择要放置入休息室的卡牌',
+      selectableCardIds: scenario.discardIds,
+      selectableCardMode: 'ORDERED_MULTI',
+      minSelectableCards: 2,
+      maxSelectableCards: 2,
+      selectionLabel: '选择要放置入休息室的卡',
       confirmSelectionLabel: '放置入休息室',
       canSkipSelection: true,
       skipSelectionLabel: '不发动',
     });
+    expect(state.activeEffect?.metadata).toMatchObject({
+      heartCount: 2,
+      handToWaitingRoomCost: { minCount: 2, maxCount: 2, optional: true },
+    });
+  });
 
-    state = confirmActiveEffectStep(state, PLAYER1, state.activeEffect!.id, scenario.discardId);
-    expect(state.players[0].waitingRoom.cardIds).toContain(scenario.discardId);
+  it('手牌不足2张时不打开空费用窗口，也不支付费用', () => {
+    const scenario = setupDraftAi(1);
+    const state = resolvePendingCardEffects(scenario.game).gameState;
+    expect(state.activeEffect).toBeNull();
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.players[0].hand.cardIds).toEqual([scenario.discardIds[0]]);
+    expect(state.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(state.actionHistory.at(-1)?.payload).toMatchObject({
+      abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+      step: 'INSUFFICIENT_HAND_TO_DISCARD',
+    });
+  });
+
+  it('不发动时不弃手、不写入 Heart，并正常结束 pending', () => {
+    const scenario = setupDraftAi(2);
+    const window = resolvePendingCardEffects(scenario.game).gameState;
+    const state = confirmActiveEffectStep(window, PLAYER1, window.activeEffect!.id);
+    expect(state.activeEffect).toBeNull();
+    expect(state.players[0].hand.cardIds).toEqual(scenario.discardIds.slice(0, 2));
+    expect(state.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(state.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('拒绝数量错误、重复、非法与 stale 选择，且不部分支付', () => {
+    const scenario = setupDraftAi();
+    const window = resolvePendingCardEffects(scenario.game).gameState;
+    expect(selectDiscardCards(window, [scenario.discardIds[0]])).toBe(window);
+    expect(selectDiscardCards(window, [scenario.discardIds[0], scenario.discardIds[0]])).toBe(
+      window
+    );
+    expect(selectDiscardCards(window, [scenario.discardIds[0], 'not-selectable'])).toBe(window);
+
+    const stale = updatePlayer(window, PLAYER1, (player) => ({
+      ...player,
+      hand: {
+        ...player.hand,
+        cardIds: player.hand.cardIds.filter((cardId) => cardId !== scenario.discardIds[1]),
+      },
+    }));
+    expect(selectDiscardCards(stale, scenario.discardIds.slice(0, 2))).toBe(stale);
+    expect(stale.players[0].hand.cardIds).toContain(scenario.discardIds[0]);
+    expect(stale.players[0].waitingRoom.cardIds).toEqual([]);
+    expect(stale.eventLog).toEqual([]);
+  });
+
+  it('同批精确弃2张并写入分组进休息室事件，选色后获得同色 Heart 2个并继续新 pending', () => {
+    const scenario = setupDraftAi();
+    let state = resolvePendingCardEffects(scenario.game).gameState;
+    const selectedDiscardIds = scenario.discardIds.slice(0, 2);
+    state = selectDiscardCards(state, selectedDiscardIds);
+    expect(state.players[0].waitingRoom.cardIds).toEqual(selectedDiscardIds);
+    expect(state.players[0].hand.cardIds).toEqual([scenario.discardIds[2]]);
     expect(state.eventLog).toContainEqual(
       expect.objectContaining({
         event: expect.objectContaining({
           eventType: TriggerCondition.ON_ENTER_WAITING_ROOM,
-          cardInstanceIds: [scenario.discardId],
+          cardInstanceIds: selectedDiscardIds,
         }),
+      })
+    );
+    expect(state.pendingAbilities).toContainEqual(
+      expect.objectContaining({
+        abilityId: HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
       })
     );
     expect(state.activeEffect?.effectChoice?.options.map((option) => option.id)).toEqual([
@@ -1070,6 +1175,9 @@ describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path
       HeartColor.BLUE,
       HeartColor.PURPLE,
     ]);
+    expect(
+      state.activeEffect?.effectChoice?.options.find((option) => option.id === HeartColor.BLUE)?.text
+    ).toBe('获得[青ハート][青ハート]。');
 
     const publicChoice = confirmActiveEffectStep(
       state,
@@ -1090,14 +1198,20 @@ describe('PL!N-sd2-005-SD2 费用13「宫下爱」shared discard-gain-Heart path
         ? state
         : confirmActiveEffectStep(publicChoice, PLAYER1, publicChoice.activeEffect!.id);
 
-    expect(state.activeEffect).toBeNull();
     expect(state.liveResolution.liveModifiers).toContainEqual({
       kind: 'HEART',
       target: 'SOURCE_MEMBER',
       playerId: PLAYER1,
-      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      hearts: [{ color: HeartColor.BLUE, count: 2 }],
       sourceCardId: scenario.sourceId,
       abilityId: N_SD2_005_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
     });
+    expect(
+      state.actionHistory.some(
+        (action) =>
+          action.payload.abilityId ===
+          HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID
+      )
+    ).toBe(true);
   });
 });

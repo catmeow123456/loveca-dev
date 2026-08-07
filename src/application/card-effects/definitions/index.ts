@@ -127,7 +127,7 @@ import {
   SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
   SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
   SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
-  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
   SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
   SP_BP7_008_AUTO_ON_MOVE_ACTIVATE_SELF_ABILITY_ID,
   SP_PB1_002_CONTINUOUS_ENERGY_TWELVE_LIVE_SCORE_ABILITY_ID,
@@ -960,7 +960,7 @@ import {
   N_SD2_017_LIVE_START_PAY_ENERGY_ACTIVATE_STAGE_MEMBER_ABILITY_ID,
   N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
-  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
   N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
   PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
   N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
@@ -2453,7 +2453,7 @@ const N_SD2_015_ACTIVATED_EFFECT_TEXT =
 const N_SD2_004_008_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以支付[E]：LIVE结束时为止，获得[ブレード][ブレード]。';
 const N_SD2_005_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】可以将1张手牌放置入休息室：指定1个任意的HEART的颜色。LIVE结束时为止，获得1个指定颜色的HEART。';
+  '【LIVE开始时】可以将2张手牌放置入休息室：指定1个任意的HEART的颜色。LIVE结束时为止，获得2个指定颜色的HEART。';
 const N_SD2_006_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将1名『虹咲』的成员变为待机状态：LIVE结束时为止，获得[ブレード][ブレード]。';
 const N_SD2_013_ON_ENTER_LIVE_START_EFFECT_TEXT =
@@ -2464,7 +2464,7 @@ const N_SD2_019_ON_ENTER_EFFECT_TEXT = '【登场】LIVE结束时为止，获得
 const N_SD2_019_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。';
 const N_SD2_021_ON_ENTER_EFFECT_TEXT =
-  '【登场】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。';
+  '【登场】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。   (待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)';
 const N_SD2_025_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】将存在于自己的舞台的1名『虹咲』的成员变为活跃状态。';
 const PL_N_SD2_026_LIVE_START_EFFECT_TEXT =
@@ -2626,7 +2626,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: N_SD2_005_LIVE_START_EFFECT_TEXT,
     notes:
-      '扩展 shared live-start-discard-gain-heart workflow；可选弃1张手牌后选择六种普通 Heart，来源成员获得所选 Heart 1个，弃手走标准事件 wrapper。',
+      '扩展 shared live-start-discard-gain-heart workflow 的 discardCount / heartCount 参数轴；可选精确弃2张手牌后选择六种普通 Heart，来源成员获得所选 Heart 2个，弃手走 grouped 标准事件 wrapper。',
   },
   {
     abilityId: N_SD2_006_LIVE_START_WAIT_NIJIGASAKI_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
@@ -2713,7 +2713,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '扩展 shared `opponent-wait-target.ts`；选择对方费用<=2且当前非 WAITING 的成员变 WAITING，状态变化走标准事件 wrapper。',
   },
   {
-    abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+    abilityId: N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
     baseCardCodes: ['PL!N-sd2-021'],
     category: CardAbilityCategory.ON_ENTER,
     sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
@@ -2722,7 +2722,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: N_SD2_021_ON_ENTER_EFFECT_TEXT,
     notes:
-      '扩展 shared `opponent-wait-target.ts`；选择对方费用<=2且当前非 WAITING 的成员变 WAITING，状态变化走标准事件 wrapper。',
+      '扩展 shared `opponent-wait-target.ts`；选择对方费用<=4且当前非 WAITING 的成员变 WAITING，状态变化走标准事件 wrapper。',
   },
   {
     abilityId: PL_N_SD2_007_LIVE_SUCCESS_DRAW_ONE_OPPONENT_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
@@ -13459,14 +13459,14 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '【LIVE成功时】从自己的能量卡组将2张能量以待机状态放置入能量区。那些能量在下一个自己的活跃阶段不会自动变为活跃。',
   },
   {
-    abilityId: SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+    abilityId: SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
     baseCardCodes: ['PL!SP-bp7-007'],
     category: CardAbilityCategory.LIVE_SUCCESS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
     queued: true,
     implemented: true,
-    effectText: '【LIVE成功时】自己的能量多于对方时，将5张能量变为活跃状态。',
+    effectText: '【LIVE成功时】自己的能量多于对方的场合，将6张能量变为活跃状态。',
   },
   {
     abilityId: SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
@@ -14668,7 +14668,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     observerOnly: true,
     effectText: N_BP7_022_AUTO_EFFECT_TEXT,
     notes:
-      '仅在规则 Live 阶段的 LIVE_SET_PHASE、PERFORMANCE_PHASE、LIVE_RESULT_PHASE 中消费本次 ON_MEMBER_STATE_CHANGED 事件中己方舞台虹咲成员 ACTIVE -> WAITING 的精确目标。可选弃1手后重验同一目标并变 ACTIVE；弃手与状态变化均走统一事件 wrapper。',
+      '仅在规则 Live 阶段的 LIVE_SET_PHASE、PERFORMANCE_PHASE、LIVE_RESULT_PHASE 中消费同批 ON_MEMBER_STATE_CHANGED 事件；按来源聚合己方舞台虹咲成员 ACTIVE -> WAITING 候选。可选弃1手后从仍合法候选中选择1名变 ACTIVE；弃手与状态变化均走统一事件 wrapper。',
   },
   {
     abilityId: N_SD2_010_ON_ENTER_DRAW_TWO_ABILITY_ID,
@@ -14695,7 +14695,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     observerOnly: true,
     effectText: N_SD2_010_AUTO_EFFECT_TEXT,
     notes:
-      '消费本次 ON_MEMBER_STATE_CHANGED 事件中己方舞台虹咲成员 ACTIVE -> WAITING 的精确目标。可选弃1手后重验同一目标，将其变 ACTIVE 并给该成员写入 BLADE +2 LIVE modifier。导出 X 在文本与实现中均按 cards.json 替换为1。',
+      '按来源聚合同批 ON_MEMBER_STATE_CHANGED 事件中己方舞台虹咲成员 ACTIVE -> WAITING 候选。可选弃1手后从仍合法候选中选择1名变 ACTIVE，并仅给所选成员写入 BLADE +2 LIVE modifier。导出 X 在文本与实现中均按 cards.json 替换为1。',
   },
   {
     abilityId: S_BP7_013_ON_ENTER_CHOOSE_PLAYER_BOTTOM_UP_TO_TWO_WAITING_MEMBERS_ABILITY_ID,

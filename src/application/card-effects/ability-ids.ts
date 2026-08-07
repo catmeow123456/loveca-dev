@@ -1685,8 +1685,8 @@ export const SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID =
   'PL!SP-bp7-007-SEC:live-start-return-two-gain-three-blade';
 export const SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID =
   'PL!SP-bp7-007-SEC:live-success-place-two-skipped-energy';
-export const SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID =
-  'PL!SP-bp7-007-SEC:live-success-more-energy-activate-five';
+export const SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID =
+  'PL!SP-bp7-007-SEC:live-success-more-energy-activate-six';
 export const SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID =
   'PL!SP-bp7-008:activated-wait-self-draw-one';
 export const SP_BP7_008_AUTO_ON_MOVE_ACTIVATE_SELF_ABILITY_ID =
@@ -1860,8 +1860,8 @@ export const N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID =
   'PL!N-sd2-019:on-enter-gain-blue-heart';
 export const N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID =
   'PL!N-sd2-019:live-start-wait-opponent-cost-two-member';
-export const N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID =
-  'PL!N-sd2-021:on-enter-wait-opponent-cost-two-member';
+export const N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID =
+  'PL!N-sd2-021:on-enter-wait-opponent-cost-four-member';
 export const N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID =
   'PL!N-sd2-025:live-start-activate-nijigasaki-stage-member';
 export const PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID =

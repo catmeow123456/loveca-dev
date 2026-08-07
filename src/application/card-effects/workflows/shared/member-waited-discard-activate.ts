@@ -47,6 +47,7 @@ import {
 } from '../../runtime/workflow-helpers.js';
 
 const SELECT_DISCARD_STEP_ID = 'NIJIGASAKI_MEMBER_WAITED_SELECT_DISCARD';
+const SELECT_TARGET_STEP_ID = 'NIJIGASAKI_MEMBER_WAITED_SELECT_ACTIVATE_TARGET';
 const MEMBER_SLOTS = [SlotPosition.LEFT, SlotPosition.CENTER, SlotPosition.RIGHT] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -107,6 +108,18 @@ export function registerMemberWaitedDiscardActivateWorkflowHandlers(deps: {
             )
           : finishSkippedActiveEffect(game, context.continuePendingCardEffects)
     );
+    registerActiveEffectStepHandler(
+      config.abilityId,
+      SELECT_TARGET_STEP_ID,
+      (game, input, context) =>
+        finishMemberWaitedTargetSelection(
+          game,
+          input.selectedCardId ?? null,
+          config,
+          context.continuePendingCardEffects,
+          deps.enqueueTriggeredCardEffects
+        )
+    );
   }
 }
 
@@ -115,6 +128,7 @@ function enqueueMemberWaitedDiscardActivateObservers(
   events: readonly MemberStateChangedEvent[]
 ): GameState {
   let state = game;
+  const qualifyingEventsByController = new Map<string, MemberStateChangedEvent[]>();
   for (const event of events) {
     if (
       event.previousOrientation !== OrientationState.ACTIVE ||
@@ -133,7 +147,21 @@ function enqueueMemberWaitedDiscardActivateObservers(
     ) {
       continue;
     }
+    const controllerEvents = qualifyingEventsByController.get(player.id) ?? [];
+    if (!controllerEvents.some((candidate) => candidate.eventId === event.eventId)) {
+      qualifyingEventsByController.set(player.id, [...controllerEvents, event]);
+    }
+  }
 
+  for (const [controllerId, controllerEvents] of qualifyingEventsByController) {
+    const player = getPlayerById(state, controllerId);
+    if (!player || controllerEvents.length === 0) {
+      continue;
+    }
+    const eventIds = controllerEvents.map((event) => event.eventId);
+    const changedCardIds = [
+      ...new Set(controllerEvents.map((event) => event.cardInstanceId)),
+    ];
     for (const sourceSlot of MEMBER_SLOTS) {
       const sourceCardId = player.memberSlots.slots[sourceSlot];
       const sourceCard = sourceCardId ? getCardById(state, sourceCardId) : null;
@@ -159,7 +187,7 @@ function enqueueMemberWaitedDiscardActivateObservers(
         ) {
           continue;
         }
-        const pendingAbilityId = `${definition.abilityId}:${sourceCardId}:${event.eventId}`;
+        const pendingAbilityId = `${definition.abilityId}:${sourceCardId}:${eventIds.join('+')}`;
         if (hasAbilityInstance(state, pendingAbilityId)) {
           continue;
         }
@@ -170,16 +198,15 @@ function enqueueMemberWaitedDiscardActivateObservers(
           controllerId: player.id,
           mandatory: true,
           timingId: TriggerCondition.ON_MEMBER_STATE_CHANGED,
-          eventIds: [event.eventId],
+          eventIds,
           sourceSlot,
           metadata: {
             triggerKind: 'OWN_NIJIGASAKI_MEMBER_BECAME_WAITING',
-            eventId: event.eventId,
-            changedCardId: event.cardInstanceId,
-            changedControllerId: event.controllerId,
-            changedSlot: event.slot,
-            previousOrientation: event.previousOrientation,
-            nextOrientation: event.nextOrientation,
+            changedCardIds,
+            changedControllerId: controllerId,
+            changedSlots: controllerEvents.map((event) => event.slot),
+            previousOrientation: OrientationState.ACTIVE,
+            nextOrientation: OrientationState.WAITING,
             triggerTurnType: game.currentTurnType,
           },
         };
@@ -193,12 +220,12 @@ function enqueueMemberWaitedDiscardActivateObservers(
             sourceCardId,
             timingId: pendingAbility.timingId,
             sourceSlot,
-            eventId: event.eventId,
-            changedCardId: event.cardInstanceId,
-            changedControllerId: event.controllerId,
-            changedSlot: event.slot,
-            previousOrientation: event.previousOrientation,
-            nextOrientation: event.nextOrientation,
+            eventIds,
+            changedCardIds,
+            changedControllerId: controllerId,
+            changedSlots: controllerEvents.map((event) => event.slot),
+            previousOrientation: OrientationState.ACTIVE,
+            nextOrientation: OrientationState.WAITING,
             triggerTurnType: game.currentTurnType,
           }
         );
@@ -217,6 +244,17 @@ function startMemberWaitedDiscardActivate(
   const player = getPlayerById(game, ability.controllerId);
   if (!player) {
     return game;
+  }
+  const changedCardIds = getStringArrayMetadata(ability.metadata?.changedCardIds);
+  const selectableCardIds = getEligibleWaitedMemberCardIds(game, player.id, changedCardIds);
+  if (selectableCardIds.length === 0) {
+    return finishPendingWithoutPayment(
+      game,
+      ability,
+      orderedResolution,
+      continuePendingCardEffects,
+      'NO_VALID_WAITED_MEMBER_TARGET'
+    );
   }
   if (player.hand.cardIds.length === 0) {
     return finishPendingWithoutPayment(
@@ -238,17 +276,16 @@ function startMemberWaitedDiscardActivate(
       selectableCardIds: player.hand.cardIds,
       orderedResolution,
       metadata: {
-        changedCardId: ability.metadata?.changedCardId,
+        changedCardIds,
         changedControllerId: ability.metadata?.changedControllerId,
-        changedSlot: ability.metadata?.changedSlot,
-        triggerEventId: ability.eventIds[0] ?? null,
+        triggerEventIds: ability.eventIds,
         triggerTurnType: ability.metadata?.triggerTurnType,
       },
     }),
     actionPayload: {
       sourceCardId: ability.sourceCardId,
       step: 'START_OPTIONAL_DISCARD',
-      changedCardId: ability.metadata?.changedCardId,
+      changedCardIds,
       changedControllerId: ability.metadata?.changedControllerId,
       selectableCardIds: player.hand.cardIds,
     },
@@ -299,29 +336,155 @@ function finishMemberWaitedDiscardActivate(
     pendingAbilityId: effect.id,
   });
 
-  const targetCardId =
-    typeof effect.metadata?.changedCardId === 'string' ? effect.metadata.changedCardId : null;
-  const targetControllerId =
-    typeof effect.metadata?.changedControllerId === 'string'
-      ? effect.metadata.changedControllerId
-      : player.id;
-  const targetPlayer = getPlayerById(state, targetControllerId);
-  const targetSlot =
-    targetCardId && targetPlayer ? findMemberSlot(targetPlayer, targetCardId) : null;
-  const targetStillOnStage = targetControllerId === player.id && targetSlot !== null;
-  const orientationResult =
-    targetCardId && targetStillOnStage
-      ? setMemberOrientation(state, player.id, targetCardId, OrientationState.ACTIVE, {
-          kind: 'CARD_EFFECT',
-          playerId: player.id,
-          sourceCardId: effect.sourceCardId,
-          abilityId: effect.abilityId,
-          pendingAbilityId: effect.id,
-        })
-      : null;
-  let stateAfterEffect = orientationResult?.gameState ?? state;
+  const changedCardIds = getStringArrayMetadata(effect.metadata?.changedCardIds);
+  const selectableCardIds = getEligibleWaitedMemberCardIds(state, player.id, changedCardIds);
+  const stateWithPaymentMetadata: GameState = {
+    ...state,
+    activeEffect: {
+      ...effect,
+      metadata: {
+        ...effect.metadata,
+        discardedCardIds: discardResult.discardedCardIds,
+      },
+    },
+  };
+  if (selectableCardIds.length === 0) {
+    return finishPaidEffectWithoutTarget(
+      stateWithPaymentMetadata,
+      config,
+      continuePendingCardEffects,
+      'PAID_COST_TARGETS_NO_LONGER_AVAILABLE'
+    );
+  }
+  if (selectableCardIds.length === 1) {
+    return resolveMemberWaitedDiscardActivateTarget(
+      stateWithPaymentMetadata,
+      selectableCardIds[0]!,
+      config,
+      continuePendingCardEffects,
+      enqueueTriggeredCardEffects
+    );
+  }
+
+  return addAction(
+    {
+      ...stateWithPaymentMetadata,
+      activeEffect: {
+        ...stateWithPaymentMetadata.activeEffect!,
+        stepId: SELECT_TARGET_STEP_ID,
+        stepText: '请选择1名因此变为待机状态的『虹咲』成员变为活跃状态。',
+        selectableCardIds,
+        selectableCardVisibility: 'PUBLIC',
+        selectableCardMode: 'SINGLE',
+        minSelectableCards: undefined,
+        maxSelectableCards: undefined,
+        autoSubmitSingleSelection: undefined,
+        selectableOptions: undefined,
+        effectChoice: undefined,
+        selectionLabel: '选择要变为活跃状态的成员',
+        confirmSelectionLabel: '变为活跃状态',
+        canSkipSelection: false,
+        skipSelectionLabel: undefined,
+      },
+    },
+    'RESOLVE_ABILITY',
+    player.id,
+    {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step: 'PAID_DISCARD_SELECT_ACTIVATE_TARGET',
+      discardedCardIds: discardResult.discardedCardIds,
+      selectableCardIds,
+    }
+  );
+}
+
+function finishMemberWaitedTargetSelection(
+  game: GameState,
+  selectedCardId: string | null,
+  config: MemberWaitedDiscardActivateConfig,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  if (
+    !effect ||
+    effect.abilityId !== config.abilityId ||
+    effect.stepId !== SELECT_TARGET_STEP_ID ||
+    !selectedCardId ||
+    effect.selectableCardIds?.includes(selectedCardId) !== true
+  ) {
+    return game;
+  }
+  const player = getPlayerById(game, effect.controllerId);
+  if (!player) {
+    return game;
+  }
+  const changedCardIds = getStringArrayMetadata(effect.metadata?.changedCardIds);
+  const currentSelectableCardIds = getEligibleWaitedMemberCardIds(
+    game,
+    player.id,
+    changedCardIds
+  );
+  if (!currentSelectableCardIds.includes(selectedCardId)) {
+    if (currentSelectableCardIds.length === 0) {
+      return finishPaidEffectWithoutTarget(
+        game,
+        config,
+        continuePendingCardEffects,
+        'PAID_COST_TARGETS_NO_LONGER_AVAILABLE'
+      );
+    }
+    return {
+      ...game,
+      activeEffect: { ...effect, selectableCardIds: currentSelectableCardIds },
+    };
+  }
+
+  return resolveMemberWaitedDiscardActivateTarget(
+    game,
+    selectedCardId,
+    config,
+    continuePendingCardEffects,
+    enqueueTriggeredCardEffects
+  );
+}
+
+function resolveMemberWaitedDiscardActivateTarget(
+  game: GameState,
+  targetCardId: string,
+  config: MemberWaitedDiscardActivateConfig,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  enqueueTriggeredCardEffects: EnqueueTriggeredCardEffects
+): GameState {
+  const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  if (!effect || effect.abilityId !== config.abilityId || !player) {
+    return game;
+  }
+  const changedCardIds = getStringArrayMetadata(effect.metadata?.changedCardIds);
+  if (!getEligibleWaitedMemberCardIds(game, player.id, changedCardIds).includes(targetCardId)) {
+    return game;
+  }
+
+  const targetSlot = findMemberSlot(player, targetCardId);
+  const orientationResult = setMemberOrientation(
+    game,
+    player.id,
+    targetCardId,
+    OrientationState.ACTIVE,
+    {
+      kind: 'CARD_EFFECT',
+      playerId: player.id,
+      sourceCardId: effect.sourceCardId,
+      abilityId: effect.abilityId,
+      pendingAbilityId: effect.id,
+    }
+  );
+  let stateAfterEffect = orientationResult?.gameState ?? game;
   const bladeResult =
-    targetCardId && targetStillOnStage && config.bladeBonus > 0
+    orientationResult && config.bladeBonus > 0
       ? addBladeLiveModifierForTargetMember(stateAfterEffect, {
           playerId: player.id,
           sourceCardId: effect.sourceCardId,
@@ -338,9 +501,9 @@ function finishMemberWaitedDiscardActivate(
       abilityId: effect.abilityId,
       sourceCardId: effect.sourceCardId,
       step: config.actionStep,
-      discardedCardIds: discardResult.discardedCardIds,
+      discardedCardIds: getStringArrayMetadata(effect.metadata?.discardedCardIds),
       targetMemberCardId: targetCardId,
-      targetStillOnStage,
+      targetStillOnStage: targetSlot !== null,
       targetSlot,
       activated: orientationResult?.changed === true,
       blockedByEffectActivationProhibition:
@@ -356,7 +519,7 @@ function finishMemberWaitedDiscardActivate(
     );
   }
   const enqueued = enqueueMemberStateChangedTriggersFromOrientationResult(
-    state,
+    game,
     { ...orientationResult, gameState: stateAfterEffect },
     enqueueTriggeredCardEffects,
     {
@@ -369,6 +532,34 @@ function finishMemberWaitedDiscardActivate(
   );
   return continuePendingCardEffects(
     enqueued.gameState,
+    effect.metadata?.orderedResolution === true
+  );
+}
+
+function finishPaidEffectWithoutTarget(
+  game: GameState,
+  config: MemberWaitedDiscardActivateConfig,
+  continuePendingCardEffects: ContinuePendingCardEffects,
+  step: string
+): GameState {
+  const effect = game.activeEffect;
+  const player = effect ? getPlayerById(game, effect.controllerId) : null;
+  if (!effect || effect.abilityId !== config.abilityId || !player) {
+    return game;
+  }
+  const changedCardIds = getStringArrayMetadata(effect.metadata?.changedCardIds);
+  return continuePendingCardEffects(
+    addAction({ ...game, activeEffect: null }, 'RESOLVE_ABILITY', player.id, {
+      pendingAbilityId: effect.id,
+      abilityId: effect.abilityId,
+      sourceCardId: effect.sourceCardId,
+      step,
+      discardedCardIds: getStringArrayMetadata(effect.metadata?.discardedCardIds),
+      changedCardIds,
+      targetMemberCardId: null,
+      targetStillOnStage: false,
+      bladeBonus: 0,
+    }),
     effect.metadata?.orderedResolution === true
   );
 }
@@ -390,8 +581,35 @@ function finishPendingWithoutPayment(
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       step,
-      targetMemberCardId: ability.metadata?.changedCardId ?? null,
+      changedCardIds: getStringArrayMetadata(ability.metadata?.changedCardIds),
     }),
     orderedResolution
   );
+}
+
+function getEligibleWaitedMemberCardIds(
+  game: GameState,
+  playerId: string,
+  candidateCardIds: readonly string[]
+): readonly string[] {
+  const player = getPlayerById(game, playerId);
+  if (!player) {
+    return [];
+  }
+  return [...new Set(candidateCardIds)].filter((cardId) => {
+    const card = getCardById(game, cardId);
+    return (
+      findMemberSlot(player, cardId) !== null &&
+      player.memberSlots.cardStates.get(cardId)?.orientation === OrientationState.WAITING &&
+      card !== null &&
+      isMemberCardData(card.data) &&
+      groupAliasIs('虹ヶ咲')(card)
+    );
+  });
+}
+
+function getStringArrayMetadata(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((candidate): candidate is string => typeof candidate === 'string')
+    : [];
 }

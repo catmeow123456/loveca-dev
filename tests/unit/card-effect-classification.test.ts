@@ -155,7 +155,7 @@ import {
   SP_BP7_006_LIVE_SUCCESS_ENERGY_RETURNED_SCORE_ABILITY_ID,
   SP_BP7_006_ON_ENTER_RETURN_ENERGY_RECOVER_LIELLA_MEMBER_ABILITY_ID,
   SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
-  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+  SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
   SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
   SP_BP7_008_ACTIVATED_WAIT_SELF_DRAW_ONE_ABILITY_ID,
   SP_BP7_008_AUTO_ON_MOVE_ACTIVATE_SELF_ABILITY_ID,
@@ -893,7 +893,7 @@ import {
   N_SD2_017_LIVE_START_PAY_ENERGY_ACTIVATE_STAGE_MEMBER_ABILITY_ID,
   N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
   N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
-  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+  N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
   N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
   PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
   N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
@@ -13613,7 +13613,7 @@ describe('HS pb1 newly implemented card classifications', () => {
         [
           SP_BP7_007_LIVE_START_RETURN_TWO_GAIN_THREE_BLADE_ABILITY_ID,
           SP_BP7_007_LIVE_SUCCESS_PLACE_TWO_SKIPPED_ENERGY_ABILITY_ID,
-          SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_FIVE_ABILITY_ID,
+          SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID,
         ],
       ],
     ]);
@@ -13629,13 +13629,25 @@ describe('HS pb1 newly implemented card classifications', () => {
         expect(definition.baseCardCodes).toEqual([cardCode.replace(/-[^-]+$/, '')]);
         expect(definition.implemented).toBe(true);
       }
-      expect(
-        new Set(
-          getCardAbilityDefinitions(cardCode.replace(/-[^-]+$/, '-P')).map(
-            (definition) => definition.abilityId
+      const rarityCardCodes =
+        cardCode === 'PL!SP-bp7-007-SEC'
+          ? ['PL!SP-bp7-007-SEC', 'PL!SP-bp7-007-R+', 'PL!SP-bp7-007-P', 'PL!SP-bp7-007-P+']
+          : [cardCode, cardCode.replace(/-[^-]+$/, '-P')];
+      for (const rarityCardCode of rarityCardCodes) {
+        expect(
+          new Set(
+            getCardAbilityDefinitions(rarityCardCode).map((definition) => definition.abilityId)
           )
-        )
-      ).toEqual(new Set(abilityIds));
+        ).toEqual(new Set(abilityIds));
+      }
+      if (cardCode === 'PL!SP-bp7-007-SEC') {
+        expect(
+          cardDefinitions.find(
+            (definition) =>
+              definition.abilityId === SP_BP7_007_LIVE_SUCCESS_MORE_ENERGY_ACTIVATE_SIX_ABILITY_ID
+          )?.effectText
+        ).toBe('【LIVE成功时】自己的能量多于对方的场合，将6张能量变为活跃状态。');
+      }
       return cardDefinitions;
     });
     expect(definitions).toHaveLength(8);
@@ -16253,7 +16265,7 @@ describe('PL!N-sd2 base-scoped definitions', () => {
     ],
     [
       'PL!N-sd2-021-SD2',
-      N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
+      N_SD2_021_ON_ENTER_WAIT_OPPONENT_COST_FOUR_MEMBER_ABILITY_ID,
       'PL!N-sd2-021',
       CardAbilityCategory.ON_ENTER,
       CardAbilitySourceZone.PLAYED_MEMBER,
@@ -16353,7 +16365,7 @@ describe('PL!N-sd2 base-scoped definitions', () => {
       '【LIVE开始时】可以将1名『虹咲』的成员变为待机状态：LIVE结束时为止，获得[ブレード][ブレード]。'
     );
     expect(getCardAbilityDefinitions('PL!N-sd2-021-SD2')[0]?.effectText).toBe(
-      '【登场】将存在于对方的舞台的1名费用小于等于2的成员变为待机状态。'
+      '【登场】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。   (待机状态的成员持有的[ブレード]，不会使因声援公开的张数增加。)'
     );
   });
 

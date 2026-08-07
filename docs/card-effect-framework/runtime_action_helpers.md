@@ -478,12 +478,12 @@ It deliberately does not pay costs, move cards, recover cards, swap success-zone
 
 Current boundary:
 
-- constructs the old optional discard-one-hand window with `selectableCardVisibility: AWAITING_PLAYER_ONLY`;
-- keeps the default step text, selection label, `不发动` skip label, `canSkipSelection: true`, `effectCosts`, and `handToWaitingRoomCost`;
+- constructs an optional exact fixed-count discard-hand window with `selectableCardVisibility: AWAITING_PLAYER_ONLY`; `discardCount` defaults to 1;
+- keeps the default single-card step text and labels, and for counts above 1 projects exact multi-select bounds while callers may supply the corresponding step copy; all counts keep the `不发动` skip label, `canSkipSelection: true`, `effectCosts`, and `handToWaitingRoomCost`;
 - merges caller metadata with `orderedResolution` and the fixed discard cost metadata;
 - preserves caller-provided `selectableCardIds` exactly.
 
-It deliberately does not remove pending abilities, write action history, discard a card, pay costs, continue pending, decide skip semantics, or model grouped / hand-adjust discard flows. Current users are KEKE, HS_BP6_004, HS_BP5_003 live-start Heart, live-start discard-gain-Heart, and discard-look-top selection windows.
+It deliberately does not remove pending abilities, write action history, discard cards, pay costs, continue pending, decide skip semantics, or model category-grouped / hand-adjust discard flows. Current users are KEKE, HS_BP6_004, HS_BP5_003 live-start Heart, live-start discard-gain-Heart, and discard-look-top selection windows.
 
 ## Wait Selected Stage Members + State-Change Triggers
 
@@ -491,7 +491,7 @@ It deliberately does not remove pending abilities, write action history, discard
 
 - rechecks that each requested instance is still a top-level main-stage member;
 - applies `ACTIVE -> WAITING` through `setMemberOrientation` with the caller's exact card-effect cause;
-- enqueues only the standard `ON_MEMBER_STATE_CHANGED` events that were actually emitted;
+- completes every legal state change in the call before enqueueing the standard `ON_MEMBER_STATE_CHANGED` events once as one batch; the event log still keeps one event per actually changed member;
 - returns the updated state, actually changed member IDs, and event IDs.
 
 It deliberately does not choose candidates, filter groups, decide optional/mandatory semantics, create an activeEffect, calculate rewards, or continue pending. `PL!-pb1-008` uses the returned actual count to draw; `PL!N-sd2-027` uses it to update the source LIVE's SCORE. This is an atomic state/event boundary, not a configurable “wait members then run reward callback” workflow.

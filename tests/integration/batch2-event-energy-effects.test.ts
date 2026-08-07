@@ -114,6 +114,24 @@ function enqueueWaitingTransition(game: GameState, cardId: string): GameState {
   ).gameState;
 }
 
+function enqueueWaitingTransitions(game: GameState, cardIds: readonly string[]): GameState {
+  let state = game;
+  for (const cardId of cardIds) {
+    const result = setMemberOrientation(state, P1, cardId, OrientationState.WAITING, {
+      kind: 'CARD_EFFECT',
+      playerId: P1,
+      sourceCardId: 'batch-wait-source',
+    });
+    expect(result?.changed).toBe(true);
+    state = result!.gameState;
+  }
+  return enqueueMemberStateChangedTriggersFromOrientationResult(
+    game,
+    { gameState: state },
+    enqueueTriggeredCardEffects
+  ).gameState;
+}
+
 describe('PL!N-bp7-017 optional energy-deck placement below a Nijigasaki member', () => {
   it('uses the full definition text, supports skip, and never emits the ENERGY_ZONE-to-below trigger', () => {
     const source = member('PL!N-bp7-017-TEST', 'ai');
@@ -227,7 +245,7 @@ describe('PL!N-bp7-017 optional energy-deck placement below a Nijigasaki member'
   });
 });
 
-describe('shared own Nijigasaki member waited -> optional discard -> exact reactivation', () => {
+describe('shared own Nijigasaki member waited -> optional discard -> batch target reactivation', () => {
   function setup(
     abilityId: string,
     sourceCode: string,
@@ -236,25 +254,32 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
   ) {
     const source = member(sourceCode, 'shioriko');
     const target = member('TARGET-NIJIGASAKI', 'target');
+    const secondTarget = member('SECOND-TARGET-NIJIGASAKI', 'second-target');
     const hand = member('HAND-CARD', 'hand-card');
+    const secondHand = member('SECOND-HAND-CARD', 'second-hand-card');
     let game = registerCards(createGameState('waited-family', P1, 'P1', P2, 'P2'), [
       source,
       target,
+      secondTarget,
       hand,
+      secondHand,
     ]);
     game = putMembersAndEnergyDeck(game, {
       [SlotPosition.CENTER]: source.instanceId,
       [SlotPosition.LEFT]: target.instanceId,
+      [SlotPosition.RIGHT]: secondTarget.instanceId,
     });
     game = updatePlayer(game, P1, (player) => ({
       ...player,
-      hand: addCardToZone(player.hand, hand.instanceId),
+      hand: addCardToZone(addCardToZone(player.hand, hand.instanceId), secondHand.instanceId),
     }));
     return {
       game: { ...game, currentPhase, currentTurnType: turnType },
       source,
       target,
+      secondTarget,
       hand,
+      secondHand,
       abilityId,
     };
   }
@@ -276,7 +301,9 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
     };
     const triggered = enqueueWaitingTransition(liveGame, scenario.target.instanceId);
     expect(triggered.pendingAbilities).toHaveLength(1);
-    expect(triggered.pendingAbilities[0]?.metadata?.changedCardId).toBe(scenario.target.instanceId);
+    expect(triggered.pendingAbilities[0]?.metadata?.changedCardIds).toEqual([
+      scenario.target.instanceId,
+    ]);
     const choosing = resolvePendingCardEffects(triggered).gameState;
     expect(choosing.activeEffect?.effectText).toBe(
       findCardAbilityDefinitionById(scenario.abilityId)?.effectText
@@ -312,11 +339,197 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
       const triggered = enqueueWaitingTransition(scenario.game, scenario.target.instanceId);
 
       expect(triggered.pendingAbilities).toHaveLength(1);
-      expect(triggered.pendingAbilities[0]?.metadata?.changedCardId).toBe(
-        scenario.target.instanceId
-      );
+      expect(triggered.pendingAbilities[0]?.metadata?.changedCardIds).toEqual([
+        scenario.target.instanceId,
+      ]);
     }
   );
+
+  it('aggregates three simultaneous waiting events into one pending with all candidates', () => {
+    const scenario = setup(
+      N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+      'PL!N-bp7-022-N',
+      TurnType.LIVE_PHASE,
+      GamePhase.PERFORMANCE_PHASE
+    );
+    const changedCardIds = [
+      scenario.target.instanceId,
+      scenario.source.instanceId,
+      scenario.secondTarget.instanceId,
+    ];
+    const triggered = enqueueWaitingTransitions(scenario.game, changedCardIds);
+
+    expect(triggered.pendingAbilities).toHaveLength(1);
+    expect(triggered.pendingAbilities[0]).toMatchObject({
+      abilityId: scenario.abilityId,
+      sourceCardId: scenario.source.instanceId,
+      eventIds: expect.any(Array),
+      metadata: { changedCardIds },
+    });
+    expect(triggered.pendingAbilities[0]?.eventIds).toHaveLength(3);
+
+    const choosing = resolvePendingCardEffects(triggered).gameState;
+    const skipped = confirmActiveEffectStep(choosing, P1, choosing.activeEffect!.id, null);
+    expect(skipped.pendingAbilities).toHaveLength(0);
+    expect(
+      skipped.actionHistory.filter(
+        (action) =>
+          action.payload.abilityId === scenario.abilityId && action.payload.step === 'ABILITY_USE'
+      )
+    ).toHaveLength(0);
+  });
+
+  it('after payment opens an exact public choice and can activate a non-first batch target', () => {
+    const scenario = setup(
+      N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+      'PL!N-bp7-022-N',
+      TurnType.LIVE_PHASE,
+      GamePhase.PERFORMANCE_PHASE
+    );
+    const changedCardIds = [
+      scenario.target.instanceId,
+      scenario.source.instanceId,
+      scenario.secondTarget.instanceId,
+    ];
+    const choosingDiscard = resolvePendingCardEffects(
+      enqueueWaitingTransitions(scenario.game, changedCardIds)
+    ).gameState;
+    const choosingTarget = confirmActiveEffectStep(
+      choosingDiscard,
+      P1,
+      choosingDiscard.activeEffect!.id,
+      scenario.hand.instanceId
+    );
+    expect(choosingTarget.activeEffect).toMatchObject({
+      selectableCardIds: changedCardIds,
+      selectableCardVisibility: 'PUBLIC',
+      selectableCardMode: 'SINGLE',
+      selectionLabel: '选择要变为活跃状态的成员',
+      confirmSelectionLabel: '变为活跃状态',
+      canSkipSelection: false,
+    });
+    expect(
+      confirmActiveEffectStep(
+        choosingTarget,
+        P1,
+        choosingTarget.activeEffect!.id,
+        'not-offered'
+      )
+    ).toBe(choosingTarget);
+    expect(
+      confirmActiveEffectStep(choosingTarget, P1, choosingTarget.activeEffect!.id, null)
+    ).toBe(choosingTarget);
+    expect(
+      confirmActiveEffectStep(
+        choosingTarget,
+        P1,
+        choosingTarget.activeEffect!.id,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [scenario.target.instanceId, scenario.target.instanceId]
+      )
+    ).toBe(choosingTarget);
+
+    const done = confirmActiveEffectStep(
+      choosingTarget,
+      P1,
+      choosingTarget.activeEffect!.id,
+      scenario.secondTarget.instanceId
+    );
+    expect(
+      done.players[0].memberSlots.cardStates.get(scenario.secondTarget.instanceId)?.orientation
+    ).toBe(OrientationState.ACTIVE);
+    expect(done.players[0].memberSlots.cardStates.get(scenario.target.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+    expect(done.players[0].memberSlots.cardStates.get(scenario.source.instanceId)?.orientation).toBe(
+      OrientationState.WAITING
+    );
+  });
+
+  it('refreshes a stale submitted target without advancing while another batch target remains', () => {
+    const scenario = setup(
+      N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+      'PL!N-bp7-022-N',
+      TurnType.LIVE_PHASE,
+      GamePhase.PERFORMANCE_PHASE
+    );
+    const choosingDiscard = resolvePendingCardEffects(
+      enqueueWaitingTransitions(scenario.game, [
+        scenario.target.instanceId,
+        scenario.secondTarget.instanceId,
+      ])
+    ).gameState;
+    const choosingTarget = confirmActiveEffectStep(
+      choosingDiscard,
+      P1,
+      choosingDiscard.activeEffect!.id,
+      scenario.hand.instanceId
+    );
+    const stale = updatePlayer(choosingTarget, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+      waitingRoom: addCardToZone(player.waitingRoom, scenario.target.instanceId),
+    }));
+    const refreshed = confirmActiveEffectStep(
+      stale,
+      P1,
+      stale.activeEffect!.id,
+      scenario.target.instanceId
+    );
+    expect(refreshed.activeEffect?.selectableCardIds).toEqual([
+      scenario.secondTarget.instanceId,
+    ]);
+    expect(refreshed.activeEffect?.stepId).toBe(choosingTarget.activeEffect?.stepId);
+    expect(refreshed.actionHistory).toHaveLength(stale.actionHistory.length);
+  });
+
+  it('keeps the paid discard and safely finishes when every target becomes stale after payment', () => {
+    const scenario = setup(
+      N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+      'PL!N-bp7-022-N',
+      TurnType.LIVE_PHASE,
+      GamePhase.PERFORMANCE_PHASE
+    );
+    const choosingDiscard = resolvePendingCardEffects(
+      enqueueWaitingTransitions(scenario.game, [
+        scenario.target.instanceId,
+        scenario.secondTarget.instanceId,
+      ])
+    ).gameState;
+    const choosingTarget = confirmActiveEffectStep(
+      choosingDiscard,
+      P1,
+      choosingDiscard.activeEffect!.id,
+      scenario.hand.instanceId
+    );
+    const allStale = updatePlayer(choosingTarget, P1, (player) => ({
+      ...player,
+      memberSlots: removeCardFromSlot(
+        removeCardFromSlot(player.memberSlots, SlotPosition.LEFT),
+        SlotPosition.RIGHT
+      ),
+      waitingRoom: addCardToZone(
+        addCardToZone(player.waitingRoom, scenario.target.instanceId),
+        scenario.secondTarget.instanceId
+      ),
+    }));
+    const done = confirmActiveEffectStep(
+      allStale,
+      P1,
+      allStale.activeEffect!.id,
+      scenario.target.instanceId
+    );
+    expect(done.activeEffect).toBeNull();
+    expect(done.players[0].waitingRoom.cardIds).toContain(scenario.hand.instanceId);
+    expect(done.actionHistory.at(-1)?.payload).toMatchObject({
+      step: 'PAID_COST_TARGETS_NO_LONGER_AVAILABLE',
+      targetMemberCardId: null,
+      changedCardIds: [scenario.target.instanceId, scenario.secondTarget.instanceId],
+    });
+  });
 
   it('pays discard through the event wrapper, records turn1 only on success, then activates', () => {
     const scenario = setup(
@@ -412,7 +625,8 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
       )
     ).toHaveLength(0);
     expect(done.actionHistory.at(-1)?.payload).toMatchObject({
-      targetMemberCardId: scenario.target.instanceId,
+      targetMemberCardId: null,
+      changedCardIds: [scenario.target.instanceId],
       targetStillOnStage: false,
       bladeBonus: 0,
     });
@@ -445,6 +659,120 @@ describe('shared own Nijigasaki member waited -> optional discard -> exact react
         abilityId: scenario.abilityId,
       })
     );
+  });
+
+  it('N-sd2-010 can choose a non-first simultaneous target and gives only it BLADE +2', () => {
+    const scenario = setup(
+      N_SD2_010_AUTO_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID,
+      'PL!N-sd2-010-SD2',
+      TurnType.FIRST_PLAYER_TURN
+    );
+    const choosingDiscard = resolvePendingCardEffects(
+      enqueueWaitingTransitions(scenario.game, [
+        scenario.target.instanceId,
+        scenario.secondTarget.instanceId,
+      ])
+    ).gameState;
+    const choosingTarget = confirmActiveEffectStep(
+      choosingDiscard,
+      P1,
+      choosingDiscard.activeEffect!.id,
+      scenario.hand.instanceId
+    );
+    const done = confirmActiveEffectStep(
+      choosingTarget,
+      P1,
+      choosingTarget.activeEffect!.id,
+      scenario.secondTarget.instanceId
+    );
+    expect(done.liveResolution.liveModifiers).toContainEqual(
+      expect.objectContaining({
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: scenario.secondTarget.instanceId,
+        countDelta: 2,
+        abilityId: scenario.abilityId,
+      })
+    );
+    expect(
+      done.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'BLADE' &&
+          modifier.targetMemberCardId === scenario.target.instanceId
+      )
+    ).toHaveLength(0);
+  });
+
+  it('keeps two source abilities independent and removes an activated target from the later choice', () => {
+    const livePhaseSource = member('PL!N-bp7-022-N', 'live-phase-shioriko');
+    const bladeSource = member('PL!N-sd2-010-SD2', 'blade-shioriko');
+    const target = member('TARGET-NIJIGASAKI', 'shared-target');
+    const firstHand = member('HAND-ONE', 'hand-one');
+    const secondHand = member('HAND-TWO', 'hand-two');
+    let game = registerCards(createGameState('two-waited-sources', P1, 'P1', P2, 'P2'), [
+      livePhaseSource,
+      bladeSource,
+      target,
+      firstHand,
+      secondHand,
+    ]);
+    game = putMembersAndEnergyDeck(game, {
+      [SlotPosition.LEFT]: livePhaseSource.instanceId,
+      [SlotPosition.CENTER]: bladeSource.instanceId,
+      [SlotPosition.RIGHT]: target.instanceId,
+    });
+    game = updatePlayer(game, P1, (player) => ({
+      ...player,
+      hand: addCardToZone(addCardToZone(player.hand, firstHand.instanceId), secondHand.instanceId),
+    }));
+    game = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentTurnType: TurnType.LIVE_PHASE,
+    };
+    const triggered = enqueueWaitingTransitions(game, [
+      livePhaseSource.instanceId,
+      bladeSource.instanceId,
+      target.instanceId,
+    ]);
+    expect(triggered.pendingAbilities.map((ability) => ability.abilityId)).toEqual([
+      N_BP7_022_AUTO_LIVE_PHASE_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_ABILITY_ID,
+      N_SD2_010_AUTO_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID,
+    ]);
+
+    const orderChoice = resolvePendingCardEffects(triggered).gameState;
+    const firstDiscard = confirmActiveEffectStep(
+      orderChoice,
+      P1,
+      orderChoice.activeEffect!.id,
+      livePhaseSource.instanceId
+    );
+    const firstTargetChoice = confirmActiveEffectStep(
+      firstDiscard,
+      P1,
+      firstDiscard.activeEffect!.id,
+      firstHand.instanceId
+    );
+    const secondDiscard = confirmActiveEffectStep(
+      firstTargetChoice,
+      P1,
+      firstTargetChoice.activeEffect!.id,
+      target.instanceId
+    );
+    expect(secondDiscard.activeEffect?.abilityId).toBe(
+      N_SD2_010_AUTO_NIJIGASAKI_MEMBER_WAIT_DISCARD_ACTIVATE_GAIN_TWO_BLADE_ABILITY_ID
+    );
+    const secondTargetChoice = confirmActiveEffectStep(
+      secondDiscard,
+      P1,
+      secondDiscard.activeEffect!.id,
+      secondHand.instanceId
+    );
+    expect(secondTargetChoice.activeEffect?.selectableCardIds).not.toContain(target.instanceId);
+    expect(secondTargetChoice.activeEffect?.selectableCardIds).toEqual([
+      livePhaseSource.instanceId,
+      bladeSource.instanceId,
+    ]);
   });
 });
 

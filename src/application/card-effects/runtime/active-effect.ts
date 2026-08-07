@@ -76,6 +76,7 @@ export interface CreateOptionalDiscardHandToWaitingRoomActiveEffectConfig {
   readonly stepId: string;
   readonly selectableCardIds: readonly string[];
   readonly orderedResolution: boolean;
+  readonly discardCount?: number;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly stepText?: string;
   readonly selectionLabel?: string;
@@ -165,10 +166,11 @@ export function startConfirmOnlyActiveEffect(
 export function createOptionalDiscardHandToWaitingRoomActiveEffect(
   config: CreateOptionalDiscardHandToWaitingRoomActiveEffectConfig
 ): ActiveEffectState {
+  const discardCount = config.discardCount ?? 1;
   const discardCost: EffectCostDefinition = {
     kind: 'DISCARD_HAND_TO_WAITING_ROOM',
-    minCount: 1,
-    maxCount: 1,
+    minCount: discardCount,
+    maxCount: discardCount,
     optional: true,
   };
 
@@ -183,6 +185,13 @@ export function createOptionalDiscardHandToWaitingRoomActiveEffect(
     awaitingPlayerId: config.playerId,
     selectableCardIds: config.selectableCardIds,
     selectableCardVisibility: 'AWAITING_PLAYER_ONLY',
+    ...(discardCount > 1
+      ? {
+          selectableCardMode: 'ORDERED_MULTI' as const,
+          minSelectableCards: discardCount,
+          maxSelectableCards: discardCount,
+        }
+      : {}),
     selectionLabel: config.selectionLabel ?? DISCARD_HAND_TO_ACTIVATE_SELECTION_LABEL,
     confirmSelectionLabel:
       config.confirmSelectionLabel ?? DISCARD_HAND_TO_WAITING_ROOM_CONFIRM_LABEL,

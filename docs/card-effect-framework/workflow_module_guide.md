@@ -67,7 +67,7 @@ FREE 只放宽这次登场的能量支付与目标槽位限制：卡面规定的
 
 `workflows/shared/choose-player-bottom-waiting-members.ts` 由旧 `PL!N-bp3-010` 与 `PL!S-bp7-013` 证明。family 只承载“选自己／对方 -> 效果控制者从该玩家休息室有序选0～2张 MEMBER -> public-card-selection confirmation -> 按选择顺序置该玩家卡组底”的完整核心，不扩展为任意卡种、数量、目的地或后续奖励 DSL。旧 N-bp3-010 step ID 继续是持久恢复合同。
 
-`runtime/member-state-changed-observers.ts` 是与 member-slot observer 对称的通用 registry；runner 只在通用 member-state definition matcher 之后调用它。使用该 registry 自行绑定精确事件的 definition 必须标记 `observerOnly: true`，通用 matcher 必须排除这些 definition，防止未来增加 matcher 时双重入队。`member-waited-discard-activate.ts` 当前只覆盖 `PL!N-bp7-022` / `PL!N-sd2-010` 的己方虹咲成员 `ACTIVE -> WAITING`、可选弃1手、精确目标再活跃核心；完整规则 Live 阶段（`LIVE_SET_PHASE` / `PERFORMANCE_PHASE` / `LIVE_RESULT_PHASE`）门禁与目标 BLADE +2 是有限配置轴。只有成功弃手才记录 turn use，目标后续 stale 不回滚费用。
+`runtime/member-state-changed-observers.ts` 是与 member-slot observer 对称的通用 registry；runner 只在通用 member-state definition matcher 之后调用它。使用该 registry 自行绑定精确事件的 definition 必须标记 `observerOnly: true`，通用 matcher 必须排除这些 definition，防止未来增加 matcher 时双重入队。`member-waited-discard-activate.ts` 当前只覆盖 `PL!N-bp7-022` / `PL!N-sd2-010` 的己方虹咲成员 `ACTIVE -> WAITING`、可选弃1手、同批候选聚合后再活跃核心；同一批中每个来源成员只创建一个 pending，弃手支付成功后才从本批仍合法的 WAITING 成员中选择回正目标。完整规则 Live 阶段（`LIVE_SET_PHASE` / `PERFORMANCE_PHASE` / `LIVE_RESULT_PHASE`）门禁与目标 BLADE +2 是有限配置轴。两张来源卡按各自 abilityId／来源实例独立保留每回合1次；只有成功弃手才记录 turn use，支付后候选 stale 不回滚费用，也不改选本批以外的 WAITING 成员。
 
 `workflows/shared/own-card-effect-place-energy-gain-source-blade.ts` 由 `PL!SP-bp7-005` / `PL!SP-bp7-016` 证明，只消费 pending `eventIds` 绑定的 `ON_ENERGY_PLACED_BY_CARD_EFFECT`，要求 cause.playerId 和 targetPlayerId 均为控制者且来源仍在己方主舞台。`place-waiting-energy.ts` 另只新增 `skipNextActivePhase` 有限轴；该轴必须调用 `placeWaitingEnergyWithActivePhaseSkip`，使放置事件、WAITING 状态、精确能量卡 marker 与 continuation 保持同一原子语义。
 
@@ -112,9 +112,9 @@ deadline 恢复后整体重验，并调用统一 waiting-room-to-main-deck 事�
 
 `live-start-discard-gain-blade.ts` 承接 LIVE_START queued 的“可选弃手，来源成员获得 BLADE”稳定 family。当前配置轴仅为 abilityId、弃置 min/max、`PER_DISCARD / FIXED_TOTAL` 两种有限奖励，以及“弃置 LIVE 后抽1”的窄后处理；不接受任意 callback、奖励公式、任意弃牌后处理或步骤 DSL。`PL!S-bp3-003` 证明0至2张与每张+2，`PL!SP-PR-009/011/012` 保留 exactly 1、+1与弃 LIVE 抽1，`PL!SP-sd1-003` 证明恰好2张与支付成功后固定+5。弃手统一走 trigger-safe wrapper，modifier 绑定来源成员实例，并通过统一 pending continuation 返回检查时点；手牌不足配置下限时直接消费 pending，不建立非法选择窗口。
 
-`live-start-discard-gain-heart.ts` 承接 LIVE_START queued 的“可选弃1手后获得 Heart”稳定 family。`PL!-bp4-013-N` 费用4「園田海未」新增固定单色 + 任意其他主舞台成员样本：`HeartColor.PINK` 已确定，因此成功弃手后直接进入成员选择，不打开只有一个选项的颜色窗口。recipient 仍只有 `SOURCE_MEMBER` / `SELECT_OTHER_STAGE_MEMBER` 两种模式；后者的 `groupAlias` 是有限可选轴，缺省表示任意其他己方主舞台成员，既有 `PL!N-bp3-002` 虹咲样本继续显式配置 `groupAlias: '虹ヶ咲'`。
+`live-start-discard-gain-heart.ts` 承接 LIVE_START queued 的“可选精确弃固定数量手牌后获得固定数量 Heart”稳定 family。`discardCount` / `heartCount` 是有限正整数轴；多张弃手必须一次精确选择并以单个 grouped 进入休息室事件支付。`PL!-bp4-013-N` 费用4「園田海未」的固定单色 + 任意其他主舞台成员样本使用 `HeartColor.PINK`，因此成功弃手后直接进入成员选择，不打开只有一个选项的颜色窗口。recipient 仍只有 `SOURCE_MEMBER` / `SELECT_OTHER_STAGE_MEMBER` 两种模式；后者的 `groupAlias` 是有限可选轴，缺省表示任意其他己方主舞台成员，既有 `PL!N-bp3-002` 虹咲样本继续显式配置 `groupAlias: '虹ヶ咲'`。
 
-`PL!N-sd2-005` 进一步证明来源成员在支付后从六种普通 HEART 中指定1色的有限模式；颜色窗口只使用前端已有稳定 token，不接受 ALL 或任意字符串。
+`PL!N-sd2-005` 费用13「宫下爱」是 `discardCount: 2` / `heartCount: 2` 样本，并继续证明来源成员在支付后从六种普通 HEART 中指定1色的有限模式；颜色窗口只使用前端已有稳定 token，不接受 ALL 或任意字符串。
 
 该 family 只扫描控制者 LEFT/CENTER/RIGHT 顶层成员，排除来源与 memberBelow；目标确认时重扫来源与候选，支付后无目标或来源/目标 stale 均保留费用并通过统一 continuation 继续。成员 Heart 统一写 `SOURCE_MEMBER` / `TARGET_MEMBER` modifier。family 不接受 selector callback，不表达任意费用、任意目标、任意 modifier 或步骤 DSL。
 
