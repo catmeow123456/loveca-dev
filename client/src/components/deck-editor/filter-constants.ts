@@ -36,8 +36,14 @@ export const GROUP_UNIT_MAP: Record<string, readonly string[]> = {
   'いきづらい部！': [],
 };
 
+/** 跨作品小组不属于单一真实团体，仅在未限定团体时展示。 */
+export const CROSS_GROUP_UNIT_OPTIONS = ['「AiScReam」'] as const;
+
 /** 所有小组名选项（用于无真实团体筛选时） */
-export const ALL_UNIT_OPTIONS = Object.values(GROUP_UNIT_MAP).flat();
+export const ALL_UNIT_OPTIONS = [
+  ...Object.values(GROUP_UNIT_MAP).flat(),
+  ...CROSS_GROUP_UNIT_OPTIONS,
+];
 
 /** 收录商品选项 */
 export const PRODUCT_OPTIONS = [
