@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GLICKO1_PER_MATCH_SHADOW_V2, type Glicko1Config } from '../../src/server/rating/glicko';
+import { GLICKO1_PER_MATCH_V4 } from '../../src/server/rating/ranked-rating';
 import {
   buildRankedCompetitiveEnvironmentIdentity,
   type RankedCompetitiveEnvironmentIdentity,
@@ -30,6 +31,19 @@ const ENVIRONMENT: RankedCompetitiveEnvironmentIdentity = buildRankedCompetitive
     publishedCardCount: 100,
   },
   CONFIG,
+  {
+    rulesVersion: 'RULES_V1',
+    deckPolicyVersion: 'DECK_POLICY_V1',
+  }
+);
+
+const V4_ENVIRONMENT = buildRankedCompetitiveEnvironmentIdentity(
+  {
+    cardCatalogVersion: 'CATALOG_V1',
+    cardCatalogHash: `sha256:${'2'.repeat(64)}`,
+    publishedCardCount: 100,
+  },
+  GLICKO1_PER_MATCH_V4,
   {
     rulesVersion: 'RULES_V1',
     deckPolicyVersion: 'DECK_POLICY_V1',
@@ -414,5 +428,54 @@ describe('RankedSeasonService lifecycle', () => {
       code: 'RANKED_LEADERBOARD_MINIMUM_MATCH_COUNT_INVALID',
     });
     expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('requires the V4 leaderboard threshold to match its five placement matches', async () => {
+    const { service, transaction } = createHarness(() => []);
+
+    await expect(
+      service.createDraft({
+        seasonKey: 'season-v4-threshold',
+        name: 'V4 门槛校验',
+        platformTimeZone: 'Asia/Shanghai',
+        openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+        startsAt: new Date('2026-09-01T00:00:00.000Z'),
+        scheduledEndsAt: new Date('2026-10-01T00:00:00.000Z'),
+        finalizingDeadlineAt: new Date('2026-10-03T00:00:00.000Z'),
+        environment: V4_ENVIRONMENT,
+        ratingConfig: GLICKO1_PER_MATCH_V4,
+        leaderboardMinimumMatchCount: 10,
+        adminUserId: '11111111-1111-4111-8111-111111111111',
+      })
+    ).rejects.toMatchObject({
+      code: 'RANKED_LEADERBOARD_PLACEMENT_MISMATCH',
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('prevents an active V4 season from changing its five-match leaderboard threshold', async () => {
+    const { service } = createHarness((text) =>
+      text.includes('SELECT *') && text.includes('FOR UPDATE')
+        ? [
+            seasonRow({
+              lifecycle: 'ACTIVE',
+              rating_algorithm_version: GLICKO1_PER_MATCH_V4.algorithmVersion,
+              rating_config: GLICKO1_PER_MATCH_V4,
+              leaderboard_minimum_match_count: 5,
+            }),
+          ]
+        : []
+    );
+
+    await expect(
+      service.updateActiveOperations('season-1', {
+        name: 'V4 进行中赛季',
+        openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+        leaderboardMinimumMatchCount: 6,
+        adminUserId: '11111111-1111-4111-8111-111111111111',
+      })
+    ).rejects.toMatchObject({
+      code: 'RANKED_LEADERBOARD_PLACEMENT_MISMATCH',
+    });
   });
 });

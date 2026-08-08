@@ -8,6 +8,7 @@ import {
   rateGlickoHeadToHead,
   type Glicko1Config,
 } from '../../src/server/rating/glicko';
+import { GLICKO1_PER_MATCH_V4 } from '../../src/server/rating/ranked-rating';
 import { RankedAdminService } from '../../src/server/services/ranked-admin-service';
 
 vi.mock('../../src/server/db/pool.js', () => ({
@@ -88,7 +89,7 @@ describe('RankedAdminService', () => {
     ]);
   });
 
-  it('keeps prior algorithms available while preferring V3 for new seasons', async () => {
+  it('keeps prior algorithms available while preferring V4 for new seasons', async () => {
     const service = new RankedAdminService({
       getCardCatalogIdentity: vi.fn().mockResolvedValue(CATALOG),
       audit: vi.fn(),
@@ -99,12 +100,16 @@ describe('RankedAdminService', () => {
     expect(preview.persistentSeasonReady).toBe(true);
     expect(
       preview.algorithms.find((algorithm) => algorithm.status === 'FORMAL')?.algorithmVersion
-    ).toBe(GLICKO1_PER_MATCH_V3.algorithmVersion);
+    ).toBe(GLICKO1_PER_MATCH_V4.algorithmVersion);
     expect(preview.algorithms).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           algorithmVersion: GLICKO1_PER_MATCH_SHADOW_V2.algorithmVersion,
           status: 'SHADOW_CANDIDATE',
+        }),
+        expect.objectContaining({
+          algorithmVersion: GLICKO1_PER_MATCH_V4.algorithmVersion,
+          status: 'FORMAL',
         }),
         expect.objectContaining({
           algorithmVersion: GLICKO1_PER_MATCH_V3.algorithmVersion,
@@ -120,6 +125,12 @@ describe('RankedAdminService', () => {
         }),
       ])
     );
+    const v4 = preview.algorithms.find(
+      (algorithm) => algorithm.algorithmVersion === GLICKO1_PER_MATCH_V4.algorithmVersion
+    );
+    expect(v4?.config.minimumRatingDeviation).toBe(100);
+    expect(v4?.config.placementMatchCount).toBe(5);
+    expect(v4?.config.growthPool?.centerRating).toBe(1800);
   });
 
   it('rejects draft creation with a shadow-only algorithm', async () => {

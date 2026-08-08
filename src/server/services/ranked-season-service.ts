@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
-import { assertValidGlicko1Config, type Glicko1Config } from '../rating/glicko.js';
+import { assertValidRankedRatingConfig, type RankedRatingConfig } from '../rating/ranked-rating.js';
 import {
   buildRankedCompetitiveEnvironmentIdentity,
   type RankedCompetitiveEnvironmentIdentity,
@@ -28,7 +28,7 @@ export interface CreateRankedSeasonInput {
   readonly scheduledEndsAt: Date;
   readonly finalizingDeadlineAt: Date;
   readonly environment: RankedCompetitiveEnvironmentIdentity;
-  readonly ratingConfig: Glicko1Config;
+  readonly ratingConfig: RankedRatingConfig;
   readonly leaderboardMinimumMatchCount: number;
   readonly adminUserId: string;
 }
@@ -60,7 +60,7 @@ export interface RankedSeasonRecord {
   readonly cardCatalogHash: string;
   readonly deckPolicyVersion: string;
   readonly ratingAlgorithmVersion: string;
-  readonly ratingConfig: Glicko1Config;
+  readonly ratingConfig: RankedRatingConfig;
   readonly leaderboardMinimumMatchCount: number;
   readonly ledgerRevision: number;
 }
@@ -276,6 +276,10 @@ export class RankedSeasonService {
           409
         );
       }
+      validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+        input.leaderboardMinimumMatchCount,
+        readStoredRatingConfig(season.rating_config)
+      );
       const result = await client.query<RankedSeasonRow>(
         `UPDATE ranked_seasons
          SET name = $2,
@@ -301,7 +305,7 @@ export class RankedSeasonService {
   async activate(
     seasonId: string,
     environment: RankedCompetitiveEnvironmentIdentity,
-    ratingConfig: Glicko1Config,
+    ratingConfig: RankedRatingConfig,
     adminUserId: string,
     now = new Date()
   ): Promise<RankedSeasonRecord> {
@@ -314,6 +318,10 @@ export class RankedSeasonService {
       if (now.getTime() >= new Date(season.scheduled_ends_at).getTime()) {
         throw seasonError('RANKED_SEASON_ALREADY_ENDED', '赛季计划结束时间已经过去', 409);
       }
+      validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+        season.leaderboard_minimum_match_count,
+        ratingConfig
+      );
       assertEnvironmentMatches(season, environment, ratingConfig);
       const existingSeason = await client.query<{ readonly id: string }>(
         `SELECT id
@@ -443,7 +451,7 @@ export class RankedSeasonService {
 async function seedSoftResetRatings(
   client: RankedSeasonQueryClient,
   seasonId: string,
-  config: Glicko1Config
+  config: RankedRatingConfig
 ): Promise<void> {
   const previous = await client.query<{ readonly id: string }>(
     `SELECT id
@@ -600,6 +608,10 @@ function validateCreateInput(input: CreateRankedSeasonInput): void {
     throw seasonError('RANKED_SEASON_ADMIN_REQUIRED', '创建赛季缺少管理员身份');
   }
   validateLeaderboardMinimumMatchCount(input.leaderboardMinimumMatchCount);
+  validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+    input.leaderboardMinimumMatchCount,
+    input.ratingConfig
+  );
   assertFormalAlgorithm(input.ratingConfig);
   validateEnvironmentIdentity(input.environment, input.ratingConfig);
   validateTimeZone(input.platformTimeZone);
@@ -635,11 +647,23 @@ function validateLeaderboardMinimumMatchCount(value: number): void {
   }
 }
 
+function validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+  value: number,
+  config: RankedRatingConfig
+): void {
+  if (config.growthPool && value !== config.placementMatchCount) {
+    throw seasonError(
+      'RANKED_LEADERBOARD_PLACEMENT_MISMATCH',
+      `V4 排行榜门槛必须与定级场数一致（${config.placementMatchCount} 场）`
+    );
+  }
+}
+
 function validateEnvironmentIdentity(
   environment: RankedCompetitiveEnvironmentIdentity,
-  ratingConfig: Glicko1Config
+  ratingConfig: RankedRatingConfig
 ): void {
-  assertValidGlicko1Config(ratingConfig);
+  assertValidRankedRatingConfig(ratingConfig);
   const rebuilt = buildRankedCompetitiveEnvironmentIdentity(
     {
       cardCatalogVersion: environment.cardCatalogVersion,
@@ -706,7 +730,8 @@ function validateOpenWindows(windows: readonly RankedSeasonOpenWindow[]): void {
   }
 }
 
-function assertFormalAlgorithm(config: Glicko1Config): void {
+function assertFormalAlgorithm(config: RankedRatingConfig): void {
+  assertValidRankedRatingConfig(config);
   if (config.algorithmVersion.trim().length === 0 || config.algorithmVersion.includes('SHADOW')) {
     throw seasonError(
       'RANKED_FORMAL_ALGORITHM_REQUIRED',
@@ -736,7 +761,7 @@ async function lockSeason(
 function assertEnvironmentMatches(
   season: RankedSeasonRow,
   environment: RankedCompetitiveEnvironmentIdentity,
-  ratingConfig: Glicko1Config
+  ratingConfig: RankedRatingConfig
 ): void {
   validateEnvironmentIdentity(environment, ratingConfig);
   if (
@@ -817,9 +842,9 @@ function mapRequiredSeason(row: RankedSeasonRow | undefined, code: string): Rank
   };
 }
 
-function readStoredRatingConfig(value: unknown): Glicko1Config {
-  assertValidGlicko1Config(value as Glicko1Config);
-  return value as Glicko1Config;
+function readStoredRatingConfig(value: unknown): RankedRatingConfig {
+  assertValidRankedRatingConfig(value as RankedRatingConfig);
+  return value as RankedRatingConfig;
 }
 
 function readPart(parts: readonly Intl.DateTimeFormatPart[], type: string): string {

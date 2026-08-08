@@ -7,12 +7,11 @@ import {
   RANKED_ALGORITHM_DESCRIPTORS,
 } from '../rating/ranked-algorithm-registry.js';
 import {
-  assertValidGlicko1Config,
   createInitialGlickoRatingState,
-  type Glicko1Config,
   type GlickoRatingState,
   type GlickoSoftResetMode,
 } from '../rating/glicko.js';
+import { assertValidRankedRatingConfig, type RankedRatingConfig } from '../rating/ranked-rating.js';
 import {
   buildRankedCompetitiveEnvironmentIdentity,
   getCurrentRankedCardCatalogIdentity,
@@ -853,10 +852,10 @@ function validatePreviewInput(input: RankedAdminCorrectionPreviewInput): void {
   }
 }
 
-function readPersistentConfig(algorithmVersion: string, value: unknown): Glicko1Config {
-  const config = value as Glicko1Config;
+function readPersistentConfig(algorithmVersion: string, value: unknown): RankedRatingConfig {
+  const config = value as RankedRatingConfig;
   try {
-    assertValidGlicko1Config(config);
+    assertValidRankedRatingConfig(config);
   } catch {
     throw adminError('RANKED_STORED_CONFIG_INVALID', '赛季冻结的评分配置无效', 500);
   }
@@ -908,9 +907,9 @@ function adminError(code: string, message: string, statusCode = 400): RankedAdmi
 function buildSeasonRatingConfig(
   algorithmVersion: string,
   softReset: RankedAdminSeasonDraftInput['softReset']
-): Glicko1Config {
+): RankedRatingConfig {
   const baseConfig = getFormalRankedAlgorithmConfig(algorithmVersion);
-  const config: Glicko1Config = {
+  const config: RankedRatingConfig = {
     ...baseConfig,
     softResetMode: softReset.mode,
     softResetCenter: softReset.center,
@@ -918,7 +917,7 @@ function buildSeasonRatingConfig(
     softResetMinimumDeviation: softReset.minimumDeviation,
   };
   try {
-    assertValidGlicko1Config(config);
+    assertValidRankedRatingConfig(config);
   } catch (error) {
     throw new RankedAdminServiceError(
       'RANKED_SOFT_RESET_CONFIG_INVALID',

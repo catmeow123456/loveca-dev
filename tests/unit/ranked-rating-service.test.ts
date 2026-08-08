@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GLICKO1_PER_MATCH_SHADOW_V2, type Glicko1Config } from '../../src/server/rating/glicko';
+import { GLICKO1_PER_MATCH_V4, rateRankedHeadToHead } from '../../src/server/rating/ranked-rating';
 import {
   RankedRatingService,
   type RankedRatingQueryClient,
@@ -222,6 +223,63 @@ describe('RankedRatingService settlement', () => {
           call.text.includes('UPDATE ranked_seasons') && call.text.includes('ledger_revision = $2')
       )
     ).toBe(true);
+  });
+
+  it('applies V4 growth to the real-time settlement projection after placement', async () => {
+    const lastRatedAt = new Date('2026-07-31T12:00:00.000Z');
+    const firstBefore = {
+      rating: 1600,
+      ratingDeviation: 100,
+      ratedMatchCount: 5,
+      lastRatedAt,
+    };
+    const secondBefore = { ...firstBefore };
+    const { calls, service } = createHarness((text) => {
+      if (text.includes('FROM ranked_matches AS ranked_match')) {
+        return [
+          settlementContext({
+            season_algorithm_version: GLICKO1_PER_MATCH_V4.algorithmVersion,
+            rating_config: GLICKO1_PER_MATCH_V4,
+            ranked_algorithm_version: GLICKO1_PER_MATCH_V4.algorithmVersion,
+          }),
+        ];
+      }
+      if (text.includes('ORDER BY rated_at DESC, match_id DESC')) {
+        return [];
+      }
+      if (text.includes('FROM ranked_player_ratings')) {
+        return [
+          {
+            user_id: '11111111-1111-4111-8111-111111111111',
+            rating: firstBefore.rating,
+            rating_deviation: firstBefore.ratingDeviation,
+            rated_match_count: firstBefore.ratedMatchCount,
+            last_rated_at: firstBefore.lastRatedAt,
+          },
+          {
+            user_id: '22222222-2222-4222-8222-222222222222',
+            rating: secondBefore.rating,
+            rating_deviation: secondBefore.ratingDeviation,
+            rated_match_count: secondBefore.ratedMatchCount,
+            last_rated_at: secondBefore.lastRatedAt,
+          },
+        ];
+      }
+      return [];
+    });
+
+    await service.settleMatch('match-1', GLICKO1_PER_MATCH_V4);
+
+    const expected = rateRankedHeadToHead(
+      firstBefore,
+      secondBefore,
+      1,
+      new Date('2026-08-01T12:00:00.000Z'),
+      GLICKO1_PER_MATCH_V4
+    );
+    const step = calls.find((call) => call.text.includes('INSERT INTO ranked_rating_event_steps'));
+    expect(step?.values[12]).toBeCloseTo(expected.first.rating, 12);
+    expect(step?.values[20]).toBeCloseTo(expected.second.rating, 12);
   });
 
   it('保留断线判负分类并记录对局是否使用过 FREE 模式', async () => {

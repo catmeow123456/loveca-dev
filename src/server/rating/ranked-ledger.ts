@@ -1,9 +1,5 @@
-import {
-  createInitialGlickoRatingState,
-  rateGlickoHeadToHead,
-  type Glicko1Config,
-  type GlickoRatingState,
-} from './glicko.js';
+import { createInitialGlickoRatingState, type GlickoRatingState } from './glicko.js';
+import { rateRankedHeadToHead, type RankedRatingConfig } from './ranked-rating.js';
 
 export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
 export type RankedWinnerSeat = 'FIRST' | 'SECOND';
@@ -64,7 +60,7 @@ export class RankedRatingLedgerError extends Error {
  */
 export function resolveEffectiveRankedResults(
   events: readonly RankedRatingEvent[],
-  config: Glicko1Config
+  config: RankedRatingConfig
 ): readonly EffectiveRankedRatingEvent[] {
   const ordered = [...events].sort(
     (first, second) =>
@@ -144,7 +140,7 @@ export function resolveEffectiveRankedResults(
  */
 export function materializeRankedRatingLedger(
   events: readonly RankedRatingEvent[],
-  config: Glicko1Config,
+  config: RankedRatingConfig,
   initialPlayers: ReadonlyMap<string, GlickoRatingState> = new Map()
 ): RankedRatingMaterialization {
   const effectiveResults = resolveEffectiveRankedResults(events, config);
@@ -160,7 +156,7 @@ export function materializeRankedRatingLedger(
     const secondBefore = cloneState(
       players.get(event.secondUserId) ?? createInitialGlickoRatingState(config)
     );
-    const result = rateGlickoHeadToHead(
+    const result = rateRankedHeadToHead(
       firstBefore,
       secondBefore,
       event.winnerSeat === 'FIRST' ? 1 : 0,

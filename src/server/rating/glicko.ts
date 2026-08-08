@@ -199,6 +199,10 @@ function assertValidCompetitor(competitor: GlickoCompetitor, config: Glicko1Conf
 
 function assertValidRatingState(state: GlickoRatingState, config: Glicko1Config): void {
   assertValidCompetitor(state, config);
+  assertValidRatingStateMetadata(state);
+}
+
+function assertValidRatingStateMetadata(state: GlickoRatingState): void {
   if (!Number.isInteger(state.ratedMatchCount) || state.ratedMatchCount < 0) {
     throw new Error('ratedMatchCount must be a non-negative integer');
   }
@@ -377,7 +381,12 @@ export function softResetGlickoRatingState(
   config: Glicko1Config = CURRENT_GLICKO1_SHADOW_CONFIG
 ): GlickoRatingState {
   assertValidConfig(config);
-  assertValidRatingState(state, config);
+  assertFiniteNumber(state.rating, 'rating');
+  assertFiniteNumber(state.ratingDeviation, 'ratingDeviation');
+  if (state.ratingDeviation <= 0) {
+    throw new Error('ratingDeviation must be greater than zero');
+  }
+  assertValidRatingStateMetadata(state);
 
   if (config.softResetMode === 'RESET_TO_INITIAL') {
     return createInitialGlickoRatingState(config);

@@ -215,6 +215,13 @@ test.describe('赛季排位管理员 API', () => {
           status: 'SHADOW_CANDIDATE',
         }),
         expect.objectContaining({
+          algorithmVersion: 'GLICKO1_PER_MATCH_V4',
+          status: 'FORMAL',
+          environment: expect.objectContaining({
+            competitiveEnvironmentId: expect.stringMatching(/^sha256:[0-9a-f]{64}$/),
+          }),
+        }),
+        expect.objectContaining({
           algorithmVersion: 'GLICKO1_PER_MATCH_V3',
           status: 'FORMAL',
           environment: expect.objectContaining({
@@ -474,7 +481,8 @@ test.describe('赛季排位管理员 API', () => {
       await page.getByRole('button', { name: '新建赛季' }).click();
       await page.getByLabel('赛季标识').fill(E2E_UI_SEASON_KEY);
       await page.getByLabel('名称').fill('E2E 页面草稿');
-      await page.getByLabel('进入排行榜所需场次').fill('6');
+      await expect(page.getByLabel('进入排行榜所需场次')).toBeDisabled();
+      await expect(page.getByLabel('进入排行榜所需场次')).toHaveValue('5');
       await page.getByRole('button', { name: '创建赛季' }).click();
 
       const createdSeason = page.getByText('E2E 页面草稿', { exact: true });
@@ -502,7 +510,7 @@ test.describe('赛季排位管理员 API', () => {
         );
         expect(result.rows[0]).toMatchObject({
           name: 'E2E 页面草稿已编辑',
-          leaderboard_minimum_match_count: 6,
+          leaderboard_minimum_match_count: 5,
         });
       });
     } finally {

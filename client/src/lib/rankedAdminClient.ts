@@ -8,13 +8,25 @@ export interface RankedSoftResetConfig {
 }
 
 export interface RankedRatingConfig {
+  algorithmVersion: string;
   ratingScale: number;
   initialRating: number;
   initialRatingDeviation: number;
+  minimumRatingDeviation: number;
+  maximumRatingDeviation: number;
+  placementMatchCount: number;
   softResetMode: RankedSoftResetConfig['mode'];
   softResetCenter: number;
   softResetRetention: number;
   softResetMinimumDeviation: number;
+  growthPool?: {
+    mode: 'POST_PLACEMENT_AVERAGE_CENTERED';
+    centerRating: number;
+    maximumTotalAdjustment: number;
+    transitionWidth: number;
+    positiveSplitMode: 'EQUAL';
+    negativeWinnerShare: number;
+  };
 }
 
 export interface RankedAdminSeason {

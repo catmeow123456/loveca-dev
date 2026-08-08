@@ -15,6 +15,7 @@ import {
   softResetGlickoRatingState,
   type GlickoRatingState,
 } from '../../src/server/rating/glicko';
+import { GLICKO1_PER_MATCH_V4 } from '../../src/server/rating/ranked-rating';
 import { simulateGlickoShadow } from '../../src/server/rating/glicko-shadow';
 
 describe('Glicko-1 rating', () => {
@@ -123,6 +124,34 @@ describe('Glicko-1 rating', () => {
     expect(reset).toEqual({
       rating: 1600,
       ratingDeviation: 180,
+      ratedMatchCount: 0,
+      lastRatedAt: null,
+    });
+  });
+
+  it('soft-resets a previous-season state below the target V4 RD floor', () => {
+    const previousSeasonState: GlickoRatingState = {
+      rating: 1900,
+      ratingDeviation: 30,
+      ratedMatchCount: 80,
+      lastRatedAt: new Date('2026-08-31T00:00:00.000Z'),
+    };
+
+    expect(softResetGlickoRatingState(previousSeasonState, GLICKO1_PER_MATCH_V4)).toEqual({
+      rating: 1500,
+      ratingDeviation: 300,
+      ratedMatchCount: 0,
+      lastRatedAt: null,
+    });
+    expect(
+      softResetGlickoRatingState(previousSeasonState, {
+        ...GLICKO1_PER_MATCH_V4,
+        softResetMode: 'RETAIN_TOWARD_CENTER',
+        softResetMinimumDeviation: 100,
+      })
+    ).toEqual({
+      rating: 1700,
+      ratingDeviation: 100,
       ratedMatchCount: 0,
       lastRatedAt: null,
     });

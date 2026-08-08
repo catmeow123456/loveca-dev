@@ -40,15 +40,27 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [matchTotal, setMatchTotal] = useState(0);
   const [matchPage, setMatchPage] = useState(0);
   const [matchUserQuery, setMatchUserQuery] = useState('');
-  const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V3');
+  const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V4');
   const [formalRatingConfig, setFormalRatingConfig] = useState<RankedRatingConfig>({
+    algorithmVersion: 'GLICKO1_PER_MATCH_V4',
     ratingScale: 800,
     initialRating: 1500,
     initialRatingDeviation: 300,
+    minimumRatingDeviation: 100,
+    maximumRatingDeviation: 350,
+    placementMatchCount: 5,
     softResetMode: 'RESET_TO_INITIAL',
     softResetCenter: 1500,
     softResetRetention: 0.5,
     softResetMinimumDeviation: 200,
+    growthPool: {
+      mode: 'POST_PLACEMENT_AVERAGE_CENTERED',
+      centerRating: 1800,
+      maximumTotalAdjustment: 16,
+      transitionWidth: 250,
+      positiveSplitMode: 'EQUAL',
+      negativeWinnerShare: 0.75,
+    },
   });
   const [selectedSeasonId, setSelectedSeasonId] = useState('');
   const [creating, setCreating] = useState(false);
@@ -494,6 +506,7 @@ function ActiveSeasonOperationsForm({
   onCancel: () => void;
   onSubmit: (payload: RankedActiveSeasonOperationsPayload) => Promise<unknown>;
 }) {
+  const leaderboardMatchCountIsFrozen = Boolean(season.ratingConfig.growthPool);
   const [name, setName] = useState(season.name);
   const [leaderboardMinimumMatchCount, setLeaderboardMinimumMatchCount] = useState(
     season.leaderboardMinimumMatchCount
@@ -533,6 +546,7 @@ function ActiveSeasonOperationsForm({
           className="input-field"
           value={leaderboardMinimumMatchCount}
           onChange={(event) => setLeaderboardMinimumMatchCount(Number(event.target.value))}
+          disabled={leaderboardMatchCountIsFrozen}
           required
         />
       </Field>
@@ -573,6 +587,9 @@ function SeasonDraftForm({
     [algorithm, defaultRatingConfig, season]
   );
   const [draft, setDraft] = useState(initial);
+  const leaderboardMatchCountIsFrozen =
+    draft.ratingAlgorithmVersion === defaultRatingConfig.algorithmVersion &&
+    Boolean(defaultRatingConfig.growthPool);
   return (
     <form
       className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
@@ -643,6 +660,7 @@ function SeasonDraftForm({
               leaderboardMinimumMatchCount: Number(event.target.value),
             })
           }
+          disabled={leaderboardMatchCountIsFrozen}
           required
         />
       </Field>
@@ -1159,7 +1177,7 @@ function createDraftDefaults(algorithm: string, ratingConfig: RankedRatingConfig
       retention: ratingConfig.softResetRetention,
       minimumDeviation: ratingConfig.softResetMinimumDeviation,
     },
-    leaderboardMinimumMatchCount: 10,
+    leaderboardMinimumMatchCount: ratingConfig.placementMatchCount,
   };
 }
 

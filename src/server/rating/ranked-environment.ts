@@ -3,7 +3,7 @@ import type { AnyCardData } from '../../domain/entities/card.js';
 import { getPublishedCardRegistry } from '../services/card-registry-service.js';
 import { REPLAY_RULES_VERSION } from '../services/replay-constants.js';
 import { stableJsonStringify } from '../services/replay-payload-serialization.js';
-import { assertValidGlicko1Config, type Glicko1Config } from './glicko.js';
+import { assertValidRankedRatingConfig, type RankedRatingConfig } from './ranked-rating.js';
 
 export const RANKED_CARD_CATALOG_VERSION = 'PUBLISHED_RUNTIME_CARD_CATALOG_V1';
 export const RANKED_DECK_POLICY_VERSION = 'STANDARD_PUBLISHED_CARD_POOL_V1';
@@ -46,13 +46,13 @@ export function buildRankedCardCatalogIdentity(
 
 export function buildRankedCompetitiveEnvironmentIdentity(
   cardCatalog: RankedCardCatalogIdentity,
-  ratingConfig: Glicko1Config,
+  ratingConfig: RankedRatingConfig,
   options: {
     readonly rulesVersion?: string;
     readonly deckPolicyVersion?: string;
   } = {}
 ): RankedCompetitiveEnvironmentIdentity {
-  assertValidGlicko1Config(ratingConfig);
+  assertValidRankedRatingConfig(ratingConfig);
   const rulesVersion = options.rulesVersion ?? REPLAY_RULES_VERSION;
   const deckPolicyVersion = options.deckPolicyVersion ?? RANKED_DECK_POLICY_VERSION;
   const competitiveEnvironmentId = hashValue({

@@ -331,7 +331,7 @@ async function seedRankedSeason(token) {
           retention: algorithm.config.softResetRetention,
           minimumDeviation: algorithm.config.softResetMinimumDeviation,
         },
-        leaderboardMinimumMatchCount: 1,
+        leaderboardMinimumMatchCount: algorithm.config.placementMatchCount,
       },
     });
     season = payload?.data;

@@ -37,7 +37,7 @@ import type {
   ReplayVisibilityScope,
 } from '../../online/replay-types.js';
 import type { PrivateEvent, PublicEvent, Seat } from '../../online/types.js';
-import type { Glicko1Config } from '../rating/glicko.js';
+import type { RankedRatingConfig } from '../rating/ranked-rating.js';
 
 export type UserRole = 'user' | 'admin';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
@@ -1069,7 +1069,7 @@ export const rankedSeasons = pgTable(
     cardCatalogHash: text('card_catalog_hash').notNull(),
     deckPolicyVersion: text('deck_policy_version').notNull(),
     ratingAlgorithmVersion: text('rating_algorithm_version').notNull(),
-    ratingConfig: jsonb('rating_config').$type<Glicko1Config>().notNull(),
+    ratingConfig: jsonb('rating_config').$type<RankedRatingConfig>().notNull(),
     leaderboardMinimumMatchCount: integer('leaderboard_minimum_match_count').notNull().default(10),
     ledgerRevision: integer('ledger_revision').notNull().default(0),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),

@@ -7,7 +7,7 @@ import type {
   RankedSeasonPublicView,
 } from '../../online/ranked-types.js';
 import { pool } from '../db/pool.js';
-import { assertValidGlicko1Config, type Glicko1Config } from '../rating/glicko.js';
+import { assertValidRankedRatingConfig, type RankedRatingConfig } from '../rating/ranked-rating.js';
 import { publicTableService, type MatchmakingQueueContext } from './public-table-service.js';
 import {
   getRankedQueueWindowTiming,
@@ -522,10 +522,10 @@ function toQueueContext(season: PublicSeasonRow): MatchmakingQueueContext {
   };
 }
 
-function readRatingConfig(value: unknown): Glicko1Config {
-  const config = value as Glicko1Config;
+function readRatingConfig(value: unknown): RankedRatingConfig {
+  const config = value as RankedRatingConfig;
   try {
-    assertValidGlicko1Config(config);
+    assertValidRankedRatingConfig(config);
   } catch {
     throw playerError('RANKED_CONFIG_INVALID', '排位赛季评分配置无效', 500);
   }
