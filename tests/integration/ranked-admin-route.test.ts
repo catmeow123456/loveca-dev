@@ -32,8 +32,26 @@ vi.mock('../../src/server/services/ranked-admin-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/ranked-rating-revision-service.js', () => ({
+  RankedRatingRevisionServiceError: class RankedRatingRevisionServiceError extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+      public readonly statusCode: number
+    ) {
+      super(message);
+    }
+  },
+  rankedRatingRevisionService: {
+    listHistory: vi.fn(),
+    preview: vi.fn(),
+    apply: vi.fn(),
+  },
+}));
+
 import { rankedAdminRouter } from '../../src/server/routes/ranked-admin';
 import { rankedAdminService } from '../../src/server/services/ranked-admin-service';
+import { rankedRatingRevisionService } from '../../src/server/services/ranked-rating-revision-service';
 
 type RouteMethod = 'get' | 'post' | 'put';
 
@@ -135,6 +153,7 @@ describe('rankedAdminRouter', () => {
       body: {
         seasonKey: 'season-2026-01',
         name: '2026 第一赛季',
+        announcement: '欢迎参加第一赛季',
         platformTimeZone: 'Asia/Shanghai',
         openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
         startsAt: '2026-08-01T00:00:00.000Z',
@@ -155,6 +174,7 @@ describe('rankedAdminRouter', () => {
     expect(rankedAdminService.createDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         startsAt: expect.any(Date),
+        announcement: '欢迎参加第一赛季',
         ratingAlgorithmVersion: 'GLICKO1_PER_MATCH_V1',
         softReset: {
           mode: 'RETAIN_TOWARD_CENTER',
@@ -178,6 +198,7 @@ describe('rankedAdminRouter', () => {
       params: { seasonId: '11111111-1111-4111-8111-111111111111' },
       body: {
         name: '晚间排位',
+        announcement: '周末开放时间有所调整',
         openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
         leaderboardMinimumMatchCount: 8,
       },
@@ -188,11 +209,28 @@ describe('rankedAdminRouter', () => {
       '11111111-1111-4111-8111-111111111111',
       {
         name: '晚间排位',
+        announcement: '周末开放时间有所调整',
         openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
         leaderboardMinimumMatchCount: 8,
       },
       '22222222-2222-4222-8222-222222222222'
     );
+  });
+
+  it('rejects an overlong season announcement', async () => {
+    const response = await invokeRoute('/seasons/:seasonId/operations', 'put', {
+      params: { seasonId: '11111111-1111-4111-8111-111111111111' },
+      body: {
+        name: '晚间排位',
+        announcement: '公'.repeat(2001),
+        openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
+        leaderboardMinimumMatchCount: 8,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    expect(rankedAdminService.updateActiveOperations).not.toHaveBeenCalled();
   });
 
   it('rejects frozen fields in active season operational edits', async () => {
@@ -209,6 +247,75 @@ describe('rankedAdminRouter', () => {
     expect(response.statusCode).toBe(400);
     expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
     expect(rankedAdminService.updateActiveOperations).not.toHaveBeenCalled();
+  });
+
+  it('validates and forwards a bounded rating revision preview with the current admin', async () => {
+    vi.mocked(rankedRatingRevisionService.preview).mockResolvedValue({
+      previewToken: 'signed-preview',
+    } as never);
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    const parameters = {
+      ratingScale: 1000,
+      minimumRatingDeviation: 100,
+      placementMatchCount: 5,
+      growthPool: {
+        enabled: true,
+        centerRating: 1800,
+        maximumTotalAdjustment: 16,
+        transitionWidth: 250,
+        negativeWinnerShare: 0.75,
+      },
+    };
+
+    const response = await invokeRoute('/seasons/:seasonId/rating-revisions/preview', 'post', {
+      params: { seasonId },
+      body: { parameters, reason: '调整本赛季积分参数' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedRatingRevisionService.preview).toHaveBeenCalledWith({
+      seasonId,
+      parameters,
+      reason: '调整本赛季积分参数',
+      adminUserId: '22222222-2222-4222-8222-222222222222',
+    });
+  });
+
+  it('rejects out-of-range or arbitrary rating revision fields', async () => {
+    const response = await invokeRoute('/seasons/:seasonId/rating-revisions/preview', 'post', {
+      params: { seasonId: '11111111-1111-4111-8111-111111111111' },
+      body: {
+        parameters: {
+          ratingScale: 10_000,
+          minimumRatingDeviation: 100,
+          placementMatchCount: 5,
+          arbitraryFormula: 'return 9999',
+        },
+        reason: '尝试提交非白名单参数',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    expect(rankedRatingRevisionService.preview).not.toHaveBeenCalled();
+  });
+
+  it('binds rating revision application to the route season and current admin', async () => {
+    vi.mocked(rankedRatingRevisionService.apply).mockResolvedValue({
+      seasonId: '11111111-1111-4111-8111-111111111111',
+    } as never);
+
+    const response = await invokeRoute('/seasons/:seasonId/rating-revisions/apply', 'post', {
+      params: { seasonId: '11111111-1111-4111-8111-111111111111' },
+      body: { previewToken: 'a'.repeat(128) },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedRatingRevisionService.apply).toHaveBeenCalledWith({
+      seasonId: '11111111-1111-4111-8111-111111111111',
+      previewToken: 'a'.repeat(128),
+      adminUserId: '22222222-2222-4222-8222-222222222222',
+    });
   });
 
   it('validates and forwards paginated user search for all ranked matches', async () => {

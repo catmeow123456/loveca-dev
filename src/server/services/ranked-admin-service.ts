@@ -39,6 +39,7 @@ import { stableJsonStringify } from './replay-payload-serialization.js';
 export interface RankedAdminSeasonDraftInput {
   readonly seasonKey: string;
   readonly name: string;
+  readonly announcement?: string;
   readonly platformTimeZone: string;
   readonly openWindows: readonly RankedSeasonOpenWindow[];
   readonly startsAt: Date;
@@ -56,6 +57,7 @@ export interface RankedAdminSeasonDraftInput {
 
 export interface RankedAdminActiveSeasonOperationsInput {
   readonly name: string;
+  readonly announcement?: string;
   readonly openWindows: readonly RankedSeasonOpenWindow[];
   readonly leaderboardMinimumMatchCount: number;
 }
@@ -261,6 +263,7 @@ export class RankedAdminService {
       seasonId: season.id,
       detail: {
         seasonKey: season.seasonKey,
+        announcementLength: season.announcement.length,
         leaderboardMinimumMatchCount: season.leaderboardMinimumMatchCount,
       },
     });
@@ -285,6 +288,7 @@ export class RankedAdminService {
       seasonId,
       detail: {
         seasonKey: season.seasonKey,
+        announcementLength: season.announcement.length,
         leaderboardMinimumMatchCount: season.leaderboardMinimumMatchCount,
       },
     });
@@ -306,6 +310,7 @@ export class RankedAdminService {
       seasonId,
       detail: {
         name: season.name,
+        announcementLength: season.announcement.length,
         openWindows: season.openWindows,
         leaderboardMinimumMatchCount: season.leaderboardMinimumMatchCount,
       },

@@ -172,6 +172,7 @@ describe('RankedAdminService', () => {
       id: 'season-1',
       seasonKey: input.seasonKey,
       name: input.name,
+      announcement: input.announcement ?? '',
       lifecycle: 'DRAFT' as const,
       queueAdmission: 'PAUSED' as const,
       competitiveEnvironmentId: input.environment.competitiveEnvironmentId,

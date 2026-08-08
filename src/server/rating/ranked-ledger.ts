@@ -145,7 +145,16 @@ export function materializeRankedRatingLedger(
 ): RankedRatingMaterialization {
   const effectiveResults = resolveEffectiveRankedResults(events, config);
   const players = new Map(
-    [...initialPlayers].map(([userId, state]) => [userId, cloneState(state)])
+    [...initialPlayers].map(([userId, state]) => [
+      userId,
+      {
+        ...cloneState(state),
+        ratingDeviation: Math.min(
+          config.maximumRatingDeviation,
+          Math.max(config.minimumRatingDeviation, state.ratingDeviation)
+        ),
+      },
+    ])
   );
   const steps: RankedRatingMaterializationStep[] = [];
 

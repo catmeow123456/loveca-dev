@@ -1,0 +1,2 @@
+ALTER TABLE "ranked_seasons" ADD COLUMN "announcement" text DEFAULT '' NOT NULL;--> statement-breakpoint
+ALTER TABLE "ranked_seasons" ADD CONSTRAINT "ranked_seasons_announcement_length_check" CHECK (char_length("ranked_seasons"."announcement") <= 2000);

@@ -61,6 +61,10 @@ export function RankedPage({
     () => buildDeckDisplayItems({ cloudDecks, resolveDeckRecordCardType, pointTable }),
     [cloudDecks, pointTable, resolveDeckRecordCardType]
   );
+  const validDeckCount = useMemo(
+    () => deckDisplayItems.filter((deck) => deck.isValid).length,
+    [deckDisplayItems]
+  );
   const preferredDeck = useMemo(
     () => choosePreferredDeck(deckDisplayItems, lastUsedDeckId),
     [deckDisplayItems, lastUsedDeckId]
@@ -160,7 +164,13 @@ export function RankedPage({
               />
               {!historicalOverview && overview?.availability.canJoin ? (
                 <>
-                  <div className="mt-4">
+                  <div
+                    className={`mt-4 ${
+                      validDeckCount > 6 || isLoadingCloud
+                        ? 'h-[58dvh] min-h-[420px] max-h-[640px] overflow-hidden'
+                        : ''
+                    }`}
+                  >
                     <DeckSelector
                       cloudDecks={cloudDecks}
                       selectedId={selectedDeck?.id}
@@ -208,6 +218,7 @@ export function RankedPage({
       <RankedSeasonNoticeDialog
         isOpen={isSeasonNoticeOpen}
         seasonName={displayedOverview?.season?.name}
+        announcement={displayedOverview?.season?.announcement}
         leaderboardMatchCount={
           displayedOverview?.player?.placementRequired ??
           displayedOverview?.season?.placementMatchCount

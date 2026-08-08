@@ -35,6 +35,7 @@ describe('ranked V4 growth rating', () => {
       minimumRatingDeviation: 100,
       placementMatchCount: 5,
       growthPool: {
+        enabled: true,
         centerRating: 1800,
         maximumTotalAdjustment: 16,
         transitionWidth: 250,
@@ -59,6 +60,40 @@ describe('ranked V4 growth rating', () => {
     expect(ranked.totalGrowthAdjustment).toBe(0);
     expect(ranked.first).toEqual(pureGlicko.first);
     expect(ranked.second).toEqual(pureGlicko.second);
+  });
+
+  it('keeps the configured growth values but applies pure Glicko while growth is disabled', () => {
+    const revisionId = 'a'.repeat(32);
+    const disabledConfig = {
+      ...GLICKO1_PER_MATCH_V4,
+      algorithmVersion: `GLICKO1_PER_MATCH_V4_REV_${revisionId}`,
+      growthPool: { ...GLICKO1_PER_MATCH_V4.growthPool!, enabled: false },
+      parameterRevision: {
+        mode: 'ADMIN_SEASON_RECALCULATION' as const,
+        revisionId,
+        baseAlgorithmVersion: 'GLICKO1_PER_MATCH_V4' as const,
+        sourceSoftResetMode: GLICKO1_PER_MATCH_V4.softResetMode,
+        sourceSoftResetCenter: GLICKO1_PER_MATCH_V4.softResetCenter,
+        sourceSoftResetRetention: GLICKO1_PER_MATCH_V4.softResetRetention,
+        sourceSoftResetMinimumDeviation: GLICKO1_PER_MATCH_V4.softResetMinimumDeviation,
+      },
+    };
+    const first = stableState(1600);
+    const second = stableState(1600);
+    const ranked = rateRankedHeadToHead(first, second, 1, RATED_AT, disabledConfig);
+    const pureGlicko = rateGlickoHeadToHead(first, second, 1, RATED_AT, disabledConfig);
+
+    expect(() => assertValidRankedRatingConfig(disabledConfig)).not.toThrow();
+    expect(ranked.totalGrowthAdjustment).toBe(0);
+    expect(ranked.first).toEqual(pureGlicko.first);
+    expect(ranked.second).toEqual(pureGlicko.second);
+    expect(disabledConfig.growthPool).toMatchObject({
+      enabled: false,
+      centerRating: 1800,
+      maximumTotalAdjustment: 16,
+      transitionWidth: 250,
+      negativeWinnerShare: 0.75,
+    });
   });
 
   it('keeps a five-win placement run near 1800 without growth', () => {

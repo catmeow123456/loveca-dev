@@ -52,6 +52,7 @@ describe('RankedPlayerService', () => {
               id: '11111111-1111-4111-8111-111111111111',
               season_key: 'season-2026-01',
               name: '第一赛季',
+              announcement: '本赛季周末全天开放',
               lifecycle: 'FINALIZING',
               queue_admission: 'PAUSED',
               competitive_environment_id: `sha256:${'a'.repeat(64)}`,
@@ -93,5 +94,6 @@ describe('RankedPlayerService', () => {
       rating: null,
       ratingDeviation: null,
     });
+    expect(overview.season?.announcement).toBe('本赛季周末全天开放');
   });
 });

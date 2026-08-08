@@ -21,18 +21,106 @@ export interface RankedRatingConfig {
   softResetMinimumDeviation: number;
   growthPool?: {
     mode: 'POST_PLACEMENT_AVERAGE_CENTERED';
+    enabled: boolean;
     centerRating: number;
     maximumTotalAdjustment: number;
     transitionWidth: number;
     positiveSplitMode: 'EQUAL';
     negativeWinnerShare: number;
   };
+  parameterRevision?: {
+    mode: 'ADMIN_SEASON_RECALCULATION';
+    revisionId: string;
+    baseAlgorithmVersion: 'GLICKO1_PER_MATCH_V3' | 'GLICKO1_PER_MATCH_V4';
+    sourceSoftResetMode: RankedSoftResetConfig['mode'];
+    sourceSoftResetCenter: number;
+    sourceSoftResetRetention: number;
+    sourceSoftResetMinimumDeviation: number;
+  };
+}
+
+export interface RankedRatingRevisionParameters {
+  ratingScale: number;
+  minimumRatingDeviation: number;
+  placementMatchCount: number;
+  growthPool?: {
+    enabled: boolean;
+    centerRating: number;
+    maximumTotalAdjustment: number;
+    transitionWidth: number;
+    negativeWinnerShare: number;
+  };
+}
+
+export interface RankedRatingRevisionBlockers {
+  pendingMatches: number;
+  runningMatches: number;
+  activeTickets: number;
+  activeReservations: number;
+  activeParticipations: number;
+  matchEnvironmentMismatches: number;
+  matchRecordRulesMismatches: number;
+}
+
+export interface RankedRatingRevisionPlayerChange {
+  userId: string;
+  playerName: string;
+  before: { rating: number; ratingDeviation: number; ratedMatchCount: number } | null;
+  after: { rating: number; ratingDeviation: number; ratedMatchCount: number } | null;
+  ratingDelta: number;
+  ratingDeviationDelta: number;
+  ratedMatchCountDelta: number;
+  rankBefore: number | null;
+  rankAfter: number | null;
+  rankDelta: number | null;
+}
+
+export interface RankedRatingRevisionPreview {
+  schemaVersion: 'loveca-ranked-rating-revision-preview-v1';
+  seasonId: string;
+  sourceAlgorithmVersion: string;
+  targetAlgorithmVersion: string;
+  sourceConfig: RankedRatingConfig;
+  targetConfig: RankedRatingConfig;
+  sourceLedgerRevision: number;
+  projectedLedgerRevision: number;
+  previewExpiresAt: string;
+  previewToken: string;
+  blockers: RankedRatingRevisionBlockers;
+  canApply: boolean;
+  materializedMatchCount: number;
+  affectedMatchCount: number;
+  affectedPlayerCount: number;
+  leaderboardEnteredCount: number;
+  leaderboardLeftCount: number;
+  seedDeviationClampCount: number;
+  maximumAbsoluteRatingChange: number;
+  maximumAbsoluteRankChange: number;
+  maximumAbsolutePerMatchDeltaChange: number;
+  playerChanges: RankedRatingRevisionPlayerChange[];
+}
+
+export interface RankedRatingRevisionHistoryItem {
+  id: string;
+  revisionNumber: number;
+  sourceAlgorithmVersion: string;
+  targetAlgorithmVersion: string;
+  sourceConfig: RankedRatingConfig;
+  targetConfig: RankedRatingConfig;
+  sourceLedgerRevision: number;
+  targetLedgerRevision: number;
+  reason: string;
+  previewSummary: Record<string, unknown>;
+  appliedBy: string | null;
+  appliedAt: string;
+  current: boolean;
 }
 
 export interface RankedAdminSeason {
   id: string;
   seasonKey: string;
   name: string;
+  announcement: string;
   lifecycle: 'DRAFT' | 'ACTIVE' | 'FINALIZING' | 'CLOSED';
   queueAdmission: 'OPEN' | 'PAUSED';
   platformTimeZone: string;
@@ -88,6 +176,7 @@ export interface RankedEnvironmentPreview {
 export interface RankedSeasonDraftPayload {
   seasonKey: string;
   name: string;
+  announcement: string;
   platformTimeZone: string;
   openWindows: { weekdays: number[]; startMinute: number; endMinute: number }[];
   startsAt: string;
@@ -100,6 +189,7 @@ export interface RankedSeasonDraftPayload {
 
 export interface RankedActiveSeasonOperationsPayload {
   name: string;
+  announcement: string;
   openWindows: { weekdays: number[]; startMinute: number; endMinute: number }[];
   leaderboardMinimumMatchCount: number;
 }
@@ -168,6 +258,33 @@ export const setRankedAdmission = (seasonId: string, admission: 'OPEN' | 'PAUSED
   requireData<RankedAdminSeason>(
     apiClient.put(`/api/admin/ranked/seasons/${seasonId}/admission`, { admission }),
     '更新匹配状态失败'
+  );
+
+export const fetchRankedRatingRevisions = (seasonId: string) =>
+  requireData<RankedRatingRevisionHistoryItem[]>(
+    apiClient.get(`/api/admin/ranked/seasons/${seasonId}/rating-revisions`),
+    '读取评分参数修订记录失败'
+  );
+
+export const previewRankedRatingRevision = (
+  seasonId: string,
+  parameters: RankedRatingRevisionParameters,
+  reason: string
+) =>
+  requireData<RankedRatingRevisionPreview>(
+    apiClient.post(`/api/admin/ranked/seasons/${seasonId}/rating-revisions/preview`, {
+      parameters,
+      reason,
+    }),
+    '回算预览失败'
+  );
+
+export const applyRankedRatingRevision = (seasonId: string, preview: RankedRatingRevisionPreview) =>
+  requireData<RankedRatingRevisionPreview>(
+    apiClient.post(`/api/admin/ranked/seasons/${seasonId}/rating-revisions/apply`, {
+      previewToken: preview.previewToken,
+    }),
+    '应用评分参数修订失败'
   );
 
 export async function fetchRankedMatches(

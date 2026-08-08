@@ -1049,6 +1049,7 @@ export const rankedSeasons = pgTable(
       .primaryKey(),
     seasonKey: text('season_key').notNull().unique(),
     name: text('name').notNull(),
+    announcement: text('announcement').notNull().default(''),
     competitiveEnvironmentId: text('competitive_environment_id').notNull(),
     lifecycle: text('lifecycle').$type<RankedSeasonLifecycle>().notNull().default('DRAFT'),
     queueAdmission: text('queue_admission')
@@ -1072,6 +1073,10 @@ export const rankedSeasons = pgTable(
     ratingConfig: jsonb('rating_config').$type<RankedRatingConfig>().notNull(),
     leaderboardMinimumMatchCount: integer('leaderboard_minimum_match_count').notNull().default(10),
     ledgerRevision: integer('ledger_revision').notNull().default(0),
+    activeRatingRevisionId: uuid('active_rating_revision_id').references(
+      (): AnyPgColumn => rankedRatingRevisions.id,
+      { onDelete: 'restrict' }
+    ),
     createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1092,6 +1097,10 @@ export const rankedSeasons = pgTable(
     ),
     check('ranked_seasons_key_check', sql`btrim(${table.seasonKey}) <> ''`),
     check('ranked_seasons_name_check', sql`btrim(${table.name}) <> ''`),
+    check(
+      'ranked_seasons_announcement_length_check',
+      sql`char_length(${table.announcement}) <= 2000`
+    ),
     check(
       'ranked_seasons_schedule_check',
       sql`${table.startsAt} < ${table.scheduledEndsAt} AND ${table.scheduledEndsAt} <= ${table.finalizingDeadlineAt}`
@@ -1346,6 +1355,59 @@ export const rankedRatingEventSteps = pgTable(
     check(
       'ranked_rating_event_steps_distinct_players_check',
       sql`${table.firstUserId} <> ${table.secondUserId}`
+    ),
+  ]
+);
+
+export const rankedRatingRevisions = pgTable(
+  'ranked_rating_revisions',
+  {
+    id: uuid('id').primaryKey(),
+    seasonId: uuid('season_id')
+      .notNull()
+      .references(() => rankedSeasons.id, { onDelete: 'restrict' }),
+    revisionNumber: integer('revision_number').notNull(),
+    sourceRevisionId: uuid('source_revision_id').references(
+      (): AnyPgColumn => rankedRatingRevisions.id,
+      { onDelete: 'restrict' }
+    ),
+    sourceAlgorithmVersion: text('source_algorithm_version').notNull(),
+    targetAlgorithmVersion: text('target_algorithm_version').notNull(),
+    sourceConfig: jsonb('source_config').$type<RankedRatingConfig>().notNull(),
+    targetConfig: jsonb('target_config').$type<RankedRatingConfig>().notNull(),
+    sourceConfigHash: text('source_config_hash').notNull(),
+    targetConfigHash: text('target_config_hash').notNull(),
+    targetCompetitiveEnvironmentId: text('target_competitive_environment_id').notNull(),
+    sourceLedgerRevision: integer('source_ledger_revision').notNull(),
+    targetLedgerRevision: integer('target_ledger_revision').notNull(),
+    reason: text('reason').notNull(),
+    previewSummary: jsonb('preview_summary').$type<Readonly<Record<string, unknown>>>().notNull(),
+    appliedBy: uuid('applied_by').references(() => users.id, { onDelete: 'set null' }),
+    appliedAt: timestamp('applied_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_ranked_rating_revisions_season_number').on(
+      table.seasonId,
+      table.revisionNumber
+    ),
+    uniqueIndex('uq_ranked_rating_revisions_season_algorithm').on(
+      table.seasonId,
+      table.targetAlgorithmVersion
+    ),
+    index('idx_ranked_rating_revisions_season_applied_at').on(table.seasonId, table.appliedAt),
+    check('ranked_rating_revisions_number_check', sql`${table.revisionNumber} > 0`),
+    check(
+      'ranked_rating_revisions_ledger_check',
+      sql`${table.sourceLedgerRevision} >= 0 AND ${table.targetLedgerRevision} >= ${table.sourceLedgerRevision}`
+    ),
+    check('ranked_rating_revisions_reason_check', sql`btrim(${table.reason}) <> ''`),
+    check(
+      'ranked_rating_revisions_source_hash_check',
+      sql`${table.sourceConfigHash} LIKE 'sha256:%'`
+    ),
+    check(
+      'ranked_rating_revisions_target_hash_check',
+      sql`${table.targetConfigHash} LIKE 'sha256:%'`
     ),
   ]
 );

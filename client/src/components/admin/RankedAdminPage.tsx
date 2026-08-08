@@ -7,15 +7,19 @@ import {
   Medal,
   RefreshCw,
   Search,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
   createRankedSeason,
+  applyRankedRatingRevision,
   executeRankedCorrection,
   fetchRankedEnvironment,
   fetchRankedMatches,
+  fetchRankedRatingRevisions,
   fetchRankedSeasons,
+  previewRankedRatingRevision,
   previewRankedCorrection,
   runRankedSeasonAction,
   setRankedAdmission,
@@ -27,6 +31,9 @@ import {
   type RankedAdminSeason,
   type RankedCorrectionPreview,
   type RankedRatingConfig,
+  type RankedRatingRevisionHistoryItem,
+  type RankedRatingRevisionParameters,
+  type RankedRatingRevisionPreview,
   type RankedSeasonDraftPayload,
 } from '@/lib/rankedAdminClient';
 
@@ -55,6 +62,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
     softResetMinimumDeviation: 200,
     growthPool: {
       mode: 'POST_PLACEMENT_AVERAGE_CENTERED',
+      enabled: true,
       centerRating: 1800,
       maximumTotalAdjustment: 16,
       transitionWidth: 250,
@@ -66,6 +74,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [creating, setCreating] = useState(false);
   const [editingSeason, setEditingSeason] = useState<RankedAdminSeason | null>(null);
   const [noticeSeason, setNoticeSeason] = useState<RankedAdminSeason | null>(null);
+  const [ratingRevisionSeason, setRatingRevisionSeason] = useState<RankedAdminSeason | null>(null);
   const [correction, setCorrection] = useState<{
     match: RankedAdminMatch;
     preview: RankedCorrectionPreview;
@@ -257,6 +266,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
                 run(() => setRankedAdmission(season.id, admission))
               }
               onOpenSeasonNotice={setNoticeSeason}
+              onOpenRatingRevision={setRatingRevisionSeason}
             />
           ) : (
             <MatchesPanel
@@ -316,9 +326,20 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
       <RankedSeasonNoticeDialog
         isOpen={noticeSeason !== null}
         seasonName={noticeSeason?.name}
+        announcement={noticeSeason?.announcement}
         leaderboardMatchCount={noticeSeason?.leaderboardMinimumMatchCount}
         onClose={() => setNoticeSeason(null)}
       />
+      {ratingRevisionSeason ? (
+        <RatingRevisionDialog
+          season={ratingRevisionSeason}
+          onClose={() => setRatingRevisionSeason(null)}
+          onApplied={async () => {
+            setRatingRevisionSeason(null);
+            await load();
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -339,6 +360,7 @@ function SeasonPanel({
   onAction,
   onAdmission,
   onOpenSeasonNotice,
+  onOpenRatingRevision,
 }: {
   seasons: RankedAdminSeason[];
   formalAlgorithm: string;
@@ -361,6 +383,7 @@ function SeasonPanel({
   ) => Promise<unknown>;
   onAdmission: (season: RankedAdminSeason, admission: 'OPEN' | 'PAUSED') => Promise<unknown>;
   onOpenSeasonNotice: (season: RankedAdminSeason) => void;
+  onOpenRatingRevision: (season: RankedAdminSeason) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -437,6 +460,16 @@ function SeasonPanel({
                   ) : null}
                   {season.lifecycle === 'ACTIVE' ? (
                     <>
+                      {supportsRatingRevision(season) ? (
+                        <button
+                          className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
+                          disabled={busy}
+                          onClick={() => onOpenRatingRevision(season)}
+                        >
+                          <SlidersHorizontal size={15} />
+                          调整积分参数
+                        </button>
+                      ) : null}
                       <button
                         className="button-secondary px-3 py-2 text-sm"
                         disabled={busy}
@@ -508,6 +541,7 @@ function ActiveSeasonOperationsForm({
 }) {
   const leaderboardMatchCountIsFrozen = Boolean(season.ratingConfig.growthPool);
   const [name, setName] = useState(season.name);
+  const [announcement, setAnnouncement] = useState(season.announcement);
   const [leaderboardMinimumMatchCount, setLeaderboardMinimumMatchCount] = useState(
     season.leaderboardMinimumMatchCount
   );
@@ -523,7 +557,7 @@ function ActiveSeasonOperationsForm({
       className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
-        void onSubmit({ name, openWindows, leaderboardMinimumMatchCount });
+        void onSubmit({ name, announcement, openWindows, leaderboardMinimumMatchCount });
       }}
     >
       <div className="text-sm font-semibold text-[var(--text-primary)] sm:col-span-2">
@@ -550,6 +584,17 @@ function ActiveSeasonOperationsForm({
           required
         />
       </Field>
+      <div className="sm:col-span-2">
+        <Field label={`赛季公告（可选，${announcement.length}/2000）`}>
+          <textarea
+            className="input-field min-h-28 resize-y"
+            value={announcement}
+            maxLength={2000}
+            placeholder="向玩家说明本赛季安排、奖励或注意事项"
+            onChange={(event) => setAnnouncement(event.target.value)}
+          />
+        </Field>
+      </div>
       <OpenWindowFields
         openWindow={openWindows[0]}
         onChange={(openWindow) => setOpenWindows([openWindow, ...openWindows.slice(1)])}
@@ -619,6 +664,17 @@ function SeasonDraftForm({
           required
         />
       </Field>
+      <div className="sm:col-span-2">
+        <Field label={`赛季公告（可选，${draft.announcement.length}/2000）`}>
+          <textarea
+            className="input-field min-h-28 resize-y"
+            value={draft.announcement}
+            maxLength={2000}
+            placeholder="向玩家说明本赛季安排、奖励或注意事项"
+            onChange={(event) => setDraft({ ...draft, announcement: event.target.value })}
+          />
+        </Field>
+      </div>
       <Field label="开始">
         <input
           type="datetime-local"
@@ -965,6 +1021,496 @@ function MatchPlayerResult({ name, result }: { name: string; result: 'WIN' | 'LO
   );
 }
 
+function RatingRevisionDialog({
+  season,
+  onClose,
+  onApplied,
+}: {
+  season: RankedAdminSeason;
+  onClose: () => void;
+  onApplied: () => Promise<void>;
+}) {
+  const [parameters, setParametersState] = useState<RankedRatingRevisionParameters>(() =>
+    revisionParametersFromConfig(season.ratingConfig)
+  );
+  const [reason, setReason] = useState('');
+  const [preview, setPreview] = useState<RankedRatingRevisionPreview | null>(null);
+  const [history, setHistory] = useState<RankedRatingRevisionHistoryItem[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const supportsGrowth = Boolean(season.ratingConfig.growthPool);
+  const originalRevision = history.at(-1);
+
+  useEffect(() => {
+    let active = true;
+    void fetchRankedRatingRevisions(season.id)
+      .then((items) => {
+        if (active) setHistory(items);
+      })
+      .catch((loadError) => {
+        if (active) setError(readError(loadError));
+      });
+    return () => {
+      active = false;
+    };
+  }, [season.id]);
+
+  const setParameters = (value: RankedRatingRevisionParameters) => {
+    setParametersState(value);
+    setPreview(null);
+    setConfirmed(false);
+  };
+
+  const runPreview = async () => {
+    setBusy(true);
+    setError(null);
+    setConfirmed(false);
+    try {
+      setPreview(await previewRankedRatingRevision(season.id, parameters, reason));
+    } catch (previewError) {
+      setPreview(null);
+      setError(readError(previewError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyPreview = async () => {
+    if (!preview) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await applyRankedRatingRevision(season.id, preview);
+      await onApplied();
+    } catch (applyError) {
+      setError(readError(applyError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sortedChanges = useMemo(
+    () =>
+      [...(preview?.playerChanges ?? [])]
+        .sort((first, second) => Math.abs(second.ratingDelta) - Math.abs(first.ratingDelta))
+        .slice(0, 20),
+    [preview]
+  );
+
+  return (
+    <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/60 p-4">
+      <div
+        className="surface-panel mx-auto my-4 w-full max-w-3xl p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ranked-rating-revision-title"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2
+              id="ranked-rating-revision-title"
+              className="font-semibold text-[var(--text-primary)]"
+            >
+              调整积分参数并全赛季回算
+            </h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              {season.name} ·
+              这是维护期高风险操作，必须先预览；应用时需暂停匹配且清空所有排位运行状态。
+            </p>
+          </div>
+          <button
+            className="button-secondary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
+            disabled={busy}
+            onClick={onClose}
+          >
+            关闭
+          </button>
+        </div>
+
+        {history.length > 0 ? (
+          <Field label="复用已应用过的参数">
+            <select
+              className="input-field mt-3"
+              defaultValue=""
+              onChange={(event) => {
+                const selectedConfig =
+                  event.target.value === 'original'
+                    ? originalRevision?.sourceConfig
+                    : history.find((candidate) => candidate.id === event.target.value)
+                        ?.targetConfig;
+                if (selectedConfig) {
+                  setParameters(revisionParametersFromConfig(selectedConfig));
+                  setPreview(null);
+                  setConfirmed(false);
+                }
+              }}
+            >
+              <option value="">不复用，编辑当前参数</option>
+              {originalRevision ? <option value="original">修订前原始参数</option> : null}
+              {history.map((item) => (
+                <option key={item.id} value={item.id}>
+                  第 {item.revisionNumber} 版{item.current ? '（当前）' : ''} ·{' '}
+                  {new Date(item.appliedAt).toLocaleString('zh-CN')}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+
+        <form
+          className="mt-4 grid gap-3 sm:grid-cols-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void runPreview();
+          }}
+        >
+          <RevisionNumberField
+            label="Rating Scale"
+            value={parameters.ratingScale}
+            minimum={200}
+            maximum={2000}
+            onChange={(value) => setParameters({ ...parameters, ratingScale: value })}
+          />
+          <RevisionNumberField
+            label="最低 RD"
+            value={parameters.minimumRatingDeviation}
+            minimum={30}
+            maximum={200}
+            onChange={(value) => setParameters({ ...parameters, minimumRatingDeviation: value })}
+          />
+          <RevisionNumberField
+            label="定级/参榜场次"
+            value={parameters.placementMatchCount}
+            minimum={1}
+            maximum={30}
+            step={1}
+            onChange={(value) => setParameters({ ...parameters, placementMatchCount: value })}
+          />
+          {supportsGrowth && parameters.growthPool ? (
+            <>
+              <label className="flex items-start gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-3 text-sm text-[var(--text-secondary)] sm:col-span-3">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={parameters.growthPool.enabled}
+                  onChange={(event) =>
+                    setParameters({
+                      ...parameters,
+                      growthPool: { ...parameters.growthPool!, enabled: event.target.checked },
+                    })
+                  }
+                />
+                <span>
+                  <span className="block font-semibold text-[var(--text-primary)]">
+                    启用成长补偿
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">
+                    关闭后，本赛季所有已完成定级的对局都会按纯 Glicko
+                    重新计算；其余设置会保留，方便之后重新启用。
+                  </span>
+                </span>
+              </label>
+              <RevisionNumberField
+                label="成长基准分"
+                value={parameters.growthPool.centerRating}
+                minimum={1400}
+                maximum={2400}
+                disabled={!parameters.growthPool.enabled}
+                onChange={(value) =>
+                  setParameters({
+                    ...parameters,
+                    growthPool: { ...parameters.growthPool!, centerRating: value },
+                  })
+                }
+              />
+              <RevisionNumberField
+                label="最大单局注入/回收总分"
+                value={parameters.growthPool.maximumTotalAdjustment}
+                minimum={1}
+                maximum={50}
+                disabled={!parameters.growthPool.enabled}
+                onChange={(value) =>
+                  setParameters({
+                    ...parameters,
+                    growthPool: { ...parameters.growthPool!, maximumTotalAdjustment: value },
+                  })
+                }
+              />
+              <RevisionNumberField
+                label="高分局胜方回收比例（0–1）"
+                value={parameters.growthPool.negativeWinnerShare}
+                minimum={0.5}
+                maximum={1}
+                step={0.01}
+                disabled={!parameters.growthPool.enabled}
+                onChange={(value) =>
+                  setParameters({
+                    ...parameters,
+                    growthPool: { ...parameters.growthPool!, negativeWinnerShare: value },
+                  })
+                }
+              />
+              <details className="rounded-lg border border-[var(--border-subtle)] sm:col-span-3">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-[var(--text-secondary)]">
+                  高级选项
+                </summary>
+                <div className="border-t border-[var(--border-subtle)] p-3 sm:w-1/3">
+                  <RevisionNumberField
+                    label="过渡宽度"
+                    value={parameters.growthPool.transitionWidth}
+                    minimum={50}
+                    maximum={1000}
+                    disabled={!parameters.growthPool.enabled}
+                    description="数值越小，越快从低分正和切换到高分负和；默认 250。"
+                    onChange={(value) =>
+                      setParameters({
+                        ...parameters,
+                        growthPool: { ...parameters.growthPool!, transitionWidth: value },
+                      })
+                    }
+                  />
+                </div>
+              </details>
+            </>
+          ) : null}
+          <label className="grid gap-1 text-sm text-[var(--text-secondary)] sm:col-span-3">
+            调整原因
+            <textarea
+              className="input-field min-h-20"
+              value={reason}
+              minLength={5}
+              maxLength={1000}
+              placeholder="说明为什么调整，将进入永久审计记录"
+              onChange={(event) => {
+                setReason(event.target.value);
+                setPreview(null);
+                setConfirmed(false);
+              }}
+              required
+            />
+          </label>
+          <div className="flex justify-end sm:col-span-3">
+            <button className="button-primary min-h-11 px-5" disabled={busy}>
+              {busy ? <Loader2 size={16} className="animate-spin" /> : '生成回算预览'}
+            </button>
+          </div>
+        </form>
+
+        {error ? (
+          <p className="mt-4 rounded-lg bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
+            {error}
+          </p>
+        ) : null}
+
+        {preview ? (
+          <section className="mt-5 border-t border-[var(--border-subtle)] pt-4">
+            <h3 className="font-semibold text-[var(--text-primary)]">回算预览</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <PreviewMetric label="有效对局" value={preview.materializedMatchCount} />
+              <PreviewMetric label="变化对局" value={preview.affectedMatchCount} />
+              <PreviewMetric label="变化玩家" value={preview.affectedPlayerCount} />
+              <PreviewMetric label="新进排行榜" value={preview.leaderboardEnteredCount} />
+              <PreviewMetric label="离开排行榜" value={preview.leaderboardLeftCount} />
+              <PreviewMetric
+                label="最大分数变化"
+                value={formatSignedMagnitude(preview.maximumAbsoluteRatingChange)}
+              />
+              <PreviewMetric label="榜内最大名次变化" value={preview.maximumAbsoluteRankChange} />
+              <PreviewMetric
+                label="最大单局差异"
+                value={formatSignedMagnitude(preview.maximumAbsolutePerMatchDeltaChange)}
+              />
+              <PreviewMetric label="Seed RD 夹取" value={preview.seedDeviationClampCount} />
+              <PreviewMetric
+                label="流水版本"
+                value={`${preview.sourceLedgerRevision} → ${preview.projectedLedgerRevision}`}
+              />
+            </div>
+            <RevisionBlockers
+              blockers={preview.blockers}
+              queuePaused={season.queueAdmission === 'PAUSED'}
+            />
+            {sortedChanges.length > 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[36rem] text-left text-xs">
+                  <thead className="text-[var(--text-muted)]">
+                    <tr>
+                      <th className="py-2 pr-3">玩家</th>
+                      <th className="py-2 pr-3">积分</th>
+                      <th className="py-2 pr-3">变化</th>
+                      <th className="py-2 pr-3">RD</th>
+                      <th className="py-2">名次</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedChanges.map((change) => (
+                      <tr key={change.userId} className="border-t border-[var(--border-subtle)]">
+                        <td className="py-2 pr-3 font-medium text-[var(--text-primary)]">
+                          {change.playerName}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {formatRating(change.before?.rating)} →{' '}
+                          {formatRating(change.after?.rating)}
+                        </td>
+                        <td className="py-2 pr-3">{formatDelta(change.ratingDelta)}</td>
+                        <td className="py-2 pr-3">
+                          {formatRating(change.before?.ratingDeviation)} →{' '}
+                          {formatRating(change.after?.ratingDeviation)}
+                        </td>
+                        <td className="py-2">
+                          {change.rankBefore ?? '未参榜'} → {change.rankAfter ?? '未参榜'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-[var(--text-muted)]">当前没有玩家积分变化。</p>
+            )}
+            <label className="mt-4 flex items-start gap-2 text-sm text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+              />
+              <span>
+                我已核对预览差异，理解应用后会用新参数原子重建本赛季全部积分与单局历史投影。
+              </span>
+            </label>
+            <div className="mt-4 flex justify-end">
+              <button
+                className="rounded-lg bg-[var(--semantic-warning)] px-5 py-3 font-semibold text-white disabled:opacity-50"
+                disabled={busy || !confirmed || !preview.canApply}
+                onClick={() => void applyPreview()}
+              >
+                确认应用并全赛季回算
+              </button>
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RevisionNumberField({
+  label,
+  value,
+  minimum,
+  maximum,
+  step = 1,
+  disabled = false,
+  description,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  minimum: number;
+  maximum: number;
+  step?: number;
+  disabled?: boolean;
+  description?: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Field label={label}>
+      <input
+        type="number"
+        className="input-field"
+        min={minimum}
+        max={maximum}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(Number(event.target.value))}
+        required
+      />
+      {description ? <span className="text-xs text-[var(--text-muted)]">{description}</span> : null}
+    </Field>
+  );
+}
+
+function PreviewMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg bg-[var(--bg-overlay)] p-2">
+      <div className="text-[11px] text-[var(--text-muted)]">{label}</div>
+      <div className="mt-0.5 font-semibold text-[var(--text-primary)]">{value}</div>
+    </div>
+  );
+}
+
+function RevisionBlockers({
+  blockers,
+  queuePaused,
+}: {
+  blockers: RankedRatingRevisionPreview['blockers'];
+  queuePaused: boolean;
+}) {
+  const entries = [
+    ['待结算对局', blockers.pendingMatches],
+    ['进行中对局', blockers.runningMatches],
+    ['活动票据', blockers.activeTickets],
+    ['活动预留', blockers.activeReservations],
+    ['玩家占用', blockers.activeParticipations],
+    ['对局冻结环境异常', blockers.matchEnvironmentMismatches],
+    ['对局规则版本异常', blockers.matchRecordRulesMismatches],
+  ] as const;
+  const blocked = !queuePaused || entries.some(([, count]) => count > 0);
+  return (
+    <div
+      className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+        blocked
+          ? 'bg-[var(--semantic-warning)]/10 text-[var(--semantic-warning)]'
+          : 'bg-[var(--semantic-success)]/10 text-[var(--semantic-success)]'
+      }`}
+    >
+      {queuePaused ? '匹配已暂停' : '匹配尚未暂停'}
+      {' · '}
+      {entries.map(([label, count]) => `${label} ${count}`).join(' · ')}
+    </div>
+  );
+}
+
+function supportsRatingRevision(season: RankedAdminSeason): boolean {
+  const baseVersion =
+    season.ratingConfig.parameterRevision?.baseAlgorithmVersion ?? season.ratingAlgorithmVersion;
+  return baseVersion === 'GLICKO1_PER_MATCH_V3' || baseVersion === 'GLICKO1_PER_MATCH_V4';
+}
+
+function revisionParametersFromConfig(config: RankedRatingConfig): RankedRatingRevisionParameters {
+  return {
+    ratingScale: config.ratingScale,
+    minimumRatingDeviation: config.minimumRatingDeviation,
+    placementMatchCount: config.placementMatchCount,
+    ...(config.growthPool
+      ? {
+          growthPool: {
+            enabled: config.growthPool.enabled,
+            centerRating: config.growthPool.centerRating,
+            maximumTotalAdjustment: config.growthPool.maximumTotalAdjustment,
+            transitionWidth: config.growthPool.transitionWidth,
+            negativeWinnerShare: config.growthPool.negativeWinnerShare,
+          },
+        }
+      : {}),
+  };
+}
+
+function formatRating(value: number | undefined): string {
+  return value === undefined ? '—' : value.toFixed(1);
+}
+
+function formatDelta(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
+}
+
+function formatSignedMagnitude(value: number): string {
+  return value.toFixed(1);
+}
+
 function CorrectionDialog({
   correction,
   reason,
@@ -1165,6 +1711,7 @@ function createDraftDefaults(algorithm: string, ratingConfig: RankedRatingConfig
   return {
     seasonKey: `season-${start.toISOString().slice(0, 10)}`,
     name: '新赛季',
+    announcement: '',
     platformTimeZone: 'Asia/Shanghai',
     openWindows: [{ weekdays: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1440 }],
     startsAt: start.toISOString().slice(0, 16),
@@ -1190,6 +1737,7 @@ function createDraftFromSeason(season: RankedAdminSeason) {
   return {
     seasonKey: season.seasonKey,
     name: season.name,
+    announcement: season.announcement,
     platformTimeZone: season.platformTimeZone,
     openWindows: season.openWindows.map((window) => ({
       weekdays: [...window.weekdays],

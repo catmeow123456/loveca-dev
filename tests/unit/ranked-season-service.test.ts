@@ -55,6 +55,7 @@ function seasonRow(overrides: Readonly<Record<string, unknown>> = {}) {
     id: 'season-1',
     season_key: 'season-2026-01',
     name: '2026 第一赛季',
+    announcement: '',
     lifecycle: 'DRAFT',
     queue_admission: 'PAUSED',
     competitive_environment_id: ENVIRONMENT.competitiveEnvironmentId,
@@ -153,12 +154,15 @@ describe('ranked season open windows', () => {
 describe('RankedSeasonService lifecycle', () => {
   it('creates a paused draft with a frozen competitive environment', async () => {
     const { calls, service } = createHarness((text) =>
-      text.includes('INSERT INTO ranked_seasons') ? [seasonRow()] : []
+      text.includes('INSERT INTO ranked_seasons')
+        ? [seasonRow({ announcement: '欢迎参加第一赛季' })]
+        : []
     );
 
     const season = await service.createDraft({
       seasonKey: 'season-2026-01',
       name: '2026 第一赛季',
+      announcement: '欢迎参加第一赛季',
       platformTimeZone: 'Asia/Shanghai',
       openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
       startsAt: new Date('2026-08-01T00:00:00.000Z'),
@@ -175,6 +179,7 @@ describe('RankedSeasonService lifecycle', () => {
       queueAdmission: 'PAUSED',
       competitiveEnvironmentId: ENVIRONMENT.competitiveEnvironmentId,
       leaderboardMinimumMatchCount: 10,
+      announcement: '欢迎参加第一赛季',
     });
     expect(calls.some((text) => text.includes('rating_config'))).toBe(true);
   });
@@ -333,6 +338,7 @@ describe('RankedSeasonService lifecycle', () => {
           seasonRow({
             lifecycle: 'ACTIVE',
             name: '晚间排位',
+            announcement: '周末开放时间有所调整',
             open_windows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
             leaderboard_minimum_match_count: 8,
           }),
@@ -343,6 +349,7 @@ describe('RankedSeasonService lifecycle', () => {
 
     const season = await service.updateActiveOperations('season-1', {
       name: '晚间排位',
+      announcement: '周末开放时间有所调整',
       openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
       leaderboardMinimumMatchCount: 8,
       adminUserId: '11111111-1111-4111-8111-111111111111',
@@ -351,14 +358,16 @@ describe('RankedSeasonService lifecycle', () => {
     expect(season).toMatchObject({
       lifecycle: 'ACTIVE',
       name: '晚间排位',
+      announcement: '周末开放时间有所调整',
       openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
       leaderboardMinimumMatchCount: 8,
       competitiveEnvironmentId: ENVIRONMENT.competitiveEnvironmentId,
       scheduledEndsAt: new Date('2026-09-01T00:00:00.000Z'),
     });
     const update = calls.find((text) => text.includes('SET name = $2'));
-    expect(update).toContain('open_windows = $3::jsonb');
-    expect(update).toContain('leaderboard_minimum_match_count = $4');
+    expect(update).toContain('announcement = $3');
+    expect(update).toContain('open_windows = $4::jsonb');
+    expect(update).toContain('leaderboard_minimum_match_count = $5');
     expect(update).not.toContain('rating_config =');
     expect(update).not.toContain('scheduled_ends_at =');
     expect(update).not.toContain('competitive_environment_id =');

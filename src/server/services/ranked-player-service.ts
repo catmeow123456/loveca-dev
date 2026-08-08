@@ -18,6 +18,7 @@ interface PublicSeasonRow {
   readonly id: string;
   readonly season_key: string;
   readonly name: string;
+  readonly announcement: string;
   readonly lifecycle: 'DRAFT' | 'ACTIVE' | 'FINALIZING' | 'CLOSED';
   readonly queue_admission: 'OPEN' | 'PAUSED';
   readonly competitive_environment_id: string;
@@ -540,6 +541,7 @@ function mapSeason(season: PublicSeasonRow): RankedSeasonPublicView {
     id: season.id,
     seasonKey: season.season_key,
     name: season.name,
+    announcement: season.announcement,
     lifecycle: season.lifecycle,
     platformTimeZone: season.platform_time_zone,
     startsAt: new Date(season.starts_at).getTime(),

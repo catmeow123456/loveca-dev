@@ -14,6 +14,7 @@ export interface RankedSeasonPublicView {
   readonly id: string;
   readonly seasonKey: string;
   readonly name: string;
+  readonly announcement: string;
   readonly lifecycle: 'ACTIVE' | 'FINALIZING' | 'CLOSED';
   readonly platformTimeZone: string;
   readonly startsAt: number;
