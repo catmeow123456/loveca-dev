@@ -390,6 +390,46 @@ describe('solitaire opponent effect automation', () => {
     });
   });
 
+  it('selects only an explicitly opted-in legal structured single choice', () => {
+    const effectChoice = {
+      mode: 'SINGLE' as const,
+      options: [
+        { id: 'please', text: '拜托了' },
+        { id: 'other', text: '其他' },
+      ],
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true as const,
+    };
+
+    expect(
+      buildSolitaireOpponentEffectCommand(
+        createState({
+          effectChoice,
+          metadata: { solitaireOpponentEffectChoiceOptionId: 'other' },
+        }),
+        OPPONENT_PLAYER_ID,
+        NOW
+      )
+    ).toMatchObject({
+      type: GameCommandType.CONFIRM_EFFECT_STEP,
+      playerId: OPPONENT_PLAYER_ID,
+      effectId: 'effect-1',
+      selectedOptionId: 'other',
+      timestamp: NOW,
+    });
+    expect(
+      buildSolitaireOpponentEffectCommand(
+        createState({
+          effectChoice,
+          metadata: { solitaireOpponentEffectChoiceOptionId: 'unknown' },
+        }),
+        OPPONENT_PLAYER_ID,
+        NOW
+      )
+    ).toBeNull();
+  });
+
   it.each([
     {
       name: 'ordered multi-card selection',

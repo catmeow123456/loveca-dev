@@ -7,6 +7,9 @@ import {
   ZoneType,
 } from '../../../shared/types/enums.js';
 import {
+  LL_PR_004_LIVE_START_OPPONENT_ANSWER_BRANCH_ABILITY_ID,
+  LL_BP4_001_LIVE_START_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
+  LL_BP4_001_ON_ENTER_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
   LL_BP7_001_CONTINUOUS_SPECIAL_PLAY_COST_TEN_ABILITY_ID,
   LL_BP7_001_LIVE_SUCCESS_RECOVER_MEMBER_ABILITY_ID,
   LL_BP7_001_ON_ENTER_RECOVER_LIVE_ABILITY_ID,
@@ -17,6 +20,7 @@ import {
   N_BP7_001_AUTO_TURN_ONCE_ENERGY_PLACED_BELOW_PLACE_WAITING_ENERGY_ABILITY_ID,
   N_BP7_010_ACTIVATED_STACK_ENERGY_PLAY_LOW_COST_NIJIGASAKI_FROM_WAITING_ABILITY_ID,
   N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID,
+  N_PR_022_ON_ENTER_PREVIOUS_OPPONENT_LIVE_FAILED_ASK_EMMA_PUNCH_BLADE_ABILITY_ID,
   N_BP8_002_ACTIVATED_WAITING_ROOM_PAY_ENERGY_BOTTOM_SELF_TARGET_YELLOW_HEART_ABILITY_ID,
   N_BP7_013_ON_ENTER_THREE_AZUNA_DRAW_ONE_ABILITY_ID,
   N_BP7_014_AUTO_LEAVE_STAGE_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -52,6 +56,7 @@ import {
   S_BP7_017_ON_ENTER_MILL_BOTTOM_ONE_COST_TEN_MEMBER_GAIN_RED_BLUE_HEART_ABILITY_ID,
   SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
+  PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID,
   PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
   PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
   PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
@@ -153,6 +158,8 @@ import {
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
   LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
+  LL_BP3_001_ACTIVATED_SHUFFLE_NAMED_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+  LL_BP3_001_LIVE_START_PAY_SIX_ENERGY_GAIN_THREE_BLADE_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_DISCARD_ABILITY_ID,
   HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   MEMBER_LIVE_SUCCESS_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
@@ -1008,6 +1015,10 @@ const LL_BP1_001_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将手牌的合计3张「上原步梦」与「涩谷香音」与「日野下花帆」，以任意组合放置入休息室：LIVE结束时为止，获得「【常时】LIVE的合计分数＋３。」。';
 const LL_BP2_001_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】可以将手牌的任意张数的「渡边 曜」与「鬼冢夏美」与「大泽瑠璃乃」放置入休息室：LIVE结束时为止，因支付此费用被放置入休息室的卡片每有1张，获得[BLADE]。';
+const LL_BP3_001_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将存在于自己的休息室的「园田海未」和「津岛善子」和「天王寺璃奈」，合计6张洗牌后放置于卡组底：将至多6张能量变为活跃状态。';
+const LL_BP3_001_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】可以支付[E][E][E][E][E][E]：LIVE结束时为止，获得[ブレード][ブレード][ブレード]。';
 const HS_BP1_006_ON_ENTER_EFFECT_TEXT = '【登场】抽2张卡，将1张手牌放置入休息室。';
 const HS_BP1_006_ON_ENTER_DRAW_ONE_DISCARD_EFFECT_TEXT = '【登场】抽1张卡，将1张手牌放置入休息室。';
 const MEMBER_ON_ENTER_DRAW_ONE_EFFECT_TEXT = '【登场】抽1张卡。';
@@ -2114,6 +2125,8 @@ const ELI_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：�
 const RIN_EFFECT_TEXT = '【起动】将此成员从舞台放置入休息室：从自己的休息室将1张LIVE卡加入手牌。';
 const PR_017_ACTIVATED_EFFECT_TEXT =
   "【起动】将此成员从舞台放置入休息室：从自己的休息室将1张『μ's』的LIVE卡加入手牌。自己的成功LIVE卡区中的卡片的分数合计大于等于9的场合，将2张能量变为活跃状态。";
+const PL_PR_022_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将此成员变为待机状态：自己的舞台上存在「星空凛」或「小泉花阳」的场合，抽2张卡，将1张手牌放置入休息室。同时存在2人的场合，接着将此成员变为活跃状态。';
 const PL_PR_003_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将2张手牌放置入休息室：从自己的休息室将1张必要HEART中含有大于等于3个[黄ハート]的LIVE卡加入手牌。';
 const PL_PR_004_ACTIVATED_EFFECT_TEXT =
@@ -2568,8 +2581,70 @@ const SP_BP7_012_ON_ENTER_EFFECT_TEXT =
   '【登场】可以从自己的休息室，选择『CatChu!』和『KALEIDOSCORE』和『5yncri5e!』的卡片各1张，将那些卡片按任意顺序放置于卡组底。如此做时，抽1张卡。';
 const SP_BP7_022_ACTIVATED_EFFECT_TEXT =
   '【起动】【1回合1次】将存在于能量区的1张能量放置于能量卡组：将此成员站位变换。(将此成员移动至当前区域以外的区域。该区域存在成员的场合，将该成员移动至此成员曾存在的区域。)';
+const LL_BP4_001_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_EFFECT_TEXT =
+  '【登场】/【LIVE开始时】检视自己卡组顶的5张卡。可以从其中公开1张「绚濑绘里」或「朝香果林」或「叶月恋」的成员卡加入手牌。其余的卡片放置入休息室。之后，将所有存在于对方的舞台的，费用小于等于因此公开的卡片的费用的，且原本持有的[ブレード]的数量小于等于3个的成员变为待机状态。';
+const N_PR_022_ON_ENTER_EFFECT_TEXT =
+  '【登场】上一个对方的回合中对方进行了LIVE，且LIVE没有成功的场合，可以询问对手是否要被艾玛拳打。\n\n回答是拜托了的场合，自己对对方使用艾玛拳。LIVE结束时为止，存在于对方舞台的所有成员，获得[ブレード]。\n\n回答是其他的场合，什么都不做。\n\n（以温柔为心、以爱意为名，施出不伤他人的魔法重拳。）';
+const LL_PR_004_LIVE_START_EFFECT_TEXT =
+  '【LIVE开始时】询问对手喜欢什么。\n\n回答是薄荷巧克力或草莓味或曲奇奶油的场合，自己和对方分别将1张手牌放置入休息室。\n\n回答是你的场合，自己和对方分别抽1张卡。\n\n回答是其它的场合，LIVE结束时为止，存在于自己和对方舞台上的成员获得[ブレード]。';
 
 export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
+  {
+    abilityId: N_PR_022_ON_ENTER_PREVIOUS_OPPONENT_LIVE_FAILED_ASK_EMMA_PUNCH_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-022'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: N_PR_022_ON_ENTER_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
+    notes:
+      '单卡 ON_ENTER workflow `n-pr-022-emma-verde.ts`；纯 query 读取最近一个完整对手回合的 LIVE 开始/成功事件，条件满足后由控制者决定是否询问，对手使用固定选项回答；回答“拜托了”并确认使用艾玛拳后，为结算时对方舞台全部顶层成员逐一写入 TARGET_MEMBER BLADE +1。',
+  },
+  {
+    abilityId: LL_PR_004_LIVE_START_OPPONENT_ANSWER_BRANCH_ABILITY_ID,
+    baseCardCodes: ['LL-PR-004'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.LIVE_CARD,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: LL_PR_004_LIVE_START_EFFECT_TEXT,
+    notes:
+      '单卡 LIVE_START workflow `ll-pr-004-ai-scream.ts`；对手从五个固定回答中选择，三种口味复用双方各弃1张自己的手牌流程，“你”复用双方抽1，“其他”为双方当前舞台全部顶层成员逐一写入 TARGET_MEMBER BLADE +1。',
+  },
+  {
+    abilityId: LL_BP4_001_ON_ENTER_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['LL-bp4-001'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    queued: true,
+    implemented: true,
+    effectText: LL_BP4_001_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_EFFECT_TEXT,
+    delegatedOnEnterFromWaitingRoomPolicy: {
+      decision: 'ALLOW',
+      reason: 'SOURCE_INDEPENDENT',
+    },
+    notes:
+      '单卡 ON_ENTER workflow `ll-bp4-001-eli-karin-ren.ts`；私密检视顶5，可选0或1张指定结构化姓名成员。选择后仅公开该卡并经 Public Reveal Dwell，展示后入手、其余成组进休息室，再按公开卡印刷费用与对方成员印刷 BLADE 批量待机；pending 入队后不要求来源留在舞台。',
+  },
+  {
+    abilityId: LL_BP4_001_LIVE_START_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
+    baseCardCodes: ['LL-bp4-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: LL_BP4_001_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_EFFECT_TEXT,
+    notes:
+      '与本卡 ON_ENTER 段共用单卡流程；结算开始时重验来源仍为己方顶层舞台成员，之后复用 inspectTopCards、姓名/印刷值 selector、Public Reveal Dwell、inspection-to-waiting 事件 wrapper 与批量 member-state trigger wrapper。',
+  },
   {
     abilityId: N_SD2_001_ACTIVATED_PAY_TWO_ENERGY_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,
     baseCardCodes: ['PL!N-sd2-001'],
@@ -2982,6 +3057,24 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       text: PR_017_ACTIVATED_EFFECT_TEXT,
       title: "将此成员从舞台放置入休息室，回收1张『μ's』LIVE卡，条件满足时活跃2张能量",
     },
+  },
+  {
+    abilityId: PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID,
+    baseCardCodes: ['PL!-PR-022'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    requiredSourceOrientation: OrientationState.ACTIVE,
+    effectText: PL_PR_022_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID,
+      title: '将此成员变为待机状态',
+      text: PL_PR_022_ACTIVATED_EFFECT_TEXT,
+    },
+    notes:
+      '按基础编号覆盖同卡全部罕度；单卡 workflow pl-pr-022-maki.ts 以成员状态变化 wrapper 支付来源 WAIT 费用，费用后用结构化姓名身份检查星空凛／小泉花阳。命中至少1人时委托 draw-then-discard core 抽2弃1，两人均存在时在该段结束后通过状态事件 wrapper 活跃来源。',
   },
   {
     abilityId: PL_PR_003_ACTIVATED_DISCARD_TWO_RECOVER_YELLOW_THREE_LIVE_ABILITY_ID,
@@ -4122,6 +4215,35 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: LL_BP2_001_LIVE_START_EFFECT_TEXT,
     notes:
       '复用指定姓名手牌弃置费用流程，弃任意张渡边曜/鬼冢夏美/大泽瑠璃乃后按弃置张数写入 BLADE。',
+  },
+  {
+    abilityId: LL_BP3_001_ACTIVATED_SHUFFLE_NAMED_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+    baseCardCodes: ['LL-bp3-001'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: LL_BP3_001_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: LL_BP3_001_ACTIVATED_SHUFFLE_NAMED_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+      text: LL_BP3_001_ACTIVATED_EFFECT_TEXT,
+      title: '将指定姓名成员洗入卡组底，活跃至多6张能量',
+    },
+    notes:
+      '单卡起动 workflow `ll-bp3-001-umi-yoshiko-rina.ts`；精确选择6张指定姓名休息室成员作为费用，经 shared public-card-selection confirmation 后调用洗切到卡组底事件 wrapper；费用完成后复用通用能量活跃 helper。',
+  },
+  {
+    abilityId: LL_BP3_001_LIVE_START_PAY_SIX_ENERGY_GAIN_THREE_BLADE_ABILITY_ID,
+    baseCardCodes: ['LL-bp3-001'],
+    category: CardAbilityCategory.LIVE_START,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_START,
+    queued: true,
+    implemented: true,
+    effectText: LL_BP3_001_LIVE_START_EFFECT_TEXT,
+    notes:
+      '扩展 shared `pay-energy-gain-blade.ts` 的 FIXED/FIXED 配置轴；可选支付6张 ACTIVE 能量，支付成功后为来源成员写入 BLADE +3。',
   },
   {
     abilityId: KEKE_ON_ENTER_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -14204,7 +14326,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
     notes:
-      'continuous live modifier；按双方成功 LIVE 区的有效分数合计动态判断，达到10时来源成员获得 SOURCE_MEMBER 桃 Heart。PL!-PR-023 为绚濑绘里的正式编号；PL!-PR-022 是另一张暂未实现的卡。PUBLIC visibility，不进入 workflow/runner。',
+      'continuous live modifier；按双方成功 LIVE 区的有效分数合计动态判断，达到10时来源成员获得 SOURCE_MEMBER 桃 Heart。PL!-PR-023 为绚濑绘里的正式编号，不与 PL!-PR-022 共享能力。PUBLIC visibility，不进入 workflow/runner。',
   },
   {
     abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,

@@ -796,6 +796,8 @@ import {
   LL_BP1_001_LIVE_START_DISCARD_SCORE_ABILITY_ID,
   LL_BP1_001_ON_ENTER_RECOVER_MEMBER_ABILITY_ID,
   LL_BP2_001_LIVE_START_DISCARD_BLADE_ABILITY_ID,
+  LL_BP3_001_ACTIVATED_SHUFFLE_NAMED_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+  LL_BP3_001_LIVE_START_PAY_SIX_ENERGY_GAIN_THREE_BLADE_ABILITY_ID,
   GENERIC_ON_ENTER_SELF_POSITION_CHANGE_ABILITY_ID,
   SHIKI_LIVE_START_POSITION_CHANGE_ABILITY_ID,
   SHIKI_ON_ENTER_LEFT_DRAW_DISCARD_ABILITY_ID,
@@ -897,6 +899,11 @@ import {
   N_SD2_025_LIVE_START_ACTIVATE_NIJIGASAKI_STAGE_MEMBER_ABILITY_ID,
   PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
   N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
+  PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID,
+  N_PR_022_ON_ENTER_PREVIOUS_OPPONENT_LIVE_FAILED_ASK_EMMA_PUNCH_BLADE_ABILITY_ID,
+  LL_PR_004_LIVE_START_OPPONENT_ANSWER_BRANCH_ABILITY_ID,
+  LL_BP4_001_LIVE_START_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
+  LL_BP4_001_ON_ENTER_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
   PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
   PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
   PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
@@ -16086,8 +16093,36 @@ describe('2026-07-27 PR shared-family definitions', () => {
     );
   }
 
-  it('keeps corrected PR numbers isolated', () => {
-    expect(getCardAbilityDefinitions('PL!-PR-022-PR')).toEqual([]);
+  it.each(['PL!-PR-022-PR', 'PL!-PR-022-UNSEEN'])(
+    'classifies %s as the base-scoped Maki activated ability with exact player text',
+    (cardCode) => {
+      const effectText =
+        '【起动】【1回合1次】将此成员变为待机状态：自己的舞台上存在「星空凛」或「小泉花阳」的场合，抽2张卡，将1张手牌放置入休息室。同时存在2人的场合，接着将此成员变为活跃状态。';
+      const definition = getCardAbilityDefinitions(cardCode).find(
+        (candidate) =>
+          candidate.abilityId === PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID
+      );
+
+      expect(definition).toMatchObject({
+        abilityId: PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID,
+        baseCardCodes: ['PL!-PR-022'],
+        category: CardAbilityCategory.ACTIVATED,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        queued: false,
+        implemented: true,
+        perTurnLimit: 1,
+        requiredSourceOrientation: OrientationState.ACTIVE,
+      });
+      expect(definition?.cardCodes).toBeUndefined();
+      expect(definition?.effectText).toBe(effectText);
+      expect(definition?.activatedUi?.text).toBe(effectText);
+    }
+  );
+
+  it('keeps adjacent corrected PR numbers isolated', () => {
+    expect(
+      getCardAbilityDefinitions('PL!-PR-022-PR').map((definition) => definition.abilityId)
+    ).toEqual([PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID]);
     expect(
       getCardAbilityDefinitions('PL!-PR-023-PR').map((definition) => definition.abilityId)
     ).toEqual([PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID]);
@@ -16373,6 +16408,139 @@ describe('PL!N-sd2 base-scoped definitions', () => {
     'does not leak to adjacent card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
+    }
+  );
+});
+
+describe('LL-bp3-001 base-scoped definitions', () => {
+  it.each(['LL-bp3-001-R+', 'LL-bp3-001-UNSEEN'])(
+    'registers both independent abilities for %s with exact exported player text',
+    (cardCode) => {
+      const activatedEffectText =
+        '【起动】【1回合1次】将存在于自己的休息室的「园田海未」和「津岛善子」和「天王寺璃奈」，合计6张洗牌后放置于卡组底：将至多6张能量变为活跃状态。';
+      const liveStartEffectText =
+        '【LIVE开始时】可以支付[E][E][E][E][E][E]：LIVE结束时为止，获得[ブレード][ブレード][ブレード]。';
+      const definitions = getCardAbilityDefinitions(cardCode);
+
+      expect(definitions).toHaveLength(2);
+      expect(definitions).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            abilityId: LL_BP3_001_ACTIVATED_SHUFFLE_NAMED_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+            baseCardCodes: ['LL-bp3-001'],
+            category: CardAbilityCategory.ACTIVATED,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            queued: false,
+            implemented: true,
+            perTurnLimit: 1,
+          }),
+          expect.objectContaining({
+            abilityId: LL_BP3_001_LIVE_START_PAY_SIX_ENERGY_GAIN_THREE_BLADE_ABILITY_ID,
+            baseCardCodes: ['LL-bp3-001'],
+            category: CardAbilityCategory.LIVE_START,
+            sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+            triggerCondition: TriggerCondition.ON_LIVE_START,
+            queued: true,
+            implemented: true,
+          }),
+        ])
+      );
+      const activated = definitions.find(
+        (definition) =>
+          definition.abilityId ===
+          LL_BP3_001_ACTIVATED_SHUFFLE_NAMED_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID
+      );
+      const liveStart = definitions.find(
+        (definition) =>
+          definition.abilityId === LL_BP3_001_LIVE_START_PAY_SIX_ENERGY_GAIN_THREE_BLADE_ABILITY_ID
+      );
+      expect(activated?.cardCodes).toBeUndefined();
+      expect(activated?.effectText).toBe(activatedEffectText);
+      expect(activated?.activatedUi?.text).toBe(activatedEffectText);
+      expect(liveStart?.cardCodes).toBeUndefined();
+      expect(liveStart?.effectText).toBe(liveStartEffectText);
+    }
+  );
+});
+
+describe('LL-bp4-001 base-scoped definitions', () => {
+  it.each(['LL-bp4-001-R+', 'LL-bp4-001-UNSEEN'])(
+    'registers independent ON_ENTER and LIVE_START abilities for %s with exact exported text',
+    (cardCode) => {
+      const effectText =
+        '【登场】/【LIVE开始时】检视自己卡组顶的5张卡。可以从其中公开1张「绚濑绘里」或「朝香果林」或「叶月恋」的成员卡加入手牌。其余的卡片放置入休息室。之后，将所有存在于对方的舞台的，费用小于等于因此公开的卡片的费用的，且原本持有的[ブレード]的数量小于等于3个的成员变为待机状态。';
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: LL_BP4_001_ON_ENTER_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
+          baseCardCodes: ['LL-bp4-001'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+          effectText,
+        }),
+        expect.objectContaining({
+          abilityId: LL_BP4_001_LIVE_START_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
+          baseCardCodes: ['LL-bp4-001'],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+          effectText,
+        }),
+      ]);
+      expect(
+        getCardAbilityDefinitions(cardCode).every(
+          (definition) => definition.cardCodes === undefined
+        )
+      ).toBe(true);
+    }
+  );
+});
+
+describe('PR entertainment card base-scoped definitions', () => {
+  it.each(['PL!N-PR-022-PR', 'PL!N-PR-022-UNSEEN'])(
+    'registers the N-PR-022 ON_ENTER ability for %s with exact exported text',
+    (cardCode) => {
+      const effectText =
+        '【登场】上一个对方的回合中对方进行了LIVE，且LIVE没有成功的场合，可以询问对手是否要被艾玛拳打。\n\n回答是拜托了的场合，自己对对方使用艾玛拳。LIVE结束时为止，存在于对方舞台的所有成员，获得[ブレード]。\n\n回答是其他的场合，什么都不做。\n\n（以温柔为心、以爱意为名，施出不伤他人的魔法重拳。）';
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId:
+            N_PR_022_ON_ENTER_PREVIOUS_OPPONENT_LIVE_FAILED_ASK_EMMA_PUNCH_BLADE_ABILITY_ID,
+          baseCardCodes: ['PL!N-PR-022'],
+          category: CardAbilityCategory.ON_ENTER,
+          sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+          triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+          queued: true,
+          implemented: true,
+          effectText,
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
+    }
+  );
+
+  it.each(['LL-PR-004-PR', 'LL-PR-004-UNSEEN'])(
+    'registers the LL-PR-004 LIVE_START ability for %s with exact exported text',
+    (cardCode) => {
+      const effectText =
+        '【LIVE开始时】询问对手喜欢什么。\n\n回答是薄荷巧克力或草莓味或曲奇奶油的场合，自己和对方分别将1张手牌放置入休息室。\n\n回答是你的场合，自己和对方分别抽1张卡。\n\n回答是其它的场合，LIVE结束时为止，存在于自己和对方舞台上的成员获得[ブレード]。';
+      expect(getCardAbilityDefinitions(cardCode)).toEqual([
+        expect.objectContaining({
+          abilityId: LL_PR_004_LIVE_START_OPPONENT_ANSWER_BRANCH_ABILITY_ID,
+          baseCardCodes: ['LL-PR-004'],
+          category: CardAbilityCategory.LIVE_START,
+          sourceZone: CardAbilitySourceZone.LIVE_CARD,
+          triggerCondition: TriggerCondition.ON_LIVE_START,
+          queued: true,
+          implemented: true,
+          effectText,
+        }),
+      ]);
+      expect(getCardAbilityDefinitions(cardCode)[0]?.cardCodes).toBeUndefined();
     }
   );
 });

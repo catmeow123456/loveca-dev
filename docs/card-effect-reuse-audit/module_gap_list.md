@@ -176,4 +176,4 @@
 - `PL!-PR-021` 费用7「矢泽日香（妮可）」、三张费用5休息室补8成员、`PL!S-PR-045` 费用11「津岛善子」、`PL!-PR-020` 费用13「高坂穗乃果」与 `PL!SP-PR-026` 费用13「鬼冢夏美」均已有基础编号 definitions、执行入口和 focused tests；当前公开印刷为 `PR`，不再属于未实现候选。
 - 休息室补8 family 只覆盖固定目标8、固定差值 direct mill、可选一张本次磨入 LIVE 置顶；不同目标数量、其他卡种/目的地或额外奖励仍须真实样本审查。
 - 换手费用条件只读取事件快照中的 `effectiveCost`，没有建立通用 relay predicate DSL。LIVE 区分数 query 只覆盖逐卡有效分数，不取代成功区印刷规则或最终 LIVE score pipeline。
-- PR-5 `LL-PR-004-PR` 分数3「愛♡スクリ～ム！」与 PR-6 `PL!N-PR-022-PR` 费用2「艾玛·维尔德」按用户要求保持未开发；BLADE 双算与上一回合 LIVE 结果查询仍是各自后续前置。
+- PR-5 `LL-PR-004-PR` 分数3「愛♡スクリ～ム！」与 PR-6 `PL!N-PR-022-PR` 费用2「艾玛·维尔德」已于 2026-08-08 完成；新增最近完整回合 LIVE 结果纯 query 与多目标 `TARGET_MEMBER` BLADE 原子 helper。两张卡的固定回答、分支和后续交互仍由各自单卡 workflow 持有，未扩张成宽泛问答 DSL。

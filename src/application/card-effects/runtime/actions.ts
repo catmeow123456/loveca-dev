@@ -147,6 +147,22 @@ export interface AddBladeLiveModifierForTargetMemberOptions {
 
 export type AddBladeLiveModifierForTargetMemberResult = AddBladeLiveModifierForSourceMemberResult;
 
+export interface AddBladeLiveModifiersForTargetMembersOptions {
+  readonly targets: readonly {
+    readonly playerId: string;
+    readonly targetMemberCardId: string;
+  }[];
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly amount: number;
+}
+
+export interface AddBladeLiveModifiersForTargetMembersResult {
+  readonly gameState: GameState;
+  readonly targetMemberCardIds: readonly string[];
+  readonly bladeBonusPerMember: number;
+}
+
 export interface AddBladeLiveModifierForPlayerOptions {
   readonly playerId: string;
   readonly sourceCardId: string;
@@ -667,6 +683,42 @@ export function addBladeLiveModifierForTargetMember(
     abilityId: options.abilityId,
     countDelta: options.amount,
   });
+}
+
+export function addBladeLiveModifiersForTargetMembers(
+  game: GameState,
+  options: AddBladeLiveModifiersForTargetMembersOptions
+): AddBladeLiveModifiersForTargetMembersResult | null {
+  if (!Number.isInteger(options.amount) || options.amount <= 0) {
+    return null;
+  }
+  const targetKeys = options.targets.map(
+    ({ playerId, targetMemberCardId }) => `${playerId}\u0000${targetMemberCardId}`
+  );
+  if (new Set(targetKeys).size !== targetKeys.length) {
+    return null;
+  }
+
+  let state = game;
+  for (const target of options.targets) {
+    const result = addBladeLiveModifierForTargetMember(state, {
+      playerId: target.playerId,
+      targetMemberCardId: target.targetMemberCardId,
+      sourceCardId: options.sourceCardId,
+      abilityId: options.abilityId,
+      amount: options.amount,
+    });
+    if (!result) {
+      return null;
+    }
+    state = result.gameState;
+  }
+
+  return {
+    gameState: state,
+    targetMemberCardIds: options.targets.map(({ targetMemberCardId }) => targetMemberCardId),
+    bladeBonusPerMember: options.amount,
+  };
 }
 
 export function addBladeLiveModifierForPlayer(

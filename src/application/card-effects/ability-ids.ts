@@ -1828,6 +1828,8 @@ export const N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVAT
   'PL!N-bp7-008:on-enter-bottom-up-to-four-no-blade-heart-members-activate-energy';
 export const N_BP7_029_LIVE_SUCCESS_RETURN_ENERGY_BELOW_SCORE_ABILITY_ID =
   'PL!N-bp7-029:live-success-return-energy-below-score';
+export const PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID =
+  'PL!-PR-022:activated-wait-self-rin-hanayo-draw-discard';
 export const PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID =
   'PR:continuous-total-success-live-score-ten-gain-pink-heart';
 export const PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID =
@@ -1878,3 +1880,15 @@ export const N_BP7_002_ON_ENTER_THREE_QU4RTZ_RECOVER_CARD_ABILITY_ID =
   'PL!N-bp7-002:on-enter-three-qu4rtz-recover-card';
 export const SP_BP7_011_ON_ENTER_DISCARD_ALL_DRAW_SIX_ABILITY_ID =
   'PL!SP-bp7-011:on-enter-discard-all-draw-six';
+export const LL_BP3_001_ACTIVATED_SHUFFLE_NAMED_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID =
+  'LL-bp3-001:activated-shuffle-named-members-activate-energy';
+export const LL_BP3_001_LIVE_START_PAY_SIX_ENERGY_GAIN_THREE_BLADE_ABILITY_ID =
+  'LL-bp3-001:live-start-pay-six-energy-gain-three-blade';
+export const LL_BP4_001_ON_ENTER_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID =
+  'LL-bp4-001:on-enter-look-top-named-member-wait-opponent';
+export const LL_BP4_001_LIVE_START_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID =
+  'LL-bp4-001:live-start-look-top-named-member-wait-opponent';
+export const N_PR_022_ON_ENTER_PREVIOUS_OPPONENT_LIVE_FAILED_ASK_EMMA_PUNCH_BLADE_ABILITY_ID =
+  'PL!N-PR-022:on-enter-previous-opponent-live-failed-ask-emma-punch-blade';
+export const LL_PR_004_LIVE_START_OPPONENT_ANSWER_BRANCH_ABILITY_ID =
+  'LL-PR-004:live-start-opponent-answer-branch';

@@ -74,11 +74,29 @@ export function buildSolitaireOpponentEffectCommand(
     };
   }
 
-  if (
-    effect.effectChoice ||
-    effect.numericInput ||
-    effect.stageFormation
-  ) {
+  if (effect.effectChoice) {
+    const configuredOptionId = effect.metadata?.solitaireOpponentEffectChoiceOptionId;
+    if (typeof configuredOptionId !== 'string') {
+      return null;
+    }
+    const option = effect.effectChoice.options.find(
+      (candidate) => candidate.id === configuredOptionId
+    );
+    if (
+      effect.effectChoice.mode !== 'SINGLE' ||
+      effect.effectChoice.minSelections !== 1 ||
+      effect.effectChoice.maxSelections !== 1 ||
+      !option ||
+      option.selectable === false
+    ) {
+      return null;
+    }
+    return createEffectCommand(opponentPlayerId, effect.id, now, {
+      selectedOptionId: configuredOptionId,
+    });
+  }
+
+  if (effect.numericInput || effect.stageFormation) {
     return null;
   }
 

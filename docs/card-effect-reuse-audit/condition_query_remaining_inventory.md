@@ -3,7 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：卡效 condition/query helper 剩余内联查询、候选抽取项与阶段边界
 > 当前状态：持续维护清单；只记录 query/selector 边界，不代表 condition AST、formula builder 或 steps DSL 已落地
-> 最后更新：2026-07-30
+> 最后更新：2026-08-08
 
 审查日期：2026-06-16
 
@@ -34,6 +34,7 @@
 
 - `card-selectors.ts`：团体身份 `groupAliasIs` 已作为 shared `cardBelongsToGroup` 的 application adapter（只读真实团体 `groupNames`，含 μ's / 莲之空 / Liella! / 虹咲 / Aqours alias）、绿色 Heart 成员、BLADE HEART、印刷 BLADE 阈值、`cardNameAliasAny`。
 - `stage-targets.ts` / `energy.ts`：application-local 的舞台成员 / 能量按朝向查询；缺失 cardState 不命中。
+- `previous-completed-turn-live-result.ts`：从 `eventLog` 的最近已结束共享回合区间，按指定玩家 ID 读取其是否进行 LIVE 及是否成功；正常路径使用匹配的 `ON_TURN_START`—`ON_TURN_END`，首回合运行时缺少 `ON_TURN_START` 时以日志起点—首个 `ON_TURN_END` 为隐式边界，后续缺少开始事件时以上一个结束事件隔离轮次。回合边界的 `currentPlayerId` 只用于校验显式区间，不作为 LIVE 玩家归属，不用当前回合状态推测历史事实。
 
 已开始复用该层的当前卡效点：
 
@@ -51,6 +52,7 @@
 | `PL!HS-bp6-031` 分数 8「ファンファーレ！！！」 | 等待室成员与 `みらくらぱーく！` 成员数。 |
 | `PL!HS-bp1-006` 费用 11「藤岛 慈」同型组 | 其他舞台成员存在性。 |
 | `LL-bp1-001` / `LL-bp2-001` 指定姓名 LIVE 开始段 | 手牌候选使用 `cardNameAliasAny` 收束多姓名 alias 判断；弃手流程与奖励写入已迁入 `workflows/shared/named-hand-discard-live-start.ts`，奖励公式尚未抽 typed builder。 |
+| `PL!N-PR-022` 费用 2「艾玛·维尔德」 | `didPlayerPerformAndFailLiveInPreviousCompletedTurn` 在最近完整共享回合内按对手 ID 读取 LIVE 开始／成功事件；先攻回合边界不会吞掉后攻玩家的 LIVE 事实，当前尚未结束的回合也不遮蔽上一完整回合。 |
 
 ## Status labels
 
@@ -73,6 +75,7 @@
 - Batch E-3 Hasunosora activated candidate query：已把 `PL!HS-bp1-004` 费用 15「夕雾缀理」/ `PL!HS-bp1-003` 费用 13「乙宗梢」/ `PL!HS-bp1-002` 费用 11「村野沙耶香」起动段等待室候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, selector)`。自送费用、能量费用、回收/登场流程仍留在 cost / workflow。
 - Batch E-4 runner zone-selector 收口：runner 已不再保留 `getCardIdsInZone(...) + getCardIdsMatchingSelector(...)` / `countCardsMatchingSelector(...)` 组合查询；剩余区域条件由具体 workflow、domain query 或 `conditions.ts` 的组合 helper 承载。
 - 本回合成员登场事件次数：`countMemberEntriesThisTurn`、`getMemberEntryOrdinalForEvent` 与 `hasMemberEnteredStageThisTurnMatching` 已归属 `domain/rules/member-turn-state.ts`，并从 `application/effects/conditions.ts` re-export。它们读取当前回合 `ON_ENTER_STAGE` 事件窗口，不用当前舞台人数或 `movedToStageThisTurn` 代替事件事实。
+- 最近完整回合 LIVE 结果：`getPreviousCompletedTurnLiveResult` / `didPlayerPerformAndFailLiveInPreviousCompletedTurn` 已归属 `application/effects/previous-completed-turn-live-result.ts`，优先以匹配的回合开始／结束事件为共享边界，并兼容真实首回合事件流只有结束边界的情况，再按目标玩家筛选 LIVE 事实；独立 unit test 覆盖双方同回合的独立结果、失败、成功、无 LIVE、开放当前回合、首回合缺少开始事件与边界不匹配，艾玛 focused test 另覆盖真实命令链、规则费用支付及自由检视取牌后切回规则模式的路径。
 - 有效 Heart 高于印刷 Heart：`memberHasMoreEffectiveHeartsThanPrinted` 已作为纯 domain query 落地，`PL!HS-pb1-029` 与 `PL!HS-PR-028` 共用；同一次判断复用单次 `collectLiveModifiers` 结果，颜色替换不改变数量时不成立。
 - Batch E-4 same-name LIVE candidate query：已把 `PL!HS-bp5-001` 费用 11「日野下花帆」起动段等待室“同名 LIVE”候选改为 `getCardIdsInZoneMatching(..., ZoneType.WAITING_ROOM, and(typeIs(CardType.LIVE), cardNameContains(revealedName)))`。`cardNameContains` 只做 normalize 后包含判断，不做 alias；公开手牌、选择与后续处理仍留在 workflow。
 - Batch F-1 selected ids selector group count：已补 `countCardIdsMatchingSelectors`，并在 `PL!HS-bp6-017` 费用 11「日野下花帆」的已选 LIVE / 成员各至多 1 张校验中复用。选择上限、activeEffect、移动与确认流程仍留在 workflow。
