@@ -467,7 +467,7 @@ family 复用 direct top-mill 的公开结果形状：实际卡组底移动与�
 # BP7 memberBelow 与委托序列边界（2026-07-18）
 
 - 卡效将成员放到舞台主成员下方时，workflow 先用结构化 selector 产生候选并处理公开/交互，最后才调用 `stackMemberCardBelowStageMember`。helper 仅做 `HAND / WAITING_ROOM -> memberBelow` 原子移动和 stale 防线。
-- 普通 continuous collector 仍只扫描舞台顶层成员；memberBelow 来源必须 exact 登记。所有 BLADE modifier 必须显式声明 `PLAYER / SOURCE_MEMBER / TARGET_MEMBER` 作用对象，不允许再通过缺失 target、来源卡类型或 source/target ID 相等性推断作用域。`SOURCE_MEMBER` 表示来源成员本身就是受益者；`TARGET_MEMBER / PLAYER` 的 `sourceCardId` 必须保留真实能力来源。能力指定受益成员时使用 `addBladeLiveModifierForTargetMember` 并写入 `targetMemberCardId`；目标必须是当前己方顶层成员。source 离场不清除已授予的 `TARGET_MEMBER` modifier，target 离场才清除。
+- 普通 continuous collector 仍只扫描舞台顶层成员；memberBelow 来源必须 exact 登记。所有 BLADE / HEART modifier 必须显式声明 `PLAYER / SOURCE_MEMBER / TARGET_MEMBER`，不允许通过缺失 target、来源卡类型或 source/target ID 相等性推断作用域。`SOURCE_MEMBER` 表示来源成员本身就是受益者；选择或指定成员即使选中来源自身也仍为 `TARGET_MEMBER`，并分别保存真实 `sourceCardId` 与 `targetMemberCardId`。能力指定受益成员时使用对应 `...ForTargetMember` 具名入口；source 离场不清除已授予的 TARGET，target 离场才清除，PLAYER 不绑定成员。
 - 舞台成员的窄 ON_ENTER 查询只兼容已实现 queued definition 的历史 `PLAYED_MEMBER / STAGE_MEMBER` 两种 sourceZone，并按真实 source slot 检查 `requiredSourceSlots`。`PL!S-pb1-001`、`PL!S-pb1-002`、`PL!S-bp5-004` 有 focused 合法样本；这不是等待室虚拟登场 policy。
 - `delegated-ability-sequence` 只接受已选定的 queued ON_ENTER pending 列表，每个子项重验真实舞台实例、槽位和当前 definition。进展只认真实 `activeEffect`、游戏终局、sequence 清空，或 remaining/resolved/skipped 实际继续推进；仅新增 actionHistory 或替换 pending 数组不算进展。子项 stale、starter 缺失或委托无进展均记录 no-op 并继续，审计分别保存 pending ID 与 abilityId。它不伪造登场事件、不支付普通登场费用、不接受任意 timing 或卡文解析。
 

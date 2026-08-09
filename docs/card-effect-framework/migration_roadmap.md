@@ -3,7 +3,7 @@
 > 文档类型：历史/计划文档
 > 适用范围：runner 去中心化、runtime helper、workflow module 与 steps-lite 的迁移顺序
 > 当前状态：现行迁移路线；完成状态以代码、测试和本文 Roadmap 表为准，顶部专题说明不得替代表内状态
-> 最后更新：2026-07-30
+> 最后更新：2026-08-09
 
 ## Unified Public Reveal Dwell (2026-07)
 
@@ -416,7 +416,7 @@ The 2026-06-19 cleanup originally inferred HEART scope by comparing recipient an
 
 The APIs remain in `src/domain/rules/live-modifiers.ts` because continuous HEART effects are collected in the domain layer. SOURCE and TARGET recipients must be current top-level stage members; a TARGET source may be a LIVE card or belong to another player. No API infers scope from card type, ID equality, or a missing field.
 
-The audited production migration covers 104 physical HEART producers: 76 `SOURCE_MEMBER`, 28 `TARGET_MEMBER`, and no current `PLAYER` card effects. `PL!HS-bp2-007`, `PL!HS-bp5-003`, and `PL!HS-bp6-003` now remain `TARGET_MEMBER` when the player selects the source instance itself. Continuous definitions and shared workflows use the same explicit factories as single-card workflows.
+The audited production migration covers 104 physical HEART writer configurations/call sites: 76 `SOURCE_MEMBER`, 28 `TARGET_MEMBER`, and no current `PLAYER` card effects. This is a writer-site count, not an effect-definition or unique-card count. `PL!HS-bp2-007`, `PL!HS-bp5-003`, and `PL!HS-bp6-003` now remain `TARGET_MEMBER` when the player selects the source instance itself. Continuous definitions and shared workflows use the same explicit factories as single-card workflows.
 
 Focused unit and integration tests lock source, target, same-instance target, cross-player/LIVE-source target, player scope, invalid recipients, effective member HEART, and the three corrected self-selection paths.
 

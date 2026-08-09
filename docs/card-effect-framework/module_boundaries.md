@@ -121,9 +121,10 @@ Typical locations:
 Rules:
 
 - continuous modifier 由 domain 或规则层按当前场面动态收集。
-- 临时 LIVE 修正通过 `addLiveModifier` / `replaceLiveModifier` 写入。
+- SCORE / REQUIREMENT 等临时 LIVE 修正通过 `addLiveModifier` / `replaceLiveModifier` 写入；HEART 的生产 workflow 与 continuous registry 必须先使用 `create/addHeartLiveModifierForSourceMember`、`...ForTargetMember` 或 `...ForPlayer` 显式决定 scope。
 - 不把 continuous modifier 混入 runner workflow 或 steps DSL。
-- `SOURCE_MEMBER` / `TARGET_MEMBER` Heart 应由有效 Heart 读取路径合并，不写入 legacy `playerHeartBonuses`。
+- HEART scope 只按卡文语义决定；选择或指定成员时即使 source=target 仍为 `TARGET_MEMBER`，并分别保存真实来源与受益成员。不得按卡型、区域、ID 相等或缺失字段推断。
+- `SOURCE_MEMBER` / `TARGET_MEMBER` Heart 应由有效 Heart 读取路径合并，不写入 legacy `playerHeartBonuses`；成员绑定清理由通用 LeaveStage 生命周期负责，单卡 workflow 不得假定某个特殊离场流程会代为清理。
 
 ## 有限成员登场选项与卡定义特殊登场边界
 

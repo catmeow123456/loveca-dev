@@ -20,6 +20,7 @@
 - `card-effect-runner.ts` 的完整卡效 fallback 已清空，只保留调度、生命周期、registry 和尚未迁出的 matcher/relay/trigger 条件胶水。
 - 当前已登记的 implemented definition 和基础编号均可在 `docs/card-effect-reuse-audit/existing_module_map.md` 检索；该文件是卡效完成状态的唯一主登记册。
 - 新卡效继续优先复用现有费用、检视、区域选择、成员状态、能量、抽弃、声援和 LIVE modifier 底座，不建立大型 resolver DSL。
+- HEART modifier 已按卡文显式区分 `SOURCE_MEMBER` / `TARGET_MEMBER` / `PLAYER`：self-selection 仍为 TARGET，真实来源与受益成员分别记录；RULES/FREE 离场、替换、memberBelow、同实例重登场和 authority checkpoint 复水共用严格生命周期边界。
 
 ### 联机、观战与回放
 

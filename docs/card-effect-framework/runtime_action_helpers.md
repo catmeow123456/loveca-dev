@@ -10,6 +10,7 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 
 - `addPlayerScoreLiveModifierForTargetMember` 在 `domain/rules/live-modifiers.ts` 写入玩家总分 SCORE，同时显式保存 `targetMemberCardId`、审计 `sourceCardId` 和 `abilityId`；不以来源卡替代目标成员身份。
 - `removeTargetMemberBoundLiveModifiersForLeaveStageEvents` 是 LeaveStageEvent 的通用 runtime hook，删除所有绑定离场成员实例的临时 modifier，并通过统一 modifier 底座刷新 `playerScoreBonuses` 等兼容投影。它不识别卡号或 abilityId；成员槽位移动和状态变化不触发删除。普通 action 派发会按 `triggerEventLogStartIndex` 只取得本次新增的 `ON_LEAVE_STAGE` 事件，并让 modifier 清理与离场 AUTO 来源构造复用同一批事件；显式传入的 `leaveStageEvents` 仍为权威输入，历史离场事件不得因后续成员离场而再次消费。
+- 成员 HEART 的清理按显式 scope 执行：ACTIVE / WAITING 朝向变化和顶层槽位移动不清除；从顶层舞台进入休息室、手牌、LIVE、成功区、除外区，被占位替换或成为 `memberBelow` 都属于离场。`SOURCE_MEMBER` 随其来源／受益成员实例清除；`TARGET_MEMBER` 只随 `targetMemberCardId` 离场清除，其他来源卡离场不撤销；`PLAYER` 不绑定成员。RULES 与 FREE 手动移动必须产生同一 LeaveStage 清理事实，同实例重登场不会恢复旧 modifier，LIVE 结束统一清空。
 - 当前真实样本包括 `PL!S-bp3-001` 与 `PL!-pb2-000`。后者在双换手登场能力结算后把来源和受益者都绑定到费用15「星空凛&小泉花阳」的同一成员实例；这不是对所有 SCORE modifier 施加目标语义，没有 `targetMemberCardId` 的旧 modifier 保持原有生命周期。
 
 ## 有限双换手入口
@@ -447,6 +448,12 @@ Current boundary:
 - 不生成 action history；`bladeBonus`、费用、弃置、公开、洗回等 payload 仍由 caller 保持原样。
 - 不根据 source 卡型、所在区域或 source/target ID 是否相等推测 scope。
 - 不处理 `PL!-sd1-001`、`PL!N-pb1-004` 这类 continuous / dynamic projection。
+
+### Explicit HEART writers
+
+`domain/rules/live-modifiers.ts` 提供三组互斥的 factory / writer：`create/addHeartLiveModifierForSourceMember`、`create/addHeartLiveModifierForTargetMember`、`create/addHeartLiveModifierForPlayer`。SOURCE writer 要求来源是该玩家当前顶层舞台成员；TARGET writer 要求受益者是指定玩家当前顶层舞台成员，但真实来源可以是 LIVE、其他玩家卡或与 target 同一实例；PLAYER writer 不绑定成员。三者都要求非空 HEART 向量、合法 `HeartColor` 与正安全整数数量。
+
+scope 只由卡文决定，不由来源卡型、区域、ID 相等或字段缺失推断。“选择／指定成员”即使选到来源自身仍使用 TARGET writer，同时保留真实 `sourceCardId` 与 `targetMemberCardId`。通用 `addLiveModifier` / `replaceLiveModifier` 仍是持久化底座，但生产 workflow 和 continuous registry 必须先通过上述显式 factory / writer 构造 HEART 形状。
 
 ## Reveal-From-Hand ActiveEffect Helper
 

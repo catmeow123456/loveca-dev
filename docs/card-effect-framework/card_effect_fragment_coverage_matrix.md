@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：卡效 fragment catalog 的框架归属、优先级和当前覆盖状态
 > 当前状态：覆盖矩阵；具体卡牌完成状态以 `docs/card-effect-reuse-audit/existing_module_map.md` 为准
-> 最后更新：2026-08-04
+> 最后更新：2026-08-09
 
 输入：`references/codex_loveca_reuse_audit_pack.zip` 中的 `loveca_effect_fragments_catalog.json`。
 范围：覆盖 catalog 当前 75 个 fragment。这里的“全覆盖”指当前审查包中的 fragment 全覆盖，不代表未来新商品或规则更新不会出现新 fragment。
@@ -54,8 +54,8 @@
 | `F14` | P1 | 从声援公开的卡中选择加入手牌 | cheer revealed selection | `core_v2` | 2026-06-14 已以 `effects/cheer-selection.ts` 起步，基于 `liveResolution.*CheerCardIds + resolutionZone.revealedCardIds` 选取仍在处理区的本次声援公开卡；`PL!HS-cl1-009-CL` 分数 1「水彩世界」验证费用 4-9 成员加入手牌。 |
 | `F15` | P2 | 处理声援公开的卡：放入休息室/卡组顶/底 | cheer revealed movement | `core_v2` | `PL!HS-bp6-001-R＋` 费用 4「日野下花帆」验证回卡组顶，`PL!HS-bp6-027-L` 分数 5「月夜見海月」验证休息室与至多3张多选，`PL!S-bp2-021-L` 分数 4「未体験HORIZON」验证 `MAIN_DECK_BOTTOM`。`PL!S-bp2-004` 费用 11「黒澤ダイヤ」按原事件事实筛无 LIVE，并只移动当前仍在处理区的原公开卡；它的后续重做声援仍属于 E06 窄流程。 |
 | `B01` | P0 | LIVE结束时为止获得BLADE | live modifier: `grantBlade(untilLiveEnd)` | `core_v1` | `PL!HS-pb1-009-R` 费用 15「日野下花帆」AUTO 第一段已通过 `addLiveModifier` 写入 BLADE +2；同卡第二段已用 `getMemberEffectiveBladeCount` 统计印刷 BLADE + 同来源 BLADE modifier。`PL!HS-bp6-004-R` 费用 13「百生 吟子」验证可选弃手后按弃置卡姓名写入 BLADE +1/+2。`PL!HS-bp1-004-P` 费用 15「夕雾缀理」与 `PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」验证支付能量后写入 BLADE；`LL-bp2-001-R+` 费用 20「渡边 曜&鬼冢夏美&大泽瑠璃乃」验证按指定姓名弃置张数缩放 BLADE。 |
-| `B02` | P0 | LIVE结束时为止获得HEART | live modifier: `grantHeart(untilLiveEnd)` | `core_v1` | `PL!HS-PR-019-RM` 费用 2「百生吟子」已验证固定绿色 Heart 写入 `HEART` live modifier；颜色选择型 Heart 仍归 B03。 |
-| `B03` | P1 | 选择颜色后获得对应HEART | option choice + B02 | `core_v1` | Stage 1D 已迁移：当前 003 Live-start 与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」LIVE 开始段通过 `addLiveModifier` 写入 `HEART`，旧 Heart Map 仅为兼容投影。 |
+| `B02` | P0 | LIVE结束时为止获得HEART | explicit live modifier: `grantHeart(scope, source, target?)` | `core_v1` | `create/addHeartLiveModifierForSourceMember`、`...ForTargetMember`、`...ForPlayer` 显式区分作用域；选择成员即使 source=target 仍为 TARGET。`PL!HS-PR-019-RM` 费用 2「百生吟子」验证固定绿色 SOURCE Heart；测试同时覆盖最终成员/玩家颜色池、离场/重登场和实际 LIVE 判定。 |
+| `B03` | P1 | 选择颜色后获得对应HEART | option choice + explicit B02 scope | `core_v1` | Stage 1D 已迁移：当前 003 Live-start 与 `PL!HS-bp1-006-P` 费用 11「藤岛 慈」LIVE 开始段通过具名 SOURCE writer 写入 `HEART`，旧 Heart Map 仅为兼容投影；目标成员选择型效果必须改用具名 TARGET writer。 |
 | `B04` | P1 | 将自身原本HEART改成选择的HEART | printed stat replacement modifier | `core_v2` | 与普通 grantHeart 不同，要区分替换基础 HEART。 |
 | `B05` | P0 | LIVE合计分数增加 | live modifier: total score delta | `core_v1` | Stage 1D 已迁移：当前 `PL!-sd1-009-SD` 费用 11「矢泽妮可」、`LL-bp1-001-R+` 费用 20「上原步梦&涩谷香音&日野下花帆」与 `PL!HS-bp1-003` 费用 13「乙宗梢」通过不带 `liveCardId` 的 `SCORE` modifier 表示玩家 LIVE 合计分数修正；自动判定与判定窗口投影读取 `collectLiveModifiers`，最终分数草案只有在该玩家至少一首 LIVE 成功时才应用该修正，全部失败仍为 0。 |
 | `B06` | P0 | 此LIVE卡分数增加 | live modifier: this live score delta | `core_v1` | 2026-06-14 已由 `PL!HS-bp2-022-L+` 分数 2「アオクハルカ」起步：`SCORE` modifier 携带 `liveCardId` 表示此 Live 卡分数 +1；判定窗口的单卡分数与接受后预计结果都会读取该目标修正。 |

@@ -102,7 +102,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 业务逻辑和运行时读取路径默认不做后向兼容。不要保留旧字段、旧凭据、旧 token、旧协议或旧状态的 fallback、dual-read、登录时懒迁移等兼容分支。
 - 旧数据与旧格式的兼容责任全部属于停机更新迁移。发布时应先停止旧版本及相关写入任务，完成备份、dry-run、迁移、结果校验，再部署只接受新格式的新版本；无法无损转换的数据必须在迁移报告中明确失效、重置或人工恢复策略。
 - 若已有需求明确要求长期读取历史归档或继续支持公开外部协议，应在实现前指出它与本原则的冲突并由用户决定；未经明确授权，不得自行在业务路径中增加后向兼容。
-- 当前有两个已经明确审计的窄例外，不得据此扩散兼容分支：早期 authority checkpoint 缺少 `manualOperationMode` 时，只在历史回放或服务端可记录对墙打恢复的复水边界规范化为 `FREE`；历史记录规范路径是 `/api/battle/match-records...`，旧 `/api/online/match-records...` 只作为已公开协议的临时 alias。两者都不允许 live session/command 路径 dual-read，也不豁免其他旧 payload 的停机迁移。
+- 当前只有已经明确审计的窄例外，不得据此扩散兼容分支：早期 authority checkpoint 缺少 `manualOperationMode` 时，只在历史回放或服务端可记录对墙打恢复的复水边界规范化为 `FREE`；旧 BLADE / HEART modifier 只在 authority checkpoint 复水边界按冻结的 abilityId 审计表迁移，未知、缺字段或冲突形状必须拒绝；历史记录规范路径是 `/api/battle/match-records...`，旧 `/api/online/match-records...` 只作为已公开协议的临时 alias。这些例外都不允许 live session/command 路径 dual-read，也不豁免其他旧 payload 的停机迁移。
 
 ## 卡效分类约定
 
@@ -148,6 +148,8 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - 区域检索：从休息室按类型、费用、团体、名称等筛选加入手牌应共用筛选与移动逻辑。
 - LIVE 修正：加 Heart、加分、加声援张数、增加/减少必要 Heart 等都应进入 LIVE 自动判定流水线，而不是在 UI 手填结果里静默处理。
 - Live 修正统一入口为 `domain/rules/live-modifiers.ts`。结算读取使用 `collectLiveModifiers` 及相关 getter；新增“Live 结束前”临时修正应通过 `addLiveModifier` / `replaceLiveModifier` 写入 `liveResolution.liveModifiers` 的 `SCORE` / `HEART` / `BLADE` / `REQUIREMENT` modifier；常时修正（如 `PL!-sd1-001-SD` 加声援张数）不写入状态，由 continuous modifier registry 按当前场面动态收集。旧的 `playerScoreBonuses`、`playerHeartBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 只作为兼容投影保留，不作为新增逻辑的主写入路径。
+- HEART 作用域只能按卡文语义决定：“此成员获得”或只强化能力来源自身使用 `SOURCE_MEMBER`；“选择／指定成员获得”使用 `TARGET_MEMBER`，即使候选允许选择来源实例自身，也必须分别记录真实 `sourceCardId` 与 `targetMemberCardId`；卡文受益者是玩家整体而非某名成员时使用 `PLAYER`。不得根据来源卡类型、所在区域、两个 ID 是否相等或字段缺失推断 scope，也不得用 scope 反推持续方式。生产 workflow 与 continuous definition 必须使用 `create/addHeartLiveModifierForSourceMember`、`...ForTargetMember` 或 `...ForPlayer` 具名入口。
+- 持久化 HEART 的生命周期按显式 scope 处理：ACTIVE / WAITING 朝向变化和成员槽位移动不清除；离开顶层舞台、被替换或成为 `memberBelow` 时，`SOURCE_MEMBER` 随来源成员实例清除，`TARGET_MEMBER` 只随受益成员实例清除，持久化 `PLAYER` 不因来源成员离场而清除；同一实例重登场不得恢复旧 modifier。Continuous HEART 不持久化，每次按当前场面重新收集，其来源或条件失效时会动态消失。RULES、FREE 手动移动和卡效移动必须共享 LeaveStage 清理边界，LIVE 结束再统一清空已持久化 modifier。本类测试不得只断言 modifier 形状，还要断言最终成员 HEART、玩家 HEART、颜色汇总和实际 LIVE 判定，并覆盖离场／重登场。
 - `HeartColor.GRAY` 表示实际提供的无色/灰色 Heart，只计入 LIVE 判定总 Heart 数，不能补指定颜色；`HeartColor.RAINBOW` 仍表示可代替任意颜色的 All Heart。判心数据不得再用 `RAINBOW` 代表无色结果；必要无色 Heart 的旧有结构化投影仍可使用 `RAINBOW`/泛用总数语义，规则层同时规范化 `GRAY` 需求输入。
 - `HeartColor.ORANGE` 是独立指定色，Loveca Excel / CloudBase token `orange` 必须原样映射。新增该数据能力不代表旧卡文本中的“六种颜色”自动扩展；没有明确新规则或新卡文本依据时，不要把 `ORANGE` 加入历史卡效的固定六色选项。
 - “必要HEART增加/减少”类效果应使用 `applyHeartRequirementModifiers`；它支持粉/黄/紫等指定颜色，也支持泛用/无色/All 需求，并兼容 `RAINBOW` 条目和 `totalRequired` 表达的两种数据形态。`PL!-sd1-022-SD` 这种减少 `[無ハート]` 的效果只是其中的 All 需求负修正。
@@ -234,7 +236,7 @@ env PATH=/Users/meiyikai/.cache/codex-runtimes/codex-primary-runtime/dependencie
 - `PL!HS-bp1-006-P` 费用 11「藤岛 慈」。
   - 登场：抽 2 张卡，将 1 张手牌放置入休息室。
   - LIVE 开始：可以将 1 张手牌放置入休息室；自己的舞台上存在其他成员的场合，指定 1 个任意 Heart 颜色，LIVE 结束时为止获得 1 个该颜色 Heart。
-  - 当前实现登场段复用抽牌 helper 与手牌弃置壳；LIVE 开始段复用弃 1 手牌 active effect、Heart 颜色 option、`addLiveModifier` 写入路径，并在弃手后检查“其他成员”条件，不满足时只支付费用并结束。
+  - 当前实现登场段复用抽牌 helper 与手牌弃置壳；LIVE 开始段复用弃 1 手牌 active effect、Heart 颜色 option、`addHeartLiveModifierForSourceMember` 写入路径，并在弃手后检查“其他成员”条件，不满足时只支付费用并结束。
 - `PL!HS-bp2-012-N` 费用 5「乙宗 梢」。
   - 自动：此成员从舞台放置入休息室时，检视卡组顶 5 张；可以公开并加入手牌 1 张成员，其余放置入休息室。
   - 当前实现打开最小 AUTO / `S08` proving 底座：`ON_LEAVE_STAGE` 入队，复用 look-top 检视/公开/入手/其余进休息室原语。普通手动从舞台进休息室、被换手登场替换、以及自送休息室费用都会写入 `LeaveStageEvent` 并进入离场 AUTO 入队路径。若同一动作同时产生离场 AUTO 与新成员登场能力，按换手 `replacingCardId` 关系进入同一个顺序选择窗口。
