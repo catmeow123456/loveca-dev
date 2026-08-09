@@ -34,6 +34,7 @@ import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/event
 import {
   addLiveModifier,
   getMemberEffectiveBladeCount,
+  getMemberEffectiveHeartIcons,
 } from '../../src/domain/rules/live-modifiers';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createTapMemberAction } from '../../src/application/actions';
@@ -17819,6 +17820,20 @@ describe('sample card effect runner', () => {
     expect(opponentHasuCardId).toBeTruthy();
     expect(liveCardId).toBeTruthy();
 
+    const rurinoCard = state.cardRegistry.get(rurinoCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    const targetHasuCard = state.cardRegistry.get(targetHasuCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    const liveCard = state.cardRegistry.get(liveCardId!) as unknown as { data: LiveCardData };
+    rurinoCard.data = { ...rurinoCard.data, blade: 0 };
+    targetHasuCard.data = { ...targetHasuCard.data, blade: 0 };
+    liveCard.data = {
+      ...liveCard.data,
+      requirements: createHeartRequirement({ [HeartColor.PINK]: 3 }),
+    };
+
     removeFromPlayerZones(p1);
     removeFromPlayerZones(p2);
     p1.hand.cardIds = [discardHasuCardId!];
@@ -17891,6 +17906,29 @@ describe('sample card effect runner', () => {
         abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
       },
     ]);
+
+    const targetPlayerId = selectSource ? PLAYER1 : PLAYER2;
+    const targetHearts = getMemberEffectiveHeartIcons(
+      session.state!,
+      targetPlayerId,
+      selectedTargetCardId
+    );
+    expect(
+      targetHearts
+        .filter((heart) => heart.color === HeartColor.PINK)
+        .reduce((total, heart) => total + heart.count, 0)
+    ).toBe(2);
+
+    const confirmLiveStartResult = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_LIVE_START_EFFECTS)
+    );
+    expect(confirmLiveStartResult.success).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+
+    const judgmentResult = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
+    expect(judgmentResult.success).toBe(true);
+    expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(selectSource);
+    expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBe(selectSource ? 3 : 0);
     }
   );
 

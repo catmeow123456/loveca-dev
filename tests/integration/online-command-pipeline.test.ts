@@ -25,6 +25,8 @@ import {
   addHeartLiveModifierForPlayer,
   addHeartLiveModifierForSourceMember,
   addHeartLiveModifierForTargetMember,
+  getMemberEffectiveHeartIcons,
+  getPlayerLiveHeartModifiers,
 } from '../../src/domain/rules/live-modifiers';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createManualMoveCardAction } from '../../src/application/actions';
@@ -3259,7 +3261,7 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('公开成员放入已占用槽位时只让旧主成员离场，并清理其成员绑定 HEART', () => {
+  it('同一成员因占位离场后重登场不复活 SOURCE/TARGET HEART，PLAYER HEART 保留并参与最终 LIVE 判定', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -3277,14 +3279,37 @@ describe('GameSession command pipeline', () => {
       hand: { cardIds: string[] };
       mainDeck: { cardIds: string[] };
       waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
     };
     const memberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
     const [incomingMemberId, oldMainMemberId, oldBelowMemberId] = memberCardIds;
+    const liveCardId = [...player.hand.cardIds, ...player.mainDeck.cardIds].find(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+    );
     expect(incomingMemberId).toBeTruthy();
     expect(oldMainMemberId).toBeTruthy();
     expect(oldBelowMemberId).toBeTruthy();
+    expect(liveCardId).toBeTruthy();
+
+    const incomingMember = state.cardRegistry.get(incomingMemberId!) as unknown as {
+      data: MemberCardData;
+    };
+    const oldMainMember = state.cardRegistry.get(oldMainMemberId!) as unknown as {
+      data: MemberCardData;
+    };
+    const liveCard = state.cardRegistry.get(liveCardId!) as unknown as { data: LiveCardData };
+    incomingMember.data = { ...incomingMember.data, blade: 0 };
+    oldMainMember.data = { ...oldMainMember.data, blade: 0 };
+    liveCard.data = {
+      ...liveCard.data,
+      requirements: createHeartRequirement({ [HeartColor.BLUE]: 1 }),
+    };
 
     player.hand.cardIds = player.hand.cardIds.filter(
       (cardId) =>
@@ -3313,7 +3338,7 @@ describe('GameSession command pipeline', () => {
     })!.gameState;
     fixtureState = addHeartLiveModifierForPlayer(fixtureState, {
       playerId: PLAYER1,
-      sourceCardId: incomingMemberId!,
+      sourceCardId: oldMainMemberId!,
       abilityId: 'manual-replacement-player-heart',
       hearts: [createHeartIcon(HeartColor.BLUE, 1)],
     })!.gameState;
@@ -3381,7 +3406,7 @@ describe('GameSession command pipeline', () => {
       kind: 'HEART',
       target: 'PLAYER',
       playerId: PLAYER1,
-      sourceCardId: incomingMemberId,
+      sourceCardId: oldMainMemberId,
       abilityId: 'manual-replacement-player-heart',
       hearts: [createHeartIcon(HeartColor.BLUE, 1)],
     });
@@ -3408,6 +3433,98 @@ describe('GameSession command pipeline', () => {
           event.to?.zone === ZoneType.WAITING_ROOM
       )
     ).toHaveLength(1);
+
+    const reenterResult = session.executeCommand(
+      createMoveTableCardCommand(
+        PLAYER1,
+        oldMainMemberId!,
+        ZoneType.WAITING_ROOM,
+        ZoneType.MEMBER_SLOT,
+        { targetSlot: SlotPosition.LEFT }
+      )
+    );
+    expect(reenterResult.success).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBe(oldMainMemberId);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(oldMainMemberId);
+    expect(
+      session.state?.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.abilityId === 'manual-replacement-source-heart' ||
+          modifier.abilityId === 'manual-replacement-target-heart'
+      )
+    ).toEqual([]);
+
+    const reenteredMemberHearts = getMemberEffectiveHeartIcons(
+      session.state!,
+      PLAYER1,
+      oldMainMemberId!
+    );
+    expect(reenteredMemberHearts).toEqual([createHeartIcon(HeartColor.PINK, 1)]);
+    expect(getPlayerLiveHeartModifiers(session.state!.liveResolution, PLAYER1)).toEqual([
+      createHeartIcon(HeartColor.BLUE, 1),
+    ]);
+
+    const judgmentAuthority = session.state!;
+    const judgmentPlayer = judgmentAuthority.players[0] as unknown as {
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+      successZone: { cardIds: string[] };
+      liveZone: {
+        cardIds: string[];
+        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+      };
+    };
+    judgmentPlayer.hand.cardIds = judgmentPlayer.hand.cardIds.filter(
+      (cardId) => cardId !== liveCardId
+    );
+    judgmentPlayer.mainDeck.cardIds = judgmentPlayer.mainDeck.cardIds.filter(
+      (cardId) => cardId !== liveCardId
+    );
+    judgmentPlayer.waitingRoom.cardIds = judgmentPlayer.waitingRoom.cardIds.filter(
+      (cardId) => cardId !== liveCardId
+    );
+    judgmentPlayer.successZone.cardIds = judgmentPlayer.successZone.cardIds.filter(
+      (cardId) => cardId !== liveCardId
+    );
+    judgmentPlayer.liveZone.cardIds = [liveCardId!];
+    judgmentPlayer.liveZone.cardStates = new Map([
+      [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+    ]);
+    const judgmentState = judgmentAuthority as unknown as {
+      currentPhase: GamePhase;
+      currentSubPhase: SubPhase;
+      activePlayerIndex: number;
+      waitingPlayerId: string | null;
+      liveResolution: {
+        isInLive: boolean;
+        performingPlayerId: string | null;
+        firstPlayerCheerCardIds: string[];
+      };
+    };
+    judgmentState.currentPhase = GamePhase.PERFORMANCE_PHASE;
+    judgmentState.currentSubPhase = SubPhase.PERFORMANCE_JUDGMENT;
+    judgmentState.activePlayerIndex = 0;
+    judgmentState.waitingPlayerId = null;
+    judgmentState.liveResolution.isInLive = true;
+    judgmentState.liveResolution.performingPlayerId = PLAYER1;
+    judgmentState.liveResolution.firstPlayerCheerCardIds = [];
+
+    const judgmentResult = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
+    expect(judgmentResult.success).toBe(true);
+    expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(true);
+    expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBe(3);
+
+    const judgmentHearts =
+      session.state?.liveResolution.playerLiveJudgmentHearts.get(PLAYER1) ?? [];
+    const countJudgmentHeart = (color: HeartColor) =>
+      judgmentHearts
+        .filter((heart) => heart.color === color)
+        .reduce((total, heart) => total + heart.count, 0);
+    expect(countJudgmentHeart(HeartColor.PINK)).toBe(2);
+    expect(countJudgmentHeart(HeartColor.BLUE)).toBe(1);
+    expect(countJudgmentHeart(HeartColor.RED)).toBe(0);
+    expect(countJudgmentHeart(HeartColor.GREEN)).toBe(0);
   });
 
   it.each([
