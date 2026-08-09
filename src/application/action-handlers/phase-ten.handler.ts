@@ -325,7 +325,6 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
 
   // 能量牌移动限制（规则 4.5.5、10.5.4）
   const isEnergyCard = card.data.cardType === CardType.ENERGY;
-  const isMemberCard = card.data.cardType === CardType.MEMBER;
   if (
     game.currentSubPhase === SubPhase.RESULT_ANIMATION &&
     fromZone === ZoneType.LIVE_ZONE &&
@@ -404,6 +403,7 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
           : { targetSlot, sourceSlot, position };
 
   // 使用通用移动函数（支持解决区域）
+  const eventLogLengthBeforeMove = state.eventLog.length;
   state = moveCardUniversal(state, playerId, cardId, fromZone, toZone, moveOptions);
 
   // 记录动作
@@ -415,15 +415,15 @@ export const handleManualMoveCard: ActionHandler<ManualMoveCardAction> = (
     sourceSlot,
   });
 
-  return success(state, {
-    triggeredEvents:
-      isMemberCard &&
-      !isCardInMemberBelow &&
-      fromZone === ZoneType.MEMBER_SLOT &&
-      toZone === ZoneType.WAITING_ROOM
-        ? [TriggerCondition.ON_LEAVE_STAGE, TriggerCondition.ON_ENTER_WAITING_ROOM]
-        : [],
-  });
+  const moveEvents = state.eventLog.slice(eventLogLengthBeforeMove);
+  const triggeredEvents = [
+    TriggerCondition.ON_LEAVE_STAGE,
+    TriggerCondition.ON_ENTER_WAITING_ROOM,
+  ].filter((condition) =>
+    moveEvents.some((eventRecord) => eventRecord.event.eventType === condition)
+  );
+
+  return success(state, { triggeredEvents });
 };
 
 /**

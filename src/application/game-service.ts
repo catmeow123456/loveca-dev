@@ -153,6 +153,7 @@ import {
   getPlayerLiveBladeModifier,
   getPlayerLiveHeartModifiers,
   getPlayerLiveScoreModifier,
+  removeStageMemberBoundLiveModifiers,
 } from '../domain/rules/live-modifiers.js';
 import { revealCheerCardsFromMainDeck } from './effects/cheer.js';
 import { collectRemainingHeartAllocationPreferences } from './effects/remaining-heart-allocation.js';
@@ -387,7 +388,28 @@ export class GameService {
 
       if (result.success) {
         let preparedState = this.prepareAutomaticSubPhaseState(result.gameState);
+        const leavingMemberCardIds = preparedState.eventLog
+          .slice(triggerEventLogStartIndex)
+          .flatMap((record) =>
+            record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+              ? [record.event.cardInstanceId]
+              : []
+          );
+        preparedState = removeStageMemberBoundLiveModifiers(
+          preparedState,
+          leavingMemberCardIds
+        );
         if (hasPendingAbilityOrChoice(preparedState)) {
+          const deferredTriggerConditions = (result.triggeredEvents ?? []).filter(
+            isTriggerCondition
+          );
+          if (deferredTriggerConditions.length > 0) {
+            preparedState = enqueueTriggeredCardEffects(
+              preparedState,
+              deferredTriggerConditions,
+              { triggerEventLogStartIndex }
+            );
+          }
           return {
             success: true,
             gameState: preparedState,
@@ -1523,6 +1545,11 @@ export class GameService {
     if (ruleActionResult.energyMovedToDeckEvents.length > 0) {
       state = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENERGY_MOVED_TO_DECK], {
         energyMovedToDeckEvents: ruleActionResult.energyMovedToDeckEvents,
+      });
+    }
+    if (ruleActionResult.enterWaitingRoomEvents.length > 0) {
+      state = enqueueTriggeredCardEffects(state, [TriggerCondition.ON_ENTER_WAITING_ROOM], {
+        enterWaitingRoomEvents: ruleActionResult.enterWaitingRoomEvents,
       });
     }
     if (ruleActionResult.waitingRoomCardsMovedToMainDeckEvents.length > 0) {

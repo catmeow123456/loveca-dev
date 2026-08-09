@@ -7,6 +7,7 @@ import {
   OrientationState,
   SlotPosition,
   SubPhase,
+  TriggerCondition,
   ZoneType,
 } from '../../src/shared/types/enums';
 import type {
@@ -16,11 +17,19 @@ import type {
   MemberCardData,
 } from '../../src/domain/entities/card';
 import type { ActiveEffectState, PendingAbilityState } from '../../src/domain/entities/game';
+import { emitGameEvent } from '../../src/domain/entities/game';
 import { createHeartIcon, createHeartRequirement } from '../../src/domain/entities/card';
+import { createEnterWaitingRoomEvent } from '../../src/domain/events/game-events';
 import { addCardToStatefulZone, removeCardFromZone } from '../../src/domain/entities/zone';
+import {
+  addHeartLiveModifierForPlayer,
+  addHeartLiveModifierForSourceMember,
+  addHeartLiveModifierForTargetMember,
+} from '../../src/domain/rules/live-modifiers';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createManualMoveCardAction } from '../../src/application/actions';
 import { ABILITY_ORDER_SELECTION_ID } from '../../src/application/card-effect-runner';
+import { HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
   GameCommandType,
   createAttachEnergyToMemberCommand,
@@ -1794,6 +1803,19 @@ describe('GameSession command pipeline', () => {
           event.type === 'PlayerDeclared' && event.declarationType === 'MEMBER_MOVED_TO_SLOT'
       )
     ).toBe(true);
+
+    const sameSlotResult = session.executeCommand(
+      createMoveTableCardCommand(
+        PLAYER1,
+        memberCardId!,
+        ZoneType.MEMBER_SLOT,
+        ZoneType.MEMBER_SLOT,
+        { sourceSlot: SlotPosition.CENTER, targetSlot: SlotPosition.CENTER }
+      )
+    );
+    expect(sameSlotResult.success).toBe(false);
+    expect(sameSlotResult.error).toContain('目标槽位不能与来源槽位相同');
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(memberCardId);
   });
 
   it('能量附着命令会把能量移到成员下方并产出成员槽位公共事件', () => {
@@ -2916,7 +2938,7 @@ describe('GameSession command pipeline', () => {
     ).toBe(true);
   });
 
-  it('公开区主成员进入休息室时会将下方成员一并送去休息室并发出公开移动事件', () => {
+  it('公开区主成员进入休息室时将 memberBelow 单批送入且不重复发事件', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -2956,8 +2978,20 @@ describe('GameSession command pipeline', () => {
     );
     player.memberSlots.slots[SlotPosition.LEFT] = stageMemberId!;
     player.memberSlots.memberBelow[SlotPosition.LEFT] = [belowMemberId!];
+    const stageMember = state.cardRegistry.get(stageMemberId!);
+    expect(stageMember).toBeTruthy();
+    state.cardRegistry.set(stageMemberId!, {
+      ...stageMember!,
+      data: {
+        ...stageMember!.data,
+        cardCode: 'PL!HS-bp6-018-N',
+        name: '村野さやか',
+      },
+    });
+    installNonInspectionActiveEffect(session);
 
     const beforeSeq = session.getCurrentPublicEventSeq();
+    const beforeEventLogLength = session.state!.eventLog.length;
     const result = session.executeCommand(
       createMovePublicCardToWaitingRoomCommand(
         PLAYER1,
@@ -2972,10 +3006,40 @@ describe('GameSession command pipeline', () => {
     expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.LEFT]).toEqual([]);
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(stageMemberId);
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(belowMemberId);
+    expect(session.state?.activeEffect?.id).toBe('effect-non-inspection');
+    expect(
+      session.state?.pendingAbilities.some(
+        (ability) =>
+          ability.abilityId ===
+            HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID &&
+          ability.sourceCardId === stageMemberId &&
+          ability.metadata?.toZone === ZoneType.WAITING_ROOM
+      )
+    ).toBe(true);
+
+    const domainEvents = session.state!.eventLog.slice(beforeEventLogLength);
+    const leaveStageEvents = domainEvents.filter(
+      (record) => record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+    );
+    const enterWaitingRoomEvents = domainEvents.filter(
+      (record) => record.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+    );
+    expect(leaveStageEvents).toHaveLength(1);
+    expect(leaveStageEvents[0]?.event).toMatchObject({
+      cardInstanceId: stageMemberId,
+      fromSlot: SlotPosition.LEFT,
+      toZone: ZoneType.WAITING_ROOM,
+    });
+    expect(enterWaitingRoomEvents).toHaveLength(1);
+    expect(enterWaitingRoomEvents[0]?.event).toMatchObject({
+      cardInstanceIds: [stageMemberId, belowMemberId],
+      fromZone: ZoneType.MEMBER_SLOT,
+    });
 
     const events = session.getPublicEventsSince(beforeSeq);
+    expectNoDuplicateCardMoveEvents(events);
     expect(
-      events.some(
+      events.filter(
         (event) =>
           event.type === 'CardMovedPublic' &&
           event.card?.publicObjectId === createPublicObjectId(stageMemberId!) &&
@@ -2983,9 +3047,9 @@ describe('GameSession command pipeline', () => {
           event.from?.slot === SlotPosition.LEFT &&
           event.to?.zone === ZoneType.WAITING_ROOM
       )
-    ).toBe(true);
+    ).toHaveLength(1);
     expect(
-      events.some(
+      events.filter(
         (event) =>
           event.type === 'CardMovedPublic' &&
           event.card?.publicObjectId === createPublicObjectId(belowMemberId!) &&
@@ -2993,10 +3057,86 @@ describe('GameSession command pipeline', () => {
           event.from?.slot === SlotPosition.LEFT &&
           event.to?.zone === ZoneType.WAITING_ROOM
       )
-    ).toBe(true);
+    ).toHaveLength(1);
   });
 
-  it('公开区进入手牌命令会发出进入私有区的公共移动事件', () => {
+  it('单独拖出 memberBelow 进入休息室时只发进入休息室事件', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-member-below-only-waiting', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    restoreFreeModeFixture(session);
+    forceMainPhaseForPlayer(session);
+
+    const state = session.state!;
+    const player = state.players[0] as unknown as {
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        memberBelow: Record<SlotPosition, string[]>;
+      };
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+    };
+    const [hostMemberId, belowMemberId] = [
+      ...player.hand.cardIds,
+      ...player.mainDeck.cardIds,
+    ].filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER);
+    expect(hostMemberId).toBeTruthy();
+    expect(belowMemberId).toBeTruthy();
+
+    player.hand.cardIds = player.hand.cardIds.filter(
+      (cardId) => cardId !== hostMemberId && cardId !== belowMemberId
+    );
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== hostMemberId && cardId !== belowMemberId
+    );
+    player.memberSlots.slots[SlotPosition.CENTER] = hostMemberId!;
+    player.memberSlots.memberBelow[SlotPosition.CENTER] = [belowMemberId!];
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const beforeEventLogLength = session.state!.eventLog.length;
+    const result = session.executeCommand(
+      createMoveTableCardCommand(
+        PLAYER1,
+        belowMemberId!,
+        ZoneType.MEMBER_SLOT,
+        ZoneType.WAITING_ROOM,
+        { sourceSlot: SlotPosition.CENTER }
+      )
+    );
+
+    expect(result.success, result.error).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(hostMemberId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(belowMemberId);
+    const domainEvents = session.state!.eventLog.slice(beforeEventLogLength);
+    expect(
+      domainEvents.filter(
+        (record) => record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+      )
+    ).toHaveLength(0);
+    expect(
+      domainEvents.filter(
+        (record) => record.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+      )
+    ).toHaveLength(1);
+
+    const publicEvents = session.getPublicEventsSince(beforeSeq);
+    expectNoDuplicateCardMoveEvents(publicEvents);
+    expect(
+      publicEvents.filter(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(belowMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.CENTER &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toHaveLength(1);
+  });
+
+  it('公开区主成员回手时发出一次离场事件，并将 memberBelow 单批送入休息室', () => {
     const session = createGameSession();
     const deck = createTestDeck();
 
@@ -3007,32 +3147,91 @@ describe('GameSession command pipeline', () => {
     const state = session.state!;
     forceMainPhaseForPlayer(session);
     const player = state.players[0] as unknown as {
-      memberSlots: { slots: Record<SlotPosition, string | null> };
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        memberBelow: Record<SlotPosition, string[]>;
+      };
       hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
     };
-    const publicCardId = player.hand.cardIds.find(
+    const memberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
       (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
     );
+    const [publicCardId, belowMemberId] = memberCardIds;
     expect(publicCardId).toBeTruthy();
+    expect(belowMemberId).toBeTruthy();
 
-    player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== publicCardId);
+    player.hand.cardIds = player.hand.cardIds.filter(
+      (cardId) => cardId !== publicCardId && cardId !== belowMemberId
+    );
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) => cardId !== publicCardId && cardId !== belowMemberId
+    );
     player.memberSlots.slots[SlotPosition.LEFT] = publicCardId!;
+    player.memberSlots.memberBelow[SlotPosition.LEFT] = [belowMemberId!];
+
+    let fixtureState = addHeartLiveModifierForSourceMember(state, {
+      playerId: PLAYER1,
+      sourceCardId: publicCardId!,
+      abilityId: 'manual-hand-pending-source-heart',
+      hearts: [createHeartIcon(HeartColor.RED, 1)],
+    })!.gameState;
+    fixtureState = addHeartLiveModifierForTargetMember(fixtureState, {
+      playerId: PLAYER1,
+      sourceCardId: publicCardId!,
+      targetMemberCardId: publicCardId!,
+      abilityId: 'manual-hand-pending-self-target-heart',
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+    })!.gameState;
+    session.restoreRuntimeState({
+      authorityState: fixtureState,
+      currentPublicSeq: session.getCurrentPublicEventSeq(),
+      publicEvents: session.getPublicEventsSince(0),
+    });
+    installNonInspectionActiveEffect(session);
 
     const beforeSeq = session.getCurrentPublicEventSeq();
+    const beforeEventLogLength = session.state!.eventLog.length;
     const result = session.executeCommand(
-      createMovePublicCardToHandCommand(
-        PLAYER1,
-        publicCardId!,
-        ZoneType.MEMBER_SLOT,
-        SlotPosition.LEFT
-      )
+      createMovePublicCardToHandCommand(PLAYER1, publicCardId!, ZoneType.MEMBER_SLOT)
     );
 
     expect(result.success).toBe(true);
     expect(session.state?.players[0].memberSlots.slots[SlotPosition.LEFT]).toBeNull();
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.LEFT]).toEqual([]);
     expect(session.state?.players[0].hand.cardIds).toContain(publicCardId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(belowMemberId);
+    expect(session.state?.activeEffect?.id).toBe('effect-non-inspection');
+    expect(
+      session.state?.liveResolution.liveModifiers.some((modifier) =>
+        ['manual-hand-pending-source-heart', 'manual-hand-pending-self-target-heart'].includes(
+          modifier.abilityId
+        )
+      )
+    ).toBe(false);
+
+    const domainEvents = session.state!.eventLog.slice(beforeEventLogLength);
+    const leaveStageEvents = domainEvents.filter(
+      (record) => record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+    );
+    const enterWaitingRoomEvents = domainEvents.filter(
+      (record) => record.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+    );
+    expect(leaveStageEvents).toHaveLength(1);
+    expect(leaveStageEvents[0]?.event).toMatchObject({
+      cardInstanceId: publicCardId,
+      fromSlot: SlotPosition.LEFT,
+      toZone: ZoneType.HAND,
+    });
+    expect(enterWaitingRoomEvents).toHaveLength(1);
+    expect(enterWaitingRoomEvents[0]?.event).toMatchObject({
+      cardInstanceIds: [belowMemberId],
+      fromZone: ZoneType.MEMBER_SLOT,
+    });
 
     const events = session.getPublicEventsSince(beforeSeq);
+    expectNoDuplicateCardMoveEvents(events);
     const moveEvent = events.find(
       (event) =>
         event.type === 'CardMovedPublic' &&
@@ -3043,12 +3242,425 @@ describe('GameSession command pipeline', () => {
     );
     expect(moveEvent).toBeTruthy();
     expect(
+      events.filter(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(belowMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.LEFT &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toHaveLength(1);
+    expect(
       events.some(
         (event) =>
           event.type === 'PlayerDeclared' && event.declarationType === 'MOVE_PUBLIC_CARD_TO_HAND'
       )
     ).toBe(true);
   });
+
+  it('公开成员放入已占用槽位时只让旧主成员离场，并清理其成员绑定 HEART', () => {
+    const session = createGameSession();
+    const deck = createTestDeck();
+
+    session.createGame('online-command-replace-occupied-slot', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(deck, deck);
+    restoreFreeModeFixture(session);
+
+    const state = session.state!;
+    forceMainPhaseForPlayer(session);
+    const player = state.players[0] as unknown as {
+      memberSlots: {
+        slots: Record<SlotPosition, string | null>;
+        memberBelow: Record<SlotPosition, string[]>;
+      };
+      hand: { cardIds: string[] };
+      mainDeck: { cardIds: string[] };
+      waitingRoom: { cardIds: string[] };
+    };
+    const memberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+    );
+    const [incomingMemberId, oldMainMemberId, oldBelowMemberId] = memberCardIds;
+    expect(incomingMemberId).toBeTruthy();
+    expect(oldMainMemberId).toBeTruthy();
+    expect(oldBelowMemberId).toBeTruthy();
+
+    player.hand.cardIds = player.hand.cardIds.filter(
+      (cardId) =>
+        cardId !== incomingMemberId && cardId !== oldMainMemberId && cardId !== oldBelowMemberId
+    );
+    player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+      (cardId) =>
+        cardId !== incomingMemberId && cardId !== oldMainMemberId && cardId !== oldBelowMemberId
+    );
+    player.waitingRoom.cardIds = [incomingMemberId!];
+    player.memberSlots.slots[SlotPosition.CENTER] = oldMainMemberId!;
+    player.memberSlots.memberBelow[SlotPosition.CENTER] = [oldBelowMemberId!];
+
+    let fixtureState = addHeartLiveModifierForSourceMember(state, {
+      playerId: PLAYER1,
+      sourceCardId: oldMainMemberId!,
+      abilityId: 'manual-replacement-source-heart',
+      hearts: [createHeartIcon(HeartColor.RED, 1)],
+    })!.gameState;
+    fixtureState = addHeartLiveModifierForTargetMember(fixtureState, {
+      playerId: PLAYER1,
+      sourceCardId: oldMainMemberId!,
+      targetMemberCardId: oldMainMemberId!,
+      abilityId: 'manual-replacement-target-heart',
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+    })!.gameState;
+    fixtureState = addHeartLiveModifierForPlayer(fixtureState, {
+      playerId: PLAYER1,
+      sourceCardId: incomingMemberId!,
+      abilityId: 'manual-replacement-player-heart',
+      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+    })!.gameState;
+    session.restoreRuntimeState({
+      authorityState: fixtureState,
+      currentPublicSeq: session.getCurrentPublicEventSeq(),
+      publicEvents: session.getPublicEventsSince(0),
+    });
+
+    const beforeSeq = session.getCurrentPublicEventSeq();
+    const beforeEventLogLength = session.state!.eventLog.length;
+    const result = session.executeCommand(
+      createMoveTableCardCommand(
+        PLAYER1,
+        incomingMemberId!,
+        ZoneType.WAITING_ROOM,
+        ZoneType.MEMBER_SLOT,
+        { targetSlot: SlotPosition.CENTER }
+      )
+    );
+
+    expect(result.success).toBe(true);
+    expect(session.state?.players[0].memberSlots.slots[SlotPosition.CENTER]).toBe(incomingMemberId);
+    expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([]);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(oldMainMemberId);
+    expect(session.state?.players[0].waitingRoom.cardIds).toContain(oldBelowMemberId);
+    expect(session.state?.players[0].waitingRoom.cardIds).not.toContain(incomingMemberId);
+
+    const domainEvents = session.state!.eventLog.slice(beforeEventLogLength);
+    const leaveStageEvents = domainEvents.filter(
+      (record) => record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+    );
+    const enterWaitingRoomEvents = domainEvents.filter(
+      (record) => record.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+    );
+    expect(leaveStageEvents).toHaveLength(1);
+    expect(leaveStageEvents[0]?.event).toMatchObject({
+      cardInstanceId: oldMainMemberId,
+      fromSlot: SlotPosition.CENTER,
+      toZone: ZoneType.WAITING_ROOM,
+      replacingCardId: undefined,
+    });
+    expect(enterWaitingRoomEvents).toHaveLength(1);
+    expect(enterWaitingRoomEvents[0]?.event).toMatchObject({
+      cardInstanceIds: [oldMainMemberId, oldBelowMemberId],
+      fromZone: ZoneType.MEMBER_SLOT,
+    });
+    expect(
+      domainEvents.filter(
+        (record) => record.event.eventType === TriggerCondition.ON_MEMBER_SLOT_MOVED
+      )
+    ).toHaveLength(0);
+
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.abilityId === 'manual-replacement-source-heart'
+      )
+    ).toBe(false);
+    expect(
+      session.state?.liveResolution.liveModifiers.some(
+        (modifier) => modifier.abilityId === 'manual-replacement-target-heart'
+      )
+    ).toBe(false);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      target: 'PLAYER',
+      playerId: PLAYER1,
+      sourceCardId: incomingMemberId,
+      abilityId: 'manual-replacement-player-heart',
+      hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+    });
+
+    const publicEvents = session.getPublicEventsSince(beforeSeq);
+    expectNoDuplicateCardMoveEvents(publicEvents);
+    expect(
+      publicEvents.filter(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(oldMainMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.CENTER &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toHaveLength(1);
+    expect(
+      publicEvents.filter(
+        (event) =>
+          event.type === 'CardMovedPublic' &&
+          event.card?.publicObjectId === createPublicObjectId(oldBelowMemberId!) &&
+          event.from?.zone === ZoneType.MEMBER_SLOT &&
+          event.from?.slot === SlotPosition.CENTER &&
+          event.to?.zone === ZoneType.WAITING_ROOM
+      )
+    ).toHaveLength(1);
+  });
+
+  it.each([
+    { toZone: ZoneType.HAND, settledDestinationKey: 'hand' },
+    // 表侧成员进入 LIVE 区后会立即被规则 10.5.1 纠正到休息室。
+    { toZone: ZoneType.LIVE_ZONE, settledDestinationKey: 'waitingRoom' },
+    { toZone: ZoneType.SUCCESS_ZONE, settledDestinationKey: 'successZone' },
+    { toZone: ZoneType.EXILE_ZONE, settledDestinationKey: 'exileZone' },
+  ] as const)(
+    'MANUAL_MOVE_CARD 移至 $toZone 时只返回本次 eventLog delta 中的离场触发时机',
+    ({ toZone, settledDestinationKey }) => {
+      const session = createGameSession();
+      const deck = createTestDeck();
+
+      session.createGame(
+        `manual-move-event-log-delta-${toZone}`,
+        PLAYER1,
+        '玩家1',
+        PLAYER2,
+        '玩家2'
+      );
+      session.initializeGame(deck, deck);
+      forceMainPhaseForPlayer(session);
+      restoreFreeModeFixture(session);
+
+      const state = session.state!;
+      const player = state.players[0] as unknown as {
+        memberSlots: { slots: Record<SlotPosition, string | null> };
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+      };
+      const memberCardIds = [...player.hand.cardIds, ...player.mainDeck.cardIds].filter(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER
+      );
+      const [stageMemberId, historicalCardId] = memberCardIds;
+      expect(stageMemberId).toBeTruthy();
+      expect(historicalCardId).toBeTruthy();
+
+      player.hand.cardIds = player.hand.cardIds.filter((cardId) => cardId !== stageMemberId);
+      player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+        (cardId) => cardId !== stageMemberId
+      );
+      player.memberSlots.slots[SlotPosition.LEFT] = stageMemberId!;
+      const stateWithHistoricalEvent = emitGameEvent(
+        state,
+        createEnterWaitingRoomEvent([historicalCardId!], ZoneType.HAND, PLAYER1, PLAYER1)
+      );
+      const stateWithHeart = addHeartLiveModifierForSourceMember(stateWithHistoricalEvent, {
+        playerId: PLAYER1,
+        sourceCardId: stageMemberId!,
+        abilityId: `manual-move-${toZone}-source-heart`,
+        hearts: [createHeartIcon(HeartColor.RED, 1)],
+      })!.gameState;
+
+      const result = new GameService().processAction(
+        stateWithHeart,
+        createManualMoveCardAction(PLAYER1, stageMemberId!, ZoneType.MEMBER_SLOT, toZone, {
+          sourceSlot: SlotPosition.LEFT,
+        })
+      );
+
+      expect(result.success).toBe(true);
+      const destination = result.gameState.players[0]?.[settledDestinationKey];
+      expect(destination?.cardIds).toContain(stageMemberId);
+      expect(
+        result.gameState.liveResolution.liveModifiers.some(
+          (modifier) => modifier.abilityId === `manual-move-${toZone}-source-heart`
+        )
+      ).toBe(false);
+      expect(
+        result.triggeredEvents?.filter((event) => event === TriggerCondition.ON_LEAVE_STAGE) ?? []
+      ).toHaveLength(1);
+      expect(result.triggeredEvents).not.toContain(TriggerCondition.ON_ENTER_WAITING_ROOM);
+      const moveEventDelta = result.gameState.eventLog.slice(stateWithHeart.eventLog.length);
+      expect(
+        moveEventDelta.filter(
+          (record) => record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+        )
+      ).toHaveLength(1);
+      expect(moveEventDelta[0]?.event).toMatchObject({
+        cardInstanceId: stageMemberId,
+        fromSlot: SlotPosition.LEFT,
+        toZone,
+      });
+      if (toZone !== ZoneType.LIVE_ZONE) {
+        expect(
+          moveEventDelta.filter(
+            (record) => record.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+          )
+        ).toHaveLength(0);
+      }
+    }
+  );
+
+  it.each([
+    {
+      toZone: ZoneType.LIVE_ZONE,
+      settledDestinationKey: 'waitingRoom',
+      publicDestination: ZoneType.WAITING_ROOM,
+    },
+    {
+      toZone: ZoneType.SUCCESS_ZONE,
+      settledDestinationKey: 'successZone',
+      publicDestination: ZoneType.SUCCESS_ZONE,
+    },
+    {
+      toZone: ZoneType.EXILE_ZONE,
+      settledDestinationKey: 'exileZone',
+      publicDestination: ZoneType.EXILE_ZONE,
+    },
+  ] as const)(
+    'MOVE_TABLE_CARD 将舞台成员移至 $toZone 时清理 HEART 并公开最终落点',
+    ({ toZone, settledDestinationKey, publicDestination }) => {
+      const session = createGameSession();
+      const deck = createTestDeck();
+
+      session.createGame(`manual-table-leave-${toZone}`, PLAYER1, '玩家1', PLAYER2, '玩家2');
+      session.initializeGame(deck, deck);
+      restoreFreeModeFixture(session);
+      forceMainPhaseForPlayer(session);
+
+      const state = session.state!;
+      const player = state.players[0] as unknown as {
+        memberSlots: {
+          slots: Record<SlotPosition, string | null>;
+          memberBelow: Record<SlotPosition, string[]>;
+        };
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        waitingRoom: { cardIds: string[] };
+        successZone: { cardIds: string[] };
+        exileZone: { cardIds: string[] };
+      };
+      const [stageMemberId, belowMemberId] = [
+        ...player.hand.cardIds,
+        ...player.mainDeck.cardIds,
+      ].filter((cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.MEMBER);
+      expect(stageMemberId).toBeTruthy();
+      expect(belowMemberId).toBeTruthy();
+
+      player.hand.cardIds = player.hand.cardIds.filter(
+        (cardId) => cardId !== stageMemberId && cardId !== belowMemberId
+      );
+      player.mainDeck.cardIds = player.mainDeck.cardIds.filter(
+        (cardId) => cardId !== stageMemberId && cardId !== belowMemberId
+      );
+      player.memberSlots.slots[SlotPosition.RIGHT] = stageMemberId!;
+      player.memberSlots.memberBelow[SlotPosition.RIGHT] = [belowMemberId!];
+
+      const fixtureState = addHeartLiveModifierForSourceMember(state, {
+        playerId: PLAYER1,
+        sourceCardId: stageMemberId!,
+        abilityId: `manual-table-${toZone}-source-heart`,
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      })!.gameState;
+      session.restoreRuntimeState({
+        authorityState: fixtureState,
+        currentPublicSeq: session.getCurrentPublicEventSeq(),
+        publicEvents: session.getPublicEventsSince(0),
+      });
+
+      const beforeSeq = session.getCurrentPublicEventSeq();
+      const beforeEventLogLength = session.state!.eventLog.length;
+      const result = session.executeCommand(
+        createMoveTableCardCommand(
+          PLAYER1,
+          stageMemberId!,
+          ZoneType.MEMBER_SLOT,
+          toZone,
+          { sourceSlot: SlotPosition.RIGHT }
+        )
+      );
+
+      expect(result.success, result.error).toBe(true);
+      expect(session.state?.players[0]?.[settledDestinationKey].cardIds).toContain(stageMemberId);
+      expect(session.state?.players[0].waitingRoom.cardIds).toContain(belowMemberId);
+      expect(session.state?.players[0].memberSlots.slots[SlotPosition.RIGHT]).toBeNull();
+      expect(session.state?.players[0].memberSlots.memberBelow[SlotPosition.RIGHT]).toEqual([]);
+      expect(
+        session.state?.liveResolution.liveModifiers.some(
+          (modifier) => modifier.abilityId === `manual-table-${toZone}-source-heart`
+        )
+      ).toBe(false);
+
+      const domainEvents = session.state!.eventLog.slice(beforeEventLogLength);
+      expect(
+        domainEvents.filter(
+          (record) => record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+        )
+      ).toHaveLength(1);
+      expect(
+        domainEvents.find(
+          (record) => record.event.eventType === TriggerCondition.ON_LEAVE_STAGE
+        )?.event
+      ).toMatchObject({
+        cardInstanceId: stageMemberId,
+        fromSlot: SlotPosition.RIGHT,
+        toZone,
+      });
+      const enterWaitingRoomEvents = domainEvents.filter(
+        (record) => record.event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
+      );
+      expect(enterWaitingRoomEvents).toHaveLength(toZone === ZoneType.LIVE_ZONE ? 2 : 1);
+      expect(
+        enterWaitingRoomEvents.flatMap((record) =>
+          'cardInstanceIds' in record.event ? record.event.cardInstanceIds : []
+        )
+      ).toEqual(
+        toZone === ZoneType.LIVE_ZONE
+          ? expect.arrayContaining([stageMemberId, belowMemberId])
+          : [belowMemberId]
+      );
+
+      const publicEvents = session.getPublicEventsSince(beforeSeq);
+      expectNoDuplicateCardMoveEvents(publicEvents);
+      expect(
+        publicEvents.filter(
+          (event) =>
+            event.type === 'CardMovedPublic' &&
+            event.card?.publicObjectId === createPublicObjectId(stageMemberId!) &&
+            event.from?.zone === ZoneType.MEMBER_SLOT &&
+            event.from?.slot === SlotPosition.RIGHT &&
+            event.to?.zone === publicDestination
+        )
+      ).toHaveLength(1);
+      expect(
+        publicEvents.filter(
+          (event) =>
+            event.type === 'CardMovedPublic' &&
+            event.card?.publicObjectId === createPublicObjectId(belowMemberId!) &&
+            event.from?.zone === ZoneType.MEMBER_SLOT &&
+            event.from?.slot === SlotPosition.RIGHT &&
+            event.to?.zone === ZoneType.WAITING_ROOM
+        )
+      ).toHaveLength(1);
+
+      if (toZone === ZoneType.EXILE_ZONE) {
+        expect(session.state?.players[0].exileZone.cardStates.has(stageMemberId!)).toBe(true);
+        const returnResult = session.executeCommand(
+          createMoveTableCardCommand(
+            PLAYER1,
+            stageMemberId!,
+            ZoneType.EXILE_ZONE,
+            ZoneType.WAITING_ROOM
+          )
+        );
+        expect(returnResult.success, returnResult.error).toBe(true);
+        expect(session.state?.players[0].exileZone.cardIds).not.toContain(stageMemberId);
+        expect(session.state?.players[0].exileZone.cardStates.has(stageMemberId!)).toBe(false);
+        expect(session.state?.players[0].waitingRoom.cardIds).toContain(stageMemberId);
+      }
+    }
+  );
 
   it('休息室中的己方公开牌可以通过专用回手命令进入手牌', () => {
     const session = createGameSession();
