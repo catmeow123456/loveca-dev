@@ -204,7 +204,7 @@ Covered flow:
 - `PL!N-sd1-010` on-enter now reuses `MEMBER_ON_ENTER_DRAW_DISCARD_ABILITY_ID` / draw-then-discard shared workflow for draw 2 then discard 1;
 - `PL!N-sd1-010` LIVE start originally lived in a narrow single-card workflow, then the `PL!SP-bp4-012` slice extracted it into `src/application/card-effects/workflows/shared/pay-energy-gain-heart.ts`;
 - `PL!N-sd1-010` and `PL!SP-bp4-012` now both reuse the shared pay-energy-gain-Heart family;
-- the Shioriko configuration opens a pay/decline activeEffect, pays exactly two active energy with `payImmediateEffectCosts`, records `PAY_COST`, then writes a `SOURCE_MEMBER` green Heart modifier through `addHeartLiveModifierForMember`;
+- the Shioriko configuration opens a pay/decline activeEffect, pays exactly two active energy with `payImmediateEffectCosts`, records `PAY_COST`, then writes a `SOURCE_MEMBER` green Heart modifier through `addHeartLiveModifierForSourceMember`;
 - insufficient energy and decline paths do not pay cost, do not add Heart, clear `activeEffect`, and continue pending effects in order.
 
 No pay-energy-gain-BLADE generalization, trigger matcher integration, cost-calculator change, steps DSL, or PLAYER Heart write was added.
@@ -406,29 +406,19 @@ The helper deliberately does not remove pending abilities, write action history,
 
 Runner line count is unchanged at about 3204 lines.
 
-## HEART Modifier Helper Cleanup Outcome 2026-06-19
+## HEART Modifier Explicit Scope Follow-up 2026-08-09
 
-This cleanup did not migrate a card workflow. It consolidated real “member gains HEART” writes through domain helpers in `src/domain/rules/live-modifiers.ts`:
+The 2026-06-19 cleanup originally inferred HEART scope by comparing recipient and source instance IDs. The follow-up audit found that this made card-text semantics depend on an incidental equality, so the ambiguous API was removed and replaced by explicit domain factories and writers:
 
-- `createHeartLiveModifierForMember(game, options)` validates and creates a member HEART modifier without mutating game state;
-- `addHeartLiveModifierForMember(game, options)` calls the builder, writes the modifier with `addLiveModifier`, and returns the new state, modifier, and `heartBonus`.
+- `create/addHeartLiveModifierForSourceMember` always writes `SOURCE_MEMBER`;
+- `create/addHeartLiveModifierForTargetMember` always writes `TARGET_MEMBER` with both the real `sourceCardId` and `targetMemberCardId`, including when both IDs are equal;
+- `create/addHeartLiveModifierForPlayer` always writes `PLAYER`.
 
-The helper deliberately lives in the domain rule module because continuous HEART effects are also collected there; placing it in application runtime actions would make domain rules depend back on application code. The public game action is now “a member gains HEART”. Internally it keeps existing modifier compatibility:
+The APIs remain in `src/domain/rules/live-modifiers.ts` because continuous HEART effects are collected in the domain layer. SOURCE and TARGET recipients must be current top-level stage members; a TARGET source may be a LIVE card or belong to another player. No API infers scope from card type, ID equality, or a missing field.
 
-- when `memberCardId === sourceCardId`, the helper creates the old `target: SOURCE_MEMBER` shape;
-- when `memberCardId !== sourceCardId`, the helper creates the old `target: TARGET_MEMBER` shape with `targetMemberCardId`;
-- `playerId` means the player who owns the member receiving HEART, not necessarily the effect controller.
+The audited production migration covers 104 physical HEART producers: 76 `SOURCE_MEMBER`, 28 `TARGET_MEMBER`, and no current `PLAYER` card effects. `PL!HS-bp2-007`, `PL!HS-bp5-003`, and `PL!HS-bp6-003` now remain `TARGET_MEMBER` when the player selects the source instance itself. Continuous definitions and shared workflows use the same explicit factories as single-card workflows.
 
-Read-only scan found no real application card effect writing `target: PLAYER`. The `LiveModifierState` `PLAYER` union branch and `playerHeartBonuses` compatibility projection remain in place for a future type/compat cleanup window.
-
-Updated HEART users:
-
-- `workflows/shared/live-start-discard-gain-heart.ts`: Kotori and HS_BP1_006 source-member HEART now use `addHeartLiveModifierForMember`;
-- `workflows/shared/mill-top-gain-live-modifier.ts`: HS_PR_019 green source-member HEART now uses `addHeartLiveModifierForMember`;
-- `workflows/cards/hs-bp5-003-rurino.ts`: Rurino same-group pink target-member HEART now uses `addHeartLiveModifierForMember` while preserving opponent-stage targets and actionHistory execution by the effect controller;
-- continuous HEART definitions for BP5_008, BP4_002, and BP5_003 now use `createHeartLiveModifierForMember` and filter nulls.
-
-`tests/unit/live-modifiers.test.ts` now locks source-member helper output, target-member helper output, member HEART staying out of `playerHeartBonuses` / `getPlayerLiveHeartModifiers`, and invalid member/heart inputs returning null. Existing integration coverage continues to lock Kotori / HS_BP1_006, HS_PR_019, Rurino target-member HEART, and continuous HEART modifier behavior. Runner line count is unchanged by this helper cleanup.
+Focused unit and integration tests lock source, target, same-instance target, cross-player/LIVE-source target, player scope, invalid recipients, effective member HEART, and the three corrected self-selection paths.
 
 ## R-5N KEKE On-Enter Place Waiting Energy Outcome 2026-06-19
 

@@ -13,7 +13,7 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   addLiveModifier,
 } from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
@@ -188,9 +188,8 @@ function setupLiveSuccess(options: {
   };
 
   if (options.addOwnHeartModifier) {
-    const heartResult = addHeartLiveModifierForMember(game, {
+    const heartResult = addHeartLiveModifierForSourceMember(game, {
       playerId: PLAYER1,
-      memberCardId: ownMember.instanceId,
       sourceCardId: ownMember.instanceId,
       abilityId: 'test:heart-modifier',
       hearts: [createHeartIcon(HeartColor.BLUE, options.addOwnHeartModifier)],

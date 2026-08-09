@@ -17743,7 +17743,12 @@ describe('sample card effect runner', () => {
     ).toBe(true);
   });
 
-  it('lets PL!HS-bp5-003 discard a hand card and grant pink Heart to same-group member targets on either stage', () => {
+  it.each([
+    ['an opponent member', false],
+    ['the source itself', true],
+  ] as const)(
+    'keeps PL!HS-bp5-003 recipient semantics when selecting %s',
+    (_label, selectSource) => {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -17856,23 +17861,38 @@ describe('sample card effect runner', () => {
     ]);
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(mismatchLiellaCardId);
 
+    const selectedTargetCardId = selectSource ? rurinoCardId! : opponentHasuCardId!;
     const targetResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, opponentHasuCardId)
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        selectedTargetCardId
+      )
     );
 
     expect(targetResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
-    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
-      kind: 'HEART',
-      target: 'TARGET_MEMBER',
-      playerId: PLAYER2,
-      targetMemberCardId: opponentHasuCardId,
-      hearts: [{ color: HeartColor.PINK, count: 1 }],
-      sourceCardId: rurinoCardId,
-      abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
-    });
-  });
+    expect(
+      session.state?.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.sourceCardId === rurinoCardId &&
+          modifier.abilityId === HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
+      )
+    ).toEqual([
+      {
+        kind: 'HEART',
+        target: 'TARGET_MEMBER',
+        playerId: selectSource ? PLAYER1 : PLAYER2,
+        targetMemberCardId: selectedTargetCardId,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+        sourceCardId: rurinoCardId,
+        abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+      },
+    ]);
+    }
+  );
 
   it('uses structured groupNames when PL!HS-bp5-003 discards Dreamin so target Heart affects live judgment', () => {
     const session = createGameSession();

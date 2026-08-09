@@ -414,6 +414,58 @@ describe('PL!HS-bp2-007 百生吟子 LIVE-start discard and same-name target', (
     });
   });
 
+  it('keeps a selected source instance as TARGET_MEMBER for same-name Heart and BLADE', () => {
+    const { session, sourceId, handCardId } = startLiveStartScenario({
+      testId: 'self-target-remains-target-member',
+      handCardData: member({ cardCode: 'PL!HS-test-ginko', name: '百生 吟子' }),
+    });
+    confirm(session, handCardId!);
+    expect(session.state?.activeEffect).toMatchObject({
+      stepId: SELECT_SAME_NAME_TARGET_STEP_ID,
+      selectableCardIds: [sourceId],
+      canSkipSelection: false,
+    });
+
+    const result = confirm(session, sourceId);
+
+    expect(result.success, result.error).toBe(true);
+    expect(
+      session.state?.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.abilityId ===
+            HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID &&
+          modifier.sourceCardId === sourceId
+      )
+    ).toEqual([
+      {
+        kind: 'HEART',
+        target: 'TARGET_MEMBER',
+        playerId: PLAYER1,
+        sourceCardId: sourceId,
+        targetMemberCardId: sourceId,
+        abilityId:
+          HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
+        hearts: [{ color: HeartColor.GREEN, count: 1 }],
+      },
+    ]);
+    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
+      kind: 'BLADE',
+      target: 'TARGET_MEMBER',
+      playerId: PLAYER1,
+      countDelta: 1,
+      sourceCardId: sourceId,
+      targetMemberCardId: sourceId,
+      abilityId:
+        HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
+    });
+    expect(getMemberEffectiveHeartIcons(session.state!, PLAYER1, sourceId)).toContainEqual({
+      color: HeartColor.GREEN,
+      count: 1,
+    });
+    expect(getMemberEffectiveBladeCount(session.state!, PLAYER1, sourceId)).toBe(2);
+  });
+
   it('uses Q62 multi-name identity to target LL-bp1-001-R＋ for a discarded 日野下花帆', () => {
     const tripleName = member({
       cardCode: 'LL-bp1-001-R＋',

@@ -16,7 +16,7 @@ import {
   placeCardInSlot,
   removeCardFromStatefulZone,
 } from '../../src/domain/entities/zone';
-import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import { addHeartLiveModifierForSourceMember } from '../../src/domain/rules/live-modifiers';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -1312,9 +1312,8 @@ describe('Nijigasaki live-start score bonus LIVE cards', () => {
         [SlotPosition.RIGHT]: blueMember,
       },
       mutateBeforeTrigger: (state) =>
-        addHeartLiveModifierForMember(state, {
+        addHeartLiveModifierForSourceMember(state, {
           playerId: PLAYER1,
-          memberCardId: blueMember.instanceId,
           sourceCardId: blueMember.instanceId,
           abilityId: 'test:add-purple-heart',
           hearts: [createHeartIcon(HeartColor.PURPLE, 1)],

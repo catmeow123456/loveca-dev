@@ -315,15 +315,6 @@ const ENERGY_COMPARISON_CONTINUOUS_DEFINITIONS: readonly EnergyComparisonContinu
   },
 ];
 
-/** @deprecated Use one of the explicit SOURCE_MEMBER, TARGET_MEMBER, or PLAYER HEART options. */
-export interface HeartLiveModifierForMemberOptions {
-  readonly playerId: string;
-  readonly memberCardId: string;
-  readonly sourceCardId: string;
-  readonly abilityId: string;
-  readonly hearts: readonly HeartIcon[];
-}
-
 export interface HeartLiveModifierForSourceMemberOptions {
   readonly playerId: string;
   readonly sourceCardId: string;
@@ -351,9 +342,6 @@ export interface AddHeartLiveModifierResult {
   readonly modifier: HeartModifierState;
   readonly heartBonus: readonly HeartIcon[];
 }
-
-/** @deprecated Use one of the explicit SOURCE_MEMBER, TARGET_MEMBER, or PLAYER HEART APIs. */
-export type AddHeartLiveModifierForMemberResult = AddHeartLiveModifierResult;
 
 export interface BladeLiveModifierForSourceMemberOptions {
   readonly playerId: string;
@@ -3329,59 +3317,6 @@ export function isLiveAbilitySuppressed(
       modifier.sourceCardId === sourceCardId &&
       modifier.suppressedAbilityId === abilityId
   );
-}
-
-/** @deprecated Use an explicit HEART scope factory. */
-export function createHeartLiveModifierForMember(
-  game: GameState,
-  options: HeartLiveModifierForMemberOptions
-): HeartModifierState | null {
-  const memberCard = getCardById(game, options.memberCardId);
-  if (
-    !memberCard ||
-    memberCard.ownerId !== options.playerId ||
-    !isMemberCardData(memberCard.data) ||
-    options.hearts.length === 0 ||
-    options.hearts.some((heart) => !(heart.count > 0))
-  ) {
-    return null;
-  }
-
-  const baseModifier = {
-    kind: 'HEART' as const,
-    playerId: options.playerId,
-    hearts: options.hearts,
-    sourceCardId: options.sourceCardId,
-    abilityId: options.abilityId,
-  };
-
-  return options.memberCardId === options.sourceCardId
-    ? {
-        ...baseModifier,
-        target: 'SOURCE_MEMBER',
-      }
-    : {
-        ...baseModifier,
-        target: 'TARGET_MEMBER',
-        targetMemberCardId: options.memberCardId,
-      };
-}
-
-/** @deprecated Use an explicit HEART scope writer. */
-export function addHeartLiveModifierForMember(
-  game: GameState,
-  options: HeartLiveModifierForMemberOptions
-): AddHeartLiveModifierForMemberResult | null {
-  const modifier = createHeartLiveModifierForMember(game, options);
-  if (!modifier) {
-    return null;
-  }
-
-  return {
-    gameState: addLiveModifier(game, modifier),
-    modifier,
-    heartBonus: options.hearts,
-  };
 }
 
 function isOwnTopLevelStageMember(

@@ -20,7 +20,7 @@ import {
   MEMBER_ON_ENTER_DRAW_ONE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForTargetMember,
   getMemberEffectiveHeartIcons,
 } from '../../src/domain/rules/live-modifiers';
 import {
@@ -283,9 +283,9 @@ describe('PL!HS-pb1-016 Izumi purple Heart target workflow', () => {
       ),
     }));
     if (options.targetGainsPurpleByModifier) {
-      game = addHeartLiveModifierForMember(game, {
+      game = addHeartLiveModifierForTargetMember(game, {
         playerId: PLAYER1,
-        memberCardId: target.instanceId,
+        targetMemberCardId: target.instanceId,
         sourceCardId: other.instanceId,
         abilityId: 'test:add-purple-heart',
         hearts: [{ color: HeartColor.PURPLE, count: 1 }],

@@ -14,7 +14,7 @@ import {
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
-import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import { addHeartLiveModifierForSourceMember } from '../../src/domain/rules/live-modifiers';
 import {
   ABILITY_ORDER_SELECTION_ID,
   confirmActiveEffectStep,
@@ -285,9 +285,8 @@ describe('Aqours Heart score bonus LIVE cards', () => {
       ],
       secondSource: true,
     });
-    const modifierResult = addHeartLiveModifierForMember(game, {
+    const modifierResult = addHeartLiveModifierForSourceMember(game, {
       playerId: PLAYER1,
-      memberCardId: memberCardIds[0]!,
       sourceCardId: memberCardIds[0]!,
       abilityId: 'test:add-green-heart',
       hearts: [createHeartIcon(HeartColor.GREEN, 1)],

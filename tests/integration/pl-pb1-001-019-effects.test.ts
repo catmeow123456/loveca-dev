@@ -14,7 +14,7 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   isLiveAbilitySuppressed,
   suppressLiveAbility,
 } from '../../src/domain/rules/live-modifiers';
@@ -362,9 +362,8 @@ describe('PL!-pb1-001 and PL!S-pb1-019 workflows', () => {
 
   it('PL!S-pb1-019 suppresses LIVE_SUCCESS at six red hearts and effective red Heart modifiers count', () => {
     const { game, source, members } = setup019({ redHeartCount: 5 });
-    const modifierResult = addHeartLiveModifierForMember(game, {
+    const modifierResult = addHeartLiveModifierForSourceMember(game, {
       playerId: PLAYER1,
-      memberCardId: members[0]!.instanceId,
       sourceCardId: members[0]!.instanceId,
       abilityId: 'test:red-heart-modifier',
       hearts: [createHeartIcon(HeartColor.RED, 1)],

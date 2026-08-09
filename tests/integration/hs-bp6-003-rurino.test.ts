@@ -12,6 +12,7 @@ import {
   createHeartRequirement,
 } from '../../src/domain/entities/card';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
+import { getMemberEffectiveHeartIcons } from '../../src/domain/rules/live-modifiers';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import {
   createConfirmEffectStepCommand,
@@ -299,7 +300,10 @@ describe('HS-bp6-003 Rurino workflow', () => {
     ).toBe(true);
   });
 
-  it('discards a hand card and gives a Mira-Cra stage member pink Heart on live start', () => {
+  it.each([
+    ['another Mira-Cra member', false],
+    ['the source itself', true],
+  ] as const)('writes an explicit TARGET_MEMBER Heart when selecting %s', (_label, selectSource) => {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -373,22 +377,37 @@ describe('HS-bp6-003 Rurino workflow', () => {
       target.instanceId,
     ]);
 
+    const selectedTargetId = selectSource ? source.instanceId : target.instanceId;
     const targetResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, target.instanceId)
+      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, selectedTargetId)
     );
 
     expect(targetResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discard.instanceId]);
-    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
-      kind: 'HEART',
-      playerId: PLAYER1,
-      sourceCardId: source.instanceId,
-      abilityId: HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID,
-      target: 'TARGET_MEMBER',
-      targetMemberCardId: target.instanceId,
-      hearts: [{ color: HeartColor.PINK, count: 1 }],
-    });
+    expect(
+      session.state?.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.sourceCardId === source.instanceId &&
+          modifier.abilityId === HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID
+      )
+    ).toEqual([
+      {
+        kind: 'HEART',
+        playerId: PLAYER1,
+        sourceCardId: source.instanceId,
+        abilityId: HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID,
+        target: 'TARGET_MEMBER',
+        targetMemberCardId: selectedTargetId,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      },
+    ]);
+    expect(
+      getMemberEffectiveHeartIcons(session.state!, PLAYER1, selectedTargetId)
+        .filter((heart) => heart.color === HeartColor.PINK)
+        .reduce((total, heart) => total + heart.count, 0)
+    ).toBe(2);
   });
 
   it('triggers PB1-003 auto once from another card effect hand discard', () => {
