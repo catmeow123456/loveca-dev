@@ -30,6 +30,8 @@ import {
 } from '../../src/domain/entities/zone';
 import {
   addHeartLiveModifierForMember,
+  addHeartLiveModifierForPlayer,
+  addHeartLiveModifierForTargetMember,
   addBladeLiveModifierForPlayer,
   addBladeLiveModifierForTargetMember,
   addPlayerScoreLiveModifierForTargetMember,
@@ -41,6 +43,9 @@ import {
   createBladeLiveModifierForSourceMember,
   createBladeLiveModifierForTargetMember,
   createHeartLiveModifierForMember,
+  createHeartLiveModifierForPlayer,
+  createHeartLiveModifierForSourceMember,
+  createHeartLiveModifierForTargetMember,
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
   getCheerCardEffectiveBladeHearts,
@@ -580,6 +585,180 @@ describe('live modifier helpers', () => {
       hearts: [createHeartIcon(HeartColor.PINK, 1)],
       sourceCardId: source.instanceId,
       abilityId: 'target-heart',
+    });
+  });
+
+  it('keeps explicit source, target, and player Heart scopes independent of card ID equality', () => {
+    const member = createCardInstance(
+      {
+        cardCode: 'EXPLICIT-HEART-MEMBER',
+        name: 'Explicit Heart Member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+      },
+      'p1',
+      'explicit-heart-member'
+    );
+    let game = registerCards(
+      createGameState('explicit-heart-scopes', 'p1', 'P1', 'p2', 'P2'),
+      [member]
+    );
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+    }));
+    const hearts = [createHeartIcon(HeartColor.GREEN, 1)];
+
+    expect(
+      createHeartLiveModifierForSourceMember(game, {
+        playerId: 'p1',
+        sourceCardId: member.instanceId,
+        abilityId: 'explicit-source-heart',
+        hearts,
+      })
+    ).toEqual({
+      kind: 'HEART',
+      target: 'SOURCE_MEMBER',
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'explicit-source-heart',
+      hearts,
+    });
+    expect(
+      createHeartLiveModifierForTargetMember(game, {
+        playerId: 'p1',
+        sourceCardId: member.instanceId,
+        targetMemberCardId: member.instanceId,
+        abilityId: 'explicit-target-heart',
+        hearts,
+      })
+    ).toEqual({
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      targetMemberCardId: member.instanceId,
+      abilityId: 'explicit-target-heart',
+      hearts,
+    });
+    expect(
+      createHeartLiveModifierForPlayer(game, {
+        playerId: 'p1',
+        sourceCardId: member.instanceId,
+        abilityId: 'explicit-player-heart',
+        hearts,
+      })
+    ).toEqual({
+      kind: 'HEART',
+      target: 'PLAYER',
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'explicit-player-heart',
+      hearts,
+    });
+
+    const targetResult = addHeartLiveModifierForTargetMember(game, {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      targetMemberCardId: member.instanceId,
+      abilityId: 'explicit-target-heart',
+      hearts,
+    });
+    const playerResult = addHeartLiveModifierForPlayer(targetResult!.gameState, {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'explicit-player-heart',
+      hearts,
+    });
+    expect(getMemberEffectiveHeartIcons(playerResult!.gameState, 'p1', member.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      ...hearts,
+    ]);
+    expect(getPlayerLiveHeartModifiers(playerResult!.gameState.liveResolution, 'p1')).toEqual(
+      hearts
+    );
+  });
+
+  it('requires source and target Heart recipients to be current top-level stage members', () => {
+    const member = createCardInstance(
+      {
+        cardCode: 'OFF-STAGE-HEART-MEMBER',
+        name: 'Off-stage Heart Member',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p1',
+      'off-stage-heart-member'
+    );
+    const game = registerCards(createGameState('explicit-heart-validation', 'p1', 'P1', 'p2', 'P2'), [
+      member,
+    ]);
+    const options = {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'off-stage-heart',
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+    };
+
+    expect(createHeartLiveModifierForSourceMember(game, options)).toBeNull();
+    expect(
+      createHeartLiveModifierForTargetMember(game, {
+        ...options,
+        targetMemberCardId: member.instanceId,
+      })
+    ).toBeNull();
+  });
+
+  it('allows a target-member Heart source to belong to a different player and card type', () => {
+    const liveSource = createCardInstance(
+      {
+        cardCode: 'CROSS-PLAYER-LIVE-SOURCE',
+        name: 'Cross-player Live Source',
+        cardType: CardType.LIVE,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'cross-player-live-source'
+    );
+    const target = createCardInstance(
+      {
+        cardCode: 'CROSS-PLAYER-TARGET',
+        name: 'Cross-player Target',
+        cardType: CardType.MEMBER,
+        cost: 1,
+        blade: 1,
+        hearts: [],
+      },
+      'p2',
+      'cross-player-target'
+    );
+    let game = registerCards(
+      createGameState('cross-player-target-heart', 'p1', 'P1', 'p2', 'P2'),
+      [liveSource, target]
+    );
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, target.instanceId),
+    }));
+
+    expect(
+      createHeartLiveModifierForTargetMember(game, {
+        playerId: 'p2',
+        sourceCardId: liveSource.instanceId,
+        targetMemberCardId: target.instanceId,
+        abilityId: 'cross-player-target-heart',
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      })
+    ).toMatchObject({
+      target: 'TARGET_MEMBER',
+      playerId: 'p2',
+      sourceCardId: liveSource.instanceId,
+      targetMemberCardId: target.instanceId,
     });
   });
 

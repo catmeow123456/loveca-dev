@@ -240,7 +240,7 @@ export type LiveModifierState =
       readonly playerId: string;
       readonly targetMemberCardId: string;
       readonly hearts: readonly HeartIcon[];
-      readonly sourceCardId?: string;
+      readonly sourceCardId: string;
       readonly abilityId?: string;
       readonly visibilityDependency?: LiveModifierVisibilityDependency;
     }

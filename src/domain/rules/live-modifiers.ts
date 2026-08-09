@@ -315,6 +315,7 @@ const ENERGY_COMPARISON_CONTINUOUS_DEFINITIONS: readonly EnergyComparisonContinu
   },
 ];
 
+/** @deprecated Use one of the explicit SOURCE_MEMBER, TARGET_MEMBER, or PLAYER HEART options. */
 export interface HeartLiveModifierForMemberOptions {
   readonly playerId: string;
   readonly memberCardId: string;
@@ -323,11 +324,36 @@ export interface HeartLiveModifierForMemberOptions {
   readonly hearts: readonly HeartIcon[];
 }
 
-export interface AddHeartLiveModifierForMemberResult {
+export interface HeartLiveModifierForSourceMemberOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly hearts: readonly HeartIcon[];
+}
+
+export interface HeartLiveModifierForTargetMemberOptions {
+  readonly playerId: string;
+  readonly targetMemberCardId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly hearts: readonly HeartIcon[];
+}
+
+export interface HeartLiveModifierForPlayerOptions {
+  readonly playerId: string;
+  readonly sourceCardId: string;
+  readonly abilityId: string;
+  readonly hearts: readonly HeartIcon[];
+}
+
+export interface AddHeartLiveModifierResult {
   readonly gameState: GameState;
   readonly modifier: HeartModifierState;
   readonly heartBonus: readonly HeartIcon[];
 }
+
+/** @deprecated Use one of the explicit SOURCE_MEMBER, TARGET_MEMBER, or PLAYER HEART APIs. */
+export type AddHeartLiveModifierForMemberResult = AddHeartLiveModifierResult;
 
 export interface BladeLiveModifierForSourceMemberOptions {
   readonly playerId: string;
@@ -3338,6 +3364,7 @@ export function isLiveAbilitySuppressed(
   );
 }
 
+/** @deprecated Use an explicit HEART scope factory. */
 export function createHeartLiveModifierForMember(
   game: GameState,
   options: HeartLiveModifierForMemberOptions
@@ -3373,6 +3400,7 @@ export function createHeartLiveModifierForMember(
       };
 }
 
+/** @deprecated Use an explicit HEART scope writer. */
 export function addHeartLiveModifierForMember(
   game: GameState,
   options: HeartLiveModifierForMemberOptions
@@ -3403,6 +3431,121 @@ function isOwnTopLevelStageMember(
     isMemberCardData(memberCard.data) &&
     Object.values(player.memberSlots.slots).includes(memberCardId)
   );
+}
+
+function hasValidHeartIcons(hearts: readonly HeartIcon[]): boolean {
+  return (
+    hearts.length > 0 &&
+    hearts.every(
+      (heart) =>
+        Object.values(HeartColor).includes(heart.color) &&
+        Number.isInteger(heart.count) &&
+        heart.count > 0
+    )
+  );
+}
+
+export function createHeartLiveModifierForSourceMember(
+  game: GameState,
+  options: HeartLiveModifierForSourceMemberOptions
+): HeartModifierState | null {
+  if (
+    !isOwnTopLevelStageMember(game, options.playerId, options.sourceCardId) ||
+    !hasValidHeartIcons(options.hearts)
+  ) {
+    return null;
+  }
+
+  return {
+    kind: 'HEART',
+    target: 'SOURCE_MEMBER',
+    playerId: options.playerId,
+    hearts: options.hearts,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+  };
+}
+
+export function addHeartLiveModifierForSourceMember(
+  game: GameState,
+  options: HeartLiveModifierForSourceMemberOptions
+): AddHeartLiveModifierResult | null {
+  const modifier = createHeartLiveModifierForSourceMember(game, options);
+  return modifier
+    ? {
+        gameState: addLiveModifier(game, modifier),
+        modifier,
+        heartBonus: options.hearts,
+      }
+    : null;
+}
+
+export function createHeartLiveModifierForTargetMember(
+  game: GameState,
+  options: HeartLiveModifierForTargetMemberOptions
+): HeartModifierState | null {
+  if (
+    !isOwnTopLevelStageMember(game, options.playerId, options.targetMemberCardId) ||
+    !hasValidHeartIcons(options.hearts)
+  ) {
+    return null;
+  }
+
+  return {
+    kind: 'HEART',
+    target: 'TARGET_MEMBER',
+    playerId: options.playerId,
+    hearts: options.hearts,
+    sourceCardId: options.sourceCardId,
+    targetMemberCardId: options.targetMemberCardId,
+    abilityId: options.abilityId,
+  };
+}
+
+export function addHeartLiveModifierForTargetMember(
+  game: GameState,
+  options: HeartLiveModifierForTargetMemberOptions
+): AddHeartLiveModifierResult | null {
+  const modifier = createHeartLiveModifierForTargetMember(game, options);
+  return modifier
+    ? {
+        gameState: addLiveModifier(game, modifier),
+        modifier,
+        heartBonus: options.hearts,
+      }
+    : null;
+}
+
+export function createHeartLiveModifierForPlayer(
+  game: GameState,
+  options: HeartLiveModifierForPlayerOptions
+): HeartModifierState | null {
+  if (!getPlayerById(game, options.playerId) || !hasValidHeartIcons(options.hearts)) {
+    return null;
+  }
+
+  return {
+    kind: 'HEART',
+    target: 'PLAYER',
+    playerId: options.playerId,
+    hearts: options.hearts,
+    sourceCardId: options.sourceCardId,
+    abilityId: options.abilityId,
+  };
+}
+
+export function addHeartLiveModifierForPlayer(
+  game: GameState,
+  options: HeartLiveModifierForPlayerOptions
+): AddHeartLiveModifierResult | null {
+  const modifier = createHeartLiveModifierForPlayer(game, options);
+  return modifier
+    ? {
+        gameState: addLiveModifier(game, modifier),
+        modifier,
+        heartBonus: options.hearts,
+      }
+    : null;
 }
 
 function isValidPositiveBladeCountDelta(countDelta: number): boolean {
