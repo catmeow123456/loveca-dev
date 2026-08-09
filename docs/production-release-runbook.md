@@ -178,6 +178,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 - 不要用 `pnpm db:push` 代替生产迁移。
 - 如果迁移包含数据修复，先在测试数据库验证可重复执行性和失败后的处理方式。
 - 如果发布包含认证凭据 v1 -> v2 切换，必须在停机窗口按 `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md` 先执行 dry-run；仅当报告中不存在 reset-required 或未知密码格式时才能 apply。部署必须包含兼容封装验证与首次登录自动升级，不能使用原 `v3.7.2` 的 reset-only 认证镜像。
+- 如果发布包含首届排位纪念徽章，必须保持 API、排位结算和评分参数修订停写，在结构迁移完成后按 `drizzle/migration-notes/player-badges.md` 使用显式首赛季 key 执行 dry-run；审核最早公开赛季、候选玩家和 ledger revision 后才能 apply。再次 dry-run 确认 `wouldAwardCount=0`，并部署同一版本的 API 与前端后，才可恢复服务。
 - `docker/init.sql` 包含部分 Drizzle schema 不表达的函数和触发器；新库初始化与已有库迁移不能混为一谈。
 
 ## 6. 部署

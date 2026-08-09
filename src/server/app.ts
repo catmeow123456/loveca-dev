@@ -20,6 +20,7 @@ import { publicTableRouter } from './routes/public-table.js';
 import { rankedRouter } from './routes/ranked.js';
 import { rankedAdminRouter } from './routes/ranked-admin.js';
 import { deckPointTablesAdminRouter, deckPointTablesRouter } from './routes/deck-point-tables.js';
+import { playerBadgesRouter } from './routes/player-badges.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -81,6 +82,7 @@ export function createApp(): express.Express {
   app.use('/api/battle', battleRouter);
   app.use('/api/public-table', publicTableRouter);
   app.use('/api/ranked', rankedRouter);
+  app.use('/api/player-badges', playerBadgesRouter);
   app.use('/api/admin/ranked', rankedAdminRouter);
   app.use('/api/admin/deck-point-tables', deckPointTablesAdminRouter);
   if (config.isDev) {

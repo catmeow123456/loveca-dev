@@ -15,7 +15,8 @@
 - 选择合法云端卡组并加入独立排位候场；
 - 跨页面维持候场、确认配对并自动进入现有正式联机房间；
 - 在赛季页、候场状态和排位房间内随时查看赛季公告；
-- 查看最近排位对局和达到参榜场次门槛的排行榜。
+- 查看最近排位对局和达到参榜场次门槛的排行榜；
+- 在首届赛季达到 3 场有效计分对局后获得定级纪念徽章，并在个人中心查看。
 
 页面只突出赛季状态、当前积分、参榜进度、卡组和一个主要操作。没有数据时不渲染空
 排行榜。对局桌面继续复用现有 `GameBoard`，不持续强调双方排名。
@@ -30,6 +31,8 @@
 | `POST` | `/api/ranked/queue/heartbeat` | 维持票据并读取最新状态                 |
 | `POST` | `/api/ranked/queue/confirm`   | 确认配对                               |
 | `POST` | `/api/ranked/queue/cancel`    | 取消候场或放弃尚未开局的配对           |
+
+首届排位纪念徽章不作为排行榜字段暴露；登录玩家通过 `GET /api/player-badges/me` 只读取自己的徽章，当前不提供查看其他玩家徽章或写入徽章的接口。
 
 ## 2. 赛季与匹配
 
@@ -70,6 +73,10 @@
   之前不能封存赛季，正式开局后由 `PENDING` 对局收口规则接管。
 - 新赛季激活时，从最近封存赛季按冻结配置生成软重置种子；所有迟到结算和更正重建
   都从同一组种子开始。
+- 首届赛季由持久徽章规则显式绑定。评分结算在更新赛季 ledger revision 后，以同一事务
+  检查玩家当前有效计分场次；达到 3 场时幂等授予徽章，并记录第 3 场有效对局、当时的
+  场次数和 revision。迟到结果或更正重建可以补发，已经授予的纪念徽章不会因后续
+  `VOID` 自动撤回。
 
 ## 4. 管理闭环
 
@@ -92,7 +99,7 @@
 
 ## 5. 数据库迁移
 
-排位基线由 `0010_add_ranked_system.sql` 提供；评分参数修订审计表和当前修订引用由 `0017_add_ranked_rating_revisions.sql` 提供；可编辑赛季公告字段由 `0018_add_ranked_season_announcement.sql` 提供。两项增量均不创建修订或改写既有积分，公告迁移只为既有赛季写入空字符串默认值，也不会改变生命周期或匹配状态。执行与回滚边界见 `drizzle/migration-notes/ranked-rating-revisions.md` 和 `drizzle/migration-notes/ranked-season-announcement.md`。
+排位基线由 `0010_add_ranked_system.sql` 提供；评分参数修订审计表和当前修订引用由 `0017_add_ranked_rating_revisions.sql` 提供；可编辑赛季公告字段由 `0018_add_ranked_season_announcement.sql` 提供；玩家徽章规则与授予记录由 `0019_add_player_badges.sql` 提供。结构迁移不会自动认定首届赛季或回填徽章；必须在停写、备份和 dry-run 审核后执行显式数据迁移。执行与回滚边界见 `drizzle/migration-notes/ranked-rating-revisions.md`、`drizzle/migration-notes/ranked-season-announcement.md` 和 `drizzle/migration-notes/player-badges.md`。
 
 迁移不会创建赛季、不会回填旧公共牌桌积分，也不会自动开放玩家候场。首季所需 schema
 已在生产落地；原始执行与校验步骤见
@@ -102,7 +109,7 @@
 
 ## 6. 后续运营仍需完成
 
-- 在预发布环境执行 `0017 / 0018` 迁移、参数预览、应用、历史恢复和公告编辑演练；
+- 在预发布环境执行 `0017 / 0018 / 0019` 迁移、参数预览、应用、历史恢复、公告编辑和首届徽章 dry-run/补发演练；
 - 用历史对局回放验证 V4 默认值和允许范围内的候选参数，确定上线值与告警阈值；
 - 补齐生产告警渠道、核心运营指标看板和“继续 / 调整 / 暂停”判断口径；
 - 取得独立发布授权后部署 schema 与代码，参数修订仍需按维护期 runbook 逐次授权执行。

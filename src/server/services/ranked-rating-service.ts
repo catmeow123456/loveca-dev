@@ -15,6 +15,7 @@ import {
   type RankedResultType,
   type RankedWinnerSeat,
 } from '../rating/ranked-ledger.js';
+import { awardEligibleFirstRankedSeasonBadges } from '../player-badges/award.js';
 import { stableJsonStringify } from './replay-payload-serialization.js';
 
 export interface RankedRatingQueryResult<T> {
@@ -357,6 +358,10 @@ export class RankedRatingService {
           context.used_free
         );
         await setSeasonLedgerRevision(client, context.season_id, revision);
+        await awardEligibleFirstRankedSeasonBadges(client, {
+          seasonId: context.season_id,
+          userIds: [...materialization.players.keys()],
+        });
         return {
           seasonId: context.season_id,
           matchId,
@@ -428,6 +433,10 @@ export class RankedRatingService {
         context.used_free
       );
       await setSeasonLedgerRevision(client, context.season_id, revision);
+      await awardEligibleFirstRankedSeasonBadges(client, {
+        seasonId: context.season_id,
+        userIds: [context.first_user_id, context.second_user_id],
+      });
 
       return {
         seasonId: context.season_id,
@@ -569,6 +578,10 @@ export class RankedRatingService {
         ]
       );
       await setSeasonLedgerRevision(client, input.seasonId, revision);
+      await awardEligibleFirstRankedSeasonBadges(client, {
+        seasonId: input.seasonId,
+        userIds: [...materialization.players.keys()],
+      });
 
       return {
         seasonId: input.seasonId,

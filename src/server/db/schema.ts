@@ -79,6 +79,14 @@ export type RankedMatchResultType =
   'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | 'PLATFORM_NO_CONTEST';
 export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
 
+export interface PlayerBadgeEvidence {
+  readonly qualification: 'RANKED_RATED_MATCH_COUNT';
+  readonly minimumRatedMatchCount: number;
+  readonly observedRatedMatchCount: number;
+  readonly seasonLedgerRevision: number;
+  readonly qualificationMatchId: string;
+}
+
 export interface RankedSeasonOpenWindow {
   readonly weekdays: readonly number[];
   readonly startMinute: number;
@@ -224,6 +232,58 @@ export const profiles = pgTable(
     index('idx_profiles_username').on(table.username),
     index('idx_profiles_role').on(table.role),
     check('profiles_role_check', sql`${table.role} IN ('user', 'admin')`),
+  ]
+);
+
+export const playerBadgeRules = pgTable(
+  'player_badge_rules',
+  {
+    badgeKey: text('badge_key').primaryKey(),
+    sourceSeasonId: uuid('source_season_id')
+      .notNull()
+      .references(() => rankedSeasons.id, { onDelete: 'restrict' }),
+    criteriaType: text('criteria_type').notNull(),
+    minimumValue: integer('minimum_value').notNull(),
+    criteriaVersion: text('criteria_version').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_player_badge_rules_source_season').on(table.sourceSeasonId),
+    check('player_badge_rules_key_check', sql`btrim(${table.badgeKey}) <> ''`),
+    check(
+      'player_badge_rules_criteria_type_check',
+      sql`${table.criteriaType} IN ('RANKED_RATED_MATCH_COUNT')`
+    ),
+    check('player_badge_rules_minimum_value_check', sql`${table.minimumValue} > 0`),
+    check('player_badge_rules_criteria_version_check', sql`btrim(${table.criteriaVersion}) <> ''`),
+  ]
+);
+
+export const playerBadges = pgTable(
+  'player_badges',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    badgeKey: text('badge_key')
+      .notNull()
+      .references(() => playerBadgeRules.badgeKey, { onDelete: 'restrict' }),
+    sourceSeasonId: uuid('source_season_id').references(() => rankedSeasons.id, {
+      onDelete: 'restrict',
+    }),
+    criteriaVersion: text('criteria_version').notNull(),
+    evidence: jsonb('evidence').$type<PlayerBadgeEvidence>().notNull(),
+    awardedAt: timestamp('awarded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_player_badges_user_badge').on(table.userId, table.badgeKey),
+    index('idx_player_badges_user_awarded_at').on(table.userId, table.awardedAt),
+    index('idx_player_badges_source_season').on(table.sourceSeasonId),
+    check('player_badges_key_check', sql`btrim(${table.badgeKey}) <> ''`),
+    check('player_badges_criteria_version_check', sql`btrim(${table.criteriaVersion}) <> ''`),
   ]
 );
 

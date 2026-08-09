@@ -367,6 +367,7 @@ graph LR
     App --> BattleR[Battle Route]
     App --> RankedR[Ranked Route]
     App --> RankedAdminR[Ranked Admin Route]
+    App --> PlayerBadgesR[Player Badges Route]
 
     AuthR --> AuthSvc[auth-service + mail-service]
     DecksR --> Scraper[decklog-scraper]
@@ -377,6 +378,7 @@ graph LR
     BattleR --> OnlineSvc
     RankedR --> RankedSvc[ranked-player-service + ranked-runtime-service]
     RankedAdminR --> RankedAdminSvc[ranked-admin-service + ranked-season-service + ranked-rating-service]
+    PlayerBadgesR --> PlayerBadgeSvc[player-badge-service]
 ```
 
 代码路径：
@@ -393,6 +395,7 @@ graph LR
 - `src/server/routes/battle.ts`
 - `src/server/routes/ranked.ts`
 - `src/server/routes/ranked-admin.ts`
+- `src/server/routes/player-badges.ts`
 - `src/server/site-status.ts`
 - `src/server/services/site-announcement-service.ts`
 - `src/server/middleware/require-gameplay-available.ts`
@@ -453,6 +456,11 @@ erDiagram
 管理员更正按稳定顺序重建派生投影。字段、事务和更正链细节见
 [赛季排位数据与结算设计](matchmaking-and-ladder/RANKED_R2_DATA_AND_SETTLEMENT_DESIGN.md)。
 
+玩家徽章以持久规则和幂等授予记录分离徽章定义、资格来源与玩家所有权。首届排位徽章由
+规则固定绑定来源赛季，评分结算在更新 ledger revision 后以同一事务检查有效计分场次；达到
+3 场时保存第 3 场对局与当时 revision 作为证据。个人中心只通过本人端点读取；历史补发使用
+显式赛季、默认 dry-run 且要求 ledger revision 的停机数据迁移脚本。
+
 代码路径：
 
 - `src/server/db/schema.ts`
@@ -464,10 +472,13 @@ erDiagram
 - `src/server/services/ranked-runtime-service.ts`
 - `src/server/services/ranked-admin-service.ts`
 - `src/server/services/ranked-v3-migration-service.ts`
+- `src/server/services/player-badge-service.ts`
+- `src/server/player-badges/award.ts`
 - `src/server/rating/ranked-ledger.ts`
 - `src/server/rating/glicko.ts`
 - `scripts/migrate-ranked-season-v3.ts`
 - `drizzle/0010_add_ranked_system.sql`
+- `drizzle/0019_add_player_badges.sql`
 
 ---
 
@@ -507,6 +518,7 @@ graph TD
 - 单局文字与快捷表情通信：`src/online/chat-types.ts` 以 `TEXT | EMOTE` 判别联合维护共享条目契约和六种白名单表情 ID；`src/server/services/online-match-chat-runtime.ts` 维护按 `matchId` 隔离的有界内存消息、幂等标识、游标分页、文本校验、综合限频和表情冷却，`src/server/services/online-match-service.ts` 复用参与者身份与观战会话/代际授权，`src/server/services/online-room-service.ts` 阻止已退出成员被迟到轮询重新激活，`src/server/routes/online.ts` 提供当前房间成员读写和观战只读 REST 入口。前端由 `client/src/components/game/MatchChat.tsx` 独立轮询并渲染共同时间流，`client/src/components/game/MatchEmoteVisual.tsx` 与 `client/src/lib/matchEmotes.ts` 提供本地矢量表情，`GameBoard` / `PlayerArea` 只声明席位身份锚点。局内通信不写入 `GameState`、公共事件、数据库、历史记录或回放；重开、双方离开销毁旧对局运行态或 API 服务重启后不恢复
 - 公共牌桌 Beta：`src/server/services/public-table-service.ts` 以 PostgreSQL 候场票据和配对预留实现 FIFO 候场、双方确认、锁定卡组快照与超时清理；房间创建使用带代际校验的短租约和有限重试，旧创建者不能覆盖接管后的房间。`src/server/services/gameplay-participation-service.ts` 约束用户不能同时处于候场、房间或对局；确认成功后由 `src/server/services/online-room-service.ts` 创建封闭的公共牌桌房间，双方需在 60 秒内到场才进入猜拳，超时则结束本次开局，并复用正式联机认输、观战和记录链路。`client/src/components/public-table/PublicTableGlobalLayer.tsx` 和 `client/src/components/pages/PublicTablePage.tsx` 负责跨页面候场状态、确认及单次自动进入房间，持久化 schema 由 `src/server/db/schema.ts` 与 `drizzle/0008_add_public_table_beta.sql`、`drizzle/0010_add_ranked_system.sql` 对齐
 - 赛季排位首版：`src/server/services/public-table-service.ts` 复用票据/预留状态机并以 `queueKind + seasonId + competitiveEnvironmentId` 隔离休闲与排位候场；`src/server/services/online-room-service.ts` 按房间代际去重开局并补偿预留、赛季、占用和票据绑定，断线裁定以持久状态和在线代际共同防止重连竞态。`src/server/services/ranked-player-service.ts` 提供赛季总览、固定窗口准入、个人战绩和排行榜，`src/server/services/ranked-rating-service.ts`、`src/server/rating/ranked-rating.ts` 与 `src/server/rating/ranked-ledger.ts` 负责权威结果幂等结算、版本化积分调度、迟到结果重建和追加式更正，`src/server/services/ranked-runtime-service.ts` 先排空可靠结算，再终止到期运行态并执行平台无结果收口。前端由 `client/src/store/rankedStore.ts`、`client/src/components/pages/RankedPage.tsx` 和 `client/src/components/ranked/RankedGlobalLayer.tsx` 提供跨页面候场闭环，管理员由 `client/src/components/admin/RankedAdminPage.tsx` 管理赛季及纯文本公告、分页检索全赛季排位对局并核对胜负，以及执行带签名预览的异常结算和参数回算；排位基线、评分修订和赛季公告数据库结构分别由 `drizzle/0010_add_ranked_system.sql`、`drizzle/0017_add_ranked_rating_revisions.sql`、`drizzle/0018_add_ranked_season_announcement.sql` 提供。名为 V1 的首个生产赛季当前使用 `GLICKO1_PER_MATCH_V3`；未来新赛季默认 V4，使用 `ratingScale=800 / minimumRD=100 / 5 场定级 / 1800 中心成长池`，详见 [V4 评分设计](matchmaking-and-ladder/RANKED_V4_RATING_DESIGN.md)。V2→V3 停机迁移文档保留为历史运维与审计资料
+- 玩家徽章：`src/server/player-badges/award.ts` 在正常结算、迟到结果重建和追加式更正的评分事务中按持久规则幂等授予首届排位 3 场纪念徽章，并将第 3 场有效对局作为证据；`src/server/services/player-badge-service.ts` 与 `/api/player-badges/me` 只提供本人读取。`client/src/components/player-badges/BadgeShelf.tsx` 在个人中心展示可扩展徽章栏；历史补发由 `drizzle/data-migrations/award-first-ranked-season-badge.ts` 在显式校验赛季和 ledger revision 后执行
 - 赛季内评分参数修订：`src/server/services/ranked-rating-revision-service.ts` 以受限白名单从 V3/V4 当前冻结 config 构造唯一新修订，签名 dry-run 绑定 config 哈希、流水 revision、原因和操作人；应用在暂停排位且运行态/冻结环境校验通过后，以可串行化事务追加每场最新指令、重建玩家投影和单局 before/after 快照，并将完整新旧 config 与预览摘要保存在 `ranked_rating_revisions`。详见[参数修订与全量回算](matchmaking-and-ladder/RANKED_RATING_PARAMETER_REVISION.md)。
 - 维护期间新对局限制：`src/server/middleware/require-gameplay-available.ts` 会在维护或限制新开局状态下拦截新建/加入房间、准备开局、开局流程、重开接受和服务端对墙打创建/重开；进行中对局的快照、命令、观战、回放和离开入口不被主动中断
 - 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，并在重开时封存旧局、沿用锁定卡组快照创建新的 `matchId`；`client/src/lib/solitaireMatchRecovery.ts` 在同一浏览器标签页保存当前对墙打 matchId 并在刷新或重开后同步恢复目标，`src/server/services/solitaire-runtime-recovery-service.ts` 可在运行态缺失时从最新 authority checkpoint 和公共事件尾部恢复运行中对墙打，`src/server/routes/battle.ts` 提供对墙打创建、重开、运行中快照/命令/推进/离开、公共事件增量读取，以及中性历史读取入口

@@ -223,6 +223,19 @@ describe('RankedRatingService settlement', () => {
           call.text.includes('UPDATE ranked_seasons') && call.text.includes('ledger_revision = $2')
       )
     ).toBe(true);
+    const ledgerRevisionIndex = calls.findIndex(
+      (call) =>
+        call.text.includes('UPDATE ranked_seasons') && call.text.includes('ledger_revision = $2')
+    );
+    const badgeAwardIndex = calls.findIndex((call) =>
+      call.text.includes('INSERT INTO player_badges')
+    );
+    expect(badgeAwardIndex).toBeGreaterThan(ledgerRevisionIndex);
+    expect(calls[badgeAwardIndex]?.values[1]).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ]);
+    expect(calls[badgeAwardIndex]?.values[4]).toBe(3);
   });
 
   it('applies V4 growth to the real-time settlement projection after placement', async () => {
@@ -410,6 +423,12 @@ describe('RankedRatingService settlement', () => {
     expect(calls.some((call) => call.text.includes('DELETE FROM ranked_rating_events'))).toBe(
       false
     );
+    const badgeAward = calls.find((call) => call.text.includes('INSERT INTO player_badges'));
+    expect(badgeAward?.values[1]).toEqual([
+      firstUserId,
+      '22222222-2222-4222-8222-222222222222',
+      thirdUserId,
+    ]);
   });
 
   it('rebuilds when equal settlement times require an earlier match-id order', async () => {
@@ -689,5 +708,7 @@ describe('RankedRatingService corrections', () => {
     );
     expect(correctionInsert?.values).toContain('event-1');
     expect(correctionInsert?.values).toContain('平台故障导致结果不可靠');
+    expect(calls.some((call) => call.text.includes('DELETE FROM player_badges'))).toBe(false);
+    expect(calls.some((call) => call.text.includes('INSERT INTO player_badges'))).toBe(true);
   });
 });
