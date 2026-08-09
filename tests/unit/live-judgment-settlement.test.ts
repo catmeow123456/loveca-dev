@@ -56,6 +56,7 @@ import {
 import { LEGACY_GAME_STATE_SCHEMA_VERSION } from '../../src/server/services/replay-constants';
 import {
   HS_PB1_009_ON_HASUNOSORA_ENTER_GAIN_BLADE_ABILITY_ID,
+  KOTORI_LIVE_START_HEART_ABILITY_ID,
   S_BP2_023_LIVE_START_OTHER_AQOURS_LIVE_STAGE_MEMBERS_GAIN_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 
@@ -1235,6 +1236,92 @@ describe('Live 判定与结算', () => {
     expect(acceptResult.success).toBe(true);
     expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(true);
     expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(4);
+  });
+
+  it('旧 targetless SOURCE HEART 恢复后不会再通过遗留 PLAYER 投影重复计入 LIVE 判定', () => {
+    const service = new GameService();
+    const sourceMember = createCardInstance(
+      {
+        cardCode: 'PL!-sd1-003-SD',
+        name: '南ことり',
+        cardType: CardType.MEMBER as const,
+        cost: 13,
+        blade: 0,
+        hearts: [],
+      },
+      'p1',
+      'legacy-source-heart-member'
+    );
+    const live = createCardInstance(
+      {
+        cardCode: 'LEGACY-SOURCE-HEART-LIVE',
+        name: 'Legacy Source Heart Live',
+        cardType: CardType.LIVE as const,
+        score: 4,
+        requirements: createHeartRequirement({ [HeartColor.GREEN]: 2 }),
+      },
+      'p1',
+      'legacy-source-heart-live'
+    );
+
+    let game = registerCards(
+      createGameState('g-legacy-source-heart-no-double-count', 'p1', 'P1', 'p2', 'P2'),
+      [sourceMember, live]
+    );
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.CENTER,
+        sourceMember.instanceId
+      ),
+      liveZone: addCardToStatefulZone(player.liveZone, live.instanceId),
+    }));
+    const legacyState = {
+      ...game,
+      currentPhase: GamePhase.PERFORMANCE_PHASE,
+      currentSubPhase: SubPhase.PERFORMANCE_JUDGMENT,
+      currentTurnType: TurnType.FIRST_PLAYER_TURN,
+      activePlayerIndex: 0,
+      liveResolution: {
+        ...game.liveResolution,
+        isInLive: true,
+        performingPlayerId: 'p1',
+        playerHeartBonuses: new Map([['p1', [{ color: HeartColor.GREEN, count: 1 }]]]),
+        liveModifiers: [
+          {
+            kind: 'HEART',
+            playerId: 'p1',
+            hearts: [{ color: HeartColor.GREEN, count: 1 }],
+            sourceCardId: sourceMember.instanceId,
+            abilityId: KOTORI_LIVE_START_HEART_ABILITY_ID,
+          },
+        ],
+      },
+    };
+    const rehydrated = rehydrateAuthorityGameState(
+      serializeReplayPayload(legacyState, 'AUTHORITY_GAME_STATE', LEGACY_GAME_STATE_SCHEMA_VERSION)
+    );
+
+    expect(rehydrated.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        sourceCardId: sourceMember.instanceId,
+      }),
+    ]);
+    expect(rehydrated.liveResolution.playerHeartBonuses.size).toBe(0);
+
+    const acceptResult = service.processAction(rehydrated, {
+      type: 'CONFIRM_JUDGMENT',
+      playerId: 'p1',
+      judgmentResults: new Map(),
+      timestamp: Date.now(),
+    });
+
+    expect(acceptResult.success).toBe(true);
+    expect(acceptResult.gameState.liveResolution.liveResults.get(live.instanceId)).toBe(false);
+    expect(acceptResult.gameState.liveResolution.playerScores.get('p1')).toBe(0);
   });
 
   it('TARGET_MEMBER Heart modifier helps LIVE judgment while the target member is resting', () => {

@@ -2,8 +2,8 @@
 
 > 文档类型：实现契约 / review 基线
 > 适用范围：`DebugReplayBundle`、`Replay Checkpoint`、历史回放读取前的权威状态复水
-> 当前状态：v0.5；authority checkpoint 新写入统一使用 GZIP/BASE64_JSON envelope 与 GAME_STATE_V2
-> 最后更新：2026-08-05
+> 当前状态：v0.6；authority checkpoint 新写入统一使用 GZIP/BASE64_JSON envelope 与 GAME_STATE_V2
+> 最后更新：2026-08-09
 
 ## 1. 契约目的
 
@@ -27,7 +27,7 @@
 - 读取后：先解压和 JSON parse，再 `fromTransport<T>(payload)` 复水。
 - 普通玩家读取：复水后的 authority checkpoint 只能在服务端投影为 `PlayerViewState` 后返回，不能把权威 payload 交给前端隐藏。
 - 历史回放正式读取、管理员读取与管理员导入只接受 `GZIP/BASE64_JSON` payload；旧 `NONE/JSON_VALUE` 只能由停机迁移工具读取并立即转写为新格式。
-- 新 authority state 写入 `GAME_STATE_V2`；其中 BLADE modifier 必须显式且互斥地写入 `SOURCE_MEMBER` / `TARGET_MEMBER` / `PLAYER`。
+- 新 authority state 写入 `GAME_STATE_V2`；其中 BLADE 与 HEART modifier 必须显式且互斥地写入 `SOURCE_MEMBER` / `TARGET_MEMBER` / `PLAYER`。`TARGET_MEMBER` 必须分别记录真实 `sourceCardId` 与 `targetMemberCardId`，即使两者恰好是同一实例也不能退化为 `SOURCE_MEMBER`。
 - `GAME_STATE_V1` 只在 authority 复水边界按冻结的 abilityId 审计表做窄迁移；未审计、缺 abilityId 或同 abilityId 历史上混合多种作用域时必须拒绝，不得通过 `sourceCardId` 的卡牌类型推测。
 
 如果未来新增 replay 专用 serializer，应满足同等或更强的复水能力，并通过 payload schema version 与 `serializer` 字段区分，不能静默替换旧格式。
@@ -202,6 +202,17 @@ BLADE 作用域另有一个只限 `AUTHORITY_GAME_STATE` 的 `GAME_STATE_V1` 窄
 - V2 中缺 `target`、`SOURCE_MEMBER` 缺 `sourceCardId`、`TARGET_MEMBER` 缺 `targetMemberCardId`、`PLAYER` 却带 `targetMemberCardId` 都是不可复水的非法形状。
 
 该迁移只改变复水出的内存对象，不改写原 checkpoint。旧 TARGET 已丢失的真实来源只能在 V1 fixture 的 `liveResolution.liveModifiers` 比较中，按“审计表确认受益者曾存于 `sourceCardId`、同 abilityId、同 `TARGET_MEMBER`、同 `targetMemberCardId`”窄条件忽略新状态多出的 `sourceCardId`；不得删除或忽略 `target`。
+
+HEART 作用域也只允许在 `AUTHORITY_GAME_STATE` 复水边界做按 abilityId 冻结的窄规范化：
+
+- V2 HEART 必须显式写入合法 `target`。`SOURCE_MEMBER` 必须有 `sourceCardId` 且不能有 `targetMemberCardId`；`TARGET_MEMBER` 必须同时有 `sourceCardId` 与 `targetMemberCardId`；`PLAYER` 不能有 `targetMemberCardId`。
+- HEART 向量必须非空；颜色必须是当前 `HeartColor`；数量必须是正的安全整数。
+- V1 无 `target` 的 HEART 只接受审计表中 3 个历史上明确表示 SOURCE_MEMBER、且 `sourceCardId` 确实保存来源成员实例的 abilityId。未知 abilityId、缺 abilityId、字段缺失或与冻结编码冲突时拒绝，不从卡牌类型、ID 相等关系或缺失字段推测作用域。
+- 另有 3 个 abilityId 在 V1/V2 历史上可能把“选择来源成员自身为受益者”的 TARGET_MEMBER 错写为 SOURCE_MEMBER。复水器只对这 3 个已核实 abilityId 做无损改写：保留真实 `sourceCardId`，显式写入 `target: 'TARGET_MEMBER'`，并令 `targetMemberCardId` 等于同一实例 ID。其他 abilityId 不适用该规则。
+- 不存在“无 `target` 即 PLAYER”的迁移规则。PLAYER HEART 只有在持久对象显式写入 `target: 'PLAYER'` 时才成立。
+- 规范化完成后，`playerHeartBonuses` 必须从规范化后的 `liveModifiers` 重建，避免历史 targetless SOURCE HEART 同时作为成员 HEART 和旧 PLAYER 兼容投影重复计入 LIVE 判定。
+
+上述 6 个 abilityId 及其历史编码冻结在 `legacy-persisted-heart-scopes.ts`，并由序列化测试锁定。该规范化只改变复水出的内存对象，不改写原 checkpoint，也不在运行中 command/session 路径保留旧格式 dual-read。
 
 不得：
 
