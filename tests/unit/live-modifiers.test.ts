@@ -10405,7 +10405,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
     expect(afterOtherTargetLeaves.liveResolution.playerScoreBonuses.has('p1')).toBe(false);
   });
 
-  it('removes source-member BLADE by member instance while preserving unrelated modifiers', () => {
+  it('removes source-member HEART/BLADE by member instance while preserving unrelated modifiers', () => {
     const matchingBlade = {
       kind: 'BLADE' as const,
       target: 'SOURCE_MEMBER' as const,
@@ -10422,6 +10422,39 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       sourceCardId: 'other-member',
       abilityId: 'other-blade',
     };
+    const matchingHeart = {
+      kind: 'HEART' as const,
+      target: 'SOURCE_MEMBER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.GREEN, count: 1 }],
+      sourceCardId: 'leaving-member',
+      abilityId: 'matching-source-heart',
+    };
+    const otherHeart = {
+      kind: 'HEART' as const,
+      target: 'SOURCE_MEMBER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      sourceCardId: 'other-member',
+      abilityId: 'other-source-heart',
+    };
+    const targetHeartFromLeavingSource = {
+      kind: 'HEART' as const,
+      target: 'TARGET_MEMBER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.PINK, count: 1 }],
+      sourceCardId: 'leaving-member',
+      targetMemberCardId: 'beneficiary-member',
+      abilityId: 'target-heart-from-leaving-source',
+    };
+    const playerHeart = {
+      kind: 'HEART' as const,
+      target: 'PLAYER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.PURPLE, count: 1 }],
+      sourceCardId: 'leaving-member',
+      abilityId: 'player-heart',
+    };
     const playerScore = {
       kind: 'SCORE' as const,
       playerId: 'p1',
@@ -10432,11 +10465,15 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
     let game = createGameState('remove-stage-member-bound-blade', 'p1', 'P1', 'p2', 'P2');
     game = addLiveModifier(game, matchingBlade);
     game = addLiveModifier(game, otherBlade);
+    game = addLiveModifier(game, matchingHeart);
+    game = addLiveModifier(game, otherHeart);
+    game = addLiveModifier(game, targetHeartFromLeavingSource);
+    game = addLiveModifier(game, playerHeart);
     game = addLiveModifier(game, playerScore);
 
     expect(
       removeStageMemberBoundLiveModifiers(game, ['leaving-member']).liveResolution.liveModifiers
-    ).toEqual([otherBlade, playerScore]);
+    ).toEqual([otherBlade, otherHeart, targetHeartFromLeavingSource, playerHeart, playerScore]);
   });
 });
 

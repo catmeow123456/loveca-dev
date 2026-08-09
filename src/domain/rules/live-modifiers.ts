@@ -3302,11 +3302,11 @@ export function removeStageMemberBoundLiveModifiers(
       'targetMemberCardId' in modifier ? modifier.targetMemberCardId : undefined;
     const targetBound = targetMemberCardId !== undefined && memberCardIdSet.has(targetMemberCardId);
     const memberBound = 'memberCardId' in modifier && memberCardIdSet.has(modifier.memberCardId);
-    const sourceMemberBoundBlade =
-      modifier.kind === 'BLADE' &&
+    const sourceMemberBound =
+      (modifier.kind === 'BLADE' || modifier.kind === 'HEART') &&
       modifier.target === 'SOURCE_MEMBER' &&
       memberCardIdSet.has(modifier.sourceCardId);
-    return !(targetBound || memberBound || sourceMemberBoundBlade);
+    return !(targetBound || memberBound || sourceMemberBound);
   });
   return liveModifiers.length === game.liveResolution.liveModifiers.length
     ? game
