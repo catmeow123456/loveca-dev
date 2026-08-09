@@ -6,7 +6,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForTargetMember,
   getMemberEffectiveHeartIcons,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
@@ -119,9 +119,9 @@ function finishHsPb1016PurpleHeartTarget(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(game, {
+  const heartResult = addHeartLiveModifierForTargetMember(game, {
     playerId: player.id,
-    memberCardId: selectedCardId,
+    targetMemberCardId: selectedCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [{ color: HeartColor.PURPLE, count: 1 }],

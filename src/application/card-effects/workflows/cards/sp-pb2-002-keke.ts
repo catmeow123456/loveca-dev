@@ -9,7 +9,7 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import {
   CardType,
   GamePhase,
@@ -428,11 +428,11 @@ function finishHeartTargetSelection(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(game, {
+  const heartResult = addHeartLiveModifierForTargetMember(game, {
     playerId: player.id,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
-    memberCardId: selectedCardId,
+    targetMemberCardId: selectedCardId,
     hearts: HEART_BONUS,
   });
   if (!heartResult) {

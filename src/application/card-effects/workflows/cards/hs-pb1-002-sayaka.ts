@@ -7,7 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   addMemberCostLiveModifierForMember,
 } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, GamePhase, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
@@ -265,9 +265,8 @@ function resolveHsPb1002SayakaLiveStart(
     );
   }
 
-  const heartResult = addHeartLiveModifierForMember(game, {
+  const heartResult = addHeartLiveModifierForSourceMember(game, {
     playerId: player.id,
-    memberCardId: ability.sourceCardId,
     sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
     hearts: [createHeartIcon(HeartColor.BLUE, countedMemberBelowCount)],

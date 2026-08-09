@@ -5,7 +5,7 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import {
   CardType,
   GamePhase,
@@ -174,11 +174,10 @@ function finishActivatedChooseHeart(
     );
   }
 
-  const heartResult = addHeartLiveModifierForMember(game, {
+  const heartResult = addHeartLiveModifierForSourceMember(game, {
     playerId: player.id,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
-    memberCardId: effect.sourceCardId,
     hearts: [{ color: option.color, count: 1 }],
   });
   if (!heartResult) {

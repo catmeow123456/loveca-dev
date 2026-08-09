@@ -1,6 +1,6 @@
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { addAction, getCardById, getPlayerById, updateLiveResolution, type GameState, type LiveModifierState, type PendingAbilityState } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember, replaceLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { PL_N_BP3_009_LIVE_START_BOTTOM_TWO_WAITING_MEMBERS_COST_SUM_REWARD_ABILITY_ID } from '../../ability-ids.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -73,7 +73,7 @@ function finish(game: GameState, selected: readonly string[], cont: Continue): G
   const sum = costs[0] + costs[1];
   let state = moved.gameState;
   if (sum === 6) state = drawCardsForPlayer(state, effect.controllerId, 1)?.gameState ?? state;
-  if (sum === 8) state = addHeartLiveModifierForMember(state, { playerId: effect.controllerId, memberCardId: effect.sourceCardId, hearts: [{ color: HeartColor.RAINBOW, count: 1 }], sourceCardId: effect.sourceCardId, abilityId: effect.abilityId })?.gameState ?? state;
+  if (sum === 8) state = addHeartLiveModifierForSourceMember(state, { playerId: effect.controllerId, hearts: [{ color: HeartColor.RAINBOW, count: 1 }], sourceCardId: effect.sourceCardId, abilityId: effect.abilityId })?.gameState ?? state;
   if (sum === 25) state = replacePlayerScore(state, effect.controllerId, effect.sourceCardId, effect.abilityId, 1);
   return cont(addAction(state, 'RESOLVE_ABILITY', effect.controllerId, { pendingAbilityId: effect.id, abilityId: effect.abilityId, sourceCardId: effect.sourceCardId, step: 'BOTTOM_TWO_COST_SUM_REWARD', movedCardIds: selected, costSum: sum }), effect.metadata?.orderedResolution === true);
 }

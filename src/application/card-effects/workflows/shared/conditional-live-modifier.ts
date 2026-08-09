@@ -20,6 +20,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import {
+  addHeartLiveModifierForSourceMember,
   addPlayerScoreLiveModifierForTargetMember,
   addLiveModifier,
   collectLiveModifiers,
@@ -829,14 +830,15 @@ function createLiveRequirementGainHeartWorkflow(
         activeEffect: null,
       };
       if (context.conditionMet) {
-        state = addLiveModifier(state, {
-          kind: 'HEART',
-          target: 'SOURCE_MEMBER',
+        const modifierResult = addHeartLiveModifierForSourceMember(state, {
           playerId,
-          hearts: [{ color: config.color, count: 1 }],
           sourceCardId: effect.sourceCardId,
           abilityId: effect.abilityId,
+          hearts: [{ color: config.color, count: 1 }],
         });
+        if (modifierResult) {
+          state = modifierResult.gameState;
+        }
       }
 
       return {

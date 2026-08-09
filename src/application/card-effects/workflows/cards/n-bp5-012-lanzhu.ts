@@ -7,7 +7,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { GamePhase, HeartColor, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
@@ -98,9 +98,8 @@ function startLanzhuActivatedStackEnergyDrawHeart(
   if (!drawResult) {
     return game;
   }
-  const heartResult = addHeartLiveModifierForMember(drawResult.gameState, {
+  const heartResult = addHeartLiveModifierForSourceMember(drawResult.gameState, {
     playerId: player.id,
-    memberCardId: cardId,
     sourceCardId: cardId,
     abilityId: N_BP5_012_ACTIVATED_STACK_ENERGY_BELOW_DRAW_GAIN_PINK_HEART_ABILITY_ID,
     hearts: [{ color: HeartColor.PINK, count: 1 }],

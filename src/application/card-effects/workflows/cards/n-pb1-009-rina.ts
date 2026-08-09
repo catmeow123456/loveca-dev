@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { selectNoBladeHeartMemberCardIdsMovedFromLiveZoneToWaitingThisTurn } from '../../../../domain/rules/member-turn-state.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { PL_N_PB1_009_LIVE_START_NO_BLADE_HEART_MEMBER_LIVE_TO_WAITING_DRAW_GAIN_YELLOW_BLUE_PURPLE_HEART_ABILITY_ID } from '../../ability-ids.js';
@@ -81,9 +81,8 @@ function resolveRinaLiveStart(
   const sourceSlot = getSourceMemberSlot(stateAfterDraw, player.id, ability.sourceCardId);
   const heartResult =
     conditionMet && sourceSlot !== null
-      ? addHeartLiveModifierForMember(stateAfterDraw, {
+      ? addHeartLiveModifierForSourceMember(stateAfterDraw, {
           playerId: player.id,
-          memberCardId: ability.sourceCardId,
           sourceCardId: ability.sourceCardId,
           abilityId: ability.abilityId,
           hearts: HEART_BONUS,

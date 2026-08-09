@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   BP3_LIVE_START_SUCCESS_COUNT_CHOOSE_PINK_YELLOW_PURPLE_HEART_ABILITY_ID,
@@ -179,9 +179,8 @@ function finishLiveStartSuccessCountChooseHeart(
     );
   }
 
-  const heartResult = addHeartLiveModifierForMember(stateWithoutActiveEffect, {
+  const heartResult = addHeartLiveModifierForSourceMember(stateWithoutActiveEffect, {
     playerId: player.id,
-    memberCardId: effect.sourceCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [{ color: selectedColor, count: successLiveCount }],

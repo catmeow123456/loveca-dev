@@ -2916,7 +2916,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: HS_PB1_016_ON_ENTER_EFFECT_TEXT,
     notes:
-      '单卡 ON_ENTER workflow `hs-pb1-016-izumi.ts`；候选与确认时均用 getMemberEffectiveHeartIcons 判断当前有效紫 Heart，排除来源成员，成功后通过 addHeartLiveModifierForMember 写 TARGET_MEMBER 紫 Heart。',
+      '单卡 ON_ENTER workflow `hs-pb1-016-izumi.ts`；候选与确认时均用 getMemberEffectiveHeartIcons 判断当前有效紫 Heart，排除来源成员，成功后通过 addHeartLiveModifierForTargetMember 写 TARGET_MEMBER 紫 Heart。',
   },
   {
     abilityId: HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -6797,7 +6797,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_BP5_024_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow `sp-bp5-024-miracle-new-story.ts`；结算时若自己舞台没有本回合移动过的成员则不打开空颜色选择并消费 pending。存在目标时打开桃/赤/紫 Heart 选择，逐个目标复用 addHeartLiveModifierForMember 写 member-level Heart +1。',
+      '单卡 LIVE_START workflow `sp-bp5-024-miracle-new-story.ts`；结算时若自己舞台没有本回合移动过的成员则不打开空颜色选择并消费 pending。存在目标时打开桃/赤/紫 Heart 选择，逐个目标复用 addHeartLiveModifierForTargetMember 写 member-level Heart +1。',
   },
   {
     abilityId: SP_BP5_025_LIVE_SUCCESS_PAY_ANY_ENERGY_THIS_LIVE_SCORE_ABILITY_ID,
@@ -8193,7 +8193,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: S_BP5_017_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow `s-bp5-017-mari.ts`；无交互 queued pending 走 manual confirm-only，并实时展示当前 LIVE 卡区必要 [青ハート] 合计与实际是否获得 [青ハート]。结算时重查来源仍在己方舞台，只统计 LIVE 卡区卡牌的印刷必要 Heart，满足时复用 addHeartLiveModifierForMember 写 SOURCE_MEMBER 蓝 Heart +1。',
+      '单卡 LIVE_START workflow `s-bp5-017-mari.ts`；无交互 queued pending 走 manual confirm-only，并实时展示当前 LIVE 卡区必要 [青ハート] 合计与实际是否获得 [青ハート]。结算时重查来源仍在己方舞台，只统计 LIVE 卡区卡牌的印刷必要 Heart，满足时复用 addHeartLiveModifierForSourceMember 写 SOURCE_MEMBER 蓝 Heart +1。',
   },
   {
     abilityId: S_BP6_010_LIVE_START_RED_REQUIREMENT_GAIN_RED_HEART_ABILITY_ID,
@@ -9436,7 +9436,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP3_025_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow `n-bp3-025-awakening-promise.ts`；选择自己舞台1名下方存在能量的成员，再选择该成员下方任意张能量放回能量卡组。移动复用 `energy-below.ts` 的窄 helper 校验所选能量仍在目标槽下方；放回 N 张后通过 `addHeartLiveModifierForMember` 给目标成员写入 [赤ハート] x (N*3)。不发动、无目标、目标离场或 stale 能量均 no-op。',
+      '单卡 LIVE_START workflow `n-bp3-025-awakening-promise.ts`；选择自己舞台1名下方存在能量的成员，再选择该成员下方任意张能量放回能量卡组。移动复用 `energy-below.ts` 的窄 helper 校验所选能量仍在目标槽下方；放回 N 张后通过 `addHeartLiveModifierForTargetMember` 给目标成员写入 [赤ハート] x (N*3)。不发动、无目标、目标离场或 stale 能量均 no-op。',
   },
   {
     abilityId:
@@ -10295,7 +10295,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText: PL_BP3_009_ACTIVATED_EFFECT_TEXT,
     perTurnLimit: 1,
     notes:
-      '窄单卡 activated workflow `pl-bp3-009-nico.ts`；费用复用 setMemberOrientation 与 member-state trigger wrapper 将此成员 ACTIVE->WAITING，成功后才记录回合次数并强制三选一。选择后复用 addHeartLiveModifierForMember 写 SOURCE_MEMBER 粉/黄/紫 Heart +1。',
+      '窄单卡 activated workflow `pl-bp3-009-nico.ts`；费用复用 setMemberOrientation 与 member-state trigger wrapper 将此成员 ACTIVE->WAITING，成功后才记录回合次数并强制三选一。选择后复用 addHeartLiveModifierForSourceMember 写 SOURCE_MEMBER 粉/黄/紫 Heart +1。',
     activatedUi: {
       abilityId: PL_BP3_009_ACTIVATED_WAIT_SELF_CHOOSE_HEART_ABILITY_ID,
       text: PL_BP3_009_ACTIVATED_EFFECT_TEXT,
@@ -10341,7 +10341,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_BP3_008_LIVE_START_EFFECT_TEXT,
     notes:
-      "窄单卡 LIVE_START workflow `pl-bp3-008-hanayo.ts`；按日文可选发动。选择自己舞台上当前 ACTIVE 的结构化『μ's』成员变 WAITING，状态变化走 trigger wrapper；支付后来源仍在自己舞台时，以 addHeartLiveModifierForMember 写来源 SOURCE_MEMBER [黄ハート] +2。decline、无目标和陈旧选择均不支付。",
+      "窄单卡 LIVE_START workflow `pl-bp3-008-hanayo.ts`；按日文可选发动。选择自己舞台上当前 ACTIVE 的结构化『μ's』成员变 WAITING，状态变化走 trigger wrapper；支付后来源仍在自己舞台时，以 addHeartLiveModifierForSourceMember 写来源 SOURCE_MEMBER [黄ハート] +2。decline、无目标和陈旧选择均不支付。",
   },
   {
     abilityId: PL_BP3_019_LIVE_START_TWO_MUSE_LIVE_THIS_LIVE_SCORE_ABILITY_ID,
@@ -10401,7 +10401,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_BP3_024_LIVE_START_CHOOSE_HEART_EFFECT_TEXT,
     notes:
-      "窄单卡 workflow `pl-bp3-024-natsuiro-egao-de-1-2-jump.ts`；来源 LIVE 仍在自己的 LIVE 中、成功 LIVE 卡区非空且自己舞台有结构化 μ's 成员时，依次强制选择粉/黄/紫 Heart 与1名 μ's 成员，复用 stage target selector 与 addHeartLiveModifierForMember 写 TARGET_MEMBER Heart +1。",
+      "窄单卡 workflow `pl-bp3-024-natsuiro-egao-de-1-2-jump.ts`；来源 LIVE 仍在自己的 LIVE 中、成功 LIVE 卡区非空且自己舞台有结构化 μ's 成员时，依次强制选择粉/黄/紫 Heart 与1名 μ's 成员，复用 stage target selector 与 addHeartLiveModifierForTargetMember 写 TARGET_MEMBER Heart +1。",
   },
   {
     abilityId: PL_BP3_024_LIVE_START_SUCCESS_TWO_THIS_LIVE_SCORE_ABILITY_ID,
@@ -11829,7 +11829,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP4_007_CONTINUOUS_EFFECT_TEXT,
     notes:
-      'continuous live modifier registry；来源成员仍在自己的主舞台成员槽，且自己与对方 energyZone 合计 >=15 时，通过 createHeartLiveModifierForMember 动态收集 SOURCE_MEMBER [赤ハート]x2。来源离场或合计不足时动态不生效，不进 pending。',
+      'continuous live modifier registry；来源成员仍在自己的主舞台成员槽，且自己与对方 energyZone 合计 >=15 时，通过 createHeartLiveModifierForSourceMember 动态收集 SOURCE_MEMBER [赤ハート]x2。来源离场或合计不足时动态不生效，不进 pending。',
   },
   {
     abilityId: PL_N_BP4_007_LIVE_SUCCESS_EACH_PLAYER_PLACE_WAITING_ENERGY_ABILITY_ID,
@@ -11882,7 +11882,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP4_011_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow `n-bp4-011-mia-taylor.ts`；真实交互效果不套额外 confirm-only。启动时只允许选择手牌 LIVE 作为可选弃置成本，弃置通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入队手牌进休息室触发；支付后选择任意 Heart 颜色，并通过 addHeartLiveModifierForMember 写 SOURCE_MEMBER Heart。无手牌 LIVE、选择不发动、来源离场或来源无法获得 Heart 均安全消费/继续 pending。',
+      '单卡 LIVE_START workflow `n-bp4-011-mia-taylor.ts`；真实交互效果不套额外 confirm-only。启动时只允许选择手牌 LIVE 作为可选弃置成本，弃置通过 discardOneHandCardToWaitingRoomAndEnqueueTriggers 入队手牌进休息室触发；支付后选择任意 Heart 颜色，并通过 addHeartLiveModifierForSourceMember 写 SOURCE_MEMBER Heart。无手牌 LIVE、选择不发动、来源离场或来源无法获得 Heart 均安全消费/继续 pending。',
   },
   {
     abilityId: PL_N_BP4_011_LIVE_SUCCESS_MILL_FIVE_RECOVER_DISTINCT_NIJIGASAKI_LIVE_ABILITY_ID,
@@ -12134,7 +12134,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       title: '堆能量并抽1，获得[桃ハート]',
     },
     notes:
-      '单卡 activated workflow `n-bp5-012-lanzhu.ts`；主阶段当前玩家、来源仍在己方舞台且能量区至少1张时可发动。成本复用 stackEnergyFromEnergyZoneBelowMember，支付后记录 PAY_COST 与 turn use；之后 drawCardsForPlayer 抽1，并用 addHeartLiveModifierForMember 给来源成员写 SOURCE_MEMBER 桃 Heart。',
+      '单卡 activated workflow `n-bp5-012-lanzhu.ts`；主阶段当前玩家、来源仍在己方舞台且能量区至少1张时可发动。成本复用 stackEnergyFromEnergyZoneBelowMember，支付后记录 PAY_COST 与 turn use；之后 drawCardsForPlayer 抽1，并用 addHeartLiveModifierForSourceMember 给来源成员写 SOURCE_MEMBER 桃 Heart。',
   },
   {
     abilityId: N_BP5_012_LIVE_SUCCESS_LEADING_SCORE_PLACE_WAITING_ENERGY_BY_BELOW_ABILITY_ID,
@@ -12158,7 +12158,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: N_BP5_013_LIVE_START_EFFECT_TEXT,
     notes:
-      '单卡 LIVE_START workflow `n-bp5-013-ayumu.ts`；无交互 queued pending 走 manual confirm-only 语义。结算时重查来源仍在己方舞台且己方主舞台任一成员槽 energyBelow>0，满足时用 addHeartLiveModifierForMember 写 SOURCE_MEMBER 桃 Heart。',
+      '单卡 LIVE_START workflow `n-bp5-013-ayumu.ts`；无交互 queued pending 走 manual confirm-only 语义。结算时重查来源仍在己方舞台且己方主舞台任一成员槽 energyBelow>0，满足时用 addHeartLiveModifierForSourceMember 写 SOURCE_MEMBER 桃 Heart。',
   },
   {
     abilityId: N_BP5_014_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_NIJIGASAKI_LIVE_ABILITY_ID,

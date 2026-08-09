@@ -6,7 +6,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import type { EnterStageEvent } from '../../../../domain/events/game-events.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, OrientationState, TriggerCondition } from '../../../../shared/types/enums.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
 import { unitAliasIs } from '../../../effects/card-selectors.js';
@@ -269,9 +269,8 @@ function finishHsPb1001LiveStartPayEnergy(
     energyCardIds: costPayment.paidEnergyCardIds,
     amount: costPayment.paidEnergyCardIds.length,
   });
-  const heartResult = addHeartLiveModifierForMember(state, {
+  const heartResult = addHeartLiveModifierForSourceMember(state, {
     playerId: player.id,
-    memberCardId: effect.sourceCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [{ color: HeartColor.GREEN, count: 1 }],

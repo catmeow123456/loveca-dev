@@ -435,9 +435,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (sourceSlot !== SlotPosition.LEFT && sourceSlot !== SlotPosition.RIGHT) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP7_009_CONTINUOUS_SIDE_RED_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.RED, count: 1 }],
@@ -483,9 +482,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
       const count = countEnergyBelowSourceMember(game, playerId, sourceCardId);
       if (count === 0) return [];
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: N_BP7_007_CONTINUOUS_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.RED, count }],
@@ -500,9 +498,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!isSourceMainStageMember(game, playerId, sourceCardId)) return [];
       const count = Math.max(0, countPlayerEnergyCards(game, playerId) - 6);
       if (count === 0) return [];
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: N_BP7_007_CONTINUOUS_ENERGY_ABOVE_SIX_GAIN_RED_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.RED, count }],
@@ -558,9 +555,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       ) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: S_BP7_016_CONTINUOUS_STAGE_THREE_GAIN_RED_GREEN_BLUE_HEART_ABILITY_ID,
         hearts: [
@@ -592,9 +588,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (kaleidoscoreMemberCount < 3) {
         return [];
       }
-      const heartModifier = createHeartLiveModifierForMember(game, {
+      const heartModifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP7_013_CONTINUOUS_THREE_KALEIDOSCORE_GAIN_PURPLE_HEART_BLADE_ABILITY_ID,
         hearts: [{ color: HeartColor.PURPLE, count: 1 }],
@@ -621,9 +616,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP2_004_CONTINUOUS_CENTER_HIGHEST_STAGE_COST_GAIN_YELLOW_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.YELLOW, count: 1 }],
@@ -654,9 +648,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!successLiveScoreAtLeast(game, playerId, 6)) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: BP5_008_CONTINUOUS_SUCCESS_SCORE_YELLOW_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.YELLOW, count: 2 }],
@@ -677,9 +670,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (otherAriseMemberCount <= 0) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: PL_BP5_111_CONTINUOUS_OTHER_ARISE_BLUE_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.BLUE, count: otherAriseMemberCount }],
@@ -696,9 +688,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       ) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: PL_BP5_333_CONTINUOUS_WAITING_BLUE_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.BLUE, count: 1 }],
@@ -713,9 +704,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!hasLiveWithoutLiveStartOrSuccessAbility(game, playerId)) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: BP4_002_CONTINUOUS_LIVE_WITHOUT_TIMING_PURPLE_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.PURPLE, count: 2 }],
@@ -750,9 +740,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       ) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: PL_N_BP4_007_CONTINUOUS_TOTAL_ENERGY_FIFTEEN_GAIN_TWO_RED_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.RED, count: 2 }],
@@ -783,9 +772,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!hasAtLeastDifferentNamedStageMembers(game, playerId, 3)) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: BP5_003_CONTINUOUS_THREE_DIFFERENT_NAMES_YELLOW_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.YELLOW, count: 1 }],
@@ -822,9 +810,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!hasLiveZoneThreeIncludingNijigasakiLive(game, playerId)) {
         return [];
       }
-      const heartModifier = createHeartLiveModifierForMember(game, {
+      const heartModifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId:
           PL_N_BP1_012_CONTINUOUS_LIVE_ZONE_THREE_NIJIGASAKI_LIVE_GAIN_ALL_HEART_BLADE_ABILITY_ID,
@@ -858,9 +845,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: PL_N_PB1_007_CONTINUOUS_LIVE_REQUIREMENT_SIX_COLORS_GAIN_ALL_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.RAINBOW, count: 1 }],
@@ -892,9 +878,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!hasLiellaLiveWithRequirementTotalAtLeast(game, playerId, 8)) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP5_012_CONTINUOUS_LIELLA_LIVE_REQUIREMENT_EIGHT_YELLOW_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.YELLOW, count: 1 }],
@@ -918,9 +903,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       if (!heartColor) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP5_011_CONTINUOUS_SLOT_HEARTS_ABILITY_ID,
         hearts: [{ color: heartColor, count: 3 }],
@@ -939,9 +923,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_BP5_016_CONTINUOUS_ENERGY_TEN_GAIN_TWO_PURPLE_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.PURPLE, count: 2 }],
@@ -1395,9 +1378,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: HS_PB1_022_CONTINUOUS_RURINO_GAIN_TWO_PINK_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.PINK, count: 2 }],
@@ -1523,9 +1505,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: SP_SD2_008_CONTINUOUS_HIGH_COST_STAGE_MEMBER_GAIN_YELLOW_HEART_ABILITY_ID,
         hearts: [{ color: HeartColor.YELLOW, count: 1 }],
@@ -1561,9 +1542,8 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       ) {
         return [];
       }
-      const heartModifier = createHeartLiveModifierForMember(game, {
+      const heartModifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId:
           N_PR_020_S_PR_037_CONTINUOUS_OWN_STAGE_EXACT_TWO_GAIN_BLUE_HEART_BLADE_ABILITY_ID,
@@ -1632,18 +1612,16 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
       const totalSuccessfulLiveScore =
         sumSuccessfulLiveScore(game, playerId) +
         (opponent ? sumSuccessfulLiveScore(game, opponent.id) : 0);
-      return totalSuccessfulLiveScore >= 10
-        ? [
-            {
-              kind: 'HEART',
-              playerId,
-              target: 'SOURCE_MEMBER',
-              hearts: [{ color: HeartColor.PINK, count: 1 }],
-              sourceCardId,
-              abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
-            },
-          ]
-        : [];
+      if (totalSuccessfulLiveScore < 10) {
+        return [];
+      }
+      const modifier = createHeartLiveModifierForSourceMember(game, {
+        playerId,
+        sourceCardId,
+        abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+      });
+      return modifier ? [modifier] : [];
     },
   },
   ...createSideSlotBladeContinuousDefinitions([
@@ -2267,9 +2245,8 @@ function createEnergyThresholdHeartContinuousDefinitions(
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: definition.abilityId,
         hearts: [{ color: definition.heartColor, count: heartCount }],
@@ -2293,9 +2270,8 @@ function createActiveEnergyHeartContinuousDefinitions(
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: definition.abilityId,
         hearts: [{ color: definition.heartColor, count: definition.count }],
@@ -2316,9 +2292,8 @@ function createSuccessZoneUnitHeartContinuousDefinitions(
         return [];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: definition.abilityId,
         hearts: [{ color: definition.heartColor, count: 1 }],
@@ -2360,9 +2335,8 @@ function createTotalStageSixHeartContinuousDefinitions(
       ) {
         return [];
       }
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId,
         hearts: heartColors.map((color) => ({ color, count: 1 })),
@@ -2537,9 +2511,8 @@ function createEnergyComparisonContinuousModifierDefinition(
         ];
       }
 
-      const modifier = createHeartLiveModifierForMember(game, {
+      const modifier = createHeartLiveModifierForSourceMember(game, {
         playerId,
-        memberCardId: sourceCardId,
         sourceCardId,
         abilityId: config.abilityId,
         hearts: [{ color: config.reward.heartColor, count: config.reward.count }],
@@ -2691,9 +2664,8 @@ function collectPb1014FrontHighCostHeartModifier(
     return [];
   }
 
-  const modifier = createHeartLiveModifierForMember(game, {
+  const modifier = createHeartLiveModifierForSourceMember(game, {
     playerId,
-    memberCardId: sourceCardId,
     sourceCardId,
     abilityId: HS_PB1_014_CONTINUOUS_FRONT_HIGH_COST_PINK_HEART_ABILITY_ID,
     hearts: [{ color: HeartColor.PINK, count: 1 }],
@@ -2754,9 +2726,8 @@ function collectHsPb1007SerasPurpleHeartModifier(
   playerId: string,
   sourceCardId: string
 ): readonly LiveModifierState[] {
-  const modifier = createHeartLiveModifierForMember(game, {
+  const modifier = createHeartLiveModifierForSourceMember(game, {
     playerId,
-    memberCardId: sourceCardId,
     sourceCardId,
     abilityId: HS_PB1_007_CONTINUOUS_EXACT_TWO_OWN_OPPONENT_THREE_PURPLE_HEART_ABILITY_ID,
     hearts: [{ color: HeartColor.PURPLE, count: 1 }],
@@ -2769,9 +2740,8 @@ function collectHsBp5002SayakaContinuousModifiers(
   playerId: string,
   sourceCardId: string
 ): readonly LiveModifierState[] {
-  const heartModifier = createHeartLiveModifierForMember(game, {
+  const heartModifier = createHeartLiveModifierForSourceMember(game, {
     playerId,
-    memberCardId: sourceCardId,
     sourceCardId,
     abilityId: HS_BP5_002_CONTINUOUS_THREE_DIFFERENT_STAGE_MEMBER_COSTS_BLUE_HEART_BLADE_ABILITY_ID,
     hearts: [{ color: HeartColor.BLUE, count: 1 }],
@@ -2838,9 +2808,8 @@ function collectHsSd1004GinkoGreenHeartModifier(
   playerId: string,
   sourceCardId: string
 ): readonly LiveModifierState[] {
-  const modifier = createHeartLiveModifierForMember(game, {
+  const modifier = createHeartLiveModifierForSourceMember(game, {
     playerId,
-    memberCardId: sourceCardId,
     sourceCardId,
     abilityId: HS_SD1_004_CONTINUOUS_STAGE_KAHO_KOSUZU_HIME_GREEN_HEART_ABILITY_ID,
     hearts: [{ color: HeartColor.GREEN, count: 1 }],
@@ -3117,9 +3086,8 @@ function collectHsBp5016IzumiPurpleHeartModifier(
   playerId: string,
   sourceCardId: string
 ): readonly LiveModifierState[] {
-  const modifier = createHeartLiveModifierForMember(game, {
+  const modifier = createHeartLiveModifierForSourceMember(game, {
     playerId,
-    memberCardId: sourceCardId,
     sourceCardId,
     abilityId: HS_BP5_016_CONTINUOUS_OPPONENT_TWO_WAITING_PURPLE_HEART_ABILITY_ID,
     hearts: [{ color: HeartColor.PURPLE, count: 1 }],
@@ -3147,9 +3115,8 @@ function collectPlPb1002OpponentWaitingPurpleHeartModifiers(
   if (opponentWaitingMemberCount === 0) {
     return [];
   }
-  const modifier = createHeartLiveModifierForMember(game, {
+  const modifier = createHeartLiveModifierForSourceMember(game, {
     playerId,
-    memberCardId: sourceCardId,
     sourceCardId,
     abilityId: PL_PB1_002_CONTINUOUS_OPPONENT_WAITING_GAIN_PURPLE_HEART_ABILITY_ID,
     hearts: [{ color: HeartColor.PURPLE, count: opponentWaitingMemberCount }],

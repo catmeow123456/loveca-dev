@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { getCardIdsInZoneMatching } from '../../../effects/conditions.js';
@@ -129,9 +129,9 @@ function finishHsPb1025LiveStartGreenHeart(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(game, {
+  const heartResult = addHeartLiveModifierForTargetMember(game, {
     playerId: player.id,
-    memberCardId: selectedCardId,
+    targetMemberCardId: selectedCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [{ color: HeartColor.GREEN, count: 1 }],

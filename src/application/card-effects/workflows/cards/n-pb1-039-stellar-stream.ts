@@ -13,7 +13,7 @@ import {
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import { hasOwnSuccessOrCurrentLiveCardWithExactEffectiveRequiredHeartCount } from '../../../../domain/rules/live-card-effective-requirement.js';
 import {
-  createHeartLiveModifierForMember,
+  createHeartLiveModifierForTargetMember,
   getMemberEffectiveHeartIcons,
   replaceLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
@@ -139,9 +139,9 @@ function finishStellarStreamSelection(
     );
   }
 
-  const modifier = createHeartLiveModifierForMember(game, {
+  const modifier = createHeartLiveModifierForTargetMember(game, {
     playerId: player.id,
-    memberCardId: selectedCardId,
+    targetMemberCardId: selectedCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [createHeartIcon(HeartColor.PURPLE, 4)],

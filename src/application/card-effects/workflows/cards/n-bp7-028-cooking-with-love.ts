@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, groupAliasIs, hasBladeHeart, not, typeIs } from '../../../effects/card-selectors.js';
@@ -149,9 +149,9 @@ function finishCookingWithLove(
 
   let state = shuffleResult.gameState;
   for (const memberCardId of targetMemberCardIds) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForTargetMember(state, {
       playerId: player.id,
-      memberCardId,
+      targetMemberCardId: memberCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: HeartColor.PINK, count: 1 }],

@@ -10,7 +10,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
@@ -292,11 +292,10 @@ function finishMiaHeartSelection(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(
+  const heartResult = addHeartLiveModifierForSourceMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: selectedColor, count: 1 }],

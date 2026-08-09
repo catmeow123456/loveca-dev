@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { getKnownCardGroupIdentityName } from '../../../../shared/utils/card-identity.js';
 import { HS_BP5_006_LIVE_START_DISCARD_SAME_GROUP_CARDS_SOURCE_HEART_ABILITY_ID } from '../../ability-ids.js';
@@ -156,11 +156,10 @@ function finishHsBp5006HimeDiscard(
   }
 
   const hearts = [{ color: HeartColor.PINK, count: 2 }];
-  const modifierResult = addHeartLiveModifierForMember(
+  const modifierResult = addHeartLiveModifierForSourceMember(
     { ...discardResult.gameState, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts,

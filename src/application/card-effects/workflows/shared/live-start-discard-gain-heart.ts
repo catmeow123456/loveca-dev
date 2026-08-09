@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember, addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { hasOtherStageMember } from '../../../effects/conditions.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
@@ -376,11 +376,10 @@ function finishLiveStartDiscardGainHeartBonus(
 
   const heartCount = getHeartCountForEffect(effect.metadata);
   const heartBonus = { color: selectedColor, count: heartCount };
-  const modifierResult = addHeartLiveModifierForMember(
+  const modifierResult = addHeartLiveModifierForSourceMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [heartBonus],
@@ -500,11 +499,11 @@ function finishLiveStartDiscardGainHeartTarget(
       },
     };
   }
-  const modifierResult = addHeartLiveModifierForMember(
+  const modifierResult = addHeartLiveModifierForTargetMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [

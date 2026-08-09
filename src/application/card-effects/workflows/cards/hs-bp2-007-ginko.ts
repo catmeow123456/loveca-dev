@@ -7,7 +7,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { getCardNameCandidates } from '../../../../shared/utils/card-identity.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { cardNameAliasAny, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
@@ -330,11 +330,11 @@ function finishSameNameTarget(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(
+  const heartResult = addHeartLiveModifierForTargetMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: HeartColor.GREEN, count: 1 }],

@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   SP_BP1_024_LIVE_START_KANON_KEKE_GAIN_HEART_BLADE_ABILITY_ID,
@@ -313,9 +313,9 @@ function resolveTinyStarsLiveStartTargets(
   let kekeBladeBonus = 0;
 
   if (targets.kanonTargetId) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForTargetMember(state, {
       playerId: player.id,
-      memberCardId: targets.kanonTargetId,
+      targetMemberCardId: targets.kanonTargetId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.BLUE, count: 1 }],
@@ -338,9 +338,9 @@ function resolveTinyStarsLiveStartTargets(
   }
 
   if (targets.kekeTargetId) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForTargetMember(state, {
       playerId: player.id,
-      memberCardId: targets.kekeTargetId,
+      targetMemberCardId: targets.kekeTargetId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.PINK, count: 1 }],

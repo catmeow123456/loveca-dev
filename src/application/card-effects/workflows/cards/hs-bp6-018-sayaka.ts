@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition, ZoneType } from '../../../../shared/types/enums.js';
 import { HS_BP6_018_LEAVE_STAGE_DISCARD_TARGET_BLUE_HEART_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import {
@@ -228,11 +228,11 @@ function finishHsBp6018SayakaTarget(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(
+  const heartResult = addHeartLiveModifierForTargetMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: HeartColor.BLUE, count: 1 }],

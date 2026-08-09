@@ -6,7 +6,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import type { CheerEvent } from '../../../../domain/events/game-events.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   addLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
 import {
@@ -80,10 +80,9 @@ function resolveNBp5001AyumuOnCheer(
   });
 
   if (shouldGainHeart) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
       sourceCardId: ability.sourceCardId,
-      memberCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.PINK, count: 1 }],
     });

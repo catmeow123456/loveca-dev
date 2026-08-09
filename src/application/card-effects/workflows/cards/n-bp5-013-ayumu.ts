@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import { N_BP5_013_LIVE_START_ENERGY_BELOW_MEMBER_GAIN_PINK_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
@@ -62,10 +62,9 @@ function resolveAyumuEnergyBelowLiveStart(
   };
 
   if (condition.willGainHeart) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
       sourceCardId: ability.sourceCardId,
-      memberCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.PINK, count: 1 }],
     });

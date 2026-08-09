@@ -7,7 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForTargetMember,
   getMemberEffectiveHeartIcons,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
@@ -93,9 +93,9 @@ function resolveBringTheLoveLiveStart(
   const conditionMet = condition.conditionMet && centerMemberCardId !== null;
   const stateWithoutPending = removePending(game, ability.id);
   const heartResult = conditionMet
-    ? addHeartLiveModifierForMember(stateWithoutPending, {
+    ? addHeartLiveModifierForTargetMember(stateWithoutPending, {
         playerId: player.id,
-        memberCardId: centerMemberCardId,
+        targetMemberCardId: centerMemberCardId,
         sourceCardId: ability.sourceCardId,
         abilityId: ability.abilityId,
         hearts: [{ color: HeartColor.RAINBOW, count: 1 }],

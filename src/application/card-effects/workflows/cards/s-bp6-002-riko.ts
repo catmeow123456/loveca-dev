@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { startPendingActiveEffect } from '../../runtime/active-effect.js';
@@ -308,9 +308,8 @@ function resolveBp6002LiveStartAqoursRequirementGainAllHeart(
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
   if (conditionMet) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.RAINBOW, count: 2 }],

@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
 import { SP_PR_024_AUTO_ON_CHEER_SCORE_LIELLA_LIVE_GAIN_PURPLE_HEART_ABILITY_ID } from '../../ability-ids.js';
@@ -81,9 +81,8 @@ function resolveSpPr024SumireOnCheer(
   });
 
   if (conditionMet) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.PURPLE, count: 1 }],

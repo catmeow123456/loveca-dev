@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   getSharedCardUnitIdentity,
@@ -194,11 +194,10 @@ function finishSameUnitHeartBladeWorkflow(
   }
 
   const heartBonus = createHeartIcon(config.heartColor, 2);
-  const heartResult = addHeartLiveModifierForMember(
+  const heartResult = addHeartLiveModifierForSourceMember(
     { ...discardResult.gameState, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [heartBonus],

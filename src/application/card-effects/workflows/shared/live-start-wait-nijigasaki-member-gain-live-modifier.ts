@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, OrientationState } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { getStageMemberCardIdsMatching } from '../../../effects/stage-targets.js';
@@ -328,9 +328,8 @@ function finishHeartSelection(
     typeIs(CardType.MEMBER)
   ).includes(effect.sourceCardId);
   const modifierResult = sourceStillOnStage
-    ? addHeartLiveModifierForMember(stateWithoutEffect, {
+    ? addHeartLiveModifierForSourceMember(stateWithoutEffect, {
         playerId: player.id,
-        memberCardId: effect.sourceCardId,
         sourceCardId: effect.sourceCardId,
         abilityId: effect.abilityId,
         hearts: [{ color: selectedColor, count: 1 }],

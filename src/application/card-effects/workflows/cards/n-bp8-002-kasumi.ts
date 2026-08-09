@@ -5,7 +5,7 @@ import {
   getPlayerById,
   type GameState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { GamePhase, HeartColor, OrientationState } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
@@ -129,9 +129,9 @@ function finishActivatedAbility(
     movedCardIds: move.movedCardIds,
     destination: 'MAIN_DECK_BOTTOM',
   });
-  const heart = addHeartLiveModifierForMember(stateAfterCost, {
+  const heart = addHeartLiveModifierForTargetMember(stateAfterCost, {
     playerId: player.id,
-    memberCardId: selectedCardId,
+    targetMemberCardId: selectedCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [{ color: HeartColor.YELLOW, count: 1 }],

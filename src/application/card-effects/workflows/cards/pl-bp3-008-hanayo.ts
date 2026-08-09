@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, GamePhase, HeartColor, OrientationState, SlotPosition } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
@@ -313,9 +313,8 @@ function finishLiveStartOptionalWait(
     effect.sourceCardId
   ) !== null;
   const heartResult = sourceStillOnStage
-    ? addHeartLiveModifierForMember(stateWithTriggers.gameState, {
+    ? addHeartLiveModifierForSourceMember(stateWithTriggers.gameState, {
         playerId: player.id,
-        memberCardId: effect.sourceCardId,
         sourceCardId: effect.sourceCardId,
         abilityId: effect.abilityId,
         hearts: YELLOW_HEART_BONUS,

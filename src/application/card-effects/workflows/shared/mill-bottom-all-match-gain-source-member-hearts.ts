@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import {
@@ -230,9 +230,8 @@ function finishMillBottomGainSourceMemberHearts(
   let state: GameState = { ...game, activeEffect: null };
   let modifierApplied = false;
   if (conditionMet && getSourceMemberSlot(state, player.id, effect.sourceCardId) !== null) {
-    const modifierResult = addHeartLiveModifierForMember(state, {
+    const modifierResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: config.hearts,

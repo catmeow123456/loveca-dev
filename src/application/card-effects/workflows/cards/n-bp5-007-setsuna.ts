@@ -5,7 +5,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { getRemainingHeartTotalCount } from '../../../effects/remaining-hearts.js';
 import {
@@ -95,9 +95,8 @@ function resolveLiveStartEqualSuccessZones(
     pendingAbilities: game.pendingAbilities.filter((candidate) => candidate.id !== ability.id),
   };
   const heartResult = conditionMet
-    ? addHeartLiveModifierForMember(stateWithoutPending, {
+    ? addHeartLiveModifierForSourceMember(stateWithoutPending, {
         playerId: player.id,
-        memberCardId: ability.sourceCardId,
         sourceCardId: ability.sourceCardId,
         abilityId: ability.abilityId,
         hearts: [{ color: HeartColor.RED, count: 2 }],

@@ -9,7 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import type { CheerEvent } from '../../../../domain/events/game-events.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
 } from '../../../../domain/rules/live-modifiers.js';
 import {
   CardType,
@@ -313,9 +313,8 @@ function resolveBp5004UmiOnCheer(
   });
 
   const heartResult = conditionMet
-    ? addHeartLiveModifierForMember(state, {
+    ? addHeartLiveModifierForSourceMember(state, {
         playerId: player.id,
-        memberCardId: ability.sourceCardId,
         sourceCardId: ability.sourceCardId,
         abilityId: ability.abilityId,
         hearts: [{ color: HeartColor.RAINBOW, count: 1 }],

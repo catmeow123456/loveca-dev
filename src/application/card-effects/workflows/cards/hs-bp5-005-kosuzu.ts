@@ -7,7 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   addMemberCostSetLiveModifierForMember,
 } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
@@ -294,9 +294,8 @@ function finishHsBp5005KosuzuTargetSelection(
   );
   const heartResult =
     sourceEffectiveCost >= 10
-      ? addHeartLiveModifierForMember(costResult.gameState, {
+      ? addHeartLiveModifierForSourceMember(costResult.gameState, {
           playerId: player.id,
-          memberCardId: effect.sourceCardId,
           sourceCardId: effect.sourceCardId,
           abilityId: effect.abilityId,
           hearts: [{ color: HeartColor.BLUE, count: 1 }],

@@ -6,7 +6,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import type { EnterStageEvent } from '../../../../domain/events/game-events.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import {
   CardType,
   HeartColor,
@@ -283,9 +283,8 @@ function finishKotoriLiveStart(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(stackResult.gameState, {
+  const heartResult = addHeartLiveModifierForSourceMember(stackResult.gameState, {
     playerId: player.id,
-    memberCardId: effect.sourceCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [createHeartIcon(selectedOptionId, 1)],

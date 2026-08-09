@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition } from '../../../../shared/types/enums.js';
 import { returnSelectedEnergyBelowMemberToEnergyDeck } from '../../../effects/energy-below.js';
 import { PL_N_BP3_025_LIVE_START_RETURN_ENERGY_BELOW_GAIN_RED_HEART_ABILITY_ID } from '../../ability-ids.js';
@@ -227,9 +227,9 @@ function finishReturnEnergyBelowGainRedHeart(
     return game;
   }
   const heartCount = returnResult.returnedEnergyCardIds.length * RED_HEARTS_PER_ENERGY;
-  const heartResult = addHeartLiveModifierForMember(returnResult.gameState, {
+  const heartResult = addHeartLiveModifierForTargetMember(returnResult.gameState, {
     playerId: player.id,
-    memberCardId: targetMemberCardId,
+    targetMemberCardId: targetMemberCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [{ color: HeartColor.RED, count: heartCount }],

@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   HS_PB1_003_AUTO_HAND_TO_WAITING_GAIN_HEART_BLADE_ABILITY_ID,
@@ -51,9 +51,8 @@ function resolveHsPb1003RurinoHandToWaitingAuto(
     sourceCardId: ability.sourceCardId,
   });
 
-  const heartResult = addHeartLiveModifierForMember(state, {
+  const heartResult = addHeartLiveModifierForSourceMember(state, {
     playerId: player.id,
-    memberCardId: ability.sourceCardId,
     sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
     hearts: [{ color: HeartColor.PINK, count: 1 }],

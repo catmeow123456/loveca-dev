@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, OrientationState } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
@@ -221,11 +221,11 @@ function finishHsSd1003Target(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(
+  const heartResult = addHeartLiveModifierForTargetMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: HeartColor.PINK, count: 1 }],
