@@ -16,6 +16,7 @@ import {
   type RankedWinnerSeat,
 } from '../rating/ranked-ledger.js';
 import { awardEligibleFirstRankedSeasonBadges } from '../player-badges/award.js';
+import { captureRankedDeckObservations } from './ranked-deck-observation-service.js';
 import { stableJsonStringify } from './replay-payload-serialization.js';
 
 export interface RankedRatingQueryResult<T> {
@@ -252,6 +253,12 @@ export class RankedRatingService {
           409
         );
       }
+      await captureRankedDeckObservations(client, {
+        seasonId: context.season_id,
+        matchId: context.match_id,
+        firstUserId: context.first_user_id,
+        secondUserId: context.second_user_id,
+      });
       return mapRegisteredMatch(registered);
     });
   }

@@ -43,6 +43,7 @@
     "db:pull": "drizzle-kit pull --config drizzle.config.ts",
     "db:studio": "drizzle-kit studio --config drizzle.config.ts",
     "ranked:v3:migrate": "tsx scripts/migrate-ranked-season-v3.ts",
+    "ranked:environment:backfill": "tsx drizzle/data-migrations/backfill-ranked-deck-observations.ts",
     "badges:first-ranked:backfill": "tsx drizzle/data-migrations/award-first-ranked-season-badge.ts",
     "build:client": "cd client && pnpm build",
     "start:prod": "cd client && pnpm preview --port 4173 --host",

@@ -4,6 +4,10 @@ import { requireAuth } from '../middleware/require-auth.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
 import { PublicTableServiceError } from '../services/public-table-service.js';
 import {
+  RankedEnvironmentServiceError,
+  rankedEnvironmentService,
+} from '../services/ranked-environment-service.js';
+import {
   RankedPlayerServiceError,
   rankedPlayerService,
 } from '../services/ranked-player-service.js';
@@ -35,6 +39,22 @@ rankedRouter.get('/overview', async (req, res) => {
   }
   try {
     respondData(res, await rankedPlayerService.getOverview(req.user!.id, parsed.data.seasonId));
+  } catch (error) {
+    respondRankedError(res, error);
+  }
+});
+
+rankedRouter.get('/environment', async (req, res) => {
+  const parsed = z.object({ seasonId: z.string().uuid() }).safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({
+      data: null,
+      error: { code: 'INVALID_REQUEST', message: '赛季参数无效' },
+    });
+    return;
+  }
+  try {
+    respondData(res, await rankedEnvironmentService.getSeasonEnvironment(parsed.data.seasonId));
   } catch (error) {
     respondRankedError(res, error);
   }
@@ -86,7 +106,11 @@ function respondData(res: Response, data: unknown): void {
 }
 
 function respondRankedError(res: Response, error: unknown): void {
-  if (error instanceof RankedPlayerServiceError || error instanceof PublicTableServiceError) {
+  if (
+    error instanceof RankedPlayerServiceError ||
+    error instanceof RankedEnvironmentServiceError ||
+    error instanceof PublicTableServiceError
+  ) {
     res.status(error.statusCode).json({
       data: null,
       error: { code: error.code, message: error.message },

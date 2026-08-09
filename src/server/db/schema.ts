@@ -79,6 +79,15 @@ export type RankedMatchResultType =
   'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | 'PLATFORM_NO_CONTEST';
 export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
 
+export interface RankedDeckObservationCard {
+  readonly baseCardCode: string;
+  readonly cardCode: string;
+  readonly name: string;
+  readonly cardType: Extract<CardType, 'MEMBER' | 'LIVE'>;
+  readonly count: number;
+  readonly imageFilename?: string;
+}
+
 export interface PlayerBadgeEvidence {
   readonly qualification: 'RANKED_RATED_MATCH_COUNT';
   readonly minimumRatedMatchCount: number;
@@ -1231,6 +1240,46 @@ export const rankedMatches = pgTable(
       sql`${table.firstUserId} <> ${table.secondUserId}`
     ),
     check('ranked_matches_catalog_hash_check', sql`${table.cardCatalogHash} LIKE 'sha256:%'`),
+  ]
+);
+
+export const rankedDeckObservations = pgTable(
+  'ranked_deck_observations',
+  {
+    matchId: text('match_id')
+      .notNull()
+      .references(() => rankedMatches.matchId, { onDelete: 'cascade' }),
+    seat: text('seat').$type<'FIRST' | 'SECOND'>().notNull(),
+    seasonId: uuid('season_id')
+      .notNull()
+      .references(() => rankedSeasons.id, { onDelete: 'restrict' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'restrict' }),
+    deckFingerprint: text('deck_fingerprint').notNull(),
+    mainDeckCards: jsonb('main_deck_cards').$type<RankedDeckObservationCard[]>().notNull(),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.matchId, table.seat],
+      name: 'ranked_deck_observations_pk',
+    }),
+    uniqueIndex('uq_ranked_deck_observations_match_user').on(table.matchId, table.userId),
+    index('idx_ranked_deck_observations_season_user').on(table.seasonId, table.userId),
+    index('idx_ranked_deck_observations_season_fingerprint').on(
+      table.seasonId,
+      table.deckFingerprint
+    ),
+    check('ranked_deck_observations_seat_check', sql`${table.seat} IN ('FIRST', 'SECOND')`),
+    check(
+      'ranked_deck_observations_fingerprint_check',
+      sql`${table.deckFingerprint} ~ '^sha256:[0-9a-f]{64}$'`
+    ),
+    check(
+      'ranked_deck_observations_main_deck_check',
+      sql`jsonb_typeof(${table.mainDeckCards}) = 'array' AND jsonb_array_length(${table.mainDeckCards}) > 0`
+    ),
   ]
 );
 

@@ -6,7 +6,8 @@
  *   DATABASE_URL=... pnpm exec tsx drizzle/data-migrations/purge-expired-match-replay-data.ts --apply --yes
  *
  * 实际清理按批次在独立事务中删除时间线、检查点、公开/私密事件和决策记录，
- * 清空卡组明细，并将对局标记为 METADATA_ONLY。
+ * 清空卡组明细，并将对局标记为 METADATA_ONLY。排位对局必须已持久化双方
+ * 赛季环境卡组观察记录；任一候选排位对局缺失完整观察时，apply 会在删除前阻断。
  */
 
 import path from 'node:path';
@@ -52,6 +53,7 @@ export interface PurgeReplayReport {
   readonly checkpointRows: number;
   readonly eventRows: number;
   readonly decisionRows: number;
+  readonly blockedRankedMatchCount: number;
   readonly metadataRowsUpdated: number;
 }
 
@@ -110,6 +112,11 @@ export async function runPurgeReplayMigration(
     { candidateMatchCount: 0, replayRows: 0, checkpointRows: 0, eventRows: 0, decisionRows: 0 }
   );
 
+  const blockerCount = await queryClient.query<CountRow>(rankedObservationBlockerCountSql(), [
+    args.cutoff,
+  ]);
+  const blockedRankedMatchCount = number(blockerCount.rows[0]?.count ?? 0);
+
   if (args.mode === 'dry-run') {
     const count = await queryClient.query<CountRow>(countSql(), [args.cutoff]);
     return {
@@ -119,8 +126,15 @@ export async function runPurgeReplayMigration(
       retentionDays: args.retentionDays,
       cutoff: args.cutoff,
       candidateMatchCount: number(count.rows[0]?.count ?? totals.candidateMatchCount),
+      blockedRankedMatchCount,
       metadataRowsUpdated: 0,
     };
+  }
+
+  if (blockedRankedMatchCount > 0) {
+    throw new Error(
+      `Replay purge blocked: ${blockedRankedMatchCount} ranked candidate match(es) do not have two complete deck observations`
+    );
   }
 
   let metadataRowsUpdated = 0;
@@ -151,6 +165,7 @@ export async function runPurgeReplayMigration(
     mode: args.mode,
     retentionDays: args.retentionDays,
     cutoff: args.cutoff,
+    blockedRankedMatchCount,
     metadataRowsUpdated,
   };
 }
@@ -179,18 +194,30 @@ function countSql(): string {
       AND record.sealed_at < $1 AND record.completeness <> 'METADATA_ONLY'`;
 }
 
+function rankedObservationBlockerCountSql(): string {
+  return `SELECT count(*) AS count
+    FROM match_records AS record
+    JOIN ranked_matches AS ranked_match ON ranked_match.match_id = record.match_id
+    WHERE record.status <> 'IN_PROGRESS' AND record.sealed_at IS NOT NULL
+      AND record.sealed_at < $1 AND record.completeness <> 'METADATA_ONLY'
+      AND NOT (${rankedObservationReadySql('record')})`;
+}
+
 function candidateIdsSql(): string {
-  return `SELECT match_id FROM match_records
-    WHERE status <> 'IN_PROGRESS' AND sealed_at IS NOT NULL AND sealed_at < $1
-      AND completeness <> 'METADATA_ONLY'
-    ORDER BY sealed_at ASC, match_id ASC LIMIT $2`;
+  return `SELECT record.match_id FROM match_records AS record
+    WHERE record.status <> 'IN_PROGRESS' AND record.sealed_at IS NOT NULL
+      AND record.sealed_at < $1 AND record.completeness <> 'METADATA_ONLY'
+      AND ${rankedObservationReadySql('record')}
+    ORDER BY record.sealed_at ASC, record.match_id ASC LIMIT $2`;
 }
 
 function purgeBatchSql(): string {
   return `WITH selected AS (
-      SELECT match_id FROM match_records
-      WHERE match_id = ANY($1::text[]) AND status <> 'IN_PROGRESS'
-        AND sealed_at IS NOT NULL AND sealed_at < $2 AND completeness <> 'METADATA_ONLY'
+      SELECT record.match_id FROM match_records AS record
+      WHERE record.match_id = ANY($1::text[]) AND record.status <> 'IN_PROGRESS'
+        AND record.sealed_at IS NOT NULL AND record.sealed_at < $2
+        AND record.completeness <> 'METADATA_ONLY'
+        AND ${rankedObservationReadySql('record')}
     ),
     deleted_decisions AS (DELETE FROM match_decision_records WHERE match_id IN (SELECT match_id FROM selected)),
     deleted_checkpoints AS (DELETE FROM match_checkpoints WHERE match_id IN (SELECT match_id FROM selected)),
@@ -207,6 +234,35 @@ function purgeBatchSql(): string {
       RETURNING match_id
     )
     SELECT count(*)::int AS count FROM updated_records`;
+}
+
+function rankedObservationReadySql(recordAlias: string): string {
+  return `NOT EXISTS (
+        SELECT 1
+        FROM ranked_matches AS protected_ranked_match
+        WHERE protected_ranked_match.match_id = ${recordAlias}.match_id
+          AND (
+            (SELECT count(*)
+             FROM ranked_deck_observations AS observation
+             WHERE observation.match_id = protected_ranked_match.match_id) <> 2
+            OR NOT EXISTS (
+              SELECT 1
+              FROM ranked_deck_observations AS first_observation
+              WHERE first_observation.match_id = protected_ranked_match.match_id
+                AND first_observation.season_id = protected_ranked_match.season_id
+                AND first_observation.seat = 'FIRST'
+                AND first_observation.user_id = protected_ranked_match.first_user_id
+            )
+            OR NOT EXISTS (
+              SELECT 1
+              FROM ranked_deck_observations AS second_observation
+              WHERE second_observation.match_id = protected_ranked_match.match_id
+                AND second_observation.season_id = protected_ranked_match.season_id
+                AND second_observation.seat = 'SECOND'
+                AND second_observation.user_id = protected_ranked_match.second_user_id
+            )
+          )
+      )`;
 }
 
 function parsePositiveInteger(value: string, prefix: string): number {
