@@ -23,6 +23,7 @@ vi.mock('../../src/server/services/ranked-admin-service.js', () => ({
     setQueueAdmission: vi.fn(),
     beginFinalizing: vi.fn(),
     closeSeason: vi.fn(),
+    getOverview: vi.fn(),
     listMatches: vi.fn(),
     getMatch: vi.fn(),
     settleMatch: vi.fn(),
@@ -320,12 +321,19 @@ describe('rankedAdminRouter', () => {
 
   it('validates and forwards paginated user search for all ranked matches', async () => {
     vi.mocked(rankedAdminService.listMatches).mockResolvedValue({
-      matches: [{ matchId: 'match-21' }],
+      matches: [
+        {
+          matchId: 'match-21',
+          firstRatingDelta: 12.5,
+          secondRatingDelta: -12.5,
+        },
+      ],
       total: 47,
     } as never);
 
     const response = await invokeRoute('/matches', 'get', {
       query: {
+        ratingStatus: 'SETTLED',
         userQuery: ' 小能苗 ',
         limit: '20',
         offset: '20',
@@ -334,13 +342,90 @@ describe('rankedAdminRouter', () => {
 
     expect(response.statusCode).toBe(200);
     expect(rankedAdminService.listMatches).toHaveBeenCalledWith({
+      ratingStatus: 'SETTLED',
       userQuery: '小能苗',
       limit: 20,
       offset: 20,
     });
     expect(response.body).toMatchObject({
-      data: [{ matchId: 'match-21' }],
+      data: [
+        {
+          matchId: 'match-21',
+          firstRatingDelta: 12.5,
+          secondRatingDelta: -12.5,
+        },
+      ],
       total: 47,
+      error: null,
+    });
+  });
+
+  it('returns long-lived main deck observations with ranked match detail', async () => {
+    vi.mocked(rankedAdminService.getMatch).mockResolvedValue({
+      matchId: 'match-with-decks',
+      decks: [
+        {
+          seat: 'FIRST',
+          sourceDeckName: '先攻卡组',
+          mainDeckCards: [{ baseCardCode: 'LL-test-001', count: 4 }],
+        },
+      ],
+    } as never);
+
+    const response = await invokeRoute('/matches/:matchId', 'get', {
+      params: { matchId: 'match-with-decks' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.getMatch).toHaveBeenCalledWith('match-with-decks');
+    expect(response.body).toMatchObject({
+      data: {
+        matchId: 'match-with-decks',
+        decks: [
+          {
+            seat: 'FIRST',
+            sourceDeckName: '先攻卡组',
+            mainDeckCards: [{ baseCardCode: 'LL-test-001', count: 4 }],
+          },
+        ],
+      },
+      error: null,
+    });
+  });
+
+  it('requires one strictly valid season ID for the ranked overview', async () => {
+    const invalidQueries = [
+      {},
+      { seasonId: 'not-a-uuid' },
+      {
+        seasonId: '11111111-1111-4111-8111-111111111111',
+        unexpected: 'field',
+      },
+    ];
+
+    for (const query of invalidQueries) {
+      const response = await invokeRoute('/overview', 'get', { query });
+      expect(response.statusCode).toBe(400);
+      expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    }
+    expect(rankedAdminService.getOverview).not.toHaveBeenCalled();
+  });
+
+  it('returns the overview for the requested season', async () => {
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    vi.mocked(rankedAdminService.getOverview).mockResolvedValue({
+      seasonId,
+      generatedAt: new Date('2026-08-09T12:00:00.000Z'),
+    } as never);
+
+    const response = await invokeRoute('/overview', 'get', {
+      query: { seasonId },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.getOverview).toHaveBeenCalledWith(seasonId);
+    expect(response.body).toMatchObject({
+      data: { seasonId },
       error: null,
     });
   });

@@ -150,6 +150,30 @@ export interface RankedAdminMatch {
   recordStatus: string;
   completeness: string;
   endedAt: string | null;
+  firstRatingDelta: number | null;
+  secondRatingDelta: number | null;
+}
+
+export interface RankedAdminMatchDeckCard {
+  baseCardCode: string;
+  cardCode: string;
+  name: string;
+  cardType: 'MEMBER' | 'LIVE';
+  count: number;
+  imageFilename: string | null;
+}
+
+export interface RankedAdminMatchDeck {
+  seat: 'FIRST' | 'SECOND';
+  userId: string;
+  sourceDeckName: string | null;
+  deckFingerprint: string;
+  mainDeckCards: RankedAdminMatchDeckCard[];
+}
+
+export interface RankedAdminMatchDetail extends RankedAdminMatch {
+  decks: RankedAdminMatchDeck[];
+  events: unknown[];
 }
 
 export interface RankedAdminMatchPage {
@@ -160,8 +184,43 @@ export interface RankedAdminMatchPage {
 export interface RankedAdminMatchFilters {
   seasonId?: string;
   userQuery?: string;
+  ratingStatus?: 'PENDING' | 'SETTLED' | 'VOIDED';
   limit?: number;
   offset?: number;
+}
+
+export interface RankedAdminOverview {
+  seasonId: string;
+  generatedAt: string;
+  health: {
+    waitingTickets: number;
+    activeReservations: number;
+    runningMatches: number;
+    pendingMatches: number;
+    oldestPendingEndedAt: string | null;
+  };
+  statistics: {
+    totalParticipants: number;
+    placementCompletedPlayers: number;
+    leaderboardPlayers: number;
+    totalSettledMatches: number;
+    matchesToday: number;
+    matchesLast7Days: number;
+    activePlayersLast7Days: number;
+    averageMatchesPerPlayer: number;
+    leaderboardCutoffRating: number | null;
+  };
+  matchCountDistribution: {
+    label: string;
+    minimum: number;
+    maximum: number | null;
+    playerCount: number;
+  }[];
+  ratingDistribution: {
+    minimumRating: number;
+    maximumRatingExclusive: number;
+    playerCount: number;
+  }[];
 }
 
 export interface RankedEnvironmentPreview {
@@ -223,6 +282,12 @@ export const fetchRankedEnvironment = () =>
 
 export const fetchRankedSeasons = () =>
   requireData<RankedAdminSeason[]>(apiClient.get('/api/admin/ranked/seasons'), '读取赛季失败');
+
+export const fetchRankedOverview = (seasonId: string) =>
+  requireData<RankedAdminOverview>(
+    apiClient.get(`/api/admin/ranked/overview?seasonId=${encodeURIComponent(seasonId)}`),
+    '读取排位概览失败'
+  );
 
 export const createRankedSeason = (payload: RankedSeasonDraftPayload) =>
   requireData<RankedAdminSeason>(
@@ -293,6 +358,7 @@ export async function fetchRankedMatches(
   const search = new URLSearchParams();
   if (filters.seasonId) search.set('seasonId', filters.seasonId);
   if (filters.userQuery?.trim()) search.set('userQuery', filters.userQuery.trim());
+  if (filters.ratingStatus) search.set('ratingStatus', filters.ratingStatus);
   if (filters.limit !== undefined) search.set('limit', String(filters.limit));
   if (filters.offset !== undefined) search.set('offset', String(filters.offset));
   const query = search.toString();
@@ -305,6 +371,12 @@ export async function fetchRankedMatches(
     total: response.total ?? response.data.length,
   };
 }
+
+export const fetchRankedMatch = (matchId: string) =>
+  requireData<RankedAdminMatchDetail>(
+    apiClient.get(`/api/admin/ranked/matches/${encodeURIComponent(matchId)}`),
+    '读取排位对局卡组失败'
+  );
 
 export const settleRankedMatch = (matchId: string) =>
   requireData(

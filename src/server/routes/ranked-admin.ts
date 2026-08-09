@@ -298,6 +298,19 @@ rankedAdminRouter.post(
   }
 );
 
+rankedAdminRouter.get('/overview', async (req, res) => {
+  const parsed = z.object({ seasonId: z.string().uuid() }).strict().safeParse(req.query);
+  if (!parsed.success) {
+    respondValidationError(res, parsed.error);
+    return;
+  }
+  try {
+    respondData(res, await rankedAdminService.getOverview(parsed.data.seasonId));
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
 rankedAdminRouter.get('/matches', async (req, res) => {
   const parsed = z
     .object({

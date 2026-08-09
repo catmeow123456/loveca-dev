@@ -8,7 +8,7 @@
 - 同一基础编号的不同罕度合并计算。公开榜单只统计最终 `SETTLED` 且双方观察完整、身份一致的对局；`PENDING`、`VOIDED` 和平台无结果不计入。
 - 卡牌使用率先计算每名玩家使用该卡的对局占比，再对全部参赛玩家等权平均，避免高频玩家主导结果。页面只展示前 30 张；原始卡组搭载率、搭载玩家数和平均张数保留在接口中但暂不展示。
 - 10 天保留策略继续清理原始回放：时间线、检查点、事件和决策记录会删除，`match_deck_snapshots.main_deck`、`energy_deck`、`card_summaries` 会清空，对局变为 `METADATA_ONLY`。长期保留的只有每场双方各一条精简观察事实，以及原有对局/卡组来源元信息；观察中的主卡组按基础编号聚合为 `{ baseCardCode, cardCode, name, cardType, count, imageFilename? }`，不保留逐张实例或能量卡组。
-- `ranked_deck_observations` 当前不参与 10 天清理，用于跨赛季统计并会随排位场次增长。清理脚本发现任一过期排位候选尚未保存双方完整且身份一致的事实时，会报告 `blockedRankedMatchCount` 并在 apply 前整体阻断；不能跳过该对局继续清理，也不能伪造缺失事实。
+- `ranked_deck_observations` 当前不参与 10 天清理，用于跨赛季统计和管理员历史对局主卡组核查，并会随排位场次增长。清理脚本发现任一过期排位候选尚未保存双方完整且身份一致的事实时，会报告 `blockedRankedMatchCount` 并在 apply 前整体阻断；不能跳过该对局继续清理，也不能伪造缺失事实。
 
 ## 当前赛季停机回填
 
@@ -28,7 +28,7 @@ DATABASE_URL=... pnpm ranked:environment:backfill -- --season-key=<赛季-key> \
   --apply --yes --expected-ledger-revision=<dry-run-ledgerRevision>
 ```
 
-6. 再次 dry-run，预期 `wouldInsertObservationCount=0`、`alreadyCompleteMatchCount=matchCount`、`blockers=[]`。随后部署同一版本的 API 与前端，检查目标赛季 `/api/ranked/environment?seasonId=<uuid>` 的覆盖率后再恢复服务。
+6. 再次 dry-run，预期 `wouldInsertObservationCount=0`、`alreadyCompleteMatchCount=matchCount`、`blockers=[]`。随后部署同一版本的 API 与前端，检查目标赛季 `/api/ranked/environment?seasonId=<uuid>` 的覆盖率，并在管理端抽查已回填对局的双方主卡组后再恢复服务。
 
 脚本默认 dry-run，正式执行必须同时提供 `--apply --yes` 和核对过的 ledger revision；重复执行不会覆盖既有事实，若既有记录与当前快照冲突则事务回滚。已被 10 天任务清空的卡组快照无法从现有元数据恢复，应保留 blocker 报告并接受覆盖率不足，或在仍可恢复的备份上完成回填。
 

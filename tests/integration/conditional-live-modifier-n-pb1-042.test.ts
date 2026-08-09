@@ -4,6 +4,7 @@ import {
   createCardInstance,
   createHeartIcon,
   createHeartRequirement,
+  isLiveCardInstance,
 } from '../../src/domain/entities/card';
 import {
   createGameState,
@@ -20,6 +21,7 @@ import {
 import { getLiveCardRequirementModifiers } from '../../src/domain/rules/live-modifiers';
 import { applyHeartRequirementModifiers } from '../../src/domain/rules/live-requirement-modifiers';
 import {
+  ABILITY_ORDER_SELECTION_ID,
   confirmActiveEffectStep,
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
@@ -107,6 +109,18 @@ function check(game: GameState): GameState {
   return result.gameState;
 }
 
+function focusEternalizeEffect(game: GameState, sourceCardId: string): GameState {
+  if (game.activeEffect?.abilityId !== ABILITY_ORDER_SELECTION_ID) {
+    return game;
+  }
+  const focused = confirmActiveEffectStep(game, P1, game.activeEffect.id, sourceCardId);
+  expect(focused.activeEffect).toMatchObject({
+    abilityId: PL_N_PB1_042_LIVE_START_SAME_NAME_NIJIGASAKI_REDUCE_REQUIREMENT_ABILITY_ID,
+    sourceCardId,
+  });
+  return focused;
+}
+
 function confirm(game: GameState): GameState {
   expect(game.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
   return confirmActiveEffectStep(game, P1, game.activeEffect!.id);
@@ -164,7 +178,7 @@ describe('PL!N-pb1-042 Eternalize Love!! conditional live modifier', () => {
         createCardInstance(single, P1, `${single.cardCode}-instance`),
         createCardInstance(composite, P1, `${composite.cardCode}-instance`),
       ]);
-      const preview = check(scenario.game);
+      const preview = focusEternalizeEffect(check(scenario.game), scenario.sources[0]!.instanceId);
       expect(preview.activeEffect).toMatchObject({
         abilityId: PL_N_PB1_042_LIVE_START_SAME_NAME_NIJIGASAKI_REDUCE_REQUIREMENT_ABILITY_ID,
         sourceCardId: scenario.sources[0]!.instanceId,
@@ -185,9 +199,13 @@ describe('PL!N-pb1-042 Eternalize Love!! conditional live modifier', () => {
       expect(
         getLiveCardRequirementModifiers(resolved.liveResolution, scenario.sources[0]!.instanceId)
       ).toEqual([{ color: HeartColor.RAINBOW, countDelta: -3 }]);
+      const source = scenario.sources[0]!;
+      if (!isLiveCardInstance(source)) {
+        throw new Error('Eternalize Love!! 测试来源必须是 LIVE 卡');
+      }
       const effectiveRequirement = applyHeartRequirementModifiers(
-        scenario.sources[0]!.data.requirements,
-        getLiveCardRequirementModifiers(resolved.liveResolution, scenario.sources[0]!.instanceId)
+        source.data.requirements,
+        getLiveCardRequirementModifiers(resolved.liveResolution, source.instanceId)
       );
       expect(effectiveRequirement.colorRequirements.get(HeartColor.RAINBOW)).toBe(9);
       expect(effectiveRequirement.totalRequired).toBe(9);
@@ -217,7 +235,7 @@ describe('PL!N-pb1-042 Eternalize Love!! conditional live modifier', () => {
     const scenario = setup(
       cards.map((card, index) => createCardInstance(card, P1, `negative-${index}`))
     );
-    const preview = check(scenario.game);
+    const preview = focusEternalizeEffect(check(scenario.game), scenario.sources[0]!.instanceId);
     expect(preview.activeEffect?.effectText).toContain('当前共享姓名：无');
     expect(preview.activeEffect?.effectText).toContain('未满足条件，实际不减少必要[無ハート]');
     expect(modifiers(confirm(preview))).toEqual([]);
@@ -231,7 +249,10 @@ describe('PL!N-pb1-042 Eternalize Love!! conditional live modifier', () => {
       'three-middle'
     );
     const right = createCardInstance(FAQ_CASES[1].composite, P1, 'three-right');
-    const resolved = confirm(check(setup([left, middle, right]).game));
+    const scenario = setup([left, middle, right]);
+    const resolved = confirm(
+      focusEternalizeEffect(check(scenario.game), scenario.sources[0]!.instanceId)
+    );
     expect(modifiers(resolved)).toHaveLength(1);
   });
 
@@ -310,7 +331,9 @@ describe('PL!N-pb1-042 Eternalize Love!! conditional live modifier', () => {
     const single = createCardInstance(FAQ_CASES[0].single, P1, 'lost-single');
     const composite = createCardInstance(FAQ_CASES[0].composite, P1, 'lost-composite');
     const scenario = setup([single, composite]);
-    const first = confirm(check(scenario.game));
+    const first = confirm(
+      focusEternalizeEffect(check(scenario.game), scenario.sources[0]!.instanceId)
+    );
     const pending: PendingAbilityState = {
       id: 'eternalize-condition-lost',
       abilityId: PL_N_PB1_042_LIVE_START_SAME_NAME_NIJIGASAKI_REDUCE_REQUIREMENT_ABILITY_ID,

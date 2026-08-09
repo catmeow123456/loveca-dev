@@ -1,4 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
 
 interface LoginResult {
@@ -63,7 +64,8 @@ async function withLocalTestDatabase<T>(
   }
 }
 
-async function seedActiveE2eSeason(): Promise<void> {
+async function seedE2eSeason(lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<void> {
+  const competitiveEnvironmentId = `sha256:${randomBytes(32).toString('hex')}`;
   const ratingConfig = {
     algorithmVersion: 'GLICKO1_PER_MATCH_E2E_V1',
     ratingPeriodMode: 'PER_MATCH',
@@ -111,7 +113,7 @@ async function seedActiveE2eSeason(): Promise<void> {
          'season-e2e-lifecycle',
          'E2E 生命周期赛季',
          $2,
-         'ACTIVE',
+         $7,
          'PAUSED',
          'Asia/Shanghai',
          $3::jsonb,
@@ -131,11 +133,12 @@ async function seedActiveE2eSeason(): Promise<void> {
        WHERE profile.username = 'test_admin'`,
       [
         E2E_SEASON_ID,
-        `sha256:${'b'.repeat(64)}`,
+        competitiveEnvironmentId,
         JSON.stringify([{ weekdays: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1440 }]),
         `sha256:${'c'.repeat(64)}`,
         ratingConfig.algorithmVersion,
         JSON.stringify(ratingConfig),
+        lifecycle,
       ]
     );
   });
@@ -342,8 +345,55 @@ test.describe('赛季排位管理员 API', () => {
     expect(monitoringPayload.error).toBeNull();
   });
 
+  test('管理员可读取指定赛季的运行健康与经营概览', async ({ request }) => {
+    await seedE2eSeason('DRAFT');
+    try {
+      const headers = bearer(await getAdminAccessToken(request));
+      const response = await request.get(`/api/admin/ranked/overview?seasonId=${E2E_SEASON_ID}`, {
+        headers,
+      });
+
+      expect(response.ok()).toBe(true);
+      await expect(response.json()).resolves.toMatchObject({
+        data: {
+          seasonId: E2E_SEASON_ID,
+          generatedAt: expect.any(String),
+          health: {
+            waitingTickets: 0,
+            activeReservations: 0,
+            runningMatches: 0,
+            pendingMatches: 0,
+            oldestPendingEndedAt: null,
+          },
+          statistics: {
+            totalParticipants: 0,
+            placementCompletedPlayers: 0,
+            leaderboardPlayers: 0,
+            totalSettledMatches: 0,
+            matchesToday: 0,
+            matchesLast7Days: 0,
+            activePlayersLast7Days: 0,
+            averageMatchesPerPlayer: 0,
+            leaderboardCutoffRating: null,
+          },
+          matchCountDistribution: [
+            { label: '1–4', playerCount: 0 },
+            { label: '5–9', playerCount: 0 },
+            { label: '10–19', playerCount: 0 },
+            { label: '20–39', playerCount: 0 },
+            { label: '40+', playerCount: 0 },
+          ],
+          ratingDistribution: [],
+        },
+        error: null,
+      });
+    } finally {
+      await removeE2eSeason();
+    }
+  });
+
   test('真实数据库中的赛季可暂停、恢复匹配、结束赛季并完成结算', async ({ request }) => {
-    await seedActiveE2eSeason();
+    await seedE2eSeason();
     try {
       const headers = bearer(await getAdminAccessToken(request));
 
@@ -424,7 +474,7 @@ test.describe('赛季排位管理员 API', () => {
   });
 
   test('管理员可在页面修改进行中赛季的运营设置', async ({ page, request }) => {
-    await seedActiveE2eSeason();
+    await seedE2eSeason();
     try {
       await openAuthenticatedAdminPage(page, request);
       await page.getByText('赛季排位管理').click();
