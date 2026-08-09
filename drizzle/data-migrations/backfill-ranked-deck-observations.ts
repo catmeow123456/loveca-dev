@@ -7,6 +7,7 @@
  *     --expected-ledger-revision=<revision>
  */
 
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
@@ -25,6 +26,9 @@ export interface RankedDeckObservationBackfillArgs {
   readonly seasonKey: string;
   readonly expectedLedgerRevision: number | null;
   readonly yes: boolean;
+  readonly allowIncompleteHistory: boolean;
+  readonly expectedIrrecoverableMatchCount: number | null;
+  readonly expectedIrrecoverableMatchHash: string | null;
 }
 
 export interface RankedDeckObservationBackfillQueryClient extends RankedDeckObservationQueryClient {}
@@ -42,6 +46,7 @@ interface SnapshotRow {
   readonly first_user_id: string;
   readonly second_user_id: string;
   readonly completeness: string;
+  readonly rating_status: string;
   readonly started_at: Date | string;
   readonly seat: 'FIRST' | 'SECOND' | null;
   readonly snapshot_user_id: string | null;
@@ -65,10 +70,20 @@ interface BackfillableMatch {
   readonly facts: readonly RankedDeckObservationFact[];
 }
 
+export interface RankedDeckObservationIrrecoverableGap {
+  readonly matchId: string;
+  readonly reason: string;
+}
+
 interface InspectionResult {
   readonly season: SeasonRow | null;
   readonly blockers: readonly string[];
+  readonly irrecoverableGaps: readonly RankedDeckObservationIrrecoverableGap[];
+  readonly irrecoverableMatchHash: string;
   readonly matchCount: number;
+  readonly settledMatchCount: number;
+  readonly projectedAnalyzedMatchCount: number;
+  readonly projectedCoverageRate: number;
   readonly alreadyCompleteMatchCount: number;
   readonly backfillableMatches: readonly BackfillableMatch[];
   readonly existingObservationCount: number;
@@ -87,7 +102,14 @@ export interface RankedDeckObservationBackfillReport {
     readonly ledgerRevision: number;
   } | null;
   readonly blockers: readonly string[];
+  readonly irrecoverableGaps: readonly RankedDeckObservationIrrecoverableGap[];
+  readonly irrecoverableMatchCount: number;
+  readonly irrecoverableMatchHash: string;
+  readonly incompleteHistoryAccepted: boolean;
   readonly matchCount: number;
+  readonly settledMatchCount: number;
+  readonly projectedAnalyzedMatchCount: number;
+  readonly projectedCoverageRate: number;
   readonly alreadyCompleteMatchCount: number;
   readonly backfillableMatchCount: number;
   readonly existingObservationCount: number;
@@ -103,6 +125,9 @@ export function parseRankedDeckObservationBackfillArgs(
   let seasonKey = '';
   let expectedLedgerRevision: number | null = null;
   let yes = false;
+  let allowIncompleteHistory = false;
+  let expectedIrrecoverableMatchCount: number | null = null;
+  let expectedIrrecoverableMatchHash: string | null = null;
   let explicitMode: MigrationMode | null = null;
 
   for (const argument of argv) {
@@ -115,6 +140,8 @@ export function parseRankedDeckObservationBackfillArgs(
       explicitMode = nextMode;
     } else if (argument === '--yes') {
       yes = true;
+    } else if (argument === '--allow-incomplete-history') {
+      allowIncompleteHistory = true;
     } else if (argument.startsWith('--season-key=')) {
       seasonKey = argument.slice('--season-key='.length).trim();
     } else if (argument.startsWith('--expected-ledger-revision=')) {
@@ -122,9 +149,19 @@ export function parseRankedDeckObservationBackfillArgs(
         argument.slice('--expected-ledger-revision='.length),
         '--expected-ledger-revision'
       );
+    } else if (argument.startsWith('--expected-irrecoverable-match-count=')) {
+      expectedIrrecoverableMatchCount = parseNonNegativeInteger(
+        argument.slice('--expected-irrecoverable-match-count='.length),
+        '--expected-irrecoverable-match-count'
+      );
+    } else if (argument.startsWith('--expected-irrecoverable-match-hash=')) {
+      expectedIrrecoverableMatchHash = parseSha256(
+        argument.slice('--expected-irrecoverable-match-hash='.length),
+        '--expected-irrecoverable-match-hash'
+      );
     } else if (argument === '--help' || argument === '-h') {
       process.stdout.write(
-        '用法：pnpm ranked:environment:backfill -- --season-key=<key> [--dry-run|--apply --yes --expected-ledger-revision=<n>]\n'
+        '用法：pnpm ranked:environment:backfill -- --season-key=<key> [--dry-run|--apply --yes --expected-ledger-revision=<n> [--allow-incomplete-history --expected-irrecoverable-match-count=<n> --expected-irrecoverable-match-hash=sha256:<hash>]]\n'
       );
       process.exit(0);
     } else {
@@ -139,7 +176,34 @@ export function parseRankedDeckObservationBackfillArgs(
   if (mode === 'apply' && expectedLedgerRevision === null) {
     throw new Error('--apply requires --expected-ledger-revision');
   }
-  return { mode, seasonKey, expectedLedgerRevision, yes };
+  if (allowIncompleteHistory && mode !== 'apply') {
+    throw new Error('--allow-incomplete-history requires --apply');
+  }
+  if (
+    !allowIncompleteHistory &&
+    (expectedIrrecoverableMatchCount !== null || expectedIrrecoverableMatchHash !== null)
+  ) {
+    throw new Error(
+      '--expected-irrecoverable-match-count and --expected-irrecoverable-match-hash require --allow-incomplete-history'
+    );
+  }
+  if (
+    allowIncompleteHistory &&
+    (expectedIrrecoverableMatchCount === null || expectedIrrecoverableMatchHash === null)
+  ) {
+    throw new Error(
+      '--allow-incomplete-history requires --expected-irrecoverable-match-count and --expected-irrecoverable-match-hash'
+    );
+  }
+  return {
+    mode,
+    seasonKey,
+    expectedLedgerRevision,
+    yes,
+    allowIncompleteHistory,
+    expectedIrrecoverableMatchCount,
+    expectedIrrecoverableMatchHash,
+  };
 }
 
 export async function runRankedDeckObservationBackfill(
@@ -147,15 +211,13 @@ export async function runRankedDeckObservationBackfill(
   args: RankedDeckObservationBackfillArgs
 ): Promise<RankedDeckObservationBackfillReport> {
   if (args.mode === 'dry-run') {
-    return toReport(await inspectBackfill(client, args, false), args.mode, 0);
+    return toReport(await inspectBackfill(client, args, false), args, 0, false);
   }
 
   await client.query('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
   try {
     const preview = await inspectBackfill(client, args, true);
-    if (preview.blockers.length > 0) {
-      throw new Error(`Ranked deck observation backfill blocked: ${preview.blockers.join('; ')}`);
-    }
+    assertBackfillMayProceed(preview, args);
     for (const match of preview.backfillableMatches) {
       await captureRankedDeckObservations(client, {
         seasonId: preview.season!.id,
@@ -165,18 +227,19 @@ export async function runRankedDeckObservationBackfill(
       });
     }
     const postcondition = await inspectBackfill(client, args, true);
-    if (postcondition.blockers.length > 0 || postcondition.wouldInsertObservationCount > 0) {
+    assertBackfillMayProceed(postcondition, args);
+    if (postcondition.wouldInsertObservationCount > 0) {
       throw new Error(
-        `Ranked deck observation backfill postcondition failed: ${[
-          ...postcondition.blockers,
-          ...(postcondition.wouldInsertObservationCount > 0
-            ? [`仍有 ${postcondition.wouldInsertObservationCount} 条观察事实未回填`]
-            : []),
-        ].join('; ')}`
+        `Ranked deck observation backfill postcondition failed: 仍有 ${postcondition.wouldInsertObservationCount} 条观察事实未回填`
       );
     }
     await client.query('COMMIT');
-    return toReport(postcondition, args.mode, preview.wouldInsertObservationCount);
+    return toReport(
+      postcondition,
+      args,
+      preview.wouldInsertObservationCount,
+      args.allowIncompleteHistory && postcondition.irrecoverableGaps.length > 0
+    );
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -197,9 +260,10 @@ async function inspectBackfill(
   );
   const season = seasonResult.rows[0] ?? null;
   const blockers: string[] = [];
+  const irrecoverableGaps: RankedDeckObservationIrrecoverableGap[] = [];
   if (!season) {
     blockers.push(`找不到赛季：${args.seasonKey}`);
-    return emptyInspection(season, blockers);
+    return emptyInspection(season, blockers, irrecoverableGaps);
   }
   if (season.lifecycle === 'DRAFT') blockers.push('草稿赛季没有可回填的公开排位对局');
   if (args.mode === 'apply' && season.ledger_revision !== args.expectedLedgerRevision) {
@@ -214,6 +278,7 @@ async function inspectBackfill(
          ranked_match.match_id,
          ranked_match.first_user_id,
          ranked_match.second_user_id,
+         ranked_match.rating_status,
          record.completeness,
          record.started_at,
          snapshot.seat,
@@ -240,18 +305,30 @@ async function inspectBackfill(
   const backfillableMatches: BackfillableMatch[] = [];
   let alreadyCompleteMatchCount = 0;
   let earliestObservedAt: number | null = null;
+  let settledMatchCount = 0;
+  let projectedAnalyzedMatchCount = 0;
 
   for (const [matchId, rows] of snapshotRowsByMatch) {
     const first = rows[0]!;
+    const isSettled = first.rating_status === 'SETTLED';
+    if (isSettled) settledMatchCount += 1;
     const expectedUsers = { FIRST: first.first_user_id, SECOND: first.second_user_id } as const;
     const existingRows = existingRowsByMatch.get(matchId) ?? [];
     if (first.completeness === 'METADATA_ONLY') {
       if (hasCompleteExistingObservations(existingRows, expectedUsers)) {
         alreadyCompleteMatchCount += 1;
+        if (isSettled) projectedAnalyzedMatchCount += 1;
         earliestObservedAt = minTime(earliestObservedAt, first.started_at);
         continue;
       }
-      blockers.push(`${matchId}：历史卡组明细已清理，无法回填`);
+      if (hasConflictingObservationIdentity(existingRows, expectedUsers)) {
+        blockers.push(`${matchId}：既有观察事实与排位玩家不一致，且历史卡组明细已清理`);
+        continue;
+      }
+      irrecoverableGaps.push({
+        matchId,
+        reason: '历史卡组明细已清理，无法补齐双方观察事实',
+      });
       continue;
     }
     const rowsBySeat = new Map(rows.filter((row) => row.seat).map((row) => [row.seat, row]));
@@ -285,6 +362,7 @@ async function inspectBackfill(
       }
       if (existingRows.length === facts.length) {
         alreadyCompleteMatchCount += 1;
+        if (isSettled) projectedAnalyzedMatchCount += 1;
         earliestObservedAt = minTime(earliestObservedAt, first.started_at);
         continue;
       }
@@ -294,16 +372,24 @@ async function inspectBackfill(
         secondUserId: first.second_user_id,
         facts,
       });
+      if (isSettled) projectedAnalyzedMatchCount += 1;
       earliestObservedAt = minTime(earliestObservedAt, first.started_at);
     } catch (error) {
       blockers.push(`${matchId}：${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
+  const irrecoverableMatchHash = hashMatchIds(irrecoverableGaps.map((gap) => gap.matchId));
   return {
     season,
     blockers,
+    irrecoverableGaps,
+    irrecoverableMatchHash,
     matchCount: snapshotRowsByMatch.size,
+    settledMatchCount,
+    projectedAnalyzedMatchCount,
+    projectedCoverageRate:
+      settledMatchCount === 0 ? 0 : projectedAnalyzedMatchCount / settledMatchCount,
     alreadyCompleteMatchCount,
     backfillableMatches,
     existingObservationCount: existingResult.rows.length,
@@ -345,6 +431,13 @@ function hasCompleteExistingObservations(
   );
 }
 
+function hasConflictingObservationIdentity(
+  rows: readonly ExistingObservationRow[],
+  expectedUsers: Readonly<Record<'FIRST' | 'SECOND', string>>
+): boolean {
+  return rows.some((row) => row.user_id !== expectedUsers[row.seat]);
+}
+
 function groupBy<T>(rows: readonly T[], keyOf: (row: T) => string): Map<string, T[]> {
   const result = new Map<string, T[]>();
   for (const row of rows) {
@@ -359,11 +452,20 @@ function minTime(current: number | null, value: Date | string): number {
   return current === null ? parsed : Math.min(current, parsed);
 }
 
-function emptyInspection(season: SeasonRow | null, blockers: readonly string[]): InspectionResult {
+function emptyInspection(
+  season: SeasonRow | null,
+  blockers: readonly string[],
+  irrecoverableGaps: readonly RankedDeckObservationIrrecoverableGap[]
+): InspectionResult {
   return {
     season,
     blockers,
+    irrecoverableGaps,
+    irrecoverableMatchHash: hashMatchIds(irrecoverableGaps.map((gap) => gap.matchId)),
     matchCount: 0,
+    settledMatchCount: 0,
+    projectedAnalyzedMatchCount: 0,
+    projectedCoverageRate: 0,
     alreadyCompleteMatchCount: 0,
     backfillableMatches: [],
     existingObservationCount: 0,
@@ -374,12 +476,13 @@ function emptyInspection(season: SeasonRow | null, blockers: readonly string[]):
 
 function toReport(
   inspection: InspectionResult,
-  mode: MigrationMode,
-  insertedObservationCount: number
+  args: RankedDeckObservationBackfillArgs,
+  insertedObservationCount: number,
+  incompleteHistoryAccepted: boolean
 ): RankedDeckObservationBackfillReport {
   return {
     script: 'backfill-ranked-deck-observations',
-    mode,
+    mode: args.mode,
     season: inspection.season
       ? {
           id: inspection.season.id,
@@ -390,7 +493,14 @@ function toReport(
         }
       : null,
     blockers: inspection.blockers,
+    irrecoverableGaps: inspection.irrecoverableGaps,
+    irrecoverableMatchCount: inspection.irrecoverableGaps.length,
+    irrecoverableMatchHash: inspection.irrecoverableMatchHash,
+    incompleteHistoryAccepted,
     matchCount: inspection.matchCount,
+    settledMatchCount: inspection.settledMatchCount,
+    projectedAnalyzedMatchCount: inspection.projectedAnalyzedMatchCount,
+    projectedCoverageRate: inspection.projectedCoverageRate,
     alreadyCompleteMatchCount: inspection.alreadyCompleteMatchCount,
     backfillableMatchCount: inspection.backfillableMatches.length,
     existingObservationCount: inspection.existingObservationCount,
@@ -400,12 +510,51 @@ function toReport(
   };
 }
 
+function assertBackfillMayProceed(
+  inspection: InspectionResult,
+  args: RankedDeckObservationBackfillArgs
+): void {
+  if (inspection.blockers.length > 0) {
+    throw new Error(`Ranked deck observation backfill blocked: ${inspection.blockers.join('; ')}`);
+  }
+  const actualCount = inspection.irrecoverableGaps.length;
+  if (actualCount === 0 && !args.allowIncompleteHistory) return;
+  if (!args.allowIncompleteHistory) {
+    throw new Error(
+      `Ranked deck observation backfill has ${actualCount} irrecoverable historical matches; restore them from a verified backup or use the explicitly reviewed incomplete-history branch`
+    );
+  }
+  if (args.expectedIrrecoverableMatchCount !== actualCount) {
+    throw new Error(
+      `Irrecoverable match count changed: expected ${args.expectedIrrecoverableMatchCount}, actual ${actualCount}`
+    );
+  }
+  if (args.expectedIrrecoverableMatchHash !== inspection.irrecoverableMatchHash) {
+    throw new Error(
+      `Irrecoverable match hash changed: expected ${args.expectedIrrecoverableMatchHash}, actual ${inspection.irrecoverableMatchHash}`
+    );
+  }
+}
+
+function hashMatchIds(matchIds: readonly string[]): string {
+  const stableIds = [...matchIds].sort();
+  return `sha256:${createHash('sha256').update(stableJsonStringify(stableIds)).digest('hex')}`;
+}
+
 function parseNonNegativeInteger(value: string, label: string): number {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed) || parsed < 0) {
     throw new Error(`${label} must be a non-negative integer`);
   }
   return parsed;
+}
+
+function parseSha256(value: string, label: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!/^sha256:[0-9a-f]{64}$/.test(normalized)) {
+    throw new Error(`${label} must use the sha256:<64 hexadecimal characters> format`);
+  }
+  return normalized;
 }
 
 async function main(): Promise<void> {
@@ -417,7 +566,12 @@ async function main(): Promise<void> {
   try {
     const report = await runRankedDeckObservationBackfill(client, args);
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-    if (report.blockers.length > 0) process.exitCode = 1;
+    if (
+      report.blockers.length > 0 ||
+      (report.irrecoverableMatchCount > 0 && !report.incompleteHistoryAccepted)
+    ) {
+      process.exitCode = 1;
+    }
   } finally {
     await client.end();
   }

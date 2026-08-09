@@ -20,14 +20,18 @@ interface EnvironmentSeasonRow {
   readonly id: string;
 }
 
-interface CountRow {
-  readonly count: number | string;
-}
-
 interface ObservationRow {
   readonly match_id: string;
   readonly seat: 'FIRST' | 'SECOND';
   readonly user_id: string;
+  readonly main_deck_cards: unknown;
+}
+
+interface EnvironmentStatsRow {
+  readonly settled_match_count: number | string;
+  readonly match_id: string | null;
+  readonly seat: 'FIRST' | 'SECOND' | null;
+  readonly user_id: string | null;
   readonly main_deck_cards: unknown;
 }
 
@@ -73,40 +77,35 @@ export class RankedEnvironmentService {
       throw environmentError('RANKED_SEASON_NOT_FOUND', '排位赛季不存在', 404);
     }
 
-    const [settledCount, observations] = await Promise.all([
-      this.queryClient.query<CountRow>(
-        `SELECT count(*) AS count
+    const stats = await this.queryClient.query<EnvironmentStatsRow>(
+      `WITH settled_matches AS MATERIALIZED (
+         SELECT match_id, first_user_id, second_user_id
          FROM ranked_matches
          WHERE season_id = $1
-           AND rating_status = 'SETTLED'`,
-        [seasonId]
-      ),
-      this.queryClient.query<ObservationRow>(
-        `WITH analyzable_matches AS (
-           SELECT
-             ranked_match.match_id,
-             ranked_match.first_user_id,
-             ranked_match.second_user_id
-           FROM ranked_matches AS ranked_match
-           JOIN ranked_deck_observations AS observation
-             ON observation.match_id = ranked_match.match_id
-            AND observation.season_id = ranked_match.season_id
-           WHERE ranked_match.season_id = $1
-             AND ranked_match.rating_status = 'SETTLED'
-           GROUP BY
-             ranked_match.match_id,
-             ranked_match.first_user_id,
-             ranked_match.second_user_id
-           HAVING count(*) = 2
-             AND count(*) FILTER (WHERE observation.seat = 'FIRST') = 1
-             AND count(*) FILTER (WHERE observation.seat = 'SECOND') = 1
-             AND bool_and(
-               observation.user_id = CASE observation.seat
-                 WHEN 'FIRST' THEN ranked_match.first_user_id
-                 ELSE ranked_match.second_user_id
-               END
-             )
-         )
+           AND rating_status = 'SETTLED'
+       ), analyzable_matches AS MATERIALIZED (
+         SELECT
+           ranked_match.match_id,
+           ranked_match.first_user_id,
+           ranked_match.second_user_id
+         FROM settled_matches AS ranked_match
+         JOIN ranked_deck_observations AS observation
+           ON observation.match_id = ranked_match.match_id
+          AND observation.season_id = $1
+         GROUP BY
+           ranked_match.match_id,
+           ranked_match.first_user_id,
+           ranked_match.second_user_id
+         HAVING count(*) = 2
+           AND count(*) FILTER (WHERE observation.seat = 'FIRST') = 1
+           AND count(*) FILTER (WHERE observation.seat = 'SECOND') = 1
+           AND bool_and(
+             observation.user_id = CASE observation.seat
+               WHEN 'FIRST' THEN ranked_match.first_user_id
+               ELSE ranked_match.second_user_id
+             END
+           )
+       ), observation_rows AS (
          SELECT
            observation.match_id,
            observation.seat,
@@ -115,15 +114,35 @@ export class RankedEnvironmentService {
          FROM analyzable_matches AS analyzable
          JOIN ranked_deck_observations AS observation
            ON observation.match_id = analyzable.match_id
-         ORDER BY observation.match_id ASC, observation.seat ASC`,
-        [seasonId]
-      ),
-    ]);
+          AND observation.season_id = $1
+       )
+       SELECT
+         totals.settled_match_count,
+         observation.match_id,
+         observation.seat,
+         observation.user_id,
+         observation.main_deck_cards
+       FROM (
+         SELECT count(*) AS settled_match_count
+         FROM settled_matches
+       ) AS totals
+       LEFT JOIN observation_rows AS observation ON TRUE
+       ORDER BY observation.match_id ASC NULLS LAST, observation.seat ASC NULLS LAST`,
+      [seasonId]
+    );
+    const firstStatsRow = stats.rows[0];
+    if (!firstStatsRow) {
+      throw environmentError(
+        'RANKED_ENVIRONMENT_AGGREGATION_INVALID',
+        '赛季环境统计查询没有返回汇总行',
+        500
+      );
+    }
 
     return aggregateRankedSeasonEnvironment(
       seasonId,
-      observations.rows,
-      readNonNegativeCount(settledCount.rows[0]?.count ?? 0)
+      readObservationRows(stats.rows),
+      readNonNegativeCount(firstStatsRow.settled_match_count)
     );
   }
 }
@@ -133,6 +152,7 @@ export function aggregateRankedSeasonEnvironment(
   observations: readonly ObservationRow[],
   settledMatchCount: number
 ): RankedSeasonEnvironmentView {
+  readNonNegativeCount(settledMatchCount);
   const playerDeckCounts = new Map<string, number>();
   const aggregates = new Map<string, MutableCardAggregate>();
   const matchIds = new Set<string>();
@@ -201,6 +221,13 @@ export function aggregateRankedSeasonEnvironment(
     .map((card, index) => ({ ...card, rank: index + 1 }));
 
   const analyzedMatchCount = matchIds.size;
+  if (analyzedMatchCount > settledMatchCount) {
+    throw environmentError(
+      'RANKED_ENVIRONMENT_AGGREGATION_INVALID',
+      '赛季环境可分析对局数超过已结算对局数',
+      500
+    );
+  }
   return {
     seasonId,
     sample: {
@@ -208,10 +235,40 @@ export function aggregateRankedSeasonEnvironment(
       analyzedMatchCount,
       deckObservationCount,
       playerCount,
-      coverageRate: settledMatchCount === 0 ? 0 : clampRate(analyzedMatchCount / settledMatchCount),
+      coverageRate: settledMatchCount === 0 ? 0 : analyzedMatchCount / settledMatchCount,
     },
     cardUsage,
   };
+}
+
+function readObservationRows(rows: readonly EnvironmentStatsRow[]): ObservationRow[] {
+  const observations: ObservationRow[] = [];
+  for (const row of rows) {
+    if (row.match_id === null) {
+      if (row.seat !== null || row.user_id !== null || row.main_deck_cards !== null) {
+        throw environmentError(
+          'RANKED_ENVIRONMENT_AGGREGATION_INVALID',
+          '赛季环境统计返回了不完整的观察行',
+          500
+        );
+      }
+      continue;
+    }
+    if (!row.seat || !row.user_id) {
+      throw environmentError(
+        'RANKED_ENVIRONMENT_AGGREGATION_INVALID',
+        '赛季环境统计返回了不完整的观察行',
+        500
+      );
+    }
+    observations.push({
+      match_id: row.match_id,
+      seat: row.seat,
+      user_id: row.user_id,
+      main_deck_cards: row.main_deck_cards,
+    });
+  }
+  return observations;
 }
 
 function readObservationCards(value: unknown, matchId: string): ObservationCard[] {

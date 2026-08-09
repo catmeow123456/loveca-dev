@@ -36,37 +36,71 @@ function createDeckFixture(prefix: string) {
   return { mainDeck, cardSummaries };
 }
 
-function createHarness(options: { readonly metadataOnly?: boolean } = {}) {
+function createHarness(
+  options: {
+    readonly metadataOnly?: boolean;
+    readonly includeRecoverableMatch?: boolean;
+    readonly changeIrrecoverableMatchAfterFirstInspection?: boolean;
+  } = {}
+) {
   const calls: string[] = [];
   const observations = new Map<string, StoredObservation>();
-  const firstDeck = createDeckFixture('PL!N-bp1');
-  const secondDeck = createDeckFixture('PL!HS-bp1');
   const startedAt = new Date('2026-08-01T12:00:00.000Z');
 
+  const createMatchRows = (
+    matchId: string,
+    completeness: 'FULL' | 'METADATA_ONLY',
+    firstPrefix: string,
+    secondPrefix: string
+  ) => {
+    const matchFirstDeck = createDeckFixture(firstPrefix);
+    const matchSecondDeck = createDeckFixture(secondPrefix);
+    const metadataOnly = completeness === 'METADATA_ONLY';
+    return [
+      {
+        match_id: matchId,
+        first_user_id: FIRST_USER_ID,
+        second_user_id: SECOND_USER_ID,
+        rating_status: 'SETTLED',
+        completeness,
+        started_at: startedAt,
+        seat: 'FIRST' as const,
+        snapshot_user_id: FIRST_USER_ID,
+        main_deck: metadataOnly ? [] : matchFirstDeck.mainDeck,
+        card_summaries: metadataOnly ? {} : matchFirstDeck.cardSummaries,
+      },
+      {
+        match_id: matchId,
+        first_user_id: FIRST_USER_ID,
+        second_user_id: SECOND_USER_ID,
+        rating_status: 'SETTLED',
+        completeness,
+        started_at: startedAt,
+        seat: 'SECOND' as const,
+        snapshot_user_id: SECOND_USER_ID,
+        main_deck: metadataOnly ? [] : matchSecondDeck.mainDeck,
+        card_summaries: metadataOnly ? {} : matchSecondDeck.cardSummaries,
+      },
+    ];
+  };
   const inspectionRows = [
-    {
-      match_id: 'match-1',
-      first_user_id: FIRST_USER_ID,
-      second_user_id: SECOND_USER_ID,
-      completeness: options.metadataOnly ? 'METADATA_ONLY' : 'FULL',
-      started_at: startedAt,
-      seat: 'FIRST' as const,
-      snapshot_user_id: FIRST_USER_ID,
-      main_deck: options.metadataOnly ? [] : firstDeck.mainDeck,
-      card_summaries: options.metadataOnly ? {} : firstDeck.cardSummaries,
-    },
-    {
-      match_id: 'match-1',
-      first_user_id: FIRST_USER_ID,
-      second_user_id: SECOND_USER_ID,
-      completeness: options.metadataOnly ? 'METADATA_ONLY' : 'FULL',
-      started_at: startedAt,
-      seat: 'SECOND' as const,
-      snapshot_user_id: SECOND_USER_ID,
-      main_deck: options.metadataOnly ? [] : secondDeck.mainDeck,
-      card_summaries: options.metadataOnly ? {} : secondDeck.cardSummaries,
-    },
+    ...createMatchRows(
+      'match-1',
+      options.metadataOnly ? 'METADATA_ONLY' : 'FULL',
+      'PL!N-bp1',
+      'PL!HS-bp1'
+    ),
+    ...(options.includeRecoverableMatch
+      ? createMatchRows('match-2', 'FULL', 'PL!N-bp2', 'PL!HS-bp2')
+      : []),
   ];
+  let inspectionCount = 0;
+
+  /*
+    Keep the original fixtures separately so capture queries always see the rows for their
+    requested match even when a test simulates the approved gap set changing before commit.
+  */
+  const captureRows = inspectionRows.map((row) => ({ ...row }));
 
   const client: RankedDeckObservationBackfillQueryClient = {
     async query<T>(text: string, values: readonly unknown[] = []) {
@@ -93,20 +127,31 @@ function createHarness(options: { readonly metadataOnly?: boolean } = {}) {
         };
       }
       if (text.includes('FROM ranked_matches AS ranked_match')) {
-        return { rows: inspectionRows as T[] };
+        inspectionCount += 1;
+        const rows =
+          options.changeIrrecoverableMatchAfterFirstInspection && inspectionCount > 1
+            ? inspectionRows.map((row) =>
+                row.match_id === 'match-1' && row.completeness === 'METADATA_ONLY'
+                  ? { ...row, match_id: 'match-3' }
+                  : row
+              )
+            : inspectionRows;
+        return { rows: rows as T[] };
       }
       if (text.includes('WHERE season_id = $1')) {
         return { rows: [...observations.values()] as T[] };
       }
       if (text.includes('FROM match_deck_snapshots AS snapshot')) {
         return {
-          rows: inspectionRows.map((row) => ({
-            seat: row.seat,
-            user_id: row.snapshot_user_id,
-            main_deck: row.main_deck,
-            card_summaries: row.card_summaries,
-            started_at: row.started_at,
-          })) as T[],
+          rows: captureRows
+            .filter((row) => row.match_id === values[0])
+            .map((row) => ({
+              seat: row.seat,
+              user_id: row.snapshot_user_id,
+              main_deck: row.main_deck,
+              card_summaries: row.card_summaries,
+              started_at: row.started_at,
+            })) as T[],
         };
       }
       if (text.includes('INSERT INTO ranked_deck_observations')) {
@@ -136,6 +181,9 @@ describe('ranked deck observation backfill arguments', () => {
       seasonKey: SEASON_KEY,
       expectedLedgerRevision: null,
       yes: false,
+      allowIncompleteHistory: false,
+      expectedIrrecoverableMatchCount: null,
+      expectedIrrecoverableMatchHash: null,
     });
     expect(() =>
       parseRankedDeckObservationBackfillArgs([`--season-key=${SEASON_KEY}`, '--apply'])
@@ -143,6 +191,16 @@ describe('ranked deck observation backfill arguments', () => {
     expect(() =>
       parseRankedDeckObservationBackfillArgs([`--season-key=${SEASON_KEY}`, '--apply', '--yes'])
     ).toThrow('--apply requires --expected-ledger-revision');
+  });
+
+  it('requires an exact approved count and hash for incomplete history', () => {
+    const base = [`--season-key=${SEASON_KEY}`, '--apply', '--yes', '--expected-ledger-revision=7'];
+    expect(() =>
+      parseRankedDeckObservationBackfillArgs([...base, '--allow-incomplete-history'])
+    ).toThrow('requires --expected-irrecoverable-match-count');
+    expect(() =>
+      parseRankedDeckObservationBackfillArgs([...base, `--expected-irrecoverable-match-count=1`])
+    ).toThrow('require --allow-incomplete-history');
   });
 });
 
@@ -156,7 +214,13 @@ describe('ranked deck observation backfill', () => {
     expect(report).toMatchObject({
       mode: 'dry-run',
       blockers: [],
+      irrecoverableGaps: [],
+      irrecoverableMatchCount: 0,
+      incompleteHistoryAccepted: false,
       matchCount: 1,
+      settledMatchCount: 1,
+      projectedAnalyzedMatchCount: 1,
+      projectedCoverageRate: 1,
       alreadyCompleteMatchCount: 0,
       backfillableMatchCount: 1,
       existingObservationCount: 0,
@@ -168,15 +232,134 @@ describe('ranked deck observation backfill', () => {
     expect(harness.calls).not.toContain('BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE');
   });
 
-  it('blocks snapshots that were already reduced to metadata-only', async () => {
+  it('reports metadata-only snapshots separately and blocks strict apply', async () => {
     const harness = createHarness({ metadataOnly: true });
     const args = parseRankedDeckObservationBackfillArgs([`--season-key=${SEASON_KEY}`]);
 
     const report = await runRankedDeckObservationBackfill(harness.client, args);
 
-    expect(report.blockers).toEqual(['match-1：历史卡组明细已清理，无法回填']);
+    expect(report.blockers).toEqual([]);
+    expect(report.irrecoverableGaps).toEqual([
+      { matchId: 'match-1', reason: '历史卡组明细已清理，无法补齐双方观察事实' },
+    ]);
+    expect(report.irrecoverableMatchCount).toBe(1);
+    expect(report.irrecoverableMatchHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(report.projectedCoverageRate).toBe(0);
     expect(report.backfillableMatchCount).toBe(0);
     expect(report.wouldInsertObservationCount).toBe(0);
+
+    await expect(
+      runRankedDeckObservationBackfill(
+        harness.client,
+        parseRankedDeckObservationBackfillArgs([
+          `--season-key=${SEASON_KEY}`,
+          '--apply',
+          '--yes',
+          '--expected-ledger-revision=7',
+        ])
+      )
+    ).rejects.toThrow('irrecoverable historical matches');
+    expect(harness.calls).toContain('ROLLBACK');
+  });
+
+  it('applies recoverable matches only after approving the exact historical gap set', async () => {
+    const harness = createHarness({ metadataOnly: true, includeRecoverableMatch: true });
+    const preview = await runRankedDeckObservationBackfill(
+      harness.client,
+      parseRankedDeckObservationBackfillArgs([`--season-key=${SEASON_KEY}`])
+    );
+    const applied = await runRankedDeckObservationBackfill(
+      harness.client,
+      parseRankedDeckObservationBackfillArgs([
+        `--season-key=${SEASON_KEY}`,
+        '--apply',
+        '--yes',
+        '--expected-ledger-revision=7',
+        '--allow-incomplete-history',
+        `--expected-irrecoverable-match-count=${preview.irrecoverableMatchCount}`,
+        `--expected-irrecoverable-match-hash=${preview.irrecoverableMatchHash}`,
+      ])
+    );
+
+    expect(applied).toMatchObject({
+      blockers: [],
+      irrecoverableMatchCount: 1,
+      irrecoverableMatchHash: preview.irrecoverableMatchHash,
+      incompleteHistoryAccepted: true,
+      matchCount: 2,
+      settledMatchCount: 2,
+      projectedAnalyzedMatchCount: 1,
+      projectedCoverageRate: 0.5,
+      alreadyCompleteMatchCount: 1,
+      backfillableMatchCount: 0,
+      wouldInsertObservationCount: 0,
+      insertedObservationCount: 2,
+    });
+    expect(harness.observations.size).toBe(2);
+    expect(harness.calls).toContain('COMMIT');
+  });
+
+  it('rolls back if the approved irrecoverable match set changes before commit', async () => {
+    const previewHarness = createHarness({ metadataOnly: true, includeRecoverableMatch: true });
+    const preview = await runRankedDeckObservationBackfill(
+      previewHarness.client,
+      parseRankedDeckObservationBackfillArgs([`--season-key=${SEASON_KEY}`])
+    );
+    const harness = createHarness({
+      metadataOnly: true,
+      includeRecoverableMatch: true,
+      changeIrrecoverableMatchAfterFirstInspection: true,
+    });
+
+    await expect(
+      runRankedDeckObservationBackfill(
+        harness.client,
+        parseRankedDeckObservationBackfillArgs([
+          `--season-key=${SEASON_KEY}`,
+          '--apply',
+          '--yes',
+          '--expected-ledger-revision=7',
+          '--allow-incomplete-history',
+          `--expected-irrecoverable-match-count=${preview.irrecoverableMatchCount}`,
+          `--expected-irrecoverable-match-hash=${preview.irrecoverableMatchHash}`,
+        ])
+      )
+    ).rejects.toThrow('Irrecoverable match hash changed');
+    expect(harness.calls).toContain('ROLLBACK');
+    expect(harness.calls).not.toContain('COMMIT');
+  });
+
+  it('does not let incomplete-history approval bypass a conflicting observation', async () => {
+    const harness = createHarness({ metadataOnly: true, includeRecoverableMatch: true });
+    harness.observations.set('match-2:FIRST', {
+      season_id: SEASON_ID,
+      match_id: 'match-2',
+      seat: 'FIRST',
+      user_id: FIRST_USER_ID,
+      deck_fingerprint: `sha256:${'f'.repeat(64)}`,
+      main_deck_cards: [{ unexpected: true }],
+      observed_at: new Date('2026-08-01T12:00:00.000Z'),
+    });
+    const preview = await runRankedDeckObservationBackfill(
+      harness.client,
+      parseRankedDeckObservationBackfillArgs([`--season-key=${SEASON_KEY}`])
+    );
+
+    await expect(
+      runRankedDeckObservationBackfill(
+        harness.client,
+        parseRankedDeckObservationBackfillArgs([
+          `--season-key=${SEASON_KEY}`,
+          '--apply',
+          '--yes',
+          '--expected-ledger-revision=7',
+          '--allow-incomplete-history',
+          `--expected-irrecoverable-match-count=${preview.irrecoverableMatchCount}`,
+          `--expected-irrecoverable-match-hash=${preview.irrecoverableMatchHash}`,
+        ])
+      )
+    ).rejects.toThrow('FIRST 席既有观察事实与卡组快照不一致');
+    expect(harness.calls).toContain('ROLLBACK');
   });
 
   it('reports a conflicting partial observation during dry-run instead of failing only on apply', async () => {
@@ -214,6 +397,8 @@ describe('ranked deck observation backfill', () => {
 
     expect(applied).toMatchObject({
       blockers: [],
+      irrecoverableMatchCount: 0,
+      incompleteHistoryAccepted: false,
       matchCount: 1,
       alreadyCompleteMatchCount: 1,
       backfillableMatchCount: 0,

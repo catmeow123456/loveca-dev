@@ -261,6 +261,44 @@ describe('RankedRatingRevisionService', () => {
     });
   });
 
+  it('rejects a V3 preview after ordinary operations change the leaderboard threshold', async () => {
+    const snapshot = createSnapshot({
+      config: GLICKO1_PER_MATCH_V3,
+      queueAdmission: 'PAUSED',
+    });
+    const repository = {
+      loadSnapshot: vi.fn().mockResolvedValue(snapshot),
+      applyPlan: vi.fn(),
+    };
+    const service = createService(repository);
+    const preview = await service.preview({
+      seasonId: snapshot.season.id,
+      parameters: {
+        ratingScale: 900,
+        minimumRatingDeviation: 100,
+        placementMatchCount: 6,
+      },
+      reason: '验证参榜门槛变化后预览过期',
+      adminUserId: 'admin-1',
+    });
+    repository.loadSnapshot.mockResolvedValueOnce({
+      ...snapshot,
+      season: {
+        ...snapshot.season,
+        leaderboardMinimumMatchCount: 20,
+      },
+    });
+
+    await expect(
+      service.apply({
+        seasonId: snapshot.season.id,
+        previewToken: preview.previewToken,
+        adminUserId: 'admin-1',
+      })
+    ).rejects.toMatchObject({ code: 'RANKED_RATING_REVISION_PREVIEW_STALE' });
+    expect(repository.applyPlan).not.toHaveBeenCalled();
+  });
+
   it('rejects tampered, expired, stale, open-queue, and blocked previews', async () => {
     let now = new Date('2026-08-08T00:00:00.000Z');
     const paused = createSnapshot({ config: GLICKO1_PER_MATCH_V4, queueAdmission: 'PAUSED' });
@@ -426,7 +464,10 @@ describe('RankedRatingRevisionService', () => {
     ).toHaveLength(2);
     expect(calls.some((call) => call.text.includes('UPDATE ranked_matches'))).toBe(true);
     expect(calls.some((call) => call.text.includes('ranked_player_seeds'))).toBe(false);
-    expect(calls.some((call) => call.text.includes('active_rating_revision_id = $7'))).toBe(true);
+    const seasonUpdate = calls.find((call) => call.text.includes('UPDATE ranked_seasons'));
+    expect(seasonUpdate?.text).toContain('active_rating_revision_id = $7');
+    expect(seasonUpdate?.text).toContain('leaderboard_minimum_match_count = $11');
+    expect(seasonUpdate?.values[10]).toBe(snapshot.season.leaderboardMinimumMatchCount);
   });
 });
 

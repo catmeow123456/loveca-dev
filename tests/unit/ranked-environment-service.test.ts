@@ -107,6 +107,23 @@ describe('ranked season environment aggregation', () => {
       )
     ).toThrow('卡组观察数据无效');
   });
+
+  it('rejects an analyzed match count that exceeds the settled snapshot', () => {
+    expect(() =>
+      aggregateRankedSeasonEnvironment(
+        'season-1',
+        [
+          {
+            match_id: 'match-1',
+            seat: 'FIRST',
+            user_id: 'player-a',
+            main_deck_cards: [card('PL!HS-bp1-001')],
+          },
+        ],
+        0
+      )
+    ).toThrow('可分析对局数超过已结算对局数');
+  });
 });
 
 describe('RankedEnvironmentService', () => {
@@ -117,18 +134,17 @@ describe('RankedEnvironmentService', () => {
         await Promise.resolve();
         queries.push(text);
         if (text.includes('FROM ranked_seasons')) return { rows: [{ id: 'season-1' }] as T[] };
-        if (text.includes('SELECT count(*) AS count')) {
-          return { rows: [{ count: '2' }] as T[] };
-        }
         return {
           rows: [
             {
+              settled_match_count: '2',
               match_id: 'match-1',
               seat: 'FIRST',
               user_id: 'player-a',
               main_deck_cards: [card('PL!HS-bp1-001')],
             },
             {
+              settled_match_count: '2',
               match_id: 'match-1',
               seat: 'SECOND',
               user_id: 'player-b',
@@ -148,8 +164,42 @@ describe('RankedEnvironmentService', () => {
       playerCount: 2,
       coverageRate: 0.5,
     });
-    expect(queries.join('\n')).toContain("ranked_match.rating_status = 'SETTLED'");
+    expect(queries.join('\n')).toContain("rating_status = 'SETTLED'");
     expect(queries.join('\n')).toContain('HAVING count(*) = 2');
+    expect(queries).toHaveLength(2);
+    expect(queries[1]).toContain('WITH settled_matches AS MATERIALIZED');
+    expect(queries[1]).toContain('LEFT JOIN observation_rows AS observation ON TRUE');
+  });
+
+  it('returns an empty sample from the same statistics statement', async () => {
+    const client: RankedEnvironmentQueryClient = {
+      async query<T>(text: string) {
+        await Promise.resolve();
+        if (text.includes('FROM ranked_seasons')) return { rows: [{ id: 'season-1' }] as T[] };
+        return {
+          rows: [
+            {
+              settled_match_count: '3',
+              match_id: null,
+              seat: null,
+              user_id: null,
+              main_deck_cards: null,
+            },
+          ] as T[],
+        };
+      },
+    };
+
+    const result = await new RankedEnvironmentService(client).getSeasonEnvironment('season-1');
+
+    expect(result.sample).toEqual({
+      settledMatchCount: 3,
+      analyzedMatchCount: 0,
+      deckObservationCount: 0,
+      playerCount: 0,
+      coverageRate: 0,
+    });
+    expect(result.cardUsage).toEqual([]);
   });
 
   it('does not expose draft or missing seasons', async () => {

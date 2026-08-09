@@ -2,7 +2,7 @@
 
 > 文档类型：专题说明
 > 适用范围：当前自托管生产发布、部署前检查、部署步骤、健康检查和回滚
-> 当前状态：2026-08-02 现行发布 runbook；生产 Nginx、TLS、对象存储和备份实现仍由部署环境维护
+> 当前状态：2026-08-09 现行发布 runbook；生产 Nginx、TLS、对象存储和备份实现仍由部署环境维护
 
 本文记录当前仓库能够稳定承接的生产发布步骤。它不是完整 IaC 方案，也不表示生产 `docker-compose.yml` 已覆盖前端、Nginx、MinIO、TLS 或自动迁移任务。
 
@@ -10,6 +10,7 @@
 
 - `Dockerfile` 只构建 API runtime 镜像，运行入口为 `dist/server/index.js`。
 - 生产 `docker-compose.yml` 只包含 Postgres 和 API；API 镜像由 `LOVECA_API_IMAGE` 指定，默认拉取 `ghcr.io/catmeow123456/loveca-api:latest`。
+- 当前生产 API 镜像平台固定为 `linux/amd64`，这是部署契约而不是示例值。未来如需改变架构，必须先同步修改本 runbook 和发布 skill，并在展示新旧平台差异后取得单独明确授权。
 - 前端 `client/dist` 需要部署到独立静态服务或 Nginx 管理的目录。
 - 生产图片访问应由 Nginx 或其他反向代理将 `/images/*` 转发到外部 MinIO / S3 兼容对象存储；生产 API 不直接提供 `/images` 静态兜底。
 - `/api/health` 当前只表示 API 进程可响应。数据库、对象存储和必要函数的 ready check 尚未独立落地。
@@ -112,7 +113,7 @@ pnpm --dir client build
 
 若前端由部署环境或独立产物 workflow 基于同一 SHA 构建，则不在本机重复构建，并在发布记录中保存构建来源。Android/PWA 产物按 Android 打包文档单独生成。
 
-构建并发布 API 镜像。下面的本地 `docker build`、runtime 检查和 inspect 可以与 CI 并行；registry 查询、推送以及提升 `latest` 都是对外动作，必须等待 exact-SHA CI 和候选镜像检查成功，并在执行前确认目标仓库、生产平台与用户授权。以下以 `linux/amd64` 为例，实际值必须与生产机一致。推送前分别检查版本标签与提交标签，不要把检查命令和推送命令合并成一段直接执行。任一标签已存在时不得覆盖：两个标签必须都存在、指向相同 digest，且 revision 与当前 `GIT_SHA` 一致，才能复用既有镜像；其他情况一律停止发布并核查。
+构建并发布 API 镜像。下面的本地候选构建、runtime 检查和 registry 只读查询可以与 CI 并行；推送镜像和提升 `latest` 必须等待 exact-SHA CI 与候选镜像检查成功，并在执行前展示目标仓库、固定生产平台 `linux/amd64` 和待执行动作以取得用户授权。常规发布不再单独询问架构；但检查发现已有镜像不是 `linux/amd64` 时必须阻断，不得自动沿用或改写目标平台。
 
 ```bash
 API_IMAGE_REPOSITORY=ghcr.io/catmeow123456/loveca-api
@@ -121,19 +122,37 @@ RELEASE_TAG="v${RELEASE_VERSION}"
 GIT_SHA="$(git rev-parse HEAD)"
 SHORT_SHA="$(git rev-parse --short=12 HEAD)"
 TARGET_PLATFORMS=linux/amd64
-
-docker build --pull -t "loveca-api:release-candidate-${SHORT_SHA}" .
-docker run --rm --entrypoint node "loveca-api:release-candidate-${SHORT_SHA}" --check dist/server/index.js
+LOCAL_IMAGE="loveca-api:release-candidate-${SHORT_SHA}"
 ```
 
-先分别执行并人工核对两个不可变标签；确认两个标签都不存在后，才执行后续推送：
+候选构建前记录当前生产实际使用的镜像引用，并分别查询该引用与 registry `latest` 的 digest、平台集合、revision 和 version：
+
+```bash
+CURRENT_PRODUCTION_IMAGE='<当前生产实际镜像标签或 digest 引用>'
+docker buildx imagetools inspect --format '{{json .}}' "${CURRENT_PRODUCTION_IMAGE}"
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
+```
+
+当前生产镜像与 `latest` 的平台集合都应为 `linux/amd64`。任一结果不符、无法取得生产实际镜像引用，或构建期间平台/digest 发生变化时，停止推送并核查。如确需改变生产架构，必须先更新本 runbook 和发布 skill，再针对展示的新旧平台差异取得一次明确授权。
+
+核对通过后，显式使用固定生产平台构建本地候选镜像，检查 runtime 入口和镜像实际平台：
+
+```bash
+docker build --pull --platform "${TARGET_PLATFORMS}" -t "${LOCAL_IMAGE}" .
+docker run --rm --entrypoint node "${LOCAL_IMAGE}" --check dist/server/index.js
+CANDIDATE_PLATFORM="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${LOCAL_IMAGE}")"
+test "${CANDIDATE_PLATFORM}" = "${TARGET_PLATFORMS}"
+docker image inspect "${LOCAL_IMAGE}"
+```
+
+推送前分别查询 `vX.Y.Z` 和 `sha-*` 两个不可变标签，不要把检查与推送合并执行：
 
 ```bash
 docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
 docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}"
 ```
 
-两个标签都不存在时，再使用已确认的平台推送：
+两个标签都不存在时，才使用已通过候选检查的固定平台推送。如任一标签已存在，不得覆盖：只有两个标签都存在、指向相同 digest、平台集合均为 `linux/amd64`、revision 等于完整 `GIT_SHA` 且 version 等于 `RELEASE_VERSION` 时，才可复用既有镜像；其他情况一律阻断。
 
 ```bash
 docker buildx build --pull \
@@ -145,19 +164,26 @@ docker buildx build --pull \
   --tag "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}" \
   --push .
 
-docker buildx imagetools inspect "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}"
 ```
 
-推送 tag 并等待 `Release Tag Integrity` 成功后，才提升 `latest`；提升前再次取得授权：
+推送后必须从 registry 返回值确认两个不可变标签指向相同 digest，平台集合均为 `linux/amd64`，revision 为完整 `GIT_SHA`，version 为 `RELEASE_VERSION`。任一项不符时停止，不得继续推 tag、创建 GitHub Release 或提升 `latest`。
+
+推送 tag 并等待 `Release Tag Integrity` 成功后，才可提升 `latest`。提升前再次取得授权，查询并记录当时旧 `latest` 的引用、digest、平台集合、revision 和 version；若与构建前记录不同，停止并核查：
 
 ```bash
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
 docker buildx imagetools create \
   --tag "${API_IMAGE_REPOSITORY}:latest" \
   "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
-docker buildx imagetools inspect "${API_IMAGE_REPOSITORY}:latest"
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
 ```
 
-若 GHCR package 为 private，发布机需要 package write 权限，生产机需要 package read 权限；token 只通过安全凭据注入，不写入仓库、命令参数或日志。发布记录必须保存版本标签、提交标签、平台与 digest。
+提升后确认 `latest` 与不可变版本标签指向相同 digest，平台集合、revision 和 version 也完全一致；否则发布未完成，应停止部署并使用事前记录的旧 digest 回滚 `latest`。
+
+若 GHCR package 为 private，发布机需要 package write 权限，生产机需要 package read 权限；token 只通过安全凭据注入，不写入仓库、命令参数或日志。发布记录必须保存：固定生产平台契约；当前生产镜像与提升前旧 `latest` 各自的引用、digest、平台集合、revision 和 version；候选平台/runtime 校验结果；版本标签、提交标签和提升后 `latest` 各自的引用、digest、平台集合、revision 和 version；以及是否发生并获准架构变化。
 
 构建产物：
 
@@ -178,7 +204,7 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 - 不要用 `pnpm db:push` 代替生产迁移。
 - 如果迁移包含数据修复，先在测试数据库验证可重复执行性和失败后的处理方式。
 - 如果发布包含认证凭据 v1 -> v2 切换，必须在停机窗口按 `drizzle/migration-notes/auth-v1-to-v2-credential-cutover.md` 先执行 dry-run；仅当报告中不存在 reset-required 或未知密码格式时才能 apply。部署必须包含兼容封装验证与首次登录自动升级，不能使用原 `v3.7.2` 的 reset-only 认证镜像。
-- 如果发布包含赛季环境卡牌使用率，必须先停止 API、排位开局/结算、评分参数修订和回放清理，完成备份及 `0020_add_ranked_deck_observations.sql` 后，按 `drizzle/migration-notes/ranked-season-environment.md` 对当前赛季执行 blocker-free dry-run 和带 ledger revision 的 apply。再次 dry-run 确认全部排位对局已有双方观察事实后，才可部署同一版本 API 与前端并恢复服务；原始卡组明细超过 10 天后无法从现有元数据恢复。
+- 如果发布包含赛季环境卡牌使用率，必须先停止 API、排位开局/结算、评分参数修订和回放清理，完成备份及 `0020_add_ranked_deck_observations.sql` 后，按 `drizzle/migration-notes/ranked-season-environment.md` 对当前赛季执行 dry-run。默认分支要求 `blockers=[]`、`irrecoverableMatchCount=0`；若已清理的 `METADATA_ONLY` 历史无法从备份恢复，只能在 `blockers=[]`、逐项审核并书面接受永久覆盖缺口后，使用同时固定缺口数量与 SHA-256 的受保护例外分支。apply 后必须确认所有可恢复对局均有双方观察，缺口集合与批准记录一致，再部署同一版本 API 与前端并恢复服务；不得用例外参数绕过玩家错配、非法卡组或既有事实冲突。
 - 如果发布包含首届排位纪念徽章，必须保持 API、排位结算和评分参数修订停写，在结构迁移完成后按 `drizzle/migration-notes/player-badges.md` 使用显式首赛季 key 执行 dry-run；审核最早公开赛季、候选玩家和 ledger revision 后才能 apply。再次 dry-run 确认 `wouldAwardCount=0`，并部署同一版本的 API 与前端后，才可恢复服务。
 - `docker/init.sql` 包含部分 Drizzle schema 不表达的函数和触发器；新库初始化与已有库迁移不能混为一谈。
 
@@ -192,8 +218,11 @@ DATABASE_URL='postgres://...' pnpm db:migrate
    docker compose pull api
    docker compose up -d --no-build --no-deps api
    docker compose images api
-   docker image inspect --format '{{json .RepoDigests}}' "${LOVECA_API_IMAGE}"
+   docker image inspect --format '{{json .RepoDigests}} {{.Os}}/{{.Architecture}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "org.opencontainers.image.version"}}' "${LOVECA_API_IMAGE}"
+   test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${LOVECA_API_IMAGE}")" = "linux/amd64"
    ```
+
+   部署后将本机镜像的 RepoDigest、平台、revision 和 version 与发布记录逐项核对；任一项不符时停止后续发布并按第 8 节回滚。
 
 2. 部署前端：
 

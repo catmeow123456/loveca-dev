@@ -16,6 +16,7 @@
 - 跨页面维持候场、确认配对并自动进入现有正式联机房间；
 - 在赛季页、候场状态和排位房间内随时查看赛季公告；
 - 查看最近排位对局和达到参榜场次门槛的排行榜；
+- 查看当前或历史赛季按玩家等权计算的卡牌使用率 Top 30，以及有效样本量和数据覆盖率；
 - 在首届赛季达到 3 场有效计分对局后获得定级纪念徽章，并在个人中心查看。
 
 页面只突出赛季状态、当前积分、参榜进度、卡组和一个主要操作。没有数据时不渲染空
@@ -23,14 +24,15 @@
 
 玩家 API：
 
-| 方法   | 路径                          | 用途                                   |
-| ------ | ----------------------------- | -------------------------------------- |
-| `GET`  | `/api/ranked/seasons`         | 读取可见赛季                           |
-| `GET`  | `/api/ranked/overview`        | 读取赛季、个人、候场、最近对局和排行榜 |
-| `POST` | `/api/ranked/queue/join`      | 以合法云端卡组加入排位候场             |
-| `POST` | `/api/ranked/queue/heartbeat` | 维持票据并读取最新状态                 |
-| `POST` | `/api/ranked/queue/confirm`   | 确认配对                               |
-| `POST` | `/api/ranked/queue/cancel`    | 取消候场或放弃尚未开局的配对           |
+| 方法   | 路径                          | 用途                                         |
+| ------ | ----------------------------- | -------------------------------------------- |
+| `GET`  | `/api/ranked/seasons`         | 读取可见赛季                                 |
+| `GET`  | `/api/ranked/overview`        | 读取赛季、个人、候场、最近对局和排行榜       |
+| `GET`  | `/api/ranked/environment`     | 按 `seasonId` 读取赛季卡牌使用率与样本覆盖率 |
+| `POST` | `/api/ranked/queue/join`      | 以合法云端卡组加入排位候场                   |
+| `POST` | `/api/ranked/queue/heartbeat` | 维持票据并读取最新状态                       |
+| `POST` | `/api/ranked/queue/confirm`   | 确认配对                                     |
+| `POST` | `/api/ranked/queue/cancel`    | 取消候场或放弃尚未开局的配对                 |
 
 首届排位纪念徽章不作为排行榜字段暴露；登录玩家通过 `GET /api/player-badges/me` 只读取自己的徽章，当前不提供查看其他玩家徽章或写入徽章的接口。
 
@@ -101,17 +103,15 @@
 
 ## 5. 数据库迁移
 
-排位基线由 `0010_add_ranked_system.sql` 提供；评分参数修订审计表和当前修订引用由 `0017_add_ranked_rating_revisions.sql` 提供；可编辑赛季公告字段由 `0018_add_ranked_season_announcement.sql` 提供；玩家徽章规则与授予记录由 `0019_add_player_badges.sql` 提供。结构迁移不会自动认定首届赛季或回填徽章；必须在停写、备份和 dry-run 审核后执行显式数据迁移。执行与回滚边界见 `drizzle/migration-notes/ranked-rating-revisions.md`、`drizzle/migration-notes/ranked-season-announcement.md` 和 `drizzle/migration-notes/player-badges.md`。
+排位基线由 `0010_add_ranked_system.sql` 提供；评分参数修订审计表和当前修订引用由 `0017_add_ranked_rating_revisions.sql` 提供；可编辑赛季公告字段由 `0018_add_ranked_season_announcement.sql` 提供；玩家徽章规则与授予记录由 `0019_add_player_badges.sql` 提供；长期卡组观察事实由 `0020_add_ranked_deck_observations.sql` 提供。结构迁移不会自动认定首届赛季、回填徽章或回填历史卡组观察；必须在停写、备份和 dry-run 审核后执行对应的显式数据迁移。执行与回滚边界见 `drizzle/migration-notes/ranked-rating-revisions.md`、`drizzle/migration-notes/ranked-season-announcement.md`、`drizzle/migration-notes/player-badges.md` 和 `drizzle/migration-notes/ranked-season-environment.md`。
 
-迁移不会创建赛季、不会回填旧公共牌桌积分，也不会自动开放玩家候场。首季所需 schema
-已在生产落地；原始执行与校验步骤见
-`drizzle/migration-notes/ranked-system.md`。
+迁移不会创建赛季、不会回填旧公共牌桌积分，也不会自动开放玩家候场。`0010` 首季排位基线 schema 已在生产落地，且生产迁移历史已确认完成至 `0016`；`0017–0020` 尚未在生产执行，必须按本节的迁移说明与第 6 节待办另行上线。`0010` 的原始执行与校验步骤见 `drizzle/migration-notes/ranked-system.md`。
 
 首个赛季从 V2 迁移到 V3 的工具和步骤保留在 `RANKED_V3_ACTIVE_SEASON_MIGRATION.md`，仅用于历史审计和重现，不适用于 V4 或新的参数修订流程。
 
 ## 6. 后续运营仍需完成
 
-- 在预发布环境执行 `0017 / 0018 / 0019` 迁移、参数预览、应用、历史恢复、公告编辑和首届徽章 dry-run/补发演练；
+- 在预发布环境执行 `0017 / 0018 / 0019 / 0020` 迁移、参数预览、应用、历史恢复、公告编辑、赛季环境回填及首届徽章 dry-run/补发演练；
 - 用历史对局回放验证 V4 默认值和允许范围内的候选参数，确定上线值与告警阈值；
 - 基于现有概览补齐生产外部告警渠道、跨日趋势和“继续 / 调整 / 暂停”判断阈值；
-- 取得独立发布授权后部署 schema 与代码，参数修订仍需按维护期 runbook 逐次授权执行。
+- 取得独立发布授权后部署 `0017–0020` schema 与同版代码，参数修订仍需按维护期 runbook 逐次授权执行。

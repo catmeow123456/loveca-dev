@@ -153,11 +153,12 @@ interface RankedRatingRevisionPlan {
 }
 
 interface PreviewTokenPayload {
-  readonly schemaVersion: 'loveca-ranked-rating-revision-token-v1';
+  readonly schemaVersion: 'loveca-ranked-rating-revision-token-v2';
   readonly seasonId: string;
   readonly revisionId: string;
   readonly sourceAlgorithmVersion: string;
   readonly sourceConfigHash: string;
+  readonly sourceLeaderboardMinimumMatchCount: number;
   readonly sourceLedgerRevision: number;
   readonly sourceCompetitiveEnvironmentId: string;
   readonly sourceRulesVersion: string;
@@ -741,11 +742,12 @@ function createTokenPayload(
   previewAdminUserId: string
 ): PreviewTokenPayload {
   return {
-    schemaVersion: 'loveca-ranked-rating-revision-token-v1',
+    schemaVersion: 'loveca-ranked-rating-revision-token-v2',
     seasonId: plan.snapshot.season.id,
     revisionId: plan.revisionId,
     sourceAlgorithmVersion: plan.snapshot.season.ratingAlgorithmVersion,
     sourceConfigHash: hashValue(plan.snapshot.season.ratingConfig),
+    sourceLeaderboardMinimumMatchCount: plan.snapshot.season.leaderboardMinimumMatchCount,
     sourceLedgerRevision: plan.snapshot.season.ledgerRevision,
     sourceCompetitiveEnvironmentId: plan.snapshot.season.competitiveEnvironmentId,
     sourceRulesVersion: plan.snapshot.season.rulesVersion,
@@ -796,7 +798,7 @@ function verifyAndReadPreviewToken(token: string, secret: string, now: Date): Pr
     );
   }
   if (
-    payload.schemaVersion !== 'loveca-ranked-rating-revision-token-v1' ||
+    payload.schemaVersion !== 'loveca-ranked-rating-revision-token-v2' ||
     !Number.isFinite(new Date(payload.expiresAt).getTime())
   ) {
     throw revisionError(
@@ -822,6 +824,8 @@ function assertTokenMatchesPlan(
   if (
     payload.sourceAlgorithmVersion !== plan.snapshot.season.ratingAlgorithmVersion ||
     payload.sourceConfigHash !== hashValue(plan.snapshot.season.ratingConfig) ||
+    payload.sourceLeaderboardMinimumMatchCount !==
+      plan.snapshot.season.leaderboardMinimumMatchCount ||
     payload.sourceLedgerRevision !== plan.snapshot.season.ledgerRevision ||
     payload.sourceCompetitiveEnvironmentId !== plan.snapshot.season.competitiveEnvironmentId ||
     payload.sourceRulesVersion !== plan.snapshot.season.rulesVersion ||
@@ -1340,7 +1344,8 @@ export class PostgresRankedRatingRevisionRepository implements RankedRatingRevis
          AND lifecycle = 'ACTIVE'
          AND queue_admission = 'PAUSED'
          AND rating_algorithm_version = $9
-         AND ledger_revision = $10`,
+         AND ledger_revision = $10
+         AND leaderboard_minimum_match_count = $11`,
       [
         plan.snapshot.season.id,
         plan.targetCompetitiveEnvironmentId,
@@ -1352,6 +1357,7 @@ export class PostgresRankedRatingRevisionRepository implements RankedRatingRevis
         adminUserId,
         plan.snapshot.season.ratingAlgorithmVersion,
         plan.snapshot.season.ledgerRevision,
+        plan.snapshot.season.leaderboardMinimumMatchCount,
       ]
     );
     if (updated.rowCount !== 1) {
