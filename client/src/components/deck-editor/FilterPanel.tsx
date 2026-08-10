@@ -88,6 +88,9 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
   const visibleCategories = categories.filter(
     (c) => !c.showFor || c.showFor.includes(filters.selectedCardType)
   );
+  const expandedCategoryLabel = categories.find(
+    (category) => category.key === expandedCategory
+  )?.label;
 
   const toggleCategory = (key: FilterCategory) => {
     setExpandedCategory((prev) => (prev === key ? null : key));
@@ -245,7 +248,14 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
             className="overflow-hidden"
           >
             <div
-              className={`rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] ${compact ? 'p-3' : 'p-2.5'}`}
+              role="region"
+              aria-label={`筛选${expandedCategoryLabel ?? expandedCategory}`}
+              tabIndex={compact ? undefined : 0}
+              className={`rounded-xl border border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)] ${
+                compact
+                  ? 'p-3'
+                  : 'touch-scroll cute-scrollbar max-h-[min(36dvh,20rem)] touch-pan-y overflow-y-auto overscroll-y-contain p-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--accent-primary)]'
+              }`}
             >
               {renderCategoryContent(expandedCategory)}
             </div>

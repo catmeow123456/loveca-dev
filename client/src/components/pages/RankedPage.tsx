@@ -23,6 +23,7 @@ import {
   fetchRankedOverview,
   fetchRankedSeasons,
 } from '@/lib/rankedClient';
+import { useAuthStore } from '@/store/authStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { useRankedStore } from '@/store/rankedStore';
@@ -49,6 +50,7 @@ export function RankedPage({
   onEnterRoom: () => void;
 }) {
   const pointTable = useDeckPointTableRules();
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
   const isLoadingCloud = useDeckStore((state) => state.isLoadingCloud);
   const cloudError = useDeckStore((state) => state.cloudError);
@@ -268,7 +270,7 @@ export function RankedPage({
                   </Panel>
                 </>
               ) : null}
-              <SeasonLists overview={displayedOverview} />
+              <SeasonLists overview={displayedOverview} currentUserId={currentUserId} />
               {displayedSeasonId ? (
                 <SeasonCardUsage
                   environment={displayedEnvironment}
@@ -347,7 +349,9 @@ function SeasonSummary({
               <div className="text-xs text-[var(--text-muted)]">
                 {player.placement
                   ? `${player.placementCompleted} / ${player.placementRequired} 场 · 满 ${player.placementRequired} 场进入排行榜`
-                  : '赛季积分'}
+                  : player.rank !== null
+                    ? `第 ${player.rank} 名 · 赛季积分`
+                    : '赛季积分'}
               </div>
             </div>
           ) : null}
@@ -380,13 +384,22 @@ function SeasonSummary({
 
 function SeasonLists({
   overview,
+  currentUserId,
 }: {
   overview: ReturnType<typeof useRankedStore.getState>['overview'];
+  currentUserId: string | null;
 }) {
-  if (!overview || (overview.recentMatches.length === 0 && overview.leaderboard.length === 0)) {
+  if (!overview) {
     return null;
   }
-  const hasBothLists = overview.recentMatches.length > 0 && overview.leaderboard.length > 0;
+  const hasPersonalRank = overview.player?.rank !== null && overview.player?.rank !== undefined;
+  const shouldShowLeaderboard = overview.leaderboard.length > 0 || hasPersonalRank;
+  if (overview.recentMatches.length === 0 && !shouldShowLeaderboard) {
+    return null;
+  }
+  const hasBothLists = overview.recentMatches.length > 0 && shouldShowLeaderboard;
+  const personalRank = overview.player?.rank ?? null;
+  const showPersonalRankAfterLeaderboard = personalRank !== null && personalRank > 10;
   return (
     <div className={`mt-4 grid gap-4 ${hasBothLists ? 'md:grid-cols-2' : ''}`}>
       {overview.recentMatches.length > 0 ? (
@@ -415,18 +428,48 @@ function SeasonLists({
           </div>
         </Panel>
       ) : null}
-      {overview.leaderboard.length > 0 ? (
+      {shouldShowLeaderboard ? (
         <Panel as="section" padding="compact">
           <h2 className="text-sm font-semibold text-[var(--text-primary)]">排行榜</h2>
           <div className="mt-2 divide-y divide-[var(--border-subtle)]">
-            {overview.leaderboard.slice(0, 10).map((entry) => (
-              <div key={entry.userId} className="grid grid-cols-[2rem_1fr_auto] gap-2 py-2 text-sm">
-                <span className="text-[var(--text-muted)]">{entry.rank}</span>
-                <span className="truncate text-[var(--text-secondary)]">{entry.displayName}</span>
-                <span className="font-semibold text-[var(--text-primary)]">{entry.rating}</span>
-              </div>
-            ))}
+            {overview.leaderboard.slice(0, 10).map((entry) => {
+              const isCurrentUser = entry.userId === currentUserId;
+              return (
+                <div
+                  key={entry.userId}
+                  className={`grid grid-cols-[2rem_1fr_auto] gap-2 rounded-lg px-2 py-2 text-sm ${
+                    isCurrentUser
+                      ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)]'
+                      : ''
+                  }`}
+                >
+                  <span className="text-[var(--text-muted)]">{entry.rank}</span>
+                  <span
+                    className={`truncate ${
+                      isCurrentUser
+                        ? 'font-semibold text-[var(--text-primary)]'
+                        : 'text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    {entry.displayName}
+                    {isCurrentUser ? '（我）' : ''}
+                  </span>
+                  <span className="font-semibold text-[var(--text-primary)]">{entry.rating}</span>
+                </div>
+              );
+            })}
           </div>
+          {showPersonalRankAfterLeaderboard ? (
+            <div className="mt-2 border-t border-[var(--border-default)] pt-2">
+              <div className="grid grid-cols-[2rem_1fr_auto] gap-2 rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] px-2 py-2 text-sm">
+                <span className="text-[var(--text-muted)]">{personalRank}</span>
+                <span className="font-semibold text-[var(--text-primary)]">我的排名</span>
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {overview.player?.rating ?? '—'}
+                </span>
+              </div>
+            </div>
+          ) : null}
         </Panel>
       ) : null}
     </div>

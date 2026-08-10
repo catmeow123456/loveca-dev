@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test';
 import { Buffer } from 'node:buffer';
+import type { RankedOverviewView } from '../../../src/online/ranked-types';
 
 type ApiError = { code: string; message: string } | null;
 type CardDbRecord = {
@@ -128,6 +129,109 @@ const ENERGY_CARD = makeBaseCard({
 const MEMBER_CARDS = Array.from({ length: 12 }, (_, index) => memberCard(index + 1));
 const LIVE_CARDS = Array.from({ length: 12 }, (_, index) => liveCard(index + 1));
 const CARD_RECORDS = [...MEMBER_CARDS, ...LIVE_CARDS, ENERGY_CARD];
+const PRODUCT_FILTER_CARD_RECORDS = [
+  ...CARD_RECORDS,
+  ...Array.from({ length: 40 }, (_, index) => {
+    const number = String(index + 1).padStart(2, '0');
+    return makeBaseCard({
+      id: `product-filter-${number}`,
+      card_code: `ME-product-filter-${number}`,
+      card_type: 'MEMBER',
+      name_cn: `商品筛选滚动验收 ${number}`,
+      product: `滚动测试商品 ${number}`,
+    });
+  }),
+];
+
+const RANKED_SEASON = {
+  id: 'e2e-ranked-season',
+  seasonKey: 'e2e-ranked-season',
+  name: 'E2E 排位赛季',
+  announcement: '用于验证个人排名展示。',
+  lifecycle: 'ACTIVE',
+  platformTimeZone: 'Asia/Shanghai',
+  startsAt: Date.parse('2026-08-01T00:00:00.000Z'),
+  scheduledEndsAt: Date.parse('2026-09-01T00:00:00.000Z'),
+  closedAt: null,
+  ratingAlgorithmVersion: 'GLICKO1_PER_MATCH_V3',
+  placementMatchCount: 3,
+} as const;
+
+const RANKED_QUEUE_IDLE = {
+  state: 'IDLE',
+  ticketId: null,
+  joinedAt: null,
+  deckName: null,
+  reservationId: null,
+  confirmationExpiresAt: null,
+  confirmed: false,
+  roomCode: null,
+  roomGeneration: null,
+  message: null,
+} as const;
+
+const RANKED_OVERVIEW_OUTSIDE_TOP_TEN: RankedOverviewView = {
+  season: RANKED_SEASON,
+  availability: {
+    state: 'PAUSED',
+    canJoin: false,
+    message: '排位暂时关闭',
+    nextOpensAt: null,
+    currentWindowEndsAt: null,
+  },
+  player: {
+    placement: false,
+    placementCompleted: 3,
+    placementRequired: 3,
+    rating: 1528,
+    ratingDeviation: 88,
+    rank: 37,
+    completedMatches: 12,
+    wins: 7,
+    losses: 5,
+    winRate: 7 / 12,
+  },
+  queue: RANKED_QUEUE_IDLE,
+  recentMatches: [],
+  leaderboard: Array.from({ length: 10 }, (_, index) => ({
+    rank: index + 1,
+    userId: `ranked-leader-${index + 1}`,
+    displayName: `排行榜玩家 ${index + 1}`,
+    rating: 1700 - index * 10,
+    ratingDeviation: 70,
+    ratedMatchCount: 12,
+  })),
+};
+
+const RANKED_OVERVIEW_INSIDE_TOP_TEN: RankedOverviewView = {
+  ...RANKED_OVERVIEW_OUTSIDE_TOP_TEN,
+  player: {
+    ...RANKED_OVERVIEW_OUTSIDE_TOP_TEN.player!,
+    rating: 1670,
+    rank: 4,
+  },
+  leaderboard: RANKED_OVERVIEW_OUTSIDE_TOP_TEN.leaderboard.map((entry) =>
+    entry.rank === 4
+      ? { ...entry, userId: 'e2e-user', displayName: 'E2E Admin', rating: 1670 }
+      : entry
+  ),
+};
+
+const RANKED_OVERVIEW_IN_PLACEMENT: RankedOverviewView = {
+  ...RANKED_OVERVIEW_OUTSIDE_TOP_TEN,
+  player: {
+    placement: true,
+    placementCompleted: 2,
+    placementRequired: 3,
+    rating: 1508,
+    ratingDeviation: 210,
+    rank: null,
+    completedMatches: 2,
+    wins: 1,
+    losses: 1,
+    winRate: 0.5,
+  },
+};
 
 const DECK_RECORD: DeckRecord = {
   id: 'e2e-deck',
@@ -241,7 +345,12 @@ async function fulfillApi(route: Route, data: unknown, status = 200, error: ApiE
   });
 }
 
-async function installApiMocks(page: Page, authenticated: boolean) {
+async function installApiMocks(
+  page: Page,
+  authenticated: boolean,
+  cardRecords: CardDbRecord[] = CARD_RECORDS,
+  rankedOverview?: RankedOverviewView
+) {
   await page.route('**/images/**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -328,10 +437,35 @@ async function installApiMocks(page: Page, authenticated: boolean) {
       return;
     }
 
+    if (url.pathname === '/api/ranked/overview' && method === 'GET' && rankedOverview) {
+      await fulfillApi(route, rankedOverview);
+      return;
+    }
+
+    if (url.pathname === '/api/ranked/seasons' && method === 'GET' && rankedOverview?.season) {
+      await fulfillApi(route, [rankedOverview.season]);
+      return;
+    }
+
+    if (url.pathname === '/api/ranked/environment' && method === 'GET' && rankedOverview?.season) {
+      await fulfillApi(route, {
+        seasonId: rankedOverview.season.id,
+        sample: {
+          settledMatchCount: 0,
+          analyzedMatchCount: 0,
+          deckObservationCount: 0,
+          playerCount: 0,
+          coverageRate: 0,
+        },
+        cardUsage: [],
+      });
+      return;
+    }
+
     if (url.pathname === '/api/cards/status-map') {
       await fulfillApi(
         route,
-        Object.fromEntries(CARD_RECORDS.map((card) => [card.card_code, card.status]))
+        Object.fromEntries(cardRecords.map((card) => [card.card_code, card.status]))
       );
       return;
     }
@@ -407,7 +541,7 @@ async function installApiMocks(page: Page, authenticated: boolean) {
     }
 
     if (url.pathname === '/api/cards' && method === 'GET') {
-      await fulfillApi(route, CARD_RECORDS);
+      await fulfillApi(route, cardRecords);
       return;
     }
 
@@ -432,7 +566,7 @@ async function installApiMocks(page: Page, authenticated: boolean) {
 
     if (/^\/api\/cards\/[^/]+$/.test(url.pathname)) {
       const cardCode = decodeURIComponent(url.pathname.split('/').at(-1) ?? '');
-      const card = CARD_RECORDS.find((record) => record.card_code === cardCode) ?? CARD_RECORDS[0];
+      const card = cardRecords.find((record) => record.card_code === cardCode) ?? cardRecords[0];
       await fulfillApi(route, card);
       return;
     }
@@ -982,6 +1116,82 @@ test.describe('mobile layout baseline', () => {
       await attachScreenshot(page, testInfo, scenario.name);
     });
   }
+
+  test('桌面短视口中的收录商品筛选可以独立滚动', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet-1024x768', '桌面短视口回归只需执行一次');
+
+    await page.setViewportSize({ width: 1280, height: 560 });
+    await installApiMocks(page, true, PRODUCT_FILTER_CARD_RECORDS);
+    await page.goto('/?page=deck-manager&openDeckId=e2e-deck');
+    await expect(page.getByPlaceholder('搜索卡牌名称或编号...')).toBeVisible();
+
+    await page.getByRole('button', { name: '收录商品', exact: true }).click();
+    const productFilterRegion = page.getByRole('region', { name: '筛选收录商品' });
+    await expect(productFilterRegion).toBeVisible();
+
+    const scrollState = await productFilterRegion.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      overflowY: window.getComputedStyle(element).overflowY,
+    }));
+    expect(scrollState.scrollHeight).toBeGreaterThan(scrollState.clientHeight);
+    expect(scrollState.overflowY).toBe('auto');
+
+    await productFilterRegion.hover();
+    await page.mouse.wheel(0, 1000);
+    await expect
+      .poll(() => productFilterRegion.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
+
+    const lastProduct = productFilterRegion.getByRole('button', {
+      name: '滚动测试商品 40',
+      exact: true,
+    });
+    await lastProduct.scrollIntoViewIfNeeded();
+    await expect(lastProduct).toBeVisible();
+    await lastProduct.click();
+    await expect(lastProduct).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('排行榜前十外显示当前玩家的精确名次', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet-1024x768', '排位名次回归只需执行一次');
+
+    await installApiMocks(page, true, CARD_RECORDS, RANKED_OVERVIEW_OUTSIDE_TOP_TEN);
+    await page.goto('/?page=ranked');
+
+    await expect(page.getByText('第 37 名 · 赛季积分', { exact: true })).toBeVisible();
+    const leaderboard = page
+      .getByRole('heading', { name: '排行榜', exact: true })
+      .locator('xpath=ancestor::section[1]');
+    await expect(leaderboard.getByText('我的排名', { exact: true })).toBeVisible();
+    await expect(leaderboard.getByText('37', { exact: true })).toBeVisible();
+    await expect(leaderboard.getByText('1528', { exact: true })).toBeVisible();
+    await expect(leaderboard.getByText('排行榜玩家 10', { exact: true })).toBeVisible();
+  });
+
+  test('排行榜前十内直接标记当前玩家', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet-1024x768', '排位名次回归只需执行一次');
+
+    await installApiMocks(page, true, CARD_RECORDS, RANKED_OVERVIEW_INSIDE_TOP_TEN);
+    await page.goto('/?page=ranked');
+
+    await expect(page.getByText('第 4 名 · 赛季积分', { exact: true })).toBeVisible();
+    const leaderboard = page
+      .getByRole('heading', { name: '排行榜', exact: true })
+      .locator('xpath=ancestor::section[1]');
+    await expect(leaderboard.getByText('E2E Admin（我）', { exact: true })).toBeVisible();
+    await expect(leaderboard.getByText('我的排名', { exact: true })).toHaveCount(0);
+  });
+
+  test('未达到参榜门槛时继续显示定级进度', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet-1024x768', '排位名次回归只需执行一次');
+
+    await installApiMocks(page, true, CARD_RECORDS, RANKED_OVERVIEW_IN_PLACEMENT);
+    await page.goto('/?page=ranked');
+
+    await expect(page.getByText('2 / 3 场 · 满 3 场进入排行榜', { exact: true })).toBeVisible();
+    await expect(page.getByText('我的排名', { exact: true })).toHaveCount(0);
+  });
 
   test('公开首页保留卡组与对局入口的后续意图', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile-390x844', '入口意图回归只需执行一次');

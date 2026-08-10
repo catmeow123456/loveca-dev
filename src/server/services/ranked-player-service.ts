@@ -500,7 +500,7 @@ export class RankedPlayerService {
        WHERE rating.season_id = $1
          AND rating.rated_match_count >= $2
        ORDER BY rating.rating DESC, rating.user_id ASC
-       LIMIT 100`,
+       LIMIT 10`,
       [seasonId, leaderboardMinimumMatchCount]
     );
     return result.rows.map((row, index) => ({

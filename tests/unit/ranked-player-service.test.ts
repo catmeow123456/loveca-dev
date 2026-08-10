@@ -96,4 +96,87 @@ describe('RankedPlayerService', () => {
     });
     expect(overview.season?.announcement).toBe('本赛季周末全天开放');
   });
+
+  it('returns the exact personal rank outside the public top ten', async () => {
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const queryMock = pool.query as unknown as Mock<
+      (text: unknown, values?: unknown[]) => Promise<never>
+    >;
+    queryMock.mockImplementation((text: unknown, values?: unknown[]) => {
+      const sql = String(text);
+      if (sql.includes('SELECT rating, rating_deviation, rated_match_count')) {
+        expect(values).toEqual(['season-1', 'player-37']);
+        return Promise.resolve({
+          rows: [{ rating: 1528.4, rating_deviation: 87.6, rated_match_count: 12 }],
+          rowCount: 1,
+        } as never);
+      }
+      if (sql.includes('COUNT(*) FILTER')) {
+        expect(values).toEqual(['season-1', 'player-37']);
+        return Promise.resolve({
+          rows: [{ completed_matches: 12, wins: 7, losses: 5 }],
+          rowCount: 1,
+        } as never);
+      }
+      if (sql.includes('SELECT 1 + COUNT(*) AS rank')) {
+        expect(values).toEqual(['season-1', 10, 1528.4, 'player-37']);
+        return Promise.resolve({ rows: [{ rank: '37' }], rowCount: 1 } as never);
+      }
+      throw new Error(`Unexpected query: ${sql}`);
+    });
+
+    const service = new RankedPlayerService();
+    const loadPlayerSeason = Reflect.get(service, 'loadPlayerSeason') as (
+      seasonId: string,
+      userId: string,
+      leaderboardMinimumMatchCount: number
+    ) => Promise<Record<string, unknown>>;
+
+    await expect(
+      loadPlayerSeason.call(service, 'season-1', 'player-37', 10)
+    ).resolves.toMatchObject({
+      placement: false,
+      placementCompleted: 10,
+      rating: 1528,
+      ratingDeviation: 88,
+      rank: 37,
+      completedMatches: 12,
+      wins: 7,
+      losses: 5,
+    });
+  });
+
+  it('only exposes the public top ten leaderboard entries', async () => {
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const queryMock = pool.query as unknown as Mock<
+      (text: unknown, values?: unknown[]) => Promise<never>
+    >;
+    queryMock.mockImplementation((text: unknown, values?: unknown[]) => {
+      const sql = String(text);
+      expect(sql).toContain('ORDER BY rating.rating DESC, rating.user_id ASC');
+      expect(sql).toContain('LIMIT 10');
+      expect(values).toEqual(['season-1', 10]);
+      return Promise.resolve({
+        rows: Array.from({ length: 10 }, (_, index) => ({
+          user_id: `player-${index + 1}`,
+          display_name: `Player ${index + 1}`,
+          rating: 1600 - index,
+          rating_deviation: 80,
+          rated_match_count: 12,
+        })),
+        rowCount: 10,
+      } as never);
+    });
+
+    const service = new RankedPlayerService();
+    const loadLeaderboard = Reflect.get(service, 'loadLeaderboard') as (
+      seasonId: string,
+      leaderboardMinimumMatchCount: number
+    ) => Promise<Array<{ rank: number; userId: string }>>;
+
+    const leaderboard = await loadLeaderboard.call(service, 'season-1', 10);
+    expect(leaderboard).toHaveLength(10);
+    expect(leaderboard[0]).toMatchObject({ rank: 1, userId: 'player-1' });
+    expect(leaderboard[9]).toMatchObject({ rank: 10, userId: 'player-10' });
+  });
 });
