@@ -50,6 +50,7 @@ import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-valida
 const MEMBER_PRESENCE_STALE_MS = 15 * 1000;
 const ROOM_DESTROY_AFTER_ALL_ABSENT_MS = 60 * 1000;
 const RESTART_REQUEST_TTL_MS = 60 * 1000;
+export const PUBLIC_TABLE_OPENING_TTL_MS = 3 * 60 * 1000;
 const PUBLIC_TABLE_ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PUBLIC_TABLE_ROOM_CODE_LENGTH = 6;
 const PUBLIC_TABLE_ROOM_CODE_MAX_ATTEMPTS = 32;
@@ -89,9 +90,10 @@ interface OnlineRoomState {
   readonly originKind: MatchOriginKind;
   readonly originLabel: string;
   readonly publicTableReservationId: string | null;
+  initialPublicTableMatchId: string | null;
   readonly rankedSeasonId: string | null;
   readonly closedToNewMembers: boolean;
-  readonly openingExpiresAt: number | null;
+  openingExpiresAt: number | null;
   openingArrivalExpiresAt: number | null;
   endInfo: OnlineRoomEndView | null;
   matchStartBlocked: boolean;
@@ -247,6 +249,7 @@ export class OnlineRoomService {
       originKind: 'ONLINE_ROOM',
       originLabel: roomCode,
       publicTableReservationId: null,
+      initialPublicTableMatchId: null,
       rankedSeasonId: null,
       closedToNewMembers: false,
       openingExpiresAt: null,
@@ -374,6 +377,7 @@ export class OnlineRoomService {
       originKind: input.originKind,
       originLabel: input.originLabel,
       publicTableReservationId: input.reservationId,
+      initialPublicTableMatchId: null,
       rankedSeasonId: input.rankedSeasonId,
       closedToNewMembers: true,
       openingExpiresAt: input.openingExpiresAt,
@@ -479,6 +483,9 @@ export class OnlineRoomService {
     room.restartRequest = null;
     room.status = room.members.every((candidate) => candidate.startReady) ? 'OPENING' : 'READY';
     if (room.status === 'OPENING') {
+      if (room.publicTableReservationId) {
+        room.openingExpiresAt = now + PUBLIC_TABLE_OPENING_TTL_MS;
+      }
       room.members.forEach((candidate) => {
         candidate.arrivedAt = now;
       });
@@ -686,11 +693,41 @@ export class OnlineRoomService {
     }
 
     const previousMatchId = room.matchId!;
-    const previousDeleted = await this.matchService.deleteMatch(previousMatchId, {
-      reason: 'ROOM_RESTART_ACCEPTED',
-      now,
-      preserveRoomCodeSpectators: true,
-    });
+    const participantUserIds = room.members.map((candidate) => candidate.userId);
+    if (this.participationService?.restoreOnlineRoom) {
+      let restoredCount = 0;
+      try {
+        restoredCount = await this.participationService.restoreOnlineRoom(
+          participantUserIds,
+          room.roomGeneration,
+          previousMatchId
+        );
+      } catch {
+        throw new OnlineRoomServiceError(
+          'ONLINE_RESTART_PARTICIPATION_FAILED',
+          '无法重开对局：玩家占用状态恢复失败，请稍后重试',
+          503
+        );
+      }
+      if (restoredCount !== participantUserIds.length) {
+        throw new OnlineRoomServiceError(
+          'ONLINE_RESTART_PARTICIPATION_CONFLICT',
+          '无法重开对局：玩家占用状态已经变化，请重新进入房间',
+          409
+        );
+      }
+    }
+
+    let previousDeleted = false;
+    try {
+      previousDeleted = await this.matchService.deleteMatch(previousMatchId, {
+        reason: 'ROOM_RESTART_ACCEPTED',
+        now,
+        preserveRoomCodeSpectators: true,
+      });
+    } catch {
+      previousDeleted = false;
+    }
     if (!previousDeleted) {
       throw new OnlineRoomServiceError(
         'ONLINE_RESTART_SEAL_FAILED',
@@ -707,8 +744,10 @@ export class OnlineRoomService {
       candidate.lastSeenAt = now;
     });
     room.openingRps = null;
+    room.openingExpiresAt = null;
     room.restartRequest = null;
     room.status = 'PREPARING';
+    room.matchStartBlocked = false;
     member.presence = 'ACTIVE';
     member.lastSeenAt = now;
     touchRoom(room, now);
@@ -830,7 +869,12 @@ export class OnlineRoomService {
       };
     }
 
-    if (room.status === 'OPENING' && room.originKind === 'PUBLIC_TABLE') {
+    if (
+      room.originKind === 'PUBLIC_TABLE' &&
+      (room.status === 'OPENING' ||
+        (room.initialPublicTableMatchId !== null &&
+          (room.status === 'PREPARING' || room.status === 'READY')))
+    ) {
       await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
       return { room: null };
     }
@@ -1313,6 +1357,8 @@ export class OnlineRoomService {
       guest.pointValidation,
       currentPointTable
     );
+    const isInitialPublicTableOpening =
+      room.publicTableReservationId !== null && room.initialPublicTableMatchId === null;
     if (!hostPointReview.valid || !guestPointReview.valid) {
       await this.handlePointTableChangedBeforeStart(
         room,
@@ -1324,7 +1370,7 @@ export class OnlineRoomService {
       );
       throw new OnlineRoomServiceError(
         'ONLINE_DECK_POINT_TABLE_CHANGED',
-        room.publicTableReservationId
+        isInitialPublicTableOpening
           ? '当前PT限制表已更新，候场卡组不再合法，请修改卡组后重新候场'
           : '当前PT限制表已更新，有已锁定卡组不再合法，请返回准备阶段重新锁定卡组',
         409
@@ -1332,7 +1378,11 @@ export class OnlineRoomService {
     }
     host.pointValidation = hostPointReview.facts;
     guest.pointValidation = guestPointReview.facts;
-    if (room.publicTableReservationId && (hostPointReview.changed || guestPointReview.changed)) {
+    if (
+      isInitialPublicTableOpening &&
+      room.publicTableReservationId &&
+      (hostPointReview.changed || guestPointReview.changed)
+    ) {
       await pool.query(
         `UPDATE public_table_tickets
          SET point_table_version = $2,
@@ -1399,7 +1449,7 @@ export class OnlineRoomService {
     reviews: readonly { readonly member: OnlineRoomMemberState; readonly valid: boolean }[],
     now: number
   ): Promise<void> {
-    if (!room.publicTableReservationId) {
+    if (!room.publicTableReservationId || room.initialPublicTableMatchId !== null) {
       for (const { member, valid } of reviews) {
         member.startReady = false;
         if (!valid) {
@@ -1412,6 +1462,7 @@ export class OnlineRoomService {
       }
       room.status = 'PREPARING';
       room.openingRps = null;
+      room.openingExpiresAt = null;
       room.openingArrivalExpiresAt = null;
       touchRoom(room, now);
       return;
@@ -1454,12 +1505,14 @@ export class OnlineRoomService {
 
   private async startMatchForRoom(room: OnlineRoomState, firstUserId: string, now: number) {
     let match: Awaited<ReturnType<OnlineMatchService['createMatch']>> | null = null;
+    const shouldBindInitialPublicTableMatch =
+      room.publicTableReservationId !== null && room.initialPublicTableMatchId === null;
     let reservationClaimed = false;
     let rankedRegistered = false;
     let participationMarked = false;
     try {
       match = await this.startMatch(room, firstUserId);
-      if (room.publicTableReservationId) {
+      if (shouldBindInitialPublicTableMatch && room.publicTableReservationId) {
         const claimed = await pool.query(
           `UPDATE public_table_reservations
            SET match_id = $2,
@@ -1492,7 +1545,7 @@ export class OnlineRoomService {
         room.roomGeneration,
         match.matchId
       );
-      if (room.publicTableReservationId) {
+      if (shouldBindInitialPublicTableMatch && room.publicTableReservationId) {
         const ticketsBound = await pool.query(
           `UPDATE public_table_tickets
            SET matched_match_id = $2,
@@ -1523,10 +1576,18 @@ export class OnlineRoomService {
         if (room.originKind === 'PUBLIC_TABLE') {
           logPublicTableLifecycleEvent({
             eventType: 'MATCH_STARTED',
-            eventKey: `${room.publicTableReservationId}:MATCH_STARTED`,
+            eventKey: shouldBindInitialPublicTableMatch
+              ? `${room.publicTableReservationId}:MATCH_STARTED`
+              : `${room.publicTableReservationId}:MATCH_STARTED:${match.matchId}`,
             reservationId: room.publicTableReservationId,
             roomGeneration: room.roomGeneration,
             matchId: match.matchId,
+            detail: shouldBindInitialPublicTableMatch
+              ? undefined
+              : {
+                  rematch: true,
+                  initialMatchId: room.initialPublicTableMatchId,
+                },
           });
         } else {
           logRankedRoomLifecycleEvent(room, 'RANKED_MATCH_STARTED', {
@@ -1540,17 +1601,23 @@ export class OnlineRoomService {
         getEnabledSpectatorSeats(room)
       );
       touchRoom(room, now);
+      if (shouldBindInitialPublicTableMatch) {
+        room.initialPublicTableMatchId = match.matchId;
+      }
       return match;
     } catch (error) {
       let compensationFailed = false;
       if (match) {
         if (participationMarked) {
           try {
-            await this.participationService?.restoreOnlineRoom?.(
+            const restoredCount = await this.participationService?.restoreOnlineRoom?.(
               room.members.map((member) => member.userId),
               room.roomGeneration,
               match.matchId
             );
+            if (restoredCount !== undefined && restoredCount !== room.members.length) {
+              compensationFailed = true;
+            }
           } catch {
             compensationFailed = true;
           }
@@ -1643,6 +1710,17 @@ export class OnlineRoomService {
         now >= room.openingExpiresAt
       ) {
         await this.closePublicTableOpening(room, 'OPENING_TIMEOUT', now);
+        destroyedRoomCount += 1;
+        continue;
+      }
+
+      if (
+        room.originKind === 'PUBLIC_TABLE' &&
+        room.initialPublicTableMatchId !== null &&
+        (room.status === 'PREPARING' || room.status === 'READY') &&
+        room.members.some((member) => shouldDropPreparingMember(member, now))
+      ) {
+        await this.closePublicTableOpening(room, 'PLAYER_ABANDONED_OPENING', now);
         destroyedRoomCount += 1;
         continue;
       }
@@ -1844,7 +1922,28 @@ export class OnlineRoomService {
     reason: 'PLAYER_ABANDONED_OPENING' | 'OPENING_TIMEOUT',
     now: number
   ): Promise<void> {
-    if (
+    const isPublicTableRematch =
+      room.originKind === 'PUBLIC_TABLE' && room.initialPublicTableMatchId !== null;
+    const recordedReason = isPublicTableRematch ? `REMATCH_${reason}` : reason;
+    if (room.publicTableReservationId && isPublicTableRematch) {
+      await pool.query(
+        `UPDATE public_table_reservations
+         SET state = 'RELEASED',
+             failure_reason = $2,
+             updated_at = $5
+         WHERE id = $1
+           AND state = 'MATCHED'
+           AND room_generation = $3
+           AND match_id = $4`,
+        [
+          room.publicTableReservationId,
+          recordedReason,
+          room.roomGeneration,
+          room.initialPublicTableMatchId,
+          new Date(now),
+        ]
+      );
+    } else if (
       room.publicTableReservationId &&
       room.originKind === 'PUBLIC_TABLE' &&
       reason === 'PLAYER_ABANDONED_OPENING'
@@ -1897,10 +1996,17 @@ export class OnlineRoomService {
     if (room.originKind === 'PUBLIC_TABLE') {
       logPublicTableLifecycleEvent({
         eventType: 'MATCH_INTERRUPTED',
-        eventKey: `${room.publicTableReservationId}:OPENING_ENDED`,
+        eventKey: isPublicTableRematch
+          ? `${room.publicTableReservationId}:REMATCH_OPENING_ENDED:${room.initialPublicTableMatchId}`
+          : `${room.publicTableReservationId}:OPENING_ENDED`,
         reservationId: room.publicTableReservationId,
         roomGeneration: room.roomGeneration,
-        detail: { reason },
+        detail: isPublicTableRematch
+          ? {
+              reason: recordedReason,
+              initialMatchId: room.initialPublicTableMatchId,
+            }
+          : { reason },
       });
     } else {
       logRankedRoomLifecycleEvent(room, 'RANKED_OPENING_ENDED', { reason });

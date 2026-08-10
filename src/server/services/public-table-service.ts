@@ -13,6 +13,7 @@ import {
   loadOwnedDeckForOnlineMatch,
   loadUserProfileForOnlineMatch,
   onlineRoomService,
+  PUBLIC_TABLE_OPENING_TTL_MS,
   type OnlineRoomService,
 } from './online-room-service.js';
 import {
@@ -29,7 +30,6 @@ import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-valida
 const ENVIRONMENT_ID = 'PUBLIC_TABLE_V1';
 const HEARTBEAT_GRACE_MS = 45_000;
 const CONFIRMATION_TTL_MS = 60_000;
-const OPENING_TTL_MS = 3 * 60_000;
 const BOOTSTRAP_LEASE_MS = 30_000;
 const MAX_BOOTSTRAP_ATTEMPTS = 3;
 
@@ -946,7 +946,7 @@ export class PublicTableService {
         lockedAt: row.second_locked_at.getTime(),
         pointValidation: secondPointReview.facts,
       },
-      openingExpiresAt: this.now() + OPENING_TTL_MS,
+      openingExpiresAt: this.now() + PUBLIC_TABLE_OPENING_TTL_MS,
     });
 
     const client = await pool.connect();
