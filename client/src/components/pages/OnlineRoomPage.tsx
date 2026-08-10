@@ -135,6 +135,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
   const matchView = useGameStore((s) => s.getMatchView());
   const rankedOverview = useRankedStore((s) => s.overview);
   const rankedSeasonName = rankedOverview?.season?.name ?? null;
+  const rankedSeasonAnnouncement = rankedOverview?.season?.announcement ?? null;
   const rankedLeaderboardMatchCount =
     rankedOverview?.player?.placementRequired ??
     rankedOverview?.season?.placementMatchCount ??
@@ -1106,6 +1107,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
         <RankedSeasonNoticeDialog
           isOpen={isRankedNoticeOpen}
           seasonName={rankedSeasonName}
+          announcement={rankedSeasonAnnouncement}
           leaderboardMatchCount={rankedLeaderboardMatchCount}
           onClose={() => setIsRankedNoticeOpen(false)}
         />
@@ -1213,6 +1215,7 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
         <RankedSeasonNoticeDialog
           isOpen={isRankedNoticeOpen}
           seasonName={rankedSeasonName}
+          announcement={rankedSeasonAnnouncement}
           leaderboardMatchCount={rankedLeaderboardMatchCount}
           onClose={() => setIsRankedNoticeOpen(false)}
         />

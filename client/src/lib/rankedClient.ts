@@ -1,7 +1,10 @@
 import { apiClient } from '@/lib/apiClient';
 import type { PublicTableStatusView } from '@game/online/public-table-types';
-import type { RankedOverviewView } from '@game/online/ranked-types';
-import type { RankedSeasonPublicView } from '@game/online/ranked-types';
+import type {
+  RankedOverviewView,
+  RankedSeasonEnvironmentView,
+  RankedSeasonPublicView,
+} from '@game/online/ranked-types';
 
 async function requireData<T>(
   request: Promise<{ data: T | null; error: { message: string } | null }>,
@@ -21,6 +24,11 @@ export function fetchRankedOverview(seasonId?: string): Promise<RankedOverviewVi
 
 export function fetchRankedSeasons(): Promise<RankedSeasonPublicView[]> {
   return requireData(apiClient.get('/api/ranked/seasons'), '读取排位赛季失败');
+}
+
+export function fetchRankedEnvironment(seasonId: string): Promise<RankedSeasonEnvironmentView> {
+  const query = `?seasonId=${encodeURIComponent(seasonId)}`;
+  return requireData(apiClient.get(`/api/ranked/environment${query}`), '读取赛季卡牌使用率失败');
 }
 
 export function joinRankedQueue(deckId: string): Promise<PublicTableStatusView> {

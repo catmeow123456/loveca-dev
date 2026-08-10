@@ -7,7 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForTargetMember,
   addLiveModifier,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
@@ -372,9 +372,9 @@ function finishSunnyDaySongModifiers(
   let state = game;
   const heartResult =
     selectedMuseMemberCardId !== null
-      ? addHeartLiveModifierForMember(state, {
+      ? addHeartLiveModifierForTargetMember(state, {
           playerId: player.id,
-          memberCardId: selectedMuseMemberCardId,
+          targetMemberCardId: selectedMuseMemberCardId,
           sourceCardId: ability.sourceCardId,
           abilityId: ability.abilityId,
           hearts: [{ color: HeartColor.YELLOW, count: 1 }],

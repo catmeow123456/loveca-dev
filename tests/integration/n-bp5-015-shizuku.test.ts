@@ -8,7 +8,7 @@ import {
   type GameState,
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
-import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import { addHeartLiveModifierForSourceMember } from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
 import {
@@ -187,9 +187,8 @@ describe('PL!N-bp5-015-N Shizuku live-start workflow', () => {
     const { session, source } = setupLiveStart({
       otherStageMembers: [redYellowGreen, blueOnly],
       mutateBeforeTrigger: (game) => {
-        const heartResult = addHeartLiveModifierForMember(game, {
+        const heartResult = addHeartLiveModifierForSourceMember(game, {
           playerId: PLAYER1,
-          memberCardId: blueOnly.instanceId,
           sourceCardId: blueOnly.instanceId,
           abilityId: 'test:gain-purple-heart',
           hearts: [createHeartIcon(HeartColor.PURPLE, 1)],

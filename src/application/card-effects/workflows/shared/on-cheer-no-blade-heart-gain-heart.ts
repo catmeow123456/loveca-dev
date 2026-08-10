@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { hasBladeHeart } from '../../../effects/card-selectors.js';
 import {
@@ -134,9 +134,8 @@ function resolveOnCheerNoBladeHeartGainHeart(
 
   let gainedHearts: readonly { readonly color: HeartColor; readonly count: number }[] = [];
   if (conditionMet) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: config.heartColor, count: 1 }],

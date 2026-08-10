@@ -10,7 +10,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addCardToZone } from '../../../../domain/entities/zone.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember, addHeartLiveModifierForTargetMember,
   addLiveModifier,
   getMemberEffectiveBladeCount,
 } from '../../../../domain/rules/live-modifiers.js';
@@ -552,9 +552,8 @@ function finishBp6004MoveLiveGainHearts(
       cardIds: [selectedCardId, ...currentPlayer.mainDeck.cardIds],
     },
   }));
-  const heartResult = addHeartLiveModifierForMember(stateAfterMove, {
+  const heartResult = addHeartLiveModifierForSourceMember(stateAfterMove, {
     playerId: player.id,
-    memberCardId: effect.sourceCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [
@@ -942,9 +941,9 @@ function finishBp6020RedHeartTargetSelection(
     return game;
   }
 
-  const heartResult = addHeartLiveModifierForMember(game, {
+  const heartResult = addHeartLiveModifierForTargetMember(game, {
     playerId: player.id,
-    memberCardId: selectedCardId,
+    targetMemberCardId: selectedCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: [{ color: HeartColor.RED, count: 1 }],

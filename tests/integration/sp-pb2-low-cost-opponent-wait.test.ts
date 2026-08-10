@@ -8,7 +8,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../src/domain/entities/game';
-import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import { addHeartLiveModifierForSourceMember } from '../../src/domain/rules/live-modifiers';
 import {
   confirmActiveEffectStep,
   resolvePendingCardEffects,
@@ -354,9 +354,8 @@ describe('PL!SP-pb2 low-cost opponent wait workflows', () => {
       sourceHearts: [createHeartIcon(HeartColor.RED, 3)],
       supportHearts: [createHeartIcon(HeartColor.BLUE, 1)],
     });
-    const heartResult = addHeartLiveModifierForMember(scenario.game, {
+    const heartResult = addHeartLiveModifierForSourceMember(scenario.game, {
       playerId: PLAYER1,
-      memberCardId: scenario.supportId!,
       sourceCardId: scenario.supportId!,
       abilityId: 'test:effective-heart-for-sp-pr-021',
       hearts: [createHeartIcon(HeartColor.PURPLE, 1)],

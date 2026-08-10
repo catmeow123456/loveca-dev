@@ -442,6 +442,24 @@ async function installApiMocks(page: Page, authenticated: boolean) {
       return;
     }
 
+    if (url.pathname === '/api/player-badges/me' && method === 'GET') {
+      await fulfillApi(route, [
+        {
+          key: 'ranked-first-season-qualified',
+          name: '首届排位·定级纪念',
+          description: '完成 Loveca 首届赛季排位定级，感谢你见证排位启程。',
+          imagePath: '/badges/first-ranked-season.png',
+          awardedAt: Date.parse('2026-08-03T12:00:00.000Z'),
+          sourceSeason: {
+            id: 'ranked-season-one',
+            seasonKey: 'ranked-season-one',
+            name: '第一赛季',
+          },
+        },
+      ]);
+      return;
+    }
+
     if (url.pathname === '/api/decks' && method === 'POST') {
       await fulfillApi(route, DECK_RECORD);
       return;

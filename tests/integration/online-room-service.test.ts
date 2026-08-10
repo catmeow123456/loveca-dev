@@ -1275,12 +1275,57 @@ describe('OnlineRoomService', () => {
     ]);
   });
 
-  it('公共牌桌赛后双方同意再来一局应回到原房间准备阶段', async () => {
+  it('公共牌桌赛后再来一局应恢复玩家占用、刷新猜拳期限并创建第二局', async () => {
+    let now = 1_000;
+    let reservationMatchId: string | null = null;
+    let ticketMatchId: string | null = null;
+    let reservationClaimCount = 0;
+    let ticketClaimCount = 0;
+    vi.mocked(pool.query).mockImplementation(async (text, values) => {
+      if (
+        text.includes('UPDATE public_table_reservations') &&
+        text.includes('match_id = $2') &&
+        text.includes('match_id IS NULL')
+      ) {
+        reservationClaimCount += 1;
+        if (reservationMatchId !== null) {
+          return { rows: [], rowCount: 0 } as never;
+        }
+        reservationMatchId = String(values?.[1]);
+        return { rows: [{ id: 'reservation' }], rowCount: 1 } as never;
+      }
+      if (
+        text.includes('UPDATE public_table_tickets') &&
+        text.includes('matched_match_id = $2') &&
+        text.includes('matched_match_id IS NULL')
+      ) {
+        ticketClaimCount += 1;
+        if (ticketMatchId !== null) {
+          return { rows: [], rowCount: 0 } as never;
+        }
+        ticketMatchId = String(values?.[1]);
+        return {
+          rows: [{ id: 'first-ticket' }, { id: 'second-ticket' }],
+          rowCount: 2,
+        } as never;
+      }
+      return { rows: [], rowCount: 0 } as never;
+    });
+
     const matchService = createInMemoryMatchService();
+    const markOnlineMatch = vi.fn(async () => undefined);
+    const restoreOnlineRoom = vi.fn(async () => 2);
+    const releaseOnlineRoom = vi.fn(async () => undefined);
     const service = new OnlineRoomService({
-      now: () => 1_000,
+      now: () => now,
       matchService,
       loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+      participationService: {
+        acquireOnlineRoom: async () => true,
+        markOnlineMatch,
+        restoreOnlineRoom,
+        releaseOnlineRoom,
+      },
     });
     const room = await service.createPublicTableRoom({
       reservationId: '12121212-2222-4333-8444-555555555555',
@@ -1305,18 +1350,25 @@ describe('OnlineRoomService', () => {
         lockedAt: 1_000,
         pointValidation: TEST_POINT_VALIDATION,
       },
-      openingExpiresAt: 181_000,
+      openingExpiresAt: now + 180_000,
     });
     await service.getRoomView(room.roomCode, 'u1');
     await service.getRoomView(room.roomCode, 'u2');
     await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
     await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
     const started = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+    const firstMatchId = started.matchId!;
+    expect(reservationMatchId).toBe(firstMatchId);
+    expect(ticketMatchId).toBe(firstMatchId);
     const game = matchService.getMatch(started.matchId!)!.session.state as {
       currentPhase: GamePhase;
     };
     game.currentPhase = GamePhase.GAME_END;
+    const deleteMatch = vi.spyOn(matchService, 'deleteMatch');
 
+    now = 200_000;
+    service.touchInGameMemberByMatch(firstMatchId, 'u1');
+    service.touchInGameMemberByMatch(firstMatchId, 'u2');
     const requested = await service.requestRestart(room.roomCode, 'u1');
     const restarted = await service.acceptRestartRequest(
       room.roomCode,
@@ -1334,6 +1386,148 @@ describe('OnlineRoomService', () => {
       expect.objectContaining({ userId: 'u1', presence: 'ACTIVE', startReady: false }),
       expect.objectContaining({ userId: 'u2', presence: 'ACTIVE', startReady: false }),
     ]);
+    expect(restoreOnlineRoom).toHaveBeenCalledWith(['u1', 'u2'], room.roomGeneration, firstMatchId);
+    expect(restoreOnlineRoom.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteMatch.mock.invocationCallOrder[0]!
+    );
+    expect(matchService.getMatch(firstMatchId)).toBeNull();
+
+    await service.markReadyToStart(room.roomCode, 'u1');
+    const secondOpening = await service.markReadyToStart(room.roomCode, 'u2');
+    expect(secondOpening).toMatchObject({
+      status: 'OPENING',
+      openingExpiresAt: now + 180_000,
+    });
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    const secondStarted = await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    expect(secondStarted.status).toBe('IN_GAME');
+    expect(secondStarted.matchId).toBeTruthy();
+    expect(secondStarted.matchId).not.toBe(firstMatchId);
+    expect(matchService.getMatch(secondStarted.matchId!)).not.toBeNull();
+    expect(reservationMatchId).toBe(firstMatchId);
+    expect(ticketMatchId).toBe(firstMatchId);
+    expect(reservationClaimCount).toBe(1);
+    expect(ticketClaimCount).toBe(1);
+    expect(markOnlineMatch).toHaveBeenCalledTimes(2);
+    expect(markOnlineMatch).toHaveBeenNthCalledWith(
+      1,
+      ['u1', 'u2'],
+      room.roomGeneration,
+      firstMatchId
+    );
+    expect(markOnlineMatch).toHaveBeenNthCalledWith(
+      2,
+      ['u1', 'u2'],
+      room.roomGeneration,
+      secondStarted.matchId
+    );
+
+    const secondGame = matchService.getMatch(secondStarted.matchId!)!.session.state as {
+      currentPhase: GamePhase;
+    };
+    secondGame.currentPhase = GamePhase.GAME_END;
+    now += 1_000;
+    service.touchInGameMemberByMatch(secondStarted.matchId!, 'u1');
+    service.touchInGameMemberByMatch(secondStarted.matchId!, 'u2');
+    const thirdRequested = await service.requestRestart(room.roomCode, 'u1');
+    await service.acceptRestartRequest(
+      room.roomCode,
+      'u2',
+      thirdRequested.restartRequest!.requestId
+    );
+    await service.markReadyToStart(room.roomCode, 'u1');
+    const thirdOpening = await service.markReadyToStart(room.roomCode, 'u2');
+    now = thirdOpening.openingExpiresAt!;
+
+    await service.cleanupExpiredRuntimeState();
+
+    await expect(service.getRoomIfPresent(room.roomCode)).resolves.toBeNull();
+    expect(releaseOnlineRoom).toHaveBeenCalledWith(['u1', 'u2'], room.roomGeneration);
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringMatching(/SET state = 'RELEASED'[\s\S]*AND match_id = \$4/),
+      [
+        '12121212-2222-4333-8444-555555555555',
+        'REMATCH_OPENING_TIMEOUT',
+        room.roomGeneration,
+        firstMatchId,
+        new Date(now),
+      ]
+    );
+    expect(
+      vi
+        .mocked(pool.query)
+        .mock.calls.map(([text]) => String(text))
+        .filter((text) => text.includes("SET state = 'CANCELED'"))
+    ).toHaveLength(0);
+    expect(reservationMatchId).toBe(firstMatchId);
+    expect(ticketMatchId).toBe(firstMatchId);
+  });
+
+  it('旧局封存暂时失败后应可重试接受重开并正常创建新局', async () => {
+    let now = 10_000;
+    const matchService = createInMemoryMatchService();
+    const restoreOnlineRoom = vi.fn(async () => 2);
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+      loadOwnedDeck: async (_userId, deckId) => ({
+        deckId,
+        deckName: deckId,
+        runtimeDeck: createRuntimeDeck(deckId),
+        pointValidation: TEST_POINT_VALIDATION,
+        pointTable: TEST_POINT_TABLE,
+      }),
+      participationService: {
+        acquireOnlineRoom: async () => true,
+        markOnlineMatch: async () => undefined,
+        restoreOnlineRoom,
+        releaseOnlineRoom: async () => undefined,
+      },
+    });
+
+    await service.createRoom('retry1', 'u1');
+    await service.joinRoom('retry1', 'u2');
+    await service.lockDeck('retry1', 'u1', 'deck-a');
+    await service.lockDeck('retry1', 'u2', 'deck-b');
+    const started = await startRoomThroughOpening(service, 'retry1', 'u1', 'u2', 'u1');
+    const previousMatchId = started.matchId!;
+    const game = matchService.getMatch(previousMatchId)!.session.state as {
+      currentPhase: GamePhase;
+    };
+    game.currentPhase = GamePhase.GAME_END;
+    const requested = await service.requestRestart('retry1', 'u1');
+    const deleteMatch = vi.spyOn(matchService, 'deleteMatch').mockResolvedValueOnce(false);
+
+    await expect(
+      service.acceptRestartRequest('retry1', 'u2', requested.restartRequest!.requestId)
+    ).rejects.toMatchObject({ code: 'ONLINE_RESTART_SEAL_FAILED' });
+    await expect(service.getRoomView('retry1', 'u2')).resolves.toMatchObject({
+      status: 'IN_GAME',
+      matchId: previousMatchId,
+      restartRequest: expect.objectContaining({ requestId: requested.restartRequest!.requestId }),
+    });
+    expect(matchService.getMatch(previousMatchId)).not.toBeNull();
+
+    now += 1_000;
+    const restarted = await service.acceptRestartRequest(
+      'retry1',
+      'u2',
+      requested.restartRequest!.requestId
+    );
+    expect(restarted).toMatchObject({ status: 'PREPARING', matchId: null });
+    expect(restoreOnlineRoom).toHaveBeenCalledTimes(2);
+    expect(deleteMatch).toHaveBeenCalledTimes(2);
+
+    await service.markReadyToStart('retry1', 'u1');
+    await service.markReadyToStart('retry1', 'u2');
+    await service.submitOpeningRps('retry1', 'u1', 'ROCK');
+    await service.submitOpeningRps('retry1', 'u2', 'SCISSORS');
+    const secondStarted = await service.chooseOpeningTurnOrder('retry1', 'u1', 'SELF_FIRST');
+    expect(secondStarted).toMatchObject({ status: 'IN_GAME' });
+    expect(secondStarted.matchId).not.toBe(previousMatchId);
   });
 
   it('房间号观战会话应跨重开等待并在新局按原玩家身份重新解析席位', async () => {

@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, OrientationState } from '../../../../shared/types/enums.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
 import { HS_BP2_009_ON_ENTER_PAY_ENERGY_LOWER_COST_MIRACRA_RELAY_GAIN_TWO_PINK_HEART_ABILITY_ID } from '../../ability-ids.js';
@@ -148,11 +148,10 @@ function finishHsBp2009PayEnergy(
   let stateAfterModifier = stateAfterCost;
   let heartCount = 0;
   if (sourceOnStage && condition.conditionMet) {
-    const modifierResult = addHeartLiveModifierForMember(
+    const modifierResult = addHeartLiveModifierForSourceMember(
       { ...stateAfterCost, activeEffect: null },
       {
         playerId: player.id,
-        memberCardId: effect.sourceCardId,
         sourceCardId: effect.sourceCardId,
         abilityId: effect.abilityId,
         hearts: [createHeartIcon(HeartColor.PINK, 2)],

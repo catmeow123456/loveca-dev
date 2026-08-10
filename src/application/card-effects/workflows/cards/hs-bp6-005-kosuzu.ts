@@ -6,7 +6,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   addMemberCostLiveModifierForMember,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
@@ -146,9 +146,8 @@ function finishHsBp6005KosuzuDiscardCost(
   const conditionMet = ownHasunosoraCostTotal > opponentStageCostTotal;
 
   if (conditionMet) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: HeartColor.BLUE, count: 1 }],

@@ -279,13 +279,15 @@ P0/P1 覆盖：
 | fragment_ids | modifier |
 |---|---|
 | `B01` | `grantBlade(target, count, duration)` |
-| `B02,B03` | `grantHeart(target, color/count, duration)` |
+| `B02,B03` | `grantHeart(scope, source, target?, color/count, duration)` |
 | `B05` | `modifyLiveTotalScore(player, delta, duration)` |
 | `B06` | `modifyThisLiveScore(liveCard, delta, condition?)` |
 | `B07` | `modifyRequiredHearts(liveCard, modifiers, duration)` |
 | `B08,T05` | `continuousPrintedStatsModifier(condition)` |
 
 当前 `liveModifiers` 已成为临时 Live 修正主写入路径；`addLiveModifier` / `replaceLiveModifier` 负责写入，旧 Map 字段只由 `projectLiveModifierCompatibility` 派生给 UI/在线投影兼容。`applyHeartRequirementModifiers` 继续作为必要 Heart 修正的判定读取侧工具。
+
+HEART 的生产入口必须显式选择 `SOURCE_MEMBER` / `TARGET_MEMBER` / `PLAYER`。卡文写“此成员”才使用 source scope；选择或指定成员时即使受益者与来源实例相同也仍使用 target scope，并分别保存真实 `sourceCardId` 与 `targetMemberCardId`；卡文受益者是玩家整体而非某名成员时使用 player scope。不得从卡型、区域、ID 相等或缺失字段推断，也不得用 scope 推断持续方式。持久化成员 scope 在 LeaveStage 时按绑定实例清除，持久化 PLAYER 不绑定成员；continuous modifier 则按当前场面动态收集，来源或条件失效时自动消失。WAITING 朝向与槽位移动不清除持久化成员 scope，成为 memberBelow、被替换或离开顶层舞台会清除，同实例重登场不恢复旧 modifier。
 
 ## 5. How current cards map to the framework
 

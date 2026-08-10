@@ -14,6 +14,7 @@ export interface RankedSeasonPublicView {
   readonly id: string;
   readonly seasonKey: string;
   readonly name: string;
+  readonly announcement: string;
   readonly lifecycle: 'ACTIVE' | 'FINALIZING' | 'CLOSED';
   readonly platformTimeZone: string;
   readonly startsAt: number;
@@ -60,6 +61,40 @@ export interface RankedLeaderboardEntryView {
   readonly rating: number;
   readonly ratingDeviation: number;
   readonly ratedMatchCount: number;
+}
+
+export interface RankedSeasonEnvironmentSampleView {
+  /** 已完成计分的赛季对局数。 */
+  readonly settledMatchCount: number;
+  /** 同时具备双方完整卡组观察事实的对局数。 */
+  readonly analyzedMatchCount: number;
+  readonly deckObservationCount: number;
+  readonly playerCount: number;
+  /** analyzedMatchCount / settledMatchCount，无已结算对局时为 0。 */
+  readonly coverageRate: number;
+}
+
+export interface RankedSeasonCardUsageView {
+  readonly rank: number;
+  readonly baseCardCode: string;
+  /** 用于卡名与卡图展示的当局代表印刷编号。 */
+  readonly cardCode: string;
+  readonly name: string;
+  readonly cardType: 'MEMBER' | 'LIVE';
+  readonly imageFilename: string | null;
+  /** 玩家等权的卡组采用率，取值为 0..1。 */
+  readonly usageRate: number;
+  /** 不做玩家权重修正的原始卡组搭载率，取值为 0..1。 */
+  readonly deckInclusionRate: number;
+  readonly playerCount: number;
+  readonly deckCount: number;
+  readonly averageCopies: number;
+}
+
+export interface RankedSeasonEnvironmentView {
+  readonly seasonId: string;
+  readonly sample: RankedSeasonEnvironmentSampleView;
+  readonly cardUsage: readonly RankedSeasonCardUsageView[];
 }
 
 export interface RankedOverviewView {

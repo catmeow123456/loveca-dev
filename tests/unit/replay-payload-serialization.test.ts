@@ -25,6 +25,7 @@ import {
   rehydrateAuthorityGameState,
   rehydrateLegacyAuthorityGameStateForMigration,
   rehydrateLegacyReplayPayloadForMigration,
+  ReplayPayloadSerializationError,
   serializeReplayPayload,
   stableJsonStringify,
   toReplayJsonValue,
@@ -34,7 +35,13 @@ import {
   LEGACY_GAME_STATE_SCHEMA_VERSION,
 } from '../../src/server/services/replay-constants';
 import {
+  HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+  HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
   HS_BP5_001_ON_ENTER_MILL_GAIN_BLADE_ABILITY_ID,
+  HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+  HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID,
+  HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+  KOTORI_LIVE_START_HEART_ABILITY_ID,
   N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
   N_BP7_026_LIVE_START_DISCARD_UP_TO_TWO_TARGET_NIJIGASAKI_GAIN_BLADE_ABILITY_ID,
   PL_BP4_014_LIVE_START_LIVE_WITHOUT_TIMING_TARGET_OTHER_MEMBER_GAIN_TWO_BLADE_ABILITY_ID,
@@ -47,6 +54,7 @@ import {
   SP_SD2_020_LIVE_START_ENERGY_SEVEN_SOURCE_AND_OTHER_LIELLA_GAIN_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import { getLegacyPersistedBladeScopeEntries } from '../../src/application/card-effects/legacy-persisted-blade-scopes';
+import { getLegacyPersistedHeartScopeEntries } from '../../src/application/card-effects/legacy-persisted-heart-scopes';
 
 const PLAYER1 = 'player1';
 const PLAYER2 = 'player2';
@@ -96,6 +104,22 @@ function createTestDeck(prefix: string): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
+function expectReplaySerializationFailure(
+  callback: () => unknown,
+  message: string,
+  reason: ReplayPayloadSerializationError['reason']
+): void {
+  let thrown: unknown;
+  try {
+    callback();
+  } catch (error) {
+    thrown = error;
+  }
+  expect(thrown).toBeInstanceOf(ReplayPayloadSerializationError);
+  expect(thrown).toMatchObject({ reason });
+  expect((thrown as Error).message).toContain(message);
+}
+
 describe('replay payload serialization', () => {
   it('冻结全量已审计持久化 BLADE abilityId 作用域清单', () => {
     const entries = getLegacyPersistedBladeScopeEntries();
@@ -130,6 +154,434 @@ describe('replay payload serialization', () => {
       ])
     );
   });
+
+  it('冻结六个可无歧义迁移的历史 HEART abilityId 与编码', () => {
+    expect(getLegacyPersistedHeartScopeEntries()).toEqual([
+      [KOTORI_LIVE_START_HEART_ABILITY_ID, 'SOURCE_MEMBER', 'TARGETLESS_SOURCE_CARD_ID_IS_SOURCE'],
+      [
+        HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+        'SOURCE_MEMBER',
+        'TARGETLESS_SOURCE_CARD_ID_IS_SOURCE',
+      ],
+      [
+        HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+        'SOURCE_MEMBER',
+        'TARGETLESS_SOURCE_CARD_ID_IS_SOURCE',
+      ],
+      [
+        HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
+        'TARGET_MEMBER',
+        'EXPLICIT_SOURCE_MEMBER_IS_SELF_TARGET',
+      ],
+      [
+        HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+        'TARGET_MEMBER',
+        'EXPLICIT_SOURCE_MEMBER_IS_SELF_TARGET',
+      ],
+      [
+        HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID,
+        'TARGET_MEMBER',
+        'EXPLICIT_SOURCE_MEMBER_IS_SELF_TARGET',
+      ],
+    ]);
+  });
+
+  it('GAME_STATE_V1 仅迁移三个已审计 targetless SOURCE_MEMBER HEART 并清除旧 PLAYER 投影', () => {
+    const session = createGameSession();
+    session.createGame('legacy-heart-source-targets', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const sourceAbilityIds = [
+      KOTORI_LIVE_START_HEART_ABILITY_ID,
+      HS_BP1_006_LIVE_START_DISCARD_GAIN_HEART_ABILITY_ID,
+      HS_PR_019_ON_ENTER_MILL_GAIN_GREEN_HEART_ABILITY_ID,
+    ] as const;
+    const legacySnapshot = {
+      ...snapshot,
+      liveResolution: {
+        ...snapshot.liveResolution,
+        playerHeartBonuses: new Map([[PLAYER1, [createHeartIcon(HeartColor.GREEN, 1)]]]),
+        liveModifiers: sourceAbilityIds.map((abilityId, index) => ({
+          kind: 'HEART',
+          playerId: PLAYER1,
+          hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+          sourceCardId: `legacy-source-${index}`,
+          abilityId,
+        })),
+      },
+    };
+
+    const rehydrated = rehydrateAuthorityGameState(
+      serializeReplayPayload(
+        legacySnapshot,
+        'AUTHORITY_GAME_STATE',
+        LEGACY_GAME_STATE_SCHEMA_VERSION
+      )
+    );
+
+    expect(rehydrated.liveResolution.liveModifiers).toEqual(
+      sourceAbilityIds.map((abilityId, index) => ({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: PLAYER1,
+        hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+        sourceCardId: `legacy-source-${index}`,
+        abilityId,
+      }))
+    );
+    expect(rehydrated.liveResolution.playerHeartBonuses.size).toBe(0);
+  });
+
+  it.each([LEGACY_GAME_STATE_SCHEMA_VERSION, GAME_STATE_SCHEMA_VERSION])(
+    '%s 不把缺少显式 PLAYER modifier 的旧 playerHeartBonuses 当作权威 HEART',
+    (sourceSchemaVersion) => {
+      const session = createGameSession();
+      session.createGame(
+        `stale-player-heart-projection-${sourceSchemaVersion}`,
+        PLAYER1,
+        '玩家1',
+        PLAYER2,
+        '玩家2'
+      );
+      session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+      const snapshot = session.getAuthoritySnapshotForRecord()!;
+      const rehydrated = rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          {
+            ...snapshot,
+            liveResolution: {
+              ...snapshot.liveResolution,
+              playerHeartBonuses: new Map([[PLAYER1, [createHeartIcon(HeartColor.GREEN, 1)]]]),
+              liveModifiers: [],
+            },
+          },
+          'AUTHORITY_GAME_STATE',
+          sourceSchemaVersion
+        )
+      );
+
+      expect(rehydrated.liveResolution.playerHeartBonuses.size).toBe(0);
+    }
+  );
+
+  it.each([LEGACY_GAME_STATE_SCHEMA_VERSION, GAME_STATE_SCHEMA_VERSION])(
+    '%s 按三个已审计 abilityId 将历史 self SOURCE 无损改为 TARGET_MEMBER',
+    (sourceSchemaVersion) => {
+      const session = createGameSession();
+      session.createGame(
+        `legacy-heart-self-target-${sourceSchemaVersion}`,
+        PLAYER1,
+        '玩家1',
+        PLAYER2,
+        '玩家2'
+      );
+      session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+      const snapshot = session.getAuthoritySnapshotForRecord()!;
+      const targetAbilityIds = [
+        HS_BP2_007_LIVE_START_DISCARD_MEMBER_TARGET_SAME_NAME_GREEN_HEART_BLADE_ABILITY_ID,
+        HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+        HS_BP6_003_LIVE_START_DISCARD_GAIN_MIRACRA_HEART_ABILITY_ID,
+      ] as const;
+      const historicalModifiers = targetAbilityIds.map((abilityId, index) => ({
+        kind: 'HEART',
+        target: 'SOURCE_MEMBER',
+        playerId: PLAYER1,
+        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        sourceCardId: `self-target-${index}`,
+        abilityId,
+      }));
+      const rehydrated = rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          {
+            ...snapshot,
+            liveResolution: { ...snapshot.liveResolution, liveModifiers: historicalModifiers },
+          },
+          'AUTHORITY_GAME_STATE',
+          sourceSchemaVersion
+        )
+      );
+
+      expect(rehydrated.liveResolution.liveModifiers).toEqual(
+        targetAbilityIds.map((abilityId, index) => ({
+          kind: 'HEART',
+          target: 'TARGET_MEMBER',
+          playerId: PLAYER1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+          sourceCardId: `self-target-${index}`,
+          targetMemberCardId: `self-target-${index}`,
+          abilityId,
+        }))
+      );
+    }
+  );
+
+  it('GAME_STATE_V1/V2 拒绝未审计或与历史编码冲突的 targetless HEART', () => {
+    const session = createGameSession();
+    session.createGame('unsafe-legacy-heart', PLAYER1, '玩家1', PLAYER2, '玩家2');
+    session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+    const snapshot = session.getAuthoritySnapshotForRecord()!;
+    const rehydrateWithModifier = (modifier: unknown, sourceSchemaVersion: string) =>
+      rehydrateAuthorityGameState(
+        serializeReplayPayload(
+          {
+            ...snapshot,
+            liveResolution: { ...snapshot.liveResolution, liveModifiers: [modifier] },
+          },
+          'AUTHORITY_GAME_STATE',
+          sourceSchemaVersion
+        )
+      );
+    const targetless = (abilityId: string) => ({
+      kind: 'HEART',
+      playerId: PLAYER1,
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+      sourceCardId: 'legacy-member',
+      abilityId,
+    });
+
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(targetless('unknown:legacy-heart'), LEGACY_GAME_STATE_SCHEMA_VERSION),
+      'abilityId 未经作用域审计',
+      'UNSUPPORTED'
+    );
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(
+          {
+            kind: 'HEART',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+            sourceCardId: 'legacy-member',
+          },
+          LEGACY_GAME_STATE_SCHEMA_VERSION
+        ),
+      '缺少可审计的 abilityId',
+      'UNSUPPORTED'
+    );
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(
+          {
+            kind: 'HEART',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+            abilityId: KOTORI_LIVE_START_HEART_ABILITY_ID,
+          },
+          LEGACY_GAME_STATE_SCHEMA_VERSION
+        ),
+      '旧 SOURCE_MEMBER HEART 缺少 sourceCardId',
+      'CORRUPTED'
+    );
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(
+          targetless(HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID),
+          LEGACY_GAME_STATE_SCHEMA_VERSION
+        ),
+      '无 target 形状与已审计历史编码冲突',
+      'CORRUPTED'
+    );
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(
+          targetless(KOTORI_LIVE_START_HEART_ABILITY_ID),
+          GAME_STATE_SCHEMA_VERSION
+        ),
+      'GAME_STATE_V2 HEART 缺少显式 target',
+      'CORRUPTED'
+    );
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(
+          {
+            ...targetless(KOTORI_LIVE_START_HEART_ABILITY_ID),
+            targetMemberCardId: 'unexpected-target',
+          },
+          LEGACY_GAME_STATE_SCHEMA_VERSION
+        ),
+      '缺少 target 却携带 targetMemberCardId',
+      'CORRUPTED'
+    );
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(
+          {
+            ...targetless(KOTORI_LIVE_START_HEART_ABILITY_ID),
+            target: 'TARGET_MEMBER',
+            targetMemberCardId: 'wrong-target',
+          },
+          GAME_STATE_SCHEMA_VERSION
+        ),
+      '已审计 SOURCE_MEMBER HEART 的 target 冲突',
+      'CORRUPTED'
+    );
+    expectReplaySerializationFailure(
+      () =>
+        rehydrateWithModifier(
+          {
+            ...targetless(HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID),
+            target: 'PLAYER',
+          },
+          GAME_STATE_SCHEMA_VERSION
+        ),
+      '已审计 TARGET_MEMBER HEART 不能作用于 PLAYER',
+      'CORRUPTED'
+    );
+  });
+
+  it.each([LEGACY_GAME_STATE_SCHEMA_VERSION, GAME_STATE_SCHEMA_VERSION])(
+    '%s 仅接受完整且显式的 HEART 作用域与 Heart 向量',
+    (sourceSchemaVersion) => {
+      const session = createGameSession();
+      session.createGame(`strict-heart-${sourceSchemaVersion}`, PLAYER1, '玩家1', PLAYER2, '玩家2');
+      session.initializeGame(createTestDeck('A'), createTestDeck('B'));
+      const snapshot = session.getAuthoritySnapshotForRecord()!;
+      const rehydrateWithModifiers = (liveModifiers: readonly unknown[]) =>
+        rehydrateAuthorityGameState(
+          serializeReplayPayload(
+            {
+              ...snapshot,
+              liveResolution: { ...snapshot.liveResolution, liveModifiers },
+            },
+            'AUTHORITY_GAME_STATE',
+            sourceSchemaVersion
+          )
+        );
+      const explicitModifiers = [
+        {
+          kind: 'HEART',
+          target: 'SOURCE_MEMBER',
+          playerId: PLAYER1,
+          hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+          sourceCardId: 'source-member',
+          abilityId: KOTORI_LIVE_START_HEART_ABILITY_ID,
+        },
+        {
+          kind: 'HEART',
+          target: 'TARGET_MEMBER',
+          playerId: PLAYER1,
+          hearts: [createHeartIcon(HeartColor.PINK, 1)],
+          sourceCardId: 'target-heart-source',
+          targetMemberCardId: 'target-heart-beneficiary',
+          abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+        },
+        {
+          kind: 'HEART',
+          target: 'PLAYER',
+          playerId: PLAYER1,
+          hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+          sourceCardId: 'live-source',
+          abilityId: 'explicit-player-heart',
+        },
+      ];
+      const rehydrated = rehydrateWithModifiers(explicitModifiers);
+      expect(rehydrated.liveResolution.liveModifiers).toEqual(explicitModifiers);
+      expect(rehydrated.liveResolution.playerHeartBonuses.get(PLAYER1)).toEqual([
+        createHeartIcon(HeartColor.BLUE, 1),
+      ]);
+
+      const invalidModifiers: readonly (readonly [unknown, string])[] = [
+        [
+          {
+            kind: 'HEART',
+            target: 'SOURCE_MEMBER',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+          },
+          'SOURCE_MEMBER HEART 绑定字段无效',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'SOURCE_MEMBER',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+            sourceCardId: 'source',
+            targetMemberCardId: 'unexpected-target',
+          },
+          'SOURCE_MEMBER HEART 绑定字段无效',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'TARGET_MEMBER',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.PINK, 1)],
+            targetMemberCardId: 'target-only',
+          },
+          'TARGET_MEMBER HEART 必须同时记录',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'TARGET_MEMBER',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.PINK, 1)],
+            sourceCardId: 'source-only',
+          },
+          'TARGET_MEMBER HEART 必须同时记录',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'PLAYER',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+            targetMemberCardId: 'unexpected-target',
+          },
+          'PLAYER HEART 不应绑定 targetMemberCardId',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'UNKNOWN',
+            playerId: PLAYER1,
+            hearts: [createHeartIcon(HeartColor.BLUE, 1)],
+          },
+          'HEART target 无效',
+        ],
+        [
+          { kind: 'HEART', target: 'PLAYER', playerId: PLAYER1, hearts: [] },
+          'hearts 必须是非空数组',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'PLAYER',
+            playerId: PLAYER1,
+            hearts: [{ color: 'NOT_A_HEART', count: 1 }],
+          },
+          'hearts 内容无效',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'PLAYER',
+            playerId: PLAYER1,
+            hearts: [{ color: HeartColor.BLUE, count: 0 }],
+          },
+          'hearts 内容无效',
+        ],
+        [
+          {
+            kind: 'HEART',
+            target: 'PLAYER',
+            playerId: PLAYER1,
+            hearts: [{ color: HeartColor.BLUE, count: 1.5 }],
+          },
+          'hearts 内容无效',
+        ],
+      ];
+      for (const [modifier, message] of invalidModifiers) {
+        expectReplaySerializationFailure(
+          () => rehydrateWithModifiers([modifier]),
+          message,
+          'CORRUPTED'
+        );
+      }
+    }
+  );
 
   it('GAME_STATE_V1 只按已审计 abilityId 迁移无 target BLADE', () => {
     const session = createGameSession();

@@ -22,7 +22,7 @@ export interface GameplayParticipationPort {
     userIds: readonly string[],
     roomGeneration: string,
     matchId: string
-  ): Promise<void>;
+  ): Promise<number>;
   releaseOnlineRoom(userIds: readonly string[], roomGeneration: string): Promise<void>;
 }
 
@@ -67,21 +67,35 @@ export class GameplayParticipationService implements GameplayParticipationPort {
     userIds: readonly string[],
     roomGeneration: string,
     matchId: string
-  ): Promise<void> {
+  ): Promise<number> {
     if (userIds.length === 0) {
-      return;
+      return 0;
     }
-    await pool.query(
-      `UPDATE gameplay_participations
-       SET kind = 'ONLINE_ROOM',
-           match_id = NULL,
-           updated_at = NOW()
-       WHERE user_id = ANY($1::uuid[])
-         AND room_generation = $2
-         AND kind = 'ONLINE_MATCH'
-         AND match_id = $3`,
+    const result = await pool.query<{ restored_count: number }>(
+      `WITH eligible AS MATERIALIZED (
+         SELECT user_id
+         FROM gameplay_participations
+         WHERE user_id = ANY($1::uuid[])
+           AND room_generation = $2
+           AND (
+             (kind = 'ONLINE_MATCH' AND match_id = $3)
+             OR (kind = 'ONLINE_ROOM' AND match_id IS NULL)
+           )
+         FOR UPDATE
+       ), restored AS (
+         UPDATE gameplay_participations
+         SET kind = 'ONLINE_ROOM',
+             match_id = NULL,
+             updated_at = NOW()
+         WHERE user_id IN (SELECT user_id FROM eligible)
+           AND (SELECT COUNT(*) FROM eligible) = cardinality($1::uuid[])
+         RETURNING user_id
+       )
+       SELECT COUNT(*)::integer AS restored_count
+       FROM restored`,
       [userIds, roomGeneration, matchId]
     );
+    return Number(result.rows[0]?.restored_count ?? 0);
   }
 
   async releaseOnlineRoom(userIds: readonly string[], roomGeneration: string): Promise<void> {

@@ -11,6 +11,7 @@ import {
 interface RankedSeasonNoticeDialogProps {
   readonly isOpen: boolean;
   readonly seasonName?: string | null;
+  readonly announcement?: string | null;
   readonly leaderboardMatchCount?: number | null;
   readonly onClose: () => void;
 }
@@ -18,6 +19,7 @@ interface RankedSeasonNoticeDialogProps {
 export const RankedSeasonNoticeDialog = memo(function RankedSeasonNoticeDialog({
   isOpen,
   seasonName,
+  announcement,
   leaderboardMatchCount,
   onClose,
 }: RankedSeasonNoticeDialogProps) {
@@ -69,7 +71,7 @@ export const RankedSeasonNoticeDialog = memo(function RankedSeasonNoticeDialog({
                   赛季公告
                 </h2>
                 <p className="mt-0.5 truncate text-xs text-[var(--text-secondary)]">
-                  {seasonName ?? '当前赛季'} · 积分、排行榜与断线规则
+                  {seasonName ?? '当前赛季'} · 赛季说明、积分、排行榜与断线规则
                 </p>
               </div>
             </div>
@@ -86,6 +88,14 @@ export const RankedSeasonNoticeDialog = memo(function RankedSeasonNoticeDialog({
           </div>
 
           <div className="cute-scrollbar flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+            {announcement?.trim() ? (
+              <section className="mb-4 rounded-xl border border-[var(--border-default)] bg-[var(--bg-overlay)] p-4">
+                <div className="text-xs font-semibold text-[var(--text-muted)]">赛季说明</div>
+                <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--text-secondary)]">
+                  {announcement.trim()}
+                </p>
+              </section>
+            ) : null}
             <div className="grid gap-3 sm:grid-cols-2">
               <section className="rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_30%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_7%,var(--bg-surface))] p-4">
                 <div className="text-xs font-semibold text-[var(--text-muted)]">积分算法</div>

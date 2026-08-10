@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GLICKO1_PER_MATCH_SHADOW_V2, type Glicko1Config } from '../../src/server/rating/glicko';
+import { GLICKO1_PER_MATCH_V4, rateRankedHeadToHead } from '../../src/server/rating/ranked-rating';
+import { RankedDeckObservationServiceError } from '../../src/server/services/ranked-deck-observation-service';
 import {
   RankedRatingService,
   type RankedRatingQueryClient,
@@ -20,6 +22,56 @@ const CONFIG: Glicko1Config = {
 interface QueryCall {
   readonly text: string;
   readonly values: readonly unknown[];
+}
+
+const FIRST_USER_ID = '11111111-1111-4111-8111-111111111111';
+const SECOND_USER_ID = '22222222-2222-4222-8222-222222222222';
+
+function rankedDeckSnapshotRows(): readonly Record<string, unknown>[] {
+  return [
+    buildRankedDeckSnapshotRow('FIRST', FIRST_USER_ID, 'FIRST'),
+    buildRankedDeckSnapshotRow('SECOND', SECOND_USER_ID, 'SECOND'),
+  ];
+}
+
+function buildRankedDeckSnapshotRow(
+  seat: 'FIRST' | 'SECOND',
+  userId: string,
+  prefix: string
+): Readonly<Record<string, unknown>> {
+  const mainDeck: string[] = [];
+  const cardSummaries: Record<string, unknown> = {};
+  for (let index = 1; index <= 15; index += 1) {
+    const cardCode = `PL!N-bp1-${String(index).padStart(3, '0')}-N`;
+    mainDeck.push(cardCode, cardCode, cardCode, cardCode);
+    cardSummaries[cardCode] = {
+      cardCode,
+      name: `${prefix} 卡 ${index}`,
+      cardType: index % 3 === 0 ? 'LIVE' : 'MEMBER',
+      imageFilename: `${cardCode}.webp`,
+    };
+  }
+  return {
+    seat,
+    user_id: userId,
+    main_deck: mainDeck,
+    card_summaries: cardSummaries,
+    started_at: new Date('2026-08-09T00:00:00.000Z'),
+  };
+}
+
+function returnedObservation(values: readonly unknown[]): readonly Record<string, unknown>[] {
+  return [
+    {
+      season_id: values[0],
+      match_id: values[1],
+      seat: values[2],
+      user_id: values[3],
+      deck_fingerprint: values[4],
+      main_deck_cards: JSON.parse(String(values[5])),
+      observed_at: values[6],
+    },
+  ];
 }
 
 function settlementContext(
@@ -86,9 +138,8 @@ function createHarness(
 
 describe('RankedRatingService settlement', () => {
   it('binds only the frozen season environment to an authoritative ranked match', async () => {
-    const firstUserId = '11111111-1111-4111-8111-111111111111';
-    const secondUserId = '22222222-2222-4222-8222-222222222222';
-    const { calls, service } = createHarness((text) => {
+    let existingFirstObservation: Readonly<Record<string, unknown>> | undefined;
+    const { calls, service } = createHarness((text, values) => {
       if (text.includes('FROM ranked_seasons AS season')) {
         return [
           {
@@ -103,19 +154,33 @@ describe('RankedRatingService settlement', () => {
             match_status: 'IN_PROGRESS',
             completeness: 'FULL',
             origin_kind: 'RANKED',
-            first_user_id: firstUserId,
-            second_user_id: secondUserId,
+            first_user_id: FIRST_USER_ID,
+            second_user_id: SECOND_USER_ID,
             match_rules_version: 'RULES_V1',
           },
         ];
+      }
+      if (text.includes('FROM match_deck_snapshots AS snapshot')) {
+        return rankedDeckSnapshotRows();
+      }
+      if (text.includes('INSERT INTO ranked_deck_observations')) {
+        const returned = returnedObservation(values);
+        if (values[2] === 'FIRST') {
+          existingFirstObservation = returned[0];
+          return [];
+        }
+        return returned;
+      }
+      if (text.includes('FROM ranked_deck_observations')) {
+        return existingFirstObservation ? [existingFirstObservation] : [];
       }
       if (text.includes('FROM ranked_matches') && !text.includes('FOR UPDATE')) {
         return [
           {
             season_id: 'season-1',
             match_id: 'match-1',
-            first_user_id: firstUserId,
-            second_user_id: secondUserId,
+            first_user_id: FIRST_USER_ID,
+            second_user_id: SECOND_USER_ID,
             rating_status: 'PENDING',
           },
         ];
@@ -132,10 +197,17 @@ describe('RankedRatingService settlement', () => {
     const insert = calls.find((call) => call.text.includes('INSERT INTO ranked_matches'));
     expect(insert?.values).toContain(`sha256:${'a'.repeat(64)}`);
     expect(insert?.values).toContain(CONFIG.algorithmVersion);
+    const observationInserts = calls.filter((call) =>
+      call.text.includes('INSERT INTO ranked_deck_observations')
+    );
+    expect(observationInserts).toHaveLength(2);
+    expect(observationInserts.map((call) => call.values[2])).toEqual(['FIRST', 'SECOND']);
+    expect(JSON.parse(String(observationInserts[0]?.values[5]))).toHaveLength(15);
+    expect(calls.some((call) => call.text.includes('FROM ranked_deck_observations'))).toBe(true);
   });
 
   it('allows a pairing formed before season end to start while finalizing', async () => {
-    const { service } = createHarness((text) => {
+    const { service } = createHarness((text, values) => {
       if (text.includes('FROM ranked_seasons AS season')) {
         return [
           {
@@ -155,6 +227,12 @@ describe('RankedRatingService settlement', () => {
             match_rules_version: 'RULES_V1',
           },
         ];
+      }
+      if (text.includes('FROM match_deck_snapshots AS snapshot')) {
+        return rankedDeckSnapshotRows();
+      }
+      if (text.includes('INSERT INTO ranked_deck_observations')) {
+        return returnedObservation(values);
       }
       if (text.includes('FROM ranked_matches') && !text.includes('FOR UPDATE')) {
         return [
@@ -177,6 +255,125 @@ describe('RankedRatingService settlement', () => {
       matchId: 'match-1',
       ratingStatus: 'PENDING',
     });
+  });
+
+  it('在同一注册事务中因双方快照不完整而拒绝绑定', async () => {
+    const { calls, service, transaction } = createHarness((text) => {
+      if (text.includes('FROM ranked_seasons AS season')) {
+        return [
+          {
+            season_id: 'season-1',
+            lifecycle: 'ACTIVE',
+            rules_version: 'RULES_V1',
+            card_catalog_version: 'CATALOG_V1',
+            card_catalog_hash: `sha256:${'a'.repeat(64)}`,
+            deck_policy_version: 'DECK_POLICY_V1',
+            rating_algorithm_version: CONFIG.algorithmVersion,
+            match_id: 'match-1',
+            match_status: 'IN_PROGRESS',
+            completeness: 'FULL',
+            origin_kind: 'RANKED',
+            first_user_id: FIRST_USER_ID,
+            second_user_id: SECOND_USER_ID,
+            match_rules_version: 'RULES_V1',
+          },
+        ];
+      }
+      if (text.includes('FROM ranked_matches') && !text.includes('FOR UPDATE')) {
+        return [
+          {
+            season_id: 'season-1',
+            match_id: 'match-1',
+            first_user_id: FIRST_USER_ID,
+            second_user_id: SECOND_USER_ID,
+            rating_status: 'PENDING',
+          },
+        ];
+      }
+      if (text.includes('FROM match_deck_snapshots AS snapshot')) {
+        return rankedDeckSnapshotRows().slice(0, 1);
+      }
+      return [];
+    });
+
+    await expect(
+      service.registerMatch({ seasonId: 'season-1', matchId: 'match-1' })
+    ).rejects.toMatchObject<Partial<RankedDeckObservationServiceError>>({
+      code: 'RANKED_DECK_SNAPSHOTS_INVALID',
+    });
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(calls.some((call) => call.text.includes('INSERT INTO ranked_deck_observations'))).toBe(
+      false
+    );
+  });
+
+  it('幂等重试时校验已存观察事实，不覆盖冲突记录', async () => {
+    const { calls, service } = createHarness((text) => {
+      if (text.includes('FROM ranked_seasons AS season')) {
+        return [
+          {
+            season_id: 'season-1',
+            lifecycle: 'ACTIVE',
+            rules_version: 'RULES_V1',
+            card_catalog_version: 'CATALOG_V1',
+            card_catalog_hash: `sha256:${'a'.repeat(64)}`,
+            deck_policy_version: 'DECK_POLICY_V1',
+            rating_algorithm_version: CONFIG.algorithmVersion,
+            match_id: 'match-1',
+            match_status: 'IN_PROGRESS',
+            completeness: 'FULL',
+            origin_kind: 'RANKED',
+            first_user_id: FIRST_USER_ID,
+            second_user_id: SECOND_USER_ID,
+            match_rules_version: 'RULES_V1',
+          },
+        ];
+      }
+      if (text.includes('FROM ranked_matches') && !text.includes('FOR UPDATE')) {
+        return [
+          {
+            season_id: 'season-1',
+            match_id: 'match-1',
+            first_user_id: FIRST_USER_ID,
+            second_user_id: SECOND_USER_ID,
+            rating_status: 'PENDING',
+          },
+        ];
+      }
+      if (text.includes('FROM match_deck_snapshots AS snapshot')) {
+        return rankedDeckSnapshotRows();
+      }
+      if (text.includes('FROM ranked_deck_observations')) {
+        return [
+          {
+            season_id: 'season-1',
+            match_id: 'match-1',
+            seat: 'FIRST',
+            user_id: FIRST_USER_ID,
+            deck_fingerprint: `sha256:${'f'.repeat(64)}`,
+            main_deck_cards: [],
+            observed_at: new Date('2026-08-09T00:00:00.000Z'),
+          },
+        ];
+      }
+      return [];
+    });
+
+    await expect(
+      service.registerMatch({ seasonId: 'season-1', matchId: 'match-1' })
+    ).rejects.toMatchObject<Partial<RankedDeckObservationServiceError>>({
+      code: 'RANKED_DECK_OBSERVATION_CONFLICT',
+    });
+    expect(
+      calls.filter((call) => call.text.includes('INSERT INTO ranked_deck_observations'))
+    ).toHaveLength(1);
+    expect(
+      calls.some(
+        (call) =>
+          call.text.includes('INSERT INTO ranked_deck_observations') &&
+          call.text.includes('ON CONFLICT (match_id, seat) DO NOTHING')
+      )
+    ).toBe(true);
   });
 
   it('atomically appends both player snapshots and updates the current projection', async () => {
@@ -222,6 +419,76 @@ describe('RankedRatingService settlement', () => {
           call.text.includes('UPDATE ranked_seasons') && call.text.includes('ledger_revision = $2')
       )
     ).toBe(true);
+    const ledgerRevisionIndex = calls.findIndex(
+      (call) =>
+        call.text.includes('UPDATE ranked_seasons') && call.text.includes('ledger_revision = $2')
+    );
+    const badgeAwardIndex = calls.findIndex((call) =>
+      call.text.includes('INSERT INTO player_badges')
+    );
+    expect(badgeAwardIndex).toBeGreaterThan(ledgerRevisionIndex);
+    expect(calls[badgeAwardIndex]?.values[1]).toEqual([
+      '11111111-1111-4111-8111-111111111111',
+      '22222222-2222-4222-8222-222222222222',
+    ]);
+    expect(calls[badgeAwardIndex]?.values[4]).toBe(3);
+  });
+
+  it('applies V4 growth to the real-time settlement projection after placement', async () => {
+    const lastRatedAt = new Date('2026-07-31T12:00:00.000Z');
+    const firstBefore = {
+      rating: 1600,
+      ratingDeviation: 100,
+      ratedMatchCount: 5,
+      lastRatedAt,
+    };
+    const secondBefore = { ...firstBefore };
+    const { calls, service } = createHarness((text) => {
+      if (text.includes('FROM ranked_matches AS ranked_match')) {
+        return [
+          settlementContext({
+            season_algorithm_version: GLICKO1_PER_MATCH_V4.algorithmVersion,
+            rating_config: GLICKO1_PER_MATCH_V4,
+            ranked_algorithm_version: GLICKO1_PER_MATCH_V4.algorithmVersion,
+          }),
+        ];
+      }
+      if (text.includes('ORDER BY rated_at DESC, match_id DESC')) {
+        return [];
+      }
+      if (text.includes('FROM ranked_player_ratings')) {
+        return [
+          {
+            user_id: '11111111-1111-4111-8111-111111111111',
+            rating: firstBefore.rating,
+            rating_deviation: firstBefore.ratingDeviation,
+            rated_match_count: firstBefore.ratedMatchCount,
+            last_rated_at: firstBefore.lastRatedAt,
+          },
+          {
+            user_id: '22222222-2222-4222-8222-222222222222',
+            rating: secondBefore.rating,
+            rating_deviation: secondBefore.ratingDeviation,
+            rated_match_count: secondBefore.ratedMatchCount,
+            last_rated_at: secondBefore.lastRatedAt,
+          },
+        ];
+      }
+      return [];
+    });
+
+    await service.settleMatch('match-1', GLICKO1_PER_MATCH_V4);
+
+    const expected = rateRankedHeadToHead(
+      firstBefore,
+      secondBefore,
+      1,
+      new Date('2026-08-01T12:00:00.000Z'),
+      GLICKO1_PER_MATCH_V4
+    );
+    const step = calls.find((call) => call.text.includes('INSERT INTO ranked_rating_event_steps'));
+    expect(step?.values[12]).toBeCloseTo(expected.first.rating, 12);
+    expect(step?.values[20]).toBeCloseTo(expected.second.rating, 12);
   });
 
   it('保留断线判负分类并记录对局是否使用过 FREE 模式', async () => {
@@ -352,6 +619,12 @@ describe('RankedRatingService settlement', () => {
     expect(calls.some((call) => call.text.includes('DELETE FROM ranked_rating_events'))).toBe(
       false
     );
+    const badgeAward = calls.find((call) => call.text.includes('INSERT INTO player_badges'));
+    expect(badgeAward?.values[1]).toEqual([
+      firstUserId,
+      '22222222-2222-4222-8222-222222222222',
+      thirdUserId,
+    ]);
   });
 
   it('rebuilds when equal settlement times require an earlier match-id order', async () => {
@@ -631,5 +904,7 @@ describe('RankedRatingService corrections', () => {
     );
     expect(correctionInsert?.values).toContain('event-1');
     expect(correctionInsert?.values).toContain('平台故障导致结果不可靠');
+    expect(calls.some((call) => call.text.includes('DELETE FROM player_badges'))).toBe(false);
+    expect(calls.some((call) => call.text.includes('INSERT INTO player_badges'))).toBe(true);
   });
 });

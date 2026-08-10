@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
-import { assertValidGlicko1Config, type Glicko1Config } from '../rating/glicko.js';
+import { assertValidRankedRatingConfig, type RankedRatingConfig } from '../rating/ranked-rating.js';
 import {
   buildRankedCompetitiveEnvironmentIdentity,
   type RankedCompetitiveEnvironmentIdentity,
@@ -22,13 +22,14 @@ export interface RankedQueueWindowTiming {
 export interface CreateRankedSeasonInput {
   readonly seasonKey: string;
   readonly name: string;
+  readonly announcement?: string;
   readonly platformTimeZone: string;
   readonly openWindows: readonly RankedSeasonOpenWindow[];
   readonly startsAt: Date;
   readonly scheduledEndsAt: Date;
   readonly finalizingDeadlineAt: Date;
   readonly environment: RankedCompetitiveEnvironmentIdentity;
-  readonly ratingConfig: Glicko1Config;
+  readonly ratingConfig: RankedRatingConfig;
   readonly leaderboardMinimumMatchCount: number;
   readonly adminUserId: string;
 }
@@ -37,6 +38,7 @@ export type UpdateRankedSeasonDraftInput = CreateRankedSeasonInput;
 
 export interface UpdateActiveRankedSeasonOperationsInput {
   readonly name: string;
+  readonly announcement?: string;
   readonly openWindows: readonly RankedSeasonOpenWindow[];
   readonly leaderboardMinimumMatchCount: number;
   readonly adminUserId: string;
@@ -46,6 +48,7 @@ export interface RankedSeasonRecord {
   readonly id: string;
   readonly seasonKey: string;
   readonly name: string;
+  readonly announcement: string;
   readonly lifecycle: 'DRAFT' | 'ACTIVE' | 'FINALIZING' | 'CLOSED';
   readonly queueAdmission: 'OPEN' | 'PAUSED';
   readonly competitiveEnvironmentId: string;
@@ -60,7 +63,7 @@ export interface RankedSeasonRecord {
   readonly cardCatalogHash: string;
   readonly deckPolicyVersion: string;
   readonly ratingAlgorithmVersion: string;
-  readonly ratingConfig: Glicko1Config;
+  readonly ratingConfig: RankedRatingConfig;
   readonly leaderboardMinimumMatchCount: number;
   readonly ledgerRevision: number;
 }
@@ -87,6 +90,7 @@ interface RankedSeasonRow {
   readonly id: string;
   readonly season_key: string;
   readonly name: string;
+  readonly announcement?: string;
   readonly lifecycle: RankedSeasonRecord['lifecycle'];
   readonly queue_admission: RankedSeasonRecord['queueAdmission'];
   readonly competitive_environment_id: string;
@@ -133,6 +137,7 @@ export class RankedSeasonService {
         `INSERT INTO ranked_seasons (
            season_key,
            name,
+           announcement,
            competitive_environment_id,
            lifecycle,
            queue_admission,
@@ -152,13 +157,14 @@ export class RankedSeasonService {
            updated_by
          )
          VALUES (
-           $1, $2, $3, 'DRAFT', 'PAUSED', $4, $5::jsonb, $6, $7, $8,
-           $9, $10, $11, $12, $13, $14::jsonb, $15, $16, $16
+           $1, $2, $3, $4, 'DRAFT', 'PAUSED', $5, $6::jsonb, $7, $8, $9,
+           $10, $11, $12, $13, $14, $15::jsonb, $16, $17, $17
          )
          RETURNING *`,
         [
           input.seasonKey.trim(),
           input.name.trim(),
+          normalizeAnnouncement(input.announcement),
           input.environment.competitiveEnvironmentId,
           input.platformTimeZone,
           JSON.stringify(input.openWindows),
@@ -220,20 +226,21 @@ export class RankedSeasonService {
         `UPDATE ranked_seasons
          SET season_key = $2,
              name = $3,
-             competitive_environment_id = $4,
-             platform_time_zone = $5,
-             open_windows = $6::jsonb,
-             starts_at = $7,
-             scheduled_ends_at = $8,
-             finalizing_deadline_at = $9,
-             rules_version = $10,
-             card_catalog_version = $11,
-             card_catalog_hash = $12,
-             deck_policy_version = $13,
-             rating_algorithm_version = $14,
-             rating_config = $15::jsonb,
-             leaderboard_minimum_match_count = $16,
-             updated_by = $17,
+             announcement = $4,
+             competitive_environment_id = $5,
+             platform_time_zone = $6,
+             open_windows = $7::jsonb,
+             starts_at = $8,
+             scheduled_ends_at = $9,
+             finalizing_deadline_at = $10,
+             rules_version = $11,
+             card_catalog_version = $12,
+             card_catalog_hash = $13,
+             deck_policy_version = $14,
+             rating_algorithm_version = $15,
+             rating_config = $16::jsonb,
+             leaderboard_minimum_match_count = $17,
+             updated_by = $18,
              updated_at = NOW()
          WHERE id = $1
            AND lifecycle = 'DRAFT'
@@ -242,6 +249,7 @@ export class RankedSeasonService {
           seasonId,
           input.seasonKey.trim(),
           input.name.trim(),
+          normalizeAnnouncement(input.announcement),
           input.environment.competitiveEnvironmentId,
           input.platformTimeZone,
           JSON.stringify(input.openWindows),
@@ -276,12 +284,17 @@ export class RankedSeasonService {
           409
         );
       }
+      validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+        input.leaderboardMinimumMatchCount,
+        readStoredRatingConfig(season.rating_config)
+      );
       const result = await client.query<RankedSeasonRow>(
         `UPDATE ranked_seasons
          SET name = $2,
-             open_windows = $3::jsonb,
-             leaderboard_minimum_match_count = $4,
-             updated_by = $5,
+             announcement = $3,
+             open_windows = $4::jsonb,
+             leaderboard_minimum_match_count = $5,
+             updated_by = $6,
              updated_at = NOW()
          WHERE id = $1
            AND lifecycle = 'ACTIVE'
@@ -289,6 +302,7 @@ export class RankedSeasonService {
         [
           seasonId,
           input.name.trim(),
+          normalizeAnnouncement(input.announcement),
           JSON.stringify(input.openWindows),
           input.leaderboardMinimumMatchCount,
           input.adminUserId,
@@ -301,7 +315,7 @@ export class RankedSeasonService {
   async activate(
     seasonId: string,
     environment: RankedCompetitiveEnvironmentIdentity,
-    ratingConfig: Glicko1Config,
+    ratingConfig: RankedRatingConfig,
     adminUserId: string,
     now = new Date()
   ): Promise<RankedSeasonRecord> {
@@ -314,6 +328,10 @@ export class RankedSeasonService {
       if (now.getTime() >= new Date(season.scheduled_ends_at).getTime()) {
         throw seasonError('RANKED_SEASON_ALREADY_ENDED', '赛季计划结束时间已经过去', 409);
       }
+      validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+        season.leaderboard_minimum_match_count,
+        ratingConfig
+      );
       assertEnvironmentMatches(season, environment, ratingConfig);
       const existingSeason = await client.query<{ readonly id: string }>(
         `SELECT id
@@ -443,7 +461,7 @@ export class RankedSeasonService {
 async function seedSoftResetRatings(
   client: RankedSeasonQueryClient,
   seasonId: string,
-  config: Glicko1Config
+  config: RankedRatingConfig
 ): Promise<void> {
   const previous = await client.query<{ readonly id: string }>(
     `SELECT id
@@ -596,10 +614,15 @@ function validateCreateInput(input: CreateRankedSeasonInput): void {
   if (input.name.trim().length === 0 || input.name.trim().length > 100) {
     throw seasonError('RANKED_SEASON_NAME_INVALID', '赛季名称不能为空且不能超过 100 个字符');
   }
+  validateAnnouncement(input.announcement);
   if (input.adminUserId.trim().length === 0) {
     throw seasonError('RANKED_SEASON_ADMIN_REQUIRED', '创建赛季缺少管理员身份');
   }
   validateLeaderboardMinimumMatchCount(input.leaderboardMinimumMatchCount);
+  validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+    input.leaderboardMinimumMatchCount,
+    input.ratingConfig
+  );
   assertFormalAlgorithm(input.ratingConfig);
   validateEnvironmentIdentity(input.environment, input.ratingConfig);
   validateTimeZone(input.platformTimeZone);
@@ -619,6 +642,7 @@ function validateActiveOperationsInput(input: UpdateActiveRankedSeasonOperations
   if (input.name.trim().length === 0 || input.name.trim().length > 100) {
     throw seasonError('RANKED_SEASON_NAME_INVALID', '赛季名称不能为空且不能超过 100 个字符');
   }
+  validateAnnouncement(input.announcement);
   if (input.adminUserId.trim().length === 0) {
     throw seasonError('RANKED_SEASON_ADMIN_REQUIRED', '修改赛季缺少管理员身份');
   }
@@ -635,11 +659,23 @@ function validateLeaderboardMinimumMatchCount(value: number): void {
   }
 }
 
+function validateLeaderboardMinimumMatchCountMatchesRatingConfig(
+  value: number,
+  config: RankedRatingConfig
+): void {
+  if (config.growthPool && value !== config.placementMatchCount) {
+    throw seasonError(
+      'RANKED_LEADERBOARD_PLACEMENT_MISMATCH',
+      `V4 排行榜门槛必须与定级场数一致（${config.placementMatchCount} 场）`
+    );
+  }
+}
+
 function validateEnvironmentIdentity(
   environment: RankedCompetitiveEnvironmentIdentity,
-  ratingConfig: Glicko1Config
+  ratingConfig: RankedRatingConfig
 ): void {
-  assertValidGlicko1Config(ratingConfig);
+  assertValidRankedRatingConfig(ratingConfig);
   const rebuilt = buildRankedCompetitiveEnvironmentIdentity(
     {
       cardCatalogVersion: environment.cardCatalogVersion,
@@ -706,7 +742,8 @@ function validateOpenWindows(windows: readonly RankedSeasonOpenWindow[]): void {
   }
 }
 
-function assertFormalAlgorithm(config: Glicko1Config): void {
+function assertFormalAlgorithm(config: RankedRatingConfig): void {
+  assertValidRankedRatingConfig(config);
   if (config.algorithmVersion.trim().length === 0 || config.algorithmVersion.includes('SHADOW')) {
     throw seasonError(
       'RANKED_FORMAL_ALGORITHM_REQUIRED',
@@ -736,7 +773,7 @@ async function lockSeason(
 function assertEnvironmentMatches(
   season: RankedSeasonRow,
   environment: RankedCompetitiveEnvironmentIdentity,
-  ratingConfig: Glicko1Config
+  ratingConfig: RankedRatingConfig
 ): void {
   validateEnvironmentIdentity(environment, ratingConfig);
   if (
@@ -797,6 +834,7 @@ function mapRequiredSeason(row: RankedSeasonRow | undefined, code: string): Rank
     id: row.id,
     seasonKey: row.season_key,
     name: row.name,
+    announcement: row.announcement ?? '',
     lifecycle: row.lifecycle,
     queueAdmission: row.queue_admission,
     competitiveEnvironmentId: row.competitive_environment_id,
@@ -817,9 +855,19 @@ function mapRequiredSeason(row: RankedSeasonRow | undefined, code: string): Rank
   };
 }
 
-function readStoredRatingConfig(value: unknown): Glicko1Config {
-  assertValidGlicko1Config(value as Glicko1Config);
-  return value as Glicko1Config;
+function readStoredRatingConfig(value: unknown): RankedRatingConfig {
+  assertValidRankedRatingConfig(value as RankedRatingConfig);
+  return value as RankedRatingConfig;
+}
+
+function normalizeAnnouncement(value: string | undefined): string {
+  return value?.trim() ?? '';
+}
+
+function validateAnnouncement(value: string | undefined): void {
+  if (normalizeAnnouncement(value).length > 2_000) {
+    throw seasonError('RANKED_SEASON_ANNOUNCEMENT_INVALID', '赛季公告不能超过 2000 个字符');
+  }
 }
 
 function readPart(parts: readonly Intl.DateTimeFormatPart[], type: string): string {

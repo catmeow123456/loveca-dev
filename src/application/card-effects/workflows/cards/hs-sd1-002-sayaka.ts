@@ -7,7 +7,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, typeIs } from '../../../effects/card-selectors.js';
 import { HS_SD1_002_LIVE_START_DISCARD_TWO_LOOK_TOP_MEMBER_HAND_GAIN_HEART_BLADE_ABILITY_ID } from '../../ability-ids.js';
@@ -336,9 +336,8 @@ function addSourceBlueHeartAndBlade(
   sourceCardId: string,
   abilityId: string
 ): GameState | null {
-  const heartResult = addHeartLiveModifierForMember(game, {
+  const heartResult = addHeartLiveModifierForSourceMember(game, {
     playerId,
-    memberCardId: sourceCardId,
     sourceCardId,
     abilityId,
     hearts: [{ color: HeartColor.BLUE, count: 1 }],

@@ -5,8 +5,10 @@ import {
   GLICKO1_PER_MATCH_SHADOW_V2,
   GLICKO1_PER_MATCH_V2,
   GLICKO1_PER_MATCH_V3,
+  rateGlickoHeadToHead,
   type Glicko1Config,
 } from '../../src/server/rating/glicko';
+import { GLICKO1_PER_MATCH_V4 } from '../../src/server/rating/ranked-rating';
 import {
   buildRankedCardCatalogIdentity,
   buildRankedCompetitiveEnvironmentIdentity,
@@ -114,6 +116,34 @@ describe('ranked rating ledger materialization', () => {
     expect(materialization.players.get('bob')?.ratedMatchCount).toBe(1);
     expect(materialization.players.get('carol')?.ratedMatchCount).toBe(1);
     expect(materialization.steps[1]?.firstBefore).toEqual(materialization.steps[0]?.firstAfter);
+  });
+
+  it('replays V4 growth through the same ranked settlement boundary', () => {
+    const events = Array.from({ length: 6 }, (_, index) =>
+      event({
+        eventId: `v4-event-${index + 1}`,
+        eventSequence: index + 1,
+        matchId: `v4-match-${index + 1}`,
+        winnerSeat: index % 2 === 0 ? 'FIRST' : 'SECOND',
+        ratedAt: new Date(`2026-09-0${index + 1}T00:00:00.000Z`),
+        algorithmVersion: GLICKO1_PER_MATCH_V4.algorithmVersion,
+      })
+    );
+
+    const materialization = materializeRankedRatingLedger(events, GLICKO1_PER_MATCH_V4);
+    const sixth = materialization.steps[5]!;
+    const pureGlicko = rateGlickoHeadToHead(
+      sixth.firstBefore,
+      sixth.secondBefore,
+      0,
+      sixth.ratedAt,
+      GLICKO1_PER_MATCH_V4
+    );
+
+    expect(sixth.firstBefore.ratedMatchCount).toBe(5);
+    expect(sixth.secondBefore.ratedMatchCount).toBe(5);
+    expect(sixth.firstAfter.rating).toBeGreaterThan(pureGlicko.first.rating);
+    expect(sixth.secondAfter.rating).toBeGreaterThan(pureGlicko.second.rating);
   });
 
   it('voids and replaces a result through an append-only correction chain', () => {

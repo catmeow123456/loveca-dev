@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
 import {
   S_BP2_003_AUTO_ON_CHEER_LIVE_GAIN_GREEN_HEART_ABILITY_ID,
@@ -110,9 +110,8 @@ function resolveOnCheerLiveCountGainHeart(
   }
 
   if (gainedHeartCount > 0) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: config.heartColor, count: gainedHeartCount }],

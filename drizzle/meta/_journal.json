@@ -120,6 +120,34 @@
       "when": 1786059986324,
       "tag": "0016_allow_deck_point_table_admin_control",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1786205082286,
+      "tag": "0017_add_ranked_rating_revisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786209235385,
+      "tag": "0018_add_ranked_season_announcement",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786248135797,
+      "tag": "0019_add_player_badges",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1786252709965,
+      "tag": "0020_add_ranked_deck_observations",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BookOpen,
   ChevronLeft,
@@ -7,15 +7,21 @@ import {
   Medal,
   RefreshCw,
   Search,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
   createRankedSeason,
+  applyRankedRatingRevision,
   executeRankedCorrection,
   fetchRankedEnvironment,
+  fetchRankedMatch,
   fetchRankedMatches,
+  fetchRankedOverview,
+  fetchRankedRatingRevisions,
   fetchRankedSeasons,
+  previewRankedRatingRevision,
   previewRankedCorrection,
   runRankedSeasonAction,
   setRankedAdmission,
@@ -24,36 +30,67 @@ import {
   updateRankedSeason,
   type RankedActiveSeasonOperationsPayload,
   type RankedAdminMatch,
+  type RankedAdminMatchDeck,
+  type RankedAdminMatchDeckCard,
+  type RankedAdminMatchDetail,
+  type RankedAdminOverview,
   type RankedAdminSeason,
   type RankedCorrectionPreview,
   type RankedRatingConfig,
+  type RankedRatingRevisionHistoryItem,
+  type RankedRatingRevisionParameters,
+  type RankedRatingRevisionPreview,
   type RankedSeasonDraftPayload,
 } from '@/lib/rankedAdminClient';
+import { resolveCardImagePath } from '@/lib/imageService';
 
-type Tab = 'season' | 'matches';
+type Tab = 'overview' | 'season' | 'matches';
+type MatchRatingStatus = RankedAdminMatch['ratingStatus'] | '';
 const MATCH_PAGE_SIZE = 20;
 
 export function RankedAdminPage({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<Tab>('season');
+  const [tab, setTab] = useState<Tab>('overview');
   const [seasons, setSeasons] = useState<RankedAdminSeason[]>([]);
+  const [overview, setOverview] = useState<RankedAdminOverview | null>(null);
+  const [overviewSeasonId, setOverviewSeasonId] = useState('');
+  const [overviewBusy, setOverviewBusy] = useState(false);
+  const overviewRequestSequence = useRef(0);
+  const matchRequestSequence = useRef(0);
   const [matches, setMatches] = useState<RankedAdminMatch[]>([]);
+  const [matchBusy, setMatchBusy] = useState(false);
+  const matchBusySequence = useRef(0);
   const [matchTotal, setMatchTotal] = useState(0);
   const [matchPage, setMatchPage] = useState(0);
   const [matchUserQuery, setMatchUserQuery] = useState('');
-  const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V3');
+  const [matchRatingStatus, setMatchRatingStatus] = useState<MatchRatingStatus>('');
+  const [formalAlgorithm, setFormalAlgorithm] = useState('GLICKO1_PER_MATCH_V4');
   const [formalRatingConfig, setFormalRatingConfig] = useState<RankedRatingConfig>({
+    algorithmVersion: 'GLICKO1_PER_MATCH_V4',
     ratingScale: 800,
     initialRating: 1500,
     initialRatingDeviation: 300,
+    minimumRatingDeviation: 100,
+    maximumRatingDeviation: 350,
+    placementMatchCount: 5,
     softResetMode: 'RESET_TO_INITIAL',
     softResetCenter: 1500,
     softResetRetention: 0.5,
     softResetMinimumDeviation: 200,
+    growthPool: {
+      mode: 'POST_PLACEMENT_AVERAGE_CENTERED',
+      enabled: true,
+      centerRating: 1800,
+      maximumTotalAdjustment: 16,
+      transitionWidth: 250,
+      positiveSplitMode: 'EQUAL',
+      negativeWinnerShare: 0.75,
+    },
   });
   const [selectedSeasonId, setSelectedSeasonId] = useState('');
   const [creating, setCreating] = useState(false);
   const [editingSeason, setEditingSeason] = useState<RankedAdminSeason | null>(null);
   const [noticeSeason, setNoticeSeason] = useState<RankedAdminSeason | null>(null);
+  const [ratingRevisionSeason, setRatingRevisionSeason] = useState<RankedAdminSeason | null>(null);
   const [correction, setCorrection] = useState<{
     match: RankedAdminMatch;
     preview: RankedCorrectionPreview;
@@ -68,31 +105,68 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const loadMatchPage = async ({
     seasonId = selectedSeasonId,
     userQuery = matchUserQuery,
+    ratingStatus = matchRatingStatus,
     page = matchPage,
   }: {
     seasonId?: string;
     userQuery?: string;
+    ratingStatus?: MatchRatingStatus;
     page?: number;
   } = {}) => {
-    const result = await fetchRankedMatches({
-      seasonId: seasonId || undefined,
-      userQuery: userQuery || undefined,
-      limit: MATCH_PAGE_SIZE,
-      offset: page * MATCH_PAGE_SIZE,
-    });
-    setMatches(result.matches);
-    setMatchTotal(result.total);
+    const requestSequence = ++matchRequestSequence.current;
+    try {
+      const result = await fetchRankedMatches({
+        seasonId: seasonId || undefined,
+        userQuery: userQuery || undefined,
+        ratingStatus: ratingStatus || undefined,
+        limit: MATCH_PAGE_SIZE,
+        offset: page * MATCH_PAGE_SIZE,
+      });
+      if (matchRequestSequence.current !== requestSequence) return;
+      setMatches(result.matches);
+      setMatchTotal(result.total);
+    } catch (loadError) {
+      if (matchRequestSequence.current === requestSequence) throw loadError;
+    }
+  };
+
+  const loadOverview = async (seasonId: string) => {
+    const requestSequence = ++overviewRequestSequence.current;
+    if (!seasonId) {
+      setOverview(null);
+      setOverviewBusy(false);
+      return;
+    }
+    setOverviewBusy(true);
+    try {
+      const result = await fetchRankedOverview(seasonId);
+      if (overviewRequestSequence.current === requestSequence) setOverview(result);
+    } catch (loadError) {
+      if (overviewRequestSequence.current === requestSequence) throw loadError;
+    } finally {
+      if (overviewRequestSequence.current === requestSequence) setOverviewBusy(false);
+    }
+  };
+
+  const refreshOverview = async (seasonId: string) => {
+    setError(null);
+    try {
+      await loadOverview(seasonId);
+    } catch (loadError) {
+      setError(readError(loadError));
+    }
   };
 
   const refreshMatchPage = async (options: Parameters<typeof loadMatchPage>[0]) => {
-    setBusy(true);
+    const busySequence = ++matchBusySequence.current;
+    setMatchBusy(true);
     setError(null);
     try {
       await loadMatchPage(options);
     } catch (loadError) {
       setError(readError(loadError));
     } finally {
-      setBusy(false);
+      if (matchBusySequence.current === busySequence) setMatchBusy(false);
     }
   };
 
@@ -110,7 +184,11 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
         setFormalRatingConfig(formal.config);
       }
       setSeasons(seasonList);
-      await loadMatchPage();
+      const nextOverviewSeasonId = seasonList.some((season) => season.id === overviewSeasonId)
+        ? overviewSeasonId
+        : preferredOverviewSeasonId(seasonList);
+      setOverviewSeasonId(nextOverviewSeasonId);
+      await Promise.all([loadMatchPage(), loadOverview(nextOverviewSeasonId)]);
     } catch (loadError) {
       setError(readError(loadError));
     } finally {
@@ -194,6 +272,9 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
             role="tablist"
             aria-label="排位管理视图"
           >
+            <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>
+              概览
+            </TabButton>
             <TabButton active={tab === 'season'} onClick={() => setTab('season')}>
               赛季
             </TabButton>
@@ -206,14 +287,26 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
               {error}
             </p>
           ) : null}
-          {tab === 'season' ? (
+          {tab === 'overview' ? (
+            <OverviewPanel
+              seasons={seasons}
+              selectedSeasonId={overviewSeasonId}
+              overview={overview}
+              busy={overviewBusy}
+              onSelectSeason={(seasonId) => {
+                setOverviewSeasonId(seasonId);
+                setOverview(null);
+                void refreshOverview(seasonId);
+              }}
+            />
+          ) : tab === 'season' ? (
             <SeasonPanel
               seasons={seasons}
               formalAlgorithm={formalAlgorithm}
               formalRatingConfig={formalRatingConfig}
               creating={creating}
               editingSeason={editingSeason}
-              busy={busy}
+              busy={busy || matchBusy}
               onToggleCreate={() => {
                 setEditingSeason(null);
                 setCreating((value) => !value);
@@ -245,6 +338,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
                 run(() => setRankedAdmission(season.id, admission))
               }
               onOpenSeasonNotice={setNoticeSeason}
+              onOpenRatingRevision={setRatingRevisionSeason}
             />
           ) : (
             <MatchesPanel
@@ -254,8 +348,9 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
               page={matchPage}
               pageSize={MATCH_PAGE_SIZE}
               userQuery={matchUserQuery}
+              ratingStatus={matchRatingStatus}
               selectedSeasonId={selectedSeasonId}
-              busy={busy}
+              busy={busy || matchBusy}
               onSelectSeason={(seasonId) => {
                 setSelectedSeasonId(seasonId);
                 setMatchPage(0);
@@ -265,6 +360,11 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
                 setMatchUserQuery(userQuery);
                 setMatchPage(0);
                 void refreshMatchPage({ userQuery, page: 0 });
+              }}
+              onSelectRatingStatus={(ratingStatus) => {
+                setMatchRatingStatus(ratingStatus);
+                setMatchPage(0);
+                void refreshMatchPage({ ratingStatus, page: 0 });
               }}
               onPageChange={(page) => {
                 setMatchPage(page);
@@ -304,10 +404,293 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
       <RankedSeasonNoticeDialog
         isOpen={noticeSeason !== null}
         seasonName={noticeSeason?.name}
+        announcement={noticeSeason?.announcement}
         leaderboardMatchCount={noticeSeason?.leaderboardMinimumMatchCount}
         onClose={() => setNoticeSeason(null)}
       />
+      {ratingRevisionSeason ? (
+        <RatingRevisionDialog
+          season={ratingRevisionSeason}
+          onClose={() => setRatingRevisionSeason(null)}
+          onApplied={async () => {
+            setRatingRevisionSeason(null);
+            await load();
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function OverviewPanel({
+  seasons,
+  selectedSeasonId,
+  overview,
+  busy,
+  onSelectSeason,
+}: {
+  seasons: RankedAdminSeason[];
+  selectedSeasonId: string;
+  overview: RankedAdminOverview | null;
+  busy: boolean;
+  onSelectSeason: (seasonId: string) => void;
+}) {
+  const season = seasons.find((item) => item.id === selectedSeasonId) ?? null;
+  if (seasons.length === 0) {
+    return (
+      <div className="product-workbench p-8 text-center text-sm text-[var(--text-muted)]">
+        还没有可查看的赛季
+      </div>
+    );
+  }
+
+  const statistics = overview?.statistics;
+  const health = overview?.health;
+  const hasPendingRating = (health?.pendingMatches ?? 0) > 0;
+  const healthSummary = !overview
+    ? busy
+      ? '读取运行状态中…'
+      : '暂无运行状态'
+    : hasPendingRating
+      ? '有待计分对局需关注'
+      : '运行健康，无待计分积压';
+  const metricItems: { label: string; value: string }[] = [
+    { label: '总参赛人数', value: formatOverviewInteger(statistics?.totalParticipants) },
+    {
+      label: '完成定级人数',
+      value: formatOverviewInteger(statistics?.placementCompletedPlayers),
+    },
+    {
+      label: '进入排行榜人数',
+      value: formatOverviewInteger(statistics?.leaderboardPlayers),
+    },
+    { label: '总有效对局', value: formatOverviewInteger(statistics?.totalSettledMatches) },
+    { label: '今日对局', value: formatOverviewInteger(statistics?.matchesToday) },
+    { label: '近 7 日对局', value: formatOverviewInteger(statistics?.matchesLast7Days) },
+    {
+      label: '近 7 日活跃玩家',
+      value: formatOverviewInteger(statistics?.activePlayersLast7Days),
+    },
+    {
+      label: '每名玩家平均场次',
+      value: statistics ? statistics.averageMatchesPerPlayer.toFixed(1) : '—',
+    },
+    {
+      label: '排行榜最低分',
+      value:
+        statistics?.leaderboardCutoffRating === null ||
+        statistics?.leaderboardCutoffRating === undefined
+          ? '—'
+          : statistics.leaderboardCutoffRating.toFixed(1),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <section className="product-workbench p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <label className="grid max-w-sm gap-1 text-sm text-[var(--text-secondary)]">
+              查看赛季
+              <select
+                className="input-field"
+                value={selectedSeasonId}
+                aria-label="概览赛季"
+                onChange={(event) => onSelectSeason(event.target.value)}
+              >
+                {seasons.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="text-right text-xs text-[var(--text-muted)]">
+            <div>{season ? `${season.seasonKey} · ${lifecycleLabel(season.lifecycle)}` : '—'}</div>
+            <div className="mt-1">
+              {overview
+                ? `更新于 ${formatDate(overview.generatedAt)}`
+                : busy
+                  ? '读取中…'
+                  : '暂无数据'}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {season ? (
+        <section className="product-workbench p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="font-semibold text-[var(--text-primary)]">运行状态</h2>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                赛季状态、匹配开关与当前开放时段的实际组合结果
+              </p>
+            </div>
+            <span
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                season.effectiveQueueOpen
+                  ? 'bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] text-[var(--semantic-success)]'
+                  : 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+              }`}
+            >
+              {season.effectiveQueueOpen ? '当前可匹配' : '当前不可匹配'}
+            </span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <OverviewStatus label="赛季周期" value={lifecycleLabel(season.lifecycle)} />
+            <OverviewStatus
+              label="匹配开关"
+              value={season.queueAdmission === 'OPEN' ? '开放' : '暂停'}
+            />
+            <OverviewStatus
+              label="开放时段"
+              value={season.withinOpenWindow ? '时段内' : '时段外'}
+            />
+            <OverviewStatus
+              label="实际入队"
+              value={season.effectiveQueueOpen ? '允许' : '不允许'}
+            />
+          </div>
+        </section>
+      ) : null}
+
+      <section className="product-workbench p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="font-semibold text-[var(--text-primary)]">运行健康</h2>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              候场、预留与对局结算的实时积压情况
+            </p>
+          </div>
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+              !overview
+                ? 'bg-[var(--bg-overlay)] text-[var(--text-muted)]'
+                : hasPendingRating
+                  ? 'bg-[color:color-mix(in_srgb,var(--semantic-warning)_14%,transparent)] text-[var(--semantic-warning)]'
+                  : 'bg-[color:color-mix(in_srgb,var(--semantic-success)_14%,transparent)] text-[var(--semantic-success)]'
+            }`}
+          >
+            {healthSummary}
+          </span>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <OverviewStatus label="候场玩家" value={formatOverviewInteger(health?.waitingTickets)} />
+          <OverviewStatus
+            label="活动预留"
+            value={formatOverviewInteger(health?.activeReservations)}
+          />
+          <OverviewStatus
+            label="进行中对局"
+            value={formatOverviewInteger(health?.runningMatches)}
+          />
+          <OverviewStatus
+            label="待计分对局"
+            value={formatOverviewInteger(health?.pendingMatches)}
+          />
+          <OverviewStatus
+            label="最早待计分时间"
+            value={
+              !health
+                ? '—'
+                : health.oldestPendingEndedAt
+                  ? formatDate(health.oldestPendingEndedAt)
+                  : '无'
+            }
+          />
+        </div>
+      </section>
+
+      <section className="product-workbench p-4">
+        <h2 className="font-semibold text-[var(--text-primary)]">赛季经营数据</h2>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {metricItems.map((item) => (
+            <OverviewMetric key={item.label} label={item.label} value={item.value} />
+          ))}
+        </div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <DistributionPanel
+          title="玩家场次分布"
+          rows={(overview?.matchCountDistribution ?? []).map((item) => ({
+            label: item.label,
+            count: item.playerCount,
+          }))}
+        />
+        <DistributionPanel
+          title="积分分布"
+          rows={(overview?.ratingDistribution ?? []).map((item) => ({
+            label: `${formatRatingBoundary(item.minimumRating)}–<${formatRatingBoundary(item.maximumRatingExclusive)}`,
+            count: item.playerCount,
+          }))}
+        />
+      </div>
+    </div>
+  );
+}
+
+function OverviewStatus({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-[var(--bg-overlay)] px-3 py-2.5">
+      <div className="text-xs text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1 break-words text-sm font-semibold text-[var(--text-primary)]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function OverviewMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-[var(--bg-overlay)] p-3">
+      <div className="text-xs text-[var(--text-muted)]">{label}</div>
+      <div className="mt-1 text-xl font-semibold tabular-nums text-[var(--text-primary)]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DistributionPanel({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { label: string; count: number }[];
+}) {
+  const maximum = Math.max(0, ...rows.map((row) => row.count));
+  return (
+    <section className="product-workbench p-4">
+      <h2 className="font-semibold text-[var(--text-primary)]">{title}</h2>
+      {rows.length > 0 ? (
+        <div className="mt-3 space-y-2.5">
+          {rows.map((row) => (
+            <div
+              key={row.label}
+              className="grid grid-cols-[5.5rem_minmax(0,1fr)_3rem] items-center gap-2"
+            >
+              <span className="truncate text-xs text-[var(--text-secondary)]" title={row.label}>
+                {row.label}
+              </span>
+              <div className="h-2 overflow-hidden rounded-full bg-[var(--bg-overlay)]">
+                <div
+                  className="h-full rounded-full bg-[var(--accent-primary)]"
+                  style={{ width: `${maximum === 0 ? 0 : (row.count / maximum) * 100}%` }}
+                />
+              </div>
+              <span className="text-right text-xs tabular-nums text-[var(--text-muted)]">
+                {row.count} 人
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="py-8 text-center text-sm text-[var(--text-muted)]">暂无分布数据</div>
+      )}
+    </section>
   );
 }
 
@@ -327,6 +710,7 @@ function SeasonPanel({
   onAction,
   onAdmission,
   onOpenSeasonNotice,
+  onOpenRatingRevision,
 }: {
   seasons: RankedAdminSeason[];
   formalAlgorithm: string;
@@ -349,6 +733,7 @@ function SeasonPanel({
   ) => Promise<unknown>;
   onAdmission: (season: RankedAdminSeason, admission: 'OPEN' | 'PAUSED') => Promise<unknown>;
   onOpenSeasonNotice: (season: RankedAdminSeason) => void;
+  onOpenRatingRevision: (season: RankedAdminSeason) => void;
 }) {
   return (
     <div className="space-y-4">
@@ -425,6 +810,16 @@ function SeasonPanel({
                   ) : null}
                   {season.lifecycle === 'ACTIVE' ? (
                     <>
+                      {supportsRatingRevision(season) ? (
+                        <button
+                          className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
+                          disabled={busy}
+                          onClick={() => onOpenRatingRevision(season)}
+                        >
+                          <SlidersHorizontal size={15} />
+                          调整积分参数
+                        </button>
+                      ) : null}
                       <button
                         className="button-secondary px-3 py-2 text-sm"
                         disabled={busy}
@@ -494,7 +889,9 @@ function ActiveSeasonOperationsForm({
   onCancel: () => void;
   onSubmit: (payload: RankedActiveSeasonOperationsPayload) => Promise<unknown>;
 }) {
+  const leaderboardMatchCountIsFrozen = Boolean(season.ratingConfig.growthPool);
   const [name, setName] = useState(season.name);
+  const [announcement, setAnnouncement] = useState(season.announcement);
   const [leaderboardMinimumMatchCount, setLeaderboardMinimumMatchCount] = useState(
     season.leaderboardMinimumMatchCount
   );
@@ -510,7 +907,7 @@ function ActiveSeasonOperationsForm({
       className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
-        void onSubmit({ name, openWindows, leaderboardMinimumMatchCount });
+        void onSubmit({ name, announcement, openWindows, leaderboardMinimumMatchCount });
       }}
     >
       <div className="text-sm font-semibold text-[var(--text-primary)] sm:col-span-2">
@@ -533,9 +930,21 @@ function ActiveSeasonOperationsForm({
           className="input-field"
           value={leaderboardMinimumMatchCount}
           onChange={(event) => setLeaderboardMinimumMatchCount(Number(event.target.value))}
+          disabled={leaderboardMatchCountIsFrozen}
           required
         />
       </Field>
+      <div className="sm:col-span-2">
+        <Field label={`赛季公告（可选，${announcement.length}/2000）`}>
+          <textarea
+            className="input-field min-h-28 resize-y"
+            value={announcement}
+            maxLength={2000}
+            placeholder="向玩家说明本赛季安排、奖励或注意事项"
+            onChange={(event) => setAnnouncement(event.target.value)}
+          />
+        </Field>
+      </div>
       <OpenWindowFields
         openWindow={openWindows[0]}
         onChange={(openWindow) => setOpenWindows([openWindow, ...openWindows.slice(1)])}
@@ -573,6 +982,9 @@ function SeasonDraftForm({
     [algorithm, defaultRatingConfig, season]
   );
   const [draft, setDraft] = useState(initial);
+  const leaderboardMatchCountIsFrozen =
+    draft.ratingAlgorithmVersion === defaultRatingConfig.algorithmVersion &&
+    Boolean(defaultRatingConfig.growthPool);
   return (
     <form
       className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
@@ -602,6 +1014,17 @@ function SeasonDraftForm({
           required
         />
       </Field>
+      <div className="sm:col-span-2">
+        <Field label={`赛季公告（可选，${draft.announcement.length}/2000）`}>
+          <textarea
+            className="input-field min-h-28 resize-y"
+            value={draft.announcement}
+            maxLength={2000}
+            placeholder="向玩家说明本赛季安排、奖励或注意事项"
+            onChange={(event) => setDraft({ ...draft, announcement: event.target.value })}
+          />
+        </Field>
+      </div>
       <Field label="开始">
         <input
           type="datetime-local"
@@ -643,6 +1066,7 @@ function SeasonDraftForm({
               leaderboardMinimumMatchCount: Number(event.target.value),
             })
           }
+          disabled={leaderboardMatchCountIsFrozen}
           required
         />
       </Field>
@@ -744,10 +1168,12 @@ function MatchesPanel({
   page,
   pageSize,
   userQuery,
+  ratingStatus,
   selectedSeasonId,
   busy,
   onSelectSeason,
   onSearch,
+  onSelectRatingStatus,
   onPageChange,
   onSettle,
   onCorrection,
@@ -758,10 +1184,12 @@ function MatchesPanel({
   page: number;
   pageSize: number;
   userQuery: string;
+  ratingStatus: MatchRatingStatus;
   selectedSeasonId: string;
   busy: boolean;
   onSelectSeason: (id: string) => void;
   onSearch: (userQuery: string) => void;
+  onSelectRatingStatus: (ratingStatus: MatchRatingStatus) => void;
   onPageChange: (page: number) => void;
   onSettle: (match: RankedAdminMatch) => Promise<unknown>;
   onCorrection: (
@@ -771,12 +1199,47 @@ function MatchesPanel({
   ) => Promise<void>;
 }) {
   const [searchInput, setSearchInput] = useState(userQuery);
+  const [expandedMatchId, setExpandedMatchId] = useState<string | null>(null);
+  const [matchDetails, setMatchDetails] = useState<Record<string, RankedAdminMatchDetail>>({});
+  const [detailLoadingIds, setDetailLoadingIds] = useState<ReadonlySet<string>>(new Set());
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
+
+  const loadMatchDetail = async (matchId: string) => {
+    setDetailLoadingIds((current) => new Set(current).add(matchId));
+    setDetailErrors((current) => {
+      const next = { ...current };
+      delete next[matchId];
+      return next;
+    });
+    try {
+      const detail = await fetchRankedMatch(matchId);
+      setMatchDetails((current) => ({ ...current, [matchId]: detail }));
+    } catch (loadError) {
+      setDetailErrors((current) => ({ ...current, [matchId]: readError(loadError) }));
+    } finally {
+      setDetailLoadingIds((current) => {
+        const next = new Set(current);
+        next.delete(matchId);
+        return next;
+      });
+    }
+  };
+
+  const toggleMatchDecks = (match: RankedAdminMatch) => {
+    if (expandedMatchId === match.matchId) {
+      setExpandedMatchId(null);
+      return;
+    }
+    setExpandedMatchId(match.matchId);
+    if (matchDetails[match.matchId] || detailLoadingIds.has(match.matchId)) return;
+    void loadMatchDetail(match.matchId);
+  };
 
   return (
     <div className="space-y-3">
       <form
-        className="product-workbench grid gap-3 p-3 sm:grid-cols-[minmax(0,15rem)_minmax(0,1fr)_auto]"
+        className="product-workbench grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,13rem)_minmax(0,11rem)_minmax(0,1fr)_auto]"
         onSubmit={(event) => {
           event.preventDefault();
           onSearch(searchInput.trim());
@@ -794,6 +1257,17 @@ function MatchesPanel({
               {season.name}
             </option>
           ))}
+        </select>
+        <select
+          className="input-field"
+          value={ratingStatus}
+          aria-label="筛选计分状态"
+          onChange={(event) => onSelectRatingStatus(event.target.value as MatchRatingStatus)}
+        >
+          <option value="">全部计分状态</option>
+          <option value="PENDING">等待计分</option>
+          <option value="SETTLED">已计分</option>
+          <option value="VOIDED">不计分</option>
         </select>
         <input
           className="input-field"
@@ -821,11 +1295,13 @@ function MatchesPanel({
                     <MatchPlayerResult
                       name={playerName(match.firstPlayer)}
                       result={seatResult(match, 'FIRST')}
+                      ratingDelta={match.firstRatingDelta}
                     />
                     <span className="text-[var(--text-muted)]">vs</span>
                     <MatchPlayerResult
                       name={playerName(match.secondPlayer)}
                       result={seatResult(match, 'SECOND')}
+                      ratingDelta={match.secondRatingDelta}
                     />
                   </div>
                   <div className="mt-1 text-xs text-[var(--text-muted)]">
@@ -837,6 +1313,14 @@ function MatchesPanel({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="button-secondary px-3 py-2 text-sm"
+                    aria-expanded={expandedMatchId === match.matchId}
+                    onClick={() => void toggleMatchDecks(match)}
+                  >
+                    {expandedMatchId === match.matchId ? '收起卡组' : '查看卡组'}
+                  </button>
                   {match.ratingStatus === 'PENDING' ? (
                     <button
                       className="button-primary px-3 py-2 text-sm"
@@ -890,6 +1374,22 @@ function MatchesPanel({
                   ) : null}
                 </div>
               </div>
+              {expandedMatchId === match.matchId ? (
+                <MatchDeckDetails
+                  match={match}
+                  detail={matchDetails[match.matchId]}
+                  loading={detailLoadingIds.has(match.matchId)}
+                  error={detailErrors[match.matchId]}
+                  onRetry={() => {
+                    setMatchDetails((current) => {
+                      const next = { ...current };
+                      delete next[match.matchId];
+                      return next;
+                    });
+                    void loadMatchDetail(match.matchId);
+                  }}
+                />
+              ) : null}
             </section>
           ))}
         </div>
@@ -928,10 +1428,182 @@ function MatchesPanel({
   );
 }
 
-function MatchPlayerResult({ name, result }: { name: string; result: 'WIN' | 'LOSS' | 'PENDING' }) {
+function MatchDeckDetails({
+  match,
+  detail,
+  loading,
+  error,
+  onRetry,
+}: {
+  match: RankedAdminMatch;
+  detail?: RankedAdminMatchDetail;
+  loading: boolean;
+  error?: string;
+  onRetry: () => void;
+}) {
+  if (loading) {
+    return (
+      <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[var(--bg-overlay)] px-4 py-8 text-sm text-[var(--text-muted)]">
+        <Loader2 size={16} className="animate-spin" />
+        正在读取双方主卡组…
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-3 rounded-xl bg-[var(--bg-overlay)] px-4 py-6 text-sm">
+        <span className="text-[var(--semantic-error)]">{error}</span>
+        <button type="button" className="button-secondary px-3 py-2 text-xs" onClick={onRetry}>
+          重新读取
+        </button>
+      </div>
+    );
+  }
+  if (!detail) return null;
+
+  const firstDeck = detail.decks.find((deck) => deck.seat === 'FIRST');
+  const secondDeck = detail.decks.find((deck) => deck.seat === 'SECOND');
+  return (
+    <div className="mt-4 border-t border-[var(--border-subtle)] pt-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">双方主卡组</h3>
+        <span className="text-xs text-[var(--text-muted)]">
+          仅展示长期保存的主卡组；同基础卡号的罕度与异画已合并
+        </span>
+      </div>
+      <div className="grid gap-3 xl:grid-cols-2">
+        <MatchDeckPanel
+          seatLabel="先攻"
+          playerName={playerName(match.firstPlayer)}
+          deck={firstDeck}
+        />
+        <MatchDeckPanel
+          seatLabel="后攻"
+          playerName={playerName(match.secondPlayer)}
+          deck={secondDeck}
+        />
+      </div>
+    </div>
+  );
+}
+
+function MatchDeckPanel({
+  seatLabel,
+  playerName: name,
+  deck,
+}: {
+  seatLabel: string;
+  playerName: string;
+  deck?: RankedAdminMatchDeck;
+}) {
+  if (!deck) {
+    return (
+      <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-4">
+        <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+          {seatLabel} · {name}
+        </h4>
+        <p className="mt-4 text-center text-sm text-[var(--text-muted)]">
+          该席位没有长期卡组记录，可能是卡组观察功能上线前的历史对局
+        </p>
+      </section>
+    );
+  }
+  const members = deck.mainDeckCards.filter((card) => card.cardType === 'MEMBER');
+  const lives = deck.mainDeckCards.filter((card) => card.cardType === 'LIVE');
+  const total = deck.mainDeckCards.reduce((sum, card) => sum + card.count, 0);
+  return (
+    <section className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h4 className="truncate text-sm font-semibold text-[var(--text-primary)]">
+            {seatLabel} · {name}
+          </h4>
+          <p className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
+            {deck.sourceDeckName || '未记录卡组名称'}
+          </p>
+        </div>
+        <span className="rounded-full bg-[var(--bg-surface)] px-2.5 py-1 text-xs tabular-nums text-[var(--text-muted)]">
+          {total} 张
+        </span>
+      </div>
+      <DeckCardGroup
+        title={`成员卡 · ${members.reduce((sum, card) => sum + card.count, 0)} 张`}
+        cards={members}
+      />
+      <DeckCardGroup
+        title={`Live 卡 · ${lives.reduce((sum, card) => sum + card.count, 0)} 张`}
+        cards={lives}
+      />
+    </section>
+  );
+}
+
+function DeckCardGroup({ title, cards }: { title: string; cards: RankedAdminMatchDeckCard[] }) {
+  return (
+    <div className="mt-4">
+      <h5 className="mb-2 text-xs font-semibold text-[var(--text-muted)]">{title}</h5>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {cards.map((card) => (
+          <div
+            key={card.baseCardCode}
+            className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-[var(--bg-surface)] p-1.5"
+          >
+            <img
+              src={resolveCardImagePath(
+                { cardCode: card.cardCode, imageFilename: card.imageFilename },
+                'thumb'
+              )}
+              alt=""
+              loading="lazy"
+              className="h-12 w-9 rounded object-cover object-top"
+            />
+            <div className="min-w-0">
+              <div
+                className="truncate text-xs font-semibold text-[var(--text-primary)]"
+                title={card.name}
+              >
+                {card.name}
+              </div>
+              <div className="mt-0.5 truncate text-[10px] text-[var(--text-muted)]">
+                {card.baseCardCode}
+              </div>
+            </div>
+            <span className="pr-1 text-xs font-semibold tabular-nums text-[var(--text-primary)]">
+              ×{card.count}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MatchPlayerResult({
+  name,
+  result,
+  ratingDelta,
+}: {
+  name: string;
+  result: 'WIN' | 'LOSS' | 'PENDING';
+  ratingDelta: number | null;
+}) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       <span className="truncate">{name}</span>
+      <span
+        className={`text-xs font-semibold tabular-nums ${
+          ratingDelta === null
+            ? 'text-[var(--text-muted)]'
+            : ratingDelta > 0
+              ? 'text-[var(--semantic-success)]'
+              : ratingDelta < 0
+                ? 'text-[var(--semantic-error)]'
+                : 'text-[var(--text-muted)]'
+        }`}
+        title="本局积分变化"
+      >
+        {formatRatingDelta(ratingDelta)}
+      </span>
       <span
         className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
           result === 'WIN'
@@ -945,6 +1617,496 @@ function MatchPlayerResult({ name, result }: { name: string; result: 'WIN' | 'LO
       </span>
     </span>
   );
+}
+
+function RatingRevisionDialog({
+  season,
+  onClose,
+  onApplied,
+}: {
+  season: RankedAdminSeason;
+  onClose: () => void;
+  onApplied: () => Promise<void>;
+}) {
+  const [parameters, setParametersState] = useState<RankedRatingRevisionParameters>(() =>
+    revisionParametersFromConfig(season.ratingConfig)
+  );
+  const [reason, setReason] = useState('');
+  const [preview, setPreview] = useState<RankedRatingRevisionPreview | null>(null);
+  const [history, setHistory] = useState<RankedRatingRevisionHistoryItem[]>([]);
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const supportsGrowth = Boolean(season.ratingConfig.growthPool);
+  const originalRevision = history.at(-1);
+
+  useEffect(() => {
+    let active = true;
+    void fetchRankedRatingRevisions(season.id)
+      .then((items) => {
+        if (active) setHistory(items);
+      })
+      .catch((loadError) => {
+        if (active) setError(readError(loadError));
+      });
+    return () => {
+      active = false;
+    };
+  }, [season.id]);
+
+  const setParameters = (value: RankedRatingRevisionParameters) => {
+    setParametersState(value);
+    setPreview(null);
+    setConfirmed(false);
+  };
+
+  const runPreview = async () => {
+    setBusy(true);
+    setError(null);
+    setConfirmed(false);
+    try {
+      setPreview(await previewRankedRatingRevision(season.id, parameters, reason));
+    } catch (previewError) {
+      setPreview(null);
+      setError(readError(previewError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyPreview = async () => {
+    if (!preview) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await applyRankedRatingRevision(season.id, preview);
+      await onApplied();
+    } catch (applyError) {
+      setError(readError(applyError));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const sortedChanges = useMemo(
+    () =>
+      [...(preview?.playerChanges ?? [])]
+        .sort((first, second) => Math.abs(second.ratingDelta) - Math.abs(first.ratingDelta))
+        .slice(0, 20),
+    [preview]
+  );
+
+  return (
+    <div className="fixed inset-0 z-[130] overflow-y-auto bg-black/60 p-4">
+      <div
+        className="surface-panel mx-auto my-4 w-full max-w-3xl p-5"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ranked-rating-revision-title"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2
+              id="ranked-rating-revision-title"
+              className="font-semibold text-[var(--text-primary)]"
+            >
+              调整积分参数并全赛季回算
+            </h2>
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
+              {season.name} ·
+              这是维护期高风险操作，必须先预览；应用时需暂停匹配且清空所有排位运行状态。
+            </p>
+          </div>
+          <button
+            className="button-secondary shrink-0 whitespace-nowrap px-3 py-2 text-sm"
+            disabled={busy}
+            onClick={onClose}
+          >
+            关闭
+          </button>
+        </div>
+
+        {history.length > 0 ? (
+          <Field label="复用已应用过的参数">
+            <select
+              className="input-field mt-3"
+              defaultValue=""
+              onChange={(event) => {
+                const selectedConfig =
+                  event.target.value === 'original'
+                    ? originalRevision?.sourceConfig
+                    : history.find((candidate) => candidate.id === event.target.value)
+                        ?.targetConfig;
+                if (selectedConfig) {
+                  setParameters(revisionParametersFromConfig(selectedConfig));
+                  setPreview(null);
+                  setConfirmed(false);
+                }
+              }}
+            >
+              <option value="">不复用，编辑当前参数</option>
+              {originalRevision ? <option value="original">修订前原始参数</option> : null}
+              {history.map((item) => (
+                <option key={item.id} value={item.id}>
+                  第 {item.revisionNumber} 版{item.current ? '（当前）' : ''} ·{' '}
+                  {new Date(item.appliedAt).toLocaleString('zh-CN')}
+                </option>
+              ))}
+            </select>
+          </Field>
+        ) : null}
+
+        <form
+          className="mt-4 grid gap-3 sm:grid-cols-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void runPreview();
+          }}
+        >
+          <RevisionNumberField
+            label="Rating Scale"
+            value={parameters.ratingScale}
+            minimum={200}
+            maximum={2000}
+            onChange={(value) => setParameters({ ...parameters, ratingScale: value })}
+          />
+          <RevisionNumberField
+            label="最低 RD"
+            value={parameters.minimumRatingDeviation}
+            minimum={30}
+            maximum={200}
+            onChange={(value) => setParameters({ ...parameters, minimumRatingDeviation: value })}
+          />
+          <RevisionNumberField
+            label="定级/参榜场次"
+            value={parameters.placementMatchCount}
+            minimum={1}
+            maximum={30}
+            step={1}
+            onChange={(value) => setParameters({ ...parameters, placementMatchCount: value })}
+          />
+          {supportsGrowth && parameters.growthPool ? (
+            <>
+              <label className="flex items-start gap-3 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-subtle)] p-3 text-sm text-[var(--text-secondary)] sm:col-span-3">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={parameters.growthPool.enabled}
+                  onChange={(event) =>
+                    setParameters({
+                      ...parameters,
+                      growthPool: { ...parameters.growthPool!, enabled: event.target.checked },
+                    })
+                  }
+                />
+                <span>
+                  <span className="block font-semibold text-[var(--text-primary)]">
+                    启用成长补偿
+                  </span>
+                  <span className="mt-1 block text-xs leading-5 text-[var(--text-muted)]">
+                    关闭后，本赛季所有已完成定级的对局都会按纯 Glicko
+                    重新计算；其余设置会保留，方便之后重新启用。
+                  </span>
+                </span>
+              </label>
+              <RevisionNumberField
+                label="成长基准分"
+                value={parameters.growthPool.centerRating}
+                minimum={1400}
+                maximum={2400}
+                disabled={!parameters.growthPool.enabled}
+                onChange={(value) =>
+                  setParameters({
+                    ...parameters,
+                    growthPool: { ...parameters.growthPool!, centerRating: value },
+                  })
+                }
+              />
+              <RevisionNumberField
+                label="最大单局注入/回收总分"
+                value={parameters.growthPool.maximumTotalAdjustment}
+                minimum={1}
+                maximum={50}
+                disabled={!parameters.growthPool.enabled}
+                onChange={(value) =>
+                  setParameters({
+                    ...parameters,
+                    growthPool: { ...parameters.growthPool!, maximumTotalAdjustment: value },
+                  })
+                }
+              />
+              <RevisionNumberField
+                label="高分局胜方回收比例（0–1）"
+                value={parameters.growthPool.negativeWinnerShare}
+                minimum={0.5}
+                maximum={1}
+                step={0.01}
+                disabled={!parameters.growthPool.enabled}
+                onChange={(value) =>
+                  setParameters({
+                    ...parameters,
+                    growthPool: { ...parameters.growthPool!, negativeWinnerShare: value },
+                  })
+                }
+              />
+              <details className="rounded-lg border border-[var(--border-subtle)] sm:col-span-3">
+                <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-[var(--text-secondary)]">
+                  高级选项
+                </summary>
+                <div className="border-t border-[var(--border-subtle)] p-3 sm:w-1/3">
+                  <RevisionNumberField
+                    label="过渡宽度"
+                    value={parameters.growthPool.transitionWidth}
+                    minimum={50}
+                    maximum={1000}
+                    disabled={!parameters.growthPool.enabled}
+                    description="数值越小，越快从低分正和切换到高分负和；默认 250。"
+                    onChange={(value) =>
+                      setParameters({
+                        ...parameters,
+                        growthPool: { ...parameters.growthPool!, transitionWidth: value },
+                      })
+                    }
+                  />
+                </div>
+              </details>
+            </>
+          ) : null}
+          <label className="grid gap-1 text-sm text-[var(--text-secondary)] sm:col-span-3">
+            调整原因
+            <textarea
+              className="input-field min-h-20"
+              value={reason}
+              minLength={5}
+              maxLength={1000}
+              placeholder="说明为什么调整，将进入永久审计记录"
+              onChange={(event) => {
+                setReason(event.target.value);
+                setPreview(null);
+                setConfirmed(false);
+              }}
+              required
+            />
+          </label>
+          <div className="flex justify-end sm:col-span-3">
+            <button className="button-primary min-h-11 px-5" disabled={busy}>
+              {busy ? <Loader2 size={16} className="animate-spin" /> : '生成回算预览'}
+            </button>
+          </div>
+        </form>
+
+        {error ? (
+          <p className="mt-4 rounded-lg bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
+            {error}
+          </p>
+        ) : null}
+
+        {preview ? (
+          <section className="mt-5 border-t border-[var(--border-subtle)] pt-4">
+            <h3 className="font-semibold text-[var(--text-primary)]">回算预览</h3>
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+              <PreviewMetric label="有效对局" value={preview.materializedMatchCount} />
+              <PreviewMetric label="变化对局" value={preview.affectedMatchCount} />
+              <PreviewMetric label="变化玩家" value={preview.affectedPlayerCount} />
+              <PreviewMetric label="新进排行榜" value={preview.leaderboardEnteredCount} />
+              <PreviewMetric label="离开排行榜" value={preview.leaderboardLeftCount} />
+              <PreviewMetric
+                label="最大分数变化"
+                value={formatSignedMagnitude(preview.maximumAbsoluteRatingChange)}
+              />
+              <PreviewMetric label="榜内最大名次变化" value={preview.maximumAbsoluteRankChange} />
+              <PreviewMetric
+                label="最大单局差异"
+                value={formatSignedMagnitude(preview.maximumAbsolutePerMatchDeltaChange)}
+              />
+              <PreviewMetric label="Seed RD 夹取" value={preview.seedDeviationClampCount} />
+              <PreviewMetric
+                label="流水版本"
+                value={`${preview.sourceLedgerRevision} → ${preview.projectedLedgerRevision}`}
+              />
+            </div>
+            <RevisionBlockers
+              blockers={preview.blockers}
+              queuePaused={season.queueAdmission === 'PAUSED'}
+            />
+            {sortedChanges.length > 0 ? (
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[36rem] text-left text-xs">
+                  <thead className="text-[var(--text-muted)]">
+                    <tr>
+                      <th className="py-2 pr-3">玩家</th>
+                      <th className="py-2 pr-3">积分</th>
+                      <th className="py-2 pr-3">变化</th>
+                      <th className="py-2 pr-3">RD</th>
+                      <th className="py-2">名次</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedChanges.map((change) => (
+                      <tr key={change.userId} className="border-t border-[var(--border-subtle)]">
+                        <td className="py-2 pr-3 font-medium text-[var(--text-primary)]">
+                          {change.playerName}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {formatRating(change.before?.rating)} →{' '}
+                          {formatRating(change.after?.rating)}
+                        </td>
+                        <td className="py-2 pr-3">{formatDelta(change.ratingDelta)}</td>
+                        <td className="py-2 pr-3">
+                          {formatRating(change.before?.ratingDeviation)} →{' '}
+                          {formatRating(change.after?.ratingDeviation)}
+                        </td>
+                        <td className="py-2">
+                          {change.rankBefore ?? '未参榜'} → {change.rankAfter ?? '未参榜'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm text-[var(--text-muted)]">当前没有玩家积分变化。</p>
+            )}
+            <label className="mt-4 flex items-start gap-2 text-sm text-[var(--text-secondary)]">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+              />
+              <span>
+                我已核对预览差异，理解应用后会用新参数原子重建本赛季全部积分与单局历史投影。
+              </span>
+            </label>
+            <div className="mt-4 flex justify-end">
+              <button
+                className="rounded-lg bg-[var(--semantic-warning)] px-5 py-3 font-semibold text-white disabled:opacity-50"
+                disabled={busy || !confirmed || !preview.canApply}
+                onClick={() => void applyPreview()}
+              >
+                确认应用并全赛季回算
+              </button>
+            </div>
+          </section>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function RevisionNumberField({
+  label,
+  value,
+  minimum,
+  maximum,
+  step = 1,
+  disabled = false,
+  description,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  minimum: number;
+  maximum: number;
+  step?: number;
+  disabled?: boolean;
+  description?: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <Field label={label}>
+      <input
+        type="number"
+        className="input-field"
+        min={minimum}
+        max={maximum}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(Number(event.target.value))}
+        required
+      />
+      {description ? <span className="text-xs text-[var(--text-muted)]">{description}</span> : null}
+    </Field>
+  );
+}
+
+function PreviewMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg bg-[var(--bg-overlay)] p-2">
+      <div className="text-[11px] text-[var(--text-muted)]">{label}</div>
+      <div className="mt-0.5 font-semibold text-[var(--text-primary)]">{value}</div>
+    </div>
+  );
+}
+
+function RevisionBlockers({
+  blockers,
+  queuePaused,
+}: {
+  blockers: RankedRatingRevisionPreview['blockers'];
+  queuePaused: boolean;
+}) {
+  const entries = [
+    ['待结算对局', blockers.pendingMatches],
+    ['进行中对局', blockers.runningMatches],
+    ['活动票据', blockers.activeTickets],
+    ['活动预留', blockers.activeReservations],
+    ['玩家占用', blockers.activeParticipations],
+    ['对局冻结环境异常', blockers.matchEnvironmentMismatches],
+    ['对局规则版本异常', blockers.matchRecordRulesMismatches],
+  ] as const;
+  const blocked = !queuePaused || entries.some(([, count]) => count > 0);
+  return (
+    <div
+      className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+        blocked
+          ? 'bg-[var(--semantic-warning)]/10 text-[var(--semantic-warning)]'
+          : 'bg-[var(--semantic-success)]/10 text-[var(--semantic-success)]'
+      }`}
+    >
+      {queuePaused ? '匹配已暂停' : '匹配尚未暂停'}
+      {' · '}
+      {entries.map(([label, count]) => `${label} ${count}`).join(' · ')}
+    </div>
+  );
+}
+
+function supportsRatingRevision(season: RankedAdminSeason): boolean {
+  const baseVersion =
+    season.ratingConfig.parameterRevision?.baseAlgorithmVersion ?? season.ratingAlgorithmVersion;
+  return baseVersion === 'GLICKO1_PER_MATCH_V3' || baseVersion === 'GLICKO1_PER_MATCH_V4';
+}
+
+function revisionParametersFromConfig(config: RankedRatingConfig): RankedRatingRevisionParameters {
+  return {
+    ratingScale: config.ratingScale,
+    minimumRatingDeviation: config.minimumRatingDeviation,
+    placementMatchCount: config.placementMatchCount,
+    ...(config.growthPool
+      ? {
+          growthPool: {
+            enabled: config.growthPool.enabled,
+            centerRating: config.growthPool.centerRating,
+            maximumTotalAdjustment: config.growthPool.maximumTotalAdjustment,
+            transitionWidth: config.growthPool.transitionWidth,
+            negativeWinnerShare: config.growthPool.negativeWinnerShare,
+          },
+        }
+      : {}),
+  };
+}
+
+function formatRating(value: number | undefined): string {
+  return value === undefined ? '—' : value.toFixed(1);
+}
+
+function formatDelta(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
+}
+
+function formatSignedMagnitude(value: number): string {
+  return value.toFixed(1);
 }
 
 function CorrectionDialog({
@@ -1147,6 +2309,7 @@ function createDraftDefaults(algorithm: string, ratingConfig: RankedRatingConfig
   return {
     seasonKey: `season-${start.toISOString().slice(0, 10)}`,
     name: '新赛季',
+    announcement: '',
     platformTimeZone: 'Asia/Shanghai',
     openWindows: [{ weekdays: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1440 }],
     startsAt: start.toISOString().slice(0, 16),
@@ -1159,7 +2322,7 @@ function createDraftDefaults(algorithm: string, ratingConfig: RankedRatingConfig
       retention: ratingConfig.softResetRetention,
       minimumDeviation: ratingConfig.softResetMinimumDeviation,
     },
-    leaderboardMinimumMatchCount: 10,
+    leaderboardMinimumMatchCount: ratingConfig.placementMatchCount,
   };
 }
 
@@ -1172,6 +2335,7 @@ function createDraftFromSeason(season: RankedAdminSeason) {
   return {
     seasonKey: season.seasonKey,
     name: season.name,
+    announcement: season.announcement,
     platformTimeZone: season.platformTimeZone,
     openWindows: season.openWindows.map((window) => ({
       weekdays: [...window.weekdays],
@@ -1205,6 +2369,29 @@ function timeToMinute(value: string, isEnd = false) {
 
 function lifecycleLabel(value: RankedAdminSeason['lifecycle']) {
   return { DRAFT: '未开始', ACTIVE: '开放中', FINALIZING: '结算中', CLOSED: '已结束' }[value];
+}
+
+function preferredOverviewSeasonId(seasons: RankedAdminSeason[]): string {
+  return (
+    seasons.find((season) => season.lifecycle === 'ACTIVE')?.id ??
+    seasons.find((season) => season.lifecycle === 'FINALIZING')?.id ??
+    seasons.find((season) => season.lifecycle === 'CLOSED')?.id ??
+    seasons[0]?.id ??
+    ''
+  );
+}
+
+function formatOverviewInteger(value: number | undefined): string {
+  return value === undefined ? '—' : Math.round(value).toLocaleString('zh-CN');
+}
+
+function formatRatingBoundary(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatRatingDelta(value: number | null): string {
+  if (value === null) return '—';
+  return `${value >= 0 ? '+' : ''}${value.toFixed(1)}`;
 }
 
 function ratingStatusLabel(value: RankedAdminMatch['ratingStatus']) {

@@ -7,7 +7,7 @@ import {
 } from '../../src/domain/entities/card';
 import { createGameState, registerCards, updatePlayer, type GameState } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, placeCardInSlot } from '../../src/domain/entities/zone';
-import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import { addHeartLiveModifierForTargetMember } from '../../src/domain/rules/live-modifiers';
 import { GameService } from '../../src/application/game-service';
 import { SP_BP5_026_LIVE_START_LIELLA_STAGE_HEART_ELEVEN_THIS_LIVE_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
 import {
@@ -75,9 +75,9 @@ function setup(options: { readonly sourceInLiveZone?: boolean; readonly withModi
   }));
   if (options.withModifier) {
     game =
-      addHeartLiveModifierForMember(game, {
+      addHeartLiveModifierForTargetMember(game, {
         playerId: PLAYER1,
-        memberCardId: right.instanceId,
+        targetMemberCardId: right.instanceId,
         sourceCardId: sourceLive.instanceId,
         abilityId: 'test:add-one-heart',
         hearts: [createHeartIcon(HeartColor.RED, 1)],

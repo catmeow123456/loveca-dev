@@ -7,6 +7,7 @@ import { CardType, ZoneType, SlotPosition } from '../../shared/types/enums.js';
 import { emitGameEvent, getPlayerById, updatePlayer, type GameState } from '../entities/game.js';
 import type { PlayerState } from '../entities/player.js';
 import {
+  createEnterWaitingRoomEvent,
   createWaitingRoomCardsMovedToMainDeckEvent,
   type WaitingRoomCardsMovedToMainDeckEvent,
 } from '../events/game-events.js';
@@ -632,6 +633,32 @@ export function applyRuleActionResult(
 
     default:
       break;
+  }
+
+  if (result.affectedPlayerId && result.movedCards) {
+    const playerAfterMove = getPlayerById(state, result.affectedPlayerId);
+    const enteredWaitingRoomBySource = new Map<ZoneType, string[]>();
+    for (const move of result.movedCards) {
+      if (
+        move.to !== ZoneType.WAITING_ROOM ||
+        playerAfterMove?.waitingRoom.cardIds.includes(move.cardId) !== true
+      ) {
+        continue;
+      }
+      const cardIds = enteredWaitingRoomBySource.get(move.from) ?? [];
+      enteredWaitingRoomBySource.set(move.from, [...cardIds, move.cardId]);
+    }
+    for (const [fromZone, cardIds] of enteredWaitingRoomBySource) {
+      state = emitGameEvent(
+        state,
+        createEnterWaitingRoomEvent(
+          cardIds,
+          fromZone,
+          result.affectedPlayerId,
+          result.affectedPlayerId
+        )
+      );
+    }
   }
 
   return state;

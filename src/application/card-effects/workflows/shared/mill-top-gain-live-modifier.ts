@@ -6,7 +6,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { isMemberCardData } from '../../../../domain/entities/card.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import {
   BladeHeartEffect,
   CardType,
@@ -297,9 +297,8 @@ function finishMillTopGainLiveModifier(
   if (conditionMet && sourceStillOnStage) {
     const modifierResult =
       config.reward.type === 'heart'
-        ? addHeartLiveModifierForMember(state, {
+        ? addHeartLiveModifierForSourceMember(state, {
             playerId: player.id,
-            memberCardId: effect.sourceCardId,
             sourceCardId: effect.sourceCardId,
             abilityId: effect.abilityId,
             hearts: [{ color: config.reward.heartColor, count: 1 }],

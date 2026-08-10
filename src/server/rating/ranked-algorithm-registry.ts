@@ -3,16 +3,17 @@ import {
   GLICKO1_PER_MATCH_V1,
   GLICKO1_PER_MATCH_V2,
   GLICKO1_PER_MATCH_V3,
-  type Glicko1Config,
 } from './glicko.js';
+import { GLICKO1_PER_MATCH_V4, type RankedRatingConfig } from './ranked-rating.js';
 
 export interface RankedAlgorithmDescriptor {
   readonly algorithmVersion: string;
   readonly status: 'SHADOW_CANDIDATE' | 'FORMAL';
-  readonly config: Glicko1Config;
+  readonly config: RankedRatingConfig;
 }
 
-const FORMAL_RANKED_CONFIGS: readonly Glicko1Config[] = Object.freeze([
+const FORMAL_RANKED_CONFIGS: readonly RankedRatingConfig[] = Object.freeze([
+  GLICKO1_PER_MATCH_V4,
   GLICKO1_PER_MATCH_V3,
   GLICKO1_PER_MATCH_V2,
   GLICKO1_PER_MATCH_V1,
@@ -42,7 +43,7 @@ export class RankedAlgorithmRegistryError extends Error {
   }
 }
 
-export function getFormalRankedAlgorithmConfig(algorithmVersion: string): Glicko1Config {
+export function getFormalRankedAlgorithmConfig(algorithmVersion: string): RankedRatingConfig {
   const config = FORMAL_RANKED_CONFIGS.find(
     (candidate) => candidate.algorithmVersion === algorithmVersion
   );

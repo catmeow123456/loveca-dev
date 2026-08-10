@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：权威对局状态、命令处理、玩家视图投影、卡效队列、LIVE 判定、联机同步、对局记录与回放的运行时链路
 > 当前状态：当前实现基线；字段级 schema 以代码类型、`src/server/db/schema.ts` 和专题文档为准
-> 最后更新：2026-07-03
+> 最后更新：2026-08-09
 
 ## 1. 文档边界
 
@@ -139,6 +139,8 @@ LIVE 修正分两类：
 
 - 新增 LIVE 分数、Heart、Blade、必要 Heart 修正时，优先走 live modifier 入口。
 - 旧的 `playerScoreBonuses`、`playerHeartBonuses`、`liveRequirementReductions`、`liveRequirementModifiers` 只作为兼容投影保留，不作为新增逻辑主写入路径。
+- HEART 写入显式区分 `SOURCE_MEMBER` / `TARGET_MEMBER` / `PLAYER`；选择成员即使 source=target 仍为 TARGET，并分别保存真实 source/target。前两者只经 `getMemberEffectiveHeartIcons` 汇入对应顶层舞台成员，PLAYER 由玩家 HEART getter 单独汇入最终颜色池，不能重复投影。
+- ACTIVE / WAITING 与顶层槽位移动不清除持久化成员 HEART；离开顶层舞台、替换或成为 memberBelow 时按显式绑定实例清除，同实例重登场不恢复，持久化 PLAYER 不随来源成员离场。Continuous 各 scope 按当前场面动态生成和消失；LIVE_END 统一清空已持久化 modifier。Checkpoint 规范化只在 authority 复水边界执行：3 个 targetless SOURCE 仅允许 V1 迁移，另 3 个 self-target 误写 SOURCE 在 V1 / V2 按六 ability 冻结表窄规范化为 TARGET。
 - 必要 Heart 修正需要兼容指定颜色、All/无色需求、`RAINBOW` 和 `totalRequired` 两种数据形态。
 - LIVE 判定的 Heart 分配以 `HeartPool` 为单一规则入口：先以同色 Heart、再以 `RAINBOW`/All 满足指定颜色，然后用剩余任意 Heart 满足总数需求。`GRAY` 只参与最后的总数分配，前端成功预判与缺口计算必须复用同一入口。
 - 已实现的 `LIVE_SUCCESS / LIVE_CARD` ability definition 可以通过 `remainingHeartAllocationPreference` 声明“判定后至少保留某一指定颜色 Heart”的分配偏好，并可用 `requiredStageGroupAlias` 限定收集该偏好的舞台条件。`GameService` 在 LIVE 判定前只从本次设置的 LIVE 卡收集有效偏好，再传入 `LiveResolver` / `HeartPool`；workflow 不得在 LIVE 成功后倒推或改写已经完成的 Heart 消耗。

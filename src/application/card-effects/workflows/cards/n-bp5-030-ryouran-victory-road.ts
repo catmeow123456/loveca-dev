@@ -9,7 +9,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot, type PlayerState } from '../../../../domain/entities/player.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForTargetMember,
   getMemberEffectiveHeartIcons,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
@@ -182,9 +182,9 @@ function resolveLiveStartResolvedGainAllHeart(
     : 0;
   const conditionMet = sourceLiveInLiveZone && target !== null && allHeartCountBefore === 0;
   const heartResult = conditionMet
-    ? addHeartLiveModifierForMember(stateWithoutPending, {
+    ? addHeartLiveModifierForTargetMember(stateWithoutPending, {
         playerId: player.id,
-        memberCardId: target.memberCardId,
+        targetMemberCardId: target.memberCardId,
         sourceCardId: ability.sourceCardId,
         abilityId: ability.abilityId,
         hearts: [{ color: HeartColor.RAINBOW, count: 1 }],

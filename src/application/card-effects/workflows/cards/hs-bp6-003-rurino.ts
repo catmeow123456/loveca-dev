@@ -8,7 +8,7 @@ import type {
   EnterWaitingRoomEvent,
   MemberStateChangedEvent,
 } from '../../../../domain/events/game-events.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import {
   CardType,
   HeartColor,
@@ -493,14 +493,14 @@ function finishHsBp6003RurinoHeartTarget(
     return game;
   }
 
-  const modifierResult = addHeartLiveModifierForMember(
+  const modifierResult = addHeartLiveModifierForTargetMember(
     {
       ...game,
       activeEffect: null,
     },
     {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: HeartColor.PINK, count: 1 }],

@@ -10,6 +10,7 @@ import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { CardType, HeartColor } from '@game/shared/types/enums';
 import {
   cardBelongsToGroup,
+  cardBelongsToUnit,
   getKnownCardGroupIdentityName,
 } from '@game/shared/utils/card-identity';
 import {
@@ -22,8 +23,17 @@ import {
   SCORE_MAX,
   PRODUCT_OPTIONS,
   matchesBladeHeartFilter,
-  matchesRequirementHeartColor,
 } from './filter-constants';
+import {
+  matchesMemberHeartRanges,
+  matchesRequirementHeartRanges,
+  toggleHeartRangeFilter,
+  updateHeartRangeBoundary,
+  type HeartRangeBoundary,
+  type HeartRangeFilters,
+} from './heart-range-filter';
+
+const EMPTY_HEART_RANGES: HeartRangeFilters = {};
 
 function normalizeGroupFilterText(value?: string | null): string {
   return (
@@ -75,7 +85,7 @@ export interface UseCardFiltersReturn {
   costMax: number;
   scoreMin: number;
   scoreMax: number;
-  selectedHeartColor: HeartColor | null;
+  heartRanges: HeartRangeFilters;
   selectedBladeHeart: string | null;
   groupOptions: readonly string[];
   productOptions: readonly string[];
@@ -92,7 +102,12 @@ export interface UseCardFiltersReturn {
   setCostMax: (v: number) => void;
   setScoreMin: (v: number) => void;
   setScoreMax: (v: number) => void;
-  setSelectedHeartColor: (c: HeartColor | null) => void;
+  toggleHeartColor: (color: HeartColor) => void;
+  setHeartRangeBoundary: (
+    color: HeartColor,
+    boundary: HeartRangeBoundary,
+    value: number | null
+  ) => void;
   setSelectedBladeHeart: (b: string | null) => void;
   clearFilters: () => void;
 }
@@ -109,7 +124,8 @@ export function useCardFilters(): UseCardFiltersReturn {
   const [selectedProduct, setSelectedProduct] = useState<string | null>(null);
   const [costMin, setCostMin] = useState(COST_MIN);
   const [costMax, setCostMax] = useState(COST_MAX);
-  const [selectedHeartColor, setSelectedHeartColor] = useState<HeartColor | null>(null);
+  const [memberHeartRanges, setMemberHeartRanges] = useState<HeartRangeFilters>({});
+  const [requirementHeartRanges, setRequirementHeartRanges] = useState<HeartRangeFilters>({});
   const [selectedBladeHeart, setSelectedBladeHeart] = useState<string | null>(null);
   const [scoreMin, setScoreMin] = useState(SCORE_MIN);
   const [scoreMax, setScoreMax] = useState(SCORE_MAX);
@@ -135,11 +151,47 @@ export function useCardFilters(): UseCardFiltersReturn {
     setSelectedProduct(null);
     setCostMin(COST_MIN);
     setCostMax(COST_MAX);
-    setSelectedHeartColor(null);
+    setMemberHeartRanges({});
+    setRequirementHeartRanges({});
     setSelectedBladeHeart(null);
     setScoreMin(SCORE_MIN);
     setScoreMax(SCORE_MAX);
   }, []);
+
+  const heartRanges =
+    selectedCardType === CardType.MEMBER
+      ? memberHeartRanges
+      : selectedCardType === CardType.LIVE
+        ? requirementHeartRanges
+        : EMPTY_HEART_RANGES;
+
+  const toggleHeartColor = useCallback(
+    (color: HeartColor) => {
+      const setter =
+        selectedCardType === CardType.MEMBER
+          ? setMemberHeartRanges
+          : selectedCardType === CardType.LIVE
+            ? setRequirementHeartRanges
+            : null;
+      if (!setter) return;
+      setter((current) => toggleHeartRangeFilter(current, color));
+    },
+    [selectedCardType]
+  );
+
+  const setHeartRangeBoundary = useCallback(
+    (color: HeartColor, boundary: HeartRangeBoundary, value: number | null) => {
+      const setter =
+        selectedCardType === CardType.MEMBER
+          ? setMemberHeartRanges
+          : selectedCardType === CardType.LIVE
+            ? setRequirementHeartRanges
+            : null;
+      if (!setter) return;
+      setter((current) => updateHeartRangeBoundary(current, color, boundary, value));
+    },
+    [selectedCardType]
+  );
 
   const handleSetSelectedGroup = useCallback((g: string | null) => {
     setSelectedGroup(g);
@@ -189,9 +241,9 @@ export function useCardFilters(): UseCardFiltersReturn {
     selectedRarity !== null ||
     selectedGroup !== null ||
     selectedProduct !== null ||
-    (selectedCardType === CardType.MEMBER && selectedUnit !== null) ||
+    (selectedCardType !== CardType.ENERGY && selectedUnit !== null) ||
     (selectedCardType === CardType.MEMBER && (costMin !== COST_MIN || costMax !== COST_MAX)) ||
-    selectedHeartColor !== null ||
+    Object.keys(heartRanges).length > 0 ||
     selectedBladeHeart !== null ||
     (selectedCardType === CardType.LIVE && (scoreMin !== SCORE_MIN || scoreMax !== SCORE_MAX));
 
@@ -241,8 +293,8 @@ export function useCardFilters(): UseCardFiltersReturn {
 
     // 以下筛选仅适用于非能量卡
     if (selectedCardType !== CardType.ENERGY) {
-      if (selectedCardType === CardType.MEMBER && selectedUnit) {
-        filtered = filtered.filter((card) => card.unitName === selectedUnit);
+      if (selectedUnit) {
+        filtered = filtered.filter((card) => cardBelongsToUnit(card, selectedUnit));
       }
 
       if (selectedCardType === CardType.MEMBER && (costMin !== COST_MIN || costMax !== COST_MAX)) {
@@ -254,16 +306,13 @@ export function useCardFilters(): UseCardFiltersReturn {
         });
       }
 
-      if (selectedHeartColor) {
+      if (Object.keys(heartRanges).length > 0) {
         filtered = filtered.filter((card) => {
           if (isMemberCardData(card)) {
-            return card.hearts.some((h) => h.color === selectedHeartColor);
+            return matchesMemberHeartRanges(card.hearts, heartRanges);
           }
           if (isLiveCardData(card)) {
-            return matchesRequirementHeartColor(
-              card.requirements.colorRequirements,
-              selectedHeartColor
-            );
+            return matchesRequirementHeartRanges(card.requirements.colorRequirements, heartRanges);
           }
           return false;
         });
@@ -305,7 +354,7 @@ export function useCardFilters(): UseCardFiltersReturn {
     costMax,
     getRarityFromCode,
     selectedCardType,
-    selectedHeartColor,
+    heartRanges,
     selectedBladeHeart,
     scoreMin,
     scoreMax,
@@ -323,7 +372,7 @@ export function useCardFilters(): UseCardFiltersReturn {
     costMax,
     scoreMin,
     scoreMax,
-    selectedHeartColor,
+    heartRanges,
     selectedBladeHeart,
     groupOptions,
     productOptions,
@@ -340,7 +389,8 @@ export function useCardFilters(): UseCardFiltersReturn {
     setCostMax,
     setScoreMin,
     setScoreMax,
-    setSelectedHeartColor,
+    toggleHeartColor,
+    setHeartRangeBoundary,
     setSelectedBladeHeart,
     clearFilters,
   };

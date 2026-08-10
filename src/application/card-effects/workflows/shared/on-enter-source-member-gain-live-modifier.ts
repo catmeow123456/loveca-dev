@@ -5,7 +5,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   HS_CL1_006_ON_ENTER_GAIN_THREE_BLADE_ABILITY_ID,
@@ -155,9 +155,8 @@ function resolveOnEnterSourceMemberLiveModifier(
             abilityId: ability.abilityId,
             amount: config.amount,
           })
-        : addHeartLiveModifierForMember(stateWithoutPending, {
+        : addHeartLiveModifierForSourceMember(stateWithoutPending, {
             playerId: player.id,
-            memberCardId: ability.sourceCardId,
             sourceCardId: ability.sourceCardId,
             abilityId: ability.abilityId,
             hearts: [{ color: config.color, count: config.amount }],

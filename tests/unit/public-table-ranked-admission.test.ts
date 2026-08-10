@@ -18,6 +18,7 @@ vi.mock('../../src/server/db/pool.js', () => ({
 }));
 
 vi.mock('../../src/server/services/online-room-service.js', () => ({
+  PUBLIC_TABLE_OPENING_TTL_MS: 3 * 60 * 1_000,
   loadOwnedDeckForOnlineMatch: mocks.loadDeck,
   loadUserProfileForOnlineMatch: mocks.loadProfile,
   onlineRoomService: {},

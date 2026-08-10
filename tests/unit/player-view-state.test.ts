@@ -25,7 +25,6 @@ import {
   registerCards,
   updatePlayer,
   type GameState,
-  type LiveModifierState,
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone, addCardToZone } from '../../src/domain/entities/zone';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
@@ -893,7 +892,7 @@ describe('PlayerViewState projector', () => {
     }
   );
 
-  it('keeps legacy player Heart bonuses in liveResult without mixing member Hearts', () => {
+  it('keeps explicit player Heart bonuses in liveResult without mixing member Hearts', () => {
     let { state } = createProjectedState();
     const sourceMember = createCardInstance(
       createTestMember('PL!HS-bp5-003-AR', '大泽瑠璃乃'),
@@ -932,11 +931,12 @@ describe('PlayerViewState projector', () => {
     });
     state = addLiveModifier(state, {
       kind: 'HEART',
+      target: 'PLAYER',
       playerId: PLAYER1,
       hearts: [{ color: HeartColor.GREEN, count: 1 }],
-      sourceCardId: 'legacy-player-heart-source',
-      abilityId: 'legacy-player-heart',
-    } as unknown as LiveModifierState);
+      sourceCardId: 'player-heart-source',
+      abilityId: 'explicit-player-heart',
+    });
 
     const view = projectPlayerViewState(state, PLAYER1);
     const targetObject = view.objects[createPublicObjectId(targetMember.instanceId)];

@@ -7,7 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForTargetMember,
   collectLiveModifiers,
   getMemberEffectiveBladeCount,
 } from '../../../../domain/rules/live-modifiers.js';
@@ -142,11 +142,11 @@ function finishFireBirdTargetSelection(
     );
   }
 
-  const heartResult = addHeartLiveModifierForMember(
+  const heartResult = addHeartLiveModifierForTargetMember(
     { ...game, activeEffect: null },
     {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [createHeartIcon(HeartColor.RED, 2)],

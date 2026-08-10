@@ -25,8 +25,9 @@ describe('purge-expired-match-replay-data', () => {
     const calls: string[] = [];
     const client: PurgeReplayQueryClient = {
       async query<T>(text: string) {
+        await Promise.resolve();
         calls.push(text);
-        if (text.includes('SELECT record.match_id')) {
+        if (text.includes('SELECT record.match_id,')) {
           return {
             rows: [
               {
@@ -39,6 +40,9 @@ describe('purge-expired-match-replay-data', () => {
             ] as T[],
           };
         }
+        if (text.includes('JOIN ranked_matches AS ranked_match')) {
+          return { rows: [{ count: '0' }] as T[] };
+        }
         return { rows: [{ count: '1' }] as T[] };
       },
     };
@@ -47,9 +51,51 @@ describe('purge-expired-match-replay-data', () => {
 
     expect(report.candidateMatchCount).toBe(1);
     expect(report.replayRows).toBe(12);
+    expect(report.blockedRankedMatchCount).toBe(0);
     expect(report.metadataRowsUpdated).toBe(0);
-    expect(calls).toHaveLength(2);
+    expect(calls).toHaveLength(3);
     expect(calls.join('\n')).not.toContain('DELETE FROM');
+  });
+
+  it('reports ranked candidates without two complete deck observations in dry-run mode', async () => {
+    const client: PurgeReplayQueryClient = {
+      async query<T>(text: string) {
+        await Promise.resolve();
+        if (text.includes('SELECT record.match_id,')) return { rows: [] as T[] };
+        if (text.includes('JOIN ranked_matches AS ranked_match')) {
+          return { rows: [{ count: '2' }] as T[] };
+        }
+        return { rows: [{ count: '2' }] as T[] };
+      },
+    };
+
+    const report = await runPurgeReplayMigration(client, parseArgs(['--dry-run']));
+
+    expect(report.candidateMatchCount).toBe(2);
+    expect(report.blockedRankedMatchCount).toBe(2);
+    expect(report.metadataRowsUpdated).toBe(0);
+  });
+
+  it('blocks apply before mutating when a ranked candidate lacks complete observations', async () => {
+    const calls: string[] = [];
+    const client: PurgeReplayQueryClient = {
+      async query<T>(text: string) {
+        await Promise.resolve();
+        calls.push(text);
+        if (text.includes('SELECT record.match_id,')) return { rows: [] as T[] };
+        if (text.includes('JOIN ranked_matches AS ranked_match')) {
+          return { rows: [{ count: '1' }] as T[] };
+        }
+        throw new Error(`unexpected query: ${text}`);
+      },
+    };
+
+    await expect(runPurgeReplayMigration(client, parseArgs(['--apply', '--yes']))).rejects.toThrow(
+      'do not have two complete deck observations'
+    );
+
+    expect(calls).not.toContain('BEGIN');
+    expect(calls.join('\n')).not.toContain('UPDATE match_deck_snapshots');
   });
 
   it('deletes replay children and marks metadata in batches', async () => {
@@ -57,10 +103,14 @@ describe('purge-expired-match-replay-data', () => {
     let idBatchRead = false;
     const client: PurgeReplayQueryClient = {
       async query<T>(text: string) {
+        await Promise.resolve();
         calls.push(text);
-        if (text.includes('SELECT record.match_id')) return { rows: [] as T[] };
+        if (text.includes('SELECT record.match_id,')) return { rows: [] as T[] };
+        if (text.includes('JOIN ranked_matches AS ranked_match')) {
+          return { rows: [{ count: '0' }] as T[] };
+        }
         if (text.includes('WITH selected')) return { rows: [{ count: 1 }] as T[] };
-        if (text.includes('SELECT match_id FROM match_records')) {
+        if (text.includes('SELECT record.match_id FROM match_records AS record')) {
           if (idBatchRead) return { rows: [] as T[] };
           idBatchRead = true;
           return { rows: [{ match_id: 'old-match' }] as T[] };
@@ -73,8 +123,12 @@ describe('purge-expired-match-replay-data', () => {
     const report = await runPurgeReplayMigration(client, parseArgs(['--apply', '--yes']));
 
     expect(report.metadataRowsUpdated).toBe(1);
+    expect(report.blockedRankedMatchCount).toBe(0);
     expect(calls.some((call) => call.includes('DELETE FROM match_checkpoints'))).toBe(true);
     expect(calls.some((call) => call.includes("completeness = 'METADATA_ONLY'"))).toBe(true);
+    expect(calls.some((call) => call.includes('FROM ranked_deck_observations'))).toBe(true);
+    expect(calls.some((call) => call.includes("first_observation.seat = 'FIRST'"))).toBe(true);
+    expect(calls.some((call) => call.includes("second_observation.seat = 'SECOND'"))).toBe(true);
     expect(calls).toContain('COMMIT');
   });
 });

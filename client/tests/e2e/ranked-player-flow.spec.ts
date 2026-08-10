@@ -329,11 +329,36 @@ test.describe('赛季排位玩家闭环', () => {
       expect(ratedOverview.recentMatches[0]?.result).toBe('WIN');
       expect(ratedOverview.recentMatches[0]?.ratingDelta).toEqual(expect.any(Number));
 
+      const environment = await apiData<{
+        sample: {
+          settledMatchCount: number;
+          analyzedMatchCount: number;
+          deckObservationCount: number;
+          playerCount: number;
+          coverageRate: number;
+        };
+        cardUsage: { name: string; usageRate: number }[];
+      }>(
+        await request.get(`/api/ranked/environment?seasonId=${encodeURIComponent(seasonId)}`, {
+          headers: player1Headers,
+        })
+      );
+      expect(environment.sample).toEqual({
+        settledMatchCount: 1,
+        analyzedMatchCount: 1,
+        deckObservationCount: 2,
+        playerCount: 2,
+        coverageRate: 1,
+      });
+      expect(environment.cardUsage.length).toBeGreaterThan(0);
+      expect(environment.cardUsage[0]?.usageRate).toBe(1);
+
       await verifyPlayerPage(
         browser,
         ratedOverview.player.rating!,
         ratedOverview.recentMatches[0]!.opponentDisplayName,
-        ratedOverview.recentMatches[0]!.ratingDelta!
+        ratedOverview.recentMatches[0]!.ratingDelta!,
+        environment.cardUsage[0]!.name
       );
       await verifyCorrectionDialog(browser);
     } finally {
@@ -370,7 +395,8 @@ async function verifyPlayerPage(
   browser: Browser,
   rating: number,
   opponentDisplayName: string,
-  ratingDelta: number
+  ratingDelta: number,
+  topCardName: string
 ): Promise<void> {
   const context = await browser.newContext();
   const page = await context.newPage();
@@ -383,6 +409,8 @@ async function verifyPlayerPage(
     await expect(
       page.getByText(`${ratingDelta >= 0 ? '+' : ''}${ratingDelta}`, { exact: false })
     ).toBeVisible();
+    await expect(page.getByRole('heading', { name: '赛季卡牌使用率' })).toBeVisible();
+    await expect(page.getByText(topCardName, { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: '/tmp/loveca-ranked-player.png', fullPage: true });
   } finally {
     await context.close();

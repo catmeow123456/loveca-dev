@@ -8,7 +8,7 @@ import {
 import { getAllMemberCardIds } from '../../../../domain/entities/zone.js';
 import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   getLiveCardRequirementModifiers,
 } from '../../../../domain/rules/live-modifiers.js';
 import { applyHeartRequirementModifiers } from '../../../../domain/rules/live-requirement-modifiers.js';
@@ -72,9 +72,8 @@ function resolveSBp5017MariLiveStart(
 
   const context = getSBp5017Context(stateWithoutPending, ability);
   const heartResult = context.conditionMet
-    ? addHeartLiveModifierForMember(stateWithoutPending, {
+    ? addHeartLiveModifierForSourceMember(stateWithoutPending, {
         playerId: player.id,
-        memberCardId: ability.sourceCardId,
         sourceCardId: ability.sourceCardId,
         abilityId: ability.abilityId,
         hearts: [{ color: HeartColor.BLUE, count: 1 }],

@@ -11,7 +11,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { SlotPosition, type HeartColor } from '../../../../shared/types/enums.js';
 import { cardNameAliasIs } from '../../../effects/card-selectors.js';
 import { inspectTopCards } from '../../../effects/look-top.js';
@@ -388,9 +388,9 @@ function finishStageKasumiSelection(
     activeEffect: null,
   };
   if (selectedHeartColors.length > 0) {
-    const modifierResult = addHeartLiveModifierForMember(state, {
+    const modifierResult = addHeartLiveModifierForTargetMember(state, {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: selectedHeartColors.map((color) => ({ color, count: 1 })),

@@ -12,6 +12,10 @@ import {
   type RankedAdminSeasonDraftInput,
 } from '../services/ranked-admin-service.js';
 import { RankedRatingServiceError } from '../services/ranked-rating-service.js';
+import {
+  RankedRatingRevisionServiceError,
+  rankedRatingRevisionService,
+} from '../services/ranked-rating-revision-service.js';
 import { RankedSeasonServiceError } from '../services/ranked-season-service.js';
 
 export const rankedAdminRouter = Router();
@@ -41,6 +45,7 @@ const seasonDraftSchema = z
       .trim()
       .regex(/^[a-z0-9][a-z0-9_-]{2,63}$/),
     name: z.string().trim().min(1).max(100),
+    announcement: z.string().trim().max(2000).default(''),
     platformTimeZone: z.string().trim().min(1).max(80),
     openWindows: z.array(openWindowSchema).min(1).max(32),
     startsAt: z.coerce.date(),
@@ -55,6 +60,7 @@ const seasonDraftSchema = z
 const activeSeasonOperationsSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
+    announcement: z.string().trim().max(2000).default(''),
     openWindows: z.array(openWindowSchema).min(1).max(32),
     leaderboardMinimumMatchCount: z.number().int().min(1).max(100),
   })
@@ -86,6 +92,37 @@ const correctionExecuteSchema = z
     previewToken: z.string().trim().min(32).max(256),
   })
   .superRefine(validateCorrectionChoice);
+
+const ratingRevisionParametersSchema = z
+  .object({
+    ratingScale: z.number().finite().min(200).max(2000),
+    minimumRatingDeviation: z.number().finite().min(30).max(200),
+    placementMatchCount: z.number().int().min(1).max(30),
+    growthPool: z
+      .object({
+        enabled: z.boolean(),
+        centerRating: z.number().finite().min(1400).max(2400),
+        maximumTotalAdjustment: z.number().finite().min(1).max(50),
+        transitionWidth: z.number().finite().min(50).max(1000),
+        negativeWinnerShare: z.number().finite().min(0.5).max(1),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
+const ratingRevisionPreviewSchema = z
+  .object({
+    parameters: ratingRevisionParametersSchema,
+    reason: z.string().trim().min(5).max(1000),
+  })
+  .strict();
+
+const ratingRevisionApplySchema = z
+  .object({
+    previewToken: z.string().trim().min(64).max(4096),
+  })
+  .strict();
 
 rankedAdminRouter.use(requireAuth, requireAdmin);
 
@@ -202,6 +239,76 @@ rankedAdminRouter.post('/seasons/:seasonId/close', async (req, res) => {
   await runSeasonCommand(req.params.seasonId, res, (seasonId) =>
     rankedAdminService.closeSeason(seasonId, req.user!.id)
   );
+});
+
+rankedAdminRouter.get('/seasons/:seasonId/rating-revisions', async (req, res) => {
+  const seasonId = readParam(req.params.seasonId, seasonIdSchema, '赛季 ID', res);
+  if (!seasonId) {
+    return;
+  }
+  try {
+    const revisions = await rankedRatingRevisionService.listHistory(seasonId);
+    res.json({ data: revisions, total: revisions.length, error: null });
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
+rankedAdminRouter.post(
+  '/seasons/:seasonId/rating-revisions/preview',
+  validate(ratingRevisionPreviewSchema),
+  async (req, res) => {
+    const seasonId = readParam(req.params.seasonId, seasonIdSchema, '赛季 ID', res);
+    if (!seasonId) {
+      return;
+    }
+    try {
+      respondData(
+        res,
+        await rankedRatingRevisionService.preview({
+          ...(req.body as z.infer<typeof ratingRevisionPreviewSchema>),
+          seasonId,
+          adminUserId: req.user!.id,
+        })
+      );
+    } catch (error) {
+      respondRankedAdminError(res, error);
+    }
+  }
+);
+
+rankedAdminRouter.post(
+  '/seasons/:seasonId/rating-revisions/apply',
+  validate(ratingRevisionApplySchema),
+  async (req, res) => {
+    const seasonId = readParam(req.params.seasonId, seasonIdSchema, '赛季 ID', res);
+    if (!seasonId) {
+      return;
+    }
+    try {
+      const result = await rankedRatingRevisionService.apply({
+        ...(req.body as z.infer<typeof ratingRevisionApplySchema>),
+        seasonId,
+        adminUserId: req.user!.id,
+      });
+      respondData(res, result);
+    } catch (error) {
+      respondRankedAdminError(res, error);
+    }
+  }
+);
+
+rankedAdminRouter.get('/overview', async (req, res) => {
+  const parsed = z.object({ seasonId: z.string().uuid() }).strict().safeParse(req.query);
+  if (!parsed.success) {
+    respondValidationError(res, parsed.error);
+    return;
+  }
+  try {
+    respondData(res, await rankedAdminService.getOverview(parsed.data.seasonId));
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
 });
 
 rankedAdminRouter.get('/matches', async (req, res) => {
@@ -400,6 +507,7 @@ function respondRankedAdminError(res: Response, error: unknown): void {
     error instanceof RankedAdminServiceError ||
     error instanceof RankedSeasonServiceError ||
     error instanceof RankedRatingServiceError ||
+    error instanceof RankedRatingRevisionServiceError ||
     error instanceof RankedAlgorithmRegistryError
   ) {
     res.status(error.statusCode).json({

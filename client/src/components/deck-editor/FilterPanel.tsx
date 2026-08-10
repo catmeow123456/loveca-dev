@@ -6,8 +6,13 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SlidersHorizontal, X } from 'lucide-react';
-import { CardType, HeartColor } from '@game/shared/types/enums';
+import { CardType } from '@game/shared/types/enums';
+import {
+  HEART_ICON_SOURCE_BY_COLOR,
+  HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR,
+} from '@/lib/modifierIconAssets';
 import { FilterChipGroup } from './FilterChipGroup';
+import { HeartRangeFilter } from './HeartRangeFilter';
 import { RangeSelector } from './RangeSelector';
 import {
   RARITY_OPTIONS,
@@ -52,7 +57,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
       key: 'unit',
       label: '小组',
       isActive: filters.selectedUnit !== null,
-      showFor: [CardType.MEMBER],
+      showFor: [CardType.MEMBER, CardType.LIVE],
     },
     {
       key: 'cost',
@@ -63,7 +68,7 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
     {
       key: 'heart',
       label: filters.selectedCardType === CardType.LIVE ? '需求心' : '持有心',
-      isActive: filters.selectedHeartColor !== null,
+      isActive: Object.keys(filters.heartRanges).length > 0,
       showFor: [CardType.MEMBER, CardType.LIVE],
     },
     {
@@ -142,14 +147,16 @@ export function FilterPanel({ filters, compact = false }: FilterPanelProps) {
             ? REQUIREMENT_HEART_COLOR_OPTIONS
             : MEMBER_HEART_COLOR_OPTIONS;
         return (
-          <FilterChipGroup
-            options={heartColorOptions.map((opt) => ({
-              value: opt.value,
-              label: opt.label,
-              colorClass: opt.colorClass,
-            }))}
-            selected={filters.selectedHeartColor}
-            onSelect={(v) => filters.setSelectedHeartColor(v as HeartColor | null)}
+          <HeartRangeFilter
+            options={heartColorOptions}
+            ranges={filters.heartRanges}
+            iconSourceByColor={
+              filters.selectedCardType === CardType.LIVE
+                ? HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR
+                : HEART_ICON_SOURCE_BY_COLOR
+            }
+            onToggleColor={filters.toggleHeartColor}
+            onBoundaryChange={filters.setHeartRangeBoundary}
           />
         );
       }

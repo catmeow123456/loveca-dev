@@ -10,7 +10,7 @@ import type {
   EnergyPlacedByCardEffectEvent,
   MemberSlotMovedEvent,
 } from '../../../../domain/events/game-events.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { CardAbilityCategory, CardAbilitySourceZone } from '../../ability-definition-types.js';
 import { SP_BP5_004_AUTO_OWN_EFFECT_MOVE_OR_PLACE_ENERGY_DRAW_RED_HEART_ABILITY_ID } from '../../ability-ids.js';
@@ -162,9 +162,8 @@ function resolveSpBp5004SumireAuto(
       drawnCardIds = drawResult.drawnCardIds;
     }
 
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.RED, count: 1 }],

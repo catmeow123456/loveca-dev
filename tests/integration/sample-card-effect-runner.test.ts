@@ -34,6 +34,7 @@ import { createCheerEvent, createLiveSuccessEvent } from '../../src/domain/event
 import {
   addLiveModifier,
   getMemberEffectiveBladeCount,
+  getMemberEffectiveHeartIcons,
 } from '../../src/domain/rules/live-modifiers';
 import { GameService, type DeckConfig } from '../../src/application/game-service';
 import { createTapMemberAction } from '../../src/application/actions';
@@ -17743,7 +17744,12 @@ describe('sample card effect runner', () => {
     ).toBe(true);
   });
 
-  it('lets PL!HS-bp5-003 discard a hand card and grant pink Heart to same-group member targets on either stage', () => {
+  it.each([
+    ['an opponent member', false],
+    ['the source itself', true],
+  ] as const)(
+    'keeps PL!HS-bp5-003 recipient semantics when selecting %s',
+    (_label, selectSource) => {
     const session = createGameSession();
     const deck = createDeck();
 
@@ -17814,6 +17820,20 @@ describe('sample card effect runner', () => {
     expect(opponentHasuCardId).toBeTruthy();
     expect(liveCardId).toBeTruthy();
 
+    const rurinoCard = state.cardRegistry.get(rurinoCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    const targetHasuCard = state.cardRegistry.get(targetHasuCardId!) as unknown as {
+      data: MemberCardData;
+    };
+    const liveCard = state.cardRegistry.get(liveCardId!) as unknown as { data: LiveCardData };
+    rurinoCard.data = { ...rurinoCard.data, blade: 0 };
+    targetHasuCard.data = { ...targetHasuCard.data, blade: 0 };
+    liveCard.data = {
+      ...liveCard.data,
+      requirements: createHeartRequirement({ [HeartColor.PINK]: 3 }),
+    };
+
     removeFromPlayerZones(p1);
     removeFromPlayerZones(p2);
     p1.hand.cardIds = [discardHasuCardId!];
@@ -17856,23 +17876,61 @@ describe('sample card effect runner', () => {
     ]);
     expect(session.state?.activeEffect?.selectableCardIds).not.toContain(mismatchLiellaCardId);
 
+    const selectedTargetCardId = selectSource ? rurinoCardId! : opponentHasuCardId!;
     const targetResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, opponentHasuCardId)
+      createConfirmEffectStepCommand(
+        PLAYER1,
+        session.state!.activeEffect!.id,
+        selectedTargetCardId
+      )
     );
 
     expect(targetResult.success).toBe(true);
     expect(session.state?.activeEffect).toBeNull();
     expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
-    expect(session.state?.liveResolution.liveModifiers).toContainEqual({
-      kind: 'HEART',
-      target: 'TARGET_MEMBER',
-      playerId: PLAYER2,
-      targetMemberCardId: opponentHasuCardId,
-      hearts: [{ color: HeartColor.PINK, count: 1 }],
-      sourceCardId: rurinoCardId,
-      abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
-    });
-  });
+    expect(
+      session.state?.liveResolution.liveModifiers.filter(
+        (modifier) =>
+          modifier.kind === 'HEART' &&
+          modifier.sourceCardId === rurinoCardId &&
+          modifier.abilityId === HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
+      )
+    ).toEqual([
+      {
+        kind: 'HEART',
+        target: 'TARGET_MEMBER',
+        playerId: selectSource ? PLAYER1 : PLAYER2,
+        targetMemberCardId: selectedTargetCardId,
+        hearts: [{ color: HeartColor.PINK, count: 1 }],
+        sourceCardId: rurinoCardId,
+        abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+      },
+    ]);
+
+    const targetPlayerId = selectSource ? PLAYER1 : PLAYER2;
+    const targetHearts = getMemberEffectiveHeartIcons(
+      session.state!,
+      targetPlayerId,
+      selectedTargetCardId
+    );
+    expect(
+      targetHearts
+        .filter((heart) => heart.color === HeartColor.PINK)
+        .reduce((total, heart) => total + heart.count, 0)
+    ).toBe(2);
+
+    const confirmLiveStartResult = session.executeCommand(
+      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_LIVE_START_EFFECTS)
+    );
+    expect(confirmLiveStartResult.success).toBe(true);
+    expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
+
+    const judgmentResult = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
+    expect(judgmentResult.success).toBe(true);
+    expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(selectSource);
+    expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBe(selectSource ? 3 : 0);
+    }
+  );
 
   it('uses structured groupNames when PL!HS-bp5-003 discards Dreamin so target Heart affects live judgment', () => {
     const session = createGameSession();

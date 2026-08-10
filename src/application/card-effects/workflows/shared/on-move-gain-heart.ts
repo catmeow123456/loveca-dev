@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   SP_SD2_002_AUTO_ON_MOVE_GAIN_PURPLE_HEART_ABILITY_ID,
@@ -90,9 +90,8 @@ function resolveOnMoveGainHeart(
     abilityId: ability.abilityId,
     sourceCardId: ability.sourceCardId,
   });
-  const heartResult = addHeartLiveModifierForMember(stateAfterUseRecord, {
+  const heartResult = addHeartLiveModifierForSourceMember(stateAfterUseRecord, {
     playerId: player.id,
-    memberCardId: ability.sourceCardId,
     sourceCardId: ability.sourceCardId,
     abilityId: ability.abilityId,
     hearts: [{ color: config.heartColor, count: 1 }],

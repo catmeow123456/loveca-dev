@@ -90,6 +90,7 @@
 - 读目标卡真实卡文和现有同型卡。
 - 确认触发时机是否已有事件事实；没有真实样例时不要提前设计费用期间事件消费。
 - 确认只是 selector/query、cost、domain modifier，还是 workflow。
+- 若效果增加 HEART，先只按卡文确定 `SOURCE_MEMBER` / `TARGET_MEMBER` / `PLAYER`：选择或指定成员的卡文即使允许选择来源自身也仍是 `TARGET_MEMBER`，不得用卡型、区域、ID 相等或字段缺失反推 scope。
 
 实现时：
 
@@ -104,6 +105,8 @@
 - 更新 `existing_module_map.md` 的卡效状态。
 - 如引入新 helper 或关闭清单项，再同步相关专题文档。
 - 不把临时执行记录、测试输出或一次性 checklist 写进长期文档。
+- HEART 测试除精确 modifier 形状外，还要验证最终成员 HEART、玩家 HEART、颜色池和实际 LIVE 成败；成员绑定效果需覆盖 WAITING 朝向不清除、离开顶层舞台／成为 memberBelow／占位替换时清除，以及同实例重登场不恢复。
+- HEART 进入 checkpoint 时，V2 必须覆盖显式 scope 严格校验；冻结审计表中 3 个 targetless SOURCE 历史形状只允许 V1 迁移，另 3 个 self-target 误写 SOURCE 的形状则会在 V1 / V2 authority 复水边界窄规范化为 TARGET。
 
 ## Validation Checklist
 

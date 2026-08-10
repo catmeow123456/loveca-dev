@@ -1,5 +1,6 @@
 import type {
   EnergyMovedToDeckEvent,
+  EnterWaitingRoomEvent,
   WaitingRoomCardsMovedToMainDeckEvent,
 } from '../../../domain/events/game-events.js';
 import {
@@ -25,6 +26,7 @@ export interface CheckTimingRuleProcessingResult {
   readonly gameState: GameState;
   readonly ruleActions: readonly RuleActionResult[];
   readonly energyMovedToDeckEvents: readonly EnergyMovedToDeckEvent[];
+  readonly enterWaitingRoomEvents: readonly EnterWaitingRoomEvent[];
   readonly waitingRoomCardsMovedToMainDeckEvents: readonly WaitingRoomCardsMovedToMainDeckEvent[];
   readonly gameEnded: boolean;
 }
@@ -79,6 +81,7 @@ export function processCheckTimingRuleActions(
         gameState: { ...state, checkTimingContext: null },
         ruleActions: appliedRuleActions,
         energyMovedToDeckEvents: collectEnergyMovedToDeckEvents(state, eventLogStartIndex),
+        enterWaitingRoomEvents: collectEnterWaitingRoomEvents(state, eventLogStartIndex),
         waitingRoomCardsMovedToMainDeckEvents: collectWaitingRoomCardsMovedToMainDeckEvents(
           state,
           eventLogStartIndex
@@ -92,6 +95,7 @@ export function processCheckTimingRuleActions(
     gameState: state,
     ruleActions: appliedRuleActions,
     energyMovedToDeckEvents: collectEnergyMovedToDeckEvents(state, eventLogStartIndex),
+    enterWaitingRoomEvents: collectEnterWaitingRoomEvents(state, eventLogStartIndex),
     waitingRoomCardsMovedToMainDeckEvents: collectWaitingRoomCardsMovedToMainDeckEvents(
       state,
       eventLogStartIndex
@@ -207,6 +211,19 @@ function collectEnergyMovedToDeckEvents(
     .filter(
       (event): event is EnergyMovedToDeckEvent =>
         event.eventType === TriggerCondition.ON_ENERGY_MOVED_TO_DECK
+    );
+}
+
+function collectEnterWaitingRoomEvents(
+  game: GameState,
+  eventLogStartIndex: number
+): readonly EnterWaitingRoomEvent[] {
+  return game.eventLog
+    .slice(eventLogStartIndex)
+    .map((entry) => entry.event)
+    .filter(
+      (event): event is EnterWaitingRoomEvent =>
+        event.eventType === TriggerCondition.ON_ENTER_WAITING_ROOM
     );
 }
 

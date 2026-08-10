@@ -1,13 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { pool } from '../db/pool.js';
+import { createInitialGlickoRatingState, type GlickoRatingState } from '../rating/glicko.js';
 import {
-  assertValidGlicko1Config,
-  createInitialGlickoRatingState,
-  rateGlickoHeadToHead,
-  type Glicko1Config,
-  type GlickoRatingState,
-} from '../rating/glicko.js';
+  assertValidRankedRatingConfig,
+  rateRankedHeadToHead,
+  type RankedRatingConfig,
+} from '../rating/ranked-rating.js';
 import {
   materializeRankedRatingLedger,
   type RankedRatingEvent,
@@ -16,6 +15,8 @@ import {
   type RankedResultType,
   type RankedWinnerSeat,
 } from '../rating/ranked-ledger.js';
+import { awardEligibleFirstRankedSeasonBadges } from '../player-badges/award.js';
+import { captureRankedDeckObservations } from './ranked-deck-observation-service.js';
 import { stableJsonStringify } from './replay-payload-serialization.js';
 
 export interface RankedRatingQueryResult<T> {
@@ -252,6 +253,12 @@ export class RankedRatingService {
           409
         );
       }
+      await captureRankedDeckObservations(client, {
+        seasonId: context.season_id,
+        matchId: context.match_id,
+        firstUserId: context.first_user_id,
+        secondUserId: context.second_user_id,
+      });
       return mapRegisteredMatch(registered);
     });
   }
@@ -278,7 +285,7 @@ export class RankedRatingService {
 
   async settleMatch(
     matchId: string,
-    expectedConfig?: Glicko1Config
+    expectedConfig?: RankedRatingConfig
   ): Promise<RankedRatingMutationResult> {
     if (expectedConfig) {
       assertPersistentConfig(expectedConfig);
@@ -358,6 +365,10 @@ export class RankedRatingService {
           context.used_free
         );
         await setSeasonLedgerRevision(client, context.season_id, revision);
+        await awardEligibleFirstRankedSeasonBadges(client, {
+          seasonId: context.season_id,
+          userIds: [...materialization.players.keys()],
+        });
         return {
           seasonId: context.season_id,
           matchId,
@@ -378,7 +389,7 @@ export class RankedRatingService {
         states.get(context.first_user_id) ?? createInitialGlickoRatingState(config);
       const secondBefore =
         states.get(context.second_user_id) ?? createInitialGlickoRatingState(config);
-      const rated = rateGlickoHeadToHead(
+      const rated = rateRankedHeadToHead(
         firstBefore,
         secondBefore,
         winnerSeat === 'FIRST' ? 1 : 0,
@@ -429,6 +440,10 @@ export class RankedRatingService {
         context.used_free
       );
       await setSeasonLedgerRevision(client, context.season_id, revision);
+      await awardEligibleFirstRankedSeasonBadges(client, {
+        seasonId: context.season_id,
+        userIds: [context.first_user_id, context.second_user_id],
+      });
 
       return {
         seasonId: context.season_id,
@@ -445,7 +460,7 @@ export class RankedRatingService {
 
   async correctMatch(
     input: CorrectRankedMatchInput,
-    expectedConfig?: Glicko1Config
+    expectedConfig?: RankedRatingConfig
   ): Promise<RankedRatingMutationResult> {
     if (expectedConfig) {
       assertPersistentConfig(expectedConfig);
@@ -570,6 +585,10 @@ export class RankedRatingService {
         ]
       );
       await setSeasonLedgerRevision(client, input.seasonId, revision);
+      await awardEligibleFirstRankedSeasonBadges(client, {
+        seasonId: input.seasonId,
+        userIds: [...materialization.players.keys()],
+      });
 
       return {
         seasonId: input.seasonId,
@@ -734,7 +753,10 @@ async function loadSettlementContext(
   return row;
 }
 
-function validateSettlementContext(context: SettlementContextRow, config: Glicko1Config): void {
+function validateSettlementContext(
+  context: SettlementContextRow,
+  config: RankedRatingConfig
+): void {
   if (context.lifecycle !== 'ACTIVE' && context.lifecycle !== 'FINALIZING') {
     throw serviceError('RANKED_SEASON_NOT_SETTLEABLE', '当前赛季不能继续结算', 409);
   }
@@ -1110,7 +1132,7 @@ async function lockSeason(
   return row;
 }
 
-function validateMutableSeason(season: SeasonLockRow, config: Glicko1Config): void {
+function validateMutableSeason(season: SeasonLockRow, config: RankedRatingConfig): void {
   if (season.lifecycle !== 'ACTIVE' && season.lifecycle !== 'FINALIZING') {
     throw serviceError('RANKED_SEASON_NOT_SETTLEABLE', '当前赛季不能更正结算', 409);
   }
@@ -1189,8 +1211,8 @@ async function loadRatingEvents(
   }));
 }
 
-function assertPersistentConfig(config: Glicko1Config): void {
-  assertValidGlicko1Config(config);
+function assertPersistentConfig(config: RankedRatingConfig): void {
+  assertValidRankedRatingConfig(config);
   if (config.algorithmVersion.trim().length === 0 || config.algorithmVersion.includes('SHADOW')) {
     throw serviceError(
       'RANKED_PERSISTENT_ALGORITHM_INVALID',
@@ -1203,9 +1225,9 @@ function assertPersistentConfig(config: Glicko1Config): void {
 function readStoredPersistentConfig(
   algorithmVersion: string,
   storedConfig: unknown,
-  expectedConfig?: Glicko1Config
-): Glicko1Config {
-  const config = storedConfig as Glicko1Config;
+  expectedConfig?: RankedRatingConfig
+): RankedRatingConfig {
+  const config = storedConfig as RankedRatingConfig;
   try {
     assertPersistentConfig(config);
   } catch (error) {
@@ -1235,7 +1257,7 @@ function readStoredPersistentConfig(
 function assertConfigMatches(
   algorithmVersion: string,
   storedConfig: unknown,
-  config: Glicko1Config
+  config: RankedRatingConfig
 ): void {
   if (
     algorithmVersion !== config.algorithmVersion ||

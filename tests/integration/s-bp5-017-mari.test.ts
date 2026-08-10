@@ -20,7 +20,7 @@ import {
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
 import { S_BP5_017_LIVE_START_BLUE_REQUIREMENT_GAIN_BLUE_HEART_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
-import { addHeartLiveModifierForMember } from '../../src/domain/rules/live-modifiers';
+import { addHeartLiveModifierForSourceMember } from '../../src/domain/rules/live-modifiers';
 import {
   CardType,
   FaceState,
@@ -163,9 +163,8 @@ describe('PL!S-bp5-017-N Mari live-start workflow', () => {
     const { game, sources } = setupMariState({
       liveCards,
       mutateBeforeLiveStart: (state, [source]) =>
-        addHeartLiveModifierForMember(state, {
+        addHeartLiveModifierForSourceMember(state, {
           playerId: PLAYER1,
-          memberCardId: source!.instanceId,
           sourceCardId: source!.instanceId,
           abilityId: 'test:temporary-blue-heart',
           hearts: [{ color: HeartColor.BLUE, count: 5 }],

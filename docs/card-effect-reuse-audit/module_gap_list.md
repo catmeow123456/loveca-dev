@@ -3,7 +3,7 @@
 > 文档类型：专题说明
 > 适用范围：卡效模块缺口、已关闭缺口、下一批抽象候选和剩余风险
 > 当前状态：缺口跟踪文档；卡牌完成状态以 `existing_module_map.md` 为准
-> 最后更新：2026-08-04
+> 最后更新：2026-08-09
 
 本文件基于 `loveca_effect_fragments_catalog.json` 回扫当前已实现卡牌。它只列 Stage 1A-1F 之后仍值得追踪的缺口；已经有主模块的片段不再作为 P0-now 抽象任务重复列出。
 
@@ -17,7 +17,7 @@
 | `C07,F04,F06,F11,F13` public reveal dwell | `src/application/card-effects/runtime/public-reveal-dwell.ts` | 隐藏卡刚变为双方公开后的阅读停留缺口已收口：两个入口分别恢复无输入当前 step 或真实下一交互，deadline/generation 由服务端权威校验，双方到期均可推进。首批覆盖 94 个基础编号；剩余工作是未来新 workflow 按边界接入，不是建立 reveal DSL，也不替代 public-card-selection / public-effect-choice。 |
 | `F03,F04,F05,F06,F13` | `src/application/effects/look-top.ts` + look-top workflow modules | 看顶/公开/清理/顶牌入休息室原语已外移，隐藏卡公开后的停留委托 Public Reveal Dwell；无前置费用或费用已由外层完成的看顶入手已迁到 `workflows/shared/look-top-select-to-hand.ts`，弃 1 手牌后看顶入手已迁到 `workflows/shared/discard-look-top-select-to-hand.ts`，自身待机 + 弃手外层已迁到 `workflows/shared/wait-discard-look-top-select-to-hand.ts`。支付能量与分支前置样例仍未统一配置化；这不是 steps DSL，trigger matcher 也未接 runner。 |
 | `F01,F02` | `src/application/effects/draw.ts` + `src/application/card-effects/runtime/actions.ts` + `src/application/card-effects/workflows/shared/draw-then-discard.ts` | 当前卡效抽牌到底层 `draw.ts`，并已在 `runtime/actions.ts` 封装 `drawCardsForPlayer` / `drawCardsForEachPlayer` 与 exact-count 手札弃置到休息室 helper；F02 抽 N 后弃 M 已迁入 `draw-then-discard.ts`，由 `PL!SP-bp4-008-P` 费用 13「若菜四季」左侧登场、`PL!HS-bp1-006-P` 费用 11「藤岛 慈」登场、`PL!N-bp4-018-N` 费用 7「近江彼方」状态变化、`PL!HS-pb1-009-R` 费用 15「日野下花帆」LIVE 开始阈值段验证。`F12` 与更复杂抽弃/回顶语义等待真实样例。 |
-| `B01,B02,B03,B05,B06,B07,B08,T05` | `src/domain/rules/live-modifiers.ts` + `src/application/card-effects/runtime/actions.ts` | Live modifier 主读写路径已建立，legacy fields 只作兼容投影。`addBladeLiveModifierForSourceMember`、`addBladeLiveModifierForTargetMember` 与 `addBladeLiveModifierForPlayer` 分别覆盖来源成员、经 workflow 验证的目标成员和玩家整体；不再保留 equality-inference generic 入口。`PL!HS-bp6-031-L` 分数 8「ファンファーレ！！！」已完成目标「安养寺姬芽」BLADE +3。SCORE、SOURCE/TARGET MEMBER Heart、REQUIREMENT、持续 modifier 与可见性依赖均已有真实样本。剩余缺口是任意条件/公式 DSL 与尚未被真实卡证明的新 modifier 生命周期，不再把目标成员 BLADE 或公开手牌原语列为未实现。 |
+| `B01,B02,B03,B05,B06,B07,B08,T05` | `src/domain/rules/live-modifiers.ts` + `src/application/card-effects/runtime/actions.ts` | Live modifier 主读写路径已建立，legacy fields 只作兼容投影。BLADE 与 HEART 均有 SOURCE_MEMBER / TARGET_MEMBER / PLAYER 具名入口，不再保留 equality-inference generic 入口；HEART self-selection、真实 source/target、RULES/FREE 离场、memberBelow/替换、同实例重登场、LIVE_END 与 V1/V2 checkpoint 已收口。SCORE、REQUIREMENT、continuous modifier 与可见性依赖均有真实样本。剩余缺口是任意条件/公式 DSL 与尚未被真实卡证明的新期限语义，不再把 HEART 作用域或成员离场生命周期列为未实现。 |
 | Continuous modifier hidden-information visibility | `src/domain/rules/live-modifiers.ts` + `src/online/projector.ts` | 当前 LIVE 区卡面依赖缺口已收口：definition/factory 必须显式声明 `PUBLIC` 或 `PLAYER_LIVE_ZONE_CONTENTS / SELF|OPPONENT`，统一 collector 自动标记其产生的全部 modifier，projector 只按玩家视角过滤，不改权威结算。已覆盖全部当前已审查的 9 个基础编号与成员/requirement 两种泄露面。未来如出现同时依赖多个隐藏区域、LIVE 区以外的隐藏区域或更细粒度部分公开语义，应扩展 visibility union 与投影测试，不回到卡号/UI 硬隐藏。 |
 | `S01,S02,S05,S07` | `src/application/effects/member-state.ts` + `domain/rules/member-wait-protections.ts` + `effects/member-position-targets.ts` | 成员状态/站位变换/卡效登场原语已建立。`PL!S-bp7-003-SEC` 关闭一个窄缺口：CARD_EFFECT cause 可分别保存效果控制者与实际选择玩家；通用 WAITING 目标选择按效果控制者过滤受保护候选，实际状态变化边界继续防御 stale/伪造输入。实际选择玩家只作为审计事实，不能绕过保护；印刷 BLADE 阈值不读有效或 replacement 值，并在 LIVE_END 清理。站位目标区域纯 query 来自 `PL!S-bp5-111 / 222` 已证明的结构化团体区域语义。既有 position change、批量活跃与休息室登场样本继续复用原边界。这里没有形成任意 immunity/protection、数值比较或站位 DSL。 |
 | `E02,E03` | `src/application/effects/energy.ts` | 能量卡组顶 -> 能量区放置原语已建立，支持指定活跃/待机状态；能量区方向变更原语也已建立。当前覆盖 `PL!SP-PR-004-PR` 费用 4「唐 可可」的待机能量放置、`PL!-bp5-005-AR` 费用 10「星空凛」的条件满足后活跃能量放置、`PL!SP-bp4-008-P` 费用 13「若菜四季」右侧登场的待机能量变活跃、`PL!SP-bp5-003-AR` 费用 17「岚 千砂都」LIVE 开始全部能量变活跃、`PL!N-pb1-008-P+` 费用 17「艾玛·维尔德」登场选择能量分支后自动处理至多 2 张待机能量、`PL!HS-sd1-006-SD` 费用 15「安养寺姬芽」登场条件成立时活跃 1 张能量，以及 `PL!HS-sd1-001-SD` 费用 9「日野下花帆」relay 离场 AUTO 活跃 2 张能量。能量没有个体差异，不要求玩家逐张选择具体能量卡。 |
@@ -176,4 +176,4 @@
 - `PL!-PR-021` 费用7「矢泽日香（妮可）」、三张费用5休息室补8成员、`PL!S-PR-045` 费用11「津岛善子」、`PL!-PR-020` 费用13「高坂穗乃果」与 `PL!SP-PR-026` 费用13「鬼冢夏美」均已有基础编号 definitions、执行入口和 focused tests；当前公开印刷为 `PR`，不再属于未实现候选。
 - 休息室补8 family 只覆盖固定目标8、固定差值 direct mill、可选一张本次磨入 LIVE 置顶；不同目标数量、其他卡种/目的地或额外奖励仍须真实样本审查。
 - 换手费用条件只读取事件快照中的 `effectiveCost`，没有建立通用 relay predicate DSL。LIVE 区分数 query 只覆盖逐卡有效分数，不取代成功区印刷规则或最终 LIVE score pipeline。
-- PR-5 `LL-PR-004-PR` 分数3「愛♡スクリ～ム！」与 PR-6 `PL!N-PR-022-PR` 费用2「艾玛·维尔德」按用户要求保持未开发；BLADE 双算与上一回合 LIVE 结果查询仍是各自后续前置。
+- PR-5 `LL-PR-004-PR` 分数3「愛♡スクリ～ム！」与 PR-6 `PL!N-PR-022-PR` 费用2「艾玛·维尔德」已于 2026-08-08 完成；新增最近完整回合 LIVE 结果纯 query 与多目标 `TARGET_MEMBER` BLADE 原子 helper。两张卡的固定回答、分支和后续交互仍由各自单卡 workflow 持有，未扩张成宽泛问答 DSL。

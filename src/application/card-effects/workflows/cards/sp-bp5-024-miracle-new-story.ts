@@ -10,7 +10,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { cardCodeMatchesBase } from '../../../../shared/utils/card-code.js';
 import { getPositionMovedStageMemberIdsMatching } from '../../../effects/conditions.js';
@@ -156,9 +156,9 @@ function finishChooseHeartForMovedMembers(
   const hearts: readonly HeartIcon[] = [{ color: selectedOption.color, count: 1 }];
   const modifiedMemberCardIds: string[] = [];
   for (const memberCardId of movedMemberCardIds) {
-    const modifierResult = addHeartLiveModifierForMember(state, {
+    const modifierResult = addHeartLiveModifierForTargetMember(state, {
       playerId: player.id,
-      memberCardId,
+      targetMemberCardId: memberCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts,

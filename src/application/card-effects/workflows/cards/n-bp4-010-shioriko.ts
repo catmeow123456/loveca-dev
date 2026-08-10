@@ -12,7 +12,7 @@ import {
   getAllMemberCardIds,
   removeCardFromZone,
 } from '../../../../domain/entities/zone.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, ZoneType } from '../../../../shared/types/enums.js';
 import { cardBelongsToGroup } from '../../../../shared/utils/card-identity.js';
 import { normalizeCardName } from '../../../effects/card-selectors.js';
@@ -414,9 +414,8 @@ function resolveLiveStartSelection(
   );
   const heartResult =
     context.willGainHeart && isSourceOnOwnStage(stateWithoutPending, playerId, ability.sourceCardId)
-      ? addHeartLiveModifierForMember(stateWithoutPending, {
+      ? addHeartLiveModifierForSourceMember(stateWithoutPending, {
           playerId,
-          memberCardId: ability.sourceCardId,
           sourceCardId: ability.sourceCardId,
           abilityId: ability.abilityId,
           hearts: [{ color: HeartColor.GREEN, count: 1 }],

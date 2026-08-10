@@ -15,7 +15,8 @@ description: 准备并发布 Loveca 版本，包括同步 VERSION、形成并推
 
 1. 先和用户确认本次发布的目标版本号 `X.Y.Z`（语义化版本）。如果用户没给，根据改动性质给出建议（修复=patch、向后兼容功能=minor、破坏性变更=major），但不要擅自决定后直接改文件。
 2. 确认当前分支与工作树状态：`git status --short`、`git diff --stat main...HEAD`，判断是否还有未提交或不该进入发布的改动。
-3. 本技能涉及的对外动作（将版本提交推送到作者 `main`、推送 tag、创建 GitHub Release、推送/提升 Docker 镜像、构建并分发安装包）必须先暂停并向用户确认；不要自动执行 `git push`、推送 `git tag`、`gh release create`、`docker push` 或带 `--push` 的 `docker buildx build`。
+3. 发布 API 镜像时，使用生产部署契约固定的 `TARGET_PLATFORMS=linux/amd64`，不根据 `uname -m`、`docker info`、本地候选镜像或开发机架构推断。每次发布仍须记录当前生产镜像和 `latest` 的 digest 与平台集合；如任一已有镜像不是 `linux/amd64`，立即阻断并核查。未来如需改变生产架构，必须先同步修改权威 runbook 和本技能，展示新旧平台差异后单独取得用户明确授权；常规发布授权不能替代架构变更授权。
+4. 本技能涉及的对外动作（将版本提交推送到作者 `main`、推送 tag、创建 GitHub Release、推送/提升 Docker 镜像、构建并分发安装包）必须先暂停并向用户确认；不要自动执行 `git push`、推送 `git tag`、`gh release create`、`docker push` 或带 `--push` 的 `docker buildx build`。
 
 ## 一、准备发布提交
 
@@ -132,9 +133,11 @@ pnpm --dir client build
 
 1. 构建前确认：
    - `VERSION`、发布 tag 与当前提交一致，工作树没有会影响镜像但尚未提交的文件。
-   - 明确目标平台；不要根据开发机架构猜测生产架构。单一 x86_64 生产机通常使用 `linux/amd64`，多架构才使用逗号分隔的平台列表。
+   - 按“前置确认”使用生产部署契约固定的 `TARGET_PLATFORMS=linux/amd64`；不要根据开发机、本地 Docker daemon 或候选镜像架构改写。
+   - 在构建前检查当前生产实际使用的镜像引用与 digest，并查询 registry 当前 `latest` 的 digest、平台集合、revision 和 version 作为交叉核对。生产实际镜像优先于 `latest`；无法取得生产事实时不能用开发机架构补空，保持阻塞并向用户说明缺失信息。
+   - 如果当前生产镜像或 `latest` 的平台集合与 `TARGET_PLATFORMS` 不同，把它视为架构迁移或架构纠错：展示旧引用、旧 digest、旧平台和新平台，停止流程，并在差异被发现后重新取得用户对这次平台变化的明确授权。此前对“继续发布”的笼统授权不能复用。
    - 发布者已经以具备 package write 权限的账号登录 registry。
-2. 先构建本地候选镜像并检查 runtime 入口，不推送：
+2. 先针对固定生产平台构建本地候选镜像并检查 runtime 入口，不推送；不能用开发机原生平台的候选镜像替代：
 
    ```bash
    API_IMAGE_REPOSITORY=ghcr.io/catmeow123456/loveca-api
@@ -142,27 +145,28 @@ pnpm --dir client build
    RELEASE_TAG="v${RELEASE_VERSION}"
    GIT_SHA="$(git rev-parse HEAD)"
    SHORT_SHA="$(git rev-parse --short=12 HEAD)"
+   TARGET_PLATFORMS=linux/amd64
    LOCAL_IMAGE="loveca-api:release-candidate-${SHORT_SHA}"
 
-   docker build --pull -t "${LOCAL_IMAGE}" .
+   docker build --pull --platform "${TARGET_PLATFORMS}" -t "${LOCAL_IMAGE}" .
    docker run --rm --entrypoint node "${LOCAL_IMAGE}" --check dist/server/index.js
+   CANDIDATE_PLATFORM="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "${LOCAL_IMAGE}")"
+   test "${CANDIDATE_PLATFORM}" = "${TARGET_PLATFORMS}"
    docker image inspect "${LOCAL_IMAGE}"
    ```
 
-3. CI 运行期间可以先展示拟推送的仓库、平台和三个标签，但不得执行推送。exact-SHA CI 和本地候选检查都成功后，立即在推送前重新核对这些目标并取得用户确认，再先推送不可变版本标签与提交标签；将 `<生产平台>` 替换为已确认值：
+3. CI 运行期间可以先展示拟推送的仓库、平台和三个标签，但不得执行推送。exact-SHA CI 和本地候选检查都成功后，立即在推送前重新核对目标仓库、不可变标签、`TARGET_PLATFORMS`、当前生产/`latest` 的平台与 digest，并用包含准确平台值的确认问题取得用户授权，再先推送不可变版本标签与提交标签。不能沿用未展示平台值时取得的授权：
 
-   推送前分别检查版本标签与提交标签，不要把检查命令和推送命令合并成一段直接执行。任一标签已存在时不得覆盖：两个标签必须都存在、指向相同 digest，且 revision 与当前 `GIT_SHA` 一致，才能复用既有镜像；其他情况一律停止发布并核查。
+   推送前分别检查版本标签与提交标签，不要把检查命令和推送命令合并成一段直接执行。任一标签已存在时不得覆盖：两个标签必须都存在、指向相同 digest，平台集合与 `TARGET_PLATFORMS` 完全一致，且 revision 与当前 `GIT_SHA`、version 与 `RELEASE_VERSION` 一致，才能复用既有镜像；其他情况一律停止发布并核查。
 
    ```bash
    docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
    docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}"
    ```
 
-   确认两个标签都不存在后，才执行推送：
+   确认两个标签都不存在后，才执行推送；这里必须复用候选构建前已经确认并校验过的 `TARGET_PLATFORMS`，不得在此根据本机架构重新赋值：
 
    ```bash
-   TARGET_PLATFORMS='<已确认的生产平台，例如 linux/amd64>'
-
    docker buildx build --pull \
      --platform "${TARGET_PLATFORMS}" \
      --label "org.opencontainers.image.source=https://github.com/catmeow123456/loveca-dev" \
@@ -172,19 +176,25 @@ pnpm --dir client build
      --tag "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}" \
      --push .
 
-   docker buildx imagetools inspect "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+   docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
+   docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:sha-${SHORT_SHA}"
    ```
 
-4. 只有版本镜像检查通过并且第五节 `Release Tag Integrity` 成功后，才把 `latest` 提升到该版本；提升前再次取得用户确认。可以先完成不可变 `vX.Y.Z` / `sha-*` 镜像并在第五节后回来执行本步，但不能提前提升 `latest`：
+   推送后必须从 registry 返回值逐项确认两个不可变标签指向同一 digest，平台集合与 `TARGET_PLATFORMS` 完全一致，revision 为完整 `GIT_SHA`，version 为 `RELEASE_VERSION`；任一项不符就停止，不得继续推 tag、创建 GitHub Release 或提升 `latest`。Release 文案中的镜像平台只能引用这次 registry 验证结果，不能引用本地候选镜像。
+
+4. 只有版本镜像检查通过并且第五节 `Release Tag Integrity` 成功后，才把 `latest` 提升到该版本；提升前必须重新查询当时的 `latest`，记录可回滚的旧引用、digest、平台集合、revision 和 version，并再次与 `TARGET_PLATFORMS` 比较。若平台集合发生变化或与构建前记录不同，停止并在展示差异后重新取得一次针对架构变化的明确授权。可以先完成不可变 `vX.Y.Z` / `sha-*` 镜像并在第五节后回来执行本步，但不能提前提升 `latest`：
 
    ```bash
+   docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
    docker buildx imagetools create \
      --tag "${API_IMAGE_REPOSITORY}:latest" \
      "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
-   docker buildx imagetools inspect "${API_IMAGE_REPOSITORY}:latest"
+   docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
    ```
 
-5. 在发布清单记录版本标签、提交标签、目标平台与 registry 返回的 digest。生产环境按 runbook 设置 `LOVECA_API_IMAGE` 后执行 `docker compose pull api` 和 `docker compose up -d --no-build api`；不得在生产机重新 `docker compose build api`。`latest` 只用于方便拉取，回滚必须改回上一版 `vX.Y.Z` 标签或已记录 digest。
+   提升后确认 `latest` 与不可变版本标签指向同一 digest，平台集合、revision 和 version 也完全一致；否则发布未完成，应停止部署并按记录的旧 digest 回滚 `latest`。
+
+5. 在发布清单记录：固定生产平台契约；当前生产镜像与提升前旧 `latest` 各自的引用、digest、平台集合、revision 和 version；候选平台/runtime 校验结果；版本标签、提交标签和提升后 `latest` 各自的引用、digest、平台集合、revision 和 version；以及是否发生并获准架构变化。生产环境按 runbook 设置 `LOVECA_API_IMAGE` 后执行 `docker compose pull api` 和 `docker compose up -d --no-build api`；不得在生产机重新 `docker compose build api`。`latest` 只用于方便拉取，回滚必须改回上一版 `vX.Y.Z` 标签或已记录 digest。
 
 ## 四、Android（PWA/TWA）发布材料
 
@@ -245,7 +255,7 @@ tag 推送后等待独立的 `Release Tag Integrity` workflow 成功。它会再
 
 1. 目标版本号，以及 `VERSION` / 根 `package.json` / `client/package.json`（必要时 TWA `versionCode`）是否已同步。
 2. 第二节 exact-SHA CI 的目标 SHA、作者仓库、`Quality Gates` run ID/URL 与结果；哪些本地候选产物与 CI 并行构建，以及用户授权的补充本地检查结果。失败项必须显式标出，不得把本地通过表述为远端门禁通过。
-3. loveca-api 镜像：是否构建/推送，版本与提交标签、目标平台、digest、`latest` 是否已提升；若跳过，写清原因。
+3. loveca-api 镜像：是否构建/推送，固定生产平台契约，当前生产镜像、提升前旧 `latest`、版本/提交标签及提升后 `latest` 各自的引用、digest、平台集合、revision 和 version，以及候选平台/runtime 校验结果；如果平台发生变化，附上用户明确授权；若跳过，写清原因。
 4. Migration note：文件路径、覆盖范围、是否需要生产迁移/数据同步；如果未新增，写清无需新增的理由。
 5. Release description / release message：给出完整中文文案。
 6. Android 材料：是否构建、产物路径、是否使用正式签名与 assetlinks，或本次不含 Android 包。

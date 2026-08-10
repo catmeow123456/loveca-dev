@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GLICKO1_PER_MATCH_SHADOW_V2, type Glicko1Config } from '../../src/server/rating/glicko';
+import { GLICKO1_PER_MATCH_V4 } from '../../src/server/rating/ranked-rating';
 import {
   buildRankedCompetitiveEnvironmentIdentity,
   type RankedCompetitiveEnvironmentIdentity,
@@ -36,11 +37,25 @@ const ENVIRONMENT: RankedCompetitiveEnvironmentIdentity = buildRankedCompetitive
   }
 );
 
+const V4_ENVIRONMENT = buildRankedCompetitiveEnvironmentIdentity(
+  {
+    cardCatalogVersion: 'CATALOG_V1',
+    cardCatalogHash: `sha256:${'2'.repeat(64)}`,
+    publishedCardCount: 100,
+  },
+  GLICKO1_PER_MATCH_V4,
+  {
+    rulesVersion: 'RULES_V1',
+    deckPolicyVersion: 'DECK_POLICY_V1',
+  }
+);
+
 function seasonRow(overrides: Readonly<Record<string, unknown>> = {}) {
   return {
     id: 'season-1',
     season_key: 'season-2026-01',
     name: '2026 第一赛季',
+    announcement: '',
     lifecycle: 'DRAFT',
     queue_admission: 'PAUSED',
     competitive_environment_id: ENVIRONMENT.competitiveEnvironmentId,
@@ -139,12 +154,15 @@ describe('ranked season open windows', () => {
 describe('RankedSeasonService lifecycle', () => {
   it('creates a paused draft with a frozen competitive environment', async () => {
     const { calls, service } = createHarness((text) =>
-      text.includes('INSERT INTO ranked_seasons') ? [seasonRow()] : []
+      text.includes('INSERT INTO ranked_seasons')
+        ? [seasonRow({ announcement: '欢迎参加第一赛季' })]
+        : []
     );
 
     const season = await service.createDraft({
       seasonKey: 'season-2026-01',
       name: '2026 第一赛季',
+      announcement: '欢迎参加第一赛季',
       platformTimeZone: 'Asia/Shanghai',
       openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
       startsAt: new Date('2026-08-01T00:00:00.000Z'),
@@ -161,6 +179,7 @@ describe('RankedSeasonService lifecycle', () => {
       queueAdmission: 'PAUSED',
       competitiveEnvironmentId: ENVIRONMENT.competitiveEnvironmentId,
       leaderboardMinimumMatchCount: 10,
+      announcement: '欢迎参加第一赛季',
     });
     expect(calls.some((text) => text.includes('rating_config'))).toBe(true);
   });
@@ -319,6 +338,7 @@ describe('RankedSeasonService lifecycle', () => {
           seasonRow({
             lifecycle: 'ACTIVE',
             name: '晚间排位',
+            announcement: '周末开放时间有所调整',
             open_windows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
             leaderboard_minimum_match_count: 8,
           }),
@@ -329,6 +349,7 @@ describe('RankedSeasonService lifecycle', () => {
 
     const season = await service.updateActiveOperations('season-1', {
       name: '晚间排位',
+      announcement: '周末开放时间有所调整',
       openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
       leaderboardMinimumMatchCount: 8,
       adminUserId: '11111111-1111-4111-8111-111111111111',
@@ -337,14 +358,16 @@ describe('RankedSeasonService lifecycle', () => {
     expect(season).toMatchObject({
       lifecycle: 'ACTIVE',
       name: '晚间排位',
+      announcement: '周末开放时间有所调整',
       openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
       leaderboardMinimumMatchCount: 8,
       competitiveEnvironmentId: ENVIRONMENT.competitiveEnvironmentId,
       scheduledEndsAt: new Date('2026-09-01T00:00:00.000Z'),
     });
     const update = calls.find((text) => text.includes('SET name = $2'));
-    expect(update).toContain('open_windows = $3::jsonb');
-    expect(update).toContain('leaderboard_minimum_match_count = $4');
+    expect(update).toContain('announcement = $3');
+    expect(update).toContain('open_windows = $4::jsonb');
+    expect(update).toContain('leaderboard_minimum_match_count = $5');
     expect(update).not.toContain('rating_config =');
     expect(update).not.toContain('scheduled_ends_at =');
     expect(update).not.toContain('competitive_environment_id =');
@@ -414,5 +437,54 @@ describe('RankedSeasonService lifecycle', () => {
       code: 'RANKED_LEADERBOARD_MINIMUM_MATCH_COUNT_INVALID',
     });
     expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('requires the V4 leaderboard threshold to match its five placement matches', async () => {
+    const { service, transaction } = createHarness(() => []);
+
+    await expect(
+      service.createDraft({
+        seasonKey: 'season-v4-threshold',
+        name: 'V4 门槛校验',
+        platformTimeZone: 'Asia/Shanghai',
+        openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+        startsAt: new Date('2026-09-01T00:00:00.000Z'),
+        scheduledEndsAt: new Date('2026-10-01T00:00:00.000Z'),
+        finalizingDeadlineAt: new Date('2026-10-03T00:00:00.000Z'),
+        environment: V4_ENVIRONMENT,
+        ratingConfig: GLICKO1_PER_MATCH_V4,
+        leaderboardMinimumMatchCount: 10,
+        adminUserId: '11111111-1111-4111-8111-111111111111',
+      })
+    ).rejects.toMatchObject({
+      code: 'RANKED_LEADERBOARD_PLACEMENT_MISMATCH',
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('prevents an active V4 season from changing its five-match leaderboard threshold', async () => {
+    const { service } = createHarness((text) =>
+      text.includes('SELECT *') && text.includes('FOR UPDATE')
+        ? [
+            seasonRow({
+              lifecycle: 'ACTIVE',
+              rating_algorithm_version: GLICKO1_PER_MATCH_V4.algorithmVersion,
+              rating_config: GLICKO1_PER_MATCH_V4,
+              leaderboard_minimum_match_count: 5,
+            }),
+          ]
+        : []
+    );
+
+    await expect(
+      service.updateActiveOperations('season-1', {
+        name: 'V4 进行中赛季',
+        openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+        leaderboardMinimumMatchCount: 6,
+        adminUserId: '11111111-1111-4111-8111-111111111111',
+      })
+    ).rejects.toMatchObject({
+      code: 'RANKED_LEADERBOARD_PLACEMENT_MISMATCH',
+    });
   });
 });

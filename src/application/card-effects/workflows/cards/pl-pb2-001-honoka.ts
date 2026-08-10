@@ -7,7 +7,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
   addPlayerScoreLiveModifierForTargetMember,
 } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
@@ -247,9 +247,8 @@ function applyImmediateRewards(
     }
   }
   if (evaluation.hasAllBladeIcon) {
-    const heart = addHeartLiveModifierForMember(state, {
+    const heart = addHeartLiveModifierForSourceMember(state, {
       playerId: ability.controllerId,
-      memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.RAINBOW, count: 1 }],

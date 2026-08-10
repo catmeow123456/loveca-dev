@@ -6,7 +6,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
 import type { EnergyPlacedByCardEffectEvent } from '../../../../domain/events/game-events.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor, TriggerCondition } from '../../../../shared/types/enums.js';
 import { SP_BP4_016_AUTO_CARD_EFFECT_PLACE_ENERGY_GAIN_PURPLE_HEART_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
@@ -49,9 +49,8 @@ function resolveSpBp4016RenAuto(
   let heartBonus: readonly { readonly color: HeartColor; readonly count: number }[] = [];
 
   if (conditionMet && player) {
-    const heartResult = addHeartLiveModifierForMember(state, {
+    const heartResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: ability.sourceCardId,
       sourceCardId: ability.sourceCardId,
       abilityId: ability.abilityId,
       hearts: [{ color: HeartColor.PURPLE, count: purpleHeartCount }],

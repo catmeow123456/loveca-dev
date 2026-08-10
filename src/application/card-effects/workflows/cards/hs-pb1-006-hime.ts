@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor, SlotPosition, TriggerCondition } from '../../../../shared/types/enums.js';
 import { and, typeIs, unitAliasIs } from '../../../effects/card-selectors.js';
 import { HS_PB1_006_LIVE_START_POSITION_CHANGE_TO_OTHER_MIRACRA_GAIN_HEART_BLADE_ABILITY_ID } from '../../ability-ids.js';
@@ -179,9 +179,8 @@ function finishHsPb1006HimeLiveStart(
             swappedCardId: result.swappedCardId,
           }
         );
-        const heartResult = addHeartLiveModifierForMember(stateWithAction, {
+        const heartResult = addHeartLiveModifierForSourceMember(stateWithAction, {
           playerId: player.id,
-          memberCardId: effect.sourceCardId,
           sourceCardId: effect.sourceCardId,
           abilityId: effect.abilityId,
           hearts: [createHeartIcon(HeartColor.PINK, 1)],

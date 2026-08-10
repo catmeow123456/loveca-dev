@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   AtSign,
   BadgeCheck,
@@ -19,7 +19,10 @@ import {
   StatusBadge,
   TextInput,
 } from '@/components/common';
+import { BadgeShelf } from '@/components/player-badges/BadgeShelf';
+import { fetchMyPlayerBadges } from '@/lib/playerBadgeClient';
 import { useAuthStore } from '@/store/authStore';
+import type { PlayerBadgeView } from '@game/online/player-badge-types';
 
 interface AccountCenterPageProps {
   emailChangeEnabled: boolean;
@@ -48,6 +51,46 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordFeedback, setPasswordFeedback] = useState<Feedback>(null);
+  const [badges, setBadges] = useState<PlayerBadgeView[]>([]);
+  const [badgesLoading, setBadgesLoading] = useState(true);
+  const [badgesError, setBadgesError] = useState<string | null>(null);
+  const [badgeRequestVersion, setBadgeRequestVersion] = useState(0);
+  const authenticatedUserId = user?.id;
+
+  useEffect(() => {
+    if (!authenticatedUserId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void fetchMyPlayerBadges()
+      .then((nextBadges) => {
+        if (!cancelled) {
+          setBadges(nextBadges);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          setBadgesError(error instanceof Error ? error.message : '读取徽章失败');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBadgesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authenticatedUserId, badgeRequestVersion]);
+
+  const retryBadges = () => {
+    setBadgesLoading(true);
+    setBadgesError(null);
+    setBadgeRequestVersion((version) => version + 1);
+  };
 
   const initials = useMemo(() => {
     const source = (profile?.display_name || profile?.username || 'L').trim();
@@ -170,6 +213,13 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
           </aside>
 
           <div className="grid gap-4">
+            <BadgeShelf
+              badges={badges}
+              loading={badgesLoading}
+              error={badgesError}
+              onRetry={retryBadges}
+            />
+
             <SettingsSection
               icon={<AtSign size={18} />}
               title="公开身份"

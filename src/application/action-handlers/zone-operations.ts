@@ -155,6 +155,10 @@ const STATEFUL_ZONE_ACCESSORS: Partial<Record<ZoneType, ZoneAccessor>> = {
     remove: (p, cardId) => ({ ...p, liveZone: removeCardFromStatefulZone(p.liveZone, cardId) }),
     add: (p, cardId) => ({ ...p, liveZone: addCardToStatefulZone(p.liveZone, cardId) }),
   },
+  [ZoneType.EXILE_ZONE]: {
+    remove: (p, cardId) => ({ ...p, exileZone: removeCardFromStatefulZone(p.exileZone, cardId) }),
+    add: (p, cardId) => ({ ...p, exileZone: addCardToStatefulZone(p.exileZone, cardId) }),
+  },
 };
 
 /**
@@ -487,6 +491,16 @@ export function moveCardUniversal(
 ): GameState {
   let state = game;
 
+  if (
+    fromZone === ZoneType.MEMBER_SLOT &&
+    toZone === ZoneType.MEMBER_SLOT &&
+    options?.sourceSlot !== undefined &&
+    options.targetSlot === options.sourceSlot &&
+    getPlayerById(state, playerId)?.memberSlots.slots[options.sourceSlot] === cardId
+  ) {
+    return state;
+  }
+
   // 特殊情况：成员卡在 MEMBER_SLOT 之间移动时，随成员一并移动 energyBelow（规则 4.5.5.3）
   if (
     fromZone === ZoneType.MEMBER_SLOT &&
@@ -605,19 +619,38 @@ export function moveCardUniversal(
     return state;
   }
 
-  const sourceSlot = options?.sourceSlot;
   const playerBeforeMove = getPlayerById(state, playerId);
   const cardBeforeMove = getCardById(state, cardId);
-  const shouldEmitLeaveStage =
+  const directLeavingSlot =
     fromZone === ZoneType.MEMBER_SLOT &&
-    toZone === ZoneType.WAITING_ROOM &&
-    sourceSlot !== undefined &&
+    toZone !== ZoneType.MEMBER_SLOT &&
     playerBeforeMove !== null &&
-    cardBeforeMove !== null &&
-    getCardInSlot(playerBeforeMove.memberSlots, sourceSlot) === cardId;
-  const memberBelowIdsMovedToWaitingRoom =
-    shouldEmitLeaveStage && sourceSlot !== undefined
-      ? [...(playerBeforeMove?.memberSlots.memberBelow[sourceSlot] ?? [])]
+    cardBeforeMove !== null
+      ? Object.values(SlotPosition).find(
+          (slot) => getCardInSlot(playerBeforeMove.memberSlots, slot) === cardId
+        )
+      : undefined;
+  const directLeavingMemberBelowIds = directLeavingSlot
+    ? [...(playerBeforeMove?.memberSlots.memberBelow[directLeavingSlot] ?? [])]
+    : [];
+  const directLeavingMemberBelowSlot =
+    fromZone === ZoneType.MEMBER_SLOT &&
+    toZone !== ZoneType.MEMBER_SLOT &&
+    directLeavingSlot === undefined &&
+    playerBeforeMove !== null
+      ? findMemberBelowSlot(playerBeforeMove.memberSlots, cardId)
+      : null;
+  const replacementSlot =
+    toZone === ZoneType.MEMBER_SLOT && !options?.asEnergyBelow ? options?.targetSlot : undefined;
+  const replacedMemberCardId =
+    replacementSlot && playerBeforeMove
+      ? getCardInSlot(playerBeforeMove.memberSlots, replacementSlot)
+      : null;
+  const displacedMemberCardId =
+    replacedMemberCardId !== null && replacedMemberCardId !== cardId ? replacedMemberCardId : null;
+  const displacedMemberBelowIds =
+    replacementSlot && displacedMemberCardId
+      ? [...(playerBeforeMove?.memberSlots.memberBelow[replacementSlot] ?? [])]
       : [];
 
   // 从来源区域移除
@@ -646,51 +679,88 @@ export function moveCardUniversal(
     );
   }
 
-  if (shouldEmitLeaveStage) {
-    state = moveMemberBelowToWaitingRoom(state, playerId, sourceSlot);
-
+  const playerAfterMove = getPlayerById(state, playerId);
+  if (
+    directLeavingSlot !== undefined &&
+    cardBeforeMove !== null &&
+    playerAfterMove !== null &&
+    getCardInSlot(playerAfterMove.memberSlots, directLeavingSlot) !== cardId
+  ) {
     state = emitGameEvent(
       state,
-      createLeaveStageEvent(
-        cardId,
-        sourceSlot,
-        ZoneType.WAITING_ROOM,
-        cardBeforeMove.ownerId,
-        playerId
-      )
+      createLeaveStageEvent(cardId, directLeavingSlot, toZone, cardBeforeMove.ownerId, playerId)
     );
+
+    const waitingRoomCardIds = playerAfterMove?.waitingRoom.cardIds ?? [];
+    const enteredWaitingRoomCardIds = [
+      ...(toZone === ZoneType.WAITING_ROOM && waitingRoomCardIds.includes(cardId) ? [cardId] : []),
+      ...directLeavingMemberBelowIds.filter((memberBelowId) =>
+        waitingRoomCardIds.includes(memberBelowId)
+      ),
+    ];
+    if (enteredWaitingRoomCardIds.length > 0) {
+      const firstWaitingCard = getCardById(state, enteredWaitingRoomCardIds[0]!);
+      state = emitGameEvent(
+        state,
+        createEnterWaitingRoomEvent(
+          enteredWaitingRoomCardIds,
+          ZoneType.MEMBER_SLOT,
+          firstWaitingCard?.ownerId ?? cardBeforeMove.ownerId,
+          playerId
+        )
+      );
+    }
+  }
+
+  if (
+    directLeavingMemberBelowSlot !== null &&
+    toZone === ZoneType.WAITING_ROOM &&
+    playerAfterMove?.waitingRoom.cardIds.includes(cardId)
+  ) {
     state = emitGameEvent(
       state,
       createEnterWaitingRoomEvent(
-        [cardId, ...memberBelowIdsMovedToWaitingRoom],
+        [cardId],
         ZoneType.MEMBER_SLOT,
-        cardBeforeMove.ownerId,
+        cardBeforeMove?.ownerId ?? playerId,
         playerId
       )
     );
   }
 
-  return state;
-}
+  if (
+    replacementSlot !== undefined &&
+    displacedMemberCardId !== null &&
+    playerAfterMove?.memberSlots.slots[replacementSlot] === cardId &&
+    playerAfterMove.waitingRoom.cardIds.includes(displacedMemberCardId)
+  ) {
+    const displacedMember = getCardById(state, displacedMemberCardId);
+    state = emitGameEvent(
+      state,
+      createLeaveStageEvent(
+        displacedMemberCardId,
+        replacementSlot,
+        ZoneType.WAITING_ROOM,
+        displacedMember?.ownerId ?? playerId,
+        playerId
+      )
+    );
 
-function moveMemberBelowToWaitingRoom(
-  game: GameState,
-  playerId: string,
-  sourceSlot: SlotPosition | undefined
-): GameState {
-  if (!sourceSlot) {
-    return game;
+    const enteredWaitingRoomCardIds = [displacedMemberCardId, ...displacedMemberBelowIds].filter(
+      (waitingCardId) => playerAfterMove.waitingRoom.cardIds.includes(waitingCardId)
+    );
+    if (enteredWaitingRoomCardIds.length > 0) {
+      state = emitGameEvent(
+        state,
+        createEnterWaitingRoomEvent(
+          enteredWaitingRoomCardIds,
+          ZoneType.MEMBER_SLOT,
+          displacedMember?.ownerId ?? playerId,
+          playerId
+        )
+      );
+    }
   }
 
-  return updatePlayer(game, playerId, (player) => {
-    const [memberSlots, memberBelowIds] = popMemberBelowMember(player.memberSlots, sourceSlot);
-    if (memberBelowIds.length === 0) {
-      return player;
-    }
-    return {
-      ...player,
-      memberSlots,
-      waitingRoom: addCardsToZone(player.waitingRoom, memberBelowIds),
-    };
-  });
+  return state;
 }

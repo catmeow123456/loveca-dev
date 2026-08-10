@@ -29,7 +29,9 @@ import {
   removeMemberBelowMember,
 } from '../../src/domain/entities/zone';
 import {
-  addHeartLiveModifierForMember,
+  addHeartLiveModifierForSourceMember,
+  addHeartLiveModifierForPlayer,
+  addHeartLiveModifierForTargetMember,
   addBladeLiveModifierForPlayer,
   addBladeLiveModifierForTargetMember,
   addPlayerScoreLiveModifierForTargetMember,
@@ -40,7 +42,9 @@ import {
   createBladeLiveModifierForPlayer,
   createBladeLiveModifierForSourceMember,
   createBladeLiveModifierForTargetMember,
-  createHeartLiveModifierForMember,
+  createHeartLiveModifierForPlayer,
+  createHeartLiveModifierForSourceMember,
+  createHeartLiveModifierForTargetMember,
   getLiveCardRequirementModifiers,
   getLiveCardScoreModifier,
   getCheerCardEffectiveBladeHearts,
@@ -502,84 +506,177 @@ describe('live modifier helpers', () => {
     }
   });
 
-  it('creates source-member Heart modifiers when the member is the source card', () => {
-    const source = createCardInstance(
+  it('keeps explicit source, target, and player Heart scopes independent of card ID equality', () => {
+    const member = createCardInstance(
       {
-        cardCode: 'SOURCE-MEMBER',
-        name: 'Source Member',
+        cardCode: 'EXPLICIT-HEART-MEMBER',
+        name: 'Explicit Heart Member',
         cardType: CardType.MEMBER,
         cost: 1,
         blade: 1,
         hearts: [createHeartIcon(HeartColor.PINK, 1)],
       },
       'p1',
-      'source-member'
+      'explicit-heart-member'
     );
-    let game = createGameState('source-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
-    game = registerCards(game, [source]);
+    let game = registerCards(createGameState('explicit-heart-scopes', 'p1', 'P1', 'p2', 'P2'), [
+      member,
+    ]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+    }));
+    const hearts = [createHeartIcon(HeartColor.GREEN, 1)];
 
-    const modifier = createHeartLiveModifierForMember(game, {
-      playerId: 'p1',
-      memberCardId: source.instanceId,
-      sourceCardId: source.instanceId,
-      abilityId: 'source-heart',
-      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
-    });
-
-    expect(modifier).toEqual({
+    expect(
+      createHeartLiveModifierForSourceMember(game, {
+        playerId: 'p1',
+        sourceCardId: member.instanceId,
+        abilityId: 'explicit-source-heart',
+        hearts,
+      })
+    ).toEqual({
       kind: 'HEART',
       target: 'SOURCE_MEMBER',
       playerId: 'p1',
-      hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
-      sourceCardId: source.instanceId,
-      abilityId: 'source-heart',
+      sourceCardId: member.instanceId,
+      abilityId: 'explicit-source-heart',
+      hearts,
     });
+    expect(
+      createHeartLiveModifierForTargetMember(game, {
+        playerId: 'p1',
+        sourceCardId: member.instanceId,
+        targetMemberCardId: member.instanceId,
+        abilityId: 'explicit-target-heart',
+        hearts,
+      })
+    ).toEqual({
+      kind: 'HEART',
+      target: 'TARGET_MEMBER',
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      targetMemberCardId: member.instanceId,
+      abilityId: 'explicit-target-heart',
+      hearts,
+    });
+    expect(
+      createHeartLiveModifierForPlayer(game, {
+        playerId: 'p1',
+        sourceCardId: member.instanceId,
+        abilityId: 'explicit-player-heart',
+        hearts,
+      })
+    ).toEqual({
+      kind: 'HEART',
+      target: 'PLAYER',
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'explicit-player-heart',
+      hearts,
+    });
+
+    const targetResult = addHeartLiveModifierForTargetMember(game, {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      targetMemberCardId: member.instanceId,
+      abilityId: 'explicit-target-heart',
+      hearts,
+    });
+    const playerResult = addHeartLiveModifierForPlayer(targetResult!.gameState, {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'explicit-player-heart',
+      hearts,
+    });
+    expect(getMemberEffectiveHeartIcons(playerResult!.gameState, 'p1', member.instanceId)).toEqual([
+      createHeartIcon(HeartColor.PINK, 1),
+      ...hearts,
+    ]);
+    expect(getPlayerLiveHeartModifiers(playerResult!.gameState.liveResolution, 'p1')).toEqual(
+      hearts
+    );
   });
 
-  it('creates target-member Heart modifiers when a different member gains Heart', () => {
-    const source = createCardInstance(
+  it('requires source and target Heart recipients to be current top-level stage members', () => {
+    const member = createCardInstance(
       {
-        cardCode: 'SOURCE-MEMBER',
-        name: 'Source Member',
+        cardCode: 'OFF-STAGE-HEART-MEMBER',
+        name: 'Off-stage Heart Member',
         cardType: CardType.MEMBER,
         cost: 1,
         blade: 1,
-        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        hearts: [],
       },
       'p1',
-      'source-member'
+      'off-stage-heart-member'
+    );
+    const game = registerCards(
+      createGameState('explicit-heart-validation', 'p1', 'P1', 'p2', 'P2'),
+      [member]
+    );
+    const options = {
+      playerId: 'p1',
+      sourceCardId: member.instanceId,
+      abilityId: 'off-stage-heart',
+      hearts: [createHeartIcon(HeartColor.GREEN, 1)],
+    };
+
+    expect(createHeartLiveModifierForSourceMember(game, options)).toBeNull();
+    expect(
+      createHeartLiveModifierForTargetMember(game, {
+        ...options,
+        targetMemberCardId: member.instanceId,
+      })
+    ).toBeNull();
+  });
+
+  it('allows a target-member Heart source to belong to a different player and card type', () => {
+    const liveSource = createCardInstance(
+      {
+        cardCode: 'CROSS-PLAYER-LIVE-SOURCE',
+        name: 'Cross-player Live Source',
+        cardType: CardType.LIVE,
+        score: 1,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 1 }),
+      },
+      'p1',
+      'cross-player-live-source'
     );
     const target = createCardInstance(
       {
-        cardCode: 'TARGET-MEMBER',
-        name: 'Target Member',
+        cardCode: 'CROSS-PLAYER-TARGET',
+        name: 'Cross-player Target',
         cardType: CardType.MEMBER,
         cost: 1,
         blade: 1,
-        hearts: [createHeartIcon(HeartColor.PINK, 1)],
+        hearts: [],
       },
       'p2',
-      'target-member'
+      'cross-player-target'
     );
-    let game = createGameState('target-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
-    game = registerCards(game, [source, target]);
+    let game = registerCards(createGameState('cross-player-target-heart', 'p1', 'P1', 'p2', 'P2'), [
+      liveSource,
+      target,
+    ]);
+    game = updatePlayer(game, 'p2', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, target.instanceId),
+    }));
 
-    const modifier = createHeartLiveModifierForMember(game, {
-      playerId: 'p2',
-      memberCardId: target.instanceId,
-      sourceCardId: source.instanceId,
-      abilityId: 'target-heart',
-      hearts: [createHeartIcon(HeartColor.PINK, 1)],
-    });
-
-    expect(modifier).toEqual({
-      kind: 'HEART',
+    expect(
+      createHeartLiveModifierForTargetMember(game, {
+        playerId: 'p2',
+        sourceCardId: liveSource.instanceId,
+        targetMemberCardId: target.instanceId,
+        abilityId: 'cross-player-target-heart',
+        hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
+      })
+    ).toMatchObject({
       target: 'TARGET_MEMBER',
       playerId: 'p2',
+      sourceCardId: liveSource.instanceId,
       targetMemberCardId: target.instanceId,
-      hearts: [createHeartIcon(HeartColor.PINK, 1)],
-      sourceCardId: source.instanceId,
-      abilityId: 'target-heart',
     });
   });
 
@@ -598,16 +695,20 @@ describe('live modifier helpers', () => {
     );
     let game = createGameState('add-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
     game = registerCards(game, [source]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, source.instanceId),
+    }));
 
-    const result = addHeartLiveModifierForMember(game, {
+    const result = addHeartLiveModifierForSourceMember(game, {
       playerId: 'p1',
-      memberCardId: source.instanceId,
       sourceCardId: source.instanceId,
       abilityId: 'source-heart',
       hearts: [createHeartIcon(HeartColor.YELLOW, 1)],
     });
 
     expect(result).not.toBeNull();
+    expect(result?.modifier.target).toBe('SOURCE_MEMBER');
     expect(result?.heartBonus).toEqual([createHeartIcon(HeartColor.YELLOW, 1)]);
     expect(result?.gameState.liveResolution.playerHeartBonuses.has('p1')).toBe(false);
     expect(getPlayerLiveHeartModifiers(result!.gameState.liveResolution, 'p1')).toEqual([]);
@@ -639,6 +740,10 @@ describe('live modifier helpers', () => {
     );
     let game = createGameState('invalid-member-heart-helper', 'p1', 'P1', 'p2', 'P2');
     game = registerCards(game, [member, liveCard]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+    }));
 
     const baseOptions = {
       playerId: 'p1',
@@ -648,28 +753,27 @@ describe('live modifier helpers', () => {
     };
 
     expect(
-      createHeartLiveModifierForMember(game, {
+      createHeartLiveModifierForTargetMember(game, {
         ...baseOptions,
-        memberCardId: 'missing-member',
+        targetMemberCardId: 'missing-member',
       })
     ).toBeNull();
     expect(
-      createHeartLiveModifierForMember(game, {
+      createHeartLiveModifierForTargetMember(game, {
         ...baseOptions,
-        memberCardId: liveCard.instanceId,
+        targetMemberCardId: liveCard.instanceId,
       })
     ).toBeNull();
     expect(
-      createHeartLiveModifierForMember(game, {
+      createHeartLiveModifierForTargetMember(game, {
         ...baseOptions,
         playerId: 'p2',
-        memberCardId: member.instanceId,
+        targetMemberCardId: member.instanceId,
       })
     ).toBeNull();
     expect(
-      addHeartLiveModifierForMember(game, {
+      addHeartLiveModifierForSourceMember(game, {
         ...baseOptions,
-        memberCardId: member.instanceId,
         hearts: [createHeartIcon(HeartColor.YELLOW, 0)],
       })
     ).toBeNull();
@@ -2425,16 +2529,17 @@ describe('live modifier helpers', () => {
     ).toBe(false);
   });
 
-  it('keeps legacy player Heart modifiers in player Heart compatibility projection', () => {
-    const legacyModifier = {
+  it('keeps explicit player Heart modifiers in player Heart compatibility projection', () => {
+    const playerModifier: LiveModifierState = {
       kind: 'HEART',
+      target: 'PLAYER',
       playerId: 'p1',
       hearts: [createHeartIcon(HeartColor.GREEN, 1)],
-      sourceCardId: 'legacy-source',
-      abilityId: 'legacy-player-heart',
-    } as unknown as LiveModifierState;
-    let game = createGameState('legacy-player-heart-compatibility', 'p1', 'P1', 'p2', 'P2');
-    game = addLiveModifier(game, legacyModifier);
+      sourceCardId: 'player-source',
+      abilityId: 'explicit-player-heart',
+    };
+    let game = createGameState('explicit-player-heart-compatibility', 'p1', 'P1', 'p2', 'P2');
+    game = addLiveModifier(game, playerModifier);
 
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1')).toEqual([
       createHeartIcon(HeartColor.GREEN, 1),
@@ -2480,11 +2585,13 @@ describe('live modifier helpers', () => {
       },
       {
         kind: 'HEART',
-        playerId: 'p2',
+        target: 'TARGET_MEMBER',
+        playerId: 'p1',
         hearts: [createHeartIcon(HeartColor.PURPLE, 1)],
-        sourceCardId: 'legacy-source',
-        abilityId: 'legacy-player-heart',
-      } as unknown as LiveModifierState,
+        sourceCardId: 'target-heart-source',
+        targetMemberCardId: source.instanceId,
+        abilityId: 'target-member-heart',
+      },
     ];
 
     const encoded = JSON.stringify(toTransport(modifiers));
@@ -2494,13 +2601,12 @@ describe('live modifier helpers', () => {
     expect(getMemberEffectiveHeartIcons(game, 'p1', source.instanceId, decoded)).toEqual([
       createHeartIcon(HeartColor.PINK, 1),
       createHeartIcon(HeartColor.YELLOW, 1),
+      createHeartIcon(HeartColor.PURPLE, 1),
     ]);
     expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p1', decoded)).toEqual([
       createHeartIcon(HeartColor.GREEN, 1),
     ]);
-    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p2', decoded)).toEqual([
-      createHeartIcon(HeartColor.PURPLE, 1),
-    ]);
+    expect(getPlayerLiveHeartModifiers(game.liveResolution, 'p2', decoded)).toEqual([]);
   });
 
   it('combines source-member and target-member Heart modifiers for the same member', () => {
@@ -10405,7 +10511,7 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
     expect(afterOtherTargetLeaves.liveResolution.playerScoreBonuses.has('p1')).toBe(false);
   });
 
-  it('removes source-member BLADE by member instance while preserving unrelated modifiers', () => {
+  it('removes source-member HEART/BLADE by member instance while preserving unrelated modifiers', () => {
     const matchingBlade = {
       kind: 'BLADE' as const,
       target: 'SOURCE_MEMBER' as const,
@@ -10422,6 +10528,39 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
       sourceCardId: 'other-member',
       abilityId: 'other-blade',
     };
+    const matchingHeart = {
+      kind: 'HEART' as const,
+      target: 'SOURCE_MEMBER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.GREEN, count: 1 }],
+      sourceCardId: 'leaving-member',
+      abilityId: 'matching-source-heart',
+    };
+    const otherHeart = {
+      kind: 'HEART' as const,
+      target: 'SOURCE_MEMBER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.BLUE, count: 1 }],
+      sourceCardId: 'other-member',
+      abilityId: 'other-source-heart',
+    };
+    const targetHeartFromLeavingSource = {
+      kind: 'HEART' as const,
+      target: 'TARGET_MEMBER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.PINK, count: 1 }],
+      sourceCardId: 'leaving-member',
+      targetMemberCardId: 'beneficiary-member',
+      abilityId: 'target-heart-from-leaving-source',
+    };
+    const playerHeart = {
+      kind: 'HEART' as const,
+      target: 'PLAYER' as const,
+      playerId: 'p1',
+      hearts: [{ color: HeartColor.PURPLE, count: 1 }],
+      sourceCardId: 'leaving-member',
+      abilityId: 'player-heart',
+    };
     const playerScore = {
       kind: 'SCORE' as const,
       playerId: 'p1',
@@ -10432,11 +10571,15 @@ describe('PL!N-pb1-011 continuous energyBelow BLADE', () => {
     let game = createGameState('remove-stage-member-bound-blade', 'p1', 'P1', 'p2', 'P2');
     game = addLiveModifier(game, matchingBlade);
     game = addLiveModifier(game, otherBlade);
+    game = addLiveModifier(game, matchingHeart);
+    game = addLiveModifier(game, otherHeart);
+    game = addLiveModifier(game, targetHeartFromLeavingSource);
+    game = addLiveModifier(game, playerHeart);
     game = addLiveModifier(game, playerScore);
 
     expect(
       removeStageMemberBoundLiveModifiers(game, ['leaving-member']).liveResolution.liveModifiers
-    ).toEqual([otherBlade, playerScore]);
+    ).toEqual([otherBlade, otherHeart, targetHeartFromLeavingSource, playerHeart, playerScore]);
   });
 });
 
@@ -10779,6 +10922,10 @@ describe('BP7 memberBelow target-aware modifiers', () => {
       'heart-vector-member'
     );
     let game = registerCards(createGameState('heart-vector', 'p1', 'P1', 'p2', 'P2'), [member]);
+    game = updatePlayer(game, 'p1', (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.CENTER, member.instanceId),
+    }));
     game = addLiveModifier(game, {
       kind: 'MEMBER_ORIGINAL_HEART_REPLACEMENT',
       playerId: 'p1',
@@ -10789,9 +10936,8 @@ describe('BP7 memberBelow target-aware modifiers', () => {
       ],
       abilityId: 'first-vector',
     });
-    game = addHeartLiveModifierForMember(game, {
+    game = addHeartLiveModifierForSourceMember(game, {
       playerId: 'p1',
-      memberCardId: member.instanceId,
       sourceCardId: member.instanceId,
       abilityId: 'bonus',
       hearts: [{ color: HeartColor.YELLOW, count: 1 }],

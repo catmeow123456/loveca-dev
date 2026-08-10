@@ -21,7 +21,23 @@ vi.mock('../../src/server/services/ranked-player-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/ranked-environment-service.js', () => ({
+  RankedEnvironmentServiceError: class RankedEnvironmentServiceError extends Error {
+    constructor(
+      public readonly code: string,
+      message: string,
+      public readonly statusCode: number
+    ) {
+      super(message);
+    }
+  },
+  rankedEnvironmentService: {
+    getSeasonEnvironment: vi.fn(),
+  },
+}));
+
 import { rankedRouter } from '../../src/server/routes/ranked';
+import { rankedEnvironmentService } from '../../src/server/services/ranked-environment-service';
 import { rankedPlayerService } from '../../src/server/services/ranked-player-service';
 
 function createResponse() {
@@ -49,12 +65,17 @@ function findRoute(path: string, method: 'get' | 'post') {
   return layer.route;
 }
 
-async function invoke(path: string, method: 'get' | 'post', body?: unknown) {
+async function invoke(
+  path: string,
+  method: 'get' | 'post',
+  body?: unknown,
+  query: Record<string, unknown> = {}
+) {
   const route = findRoute(path, method);
   const response = createResponse();
   const request = {
     body,
-    query: {},
+    query,
     user: { id: '11111111-1111-4111-8111-111111111111', role: 'user' },
   } as Request;
   for (const layer of route.stack) {
@@ -117,5 +138,32 @@ describe('rankedRouter', () => {
 
     expect(response.statusCode).toBe(400);
     expect(rankedPlayerService.join).not.toHaveBeenCalled();
+  });
+
+  it('returns the selected public season environment', async () => {
+    const seasonId = '22222222-2222-4222-8222-222222222222';
+    vi.mocked(rankedEnvironmentService.getSeasonEnvironment).mockResolvedValue({
+      seasonId,
+      sample: {
+        settledMatchCount: 1,
+        analyzedMatchCount: 1,
+        deckObservationCount: 2,
+        playerCount: 2,
+        coverageRate: 1,
+      },
+      cardUsage: [],
+    });
+
+    const response = await invoke('/environment', 'get', undefined, { seasonId });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedEnvironmentService.getSeasonEnvironment).toHaveBeenCalledWith(seasonId);
+  });
+
+  it('requires a valid season id for environment reads', async () => {
+    const response = await invoke('/environment', 'get', undefined, { seasonId: 'invalid' });
+
+    expect(response.statusCode).toBe(400);
+    expect(rankedEnvironmentService.getSeasonEnvironment).not.toHaveBeenCalled();
   });
 });

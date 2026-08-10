@@ -17,13 +17,29 @@ import {
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
 import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
-import { fetchRankedOverview, fetchRankedSeasons } from '@/lib/rankedClient';
+import { resolveCardImagePath } from '@/lib/imageService';
+import {
+  fetchRankedEnvironment,
+  fetchRankedOverview,
+  fetchRankedSeasons,
+} from '@/lib/rankedClient';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { useRankedStore } from '@/store/rankedStore';
-import type { RankedOverviewView, RankedSeasonPublicView } from '@game/online/ranked-types';
+import type {
+  RankedOverviewView,
+  RankedSeasonEnvironmentView,
+  RankedSeasonPublicView,
+} from '@game/online/ranked-types';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
+
+interface RankedEnvironmentState {
+  readonly seasonId: string | null;
+  readonly data: RankedSeasonEnvironmentView | null;
+  readonly loading: boolean;
+  readonly error: string | null;
+}
 
 export function RankedPage({
   onBack,
@@ -52,6 +68,13 @@ export function RankedPage({
   );
   const [seasonOptions, setSeasonOptions] = useState<RankedSeasonPublicView[]>([]);
   const [historicalOverview, setHistoricalOverview] = useState<RankedOverviewView | null>(null);
+  const [environmentState, setEnvironmentState] = useState<RankedEnvironmentState>({
+    seasonId: null,
+    data: null,
+    loading: false,
+    error: null,
+  });
+  const [environmentReloadKey, setEnvironmentReloadKey] = useState(0);
   const [isSeasonNoticeOpen, setIsSeasonNoticeOpen] = useState(false);
   const resolveDeckRecordCardType = useMemo(
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
@@ -61,6 +84,10 @@ export function RankedPage({
     () => buildDeckDisplayItems({ cloudDecks, resolveDeckRecordCardType, pointTable }),
     [cloudDecks, pointTable, resolveDeckRecordCardType]
   );
+  const validDeckCount = useMemo(
+    () => deckDisplayItems.filter((deck) => deck.isValid).length,
+    [deckDisplayItems]
+  );
   const preferredDeck = useMemo(
     () => choosePreferredDeck(deckDisplayItems, lastUsedDeckId),
     [deckDisplayItems, lastUsedDeckId]
@@ -68,6 +95,14 @@ export function RankedPage({
   const status = overview?.queue ?? null;
   const active = status && status.state !== 'IDLE';
   const displayedOverview = historicalOverview ?? overview;
+  const displayedSeasonId = displayedOverview?.season?.id ?? null;
+  const displayedEnvironment =
+    environmentState.seasonId === displayedSeasonId ? environmentState.data : null;
+  const isEnvironmentLoading =
+    displayedSeasonId !== null &&
+    (environmentState.seasonId !== displayedSeasonId || environmentState.loading);
+  const environmentError =
+    environmentState.seasonId === displayedSeasonId ? environmentState.error : null;
 
   useEffect(() => {
     void fetchCloudDecks();
@@ -90,6 +125,33 @@ export function RankedPage({
     const timer = window.setTimeout(() => setSelectedDeck(refreshed ?? null), 0);
     return () => window.clearTimeout(timer);
   }, [deckDisplayItems, selectedDeck]);
+
+  useEffect(() => {
+    if (active || !displayedSeasonId) return;
+    let cancelled = false;
+    void fetchRankedEnvironment(displayedSeasonId)
+      .then((data) => {
+        if (cancelled) return;
+        setEnvironmentState({
+          seasonId: displayedSeasonId,
+          data,
+          loading: false,
+          error: null,
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setEnvironmentState({
+          seasonId: displayedSeasonId,
+          data: null,
+          loading: false,
+          error: error instanceof Error ? error.message : '读取赛季卡牌使用率失败',
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, displayedSeasonId, environmentReloadKey]);
 
   const handleJoin = async () => {
     if (!selectedDeck?.cloudDeck) return;
@@ -160,7 +222,13 @@ export function RankedPage({
               />
               {!historicalOverview && overview?.availability.canJoin ? (
                 <>
-                  <div className="mt-4">
+                  <div
+                    className={`mt-4 ${
+                      validDeckCount > 6 || isLoadingCloud
+                        ? 'h-[58dvh] min-h-[420px] max-h-[640px] overflow-hidden'
+                        : ''
+                    }`}
+                  >
                     <DeckSelector
                       cloudDecks={cloudDecks}
                       selectedId={selectedDeck?.id}
@@ -201,6 +269,22 @@ export function RankedPage({
                 </>
               ) : null}
               <SeasonLists overview={displayedOverview} />
+              {displayedSeasonId ? (
+                <SeasonCardUsage
+                  environment={displayedEnvironment}
+                  loading={isEnvironmentLoading}
+                  error={environmentError}
+                  onRetry={() => {
+                    setEnvironmentState({
+                      seasonId: displayedSeasonId,
+                      data: null,
+                      loading: true,
+                      error: null,
+                    });
+                    setEnvironmentReloadKey((key) => key + 1);
+                  }}
+                />
+              ) : null}
             </>
           )}
         </div>
@@ -208,6 +292,7 @@ export function RankedPage({
       <RankedSeasonNoticeDialog
         isOpen={isSeasonNoticeOpen}
         seasonName={displayedOverview?.season?.name}
+        announcement={displayedOverview?.season?.announcement}
         leaderboardMatchCount={
           displayedOverview?.player?.placementRequired ??
           displayedOverview?.season?.placementMatchCount
@@ -348,6 +433,109 @@ function SeasonLists({
   );
 }
 
+function SeasonCardUsage({
+  environment,
+  loading,
+  error,
+  onRetry,
+}: {
+  environment: RankedSeasonEnvironmentView | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const cards = environment?.cardUsage.slice(0, 30) ?? [];
+  const columns = [cards.slice(0, 15), cards.slice(15, 30)];
+
+  return (
+    <Panel as="section" padding="compact" className="mt-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">赛季卡牌使用率</h2>
+        {environment ? (
+          <p className="text-xs text-[var(--text-muted)]">
+            按玩家等权统计 · {environment.sample.playerCount} 名玩家、
+            {environment.sample.analyzedMatchCount} 场有效对局 · 数据覆盖{' '}
+            {formatPercentage(environment.sample.coverageRate)}
+          </p>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-8 text-sm text-[var(--text-muted)]">
+          <Loader2 size={16} className="animate-spin" />
+          正在读取赛季环境…
+        </div>
+      ) : error ? (
+        <div className="py-6 text-center">
+          <p className="text-sm text-[var(--semantic-error)]">{error}</p>
+          <ActionButton variant="ghost" size="compact" className="mt-3" onClick={onRetry}>
+            重新读取
+          </ActionButton>
+        </div>
+      ) : cards.length === 0 ? (
+        <p className="py-8 text-center text-sm text-[var(--text-muted)]">
+          暂无可统计的有效排位对局
+        </p>
+      ) : (
+        <div className="mt-3 grid gap-x-5 md:grid-cols-2">
+          {columns.map((column, columnIndex) => (
+            <ol
+              key={columnIndex}
+              start={columnIndex === 0 ? 1 : 16}
+              className="divide-y divide-[var(--border-subtle)]"
+            >
+              {column.map((card) => {
+                const percentage = formatPercentage(card.usageRate);
+                const width = Math.max(0, Math.min(1, card.usageRate)) * 100;
+                return (
+                  <li
+                    key={card.baseCardCode}
+                    value={card.rank}
+                    className="grid grid-cols-[2rem_2.5rem_minmax(0,1fr)_auto] items-center gap-2 py-2"
+                  >
+                    <span className="text-center text-sm tabular-nums text-[var(--text-muted)]">
+                      {card.rank}
+                    </span>
+                    <img
+                      src={resolveCardImagePath(
+                        {
+                          cardCode: card.cardCode,
+                          imageFilename: card.imageFilename,
+                        },
+                        'thumb'
+                      )}
+                      alt=""
+                      loading="lazy"
+                      className="h-14 w-10 rounded object-cover object-top shadow-[var(--shadow-sm)]"
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                        {card.name}
+                      </div>
+                      <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
+                        {card.baseCardCode}
+                      </div>
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--bg-overlay)]">
+                        <div
+                          className="h-full rounded-full bg-[var(--accent-primary)]"
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold tabular-nums text-[var(--text-primary)]">
+                      {percentage}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
 function QueueState({
   status,
   loading,
@@ -458,4 +646,13 @@ function formatShortDate(value: number) {
     month: 'long',
     day: 'numeric',
   }).format(new Date(value));
+}
+
+const percentageFormatter = new Intl.NumberFormat('zh-CN', {
+  style: 'percent',
+  maximumFractionDigits: 1,
+});
+
+function formatPercentage(value: number) {
+  return percentageFormatter.format(Math.max(0, Math.min(1, value)));
 }

@@ -22,6 +22,7 @@ import {
   addBladeLiveModifierForPlayer,
   addBladeLiveModifierForSourceMember,
   addBladeLiveModifierForTargetMember,
+  addBladeLiveModifiersForTargetMembers,
   discardHandCardsToWaitingRoomForPlayer,
   discardOneHandCardToWaitingRoomForPlayer,
   drawCardsForEachPlayer,
@@ -1966,6 +1967,26 @@ describe('card effect runtime actions', () => {
       })
     ).toBeNull();
     expect(state.liveResolution.liveModifiers).toEqual([]);
+    expect(
+      addBladeLiveModifiersForTargetMembers(state, {
+        targets: [],
+        sourceCardId: 'live-source',
+        abilityId: 'test-empty-stage-member-targets',
+        amount: 1,
+      })
+    ).toEqual({
+      gameState: state,
+      targetMemberCardIds: [],
+      bladeBonusPerMember: 1,
+    });
+    expect(
+      addBladeLiveModifiersForTargetMembers(state, {
+        targets: [],
+        sourceCardId: 'live-source',
+        abilityId: 'test-invalid-empty-target-amount',
+        amount: 0,
+      })
+    ).toBeNull();
   });
 
   it('writes an explicit target member BLADE even when source and target ids are equal', () => {
@@ -1994,6 +2015,71 @@ describe('card effect runtime actions', () => {
       abilityId: 'test-explicit-target-blade',
     });
     expect(result?.gameState.liveResolution.liveModifiers).toEqual([result?.modifier]);
+  });
+
+  it('writes one TARGET_MEMBER BLADE modifier for every distinct cross-player target', () => {
+    let state = createMutableState();
+    const [player1MemberId] = ownedMemberIds(state, PLAYER1, 1);
+    const [player2MemberId] = ownedMemberIds(state, PLAYER2, 1);
+    state = updatePlayer(state, PLAYER1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.LEFT, player1MemberId),
+    }));
+    state = updatePlayer(state, PLAYER2, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, player2MemberId),
+    }));
+
+    const result = addBladeLiveModifiersForTargetMembers(state, {
+      targets: [
+        { playerId: PLAYER1, targetMemberCardId: player1MemberId },
+        { playerId: PLAYER2, targetMemberCardId: player2MemberId },
+      ],
+      sourceCardId: 'live-source',
+      abilityId: 'test-stage-members-gain-blade',
+      amount: 1,
+    });
+
+    expect(result?.targetMemberCardIds).toEqual([player1MemberId, player2MemberId]);
+    expect(result?.gameState.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: PLAYER1,
+        targetMemberCardId: player1MemberId,
+        countDelta: 1,
+      }),
+      expect.objectContaining({
+        kind: 'BLADE',
+        target: 'TARGET_MEMBER',
+        playerId: PLAYER2,
+        targetMemberCardId: player2MemberId,
+        countDelta: 1,
+      }),
+    ]);
+    expect(
+      addBladeLiveModifiersForTargetMembers(state, {
+        targets: [
+          { playerId: PLAYER1, targetMemberCardId: player1MemberId },
+          { playerId: PLAYER1, targetMemberCardId: player1MemberId },
+        ],
+        sourceCardId: 'live-source',
+        abilityId: 'test-duplicate-stage-member-target',
+        amount: 1,
+      })
+    ).toBeNull();
+    expect(
+      addBladeLiveModifiersForTargetMembers(state, {
+        targets: [
+          { playerId: PLAYER1, targetMemberCardId: player1MemberId },
+          { playerId: PLAYER2, targetMemberCardId: 'missing-member' },
+        ],
+        sourceCardId: 'live-source',
+        abilityId: 'test-invalid-later-stage-member-target',
+        amount: 1,
+      })
+    ).toBeNull();
+    expect(state.liveResolution.liveModifiers).toEqual([]);
   });
 
   it('writes a player BLADE without inferring anything from the source card id', () => {

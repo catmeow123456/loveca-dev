@@ -5,7 +5,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import { HeartColor } from '../../../../shared/types/enums.js';
 import { getEnergySelectionCandidates } from '../../../effects/energy-selection.js';
 import { payImmediateEffectCosts } from '../../../effects/effect-costs.js';
@@ -264,11 +264,10 @@ function payEnergyForHeartWorkflow(
   const modifierResult =
     getSourceMemberSlot(stateAfterCost, player.id, effect.sourceCardId) === null
       ? null
-      : addHeartLiveModifierForMember(
+      : addHeartLiveModifierForSourceMember(
           { ...stateAfterCost, activeEffect: null },
           {
             playerId: player.id,
-            memberCardId: effect.sourceCardId,
             sourceCardId: effect.sourceCardId,
             abilityId: effect.abilityId,
             hearts: [createHeartIcon(config.reward.heartColor, config.heartCount)],
@@ -326,11 +325,10 @@ function finishChosenHeartWorkflow(
   const modifierResult =
     getSourceMemberSlot(game, player.id, effect.sourceCardId) === null
       ? null
-      : addHeartLiveModifierForMember(
+      : addHeartLiveModifierForSourceMember(
           { ...game, activeEffect: null },
           {
             playerId: player.id,
-            memberCardId: effect.sourceCardId,
             sourceCardId: effect.sourceCardId,
             abilityId: effect.abilityId,
             hearts: [createHeartIcon(selectedOptionId, config.heartCount)],

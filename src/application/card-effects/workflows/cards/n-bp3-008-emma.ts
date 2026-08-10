@@ -6,7 +6,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember, addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import type {
   EnterWaitingRoomEvent,
   MemberStateChangedEvent,
@@ -443,11 +443,11 @@ function finishLiveStartActivateTarget(
     }
   );
 
-  const targetHeartResult = addHeartLiveModifierForMember(
+  const targetHeartResult = addHeartLiveModifierForTargetMember(
     stateWithMemberStateTriggers.gameState,
     {
       playerId: player.id,
-      memberCardId: selectedCardId,
+      targetMemberCardId: selectedCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: GREEN_HEART_BONUS,
@@ -456,9 +456,8 @@ function finishLiveStartActivateTarget(
   if (!targetHeartResult) {
     return game;
   }
-  const sourceHeartResult = addHeartLiveModifierForMember(targetHeartResult.gameState, {
+  const sourceHeartResult = addHeartLiveModifierForSourceMember(targetHeartResult.gameState, {
     playerId: player.id,
-    memberCardId: effect.sourceCardId,
     sourceCardId: effect.sourceCardId,
     abilityId: effect.abilityId,
     hearts: GREEN_HEART_BONUS,

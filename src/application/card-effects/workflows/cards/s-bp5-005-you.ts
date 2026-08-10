@@ -4,7 +4,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, HeartColor } from '../../../../shared/types/enums.js';
 import { and, groupAliasIs, not, typeIs } from '../../../effects/card-selectors.js';
 import { getMovedToStageThisTurnStageMemberIdsMatching } from '../../../effects/conditions.js';
@@ -229,9 +229,9 @@ function finishYouHeartSelection(
   const targetMemberCardIds = getEnteredNonAqoursTargetIds(game, player.id);
   let state: GameState = { ...game, activeEffect: null };
   for (const memberCardId of targetMemberCardIds) {
-    const modifierResult = addHeartLiveModifierForMember(state, {
+    const modifierResult = addHeartLiveModifierForTargetMember(state, {
       playerId: player.id,
-      memberCardId,
+      targetMemberCardId: memberCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: [{ color: selectedHeart, count: 1 }],

@@ -8,7 +8,7 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import { addHeartLiveModifierForMember } from '../../../../domain/rules/live-modifiers.js';
+import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/live-modifiers.js';
 import {
   HeartColor,
   SlotPosition,
@@ -234,9 +234,8 @@ function finishLlBp6001LiveStart(
   let state: GameState = { ...discardResult.gameState, activeEffect: null };
   const heartBonus = heartColors.map((color) => ({ color, count: 1 }));
   if (heartBonus.length > 0) {
-    const modifierResult = addHeartLiveModifierForMember(state, {
+    const modifierResult = addHeartLiveModifierForSourceMember(state, {
       playerId: player.id,
-      memberCardId: effect.sourceCardId,
       sourceCardId: effect.sourceCardId,
       abilityId: effect.abilityId,
       hearts: heartBonus,
