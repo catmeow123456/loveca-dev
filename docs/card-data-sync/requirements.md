@@ -28,7 +28,7 @@
 
 缺少子模块或输入文件时，同步应停止，并提示维护者先初始化外部数据源。
 
-Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`，也可读取 CloudBase `loveca` 集合。`sources/` 是私有输入目录，不进入仓库；正式同步前维护者需要在本地放置对应 Excel。该同步读取来源卡牌类型、展示、文本、成员持有 Heart、BLADE Heart、LIVE 必要 Heart 和来源字段；类型必须映射为 `MEMBER`、`LIVE` 或 `ENERGY`，缺失或无法映射时整行跳过。它不覆盖 `cost`、`blade`、`score`、`work_names` 等其他主记录和规则字段。
+Loveca Excel 同步依赖本地 `docs/card-data-sync/sources/loveca_*.xlsx`；使用 CloudBase `loveca` 集合时也必须先在该目录生成带时间戳的 Excel，再复用同一 XLSX 同步路径。`sources/` 是私有输入目录，不进入仓库；正式同步前维护者需要提供本地 Excel 或允许脚本从 CloudBase 导出。该同步读取来源卡牌类型、展示、文本、成员持有 Heart、BLADE Heart、LIVE 必要 Heart 和来源字段；类型必须映射为 `MEMBER`、`LIVE` 或 `ENERGY`，缺失或无法映射时整行跳过。它不覆盖 `cost`、`blade`、`score`、`work_names` 等其他主记录和规则字段。
 
 CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 表。集合文档必须至少提供可标准化的卡号、可映射的卡牌类型，以及中日名称中的至少一个；图片处理需要 CloudBase 云存储读取权限和 MinIO / S3 写入环境变量。
 
@@ -84,9 +84,11 @@ Loveca Excel 同步的交互确认规则：
 
 - 字段冲突应输出 warning。
 - Excel 与 CloudBase 来源都必须逐卡、逐字段完整输出所有待同步字段的数据库旧值与来源新值，不得只列字段名或按条数截断；`card_text_jp` / `card_text_cn` 任一侧不一致时必须明确提示卡效文本差异。
+- `card_text_jp` / `card_text_cn` 比较时将 `CRLF` 和单独 `CR` 规范化为 `LF`；仅换行编码不同不属于待同步或冲突，其他空白和正文差异仍按原值报告。
 - 维护者输入回车、`y` 或 `yes` 时，视为确认更新。
 - 非交互环境必须显式使用 `--yes` 才允许正式更新。
 - Excel 内部标准化卡号重复时，不按遍历顺序选择；该卡号应跳过并报告 warning。
+- `--card-codes` 窄范围同步必须拒绝来源或数据库中不存在的请求编号；正式执行必须对每张指定卡重新生成并覆盖上传 MinIO 的三个 WebP 尺寸，不能因数据库字段无差异跳过图片。
 
 CloudBase 新卡导入的写入规则：
 

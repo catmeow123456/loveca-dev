@@ -24,16 +24,22 @@
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --yes
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --dry-run
+ * DATABASE_URL=postgresql://... MINIO_ENDPOINT=... npx tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --card-codes='PL!-sd1-004-SD,PL!-sd1-007-SD' --yes
  */
 
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import * as readline from 'node:readline/promises';
-import { Pool } from 'pg';
 import { parse as parseDotenv } from 'dotenv';
+import * as Minio from 'minio';
+import { Pool } from 'pg';
+import sharp from 'sharp';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
+import { cardSyncTextValuesEqual } from './card-sync-text.js';
 import {
   LOVECA_SYNC_BLADE_HEART_COLOR_MAP,
   LOVECA_SYNC_HEART_COLOR_MAP,
@@ -75,6 +81,7 @@ interface Args {
   readonly cloudbaseCollection: string;
   readonly cloudbaseLimit: number | null;
   readonly cloudbaseBatchSize: number;
+  readonly cardCodes: ReadonlySet<string> | null;
 }
 
 interface ExcelCardRow {
@@ -100,6 +107,7 @@ interface ExistingCardRow {
   readonly product: string | null;
   readonly product_code: string | null;
   readonly image_source_uri: string | null;
+  readonly image_filename: string | null;
   readonly source_external_id: string | null;
   readonly source_flags: SourceFlags | null;
 }
@@ -166,6 +174,12 @@ type SourceFieldName = (typeof FIELD_NAMES)[keyof typeof FIELD_NAMES];
 
 const DEFAULT_CLOUDBASE_COLLECTION = 'loveca';
 const DEFAULT_CLOUDBASE_BATCH_SIZE = 100;
+const LOVECA_EXCEL_SOURCES_DIR = 'docs/card-data-sync/sources';
+const IMAGE_SIZES = {
+  thumb: { width: 100, quality: 75 },
+  medium: { width: 300, quality: 80 },
+  large: { width: 600, quality: 85 },
+} as const;
 
 const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
   [FIELD_NAMES.effectJa]: [
@@ -267,7 +281,11 @@ const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
     'imageSourceUri',
     'image_url',
     'imageUrl',
+    'imgUrl',
     'image',
+    'fileID',
+    'fileId',
+    'cloudId',
   ],
   [FIELD_NAMES.product]: [FIELD_NAMES.product, 'product'],
   [FIELD_NAMES.productCode]: [
@@ -333,6 +351,7 @@ function parseArgs(argv: readonly string[]): Args {
   let cloudbaseCollection = DEFAULT_CLOUDBASE_COLLECTION;
   let cloudbaseLimit: number | null = null;
   let cloudbaseBatchSize = DEFAULT_CLOUDBASE_BATCH_SIZE;
+  let cardCodes: ReadonlySet<string> | null = null;
 
   for (const arg of argv) {
     if (arg === '--dry-run') {
@@ -359,6 +378,8 @@ function parseArgs(argv: readonly string[]): Args {
       cloudbaseLimit = parseNonNegativeIntegerArg(arg, '--cloudbase-limit=');
     } else if (arg.startsWith('--cloudbase-batch-size=')) {
       cloudbaseBatchSize = parsePositiveIntegerArg(arg, '--cloudbase-batch-size=');
+    } else if (arg.startsWith('--card-codes=')) {
+      cardCodes = parseCardCodesArg(arg.slice('--card-codes='.length));
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
@@ -372,7 +393,20 @@ function parseArgs(argv: readonly string[]): Args {
     cloudbaseCollection,
     cloudbaseLimit,
     cloudbaseBatchSize,
+    cardCodes,
   };
+}
+
+function parseCardCodesArg(raw: string): ReadonlySet<string> {
+  const values = raw
+    .split(/[,，;；\s]+/)
+    .map((value) => cleanString(value))
+    .filter((value): value is string => value !== null)
+    .map(normalizeCardCode);
+  if (values.length === 0) {
+    throw new Error('--card-codes requires at least one card code');
+  }
+  return new Set(values);
 }
 
 function parsePositiveIntegerArg(arg: string, prefix: string): number {
@@ -548,7 +582,7 @@ async function readSyncSourceRows(args: Args): Promise<ExcelCardRow[]> {
       }
       return readLovecaExcelRows(args.xlsxPath);
     case 'cloudbase':
-      return readCloudbaseRows(args);
+      return readLovecaExcelRows(await exportCloudbaseExcel(args));
   }
 }
 
@@ -583,12 +617,16 @@ function readDotenvValues(): Record<string, string> {
   return dotenvValues;
 }
 
-async function readCloudbaseRows(args: Args): Promise<ExcelCardRow[]> {
-  const cloudbase = cloudbaseSDK.init({
+function createCloudbaseApp() {
+  return cloudbaseSDK.init({
     env: requiredEnv('CLOUDBASE_ENV_ID'),
     secretId: requiredEnv('CLOUDBASE_SECRET_ID', 'CLOUDBASE_SECRETID'),
     secretKey: requiredEnv('CLOUDBASE_SECRET_KEY', 'CLOUDBASE_SECRETKEY'),
   });
+}
+
+async function exportCloudbaseExcel(args: Args): Promise<string> {
+  const cloudbase = createCloudbaseApp();
   const db = cloudbase.database();
   const documents = await readCloudbaseDocuments(
     db.collection(args.cloudbaseCollection),
@@ -596,22 +634,249 @@ async function readCloudbaseRows(args: Args): Promise<ExcelCardRow[]> {
     args.cloudbaseBatchSize
   );
 
-  const warnings: string[] = [];
-  const rows = documents
-    .map((document, index) => cloudbaseDocumentToRow(document, index + 1, warnings))
-    .filter((row): row is ExcelCardRow => row !== null);
+  const exportPath = nextCloudbaseExcelPath();
+  writeCloudbaseDocumentsAsXlsx(documents, exportPath);
+  console.log(`  Exported Excel: ${exportPath}`);
+  return exportPath;
+}
 
-  if (warnings.length > 0) {
-    console.warn(`  CloudBase source warnings: ${warnings.length}`);
-    for (const warning of warnings.slice(0, 30)) {
-      console.warn(`    ${warning}`);
-    }
-    if (warnings.length > 30) {
-      console.warn(`    ... and ${warnings.length - 30} more`);
+function nextCloudbaseExcelPath(): string {
+  fs.mkdirSync(LOVECA_EXCEL_SOURCES_DIR, { recursive: true });
+  for (let offsetSeconds = 0; offsetSeconds < 60; offsetSeconds++) {
+    const timestamp = formatTimestamp(new Date(Date.now() + offsetSeconds * 1000));
+    const candidate = path.resolve(LOVECA_EXCEL_SOURCES_DIR, `loveca_${timestamp}.xlsx`);
+    if (!fs.existsSync(candidate)) {
+      return candidate;
     }
   }
+  throw new Error('Unable to allocate a unique CloudBase Excel export filename');
+}
 
-  return rows;
+function formatTimestamp(value: Date): string {
+  const part = (number: number) => String(number).padStart(2, '0');
+  return `${value.getFullYear()}${part(value.getMonth() + 1)}${part(value.getDate())}${part(value.getHours())}${part(value.getMinutes())}${part(value.getSeconds())}`;
+}
+
+function writeCloudbaseDocumentsAsXlsx(
+  documents: readonly Record<string, unknown>[],
+  outputPath: string
+): void {
+  const canonicalHeaders = Object.values(FIELD_NAMES);
+  const canonicalHeaderSet = new Set<string>(canonicalHeaders);
+  const sourceAliases = new Set(Object.values(CLOUDBASE_FIELD_ALIASES).flat());
+  const extraHeaders = [...new Set(documents.flatMap((document) => Object.keys(document)))]
+    .filter((header) => !canonicalHeaderSet.has(header) && !sourceAliases.has(header))
+    .sort();
+  const headers = [...canonicalHeaders, ...extraHeaders];
+  const rows = documents.map((document) => [
+    ...canonicalHeaders.map((header) =>
+      stringifyCloudbaseFieldValue(readCloudbaseField(document, header))
+    ),
+    ...extraHeaders.map((header) => stringifyCloudbaseFieldValue(document[header])),
+  ]);
+  writeMinimalXlsx(outputPath, headers, rows);
+}
+
+function writeMinimalXlsx(
+  outputPath: string,
+  headers: readonly string[],
+  rows: readonly (readonly string[])[]
+): void {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'loveca-cloudbase-xlsx-'));
+  try {
+    const files: Record<string, string> = {
+      '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+      '_rels/.rels': `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+      'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="sheet1" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+      'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+      'xl/sharedStrings.xml': `<?xml version="1.0" encoding="UTF-8"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="0" uniqueCount="0"/>`,
+      'xl/worksheets/sheet1.xml': buildWorksheetXml([headers, ...rows]),
+    };
+    for (const [relativePath, contents] of Object.entries(files)) {
+      const absolutePath = path.join(tempDir, relativePath);
+      fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+      fs.writeFileSync(absolutePath, contents);
+    }
+    execFileSync('zip', ['-q', '-r', outputPath, '.'], { cwd: tempDir });
+  } finally {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
+function buildWorksheetXml(rows: readonly (readonly string[])[]): string {
+  const body = rows
+    .map((row, rowIndex) => {
+      const cells = row
+        .map((value, columnIndex) => {
+          const ref = `${excelColumnName(columnIndex)}${rowIndex + 1}`;
+          return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
+        })
+        .join('');
+      return `<row r="${rowIndex + 1}">${cells}</row>`;
+    })
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
+}
+
+function excelColumnName(index: number): string {
+  let value = index + 1;
+  let result = '';
+  while (value > 0) {
+    value--;
+    result = String.fromCharCode(65 + (value % 26)) + result;
+    value = Math.floor(value / 26);
+  }
+  return result;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function filterSelectedRows(rows: readonly ExcelCardRow[], cardCodes: ReadonlySet<string> | null) {
+  if (!cardCodes) {
+    return [...rows];
+  }
+  const availableCodes = new Set(rows.map((row) => row.cardCode));
+  const missingCodes = [...cardCodes].filter((cardCode) => !availableCodes.has(cardCode));
+  if (missingCodes.length > 0) {
+    throw new Error(`Requested card codes missing from source: ${missingCodes.join(', ')}`);
+  }
+  return rows.filter((row) => cardCodes.has(row.cardCode));
+}
+
+async function uploadSelectedCardImages(
+  rows: readonly ExcelCardRow[],
+  existingByCode: ReadonlyMap<string, ExistingCardRow>
+): Promise<void> {
+  const minio = createMinioClient();
+  if (!(await minio.client.bucketExists(minio.bucket))) {
+    await minio.client.makeBucket(minio.bucket);
+  }
+  let cloudbase: ReturnType<typeof createCloudbaseApp> | null = null;
+
+  for (const row of rows) {
+    const sourceUri = resolveImageSourceUri(cleanString(row.values[FIELD_NAMES.imageSourceUri]));
+    if (!sourceUri) {
+      throw new Error(
+        `${row.cardCode}: missing ${FIELD_NAMES.imageSourceUri}; image was not uploaded`
+      );
+    }
+    let imageBuffer: Buffer;
+    if (/^https?:\/\//i.test(sourceUri)) {
+      imageBuffer = await downloadHttpImage(sourceUri);
+    } else {
+      cloudbase ??= createCloudbaseApp();
+      imageBuffer = await downloadCloudbaseImage(cloudbase, sourceUri);
+    }
+    const imageBaseName =
+      imageBaseNameFromFilename(existingByCode.get(row.cardCode)?.image_filename ?? null) ??
+      imageBaseNameFromFilename(basenameFromUri(sourceUri)) ??
+      row.cardCode;
+    const compressed = await compressImageBuffers(imageBuffer);
+    for (const [sizeName, buffer] of Object.entries(compressed)) {
+      const objectKey = `${sizeName}/${imageBaseName}.webp`;
+      await minio.client.putObject(minio.bucket, objectKey, buffer, buffer.length, {
+        'Content-Type': 'image/webp',
+      });
+    }
+    console.log(`  Re-uploaded image: ${row.cardCode} (${imageBaseName})`);
+  }
+}
+
+function createMinioClient(): { client: Minio.Client; bucket: string } {
+  const port = Number(readEnvValue('MINIO_PORT') ?? '9000');
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error('MINIO_PORT must be an integer between 1 and 65535');
+  }
+  return {
+    client: new Minio.Client({
+      endPoint: requiredEnv('MINIO_ENDPOINT'),
+      port,
+      useSSL: readEnvValue('MINIO_USE_SSL') === 'true',
+      accessKey: requiredEnv('MINIO_ACCESS_KEY'),
+      secretKey: requiredEnv('MINIO_SECRET_KEY'),
+    }),
+    bucket: readEnvValue('MINIO_BUCKET') ?? 'loveca-cards',
+  };
+}
+
+function resolveImageSourceUri(value: string | null): string | null {
+  if (!value) return null;
+  if (!value.startsWith('[') && !value.startsWith('{') && !value.startsWith('"')) return value;
+  try {
+    return findImageUri(JSON.parse(value));
+  } catch {
+    return value;
+  }
+}
+
+function findImageUri(value: unknown): string | null {
+  if (typeof value === 'string') return cleanString(value);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const resolved = findImageUri(item);
+      if (resolved) return resolved;
+    }
+  } else if (isRecord(value)) {
+    for (const key of ['fileID', 'fileId', 'cloudId', 'url', 'src', 'path', 'imageUrl']) {
+      const resolved = findImageUri(value[key]);
+      if (resolved) return resolved;
+    }
+  }
+  return null;
+}
+
+async function downloadHttpImage(url: string): Promise<Buffer> {
+  const response = await globalThis.fetch(url);
+  if (!response.ok) throw new Error(`Image download failed: HTTP ${response.status}`);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function downloadCloudbaseImage(
+  cloudbase: ReturnType<typeof createCloudbaseApp>,
+  sourceUri: string
+): Promise<Buffer> {
+  const response = await cloudbase.getTempFileURL({
+    fileList: [{ fileID: sourceUri, maxAge: 600 }],
+  });
+  const item = response.fileList?.[0];
+  if (!item || item.code !== 'SUCCESS' || !item.tempFileURL) {
+    const failure: unknown = item?.code;
+    throw new Error(typeof failure === 'string' ? failure : 'CloudBase temp file URL failed');
+  }
+  return downloadHttpImage(item.tempFileURL);
+}
+
+async function compressImageBuffers(input: Buffer) {
+  const metadata = await sharp(input).metadata();
+  const rotate =
+    metadata.width != null && metadata.height != null && metadata.width > metadata.height;
+  const result: Record<keyof typeof IMAGE_SIZES, Buffer> = {} as Record<
+    keyof typeof IMAGE_SIZES,
+    Buffer
+  >;
+  for (const [sizeName, config] of Object.entries(IMAGE_SIZES) as Array<
+    [keyof typeof IMAGE_SIZES, (typeof IMAGE_SIZES)[keyof typeof IMAGE_SIZES]]
+  >) {
+    let pipeline = sharp(input);
+    if (rotate) pipeline = pipeline.rotate(90);
+    result[sizeName] = await pipeline
+      .resize(config.width, null, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: config.quality })
+      .toBuffer();
+  }
+  return result;
+}
+
+function imageBaseNameFromFilename(filename: string | null): string | null {
+  if (!filename) return null;
+  return cleanString(filename.replace(/^.*[\\/]/, '').replace(/\.(jpg|jpeg|png|webp)$/i, ''));
 }
 
 async function readCloudbaseDocuments(
@@ -642,40 +907,6 @@ async function readCloudbaseDocuments(
   }
 
   return documents;
-}
-
-function cloudbaseDocumentToRow(
-  document: Record<string, unknown>,
-  rowNumber: number,
-  warnings: string[]
-): ExcelCardRow | null {
-  const rawCode = cleanString(
-    stringifyCloudbaseFieldValue(readCloudbaseField(document, FIELD_NAMES.cardCode))
-  );
-  if (!rawCode) {
-    const sourceId = cleanString(stringifyCloudbaseFieldValue(document._id));
-    warnings.push(
-      sourceId
-        ? `document ${sourceId}: missing card code; skipped`
-        : `document #${rowNumber}: missing card code; skipped`
-    );
-    return null;
-  }
-
-  const values: Record<string, string> = {};
-  for (const fieldName of Object.values(FIELD_NAMES)) {
-    const value = readCloudbaseField(document, fieldName);
-    if (value !== undefined) {
-      values[fieldName] = stringifyCloudbaseFieldValue(value);
-    }
-  }
-
-  return {
-    rowNumber,
-    cardCode: normalizeCardCode(rawCode),
-    values,
-    sourceId: cleanString(stringifyCloudbaseFieldValue(document._id)) ?? undefined,
-  };
 }
 
 function readCloudbaseField(
@@ -921,7 +1152,15 @@ function basenameFromUri(uri: string | null): string | null {
   if (!uri) {
     return null;
   }
-  return uri.split(/[\\/]/).pop() ?? null;
+  const withoutQuery = uri.split(/[?#]/)[0] ?? uri;
+  try {
+    if (/^https?:\/\//i.test(uri)) {
+      return cleanString(path.posix.basename(decodeURIComponent(new URL(uri).pathname)));
+    }
+  } catch {
+    // Fall through to simple path splitting.
+  }
+  return cleanString(withoutQuery.split(/[\\/]/).pop());
 }
 
 function buildExcelSyncRecord(
@@ -1019,6 +1258,9 @@ function syncFieldValuesEqual(
   right: unknown
 ): boolean {
   switch (field) {
+    case 'card_text_jp':
+    case 'card_text_cn':
+      return cardSyncTextValuesEqual(left, right);
     case 'group_names':
     case 'hearts':
     case 'blade_hearts':
@@ -1053,7 +1295,10 @@ function collectChangedFields(
 function collectConflictFields(existing: ExistingCardRow, next: ExcelSyncRecord): string[] {
   const conflicts: string[] = [];
   const checkString = (field: keyof ExistingCardRow & keyof ExcelSyncRecord, label: string) => {
-    if (nonEmpty(existing[field] as string | null) && existing[field] !== next[field]) {
+    if (
+      nonEmpty(existing[field] as string | null) &&
+      !syncFieldValuesEqual(field, existing[field], next[field])
+    ) {
       conflicts.push(label);
     }
   };
@@ -1064,9 +1309,7 @@ function collectConflictFields(existing: ExistingCardRow, next: ExcelSyncRecord)
   checkString('name_jp', FIELD_NAMES.nameJp);
   checkString('name_cn', FIELD_NAMES.nameCn);
   checkString('card_text_jp', FIELD_NAMES.effectJa);
-  if (nonEmpty(existing.card_text_cn) && existing.card_text_cn !== next.card_text_cn) {
-    conflicts.push(FIELD_NAMES.effectCn);
-  }
+  checkString('card_text_cn', FIELD_NAMES.effectCn);
 
   if (
     nonEmptyArray(existing.group_names) &&
@@ -1288,7 +1531,7 @@ function conflictLabelToFieldKey(
   }
 }
 
-async function confirmApplyUpdates(updateCount: number): Promise<boolean> {
+async function confirmApplyUpdates(updateCount: number, imageCount: number): Promise<boolean> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     throw new Error('Interactive update confirmation requires a TTY. Use --yes to apply.');
   }
@@ -1298,7 +1541,10 @@ async function confirmApplyUpdates(updateCount: number): Promise<boolean> {
     output: process.stdout,
   });
   try {
-    const answer = (await rl.question(`\nApply ${updateCount} Loveca Excel updates? [Y/n] `))
+    const imageMessage = imageCount > 0 ? ` and force re-upload ${imageCount} card images` : '';
+    const answer = (
+      await rl.question(`\nApply ${updateCount} Loveca Excel updates${imageMessage}? [Y/n] `)
+    )
       .trim()
       .toLowerCase();
     return answer === '' || answer === 'y' || answer === 'yes';
@@ -1379,13 +1625,23 @@ async function main() {
     }
   }
 
-  const sourceRows = await readSyncSourceRows(args);
+  const allSourceRows = await readSyncSourceRows(args);
+  const sourceRows = filterSelectedRows(allSourceRows, args.cardCodes);
   const duplicates = summarizeDuplicateRows(sourceRows);
   const duplicateCodes = new Set(duplicates.keys());
+  if (args.cardCodes && duplicates.size > 0) {
+    throw new Error(
+      `Requested card codes have duplicate source rows: ${[...duplicates.keys()].join(', ')}`
+    );
+  }
   const usableRows = sourceRows.filter((row) => !duplicateCodes.has(row.cardCode));
   const sourceByCode = new Map(usableRows.map((row) => [row.cardCode, row]));
 
   console.log(`  Source rows: ${sourceRows.length}`);
+  if (args.cardCodes) {
+    console.log(`  Selected card codes: ${[...args.cardCodes].join(', ')}`);
+    console.log(`  Images to force re-upload: ${sourceRows.length}`);
+  }
   console.log(`  Unique usable card codes: ${usableRows.length}`);
   console.log(`  Duplicate card codes skipped: ${duplicates.size}`);
   if (duplicates.size > 0) {
@@ -1417,12 +1673,20 @@ async function main() {
         card_code, card_type, name_jp, name_cn,
         group_names, unit_name, unit_name_raw,
         card_text_jp, card_text_cn, hearts, blade_hearts, requirements,
-        product, product_code, image_source_uri, source_external_id, source_flags
+        product, product_code, image_source_uri, image_filename, source_external_id, source_flags
       FROM cards
       ORDER BY card_code
     `);
 
     const existingByCode = new Map(existingRows.map((row) => [row.card_code, row]));
+    if (args.cardCodes) {
+      const missingDatabaseCodes = [...args.cardCodes].filter((code) => !existingByCode.has(code));
+      if (missingDatabaseCodes.length > 0) {
+        throw new Error(
+          `Requested card codes missing from database: ${missingDatabaseCodes.join(', ')}`
+        );
+      }
+    }
     const sourceOnly = [...sourceByCode.keys()].filter((code) => !existingByCode.has(code));
     const dbOnly = existingRows.filter((row) => !sourceByCode.has(row.card_code));
     const warnings: string[] = [];
@@ -1488,20 +1752,29 @@ async function main() {
       }
     }
 
-    if (args.dryRun || updates.length === 0) {
-      console.log(
-        args.dryRun ? '\nDry run finished. No DB changes applied.' : '\nNo updates needed.'
-      );
+    if (args.dryRun) {
+      console.log('\nDry run finished. No DB changes or image uploads applied.');
       return;
     }
 
-    const shouldApply = args.yes || (await confirmApplyUpdates(updates.length));
+    if (updates.length === 0 && !args.cardCodes) {
+      console.log('\nNo updates needed.');
+      return;
+    }
+
+    const shouldApply =
+      args.yes || (await confirmApplyUpdates(updates.length, args.cardCodes?.size ?? 0));
     if (!shouldApply) {
       console.log('Update cancelled.');
       return;
     }
 
-    await applyUpdates(pool, updates);
+    if (args.cardCodes) {
+      await uploadSelectedCardImages(usableRows, existingByCode);
+    }
+    if (updates.length > 0) {
+      await applyUpdates(pool, updates);
+    }
     console.log(`Applied ${updates.length} Loveca source updates.`);
   } finally {
     await pool.end();

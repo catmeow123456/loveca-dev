@@ -126,7 +126,9 @@ Loveca 文本/来源同步不会插入 source-only 新卡，也不会因来源�
 
 维护者应先使用 dry-run 观察数据量、CN 匹配、CN-only、能量卡和字段缺失情况，再进行正式运行。Loveca Excel 原始文件放在本地 `docs/card-data-sync/sources/`，该目录不进入仓库；需要同步时由维护者在本地提供对应 `.xlsx`。未传 `--xlsx=...` 时，Loveca Excel 同步脚本和占位符调查脚本会自动选择该目录下文件名时间戳最新的 `loveca_YYYYMMDDHHMMSS.xlsx`，例如当前本地默认会选中 `loveca_20260629130944.xlsx`；需要复查旧输入时可显式传入 `--xlsx=docs/card-data-sync/sources/loveca_20260626015115.xlsx`。
 
-CloudBase 来源通过 `--source=cloudbase` 启用，卡牌集合固定为 `loveca`，不接受其他集合；凭据读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。集合文档结构应与本地 Excel 表格一致；脚本也兼容对应字段的 snake/camelCase 名称，再复用同一套转换、重复卡号处理、DB 对比、完整字段差异报告和写入流程。
+CloudBase 来源通过 `--source=cloudbase` 启用，卡牌集合固定为 `loveca`，不接受其他集合；凭据读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。脚本先把集合文档按字段别名映射为标准表头并导出到 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`，同时保留未被别名消费的原始字段，然后把导出文件交给与 `--source=xlsx` 完全相同的解析、重复卡号处理、DB 对比、完整字段差异报告和写入流程。
+
+`--card-codes=<code1,code2,...>` 将来源和数据库更新范围严格限制为指定编号。列表中的编号缺少来源行或数据库记录时整次执行失败；正式执行还会从来源图片 URI 重新下载并压缩这些卡图，按 `thumb` / `medium` / `large` 路径强制覆盖 MinIO 对象，即使资料字段没有差异也不跳过图片。该窄范围模式不改变普通全量同步不处理图片对象的既有边界。
 
 CloudBase 新卡导入通过 `sync-cards-cloudbase-new.ts --cloudbase-collection=<collection>` 启用，同样读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。当前确认可读取的卡牌集合为 `loveca`，也是脚本默认值；`real_card` 不存在。正式运行必须显式选择 `--upload-images` 或 `--skip-images`；`--upload-images` 还需要 `MINIO_ENDPOINT`、`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY` 等对象存储环境变量。图片对象默认不覆盖，图片失败默认阻止该卡插入，除非显式传入 `--allow-missing-images` 并在 source flags 中记录失败原因。`--skip-images` 不写入 `image_filename`，只保留 `image_source_uri`，避免前端把尚未上传的对象误判为可用卡图。
 
