@@ -176,6 +176,16 @@ onlineRouter.post('/ai-battles', requireAuth, requireGameplayAvailable, async (r
   }
 });
 
+onlineRouter.get('/ai-battles/current', requireAuth, async (req, res) => {
+  try {
+    const battle = await aiBattlePhaseThreeService.getCurrentBattle(req.user!.id);
+    setPrivateNoStoreHeaders(res);
+    res.json({ data: battle, error: null });
+  } catch (error) {
+    respondOnlineError(res, error);
+  }
+});
+
 onlineRouter.get('/ai-battles/:matchId', requireAuth, async (req, res) => {
   try {
     const battle = await aiBattlePhaseThreeService.refreshBattle(

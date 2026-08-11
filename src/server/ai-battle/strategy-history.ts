@@ -7,7 +7,7 @@ import type {
   AiObservation,
 } from './ai-observation.js';
 
-export const AI_SELECTED_HISTORY_SCHEMA_VERSION = 'ai-battle.selected-history/v3' as const;
+export const AI_SELECTED_HISTORY_SCHEMA_VERSION = 'ai-battle.selected-history/v4' as const;
 export const AI_SELECTED_HISTORY_DEFAULT_LIMIT = 12;
 
 export type AiSelectedHistoryCategory =
@@ -225,14 +225,14 @@ function selectAcceptedDecisionHistory(
         ...base,
         category: 'EFFECT_SELECTION',
         reasonCode: 'ACCEPTED_EFFECT_CARD_SELECTION',
-        summary: `权威已接受效果选卡：选择 ${String(selection.candidateIds.length)} 张。`,
+        summary: `权威已接受${formatEffectSource(decision)}的效果选卡：选择 ${String(selection.candidateIds.length)} 张${selection.candidateIds.length === 0 && decision.input?.canSkip ? '，已经跳过这个可选步骤，不能把同一次选择留到稍后重选' : ''}。`,
       };
     case 'SELECT_EFFECT_OPTIONS':
       return {
         ...base,
         category: 'EFFECT_SELECTION',
         reasonCode: 'ACCEPTED_EFFECT_OPTION_SELECTION',
-        summary: `权威已接受效果选项：选择 ${String(selection.optionIds.length)} 项。`,
+        summary: `权威已接受${formatEffectSource(decision)}的效果选项：选择 ${String(selection.optionIds.length)} 项${selection.optionIds.length === 0 && decision.input?.canSkip ? '，已经跳过这个可选步骤，不能把同一次选择留到稍后重选' : ''}。`,
       };
     case 'SELECT_EFFECT_SLOT':
       return {
@@ -414,6 +414,12 @@ function formatHistoryCard(card: AiSelectedHistoryCard): string {
         ? ''
         : ` 费用 ${String(card.cost)}`;
   return `${card.cardCode}${stat}「${card.name}」`;
+}
+
+function formatEffectSource(decision: AiObservation['decision']): string {
+  return decision.effectSource?.card
+    ? `${formatHistoryCard(decision.effectSource.card)}来源`
+    : '当前来源';
 }
 
 function slotLabel(slot: string | undefined): string {

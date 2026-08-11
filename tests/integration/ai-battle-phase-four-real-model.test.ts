@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { AiObservation, AiObservedDecision } from '../../src/server/ai-battle/ai-observation';
+import {
+  AI_OBSERVATION_SCHEMA_VERSION,
+  type AiObservation,
+  type AiObservedDecision,
+} from '../../src/server/ai-battle/ai-observation';
 import { createAiModelInvocationRuntime } from '../../src/server/ai-battle/model-governance';
 import { createAlibabaDashScopeModelProvider } from '../../src/server/ai-battle/model-provider';
 import {
   buildAiModelRequestEnvelope,
   parseAiModelDecisionOutput,
-  validateAiModelDecisionGrounding,
   type AiModelRepairFailureCode,
 } from '../../src/server/ai-battle/model-protocol';
 import { AI_BATTLE_PHASE_ZERO_DECKS } from '../../src/server/ai-battle/phase-zero-baseline';
@@ -13,6 +16,7 @@ import {
   buildAiStrategyContext,
   type AiStrategyContext,
 } from '../../src/server/ai-battle/strategy-context';
+import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
 
 const realModelEnabled =
   process.env.AI_BATTLE_REAL_MODEL === '1' && Boolean(process.env.DASHSCOPE_API_KEY?.trim());
@@ -201,14 +205,6 @@ describe.runIf(realModelEnabled)('AI battle Phase 4 real model prompt/playbook e
           repairFailureCode = 'INVALID_SELECTION';
           continue;
         }
-        const grounding = validateAiModelDecisionGrounding(
-          parsed.output,
-          envelope.strategyContext.semanticContext
-        );
-        if (!grounding.ok) {
-          repairFailureCode = grounding.reason;
-          continue;
-        }
         accepted = true;
         break;
       }
@@ -229,7 +225,7 @@ function buildContext(decision: AiObservedDecision): AiStrategyContext {
     zones: [],
   } as const;
   const observation: AiObservation = {
-    schemaVersion: 'ai-battle.observation/v1',
+    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
     decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
     commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
     authorityRevision: 3,
@@ -253,6 +249,7 @@ function buildContext(decision: AiObservedDecision): AiStrategyContext {
     observation,
     deckKey: 'GREEN_HASUNOSORA_B6',
     deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.GREEN_HASUNOSORA_B6.contentHash,
+    deck: loadAiBattlePhaseZeroRuntimeDeck('GREEN_HASUNOSORA_B6'),
   });
 }
 

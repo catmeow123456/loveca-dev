@@ -52,15 +52,8 @@ import {
   clearStoredSolitaireMatchId,
   readStoredSolitaireMatchId,
 } from '@/lib/solitaireMatchRecovery';
-import {
-  clearStoredAiBattleMatchId,
-  fetchAiBattle,
-  readStoredAiBattleMatchId,
-  restartAiBattle,
-  storeAiBattleMatchId,
-} from '@/lib/aiBattleClient';
+import { fetchCurrentAiBattle, restartAiBattle } from '@/lib/aiBattleClient';
 import { createAiBattlePollingScheduler } from '@/lib/aiBattlePolling';
-import { ApiClientError } from '@/lib/apiClient';
 import { useGameStore } from '@/store/gameStore';
 import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
@@ -349,7 +342,7 @@ function App() {
   const [isReturningFromAiBattle, setIsReturningFromAiBattle] = useState(false);
   const [aiBattleEndError, setAiBattleEndError] = useState<string | null>(null);
   const gameBriefingKeyRef = useRef<string | null>(null);
-  const solitaireRestoreAttemptedRef = useRef(false);
+  const remoteMatchRestoreAttemptedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -556,7 +549,7 @@ function App() {
   }, [currentPage, remoteSession?.matchId, remoteSession?.source, syncRemoteState]);
 
   useEffect(() => {
-    if (solitaireRestoreAttemptedRef.current) {
+    if (remoteMatchRestoreAttemptedRef.current) {
       return;
     }
 
@@ -581,20 +574,14 @@ function App() {
       return;
     }
 
-    const storedAiMatchId = readStoredAiBattleMatchId();
     const storedSolitaireMatchId = readStoredSolitaireMatchId();
-    if (!storedAiMatchId && !storedSolitaireMatchId) {
-      solitaireRestoreAttemptedRef.current = true;
-      return;
-    }
-
-    solitaireRestoreAttemptedRef.current = true;
+    remoteMatchRestoreAttemptedRef.current = true;
     let cancelled = false;
 
     const restoreRemoteMatch = async () => {
       try {
-        if (storedAiMatchId) {
-          const battle = await fetchAiBattle(storedAiMatchId);
+        const battle = await fetchCurrentAiBattle();
+        if (battle) {
           if (cancelled) return;
           connectRemoteSession({
             source: 'AI_BATTLE',
@@ -607,9 +594,11 @@ function App() {
           return;
         }
 
-        const snapshot = await fetchSolitaireMatchSnapshot(storedSolitaireMatchId!);
+        if (!storedSolitaireMatchId) return;
+
+        const snapshot = await fetchSolitaireMatchSnapshot(storedSolitaireMatchId);
         if (!snapshot) {
-          clearStoredSolitaireMatchId(storedSolitaireMatchId!);
+          clearStoredSolitaireMatchId(storedSolitaireMatchId);
           return;
         }
 
@@ -629,13 +618,6 @@ function App() {
           setCurrentPage('game');
         }
       } catch (restoreError) {
-        if (
-          storedAiMatchId &&
-          restoreError instanceof ApiClientError &&
-          (restoreError.status === 404 || restoreError.code === 'AI_BATTLE_NOT_FOUND')
-        ) {
-          clearStoredAiBattleMatchId(storedAiMatchId);
-        }
         if (import.meta.env.DEV) {
           console.warn('[App] 远程测试对局刷新恢复失败:', restoreError);
         }
@@ -648,7 +630,7 @@ function App() {
       cancelled = true;
       // React StrictMode 会在开发环境中挂载、清理后再挂载一次。
       // 清理未完成的恢复任务时必须允许下一次挂载重新发起恢复。
-      solitaireRestoreAttemptedRef.current = false;
+      remoteMatchRestoreAttemptedRef.current = false;
     };
   }, [
     applyRemoteSnapshot,
@@ -994,7 +976,6 @@ function App() {
               setAiBattleEndError(null);
               void restartAiBattle(matchView.matchId)
                 .then(async (battle) => {
-                  storeAiBattleMatchId(battle.matchId);
                   connectRemoteSession({
                     source: 'AI_BATTLE',
                     matchId: battle.matchId,

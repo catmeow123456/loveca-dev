@@ -23,6 +23,7 @@ import { createAiSelectedHistoryTracker } from '../../src/server/ai-battle/strat
 import {
   AiBattlePhaseThreeService,
   AiBattlePhaseThreeServiceError,
+  type ControlledAiBattleView,
 } from '../../src/server/services/ai-battle-phase-three-service';
 import {
   OnlineMatchService,
@@ -344,6 +345,11 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
       firstSeat: 'FIRST',
       systemSeat: 'SECOND',
     });
+    await expect(entry.getCurrentBattle('human-lifecycle')).resolves.toMatchObject({
+      matchId: created.matchId,
+      roomCode: created.roomCode,
+    });
+    await expect(entry.getCurrentBattle('another-human')).resolves.toBeNull();
 
     const match = matchService.getMatch(created.matchId)!;
     const human = match.participants.FIRST;
@@ -372,6 +378,7 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
     expect(retainedSession.state?.endInfo?.reason).toBe(GameEndReason.OPPONENT_SURRENDER);
     expect(matchService.getMatch(restarted.matchId)).toBeNull();
     await expect(entry.refreshBattle(restarted.matchId, human.userId)).resolves.toBeNull();
+    await expect(entry.getCurrentBattle(human.userId)).resolves.toBeNull();
   });
 
   it('serializes concurrent create requests per human and leaves exactly one controlled match', async () => {
@@ -405,6 +412,13 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
     expect((rejected?.reason as AiBattlePhaseThreeServiceError).code).toBe(
       'AI_BATTLE_ALREADY_ACTIVE'
     );
+    const created = results.find(
+      (result): result is PromiseFulfilledResult<ControlledAiBattleView> =>
+        result.status === 'fulfilled'
+    )?.value;
+    await expect(entry.getCurrentBattle(input.humanUserId)).resolves.toMatchObject({
+      matchId: created?.matchId,
+    });
   });
 
   it('completes all eight certified matchup/turn-order units through the real online runtime', async () => {
@@ -559,6 +573,7 @@ async function driveHumanAndSystemToTerminal(input: {
       observation,
       deckKey: input.humanDeckKey,
       deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS[input.humanDeckKey].contentHash,
+      deck: input.match.deckSnapshots[human.seat],
       selectedHistory: history.observe(observation),
     });
     const selected = selectExplainableDecision(context);

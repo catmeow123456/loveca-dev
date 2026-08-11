@@ -390,7 +390,7 @@ describe('MatchRecorderService P0a', () => {
       .find((call) => call.values[2] === 'SECOND');
     expect(systemParticipantInsert?.text).toContain('system_identity_snapshot');
     expect(readJsonbParam(systemParticipantInsert?.values[7])).toMatchObject({
-      schemaVersion: 'ai-battle.system-participant-identity/v3',
+      schemaVersion: 'ai-battle.system-participant-identity/v7',
       participantKind: 'SYSTEM',
       loginAllowed: false,
       deckKey: 'MUSE_STARTER',
@@ -407,6 +407,7 @@ describe('MatchRecorderService P0a', () => {
       seat: 'SECOND',
       decisionKind: 'PHASE_CONFIRMATION',
       compactRulesVersion: AI_COMPACT_RULES_VERSION,
+      deckKnowledgeVersion: 'ai-battle.deck-knowledge/v1',
       playbookVersion: AI_MUSE_STARTER_PLAYBOOK_VERSION,
       policyVersion: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
       tier: 'RULE_FORCED',

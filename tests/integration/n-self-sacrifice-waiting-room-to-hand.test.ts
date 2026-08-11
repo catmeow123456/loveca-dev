@@ -203,6 +203,14 @@ describe('Nijigasaki self-sacrifice waiting-room recovery abilities', () => {
       expect(session.state?.players[0].waitingRoom.cardIds).toContain(sourceId);
       expect(session.state?.activeEffect?.abilityId).toBe(PB1_019_ACTIVATED_ABILITY_ID);
       expect(session.state?.activeEffect?.selectableCardIds).toEqual([sourceId]);
+      expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
+      expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
+        source: 'WAITING_ROOM',
+        destination: 'HAND',
+        minCount: 1,
+        maxCount: 1,
+        optional: false,
+      });
       expect(session.state?.activeEffect?.selectableCardIds).not.toContain(waitingLiveId);
       expect(
         session.state?.eventLog.some(

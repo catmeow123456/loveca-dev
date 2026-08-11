@@ -3,6 +3,7 @@ import {
   AI_DECISION_CONTRACT_SCHEMA_VERSION,
 } from '../../application/ai-decisions/index.js';
 import { AI_OBSERVATION_SCHEMA_VERSION } from './ai-observation.js';
+import { AI_DECK_KNOWLEDGE_SCHEMA_VERSION } from './deck-knowledge.js';
 import { AI_EXPLAINABLE_DECISION_POLICY_VERSION } from './explainable-decision-policy.js';
 import { AI_PHASE_TWO_PLAYOUT_SCHEMA_VERSION } from './phase-two-playout.js';
 import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
@@ -15,13 +16,14 @@ import {
   AI_MUSE_STARTER_PLAYBOOK_VERSION,
 } from './strategy-knowledge.js';
 
-export const AI_BATTLE_PHASE_TWO_BASELINE_VERSION = 'ai-battle.phase-two/v2' as const;
+export const AI_BATTLE_PHASE_TWO_BASELINE_VERSION = 'ai-battle.phase-two/v3' as const;
 export const AI_BATTLE_PHASE_TWO_CERTIFICATION_STATUS = 'COMPLETE' as const;
 
 export const AI_BATTLE_PHASE_TWO_COMPONENT_STATUS = {
   playerViewObservation: 'IMPLEMENTED',
   redactedDecisionSummary: 'IMPLEMENTED',
   compactRules: 'IMPLEMENTED',
+  exactDeckKnowledge: 'IMPLEMENTED_COLLAPSED_COUNTS_WITHOUT_ORDER',
   fixedDeckPlaybooks: 'IMPLEMENTED',
   strategyContextEnvelope: 'IMPLEMENTED',
   deterministicStrategyRouter: 'IMPLEMENTED',
@@ -37,13 +39,14 @@ export const AI_BATTLE_PHASE_TWO_COMPONENT_VERSIONS = {
   decisionContract: AI_DECISION_CONTRACT_SCHEMA_VERSION,
   commandAdapter: AI_DECISION_COMMAND_ADAPTER_VERSION,
   compactRules: AI_COMPACT_RULES_VERSION,
+  deckKnowledge: AI_DECK_KNOWLEDGE_SCHEMA_VERSION,
   museStarterPlaybook: AI_MUSE_STARTER_PLAYBOOK_VERSION,
   greenHasunosoraB6Playbook: AI_GREEN_HASUNOSORA_B6_PLAYBOOK_VERSION,
   strategyContext: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
   selectedHistory: AI_SELECTED_HISTORY_SCHEMA_VERSION,
   explainablePolicy: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
   strategyDecisionAudit: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
-  strategyDecisionRecord: 'ai-battle.strategy-decision-record/v2',
+  strategyDecisionRecord: 'ai-battle.strategy-decision-record/v4',
   strategyEvaluation: AI_STRATEGY_EVALUATION_SCHEMA_VERSION,
   phaseTwoPlayout: AI_PHASE_TWO_PLAYOUT_SCHEMA_VERSION,
 } as const;

@@ -162,6 +162,7 @@ export function runAiPhaseTwoExplainablePlayout(
       observation,
       deckKey: next.runtime.player.deckKey,
       deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS[next.runtime.player.deckKey].contentHash,
+      deck: next.runtime.player.deck,
       selectedHistory,
     });
     if (context.selectedHistory.length > 0) historyContextDecisionCount += 1;

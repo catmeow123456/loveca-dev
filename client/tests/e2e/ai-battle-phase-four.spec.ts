@@ -92,10 +92,6 @@ async function fulfill(route: Route, data: unknown, status = 200) {
 }
 
 async function installMocks(page: Page, ended: boolean) {
-  await page.addInitScript((matchId) => {
-    window.sessionStorage.setItem('loveca.ai-battle.match.v1', matchId);
-  }, MATCH_ID);
-
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
 
@@ -134,6 +130,10 @@ async function installMocks(page: Page, ended: boolean) {
     }
     if (url.pathname === '/api/cards' || url.pathname === '/api/cards/export') {
       await fulfill(route, []);
+      return;
+    }
+    if (url.pathname === '/api/online/ai-battles/current') {
+      await fulfill(route, createBattleView(ended));
       return;
     }
     if (url.pathname === `/api/online/ai-battles/${MATCH_ID}`) {

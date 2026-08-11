@@ -1147,6 +1147,7 @@ function buildFrontInfo(card: CardInstance): ViewFrontCardInfo {
       nameCn: card.data.nameCn,
       cardType: card.data.cardType,
       cost: card.data.cost,
+      blade: card.data.blade,
       hearts: card.data.hearts.map((heart) => ({ color: heart.color, count: heart.count })),
       bladeHearts: card.data.bladeHearts?.map((item) => ({ ...item })),
       cardTextJp: card.data.cardTextJp,
@@ -1200,6 +1201,8 @@ function buildStageMemberFrontInfo(
 
   return {
     ...frontInfo,
+    effectiveCost: cost,
+    blade,
     hearts: hearts.map((heart) => ({ color: heart.color, count: heart.count })),
     ...(modifierDelta ? { modifierDelta } : {}),
   };

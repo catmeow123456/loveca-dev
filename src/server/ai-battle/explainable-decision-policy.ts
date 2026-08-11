@@ -67,9 +67,9 @@ export function selectExplainableDecision(context: AiStrategyContext): Explainab
       return selectLiveSet(decision);
     case 'SPECIAL_MEMBER_PLAY':
       return selected(
-        'DETERMINISTIC',
-        'DECLINE_UNPROVEN_SPECIAL_PLAY',
-        'Cancel the optional special member play until a playbook-specific selector is certified.',
+        'HEURISTIC',
+        'EVALUATE_SPECIAL_MEMBER_PLAY',
+        'Expose the complete special-member-play choice to the model; cancellation is only the conservative witness.',
         { kind: 'CANCEL_SPECIAL_MEMBER_PLAY' }
       );
     case 'ACTIVE_EFFECT':
@@ -169,22 +169,18 @@ function selectMainPhase(
       if (action.kind === 'PLAY_MEMBER') {
         score = 10_000 - (action.paymentPreview?.energyCost ?? 99) * 100;
         if (action.targetSlot && emptyStageSlots.has(action.targetSlot)) score += 1_000;
-        if (
-          action.targetSlot === 'CENTER' &&
-          role?.roles.some((item) => item.includes('center payoff'))
-        ) {
+        if (action.targetSlot === 'CENTER' && role?.roleTags.includes('CENTER_PAYOFF')) {
           score += 3_000;
         }
       } else if (action.kind === 'BEGIN_SPECIAL_MEMBER_PLAY') {
-        // The current Phase 2 policy deliberately cancels the follow-up special
-        // play window. Do not enter that window until a playbook-specific
-        // selector is certified, otherwise the policy can loop begin -> cancel
-        // without making rule progress.
+        // Keep cancellation as the conservative fallback witness. The model
+        // receives the complete legal special-play path and decides whether its
+        // card text and resulting board are worth entering the next window.
         score = -1;
       } else if (
         action.kind === 'ACTIVATE_ABILITY' &&
         waitingRoomCount > 0 &&
-        role?.roles.some((item) => item.includes('recovery'))
+        role?.roleTags.some((item) => item.includes('RECOVERY'))
       ) {
         score = 8_500;
       } else if (action.kind === 'ACTIVATE_ABILITY') {
@@ -197,19 +193,26 @@ function selectMainPhase(
         right.score - left.score || compareText(left.action.actionId, right.action.actionId)
     );
   const chosen = ranked[0]?.action;
+  const hasSpecialMemberPlay = decision.actions.some(
+    (action) => action.kind === 'BEGIN_SPECIAL_MEMBER_PLAY'
+  );
   return chosen
     ? selected(
-        chosen.kind === 'END_MAIN_PHASE' ? 'DETERMINISTIC' : 'HEURISTIC',
-        chosen.kind === 'END_MAIN_PHASE'
-          ? 'END_MAIN_PHASE_WITHOUT_HIGHER_VALUE_ACTION'
-          : chosen.kind === 'PLAY_MEMBER'
-            ? 'PLAY_HIGHEST_RANKED_MEMBER'
-            : chosen.kind === 'ACTIVATE_ABILITY'
-              ? 'ACTIVATE_HIGHEST_RANKED_ABILITY'
-              : 'SELECT_HIGHEST_RANKED_MAIN_ACTION',
-        chosen.kind === 'END_MAIN_PHASE'
-          ? 'End the main phase because no higher-value certified action remains.'
-          : 'Choose the highest-ranked legal main-phase action from the current playbook context.',
+        chosen.kind === 'END_MAIN_PHASE' && !hasSpecialMemberPlay ? 'DETERMINISTIC' : 'HEURISTIC',
+        chosen.kind === 'END_MAIN_PHASE' && hasSpecialMemberPlay
+          ? 'EVALUATE_SPECIAL_MEMBER_PLAY'
+          : chosen.kind === 'END_MAIN_PHASE'
+            ? 'END_MAIN_PHASE_WITHOUT_HIGHER_VALUE_ACTION'
+            : chosen.kind === 'PLAY_MEMBER'
+              ? 'PLAY_HIGHEST_RANKED_MEMBER'
+              : chosen.kind === 'ACTIVATE_ABILITY'
+                ? 'ACTIVATE_HIGHEST_RANKED_ABILITY'
+                : 'SELECT_HIGHEST_RANKED_MAIN_ACTION',
+        chosen.kind === 'END_MAIN_PHASE' && hasSpecialMemberPlay
+          ? 'Expose the complete special-member-play choice to the model; ending is only the conservative witness.'
+          : chosen.kind === 'END_MAIN_PHASE'
+            ? 'End the main phase because no higher-value certified action remains.'
+            : 'Choose the highest-ranked legal main-phase action from the current playbook context.',
         { kind: 'SELECT_MAIN_PHASE_ACTION', actionId: chosen.actionId },
         ranked.map((item) => item.action.actionId)
       )
@@ -276,9 +279,9 @@ function selectActiveEffect(decision: AiObservedDecision): ExplainableDecisionRe
     case 'CARD_SELECTION': {
       if (input.canSkip) {
         return selected(
-          'DETERMINISTIC',
-          'DECLINE_OPTIONAL_CARD_SELECTION',
-          'Decline an optional card selection without a certified playbook selector.',
+          'HEURISTIC',
+          'EVALUATE_OPTIONAL_CARD_SELECTION',
+          'Expose the optional card-selection tradeoff to the model; skipping is only the conservative witness.',
           { kind: 'SELECT_EFFECT_CARDS', candidateIds: [] }
         );
       }
@@ -301,9 +304,9 @@ function selectActiveEffect(decision: AiObservedDecision): ExplainableDecisionRe
     case 'OPTION_SELECTION': {
       if (input.canSkip) {
         return selected(
-          'DETERMINISTIC',
-          'DECLINE_OPTIONAL_EFFECT_OPTION',
-          'Decline an optional effect option without a certified playbook selector.',
+          'HEURISTIC',
+          'EVALUATE_OPTIONAL_EFFECT_OPTION',
+          'Expose the optional effect options to the model; skipping is only the conservative witness.',
           { kind: 'SELECT_EFFECT_OPTIONS', optionIds: [] }
         );
       }
@@ -323,9 +326,9 @@ function selectActiveEffect(decision: AiObservedDecision): ExplainableDecisionRe
     case 'SLOT_SELECTION':
       if (input.canSkip) {
         return selected(
-          'DETERMINISTIC',
-          'DECLINE_OPTIONAL_SLOT_SELECTION',
-          'Decline an optional slot selection.',
+          'HEURISTIC',
+          'EVALUATE_OPTIONAL_SLOT_SELECTION',
+          'Expose the optional slot choice to the model; skipping is only the conservative witness.',
           { kind: 'CONFIRM_EFFECT' }
         );
       }
@@ -353,9 +356,9 @@ function selectActiveEffect(decision: AiObservedDecision): ExplainableDecisionRe
     case 'STAGE_FORMATION':
       if (input.canSkip) {
         return selected(
-          'DETERMINISTIC',
-          'KEEP_CURRENT_STAGE_FORMATION',
-          'Keep the current formation for an optional formation change.',
+          'HEURISTIC',
+          'EVALUATE_OPTIONAL_STAGE_FORMATION',
+          'Expose the optional formation change to the model; keeping the formation is only the conservative witness.',
           { kind: 'CONFIRM_EFFECT' }
         );
       }

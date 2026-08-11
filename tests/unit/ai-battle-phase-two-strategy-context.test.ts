@@ -21,7 +21,10 @@ import {
   AI_GREEN_HASUNOSORA_B6_PLAYBOOK_VERSION,
   AI_MUSE_STARTER_PLAYBOOK_VERSION,
 } from '../../src/server/ai-battle/strategy-knowledge';
-import { aiBattleAuthoritativeCardRegistry } from '../helpers/ai-battle-phase-zero-decks';
+import {
+  aiBattleAuthoritativeCardRegistry,
+  loadAiBattlePhaseZeroRuntimeDeck,
+} from '../helpers/ai-battle-phase-zero-decks';
 
 function createObservation(): AiObservation {
   const emptySeat = {
@@ -70,8 +73,15 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
     ];
     expect(new Set(directives.map((item) => item.directiveId)).size).toBe(directives.length);
     expect(directives.map((item) => item.directiveId)).toContain('CONTRACT_ONLY');
+    expect(directives.map((item) => item.directiveId)).toContain('COMPLETE_CURRENT_CHOICES');
+    expect(directives.map((item) => item.directiveId)).toContain('RELAY');
+    expect(directives.map((item) => item.directiveId)).toContain('TIMING_EFFECTS');
     expect(directives.map((item) => item.directiveId)).toContain('THREE_SUCCESS_LIVES');
     expect(directives.every((item) => item.text.length > 20)).toBe(true);
+    expect(directives.find((item) => item.directiveId === 'MEMBER_STATS')?.text).toContain('BLADE');
+    expect(directives.find((item) => item.directiveId === 'RELAY')?.text).toContain(
+      '减少本次需要支付的能量'
+    );
   });
 
   it('binds both playbooks to certified content hashes and cards actually in each deck', () => {
@@ -102,19 +112,78 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
         if (!card) continue;
         expect(role.label).toContain(card.name);
         if (isMemberCardData(card)) {
-          expect(role.label).toContain(`cost ${String(card.cost)}`);
+          expect(role.label).toContain(`费用 ${String(card.cost)}`);
         } else if (isLiveCardData(card)) {
-          expect(role.label).toContain(`score ${String(card.score)}`);
+          expect(role.label).toContain(`分数 ${String(card.score)}`);
         }
       }
     }
+  });
+
+  it('exposes the exact certified deck by card code and count without order or instance identity', () => {
+    const observation = createObservation();
+    const deck = loadAiBattlePhaseZeroRuntimeDeck('GREEN_HASUNOSORA_B6');
+    const context = buildAiStrategyContext({
+      observation,
+      deckKey: 'GREEN_HASUNOSORA_B6',
+      deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.GREEN_HASUNOSORA_B6.contentHash,
+      deck,
+    });
+    const expectedCounts = new Map<string, number>();
+    for (const [section, cards] of [
+      ['MAIN_DECK', deck.mainDeck],
+      ['ENERGY_DECK', deck.energyDeck],
+    ] as const) {
+      for (const card of cards) {
+        const key = `${section}:${card.cardCode}`;
+        expectedCounts.set(key, (expectedCounts.get(key) ?? 0) + 1);
+      }
+    }
+    const actualCounts = new Map(
+      context.knowledge.deck.cards.map((card) => [
+        `${card.deckSection}:${card.cardCode}`,
+        card.count,
+      ])
+    );
+
+    expect(actualCounts).toEqual(expectedCounts);
+    expect(context.knowledge.deck.mainDeckCount).toBe(deck.mainDeck.length);
+    expect(context.knowledge.deck.energyDeckCount).toBe(deck.energyDeck.length);
+    for (const knowledge of context.knowledge.deck.cards) {
+      const source = [...deck.mainDeck, ...deck.energyDeck].find(
+        (card) => card.cardCode === knowledge.cardCode
+      );
+      expect(source).toBeDefined();
+      expect(knowledge.name.length).toBeGreaterThan(0);
+      expect(knowledge.effectText).toBe(
+        source?.cardTextCn || source?.cardTextJp || source?.cardText || '-'
+      );
+      if (source && isMemberCardData(source)) {
+        expect(knowledge).toMatchObject({
+          cost: source.cost,
+          blade: source.blade,
+          hearts: source.hearts.map((heart) => ({
+            color: String(heart.color),
+            count: heart.count,
+          })),
+        });
+      }
+      if (source && isLiveCardData(source)) {
+        expect(knowledge.score).toBe(source.score);
+        expect(knowledge.requiredHearts?.total).toBe(source.requirements.totalRequired);
+      }
+    }
+    const serialized = JSON.stringify(context.knowledge.deck);
+    expect(serialized).not.toContain('instanceId');
+    expect(serialized).not.toContain('publicObjectId');
+    expect(serialized).not.toContain('deckOrder');
   });
 
   it('builds a versioned strategy-only envelope and rejects stale deck content', () => {
     const observation = createObservation();
     const selectedHistory = [
       {
-        schemaVersion: 'ai-battle.selected-history/v3',
+        schemaVersion: 'ai-battle.selected-history/v4',
         historyId: 'history-1',
         authorityRevision: 3,
         turnCount: 1,
@@ -137,6 +206,7 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
       observation,
       deckKey: 'MUSE_STARTER',
       deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
+      deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
       selectedHistory,
     });
 
@@ -146,14 +216,20 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
       compactRulesVersion: context.knowledge.compactRules.version,
       playbookVersion: context.knowledge.deckPlaybook.version,
       playbookDeckKey: context.knowledge.deckPlaybook.deckKey,
+      deckKnowledgeVersion: context.knowledge.deck.schemaVersion,
+      mainDeckCount: context.knowledge.deck.mainDeckCount,
+      energyDeckCount: context.knowledge.deck.energyDeckCount,
       selectedHistory: context.selectedHistory,
     }).toMatchInlineSnapshot(`
       {
-        "compactRulesVersion": "ai-battle.compact-rules/v1",
-        "observationVersion": "ai-battle.observation/v1",
+        "compactRulesVersion": "ai-battle.compact-rules/v3",
+        "deckKnowledgeVersion": "ai-battle.deck-knowledge/v1",
+        "energyDeckCount": 12,
+        "mainDeckCount": 60,
+        "observationVersion": "ai-battle.observation/v3",
         "playbookDeckKey": "MUSE_STARTER",
-        "playbookVersion": "ai-battle.playbook.muse-starter/v1",
-        "schemaVersion": "ai-battle.strategy-context/v1",
+        "playbookVersion": "ai-battle.playbook.muse-starter/v2",
+        "schemaVersion": "ai-battle.strategy-context/v3",
         "selectedHistory": [
           {
             "actorSeat": "FIRST",
@@ -169,7 +245,7 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
             "category": "LIVE_SET",
             "historyId": "history-1",
             "reasonCode": "SET_HIGHEST_RANKED_LIVE",
-            "schemaVersion": "ai-battle.selected-history/v3",
+            "schemaVersion": "ai-battle.selected-history/v4",
             "source": "AUTHORITY_ACCEPTED_SELECTION",
             "summary": "Set an achievable LIVE.",
             "turnCount": 1,
@@ -188,6 +264,7 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
         observation,
         deckKey: 'MUSE_STARTER',
         deckContentHash: 'sha256:stale',
+        deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
       })
     ).toThrow('playbook content hash mismatch');
     expect(() =>
@@ -195,6 +272,7 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
         observation,
         deckKey: 'MUSE_STARTER',
         deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
+        deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
         selectedHistory: [{ ...selectedHistory[0], authorityRevision: 5 }],
       })
     ).toThrow('future authority revision');
@@ -203,6 +281,7 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
         observation,
         deckKey: 'MUSE_STARTER',
         deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
+        deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
         selectedHistory: [
           {
             ...selectedHistory[0],

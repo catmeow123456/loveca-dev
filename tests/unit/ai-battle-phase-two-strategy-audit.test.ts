@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { AiObservation } from '../../src/server/ai-battle/ai-observation';
+import {
+  AI_OBSERVATION_SCHEMA_VERSION,
+  type AiObservation,
+} from '../../src/server/ai-battle/ai-observation';
 import { selectExplainableDecision } from '../../src/server/ai-battle/explainable-decision-policy';
 import { AI_BATTLE_PHASE_ZERO_DECKS } from '../../src/server/ai-battle/phase-zero-baseline';
 import { buildAiStrategyContext } from '../../src/server/ai-battle/strategy-context';
@@ -11,6 +14,7 @@ import {
   createAiStrategyDecisionRecord,
   createInMemoryAiStrategyDecisionRecordStore,
 } from '../../src/server/ai-battle/strategy-decision-audit';
+import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
 
 function observation(authorityRevision: number): AiObservation {
   const emptySeat = {
@@ -19,7 +23,7 @@ function observation(authorityRevision: number): AiObservation {
     zones: [],
   } as const;
   return {
-    schemaVersion: 'ai-battle.observation/v1',
+    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
     decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
     commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
     authorityRevision,
@@ -59,6 +63,7 @@ function build(authorityRevision: number) {
     observation: observation(authorityRevision),
     deckKey: 'MUSE_STARTER',
     deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
+    deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
   });
   const selected = selectExplainableDecision(context);
   expect(selected.ok).toBe(true);
@@ -73,15 +78,15 @@ describe('AI battle Phase 2 strategy decision audit', () => {
 
     expect(audit).toMatchObject({
       schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
-      contextSchemaVersion: 'ai-battle.strategy-context/v1',
-      observationSchemaVersion: 'ai-battle.observation/v1',
+      contextSchemaVersion: 'ai-battle.strategy-context/v3',
+      observationSchemaVersion: 'ai-battle.observation/v3',
       decisionContractVersion: 'ai-battle.decision-contract/v1',
       commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
       authorityRevision: 12,
       seat: 'FIRST',
       decisionKind: 'SCORE_CONFIRMATION',
-      compactRulesVersion: 'ai-battle.compact-rules/v1',
-      playbookVersion: 'ai-battle.playbook.muse-starter/v1',
+      compactRulesVersion: 'ai-battle.compact-rules/v3',
+      playbookVersion: 'ai-battle.playbook.muse-starter/v2',
       policyVersion: 'ai-battle.explainable-policy/v1',
       tier: 'RULE_FORCED',
       reasonCode: 'CONFIRM_AUTHORITY_SCORE',

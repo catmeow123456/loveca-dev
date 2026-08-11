@@ -51,7 +51,6 @@ export type AiModelInvocationAttemptOutcome =
   | 'INVALID_JSON'
   | 'INVALID_SCHEMA'
   | 'INVALID_SELECTION'
-  | 'INVALID_FACT_REFERENCE'
   | 'TIMEOUT'
   | 'ABORTED'
   | 'PROVIDER_RETRYABLE'
@@ -135,6 +134,7 @@ export function buildAiModelProviderRequest(
       schemaVersion: envelope.schemaVersion,
       promptVersion: envelope.promptVersion,
       systemInstruction: envelope.systemInstruction,
+      trustedKnowledge: envelope.trustedKnowledge,
       responseContract: envelope.responseContract,
     }),
     userMessage: JSON.stringify({

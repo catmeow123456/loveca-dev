@@ -467,6 +467,43 @@ describe('onlineRouter error handling', () => {
     expect(route?.route?.stack.map((layer) => layer.handle)).toContain(requireAdmin);
   });
 
+  it('AI 对局可按当前账号发现并在动态 matchId 路由前命中', async () => {
+    const getCurrentBattle = vi
+      .spyOn(aiBattlePhaseThreeService, 'getCurrentBattle')
+      .mockResolvedValue({
+        matchId: 'ai-match-current',
+        roomCode: 'AI-CURRENT',
+      } as never);
+
+    const response = await invokeRoute('/ai-battles/current', 'get', {
+      user: { id: 'u-current' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(getCurrentBattle).toHaveBeenCalledWith('u-current');
+    expect(response.body).toEqual({
+      data: { matchId: 'ai-match-current', roomCode: 'AI-CURRENT' },
+      error: null,
+    });
+    expect(response.headers['Cache-Control']).toBe('private, no-store');
+
+    getCurrentBattle.mockResolvedValueOnce(null);
+    const emptyResponse = await invokeRoute('/ai-battles/current', 'get', {
+      user: { id: 'u-empty' },
+    });
+    expect(emptyResponse.statusCode).toBe(200);
+    expect(emptyResponse.body).toEqual({ data: null, error: null });
+
+    const currentRouteIndex = onlineRouter.stack.findIndex(
+      (candidate) => 'route' in candidate && candidate.route?.path === '/ai-battles/current'
+    );
+    const matchRouteIndex = onlineRouter.stack.findIndex(
+      (candidate) => 'route' in candidate && candidate.route?.path === '/ai-battles/:matchId'
+    );
+    expect(currentRouteIndex).toBeGreaterThanOrEqual(0);
+    expect(currentRouteIndex).toBeLessThan(matchRouteIndex);
+  });
+
   it('AI 调试轨迹的管理员中间件拒绝普通玩家', () => {
     const response = createMockResponse();
     const next = vi.fn();

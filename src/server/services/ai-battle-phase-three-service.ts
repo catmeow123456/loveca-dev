@@ -140,7 +140,7 @@ export class AiBattlePhaseThreeService {
       if (this.matchService.getMatch(existingMatchId)) {
         throw new AiBattlePhaseThreeServiceError(
           'AI_BATTLE_ALREADY_ACTIVE',
-          '当前账号已有 AI 对局，请刷新原对局或先离开',
+          '当前账号已有 AI 对局，请返回该对局或先离开',
           409
         );
       }
@@ -174,6 +174,33 @@ export class AiBattlePhaseThreeService {
     return this.entryExecutor.runExclusive(buildHumanEntryKey(humanUserId), async () => {
       const runtime = this.requireOwnedRuntime(matchId, humanUserId, false);
       if (!runtime) return null;
+      const match = this.matchService.getMatch(matchId);
+      if (!match) {
+        this.clearRuntime(runtime);
+        return null;
+      }
+      return this.buildView(runtime, match);
+    });
+  }
+
+  async getCurrentBattle(humanUserId: string): Promise<ControlledAiBattleView | null> {
+    return this.entryExecutor.runExclusive(buildHumanEntryKey(humanUserId), async () => {
+      const matchId = this.matchIdByHumanUserId.get(humanUserId);
+      if (!matchId) return null;
+
+      const runtime = this.runtimeByMatchId.get(matchId);
+      if (!runtime) {
+        this.matchIdByHumanUserId.delete(humanUserId);
+        return null;
+      }
+      if (runtime.input.humanUserId !== humanUserId) {
+        throw new AiBattlePhaseThreeServiceError(
+          'AI_BATTLE_RUNTIME_OWNERSHIP_MISMATCH',
+          'AI 对局账号索引与运行态不一致',
+          500
+        );
+      }
+
       const match = this.matchService.getMatch(matchId);
       if (!match) {
         this.clearRuntime(runtime);

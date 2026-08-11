@@ -106,12 +106,15 @@ import { createConfiguredAiBattleModelProvider } from '../ai-battle/model-provid
 import {
   buildAiModelRequestEnvelope,
   parseAiModelDecisionOutput,
-  validateAiModelDecisionGrounding,
   type AiModelDecisionOutput,
   type AiModelRepairFailureCode,
   type AiModelRequestEnvelope,
   type AiModelTransportRetryFailureCode,
 } from '../ai-battle/model-protocol.js';
+import {
+  buildAiSemanticDecisionContext,
+  getRequiredAiSemanticFactIdsForSelection,
+} from '../ai-battle/semantic-context.js';
 import { buildAiStrategyContext, type AiStrategyContext } from '../ai-battle/strategy-context.js';
 import {
   createAiStrategyDecisionAudit,
@@ -475,6 +478,8 @@ interface PreparedModelMachineDecision {
   readonly captureModelContext: boolean;
 }
 
+type MachineDecisionFallbackScope = 'NONE' | 'CURRENT_DECISION' | 'MATCH';
+
 export interface DeleteOnlineMatchOptions {
   readonly reason?: string;
   readonly now?: number;
@@ -654,9 +659,7 @@ export class OnlineMatchService {
       activeUndoGrant: null,
       machineLiveness: null,
       aiDebugTrace:
-        originKind === 'AI_BATTLE' &&
-        this.aiDebugTraceEnabled &&
-        params.enableAiDebugTrace === true
+        originKind === 'AI_BATTLE' && this.aiDebugTraceEnabled && params.enableAiDebugTrace === true
           ? createAiBattleDebugTraceRuntime()
           : null,
       appliedUndoKeys: new Set<string>(),
@@ -1133,6 +1136,7 @@ export class OnlineMatchService {
                 observation,
                 deckKey: strategyRuntime.binding.deckKey,
                 deckContentHash: strategyRuntime.binding.deckContentHash,
+                deck: match.deckSnapshots[participant.seat],
                 selectedHistory: strategyRuntime.history.observe(observation),
               });
               const result = selectExplainableDecision(context);
@@ -1329,6 +1333,7 @@ export class OnlineMatchService {
           observation,
           deckKey: strategyRuntime.binding.deckKey,
           deckContentHash: strategyRuntime.binding.deckContentHash,
+          deck: match.deckSnapshots[participant.seat],
           selectedHistory: strategyRuntime.history.observe(observation),
         });
         const explainable = selectExplainableDecision(context);
@@ -1380,6 +1385,8 @@ export class OnlineMatchService {
           prepared.strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK'
             ? 'CONSERVATIVE_FALLBACK'
             : 'PRIMARY',
+        fallbackScope:
+          prepared.strategyRuntime.modelMode === 'CONSERVATIVE_FALLBACK' ? 'MATCH' : 'NONE',
       });
       return submitted.result;
     }
@@ -1440,32 +1447,24 @@ export class OnlineMatchService {
         break;
       }
 
-      const grounding = validateAiModelDecisionGrounding(
-        parsed.output,
-        envelope.strategyContext.semanticContext
-      );
-      if (!grounding.ok) {
-        const attemptAudit = withModelAttemptOutcome(invoked.audit, grounding.reason);
-        attempts.push(attemptAudit);
-        captureModelContextAttempt(envelope, attemptAudit, parsed.output);
-        if (attemptNumber === 1) {
-          repairFailureCode = grounding.reason;
-          transportRetryFailureCode = undefined;
-          continue;
-        }
-        break;
-      }
-
       attempts.push(invoked.audit);
       captureModelContextAttempt(envelope, invoked.audit, parsed.output);
+      const semanticContext = buildAiSemanticDecisionContext({
+        observation: prepared.context.observation,
+        selectedHistory: prepared.context.selectedHistory,
+      });
+      const factRefs = getRequiredAiSemanticFactIdsForSelection(
+        semanticContext,
+        parsed.output.selection
+      );
       const modelResult: AuditableAiDecisionResult = {
         policyVersion: AI_MODEL_DECISION_POLICY_VERSION,
         tier: 'HEURISTIC',
         reasonCode: 'MODEL_STRUCTURED_SELECTION',
-        summary: `${parsed.output.tradeoff} 下一步：${parsed.output.nextPlan}`,
-        factRefs: parsed.output.factRefs,
-        tradeoff: parsed.output.tradeoff,
-        nextPlan: parsed.output.nextPlan,
+        summary: buildModelDecisionSummary(parsed.output),
+        factRefs,
+        ...(parsed.output.tradeoff ? { tradeoff: parsed.output.tradeoff } : {}),
+        ...(parsed.output.nextPlan ? { nextPlan: parsed.output.nextPlan } : {}),
         consideredIds: collectModelConsideredIds(prepared.context),
         selection: parsed.output.selection,
       };
@@ -1476,6 +1475,7 @@ export class OnlineMatchService {
         modelInvocation: this.modelInvocationRuntime!.createAudit(attempts, 'MODEL_SELECTION'),
         modelContextAttempts,
         strategyMode: 'PRIMARY',
+        fallbackScope: 'NONE',
       });
       if (!submitted.invalidSelection) return submitted.result;
 
@@ -1497,7 +1497,13 @@ export class OnlineMatchService {
       break;
     }
 
-    const fallback = createConservativeAuditableResult(prepared.acquired.contract);
+    const permanentlyDegrade = shouldPermanentlyDegradeAfterModelFailure(attempts);
+    const fallback = createConservativeAuditableResult(
+      prepared.acquired.contract,
+      permanentlyDegrade
+        ? 'MODEL_FAILURE_CONSERVATIVE_FALLBACK'
+        : 'MODEL_FAILURE_CURRENT_DECISION_FALLBACK'
+    );
     if (!fallback) {
       return this.terminatePreparedModelFailure(
         registration,
@@ -1515,7 +1521,8 @@ export class OnlineMatchService {
           'CONSERVATIVE_FALLBACK'
         ),
         modelContextAttempts,
-        strategyMode: 'CONSERVATIVE_FALLBACK',
+        strategyMode: permanentlyDegrade ? 'CONSERVATIVE_FALLBACK' : 'PRIMARY',
+        fallbackScope: permanentlyDegrade ? 'MATCH' : 'CURRENT_DECISION',
       })
     ).result;
   }
@@ -1527,6 +1534,7 @@ export class OnlineMatchService {
     readonly modelInvocation: AiModelInvocationAudit | null;
     readonly modelContextAttempts: readonly AiBattleDebugModelAttemptContext[];
     readonly strategyMode: MachineStrategyMode;
+    readonly fallbackScope: MachineDecisionFallbackScope;
   }): Promise<{
     readonly result: MachineDecisionScheduleResult;
     readonly invalidSelection: boolean;
@@ -1545,7 +1553,7 @@ export class OnlineMatchService {
           invalidSelection: false,
         };
       }
-      if (input.strategyMode === 'CONSERVATIVE_FALLBACK') {
+      if (input.fallbackScope === 'MATCH') {
         input.prepared.strategyRuntime.modelMode = 'CONSERVATIVE_FALLBACK';
       }
       const before = game;
@@ -1584,6 +1592,7 @@ export class OnlineMatchService {
             withLastModelInvocationOutcome(input.modelInvocation, 'INVALID_SELECTION'),
             withLastModelContextOutcome(input.modelContextAttempts, 'INVALID_SELECTION'),
             input.strategyMode,
+            input.fallbackScope,
             'REJECTED'
           );
           return { result: 'RETRY' as const, invalidSelection: true };
@@ -1601,6 +1610,7 @@ export class OnlineMatchService {
             input.modelInvocation,
             input.modelContextAttempts,
             input.strategyMode,
+            input.fallbackScope,
             'STALE'
           );
           return { result: 'RETRY' as const, invalidSelection: false };
@@ -1612,6 +1622,7 @@ export class OnlineMatchService {
           input.modelInvocation,
           input.modelContextAttempts,
           input.strategyMode,
+          input.fallbackScope,
           'REJECTED'
         );
         const terminated = await this.terminateMachineDecisionFailureInCriticalSection(
@@ -1634,6 +1645,7 @@ export class OnlineMatchService {
         input.modelInvocation,
         input.modelContextAttempts,
         input.strategyMode,
+        input.fallbackScope,
         'ACCEPTED'
       );
       input.prepared.strategyRuntime.history.recordAcceptedDecision(
@@ -1643,12 +1655,19 @@ export class OnlineMatchService {
       const after = match.session.state;
       if (!after) return { result: 'BLOCKED' as const, invalidSelection: false };
 
-      if (input.strategyMode === 'CONSERVATIVE_FALLBACK') {
+      if (input.fallbackScope === 'MATCH') {
         this.appendMachineSystemNotice(
           match,
           'AI_FALLBACK_ENABLED',
           `ai-fallback-enabled:${AI_MODEL_DECISION_POLICY_VERSION}`,
           'AI 暂时无法正常选择，本局接下来会只做稳妥操作继续。'
+        );
+      } else if (input.fallbackScope === 'CURRENT_DECISION') {
+        this.appendMachineSystemNotice(
+          match,
+          'AI_DECISION_FALLBACK',
+          `ai-decision-fallback:${String(input.prepared.context.observation.authorityRevision)}`,
+          'AI 这一步无法正常选择，已改用稳妥操作；下一步仍会继续尝试正常思考。'
         );
       }
       const previous =
@@ -1839,15 +1858,12 @@ export class OnlineMatchService {
     modelInvocation: AiModelInvocationAudit | null,
     modelContextAttempts: readonly AiBattleDebugModelAttemptContext[],
     strategyMode: MachineStrategyMode,
+    fallbackScope: MachineDecisionFallbackScope,
     executionStatus: AiBattleDebugExecutionStatus
   ): void {
     if (!match.aiDebugTrace) return;
     const source: AiBattleDebugDecisionSource =
-      strategyMode === 'CONSERVATIVE_FALLBACK'
-        ? 'CONSERVATIVE_FALLBACK'
-        : modelInvocation
-          ? 'MODEL'
-          : 'RULE';
+      fallbackScope !== 'NONE' ? 'CONSERVATIVE_FALLBACK' : modelInvocation ? 'MODEL' : 'RULE';
     appendAiBattleDebugTraceEntry(match.aiDebugTrace, {
       createdAt: this.now(),
       stage: 'COMPLETED',
@@ -4701,19 +4717,41 @@ export const onlineMatchService = new OnlineMatchService({
 });
 
 function createConservativeAuditableResult(
-  contract: AiDecisionContract
+  contract: AiDecisionContract,
+  reasonCode = 'MODEL_FAILURE_CONSERVATIVE_FALLBACK'
 ): AuditableAiDecisionResult | null {
   const selected = selectConservativeDecision(contract);
   return selected.ok
     ? {
         policyVersion: selected.policyVersion,
         tier: 'DETERMINISTIC',
-        reasonCode: 'MODEL_FAILURE_CONSERVATIVE_FALLBACK',
+        reasonCode,
         summary: 'Use the certified conservative choice after model unavailability.',
         consideredIds: [],
         selection: selected.selection,
       }
     : null;
+}
+
+function buildModelDecisionSummary(output: AiModelDecisionOutput): string {
+  if (output.tradeoff && output.nextPlan) {
+    return `${output.tradeoff} 下一步：${output.nextPlan}`;
+  }
+  if (output.tradeoff) return output.tradeoff;
+  if (output.nextPlan) return `模型已选择当前合法操作。下一步：${output.nextPlan}`;
+  return '模型已选择当前合法操作。';
+}
+
+function shouldPermanentlyDegradeAfterModelFailure(
+  attempts: readonly AiModelInvocationAttemptAudit[]
+): boolean {
+  const outcome = attempts.at(-1)?.outcome;
+  return (
+    outcome === 'TIMEOUT' ||
+    outcome === 'PROVIDER_RETRYABLE' ||
+    outcome === 'PROVIDER_FATAL' ||
+    outcome === 'BUDGET_REJECTED'
+  );
 }
 
 function collectModelConsideredIds(context: AiStrategyContext): readonly string[] {
@@ -4731,7 +4769,7 @@ function collectModelConsideredIds(context: AiStrategyContext): readonly string[
 
 function withModelAttemptOutcome(
   attempt: AiModelInvocationAttemptAudit,
-  outcome: 'INVALID_JSON' | 'INVALID_SCHEMA' | 'INVALID_SELECTION' | 'INVALID_FACT_REFERENCE'
+  outcome: 'INVALID_JSON' | 'INVALID_SCHEMA' | 'INVALID_SELECTION'
 ): AiModelInvocationAttemptAudit {
   return { ...attempt, outcome, usage: { ...attempt.usage } };
 }

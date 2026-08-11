@@ -1,5 +1,7 @@
 import type { AiBattlePhaseZeroDeckKey } from './phase-zero-baseline.js';
+import type { DeckConfig } from '../../application/game-service.js';
 import type { AiObservation } from './ai-observation.js';
+import { buildAiDeckKnowledge, type AiDeckKnowledge } from './deck-knowledge.js';
 import {
   AI_COMPACT_RULES,
   getAiDeckPlaybook,
@@ -11,13 +13,14 @@ import {
   type AiSelectedHistoryItem,
 } from './strategy-history.js';
 
-export const AI_STRATEGY_CONTEXT_SCHEMA_VERSION = 'ai-battle.strategy-context/v1' as const;
+export const AI_STRATEGY_CONTEXT_SCHEMA_VERSION = 'ai-battle.strategy-context/v3' as const;
 
 export interface AiStrategyContext {
   readonly schemaVersion: typeof AI_STRATEGY_CONTEXT_SCHEMA_VERSION;
   readonly knowledge: {
     readonly compactRules: AiCompactRules;
     readonly deckPlaybook: AiDeckPlaybook;
+    readonly deck: AiDeckKnowledge;
   };
   readonly observation: AiObservation;
   readonly selectedHistory: readonly AiSelectedHistoryItem[];
@@ -27,6 +30,7 @@ export interface BuildAiStrategyContextInput {
   readonly observation: AiObservation;
   readonly deckKey: AiBattlePhaseZeroDeckKey;
   readonly deckContentHash: string;
+  readonly deck: DeckConfig;
   readonly selectedHistory?: readonly AiSelectedHistoryItem[];
 }
 
@@ -66,6 +70,11 @@ export function buildAiStrategyContext(input: BuildAiStrategyContextInput): AiSt
     knowledge: {
       compactRules: AI_COMPACT_RULES,
       deckPlaybook: playbook,
+      deck: buildAiDeckKnowledge({
+        deckKey: input.deckKey,
+        contentHash: input.deckContentHash,
+        deck: input.deck,
+      }),
     },
     observation: input.observation,
     selectedHistory: selectedHistory.map((item) => ({

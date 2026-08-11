@@ -210,6 +210,10 @@ export interface ViewFrontCardInfo {
   readonly nameCn?: string;
   readonly cardType: CardType;
   readonly cost?: number;
+  /** Current effective cost while this member is on stage. */
+  readonly effectiveCost?: number;
+  /** Printed BLADE off stage; current effective BLADE while on stage. */
+  readonly blade?: number;
   readonly score?: number;
   readonly requiredHearts?: ViewHeartRequirement;
   readonly hearts?: readonly ViewHeartIcon[];

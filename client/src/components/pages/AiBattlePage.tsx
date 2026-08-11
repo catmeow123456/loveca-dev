@@ -13,11 +13,13 @@ import {
 } from 'lucide-react';
 import {
   createAiBattle,
+  fetchCurrentAiBattle,
   fetchAiBattlePublicConfig,
-  storeAiBattleMatchId,
   type AiBattleDeckKey,
   type AiBattlePublicConfig,
+  type AiBattleView,
 } from '@/lib/aiBattleClient';
+import { ApiClientError } from '@/lib/apiClient';
 import { useGameStore } from '@/store/gameStore';
 import type { Seat } from '@game/online';
 
@@ -48,6 +50,8 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
   const [humanDeckKey, setHumanDeckKey] = useState<AiBattleDeckKey>('MUSE_STARTER');
   const [aiDeckKey, setAiDeckKey] = useState<AiBattleDeckKey>('GREEN_HASUNOSORA_B6');
   const [aiSeat, setAiSeat] = useState<Seat>('SECOND');
+  const [activeBattle, setActiveBattle] = useState<AiBattleView | null>(null);
+  const [isCheckingActiveBattle, setIsCheckingActiveBattle] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
@@ -61,6 +65,24 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
         if (!cancelled) {
           setConfigError(error instanceof Error ? error.message : '读取 AI 对战配置失败');
         }
+      });
+    void fetchCurrentAiBattle()
+      .then((battle) => {
+        if (cancelled) return;
+        setActiveBattle(battle);
+        if (battle) {
+          setHumanDeckKey(battle.humanDeckKey);
+          setAiDeckKey(battle.aiDeckKey);
+          setAiSeat(battle.systemSeat);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setStartError(error instanceof Error ? error.message : '检查当前 AI 对局失败');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsCheckingActiveBattle(false);
       });
     return () => {
       cancelled = true;
@@ -77,23 +99,51 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
     [aiDeckKey, decks]
   );
   const unavailable = config !== null && !config.available;
+  const visibleError =
+    startError ??
+    (activeBattle
+      ? null
+      : (configError ??
+        (unavailable ? 'AI 对战暂未开放。服务端配置完成后可以从这里直接开局。' : null)));
+
+  const enterBattle = async (battle: AiBattleView) => {
+    connectRemoteSession({
+      source: 'AI_BATTLE',
+      matchId: battle.matchId,
+      seat: battle.humanSeat,
+      playerId: battle.snapshot.playerId,
+    });
+    await applyRemoteSnapshot(battle.snapshot);
+    onGameStart();
+  };
 
   const startBattle = async () => {
-    if (isStarting || unavailable) return;
+    if (isStarting || isCheckingActiveBattle || (!activeBattle && unavailable)) return;
     setIsStarting(true);
     setStartError(null);
     try {
+      if (activeBattle) {
+        await enterBattle(activeBattle);
+        return;
+      }
       const battle = await createAiBattle({ humanDeckKey, aiDeckKey, aiSeat });
-      storeAiBattleMatchId(battle.matchId);
-      connectRemoteSession({
-        source: 'AI_BATTLE',
-        matchId: battle.matchId,
-        seat: battle.humanSeat,
-        playerId: battle.snapshot.playerId,
-      });
-      await applyRemoteSnapshot(battle.snapshot);
-      onGameStart();
+      await enterBattle(battle);
     } catch (error) {
+      if (error instanceof ApiClientError && error.code === 'AI_BATTLE_ALREADY_ACTIVE') {
+        try {
+          const battle = await fetchCurrentAiBattle();
+          if (battle) {
+            setActiveBattle(battle);
+            await enterBattle(battle);
+            return;
+          }
+        } catch (recoveryError) {
+          setStartError(
+            recoveryError instanceof Error ? recoveryError.message : '返回当前 AI 对局失败'
+          );
+          return;
+        }
+      }
       setStartError(error instanceof Error ? error.message : '创建 AI 对局失败');
     } finally {
       setIsStarting(false);
@@ -137,7 +187,7 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
                 对手是由系统操作的 Loveca AI。它只能选择当前允许的操作；AI
-                暂时无法正常行动时，本局会明确提示并改用稳妥打法。
+                这一步无法给出可用选择时会明确提示并稳妥处理，模型服务不可用时本局改用稳妥打法。
               </p>
             </div>
             <div className="rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_7%,var(--bg-surface))] px-4 py-3">
@@ -167,6 +217,7 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
                   decks={decks}
                   selected={humanDeckKey}
                   onSelect={setHumanDeckKey}
+                  disabled={activeBattle !== null}
                 />
 
                 <div className="relative flex min-h-16 items-center justify-center border-y border-[var(--border-subtle)] bg-[var(--bg-overlay)] md:min-h-full md:border-x md:border-y-0">
@@ -182,6 +233,7 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
                   decks={decks}
                   selected={aiDeckKey}
                   onSelect={setAiDeckKey}
+                  disabled={activeBattle !== null}
                 />
               </div>
             </motion.section>
@@ -201,14 +253,26 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
                   label="我先手"
                   detail="AI 后手"
                   onClick={() => setAiSeat('SECOND')}
+                  disabled={activeBattle !== null}
                 />
                 <SeatButton
                   selected={aiSeat === 'FIRST'}
                   label="AI 先手"
                   detail="我后手"
                   onClick={() => setAiSeat('FIRST')}
+                  disabled={activeBattle !== null}
                 />
               </div>
+
+              {activeBattle ? (
+                <div
+                  role="status"
+                  className="mt-4 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-success)_35%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-success)_8%,var(--bg-surface))] px-3 py-2 text-xs leading-5 text-[var(--text-secondary)]"
+                >
+                  检测到当前账号有一局尚未离开的 AI 对局（{activeBattle.roomCode}
+                  ）。卡组和先后手已锁定，可以直接返回继续。
+                </div>
+              ) : null}
 
               <div className="my-4 border-t border-[var(--border-subtle)]" />
 
@@ -218,27 +282,39 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
                 <SummaryRow label="AI 版本" value={config?.opponent.modelId ?? '读取中…'} mono />
               </div>
 
-              {configError || unavailable || startError ? (
+              {visibleError ? (
                 <div
                   role="alert"
                   className="mt-4 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-error)_8%,var(--bg-surface))] px-3 py-2 text-xs leading-5 text-[var(--semantic-error)]"
                 >
-                  {startError ??
-                    configError ??
-                    'AI 对战暂未开放。服务端配置完成后可以从这里直接开局。'}
+                  {visibleError}
                 </div>
               ) : null}
 
               <button
                 type="button"
                 onClick={() => void startBattle()}
-                disabled={isStarting || config === null || unavailable}
+                disabled={
+                  isStarting ||
+                  isCheckingActiveBattle ||
+                  (!activeBattle && (config === null || unavailable))
+                }
                 className="button-primary mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-55"
               >
-                {isStarting ? (
+                {isCheckingActiveBattle ? (
                   <>
                     <LoaderCircle size={17} className="animate-spin" />
-                    正在建立对局
+                    正在检查已有对局
+                  </>
+                ) : isStarting ? (
+                  <>
+                    <LoaderCircle size={17} className="animate-spin" />
+                    {activeBattle ? '正在返回对局' : '正在建立对局'}
+                  </>
+                ) : activeBattle ? (
+                  <>
+                    返回当前 AI 对局
+                    <ChevronRight size={17} />
                   </>
                 ) : (
                   <>
@@ -259,7 +335,7 @@ export function AiBattlePage({ onBack, onGameStart }: AiBattlePageProps) {
             <Assurance
               icon={Sparkles}
               title="AI 出错也能继续"
-              detail="没有及时行动或连续两次选错后，本局改用稳妥打法。"
+              detail="连续两次选错只稳妥处理当前步骤；模型服务不可用时本局改用稳妥打法。"
             />
             <Assurance
               icon={BrainCircuit}
@@ -279,12 +355,14 @@ function DeckChooser({
   decks,
   selected,
   onSelect,
+  disabled,
 }: {
   readonly eyebrow: string;
   readonly icon: typeof Bot;
   readonly decks: AiBattlePublicConfig['decks'];
   readonly selected: AiBattleDeckKey;
   readonly onSelect: (deckKey: AiBattleDeckKey) => void;
+  readonly disabled: boolean;
 }) {
   return (
     <div className="p-4 sm:p-5">
@@ -301,7 +379,8 @@ function DeckChooser({
               type="button"
               aria-pressed={active}
               onClick={() => onSelect(deck.deckKey)}
-              className={`flex min-h-[84px] w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition ${
+              disabled={disabled}
+              className={`flex min-h-[84px] w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${
                 active
                   ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_58%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-surface))] shadow-[inset_3px_0_0_var(--accent-primary)]'
                   : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)]'
@@ -337,18 +416,21 @@ function SeatButton({
   label,
   detail,
   onClick,
+  disabled,
 }: {
   readonly selected: boolean;
   readonly label: string;
   readonly detail: string;
   readonly onClick: () => void;
+  readonly disabled: boolean;
 }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
       onClick={onClick}
-      className={`rounded-lg border px-3 py-2 text-left transition ${
+      disabled={disabled}
+      className={`rounded-lg border px-3 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-65 ${
         selected
           ? 'border-[var(--accent-primary)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,var(--bg-surface))]'
           : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)]'

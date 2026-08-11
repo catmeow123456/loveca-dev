@@ -14,7 +14,7 @@ import type {
 } from '../../online/index.js';
 import type { SlotPosition } from '../../shared/types/enums.js';
 
-export const AI_OBSERVATION_SCHEMA_VERSION = 'ai-battle.observation/v1' as const;
+export const AI_OBSERVATION_SCHEMA_VERSION = 'ai-battle.observation/v3' as const;
 
 const STAGE_ZONE_SUFFIXES = ['MEMBER_LEFT', 'MEMBER_CENTER', 'MEMBER_RIGHT'] as const;
 
@@ -23,6 +23,8 @@ export interface AiObservedCard {
   readonly name: string;
   readonly cardType: string;
   readonly cost?: number;
+  readonly effectiveCost?: number;
+  readonly blade?: number;
   readonly score?: number;
   readonly text?: string;
   readonly orientation?: string;
@@ -59,7 +61,28 @@ export interface AiObservedSeat {
 export interface AiObservedCandidate {
   readonly candidateId: string;
   readonly card?: AiObservedCard;
+  readonly location?: AiObservedCardLocation;
   readonly hidden: boolean;
+}
+
+export interface AiObservedCardLocation {
+  readonly ownerSeat: Seat | null;
+  readonly zoneKey: string;
+  readonly slot?: string;
+  readonly role?: 'PRIMARY' | 'ENERGY_BELOW' | 'MEMBER_BELOW';
+}
+
+export interface AiObservedEffectSource {
+  readonly controllerSeat: Seat | null;
+  /**
+   * Present only when the source is currently FRONT in this seat's projected
+   * view. It never restores a hidden card identity from authority state.
+   */
+  readonly card?: AiObservedCard;
+  /** A projection-owned snapshot that is legal only after the source was public. */
+  readonly publicDisplayCardCode?: string;
+  /** Present only together with a currently visible source card. */
+  readonly location?: AiObservedCardLocation;
 }
 
 export interface AiObservedAction {
@@ -105,6 +128,7 @@ export interface AiObservedDecision {
   readonly candidates: readonly AiObservedCandidate[];
   readonly options: readonly AiDecisionOption[];
   readonly actions: readonly AiObservedAction[];
+  readonly effectSource?: AiObservedEffectSource;
   readonly input?: AiObservedDecisionInput;
   readonly abilityId?: string;
   readonly stepId?: string;
@@ -299,6 +323,8 @@ function observeFrontCard(view: PlayerViewState, objectId: string): AiObservedCa
     name: front.nameCn ?? front.nameJp ?? front.cardCode,
     cardType: front.cardType,
     cost: front.cost,
+    effectiveCost: front.effectiveCost,
+    blade: front.blade,
     score: front.score,
     text: front.cardTextCn ?? front.cardTextJp,
     orientation: object.orientation,
@@ -354,6 +380,7 @@ function observeDecision(
         ...common,
         abilityId: contract.abilityId,
         stepId: contract.stepId,
+        effectSource: observeActiveEffectSource(view),
         effectText: view.activeEffect?.effectText,
         stepText: view.activeEffect?.stepText,
         input: observeEffectInput(contract.input),
@@ -384,11 +411,59 @@ function observeCandidate(
 ): AiObservedCandidate {
   const objectId = candidateObjects.get(candidate.candidateId);
   const card = objectId ? observeFrontCard(view, objectId) : undefined;
+  const location = objectId && card ? findVisibleObjectLocation(view, objectId) : undefined;
   return {
     candidateId: candidate.candidateId,
     card,
+    ...(location ? { location } : {}),
     hidden: card === undefined,
   };
+}
+
+function observeActiveEffectSource(view: PlayerViewState): AiObservedEffectSource | undefined {
+  const effect = view.activeEffect;
+  if (!effect) return undefined;
+  const card = observeFrontCard(view, effect.sourceObjectId);
+  const location = card ? findVisibleObjectLocation(view, effect.sourceObjectId) : undefined;
+  return {
+    controllerSeat: effect.controllerSeat,
+    ...(card ? { card } : {}),
+    ...(location ? { location } : {}),
+    ...(effect.sourceCardDisplayCode
+      ? { publicDisplayCardCode: effect.sourceCardDisplayCode }
+      : {}),
+  };
+}
+
+function findVisibleObjectLocation(
+  view: PlayerViewState,
+  objectId: string
+): AiObservedCardLocation | undefined {
+  for (const [rawZoneKey, zone] of Object.entries(view.table.zones)) {
+    const seatPrefix = zone.ownerSeat ? `${zone.ownerSeat}_` : '';
+    const zoneKey = rawZoneKey.startsWith(seatPrefix)
+      ? rawZoneKey.slice(seatPrefix.length)
+      : zone.zone;
+    if (zone.objectIds?.includes(objectId)) {
+      return { ownerSeat: zone.ownerSeat ?? null, zoneKey };
+    }
+    for (const [slot, candidateObjectId] of Object.entries(zone.slotMap ?? {})) {
+      if (candidateObjectId === objectId) {
+        return { ownerSeat: zone.ownerSeat ?? null, zoneKey, slot, role: 'PRIMARY' };
+      }
+    }
+    for (const [slot, objectIds] of Object.entries(zone.overlays ?? {})) {
+      if (objectIds.includes(objectId)) {
+        return { ownerSeat: zone.ownerSeat ?? null, zoneKey, slot, role: 'ENERGY_BELOW' };
+      }
+    }
+    for (const [slot, objectIds] of Object.entries(zone.memberBelow ?? {})) {
+      if (objectIds.includes(objectId)) {
+        return { ownerSeat: zone.ownerSeat ?? null, zoneKey, slot, role: 'MEMBER_BELOW' };
+      }
+    }
+  }
+  return undefined;
 }
 
 function getContractCandidates(contract: AiDecisionContract): readonly AiDecisionCandidate[] {

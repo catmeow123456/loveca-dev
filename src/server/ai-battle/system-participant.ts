@@ -3,6 +3,7 @@ import {
   AI_DECISION_CONTRACT_SCHEMA_VERSION,
 } from '../../application/ai-decisions/index.js';
 import { AI_EXPLAINABLE_DECISION_POLICY_VERSION } from './explainable-decision-policy.js';
+import { AI_DECK_KNOWLEDGE_SCHEMA_VERSION } from './deck-knowledge.js';
 import {
   AI_MODEL_DECISION_POLICY_VERSION,
   AI_MODEL_INVOCATION_POLICY_VERSION,
@@ -26,7 +27,7 @@ import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
 import { AI_COMPACT_RULES_VERSION, getAiDeckPlaybook } from './strategy-knowledge.js';
 
 export const AI_SYSTEM_IDENTITY_SCHEMA_VERSION =
-  'ai-battle.system-participant-identity/v3' as const;
+  'ai-battle.system-participant-identity/v7' as const;
 export const AI_PHASE_THREE_PREGAME_POLICY_VERSION = 'ai-battle.phase-three-pregame/v1' as const;
 export const AI_PHASE_THREE_LIFECYCLE_POLICY_VERSION =
   'ai-battle.phase-three-lifecycle/v1' as const;
@@ -55,6 +56,7 @@ export interface AiSystemParticipantBinding {
   readonly decisionContractVersion: typeof AI_DECISION_CONTRACT_SCHEMA_VERSION;
   readonly commandAdapterVersion: typeof AI_DECISION_COMMAND_ADAPTER_VERSION;
   readonly compactRulesVersion: string;
+  readonly deckKnowledgeVersion: string;
   readonly playbookVersion: string;
   readonly strategyContextVersion: string;
   readonly policyVersion: string;
@@ -86,6 +88,7 @@ export function createAiSystemParticipantBinding(
     decisionContractVersion: AI_DECISION_CONTRACT_SCHEMA_VERSION,
     commandAdapterVersion: AI_DECISION_COMMAND_ADAPTER_VERSION,
     compactRulesVersion: AI_COMPACT_RULES_VERSION,
+    deckKnowledgeVersion: AI_DECK_KNOWLEDGE_SCHEMA_VERSION,
     playbookVersion: playbook.version,
     strategyContextVersion: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
     policyVersion: AI_EXPLAINABLE_DECISION_POLICY_VERSION,

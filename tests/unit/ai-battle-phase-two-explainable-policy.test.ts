@@ -5,6 +5,7 @@ import type {
   AiObservedDecision,
   AiObservedZone,
 } from '../../src/server/ai-battle/ai-observation';
+import { AI_OBSERVATION_SCHEMA_VERSION } from '../../src/server/ai-battle/ai-observation';
 import {
   AI_EXPLAINABLE_DECISION_POLICY_VERSION,
   selectExplainableDecision,
@@ -15,6 +16,7 @@ import {
   type AiStrategyContext,
 } from '../../src/server/ai-battle/strategy-context';
 import { SlotPosition } from '../../src/shared/types/enums';
+import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
 
 function context(
   decision: AiObservedDecision,
@@ -26,7 +28,7 @@ function context(
     zones: [],
   } as const;
   const observation: AiObservation = {
-    schemaVersion: 'ai-battle.observation/v1',
+    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
     decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
     commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
     authorityRevision: 3,
@@ -53,6 +55,7 @@ function context(
     observation,
     deckKey: 'GREEN_HASUNOSORA_B6',
     deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.GREEN_HASUNOSORA_B6.contentHash,
+    deck: loadAiBattlePhaseZeroRuntimeDeck('GREEN_HASUNOSORA_B6'),
   });
 }
 
@@ -307,7 +310,7 @@ describe('AI battle Phase 2 explainable decision policy', () => {
     });
   });
 
-  it('does not reopen a special member play that the current policy will cancel', () => {
+  it('leaves special member play to the model with a conservative cancel witness', () => {
     const result = selectExplainableDecision(
       context({
         ...BASE_DECISION,
@@ -337,9 +340,45 @@ describe('AI battle Phase 2 explainable decision policy', () => {
 
     expect(result).toMatchObject({
       ok: true,
-      tier: 'DETERMINISTIC',
-      reasonCode: 'END_MAIN_PHASE_WITHOUT_HIGHER_VALUE_ACTION',
+      tier: 'HEURISTIC',
+      reasonCode: 'EVALUATE_SPECIAL_MEMBER_PLAY',
       selection: { kind: 'SELECT_MAIN_PHASE_ACTION', actionId: 'end' },
+    });
+  });
+
+  it('leaves optional card selections to the model instead of declining them generically', () => {
+    const result = selectExplainableDecision(
+      context({
+        ...BASE_DECISION,
+        kind: 'ACTIVE_EFFECT',
+        abilityId: 'optional-search',
+        stepId: 'SELECT_CARD',
+        candidates: [
+          {
+            candidateId: 'member-1',
+            hidden: false,
+            card: {
+              cardCode: 'PL!TEST-OPTIONAL',
+              name: '可选目标',
+              cardType: 'MEMBER',
+              cost: 4,
+            },
+          },
+        ],
+        input: {
+          kind: 'CARD_SELECTION',
+          minSelections: 0,
+          maxSelections: 1,
+          canSkip: true,
+        },
+      })
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      tier: 'HEURISTIC',
+      reasonCode: 'EVALUATE_OPTIONAL_CARD_SELECTION',
+      selection: { kind: 'SELECT_EFFECT_CARDS', candidateIds: [] },
     });
   });
 

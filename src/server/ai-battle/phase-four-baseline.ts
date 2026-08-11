@@ -16,18 +16,19 @@ export const AI_BATTLE_PHASE_FOUR_STATUS = 'COMPLETE' as const;
 
 export const AI_BATTLE_PHASE_FOUR_COMPONENT_STATUS = {
   providerNeutralRequestEnvelope: 'IMPLEMENTED_VERSIONED_ALLOWLIST_TO_SEMANTIC_CONTEXT_ONLY',
-  strictStructuredOutput: 'IMPLEMENTED_JSON_SCHEMA_FACT_REFS_TRADEOFF_AND_PLAN',
+  strictStructuredOutput: 'IMPLEMENTED_JSON_SCHEMA_SELECTION_WITH_OPTIONAL_SUMMARY',
   authoritySelectionValidation: 'IMPLEMENTED_REUSES_TYPED_CONTRACT_VALIDATOR',
   promptInjectionBoundary: 'IMPLEMENTED_CONTEXT_DATA_ONLY_AND_FORBIDDEN_KEYS',
-  repairEnvelope: 'IMPLEMENTED_ONE_BOUNDED_MACHINE_CODE_ONLY',
+  repairEnvelope: 'IMPLEMENTED_BOUNDED_CODE_WITH_PLAIN_CORRECTION',
   requestHash: 'IMPLEMENTED_CANONICAL_SHA256',
   serverModelProvider: 'IMPLEMENTED_FIXED_ALIBABA_DASHSCOPE_PROFILE',
   asyncDecisionLifecycle: 'IMPLEMENTED_PROVIDER_WAIT_OUTSIDE_MATCH_LOCK_WITH_REVALIDATION',
   timeoutRetryCancellation: 'IMPLEMENTED_12S_TWO_ATTEMPTS_AND_MATCH_CANCELLATION',
   invocationAudit: 'IMPLEMENTED_SANITIZED_ATOMIC_DECISION_FACTS',
   budgetAndRateLimits: 'IMPLEMENTED_CONCURRENCY_RATE_REQUEST_TOKEN_AND_COST_LIMITS',
-  fallbackSwitchNotice: 'IMPLEMENTED_ONE_NOTICE_AND_WHOLE_MATCH_CONSERVATIVE_SWITCH',
-  promptModelVersionMatchBinding: 'IMPLEMENTED_SYSTEM_IDENTITY_V3',
+  fallbackSwitchNotice:
+    'IMPLEMENTED_PROTOCOL_FAILURE_CURRENT_DECISION_ONLY_PROVIDER_FAILURE_MATCH_SWITCH',
+  promptModelVersionMatchBinding: 'IMPLEMENTED_SYSTEM_IDENTITY_V7',
   playerControlledEntry: 'IMPLEMENTED_AUTHENTICATED_FIXED_DECK_ENTRY',
   endToEndModelPlayout: 'IMPLEMENTED_FULL_RUNTIME_PLAYOUT_FIXED_REAL_SCENARIOS_AND_BROWSER_HANDOFF',
 } as const;
@@ -59,7 +60,8 @@ export const AI_BATTLE_PHASE_FOUR_RUNTIME_BOUNDARY = {
   maximumProtocolAttempts: 2,
   providerWaitHoldsMatchCriticalSection: false,
   mechanicalDecisionLayersRemainActive: true,
-  confirmedModelFailureSwitchesWholeMatchToConservativePolicy: true,
+  protocolFailureSwitchesWholeMatchToConservativePolicy: false,
+  providerFailureSwitchesWholeMatchToConservativePolicy: true,
   productEntryAuthenticatedPublic: true,
   publicTableAiReplacementEnabled: false,
 } as const;
@@ -73,7 +75,7 @@ export const AI_BATTLE_PHASE_FOUR_CURRENT_EVIDENCE = {
   browserArtifact: 'output/playwright/phase4-ai-battle-shared-board.png',
   typecheckCommand: 'pnpm typecheck:all',
   expectedHiddenAuthorityIdentifiers: 0,
-  expectedUnknownOutputFieldsAccepted: 0,
+  expectedUnknownOutputFieldsAcceptedAndDiscarded: true,
   expectedRawRepairReflections: 0,
   expectedAuthorityCommandRejections: 0,
   fixedRealProviderScenarios: 4,

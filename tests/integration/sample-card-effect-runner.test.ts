@@ -1817,10 +1817,11 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
       source: 'WAITING_ROOM',
       destination: 'HAND',
-      minCount: 0,
+      minCount: 1,
       maxCount: 1,
-      optional: true,
+      optional: false,
     });
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(eliCardId);
     expect(session.state?.activeEffect?.selectableCardIds).toContain(targetMemberCardId);
 
@@ -2109,10 +2110,11 @@ describe('sample card effect runner', () => {
       expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
         source: 'WAITING_ROOM',
         destination: 'HAND',
-        minCount: 0,
+        minCount: 1,
         maxCount: 1,
-        optional: true,
+        optional: false,
       });
+      expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
       expect(session.state?.players[0].waitingRoom.cardIds).toContain(rinCardId);
       expect(session.state?.activeEffect?.selectableCardIds).toEqual([targetLiveCardId]);
 
@@ -3659,10 +3661,11 @@ describe('sample card effect runner', () => {
       expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
         source: 'WAITING_ROOM',
         destination: 'HAND',
-        minCount: 0,
+        minCount: 1,
         maxCount: 1,
-        optional: true,
+        optional: false,
       });
+      expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
       expect(session.state?.players[0].waitingRoom.cardIds).toContain(pb1CardId);
       expect(session.state?.activeEffect?.selectableCardIds).toContain(pb1CardId);
       expect(session.state?.activeEffect?.selectableCardIds).toContain(targetMemberCardId);
@@ -3753,10 +3756,11 @@ describe('sample card effect runner', () => {
     expect(session.state?.activeEffect?.metadata?.zoneSelection).toEqual({
       source: 'WAITING_ROOM',
       destination: 'HAND',
-      minCount: 0,
+      minCount: 1,
       maxCount: 1,
-      optional: true,
+      optional: false,
     });
+    expect(session.state?.activeEffect?.canSkipSelection).toBe(false);
     expect(session.state?.players[0].waitingRoom.cardIds).toContain(kotoriCardId);
     expect(session.state?.activeEffect?.selectableCardIds).toEqual([targetLiveCardId]);
 

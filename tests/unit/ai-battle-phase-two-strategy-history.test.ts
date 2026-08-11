@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { AiObservation } from '../../src/server/ai-battle/ai-observation';
+import {
+  AI_OBSERVATION_SCHEMA_VERSION,
+  type AiObservation,
+} from '../../src/server/ai-battle/ai-observation';
 import {
   AI_SELECTED_HISTORY_SCHEMA_VERSION,
   createAiSelectedHistoryTracker,
@@ -31,7 +34,7 @@ function observation(
   ] as const;
   const firstStageCards = options.firstStageCards ?? [];
   return {
-    schemaVersion: 'ai-battle.observation/v1',
+    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
     decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
     commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
     authorityRevision,

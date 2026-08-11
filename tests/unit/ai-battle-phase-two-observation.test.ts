@@ -239,10 +239,12 @@ describe('AI battle Phase 2 observation boundary', () => {
             {
               "candidateId": "candidate-1",
               "card": {
+                "blade": 1,
                 "bladeHearts": undefined,
                 "cardCode": "PL!TEST-001",
                 "cardType": "MEMBER",
                 "cost": 3,
+                "effectiveCost": undefined,
                 "enteredStageThisTurn": undefined,
                 "faceState": undefined,
                 "hearts": [
@@ -262,14 +264,20 @@ describe('AI battle Phase 2 observation boundary', () => {
                 "text": "自己的手牌成员的公开卡文",
               },
               "hidden": false,
+              "location": {
+                "ownerSeat": "FIRST",
+                "zoneKey": "HAND",
+              },
             },
             {
               "candidateId": "candidate-2",
               "card": {
+                "blade": undefined,
                 "bladeHearts": undefined,
                 "cardCode": "PL!TEST-LIVE-001",
                 "cardType": "LIVE",
                 "cost": undefined,
+                "effectiveCost": undefined,
                 "enteredStageThisTurn": undefined,
                 "faceState": undefined,
                 "hearts": undefined,
@@ -289,6 +297,10 @@ describe('AI battle Phase 2 observation boundary', () => {
                 "text": undefined,
               },
               "hidden": false,
+              "location": {
+                "ownerSeat": "FIRST",
+                "zoneKey": "HAND",
+              },
             },
           ],
           "decisionRef": "current-decision",
@@ -319,7 +331,7 @@ describe('AI battle Phase 2 observation boundary', () => {
           "PL!TEST-001",
           "PL!TEST-LIVE-001",
         ],
-        "schemaVersion": "ai-battle.observation/v1",
+        "schemaVersion": "ai-battle.observation/v3",
         "turn": {
           "activeSeat": "FIRST",
           "count": 0,
@@ -370,6 +382,7 @@ describe('AI battle Phase 2 observation boundary', () => {
       id: 'secret-effect-runtime-id',
       abilityId: 'public-test-ability',
       sourceCardId: source.instanceId,
+      sourceCardDisplayCode: source.data.cardCode,
       controllerId: AI_PLAYER,
       effectText: '从里侧候选中选择 1 张。',
       stepId: 'BLIND_PICK',
@@ -400,11 +413,26 @@ describe('AI battle Phase 2 observation boundary', () => {
       },
     }));
 
-    const { observation } = buildObservation(state);
+    const { view, contract, observation } = buildObservation(state);
     expect(observation.decision).toMatchObject({
       kind: 'ACTIVE_EFFECT',
       abilityId: 'public-test-ability',
       stepId: 'BLIND_PICK',
+      effectSource: {
+        controllerSeat: 'FIRST',
+        card: {
+          cardCode: 'PL!TEST-SOURCE',
+          name: '公开效果来源',
+          cardType: 'MEMBER',
+          cost: 2,
+        },
+        location: {
+          ownerSeat: 'FIRST',
+          zoneKey: 'MEMBER_LEFT',
+          slot: 'LEFT',
+          role: 'PRIMARY',
+        },
+      },
       candidates: [{ candidateId: 'candidate-1', hidden: true }],
       input: {
         kind: 'CARD_SELECTION',
@@ -419,6 +447,31 @@ describe('AI battle Phase 2 observation boundary', () => {
     expect(serialized).not.toContain('blind-target-authority-id');
     expect(serialized).not.toContain('secret-effect-runtime-id');
     expect(serialized).not.toContain('obj_');
+
+    const sourceObjectId = view.activeEffect?.sourceObjectId;
+    expect(sourceObjectId).toBeDefined();
+    if (!sourceObjectId) throw new Error('missing projected active-effect source');
+    const sourceObject = view.objects[sourceObjectId];
+    expect(sourceObject).toBeDefined();
+    if (!sourceObject) throw new Error('missing projected source object');
+    const hiddenSourceObservation = buildAiObservation(
+      {
+        ...view,
+        objects: {
+          ...view.objects,
+          [sourceObjectId]: {
+            ...sourceObject,
+            surface: 'BACK',
+            frontInfo: undefined,
+          },
+        },
+      },
+      contract
+    );
+    expect(hiddenSourceObservation.decision.effectSource).toEqual({
+      controllerSeat: 'FIRST',
+      publicDisplayCardCode: 'PL!TEST-SOURCE',
+    });
   });
 
   it('rejects seat, revision, and operation-mode mismatches at the boundary', () => {

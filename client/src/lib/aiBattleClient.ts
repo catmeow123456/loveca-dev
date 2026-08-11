@@ -59,11 +59,9 @@ export interface AiBattleDebugTraceEntry {
       readonly systemMessage: string;
       readonly userMessage: string;
       readonly parsedOutput: {
-        readonly schemaVersion: string;
         readonly selection: Readonly<Record<string, unknown>> & { readonly kind: string };
-        readonly factRefs: readonly string[];
-        readonly tradeoff: string;
-        readonly nextPlan: string;
+        readonly tradeoff: string | null;
+        readonly nextPlan: string | null;
       } | null;
       readonly outcome: string;
     }[];
@@ -97,8 +95,6 @@ export interface CreateAiBattleInput {
   readonly aiSeat: Seat;
 }
 
-const AI_BATTLE_MATCH_STORAGE_KEY = 'loveca.ai-battle.match.v1';
-
 export async function fetchAiBattlePublicConfig(): Promise<AiBattlePublicConfig> {
   const response = await apiClient.get<AiBattlePublicConfig>('/api/online/ai-battles/config');
   if (!response.data) throw toApiClientError(response, '读取 AI 对战配置失败');
@@ -108,6 +104,12 @@ export async function fetchAiBattlePublicConfig(): Promise<AiBattlePublicConfig>
 export async function createAiBattle(input: CreateAiBattleInput): Promise<AiBattleView> {
   const response = await apiClient.post<AiBattleView>('/api/online/ai-battles', input);
   if (!response.data) throw toApiClientError(response, '创建 AI 对局失败');
+  return response.data;
+}
+
+export async function fetchCurrentAiBattle(): Promise<AiBattleView | null> {
+  const response = await apiClient.get<AiBattleView | null>('/api/online/ai-battles/current');
+  if (response.error) throw toApiClientError(response, '检查当前 AI 对局失败');
   return response.data;
 }
 
@@ -143,17 +145,4 @@ export async function leaveAiBattle(matchId: string): Promise<void> {
     `/api/online/ai-battles/${encodeURIComponent(matchId)}/leave`
   );
   if (!response.data?.left) throw toApiClientError(response, '离开 AI 对局失败');
-}
-
-export function storeAiBattleMatchId(matchId: string): void {
-  window.sessionStorage.setItem(AI_BATTLE_MATCH_STORAGE_KEY, matchId);
-}
-
-export function readStoredAiBattleMatchId(): string | null {
-  return window.sessionStorage.getItem(AI_BATTLE_MATCH_STORAGE_KEY);
-}
-
-export function clearStoredAiBattleMatchId(matchId?: string): void {
-  if (matchId && window.sessionStorage.getItem(AI_BATTLE_MATCH_STORAGE_KEY) !== matchId) return;
-  window.sessionStorage.removeItem(AI_BATTLE_MATCH_STORAGE_KEY);
 }

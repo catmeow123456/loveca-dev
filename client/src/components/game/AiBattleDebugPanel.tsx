@@ -28,18 +28,11 @@ const AI_DEBUG_TRACE_CLIENT_MAX_ENTRIES = 128;
 type DebugAttempt = NonNullable<AiBattleDebugTraceEntry['modelContext']>['attempts'][number];
 type InspectorTab = 'CONTEXT' | 'OUTPUT' | 'RAW';
 
-interface SemanticFact {
-  readonly factId: string;
-  readonly kind: string;
-  readonly text: string;
-}
-
 interface SemanticChoice {
-  readonly referenceType: string;
-  readonly referenceId: string;
-  readonly title: string;
-  readonly facts: readonly SemanticFact[];
-  readonly requiredFactIds: readonly string[];
+  readonly choiceKind: string;
+  readonly choiceId: string;
+  readonly description: string;
+  readonly details: readonly string[];
 }
 
 interface SemanticContext {
@@ -47,19 +40,18 @@ interface SemanticContext {
   readonly language: string;
   readonly currentState: {
     readonly summary: string;
-    readonly facts: readonly SemanticFact[];
+    readonly facts: readonly string[];
   };
   readonly currentDecision: {
     readonly kind: string;
     readonly instruction: string;
-    readonly requiredFactIds: readonly string[];
-    readonly facts: readonly SemanticFact[];
+    readonly facts: readonly string[];
     readonly choices: readonly SemanticChoice[];
   };
   readonly battleHistory: readonly {
-    readonly historyId: string;
     readonly turnCount: number;
-    readonly facts: readonly SemanticFact[];
+    readonly subject: string;
+    readonly facts: readonly string[];
   }[];
 }
 
@@ -71,7 +63,6 @@ interface ParsedUserMessage {
   };
   readonly strategyContext: {
     readonly schemaVersion: string;
-    readonly knowledge: unknown;
     readonly semanticContext: SemanticContext;
   };
 }
@@ -85,6 +76,7 @@ interface ParsedSystemMessage {
     readonly constraints: readonly string[];
     readonly untrustedDataPolicy: Readonly<Record<string, boolean>>;
   };
+  readonly trustedKnowledge: unknown;
   readonly responseContract: unknown;
 }
 
@@ -334,8 +326,8 @@ function DecisionRail({
   readonly onSelect: (seq: number) => void;
 }) {
   return (
-    <aside className="min-h-0 min-w-0 overflow-hidden border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_72%,transparent)] sm:border-b-0 sm:border-r">
-      <div className="flex items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
+    <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_72%,transparent)] sm:border-b-0 sm:border-r">
+      <div className="flex shrink-0 items-center justify-between px-3 py-2.5 sm:px-4 sm:py-3">
         <span className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--text-muted)]">
           Authority timeline
         </span>
@@ -345,7 +337,7 @@ function DecisionRail({
           </span>
         )}
       </div>
-      <div className="cute-scrollbar flex w-full max-w-full gap-2 overflow-x-auto px-3 pb-3 sm:max-h-none sm:min-h-0 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:px-3">
+      <div className="cute-scrollbar flex w-full max-w-full gap-2 overflow-x-auto px-3 pb-3 sm:min-h-0 sm:flex-1 sm:flex-col sm:overflow-x-hidden sm:overflow-y-auto sm:overscroll-contain sm:px-3 [scrollbar-gutter:stable]">
         {entries.length === 0 ? (
           <div className="flex min-h-20 min-w-full items-center justify-center text-center text-xs text-[var(--text-muted)] sm:min-h-40">
             等待 AI 进入决策窗口
@@ -583,7 +575,7 @@ function ContextStructure({ attempt }: { readonly attempt: DebugAttempt }) {
       </SectionCard>
 
       <SectionCard title="规则与卡组知识" icon={<Database size={15} />}>
-        <PrettyJson value={user.strategyContext.knowledge} maxHeightClass="max-h-64" />
+        <PrettyJson value={system.trustedKnowledge} maxHeightClass="max-h-64" />
       </SectionCard>
 
       <SectionCard
@@ -591,7 +583,7 @@ function ContextStructure({ attempt }: { readonly attempt: DebugAttempt }) {
         eyebrow={semantic.currentState.summary}
         icon={<Clipboard size={15} />}
       >
-        <FactList facts={semantic.currentState.facts} />
+        <TextFactList facts={semantic.currentState.facts} />
       </SectionCard>
 
       <SectionCard
@@ -599,30 +591,22 @@ function ContextStructure({ attempt }: { readonly attempt: DebugAttempt }) {
         eyebrow={semantic.currentDecision.instruction}
         icon={<Braces size={15} />}
       >
-        <FactList facts={semantic.currentDecision.facts} />
+        <TextFactList facts={semantic.currentDecision.facts} />
         <div className="mt-3 space-y-2">
           {semantic.currentDecision.choices.map((choice) => (
             <div
-              key={`${choice.referenceType}:${choice.referenceId}`}
+              key={`${choice.choiceKind}:${choice.choiceId}`}
               className="rounded-lg border border-[color:color-mix(in_srgb,var(--accent-primary)_22%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_4%,var(--bg-overlay))] p-2.5"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-bold text-[var(--text-primary)]">{choice.title}</span>
+                <span className="text-xs font-bold text-[var(--text-primary)]">
+                  {choice.description}
+                </span>
                 <code className="rounded bg-[var(--bg-overlay)] px-1.5 py-0.5 text-[9px] text-[var(--accent-primary)]">
-                  {choice.referenceType}:{choice.referenceId}
+                  {choice.choiceKind}:{choice.choiceId}
                 </code>
               </div>
-              <FactList facts={choice.facts} compact />
-              {choice.requiredFactIds.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1 text-[9px] text-[var(--text-muted)]">
-                  <span className="font-bold uppercase tracking-wider">must cite</span>
-                  {choice.requiredFactIds.map((factId) => (
-                    <code key={factId} className="rounded bg-[var(--bg-overlay)] px-1 py-0.5">
-                      {factId}
-                    </code>
-                  ))}
-                </div>
-              )}
+              <TextFactList facts={choice.details} compact />
             </div>
           ))}
         </div>
@@ -636,15 +620,15 @@ function ContextStructure({ attempt }: { readonly attempt: DebugAttempt }) {
           <p className="text-xs text-[var(--text-muted)]">本次请求没有选入历史条目。</p>
         ) : (
           <div className="space-y-2">
-            {semantic.battleHistory.map((item) => (
+            {semantic.battleHistory.map((item, index) => (
               <div
-                key={item.historyId}
+                key={`${String(item.turnCount)}:${item.subject}:${String(index)}`}
                 className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-2.5"
               >
                 <div className="mb-1 text-[10px] font-black text-[var(--text-muted)]">
-                  TURN {item.turnCount} · {item.historyId}
+                  TURN {item.turnCount} · {item.subject === 'SELF' ? '我方' : '对方'}
                 </div>
-                <FactList facts={item.facts} compact />
+                <TextFactList facts={item.facts} compact />
               </div>
             ))}
           </div>
@@ -680,7 +664,7 @@ function ParsedOutput({ attempt }: { readonly attempt: DebugAttempt }) {
               Tradeoff
             </div>
             <p className="mt-1 text-xs leading-5 text-[var(--text-primary)]">
-              {attempt.parsedOutput.tradeoff}
+              {attempt.parsedOutput.tradeoff ?? '模型未提供；此项为可选说明。'}
             </p>
           </div>
           <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3">
@@ -688,19 +672,9 @@ function ParsedOutput({ attempt }: { readonly attempt: DebugAttempt }) {
               Next plan
             </div>
             <p className="mt-1 text-xs leading-5 text-[var(--text-primary)]">
-              {attempt.parsedOutput.nextPlan}
+              {attempt.parsedOutput.nextPlan ?? '模型未提供；此项为可选说明。'}
             </p>
           </div>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {attempt.parsedOutput.factRefs.map((factRef) => (
-            <code
-              key={factRef}
-              className="rounded border border-[color:color-mix(in_srgb,var(--semantic-success)_32%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--semantic-success)_7%,var(--bg-overlay))] px-1.5 py-1 text-[9px] text-[var(--semantic-success)]"
-            >
-              {factRef}
-            </code>
-          ))}
         </div>
       </SectionCard>
       <SectionCard title="严格解析后的 JSON" icon={<Braces size={15} />}>
@@ -746,22 +720,22 @@ function SectionCard({
   );
 }
 
-function FactList({
+function TextFactList({
   facts,
   compact = false,
 }: {
-  readonly facts: readonly SemanticFact[];
+  readonly facts: readonly string[];
   readonly compact?: boolean;
 }) {
   return (
     <div className={compact ? 'mt-2 space-y-1.5' : 'space-y-2'}>
-      {facts.map((fact) => (
-        <div key={fact.factId} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-          <p className="text-[11px] leading-5 text-[var(--text-secondary)]">{fact.text}</p>
-          <code className="self-start rounded bg-[var(--bg-overlay)] px-1.5 py-0.5 text-[8px] text-[var(--text-muted)]">
-            {fact.factId}
-          </code>
-        </div>
+      {facts.map((fact, index) => (
+        <p
+          key={`${String(index)}:${fact}`}
+          className="text-[11px] leading-5 text-[var(--text-secondary)]"
+        >
+          {fact}
+        </p>
       ))}
     </div>
   );

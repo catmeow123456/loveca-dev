@@ -129,24 +129,28 @@ const SELF_SACRIFICE_WAITING_ROOM_TO_HAND_WORKFLOWS: readonly SelfSacrificeWaiti
       expectedBaseCardCodes: ['PL!-sd1-002'],
       stepId: ELI_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
       selectablePredicate: typeIs(CardType.MEMBER),
+      selectionRequiredWhenHasTargets: true,
     },
     {
       abilityId: RIN_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: getCardAbilityBaseCardCodes(RIN_ACTIVATED_ABILITY_ID),
       stepId: RIN_SELECT_WAITING_ROOM_LIVE_STEP_ID,
       selectablePredicate: typeIs(CardType.LIVE),
+      selectionRequiredWhenHasTargets: true,
     },
     {
       abilityId: PB1_019_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: getCardAbilityBaseCardCodes(PB1_019_ACTIVATED_ABILITY_ID),
       stepId: PB1_019_SELECT_WAITING_ROOM_MEMBER_STEP_ID,
       selectablePredicate: typeIs(CardType.MEMBER),
+      selectionRequiredWhenHasTargets: true,
     },
     {
       abilityId: BP4_003_ACTIVATED_ABILITY_ID,
       expectedBaseCardCodes: ['PL!-bp4-003'],
       stepId: BP4_003_SELECT_WAITING_ROOM_LIVE_STEP_ID,
       selectablePredicate: typeIs(CardType.LIVE),
+      selectionRequiredWhenHasTargets: true,
     },
     {
       abilityId: HS_CL1_008_ACTIVATED_SELF_SACRIFICE_RECOVER_HASUNOSORA_CARD_ABILITY_ID,
