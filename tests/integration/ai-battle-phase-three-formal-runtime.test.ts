@@ -244,7 +244,7 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
     expect(
       recorderHarness.beginInputs[0].participants.FIRST.systemIdentitySnapshot
         ?.phaseZeroCertificationVersions.rulesEngineVersion
-    ).toBe('3.9.1');
+    ).toBe('3.9.6');
     expect(recorderHarness.beginInputs[0].deckSnapshots.FIRST.source).toBe('AI_CERTIFIED_DECK');
     expect(battle.pregame).toMatchObject({
       rpsResolution: 'SERVER_DETERMINISTIC',

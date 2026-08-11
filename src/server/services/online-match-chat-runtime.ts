@@ -32,9 +32,7 @@ interface StoredOnlineMatchSystemNotice extends OnlineMatchSystemNotice {
   readonly dedupeKey: string;
 }
 
-type StoredOnlineMatchChatEntry =
-  | StoredOnlineMatchPlayerChatEntry
-  | StoredOnlineMatchSystemNotice;
+type StoredOnlineMatchChatEntry = StoredOnlineMatchPlayerChatEntry | StoredOnlineMatchSystemNotice;
 
 interface ChatRateWindow {
   readonly acceptedAt: number[];

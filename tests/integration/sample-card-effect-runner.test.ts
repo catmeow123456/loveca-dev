@@ -17781,185 +17781,187 @@ describe('sample card effect runner', () => {
   ] as const)(
     'keeps PL!HS-bp5-003 recipient semantics when selecting %s',
     (_label, selectSource) => {
-    const session = createGameSession();
-    const deck = createDeck();
+      const session = createGameSession();
+      const deck = createDeck();
 
-    session.createGame(
-      'sample-rurino-live-start-same-group-heart',
-      PLAYER1,
-      'Player 1',
-      PLAYER2,
-      'Player 2'
-    );
-    session.initializeGame(deck, deck);
-
-    const state = session.state!;
-    const p1 = state.players[0] as unknown as {
-      hand: { cardIds: string[] };
-      mainDeck: { cardIds: string[] };
-      waitingRoom: { cardIds: string[] };
-      successZone: { cardIds: string[] };
-      liveZone: {
-        cardIds: string[];
-        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
-      };
-      memberSlots: {
-        slots: Record<SlotPosition, string | null>;
-        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
-      };
-    };
-    const p2 = state.players[1] as unknown as {
-      hand: { cardIds: string[] };
-      mainDeck: { cardIds: string[] };
-      waitingRoom: { cardIds: string[] };
-      successZone: { cardIds: string[] };
-      liveZone: { cardIds: string[] };
-      memberSlots: {
-        slots: Record<SlotPosition, string | null>;
-        cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
-      };
-    };
-    const ownedP1CardIds = [...state.cardRegistry.values()]
-      .filter((card) => card.ownerId === PLAYER1)
-      .map((card) => card.instanceId);
-    const ownedP2CardIds = [...state.cardRegistry.values()]
-      .filter((card) => card.ownerId === PLAYER2)
-      .map((card) => card.instanceId);
-    const rurinoCardId = ownedP1CardIds.find(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-bp5-003-AR'
-    );
-    const discardHasuCardId = ownedP1CardIds.find(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-0'
-    );
-    const targetHasuCardId = ownedP1CardIds.find(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-1'
-    );
-    const mismatchLiellaCardId = ownedP2CardIds.find(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-011-P'
-    );
-    const opponentHasuCardId = ownedP2CardIds.find(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-2'
-    );
-    const liveCardId = ownedP1CardIds.find(
-      (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
-    );
-
-    expect(rurinoCardId).toBeTruthy();
-    expect(discardHasuCardId).toBeTruthy();
-    expect(targetHasuCardId).toBeTruthy();
-    expect(mismatchLiellaCardId).toBeTruthy();
-    expect(opponentHasuCardId).toBeTruthy();
-    expect(liveCardId).toBeTruthy();
-
-    const rurinoCard = state.cardRegistry.get(rurinoCardId!) as unknown as {
-      data: MemberCardData;
-    };
-    const targetHasuCard = state.cardRegistry.get(targetHasuCardId!) as unknown as {
-      data: MemberCardData;
-    };
-    const liveCard = state.cardRegistry.get(liveCardId!) as unknown as { data: LiveCardData };
-    rurinoCard.data = { ...rurinoCard.data, blade: 0 };
-    targetHasuCard.data = { ...targetHasuCard.data, blade: 0 };
-    liveCard.data = {
-      ...liveCard.data,
-      requirements: createHeartRequirement({ [HeartColor.PINK]: 3 }),
-    };
-
-    removeFromPlayerZones(p1);
-    removeFromPlayerZones(p2);
-    p1.hand.cardIds = [discardHasuCardId!];
-    p1.liveZone.cardIds = [liveCardId!];
-    p1.liveZone.cardStates = new Map([
-      [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
-    ]);
-    p1.memberSlots.slots[SlotPosition.LEFT] = targetHasuCardId!;
-    p1.memberSlots.slots[SlotPosition.CENTER] = rurinoCardId!;
-    p1.memberSlots.slots[SlotPosition.RIGHT] = null;
-    p1.memberSlots.cardStates = new Map([
-      [targetHasuCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
-      [rurinoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
-    ]);
-    p2.memberSlots.slots[SlotPosition.LEFT] = mismatchLiellaCardId!;
-    p2.memberSlots.slots[SlotPosition.CENTER] = opponentHasuCardId!;
-    p2.memberSlots.slots[SlotPosition.RIGHT] = null;
-    p2.memberSlots.cardStates = new Map([
-      [mismatchLiellaCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
-      [opponentHasuCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
-    ]);
-
-    advanceToLiveStartEffects(session);
-
-    expect(session.state?.activeEffect?.abilityId).toBe(
-      HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
-    );
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardHasuCardId]);
-
-    const discardResult = session.executeCommand(
-      createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardHasuCardId)
-    );
-
-    expect(discardResult.success).toBe(true);
-    expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardHasuCardId]);
-    expect(session.state?.activeEffect?.selectableCardIds).toEqual([
-      targetHasuCardId,
-      rurinoCardId,
-      opponentHasuCardId,
-    ]);
-    expect(session.state?.activeEffect?.selectableCardIds).not.toContain(mismatchLiellaCardId);
-
-    const selectedTargetCardId = selectSource ? rurinoCardId! : opponentHasuCardId!;
-    const targetResult = session.executeCommand(
-      createConfirmEffectStepCommand(
+      session.createGame(
+        'sample-rurino-live-start-same-group-heart',
         PLAYER1,
-        session.state!.activeEffect!.id,
+        'Player 1',
+        PLAYER2,
+        'Player 2'
+      );
+      session.initializeGame(deck, deck);
+
+      const state = session.state!;
+      const p1 = state.players[0] as unknown as {
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        waitingRoom: { cardIds: string[] };
+        successZone: { cardIds: string[] };
+        liveZone: {
+          cardIds: string[];
+          cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+        };
+        memberSlots: {
+          slots: Record<SlotPosition, string | null>;
+          cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+        };
+      };
+      const p2 = state.players[1] as unknown as {
+        hand: { cardIds: string[] };
+        mainDeck: { cardIds: string[] };
+        waitingRoom: { cardIds: string[] };
+        successZone: { cardIds: string[] };
+        liveZone: { cardIds: string[] };
+        memberSlots: {
+          slots: Record<SlotPosition, string | null>;
+          cardStates: Map<string, { orientation: OrientationState; face: FaceState }>;
+        };
+      };
+      const ownedP1CardIds = [...state.cardRegistry.values()]
+        .filter((card) => card.ownerId === PLAYER1)
+        .map((card) => card.instanceId);
+      const ownedP2CardIds = [...state.cardRegistry.values()]
+        .filter((card) => card.ownerId === PLAYER2)
+        .map((card) => card.instanceId);
+      const rurinoCardId = ownedP1CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!HS-bp5-003-AR'
+      );
+      const discardHasuCardId = ownedP1CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-0'
+      );
+      const targetHasuCardId = ownedP1CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-1'
+      );
+      const mismatchLiellaCardId = ownedP2CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'PL!SP-bp4-011-P'
+      );
+      const opponentHasuCardId = ownedP2CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardCode === 'MEM-HASU-2'
+      );
+      const liveCardId = ownedP1CardIds.find(
+        (cardId) => state.cardRegistry.get(cardId)?.data.cardType === CardType.LIVE
+      );
+
+      expect(rurinoCardId).toBeTruthy();
+      expect(discardHasuCardId).toBeTruthy();
+      expect(targetHasuCardId).toBeTruthy();
+      expect(mismatchLiellaCardId).toBeTruthy();
+      expect(opponentHasuCardId).toBeTruthy();
+      expect(liveCardId).toBeTruthy();
+
+      const rurinoCard = state.cardRegistry.get(rurinoCardId!) as unknown as {
+        data: MemberCardData;
+      };
+      const targetHasuCard = state.cardRegistry.get(targetHasuCardId!) as unknown as {
+        data: MemberCardData;
+      };
+      const liveCard = state.cardRegistry.get(liveCardId!) as unknown as { data: LiveCardData };
+      rurinoCard.data = { ...rurinoCard.data, blade: 0 };
+      targetHasuCard.data = { ...targetHasuCard.data, blade: 0 };
+      liveCard.data = {
+        ...liveCard.data,
+        requirements: createHeartRequirement({ [HeartColor.PINK]: 3 }),
+      };
+
+      removeFromPlayerZones(p1);
+      removeFromPlayerZones(p2);
+      p1.hand.cardIds = [discardHasuCardId!];
+      p1.liveZone.cardIds = [liveCardId!];
+      p1.liveZone.cardStates = new Map([
+        [liveCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_DOWN }],
+      ]);
+      p1.memberSlots.slots[SlotPosition.LEFT] = targetHasuCardId!;
+      p1.memberSlots.slots[SlotPosition.CENTER] = rurinoCardId!;
+      p1.memberSlots.slots[SlotPosition.RIGHT] = null;
+      p1.memberSlots.cardStates = new Map([
+        [targetHasuCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+        [rurinoCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      ]);
+      p2.memberSlots.slots[SlotPosition.LEFT] = mismatchLiellaCardId!;
+      p2.memberSlots.slots[SlotPosition.CENTER] = opponentHasuCardId!;
+      p2.memberSlots.slots[SlotPosition.RIGHT] = null;
+      p2.memberSlots.cardStates = new Map([
+        [mismatchLiellaCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+        [opponentHasuCardId!, { orientation: OrientationState.ACTIVE, face: FaceState.FACE_UP }],
+      ]);
+
+      advanceToLiveStartEffects(session);
+
+      expect(session.state?.activeEffect?.abilityId).toBe(
+        HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
+      );
+      expect(session.state?.activeEffect?.selectableCardIds).toEqual([discardHasuCardId]);
+
+      const discardResult = session.executeCommand(
+        createConfirmEffectStepCommand(PLAYER1, session.state!.activeEffect!.id, discardHasuCardId)
+      );
+
+      expect(discardResult.success).toBe(true);
+      expect(session.state?.players[0].waitingRoom.cardIds).toEqual([discardHasuCardId]);
+      expect(session.state?.activeEffect?.selectableCardIds).toEqual([
+        targetHasuCardId,
+        rurinoCardId,
+        opponentHasuCardId,
+      ]);
+      expect(session.state?.activeEffect?.selectableCardIds).not.toContain(mismatchLiellaCardId);
+
+      const selectedTargetCardId = selectSource ? rurinoCardId! : opponentHasuCardId!;
+      const targetResult = session.executeCommand(
+        createConfirmEffectStepCommand(
+          PLAYER1,
+          session.state!.activeEffect!.id,
+          selectedTargetCardId
+        )
+      );
+
+      expect(targetResult.success).toBe(true);
+      expect(session.state?.activeEffect).toBeNull();
+      expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
+      expect(
+        session.state?.liveResolution.liveModifiers.filter(
+          (modifier) =>
+            modifier.kind === 'HEART' &&
+            modifier.sourceCardId === rurinoCardId &&
+            modifier.abilityId === HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
+        )
+      ).toEqual([
+        {
+          kind: 'HEART',
+          target: 'TARGET_MEMBER',
+          playerId: selectSource ? PLAYER1 : PLAYER2,
+          targetMemberCardId: selectedTargetCardId,
+          hearts: [{ color: HeartColor.PINK, count: 1 }],
+          sourceCardId: rurinoCardId,
+          abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
+        },
+      ]);
+
+      const targetPlayerId = selectSource ? PLAYER1 : PLAYER2;
+      const targetHearts = getMemberEffectiveHeartIcons(
+        session.state!,
+        targetPlayerId,
         selectedTargetCardId
-      )
-    );
+      );
+      expect(
+        targetHearts
+          .filter((heart) => heart.color === HeartColor.PINK)
+          .reduce((total, heart) => total + heart.count, 0)
+      ).toBe(2);
 
-    expect(targetResult.success).toBe(true);
-    expect(session.state?.activeEffect).toBeNull();
-    expect(session.state?.liveResolution.playerHeartBonuses.has(PLAYER1)).toBe(false);
-    expect(
-      session.state?.liveResolution.liveModifiers.filter(
-        (modifier) =>
-          modifier.kind === 'HEART' &&
-          modifier.sourceCardId === rurinoCardId &&
-          modifier.abilityId === HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID
-      )
-    ).toEqual([
-      {
-        kind: 'HEART',
-        target: 'TARGET_MEMBER',
-        playerId: selectSource ? PLAYER1 : PLAYER2,
-        targetMemberCardId: selectedTargetCardId,
-        hearts: [{ color: HeartColor.PINK, count: 1 }],
-        sourceCardId: rurinoCardId,
-        abilityId: HS_BP5_003_LIVE_START_DISCARD_SAME_GROUP_MEMBER_HEART_ABILITY_ID,
-      },
-    ]);
+      const confirmLiveStartResult = session.executeCommand(
+        createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_LIVE_START_EFFECTS)
+      );
+      expect(confirmLiveStartResult.success).toBe(true);
+      expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
 
-    const targetPlayerId = selectSource ? PLAYER1 : PLAYER2;
-    const targetHearts = getMemberEffectiveHeartIcons(
-      session.state!,
-      targetPlayerId,
-      selectedTargetCardId
-    );
-    expect(
-      targetHearts
-        .filter((heart) => heart.color === HeartColor.PINK)
-        .reduce((total, heart) => total + heart.count, 0)
-    ).toBe(2);
-
-    const confirmLiveStartResult = session.executeCommand(
-      createConfirmStepCommand(PLAYER1, SubPhase.PERFORMANCE_LIVE_START_EFFECTS)
-    );
-    expect(confirmLiveStartResult.success).toBe(true);
-    expect(session.state?.currentSubPhase).toBe(SubPhase.PERFORMANCE_JUDGMENT);
-
-    const judgmentResult = session.executeCommand(createSubmitJudgmentCommand(PLAYER1, new Map()));
-    expect(judgmentResult.success).toBe(true);
-    expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(selectSource);
-    expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBe(selectSource ? 3 : 0);
+      const judgmentResult = session.executeCommand(
+        createSubmitJudgmentCommand(PLAYER1, new Map())
+      );
+      expect(judgmentResult.success).toBe(true);
+      expect(session.state?.liveResolution.liveResults.get(liveCardId!)).toBe(selectSource);
+      expect(session.state?.liveResolution.playerScores.get(PLAYER1)).toBe(selectSource ? 3 : 0);
     }
   );
 

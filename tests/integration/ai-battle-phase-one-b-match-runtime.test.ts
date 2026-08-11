@@ -64,13 +64,18 @@ function createDeck(prefix: string): DeckConfig {
   return { mainDeck, energyDeck };
 }
 
-async function createHarness(options: { readonly systemSeat?: 'FIRST' | 'SECOND' } = {}) {
+async function createHarness(
+  options: {
+    readonly systemSeat?: 'FIRST' | 'SECOND';
+    readonly now?: () => number;
+  } = {}
+) {
   const serialExecutor = new SingleMatchSerialExecutor();
   const matchService = new OnlineMatchService({
     recorder: null,
     serialExecutor,
     idGenerator: () => MATCH_ID,
-    now: () => 1_000,
+    now: options.now ?? (() => 1_000),
   });
   const user = {
     userId: USER_ID,
@@ -132,13 +137,17 @@ describe('AI battle Phase 1B match runtime boundary', () => {
   });
 
   it('advances the active player phase without reacquiring the same match executor', async () => {
-    const { matchService, serialExecutor, match } = await createHarness();
+    let now = 1_000;
+    const { matchService, serialExecutor, match } = await createHarness({ now: () => now });
     const state = match.session.state;
     if (!state) throw new Error('missing authority state');
     state.currentPhase = GamePhase.MAIN_PHASE;
     state.currentSubPhase = SubPhase.NONE;
     state.activePlayerIndex = 0;
     state.waitingPlayerId = null;
+
+    await matchService.getMatchSnapshot(match.matchId, USER_ID);
+    now += 3_000;
 
     await expect(matchService.advancePhase(match.matchId, USER_ID)).resolves.toMatchObject({
       success: true,

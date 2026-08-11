@@ -49,9 +49,7 @@ export interface OnlineMatchSystemNotice extends OnlineMatchChatEntryBase {
 }
 
 export type OnlineMatchChatEntry =
-  | OnlineMatchPlayerTextMessage
-  | OnlineMatchPlayerEmoteMessage
-  | OnlineMatchSystemNotice;
+  OnlineMatchPlayerTextMessage | OnlineMatchPlayerEmoteMessage | OnlineMatchSystemNotice;
 
 export type OnlineMatchChatMessage = OnlineMatchChatEntry;
 

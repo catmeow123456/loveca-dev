@@ -390,20 +390,15 @@ export class GameService {
               ? [record.event.cardInstanceId]
               : []
           );
-        preparedState = removeStageMemberBoundLiveModifiers(
-          preparedState,
-          leavingMemberCardIds
-        );
+        preparedState = removeStageMemberBoundLiveModifiers(preparedState, leavingMemberCardIds);
         if (hasPendingAbilityOrChoice(preparedState)) {
           const deferredTriggerConditions = (result.triggeredEvents ?? []).filter(
             isTriggerCondition
           );
           if (deferredTriggerConditions.length > 0) {
-            preparedState = enqueueTriggeredCardEffects(
-              preparedState,
-              deferredTriggerConditions,
-              { triggerEventLogStartIndex }
-            );
+            preparedState = enqueueTriggeredCardEffects(preparedState, deferredTriggerConditions, {
+              triggerEventLogStartIndex,
+            });
           }
           return {
             success: true,

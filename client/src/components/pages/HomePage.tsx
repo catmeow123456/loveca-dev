@@ -218,8 +218,7 @@ export function HomePage({
             void handleAbandonSavedRoomForLocalGame();
           },
         },
-        notice:
-          savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
+        notice: savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
       }
     : deckSourceStatus !== 'online'
       ? {

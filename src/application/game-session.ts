@@ -4576,12 +4576,7 @@ export class GameSession {
         from: buildZoneRefForMove(state, command.playerId, command.cardId, command.fromZone, {
           slot: sourceSlot,
         }),
-        to: buildZoneRefForMove(
-          result.gameState,
-          command.playerId,
-          command.cardId,
-          ZoneType.HAND
-        ),
+        to: buildZoneRefForMove(result.gameState, command.playerId, command.cardId, ZoneType.HAND),
       }),
     ];
 

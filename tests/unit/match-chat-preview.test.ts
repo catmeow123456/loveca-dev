@@ -6,11 +6,7 @@ import {
 import type { OnlineMatchChatEntry } from '../../src/online/chat-types';
 import type { Seat } from '../../src/online/types';
 
-function createMessage(
-  messageSeq: number,
-  senderSeat: Seat,
-  text: string
-): OnlineMatchChatEntry {
+function createMessage(messageSeq: number, senderSeat: Seat, text: string): OnlineMatchChatEntry {
   return {
     messageType: 'PLAYER',
     kind: 'TEXT',

@@ -29,8 +29,7 @@ export type MatchMode = 'ONLINE' | 'SOLITAIRE';
 
 export type MatchAutomationGameMode = 'DEBUG' | 'SOLITAIRE';
 
-export type MatchOriginKind =
-  'ONLINE_ROOM' | 'PUBLIC_TABLE' | 'RANKED' | 'AI_BATTLE' | 'SOLITAIRE';
+export type MatchOriginKind = 'ONLINE_ROOM' | 'PUBLIC_TABLE' | 'RANKED' | 'AI_BATTLE' | 'SOLITAIRE';
 
 export type MatchParticipantKind = 'USER' | 'SYSTEM';
 

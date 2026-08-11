@@ -158,13 +158,7 @@ export class AiBattlePhaseThreeService {
       this.loadCertifiedDeck(input.aiDeckKey),
       this.getCurrentPointTableRules(),
     ]);
-    return this.createBattleFromResolvedInput(
-      input,
-      profile,
-      humanDeck,
-      aiDeck,
-      pointTableRules
-    );
+    return this.createBattleFromResolvedInput(input, profile, humanDeck, aiDeck, pointTableRules);
   }
 
   async refreshBattle(

@@ -12,17 +12,7 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
-import {
-  Bell,
-  BellOff,
-  Eye,
-  Info,
-  Loader2,
-  MessageCircle,
-  Send,
-  SmilePlus,
-  X,
-} from 'lucide-react';
+import { Bell, BellOff, Eye, Info, Loader2, MessageCircle, Send, SmilePlus, X } from 'lucide-react';
 import type {
   OnlineMatchChatEntry,
   OnlineMatchChatMessagesResponse,
