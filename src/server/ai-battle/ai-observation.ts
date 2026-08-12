@@ -13,8 +13,9 @@ import type {
   ViewZoneState,
 } from '../../online/index.js';
 import type { SlotPosition } from '../../shared/types/enums.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 
-export const AI_OBSERVATION_SCHEMA_VERSION = 'ai-battle.observation/v3' as const;
+export const AI_OBSERVATION_SCHEMA_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.decision.observation;
 
 const STAGE_ZONE_SUFFIXES = ['MEMBER_LEFT', 'MEMBER_CENTER', 'MEMBER_RIGHT'] as const;
 

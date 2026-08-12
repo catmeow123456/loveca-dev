@@ -1,5 +1,6 @@
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
 import type { Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
 import { summarizeAiDecisionSelection, summarizeAiModelInvocation } from './debug-trace.js';
 import type { AiModelInvocationAudit } from './model-governance.js';
@@ -9,11 +10,11 @@ import type { AiStrategyContext } from './strategy-context.js';
 import type { AiSystemParticipantBinding } from './system-participant.js';
 
 export const AI_BATTLE_REFLECTION_HISTORY_SCHEMA_VERSION =
-  'ai-battle.reflection-history/v2' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.audit.reflectionHistory;
 export const AI_BATTLE_REFLECTION_DOCUMENT_SCHEMA_VERSION =
-  'ai-battle.reflection-document/v2' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.audit.reflectionDocument;
 export const AI_BATTLE_REFLECTION_DOCUMENT_DOWNLOAD_SCHEMA_VERSION =
-  'ai-battle.reflection-document-download/v2' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.audit.reflectionDocumentDownload;
 
 /**
  * A normal match should stay well below this boundary. The bound prevents an
@@ -172,10 +173,7 @@ export function appendAiBattleReflectionHistoryEntry(
       summary: objective.summary,
       evidence: objective.facts.map((fact) => fact.text),
     })),
-    reviewSnapshot: buildReflectionReviewSnapshot(
-      input.context,
-      input.result.selection
-    ),
+    reviewSnapshot: buildReflectionReviewSnapshot(input.context, input.result.selection),
     decisionSummary: input.result.summary,
     tradeoff: input.result.tradeoff ?? null,
     nextPlan: input.result.nextPlan ?? null,
@@ -252,7 +250,10 @@ export function renderAiBattleReflectionMarkdown(
 
   if (runtime.entries.length > 0) {
     lines.push('', '## 决策速览', '');
-    lines.push('| 决策 | 回合 / 阶段 | 来源 | 最终选择 | 结果 |', '| --- | --- | --- | --- | --- |');
+    lines.push(
+      '| 决策 | 回合 / 阶段 | 来源 | 最终选择 | 结果 |',
+      '| --- | --- | --- | --- | --- |'
+    );
     for (const entry of runtime.entries) {
       lines.push(
         `| ${String(entry.seq)} | ${String(entry.turnCount)} / ${escapeTableCell(decisionKindLabel(entry.decisionKind))} | ${escapeTableCell(sourceLabel(entry.source))} | ${escapeTableCell(formatSelectedChoices(entry))} | ${escapeTableCell(executionStatusLabel(entry.executionStatus))} |`
@@ -434,8 +435,7 @@ function buildReflectionReviewSnapshot(
   const selectedMulliganIds = selection.kind === 'MULLIGAN' ? selection.candidateIds : [];
 
   return {
-    selfHandLiveCount:
-      hand?.visibleCards.filter((card) => card.cardType === 'LIVE').length ?? 0,
+    selfHandLiveCount: hand?.visibleCards.filter((card) => card.cardType === 'LIVE').length ?? 0,
     selfLiveZoneCount: liveZone?.count ?? 0,
     selfSuccessLiveCount: self.successLiveCount,
     selfStageMemberCount,
@@ -476,9 +476,7 @@ function appendAutomaticReviewSummary(
   const acceptedCount = entries.filter((entry) => entry.executionStatus === 'ACCEPTED').length;
   const modelCount = entries.filter((entry) => entry.source === 'MODEL').length;
   const ruleCount = entries.filter((entry) => entry.source === 'RULE').length;
-  const fallbackCount = entries.filter(
-    (entry) => entry.source === 'CONSERVATIVE_FALLBACK'
-  ).length;
+  const fallbackCount = entries.filter((entry) => entry.source === 'CONSERVATIVE_FALLBACK').length;
   lines.push(
     `- 决策概况：共 ${String(entries.length)} 次；权威接受 ${String(acceptedCount)} 次；模型 ${String(modelCount)} 次，规则/确定性策略 ${String(ruleCount)} 次，保守降级 ${String(fallbackCount)} 次。`
   );

@@ -7,8 +7,10 @@ import {
   type AiMainPhaseAction,
 } from '../../application/ai-decisions/index.js';
 import { SlotPosition } from '../../shared/types/enums.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 
-export const AI_CONSERVATIVE_POLICY_VERSION = 'ai-battle.conservative-policy/v1' as const;
+export const AI_CONSERVATIVE_POLICY_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.policy.conservativeDecision;
 
 export type ConservativeDecisionResult =
   | {

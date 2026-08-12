@@ -2,6 +2,7 @@ import {
   AI_DECISION_COMMAND_ADAPTER_VERSION,
   AI_DECISION_CONTRACT_SCHEMA_VERSION,
 } from '../../application/ai-decisions/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { AI_EXPLAINABLE_DECISION_POLICY_VERSION } from './explainable-decision-policy.js';
 import { AI_DECK_KNOWLEDGE_SCHEMA_VERSION } from './deck-knowledge.js';
 import {
@@ -28,10 +29,11 @@ import { AI_COMPACT_RULES_VERSION, getAiDeckPlaybook } from './strategy-knowledg
 import { AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION } from './strategic-objectives.js';
 
 export const AI_SYSTEM_IDENTITY_SCHEMA_VERSION =
-  'ai-battle.system-participant-identity/v8' as const;
-export const AI_PHASE_THREE_PREGAME_POLICY_VERSION = 'ai-battle.phase-three-pregame/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.runtime.systemParticipantIdentity;
+export const AI_PHASE_THREE_PREGAME_POLICY_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.policy.controlledPregame;
 export const AI_PHASE_THREE_LIFECYCLE_POLICY_VERSION =
-  'ai-battle.phase-three-lifecycle/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.policy.systemLifecycle;
 
 export const AI_BATTLE_FORMAL_SYSTEM_IDENTITY = {
   schemaVersion: AI_SYSTEM_IDENTITY_SCHEMA_VERSION,

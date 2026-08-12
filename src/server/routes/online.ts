@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { fromTransport } from '../../online/serde.js';
 import { ONLINE_MATCH_EMOTE_IDS } from '../../online/chat-types.js';
 import type { GameCommand } from '../../application/game-commands.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { requireGameplayAvailable } from '../middleware/require-gameplay-available.js';
@@ -117,7 +118,8 @@ const aiBattleDebugTraceQuerySchema = z.object({
   afterSeq: z.coerce.number().int().min(0).optional(),
 });
 
-const AI_BATTLE_PUBLIC_CONFIG_SCHEMA_VERSION = 'ai-battle.public-entry-config/v1' as const;
+const AI_BATTLE_PUBLIC_CONFIG_SCHEMA_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.runtime.publicEntryConfig;
 
 onlineRouter.get('/ai-battles/config', requireAuth, (_req, res) => {
   const model = readAiBattleModelConfigurationStatus();

@@ -1,5 +1,6 @@
 import type { GameEndReason } from '../../shared/types/enums.js';
 import type { Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import {
   AI_BATTLE_PHASE_ZERO_CERTIFICATION_VERSIONS,
   type AiBattlePhaseZeroDeckKey,
@@ -9,7 +10,8 @@ import type {
   AiStrategyDecisionAudit,
 } from './strategy-decision-audit.js';
 
-export const AI_STRATEGY_EVALUATION_SCHEMA_VERSION = 'ai-battle.strategy-evaluation/v1' as const;
+export const AI_STRATEGY_EVALUATION_SCHEMA_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.evaluation.strategyEvaluation;
 
 export interface AiStrategyEvaluationGame {
   readonly scenarioId: string;

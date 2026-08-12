@@ -2,6 +2,7 @@ import {
   AI_MODEL_INVOCATION_POLICY_VERSION,
   AI_MODEL_DECISION_POLICY_VERSION,
 } from './model-governance.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { AI_MODEL_ID, AI_MODEL_PROVIDER_PROFILE_VERSION } from './model-provider.js';
 import {
   AI_MODEL_DECISION_OUTPUT_SCHEMA_VERSION,
@@ -44,7 +45,7 @@ export const AI_BATTLE_PHASE_FOUR_COMPONENT_VERSIONS = {
   decisionPolicy: AI_MODEL_DECISION_POLICY_VERSION,
   strategyDecisionRecord: AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION,
   systemIdentity: AI_SYSTEM_IDENTITY_SCHEMA_VERSION,
-  publicEntry: 'ai-battle.phase-four-entry/v1',
+  publicEntry: AI_BATTLE_PROTOCOL_VERSIONS.runtime.phaseFourEntry,
 } as const;
 
 export const AI_BATTLE_PHASE_FOUR_RUNTIME_BOUNDARY = {

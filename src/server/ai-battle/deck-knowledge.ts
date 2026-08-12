@@ -6,9 +6,10 @@ import type {
   HeartRequirement,
 } from '../../domain/entities/card.js';
 import { CardType } from '../../shared/types/enums.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import type { AiBattlePhaseZeroDeckKey } from './phase-zero-baseline.js';
 
-export const AI_DECK_KNOWLEDGE_SCHEMA_VERSION = 'ai-battle.deck-knowledge/v1' as const;
+export const AI_DECK_KNOWLEDGE_SCHEMA_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.knowledge.deckKnowledge;
 
 export interface AiDeckCardKnowledge {
   readonly cardCode: string;

@@ -4,7 +4,9 @@ import {
   type AiObservation,
 } from '../../src/server/ai-battle/ai-observation';
 import {
+  AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION,
   AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS,
+  AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_VERSIONS,
   AI_BATTLE_PHASE_FOUR_FIVE_RUNTIME_BOUNDARY,
   AI_BATTLE_PHASE_FOUR_FIVE_STATUS,
 } from '../../src/server/ai-battle/phase-four-five-baseline';
@@ -173,6 +175,8 @@ function relayObservation(): AiObservation {
 
 describe('AI battle Phase 4.5 semantic decision context', () => {
   it('truthfully marks the first semantic slice in progress', () => {
+    expect(AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION).toBe('ai-battle.phase-four-five/v5');
+    expect(AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_VERSIONS.protocolManifestRevision).toBe(1);
     expect(AI_BATTLE_PHASE_FOUR_FIVE_STATUS).toBe('IN_PROGRESS');
     expect(AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS).toMatchObject({
       semanticCurrentState: 'IMPLEMENTED_FROM_REDACTED_OBSERVATION',
@@ -185,6 +189,8 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
       administratorContextInspector: 'IMPLEMENTED_ADMIN_DEVELOPMENT_IN_MEMORY',
       broaderEffectSemanticRegressions:
         'IMPLEMENTED_SOURCE_COST_TARGET_HISTORY_FORMATION_GROUP_LIVE_SETTLEMENT_AND_STAGE_RESOURCE_SLICES',
+      centralizedProtocolVersionManifest:
+        'IMPLEMENTED_SHARED_SINGLE_SOURCE_WITH_COMPATIBILITY_AND_LITERAL_GOVERNANCE',
       realProviderSemanticEvaluation: 'PENDING',
     });
     expect(AI_BATTLE_PHASE_FOUR_FIVE_RUNTIME_BOUNDARY).toMatchObject({

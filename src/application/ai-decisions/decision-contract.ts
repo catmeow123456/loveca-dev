@@ -27,6 +27,7 @@ import {
 } from '../game-commands.js';
 import { getManualOperationMode } from '../manual-operation-mode.js';
 import { getSeatForPlayer, projectPlayerViewState, type Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import {
   querySpecialMemberPlayConfirmation,
   validateConfirmSpecialMemberPlay,
@@ -36,8 +37,9 @@ import {
   type AiLegalMainPhaseAction,
 } from './main-phase-legal-actions.js';
 
-export const AI_DECISION_CONTRACT_SCHEMA_VERSION = 'ai-battle.decision-contract/v2' as const;
-export const AI_DECISION_COMMAND_ADAPTER_VERSION = 'ai-battle.decision-command-adapter/v2' as const;
+export const AI_DECISION_CONTRACT_SCHEMA_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.decision.contract;
+export const AI_DECISION_COMMAND_ADAPTER_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.commandAdapter;
 
 export interface AiDecisionCandidate {
   /** 只在当前 contract 内有效，不包含权威实体 ID。 */

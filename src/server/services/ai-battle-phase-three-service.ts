@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createSurrenderCommand } from '../../application/game-commands.js';
 import type { DeckPointTableRules } from '../../domain/rules/deck-point-table.js';
 import type { OnlineMatchSnapshot, Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import {
   AI_BATTLE_PHASE_ZERO_BASELINE_VERSION,
   AI_BATTLE_PHASE_ZERO_DECKS,
@@ -32,7 +33,8 @@ import { revalidateRuntimeDeckPointSnapshot } from './deck-point-snapshot-valida
 import { deckPointTableService } from './deck-point-table-service.js';
 import { loadUserProfileForOnlineMatch, type UserProfileSummary } from './online-room-service.js';
 
-export const AI_BATTLE_PHASE_FOUR_ENTRY_SCHEMA_VERSION = 'ai-battle.phase-four-entry/v1' as const;
+export const AI_BATTLE_PHASE_FOUR_ENTRY_SCHEMA_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.runtime.phaseFourEntry;
 
 export interface CreateControlledAiBattleInput {
   readonly humanUserId: string;

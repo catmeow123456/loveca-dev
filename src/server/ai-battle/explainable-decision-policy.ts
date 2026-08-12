@@ -1,4 +1,5 @@
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
 import type {
   AiObservedAction,
@@ -7,7 +8,8 @@ import type {
 } from './ai-observation.js';
 import type { AiStrategyContext } from './strategy-context.js';
 
-export const AI_EXPLAINABLE_DECISION_POLICY_VERSION = 'ai-battle.explainable-policy/v1' as const;
+export const AI_EXPLAINABLE_DECISION_POLICY_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.policy.explainableDecision;
 
 export type AiStrategyTier = 'RULE_FORCED' | 'DETERMINISTIC' | 'HEURISTIC';
 
@@ -520,16 +522,15 @@ function isValidGroupedSelection(
 ): boolean {
   if (selection.length < minSelections || selection.length > maxSelections) return false;
   return groups.every((group) => {
-    const count = selection.filter((candidateId) => group.candidateIds.includes(candidateId)).length;
+    const count = selection.filter((candidateId) =>
+      group.candidateIds.includes(candidateId)
+    ).length;
     return count >= group.minCount && count <= group.maxCount;
   });
 }
 
 function sameUnorderedSelection(left: readonly string[], right: readonly string[]): boolean {
-  return (
-    left.length === right.length &&
-    left.every((candidateId) => right.includes(candidateId))
-  );
+  return left.length === right.length && left.every((candidateId) => right.includes(candidateId));
 }
 
 function compareLiveCandidate(left: AiObservedCandidate, right: AiObservedCandidate): number {

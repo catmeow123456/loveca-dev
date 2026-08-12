@@ -1,14 +1,13 @@
 import type { Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
 import type { AiObservation, AiObservedAction } from './ai-observation.js';
 
 export const AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION =
-  'ai-battle.strategic-objectives/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.strategicObjectives;
 
 export type AiStrategicObjectiveKind =
-  | 'MAINTAIN_LIVE_ACCESS'
-  | 'MAINTAIN_STAGE_DEVELOPMENT'
-  | 'PRESERVE_ENERGY_EFFICIENCY';
+  'MAINTAIN_LIVE_ACCESS' | 'MAINTAIN_STAGE_DEVELOPMENT' | 'PRESERVE_ENERGY_EFFICIENCY';
 
 export interface AiStrategicObjective {
   readonly objectiveId: string;
@@ -47,9 +46,7 @@ interface ObjectiveDraft {
  * Model explanations and plans are deliberately not accepted by this API, so
  * free text can never become an authoritative objective for a later window.
  */
-export function createAiStrategicObjectiveTracker(
-  viewerSeat: Seat
-): AiStrategicObjectiveTracker {
+export function createAiStrategicObjectiveTracker(viewerSeat: Seat): AiStrategicObjectiveTracker {
   let active = new Map<AiStrategicObjectiveKind, AiStrategicObjective>();
 
   return {
@@ -175,13 +172,11 @@ function deriveObjectiveDrafts(
   );
 }
 
-function compareCurrentMemberPlayEnergy(observation: AiObservation):
-  | {
-      readonly cardName: string;
-      readonly minCost: number;
-      readonly maxCost: number;
-    }
-  | null {
+function compareCurrentMemberPlayEnergy(observation: AiObservation): {
+  readonly cardName: string;
+  readonly minCost: number;
+  readonly maxCost: number;
+} | null {
   if (observation.decision.kind !== 'MAIN_PHASE') return null;
   const candidates = new Map(
     observation.decision.candidates.map((candidate) => [candidate.candidateId, candidate])
@@ -200,8 +195,11 @@ function compareCurrentMemberPlayEnergy(observation: AiObservation):
     else grouped.set(key, { cardName: card.name, actions: [action] });
   }
 
-  let best: { readonly cardName: string; readonly minCost: number; readonly maxCost: number } | null =
-    null;
+  let best: {
+    readonly cardName: string;
+    readonly minCost: number;
+    readonly maxCost: number;
+  } | null = null;
   for (const group of grouped.values()) {
     const costs = group.actions.map((action) => action.paymentPreview!.energyCost);
     const minCost = Math.min(...costs);

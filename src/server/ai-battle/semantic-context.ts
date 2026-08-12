@@ -1,5 +1,6 @@
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
 import type { Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import type { SlotPosition } from '../../shared/types/enums.js';
 import type {
   AiObservedAction,
@@ -18,7 +19,7 @@ import {
 } from './strategic-objectives.js';
 
 export const AI_SEMANTIC_DECISION_CONTEXT_SCHEMA_VERSION =
-  'ai-battle.semantic-decision-context/v5' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.semanticDecisionContext;
 
 const STAGE_SLOTS = ['LEFT', 'CENTER', 'RIGHT'] as const;
 

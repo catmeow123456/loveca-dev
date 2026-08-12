@@ -6,6 +6,7 @@ import {
   type AiDecisionSelection,
 } from '../../application/ai-decisions/index.js';
 import { SlotPosition } from '../../shared/types/enums.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { AI_OBSERVATION_SCHEMA_VERSION } from './ai-observation.js';
 import type { AiDeckKnowledge } from './deck-knowledge.js';
 import {
@@ -16,12 +17,13 @@ import {
 import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION, type AiStrategyContext } from './strategy-context.js';
 
 export const AI_MODEL_REQUEST_ENVELOPE_SCHEMA_VERSION =
-  'ai-battle.model-request-envelope/v7' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.modelRequestEnvelope;
 export const AI_MODEL_DECISION_OUTPUT_SCHEMA_VERSION =
-  'ai-battle.model-decision-output/v3' as const;
-export const AI_MODEL_SYSTEM_PROMPT_VERSION = 'ai-battle.model-system-prompt/v7' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.modelDecisionOutput;
+export const AI_MODEL_SYSTEM_PROMPT_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.knowledge.modelSystemPrompt;
 export const AI_MODEL_STRATEGY_CONTEXT_SCHEMA_VERSION =
-  'ai-battle.model-strategy-context/v6' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.modelStrategyContext;
 
 const CONTRACT_LOCAL_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const MODEL_EXPLANATION_MAX_LENGTH = 240;

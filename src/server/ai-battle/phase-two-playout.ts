@@ -9,6 +9,7 @@ import type { DeckConfig } from '../../application/game-service.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { createSeededRuleRandomSource } from '../../domain/rules/rule-random.js';
 import { projectPlayerViewState, type Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { buildAiObservation } from './ai-observation.js';
 import { selectExplainableDecision } from './explainable-decision-policy.js';
 import {
@@ -28,7 +29,8 @@ import {
   type AiSelectedHistoryTracker,
 } from './strategy-history.js';
 
-export const AI_PHASE_TWO_PLAYOUT_SCHEMA_VERSION = 'ai-battle.phase-two-playout/v1' as const;
+export const AI_PHASE_TWO_PLAYOUT_SCHEMA_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.evaluation.phaseTwoPlayout;
 
 export interface AiPhaseTwoPlayoutSeat {
   readonly playerId: string;

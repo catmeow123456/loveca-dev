@@ -1,11 +1,12 @@
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import type {
   AiModelInvocationAttemptOutcome,
   AiModelInvocationAudit,
 } from './model-governance.js';
 import type { AiModelDecisionOutput, AiModelRequestAttempt } from './model-protocol.js';
 
-export const AI_BATTLE_DEBUG_TRACE_SCHEMA_VERSION = 'ai-battle.debug-trace/v2' as const;
+export const AI_BATTLE_DEBUG_TRACE_SCHEMA_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.audit.debugTrace;
 export const AI_BATTLE_DEBUG_TRACE_MAX_ENTRIES = 128;
 
 export type AiBattleDebugDecisionSource = 'RULE' | 'MODEL' | 'CONSERVATIVE_FALLBACK';

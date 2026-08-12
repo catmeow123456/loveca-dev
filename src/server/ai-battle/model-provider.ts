@@ -1,5 +1,6 @@
-export const AI_MODEL_PROVIDER_PROFILE_VERSION =
-  'ai-battle.model-provider.alibaba-qwen3.7-flash/v1' as const;
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
+
+export const AI_MODEL_PROVIDER_PROFILE_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.provider.modelProfile;
 export const AI_MODEL_PROVIDER_ID = 'ALIBABA_DASHSCOPE' as const;
 export const AI_MODEL_ID = 'qwen3.7-flash' as const;
 export const AI_MODEL_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode/v1' as const;

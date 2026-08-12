@@ -5,10 +5,12 @@ import {
   type AiDecisionContractHandle,
   type AiDecisionSelection,
 } from '../../application/ai-decisions/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 
-export const AI_RANDOM_LEGAL_POLICY_VERSION = 'ai-battle.random-legal-policy/v1' as const;
+export const AI_RANDOM_LEGAL_POLICY_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.policy.randomLegalDecision;
 export const AI_RANDOM_LEGAL_DECISION_FACT_SCHEMA_VERSION =
-  'ai-battle.random-legal-decision-fact/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.evaluation.randomLegalDecisionFact;
 
 export interface RandomLegalDecisionFact {
   readonly schemaVersion: typeof AI_RANDOM_LEGAL_DECISION_FACT_SCHEMA_VERSION;

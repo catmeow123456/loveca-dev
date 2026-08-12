@@ -1009,9 +1009,9 @@ AI 对战测试的目标不是冻结每一层对象的全部字段，而是分�
 | 运行时集成         | 真实调度、lease/revision 重验、通用 fake provider 和命令提交 | 选择可执行、过期结果被拒绝、记录完整、对局继续推进                  | 每轮完整 Prompt 快照和具体措辞        |
 | 真实模型与真人抽样 | 固定 provider、固定版本和可复现局面                          | 事实一致性、资源取舍、连续对局体验                                  | 作为普通单元测试的确定性前提          |
 
-`tests/helpers/ai-battle/` 应作为下一轮测试基建的统一入口，至少拆分为场景、observation、语义上下文、模型 envelope 和 fake model 五类 builder。测试只覆盖自身关心的少量 override，默认值从生产导出的 schema/版本常量取得，不在每个测试手写完整嵌套 payload。场景 builder 与协议 builder 必须分开，不能用一个“全能 fixture”重新制造隐性耦合；测试场景按游戏意图命名，不按当前协议版本命名。
+`tests/helpers/ai-battle/` 应作为下一轮测试基建的统一入口，至少拆分为场景、observation、语义上下文、模型 envelope 和 fake model 五类 builder。测试只覆盖自身关心的少量 override，默认值从生产导出的 schema/版本常量取得，不在每个测试手写完整嵌套 payload。场景 builder 与协议 builder 必须分开，不能用一个“全能 fixture”重新制造隐性耦合；测试场景按游戏意图命名，不按当前协议版本命名。集中版本清单已经先行落地，分层 builder 与通用 fake model 仍是后续收口项。
 
-AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、baseline、请求构造器和测试均读取同一来源。只有外部或跨层语义契约真正变化时才升级对应版本；开发分支仍执行停机升级，不为旧测试 payload 或旧运行态增加 dual-read。完整 golden/snapshot 只保留在少量出站契约边界；语义和策略测试优先断言字段、不变量与行为结果，避免把文案换行、字段顺序或无关元数据冻结为产品契约。
+当前运行时版本统一由 `src/shared/ai-battle-protocol-versions.ts` 的 `AI_BATTLE_PROTOCOL_VERSIONS` 导出。decision contract、observation、strategy/semantic/model context、Prompt/卡组知识、策略政策、SYSTEM runtime、审计/反思文档、评测产物和 provider profile 的既有模块导出名仍保留为兼容别名，但不再自行声明版本字面量；`tests/unit/ai-battle-protocol-versions.test.ts` 同时校验清单唯一性、兼容导出一致性，并禁止当前运行时在清单外新增 `ai-battle.* /vN` 字面量。冻结的 phase baseline 与历史认证证据刻意不读取当前清单，避免旧证据随当前协议漂移。只有外部或跨层语义契约真正变化时才升级对应组件版本并递增 manifest revision；开发分支仍执行停机升级，不为旧测试 payload 或旧运行态增加 dual-read。完整 golden/snapshot 只保留在少量出站契约边界；语义和策略测试优先断言字段、不变量与行为结果，避免把文案换行、字段顺序或无关元数据冻结为产品契约。
 
 集成测试的 fake model 应按当前 typed selection contract 通用地产生合法返回，或由测试显式覆盖本场景的目标选择；它不能复制一套卡效合法性，也不能为每个 `selection.kind` 手写整局策略。新增一个 `HEURISTIC` 战术窗口时，只应增加该窗口的聚焦场景，不应让所有整局测试因 fake model“不认识类型”而失败。需要验证特定策略取舍时再注册窄的场景处理器；只验证调度和提交时使用通用合法选择。
 
@@ -1563,7 +1563,7 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 - 只强制 typed selection、将取舍/计划作为可选低信任字段的模型输出契约，以及服务端事实审计派生与有限协议修复路径。
 - 以实际规范化模型请求为单一数据源、只对管理员开放的开发上下文检查器，覆盖 system prompt、动态语义上下文、输出约束和解析后结构化结果。
 - 主要阶段换手/空槽、卡效来源归属、LIVE 设置、可选费用和目标选择等固定语义回归场景。
-- 集中的 AI 协议版本清单、分层测试 builder、通用 fake model 与只冻结真实出站边界的契约测试。
+- 集中的 AI 协议版本清单（已完成）、分层测试 builder、通用 fake model 与只冻结真实出站边界的契约测试。
 - 版本化的真实 provider 评测与真人抽样复盘模板。
 
 阶段门槛：
@@ -1691,4 +1691,4 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 - Prompt/完整卡组知识或模型调用政策的改动是否真正改善语言推理，而不是被启发式评分掩盖。
 - 固定真实场景和真人抽样对局是否达到进入公共候场前的最低策略体验。
 
-当前已经依次覆盖主要阶段成员登场/换手、有效费用/BLADE/HEART、下回合换手基础、LIVE 设置、active effect 来源、可选费用、可见目标、历史新鲜度、站位编排、复合分组选择、LIVE 处理、自送成员即时费用语义，以及完整卡组 system 知识。继续扩大 Phase 4.5 前，先完成 11.5 节所述的测试基建收口：建立集中协议版本清单、分层 builder、通用 fake model 和少量真实出站契约测试，把现有手写 payload 与重复版本断言迁移到公共入口。随后再扩展服务端从合法 selection 派生的能力归属、站位与资源后果审计覆盖，使用真实 provider v7 请求协议和更广真人抽样复盘收束质量门槛，并按暴露出的决策问题追加窄回归。Phase 0～4 的规则、合法性、调度和故障门槛全部保留，不重复建设。
+当前已经依次覆盖主要阶段成员登场/换手、有效费用/BLADE/HEART、下回合换手基础、LIVE 设置、active effect 来源、可选费用、可见目标、历史新鲜度、站位编排、复合分组选择、LIVE 处理、自送成员即时费用语义，以及完整卡组 system 知识。11.5 节测试基建收口的第一步已经完成：当前运行时协议版本由共享清单统一管理，并有兼容导出与禁止散落字面量的治理测试。继续扩大 Phase 4.5 前，仍需建立分层 builder、通用 fake model 和少量真实出站契约测试，把现有手写 payload 与重复 fixture 迁移到公共入口。随后再扩展服务端从合法 selection 派生的能力归属、站位与资源后果审计覆盖，使用真实 provider v7 请求协议和更广真人抽样复盘收束质量门槛，并按暴露出的决策问题追加窄回归。Phase 0～4 的规则、合法性、调度和故障门槛全部保留，不重复建设。

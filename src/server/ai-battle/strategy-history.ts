@@ -1,5 +1,6 @@
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
 import type { Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import type {
   AiObservedAction,
   AiObservedCandidate,
@@ -7,7 +8,8 @@ import type {
   AiObservation,
 } from './ai-observation.js';
 
-export const AI_SELECTED_HISTORY_SCHEMA_VERSION = 'ai-battle.selected-history/v4' as const;
+export const AI_SELECTED_HISTORY_SCHEMA_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.selectedHistory;
 export const AI_SELECTED_HISTORY_DEFAULT_LIMIT = 12;
 
 export type AiSelectedHistoryCategory =

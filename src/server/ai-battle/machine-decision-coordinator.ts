@@ -10,12 +10,13 @@ import {
 import type { GameCommand } from '../../application/game-commands.js';
 import type { GameState } from '../../domain/entities/game.js';
 import { getSeatForPlayer, type Seat } from '../../online/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import {
   SingleMatchSerialExecutor,
   type SingleMatchCriticalSection,
 } from './single-match-serial-executor.js';
 
-export const AI_DECISION_LEASE_SCHEMA_VERSION = 'ai-battle.decision-lease/v1' as const;
+export const AI_DECISION_LEASE_SCHEMA_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.runtime.decisionLease;
 
 export interface MachineDecisionLease {
   readonly schemaVersion: typeof AI_DECISION_LEASE_SCHEMA_VERSION;

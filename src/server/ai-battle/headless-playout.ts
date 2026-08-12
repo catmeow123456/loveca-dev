@@ -16,6 +16,7 @@ import {
 } from '../../domain/rules/rule-random.js';
 import type { Seat } from '../../online/index.js';
 import { GameEndReason } from '../../shared/types/enums.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { selectConservativeDecision } from './conservative-decision-policy.js';
 import {
   createReplayRandomLegalDecisionPolicy,
@@ -30,9 +31,10 @@ import {
   type MachineLivenessState,
 } from './rule-progress.js';
 
-export const AI_HEADLESS_PLAYOUT_SCHEMA_VERSION = 'ai-battle.headless-playout/v1' as const;
+export const AI_HEADLESS_PLAYOUT_SCHEMA_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.evaluation.headlessPlayout;
 export const AI_HEADLESS_FAILURE_ARTIFACT_SCHEMA_VERSION =
-  'ai-battle.headless-failure-artifact/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.evaluation.headlessFailureArtifact;
 
 export interface HeadlessPlayoutLimits {
   readonly maxTurnsPerGame: number;

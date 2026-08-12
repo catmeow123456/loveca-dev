@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import type { AiDecisionSelection } from '../../application/ai-decisions/index.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import type { AiStrategyTier } from './explainable-decision-policy.js';
 import type { AiModelInvocationAudit } from './model-governance.js';
 import type { AiStrategyContext } from './strategy-context.js';
 
 export const AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION =
-  'ai-battle.strategy-decision-audit/v3' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.audit.strategyDecisionAudit;
 export const AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION =
-  'ai-battle.strategy-decision-record/v4' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.audit.strategyDecisionRecord;
 
 export interface AiStrategyDecisionAudit {
   readonly schemaVersion: typeof AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION;

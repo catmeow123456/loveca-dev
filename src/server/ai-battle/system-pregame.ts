@@ -1,10 +1,11 @@
 import type { OpeningRpsGesture } from '../../online/release-types.js';
 import type { Seat } from '../../online/types.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { resolveOpeningRpsWinner } from '../services/opening-rps.js';
 import { AI_PHASE_THREE_PREGAME_POLICY_VERSION } from './system-participant.js';
 
 export const AI_CONTROLLED_PREGAME_RESULT_SCHEMA_VERSION =
-  'ai-battle.controlled-pregame-result/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.runtime.controlledPregameResult;
 
 const SYSTEM_GESTURE = 'ROCK' satisfies OpeningRpsGesture;
 const HUMAN_GESTURE = 'SCISSORS' satisfies OpeningRpsGesture;

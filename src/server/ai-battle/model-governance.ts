@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { hashAiModelRequestEnvelope, type AiModelRequestEnvelope } from './model-protocol.js';
 import {
   AI_MODEL_ID,
@@ -10,10 +11,11 @@ import {
   type AiModelProviderUsage,
 } from './model-provider.js';
 
-export const AI_MODEL_INVOCATION_POLICY_VERSION = 'ai-battle.model-invocation-policy/v1' as const;
-export const AI_MODEL_DECISION_POLICY_VERSION = 'ai-battle.model-decision-policy/v1' as const;
+export const AI_MODEL_INVOCATION_POLICY_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.policy.modelInvocation;
+export const AI_MODEL_DECISION_POLICY_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.policy.modelDecision;
 export const AI_MODEL_INVOCATION_AUDIT_SCHEMA_VERSION =
-  'ai-battle.model-invocation-audit/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.audit.modelInvocationAudit;
 
 export const AI_MODEL_INVOCATION_LIMITS = {
   timeoutMs: 12_000,

@@ -1,6 +1,7 @@
 import type { GameState } from '../../domain/entities/game.js';
 import type { PlayerState } from '../../domain/entities/player.js';
 import type { MemberSlotZoneState, StatefulZoneState } from '../../domain/entities/zone.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import { SlotPosition } from '../../shared/types/enums.js';
 import {
   AI_BATTLE_CONSERVATIVE_LIVENESS_LIMITS,
@@ -8,7 +9,8 @@ import {
   AI_BATTLE_RULE_PROGRESS_POLICY,
 } from './phase-zero-baseline.js';
 
-export const AI_RULE_PROGRESS_SNAPSHOT_VERSION = 'ai-battle.rule-progress-snapshot/v1' as const;
+export const AI_RULE_PROGRESS_SNAPSHOT_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.runtime.ruleProgressSnapshot;
 
 export interface AiRuleProgressSnapshot {
   readonly schemaVersion: typeof AI_RULE_PROGRESS_SNAPSHOT_VERSION;

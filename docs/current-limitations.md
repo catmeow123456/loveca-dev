@@ -90,7 +90,7 @@ AI 对战 Phase 0～4 已完成首版受控闭环。两个认证卡组锁定 can
 - 当前只允许两套认证卡组；任意玩家卡组、全卡池完整自动裁判和未认证规则版本不能进入 AI 对战。
 - Phase 4.5 语义上下文已覆盖主要阶段成员普通登场/换手、登场前后有效费用/BLADE/HEART 与换手基础、LIVE 盖放/收回、active effect 来源/控制方/当前可见区域、可选费用/不支付分支、可见目标区域、当前状态高于精选历史的新鲜度边界、完整“成员→目标槽位”站位编排、同一提交的复合分组约束、LIVE 总分/修正/确认席位、逐卡判定和成功 LIVE 处理后果，以及自送成员费用的即时场面变化。其他复杂卡效步骤仍需按真实 provider 与真人抽样结果继续补回归。
 - 当前服务端会从合法 selection 派生当前选择所需的事实审计引用；更复杂卡效的能力归属、槽位关系和资源后果审计覆盖仍需扩展。模型可选自由文本不参与运行时裁决，也不建设复杂收益值、后悔值或按卡牌编号维护的最优策略引擎；真实 provider 新协议评测和真人抽样复盘尚未完成。
-- AI 测试目前仍有结构性维护债务：协议版本、完整 observation/context/envelope fixture 和 fake model 支持的选择类型在多个测试中重复声明，因此一次基础设施重构会连带修改过多无关测试。下一轮会先建立集中协议版本清单和 `tests/helpers/ai-battle/` 分层 builder，将完整 snapshot 限制在真实出站契约，并让运行时 fake model 按 typed selection contract 通用返回合法选择；该收口尚未落地，不能把当前较大的测试共同改动面视为长期开发模式。
+- AI 测试目前仍有结构性维护债务。当前运行时协议版本已经集中到 `src/shared/ai-battle-protocol-versions.ts`，既有模块只保留兼容导出，并由治理测试禁止在非历史 baseline 的运行时代码里重新散落版本字面量；但完整 observation/context/envelope fixture 和 fake model 支持的选择类型仍在多个测试中重复声明。下一轮仍需建立 `tests/helpers/ai-battle/` 分层 builder，将完整 snapshot 限制在真实出站契约，并让运行时 fake model 按 typed selection contract 通用返回合法选择；不能把当前较大的测试共同改动面视为长期开发模式。
 - `selected-history/v4` 已从脱敏 observation 与权威接受后的结构化选择/可见投影差异派生，并明确记录已跳过的可选时点不能延后再用；模型自由文本不再作为后续事实回灌。AI 对局运行态和这份精选历史仍只保存在单个服务进程内。
 - AI 对局运行态、模型预算和限流桶仍在单个服务进程内；进程重启后的进行中 AI 对局恢复尚未闭环。
 - 公共牌桌 AI 补位、AI presence、多实例决策互斥、跨实例模型容量、自动熔断、聚合指标和运营告警仍属于 Phase 5，并以后置完成 Phase 4.5 为前提。

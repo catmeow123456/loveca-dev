@@ -1,5 +1,6 @@
 import type { AiBattlePhaseZeroDeckKey } from './phase-zero-baseline.js';
 import type { DeckConfig } from '../../application/game-service.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 import type { AiObservation } from './ai-observation.js';
 import { buildAiDeckKnowledge, type AiDeckKnowledge } from './deck-knowledge.js';
 import {
@@ -18,7 +19,8 @@ import {
   type AiStrategicObjectiveSet,
 } from './strategic-objectives.js';
 
-export const AI_STRATEGY_CONTEXT_SCHEMA_VERSION = 'ai-battle.strategy-context/v4' as const;
+export const AI_STRATEGY_CONTEXT_SCHEMA_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.decision.strategyContext;
 
 export interface AiStrategyContext {
   readonly schemaVersion: typeof AI_STRATEGY_CONTEXT_SCHEMA_VERSION;

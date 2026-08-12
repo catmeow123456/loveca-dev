@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { GameState } from '../../domain/entities/game.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 
-export const SERVER_DEADLINE_SCHEMA_VERSION = 'ai-battle.server-deadline/v2' as const;
+export const SERVER_DEADLINE_SCHEMA_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.runtime.serverDeadline;
 
 export type ServerDeadlineKind = 'PUBLIC_CARD_SELECTION' | 'PUBLIC_EFFECT_CHOICE' | 'PUBLIC_REVEAL';
 

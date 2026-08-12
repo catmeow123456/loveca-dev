@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 
 export const MACHINE_DECISION_SCHEDULE_SCHEMA_VERSION =
-  'ai-battle.machine-decision-schedule/v1' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.runtime.machineDecisionSchedule;
 
 export interface MachineDecisionScheduleRegistration {
   readonly schemaVersion: typeof MACHINE_DECISION_SCHEDULE_SCHEMA_VERSION;

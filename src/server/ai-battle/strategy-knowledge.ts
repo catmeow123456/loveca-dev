@@ -2,11 +2,13 @@ import {
   AI_BATTLE_PHASE_ZERO_DECKS,
   type AiBattlePhaseZeroDeckKey,
 } from './phase-zero-baseline.js';
+import { AI_BATTLE_PROTOCOL_VERSIONS } from '../../shared/ai-battle-protocol-versions.js';
 
-export const AI_COMPACT_RULES_VERSION = 'ai-battle.compact-rules/v4' as const;
-export const AI_MUSE_STARTER_PLAYBOOK_VERSION = 'ai-battle.playbook.muse-starter/v2' as const;
+export const AI_COMPACT_RULES_VERSION = AI_BATTLE_PROTOCOL_VERSIONS.knowledge.compactRules;
+export const AI_MUSE_STARTER_PLAYBOOK_VERSION =
+  AI_BATTLE_PROTOCOL_VERSIONS.knowledge.museStarterPlaybook;
 export const AI_GREEN_HASUNOSORA_B6_PLAYBOOK_VERSION =
-  'ai-battle.playbook.green-hasunosora-b6/v2' as const;
+  AI_BATTLE_PROTOCOL_VERSIONS.knowledge.greenHasunosoraB6Playbook;
 
 export interface AiStrategyDirective {
   readonly directiveId: string;
