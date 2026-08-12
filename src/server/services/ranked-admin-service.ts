@@ -121,6 +121,44 @@ export interface RankedAdminOverview {
   }[];
 }
 
+export interface RankedAdminPlayerSearchCandidate {
+  readonly userId: string;
+  readonly username: string;
+  readonly displayName: string | null;
+}
+
+export type RankedAdminPlayerStatus = 'PLACEMENT' | 'PLACED_NOT_ELIGIBLE' | 'RANKED';
+
+export interface RankedAdminPlayerContextPlayer extends RankedAdminPlayerSearchCandidate {
+  readonly rating: number;
+  readonly ratingDeviation: number;
+  readonly ratedMatchCount: number;
+  readonly placementCompleted: boolean;
+  readonly leaderboardEligible: boolean;
+  readonly status: RankedAdminPlayerStatus;
+  readonly rank: number | null;
+}
+
+export interface RankedAdminPlayerContextNeighbor extends RankedAdminPlayerSearchCandidate {
+  readonly rating: number;
+  readonly ratingDeviation: number;
+  readonly ratedMatchCount: number;
+  readonly rank: number;
+  readonly isTarget: boolean;
+}
+
+export interface RankedAdminPlayerContext {
+  readonly seasonId: string;
+  readonly generatedAt: Date;
+  readonly ledgerRevision: number;
+  readonly placementRequired: number;
+  readonly leaderboardMinimumMatchCount: number;
+  readonly player: RankedAdminPlayerContextPlayer;
+  readonly neighbors: {
+    readonly rows: readonly RankedAdminPlayerContextNeighbor[];
+  };
+}
+
 interface RankedAdminQueryResult<T> {
   readonly rows: T[];
 }
@@ -231,6 +269,34 @@ interface RankedAdminRatingDistributionRow {
   readonly minimum_rating: number | string;
   readonly maximum_rating_exclusive: number | string;
   readonly player_count: number | string;
+}
+
+interface RankedAdminPlayerSearchRow {
+  readonly user_id: string;
+  readonly username: string;
+  readonly display_name: string | null;
+}
+
+interface RankedAdminPlayerContextRow {
+  readonly season_id: string;
+  readonly rating_algorithm_version: string;
+  readonly rating_config: unknown;
+  readonly leaderboard_minimum_match_count: number;
+  readonly ledger_revision: number;
+  readonly target_user_id: string | null;
+  readonly target_username: string | null;
+  readonly target_display_name: string | null;
+  readonly target_rating: number | string | null;
+  readonly target_rating_deviation: number | string | null;
+  readonly target_rated_match_count: number | string | null;
+  readonly target_rank: number | string | null;
+  readonly neighbor_user_id: string | null;
+  readonly neighbor_username: string | null;
+  readonly neighbor_display_name: string | null;
+  readonly neighbor_rating: number | string | null;
+  readonly neighbor_rating_deviation: number | string | null;
+  readonly neighbor_rated_match_count: number | string | null;
+  readonly neighbor_rank: number | string | null;
 }
 
 interface RankedAdminEventRow {
@@ -647,6 +713,191 @@ export class RankedAdminService {
         maximumRatingExclusive: Number(row.maximum_rating_exclusive),
         playerCount: Number(row.player_count),
       })),
+    };
+  }
+
+  async searchPlayers(
+    seasonId: string,
+    queryText: string,
+    limit: number
+  ): Promise<RankedAdminPlayerSearchCandidate[]> {
+    const seasonResult = await this.query<{ readonly exists: boolean }>(
+      `SELECT TRUE AS exists
+       FROM ranked_seasons
+       WHERE id = $1`,
+      [seasonId]
+    );
+    if (!seasonResult.rows[0]) {
+      throw adminError('RANKED_SEASON_NOT_FOUND', '排位赛季不存在', 404);
+    }
+
+    const normalizedQuery = queryText.trim();
+    const pattern = `%${escapeLikePattern(normalizedQuery)}%`;
+    const result = await this.query<RankedAdminPlayerSearchRow>(
+      `SELECT profile.id AS user_id, profile.username, profile.display_name
+       FROM ranked_player_ratings AS rating
+       JOIN profiles AS profile ON profile.id = rating.user_id
+       WHERE rating.season_id = $1
+         AND rating.rated_match_count > 0
+         AND (
+           profile.id::text ILIKE $2 ESCAPE '\\'
+           OR profile.username ILIKE $2 ESCAPE '\\'
+           OR COALESCE(profile.display_name, '') ILIKE $2 ESCAPE '\\'
+         )
+       ORDER BY
+         CASE
+           WHEN profile.id::text = $3 THEN 0
+           WHEN LOWER(profile.username) = LOWER($3) THEN 1
+           WHEN LOWER(COALESCE(profile.display_name, '')) = LOWER($3) THEN 2
+           ELSE 3
+         END,
+         profile.username ASC,
+         profile.id ASC
+       LIMIT $4`,
+      [seasonId, pattern, normalizedQuery, limit]
+    );
+    return result.rows.map((row) => ({
+      userId: row.user_id,
+      username: row.username,
+      displayName: row.display_name,
+    }));
+  }
+
+  async getPlayerContext(seasonId: string, userId: string): Promise<RankedAdminPlayerContext> {
+    const generatedAt = this.now();
+    const result = await this.query<RankedAdminPlayerContextRow>(
+      `WITH season AS MATERIALIZED (
+         SELECT id, rating_algorithm_version, rating_config,
+                leaderboard_minimum_match_count, ledger_revision
+         FROM ranked_seasons
+         WHERE id = $1
+       ), target AS MATERIALIZED (
+         SELECT profile.id AS user_id, profile.username, profile.display_name,
+                rating.rating, rating.rating_deviation, rating.rated_match_count
+         FROM profiles AS profile
+         LEFT JOIN ranked_player_ratings AS rating
+           ON rating.season_id = $1
+          AND rating.user_id = profile.id
+         WHERE profile.id = $2
+       ), eligible AS MATERIALIZED (
+         SELECT rating.user_id, profile.username, profile.display_name,
+                rating.rating, rating.rating_deviation, rating.rated_match_count,
+                ROW_NUMBER() OVER (
+                  ORDER BY rating.rating DESC, rating.user_id ASC
+                ) AS rank
+         FROM season
+         JOIN ranked_player_ratings AS rating
+           ON rating.season_id = season.id
+          AND rating.rated_match_count >= season.leaderboard_minimum_match_count
+         JOIN profiles AS profile ON profile.id = rating.user_id
+       ), context AS (
+         SELECT season.id AS season_id,
+                season.rating_algorithm_version, season.rating_config,
+                season.leaderboard_minimum_match_count, season.ledger_revision,
+                target.user_id AS target_user_id,
+                target.username AS target_username,
+                target.display_name AS target_display_name,
+                target.rating AS target_rating,
+                target.rating_deviation AS target_rating_deviation,
+                target.rated_match_count AS target_rated_match_count,
+                eligible.rank AS target_rank
+         FROM season
+         LEFT JOIN target ON TRUE
+         LEFT JOIN eligible ON eligible.user_id = target.user_id
+       )
+       SELECT context.*,
+              neighbor.user_id AS neighbor_user_id,
+              neighbor.username AS neighbor_username,
+              neighbor.display_name AS neighbor_display_name,
+              neighbor.rating AS neighbor_rating,
+              neighbor.rating_deviation AS neighbor_rating_deviation,
+              neighbor.rated_match_count AS neighbor_rated_match_count,
+              neighbor.rank AS neighbor_rank
+       FROM context
+       LEFT JOIN eligible AS neighbor
+         ON context.target_rank IS NOT NULL
+        AND neighbor.rank BETWEEN context.target_rank - 3 AND context.target_rank + 3
+       ORDER BY neighbor.rank ASC NULLS LAST`,
+      [seasonId, userId]
+    );
+    const first = result.rows[0];
+    if (!first) {
+      throw adminError('RANKED_SEASON_NOT_FOUND', '排位赛季不存在', 404);
+    }
+    if (!first.target_user_id || !first.target_username) {
+      throw adminError('RANKED_PLAYER_NOT_FOUND', '玩家不存在', 404);
+    }
+    if (
+      first.target_rating === null ||
+      first.target_rating_deviation === null ||
+      first.target_rated_match_count === null ||
+      Number(first.target_rated_match_count) <= 0
+    ) {
+      throw adminError('RANKED_PLAYER_RATING_NOT_FOUND', '该玩家在本赛季没有有效计分记录', 404);
+    }
+
+    const ratingConfig = readPersistentConfig(first.rating_algorithm_version, first.rating_config);
+    const ratedMatchCount = Number(first.target_rated_match_count);
+    const placementRequired = ratingConfig.placementMatchCount;
+    const leaderboardMinimumMatchCount = first.leaderboard_minimum_match_count;
+    const placementCompleted = ratedMatchCount >= placementRequired;
+    const leaderboardEligible = ratedMatchCount >= leaderboardMinimumMatchCount;
+    const status: RankedAdminPlayerStatus = !placementCompleted
+      ? 'PLACEMENT'
+      : !leaderboardEligible
+        ? 'PLACED_NOT_ELIGIBLE'
+        : 'RANKED';
+    const rank = leaderboardEligible ? Number(first.target_rank) : null;
+    if (leaderboardEligible && (rank === null || !Number.isInteger(rank) || rank <= 0)) {
+      throw adminError('RANKED_PLAYER_CONTEXT_INVALID', '排位玩家排名上下文查询失败', 500);
+    }
+
+    const neighbors = leaderboardEligible
+      ? result.rows.flatMap((row): RankedAdminPlayerContextNeighbor[] => {
+          if (
+            !row.neighbor_user_id ||
+            !row.neighbor_username ||
+            row.neighbor_rating === null ||
+            row.neighbor_rating_deviation === null ||
+            row.neighbor_rated_match_count === null ||
+            row.neighbor_rank === null
+          ) {
+            return [];
+          }
+          return [
+            {
+              userId: row.neighbor_user_id,
+              username: row.neighbor_username,
+              displayName: row.neighbor_display_name,
+              rating: Number(row.neighbor_rating),
+              ratingDeviation: Number(row.neighbor_rating_deviation),
+              ratedMatchCount: Number(row.neighbor_rated_match_count),
+              rank: Number(row.neighbor_rank),
+              isTarget: row.neighbor_user_id === first.target_user_id,
+            },
+          ];
+        })
+      : [];
+
+    return {
+      seasonId: first.season_id,
+      generatedAt,
+      ledgerRevision: first.ledger_revision,
+      placementRequired,
+      leaderboardMinimumMatchCount,
+      player: {
+        userId: first.target_user_id,
+        username: first.target_username,
+        displayName: first.target_display_name,
+        rating: Number(first.target_rating),
+        ratingDeviation: Number(first.target_rating_deviation),
+        ratedMatchCount,
+        placementCompleted,
+        leaderboardEligible,
+        status,
+        rank,
+      },
+      neighbors: { rows: neighbors },
     };
   }
 

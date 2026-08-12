@@ -24,6 +24,8 @@ vi.mock('../../src/server/services/ranked-admin-service.js', () => ({
     beginFinalizing: vi.fn(),
     closeSeason: vi.fn(),
     getOverview: vi.fn(),
+    searchPlayers: vi.fn(),
+    getPlayerContext: vi.fn(),
     listMatches: vi.fn(),
     getMatch: vi.fn(),
     settleMatch: vi.fn(),
@@ -428,6 +430,78 @@ describe('rankedAdminRouter', () => {
       data: { seasonId },
       error: null,
     });
+  });
+
+  it('validates and forwards bounded season player search', async () => {
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    vi.mocked(rankedAdminService.searchPlayers).mockResolvedValue([
+      {
+        userId: '22222222-2222-4222-8222-222222222222',
+        username: 'player_one',
+        displayName: '玩家一',
+      },
+    ] as never);
+
+    const response = await invokeRoute('/players/search', 'get', {
+      query: { seasonId, q: ' player ', limit: '5' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.searchPlayers).toHaveBeenCalledWith(seasonId, 'player', 5);
+    expect(response.body).toMatchObject({
+      data: [
+        {
+          userId: '22222222-2222-4222-8222-222222222222',
+          username: 'player_one',
+        },
+      ],
+      error: null,
+    });
+  });
+
+  it('rejects missing, unbounded, or extra player search query fields', async () => {
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    for (const query of [
+      { seasonId, q: '' },
+      { seasonId, q: 'player', limit: '11' },
+      { seasonId, q: 'player', unexpected: 'field' },
+    ]) {
+      const response = await invokeRoute('/players/search', 'get', { query });
+      expect(response.statusCode).toBe(400);
+      expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    }
+    expect(rankedAdminService.searchPlayers).not.toHaveBeenCalled();
+  });
+
+  it('validates player and season IDs before returning ranking context', async () => {
+    const seasonId = '11111111-1111-4111-8111-111111111111';
+    const userId = '22222222-2222-4222-8222-222222222222';
+    vi.mocked(rankedAdminService.getPlayerContext).mockResolvedValue({
+      seasonId,
+      player: { userId, status: 'RANKED', rank: 7 },
+      neighbors: { rows: [] },
+    } as never);
+
+    const response = await invokeRoute('/players/:userId/context', 'get', {
+      params: { userId },
+      query: { seasonId },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.getPlayerContext).toHaveBeenCalledWith(seasonId, userId);
+
+    const invalidUser = await invokeRoute('/players/:userId/context', 'get', {
+      params: { userId: 'not-a-uuid' },
+      query: { seasonId },
+    });
+    expect(invalidUser.statusCode).toBe(400);
+    expect(invalidUser.body?.error?.code).toBe('INVALID_REQUEST');
+
+    const invalidSeason = await invokeRoute('/players/:userId/context', 'get', {
+      params: { userId },
+      query: { seasonId: 'not-a-uuid', unexpected: 'field' },
+    });
+    expect(invalidSeason.statusCode).toBe(400);
+    expect(invalidSeason.body?.error?.code).toBe('VALIDATION_ERROR');
   });
 
   it('requires preview-before-execute payloads to express a valid correction choice', async () => {

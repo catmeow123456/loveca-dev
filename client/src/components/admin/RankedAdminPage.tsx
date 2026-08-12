@@ -14,6 +14,7 @@ import {
   createRankedSeason,
   applyRankedRatingRevision,
   executeRankedCorrection,
+  fetchRankedAdminPlayerContext,
   fetchRankedEnvironment,
   fetchRankedMatch,
   fetchRankedMatches,
@@ -23,6 +24,7 @@ import {
   previewRankedRatingRevision,
   previewRankedCorrection,
   runRankedSeasonAction,
+  searchRankedAdminPlayers,
   setRankedAdmission,
   settleRankedMatch,
   updateActiveRankedSeasonOperations,
@@ -33,6 +35,9 @@ import {
   type RankedAdminMatchDeckCard,
   type RankedAdminMatchDetail,
   type RankedAdminOverview,
+  type RankedAdminPlayerContext,
+  type RankedAdminPlayerRankRow,
+  type RankedAdminPlayerSearchResult,
   type RankedAdminSeason,
   type RankedCorrectionPreview,
   type RankedRatingConfig,
@@ -610,6 +615,8 @@ function OverviewPanel({
         </div>
       </section>
 
+      <RankedPlayerLookup key={selectedSeasonId} seasonId={selectedSeasonId} />
+
       <div className="grid gap-4 lg:grid-cols-2">
         <DistributionPanel
           title="玩家场次分布"
@@ -626,6 +633,351 @@ function OverviewPanel({
           }))}
         />
       </div>
+    </div>
+  );
+}
+
+function RankedPlayerLookup({ seasonId }: { seasonId: string }) {
+  const [query, setQuery] = useState('');
+  const [candidates, setCandidates] = useState<RankedAdminPlayerSearchResult[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [context, setContext] = useState<RankedAdminPlayerContext | null>(null);
+  const [searchBusy, setSearchBusy] = useState(false);
+  const [contextBusy, setContextBusy] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const searchRequestSequence = useRef(0);
+  const contextRequestSequence = useRef(0);
+
+  const searchPlayers = async () => {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
+      searchRequestSequence.current += 1;
+      contextRequestSequence.current += 1;
+      setCandidates([]);
+      setSelectedUserId(null);
+      setContext(null);
+      setSearchBusy(false);
+      setContextBusy(false);
+      setHasSearched(false);
+      setSearchError('请输入用户名、显示名称或用户 ID');
+      setContextError(null);
+      return;
+    }
+    const requestSequence = ++searchRequestSequence.current;
+    const requestSeasonId = seasonId;
+    contextRequestSequence.current += 1;
+    setSearchBusy(true);
+    setHasSearched(false);
+    setSearchError(null);
+    setContextError(null);
+    setCandidates([]);
+    setSelectedUserId(null);
+    setContext(null);
+    setContextBusy(false);
+    try {
+      const result = await searchRankedAdminPlayers(requestSeasonId, normalizedQuery, 10);
+      if (searchRequestSequence.current !== requestSequence) {
+        return;
+      }
+      setCandidates(result);
+      setHasSearched(true);
+    } catch (loadError) {
+      if (searchRequestSequence.current === requestSequence) {
+        setSearchError(readError(loadError));
+      }
+    } finally {
+      if (searchRequestSequence.current === requestSequence) {
+        setSearchBusy(false);
+      }
+    }
+  };
+
+  const loadPlayerContext = async (userId: string) => {
+    const requestSequence = ++contextRequestSequence.current;
+    const requestSeasonId = seasonId;
+    setSelectedUserId(userId);
+    setContext(null);
+    setContextBusy(true);
+    setContextError(null);
+    try {
+      const result = await fetchRankedAdminPlayerContext(requestSeasonId, userId);
+      if (contextRequestSequence.current !== requestSequence) {
+        return;
+      }
+      setContext(result);
+    } catch (loadError) {
+      if (contextRequestSequence.current === requestSequence) {
+        setContextError(readError(loadError));
+      }
+    } finally {
+      if (contextRequestSequence.current === requestSequence) {
+        setContextBusy(false);
+      }
+    }
+  };
+
+  return (
+    <section className="product-workbench p-4">
+      <div>
+        <h2 className="font-semibold text-[var(--text-primary)]">玩家积分查询</h2>
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          查看玩家当前积分、定级进度与排行榜上下文
+        </p>
+      </div>
+      <form
+        className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void searchPlayers();
+        }}
+      >
+        <input
+          className="input-field"
+          value={query}
+          aria-label="搜索排位玩家"
+          placeholder="输入用户名、显示名称或用户 ID"
+          autoComplete="off"
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <button
+          className="button-primary inline-flex min-h-10 items-center justify-center gap-1.5 px-4 text-sm"
+          disabled={searchBusy}
+        >
+          {searchBusy ? <Loader2 size={15} className="animate-spin" /> : <Search size={15} />}
+          搜索玩家
+        </button>
+      </form>
+
+      <div className="mt-3" aria-live="polite">
+        {searchError ? (
+          <LookupError
+            message={searchError}
+            retryLabel="重试搜索"
+            onRetry={query.trim() ? () => void searchPlayers() : undefined}
+          />
+        ) : null}
+        {!searchError && searchBusy ? (
+          <div className="flex items-center justify-center gap-2 py-5 text-sm text-[var(--text-muted)]">
+            <Loader2 size={16} className="animate-spin" />
+            正在搜索玩家…
+          </div>
+        ) : null}
+        {!searchBusy && !searchError && hasSearched && candidates.length === 0 ? (
+          <div className="rounded-xl bg-[var(--bg-overlay)] px-3 py-5 text-center text-sm text-[var(--text-muted)]">
+            本赛季没有找到匹配的计分玩家
+          </div>
+        ) : null}
+        {!searchBusy && candidates.length > 0 ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {candidates.map((candidate) => (
+              <button
+                key={candidate.userId}
+                type="button"
+                className={`rounded-xl border px-3 py-2.5 text-left transition-colors ${
+                  candidate.userId === selectedUserId
+                    ? 'border-[var(--accent-primary)] bg-[color:color-mix(in_srgb,var(--accent-primary)_10%,transparent)]'
+                    : 'border-[var(--border-subtle)] bg-[var(--bg-overlay)] hover:border-[var(--border-default)]'
+                }`}
+                aria-pressed={candidate.userId === selectedUserId}
+                onClick={() => void loadPlayerContext(candidate.userId)}
+              >
+                <div className="truncate text-sm font-semibold text-[var(--text-primary)]">
+                  {candidate.displayName || candidate.username}
+                </div>
+                <div className="mt-0.5 truncate text-xs text-[var(--text-muted)]">
+                  @{candidate.username} · {candidate.userId}
+                </div>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+
+      {contextBusy ? (
+        <div
+          className="mt-3 flex items-center justify-center gap-2 rounded-xl bg-[var(--bg-overlay)] py-7 text-sm text-[var(--text-muted)]"
+          aria-live="polite"
+        >
+          <Loader2 size={16} className="animate-spin" />
+          正在读取玩家积分…
+        </div>
+      ) : null}
+      {!contextBusy && contextError ? (
+        <div className="mt-3">
+          <LookupError
+            message={contextError}
+            retryLabel="重试读取"
+            onRetry={selectedUserId ? () => void loadPlayerContext(selectedUserId) : undefined}
+          />
+        </div>
+      ) : null}
+      {!contextBusy && !contextError && context ? (
+        <RankedPlayerContextCard context={context} />
+      ) : null}
+    </section>
+  );
+}
+
+function LookupError({
+  message,
+  retryLabel,
+  onRetry,
+}: {
+  message: string;
+  retryLabel: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)] px-3 py-2 text-sm text-[var(--semantic-error)]">
+      <span>{message}</span>
+      {onRetry ? (
+        <button type="button" className="button-secondary px-3 py-1.5 text-xs" onClick={onRetry}>
+          {retryLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function RankedPlayerContextCard({ context }: { context: RankedAdminPlayerContext }) {
+  const { player } = context;
+  return (
+    <div className="mt-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3 sm:p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate font-semibold text-[var(--text-primary)]">
+              {player.displayName || player.username}
+            </h3>
+            <span className="rounded-full bg-[var(--bg-elevated)] px-2 py-0.5 text-xs font-semibold text-[var(--text-secondary)]">
+              {rankedPlayerStatusLabel(player.status)}
+            </span>
+          </div>
+          <p className="mt-1 break-all text-xs text-[var(--text-muted)]">
+            @{player.username} · {player.userId}
+          </p>
+        </div>
+        <div className="text-right text-xs text-[var(--text-muted)]">
+          <div>流水修订 {context.ledgerRevision}</div>
+          <div className="mt-1">更新于 {formatDate(context.generatedAt)}</div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <PlayerScoreMetric label="当前评分" value={formatPlayerRating(player.rating)} prominent />
+        <PlayerScoreMetric label="RD" value={formatPlayerRating(player.ratingDeviation)} />
+        <PlayerScoreMetric label="已计分场数" value={`${player.ratedMatchCount}`} />
+        <PlayerScoreMetric
+          label="当前排名"
+          value={player.rank === null ? '—' : `#${player.rank}`}
+        />
+      </div>
+
+      <RankedPlayerStatusNote context={context} />
+
+      {player.leaderboardEligible ? (
+        <RankedPlayerNeighborTable rows={context.neighbors.rows} />
+      ) : null}
+    </div>
+  );
+}
+
+function PlayerScoreMetric({
+  label,
+  value,
+  prominent = false,
+}: {
+  label: string;
+  value: string;
+  prominent?: boolean;
+}) {
+  return (
+    <div className="rounded-xl bg-[var(--bg-elevated)] px-3 py-2.5">
+      <div className="text-xs text-[var(--text-muted)]">{label}</div>
+      <div
+        className={`mt-1 font-semibold tabular-nums text-[var(--text-primary)] ${
+          prominent ? 'text-2xl' : 'text-lg'
+        }`}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function RankedPlayerStatusNote({ context }: { context: RankedAdminPlayerContext }) {
+  const { player } = context;
+  if (player.status === 'PLACEMENT') {
+    return (
+      <p className="mt-3 rounded-lg bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+        定级进度 {Math.min(player.ratedMatchCount, context.placementRequired)}/
+        {context.placementRequired}。尚未完成定级，当前评分不代表最终定位。
+        {player.leaderboardEligible ? '已达到当前排行榜门槛。' : ''}
+      </p>
+    );
+  }
+  if (player.status === 'PLACED_NOT_ELIGIBLE') {
+    return (
+      <p className="mt-3 rounded-lg bg-[var(--bg-elevated)] px-3 py-2 text-sm text-[var(--text-secondary)]">
+        已完成定级，当前 {player.ratedMatchCount}/{context.leaderboardMinimumMatchCount}{' '}
+        场，尚未达到排行榜门槛。
+      </p>
+    );
+  }
+  return (
+    <p className="mt-3 text-xs text-[var(--text-muted)]">
+      排名与玩家端榜单一致；下方展示该玩家上下各最多 3 名。
+    </p>
+  );
+}
+
+function RankedPlayerNeighborTable({ rows }: { rows: RankedAdminPlayerRankRow[] }) {
+  return (
+    <div className="mt-3 overflow-x-auto rounded-xl border border-[var(--border-subtle)]">
+      <table className="min-w-full text-left text-sm" aria-label="玩家排名上下文">
+        <thead className="bg-[var(--bg-elevated)] text-xs text-[var(--text-muted)]">
+          <tr>
+            <th className="px-3 py-2 font-medium">排名</th>
+            <th className="px-3 py-2 font-medium">玩家</th>
+            <th className="px-3 py-2 text-right font-medium">评分</th>
+            <th className="px-3 py-2 text-right font-medium">RD</th>
+            <th className="px-3 py-2 text-right font-medium">场数</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.userId}
+              className={
+                row.isTarget
+                  ? 'bg-[color:color-mix(in_srgb,var(--accent-primary)_12%,transparent)] font-semibold text-[var(--text-primary)]'
+                  : 'border-t border-[var(--border-subtle)] text-[var(--text-secondary)]'
+              }
+            >
+              <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">
+                {row.rank === null ? '—' : `#${row.rank}`}
+              </td>
+              <td className="max-w-56 px-3 py-2.5">
+                <div className="truncate">{row.displayName || row.username}</div>
+                <div className="truncate text-xs font-normal text-[var(--text-muted)]">
+                  @{row.username}
+                </div>
+              </td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                {formatPlayerRating(row.rating)}
+              </td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                {formatPlayerRating(row.ratingDeviation)}
+              </td>
+              <td className="whitespace-nowrap px-3 py-2.5 text-right tabular-nums">
+                {row.ratedMatchCount}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -2385,6 +2737,18 @@ function formatOverviewInteger(value: number | undefined): string {
 
 function formatRatingBoundary(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatPlayerRating(value: number): string {
+  return Math.round(value).toLocaleString('zh-CN');
+}
+
+function rankedPlayerStatusLabel(status: RankedAdminPlayerContext['player']['status']): string {
+  return {
+    PLACEMENT: '定级中',
+    PLACED_NOT_ELIGIBLE: '已定级',
+    RANKED: '已入榜',
+  }[status];
 }
 
 function formatRatingDelta(value: number | null): string {
