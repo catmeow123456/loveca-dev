@@ -363,6 +363,12 @@ export const updateRankedSeason = (seasonId: string, payload: RankedSeasonDraftP
     '更新赛季草稿失败'
   );
 
+export const deleteRankedSeasonDraft = (seasonId: string) =>
+  requireData<RankedAdminSeason>(
+    apiClient.delete(`/api/admin/ranked/seasons/${seasonId}`),
+    '删除未开始赛季失败'
+  );
+
 export const updateActiveRankedSeasonOperations = (
   seasonId: string,
   payload: RankedActiveSeasonOperationsPayload

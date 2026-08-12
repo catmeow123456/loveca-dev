@@ -721,6 +721,53 @@ describe('RankedAdminService', () => {
     );
   });
 
+  it('audits deletion of a not-started season after the service removes it', async () => {
+    const deletedSeason = {
+      id: 'season-1',
+      seasonKey: 'season-2026-01',
+      name: '2026 第一赛季',
+      announcement: '',
+      lifecycle: 'DRAFT' as const,
+      queueAdmission: 'PAUSED' as const,
+      competitiveEnvironmentId: 'environment-1',
+      platformTimeZone: 'Asia/Shanghai',
+      openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+      startsAt: new Date('2026-08-01T00:00:00.000Z'),
+      scheduledEndsAt: new Date('2026-09-01T00:00:00.000Z'),
+      finalizingDeadlineAt: new Date('2026-09-03T00:00:00.000Z'),
+      closedAt: null,
+      rulesVersion: 'RULES_V1',
+      cardCatalogVersion: 'CATALOG_V1',
+      cardCatalogHash: `sha256:${'a'.repeat(64)}`,
+      deckPolicyVersion: 'DECK_POLICY_V1',
+      ratingAlgorithmVersion: FORMAL_CONFIG.algorithmVersion,
+      ratingConfig: FORMAL_CONFIG,
+      leaderboardMinimumMatchCount: 10,
+      ledgerRevision: 0,
+    };
+    const deleteDraft = vi.fn().mockResolvedValue(deletedSeason);
+    const audit = vi.fn();
+    const service = new RankedAdminService({
+      seasonService: { deleteDraft } as never,
+      audit,
+      now: () => new Date('2026-07-30T00:00:00.000Z'),
+    });
+
+    const deleted = await service.deleteDraft('season-1', 'admin-1');
+
+    expect(deleteDraft).toHaveBeenCalledWith('season-1');
+    expect(deleted).toMatchObject({ id: 'season-1', lifecycle: 'DRAFT' });
+    expect(audit).toHaveBeenCalledWith({
+      event: 'RANKED_SEASON_DRAFT_DELETED',
+      adminUserId: 'admin-1',
+      seasonId: 'season-1',
+      detail: {
+        seasonKey: 'season-2026-01',
+        name: '2026 第一赛季',
+      },
+    });
+  });
+
   it('rejects soft-reset parameters outside the selected algorithm range', async () => {
     const service = new RankedAdminService({
       getCardCatalogIdentity: vi.fn().mockResolvedValue(CATALOG),

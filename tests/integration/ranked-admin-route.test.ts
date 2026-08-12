@@ -18,6 +18,7 @@ vi.mock('../../src/server/services/ranked-admin-service.js', () => ({
     getSeason: vi.fn(),
     createDraft: vi.fn(),
     updateDraft: vi.fn(),
+    deleteDraft: vi.fn(),
     updateActiveOperations: vi.fn(),
     activateSeason: vi.fn(),
     setQueueAdmission: vi.fn(),
@@ -56,7 +57,7 @@ import { rankedAdminRouter } from '../../src/server/routes/ranked-admin';
 import { rankedAdminService } from '../../src/server/services/ranked-admin-service';
 import { rankedRatingRevisionService } from '../../src/server/services/ranked-rating-revision-service';
 
-type RouteMethod = 'get' | 'post' | 'put';
+type RouteMethod = 'delete' | 'get' | 'post' | 'put';
 
 function createMockResponse() {
   const response = {
@@ -216,6 +217,23 @@ describe('rankedAdminRouter', () => {
         openWindows: [{ weekdays: [5, 6], startMinute: 1140, endMinute: 1320 }],
         leaderboardMinimumMatchCount: 8,
       },
+      '22222222-2222-4222-8222-222222222222'
+    );
+  });
+
+  it('binds draft deletion to the route season and current admin', async () => {
+    vi.mocked(rankedAdminService.deleteDraft).mockResolvedValue({
+      id: '11111111-1111-4111-8111-111111111111',
+      lifecycle: 'DRAFT',
+    } as never);
+
+    const response = await invokeRoute('/seasons/:seasonId', 'delete', {
+      params: { seasonId: '11111111-1111-4111-8111-111111111111' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(rankedAdminService.deleteDraft).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
       '22222222-2222-4222-8222-222222222222'
     );
   });

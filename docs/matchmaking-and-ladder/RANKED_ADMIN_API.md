@@ -21,30 +21,31 @@
 
 ## 2. 接口
 
-| 方法   | 路径                                          | 用途                                              |
-| ------ | --------------------------------------------- | ------------------------------------------------- |
-| `GET`  | `/environment`                                | 查看当前卡牌目录、Shadow/正式算法及其竞技环境身份 |
-| `GET`  | `/seasons`                                    | 查看赛季列表及当前开放窗口、有效候场状态          |
-| `GET`  | `/seasons/:seasonId`                          | 查看冻结环境与当前部署环境差异                    |
-| `POST` | `/seasons`                                    | 使用服务端正式算法创建 `DRAFT + PAUSED` 赛季      |
-| `PUT`  | `/seasons/:seasonId/draft`                    | 全量编辑草稿并重新冻结当前环境                    |
-| `PUT`  | `/seasons/:seasonId/operations`               | 修改进行中赛季的名称、公告、开放窗口和参榜门槛    |
-| `POST` | `/seasons/:seasonId/activate`                 | 校验当前部署环境后进入 `ACTIVE + PAUSED`          |
-| `PUT`  | `/seasons/:seasonId/admission`                | 在 `ACTIVE` 中切换 `OPEN / PAUSED`                |
-| `POST` | `/seasons/:seasonId/finalize`                 | 结束赛季，进入 `FINALIZING` 并停止新匹配          |
-| `POST` | `/seasons/:seasonId/close`                    | 无待计分对局和未开局预留时完成赛季结算            |
-| `GET`  | `/seasons/:seasonId/rating-revisions`         | 读取历次不可变评分参数修订与当前版本              |
-| `POST` | `/seasons/:seasonId/rating-revisions/preview` | 只读回放新参数对全赛季积分、名次和单局差异的影响  |
-| `POST` | `/seasons/:seasonId/rating-revisions/apply`   | 在暂停且无 blocker 时原子应用已签名预览的全量回算 |
-| `GET`  | `/overview?seasonId=<uuid>`                   | 查看指定赛季运行健康、经营统计及玩家分布          |
-| `GET`  | `/players/search`                             | 按赛季搜索已有有效计分记录的玩家                  |
-| `GET`  | `/players/:userId/context`                    | 查看玩家评分、进度及公开榜单上下文                |
-| `GET`  | `/matches`                                    | 分页查看排位对局并按赛季、结算状态或用户搜索      |
-| `GET`  | `/matches/:matchId`                           | 查看对局评分事件及双方长期主卡组                  |
-| `POST` | `/matches/:matchId/settle`                    | 幂等重试权威结果结算                              |
-| `POST` | `/matches/:matchId/corrections/preview`       | 只读回放 `VOID / REPLACEMENT` 的全赛季影响        |
-| `POST` | `/matches/:matchId/corrections`               | 追加并执行已经预览的更正                          |
-| `GET`  | `/monitoring/summary`                         | 汇总各结算状态数量及最早结束时间                  |
+| 方法     | 路径                                          | 用途                                              |
+| -------- | --------------------------------------------- | ------------------------------------------------- |
+| `GET`    | `/environment`                                | 查看当前卡牌目录、Shadow/正式算法及其竞技环境身份 |
+| `GET`    | `/seasons`                                    | 查看赛季列表及当前开放窗口、有效候场状态          |
+| `GET`    | `/seasons/:seasonId`                          | 查看冻结环境与当前部署环境差异                    |
+| `POST`   | `/seasons`                                    | 使用服务端正式算法创建 `DRAFT + PAUSED` 赛季      |
+| `PUT`    | `/seasons/:seasonId/draft`                    | 全量编辑草稿并重新冻结当前环境                    |
+| `DELETE` | `/seasons/:seasonId`                          | 永久删除未开始且没有任何排位关联数据的草稿        |
+| `PUT`    | `/seasons/:seasonId/operations`               | 修改进行中赛季的名称、公告、开放窗口和参榜门槛    |
+| `POST`   | `/seasons/:seasonId/activate`                 | 校验当前部署环境后进入 `ACTIVE + PAUSED`          |
+| `PUT`    | `/seasons/:seasonId/admission`                | 在 `ACTIVE` 中切换 `OPEN / PAUSED`                |
+| `POST`   | `/seasons/:seasonId/finalize`                 | 结束赛季，进入 `FINALIZING` 并停止新匹配          |
+| `POST`   | `/seasons/:seasonId/close`                    | 无待计分对局和未开局预留时完成赛季结算            |
+| `GET`    | `/seasons/:seasonId/rating-revisions`         | 读取历次不可变评分参数修订与当前版本              |
+| `POST`   | `/seasons/:seasonId/rating-revisions/preview` | 只读回放新参数对全赛季积分、名次和单局差异的影响  |
+| `POST`   | `/seasons/:seasonId/rating-revisions/apply`   | 在暂停且无 blocker 时原子应用已签名预览的全量回算 |
+| `GET`    | `/overview?seasonId=<uuid>`                   | 查看指定赛季运行健康、经营统计及玩家分布          |
+| `GET`    | `/players/search`                             | 按赛季搜索已有有效计分记录的玩家                  |
+| `GET`    | `/players/:userId/context`                    | 查看玩家评分、进度及公开榜单上下文                |
+| `GET`    | `/matches`                                    | 分页查看排位对局并按赛季、结算状态或用户搜索      |
+| `GET`    | `/matches/:matchId`                           | 查看对局评分事件及双方长期主卡组                  |
+| `POST`   | `/matches/:matchId/settle`                    | 幂等重试权威结果结算                              |
+| `POST`   | `/matches/:matchId/corrections/preview`       | 只读回放 `VOID / REPLACEMENT` 的全赛季影响        |
+| `POST`   | `/matches/:matchId/corrections`               | 追加并执行已经预览的更正                          |
+| `GET`    | `/monitoring/summary`                         | 汇总各结算状态数量及最早结束时间                  |
 
 赛季的 `queueAdmission=OPEN` 表示运营允许候场，不表示此刻一定可以入队。玩家侧
 最终准入必须同时满足：
@@ -57,6 +58,11 @@ lifecycle == ACTIVE
 
 因此管理员可以在开放窗口开始前恢复 `OPEN`，无需卡点操作；窗口外的有效准入仍
 为关闭。
+
+删除赛季只接受仍为 `DRAFT + PAUSED`、`ledgerRevision=0` 且不存在候场票据、配对预留、
+对局、卡组观察、积分投影/流水/修订、软重置种子或徽章引用的空草稿。删除与开始赛季在同一
+可串行化事务边界锁定赛季行；已经开始或出现任何关联事实后都返回冲突，不使用外键级联清理
+历史数据。成功删除会写入带赛季标识、名称和管理员身份的结构化审计日志。
 
 `GET /matches` 接受可选的 `seasonId`、`ratingStatus`、`userQuery`、`limit` 和
 `offset`。`userQuery` 匹配双方的用户名、显示名称或用户 ID；响应中的 `data` 是当前
@@ -143,8 +149,9 @@ V1–V3 的两个门槛可以独立配置，因此仍在定级的玩家若已经
 - “概览”：按赛季展示实际匹配状态、候场/预留/进行中/待计分健康信息、核心经营统计，
   以及玩家场次数和积分分布；支持按用户名、显示名称或用户 ID 查询单个玩家的评分、定级/
   参榜进度和上下各最多 3 名的榜单上下文；运行异常时直接提示最老待计分时间；
-- “赛季”：创建/编辑未开始赛季、开始赛季、修改开放中赛季的名称、公告、开放时段与参榜
+- “赛季”：创建、编辑或经二次确认永久删除空的未开始赛季，开始赛季、修改开放中赛季的名称、公告、开放时段与参榜
   场次门槛、开放/暂停匹配、结束赛季和完成结算；进行中 V3/V4 赛季另有“调整积分参数”高风险工具，可编辑受限参数、查看新旧玩家/名次/单局差异、复用历史参数，并仅在安全校验通过后确认应用；V4 工具另提供成长补偿启用开关、基准分、最大单局注入/回收总分、高分局胜方回收比例，以及高级选项中的过渡宽度；
+- 管理页允许以“次日”语义编辑单个跨午夜开放时段；提交时自动拆为当日至 `24:00` 与次日从 `00:00` 开始的两个合法 `openWindows`，回显时只合并可无损还原的规范窗口对；
 - “对局处理”：默认分页查看全部赛季的排位对局，也可按赛季、计分状态筛选或按用户名、
   显示名称、用户 ID 搜索；列表直接显示双方胜负、双方加减分、胜方和结果类型，并可按需展开
   双方长期保存的主卡组。等待计分

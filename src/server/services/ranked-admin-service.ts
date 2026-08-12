@@ -454,6 +454,20 @@ export class RankedAdminService {
     return projectSeason(season, this.now());
   }
 
+  async deleteDraft(seasonId: string, adminUserId: string): Promise<RankedAdminSeasonView> {
+    const season = await this.seasonService.deleteDraft(seasonId);
+    this.audit({
+      event: 'RANKED_SEASON_DRAFT_DELETED',
+      adminUserId,
+      seasonId,
+      detail: {
+        seasonKey: season.seasonKey,
+        name: season.name,
+      },
+    });
+    return projectSeason(season, this.now());
+  }
+
   async updateActiveOperations(
     seasonId: string,
     input: RankedAdminActiveSeasonOperationsInput,

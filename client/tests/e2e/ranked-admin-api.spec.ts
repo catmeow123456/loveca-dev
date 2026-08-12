@@ -478,6 +478,7 @@ test.describe('赛季排位管理员 API', () => {
     try {
       await openAuthenticatedAdminPage(page, request);
       await page.getByText('赛季排位管理').click();
+      await page.getByRole('tab', { name: '赛季' }).click();
       const seasonName = page.getByText('E2E 生命周期赛季', { exact: true });
       await expect(seasonName).toBeVisible();
       await seasonName
@@ -489,7 +490,8 @@ test.describe('赛季排位管理员 API', () => {
       await page.getByLabel('进入排行榜所需场次').fill('8');
       const timeInputs = page.locator('form input[type="time"]');
       await timeInputs.nth(0).fill('18:00');
-      await timeInputs.nth(1).fill('22:00');
+      await timeInputs.nth(1).fill('01:00');
+      await expect(page.getByText('— 次日', { exact: true })).toBeVisible();
       await page.screenshot({ path: '/tmp/loveca-ranked-admin-active-edit.png', fullPage: true });
       const updateResponse = page.waitForResponse(
         (response) =>
@@ -502,7 +504,7 @@ test.describe('赛季排位管理员 API', () => {
       await withLocalTestDatabase(async (client) => {
         const result = await client.query<{
           name: string;
-          open_windows: Array<{ startMinute: number; endMinute: number }>;
+          open_windows: Array<{ weekdays: number[]; startMinute: number; endMinute: number }>;
           rating_algorithm_version: string;
           leaderboard_minimum_match_count: number;
         }>(
@@ -513,9 +515,61 @@ test.describe('赛季排位管理员 API', () => {
         );
         expect(result.rows[0]).toMatchObject({
           name: 'E2E 晚间排位',
-          open_windows: [{ startMinute: 1080, endMinute: 1320 }],
+          open_windows: [
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 1080,
+              endMinute: 1440,
+            },
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 0,
+              endMinute: 60,
+            },
+          ],
           rating_algorithm_version: 'GLICKO1_PER_MATCH_E2E_V1',
           leaderboard_minimum_match_count: 8,
+        });
+      });
+
+      await expect(page.getByText('每天 18:00–次日 01:00', { exact: true })).toBeVisible();
+      await page
+        .getByText('E2E 晚间排位', { exact: true })
+        .locator('xpath=ancestor::section')
+        .getByRole('button', { name: '编辑' })
+        .click();
+      const restoredTimeInputs = page.locator('form input[type="time"]');
+      await expect(restoredTimeInputs.nth(0)).toHaveValue('18:00');
+      await expect(restoredTimeInputs.nth(1)).toHaveValue('01:00');
+      await expect(page.getByText('— 次日', { exact: true })).toBeVisible();
+      await page.getByLabel('名称').fill('E2E 跨日排位');
+      const roundTripResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          response.url().includes(`/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`)
+      );
+      await page.getByRole('button', { name: '保存', exact: true }).click();
+      expect((await roundTripResponse).ok()).toBe(true);
+
+      await withLocalTestDatabase(async (client) => {
+        const result = await client.query<{
+          name: string;
+          open_windows: Array<{ weekdays: number[]; startMinute: number; endMinute: number }>;
+        }>('SELECT name, open_windows FROM ranked_seasons WHERE id = $1', [E2E_SEASON_ID]);
+        expect(result.rows[0]).toEqual({
+          name: 'E2E 跨日排位',
+          open_windows: [
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 1080,
+              endMinute: 1440,
+            },
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 0,
+              endMinute: 60,
+            },
+          ],
         });
       });
     } finally {
@@ -528,16 +582,25 @@ test.describe('赛季排位管理员 API', () => {
     try {
       await openAuthenticatedAdminPage(page, request);
       await page.getByText('赛季排位管理').click();
+      await page.getByRole('tab', { name: '赛季' }).click();
       await page.getByRole('button', { name: '新建赛季' }).click();
       await page.getByLabel('赛季标识').fill(E2E_UI_SEASON_KEY);
       await page.getByLabel('名称').fill('E2E 页面草稿');
       await expect(page.getByLabel('进入排行榜所需场次')).toBeDisabled();
       await expect(page.getByLabel('进入排行榜所需场次')).toHaveValue('5');
+      const createTimeInputs = page.locator('form input[type="time"]');
+      await createTimeInputs.nth(0).fill('18:00');
+      await createTimeInputs.nth(1).fill('01:00');
+      await expect(page.getByText('— 次日', { exact: true })).toBeVisible();
       await page.getByRole('button', { name: '创建赛季' }).click();
 
       const createdSeason = page.getByText('E2E 页面草稿', { exact: true });
+      await expect(page.getByText('每天 18:00–次日 01:00', { exact: true })).toBeVisible();
       const seasonCard = createdSeason.locator('xpath=ancestor::section');
       await seasonCard.getByRole('button', { name: '编辑' }).click();
+      const editTimeInputs = page.locator('form input[type="time"]');
+      await expect(editTimeInputs.nth(0)).toHaveValue('18:00');
+      await expect(editTimeInputs.nth(1)).toHaveValue('01:00');
       await page.getByLabel('名称').fill('E2E 页面草稿已编辑');
       const updateResponse = page.waitForResponse(
         (response) =>
@@ -552,8 +615,9 @@ test.describe('赛季排位管理员 API', () => {
         const result = await client.query<{
           name: string;
           leaderboard_minimum_match_count: number;
+          open_windows: Array<{ weekdays: number[]; startMinute: number; endMinute: number }>;
         }>(
-          `SELECT name, leaderboard_minimum_match_count
+          `SELECT name, leaderboard_minimum_match_count, open_windows
            FROM ranked_seasons
            WHERE season_key = $1`,
           [E2E_UI_SEASON_KEY]
@@ -561,7 +625,42 @@ test.describe('赛季排位管理员 API', () => {
         expect(result.rows[0]).toMatchObject({
           name: 'E2E 页面草稿已编辑',
           leaderboard_minimum_match_count: 5,
+          open_windows: [
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 1080,
+              endMinute: 1440,
+            },
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 0,
+              endMinute: 60,
+            },
+          ],
         });
+      });
+
+      const editedSeason = page.getByText('E2E 页面草稿已编辑', { exact: true });
+      const editedSeasonCard = editedSeason.locator('xpath=ancestor::section');
+      await editedSeasonCard.getByRole('button', { name: '删除赛季' }).click();
+      const deleteDialog = page.getByRole('dialog', { name: '删除未开始赛季？' });
+      await expect(deleteDialog).toBeVisible();
+      await expect(deleteDialog).toContainText(E2E_UI_SEASON_KEY);
+      const deleteResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'DELETE' &&
+          response.url().includes('/api/admin/ranked/seasons/')
+      );
+      await deleteDialog.getByRole('button', { name: '确认删除' }).click();
+      expect((await deleteResponse).ok()).toBe(true);
+      await expect(editedSeason).toHaveCount(0);
+
+      await withLocalTestDatabase(async (client) => {
+        const result = await client.query<{ count: string }>(
+          'SELECT COUNT(*) AS count FROM ranked_seasons WHERE season_key = $1',
+          [E2E_UI_SEASON_KEY]
+        );
+        expect(Number(result.rows[0]?.count ?? 0)).toBe(0);
       });
     } finally {
       await removeE2eUiSeason();

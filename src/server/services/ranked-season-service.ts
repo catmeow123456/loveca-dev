@@ -270,6 +270,83 @@ export class RankedSeasonService {
     });
   }
 
+  async deleteDraft(seasonId: string): Promise<RankedSeasonRecord> {
+    return this.transaction(async (client) => {
+      const season = await lockSeason(client, seasonId);
+      if (season.lifecycle !== 'DRAFT' || season.queue_admission !== 'PAUSED') {
+        throw seasonError('RANKED_SEASON_DRAFT_DELETE_CONFLICT', '只有未开始的赛季可以删除', 409);
+      }
+      if (season.ledger_revision !== 0) {
+        throw seasonError(
+          'RANKED_SEASON_DRAFT_NOT_EMPTY',
+          '赛季草稿已有排位关联数据，无法删除',
+          409
+        );
+      }
+
+      const dependency = await client.query<{ readonly dependency: string }>(
+        `SELECT dependency
+         FROM (
+           SELECT 'public_table_tickets' AS dependency
+           WHERE EXISTS (SELECT 1 FROM public_table_tickets WHERE season_id = $1)
+           UNION ALL
+           SELECT 'public_table_reservations'
+           WHERE EXISTS (SELECT 1 FROM public_table_reservations WHERE season_id = $1)
+           UNION ALL
+           SELECT 'ranked_matches'
+           WHERE EXISTS (SELECT 1 FROM ranked_matches WHERE season_id = $1)
+           UNION ALL
+           SELECT 'ranked_deck_observations'
+           WHERE EXISTS (SELECT 1 FROM ranked_deck_observations WHERE season_id = $1)
+           UNION ALL
+           SELECT 'ranked_player_seeds'
+           WHERE EXISTS (
+             SELECT 1
+             FROM ranked_player_seeds
+             WHERE season_id = $1 OR source_season_id = $1
+           )
+           UNION ALL
+           SELECT 'ranked_player_ratings'
+           WHERE EXISTS (SELECT 1 FROM ranked_player_ratings WHERE season_id = $1)
+           UNION ALL
+           SELECT 'ranked_rating_events'
+           WHERE EXISTS (SELECT 1 FROM ranked_rating_events WHERE season_id = $1)
+           UNION ALL
+           SELECT 'ranked_rating_revisions'
+           WHERE EXISTS (SELECT 1 FROM ranked_rating_revisions WHERE season_id = $1)
+           UNION ALL
+           SELECT 'player_badge_rules'
+           WHERE EXISTS (SELECT 1 FROM player_badge_rules WHERE source_season_id = $1)
+           UNION ALL
+           SELECT 'player_badges'
+           WHERE EXISTS (SELECT 1 FROM player_badges WHERE source_season_id = $1)
+         ) AS dependencies
+         LIMIT 1`,
+        [seasonId]
+      );
+      if (dependency.rows[0]) {
+        throw seasonError(
+          'RANKED_SEASON_DRAFT_NOT_EMPTY',
+          '赛季草稿已有排位关联数据，无法删除',
+          409
+        );
+      }
+
+      const deleted = await client.query<{ readonly id: string }>(
+        `DELETE FROM ranked_seasons
+         WHERE id = $1
+           AND lifecycle = 'DRAFT'
+           AND queue_admission = 'PAUSED'
+         RETURNING id`,
+        [seasonId]
+      );
+      if (!deleted.rows[0]) {
+        throw seasonError('RANKED_SEASON_DRAFT_DELETE_FAILED', '赛季草稿删除失败', 500);
+      }
+      return mapRequiredSeason(season, 'RANKED_SEASON_DRAFT_DELETE_FAILED');
+    });
+  }
+
   async updateActiveOperations(
     seasonId: string,
     input: UpdateActiveRankedSeasonOperationsInput
@@ -566,8 +643,7 @@ export function getRankedQueueWindowTiming(
   }
   const local = readZonedDateParts(searchFrom, platformTimeZone);
   const baseLocalDate = Date.UTC(local.year, local.month - 1, local.day);
-  let nextOpensAt: Date | null = null;
-  let currentWindowEndsAt: Date | null = null;
+  const intervals: { start: Date; end: Date }[] = [];
 
   for (let dayOffset = 0; dayOffset <= 8; dayOffset += 1) {
     const localDate = new Date(baseLocalDate + dayOffset * 24 * 60 * 60 * 1000);
@@ -583,27 +659,37 @@ export function getRankedQueueWindowTiming(
       if (effectiveStart.getTime() >= effectiveEnd.getTime()) {
         continue;
       }
-      if (now.getTime() >= effectiveStart.getTime() && now.getTime() < effectiveEnd.getTime()) {
-        if (
-          currentWindowEndsAt === null ||
-          effectiveEnd.getTime() > currentWindowEndsAt.getTime()
-        ) {
-          currentWindowEndsAt = effectiveEnd;
-        }
-        continue;
-      }
-      if (
-        effectiveStart.getTime() > now.getTime() &&
-        (!nextOpensAt || effectiveStart.getTime() < nextOpensAt.getTime())
-      ) {
-        nextOpensAt = effectiveStart;
-      }
+      intervals.push({ start: effectiveStart, end: effectiveEnd });
     }
   }
+
+  intervals.sort(
+    (left, right) =>
+      left.start.getTime() - right.start.getTime() || left.end.getTime() - right.end.getTime()
+  );
+  const mergedIntervals: { start: Date; end: Date }[] = [];
+  for (const interval of intervals) {
+    const previous = mergedIntervals.at(-1);
+    if (!previous || interval.start.getTime() > previous.end.getTime()) {
+      mergedIntervals.push({ ...interval });
+      continue;
+    }
+    if (interval.end.getTime() > previous.end.getTime()) {
+      previous.end = interval.end;
+    }
+  }
+
+  const currentInterval = mergedIntervals.find(
+    (interval) =>
+      now.getTime() >= interval.start.getTime() && now.getTime() < interval.end.getTime()
+  );
+  const nextInterval = mergedIntervals.find(
+    (interval) => interval.start.getTime() > (currentInterval?.end.getTime() ?? now.getTime())
+  );
   return {
-    withinOpenWindow: currentWindowEndsAt !== null,
-    currentWindowEndsAt,
-    nextOpensAt,
+    withinOpenWindow: currentInterval !== undefined,
+    currentWindowEndsAt: currentInterval?.end ?? null,
+    nextOpensAt: nextInterval?.start ?? null,
   };
 }
 

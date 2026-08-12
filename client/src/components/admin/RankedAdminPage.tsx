@@ -9,9 +9,11 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
+import { ConfirmDialog } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
   createRankedSeason,
+  deleteRankedSeasonDraft,
   applyRankedRatingRevision,
   executeRankedCorrection,
   fetchRankedAdminPlayerContext,
@@ -47,6 +49,13 @@ import {
   type RankedSeasonDraftPayload,
 } from '@/lib/rankedAdminClient';
 import { resolveCardImagePath } from '@/lib/imageService';
+import {
+  collapseRankedOpenWindows,
+  isCrossMidnightRankedOpenWindow,
+  isEditableRankedOpenWindowValid,
+  prepareRankedOpenWindowsForApi,
+  prepareRankedOpenWindowsForForm,
+} from '@/lib/rankedOpenWindows';
 
 type Tab = 'overview' | 'season' | 'matches';
 type MatchRatingStatus = RankedAdminMatch['ratingStatus'] | '';
@@ -93,6 +102,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [selectedSeasonId, setSelectedSeasonId] = useState('');
   const [creating, setCreating] = useState(false);
   const [editingSeason, setEditingSeason] = useState<RankedAdminSeason | null>(null);
+  const [deletingSeason, setDeletingSeason] = useState<RankedAdminSeason | null>(null);
   const [noticeSeason, setNoticeSeason] = useState<RankedAdminSeason | null>(null);
   const [ratingRevisionSeason, setRatingRevisionSeason] = useState<RankedAdminSeason | null>(null);
   const [correction, setCorrection] = useState<{
@@ -188,11 +198,20 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
         setFormalRatingConfig(formal.config);
       }
       setSeasons(seasonList);
+      const nextMatchSeasonId = seasonList.some((season) => season.id === selectedSeasonId)
+        ? selectedSeasonId
+        : '';
+      const nextMatchPage = nextMatchSeasonId === selectedSeasonId ? matchPage : 0;
+      setSelectedSeasonId(nextMatchSeasonId);
+      setMatchPage(nextMatchPage);
       const nextOverviewSeasonId = seasonList.some((season) => season.id === overviewSeasonId)
         ? overviewSeasonId
         : preferredOverviewSeasonId(seasonList);
       setOverviewSeasonId(nextOverviewSeasonId);
-      await Promise.all([loadMatchPage(), loadOverview(nextOverviewSeasonId)]);
+      await Promise.all([
+        loadMatchPage({ seasonId: nextMatchSeasonId, page: nextMatchPage }),
+        loadOverview(nextOverviewSeasonId),
+      ]);
     } catch (loadError) {
       setError(readError(loadError));
     } finally {
@@ -337,6 +356,7 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
                 )
               }
               onAction={(season, action) => run(() => runRankedSeasonAction(season.id, action))}
+              onDelete={setDeletingSeason}
               onAdmission={(season, admission) =>
                 run(() => setRankedAdmission(season.id, admission))
               }
@@ -421,6 +441,28 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
           }}
         />
       ) : null}
+      <ConfirmDialog
+        isOpen={deletingSeason !== null}
+        title="删除未开始赛季？"
+        message={
+          deletingSeason
+            ? `将永久删除“${deletingSeason.name}”（${deletingSeason.seasonKey}）。此操作不可恢复，已经开始的赛季不会受到影响。`
+            : ''
+        }
+        confirmLabel="确认删除"
+        isConfirming={busy}
+        onCancel={() => setDeletingSeason(null)}
+        onConfirm={() => {
+          if (!deletingSeason) return;
+          const target = deletingSeason;
+          void run(() => deleteRankedSeasonDraft(target.id)).then((deleted) => {
+            if (!deleted) return;
+            if (editingSeason?.id === target.id) setEditingSeason(null);
+            if (noticeSeason?.id === target.id) setNoticeSeason(null);
+            setDeletingSeason(null);
+          });
+        }}
+      />
     </div>
   );
 }
@@ -1058,6 +1100,7 @@ function SeasonPanel({
   onUpdate,
   onUpdateActive,
   onAction,
+  onDelete,
   onAdmission,
   onOpenSeasonNotice,
   onOpenRatingRevision,
@@ -1081,6 +1124,7 @@ function SeasonPanel({
     season: RankedAdminSeason,
     action: 'activate' | 'finalize' | 'close'
   ) => Promise<unknown>;
+  onDelete: (season: RankedAdminSeason) => void;
   onAdmission: (season: RankedAdminSeason, admission: 'OPEN' | 'PAUSED') => Promise<unknown>;
   onOpenSeasonNotice: (season: RankedAdminSeason) => void;
   onOpenRatingRevision: (season: RankedAdminSeason) => void;
@@ -1155,6 +1199,13 @@ function SeasonPanel({
                         onClick={() => void onAction(season, 'activate')}
                       >
                         开始赛季
+                      </button>
+                      <button
+                        className="rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,var(--border-default))] px-3 py-2 text-sm text-[var(--semantic-error)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-error)_10%,transparent)]"
+                        disabled={busy}
+                        onClick={() => onDelete(season)}
+                      >
+                        删除赛季
                       </button>
                     </>
                   ) : null}
@@ -1246,18 +1297,22 @@ function ActiveSeasonOperationsForm({
     season.leaderboardMinimumMatchCount
   );
   const [openWindows, setOpenWindows] = useState(() =>
-    season.openWindows.map((window) => ({
-      weekdays: [...window.weekdays],
-      startMinute: window.startMinute,
-      endMinute: window.endMinute,
-    }))
+    prepareRankedOpenWindowsForForm(season.openWindows)
   );
+  const editableOpenWindow = openWindows.length === 1 ? openWindows[0] : null;
+  const openWindowIsValid =
+    editableOpenWindow === null || isEditableRankedOpenWindowValid(editableOpenWindow);
   return (
     <form
       className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
-        void onSubmit({ name, announcement, openWindows, leaderboardMinimumMatchCount });
+        void onSubmit({
+          name,
+          announcement,
+          openWindows: prepareRankedOpenWindowsForApi(openWindows),
+          leaderboardMinimumMatchCount,
+        });
       }}
     >
       <div className="text-sm font-semibold text-[var(--text-primary)] sm:col-span-2">
@@ -1295,15 +1350,21 @@ function ActiveSeasonOperationsForm({
           />
         </Field>
       </div>
-      <OpenWindowFields
-        openWindow={openWindows[0]}
-        onChange={(openWindow) => setOpenWindows([openWindow, ...openWindows.slice(1)])}
-      />
+      {editableOpenWindow ? (
+        <OpenWindowFields
+          openWindow={editableOpenWindow}
+          onChange={(openWindow) => setOpenWindows([openWindow])}
+        />
+      ) : (
+        <p className="rounded-lg bg-[var(--semantic-warning)]/10 px-3 py-2 text-sm text-[var(--semantic-warning)] sm:col-span-2">
+          当前赛季包含多个独立开放时段，本次保存会原样保留这些时段。
+        </p>
+      )}
       <div className="flex items-end justify-end gap-2 sm:col-span-2">
         <button type="button" className="button-secondary min-h-11 px-4" onClick={onCancel}>
           取消
         </button>
-        <button className="button-primary min-h-11 px-5" disabled={busy}>
+        <button className="button-primary min-h-11 px-5" disabled={busy || !openWindowIsValid}>
           {busy ? <Loader2 size={16} className="animate-spin" /> : '保存'}
         </button>
       </div>
@@ -1332,6 +1393,9 @@ function SeasonDraftForm({
     [algorithm, defaultRatingConfig, season]
   );
   const [draft, setDraft] = useState(initial);
+  const editableOpenWindow = draft.openWindows.length === 1 ? draft.openWindows[0] : null;
+  const openWindowIsValid =
+    editableOpenWindow === null || isEditableRankedOpenWindowValid(editableOpenWindow);
   const leaderboardMatchCountIsFrozen =
     draft.ratingAlgorithmVersion === defaultRatingConfig.algorithmVersion &&
     Boolean(defaultRatingConfig.growthPool);
@@ -1342,6 +1406,7 @@ function SeasonDraftForm({
         event.preventDefault();
         void onSubmit({
           ...draft,
+          openWindows: prepareRankedOpenWindowsForApi(draft.openWindows),
           startsAt: new Date(draft.startsAt).toISOString(),
           scheduledEndsAt: new Date(draft.scheduledEndsAt).toISOString(),
           finalizingDeadlineAt: new Date(draft.finalizingDeadlineAt).toISOString(),
@@ -1491,19 +1556,23 @@ function SeasonDraftForm({
           </Field>
         </>
       ) : null}
-      <OpenWindowFields
-        openWindow={draft.openWindows[0]}
-        onChange={(openWindow) =>
-          setDraft({ ...draft, openWindows: [openWindow, ...draft.openWindows.slice(1)] })
-        }
-      />
+      {editableOpenWindow ? (
+        <OpenWindowFields
+          openWindow={editableOpenWindow}
+          onChange={(openWindow) => setDraft({ ...draft, openWindows: [openWindow] })}
+        />
+      ) : (
+        <p className="rounded-lg bg-[var(--semantic-warning)]/10 px-3 py-2 text-sm text-[var(--semantic-warning)] sm:col-span-2">
+          当前赛季包含多个独立开放时段，本次保存会原样保留这些时段。
+        </p>
+      )}
       <div className="flex items-end justify-end gap-2">
         {onCancel ? (
           <button type="button" className="button-secondary min-h-11 px-4" onClick={onCancel}>
             取消
           </button>
         ) : null}
-        <button className="button-primary min-h-11 px-5" disabled={busy}>
+        <button className="button-primary min-h-11 px-5" disabled={busy || !openWindowIsValid}>
           {busy ? <Loader2 size={16} className="animate-spin" /> : season ? '保存' : '创建赛季'}
         </button>
       </div>
@@ -2593,6 +2662,8 @@ function OpenWindowFields({
     startMinute: 0,
     endMinute: 1440,
   };
+  const crossesMidnight = isCrossMidnightRankedOpenWindow(current);
+  const isValid = isEditableRankedOpenWindowValid(current);
   return (
     <>
       <Field label="每日开放">
@@ -2605,7 +2676,7 @@ function OpenWindowFields({
               onChange({ ...current, startMinute: timeToMinute(event.target.value) })
             }
           />
-          <span>—</span>
+          <span className="whitespace-nowrap">—{crossesMidnight ? ' 次日' : ''}</span>
           <input
             type="time"
             className="input-field"
@@ -2615,6 +2686,11 @@ function OpenWindowFields({
             }
           />
         </div>
+        {!isValid ? (
+          <span className="text-xs text-[var(--semantic-error)]">
+            开始与结束时间不能相同。如需全天开放，请设为 00:00–00:00。
+          </span>
+        ) : null}
       </Field>
       <Field label="开放日">
         <div className="grid grid-cols-7 gap-1">
@@ -2687,11 +2763,7 @@ function createDraftFromSeason(season: RankedAdminSeason) {
     name: season.name,
     announcement: season.announcement,
     platformTimeZone: season.platformTimeZone,
-    openWindows: season.openWindows.map((window) => ({
-      weekdays: [...window.weekdays],
-      startMinute: window.startMinute,
-      endMinute: window.endMinute,
-    })),
+    openWindows: prepareRankedOpenWindowsForForm(season.openWindows),
     startsAt: toLocalInput(season.startsAt),
     scheduledEndsAt: toLocalInput(season.scheduledEndsAt),
     finalizingDeadlineAt: toLocalInput(season.finalizingDeadlineAt),
@@ -2807,7 +2879,8 @@ function formatDate(value: string) {
 }
 
 function formatOpenWindows(windows: RankedAdminSeason['openWindows']): string {
-  const first = windows[0];
+  const collapsed = collapseRankedOpenWindows(windows);
+  const first = collapsed ?? windows[0];
   if (!first) return '未设置时段';
   const weekdays =
     first.weekdays.length === 7
@@ -2815,8 +2888,10 @@ function formatOpenWindows(windows: RankedAdminSeason['openWindows']): string {
       : first.weekdays
           .map((weekday) => `周${['一', '二', '三', '四', '五', '六', '日'][weekday - 1]}`)
           .join('、');
-  const time = `${minuteToTime(first.startMinute)}–${minuteToTime(first.endMinute, true)}`;
-  return `${weekdays} ${time}${windows.length > 1 ? ` 等 ${windows.length} 个时段` : ''}`;
+  const time = `${minuteToTime(first.startMinute)}–${
+    isCrossMidnightRankedOpenWindow(first) ? '次日 ' : ''
+  }${minuteToTime(first.endMinute, true)}`;
+  return `${weekdays} ${time}${!collapsed && windows.length > 1 ? ` 等 ${windows.length} 个时段` : ''}`;
 }
 
 function readError(error: unknown) {

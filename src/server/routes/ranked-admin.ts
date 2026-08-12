@@ -186,6 +186,18 @@ rankedAdminRouter.put('/seasons/:seasonId/draft', validate(seasonDraftSchema), a
   }
 });
 
+rankedAdminRouter.delete('/seasons/:seasonId', async (req, res) => {
+  const seasonId = readParam(req.params.seasonId, seasonIdSchema, '赛季 ID', res);
+  if (!seasonId) {
+    return;
+  }
+  try {
+    respondData(res, await rankedAdminService.deleteDraft(seasonId, req.user!.id));
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
 rankedAdminRouter.put(
   '/seasons/:seasonId/operations',
   validate(activeSeasonOperationsSchema),

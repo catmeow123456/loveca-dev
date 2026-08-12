@@ -230,7 +230,7 @@ SETTLEMENT(match A)
 - 至少一个开放窗口；
 - 周一至周日使用 `1～7`；
 - `startMinute` 包含、`endMinute` 不包含；
-- 首版窗口不能跨日或互相重叠；
+- 持久化的单个窗口不能跨日或互相重叠；管理页中的跨日时段会拆为两个规范窗口；
 - `startsAt < scheduledEndsAt <= finalizingDeadlineAt`；
 - 完整竞技环境身份；
 - 非 `SHADOW` 算法版本。
@@ -238,6 +238,8 @@ SETTLEMENT(match A)
 生命周期操作：
 
 - 新赛季始终以 `DRAFT + PAUSED` 创建；
+- 空的 `DRAFT + PAUSED` 草稿可以由管理员永久删除；删除前锁定赛季并确认没有任何候场、
+  配对、对局、积分、修订、构筑观察或徽章关联事实，不以计划开始时间判断可删除性；
 - `activate` 只允许 `DRAFT -> ACTIVE`，并重新校验部署环境；
 - `OPEN` 只允许在 `ACTIVE` 中设置；实际候场还必须位于配置窗口内，因此可以提前恢复运营准入；
 - `beginFinalizing` 同时强制 `PAUSED`；

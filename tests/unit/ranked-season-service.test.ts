@@ -149,6 +149,53 @@ describe('ranked season open windows', () => {
     expect(timing.currentWindowEndsAt?.toISOString()).toBe('2026-08-03T14:00:00.000Z');
     expect(timing.nextOpensAt?.toISOString()).toBe('2026-08-05T12:00:00.000Z');
   });
+
+  it('reports midnight-adjacent stored windows as one continuous open period', () => {
+    const windows = [
+      { weekdays: [1], startMinute: 1080, endMinute: 1440 },
+      { weekdays: [2], startMinute: 0, endMinute: 60 },
+    ];
+    const startsAt = new Date('2026-08-01T00:00:00.000Z');
+    const scheduledEndsAt = new Date('2026-09-01T00:00:00.000Z');
+    const timing = getRankedQueueWindowTiming(
+      new Date('2026-08-03T15:00:00.000Z'),
+      'Asia/Shanghai',
+      windows,
+      startsAt,
+      scheduledEndsAt
+    );
+
+    expect(timing.withinOpenWindow).toBe(true);
+    expect(timing.currentWindowEndsAt?.toISOString()).toBe('2026-08-03T17:00:00.000Z');
+    expect(timing.nextOpensAt?.toISOString()).toBe('2026-08-10T10:00:00.000Z');
+    expect(
+      isRankedQueueWindowOpen(
+        new Date('2026-08-03T15:59:59.000Z'),
+        'Asia/Shanghai',
+        windows,
+        startsAt,
+        scheduledEndsAt
+      )
+    ).toBe(true);
+    expect(
+      isRankedQueueWindowOpen(
+        new Date('2026-08-03T16:59:59.000Z'),
+        'Asia/Shanghai',
+        windows,
+        startsAt,
+        scheduledEndsAt
+      )
+    ).toBe(true);
+    expect(
+      isRankedQueueWindowOpen(
+        new Date('2026-08-03T17:00:00.000Z'),
+        'Asia/Shanghai',
+        windows,
+        startsAt,
+        scheduledEndsAt
+      )
+    ).toBe(false);
+  });
 });
 
 describe('RankedSeasonService lifecycle', () => {
@@ -182,6 +229,61 @@ describe('RankedSeasonService lifecycle', () => {
       announcement: '欢迎参加第一赛季',
     });
     expect(calls.some((text) => text.includes('rating_config'))).toBe(true);
+  });
+
+  it('deletes an empty paused draft while holding the season lock', async () => {
+    const { calls, service } = createHarness((text) => {
+      if (text.includes('SELECT *') && text.includes('FOR UPDATE')) {
+        return [seasonRow()];
+      }
+      if (text.includes('DELETE FROM ranked_seasons')) {
+        return [{ id: 'season-1' }];
+      }
+      return [];
+    });
+
+    const deleted = await service.deleteDraft('season-1');
+
+    expect(deleted).toMatchObject({
+      id: 'season-1',
+      seasonKey: 'season-2026-01',
+      lifecycle: 'DRAFT',
+      queueAdmission: 'PAUSED',
+    });
+    expect(calls.some((text) => text.includes('AS dependencies'))).toBe(true);
+    expect(calls.some((text) => text.includes('DELETE FROM ranked_seasons'))).toBe(true);
+  });
+
+  it('does not delete a season after it has started', async () => {
+    const { calls, service } = createHarness((text) =>
+      text.includes('SELECT *') && text.includes('FOR UPDATE')
+        ? [seasonRow({ lifecycle: 'ACTIVE' })]
+        : []
+    );
+
+    await expect(service.deleteDraft('season-1')).rejects.toMatchObject({
+      code: 'RANKED_SEASON_DRAFT_DELETE_CONFLICT',
+      statusCode: 409,
+    });
+    expect(calls.some((text) => text.includes('DELETE FROM ranked_seasons'))).toBe(false);
+  });
+
+  it('does not cascade-delete a draft with ranked dependencies', async () => {
+    const { calls, service } = createHarness((text) => {
+      if (text.includes('SELECT *') && text.includes('FOR UPDATE')) {
+        return [seasonRow()];
+      }
+      if (text.includes('AS dependencies')) {
+        return [{ dependency: 'ranked_player_ratings' }];
+      }
+      return [];
+    });
+
+    await expect(service.deleteDraft('season-1')).rejects.toMatchObject({
+      code: 'RANKED_SEASON_DRAFT_NOT_EMPTY',
+      statusCode: 409,
+    });
+    expect(calls.some((text) => text.includes('DELETE FROM ranked_seasons'))).toBe(false);
   });
 
   it('activates only when the current deployment still matches the frozen environment', async () => {
