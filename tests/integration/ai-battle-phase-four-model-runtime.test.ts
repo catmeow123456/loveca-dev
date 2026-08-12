@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAiDecisionContract,
   materializeAiDecisionCommand,
-  type AiDecisionSelection,
 } from '../../src/application/ai-decisions';
 import type { Seat } from '../../src/online';
 import { buildAiObservation } from '../../src/server/ai-battle/ai-observation';
@@ -34,6 +33,10 @@ import type {
   MatchRecorderService,
 } from '../../src/server/services/match-recorder-service';
 import { aiBattleAuthoritativeCardRegistry } from '../helpers/ai-battle-phase-zero-decks';
+import {
+  createLegalAiModelProvider,
+  selectLegalAiModelDecision,
+} from '../helpers/ai-battle/fake-model-provider';
 
 interface ManualTimerHandle extends MachineDecisionTimerHandle, ServerDeadlineTimerHandle {
   readonly id: number;
@@ -145,83 +148,6 @@ function createRecorderHarness() {
     },
   };
   return { frames, recorder };
-}
-
-function createExplainableFakeProvider(onInvoke?: () => void): AiModelProvider {
-  return {
-    providerId: 'ALIBABA_DASHSCOPE',
-    profileVersion: AI_MODEL_PROVIDER_PROFILE_VERSION,
-    modelId: AI_MODEL_ID,
-    invoke(request): Promise<AiModelProviderResult> {
-      onInvoke?.();
-      const userPayload = JSON.parse(request.userMessage) as {
-        readonly strategyContext: AiModelStrategyContext;
-      };
-      const selected = selectSemanticFixtureDecision(userPayload.strategyContext);
-      return Promise.resolve({
-        ok: true,
-        rawOutput: JSON.stringify({
-          selection: selected,
-          tradeoff: '选择当前语义上下文中资源收益最高的合法方案。',
-          nextPlan: '权威执行后重新观察下一决定。',
-        }),
-        usage: { inputTokens: 800, outputTokens: 60, totalTokens: 860 },
-        providerRequestId: 'fake-provider-request-id',
-        finishReason: 'stop',
-      });
-    },
-  };
-}
-
-function selectSemanticFixtureDecision(context: AiModelStrategyContext): AiDecisionSelection {
-  const decision = context.semanticContext.currentDecision;
-  if (decision.kind === 'MULLIGAN') {
-    return { kind: 'MULLIGAN', candidateIds: [] };
-  }
-  if (decision.kind === 'SUCCESS_LIVE_SELECTION') {
-    const candidate = decision.choices.find((choice) => choice.choiceKind === 'CANDIDATE');
-    if (!candidate) throw new Error('missing semantic success-LIVE candidate');
-    return { kind: 'SELECT_SUCCESS_LIVE', candidateId: candidate.choiceId };
-  }
-  if (decision.kind === 'MAIN_PHASE') {
-    const action =
-      decision.choices.find(
-        (choice) =>
-          choice.choiceKind === 'ACTION' &&
-          (choice.description.includes('登场') || choice.description.includes('发动'))
-      ) ?? decision.choices.find((choice) => choice.choiceKind === 'ACTION');
-    if (!action) throw new Error('missing semantic main-phase action');
-    return { kind: 'SELECT_MAIN_PHASE_ACTION', actionId: action.choiceId };
-  }
-  if (decision.kind === 'LIVE_SET') {
-    const action =
-      decision.choices.find(
-        (choice) =>
-          choice.choiceKind === 'ACTION' &&
-          choice.description.includes('盖放') &&
-          choice.description.includes('分数')
-      ) ??
-      decision.choices.find(
-        (choice) => choice.choiceKind === 'ACTION' && choice.description.includes('确认')
-      );
-    if (!action) throw new Error('missing semantic LIVE-set action');
-    return { kind: 'SELECT_LIVE_SET_ACTION', actionId: action.choiceId };
-  }
-  if (decision.kind === 'SPECIAL_MEMBER_PLAY') {
-    return { kind: 'CANCEL_SPECIAL_MEMBER_PLAY' };
-  }
-  if (decision.kind === 'ACTIVE_EFFECT') {
-    if (decision.choices.some((choice) => choice.choiceId === 'SKIP_EFFECT_CARDS')) {
-      return { kind: 'SELECT_EFFECT_CARDS', candidateIds: [] };
-    }
-    if (decision.choices.some((choice) => choice.choiceId === 'SKIP_EFFECT_OPTIONS')) {
-      return { kind: 'SELECT_EFFECT_OPTIONS', optionIds: [] };
-    }
-    if (decision.choices.some((choice) => choice.choiceId === 'CONFIRM_EFFECT')) {
-      return { kind: 'CONFIRM_EFFECT' };
-    }
-  }
-  throw new Error(`unexpected model-routed semantic decision ${decision.kind}`);
 }
 
 async function createBattleHarness(input: {
@@ -459,7 +385,7 @@ describe('AI battle Phase 4 formal model runtime', () => {
 
   it('keeps the reflection document available when the development context trace is disabled', async () => {
     const harness = await createBattleHarness({
-      provider: createExplainableFakeProvider(),
+      provider: createLegalAiModelProvider(),
       debugTraceEnabled: false,
     });
     const revisionBefore = harness.match.remoteRevision;
@@ -492,7 +418,7 @@ describe('AI battle Phase 4 formal model runtime', () => {
         const userPayload = JSON.parse(request.userMessage) as {
           readonly strategyContext: AiModelStrategyContext;
         };
-        const selected = selectSemanticFixtureDecision(userPayload.strategyContext);
+        const selected = selectLegalAiModelDecision(userPayload.strategyContext);
         return Promise.resolve({
           ok: true,
           rawOutput: JSON.stringify({
@@ -681,8 +607,10 @@ describe('AI battle Phase 4 formal model runtime', () => {
   it('completes a real dual-end match after exercising model-selected heuristic windows', async () => {
     let modelCalls = 0;
     const harness = await createBattleHarness({
-      provider: createExplainableFakeProvider(() => {
-        modelCalls += 1;
+      provider: createLegalAiModelProvider({
+        onInvoke: () => {
+          modelCalls += 1;
+        },
       }),
     });
     await driveHumanAndSystemToTerminal({

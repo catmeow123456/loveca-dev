@@ -3,10 +3,6 @@ import { describe, expect, it } from 'vitest';
 import * as yaml from 'yaml';
 import { isLiveCardData, isMemberCardData } from '../../src/domain/entities/card';
 import {
-  AI_OBSERVATION_SCHEMA_VERSION,
-  type AiObservation,
-} from '../../src/server/ai-battle/ai-observation';
-import {
   AI_BATTLE_PHASE_ZERO_DECKS,
   type AiBattlePhaseZeroDeckKey,
 } from '../../src/server/ai-battle/phase-zero-baseline';
@@ -25,19 +21,11 @@ import {
   aiBattleAuthoritativeCardRegistry,
   loadAiBattlePhaseZeroRuntimeDeck,
 } from '../helpers/ai-battle-phase-zero-decks';
+import { createAiObservationFixture } from '../helpers/ai-battle/observation-builder';
 
-function createObservation(): AiObservation {
-  const emptySeat = {
-    successLiveCount: 0,
-    successLiveScore: 0,
-    zones: [],
-  } as const;
-  return {
-    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
-    decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
-    commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+function createObservation() {
+  return createAiObservationFixture({
     authorityRevision: 4,
-    viewerSeat: 'FIRST',
     turn: {
       count: 2,
       phase: 'MAIN_PHASE',
@@ -46,11 +34,6 @@ function createObservation(): AiObservation {
       activeSeat: 'FIRST',
       prioritySeat: 'FIRST',
     },
-    window: null,
-    liveResult: null,
-    endInfo: null,
-    seats: { FIRST: emptySeat, SECOND: emptySeat },
-    sharedZones: [],
     decision: {
       decisionRef: 'current-decision',
       kind: 'PHASE_CONFIRMATION',
@@ -59,7 +42,7 @@ function createObservation(): AiObservation {
       options: [],
       actions: [],
     },
-  };
+  });
 }
 
 describe('AI battle Phase 2 strategy knowledge and context', () => {

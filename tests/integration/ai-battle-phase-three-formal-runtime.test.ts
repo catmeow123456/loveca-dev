@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AI_DECISION_COMMAND_ADAPTER_VERSION,
+  AI_DECISION_CONTRACT_SCHEMA_VERSION,
   buildAiDecisionContract,
   materializeAiDecisionCommand,
 } from '../../src/application/ai-decisions';
@@ -237,8 +239,8 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
         deckKey: 'MUSE_STARTER',
         deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
         phaseZeroBaselineVersion: 'ai-battle.phase-zero/v1',
-        decisionContractVersion: 'ai-battle.decision-contract/v2',
-        commandAdapterVersion: 'ai-battle.decision-command-adapter/v2',
+        decisionContractVersion: AI_DECISION_CONTRACT_SCHEMA_VERSION,
+        commandAdapterVersion: AI_DECISION_COMMAND_ADAPTER_VERSION,
       },
     });
     expect(
@@ -293,8 +295,8 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
       decisionAudit: {
         seat: 'FIRST',
         policyVersion: 'ai-battle.explainable-policy/v1',
-        decisionContractVersion: 'ai-battle.decision-contract/v2',
-        commandAdapterVersion: 'ai-battle.decision-command-adapter/v2',
+        decisionContractVersion: AI_DECISION_CONTRACT_SCHEMA_VERSION,
+        commandAdapterVersion: AI_DECISION_COMMAND_ADAPTER_VERSION,
       },
       execution: { status: 'ACCEPTED' },
     });

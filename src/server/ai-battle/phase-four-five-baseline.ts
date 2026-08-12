@@ -17,7 +17,7 @@ import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
 import { AI_SYSTEM_IDENTITY_SCHEMA_VERSION } from './system-participant.js';
 import { AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION } from './strategic-objectives.js';
 
-export const AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION = 'ai-battle.phase-four-five/v5' as const;
+export const AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION = 'ai-battle.phase-four-five/v6' as const;
 export const AI_BATTLE_PHASE_FOUR_FIVE_STATUS = 'IN_PROGRESS' as const;
 
 export const AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS = {
@@ -42,6 +42,12 @@ export const AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS = {
     'IMPLEMENTED_SOURCE_COST_TARGET_HISTORY_FORMATION_GROUP_LIVE_SETTLEMENT_AND_STAGE_RESOURCE_SLICES',
   centralizedProtocolVersionManifest:
     'IMPLEMENTED_SHARED_SINGLE_SOURCE_WITH_COMPATIBILITY_AND_LITERAL_GOVERNANCE',
+  layeredTestBuilders:
+    'IMPLEMENTED_SEPARATE_OBSERVATION_STRATEGY_SCENARIO_SEMANTIC_ENVELOPE_AND_FAKE_MODEL_LAYERS',
+  genericFakeModel:
+    'IMPLEMENTED_TYPED_SELECTION_WITH_GROUP_NUMBER_FORMATION_AND_CURRENT_RUNTIME_COVERAGE',
+  outboundContractFixtures:
+    'IMPLEMENTED_CURRENT_VERSION_BUILDERS_AND_PRODUCTION_SERIALIZATION_BOUNDARY_TESTS',
   realProviderSemanticEvaluation: 'PENDING',
   humanSampleReview: 'PENDING',
 } as const;
@@ -88,13 +94,13 @@ export const AI_BATTLE_PHASE_FOUR_FIVE_CURRENT_EVIDENCE = {
   protocolVersionGovernanceTest: 'tests/unit/ai-battle-protocol-versions.test.ts',
   observationBoundaryTest: 'tests/unit/ai-battle-phase-two-observation.test.ts',
   semanticRegressionTest: 'tests/unit/ai-battle-phase-four-five-semantic-context.test.ts',
+  layeredBuilderTest: 'tests/unit/ai-battle-test-builders.test.ts',
   modelProtocolTest: 'tests/unit/ai-battle-phase-four-model-protocol.test.ts',
   historyPurityTest: 'tests/unit/ai-battle-phase-two-strategy-history.test.ts',
   runtimeIntegrationTest: 'tests/integration/ai-battle-phase-four-model-runtime.test.ts',
 } as const;
 
 export const AI_BATTLE_PHASE_FOUR_FIVE_NEXT_SLICE = [
-  '建立分层 builder、通用 fake model 与少量真实出站契约测试',
   '扩展服务端从合法 selection 派生的能力归属、站位与资源后果事实审计覆盖',
-  '真实 provider v6 语义选择评测与真人抽样复盘',
+  '真实 provider v7 语义选择评测与真人抽样复盘',
 ] as const;

@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  AI_OBSERVATION_SCHEMA_VERSION,
-  type AiObservation,
-  type AiObservedDecision,
-} from '../../src/server/ai-battle/ai-observation';
+import { type AiObservedDecision } from '../../src/server/ai-battle/ai-observation';
 import { createAiModelInvocationRuntime } from '../../src/server/ai-battle/model-governance';
 import { createAlibabaDashScopeModelProvider } from '../../src/server/ai-battle/model-provider';
 import {
@@ -11,12 +7,9 @@ import {
   parseAiModelDecisionOutput,
   type AiModelRepairFailureCode,
 } from '../../src/server/ai-battle/model-protocol';
-import { AI_BATTLE_PHASE_ZERO_DECKS } from '../../src/server/ai-battle/phase-zero-baseline';
-import {
-  buildAiStrategyContext,
-  type AiStrategyContext,
-} from '../../src/server/ai-battle/strategy-context';
-import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
+import type { AiStrategyContext } from '../../src/server/ai-battle/strategy-context';
+import { createAiObservationFixture } from '../helpers/ai-battle/observation-builder';
+import { createAiStrategyContextFixture } from '../helpers/ai-battle/strategy-scenario-builder';
 
 const realModelEnabled =
   process.env.AI_BATTLE_REAL_MODEL === '1' && Boolean(process.env.DASHSCOPE_API_KEY?.trim());
@@ -219,17 +212,8 @@ describe.runIf(realModelEnabled)('AI battle Phase 4 real model prompt/playbook e
 });
 
 function buildContext(decision: AiObservedDecision): AiStrategyContext {
-  const emptySeat = {
-    successLiveCount: 0,
-    successLiveScore: 0,
-    zones: [],
-  } as const;
-  const observation: AiObservation = {
-    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
-    decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
-    commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+  const observation = createAiObservationFixture({
     authorityRevision: 3,
-    viewerSeat: 'FIRST',
     turn: {
       count: 1,
       phase: 'MAIN_PHASE',
@@ -238,18 +222,11 @@ function buildContext(decision: AiObservedDecision): AiStrategyContext {
       activeSeat: 'FIRST',
       prioritySeat: 'FIRST',
     },
-    window: null,
-    liveResult: null,
-    endInfo: null,
-    seats: { FIRST: emptySeat, SECOND: emptySeat },
-    sharedZones: [],
     decision,
-  };
-  return buildAiStrategyContext({
+  });
+  return createAiStrategyContextFixture({
     observation,
     deckKey: 'GREEN_HASUNOSORA_B6',
-    deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.GREEN_HASUNOSORA_B6.contentHash,
-    deck: loadAiBattlePhaseZeroRuntimeDeck('GREEN_HASUNOSORA_B6'),
   });
 }
 

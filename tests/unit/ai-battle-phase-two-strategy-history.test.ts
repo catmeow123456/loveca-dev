@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import {
-  AI_OBSERVATION_SCHEMA_VERSION,
-  type AiObservation,
-} from '../../src/server/ai-battle/ai-observation';
+import type { AiObservation } from '../../src/server/ai-battle/ai-observation';
 import {
   AI_SELECTED_HISTORY_SCHEMA_VERSION,
   createAiSelectedHistoryTracker,
 } from '../../src/server/ai-battle/strategy-history';
+import {
+  createAiObservationFixture,
+  createAiObservedZone,
+} from '../helpers/ai-battle/observation-builder';
 
 function observation(
   authorityRevision: number,
@@ -17,26 +18,18 @@ function observation(
   } = {}
 ): AiObservation {
   const emptyZones = [
-    {
+    createAiObservedZone({
       zoneKey: 'MEMBER_CENTER',
       zoneType: 'MEMBER',
-      count: 0,
-      ordered: false,
-      visibleCards: [],
-    },
-    {
+    }),
+    createAiObservedZone({
       zoneKey: 'WAITING_ROOM',
       zoneType: 'WAITING_ROOM',
-      count: 0,
       ordered: true,
-      visibleCards: [],
-    },
+    }),
   ] as const;
   const firstStageCards = options.firstStageCards ?? [];
-  return {
-    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
-    decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
-    commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+  return createAiObservationFixture({
     authorityRevision,
     viewerSeat: options.viewerSeat ?? 'FIRST',
     turn: {
@@ -47,27 +40,17 @@ function observation(
       activeSeat: 'FIRST',
       prioritySeat: 'FIRST',
     },
-    window: null,
-    liveResult: null,
-    endInfo: null,
-    seats: {
-      FIRST: {
-        successLiveCount: 0,
-        successLiveScore: 0,
-        zones: [
-          {
-            zoneKey: 'MEMBER_CENTER',
-            zoneType: 'MEMBER',
-            count: firstStageCards.length,
-            ordered: false,
-            visibleCards: firstStageCards,
-          },
-          emptyZones[1],
-        ],
-      },
-      SECOND: { successLiveCount: 0, successLiveScore: 0, zones: emptyZones },
+    firstSeat: {
+      zones: [
+        createAiObservedZone({
+          zoneKey: 'MEMBER_CENTER',
+          zoneType: 'MEMBER',
+          visibleCards: firstStageCards,
+        }),
+        emptyZones[1],
+      ],
     },
-    sharedZones: [],
+    secondSeat: { zones: emptyZones },
     decision: {
       decisionRef: 'current-decision',
       kind: 'MAIN_PHASE',
@@ -94,7 +77,7 @@ function observation(
         },
       ],
     },
-  };
+  });
 }
 
 describe('AI battle Phase 2 selected visible history', () => {

@@ -1,38 +1,21 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type {
-  AiObservation,
-  AiObservedDecision,
-  AiObservedZone,
-} from '../../src/server/ai-battle/ai-observation';
-import { AI_OBSERVATION_SCHEMA_VERSION } from '../../src/server/ai-battle/ai-observation';
+import type { AiObservedDecision, AiObservedZone } from '../../src/server/ai-battle/ai-observation';
 import {
   AI_EXPLAINABLE_DECISION_POLICY_VERSION,
   selectExplainableDecision,
 } from '../../src/server/ai-battle/explainable-decision-policy';
-import { AI_BATTLE_PHASE_ZERO_DECKS } from '../../src/server/ai-battle/phase-zero-baseline';
-import {
-  buildAiStrategyContext,
-  type AiStrategyContext,
-} from '../../src/server/ai-battle/strategy-context';
+import type { AiStrategyContext } from '../../src/server/ai-battle/strategy-context';
 import { SlotPosition } from '../../src/shared/types/enums';
-import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
+import { createAiObservationFixture } from '../helpers/ai-battle/observation-builder';
+import { createAiStrategyContextFixture } from '../helpers/ai-battle/strategy-scenario-builder';
 
 function context(
   decision: AiObservedDecision,
   zones: readonly AiObservedZone[] = []
 ): AiStrategyContext {
-  const emptySeat = {
-    successLiveCount: 0,
-    successLiveScore: 0,
-    zones: [],
-  } as const;
-  const observation: AiObservation = {
-    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
-    decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
-    commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+  const observation = createAiObservationFixture({
     authorityRevision: 3,
-    viewerSeat: 'FIRST',
     turn: {
       count: 1,
       phase: 'MAIN_PHASE',
@@ -41,21 +24,12 @@ function context(
       activeSeat: 'FIRST',
       prioritySeat: 'FIRST',
     },
-    window: null,
-    liveResult: null,
-    endInfo: null,
-    seats: {
-      FIRST: { ...emptySeat, zones },
-      SECOND: emptySeat,
-    },
-    sharedZones: [],
+    firstSeat: { zones },
     decision,
-  };
-  return buildAiStrategyContext({
+  });
+  return createAiStrategyContextFixture({
     observation,
     deckKey: 'GREEN_HASUNOSORA_B6',
-    deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.GREEN_HASUNOSORA_B6.contentHash,
-    deck: loadAiBattlePhaseZeroRuntimeDeck('GREEN_HASUNOSORA_B6'),
   });
 }
 

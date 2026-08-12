@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  AI_OBSERVATION_SCHEMA_VERSION,
-  type AiObservation,
-} from '../../src/server/ai-battle/ai-observation';
+import type { AiObservation } from '../../src/server/ai-battle/ai-observation';
 import {
   AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION,
   AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS,
@@ -12,30 +9,25 @@ import {
 } from '../../src/server/ai-battle/phase-four-five-baseline';
 import {
   AI_SEMANTIC_DECISION_CONTEXT_SCHEMA_VERSION,
-  buildAiSemanticDecisionContext,
   getRequiredAiSemanticFactIdsForSelection,
 } from '../../src/server/ai-battle/semantic-context';
+import {
+  createAiObservationFixture,
+  createAiObservedZone,
+} from '../helpers/ai-battle/observation-builder';
+import { createAiSemanticDecisionContextFixture } from '../helpers/ai-battle/semantic-context-builder';
 
 function relayObservation(): AiObservation {
-  const emptyZone = (zoneKey: string, zoneType = zoneKey) => ({
-    zoneKey,
-    zoneType,
-    count: 0,
-    ordered: false,
-    visibleCards: [],
-  });
+  const emptyZone = (zoneKey: string, zoneType = zoneKey) =>
+    createAiObservedZone({ zoneKey, zoneType });
   const energyCards = Array.from({ length: 4 }, (_, index) => ({
     cardCode: `ENERGY-${String(index + 1)}`,
     name: '能量',
     cardType: 'ENERGY',
     orientation: 'ACTIVE',
   }));
-  return {
-    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
-    decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
-    commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+  return createAiObservationFixture({
     authorityRevision: 21,
-    viewerSeat: 'FIRST',
     turn: {
       count: 3,
       phase: 'MAIN_PHASE',
@@ -44,85 +36,75 @@ function relayObservation(): AiObservation {
       activeSeat: 'FIRST',
       prioritySeat: 'FIRST',
     },
-    window: null,
-    liveResult: null,
-    endInfo: null,
-    seats: {
-      FIRST: {
-        successLiveCount: 0,
-        successLiveScore: 0,
-        zones: [
-          emptyZone('MEMBER_LEFT', 'MEMBER_SLOT'),
-          {
-            zoneKey: 'MEMBER_CENTER',
-            zoneType: 'MEMBER_SLOT',
-            count: 1,
-            ordered: false,
-            visibleCards: [
-              {
-                cardCode: 'PL!HS-bp5-008-R',
-                name: '桂城 泉',
-                cardType: 'MEMBER',
-                cost: 4,
-                effectiveCost: 4,
-                blade: 2,
-                hearts: [{ color: 'GREEN', count: 2 }],
-                text: '【登场】将此成员变为待机并弃 1 张手牌：检视卡组顶 5 张。',
-                orientation: 'ACTIVE',
-                role: 'PRIMARY',
-                slot: 'CENTER',
-              },
-            ],
-          },
-          emptyZone('MEMBER_RIGHT', 'MEMBER_SLOT'),
-          {
-            zoneKey: 'HAND',
-            zoneType: 'HAND',
-            count: 1,
-            ordered: false,
-            visibleCards: [
-              {
-                cardCode: 'PL!HS-sd1-012-SD',
-                name: '百生吟子',
-                cardType: 'MEMBER',
-                cost: 4,
-              },
-            ],
-          },
-          {
-            zoneKey: 'ENERGY_ZONE',
-            zoneType: 'ENERGY_ZONE',
-            count: 4,
-            ordered: true,
-            visibleCards: energyCards,
-          },
-          emptyZone('MAIN_DECK'),
-          emptyZone('ENERGY_DECK'),
-          emptyZone('LIVE_ZONE'),
-          emptyZone('WAITING_ROOM'),
-          emptyZone('SUCCESS_ZONE'),
-          emptyZone('EXILE_ZONE'),
-        ],
-      },
-      SECOND: {
-        successLiveCount: 0,
-        successLiveScore: 0,
-        zones: [
-          emptyZone('MEMBER_LEFT', 'MEMBER_SLOT'),
-          emptyZone('MEMBER_CENTER', 'MEMBER_SLOT'),
-          emptyZone('MEMBER_RIGHT', 'MEMBER_SLOT'),
-          emptyZone('HAND'),
-          emptyZone('MAIN_DECK'),
-          emptyZone('ENERGY_DECK'),
-          emptyZone('ENERGY_ZONE'),
-          emptyZone('LIVE_ZONE'),
-          emptyZone('WAITING_ROOM'),
-          emptyZone('SUCCESS_ZONE'),
-          emptyZone('EXILE_ZONE'),
-        ],
-      },
+    firstSeat: {
+      zones: [
+        emptyZone('MEMBER_LEFT', 'MEMBER_SLOT'),
+        {
+          zoneKey: 'MEMBER_CENTER',
+          zoneType: 'MEMBER_SLOT',
+          count: 1,
+          ordered: false,
+          visibleCards: [
+            {
+              cardCode: 'PL!HS-bp5-008-R',
+              name: '桂城 泉',
+              cardType: 'MEMBER',
+              cost: 4,
+              effectiveCost: 4,
+              blade: 2,
+              hearts: [{ color: 'GREEN', count: 2 }],
+              text: '【登场】将此成员变为待机并弃 1 张手牌：检视卡组顶 5 张。',
+              orientation: 'ACTIVE',
+              role: 'PRIMARY',
+              slot: 'CENTER',
+            },
+          ],
+        },
+        emptyZone('MEMBER_RIGHT', 'MEMBER_SLOT'),
+        {
+          zoneKey: 'HAND',
+          zoneType: 'HAND',
+          count: 1,
+          ordered: false,
+          visibleCards: [
+            {
+              cardCode: 'PL!HS-sd1-012-SD',
+              name: '百生吟子',
+              cardType: 'MEMBER',
+              cost: 4,
+            },
+          ],
+        },
+        {
+          zoneKey: 'ENERGY_ZONE',
+          zoneType: 'ENERGY_ZONE',
+          count: 4,
+          ordered: true,
+          visibleCards: energyCards,
+        },
+        emptyZone('MAIN_DECK'),
+        emptyZone('ENERGY_DECK'),
+        emptyZone('LIVE_ZONE'),
+        emptyZone('WAITING_ROOM'),
+        emptyZone('SUCCESS_ZONE'),
+        emptyZone('EXILE_ZONE'),
+      ],
     },
-    sharedZones: [],
+    secondSeat: {
+      zones: [
+        emptyZone('MEMBER_LEFT', 'MEMBER_SLOT'),
+        emptyZone('MEMBER_CENTER', 'MEMBER_SLOT'),
+        emptyZone('MEMBER_RIGHT', 'MEMBER_SLOT'),
+        emptyZone('HAND'),
+        emptyZone('MAIN_DECK'),
+        emptyZone('ENERGY_DECK'),
+        emptyZone('ENERGY_ZONE'),
+        emptyZone('LIVE_ZONE'),
+        emptyZone('WAITING_ROOM'),
+        emptyZone('SUCCESS_ZONE'),
+        emptyZone('EXILE_ZONE'),
+      ],
+    },
     decision: {
       decisionRef: 'current-decision',
       kind: 'MAIN_PHASE',
@@ -170,12 +152,12 @@ function relayObservation(): AiObservation {
         },
       ],
     },
-  };
+  });
 }
 
 describe('AI battle Phase 4.5 semantic decision context', () => {
   it('truthfully marks the first semantic slice in progress', () => {
-    expect(AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION).toBe('ai-battle.phase-four-five/v5');
+    expect(AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION).toBe('ai-battle.phase-four-five/v6');
     expect(AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_VERSIONS.protocolManifestRevision).toBe(1);
     expect(AI_BATTLE_PHASE_FOUR_FIVE_STATUS).toBe('IN_PROGRESS');
     expect(AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS).toMatchObject({
@@ -191,6 +173,12 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
         'IMPLEMENTED_SOURCE_COST_TARGET_HISTORY_FORMATION_GROUP_LIVE_SETTLEMENT_AND_STAGE_RESOURCE_SLICES',
       centralizedProtocolVersionManifest:
         'IMPLEMENTED_SHARED_SINGLE_SOURCE_WITH_COMPATIBILITY_AND_LITERAL_GOVERNANCE',
+      layeredTestBuilders:
+        'IMPLEMENTED_SEPARATE_OBSERVATION_STRATEGY_SCENARIO_SEMANTIC_ENVELOPE_AND_FAKE_MODEL_LAYERS',
+      genericFakeModel:
+        'IMPLEMENTED_TYPED_SELECTION_WITH_GROUP_NUMBER_FORMATION_AND_CURRENT_RUNTIME_COVERAGE',
+      outboundContractFixtures:
+        'IMPLEMENTED_CURRENT_VERSION_BUILDERS_AND_PRODUCTION_SERIALIZATION_BOUNDARY_TESTS',
       realProviderSemanticEvaluation: 'PENDING',
     });
     expect(AI_BATTLE_PHASE_FOUR_FIVE_RUNTIME_BOUNDARY).toMatchObject({
@@ -208,7 +196,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
   });
 
   it('describes relay consequences and keeps card abilities attached to the actual source', () => {
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: relayObservation(),
       selectedHistory: [],
     });
@@ -269,7 +257,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
       role: 'PRIMARY' as const,
       slot: 'LEFT',
     };
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: {
         ...observation,
         seats: {
@@ -337,7 +325,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
 
   it('keeps hidden candidates anonymous in semantic model context', () => {
     const observation = relayObservation();
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: {
         ...observation,
         decision: {
@@ -367,7 +355,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
       role: 'PRIMARY' as const,
       slot: 'CENTER',
     };
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: {
         ...observation,
         turn: {
@@ -475,7 +463,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
       cost: 11,
       text: '【登场】检视自己卡组顶5张。',
     };
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: {
         ...observation,
         decision: {
@@ -553,7 +541,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
       role: 'PRIMARY' as const,
       slot: 'CENTER',
     };
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: {
         ...observation,
         seats: {
@@ -687,7 +675,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
 
   it('organizes composite card selection as one submission with global and per-group limits', () => {
     const observation = relayObservation();
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: {
         ...observation,
         decision: {
@@ -847,7 +835,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
         actions: [],
       },
     };
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: withLiveState,
       selectedHistory: [],
     });
@@ -877,7 +865,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
       expect.arrayContaining(['decision.candidate.1.live_result', 'decision.candidate.1.role'])
     );
 
-    const judgment = buildAiSemanticDecisionContext({
+    const judgment = createAiSemanticDecisionContextFixture({
       observation: {
         ...withLiveState,
         decision: {
@@ -903,7 +891,7 @@ describe('AI battle Phase 4.5 semantic decision context', () => {
   });
 
   it('organizes accepted actions and visible deltas as lower-priority seat-relative history', () => {
-    const context = buildAiSemanticDecisionContext({
+    const context = createAiSemanticDecisionContextFixture({
       observation: relayObservation(),
       selectedHistory: [
         {

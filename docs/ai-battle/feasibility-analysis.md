@@ -550,7 +550,7 @@ Phase 4 已证明模型可以安全地进入真实对局并提交合法选择，
 
 AI 对战同时包含 observation、语义上下文、精选历史、模型 envelope、SYSTEM binding、调度和整局运行链路。若每个测试都手写完整跨层 payload、版本字符串和 fake model 分支，一次协议升级就会迫使大量本来只验证行为的测试同步修改；这会提高重构成本，也会让开发者倾向于保留已经不合适的内部结构。
 
-应把领域场景、语义行为、出站协议、运行时集成和真实模型评测分层。当前协议版本已经由 `src/shared/ai-battle-protocol-versions.ts` 统一导出，治理测试会检查兼容导出一致性并阻止当前运行时重新声明版本字面量；冻结 baseline 与历史认证证据继续保留当时版本，不跟随当前清单。后续公共 builder 只为对应层提供合法默认值，完整 snapshot 只冻结少量真实 provider-neutral 边界；fake model 通过 typed selection contract 生成通用合法返回，不复制卡效规则或完整策略。开发分支不需要为减少测试修改而保留旧协议兼容，停机升级只更新当前 builder 和对应契约测试。精确规范见[设计与实施草稿 11.5 节](design-and-implementation.md#115-测试架构与变更隔离)。
+领域场景、语义行为、出站协议、运行时集成和真实模型评测现已分层。当前协议版本由 `src/shared/ai-battle-protocol-versions.ts` 统一导出，治理测试会检查兼容导出一致性并阻止当前运行时重新声明版本字面量；冻结 baseline 与历史认证证据继续保留当时版本，不跟随当前清单。`tests/helpers/ai-battle/` 的公共 builder 只为对应层提供合法默认值，完整 snapshot 只冻结少量真实 provider-neutral 边界；fake model 通过 typed selection contract 生成通用合法返回，不复制卡效规则或完整策略。开发分支不需要为减少测试修改而保留旧协议兼容，停机升级只更新当前 builder 和对应契约测试。精确规范见[设计与实施草稿 11.5 节](design-and-implementation.md#115-测试架构与变更隔离)。
 
 ### 8.7 用户体验风险
 
@@ -576,7 +576,7 @@ AI 长时间无响应、反复非法操作、机械地逐个确认、持续空�
 | 正式联机进行中恢复          | 尚未闭环                                                                                                                                                        |
 | 对局记录与复盘基础          | Phase 4 已把 SYSTEM/卡组/策略/Prompt/provider/模型版本、脱敏选择、单行短摘要和调用事实与命令帧原子接线，不保存完整原始响应或供应商错误                          |
 | AI 策略质量评估             | Phase 2 的 64 局和 Phase 4 四场景合法性基线继续有效；真实对局已暴露能力误归属与动作后场面幻觉，Phase 4.5 将增加事实一致性、取舍完整性和真人抽样复盘             |
-| AI 开发测试基建             | 规则、语义、协议和整局覆盖已存在；集中版本清单与治理测试已落地，但 fixture 与 fake model 仍有跨层重复，Phase 4.5 下一切片继续收口分层 builder 和出站契约测试 |
+| AI 开发测试基建             | 规则、语义、协议和整局覆盖已存在；集中版本清单、分层 builder、通用 typed-selection fake model、builder 聚焦回归和生产出站序列化边界测试均已落地                 |
 | 管理员 AI 调试              | Phase 4.5 已落地管理员专用的实际 system prompt 与动态语义上下文检查器；与真实请求共用序列化边界，只保留当前进程内存，普通参与者和生产环境不可访问               |
 | 生产限流、成本与故障治理    | Phase 4 已完成单实例并发、速率、请求/token/费用上限和整局故障切换；跨实例容量、自动熔断、告警与聚合看板属于 Phase 5                                             |
 

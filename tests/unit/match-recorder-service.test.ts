@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createGameSession } from '../../src/application/game-session';
 import type { DeckConfig } from '../../src/application/game-service';
+import {
+  AI_DECISION_COMMAND_ADAPTER_VERSION,
+  AI_DECISION_CONTRACT_SCHEMA_VERSION,
+} from '../../src/application/ai-decisions';
 import type {
   AnyCardData,
   EnergyCardData,
@@ -400,8 +404,8 @@ describe('MatchRecorderService P0a', () => {
       schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
       contextSchemaVersion: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
       observationSchemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
-      decisionContractVersion: 'ai-battle.decision-contract/v1',
-      commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+      decisionContractVersion: AI_DECISION_CONTRACT_SCHEMA_VERSION,
+      commandAdapterVersion: AI_DECISION_COMMAND_ADAPTER_VERSION,
       contextSha256: 'sha256:strategy-context',
       authorityRevision: 7,
       seat: 'SECOND',

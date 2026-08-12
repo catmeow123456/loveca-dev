@@ -1,12 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  AI_OBSERVATION_SCHEMA_VERSION,
-  type AiObservation,
-} from '../../src/server/ai-battle/ai-observation';
+  AI_DECISION_COMMAND_ADAPTER_VERSION,
+  AI_DECISION_CONTRACT_SCHEMA_VERSION,
+} from '../../src/application/ai-decisions';
 import { selectExplainableDecision } from '../../src/server/ai-battle/explainable-decision-policy';
-import { AI_BATTLE_PHASE_ZERO_DECKS } from '../../src/server/ai-battle/phase-zero-baseline';
-import { buildAiStrategyContext } from '../../src/server/ai-battle/strategy-context';
 import {
   AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
   AI_STRATEGY_DECISION_RECORD_SCHEMA_VERSION,
@@ -14,20 +12,12 @@ import {
   createAiStrategyDecisionRecord,
   createInMemoryAiStrategyDecisionRecordStore,
 } from '../../src/server/ai-battle/strategy-decision-audit';
-import { loadAiBattlePhaseZeroRuntimeDeck } from '../helpers/ai-battle-phase-zero-decks';
+import { createAiObservationFixture } from '../helpers/ai-battle/observation-builder';
+import { createAiStrategyContextFixture } from '../helpers/ai-battle/strategy-scenario-builder';
 
-function observation(authorityRevision: number): AiObservation {
-  const emptySeat = {
-    successLiveCount: 0,
-    successLiveScore: 0,
-    zones: [],
-  } as const;
-  return {
-    schemaVersion: AI_OBSERVATION_SCHEMA_VERSION,
-    decisionContractSchemaVersion: 'ai-battle.decision-contract/v1',
-    commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+function observation(authorityRevision: number) {
+  return createAiObservationFixture({
     authorityRevision,
-    viewerSeat: 'FIRST',
     turn: {
       count: 1,
       phase: 'LIVE_RESULT_PHASE',
@@ -43,9 +33,6 @@ function observation(authorityRevision: number): AiObservation {
       winnerSeats: ['FIRST'],
       confirmedSeats: [],
     },
-    endInfo: null,
-    seats: { FIRST: emptySeat, SECOND: emptySeat },
-    sharedZones: [],
     decision: {
       decisionRef: 'current-decision',
       kind: 'SCORE_CONFIRMATION',
@@ -55,15 +42,13 @@ function observation(authorityRevision: number): AiObservation {
       actions: [],
       authorityScore: 4,
     },
-  };
+  });
 }
 
 function build(authorityRevision: number) {
-  const context = buildAiStrategyContext({
+  const context = createAiStrategyContextFixture({
     observation: observation(authorityRevision),
     deckKey: 'MUSE_STARTER',
-    deckContentHash: AI_BATTLE_PHASE_ZERO_DECKS.MUSE_STARTER.contentHash,
-    deck: loadAiBattlePhaseZeroRuntimeDeck('MUSE_STARTER'),
   });
   const selected = selectExplainableDecision(context);
   expect(selected.ok).toBe(true);
@@ -80,8 +65,8 @@ describe('AI battle Phase 2 strategy decision audit', () => {
       schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
       contextSchemaVersion: 'ai-battle.strategy-context/v4',
       observationSchemaVersion: 'ai-battle.observation/v3',
-      decisionContractVersion: 'ai-battle.decision-contract/v1',
-      commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+      decisionContractVersion: AI_DECISION_CONTRACT_SCHEMA_VERSION,
+      commandAdapterVersion: AI_DECISION_COMMAND_ADAPTER_VERSION,
       authorityRevision: 12,
       seat: 'FIRST',
       decisionKind: 'SCORE_CONFIRMATION',

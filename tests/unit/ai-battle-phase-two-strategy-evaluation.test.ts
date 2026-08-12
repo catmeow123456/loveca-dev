@@ -1,4 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import {
+  AI_DECISION_COMMAND_ADAPTER_VERSION,
+  AI_DECISION_CONTRACT_SCHEMA_VERSION,
+} from '../../src/application/ai-decisions';
 import type { AiStrategyEvaluationGame } from '../../src/server/ai-battle/strategy-evaluation';
 import {
   AI_STRATEGY_EVALUATION_SCHEMA_VERSION,
@@ -28,8 +32,8 @@ function game(
         schemaVersion: 'ai-battle.strategy-decision-audit/v3',
         contextSchemaVersion: 'ai-battle.strategy-context/v4',
         observationSchemaVersion: 'ai-battle.observation/v3',
-        decisionContractVersion: 'ai-battle.decision-contract/v1',
-        commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
+        decisionContractVersion: AI_DECISION_CONTRACT_SCHEMA_VERSION,
+        commandAdapterVersion: AI_DECISION_COMMAND_ADAPTER_VERSION,
         contextSha256: `sha256:${'0'.repeat(64)}`,
         authorityRevision: index,
         seat: 'FIRST',
