@@ -8,7 +8,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addPlayerScoreLiveModifierForTargetMember } from '../../../../domain/rules/live-modifiers.js';
 import { GamePhase, SubPhase } from '../../../../shared/types/enums.js';
-import { getHandMemberEffectivePlayCost } from '../../../effects/play-member-cost.js';
+import { getHandMemberEffectiveCost } from '../../../effects/play-member-cost.js';
 import { SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_ID as ABILITY_ID } from '../../ability-ids.js';
 import { findCardAbilityDefinitionById } from '../../definitions/lookup.js';
 import { revealHandCardsForActiveEffect } from '../../runtime/active-effect.js';
@@ -140,7 +140,7 @@ function revealSelectedHandMembers(game: GameState, selectedCardIds: readonly st
     ) {
       return game;
     }
-    const effectiveCost = getHandMemberEffectivePlayCost(game, player.id, cardId, handSnapshot);
+    const effectiveCost = getHandMemberEffectiveCost(game, player.id, cardId, handSnapshot);
     if (effectiveCost === null) return game;
     costSnapshot.push({ cardId, effectiveCost });
   }

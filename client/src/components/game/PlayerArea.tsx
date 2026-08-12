@@ -1160,10 +1160,15 @@ export const PlayerArea = memo(function PlayerArea({
             {card && canActivateAbility && (
               <CardActionMenu
                 items={activatedAbilityConfigs.map((config) => ({
-                  id: config.abilityId,
+                  id: config.abilityInstanceId ?? config.abilityId,
                   text: config.text,
                   title: config.title,
-                  execute: () => activateCardAbility(card.instanceId, config.abilityId),
+                  execute: () =>
+                    activateCardAbility(
+                      card.instanceId,
+                      config.abilityId,
+                      config.abilityInstanceId
+                    ),
                 }))}
               />
             )}
@@ -1705,11 +1710,15 @@ export const PlayerArea = memo(function PlayerArea({
                                     <CardActionMenu
                                       layer="modal"
                                       items={activatedAbilityConfigs.map((config) => ({
-                                        id: config.abilityId,
+                                        id: config.abilityInstanceId ?? config.abilityId,
                                         text: config.text,
                                         title: config.title,
                                         execute: () => {
-                                          activateCardAbility(card.instanceId, config.abilityId);
+                                          activateCardAbility(
+                                            card.instanceId,
+                                            config.abilityId,
+                                            config.abilityInstanceId
+                                          );
                                           closeWaitingRoom();
                                         },
                                       }))}
@@ -2823,10 +2832,15 @@ export const PlayerArea = memo(function PlayerArea({
           const handCardMenuItems: readonly CardActionMenuItem[] = [
             ...(canActivateHandAbility
               ? activatedAbilityConfigs.map((config) => ({
-                  id: `ability:${config.abilityId}`,
+                  id: `ability:${config.abilityInstanceId ?? config.abilityId}`,
                   text: config.text,
                   title: config.title,
-                  execute: () => activateCardAbility(card.instanceId, config.abilityId),
+                  execute: () =>
+                    activateCardAbility(
+                      card.instanceId,
+                      config.abilityId,
+                      config.abilityInstanceId
+                    ),
                 }))
               : []),
             ...contextualActions.map((action) => ({

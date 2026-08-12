@@ -12,10 +12,22 @@ import {
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
 
 const REN_BASE_CARD_CODE = 'PL!SP-pb2-005';
+const REN_GRANTED_ABILITY_INSTANCE_PREFIX = 'ren-granted';
+
+function createRenGrantedActivatedAbilityInstanceId(
+  hostCardId: string,
+  grantingMemberBelowCardId: string,
+  abilityId: string
+): string {
+  return [REN_GRANTED_ABILITY_INSTANCE_PREFIX, hostCardId, grantingMemberBelowCardId, abilityId]
+    .map((part) => encodeURIComponent(part))
+    .join(':');
+}
 
 export interface GrantedActivatedAbilityDefinition {
   readonly definition: CardAbilityDefinition;
   readonly grantingMemberBelowCardId: string;
+  readonly abilityInstanceId: string;
 }
 
 export function getRenGrantedActivatedAbilityDefinitions(
@@ -68,7 +80,17 @@ export function getRenGrantedActivatedAbilityDefinitions(
         ) {
           return [];
         }
-        return [{ definition, grantingMemberBelowCardId: memberBelowCardId }];
+        return [
+          {
+            definition,
+            grantingMemberBelowCardId: memberBelowCardId,
+            abilityInstanceId: createRenGrantedActivatedAbilityInstanceId(
+              hostCardId,
+              memberBelowCardId,
+              definition.abilityId
+            ),
+          },
+        ];
       }
     );
   });
@@ -78,11 +100,14 @@ export function getRenGrantedActivatedAbilityDefinition(
   game: GameState,
   playerId: string,
   hostCardId: string,
-  abilityId: string
+  abilityId: string,
+  abilityInstanceId?: string
 ): GrantedActivatedAbilityDefinition | null {
   return (
     getRenGrantedActivatedAbilityDefinitions(game, playerId, hostCardId).find(
-      (candidate) => candidate.definition.abilityId === abilityId
+      (candidate) =>
+        candidate.definition.abilityId === abilityId &&
+        (abilityInstanceId === undefined || candidate.abilityInstanceId === abilityInstanceId)
     ) ?? null
   );
 }
@@ -106,10 +131,29 @@ export function getRenGrantedActivatedAbilityUiConfigs(
         ? [
             {
               ...candidate.definition.activatedUi,
+              abilityInstanceId: candidate.abilityInstanceId,
               requiredSourceOrientation: candidate.definition.requiredSourceOrientation,
             },
           ]
         : []
+  );
+}
+
+export function isRenGrantedActivatedAbilityInstance(
+  game: GameState,
+  playerId: string,
+  hostCardId: string,
+  abilityId: string,
+  abilityInstanceId: string
+): boolean {
+  return (
+    getRenGrantedActivatedAbilityDefinition(
+      game,
+      playerId,
+      hostCardId,
+      abilityId,
+      abilityInstanceId
+    ) !== null
   );
 }
 

@@ -722,6 +722,33 @@ describe('CostCalculator', () => {
       expect(directPlan?.actualEnergyCost).toBe(8);
     });
 
+    it('应区分手牌中卡牌当前费用与从手牌登场时的支付费用', () => {
+      const memberData = createMockMemberData(10, '10费Liella!成员', 'PL!SP-test-cost10', {
+        groupNames: ['Liella!'],
+      });
+      const resources: AvailableResources = {
+        activeEnergyIds: [],
+        stageMembers: [
+          createStageMemberInfo('chisato-source', 17, SlotPosition.LEFT, {
+            cardCode: 'PL!SP-bp5-003-AR',
+          }),
+        ],
+        sourceCardId: 'source-card',
+        handCardIds: ['source-card'],
+      };
+
+      expect(calculator.calculateCurrentHandCardCost(memberData, resources)).toMatchObject({
+        baseCost: 10,
+        currentCost: 10,
+        modifierAmount: 0,
+      });
+      expect(calculator.calculateModifiedPlayCost(memberData, resources)).toMatchObject({
+        baseCost: 10,
+        modifiedCost: 8,
+        modifierAmount: 2,
+      });
+    });
+
     it('应该让舞台上的 PL!S-bp5-001 只使手牌中严格无能力成员登场费用减少1', () => {
       const memberData = createMockMemberData(5, '无能力成员', 'PL!S-test-no-ability');
       const resources: AvailableResources = {

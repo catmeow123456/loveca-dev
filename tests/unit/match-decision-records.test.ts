@@ -196,6 +196,7 @@ describe('match decision records P2', () => {
         selectedCardId: 'source-card',
       },
     });
+    expect(records[0]?.submission).not.toHaveProperty('abilityInstanceId');
 
     expect(records[1]).toMatchObject({
       decisionType: 'ACTIVE_EFFECT_OPENED',
@@ -229,6 +230,36 @@ describe('match decision records P2', () => {
     });
     expect(JSON.stringify(records)).not.toContain('rawRuntimeOnly');
     expect(JSON.stringify(records)).not.toContain('activeEffect');
+  });
+
+  it('记录20费恋授予起动能力的能力实例身份', () => {
+    const records = buildMatchDecisionRecordsForCommand({
+      matchId: 'match-decision-1',
+      beforeState: createState(null),
+      afterState: createState(null),
+      command: {
+        type: GameCommandType.ACTIVATE_ABILITY,
+        playerId: 'p1',
+        cardId: 'source-card',
+        abilityId: 'pl-sp-bp5-001-activated-discard-or-wait-self',
+        abilityInstanceId: 'ren-granted:member-below-1',
+        timestamp: 1_001,
+      },
+      commandSucceeded: true,
+      submittedCommandSeq: 4,
+      getSeatForPlayer: (playerId) => (playerId === 'p1' ? 'FIRST' : null),
+    });
+
+    expect(records).toHaveLength(1);
+    expect(records[0]).toMatchObject({
+      decisionType: 'ACTIVATE_ABILITY_SUBMITTED',
+      abilityId: 'pl-sp-bp5-001-activated-discard-or-wait-self',
+      submission: {
+        commandType: 'ACTIVATE_ABILITY',
+        selectedCardId: 'source-card',
+        abilityInstanceId: 'ren-granted:member-below-1',
+      },
+    });
   });
 
   it('记录换牌、LIVE 设置与成功 LIVE 选择命令决策', () => {

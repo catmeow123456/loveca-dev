@@ -26,9 +26,10 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 
 ## 复数起动能力 UI 查询
 
-- `runtime/activated-ability-ui.ts` 只读取 implemented `ACTIVATED` definitions 与舞台成员动态获得的起动能力，按 `abilityId` 去重并返回复数 `ActivatedAbilityUiConfig`；它不判断费用是否足够、不记录回合次数，也不创建 `activeEffect`。
+- `runtime/activated-ability-ui.ts` 只读取 implemented `ACTIVATED` definitions 与舞台成员动态获得的起动能力，并返回复数 `ActivatedAbilityUiConfig`。原生能力以 `abilityId` 作为菜单身份；动态授予能力以服务端生成并持有的 opaque `abilityInstanceId` 作为菜单身份，因此同一宿主从不同实体卡获得的同 abilityId 不会被合并。它不判断费用是否足够、不支付费用，也不创建 `activeEffect`。
+- `PL!SP-pb2-005` 的每个 memberBelow 授予实例独立检查本回合次数；已使用实例从查询结果移除，未使用的相同 abilityId 实例继续保留。`abilityInstanceId` 只能从查询结果原样透传，业务层不得解析或自行构造。
 - `activatedUi.displayOrder` 仅用于同一张卡具有多条起动能力时锁定卡面展示顺序；未配置时保持 definition / granted 查询的稳定顺序。`getActivatedAbilityUiConfig` 继续作为返回第一项的兼容包装，生产投影和新 UI 使用复数 `getActivatedAbilityUiConfigs`。
-- 在线卡牌对象同时保留旧单数字段与复数字段；前端只展示一个能力选择菜单，玩家选择后才提交对应 `abilityId`，不会并行创建多个效果窗口。当前首个真实多能力样本是 `PL!N-bp1-006` 费用 13「近江彼方」。
+- 在线卡牌对象同时保留旧单数字段与复数字段；前端只展示一个能力选择菜单，玩家选择后提交对应 `abilityId`，授予能力同时提交 `abilityInstanceId`，不会并行创建多个效果窗口。当前原生多能力样本是 `PL!N-bp1-006` 费用 13「近江彼方」；动态同 abilityId 多实例样本是 `PL!SP-pb2-005` 费用 20「葉月 恋」。
 
 ## 触发事件派发、能量区返回与活跃阶段标记
 
@@ -131,7 +132,7 @@ runtime action helper 只表达原子动作，不表达完整卡文流程。它�
 
 `runtime/member-slot-moved-observers.ts` 是窄注册调度器，不是任意 observer DSL。`PL!SP-pb2-022` 的 5yncri5e!/CENTER 条件、同次交换匹配事件优先和 pending 审计快照全部归属其单卡 workflow handler；runner 只在普通成员移动入队后调用 `enqueueMemberSlotMovedObserverCardEffects`，不得保留该卡 abilityId、团体或位置 gate。observer 的回合次数预占必须复用 `runtime/ability-turn-limit.ts`，按 `playerId + abilityId + sourceCardId + sourceLifecycleId` 统一统计已结算 use、pending 与 activeEffect；不得只查已结算 action 或 exact eventId pending。
 
-`runtime/ability-source-lifecycle.ts` 统一解释“1回合 N 次”的来源规则对象。实体 `CardInstance.instanceId` 跨区保持稳定，成员或 LIVE 卡跨区域重新进入来源区域时则由最近的 `ON_ENTER_STAGE.eventId` / `ON_ENTER_LIVE_ZONE.eventId` 形成新的 `sourceLifecycleId`；成员区到成员区、LIVE 区到 LIVE 区和方向状态变化不产生新 lifecycle。没有入口事件的测试直置对象使用稳定 initial sentinel。per-turn pending 在入队后按自身 `eventIds` 的 eventLog sequence 回溯并捕获 lifecycle，activeEffect 与 `ABILITY_USE` 在通用 dispatch 边界传播同一值，因此旧 pending/active 不会占用新对象次数，审计历史也无需删除。
+`runtime/ability-source-lifecycle.ts` 统一解释“1回合 N 次”的来源规则对象。实体 `CardInstance.instanceId` 跨区保持稳定，成员或 LIVE 卡跨区域重新进入来源区域时则由最近的 `ON_ENTER_STAGE.eventId` / `ON_ENTER_LIVE_ZONE.eventId` 形成新的 `sourceLifecycleId`；成员区到成员区、LIVE 区到 LIVE 区和方向状态变化不产生新 lifecycle。没有入口事件的测试直置对象使用稳定 initial sentinel。per-turn pending 在入队后按自身 `eventIds` 的 eventLog sequence 回溯并捕获 lifecycle，activeEffect 与 `ABILITY_USE` 通过 `propagateAbilityInvocationContext` 传播同一 invocation。原生能力继续以 `playerId + abilityId + sourceCardId + sourceLifecycleId` 计次；`PL!SP-pb2-005` 授予能力在该来源身份上再加入 `abilityInstanceId`，使同一宿主的不同授予实体独立计次，同时保持效果来源与“此成员”语义仍绑定宿主。
 | `enqueueMemberStateChangedTriggersFromOrientationResult` | 将已取得的成员方向变化 result 产生的本次 `ON_MEMBER_STATE_CHANGED` 事件显式交给 runner 入队。 | 已用于当前卡效 workflow 中的成员横置/竖置路径；保留 `setMemberOrientation` / `resolveStageMemberOrientationTargetSelection` 写入的 cause；caller 仍负责 action payload、activeEffect/后续 step、pending continue；普通操作、费用支付或未来 raw orientation wrapper 仍需另审。 |
 | `paySourceMemberToWaitingRoomAndEnqueueLeaveStageTriggers` | 支付来源成员自送到休息室费用，并把本次 `ON_LEAVE_STAGE` 事件显式交给 runner 入队。 | 只覆盖来源成员自送到休息室；可保留同一次费用支付中自送前的能量费用；caller 仍负责 action payload、activeEffect/后续 step、pending continue；不泛化任意 zone move，不改变费用支付时机。 |
 | `getRemainingHeartCount` / `getRemainingHeartTotalCount` / `hasRemainingHearts` / `hasRemainingHeartColor` / `hasNoRemainingHearts` | 读取本次 LIVE 判定后的余剰/剩余 Heart。 | 位于 `src/application/effects/remaining-hearts.ts`；只读 `liveResolution.playerRemainingHearts`，不改变状态；指定颜色查询严格匹配该颜色，`RAINBOW` / ALL 不会被当作绿色等指定颜色，总数查询会计入 `RAINBOW`。 |

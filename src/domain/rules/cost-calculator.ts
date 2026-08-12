@@ -157,11 +157,8 @@ export class CostCalculator {
     return Math.max(0, effectiveCost ?? relayMemberData.cost);
   }
 
-  /**
-   * 计算登场费用修正。
-   * 当前先覆盖 X11 第一张 proving card：手牌中的自身按其他手牌数量减费。
-   */
-  calculatePlayCostModifiers(
+  /** 计算会改变手牌中成员卡自身当前费用的常时修正。 */
+  private calculateCurrentHandCostModifiers(
     memberData: MemberCardData,
     resources: AvailableResources
   ): PlayCostModifierApplication[] {
@@ -235,10 +232,7 @@ export class CostCalculator {
       }
     }
 
-    if (
-      cardCodeMatchesBase(memberData.cardCode, 'PL!-pb1-014') &&
-      isSourceCardBeingPlayedFromHand(resources)
-    ) {
+    if (cardCodeMatchesBase(memberData.cardCode, 'PL!-pb1-014') && isSourceCardInHand(resources)) {
       const lilywhiteSource = resources.successLiveCards?.find((successLiveCard) =>
         cardBelongsToUnit(successLiveCard.data, 'lilywhite')
       );
@@ -252,10 +246,7 @@ export class CostCalculator {
       }
     }
 
-    if (
-      cardCodeMatchesBase(memberData.cardCode, 'PL!N-sd2-003') &&
-      isSourceCardBeingPlayedFromHand(resources)
-    ) {
+    if (cardCodeMatchesBase(memberData.cardCode, 'PL!N-sd2-003') && isSourceCardInHand(resources)) {
       const nijigasakiLiveSource = resources.successLiveCards?.find((successLiveCard) =>
         cardBelongsToGroup(successLiveCard.data, '虹ヶ咲')
       );
@@ -269,9 +260,17 @@ export class CostCalculator {
       }
     }
 
+    return modifiers;
+  }
+
+  /** 计算实际从手牌登场时的支付费用修正。 */
+  calculatePlayCostModifiers(
+    memberData: MemberCardData,
+    resources: AvailableResources
+  ): PlayCostModifierApplication[] {
+    const modifiers = this.calculateCurrentHandCostModifiers(memberData, resources);
     modifiers.push(...this.collectSuccessLiveSourcePlayCostModifiers(memberData, resources));
     modifiers.push(...this.collectStageSourcePlayCostModifiers(memberData, resources));
-
     return modifiers;
   }
 
@@ -279,11 +278,7 @@ export class CostCalculator {
     memberData: MemberCardData,
     resources: AvailableResources
   ): PlayCostModifierApplication[] {
-    if (
-      memberData.cost < 17 ||
-      !isMuseMember(memberData) ||
-      !isSourceCardBeingPlayedFromHand(resources)
-    ) {
+    if (memberData.cost < 17 || !isMuseMember(memberData) || !isSourceCardInHand(resources)) {
       return [];
     }
 
@@ -323,7 +318,7 @@ export class CostCalculator {
       if (
         isSBp5001ChikaCostReducer(stageMember.data) &&
         isStrictNoAbilityMember(memberData) &&
-        isSourceCardBeingPlayedFromHand(resources)
+        isSourceCardInHand(resources)
       ) {
         modifiers.push({
           id: `${stageMember.data.cardCode}:stage-source-cost-minus-no-ability-member`,
@@ -335,6 +330,27 @@ export class CostCalculator {
     }
 
     return modifiers;
+  }
+
+  /** 计算手牌中成员卡本身的当前费用，不包含“从手牌登场时支付费用减少”。 */
+  calculateCurrentHandCardCost(
+    memberData: MemberCardData,
+    resources: AvailableResources
+  ): {
+    readonly baseCost: number;
+    readonly currentCost: number;
+    readonly modifiers: readonly PlayCostModifierApplication[];
+    readonly modifierAmount: number;
+  } {
+    const baseCost = this.calculateBaseCost(memberData);
+    const modifiers = this.calculateCurrentHandCostModifiers(memberData, resources);
+    const modifierAmount = modifiers.reduce((sum, modifier) => sum + modifier.amount, 0);
+    return {
+      baseCost,
+      currentCost: Math.max(0, baseCost - modifierAmount),
+      modifiers,
+      modifierAmount,
+    };
   }
 
   /**
@@ -730,7 +746,7 @@ function isMuseMember(memberData: MemberCardData): boolean {
   return cardBelongsToGroup(memberData, "μ's");
 }
 
-function isSourceCardBeingPlayedFromHand(resources: AvailableResources): boolean {
+function isSourceCardInHand(resources: AvailableResources): boolean {
   return (
     resources.sourceCardId !== undefined &&
     (resources.handCardIds?.includes(resources.sourceCardId) ?? false)

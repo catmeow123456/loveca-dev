@@ -281,8 +281,10 @@ node --import tsx .agents/skills/loveca-card-effect-governance/scripts/audit-act
 - 新增或修改自己『Liella!』成员的 `ACTIVATED / STAGE_MEMBER` definition 或 workflow 时，必须检查该 abilityId 是否可由 `PL!SP-pb2-005` 宿主获得；不能因为本次任务只描述原卡，就跳过宿主兼容性审查。
 - 对可获得的 abilityId，workflow 的启动、能量选择恢复、公开确认恢复、支付确认、finish 等所有来源资格复核点必须使用 `isDirectOrRenGrantedActivatedAbilitySource`。不得只替换首个 gate，也不得继续用 `cardCodeMatchesBase` / `doesCardAbilityDefinitionMatchCardCode` 硬性要求宿主匹配原卡。
 - helper 的 `directBaseCardCodes` 必须包含同一 abilityId 的全部原生来源；shared config 只能对明确目标开启 Ren-granted 来源，其他作品、其他 abilityId 继续保持原边界。不得完全删除来源拥有能力校验，不能扩大为任意成员调用。
-- `sourceCardId`、`sourceLifecycleId`、每回合次数、费用、action audit 和“此成员”的待机/离场/移动/modifier/向下叠卡都绑定实际发动的宿主实例；不得替换为下方授予能力的卡牌实例 ID。
-- 必须扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，至少覆盖原卡直发、合法宿主、无对应下方卡、无关成员、下方移除、原卡与宿主次数隔离、宿主第二次拒绝；多阶段能力还要覆盖后续确认/支付能够继续完成。
+- `sourceCardId`、`sourceLifecycleId`、费用、action audit 和“此成员”的待机/离场/移动/modifier/向下叠卡都绑定实际发动的宿主实例；不得替换为下方授予能力的卡牌实例 ID。授予卡只通过服务端生成并持有的 opaque `abilityInstanceId` 标识能力实例；它不是效果来源，不得替代 `sourceCardId`。
+- Ren-granted UI/query 必须为每张授予成员返回独立 `abilityInstanceId`；命令只能透传当前返回值，不得解析、猜测或自行拼接格式。中央校验必须重验该实例仍来自当前宿主下方且与 abilityId 匹配；伪造、错配或已移除的实例均拒绝。直接发动不携带该字段。
+- Ren-granted `ABILITY_USE` 仍以宿主 `sourceCardId/sourceLifecycleId` 记录，同时携带 `abilityInstanceId`；每回合次数按宿主来源身份 + 能力实例联合计算。两张相同下方成员授予的同 abilityId 能力应可分别使用一次；单一实例的第二次仍拒绝。activeEffect 和最终 `ABILITY_USE` 必须保留同一实例标识。
+- 必须扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，至少覆盖原卡直发、合法宿主、无对应下方卡、无关成员、下方移除、原卡与宿主次数隔离、单一实例的宿主第二次拒绝、同 abilityId 两份授予实例分别使用、伪造/错配/移除实例拒绝；多阶段能力还要覆盖后续确认/支付能够继续完成且保留实例身份。
 - 收尾时对本批 workflow 运行静态审计，并逐项解释残留 direct-only gate 为什么属于非目标能力：
 
 ```bash

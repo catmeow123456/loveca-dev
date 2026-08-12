@@ -7,6 +7,7 @@ import {
 } from '../../../../domain/entities/game.js';
 import { GamePhase, ZoneType } from '../../../../shared/types/enums.js';
 import { drawCardsFromMainDeckToHand } from '../../../effects/draw.js';
+import { getHandMemberEffectiveCost } from '../../../effects/play-member-cost.js';
 import { SP_BP7_003_ACTIVATED_REVEAL_COST_TEN_OR_TWENTY_MEMBER_STACK_DRAW_TWO_ABILITY_ID } from '../../ability-ids.js';
 import { revealHandCardForActiveEffect } from '../../runtime/active-effect.js';
 import { registerActivatedAbilityHandler } from '../../runtime/activated-registry.js';
@@ -167,7 +168,7 @@ function stackRevealedMemberAndDrawTwo(game: GameState): GameState {
   if (
     sourceSlot === null ||
     effect.revealedCardIds?.includes(revealedCardId) !== true ||
-    !isEligibleHandMember(game, effect.controllerId, revealedCardId)
+    !isOwnHandMember(game, effect.controllerId, revealedCardId)
   ) {
     return game;
   }
@@ -204,18 +205,28 @@ function stackRevealedMemberAndDrawTwo(game: GameState): GameState {
 
 function getEligibleHandMemberIds(game: GameState, playerId: string): readonly string[] {
   const player = getPlayerById(game, playerId);
-  return (
-    player?.hand.cardIds.filter((cardId) => isEligibleHandMember(game, playerId, cardId)) ?? []
-  );
+  const handCardIds = player?.hand.cardIds ?? [];
+  return handCardIds.filter((cardId) => isEligibleHandMember(game, playerId, cardId, handCardIds));
 }
 
-function isEligibleHandMember(game: GameState, playerId: string, cardId: string): boolean {
+function isEligibleHandMember(
+  game: GameState,
+  playerId: string,
+  cardId: string,
+  handCardIds: readonly string[] = getPlayerById(game, playerId)?.hand.cardIds ?? []
+): boolean {
+  if (!isOwnHandMember(game, playerId, cardId)) return false;
+
+  const effectiveCost = getHandMemberEffectiveCost(game, playerId, cardId, handCardIds);
+  return effectiveCost === 10 || effectiveCost === 20;
+}
+
+function isOwnHandMember(game: GameState, playerId: string, cardId: string): boolean {
   const player = getPlayerById(game, playerId);
   const card = getCardById(game, cardId);
   return (
     player?.hand.cardIds.includes(cardId) === true &&
     card?.ownerId === playerId &&
-    isMemberCardData(card.data) &&
-    (card.data.cost === 10 || card.data.cost === 20)
+    isMemberCardData(card.data)
   );
 }

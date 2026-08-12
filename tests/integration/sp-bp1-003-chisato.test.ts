@@ -310,11 +310,9 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
       stepText: '已公开所选手牌。展示结束后，根据公开卡片的费用合计结算。',
       revealedCardIds: ['hand-6', 'hand-4'],
     });
-    expect(
-      context.session.state?.actionHistory.findLast(
-        (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
-      )?.payload
-    ).toMatchObject({
+    expect(context.session.state?.actionHistory.findLast(
+      (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
+    )?.payload).toMatchObject({
       revealedHandMemberCardIds: ['hand-6', 'hand-4'],
       effectiveCosts: [
         { cardId: 'hand-6', effectiveCost: 6 },
@@ -405,9 +403,11 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
     const context = setup({ handCards: [dynamic, ...fillers] });
     expect(activate(context).success).toBe(true);
     expect(submitSelection(context, [dynamic.instanceId]).success).toBe(true);
-    expect(context.session.state?.actionHistory.findLast(
-      (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
-    )?.payload).toMatchObject({
+    expect(
+      context.session.state?.actionHistory.findLast(
+        (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
+      )?.payload
+    ).toMatchObject({
       effectiveCosts: [{ cardId: dynamic.instanceId, effectiveCost: 16 }],
       effectiveCostTotal: 16,
       conditionMet: false,
@@ -431,6 +431,27 @@ describe('PL!SP-bp1-003 Chisato activated hand-member reveal', () => {
       ],
       effectiveCostTotal: 32,
     });
+  });
+
+  it('uses hand-card current cost without applying play-only cost reductions', () => {
+    const handCost10 = member('PL!SP-test-cost10', 'hand-current-cost-10', 10);
+    const playCostReducer = member('PL!SP-bp5-003-AR', 'play-cost-reducer', 17);
+    const context = setup({
+      handCards: [handCost10],
+      otherStageCards: [{ card: playCostReducer, slot: SlotPosition.LEFT }],
+    });
+
+    resolveSelection(context, [handCost10.instanceId]);
+    expect(
+      context.session.state?.actionHistory.findLast(
+        (action) => action.payload.step === 'REVEAL_HAND_MEMBERS'
+      )?.payload
+    ).toMatchObject({
+      effectiveCosts: [{ cardId: handCost10.instanceId, effectiveCost: 10 }],
+      effectiveCostTotal: 10,
+      conditionMet: true,
+    });
+    expect(context.session.state?.liveResolution.liveModifiers).toHaveLength(1);
   });
 
   it('rejects duplicate, forged, non-MEMBER, wrong-owner, stale, and source-stale submissions without use', () => {

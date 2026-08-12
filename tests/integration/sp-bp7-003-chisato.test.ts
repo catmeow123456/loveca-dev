@@ -111,6 +111,19 @@ function setup() {
   return { game, source, cost10, cost20, cost11, live10, drawOne, drawTwo };
 }
 
+function setupWithHandCards(handCards: readonly CardInstance[]) {
+  const scenario = setup();
+  let game = registerCards(scenario.game, handCards);
+  game = updatePlayer(game, P1, (player) => ({
+    ...player,
+    hand: {
+      ...player.hand,
+      cardIds: handCards.map((card) => card.instanceId),
+    },
+  }));
+  return { ...scenario, game };
+}
+
 function withMembersBelow(game: GameState, source: CardInstance, count: number): GameState {
   const belowCards = Array.from({ length: count }, (_, index) =>
     member(`BELOW-${index}`, `below-${index}`, index + 1)
@@ -281,6 +294,109 @@ describe('PL!SP-bp7-003-SEC 费用10「岚千砂都」', () => {
     ]);
     expect(done.players[0].mainDeck.cardIds).toEqual([]);
     expect(activateCardAbility(done, P1, scenario.source.instanceId, ACTIVATED)).toBe(done);
+  });
+
+  it.each([
+    { handCount: 1, effectiveCost: 20, selectable: true },
+    { handCount: 11, effectiveCost: 10, selectable: true },
+    { handCount: 5, effectiveCost: 16, selectable: false },
+    { handCount: 12, effectiveCost: 9, selectable: false },
+  ])(
+    '手牌共$handCount张时按 LL-bp2-001 当前费用$effectiveCost判断压卡资格',
+    ({ handCount, selectable }) => {
+      const dynamic = member('LL-bp2-001-R＋', `ll-bp2-001-${handCount}`, 20);
+      const fillers = Array.from({ length: handCount - 1 }, (_, index) =>
+        member(`FILLER-${handCount}-${index}`, `filler-${handCount}-${index}`, 1)
+      );
+      const scenario = setupWithHandCards([dynamic, ...fillers]);
+      const result = activateCardAbility(scenario.game, P1, scenario.source.instanceId, ACTIVATED);
+
+      if (selectable) {
+        expect(result.activeEffect?.selectableCardIds).toEqual([dynamic.instanceId]);
+      } else {
+        expect(result).toBe(scenario.game);
+      }
+    }
+  );
+
+  it('只读取手牌卡本身当前费用，不混入从手牌登场时的支付减免', () => {
+    const cost10 = member('PL!SP-test-cost10', 'current-cost-10', 10);
+    const playCostReducer = member('PL!SP-bp5-003-AR', 'play-cost-reducer', 17);
+    const scenario = setupWithHandCards([cost10]);
+    let game = registerCards(scenario.game, [playCostReducer]);
+    game = updatePlayer(game, P1, (player) => ({
+      ...player,
+      memberSlots: placeCardInSlot(
+        player.memberSlots,
+        SlotPosition.LEFT,
+        playCostReducer.instanceId,
+        {
+          orientation: OrientationState.ACTIVE,
+          face: FaceState.FACE_UP,
+        }
+      ),
+    }));
+
+    const selecting = activateCardAbility(game, P1, scenario.source.instanceId, ACTIVATED);
+    expect(selecting.activeEffect?.selectableCardIds).toEqual([cost10.instanceId]);
+  });
+
+  it('提交公开时重算当前费用，公开费用支付后不因手牌变化撤销压卡', () => {
+    const dynamic = member('LL-bp2-001-R＋', 'll-bp2-001-stage-boundary', 20);
+    const extra = member('EXTRA', 'extra-after-selection', 1);
+    const scenario = setupWithHandCards([dynamic]);
+    const initial = registerCards(scenario.game, [extra]);
+
+    const selecting = activateCardAbility(initial, P1, scenario.source.instanceId, ACTIVATED);
+    const invalidBeforePayment = updatePlayer(selecting, P1, (player) => ({
+      ...player,
+      hand: {
+        ...player.hand,
+        cardIds: [dynamic.instanceId, extra.instanceId],
+      },
+    }));
+    expect(
+      confirmActiveEffectStep(
+        invalidBeforePayment,
+        P1,
+        invalidBeforePayment.activeEffect!.id,
+        dynamic.instanceId
+      )
+    ).toBe(invalidBeforePayment);
+
+    const freshSelecting = activateCardAbility(initial, P1, scenario.source.instanceId, ACTIVATED);
+    const revealed = confirmActiveEffectStep(
+      freshSelecting,
+      P1,
+      freshSelecting.activeEffect!.id,
+      dynamic.instanceId
+    );
+    expect(revealed.activeEffect).toMatchObject({
+      stepId: PUBLIC_REVEAL_DWELL_STEP_ID,
+      revealedCardIds: [dynamic.instanceId],
+    });
+
+    const changedAfterPayment = updatePlayer(revealed, P1, (player) => ({
+      ...player,
+      hand: {
+        ...player.hand,
+        cardIds: [dynamic.instanceId, extra.instanceId],
+      },
+    }));
+    const done = confirmActiveEffectStep(
+      changedAfterPayment,
+      P1,
+      changedAfterPayment.activeEffect!.id
+    );
+    expect(done.activeEffect).toBeNull();
+    expect(done.players[0].memberSlots.memberBelow[SlotPosition.CENTER]).toEqual([
+      dynamic.instanceId,
+    ]);
+    expect(done.players[0].hand.cardIds).toEqual([
+      extra.instanceId,
+      scenario.drawOne.instanceId,
+      scenario.drawTwo.instanceId,
+    ]);
   });
 
   it('来源或待公开手牌 stale 时不公开、不记录费用且保持原选择窗口', () => {

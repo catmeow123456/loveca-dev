@@ -21,7 +21,10 @@ import { addLiveModifier, isLiveAbilitySuppressed } from '../domain/rules/live-m
 import { collectCurrentRevealedCheerLiveSuccessAbilitySources } from './card-effects/runtime/live-success-revealed-cheer-sources.js';
 import { removeTargetMemberBoundLiveModifiersForLeaveStageEvents } from './card-effects/runtime/target-member-bound-live-modifiers.js';
 import { getZoneSelectionConfig } from './effects/zone-selection.js';
-import { isRenGrantedActivatedAbility } from './card-effects/runtime/granted-activated-abilities.js';
+import {
+  isRenGrantedActivatedAbility,
+  isRenGrantedActivatedAbilityInstance,
+} from './card-effects/runtime/granted-activated-abilities.js';
 import {
   and,
   costGte,
@@ -89,7 +92,7 @@ import {
   getAbilitySourceLifecycleId,
   getActiveEffectSourceLifecycleId,
   getPendingAbilitySourceLifecycleId,
-  propagateAbilitySourceLifecycle,
+  propagateAbilityInvocationContext,
 } from './card-effects/runtime/ability-source-lifecycle.js';
 import {
   canUseAbilityThisTurn,
@@ -3267,8 +3270,9 @@ export function confirmActiveEffectStep(
     }
   );
   if (registryResult) {
-    return propagateAbilitySourceLifecycle(game, registryResult, {
+    return propagateAbilityInvocationContext(game, registryResult, {
       abilityId: effect.abilityId,
+      abilityInstanceId: effect.abilityInstanceId,
       sourceCardId: effect.sourceCardId,
       sourceLifecycleId: getActiveEffectSourceLifecycleId(game, effect),
     });
@@ -3281,16 +3285,30 @@ export function activateCardAbility(
   game: GameState,
   playerId: string,
   cardId: string,
-  abilityId: string
+  abilityId: string,
+  abilityInstanceId?: string
 ): GameState {
-  if (!canUseActivatedAbilityThisTurn(game, playerId, abilityId, cardId)) {
+  const isGrantedAbility = isRenGrantedActivatedAbility(game, playerId, cardId, abilityId);
+  if (
+    (abilityInstanceId === undefined && isGrantedAbility) ||
+    (abilityInstanceId !== undefined &&
+      !isRenGrantedActivatedAbilityInstance(
+        game,
+        playerId,
+        cardId,
+        abilityId,
+        abilityInstanceId
+      )) ||
+    !canUseActivatedAbilityThisTurn(game, playerId, abilityId, cardId, abilityInstanceId)
+  ) {
     return game;
   }
 
   const registryResult = resolveActivatedAbilityWithRegistry(game, playerId, cardId, abilityId);
   if (registryResult) {
-    return propagateAbilitySourceLifecycle(game, registryResult, {
+    return propagateAbilityInvocationContext(game, registryResult, {
       abilityId,
+      abilityInstanceId,
       sourceCardId: cardId,
       sourceLifecycleId: getAbilitySourceLifecycleId(game, abilityId, cardId),
     });
@@ -3643,7 +3661,7 @@ function startPendingAbilityEffect(
     delegatePendingAbility,
   });
   if (registryResult) {
-    return propagateAbilitySourceLifecycle(game, registryResult, {
+    return propagateAbilityInvocationContext(game, registryResult, {
       abilityId: ability.abilityId,
       sourceCardId: ability.sourceCardId,
       sourceLifecycleId: getPendingAbilitySourceLifecycleId(game, ability),

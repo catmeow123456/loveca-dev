@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   PR_WAIT_SELF_DISCARD_DRAW_ONE_ABILITY_ID,
+  SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
   SP_BP1_003_ACTIVATED_REVEAL_HAND_MEMBERS_COST_TOTAL_GAIN_SCORE_ABILITY_ID,
   SP_BP1_009_ACTIVATED_PAY_ONE_ENERGY_DRAW_ONE_DISCARD_ONE_ABILITY_ID,
   SP_BP1_010_ACTIVATED_PAY_TWO_ENERGY_DISCARD_LOOK_TOP_FIVE_LIELLA_ABILITY_ID,
@@ -20,6 +21,9 @@ import {
   SP_SD2_002_ACTIVATED_PAY_TWO_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
   SP_SD2_006_ACTIVATED_PAY_TWO_ENERGY_DISCARD_RECOVER_LIELLA_LIVE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
+import { CardAbilitySourceZone } from '../../src/application/card-effects/ability-definition-types';
+import { getActivatedAbilityUiConfigs } from '../../src/application/card-effect-runner';
+import { getRenGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-activated-abilities';
 import {
   createActivateAbilityCommand,
   createConfirmEffectStepCommand,
@@ -52,6 +56,7 @@ import {
   TriggerCondition,
   TurnType,
 } from '../../src/shared/types/enums';
+import { createPublicObjectId } from '../../src/online/projector';
 import { confirmPublicSelectionIfNeeded } from '../helpers/public-card-selection-confirmation';
 
 const P1 = 'player1';
@@ -163,6 +168,7 @@ interface Scenario {
   readonly cardCase: AbilityCase;
   readonly sourceId: string;
   readonly grantedCardId: string | null;
+  readonly abilityInstanceId: string | null;
   readonly costTenHandId: string;
   readonly discardHandId: string;
   readonly waitingLiveId: string;
@@ -299,12 +305,19 @@ function setupScenario(cardCase: AbilityCase, sourceMode: SourceMode): Scenario 
   };
   setSessionState(session, game);
 
+  const grantedAbility = getRenGrantedActivatedAbilityDefinitions(game, P1, source.instanceId).find(
+    (candidate) =>
+      candidate.grantingMemberBelowCardId === grantedCard.instanceId &&
+      candidate.definition.abilityId === cardCase.abilityId
+  );
+
   return {
     session,
     cardCase,
     sourceId: source.instanceId,
     grantedCardId:
       sourceMode === 'REN' || sourceMode === 'UNRELATED' ? grantedCard.instanceId : null,
+    abilityInstanceId: grantedAbility?.abilityInstanceId ?? null,
     costTenHandId: costTenHand.instanceId,
     discardHandId: discardHand.instanceId,
     waitingLiveId: waitingLive.instanceId,
@@ -313,10 +326,30 @@ function setupScenario(cardCase: AbilityCase, sourceMode: SourceMode): Scenario 
   };
 }
 
-function activate(scenario: Scenario) {
+function activate(scenario: Scenario, abilityInstanceId = scenario.abilityInstanceId ?? undefined) {
   return scenario.session.executeCommand(
-    createActivateAbilityCommand(P1, scenario.sourceId, scenario.cardCase.abilityId)
+    createActivateAbilityCommand(
+      P1,
+      scenario.sourceId,
+      scenario.cardCase.abilityId,
+      abilityInstanceId
+    )
   );
+}
+
+function addGrantedMemberBelow(scenario: Scenario, cardCode: string, cardId: string): string {
+  const grantedCard = member(cardCode, cardId, { cost: 4 });
+  let game = registerCards(scenario.session.state!, [grantedCard]);
+  game = updatePlayer(game, P1, (player) => ({
+    ...player,
+    memberSlots: addMemberBelowMember(
+      player.memberSlots,
+      SlotPosition.CENTER,
+      grantedCard.instanceId
+    ),
+  }));
+  setSessionState(scenario.session, game);
+  return grantedCard.instanceId;
 }
 
 function confirmCard(scenario: Scenario, selectedCardId: string) {
@@ -447,12 +480,14 @@ describe('PL!SP-pb2-005 恋宿主的多阶段复核与“此成员”实际作�
     expect(scenario.session.state?.activeEffect).toMatchObject({
       abilityId: cardCase.abilityId,
       sourceCardId: scenario.sourceId,
+      abilityInstanceId: scenario.abilityInstanceId,
       selectableCardIds: expect.arrayContaining([scenario.discardHandId]),
     });
     expect(confirmCard(scenario, scenario.discardHandId).success).toBe(true);
     expect(scenario.session.state?.activeEffect).toMatchObject({
       abilityId: cardCase.abilityId,
       sourceCardId: scenario.sourceId,
+      abilityInstanceId: scenario.abilityInstanceId,
       selectableCardIds: [scenario.waitingLiveId],
     });
     expect(confirmCard(scenario, scenario.waitingLiveId).success).toBe(true);
@@ -473,6 +508,17 @@ describe('PL!SP-pb2-005 恋宿主的多阶段复核与“此成员”实际作�
         (action) => action.type === 'PAY_COST' && action.payload.abilityId === cardCase.abilityId
       )?.payload.sourceCardId
     ).toBe(scenario.sourceId);
+    expect(
+      scenario.session.state?.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId === cardCase.abilityId &&
+          action.payload.step === 'ABILITY_USE'
+      )?.payload
+    ).toMatchObject({
+      sourceCardId: scenario.sourceId,
+      abilityInstanceId: scenario.abilityInstanceId,
+    });
   });
 
   it('bp7-008 的 ACTIVE 门禁和待机费用检查、作用于恋宿主而非下方四季', () => {
@@ -638,7 +684,169 @@ describe('PL!SP-pb2-005 恋宿主的多阶段复核与“此成员”实际作�
   });
 });
 
-describe('PL!SP-pb2-005 恋宿主的每回合次数按宿主实例与 lifecycle 记录', () => {
+describe('PL!SP-pb2-005 恋宿主的每回合次数按授予能力实例区分', () => {
+  it('两张相同下方夏美产生两份独立能力，各可发动一次且仍绑定同一恋宿主', () => {
+    const cardCase = CASES.find(
+      (entry) => entry.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+    )!;
+    const scenario = setupScenario(cardCase, 'REN');
+    const secondGrantedCardId = addGrantedMemberBelow(
+      scenario,
+      cardCase.directCode,
+      'second-granted-card'
+    );
+
+    const grantedEntries = getRenGrantedActivatedAbilityDefinitions(
+      scenario.session.state!,
+      P1,
+      scenario.sourceId
+    ).filter((candidate) => candidate.definition.abilityId === cardCase.abilityId);
+    expect(grantedEntries.map((candidate) => candidate.grantingMemberBelowCardId)).toEqual(
+      expect.arrayContaining([scenario.grantedCardId, secondGrantedCardId])
+    );
+    expect(grantedEntries).toHaveLength(2);
+    const abilityInstanceIds = grantedEntries.map((candidate) => candidate.abilityInstanceId);
+    expect(new Set(abilityInstanceIds).size).toBe(2);
+
+    const uiConfigs = getActivatedAbilityUiConfigs(REN_CODE, CardAbilitySourceZone.STAGE_MEMBER, {
+      game: scenario.session.state!,
+      playerId: P1,
+      sourceCardId: scenario.sourceId,
+    }).filter((config) => config.abilityId === cardCase.abilityId);
+    expect(uiConfigs.map((config) => config.abilityId)).toEqual([
+      cardCase.abilityId,
+      cardCase.abilityId,
+    ]);
+    expect(new Set(uiConfigs.map((config) => config.abilityInstanceId))).toEqual(
+      new Set(abilityInstanceIds)
+    );
+
+    const projectedConfigs =
+      scenario.session.getPlayerViewState(P1)?.objects[createPublicObjectId(scenario.sourceId)]
+        ?.activatedAbilityUiConfigs ?? [];
+    expect(
+      projectedConfigs
+        .filter((config) => config.abilityId === cardCase.abilityId)
+        .map((config) => ({
+          abilityId: config.abilityId,
+          abilityInstanceId: config.abilityInstanceId,
+        }))
+    ).toEqual(
+      expect.arrayContaining(
+        abilityInstanceIds.map((abilityInstanceId) => ({
+          abilityId: cardCase.abilityId,
+          abilityInstanceId,
+        }))
+      )
+    );
+
+    expect(activate(scenario, abilityInstanceIds[0]).success).toBe(true);
+    expect(
+      getActivatedAbilityUiConfigs(REN_CODE, CardAbilitySourceZone.STAGE_MEMBER, {
+        game: scenario.session.state!,
+        playerId: P1,
+        sourceCardId: scenario.sourceId,
+      })
+        .filter((config) => config.abilityId === cardCase.abilityId)
+        .map((config) => config.abilityInstanceId)
+    ).toEqual([abilityInstanceIds[1]]);
+
+    expect(activate(scenario, abilityInstanceIds[1]).success).toBe(true);
+    expect(
+      getActivatedAbilityUiConfigs(REN_CODE, CardAbilitySourceZone.STAGE_MEMBER, {
+        game: scenario.session.state!,
+        playerId: P1,
+        sourceCardId: scenario.sourceId,
+      }).filter((config) => config.abilityId === cardCase.abilityId)
+    ).toEqual([]);
+    expect(activate(scenario, abilityInstanceIds[0]).success).toBe(false);
+    expect(activate(scenario, abilityInstanceIds[1]).success).toBe(false);
+
+    const useActions = scenario.session.state!.actionHistory.filter(
+      (action) =>
+        action.type === 'RESOLVE_ABILITY' &&
+        action.payload.abilityId === cardCase.abilityId &&
+        action.payload.step === 'ABILITY_USE'
+    );
+    expect(useActions).toHaveLength(2);
+    expect(useActions.map((action) => action.payload.sourceCardId)).toEqual([
+      scenario.sourceId,
+      scenario.sourceId,
+    ]);
+    expect(new Set(useActions.map((action) => action.payload.sourceLifecycleId)).size).toBe(1);
+    expect(useActions[0]?.payload.sourceLifecycleId).toBeTruthy();
+    expect(new Set(useActions.map((action) => action.payload.abilityInstanceId))).toEqual(
+      new Set(abilityInstanceIds)
+    );
+  });
+
+  it('未使用的下方授予卡移除后，其能力实例立即失效', () => {
+    const cardCase = CASES.find(
+      (entry) => entry.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+    )!;
+    const scenario = setupScenario(cardCase, 'REN');
+    const secondGrantedCardId = addGrantedMemberBelow(
+      scenario,
+      cardCase.directCode,
+      'removed-unused-granted-card'
+    );
+    const grantedEntries = getRenGrantedActivatedAbilityDefinitions(
+      scenario.session.state!,
+      P1,
+      scenario.sourceId
+    ).filter((candidate) => candidate.definition.abilityId === cardCase.abilityId);
+    const usedInstanceId = grantedEntries.find(
+      (candidate) => candidate.grantingMemberBelowCardId === scenario.grantedCardId
+    )!.abilityInstanceId;
+    const removedUnusedInstanceId = grantedEntries.find(
+      (candidate) => candidate.grantingMemberBelowCardId === secondGrantedCardId
+    )!.abilityInstanceId;
+
+    expect(activate(scenario, usedInstanceId).success).toBe(true);
+    const state = updatePlayer(scenario.session.state!, P1, (player) => ({
+      ...player,
+      memberSlots: {
+        ...player.memberSlots,
+        memberBelow: {
+          ...player.memberSlots.memberBelow,
+          [SlotPosition.CENTER]: player.memberSlots.memberBelow[SlotPosition.CENTER].filter(
+            (cardId) => cardId !== secondGrantedCardId
+          ),
+        },
+      },
+    }));
+    setSessionState(scenario.session, state);
+
+    expect(activate(scenario, removedUnusedInstanceId).success).toBe(false);
+  });
+
+  it('伪造或与 abilityId 错配的能力实例均被拒绝', () => {
+    const cardCase = CASES.find(
+      (entry) => entry.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
+    )!;
+    const scenario = setupScenario(cardCase, 'REN');
+
+    expect(activate(scenario, 'forged-ability-instance').success).toBe(false);
+
+    const mismatchedGrantedCardId = addGrantedMemberBelow(
+      scenario,
+      'PL!SP-pb2-002-R',
+      'mismatched-granted-card'
+    );
+    const mismatchedEntry = getRenGrantedActivatedAbilityDefinitions(
+      scenario.session.state!,
+      P1,
+      scenario.sourceId
+    ).find(
+      (candidate) =>
+        candidate.grantingMemberBelowCardId === mismatchedGrantedCardId &&
+        candidate.definition.abilityId ===
+          SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID
+    );
+    expect(mismatchedEntry).toBeDefined();
+    expect(activate(scenario, mismatchedEntry!.abilityInstanceId).success).toBe(false);
+  });
+
   it('下方原卡本回合已经发动不占宿主次数，宿主第二次发动被拒绝', () => {
     const cardCase = CASES.find(
       (entry) => entry.abilityId === SP_BP5_020_ACTIVATED_PAY_TWO_ENERGY_DRAW_ONE_ABILITY_ID
@@ -661,10 +869,21 @@ describe('PL!SP-pb2-005 恋宿主的每回合次数按宿主实例与 lifecycle 
     });
     setSessionState(scenario.session, game);
 
+    const hostAbilityInstanceId = getRenGrantedActivatedAbilityDefinitions(
+      scenario.session.state!,
+      P1,
+      ren.instanceId
+    ).find(
+      (candidate) =>
+        candidate.grantingMemberBelowCardId === directSourceId &&
+        candidate.definition.abilityId === cardCase.abilityId
+    )!.abilityInstanceId;
+
     const hostScenario: Scenario = {
       ...scenario,
       sourceId: ren.instanceId,
       grantedCardId: directSourceId,
+      abilityInstanceId: hostAbilityInstanceId,
     };
     expect(activate(hostScenario).success).toBe(true);
     expect(activate(hostScenario).success).toBe(false);
@@ -684,5 +903,7 @@ describe('PL!SP-pb2-005 恋宿主的每回合次数按宿主实例与 lifecycle 
     expect(useActions[1]?.payload.sourceLifecycleId).not.toBe(
       useActions[0]?.payload.sourceLifecycleId
     );
+    expect(useActions[0]?.payload.abilityInstanceId).toBeUndefined();
+    expect(useActions[1]?.payload.abilityInstanceId).toBe(hostAbilityInstanceId);
   });
 });

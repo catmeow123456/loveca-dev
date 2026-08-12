@@ -6,6 +6,7 @@ import {
 } from '../ability-definition-types.js';
 import { getCardAbilityDefinitionsForCardCode } from '../definitions/lookup.js';
 import { isActivatedAbilityUiConfigAvailableForSource } from './activated-ability-availability.js';
+import { canUseActivatedAbilityThisTurn } from './ability-turn-limit.js';
 import { getRenGrantedActivatedAbilityUiConfigs } from './granted-activated-abilities.js';
 
 interface ActivatedAbilityUiQueryOptions {
@@ -40,24 +41,33 @@ export function getActivatedAbilityUiConfigs(
       ? getRenGrantedActivatedAbilityUiConfigs(options.game, options.playerId, options.sourceCardId)
       : [];
 
-  const configsByAbilityId = new Map<string, ActivatedAbilityUiConfig>();
+  const configsByAbilityInstance = new Map<string, ActivatedAbilityUiConfig>();
   for (const config of [...directConfigs, ...grantedConfigs]) {
-    if (!configsByAbilityId.has(config.abilityId)) {
-      configsByAbilityId.set(config.abilityId, config);
+    const configKey = config.abilityInstanceId ?? config.abilityId;
+    if (!configsByAbilityInstance.has(configKey)) {
+      configsByAbilityInstance.set(configKey, config);
     }
   }
-  return [...configsByAbilityId.values()]
+  return [...configsByAbilityInstance.values()]
     .filter(
       (config) =>
         !options.game ||
         !options.playerId ||
         !options.sourceCardId ||
-        isActivatedAbilityUiConfigAvailableForSource(
+        (isActivatedAbilityUiConfigAvailableForSource(
           options.game,
           options.playerId,
           options.sourceCardId,
           config
-        )
+        ) &&
+          (config.abilityInstanceId === undefined ||
+            canUseActivatedAbilityThisTurn(
+              options.game,
+              options.playerId,
+              config.abilityId,
+              options.sourceCardId,
+              config.abilityInstanceId
+            )))
     )
     .sort(
       (left, right) =>

@@ -11,8 +11,9 @@ import { preserveActiveEffectSourceDisplay } from './active-effect-source-displa
 
 const SOURCE_LIFECYCLE_PREFIX = 'source-lifecycle';
 
-interface AbilitySourceContext {
+interface AbilityInvocationContext {
   readonly abilityId: string;
+  readonly abilityInstanceId?: string;
   readonly sourceCardId: string;
   readonly sourceLifecycleId?: string;
   readonly pendingAbilityId?: string;
@@ -176,14 +177,23 @@ export function capturePendingAbilitySourceLifecycles(game: GameState): GameStat
 
 function patchAbilityUseAction(
   action: GameAction,
-  context: AbilitySourceContext,
-  sourceLifecycleId: string
+  context: AbilityInvocationContext,
+  sourceLifecycleId: string | undefined
 ): { readonly action: GameAction; readonly matched: boolean } {
   if (
     action.type !== 'RESOLVE_ABILITY' ||
     action.payload.abilityId !== context.abilityId ||
     action.payload.sourceCardId !== context.sourceCardId ||
     (action.payload.step !== 'ABILITY_USE' && action.payload.step !== 'ACTIVATED_ABILITY_USE')
+  ) {
+    return { action, matched: false };
+  }
+  const actionAbilityInstanceId = action.payload.abilityInstanceId;
+  if (
+    context.abilityInstanceId !== undefined
+      ? typeof actionAbilityInstanceId === 'string' &&
+        actionAbilityInstanceId !== context.abilityInstanceId
+      : typeof actionAbilityInstanceId === 'string'
   ) {
     return { action, matched: false };
   }
@@ -202,7 +212,8 @@ function patchAbilityUseAction(
       ...action,
       payload: {
         ...action.payload,
-        sourceLifecycleId,
+        ...(sourceLifecycleId ? { sourceLifecycleId } : {}),
+        ...(context.abilityInstanceId ? { abilityInstanceId: context.abilityInstanceId } : {}),
         ...(context.pendingAbilityId ? { pendingAbilityId: context.pendingAbilityId } : {}),
       },
     },
@@ -210,39 +221,56 @@ function patchAbilityUseAction(
 }
 
 /**
- * Propagates the selected pending/active/activated source lifecycle across one
- * thin dispatch boundary. This corrects only the first matching ABILITY_USE
- * owned by the current pending (or the first unowned use for active/activated
- * dispatch) and only fills an untagged activeEffect. Nested continuation
- * results may already belong to a later lifecycle and must remain untouched.
+ * Propagates the selected pending/active/activated invocation identity across
+ * one thin dispatch boundary. This corrects only the first matching
+ * ABILITY_USE owned by the current pending (or the first unowned use for
+ * active/activated dispatch) and only fills missing invocation fields on the
+ * activeEffect. Nested continuation results may already belong to another
+ * lifecycle or granted ability instance and must remain untouched.
  */
-export function propagateAbilitySourceLifecycle(
+export function propagateAbilityInvocationContext(
   before: GameState,
   after: GameState,
-  context: AbilitySourceContext
+  context: AbilityInvocationContext
 ): GameState {
   if (after === before) {
     return before;
   }
 
   after = preserveActiveEffectSourceDisplay(before, after);
-  if (!hasPerTurnLimit(context.abilityId)) {
+  const tracksSourceLifecycle = hasPerTurnLimit(context.abilityId);
+  if (!tracksSourceLifecycle && context.abilityInstanceId === undefined) {
     return after;
   }
-  const sourceLifecycleId =
-    context.sourceLifecycleId ??
-    getAbilitySourceLifecycleId(before, context.abilityId, context.sourceCardId, context.eventIds);
+  const sourceLifecycleId = tracksSourceLifecycle
+    ? (context.sourceLifecycleId ??
+      getAbilitySourceLifecycleId(
+        before,
+        context.abilityId,
+        context.sourceCardId,
+        context.eventIds
+      ))
+    : undefined;
 
   let activeEffect = after.activeEffect;
+  const activeEffectMatchesAbilityInstance =
+    activeEffect !== null &&
+    (context.abilityInstanceId !== undefined
+      ? activeEffect.abilityInstanceId === undefined ||
+        activeEffect.abilityInstanceId === context.abilityInstanceId
+      : activeEffect.abilityInstanceId === undefined);
   if (
     activeEffect &&
     activeEffect.abilityId === context.abilityId &&
     activeEffect.sourceCardId === context.sourceCardId &&
-    activeEffect.sourceLifecycleId === undefined
+    activeEffectMatchesAbilityInstance &&
+    ((sourceLifecycleId !== undefined && activeEffect.sourceLifecycleId === undefined) ||
+      (context.abilityInstanceId !== undefined && activeEffect.abilityInstanceId === undefined))
   ) {
     activeEffect = {
       ...activeEffect,
-      sourceLifecycleId,
+      ...(sourceLifecycleId ? { sourceLifecycleId } : {}),
+      ...(context.abilityInstanceId ? { abilityInstanceId: context.abilityInstanceId } : {}),
     };
   }
 

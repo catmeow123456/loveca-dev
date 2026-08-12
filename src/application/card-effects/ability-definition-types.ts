@@ -30,6 +30,14 @@ export enum CardAbilitySourceZone {
 
 export interface ActivatedAbilityUiConfig {
   readonly abilityId: string;
+  /**
+   * One concrete runtime copy of an activated ability.
+   *
+   * Direct abilities omit this field. PL!SP-pb2-005 granted abilities use it
+   * to distinguish otherwise identical abilities granted by different cards
+   * below the same host member.
+   */
+  readonly abilityInstanceId?: string;
   readonly text: string;
   readonly title: string;
   readonly displayOrder?: number;

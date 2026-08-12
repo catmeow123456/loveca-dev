@@ -42,7 +42,7 @@ import {
 import {
   capturePendingAbilitySourceLifecycles,
   getAbilitySourceLifecycleId,
-  propagateAbilitySourceLifecycle,
+  propagateAbilityInvocationContext,
 } from '../../src/application/card-effects/runtime/ability-source-lifecycle';
 import { recordAbilityUseForContext } from '../../src/application/card-effects/runtime/workflow-helpers';
 
@@ -96,7 +96,7 @@ describe('per-turn ability source lifecycle', () => {
       },
     };
 
-    const propagated = propagateAbilitySourceLifecycle(busy, busy, {
+    const propagated = propagateAbilityInvocationContext(busy, busy, {
       abilityId: HANAYO_ACTIVATED_ABILITY_ID,
       sourceCardId: source.instanceId,
     });
@@ -278,7 +278,7 @@ describe('per-turn ability source lifecycle', () => {
       remaining: 1,
     });
 
-    const propagated = propagateAbilitySourceLifecycle(
+    const propagated = propagateAbilityInvocationContext(
       game,
       {
         ...game,
@@ -310,12 +310,16 @@ describe('per-turn ability source lifecycle', () => {
     expect(recordedAfterPendingRemoval.actionHistory.at(-1)?.payload.sourceLifecycleId).not.toBe(
       oldLifecycle
     );
-    const correctedResolution = propagateAbilitySourceLifecycle(game, recordedAfterPendingRemoval, {
-      abilityId: pendingAbility.abilityId,
-      sourceCardId: pendingAbility.sourceCardId,
-      sourceLifecycleId: oldLifecycle,
-      eventIds: pendingAbility.eventIds,
-    });
+    const correctedResolution = propagateAbilityInvocationContext(
+      game,
+      recordedAfterPendingRemoval,
+      {
+        abilityId: pendingAbility.abilityId,
+        sourceCardId: pendingAbility.sourceCardId,
+        sourceLifecycleId: oldLifecycle,
+        eventIds: pendingAbility.eventIds,
+      }
+    );
     expect(correctedResolution.actionHistory.at(-1)?.payload.sourceLifecycleId).toBe(oldLifecycle);
     expect(
       getAbilityTurnLimitStatus(correctedResolution, P1, HANAYO_ACTIVATED_ABILITY_ID, MEMBER_ID)
@@ -353,7 +357,7 @@ describe('per-turn ability source lifecycle', () => {
       awaitingPlayerId: P1,
     };
 
-    const propagated = propagateAbilitySourceLifecycle(
+    const propagated = propagateAbilityInvocationContext(
       before,
       { ...nestedUse, activeEffect: nestedActiveEffect },
       {
@@ -387,7 +391,7 @@ describe('per-turn ability source lifecycle', () => {
       turnCount: before.turnCount,
     });
 
-    const propagated = propagateAbilitySourceLifecycle(before, nestedOnly, {
+    const propagated = propagateAbilityInvocationContext(before, nestedOnly, {
       abilityId: HANAYO_ACTIVATED_ABILITY_ID,
       sourceCardId: MEMBER_ID,
       sourceLifecycleId: 'source-lifecycle:event:old-entry',
@@ -399,7 +403,7 @@ describe('per-turn ability source lifecycle', () => {
       pendingAbilityId: 'new-pending',
     });
 
-    const unownedOuter = propagateAbilitySourceLifecycle(before, nestedOnly, {
+    const unownedOuter = propagateAbilityInvocationContext(before, nestedOnly, {
       abilityId: HANAYO_ACTIVATED_ABILITY_ID,
       sourceCardId: MEMBER_ID,
       sourceLifecycleId: 'source-lifecycle:event:activated-outer',
@@ -408,6 +412,75 @@ describe('per-turn ability source lifecycle', () => {
       sourceLifecycleId: newLifecycle,
       pendingAbilityId: 'new-pending',
     });
+  });
+
+  it('keeps granted ability instances independent and does not rewrite another instance use', () => {
+    const before = createState('ability-instance-propagation');
+    const lifecycleId = getAbilitySourceLifecycleId(before, HANAYO_ACTIVATED_ABILITY_ID, MEMBER_ID);
+    const otherInstanceUse = addAction(before, 'RESOLVE_ABILITY', P1, {
+      abilityId: HANAYO_ACTIVATED_ABILITY_ID,
+      abilityInstanceId: 'granted-instance-2',
+      sourceCardId: MEMBER_ID,
+      sourceLifecycleId: lifecycleId,
+      step: 'ABILITY_USE',
+      turnCount: before.turnCount,
+    });
+    const currentUse = addAction(otherInstanceUse, 'RESOLVE_ABILITY', P1, {
+      abilityId: HANAYO_ACTIVATED_ABILITY_ID,
+      sourceCardId: MEMBER_ID,
+      step: 'ABILITY_USE',
+      turnCount: before.turnCount,
+    });
+    const otherInstanceActiveEffect: ActiveEffectState = {
+      id: 'other-granted-instance-effect',
+      abilityId: HANAYO_ACTIVATED_ABILITY_ID,
+      abilityInstanceId: 'granted-instance-2',
+      sourceCardId: MEMBER_ID,
+      controllerId: P1,
+      effectText: 'other instance',
+      stepId: 'OTHER_INSTANCE',
+      stepText: 'other instance',
+      awaitingPlayerId: P1,
+    };
+
+    const propagatedWithOtherActiveEffect = propagateAbilityInvocationContext(
+      before,
+      { ...currentUse, activeEffect: otherInstanceActiveEffect },
+      {
+        abilityId: HANAYO_ACTIVATED_ABILITY_ID,
+        abilityInstanceId: 'granted-instance-1',
+        sourceCardId: MEMBER_ID,
+        sourceLifecycleId: lifecycleId,
+      }
+    );
+    const propagated = { ...propagatedWithOtherActiveEffect, activeEffect: null };
+
+    expect(propagated.actionHistory.map((action) => action.payload.abilityInstanceId)).toEqual([
+      'granted-instance-2',
+      'granted-instance-1',
+    ]);
+    expect(propagatedWithOtherActiveEffect.activeEffect).toBe(otherInstanceActiveEffect);
+    expect(
+      getAbilityTurnLimitStatus(
+        propagated,
+        P1,
+        HANAYO_ACTIVATED_ABILITY_ID,
+        MEMBER_ID,
+        'granted-instance-1'
+      )
+    ).toMatchObject({ used: 1, remaining: 0 });
+    expect(
+      getAbilityTurnLimitStatus(
+        propagated,
+        P1,
+        HANAYO_ACTIVATED_ABILITY_ID,
+        MEMBER_ID,
+        'granted-instance-2'
+      )
+    ).toMatchObject({ used: 1, remaining: 0 });
+    expect(
+      getAbilityTurnLimitStatus(propagated, P1, HANAYO_ACTIVATED_ABILITY_ID, MEMBER_ID)
+    ).toMatchObject({ used: 0, remaining: 1 });
   });
 
   it('uses ON_ENTER_LIVE_ZONE lifecycles and ignores LIVE_ZONE to LIVE_ZONE movement', () => {

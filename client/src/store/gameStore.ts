@@ -371,7 +371,11 @@ export interface GameStore {
   ) => CommandDispatchResult;
   cancelSpecialMemberPlay: (pendingId: string) => CommandDispatchResult;
   /** 发动卡牌的起动效果 */
-  activateCardAbility: (cardId: string, abilityId: string) => CommandDispatchResult;
+  activateCardAbility: (
+    cardId: string,
+    abilityId: string,
+    abilityInstanceId?: string
+  ) => CommandDispatchResult;
   /** 将公开区卡牌移入休息室 */
   movePublicCardToWaitingRoom: (
     cardId: string,
@@ -1312,9 +1316,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         logError: true,
       }),
 
-    activateCardAbility: (cardId, abilityId) => {
+    activateCardAbility: (cardId, abilityId, abilityInstanceId) => {
       return runViewerCommand(
-        (playerId) => createActivateAbilityCommand(playerId, cardId, abilityId),
+        (playerId) => createActivateAbilityCommand(playerId, cardId, abilityId, abilityInstanceId),
         {
           failureMessage: '起动效果发动失败',
           successMessage: '发动起动效果',

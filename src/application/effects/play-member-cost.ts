@@ -66,7 +66,23 @@ export function buildPlayMemberCostResources(
   };
 }
 
-/** Returns one hand member's current effective play cost from a fixed hand snapshot. */
+/**
+ * Returns one member card's current cost while it is in hand.
+ * This excludes reductions that apply only when paying to play that card from hand.
+ */
+export function getHandMemberEffectiveCost(
+  game: GameState,
+  playerId: string,
+  memberCardId: string,
+  handCardIds: readonly string[] = getPlayerById(game, playerId)?.hand.cardIds ?? []
+): number | null {
+  const member = getCardById(game, memberCardId);
+  const resources = buildPlayMemberCostResources(game, playerId, memberCardId, handCardIds);
+  if (!member || !isMemberCardData(member.data) || !resources) return null;
+  return costCalculator.calculateCurrentHandCardCost(member.data, resources).currentCost;
+}
+
+/** Returns the energy-payment cost to play one hand member from a fixed hand snapshot. */
 export function getHandMemberEffectivePlayCost(
   game: GameState,
   playerId: string,

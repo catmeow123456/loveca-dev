@@ -23,9 +23,11 @@ workflow 是卡效流程的主要承载层。它可以是一类同型效果，�
 
 - 只要 abilityId 可以由该 host 获得，启动 handler 以及能量选择恢复、公开确认恢复、支付确认、finish 等所有来源复核点，都使用 `isDirectOrRenGrantedActivatedAbilitySource`。不得只替换第一个 `cardCodeMatchesBase` / `doesCardAbilityDefinitionMatchCardCode` 后就结束审查。
 - helper 的 `directBaseCardCodes` 保存该 abilityId 的全部原生来源；Ren-granted 分支继续检查 host、同槽下方授予卡、definition 与槽位限制。workflow 自己原有的 owner、成员类型、舞台位置、状态、资源与目标校验也必须保留，不得以“支持宿主”为由完全删除来源拥有能力或其他合法性校验。
-- `sourceCardId` 始终是实际发动的 host 实例，不是下方授予能力的卡。“此成员”的费用与效果、`ABILITY_USE`、per-turn identity、`sourceLifecycleId`、activeEffect 和 action audit 都绑定 host；memberBelow 实例只证明 host 当前拥有该 abilityId。
+- `sourceCardId` 始终是实际发动的 host 实例，不是下方授予能力的卡。“此成员”的费用与效果、`sourceLifecycleId`、activeEffect 来源和 action audit 都绑定 host；memberBelow 实例只提供授予资格与独立能力实例身份，绝不得替代 `sourceCardId`。
+- 每张授予能力的 memberBelow 成员在 UI/query 中生成一个由服务端生成并持有的 opaque `abilityInstanceId`。Ren-granted `ACTIVATE_ABILITY` 必须原样透传它，中央命令会重验该下方成员仍属于当前 host 且能授予所请求的 abilityId；不得自行拼接或解析该 ID。直接发动不携带它。
+- `ABILITY_USE` 仍记录 host `sourceCardId/sourceLifecycleId`，但 Ren-granted 发动还要记录 `abilityInstanceId`，并把 per-turn identity 扩展为 host 来源身份 + 授予能力实例。因此同一恋下方两张相同成员的同 abilityId 能力各自每回合计次；单张下方成员的第二次发动仍应拒绝。多阶段 workflow 的 activeEffect 和最终 `ABILITY_USE` 必须保留同一实例标识。
 - shared family 只能对明确的 abilityId/config 开启 Ren-granted 来源。相同文件内其他作品、其他 abilityId 继续使用原 direct-only 边界；同一 abilityId 有多个原生基础编号时，必须全部保留在 `directBaseCardCodes`。
-- 新增或修改可被获得的『Liella!』起动能力时，同步扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，并执行 direct-only source gate 静态审计。代表性测试还要证明待机、离场、移动、modifier 或向下叠卡等“此成员”语义作用于 host。
+- 新增或修改可被获得的『Liella!』起动能力时，同步扩展 `tests/integration/sp-pb2-005-ren-granted-activated-abilities.test.ts` 的显式能力清单，并执行 direct-only source gate 静态审计。代表性测试还要证明待机、离场、移动、modifier 或向下叠卡等“此成员”语义作用于 host，并覆盖同 abilityId 的两份授予实例分别使用、伪造/错配/移除实例拒绝及多阶段实例身份传递。
 
 ## Public Reveal Dwell
 

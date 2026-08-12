@@ -88,6 +88,7 @@ export interface MatchDecisionVisibleContextSummary {
 
 export interface MatchDecisionSubmissionSummary {
   readonly commandType?: string;
+  readonly abilityInstanceId?: string | null;
   readonly selectedCardId?: string | null;
   readonly selectedCardIds?: readonly string[];
   readonly selectedSlot?: string | null;
