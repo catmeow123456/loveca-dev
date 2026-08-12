@@ -21,8 +21,8 @@ const TEST_CREDENTIAL = 'test-only-credential';
 
 function createEnvelope(attemptNumber: 1 | 2 = 1): AiModelRequestEnvelope {
   return {
-    schemaVersion: 'ai-battle.model-request-envelope/v6',
-    promptVersion: 'ai-battle.model-system-prompt/v6',
+    schemaVersion: 'ai-battle.model-request-envelope/v7',
+    promptVersion: 'ai-battle.model-system-prompt/v7',
     outputSchemaVersion: 'ai-battle.model-decision-output/v3',
     attempt:
       attemptNumber === 1
@@ -42,7 +42,7 @@ function createEnvelope(attemptNumber: 1 | 2 = 1): AiModelRequestEnvelope {
       },
     },
     trustedKnowledge: {
-      rulesVersion: 'ai-battle.compact-rules/v3',
+      rulesVersion: 'ai-battle.compact-rules/v4',
       rules: ['只从当前合法选择中选择。'],
       deck: {
         schemaVersion: 'ai-battle.deck-knowledge/v1',
@@ -68,7 +68,7 @@ function createEnvelope(attemptNumber: 1 | 2 = 1): AiModelRequestEnvelope {
       },
     },
     strategyContext: {
-      schemaVersion: 'ai-battle.model-strategy-context/v5',
+      schemaVersion: 'ai-battle.model-strategy-context/v6',
     } as AiModelRequestEnvelope['strategyContext'],
     responseContract: {
       format: 'JSON_SCHEMA',

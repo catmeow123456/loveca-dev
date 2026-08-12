@@ -10,13 +10,14 @@ import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
 import { AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION } from './strategy-decision-audit.js';
 import { AI_STRATEGY_EVALUATION_SCHEMA_VERSION } from './strategy-evaluation.js';
 import { AI_SELECTED_HISTORY_SCHEMA_VERSION } from './strategy-history.js';
+import { AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION } from './strategic-objectives.js';
 import {
   AI_COMPACT_RULES_VERSION,
   AI_GREEN_HASUNOSORA_B6_PLAYBOOK_VERSION,
   AI_MUSE_STARTER_PLAYBOOK_VERSION,
 } from './strategy-knowledge.js';
 
-export const AI_BATTLE_PHASE_TWO_BASELINE_VERSION = 'ai-battle.phase-two/v3' as const;
+export const AI_BATTLE_PHASE_TWO_BASELINE_VERSION = 'ai-battle.phase-two/v5' as const;
 export const AI_BATTLE_PHASE_TWO_CERTIFICATION_STATUS = 'COMPLETE' as const;
 
 export const AI_BATTLE_PHASE_TWO_COMPONENT_STATUS = {
@@ -26,6 +27,7 @@ export const AI_BATTLE_PHASE_TWO_COMPONENT_STATUS = {
   exactDeckKnowledge: 'IMPLEMENTED_COLLAPSED_COUNTS_WITHOUT_ORDER',
   fixedDeckPlaybooks: 'IMPLEMENTED',
   strategyContextEnvelope: 'IMPLEMENTED',
+  strategicObjectives: 'IMPLEMENTED_SERVER_DERIVED_CROSS_WINDOW',
   deterministicStrategyRouter: 'IMPLEMENTED',
   heuristicPolicy: 'IMPLEMENTED',
   decisionAudit: 'PERSISTED_RESTRICTED_TEST_ARTIFACT',
@@ -43,6 +45,7 @@ export const AI_BATTLE_PHASE_TWO_COMPONENT_VERSIONS = {
   museStarterPlaybook: AI_MUSE_STARTER_PLAYBOOK_VERSION,
   greenHasunosoraB6Playbook: AI_GREEN_HASUNOSORA_B6_PLAYBOOK_VERSION,
   strategyContext: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
+  strategicObjectives: AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION,
   selectedHistory: AI_SELECTED_HISTORY_SCHEMA_VERSION,
   explainablePolicy: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
   strategyDecisionAudit: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
@@ -121,7 +124,7 @@ export const AI_BATTLE_PHASE_TWO_GATE_EVIDENCE = [
     gate: 'MECHANICAL_AND_HEURISTIC_POLICY_ROUTING',
     behaviorTest: 'tests/unit/ai-battle-phase-two-explainable-policy.test.ts',
     evidenceAnchor:
-      "it('routes exact payments and mandatory grouped selections through RULE_FORCED'",
+      "it('keeps exact payments mechanical but routes multi-candidate mandatory selections to the model'",
   },
   {
     gate: 'REDACTED_STRATEGY_DECISION_AUDIT_FACT',

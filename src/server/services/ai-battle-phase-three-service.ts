@@ -22,6 +22,7 @@ import {
   type LoadedCertifiedAiDeck,
 } from '../ai-battle/certified-deck-loader.js';
 import type { AiBattleDebugTraceView } from '../ai-battle/debug-trace.js';
+import type { AiBattleReflectionDocumentDownload } from '../ai-battle/reflection-history.js';
 import {
   onlineMatchService,
   type OnlineMatchService,
@@ -213,6 +214,17 @@ export class AiBattlePhaseThreeService {
       const runtime = this.requireOwnedRuntime(matchId, humanUserId, false);
       if (!runtime) return null;
       return this.matchService.getAiBattleDebugTrace(matchId, humanUserId, afterSeq);
+    });
+  }
+
+  async getReflectionDocument(
+    matchId: string,
+    humanUserId: string
+  ): Promise<AiBattleReflectionDocumentDownload | null> {
+    return this.entryExecutor.runExclusive(buildHumanEntryKey(humanUserId), async () => {
+      const runtime = this.requireOwnedRuntime(matchId, humanUserId, false);
+      if (!runtime) return null;
+      return this.matchService.getAiBattleReflectionDocument(matchId, humanUserId);
     });
   }
 

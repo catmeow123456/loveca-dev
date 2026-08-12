@@ -227,6 +227,7 @@ function selectSemanticFixtureDecision(context: AiModelStrategyContext): AiDecis
 async function createBattleHarness(input: {
   readonly provider: AiModelProvider;
   readonly recorder?: ReturnType<typeof createRecorderHarness>['recorder'] | null;
+  readonly debugTraceEnabled?: boolean;
 }) {
   let now = 10_000;
   const machineTimers = createManualTimers((delayMs) => {
@@ -248,7 +249,7 @@ async function createBattleHarness(input: {
     machineDecisionCancelTimer: machineTimers.cancelTimer,
     deadlineScheduleTimer: deadlineTimers.scheduleTimer,
     deadlineCancelTimer: deadlineTimers.cancelTimer,
-    aiDebugTraceEnabled: true,
+    aiDebugTraceEnabled: input.debugTraceEnabled ?? true,
     modelInvocationRuntime: createAiModelInvocationRuntime({
       provider: input.provider,
       now: () => now,
@@ -438,6 +439,46 @@ describe('AI battle Phase 4 formal model runtime', () => {
       strategyContext: { semanticContext: { currentDecision: { kind: 'MULLIGAN' } } },
     });
     expect(JSON.stringify(debugTrace)).not.toContain('must-only-appear-as-hash');
+
+    const historyDocument = await harness.matchService.getAiBattleReflectionDocument(
+      harness.match.matchId,
+      'phase-four-human'
+    );
+    expect(historyDocument).toMatchObject({
+      schemaVersion: 'ai-battle.reflection-document-download/v2',
+      mediaType: 'text/markdown;charset=utf-8',
+      decisionCount: 1,
+    });
+    expect(historyDocument?.content).toContain('# Loveca AI 对战反思历史');
+    expect(historyDocument?.content).toContain('保留现有起手，避免换走可用资源。');
+    expect(historyDocument?.content).toContain('执行后观察新的手牌。');
+    expect(historyDocument?.content).toContain('进行中（中途快照）');
+    expect(historyDocument?.content).not.toContain('SELECT_ONE_CURRENT_LEGAL_DECISION');
+    expect(historyDocument?.content).not.toContain('must-only-appear-as-hash');
+  });
+
+  it('keeps the reflection document available when the development context trace is disabled', async () => {
+    const harness = await createBattleHarness({
+      provider: createExplainableFakeProvider(),
+      debugTraceEnabled: false,
+    });
+    const revisionBefore = harness.match.remoteRevision;
+    expect(harness.machineTimers.fireNext()).toBe(true);
+    await waitForAuthorityRevision(harness.matchService, harness.match, revisionBefore + 1);
+    await waitForMachineCallback(harness.matchService, harness.match.matchId);
+
+    const debugTrace = await harness.matchService.getAiBattleDebugTrace(
+      harness.match.matchId,
+      'phase-four-human'
+    );
+    const historyDocument = await harness.matchService.getAiBattleReflectionDocument(
+      harness.match.matchId,
+      'phase-four-human'
+    );
+
+    expect(debugTrace?.enabled).toBe(false);
+    expect(historyDocument?.decisionCount).toBe(1);
+    expect(historyDocument?.content).toContain('选择当前语义上下文中资源收益最高的合法方案。');
   });
 
   it('accepts a legal selection, ignores low-trust extras, and derives audit facts server-side', async () => {

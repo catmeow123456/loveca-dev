@@ -14,8 +14,9 @@ import {
 import { AI_SELECTED_HISTORY_SCHEMA_VERSION } from './strategy-history.js';
 import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
 import { AI_SYSTEM_IDENTITY_SCHEMA_VERSION } from './system-participant.js';
+import { AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION } from './strategic-objectives.js';
 
-export const AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION = 'ai-battle.phase-four-five/v3' as const;
+export const AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION = 'ai-battle.phase-four-five/v4' as const;
 export const AI_BATTLE_PHASE_FOUR_FIVE_STATUS = 'IN_PROGRESS' as const;
 
 export const AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS = {
@@ -31,6 +32,8 @@ export const AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_STATUS = {
   semanticFactReferences: 'IMPLEMENTED_SERVER_DERIVED_FROM_ACCEPTED_SELECTION',
   semanticConclusionConsistency: 'PENDING_BEYOND_SERVER_DERIVED_FACT_COVERAGE',
   modelConclusionFields: 'IMPLEMENTED_OPTIONAL_NON_BLOCKING_TRADEOFF_AND_NEXT_PLAN',
+  crossWindowStrategicObjectives:
+    'IMPLEMENTED_SERVER_DERIVED_VISIBLE_STATE_ONLY_MODEL_FREE_TEXT_EXCLUDED',
   selectedHistoryPurity: 'IMPLEMENTED_AUTHORITY_ACCEPTED_SELECTION_AND_VISIBLE_DELTA_ONLY',
   relayAbilityOwnershipRegression: 'IMPLEMENTED_FIXED_SEMANTIC_FIXTURE',
   administratorContextInspector: 'IMPLEMENTED_ADMIN_DEVELOPMENT_IN_MEMORY',
@@ -44,6 +47,7 @@ export const AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_VERSIONS = {
   baseline: AI_BATTLE_PHASE_FOUR_FIVE_BASELINE_VERSION,
   observation: AI_OBSERVATION_SCHEMA_VERSION,
   strategyContext: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
+  strategicObjectives: AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION,
   requestEnvelope: AI_MODEL_REQUEST_ENVELOPE_SCHEMA_VERSION,
   modelStrategyContext: AI_MODEL_STRATEGY_CONTEXT_SCHEMA_VERSION,
   semanticDecisionContext: AI_SEMANTIC_DECISION_CONTEXT_SCHEMA_VERSION,
@@ -58,13 +62,14 @@ export const AI_BATTLE_PHASE_FOUR_FIVE_COMPONENT_VERSIONS = {
 
 export const AI_BATTLE_PHASE_FOUR_FIVE_RUNTIME_BOUNDARY = {
   authorityStateReadableBySemanticBuilder: false,
-  semanticBuilderInputs: ['AI_OBSERVATION', 'SELECTED_HISTORY'],
+  semanticBuilderInputs: ['AI_OBSERVATION', 'STRATEGIC_OBJECTIVES', 'SELECTED_HISTORY'],
   rawObservationSentToModel: false,
   rawSelectedHistorySentToModel: false,
   hiddenIdentitySentToModel: false,
   shuffledDeckOrderSentToModel: false,
   exactDeckCompositionSentAsSystemKnowledge: true,
   modelFreeTextStoredAsHistoryFact: false,
+  modelFreeTextStoredAsStrategicObjective: false,
   factReferencesGeneratedByServerFromSelection: true,
   authoritySelectionValidationStillRequired: true,
   serverStrategyValueVetoImplemented: false,

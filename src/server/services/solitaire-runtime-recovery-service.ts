@@ -267,6 +267,7 @@ export class SolitaireRuntimeRecoveryService {
         pendingManualOperationModeRequest: null,
         activeUndoGrant: null,
         machineLiveness: null,
+        aiReflectionHistory: null,
         appliedUndoKeys: new Set<string>(),
         appliedManualOperationKeys: new Map<string, string>(),
         chat: createOnlineMatchChatRuntime(),

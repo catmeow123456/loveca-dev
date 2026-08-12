@@ -467,6 +467,40 @@ describe('onlineRouter error handling', () => {
     expect(route?.route?.stack.map((layer) => layer.handle)).toContain(requireAdmin);
   });
 
+  it('AI 对战历史文档路由允许管理员在对局中途导出 Markdown 快照', async () => {
+    const getReflectionDocument = vi
+      .spyOn(aiBattlePhaseThreeService, 'getReflectionDocument')
+      .mockResolvedValue({
+        schemaVersion: 'ai-battle.reflection-document-download/v2',
+        filename: 'loveca-ai-battle-ai-match-1.md',
+        mediaType: 'text/markdown;charset=utf-8',
+        generatedAt: 10_000,
+        decisionCount: 3,
+        content: '# Loveca AI 对战反思历史\n',
+      });
+
+    const response = await invokeRoute('/ai-battles/:matchId/history-document', 'get', {
+      params: { matchId: 'ai-match-1' },
+      user: { id: 'u1', role: 'admin' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(getReflectionDocument).toHaveBeenCalledWith('ai-match-1', 'u1');
+    expect(response.body?.data).toMatchObject({
+      mediaType: 'text/markdown;charset=utf-8',
+      decisionCount: 3,
+    });
+    expect(response.headers['Cache-Control']).toBe('private, no-store');
+
+    const route = onlineRouter.stack.find(
+      (candidate) =>
+        'route' in candidate &&
+        candidate.route?.path === '/ai-battles/:matchId/history-document' &&
+        candidate.route.methods.get
+    );
+    expect(route?.route?.stack.map((layer) => layer.handle)).toContain(requireAdmin);
+  });
+
   it('AI 对局可按当前账号发现并在动态 matchId 路由前命中', async () => {
     const getCurrentBattle = vi
       .spyOn(aiBattlePhaseThreeService, 'getCurrentBattle')

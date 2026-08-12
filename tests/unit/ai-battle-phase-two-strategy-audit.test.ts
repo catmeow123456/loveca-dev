@@ -78,14 +78,14 @@ describe('AI battle Phase 2 strategy decision audit', () => {
 
     expect(audit).toMatchObject({
       schemaVersion: AI_STRATEGY_DECISION_AUDIT_SCHEMA_VERSION,
-      contextSchemaVersion: 'ai-battle.strategy-context/v3',
+      contextSchemaVersion: 'ai-battle.strategy-context/v4',
       observationSchemaVersion: 'ai-battle.observation/v3',
       decisionContractVersion: 'ai-battle.decision-contract/v1',
       commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
       authorityRevision: 12,
       seat: 'FIRST',
       decisionKind: 'SCORE_CONFIRMATION',
-      compactRulesVersion: 'ai-battle.compact-rules/v3',
+      compactRulesVersion: 'ai-battle.compact-rules/v4',
       playbookVersion: 'ai-battle.playbook.muse-starter/v2',
       policyVersion: 'ai-battle.explainable-policy/v1',
       tier: 'RULE_FORCED',

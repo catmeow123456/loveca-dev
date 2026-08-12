@@ -25,9 +25,10 @@ import {
 } from './phase-zero-baseline.js';
 import { AI_STRATEGY_CONTEXT_SCHEMA_VERSION } from './strategy-context.js';
 import { AI_COMPACT_RULES_VERSION, getAiDeckPlaybook } from './strategy-knowledge.js';
+import { AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION } from './strategic-objectives.js';
 
 export const AI_SYSTEM_IDENTITY_SCHEMA_VERSION =
-  'ai-battle.system-participant-identity/v7' as const;
+  'ai-battle.system-participant-identity/v8' as const;
 export const AI_PHASE_THREE_PREGAME_POLICY_VERSION = 'ai-battle.phase-three-pregame/v1' as const;
 export const AI_PHASE_THREE_LIFECYCLE_POLICY_VERSION =
   'ai-battle.phase-three-lifecycle/v1' as const;
@@ -59,6 +60,7 @@ export interface AiSystemParticipantBinding {
   readonly deckKnowledgeVersion: string;
   readonly playbookVersion: string;
   readonly strategyContextVersion: string;
+  readonly strategicObjectivesVersion: string;
   readonly policyVersion: string;
   readonly modelRequestEnvelopeVersion: string;
   readonly modelStrategyContextVersion: string;
@@ -91,6 +93,7 @@ export function createAiSystemParticipantBinding(
     deckKnowledgeVersion: AI_DECK_KNOWLEDGE_SCHEMA_VERSION,
     playbookVersion: playbook.version,
     strategyContextVersion: AI_STRATEGY_CONTEXT_SCHEMA_VERSION,
+    strategicObjectivesVersion: AI_STRATEGIC_OBJECTIVES_SCHEMA_VERSION,
     policyVersion: AI_EXPLAINABLE_DECISION_POLICY_VERSION,
     modelRequestEnvelopeVersion: AI_MODEL_REQUEST_ENVELOPE_SCHEMA_VERSION,
     modelStrategyContextVersion: AI_MODEL_STRATEGY_CONTEXT_SCHEMA_VERSION,

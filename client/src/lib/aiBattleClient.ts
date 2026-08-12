@@ -78,6 +78,15 @@ export interface AiBattleDebugTraceView {
   readonly entries: readonly AiBattleDebugTraceEntry[];
 }
 
+export interface AiBattleHistoryDocumentDownload {
+  readonly schemaVersion: 'ai-battle.reflection-document-download/v1';
+  readonly filename: string;
+  readonly mediaType: 'text/markdown;charset=utf-8';
+  readonly generatedAt: number;
+  readonly decisionCount: number;
+  readonly content: string;
+}
+
 export interface AiBattleView {
   readonly schemaVersion: 'ai-battle.phase-four-entry/v1';
   readonly matchId: string;
@@ -129,6 +138,16 @@ export async function fetchAiBattleDebugTrace(
     `/api/online/ai-battles/${encodeURIComponent(matchId)}/debug-trace?afterSeq=${String(afterSeq)}`
   );
   if (!response.data) throw toApiClientError(response, '读取 AI 调试轨迹失败');
+  return response.data;
+}
+
+export async function fetchAiBattleHistoryDocument(
+  matchId: string
+): Promise<AiBattleHistoryDocumentDownload> {
+  const response = await apiClient.get<AiBattleHistoryDocumentDownload>(
+    `/api/online/ai-battles/${encodeURIComponent(matchId)}/history-document`
+  );
+  if (!response.data) throw toApiClientError(response, '导出 AI 对战历史失败');
   return response.data;
 }
 

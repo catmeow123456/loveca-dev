@@ -74,13 +74,21 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
     expect(new Set(directives.map((item) => item.directiveId)).size).toBe(directives.length);
     expect(directives.map((item) => item.directiveId)).toContain('CONTRACT_ONLY');
     expect(directives.map((item) => item.directiveId)).toContain('COMPLETE_CURRENT_CHOICES');
+    expect(directives.map((item) => item.directiveId)).toContain('ABILITY_COSTS');
+    expect(directives.map((item) => item.directiveId)).toContain('ENERGY_COST_TOKEN');
     expect(directives.map((item) => item.directiveId)).toContain('RELAY');
     expect(directives.map((item) => item.directiveId)).toContain('TIMING_EFFECTS');
     expect(directives.map((item) => item.directiveId)).toContain('THREE_SUCCESS_LIVES');
     expect(directives.every((item) => item.text.length > 20)).toBe(true);
     expect(directives.find((item) => item.directiveId === 'MEMBER_STATS')?.text).toContain('BLADE');
-    expect(directives.find((item) => item.directiveId === 'RELAY')?.text).toContain(
-      '减少本次需要支付的能量'
+    expect(directives.find((item) => item.directiveId === 'RELAY')?.text).toBe(
+      '登场成员时，如果当前合法动作写明换手，会把指定舞台成员放入休息室，并按该成员当前有效费用减少本次需要支付的能量。换手后的基础支付量＝登场成员当前有效费用－换手成员当前有效费用，结果最低为0；例如费用9的成员换手费用4的成员，仍须支付5张活跃能量。实际支付与替换对象以动作说明为准。'
+    );
+    expect(directives.find((item) => item.directiveId === 'ABILITY_COSTS')?.text).toBe(
+      '卡效中，时点图标后、冒号“：”前的行动是发动费用；必须按文本顺序完整支付后，才能处理冒号后的效果。无法完整支付时不能发动；费用写“可以”时可以选择不发动，但不能只支付其中一部分。'
+    );
+    expect(directives.find((item) => item.directiveId === 'ENERGY_COST_TOKEN')?.text).toBe(
+      '卡文费用中的每个[E]或{{icon_energy.png|E}}都表示将自己能量区1张活跃能量变为待机，多个能量图标要支付对应张数。例如“【登场】[E]可以将1张手牌放置入休息室：……”若选择发动，必须支付1张活跃能量并将1张手牌放入休息室。'
     );
   });
 
@@ -222,14 +230,14 @@ describe('AI battle Phase 2 strategy knowledge and context', () => {
       selectedHistory: context.selectedHistory,
     }).toMatchInlineSnapshot(`
       {
-        "compactRulesVersion": "ai-battle.compact-rules/v3",
+        "compactRulesVersion": "ai-battle.compact-rules/v4",
         "deckKnowledgeVersion": "ai-battle.deck-knowledge/v1",
         "energyDeckCount": 12,
         "mainDeckCount": 60,
         "observationVersion": "ai-battle.observation/v3",
         "playbookDeckKey": "MUSE_STARTER",
         "playbookVersion": "ai-battle.playbook.muse-starter/v2",
-        "schemaVersion": "ai-battle.strategy-context/v3",
+        "schemaVersion": "ai-battle.strategy-context/v4",
         "selectedHistory": [
           {
             "actorSeat": "FIRST",

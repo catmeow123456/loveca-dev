@@ -26,7 +26,7 @@ function game(
       schemaVersion: 'ai-battle.strategy-decision-record/v4',
       decisionAudit: {
         schemaVersion: 'ai-battle.strategy-decision-audit/v3',
-        contextSchemaVersion: 'ai-battle.strategy-context/v3',
+        contextSchemaVersion: 'ai-battle.strategy-context/v4',
         observationSchemaVersion: 'ai-battle.observation/v3',
         decisionContractVersion: 'ai-battle.decision-contract/v1',
         commandAdapterVersion: 'ai-battle.decision-command-adapter/v1',
@@ -34,7 +34,7 @@ function game(
         authorityRevision: index,
         seat: 'FIRST',
         decisionKind: 'MAIN_PHASE',
-        compactRulesVersion: 'ai-battle.compact-rules/v3',
+        compactRulesVersion: 'ai-battle.compact-rules/v4',
         playbookVersion: 'ai-battle.playbook.muse-starter/v2',
         policyVersion: 'ai-battle.explainable-policy/v1',
         tier: reason.tier,

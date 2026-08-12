@@ -11,15 +11,20 @@ import type {
   AiObservation,
 } from './ai-observation.js';
 import type { AiSelectedHistoryItem } from './strategy-history.js';
+import {
+  deriveAiStrategicObjectives,
+  type AiStrategicObjective,
+  type AiStrategicObjectiveSet,
+} from './strategic-objectives.js';
 
 export const AI_SEMANTIC_DECISION_CONTEXT_SCHEMA_VERSION =
-  'ai-battle.semantic-decision-context/v4' as const;
+  'ai-battle.semantic-decision-context/v5' as const;
 
 const STAGE_SLOTS = ['LEFT', 'CENTER', 'RIGHT'] as const;
 
 export interface AiSemanticFact {
   readonly factId: string;
-  readonly kind: 'STATE' | 'CARD' | 'DECISION' | 'CONSEQUENCE' | 'HISTORY';
+  readonly kind: 'STATE' | 'CARD' | 'DECISION' | 'CONSEQUENCE' | 'HISTORY' | 'OBJECTIVE';
   readonly text: string;
 }
 
@@ -44,6 +49,15 @@ export interface AiSemanticHistoryEntry {
   readonly facts: readonly AiSemanticFact[];
 }
 
+export interface AiSemanticStrategicObjective {
+  readonly objectiveId: string;
+  readonly kind: AiStrategicObjective['kind'];
+  readonly priority: AiStrategicObjective['priority'];
+  readonly createdTurnCount: number;
+  readonly summary: string;
+  readonly facts: readonly AiSemanticFact[];
+}
+
 export interface AiSemanticDecisionContext {
   readonly schemaVersion: typeof AI_SEMANTIC_DECISION_CONTEXT_SCHEMA_VERSION;
   readonly language: 'zh-CN';
@@ -58,6 +72,7 @@ export interface AiSemanticDecisionContext {
     readonly facts: readonly AiSemanticFact[];
     readonly choices: readonly AiSemanticChoice[];
   };
+  readonly strategicObjectives: readonly AiSemanticStrategicObjective[];
   readonly battleHistory: readonly AiSemanticHistoryEntry[];
 }
 
@@ -68,6 +83,7 @@ export interface AiSemanticDecisionContext {
  */
 export function buildAiSemanticDecisionContext(input: {
   readonly observation: AiObservation;
+  readonly strategicObjectives?: AiStrategicObjectiveSet;
   readonly selectedHistory: readonly AiSelectedHistoryItem[];
 }): AiSemanticDecisionContext {
   const { observation } = input;
@@ -81,6 +97,9 @@ export function buildAiSemanticDecisionContext(input: {
       facts: currentStateFacts,
     },
     currentDecision,
+    strategicObjectives: (
+      input.strategicObjectives ?? deriveAiStrategicObjectives(observation)
+    ).items.map(buildSemanticStrategicObjective),
     battleHistory: input.selectedHistory.map((item) =>
       buildSemanticHistoryEntry(observation, item)
     ),
@@ -92,8 +111,28 @@ export function collectAiSemanticFactIds(context: AiSemanticDecisionContext): Re
     ...context.currentState.facts.map((item) => item.factId),
     ...context.currentDecision.facts.map((item) => item.factId),
     ...context.currentDecision.choices.flatMap((choice) => choice.facts.map((item) => item.factId)),
+    ...context.strategicObjectives.flatMap((objective) =>
+      objective.facts.map((item) => item.factId)
+    ),
     ...context.battleHistory.flatMap((entry) => entry.facts.map((item) => item.factId)),
   ]);
+}
+
+function buildSemanticStrategicObjective(
+  objective: AiStrategicObjective
+): AiSemanticStrategicObjective {
+  return {
+    objectiveId: objective.objectiveId,
+    kind: objective.kind,
+    priority: objective.priority,
+    createdTurnCount: objective.createdTurnCount,
+    summary: objective.summary,
+    facts: objective.evidence.map((text, index) => ({
+      factId: `objective.${objective.objectiveId}.evidence.${String(index + 1)}`,
+      kind: 'OBJECTIVE',
+      text,
+    })),
+  };
 }
 
 /**

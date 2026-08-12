@@ -309,6 +309,12 @@ describe('AI battle Phase 3 formal SYSTEM runtime', () => {
         expect(serializedStrategyRecord).not.toContain(hiddenCardId);
       }
     }
+    const reflectionDocument = await matchService.getAiBattleReflectionDocument(
+      match.matchId,
+      'human-user'
+    );
+    expect(reflectionDocument?.decisionCount).toBe(1);
+    expect(reflectionDocument?.content).toContain('模型调用：无（由规则或确定性策略直接完成）');
   });
 
   it('resumes on refresh, rejects undo/free mode, auto-accepts restart, and treats leave as surrender', async () => {

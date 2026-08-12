@@ -240,6 +240,31 @@ onlineRouter.get(
   }
 );
 
+onlineRouter.get(
+  '/ai-battles/:matchId/history-document',
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const document = await aiBattlePhaseThreeService.getReflectionDocument(
+        readPathParam(req.params.matchId),
+        req.user!.id
+      );
+      if (!document) {
+        res.status(404).json({
+          data: null,
+          error: { code: 'AI_BATTLE_NOT_FOUND', message: 'AI 对局不存在或无权导出' },
+        });
+        return;
+      }
+      setPrivateNoStoreHeaders(res);
+      res.json({ data: document, error: null });
+    } catch (error) {
+      respondOnlineError(res, error);
+    }
+  }
+);
+
 onlineRouter.post(
   '/ai-battles/:matchId/restart',
   requireAuth,

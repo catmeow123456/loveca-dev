@@ -12,8 +12,13 @@ import {
   AI_SELECTED_HISTORY_SCHEMA_VERSION,
   type AiSelectedHistoryItem,
 } from './strategy-history.js';
+import {
+  cloneAiStrategicObjectiveSet,
+  deriveAiStrategicObjectives,
+  type AiStrategicObjectiveSet,
+} from './strategic-objectives.js';
 
-export const AI_STRATEGY_CONTEXT_SCHEMA_VERSION = 'ai-battle.strategy-context/v3' as const;
+export const AI_STRATEGY_CONTEXT_SCHEMA_VERSION = 'ai-battle.strategy-context/v4' as const;
 
 export interface AiStrategyContext {
   readonly schemaVersion: typeof AI_STRATEGY_CONTEXT_SCHEMA_VERSION;
@@ -23,6 +28,7 @@ export interface AiStrategyContext {
     readonly deck: AiDeckKnowledge;
   };
   readonly observation: AiObservation;
+  readonly strategicObjectives: AiStrategicObjectiveSet;
   readonly selectedHistory: readonly AiSelectedHistoryItem[];
 }
 
@@ -31,6 +37,7 @@ export interface BuildAiStrategyContextInput {
   readonly deckKey: AiBattlePhaseZeroDeckKey;
   readonly deckContentHash: string;
   readonly deck: DeckConfig;
+  readonly strategicObjectives?: AiStrategicObjectiveSet;
   readonly selectedHistory?: readonly AiSelectedHistoryItem[];
 }
 
@@ -77,6 +84,9 @@ export function buildAiStrategyContext(input: BuildAiStrategyContextInput): AiSt
       }),
     },
     observation: input.observation,
+    strategicObjectives: cloneAiStrategicObjectiveSet(
+      input.strategicObjectives ?? deriveAiStrategicObjectives(input.observation)
+    ),
     selectedHistory: selectedHistory.map((item) => ({
       ...item,
       cards: item.cards.map((card) => ({ ...card })),

@@ -254,7 +254,7 @@ Phase 1C 在接入 LLM 前先实现了一个只依赖统一决策契约的随机
 
 ### 5.4 面向 LLM 的对战上下文
 
-Phase 2 已完成无 LLM 策略使用的上下文构造器，当前随 Phase 4.5 停机升级为 `ai-battle.observation/v3` / `strategy-context/v3`：它只从对应席位 `PlayerViewState` 与脱敏 typed decision contract 构造紧凑局面和合法决策摘要，并以代表性/盲选快照锁定不输出 match/player/authority object ID、隐藏卡牌身份、聊天和权限提示。`strategy-context/v3` 在其上组合 `compact-rules/v3`、`deck-knowledge/v1`、内部保守 witness 使用的固定卡组 playbook，以及 `selected-history/v4` 的按席位定长精选可见历史。完整卡组知识按卡号合并张数，包含卡名、卡文和印刷数值，但不含洗牌顺序或实体 ID；历史只从已脱敏 observation 和权威接受后的结构化决策产生。Phase 4.5 已将模型边界停机升级为 `model-request-envelope/v6` / `model-strategy-context/v5` / `model-decision-output/v3`，接入固定服务端 provider、脱敏调用事实审计与故障处理。已有 `PlayerViewState` snapshot、public events 和 match record 仍是后续恢复与正式审计的正确数据来源，但目标不是维护一套包含全部历史事实的知识账本，而是持续为模型构造直观、版本化的决策输入。
+Phase 2 已完成无 LLM 策略使用的上下文构造器，当前随 Phase 4.5 停机升级为 `ai-battle.observation/v3` / `strategy-context/v4`：它只从对应席位 `PlayerViewState` 与脱敏 typed decision contract 构造紧凑局面和合法决策摘要，并以代表性/盲选快照锁定不输出 match/player/authority object ID、隐藏卡牌身份、聊天和权限提示。`strategy-context/v4` 在其上组合 `compact-rules/v4`、`deck-knowledge/v1`、内部保守 witness 使用的固定卡组 playbook，以及 `selected-history/v4` 的按席位定长精选可见历史。完整卡组知识按卡号合并张数，包含卡名、卡文和印刷数值，但不含洗牌顺序或实体 ID；压缩规则同时明确 `[E]`、冒号前复合费用、完整支付、可选不发动与换手费用差额的卡文语法。历史只从已脱敏 observation 和权威接受后的结构化决策产生。Phase 4.5 已将模型边界停机升级为 `model-request-envelope/v7` / `model-strategy-context/v6` / `model-decision-output/v3`，接入固定服务端 provider、脱敏调用事实审计与故障处理。已有 `PlayerViewState` snapshot、public events 和 match record 仍是后续恢复与正式审计的正确数据来源，但目标不是维护一套包含全部历史事实的知识账本，而是持续为模型构造直观、版本化的决策输入。
 
 真实对局说明“字段正确”仍不等于“语言语义足够”。代表性回归中，中心位已有 `PL!HS-bp5-008-R` 费用 4「桂城泉」，左右槽为空；手牌中的 `PL!HS-sd1-012-SD` 费用 4「百生吟子」可以支付 4 能量登场到空槽，也可以通过换手以实际支付 0 替换中心成员。模型选择了合法的中心换手，但把「桂城泉」的检索能力归给无卡文能力的「百生吟子」，随后又把仍有两个空槽的舞台描述为已满。复盘确认 observation、费用计划、目标槽位和 typed actions 都正确，缺口是同一动作的语义分散在手牌、舞台和 payment preview 等不同对象中，模型必须自行跨对象拼接，而且现有校验只检查 action ID 合法。
 
@@ -415,6 +415,8 @@ Phase 4 已把 AI 专属调用事实接入 match record，当前 `strategy-decis
 不需要、也不应依赖保存模型的私有思维链。当前普通与受限记录都只保存规范化输入 envelope 哈希、schema/version、候选、结构化选择、执行结果和调用摘要，不保存完整模型输入、完整原始响应或供应商错误；出站边界由 allowlist 构造与专项测试证明，而不是依赖长期保存敏感 payload。
 
 Phase 4.5 的管理员上下文检查器不改变这一持久化政策。它只在开发测试会话的当前进程内展示实际规范化模型请求，帮助管理员定位语义构造、Prompt、模型选择和服务端事实审计缺陷；system prompt 与动态上下文不会因此写入普通历史、聊天或长期审计。
+
+当前另行提供生产可用但仍是内存态的 `reflection-history/v2`。它不保存完整请求，而是把 allowlist 语义局面、服务端结构化战略目标、合法选择、显式短取舍/计划、最终选择和权威执行状态组织成带自动复盘摘要、决策速览和完整审计附录的 Markdown；管理员可在自己参与的 AI 对局中途导出快照，交给 agent 做复盘或版本对比。该文档仍可能包含 AI 席位当时依法可见的私密局面，因此保持管理员授权和 `private, no-store`；它排除完整 Prompt、原始响应、聊天、凭据、权威对象 ID 与私有思维链，也不回灌到在线决策上下文。首版最多保留最近 1024 次决策，随对局运行态删除而消失，尚未替代数据库 match record 或长期归档。
 
 ### 5.11 安全、隐私和公平性
 

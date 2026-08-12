@@ -352,6 +352,8 @@ AI 身份不应获得普通账号的登录、卡组管理、奖励或历史授�
 - 支持判断问题属于规则覆盖、契约生成、调度、模型还是产品流程。
 - 不保存模型私有思维链。
 
+对局级反思文档与原始请求调试轨迹是两个不同的数据产品。每场 AI 对局默认维护生产可用的轻量 `reflection-history/v2`：只从 allowlist 语义上下文、结构化策略结果和权威提交结果复制局面、服务端结构化战略目标、合法选择、显式短取舍、后续计划及执行状态，并在管理员请求时现场生成带自动复盘摘要、决策速览和完整审计附录的 Markdown。它不复制完整 Prompt、原始 provider 响应、聊天、凭据或私有思维链，也不能作为后续模型的状态事实。完整 provider-neutral 请求仍只属于开发环境的 `debug-trace/v2` 上下文检查器。
+
 ## 5. 核心概念
 
 ### 5.1 决策窗口
@@ -736,15 +738,15 @@ headless 和受控入口阶段至少保证：
 > 控制方和当前可见区域，同时为公开成员提供印刷/当前有效费用、BLADE 与 HEART。它不会
 > 复制 match/player/authority object ID、玩家显示名、权限提示、聊天、private event 或 sealed
 > audit。代表性换牌局面和盲选 active-effect 候选已用 inline snapshot 与禁止字段断言锁定。
-> `strategy-context/v3` 已在该观察之上组合 `compact-rules/v3`、内部保守策略使用的固定卡组 playbook，
+> `strategy-context/v4` 已在该观察之上组合 `compact-rules/v4`、内部保守策略使用的固定卡组 playbook，
 > 以及 `deck-knowledge/v1` 的完整本方卡组事实；卡组按卡号合并张数，包含名称、卡文、费用、BLADE、
 > HEART、LIVE 分数与必要 HEART，不含洗牌顺序或实体 ID。`selected-history/v4` 只从已脱敏观察、权威接受后的结构化选择和相邻可见投影差异生成，保存最近
 > 12 条关键登场、LIVE、能力、费用、效果选择和公开区域变化。它不读取权威状态、事件日志、
 > 聊天或玩家显示文本，也不保留 lease 失效即作废的 candidate/action 临时 ID。完整
 > provider-neutral model request envelope、严格输出 schema 和有限 repair envelope 已由 Phase 4
 > 落地，并已接入固定的服务端 DashScope/Qwen provider、调用事实审计与整局故障处理。Phase 4.5
-> 当前通过 `semantic-decision-context/v4` 从上述 allowlist 输入派生通俗中文的局面事实、合法选择和逐动作后果，
-> 实际送模的 `model-strategy-context/v5` 不再直接包含原始 observation、selected history、固定 playbook 或事实编号；
+> 当前通过 `semantic-decision-context/v5` 从上述 allowlist 输入派生通俗中文的局面事实、合法选择和逐动作后果，
+> 实际送模的 `model-strategy-context/v6` 不再直接包含原始 observation、selected history、固定 playbook 或事实编号；
 > 规则与完整卡组知识由 system 消息单独注入，当前局面与选择由 user 消息承载。凭据、原始错误、
 > 原始无效输出和玩家聊天也不会写入请求或策略记录。
 >
@@ -1023,7 +1025,7 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 | 规则/卡效                 | 权威规则 focused tests、受影响场景和认证证据    | 模型协议格式，除非可见决策契约确实变化 |
 | Prompt/卡组知识           | system 边界契约、固定 provider 评测             | 权威规则与命令适配测试                 |
 
-日常内循环运行类型检查、受影响层的 focused tests 和一场模型 runtime smoke；合并前运行完整 AI unit/integration、八个认证卡组/先后手基础单元及隐藏信息/故障回归；高种子 playout 继续由专用 CI 承担。真实 provider v6 评测与真人抽样是 Phase 4.5 质量门槛，但不伪装成每次本地重构都必须稳定通过的单元测试。
+日常内循环运行类型检查、受影响层的 focused tests 和一场模型 runtime smoke；合并前运行完整 AI unit/integration、八个认证卡组/先后手基础单元及隐藏信息/故障回归；高种子 playout 继续由专用 CI 承担。真实 provider v7 评测与真人抽样是 Phase 4.5 质量门槛，但不伪装成每次本地重构都必须稳定通过的单元测试。
 
 ## 12. 实施阶段
 
@@ -1250,7 +1252,7 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 ### 阶段 2：策略上下文与确定性 AI
 
 > 当前进展（2026-08-04）：**COMPLETE，出站协议已随 Phase 4.5 停机升级**。`ai-battle.observation/v3` 已完成玩家视角
-> allowlist 摘要、脱敏决策描述和公开成员当前数值，`strategy-context/v3` 已组合 `compact-rules/v3`、
+> allowlist 摘要、脱敏决策描述和公开成员当前数值，`strategy-context/v4` 已组合 `compact-rules/v4`、
 > `deck-knowledge/v1` 与分别绑定两个 Phase 0 精确内容哈希的内部固定卡组 playbook。`explainable-policy/v1` 只消费该 context，
 > 将选择分为 `RULE_FORCED / DETERMINISTIC / HEURISTIC` 并输出短 reason code、summary 与
 > 结构化选择；`strategy-decision-audit/v2` 记录脱敏 context SHA-256、观察/决策契约/命令适配器
@@ -1393,7 +1395,7 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 > 成功选择只把脱敏上下文哈希、版本、结构化选择、服务端派生的事实引用、可选单行取舍/计划、执行结果、延迟、token、估算费用和哈希化
 > provider request id 与命令帧原子记录，不保存完整原始响应。连续协议格式失败只为当前步骤发送一次玩家可见提示并使用 Phase 1B 保守选择；供应商不可用、超时或预算拒绝才让本局后续固定使用保守策略。追加模型调用事实后的当前记录 schema 为
 > `ai-battle.strategy-decision-record/v4`，Phase 2/3 的 v2 基线保持历史冻结。
-> `ai-battle.system-participant-identity/v7` 已按局绑定 Prompt、输出
+> `ai-battle.system-participant-identity/v8` 已按局绑定 Prompt、输出
 > schema、provider、模型、决策/调用政策，以及 model strategy context 与 semantic decision context 版本。
 >
 > 开发环境可通过 `AI_BATTLE_DEBUG_TRACE_ENABLED=1` 开启当前对局的内存调试轨迹。
@@ -1403,6 +1405,14 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 > `buildAiModelProviderRequest`，不维护第二份调试 Prompt。生产环境强制关闭；接口不返回私有思维链、原始
 > 无效 provider 响应、provider request id 原值或凭据，内容也不进入聊天、录像、数据库或长期审计；进程或
 > 对局销毁后轨迹随之消失。
+>
+> 另有独立的 `ai-battle.reflection-history/v2` 在每场 AI 对局创建时默认建立，不受开发调试开关控制。
+> 它为每个已完成的 AI 决策保留脱敏语义局面、服务端结构化战略目标、当时的完整合法选择、显式 `tradeoff` / `nextPlan`、
+> 最终选择、调用摘要和权威执行状态，并通过管理员专用
+> `GET /api/online/ai-battles/:matchId/history-document` 在任何对局中途生成
+> `ai-battle.reflection-document/v2` Markdown 快照。共享桌面的“历史”按钮直接下载该快照；开发上下文面板内也有同一入口。
+> 文档不保存完整 system/user 消息、原始响应、聊天、凭据、权威内部对象 ID 或私有思维链，模型计划也不回灌精选历史或结构化战略目标。
+> 首版运行态最多保留最近 1024 次决策并显式报告截断，仍随服务重启或对局删除而消失；独立持久化归档属于后续恢复工作。
 >
 > 登录玩家可从首页进入独立 AI 对战页，选择双方固定卡组和 AI 先后手；页面明确显示 Loveca AI
 > 身份、隐藏信息边界和异常后的处理方式，并复用正式 `GameBoard`、快照、命令、记录、离开与
@@ -1456,10 +1466,10 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 
 > 当前进展（2026-08-04）：**IN PROGRESS / CURRENT PRIORITY**。本阶段优先于 Phase 5。
 >
-> 后端语义切片已经落地：`ai-battle.semantic-decision-context/v4` 只从脱敏
-> `AiObservation + selected-history` 生成中文局面事实、当前决定、服务端内部稳定 `factId`、合法选择和逐动作后果。provider-neutral 请求已停机升级为 `model-request-envelope/v6` / `model-system-prompt/v6`：system 消息包含 `compact-rules/v3`、输出契约与 `deck-knowledge/v1` 的本局完整卡组事实；user 消息只包含 `model-strategy-context/v5` 的当前语义正文。模型不再接收固定 playbook、原始 observation、原始 selected history、`factId` 或 `requiredFactIds`。对换牌等场景还会去掉与候选列表重复的状态清单，减少无效 token。
+> 后端语义切片已经落地：`ai-battle.semantic-decision-context/v5` 只从脱敏
+> `AiObservation + strategic-objectives + selected-history` 生成中文局面事实、当前决定、服务端内部稳定 `factId`、合法选择和逐动作后果。provider-neutral 请求已停机升级为 `model-request-envelope/v7` / `model-system-prompt/v7`：system 消息包含 `compact-rules/v4`、输出契约与 `deck-knowledge/v1` 的本局完整卡组事实；其中压缩规则明确每个 `[E]` 支付 1 张活跃能量、冒号前行动为必须完整支付的复合费用、费用写“可以”时可以不发动，以及换手登场按双方当前有效费用之差支付。user 消息只包含 `model-strategy-context/v6` 的当前语义正文。模型不再接收固定 playbook、原始 observation、原始 selected history、`factId` 或 `requiredFactIds`。对换牌等场景还会去掉与候选列表重复的状态清单，减少无效 token。
 >
-> `model-decision-output/v3` 只要求结构化 typed `selection`；`tradeoff` 和 `nextPlan` 可以省略，其换行、过长或类型错误不会否决合法选择。选择通过权威 typed contract validator 后，服务端从内部语义上下文自动派生事实审计引用。JSON、selection 形状或当前契约选择失败才进入一次有限修复；连续协议失败只降级当前步骤，供应商/传输/预算失败才降级整局。当前 SYSTEM binding 同步提升为 `system-participant-identity/v7`。开发分支只接受当前运行协议，不保留旧版本 dual-read。
+> `model-decision-output/v3` 只要求结构化 typed `selection`；`tradeoff` 和 `nextPlan` 可以省略，其换行、过长或类型错误不会否决合法选择。选择通过权威 typed contract validator 后，服务端从内部语义上下文自动派生事实审计引用。JSON、selection 形状或当前契约选择失败才进入一次有限修复；连续协议失败只降级当前步骤，供应商/传输/预算失败才降级整局。当前 SYSTEM binding 同步提升为 `system-participant-identity/v8`。开发分支只接受当前运行协议，不保留旧版本 dual-read。
 >
 > 精选历史已提升为 `selected-history/v4`：已接受决定的 reason/summary 只由脱敏 observation、结构化选择和
 > 合法动作派生，模型的自由文本取舍/计划不会作为后续事实回灌。中心位换手回归已经固定为语义快照测试，
@@ -1481,8 +1491,8 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 >
 > 第四批来自 2026-08-03 的真人 AI 对局复盘。模型在第一主要阶段将
 > `PL!HS-PR-014-RM` 费用 2「日野下花帆」登场后立即发动自送回收，随后确定性策略又因错误的
-> optional 选择跳过回收，最终消耗 2 能量并清空舞台。当前 `compact-rules/v3` 只保留规则约束、费用/换手/时点和合法空间事实；
-> 两套 playbook/v2 继续只服务无模型保守 witness，不再发送给模型。`semantic-decision-context/v4` 在主要阶段直接汇总
+> optional 选择跳过回收，最终消耗 2 能量并清空舞台。当前 `compact-rules/v4` 只保留规则约束、费用/换手/时点、卡文费用语法和合法空间事实；
+> 两套 playbook/v2 继续只服务无模型保守 witness，不再发送给模型。`semantic-decision-context/v5` 在主要阶段直接汇总
 > 场上人数、有效费用/BLADE/HEART、手牌、活跃能量与休息室，并为每个登场动作显示支付、替换对象、动作后舞台、
 > 下回合换手基础和成员区锁定；对“将此成员从舞台放置入休息室”类起动能力会明确写出来源成员立即离场、场上人数和休息室
 > 数量变化、唯一成员离场后的 LIVE 损失，并说明“从休息室加入手牌”不是“在手牌中检索”。同一回收
@@ -1493,7 +1503,7 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 >
 > 管理员实际请求上下文检查器已经落地：`debug-trace/v2` 逐次保留与真实调用同源的 system/user 消息、
 > 请求版本/hash、有限修复或重试类型、选择解析结果和最终 outcome；管理员路由同时要求开发开关、管理员认证和
-> 本人进入的 AI 测试对局。当前尚未完成更广泛的服务端动作事实审计覆盖、真实 provider v6
+> 本人进入的 AI 测试对局。当前尚未完成更广泛的服务端动作事实审计覆盖、真实 provider v7
 > 请求协议评测和真人抽样复盘。因此当前不能将 Phase 4.5 标记完成，也不能进入 Phase 5。
 >
 > 触发本阶段的回归局面中，中心位已有 `PL!HS-bp5-008-R` 费用 4「桂城泉」，左右槽为空；
@@ -1681,4 +1691,4 @@ AI 协议版本应由一个生产代码清单集中导出，SYSTEM binding、bas
 - Prompt/完整卡组知识或模型调用政策的改动是否真正改善语言推理，而不是被启发式评分掩盖。
 - 固定真实场景和真人抽样对局是否达到进入公共候场前的最低策略体验。
 
-当前已经依次覆盖主要阶段成员登场/换手、有效费用/BLADE/HEART、下回合换手基础、LIVE 设置、active effect 来源、可选费用、可见目标、历史新鲜度、站位编排、复合分组选择、LIVE 处理、自送成员即时费用语义，以及完整卡组 system 知识。继续扩大 Phase 4.5 前，先完成 11.5 节所述的测试基建收口：建立集中协议版本清单、分层 builder、通用 fake model 和少量真实出站契约测试，把现有手写 payload 与重复版本断言迁移到公共入口。随后再扩展服务端从合法 selection 派生的能力归属、站位与资源后果审计覆盖，使用真实 provider v6 请求协议和更广真人抽样复盘收束质量门槛，并按暴露出的决策问题追加窄回归。Phase 0～4 的规则、合法性、调度和故障门槛全部保留，不重复建设。
+当前已经依次覆盖主要阶段成员登场/换手、有效费用/BLADE/HEART、下回合换手基础、LIVE 设置、active effect 来源、可选费用、可见目标、历史新鲜度、站位编排、复合分组选择、LIVE 处理、自送成员即时费用语义，以及完整卡组 system 知识。继续扩大 Phase 4.5 前，先完成 11.5 节所述的测试基建收口：建立集中协议版本清单、分层 builder、通用 fake model 和少量真实出站契约测试，把现有手写 payload 与重复版本断言迁移到公共入口。随后再扩展服务端从合法 selection 派生的能力归属、站位与资源后果审计覆盖，使用真实 provider v7 请求协议和更广真人抽样复盘收束质量门槛，并按暴露出的决策问题追加窄回归。Phase 0～4 的规则、合法性、调度和故障门槛全部保留，不重复建设。

@@ -12,7 +12,7 @@ import {
 
 describe('AI battle Phase 2 completed baseline', () => {
   it('freezes the completed strategy context, audit, history, and evaluation slices', () => {
-    expect(AI_BATTLE_PHASE_TWO_BASELINE_VERSION).toBe('ai-battle.phase-two/v3');
+    expect(AI_BATTLE_PHASE_TWO_BASELINE_VERSION).toBe('ai-battle.phase-two/v5');
     expect(AI_BATTLE_PHASE_TWO_CERTIFICATION_STATUS).toBe('COMPLETE');
     expect(AI_BATTLE_PHASE_TWO_COMPONENT_STATUS).toEqual({
       playerViewObservation: 'IMPLEMENTED',
@@ -21,6 +21,7 @@ describe('AI battle Phase 2 completed baseline', () => {
       exactDeckKnowledge: 'IMPLEMENTED_COLLAPSED_COUNTS_WITHOUT_ORDER',
       fixedDeckPlaybooks: 'IMPLEMENTED',
       strategyContextEnvelope: 'IMPLEMENTED',
+      strategicObjectives: 'IMPLEMENTED_SERVER_DERIVED_CROSS_WINDOW',
       deterministicStrategyRouter: 'IMPLEMENTED',
       heuristicPolicy: 'IMPLEMENTED',
       decisionAudit: 'PERSISTED_RESTRICTED_TEST_ARTIFACT',
@@ -32,11 +33,12 @@ describe('AI battle Phase 2 completed baseline', () => {
       observation: 'ai-battle.observation/v3',
       decisionContract: 'ai-battle.decision-contract/v2',
       commandAdapter: 'ai-battle.decision-command-adapter/v2',
-      compactRules: 'ai-battle.compact-rules/v3',
+      compactRules: 'ai-battle.compact-rules/v4',
       deckKnowledge: 'ai-battle.deck-knowledge/v1',
       museStarterPlaybook: 'ai-battle.playbook.muse-starter/v2',
       greenHasunosoraB6Playbook: 'ai-battle.playbook.green-hasunosora-b6/v2',
-      strategyContext: 'ai-battle.strategy-context/v3',
+      strategyContext: 'ai-battle.strategy-context/v4',
+      strategicObjectives: 'ai-battle.strategic-objectives/v1',
       selectedHistory: 'ai-battle.selected-history/v4',
       explainablePolicy: 'ai-battle.explainable-policy/v1',
       strategyDecisionAudit: 'ai-battle.strategy-decision-audit/v3',

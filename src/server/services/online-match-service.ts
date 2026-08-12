@@ -115,6 +115,15 @@ import {
   buildAiSemanticDecisionContext,
   getRequiredAiSemanticFactIdsForSelection,
 } from '../ai-battle/semantic-context.js';
+import {
+  appendAiBattleReflectionHistoryEntry,
+  createAiBattleReflectionDocumentDownload,
+  createAiBattleReflectionHistoryRuntime,
+  type AiBattleReflectionDecisionSource,
+  type AiBattleReflectionDocumentDownload,
+  type AiBattleReflectionExecutionStatus,
+  type AiBattleReflectionHistoryRuntime,
+} from '../ai-battle/reflection-history.js';
 import { buildAiStrategyContext, type AiStrategyContext } from '../ai-battle/strategy-context.js';
 import {
   createAiStrategyDecisionAudit,
@@ -127,6 +136,10 @@ import {
   createAiSelectedHistoryTracker,
   type AiSelectedHistoryTracker,
 } from '../ai-battle/strategy-history.js';
+import {
+  createAiStrategicObjectiveTracker,
+  type AiStrategicObjectiveTracker,
+} from '../ai-battle/strategic-objectives.js';
 import {
   isCertifiedAiSystemParticipantBinding,
   type AiSystemParticipantBinding,
@@ -260,6 +273,7 @@ export interface OnlineMatchState {
   activeUndoGrant: OnlineUndoGrantState | null;
   machineLiveness: MachineLivenessState | null;
   readonly aiDebugTrace?: AiBattleDebugTraceRuntime | null;
+  readonly aiReflectionHistory: AiBattleReflectionHistoryRuntime | null;
   readonly appliedUndoKeys: Set<string>;
   appliedManualOperationKeys?: Map<string, string>;
   recoveryNotice:
@@ -457,6 +471,7 @@ export interface OnlineMatchServiceDeps {
 interface MachineStrategyRuntime {
   readonly binding: AiSystemParticipantBinding;
   readonly history: AiSelectedHistoryTracker;
+  readonly objectives: AiStrategicObjectiveTracker;
   modelMode: 'MODEL' | 'CONSERVATIVE_FALLBACK';
 }
 
@@ -662,6 +677,8 @@ export class OnlineMatchService {
         originKind === 'AI_BATTLE' && this.aiDebugTraceEnabled && params.enableAiDebugTrace === true
           ? createAiBattleDebugTraceRuntime()
           : null,
+      aiReflectionHistory:
+        originKind === 'AI_BATTLE' ? createAiBattleReflectionHistoryRuntime() : null,
       appliedUndoKeys: new Set<string>(),
       appliedManualOperationKeys: new Map<string, string>(),
       recoveryNotice: null,
@@ -755,6 +772,7 @@ export class OnlineMatchService {
         this.machineStrategyRuntimes.set(buildMachineStrategyRuntimeKey(matchId, seat), {
           binding,
           history: createAiSelectedHistoryTracker(seat),
+          objectives: createAiStrategicObjectiveTracker(seat),
           modelMode: 'MODEL',
         });
       }
@@ -793,6 +811,52 @@ export class OnlineMatchService {
         return null;
       }
       return readAiBattleDebugTraceView(match.aiDebugTrace ?? null, match.matchId, afterSeq);
+    });
+  }
+
+  async getAiBattleReflectionDocument(
+    matchId: string,
+    userId: string
+  ): Promise<AiBattleReflectionDocumentDownload | null> {
+    return this.serialExecutor.runExclusive(matchId, () => {
+      const match = this.matches.get(matchId);
+      const participant = match ? getParticipantByUserId(match, userId) : null;
+      if (
+        !match ||
+        match.originKind !== 'AI_BATTLE' ||
+        !participant ||
+        participant.participantKind !== 'USER' ||
+        !match.aiReflectionHistory
+      ) {
+        return null;
+      }
+      const aiSeat = (['FIRST', 'SECOND'] as const).find(
+        (seat) => match.participants[seat].participantKind === 'SYSTEM'
+      );
+      if (!aiSeat) return null;
+      const humanSeat = aiSeat === 'FIRST' ? 'SECOND' : 'FIRST';
+      const binding = match.systemParticipantBindings[aiSeat];
+      if (!binding) return null;
+      const game = match.session.state;
+      const winnerSeat = game?.endInfo?.winnerId
+        ? ((['FIRST', 'SECOND'] as const).find(
+            (seat) => match.participants[seat].playerId === game.endInfo?.winnerId
+          ) ?? null)
+        : null;
+      return createAiBattleReflectionDocumentDownload(match.aiReflectionHistory, {
+        matchId: match.matchId,
+        startedAt: match.startedAt,
+        generatedAt: this.now(),
+        status: game?.isEnded ? 'COMPLETED' : 'IN_PROGRESS',
+        currentTurnCount: game?.turnCount ?? 0,
+        aiSeat,
+        humanSeat,
+        aiDeckKey: match.deckSnapshots[aiSeat].sourceDeckName ?? binding.deckKey,
+        humanDeckKey: match.deckSnapshots[humanSeat].sourceDeckName ?? 'UNKNOWN',
+        endReason: game?.endInfo?.reason ?? null,
+        winnerSeat,
+        systemBinding: binding,
+      });
     });
   }
 
@@ -1125,6 +1189,12 @@ export class OnlineMatchService {
               >;
             }
           | undefined;
+        let reflectionDecision:
+          | {
+              readonly context: AiStrategyContext;
+              readonly result: AuditableAiDecisionResult;
+            }
+          | undefined;
         const selected = strategyRuntime
           ? (() => {
               const view = match.session.getPlayerViewState(participant.playerId, {
@@ -1137,10 +1207,12 @@ export class OnlineMatchService {
                 deckKey: strategyRuntime.binding.deckKey,
                 deckContentHash: strategyRuntime.binding.deckContentHash,
                 deck: match.deckSnapshots[participant.seat],
+                strategicObjectives: strategyRuntime.objectives.observe(observation),
                 selectedHistory: strategyRuntime.history.observe(observation),
               });
               const result = selectExplainableDecision(context);
               if (!result.ok) return null;
+              reflectionDecision = { context, result };
               strategySubmission = {
                 audit: createAiStrategyDecisionAudit(context, result),
                 decisionId: acquired.contract.decisionId,
@@ -1175,6 +1247,16 @@ export class OnlineMatchService {
           }
         );
         if (submitted.ok) {
+          if (reflectionDecision) {
+            this.appendMachineDecisionReflectionHistory(
+              match,
+              reflectionDecision.context,
+              reflectionDecision.result,
+              null,
+              'RULE',
+              'ACCEPTED'
+            );
+          }
           if (strategyRuntime && acceptedHistory) {
             strategyRuntime.history.recordAcceptedDecision(
               acceptedHistory.observation,
@@ -1234,12 +1316,22 @@ export class OnlineMatchService {
           }
           return after.isEnded ? 'TERMINAL' : 'PROGRESSED';
         }
-        return submitted.reason === 'LEASE_EXPIRED' ||
+        const stale =
+          submitted.reason === 'LEASE_EXPIRED' ||
           submitted.reason === 'AUTHORITY_REVISION_CHANGED' ||
           submitted.reason === 'WINDOW_CHANGED' ||
-          submitted.reason === 'LEASE_NOT_FOUND'
-          ? 'RETRY'
-          : terminateMachineFailure('AI 的操作未能通过规则检查，本局已结束。');
+          submitted.reason === 'LEASE_NOT_FOUND';
+        if (reflectionDecision) {
+          this.appendMachineDecisionReflectionHistory(
+            match,
+            reflectionDecision.context,
+            reflectionDecision.result,
+            null,
+            'RULE',
+            stale ? 'STALE' : 'REJECTED'
+          );
+        }
+        return stale ? 'RETRY' : terminateMachineFailure('AI 的操作未能通过规则检查，本局已结束。');
       }
       return 'IDLE';
     });
@@ -1334,6 +1426,7 @@ export class OnlineMatchService {
           deckKey: strategyRuntime.binding.deckKey,
           deckContentHash: strategyRuntime.binding.deckContentHash,
           deck: match.deckSnapshots[participant.seat],
+          strategicObjectives: strategyRuntime.objectives.observe(observation),
           selectedHistory: strategyRuntime.history.observe(observation),
         });
         const explainable = selectExplainableDecision(context);
@@ -1451,6 +1544,7 @@ export class OnlineMatchService {
       captureModelContextAttempt(envelope, invoked.audit, parsed.output);
       const semanticContext = buildAiSemanticDecisionContext({
         observation: prepared.context.observation,
+        strategicObjectives: prepared.context.strategicObjectives,
         selectedHistory: prepared.context.selectedHistory,
       });
       const factRefs = getRequiredAiSemanticFactIdsForSelection(
@@ -1587,7 +1681,7 @@ export class OnlineMatchService {
         if (submitted.reason === 'INVALID_SELECTION') {
           this.appendMachineDecisionDebugCompletion(
             match,
-            input.prepared.context.observation.decision.kind,
+            input.prepared.context,
             input.result,
             withLastModelInvocationOutcome(input.modelInvocation, 'INVALID_SELECTION'),
             withLastModelContextOutcome(input.modelContextAttempts, 'INVALID_SELECTION'),
@@ -1605,7 +1699,7 @@ export class OnlineMatchService {
         if (retryable) {
           this.appendMachineDecisionDebugCompletion(
             match,
-            input.prepared.context.observation.decision.kind,
+            input.prepared.context,
             input.result,
             input.modelInvocation,
             input.modelContextAttempts,
@@ -1617,7 +1711,7 @@ export class OnlineMatchService {
         }
         this.appendMachineDecisionDebugCompletion(
           match,
-          input.prepared.context.observation.decision.kind,
+          input.prepared.context,
           input.result,
           input.modelInvocation,
           input.modelContextAttempts,
@@ -1640,7 +1734,7 @@ export class OnlineMatchService {
 
       this.appendMachineDecisionDebugCompletion(
         match,
-        input.prepared.context.observation.decision.kind,
+        input.prepared.context,
         input.result,
         input.modelInvocation,
         input.modelContextAttempts,
@@ -1853,7 +1947,7 @@ export class OnlineMatchService {
 
   private appendMachineDecisionDebugCompletion(
     match: OnlineMatchState,
-    decisionKind: string,
+    context: AiStrategyContext,
     result: AuditableAiDecisionResult,
     modelInvocation: AiModelInvocationAudit | null,
     modelContextAttempts: readonly AiBattleDebugModelAttemptContext[],
@@ -1861,13 +1955,21 @@ export class OnlineMatchService {
     fallbackScope: MachineDecisionFallbackScope,
     executionStatus: AiBattleDebugExecutionStatus
   ): void {
-    if (!match.aiDebugTrace) return;
     const source: AiBattleDebugDecisionSource =
       fallbackScope !== 'NONE' ? 'CONSERVATIVE_FALLBACK' : modelInvocation ? 'MODEL' : 'RULE';
+    this.appendMachineDecisionReflectionHistory(
+      match,
+      context,
+      result,
+      modelInvocation,
+      source,
+      executionStatus
+    );
+    if (!match.aiDebugTrace) return;
     appendAiBattleDebugTraceEntry(match.aiDebugTrace, {
       createdAt: this.now(),
       stage: 'COMPLETED',
-      decisionKind,
+      decisionKind: context.observation.decision.kind,
       authorityRevision: match.remoteRevision,
       source,
       tier: result.tier,
@@ -1876,6 +1978,26 @@ export class OnlineMatchService {
       selection: summarizeAiDecisionSelection(result.selection),
       model: summarizeAiModelInvocation(modelInvocation),
       modelContext: modelContextAttempts.length > 0 ? { attempts: modelContextAttempts } : null,
+      executionStatus,
+    });
+  }
+
+  private appendMachineDecisionReflectionHistory(
+    match: OnlineMatchState,
+    context: AiStrategyContext,
+    result: AuditableAiDecisionResult,
+    modelInvocation: AiModelInvocationAudit | null,
+    source: AiBattleReflectionDecisionSource,
+    executionStatus: AiBattleReflectionExecutionStatus
+  ): void {
+    if (!match.aiReflectionHistory) return;
+    appendAiBattleReflectionHistoryEntry(match.aiReflectionHistory, {
+      createdAt: this.now(),
+      context,
+      result,
+      modelInvocation,
+      source,
+      authorityRevisionAfter: match.remoteRevision,
       executionStatus,
     });
   }
@@ -1929,6 +2051,7 @@ export class OnlineMatchService {
         this.machineStrategyRuntimes.set(buildMachineStrategyRuntimeKey(match.matchId, seat), {
           binding,
           history: createAiSelectedHistoryTracker(seat),
+          objectives: createAiStrategicObjectiveTracker(seat),
           modelMode: 'MODEL',
         });
       }

@@ -291,15 +291,29 @@ function selectActiveEffect(decision: AiObservedDecision): ExplainableDecisionRe
         input.maxSelections ?? input.requiredCount ?? decision.candidates.length,
         input.groups ?? []
       );
-      return candidateIds
-        ? selected(
-            'RULE_FORCED',
-            'SELECT_MANDATORY_EFFECT_CARDS',
-            'Use stable candidate order to satisfy mandatory selection constraints.',
-            { kind: 'SELECT_EFFECT_CARDS', candidateIds },
-            decision.candidates.map((candidate) => candidate.candidateId)
-          )
-        : noSelection('Mandatory card-selection constraints are not satisfiable.');
+      if (!candidateIds) {
+        return noSelection('Mandatory card-selection constraints are not satisfiable.');
+      }
+      const allCandidateIds = decision.candidates.map((candidate) => candidate.candidateId);
+      const hasTacticalChoice = hasAlternativeGroupedSelection(
+        allCandidateIds,
+        candidateIds,
+        input.minSelections ?? input.requiredCount ?? 0,
+        input.maxSelections ?? input.requiredCount ?? decision.candidates.length,
+        input.groups ?? [],
+        input.ordered ?? false
+      );
+      return selected(
+        hasTacticalChoice ? 'HEURISTIC' : 'RULE_FORCED',
+        hasTacticalChoice
+          ? 'EVALUATE_MANDATORY_EFFECT_CARD_SELECTION'
+          : 'SELECT_ONLY_MANDATORY_EFFECT_CARDS',
+        hasTacticalChoice
+          ? 'Expose every legal mandatory card candidate to the model; the stable valid selection is only the fallback witness.'
+          : 'Submit the only legal mandatory card selection.',
+        { kind: 'SELECT_EFFECT_CARDS', candidateIds },
+        allCandidateIds
+      );
     }
     case 'OPTION_SELECTION': {
       if (input.canSkip) {
@@ -458,6 +472,64 @@ function buildGroupedSelection(
   })
     ? selectedIds
     : null;
+}
+
+function hasAlternativeGroupedSelection(
+  candidateIds: readonly string[],
+  witness: readonly string[],
+  minSelections: number,
+  maxSelections: number,
+  groups: readonly {
+    readonly candidateIds: readonly string[];
+    readonly minCount: number;
+    readonly maxCount: number;
+  }[],
+  ordered: boolean
+): boolean {
+  if (ordered && witness.length > 1) return true;
+
+  for (const selectedId of witness) {
+    const alternative = buildGroupedSelection(
+      candidateIds.filter((candidateId) => candidateId !== selectedId),
+      minSelections,
+      maxSelections,
+      groups
+    );
+    if (alternative && !sameUnorderedSelection(alternative, witness)) return true;
+  }
+
+  if (witness.length < maxSelections) {
+    for (const candidateId of candidateIds) {
+      if (witness.includes(candidateId)) continue;
+      const expanded = [...witness, candidateId];
+      if (isValidGroupedSelection(expanded, minSelections, maxSelections, groups)) return true;
+    }
+  }
+  return false;
+}
+
+function isValidGroupedSelection(
+  selection: readonly string[],
+  minSelections: number,
+  maxSelections: number,
+  groups: readonly {
+    readonly candidateIds: readonly string[];
+    readonly minCount: number;
+    readonly maxCount: number;
+  }[]
+): boolean {
+  if (selection.length < minSelections || selection.length > maxSelections) return false;
+  return groups.every((group) => {
+    const count = selection.filter((candidateId) => group.candidateIds.includes(candidateId)).length;
+    return count >= group.minCount && count <= group.maxCount;
+  });
+}
+
+function sameUnorderedSelection(left: readonly string[], right: readonly string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((candidateId) => right.includes(candidateId))
+  );
 }
 
 function compareLiveCandidate(left: AiObservedCandidate, right: AiObservedCandidate): number {

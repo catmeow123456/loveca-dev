@@ -10,6 +10,7 @@ import {
   Clipboard,
   Copy,
   Database,
+  Download,
   History,
   LoaderCircle,
   ScrollText,
@@ -18,7 +19,11 @@ import {
   TerminalSquare,
   X,
 } from 'lucide-react';
-import { fetchAiBattleDebugTrace, type AiBattleDebugTraceEntry } from '@/lib/aiBattleClient';
+import {
+  fetchAiBattleDebugTrace,
+  fetchAiBattleHistoryDocument,
+  type AiBattleDebugTraceEntry,
+} from '@/lib/aiBattleClient';
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { useAuthStore } from '@/store/authStore';
 
@@ -96,6 +101,8 @@ export const AiBattleDebugPanel = memo(function AiBattleDebugPanel({
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [selectedAttemptNumber, setSelectedAttemptNumber] = useState<number | null>(null);
   const [tab, setTab] = useState<InspectorTab>('CONTEXT');
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const cursorRef = useRef(0);
   const isOpenRef = useRef(false);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -103,10 +110,6 @@ export const AiBattleDebugPanel = memo(function AiBattleDebugPanel({
 
   useEffect(() => {
     cursorRef.current = 0;
-    setEntries([]);
-    setEnabled(null);
-    setSelectedSeq(null);
-    setSelectedAttemptNumber(null);
     if (!isAdmin) return;
 
     let disposed = false;
@@ -172,7 +175,7 @@ export const AiBattleDebugPanel = memo(function AiBattleDebugPanel({
     attempts.at(-1) ??
     null;
 
-  if (!isAdmin || enabled !== true) return null;
+  if (!isAdmin) return null;
 
   const latestEntry = entries.at(-1) ?? null;
   const isThinking = latestEntry?.stage === 'STARTED';
@@ -185,132 +188,197 @@ export const AiBattleDebugPanel = memo(function AiBattleDebugPanel({
     isOpenRef.current = false;
     setIsOpen(false);
   };
+  const downloadHistory = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    setDownloadError(null);
+    try {
+      const document = await fetchAiBattleHistoryDocument(matchId);
+      const blob = new Blob([document.content], { type: document.mediaType });
+      const url = URL.createObjectURL(blob);
+      const anchor = window.document.createElement('a');
+      anchor.href = url;
+      anchor.download = document.filename;
+      window.document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setDownloadError(error instanceof Error ? error.message : '导出 AI 对战历史失败');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
-    <>
+    <div className="relative flex items-center gap-1.5">
       <button
         type="button"
-        onClick={isOpen ? closePanel : openPanel}
-        className="button-ghost relative inline-flex min-h-10 items-center justify-center gap-2 border border-[color:color-mix(in_srgb,var(--semantic-warning)_48%,var(--border-default))] bg-[var(--bg-frosted)] px-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:min-h-11"
-        aria-label="打开管理员 AI 上下文检查器"
-        title="管理员 AI 上下文检查器（仅开发环境）"
+        onClick={() => void downloadHistory()}
+        disabled={isDownloading}
+        className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[var(--border-default)] bg-[var(--bg-frosted)] px-3 shadow-[var(--shadow-md)] backdrop-blur-xl disabled:cursor-wait disabled:opacity-70 sm:min-h-11"
+        aria-label="下载 AI 对战反思历史"
+        title="下载截至当前时刻的 AI 对战反思历史（Markdown）"
       >
-        {isThinking ? (
-          <LoaderCircle size={16} className="animate-spin text-[var(--semantic-warning)]" />
+        {isDownloading ? (
+          <LoaderCircle size={16} className="animate-spin text-[var(--accent-primary)]" />
         ) : (
-          <Braces size={16} className="text-[var(--semantic-warning)]" />
+          <Download size={16} className="text-[var(--accent-primary)]" />
         )}
-        <span className="hidden text-sm font-semibold sm:inline">上下文</span>
-        {unreadCount > 0 && (
-          <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-[var(--semantic-warning)] px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-slate-950 shadow">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
+        <span className="hidden text-sm font-semibold sm:inline">历史</span>
       </button>
 
-      {createPortal(
-        <AnimatePresence>
-          {isOpen && (
-            <>
-              <motion.button
-                type="button"
-                aria-label="关闭管理员 AI 上下文检查器"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.16 }}
-                onClick={closePanel}
-                className="fixed inset-0 z-[190] bg-black/45 backdrop-blur-[2px]"
-              />
-              <motion.aside
-                role="dialog"
-                aria-modal="true"
-                aria-label="管理员 AI 上下文检查器"
-                initial={reduceMotion ? false : { opacity: 0, x: 28 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 28 }}
-                transition={{ duration: reduceMotion ? 0.08 : 0.2 }}
-                className="fixed inset-3 z-[200] flex flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_50%,var(--border-default))] bg-[var(--bg-frosted)] shadow-[var(--shadow-xl)] backdrop-blur-xl sm:left-auto sm:w-[min(920px,calc(100vw-1.5rem))]"
-              >
-                <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-4 py-3 sm:px-5">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <BrainCircuit size={19} className="text-[var(--semantic-warning)]" />
-                      <h2 className="text-sm font-black tracking-tight text-[var(--text-primary)] sm:text-base">
-                        AI 上下文检查器
-                      </h2>
-                      <span className="rounded-full border border-[color:color-mix(in_srgb,var(--semantic-warning)_46%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_8%,transparent)] px-2 py-0.5 text-[10px] font-black tracking-wider text-[var(--semantic-warning)]">
-                        ADMIN · DEV
+      {enabled === true && (
+        <button
+          type="button"
+          onClick={isOpen ? closePanel : openPanel}
+          className="button-ghost relative inline-flex min-h-10 items-center justify-center gap-2 border border-[color:color-mix(in_srgb,var(--semantic-warning)_48%,var(--border-default))] bg-[var(--bg-frosted)] px-3 shadow-[var(--shadow-md)] backdrop-blur-xl sm:min-h-11"
+          aria-label="打开管理员 AI 上下文检查器"
+          title="管理员 AI 上下文检查器（仅开发环境）"
+        >
+          {isThinking ? (
+            <LoaderCircle size={16} className="animate-spin text-[var(--semantic-warning)]" />
+          ) : (
+            <Braces size={16} className="text-[var(--semantic-warning)]" />
+          )}
+          <span className="hidden text-sm font-semibold sm:inline">上下文</span>
+          {unreadCount > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 min-w-5 rounded-full bg-[var(--semantic-warning)] px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-slate-950 shadow">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
+
+      {downloadError && (
+        <span
+          role="alert"
+          className="absolute left-0 top-[calc(100%+0.35rem)] z-[130] w-60 rounded-lg border border-[color:color-mix(in_srgb,var(--semantic-error)_44%,var(--border-default))] bg-[var(--bg-frosted)] px-2.5 py-2 text-xs leading-5 text-[var(--semantic-error)] shadow-[var(--shadow-md)] backdrop-blur-xl"
+        >
+          {downloadError}
+        </span>
+      )}
+
+      {enabled === true &&
+        createPortal(
+          <AnimatePresence>
+            {isOpen && (
+              <>
+                <motion.button
+                  type="button"
+                  aria-label="关闭管理员 AI 上下文检查器"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.16 }}
+                  onClick={closePanel}
+                  className="fixed inset-0 z-[190] bg-black/45 backdrop-blur-[2px]"
+                />
+                <motion.aside
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="管理员 AI 上下文检查器"
+                  initial={reduceMotion ? false : { opacity: 0, x: 28 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: 28 }}
+                  transition={{ duration: reduceMotion ? 0.08 : 0.2 }}
+                  className="fixed inset-3 z-[200] flex flex-col overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_50%,var(--border-default))] bg-[var(--bg-frosted)] shadow-[var(--shadow-xl)] backdrop-blur-xl sm:left-auto sm:w-[min(920px,calc(100vw-1.5rem))]"
+                >
+                  <header className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--border-subtle)] px-4 py-3 sm:px-5">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <BrainCircuit size={19} className="text-[var(--semantic-warning)]" />
+                        <h2 className="text-sm font-black tracking-tight text-[var(--text-primary)] sm:text-base">
+                          AI 上下文检查器
+                        </h2>
+                        <span className="rounded-full border border-[color:color-mix(in_srgb,var(--semantic-warning)_46%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_8%,transparent)] px-2 py-0.5 text-[10px] font-black tracking-wider text-[var(--semantic-warning)]">
+                          ADMIN · DEV
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+                        逐次核对实际送模上下文、合法选项与严格解析结果。
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void downloadHistory()}
+                        disabled={isDownloading}
+                        className="button-ghost inline-flex h-8 items-center justify-center gap-1.5 px-2.5 text-xs disabled:cursor-wait disabled:opacity-70"
+                        aria-label="下载 AI 对战反思历史"
+                      >
+                        {isDownloading ? (
+                          <LoaderCircle size={14} className="animate-spin" />
+                        ) : (
+                          <Download size={14} />
+                        )}
+                        导出历史
+                      </button>
+                      <button
+                        ref={closeButtonRef}
+                        type="button"
+                        onClick={closePanel}
+                        className="button-icon h-8 w-8"
+                        aria-label="关闭管理员 AI 上下文检查器"
+                        title="关闭（Esc）"
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </header>
+
+                  <div className="shrink-0 border-b border-[var(--border-subtle)] px-3 py-2 sm:px-4">
+                    <div className="flex items-start gap-2 rounded-lg border border-dashed border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-warning)_7%,var(--bg-surface))] px-3 py-2 text-[11px] leading-5 text-[var(--text-secondary)] sm:text-xs">
+                      <ShieldAlert
+                        size={15}
+                        className="mt-0.5 shrink-0 text-[var(--semantic-warning)]"
+                      />
+                      <span>
+                        显示 AI 席位的私密送模内容，仅限管理员进入的当前测试对局；不含 API
+                        key、供应商路由、原始无效响应或私有思维链，且不会写入录像和数据库。
                       </span>
                     </div>
-                    <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
-                      逐次核对实际送模上下文、合法选项与严格解析结果。
-                    </p>
                   </div>
-                  <button
-                    ref={closeButtonRef}
-                    type="button"
-                    onClick={closePanel}
-                    className="button-icon h-8 w-8 shrink-0"
-                    aria-label="关闭管理员 AI 上下文检查器"
-                    title="关闭（Esc）"
-                  >
-                    <X size={16} />
-                  </button>
-                </header>
 
-                <div className="shrink-0 border-b border-[var(--border-subtle)] px-3 py-2 sm:px-4">
-                  <div className="flex items-start gap-2 rounded-lg border border-dashed border-[color:color-mix(in_srgb,var(--semantic-warning)_42%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--semantic-warning)_7%,var(--bg-surface))] px-3 py-2 text-[11px] leading-5 text-[var(--text-secondary)] sm:text-xs">
-                    <ShieldAlert
-                      size={15}
-                      className="mt-0.5 shrink-0 text-[var(--semantic-warning)]"
+                  <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:grid-cols-[246px_minmax(0,1fr)] sm:grid-rows-1">
+                    <DecisionRail
+                      entries={completedEntries}
+                      selectedSeq={selectedEntry?.seq ?? null}
+                      isThinking={isThinking}
+                      onSelect={(seq) => {
+                        setSelectedSeq(seq);
+                        setSelectedAttemptNumber(null);
+                        setTab('CONTEXT');
+                      }}
                     />
-                    <span>
-                      显示 AI 席位的私密送模内容，仅限管理员进入的当前测试对局；不含 API
-                      key、供应商路由、原始无效响应或私有思维链，且不会写入录像和数据库。
-                    </span>
+                    <main className="cute-scrollbar min-h-0 min-w-0 overflow-y-auto bg-[color:color-mix(in_srgb,var(--bg-surface)_58%,transparent)]">
+                      {selectedEntry ? (
+                        <DecisionInspector
+                          entry={selectedEntry}
+                          attempts={attempts}
+                          selectedAttempt={selectedAttempt}
+                          tab={tab}
+                          onAttemptSelect={setSelectedAttemptNumber}
+                          onTabSelect={setTab}
+                        />
+                      ) : (
+                        <EmptyInspector />
+                      )}
+                    </main>
                   </div>
-                </div>
 
-                <div className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden sm:grid-cols-[246px_minmax(0,1fr)] sm:grid-rows-1">
-                  <DecisionRail
-                    entries={completedEntries}
-                    selectedSeq={selectedEntry?.seq ?? null}
-                    isThinking={isThinking}
-                    onSelect={(seq) => {
-                      setSelectedSeq(seq);
-                      setSelectedAttemptNumber(null);
-                      setTab('CONTEXT');
-                    }}
-                  />
-                  <main className="cute-scrollbar min-h-0 min-w-0 overflow-y-auto bg-[color:color-mix(in_srgb,var(--bg-surface)_58%,transparent)]">
-                    {selectedEntry ? (
-                      <DecisionInspector
-                        entry={selectedEntry}
-                        attempts={attempts}
-                        selectedAttempt={selectedAttempt}
-                        tab={tab}
-                        onAttemptSelect={setSelectedAttemptNumber}
-                        onTabSelect={setTab}
-                      />
-                    ) : (
-                      <EmptyInspector />
-                    )}
-                  </main>
-                </div>
-
-                {syncError && (
-                  <div className="shrink-0 border-t border-[var(--border-subtle)] px-4 py-2 text-xs text-[var(--semantic-error)]">
-                    {syncError}；将自动重试。
-                  </div>
-                )}
-              </motion.aside>
-            </>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
-    </>
+                  {syncError && (
+                    <div className="shrink-0 border-t border-[var(--border-subtle)] px-4 py-2 text-xs text-[var(--semantic-error)]">
+                      {syncError}；将自动重试。
+                    </div>
+                  )}
+                </motion.aside>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
+    </div>
   );
 });
 

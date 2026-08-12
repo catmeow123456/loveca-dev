@@ -68,7 +68,7 @@ const BASE_DECISION = {
 } as const;
 
 describe('AI battle Phase 2 explainable decision policy', () => {
-  it('routes exact payments and mandatory grouped selections through RULE_FORCED', () => {
+  it('keeps exact payments mechanical but routes multi-candidate mandatory selections to the model', () => {
     const payment = selectExplainableDecision(
       context({
         ...BASE_DECISION,
@@ -127,10 +127,43 @@ describe('AI battle Phase 2 explainable decision policy', () => {
     );
     expect(grouped).toMatchObject({
       ok: true,
-      tier: 'RULE_FORCED',
+      tier: 'HEURISTIC',
+      reasonCode: 'EVALUATE_MANDATORY_EFFECT_CARD_SELECTION',
       selection: {
         kind: 'SELECT_EFFECT_CARDS',
         candidateIds: ['live-1', 'member-1'],
+      },
+    });
+  });
+
+  it('keeps a mandatory card selection mechanical when every candidate must be selected', () => {
+    const result = selectExplainableDecision(
+      context({
+        ...BASE_DECISION,
+        kind: 'ACTIVE_EFFECT',
+        abilityId: 'take-all',
+        stepId: 'SELECT_ALL',
+        candidates: [
+          { candidateId: 'member-1', hidden: false },
+          { candidateId: 'member-2', hidden: false },
+        ],
+        input: {
+          kind: 'CARD_SELECTION',
+          ordered: false,
+          minSelections: 2,
+          maxSelections: 2,
+          canSkip: false,
+        },
+      })
+    );
+
+    expect(result).toMatchObject({
+      ok: true,
+      tier: 'RULE_FORCED',
+      reasonCode: 'SELECT_ONLY_MANDATORY_EFFECT_CARDS',
+      selection: {
+        kind: 'SELECT_EFFECT_CARDS',
+        candidateIds: ['member-1', 'member-2'],
       },
     });
   });

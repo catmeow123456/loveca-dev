@@ -3,7 +3,7 @@ import {
   type AiBattlePhaseZeroDeckKey,
 } from './phase-zero-baseline.js';
 
-export const AI_COMPACT_RULES_VERSION = 'ai-battle.compact-rules/v3' as const;
+export const AI_COMPACT_RULES_VERSION = 'ai-battle.compact-rules/v4' as const;
 export const AI_MUSE_STARTER_PLAYBOOK_VERSION = 'ai-battle.playbook.muse-starter/v2' as const;
 export const AI_GREEN_HASUNOSORA_B6_PLAYBOOK_VERSION =
   'ai-battle.playbook.green-hasunosora-b6/v2' as const;
@@ -91,6 +91,14 @@ export const AI_COMPACT_RULES: AiCompactRules = {
       '只有活跃能量可以支付费用；待机能量要先被效果或活跃阶段恢复。活跃能量不会因为留到下个自己的活跃阶段而额外增加。'
     ),
     directive(
+      'ABILITY_COSTS',
+      '卡效中，时点图标后、冒号“：”前的行动是发动费用；必须按文本顺序完整支付后，才能处理冒号后的效果。无法完整支付时不能发动；费用写“可以”时可以选择不发动，但不能只支付其中一部分。'
+    ),
+    directive(
+      'ENERGY_COST_TOKEN',
+      '卡文费用中的每个[E]或{{icon_energy.png|E}}都表示将自己能量区1张活跃能量变为待机，多个能量图标要支付对应张数。例如“【登场】[E]可以将1张手牌放置入休息室：……”若选择发动，必须支付1张活跃能量并将1张手牌放入休息室。'
+    ),
+    directive(
       'STAGE',
       '舞台有左、中央、右三个成员区。舞台成员在 LIVE 中提供当前有效 HEART、BLADE 和卡效；费用也会影响以后换手能减少多少支付。'
     ),
@@ -100,7 +108,7 @@ export const AI_COMPACT_RULES: AiCompactRules = {
     ),
     directive(
       'RELAY',
-      '登场成员时，如果当前合法动作写明换手，会把指定成员放入休息室，并按该成员当前有效费用减少本次需要支付的能量；实际支付与替换对象以动作说明为准。'
+      '登场成员时，如果当前合法动作写明换手，会把指定舞台成员放入休息室，并按该成员当前有效费用减少本次需要支付的能量。换手后的基础支付量＝登场成员当前有效费用－换手成员当前有效费用，结果最低为0；例如费用9的成员换手费用4的成员，仍须支付5张活跃能量。实际支付与替换对象以动作说明为准。'
     ),
     directive(
       'STAGE_SLOT_LOCK',

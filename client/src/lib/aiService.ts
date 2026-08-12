@@ -6,7 +6,7 @@
  */
 
 const DASHSCOPE_PROXY = '/api/dashscope';
-const MODEL = 'qwen3.5-flash';
+const MODEL = 'qwen3.7-flash';
 
 const SYSTEM_PROMPT = `你是一名 Love Live! 卡牌游戏(ラブライブ！スクールアイドルコレクション)的卡牌效果翻译专家。
 
