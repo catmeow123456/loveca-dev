@@ -1,0 +1,58 @@
+player_name: 五费黛雅 Love U
+description: DeckLog N33A0（2026-08-12 抓取，原标题「5ダイヤLU」）
+main_deck:
+  members:
+    - card_code: PL!-bp3-012-N
+      count: 4
+    - card_code: PL!-bp5-011-N
+      count: 4
+    - card_code: PL!-pb1-019-N
+      count: 2
+    - card_code: PL!HS-bp5-006-P
+      count: 2
+    - card_code: PL!HS-bp6-017-N
+      count: 4
+    - card_code: PL!N-bp3-014-N
+      count: 4
+    - card_code: PL!N-bp4-017-N
+      count: 2
+    - card_code: PL!N-bp5-001-P
+      count: 3
+    - card_code: PL!N-pb1-011-R
+      count: 3
+    - card_code: PL!N-PR-019-PR
+      count: 2
+    - card_code: PL!N-PR-028-PR
+      count: 4
+    - card_code: PL!N-sd1-011-SD
+      count: 2
+    - card_code: PL!S-bp6-013-N
+      count: 4
+    - card_code: PL!S-PR-025-PR
+      count: 2
+    - card_code: PL!SP-bp5-007-P
+      count: 1
+    - card_code: PL!SP-bp5-007-R
+      count: 1
+    - card_code: PL!SP-pb2-030-N
+      count: 4
+  lives:
+    - card_code: PL!-bp3-026-L
+      count: 1
+    - card_code: PL!N-bp1-026-L
+      count: 4
+    - card_code: PL!N-bp3-030-L
+      count: 3
+    - card_code: PL!N-bp5-026-L
+      count: 2
+    - card_code: PL!N-bp5-027-L
+      count: 2
+energy_deck:
+  - card_code: PL!HS-bp1-028-PE
+    count: 1
+  - card_code: PL!HS-bp1-029-PE
+    count: 1
+  - card_code: PL!HS-bp1-030-PE
+    count: 1
+  - card_code: PL!HS-PR-015-PR
+    count: 9

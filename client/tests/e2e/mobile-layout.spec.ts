@@ -1201,8 +1201,10 @@ test.describe('mobile layout baseline', () => {
     await expect(page.getByRole('heading', { name: 'Loveca 在线对战' })).toBeVisible();
 
     await page.getByRole('button', { name: '管理卡组', exact: true }).click();
-    await expect(page.getByText('登录后继续构筑与管理云端卡组。')).toBeVisible();
-    await expect(page.getByRole('button', { name: '卡组管理需要登录' })).toBeDisabled();
+    await expect(
+      page.getByText('登录管理云端卡组，或进入离线模式把卡组保存在当前浏览器。')
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: '进入离线模式' })).toBeEnabled();
     await page.getByPlaceholder('输入你的用户名或邮箱').fill('e2e_admin');
     await page.getByPlaceholder('输入你的密码').fill('test_password');
     await page.getByRole('button', { name: '登录', exact: true }).click();
@@ -1216,6 +1218,35 @@ test.describe('mobile layout baseline', () => {
 
     await page.getByRole('button', { name: '进入离线模式' }).click();
     await expect(page.getByText('选择对战方式', { exact: true })).toBeVisible();
+  });
+
+  test('离线访客可从示例创建并持久化本地卡组', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '离线卡组回归只需执行一次');
+
+    await page.addInitScript(() => window.localStorage.removeItem('loveca.local-decks.v1'));
+    await installApiMocks(page, false);
+    await page.goto('/');
+    await page.getByRole('button', { name: '管理卡组', exact: true }).click();
+    await page.getByRole('button', { name: '进入离线模式' }).click();
+
+    await expect(page.getByText('本地卡组', { exact: true })).toBeVisible();
+    await expect(page.getByText('示例卡组', { exact: true })).toBeVisible();
+    await expect(page.getByText('Liella! 加分星', { exact: true })).toBeVisible();
+    await expect(page.getByText('Liella! 可香三神', { exact: true })).toBeVisible();
+    await expect(page.getByText("μ's DGG混合", { exact: true })).toBeVisible();
+    await expect(page.getByText('五费黛雅 Love U', { exact: true })).toBeVisible();
+
+    await page.getByRole('button').filter({ hasText: 'Liella! 加分星' }).first().click();
+    await page.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Liella! 加分星', exact: true })).toBeVisible();
+
+    const stored = await page.evaluate(() =>
+      JSON.parse(window.localStorage.getItem('loveca.local-decks.v1') ?? 'null')
+    );
+    expect(stored).toMatchObject({
+      version: 1,
+      decks: [{ name: 'Liella! 加分星', config: { player_name: 'Liella! 加分星' } }],
+    });
   });
 
   test('公开首页与登录后页面共用公告中心行为', async ({ page }, testInfo) => {

@@ -46,6 +46,7 @@ import defaultOpponentDeckYaml from '../../../../assets/decks/缪预组.yaml?raw
 import {
   createDeckRecordCardTypeResolver,
   deckRecordToConfig,
+  isDeckConfigValidForCurrentCardPool,
   isDeckRecordValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems } from '@/lib/deckDisplay';
@@ -74,6 +75,7 @@ interface GameSetupPageProps {
   onNavigateToOnlineRoom: () => void;
   onNavigateToPublicTable: () => void;
   onNavigateToRanked: () => void;
+  onManageDecks: () => void;
 }
 
 function createLocalGameId(): string {
@@ -171,6 +173,7 @@ export function GameSetupPage({
   onNavigateToOnlineRoom,
   onNavigateToPublicTable,
   onNavigateToRanked,
+  onManageDecks,
 }: GameSetupPageProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
   const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
@@ -201,6 +204,7 @@ export function GameSetupPage({
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
   const cloudError = useDeckStore((s) => s.cloudError);
   const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
+  const localDecks = useDeckStore((s) => s.localDecks);
 
   // Game store
   const initializeGame = useGameStore((s) => s.initializeGame);
@@ -231,10 +235,13 @@ export function GameSetupPage({
     () =>
       buildDeckDisplayItems({
         cloudDecks: validDecks,
+        localDecks: offlineMode ? localDecks : [],
         resolveDeckRecordCardType,
         pointTable,
+        validateLocalDeck: (deck) =>
+          isDeckConfigValidForCurrentCardPool(deck, cardDataRegistry, pointTable),
       }),
-    [pointTable, resolveDeckRecordCardType, validDecks]
+    [cardDataRegistry, localDecks, offlineMode, pointTable, resolveDeckRecordCardType, validDecks]
   );
   const p1PreferenceKey =
     gameMode === GameMode.DEBUG
@@ -398,15 +405,17 @@ export function GameSetupPage({
       registry.load(Array.from(cardDataRegistry.values()));
       const loader = new DeckLoader(registry);
 
-      // 加载玩家 1 卡组
-      const p1CloudDeck = selectedP1Deck.cloudDeck;
-      if (!p1CloudDeck) {
+      // 加载玩家 1 卡组。离线会话直接读取浏览器本地配置，不经过云端 API。
+      const p1Config = selectedP1Deck.localDeck
+        ? structuredClone(selectedP1Deck.localDeck.config)
+        : selectedP1Deck.cloudDeck
+          ? deckRecordToConfig(selectedP1Deck.cloudDeck, {
+              resolveCardType: resolveDeckRecordCardType,
+            })
+          : null;
+      if (!p1Config) {
         throw new Error('卡组数据无效');
       }
-
-      const p1Config = deckRecordToConfig(p1CloudDeck, {
-        resolveCardType: resolveDeckRecordCardType,
-      });
       const p1Result = loader.loadFromConfig(p1Config);
 
       if (!p1Result.success || !p1Result.deck) {
@@ -420,12 +429,16 @@ export function GameSetupPage({
         p2DeckConfig = loadSolitaireOpponentDeck(defaultOpponentDeckYaml, registry);
       } else {
         // 调试模式：加载玩家 2 卡组
-        if (!selectedP2Deck?.cloudDeck) {
+        const p2Config = selectedP2Deck?.localDeck
+          ? structuredClone(selectedP2Deck.localDeck.config)
+          : selectedP2Deck?.cloudDeck
+            ? deckRecordToConfig(selectedP2Deck.cloudDeck, {
+                resolveCardType: resolveDeckRecordCardType,
+              })
+            : null;
+        if (!p2Config) {
           throw new Error('Player 2 卡组数据无效');
         }
-        const p2Config = deckRecordToConfig(selectedP2Deck.cloudDeck, {
-          resolveCardType: resolveDeckRecordCardType,
-        });
         const p2Result = loader.loadFromConfig(p2Config);
         if (!p2Result.success || !p2Result.deck) {
           throw new Error(`P2 卡组加载失败: ${p2Result.errors?.join(', ')}`);
@@ -441,9 +454,7 @@ export function GameSetupPage({
 
       // 创建游戏会话
       const p2Name =
-        gameMode === GameMode.SOLITAIRE
-          ? '对手 (AI)'
-          : (selectedP2Deck?.cloudDeck?.name ?? 'Player 2');
+        gameMode === GameMode.SOLITAIRE ? '对手 (AI)' : (selectedP2Deck?.name ?? 'Player 2');
       createGame(createLocalGameId(), 'player-1', p1Config.player_name, 'player-2', p2Name);
 
       // 初始化游戏
@@ -462,24 +473,18 @@ export function GameSetupPage({
   };
 
   function persistCurrentSetupDeckPreferences() {
-    if (!selectedP1Deck?.cloudDeck) {
+    if (!selectedP1Deck) {
       return;
     }
 
     if (gameMode === GameMode.SOLITAIRE) {
-      writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.solitaire, selectedP1Deck.cloudDeck.id);
+      writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.solitaire, selectedP1Deck.id);
       return;
     }
 
-    writeLastUsedDeckId(
-      DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer1,
-      selectedP1Deck.cloudDeck.id
-    );
-    if (selectedP2Deck?.cloudDeck) {
-      writeLastUsedDeckId(
-        DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer2,
-        selectedP2Deck.cloudDeck.id
-      );
+    writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer1, selectedP1Deck.id);
+    if (selectedP2Deck) {
+      writeLastUsedDeckId(DECK_SELECTION_PREFERENCE_KEYS.localDebugPlayer2, selectedP2Deck.id);
     }
   }
 
@@ -685,18 +690,25 @@ export function GameSetupPage({
               >
                 <div
                   className={`w-full max-w-3xl ${
-                    validDecks.length > 6 || isLoadingCloud ? 'h-full' : ''
+                    deckDisplayItems.length > 6 || (!offlineMode && isLoadingCloud) ? 'h-full' : ''
                   }`}
                 >
                   <DeckSelector
                     cloudDecks={cloudDecks}
+                    localDecks={offlineMode ? localDecks : []}
                     selectedId={selectedP1Deck?.id}
                     onSelect={handleSelectP1}
-                    isLoading={isLoadingCloud}
-                    error={cloudError}
-                    onRefresh={fetchCloudDecks}
+                    isLoading={!offlineMode && isLoadingCloud}
+                    error={offlineMode ? null : cloudError}
+                    onRefresh={offlineMode ? undefined : fetchCloudDecks}
                     title="可用卡组"
-                    emptyText="还没有可用卡组。"
+                    emptyText={
+                      offlineMode
+                        ? '还没有可用的本地卡组。先从示例卡组创建一副。'
+                        : '还没有可用卡组。'
+                    }
+                    emptyActionLabel={offlineMode ? '创建本地卡组' : undefined}
+                    onEmptyAction={offlineMode ? onManageDecks : undefined}
                     density="compact"
                     lastUsedDeckId={p1LastUsedDeckId}
                   />
@@ -715,18 +727,25 @@ export function GameSetupPage({
               >
                 <div
                   className={`w-full max-w-3xl ${
-                    validDecks.length > 6 || isLoadingCloud ? 'h-full' : ''
+                    deckDisplayItems.length > 6 || (!offlineMode && isLoadingCloud) ? 'h-full' : ''
                   }`}
                 >
                   <DeckSelector
                     cloudDecks={cloudDecks}
+                    localDecks={offlineMode ? localDecks : []}
                     selectedId={selectedP2Deck?.id}
                     onSelect={handleSelectP2}
-                    isLoading={isLoadingCloud}
-                    error={cloudError}
-                    onRefresh={fetchCloudDecks}
+                    isLoading={!offlineMode && isLoadingCloud}
+                    error={offlineMode ? null : cloudError}
+                    onRefresh={offlineMode ? undefined : fetchCloudDecks}
                     title="可用卡组"
-                    emptyText="还没有可用卡组。"
+                    emptyText={
+                      offlineMode
+                        ? '还没有可用的本地卡组。先从示例卡组创建一副。'
+                        : '还没有可用卡组。'
+                    }
+                    emptyActionLabel={offlineMode ? '创建本地卡组' : undefined}
+                    onEmptyAction={offlineMode ? onManageDecks : undefined}
                     density="compact"
                     lastUsedDeckId={p2LastUsedDeckId}
                   />

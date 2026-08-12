@@ -1,8 +1,5 @@
 import { create } from 'zustand';
-import {
-  type DeckConfig,
-  type CardEntry
-} from '@game/domain/card-data/deck-loader';
+import { type DeckConfig, type CardEntry } from '@game/domain/card-data/deck-loader';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { CardType } from '@game/shared/types/enums';
 import * as yaml from 'yaml';
@@ -19,10 +16,13 @@ import { useGameStore } from '@/store/gameStore';
 import { useAuthStore } from '@/store/authStore';
 import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
 import { LatestRequestGate } from '@/lib/asyncRequestControl';
+import { getCurrentDeckPointTableRules, useDeckPointTableStore } from '@/store/deckPointTableStore';
 import {
-  getCurrentDeckPointTableRules,
-  useDeckPointTableStore,
-} from '@/store/deckPointTableStore';
+  createLocalDeckId,
+  readLocalDecks,
+  writeLocalDecks,
+  type LocalDeck,
+} from '@/lib/localDeckStorage';
 
 const cloudDeckRequestGate = new LatestRequestGate();
 
@@ -31,12 +31,16 @@ interface DeckState {
   player2Deck: DeckConfig | null;
   activePlayer: 'player1' | 'player2';
   searchQuery: string;
-  
+
   // 云端卡组列表
   cloudDecks: DeckRecord[];
   isLoadingCloud: boolean;
   cloudError: string | null;
-  
+
+  // 离线卡组列表（仅保存在当前浏览器）
+  localDecks: LocalDeck[];
+  localDecksInitialized: boolean;
+
   // Actions
   init: () => void;
   loadDeck: (player: 'player1' | 'player2', yamlContent: string, overrideName?: string) => void;
@@ -45,13 +49,25 @@ interface DeckState {
   addCard: (card: AnyCardData) => void;
   removeCard: (card: AnyCardData) => void;
   resetDeck: () => void;
-  
+
   // 云端卡组 Actions
   fetchCloudDecks: () => Promise<void>;
-  saveToCloud: (player: 'player1' | 'player2', name: string, description?: string) => Promise<{ success: boolean; error?: string }>;
-  loadFromCloud: (deckId: string, player: 'player1' | 'player2') => Promise<{ success: boolean; error?: string }>;
+  saveToCloud: (
+    player: 'player1' | 'player2',
+    name: string,
+    description?: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  loadFromCloud: (
+    deckId: string,
+    player: 'player1' | 'player2'
+  ) => Promise<{ success: boolean; error?: string }>;
   deleteCloudDeck: (deckId: string) => Promise<{ success: boolean; error?: string }>;
-  
+  saveLocalDeck: (
+    deck: DeckConfig,
+    deckId?: string | null
+  ) => { success: boolean; deck?: LocalDeck; error?: string };
+  deleteLocalDeck: (deckId: string) => { success: boolean; error?: string };
+
   // Helpers
   getCurrentDeck: () => DeckConfig | null;
   getDeckYaml: (player: 'player1' | 'player2') => string;
@@ -64,17 +80,22 @@ export const useDeckStore = create<DeckState>((set, get) => {
     player2Deck: null,
     activePlayer: 'player1',
     searchQuery: '',
-    
+
     // 云端卡组状态
     cloudDecks: [],
     isLoadingCloud: false,
     cloudError: null,
+    localDecks: [],
+    localDecksInitialized: false,
 
     init: () => {
       // Initialize with empty decks if not already set
-      const { player1Deck, player2Deck } = get();
-      if (!player1Deck) set({ player1Deck: createEmptyDeck("Player 1") });
-      if (!player2Deck) set({ player2Deck: createEmptyDeck("Player 2") });
+      const { player1Deck, player2Deck, localDecksInitialized } = get();
+      if (!player1Deck) set({ player1Deck: createEmptyDeck('Player 1') });
+      if (!player2Deck) set({ player2Deck: createEmptyDeck('Player 2') });
+      if (!localDecksInitialized) {
+        set({ localDecks: readLocalDecks(), localDecksInitialized: true });
+      }
     },
 
     loadDeck: (player, yamlContent, overrideName) => {
@@ -83,7 +104,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
         // Ensure structure
         if (!deck.main_deck) deck.main_deck = { members: [], lives: [] };
         if (!deck.energy_deck) deck.energy_deck = [];
-        
+
         if (overrideName) {
           deck.player_name = overrideName;
         }
@@ -100,7 +121,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
     },
 
     setSearchQuery: (query) => set({ searchQuery: query }),
-    
+
     setActivePlayer: (player) => set({ activePlayer: player }),
 
     getCurrentDeck: () => {
@@ -118,11 +139,11 @@ export const useDeckStore = create<DeckState>((set, get) => {
     addCard: (card) => {
       const { activePlayer, player1Deck, player2Deck } = get();
       const currentDeck = activePlayer === 'player1' ? player1Deck : player2Deck;
-      
+
       if (!currentDeck) return;
 
       const newDeck = JSON.parse(JSON.stringify(currentDeck)) as DeckConfig;
-      
+
       // Determine where to add
       let targetList: CardEntry[];
       if (card.cardType === CardType.MEMBER) {
@@ -151,13 +172,13 @@ export const useDeckStore = create<DeckState>((set, get) => {
         const baseCode = getBaseCardCode(card.cardCode);
         const allMainEntries = [...newDeck.main_deck.members, ...newDeck.main_deck.lives];
         const baseTotal = allMainEntries
-          .filter(e => getBaseCardCode(e.card_code) === baseCode)
+          .filter((e) => getBaseCardCode(e.card_code) === baseCode)
           .reduce((sum, e) => sum + e.count, 0);
         if (baseTotal >= MAX_SAME_CODE_COUNT) return;
       }
 
       // Check if exists
-      const existing = targetList.find(e => e.card_code === card.cardCode);
+      const existing = targetList.find((e) => e.card_code === card.cardCode);
       if (existing) {
         existing.count++;
       } else {
@@ -174,11 +195,11 @@ export const useDeckStore = create<DeckState>((set, get) => {
     removeCard: (card) => {
       const { activePlayer, player1Deck, player2Deck } = get();
       const currentDeck = activePlayer === 'player1' ? player1Deck : player2Deck;
-      
+
       if (!currentDeck) return;
 
       const newDeck = JSON.parse(JSON.stringify(currentDeck)) as DeckConfig;
-      
+
       // Determine where to remove from
       let targetList: CardEntry[];
       if (card.cardType === CardType.MEMBER) {
@@ -189,7 +210,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
         targetList = newDeck.energy_deck;
       }
 
-      const index = targetList.findIndex(e => e.card_code === card.cardCode);
+      const index = targetList.findIndex((e) => e.card_code === card.cardCode);
       if (index !== -1) {
         if (targetList[index].count > 1) {
           targetList[index].count--;
@@ -221,7 +242,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
         set({
           cloudDecks: [],
           isLoadingCloud: false,
-          cloudError: '离线模式下无法使用云端卡组',
+          cloudError: null,
         });
         return;
       }
@@ -257,7 +278,7 @@ export const useDeckStore = create<DeckState>((set, get) => {
         }
         set({
           isLoadingCloud: false,
-          cloudError: err instanceof Error ? err.message : '获取卡组失败'
+          cloudError: err instanceof Error ? err.message : '获取卡组失败',
         });
       }
     },
@@ -317,17 +338,19 @@ export const useDeckStore = create<DeckState>((set, get) => {
         }
 
         const deckRecord = result.data!;
-        
+
         const localDeck = deckRecordToConfig(deckRecord, {
-          resolveCardType: createDeckRecordCardTypeResolver(useGameStore.getState().cardDataRegistry),
+          resolveCardType: createDeckRecordCardTypeResolver(
+            useGameStore.getState().cardDataRegistry
+          ),
         });
-        
+
         if (player === 'player1') {
           set({ player1Deck: localDeck });
         } else {
           set({ player2Deck: localDeck });
         }
-        
+
         return { success: true };
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : '加载失败' };
@@ -350,13 +373,62 @@ export const useDeckStore = create<DeckState>((set, get) => {
           return { success: false, error: result.error.message };
         }
 
-        set(state => ({
-          cloudDecks: state.cloudDecks.filter(d => d.id !== deckId)
+        set((state) => ({
+          cloudDecks: state.cloudDecks.filter((d) => d.id !== deckId),
         }));
 
         return { success: true };
       } catch (err) {
         return { success: false, error: err instanceof Error ? err.message : '删除失败' };
+      }
+    },
+
+    saveLocalDeck: (deck, deckId = null) => {
+      const now = new Date();
+      const nextDeck: LocalDeck = {
+        id: deckId ?? createLocalDeckId(),
+        name: deck.player_name,
+        description: deck.description,
+        config: structuredClone(deck),
+        updatedAt: now,
+      };
+      const currentDecks = get().localDecks;
+      const existingIndex = currentDecks.findIndex((candidate) => candidate.id === deckId);
+      const nextDecks =
+        existingIndex === -1
+          ? [nextDeck, ...currentDecks]
+          : currentDecks.map((candidate, index) =>
+              index === existingIndex ? nextDeck : candidate
+            );
+
+      try {
+        writeLocalDecks(nextDecks);
+        set({ localDecks: nextDecks, localDecksInitialized: true });
+        return { success: true, deck: nextDeck };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : '保存本地卡组失败',
+        };
+      }
+    },
+
+    deleteLocalDeck: (deckId) => {
+      const currentDecks = get().localDecks;
+      if (!currentDecks.some((deck) => deck.id === deckId)) {
+        return { success: false, error: '未找到本地卡组' };
+      }
+
+      const nextDecks = currentDecks.filter((deck) => deck.id !== deckId);
+      try {
+        writeLocalDecks(nextDecks);
+        set({ localDecks: nextDecks, localDecksInitialized: true });
+        return { success: true };
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : '删除本地卡组失败',
+        };
       }
     },
   };

@@ -36,12 +36,7 @@ import { useGameStore } from '@/store/gameStore';
 import { CardType } from '@game/shared/types/enums';
 import { apiClient, isApiConfigured, type DeckRecord } from '@/lib/apiClient';
 import { CardEditor } from '@/components/deck-editor';
-import {
-  calculateDeckStats,
-  DeckStatsRow,
-  getDeckPointTextClass,
-  PageHeader,
-} from '@/components/common';
+import { DeckStatsRow, getDeckPointTextClass, PageHeader } from '@/components/common';
 import { PRESET_DECKS, type PresetDeck } from './preset-decks';
 import {
   CardDataRegistry,
@@ -50,16 +45,18 @@ import {
   type CardEntry,
   type DeckConfig,
 } from '@game/domain/card-data/deck-loader';
-import { calculateDeckConfigStats, validateDeckConfig } from '@game/domain/rules/deck-construction';
+import { calculateDeckConfigStats } from '@game/domain/rules/deck-construction';
 import * as yaml from 'yaml';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   createDeckRecordCardTypeResolver,
   deckConfigToRecordPayload,
   deckRecordToConfig,
+  isDeckConfigValidForCurrentCardPool,
 } from '@/lib/deckRecordUtils';
 import { createNewDeckConfig } from '@game/domain/card-data/deck-defaults';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { buildDeckDisplayItems, type DeckDisplayItem } from '@/lib/deckDisplay';
 
 type ViewMode = 'list' | 'edit';
 type DecklogSource = 'jp' | 'en';
@@ -94,6 +91,7 @@ function inferDecklogSource(input: string): DecklogSource | null {
 
 interface DeckManagerProps {
   onBack: () => void;
+  backLabel?: string;
   initialOpenDeckId?: string | null;
 }
 
@@ -104,7 +102,11 @@ function formatYamlStructureError(issues: { path: PropertyKey[]; message: string
     .join('；');
 }
 
-export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerProps) {
+export function DeckManager({
+  onBack,
+  backLabel = '返回大厅',
+  initialOpenDeckId = null,
+}: DeckManagerProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [editingDeck, setEditingDeck] = useState<DeckConfig | null>(null);
   const [editingDeckId, setEditingDeckId] = useState<string | null>(null);
@@ -137,6 +139,9 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
   const saveToCloud = useDeckStore((s) => s.saveToCloud);
   const deleteCloudDeck = useDeckStore((s) => s.deleteCloudDeck);
+  const localDecks = useDeckStore((s) => s.localDecks);
+  const saveLocalDeck = useDeckStore((s) => s.saveLocalDeck);
+  const deleteLocalDeck = useDeckStore((s) => s.deleteLocalDeck);
   const validateDeck = useDeckStore((s) => s.validateDeck);
 
   // Auth store
@@ -163,16 +168,30 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
     () => createDeckRecordCardTypeResolver(cardDataRegistry),
     [cardDataRegistry]
   );
+  const managedDecks = useMemo(
+    () =>
+      buildDeckDisplayItems({
+        cloudDecks: offlineMode ? [] : cloudDecks,
+        localDecks: offlineMode ? localDecks : [],
+        resolveDeckRecordCardType,
+        pointTable,
+        validateLocalDeck: (deck) =>
+          isDeckConfigValidForCurrentCardPool(deck, cardDataRegistry, pointTable),
+      }),
+    [cardDataRegistry, cloudDecks, localDecks, offlineMode, pointTable, resolveDeckRecordCardType]
+  );
   const visibleDecks = useMemo(() => {
     const query = deckSearchQuery.trim().toLocaleLowerCase('zh-CN');
-    if (!query) return cloudDecks;
-    return cloudDecks.filter((deck) =>
+    if (!query) return managedDecks;
+    return managedDecks.filter((deck) =>
       `${deck.name} ${deck.description ?? ''}`.toLocaleLowerCase('zh-CN').includes(query)
     );
-  }, [cloudDecks, deckSearchQuery]);
+  }, [deckSearchQuery, managedDecks]);
+  const isLoadingDecks = !offlineMode && isLoadingCloud;
+  const deckSourceError = offlineMode ? null : cloudError;
 
   useEffect(() => {
-    fetchCloudDecks();
+    if (!offlineMode) void fetchCloudDecks();
   }, [fetchCloudDecks, offlineMode]);
 
   useEffect(() => {
@@ -246,25 +265,30 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   };
 
   const handleEdit = useCallback(
-    (cloudDeck: DeckRecord) => {
-      const localDeck = deckRecordToConfig(cloudDeck, {
-        resolveCardType: resolveDeckRecordCardType,
-      });
+    (deck: DeckDisplayItem) => {
+      const deckConfig = deck.localDeck
+        ? structuredClone(deck.localDeck.config)
+        : deck.cloudDeck
+          ? deckRecordToConfig(deck.cloudDeck, {
+              resolveCardType: resolveDeckRecordCardType,
+            })
+          : null;
+      if (!deckConfig) return;
 
-      setEditingDeck(localDeck);
-      setEditingDeckId(cloudDeck.id);
-      setDeckName(cloudDeck.name);
-      setDeckDescription(cloudDeck.description || '');
+      setEditingDeck(deckConfig);
+      setEditingDeckId(deck.id);
+      setDeckName(deck.name);
+      setDeckDescription(deck.description || '');
       setSaveError(null);
-      setInitialSnapshot(JSON.stringify(localDeck));
+      setInitialSnapshot(JSON.stringify(deckConfig));
       setViewMode('edit');
     },
     [resolveDeckRecordCardType]
   );
 
   useEffect(() => {
-    if (!initialOpenDeckId || initialOpenHandled.current || cloudDecks.length === 0) return;
-    const targetDeck = cloudDecks.find((deck) => deck.id === initialOpenDeckId);
+    if (!initialOpenDeckId || initialOpenHandled.current || managedDecks.length === 0) return;
+    const targetDeck = managedDecks.find((deck) => deck.id === initialOpenDeckId);
     if (!targetDeck) return;
 
     const timer = window.setTimeout(() => {
@@ -274,10 +298,10 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       window.history.replaceState({}, '', '/');
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [cloudDecks, handleEdit, initialOpenDeckId]);
+  }, [handleEdit, initialOpenDeckId, managedDecks]);
 
   const handleDelete = async (deckId: string) => {
-    const result = await deleteCloudDeck(deckId);
+    const result = offlineMode ? deleteLocalDeck(deckId) : await deleteCloudDeck(deckId);
     if (!result.success) {
       setSaveError(result.error || '删除失败');
     }
@@ -302,7 +326,15 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       }
 
       await fetchCloudDecks();
-      handleEdit(result.data);
+      const copiedConfig = deckRecordToConfig(result.data, {
+        resolveCardType: resolveDeckRecordCardType,
+      });
+      setEditingDeck(copiedConfig);
+      setEditingDeckId(result.data.id);
+      setDeckName(result.data.name);
+      setDeckDescription(result.data.description || '');
+      setInitialSnapshot(JSON.stringify(copiedConfig));
+      setViewMode('edit');
       showToast(`已创建 ${result.data.name}`);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : '复制卡组失败');
@@ -403,11 +435,6 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       return;
     }
 
-    if (cloudFeaturesUnavailable) {
-      setSaveError('离线模式下无法保存云端卡组，请使用导出 YAML 备份当前卡组');
-      return;
-    }
-
     setIsSaving(true);
     setSaveError(null);
 
@@ -418,7 +445,13 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         description: deckDescription.trim(),
       };
 
-      if (editingDeckId) {
+      if (offlineMode) {
+        const result = saveLocalDeck(deckToSave, editingDeckId);
+        if (!result.success) {
+          setSaveError(result.error || '保存本地卡组失败');
+          return;
+        }
+      } else if (editingDeckId) {
         const deckPayload = deckConfigToRecordPayload(deckToSave);
 
         const result = await apiClient.put<DeckRecord>(`/api/decks/${editingDeckId}`, {
@@ -442,7 +475,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
         }
       }
 
-      await fetchCloudDecks();
+      if (!offlineMode) await fetchCloudDecks();
       setViewMode('list');
       setEditingDeck(null);
       setEditingDeckId(null);
@@ -461,7 +494,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
   };
 
   const handleUsePreset = (preset: PresetDeck) => {
-    const deck = { ...preset.deck };
+    const deck = structuredClone(preset.deck);
     setEditingDeck(deck);
     setEditingDeckId(null);
     setDeckName(preset.name);
@@ -630,7 +663,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
       <PageHeader
         title={viewMode === 'list' ? '卡组管理' : editingDeckId ? '编辑卡组' : '创建卡组'}
         onBack={viewMode === 'edit' ? handleCancelEdit : onBack}
-        backLabel={viewMode === 'edit' ? '取消编辑' : '返回大厅'}
+        backLabel={viewMode === 'edit' ? '取消编辑' : backLabel}
         right={
           <>
             <div className="status-pill min-w-0 max-w-full px-2.5 py-1 text-xs">
@@ -738,7 +771,21 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
               </div>
 
               <div className="p-3 sm:p-5">
-                {isLoadingCloud && cloudDecks.length === 0 && (
+                {offlineMode && (
+                  <div className="mb-5 flex items-start gap-3 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_28%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_8%,transparent)] p-3.5">
+                    <WifiOff size={17} className="mt-0.5 shrink-0 text-[var(--semantic-warning)]" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-[var(--text-primary)]">
+                        本地卡组
+                      </div>
+                      <p className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">
+                        创建和修改会自动保存在当前浏览器。清除浏览器数据前，可导出 YAML 作为备份。
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {isLoadingDecks && managedDecks.length === 0 && (
                   <div className="flex items-center justify-center py-20">
                     <div className="text-center">
                       <Loader2
@@ -750,11 +797,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                   </div>
                 )}
 
-                {cloudError && (
+                {deckSourceError && (
                   <div className="mb-6 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] p-4">
                     <div className="flex items-center gap-2 text-sm text-[var(--semantic-error)]">
                       <AlertTriangle size={14} />
-                      <span>{cloudError}</span>
+                      <span>{deckSourceError}</span>
                       <button
                         onClick={fetchCloudDecks}
                         className="ml-auto text-sm underline underline-offset-2"
@@ -775,17 +822,17 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                 )}
 
                 {/* Empty State with Presets */}
-                {!isLoadingCloud && cloudDecks.length === 0 && (
+                {!isLoadingDecks && managedDecks.length === 0 && (
                   <div className="py-8">
                     <div className="text-center mb-6">
                       <div className="mb-1 text-base text-[var(--text-secondary)]">还没有卡组</div>
                       <div className="text-sm text-[var(--text-muted)]">
-                        从推荐卡组开始，或自由创建
+                        选择一副示例卡组创建副本，或从空白开始
                       </div>
                     </div>
 
                     <div className="mb-3 text-xs font-semibold text-[var(--text-muted)]">
-                      推荐卡组
+                      示例卡组
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-8">
                       {PRESET_DECKS.map((preset) => {
@@ -826,7 +873,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                 </span>
                               </div>
                               <span className="text-xs text-[var(--accent-primary)] transition-colors">
-                                使用此卡组 →
+                                从此卡组创建 →
                               </span>
                             </div>
                           </button>
@@ -847,7 +894,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                   </div>
                 )}
 
-                {cloudDecks.length > 0 && visibleDecks.length === 0 ? (
+                {managedDecks.length > 0 && visibleDecks.length === 0 ? (
                   <div className="py-16 text-center">
                     <Search size={20} className="mx-auto text-[var(--text-muted)]" />
                     <div className="mt-3 text-sm font-semibold text-[var(--text-primary)]">
@@ -869,13 +916,13 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                 {/* Deck list */}
                 <div className="product-list -mx-3 sm:-mx-5">
                   {visibleDecks.map((deck) => {
-                    const deckConfig = deckRecordToConfig(deck, {
-                      resolveCardType: resolveDeckRecordCardType,
-                    });
-                    const stats = calculateDeckStats(deck, pointTable, {
-                      resolveCardType: resolveDeckRecordCardType,
-                    });
-                    const deckValidity = validateDeckConfig(deckConfig, pointTable).valid;
+                    const stats = {
+                      memberCount: deck.memberCount,
+                      liveCount: deck.liveCount,
+                      energyCount: deck.energyCount,
+                      pointTotal: deck.pointTotal,
+                    };
+                    const cloudDeck = deck.cloudDeck;
                     const isDeleting = deleteConfirm === deck.id;
 
                     return (
@@ -921,16 +968,21 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                 </p>
                               )}
                               <div className="mt-1 text-[11px] text-[var(--text-muted)] sm:hidden">
-                                {new Date(deck.updated_at).toLocaleDateString('zh-CN')}
+                                {deck.updatedAt.toLocaleDateString('zh-CN')}
                               </div>
                             </div>
                             <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-1 min-[560px]:col-span-1 min-[560px]:col-start-2 min-[560px]:row-start-1 min-[560px]:justify-end">
-                              {deck.share_enabled && (
+                              {!deck.isCloud && (
+                                <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-warning)]">
+                                  <WifiOff size={10} /> 本机
+                                </span>
+                              )}
+                              {cloudDeck?.share_enabled && (
                                 <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-info)]">
                                   <Globe size={10} /> 已分享
                                 </span>
                               )}
-                              {deckValidity ? (
+                              {deck.isValid ? (
                                 <span className="chip-badge flex items-center gap-1 px-2 py-0.5 text-[11px] text-[var(--semantic-success)]">
                                   <Check size={10} /> 完整
                                 </span>
@@ -944,7 +996,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                             <div className="col-span-2 row-start-3 min-w-0 self-center min-[560px]:col-span-1 min-[560px]:col-start-1 min-[560px]:row-start-2">
                               <DeckStatsRow
                                 stats={stats}
-                                updatedAt={isMobile ? undefined : deck.updated_at}
+                                updatedAt={isMobile ? undefined : deck.updatedAt}
                                 size={isMobile ? 'sm' : 'md'}
                                 className="min-w-0"
                               />
@@ -983,28 +1035,30 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                     aria-label={`${deck.name}的操作`}
                                     className="absolute right-0 top-[calc(100%+0.5rem)] z-30 w-52 overflow-hidden rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-1.5 shadow-2xl"
                                   >
-                                    <button
-                                      type="button"
-                                      role="menuitem"
-                                      onClick={() => handleCopyDeck(deck)}
-                                      disabled={copyingDeckId === deck.id}
-                                      className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
-                                    >
-                                      <CopyPlus
-                                        size={15}
-                                        className="text-[var(--accent-primary)]"
-                                      />
-                                      复制为新版本
-                                    </button>
+                                    {cloudDeck && (
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => handleCopyDeck(cloudDeck)}
+                                        disabled={copyingDeckId === deck.id}
+                                        className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)] disabled:cursor-wait disabled:opacity-60"
+                                      >
+                                        <CopyPlus
+                                          size={15}
+                                          className="text-[var(--accent-primary)]"
+                                        />
+                                        复制为新版本
+                                      </button>
+                                    )}
 
-                                    {deck.share_enabled && deck.share_id ? (
+                                    {cloudDeck?.share_enabled && cloudDeck.share_id ? (
                                       <>
                                         <button
                                           type="button"
                                           role="menuitem"
                                           onClick={() => {
                                             setOpenActionsDeckId(null);
-                                            void handleCopyShareLink(deck);
+                                            void handleCopyShareLink(cloudDeck);
                                           }}
                                           className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
                                         >
@@ -1015,7 +1069,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                           role="menuitem"
                                           onClick={() => {
                                             setOpenActionsDeckId(null);
-                                            handleOpenShare(deck);
+                                            handleOpenShare(cloudDeck);
                                           }}
                                           className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-[var(--text-primary)] transition-colors hover:bg-[var(--bg-elevated)]"
                                         >
@@ -1034,7 +1088,7 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                           <EyeOff size={15} /> 关闭分享
                                         </button>
                                       </>
-                                    ) : (
+                                    ) : cloudDeck ? (
                                       <button
                                         type="button"
                                         role="menuitem"
@@ -1047,9 +1101,11 @@ export function DeckManager({ onBack, initialOpenDeckId = null }: DeckManagerPro
                                       >
                                         <Globe size={15} /> 开启分享
                                       </button>
-                                    )}
+                                    ) : null}
 
-                                    <div className="my-1 border-t border-[var(--border-subtle)]" />
+                                    {cloudDeck && (
+                                      <div className="my-1 border-t border-[var(--border-subtle)]" />
+                                    )}
                                     <button
                                       type="button"
                                       role="menuitem"

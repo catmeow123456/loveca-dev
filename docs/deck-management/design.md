@@ -1,10 +1,10 @@
 # 用户卡组管理系统 - 设计文档
 
-> 版本: 1.5.0
+> 版本: 1.6.0
 > 创建日期: 2026-03-03
-> 最后更新: 2026-08-06
+> 最后更新: 2026-08-12
 > 文档类型: 设计文档
-> 适用范围: 卡组管理 UI、deckStore、卡组 API、PT 限制表、分享/复制与 DeckLog 导入能力
+> 适用范围: 卡组管理 UI、deckStore、浏览器本地卡组、卡组 API、PT 限制表、分享/复制与 DeckLog 导入能力
 > 当前状态: 已实现；部署和 schema 差异见 [当前实现限制](../current-limitations.md)
 
 本文档说明卡组管理系统的架构、数据边界和关键设计取舍，不维护具体 SQL、接口参数、React 状态变量或函数级实现细节。
@@ -13,7 +13,7 @@
 
 - 支持玩家创建、编辑、保存、选择和删除自己的卡组。
 - 保证构筑规则在保存、展示和进入游戏前得到一致校验。
-- 允许卡组在本地槽位、云端记录和分享页之间转换，但不暴露数据库结构给 UI。
+- 允许卡组在浏览器本地记录、云端记录和分享页之间转换，但不暴露数据库结构给 UI。
 - 支持公开分享、复制到自己账号，以及从 DeckLog 导入卡表作为编辑起点。
 - 与卡牌数据管理系统共享 PUBLISHED 卡牌资料，避免草稿卡进入普通构筑流程。
 
@@ -33,6 +33,7 @@ flowchart TB
         DeckStore[deckStore]
         PointStore[deckPointTableStore]
         Converter[deckRecordUtils]
+        LocalAdapter[localDeckStorage]
         Registry[gameStore.cardDataRegistry]
     end
 
@@ -50,6 +51,7 @@ flowchart TB
     end
 
     subgraph Storage["存储"]
+        BrowserStorage[(浏览器 localStorage)]
         Decks[(decks 表)]
         Cards[(cards 表)]
         PointTables[(deck_point_tables / entries / audit_logs)]
@@ -64,6 +66,8 @@ flowchart TB
     Detail --> Registry
     DeckStore --> Converter
     DeckStore --> PointStore
+    DeckStore --> LocalAdapter
+    LocalAdapter --> BrowserStorage
     Converter --> Loader
     DeckStore --> DeckRoutes
     DeckRoutes --> Decks
@@ -78,14 +82,17 @@ flowchart TB
 
 ## 3. 数据模型
 
-卡组在系统内有两个主要形态：
+卡组在系统内有三个主要形态：
 
-| 形态         | 使用位置                 | 设计目的                                                 |
-| ------------ | ------------------------ | -------------------------------------------------------- |
-| `DeckConfig` | 构筑、游戏入口、本地槽位 | 面向领域规则，明确区分成员卡、Live 卡和能量卡            |
-| `DeckRecord` | 云端持久化、分享、列表   | 面向存储与权限，包含所有者、分享状态、校验状态和更新时间 |
+| 形态         | 使用位置                   | 设计目的                                                    |
+| ------------ | -------------------------- | ----------------------------------------------------------- |
+| `DeckConfig` | 构筑、游戏入口、对局加载   | 面向领域规则，明确区分成员卡、Live 卡和能量卡               |
+| `LocalDeck`  | 离线列表与浏览器本地持久化 | 包装 `DeckConfig`、本地 ID 与更新时间，不承载账号或分享语义 |
+| `DeckRecord` | 云端持久化、分享、在线列表 | 面向存储与权限，包含所有者、分享状态、校验状态和更新时间    |
 
 `DeckRecord` 与 `DeckConfig` 的转换由共享领域工具 `src/domain/card-data/deck-record-utils.ts` 维护，客户端通过 `client/src/lib/deckRecordUtils.ts` 复用该实现。转换层负责处理旧数据兼容、主卡组中 MEMBER/LIVE 的分流，以及保存时的持久化形态整理。云端卡组另保留最近一次服务端校验使用的 PT 表版本；候场票据与对局卡组快照则冻结版本、总点数和上限，便于后续追溯。
+
+`LocalDeck` 使用带显式版本号的整体结构写入当前浏览器。读取时通过 `DeckConfigSchema` 校验完整数据，非当前版本或形状不合法的数据不进入应用状态。本地列表和对局选组仍使用当前卡牌注册表与离线 PT 表重新判定合法性，不信任存储中的派生结果。
 
 ## 4. 构筑规则
 
@@ -101,16 +108,16 @@ flowchart TB
 
 ## 5. 前端职责
 
-| 模块                     | 职责                                                                                 |
-| ------------------------ | ------------------------------------------------------------------------------------ |
-| DeckManager              | 卡组列表、创建、编辑、删除、导入导出、分享入口和 DeckLog 导入入口                    |
-| CardEditor               | 卡牌浏览、筛选、添加/移除、卡组预览和详情查看                                        |
-| DeckStats                | 数量、点数、校验状态和更新时间等摘要展示                                             |
-| DeckSelector             | 游戏开始前选择本地或云端卡组                                                         |
-| deckStore                | 云端卡组加载与保存、本地玩家槽位、当前编辑卡组状态                                   |
-| deckPointTableStore      | 读取普通玩家可见的当前 PT 表，并在真正离线或启动接口不可用时提供已确认的内置展示快照 |
-| deckRecordUtils          | 云端记录与领域卡组配置之间的转换                                                     |
-| DeckPointTablesAdminPage | 管理任意状态的 PT 表、差异预览、立即/定时发布、取消排期、废弃/替换、删除与历史复制   |
+| 模块                     | 职责                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| DeckManager              | 根据会话管理浏览器本地或云端卡组，并提供创建、编辑、删除、导入导出、分享与 DeckLog 入口 |
+| CardEditor               | 卡牌浏览、筛选、添加/移除、卡组预览和详情查看                                           |
+| DeckStats                | 数量、点数、校验状态和更新时间等摘要展示                                                |
+| DeckSelector             | 游戏开始前选择本地或云端卡组                                                            |
+| deckStore                | 浏览器本地卡组与云端卡组的加载/保存，以及本地玩家槽位和当前编辑状态                     |
+| deckPointTableStore      | 读取普通玩家可见的当前 PT 表，并在真正离线或启动接口不可用时提供已确认的内置展示快照    |
+| deckRecordUtils          | 云端记录与领域卡组配置之间的转换                                                        |
+| DeckPointTablesAdminPage | 管理任意状态的 PT 表、差异预览、立即/定时发布、取消排期、废弃/替换、删除与历史复制      |
 
 卡牌浏览与构筑只使用 `gameStore.cardDataRegistry` 中的 PUBLISHED 卡牌，因此普通玩家不能把 DRAFT 卡加入卡组。
 
@@ -148,17 +155,20 @@ sequenceDiagram
     participant User as 用户
     participant UI as 卡组界面
     participant Rule as 构筑规则
-    participant Convert as 转换层
+    participant Local as 浏览器本地存储
     participant API as 卡组 API
     participant Store as 卡组列表
 
     User->>UI: 保存卡组
     UI->>Rule: 校验数量、类型与点数
     Rule-->>UI: 返回校验结果
-    UI->>Convert: 转换为持久化记录
-    Convert-->>UI: 返回可保存数据
-    UI->>API: 提交保存请求
-    API-->>Store: 返回更新后的卡组数据
+    alt 离线会话
+        UI->>Local: 写入版本化 LocalDeck 列表
+        Local-->>Store: 更新本地卡组状态
+    else 已登录在线会话
+        UI->>API: 提交云端保存请求
+        API-->>Store: 返回更新后的卡组数据
+    end
     Store-->>User: 展示保存结果
 ```
 
@@ -208,7 +218,8 @@ DeckLog 导入是辅助构筑入口，而不是持久化事实来源：
 ## 11. 已知限制
 
 - DeckLog 导入依赖外部站点接口，不能视为稳定契约。
-- 本地槽位、云端卡组和分享卡组之间存在转换边界，新增字段时必须同步检查转换层。
+- 浏览器本地卡组不会同步到账号或其他设备，清除站点数据会丢失记录；YAML 导出是当前用户可控的备份路径。
+- 浏览器本地卡组、云端卡组和分享卡组之间存在转换边界，新增字段时必须同步检查存储 schema 与转换层。
 - 未完成卡组可以保存，但不能绕过进入游戏前的构筑校验。
 - 图片下载 ZIP 能力当前不作为已实现能力维护；若恢复，需要重新确认权限、文件命名和失败策略。
 
@@ -225,6 +236,7 @@ DeckLog 导入是辅助构筑入口，而不是持久化事实来源：
 | `client/src/store/deckPointTableStore.ts`                  | 当前 PT 表客户端快照                                              |
 | `client/src/components/admin/DeckPointTablesAdminPage.tsx` | PT 表管理页                                                       |
 | `client/src/lib/deckRecordUtils.ts`                        | 客户端复用共享卡组记录转换工具的出口                              |
+| `client/src/lib/localDeckStorage.ts`                       | 浏览器本地卡组的版本化读写与结构校验                              |
 | `client/src/lib/apiClient.ts`                              | REST 客户端与卡组记录类型                                         |
 | `src/domain/card-data/deck-record-utils.ts`                | `DeckRecord` 与 `DeckConfig` 转换、旧格式规范化和服务端保存前校验 |
 | `src/domain/card-data/deck-loader.ts`                      | `DeckConfig` 与卡组加载模型                                       |

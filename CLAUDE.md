@@ -95,7 +95,7 @@ client/src/
 ├── components/       # React components (game/, card/, deck/, admin/, pages/)
 ├── store/            # Zustand stores
 │   ├── gameStore.ts  # Game state + GameSession instance
-│   ├── deckStore.ts  # Deck management (local + cloud sync via API)
+│   ├── deckStore.ts  # Deck management (browser-local persistence + cloud API)
 │   ├── authStore.ts  # JWT auth via self-hosted API
 │   └── rankedStore.ts # Ranked overview and cross-page queue state
 └── lib/

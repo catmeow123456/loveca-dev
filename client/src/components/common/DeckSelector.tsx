@@ -2,7 +2,10 @@ import { useMemo } from 'react';
 import { Check, Database, History, Layers3, RefreshCw, TriangleAlert } from 'lucide-react';
 import type { DeckRecord } from '@/lib/apiClient';
 import { useGameStore } from '@/store/gameStore';
-import { createDeckRecordCardTypeResolver } from '@/lib/deckRecordUtils';
+import {
+  createDeckRecordCardTypeResolver,
+  isDeckConfigValidForCurrentCardPool,
+} from '@/lib/deckRecordUtils';
 import { buildDeckDisplayItems, type DeckDisplayItem, type LocalDeck } from '@/lib/deckDisplay';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 
@@ -23,6 +26,8 @@ interface DeckSelectorProps {
   emptyText?: string;
   density?: DeckSelectorDensity;
   lastUsedDeckId?: string | null;
+  emptyActionLabel?: string;
+  onEmptyAction?: () => void;
 }
 
 export function DeckSelector({
@@ -38,6 +43,8 @@ export function DeckSelector({
   emptyText = '还没有可用卡组。',
   density = 'comfortable',
   lastUsedDeckId = null,
+  emptyActionLabel,
+  onEmptyAction,
 }: DeckSelectorProps) {
   const isCompact = density === 'compact';
   const pointTable = useDeckPointTableRules();
@@ -54,8 +61,10 @@ export function DeckSelector({
         localDecks,
         resolveDeckRecordCardType,
         pointTable,
+        validateLocalDeck: (deck) =>
+          isDeckConfigValidForCurrentCardPool(deck, cardDataRegistry, pointTable),
       }),
-    [cloudDecks, localDecks, pointTable, resolveDeckRecordCardType]
+    [cardDataRegistry, cloudDecks, localDecks, pointTable, resolveDeckRecordCardType]
   );
   const selectableDecks = useMemo(
     () =>
@@ -121,6 +130,15 @@ export function DeckSelector({
             <div>
               <Database size={32} className="mx-auto mb-3 text-[var(--text-muted)]" />
               <p className="text-sm text-[var(--text-secondary)]">{emptyText}</p>
+              {emptyActionLabel && onEmptyAction && (
+                <button
+                  type="button"
+                  onClick={onEmptyAction}
+                  className="button-primary mt-4 min-h-10 px-4 py-2 text-sm font-semibold"
+                >
+                  {emptyActionLabel}
+                </button>
+              )}
             </div>
           </div>
         )}

@@ -4,15 +4,9 @@ import type { DeckRecord } from '@/lib/apiClient';
 import { deckRecordToConfig, type MainDeckEntryTypeResolver } from '@/lib/deckRecordUtils';
 import type { DeckPointTableRules } from '@game/domain/rules/deck-point-table';
 import { getCurrentDeckPointTableRules } from '@/store/deckPointTableStore';
+import type { LocalDeck } from '@/lib/localDeckStorage';
 
-export interface LocalDeck {
-  id: string;
-  name: string;
-  description?: string;
-  config: DeckConfig;
-  isValid: boolean;
-  updatedAt: Date;
-}
+export type { LocalDeck } from '@/lib/localDeckStorage';
 
 export interface DeckDisplayItem {
   id: string;
@@ -35,11 +29,13 @@ export function buildDeckDisplayItems({
   localDecks = [],
   resolveDeckRecordCardType,
   pointTable = getCurrentDeckPointTableRules(),
+  validateLocalDeck,
 }: {
   cloudDecks?: DeckRecord[];
   localDecks?: LocalDeck[];
   resolveDeckRecordCardType?: MainDeckEntryTypeResolver;
   pointTable?: DeckPointTableRules;
+  validateLocalDeck?: (deck: DeckConfig) => boolean;
 }): DeckDisplayItem[] {
   const items: DeckDisplayItem[] = [];
 
@@ -70,7 +66,9 @@ export function buildDeckDisplayItems({
       id: deck.id,
       name: deck.name,
       description: deck.description,
-      isValid: deck.isValid,
+      isValid: validateLocalDeck
+        ? validateLocalDeck(deck.config)
+        : validateDeckConfig(deck.config, pointTable).valid,
       isCloud: false,
       updatedAt: deck.updatedAt,
       memberCount: stats.memberCount,

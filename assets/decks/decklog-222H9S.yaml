@@ -1,0 +1,44 @@
+player_name: Liella! 可香三神
+description: DeckLog 222H9S（2026-08-12 抓取，原标题「クーカー三神0809」）
+main_deck:
+  members:
+    - card_code: LL-bp1-001-R+
+      count: 2
+    - card_code: LL-bp2-001-R+
+      count: 1
+    - card_code: PL!-pb1-018-R
+      count: 3
+    - card_code: PL!SP-bp2-002-R
+      count: 4
+    - card_code: PL!SP-bp2-009-P
+      count: 4
+    - card_code: PL!SP-bp4-002-R
+      count: 4
+    - card_code: PL!SP-bp5-002-AR
+      count: 4
+    - card_code: PL!SP-bp5-012-N
+      count: 4
+    - card_code: PL!SP-pb2-000-R
+      count: 3
+    - card_code: PL!SP-pb2-012-P+
+      count: 4
+    - card_code: PL!SP-pb2-034-N
+      count: 3
+    - card_code: PL!SP-PR-025-PR
+      count: 4
+    - card_code: PL!SP-sd2-010-SD2
+      count: 4
+    - card_code: PL!SP-sd2-014-SD2
+      count: 4
+  lives:
+    - card_code: PL!SP-bp1-024-SRL
+      count: 4
+    - card_code: PL!SP-bp2-024-L
+      count: 4
+    - card_code: PL!SP-bp4-029-L
+      count: 2
+    - card_code: PL!SP-bp4-029-SRL
+      count: 2
+energy_deck:
+  - card_code: PL!N-bp1-038-PE
+    count: 12

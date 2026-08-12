@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiClient } from '@/lib/apiClient';
 import type { DeckRecord } from '@/lib/apiClient';
+import type { LocalDeck } from '@/lib/localDeckStorage';
 import { buildHomeDeckProjection } from '@/lib/homeDeckProjection';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { CardType } from '@game/shared/types/enums';
@@ -116,6 +117,46 @@ describe('deck point table client fallback', () => {
     expect(after.deckItems[0]).toMatchObject({ pointTotal: 10, isValid: false });
     expect(after.validCloudDecks).toEqual([]);
     expect(after.validDeckItems).toEqual([]);
+  });
+
+  it('publishes valid browser-local decks through the home projection', () => {
+    const { deck, cardDataRegistry } = createPointSensitiveDeck();
+    const pointTable = resolveBuiltInDeckPointTableRules(new Date('2026-08-07T15:59:59.999Z'));
+    const localDeck: LocalDeck = {
+      id: 'local-point-sensitive-deck',
+      name: deck.name,
+      description: deck.description ?? undefined,
+      config: {
+        player_name: deck.name,
+        description: deck.description ?? undefined,
+        main_deck: {
+          members: deck.main_deck
+            .filter((entry) => entry.card_type === 'MEMBER')
+            .map(({ card_code, count }) => ({ card_code, count })),
+          lives: deck.main_deck
+            .filter((entry) => entry.card_type === 'LIVE')
+            .map(({ card_code, count }) => ({ card_code, count })),
+        },
+        energy_deck: deck.energy_deck.map(({ card_code, count }) => ({ card_code, count })),
+      },
+      updatedAt: new Date('2026-08-12T00:00:00.000Z'),
+    };
+
+    const projection = buildHomeDeckProjection({
+      cloudDecks: [],
+      localDecks: [localDeck],
+      cardDataRegistry,
+      pointTable,
+    });
+
+    expect(projection.validCloudDecks).toEqual([]);
+    expect(projection.deckItems).toHaveLength(1);
+    expect(projection.deckItems[0]).toMatchObject({
+      id: localDeck.id,
+      isCloud: false,
+      isValid: true,
+    });
+    expect(projection.validDeckItems).toEqual(projection.deckItems);
   });
 
   it('switches the confirmed built-in snapshots at Beijing midnight on 2026-08-08', () => {

@@ -229,6 +229,11 @@ function App() {
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
   const [currentPage, setCurrentPage] = useState<AppPage>(getInitialPage);
+  const [deckManagerReturnPage, setDeckManagerReturnPage] = useState<'home' | 'game-setup'>('home');
+  const openDeckManager = useCallback((returnPage: 'home' | 'game-setup' = 'home') => {
+    setDeckManagerReturnPage(returnPage);
+    setCurrentPage('deck-manager');
+  }, []);
   const enterOnlineRoom = useCallback(() => setCurrentPage('online-room'), []);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
@@ -695,7 +700,7 @@ function App() {
     const visibleAuthPage = shareLoginRequested && authPage === 'landing' ? 'login' : authPage;
     const loginSubtitle =
       currentPage === 'deck-manager'
-        ? '登录后继续构筑与管理云端卡组。'
+        ? '登录管理云端卡组，或进入离线模式把卡组保存在当前浏览器。'
         : currentPage === 'game-setup'
           ? '登录后继续选择对战方式和本次使用的卡组。'
           : '登录账号，进入你的 Loveca 大厅。';
@@ -717,7 +722,7 @@ function App() {
               setAuthPage('register');
             }}
             onManageDecks={() => {
-              setCurrentPage('deck-manager');
+              openDeckManager('home');
               setAuthPage('login');
             }}
             onStartGame={() => {
@@ -753,7 +758,6 @@ function App() {
               onSwitchToForgotPassword={() => setAuthPage('forgot-password')}
               onBackHome={returnToLanding}
               subtitle={loginSubtitle}
-              offlineModeDisabled={currentPage === 'deck-manager'}
             />
           );
         return <ForgotPasswordPage onSwitchToLogin={() => setAuthPage('login')} />;
@@ -765,7 +769,6 @@ function App() {
             onSwitchToForgotPassword={() => setAuthPage('forgot-password')}
             onBackHome={returnToLanding}
             subtitle={loginSubtitle}
-            offlineModeDisabled={currentPage === 'deck-manager'}
           />
         );
     }
@@ -789,7 +792,7 @@ function App() {
 
   const productNavigation: ProductNavigationHandlers = {
     onHome: () => setCurrentPage('home'),
-    onDecks: () => setCurrentPage('deck-manager'),
+    onDecks: () => openDeckManager(effectivePage === 'game-setup' ? 'game-setup' : 'home'),
     onBattle: () => setCurrentPage('game-setup'),
     onSpectate: () => setCurrentPage('online-spectator'),
     onHistory: () => setCurrentPage('match-records'),
@@ -959,6 +962,7 @@ function App() {
         onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
         onNavigateToPublicTable={() => setCurrentPage('public-table')}
         onNavigateToRanked={() => setCurrentPage('ranked')}
+        onManageDecks={() => openDeckManager('game-setup')}
       />
     );
   }
@@ -1021,7 +1025,14 @@ function App() {
   // 卡组管理页面
   if (effectivePage === 'deck-manager') {
     return withProductFrame(
-      <DeckManager onBack={() => setCurrentPage('home')} initialOpenDeckId={initialOpenDeckId} />,
+      <DeckManager
+        onBack={() => {
+          setCurrentPage(deckManagerReturnPage);
+          setDeckManagerReturnPage('home');
+        }}
+        backLabel={deckManagerReturnPage === 'game-setup' ? '返回对局准备' : '返回大厅'}
+        initialOpenDeckId={initialOpenDeckId}
+      />,
       'decks'
     );
   }
@@ -1073,7 +1084,7 @@ function App() {
       navigation={productNavigation}
       headerActions={authenticatedHeaderActions}
       mobileMenuActions={authenticatedMobileMenuActions}
-      onNavigateToDeckManager={() => setCurrentPage('deck-manager')}
+      onNavigateToDeckManager={() => openDeckManager('home')}
       onNavigateToGameSetup={() => setCurrentPage('game-setup')}
       onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}

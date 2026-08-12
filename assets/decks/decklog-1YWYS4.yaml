@@ -1,0 +1,46 @@
+player_name: μ's DGG混合
+description: DeckLog 1YWYS4（2026-08-12 抓取，原标题「宴確定」）
+main_deck:
+  members:
+    - card_code: PL!-bp3-012-N
+      count: 4
+    - card_code: PL!-bp4-002-P+
+      count: 4
+    - card_code: PL!-bp4-008-R
+      count: 4
+    - card_code: PL!-bp5-007-AR
+      count: 2
+    - card_code: PL!-bp6-002-P
+      count: 4
+    - card_code: PL!-bp6-004-P
+      count: 3
+    - card_code: PL!-pb1-025-N
+      count: 3
+    - card_code: PL!-sd1-004-SD
+      count: 4
+    - card_code: PL!-sd1-005-SD
+      count: 3
+    - card_code: PL!HS-PR-031-PR
+      count: 3
+    - card_code: PL!N-bp5-006-AR
+      count: 2
+    - card_code: PL!N-bp5-021-N
+      count: 3
+    - card_code: PL!SP-bp2-002-P
+      count: 3
+    - card_code: PL!SP-bp2-019-N
+      count: 4
+    - card_code: PL!SP-sd1-019-SD2
+      count: 2
+  lives:
+    - card_code: PL!-bp4-021-L
+      count: 4
+    - card_code: PL!-bp6-022-L
+      count: 4
+    - card_code: PL!-bp6-024-L
+      count: 4
+energy_deck:
+  - card_code: LL-PR-006-PR
+    count: 1
+  - card_code: PL!N-bp4-039-PE+
+    count: 11

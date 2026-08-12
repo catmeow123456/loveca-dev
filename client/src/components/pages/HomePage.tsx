@@ -126,6 +126,7 @@ export function HomePage({
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser } = useAuthStore();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
+  const localDecks = useDeckStore((s) => s.localDecks);
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
   const cloudError = useDeckStore((s) => s.cloudError);
   const fetchCloudDecks = useDeckStore((s) => s.fetchCloudDecks);
@@ -176,16 +177,19 @@ export function HomePage({
         };
   const ConnectionStatusIcon = connectionStatus.icon;
 
-  const { deckItems, validCloudDecks, validDeckItems } = useMemo(
+  const { deckItems, validDeckItems } = useMemo(
     () =>
-      canUseCloudDecks
-        ? buildHomeDeckProjection({ cloudDecks, cardDataRegistry, pointTable })
-        : { deckItems: [], validCloudDecks: [], validDeckItems: [] },
-    [canUseCloudDecks, cardDataRegistry, cloudDecks, pointTable]
+      buildHomeDeckProjection({
+        cloudDecks: canUseCloudDecks ? cloudDecks : [],
+        localDecks: offlineMode ? localDecks : [],
+        cardDataRegistry,
+        pointTable,
+      }),
+    [canUseCloudDecks, cardDataRegistry, cloudDecks, localDecks, offlineMode, pointTable]
   );
 
   const latestDeck = deckItems[0] ?? null;
-  const hasLegalDeck = validCloudDecks.length > 0;
+  const hasLegalDeck = validDeckItems.length > 0;
   const isInitialDeckLoading = canUseCloudDecks && isLoadingCloud && cloudDecks.length === 0;
 
   const handleAbandonSavedRoomForLocalGame = async () => {
@@ -215,43 +219,31 @@ export function HomePage({
             void handleAbandonSavedRoomForLocalGame();
           },
         },
-        notice:
-          savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
+        notice: savedRoomActionError ?? '另开本地对局会放弃当前联机对局，且不保留原房间恢复入口。',
       }
-    : deckSourceStatus !== 'online'
+    : deckSourceStatus === 'unconfigured'
       ? {
           state: 'source-unavailable' as PrimaryActionState,
           title: '卡组来源不可用',
-          description:
-            deckSourceStatus === 'offline'
-              ? '离线模式无法读取云端卡组；可先查看准备页，或登录后同步卡组。'
-              : '当前没有可用 API 服务，无法同步云端卡组与房间信息。',
+          description: '当前没有可用 API 服务，无法同步云端卡组与房间信息。',
           cta: '查看准备页',
-          icon: deckSourceStatus === 'offline' ? WifiOff : Database,
+          icon: Database,
           onClick: onNavigateToGameSetup,
         }
-      : isInitialDeckLoading
+      : deckSourceStatus === 'offline' && hasLegalDeck
         ? {
-            state: 'loading' as PrimaryActionState,
-            title: '正在读取卡组',
-            description: '正在同步云端卡组列表；读取期间可以先查看准备页。',
-            cta: '查看准备页',
-            icon: RefreshCw,
+            state: 'ready' as PrimaryActionState,
+            title: '开始本地对战',
+            description: '选择对墙打或双人调试，使用当前浏览器中的合法卡组开始对局。',
+            cta: '开始本地对战',
+            icon: Gamepad2,
             onClick: onNavigateToGameSetup,
           }
-        : hasLegalDeck
+        : deckSourceStatus === 'offline'
           ? {
-              state: 'ready' as PrimaryActionState,
-              title: '开始对战',
-              description: '选择赛季排位、公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
-              cta: '开始对战',
-              icon: Gamepad2,
-              onClick: onNavigateToGameSetup,
-            }
-          : {
               state: 'needs-deck' as PrimaryActionState,
-              title: '构筑卡组',
-              description: '还没有符合构筑规则的卡组。请先创建或调整一副卡组。',
+              title: '构筑本地卡组',
+              description: '当前浏览器还没有符合构筑规则的卡组。',
               cta: '去卡组管理',
               icon: BookOpen,
               onClick: onNavigateToDeckManager,
@@ -259,7 +251,38 @@ export function HomePage({
                 label: '进入准备页',
                 onClick: onNavigateToGameSetup,
               },
-            };
+            }
+          : isInitialDeckLoading
+            ? {
+                state: 'loading' as PrimaryActionState,
+                title: '正在读取卡组',
+                description: '正在同步云端卡组列表；读取期间可以先查看准备页。',
+                cta: '查看准备页',
+                icon: RefreshCw,
+                onClick: onNavigateToGameSetup,
+              }
+            : hasLegalDeck
+              ? {
+                  state: 'ready' as PrimaryActionState,
+                  title: '开始对战',
+                  description:
+                    '选择赛季排位、公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
+                  cta: '开始对战',
+                  icon: Gamepad2,
+                  onClick: onNavigateToGameSetup,
+                }
+              : {
+                  state: 'needs-deck' as PrimaryActionState,
+                  title: '构筑卡组',
+                  description: '还没有符合构筑规则的卡组。请先创建或调整一副卡组。',
+                  cta: '去卡组管理',
+                  icon: BookOpen,
+                  onClick: onNavigateToDeckManager,
+                  supportAction: {
+                    label: '进入准备页',
+                    onClick: onNavigateToGameSetup,
+                  },
+                };
 
   const secondaryActions: ActionTileProps[] = [
     {
@@ -349,8 +372,8 @@ export function HomePage({
 
           <section className="lobby-workspace">
             <DeckWorkspacePanel
-              cloudDeckCount={canUseCloudDecks ? cloudDecks.length : 0}
-              validDeckCount={validCloudDecks.length}
+              deckCount={canUseCloudDecks ? cloudDecks.length : localDecks.length}
+              validDeckCount={validDeckItems.length}
               latestDeck={latestDeck}
               validDecks={validDeckItems.slice(0, 5)}
               recentDecks={deckItems.slice(0, 3)}
@@ -612,7 +635,7 @@ function HomeActionBar({
 }
 
 function DeckWorkspacePanel({
-  cloudDeckCount,
+  deckCount,
   validDeckCount,
   latestDeck,
   validDecks,
@@ -623,7 +646,7 @@ function DeckWorkspacePanel({
   onRefresh,
   onManageDecks,
 }: {
-  cloudDeckCount: number;
+  deckCount: number;
   validDeckCount: number;
   latestDeck: DeckDisplayItem | null;
   validDecks: DeckDisplayItem[];
@@ -635,20 +658,24 @@ function DeckWorkspacePanel({
   onManageDecks: () => void;
 }) {
   const isOnline = deckSourceStatus === 'online';
-  const isInitialLoading = isOnline && isLoading && cloudDeckCount === 0;
+  const isInitialLoading = isOnline && isLoading && deckCount === 0;
   const workspaceTitle = validDeckCount > 0 ? '可用卡组' : '卡组准备';
   const sourceSummary =
     deckSourceStatus === 'offline'
-      ? '当前没有云端卡组来源。'
+      ? validDeckCount > 0
+        ? deckCount === validDeckCount
+          ? `${validDeckCount} 副本地卡组可用于对局。`
+          : `${validDeckCount} / ${deckCount} 副本地卡组可用于对局。`
+        : `共 ${deckCount} 副本地卡组，暂无符合构筑规则的卡组。`
       : deckSourceStatus === 'unconfigured'
         ? '本地服务未配置。'
         : isInitialLoading
           ? '正在同步云端卡组列表。'
           : validDeckCount > 0
-            ? cloudDeckCount === validDeckCount
+            ? deckCount === validDeckCount
               ? `${validDeckCount} 副云端卡组可用于对局。`
-              : `${validDeckCount} / ${cloudDeckCount} 副云端卡组可用于对局。`
-            : `共 ${cloudDeckCount} 副云端卡组，暂无符合构筑规则的卡组。`;
+              : `${validDeckCount} / ${deckCount} 副云端卡组可用于对局。`
+            : `共 ${deckCount} 副云端卡组，暂无符合构筑规则的卡组。`;
 
   const emptyState = isInitialLoading
     ? {
@@ -659,9 +686,9 @@ function DeckWorkspacePanel({
       }
     : deckSourceStatus === 'offline'
       ? {
-          icon: WifiOff,
-          title: '云端卡组不可用',
-          detail: '登录后可同步卡组；离线开局能力未补齐本地卡组来源。',
+          icon: BookOpen,
+          title: '暂无可用本地卡组',
+          detail: '可从空白、YAML 或内置示例创建卡组，保存后即可用于本地对局。',
           tone: 'warning' as const,
         }
       : deckSourceStatus === 'unconfigured'

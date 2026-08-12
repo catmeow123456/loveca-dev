@@ -1,0 +1,78 @@
+player_name: Liella! 加分星
+description: DeckLog 1Y9J3S（2026-08-12 抓取，原标题「熱血解放」）
+main_deck:
+  members:
+    - card_code: PL!N-bp1-002-P
+      count: 3
+    - card_code: PL!SP-bp1-003-R+
+      count: 2
+    - card_code: PL!SP-bp1-003-SEC
+      count: 1
+    - card_code: PL!SP-bp1-021-N
+      count: 3
+    - card_code: PL!SP-bp2-005-P
+      count: 2
+    - card_code: PL!SP-bp2-005-R
+      count: 1
+    - card_code: PL!SP-bp2-006-R+
+      count: 4
+    - card_code: PL!SP-bp4-001-P
+      count: 2
+    - card_code: PL!SP-bp4-001-R
+      count: 2
+    - card_code: PL!SP-bp5-001-R+
+      count: 1
+    - card_code: PL!SP-bp5-001-SEC
+      count: 1
+    - card_code: PL!SP-pb1-021-N
+      count: 4
+    - card_code: PL!SP-pb2-001-R
+      count: 4
+    - card_code: PL!SP-pb2-008-R
+      count: 4
+    - card_code: PL!SP-pb2-016-R
+      count: 4
+    - card_code: PL!SP-PR-006-PR
+      count: 3
+    - card_code: PL!SP-PR-013-PR
+      count: 1
+    - card_code: PL!SP-sd1-014-SD
+      count: 4
+    - card_code: PL!SP-sd1-016-SD
+      count: 2
+  lives:
+    - card_code: PL!SP-bp1-023-L
+      count: 4
+    - card_code: PL!SP-bp2-023-L
+      count: 1
+    - card_code: PL!SP-bp2-023-SRL
+      count: 1
+    - card_code: PL!SP-bp5-023-L
+      count: 3
+    - card_code: PL!SP-bp5-026-L
+      count: 3
+energy_deck:
+  - card_code: LL-PR-006-PR
+    count: 1
+  - card_code: PL!N-bp4-100-LLE
+    count: 1
+  - card_code: PL!SP-bp1-031-PE+
+    count: 1
+  - card_code: PL!SP-bp1-032-PE+
+    count: 1
+  - card_code: PL!SP-bp1-033-PE+
+    count: 1
+  - card_code: PL!SP-bp2-028-SECE
+    count: 1
+  - card_code: PL!SP-bp2-032-PE+
+    count: 1
+  - card_code: PL!SP-bp4-035-PE+
+    count: 1
+  - card_code: PL!SP-bp4-100-LLE
+    count: 1
+  - card_code: PL!SP-bp4-200-LLE
+    count: 1
+  - card_code: PL!SP-pb1-027-PE+
+    count: 1
+  - card_code: PL!SP-PR-014-PR+
+    count: 1
