@@ -125,6 +125,14 @@ TARGET_PLATFORMS=linux/amd64
 LOCAL_IMAGE="loveca-api:release-candidate-${SHORT_SHA}"
 ```
 
+在开始本地候选构建或等待 exact-SHA CI 前，仅从 registry 读取并保存 `latest` 的发布起始快照。快照必须能区分“标签不存在”和“查询失败”，并记录引用、digest、平台集合、revision、version 与查询时间；它不是生产环境实际运行镜像，也不能充当部署回滚基线：
+
+```bash
+docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
+```
+
+若 `latest` 不存在，将 `ABSENT` 作为有效起始状态记录。若因权限、网络或 registry 异常无法取得可靠快照，可以继续本地候选构建、CI 和不可变 `vX.Y.Z` / `sha-*` 镜像流程，但不得提升 `latest`；恢复查询能力后必须重新建立起始快照，再继续等待与提升流程。构建和推送不可变镜像均不要求访问生产机或读取生产环境当前镜像。
+
 显式使用固定生产平台构建本地候选镜像，检查 runtime 入口和镜像实际平台：
 
 ```bash
@@ -160,10 +168,17 @@ docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:
 
 推送后必须从 registry 返回值确认两个不可变标签指向相同 digest，平台集合均为 `linux/amd64`，revision 为完整 `GIT_SHA`，version 为 `RELEASE_VERSION`。任一项不符时停止，不得继续推 tag、创建 GitHub Release 或提升 `latest`。
 
-推送 tag 并等待 `Release Tag Integrity` 成功后，才可提升 `latest`。提升前再次取得授权，查询并记录 registry 当时旧 `latest` 的引用、digest、平台集合、revision 和 version；若旧 `latest` 存在但平台集合不是 `linux/amd64`，停止并在展示差异后取得针对架构变化的明确授权：
+推送 tag 并等待 `Release Tag Integrity` 成功后，才可提升 `latest`。提升前再次取得授权并重新查询 registry 的 `latest`，将此时的引用、digest、平台集合、revision、version 或 `ABSENT` 与发布起始快照逐项比较。任何变化都表示等待期间可能已有另一版完成提升：必须停止本次提升，展示差异并核对发布顺序；只有明确确认本版本仍应成为 `latest`、重新取得提升授权并以当前状态建立新的起始快照后才能继续。若当前 `latest` 存在但平台集合不是 `linux/amd64`，还必须单独取得针对架构变化的明确授权。
+
+先完成查询与比较，不要把它和写入命令合并成一段无条件执行：
 
 ```bash
 docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
+```
+
+确认结果与起始快照一致后，才执行提升并复核：
+
+```bash
 docker buildx imagetools create \
   --tag "${API_IMAGE_REPOSITORY}:latest" \
   "${API_IMAGE_REPOSITORY}:${RELEASE_TAG}"
@@ -173,7 +188,7 @@ docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:
 
 提升后确认 `latest` 与不可变版本标签指向相同 digest，平台集合、revision 和 version 也完全一致；否则发布未完成，应停止部署并使用事前记录的旧 digest 回滚 `latest`。
 
-若 GHCR package 为 private，发布机需要 package write 权限，生产机需要 package read 权限；token 只通过安全凭据注入，不写入仓库、命令参数或日志。发布记录必须保存：固定生产平台契约；候选平台/runtime 校验结果；提升前旧 `latest`、版本标签、提交标签和提升后 `latest` 各自的引用、digest、平台集合、revision 和 version；以及是否发生并获准架构变化。
+若 GHCR package 为 private，发布机需要 package write 权限，生产机需要 package read 权限；token 只通过安全凭据注入，不写入仓库、命令参数或日志。发布记录必须保存：固定生产平台契约；候选平台/runtime 校验结果；`latest` 的发布起始快照与提升前复核结果；版本标签、提交标签和提升后 `latest` 各自的引用、digest、平台集合、revision 和 version；等待期间是否发现并处理并发变化；以及是否发生并获准架构变化。registry 的旧 `latest` 只用于回滚 `latest` 指针，不能代替第 6 节记录的生产部署回滚基线。
 
 构建产物：
 
@@ -200,7 +215,20 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 
 ## 6. 部署
 
-1. 部署 API。先将 `LOVECA_API_IMAGE` 设为要部署的版本标签或 digest；紧急验证 `latest` 时也必须记录其实际 digest。生产机不得重新构建 API：
+1. 部署 API。只有进入实际生产部署时，才要求访问生产机并捕获当前 API 容器的镜像；这项读取不属于第 4 节构建、不可变镜像推送或 `latest` 提升的前置门禁。在修改 `LOVECA_API_IMAGE`、拉取新镜像或重建容器之前，先记录现有容器及其实际镜像：
+
+   ```bash
+   docker compose ps -a api
+   CURRENT_API_CONTAINER_ID="$(docker compose ps -a -q api)"
+   test -n "${CURRENT_API_CONTAINER_ID}"
+   PREVIOUS_PRODUCTION_IMAGE_REF="$(docker inspect --format '{{.Config.Image}}' "${CURRENT_API_CONTAINER_ID}")"
+   PREVIOUS_PRODUCTION_IMAGE_ID="$(docker inspect --format '{{.Image}}' "${CURRENT_API_CONTAINER_ID}")"
+   docker image inspect --format '{{json .RepoDigests}} {{.Id}} {{.Os}}/{{.Architecture}} {{index .Config.Labels "org.opencontainers.image.revision"}} {{index .Config.Labels "org.opencontainers.image.version"}}' "${PREVIOUS_PRODUCTION_IMAGE_ID}"
+   ```
+
+   部署记录必须保存 `CURRENT_API_CONTAINER_ID`、`PREVIOUS_PRODUCTION_IMAGE_REF`、实际 image ID、与该镜像匹配的不可变 RepoDigest、平台、revision、version 和查询时间。若已有生产 API，但无法访问生产机、无法唯一确定现有容器，或无法把实际 image ID 对应到可重新拉取的不可变 RepoDigest，则停止部署并先恢复可靠回滚目标；这只阻塞本节部署，不否定此前已完成的候选构建、CI、不可变镜像或 `latest` 发布。首次部署确实不存在旧 API 容器时，须明确记录 `NONE` 并说明没有 API 镜像回滚目标。不得用 registry 的旧 `latest` 猜测当前生产版本。
+
+   完成上述记录后，才将 `LOVECA_API_IMAGE` 设为要部署的版本标签或 digest；紧急验证 `latest` 时也必须先解析并记录其实际 digest。生产机不得重新构建 API：
 
    ```bash
    export LOVECA_API_IMAGE=ghcr.io/catmeow123456/loveca-api:vX.Y.Z
@@ -274,12 +302,12 @@ DATABASE_URL='postgres://...' pnpm db:migrate
 2. API 回滚：
 
    ```bash
-   export LOVECA_API_IMAGE=ghcr.io/catmeow123456/loveca-api:v上一版本
+   export LOVECA_API_IMAGE='<第 6 节部署前记录的 PREVIOUS_PRODUCTION_REPO_DIGEST>'
    docker compose pull api
    docker compose up -d --no-build --no-deps api
    ```
 
-   优先使用发布记录中的上一版 digest；至少要使用不可变版本标签，不要用 `latest` 猜测上一版。
+   优先使用第 6 节从实际生产容器捕获的上一版不可变 RepoDigest。只有该 digest 确实不可用时，才可使用已经核对为同一镜像的不可变版本标签；不要用 registry 的旧 `latest` 猜测上一版，也不要仅凭计划部署版本推断生产实际运行版。
 
 3. 数据库回滚：
 
