@@ -12041,7 +12041,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: N_BP5_005_AUTO_EFFECT_TEXT,
     notes:
-      '单卡 ON_LEAVE_STAGE AUTO workflow `n-bp5-005-ai.ts`；复用离场 pending metadata 的 replacingCardId / toZone，要求来源从舞台进入休息室，且换手对象为当前可定位的虹ヶ咲成员、不持有 BLADE HEART。换手对象费用用 getMemberEffectiveCost 判定；10以上复用 activateWaitingEnergyCardsForPlayer 活跃至多2张待机能量，15以上在活跃能量后进一步 drawCardsForPlayer(1)。',
+      '单卡 ON_LEAVE_STAGE AUTO workflow `n-bp5-005-ai.ts`；通过 `getPendingLeaveStageEvent` 只读 pending 绑定的真实离场事件，以事件中的 cardInstanceId / controllerId / toZone / replacingCardId 确认来源曾因换手从舞台进入休息室；后续移出休息室不取消已诱发效果。换手对象必须为当前可定位的虹ヶ咲成员且不持有 BLADE HEART，费用用 getMemberEffectiveCost 判定；10以上复用 activateWaitingEnergyCardsForPlayer 活跃至多2张待机能量，15以上在活跃能量后进一步 drawCardsForPlayer(1)。',
   },
   {
     abilityId: N_BP5_006_CONTINUOUS_OWN_ACTIVE_PHASE_NOT_ACTIVE_ABILITY_ID,

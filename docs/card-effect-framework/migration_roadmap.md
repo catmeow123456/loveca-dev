@@ -161,7 +161,7 @@ Recent helper modules added outside `actions.ts`:
 - `runtime/workflow-helpers.ts`: ability text lookup, ability-use action glue, and PAY_COST action-log glue.
 - `runtime/active-effect.ts`: shared activeEffect start glue, optional discard-one-hand activeEffect shell, reveal-from-hand step glue, skip finish helper, and confirm-only pending bridge for activeEffect workflows.
 - `runtime/source-member.ts`: source member slot lookup helper.
-- `runtime/events.ts`: event-log delta queries for newly entered stage members, newly changed member orientation events, and newly moved member-slot events.
+- `runtime/events.ts`: event-log delta queries for newly entered or left stage members, newly changed member orientation events, and newly moved member-slot events; `getPendingLeaveStageEvent` resolves the exact historical `LeaveStageEvent` bound to a pending ability without replacing it with a resolve-time current-zone check.
 - `runtime/grouped-selection.ts`: validates per-group min/max card selections for grouped recovery.
 - `effects/relay-entered-members.ts`: pure query helper for stage members that entered by relay this turn; it checks current stage presence, `movedToStageThisTurn`, matching `ON_ENTER_STAGE`, and non-empty `relayReplacements`.
 - `domain/rules/member-effective-cost.ts`: shared pure query for current member effective cost; application helpers and domain continuous modifiers use the same cost semantics without changing cost payment rules.
