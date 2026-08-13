@@ -386,6 +386,13 @@ Loveca | 卡组 | 对战 | 观战 | 最新商品 | 公告     登录 | 创建账
 - 官方原文链接只在玩家主动点击后打开；同步失败时继续展示最后一次成功缓存及其同步日期；
 - 没有可靠数据源时隐藏消息模块，不用手写内容长期冒充“最新消息”。
 
+商品信息维护方法：
+
+1. 先查看 Loveca 官网的[商品列表](https://llofficial-cardgame.com/products/)，再打开候选商品页核对官方名称、分类、发售日和已公开卖点；只有月份、尚无具体日期的预告也要记录为预告，不能自行补日期。
+2. 官网直连异常时，可用 `curl -x http://127.0.0.1:7890 -L --max-time 30 <URL>` 经本机 7890 代理复查。若仍出现异常 404 或超时，使用限定 `site:llofficial-cardgame.com/products/` 的搜索索引读取官方页，并以 [Bushiroad 官方商店](https://bushiroad-store.com/pages/llofficial-cardgame) 交叉核对；搜索摘要可能滞后，不能单独作为最终依据。
+3. 商品图只取官网或 Bushiroad 官方商店，转为 WebP 后保存到 `assets/images/official-products/`；前端继续引用本地 `/images/official-products/...`，不在运行时请求境外图片。
+4. 更新 `client/src/components/pages/PublicHomePage.tsx` 的商品卡、预告和“整理于”日期后，至少运行 `pnpm --dir client exec tsc -b`；商品卡顺序或图片变化较大时再补桌面和移动端截图检查。
+
 ### 8.2 认证页
 
 单一任务：完成认证并继续先前任务。

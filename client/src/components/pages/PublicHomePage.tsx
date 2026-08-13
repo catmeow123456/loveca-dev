@@ -65,23 +65,23 @@ const PRODUCT_PATHS = [
 const LATEST_PRODUCTS = [
   {
     type: '补充包',
-    title: 'MELLOW MOMENT',
-    releaseDate: '2026-08-08',
-    releaseLabel: '8月8日发售',
+    title: 'まじかる♡とり～と',
+    releaseDate: '2026-11-14',
+    releaseLabel: '11月14日发售',
     edition: '日本语版',
-    summary: '收录 Aqours、虹咲与 Liella!，并加入“双无色 BLADE HEART”。',
-    image: '/images/official-products/mellow-moment.webp',
-    url: 'https://llofficial-cardgame.com/products/bp07_mellowmoment/',
+    summary: '收录 μ’s、虹咲与莲之空，并首次加入橙色 BLADE HEART。',
+    image: '/images/official-products/magical-treat.webp',
+    url: 'https://llofficial-cardgame.com/products/bp08_mt/',
   },
   {
-    type: '起始卡组',
-    title: '虹咲学园学园偶像同好会 cheer',
-    releaseDate: '2026-08-08',
-    releaseLabel: '8月8日发售',
+    type: '周边商品',
+    title: 'Love Live! Sunshine!! 收藏透明卡页＆活页夹套装',
+    releaseDate: '2026-10-24',
+    releaseLabel: '10月24日发售',
     edition: '日本语版',
-    summary: '面向新玩家的虹咲预组，包含对战所需的主卡组与能量卡。',
-    image: '/images/official-products/nijigasaki-cheer.webp',
-    url: 'https://llofficial-cardgame.com/products/sd06llnj/',
+    summary: '收录 Aqours 9 位成员、4 张 LIVE 与 3 张能量卡，附透明卡页和活页夹。',
+    image: '/images/official-products/sunshine-binder.webp',
+    url: 'https://llofficial-cardgame.com/products/lls_binder/',
   },
   {
     type: '高级补充包',
@@ -398,7 +398,18 @@ export function PublicHomePage({
             <div>
               <span>OFFICIAL PRODUCTS</span>
               <h2 id="latest-products-title">Loveca 最新商品</h2>
-              <p>来自 Bushiroad 官方网站的近期发售信息。2026 年 5 月后的新商品均为日本语版。</p>
+              <p>
+                来自 Bushiroad 官方网站的近期发售信息。2026 年 5 月后的新商品均为日本语版。
+                官网另已公布 12 月发售的
+                <a
+                  href="https://llofficial-cardgame.com/products/pbls_duo/"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  「Love Live! Sunshine!! DUO」
+                </a>
+                ，具体日期尚未公布。
+              </p>
             </div>
             <a href="https://llofficial-cardgame.com/products/" target="_blank" rel="noreferrer">
               查看全部官方商品
@@ -438,7 +449,7 @@ export function PublicHomePage({
 
           <footer className="public-home__latest-products-footer">
             <span>信息来源：Bushiroad Loveca 官方网站</span>
-            <span>整理于 2026.07.31 · 商品名称与日期以官方页面为准</span>
+            <span>整理于 2026.08.13 · 商品名称与日期以官方页面为准</span>
           </footer>
         </section>
 

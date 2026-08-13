@@ -689,6 +689,12 @@
   line-height: 1.75;
 }
 
+.public-home__latest-products-header p a {
+  color: color-mix(in srgb, var(--brand-coral) 58%, var(--brand-stage-plum));
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
 .public-home__latest-products-header > a,
 .public-home__product-body > a {
   display: inline-flex;
