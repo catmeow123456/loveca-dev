@@ -7,17 +7,25 @@ import {
 } from '../../src/domain/entities/card';
 import { createGameState, emitGameEvent, registerCards } from '../../src/domain/entities/game';
 import { createCheerEvent } from '../../src/domain/events/game-events';
-import { evaluateDistinctCheerCardsCoverHeartColors } from '../../src/application/effects/cheer-selection';
-import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import {
-  BladeHeartEffect,
-  CardType,
-  HeartColor,
-} from '../../src/shared/types/enums';
+  collectCurrentLiveRevealedCheerBladeHeartColors,
+  evaluateDistinctCheerCardsCoverHeartColors,
+  selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts,
+} from '../../src/application/effects/cheer-selection';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
+import { BladeHeartEffect, CardType, HeartColor } from '../../src/shared/types/enums';
 
 const P1 = 'p1';
 const P2 = 'p2';
 const COLORS = [HeartColor.RED, HeartColor.GREEN, HeartColor.BLUE] as const;
+const DAZZLING_GAME_FROM_COLORS = [
+  HeartColor.PINK,
+  HeartColor.RED,
+  HeartColor.YELLOW,
+  HeartColor.GREEN,
+  HeartColor.BLUE,
+  HeartColor.RAINBOW,
+] as const;
 
 function member(
   id: string,
@@ -86,6 +94,71 @@ function evaluate(game: ReturnType<typeof setup>) {
 }
 
 describe('distinct cheer cards cover effective judgment Heart colors', () => {
+  it('shares event-inclusive effective Blade Heart facts after a Dazzling Game-style replacement', () => {
+    const allColors = member('all-colors', [...DAZZLING_GAME_FROM_COLORS, HeartColor.PURPLE]);
+    let game = setup([allColors]);
+    game = {
+      ...game,
+      resolutionZone: { ...game.resolutionZone, cardIds: [], revealedCardIds: [] },
+    };
+    game = addLiveModifier(game, {
+      kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+      playerId: P1,
+      fromColors: DAZZLING_GAME_FROM_COLORS,
+      toColor: HeartColor.PURPLE,
+      sourceCardId: 'dazzling-game',
+      abilityId: 'test-dazzling-game-replacement',
+    });
+
+    const facts = selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts(game, P1);
+    expect(game.resolutionZone.cardIds).not.toContain(allColors.instanceId);
+    expect(facts).toHaveLength(1);
+    expect(facts[0]?.cardId).toBe(allColors.instanceId);
+    expect(facts[0]?.effectiveBladeHearts.map((bladeHeart) => bladeHeart.heartColor)).toEqual(
+      Array.from({ length: 7 }, () => HeartColor.PURPLE)
+    );
+    expect([...collectCurrentLiveRevealedCheerBladeHeartColors(game, P1)]).toEqual([
+      HeartColor.PURPLE,
+    ]);
+  });
+
+  it('scopes effective Blade Heart replacement facts to the modifier player', () => {
+    const ownCheer = member('own-cheer', [HeartColor.PINK, HeartColor.RAINBOW]);
+    const opponentCheer = member('opponent-cheer', [HeartColor.PINK, HeartColor.RAINBOW], {
+      ownerId: P2,
+    });
+    let game = registerCards(
+      createGameState('player-scoped-effective-cheer-hearts', P1, 'P1', P2, 'P2'),
+      [ownCheer, opponentCheer]
+    );
+    game = {
+      ...game,
+      liveResolution: {
+        ...game.liveResolution,
+        firstPlayerCheerCardIds: [ownCheer.instanceId],
+        secondPlayerCheerCardIds: [opponentCheer.instanceId],
+      },
+    };
+    game = emitGameEvent(game, createCheerEvent(P1, [ownCheer.instanceId], 1));
+    game = emitGameEvent(game, createCheerEvent(P2, [opponentCheer.instanceId], 1));
+    game = addLiveModifier(game, {
+      kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+      playerId: P1,
+      fromColors: DAZZLING_GAME_FROM_COLORS,
+      toColor: HeartColor.PURPLE,
+      sourceCardId: 'dazzling-game',
+      abilityId: 'test-player-scoped-dazzling-game-replacement',
+    });
+
+    expect([...collectCurrentLiveRevealedCheerBladeHeartColors(game, P1)]).toEqual([
+      HeartColor.PURPLE,
+    ]);
+    expect([...collectCurrentLiveRevealedCheerBladeHeartColors(game, P2)]).toEqual([
+      HeartColor.PINK,
+      HeartColor.RAINBOW,
+    ]);
+  });
+
   it('matches three different single-color Aqours members deterministically', () => {
     const result = evaluate(
       setup([

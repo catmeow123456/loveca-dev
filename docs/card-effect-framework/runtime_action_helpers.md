@@ -232,9 +232,11 @@ Current boundary:
 
 ### `moveRevealedCheerCards` 与公开展示边界
 
-- `effects/cheer-selection.ts` 只负责把已重校验的当前声援可移动卡放入 `HAND` / `MAIN_DECK_TOP` / `MAIN_DECK_BOTTOM` / `WAITING_ROOM`，不创建 UI、deadline、turn1 或追加声援。
+- `moveRevealedCheerCards` 只负责把已重校验的当前声援可移动卡放入 `HAND` / `MAIN_DECK_TOP` / `MAIN_DECK_BOTTOM` / `WAITING_ROOM`，不创建 UI、deadline、turn1 或追加声援；这条移动边界不代表整个 `effects/cheer-selection.ts` 只有移动职责。
 - 玩家从声援处理区确定具体卡牌后，原 workflow 必须先通过 `runtime/public-card-selection-confirmation.ts` 展示；展示期间卡仍在 resolution zone，不记录 turn1、不追加声援、不推进 pending。
 - 条件查询的 `CheerEvent.revealedCardIds` 是历史事实；公开窗口和实际移动用的是当前声援 ID 中仍在 resolution zone 且 revealed 的交集，两者不可混用。
+- 参照本次声援卡的 BLADE HEART 时，先用 `selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` 取得 event-inclusive 的逐卡有效判心。该查询会应用当前 LIVE 的颜色替换 modifier；除非卡文明示参照原本/印刷信息，workflow 不得直接扫描 `card.data.bladeHearts`。
+- 上层只需要颜色并集时使用 `collectCurrentLiveRevealedCheerBladeHeartColors`；需要不同卡分别承担指定颜色时使用 `evaluateDistinctCheerCardsCoverHeartColors`；检查有效 ALL 等其他形状时，从逐卡有效判心做窄聚合，不要改变“不同卡覆盖”的既有语义。
 
 ## Waiting Room Shuffle-To-Deck Helper Parameters
 

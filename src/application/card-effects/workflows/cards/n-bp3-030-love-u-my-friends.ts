@@ -6,9 +6,8 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
-import { CardType } from '../../../../shared/types/enums.js';
-import { hasAllBladeHeart } from '../../../effects/card-selectors.js';
-import { selectCurrentLiveRevealedCheerCardIds } from '../../../effects/cheer-selection.js';
+import { BladeHeartEffect, CardType, HeartColor } from '../../../../shared/types/enums.js';
+import { selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts } from '../../../effects/cheer-selection.js';
 import { PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 import {
@@ -47,11 +46,9 @@ function getNLiveSuccessCheerAllBladeScoreConfirmationEffectText(
   const player = getPlayerById(game, ability.controllerId);
   const sourceInLiveZone = player?.liveZone.cardIds.includes(ability.sourceCardId) === true;
   const allBladeCheerCardIds =
-    player && sourceInLiveZone
-      ? selectAllBladeCheerCardIds(game, player.id)
-      : [];
+    player && sourceInLiveZone ? selectAllBladeCheerCardIds(game, player.id) : [];
   const conditionMet = allBladeCheerCardIds.length > 0;
-  return `${getAbilityEffectText(ability.abilityId)}（声援[ALLハート]卡 ${allBladeCheerCardIds.length}张，${conditionMet ? '满足条件，分数+1' : '未满足条件'}）`;
+  return `${getAbilityEffectText(ability.abilityId)}（声援[ALLブレード]卡 ${allBladeCheerCardIds.length}张，${conditionMet ? '满足条件，分数+1' : '未满足条件'}）`;
 }
 
 function resolveNLiveSuccessCheerAllBladeScore(
@@ -103,10 +100,17 @@ function consumePendingAbility(game: GameState, ability: PendingAbilityState): G
 }
 
 function selectAllBladeCheerCardIds(game: GameState, playerId: string): readonly string[] {
-  return selectCurrentLiveRevealedCheerCardIds(game, playerId, {
+  return selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts(game, playerId, {
     cardTypes: [CardType.MEMBER, CardType.LIVE],
-    predicate: hasAllBladeHeart(),
-  });
+  })
+    .filter(({ effectiveBladeHearts }) =>
+      effectiveBladeHearts.some(
+        (bladeHeart) =>
+          bladeHeart.effect === BladeHeartEffect.HEART &&
+          bladeHeart.heartColor === HeartColor.RAINBOW
+      )
+    )
+    .map(({ cardId }) => cardId);
 }
 
 function addScoreModifierAndRefresh(

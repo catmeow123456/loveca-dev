@@ -329,6 +329,7 @@ rg -n "isDirectOrRenGrantedActivatedAbilitySource|cardCodeMatchesBase|doesCardAb
 - 团体判断优先用 `cardBelongsToGroup`、`groupAliasIs` 等既有身份 helper。
 - 卡名条件必须按卡牌拥有的全部结构化名称身份判断；三人卡等多名称卡同时拥有卡面列出的每个成员名称，不能退化为只比较主显示名。优先复用 `src/shared/utils/card-identity.ts` 的共享名称 matcher 或其 selector 薄包装，不在 `live-modifiers.ts`、workflow 或单卡 query 中复制名称别名表和匹配逻辑。不同名计数与“是否命中某个名称”是两种语义，分别使用对应的 identity helper。
 - 声援公开条件 query 必须说明自己读取的是“本次已公开事实”还是“当前仍可移动目标”。前者应包含匹配的 `CheerEvent.revealedCardIds`，用于数量、不同名、颜色、类型等条件；后者用于实际选择/移动，不能反过来驱动条件成立与否。
+- 声援公开卡的 BLADE HEART 条件必须默认读取应用当前 LIVE modifier 后的有效判心，而不是印刷 `card.data.bladeHearts`。先复用 `selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` 取得逐卡 event-inclusive 事实；颜色并集使用 `collectCurrentLiveRevealedCheerBladeHeartColors`，不同卡分别覆盖颜色使用 `evaluateDistinctCheerCardsCoverHeartColors`，有效 ALL 等其他形状从逐卡结果做窄聚合。除非卡文明示参照原本/印刷信息，不得对本次声援卡直接使用 `hasAllBladeHeart()` 等印刷 selector；这些 selector 仍可用于成功 LIVE 卡区等静态区域。卡文明示的固定颜色集合必须显式列举，不能因为 `HeartColor` 新增 GRAY/ORANGE 自动扩大。
 
 ### Ability definition
 
@@ -344,7 +345,7 @@ rg -n "isDirectOrRenGrantedActivatedAbilitySource|cardCodeMatchesBase|doesCardAb
 ### Effect text / icon token
 
 - `client/src/lib/cardEffectTokens.ts` 会把效果文本里的 `【...】` 与 `[...]` 占位文本转换为前端图标或样式。卡效定义里的 `effectText` 必须使用该文件已支持的字面量，不要随手发明新的括号文本。
-- “效果文本用中文”只要求自然语言规则说明使用中文；不要翻译已经由 `cardEffectTokens.ts` 映射的 token。正确示例：`[桃ハート]`、`[赤ハート]`、`[BLADE]`、`[スコア]`。错误示例：`[桃Heart]`、`[红Heart]`、`[blade]`、`[score]`。
+- “效果文本用中文”只要求自然语言规则说明使用中文；不要翻译已经由 `cardEffectTokens.ts` 映射的 token。普通 Heart 使用 `[桃ハート]`、`[赤ハート]` 等 token；BLADE HEART / 判心使用独立的 `[桃ブレード]`、`[赤ブレード]`、`[ALLブレード]` 等 token，二者不得因颜色相同而等价替换。其他正确示例包括 `[BLADE]`、`[スコア]`；错误示例包括 `[桃Heart]`、`[红Heart]`、`[blade]`、`[score]`。
 - 前台卡牌详情的效果文本应走卡牌数据本身的 `cardTextCn` / `cardTextJp`，而不是从 `definitions/index.ts` 反推。同步源优先使用 Excel `多行中文效果` -> `card_text_cn`，中文存在时应作为卡牌详情的第一展示文本。
 - `definitions/index.ts` 的 `effectText` 用于 pending / activeEffect / 处理窗口展示。新增、修正或审计带
   `activatedUi` 的能力时，必须采用普通玩家 `/api/cards` 按 `card_text_cn ?? card_text_jp`
@@ -382,6 +383,7 @@ rg -n "isDirectOrRenGrantedActivatedAbilitySource|cardCodeMatchesBase|doesCardAb
 - HEART / BLADE / SCORE / requirement modifier 要确认 target 语义。
 - 成员获得 Heart 应使用 `SOURCE_MEMBER` / `TARGET_MEMBER`，不用 legacy `PLAYER` Heart 表达真实成员 Heart。
 - effective Heart / effective cost / effective Blade 读取应走 query。
+- 当前 LIVE 中声援卡的有效判心统一走 `selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` / `getCheerCardEffectiveBladeHearts`；Dazzling Game 等 `CHEER_CARD_HEART_COLOR_REPLACEMENT` 必须先于颜色种数、有效 ALL 和不同卡覆盖条件生效。能力的诱发条件与结算时条件要分开：改色后条件失败不代表能力没有诱发，仍须保持正确的 pending、turn1 与 continuation 语义。
 - 扩展 `live-modifiers.ts` 时说明来源卡、来源区域、target、叠加/不叠加边界。
 
 ### Cost calculator
@@ -410,6 +412,7 @@ rg -n "isDirectOrRenGrantedActivatedAbilitySource|cardCodeMatchesBase|doesCardAb
 - domain query/helper unit 覆盖纯函数正反例。
 - event wrapper 覆盖事件产生、事件入队、0 张/无事件不触发。
 - 声援公开条件测试必须覆盖“本次声援公开过的卡已被前序效果移出 `resolutionZone` 但仍应计入条件”的回归；若同一效果还要移动声援公开卡，另测 stale target 不能被移动。
+- 声援判心条件测试必须至少覆盖一组颜色替换 modifier 正例或负例，证明读取的是有效判心而非印刷判心；若卡文列举固定颜色，还应覆盖 GRAY/ORANGE 等未列颜色不会意外抬升阈值。条件失败场景必须断言能力仍按规则诱发/结算并正确消费 pending、turn1 或 continuation。
 - 高风险旧路径补 regression。
 
 常用验证：

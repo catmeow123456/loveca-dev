@@ -20,6 +20,15 @@ import { registerPendingAbilityStarterHandler } from '../../runtime/starter-regi
 import { recordAbilityUseForContext } from '../../runtime/workflow-helpers.js';
 
 const SCORE_BONUS = 1;
+const COUNTED_BLADE_HEART_COLORS = [
+  HeartColor.PINK,
+  HeartColor.RED,
+  HeartColor.YELLOW,
+  HeartColor.GREEN,
+  HeartColor.BLUE,
+  HeartColor.PURPLE,
+  HeartColor.RAINBOW,
+] as const;
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
@@ -68,7 +77,9 @@ function resolveNBp5001AyumuOnCheer(
   }
 
   const revealedCardIds = selectCurrentLiveRevealedCheerCardIds(game, player.id);
-  const heartColors = collectCurrentLiveRevealedCheerBladeHeartColors(game, player.id);
+  const heartColors = collectCurrentLiveRevealedCheerBladeHeartColors(game, player.id, {
+    includedColors: COUNTED_BLADE_HEART_COLORS,
+  });
   const bladeHeartTypeCount = heartColors.size;
   const shouldGainHeart = bladeHeartTypeCount >= 3;
   const shouldGainScore = bladeHeartTypeCount >= 6;

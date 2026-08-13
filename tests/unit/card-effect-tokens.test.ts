@@ -52,6 +52,24 @@ describe('parseCardEffectText', () => {
     ]);
   });
 
+  it('keeps the six color and ALL Blade Heart icons separate from ordinary Heart icons', () => {
+    const pairs = [
+      ['[桃ブレード]', '[桃ハート]', 'blade_heart_pink', 'heart_pink'],
+      ['[赤ブレード]', '[赤ハート]', 'blade_heart_red', 'heart_red'],
+      ['[黄ブレード]', '[黄ハート]', 'blade_heart_yellow', 'heart_yellow'],
+      ['[緑ブレード]', '[緑ハート]', 'blade_heart_green', 'heart_green'],
+      ['[青ブレード]', '[青ハート]', 'blade_heart_blue', 'heart_blue'],
+      ['[紫ブレード]', '[紫ハート]', 'blade_heart_purple', 'heart_purple'],
+      ['[ALLブレード]', '[ALLハート]', 'blade_heart_all', 'heart_all'],
+    ] as const;
+
+    for (const [bladeHeartToken, heartToken, bladeHeartIcon, heartIcon] of pairs) {
+      const [bladeHeartPart, heartPart] = parseCardEffectText(`${bladeHeartToken}${heartToken}`);
+      expect(bladeHeartPart).toMatchObject({ kind: 'blade', icon: bladeHeartIcon });
+      expect(heartPart).toMatchObject({ kind: 'heart', icon: heartIcon });
+    }
+  });
+
   it('accepts the bp1-007 and PR-028 Chinese effect texts without unknown tokens', () => {
     expect(getUnknownCardEffectPlaceholders('【起动】【1回合1次】[E][E]：抽1张卡。')).toEqual([]);
     expect(
@@ -141,14 +159,39 @@ describe('parseCardEffectText', () => {
     expect(parts).toEqual([
       { kind: 'text', text: '获得' },
       { kind: 'blade', raw: '[BLADE]', label: 'BLADE', icon: 'blade' },
-      { kind: 'blade', raw: '[ALLBLADE]', label: 'ALLBLADE', icon: 'heart_all' },
-      { kind: 'blade', raw: '[ALLブレード]', label: 'ALLブレード', icon: 'heart_all' },
-      { kind: 'blade', raw: '[桃ブレード]', label: '桃ブレード', icon: 'heart_pink' },
-      { kind: 'blade', raw: '[赤ブレード]', label: '赤ブレード', icon: 'heart_red' },
-      { kind: 'blade', raw: '[黄ブレード]', label: '黄ブレード', icon: 'heart_yellow' },
-      { kind: 'blade', raw: '[緑ブレード]', label: '緑ブレード', icon: 'heart_green' },
-      { kind: 'blade', raw: '[青ブレード]', label: '青ブレード', icon: 'heart_blue' },
-      { kind: 'blade', raw: '[紫ブレード]', label: '紫ブレード', icon: 'heart_purple' },
+      { kind: 'blade', raw: '[ALLBLADE]', label: 'ALLBLADE', icon: 'blade_heart_all' },
+      {
+        kind: 'blade',
+        raw: '[ALLブレード]',
+        label: 'ALLブレード',
+        icon: 'blade_heart_all',
+      },
+      {
+        kind: 'blade',
+        raw: '[桃ブレード]',
+        label: '桃ブレード',
+        icon: 'blade_heart_pink',
+      },
+      { kind: 'blade', raw: '[赤ブレード]', label: '赤ブレード', icon: 'blade_heart_red' },
+      {
+        kind: 'blade',
+        raw: '[黄ブレード]',
+        label: '黄ブレード',
+        icon: 'blade_heart_yellow',
+      },
+      {
+        kind: 'blade',
+        raw: '[緑ブレード]',
+        label: '緑ブレード',
+        icon: 'blade_heart_green',
+      },
+      { kind: 'blade', raw: '[青ブレード]', label: '青ブレード', icon: 'blade_heart_blue' },
+      {
+        kind: 'blade',
+        raw: '[紫ブレード]',
+        label: '紫ブレード',
+        icon: 'blade_heart_purple',
+      },
       { kind: 'heart', raw: '[虹ハート]', label: '虹ハート', icon: 'heart_all' },
       { kind: 'heart', raw: '[黄HEART]', label: '黄HEART', icon: 'heart_yellow' },
       { kind: 'heart', raw: '[红HEART]', label: '红HEART', icon: 'heart_red' },

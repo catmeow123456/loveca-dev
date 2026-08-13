@@ -160,14 +160,14 @@ describe('BP8 / PB2 new card-effect definitions', () => {
           definition.abilityId === PL_BP8_005_LIVE_START_CHEER_HEART_COLORS_TO_YELLOW_ABILITY_ID
       )?.effectText
     ).toBe(
-      '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ハート]、[赤ハート]、[緑ハート]、[青ハート]、[紫ハート]、[ALLハート]，全部变为[黄ハート]。'
+      '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]，全部变为[黄ブレード]。'
     );
     const honokaDefinition = getCardAbilityDefinitionsForCardCode('PL!-pb2-001-R').find(
       (definition) =>
         definition.abilityId === PL_PB2_001_LIVE_START_SUCCESS_MUSE_ICON_REWARDS_ABILITY_ID
     );
     expect(honokaDefinition?.effectText).toContain(
-      '存在持有[ALLハート]的卡片的场合，LIVE结束时为止，获得[ALLハート]。'
+      '存在持有[ALLブレード]的卡片的场合，LIVE结束时为止，获得[ALLハート]。'
     );
     expect(getCardAbilityDefinitionsForCardCode('PL!-pb2-039-L')).toEqual(
       expect.arrayContaining([
@@ -306,7 +306,7 @@ describe('PL!-bp8-005-P 费用2「星空凛」', () => {
       TriggerCondition.ON_LIVE_START
     );
     expect(game.activeEffect?.effectText).toBe(
-      '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ハート]、[赤ハート]、[緑ハート]、[青ハート]、[紫ハート]、[ALLハート]，全部变为[黄ハート]。'
+      '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]，全部变为[黄ブレード]。'
     );
     game = confirmIfConfirmOnly(game, P1);
 
@@ -443,9 +443,11 @@ describe('PL!-pb2-001-R 费用22「高坂穗乃果」', () => {
     );
 
     expect(game.activeEffect?.effectText).toContain(
-      '存在持有[ALLハート]的卡片的场合，LIVE结束时为止，获得[ALLハート]。'
+      '存在持有[ALLブレード]的卡片的场合，LIVE结束时为止，获得[ALLハート]。'
     );
-    expect(game.activeEffect?.effectText).toContain('[スコア]存在、[ALLハート]存在、[ドロー]存在');
+    expect(game.activeEffect?.effectText).toContain(
+      '[スコア]存在、[ALLブレード]存在、[ドロー]存在'
+    );
   });
 });
 

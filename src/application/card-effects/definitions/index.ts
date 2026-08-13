@@ -1152,7 +1152,7 @@ const PL_N_BP3_027_LIVE_SUCCESS_EFFECT_TEXT =
 const PL_N_BP3_028_LIVE_START_EFFECT_TEXT =
   '【LIVE开始时】每有1名存在于自己的舞台的『虹咲』的成员，检视自己卡组顶的1张卡。从其中选择至多1张放置于卡组顶，其余的卡片放置入休息室。之后，公开自己卡组最上方的1张卡。因此公开了LIVE卡的场合，此卡的分数+1。';
 const PL_N_BP3_030_LIVE_SUCCESS_EFFECT_TEXT =
-  '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。';
+  '【LIVE成功时】因声援被公开的自己的卡片中持有[ALLブレード]的卡片大于等于1张的场合，此卡的分数+1。';
 const PL_N_BP3_031_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】每有1名存在于自己的舞台的待机状态的成员，此卡的[スコア]+1。';
 const PL_N_BP3_006_ON_ENTER_EFFECT_TEXT =
@@ -1201,7 +1201,7 @@ const PL_N_BP4_012_CONTINUOUS_EFFECT_TEXT =
   '【常时】对方成功LIVE卡区卡片的[スコア]合计为6以上期间，LIVE的合计[スコア]+1。';
 const PL_N_BP4_021_ON_ENTER_EFFECT_TEXT = '【登场】从自己的休息室将至多1张卡，放置于卡组顶。';
 const PL_N_BP4_025_LIVE_START_EFFECT_TEXT =
-  '【LIVE开始时】LIVE结束时为止，因声援公开的自己的卡持有的[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[紫ハート]、[ALLハート]全部视为[青ハート]。';
+  '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]，[赤ブレード]，[黄ブレード]，[緑ブレード]，[紫ブレード]，[ALLブレード]，全部变为[青ブレード]。';
 const PL_N_BP4_025_LIVE_SUCCESS_EFFECT_TEXT =
   '【LIVE成功时】因声援公开的自己的『虹ヶ咲』成员卡持有的Heart中有[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[青ハート]、[紫ハート]的场合，此卡的[スコア]+1。';
 const PL_N_BP4_026_WAITING_TO_HAND_EFFECT_TEXT =
@@ -1310,7 +1310,7 @@ const PL_PB1_005_ON_ENTER_EFFECT_TEXT = '【登场】自己的成功LIVE卡区�
 const PL_PB1_032_LIVE_SUCCESS_EFFECT_TEXT =
   "【LIVE成功时】自己的成功LIVE卡区存在『μ's』的卡片的场合，抽1张卡。";
 const N_BP5_001_AUTO_ON_CHEER_EFFECT_TEXT =
-  '【自动】【1回合1次】自己进行声援时，因声援公开的自己的卡所持有的 BLADE HEART 中，普通六色与 ALL Heart 合计存在3种以上的场合，LIVE结束时为止，获得[桃ハート]。存在6种以上的场合，进一步获得「【常时】LIVE的合计分数+1」。';
+  '【自动】【1回合1次】自己进行声援时，因声援被公开的自己的卡片中持有的BLADE HEART中的[桃ブレード]，[赤ブレード]，[黄ブレード]，[緑ブレード]，[青ブレード]，[紫ブレード]，[ALLブレード]之中，存在大于等于3种的场合，LIVE结束时为止，获得[桃ハート]。存在大于等于6种的场合，LIVE结束时为止，再获得「【常时】LIVE的合计分数+1。」。';
 const N_BP5_002_CONTINUOUS_EFFECT_TEXT =
   '【常时】只要此成员持有的 Heart 数多于自己与对方舞台上其他所有成员，LIVE的合计分数+1。';
 const N_BP5_005_AUTO_EFFECT_TEXT =
@@ -1952,7 +1952,7 @@ const SP_BP4_006_LIVE_SUCCESS_EFFECT_TEXT =
 const SP_BP4_023_LIVE_START_SELECT_NAMED_AND_OTHER_LIELLA_GAIN_BLADE_EFFECT_TEXT =
   '【LIVE开始时】LIVE结束时为止，1名存在于自己的舞台的「涩谷香音」「薇恩・玛格丽特」「鬼冢冬毬」中的成员与1名因此选择的成员以外的『Liella!』的成员，获得[BLADE]。';
 const SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_EFFECT_TEXT =
-  '【LIVE开始时】LIVE结束时为止，因声援公开的自己的卡持有的[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[青ハート]、[ALLハート]全部视为[紫ハート]。';
+  '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]，[赤ブレード]，[黄ブレード]，[緑ブレード]，[青ブレード]，[ALLブレード]，全部变为[紫ブレード]。';
 const SP_BP4_024_LIVE_START_SCORE_EFFECT_TEXT =
   '【LIVE开始时】存在于自己的中央区域的『Liella!』的成员的费用，高于存在于对方的中央区域的成员的费用的场合，此卡的分数＋１。';
 const SP_BP4_024_LIVE_START_BLADE_EFFECT_TEXT =
@@ -11384,7 +11384,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_EFFECT_TEXT,
     notes:
-      '单卡 workflow `sp-bp4-023-dazzling-game.ts` 第二段；cards.json 日文原文第二段存在 Heart 被占位成 Blade 文本的数据异常，本实现按规则语义写入 CHEER_CARD_HEART_COLOR_REPLACEMENT live modifier，将本次 LIVE 中自己的声援公开卡的桃/赤/黄/緑/青/ALL Heart 在判定读取时替换为[紫ハート]，不按异常 Blade 占位建模。',
+      '单卡 workflow `sp-bp4-023-dazzling-game.ts` 第二段；写入 CHEER_CARD_HEART_COLOR_REPLACEMENT live modifier，将本次 LIVE 中自己声援公开卡的桃/赤/黄/緑/青/ALL BLADE HEART 在判定读取时替换为紫色 BLADE HEART。',
   },
   {
     abilityId: SP_BP4_024_LIVE_START_CENTER_LIELLA_HIGHER_COST_THIS_LIVE_SCORE_ABILITY_ID,
@@ -11734,7 +11734,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP3_030_LIVE_SUCCESS_EFFECT_TEXT,
     notes:
-      '孤独雨第六批窄 LIVE_SUCCESS workflow；只读取本次 liveResolution 中自己的声援公开卡，且要求仍在 resolutionZone 并 revealed。ALL Heart 用 BladeHeartEffect.HEART + HeartColor.RAINBOW 判定，满足时写此 LIVE SCORE +1 并刷新 playerScores。',
+      '孤独雨第六批窄 LIVE_SUCCESS workflow；复用 event-inclusive 有效判心查询读取本次 LIVE 自己的声援公开卡，已离开 resolutionZone 的卡仍按 CheerEvent 事实计入。ALL 条件在应用 Dazzling Game 等持续改色后按 BladeHeartEffect.HEART + HeartColor.RAINBOW 判定，满足时写此 LIVE SCORE +1 并刷新 playerScores。',
   },
   {
     abilityId: PL_N_BP3_031_LIVE_SUCCESS_WAITING_STAGE_MEMBERS_THIS_LIVE_SCORE_ABILITY_ID,
@@ -11941,7 +11941,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     implemented: true,
     effectText: PL_N_BP4_025_LIVE_START_EFFECT_TEXT,
     notes:
-      '扩展 shared `cheer-card-heart-color-replacement.ts`；cards.json 第一段存在 Heart 被占位成 Blade 文本的数据异常，本实现按规则语义写入 CHEER_CARD_HEART_COLOR_REPLACEMENT，将本次 LIVE 中自己的声援公开卡的桃/赤/黄/绿/紫/ALL Heart 在判定读取时替换为[青ハート]。来源 LIVE 不在自己 LIVE 区时 no-op；不扩大到 PL!N-bp4-026。',
+      '扩展 shared `cheer-card-heart-color-replacement.ts`；将本次 LIVE 中自己声援公开卡的桃/赤/黄/绿/紫/ALL BLADE HEART 在判定读取时替换为青色 BLADE HEART。来源 LIVE 不在自己 LIVE 区时 no-op；不扩大到 PL!N-bp4-026。',
   },
   {
     abilityId: PL_N_BP4_025_LIVE_SUCCESS_NIJIGASAKI_CHEER_PRINTED_SIX_HEART_COLORS_SCORE_ABILITY_ID,
@@ -12017,7 +12017,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     perTurnLimit: 1,
     effectText: N_BP5_001_AUTO_ON_CHEER_EFFECT_TEXT,
     notes:
-      '窄单卡 ON_CHEER workflow；pending eventIds 对应的自己非 additional 声援事件仅用于确认合法诱发事实，追加声援不再次入队。结算时通过 event-inclusive selectCurrentLiveRevealedCheerCardIds 读取当前 LIVE 普通与追加声援公开卡，只统计自己卡上的 BladeHeartEffect.HEART heartColor 类型；3种以上写 SOURCE_MEMBER 桃 Heart，6种以上额外写 SCORE +1 并刷新 liveResolution.playerScores；0-2种也记录 turn1 使用并消费 pending。',
+      '窄单卡 ON_CHEER workflow；pending eventIds 对应的自己非 additional 声援事件仅用于确认合法诱发事实，追加声援不再次入队。结算时通过 event-inclusive 有效判心查询读取当前 LIVE 普通与追加声援公开卡，只统计应用持续改色后的桃/赤/黄/绿/青/紫/ALL BladeHeartEffect.HEART，GRAY/ORANGE 不计；3种以上写 SOURCE_MEMBER 桃 Heart，6种以上额外写 SCORE +1 并刷新 liveResolution.playerScores；0-2种也记录 turn1 使用并消费 pending。',
   },
   {
     abilityId: N_BP5_002_CONTINUOUS_STAGE_MOST_HEARTS_LIVE_SCORE_ABILITY_ID,
@@ -13834,9 +13834,9 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText:
-      '【LIVE成功时】因声援被公开的自己的卡片中，存在[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[青ハート]、[紫ハート]中大于等于3种的场合，此卡的[スコア]+1。',
+      '【LIVE成功时】因声援被公开的自己的卡片中，存在[桃ブレード]、[赤ブレード]、[黄ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]中大于等于3种的场合，此卡的分数+1。',
     notes:
-      '按基础编号覆盖同卡全部罕度；公开来源卡文将六色 HEART 误写为 BLADE，本 definition 按用户确认的真实规则使用 HEART token。单卡 LIVE_SUCCESS workflow 通过 event-inclusive cheer query 只统计六种指定 Blade Heart 颜色，满足后 replacement 写来源 LIVE SCORE +1。',
+      '按基础编号覆盖同卡全部罕度；单卡 LIVE_SUCCESS workflow 通过 event-inclusive 有效判心查询，在应用 Dazzling Game 等持续改色后只统计六种指定 BLADE HEART 颜色，满足后 replacement 写来源 LIVE SCORE +1。',
   },
   {
     abilityId: SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
@@ -14121,7 +14121,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText:
-      '【LIVE成功时】自己因声援公开的卡中，存在分别持有[赤ハート]、[緑ハート]、[青ハート]的三张不同『Aqours』成员卡时，此LIVE的[スコア]+1。',
+      '【LIVE成功时】因声援被公开的自己的卡片中，分别存在持有[赤ブレード]、[緑ブレード]、[青ブレード]的『Aqours』的成员的场合，此卡的分数+1。',
     notes:
       '单卡 workflow s-bp7-022-koi-ni-naritai-aquarium.ts；按基础编号覆盖同卡全部罕度；复用 event-inclusive current-cheer 事实，按每张成员在本次声援中产生的有效 Blade Heart 判心颜色做稳定的不同卡匹配，不读取成员卡印刷 data.hearts。',
   },
@@ -14228,9 +14228,9 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText:
-      '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ハート]、[赤ハート]、[緑ハート]、[青ハート]、[紫ハート]、[ALLハート]，全部变为[黄ハート]。',
+      '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]、[赤ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]、[ALLブレード]，全部变为[黄ブレード]。',
     notes:
-      '复用 cheer-card-heart-color-replacement shared workflow；仅替换列出的 HEART 型 Blade Heart 颜色，DRAW/SCORE 不变。',
+      '复用 cheer-card-heart-color-replacement shared workflow；仅替换列出的 BLADE HEART 颜色，DRAW/SCORE 不变。',
   },
   {
     abilityId: PL_PB2_001_LIVE_START_SUCCESS_MUSE_ICON_REWARDS_ABILITY_ID,
@@ -14241,7 +14241,7 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     queued: true,
     implemented: true,
     effectText:
-      '【LIVE开始时】存在于自己的成功LIVE卡区的『μ’s』的卡片中，存在持有[スコア]的卡片的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。存在持有[ALLハート]的卡片的场合，LIVE结束时为止，获得[ALLハート]。存在持有[ドロー]的卡片的场合，从自己的休息室将1张『μ’s』的卡片加入手牌。',
+      '【LIVE开始时】存在于自己的成功LIVE卡区的『μ’s』的卡片中，存在持有[スコア]的卡片的场合，LIVE结束时为止，获得「【常时】LIVE的合计分数+1。」。存在持有[ALLブレード]的卡片的场合，LIVE结束时为止，获得[ALLハート]。存在持有[ドロー]的卡片的场合，从自己的休息室将1张『μ’s』的卡片加入手牌。',
     notes:
       '单卡 workflow pl-pb2-001-honoka.ts；成功区 SCORE/ALL/DRAW 三条件独立判定，前两项写来源成员绑定的分数与 Heart modifier，DRAW 条件分支回收任意 μ’s 卡并走双方公开确认。',
   },

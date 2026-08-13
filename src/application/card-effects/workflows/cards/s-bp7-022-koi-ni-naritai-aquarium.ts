@@ -20,8 +20,7 @@ import {
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-const ABILITY_ID =
-  S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID;
+const ABILITY_ID = S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID;
 const BASE_CARD_CODE = 'PL!S-bp7-022';
 const REQUIRED_COLORS = [HeartColor.RED, HeartColor.GREEN, HeartColor.BLUE] as const;
 
@@ -29,19 +28,14 @@ export function registerSBp7022KoiNiNaritaiAquariumWorkflowHandlers(): void {
   registerManualConfirmablePendingAbilityStarterHandler(
     ABILITY_ID,
     (game, ability, options, context) =>
-      resolveKoiNiNaritaiAquarium(
-        game,
-        ability,
-        options,
-        context.continuePendingCardEffects
-      ),
+      resolveKoiNiNaritaiAquarium(game, ability, options, context.continuePendingCardEffects),
     (game, ability) => {
       const { cheerEvaluation: evaluation, scoreBonus } = evaluateResolution(game, ability);
       const redCount = evaluation.candidateCountsByColor.get(HeartColor.RED) ?? 0;
       const greenCount = evaluation.candidateCountsByColor.get(HeartColor.GREEN) ?? 0;
       const blueCount = evaluation.candidateCountsByColor.get(HeartColor.BLUE) ?? 0;
       return {
-        effectText: `${getAbilityEffectText(ability.abilityId)}（当前声援时产生[赤ハート]的『Aqours』成员候选${redCount}张，产生[緑ハート]的候选${greenCount}张，产生[青ハート]的候选${blueCount}张；需要三张不同卡，${
+        effectText: `${getAbilityEffectText(ability.abilityId)}（当前声援时产生[赤ブレード]的『Aqours』成员候选${redCount}张，产生[緑ブレード]的候选${greenCount}张，产生[青ブレード]的候选${blueCount}张；需要三张不同卡，${
           scoreBonus > 0
             ? '可完成匹配，实际此LIVE[スコア]+1。'
             : evaluation.conditionMet
@@ -112,8 +106,7 @@ function resolveKoiNiNaritaiAquarium(
 function evaluateResolution(game: GameState, ability: PendingAbilityState) {
   const cheerEvaluation = evaluateCondition(game, ability.controllerId);
   const player = getPlayerById(game, ability.controllerId);
-  const sourceValid =
-    player !== null && isValidSourceLive(game, player.id, ability.sourceCardId);
+  const sourceValid = player !== null && isValidSourceLive(game, player.id, ability.sourceCardId);
   return {
     cheerEvaluation,
     scoreBonus: sourceValid && cheerEvaluation.conditionMet ? 1 : 0,

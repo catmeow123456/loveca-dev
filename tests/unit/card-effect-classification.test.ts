@@ -3542,7 +3542,7 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
     expect(loveUMyFriendsLiveSuccess?.effectText).toBe(
-      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。'
+      '【LIVE成功时】因声援被公开的自己的卡片中持有[ALLブレード]的卡片大于等于1张的场合，此卡的分数+1。'
     );
 
     for (const [cardCode, abilityId, expected] of [
@@ -3888,7 +3888,7 @@ describe('card effect classification registry', () => {
           queued: true,
           implemented: true,
           effectText:
-            '【LIVE开始时】LIVE结束时为止，因声援公开的自己的卡持有的[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[紫ハート]、[ALLハート]全部视为[青ハート]。',
+            '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]，[赤ブレード]，[黄ブレード]，[緑ブレード]，[紫ブレード]，[ALLブレード]，全部变为[青ブレード]。',
         }),
         expect.objectContaining({
           abilityId:
@@ -15040,7 +15040,8 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 definitions', () 
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
         queued: true,
         implemented: true,
-        effectText: expect.stringContaining('[スコア]'),
+        effectText:
+          '【LIVE成功时】因声援被公开的自己的卡片中，分别存在持有[赤ブレード]、[緑ブレード]、[青ブレード]的『Aqours』的成员的场合，此卡的分数+1。',
       }),
     ]);
     for (const definition of definitions) {
@@ -15577,7 +15578,7 @@ describe('PL!N-bp7-027 base-scoped LIVE_SUCCESS definition', () => {
 });
 
 describe('BP7 single-target BLADE base-scoped LIVE definitions', () => {
-  it('registers both printed abilities for PL!N-bp7-025 with corrected HEART text', () => {
+  it('registers both printed abilities for PL!N-bp7-025 with BLADE HEART text', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-025-SECL')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
@@ -15599,7 +15600,7 @@ describe('BP7 single-target BLADE base-scoped LIVE definitions', () => {
         queued: true,
         implemented: true,
         effectText:
-          '【LIVE成功时】因声援被公开的自己的卡片中，存在[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[青ハート]、[紫ハート]中大于等于3种的场合，此卡的[スコア]+1。',
+          '【LIVE成功时】因声援被公开的自己的卡片中，存在[桃ブレード]、[赤ブレード]、[黄ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]中大于等于3种的场合，此卡的分数+1。',
       }),
     ]);
     expect(

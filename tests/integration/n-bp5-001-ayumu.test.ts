@@ -19,6 +19,7 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import {
   BladeHeartEffect,
   CardType,
@@ -240,6 +241,125 @@ describe('PL!N-bp5-001 Ayumu on-cheer blade heart type count', () => {
     const secondCheer = enqueueCheer(state, PLAYER1, [revealed.instanceId]);
     expect(secondCheer.pendingAbilities).toEqual([]);
     expect(abilityUseCount(secondCheer)).toBe(1);
+  });
+
+  it('still resolves turn1 but gains nothing when Dazzling Game replaces six colors and ALL with PURPLE', () => {
+    const revealed = createCardInstance(
+      createMember('PL!N-test-dazzling-seven-colors', [
+        bladeHeart(HeartColor.PINK),
+        bladeHeart(HeartColor.RED),
+        bladeHeart(HeartColor.YELLOW),
+        bladeHeart(HeartColor.GREEN),
+        bladeHeart(HeartColor.BLUE),
+        bladeHeart(HeartColor.PURPLE),
+        bladeHeart(HeartColor.RAINBOW),
+      ]),
+      PLAYER1,
+      'dazzling-seven-colors'
+    );
+    const { game } = setupAyumu([revealed]);
+    const withDazzlingGame = addLiveModifier(game, {
+      kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+      playerId: PLAYER1,
+      fromColors: [
+        HeartColor.PINK,
+        HeartColor.RED,
+        HeartColor.YELLOW,
+        HeartColor.GREEN,
+        HeartColor.BLUE,
+        HeartColor.RAINBOW,
+      ],
+      toColor: HeartColor.PURPLE,
+      sourceCardId: 'PL!SP-bp4-023-L',
+      abilityId: 'test:dazzling-game-replacement',
+    });
+
+    const state = resolveOwnCheer(withDazzlingGame, [revealed.instanceId]);
+
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({ kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT' }),
+    ]);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(abilityUseCount(state)).toBe(1);
+    expect(getAyumuResolveAction(state)?.payload).toMatchObject({
+      bladeHeartColors: [HeartColor.PURPLE],
+      bladeHeartTypeCount: 1,
+      gainedPinkHeart: false,
+      scoreBonus: 0,
+    });
+
+    const secondCheer = enqueueCheer(state, PLAYER1, [revealed.instanceId]);
+    expect(secondCheer.pendingAbilities).toEqual([]);
+    expect(abilityUseCount(secondCheer)).toBe(1);
+  });
+
+  it('does not let GRAY or ORANGE raise two listed colors to the three-color threshold', () => {
+    const revealed = createCardInstance(
+      createMember('PL!N-test-two-listed-plus-gray-orange', [
+        bladeHeart(HeartColor.PINK),
+        bladeHeart(HeartColor.RED),
+        bladeHeart(HeartColor.GRAY),
+        bladeHeart(HeartColor.ORANGE),
+      ]),
+      PLAYER1,
+      'two-listed-plus-gray-orange'
+    );
+    const { game } = setupAyumu([revealed]);
+
+    const state = resolveOwnCheer(game, [revealed.instanceId]);
+
+    expect(state.liveResolution.liveModifiers).toEqual([]);
+    expect(getAyumuResolveAction(state)?.payload).toMatchObject({
+      bladeHeartColors: [HeartColor.PINK, HeartColor.RED],
+      bladeHeartTypeCount: 2,
+      gainedPinkHeart: false,
+      scoreBonus: 0,
+    });
+  });
+
+  it('does not let GRAY or ORANGE raise five listed colors to the six-color threshold', () => {
+    const revealed = createCardInstance(
+      createMember('PL!N-test-five-listed-plus-gray-orange', [
+        bladeHeart(HeartColor.PINK),
+        bladeHeart(HeartColor.RED),
+        bladeHeart(HeartColor.YELLOW),
+        bladeHeart(HeartColor.GREEN),
+        bladeHeart(HeartColor.BLUE),
+        bladeHeart(HeartColor.GRAY),
+        bladeHeart(HeartColor.ORANGE),
+      ]),
+      PLAYER1,
+      'five-listed-plus-gray-orange'
+    );
+    const { game, sourceId } = setupAyumu([revealed]);
+
+    const state = resolveOwnCheer(game, [revealed.instanceId]);
+
+    expect(state.liveResolution.liveModifiers).toContainEqual({
+      kind: 'HEART',
+      playerId: PLAYER1,
+      hearts: [{ color: HeartColor.PINK, count: 1 }],
+      sourceCardId: sourceId,
+      abilityId: N_BP5_001_AUTO_ON_CHEER_BLADE_HEART_TYPES_GAIN_PINK_HEART_SCORE_ABILITY_ID,
+      target: 'SOURCE_MEMBER',
+    });
+    expect(state.liveResolution.liveModifiers.some((modifier) => modifier.kind === 'SCORE')).toBe(
+      false
+    );
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(5);
+    expect(getAyumuResolveAction(state)?.payload).toMatchObject({
+      bladeHeartColors: [
+        HeartColor.PINK,
+        HeartColor.RED,
+        HeartColor.YELLOW,
+        HeartColor.GREEN,
+        HeartColor.BLUE,
+      ],
+      bladeHeartTypeCount: 5,
+      gainedPinkHeart: true,
+      scoreBonus: 0,
+    });
   });
 
   it('counts additional cheer colors only when they are revealed before the queued ability resolves', () => {

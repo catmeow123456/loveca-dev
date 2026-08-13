@@ -148,14 +148,14 @@
 - waiting-energy helper 只收口了三个真实调用者已重复的放置、skip marker 与精确 event 入队；来源合法性、pending 窗口和奖励仍不下沉。后续不同目标玩家、多个活跃阶段或其他放置区域机制仍须重新审查，不能直接扩成通用 DSL。
 - energy-return family 只登记两种已证明比较模式和一个可选团体人数门槛。未来涉及支付式 `[E]`、不同返还数量、对方能量移动、连续区间奖励或其他来源区域时仍是独立缺口。
 - 本批当时不包含其余候选 BP7 卡，也未修改 `llocg_db`；其中 `PL!SP-bp7-025-L` 分数3「Memories」已在 2026-07-23 第二批完成。
-- `PL!N-bp7-025`（当前公开版本 SECL）分数1「Colorful Dreams! Colorful Smiles!」的公开 API 卡文把六色 HEART 误写为六色 BLADE；2026-07-23 第二批已按用户确认规则完成卡效与玩家显示勘误：definition / dynamic confirm-only 使用 `[桃/赤/黄/緑/青/紫ハート]`。`cardLocalization.ts` 只对当前公开印刷记录的中日详情文本做数据展示修正，不修改 API/DB 数据，也不缩小卡效的基础编号覆盖。
+- `PL!N-bp7-025`（当前公开版本 SECL / L）分数1「Colorful Dreams! Colorful Smiles!」经 `cards_export_2026-08-08.json` 中日文权威卡文复核，条件确为六色 BLADE HEART；definition / dynamic confirm-only 使用 `[桃/赤/黄/緑/青/紫ブレード]`，并已删除 `cardLocalization.ts` 中将其强制改成普通 HEART 的旧勘误。卡效继续按基础编号覆盖全部罕度。
 
 # 2026-07-23 BP7 第二批单体 BLADE 缺口收口
 
 - `PL!N-bp7-025`（当前公开版本 SECL）分数1「Colorful Dreams! Colorful Smiles!」两段与 `PL!SP-bp7-025`（当前公开版本 L）分数3「Memories」一段均已有基础编号 definitions、workflow/shared 配置、classification 与 focused tests，不再属于未实现缺口。
 - target-member BLADE family 仅新增结构化 `CARD_NAME_ALIAS`；GROUP/姓名身份仍通过有限 union 表达，来源按基础编号匹配且不接受任意 selector callback。其他目标区域、多个目标、可选不选、不同期限或不同 modifier 类型仍须按真实样本另审。
-- Blade Heart 颜色 query 只收集本次当前 LIVE event-inclusive 公开事实中的结构化 HEART 类型；N025 调用时显式限制六色。它不把 RAINBOW 当任一指定色，不把 GRAY、DRAW、SCORE、普通印刷 Heart 或 LIVE 必要 Heart混入，也不承担移动声援卡。
-- 前端当前公开印刷记录勘误是数据不落盘的暂行显示边界，不是卡效罕度边界；未来上游 card_text 修正后 helper 保持幂等。若出现其他来源勘误，不能直接扩成模糊文本替换或全局卡文重写表，须逐卡验证。
+- 声援判心条件统一从 `selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` 取得逐卡 event-inclusive 有效判心，再按真实形状分流：N025 与步梦取颜色并集，水族馆做不同卡覆盖，Love U my friends 检查有效 ALL。颜色替换 modifier 必须先于这些条件参照生效；不得直接扫描印刷 `card.data.bladeHearts`。N025 调用时显式限制六色，不把 RAINBOW、GRAY、ORANGE、DRAW、SCORE、普通印刷 Heart 或 LIVE 必要 Heart 混入。
+- 前端判心 token 现在使用独立的七色官方 BLADE HEART 资产，普通 HEART 继续使用原图标。若后续再出现来源文本冲突，必须先核对权威卡文并逐卡修正，不得扩成模糊文本替换或全局卡文重写表。
 
 # 2026-07-23 BP7 第三、第四批缺口收口
 

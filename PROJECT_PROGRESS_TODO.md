@@ -12,6 +12,7 @@
 - 新对局默认使用权威 `ManualOperationMode=RULES`。本地调试、对墙打和远程调试可在安全时点直接切换；正式联机开启 `FREE` 需要双方协商，观战与回放始终只读。
 - 普通登场、换手、费用支付、LIVE 设置、判定、成功 LIVE 选择、卡效 pending/activeEffect 和主要阶段流已经进入共享规则链路；LIVE 设置时点通过独立语义支持盖牌与撤回本轮里侧盖牌，不放宽规则模式的通用区域移动。
 - 声援规则的公共结算边界已统一：普通、追加、重做及 `FREE` 手动单张声援均在本批公开后立即且仅一次结算 DRAW BLADE HEART，然后才进入适用的 `ON_CHEER` 检查时点；玩家接受最终判定结果时不再抽牌。重做声援可替换当前 Heart/Score 贡献，不撤销原批已完成的抽牌。
+- 本次声援的 BLADE HEART 条件已有公共有效值底座：`selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` 按 event-inclusive 公开事实返回逐卡有效判心，并应用 Dazzling Game 等持续改色；颜色并集、不同卡覆盖与有效 ALL 等上层条件必须从该结果分流，不能回退到印刷 `card.data.bladeHearts`。固定卡文颜色集合继续显式列举，不自动吸收 GRAY/ORANGE。
 - 全卡池完整自动裁判尚未完成；未自动化能力不能依靠 UI 或具体卡牌特例绕过规则边界。
 
 ### 卡效框架

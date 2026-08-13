@@ -866,8 +866,8 @@ The 005 condition reads event-inclusive `selectCurrentLiveRevealedCheerCardIds` 
 # 2026-07-23 BP7 单体 BLADE 批迁移状态
 
 - `live-start-target-member-gain-blade.ts` 在两个新的基础编号 LIVE 样本下只增加有限目标身份轴：既有 `GROUP_ALIAS` 保持，新增 `CARD_NAME_ALIAS` 并复用共享 `cardNameAliasIs` 的中日名/组合卡身份；没有开放任意 selector callback。当前公开版本 `PL!N-bp7-025-SECL` 分数1「Colorful Dreams! Colorful Smiles!」与 `PL!SP-bp7-025-L` 分数3「Memories」均复用既有 0/1/多目标、来源重验、target-member modifier 与 continuation，分别按 `PL!N-bp7-025` / `PL!SP-bp7-025` 覆盖。
-- `effects/cheer-selection.ts` 新增 event-inclusive Blade Heart 颜色纯 query，替换 `PL!N-bp5-001` 的局部收集实现；可选 `includedColors` 只限制查询结果，不改变 current-cheer 事件事实。N025 LIVE 成功单卡 workflow 使用六色限制，GRAY/RAINBOW/DRAW/SCORE 不计并以 replacement SCORE 避免重复叠加。
-- runner 仅增加 N025 单卡 LIVE_SUCCESS workflow 的 import/register；两个 LIVE_START 段由既有 shared 注册自动接入。前端只在统一 `cardLocalization.ts` 对 N025 基础编号做数据不落盘的显示勘误，没有修改管理员写入或生产卡牌数据。
+- `effects/cheer-selection.ts` 现以 `selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts` 作为 event-inclusive 逐卡有效判心底座，统一应用当前 LIVE 的声援颜色替换；`PL!N-bp5-001` 与 N025 从其颜色并集 query 分流，Love U my friends 检查有效 ALL，022 保持不同 cardId 覆盖所需颜色。N025 使用六色限制，RAINBOW/GRAY/ORANGE/DRAW/SCORE 不计并以 replacement SCORE 避免重复叠加；不得回退到印刷 `card.data.bladeHearts`。
+- runner 仅增加 N025 单卡 LIVE_SUCCESS workflow 的 import/register；两个 LIVE_START 段由既有 shared 注册自动接入。后续经 `cards_export_2026-08-08.json` 复核，N025 的六色条件确为 BLADE HEART；已删除 `cardLocalization.ts` 中将其强制改成普通 HEART 的旧勘误，并由独立判心 token 使用七色官方图标展示，没有修改管理员写入或生产卡牌数据。
 
 # 2026-07-23 BP7 第三、第四批迁移状态
 

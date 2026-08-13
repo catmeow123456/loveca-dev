@@ -1,4 +1,9 @@
-import { isLiveCardData, isMemberCardData, type CardInstance } from '../../domain/entities/card.js';
+import {
+  isLiveCardData,
+  isMemberCardData,
+  type BladeHeartItem,
+  type CardInstance,
+} from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import {
   getCardById,
@@ -79,6 +84,41 @@ export interface DistinctCheerCardsCoverHeartColorsResult {
   readonly matchedCardIds: readonly string[];
 }
 
+export interface CurrentLiveRevealedCheerCardEffectiveBladeHearts {
+  readonly cardId: string;
+  readonly card: CardInstance;
+  readonly effectiveBladeHearts: readonly BladeHeartItem[];
+}
+
+/**
+ * Returns the current LIVE's event-inclusive revealed-cheer cards together with their effective
+ * Blade Hearts. This is the shared fact layer for consumers that need either a color union or a
+ * distinct-card assignment after current LIVE modifiers have been applied.
+ */
+export function selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts(
+  game: GameState,
+  playerId: string,
+  options: CurrentLiveRevealedCheerCardSelectionOptions = {}
+): readonly CurrentLiveRevealedCheerCardEffectiveBladeHearts[] {
+  const uniqueCardIds = [
+    ...new Set(selectCurrentLiveRevealedCheerCardIds(game, playerId, options)),
+  ];
+
+  return uniqueCardIds.flatMap((cardId) => {
+    const card = getCardById(game, cardId);
+    if (!card || card.ownerId !== playerId) {
+      return [];
+    }
+    return [
+      {
+        cardId,
+        card,
+        effectiveBladeHearts: getCheerCardEffectiveBladeHearts(game, playerId, cardId),
+      },
+    ];
+  });
+}
+
 /**
  * Collects structured Blade Heart colors from the current LIVE's event-inclusive revealed-cheer
  * facts. Cards moved out of the resolution zone remain facts; DRAW/SCORE Blade Hearts never count.
@@ -93,16 +133,14 @@ export function collectCurrentLiveRevealedCheerBladeHeartColors(
     : null;
   const colors = new Set<HeartColor>();
 
-  for (const cardId of selectCurrentLiveRevealedCheerCardIds(game, playerId)) {
-    const card = getCardById(game, cardId);
-    if (
-      !card ||
-      card.ownerId !== playerId ||
-      (!isMemberCardData(card.data) && !isLiveCardData(card.data))
-    ) {
+  for (const {
+    card,
+    effectiveBladeHearts,
+  } of selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts(game, playerId)) {
+    if (!isMemberCardData(card.data) && !isLiveCardData(card.data)) {
       continue;
     }
-    for (const bladeHeart of card.data.bladeHearts ?? []) {
+    for (const bladeHeart of effectiveBladeHearts) {
       if (
         bladeHeart.effect === BladeHeartEffect.HEART &&
         bladeHeart.heartColor !== undefined &&
@@ -129,31 +167,30 @@ export function evaluateDistinctCheerCardsCoverHeartColors(
     readonly cardType: CardType;
   }
 ): DistinctCheerCardsCoverHeartColorsResult {
-  const matchingCardIds = [
-    ...new Set(
-      selectCurrentLiveRevealedCheerCardIds(game, playerId, {
-        cardTypes: options.cardType,
-        groupAliases: [options.groupAlias],
-      })
-    ),
-  ];
+  const matchingCards = selectCurrentLiveRevealedCheerCardsWithEffectiveBladeHearts(
+    game,
+    playerId,
+    {
+      cardTypes: options.cardType,
+      groupAliases: [options.groupAlias],
+    }
+  );
+  const matchingCardIds = matchingCards.map(({ cardId }) => cardId);
   const candidateCardIdsByColor = new Map<HeartColor, readonly string[]>();
 
   for (const color of options.requiredColors) {
     candidateCardIdsByColor.set(
       color,
-      matchingCardIds.filter((cardId) => {
-        const card = getCardById(game, cardId);
-        return (
-          card !== null &&
-          card.ownerId === playerId &&
-          isMemberCardData(card.data) &&
-          getCheerCardEffectiveBladeHearts(game, playerId, cardId).some(
-            (bladeHeart) =>
-              bladeHeart.effect === BladeHeartEffect.HEART && bladeHeart.heartColor === color
-          )
-        );
-      })
+      matchingCards
+        .filter(
+          ({ card, effectiveBladeHearts }) =>
+            isMemberCardData(card.data) &&
+            effectiveBladeHearts.some(
+              (bladeHeart) =>
+                bladeHeart.effect === BladeHeartEffect.HEART && bladeHeart.heartColor === color
+            )
+        )
+        .map(({ cardId }) => cardId)
     );
   }
 
