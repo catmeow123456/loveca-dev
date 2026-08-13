@@ -128,7 +128,7 @@ Loveca 文本/来源同步不会插入 source-only 新卡，也不会因来源�
 
 CloudBase 来源通过 `--source=cloudbase` 启用，卡牌集合固定为 `loveca`，不接受其他集合；凭据读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。脚本先把集合文档按字段别名映射为标准表头并导出到 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`，同时保留未被别名消费的原始字段，然后把导出文件交给与 `--source=xlsx` 完全相同的解析、重复卡号处理、DB 对比、完整字段差异报告和写入流程。
 
-`--card-codes=<code1,code2,...>` 将来源和数据库更新范围严格限制为指定编号。列表中的编号缺少来源行或数据库记录时整次执行失败；正式执行还会从来源图片 URI 重新下载并压缩这些卡图，按 `thumb` / `medium` / `large` 路径强制覆盖 MinIO 对象，即使资料字段没有差异也不跳过图片。该窄范围模式不改变普通全量同步不处理图片对象的既有边界。
+`--card-codes=<code1,code2,...>` 将来源和数据库更新范围严格限制为指定编号。列表中的编号缺少来源行或数据库记录时整次执行失败；正式执行还会从来源图片 URI 重新下载并压缩这些卡图，按 `thumb` / `medium` / `large` 路径强制覆盖 MinIO 对象，即使资料字段没有差异也不跳过图片。需要使浏览器请求新 URL 时，可同时传入 `--refresh-image-filenames`；该参数不能脱离 `--card-codes` 使用，会按源图 SHA-256 摘要生成稳定的新对象名，在三个尺寸上传成功后更新数据库 `image_filename`，旧对象不删除。该窄范围模式不改变普通全量同步不处理图片对象的既有边界。
 
 CloudBase 新卡导入通过 `sync-cards-cloudbase-new.ts --cloudbase-collection=<collection>` 启用，同样读取 `CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。当前确认可读取的卡牌集合为 `loveca`，也是脚本默认值；`real_card` 不存在。正式运行必须显式选择 `--upload-images` 或 `--skip-images`；`--upload-images` 还需要 `MINIO_ENDPOINT`、`MINIO_ACCESS_KEY`、`MINIO_SECRET_KEY` 等对象存储环境变量。图片对象默认不覆盖，图片失败默认阻止该卡插入，除非显式传入 `--allow-missing-images` 并在 source flags 中记录失败原因。`--skip-images` 不写入 `image_filename`，只保留 `image_source_uri`，避免前端把尚未上传的对象误判为可用卡图。
 

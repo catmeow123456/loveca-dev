@@ -28,6 +28,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 import * as os from 'node:os';
@@ -82,6 +83,7 @@ interface Args {
   readonly cloudbaseLimit: number | null;
   readonly cloudbaseBatchSize: number;
   readonly cardCodes: ReadonlySet<string> | null;
+  readonly refreshImageFilenames: boolean;
 }
 
 interface ExcelCardRow {
@@ -352,6 +354,7 @@ function parseArgs(argv: readonly string[]): Args {
   let cloudbaseLimit: number | null = null;
   let cloudbaseBatchSize = DEFAULT_CLOUDBASE_BATCH_SIZE;
   let cardCodes: ReadonlySet<string> | null = null;
+  let refreshImageFilenames = false;
 
   for (const arg of argv) {
     if (arg === '--dry-run') {
@@ -380,9 +383,15 @@ function parseArgs(argv: readonly string[]): Args {
       cloudbaseBatchSize = parsePositiveIntegerArg(arg, '--cloudbase-batch-size=');
     } else if (arg.startsWith('--card-codes=')) {
       cardCodes = parseCardCodesArg(arg.slice('--card-codes='.length));
+    } else if (arg === '--refresh-image-filenames') {
+      refreshImageFilenames = true;
     } else {
       throw new Error(`Unknown argument: ${arg}`);
     }
+  }
+
+  if (refreshImageFilenames && !cardCodes) {
+    throw new Error('--refresh-image-filenames requires --card-codes');
   }
 
   return {
@@ -394,6 +403,7 @@ function parseArgs(argv: readonly string[]): Args {
     cloudbaseLimit,
     cloudbaseBatchSize,
     cardCodes,
+    refreshImageFilenames,
   };
 }
 
@@ -752,13 +762,15 @@ function filterSelectedRows(rows: readonly ExcelCardRow[], cardCodes: ReadonlySe
 
 async function uploadSelectedCardImages(
   rows: readonly ExcelCardRow[],
-  existingByCode: ReadonlyMap<string, ExistingCardRow>
-): Promise<void> {
+  existingByCode: ReadonlyMap<string, ExistingCardRow>,
+  refreshImageFilenames: boolean
+): Promise<ReadonlyMap<string, string>> {
   const minio = createMinioClient();
   if (!(await minio.client.bucketExists(minio.bucket))) {
     await minio.client.makeBucket(minio.bucket);
   }
   let cloudbase: ReturnType<typeof createCloudbaseApp> | null = null;
+  const uploadedFilenames = new Map<string, string>();
 
   for (const row of rows) {
     const sourceUri = resolveImageSourceUri(cleanString(row.values[FIELD_NAMES.imageSourceUri]));
@@ -774,10 +786,11 @@ async function uploadSelectedCardImages(
       cloudbase ??= createCloudbaseApp();
       imageBuffer = await downloadCloudbaseImage(cloudbase, sourceUri);
     }
-    const imageBaseName =
-      imageBaseNameFromFilename(existingByCode.get(row.cardCode)?.image_filename ?? null) ??
-      imageBaseNameFromFilename(basenameFromUri(sourceUri)) ??
-      row.cardCode;
+    const imageBaseName = refreshImageFilenames
+      ? `${row.cardCode}-${createHash('sha256').update(imageBuffer).digest('hex').slice(0, 12)}`
+      : (imageBaseNameFromFilename(existingByCode.get(row.cardCode)?.image_filename ?? null) ??
+        imageBaseNameFromFilename(basenameFromUri(sourceUri)) ??
+        row.cardCode);
     const compressed = await compressImageBuffers(imageBuffer);
     for (const [sizeName, buffer] of Object.entries(compressed)) {
       const objectKey = `${sizeName}/${imageBaseName}.webp`;
@@ -785,7 +798,36 @@ async function uploadSelectedCardImages(
         'Content-Type': 'image/webp',
       });
     }
-    console.log(`  Re-uploaded image: ${row.cardCode} (${imageBaseName})`);
+    const imageFilename = `${imageBaseName}.webp`;
+    uploadedFilenames.set(row.cardCode, imageFilename);
+    console.log(`  Re-uploaded image: ${row.cardCode} (${imageFilename})`);
+  }
+  return uploadedFilenames;
+}
+
+async function updateImageFilenames(
+  pool: Pool,
+  imageFilenames: ReadonlyMap<string, string>
+): Promise<void> {
+  if (imageFilenames.size === 0) return;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const [cardCode, imageFilename] of imageFilenames) {
+      const result = await client.query(
+        'UPDATE cards SET image_filename = $2, updated_at = now() WHERE card_code = $1',
+        [cardCode, imageFilename]
+      );
+      if (result.rowCount !== 1) {
+        throw new Error(`${cardCode}: image filename update matched ${result.rowCount ?? 0} rows`);
+      }
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
@@ -1641,6 +1683,7 @@ async function main() {
   if (args.cardCodes) {
     console.log(`  Selected card codes: ${[...args.cardCodes].join(', ')}`);
     console.log(`  Images to force re-upload: ${sourceRows.length}`);
+    console.log(`  Refresh image filenames: ${args.refreshImageFilenames ? 'yes' : 'no'}`);
   }
   console.log(`  Unique usable card codes: ${usableRows.length}`);
   console.log(`  Duplicate card codes skipped: ${duplicates.size}`);
@@ -1769,11 +1812,19 @@ async function main() {
       return;
     }
 
+    let uploadedImageFilenames: ReadonlyMap<string, string> = new Map();
     if (args.cardCodes) {
-      await uploadSelectedCardImages(usableRows, existingByCode);
+      uploadedImageFilenames = await uploadSelectedCardImages(
+        usableRows,
+        existingByCode,
+        args.refreshImageFilenames
+      );
     }
     if (updates.length > 0) {
       await applyUpdates(pool, updates);
+    }
+    if (args.refreshImageFilenames) {
+      await updateImageFilenames(pool, uploadedImageFilenames);
     }
     console.log(`Applied ${updates.length} Loveca source updates.`);
   } finally {

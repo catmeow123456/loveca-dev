@@ -52,11 +52,12 @@ pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --cloudb
 
 `loveca` 是该同步入口固定使用的 CloudBase 卡牌集合，脚本拒绝改用其他集合。导出文件保留同步所需的标准 Excel 列及未被字段别名消费的原始 CloudBase 字段；导出完成后只读取该 Excel，不再直接把集合文档送入同步转换。CloudBase `--dry-run` 仍会生成这份作为同步输入的私有 Excel，但不会修改数据库或上传图片。CloudBase 凭据从环境变量或 `.env` 读取：`CLOUDBASE_ENV_ID`、`CLOUDBASE_SECRET_ID`、`CLOUDBASE_SECRET_KEY`。数据库连接 `DATABASE_URL` 同样可从 `.env` 读取；连接数据库的 dry-run 会完整打印每张卡的所有待同步字段及旧值/新值，并对中日卡效文本差异给出显式 warning。
 
-只重新同步指定卡牌时使用逗号分隔的 `--card-codes`。该模式对 XLSX 和 CloudBase 来源都生效，要求每个编号同时存在于来源和数据库；正式执行除同步这些编号的数据外，还会按 `sync-cards-cloudbase-new.ts` 相同的尺寸与对象键约定重新下载卡图、生成 `thumb` / `medium` / `large` WebP，并强制覆盖上传到 MinIO。即使字段无差异也会重传图片；`--dry-run` 不上传。正式执行需要 MinIO 环境变量，CloudBase `fileID` 图片还需要 CloudBase 凭据。
+只重新同步指定卡牌时使用逗号分隔的 `--card-codes`。该模式对 XLSX 和 CloudBase 来源都生效，要求每个编号同时存在于来源和数据库；正式执行除同步这些编号的数据外，还会按 `sync-cards-cloudbase-new.ts` 相同的尺寸与对象键约定重新下载卡图、生成 `thumb` / `medium` / `large` WebP，并强制覆盖上传到 MinIO。即使字段无差异也会重传图片；`--dry-run` 不上传。正式执行需要 MinIO 环境变量，CloudBase `fileID` 图片还需要 CloudBase 凭据。需要绕过浏览器对旧 URL 的缓存时，额外传入 `--refresh-image-filenames`；脚本会按源图内容哈希生成新的稳定 WebP 文件名，上传三个尺寸后更新数据库 `image_filename`，并保留旧对象以兼容历史引用。
 
 ```bash
 pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --card-codes='PL!-sd1-004-SD,PL!-sd1-007-SD' --dry-run
 pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --card-codes='PL!-sd1-004-SD,PL!-sd1-007-SD' --yes
+pnpm exec tsx src/scripts/sync-cards-loveca-excel.ts --source=cloudbase --card-codes='PL!-sd1-004-SD,PL!-sd1-007-SD' --refresh-image-filenames --yes
 ```
 
 CloudBase 新卡 dry-run 可运行：
