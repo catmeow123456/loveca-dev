@@ -83,14 +83,32 @@ export function collapseRankedOpenWindows(
 export function prepareRankedOpenWindowsForForm(
   windows: readonly RankedOpenWindowValue[]
 ): EditableRankedOpenWindow[] {
-  const collapsed = collapseRankedOpenWindows(windows);
-  return collapsed
-    ? [collapsed]
-    : windows.map((window) => ({
+  const consumedIndexes = new Set<number>();
+  const editableWindows: EditableRankedOpenWindow[] = [];
+
+  windows.forEach((window, index) => {
+    if (consumedIndexes.has(index)) return;
+
+    let collapsed: EditableRankedOpenWindow | null = null;
+    for (let candidateIndex = index + 1; candidateIndex < windows.length; candidateIndex += 1) {
+      if (consumedIndexes.has(candidateIndex)) continue;
+      collapsed = collapseRankedOpenWindows([window, windows[candidateIndex]]);
+      if (collapsed) {
+        consumedIndexes.add(candidateIndex);
+        break;
+      }
+    }
+
+    editableWindows.push(
+      collapsed ?? {
         weekdays: [...window.weekdays],
         startMinute: window.startMinute,
         endMinute: window.endMinute,
-      }));
+      }
+    );
+  });
+
+  return editableWindows;
 }
 
 export function prepareRankedOpenWindowsForApi(

@@ -50,7 +50,6 @@ import {
 } from '@/lib/rankedAdminClient';
 import { resolveCardImagePath } from '@/lib/imageService';
 import {
-  collapseRankedOpenWindows,
   getRankedOpenWindowsValidationError,
   isCrossMidnightRankedOpenWindow,
   isEditableRankedOpenWindowValid,
@@ -2933,8 +2932,8 @@ function formatDate(value: string) {
 }
 
 function formatOpenWindows(windows: RankedAdminSeason['openWindows']): string {
-  const collapsed = collapseRankedOpenWindows(windows);
-  const first = collapsed ?? windows[0];
+  const logicalWindows = prepareRankedOpenWindowsForForm(windows);
+  const first = logicalWindows[0];
   if (!first) return '未设置时段';
   const weekdays =
     first.weekdays.length === 7
@@ -2945,7 +2944,7 @@ function formatOpenWindows(windows: RankedAdminSeason['openWindows']): string {
   const time = `${minuteToTime(first.startMinute)}–${
     isCrossMidnightRankedOpenWindow(first) ? '次日 ' : ''
   }${minuteToTime(first.endMinute, true)}`;
-  return `${weekdays} ${time}${!collapsed && windows.length > 1 ? ` 等 ${windows.length} 个时段` : ''}`;
+  return `${weekdays} ${time}${logicalWindows.length > 1 ? ` 等 ${logicalWindows.length} 个时段` : ''}`;
 }
 
 function readError(error: unknown) {

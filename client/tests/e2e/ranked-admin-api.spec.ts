@@ -666,22 +666,49 @@ test.describe('赛季排位管理员 API', () => {
     }
   });
 
-  test('真实数据库中的赛季可暂停、恢复匹配、结束赛季并完成结算', async ({ request }) => {
+  test('真实数据库拒绝非法运营操作，并可恢复匹配、结束赛季及完成结算', async ({ request }) => {
     await seedE2eSeason();
     try {
       const headers = bearer(await getAdminAccessToken(request));
+
+      const deleteActive = await request.delete(`/api/admin/ranked/seasons/${E2E_SEASON_ID}`, {
+        headers,
+      });
+      expect(deleteActive.status()).toBe(409);
+      await expect(deleteActive.json()).resolves.toMatchObject({
+        error: { code: 'RANKED_SEASON_DRAFT_DELETE_CONFLICT' },
+      });
+
+      const overlappingWindows = await request.put(
+        `/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`,
+        {
+          headers,
+          data: {
+            name: 'E2E 重叠时段',
+            openWindows: [
+              { weekdays: [1], startMinute: 600, endMinute: 720 },
+              { weekdays: [1], startMinute: 660, endMinute: 780 },
+            ],
+            leaderboardMinimumMatchCount: 8,
+          },
+        }
+      );
+      expect(overlappingWindows.status()).toBe(400);
+      await expect(overlappingWindows.json()).resolves.toMatchObject({
+        error: { code: 'RANKED_OPEN_WINDOW_OVERLAP' },
+      });
 
       const operations = await request.put(
         `/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`,
         {
           headers,
           data: {
-            name: 'E2E 晚间排位',
+            name: 'E2E 全天排位',
             openWindows: [
               {
                 weekdays: [1, 2, 3, 4, 5, 6, 7],
-                startMinute: 480,
-                endMinute: 1320,
+                startMinute: 0,
+                endMinute: 1440,
               },
             ],
             leaderboardMinimumMatchCount: 8,
@@ -692,12 +719,12 @@ test.describe('赛季排位管理员 API', () => {
       await expect(operations.json()).resolves.toMatchObject({
         data: {
           lifecycle: 'ACTIVE',
-          name: 'E2E 晚间排位',
+          name: 'E2E 全天排位',
           openWindows: [
             {
               weekdays: [1, 2, 3, 4, 5, 6, 7],
-              startMinute: 480,
-              endMinute: 1320,
+              startMinute: 0,
+              endMinute: 1440,
             },
           ],
           leaderboardMinimumMatchCount: 8,

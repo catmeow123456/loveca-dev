@@ -91,6 +91,21 @@ describe('ranked admin open-window model', () => {
     );
   });
 
+  it('在多个独立时段中仍会合并可无损还原的跨日窗口对', () => {
+    const apiWindows = [
+      { weekdays: [1, 3, 5], startMinute: 1080, endMinute: 1440 },
+      { weekdays: [2, 4, 6], startMinute: 0, endMinute: 60 },
+      { weekdays: [7], startMinute: 600, endMinute: 720 },
+    ];
+    const formWindows = prepareRankedOpenWindowsForForm(apiWindows);
+
+    expect(formWindows).toEqual([
+      { weekdays: [1, 3, 5], startMinute: 1080, endMinute: 60 },
+      { weekdays: [7], startMinute: 600, endMinute: 720 },
+    ]);
+    expect(prepareRankedOpenWindowsForApi(formWindows)).toEqual(apiWindows);
+  });
+
   it('会逐个拆分多个表单时段中的跨日窗口', () => {
     expect(
       prepareRankedOpenWindowsForApi([
