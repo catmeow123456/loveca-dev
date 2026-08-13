@@ -1,11 +1,12 @@
 import { assertSecurityConfiguration, config } from './config.js';
 import { createApp } from './app.js';
 import { pool } from './db/pool.js';
-import { ensureBucket } from './services/minio-service.js';
+import { ensureBucket, ensurePrivateWallpaperBucket } from './services/minio-service.js';
 import { onlineMatchService } from './services/online-match-service.js';
 import { onlineRoomService } from './services/online-room-service.js';
 import { publicTableService } from './services/public-table-service.js';
 import { rankedRuntimeService } from './services/ranked-runtime-service.js';
+import { playerWallpaperService } from './services/player-wallpaper-service.js';
 
 const TOKEN_CLEANUP_INTERVAL = 60 * 60 * 1000; // 1 hour
 const RUNTIME_CLEANUP_INTERVAL = readPositiveIntEnv('API_RUNTIME_CLEANUP_INTERVAL_MS', 10 * 1000);
@@ -36,12 +37,14 @@ async function cleanupExpiredRuntimeState() {
       terminateRuntimeMatch: (matchId, now, reason) =>
         onlineRoomService.terminateRankedMatchForNoContest(matchId, reason, now.getTime()),
     });
+    const retiredWallpaperAssetsDeleted = await playerWallpaperService.cleanupRetiredAssets();
     console.log(
       JSON.stringify({
         event: 'api-runtime-cleanup',
         summary,
         publicTableSummary,
         rankedSummary,
+        retiredWallpaperAssetsDeleted,
       })
     );
   } catch (err) {
@@ -77,8 +80,8 @@ async function main() {
 
   // Ensure MinIO bucket exists
   try {
-    await ensureBucket();
-    console.log('MinIO bucket ready');
+    await Promise.all([ensureBucket(), ensurePrivateWallpaperBucket()]);
+    console.log('MinIO buckets ready');
   } catch (err) {
     console.error('Failed to connect to MinIO:', err);
     console.warn('Image upload/delete will not work until MinIO is available');

@@ -44,6 +44,9 @@ importers:
       pg:
         specifier: ^8.20.0
         version: 8.20.0
+      sharp:
+        specifier: ^0.34.5
+        version: 0.34.5
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -108,9 +111,6 @@ importers:
       prettier:
         specifier: ^3.7.4
         version: 3.9.3
-      sharp:
-        specifier: ^0.34.5
-        version: 0.34.5
       tsx:
         specifier: ^4.22.4
         version: 4.22.4

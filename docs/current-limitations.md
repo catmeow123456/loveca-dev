@@ -130,11 +130,12 @@
 
 ## 图片与对象存储
 
-当前服务端通过 `MINIO_*` 环境变量连接 MinIO 或兼容 S3 对象存储，开发环境可用 `docker-compose.dev.yml` 启动本地 MinIO。
+当前服务端通过 `MINIO_*` 环境变量连接 MinIO 或兼容 S3 对象存储，开发环境可用 `docker-compose.dev.yml` 启动本地 MinIO。公开卡图与玩家私有壁纸使用不同 bucket；壁纸 bucket 不能授予匿名读取策略。
 
 需要注意：
 
 - 生产 `docker-compose.yml` 不启动 MinIO，生产环境需要外部对象存储或兼容服务。
+- 玩家壁纸上线前仍需在生产环境创建私有 bucket，并完成容量告警、孤立对象扫描、内容运营与等价环境视觉/E2E 验证；当前代码不会把该 bucket 自动公开。
 - 前端图片 URL 优先走同源或 `VITE_API_BASE_URL` 指向源下的 `/images/{size}/{name}.webp`。
 - 代码中保留本地静态图片兜底分支，但当前配置下不会因为远程图片请求失败自动切换到本地图片。
 - 当前仓库中可能存在为本地测试服务器临时补齐的 `assets/card/` 原图与 `assets/images/{thumb,medium,large}/` WebP。它们只用于本机测试显示，不是生产图片资产来源；生产环境已有独立图片服务器/对象存储。上线前应检查并清理不需要提交的临时补图，避免仓库体积膨胀或误导后续部署判断。
@@ -142,4 +143,5 @@
 相关文档：
 
 - [MinIO 需求与设计](minio-requirements.md)
+- [玩家游戏桌壁纸设计](player-wallpaper/design.md)
 - [图片优化方案](image_optimization.md)

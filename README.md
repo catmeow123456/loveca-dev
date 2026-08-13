@@ -42,7 +42,7 @@ Love Live 卡牌游戏的开源实现，包含游戏引擎、自托管 API 服�
 - Node.js >= 20
 - pnpm 10.x
 - PostgreSQL，用于账号、卡组、卡牌和 token 数据
-- MinIO 或兼容 S3 对象存储，用于卡牌图片；本地开发可用 `docker-compose.dev.yml`
+- MinIO 或兼容 S3 对象存储，用于卡牌图片和玩家私有壁纸；本地开发可用 `docker-compose.dev.yml`
 
 ## 常用命令
 

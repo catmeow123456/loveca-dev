@@ -45,12 +45,12 @@ import { JudgmentPanel } from './JudgmentPanel';
 import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { BattleAnimationLayer } from './BattleAnimationLayer';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
+import { BoardBackground } from './BoardBackground';
 import { EffectChoicePanel } from './EffectChoicePanel';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
 import { MulliganPanel } from './MulliganPanel';
 import { ThemeToggle } from '@/components/common';
-import { getDeckBackUrl } from '@/lib/imageService';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
 import { parseZoneId } from '@/lib/zoneUtils';
 import { getDragActionDescriptor, type SpecialDragTarget } from '@/lib/battleDragAction';
@@ -101,6 +101,7 @@ import { cn } from '@/lib/utils';
 import { getMemberPlayOptions, type MemberPlayOptionView } from '@/lib/memberPlayOptions';
 import { isJudgmentPanelAvailable } from '@/lib/judgmentPanelAvailability';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { usePlayerTableWallpaper } from '@/hooks/usePlayerTableWallpaper';
 import { isOwnDeskFreeDragWindow } from '@game/application/command-availability';
 import { GameCommandType } from '@game/application/game-commands';
 import {
@@ -394,6 +395,7 @@ export const GameBoard = memo(function GameBoard({
   const publicLogUnreadCount = useGameStore((s) => s.publicBattleLog.unreadCount);
   const setPublicBattleLogPanelOpen = useGameStore((s) => s.setPublicBattleLogPanelOpen);
   const isMobileBattlefield = useMediaQuery('(max-width: 767px)');
+  const tableWallpaper = usePlayerTableWallpaper(isMobileBattlefield);
   const prefersReducedMotion = useReducedMotion() === true;
   const canShowDebugLog = capabilities.canShowDebugLog;
   const canShowPublicBattleLog = capabilities.authority === 'REMOTE';
@@ -2337,24 +2339,10 @@ export const GameBoard = memo(function GameBoard({
       onDragCancel={clearDragInteractionState}
     >
       <div
-        className="h-full flex flex-col relative overflow-hidden"
+        className="isolate h-full flex flex-col relative overflow-hidden bg-[var(--board-wallpaper-base)]"
         onClick={handleBattlefieldBackgroundClick}
-        style={{
-          backgroundImage: `url(${getDeckBackUrl()})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
       >
-        <div className="pointer-events-none absolute inset-0 bg-[color:color-mix(in_srgb,var(--board-overlay)_42%,transparent)] md:bg-[var(--board-overlay)]" />
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'var(--gradient-spotlight)' }}
-        />
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'var(--gradient-stage-glow)' }}
-        />
+        <BoardBackground {...tableWallpaper} className="-z-10" />
         <BattleAnimationLayer />
         <BattleActionFeedbackLayer />
 

@@ -38,6 +38,13 @@ import type {
 } from '../../online/replay-types.js';
 import type { PrivateEvent, PublicEvent, Seat } from '../../online/types.js';
 import type { RankedRatingConfig } from '../rating/ranked-rating.js';
+import type {
+  CompactWallpaperMode,
+  PlayerWallpaperSolidPreset,
+  WallpaperCrop,
+  WallpaperFocus,
+  WideWallpaperMode,
+} from '../../online/player-wallpaper-types.js';
 
 export type UserRole = 'user' | 'admin';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
@@ -87,6 +94,9 @@ export type RankedMatchRatingStatus = 'PENDING' | 'SETTLED' | 'VOIDED';
 export type RankedMatchResultType =
   'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | 'PLATFORM_NO_CONTEST';
 export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
+export type PlayerWallpaperAssetKind = 'MASTER' | 'WIDE_DISPLAY' | 'COMPACT_DISPLAY';
+export type PlayerWallpaperIdempotencyStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+export type PlayerWallpaperOperation = 'PUBLISH' | 'RESET' | 'ADMIN_REMOVE';
 
 export interface RankedDeckObservationCard {
   readonly baseCardCode: string;
@@ -250,6 +260,258 @@ export const profiles = pgTable(
     index('idx_profiles_username').on(table.username),
     index('idx_profiles_role').on(table.role),
     check('profiles_role_check', sql`${table.role} IN ('user', 'admin')`),
+  ]
+);
+
+export const playerWallpaperAssets = pgTable(
+  'player_wallpaper_assets',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    kind: text('kind').$type<PlayerWallpaperAssetKind>().notNull(),
+    objectKey: text('object_key').notNull().unique(),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    byteSize: integer('byte_size').notNull(),
+    sha256: text('sha256').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+    deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('idx_player_wallpaper_assets_user').on(table.userId),
+    index('idx_player_wallpaper_assets_retired').on(table.retiredAt),
+    check(
+      'player_wallpaper_assets_kind_check',
+      sql`${table.kind} IN ('MASTER', 'WIDE_DISPLAY', 'COMPACT_DISPLAY')`
+    ),
+    check(
+      'player_wallpaper_assets_dimensions_check',
+      sql`${table.width} > 0 AND ${table.height} > 0`
+    ),
+    check('player_wallpaper_assets_bytes_check', sql`${table.byteSize} > 0`),
+    check('player_wallpaper_assets_sha_check', sql`${table.sha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      'player_wallpaper_assets_object_key_check',
+      sql`${table.objectKey} ~ '^wallpapers/[0-9a-f-]{36}/(master|wide|compact)[.]webp$'`
+    ),
+  ]
+);
+
+export const playerWallpaperConfigs = pgTable(
+  'player_wallpaper_configs',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull().default(0),
+    wideMode: text('wide_mode').$type<WideWallpaperMode>().notNull().default('DEFAULT'),
+    compactMode: text('compact_mode').$type<CompactWallpaperMode>().notNull().default('INHERIT_PC'),
+    wideSolidPreset: text('wide_solid_preset').$type<PlayerWallpaperSolidPreset>(),
+    compactSolidPreset: text('compact_solid_preset').$type<PlayerWallpaperSolidPreset>(),
+    wideMasterAssetId: uuid('wide_master_asset_id').references(() => playerWallpaperAssets.id, {
+      onDelete: 'restrict',
+    }),
+    compactMasterAssetId: uuid('compact_master_asset_id').references(
+      () => playerWallpaperAssets.id,
+      { onDelete: 'restrict' }
+    ),
+    wideDisplayAssetId: uuid('wide_display_asset_id').references(() => playerWallpaperAssets.id, {
+      onDelete: 'restrict',
+    }),
+    compactDisplayAssetId: uuid('compact_display_asset_id').references(
+      () => playerWallpaperAssets.id,
+      { onDelete: 'restrict' }
+    ),
+    wideCrop: jsonb('wide_crop').$type<WallpaperCrop>(),
+    compactCrop: jsonb('compact_crop').$type<WallpaperCrop>(),
+    wideFocus: jsonb('wide_focus').$type<WallpaperFocus>(),
+    compactFocus: jsonb('compact_focus').$type<WallpaperFocus>(),
+    activeFingerprint: text('active_fingerprint').notNull(),
+    lastPublishedAt: timestamp('last_published_at', { withTimezone: true }),
+    adminRemovedAt: timestamp('admin_removed_at', { withTimezone: true }),
+    adminRemovedBy: uuid('admin_removed_by').references(() => profiles.id, {
+      onDelete: 'set null',
+    }),
+    adminRemovalReason: text('admin_removal_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('player_wallpaper_configs_version_check', sql`${table.version} >= 0`),
+    check(
+      'player_wallpaper_configs_wide_mode_check',
+      sql`${table.wideMode} IN ('DEFAULT', 'SOLID', 'CUSTOM')`
+    ),
+    check(
+      'player_wallpaper_configs_compact_mode_check',
+      sql`${table.compactMode} IN ('INHERIT_PC', 'SOLID', 'CUSTOM')`
+    ),
+    check(
+      'player_wallpaper_configs_wide_solid_preset_check',
+      sql`${table.wideSolidPreset} IS NULL OR ${table.wideSolidPreset} IN ('NIGHT_INK', 'SAKURA', 'OCEAN', 'FOREST', 'AMBER', 'LILAC')`
+    ),
+    check(
+      'player_wallpaper_configs_compact_solid_preset_check',
+      sql`${table.compactSolidPreset} IS NULL OR ${table.compactSolidPreset} IN ('NIGHT_INK', 'SAKURA', 'OCEAN', 'FOREST', 'AMBER', 'LILAC')`
+    ),
+    check(
+      'player_wallpaper_configs_wide_shape_check',
+      sql`(
+        ${table.wideMode} = 'DEFAULT'
+        AND ${table.wideMasterAssetId} IS NULL
+        AND ${table.wideDisplayAssetId} IS NULL
+        AND ${table.wideCrop} IS NULL
+        AND ${table.wideFocus} IS NULL
+        AND ${table.wideSolidPreset} IS NULL
+      ) OR (
+        ${table.wideMode} = 'SOLID'
+        AND ${table.wideMasterAssetId} IS NULL
+        AND ${table.wideDisplayAssetId} IS NULL
+        AND ${table.wideCrop} IS NULL
+        AND ${table.wideFocus} IS NULL
+        AND ${table.wideSolidPreset} IS NOT NULL
+      ) OR (
+        ${table.wideMode} = 'CUSTOM'
+        AND ${table.wideMasterAssetId} IS NOT NULL
+        AND ${table.wideDisplayAssetId} IS NOT NULL
+        AND ${table.wideCrop} IS NOT NULL
+        AND ${table.wideFocus} IS NOT NULL
+        AND ${table.wideSolidPreset} IS NULL
+      )`
+    ),
+    check(
+      'player_wallpaper_configs_compact_shape_check',
+      sql`(
+        ${table.compactMode} = 'INHERIT_PC'
+        AND ${table.compactSolidPreset} IS NULL
+        AND (
+          (${table.wideMode} IN ('DEFAULT', 'SOLID')
+            AND ${table.compactMasterAssetId} IS NULL
+            AND ${table.compactDisplayAssetId} IS NULL
+            AND ${table.compactCrop} IS NULL
+            AND ${table.compactFocus} IS NULL)
+          OR
+          (${table.wideMode} = 'CUSTOM'
+            AND ${table.compactMasterAssetId} = ${table.wideMasterAssetId}
+            AND ${table.compactDisplayAssetId} IS NOT NULL
+            AND ${table.compactCrop} IS NOT NULL
+            AND ${table.compactFocus} IS NOT NULL)
+        )
+      ) OR (
+        ${table.compactMode} = 'SOLID'
+        AND ${table.compactMasterAssetId} IS NULL
+        AND ${table.compactDisplayAssetId} IS NULL
+        AND ${table.compactCrop} IS NULL
+        AND ${table.compactFocus} IS NULL
+        AND ${table.compactSolidPreset} IS NOT NULL
+      ) OR (
+        ${table.compactMode} = 'CUSTOM'
+        AND ${table.compactMasterAssetId} IS NOT NULL
+        AND ${table.compactDisplayAssetId} IS NOT NULL
+        AND ${table.compactCrop} IS NOT NULL
+        AND ${table.compactFocus} IS NOT NULL
+        AND ${table.compactSolidPreset} IS NULL
+      )`
+    ),
+    check(
+      'player_wallpaper_configs_fingerprint_check',
+      sql`${table.activeFingerprint} ~ '^[0-9a-f]{64}$'`
+    ),
+    check(
+      'player_wallpaper_configs_admin_removal_check',
+      sql`(${table.adminRemovedAt} IS NULL AND ${table.adminRemovalReason} IS NULL)
+        OR (${table.adminRemovedAt} IS NOT NULL AND btrim(${table.adminRemovalReason}) <> '')`
+    ),
+  ]
+);
+
+export const playerWallpaperPublicationDays = pgTable(
+  'player_wallpaper_publication_days',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    publishDay: text('publish_day').notNull(),
+    configVersion: integer('config_version').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.publishDay] }),
+    check(
+      'player_wallpaper_publication_days_day_check',
+      sql`${table.publishDay} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'`
+    ),
+    check('player_wallpaper_publication_days_version_check', sql`${table.configVersion} > 0`),
+  ]
+);
+
+export const playerWallpaperAdminAuditLogs = pgTable(
+  'player_wallpaper_admin_audit_logs',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    adminUserId: uuid('admin_user_id').references(() => profiles.id, {
+      onDelete: 'set null',
+    }),
+    action: text('action').notNull(),
+    reason: text('reason').notNull(),
+    configVersion: integer('config_version').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_player_wallpaper_admin_audit_user').on(table.userId, table.createdAt),
+    index('idx_player_wallpaper_admin_audit_admin').on(table.adminUserId, table.createdAt),
+    check('player_wallpaper_admin_audit_action_check', sql`${table.action} IN ('REMOVED')`),
+    check('player_wallpaper_admin_audit_reason_check', sql`btrim(${table.reason}) <> ''`),
+    check('player_wallpaper_admin_audit_version_check', sql`${table.configVersion} > 0`),
+  ]
+);
+
+export const playerWallpaperIdempotency = pgTable(
+  'player_wallpaper_idempotency',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => profiles.id, { onDelete: 'cascade' }),
+    idempotencyKey: text('idempotency_key').notNull(),
+    operation: text('operation').$type<PlayerWallpaperOperation>().notNull(),
+    requestFingerprint: text('request_fingerprint').notNull(),
+    status: text('status').$type<PlayerWallpaperIdempotencyStatus>().notNull(),
+    result: jsonb('result').$type<Record<string, unknown>>(),
+    configVersion: integer('config_version'),
+    errorCode: text('error_code'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.idempotencyKey] }),
+    index('idx_player_wallpaper_idempotency_expires').on(table.expiresAt),
+    check(
+      'player_wallpaper_idempotency_key_check',
+      sql`char_length(${table.idempotencyKey}) BETWEEN 8 AND 160`
+    ),
+    check(
+      'player_wallpaper_idempotency_operation_check',
+      sql`${table.operation} IN ('PUBLISH', 'RESET', 'ADMIN_REMOVE')`
+    ),
+    check(
+      'player_wallpaper_idempotency_status_check',
+      sql`${table.status} IN ('PROCESSING', 'SUCCEEDED', 'FAILED')`
+    ),
+    check(
+      'player_wallpaper_idempotency_fingerprint_check',
+      sql`${table.requestFingerprint} ~ '^[0-9a-f]{64}$'`
+    ),
   ]
 );
 

@@ -82,7 +82,6 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "prettier": "^3.7.4",
-    "sharp": "^0.34.5",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
@@ -100,6 +99,7 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.2",
     "pg": "^8.20.0",
+    "sharp": "^0.34.5",
     "ws": "^8.21.0",
     "yaml": "^2.8.2",
     "zod": "^4.2.1"

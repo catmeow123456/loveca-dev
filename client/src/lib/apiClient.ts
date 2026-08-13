@@ -87,7 +87,7 @@ export interface SharedDeckRecord extends DeckRecord {
 
 export interface ApiResponse<T = unknown> {
   data: T | null;
-  error: { code: string; message: string; retryAfterMs?: number } | null;
+  error: { code: string; message: string; retryAfterMs?: number; nextChangeAt?: string } | null;
   total?: number;
   status?: number;
   retryAfterMs?: number;
@@ -339,6 +339,40 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Api
   }
 }
 
+async function apiFetchBlob(path: string): Promise<ApiResponse<Blob>> {
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  try {
+    let response = await sendApiRequest(path, { method: 'GET', cache: 'default' }, headers);
+    if (response.status === 401 && shouldAttemptTokenRefresh(path)) {
+      const refreshed = await tryRefreshToken();
+      if (refreshed && accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+        response = await sendApiRequest(path, { method: 'GET', cache: 'default' }, headers);
+      } else {
+        accessToken = null;
+      }
+    }
+    if (!response.ok) {
+      return safeResponseJson<Blob>(response);
+    }
+    return { data: await response.blob(), error: null, status: response.status };
+  } catch (error) {
+    return {
+      data: null,
+      error: {
+        code: isAbortError(error) ? 'TIMEOUT' : 'NETWORK_ERROR',
+        message: isAbortError(error)
+          ? '请求超时，请检查网络连接'
+          : getNetworkErrorMessage(path, error),
+      },
+    };
+  }
+}
+
 // ============================================
 // Token refresh
 // ============================================
@@ -395,6 +429,10 @@ function shouldAttemptTokenRefresh(path: string): boolean {
 export const apiClient = {
   get<T>(path: string): Promise<ApiResponse<T>> {
     return apiFetch<T>(path, { method: 'GET' });
+  },
+
+  getBlob(path: string): Promise<ApiResponse<Blob>> {
+    return apiFetchBlob(path);
   },
 
   post<T>(path: string, body?: unknown): Promise<ApiResponse<T>> {

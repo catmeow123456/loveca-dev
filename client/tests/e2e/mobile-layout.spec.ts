@@ -1039,6 +1039,22 @@ const scenarios: Scenario[] = [
     ready: async (page) => {
       await expect(page.getByText('个人中心', { exact: true }).first()).toBeVisible();
     },
+    action: async (page) => {
+      const profileLink = page.getByRole('link', { name: '个人资料', exact: true });
+      const securityLink = page.getByRole('link', { name: '账号与安全', exact: true });
+      await expect(profileLink).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByLabel('显示名称')).toBeVisible();
+
+      await securityLink.click();
+      await expect(securityLink).toHaveAttribute('aria-current', 'page');
+      await expect(page).toHaveURL(/(?:\?|&)section=security(?:&|$)/);
+      await expect(page.getByRole('heading', { name: '修改密码', exact: true })).toBeVisible();
+      await expect(page.getByLabel('显示名称')).toHaveCount(0);
+
+      await page.goBack();
+      await expect(profileLink).toHaveAttribute('aria-current', 'page');
+      await expect(page.getByLabel('显示名称')).toBeVisible();
+    },
   },
   {
     name: 'online-admin',

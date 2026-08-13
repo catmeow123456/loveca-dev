@@ -23,6 +23,7 @@ import { deckPointTablesAdminRouter, deckPointTablesRouter } from './routes/deck
 import { playerBadgesRouter } from './routes/player-badges.js';
 import { matchEmotesRouter } from './routes/match-emotes.js';
 import { aiEffectExtractionRouter } from './routes/ai-effect-extraction.js';
+import { playerWallpapersRouter } from './routes/player-wallpapers.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -85,6 +86,7 @@ export function createApp(): express.Express {
   app.use('/api/public-table', publicTableRouter);
   app.use('/api/ranked', rankedRouter);
   app.use('/api/player-badges', playerBadgesRouter);
+  app.use('/api/player-wallpapers', playerWallpapersRouter);
   app.use('/api/match-emotes', matchEmotesRouter);
   app.use('/api/ai-effect-extraction', aiEffectExtractionRouter);
   app.use('/api/admin/ranked', rankedAdminRouter);

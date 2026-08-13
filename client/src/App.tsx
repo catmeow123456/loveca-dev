@@ -56,6 +56,7 @@ import { useDeckStore } from '@/store/deckStore';
 import { useAuthStore } from '@/store/authStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
+import { usePlayerWallpaperStore } from '@/store/playerWallpaperStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
@@ -329,11 +330,13 @@ function App() {
   const enterOfflineMode = useAuthStore((s) => s.enterOfflineMode);
   const signOut = useAuthStore((s) => s.signOut);
   const setPublicTableSessionUser = usePublicTableStore((s) => s.setSessionUser);
+  const setWallpaperSessionUser = usePlayerWallpaperStore((s) => s.setSessionUser);
   const publicTableSessionUserId = user && profile && !offlineMode ? user.id : null;
 
   useLayoutEffect(() => {
     setPublicTableSessionUser(publicTableSessionUserId);
-  }, [publicTableSessionUserId, setPublicTableSessionUser]);
+    setWallpaperSessionUser(publicTableSessionUserId);
+  }, [publicTableSessionUserId, setPublicTableSessionUser, setWallpaperSessionUser]);
 
   // Game state
   const matchView = useGameStore((s) => s.getMatchView());

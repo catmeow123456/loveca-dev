@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import {
   AtSign,
+  Award,
   BadgeCheck,
   CheckCircle2,
   KeyRound,
   Loader2,
   LockKeyhole,
   Mail,
+  Palette,
   Save,
   Send,
+  ShieldCheck,
   UserRound,
 } from 'lucide-react';
 import {
@@ -20,6 +23,7 @@ import {
   TextInput,
 } from '@/components/common';
 import { BadgeShelf } from '@/components/player-badges/BadgeShelf';
+import { WallpaperSettings } from '@/components/player-wallpaper/WallpaperSettings';
 import { fetchMyPlayerBadges } from '@/lib/playerBadgeClient';
 import { useAuthStore } from '@/store/authStore';
 import type { PlayerBadgeView } from '@game/online/player-badge-types';
@@ -30,6 +34,18 @@ interface AccountCenterPageProps {
 }
 
 type Feedback = { tone: 'success' | 'error'; message: string } | null;
+type AccountSection = 'profile' | 'security' | 'appearance' | 'badges';
+
+const ACCOUNT_SECTIONS: ReadonlyArray<{
+  key: AccountSection;
+  label: string;
+  icon: ReactNode;
+}> = [
+  { key: 'profile', label: '个人资料', icon: <AtSign size={17} /> },
+  { key: 'security', label: '账号与安全', icon: <ShieldCheck size={17} /> },
+  { key: 'appearance', label: '游戏桌外观', icon: <Palette size={17} /> },
+  { key: 'badges', label: '徽章展示', icon: <Award size={17} /> },
+];
 
 export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterPageProps) {
   const user = useAuthStore((state) => state.user);
@@ -55,7 +71,14 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
   const [badgesLoading, setBadgesLoading] = useState(true);
   const [badgesError, setBadgesError] = useState<string | null>(null);
   const [badgeRequestVersion, setBadgeRequestVersion] = useState(0);
+  const [activeSection, setActiveSection] = useState<AccountSection>(readAccountSection);
   const authenticatedUserId = user?.id;
+
+  useEffect(() => {
+    const handlePopState = () => setActiveSection(readAccountSection());
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!authenticatedUserId) {
@@ -90,6 +113,13 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
     setBadgesLoading(true);
     setBadgesError(null);
     setBadgeRequestVersion((version) => version + 1);
+  };
+
+  const selectSection = (section: AccountSection) => {
+    if (section === activeSection) return;
+
+    window.history.pushState(null, '', accountSectionHref(section));
+    setActiveSection(section);
   };
 
   const initials = useMemo(() => {
@@ -209,142 +239,150 @@ export function AccountCenterPage({ emailChangeEnabled, onBack }: AccountCenterP
               email={user.email}
               emailVerified={user.emailVerified}
               deckCount={profile.deck_count}
+              activeSection={activeSection}
+              onSelectSection={selectSection}
             />
           </aside>
 
-          <div className="grid gap-4">
-            <BadgeShelf
-              badges={badges}
-              loading={badgesLoading}
-              error={badgesError}
-              onRetry={retryBadges}
-            />
-
-            <SettingsSection
-              icon={<AtSign size={18} />}
-              title="公开身份"
-              description="用户名用于登录，显示名称用于对局。"
-            >
-              <form onSubmit={submitProfile} className="grid gap-4">
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="用户名">
-                    <TextInput
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
-                      autoComplete="username"
-                      maxLength={30}
-                    />
-                  </Field>
-                  <Field label="显示名称">
-                    <TextInput
-                      value={displayName}
-                      onChange={(event) => setDisplayName(event.target.value)}
-                      autoComplete="nickname"
-                      maxLength={50}
-                    />
-                  </Field>
-                </div>
-                <FormFooter feedback={profileFeedback}>
-                  <SubmitButton
-                    loading={isLoading}
-                    idleLabel="保存资料"
-                    loadingLabel="保存中"
-                    icon={<Save size={16} />}
-                  />
-                </FormFooter>
-              </form>
-            </SettingsSection>
-
-            <SettingsSection icon={<Mail size={18} />} title="登录邮箱">
-              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-2.5">
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text-primary)]">
-                  {user.email}
-                </span>
-                <StatusBadge tone={user.emailVerified ? 'success' : 'warning'}>
-                  {user.emailVerified ? <BadgeCheck size={14} /> : <Mail size={14} />}
-                  {user.emailVerified ? '已验证' : '未验证'}
-                </StatusBadge>
-              </div>
-
-              {emailChangeEnabled ? (
-                <form onSubmit={submitEmailChange} className="grid gap-4">
+          <div id="account-settings-panel" className="grid min-w-0 gap-4">
+            {activeSection === 'profile' ? (
+              <SettingsSection icon={<AtSign size={18} />} title="个人资料">
+                <form onSubmit={submitProfile} className="grid gap-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="新邮箱">
+                    <Field label="用户名">
                       <TextInput
-                        type="email"
-                        value={newEmail}
-                        onChange={(event) => setNewEmail(event.target.value)}
-                        placeholder="name@example.com"
-                        autoComplete="email"
-                        maxLength={254}
+                        value={username}
+                        onChange={(event) => setUsername(event.target.value)}
+                        autoComplete="username"
+                        maxLength={30}
                       />
                     </Field>
-                    <Field label="当前密码">
+                    <Field label="显示名称">
                       <TextInput
-                        type="password"
-                        value={emailPassword}
-                        onChange={(event) => setEmailPassword(event.target.value)}
-                        autoComplete="current-password"
-                        maxLength={128}
+                        value={displayName}
+                        onChange={(event) => setDisplayName(event.target.value)}
+                        autoComplete="nickname"
+                        maxLength={50}
                       />
                     </Field>
                   </div>
-                  <FormFooter feedback={emailFeedback}>
+                  <FormFooter feedback={profileFeedback}>
                     <SubmitButton
                       loading={isLoading}
-                      idleLabel="发送验证邮件"
-                      loadingLabel="发送中"
-                      icon={<Send size={16} />}
+                      idleLabel="保存资料"
+                      loadingLabel="保存中"
+                      icon={<Save size={16} />}
                     />
                   </FormFooter>
                 </form>
-              ) : (
-                <p className="text-xs text-[var(--text-muted)]">邮件服务未开启，暂不可换绑。</p>
-              )}
-            </SettingsSection>
+              </SettingsSection>
+            ) : null}
 
-            <SettingsSection icon={<LockKeyhole size={18} />} title="修改密码">
-              <form onSubmit={submitPassword} className="grid gap-4">
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <Field label="当前密码">
-                    <TextInput
-                      type="password"
-                      value={currentPassword}
-                      onChange={(event) => setCurrentPassword(event.target.value)}
-                      autoComplete="current-password"
-                      maxLength={128}
-                    />
-                  </Field>
-                  <Field label="新密码">
-                    <TextInput
-                      type="password"
-                      value={newPassword}
-                      onChange={(event) => setNewPassword(event.target.value)}
-                      autoComplete="new-password"
-                      placeholder="至少 6 个字符"
-                      maxLength={128}
-                    />
-                  </Field>
-                  <Field label="确认新密码">
-                    <TextInput
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                      autoComplete="new-password"
-                      maxLength={128}
-                    />
-                  </Field>
-                </div>
-                <FormFooter feedback={passwordFeedback}>
-                  <SubmitButton
-                    loading={isLoading}
-                    idleLabel="修改密码"
-                    loadingLabel="修改中"
-                    icon={<KeyRound size={16} />}
-                  />
-                </FormFooter>
-              </form>
-            </SettingsSection>
+            {activeSection === 'security' ? (
+              <>
+                <SettingsSection icon={<Mail size={18} />} title="登录邮箱">
+                  <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-overlay)] px-3 py-2.5">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--text-primary)]">
+                      {user.email}
+                    </span>
+                    <StatusBadge tone={user.emailVerified ? 'success' : 'warning'}>
+                      {user.emailVerified ? <BadgeCheck size={14} /> : <Mail size={14} />}
+                      {user.emailVerified ? '已验证' : '未验证'}
+                    </StatusBadge>
+                  </div>
+
+                  {emailChangeEnabled ? (
+                    <form onSubmit={submitEmailChange} className="grid gap-4">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Field label="新邮箱">
+                          <TextInput
+                            type="email"
+                            value={newEmail}
+                            onChange={(event) => setNewEmail(event.target.value)}
+                            placeholder="name@example.com"
+                            autoComplete="email"
+                            maxLength={254}
+                          />
+                        </Field>
+                        <Field label="当前密码">
+                          <TextInput
+                            type="password"
+                            value={emailPassword}
+                            onChange={(event) => setEmailPassword(event.target.value)}
+                            autoComplete="current-password"
+                            maxLength={128}
+                          />
+                        </Field>
+                      </div>
+                      <FormFooter feedback={emailFeedback}>
+                        <SubmitButton
+                          loading={isLoading}
+                          idleLabel="发送验证邮件"
+                          loadingLabel="发送中"
+                          icon={<Send size={16} />}
+                        />
+                      </FormFooter>
+                    </form>
+                  ) : (
+                    <p className="text-xs text-[var(--text-muted)]">暂不可换绑。</p>
+                  )}
+                </SettingsSection>
+
+                <SettingsSection icon={<LockKeyhole size={18} />} title="修改密码">
+                  <form onSubmit={submitPassword} className="grid gap-4">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Field label="当前密码">
+                        <TextInput
+                          type="password"
+                          value={currentPassword}
+                          onChange={(event) => setCurrentPassword(event.target.value)}
+                          autoComplete="current-password"
+                          maxLength={128}
+                        />
+                      </Field>
+                      <Field label="新密码">
+                        <TextInput
+                          type="password"
+                          value={newPassword}
+                          onChange={(event) => setNewPassword(event.target.value)}
+                          autoComplete="new-password"
+                          placeholder="至少 6 个字符"
+                          maxLength={128}
+                        />
+                      </Field>
+                      <Field label="确认新密码">
+                        <TextInput
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(event) => setConfirmPassword(event.target.value)}
+                          autoComplete="new-password"
+                          maxLength={128}
+                        />
+                      </Field>
+                    </div>
+                    <FormFooter feedback={passwordFeedback}>
+                      <SubmitButton
+                        loading={isLoading}
+                        idleLabel="修改密码"
+                        loadingLabel="修改中"
+                        icon={<KeyRound size={16} />}
+                      />
+                    </FormFooter>
+                  </form>
+                </SettingsSection>
+              </>
+            ) : null}
+
+            {activeSection === 'appearance' ? <WallpaperSettings /> : null}
+
+            {activeSection === 'badges' ? (
+              <BadgeShelf
+                badges={badges}
+                loading={badgesLoading}
+                error={badgesError}
+                onRetry={retryBadges}
+              />
+            ) : null}
           </div>
         </div>
       </main>
@@ -359,6 +397,8 @@ function IdentityPass({
   email,
   emailVerified,
   deckCount,
+  activeSection,
+  onSelectSection,
 }: {
   initials: string;
   username: string;
@@ -366,30 +406,92 @@ function IdentityPass({
   email: string;
   emailVerified: boolean;
   deckCount: number;
+  activeSection: AccountSection;
+  onSelectSection: (section: AccountSection) => void;
 }) {
   return (
-    <Panel as="section">
-      <div className="flex items-center gap-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-stage-plum)] text-lg font-bold text-[var(--brand-card-white)]">
-          {initials}
+    <Panel as="section" padding="none">
+      <div className="p-4 sm:p-5 lg:p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-stage-plum)] text-base font-bold text-[var(--brand-card-white)] lg:h-14 lg:w-14 lg:text-lg">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold text-[var(--text-primary)]">
+              {displayName}
+            </h2>
+            <p className="truncate text-xs text-[var(--text-secondary)]">@{username}</p>
+          </div>
         </div>
-        <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold text-[var(--text-primary)]">
-            {displayName}
-          </h2>
-          <p className="truncate text-xs text-[var(--text-secondary)]">@{username}</p>
-        </div>
+
+        <div className="my-4 hidden border-t border-[var(--border-subtle)] lg:block" />
+
+        <dl className="hidden gap-2.5 text-xs lg:grid">
+          <PassRow label="登录邮箱" value={email} />
+          <PassRow label="邮箱状态" value={emailVerified ? '已验证' : '待验证'} />
+          <PassRow label="云端卡组" value={`${deckCount} 副`} />
+        </dl>
       </div>
 
-      <div className="my-4 border-t border-[var(--border-subtle)]" />
-
-      <dl className="grid gap-2.5 text-xs">
-        <PassRow label="登录邮箱" value={email} />
-        <PassRow label="邮箱状态" value={emailVerified ? '已验证' : '待验证'} />
-        <PassRow label="云端卡组" value={`${deckCount} 副`} />
-      </dl>
+      <nav
+        className="grid grid-cols-2 gap-1 border-t border-[var(--border-subtle)] p-2 lg:grid-cols-1"
+        aria-label="个人中心设置"
+      >
+        {ACCOUNT_SECTIONS.map((section) => {
+          const isActive = section.key === activeSection;
+          return (
+            <a
+              key={section.key}
+              href={accountSectionHref(section.key)}
+              aria-current={isActive ? 'page' : undefined}
+              aria-controls="account-settings-panel"
+              onClick={(event) => {
+                if (
+                  event.button !== 0 ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                event.preventDefault();
+                onSelectSection(section.key);
+              }}
+              className={`flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-surface)] ${
+                isActive
+                  ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_32%,var(--border-subtle))] bg-[color:color-mix(in_srgb,var(--accent-primary)_11%,var(--bg-surface))] text-[var(--accent-primary)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:border-[var(--border-subtle)] hover:bg-[var(--bg-overlay)] hover:text-[var(--text-primary)]'
+              }`}
+            >
+              <span className="shrink-0" aria-hidden="true">
+                {section.icon}
+              </span>
+              <span>{section.label}</span>
+            </a>
+          );
+        })}
+      </nav>
     </Panel>
   );
+}
+
+function readAccountSection(): AccountSection {
+  const section = new URLSearchParams(window.location.search).get('section');
+  return section === 'security' || section === 'appearance' || section === 'badges'
+    ? section
+    : 'profile';
+}
+
+function accountSectionHref(section: AccountSection): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set('page', 'account');
+  if (section === 'profile') {
+    url.searchParams.delete('section');
+  } else {
+    url.searchParams.set('section', section);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
 }
 
 function PassRow({ label, value }: { label: string; value: string }) {

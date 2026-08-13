@@ -11,6 +11,7 @@ interface ConfirmDialogProps {
   readonly confirmLabel: string;
   readonly cancelLabel?: string;
   readonly isConfirming?: boolean;
+  readonly tone?: 'primary' | 'danger';
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
 }
@@ -22,6 +23,7 @@ export const ConfirmDialog = memo(function ConfirmDialog({
   confirmLabel,
   cancelLabel = '取消',
   isConfirming = false,
+  tone = 'danger',
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -106,7 +108,11 @@ export const ConfirmDialog = memo(function ConfirmDialog({
               type="button"
               onClick={onConfirm}
               disabled={isConfirming}
-              className="button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-4 text-sm font-semibold text-[var(--semantic-error)]"
+              className={
+                tone === 'primary'
+                  ? 'button-primary inline-flex min-h-10 items-center justify-center gap-2 px-4 text-sm font-semibold'
+                  : 'button-ghost inline-flex min-h-10 items-center justify-center gap-2 border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] px-4 text-sm font-semibold text-[var(--semantic-error)]'
+              }
             >
               {isConfirming ? <Loader2 size={15} className="animate-spin" /> : null}
               {confirmLabel}

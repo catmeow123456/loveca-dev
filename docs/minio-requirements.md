@@ -5,7 +5,7 @@
 > 最后更新: 2026-06-12
 > 文档类型: 设计文档
 > 适用范围: 生产外部 MinIO、开发环境本地 MinIO、服务端图片上传/访问
-> 当前状态: 服务端通过 `MINIO_*` 环境变量连接对象存储；生产环境不由主应用 compose 启动 MinIO，开发环境提供本地 MinIO
+> 当前状态: 服务端通过 `MINIO_*` 环境变量连接对象存储；公开卡图与玩家私有壁纸使用不同 bucket；生产环境不由主应用 compose 启动 MinIO，开发环境提供本地 MinIO
 
 本文档说明 Loveca 图片对象存储的设计边界、路径约定和部署职责，不维护具体命令、脚本调用示例或 Nginx 配置片段。
 
@@ -89,7 +89,7 @@ sequenceDiagram
     Proxy-->>Browser: 返回带缓存策略的图片响应
 ```
 
-图片读取是公开的，但公开范围只限 bucket 中可通过 `/images/*` 暴露的对象。写入权限不得下放给前端。
+卡图 bucket 的图片读取是公开的，但公开范围只限可通过 `/images/*` 暴露的对象。玩家壁纸位于 `MINIO_WALLPAPER_BUCKET` 指定的独立私有 bucket，只能由登录后的本人接口读取；详细边界见[玩家游戏桌壁纸实现设计](player-wallpaper/design.md)。写入权限不得下放给前端。
 
 ## 7. 配置项
 
@@ -102,6 +102,7 @@ API Server 通过 `MINIO_*` 环境变量连接对象存储：
 | `MINIO_ACCESS_KEY` | 写入访问密钥 |
 | `MINIO_SECRET_KEY` | 写入密钥 |
 | `MINIO_BUCKET` | bucket 名称 |
+| `MINIO_WALLPAPER_BUCKET` | 玩家壁纸私有 bucket 名称，必须与公开 bucket 不同 |
 | `MINIO_USE_SSL` | 是否使用 TLS |
 
 前端跨源调试时可通过 `VITE_API_BASE_URL` 指向 API 和图片代理源。同源部署不需要额外配置。
@@ -111,7 +112,7 @@ API Server 通过 `MINIO_*` 环境变量连接对象存储：
 - 生产 MinIO 控制台不应公开暴露。
 - S3 API 端口应只允许主应用服务器或可信网络访问。
 - 写入密钥只配置在服务端或受控脚本环境中。
-- 图片读取可公开，但 bucket 内不应混放私密对象。
+- 公开图片 bucket 内不应混放私密对象；玩家壁纸 bucket 不得授予匿名读取策略。
 - 对象存储数据需要独立备份策略。
 - 迁移后应抽样验证图片可访问性、尺寸目录完整性和静态资源加载情况。
 
@@ -129,6 +130,7 @@ API Server 通过 `MINIO_*` 环境变量连接对象存储：
 | `client/src/lib/apiClient.ts` | API base URL 与图片源辅助 |
 | `src/server/routes/images.ts` | 图片上传/删除 API |
 | `src/server/services/minio-service.ts` | 对象存储访问封装 |
+| `src/server/services/player-wallpaper-service.ts` | 玩家私有壁纸对象生命周期与鉴权读取 |
 | `src/scripts/upload-to-minio.ts` | 批量上传卡牌图片脚本 |
 | `src/scripts/upload-static-assets.ts` | 上传静态资源脚本 |
 | `docker-compose.dev.yml` | 本地开发 MinIO 与初始化服务 |

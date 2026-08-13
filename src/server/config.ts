@@ -65,7 +65,26 @@ export const config = {
     accessKey: requireEnv('MINIO_ACCESS_KEY'),
     secretKey: requireEnv('MINIO_SECRET_KEY'),
     bucket: optionalEnv('MINIO_BUCKET', 'loveca-cards'),
+    wallpaperBucket: optionalEnv('MINIO_WALLPAPER_BUCKET', 'loveca-user-assets'),
     useSSL: optionalEnv('MINIO_USE_SSL', 'false') === 'true',
+  },
+
+  playerWallpaper: {
+    maxInputBytes: 8 * 1024 * 1024,
+    maxInputPixels: 32 * 1024 * 1024,
+    maxInputEdge: 8192,
+    normalizedMasterMaxEdge: 4096,
+    processingConcurrency: parsePositiveIntegerEnv('PLAYER_WALLPAPER_PROCESSING_CONCURRENCY', 2, 8),
+    processingTimeoutSeconds: parsePositiveIntegerEnv(
+      'PLAYER_WALLPAPER_PROCESSING_TIMEOUT_SECONDS',
+      15,
+      60
+    ),
+    retiredAssetRetentionHours: parsePositiveIntegerEnv(
+      'PLAYER_WALLPAPER_RETIRED_RETENTION_HOURS',
+      24,
+      24 * 30
+    ),
   },
 
   // SMTP (optional)
@@ -135,6 +154,9 @@ export function assertSecurityConfiguration(): void {
     throw new Error(
       'EMAIL_ENABLED=true requires SMTP_HOST, a valid SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM'
     );
+  }
+  if (config.minio.wallpaperBucket === config.minio.bucket) {
+    throw new Error('MINIO_WALLPAPER_BUCKET must be different from the public MINIO_BUCKET');
   }
   if (
     config.aiEffectExtraction.encryptionKey &&
