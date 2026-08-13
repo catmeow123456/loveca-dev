@@ -125,17 +125,7 @@ TARGET_PLATFORMS=linux/amd64
 LOCAL_IMAGE="loveca-api:release-candidate-${SHORT_SHA}"
 ```
 
-候选构建前记录当前生产实际使用的镜像引用，并分别查询该引用与 registry `latest` 的 digest、平台集合、revision 和 version：
-
-```bash
-CURRENT_PRODUCTION_IMAGE='<当前生产实际镜像标签或 digest 引用>'
-docker buildx imagetools inspect --format '{{json .}}' "${CURRENT_PRODUCTION_IMAGE}"
-docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
-```
-
-当前生产镜像与 `latest` 的平台集合都应为 `linux/amd64`。任一结果不符、无法取得生产实际镜像引用，或构建期间平台/digest 发生变化时，停止推送并核查。如确需改变生产架构，必须先更新本 runbook 和发布 skill，再针对展示的新旧平台差异取得一次明确授权。
-
-核对通过后，显式使用固定生产平台构建本地候选镜像，检查 runtime 入口和镜像实际平台：
+显式使用固定生产平台构建本地候选镜像，检查 runtime 入口和镜像实际平台：
 
 ```bash
 docker build --pull --platform "${TARGET_PLATFORMS}" -t "${LOCAL_IMAGE}" .
@@ -170,7 +160,7 @@ docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:
 
 推送后必须从 registry 返回值确认两个不可变标签指向相同 digest，平台集合均为 `linux/amd64`，revision 为完整 `GIT_SHA`，version 为 `RELEASE_VERSION`。任一项不符时停止，不得继续推 tag、创建 GitHub Release 或提升 `latest`。
 
-推送 tag 并等待 `Release Tag Integrity` 成功后，才可提升 `latest`。提升前再次取得授权，查询并记录当时旧 `latest` 的引用、digest、平台集合、revision 和 version；若与构建前记录不同，停止并核查：
+推送 tag 并等待 `Release Tag Integrity` 成功后，才可提升 `latest`。提升前再次取得授权，查询并记录 registry 当时旧 `latest` 的引用、digest、平台集合、revision 和 version；若旧 `latest` 存在但平台集合不是 `linux/amd64`，停止并在展示差异后取得针对架构变化的明确授权：
 
 ```bash
 docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:latest"
@@ -183,7 +173,7 @@ docker buildx imagetools inspect --format '{{json .}}' "${API_IMAGE_REPOSITORY}:
 
 提升后确认 `latest` 与不可变版本标签指向相同 digest，平台集合、revision 和 version 也完全一致；否则发布未完成，应停止部署并使用事前记录的旧 digest 回滚 `latest`。
 
-若 GHCR package 为 private，发布机需要 package write 权限，生产机需要 package read 权限；token 只通过安全凭据注入，不写入仓库、命令参数或日志。发布记录必须保存：固定生产平台契约；当前生产镜像与提升前旧 `latest` 各自的引用、digest、平台集合、revision 和 version；候选平台/runtime 校验结果；版本标签、提交标签和提升后 `latest` 各自的引用、digest、平台集合、revision 和 version；以及是否发生并获准架构变化。
+若 GHCR package 为 private，发布机需要 package write 权限，生产机需要 package read 权限；token 只通过安全凭据注入，不写入仓库、命令参数或日志。发布记录必须保存：固定生产平台契约；候选平台/runtime 校验结果；提升前旧 `latest`、版本标签、提交标签和提升后 `latest` 各自的引用、digest、平台集合、revision 和 version；以及是否发生并获准架构变化。
 
 构建产物：
 
