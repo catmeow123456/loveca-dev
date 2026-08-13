@@ -51,10 +51,13 @@ import {
 import { resolveCardImagePath } from '@/lib/imageService';
 import {
   collapseRankedOpenWindows,
+  getRankedOpenWindowsValidationError,
   isCrossMidnightRankedOpenWindow,
   isEditableRankedOpenWindowValid,
+  MAX_RANKED_OPEN_WINDOWS,
   prepareRankedOpenWindowsForApi,
   prepareRankedOpenWindowsForForm,
+  type EditableRankedOpenWindow,
 } from '@/lib/rankedOpenWindows';
 
 type Tab = 'overview' | 'season' | 'matches';
@@ -1299,14 +1302,13 @@ function ActiveSeasonOperationsForm({
   const [openWindows, setOpenWindows] = useState(() =>
     prepareRankedOpenWindowsForForm(season.openWindows)
   );
-  const editableOpenWindow = openWindows.length === 1 ? openWindows[0] : null;
-  const openWindowIsValid =
-    editableOpenWindow === null || isEditableRankedOpenWindowValid(editableOpenWindow);
+  const openWindowsError = getRankedOpenWindowsValidationError(openWindows);
   return (
     <form
       className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
+        if (openWindowsError) return;
         void onSubmit({
           name,
           announcement,
@@ -1350,21 +1352,15 @@ function ActiveSeasonOperationsForm({
           />
         </Field>
       </div>
-      {editableOpenWindow ? (
-        <OpenWindowFields
-          openWindow={editableOpenWindow}
-          onChange={(openWindow) => setOpenWindows([openWindow])}
-        />
-      ) : (
-        <p className="rounded-lg bg-[var(--semantic-warning)]/10 px-3 py-2 text-sm text-[var(--semantic-warning)] sm:col-span-2">
-          当前赛季包含多个独立开放时段，本次保存会原样保留这些时段。
-        </p>
-      )}
+      <OpenWindowsFields openWindows={openWindows} onChange={setOpenWindows} />
       <div className="flex items-end justify-end gap-2 sm:col-span-2">
         <button type="button" className="button-secondary min-h-11 px-4" onClick={onCancel}>
           取消
         </button>
-        <button className="button-primary min-h-11 px-5" disabled={busy || !openWindowIsValid}>
+        <button
+          className="button-primary min-h-11 px-5"
+          disabled={busy || Boolean(openWindowsError)}
+        >
           {busy ? <Loader2 size={16} className="animate-spin" /> : '保存'}
         </button>
       </div>
@@ -1393,9 +1389,7 @@ function SeasonDraftForm({
     [algorithm, defaultRatingConfig, season]
   );
   const [draft, setDraft] = useState(initial);
-  const editableOpenWindow = draft.openWindows.length === 1 ? draft.openWindows[0] : null;
-  const openWindowIsValid =
-    editableOpenWindow === null || isEditableRankedOpenWindowValid(editableOpenWindow);
+  const openWindowsError = getRankedOpenWindowsValidationError(draft.openWindows);
   const leaderboardMatchCountIsFrozen =
     draft.ratingAlgorithmVersion === defaultRatingConfig.algorithmVersion &&
     Boolean(defaultRatingConfig.growthPool);
@@ -1404,6 +1398,7 @@ function SeasonDraftForm({
       className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(event) => {
         event.preventDefault();
+        if (openWindowsError) return;
         void onSubmit({
           ...draft,
           openWindows: prepareRankedOpenWindowsForApi(draft.openWindows),
@@ -1556,23 +1551,20 @@ function SeasonDraftForm({
           </Field>
         </>
       ) : null}
-      {editableOpenWindow ? (
-        <OpenWindowFields
-          openWindow={editableOpenWindow}
-          onChange={(openWindow) => setDraft({ ...draft, openWindows: [openWindow] })}
-        />
-      ) : (
-        <p className="rounded-lg bg-[var(--semantic-warning)]/10 px-3 py-2 text-sm text-[var(--semantic-warning)] sm:col-span-2">
-          当前赛季包含多个独立开放时段，本次保存会原样保留这些时段。
-        </p>
-      )}
+      <OpenWindowsFields
+        openWindows={draft.openWindows}
+        onChange={(openWindows) => setDraft({ ...draft, openWindows })}
+      />
       <div className="flex items-end justify-end gap-2">
         {onCancel ? (
           <button type="button" className="button-secondary min-h-11 px-4" onClick={onCancel}>
             取消
           </button>
         ) : null}
-        <button className="button-primary min-h-11 px-5" disabled={busy || !openWindowIsValid}>
+        <button
+          className="button-primary min-h-11 px-5"
+          disabled={busy || Boolean(openWindowsError)}
+        >
           {busy ? <Loader2 size={16} className="animate-spin" /> : season ? '保存' : '创建赛季'}
         </button>
       </div>
@@ -2650,12 +2642,72 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+function OpenWindowsFields({
+  openWindows,
+  onChange,
+}: {
+  openWindows: EditableRankedOpenWindow[];
+  onChange: (openWindows: EditableRankedOpenWindow[]) => void;
+}) {
+  const validationError = getRankedOpenWindowsValidationError(openWindows);
+  return (
+    <div className="grid gap-3 sm:col-span-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-semibold text-[var(--text-primary)]">开放时段</span>
+        <button
+          type="button"
+          className="button-secondary min-h-9 px-3 text-sm"
+          disabled={openWindows.length >= MAX_RANKED_OPEN_WINDOWS}
+          onClick={() =>
+            onChange([...openWindows, { weekdays: [1], startMinute: 1080, endMinute: 1320 }])
+          }
+        >
+          添加开放时段
+        </button>
+      </div>
+      {openWindows.map((openWindow, index) => (
+        <section
+          key={index}
+          aria-label={`开放时段 ${index + 1}`}
+          className="grid gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3 sm:grid-cols-2"
+        >
+          <div className="flex items-center justify-between gap-3 sm:col-span-2">
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              开放时段 {index + 1}
+            </span>
+            {openWindows.length > 1 ? (
+              <button
+                type="button"
+                className="text-sm text-[var(--semantic-error)]"
+                onClick={() => onChange(openWindows.filter((_, itemIndex) => itemIndex !== index))}
+              >
+                删除此时段
+              </button>
+            ) : null}
+          </div>
+          <OpenWindowFields
+            openWindow={openWindow}
+            onChange={(nextOpenWindow) =>
+              onChange(
+                openWindows.map((item, itemIndex) => (itemIndex === index ? nextOpenWindow : item))
+              )
+            }
+          />
+        </section>
+      ))}
+      {validationError ? (
+        <p className="text-sm text-[var(--semantic-error)]">{validationError}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function OpenWindowFields({
   openWindow,
   onChange,
 }: {
-  openWindow?: { weekdays: number[]; startMinute: number; endMinute: number };
-  onChange: (openWindow: { weekdays: number[]; startMinute: number; endMinute: number }) => void;
+  openWindow?: EditableRankedOpenWindow;
+  onChange: (openWindow: EditableRankedOpenWindow) => void;
 }) {
   const current = openWindow ?? {
     weekdays: [1, 2, 3, 4, 5, 6, 7],
@@ -2670,6 +2722,7 @@ function OpenWindowFields({
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <input
             type="time"
+            aria-label="开始时间"
             className="input-field"
             value={minuteToTime(current.startMinute)}
             onChange={(event) =>
@@ -2679,6 +2732,7 @@ function OpenWindowFields({
           <span className="whitespace-nowrap">—{crossesMidnight ? ' 次日' : ''}</span>
           <input
             type="time"
+            aria-label="结束时间"
             className="input-field"
             value={minuteToTime(current.endMinute, true)}
             onChange={(event) =>

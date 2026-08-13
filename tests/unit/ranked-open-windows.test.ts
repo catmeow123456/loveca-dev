@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collapseRankedOpenWindows,
   expandRankedOpenWindow,
+  getRankedOpenWindowsValidationError,
   prepareRankedOpenWindowsForApi,
   prepareRankedOpenWindowsForForm,
 } from '../../client/src/lib/rankedOpenWindows';
@@ -88,6 +89,34 @@ describe('ranked admin open-window model', () => {
     expect(prepareRankedOpenWindowsForApi(prepareRankedOpenWindowsForForm(complexWindows))).toEqual(
       complexWindows
     );
+  });
+
+  it('会逐个拆分多个表单时段中的跨日窗口', () => {
+    expect(
+      prepareRankedOpenWindowsForApi([
+        { weekdays: [1], startMinute: 1080, endMinute: 60 },
+        { weekdays: [3], startMinute: 600, endMinute: 720 },
+      ])
+    ).toEqual([
+      { weekdays: [1], startMinute: 1080, endMinute: 1440 },
+      { weekdays: [2], startMinute: 0, endMinute: 60 },
+      { weekdays: [3], startMinute: 600, endMinute: 720 },
+    ]);
+  });
+
+  it('拒绝同一开放日内互相重叠的多个时段', () => {
+    expect(
+      getRankedOpenWindowsValidationError([
+        { weekdays: [1, 2], startMinute: 1080, endMinute: 60 },
+        { weekdays: [2], startMinute: 30, endMinute: 120 },
+      ])
+    ).toBe('开放时段之间不能重叠。');
+    expect(
+      getRankedOpenWindowsValidationError([
+        { weekdays: [1], startMinute: 600, endMinute: 720 },
+        { weekdays: [1], startMinute: 720, endMinute: 780 },
+      ])
+    ).toBeNull();
   });
 
   it('拒绝非零点起止时间完全相同的窗口', () => {
