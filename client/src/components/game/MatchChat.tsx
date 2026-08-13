@@ -16,6 +16,8 @@ import { Bell, BellOff, Eye, Loader2, MessageCircle, Send, SmilePlus, X } from '
 import type {
   OnlineMatchChatEntry,
   OnlineMatchChatMessagesResponse,
+  OnlineMatchEmoteCatalog,
+  OnlineMatchEmoteDefinition,
   OnlineMatchEmoteId,
   Seat,
 } from '@game/online';
@@ -26,7 +28,6 @@ import {
 } from '@/lib/onlineClient';
 import { ApiClientError } from '@/lib/apiClient';
 import { findLatestOpponentChatMessage, formatMatchChatPreviewText } from '@/lib/matchChatPreview';
-import { getMatchEmoteDefinition, MATCH_EMOTES } from '@/lib/matchEmotes';
 import { SpectatorPollingScheduler } from '@/lib/spectatorPolling';
 import { cn } from '@/lib/utils';
 import { MatchEmoteVisual } from './MatchEmoteVisual';
@@ -56,10 +57,17 @@ type MatchChatAccess =
 
 interface MatchChatProps {
   readonly access: MatchChatAccess;
+  readonly emoteCatalog: OnlineMatchEmoteCatalog | null;
   readonly compact?: boolean;
+  readonly onEmoteCatalogStale?: () => void | Promise<void>;
 }
 
-export const MatchChat = memo(function MatchChat({ access, compact = false }: MatchChatProps) {
+export const MatchChat = memo(function MatchChat({
+  access,
+  emoteCatalog,
+  compact = false,
+  onEmoteCatalogStale,
+}: MatchChatProps) {
   const [messages, setMessages] = useState<readonly OnlineMatchChatEntry[]>([]);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isEmoteMenuOpen, setIsEmoteMenuOpen] = useState(false);
@@ -283,7 +291,7 @@ export const MatchChat = memo(function MatchChat({ access, compact = false }: Ma
   };
 
   const handleSendEmote = async (emoteId: OnlineMatchEmoteId) => {
-    if (isSpectator || sendingEmoteId !== null || isSendingText) {
+    if (isSpectator || !emoteCatalog || sendingEmoteId !== null || isSendingText) {
       return;
     }
     const pending = pendingEmoteRef.current;
@@ -297,6 +305,7 @@ export const MatchChat = memo(function MatchChat({ access, compact = false }: Ma
         kind: 'EMOTE',
         clientMessageId,
         emoteId,
+        catalogVersion: emoteCatalog.version,
       });
       setMessages((current) => mergeChatMessages(current, [message]));
       pendingEmoteRef.current = null;
@@ -304,6 +313,10 @@ export const MatchChat = memo(function MatchChat({ access, compact = false }: Ma
       emoteLauncherButtonRef.current?.focus();
     } catch (error) {
       setEmoteSendError(readEmoteSendError(error));
+      if (error instanceof ApiClientError && error.code === 'ONLINE_CHAT_EMOTE_UNAVAILABLE') {
+        setIsEmoteMenuOpen(false);
+        await onEmoteCatalogStale?.();
+      }
     } finally {
       setSendingEmoteId(null);
     }
@@ -370,7 +383,7 @@ export const MatchChat = memo(function MatchChat({ access, compact = false }: Ma
         {unreadCount > 0 ? <UnreadBadge count={unreadCount} /> : null}
       </button>
 
-      {!isSpectator ? (
+      {!isSpectator && emoteCatalog && emoteCatalog.items.length > 0 ? (
         <IdentityAnchorPortal seat={viewerSeat} kind="launcher">
           <div ref={emoteAnchorRootRef} className="relative">
             <button
@@ -422,6 +435,7 @@ export const MatchChat = memo(function MatchChat({ access, compact = false }: Ma
                     </button>
                   </div>
                   <EmoteGrid
+                    emotes={emoteCatalog.items}
                     sendingEmoteId={sendingEmoteId}
                     disabled={isSendingText}
                     firstButtonRef={firstEmoteButtonRef}
@@ -697,11 +711,13 @@ function useIdentityAnchorStyle(seat: Seat, kind: 'launcher' | 'preview'): CSSPr
 }
 
 function EmoteGrid({
+  emotes,
   sendingEmoteId,
   disabled,
   firstButtonRef,
   onSend,
 }: {
+  readonly emotes: readonly OnlineMatchEmoteDefinition[];
   readonly sendingEmoteId: OnlineMatchEmoteId | null;
   readonly disabled: boolean;
   readonly firstButtonRef?: RefObject<HTMLButtonElement | null>;
@@ -709,7 +725,7 @@ function EmoteGrid({
 }) {
   return (
     <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3" onKeyDown={handleEmoteGridKeyDown}>
-      {MATCH_EMOTES.map((emote, index) => {
+      {emotes.map((emote, index) => {
         const isSending = sendingEmoteId === emote.id;
         return (
           <button
@@ -722,8 +738,7 @@ function EmoteGrid({
             aria-label={`发送表情：${emote.label.replace(/[…！]/gu, '')}`}
           >
             <MatchEmoteVisual
-              emoteId={emote.id}
-              animated={emote.id === 'DEEP_THINKING'}
+              emote={emote}
               className="h-11 w-11 transition-transform duration-150 group-hover:-translate-y-0.5"
             />
             <span className="mt-0.5 max-w-full text-[11px] font-semibold leading-4 text-[var(--text-secondary)]">
@@ -751,13 +766,13 @@ function ChatMessage({
   readonly spectator: boolean;
 }) {
   const isOwn = !spectator && message.senderSeat === viewerSeat;
-  const emote = message.kind === 'EMOTE' ? getMatchEmoteDefinition(message.emoteId) : null;
+  const isEmote = message.kind === 'EMOTE';
   return (
     <div className={cn('flex', isOwn ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
           'max-w-[86%] rounded-lg border px-2.5 py-2',
-          emote && 'min-w-[168px] py-2.5',
+          isEmote && 'min-w-[168px] py-2.5',
           isOwn
             ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_13%,var(--bg-surface))]'
             : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_82%,transparent)]',
@@ -785,13 +800,9 @@ function ChatMessage({
           </div>
         ) : (
           <div className="flex items-center gap-2.5">
-            <MatchEmoteVisual
-              emoteId={message.emoteId}
-              animated={message.emoteId === 'DEEP_THINKING'}
-              className="h-[70px] w-[70px] shrink-0"
-            />
+            <MatchEmoteVisual emote={message.emote} className="h-[70px] w-[70px] shrink-0" />
             <span className="text-sm font-bold leading-5 text-[var(--text-primary)]">
-              {emote?.label}
+              {message.emote.label}
             </span>
           </div>
         )}
@@ -809,7 +820,6 @@ function IdentityEmotePreview({
   readonly reduceMotion: boolean;
   readonly onOpen: () => void;
 }) {
-  const emote = getMatchEmoteDefinition(message.emoteId);
   return (
     <IdentityAnchorPortal seat={message.senderSeat} kind="preview">
       <motion.button
@@ -821,19 +831,15 @@ function IdentityEmotePreview({
         exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 3, scale: 0.97 }}
         transition={{ duration: reduceMotion ? 0.08 : 0.18, ease: 'easeOut' }}
         className="flex w-[228px] items-center gap-2 overflow-hidden rounded-xl border border-[color:color-mix(in_srgb,var(--accent-primary)_34%,var(--border-default))] bg-[var(--bg-frosted)] px-2.5 py-2 text-left shadow-[var(--shadow-lg)] backdrop-blur-xl"
-        aria-label={`打开聊天查看 ${message.senderDisplayName} 的表情：${emote.label}`}
+        aria-label={`打开聊天查看 ${message.senderDisplayName} 的表情：${message.emote.label}`}
       >
-        <MatchEmoteVisual
-          emoteId={message.emoteId}
-          animated={message.emoteId === 'DEEP_THINKING'}
-          className="h-[72px] w-[72px] shrink-0"
-        />
+        <MatchEmoteVisual emote={message.emote} className="h-[72px] w-[72px] shrink-0" />
         <span className="min-w-0">
           <span className="block text-[10px] font-semibold text-[var(--text-muted)]">
             {message.senderDisplayName}
           </span>
           <span className="mt-0.5 block text-sm font-bold text-[var(--text-primary)]">
-            {emote.label}
+            {message.emote.label}
           </span>
         </span>
       </motion.button>

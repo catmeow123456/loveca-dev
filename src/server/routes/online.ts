@@ -1,7 +1,6 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { fromTransport } from '../../online/serde.js';
-import { ONLINE_MATCH_EMOTE_IDS } from '../../online/chat-types.js';
 import type { GameCommand } from '../../application/game-commands.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
@@ -16,6 +15,7 @@ import {
   onlineMatchService,
 } from '../services/online-match-service.js';
 import { OnlineMatchChatRuntimeError } from '../services/online-match-chat-runtime.js';
+import { MatchEmoteCatalogServiceError } from '../services/match-emote-catalog-service.js';
 import {
   OnlineRoomServiceError,
   loadUserProfileForOnlineMatch,
@@ -95,7 +95,11 @@ const matchChatMessageSchema = z.discriminatedUnion('kind', [
     .object({
       kind: z.literal('EMOTE'),
       clientMessageId: z.string().trim().min(1).max(128),
-      emoteId: z.enum(ONLINE_MATCH_EMOTE_IDS),
+      emoteId: z
+        .string()
+        .trim()
+        .regex(/^[A-Z][A-Z0-9_]{1,63}$/u),
+      catalogVersion: z.string().uuid(),
     })
     .strict(),
 ]);
@@ -670,17 +674,10 @@ onlineRouter.get('/matches/:matchId/chat/messages', requireAuth, (req, res) => {
   }
 });
 
-onlineRouter.post('/matches/:matchId/chat/messages', requireAuth, (req, res) => {
+onlineRouter.post('/matches/:matchId/chat/messages', requireAuth, async (req, res) => {
   setPrivateNoStoreHeaders(res);
   const parsed = matchChatMessageSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
-    if (isUnknownMatchEmoteRequest(req.body)) {
-      res.status(422).json({
-        data: null,
-        error: { code: 'ONLINE_CHAT_EMOTE_UNAVAILABLE', message: '这个表情暂时不可用' },
-      });
-      return;
-    }
     res
       .status(400)
       .json({ data: null, error: { code: 'INVALID_REQUEST', message: '聊天参数非法' } });
@@ -693,7 +690,11 @@ onlineRouter.post('/matches/:matchId/chat/messages', requireAuth, (req, res) => 
       respondMatchForbidden(res);
       return;
     }
-    const message = onlineMatchService.sendMatchChatMessage(matchId, req.user!.id, parsed.data);
+    const message = await onlineMatchService.sendMatchChatMessage(
+      matchId,
+      req.user!.id,
+      parsed.data
+    );
     if (!message) {
       respondMatchForbidden(res);
       return;
@@ -1166,6 +1167,17 @@ function respondOnlineError(res: Response, error: unknown): void {
     return;
   }
 
+  if (error instanceof MatchEmoteCatalogServiceError) {
+    res.status(error.statusCode).json({
+      data: null,
+      error: {
+        code: error.code,
+        message: error.message,
+      },
+    });
+    return;
+  }
+
   if (error instanceof MatchReplayReadServiceError) {
     res.status(error.statusCode).json({
       data: null,
@@ -1221,18 +1233,6 @@ function respondOnlineError(res: Response, error: unknown): void {
       message: error instanceof Error ? error.message : '正式联机请求失败',
     },
   });
-}
-
-function isUnknownMatchEmoteRequest(body: unknown): boolean {
-  if (!body || typeof body !== 'object') {
-    return false;
-  }
-  const candidate = body as Record<string, unknown>;
-  return (
-    candidate.kind === 'EMOTE' &&
-    typeof candidate.emoteId === 'string' &&
-    !ONLINE_MATCH_EMOTE_IDS.some((emoteId) => emoteId === candidate.emoteId)
-  );
 }
 
 function setSpectatorNoStoreHeaders(res: Response): void {

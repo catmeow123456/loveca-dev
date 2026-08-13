@@ -18,6 +18,21 @@ interface SmtpConfiguration {
   readonly from: string;
 }
 
+function parsePositiveIntegerEnv(name: string, fallback: number, maximum: number): number {
+  const value = Number(optionalEnv(name, String(fallback)));
+  if (!Number.isInteger(value) || value < 1 || value > maximum) {
+    throw new Error(`${name} must be an integer between 1 and ${maximum}`);
+  }
+  return value;
+}
+
+function parseHostListEnv(name: string): readonly string[] {
+  return (process.env[name] ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export function isCompleteSmtpConfiguration(smtp: SmtpConfiguration): boolean {
   return !!(
     smtp.host.trim() &&
@@ -65,6 +80,27 @@ export const config = {
   // Email verification
   emailEnabled: optionalEnv('EMAIL_ENABLED', 'false') === 'true',
 
+  // Card-effect AI extraction. The database stores runtime configuration;
+  // deployment settings only define the encryption and outbound safety ceiling.
+  aiEffectExtraction: {
+    encryptionKey: process.env.AI_EFFECT_EXTRACTION_ENCRYPTION_KEY ?? '',
+    allowedHosts: parseHostListEnv('AI_EFFECT_EXTRACTION_ALLOWED_HOSTS'),
+    privateHosts: parseHostListEnv('AI_EFFECT_EXTRACTION_PRIVATE_HOSTS'),
+    httpHosts: parseHostListEnv('AI_EFFECT_EXTRACTION_HTTP_HOSTS'),
+    requestTimeoutMs: parsePositiveIntegerEnv('AI_EFFECT_EXTRACTION_TIMEOUT_MS', 15_000, 30_000),
+    responseMaxBytes: parsePositiveIntegerEnv(
+      'AI_EFFECT_EXTRACTION_RESPONSE_MAX_BYTES',
+      256 * 1024,
+      1024 * 1024
+    ),
+    imageMaxBytes: parsePositiveIntegerEnv(
+      'AI_EFFECT_EXTRACTION_IMAGE_MAX_BYTES',
+      4 * 1024 * 1024,
+      8 * 1024 * 1024
+    ),
+    concurrencyLimit: parsePositiveIntegerEnv('AI_EFFECT_EXTRACTION_CONCURRENCY_LIMIT', 2, 8),
+  },
+
   // Frontend URL (for email links)
   frontendUrl: requireEnv('FRONTEND_URL'),
 
@@ -100,4 +136,36 @@ export function assertSecurityConfiguration(): void {
       'EMAIL_ENABLED=true requires SMTP_HOST, a valid SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM'
     );
   }
+  if (
+    config.aiEffectExtraction.encryptionKey &&
+    !isValidAiEffectExtractionEncryptionKey(config.aiEffectExtraction.encryptionKey)
+  ) {
+    throw new Error(
+      'AI_EFFECT_EXTRACTION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters or base64'
+    );
+  }
+  const allowedHosts = new Set(config.aiEffectExtraction.allowedHosts);
+  for (const host of [
+    ...config.aiEffectExtraction.privateHosts,
+    ...config.aiEffectExtraction.httpHosts,
+  ]) {
+    if (!allowedHosts.has(host)) {
+      throw new Error(`${host} must also be listed in AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`);
+    }
+  }
+}
+
+export function isValidAiEffectExtractionEncryptionKey(value: string): boolean {
+  return parseAiEffectExtractionEncryptionKey(value) !== null;
+}
+
+export function parseAiEffectExtractionEncryptionKey(value: string): Buffer | null {
+  if (/^[0-9a-f]{64}$/iu.test(value)) {
+    return Buffer.from(value, 'hex');
+  }
+  if (!/^[A-Za-z0-9+/]{43}=$/u.test(value)) {
+    return null;
+  }
+  const decoded = Buffer.from(value, 'base64');
+  return decoded.length === 32 && decoded.toString('base64') === value ? decoded : null;
 }

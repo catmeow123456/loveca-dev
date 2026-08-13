@@ -29,7 +29,7 @@ flowchart TB
 
     subgraph Service["前端服务层"]
         CardService[cardService]
-        AIService[aiService]
+        AIService[aiService / 本站管理 API]
         ImageService[imageService]
     end
 
@@ -40,6 +40,8 @@ flowchart TB
     subgraph Backend["服务端"]
         CardRoutes[卡牌 API]
         ImageRoutes[图片 API]
+        AIRoutes[AI 配置与提取 API]
+        AIServiceServer[AI 提取服务]
         Sync[同步脚本]
     end
 
@@ -57,6 +59,10 @@ flowchart TB
     GameStore --> CardService
     CardService --> CardRoutes
     ImageService --> ImageRoutes
+    AIService --> AIRoutes
+    AIRoutes --> AIServiceServer
+    AIServiceServer --> Cards
+    AIServiceServer --> Images
     Sync --> Cards
     CardRoutes --> Cards
     ImageRoutes --> Images
@@ -118,7 +124,7 @@ flowchart LR
 | cardService                | REST 访问、缓存、状态过滤和记录到领域模型的转换                        |
 | gameStore.cardDataRegistry | 对局和构筑时的只读卡牌资料注册表                                       |
 | imageService               | 卡牌图片 URL 解析和尺寸选择                                            |
-| aiService                  | 管理端辅助提取效果文本，不参与对局或规则判定                           |
+| aiService                  | 只调用本站管理员 API；提交卡号并接收待确认的效果文本                   |
 
 ## 7. 服务端职责
 
@@ -127,6 +133,8 @@ flowchart LR
 - 列表读取、单卡读取和管理导出返回业务读取视图；当前该视图会补全同基础编号缺失的 `blade_hearts`。
 - 所有写操作要求管理员权限。
 - 图片 API 只处理上传、删除与对象存储写入；图片公开读取通过 `/images/*` 路径完成。
+- AI 配置与提取 API 只接受管理员请求。服务端按请求读取 PostgreSQL 私密配置和 MinIO 可信卡图，执行上游白名单、DNS 地址、HTTPS、重定向、超时、并发、限频和响应大小校验。
+- API Key 使用部署主密钥进行 AES-256-GCM 认证加密；管理读取只返回是否已配置，候选测试不保存，配置保存使用 revision 乐观锁与事务审计。
 - 服务端 schema 是持久化结构的权威来源，初始化脚本或历史迁移不应与其长期分叉。
 
 ## 8. 同步与外部数据
@@ -157,24 +165,27 @@ flowchart LR
 
 ## 11. 相关代码路径
 
-| 路径                                            | 说明                                        |
-| ----------------------------------------------- | ------------------------------------------- |
-| `client/src/lib/cardService.ts`                 | 前端卡牌服务、缓存与数据转换                |
-| `client/src/lib/aiService.ts`                   | AI 效果文本提取服务                         |
-| `client/src/lib/imageService.ts`                | 图片 URL 与尺寸解析                         |
-| `client/src/components/admin/CardAdminPage.tsx` | 管理页面入口                                |
-| `client/src/store/gameStore.ts`                 | `cardDataRegistry` 所在状态模块             |
-| `src/domain/entities/card.ts`                   | 卡牌领域模型                                |
-| `src/domain/card-data/schema.ts`                | 卡牌数据校验 schema                         |
-| `src/domain/card-data/loader.ts`                | 卡牌注册表结构与按编号/名称查找能力         |
-| `src/domain/rules/deck-construction.ts`         | 消费显式 PT 表快照的构筑点数计算            |
-| `src/domain/rules/deck-point-table.ts`          | 版本化 PT 表的领域契约与校验                |
-| `src/server/db/schema.ts`                       | 持久化 schema                               |
-| `src/server/routes/cards.ts`                    | 卡牌 API 路由                               |
-| `src/server/services/card-registry-service.ts`  | 后端从数据库加载并缓存 PUBLISHED 卡牌注册表 |
-| `src/scripts/sync-cards-llocg.ts`               | `llocg_db` 卡牌同步脚本                     |
-| `src/scripts/sync-cards-loveca-excel.ts`        | Loveca Excel 中日文本与来源字段同步脚本     |
-| `src/scripts/sync-cards-cloudbase-new.ts`       | CloudBase-only 新卡导入与卡图上传脚本       |
+| 路径                                                          | 说明                                        |
+| ------------------------------------------------------------- | ------------------------------------------- |
+| `client/src/lib/cardService.ts`                               | 前端卡牌服务、缓存与数据转换                |
+| `client/src/lib/aiService.ts`                                 | AI 管理配置与效果提取本站 API 客户端        |
+| `client/src/components/admin/AiEffectExtractionAdminPage.tsx` | AI 私密配置管理页                           |
+| `client/src/lib/imageService.ts`                              | 图片 URL 与尺寸解析                         |
+| `client/src/components/admin/CardAdminPage.tsx`               | 管理页面入口                                |
+| `client/src/store/gameStore.ts`                               | `cardDataRegistry` 所在状态模块             |
+| `src/domain/entities/card.ts`                                 | 卡牌领域模型                                |
+| `src/domain/card-data/schema.ts`                              | 卡牌数据校验 schema                         |
+| `src/domain/card-data/loader.ts`                              | 卡牌注册表结构与按编号/名称查找能力         |
+| `src/domain/rules/deck-construction.ts`                       | 消费显式 PT 表快照的构筑点数计算            |
+| `src/domain/rules/deck-point-table.ts`                        | 版本化 PT 表的领域契约与校验                |
+| `src/server/db/schema.ts`                                     | 持久化 schema                               |
+| `src/server/routes/ai-effect-extraction.ts`                   | AI 管理与提取路由                           |
+| `src/server/services/ai-effect-extraction-service.ts`         | 加密、事务、可信图片与上游安全调用          |
+| `src/server/routes/cards.ts`                                  | 卡牌 API 路由                               |
+| `src/server/services/card-registry-service.ts`                | 后端从数据库加载并缓存 PUBLISHED 卡牌注册表 |
+| `src/scripts/sync-cards-llocg.ts`                             | `llocg_db` 卡牌同步脚本                     |
+| `src/scripts/sync-cards-loveca-excel.ts`                      | Loveca Excel 中日文本与来源字段同步脚本     |
+| `src/scripts/sync-cards-cloudbase-new.ts`                     | CloudBase-only 新卡导入与卡图上传脚本       |
 
 ## 12. 相关文档
 

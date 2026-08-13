@@ -6,7 +6,6 @@
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import {
   ArrowRight,
-  Bell,
   BookOpen,
   CalendarClock,
   CheckCircle2,
@@ -16,11 +15,8 @@ import {
   Eye,
   Gamepad2,
   History,
-  MonitorCog,
   Medal,
   RefreshCw,
-  Scale,
-  Settings,
   ShieldAlert,
   Swords,
   TriangleAlert,
@@ -71,11 +67,7 @@ interface HomePageProps {
   onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
-  onNavigateToCardAdmin: () => void;
-  onNavigateToOnlineAdmin: () => void;
-  onNavigateToAnnouncementAdmin: () => void;
-  onNavigateToRankedAdmin: () => void;
-  onNavigateToDeckPointAdmin: () => void;
+  onNavigateToAdminCenter: () => void;
   siteStatus: PublicSiteStatus;
 }
 
@@ -117,11 +109,7 @@ export function HomePage({
   onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
-  onNavigateToCardAdmin,
-  onNavigateToOnlineAdmin,
-  onNavigateToAnnouncementAdmin,
-  onNavigateToRankedAdmin,
-  onNavigateToDeckPointAdmin,
+  onNavigateToAdminCenter,
   siteStatus,
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser } = useAuthStore();
@@ -391,52 +379,16 @@ export function HomePage({
             <section className="border-t border-[var(--border-subtle)] pt-4">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                 <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
-                管理工具
+                运营工具
               </div>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-3 md:grid-cols-2">
                 <ActionTile
-                  title="赛季排位管理"
-                  description="管理赛季状态与异常结算。"
-                  icon={Medal}
-                  onClick={onNavigateToRankedAdmin}
+                  title="运营管理中心"
+                  description="统一进入内容、卡牌规则、联机房间与赛季管理。"
+                  icon={ShieldAlert}
+                  onClick={onNavigateToAdminCenter}
                   status="管理员"
                   tone="primary"
-                  compact
-                />
-                <ActionTile
-                  title="卡牌数据管理"
-                  description="维护卡牌数据、发布状态和资源信息。"
-                  icon={Settings}
-                  onClick={onNavigateToCardAdmin}
-                  status="管理员"
-                  tone="warning"
-                  compact
-                />
-                <ActionTile
-                  title="卡组规则管理"
-                  description="管理PT限制表、规则版本与生效时间。"
-                  icon={Scale}
-                  onClick={onNavigateToDeckPointAdmin}
-                  status="管理员"
-                  tone="blue"
-                  compact
-                />
-                <ActionTile
-                  title="平台配置"
-                  description="打开维护开关，管理维护公告与更新通知。"
-                  icon={Bell}
-                  onClick={onNavigateToAnnouncementAdmin}
-                  status="管理员"
-                  tone="green"
-                  compact
-                />
-                <ActionTile
-                  title="联机房间监控"
-                  description="查看活跃房间、玩家在线状态和进行中对局。"
-                  icon={MonitorCog}
-                  onClick={onNavigateToOnlineAdmin}
-                  status="管理员"
-                  tone="blue"
                   compact
                 />
               </div>

@@ -10,6 +10,7 @@ COMPOSE_PROJECT="${TEST_COMPOSE_PROJECT:-loveca}"
 TMUX_SESSION="${TEST_TMUX_SESSION:-loveca-test}"
 FRONTEND_PORT="${TEST_FRONTEND_PORT:-5173}"
 RESET_DATA="${TEST_RESET_DATA:-1}"
+USE_LOCAL_MINIO="${TEST_USE_LOCAL_MINIO:-0}"
 
 cd "$ROOT_DIR"
 
@@ -35,6 +36,10 @@ Options:
       Rebuild the test database volume before startup. This is the default and is
       equivalent to TEST_RESET_DATA=1.
 
+  --local-minio
+      Ignore MinIO values from .env for this run and use docker-compose.dev.yml's
+      local MinIO. This is equivalent to TEST_USE_LOCAL_MINIO=1.
+
   -h, --help
       Show this help message.
 EOF
@@ -48,6 +53,9 @@ parse_args() {
         ;;
       --db-rebuild|--reset-data)
         RESET_DATA=1
+        ;;
+      --local-minio)
+        USE_LOCAL_MINIO=1
         ;;
       -h|--help)
         usage
@@ -191,6 +199,15 @@ load_env_file() {
     log ".env not found; using local test defaults"
   fi
 
+  if [[ "$USE_LOCAL_MINIO" == "1" ]]; then
+    export MINIO_ENDPOINT="localhost"
+    export MINIO_PORT="9000"
+    export MINIO_ACCESS_KEY="minioadmin"
+    export MINIO_SECRET_KEY="minioadmin"
+    export MINIO_BUCKET="loveca-cards"
+    export MINIO_USE_SSL="false"
+  fi
+
   export PORT="${PORT:-3007}"
   export NODE_ENV="${NODE_ENV:-development}"
   export DATABASE_URL="${DATABASE_URL:-postgres://loveca:loveca_dev@localhost:5432/loveca}"
@@ -202,6 +219,10 @@ load_env_file() {
   export MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-minioadmin}"
   export MINIO_BUCKET="${MINIO_BUCKET:-loveca-cards}"
   export MINIO_USE_SSL="${MINIO_USE_SSL:-false}"
+  export AI_EFFECT_EXTRACTION_ENCRYPTION_KEY="${AI_EFFECT_EXTRACTION_ENCRYPTION_KEY:-1111111111111111111111111111111111111111111111111111111111111111}"
+  export AI_EFFECT_EXTRACTION_ALLOWED_HOSTS="${AI_EFFECT_EXTRACTION_ALLOWED_HOSTS:-api.example.com}"
+  export AI_EFFECT_EXTRACTION_PRIVATE_HOSTS="${AI_EFFECT_EXTRACTION_PRIVATE_HOSTS:-}"
+  export AI_EFFECT_EXTRACTION_HTTP_HOSTS="${AI_EFFECT_EXTRACTION_HTTP_HOSTS:-}"
   export FRONTEND_URL="${FRONTEND_URL:-http://localhost:${FRONTEND_PORT}}"
 }
 
@@ -415,6 +436,14 @@ wait_for_remote_minio() {
     curl -fsS "${scheme}://${MINIO_ENDPOINT}:${MINIO_PORT}/${MINIO_BUCKET}/static/deck.png"
 }
 
+seed_match_emote_assets() {
+  if uses_local_minio; then
+    wait_until "local MinIO bucket and match emote seed upload" 60 pnpm emotes:seed-assets
+    return
+  fi
+  pnpm emotes:seed-assets
+}
+
 wait_for_api() {
   local api_url="http://127.0.0.1:${PORT}/api/health"
   local timeout_seconds=90
@@ -554,7 +583,7 @@ NODE
 }
 
 api_command() {
-  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q FRONTEND_URL=%q node --watch dist/server/index.js' \
+  printf 'cd %q && env PORT=%q NODE_ENV=%q DATABASE_URL=%q JWT_SECRET=%q JWT_REFRESH_SECRET=%q MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_ACCESS_KEY=%q MINIO_SECRET_KEY=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q AI_EFFECT_EXTRACTION_ENCRYPTION_KEY=%q AI_EFFECT_EXTRACTION_ALLOWED_HOSTS=%q AI_EFFECT_EXTRACTION_PRIVATE_HOSTS=%q AI_EFFECT_EXTRACTION_HTTP_HOSTS=%q FRONTEND_URL=%q node --watch dist/server/index.js' \
     "$ROOT_DIR" \
     "$PORT" \
     "$NODE_ENV" \
@@ -567,7 +596,21 @@ api_command() {
     "$MINIO_SECRET_KEY" \
     "$MINIO_BUCKET" \
     "$MINIO_USE_SSL" \
+    "$AI_EFFECT_EXTRACTION_ENCRYPTION_KEY" \
+    "$AI_EFFECT_EXTRACTION_ALLOWED_HOSTS" \
+    "$AI_EFFECT_EXTRACTION_PRIVATE_HOSTS" \
+    "$AI_EFFECT_EXTRACTION_HTTP_HOSTS" \
     "$FRONTEND_URL"
+}
+
+client_command() {
+  printf 'cd %q && env MINIO_ENDPOINT=%q MINIO_PORT=%q MINIO_BUCKET=%q MINIO_USE_SSL=%q pnpm dev --host 0.0.0.0 --port %q' \
+    "$ROOT_DIR/client" \
+    "$MINIO_ENDPOINT" \
+    "$MINIO_PORT" \
+    "$MINIO_BUCKET" \
+    "$MINIO_USE_SSL" \
+    "$FRONTEND_PORT"
 }
 
 start_tmux_environment() {
@@ -585,6 +628,9 @@ start_tmux_environment() {
     wait_for_remote_minio
   fi
 
+  log "seeding match emote assets"
+  seed_match_emote_assets
+
   log "running database migrations"
   pnpm db:migrate
 
@@ -596,7 +642,7 @@ start_tmux_environment() {
   tmux new-window -t "$TMUX_SESSION:" -n tsc-shared "cd '$ROOT_DIR' && pnpm dev:shared:build"
   tmux new-window -t "$TMUX_SESSION:" -n tsc-server "cd '$ROOT_DIR' && pnpm dev:server:build"
   tmux new-window -t "$TMUX_SESSION:" -n api "$(api_command)"
-  tmux new-window -t "$TMUX_SESSION:" -n client "cd '$ROOT_DIR/client' && pnpm dev --host 0.0.0.0 --port '$FRONTEND_PORT'"
+  tmux new-window -t "$TMUX_SESSION:" -n client "$(client_command)"
   tmux select-window -t "$TMUX_SESSION:client"
 }
 

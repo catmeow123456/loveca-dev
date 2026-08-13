@@ -192,7 +192,23 @@ function assertNoTransportOnlyValues(value: unknown, path = 'value'): void {
 function createInMemoryMatchService(
   deps: ConstructorParameters<typeof OnlineMatchService>[0] = {}
 ): OnlineMatchService {
-  return new OnlineMatchService({ recorder: null, ...deps });
+  return new OnlineMatchService({
+    recorder: null,
+    emoteCatalog: {
+      resolveActiveEmote: (emoteId, catalogVersion) =>
+        Promise.resolve(
+          catalogVersion === '00000000-0000-4000-8000-000000000201'
+            ? {
+                label: emoteId,
+                staticImageUrl: `/images/emotes/${'a'.repeat(64)}.webp`,
+                animatedImageUrl: null,
+                assetRevision: `sha256:${'b'.repeat(64)}`,
+              }
+            : null
+        ),
+    },
+    ...deps,
+  });
 }
 
 async function startRoomThroughOpening(
@@ -550,7 +566,7 @@ describe('OnlineRoomService', () => {
     expect(publicLog.matchId).toBe(started.matchId);
     expect(publicLog.publicEvents.length).toBeGreaterThan(0);
 
-    const sentChat = matchService.sendMatchChatMessage(started.matchId!, 'u1', {
+    const sentChat = await matchService.sendMatchChatMessage(started.matchId!, 'u1', {
       kind: 'TEXT',
       clientMessageId: 'spec-chat-1',
       text: '观战者也能看到这条消息',
@@ -582,10 +598,11 @@ describe('OnlineRoomService', () => {
       messages: [sentChat],
     });
 
-    const sentEmote = matchService.sendMatchChatMessage(started.matchId!, 'u2', {
+    const sentEmote = await matchService.sendMatchChatMessage(started.matchId!, 'u2', {
       kind: 'EMOTE',
       clientMessageId: 'spec-emote-1',
       emoteId: 'DEEP_THINKING',
+      catalogVersion: '00000000-0000-4000-8000-000000000201',
     });
     expect(sentEmote).toMatchObject({
       kind: 'EMOTE',
@@ -1139,7 +1156,7 @@ describe('OnlineRoomService', () => {
     const started = await startRoomThroughOpening(service, 'again1', 'u1', 'u2', 'u1');
     const previousMatchId = started.matchId!;
     expect(
-      matchService.sendMatchChatMessage(previousMatchId, 'u1', {
+      await matchService.sendMatchChatMessage(previousMatchId, 'u1', {
         kind: 'TEXT',
         clientMessageId: 'old-match-chat',
         text: '这条消息只属于旧局',

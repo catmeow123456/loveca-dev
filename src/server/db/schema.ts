@@ -66,6 +66,15 @@ export type SiteStatusLifecycle =
   | 'CANCELLED';
 export type SiteAnnouncementType = 'MAINTENANCE' | 'UPDATE' | 'NEWS';
 export type SiteAnnouncementStatus = 'DRAFT' | 'PUBLISHED';
+export type AiEffectExtractionAuditAction = 'CONFIG_UPDATED';
+export interface StoredMatchEmoteCatalogEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly sortOrder: number;
+  readonly enabled: boolean;
+  readonly assetId: string;
+}
 export type GameplayParticipationKind =
   'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
 export type MatchmakingQueueKind = 'CASUAL' | 'RANKED';
@@ -555,6 +564,137 @@ export const siteStatusConfig = pgTable(
       sql`${table.lifecycle} IN ('NORMAL', 'SCHEDULED', 'RESTRICTING_NEW_GAMES', 'MAINTENANCE', 'COMPLETED', 'POSTPONED', 'CANCELLED')`
     ),
     check('site_status_config_id_check', sql`${table.id} = 'default'`),
+  ]
+);
+
+export const matchEmoteAssets = pgTable(
+  'match_emote_assets',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    contentFingerprint: text('content_fingerprint').notNull().unique(),
+    staticObjectKey: text('static_object_key').notNull(),
+    animatedObjectKey: text('animated_object_key'),
+    width: integer('width').notNull(),
+    height: integer('height').notNull(),
+    frameCount: integer('frame_count').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    staticBytes: integer('static_bytes').notNull(),
+    animatedBytes: integer('animated_bytes'),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_match_emote_assets_created_at').on(table.createdAt),
+    check(
+      'match_emote_assets_fingerprint_check',
+      sql`${table.contentFingerprint} ~ '^sha256:[0-9a-f]{64}$'`
+    ),
+    check(
+      'match_emote_assets_static_key_check',
+      sql`${table.staticObjectKey} ~ '^emotes/[0-9a-f]{64}\\.webp$'`
+    ),
+    check(
+      'match_emote_assets_animated_key_check',
+      sql`${table.animatedObjectKey} IS NULL OR ${table.animatedObjectKey} ~ '^emotes/[0-9a-f]{64}\\.webp$'`
+    ),
+    check(
+      'match_emote_assets_dimensions_check',
+      sql`${table.width} BETWEEN 1 AND 512 AND ${table.height} BETWEEN 1 AND 512`
+    ),
+    check('match_emote_assets_frames_check', sql`${table.frameCount} BETWEEN 1 AND 48`),
+    check('match_emote_assets_duration_check', sql`${table.durationMs} BETWEEN 0 AND 6000`),
+    check(
+      'match_emote_assets_size_check',
+      sql`${table.staticBytes} > 0 AND (${table.animatedBytes} IS NULL OR ${table.animatedBytes} > 0)`
+    ),
+  ]
+);
+
+export const matchEmoteCatalogVersions = pgTable(
+  'match_emote_catalog_versions',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    previousVersionId: uuid('previous_version_id').references(
+      (): AnyPgColumn => matchEmoteCatalogVersions.id,
+      { onDelete: 'restrict' }
+    ),
+    entries: jsonb('entries').$type<StoredMatchEmoteCatalogEntry[]>().notNull(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_match_emote_catalog_versions_created_at').on(table.createdAt),
+    check(
+      'match_emote_catalog_versions_entries_check',
+      sql`jsonb_typeof(${table.entries}) = 'array' AND jsonb_array_length(${table.entries}) BETWEEN 1 AND 12`
+    ),
+  ]
+);
+
+export const matchEmoteCatalogConfig = pgTable(
+  'match_emote_catalog_config',
+  {
+    id: text('id').primaryKey().default('default'),
+    activeVersionId: uuid('active_version_id')
+      .notNull()
+      .references(() => matchEmoteCatalogVersions.id, { onDelete: 'restrict' }),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check('match_emote_catalog_config_id_check', sql`${table.id} = 'default'`)]
+);
+
+export const aiEffectExtractionConfig = pgTable(
+  'ai_effect_extraction_config',
+  {
+    id: text('id').primaryKey().default('default'),
+    revision: integer('revision').notNull().default(1),
+    enabled: boolean('enabled').notNull().default(false),
+    baseUrl: text('base_url').notNull().default(''),
+    modelId: text('model_id').notNull().default(''),
+    encryptedApiKey: text('encrypted_api_key'),
+    updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check('ai_effect_extraction_config_id_check', sql`${table.id} = 'default'`),
+    check('ai_effect_extraction_config_revision_check', sql`${table.revision} > 0`),
+    check(
+      'ai_effect_extraction_config_enabled_fields_check',
+      sql`NOT ${table.enabled} OR (btrim(${table.baseUrl}) <> '' AND btrim(${table.modelId}) <> '' AND ${table.encryptedApiKey} IS NOT NULL)`
+    ),
+  ]
+);
+
+export const aiEffectExtractionAuditLogs = pgTable(
+  'ai_effect_extraction_audit_logs',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    action: text('action').$type<AiEffectExtractionAuditAction>().notNull(),
+    adminUserId: uuid('admin_user_id').references(() => users.id, { onDelete: 'set null' }),
+    previousRevision: integer('previous_revision').notNull(),
+    nextRevision: integer('next_revision').notNull(),
+    detail: jsonb('detail')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_ai_effect_extraction_audit_created_at').on(table.createdAt),
+    check('ai_effect_extraction_audit_action_check', sql`${table.action} IN ('CONFIG_UPDATED')`),
+    check(
+      'ai_effect_extraction_audit_revision_check',
+      sql`${table.previousRevision} > 0 AND ${table.nextRevision} = ${table.previousRevision} + 1`
+    ),
   ]
 );
 

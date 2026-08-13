@@ -12,11 +12,10 @@ import {
   Pause,
   Play,
   RefreshCw,
-  ShieldCheck,
   Upload,
   Users,
 } from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import { AdminPageHeader } from './AdminPageHeader';
 import {
   createOnlineAdminPlayerSpectatorLink,
   exportDebugReplayBundle,
@@ -277,12 +276,11 @@ export function OnlineRoomsAdminPage({ onBack }: OnlineRoomsAdminPageProps) {
 
   return (
     <div className="app-shell min-h-screen">
-      <PageHeader
+      <AdminPageHeader
         title="联机房间监控"
-        icon={<ShieldCheck size={20} />}
+        category="对局与赛季"
         onBack={onBack}
-        backLabel="返回大厅"
-        right={
+        actions={
           <>
             <button
               type="button"

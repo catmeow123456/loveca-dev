@@ -175,19 +175,15 @@ export function CardEditModal({
     setAiExtracting(true);
     setError(null);
     try {
-      let imageUrl: string | null = null;
       if (imagePreview) {
         setError('请先保存卡牌（上传图片）后再使用 AI 提取');
         return;
       }
-      if (card?.imageFilename) {
-        imageUrl = resolveCardImagePath(card, 'large');
-      }
-      if (!imageUrl || imageUrl.includes('back.webp')) {
+      if (!card?.cardCode || !card.imageFilename) {
         setError('当前卡牌没有图片，无法进行 AI 提取');
         return;
       }
-      const result = await extractCardEffect(imageUrl);
+      const result = await extractCardEffect(card.cardCode);
       setFormData((prev) => ({ ...prev, cardTextCn: result }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'AI 提取失败');

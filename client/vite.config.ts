@@ -72,12 +72,13 @@ function localImagesFallbackPlugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  // 从根目录 .env 加载 DASHSCOPE_BASE_URL 和 DASHSCOPE_API_KEY
+  // 从根目录部署环境读取本地对象存储开发代理配置。
   const rootEnv = loadEnv(mode, path.resolve(__dirname, '..'), '');
-  const minioProtocol = rootEnv.MINIO_USE_SSL === 'true' ? 'https' : 'http';
-  const minioEndpoint = rootEnv.MINIO_ENDPOINT || 'localhost';
-  const minioPort = rootEnv.MINIO_PORT || '9000';
-  const minioBucket = rootEnv.MINIO_BUCKET || 'loveca-cards';
+  const minioUseSsl = process.env.MINIO_USE_SSL ?? rootEnv.MINIO_USE_SSL;
+  const minioProtocol = minioUseSsl === 'true' ? 'https' : 'http';
+  const minioEndpoint = process.env.MINIO_ENDPOINT || rootEnv.MINIO_ENDPOINT || 'localhost';
+  const minioPort = process.env.MINIO_PORT || rootEnv.MINIO_PORT || '9000';
+  const minioBucket = process.env.MINIO_BUCKET || rootEnv.MINIO_BUCKET || 'loveca-cards';
   const minioTarget = `${minioProtocol}://${minioEndpoint}:${minioPort}/${minioBucket}`;
 
   return {
@@ -186,6 +187,21 @@ export default defineConfig(({ mode }) => {
                 },
               },
             },
+            // Content-addressed match emotes
+            {
+              urlPattern: /\/images\/emotes\/[0-9a-f]{64}\.webp$/,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'match-emotes-content-addressed',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 365 * 24 * 60 * 60,
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
             // Local card images (fallback mode)
             {
               urlPattern: /\/card\/.*\.(jpg|png|webp)$/,
@@ -254,18 +270,6 @@ export default defineConfig(({ mode }) => {
         allow: ['..'],
       },
       proxy: {
-        '/api/dashscope': {
-          target: rootEnv.DASHSCOPE_BASE_URL || 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/dashscope/, ''),
-          configure: (proxy) => {
-            proxy.on('proxyReq', (proxyReq) => {
-              if (rootEnv.DASHSCOPE_API_KEY) {
-                proxyReq.setHeader('Authorization', `Bearer ${rootEnv.DASHSCOPE_API_KEY}`);
-              }
-            });
-          },
-        },
         '/api': {
           target: 'http://localhost:3007',
           changeOrigin: true,

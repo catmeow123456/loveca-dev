@@ -129,6 +129,21 @@ const DeckPointTablesAdminPage = lazy(() =>
     default: module.DeckPointTablesAdminPage,
   }))
 );
+const MatchEmotesAdminPage = lazy(() =>
+  import('@/components/admin/MatchEmotesAdminPage').then((module) => ({
+    default: module.MatchEmotesAdminPage,
+  }))
+);
+const AdminCenterPage = lazy(() =>
+  import('@/components/admin/AdminCenterPage').then((module) => ({
+    default: module.AdminCenterPage,
+  }))
+);
+const AiEffectExtractionAdminPage = lazy(() =>
+  import('@/components/admin/AiEffectExtractionAdminPage').then((module) => ({
+    default: module.AiEffectExtractionAdminPage,
+  }))
+);
 
 type AuthPage =
   | 'landing'
@@ -150,11 +165,14 @@ type AppPage =
   | 'match-records'
   | 'online-debug'
   | 'game'
+  | 'admin-center'
   | 'card-admin'
+  | 'ai-effect-admin'
   | 'online-admin'
   | 'announcement-admin'
   | 'ranked-admin'
-  | 'deck-point-admin';
+  | 'deck-point-admin'
+  | 'match-emotes-admin';
 
 interface InitialAuthRequest {
   page: AuthPage;
@@ -206,11 +224,14 @@ function getInitialPage(): AppPage {
     page === 'match-records' ||
     page === 'online-debug' ||
     page === 'game' ||
+    page === 'admin-center' ||
     page === 'card-admin' ||
+    page === 'ai-effect-admin' ||
     page === 'online-admin' ||
     page === 'announcement-admin' ||
     page === 'ranked-admin' ||
     page === 'deck-point-admin' ||
+    page === 'match-emotes-admin' ||
     page === 'platform-config'
   ) {
     return page === 'platform-config' ? 'announcement-admin' : page;
@@ -474,6 +495,10 @@ function App() {
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0 });
+    document.querySelector<HTMLElement>('.product-frame-content')?.scrollTo({ top: 0, left: 0 });
+  }, [effectivePage]);
   const gameBriefingKey = matchView ? `${capabilities.surface}:${matchView.matchId}` : null;
   const currentGameLeaveConfirmCopy =
     capabilities.surface === 'SOLITAIRE' ? getSolitaireLeaveConfirmCopy() : null;
@@ -679,6 +704,8 @@ function App() {
     return (
       <OnlineSpectatorPage
         token={spectatorToken}
+        emoteCatalog={appConfig.matchEmotes}
+        onEmoteCatalogStale={refreshAppConfig}
         onBackHome={() => {
           window.location.href = '/';
         }}
@@ -972,6 +999,8 @@ function App() {
       <OnlineRoomPage
         onBack={() => setCurrentPage('home')}
         onImmersiveModeChange={setIsOnlineRoomImmersive}
+        emoteCatalog={appConfig.matchEmotes}
+        onEmoteCatalogStale={refreshAppConfig}
       />,
       'battle',
       isOnlineRoomImmersive
@@ -1047,19 +1076,54 @@ function App() {
     );
   }
 
+  if (effectivePage === 'admin-center' && profile?.role === 'admin') {
+    return withProductFrame(
+      <AdminCenterPage
+        onBack={() => setCurrentPage('home')}
+        onOpenMatchEmotes={() => setCurrentPage('match-emotes-admin')}
+        onOpenAnnouncements={() => setCurrentPage('announcement-admin')}
+        onOpenCards={() => setCurrentPage('card-admin')}
+        onOpenAiExtraction={() => setCurrentPage('ai-effect-admin')}
+        onOpenDeckPoints={() => setCurrentPage('deck-point-admin')}
+        onOpenOnlineRooms={() => setCurrentPage('online-admin')}
+        onOpenRanked={() => setCurrentPage('ranked-admin')}
+      />,
+      null
+    );
+  }
+
   // 卡牌管理页面
   if (effectivePage === 'card-admin' && profile?.role === 'admin') {
-    return withProductFrame(<CardAdminPage onBack={() => setCurrentPage('home')} />, null);
+    return withProductFrame(
+      <CardAdminPage
+        onBack={() => setCurrentPage('admin-center')}
+        onOpenAiConfig={() => setCurrentPage('ai-effect-admin')}
+      />,
+      null
+    );
+  }
+
+  if (effectivePage === 'ai-effect-admin' && profile?.role === 'admin') {
+    return withProductFrame(
+      <AiEffectExtractionAdminPage
+        onBack={() => setCurrentPage('admin-center')}
+        onOpenCardAdmin={() => setCurrentPage('card-admin')}
+      />,
+      null
+    );
   }
 
   if (effectivePage === 'online-admin' && profile?.role === 'admin') {
-    return withProductFrame(<OnlineRoomsAdminPage onBack={() => setCurrentPage('home')} />, null);
+    return withProductFrame(
+      <OnlineRoomsAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      null
+    );
   }
 
   if (effectivePage === 'announcement-admin' && profile?.role === 'admin') {
     return withProductFrame(
       <SiteAnnouncementsAdminPage
-        onBack={() => setCurrentPage('home')}
+        onBack={() => setCurrentPage('admin-center')}
         siteStatus={appConfig.siteStatus}
         onSiteStatusChanged={refreshAppConfig}
       />,
@@ -1068,12 +1132,25 @@ function App() {
   }
 
   if (effectivePage === 'ranked-admin' && profile?.role === 'admin') {
-    return withProductFrame(<RankedAdminPage onBack={() => setCurrentPage('home')} />, null);
+    return withProductFrame(
+      <RankedAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      null
+    );
   }
 
   if (effectivePage === 'deck-point-admin' && profile?.role === 'admin') {
     return withProductFrame(
-      <DeckPointTablesAdminPage onBack={() => setCurrentPage('home')} />,
+      <DeckPointTablesAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      null
+    );
+  }
+
+  if (effectivePage === 'match-emotes-admin' && profile?.role === 'admin') {
+    return withProductFrame(
+      <MatchEmotesAdminPage
+        onBack={() => setCurrentPage('admin-center')}
+        onCatalogPublished={refreshAppConfig}
+      />,
       null
     );
   }
@@ -1092,11 +1169,7 @@ function App() {
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
-      onNavigateToCardAdmin={() => setCurrentPage('card-admin')}
-      onNavigateToOnlineAdmin={() => setCurrentPage('online-admin')}
-      onNavigateToAnnouncementAdmin={() => setCurrentPage('announcement-admin')}
-      onNavigateToRankedAdmin={() => setCurrentPage('ranked-admin')}
-      onNavigateToDeckPointAdmin={() => setCurrentPage('deck-point-admin')}
+      onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
       siteStatus={appConfig.siteStatus}
     />
   );

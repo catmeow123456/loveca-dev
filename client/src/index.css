@@ -1336,31 +1336,8 @@ select {
 }
 
 .match-emote-visual {
-  display: block;
-  overflow: visible;
+  display: inline-block;
   filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--accent-primary) 14%, transparent));
-}
-
-.match-emote-thinking-dot {
-  opacity: 1;
-}
-
-.match-emote-visual--animated .match-emote-thinking-dot {
-  animation: match-emote-thinking 1.25s ease-in-out infinite;
-}
-
-@keyframes match-emote-thinking {
-  0%,
-  28%,
-  100% {
-    opacity: 0.34;
-    transform: translateY(0);
-  }
-  48%,
-  68% {
-    opacity: 1;
-    transform: translateY(-1.5px);
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

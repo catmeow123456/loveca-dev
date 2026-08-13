@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import type { OnlineMatchEmoteCatalog, OnlineMatchEmoteDefinition } from '@game/online';
 
 export type SiteStatusLifecycle =
   | 'NORMAL'
@@ -54,6 +55,7 @@ export interface PublicAppConfig {
     };
   };
   siteStatus: PublicSiteStatus;
+  matchEmotes: OnlineMatchEmoteCatalog | null;
 }
 
 interface LoadPublicAppConfigOptions {
@@ -76,6 +78,7 @@ export const DEFAULT_APP_CONFIG: PublicAppConfig = {
     },
   },
   siteStatus: DEFAULT_SITE_STATUS,
+  matchEmotes: null,
 };
 
 const SITE_STATUS_LIFECYCLES = new Set<string>([
@@ -104,6 +107,7 @@ export function normalizeAppConfig(
       },
     },
     siteStatus: normalizeSiteStatus(config?.siteStatus),
+    matchEmotes: normalizeMatchEmoteCatalog(config?.matchEmotes),
   };
 }
 
@@ -170,7 +174,51 @@ export function buildPublicAppConfigRenderKey(config: PublicAppConfig): string {
         impactScopes: announcement.impactScopes,
       })),
     },
+    matchEmotes: normalized.matchEmotes,
   });
+}
+
+function normalizeMatchEmoteCatalog(value: unknown): OnlineMatchEmoteCatalog | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as { version?: unknown; items?: unknown };
+  if (typeof candidate.version !== 'string' || !Array.isArray(candidate.items)) {
+    return null;
+  }
+  const items: OnlineMatchEmoteDefinition[] = [];
+  for (const rawItem of candidate.items) {
+    if (!rawItem || typeof rawItem !== 'object') {
+      return null;
+    }
+    const item = rawItem as Record<string, unknown>;
+    if (
+      typeof item.id !== 'string' ||
+      typeof item.label !== 'string' ||
+      typeof item.shortLabel !== 'string' ||
+      typeof item.staticImageUrl !== 'string' ||
+      !isSafeEmoteImageUrl(item.staticImageUrl) ||
+      (item.animatedImageUrl !== null &&
+        (typeof item.animatedImageUrl !== 'string' ||
+          !isSafeEmoteImageUrl(item.animatedImageUrl))) ||
+      typeof item.assetRevision !== 'string'
+    ) {
+      return null;
+    }
+    items.push({
+      id: item.id,
+      label: item.label,
+      shortLabel: item.shortLabel,
+      staticImageUrl: item.staticImageUrl,
+      animatedImageUrl: item.animatedImageUrl,
+      assetRevision: item.assetRevision,
+    });
+  }
+  return { version: candidate.version, items };
+}
+
+function isSafeEmoteImageUrl(value: string): boolean {
+  return /^\/images\/emotes\/[0-9a-f]{64}\.webp$/u.test(value);
 }
 
 export function buildAnnouncementUnreadKey(siteStatus: PublicSiteStatus): string | null {

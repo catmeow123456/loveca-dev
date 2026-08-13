@@ -27,9 +27,16 @@ type SpectatorContinuityStatus = 'WATCHING_MATCH' | 'WAITING_NEXT_MATCH' | 'SWIT
 interface OnlineSpectatorPageProps {
   readonly token: string;
   readonly onBackHome: () => void;
+  readonly emoteCatalog: import('@game/online').OnlineMatchEmoteCatalog | null;
+  readonly onEmoteCatalogStale?: () => void | Promise<void>;
 }
 
-export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPageProps) {
+export function OnlineSpectatorPage({
+  token,
+  onBackHome,
+  emoteCatalog,
+  onEmoteCatalogStale,
+}: OnlineSpectatorPageProps) {
   const connectRemoteSession = useGameStore((s) => s.connectRemoteSession);
   const applyRemoteSnapshot = useGameStore((s) => s.applyRemoteSnapshot);
   const applySpectatorViewSession = useGameStore((s) => s.applySpectatorViewSession);
@@ -506,6 +513,8 @@ export function OnlineSpectatorPage({ token, onBackHome }: OnlineSpectatorPagePr
         remoteSession.seat ? (
           <MatchChat
             key={remoteSession.matchId}
+            emoteCatalog={emoteCatalog}
+            onEmoteCatalogStale={onEmoteCatalogStale}
             access={{
               kind: 'SPECTATOR',
               matchId: remoteSession.matchId,

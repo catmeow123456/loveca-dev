@@ -11,7 +11,7 @@ import {
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import { AdminPageHeader } from './AdminPageHeader';
 import type { PublicSiteStatus, SiteAnnouncementType, SiteStatusLifecycle } from '@/lib/appConfig';
 import {
   createAdminSiteAnnouncement,
@@ -237,12 +237,7 @@ export function SiteAnnouncementsAdminPage({
 
   return (
     <div className="app-shell min-h-screen">
-      <PageHeader
-        title="平台配置"
-        icon={<Megaphone size={20} />}
-        onBack={onBack}
-        backLabel="返回大厅"
-      />
+      <AdminPageHeader title="平台配置" category="内容与平台" onBack={onBack} />
 
       <main className="product-page-main flex flex-col gap-4">
         <SiteStatusControlPanel

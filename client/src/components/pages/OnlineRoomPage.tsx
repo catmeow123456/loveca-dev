@@ -114,9 +114,16 @@ type RpsToneClasses = {
 interface OnlineRoomPageProps {
   onBack: () => void;
   onImmersiveModeChange?: (immersive: boolean) => void;
+  emoteCatalog: import('@game/online').OnlineMatchEmoteCatalog | null;
+  onEmoteCatalogStale?: () => void | Promise<void>;
 }
 
-export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPageProps) {
+export function OnlineRoomPage({
+  onBack,
+  onImmersiveModeChange,
+  emoteCatalog,
+  onEmoteCatalogStale,
+}: OnlineRoomPageProps) {
   const pointTable = useDeckPointTableRules();
   const cloudDecks = useDeckStore((s) => s.cloudDecks);
   const isLoadingCloud = useDeckStore((s) => s.isLoadingCloud);
@@ -947,6 +954,8 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
               </div>
               <MatchChat
                 key={activeBattleContext.matchId}
+                emoteCatalog={emoteCatalog}
+                onEmoteCatalogStale={onEmoteCatalogStale}
                 access={{
                   kind: 'PARTICIPANT',
                   matchId: activeBattleContext.matchId,
@@ -1073,6 +1082,8 @@ export function OnlineRoomPage({ onBack, onImmersiveModeChange }: OnlineRoomPage
                 <MatchChat
                   key={activeBattleContext.matchId}
                   compact
+                  emoteCatalog={emoteCatalog}
+                  onEmoteCatalogStale={onEmoteCatalogStale}
                   access={{
                     kind: 'PARTICIPANT',
                     matchId: activeBattleContext.matchId,

@@ -31,6 +31,21 @@ test.describe('联机对局快捷表情', () => {
 
   test('双方与授权观战者共享有序表情流，桌面和移动端入口保持可用', async ({ request, browser }) => {
     await cleanupPlayerFixtures();
+    const publicConfig = await apiData<{
+      readonly matchEmotes: {
+        readonly version: string;
+        readonly items: readonly {
+          readonly id: string;
+          readonly label: string;
+          readonly staticImageUrl: string;
+          readonly animatedImageUrl: string | null;
+        }[];
+      };
+    }>(await request.get('/api/config'));
+    const thinkingEmote = publicConfig.matchEmotes.items.find(
+      (item) => item.id === 'DEEP_THINKING'
+    );
+    expect(thinkingEmote?.animatedImageUrl).toBeTruthy();
     const roomCode = `EM${Date.now().toString(36).slice(-6).toUpperCase()}`;
     let firstContext: BrowserContext | null = null;
     let secondContext: BrowserContext | null = null;
@@ -146,12 +161,19 @@ test.describe('联机对局快捷表情', () => {
       await firstEmoteLauncher.click();
       const quickMenu = firstPage.getByRole('dialog', { name: '快捷表情' });
       await expect(quickMenu).toBeVisible();
-      await expect(quickMenu.getByRole('button', { name: /^发送表情：/ })).toHaveCount(6);
+      await expect(quickMenu.getByRole('button', { name: /^发送表情：/ })).toHaveCount(
+        publicConfig.matchEmotes.items.length
+      );
+      const thinkingButton = quickMenu.getByRole('button', { name: '发送表情：深度思考中' });
+      await expect(thinkingButton.locator('img')).toHaveAttribute(
+        'src',
+        thinkingEmote!.animatedImageUrl!
+      );
       await firstPage.screenshot({
         path: '../output/playwright/match-emote-desktop-menu.png',
       });
 
-      await quickMenu.getByRole('button', { name: '发送表情：深度思考中' }).click();
+      await thinkingButton.click();
       const thinkingPreview = secondPage.getByRole('button', {
         name: /表情：深度思考中/,
       });
@@ -228,13 +250,14 @@ test.describe('联机对局快捷表情', () => {
       await firstChat.getByRole('button', { name: '关闭聊天' }).click();
       await firstPage.emulateMedia({ reducedMotion: 'reduce' });
       await firstPage.getByRole('button', { name: '快捷表情', exact: true }).click();
-      const reducedMotionDot = firstPage.locator('.match-emote-thinking-dot').first();
-      await expect(reducedMotionDot).toBeVisible();
-      await expect
-        .poll(() =>
-          reducedMotionDot.evaluate((element) => getComputedStyle(element).animationIterationCount)
-        )
-        .toBe('1');
+      const reducedMotionThinkingImage = firstPage
+        .getByRole('dialog', { name: '快捷表情' })
+        .getByRole('button', { name: '发送表情：深度思考中' })
+        .locator('img');
+      await expect(reducedMotionThinkingImage).toHaveAttribute(
+        'src',
+        thinkingEmote!.staticImageUrl
+      );
 
       const response = await request.get(
         `/api/online/matches/${encodeURIComponent(started.matchId)}/chat/messages?afterSeq=0`,

@@ -67,6 +67,10 @@ import {
   readOnlineMatchChatMessages,
   type OnlineMatchChatRuntimeState,
 } from './online-match-chat-runtime.js';
+import {
+  matchEmoteCatalogService,
+  type MatchEmoteCatalogService,
+} from './match-emote-catalog-service.js';
 
 const MATCH_STALE_TTL_MS = 30 * 60 * 1000;
 const UNDO_REQUEST_TTL_MS = 60 * 1000;
@@ -327,6 +331,7 @@ interface OnlineMatchServiceDeps {
   readonly spectatorRequestWindowMs?: number;
   readonly spectatorRequestLimit?: number;
   readonly chatBlockedTerms?: readonly string[];
+  readonly emoteCatalog?: Pick<MatchEmoteCatalogService, 'resolveActiveEmote'>;
 }
 
 export interface DeleteOnlineMatchOptions {
@@ -382,6 +387,7 @@ export class OnlineMatchService {
   private readonly spectatorRequestWindowMs: number;
   private readonly spectatorRequestLimit: number;
   private readonly chatBlockedTerms: readonly string[];
+  private readonly emoteCatalog: Pick<MatchEmoteCatalogService, 'resolveActiveEmote'>;
   private readonly sealedMatchIds = new Set<string>();
   private readonly partialRecordMatchIds = new Set<string>();
   private serviceRejectedAttemptSeq = 0;
@@ -399,6 +405,7 @@ export class OnlineMatchService {
       deps.spectatorRequestLimit ??
       readPositiveIntEnv('ONLINE_SPECTATOR_REQUEST_LIMIT', DEFAULT_SPECTATOR_REQUEST_LIMIT);
     this.chatBlockedTerms = deps.chatBlockedTerms ?? readOnlineMatchChatBlockedTerms();
+    this.emoteCatalog = deps.emoteCatalog ?? matchEmoteCatalogService;
   }
 
   async createMatch(params: CreateOnlineMatchParams): Promise<OnlineMatchState> {
@@ -733,11 +740,11 @@ export class OnlineMatchService {
     return readOnlineMatchChatMessages(match.chat, match.matchId, options.afterSeq);
   }
 
-  sendMatchChatMessage(
+  async sendMatchChatMessage(
     matchId: string,
     userId: string,
     input: SendOnlineMatchChatEntryInput
-  ): OnlineMatchChatEntry | null {
+  ): Promise<OnlineMatchChatEntry | null> {
     const match = this.matches.get(matchId);
     if (!match || match.matchMode !== 'ONLINE') {
       return null;
@@ -748,9 +755,11 @@ export class OnlineMatchService {
       return null;
     }
 
-    const message = appendOnlineMatchChatMessage(match.chat, participant, input, {
+    const message = await appendOnlineMatchChatMessage(match.chat, participant, input, {
       now: this.now(),
       blockedTerms: this.chatBlockedTerms,
+      resolveEmote: (emoteId, catalogVersion) =>
+        this.emoteCatalog.resolveActiveEmote(emoteId, catalogVersion),
     });
     touchMatch(match);
     return message;

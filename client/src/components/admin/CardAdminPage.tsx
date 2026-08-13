@@ -23,8 +23,9 @@ import {
   ChevronsRight,
   ListFilter,
   X,
+  Bot,
 } from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import { AdminPageHeader } from './AdminPageHeader';
 import { useAuthStore } from '@/store/authStore';
 import { cardService, type CardUpdateInput, type CardCreateInput } from '@/lib/cardService';
 import { cleanLocalizedText, getCardLocalizedInfo } from '@/lib/cardLocalization';
@@ -42,9 +43,10 @@ import { useKeyedState } from '@/hooks/useKeyedState';
 
 interface CardAdminPageProps {
   onBack: () => void;
+  onOpenAiConfig: () => void;
 }
 
-export function CardAdminPage({ onBack }: CardAdminPageProps) {
+export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
   const { offlineMode } = useAuthStore(useShallow((s) => ({ offlineMode: s.offlineMode })));
 
   const [cards, setCards] = useState<AnyCardData[]>([]);
@@ -263,7 +265,22 @@ export function CardAdminPage({ onBack }: CardAdminPageProps) {
 
   return (
     <div className="app-shell flex h-screen flex-col">
-      <PageHeader title="卡牌数据管理" onBack={onBack} backLabel="返回大厅" />
+      <AdminPageHeader
+        title="卡牌数据管理"
+        category="卡牌与规则"
+        onBack={onBack}
+        actions={
+          <button
+            type="button"
+            onClick={onOpenAiConfig}
+            className="button-secondary inline-flex min-h-10 items-center gap-2 px-3 text-sm"
+          >
+            <Bot size={15} />
+            <span className="hidden sm:inline">AI 提取配置</span>
+            <span className="sm:hidden">AI 配置</span>
+          </button>
+        }
+      />
 
       <div className="product-page-main flex-1 overflow-y-auto">
         <div className="mx-auto mb-4 flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

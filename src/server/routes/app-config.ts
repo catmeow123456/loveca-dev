@@ -1,13 +1,17 @@
 import { Router } from 'express';
 import { config } from '../config.js';
 import { siteAnnouncementService } from '../services/site-announcement-service.js';
+import { matchEmoteCatalogService } from '../services/match-emote-catalog-service.js';
 
 export const appConfigRouter = Router();
 
 appConfigRouter.get('/', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   const emailEnabled = config.isEmailFeatureEnabled;
-  const siteStatus = await siteAnnouncementService.getPublicSiteStatus(process.env);
+  const [siteStatus, matchEmotes] = await Promise.all([
+    siteAnnouncementService.getPublicSiteStatus(process.env),
+    matchEmoteCatalogService.getPublicCatalog(),
+  ]);
 
   res.json({
     data: {
@@ -19,6 +23,7 @@ appConfigRouter.get('/', async (_req, res) => {
         },
       },
       siteStatus,
+      matchEmotes,
     },
     error: null,
   });

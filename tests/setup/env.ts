@@ -5,3 +5,5 @@ process.env.FRONTEND_URL ??= 'http://127.0.0.1:5173';
 process.env.MINIO_ENDPOINT ??= '127.0.0.1';
 process.env.MINIO_ACCESS_KEY ??= 'loveca-test-access-key';
 process.env.MINIO_SECRET_KEY ??= 'loveca-test-secret-key';
+process.env.AI_EFFECT_EXTRACTION_ENCRYPTION_KEY ??= '11'.repeat(32);
+process.env.AI_EFFECT_EXTRACTION_ALLOWED_HOSTS ??= 'api.example.com';

@@ -35,6 +35,7 @@ import {
   onlineMatchService,
 } from '../../src/server/services/online-match-service';
 import { OnlineMatchChatRuntimeError } from '../../src/server/services/online-match-chat-runtime';
+import { MatchEmoteCatalogServiceError } from '../../src/server/services/match-emote-catalog-service';
 import { onlineRoomService } from '../../src/server/services/online-room-service';
 
 function createMockResponse() {
@@ -239,10 +240,23 @@ describe('onlineRouter error handling', () => {
   });
 
   it('未知表情返回不可用错误，表情请求不接受自定义显示字段', async () => {
-    const sendMessage = vi.spyOn(onlineMatchService, 'sendMatchChatMessage');
+    const sendMessage = vi
+      .spyOn(onlineMatchService, 'sendMatchChatMessage')
+      .mockRejectedValueOnce(
+        new OnlineMatchChatRuntimeError(
+          'ONLINE_CHAT_EMOTE_UNAVAILABLE',
+          '表情目录已更新，请刷新后重试',
+          422
+        )
+      );
     const unknownResponse = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
       params: { matchId: 'm1' },
-      body: { kind: 'EMOTE', clientMessageId: 'unknown-emote', emoteId: 'TAUNT' },
+      body: {
+        kind: 'EMOTE',
+        clientMessageId: 'unknown-emote',
+        emoteId: 'TAUNT',
+        catalogVersion: '00000000-0000-4000-8000-000000000201',
+      },
     });
 
     expect(unknownResponse.statusCode).toBe(422);
@@ -250,7 +264,7 @@ describe('onlineRouter error handling', () => {
       data: null,
       error: {
         code: 'ONLINE_CHAT_EMOTE_UNAVAILABLE',
-        message: '这个表情暂时不可用',
+        message: '表情目录已更新，请刷新后重试',
       },
     });
 
@@ -260,6 +274,7 @@ describe('onlineRouter error handling', () => {
         kind: 'EMOTE',
         clientMessageId: 'custom-emote',
         emoteId: 'THANK_YOU',
+        catalogVersion: '00000000-0000-4000-8000-000000000201',
         imageUrl: 'https://example.com/custom.webp',
       },
     });
@@ -269,7 +284,36 @@ describe('onlineRouter error handling', () => {
       data: null,
       error: { code: 'INVALID_REQUEST', message: '聊天参数非法' },
     });
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it('快捷表情目录故障返回稳定错误而不暴露内部数据库信息', async () => {
+    vi.spyOn(onlineMatchService, 'sendMatchChatMessage').mockRejectedValueOnce(
+      new MatchEmoteCatalogServiceError(
+        'MATCH_EMOTE_CATALOG_UNAVAILABLE',
+        '快捷表情目录暂时不可用',
+        503
+      )
+    );
+
+    const response = await invokeRoute('/matches/:matchId/chat/messages', 'post', {
+      params: { matchId: 'm1' },
+      body: {
+        kind: 'EMOTE',
+        clientMessageId: 'catalog-down',
+        emoteId: 'THANK_YOU',
+        catalogVersion: '00000000-0000-4000-8000-000000000201',
+      },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.body).toEqual({
+      data: null,
+      error: {
+        code: 'MATCH_EMOTE_CATALOG_UNAVAILABLE',
+        message: '快捷表情目录暂时不可用',
+      },
+    });
   });
 
   it('已退出当前对局的玩家不能继续发送聊天', async () => {

@@ -148,6 +148,27 @@
       "when": 1786252709965,
       "tag": "0020_add_ranked_deck_observations",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1786555686596,
+      "tag": "0021_add_match_emote_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786557291508,
+      "tag": "0022_add_match_emote_catalog_previous_version",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786587524369,
+      "tag": "0023_add_ai_effect_extraction_config",
+      "breakpoints": true
     }
   ]
 }

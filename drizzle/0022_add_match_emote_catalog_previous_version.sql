@@ -1,0 +1,2 @@
+ALTER TABLE "match_emote_catalog_versions" ADD COLUMN "previous_version_id" uuid;--> statement-breakpoint
+ALTER TABLE "match_emote_catalog_versions" ADD CONSTRAINT "match_emote_catalog_versions_previous_version_id_match_emote_catalog_versions_id_fk" FOREIGN KEY ("previous_version_id") REFERENCES "public"."match_emote_catalog_versions"("id") ON DELETE restrict ON UPDATE no action;

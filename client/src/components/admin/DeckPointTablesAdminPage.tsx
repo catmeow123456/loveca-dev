@@ -7,19 +7,12 @@ import {
   Plus,
   RefreshCw,
   Save,
-  Scale,
   Send,
   Trash2,
   X,
 } from 'lucide-react';
-import {
-  ActionButton,
-  PageHeader,
-  Panel,
-  SectionHeading,
-  StatusBadge,
-  TextInput,
-} from '@/components/common';
+import { ActionButton, Panel, SectionHeading, StatusBadge, TextInput } from '@/components/common';
+import { AdminPageHeader } from './AdminPageHeader';
 import { useKeyedState } from '@/hooks/useKeyedState';
 import {
   cancelAdminDeckPointTableSchedule,
@@ -297,12 +290,11 @@ export function DeckPointTablesAdminPage({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="app-shell min-h-screen">
-      <PageHeader
+      <AdminPageHeader
         title="卡组规则管理"
-        icon={<Scale size={20} />}
+        category="卡牌与规则"
         onBack={onBack}
-        backLabel="返回大厅"
-        right={
+        actions={
           <ActionButton
             variant="icon"
             aria-label="刷新PT限制表"

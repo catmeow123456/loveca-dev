@@ -13,7 +13,7 @@ const upload = multer({
 });
 
 const SIZES = ['thumb', 'medium', 'large'] as const;
-const READ_FOLDERS = ['thumb', 'medium', 'large', 'static'] as const;
+const READ_FOLDERS = ['thumb', 'medium', 'large', 'static', 'emotes'] as const;
 type UploadedFiles = Record<string, Array<{ buffer: Buffer }>>;
 
 function getContentType(fileName: string): string {

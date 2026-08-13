@@ -7,8 +7,15 @@ vi.mock('../../src/server/services/site-announcement-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/match-emote-catalog-service.js', () => ({
+  matchEmoteCatalogService: {
+    getPublicCatalog: vi.fn(),
+  },
+}));
+
 import { appConfigRouter } from '../../src/server/routes/app-config';
 import { siteAnnouncementService } from '../../src/server/services/site-announcement-service';
+import { matchEmoteCatalogService } from '../../src/server/services/match-emote-catalog-service';
 
 function createMockResponse() {
   const headers = new Map<string, string>();
@@ -75,6 +82,10 @@ describe('appConfigRouter', () => {
       maintenance: null,
       announcements: [],
     });
+    vi.mocked(matchEmoteCatalogService.getPublicCatalog).mockResolvedValue({
+      version: '00000000-0000-4000-8000-000000000201',
+      items: [],
+    });
 
     const response = await invokeRoute('/', 'get');
 
@@ -85,6 +96,10 @@ describe('appConfigRouter', () => {
       siteStatus: {
         lifecycle: 'NORMAL',
         announcements: [],
+      },
+      matchEmotes: {
+        version: '00000000-0000-4000-8000-000000000201',
+        items: [],
       },
     });
   });

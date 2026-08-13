@@ -4,12 +4,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Medal,
   RefreshCw,
   Search,
   SlidersHorizontal,
 } from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import { AdminPageHeader } from './AdminPageHeader';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
   createRankedSeason,
@@ -251,12 +250,11 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="app-shell flex min-h-screen flex-col">
-      <PageHeader
+      <AdminPageHeader
         title="赛季排位管理"
-        icon={<Medal size={20} />}
+        category="对局与赛季"
         onBack={onBack}
-        backLabel="返回大厅"
-        right={
+        actions={
           <>
             <button className="button-icon" onClick={() => void load()} aria-label="刷新">
               <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />

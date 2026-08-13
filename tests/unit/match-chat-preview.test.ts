@@ -44,6 +44,12 @@ describe('match chat preview', () => {
       senderSeat: 'SECOND',
       senderDisplayName: 'Beta',
       emoteId: 'DEEP_THINKING',
+      emote: {
+        label: '深度思考中…',
+        staticImageUrl: `/images/emotes/${'a'.repeat(64)}.webp`,
+        animatedImageUrl: `/images/emotes/${'b'.repeat(64)}.webp`,
+        assetRevision: `sha256:${'c'.repeat(64)}`,
+      },
       sentAt: 2,
     };
 

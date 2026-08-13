@@ -1,15 +1,27 @@
 import type { Seat } from './types.js';
 
-export const ONLINE_MATCH_EMOTE_IDS = [
-  'DEEP_THINKING',
-  'THANK_YOU',
-  'NICE_TO_MEET_YOU',
-  'NICE_PLAY',
-  'GOOD_GAME',
-  'SORRY_TO_KEEP_YOU_WAITING',
-] as const;
+export type OnlineMatchEmoteId = string;
 
-export type OnlineMatchEmoteId = (typeof ONLINE_MATCH_EMOTE_IDS)[number];
+export interface OnlineMatchEmoteDefinition {
+  readonly id: OnlineMatchEmoteId;
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly staticImageUrl: string;
+  readonly animatedImageUrl: string | null;
+  readonly assetRevision: string;
+}
+
+export interface OnlineMatchEmoteCatalog {
+  readonly version: string;
+  readonly items: readonly OnlineMatchEmoteDefinition[];
+}
+
+export interface OnlineMatchEmoteSnapshot {
+  readonly label: string;
+  readonly staticImageUrl: string;
+  readonly animatedImageUrl: string | null;
+  readonly assetRevision: string;
+}
 
 interface OnlineMatchChatEntryBase {
   readonly messageSeq: number;
@@ -26,6 +38,7 @@ export type OnlineMatchChatEntry =
   | (OnlineMatchChatEntryBase & {
       readonly kind: 'EMOTE';
       readonly emoteId: OnlineMatchEmoteId;
+      readonly emote: OnlineMatchEmoteSnapshot;
     });
 
 export interface OnlineMatchChatMessagesResponse {
@@ -48,4 +61,5 @@ export type SendOnlineMatchChatEntryInput =
       readonly kind: 'EMOTE';
       readonly clientMessageId: string;
       readonly emoteId: OnlineMatchEmoteId;
+      readonly catalogVersion: string;
     };

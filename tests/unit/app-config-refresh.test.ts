@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAnnouncementUnreadKey,
   buildPublicAppConfigRenderKey,
+  normalizeAppConfig,
   type PublicAppConfig,
 } from '../../client/src/lib/appConfig';
 import {
@@ -49,6 +50,7 @@ function createConfig(overrides: Partial<PublicAppConfig> = {}): PublicAppConfig
         },
       ],
     },
+    matchEmotes: null,
     ...overrides,
   };
 }
@@ -170,6 +172,37 @@ describe('public app config refresh fingerprints', () => {
         maintenance: null,
         announcements: [],
       })
+    ).toBeNull();
+  });
+
+  it('tracks match emote catalog versions and rejects untrusted image paths', () => {
+    const catalog = {
+      version: '00000000-0000-4000-8000-000000000201',
+      items: [
+        {
+          id: 'DEEP_THINKING',
+          label: '深度思考中…',
+          shortLabel: '思考中',
+          staticImageUrl: `/images/emotes/${'a'.repeat(64)}.webp`,
+          animatedImageUrl: `/images/emotes/${'b'.repeat(64)}.webp`,
+          assetRevision: `sha256:${'c'.repeat(64)}`,
+        },
+      ],
+    };
+    const first = createConfig({ matchEmotes: catalog });
+    const second = createConfig({
+      matchEmotes: { ...catalog, version: '00000000-0000-4000-8000-000000000202' },
+    });
+
+    expect(buildPublicAppConfigRenderKey(first)).not.toBe(buildPublicAppConfigRenderKey(second));
+    expect(
+      normalizeAppConfig({
+        ...first,
+        matchEmotes: {
+          ...catalog,
+          items: [{ ...catalog.items[0]!, staticImageUrl: 'https://example.com/emote.webp' }],
+        },
+      }).matchEmotes
     ).toBeNull();
   });
 });
