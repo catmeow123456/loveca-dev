@@ -86,8 +86,18 @@
    - `MINIO_ACCESS_KEY`
    - `MINIO_SECRET_KEY`
    - `MINIO_BUCKET`
+   - `MINIO_WALLPAPER_BUCKET`（必须与公开 `MINIO_BUCKET` 不同，且不得允许匿名读取）
    - `MINIO_USE_SSL`
    - `FRONTEND_URL`
+
+   玩家壁纸处理参数 `PLAYER_WALLPAPER_PROCESSING_CONCURRENCY`、
+   `PLAYER_WALLPAPER_PROCESSING_TIMEOUT_SECONDS` 与
+   `PLAYER_WALLPAPER_RETIRED_RETENTION_HOURS` 可以使用仓库默认值，但发布前必须结合生产
+   API 的 CPU、内存、对象存储容量和保留政策完成核对。若启用管理员 AI 卡效提取，还必须配置
+   `AI_EFFECT_EXTRACTION_ENCRYPTION_KEY` 与 `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`；主密钥必须是独立的
+   32 字节随机值，不能使用示例或其他环境的密钥，上游只允许白名单中的公开 HTTPS 地址。请求超时、
+   响应、卡图和并发上限是代码中的固定安全边界。AI 功能保持禁用时可以暂不配置主密钥，但不得保存或
+   启用生产 AI 配置。
 
    如启用 `EMAIL_ENABLED=true`，还必须配置 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、
    `SMTP_PASS` 与 `SMTP_FROM`；启用后注册邮箱必填且登录前必须完成验证。生产环境的
@@ -96,7 +106,8 @@
 5. 确认备份可用：
 
    - Postgres 已完成发布前 dump，且记录了恢复命令和备份文件位置。
-   - 对象存储 bucket 已有独立备份或快照。
+   - 公开卡图 bucket 与玩家壁纸私有 bucket 均已有独立备份或快照；首次启用玩家壁纸时，
+     还要验证私有 bucket 不存在匿名读取策略，并记录容量告警和孤立对象清理边界。
    - 如果本次包含数据库迁移，确认迁移 SQL 已审查，并明确是否可逆。
 
 ## 4. 发布产物构建

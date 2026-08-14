@@ -12,7 +12,7 @@
 ## 发布前准备
 
 1. 为目标环境生成唯一的 32 字节随机主密钥，编码为 64 位 hex 或 base64，写入部署 Secret：`AI_EFFECT_EXTRACTION_ENCRYPTION_KEY`。
-2. 将实际 OpenAI-compatible 上游的精确主机名写入 `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`。仅在已评审的自建环境中使用 `AI_EFFECT_EXTRACTION_PRIVATE_HOSTS` 或 `AI_EFFECT_EXTRACTION_HTTP_HOSTS`；例外主机也必须在主允许列表中。
+2. 将实际 OpenAI-compatible 上游的精确主机名写入 `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`。上游必须使用公开 HTTPS 地址；生产链路不提供私网或 HTTP 例外。
 3. 备份 PostgreSQL，记录当前部署 SHA 和旧 AI 环境变量是否存在。若要迁移旧值，先人工验证 Base URL、模型、Key 所属环境和调用权限；不要复制示例或无法验证的值。
 
 ## 停机发布顺序

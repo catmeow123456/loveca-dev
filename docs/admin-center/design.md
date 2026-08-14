@@ -60,18 +60,12 @@ sequenceDiagram
 
 ## 5. 部署配置
 
-| 环境变量                                  | 作用                                     |
-| ----------------------------------------- | ---------------------------------------- |
-| `AI_EFFECT_EXTRACTION_ENCRYPTION_KEY`     | 64 位 hex 或 base64 的 32 字节配置主密钥 |
-| `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`      | 逗号分隔的精确上游主机允许列表           |
-| `AI_EFFECT_EXTRACTION_PRIVATE_HOSTS`      | 允许解析到私网的主机子集                 |
-| `AI_EFFECT_EXTRACTION_HTTP_HOSTS`         | 允许使用 HTTP 的主机子集                 |
-| `AI_EFFECT_EXTRACTION_TIMEOUT_MS`         | 请求超时，最大 30 秒                     |
-| `AI_EFFECT_EXTRACTION_RESPONSE_MAX_BYTES` | 响应上限，最大 1 MiB                     |
-| `AI_EFFECT_EXTRACTION_IMAGE_MAX_BYTES`    | 卡图上限，最大 8 MiB                     |
-| `AI_EFFECT_EXTRACTION_CONCURRENCY_LIMIT`  | 单实例并发上限，最大 8                   |
+| 环境变量                              | 作用                                     |
+| ------------------------------------- | ---------------------------------------- |
+| `AI_EFFECT_EXTRACTION_ENCRYPTION_KEY` | 64 位 hex 或 base64 的 32 字节配置主密钥 |
+| `AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`  | 逗号分隔的精确上游主机允许列表           |
 
-两个例外列表必须是主允许列表子集。环境主密钥只在服务端进程中读取，不写数据库；运行时 Base URL、Model ID 和 Key 不再从环境变量 fallback。
+环境主密钥只在服务端进程中读取，不写数据库；运行时 Base URL、Model ID 和 Key 不再从环境变量 fallback。上游固定要求公开 HTTPS 地址，不提供私网或 HTTP 例外；15 秒请求超时、256 KiB 响应上限、4 MiB 卡图上限和单实例 2 请求并发均为代码中的固定安全边界，不作为生产运维旋钮。
 
 ## 6. 关键代码
 

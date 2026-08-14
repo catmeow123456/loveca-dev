@@ -100,24 +100,10 @@ export const config = {
   emailEnabled: optionalEnv('EMAIL_ENABLED', 'false') === 'true',
 
   // Card-effect AI extraction. The database stores runtime configuration;
-  // deployment settings only define the encryption and outbound safety ceiling.
+  // deployment settings only define the encryption key and exact host allowlist.
   aiEffectExtraction: {
     encryptionKey: process.env.AI_EFFECT_EXTRACTION_ENCRYPTION_KEY ?? '',
     allowedHosts: parseHostListEnv('AI_EFFECT_EXTRACTION_ALLOWED_HOSTS'),
-    privateHosts: parseHostListEnv('AI_EFFECT_EXTRACTION_PRIVATE_HOSTS'),
-    httpHosts: parseHostListEnv('AI_EFFECT_EXTRACTION_HTTP_HOSTS'),
-    requestTimeoutMs: parsePositiveIntegerEnv('AI_EFFECT_EXTRACTION_TIMEOUT_MS', 15_000, 30_000),
-    responseMaxBytes: parsePositiveIntegerEnv(
-      'AI_EFFECT_EXTRACTION_RESPONSE_MAX_BYTES',
-      256 * 1024,
-      1024 * 1024
-    ),
-    imageMaxBytes: parsePositiveIntegerEnv(
-      'AI_EFFECT_EXTRACTION_IMAGE_MAX_BYTES',
-      4 * 1024 * 1024,
-      8 * 1024 * 1024
-    ),
-    concurrencyLimit: parsePositiveIntegerEnv('AI_EFFECT_EXTRACTION_CONCURRENCY_LIMIT', 2, 8),
   },
 
   // Frontend URL (for email links)
@@ -165,15 +151,6 @@ export function assertSecurityConfiguration(): void {
     throw new Error(
       'AI_EFFECT_EXTRACTION_ENCRYPTION_KEY must be 32 bytes encoded as 64 hex characters or base64'
     );
-  }
-  const allowedHosts = new Set(config.aiEffectExtraction.allowedHosts);
-  for (const host of [
-    ...config.aiEffectExtraction.privateHosts,
-    ...config.aiEffectExtraction.httpHosts,
-  ]) {
-    if (!allowedHosts.has(host)) {
-      throw new Error(`${host} must also be listed in AI_EFFECT_EXTRACTION_ALLOWED_HOSTS`);
-    }
   }
 }
 

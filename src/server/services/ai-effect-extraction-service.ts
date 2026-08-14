@@ -12,6 +12,10 @@ const ENCRYPTION_AAD = Buffer.from('loveca:ai-effect-extraction-config:v1', 'utf
 const RATE_WINDOW_MS = 60_000;
 const TEST_RATE_LIMIT = 10;
 const EXTRACTION_RATE_LIMIT = 20;
+const UPSTREAM_REQUEST_TIMEOUT_MS = 15_000;
+const UPSTREAM_RESPONSE_MAX_BYTES = 256 * 1024;
+const CARD_IMAGE_MAX_BYTES = 4 * 1024 * 1024;
+const UPSTREAM_CONCURRENCY_LIMIT = 2;
 
 const SYSTEM_PROMPT = `你是一名 Love Live! Series Official Card Game 的卡牌效果翻译专家。
 
@@ -466,10 +470,9 @@ export class AiEffectExtractionService {
     if (!config.aiEffectExtraction.allowedHosts.includes(hostname)) {
       throw serviceError('AI_EFFECT_HOST_NOT_ALLOWED', '该 AI 上游主机不在部署白名单中', 422);
     }
-    if (parsed.protocol !== 'https:' && !config.aiEffectExtraction.httpHosts.includes(hostname)) {
+    if (parsed.protocol !== 'https:') {
       throw serviceError('AI_EFFECT_HTTPS_REQUIRED', '该 AI 上游必须使用 HTTPS', 422);
     }
-
     let addresses: readonly ResolvedAddress[];
     try {
       addresses = await this.resolveHost(hostname);
@@ -479,10 +482,7 @@ export class AiEffectExtractionService {
     if (addresses.length === 0) {
       throw serviceError('AI_EFFECT_HOST_RESOLUTION_FAILED', 'AI 上游主机没有可用地址', 422);
     }
-    if (
-      !config.aiEffectExtraction.privateHosts.includes(hostname) &&
-      addresses.some(({ address }) => !isPublicAddress(address))
-    ) {
+    if (addresses.some(({ address }) => !isPublicAddress(address))) {
       throw serviceError(
         'AI_EFFECT_PRIVATE_ADDRESS_REJECTED',
         'AI 上游不能指向内网或保留地址',
@@ -509,7 +509,7 @@ export class AiEffectExtractionService {
         }
         const buffer = Buffer.from(candidate);
         totalBytes += buffer.length;
-        if (totalBytes > config.aiEffectExtraction.imageMaxBytes) {
+        if (totalBytes > CARD_IMAGE_MAX_BYTES) {
           throw serviceError('AI_EFFECT_CARD_IMAGE_TOO_LARGE', '卡牌图片超过 AI 提取大小上限', 422);
         }
         chunks.push(buffer);
@@ -530,15 +530,12 @@ export class AiEffectExtractionService {
     maxTokens: number
   ): Promise<string> {
     await this.validateOutboundUrl(effective.baseUrl);
-    if (this.activeUpstreamRequests >= config.aiEffectExtraction.concurrencyLimit) {
+    if (this.activeUpstreamRequests >= UPSTREAM_CONCURRENCY_LIMIT) {
       throw serviceError('AI_EFFECT_CONCURRENCY_LIMIT', 'AI 提取服务当前繁忙，请稍后重试', 429);
     }
     this.activeUpstreamRequests += 1;
     const controller = new AbortController();
-    const timeout = setTimeout(
-      () => controller.abort(),
-      config.aiEffectExtraction.requestTimeoutMs
-    );
+    const timeout = setTimeout(() => controller.abort(), UPSTREAM_REQUEST_TIMEOUT_MS);
     try {
       const endpoint = `${effective.baseUrl.replace(/\/+$/u, '')}/chat/completions`;
       const response = await this.fetchImpl(endpoint, {
@@ -558,7 +555,7 @@ export class AiEffectExtractionService {
       if (!response.ok) {
         throw upstreamStatusError(response.status);
       }
-      const payload = await readBoundedJson(response, config.aiEffectExtraction.responseMaxBytes);
+      const payload = await readBoundedJson(response, UPSTREAM_RESPONSE_MAX_BYTES);
       const content = readCompletionContent(payload);
       if (!content) {
         throw serviceError('AI_EFFECT_RESPONSE_INVALID', 'AI 上游返回了空结果或未知格式', 502);
@@ -639,8 +636,7 @@ function isSavedUpstreamAllowed(value: string): boolean {
       !parsed.hash &&
       !parsed.search &&
       config.aiEffectExtraction.allowedHosts.includes(hostname) &&
-      (parsed.protocol === 'https:' ||
-        (parsed.protocol === 'http:' && config.aiEffectExtraction.httpHosts.includes(hostname)))
+      parsed.protocol === 'https:'
     );
   } catch {
     return false;

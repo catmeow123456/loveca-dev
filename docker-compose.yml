@@ -10,9 +10,9 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - "127.0.0.1:5432:5432"
+      - '127.0.0.1:5432:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-loveca} -d loveca"]
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-loveca} -d loveca']
       interval: 5s
       timeout: 3s
       retries: 5
@@ -32,6 +32,8 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-loveca}:${POSTGRES_PASSWORD}@postgres:5432/loveca
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET is required}
+      AI_EFFECT_EXTRACTION_ENCRYPTION_KEY: ${AI_EFFECT_EXTRACTION_ENCRYPTION_KEY:-}
+      AI_EFFECT_EXTRACTION_ALLOWED_HOSTS: ${AI_EFFECT_EXTRACTION_ALLOWED_HOSTS:-dashscope.aliyuncs.com}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:?MINIO_ENDPOINT is required}
       MINIO_PORT: ${MINIO_PORT:-9000}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?MINIO_ACCESS_KEY is required}
@@ -50,7 +52,7 @@ services:
       EMAIL_ENABLED: ${EMAIL_ENABLED:-false}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
     ports:
-      - "127.0.0.1:3007:3007"
+      - '127.0.0.1:3007:3007'
 
 volumes:
   pgdata:

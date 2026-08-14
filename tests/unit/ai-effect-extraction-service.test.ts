@@ -93,7 +93,7 @@ describe('AiEffectExtractionService', () => {
     expect(database.cardWrites).toBe(0);
   });
 
-  it('rejects non-allowlisted and private-address targets before calling the upstream', async () => {
+  it('rejects non-allowlisted, HTTP, and private-address targets before calling the upstream', async () => {
     const database = new FakeDatabase();
     const fetchImpl = vi.fn();
     const nonAllowedService = createService(database, fetchImpl);
@@ -108,6 +108,17 @@ describe('AiEffectExtractionService', () => {
         ADMIN_ID
       )
     ).rejects.toMatchObject({ code: 'AI_EFFECT_HOST_NOT_ALLOWED', statusCode: 422 });
+
+    await expect(
+      nonAllowedService.testCandidate(
+        {
+          baseUrl: 'http://api.example.com/v1',
+          modelId: 'model',
+          apiKey: { action: 'REPLACE', value: 'secret' },
+        },
+        ADMIN_ID
+      )
+    ).rejects.toMatchObject({ code: 'AI_EFFECT_HTTPS_REQUIRED', statusCode: 422 });
 
     const privateService = createService(database, fetchImpl, undefined, () =>
       Promise.resolve([{ address: '127.0.0.1', family: 4 as const }])
