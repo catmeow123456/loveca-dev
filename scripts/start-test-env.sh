@@ -441,7 +441,10 @@ seed_match_emote_assets() {
     wait_until "local MinIO bucket and match emote seed upload" 60 pnpm emotes:seed-assets
     return
   fi
-  pnpm emotes:seed-assets
+  if pnpm emotes:seed-assets; then
+    return
+  fi
+  die "remote MinIO credentials cannot verify or upload match emote seeds; configure writable MINIO_ACCESS_KEY/MINIO_SECRET_KEY, or rerun local testing with: pnpm test-env:start --local-minio"
 }
 
 wait_for_api() {

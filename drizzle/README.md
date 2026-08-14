@@ -8,7 +8,7 @@
 
 `migration-notes/` 保存人工发布迁移说明，用来记录特定版本升级时的生产执行顺序、数据同步注意事项、验证 SQL 和回滚边界。这里的文档不是 Drizzle 可执行迁移，不会被 `pnpm db:migrate` 自动读取。
 
-涉及对象存储前置资源或部署 Secret 的迁移必须按对应说明准备。例如 `0021_add_match_emote_catalog.sql` 的顺序见 [`migration-notes/match-emote-catalog.md`](migration-notes/match-emote-catalog.md)，`0023_add_ai_effect_extraction_config.sql` 的主密钥、允许列表和停机切换要求见 [`migration-notes/ai-effect-extraction-config.md`](migration-notes/ai-effect-extraction-config.md)。
+涉及对象存储前置资源或部署 Secret 的迁移必须按对应说明准备。例如 `0021_add_match_emote_catalog.sql` 的顺序见 [`migration-notes/match-emote-catalog.md`](migration-notes/match-emote-catalog.md)，`0025_add_match_emote_sticker_pack.sql` 的资源前置顺序见 [`migration-notes/match-emote-sticker-pack.md`](migration-notes/match-emote-sticker-pack.md)，`0023_add_ai_effect_extraction_config.sql` 的主密钥、允许列表和停机切换要求见 [`migration-notes/ai-effect-extraction-config.md`](migration-notes/ai-effect-extraction-config.md)。
 
 `data-migrations/` 保存版本绑定的一次性数据迁移脚本，例如旧数据格式转换或生产数据修复。这里的脚本也不会被 `pnpm db:migrate` 自动执行；必须按对应 `migration-notes/` 文档在维护窗口手动运行，并保留 dry-run、报告和验证 SQL。
 

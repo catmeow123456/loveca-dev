@@ -8,22 +8,45 @@ import sharp from 'sharp';
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const OUTPUT_DIR = join(SCRIPT_DIR, '..', 'assets', 'emotes', 'seed');
+const SOURCE_DIR = join(SCRIPT_DIR, '..', 'assets', 'emotes', 'candidates');
 const SIZE = 192;
 
 const EMOTES = [
-  ['DEEP_THINKING', '深度思考中…', '思考中'],
-  ['THANK_YOU', '谢谢！', '谢谢'],
-  ['NICE_TO_MEET_YOU', '请多指教！', '请多指教'],
-  ['NICE_PLAY', '漂亮！', '漂亮'],
-  ['GOOD_GAME', '好局！', '好局'],
-  ['SORRY_TO_KEEP_YOU_WAITING', '抱歉，久等了', '久等了'],
+  { id: 'DEEP_THINKING', label: '深度思考中…', shortLabel: '思考中' },
+  { id: 'THANK_YOU', label: '谢谢！', shortLabel: '谢谢' },
+  { id: 'NICE_TO_MEET_YOU', label: '请多指教！', shortLabel: '请多指教' },
+  { id: 'NICE_PLAY', label: '漂亮！', shortLabel: '漂亮' },
+  { id: 'GOOD_GAME', label: '好局！', shortLabel: '好局' },
+  {
+    id: 'SORRY_TO_KEEP_YOU_WAITING',
+    label: '抱歉，久等了',
+    shortLabel: '久等了',
+  },
+  {
+    id: 'ALL_IN_LIVE',
+    label: '跟你爆了！',
+    shortLabel: '跟你爆了',
+    sourceFilename: 'all-in.png',
+  },
+  {
+    id: 'OH_NO',
+    label: 'Oh no!',
+    shortLabel: 'Oh no',
+    sourceFilename: 'oh-no.png',
+  },
+  {
+    id: 'WHERE_IS_MY_LIVE',
+    label: '我 LIVE 呢',
+    shortLabel: '我 LIVE 呢',
+    sourceFilename: 'where-is-my-live.png',
+  },
 ];
 
 await mkdir(OUTPUT_DIR, { recursive: true });
 await removePreviousGeneratedAssets();
 
 const manifest = [];
-for (const [id, label, shortLabel] of EMOTES) {
+for (const { id, label, shortLabel, sourceFilename } of EMOTES) {
   let animatedBuffer = null;
   let animatedFilename = null;
   let animatedHash = null;
@@ -54,9 +77,14 @@ for (const [id, label, shortLabel] of EMOTES) {
     await writeFile(join(OUTPUT_DIR, animatedFilename), animatedBuffer);
   }
 
-  const staticBuffer = await sharp(animatedBuffer ?? Buffer.from(renderSvg(id, null)), { page: 0 })
-    .webp({ quality: 88, alphaQuality: 100 })
-    .toBuffer();
+  const staticBuffer = sourceFilename
+    ? await sharp(await readFile(join(SOURCE_DIR, sourceFilename)), { page: 0 })
+        .resize(SIZE, SIZE, { fit: 'contain' })
+        .webp({ quality: 88, alphaQuality: 100 })
+        .toBuffer()
+    : await sharp(animatedBuffer ?? Buffer.from(renderSvg(id, null)), { page: 0 })
+        .webp({ quality: 88, alphaQuality: 100 })
+        .toBuffer();
   const staticHash = sha256(staticBuffer);
   const staticFilename = `${staticHash}.webp`;
   await writeFile(join(OUTPUT_DIR, staticFilename), staticBuffer);

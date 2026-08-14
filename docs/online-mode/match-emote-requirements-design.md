@@ -3,7 +3,7 @@
 > 文档类型：设计文档
 > 适用范围：普通房间联机、休闲公共牌桌、赛季排位，以及这些对局的授权观战视图
 > 当前状态：首版通信与版本化运营目录已实施；真实环境视觉验收进行中
-> 更新日期：2026-08-13
+> 更新日期：2026-08-14
 
 ## 1. 背景
 
@@ -93,6 +93,20 @@
 - 不依赖特定角色、团体或卡牌梗，避免对新玩家造成理解门槛；
 - 表情含义必须仅凭图形与短标签即可理解，不要求玩家记忆编号。
 - 已发布 `emoteId` 只能停用，不能删除或复用于另一语义；名称和资源变更通过新目录版本生效。
+
+### 4.3 统一手绘贴图试用扩充
+
+2026-08-14 起，当前默认目录在首发六项之后追加三项统一手绘贴图，用于完整测试环境中的玩家体验验证：
+
+| `emoteId`          | 玩家可见名称 | 主要场景                                      |
+| ------------------ | ------------ | --------------------------------------------- |
+| `ALL_IN_LIVE`      | 跟你爆了！   | LIVE 设置时点做出高风险、押注本回合结果的决策 |
+| `OH_NO`            | Oh no!       | 对局出现意外结果时表达惊讶                    |
+| `WHERE_IS_MY_LIVE` | 我 LIVE 呢   | 预期 LIVE 未出现或未成功时表达夸张抱怨        |
+
+这三项使用作者提供的原创蓝发角色草图和共享 `STYLE_PROMPT.md`，统一角色比例、顶部标题、粉蓝金配色、粗圆线条与白色贴纸描边；静态母版统一生成 192 × 192 透明 WebP。`ALL_IN_LIVE` 只使用三张里侧 LIVE 与三个放置位表达高风险决策，不使用筹码、硬币、扑克牌花色或赌场桌面。
+
+本次属于明确批准的目录试用扩充，扩展了首发阶段“非角色化、只保留礼貌与状态表达”的保守选品边界，但不改变白名单目录、限频、静音、观战只读和“不把表情当作规则确认”的系统约束。运营仍可通过现有管理目录停用或调整顺序；已发布稳定 ID 不复用。
 
 ## 5. 体验需求
 
@@ -326,7 +340,7 @@ type SendOnlineMatchChatEntryInput =
 
 ## 13. 实施状态与剩余验收
 
-- 已将 6 个首发表情迁移为数据库种子目录和内容寻址 WebP；其中“深度思考中…”同时具有静态代表图与克制的动画资源。
+- 已将 6 个首发表情迁移为数据库种子目录和内容寻址 WebP；其中“深度思考中…”同时具有静态代表图与克制的动画资源。当前测试目录再以新不可变版本追加 3 个统一手绘静态表情，合计 9 项。
 - 已完成目录不可变版本、active pointer、乐观锁、资源上传/重编码、管理员目录编辑和 `/api/config` 公开读取；生产发布必须先上传种子资源，再执行数据库迁移。
 - 已完成 `TEXT | EMOTE` 判别联合、内存运行态、幂等比较、游标读取、综合限频、表情冷却，以及参与者和观战鉴权复用。
 - 已完成共享桌面交互：文字聊天保持顶层直达，快捷表情从动态目录生成，文字与带资源快照的表情进入同一时间流，对手表情预览锚定发送者身份。
@@ -335,7 +349,7 @@ type SendOnlineMatchChatEntryInput =
 
 ## 14. 已确认的首版决策
 
-1. 首发以 6 个种子表情启动，运营目录上限 12 项，并维持单个轻量面板展示。
+1. 首发以 6 个种子表情启动；当前统一手绘贴图试用扩充后默认目录为 9 项，运营目录上限仍为 12 项，并维持单个轻量面板展示。
 2. “深度思考中…”采用原创卡牌轮廓意象，不建立角色设定或引入角色肖像授权负担。
 3. 对手表情浮层展示约 3.5 秒，锚定发送者身份，层级低于关键规则覆盖层。
 4. 已结束但尚未清理的对局允许继续发送，以支持“好局！”和“谢谢！”，但不延长房间或排位运行态生命周期。
@@ -345,8 +359,8 @@ type SendOnlineMatchChatEntryInput =
 当前实现主要涉及：
 
 - 共享类型：`src/online/chat-types.ts`；
-- 目录与资源：`src/server/services/match-emote-catalog-service.ts`、`src/server/routes/match-emotes.ts`、`src/server/db/schema.ts`、`drizzle/0021_add_match_emote_catalog.sql`；
-- 种子资源：`scripts/generate-seed-match-emotes.mjs`、`scripts/seed-match-emote-assets.mjs`、`assets/emotes/seed/manifest.json`；
+- 目录与资源：`src/server/services/match-emote-catalog-service.ts`、`src/server/routes/match-emotes.ts`、`src/server/db/schema.ts`、`drizzle/0021_add_match_emote_catalog.sql`、`drizzle/0025_add_match_emote_sticker_pack.sql`；
+- 种子资源：`scripts/generate-seed-match-emotes.mjs`、`scripts/seed-match-emote-assets.mjs`、`assets/emotes/seed/manifest.json`、`assets/emotes/candidates/STYLE_PROMPT.md`；
 - 内存消息、分页、幂等、过滤与限频：`src/server/services/online-match-chat-runtime.ts`；
 - 参与者与观战鉴权：`src/server/services/online-match-service.ts`、`src/server/services/online-room-service.ts`；
 - REST 输入与错误映射：`src/server/routes/online.ts`；

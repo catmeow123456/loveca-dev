@@ -2,6 +2,8 @@
 
 > 适用范围：`0021_add_match_emote_catalog.sql`、`0022_add_match_emote_catalog_previous_version.sql`、首批六项内容寻址 WebP、客户端与服务端聊天协议切换
 
+> 本文保留首发六项目录的历史切换步骤。当前仓库清单已由 `0025_add_match_emote_sticker_pack.sql` 扩充到九项、十个对象；后续环境还必须继续执行 [`match-emote-sticker-pack.md`](match-emote-sticker-pack.md)。
+
 ## 迁移边界
 
 - 本次新增表情资源表、不可变目录版本表和单行 active pointer。迁移会直接建立首个六项目录，但不会向对象存储写文件。
@@ -19,7 +21,8 @@
    pnpm emotes:seed-assets
    ```
 
-   命令必须报告七个种子对象均已存在或已成功上传；任何 hash/尺寸冲突都应中止发布。
+   首发提交中的命令报告七个种子对象；当前仓库清单会报告十个对象均已存在或已成功上传。任何 hash/尺寸冲突都应中止发布。
+
 4. 执行数据库迁移：
 
    ```bash
@@ -42,6 +45,7 @@
    ```
 
    首次迁移预期 `asset_count=6`、`item_count=6`、`enabled_count=6`。其中“深度思考中…”的资源应同时具有静态与动画对象键。
+
 6. 部署同一提交的服务端和前端。先检查 `/api/config` 返回非空 `matchEmotes.version` 及六项启用目录，再以管理员身份检查 `/api/match-emotes/admin/catalog`。
 7. 完成一次真实双方发送：发送前记录目录版本，确认消息响应包含名称、静态地址、动画地址和 `assetRevision` 快照；随后再恢复新对局入口。
 

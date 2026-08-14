@@ -94,5 +94,53 @@
     "durationMs": 0,
     "staticBytes": 5952,
     "animatedBytes": null
+  },
+  {
+    "id": "ALL_IN_LIVE",
+    "label": "跟你爆了！",
+    "shortLabel": "跟你爆了",
+    "staticFilename": "9df3ead2b0996c79cf460972e1e6963366cd8fc50325edc181599dfeef48da9a.webp",
+    "staticHash": "9df3ead2b0996c79cf460972e1e6963366cd8fc50325edc181599dfeef48da9a",
+    "animatedFilename": null,
+    "animatedHash": null,
+    "contentFingerprint": "sha256:cdaaa3f2fa5fd097a194066f3cceb21dd8cf50beb0ccea3f74b6cb5a302d9b9f",
+    "width": 192,
+    "height": 192,
+    "frameCount": 1,
+    "durationMs": 0,
+    "staticBytes": 25622,
+    "animatedBytes": null
+  },
+  {
+    "id": "OH_NO",
+    "label": "Oh no!",
+    "shortLabel": "Oh no",
+    "staticFilename": "73cfc73f8f198c585d12fd949f26fd5816d5c387c9f544b5b1064568e9085a1b.webp",
+    "staticHash": "73cfc73f8f198c585d12fd949f26fd5816d5c387c9f544b5b1064568e9085a1b",
+    "animatedFilename": null,
+    "animatedHash": null,
+    "contentFingerprint": "sha256:084eb8600c7ccfb24742621eba634c94412b335a1183c28b38dbc3b35e6bf99d",
+    "width": 192,
+    "height": 192,
+    "frameCount": 1,
+    "durationMs": 0,
+    "staticBytes": 17016,
+    "animatedBytes": null
+  },
+  {
+    "id": "WHERE_IS_MY_LIVE",
+    "label": "我 LIVE 呢",
+    "shortLabel": "我 LIVE 呢",
+    "staticFilename": "f63990566b472b47e04b4fcc3ebc049e4c1df56cae3557dc99dda3a1239b8c18.webp",
+    "staticHash": "f63990566b472b47e04b4fcc3ebc049e4c1df56cae3557dc99dda3a1239b8c18",
+    "animatedFilename": null,
+    "animatedHash": null,
+    "contentFingerprint": "sha256:424e0d10717988efb7b2f045859ae7c628a5dd4c9982e05a81b24b030b6bd9dd",
+    "width": 192,
+    "height": 192,
+    "frameCount": 1,
+    "durationMs": 0,
+    "staticBytes": 17954,
+    "animatedBytes": null
   }
 ]

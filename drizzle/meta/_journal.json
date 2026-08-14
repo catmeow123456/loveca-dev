@@ -176,6 +176,13 @@
       "when": 1786642334986,
       "tag": "0024_add_player_wallpapers",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1786676278539,
+      "tag": "0025_add_match_emote_sticker_pack",
+      "breakpoints": true
     }
   ]
 }
