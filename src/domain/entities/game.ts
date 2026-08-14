@@ -623,6 +623,8 @@ export interface ActiveEffectState {
   readonly id: string;
   /** 能力定义 ID */
   readonly abilityId: string;
+  /** Concrete granted ability copy selected for this invocation, when applicable. */
+  readonly abilityInstanceId?: string;
   /** 能力来源卡牌实例 ID */
   readonly sourceCardId: string;
   /**

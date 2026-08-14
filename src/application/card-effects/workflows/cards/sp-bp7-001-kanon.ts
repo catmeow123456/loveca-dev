@@ -4,10 +4,10 @@ import {
   type GameState,
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
-import type { LeaveStageEvent } from '../../../../domain/events/game-events.js';
-import { TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
+import { ZoneType } from '../../../../shared/types/enums.js';
 import { SP_BP7_001_AUTO_RELAY_STACK_SELF_BELOW_REPLACEMENT_ABILITY_ID } from '../../ability-ids.js';
 import { stackMemberCardBelowStageMember } from '../../runtime/actions.js';
+import { getPendingLeaveStageEvent } from '../../runtime/events.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 
@@ -33,7 +33,7 @@ function resolveKanonRelayBelow(
   continuePendingCardEffects: ContinuePendingCardEffects
 ): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const event = getLeaveStageEvent(game, ability);
+  const event = getPendingLeaveStageEvent(game, ability);
   const replacementCardId = event?.replacingCardId ?? null;
   const replacementSlot =
     player && replacementCardId
@@ -78,17 +78,4 @@ function resolveKanonRelayBelow(
     }),
     orderedResolution
   );
-}
-
-function getLeaveStageEvent(
-  game: GameState,
-  ability: PendingAbilityState
-): LeaveStageEvent | null {
-  for (const eventId of ability.eventIds) {
-    const event = game.eventLog.find((entry) => entry.event.eventId === eventId)?.event;
-    if (event?.eventType === TriggerCondition.ON_LEAVE_STAGE && 'fromSlot' in event) {
-      return event as LeaveStageEvent;
-    }
-  }
-  return null;
 }

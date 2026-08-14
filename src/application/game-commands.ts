@@ -204,6 +204,8 @@ export interface ActivateAbilityCommand extends BaseGameCommand {
   readonly type: GameCommandType.ACTIVATE_ABILITY;
   readonly cardId: string;
   readonly abilityId: string;
+  /** Concrete granted ability copy selected by the player, when applicable. */
+  readonly abilityInstanceId?: string;
 }
 
 export interface MovePublicCardToWaitingRoomCommand extends BaseGameCommand {
@@ -700,13 +702,15 @@ export function createCancelSpecialMemberPlayCommand(
 export function createActivateAbilityCommand(
   playerId: string,
   cardId: string,
-  abilityId: string
+  abilityId: string,
+  abilityInstanceId?: string
 ): ActivateAbilityCommand {
   return {
     type: GameCommandType.ACTIVATE_ABILITY,
     playerId,
     cardId,
     abilityId,
+    ...(abilityInstanceId ? { abilityInstanceId } : {}),
     timestamp: Date.now(),
   };
 }

@@ -39,8 +39,11 @@ Examples:
 
 - `successLiveScoreAtLeast(game, playerId, 6)`
 - `getMemberEffectiveCost(game, playerId, memberCardId)`
+- `getHandMemberEffectiveCost(game, playerId, memberCardId, handSnapshot)`
 - `cardBelongsToGroup(card.data, "μ's")`
 - `hasLiveWithoutLiveStartOrSuccessAbility(game, playerId)` 只扫描指定玩家当前 LIVE 区合法 LIVE 实例并按印刷 `cardText` 判断中日 LIVE_START / LIVE_SUCCESS；它不依赖 definition 是否已实现，也不创建 pending 或 modifier。
+
+费用 query 必须区分“卡牌本身的当前费用”和“登场时实际支付的费用”。卡效读取手牌成员卡的费用时使用 `getHandMemberEffectiveCost`；它包含 `LL-bp2-001` 这类“手牌中的此卡费用减少”的常时修正，但不包含 `PL!SP-bp5-003` 这类“从手牌登场所需费用减少”。只有实际生成登场支付方案时才使用 `getHandMemberEffectivePlayCost` / `calculateModifiedPlayCost`。直接读取 `card.data.cost` 仅表示印刷／原本费用，不能用于要求当前费用的卡效条件。
 
 ## Runtime Action
 

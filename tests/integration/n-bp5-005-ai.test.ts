@@ -3,13 +3,20 @@ import type { EnergyCardData, MemberCardData } from '../../src/domain/entities/c
 import { createCardInstance, createHeartIcon } from '../../src/domain/entities/card';
 import {
   createGameState,
+  emitGameEvent,
   registerCards,
   updatePlayer,
   type GameState,
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
-import { resolvePendingCardEffects } from '../../src/application/card-effect-runner';
-import { N_BP5_005_AUTO_RELAY_REPLACED_NIJIGASAKI_NO_BLADE_HEART_ACTIVATE_ENERGY_DRAW_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  confirmActiveEffectStep,
+  resolvePendingCardEffects,
+} from '../../src/application/card-effect-runner';
+import {
+  N_BP5_005_AUTO_RELAY_REPLACED_NIJIGASAKI_NO_BLADE_HEART_ACTIVATE_ENERGY_DRAW_ABILITY_ID,
+  N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import {
   BladeHeartEffect,
@@ -51,9 +58,7 @@ function createReplacement(options: {
     cost: options.cost,
     blade: 1,
     hearts: [createHeartIcon(HeartColor.PINK, 1)],
-    bladeHearts: options.hasBladeHeart
-      ? [{ effect: BladeHeartEffect.DRAW }]
-      : [],
+    bladeHearts: options.hasBladeHeart ? [{ effect: BladeHeartEffect.DRAW }] : [],
   };
 }
 
@@ -85,7 +90,7 @@ function setupAiScenario(options: {
   readonly energyOrientations?: readonly OrientationState[];
   readonly mainDeckCount?: number;
   readonly sourceInWaitingRoom?: boolean;
-  readonly metadataToZone?: ZoneType | null;
+  readonly eventToZone?: ZoneType;
   readonly includeReplacingCardId?: boolean;
   readonly costModifier?: number;
 }): GameState {
@@ -100,10 +105,9 @@ function setupAiScenario(options: {
     PLAYER1,
     'n-bp5-005-replacement'
   );
-  const energyCards = (options.energyOrientations ?? [
-    OrientationState.WAITING,
-    OrientationState.WAITING,
-  ]).map((_, index) =>
+  const energyCards = (
+    options.energyOrientations ?? [OrientationState.WAITING, OrientationState.WAITING]
+  ).map((_, index) =>
     createCardInstance(createEnergy(index), PLAYER1, `n-bp5-005-energy-${index}`)
   );
   const deckCards = Array.from({ length: options.mainDeckCount ?? 1 }, (_, index) =>
@@ -137,7 +141,10 @@ function setupAiScenario(options: {
     },
     mainDeck: {
       ...player.mainDeck,
-      cardIds: deckCards.map((card) => card.instanceId),
+      cardIds: [
+        ...deckCards.map((card) => card.instanceId),
+        ...(options.sourceInWaitingRoom === false ? [source.instanceId] : []),
+      ],
     },
   }));
   if (options.costModifier !== undefined) {
@@ -150,6 +157,21 @@ function setupAiScenario(options: {
       countDelta: options.costModifier,
     });
   }
+  game = emitGameEvent(game, {
+    eventId: 'n-bp5-005-leave-stage-event',
+    eventType: TriggerCondition.ON_LEAVE_STAGE,
+    timestamp: 1,
+    triggerPlayerId: PLAYER1,
+    cardInstanceId: source.instanceId,
+    fromZone: ZoneType.MEMBER_SLOT,
+    toZone: options.eventToZone ?? ZoneType.WAITING_ROOM,
+    fromSlot: SlotPosition.CENTER,
+    ownerId: PLAYER1,
+    controllerId: PLAYER1,
+    ...(options.includeReplacingCardId === false
+      ? {}
+      : { replacingCardId: replacement.instanceId }),
+  });
   return {
     ...game,
     pendingAbilities: [
@@ -164,9 +186,8 @@ function setupAiScenario(options: {
         eventIds: ['n-bp5-005-leave-stage-event'],
         sourceSlot: SlotPosition.CENTER,
         metadata: {
-          toZone: options.metadataToZone === undefined ? ZoneType.WAITING_ROOM : options.metadataToZone,
-          replacingCardId:
-            options.includeReplacingCardId === false ? null : replacement.instanceId,
+          toZone: options.eventToZone ?? ZoneType.WAITING_ROOM,
+          replacingCardId: options.includeReplacingCardId === false ? null : replacement.instanceId,
         },
       },
     ],
@@ -229,17 +250,121 @@ describe('PL!N-bp5-005 Ai ON_LEAVE_STAGE relay replacement workflow', () => {
       },
       { label: 'has Blade Heart', replacementCost: 10, replacementHasBladeHeart: true },
       { label: 'missing replacingCardId', replacementCost: 10, includeReplacingCardId: false },
-      { label: 'source not to waiting room', replacementCost: 10, metadataToZone: ZoneType.HAND },
+      { label: 'source not to waiting room', replacementCost: 10, eventToZone: ZoneType.HAND },
     ] as const) {
       const result = resolve(setupAiScenario(options));
 
       expect(result.pendingAbilities).toEqual([]);
-      expect(energyOrientations(result)).toEqual([OrientationState.WAITING, OrientationState.WAITING]);
+      expect(energyOrientations(result)).toEqual([
+        OrientationState.WAITING,
+        OrientationState.WAITING,
+      ]);
       expect(result.players[0]!.hand.cardIds).toEqual([]);
       expect({ label: options.label, step: resolveStep(result) }).not.toMatchObject({
         step: 'ACTIVATE_ENERGY_DRAW_BY_RELAY_REPLACEMENT',
       });
     }
+  });
+
+  it('uses the bound leave-stage event after the source has already moved from waiting room to deck bottom', () => {
+    const result = resolve(
+      setupAiScenario({
+        replacementCost: 15,
+        sourceInWaitingRoom: false,
+        mainDeckCount: 1,
+      })
+    );
+
+    expect(energyOrientations(result)).toEqual([OrientationState.ACTIVE, OrientationState.ACTIVE]);
+    expect(result.players[0]!.hand.cardIds).toEqual(['n-bp5-005-deck-0']);
+    expect(result.players[0]!.mainDeck.cardIds).toEqual(['n-bp5-005-source']);
+    expect(resolveStep(result)).toBe('ACTIVATE_ENERGY_DRAW_BY_RELAY_REPLACEMENT');
+    expect(result.actionHistory.at(-1)?.payload).toMatchObject({
+      leaveStageEventId: 'n-bp5-005-leave-stage-event',
+      leaveStageEventMatches: true,
+      replacingCardId: 'n-bp5-005-replacement',
+    });
+  });
+
+  it('still resolves after PL!N-bp7-008 Emma moves the relayed source to deck bottom first', () => {
+    const initial = setupAiScenario({
+      replacementCost: 15,
+      replacementCardCode: 'PL!N-bp7-008-P',
+      energyOrientations: [
+        OrientationState.WAITING,
+        OrientationState.WAITING,
+        OrientationState.WAITING,
+      ],
+      mainDeckCount: 1,
+    });
+    const aiPending = initial.pendingAbilities[0]!;
+    const emmaPendingId = 'n-bp7-008-on-enter';
+    const game: GameState = {
+      ...initial,
+      pendingAbilities: [
+        {
+          id: emmaPendingId,
+          abilityId:
+            N_BP7_008_ON_ENTER_BOTTOM_UP_TO_FOUR_NO_BLADE_HEART_MEMBERS_ACTIVATE_ENERGY_ABILITY_ID,
+          sourceCardId: 'n-bp5-005-replacement',
+          controllerId: PLAYER1,
+          mandatory: true,
+          timingId: TriggerCondition.ON_ENTER_STAGE,
+          eventIds: [],
+          sourceSlot: SlotPosition.CENTER,
+        },
+        aiPending,
+      ],
+    };
+
+    const orderSelection = resolvePendingCardEffects(game).gameState;
+    const emmaSelection = confirmActiveEffectStep(
+      orderSelection,
+      PLAYER1,
+      orderSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      false,
+      emmaPendingId
+    );
+    const publicConfirmation = confirmActiveEffectStep(
+      emmaSelection,
+      PLAYER1,
+      emmaSelection.activeEffect!.id,
+      undefined,
+      undefined,
+      false,
+      undefined,
+      ['n-bp5-005-source']
+    );
+    const result = confirmActiveEffectStep(
+      publicConfirmation,
+      PLAYER1,
+      publicConfirmation.activeEffect!.id
+    );
+
+    expect(result.activeEffect).toBeNull();
+    expect(result.pendingAbilities).toEqual([]);
+    expect(result.players[0]!.mainDeck.cardIds).toEqual(['n-bp5-005-source']);
+    expect(result.players[0]!.hand.cardIds).toEqual(['n-bp5-005-deck-0']);
+    expect(energyOrientations(result)).toEqual([
+      OrientationState.ACTIVE,
+      OrientationState.ACTIVE,
+      OrientationState.ACTIVE,
+    ]);
+    expect(
+      result.actionHistory.find(
+        (action) =>
+          action.type === 'RESOLVE_ABILITY' &&
+          action.payload.abilityId ===
+            N_BP5_005_AUTO_RELAY_REPLACED_NIJIGASAKI_NO_BLADE_HEART_ACTIVATE_ENERGY_DRAW_ABILITY_ID
+      )?.payload
+    ).toMatchObject({
+      leaveStageEventMatches: true,
+      replacingCardId: 'n-bp5-005-replacement',
+      activatedEnergyCardIds: ['n-bp5-005-energy-1', 'n-bp5-005-energy-2'],
+      drawnCardIds: ['n-bp5-005-deck-0'],
+    });
   });
 
   it('uses effective cost modifiers so a cost 14 replacement can reach the cost 15 draw threshold', () => {

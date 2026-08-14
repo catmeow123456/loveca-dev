@@ -12,7 +12,7 @@ import {
 } from '../../src/application/card-effects/ability-ids';
 import { getLegacyPersistedBladeAudit } from '../../src/application/card-effects/legacy-persisted-blade-scopes';
 import { PUBLIC_REVEAL_DWELL_STEP_ID } from '../../src/application/card-effects/runtime/public-reveal-dwell';
-import type { GameState } from '../../src/domain/entities/game';
+import { createGameState, type GameState } from '../../src/domain/entities/game';
 import type { PlayerState } from '../../src/domain/entities/player';
 import type {
   MatchDecisionSubmissionSummary,
@@ -298,6 +298,36 @@ interface FixtureAudit {
 }
 
 let fixtureAuditPromise: Promise<FixtureAudit> | null = null;
+
+describe('起动能力决策回放身份', () => {
+  it('复原 ACTIVATE_ABILITY 时保留20费恋授予的能力实例 ID', () => {
+    const beforeState = createGameState(
+      'ren-granted-replay',
+      'player-1',
+      'Player 1',
+      'player-2',
+      'Player 2'
+    );
+    const decision = {
+      decisionType: 'ACTIVATE_ABILITY_SUBMITTED',
+      playerId: 'player-1',
+      abilityId: 'pl-sp-bp5-001-activated-discard-or-wait-self',
+      submission: {
+        commandType: GameCommandType.ACTIVATE_ABILITY,
+        selectedCardId: 'ren-host',
+        abilityInstanceId: 'ren-granted:ren-host:member-below-1:ability',
+      },
+    } as DecisionRecordSummary;
+
+    expect(rebuildDecisionCommand(decision, beforeState)).toMatchObject({
+      type: GameCommandType.ACTIVATE_ABILITY,
+      playerId: 'player-1',
+      cardId: 'ren-host',
+      abilityId: 'pl-sp-bp5-001-activated-discard-or-wait-self',
+      abilityInstanceId: 'ren-granted:ren-host:member-below-1:ability',
+    });
+  });
+});
 
 describeRealData('real online replay data harness: 2026-06-27 CST online-only', () => {
   it('parses the SQL gzip export and validates record-level continuity', async () => {
@@ -2850,6 +2880,7 @@ function rebuildDecisionCommand(
             playerId,
             cardId: submission.selectedCardId,
             abilityId: decision.abilityId,
+            abilityInstanceId: submission.abilityInstanceId ?? undefined,
             timestamp: 0,
           }
         : null;

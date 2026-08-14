@@ -1,4 +1,3 @@
-import { isLiveCardData } from '../../../../domain/entities/card.js';
 import {
   addAction,
   getPlayerById,
@@ -8,18 +7,14 @@ import {
 } from '../../../../domain/entities/game.js';
 import { addLiveModifier } from '../../../../domain/rules/live-modifiers.js';
 import { CardType, ZoneType } from '../../../../shared/types/enums.js';
-import { and, groupIs, typeIs } from '../../../effects/card-selectors.js';
+import { and, groupIs, hasScoreBladeHeart, typeIs } from '../../../effects/card-selectors.js';
 import { countCardsInZoneMatching } from '../../../effects/conditions.js';
 import { PL_PB1_004_ON_ENTER_CENTER_SUCCESS_MUSE_SCORE_ABILITY_ID } from '../../ability-ids.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 
-const scoredMuseLive = and(
-  typeIs(CardType.LIVE),
-  groupIs("μ's"),
-  (card) => isLiveCardData(card.data) && Number.isFinite(card.data.score)
-);
+const scoredMuseLive = and(typeIs(CardType.LIVE), groupIs("μ's"), hasScoreBladeHeart());
 
 export function registerPlPb1004UmiWorkflowHandlers(): void {
   registerPendingAbilityStarterHandler(

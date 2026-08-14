@@ -5,6 +5,7 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import {
+  N_PR_033_AUTO_TURN_ONCE_WAITING_ROOM_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
   N_PR_025_AUTO_TWICE_PER_TURN_OWN_RELAY_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
   PL_N_PB1_005_AUTO_TURN_ONCE_COST_TEN_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
 } from '../../ability-ids.js';
@@ -27,6 +28,10 @@ interface AutoOnEnterStageDrawConfig {
 }
 
 const AUTO_ON_ENTER_STAGE_DRAW_CONFIGS: readonly AutoOnEnterStageDrawConfig[] = [
+  {
+    abilityId: N_PR_033_AUTO_TURN_ONCE_WAITING_ROOM_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+    actionStep: 'DRAW_ONE_AFTER_OWN_WAITING_ROOM_MEMBER_ENTER',
+  },
   {
     abilityId: N_PR_025_AUTO_TWICE_PER_TURN_OWN_RELAY_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
     actionStep: 'DRAW_ONE_AFTER_OWN_RELAY_MEMBER_ENTER',

@@ -7,10 +7,10 @@ import {
   type PendingAbilityState,
 } from '../../../../domain/entities/game.js';
 import { findMemberSlot } from '../../../../domain/entities/player.js';
-import type { LeaveStageEvent } from '../../../../domain/events/game-events.js';
-import { TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
+import { ZoneType } from '../../../../shared/types/enums.js';
 import { PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID } from '../../ability-ids.js';
 import { addBladeLiveModifierForTargetMember } from '../../runtime/actions.js';
+import { getPendingLeaveStageEvent } from '../../runtime/events.js';
 import {
   getAbilityEffectText,
   registerManualConfirmablePendingAbilityStarterHandler,
@@ -105,7 +105,7 @@ function getRelayReplacementContext(
   ability: PendingAbilityState
 ): RelayReplacementContext {
   const player = getPlayerById(game, ability.controllerId);
-  const event = getExactLeaveStageEvent(game, ability);
+  const event = getPendingLeaveStageEvent(game, ability);
   const replacingCardId = event?.replacingCardId ?? null;
   const replacement = replacingCardId ? getCardById(game, replacingCardId) : null;
   const replacementSlot =
@@ -134,17 +134,4 @@ function getRelayReplacementContext(
     conditionMet:
       eventMatches && replacementIsOwnCurrentStageTop && printedCost !== null && printedCost >= 9,
   };
-}
-
-function getExactLeaveStageEvent(
-  game: GameState,
-  ability: PendingAbilityState
-): LeaveStageEvent | null {
-  for (const eventId of ability.eventIds) {
-    const event = game.eventLog.find((entry) => entry.event.eventId === eventId)?.event;
-    if (event?.eventType === TriggerCondition.ON_LEAVE_STAGE && 'fromSlot' in event) {
-      return event as LeaveStageEvent;
-    }
-  }
-  return null;
 }

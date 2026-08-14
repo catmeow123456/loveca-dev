@@ -29,13 +29,13 @@ const COUNTED_HEART_COLORS = [
   HeartColor.BLUE,
   HeartColor.PURPLE,
 ] as const;
-const HEART_COLOR_LABELS: Readonly<Record<(typeof COUNTED_HEART_COLORS)[number], string>> = {
-  [HeartColor.PINK]: '[桃ハート]',
-  [HeartColor.RED]: '[赤ハート]',
-  [HeartColor.YELLOW]: '[黄ハート]',
-  [HeartColor.GREEN]: '[緑ハート]',
-  [HeartColor.BLUE]: '[青ハート]',
-  [HeartColor.PURPLE]: '[紫ハート]',
+const BLADE_HEART_COLOR_LABELS: Readonly<Record<(typeof COUNTED_HEART_COLORS)[number], string>> = {
+  [HeartColor.PINK]: '[桃ブレード]',
+  [HeartColor.RED]: '[赤ブレード]',
+  [HeartColor.YELLOW]: '[黄ブレード]',
+  [HeartColor.GREEN]: '[緑ブレード]',
+  [HeartColor.BLUE]: '[青ブレード]',
+  [HeartColor.PURPLE]: '[紫ブレード]',
 };
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
@@ -70,7 +70,7 @@ function getConfirmationConfig(
 } {
   const evaluation = evaluateLiveSuccess(game, ability);
   const matchedColorText =
-    evaluation.matchedColors.map((color) => HEART_COLOR_LABELS[color]).join('、') || '无';
+    evaluation.matchedColors.map((color) => BLADE_HEART_COLOR_LABELS[color]).join('、') || '无';
   return {
     effectText: `${getAbilityEffectText(
       ability.abilityId

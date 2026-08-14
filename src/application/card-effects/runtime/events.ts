@@ -4,7 +4,7 @@ import type {
   MemberStateChangedEvent,
   MemberSlotMovedEvent,
 } from '../../../domain/events/game-events.js';
-import type { GameState } from '../../../domain/entities/game.js';
+import type { GameState, PendingAbilityState } from '../../../domain/entities/game.js';
 import { TriggerCondition } from '../../../shared/types/enums.js';
 
 export function getNewEnterStageEvents(
@@ -31,6 +31,19 @@ export function getNewLeaveStageEvents(
       (event): event is LeaveStageEvent =>
         event.eventType === TriggerCondition.ON_LEAVE_STAGE
     );
+}
+
+export function getPendingLeaveStageEvent(
+  game: GameState,
+  ability: PendingAbilityState
+): LeaveStageEvent | null {
+  for (const eventId of ability.eventIds) {
+    const event = game.eventLog.find((entry) => entry.event.eventId === eventId)?.event;
+    if (event?.eventType === TriggerCondition.ON_LEAVE_STAGE) {
+      return event as LeaveStageEvent;
+    }
+  }
+  return null;
 }
 
 export function getNewMemberStateChangedEvents(

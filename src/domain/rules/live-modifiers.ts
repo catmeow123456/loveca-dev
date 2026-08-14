@@ -1594,7 +1594,7 @@ const CONTINUOUS_LIVE_MODIFIER_DEFINITIONS: readonly ContinuousLiveModifierDefin
   },
   {
     visibility: PUBLIC_CONTINUOUS_LIVE_MODIFIER_VISIBILITY,
-    baseCardCodes: ['PL!-PR-023', 'PL!N-PR-034'],
+    baseCardCodes: ['PL!-PR-024', 'PL!N-PR-034'],
     collect: ({ game, playerId, sourceCardId }) => {
       const opponent = getOpponent(game, playerId);
       const totalSuccessfulLiveScore =

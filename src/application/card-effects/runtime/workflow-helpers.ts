@@ -20,6 +20,7 @@ const ABILITY_USE_STEP = 'ABILITY_USE';
 
 export interface AbilityUseContext {
   readonly abilityId: string;
+  readonly abilityInstanceId?: string;
   readonly sourceCardId: string;
   readonly sourceLifecycleId?: string;
   readonly pendingAbilityId?: string;
@@ -125,6 +126,12 @@ export function recordAbilityUseForContext(
     game.activeEffect.sourceCardId === context.sourceCardId
       ? getActiveEffectSourceLifecycleId(game, game.activeEffect)
       : undefined;
+  const activeAbilityInstanceId =
+    game.activeEffect?.abilityId === context.abilityId &&
+    game.activeEffect.sourceCardId === context.sourceCardId
+      ? game.activeEffect.abilityInstanceId
+      : undefined;
+  const abilityInstanceId = context.abilityInstanceId ?? activeAbilityInstanceId;
   const pendingAbility = !tracksSourceLifecycle
     ? undefined
     : context.pendingAbilityId === undefined
@@ -142,6 +149,7 @@ export function recordAbilityUseForContext(
     : undefined;
   return addAction(game, 'RESOLVE_ABILITY', playerId, {
     abilityId: context.abilityId,
+    ...(abilityInstanceId ? { abilityInstanceId } : {}),
     sourceCardId: context.sourceCardId,
     ...(sourceLifecycleId ? { sourceLifecycleId } : {}),
     ...(context.pendingAbilityId ? { pendingAbilityId: context.pendingAbilityId } : {}),

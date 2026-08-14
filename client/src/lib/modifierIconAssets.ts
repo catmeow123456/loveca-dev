@@ -1,5 +1,12 @@
 import { HeartColor } from '@game/shared/types/enums';
 import bladeIcon from '@/assets/modifier-icons/blade.png';
+import bladeHeartAllIcon from '@/assets/modifier-icons/blade_heart_all.png';
+import bladeHeartBlueIcon from '@/assets/modifier-icons/blade_heart_blue.png';
+import bladeHeartGreenIcon from '@/assets/modifier-icons/blade_heart_green.png';
+import bladeHeartPinkIcon from '@/assets/modifier-icons/blade_heart_pink.png';
+import bladeHeartPurpleIcon from '@/assets/modifier-icons/blade_heart_purple.png';
+import bladeHeartRedIcon from '@/assets/modifier-icons/blade_heart_red.png';
+import bladeHeartYellowIcon from '@/assets/modifier-icons/blade_heart_yellow.png';
 import costIcon from '@/assets/modifier-icons/cost.png';
 import heartAllIcon from '@/assets/modifier-icons/heart_all.png';
 import heartBlueIcon from '@/assets/modifier-icons/heart_blue.png';
@@ -21,6 +28,13 @@ export type ModifierIconName =
   | 'heart_orange'
   | 'heart_gray'
   | 'heart_all'
+  | 'blade_heart_pink'
+  | 'blade_heart_red'
+  | 'blade_heart_yellow'
+  | 'blade_heart_green'
+  | 'blade_heart_blue'
+  | 'blade_heart_purple'
+  | 'blade_heart_all'
   | 'blade'
   | 'cost';
 
@@ -34,6 +48,13 @@ export const MODIFIER_ICON_SOURCE: Record<ModifierIconName, string> = {
   heart_orange: heartOrangeIcon,
   heart_gray: heartGrayIcon,
   heart_all: heartAllIcon,
+  blade_heart_pink: bladeHeartPinkIcon,
+  blade_heart_red: bladeHeartRedIcon,
+  blade_heart_yellow: bladeHeartYellowIcon,
+  blade_heart_green: bladeHeartGreenIcon,
+  blade_heart_blue: bladeHeartBlueIcon,
+  blade_heart_purple: bladeHeartPurpleIcon,
+  blade_heart_all: bladeHeartAllIcon,
   blade: bladeIcon,
   cost: costIcon,
 };

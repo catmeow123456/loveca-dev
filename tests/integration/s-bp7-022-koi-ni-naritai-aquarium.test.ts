@@ -31,8 +31,7 @@ import {
 
 const P1 = 'p1';
 const P2 = 'p2';
-const ABILITY_ID =
-  S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID;
+const ABILITY_ID = S_BP7_022_LIVE_SUCCESS_DISTINCT_AQOURS_RED_GREEN_BLUE_CHEER_SCORE_ABILITY_ID;
 
 function member(
   id: string,
@@ -99,7 +98,8 @@ function setup(options: {
     ...player,
     liveZone: addCardToStatefulZone(player.liveZone, source.instanceId),
   }));
-  const currentIds = options.currentIds ?? [...normal, ...additional].map((card) => card.instanceId);
+  const currentIds =
+    options.currentIds ?? [...normal, ...additional].map((card) => card.instanceId);
   game = {
     ...game,
     liveResolution: {
@@ -119,21 +119,34 @@ function setup(options: {
   if (normal.length > 0) {
     game = emitGameEvent(
       game,
-      createCheerEvent(P1, normal.map((card) => card.instanceId), normal.length)
+      createCheerEvent(
+        P1,
+        normal.map((card) => card.instanceId),
+        normal.length
+      )
     );
   }
   if (additional.length > 0) {
     game = emitGameEvent(
       game,
-      createCheerEvent(P1, additional.map((card) => card.instanceId), additional.length, {
-        additional: true,
-      })
+      createCheerEvent(
+        P1,
+        additional.map((card) => card.instanceId),
+        additional.length,
+        {
+          additional: true,
+        }
+      )
     );
   }
   if (opponent.length > 0) {
     game = emitGameEvent(
       game,
-      createCheerEvent(P2, opponent.map((card) => card.instanceId), opponent.length)
+      createCheerEvent(
+        P2,
+        opponent.map((card) => card.instanceId),
+        opponent.length
+      )
     );
   }
   return { source, game: { ...game, pendingAbilities: [pending()] } };
@@ -362,11 +375,13 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 LIVE_SUCCESS', ()
     ).gameState;
     expect(waiting.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
     expect(waiting.activeEffect?.effectText).toContain(
-      '声援时产生[赤ハート]的『Aqours』成员候选1张'
+      '声援时产生[赤ブレード]的『Aqours』成员候选1张'
     );
     expect(waiting.activeEffect?.effectText).toContain('需要三张不同卡');
     expect(waiting.activeEffect?.effectText).toContain('可完成匹配，实际此LIVE[スコア]+1');
-    expect(waiting.activeEffect?.effectText).not.toMatch(/cardId|source|pending|payload|eventId|stale|resolutionZone/);
+    expect(waiting.activeEffect?.effectText).not.toMatch(
+      /cardId|source|pending|payload|eventId|stale|resolutionZone/
+    );
   });
 
   it('automatically continues an ordered batch when no new pending is created', () => {

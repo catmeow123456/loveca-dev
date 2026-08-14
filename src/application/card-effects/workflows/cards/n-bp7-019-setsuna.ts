@@ -1,9 +1,9 @@
 import { addAction, getCardById, getPlayerById, type GameState, type PendingAbilityState } from '../../../../domain/entities/game.js';
-import type { LeaveStageEvent } from '../../../../domain/events/game-events.js';
-import { TriggerCondition, ZoneType } from '../../../../shared/types/enums.js';
+import { ZoneType } from '../../../../shared/types/enums.js';
 import { groupAliasIs } from '../../../effects/card-selectors.js';
 import { placeEnergyFromEnergyDeckBelowStageMember } from '../../../effects/energy-below.js';
 import { N_BP7_019_AUTO_RELAY_NIJIGASAKI_PLACE_ENERGY_BELOW_REPLACEMENT_ABILITY_ID } from '../../ability-ids.js';
+import { getPendingLeaveStageEvent } from '../../runtime/events.js';
 import { getSourceMemberSlot } from '../../runtime/source-member.js';
 import { registerPendingAbilityStarterHandler } from '../../runtime/starter-registry.js';
 
@@ -18,7 +18,7 @@ export function registerNBp7019SetsunaWorkflowHandlers(): void {
 
 function resolve(game: GameState, ability: PendingAbilityState, ordered: boolean, next: Continue): GameState {
   const player = getPlayerById(game, ability.controllerId);
-  const event = getLeaveStageEvent(game, ability);
+  const event = getPendingLeaveStageEvent(game, ability);
   const replacementCardId = event?.replacingCardId ?? null;
   const replacement = replacementCardId ? getCardById(game, replacementCardId) : null;
   const replacementSlot = player && replacementCardId ? getSourceMemberSlot(game, player.id, replacementCardId) : null;
@@ -39,12 +39,4 @@ function resolve(game: GameState, ability: PendingAbilityState, ordered: boolean
     targetSlot: placement?.targetSlot ?? replacementSlot,
     placedEnergyCardIds: placement?.placedEnergyCardIds ?? [],
   }), ordered);
-}
-
-function getLeaveStageEvent(game: GameState, ability: PendingAbilityState): LeaveStageEvent | null {
-  for (const eventId of ability.eventIds) {
-    const event = game.eventLog.find((entry) => entry.event.eventId === eventId)?.event;
-    if (event?.eventType === TriggerCondition.ON_LEAVE_STAGE && 'fromSlot' in event) return event as LeaveStageEvent;
-  }
-  return null;
 }

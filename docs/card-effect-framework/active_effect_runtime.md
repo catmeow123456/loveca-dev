@@ -83,11 +83,12 @@ Public Reveal Dwell 表示“隐藏信息刚刚按卡文变成双方公开”，
 
 - `granted-activated-abilities.ts` 只在 Ren host 位于舞台时，读取同槽 `memberBelow` 中自己的『Liella!』成员。
 - 只枚举已实现的 `ACTIVATED / STAGE_MEMBER` definition，并按 host 当前槽位检查 `requiredSourceSlots`。
-- UI 查询、GameSession `ACTIVATE_ABILITY` 校验与 activated workflow handler 都以 host `sourceCardId` 记录发动与回合次数。中央命令校验通过不代表 workflow 可以省略自身来源复核。
+- UI 查询为每张授予能力的 memberBelow 成员产生独立、由服务端生成并持有的 opaque `abilityInstanceId`；GameSession `ACTIVATE_ABILITY` 必须携带精确实例标识并重验该成员当前仍在同一 host 下方、仍能授予所请求的 abilityId。直接发动不携带该字段。
 - 可被该 host 获得的 activated workflow 在启动、能量选择恢复、公开确认恢复、支付确认和 finish 等每一个来源资格复核点，都必须调用 `isDirectOrRenGrantedActivatedAbilitySource(game, playerId, sourceCardId, abilityId, directBaseCardCodes)`；不得再次用 `cardCodeMatchesBase` 或 `doesCardAbilityDefinitionMatchCardCode` 把合法 host 限回原卡。
 - `directBaseCardCodes` 必须保留该 abilityId 的全部原生来源；helper 只增加当前合法获得能力的 Ren host，不允许任意成员调用，也不能完全删除“来源当前拥有能力”的校验。shared workflow 只能为明确的 abilityId/config 开启该入口，其他作品与能力继续保留原来源边界。
-- 下方成员只提供 ability definition，不接替结算来源。不得把 `sourceCardId` 替换成授予能力的 memberBelow 实例；“此成员”的待机、离场、移动、数值变化、向下叠卡，以及 `ABILITY_USE`、每回合次数与 `sourceLifecycleId` 均继续绑定 host 实例。
-- focused 契约测试必须同时覆盖原卡直发、合法 host、无对应下方成员、无关成员、下方移除、原卡与 host 次数隔离、host 第二次发动拒绝，并为多阶段 workflow 覆盖至少一个恢复/确认入口。
+- 下方成员只提供 ability definition 和能力实例身份，不接替结算来源。不得把 `sourceCardId` 替换成授予能力的 memberBelow 实例；“此成员”的待机、离场、移动、数值变化、向下叠卡、费用、action audit、`sourceCardId` 与 `sourceLifecycleId` 都继续绑定 host。`ABILITY_USE` 仍以 host 为效果来源，但对授予能力同时保存 `abilityInstanceId`；每回合次数以 host 来源身份与该能力实例联合计算，因此两张相同下方成员授予的两份同 abilityId 能力可分别使用一次。
+- `abilityInstanceId` 必须从当前 UI/query 返回的服务端结果透传，业务层不得解析、猜测或自行拼接其字符串格式。activeEffect 和最终 `ABILITY_USE` 必须保留同一标识，以支持多阶段恢复、在线投影、审计与回放。
+- focused 契约测试必须同时覆盖原卡直发、合法 host、无对应下方成员、无关成员、下方移除、原卡与 host 次数隔离、单张授予卡的 host 第二次发动拒绝，以及两张相同授予卡生成两个不同 `abilityInstanceId`、各可发动一次。还要拒绝伪造、错配和已移除的实例标识，并为多阶段 workflow 覆盖至少一个恢复/确认入口。
 - 该入口不是通用 DSL；新增同类 host 或新增 handler 接入时，需要逐卡审查 source/limit/cost 语义。
 
 ## ActiveEffect Fields
@@ -97,6 +98,7 @@ Important fields:
 | field                             | responsibility                                                                                                                                                                                                                                      |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `abilityId`                       | 当前处理能力。                                                                                                                                                                                                                                      |
+| `abilityInstanceId`               | 可选的 opaque 能力实例身份。当 Ren host 发动下方成员授予的起动能力时，从命令跨后续 steps 保持到 `ABILITY_USE`；直接发动留空。它区分同一 host 获得的多份同 abilityId 能力，不替代 `sourceCardId`。                                                   |
 | `sourceCardId`                    | 来源卡实例。                                                                                                                                                                                                                                        |
 | `sourceCardDisplayCode`           | 来源在公开区域离开后仍用于当前效果窗口与重连显示的卡面快照；只可从曾对双方公开的来源建立，不授予隐藏来源可见性。                                                                                                                                    |
 | `sourceLifecycleId`               | `perTurnLimit` 能力来源规则对象的生命周期；从 pending 或 activated dispatch 捕获并跨 activeEffect steps 保持，避免来源跨区再进入后把旧 active 占用算到新对象。                                                                                      |

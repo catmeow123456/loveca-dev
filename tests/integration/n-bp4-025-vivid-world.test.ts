@@ -110,7 +110,9 @@ function createCheerHeartMember(
         groupNames: ['虹ヶ咲'],
         hearts: [],
       }),
-      bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor }] satisfies readonly BladeHeartItem[],
+      bladeHearts: [
+        { effect: BladeHeartEffect.HEART, heartColor },
+      ] satisfies readonly BladeHeartItem[],
     },
     ownerId,
     instanceId
@@ -153,10 +155,12 @@ function resolveAndConfirmSinglePending(
   return confirmIfConfirmOnly(resolveSinglePending(game, abilityId, sourceCardId), PLAYER1);
 }
 
-function setupReplacementJudgmentState(options: {
-  readonly opponentPerforms?: boolean;
-  readonly sourceInLiveZone?: boolean;
-} = {}) {
+function setupReplacementJudgmentState(
+  options: {
+    readonly opponentPerforms?: boolean;
+    readonly sourceInLiveZone?: boolean;
+  } = {}
+) {
   const owner = options.opponentPerforms ? PLAYER2 : PLAYER1;
   const live = createCardInstance(createVividWorld(HeartColor.BLUE, 7), owner, 'vivid-live');
   const bladeSource = createCardInstance(
@@ -209,13 +213,15 @@ function setupReplacementJudgmentState(options: {
   return { game, live, cheerCards, owner };
 }
 
-function setupLiveSuccessState(options: {
-  readonly missingColor?: HeartColor;
-  readonly includeNonNijigasakiPurple?: boolean;
-  readonly includeLivePurple?: boolean;
-  readonly includeBladeHeartPurple?: boolean;
-  readonly sourceInLiveZone?: boolean;
-} = {}) {
+function setupLiveSuccessState(
+  options: {
+    readonly missingColor?: HeartColor;
+    readonly includeNonNijigasakiPurple?: boolean;
+    readonly includeLivePurple?: boolean;
+    readonly includeBladeHeartPurple?: boolean;
+    readonly sourceInLiveZone?: boolean;
+  } = {}
+) {
   const live = createCardInstance(createVividWorld(), PLAYER1, 'vivid-success-live');
   const memberCards = [
     HeartColor.PINK,
@@ -326,7 +332,7 @@ describe('PL!N-bp4-025 VIVID WORLD', () => {
     );
     expect(started.activeEffect?.metadata?.confirmOnlyPendingAbility).toBe(true);
     expect(started.activeEffect?.effectText).toContain(
-      '因声援公开的自己的卡持有的[桃ハート]'
+      '因声援被公开的自己的卡片持有的[桃ブレード]'
     );
     expect(started.activeEffect?.effectText).not.toContain('本次 LIVE 中自己的声援公开卡 Heart');
     expect(started.activeEffect?.effectText).not.toContain('来源LIVE');

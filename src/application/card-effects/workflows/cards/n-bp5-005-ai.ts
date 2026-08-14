@@ -13,6 +13,7 @@ import { getEnergyCardIdsByOrientation } from '../../../effects/energy.js';
 import { drawCardsForPlayer } from '../../runtime/actions.js';
 import { activateWaitingEnergyCardsForPlayer } from '../../runtime/actions.js';
 import { N_BP5_005_AUTO_RELAY_REPLACED_NIJIGASAKI_NO_BLADE_HEART_ACTIVATE_ENERGY_DRAW_ABILITY_ID } from '../../ability-ids.js';
+import { getPendingLeaveStageEvent } from '../../runtime/events.js';
 import {
   registerPendingAbilityStarterHandler,
   type PendingAbilityStarterOptions,
@@ -78,8 +79,9 @@ function resolveAiRelayReplacedActivateEnergyDraw(
       sourceCardId: ability.sourceCardId,
       sourceSlot: ability.sourceSlot,
       step: context.conditionMet ? 'ACTIVATE_ENERGY_DRAW_BY_RELAY_REPLACEMENT' : context.noOpStep,
+      leaveStageEventId: context.leaveStageEventId,
       toZone: context.toZone,
-      sourceInWaitingRoom: context.sourceInWaitingRoom,
+      leaveStageEventMatches: context.leaveStageEventMatches,
       replacingCardId: context.replacingCardId,
       replacingCardCost: context.replacingCardCost,
       replacingCardIsMember: context.replacingCardIsMember,
@@ -96,8 +98,9 @@ function getAiRelayReplacementContext(
   game: GameState,
   ability: PendingAbilityState
 ): {
+  readonly leaveStageEventId: string | null;
   readonly toZone: ZoneType | null;
-  readonly sourceInWaitingRoom: boolean;
+  readonly leaveStageEventMatches: boolean;
   readonly replacingCardId: string | null;
   readonly replacingCardCost: number;
   readonly replacingCardIsMember: boolean;
@@ -109,11 +112,13 @@ function getAiRelayReplacementContext(
   readonly noOpStep: string;
 } {
   const player = getPlayerById(game, ability.controllerId);
-  const toZone = ability.metadata?.toZone === ZoneType.WAITING_ROOM ? ZoneType.WAITING_ROOM : null;
-  const sourceInWaitingRoom =
-    player?.waitingRoom.cardIds.includes(ability.sourceCardId) === true;
-  const replacingCardId =
-    typeof ability.metadata?.replacingCardId === 'string' ? ability.metadata.replacingCardId : null;
+  const leaveStageEvent = getPendingLeaveStageEvent(game, ability);
+  const toZone = leaveStageEvent?.toZone ?? null;
+  const leaveStageEventMatches =
+    leaveStageEvent?.cardInstanceId === ability.sourceCardId &&
+    leaveStageEvent.controllerId === ability.controllerId &&
+    leaveStageEvent.toZone === ZoneType.WAITING_ROOM;
+  const replacingCardId = leaveStageEvent?.replacingCardId ?? null;
   const replacingCard = replacingCardId ? getCardById(game, replacingCardId) : null;
   const replacingCardIsMember = replacingCard !== null && isMemberCardData(replacingCard.data);
   const replacingCardIsNijigasaki =
@@ -130,15 +135,16 @@ function getAiRelayReplacementContext(
     !replacingCardHasBladeHeart;
   const conditionMet =
     toZone === ZoneType.WAITING_ROOM &&
-    sourceInWaitingRoom &&
+    leaveStageEventMatches &&
     validReplacement &&
     replacingCardCost >= 10;
   const qualifiesForEnergy = conditionMet;
   const qualifiesForDraw = conditionMet && replacingCardCost >= 15;
 
   return {
+    leaveStageEventId: leaveStageEvent?.eventId ?? null,
     toZone,
-    sourceInWaitingRoom,
+    leaveStageEventMatches,
     replacingCardId,
     replacingCardCost,
     replacingCardIsMember,
@@ -148,8 +154,7 @@ function getAiRelayReplacementContext(
     qualifiesForEnergy,
     qualifiesForDraw,
     noOpStep: getNoOpStep({
-      toZone,
-      sourceInWaitingRoom,
+      leaveStageEventMatches,
       replacingCardId,
       replacingCardIsMember,
       replacingCardIsNijigasaki,
@@ -160,15 +165,14 @@ function getAiRelayReplacementContext(
 }
 
 function getNoOpStep(context: {
-  readonly toZone: ZoneType | null;
-  readonly sourceInWaitingRoom: boolean;
+  readonly leaveStageEventMatches: boolean;
   readonly replacingCardId: string | null;
   readonly replacingCardIsMember: boolean;
   readonly replacingCardIsNijigasaki: boolean;
   readonly replacingCardHasBladeHeart: boolean;
   readonly replacingCardCost: number;
 }): string {
-  if (context.toZone !== ZoneType.WAITING_ROOM || !context.sourceInWaitingRoom) {
+  if (!context.leaveStageEventMatches) {
     return 'SOURCE_NOT_TO_WAITING_ROOM';
   }
   if (!context.replacingCardId || !context.replacingCardIsMember) {

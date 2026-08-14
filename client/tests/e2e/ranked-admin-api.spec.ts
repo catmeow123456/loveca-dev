@@ -39,7 +39,25 @@ async function getAdminAccessToken(request: APIRequestContext): Promise<string> 
 }
 
 const E2E_SEASON_ID = '99999999-9999-4999-8999-999999999999';
+const E2E_SECOND_SEASON_ID = '99999999-9999-4999-8999-999999999998';
 const E2E_UI_SEASON_KEY = 'season-e2e-ui-draft';
+const RANKED_ADMIN_DB_PROJECT = 'tablet-1024x768';
+const E2E_RANKED_PLAYER_FIXTURES = [
+  { id: '88888888-0000-4000-8000-000000000001', rating: 1900, ratedMatchCount: 12 },
+  { id: '88888888-0000-4000-8000-000000000002', rating: 1800, ratedMatchCount: 12 },
+  { id: '88888888-0000-4000-8000-000000000003', rating: 1800, ratedMatchCount: 12 },
+  { id: '88888888-0000-4000-8000-000000000004', rating: 1700, ratedMatchCount: 12 },
+  { id: '88888888-0000-4000-8000-000000000005', rating: 1600, ratedMatchCount: 12 },
+  { id: '88888888-0000-4000-8000-000000000006', rating: 1500, ratedMatchCount: 12 },
+  { id: '88888888-0000-4000-8000-000000000007', rating: 1400, ratedMatchCount: 12 },
+  { id: '88888888-0000-4000-8000-000000000008', rating: 1300, ratedMatchCount: 7 },
+  { id: '88888888-0000-4000-8000-000000000009', rating: 2000, ratedMatchCount: 4 },
+  { id: '88888888-0000-4000-8000-000000000010', rating: 2100, ratedMatchCount: null },
+] as const;
+const E2E_RANKED_TARGET_ID = E2E_RANKED_PLAYER_FIXTURES[3].id;
+const E2E_RANKED_PLACEMENT_ELIGIBLE_ID = E2E_RANKED_PLAYER_FIXTURES[7].id;
+const E2E_RANKED_PLACEMENT_INELIGIBLE_ID = E2E_RANKED_PLAYER_FIXTURES[8].id;
+const E2E_RANKED_SECOND_SEASON_PLAYER_ID = E2E_RANKED_PLAYER_FIXTURES[9].id;
 
 async function withLocalTestDatabase<T>(
   callback: (client: pg.PoolClient) => Promise<T>
@@ -64,7 +82,21 @@ async function withLocalTestDatabase<T>(
   }
 }
 
-async function seedE2eSeason(lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<void> {
+async function seedE2eSeason(
+  lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE',
+  options: {
+    readonly seasonId?: string;
+    readonly seasonKey?: string;
+    readonly name?: string;
+    readonly placementMatchCount?: number;
+    readonly leaderboardMinimumMatchCount?: number;
+  } = {}
+): Promise<void> {
+  const seasonId = options.seasonId ?? E2E_SEASON_ID;
+  const seasonKey = options.seasonKey ?? 'season-e2e-lifecycle';
+  const name = options.name ?? 'E2E 生命周期赛季';
+  const placementMatchCount = options.placementMatchCount ?? 10;
+  const leaderboardMinimumMatchCount = options.leaderboardMinimumMatchCount ?? 10;
   const competitiveEnvironmentId = `sha256:${randomBytes(32).toString('hex')}`;
   const ratingConfig = {
     algorithmVersion: 'GLICKO1_PER_MATCH_E2E_V1',
@@ -76,7 +108,7 @@ async function seedE2eSeason(lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<
     maximumRatingDeviation: 350,
     inactivityTimeUnitMs: 86_400_000,
     deviationIncreasePerTimeUnit: 18.71887638718005,
-    placementMatchCount: 10,
+    placementMatchCount,
     displayDecimalPlaces: 0,
     softResetMode: 'RESET_TO_INITIAL',
     softResetCenter: 1500,
@@ -84,7 +116,7 @@ async function seedE2eSeason(lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<
     softResetMinimumDeviation: 200,
   };
   await withLocalTestDatabase(async (client) => {
-    await client.query('DELETE FROM ranked_seasons WHERE id = $1', [E2E_SEASON_ID]);
+    await client.query('DELETE FROM ranked_seasons WHERE id = $1', [seasonId]);
     await client.query(
       `INSERT INTO ranked_seasons (
          id,
@@ -110,8 +142,8 @@ async function seedE2eSeason(lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<
        )
        SELECT
          $1,
-         'season-e2e-lifecycle',
-         'E2E 生命周期赛季',
+         $8,
+         $9,
          $2,
          $7,
          'PAUSED',
@@ -126,19 +158,22 @@ async function seedE2eSeason(lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<
          'E2E_DECK_POLICY_V1',
          $5,
          $6::jsonb,
-         10,
+         $10,
          profile.id,
          profile.id
        FROM profiles AS profile
        WHERE profile.username = 'test_admin'`,
       [
-        E2E_SEASON_ID,
+        seasonId,
         competitiveEnvironmentId,
         JSON.stringify([{ weekdays: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1440 }]),
         `sha256:${'c'.repeat(64)}`,
         ratingConfig.algorithmVersion,
         JSON.stringify(ratingConfig),
         lifecycle,
+        seasonKey,
+        name,
+        leaderboardMinimumMatchCount,
       ]
     );
   });
@@ -147,6 +182,76 @@ async function seedE2eSeason(lifecycle: 'DRAFT' | 'ACTIVE' = 'ACTIVE'): Promise<
 async function removeE2eSeason(): Promise<void> {
   await withLocalTestDatabase(async (client) => {
     await client.query('DELETE FROM ranked_seasons WHERE id = $1', [E2E_SEASON_ID]);
+  });
+}
+
+async function seedE2eRankedPlayerRatings(): Promise<void> {
+  await withLocalTestDatabase(async (client) => {
+    await client.query('BEGIN');
+    try {
+      await client.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
+        E2E_RANKED_PLAYER_FIXTURES.map((fixture) => fixture.id),
+      ]);
+      for (const [index, fixture] of E2E_RANKED_PLAYER_FIXTURES.entries()) {
+        const ordinal = index + 1;
+        await client.query(
+          `INSERT INTO users (id, email, password_hash, email_verified)
+           VALUES ($1, $2, 'unused-ranked-e2e-password', TRUE)`,
+          [fixture.id, `ranked-context-e2e-${ordinal}@example.invalid`]
+        );
+        await client.query(
+          `INSERT INTO profiles (id, username, display_name)
+           VALUES ($1, $2, $3)`,
+          [
+            fixture.id,
+            `ranked_context_e2e_${ordinal}`,
+            ordinal === 4 ? '排位上下文目标' : `排位上下文玩家 ${ordinal}`,
+          ]
+        );
+        if (fixture.ratedMatchCount !== null) {
+          await client.query(
+            `INSERT INTO ranked_player_ratings (
+               season_id,
+               user_id,
+               rating,
+               rating_deviation,
+               rated_match_count,
+               last_rated_at,
+               ledger_revision
+             ) VALUES ($1, $2, $3, 80, $4, NOW(), 0)`,
+            [E2E_SEASON_ID, fixture.id, fixture.rating, fixture.ratedMatchCount]
+          );
+        }
+      }
+      const secondSeasonPlayer = E2E_RANKED_PLAYER_FIXTURES[9];
+      await client.query(
+        `INSERT INTO ranked_player_ratings (
+           season_id,
+           user_id,
+           rating,
+           rating_deviation,
+           rated_match_count,
+           last_rated_at,
+           ledger_revision
+         ) VALUES ($1, $2, $3, 80, 12, NOW(), 0)`,
+        [E2E_SECOND_SEASON_ID, secondSeasonPlayer.id, secondSeasonPlayer.rating]
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    }
+  });
+}
+
+async function removeE2eRankedPlayerFixtures(): Promise<void> {
+  await withLocalTestDatabase(async (client) => {
+    await client.query('DELETE FROM ranked_seasons WHERE id = ANY($1::uuid[])', [
+      [E2E_SEASON_ID, E2E_SECOND_SEASON_ID],
+    ]);
+    await client.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
+      E2E_RANKED_PLAYER_FIXTURES.map((fixture) => fixture.id),
+    ]);
   });
 }
 
@@ -170,8 +275,22 @@ async function openAuthenticatedAdminPage(page: Page, request: APIRequestContext
   adminSessionCookies = await page.context().cookies();
 }
 
+async function openRankedAdminPage(page: Page, request: APIRequestContext): Promise<void> {
+  await openAuthenticatedAdminPage(page, request);
+  await page.getByRole('button', { name: /运营管理中心/u }).click();
+  await page.getByRole('button', { name: /赛季排位/u }).click();
+  await expect(page.getByRole('heading', { name: '赛季排位管理' })).toBeVisible();
+}
+
 test.describe('赛季排位管理员 API', () => {
   test.describe.configure({ mode: 'serial' });
+  test.beforeEach(({ request }, testInfo) => {
+    void request;
+    test.skip(
+      testInfo.project.name !== RANKED_ADMIN_DB_PROJECT,
+      '本文件会修改共享的本地 PostgreSQL fixture，仅在单一 Playwright project 中执行'
+    );
+  });
 
   test('未登录和普通玩家不能访问排位管理能力', async ({ request }) => {
     const anonymous = await request.get('/api/admin/ranked/environment');
@@ -392,22 +511,204 @@ test.describe('赛季排位管理员 API', () => {
     }
   });
 
-  test('真实数据库中的赛季可暂停、恢复匹配、结束赛季并完成结算', async ({ request }) => {
+  test('玩家搜索与排名上下文会在真实数据库执行并沿用公开榜排序', async ({ request }) => {
+    try {
+      await seedE2eSeason('DRAFT', { leaderboardMinimumMatchCount: 5 });
+      await seedE2eSeason('DRAFT', {
+        seasonId: E2E_SECOND_SEASON_ID,
+        seasonKey: 'season-e2e-player-isolation',
+        name: 'E2E 玩家隔离赛季',
+      });
+      await seedE2eRankedPlayerRatings();
+      const headers = bearer(await getAdminAccessToken(request));
+
+      const emptyQuery = await request.get(
+        `/api/admin/ranked/players/search?seasonId=${E2E_SEASON_ID}&q=%20`,
+        { headers }
+      );
+      expect(emptyQuery.status()).toBe(400);
+
+      const oversizedLimit = await request.get(
+        `/api/admin/ranked/players/search?seasonId=${E2E_SEASON_ID}&q=排位上下文&limit=11`,
+        { headers }
+      );
+      expect(oversizedLimit.status()).toBe(400);
+
+      const searchResponse = await request.get(
+        `/api/admin/ranked/players/search?seasonId=${E2E_SEASON_ID}&q=排位上下文&limit=10`,
+        { headers }
+      );
+      expect(searchResponse.ok()).toBe(true);
+      const searchPayload = (await searchResponse.json()) as {
+        data: Array<{ userId: string; username: string; displayName: string | null }>;
+      };
+      expect(searchPayload.data).toHaveLength(E2E_RANKED_PLAYER_FIXTURES.length - 1);
+      expect(searchPayload.data).toContainEqual({
+        userId: E2E_RANKED_TARGET_ID,
+        username: 'ranked_context_e2e_4',
+        displayName: '排位上下文目标',
+      });
+      expect(searchPayload.data).not.toContainEqual(
+        expect.objectContaining({ userId: E2E_RANKED_SECOND_SEASON_PLAYER_ID })
+      );
+
+      const secondSeasonSearchResponse = await request.get(
+        `/api/admin/ranked/players/search?seasonId=${E2E_SECOND_SEASON_ID}&q=排位上下文&limit=10`,
+        { headers }
+      );
+      expect(secondSeasonSearchResponse.ok()).toBe(true);
+      await expect(secondSeasonSearchResponse.json()).resolves.toMatchObject({
+        data: [{ userId: E2E_RANKED_SECOND_SEASON_PLAYER_ID }],
+      });
+
+      const contextResponse = await request.get(
+        `/api/admin/ranked/players/${E2E_RANKED_TARGET_ID}/context?seasonId=${E2E_SEASON_ID}`,
+        { headers }
+      );
+      expect(contextResponse.ok()).toBe(true);
+      const contextPayload = (await contextResponse.json()) as {
+        data: {
+          seasonId: string;
+          generatedAt: string;
+          ledgerRevision: number;
+          placementRequired: number;
+          leaderboardMinimumMatchCount: number;
+          player: {
+            userId: string;
+            rating: number;
+            ratedMatchCount: number;
+            placementCompleted: boolean;
+            leaderboardEligible: boolean;
+            status: string;
+            rank: number | null;
+          };
+          neighbors: {
+            rows: Array<{ userId: string; rank: number; isTarget: boolean }>;
+          };
+        };
+      };
+      expect(contextPayload.data).toMatchObject({
+        seasonId: E2E_SEASON_ID,
+        generatedAt: expect.any(String),
+        ledgerRevision: 0,
+        placementRequired: 10,
+        leaderboardMinimumMatchCount: 5,
+        player: {
+          userId: E2E_RANKED_TARGET_ID,
+          rating: 1700,
+          ratedMatchCount: 12,
+          placementCompleted: true,
+          leaderboardEligible: true,
+          status: 'RANKED',
+          rank: 4,
+        },
+      });
+      expect(
+        contextPayload.data.neighbors.rows.map(({ userId, rank, isTarget }) => ({
+          userId,
+          rank,
+          isTarget,
+        }))
+      ).toEqual(
+        E2E_RANKED_PLAYER_FIXTURES.slice(0, 7).map((fixture, index) => ({
+          userId: fixture.id,
+          rank: index + 1,
+          isTarget: fixture.id === E2E_RANKED_TARGET_ID,
+        }))
+      );
+
+      const placementEligibleResponse = await request.get(
+        `/api/admin/ranked/players/${E2E_RANKED_PLACEMENT_ELIGIBLE_ID}/context?seasonId=${E2E_SEASON_ID}`,
+        { headers }
+      );
+      expect(placementEligibleResponse.ok()).toBe(true);
+      await expect(placementEligibleResponse.json()).resolves.toMatchObject({
+        data: {
+          player: {
+            userId: E2E_RANKED_PLACEMENT_ELIGIBLE_ID,
+            ratedMatchCount: 7,
+            placementCompleted: false,
+            leaderboardEligible: true,
+            status: 'PLACEMENT',
+            rank: 8,
+          },
+          neighbors: {
+            rows: [
+              { rank: 5 },
+              { rank: 6 },
+              { rank: 7 },
+              { userId: E2E_RANKED_PLACEMENT_ELIGIBLE_ID, rank: 8, isTarget: true },
+            ],
+          },
+        },
+      });
+
+      const placementIneligibleResponse = await request.get(
+        `/api/admin/ranked/players/${E2E_RANKED_PLACEMENT_INELIGIBLE_ID}/context?seasonId=${E2E_SEASON_ID}`,
+        { headers }
+      );
+      expect(placementIneligibleResponse.ok()).toBe(true);
+      await expect(placementIneligibleResponse.json()).resolves.toMatchObject({
+        data: {
+          player: {
+            userId: E2E_RANKED_PLACEMENT_INELIGIBLE_ID,
+            ratedMatchCount: 4,
+            placementCompleted: false,
+            leaderboardEligible: false,
+            status: 'PLACEMENT',
+            rank: null,
+          },
+          neighbors: { rows: [] },
+        },
+      });
+    } finally {
+      await removeE2eRankedPlayerFixtures();
+    }
+  });
+
+  test('真实数据库拒绝非法运营操作，并可恢复匹配、结束赛季及完成结算', async ({ request }) => {
     await seedE2eSeason();
     try {
       const headers = bearer(await getAdminAccessToken(request));
+
+      const deleteActive = await request.delete(`/api/admin/ranked/seasons/${E2E_SEASON_ID}`, {
+        headers,
+      });
+      expect(deleteActive.status()).toBe(409);
+      await expect(deleteActive.json()).resolves.toMatchObject({
+        error: { code: 'RANKED_SEASON_DRAFT_DELETE_CONFLICT' },
+      });
+
+      const overlappingWindows = await request.put(
+        `/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`,
+        {
+          headers,
+          data: {
+            name: 'E2E 重叠时段',
+            openWindows: [
+              { weekdays: [1], startMinute: 600, endMinute: 720 },
+              { weekdays: [1], startMinute: 660, endMinute: 780 },
+            ],
+            leaderboardMinimumMatchCount: 8,
+          },
+        }
+      );
+      expect(overlappingWindows.status()).toBe(400);
+      await expect(overlappingWindows.json()).resolves.toMatchObject({
+        error: { code: 'RANKED_OPEN_WINDOW_OVERLAP' },
+      });
 
       const operations = await request.put(
         `/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`,
         {
           headers,
           data: {
-            name: 'E2E 晚间排位',
+            name: 'E2E 全天排位',
             openWindows: [
               {
                 weekdays: [1, 2, 3, 4, 5, 6, 7],
-                startMinute: 480,
-                endMinute: 1320,
+                startMinute: 0,
+                endMinute: 1440,
               },
             ],
             leaderboardMinimumMatchCount: 8,
@@ -418,12 +719,12 @@ test.describe('赛季排位管理员 API', () => {
       await expect(operations.json()).resolves.toMatchObject({
         data: {
           lifecycle: 'ACTIVE',
-          name: 'E2E 晚间排位',
+          name: 'E2E 全天排位',
           openWindows: [
             {
               weekdays: [1, 2, 3, 4, 5, 6, 7],
-              startMinute: 480,
-              endMinute: 1320,
+              startMinute: 0,
+              endMinute: 1440,
             },
           ],
           leaderboardMinimumMatchCount: 8,
@@ -476,8 +777,8 @@ test.describe('赛季排位管理员 API', () => {
   test('管理员可在页面修改进行中赛季的运营设置', async ({ page, request }) => {
     await seedE2eSeason();
     try {
-      await openAuthenticatedAdminPage(page, request);
-      await page.getByText('赛季排位管理').click();
+      await openRankedAdminPage(page, request);
+      await page.getByRole('tab', { name: '赛季' }).click();
       const seasonName = page.getByText('E2E 生命周期赛季', { exact: true });
       await expect(seasonName).toBeVisible();
       await seasonName
@@ -489,7 +790,8 @@ test.describe('赛季排位管理员 API', () => {
       await page.getByLabel('进入排行榜所需场次').fill('8');
       const timeInputs = page.locator('form input[type="time"]');
       await timeInputs.nth(0).fill('18:00');
-      await timeInputs.nth(1).fill('22:00');
+      await timeInputs.nth(1).fill('01:00');
+      await expect(page.getByText('— 次日', { exact: true })).toBeVisible();
       await page.screenshot({ path: '/tmp/loveca-ranked-admin-active-edit.png', fullPage: true });
       const updateResponse = page.waitForResponse(
         (response) =>
@@ -502,7 +804,7 @@ test.describe('赛季排位管理员 API', () => {
       await withLocalTestDatabase(async (client) => {
         const result = await client.query<{
           name: string;
-          open_windows: Array<{ startMinute: number; endMinute: number }>;
+          open_windows: Array<{ weekdays: number[]; startMinute: number; endMinute: number }>;
           rating_algorithm_version: string;
           leaderboard_minimum_match_count: number;
         }>(
@@ -513,10 +815,116 @@ test.describe('赛季排位管理员 API', () => {
         );
         expect(result.rows[0]).toMatchObject({
           name: 'E2E 晚间排位',
-          open_windows: [{ startMinute: 1080, endMinute: 1320 }],
+          open_windows: [
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 1080,
+              endMinute: 1440,
+            },
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 0,
+              endMinute: 60,
+            },
+          ],
           rating_algorithm_version: 'GLICKO1_PER_MATCH_E2E_V1',
           leaderboard_minimum_match_count: 8,
         });
+      });
+
+      await expect(page.getByText('每天 18:00–次日 01:00', { exact: true })).toBeVisible();
+      await page
+        .getByText('E2E 晚间排位', { exact: true })
+        .locator('xpath=ancestor::section')
+        .getByRole('button', { name: '编辑' })
+        .click();
+      const restoredTimeInputs = page.locator('form input[type="time"]');
+      await expect(restoredTimeInputs.nth(0)).toHaveValue('18:00');
+      await expect(restoredTimeInputs.nth(1)).toHaveValue('01:00');
+      await expect(page.getByText('— 次日', { exact: true })).toBeVisible();
+      await page.getByLabel('名称').fill('E2E 跨日排位');
+      const roundTripResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          response.url().includes(`/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`)
+      );
+      await page.getByRole('button', { name: '保存', exact: true }).click();
+      expect((await roundTripResponse).ok()).toBe(true);
+
+      await withLocalTestDatabase(async (client) => {
+        const result = await client.query<{
+          name: string;
+          open_windows: Array<{ weekdays: number[]; startMinute: number; endMinute: number }>;
+        }>('SELECT name, open_windows FROM ranked_seasons WHERE id = $1', [E2E_SEASON_ID]);
+        expect(result.rows[0]).toEqual({
+          name: 'E2E 跨日排位',
+          open_windows: [
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 1080,
+              endMinute: 1440,
+            },
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 0,
+              endMinute: 60,
+            },
+          ],
+        });
+      });
+
+      await page
+        .getByText('E2E 跨日排位', { exact: true })
+        .locator('xpath=ancestor::section')
+        .getByRole('button', { name: '编辑' })
+        .click();
+      await page.getByRole('button', { name: '添加开放时段' }).click();
+      const secondOpenWindow = page.getByRole('region', { name: '开放时段 2' });
+      await secondOpenWindow.getByLabel('开始时间').fill('10:00');
+      await secondOpenWindow.getByLabel('结束时间').fill('12:00');
+      const multipleWindowsResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          response.url().includes(`/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`)
+      );
+      await page.getByRole('button', { name: '保存', exact: true }).click();
+      expect((await multipleWindowsResponse).ok()).toBe(true);
+
+      await page
+        .getByText('E2E 跨日排位', { exact: true })
+        .locator('xpath=ancestor::section')
+        .getByRole('button', { name: '编辑' })
+        .click();
+      await expect(page.getByRole('region', { name: /^开放时段 \d+$/ })).toHaveCount(3);
+      const restoredIndependentWindow = page.getByRole('region', { name: '开放时段 3' });
+      await expect(restoredIndependentWindow.getByLabel('开始时间')).toHaveValue('10:00');
+      await expect(restoredIndependentWindow.getByLabel('结束时间')).toHaveValue('12:00');
+      await restoredIndependentWindow.getByLabel('结束时间').fill('12:30');
+      const multipleWindowsEditResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          response.url().includes(`/api/admin/ranked/seasons/${E2E_SEASON_ID}/operations`)
+      );
+      await page.getByRole('button', { name: '保存', exact: true }).click();
+      expect((await multipleWindowsEditResponse).ok()).toBe(true);
+
+      await withLocalTestDatabase(async (client) => {
+        const result = await client.query<{
+          open_windows: Array<{ weekdays: number[]; startMinute: number; endMinute: number }>;
+        }>('SELECT open_windows FROM ranked_seasons WHERE id = $1', [E2E_SEASON_ID]);
+        expect(result.rows[0]?.open_windows).toEqual([
+          {
+            weekdays: [1, 2, 3, 4, 5, 6, 7],
+            startMinute: 1080,
+            endMinute: 1440,
+          },
+          {
+            weekdays: [1, 2, 3, 4, 5, 6, 7],
+            startMinute: 0,
+            endMinute: 60,
+          },
+          { weekdays: [1], startMinute: 600, endMinute: 750 },
+        ]);
       });
     } finally {
       await removeE2eSeason();
@@ -526,18 +934,28 @@ test.describe('赛季排位管理员 API', () => {
   test('管理员可在页面创建并编辑未开始赛季', async ({ page, request }) => {
     await removeE2eUiSeason();
     try {
-      await openAuthenticatedAdminPage(page, request);
-      await page.getByText('赛季排位管理').click();
+      await openRankedAdminPage(page, request);
+      await page.getByRole('tab', { name: '赛季' }).click();
       await page.getByRole('button', { name: '新建赛季' }).click();
       await page.getByLabel('赛季标识').fill(E2E_UI_SEASON_KEY);
       await page.getByLabel('名称').fill('E2E 页面草稿');
       await expect(page.getByLabel('进入排行榜所需场次')).toBeDisabled();
       await expect(page.getByLabel('进入排行榜所需场次')).toHaveValue('5');
+      const createTimeInputs = page.locator('form input[type="time"]');
+      await createTimeInputs.nth(0).fill('10:00');
+      await createTimeInputs.nth(1).fill('12:00');
+      await page.getByRole('button', { name: '添加开放时段' }).click();
       await page.getByRole('button', { name: '创建赛季' }).click();
 
       const createdSeason = page.getByText('E2E 页面草稿', { exact: true });
+      await expect(page.getByText('每天 10:00–12:00 等 2 个时段', { exact: true })).toBeVisible();
       const seasonCard = createdSeason.locator('xpath=ancestor::section');
       await seasonCard.getByRole('button', { name: '编辑' }).click();
+      await expect(page.getByRole('region', { name: /^开放时段 \d+$/ })).toHaveCount(2);
+      const secondDraftWindow = page.getByRole('region', { name: '开放时段 2' });
+      await expect(secondDraftWindow.getByLabel('开始时间')).toHaveValue('18:00');
+      await expect(secondDraftWindow.getByLabel('结束时间')).toHaveValue('22:00');
+      await secondDraftWindow.getByLabel('结束时间').fill('23:00');
       await page.getByLabel('名称').fill('E2E 页面草稿已编辑');
       const updateResponse = page.waitForResponse(
         (response) =>
@@ -552,8 +970,9 @@ test.describe('赛季排位管理员 API', () => {
         const result = await client.query<{
           name: string;
           leaderboard_minimum_match_count: number;
+          open_windows: Array<{ weekdays: number[]; startMinute: number; endMinute: number }>;
         }>(
-          `SELECT name, leaderboard_minimum_match_count
+          `SELECT name, leaderboard_minimum_match_count, open_windows
            FROM ranked_seasons
            WHERE season_key = $1`,
           [E2E_UI_SEASON_KEY]
@@ -561,7 +980,42 @@ test.describe('赛季排位管理员 API', () => {
         expect(result.rows[0]).toMatchObject({
           name: 'E2E 页面草稿已编辑',
           leaderboard_minimum_match_count: 5,
+          open_windows: [
+            {
+              weekdays: [1, 2, 3, 4, 5, 6, 7],
+              startMinute: 600,
+              endMinute: 720,
+            },
+            {
+              weekdays: [1],
+              startMinute: 1080,
+              endMinute: 1380,
+            },
+          ],
         });
+      });
+
+      const editedSeason = page.getByText('E2E 页面草稿已编辑', { exact: true });
+      const editedSeasonCard = editedSeason.locator('xpath=ancestor::section');
+      await editedSeasonCard.getByRole('button', { name: '删除赛季' }).click();
+      const deleteDialog = page.getByRole('dialog', { name: '删除未开始赛季？' });
+      await expect(deleteDialog).toBeVisible();
+      await expect(deleteDialog).toContainText(E2E_UI_SEASON_KEY);
+      const deleteResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'DELETE' &&
+          response.url().includes('/api/admin/ranked/seasons/')
+      );
+      await deleteDialog.getByRole('button', { name: '确认删除' }).click();
+      expect((await deleteResponse).ok()).toBe(true);
+      await expect(editedSeason).toHaveCount(0);
+
+      await withLocalTestDatabase(async (client) => {
+        const result = await client.query<{ count: string }>(
+          'SELECT COUNT(*) AS count FROM ranked_seasons WHERE season_key = $1',
+          [E2E_UI_SEASON_KEY]
+        );
+        expect(Number(result.rows[0]?.count ?? 0)).toBe(0);
       });
     } finally {
       await removeE2eUiSeason();

@@ -354,6 +354,228 @@ describe('RankedAdminService', () => {
     ).toEqual(['season-1', generatedAt, 'Asia/Shanghai', FORMAL_CONFIG.placementMatchCount, 10]);
   });
 
+  it('searches only rated season participants and treats wildcard characters literally', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ exists: true }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            user_id: '11111111-1111-4111-8111-111111111111',
+            username: 'player_100%',
+            display_name: '玩家百分百',
+          },
+        ],
+      });
+    const service = new RankedAdminService({ query, audit: vi.fn() });
+
+    await expect(service.searchPlayers('season-1', ' player_100% ', 10)).resolves.toEqual([
+      {
+        userId: '11111111-1111-4111-8111-111111111111',
+        username: 'player_100%',
+        displayName: '玩家百分百',
+      },
+    ]);
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('rating.rated_match_count > 0'),
+      ['season-1', '%player\\_100\\%%', 'player_100%', 10]
+    );
+    expect(query.mock.calls[1]?.[0]).toContain("ESCAPE '\\'");
+  });
+
+  it('returns one-snapshot ranked player context with the target and three neighbors per side', async () => {
+    const generatedAt = new Date('2026-08-12T02:00:00.000Z');
+    const players = Array.from({ length: 7 }, (_, index) => {
+      const rank = index + 1;
+      const isTarget = rank === 4;
+      return {
+        season_id: 'season-1',
+        rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+        rating_config: FORMAL_CONFIG,
+        leaderboard_minimum_match_count: 10,
+        ledger_revision: 17,
+        target_user_id: '00000000-0000-4000-8000-000000000004',
+        target_username: 'target',
+        target_display_name: '目标玩家',
+        target_rating: 1700.25,
+        target_rating_deviation: 105.5,
+        target_rated_match_count: 18,
+        target_rank: 4,
+        neighbor_user_id: `00000000-0000-4000-8000-${String(rank).padStart(12, '0')}`,
+        neighbor_username: isTarget ? 'target' : `player-${rank}`,
+        neighbor_display_name: isTarget ? '目标玩家' : `玩家 ${rank}`,
+        neighbor_rating: rank <= 2 ? 1800 : 1800 - rank * 25,
+        neighbor_rating_deviation: 100 + rank,
+        neighbor_rated_match_count: 20 - rank,
+        neighbor_rank: rank,
+      };
+    });
+    const query = vi.fn().mockResolvedValue({ rows: players });
+    const service = new RankedAdminService({
+      query,
+      now: () => generatedAt,
+      audit: vi.fn(),
+    });
+
+    const context = await service.getPlayerContext(
+      'season-1',
+      '00000000-0000-4000-8000-000000000004'
+    );
+
+    expect(context).toMatchObject({
+      seasonId: 'season-1',
+      generatedAt,
+      ledgerRevision: 17,
+      placementRequired: 10,
+      leaderboardMinimumMatchCount: 10,
+      player: {
+        userId: '00000000-0000-4000-8000-000000000004',
+        rating: 1700.25,
+        ratingDeviation: 105.5,
+        ratedMatchCount: 18,
+        placementCompleted: true,
+        leaderboardEligible: true,
+        status: 'RANKED',
+        rank: 4,
+      },
+    });
+    expect(context.neighbors.rows).toHaveLength(7);
+    expect(context.neighbors.rows.map((row) => row.rank)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(context.neighbors.rows.filter((row) => row.isTarget)).toEqual([
+      expect.objectContaining({ rank: 4, username: 'target' }),
+    ]);
+    expect(query).toHaveBeenCalledTimes(1);
+    expect(query.mock.calls[0]?.[0]).toContain('ORDER BY rating.rating DESC, rating.user_id ASC');
+    expect(query.mock.calls[0]?.[0]).toContain(
+      'neighbor.rank BETWEEN context.target_rank - 3 AND context.target_rank + 3'
+    );
+  });
+
+  it('keeps placement and leaderboard eligibility independent when historical thresholds reverse', async () => {
+    const makeRow = (ratedMatchCount: number, leaderboardMinimumMatchCount: number) => ({
+      season_id: 'season-1',
+      rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+      rating_config: FORMAL_CONFIG,
+      leaderboard_minimum_match_count: leaderboardMinimumMatchCount,
+      ledger_revision: 9,
+      target_user_id: '11111111-1111-4111-8111-111111111111',
+      target_username: 'player_one',
+      target_display_name: null,
+      target_rating: 1550,
+      target_rating_deviation: 140,
+      target_rated_match_count: ratedMatchCount,
+      target_rank: ratedMatchCount >= leaderboardMinimumMatchCount ? 2 : null,
+      neighbor_user_id: '11111111-1111-4111-8111-111111111111',
+      neighbor_username: 'player_one',
+      neighbor_display_name: null,
+      neighbor_rating: 1600,
+      neighbor_rating_deviation: 120,
+      neighbor_rated_match_count: 20,
+      neighbor_rank: ratedMatchCount >= leaderboardMinimumMatchCount ? 2 : null,
+    });
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [makeRow(4, 3)] })
+      .mockResolvedValueOnce({ rows: [makeRow(10, 12)] });
+    const service = new RankedAdminService({ query, audit: vi.fn() });
+
+    const placement = await service.getPlayerContext(
+      'season-1',
+      '11111111-1111-4111-8111-111111111111'
+    );
+    const notEligible = await service.getPlayerContext(
+      'season-1',
+      '11111111-1111-4111-8111-111111111111'
+    );
+
+    expect(placement.player).toMatchObject({
+      placementCompleted: false,
+      leaderboardEligible: true,
+      status: 'PLACEMENT',
+      rank: 2,
+    });
+    expect(placement.neighbors.rows).toEqual([
+      expect.objectContaining({ rank: 2, isTarget: true }),
+    ]);
+    expect(notEligible.player).toMatchObject({
+      placementCompleted: true,
+      leaderboardEligible: false,
+      status: 'PLACED_NOT_ELIGIBLE',
+      rank: null,
+    });
+    expect(notEligible.neighbors.rows).toEqual([]);
+  });
+
+  it('distinguishes missing seasons, users, and season rating projections', async () => {
+    const validSeasonBase = {
+      season_id: 'season-1',
+      rating_algorithm_version: FORMAL_CONFIG.algorithmVersion,
+      rating_config: FORMAL_CONFIG,
+      leaderboard_minimum_match_count: 10,
+      ledger_revision: 1,
+    };
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...validSeasonBase,
+            target_user_id: null,
+            target_username: null,
+            target_display_name: null,
+            target_rating: null,
+            target_rating_deviation: null,
+            target_rated_match_count: null,
+            target_rank: null,
+            neighbor_user_id: null,
+            neighbor_username: null,
+            neighbor_display_name: null,
+            neighbor_rating: null,
+            neighbor_rating_deviation: null,
+            neighbor_rated_match_count: null,
+            neighbor_rank: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...validSeasonBase,
+            target_user_id: '11111111-1111-4111-8111-111111111111',
+            target_username: 'player_one',
+            target_display_name: null,
+            target_rating: null,
+            target_rating_deviation: null,
+            target_rated_match_count: null,
+            target_rank: null,
+            neighbor_user_id: null,
+            neighbor_username: null,
+            neighbor_display_name: null,
+            neighbor_rating: null,
+            neighbor_rating_deviation: null,
+            neighbor_rated_match_count: null,
+            neighbor_rank: null,
+          },
+        ],
+      });
+    const service = new RankedAdminService({ query, audit: vi.fn() });
+
+    await expect(service.getPlayerContext('missing', 'user')).rejects.toMatchObject({
+      code: 'RANKED_SEASON_NOT_FOUND',
+      statusCode: 404,
+    });
+    await expect(service.getPlayerContext('season-1', 'missing')).rejects.toMatchObject({
+      code: 'RANKED_PLAYER_NOT_FOUND',
+      statusCode: 404,
+    });
+    await expect(service.getPlayerContext('season-1', 'user')).rejects.toMatchObject({
+      code: 'RANKED_PLAYER_RATING_NOT_FOUND',
+      statusCode: 404,
+    });
+  });
+
   it('keeps prior algorithms available while preferring V4 for new seasons', async () => {
     const service = new RankedAdminService({
       getCardCatalogIdentity: vi.fn().mockResolvedValue(CATALOG),
@@ -497,6 +719,53 @@ describe('RankedAdminService', () => {
         }),
       })
     );
+  });
+
+  it('audits deletion of a not-started season after the service removes it', async () => {
+    const deletedSeason = {
+      id: 'season-1',
+      seasonKey: 'season-2026-01',
+      name: '2026 第一赛季',
+      announcement: '',
+      lifecycle: 'DRAFT' as const,
+      queueAdmission: 'PAUSED' as const,
+      competitiveEnvironmentId: 'environment-1',
+      platformTimeZone: 'Asia/Shanghai',
+      openWindows: [{ weekdays: [1], startMinute: 1200, endMinute: 1320 }],
+      startsAt: new Date('2026-08-01T00:00:00.000Z'),
+      scheduledEndsAt: new Date('2026-09-01T00:00:00.000Z'),
+      finalizingDeadlineAt: new Date('2026-09-03T00:00:00.000Z'),
+      closedAt: null,
+      rulesVersion: 'RULES_V1',
+      cardCatalogVersion: 'CATALOG_V1',
+      cardCatalogHash: `sha256:${'a'.repeat(64)}`,
+      deckPolicyVersion: 'DECK_POLICY_V1',
+      ratingAlgorithmVersion: FORMAL_CONFIG.algorithmVersion,
+      ratingConfig: FORMAL_CONFIG,
+      leaderboardMinimumMatchCount: 10,
+      ledgerRevision: 0,
+    };
+    const deleteDraft = vi.fn().mockResolvedValue(deletedSeason);
+    const audit = vi.fn();
+    const service = new RankedAdminService({
+      seasonService: { deleteDraft } as never,
+      audit,
+      now: () => new Date('2026-07-30T00:00:00.000Z'),
+    });
+
+    const deleted = await service.deleteDraft('season-1', 'admin-1');
+
+    expect(deleteDraft).toHaveBeenCalledWith('season-1');
+    expect(deleted).toMatchObject({ id: 'season-1', lifecycle: 'DRAFT' });
+    expect(audit).toHaveBeenCalledWith({
+      event: 'RANKED_SEASON_DRAFT_DELETED',
+      adminUserId: 'admin-1',
+      seasonId: 'season-1',
+      detail: {
+        seasonKey: 'season-2026-01',
+        name: '2026 第一赛季',
+      },
+    });
   });
 
   it('rejects soft-reset parameters outside the selected algorithm range', async () => {

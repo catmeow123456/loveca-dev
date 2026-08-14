@@ -113,7 +113,9 @@ function createCheerMember(
         blade: 0,
         hearts: [],
       }),
-      bladeHearts: [{ effect: BladeHeartEffect.HEART, heartColor }] satisfies readonly BladeHeartItem[],
+      bladeHearts: [
+        { effect: BladeHeartEffect.HEART, heartColor },
+      ] satisfies readonly BladeHeartItem[],
     },
     ownerId,
     instanceId
@@ -132,12 +134,14 @@ function pendingAbility(abilityId: string, sourceCardId: string): PendingAbility
   };
 }
 
-function setupBladeSelectionState(options: {
-  readonly includeNamed?: boolean;
-  readonly includeOtherLiella?: boolean;
-  readonly includeSameNameOtherLiella?: boolean;
-  readonly sourceInLiveZone?: boolean;
-} = {}) {
+function setupBladeSelectionState(
+  options: {
+    readonly includeNamed?: boolean;
+    readonly includeOtherLiella?: boolean;
+    readonly includeSameNameOtherLiella?: boolean;
+    readonly sourceInLiveZone?: boolean;
+  } = {}
+) {
   const live = createCardInstance(createDazzlingGame(), PLAYER1, 'dazzling-live');
   const named = createCardInstance(
     createMember({ cardCode: 'LIELLA-KANON', name: '澁谷かのん' }),
@@ -170,10 +174,15 @@ function setupBladeSelectionState(options: {
   let game = createGameState('sp-bp4-023-blade-selection', PLAYER1, 'P1', PLAYER2, 'P2');
   game = registerCards(game, cards);
   game = updatePlayer(game, PLAYER1, (player) => {
-    let memberSlots = placeCardInSlot(player.memberSlots, SlotPosition.RIGHT, nonLiella.instanceId, {
-      orientation: OrientationState.ACTIVE,
-      face: FaceState.FACE_UP,
-    });
+    let memberSlots = placeCardInSlot(
+      player.memberSlots,
+      SlotPosition.RIGHT,
+      nonLiella.instanceId,
+      {
+        orientation: OrientationState.ACTIVE,
+        face: FaceState.FACE_UP,
+      }
+    );
     if (options.includeNamed !== false) {
       memberSlots = placeCardInSlot(memberSlots, SlotPosition.LEFT, named.instanceId, {
         orientation: OrientationState.ACTIVE,
@@ -402,7 +411,9 @@ describe('PL!SP-bp4-023 Dazzling Game', () => {
       }),
     ]);
     expect(getMemberEffectiveBladeCount(resolved, PLAYER1, scenario.named.instanceId)).toBe(2);
-    expect(getMemberEffectiveBladeCount(resolved, PLAYER1, scenario.otherLiella.instanceId)).toBe(2);
+    expect(getMemberEffectiveBladeCount(resolved, PLAYER1, scenario.otherLiella.instanceId)).toBe(
+      2
+    );
     expect(
       performanceCheerCount(resolved, [
         scenario.named.instanceId,
@@ -492,7 +503,7 @@ describe('PL!SP-bp4-023 Dazzling Game', () => {
         ),
       ],
     }).gameState;
-    expect(started.activeEffect?.effectText).toContain('全部视为[紫ハート]');
+    expect(started.activeEffect?.effectText).toContain('全部变为[紫ブレード]');
     expect(started.activeEffect?.effectText).not.toContain('本次 LIVE 中自己的声援公开卡 Heart');
     expect(started.activeEffect?.effectText).not.toContain('来源LIVE');
     expect(started.activeEffect?.effectText).not.toContain('确认后');
@@ -646,7 +657,9 @@ describe('PL!SP-bp4-023 Dazzling Game', () => {
     const replaced = resolveCheerReplacementAbility(bladed, scenario.live.instanceId);
 
     expect(getMemberEffectiveBladeCount(replaced, PLAYER1, scenario.named.instanceId)).toBe(2);
-    expect(getMemberEffectiveBladeCount(replaced, PLAYER1, scenario.otherLiella.instanceId)).toBe(2);
+    expect(getMemberEffectiveBladeCount(replaced, PLAYER1, scenario.otherLiella.instanceId)).toBe(
+      2
+    );
   });
 
   it('clears the cheer Heart replacement when the live resolution is reset for the next LIVE', () => {

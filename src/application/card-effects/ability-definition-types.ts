@@ -30,6 +30,14 @@ export enum CardAbilitySourceZone {
 
 export interface ActivatedAbilityUiConfig {
   readonly abilityId: string;
+  /**
+   * One concrete runtime copy of an activated ability.
+   *
+   * Direct abilities omit this field. PL!SP-pb2-005 granted abilities use it
+   * to distinguish otherwise identical abilities granted by different cards
+   * below the same host member.
+   */
+  readonly abilityInstanceId?: string;
   readonly text: string;
   readonly title: string;
   readonly displayOrder?: number;
@@ -51,6 +59,12 @@ export interface OnEnterStageTriggerFilter {
 export interface PlayedMemberOnEnterTriggerFilter {
   readonly enteredViaRelay?: boolean;
   readonly replacedMemberGroupAliases?: readonly string[];
+}
+
+export interface MemberStateChangedTriggerFilter {
+  readonly changedController?: 'SELF' | 'OPPONENT' | 'ANY';
+  readonly previousOrientation?: OrientationState;
+  readonly nextOrientation?: OrientationState;
 }
 
 export interface RemainingHeartAllocationPreferenceDefinition {
@@ -92,6 +106,7 @@ export interface CardAbilityDefinition {
   readonly enterWaitingRoomCause?: 'OWN_LIVE_SUCCESS_ABILITY';
   readonly playedMemberOnEnterTriggerFilter?: PlayedMemberOnEnterTriggerFilter;
   readonly onEnterStageTriggerFilter?: OnEnterStageTriggerFilter;
+  readonly memberStateChangedTriggerFilter?: MemberStateChangedTriggerFilter;
   readonly energyPlacementCause?: 'ANY_CARD_EFFECT' | 'OWN_CARD_EFFECT';
   readonly perTurnLimit?: number;
   readonly countPendingAsTurnUse?: boolean;

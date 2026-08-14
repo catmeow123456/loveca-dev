@@ -9,6 +9,7 @@ import { addHeartLiveModifierForSourceMember } from '../../../../domain/rules/li
 import { HeartColor } from '../../../../shared/types/enums.js';
 import {
   HS_CL1_006_ON_ENTER_GAIN_THREE_BLADE_ABILITY_ID,
+  HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID,
   N_BP7_024_ON_ENTER_THREE_R3BIRTH_GAIN_PINK_HEART_ABILITY_ID,
   N_SD2_019_ON_ENTER_GAIN_BLUE_HEART_ABILITY_ID,
   S_BP6_013_ON_ENTER_GAIN_TWO_BLADE_ABILITY_ID,
@@ -69,6 +70,14 @@ const ON_ENTER_SOURCE_MEMBER_LIVE_MODIFIER_CONFIGS: readonly OnEnterSourceMember
       color: HeartColor.BLUE,
       amount: 1,
       actionStep: 'ON_ENTER_SOURCE_MEMBER_GAIN_BLUE_HEART',
+      manualConfirmable: true,
+    },
+    {
+      abilityId: HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID,
+      kind: 'HEART',
+      color: HeartColor.PURPLE,
+      amount: 1,
+      actionStep: 'ON_ENTER_NON_HAND_SOURCE_MEMBER_GAIN_PURPLE_HEART',
       manualConfirmable: true,
     },
     {

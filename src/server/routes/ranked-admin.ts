@@ -186,6 +186,18 @@ rankedAdminRouter.put('/seasons/:seasonId/draft', validate(seasonDraftSchema), a
   }
 });
 
+rankedAdminRouter.delete('/seasons/:seasonId', async (req, res) => {
+  const seasonId = readParam(req.params.seasonId, seasonIdSchema, '赛季 ID', res);
+  if (!seasonId) {
+    return;
+  }
+  try {
+    respondData(res, await rankedAdminService.deleteDraft(seasonId, req.user!.id));
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
 rankedAdminRouter.put(
   '/seasons/:seasonId/operations',
   validate(activeSeasonOperationsSchema),
@@ -306,6 +318,46 @@ rankedAdminRouter.get('/overview', async (req, res) => {
   }
   try {
     respondData(res, await rankedAdminService.getOverview(parsed.data.seasonId));
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
+rankedAdminRouter.get('/players/search', async (req, res) => {
+  const parsed = z
+    .object({
+      seasonId: z.string().uuid(),
+      q: z.string().trim().min(1).max(100),
+      limit: z.coerce.number().int().min(1).max(10).default(10),
+    })
+    .strict()
+    .safeParse(req.query);
+  if (!parsed.success) {
+    respondValidationError(res, parsed.error);
+    return;
+  }
+  try {
+    respondData(
+      res,
+      await rankedAdminService.searchPlayers(parsed.data.seasonId, parsed.data.q, parsed.data.limit)
+    );
+  } catch (error) {
+    respondRankedAdminError(res, error);
+  }
+});
+
+rankedAdminRouter.get('/players/:userId/context', async (req, res) => {
+  const userId = readParam(req.params.userId, z.string().uuid(), '玩家 ID', res);
+  if (!userId) {
+    return;
+  }
+  const parsed = z.object({ seasonId: z.string().uuid() }).strict().safeParse(req.query);
+  if (!parsed.success) {
+    respondValidationError(res, parsed.error);
+    return;
+  }
+  try {
+    respondData(res, await rankedAdminService.getPlayerContext(parsed.data.seasonId, userId));
   } catch (error) {
     respondRankedAdminError(res, error);
   }

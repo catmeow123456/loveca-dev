@@ -900,6 +900,11 @@ import {
   PL_N_SD2_026_LIVE_START_EFFECTIVE_BLADE_FOUR_TARGET_GAIN_RED_HEART_TWO_ABILITY_ID,
   N_SD2_027_LIVE_START_WAIT_UP_TO_THREE_NIJIGASAKI_SCORE_PER_WAITED_ABILITY_ID,
   PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID,
+  PL_PR_023_AUTO_TURN_THREE_MEMBER_WAITED_GAIN_BLADE_ABILITY_ID,
+  PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID,
+  N_PR_033_AUTO_TURN_ONCE_WAITING_ROOM_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+  HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID,
+  HS_PR_038_LIVE_SUCCESS_WAIT_OPPONENT_COST_FOUR_SKIP_NEXT_ACTIVE_ABILITY_ID,
   N_PR_022_ON_ENTER_PREVIOUS_OPPONENT_LIVE_FAILED_ASK_EMMA_PUNCH_BLADE_ABILITY_ID,
   LL_PR_004_LIVE_START_OPPONENT_ANSWER_BRANCH_ABILITY_ID,
   LL_BP4_001_LIVE_START_LOOK_TOP_NAMED_MEMBER_WAIT_OPPONENT_ABILITY_ID,
@@ -3542,7 +3547,7 @@ describe('card effect classification registry', () => {
       implemented: true,
     });
     expect(loveUMyFriendsLiveSuccess?.effectText).toBe(
-      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。'
+      '【LIVE成功时】因声援被公开的自己的卡片中持有[ALLブレード]的卡片大于等于1张的场合，此卡的分数+1。'
     );
 
     for (const [cardCode, abilityId, expected] of [
@@ -3888,7 +3893,7 @@ describe('card effect classification registry', () => {
           queued: true,
           implemented: true,
           effectText:
-            '【LIVE开始时】LIVE结束时为止，因声援公开的自己的卡持有的[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[紫ハート]、[ALLハート]全部视为[青ハート]。',
+            '【LIVE开始时】LIVE结束时为止，因声援被公开的自己的卡片持有的[桃ブレード]，[赤ブレード]，[黄ブレード]，[緑ブレード]，[紫ブレード]，[ALLブレード]，全部变为[青ブレード]。',
         }),
         expect.objectContaining({
           abilityId:
@@ -15040,7 +15045,8 @@ describe('PL!S-bp7-022-SECL 分数8「想在水族馆恋爱」 definitions', () 
         triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
         queued: true,
         implemented: true,
-        effectText: expect.stringContaining('[スコア]'),
+        effectText:
+          '【LIVE成功时】因声援被公开的自己的卡片中，分别存在持有[赤ブレード]、[緑ブレード]、[青ブレード]的『Aqours』的成员的场合，此卡的分数+1。',
       }),
     ]);
     for (const definition of definitions) {
@@ -15577,7 +15583,7 @@ describe('PL!N-bp7-027 base-scoped LIVE_SUCCESS definition', () => {
 });
 
 describe('BP7 single-target BLADE base-scoped LIVE definitions', () => {
-  it('registers both printed abilities for PL!N-bp7-025 with corrected HEART text', () => {
+  it('registers both printed abilities for PL!N-bp7-025 with BLADE HEART text', () => {
     expect(getCardAbilityDefinitions('PL!N-bp7-025-SECL')).toEqual([
       expect.objectContaining({
         abilityId: N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
@@ -15599,7 +15605,7 @@ describe('BP7 single-target BLADE base-scoped LIVE definitions', () => {
         queued: true,
         implemented: true,
         effectText:
-          '【LIVE成功时】因声援被公开的自己的卡片中，存在[桃ハート]、[赤ハート]、[黄ハート]、[緑ハート]、[青ハート]、[紫ハート]中大于等于3种的场合，此卡的[スコア]+1。',
+          '【LIVE成功时】因声援被公开的自己的卡片中，存在[桃ブレード]、[赤ブレード]、[黄ブレード]、[緑ブレード]、[青ブレード]、[紫ブレード]中大于等于3种的场合，此卡的分数+1。',
       }),
     ]);
     expect(
@@ -16012,7 +16018,7 @@ describe('2026-07-23 PR batches 2-4 base-scoped definitions', () => {
     );
   });
 
-  it.each(['PL!HS-PR-037-P', 'PL!N-PR-033-P', 'PL!-PR-019-P'])(
+  it.each(['PL!HS-PR-037-P', 'PL!-PR-019-P'])(
     'does not leak the base-scoped PR definitions to adjacent card %s',
     (cardCode) => {
       expect(getCardAbilityDefinitions(cardCode)).toEqual([]);
@@ -16023,9 +16029,9 @@ describe('2026-07-23 PR batches 2-4 base-scoped definitions', () => {
 describe('2026-07-27 PR shared-family definitions', () => {
   const cases = [
     {
-      cardCodes: ['PL!-PR-023-PR', 'PL!N-PR-034-SEC'],
+      cardCodes: ['PL!-PR-024-PR', 'PL!N-PR-034-SEC'],
       abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
-      baseCardCodes: ['PL!-PR-023', 'PL!N-PR-034'],
+      baseCardCodes: ['PL!-PR-024', 'PL!N-PR-034'],
       category: CardAbilityCategory.CONTINUOUS,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: undefined,
@@ -16034,9 +16040,9 @@ describe('2026-07-27 PR shared-family definitions', () => {
         '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
     },
     {
-      cardCodes: ['PL!-PR-024-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
+      cardCodes: ['PL!-PR-025-PR', 'PL!HS-PR-040-P', 'PL!S-PR-046-SEC'],
       abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-      baseCardCodes: ['PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
+      baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-046'],
       category: CardAbilityCategory.AUTO,
       sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
       triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -16119,15 +16125,96 @@ describe('2026-07-27 PR shared-family definitions', () => {
     }
   );
 
+  it('registers official PL!-PR-023 as two independent base-scoped abilities', () => {
+    const definitions = getCardAbilityDefinitions('PL!-PR-023-PR');
+    expect(definitions).toHaveLength(2);
+    expect(definitions).toContainEqual(
+      expect.objectContaining({
+        abilityId: PL_PR_023_AUTO_TURN_THREE_MEMBER_WAITED_GAIN_BLADE_ABILITY_ID,
+        baseCardCodes: ['PL!-PR-023'],
+        category: CardAbilityCategory.AUTO,
+        sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+        triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+        queued: true,
+        implemented: true,
+        perTurnLimit: 3,
+        memberStateChangedTriggerFilter: {
+          changedController: 'ANY',
+          previousOrientation: OrientationState.ACTIVE,
+          nextOrientation: OrientationState.WAITING,
+        },
+        effectText:
+          '【自动】【1回合3次】每当存在于自己或对方舞台上的成员变为待机状态时，LIVE结束时为止，获得[ブレード]。',
+      })
+    );
+    const activated = definitions.find(
+      (definition) =>
+        definition.abilityId === PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID
+    );
+    expect(activated).toMatchObject({
+      baseCardCodes: ['PL!-PR-023'],
+      category: CardAbilityCategory.ACTIVATED,
+      sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+      queued: false,
+      implemented: true,
+      perTurnLimit: 1,
+    });
+    expect(activated?.effectText).toBe(
+      '【起动】【1回合1次】将1名成员变为待机状态，将1张手牌放置入休息室：抽1张卡。'
+    );
+    expect(activated?.activatedUi?.text).toBe(activated?.effectText);
+  });
+
+  it('registers the export-backed HS-PR-038 and N-PR-033 DRAFT definitions', () => {
+    expect(getCardAbilityDefinitions('PL!HS-PR-038-PR')).toEqual([
+      expect.objectContaining({
+        abilityId: HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID,
+        baseCardCodes: ['PL!HS-PR-038'],
+        category: CardAbilityCategory.ON_ENTER,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        effectText: '【登场】从手牌以外登场时，LIVE结束时为止，获得[紫ハート]。',
+      }),
+      expect.objectContaining({
+        abilityId: HS_PR_038_LIVE_SUCCESS_WAIT_OPPONENT_COST_FOUR_SKIP_NEXT_ACTIVE_ABILITY_ID,
+        baseCardCodes: ['PL!HS-PR-038'],
+        category: CardAbilityCategory.LIVE_SUCCESS,
+        triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+        effectText:
+          '【LIVE成功时】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。该成员在下回合的活跃阶段中不会变为活跃状态。',
+      }),
+    ]);
+    expect(getCardAbilityDefinitions('PL!N-PR-033-PR')).toEqual([
+      expect.objectContaining({
+        abilityId: N_PR_033_AUTO_TURN_ONCE_WAITING_ROOM_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+        baseCardCodes: ['PL!N-PR-033'],
+        category: CardAbilityCategory.AUTO,
+        triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+        triggerFromZones: [ZoneType.WAITING_ROOM],
+        onEnterStageTriggerFilter: {
+          enteredController: 'SELF',
+          enteredCardType: CardType.MEMBER,
+        },
+        perTurnLimit: 1,
+        effectText: '【自动】【1回合1次】从自己的休息室登场成员时，抽1张卡。',
+      }),
+    ]);
+  });
+
   it('keeps adjacent corrected PR numbers isolated', () => {
     expect(
       getCardAbilityDefinitions('PL!-PR-022-PR').map((definition) => definition.abilityId)
     ).toEqual([PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID]);
     expect(
       getCardAbilityDefinitions('PL!-PR-023-PR').map((definition) => definition.abilityId)
-    ).toEqual([PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID]);
+    ).toEqual([
+      PL_PR_023_AUTO_TURN_THREE_MEMBER_WAITED_GAIN_BLADE_ABILITY_ID,
+      PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID,
+    ]);
     expect(
       getCardAbilityDefinitions('PL!-PR-024-PR').map((definition) => definition.abilityId)
+    ).toEqual([PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID]);
+    expect(
+      getCardAbilityDefinitions('PL!-PR-025-PR').map((definition) => definition.abilityId)
     ).toEqual([PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID]);
   });
 });

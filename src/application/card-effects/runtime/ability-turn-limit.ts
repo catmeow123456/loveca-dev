@@ -12,6 +12,7 @@ const ACTIVATED_ABILITY_USE_STEP = 'ACTIVATED_ABILITY_USE';
 
 export interface AbilityTurnLimitStatus {
   readonly abilityId: string;
+  readonly abilityInstanceId?: string;
   readonly sourceCardId: string;
   readonly sourceLifecycleId: string;
   readonly limit: number;
@@ -25,7 +26,8 @@ export function getAbilityTurnLimitStatus(
   game: GameState,
   playerId: string,
   abilityId: string,
-  sourceCardId: string
+  sourceCardId: string,
+  abilityInstanceId?: string
 ): AbilityTurnLimitStatus | null {
   const definition = findCardAbilityDefinitionById(abilityId);
   if (definition?.implemented !== true) {
@@ -37,6 +39,8 @@ export function getAbilityTurnLimitStatus(
   }
   const countPendingAsTurnUse = definition.countPendingAsTurnUse !== false;
   const sourceLifecycleId = getAbilitySourceLifecycleId(game, abilityId, sourceCardId);
+  const matchesAbilityInstance = (actual: unknown): boolean =>
+    abilityInstanceId === undefined ? typeof actual !== 'string' : actual === abilityInstanceId;
 
   const resolvedUses = game.actionHistory.filter(
     (action) =>
@@ -45,6 +49,7 @@ export function getAbilityTurnLimitStatus(
       action.payload.abilityId === abilityId &&
       action.payload.sourceCardId === sourceCardId &&
       action.payload.sourceLifecycleId === sourceLifecycleId &&
+      matchesAbilityInstance(action.payload.abilityInstanceId) &&
       (action.payload.step === ABILITY_USE_STEP ||
         action.payload.step === ACTIVATED_ABILITY_USE_STEP) &&
       action.payload.turnCount === game.turnCount
@@ -55,6 +60,7 @@ export function getAbilityTurnLimitStatus(
           ability.controllerId === playerId &&
           ability.abilityId === abilityId &&
           ability.sourceCardId === sourceCardId &&
+          abilityInstanceId === undefined &&
           getPendingAbilitySourceLifecycleId(game, ability) === sourceLifecycleId
       ).length
     : 0;
@@ -63,6 +69,7 @@ export function getAbilityTurnLimitStatus(
     game.activeEffect?.controllerId === playerId &&
     game.activeEffect.abilityId === abilityId &&
     game.activeEffect.sourceCardId === sourceCardId &&
+    matchesAbilityInstance(game.activeEffect.abilityInstanceId) &&
     getActiveEffectSourceLifecycleId(game, game.activeEffect) === sourceLifecycleId
       ? 1
       : 0;
@@ -70,6 +77,7 @@ export function getAbilityTurnLimitStatus(
 
   return {
     abilityId,
+    ...(abilityInstanceId ? { abilityInstanceId } : {}),
     sourceCardId,
     sourceLifecycleId,
     limit,
@@ -82,22 +90,30 @@ export function getActivatedAbilityLimitStatus(
   game: GameState,
   playerId: string,
   abilityId: string,
-  sourceCardId: string
+  sourceCardId: string,
+  abilityInstanceId?: string
 ): ActivatedAbilityLimitStatus | null {
   const definition = findCardAbilityDefinitionById(abilityId);
   if (definition?.category !== CardAbilityCategory.ACTIVATED || !definition.implemented) {
     return null;
   }
-  return getAbilityTurnLimitStatus(game, playerId, abilityId, sourceCardId);
+  return getAbilityTurnLimitStatus(game, playerId, abilityId, sourceCardId, abilityInstanceId);
 }
 
 export function canUseAbilityThisTurn(
   game: GameState,
   playerId: string,
   abilityId: string,
-  sourceCardId: string
+  sourceCardId: string,
+  abilityInstanceId?: string
 ): boolean {
-  const status = getAbilityTurnLimitStatus(game, playerId, abilityId, sourceCardId);
+  const status = getAbilityTurnLimitStatus(
+    game,
+    playerId,
+    abilityId,
+    sourceCardId,
+    abilityInstanceId
+  );
   return status === null || status.used < status.limit;
 }
 
@@ -105,8 +121,15 @@ export function canUseActivatedAbilityThisTurn(
   game: GameState,
   playerId: string,
   abilityId: string,
-  sourceCardId: string
+  sourceCardId: string,
+  abilityInstanceId?: string
 ): boolean {
-  const status = getActivatedAbilityLimitStatus(game, playerId, abilityId, sourceCardId);
+  const status = getActivatedAbilityLimitStatus(
+    game,
+    playerId,
+    abilityId,
+    sourceCardId,
+    abilityInstanceId
+  );
   return status === null || status.used < status.limit;
 }

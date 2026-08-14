@@ -276,7 +276,7 @@ function getConfirmationEffectText(
     .join('、');
   return `${getAbilityEffectText(ability.abilityId)}（当前成功LIVE卡区有${
     evaluation.successMuseCardIds.length
-  }张『μ’s』卡；[スコア]${evaluation.hasScoreIcon ? '存在' : '不存在'}、[ALLハート]${
+  }张『μ’s』卡；[スコア]${evaluation.hasScoreIcon ? '存在' : '不存在'}、[ALLブレード]${
     evaluation.hasAllBladeIcon ? '存在' : '不存在'
   }、[ドロー]${evaluation.hasDrawIcon ? '存在' : '不存在'}；实际${
     evaluation.sourceOnStage && result ? result : '不产生效果'

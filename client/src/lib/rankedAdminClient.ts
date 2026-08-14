@@ -223,6 +223,48 @@ export interface RankedAdminOverview {
   }[];
 }
 
+export type RankedAdminPlayerStatus = 'PLACEMENT' | 'PLACED_NOT_ELIGIBLE' | 'RANKED';
+
+export interface RankedAdminPlayerSearchResult {
+  userId: string;
+  username: string;
+  displayName: string | null;
+}
+
+export interface RankedAdminPlayerSummary {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  rating: number;
+  ratingDeviation: number;
+  ratedMatchCount: number;
+  placementCompleted: boolean;
+  leaderboardEligible: boolean;
+  status: RankedAdminPlayerStatus;
+  rank: number | null;
+}
+
+export interface RankedAdminPlayerRankRow {
+  userId: string;
+  username: string;
+  displayName: string | null;
+  rating: number;
+  ratingDeviation: number;
+  ratedMatchCount: number;
+  rank: number;
+  isTarget: boolean;
+}
+
+export interface RankedAdminPlayerContext {
+  seasonId: string;
+  generatedAt: string;
+  ledgerRevision: number;
+  placementRequired: number;
+  leaderboardMinimumMatchCount: number;
+  player: RankedAdminPlayerSummary;
+  neighbors: { rows: RankedAdminPlayerRankRow[] };
+}
+
 export interface RankedEnvironmentPreview {
   persistentSeasonReady: boolean;
   algorithms: {
@@ -289,6 +331,26 @@ export const fetchRankedOverview = (seasonId: string) =>
     '读取排位概览失败'
   );
 
+export const searchRankedAdminPlayers = (seasonId: string, query: string, limit = 10) => {
+  const search = new URLSearchParams({
+    seasonId,
+    q: query.trim(),
+    limit: String(limit),
+  });
+  return requireData<RankedAdminPlayerSearchResult[]>(
+    apiClient.get(`/api/admin/ranked/players/search?${search.toString()}`),
+    '搜索排位玩家失败'
+  );
+};
+
+export const fetchRankedAdminPlayerContext = (seasonId: string, userId: string) =>
+  requireData<RankedAdminPlayerContext>(
+    apiClient.get(
+      `/api/admin/ranked/players/${encodeURIComponent(userId)}/context?seasonId=${encodeURIComponent(seasonId)}`
+    ),
+    '读取玩家排位信息失败'
+  );
+
 export const createRankedSeason = (payload: RankedSeasonDraftPayload) =>
   requireData<RankedAdminSeason>(
     apiClient.post('/api/admin/ranked/seasons', payload),
@@ -299,6 +361,12 @@ export const updateRankedSeason = (seasonId: string, payload: RankedSeasonDraftP
   requireData<RankedAdminSeason>(
     apiClient.put(`/api/admin/ranked/seasons/${seasonId}/draft`, payload),
     '更新赛季草稿失败'
+  );
+
+export const deleteRankedSeasonDraft = (seasonId: string) =>
+  requireData<RankedAdminSeason>(
+    apiClient.delete(`/api/admin/ranked/seasons/${seasonId}`),
+    '删除未开始赛季失败'
   );
 
 export const updateActiveRankedSeasonOperations = (

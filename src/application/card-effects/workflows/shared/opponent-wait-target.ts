@@ -9,6 +9,7 @@ import {
   collectLiveModifiers,
   getMemberEffectiveHeartIcons,
 } from '../../../../domain/rules/live-modifiers.js';
+import { addMemberActivePhaseSkip } from '../../../../domain/rules/member-active-skips.js';
 import { CardType, OrientationState } from '../../../../shared/types/enums.js';
 import {
   HS_BP6_004_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
@@ -17,6 +18,7 @@ import {
   HS_BP6_013_ON_ENTER_WAIT_LOW_BLADE_NON_DOLLCHESTRA_ABILITY_ID,
   HS_PB1_010_LIVE_START_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
   HS_PB1_010_ON_ENTER_WAIT_OPPONENT_LOW_COST_MEMBER_ABILITY_ID,
+  HS_PR_038_LIVE_SUCCESS_WAIT_OPPONENT_COST_FOUR_SKIP_NEXT_ACTIVE_ABILITY_ID,
   N_SD2_013_LIVE_START_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
   N_SD2_013_ON_ENTER_ONLY_NIJIGASAKI_WAIT_LOW_PRINTED_BLADE_OPPONENT_ABILITY_ID,
   N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -84,6 +86,8 @@ const N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_STEP_ID =
   'N_SD2_013_SELECT_OPPONENT_PRINTED_BLADE_TWO_MEMBER_TO_WAIT';
 const N_SD2_021_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID =
   'N_SD2_021_SELECT_OPPONENT_COST_FOUR_MEMBER_TO_WAIT';
+const HS_PR_038_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID =
+  'HS_PR_038_SELECT_OPPONENT_COST_FOUR_MEMBER_TO_WAIT';
 
 type ContinuePendingCardEffects = (game: GameState, orderedResolution: boolean) => GameState;
 type EnqueueTriggeredCardEffects = EnqueueTriggeredCardEffectsForMemberStateChanged;
@@ -101,6 +105,8 @@ interface OpponentWaitTargetWorkflowConfig {
   readonly minOwnStagePrintedCost?: number;
   readonly allOwnStageMembersGroupAlias?: string;
   readonly confirmNoTargetWithRealtimeText?: boolean;
+  readonly skipNextActivePhase?: boolean;
+  readonly consumeStaleSelectionAsNoOp?: boolean;
 }
 
 const lowCostOpponentMemberSelector = and(typeIs(CardType.MEMBER), costLte(9));
@@ -160,6 +166,18 @@ const OPPONENT_WAIT_TARGET_WORKFLOWS: readonly OpponentWaitTargetWorkflowConfig[
     selectionLabel: '选择对方舞台上费用小于等于4的成员',
     selector: costLteFourOpponentMemberSelector,
     startActionStep: 'START_SELECT_OPPONENT_COST_FOUR_MEMBER',
+  },
+  {
+    abilityId: HS_PR_038_LIVE_SUCCESS_WAIT_OPPONENT_COST_FOUR_SKIP_NEXT_ACTIVE_ABILITY_ID,
+    effectTextAbilityId: HS_PR_038_LIVE_SUCCESS_WAIT_OPPONENT_COST_FOUR_SKIP_NEXT_ACTIVE_ABILITY_ID,
+    stepId: HS_PR_038_SELECT_OPPONENT_COST_FOUR_MEMBER_STEP_ID,
+    stepText: '请选择对方舞台上1名费用小于等于4的成员变为待机状态。',
+    selectionLabel: '选择对方舞台上费用小于等于4的成员',
+    selector: costLteFourOpponentMemberSelector,
+    startActionStep: 'START_SELECT_OPPONENT_COST_FOUR_MEMBER_SKIP_NEXT_ACTIVE',
+    confirmNoTargetWithRealtimeText: true,
+    skipNextActivePhase: true,
+    consumeStaleSelectionAsNoOp: true,
   },
   {
     abilityId: N_SD2_019_LIVE_START_WAIT_OPPONENT_COST_TWO_MEMBER_ABILITY_ID,
@@ -380,10 +398,7 @@ function startOpponentWaitTargetWorkflow(
           player.id,
           and(typeIs(CardType.MEMBER), costGte(config.minOwnStagePrintedCost))
         ).length;
-  if (
-    config.minOwnStagePrintedCost !== undefined &&
-    ownStageHighPrintedCostMemberCount === 0
-  ) {
+  if (config.minOwnStagePrintedCost !== undefined && ownStageHighPrintedCostMemberCount === 0) {
     const selectableTargetCount = getOpponentWaitTargetCount(game, opponent.id, config.selector);
     const confirmation =
       config.confirmNoTargetWithRealtimeText === true
@@ -567,26 +582,60 @@ function finishOpponentWaitTargetWorkflow(
     targetMetadata.targetPlayerId,
     config.selector
   );
-  if (
-    !currentTargetState ||
-    currentTargetState.orientation === targetMetadata.targetOrientation ||
-    !currentMatchingTargetIds.includes(selectedCardId)
-  ) {
+  const currentSelectionIsLegal =
+    currentTargetState !== undefined &&
+    currentTargetState.orientation !== targetMetadata.targetOrientation &&
+    currentMatchingTargetIds.includes(selectedCardId);
+  const orientationChange = currentSelectionIsLegal
+    ? resolveStageMemberOrientationTargetSelection(game, effect, selectedCardId)
+    : null;
+  if (!orientationChange || !orientationChange.changed) {
+    if (config.consumeStaleSelectionAsNoOp === true) {
+      return continuePendingCardEffects(
+        addAction(
+          {
+            ...game,
+            activeEffect: null,
+          },
+          'RESOLVE_ABILITY',
+          player.id,
+          {
+            pendingAbilityId: effect.id,
+            abilityId: effect.abilityId,
+            sourceCardId: effect.sourceCardId,
+            step: 'STALE_TARGET_NO_OP',
+            sourceSlot: effect.metadata?.sourceSlot,
+            targetPlayerId: targetMetadata.targetPlayerId,
+            targetCardId: selectedCardId,
+            currentSelectionIsLegal,
+            orientationChangeBlockedByWaitingProtection:
+              orientationChange?.blockedByWaitingProtection ?? false,
+            skipNextActivePhase: config.skipNextActivePhase === true,
+            skipMarkerApplied: false,
+          }
+        ),
+        effect.metadata?.orderedResolution === true
+      );
+    }
     return game;
   }
 
-  const orientationChange = resolveStageMemberOrientationTargetSelection(
-    game,
-    effect,
-    selectedCardId
-  );
-  if (!orientationChange || !orientationChange.changed) {
-    return game;
-  }
+  const stateWithActivePhaseSkip =
+    config.skipNextActivePhase === true
+      ? addMemberActivePhaseSkip(orientationChange.gameState, {
+          playerId: targetMetadata.targetPlayerId,
+          memberCardId: selectedCardId,
+          sourceCardId: effect.sourceCardId,
+          abilityId: effect.abilityId,
+        })
+      : orientationChange.gameState;
 
   const stateWithMemberStateTriggers = enqueueMemberStateChangedTriggersFromOrientationResult(
     game,
-    orientationChange,
+    {
+      ...orientationChange,
+      gameState: stateWithActivePhaseSkip,
+    },
     enqueueTriggeredCardEffects,
     {
       prepareGameStateBeforeEnqueue: (state, result) =>
@@ -607,6 +656,11 @@ function finishOpponentWaitTargetWorkflow(
             targetCardId: selectedCardId,
             previousOrientation: result.previousOrientation,
             nextOrientation: result.nextOrientation,
+            skipNextActivePhase: config.skipNextActivePhase === true,
+            skipNextActivePlayerId:
+              config.skipNextActivePhase === true ? targetMetadata.targetPlayerId : undefined,
+            skipNextActiveMemberCardId:
+              config.skipNextActivePhase === true ? selectedCardId : undefined,
           }
         ),
     }
@@ -626,7 +680,11 @@ function getOwnStageEffectiveHeartTotal(game: GameState, playerId: string): numb
 
 function getOwnStageDifferentBiBiMemberNameCount(game: GameState, playerId: string): number {
   return selectDifferentNamedCards(
-    getStageMemberCardIdsMatching(game, playerId, and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))),
+    getStageMemberCardIdsMatching(
+      game,
+      playerId,
+      and(typeIs(CardType.MEMBER), unitAliasIs('BiBi'))
+    ),
     (cardId) => game.cardRegistry.get(cardId)?.data,
     { minCount: 1 }
   ).length;
@@ -639,7 +697,8 @@ function getOpponentWaitTargetCount(
 ): number {
   const opponent = getPlayerById(game, opponentId);
   return getStageMemberCardIdsMatching(game, opponentId, selector).filter(
-    (cardId) => opponent?.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
+    (cardId) =>
+      opponent?.memberSlots.cardStates.get(cardId)?.orientation !== OrientationState.WAITING
   ).length;
 }
 

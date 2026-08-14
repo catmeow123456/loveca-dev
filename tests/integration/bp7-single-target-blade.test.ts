@@ -18,9 +18,11 @@ import {
   resolvePendingCardEffects,
 } from '../../src/application/card-effect-runner';
 import { GameService } from '../../src/application/game-service';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import {
   N_BP7_025_LIVE_START_TARGET_NIJIGASAKI_MEMBER_GAIN_ONE_BLADE_ABILITY_ID,
   N_BP7_025_LIVE_SUCCESS_THREE_BLADE_HEART_COLORS_SCORE_ABILITY_ID,
+  SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
   SP_BP7_025_LIVE_START_TARGET_CHISATO_GAIN_ONE_BLADE_ABILITY_ID,
 } from '../../src/application/card-effects/ability-ids';
 import {
@@ -548,7 +550,7 @@ function confirmOnly(game: GameState): GameState {
 }
 
 describe('PL!N-bp7-025-SECL 分数1「Colorful Dreams! Colorful Smiles!」LIVE成功', () => {
-  it('shows corrected HEART condition facts and applies replacement SCORE only after confirmation', () => {
+  it('shows BLADE HEART condition facts and applies replacement SCORE only after confirmation', () => {
     const scenario = setupN025LiveSuccess({
       bladeHearts: [
         [
@@ -578,10 +580,10 @@ describe('PL!N-bp7-025-SECL 分数1「Colorful Dreams! Colorful Smiles!」LIVE�
       stepText: '确认后此卡[スコア]+1。',
     });
     expect(started.activeEffect?.effectText).toContain(
-      '当前命中：[桃ハート]、[赤ハート]、[黄ハート]，共3种'
+      '当前命中：[桃ブレード]、[赤ブレード]、[黄ブレード]，共3种'
     );
     expect(started.activeEffect?.effectText).toContain('满足条件，实际[スコア]+1');
-    expect(started.activeEffect?.effectText).not.toMatch(/\[(桃|赤|黄|緑|青|紫)ブレード\]/);
+    expect(started.activeEffect?.effectText).not.toMatch(/\[(桃|赤|黄|緑|青|紫)ハート\]/);
 
     const resolved = confirmOnly(started);
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(2);
@@ -616,11 +618,55 @@ describe('PL!N-bp7-025-SECL 分数1「Colorful Dreams! Colorful Smiles!」LIVE�
       ],
     });
     const started = startLiveSuccess(scenario.game, scenario.sourceId);
-    expect(started.activeEffect?.effectText).toContain('当前命中：[桃ハート]、[赤ハート]，共2种');
+    expect(started.activeEffect?.effectText).toContain(
+      '当前命中：[桃ブレード]、[赤ブレード]，共2种'
+    );
     expect(started.activeEffect?.effectText).toContain('未满足条件，实际不增加[スコア]');
     const resolved = confirmOnly(started);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.activeEffect).toBeNull();
     expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
     expect(resolved.liveResolution.liveModifiers).toEqual([]);
+  });
+
+  it('counts only purple after Dazzling Game replaces the revealed Blade Heart colors', () => {
+    const scenario = setupN025LiveSuccess({
+      bladeHearts: [
+        [
+          bladeHeart(BladeHeartEffect.HEART, HeartColor.PINK),
+          bladeHeart(BladeHeartEffect.HEART, HeartColor.RED),
+          bladeHeart(BladeHeartEffect.HEART, HeartColor.YELLOW),
+          bladeHeart(BladeHeartEffect.HEART, HeartColor.RAINBOW),
+        ],
+      ],
+    });
+    const replaced = addLiveModifier(scenario.game, {
+      kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+      playerId: PLAYER1,
+      fromColors: [
+        HeartColor.PINK,
+        HeartColor.RED,
+        HeartColor.YELLOW,
+        HeartColor.GREEN,
+        HeartColor.BLUE,
+        HeartColor.RAINBOW,
+      ],
+      toColor: HeartColor.PURPLE,
+      sourceCardId: 'dazzling-game-live',
+      abilityId: SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
+    });
+
+    const started = startLiveSuccess(replaced, scenario.sourceId);
+    expect(started.activeEffect?.effectText).toContain('当前命中：[紫ブレード]，共1种');
+    expect(started.activeEffect?.effectText).toContain('未满足条件，实际不增加[スコア]');
+
+    const resolved = confirmOnly(started);
+    expect(resolved.pendingAbilities).toEqual([]);
+    expect(resolved.activeEffect).toBeNull();
+    expect(resolved.liveResolution.playerScores.get(PLAYER1)).toBe(1);
+    expect(resolved.liveResolution.liveModifiers).toEqual([
+      expect.objectContaining({ kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT' }),
+    ]);
   });
 
   it('keeps event-inclusive colors after a revealed card leaves the resolution zone', () => {

@@ -263,6 +263,7 @@ function buildActivateAbilityDecisionRecord(
     submission: {
       commandType: command.type,
       selectedCardId: command.cardId,
+      ...(command.abilityInstanceId ? { abilityInstanceId: command.abilityInstanceId } : {}),
     },
     resultSummary: '起动能力已声明',
     replayCapability: 'DECISION_RECORDS_PARTIAL',

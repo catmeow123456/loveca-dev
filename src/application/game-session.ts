@@ -1914,14 +1914,24 @@ export class GameSession {
             ability.implemented &&
             ability.abilityId === command.abilityId
         );
-        const grantedDefinition = directDefinition
+        if (directDefinition && command.abilityInstanceId !== undefined) {
+          return '直接起动效果不接受授予能力实例';
+        }
+        const grantedAbility = directDefinition
           ? null
-          : (getRenGrantedActivatedAbilityDefinition(
-              state,
-              command.playerId,
-              command.cardId,
-              command.abilityId
-            )?.definition ?? null);
+          : command.abilityInstanceId
+            ? getRenGrantedActivatedAbilityDefinition(
+                state,
+                command.playerId,
+                command.cardId,
+                command.abilityId,
+                command.abilityInstanceId
+              )
+            : null;
+        if (!directDefinition && !grantedAbility) {
+          return '该授予起动效果实例已失效';
+        }
+        const grantedDefinition = grantedAbility?.definition ?? null;
         const sourceZone =
           directDefinition?.sourceZone ??
           grantedDefinition?.sourceZone ??
@@ -1953,7 +1963,8 @@ export class GameSession {
           state,
           command.playerId,
           command.abilityId,
-          command.cardId
+          command.cardId,
+          command.abilityInstanceId
         );
         if (limitStatus && limitStatus.remaining <= 0) {
           return `该起动效果本回合已发动 ${limitStatus.used}/${limitStatus.limit} 次`;
@@ -4941,7 +4952,8 @@ export class GameSession {
       state,
       command.playerId,
       command.cardId,
-      command.abilityId
+      command.abilityId,
+      command.abilityInstanceId
     );
     if (nextState === state) {
       return {
@@ -4965,6 +4977,7 @@ export class GameSession {
           payload: {
             cardId: command.cardId,
             abilityId: command.abilityId,
+            ...(command.abilityInstanceId ? { abilityInstanceId: command.abilityInstanceId } : {}),
           },
         },
       ],

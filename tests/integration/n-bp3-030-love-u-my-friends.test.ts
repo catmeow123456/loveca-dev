@@ -14,10 +14,14 @@ import {
 } from '../../src/domain/entities/game';
 import { addCardToStatefulZone } from '../../src/domain/entities/zone';
 import { createCheerEvent } from '../../src/domain/events/game-events';
+import { addLiveModifier } from '../../src/domain/rules/live-modifiers';
 import { createConfirmEffectStepCommand } from '../../src/application/game-commands';
 import { GameService } from '../../src/application/game-service';
 import { createGameSession } from '../../src/application/game-session';
-import { PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import {
+  PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID,
+  SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
+} from '../../src/application/card-effects/ability-ids';
 import {
   BladeHeartEffect,
   CardType,
@@ -81,9 +85,14 @@ function setupLiveSuccess(options: {
   readonly cheerEventRevealedCardIds?: readonly string[];
   readonly initialScore?: number;
 }): GameState {
-  const sourceLives =
-    options.sourceLives ?? [createCardInstance(createLoveUMyFriends(), PLAYER1, 'love-u-live')];
-  const opponentLive = createCardInstance(createDummyLive('opponent-live'), PLAYER2, 'opponent-live');
+  const sourceLives = options.sourceLives ?? [
+    createCardInstance(createLoveUMyFriends(), PLAYER1, 'love-u-live'),
+  ];
+  const opponentLive = createCardInstance(
+    createDummyLive('opponent-live'),
+    PLAYER2,
+    'opponent-live'
+  );
   const ownCheerCards = options.ownCheerCards ?? [];
   const opponentCheerCards = options.opponentCheerCards ?? [];
   const resolutionOnlyCards = options.resolutionOnlyCards ?? [];
@@ -169,13 +178,7 @@ function resolveLiveSuccess(game: GameState): GameState {
   session.createGame('n-live-success-cheer-all-blade-score-order', PLAYER1, 'P1', PLAYER2, 'P2');
   (session as unknown as { authorityState: GameState }).authorityState = gameState;
   const orderResult = session.executeCommand(
-    createConfirmEffectStepCommand(
-      PLAYER1,
-      gameState.activeEffect.id,
-      undefined,
-      null,
-      true
-    )
+    createConfirmEffectStepCommand(PLAYER1, gameState.activeEffect.id, undefined, null, true)
   );
   expect(orderResult.success, orderResult.error).toBe(true);
   expect(session.state?.activeEffect).toBeNull();
@@ -186,8 +189,7 @@ function loveUScoreModifiers(game: GameState) {
   return game.liveResolution.liveModifiers.filter(
     (modifier) =>
       modifier.kind === 'SCORE' &&
-      modifier.abilityId ===
-        PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID
+      modifier.abilityId === PL_N_BP3_030_LIVE_SUCCESS_CHEER_ALL_BLADE_THIS_LIVE_SCORE_ABILITY_ID
   );
 }
 
@@ -216,7 +218,7 @@ describe('PL!N-bp3-030 Love U my friends live success workflow', () => {
 
     expect(result.success, result.error).toBe(true);
     expect(result.gameState.activeEffect?.effectText).toBe(
-      '【LIVE成功时】因声援公开的自己的卡中存在持有[ALLハート]的卡1张以上时，此卡的分数+1。（声援[ALLハート]卡 1张，满足条件，分数+1）'
+      '【LIVE成功时】因声援被公开的自己的卡片中持有[ALLブレード]的卡片大于等于1张的场合，此卡的分数+1。（声援[ALLブレード]卡 1张，满足条件，分数+1）'
     );
   });
 
@@ -249,6 +251,41 @@ describe('PL!N-bp3-030 Love U my friends live success workflow', () => {
       allBladeCheerCardIds: [allBladeCheer.instanceId],
       conditionMet: true,
       scoreBonus: 1,
+    });
+  });
+
+  it('does not count a printed ALL Blade Heart after Dazzling Game replaces it with purple', () => {
+    const allBladeCheer = createCardInstance(
+      createCheerMember('PL!N-test-replaced-all-blade', allBladeHeart()),
+      PLAYER1,
+      'replaced-all-blade-cheer'
+    );
+    const game = addLiveModifier(setupLiveSuccess({ ownCheerCards: [allBladeCheer] }), {
+      kind: 'CHEER_CARD_HEART_COLOR_REPLACEMENT',
+      playerId: PLAYER1,
+      fromColors: [
+        HeartColor.PINK,
+        HeartColor.RED,
+        HeartColor.YELLOW,
+        HeartColor.GREEN,
+        HeartColor.BLUE,
+        HeartColor.RAINBOW,
+      ],
+      toColor: HeartColor.PURPLE,
+      sourceCardId: 'dazzling-game-live',
+      abilityId: SP_BP4_023_LIVE_START_CHEER_HEART_COLORS_TO_PURPLE_ABILITY_ID,
+    });
+
+    const state = resolveLiveSuccess(game);
+
+    expect(state.pendingAbilities).toEqual([]);
+    expect(state.activeEffect).toBeNull();
+    expect(loveUScoreModifiers(state)).toEqual([]);
+    expect(state.liveResolution.playerScores.get(PLAYER1)).toBe(3);
+    expect(latestPayload(state)).toMatchObject({
+      allBladeCheerCardIds: [],
+      conditionMet: false,
+      scoreBonus: 0,
     });
   });
 

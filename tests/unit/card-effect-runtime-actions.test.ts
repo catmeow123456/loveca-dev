@@ -12,6 +12,7 @@ import {
 import {
   createDrawEvent,
   createEnterWaitingRoomEvent,
+  createLeaveStageEvent,
   createMemberSlotMovedEvent,
 } from '../../src/domain/events/game-events';
 import type { DeckConfig } from '../../src/application/game-service';
@@ -60,7 +61,10 @@ import {
   resolvePublicRevealDwellStep,
 } from '../../src/application/card-effects/runtime/public-reveal-dwell';
 import type { ActiveEffectStepHandlerContext } from '../../src/application/card-effects/runtime/step-registry';
-import { getNewMemberSlotMovedEvents } from '../../src/application/card-effects/runtime/events';
+import {
+  getNewMemberSlotMovedEvents,
+  getPendingLeaveStageEvent,
+} from '../../src/application/card-effects/runtime/events';
 import { addCardToZone, placeCardInSlot } from '../../src/domain/entities/zone';
 import {
   CardType,
@@ -1482,6 +1486,55 @@ describe('card effect runtime actions', () => {
     after = emitGameEvent(after, newSlotMovedEvent);
 
     expect(getNewMemberSlotMovedEvents(before, after)).toEqual([newSlotMovedEvent]);
+  });
+
+  it('returns only the leave-stage event explicitly bound to a pending ability', () => {
+    const unrelated = {
+      ...createLeaveStageEvent(
+        'unrelated-member',
+        SlotPosition.LEFT,
+        ZoneType.WAITING_ROOM,
+        PLAYER1,
+        PLAYER1
+      ),
+      eventId: 'unrelated-leave',
+    };
+    const bound = {
+      ...createLeaveStageEvent(
+        'source-member',
+        SlotPosition.CENTER,
+        ZoneType.WAITING_ROOM,
+        PLAYER1,
+        PLAYER1,
+        'replacement-member'
+      ),
+      eventId: 'bound-leave',
+    };
+    let game = emitGameEvent(createMutableState(), unrelated);
+    game = emitGameEvent(game, bound);
+
+    expect(
+      getPendingLeaveStageEvent(game, {
+        id: 'pending-leave',
+        abilityId: 'test-leave-ability',
+        sourceCardId: 'source-member',
+        controllerId: PLAYER1,
+        mandatory: true,
+        timingId: TriggerCondition.ON_LEAVE_STAGE,
+        eventIds: ['bound-leave'],
+      })
+    ).toEqual(bound);
+    expect(
+      getPendingLeaveStageEvent(game, {
+        id: 'stale-pending-leave',
+        abilityId: 'test-leave-ability',
+        sourceCardId: 'source-member',
+        controllerId: PLAYER1,
+        mandatory: true,
+        timingId: TriggerCondition.ON_LEAVE_STAGE,
+        eventIds: ['missing-leave'],
+      })
+    ).toBeNull();
   });
 
   it('recovers one waiting-room card to hand without mutating the original state', () => {

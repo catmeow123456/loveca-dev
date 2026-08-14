@@ -12,6 +12,7 @@ import {
   isSupportedActivatedAbilityForCard,
 } from '../../src/application/card-effect-runner';
 import { createGameSession, type GameSession } from '../../src/application/game-session';
+import { getRenGrantedActivatedAbilityDefinitions } from '../../src/application/card-effects/runtime/granted-activated-abilities';
 import type { DeckConfig } from '../../src/application/game-service';
 import { registerCards, type GameState } from '../../src/domain/entities/game';
 import { createPublicObjectId } from '../../src/online/projector';
@@ -312,16 +313,38 @@ describe('PL!SP-pb2-005 Ren on-enter and granted activated workflows', () => {
 
   it('lets Ren activate an implemented activated ability from a Liella! member below', () => {
     const scenario = setupGrantedActivatedScenario();
+    const grantedAbility = getRenGrantedActivatedAbilityDefinitions(
+      scenario.session.state!,
+      PLAYER1,
+      scenario.renId
+    ).find(
+      (candidate) =>
+        candidate.grantingMemberBelowCardId === scenario.kekeBelowId &&
+        candidate.definition.abilityId ===
+          SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID
+    );
+    expect(grantedAbility).toBeDefined();
+    const abilityInstanceId = grantedAbility!.abilityInstanceId;
     const playerView = scenario.session.getPlayerViewState(PLAYER1)!;
     expect(
       playerView.objects[createPublicObjectId(scenario.renId)]?.activatedAbilityUiConfig
-        ?.abilityId
-    ).toBe(SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID);
+    ).toMatchObject({
+      abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+      abilityInstanceId,
+    });
     expect(
-      playerView.objects[
-        createPublicObjectId(scenario.renId)
-      ]?.activatedAbilityUiConfigs?.map((config) => config.abilityId)
-    ).toEqual([SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID]);
+      playerView.objects[createPublicObjectId(scenario.renId)]?.activatedAbilityUiConfigs?.map(
+        (config) => ({
+          abilityId: config.abilityId,
+          abilityInstanceId: config.abilityInstanceId,
+        })
+      )
+    ).toEqual([
+      {
+        abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+        abilityInstanceId,
+      },
+    ]);
 
     expect(
       isSupportedActivatedAbilityForCard(
@@ -339,21 +362,33 @@ describe('PL!SP-pb2-005 Ren on-enter and granted activated workflows', () => {
         game: scenario.session.state!,
         playerId: PLAYER1,
         sourceCardId: scenario.renId,
-      })?.abilityId
-    ).toBe(SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID);
+      })
+    ).toMatchObject({
+      abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+      abilityInstanceId,
+    });
     expect(
       getActivatedAbilityUiConfigs('PL!SP-pb2-005-R', CardAbilitySourceZone.STAGE_MEMBER, {
         game: scenario.session.state!,
         playerId: PLAYER1,
         sourceCardId: scenario.renId,
-      }).map((config) => config.abilityId)
-    ).toEqual([SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID]);
+      }).map((config) => ({
+        abilityId: config.abilityId,
+        abilityInstanceId: config.abilityInstanceId,
+      }))
+    ).toEqual([
+      {
+        abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+        abilityInstanceId,
+      },
+    ]);
 
     const result = scenario.session.executeCommand(
       createActivateAbilityCommand(
         PLAYER1,
         scenario.renId,
-        SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID
+        SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
+        abilityInstanceId
       )
     );
 
@@ -361,13 +396,15 @@ describe('PL!SP-pb2-005 Ren on-enter and granted activated workflows', () => {
     expect(scenario.session.state?.activeEffect).toMatchObject({
       abilityId: SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
       sourceCardId: scenario.renId,
+      abilityInstanceId,
       selectableCardIds: [scenario.handCardId],
     });
     const renLimitStatus = getActivatedAbilityLimitStatus(
       scenario.session.state!,
       PLAYER1,
       SP_PB2_002_ACTIVATED_DISCARD_LIELLA_OPTION_ENERGY_OR_HEART_ABILITY_ID,
-      scenario.renId
+      scenario.renId,
+      abilityInstanceId
     );
     expect(renLimitStatus?.sourceCardId).toBe(scenario.renId);
     expect(renLimitStatus?.remaining).toBe(0);
