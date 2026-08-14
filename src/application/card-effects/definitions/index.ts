@@ -57,6 +57,11 @@ import {
   SP_BP7_012_ON_ENTER_BOTTOM_CATCHU_KALEIDOSCORE_FIVEYNCRISE_DRAW_ONE_ABILITY_ID,
   SP_BP7_022_ACTIVATED_RETURN_ENERGY_SELF_POSITION_CHANGE_ABILITY_ID,
   PL_PR_022_ACTIVATED_WAIT_SELF_RIN_HANAYO_DRAW_DISCARD_ABILITY_ID,
+  PL_PR_023_AUTO_TURN_THREE_MEMBER_WAITED_GAIN_BLADE_ABILITY_ID,
+  PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID,
+  N_PR_033_AUTO_TURN_ONCE_WAITING_ROOM_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+  HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID,
+  HS_PR_038_LIVE_SUCCESS_WAIT_OPPONENT_COST_FOUR_SKIP_NEXT_ACTIVE_ABILITY_ID,
   PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
   PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
   PR_LIVE_START_WAITING_ROOM_AT_MOST_NINE_STACK_LIVE_ABILITY_ID,
@@ -1063,6 +1068,14 @@ const N_PR_023_AUTO_ON_CHEER_EFFECT_TEXT =
   '【自动】【1回合1次】自己进行声援时，因声援被公开的卡片中存在大于等于3张持有相同团体名的成员卡的场合，LIVE结束时为止，获得[桃ハート][緑ハート]。';
 const N_PR_025_AUTO_EFFECT_TEXT =
   '【自动】【1回合2次】自己的舞台中，此成员，或其他成员换手登场时，抽1张卡。';
+const PL_PR_023_AUTO_EFFECT_TEXT =
+  '【自动】【1回合3次】每当存在于自己或对方舞台上的成员变为待机状态时，LIVE结束时为止，获得[ブレード]。';
+const PL_PR_023_ACTIVATED_EFFECT_TEXT =
+  '【起动】【1回合1次】将1名成员变为待机状态，将1张手牌放置入休息室：抽1张卡。';
+const N_PR_033_AUTO_EFFECT_TEXT = '【自动】【1回合1次】从自己的休息室登场成员时，抽1张卡。';
+const HS_PR_038_ON_ENTER_EFFECT_TEXT = '【登场】从手牌以外登场时，LIVE结束时为止，获得[紫ハート]。';
+const HS_PR_038_LIVE_SUCCESS_EFFECT_TEXT =
+  '【LIVE成功时】将存在于对方的舞台的1名费用小于等于4的成员变为待机状态。该成员在下回合的活跃阶段中不会变为活跃状态。';
 const PL_N_PB1_005_AUTO_EFFECT_TEXT =
   '【自动】【1回合1次】费用为10的成员登场至自己的舞台时，抽1张卡。';
 const PL_N_PB1_001_ON_ENTER_EFFECT_TEXT =
@@ -14317,8 +14330,43 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
       '单卡 workflow n-bp7-029-burn.ts；可选一名下方有能量的己方舞台成员，原子移动其全部能量为 WAITING/FACE_UP，发出单个 ON_ENERGY_PLACED_BY_CARD_EFFECT 事件，并按移动后能量总数判断来源 LIVE 的 SCORE +1。',
   },
   {
+    abilityId: PL_PR_023_AUTO_TURN_THREE_MEMBER_WAITED_GAIN_BLADE_ABILITY_ID,
+    baseCardCodes: ['PL!-PR-023'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_MEMBER_STATE_CHANGED,
+    queued: true,
+    implemented: true,
+    perTurnLimit: 3,
+    memberStateChangedTriggerFilter: {
+      changedController: 'ANY',
+      previousOrientation: OrientationState.ACTIVE,
+      nextOrientation: OrientationState.WAITING,
+    },
+    effectText: PL_PR_023_AUTO_EFFECT_TEXT,
+    notes:
+      '2026-08-14 DRAFT 导出已更正费用与中日卡文，后续发布以该导出为权威。definition-driven ON_MEMBER_STATE_CHANGED observer；任一方舞台成员真实 ACTIVE -> WAITING 时入队，每回合最多3次，结算时来源仍在己方舞台才写 SOURCE_MEMBER BLADE +1。',
+  },
+  {
+    abilityId: PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!-PR-023'],
+    category: CardAbilityCategory.ACTIVATED,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    queued: false,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: PL_PR_023_ACTIVATED_EFFECT_TEXT,
+    activatedUi: {
+      abilityId: PL_PR_023_ACTIVATED_WAIT_OWN_MEMBER_DISCARD_DRAW_ONE_ABILITY_ID,
+      text: PL_PR_023_ACTIVATED_EFFECT_TEXT,
+      title: '将己方成员变为待机并弃1张手牌，抽1张卡',
+    },
+    notes:
+      '2026-08-14 DRAFT 导出为后续发布权威卡文；日文费用段已按用户确认更正为“メンバーを１人ウェイトにし”，仍未显式写控制者，依用户规则澄清仅允许己方成员。单卡 activated workflow；来源可为 WAITING，只要自己舞台另有 ACTIVE 成员即可发动；只能将己方 ACTIVE 成员变 WAITING，再弃1手作为完整费用，之后抽1。两项费用分别走标准事件 wrapper。',
+  },
+  {
     abilityId: PR_CONTINUOUS_TOTAL_SUCCESS_LIVE_SCORE_TEN_GAIN_PINK_HEART_ABILITY_ID,
-    baseCardCodes: ['PL!-PR-023', 'PL!N-PR-034'],
+    baseCardCodes: ['PL!-PR-024', 'PL!N-PR-034'],
     category: CardAbilityCategory.CONTINUOUS,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     queued: false,
@@ -14326,11 +14374,11 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【常时】只要存在于自己和对方的成功LIVE卡区的所有LIVE卡的分数合计大于等于10，获得[桃ハート]。',
     notes:
-      'continuous live modifier；按双方成功 LIVE 区的有效分数合计动态判断，达到10时来源成员获得 SOURCE_MEMBER 桃 Heart。PL!-PR-023 为绚濑绘里的正式编号，不与 PL!-PR-022 共享能力。PUBLIC visibility，不进入 workflow/runner。',
+      'continuous live modifier；按双方成功 LIVE 区的有效分数合计动态判断，达到10时来源成员获得 SOURCE_MEMBER 桃 Heart。原推测编号 PL!-PR-023 在官方公布后顺延为未知正式编号 PL!-PR-024；与 PL!N-PR-034 维持真实 shared family。PUBLIC visibility，不进入 workflow/runner。',
   },
   {
     abilityId: PR_AUTO_RELAY_REPLACEMENT_COST_NINE_GAIN_TWO_BLADE_ABILITY_ID,
-    baseCardCodes: ['PL!-PR-024', 'PL!HS-PR-040', 'PL!S-PR-046'],
+    baseCardCodes: ['PL!-PR-025', 'PL!HS-PR-040', 'PL!S-PR-046'],
     category: CardAbilityCategory.AUTO,
     sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
     triggerCondition: TriggerCondition.ON_LEAVE_STAGE,
@@ -14340,7 +14388,61 @@ export const CARD_ABILITY_DEFINITIONS: readonly CardAbilityDefinition[] = [
     effectText:
       '【自动】此成员从舞台被放置入休息室时，此成员曾与费用大于等于9的成员换手的场合，LIVE结束时为止，该换手登场的成员获得[ブレード][ブレード]。',
     notes:
-      'shared relay-replacement-gain-blade workflow；PL!-PR-024 为南小鸟的正式编号，不覆盖旧错误编号 PL!-PR-023。只读取 pending 绑定的 LeaveStageEvent/replacingCardId，重验替换成员仍为己方舞台顶层且印刷费用>=9，再写 targetMemberCardId 绑定的 BLADE +2。来源离场不阻止结算；陈旧事件或目标安全 no-op。',
+      'shared relay-replacement-gain-blade workflow；原推测编号 PL!-PR-024 在官方公布 PL!-PR-023 后顺延为未知正式编号 PL!-PR-025。只读取 pending 绑定的 LeaveStageEvent/replacingCardId，重验替换成员仍为己方舞台顶层且印刷费用>=9，再写 targetMemberCardId 绑定的 BLADE +2。来源离场不阻止结算；陈旧事件或目标安全 no-op。',
+  },
+  {
+    abilityId: HS_PR_038_ON_ENTER_NON_HAND_GAIN_PURPLE_HEART_ABILITY_ID,
+    baseCardCodes: ['PL!HS-PR-038'],
+    category: CardAbilityCategory.ON_ENTER,
+    sourceZone: CardAbilitySourceZone.PLAYED_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    triggerFromZones: [
+      ZoneType.MAIN_DECK,
+      ZoneType.ENERGY_DECK,
+      ZoneType.MEMBER_SLOT,
+      ZoneType.ENERGY_ZONE,
+      ZoneType.LIVE_ZONE,
+      ZoneType.SUCCESS_ZONE,
+      ZoneType.WAITING_ROOM,
+      ZoneType.EXILE_ZONE,
+      ZoneType.RESOLUTION_ZONE,
+      ZoneType.INSPECTION_ZONE,
+    ],
+    queued: true,
+    implemented: true,
+    effectText: HS_PR_038_ON_ENTER_EFFECT_TEXT,
+    notes:
+      '扩展 shared on-enter-source-member-gain-live-modifier；definition 的 triggerFromZones 明确排除 HAND，从其他区域登场时来源获得 SOURCE_MEMBER 紫 Heart +1 至 LIVE 结束。',
+  },
+  {
+    abilityId: HS_PR_038_LIVE_SUCCESS_WAIT_OPPONENT_COST_FOUR_SKIP_NEXT_ACTIVE_ABILITY_ID,
+    baseCardCodes: ['PL!HS-PR-038'],
+    category: CardAbilityCategory.LIVE_SUCCESS,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_LIVE_SUCCESS,
+    queued: true,
+    implemented: true,
+    effectText: HS_PR_038_LIVE_SUCCESS_EFFECT_TEXT,
+    notes:
+      '扩展 opponent-wait-target shared family；选择对方费用<=4且非 WAITING 成员，真实变 WAITING 后写入一次下回合 ACTIVE_PHASE 跳过标记，并保留标准 ON_MEMBER_STATE_CHANGED 事件与 continuation。',
+  },
+  {
+    abilityId: N_PR_033_AUTO_TURN_ONCE_WAITING_ROOM_MEMBER_ENTER_DRAW_ONE_ABILITY_ID,
+    baseCardCodes: ['PL!N-PR-033'],
+    category: CardAbilityCategory.AUTO,
+    sourceZone: CardAbilitySourceZone.STAGE_MEMBER,
+    triggerCondition: TriggerCondition.ON_ENTER_STAGE,
+    triggerFromZones: [ZoneType.WAITING_ROOM],
+    onEnterStageTriggerFilter: {
+      enteredController: 'SELF',
+      enteredCardType: CardType.MEMBER,
+    },
+    queued: true,
+    implemented: true,
+    perTurnLimit: 1,
+    effectText: N_PR_033_AUTO_EFFECT_TEXT,
+    notes:
+      '扩展 auto-on-enter-stage-draw shared family；己方任意成员（包含来源自身）从休息室登场时抽1，HAND/对方/非成员事件不匹配，每回合1次。',
   },
   {
     abilityId: PR_ON_ENTER_LOOK_TOP_TEN_MINUS_HAND_TAKE_TWO_ABILITY_ID,

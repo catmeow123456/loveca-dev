@@ -61,6 +61,12 @@ export interface PlayedMemberOnEnterTriggerFilter {
   readonly replacedMemberGroupAliases?: readonly string[];
 }
 
+export interface MemberStateChangedTriggerFilter {
+  readonly changedController?: 'SELF' | 'OPPONENT' | 'ANY';
+  readonly previousOrientation?: OrientationState;
+  readonly nextOrientation?: OrientationState;
+}
+
 export interface RemainingHeartAllocationPreferenceDefinition {
   readonly color: HeartColor;
   readonly minCount: number;
@@ -100,6 +106,7 @@ export interface CardAbilityDefinition {
   readonly enterWaitingRoomCause?: 'OWN_LIVE_SUCCESS_ABILITY';
   readonly playedMemberOnEnterTriggerFilter?: PlayedMemberOnEnterTriggerFilter;
   readonly onEnterStageTriggerFilter?: OnEnterStageTriggerFilter;
+  readonly memberStateChangedTriggerFilter?: MemberStateChangedTriggerFilter;
   readonly energyPlacementCause?: 'ANY_CARD_EFFECT' | 'OWN_CARD_EFFECT';
   readonly perTurnLimit?: number;
   readonly countPendingAsTurnUse?: boolean;

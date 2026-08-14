@@ -131,6 +131,7 @@ import { registerNBp3005AiWorkflowHandlers } from './card-effects/workflows/card
 import { registerNBp3006KanataWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-006-kanata.js';
 import { registerNBp3007SetsunaWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-007-setsuna.js';
 import { registerAutoOnEnterStageDrawWorkflowHandlers } from './card-effects/workflows/shared/auto-on-enter-stage-draw.js';
+import { registerPlPr023EliWorkflowHandlers } from './card-effects/workflows/cards/pl-pr-023-eli.js';
 import { registerNBp3011MiaTaylorWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-011-mia-taylor.js';
 import { registerNBp3013AyumuWorkflowHandlers } from './card-effects/workflows/cards/n-bp3-013-ayumu.js';
 import { registerBp5007NozomiWorkflowHandlers } from './card-effects/workflows/cards/pl-bp5-007-nozomi.js';
@@ -1016,6 +1017,7 @@ registerNBp3005AiWorkflowHandlers();
 registerNBp3006KanataWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3007SetsunaWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerAutoOnEnterStageDrawWorkflowHandlers();
+registerPlPr023EliWorkflowHandlers({ enqueueTriggeredCardEffects });
 registerNBp3011MiaTaylorWorkflowHandlers();
 registerNBp3013AyumuWorkflowHandlers();
 registerRevealedCheerSelectionWorkflowHandlers({ continuePendingCardEffects });
@@ -1823,39 +1825,18 @@ function createMemberStateChangedAbilitySources(
   event: MemberStateChangedEvent
 ): readonly MemberStateChangedAbilitySource[] {
   const sources: MemberStateChangedAbilitySource[] = [];
-  const changedController = getPlayerById(game, event.controllerId);
-  if (
-    changedController &&
-    changedController.memberSlots.slots[event.slot] === event.cardInstanceId
-  ) {
-    sources.push({
-      sourceCardId: event.cardInstanceId,
-      controllerId: event.controllerId,
-      sourceSlot: event.slot,
-      event,
-    });
-  }
-
-  if (
-    event.cause?.kind === 'CARD_EFFECT' &&
-    event.cause.playerId !== event.controllerId &&
-    event.previousOrientation === OrientationState.ACTIVE &&
-    event.nextOrientation === OrientationState.WAITING
-  ) {
-    const effectController = getPlayerById(game, event.cause.playerId);
-    if (effectController) {
-      for (const sourceSlot of MEMBER_SLOT_ORDER) {
-        const sourceCardId = effectController.memberSlots.slots[sourceSlot];
-        if (!sourceCardId) {
-          continue;
-        }
-        sources.push({
-          sourceCardId,
-          controllerId: effectController.id,
-          sourceSlot,
-          event,
-        });
+  for (const player of game.players) {
+    for (const sourceSlot of MEMBER_SLOT_ORDER) {
+      const sourceCardId = player.memberSlots.slots[sourceSlot];
+      if (!sourceCardId) {
+        continue;
       }
+      sources.push({
+        sourceCardId,
+        controllerId: player.id,
+        sourceSlot,
+        event,
+      });
     }
   }
 
@@ -1955,6 +1936,20 @@ function doesMemberStateChangedEventSatisfyAbility(
   ability: CardAbilityDefinition
 ): boolean {
   const event = source.event;
+  const filter = ability.memberStateChangedTriggerFilter;
+  if (filter) {
+    if (filter.changedController === 'SELF' && event.controllerId !== source.controllerId) {
+      return false;
+    }
+    if (filter.changedController === 'OPPONENT' && event.controllerId === source.controllerId) {
+      return false;
+    }
+    return (
+      (filter.previousOrientation === undefined ||
+        event.previousOrientation === filter.previousOrientation) &&
+      (filter.nextOrientation === undefined || event.nextOrientation === filter.nextOrientation)
+    );
+  }
 
   if (ability.abilityId === N_BP4_018_MAIN_PHASE_ACTIVE_TO_WAITING_DRAW_DISCARD_ABILITY_ID) {
     const activePlayerId = game.players[game.activePlayerIndex]?.id ?? null;
@@ -2496,6 +2491,13 @@ function doesPlayedMemberOnEnterTriggerMatchAbilityDefinition(
   source: OnEnterAbilitySource,
   ability: CardAbilityDefinition
 ): boolean {
+  if (
+    ability.triggerFromZones !== undefined &&
+    (source.fromZone === undefined || !ability.triggerFromZones.includes(source.fromZone))
+  ) {
+    return false;
+  }
+
   const filter = ability.playedMemberOnEnterTriggerFilter;
   if (!filter) {
     return true;
@@ -3134,8 +3136,7 @@ export function resolvePendingCardEffects(game: GameState): CardEffectRunnerResu
     return resolvePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers);
   }
 
-  const stateWithEnergyBelowTriggers =
-    enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
+  const stateWithEnergyBelowTriggers = enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
   if (stateWithEnergyBelowTriggers !== game) {
     return resolvePendingCardEffects(stateWithEnergyBelowTriggers);
   }
@@ -3467,8 +3468,7 @@ function continuePendingCardEffects(game: GameState, orderedResolution: boolean)
     return continuePendingCardEffects(stateWithWaitingRoomToMainDeckTriggers, orderedResolution);
   }
 
-  const stateWithEnergyBelowTriggers =
-    enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
+  const stateWithEnergyBelowTriggers = enqueueUntriggeredEnergyPlacedBelowMemberCardEffects(game);
   if (stateWithEnergyBelowTriggers !== game) {
     return continuePendingCardEffects(stateWithEnergyBelowTriggers, orderedResolution);
   }

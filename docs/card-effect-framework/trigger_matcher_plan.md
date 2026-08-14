@@ -2,7 +2,7 @@
 
 > 文档类型：历史/计划文档
 > 适用范围：卡效 trigger matcher 的 T-0/T-1 字段边界、非目标与后续迁移判断
-> 当前状态：T-0/T-1 已落地为纯 matcher；尚未接入 runner，后续迁移需单独审查
+> 当前状态：T-0/T-1 纯 matcher 尚未整体接入 runner；`ON_MEMBER_STATE_CHANGED` 已有窄的 definition-driven 方向/controller filter proving path，其他迁移仍需单独审查
 
 本文档记录 Trigger T-0 盘点与 T-1 第一版纯 matcher 的字段边界。当前目标不是实现新卡效，也不是接入 runner，而是确认“事件是否匹配能力”的最小模型不会只适配当前已实现样本。
 
@@ -20,7 +20,7 @@
 - `ON_LIVE_SUCCESS`
   - `enqueueLiveSuccessCardEffects`：扫描成功玩家舞台成员与成功 LIVE 卡，绑定 `LiveSuccessEvent.eventId` 或 fallback synthetic id。
 - `ON_MEMBER_STATE_CHANGED`
-  - `enqueueMemberStateChangedCardEffects`：消费 `MemberStateChangedEvent`，当前仍有 ability-specific guard，例如自身 `ACTIVE -> WAITING` 或自己的卡效使对方成员 `ACTIVE -> WAITING`。
+  - `enqueueMemberStateChangedCardEffects`：消费 `MemberStateChangedEvent`。`memberStateChangedTriggerFilter` 已支持 `SELF` / `OPPONENT` / `ANY` controller 关系与 previous/next orientation，`PL!-PR-023` 是任一方 `ACTIVE -> WAITING` 的 proving sample；旧卡 cause/phase/cost 等特殊 guard 仍保留在 runner/workflow。
 - `ON_CHEER`
   - `enqueueCheerCardEffects`：消费最新 `CheerEvent`，扫描表演玩家 LIVE 区来源；`additional=true` 的追加声援不二次触发。
 - `ON_MEMBER_SLOT_MOVED`

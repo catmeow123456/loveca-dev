@@ -93,6 +93,25 @@ describe('parseCardEffectText', () => {
     );
   });
 
+  it('maps the three-times-per-turn limit used by PL!-PR-023', () => {
+    const texts = [
+      '【自动】【ターン3回】抽1张卡。',
+      '【自动】【ターン３回】抽1张卡。',
+      '【自动】【1回合3次】抽1张卡。',
+      '【自动】【每回合3次】抽1张卡。',
+    ];
+
+    expect(texts.map(getUnknownCardEffectPlaceholders)).toEqual([[], [], [], []]);
+    expect(
+      texts.map((text) => parseCardEffectText(text).find((part) => part.kind === 'limit'))
+    ).toEqual([
+      { kind: 'limit', raw: '【ターン3回】', label: 'ターン3回' },
+      { kind: 'limit', raw: '【ターン３回】', label: 'ターン３回' },
+      { kind: 'limit', raw: '【1回合3次】', label: '1回合3次' },
+      { kind: 'limit', raw: '【每回合3次】', label: '每回合3次' },
+    ]);
+  });
+
   it('maps the DRAW blade-heart token used by PL!-pb2-001-R', () => {
     expect(getUnknownCardEffectPlaceholders('存在持有[ドロー]的卡片的场合，回收1张卡。')).toEqual(
       []
