@@ -175,6 +175,21 @@ type AppPage =
   | 'deck-point-admin'
   | 'match-emotes-admin';
 
+const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
+  'admin-center',
+  'card-admin',
+  'ai-effect-admin',
+  'online-admin',
+  'announcement-admin',
+  'ranked-admin',
+  'deck-point-admin',
+  'match-emotes-admin',
+]);
+
+function pageRequiresRuntimeCardData(page: AppPage): boolean {
+  return !CARD_DATA_INDEPENDENT_PAGES.has(page);
+}
+
 interface InitialAuthRequest {
   page: AuthPage;
   token: string | null;
@@ -247,6 +262,7 @@ function App() {
     initialAuthRequest.page === 'verify-email' ||
     initialAuthRequest.page === 'verify-email-change';
   const [isLoading, setIsLoading] = useState(!isInitialAuthActionPage);
+  const [cardDataInitialized, setCardDataInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [authPage, setAuthPage] = useState<AuthPage>(initialAuthRequest.page);
   const [authToken, setAuthToken] = useState<string | null>(initialAuthRequest.token);
@@ -456,7 +472,8 @@ function App() {
     initializeAuth();
   }, [configInitialized, initializeAuth]);
 
-  // 初始化卡牌数据 - 只从数据库加载
+  // 只在需要构筑或对局卡池的页面初始化卡牌数据。管理页使用自己的分页接口，
+  // 不应被完整 PUBLISHED 卡池阻塞。
   useEffect(() => {
     if (!authInitialized) return;
 
@@ -468,7 +485,19 @@ function App() {
       return;
     }
 
+    if (!pageRequiresRuntimeCardData(currentPage)) {
+      return;
+    }
+
+    if (cardDataInitialized) {
+      return;
+    }
+
+    let cancelled = false;
+
     const init = async () => {
+      setIsLoading(true);
+      setError(null);
       try {
         // 从数据库加载已上线的卡牌数据（仅 PUBLISHED）
         const cards = await cardService.getAllCards(true, 'PUBLISHED');
@@ -476,15 +505,19 @@ function App() {
         // 图片映射暂时为空（后续可从数据库或 CDN 获取）
         const imageMap = new Map<string, string>();
 
+        if (cancelled) return;
         loadCardData(cards, imageMap);
         initDeckStore();
+        setCardDataInitialized(true);
         setError(null);
         setIsLoading(false);
       } catch (err) {
+        if (cancelled) return;
         if (import.meta.env.DEV) {
           console.warn('[App] 卡牌 API 不可用，已进入本地测试降级模式:', err);
           loadCardData([]);
           initDeckStore();
+          setCardDataInitialized(true);
         } else {
           console.error('[App] 卡牌数据加载失败:', err);
           setError(err instanceof Error ? err.message : '未知错误');
@@ -493,8 +526,11 @@ function App() {
       }
     };
 
-    init();
-  }, [authInitialized, authPage, loadCardData, initDeckStore]);
+    void init();
+    return () => {
+      cancelled = true;
+    };
+  }, [authInitialized, authPage, cardDataInitialized, currentPage, loadCardData, initDeckStore]);
 
   // 计算实际显示的页面（游戏结束后自动回到首页）
   const effectivePage: AppPage = currentPage === 'game' && !matchView ? 'home' : currentPage;
@@ -549,7 +585,7 @@ function App() {
       return;
     }
 
-    if (!configInitialized || !authInitialized || isLoading || error) {
+    if (!configInitialized || !authInitialized || !cardDataInitialized || isLoading || error) {
       return;
     }
 
@@ -618,6 +654,7 @@ function App() {
     applyRemoteSnapshot,
     authInitialized,
     authPage,
+    cardDataInitialized,
     configInitialized,
     connectRemoteSession,
     error,
@@ -643,7 +680,13 @@ function App() {
 
   // 公开首页与认证表单不依赖完整卡池；卡牌数据在后台加载，避免用整页启动屏
   // 阻断访客入口。共享卡组、观战和已登录工作区仍等待卡池准备完成。
-  if (isLoading && (isAuthenticated || shareId || spectatorToken || spectatorLobbyRequested)) {
+  const currentPageRequiresCardData = pageRequiresRuntimeCardData(effectivePage);
+  if (
+    currentPageRequiresCardData &&
+    !cardDataInitialized &&
+    !error &&
+    (isAuthenticated || shareId || spectatorToken || spectatorLobbyRequested)
+  ) {
     return (
       <div className="app-shell h-screen flex items-center justify-center px-4">
         <div className="text-center">
@@ -656,7 +699,7 @@ function App() {
 
   // 已进入账户/离线会话后仍保持原有启动失败边界；公开首页可以在卡牌 API
   // 暂时不可用时继续展示，并把状态降级到相关操作附近。
-  if (error && isAuthenticated) {
+  if (error && isAuthenticated && currentPageRequiresCardData) {
     return <StartupErrorPage error={error} siteStatus={appConfig.siteStatus} />;
   }
 

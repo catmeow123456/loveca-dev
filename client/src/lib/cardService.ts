@@ -86,6 +86,35 @@ export interface CardCreateInput extends CardUpdateInput {
   cardType: 'MEMBER' | 'LIVE' | 'ENERGY';
 }
 
+export type AdminCardStatus = 'DRAFT' | 'PUBLISHED';
+
+export interface AdminCardListItem {
+  cardCode: string;
+  cardType: CardType;
+  nameJp: string | null;
+  nameCn: string | null;
+  imageFilename: string | null;
+  rare: string | null;
+  status: AdminCardStatus;
+  updatedAt: string;
+}
+
+export interface AdminCardListPage {
+  items: AdminCardListItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AdminCardListParams {
+  page: number;
+  pageSize: number;
+  query?: string;
+  cardType?: CardType;
+  status?: AdminCardStatus;
+}
+
 // ============================================
 // Data conversion
 // ============================================
@@ -233,6 +262,48 @@ class CardService {
     }
 
     return cards;
+  }
+
+  async getAdminCards(params: AdminCardListParams): Promise<AdminCardListPage> {
+    if (!isApiConfigured) {
+      throw new Error('API 未配置');
+    }
+
+    const search = new URLSearchParams({
+      page: String(params.page),
+      pageSize: String(params.pageSize),
+    });
+    if (params.query) search.set('query', params.query);
+    if (params.cardType) search.set('cardType', params.cardType);
+    if (params.status) search.set('status', params.status);
+
+    const result = await apiClient.get<AdminCardListPage>(`/api/cards/admin?${search}`);
+    if (result.error || !result.data) {
+      throw new Error(`获取卡牌管理列表失败: ${result.error?.message ?? '响应为空'}`);
+    }
+    return result.data;
+  }
+
+  async updateAdminCardsStatus(
+    params: Omit<AdminCardListParams, 'page' | 'pageSize'>,
+    targetStatus: AdminCardStatus
+  ): Promise<number> {
+    if (!isApiConfigured) {
+      throw new Error('API 未配置');
+    }
+
+    const result = await apiClient.put<{ updated: number }>('/api/cards/admin/status', {
+      targetStatus,
+      query: params.query,
+      cardType: params.cardType,
+      status: params.status,
+    });
+    if (result.error || !result.data) {
+      throw new Error(`批量更新卡牌状态失败: ${result.error?.message ?? '响应为空'}`);
+    }
+
+    this.clearCache();
+    return result.data.updated;
   }
 
   async getCardByCode(cardCode: string): Promise<AnyCardData | null> {

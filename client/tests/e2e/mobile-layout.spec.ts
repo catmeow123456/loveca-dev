@@ -462,6 +462,45 @@ async function installApiMocks(
       return;
     }
 
+    if (url.pathname === '/api/cards/admin' && method === 'GET') {
+      const query = (url.searchParams.get('query') ?? '').trim().toLocaleLowerCase();
+      const cardType = url.searchParams.get('cardType');
+      const status = url.searchParams.get('status');
+      const pageNumber = Math.max(1, Number(url.searchParams.get('page') ?? 1));
+      const pageSize = Math.max(1, Number(url.searchParams.get('pageSize') ?? 28));
+      const filtered = cardRecords.filter((card) => {
+        if (cardType && card.card_type !== cardType) return false;
+        if (status && card.status !== status) return false;
+        if (!query) return true;
+        return [card.card_code, card.name_jp, card.name_cn].some((value) =>
+          value?.toLocaleLowerCase().includes(query)
+        );
+      });
+      const offset = (pageNumber - 1) * pageSize;
+      await fulfillApi(route, {
+        items: filtered.slice(offset, offset + pageSize).map((card) => ({
+          cardCode: card.card_code,
+          cardType: card.card_type,
+          nameJp: card.name_jp,
+          nameCn: card.name_cn,
+          imageFilename: card.image_filename,
+          rare: card.rare,
+          status: card.status,
+          updatedAt: card.updated_at,
+        })),
+        page: pageNumber,
+        pageSize,
+        total: filtered.length,
+        totalPages: Math.ceil(filtered.length / pageSize),
+      });
+      return;
+    }
+
+    if (url.pathname === '/api/cards/admin/status' && method === 'PUT') {
+      await fulfillApi(route, { updated: cardRecords.length });
+      return;
+    }
+
     if (url.pathname === '/api/cards/status-map') {
       await fulfillApi(
         route,
@@ -553,7 +592,7 @@ async function installApiMocks(
           id: input.card_code ?? 'created-card',
           card_code: input.card_code ?? 'CREATED-001',
           card_type: input.card_type ?? 'MEMBER',
-          name: input.name ?? '新建卡牌',
+          name_cn: input.name_cn ?? '新建卡牌',
         })
       );
       return;
@@ -1132,6 +1171,71 @@ test.describe('mobile layout baseline', () => {
       await attachScreenshot(page, testInfo, scenario.name);
     });
   }
+
+  test('卡牌管理直接启动只请求分页摘要，编辑保存不重载列表', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet-1024x768', '请求链路回归只需执行一次');
+
+    const cardRequests: Array<{ method: string; path: string; search: string }> = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.startsWith('/api/cards')) {
+        cardRequests.push({ method: request.method(), path: url.pathname, search: url.search });
+      }
+    });
+
+    await installApiMocks(page, true);
+    await page.goto('/?page=card-admin');
+
+    const firstCardButton = page.getByRole('button', { name: /^编辑 移动验收成员/ }).first();
+    await expect(firstCardButton).toBeVisible();
+    expect(
+      cardRequests.filter((request) => request.method === 'GET' && request.path === '/api/cards')
+    ).toHaveLength(0);
+    expect(
+      cardRequests.filter(
+        (request) => request.method === 'GET' && request.path === '/api/cards/admin'
+      )
+    ).toHaveLength(1);
+    expect(cardRequests.find((request) => request.path === '/api/cards/admin')?.search).toContain(
+      'pageSize=28'
+    );
+
+    const memberFilterRequest = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return (
+        request.method() === 'GET' &&
+        url.pathname === '/api/cards/admin' &&
+        url.searchParams.get('cardType') === 'MEMBER'
+      );
+    });
+    await page.getByRole('button', { name: '成员卡', exact: true }).click();
+    await memberFilterRequest;
+
+    await firstCardButton.click();
+    const editor = page.getByRole('dialog');
+    await expect(editor.getByText(/^编辑卡牌:/)).toBeVisible();
+    expect(
+      cardRequests.filter(
+        (request) =>
+          request.method === 'GET' &&
+          request.path !== '/api/cards/admin' &&
+          /^\/api\/cards\/[^/]+$/.test(request.path)
+      )
+    ).toHaveLength(1);
+
+    await editor
+      .locator('label', { hasText: '中文卡名' })
+      .locator('..')
+      .getByRole('textbox')
+      .fill('编辑后的移动验收成员');
+    await editor.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(editor).toHaveCount(0);
+    expect(
+      cardRequests.filter(
+        (request) => request.method === 'GET' && request.path === '/api/cards/admin'
+      )
+    ).toHaveLength(2);
+  });
 
   test('桌面短视口中的收录商品筛选可以独立滚动', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'tablet-1024x768', '桌面短视口回归只需执行一次');

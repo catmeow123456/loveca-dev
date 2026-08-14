@@ -10,6 +10,10 @@ vi.mock('../../src/server/db/pool.js', () => ({
 import { cardsRouter } from '../../src/server/routes/cards';
 import { pool } from '../../src/server/db/pool';
 
+// pool.query relies on its owning Pool at runtime; the test mock itself is safe to retain.
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const poolQueryMock = vi.mocked(pool.query);
+
 function createMockResponse() {
   const response = {
     statusCode: 200,
@@ -33,10 +37,21 @@ function createMockResponse() {
   };
 }
 
-function findRouteLayer(path: string, method: 'put') {
-  const layer = cardsRouter.stack.find(
-    (candidate) =>
-      'route' in candidate && candidate.route?.path === path && candidate.route.methods[method]
+type RouteMethod = 'get' | 'put';
+
+interface TestRouteLayer {
+  readonly route?: {
+    readonly path: string;
+    readonly methods: Partial<Record<RouteMethod, boolean>>;
+    readonly stack: ReadonlyArray<{
+      readonly handle: (request: Request, response: Response, next: NextFunction) => unknown;
+    }>;
+  };
+}
+
+function findRouteLayer(path: string, method: RouteMethod) {
+  const layer = (cardsRouter.stack as unknown as TestRouteLayer[]).find(
+    (candidate) => candidate.route?.path === path && candidate.route.methods[method]
   );
   if (!layer?.route) {
     throw new Error(`Route not found: ${method.toUpperCase()} ${path}`);
@@ -44,7 +59,7 @@ function findRouteLayer(path: string, method: 'put') {
   return layer.route;
 }
 
-async function invokeRoute(path: string, method: 'put', options: Partial<Request> = {}) {
+async function invokeRoute(path: string, method: RouteMethod, options: Partial<Request> = {}) {
   const route = findRouteLayer(path, method);
   const response = createMockResponse();
   const request = {
@@ -61,9 +76,12 @@ async function invokeRoute(path: string, method: 'put', options: Partial<Request
     }
 
     await new Promise<void>((resolve, reject) => {
+      const rejectWithError = (error: unknown) => {
+        reject(error instanceof Error ? error : new Error(String(error)));
+      };
       const next: NextFunction = (error?: unknown) => {
         if (error) {
-          reject(error);
+          rejectWithError(error);
           return;
         }
         resolve();
@@ -71,11 +89,11 @@ async function invokeRoute(path: string, method: 'put', options: Partial<Request
 
       try {
         const result = layer.handle(request, response, next);
-        if (result && typeof (result as Promise<void>).then === 'function') {
-          void (result as Promise<void>).then(resolve, reject);
+        if (result instanceof Promise) {
+          void result.then(() => resolve(), rejectWithError);
         }
       } catch (error) {
-        reject(error);
+        rejectWithError(error);
       }
     });
   }
@@ -88,8 +106,129 @@ describe('cardsRouter', () => {
     vi.clearAllMocks();
   });
 
+  it('管理列表在服务端分页、筛选并只返回轻量字段', async () => {
+    const updatedAt = new Date('2026-08-14T08:00:00.000Z');
+    poolQueryMock
+      .mockResolvedValueOnce({ rows: [{ total: '29' }] } as never)
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            cardCode: 'PL!-sd1-007-SD',
+            cardType: 'MEMBER',
+            nameJp: '東條 希',
+            nameCn: '东条希',
+            imageFilename: 'PL!-sd1-007-SD.png',
+            rare: 'SD',
+            status: 'DRAFT',
+            updatedAt,
+          },
+        ],
+      } as never);
+
+    const response = await invokeRoute('/admin', 'get', {
+      query: {
+        page: '2',
+        pageSize: '28',
+        query: '%_',
+        cardType: 'MEMBER',
+        status: 'DRAFT',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({
+      data: {
+        items: [
+          {
+            cardCode: 'PL!-sd1-007-SD',
+            cardType: 'MEMBER',
+            nameJp: '東條 希',
+            nameCn: '东条希',
+            imageFilename: 'PL!-sd1-007-SD.png',
+            rare: 'SD',
+            status: 'DRAFT',
+            updatedAt: updatedAt.toISOString(),
+          },
+        ],
+        page: 2,
+        pageSize: 28,
+        total: 29,
+        totalPages: 2,
+      },
+      error: null,
+    });
+    expect(poolQueryMock).toHaveBeenCalledTimes(2);
+    const [countSql, countValues] = poolQueryMock.mock.calls[0] ?? [];
+    const [listSql, listValues] = poolQueryMock.mock.calls[1] ?? [];
+    expect(countSql).toContain('SELECT COUNT(*)');
+    expect(countValues).toEqual(['MEMBER', 'DRAFT', '%\\%\\_%']);
+    expect(listSql).not.toContain('SELECT *');
+    expect(listSql).toContain('LIMIT $4 OFFSET $5');
+    expect(listValues).toEqual(['MEMBER', 'DRAFT', '%\\%\\_%', 28, 28]);
+  });
+
+  it('管理列表拒绝超出上限的分页大小', async () => {
+    const response = await invokeRoute('/admin', 'get', {
+      query: { page: '1', pageSize: '101' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    expect(poolQueryMock).not.toHaveBeenCalled();
+  });
+
+  it('批量状态切换使用一次集合更新并沿用当前筛选', async () => {
+    poolQueryMock.mockResolvedValueOnce({
+      rows: [{ card_code: 'PL!-sd1-007-SD' }],
+      rowCount: 1,
+    } as never);
+
+    const response = await invokeRoute('/admin/status', 'put', {
+      body: {
+        targetStatus: 'PUBLISHED',
+        cardType: 'MEMBER',
+        status: 'DRAFT',
+        query: '东条',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({ data: { updated: 1 }, error: null });
+    expect(poolQueryMock).toHaveBeenCalledTimes(1);
+    const [sql, values] = poolQueryMock.mock.calls[0] ?? [];
+    expect(sql).toContain('UPDATE cards');
+    expect(sql).toContain('updated_at = now()');
+    expect(sql).toContain('WHERE status <> $1');
+    expect(values).toEqual(['PUBLISHED', 'admin-1', 'MEMBER', 'DRAFT', '%东条%']);
+  });
+
+  it('读取单卡详情时只查询同基础编号的同型卡牌用于继承', async () => {
+    const card = {
+      card_code: 'PL!_-sd1-007-SD',
+      card_type: 'MEMBER',
+      name_jp: '東條 希',
+      status: 'PUBLISHED',
+      blade_hearts: null,
+    };
+    poolQueryMock
+      .mockResolvedValueOnce({ rows: [card] } as never)
+      .mockResolvedValueOnce({ rows: [card] } as never);
+
+    const response = await invokeRoute('/:code', 'get', {
+      params: { code: card.card_code },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toEqual({ data: card, error: null });
+    expect(poolQueryMock).toHaveBeenCalledTimes(2);
+    const [inheritanceSql, inheritanceValues] = poolQueryMock.mock.calls[1] ?? [];
+    expect(inheritanceSql).toContain('card_type = $1');
+    expect(inheritanceSql).toContain("card_code = $2 OR card_code LIKE $3 ESCAPE '\\'");
+    expect(inheritanceValues).toEqual(['MEMBER', 'PL!_-sd1-007', 'PL!\\_-sd1-007-%']);
+  });
+
   it('更新卡牌时允许清空一个名称字段，只要另一个名称仍存在', async () => {
-    vi.mocked(pool.query)
+    poolQueryMock
       .mockResolvedValueOnce({ rows: [{ name_jp: '日文名', name_cn: '中文名' }] } as never)
       .mockResolvedValueOnce({
         rows: [{ card_code: 'CARD-1', name_jp: '日文名', name_cn: null }],
@@ -101,12 +240,12 @@ describe('cardsRouter', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(pool.query).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(pool.query).mock.calls[1]?.[1]).toEqual([null, 'admin-1', 'CARD-1']);
+    expect(poolQueryMock).toHaveBeenCalledTimes(2);
+    expect(poolQueryMock.mock.calls[1]?.[1]).toEqual([null, 'admin-1', 'CARD-1']);
   });
 
   it('更新卡牌时拒绝同时清空日文名和中文名', async () => {
-    vi.mocked(pool.query).mockResolvedValueOnce({
+    poolQueryMock.mockResolvedValueOnce({
       rows: [{ name_jp: '日文名', name_cn: '中文名' }],
     } as never);
 
@@ -120,6 +259,6 @@ describe('cardsRouter', () => {
       data: null,
       error: { code: 'VALIDATION_ERROR', message: 'name_jp 或 name_cn 至少需要一个' },
     });
-    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(poolQueryMock).toHaveBeenCalledTimes(1);
   });
 });

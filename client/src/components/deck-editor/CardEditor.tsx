@@ -17,8 +17,8 @@ import type { AnyCardData } from '@game/domain/entities/card';
 import type { DeckConfig } from '@game/domain/card-data/deck-loader';
 import { useCardFilters } from './use-card-filters';
 import { useDeckMutations } from './use-deck-mutations';
-import { CardTypeTabs } from './CardTypeTabs';
-import { SearchBar } from './SearchBar';
+import { CardTypeTabs } from '@/components/card-filters/CardTypeTabs';
+import { CardSearchInput } from '@/components/card-filters/CardSearchInput';
 import { FilterPanel } from './FilterPanel';
 import { CardBrowserGrid } from './CardBrowserGrid';
 import { DeckSidebar } from './DeckSidebar';
@@ -68,7 +68,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
               )}
               <div className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
-                  <SearchBar
+                  <CardSearchInput
                     value={filters.searchQuery}
                     onChange={filters.setSearchQuery}
                     resultCount={filters.sortedCards.length}
@@ -199,9 +199,7 @@ export function CardEditor({ deck, onDeckChange, onValidate }: CardEditorProps) 
                       >
                         当前卡组
                       </div>
-                      <div className="text-xs text-[var(--text-muted)]">
-                        向下滑动查看完整构筑
-                      </div>
+                      <div className="text-xs text-[var(--text-muted)]">向下滑动查看完整构筑</div>
                     </div>
                     <button
                       type="button"

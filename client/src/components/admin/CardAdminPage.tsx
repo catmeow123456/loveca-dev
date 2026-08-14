@@ -3,7 +3,7 @@
  * 仅管理员可访问，提供卡牌数据的 CRUD 操作
  */
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -27,43 +27,83 @@ import {
 } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
 import { useAuthStore } from '@/store/authStore';
-import { cardService, type CardUpdateInput, type CardCreateInput } from '@/lib/cardService';
-import { cleanLocalizedText, getCardLocalizedInfo } from '@/lib/cardLocalization';
 import {
-  resolveCardImagePath,
-  preloadCardImages,
-  getRecommendedImageSize,
-} from '@/lib/imageService';
-import { Card } from '@/components/card/Card';
+  cardService,
+  type AdminCardListItem,
+  type AdminCardStatus,
+  type CardUpdateInput,
+  type CardCreateInput,
+} from '@/lib/cardService';
+import { cleanLocalizedText } from '@/lib/cardLocalization';
+import { resolveCardImagePath } from '@/lib/imageService';
 import type { AnyCardData } from '@game/domain/entities/card';
 import { CardType } from '@game/shared/types/enums';
 import { CardEditModal } from './CardEditModal';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useKeyedState } from '@/hooks/useKeyedState';
+import { CardSearchInput } from '@/components/card-filters/CardSearchInput';
+import { CardTypeTabs } from '@/components/card-filters/CardTypeTabs';
 
 interface CardAdminPageProps {
   onBack: () => void;
   onOpenAiConfig: () => void;
 }
 
+const PAGE_SIZE = 28;
+
+function getAdminCardLocalizedInfo(card: AdminCardListItem) {
+  const nameCn = cleanLocalizedText(card.nameCn);
+  const nameJp = cleanLocalizedText(card.nameJp);
+  const displayNameCn = nameCn ?? nameJp ?? card.cardCode;
+  return {
+    displayNameCn,
+    nameJp,
+    title: nameJp && nameJp !== displayNameCn ? `${displayNameCn} / ${nameJp}` : displayNameCn,
+  };
+}
+
+function AdminCardThumbnail({ card }: { card: AdminCardListItem }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const localizedName = getAdminCardLocalizedInfo(card);
+
+  return imageFailed ? (
+    <div className="flex h-full w-full items-center justify-center rounded-lg bg-linear-to-br from-slate-700 to-slate-800 p-2 text-center text-xs text-slate-300">
+      <span className="line-clamp-3 break-words">{localizedName.displayNameCn}</span>
+    </div>
+  ) : (
+    <img
+      src={resolveCardImagePath(card, 'thumb')}
+      alt={localizedName.title}
+      className="h-full w-full rounded-lg object-cover shadow-lg transition-[filter] duration-200 group-hover:brightness-110"
+      loading="lazy"
+      decoding="async"
+      onError={() => setImageFailed(true)}
+    />
+  );
+}
+
 export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
   const { offlineMode } = useAuthStore(useShallow((s) => ({ offlineMode: s.offlineMode })));
 
-  const [cards, setCards] = useState<AnyCardData[]>([]);
-  const [cardStatusMap, setCardStatusMap] = useState<Map<string, 'DRAFT' | 'PUBLISHED'>>(new Map());
+  const [cards, setCards] = useState<AdminCardListItem[]>([]);
+  const [totalCards, setTotalCards] = useState(0);
   const [initialLoading, setInitialLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState<CardType | 'ALL'>('ALL');
-  const [selectedStatus, setSelectedStatus] = useState<'ALL' | 'DRAFT' | 'PUBLISHED'>('ALL');
+  const [selectedStatus, setSelectedStatus] = useState<'ALL' | AdminCardStatus>('ALL');
   const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
+  const [openingCardCode, setOpeningCardCode] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [exporting, setExporting] = useState(false);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize] = useState(28);
   const [batchWorking, setBatchWorking] = useState(false);
+  const hasLoadedRef = useRef(false);
+  const loadGenerationRef = useRef(0);
+  const detailGenerationRef = useRef(0);
   const isMobile = useMediaQuery('(max-width: 767px)');
   const reduceMotion = useReducedMotion();
   const [mobileFiltersOpen, setMobileFiltersOpen] = useKeyedState(
@@ -71,13 +111,8 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
     false
   );
   const isLoading = initialLoading || refreshing;
+  const isSearchPending = searchQuery.trim() !== debouncedSearchQuery;
 
-  const cardTypeOptions = [
-    { value: 'ALL' as const, label: '全部' },
-    { value: CardType.MEMBER, label: '成员卡' },
-    { value: CardType.LIVE, label: 'Live 卡' },
-    { value: CardType.ENERGY, label: '能量卡' },
-  ];
   const statusOptions = [
     {
       value: 'ALL' as const,
@@ -109,87 +144,123 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
     };
   }, [mobileFiltersOpen]);
 
-  const loadCards = useCallback(async (mode: 'initial' | 'refresh' = 'initial') => {
-    if (mode === 'initial') {
-      setInitialLoading(true);
-    } else {
-      setRefreshing(true);
-    }
-    setError(null);
-    try {
-      const data = await cardService.getAllCards(true, 'all');
-      const statusMap = await cardService.getCardStatusMap();
-      setCards(data);
-      setCardStatusMap(statusMap);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '加载失败');
-    } finally {
-      if (mode === 'initial') {
-        setInitialLoading(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setCurrentPage(1);
+      setDebouncedSearchQuery(searchQuery.trim());
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  const loadCards = useCallback(
+    async (mode: 'initial' | 'refresh' | 'auto' = 'auto') => {
+      const requestGeneration = ++loadGenerationRef.current;
+      const isInitialRequest = mode === 'initial' || (mode === 'auto' && !hasLoadedRef.current);
+      if (isInitialRequest) {
+        setInitialLoading(true);
       } else {
-        setRefreshing(false);
+        setRefreshing(true);
       }
-    }
-  }, []);
+      setError(null);
+
+      try {
+        const data = await cardService.getAdminCards({
+          page: currentPage,
+          pageSize: PAGE_SIZE,
+          query: debouncedSearchQuery || undefined,
+          cardType: selectedType === 'ALL' ? undefined : selectedType,
+          status: selectedStatus === 'ALL' ? undefined : selectedStatus,
+        });
+        if (requestGeneration !== loadGenerationRef.current) return;
+
+        if (data.totalPages > 0 && currentPage > data.totalPages) {
+          setCurrentPage(data.totalPages);
+          return;
+        }
+
+        setCards(data.items);
+        setTotalCards(data.total);
+        hasLoadedRef.current = true;
+      } catch (err) {
+        if (requestGeneration === loadGenerationRef.current) {
+          setError(err instanceof Error ? err.message : '加载失败');
+        }
+      } finally {
+        if (requestGeneration === loadGenerationRef.current) {
+          if (isInitialRequest) {
+            setInitialLoading(false);
+          } else {
+            setRefreshing(false);
+          }
+        }
+      }
+    },
+    [currentPage, debouncedSearchQuery, selectedStatus, selectedType]
+  );
 
   const refreshCards = useCallback(() => {
-    void loadCards(cards.length > 0 ? 'refresh' : 'initial');
-  }, [cards.length, loadCards]);
+    void loadCards(hasLoadedRef.current ? 'refresh' : 'initial');
+  }, [loadCards]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadCards('initial'), 0);
+    const timer = window.setTimeout(() => void loadCards('auto'), 0);
     return () => window.clearTimeout(timer);
   }, [loadCards]);
 
-  const filteredCards = useMemo(() => {
-    let result = cards;
-    if (selectedType !== 'ALL') result = result.filter((c) => c.cardType === selectedType);
-    if (selectedStatus !== 'ALL')
-      result = result.filter((c) => cardStatusMap.get(c.cardCode) === selectedStatus);
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (c) =>
-          c.cardCode.toLowerCase().includes(q) ||
-          cleanLocalizedText(c.nameCn)?.toLowerCase().includes(q) ||
-          cleanLocalizedText(c.nameJp)?.toLowerCase().includes(q)
-      );
-    }
-    return [...result].sort((a, b) => a.cardCode.localeCompare(b.cardCode));
-  }, [cards, selectedType, selectedStatus, searchQuery, cardStatusMap]);
-
-  const totalPages = Math.ceil(filteredCards.length / pageSize);
-  const paginatedCards = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredCards.slice(start, start + pageSize);
-  }, [filteredCards, currentPage, pageSize]);
-
-  useEffect(() => {
-    if (paginatedCards.length > 0 && !initialLoading) {
-      const imageBaseNames = paginatedCards.map((card) =>
-        card.imageFilename
-          ? card.imageFilename.replace(/^.*\//, '').replace(/\.(jpg|jpeg|png|webp)$/i, '')
-          : card.cardCode
-      );
-      preloadCardImages(imageBaseNames, getRecommendedImageSize('sm'));
-    }
-  }, [paginatedCards, initialLoading]);
+  const totalPages = Math.ceil(totalCards / PAGE_SIZE);
 
   const goToPage = (page: number) => setCurrentPage(Math.max(1, Math.min(page, totalPages)));
 
+  const handleOpenCard = async (card: AdminCardListItem) => {
+    const requestGeneration = ++detailGenerationRef.current;
+    setOpeningCardCode(card.cardCode);
+    setError(null);
+    try {
+      const detail = await cardService.getCardByCode(card.cardCode);
+      if (requestGeneration !== detailGenerationRef.current) return;
+      if (!detail) throw new Error('卡牌不存在或已被删除');
+      setSelectedCard(detail);
+      setIsCreating(false);
+    } catch (err) {
+      if (requestGeneration === detailGenerationRef.current) {
+        setError(err instanceof Error ? err.message : '获取卡牌详情失败');
+      }
+    } finally {
+      if (requestGeneration === detailGenerationRef.current) {
+        setOpeningCardCode(null);
+      }
+    }
+  };
+
   const handleSave = async (cardCode: string, updates: CardUpdateInput) => {
-    await cardService.updateCard(cardCode, updates);
-    await loadCards('refresh');
+    const updatedCard = await cardService.updateCard(cardCode, updates);
+    setCards((current) =>
+      current.map((card) =>
+        card.cardCode === cardCode
+          ? {
+              ...card,
+              nameJp: updatedCard.nameJp ?? null,
+              nameCn: updatedCard.nameCn ?? null,
+              imageFilename: updatedCard.imageFilename ?? null,
+              rare: updatedCard.rare ?? null,
+            }
+          : card
+      )
+    );
   };
 
   const handleCreate = async (input: CardCreateInput) => {
     await cardService.createCard(input);
-    await loadCards(cards.length > 0 ? 'refresh' : 'initial');
+    void loadCards(hasLoadedRef.current ? 'refresh' : 'initial');
   };
 
   const handleDelete = async (cardCode: string) => {
     await cardService.deleteCard(cardCode);
-    await loadCards(cards.length > 1 ? 'refresh' : 'initial');
+    setCards((current) => current.filter((card) => card.cardCode !== cardCode));
+    setTotalCards((current) => Math.max(0, current - 1));
+    if (cards.length === 1 && currentPage > 1) {
+      setCurrentPage((page) => page - 1);
+    }
   };
 
   const handleExport = async () => {
@@ -211,21 +282,27 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
     }
   };
 
-  const handleBatchStatus = async (targetStatus: 'PUBLISHED' | 'DRAFT') => {
-    const targets = filteredCards.filter((c) => cardStatusMap.get(c.cardCode) !== targetStatus);
-    if (targets.length === 0) return;
+  const handleBatchStatus = async (targetStatus: AdminCardStatus) => {
+    if (isSearchPending || selectedStatus === targetStatus || totalCards === 0) return;
     const action = targetStatus === 'PUBLISHED' ? '上线' : '转为草稿';
-    if (!confirm(`确定要将筛选结果中的 ${targets.length} 张卡牌全部${action}吗？`)) return;
+    if (!confirm(`确定要将当前筛选结果中的卡牌全部${action}吗？`)) return;
 
     setBatchWorking(true);
     setError(null);
     try {
-      const fn =
-        targetStatus === 'PUBLISHED'
-          ? (code: string) => cardService.publishCard(code)
-          : (code: string) => cardService.unpublishCard(code);
-      await Promise.all(targets.map((c) => fn(c.cardCode)));
-      await loadCards('refresh');
+      await cardService.updateAdminCardsStatus(
+        {
+          query: debouncedSearchQuery || undefined,
+          cardType: selectedType === 'ALL' ? undefined : selectedType,
+          status: selectedStatus === 'ALL' ? undefined : selectedStatus,
+        },
+        targetStatus
+      );
+      if (currentPage !== 1) {
+        setCurrentPage(1);
+      } else {
+        await loadCards('refresh');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : `批量${action}失败`);
     } finally {
@@ -233,7 +310,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
     }
   };
 
-  const handleCardStatusChange = async (cardCode: string, targetStatus: 'PUBLISHED' | 'DRAFT') => {
+  const handleCardStatusChange = async (cardCode: string, targetStatus: AdminCardStatus) => {
     try {
       if (targetStatus === 'PUBLISHED') {
         await cardService.publishCard(cardCode);
@@ -313,20 +390,14 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
         <div className="product-workbench mx-auto max-w-7xl p-4 sm:p-5">
           <div className="mb-4 flex flex-col gap-3 border-b border-[var(--border-subtle)] pb-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-              <div className="relative w-full lg:max-w-md lg:flex-1">
-                <Search
-                  size={14}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-                />
-                <input
-                  type="text"
+              <div className="w-full lg:max-w-md lg:flex-1">
+                <CardSearchInput
                   value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
+                  resultCount={totalCards}
+                  onChange={(value) => {
+                    setSearchQuery(value);
                     setCurrentPage(1);
                   }}
-                  placeholder="搜索卡牌名称或编号..."
-                  className="input-field w-full py-2 pl-9 pr-4 text-sm"
                 />
               </div>
               <div className="flex items-center gap-2 md:hidden">
@@ -353,24 +424,16 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                   <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
                 </button>
               </div>
-              <div className="hidden flex-wrap items-center gap-2 md:flex">
-                {cardTypeOptions.map((opt) => (
-                  <button
-                    type="button"
-                    key={opt.value}
-                    onClick={() => {
-                      setSelectedType(opt.value as CardType | 'ALL');
-                      setCurrentPage(1);
-                    }}
-                    className={`rounded-lg border px-2.5 py-1.5 text-xs transition-all ${
-                      selectedType === opt.value
-                        ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
-                        : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
+              <div className="hidden md:block">
+                <CardTypeTabs
+                  includeAll
+                  compact
+                  selected={selectedType}
+                  onSelect={(type) => {
+                    setSelectedType(type);
+                    setCurrentPage(1);
+                  }}
+                />
               </div>
             </div>
 
@@ -406,8 +469,10 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
 
               <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--text-muted)] sm:w-full">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span>共 {cards.length} 张</span>
-                  <span>筛选: {filteredCards.length} 张</span>
+                  <span>
+                    {activeFilterCount > 0 || debouncedSearchQuery ? '筛选结果' : '共'} {totalCards}{' '}
+                    张
+                  </span>
                   {refreshing && (
                     <span className="inline-flex items-center gap-1 text-[var(--accent-primary)]">
                       <Loader2 size={12} className="animate-spin" />
@@ -415,13 +480,13 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                     </span>
                   )}
                 </div>
-                {filteredCards.length > 0 && (
+                {totalCards > 0 && (
                   <div className="hidden items-center gap-1 border-l border-[var(--border-subtle)] pl-3 md:flex">
                     <span className="mr-1 text-[var(--text-muted)]">批量更改筛选结果</span>
                     <button
                       type="button"
                       onClick={() => handleBatchStatus('PUBLISHED')}
-                      disabled={batchWorking}
+                      disabled={batchWorking || isSearchPending || selectedStatus === 'PUBLISHED'}
                       className="flex min-h-8 items-center gap-1 rounded-lg px-2 text-[var(--semantic-success)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-success)_10%,transparent)] disabled:opacity-40"
                     >
                       <ArrowUp size={10} /> 全部上线
@@ -429,7 +494,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                     <button
                       type="button"
                       onClick={() => handleBatchStatus('DRAFT')}
-                      disabled={batchWorking}
+                      disabled={batchWorking || isSearchPending || selectedStatus === 'DRAFT'}
                       className="flex min-h-8 items-center gap-1 rounded-lg px-2 text-[var(--semantic-warning)] transition-colors hover:bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] disabled:opacity-40"
                     >
                       <ArrowDown size={10} /> 全部转草稿
@@ -467,7 +532,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                           筛选与批量操作
                         </div>
                         <div className="mt-0.5 text-xs text-[var(--text-muted)]">
-                          当前筛选 {filteredCards.length} / {cards.length} 张
+                          当前筛选 {totalCards} 张
                         </div>
                       </div>
                       <button
@@ -485,25 +550,14 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                       <div className="mb-2 text-xs font-semibold text-[var(--text-muted)]">
                         卡牌类型
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {cardTypeOptions.map((opt) => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => {
-                              setSelectedType(opt.value as CardType | 'ALL');
-                              setCurrentPage(1);
-                            }}
-                            className={`min-h-11 rounded-xl border px-3 py-2 text-sm transition-all ${
-                              selectedType === opt.value
-                                ? 'border-[color:color-mix(in_srgb,var(--accent-primary)_45%,transparent)] bg-[color:color-mix(in_srgb,var(--accent-primary)_16%,transparent)] text-[var(--text-primary)]'
-                                : 'border-[var(--border-subtle)] bg-[color:color-mix(in_srgb,var(--bg-surface)_72%,transparent)] text-[var(--text-secondary)]'
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
+                      <CardTypeTabs
+                        includeAll
+                        selected={selectedType}
+                        onSelect={(type) => {
+                          setSelectedType(type);
+                          setCurrentPage(1);
+                        }}
+                      />
                     </section>
 
                     <section>
@@ -531,7 +585,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                       </div>
                     </section>
 
-                    {filteredCards.length > 0 && (
+                    {totalCards > 0 && (
                       <section>
                         <div className="mb-2 text-xs font-semibold text-[var(--text-muted)]">
                           批量状态
@@ -540,7 +594,9 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                           <button
                             type="button"
                             onClick={() => handleBatchStatus('PUBLISHED')}
-                            disabled={batchWorking}
+                            disabled={
+                              batchWorking || isSearchPending || selectedStatus === 'PUBLISHED'
+                            }
                             className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-success)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_10%,transparent)] px-3 py-2 text-sm text-[var(--semantic-success)] disabled:opacity-40"
                           >
                             <ArrowUp size={14} />
@@ -549,7 +605,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                           <button
                             type="button"
                             onClick={() => handleBatchStatus('DRAFT')}
-                            disabled={batchWorking}
+                            disabled={batchWorking || isSearchPending || selectedStatus === 'DRAFT'}
                             className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-warning)_30%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-warning)_10%,transparent)] px-3 py-2 text-sm text-[var(--semantic-warning)] disabled:opacity-40"
                           >
                             <ArrowDown size={14} />
@@ -602,32 +658,33 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
           ) : (
             <div aria-busy={refreshing}>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
-                {paginatedCards.map((card) => {
-                  const localizedName = getCardLocalizedInfo(card);
+                {cards.map((card) => {
+                  const localizedName = getAdminCardLocalizedInfo(card);
+                  const isOpening = openingCardCode === card.cardCode;
 
                   return (
                     <div key={card.cardCode} className="group">
                       <button
                         type="button"
-                        className="block w-full text-left"
+                        className="block w-full text-left disabled:cursor-wait"
                         aria-label={`编辑 ${localizedName.displayNameCn} ${card.cardCode}`}
-                        onClick={() => {
-                          setSelectedCard(card);
-                          setIsCreating(false);
-                        }}
+                        aria-busy={isOpening}
+                        disabled={isOpening}
+                        onClick={() => void handleOpenCard(card)}
                       >
                         <div className="relative w-full" style={{ aspectRatio: '63/88' }}>
-                          <Card
-                            cardData={card}
-                            imagePath={resolveCardImagePath(card)}
-                            size="responsive"
-                            interactive={false}
-                            showHover={false}
-                            className="rounded-lg transition-[filter] duration-200 group-hover:brightness-110"
-                          />
-                          {cardStatusMap.get(card.cardCode) === 'DRAFT' && (
+                          <AdminCardThumbnail card={card} />
+                          {card.status === 'DRAFT' && (
                             <div className="absolute right-1 top-1 rounded bg-[var(--semantic-warning)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--brand-stage-ink)]">
                               草稿
+                            </div>
+                          )}
+                          {isOpening && (
+                            <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/45">
+                              <Loader2
+                                size={22}
+                                className="animate-spin text-[var(--text-on-accent)]"
+                              />
                             </div>
                           )}
                         </div>
@@ -650,7 +707,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
                         <span className="flex min-h-8 items-center gap-1 rounded-lg bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)] px-2 py-1 text-xs text-[var(--accent-primary)] opacity-100 transition-opacity md:min-h-0 md:py-0.5 md:opacity-0 md:group-hover:opacity-100">
                           <Pencil size={10} /> 编辑
                         </span>
-                        {cardStatusMap.get(card.cardCode) === 'DRAFT' ? (
+                        {card.status === 'DRAFT' ? (
                           <button
                             type="button"
                             onClick={(e) => {
@@ -767,7 +824,7 @@ export function CardAdminPage({ onBack, onOpenAiConfig }: CardAdminPageProps) {
             </div>
           )}
 
-          {filteredCards.length === 0 && !initialLoading && (
+          {cards.length === 0 && !initialLoading && (
             <div className="text-center py-20">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-surface)_78%,transparent)]">
                 <Search size={24} className="text-[var(--text-muted)]" />

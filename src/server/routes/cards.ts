@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
 import { validate } from '../middleware/validate.js';
 import { inheritMissingBladeHeartsByBase } from '../../domain/card-data/blade-heart-inheritance.js';
+import { getBaseCardCode } from '../../shared/utils/card-code.js';
 
 export const cardsRouter = Router();
 
@@ -53,6 +54,77 @@ interface CardRouteRecord {
   readonly status?: string;
 }
 
+interface AdminCardListRecord {
+  readonly cardCode: string;
+  readonly cardType: 'MEMBER' | 'LIVE' | 'ENERGY';
+  readonly nameJp: string | null;
+  readonly nameCn: string | null;
+  readonly imageFilename: string | null;
+  readonly rare: string | null;
+  readonly status: 'DRAFT' | 'PUBLISHED';
+  readonly updatedAt: Date | string;
+}
+
+interface AdminCardFilters {
+  readonly query?: string;
+  readonly cardType?: 'MEMBER' | 'LIVE' | 'ENERGY';
+  readonly status?: 'DRAFT' | 'PUBLISHED';
+}
+
+const adminCardListQuerySchema = z
+  .object({
+    page: z.coerce.number().int().min(1).default(1),
+    pageSize: z.coerce.number().int().min(1).max(100).default(28),
+    query: z.string().trim().max(100).optional(),
+    cardType: z.enum(['MEMBER', 'LIVE', 'ENERGY']).optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED']).optional(),
+  })
+  .strict();
+
+const adminCardBatchStatusSchema = z
+  .object({
+    targetStatus: z.enum(['DRAFT', 'PUBLISHED']),
+    query: z.string().trim().max(100).optional(),
+    cardType: z.enum(['MEMBER', 'LIVE', 'ENERGY']).optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED']).optional(),
+  })
+  .strict();
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, '\\$&');
+}
+
+function buildAdminCardFilter(
+  filters: AdminCardFilters,
+  startingParameterIndex = 1
+): { conditions: string[]; values: unknown[] } {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+
+  if (filters.cardType) {
+    conditions.push(`card_type = $${startingParameterIndex + values.length}`);
+    values.push(filters.cardType);
+  }
+  if (filters.status) {
+    conditions.push(`status = $${startingParameterIndex + values.length}`);
+    values.push(filters.status);
+  }
+  if (filters.query) {
+    conditions.push(
+      `(card_code ILIKE $${startingParameterIndex + values.length} ESCAPE '\\' OR ` +
+        `name_jp ILIKE $${startingParameterIndex + values.length} ESCAPE '\\' OR ` +
+        `name_cn ILIKE $${startingParameterIndex + values.length} ESCAPE '\\')`
+    );
+    values.push(`%${escapeLikePattern(filters.query)}%`);
+  }
+
+  return { conditions, values };
+}
+
+function toIsoString(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
 // ============================================
 // GET /api/cards
 // ============================================
@@ -82,6 +154,107 @@ cardsRouter.get('/', async (req, res, next) => {
     next(err);
   }
 });
+
+// ============================================
+// GET /api/cards/admin
+// ============================================
+
+cardsRouter.get('/admin', requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const parsed = adminCardListQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      res.status(400).json({
+        data: null,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: parsed.error.issues
+            .map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+            .join('; '),
+        },
+      });
+      return;
+    }
+
+    const { page, pageSize, ...filters } = parsed.data;
+    const { conditions, values } = buildAdminCardFilter(filters);
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const limitParameter = values.length + 1;
+    const offsetParameter = values.length + 2;
+    const offset = (page - 1) * pageSize;
+
+    const [countResult, listResult] = await Promise.all([
+      pool.query<{ total: string }>(
+        `SELECT COUNT(*)::text AS total FROM cards ${whereClause}`,
+        values
+      ),
+      pool.query<AdminCardListRecord>(
+        `SELECT
+          card_code AS "cardCode",
+          card_type AS "cardType",
+          name_jp AS "nameJp",
+          name_cn AS "nameCn",
+          image_filename AS "imageFilename",
+          rare,
+          status,
+          updated_at AS "updatedAt"
+        FROM cards
+        ${whereClause}
+        ORDER BY card_code
+        LIMIT $${limitParameter} OFFSET $${offsetParameter}`,
+        [...values, pageSize, offset]
+      ),
+    ]);
+
+    const total = Number(countResult.rows[0]?.total ?? 0);
+    res.json({
+      data: {
+        items: listResult.rows.map((row) => ({
+          ...row,
+          updatedAt: toIsoString(row.updatedAt),
+        })),
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
+      },
+      error: null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ============================================
+// PUT /api/cards/admin/status
+// ============================================
+
+cardsRouter.put(
+  '/admin/status',
+  requireAuth,
+  requireAdmin,
+  validate(adminCardBatchStatusSchema),
+  async (req, res, next) => {
+    try {
+      const { targetStatus, ...filters } = req.body as z.infer<typeof adminCardBatchStatusSchema>;
+      const { conditions, values } = buildAdminCardFilter(filters, 3);
+      const filterSql = conditions.length > 0 ? ` AND ${conditions.join(' AND ')}` : '';
+      const result = await pool.query<{ card_code: string }>(
+        `UPDATE cards
+         SET status = $1, updated_by = $2, updated_at = now()
+         WHERE status <> $1${filterSql}
+         RETURNING card_code`,
+        [targetStatus, req.user!.id, ...values]
+      );
+
+      res.json({
+        data: { updated: result.rowCount ?? result.rows.length },
+        error: null,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // ============================================
 // GET /api/cards/export
@@ -169,11 +342,21 @@ cardsRouter.get('/:code', async (req, res, next) => {
       return;
     }
 
+    const baseCardCode = getBaseCardCode(card.card_code);
+    const escapedBaseCardCode = escapeLikePattern(baseCardCode);
     const inheritanceQuery = isAdmin
-      ? 'SELECT * FROM cards WHERE card_type = $1 ORDER BY card_code'
-      : "SELECT * FROM cards WHERE card_type = $1 AND status = 'PUBLISHED' ORDER BY card_code";
+      ? `SELECT * FROM cards
+         WHERE card_type = $1 AND (card_code = $2 OR card_code LIKE $3 ESCAPE '\\')
+         ORDER BY card_code`
+      : `SELECT * FROM cards
+         WHERE card_type = $1
+           AND status = 'PUBLISHED'
+           AND (card_code = $2 OR card_code LIKE $3 ESCAPE '\\')
+         ORDER BY card_code`;
     const { rows: sameTypeRows } = await pool.query<CardRouteRecord>(inheritanceQuery, [
       card.card_type,
+      baseCardCode,
+      `${escapedBaseCardCode}-%`,
     ]);
     const inheritedCard =
       inheritMissingBladeHeartsByBase(sameTypeRows).find(

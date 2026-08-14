@@ -163,28 +163,3 @@ export function matchesRequirementHeartColor(
   }
   return colorRequirements.has(selectedColor);
 }
-
-/** 卡牌类型色彩主题 */
-export const CARD_TYPE_COLORS = {
-  MEMBER: {
-    accent: 'orange',
-    bg: 'bg-[color:color-mix(in_srgb,var(--accent-secondary)_14%,transparent)]',
-    border: 'border-[color:color-mix(in_srgb,var(--accent-secondary)_34%,transparent)]',
-    text: 'text-[var(--accent-secondary)]',
-    dot: 'bg-[var(--accent-secondary)]',
-  },
-  LIVE: {
-    accent: 'rose',
-    bg: 'bg-[color:color-mix(in_srgb,var(--accent-primary)_14%,transparent)]',
-    border: 'border-[color:color-mix(in_srgb,var(--accent-primary)_34%,transparent)]',
-    text: 'text-[var(--accent-primary)]',
-    dot: 'bg-[var(--accent-primary)]',
-  },
-  ENERGY: {
-    accent: 'sky',
-    bg: 'bg-[color:color-mix(in_srgb,var(--semantic-info)_14%,transparent)]',
-    border: 'border-[color:color-mix(in_srgb,var(--semantic-info)_34%,transparent)]',
-    text: 'text-[var(--semantic-info)]',
-    dot: 'bg-[var(--semantic-info)]',
-  },
-} as const;
