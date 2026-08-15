@@ -15,6 +15,7 @@ vi.mock('../../src/server/services/site-announcement-service.js', () => ({
     listAdminAnnouncements: vi.fn(),
     getConfiguredSiteStatus: vi.fn(),
     updateSiteStatusConfig: vi.fn(),
+    updatePlayerBattleEntryVisibility: vi.fn(),
     createAnnouncement: vi.fn(),
     updateAnnouncement: vi.fn(),
     publishAnnouncement: vi.fn(),
@@ -111,6 +112,7 @@ describe('siteAnnouncementsRouter', () => {
       ['/admin', 'get'],
       ['/admin/site-status', 'get'],
       ['/admin/site-status', 'put'],
+      ['/admin/player-battle-entries', 'put'],
       ['/admin', 'post'],
       ['/admin/:id', 'put'],
       ['/admin/:id/publish', 'post'],
@@ -214,5 +216,23 @@ describe('siteAnnouncementsRouter', () => {
       id: '33333333-3333-4333-8333-333333333333',
       status: 'PUBLISHED',
     });
+  });
+
+  it('updates player battle entry visibility for the current admin', async () => {
+    vi.mocked(siteAnnouncementService.updatePlayerBattleEntryVisibility).mockResolvedValue({
+      ranked: false,
+      themeTable: true,
+    });
+
+    const response = await invokeRoute('/admin/player-battle-entries', 'put', {
+      body: { ranked: false, themeTable: true },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(siteAnnouncementService.updatePlayerBattleEntryVisibility).toHaveBeenCalledWith(
+      { ranked: false, themeTable: true },
+      '22222222-2222-4222-8222-222222222222'
+    );
+    expect(response.body?.data).toEqual({ ranked: false, themeTable: true });
   });
 });

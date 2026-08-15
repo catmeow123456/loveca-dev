@@ -817,6 +817,8 @@ export const siteStatusConfig = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     action: text('action'),
+    rankedEntryVisible: boolean('ranked_entry_visible').notNull().default(true),
+    themeTableEntryVisible: boolean('theme_table_entry_visible').notNull().default(true),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1030,11 +1032,16 @@ export const themePrebuiltDeckVersions = pgTable(
     sourceUrl: text('source_url'),
     reviewNote: text('review_note').notNull(),
     approvedAt: timestamp('approved_at', { withTimezone: true }).notNull(),
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
-    uniqueIndex('uq_theme_prebuilt_deck_key').on(table.themeTableVersionId, table.deckKey),
-    uniqueIndex('uq_theme_prebuilt_deck_content').on(table.themeTableVersionId, table.contentHash),
+    uniqueIndex('uq_theme_prebuilt_deck_key')
+      .on(table.themeTableVersionId, table.deckKey)
+      .where(sql`${table.retiredAt} IS NULL`),
+    uniqueIndex('uq_theme_prebuilt_deck_content')
+      .on(table.themeTableVersionId, table.contentHash)
+      .where(sql`${table.retiredAt} IS NULL`),
     check(
       'theme_prebuilt_deck_difficulty_check',
       sql`${table.difficulty} IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED')`

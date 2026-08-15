@@ -17,12 +17,6 @@ import { useThemeTableStore } from '@/store/themeTableStore';
 import { useGameStore } from '@/store/gameStore';
 import './theme-table.css';
 
-const DIFFICULTY_LABEL = {
-  BEGINNER: '容易上手',
-  INTERMEDIATE: '需要规划',
-  ADVANCED: '熟练向',
-} as const;
-
 export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   const { overview, loading, error, refresh, join, cancel } = useThemeTableStore();
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
@@ -87,7 +81,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
             ))}
             <div>
               <TicketCheck size={18} />
-              <span>审核组合</span>
+              <span>随机分配</span>
             </div>
           </div>
         </section>
@@ -99,7 +93,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
                 {activeQueue ? (queue.deckName ?? '卡组尚未揭晓') : availability.message}
               </div>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                不使用个人卡组；系统先抽取已测试的对局组合，再以相同概率交换双方卡组。
+                不使用个人卡组；系统从本期卡组池为双方分配，可能出现同卡组对局。
               </p>
             </div>
             {activeQueue ? (
@@ -214,9 +208,9 @@ function ThemeDeckBrowser({
               </span>
               <span className="theme-deck-option__copy">
                 <strong>{deck.displayName}</strong>
-                <span>
-                  {[DIFFICULTY_LABEL[deck.difficulty], ...deck.playStyleTags].join(' · ')}
-                </span>
+                {deck.playStyleTags.length > 0 ? (
+                  <span>{deck.playStyleTags.join(' · ')}</span>
+                ) : null}
               </span>
             </button>
           );
@@ -236,12 +230,13 @@ function ThemeDeckBrowser({
             <h3>{selectedDeck.displayName}</h3>
             <p>{selectedDeck.sourceLabel}</p>
           </div>
-          <div className="theme-deck-sheet__tags" aria-label="卡组标签">
-            <span>{DIFFICULTY_LABEL[selectedDeck.difficulty]}</span>
-            {selectedDeck.playStyleTags.map((tag) => (
-              <span key={tag}>{tag}</span>
-            ))}
-          </div>
+          {selectedDeck.playStyleTags.length > 0 ? (
+            <div className="theme-deck-sheet__tags" aria-label="卡组标签">
+              {selectedDeck.playStyleTags.map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
+            </div>
+          ) : null}
         </header>
 
         <ThemeDeckGallery deck={selectedDeck} onViewCard={onViewCard} />

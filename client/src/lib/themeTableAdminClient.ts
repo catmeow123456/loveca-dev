@@ -28,8 +28,17 @@ export interface ThemeAdminDraftPayload {
   evaluationPolicy: ThemeTableEvaluationPolicy;
 }
 
-export interface ThemeAdminDeckPayload {
-  sourceDeckId: string;
+export interface ThemeAdminOperationsPayload {
+  name: string;
+  openWindows: { weekdays: number[]; startMinute: number; endMinute: number }[];
+  startsAt: string;
+  endsAt: string;
+  scheduleLabel: string;
+  summary: string;
+  announcement: string;
+}
+
+interface ThemeAdminDeckMetadataPayload {
   deckKey: string;
   displayName: string;
   playStyleTags: string[];
@@ -38,6 +47,12 @@ export interface ThemeAdminDeckPayload {
   sourceUrl: string | null;
   reviewNote: string;
 }
+
+export type ThemeAdminDeckPayload = ThemeAdminDeckMetadataPayload &
+  ({ sourceType: 'CLOUD'; sourceDeckId: string } | { sourceType: 'YAML'; yamlContent: string });
+
+export type ThemeAdminDeckUpdatePayload = Omit<ThemeAdminDeckMetadataPayload, 'deckKey'> &
+  ({ sourceType: 'CLOUD'; sourceDeckId: string } | { sourceType: 'YAML'; yamlContent: string });
 
 export interface ThemeAdminMatchupPayload {
   firstDeckVersionId: string;
@@ -79,10 +94,32 @@ export const updateThemeAdminDraft = (themeId: string, payload: ThemeAdminDraftP
     '更新主题活动草稿失败'
   );
 
+export const updateThemeAdminOperations = (themeId: string, payload: ThemeAdminOperationsPayload) =>
+  requireData<ThemeAdminEventView>(
+    apiClient.put(`/api/admin/theme-table/events/${themeId}/operations`, payload),
+    '更新主题赛季信息失败'
+  );
+
 export const addThemeAdminDeck = (themeId: string, payload: ThemeAdminDeckPayload) =>
   requireData<ThemeAdminDeckView>(
     apiClient.post(`/api/admin/theme-table/events/${themeId}/decks`, payload),
     '冻结主题预组失败'
+  );
+
+export const updateThemeAdminDeck = (
+  themeId: string,
+  deckId: string,
+  payload: ThemeAdminDeckUpdatePayload
+) =>
+  requireData<ThemeAdminDeckView>(
+    apiClient.put(`/api/admin/theme-table/events/${themeId}/decks/${deckId}`, payload),
+    '更新主题预组失败'
+  );
+
+export const deleteThemeAdminDeck = (themeId: string, deckId: string) =>
+  requireData<{ id: string; disabledMatchupCount: number }>(
+    apiClient.delete(`/api/admin/theme-table/events/${themeId}/decks/${deckId}`),
+    '删除主题预组失败'
   );
 
 export const addThemeAdminMatchup = (themeId: string, payload: ThemeAdminMatchupPayload) =>

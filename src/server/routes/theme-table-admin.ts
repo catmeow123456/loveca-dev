@@ -55,21 +55,46 @@ const draftSchema = z
     evaluationPolicy: evaluationPolicySchema,
   })
   .strict();
-const deckSchema = z
+const operationsSchema = z
   .object({
-    sourceDeckId: z.string().uuid(),
-    deckKey: z
-      .string()
-      .trim()
-      .regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
-    displayName: z.string().trim().min(1).max(100),
-    playStyleTags: z.array(z.string().trim().min(1).max(30)).min(1).max(8),
-    difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
-    sourceLabel: z.string().trim().min(1).max(200),
-    sourceUrl: httpUrlSchema.nullable().optional(),
-    reviewNote: z.string().trim().min(1).max(3000),
+    name: z.string().trim().min(1).max(100),
+    openWindows: z.array(openWindowSchema).min(1).max(32),
+    startsAt: z.coerce.date(),
+    endsAt: z.coerce.date(),
+    scheduleLabel: z.string().trim().min(1).max(200),
+    summary: z.string().trim().min(1).max(1000),
+    announcement: z.string().trim().min(1).max(3000),
   })
   .strict();
+const deckMetadataSchema = z.object({
+  deckKey: z
+    .string()
+    .trim()
+    .regex(/^[a-z0-9][a-z0-9_-]{1,63}$/),
+  displayName: z.string().trim().min(1).max(100),
+  playStyleTags: z.array(z.string().trim().min(1).max(30)).max(8),
+  difficulty: z.enum(['BEGINNER', 'INTERMEDIATE', 'ADVANCED']),
+  sourceLabel: z.string().trim().min(1).max(200),
+  sourceUrl: httpUrlSchema.nullable().optional(),
+  reviewNote: z.string().trim().min(1).max(3000),
+});
+const deckSchema = z.discriminatedUnion('sourceType', [
+  deckMetadataSchema
+    .extend({ sourceType: z.literal('CLOUD'), sourceDeckId: z.string().uuid() })
+    .strict(),
+  deckMetadataSchema
+    .extend({ sourceType: z.literal('YAML'), yamlContent: z.string().min(1).max(100_000) })
+    .strict(),
+]);
+const deckUpdateMetadataSchema = deckMetadataSchema.omit({ deckKey: true });
+const deckUpdateSchema = z.discriminatedUnion('sourceType', [
+  deckUpdateMetadataSchema
+    .extend({ sourceType: z.literal('CLOUD'), sourceDeckId: z.string().uuid() })
+    .strict(),
+  deckUpdateMetadataSchema
+    .extend({ sourceType: z.literal('YAML'), yamlContent: z.string().min(1).max(100_000) })
+    .strict(),
+]);
 const matchupSchema = z
   .object({
     firstDeckVersionId: z.string().uuid(),
@@ -104,11 +129,33 @@ themeTableAdminRouter.put('/events/:themeId/draft', async (req, res) => {
   await respond(res, () => themeTableAdminService.updateDraft(req.user!.id, themeId, input));
 });
 
+themeTableAdminRouter.put('/events/:themeId/operations', async (req, res) => {
+  const themeId = parseId(res, req.params.themeId);
+  const input = parseBody(res, operationsSchema, req.body);
+  if (!themeId || !input) return;
+  await respond(res, () => themeTableAdminService.updateOperations(req.user!.id, themeId, input));
+});
+
 themeTableAdminRouter.post('/events/:themeId/decks', async (req, res) => {
   const themeId = parseId(res, req.params.themeId);
   const input = parseBody(res, deckSchema, req.body);
   if (!themeId || !input) return;
   await respond(res, () => themeTableAdminService.addDeck(req.user!.id, themeId, input), 201);
+});
+
+themeTableAdminRouter.put('/events/:themeId/decks/:deckId', async (req, res) => {
+  const themeId = parseId(res, req.params.themeId);
+  const deckId = parseId(res, req.params.deckId);
+  const input = parseBody(res, deckUpdateSchema, req.body);
+  if (!themeId || !deckId || !input) return;
+  await respond(res, () => themeTableAdminService.updateDeck(req.user!.id, themeId, deckId, input));
+});
+
+themeTableAdminRouter.delete('/events/:themeId/decks/:deckId', async (req, res) => {
+  const themeId = parseId(res, req.params.themeId);
+  const deckId = parseId(res, req.params.deckId);
+  if (!themeId || !deckId) return;
+  await respond(res, () => themeTableAdminService.deleteDeck(req.user!.id, themeId, deckId));
 });
 
 themeTableAdminRouter.post('/events/:themeId/matchups', async (req, res) => {

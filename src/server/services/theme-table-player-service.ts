@@ -168,6 +168,16 @@ export class ThemeTablePlayerService {
         AND pair.enabled = TRUE
         AND (pair.first_deck_version_id = deck.id OR pair.second_deck_version_id = deck.id)
        WHERE deck.theme_table_version_id = $1
+         AND deck.retired_at IS NULL
+         AND EXISTS (
+           SELECT 1
+           FROM theme_prebuilt_deck_versions AS first_deck
+           JOIN theme_prebuilt_deck_versions AS second_deck
+             ON second_deck.id = pair.second_deck_version_id
+            AND second_deck.retired_at IS NULL
+           WHERE first_deck.id = pair.first_deck_version_id
+             AND first_deck.retired_at IS NULL
+         )
        ORDER BY deck.deck_key, deck.id`,
       [themeId]
     );

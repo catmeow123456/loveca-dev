@@ -36,6 +36,7 @@ import { BattleViewportShell, GameBoard, MatchChat } from '@/components/game';
 import { PreMatchBriefingModal } from '@/components/game/PreMatchBriefingModal';
 import { PublicBattleLogButton } from '@/components/game/PublicBattleLog';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
+import { ThemeDeckAssignmentIntro } from '@/components/theme-table/ThemeDeckAssignmentIntro';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
@@ -79,6 +80,7 @@ import {
 import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
 import { RANKED_RECONNECT_GRACE_PERIOD_LABEL } from '@game/online/ranked-policy';
+import type { ThemeTableEventView } from '@game/online/theme-table-types';
 import { GameEndReason, GamePhase } from '@game/shared/types/enums';
 import type {
   MatchEndView,
@@ -145,6 +147,7 @@ export function OnlineRoomPage({
   const matchView = useGameStore((s) => s.getMatchView());
   const rankedOverview = useRankedStore((s) => s.overview);
   const themeQueueState = useThemeTableStore((s) => s.overview?.queue.state ?? 'IDLE');
+  const themeEvent = useThemeTableStore((s) => s.overview?.event ?? null);
   const refreshThemeTable = useThemeTableStore((s) => s.refresh);
   const rankedSeasonName = rankedOverview?.season?.name ?? null;
   const rankedSeasonAnnouncement = rankedOverview?.season?.announcement ?? null;
@@ -319,6 +322,11 @@ export function OnlineRoomPage({
     if (room?.status !== 'ENDED' || !room.themeTableVersionId) return;
     void refreshThemeTable().catch(() => undefined);
   }, [refreshThemeTable, room?.status, room?.themeTableVersionId]);
+
+  useEffect(() => {
+    if (!room?.themeTableVersionId || themeEvent?.id === room.themeTableVersionId) return;
+    void refreshThemeTable().catch(() => undefined);
+  }, [refreshThemeTable, room?.themeTableVersionId, themeEvent?.id]);
 
   useEffect(() => {
     if (!room?.matchId) {
@@ -1196,7 +1204,9 @@ export function OnlineRoomPage({
   if (room && (room.status === 'OPENING' || isOpeningTransitionPending)) {
     return (
       <OnlineOpeningStage
+        key={`${room.roomCode}:${room.themeDeckAssignment?.presentationId ?? 'opening'}`}
         room={room}
+        themeEvent={themeEvent}
         error={error}
         isSubmitting={isSubmitting}
         onSubmitRps={handleSubmitOpeningRps}
@@ -1715,6 +1725,7 @@ function getLobbyMemberStatus(member: OnlineRoomView['members'][number] | null):
 
 function OnlineOpeningStage({
   room,
+  themeEvent,
   error,
   isSubmitting,
   onSubmitRps,
@@ -1722,6 +1733,7 @@ function OnlineOpeningStage({
   onChooseTurnOrder,
 }: {
   room: OnlineRoomView;
+  themeEvent: ThemeTableEventView | null;
   error: string | null;
   isSubmitting: boolean;
   onSubmitRps: (gesture: OpeningRpsGesture) => void;
@@ -1741,7 +1753,47 @@ function OnlineOpeningStage({
   const chooserIsMe = opening?.chooserUserId === room.currentUserId;
   const isDraw = Boolean(opening?.revealed && !opening.winnerUserId);
   const reduceMotion = useReducedMotion();
+  const themeAssignment = room.themeDeckAssignment ?? null;
+  const themePresentationId = themeAssignment?.presentationId ?? null;
+  const themePresentationStorageKey = themeAssignment
+    ? `loveca.theme-assignment-intro:${themeAssignment.presentationId}:${room.currentUserId}`
+    : null;
+  const [completedThemePresentationId, setCompletedThemePresentationId] = useState<string | null>(
+    () => {
+      if (!themeAssignment || !themePresentationStorageKey) return null;
+      try {
+        return window.sessionStorage.getItem(themePresentationStorageKey) === 'seen'
+          ? themeAssignment.presentationId
+          : null;
+      } catch {
+        return null;
+      }
+    }
+  );
   const isAwaitingOpponentArrival = !opening && room.openingArrivalExpiresAt !== null;
+  const showThemeAssignmentIntro = Boolean(
+    themeAssignment && completedThemePresentationId !== themeAssignment.presentationId
+  );
+  const themePoolPreviewCardCodes = useMemo(
+    () =>
+      themeEvent && themeEvent.id === room.themeTableVersionId
+        ? themeEvent.prebuiltDecks
+            .map((deck) => deck.mainDeck[0]?.cardCode)
+            .filter((cardCode): cardCode is string => Boolean(cardCode))
+        : [],
+    [room.themeTableVersionId, themeEvent]
+  );
+  const completeThemeAssignmentIntro = useCallback(() => {
+    if (!themePresentationId) return;
+    if (themePresentationStorageKey) {
+      try {
+        window.sessionStorage.setItem(themePresentationStorageKey, 'seen');
+      } catch {
+        // Session storage is only a presentation optimization; the opening flow remains usable.
+      }
+    }
+    setCompletedThemePresentationId(themePresentationId);
+  }, [themePresentationId, themePresentationStorageKey]);
   const statusText = isAwaitingOpponentArrival
     ? '等待对手进入'
     : getOpeningStatusText({
@@ -1759,83 +1811,98 @@ function OnlineOpeningStage({
           <section className="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-[color:color-mix(in_srgb,var(--accent-primary)_28%,var(--border-default))] bg-[color:color-mix(in_srgb,var(--bg-surface)_90%,transparent)] shadow-[var(--shadow-lg)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_10%,color-mix(in_srgb,var(--accent-primary)_14%,transparent),transparent_28%),radial-gradient(circle_at_82%_14%,color-mix(in_srgb,var(--semantic-info)_12%,transparent),transparent_30%),linear-gradient(180deg,color-mix(in_srgb,var(--accent-primary)_5%,transparent),transparent_42%)]" />
             <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,var(--accent-primary),var(--semantic-info),var(--accent-secondary),var(--semantic-success))]" />
-            <div className="online-opening-stage-layout relative grid gap-3 p-3 sm:gap-5 sm:p-6">
-              <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
-                <div>
-                  <h1 className="text-xl font-semibold tracking-normal text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
-                    开局猜拳
-                  </h1>
-                  <p className="mt-1 max-w-2xl text-xs font-semibold text-[var(--text-secondary)] sm:mt-2 sm:text-sm sm:leading-relaxed">
-                    {statusText}
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <OpeningDeadlineCountdown expiresAt={room.openingExpiresAt ?? null} />
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_84%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text-primary)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm">
-                    <CircleDot size={14} className="text-[var(--accent-primary)]" />第{' '}
-                    {opening?.round ?? 1} 轮
+            {showThemeAssignmentIntro && themeAssignment ? (
+              <ThemeDeckAssignmentIntro
+                key={themeAssignment.presentationId}
+                assignment={themeAssignment}
+                playerName={myMember?.displayName ?? '你'}
+                opponentName={opponentMember?.displayName ?? '对手'}
+                eventName={
+                  themeEvent && themeEvent.id === room.themeTableVersionId ? themeEvent.name : null
+                }
+                poolPreviewCardCodes={themePoolPreviewCardCodes}
+                reduceMotion={Boolean(reduceMotion)}
+                onComplete={completeThemeAssignmentIntro}
+              />
+            ) : (
+              <div className="online-opening-stage-layout relative grid gap-3 p-3 sm:gap-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+                  <div>
+                    <h1 className="text-xl font-semibold tracking-normal text-[var(--text-primary)] sm:text-3xl lg:text-4xl">
+                      开局猜拳
+                    </h1>
+                    <p className="mt-1 max-w-2xl text-xs font-semibold text-[var(--text-secondary)] sm:mt-2 sm:text-sm sm:leading-relaxed">
+                      {statusText}
+                    </p>
                   </div>
-                  {opening?.revealed && winnerName && (
-                    <div className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--semantic-success)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--semantic-success)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm">
-                      <Crown size={14} />
-                      {winnerName}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <OpeningDeadlineCountdown expiresAt={room.openingExpiresAt ?? null} />
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-overlay)_84%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--text-primary)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm">
+                      <CircleDot size={14} className="text-[var(--accent-primary)]" />第{' '}
+                      {opening?.round ?? 1} 轮
+                    </div>
+                    {opening?.revealed && winnerName && (
+                      <div className="inline-flex items-center gap-1.5 rounded-full border border-[color:color-mix(in_srgb,var(--semantic-success)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-success)_12%,transparent)] px-2.5 py-1.5 text-xs font-semibold text-[var(--semantic-success)] sm:gap-2 sm:px-3 sm:py-2 sm:text-sm">
+                        <Crown size={14} />
+                        {winnerName}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="online-opening-stage-player-grid grid grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_104px_minmax(0,1fr)] lg:gap-4">
+                  <OpeningPlayerPanel
+                    title="你"
+                    member={myMember}
+                    choice={myChoice}
+                    revealed={Boolean(opening?.revealed)}
+                    winnerUserId={opening?.winnerUserId ?? null}
+                    reduceMotion={reduceMotion}
+                  />
+                  <div className="flex min-h-0 flex-row items-center justify-center gap-1 lg:min-h-[260px] lg:flex-col lg:gap-3">
+                    <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--accent-primary)_32%,transparent),transparent)] lg:block lg:h-full lg:w-px lg:flex-none lg:bg-[linear-gradient(180deg,transparent,color-mix(in_srgb,var(--accent-primary)_32%,transparent),transparent)]" />
+                    <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent-primary)_46%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-surface)_86%,transparent)] text-[var(--accent-primary)] shadow-[0_0_0_4px_color-mix(in_srgb,var(--accent-primary)_6%,transparent),0_0_18px_color-mix(in_srgb,var(--accent-primary)_14%,transparent)] sm:h-12 sm:w-12 lg:h-16 lg:w-16 lg:shadow-[0_0_0_6px_color-mix(in_srgb,var(--accent-primary)_7%,transparent),0_0_28px_color-mix(in_srgb,var(--accent-primary)_18%,transparent)]">
+                      <div className="absolute inset-1 rounded-full border border-[color:color-mix(in_srgb,var(--accent-secondary)_24%,transparent)]" />
+                      <Swords size={18} className="lg:hidden" />
+                      <Swords size={23} className="hidden lg:block" />
+                    </div>
+                    <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--semantic-info)_32%,transparent),transparent)] lg:block lg:h-full lg:w-px lg:flex-none lg:bg-[linear-gradient(180deg,transparent,color-mix(in_srgb,var(--semantic-info)_32%,transparent),transparent)]" />
+                  </div>
+                  <OpeningPlayerPanel
+                    title="对手"
+                    member={opponentMember}
+                    choice={opponentChoice}
+                    revealed={Boolean(opening?.revealed)}
+                    winnerUserId={opening?.winnerUserId ?? null}
+                    reduceMotion={reduceMotion}
+                  />
+                </div>
+
+                <div className="online-opening-stage-controls grid gap-3">
+                  {isAwaitingOpponentArrival ? (
+                    <OpeningArrivalGate expiresAt={room.openingArrivalExpiresAt!} />
+                  ) : (
+                    <OpeningRpsControls
+                      opening={opening}
+                      myChoice={myChoice}
+                      isSubmitting={isSubmitting}
+                      chooserIsMe={chooserIsMe}
+                      winnerName={winnerName}
+                      isDraw={isDraw}
+                      reduceMotion={reduceMotion}
+                      onSubmitRps={onSubmitRps}
+                      onReplayRps={onReplayRps}
+                      onChooseTurnOrder={onChooseTurnOrder}
+                    />
+                  )}
+                  {error && (
+                    <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
+                      {error}
                     </div>
                   )}
                 </div>
               </div>
-
-              <div className="online-opening-stage-player-grid grid grid-cols-[minmax(0,1fr)_42px_minmax(0,1fr)] items-stretch gap-2 sm:grid-cols-[minmax(0,1fr)_52px_minmax(0,1fr)] lg:grid-cols-[minmax(0,1fr)_104px_minmax(0,1fr)] lg:gap-4">
-                <OpeningPlayerPanel
-                  title="你"
-                  member={myMember}
-                  choice={myChoice}
-                  revealed={Boolean(opening?.revealed)}
-                  winnerUserId={opening?.winnerUserId ?? null}
-                  reduceMotion={reduceMotion}
-                />
-                <div className="flex min-h-0 flex-row items-center justify-center gap-1 lg:min-h-[260px] lg:flex-col lg:gap-3">
-                  <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--accent-primary)_32%,transparent),transparent)] lg:block lg:h-full lg:w-px lg:flex-none lg:bg-[linear-gradient(180deg,transparent,color-mix(in_srgb,var(--accent-primary)_32%,transparent),transparent)]" />
-                  <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--accent-primary)_46%,transparent)] bg-[color:color-mix(in_srgb,var(--bg-surface)_86%,transparent)] text-[var(--accent-primary)] shadow-[0_0_0_4px_color-mix(in_srgb,var(--accent-primary)_6%,transparent),0_0_18px_color-mix(in_srgb,var(--accent-primary)_14%,transparent)] sm:h-12 sm:w-12 lg:h-16 lg:w-16 lg:shadow-[0_0_0_6px_color-mix(in_srgb,var(--accent-primary)_7%,transparent),0_0_28px_color-mix(in_srgb,var(--accent-primary)_18%,transparent)]">
-                    <div className="absolute inset-1 rounded-full border border-[color:color-mix(in_srgb,var(--accent-secondary)_24%,transparent)]" />
-                    <Swords size={18} className="lg:hidden" />
-                    <Swords size={23} className="hidden lg:block" />
-                  </div>
-                  <div className="hidden h-px flex-1 bg-[linear-gradient(90deg,transparent,color-mix(in_srgb,var(--semantic-info)_32%,transparent),transparent)] lg:block lg:h-full lg:w-px lg:flex-none lg:bg-[linear-gradient(180deg,transparent,color-mix(in_srgb,var(--semantic-info)_32%,transparent),transparent)]" />
-                </div>
-                <OpeningPlayerPanel
-                  title="对手"
-                  member={opponentMember}
-                  choice={opponentChoice}
-                  revealed={Boolean(opening?.revealed)}
-                  winnerUserId={opening?.winnerUserId ?? null}
-                  reduceMotion={reduceMotion}
-                />
-              </div>
-
-              <div className="online-opening-stage-controls grid gap-3">
-                {isAwaitingOpponentArrival ? (
-                  <OpeningArrivalGate expiresAt={room.openingArrivalExpiresAt!} />
-                ) : (
-                  <OpeningRpsControls
-                    opening={opening}
-                    myChoice={myChoice}
-                    isSubmitting={isSubmitting}
-                    chooserIsMe={chooserIsMe}
-                    winnerName={winnerName}
-                    isDraw={isDraw}
-                    reduceMotion={reduceMotion}
-                    onSubmitRps={onSubmitRps}
-                    onReplayRps={onReplayRps}
-                    onChooseTurnOrder={onChooseTurnOrder}
-                  />
-                )}
-                {error && (
-                  <div className="rounded-xl border border-[color:color-mix(in_srgb,var(--semantic-error)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--semantic-error)_12%,transparent)] px-4 py-3 text-sm text-[var(--semantic-error)]">
-                    {error}
-                  </div>
-                )}
-              </div>
-            </div>
+            )}
           </section>
         </main>
       </div>

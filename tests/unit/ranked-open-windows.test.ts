@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collapseRankedOpenWindows,
   expandRankedOpenWindow,
+  formatRankedOpenWindows,
   getRankedOpenWindowsValidationError,
   prepareRankedOpenWindowsForApi,
   prepareRankedOpenWindowsForForm,
@@ -138,5 +139,16 @@ describe('ranked admin open-window model', () => {
     expect(() =>
       expandRankedOpenWindow({ weekdays: [1], startMinute: 1080, endMinute: 1080 })
     ).toThrow('开始与结束不能相同');
+  });
+
+  it('将全天和午夜结束时段显示为明确的开放时间', () => {
+    expect(
+      formatRankedOpenWindows([
+        { weekdays: [1, 2, 3, 4, 5, 6, 7], startMinute: 0, endMinute: 1440 },
+      ])
+    ).toBe('每天 全天');
+    expect(
+      formatRankedOpenWindows([{ weekdays: [6, 7], startMinute: 1080, endMinute: 1440 }])
+    ).toBe('周六、周日 18:00–24:00');
   });
 });

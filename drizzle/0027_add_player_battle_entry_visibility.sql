@@ -1,0 +1,2 @@
+ALTER TABLE "site_status_config" ADD COLUMN "ranked_entry_visible" boolean DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE "site_status_config" ADD COLUMN "theme_table_entry_visible" boolean DEFAULT true NOT NULL;

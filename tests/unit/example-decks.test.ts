@@ -11,7 +11,7 @@ const EXAMPLE_DECKS = [
   ['decklog-1Y9J3S.yaml', 'Liella! 加分星', '熱血解放', 6],
   ['decklog-222H9S.yaml', 'Liella! 可香三神', 'クーカー三神0809', 5],
   ['decklog-1YWYS4.yaml', "μ's DGG混合", '宴確定', 2],
-  ['decklog-N33A0.yaml', '五费黛雅 Love U', '5ダイヤLU', 9],
+  ['decklog-N33A0.yaml', '彩虹混合', '5ダイヤLU', 9],
 ] as const;
 
 const CRAWL_DATE_POINT_TABLE = resolveBuiltInDeckPointTableRules(

@@ -47,6 +47,62 @@
   background: var(--bg-surface);
 }
 
+.theme-deck-pool-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.theme-deck-pool-card__heading strong {
+  min-width: 0;
+}
+
+.theme-deck-pool-card__actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.theme-deck-pool-card__action {
+  display: inline-flex;
+  flex: none;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.4rem;
+  padding: 0 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.theme-deck-pool-card__action:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.theme-deck-pool-card__action--danger {
+  color: var(--semantic-error);
+}
+
+.theme-deck-pool-card__action--danger:hover {
+  background: color-mix(in srgb, var(--semantic-error) 9%, transparent);
+  color: var(--semantic-error);
+}
+
+.theme-deck-pool-card__action:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.theme-deck-pool-card__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 .theme-deck-pool-grid strong {
   overflow: hidden;
   color: var(--text-primary);
@@ -59,6 +115,30 @@
 .theme-deck-pool-grid span {
   color: var(--text-muted);
   font-size: 0.72rem;
+}
+
+.theme-deck-pool-import {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.theme-deck-pool-import__cloud {
+  display: flex;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.theme-deck-pool-import__divider {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.theme-deck-pool-import__error {
+  grid-column: 1 / -1;
+  color: var(--semantic-error);
+  font-size: 0.75rem;
 }
 
 .theme-exposure-list {
@@ -121,5 +201,17 @@
   .theme-season-readiness > div + div {
     border-top: 1px solid var(--border-subtle);
     border-left: 0;
+  }
+
+  .theme-deck-pool-import {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-deck-pool-import__cloud {
+    flex-direction: column;
+  }
+
+  .theme-deck-pool-import__divider {
+    display: none;
   }
 }

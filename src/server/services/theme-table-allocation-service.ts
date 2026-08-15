@@ -60,6 +60,8 @@ export async function freezeThemeTableAssignment(
        AND pair.enabled = TRUE
        AND first_deck.theme_table_version_id = pair.theme_table_version_id
        AND second_deck.theme_table_version_id = pair.theme_table_version_id
+       AND first_deck.retired_at IS NULL
+       AND second_deck.retired_at IS NULL
        AND theme.lifecycle = 'ACTIVE'
        AND theme.starts_at <= $2
        AND theme.ends_at > $2

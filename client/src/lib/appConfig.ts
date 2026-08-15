@@ -53,9 +53,15 @@ export interface PublicAppConfig {
       verificationRequired: boolean;
       passwordResetEnabled: boolean;
     };
+    battleEntries: PlayerBattleEntryVisibility;
   };
   siteStatus: PublicSiteStatus;
   matchEmotes: OnlineMatchEmoteCatalog | null;
+}
+
+export interface PlayerBattleEntryVisibility {
+  readonly ranked: boolean;
+  readonly themeTable: boolean;
 }
 
 interface LoadPublicAppConfigOptions {
@@ -75,6 +81,10 @@ export const DEFAULT_APP_CONFIG: PublicAppConfig = {
       enabled: false,
       verificationRequired: false,
       passwordResetEnabled: false,
+    },
+    battleEntries: {
+      ranked: false,
+      themeTable: false,
     },
   },
   siteStatus: DEFAULT_SITE_STATUS,
@@ -97,6 +107,7 @@ export function normalizeAppConfig(
   config: Partial<PublicAppConfig> | null | undefined
 ): PublicAppConfig {
   const email = config?.features?.email;
+  const battleEntries = config?.features?.battleEntries;
 
   return {
     features: {
@@ -104,6 +115,10 @@ export function normalizeAppConfig(
         enabled: email?.enabled === true,
         verificationRequired: email?.verificationRequired === true,
         passwordResetEnabled: email?.passwordResetEnabled === true,
+      },
+      battleEntries: {
+        ranked: battleEntries?.ranked === true,
+        themeTable: battleEntries?.themeTable === true,
       },
     },
     siteStatus: normalizeSiteStatus(config?.siteStatus),
@@ -155,6 +170,7 @@ export function buildPublicAppConfigRenderKey(config: PublicAppConfig): string {
         verificationRequired: normalized.features.email.verificationRequired,
         passwordResetEnabled: normalized.features.email.passwordResetEnabled,
       },
+      battleEntries: normalized.features.battleEntries,
     },
     siteStatus: {
       lifecycle: normalized.siteStatus.lifecycle,

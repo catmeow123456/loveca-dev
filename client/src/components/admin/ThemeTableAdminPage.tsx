@@ -1,22 +1,52 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { CirclePause, Layers3, Loader2, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import {
+  CirclePause,
+  Layers3,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Save,
+  ShieldCheck,
+  Trash2,
+  Upload,
+} from 'lucide-react';
+import * as yaml from 'yaml';
+import { DeckConfigSchema, type DeckConfig } from '@game/domain/card-data/deck-loader';
+import { CardType } from '@game/shared/types/enums';
+import type { AnyCardData } from '@game/domain/entities/card';
 import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
 import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
+import { CardEditor } from '@/components/deck-editor';
 import { useDeckStore } from '@/store/deckStore';
+import { useGameStore } from '@/store/gameStore';
 import {
   addThemeAdminDeck,
   createThemeAdminDraft,
+  deleteThemeAdminDeck,
   fetchThemeAdminEvents,
   runThemeAdminLifecycleAction,
   setThemeAdminMatchupEnabled,
   updateThemeAdminDraft,
+  updateThemeAdminDeck,
+  updateThemeAdminOperations,
+  type ThemeAdminDeckView,
   type ThemeAdminDraftPayload,
   type ThemeAdminEventView,
+  type ThemeAdminOperationsPayload,
 } from '@/lib/themeTableAdminClient';
 import {
+  formatRankedOpenWindows,
   getRankedOpenWindowsValidationError,
-  isCrossMidnightRankedOpenWindow,
   prepareRankedOpenWindowsForApi,
   prepareRankedOpenWindowsForForm,
   type EditableRankedOpenWindow,
@@ -25,6 +55,11 @@ import './theme-table-admin.css';
 
 type Tab = 'overview' | 'seasons';
 type EditorMode = 'closed' | 'create' | 'edit';
+interface ThemeDeckEditorState {
+  readonly eventId: string;
+  readonly eventName: string;
+  readonly deck: ThemeAdminDeckView;
+}
 
 const TABS = [
   { value: 'overview', label: '概览' },
@@ -36,6 +71,7 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
   const [events, setEvents] = useState<ThemeAdminEventView[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [editorMode, setEditorMode] = useState<EditorMode>('closed');
+  const [deckEditor, setDeckEditor] = useState<ThemeDeckEditorState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const cloudDecks = useDeckStore((state) => state.cloudDecks);
@@ -90,6 +126,35 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
     setEditorMode('closed');
   };
 
+  if (deckEditor) {
+    return (
+      <ThemeDeckEditorPage
+        key={deckEditor.deck.id}
+        state={deckEditor}
+        busy={busy}
+        error={error}
+        onBack={() => setDeckEditor(null)}
+        onSave={(deck, displayName, sourceUrl) =>
+          run(() =>
+            updateThemeAdminDeck(deckEditor.eventId, deckEditor.deck.id, {
+              sourceType: 'YAML',
+              yamlContent: yaml.stringify({ ...deck, player_name: displayName }),
+              displayName,
+              playStyleTags: [...deckEditor.deck.playStyleTags],
+              difficulty: deckEditor.deck.difficulty,
+              sourceLabel: deckEditor.deck.sourceLabel,
+              sourceUrl,
+              reviewNote: deckEditor.deck.reviewNote,
+            })
+          ).then((completed) => {
+            if (completed) setDeckEditor(null);
+            return completed;
+          })
+        }
+      />
+    );
+  }
+
   return (
     <div className="app-shell flex min-h-screen flex-col">
       <AdminPageHeader
@@ -132,10 +197,14 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
                 setEditorMode('edit');
               }}
               onCloseEditor={() => setEditorMode('closed')}
-              onSubmitDraft={(event, payload) =>
-                run(() =>
-                  event ? updateThemeAdminDraft(event.id, payload) : createThemeAdminDraft(payload)
-                ).then((completed) => {
+              onSubmitSeason={(event, payload) =>
+                run(() => {
+                  if (!event) return createThemeAdminDraft(payload);
+                  if (event.lifecycle === 'DRAFT') {
+                    return updateThemeAdminDraft(event.id, payload);
+                  }
+                  return updateThemeAdminOperations(event.id, operationsPayloadFromDraft(payload));
+                }).then((completed) => {
                   if (completed) setEditorMode('closed');
                 })
               }
@@ -143,6 +212,9 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
                 run(() => runThemeAdminLifecycleAction(event.id, action))
               }
               onRun={run}
+              onEditDeck={(event, deck) =>
+                setDeckEditor({ eventId: event.id, eventName: event.name, deck })
+              }
             />
           )}
         </div>
@@ -279,9 +351,10 @@ function SeasonPanel({
   onOpenCreate,
   onOpenEdit,
   onCloseEditor,
-  onSubmitDraft,
+  onSubmitSeason,
   onLifecycle,
   onRun,
+  onEditDeck,
 }: {
   events: ThemeAdminEventView[];
   selected: ThemeAdminEventView | null;
@@ -292,7 +365,7 @@ function SeasonPanel({
   onOpenCreate: () => void;
   onOpenEdit: (event: ThemeAdminEventView) => void;
   onCloseEditor: () => void;
-  onSubmitDraft: (
+  onSubmitSeason: (
     event: ThemeAdminEventView | null,
     payload: ThemeAdminDraftPayload
   ) => Promise<unknown>;
@@ -301,6 +374,7 @@ function SeasonPanel({
     action: 'activate' | 'pause' | 'resume' | 'close'
   ) => Promise<unknown>;
   onRun: (operation: () => Promise<unknown>) => Promise<boolean>;
+  onEditDeck: (event: ThemeAdminEventView, deck: ThemeAdminDeckView) => void;
 }) {
   const [managedSeasonId, setManagedSeasonId] = useState<string | null>(null);
   const editingEvent = editorMode === 'edit' ? selected : null;
@@ -320,7 +394,7 @@ function SeasonPanel({
           event={editingEvent}
           busy={busy}
           onCancel={onCloseEditor}
-          onSubmit={(payload) => onSubmitDraft(editingEvent, payload)}
+          onSubmit={(payload) => onSubmitSeason(editingEvent, payload)}
         />
       ) : null}
 
@@ -353,12 +427,18 @@ function SeasonPanel({
                   />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
-                  <span>{formatOpenWindows(event.openWindows)}</span>
+                  <span>{formatRankedOpenWindows(event.openWindows)}</span>
                   <span>结束：{formatDate(event.endsAt)}</span>
                   <span>{enabledMatchupCount(event)} 个可分配组合</span>
                 </div>
                 {expanded ? (
-                  <DeckPoolPanel event={event} cloudDecks={cloudDecks} busy={busy} onRun={onRun} />
+                  <DeckPoolPanel
+                    event={event}
+                    cloudDecks={cloudDecks}
+                    busy={busy}
+                    onRun={onRun}
+                    onEditDeck={(deck) => onEditDeck(event, deck)}
+                  />
                 ) : null}
               </section>
             );
@@ -394,7 +474,7 @@ function SeasonActions({
   const runAction = (action: 'activate' | 'pause' | 'resume' | 'close') => {
     const warning =
       action === 'activate'
-        ? '开始后赛季信息和卡组池将冻结，确定开始主题赛季吗？'
+        ? '确定开始主题赛季吗？'
         : action === 'close'
           ? '结束后不能恢复，确定结束本期主题赛季吗？'
           : null;
@@ -407,14 +487,16 @@ function SeasonActions({
       <button className="button-secondary px-3 py-2 text-sm" onClick={onManage}>
         {expanded ? '收起卡组池' : '管理卡组池'}
       </button>
+      {event.lifecycle !== 'CLOSED' ? (
+        <button className="button-secondary px-3 py-2 text-sm" disabled={busy} onClick={onEdit}>
+          编辑赛季
+        </button>
+      ) : null}
       {event.lifecycle === 'DRAFT' ? (
         <>
-          <button className="button-secondary px-3 py-2 text-sm" disabled={busy} onClick={onEdit}>
-            编辑赛季
-          </button>
           <button
             className="button-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-            disabled={busy || event.decks.length < 2 || enabledMatchupCount(event) === 0}
+            disabled={busy || event.decks.length < 1 || enabledMatchupCount(event) === 0}
             onClick={() => runAction('activate')}
           >
             <ShieldCheck size={15} /> 开始赛季
@@ -448,18 +530,228 @@ function SeasonActions({
   );
 }
 
+function ThemeDeckEditorPage({
+  state,
+  busy,
+  error,
+  onBack,
+  onSave,
+}: {
+  state: ThemeDeckEditorState;
+  busy: boolean;
+  error: string | null;
+  onBack: () => void;
+  onSave: (deck: DeckConfig, displayName: string, sourceUrl: string | null) => Promise<boolean>;
+}) {
+  const cardDataRegistry = useGameStore((store) => store.cardDataRegistry);
+  const prepared = useMemo(
+    () => buildEditableThemeDeck(state.deck, cardDataRegistry),
+    [cardDataRegistry, state.deck]
+  );
+
+  if (!prepared.deck) {
+    return (
+      <div className="app-shell flex min-h-screen flex-col">
+        <AdminPageHeader
+          title={`编辑卡组 · ${state.eventName}`}
+          category="对局与赛季"
+          onBack={onBack}
+        />
+        <main className="product-page-main flex-1">
+          <div className="product-workbench mx-auto max-w-3xl p-6">
+            <p className="text-sm text-[var(--semantic-error)]">{prepared.error}</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <ThemeDeckEditorWorkspace
+      state={state}
+      initialDeck={prepared.deck}
+      busy={busy}
+      error={error}
+      onBack={onBack}
+      onSave={onSave}
+    />
+  );
+}
+
+function ThemeDeckEditorWorkspace({
+  state,
+  initialDeck,
+  busy,
+  error,
+  onBack,
+  onSave,
+}: {
+  state: ThemeDeckEditorState;
+  initialDeck: DeckConfig;
+  busy: boolean;
+  error: string | null;
+  onBack: () => void;
+  onSave: (deck: DeckConfig, displayName: string, sourceUrl: string | null) => Promise<boolean>;
+}) {
+  const [deck, setDeck] = useState(initialDeck);
+  const [displayName, setDisplayName] = useState(state.deck.displayName);
+  const [sourceUrl, setSourceUrl] = useState(state.deck.sourceUrl ?? '');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const validateDeck = useDeckStore((store) => store.validateDeck);
+  const validation = useMemo(() => validateDeck(deck), [deck, validateDeck]);
+  const initialSnapshot = useMemo(
+    () => JSON.stringify([initialDeck, state.deck.displayName, state.deck.sourceUrl ?? '']),
+    [initialDeck, state.deck.displayName, state.deck.sourceUrl]
+  );
+  const isDirty = JSON.stringify([deck, displayName, sourceUrl]) !== initialSnapshot;
+
+  const close = () => {
+    if (isDirty && !window.confirm('放弃尚未保存的卡组修改？')) return;
+    onBack();
+  };
+
+  const save = async () => {
+    const normalizedName = displayName.trim();
+    if (!normalizedName) {
+      setLocalError('请输入卡组名称');
+      return;
+    }
+    if (!validation.valid) {
+      setLocalError(validation.errors[0] ?? '卡组不符合当前构筑规则');
+      return;
+    }
+    let normalizedSourceUrl: string | null = null;
+    if (sourceUrl.trim()) {
+      try {
+        const parsed = new URL(sourceUrl.trim());
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error();
+        normalizedSourceUrl = parsed.toString();
+      } catch {
+        setLocalError('来源链接必须是完整的 HTTP 或 HTTPS 地址');
+        return;
+      }
+    }
+    setLocalError(null);
+    await onSave({ ...deck, player_name: normalizedName }, normalizedName, normalizedSourceUrl);
+  };
+
+  return (
+    <div className="app-shell flex h-screen min-h-0 flex-col overflow-hidden">
+      <AdminPageHeader
+        title={`编辑卡组 · ${state.eventName}`}
+        category="对局与赛季"
+        onBack={close}
+        actions={
+          <button
+            type="button"
+            className="button-primary inline-flex min-h-10 items-center gap-1.5 px-4 text-sm"
+            disabled={busy || !displayName.trim() || !validation.valid}
+            onClick={() => void save()}
+          >
+            {busy ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+            保存
+          </button>
+        }
+      />
+      <main className="min-h-0 flex-1 overflow-hidden p-3 sm:p-5">
+        <div className="workspace-shell mx-auto flex h-full min-h-0 max-w-[1500px] flex-col overflow-hidden">
+          <div className="workspace-toolbar grid gap-3 px-3 py-3 md:grid-cols-[minmax(180px,0.7fr)_minmax(280px,1.3fr)] md:px-4">
+            <label className="grid gap-1 text-xs text-[var(--text-muted)]">
+              卡组名称
+              <input
+                className="input-field px-3 py-2 text-sm font-semibold"
+                value={displayName}
+                maxLength={100}
+                onChange={(event) => {
+                  setDisplayName(event.target.value);
+                  setLocalError(null);
+                }}
+              />
+            </label>
+            <label className="grid gap-1 text-xs text-[var(--text-muted)]">
+              来源链接（可选）
+              <input
+                className="input-field px-3 py-2 text-sm"
+                inputMode="url"
+                placeholder="https://decklog.bushiroad.com/view/..."
+                value={sourceUrl}
+                maxLength={1000}
+                onChange={(event) => {
+                  setSourceUrl(event.target.value);
+                  setLocalError(null);
+                }}
+              />
+            </label>
+          </div>
+          {localError || error ? (
+            <p className="mx-4 mt-2 rounded-lg bg-[var(--semantic-error)]/10 px-3 py-2 text-xs text-[var(--semantic-error)]">
+              {localError ?? error}
+            </p>
+          ) : null}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <CardEditor deck={deck} onDeckChange={setDeck} onValidate={validateDeck} />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function buildEditableThemeDeck(
+  source: ThemeAdminDeckView,
+  cardDataRegistry: ReadonlyMap<string, AnyCardData>
+): { deck: DeckConfig | null; error: string | null } {
+  const members: DeckConfig['main_deck']['members'] = [];
+  const lives: DeckConfig['main_deck']['lives'] = [];
+  const missing: string[] = [];
+  for (const entry of source.mainDeck) {
+    const card = cardDataRegistry.get(entry.cardCode);
+    if (!card) {
+      missing.push(entry.cardCode);
+      continue;
+    }
+    const target =
+      card.cardType === CardType.MEMBER ? members : card.cardType === CardType.LIVE ? lives : null;
+    if (!target) {
+      missing.push(entry.cardCode);
+      continue;
+    }
+    target.push({ card_code: entry.cardCode, count: entry.count });
+  }
+  if (missing.length > 0) {
+    return {
+      deck: null,
+      error: `以下卡牌尚未加载，不能安全编辑：${missing.slice(0, 5).join('、')}`,
+    };
+  }
+  return {
+    deck: {
+      player_name: source.displayName,
+      description: source.reviewNote,
+      main_deck: { members, lives },
+      energy_deck: source.energyDeck.map((entry) => ({
+        card_code: entry.cardCode,
+        count: entry.count,
+      })),
+    },
+    error: null,
+  };
+}
+
 function DeckPoolPanel({
   event,
   cloudDecks,
   busy,
   onRun,
+  onEditDeck,
 }: {
   event: ThemeAdminEventView;
   cloudDecks: ReturnType<typeof useDeckStore.getState>['cloudDecks'];
   busy: boolean;
   onRun: (operation: () => Promise<unknown>) => Promise<boolean>;
+  onEditDeck: (deck: ThemeAdminDeckView) => void;
 }) {
-  const poolReady = event.decks.length >= 2 && enabledMatchupCount(event) > 0;
+  const poolReady = event.decks.length >= 1 && enabledMatchupCount(event) > 0;
   return (
     <div className="mt-4 rounded-xl bg-[var(--bg-overlay)] p-4">
       <div className="theme-season-readiness">
@@ -469,9 +761,7 @@ function DeckPoolPanel({
         </div>
         <div data-ready={poolReady}>
           <span>卡组池</span>
-          <strong>
-            {poolReady ? '可以开始赛季' : `还需加入 ${Math.max(0, 2 - event.decks.length)} 副`}
-          </strong>
+          <strong>{poolReady ? '可以开始赛季' : '还需加入 1 副'}</strong>
         </div>
       </div>
 
@@ -479,27 +769,61 @@ function DeckPoolPanel({
         <div>
           <h3 className="text-sm font-semibold text-[var(--text-primary)]">平台分配卡组池</h3>
           <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
-            加入卡组后，系统自动生成与池内其他卡组的等权组合。
+            每副卡组都会加入内战，并与池内其他卡组组成等权对局。
           </p>
         </div>
         <span className="text-xs text-[var(--text-muted)]">{event.decks.length} 副</span>
       </div>
 
-      {event.lifecycle === 'DRAFT' ? (
+      {event.lifecycle !== 'CLOSED' ? (
         <DeckPoolAddForm event={event} cloudDecks={cloudDecks} busy={busy} onRun={onRun} />
       ) : null}
 
       <div className="theme-deck-pool-grid mt-3">
         {event.decks.map((deck) => (
           <div key={deck.id}>
-            <strong>{deck.displayName}</strong>
+            <div className="theme-deck-pool-card__heading">
+              <strong>{deck.displayName}</strong>
+              {event.lifecycle !== 'CLOSED' ? (
+                <div className="theme-deck-pool-card__actions">
+                  <button
+                    type="button"
+                    className="theme-deck-pool-card__action"
+                    disabled={busy}
+                    aria-label={`编辑${deck.displayName}`}
+                    onClick={() => onEditDeck(deck)}
+                  >
+                    <Pencil size={13} aria-hidden="true" />
+                    编辑
+                  </button>
+                  <button
+                    type="button"
+                    className="theme-deck-pool-card__action theme-deck-pool-card__action--danger"
+                    disabled={busy}
+                    aria-label={`从卡组池移除${deck.displayName}`}
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `从卡组池移除“${deck.displayName}”？若卡组池因此变空，当前匹配会暂停。`
+                        )
+                      )
+                        return;
+                      void onRun(() => deleteThemeAdminDeck(event.id, deck.id));
+                    }}
+                  >
+                    <Trash2 size={13} aria-hidden="true" />
+                    移除
+                  </button>
+                </div>
+              ) : null}
+            </div>
             <span>
               主卡组 {sumDeck(deck.mainDeck)} · 能量 {sumDeck(deck.energyDeck)}
             </span>
           </div>
         ))}
         {event.decks.length === 0 ? (
-          <p className="py-4 text-sm text-[var(--text-muted)]">从一副合法云端卡组开始。</p>
+          <p className="py-4 text-sm text-[var(--text-muted)]">从云端卡组加入，或直接导入 YAML。</p>
         ) : null}
       </div>
 
@@ -557,16 +881,20 @@ function DeckPoolAddForm({
 }) {
   const validDecks = cloudDecks.filter((deck) => deck.is_valid);
   const [sourceDeckId, setSourceDeckId] = useState(validDecks[0]?.id ?? '');
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const submit = (submitEvent: FormEvent) => {
     submitEvent.preventDefault();
     const deck = validDecks.find((candidate) => candidate.id === sourceDeckId);
     if (!deck) return;
     void onRun(() =>
       addThemeAdminDeck(event.id, {
+        sourceType: 'CLOUD',
         sourceDeckId,
         deckKey: nextDeckKey(event),
         displayName: deck.name,
-        playStyleTags: ['平台预组'],
+        playStyleTags: [],
         difficulty: 'INTERMEDIATE',
         sourceLabel: '主题赛季卡组池',
         sourceUrl: null,
@@ -574,26 +902,86 @@ function DeckPoolAddForm({
       })
     );
   };
+
+  const importYaml = (changeEvent: ChangeEvent<HTMLInputElement>) => {
+    const file = changeEvent.target.files?.[0];
+    changeEvent.target.value = '';
+    if (!file) return;
+    setImportError(null);
+    setImporting(true);
+    void (async () => {
+      try {
+        if (file.size > 100_000) throw new Error('YAML 文件不能超过 100 KB');
+        const yamlContent = await file.text();
+        const parsed = DeckConfigSchema.safeParse(yaml.parse(yamlContent));
+        if (!parsed.success) {
+          throw new Error(`YAML 结构错误：${parsed.error.issues[0]?.message ?? '无法识别卡组'}`);
+        }
+        await onRun(() =>
+          addThemeAdminDeck(event.id, {
+            sourceType: 'YAML',
+            yamlContent,
+            deckKey: nextDeckKey(event),
+            displayName: parsed.data.player_name,
+            playStyleTags: [],
+            difficulty: 'INTERMEDIATE',
+            sourceLabel: `YAML · ${file.name}`,
+            sourceUrl: null,
+            reviewNote: '由管理员直接导入主题赛季卡组池',
+          })
+        );
+      } catch (error) {
+        setImportError(error instanceof Error ? error.message : 'YAML 导入失败');
+      } finally {
+        setImporting(false);
+      }
+    })();
+  };
   return (
-    <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
-      <select
-        className="input-field min-w-0 flex-1"
-        value={sourceDeckId}
-        aria-label="选择云端卡组"
-        onChange={(event) => setSourceDeckId(event.target.value)}
-        required
+    <div className="theme-deck-pool-import mt-3">
+      <form className="theme-deck-pool-import__cloud" onSubmit={submit}>
+        <select
+          className="input-field min-w-0 flex-1"
+          value={sourceDeckId}
+          aria-label="选择云端卡组"
+          onChange={(event) => setSourceDeckId(event.target.value)}
+          required
+        >
+          <option value="">选择一副合法云端卡组</option>
+          {validDecks.map((deck) => (
+            <option key={deck.id} value={deck.id}>
+              {deck.name}
+            </option>
+          ))}
+        </select>
+        <button className="button-primary min-h-11 px-4 text-sm" disabled={busy || !sourceDeckId}>
+          {busy && !importing ? <Loader2 size={16} className="animate-spin" /> : '从云端加入'}
+        </button>
+      </form>
+      <span className="theme-deck-pool-import__divider">或</span>
+      <input
+        ref={fileInputRef}
+        className="sr-only"
+        type="file"
+        accept=".yaml,.yml,text/yaml,application/x-yaml"
+        aria-label="导入 YAML 卡组"
+        onChange={importYaml}
+      />
+      <button
+        type="button"
+        className="button-secondary inline-flex min-h-11 items-center justify-center gap-1.5 px-4 text-sm"
+        disabled={busy || importing}
+        onClick={() => fileInputRef.current?.click()}
       >
-        <option value="">选择一副合法云端卡组</option>
-        {validDecks.map((deck) => (
-          <option key={deck.id} value={deck.id}>
-            {deck.name}
-          </option>
-        ))}
-      </select>
-      <button className="button-primary min-h-11 px-4 text-sm" disabled={busy || !sourceDeckId}>
-        {busy ? <Loader2 size={16} className="animate-spin" /> : '加入卡组池'}
+        {importing ? (
+          <Loader2 size={16} className="animate-spin" />
+        ) : (
+          <Upload size={15} aria-hidden="true" />
+        )}
+        导入 YAML
       </button>
-    </form>
+      {importError ? <p className="theme-deck-pool-import__error">{importError}</p> : null}
+    </div>
   );
 }
 
@@ -624,7 +1012,7 @@ function ThemeSeasonForm({
           startsAt: new Date(draft.startsAt).toISOString(),
           endsAt: new Date(draft.endsAt).toISOString(),
           openWindows: prepareRankedOpenWindowsForApi(draft.openWindows),
-          scheduleLabel: formatOpenWindows(draft.openWindows),
+          scheduleLabel: formatRankedOpenWindows(draft.openWindows),
           summary: description,
           announcement: `本主题季不计入排位，双方将从本期卡组池获得平台分配的预组。\n\n${description}`,
           evaluationPolicy: event?.evaluationPolicy ?? defaultEvaluationPolicy(),
@@ -636,7 +1024,9 @@ function ThemeSeasonForm({
           {event ? '编辑主题赛季' : '新建主题赛季'}
         </h2>
         <p className="mt-1 text-xs text-[var(--text-muted)]">
-          与排位赛季使用相同的时间框架；保存后只需加入卡组池。
+          {event && event.lifecycle !== 'DRAFT'
+            ? '调整玩家看到的赛季名称、时间和说明。'
+            : '与排位赛季使用相同的时间框架；保存后只需加入卡组池。'}
         </p>
       </div>
       <Field label="赛季名称">
@@ -762,6 +1152,18 @@ function defaultEvaluationPolicy() {
   };
 }
 
+function operationsPayloadFromDraft(payload: ThemeAdminDraftPayload): ThemeAdminOperationsPayload {
+  return {
+    name: payload.name,
+    openWindows: payload.openWindows,
+    startsAt: payload.startsAt,
+    endsAt: payload.endsAt,
+    scheduleLabel: payload.scheduleLabel,
+    summary: payload.summary,
+    announcement: payload.announcement,
+  };
+}
+
 function createThemeSeasonKey(date: Date) {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
     .toISOString()
@@ -771,7 +1173,11 @@ function createThemeSeasonKey(date: Date) {
 }
 
 function nextDeckKey(event: ThemeAdminEventView) {
-  return `deck-${String(event.decks.length + 1).padStart(2, '0')}`;
+  let index = 1;
+  while (event.decks.some((deck) => deck.deckKey === `deck-${String(index).padStart(2, '0')}`)) {
+    index += 1;
+  }
+  return `deck-${String(index).padStart(2, '0')}`;
 }
 
 function enabledMatchupCount(event: ThemeAdminEventView) {
@@ -798,29 +1204,6 @@ function formatDate(value: number) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(value);
-}
-
-function formatOpenWindows(
-  windows: readonly { weekdays: readonly number[]; startMinute: number; endMinute: number }[]
-) {
-  const logicalWindows = prepareRankedOpenWindowsForForm(windows);
-  const first = logicalWindows[0];
-  if (!first) return '未设置开放时段';
-  const weekdays =
-    first.weekdays.length === 7
-      ? '每天'
-      : first.weekdays
-          .map((weekday) => `周${['一', '二', '三', '四', '五', '六', '日'][weekday - 1]}`)
-          .join('、');
-  const time = `${minuteToTime(first.startMinute)}–${
-    isCrossMidnightRankedOpenWindow(first) ? '次日 ' : ''
-  }${minuteToTime(first.endMinute, true)}`;
-  return `${weekdays} ${time}${logicalWindows.length > 1 ? ` 等 ${logicalWindows.length} 个时段` : ''}`;
-}
-
-function minuteToTime(minute: number, isEnd = false) {
-  const normalized = isEnd && minute === 1440 ? 0 : minute;
-  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
 }
 
 function formatPercent(value: number) {

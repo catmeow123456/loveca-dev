@@ -5,6 +5,7 @@ describe('freezeThemeTableAssignment', () => {
   it('freezes one approved matchup before writing both server-owned decks to tickets', async () => {
     const calls: { text: string; values?: unknown[] }[] = [];
     const query = vi.fn(async (text: string, values?: unknown[]) => {
+      await Promise.resolve();
       calls.push({ text, values });
       if (text.includes('FROM theme_table_assignments')) return { rows: [], rowCount: 0 };
       if (text.includes('FROM theme_matchup_pair_versions')) {
@@ -64,10 +65,12 @@ describe('freezeThemeTableAssignment', () => {
   });
 
   it('fails closed when no approved matchup is available', async () => {
-    const query = vi.fn(async (text: string) =>
-      text.includes('FROM theme_table_assignments')
-        ? { rows: [], rowCount: 0 }
-        : { rows: [], rowCount: 0 }
+    const query = vi.fn((text: string) =>
+      Promise.resolve(
+        text.includes('FROM theme_table_assignments')
+          ? { rows: [], rowCount: 0 }
+          : { rows: [], rowCount: 0 }
+      )
     );
 
     await expect(
@@ -85,8 +88,44 @@ describe('freezeThemeTableAssignment', () => {
     ).toBe(false);
   });
 
+  it('assigns the same prebuilt deck to both tickets for an enabled mirror matchup', async () => {
+    const calls: { text: string; values?: unknown[] }[] = [];
+    const query = vi.fn((text: string, values?: unknown[]) => {
+      calls.push({ text, values });
+      if (text.includes('FROM theme_table_assignments')) {
+        return Promise.resolve({ rows: [], rowCount: 0 });
+      }
+      if (text.includes('FROM theme_matchup_pair_versions')) {
+        return Promise.resolve({
+          rows: [
+            pair('pair-mirror', 1, 'deck-a', '彩虹混合', 'hash-a', 'deck-a', '彩虹混合', 'hash-a'),
+          ],
+          rowCount: 1,
+        });
+      }
+      return Promise.resolve({ rows: [], rowCount: 1 });
+    });
+
+    await freezeThemeTableAssignment(
+      { query } as never,
+      'reservation-mirror',
+      'theme-1',
+      'ticket-1',
+      'ticket-2',
+      Date.parse('2026-08-02T12:00:00.000Z')
+    );
+
+    const assignment = calls.find((call) =>
+      call.text.includes('INSERT INTO theme_table_assignments')
+    );
+    expect(assignment?.values?.[3]).toBe('deck-a');
+    expect(assignment?.values?.[4]).toBe('deck-a');
+    const ticketUpdates = calls.filter((call) => call.text.includes('UPDATE public_table_tickets'));
+    expect(ticketUpdates.map((call) => call.values?.[1])).toEqual(['彩虹混合', '彩虹混合']);
+  });
+
   it('is idempotent when the reservation already has a frozen assignment', async () => {
-    const query = vi.fn(async () => ({ rows: [{ id: 'assignment-1' }], rowCount: 1 }));
+    const query = vi.fn(() => Promise.resolve({ rows: [{ id: 'assignment-1' }], rowCount: 1 }));
 
     await freezeThemeTableAssignment(
       { query } as never,

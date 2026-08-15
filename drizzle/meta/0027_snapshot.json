@@ -1,6 +1,6 @@
 {
-  "id": "c1f14762-5495-4c39-9537-7bb247b7fae0",
-  "prevId": "f80b0680-61b9-47a9-b484-f87c5ab24b8a",
+  "id": "31d20f99-08c4-4214-be85-15638f74c392",
+  "prevId": "c1f14762-5495-4c39-9537-7bb247b7fae0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -7654,6 +7654,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "ranked_entry_visible": {
+          "name": "ranked_entry_visible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "theme_table_entry_visible": {
+          "name": "theme_table_entry_visible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
         },
         "updated_by": {
           "name": "updated_by",

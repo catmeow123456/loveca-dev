@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import * as yaml from 'yaml';
 import type {
   ThemeAdminDeckView,
   ThemeAdminEventView,
@@ -6,10 +7,16 @@ import type {
   ThemeAdminMetricsView,
   ThemeTableEvaluationPolicy,
 } from '../../online/theme-table-types.js';
+import { DeckConfigSchema, DeckLoader } from '../../domain/card-data/deck-loader.js';
+import { deckConfigToRecordPayload } from '../../domain/card-data/deck-record-utils.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import { pool } from '../db/pool.js';
 import { getCurrentRankedCardCatalogIdentity } from '../rating/ranked-environment.js';
 import { loadOwnedDeckForOnlineMatch } from './online-room-service.js';
+import {
+  DeckPayloadValidationError,
+  prepareDeckPayloadForStorage,
+} from './deck-storage-service.js';
 import { encodePublicTableRuntimeDeck } from './public-table-deck-snapshot.js';
 import { REPLAY_RULES_VERSION } from './replay-constants.js';
 import type { RankedSeasonOpenWindow } from './ranked-season-service.js';
@@ -83,8 +90,17 @@ export interface ThemeAdminDraftInput {
   readonly evaluationPolicy: ThemeTableEvaluationPolicy;
 }
 
-export interface ThemeAdminDeckInput {
-  readonly sourceDeckId: string;
+export interface ThemeAdminOperationsInput {
+  readonly name: string;
+  readonly openWindows: readonly RankedSeasonOpenWindow[];
+  readonly startsAt: Date;
+  readonly endsAt: Date;
+  readonly scheduleLabel: string;
+  readonly summary: string;
+  readonly announcement: string;
+}
+
+interface ThemeAdminDeckMetadataInput {
   readonly deckKey: string;
   readonly displayName: string;
   readonly playStyleTags: readonly string[];
@@ -92,6 +108,22 @@ export interface ThemeAdminDeckInput {
   readonly sourceLabel: string;
   readonly sourceUrl?: string | null;
   readonly reviewNote: string;
+}
+
+export type ThemeAdminDeckInput = ThemeAdminDeckMetadataInput &
+  (
+    | { readonly sourceType: 'CLOUD'; readonly sourceDeckId: string }
+    | { readonly sourceType: 'YAML'; readonly yamlContent: string }
+  );
+
+export type ThemeAdminDeckUpdateInput = Omit<ThemeAdminDeckMetadataInput, 'deckKey'> &
+  (
+    | { readonly sourceType: 'CLOUD'; readonly sourceDeckId: string }
+    | { readonly sourceType: 'YAML'; readonly yamlContent: string }
+  );
+
+interface ThemeDeckSnapshotSource {
+  readonly runtimeDeck: Awaited<ReturnType<typeof loadOwnedDeckForOnlineMatch>>['runtimeDeck'];
 }
 
 export interface ThemeAdminMatchupInput {
@@ -122,6 +154,7 @@ export class ThemeTableAdminService {
       readonly createId?: () => string;
       readonly getCatalog?: typeof getCurrentRankedCardCatalogIdentity;
       readonly loadDeck?: typeof loadOwnedDeckForOnlineMatch;
+      readonly loadYamlDeck?: (yamlContent: string) => Promise<ThemeDeckSnapshotSource>;
     } = {}
   ) {
     this.query =
@@ -134,12 +167,14 @@ export class ThemeTableAdminService {
     this.createId = options.createId ?? randomUUID;
     this.getCatalog = options.getCatalog ?? getCurrentRankedCardCatalogIdentity;
     this.loadDeck = options.loadDeck ?? loadOwnedDeckForOnlineMatch;
+    this.loadYamlDeck = options.loadYamlDeck ?? loadThemeDeckFromYaml;
   }
 
   private readonly now: () => Date;
   private readonly createId: () => string;
   private readonly getCatalog: typeof getCurrentRankedCardCatalogIdentity;
   private readonly loadDeck: typeof loadOwnedDeckForOnlineMatch;
+  private readonly loadYamlDeck: (yamlContent: string) => Promise<ThemeDeckSnapshotSource>;
 
   async getEnvironmentPreview() {
     const catalog = await this.getCatalog();
@@ -241,9 +276,54 @@ export class ThemeTableAdminService {
     return this.projectEvent(row);
   }
 
+  async updateOperations(adminUserId: string, themeId: string, input: ThemeAdminOperationsInput) {
+    assertOperationsInput(input);
+    const result = await this.query<ThemeRow>(
+      `UPDATE theme_table_versions
+       SET name = $2,
+           open_windows = $3::jsonb,
+           starts_at = $4,
+           ends_at = $5,
+           schedule_label = $6,
+           summary = $7,
+           announcement = $8,
+           updated_at = $9
+       WHERE id = $1 AND lifecycle IN ('ACTIVE', 'PAUSED')
+       RETURNING *`,
+      [
+        themeId,
+        input.name.trim(),
+        JSON.stringify(input.openWindows),
+        input.startsAt,
+        input.endsAt,
+        input.scheduleLabel.trim(),
+        input.summary.trim(),
+        input.announcement.trim(),
+        this.now(),
+      ]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      const theme = await this.requireTheme(themeId);
+      throw adminError(
+        'THEME_OPERATIONS_NOT_EDITABLE',
+        theme.lifecycle === 'CLOSED'
+          ? '已结束的主题赛季不能编辑'
+          : '只有已开始的主题赛季可以这样编辑',
+        409
+      );
+    }
+    audit('THEME_OPERATIONS_UPDATED', adminUserId, themeId);
+    return this.projectEvent(row);
+  }
+
   async addDeck(adminUserId: string, themeId: string, input: ThemeAdminDeckInput) {
-    await this.requireDraft(themeId);
-    const deck = await this.loadDeck(adminUserId, input.sourceDeckId);
+    const theme = await this.requireDeckPoolEditable(themeId);
+    await this.assertCurrentEnvironmentForDeckChange(theme);
+    const deck =
+      input.sourceType === 'YAML'
+        ? await this.loadYamlDeck(input.yamlContent)
+        : await this.loadDeck(adminUserId, input.sourceDeckId);
     const encoded = encodePublicTableRuntimeDeck(deck.runtimeDeck);
     const result = await this.query<AdminDeckRow>(
       `WITH inserted_deck AS (
@@ -256,7 +336,7 @@ export class ThemeTableAdminService {
            $1, $2, $3, $4, $5::jsonb, $6::jsonb,
            $7, $8::jsonb, $9, $10, $11, $12, $13, $13
          FROM theme_table_versions AS theme
-         WHERE theme.id = $2 AND theme.lifecycle = 'DRAFT'
+         WHERE theme.id = $2 AND theme.lifecycle IN ('DRAFT', 'ACTIVE', 'PAUSED')
          RETURNING id, deck_key, display_name, deck_list, content_hash,
                    play_style_tags, difficulty, source_label, source_url,
                    review_note, approved_at
@@ -273,7 +353,12 @@ export class ThemeTableAdminService {
          FROM theme_prebuilt_deck_versions AS existing
          CROSS JOIN inserted_deck AS inserted
          WHERE existing.theme_table_version_id = $2
-           AND existing.id <> inserted.id
+           AND existing.retired_at IS NULL
+         UNION ALL
+         SELECT
+           $2, inserted.id, inserted.id,
+           1, TRUE, jsonb_build_object('summary', '随卡组池自动启用'), $13, $13, $13
+         FROM inserted_deck AS inserted
          ON CONFLICT (
            theme_table_version_id, first_deck_version_id, second_deck_version_id
          ) DO NOTHING
@@ -296,9 +381,174 @@ export class ThemeTableAdminService {
       ]
     );
     const row = result.rows[0];
-    if (!row) throw adminError('THEME_DRAFT_FROZEN', '活动已发布，不能再添加预组', 409);
+    if (!row) throw adminError('THEME_DECK_POOL_CHANGED', '卡组池状态已变化，请刷新后重试', 409);
     audit('THEME_DECK_ADDED', adminUserId, themeId, { deckKey: input.deckKey });
     return mapDeck(row);
+  }
+
+  async updateDeck(
+    adminUserId: string,
+    themeId: string,
+    deckId: string,
+    input: ThemeAdminDeckUpdateInput
+  ) {
+    const theme = await this.requireDeckPoolEditable(themeId);
+    await this.assertCurrentEnvironmentForDeckChange(theme);
+    const deck =
+      input.sourceType === 'YAML'
+        ? await this.loadYamlDeck(input.yamlContent)
+        : await this.loadDeck(adminUserId, input.sourceDeckId);
+    const encoded = encodePublicTableRuntimeDeck(deck.runtimeDeck);
+    const replacementId = this.createId();
+    const result = await this.query<AdminDeckRow>(
+      `WITH target_deck AS (
+         SELECT deck.id, deck.deck_key
+         FROM theme_prebuilt_deck_versions AS deck
+         JOIN theme_table_versions AS theme
+           ON theme.id = deck.theme_table_version_id
+          AND theme.lifecycle IN ('DRAFT', 'ACTIVE', 'PAUSED')
+         WHERE deck.id = $3
+           AND deck.theme_table_version_id = $2
+           AND deck.retired_at IS NULL
+       ), retired_deck AS (
+         UPDATE theme_prebuilt_deck_versions AS deck
+         SET retired_at = $13
+         FROM target_deck AS target
+         WHERE deck.id = target.id
+           AND deck.retired_at IS NULL
+         RETURNING target.id, target.deck_key
+       ), disabled_matchups AS (
+         UPDATE theme_matchup_pair_versions AS pair
+         SET enabled = FALSE, disabled_at = $13, updated_at = $13
+         FROM retired_deck AS retired
+         WHERE pair.theme_table_version_id = $2
+           AND pair.enabled = TRUE
+           AND (pair.first_deck_version_id = retired.id OR pair.second_deck_version_id = retired.id)
+         RETURNING pair.id
+       ), inserted_deck AS (
+         INSERT INTO theme_prebuilt_deck_versions (
+           id, theme_table_version_id, deck_key, display_name, runtime_deck, deck_list,
+           content_hash, play_style_tags, difficulty, source_label, source_url,
+           review_note, approved_at, created_at
+         )
+         SELECT
+           $1, $2, retired.deck_key, $4, $5::jsonb, $6::jsonb,
+           $7, $8::jsonb, $9, $10, $11, $12, $13, $13
+         FROM retired_deck AS retired
+         RETURNING id, deck_key, display_name, deck_list, content_hash,
+                   play_style_tags, difficulty, source_label, source_url,
+                   review_note, approved_at
+       ), inserted_matchups AS (
+         INSERT INTO theme_matchup_pair_versions (
+           theme_table_version_id, first_deck_version_id, second_deck_version_id,
+           weight, enabled, test_summary, approved_at, created_at, updated_at
+         )
+         SELECT
+           $2,
+           CASE WHEN existing.id < inserted.id THEN existing.id ELSE inserted.id END,
+           CASE WHEN existing.id < inserted.id THEN inserted.id ELSE existing.id END,
+           1, TRUE, jsonb_build_object('summary', '随卡组池自动启用'), $13, $13, $13
+         FROM theme_prebuilt_deck_versions AS existing
+         CROSS JOIN inserted_deck AS inserted
+         WHERE existing.theme_table_version_id = $2
+           AND existing.retired_at IS NULL
+           AND existing.id <> $3
+         UNION ALL
+         SELECT
+           $2, inserted.id, inserted.id,
+           1, TRUE, jsonb_build_object('summary', '随卡组池自动启用'), $13, $13, $13
+         FROM inserted_deck AS inserted
+         ON CONFLICT (
+           theme_table_version_id, first_deck_version_id, second_deck_version_id
+         ) DO NOTHING
+       )
+       SELECT * FROM inserted_deck`,
+      [
+        replacementId,
+        themeId,
+        deckId,
+        input.displayName,
+        encoded.json,
+        JSON.stringify(toDeckList(deck.runtimeDeck.mainDeck, deck.runtimeDeck.energyDeck)),
+        encoded.contentHash,
+        JSON.stringify(input.playStyleTags),
+        input.difficulty,
+        input.sourceLabel,
+        input.sourceUrl ?? null,
+        input.reviewNote,
+        this.now(),
+      ]
+    );
+    const row = result.rows[0];
+    if (!row) throw adminError('THEME_DECK_NOT_FOUND', '卡组池中没有这副卡组', 404);
+    audit('THEME_DECK_UPDATED', adminUserId, themeId, {
+      previousDeckVersionId: deckId,
+      deckVersionId: replacementId,
+    });
+    return mapDeck(row);
+  }
+
+  async deleteDeck(adminUserId: string, themeId: string, deckId: string) {
+    await this.requireDeckPoolEditable(themeId);
+    const result = await this.query<{ id: string; disabled_matchup_count: string }>(
+      `WITH target_deck AS (
+         SELECT deck.id
+         FROM theme_prebuilt_deck_versions AS deck
+         JOIN theme_table_versions AS theme
+           ON theme.id = deck.theme_table_version_id
+          AND theme.lifecycle IN ('DRAFT', 'ACTIVE', 'PAUSED')
+         WHERE deck.id = $2
+           AND deck.theme_table_version_id = $1
+           AND deck.retired_at IS NULL
+       ), retired_deck AS (
+         UPDATE theme_prebuilt_deck_versions AS deck
+         SET retired_at = $3
+         FROM target_deck AS target
+         WHERE deck.id = target.id
+           AND deck.retired_at IS NULL
+         RETURNING deck.id
+       ), disabled_matchups AS (
+         UPDATE theme_matchup_pair_versions AS pair
+         SET enabled = FALSE, disabled_at = $3, updated_at = $3
+         FROM retired_deck AS retired
+         WHERE pair.theme_table_version_id = $1
+           AND pair.enabled = TRUE
+           AND (pair.first_deck_version_id = retired.id OR pair.second_deck_version_id = retired.id)
+         RETURNING pair.id
+       ), paused_theme AS (
+         UPDATE theme_table_versions AS theme
+         SET lifecycle = 'PAUSED', updated_at = $3
+         FROM retired_deck AS retired
+         WHERE theme.id = $1
+           AND theme.lifecycle = 'ACTIVE'
+           AND NOT EXISTS (
+             SELECT 1
+             FROM theme_matchup_pair_versions AS candidate
+             JOIN theme_prebuilt_deck_versions AS first_deck
+               ON first_deck.id = candidate.first_deck_version_id
+              AND first_deck.retired_at IS NULL
+             JOIN theme_prebuilt_deck_versions AS second_deck
+               ON second_deck.id = candidate.second_deck_version_id
+              AND second_deck.retired_at IS NULL
+             WHERE candidate.theme_table_version_id = theme.id
+               AND candidate.enabled = TRUE
+               AND candidate.first_deck_version_id <> retired.id
+               AND candidate.second_deck_version_id <> retired.id
+           )
+         RETURNING theme.id
+       )
+       SELECT retired_deck.id,
+              (SELECT COUNT(*) FROM disabled_matchups)::text AS disabled_matchup_count
+       FROM retired_deck`,
+      [themeId, deckId, this.now()]
+    );
+    const row = result.rows[0];
+    if (!row) throw adminError('THEME_DECK_NOT_FOUND', '卡组池中没有这副卡组', 404);
+    audit('THEME_DECK_RETIRED', adminUserId, themeId, {
+      deckId,
+      disabledMatchupCount: Number(row.disabled_matchup_count),
+    });
+    return { id: row.id, disabledMatchupCount: Number(row.disabled_matchup_count) };
   }
 
   async addMatchup(adminUserId: string, themeId: string, input: ThemeAdminMatchupInput) {
@@ -315,10 +565,14 @@ export class ThemeTableAdminService {
        SELECT $1, $2, first_deck.id, second_deck.id, $5, TRUE, $6::jsonb, $7, $7, $7
        FROM theme_prebuilt_deck_versions AS first_deck
        JOIN theme_prebuilt_deck_versions AS second_deck
-         ON second_deck.id = $4 AND second_deck.theme_table_version_id = $2
+         ON second_deck.id = $4
+        AND second_deck.theme_table_version_id = $2
+        AND second_deck.retired_at IS NULL
        JOIN theme_table_versions AS theme
          ON theme.id = first_deck.theme_table_version_id AND theme.lifecycle = 'DRAFT'
-       WHERE first_deck.id = $3 AND first_deck.theme_table_version_id = $2
+       WHERE first_deck.id = $3
+         AND first_deck.theme_table_version_id = $2
+         AND first_deck.retired_at IS NULL
        RETURNING id, first_deck_version_id, second_deck_version_id, weight, enabled,
                  test_summary, approved_at,
                  (SELECT display_name FROM theme_prebuilt_deck_versions WHERE id = first_deck_version_id) AS first_deck_name,
@@ -364,6 +618,11 @@ export class ThemeTableAdminService {
            AND theme.id = pair.theme_table_version_id
            AND theme.lifecycle <> 'CLOSED'
            AND ($3 = FALSE OR theme.lifecycle = 'DRAFT')
+           AND ($3 = FALSE OR NOT EXISTS (
+             SELECT 1 FROM theme_prebuilt_deck_versions AS retired_deck
+             WHERE retired_deck.id IN (pair.first_deck_version_id, pair.second_deck_version_id)
+               AND retired_deck.retired_at IS NOT NULL
+           ))
          RETURNING pair.*
        ), paused_theme AS (
          UPDATE theme_table_versions AS theme
@@ -373,7 +632,14 @@ export class ThemeTableAdminService {
            AND $3 = FALSE
            AND EXISTS (SELECT 1 FROM updated_pair)
            AND NOT EXISTS (
-             SELECT 1 FROM theme_matchup_pair_versions AS candidate
+             SELECT 1
+             FROM theme_matchup_pair_versions AS candidate
+             JOIN theme_prebuilt_deck_versions AS first_deck
+               ON first_deck.id = candidate.first_deck_version_id
+              AND first_deck.retired_at IS NULL
+             JOIN theme_prebuilt_deck_versions AS second_deck
+               ON second_deck.id = candidate.second_deck_version_id
+              AND second_deck.retired_at IS NULL
              WHERE candidate.theme_table_version_id = theme.id
                AND candidate.enabled = TRUE
            )
@@ -415,10 +681,16 @@ export class ThemeTableAdminService {
          SET lifecycle = 'ACTIVE', activated_at = $2, updated_at = $2
          WHERE id = $1
            AND lifecycle = 'DRAFT'
-           AND (SELECT COUNT(*) FROM theme_prebuilt_deck_versions WHERE theme_table_version_id = $1) >= 2
+           AND (SELECT COUNT(*) FROM theme_prebuilt_deck_versions
+                WHERE theme_table_version_id = $1 AND retired_at IS NULL) >= 1
            AND EXISTS (
-             SELECT 1 FROM theme_matchup_pair_versions
-             WHERE theme_table_version_id = $1 AND enabled = TRUE
+             SELECT 1
+             FROM theme_matchup_pair_versions AS pair
+             JOIN theme_prebuilt_deck_versions AS first_deck
+               ON first_deck.id = pair.first_deck_version_id AND first_deck.retired_at IS NULL
+             JOIN theme_prebuilt_deck_versions AS second_deck
+               ON second_deck.id = pair.second_deck_version_id AND second_deck.retired_at IS NULL
+             WHERE pair.theme_table_version_id = $1 AND pair.enabled = TRUE
            )
          RETURNING id`,
         [themeId, this.now()]
@@ -443,8 +715,13 @@ export class ThemeTableAdminService {
          WHERE id = $1
            AND lifecycle = 'PAUSED'
            AND EXISTS (
-             SELECT 1 FROM theme_matchup_pair_versions
-             WHERE theme_table_version_id = $1 AND enabled = TRUE
+             SELECT 1
+             FROM theme_matchup_pair_versions AS pair
+             JOIN theme_prebuilt_deck_versions AS first_deck
+               ON first_deck.id = pair.first_deck_version_id AND first_deck.retired_at IS NULL
+             JOIN theme_prebuilt_deck_versions AS second_deck
+               ON second_deck.id = pair.second_deck_version_id AND second_deck.retired_at IS NULL
+             WHERE pair.theme_table_version_id = $1 AND pair.enabled = TRUE
            )
          RETURNING id`,
         [themeId, this.now()]
@@ -475,6 +752,29 @@ export class ThemeTableAdminService {
       throw adminError('THEME_DRAFT_FROZEN', '活动发布后不能修改预组或新增组合', 409);
     }
     return theme;
+  }
+
+  private async requireDeckPoolEditable(themeId: string) {
+    const theme = await this.requireTheme(themeId);
+    if (theme.lifecycle === 'CLOSED') {
+      throw adminError('THEME_DECK_POOL_CLOSED', '已结束的主题赛季不能修改卡组池', 409);
+    }
+    return theme;
+  }
+
+  private async assertCurrentEnvironmentForDeckChange(theme: ThemeRow) {
+    if (theme.lifecycle === 'DRAFT') return;
+    const catalog = await this.getCatalog(true);
+    if (
+      theme.rules_environment_id !== REPLAY_RULES_VERSION ||
+      theme.card_catalog_hash !== catalog.cardCatalogHash
+    ) {
+      throw adminError(
+        'THEME_ENVIRONMENT_CHANGED',
+        '规则或卡牌目录已变化，不能继续修改本期卡组池',
+        409
+      );
+    }
   }
 
   private async runLifecycleMutation(text: string, values: readonly unknown[]): Promise<void> {
@@ -517,15 +817,22 @@ export class ThemeTableAdminService {
     }
     const counts = await this.query<{ deck_count: string; matchup_count: string }>(
       `SELECT
-         (SELECT COUNT(*) FROM theme_prebuilt_deck_versions WHERE theme_table_version_id = $1)::text AS deck_count,
-         (SELECT COUNT(*) FROM theme_matchup_pair_versions WHERE theme_table_version_id = $1 AND enabled = TRUE)::text AS matchup_count`,
+         (SELECT COUNT(*) FROM theme_prebuilt_deck_versions
+           WHERE theme_table_version_id = $1 AND retired_at IS NULL)::text AS deck_count,
+         (SELECT COUNT(*)
+            FROM theme_matchup_pair_versions AS pair
+            JOIN theme_prebuilt_deck_versions AS first_deck
+              ON first_deck.id = pair.first_deck_version_id AND first_deck.retired_at IS NULL
+            JOIN theme_prebuilt_deck_versions AS second_deck
+              ON second_deck.id = pair.second_deck_version_id AND second_deck.retired_at IS NULL
+           WHERE pair.theme_table_version_id = $1 AND pair.enabled = TRUE)::text AS matchup_count`,
       [theme.id]
     );
-    if (Number(counts.rows[0]?.deck_count ?? 0) < 2) {
-      throw adminError('THEME_DECK_POOL_INCOMPLETE', '至少需要两副审核通过的预组', 409);
+    if (Number(counts.rows[0]?.deck_count ?? 0) < 1) {
+      throw adminError('THEME_DECK_POOL_INCOMPLETE', '至少需要一副审核通过的预组', 409);
     }
     if (Number(counts.rows[0]?.matchup_count ?? 0) < 1) {
-      throw adminError('THEME_MATCHUP_POOL_EMPTY', '至少需要一个已启用的实测组合', 409);
+      throw adminError('THEME_MATCHUP_POOL_EMPTY', '至少需要一个已启用的对局组合', 409);
     }
   }
 
@@ -535,7 +842,9 @@ export class ThemeTableAdminService {
         `SELECT id, deck_key, display_name, deck_list, content_hash, play_style_tags,
                 difficulty, source_label, source_url, review_note, approved_at
          FROM theme_prebuilt_deck_versions
-         WHERE theme_table_version_id = $1 ORDER BY deck_key, id`,
+         WHERE theme_table_version_id = $1
+           AND retired_at IS NULL
+         ORDER BY deck_key, id`,
         [theme.id]
       ),
       this.query<MatchupRow>(
@@ -545,7 +854,10 @@ export class ThemeTableAdminService {
          FROM theme_matchup_pair_versions AS pair
          JOIN theme_prebuilt_deck_versions AS first_deck ON first_deck.id = pair.first_deck_version_id
          JOIN theme_prebuilt_deck_versions AS second_deck ON second_deck.id = pair.second_deck_version_id
-         WHERE pair.theme_table_version_id = $1 ORDER BY pair.created_at, pair.id`,
+         WHERE pair.theme_table_version_id = $1
+           AND first_deck.retired_at IS NULL
+           AND second_deck.retired_at IS NULL
+         ORDER BY pair.created_at, pair.id`,
         [theme.id]
       ),
       this.loadMetrics(theme.id),
@@ -676,6 +988,25 @@ function assertDraftInput(input: ThemeAdminDraftInput) {
   }
 }
 
+function assertOperationsInput(input: ThemeAdminOperationsInput) {
+  if (input.name.trim().length === 0 || input.name.trim().length > 100) {
+    throw adminError('THEME_NAME_INVALID', '主题赛季名称不能为空且不能超过 100 个字符');
+  }
+  if (
+    !Number.isFinite(input.startsAt.getTime()) ||
+    !Number.isFinite(input.endsAt.getTime()) ||
+    input.endsAt.getTime() <= input.startsAt.getTime()
+  ) {
+    throw adminError('THEME_WINDOW_INVALID', '活动结束时间必须晚于开始时间');
+  }
+  if (input.openWindows.length === 0) {
+    throw adminError('THEME_OPEN_WINDOWS_EMPTY', '至少配置一个开放时段');
+  }
+  if (input.openWindows.some((window) => window.startMinute >= window.endMinute)) {
+    throw adminError('THEME_OPEN_WINDOW_INVALID', '开放时段结束时间必须晚于开始时间');
+  }
+}
+
 function toDeckList(mainDeck: readonly AnyCardData[], energyDeck: readonly AnyCardData[]) {
   return { mainDeck: countCards(mainDeck), energyDeck: countCards(energyDeck) };
 }
@@ -686,6 +1017,54 @@ function countCards(cards: readonly AnyCardData[]) {
   return [...counts.entries()]
     .sort(([first], [second]) => first.localeCompare(second))
     .map(([cardCode, count]) => ({ cardCode, count }));
+}
+
+async function loadThemeDeckFromYaml(yamlContent: string): Promise<ThemeDeckSnapshotSource> {
+  let rawConfig: unknown;
+  try {
+    rawConfig = yaml.parse(yamlContent);
+  } catch {
+    throw adminError('THEME_DECK_YAML_INVALID', 'YAML 文件无法解析');
+  }
+  const parsed = DeckConfigSchema.safeParse(rawConfig);
+  if (!parsed.success) {
+    throw adminError(
+      'THEME_DECK_YAML_INVALID',
+      parsed.error.issues[0]?.message ?? 'YAML 卡组结构无效'
+    );
+  }
+
+  let prepared;
+  try {
+    const recordPayload = deckConfigToRecordPayload(parsed.data);
+    prepared = await prepareDeckPayloadForStorage({
+      name: parsed.data.player_name,
+      description: parsed.data.description,
+      main_deck: recordPayload.main_deck,
+      energy_deck: recordPayload.energy_deck,
+    });
+  } catch (error) {
+    if (error instanceof DeckPayloadValidationError) {
+      throw adminError('THEME_DECK_YAML_INVALID', error.errors[0] ?? 'YAML 卡组包含不可用卡牌');
+    }
+    throw error;
+  }
+  if (!prepared.validation.valid) {
+    throw adminError(
+      'THEME_DECK_YAML_INVALID',
+      prepared.validation.errors[0] ?? 'YAML 卡组不符合当前构筑规则'
+    );
+  }
+  const loaded = new DeckLoader(prepared.registry).loadFromConfig(prepared.config);
+  if (!loaded.success || !loaded.deck) {
+    throw adminError('THEME_DECK_YAML_INVALID', loaded.errors[0] ?? 'YAML 卡组加载失败');
+  }
+  return {
+    runtimeDeck: {
+      mainDeck: [...loaded.deck.mainDeck],
+      energyDeck: [...loaded.deck.energyDeck],
+    },
+  };
 }
 
 function mapDeck(row: AdminDeckRow): ThemeAdminDeckView {

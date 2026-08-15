@@ -52,8 +52,8 @@ import {
 } from '@/lib/rankedAdminClient';
 import { resolveCardImagePath } from '@/lib/imageService';
 import {
+  formatRankedOpenWindows,
   getRankedOpenWindowsValidationError,
-  isCrossMidnightRankedOpenWindow,
   prepareRankedOpenWindowsForApi,
   prepareRankedOpenWindowsForForm,
 } from '@/lib/rankedOpenWindows';
@@ -1259,7 +1259,7 @@ function SeasonPanel({
               <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
                 <span>匹配：{season.queueAdmission === 'OPEN' ? '开放' : '暂停'}</span>
                 <span>排行榜：满 {season.leaderboardMinimumMatchCount} 场</span>
-                <span>{formatOpenWindows(season.openWindows)}</span>
+                <span>{formatRankedOpenWindows(season.openWindows)}</span>
                 <span>结束：{formatDate(season.scheduledEndsAt)}</span>
               </div>
             </section>
@@ -2664,11 +2664,6 @@ function createDraftFromSeason(season: RankedAdminSeason) {
   };
 }
 
-function minuteToTime(minute: number, isEnd = false) {
-  if (isEnd && minute === 1440) return '00:00';
-  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
-}
-
 function lifecycleLabel(value: RankedAdminSeason['lifecycle']) {
   return { DRAFT: '未开始', ACTIVE: '开放中', FINALIZING: '结算中', CLOSED: '已结束' }[value];
 }
@@ -2756,22 +2751,6 @@ function formatDate(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
-}
-
-function formatOpenWindows(windows: RankedAdminSeason['openWindows']): string {
-  const logicalWindows = prepareRankedOpenWindowsForForm(windows);
-  const first = logicalWindows[0];
-  if (!first) return '未设置时段';
-  const weekdays =
-    first.weekdays.length === 7
-      ? '每天'
-      : first.weekdays
-          .map((weekday) => `周${['一', '二', '三', '四', '五', '六', '日'][weekday - 1]}`)
-          .join('、');
-  const time = `${minuteToTime(first.startMinute)}–${
-    isCrossMidnightRankedOpenWindow(first) ? '次日 ' : ''
-  }${minuteToTime(first.endMinute, true)}`;
-  return `${weekdays} ${time}${logicalWindows.length > 1 ? ` 等 ${logicalWindows.length} 个时段` : ''}`;
 }
 
 function readError(error: unknown) {

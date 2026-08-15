@@ -28,6 +28,7 @@ CREATE TABLE "theme_prebuilt_deck_versions" (
 	"source_url" text,
 	"review_note" text NOT NULL,
 	"approved_at" timestamp with time zone NOT NULL,
+	"retired_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "theme_prebuilt_deck_difficulty_check" CHECK ("theme_prebuilt_deck_versions"."difficulty" IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED'))
 );
@@ -94,8 +95,8 @@ ALTER TABLE "theme_table_assignments" ADD CONSTRAINT "theme_table_assignments_fi
 ALTER TABLE "theme_table_assignments" ADD CONSTRAINT "theme_table_assignments_second_ticket_deck_version_id_theme_prebuilt_deck_versions_id_fk" FOREIGN KEY ("second_ticket_deck_version_id") REFERENCES "public"."theme_prebuilt_deck_versions"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "idx_theme_matchup_pairs_active" ON "theme_matchup_pair_versions" USING btree ("theme_table_version_id","enabled");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_theme_matchup_pair" ON "theme_matchup_pair_versions" USING btree ("theme_table_version_id","first_deck_version_id","second_deck_version_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_theme_prebuilt_deck_key" ON "theme_prebuilt_deck_versions" USING btree ("theme_table_version_id","deck_key");--> statement-breakpoint
-CREATE UNIQUE INDEX "uq_theme_prebuilt_deck_content" ON "theme_prebuilt_deck_versions" USING btree ("theme_table_version_id","content_hash");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_theme_prebuilt_deck_key" ON "theme_prebuilt_deck_versions" USING btree ("theme_table_version_id","deck_key") WHERE "theme_prebuilt_deck_versions"."retired_at" IS NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_theme_prebuilt_deck_content" ON "theme_prebuilt_deck_versions" USING btree ("theme_table_version_id","content_hash") WHERE "theme_prebuilt_deck_versions"."retired_at" IS NULL;--> statement-breakpoint
 CREATE INDEX "idx_theme_table_assignments_theme" ON "theme_table_assignments" USING btree ("theme_table_version_id");--> statement-breakpoint
 CREATE INDEX "idx_theme_table_versions_lifecycle_window" ON "theme_table_versions" USING btree ("lifecycle","starts_at","ends_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_theme_table_versions_single_active" ON "theme_table_versions" USING btree ("lifecycle") WHERE "theme_table_versions"."lifecycle" = 'ACTIVE';--> statement-breakpoint

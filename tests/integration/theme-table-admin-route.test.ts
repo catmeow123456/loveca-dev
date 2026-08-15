@@ -17,7 +17,10 @@ vi.mock('../../src/server/services/theme-table-admin-service.js', () => ({
     listEvents: vi.fn(),
     createDraft: vi.fn(),
     updateDraft: vi.fn(),
+    updateOperations: vi.fn(),
     addDeck: vi.fn(),
+    updateDeck: vi.fn(),
+    deleteDeck: vi.fn(),
     addMatchup: vi.fn(),
     setMatchupEnabled: vi.fn(),
     runLifecycleAction: vi.fn(),
@@ -27,7 +30,7 @@ vi.mock('../../src/server/services/theme-table-admin-service.js', () => ({
 import { themeTableAdminRouter } from '../../src/server/routes/theme-table-admin';
 import { themeTableAdminService } from '../../src/server/services/theme-table-admin-service';
 
-type RouteMethod = 'get' | 'post' | 'put';
+type RouteMethod = 'delete' | 'get' | 'post' | 'put';
 
 function findRoute(path: string, method: RouteMethod) {
   const layer = themeTableAdminRouter.stack.find(
@@ -61,7 +64,7 @@ async function invoke(path: string, method: RouteMethod, options: Partial<Reques
   for (const layer of findRoute(path, method).stack) {
     if (response.body !== null) break;
     await new Promise<void>((resolve, reject) => {
-      const next: NextFunction = (error?: unknown) => (error ? reject(error) : resolve());
+      const next: NextFunction = (error?: unknown) => (error ? reject(toError(error)) : resolve());
       try {
         const result = layer.handle(request, response, next);
         if (result && typeof (result as Promise<void>).then === 'function') {
@@ -70,11 +73,15 @@ async function invoke(path: string, method: RouteMethod, options: Partial<Reques
           resolve();
         }
       } catch (error) {
-        reject(error);
+        reject(toError(error));
       }
     });
   }
   return response;
+}
+
+function toError(value: unknown): Error {
+  return value instanceof Error ? value : new Error(String(value));
 }
 
 const validDraft = {
@@ -97,6 +104,16 @@ const validDraft = {
     winRateUpperBound: 0.65,
     baselineWindowLabel: '前两周同窗口',
   },
+};
+
+const validOperations = {
+  name: '盛夏发现局',
+  openWindows: [{ weekdays: [6, 7], startMinute: 1080, endMinute: 1380 }],
+  startsAt: '2026-08-09T00:00:00.000Z',
+  endsAt: '2026-08-30T00:00:00.000Z',
+  scheduleLabel: '周末 18:00–23:00',
+  summary: '调整后的玩家说明',
+  announcement: '不计入排位，确认后随机分配预组。',
 };
 
 describe('themeTableAdminRouter', () => {
@@ -126,6 +143,24 @@ describe('themeTableAdminRouter', () => {
     expect(themeTableAdminService.createDraft).not.toHaveBeenCalled();
   });
 
+  it('routes editable operations for a started theme season', async () => {
+    vi.mocked(themeTableAdminService.updateOperations).mockResolvedValue({
+      id: 'theme-1',
+    } as never);
+
+    const response = await invoke('/events/:themeId/operations', 'put', {
+      params: { themeId: '11111111-1111-4111-8111-111111111111' },
+      body: validOperations,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(themeTableAdminService.updateOperations).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '11111111-1111-4111-8111-111111111111',
+      expect.objectContaining({ startsAt: expect.any(Date), endsAt: expect.any(Date) })
+    );
+  });
+
   it('routes a published matchup disable through the narrow enabled endpoint', async () => {
     vi.mocked(themeTableAdminService.setMatchupEnabled).mockResolvedValue({
       id: 'pair-1',
@@ -151,6 +186,7 @@ describe('themeTableAdminRouter', () => {
     const response = await invoke('/events/:themeId/decks', 'post', {
       params: { themeId: '11111111-1111-4111-8111-111111111111' },
       body: {
+        sourceType: 'CLOUD',
         sourceDeckId: '33333333-3333-4333-8333-333333333333',
         deckKey: 'unsafe-source',
         displayName: '不安全来源',
@@ -164,5 +200,78 @@ describe('themeTableAdminRouter', () => {
 
     expect(response.statusCode).toBe(400);
     expect(themeTableAdminService.addDeck).not.toHaveBeenCalled();
+  });
+
+  it('accepts a YAML source without requiring a cloud deck id', async () => {
+    vi.mocked(themeTableAdminService.addDeck).mockResolvedValue({ id: 'deck-1' } as never);
+    const response = await invoke('/events/:themeId/decks', 'post', {
+      params: { themeId: '11111111-1111-4111-8111-111111111111' },
+      body: {
+        sourceType: 'YAML',
+        yamlContent: 'player_name: 彩虹混合',
+        deckKey: 'rainbow-mix',
+        displayName: '彩虹混合',
+        playStyleTags: [],
+        difficulty: 'INTERMEDIATE',
+        sourceLabel: 'YAML · rainbow.yaml',
+        sourceUrl: null,
+        reviewNote: '管理员导入',
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(themeTableAdminService.addDeck).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '11111111-1111-4111-8111-111111111111',
+      expect.objectContaining({ sourceType: 'YAML', yamlContent: 'player_name: 彩虹混合' })
+    );
+  });
+
+  it('routes an edited YAML deck to the version replacement endpoint', async () => {
+    vi.mocked(themeTableAdminService.updateDeck).mockResolvedValue({ id: 'deck-2' } as never);
+    const response = await invoke('/events/:themeId/decks/:deckId', 'put', {
+      params: {
+        themeId: '11111111-1111-4111-8111-111111111111',
+        deckId: '33333333-3333-4333-8333-333333333333',
+      },
+      body: {
+        sourceType: 'YAML',
+        yamlContent: 'player_name: 彩虹混合改',
+        displayName: '彩虹混合改',
+        playStyleTags: [],
+        difficulty: 'INTERMEDIATE',
+        sourceLabel: 'DeckLog N33A0',
+        sourceUrl: 'https://decklog.bushiroad.com/view/N33A0',
+        reviewNote: '运行期调整',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(themeTableAdminService.updateDeck).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '11111111-1111-4111-8111-111111111111',
+      '33333333-3333-4333-8333-333333333333',
+      expect.objectContaining({ sourceType: 'YAML', displayName: '彩虹混合改' })
+    );
+  });
+
+  it('routes deck removal through the pool endpoint', async () => {
+    vi.mocked(themeTableAdminService.deleteDeck).mockResolvedValue({
+      id: '33333333-3333-4333-8333-333333333333',
+      disabledMatchupCount: 3,
+    } as never);
+    const response = await invoke('/events/:themeId/decks/:deckId', 'delete', {
+      params: {
+        themeId: '11111111-1111-4111-8111-111111111111',
+        deckId: '33333333-3333-4333-8333-333333333333',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(themeTableAdminService.deleteDeck).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+      '11111111-1111-4111-8111-111111111111',
+      '33333333-3333-4333-8333-333333333333'
+    );
   });
 });

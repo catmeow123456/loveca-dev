@@ -10,6 +10,7 @@ import type {
   OnlineRestartRequestView,
   OnlineRoomEndView,
   OnlineRoomSpectatorEntryView,
+  OnlineThemeDeckAssignmentView,
   OnlineRoomMemberPresence,
   OnlineRoomMemberRole,
   OnlineRoomStatus,
@@ -1272,23 +1273,29 @@ export class OnlineRoomService {
       roomCode: room.roomCode,
       originKind: room.originKind,
       ...(room.themeTableVersionId ? { themeTableVersionId: room.themeTableVersionId } : {}),
+      ...(room.themeTableVersionId
+        ? { themeDeckAssignment: buildThemeDeckAssignmentView(room, viewer) }
+        : {}),
       status: room.status,
       ownerUserId: room.ownerUserId,
       currentUserId: viewer.userId,
       currentUserRole: viewer.role,
       currentUserPresence: viewer.presence,
       currentUserSeat: getAssignedSeat(room, viewer.userId) ?? undefined,
-      members: members.map((member) => ({
-        userId: member.userId,
-        displayName: member.displayName,
-        role: member.role,
-        presence: member.presence,
-        lockedDeckId: member.lockedDeckId,
-        lockedDeckName: member.lockedDeckName,
-        ready: member.resolvedDeckConfig !== null,
-        startReady: member.startReady,
-        seat: getAssignedSeat(room, member.userId) ?? undefined,
-      })),
+      members: members.map((member) => {
+        const canSeeDeckIdentity = !room.themeTableVersionId || member.userId === viewer.userId;
+        return {
+          userId: member.userId,
+          displayName: member.displayName,
+          role: member.role,
+          presence: member.presence,
+          lockedDeckId: canSeeDeckIdentity ? member.lockedDeckId : null,
+          lockedDeckName: canSeeDeckIdentity ? member.lockedDeckName : null,
+          ready: member.resolvedDeckConfig !== null,
+          startReady: member.startReady,
+          seat: getAssignedSeat(room, member.userId) ?? undefined,
+        };
+      }),
       openingRps: buildOpeningRpsViewForViewer(room.openingRps, viewer.userId),
       openingExpiresAt: room.openingExpiresAt,
       openingArrivalExpiresAt: room.openingArrivalExpiresAt,
@@ -2520,6 +2527,26 @@ function buildOpeningRpsViewForViewer(
           ? choice.gesture
           : null,
     })),
+  };
+}
+
+function buildThemeDeckAssignmentView(
+  room: OnlineRoomState,
+  viewer: OnlineRoomMemberState
+): OnlineThemeDeckAssignmentView {
+  const previewCardCodes: string[] = [];
+  const seenCardCodes = new Set<string>();
+  for (const card of viewer.resolvedDeckConfig?.mainDeck ?? []) {
+    if (seenCardCodes.has(card.cardCode)) continue;
+    seenCardCodes.add(card.cardCode);
+    previewCardCodes.push(card.cardCode);
+    if (previewCardCodes.length === 3) break;
+  }
+
+  return {
+    presentationId: room.roomGeneration,
+    deckName: viewer.lockedDeckName ?? '本局主题预组',
+    previewCardCodes,
   };
 }
 

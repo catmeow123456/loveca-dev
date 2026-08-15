@@ -1,6 +1,6 @@
 /**
  * GameSetupPage - 对局准备页面
- * Step 0: 选择对战方式（公共牌桌 / 赛季排位 / 房间联机 / 对墙打 / 双人调试）
+ * Step 0: 选择对战方式（快速匹配 / 赛季活动 / 其他对战）
  * Step 1: 选择卡组（调试模式选 2 副，对墙打模式选 1 副）
  * Step 2: 确认并开始对局
  */
@@ -62,9 +62,11 @@ import { createSolitaireMatch } from '@/lib/solitaireMatchClient';
 import { writeStoredSolitaireMatchId } from '@/lib/solitaireMatchRecovery';
 import { cn } from '@/lib/utils';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import type { PlayerBattleEntryVisibility } from '@/lib/appConfig';
 
 type SetupStep = 0 | 1 | 2 | 3;
-type SetupMode = 'PUBLIC_TABLE' | 'RANKED' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
+type SetupMode =
+  'PUBLIC_TABLE' | 'RANKED' | 'THEME_TABLE' | 'ONLINE' | GameMode.DEBUG | GameMode.SOLITAIRE;
 
 interface GameSetupPageProps {
   navigation: ProductNavigationHandlers;
@@ -75,7 +77,9 @@ interface GameSetupPageProps {
   onNavigateToOnlineRoom: () => void;
   onNavigateToPublicTable: () => void;
   onNavigateToRanked: () => void;
+  onNavigateToThemeTable: () => void;
   onManageDecks: () => void;
+  battleEntryVisibility: PlayerBattleEntryVisibility;
 }
 
 function createLocalGameId(): string {
@@ -173,7 +177,9 @@ export function GameSetupPage({
   onNavigateToOnlineRoom,
   onNavigateToPublicTable,
   onNavigateToRanked,
+  onNavigateToThemeTable,
   onManageDecks,
+  battleEntryVisibility,
 }: GameSetupPageProps) {
   const [currentStep, setCurrentStep] = useState<SetupStep>(0);
   const [setupMode, setSetupMode] = useState<SetupMode>(GameMode.SOLITAIRE);
@@ -185,8 +191,9 @@ export function GameSetupPage({
   const [error, setError] = useState<string | null>(null);
   const isPublicTableMode = setupMode === 'PUBLIC_TABLE';
   const isRankedMode = setupMode === 'RANKED';
+  const isThemeTableMode = setupMode === 'THEME_TABLE';
   const isOnlineMode = setupMode === 'ONLINE';
-  const isRemoteEntryMode = isPublicTableMode || isRankedMode || isOnlineMode;
+  const isRemoteEntryMode = isPublicTableMode || isRankedMode || isThemeTableMode || isOnlineMode;
   const gameMode = setupMode === GameMode.DEBUG ? GameMode.DEBUG : GameMode.SOLITAIRE;
   const isDebugMode = gameMode === GameMode.DEBUG;
   const maxStep: SetupStep = isRemoteEntryMode ? 1 : isDebugMode ? 3 : 2;
@@ -218,6 +225,19 @@ export function GameSetupPage({
   useEffect(() => {
     fetchCloudDecks();
   }, [fetchCloudDecks]);
+
+  useEffect(() => {
+    const selectedEntryWasHidden =
+      (setupMode === 'RANKED' && !battleEntryVisibility.ranked) ||
+      (setupMode === 'THEME_TABLE' && !battleEntryVisibility.themeTable);
+    if (!selectedEntryWasHidden) {
+      return;
+    }
+
+    setSetupMode(GameMode.SOLITAIRE);
+    setCurrentStep(0);
+    setError(null);
+  }, [battleEntryVisibility.ranked, battleEntryVisibility.themeTable, setupMode]);
 
   // 只显示有效的卡组
   const validDecks = useMemo(
@@ -336,6 +356,12 @@ export function GameSetupPage({
       if (isRankedMode) {
         if (canUseOnlineRoom && validDecks.length > 0) {
           onNavigateToRanked();
+        }
+        return;
+      }
+      if (isThemeTableMode) {
+        if (canUseOnlineRoom) {
+          onNavigateToThemeTable();
         }
         return;
       }
@@ -496,7 +522,10 @@ export function GameSetupPage({
         ? [0, 1, 2]
         : [0, 1, 2, 3];
     const labels = isRemoteEntryMode
-      ? ['模式', isPublicTableMode ? '匹配' : isRankedMode ? '排位' : '房间']
+      ? [
+          '模式',
+          isPublicTableMode ? '匹配' : isRankedMode ? '排位' : isThemeTableMode ? '主题' : '房间',
+        ]
       : gameMode === GameMode.SOLITAIRE
         ? ['模式', '卡组', '确认']
         : ['模式', 'P1', 'P2', '确认'];
@@ -568,6 +597,9 @@ export function GameSetupPage({
         if (!canUseOnlineRoom) return '赛季排位暂不可用';
         return validDecks.length > 0 ? '进入赛季排位' : '需要符合规则的卡组';
       }
+      if (isThemeTableMode) {
+        return canUseOnlineRoom ? '查看本期主题' : '主题赛季暂不可用';
+      }
       if (gameMode === GameMode.SOLITAIRE) return '下一步：选择己方卡组';
       return '下一步：选择 P1 卡组';
     }
@@ -619,61 +651,104 @@ export function GameSetupPage({
                     </h1>
                   </header>
 
-                  <Panel tone="muted" padding="compact" className="p-2 sm:p-3">
-                    <ModeChoice
-                      mode="PUBLIC_TABLE"
-                      title="公共牌桌"
-                      description="自动匹配真人对手"
-                      icon={Swords}
-                      toneClass="[--mode-accent:var(--accent-primary)]"
-                      selected={setupMode === 'PUBLIC_TABLE'}
-                      available={canUseOnlineRoom}
-                      featured
-                      onSelect={handleSelectMode}
-                    />
-
-                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <Panel tone="muted" padding="compact" className="space-y-5 p-3 sm:p-4">
+                    <section aria-labelledby="quick-match-title">
+                      <h2
+                        id="quick-match-title"
+                        className="mb-2 px-1 text-xs font-semibold tracking-wide text-[var(--text-muted)]"
+                      >
+                        快速匹配
+                      </h2>
                       <ModeChoice
-                        mode="RANKED"
-                        title="赛季排位"
-                        description="在开放时段匹配并计入积分"
-                        icon={Medal}
-                        toneClass="[--mode-accent:var(--semantic-warning)]"
-                        selected={setupMode === 'RANKED'}
-                        available={canUseOnlineRoom && validDecks.length > 0}
-                        onSelect={handleSelectMode}
-                      />
-                      <ModeChoice
-                        mode="ONLINE"
-                        title="房间联机"
-                        description="创建或加入房间"
-                        icon={Globe2}
-                        toneClass="[--mode-accent:var(--semantic-info)]"
-                        selected={setupMode === 'ONLINE'}
+                        mode="PUBLIC_TABLE"
+                        title="公共牌桌"
+                        description="自动匹配真人对手"
+                        icon={Swords}
+                        toneClass="[--mode-accent:var(--accent-primary)]"
+                        selected={setupMode === 'PUBLIC_TABLE'}
                         available={canUseOnlineRoom}
+                        featured
                         onSelect={handleSelectMode}
                       />
-                      <ModeChoice
-                        mode={GameMode.SOLITAIRE}
-                        title="对墙打"
-                        description="单人测试完整流程"
-                        icon={Target}
-                        toneClass="[--mode-accent:var(--semantic-success)]"
-                        selected={setupMode === GameMode.SOLITAIRE}
-                        available
-                        onSelect={handleSelectMode}
-                      />
-                      <ModeChoice
-                        mode={GameMode.DEBUG}
-                        title="双人调试"
-                        description="在同一桌面操作双方"
-                        icon={Bug}
-                        toneClass="[--mode-accent:var(--accent-secondary)]"
-                        selected={setupMode === GameMode.DEBUG}
-                        available
-                        onSelect={handleSelectMode}
-                      />
-                    </div>
+                    </section>
+
+                    {(battleEntryVisibility.ranked || battleEntryVisibility.themeTable) && (
+                      <section aria-labelledby="season-match-title">
+                        <h2
+                          id="season-match-title"
+                          className="mb-2 px-1 text-xs font-semibold tracking-wide text-[var(--text-muted)]"
+                        >
+                          赛季活动
+                        </h2>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {battleEntryVisibility.ranked && (
+                            <ModeChoice
+                              mode="RANKED"
+                              title="赛季排位"
+                              description="自选卡组 · 计入积分"
+                              icon={Medal}
+                              toneClass="[--mode-accent:var(--semantic-warning)]"
+                              selected={setupMode === 'RANKED'}
+                              available={canUseOnlineRoom && validDecks.length > 0}
+                              onSelect={handleSelectMode}
+                            />
+                          )}
+                          {battleEntryVisibility.themeTable && (
+                            <ModeChoice
+                              mode="THEME_TABLE"
+                              title="主题赛季"
+                              description="本期平台预组 · 记录胜负"
+                              icon={WandSparkles}
+                              toneClass="[--mode-accent:var(--accent-secondary)]"
+                              selected={setupMode === 'THEME_TABLE'}
+                              available={canUseOnlineRoom}
+                              onSelect={handleSelectMode}
+                            />
+                          )}
+                        </div>
+                      </section>
+                    )}
+
+                    <section aria-labelledby="other-match-title">
+                      <h2
+                        id="other-match-title"
+                        className="mb-2 px-1 text-xs font-semibold tracking-wide text-[var(--text-muted)]"
+                      >
+                        其他对战
+                      </h2>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <ModeChoice
+                          mode="ONLINE"
+                          title="房间联机"
+                          description="创建或加入房间"
+                          icon={Globe2}
+                          toneClass="[--mode-accent:var(--semantic-info)]"
+                          selected={setupMode === 'ONLINE'}
+                          available={canUseOnlineRoom}
+                          onSelect={handleSelectMode}
+                        />
+                        <ModeChoice
+                          mode={GameMode.SOLITAIRE}
+                          title="对墙打"
+                          description="单人测试完整流程"
+                          icon={Target}
+                          toneClass="[--mode-accent:var(--semantic-success)]"
+                          selected={setupMode === GameMode.SOLITAIRE}
+                          available
+                          onSelect={handleSelectMode}
+                        />
+                        <ModeChoice
+                          mode={GameMode.DEBUG}
+                          title="双人调试"
+                          description="在同一桌面操作双方"
+                          icon={Bug}
+                          toneClass="[--mode-accent:var(--text-secondary)]"
+                          selected={setupMode === GameMode.DEBUG}
+                          available
+                          onSelect={handleSelectMode}
+                        />
+                      </div>
+                    </section>
                   </Panel>
                 </div>
               </motion.div>

@@ -198,7 +198,6 @@ const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'ranked-admin',
   'deck-point-admin',
   'match-emotes-admin',
-  'theme-table-admin',
 ]);
 
 function pageRequiresRuntimeCardData(page: AppPage): boolean {
@@ -1058,7 +1057,9 @@ function App() {
         onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
         onNavigateToPublicTable={() => setCurrentPage('public-table')}
         onNavigateToRanked={() => setCurrentPage('ranked')}
+        onNavigateToThemeTable={() => setCurrentPage('theme-table')}
         onManageDecks={() => openDeckManager('game-setup')}
+        battleEntryVisibility={appConfig.features.battleEntries}
       />
     );
   }
@@ -1162,6 +1163,8 @@ function App() {
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
         onOpenRanked={() => setCurrentPage('ranked-admin')}
         onOpenThemeTable={() => setCurrentPage('theme-table-admin')}
+        battleEntryVisibility={appConfig.features.battleEntries}
+        onBattleEntryVisibilityChanged={refreshAppConfig}
       />,
       null
     );
@@ -1253,6 +1256,7 @@ function App() {
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
+      battleEntryVisibility={appConfig.features.battleEntries}
       siteStatus={appConfig.siteStatus}
     />
   );

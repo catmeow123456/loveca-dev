@@ -3301,8 +3301,27 @@ describe('OnlineRoomService', () => {
       openingExpiresAt: 190_000,
     });
 
-    await expect(service.getRoomView(room.roomCode, 'u2')).resolves.toMatchObject({
+    const secondPlayerView = await service.getRoomView(room.roomCode, 'u2');
+    expect(secondPlayerView).toMatchObject({
       themeTableVersionId: '25252525-2222-4333-8444-555555555555',
+      themeDeckAssignment: {
+        presentationId: room.roomGeneration,
+        deckName: '主题预组二',
+        previewCardCodes: [
+          'theme-abandon-b-MEM-0',
+          'theme-abandon-b-MEM-1',
+          'theme-abandon-b-MEM-2',
+        ],
+      },
+    });
+    expect(secondPlayerView.members.find((member) => member.userId === 'u1')).toMatchObject({
+      lockedDeckId: null,
+      lockedDeckName: null,
+      ready: true,
+    });
+    expect(secondPlayerView.members.find((member) => member.userId === 'u2')).toMatchObject({
+      lockedDeckId: 'theme-deck-b',
+      lockedDeckName: '主题预组二',
     });
 
     await service.leaveRoom(room.roomCode, 'u1');
