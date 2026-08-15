@@ -93,7 +93,7 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm test-env:start
 ```
 
-脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户，创建、激活且开放一个全年有效的“测试赛季”，并初始化一个全天开放的“测试主题赛季”。主题赛季卡组池使用 `assets/decks/` 中四副 DeckLog 示例卡组，自动形成 6 个等权组合：
+脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户，创建、激活且开放一个全年有效的“测试赛季”，并初始化一个全天开放的“测试主题赛季”。主题赛季卡组池使用 `assets/decks/` 中四副 DeckLog 示例卡组，自动形成包含四个镜像对局在内的 10 个等权组合：
 
 - `decklog-1Y9J3S.yaml`：Liella! 加分星
 - `decklog-222H9S.yaml`：Liella! 可香三神
