@@ -7,6 +7,7 @@ import {
 const CONFIG = {
   algorithmVersion: 'GLICKO1_PER_MATCH_V2',
   ratingPeriodMode: 'PER_MATCH',
+  ratingScale: 400,
   initialRating: 1500,
   initialRatingDeviation: 300,
   minimumRatingDeviation: 30,
@@ -47,12 +48,14 @@ describe('ranked volatility report script', () => {
             rating: 1689.074944321734,
             ratingDeviation: 229.378162349469,
             ratedMatchCount: 2,
+            lastRatedAt: '2026-08-01T11:00:00.000Z',
           },
           {
             userId: 'bob-private-id',
             rating: 1310.925055678266,
             ratingDeviation: 229.378162349469,
             ratedMatchCount: 2,
+            lastRatedAt: '2026-08-01T11:00:00.000Z',
           },
         ],
         events: [
