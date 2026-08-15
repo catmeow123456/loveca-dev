@@ -20,7 +20,7 @@
 
 `src/scripts/sync-cards-llocg.ts` 是主数据/规则字段同步脚本。它从 `llocg_db/json/cards.json` 与 `llocg_db/json/cards_cn.json` 建立或刷新卡牌主记录，尤其负责卡牌类型、费用、Heart、BLADE、LIVE 分数、必要 Heart、图片文件名、稀有度和作品数组；新卡插入时写入初始中日文本和收录商品，已有卡会保留数据库中的中日名称、中日效果文本和 `product`。
 
-`src/scripts/sync-cards-loveca-excel.ts` 是 Loveca 文本/来源字段补强脚本，默认从本地 Excel 读取。`--source=cloudbase` 会先把腾讯云 CloudBase `loveca` 集合导出为 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`，再从该文件进入与 `--source=xlsx` 相同的解析、比较和写入链路。卡牌类型以来源为权威：Excel 使用 `カードタイプ` 列，CloudBase `loveca` 集合导出时由 `type` 字段生成该列；其值合法时会同步更新 `cards.card_type`，并在报告中列出修正。缺失或非法类型行会跳过。其他同步范围为中日名称、中日效果、真实团体、真实小队、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识；不插入 source-only 新卡，不删除 DB-only 卡，也不覆盖费用、BLADE 或 LIVE 分数等其他规则字段。
+`src/scripts/sync-cards-loveca-excel.ts` 是 Loveca 卡牌数据补强脚本，默认从本地 Excel 读取。`--source=cloudbase` 会先把腾讯云 CloudBase `loveca` 集合导出为 `docs/card-data-sync/sources/loveca_YYYYMMDDHHMMSS.xlsx`，再从该文件进入与 `--source=xlsx` 相同的解析、比较和写入链路。卡牌类型以来源为权威：Excel 使用 `カードタイプ` 列，CloudBase `loveca` 集合导出时由 `type` 字段生成该列；其值合法时会同步更新 `cards.card_type`，并在报告中列出修正。缺失或非法类型行会跳过。其他同步范围为中日名称、中日效果、真实团体、真实小队、成员费用与 BLADE、LIVE 分数、成员持有 Heart、BLADE Heart、LIVE 必要 Heart、商品编号、图片来源 URI 和外部来源标识；不插入 source-only 新卡，不删除 DB-only 卡。规则数值为空或解析失败时保留数据库现值。
 
 `src/scripts/sync-cards-cloudbase-new.ts` 是 CloudBase-only 新卡导入脚本。它只插入 DB 不存在的新卡，默认新卡状态为 `DRAFT`，不更新已有卡；正式运行必须显式选择 `--upload-images` 或 `--skip-images`，图片失败、字段缺失、重复卡号和图片 basename 冲突都会写入报告。
 

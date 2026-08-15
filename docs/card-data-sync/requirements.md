@@ -45,8 +45,9 @@ CloudBase 新卡导入依赖 CloudBase 卡牌集合和现有 PostgreSQL `cards` 
 - Loveca Excel 的 `カード名` / `卡牌中文名` 应分别写入 `name_jp` / `name_cn`；数据库不再保留重复的 `name` 列。
 - Loveca Excel 的 `カードタイプ`、以及 CloudBase `loveca` 集合的 `type`，应映射为 `cards.card_type`；仅接受 `MEMBER`、`LIVE`、`ENERGY` 及其来源等价值，缺失或无法映射时不更新该卡的任意字段。
 - Loveca Excel 的 `多行日文效果` / `多行中文效果` 应分别写入 `card_text_jp` / `card_text_cn`；数据库不再保留重复的 `card_text` 列。
-- Loveca Excel 的 `真实团体` 写入 `group_names`；数据库不再保留重复的 `group_name` 列。
+- Loveca Excel 的 `真实团体` 写入 `group_names`；上游 `Aqours!` 在入库前归一化为 `Aqours`；数据库不再保留重复的 `group_name` 列。
 - Loveca Excel 的 `真实小队` 写入 `unit_name_raw`，清洗和别名标准化后写入 `unit_name`。
+- Loveca Excel 的 `コスト` / `ブレード` 只对 MEMBER 写入 `cost` / `blade`，`スコア` 只对 LIVE 写入 `score`；`0` 是有效值。字段为空时保留数据库现值；非整数或负数时输出 warning 并保留现值。
 - Loveca Excel 的 `基本ハート` 只对 MEMBER 写入 `hearts`，`必要ハート` 只对 LIVE 写入 `requirements`；字段为空或解析失败时保留数据库现值。
 - Loveca Excel 的 `ブレードハート` / `特殊ハート` 写入 `blade_hearts`。
 - Excel 或 CloudBase 的 Heart token `orange` 必须写入独立的 `ORANGE`；同步、Schema、管理页、筛选和判定显示不得将其降级为既有颜色。

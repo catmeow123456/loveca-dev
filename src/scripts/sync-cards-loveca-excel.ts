@@ -1,11 +1,12 @@
 /**
- * Loveca Excel 卡牌展示/文本字段同步脚本
+ * Loveca Excel 卡牌数据同步脚本
  *
  * 同步 Excel 权威卡牌类型、展示与来源字段：
  * - name_jp / name_cn
  * - card_text_jp / card_text_cn
  * - group_names
  * - unit_name_raw / unit_name
+ * - cost / blade / score
  * - hearts
  * - blade_hearts
  * - requirements
@@ -16,8 +17,6 @@
  *
  * 不读取 Excel 官方 `作品名` / `参加ユニット`。这两列存在已知修正问题；
  * 归属信息使用人工修正后的 `真实团体` / `真实小队`。
- *
- * 不更新 cost / blade / score 等其他规则字段。
  *
  * 使用方法：
  * DATABASE_URL=postgresql://... npx tsx src/scripts/sync-cards-loveca-excel.ts --dry-run
@@ -40,6 +39,8 @@ import { Pool } from 'pg';
 import sharp from 'sharp';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
+import { normalizeCardSyncGroupNames } from './card-sync-group-names.js';
+import { resolveSyncedRuleFields } from './card-sync-rule-fields.js';
 import { cardSyncTextValuesEqual } from './card-sync-text.js';
 import {
   LOVECA_SYNC_BLADE_HEART_COLOR_MAP,
@@ -103,8 +104,11 @@ interface ExistingCardRow {
   readonly unit_name_raw: string | null;
   readonly card_text_jp: string | null;
   readonly card_text_cn: string | null;
+  readonly cost: number | null;
+  readonly blade: number | null;
   readonly hearts: HeartSyncItem[] | null;
   readonly blade_hearts: BladeHeartSyncItem[] | null;
+  readonly score: number | null;
   readonly requirements: HeartSyncItem[] | null;
   readonly product: string | null;
   readonly product_code: string | null;
@@ -124,8 +128,11 @@ interface ExcelSyncRecord {
   readonly unit_name_raw: string | null;
   readonly card_text_jp: string | null;
   readonly card_text_cn: string | null;
+  readonly cost: number | null;
+  readonly blade: number | null;
   readonly hearts: HeartSyncItem[] | null;
   readonly blade_hearts: BladeHeartSyncItem[] | null;
+  readonly score: number | null;
   readonly requirements: HeartSyncItem[] | null;
   readonly product: string | null;
   readonly product_code: string | null;
@@ -162,10 +169,13 @@ const FIELD_NAMES = {
   nameCn: '卡牌中文名',
   cardCode: 'カード番号',
   cardType: 'カードタイプ',
+  cost: 'コスト',
+  blade: 'ブレード',
   baseHeart: '基本ハート',
   bladeHeart: 'ブレードハート',
   specialHeart: '特殊ハート',
   requiredHeart: '必要ハート',
+  score: 'スコア',
   imageSourceUri: '卡图链接',
   product: '収録商品',
   productCode: '商品编号',
@@ -255,6 +265,8 @@ const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
     'cardNumber',
   ],
   [FIELD_NAMES.cardType]: ['type'],
+  [FIELD_NAMES.cost]: [FIELD_NAMES.cost, 'cost', '费用'],
+  [FIELD_NAMES.blade]: [FIELD_NAMES.blade, 'blade', 'BLADE', 'trigger_count', 'triggerCount'],
   [FIELD_NAMES.baseHeart]: [FIELD_NAMES.baseHeart, 'base_heart', 'baseHeart', 'hearts', 'heart'],
   [FIELD_NAMES.bladeHeart]: [
     FIELD_NAMES.bladeHeart,
@@ -277,6 +289,7 @@ const CLOUDBASE_FIELD_ALIASES: Record<SourceFieldName, readonly string[]> = {
     'requirements',
     'requirement',
   ],
+  [FIELD_NAMES.score]: [FIELD_NAMES.score, 'score', '分数'],
   [FIELD_NAMES.imageSourceUri]: [
     FIELD_NAMES.imageSourceUri,
     'image_source_uri',
@@ -317,8 +330,11 @@ const SYNC_FIELDS: readonly (keyof ExcelSyncRecord)[] = [
   'unit_name_raw',
   'card_text_jp',
   'card_text_cn',
+  'cost',
+  'blade',
   'hearts',
   'blade_hearts',
+  'score',
   'requirements',
   'product',
   'product_code',
@@ -1028,9 +1044,9 @@ function parseJsonStringArray(
       warnings.push(`${context}: JSON is not an array`);
       return null;
     }
-    const items = parsed
-      .map((item) => (typeof item === 'string' ? item.trim() : ''))
-      .filter(Boolean);
+    const items = normalizeCardSyncGroupNames(
+      parsed.map((item) => (typeof item === 'string' ? item : ''))
+    );
     return items.length > 0 ? items : null;
   } catch (error) {
     warnings.push(
@@ -1224,6 +1240,17 @@ function buildExcelSyncRecord(
   );
   const unitNameRaw = value(FIELD_NAMES.unitName);
   const unitName = normalizeUnitName(unitNameRaw);
+  const ruleFields = resolveSyncedRuleFields(
+    sourceCardType,
+    {
+      cost: value(FIELD_NAMES.cost),
+      blade: value(FIELD_NAMES.blade),
+      score: value(FIELD_NAMES.score),
+    },
+    existing,
+    context,
+    warnings
+  );
   const baseHearts =
     sourceCardType === 'MEMBER'
       ? parseExcelHearts(value(FIELD_NAMES.baseHeart), FIELD_NAMES.baseHeart, context, warnings)
@@ -1263,8 +1290,11 @@ function buildExcelSyncRecord(
     unit_name_raw: unitNameRaw ?? existing.unit_name_raw,
     card_text_jp: cardTextJa ?? existing.card_text_jp,
     card_text_cn: cardTextCn ?? existing.card_text_cn,
+    cost: ruleFields.cost,
+    blade: ruleFields.blade,
     hearts: baseHearts ?? existing.hearts,
     blade_hearts: bladeHearts ?? existing.blade_hearts,
+    score: ruleFields.score,
     requirements: requiredHearts ?? existing.requirements,
     product: product ?? existing.product,
     product_code: productCode ?? existing.product_code,
@@ -1344,6 +1374,11 @@ function collectConflictFields(existing: ExistingCardRow, next: ExcelSyncRecord)
       conflicts.push(label);
     }
   };
+  const checkNumber = (field: keyof ExistingCardRow & keyof ExcelSyncRecord, label: string) => {
+    if (existing[field] != null && !syncFieldValuesEqual(field, existing[field], next[field])) {
+      conflicts.push(label);
+    }
+  };
 
   checkString('product', FIELD_NAMES.product);
   checkString('unit_name', FIELD_NAMES.unitName);
@@ -1352,6 +1387,9 @@ function collectConflictFields(existing: ExistingCardRow, next: ExcelSyncRecord)
   checkString('name_cn', FIELD_NAMES.nameCn);
   checkString('card_text_jp', FIELD_NAMES.effectJa);
   checkString('card_text_cn', FIELD_NAMES.effectCn);
+  checkNumber('cost', FIELD_NAMES.cost);
+  checkNumber('blade', FIELD_NAMES.blade);
+  checkNumber('score', FIELD_NAMES.score);
 
   if (
     nonEmptyArray(existing.group_names) &&
@@ -1462,10 +1500,16 @@ function syncFieldLabel(field: keyof ExcelSyncRecord): string {
       return `${field} (${FIELD_NAMES.effectJa})`;
     case 'card_text_cn':
       return `${field} (${FIELD_NAMES.effectCn})`;
+    case 'cost':
+      return `${field} (${FIELD_NAMES.cost})`;
+    case 'blade':
+      return `${field} (${FIELD_NAMES.blade})`;
     case 'hearts':
       return `${field} (${FIELD_NAMES.baseHeart})`;
     case 'blade_hearts':
       return `${field} (${FIELD_NAMES.bladeHeart}/${FIELD_NAMES.specialHeart})`;
+    case 'score':
+      return `${field} (${FIELD_NAMES.score})`;
     case 'requirements':
       return `${field} (${FIELD_NAMES.requiredHeart})`;
     case 'product':
@@ -1560,6 +1604,12 @@ function conflictLabelToFieldKey(
       return 'card_text_jp';
     case FIELD_NAMES.effectCn:
       return 'card_text_cn';
+    case FIELD_NAMES.cost:
+      return 'cost';
+    case FIELD_NAMES.blade:
+      return 'blade';
+    case FIELD_NAMES.score:
+      return 'score';
     case FIELD_NAMES.groupNames:
       return 'group_names';
     case FIELD_NAMES.baseHeart:
@@ -1612,14 +1662,17 @@ async function applyUpdates(pool: Pool, updates: readonly PendingUpdate[]) {
             unit_name_raw = $7,
             card_text_jp = $8,
             card_text_cn = $9,
-            hearts = $10,
-            blade_hearts = $11,
-            requirements = $12,
-            product = $13,
-            product_code = $14,
-            image_source_uri = $15,
-            source_external_id = $16,
-            source_flags = $17,
+            cost = $10,
+            blade = $11,
+            hearts = $12,
+            blade_hearts = $13,
+            score = $14,
+            requirements = $15,
+            product = $16,
+            product_code = $17,
+            image_source_uri = $18,
+            source_external_id = $19,
+            source_flags = $20,
             updated_at = now()
           WHERE card_code = $1
         `,
@@ -1633,8 +1686,11 @@ async function applyUpdates(pool: Pool, updates: readonly PendingUpdate[]) {
           next.unit_name_raw,
           next.card_text_jp,
           next.card_text_cn,
+          next.cost,
+          next.blade,
           next.hearts == null ? null : JSON.stringify(next.hearts),
           next.blade_hearts == null ? null : JSON.stringify(next.blade_hearts),
+          next.score,
           next.requirements == null ? null : JSON.stringify(next.requirements),
           next.product,
           next.product_code,
@@ -1715,7 +1771,7 @@ async function main() {
       SELECT
         card_code, card_type, name_jp, name_cn,
         group_names, unit_name, unit_name_raw,
-        card_text_jp, card_text_cn, hearts, blade_hearts, requirements,
+        card_text_jp, card_text_cn, cost, blade, hearts, blade_hearts, score, requirements,
         product, product_code, image_source_uri, image_filename, source_external_id, source_flags
       FROM cards
       ORDER BY card_code
