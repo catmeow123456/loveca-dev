@@ -23,6 +23,7 @@ import { Pool } from 'pg';
 import sharp from 'sharp';
 import { normalizeCardCode } from '../shared/utils/card-code.js';
 import { appendDoubleGrayBladeHearts } from './card-sync-double-heart.js';
+import { normalizeCardSyncGroupNames } from './card-sync-group-names.js';
 
 const require = createRequire(import.meta.url);
 const cloudbaseSDK = require('@cloudbase/node-sdk') as {
@@ -1133,11 +1134,12 @@ function transformRow(row: SourceRow, status: CardStatus): TransformResult {
     `${context} work_names`,
     warnings
   );
-  const groupNames = parseStringList(
+  const parsedGroupNames = parseStringList(
     getField(document, FIELD_ALIASES.groupNames),
     `${context} group_names`,
     warnings
   );
+  const groupNames = parsedGroupNames ? normalizeCardSyncGroupNames(parsedGroupNames) : null;
   const unitNameRaw = getScalarField(document, FIELD_ALIASES.unitName);
   const unitName = normalizeUnitName(unitNameRaw);
   const sourceFlags = parseSourceFlags(
