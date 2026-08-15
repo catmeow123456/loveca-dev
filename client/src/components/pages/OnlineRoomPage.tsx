@@ -114,6 +114,7 @@ type RpsToneClasses = {
 
 interface OnlineRoomPageProps {
   onBack: () => void;
+  onBackToThemeTable: () => void;
   onImmersiveModeChange?: (immersive: boolean) => void;
   emoteCatalog: import('@game/online').OnlineMatchEmoteCatalog | null;
   onEmoteCatalogStale?: () => void | Promise<void>;
@@ -121,6 +122,7 @@ interface OnlineRoomPageProps {
 
 export function OnlineRoomPage({
   onBack,
+  onBackToThemeTable,
   onImmersiveModeChange,
   emoteCatalog,
   onEmoteCatalogStale,
@@ -472,6 +474,7 @@ export function OnlineRoomPage({
   const canRequestRestart = Boolean(
     room?.status === 'IN_GAME' &&
     room.originKind !== 'RANKED' &&
+    !room.themeTableVersionId &&
     !restartRequest &&
     opponentMember?.presence === 'ACTIVE'
   );
@@ -515,6 +518,7 @@ export function OnlineRoomPage({
       room
         ? getOnlineRoomPostMatchActionState({
             originKind: room.originKind,
+            themeTableVersionId: room.themeTableVersionId,
             restartRole: isRestartRequester
               ? 'REQUESTER'
               : isRestartResponder
@@ -736,6 +740,7 @@ export function OnlineRoomPage({
     try {
       const leftPublicTableRoom = room?.originKind === 'PUBLIC_TABLE';
       const leftRankedRoom = room?.originKind === 'RANKED';
+      const leftThemeRoom = Boolean(room?.themeTableVersionId);
       await leaveOnlineRoom(room?.roomCode ?? joinedRoomCode!);
       if (leftPublicTableRoom) {
         try {
@@ -762,13 +767,17 @@ export function OnlineRoomPage({
       setSelectedDeck(null);
       setHasManualSelectedDeck(false);
       setRoomCodeInput('');
-      onBack();
+      if (leftThemeRoom) {
+        onBackToThemeTable();
+      } else {
+        onBack();
+      }
     } catch (leaveError) {
       setError(leaveError instanceof Error ? leaveError.message : '离开房间失败');
     } finally {
       setIsSubmitting(false);
     }
-  }, [disconnectRemoteSession, joinedRoomCode, onBack, room]);
+  }, [disconnectRemoteSession, joinedRoomCode, onBack, onBackToThemeTable, room]);
 
   const handleRequestBackToLobby = () => {
     if (room?.status === 'IN_GAME' && room.originKind === 'RANKED' && !isMatchCompleted) {
@@ -2536,7 +2545,7 @@ function OnlineMatchEndPanel({
               ) : (
                 <ArrowLeft size={16} />
               )}
-              返回大厅
+              {actionState.kind === 'THEME_ROOM' ? '返回主题牌桌' : '返回大厅'}
             </button>
           </div>
         )}

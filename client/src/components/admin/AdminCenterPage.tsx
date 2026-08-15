@@ -102,8 +102,8 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           onOpen: props.onOpenRanked,
         },
         {
-          title: '轮换主题牌桌',
-          description: '编排活动、冻结预组与实测组合',
+          title: '主题赛季',
+          description: '管理开放时段与平台卡组池',
           icon: Sparkles,
           onOpen: props.onOpenThemeTable,
         },

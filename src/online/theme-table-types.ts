@@ -36,6 +36,14 @@ export interface ThemeTableEventView {
   readonly prebuiltDecks: readonly ThemePrebuiltDeckView[];
 }
 
+export interface ThemeTablePlayerSeasonView {
+  readonly completedMatches: number;
+  readonly wins: number;
+  readonly losses: number;
+  readonly draws: number;
+  readonly winRate: number | null;
+}
+
 export interface ThemeTableOverviewView {
   readonly event: ThemeTableEventView | null;
   readonly availability: {
@@ -43,6 +51,7 @@ export interface ThemeTableOverviewView {
     readonly canJoin: boolean;
     readonly message: string;
   };
+  readonly player: ThemeTablePlayerSeasonView | null;
   readonly queue: PublicTableStatusView;
 }
 

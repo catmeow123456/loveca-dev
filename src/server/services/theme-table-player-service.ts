@@ -3,6 +3,7 @@ import type {
   ThemeTableAvailabilityState,
   ThemeTableEventView,
   ThemeTableOverviewView,
+  ThemeTablePlayerSeasonView,
 } from '../../online/theme-table-types.js';
 import { pool } from '../db/pool.js';
 import { getCurrentRankedCardCatalogIdentity } from '../rating/ranked-environment.js';
@@ -52,6 +53,13 @@ interface QueueContextRow {
   readonly environment_id: string;
 }
 
+interface PlayerSeasonRow {
+  readonly completed_matches: string;
+  readonly wins: string;
+  readonly losses: string;
+  readonly draws: string;
+}
+
 interface ThemeQueueContext extends MatchmakingQueueContext {
   readonly queueKind: 'THEME';
   readonly participationKind: 'THEME_QUEUE';
@@ -83,14 +91,16 @@ export class ThemeTablePlayerService {
       return {
         event: null,
         availability: { state: 'NO_EVENT', canJoin: false, message: '当前没有公开的主题活动' },
+        player: null,
         queue,
       };
     }
-    const [decks, availability] = await Promise.all([
+    const [decks, availability, player] = await Promise.all([
       this.loadDecks(event.id),
       this.getAvailability(event),
+      this.loadPlayerSeason(event.id, userId),
     ]);
-    return { event: mapEvent(event, decks), availability, queue };
+    return { event: mapEvent(event, decks), availability, player, queue };
   }
 
   async join(userId: string) {
@@ -162,6 +172,49 @@ export class ThemeTablePlayerService {
       [themeId]
     );
     return result.rows.map(mapDeck);
+  }
+
+  private async loadPlayerSeason(
+    themeId: string,
+    userId: string
+  ): Promise<ThemeTablePlayerSeasonView> {
+    const result = await pool.query<PlayerSeasonRow>(
+      `SELECT
+         COUNT(*) FILTER (
+           WHERE (record.status IN ('COMPLETED', 'SURRENDERED')
+               AND record.winner_seat IN ('FIRST', 'SECOND'))
+             OR (record.status = 'COMPLETED' AND record.winner_seat IS NULL)
+         )::text AS completed_matches,
+         COUNT(*) FILTER (
+           WHERE record.status IN ('COMPLETED', 'SURRENDERED')
+             AND ((record.first_user_id = $2 AND record.winner_seat = 'FIRST')
+               OR (record.second_user_id = $2 AND record.winner_seat = 'SECOND'))
+         )::text AS wins,
+         COUNT(*) FILTER (
+           WHERE record.status IN ('COMPLETED', 'SURRENDERED')
+             AND ((record.first_user_id = $2 AND record.winner_seat = 'SECOND')
+               OR (record.second_user_id = $2 AND record.winner_seat = 'FIRST'))
+         )::text AS losses,
+         COUNT(*) FILTER (
+           WHERE record.status = 'COMPLETED'
+             AND record.winner_seat IS NULL
+         )::text AS draws
+       FROM theme_table_assignments AS assignment
+       JOIN match_records AS record ON record.match_id = assignment.match_id
+       WHERE assignment.theme_table_version_id = $1
+         AND (record.first_user_id = $2 OR record.second_user_id = $2)`,
+      [themeId, userId]
+    );
+    const row = result.rows[0];
+    const completedMatches = Number(row?.completed_matches ?? 0);
+    const wins = Number(row?.wins ?? 0);
+    return {
+      completedMatches,
+      wins,
+      losses: Number(row?.losses ?? 0),
+      draws: Number(row?.draws ?? 0),
+      winRate: completedMatches === 0 ? null : wins / completedMatches,
+    };
   }
 
   private async requireJoinableTheme(): Promise<ThemeRow> {

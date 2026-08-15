@@ -2191,6 +2191,13 @@ export class OnlineRoomService {
   }
 
   private ensureCanRestart(room: OnlineRoomState): void {
+    if (room.themeTableVersionId) {
+      throw new OnlineRoomServiceError(
+        'THEME_RESTART_FORBIDDEN',
+        '主题牌桌每局都会重新分配卡组，请返回主题牌桌再次候场',
+        409
+      );
+    }
     if (room.originKind === 'RANKED') {
       throw new OnlineRoomServiceError(
         'RANKED_RESTART_FORBIDDEN',

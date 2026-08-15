@@ -1067,6 +1067,7 @@ function App() {
     return withProductFrame(
       <OnlineRoomPage
         onBack={() => setCurrentPage('home')}
+        onBackToThemeTable={() => setCurrentPage('theme-table')}
         onImmersiveModeChange={setIsOnlineRoomImmersive}
         emoteCatalog={appConfig.matchEmotes}
         onEmoteCatalogStale={refreshAppConfig}

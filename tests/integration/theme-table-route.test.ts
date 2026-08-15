@@ -75,6 +75,7 @@ describe('themeTableRouter', () => {
     const overview = {
       event: { id: 'theme-1', prebuiltDecks: [{ id: 'deck-1', mainDeck: [], energyDeck: [] }] },
       availability: { state: 'OPEN', canJoin: true, message: '可以加入主题牌桌' },
+      player: { completedMatches: 3, wins: 2, losses: 1, draws: 0, winRate: 2 / 3 },
       queue: { state: 'IDLE' },
     } as never;
     vi.mocked(themeTablePlayerService.getOverview).mockResolvedValue(overview);

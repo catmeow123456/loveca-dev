@@ -1,37 +1,39 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import {
-  CalendarClock,
-  Check,
-  CirclePause,
-  Layers3,
-  Loader2,
-  Plus,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
-} from 'lucide-react';
-import { PageHeader } from '@/components/common';
+import { CirclePause, Layers3, Loader2, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AdminPageHeader } from './AdminPageHeader';
+import { AdminViewTabs } from './AdminViewTabs';
+import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
 import { useDeckStore } from '@/store/deckStore';
 import {
   addThemeAdminDeck,
-  addThemeAdminMatchup,
   createThemeAdminDraft,
-  fetchThemeAdminEnvironment,
   fetchThemeAdminEvents,
   runThemeAdminLifecycleAction,
   setThemeAdminMatchupEnabled,
   updateThemeAdminDraft,
   type ThemeAdminDraftPayload,
-  type ThemeAdminEnvironmentPreview,
   type ThemeAdminEventView,
 } from '@/lib/themeTableAdminClient';
+import {
+  getRankedOpenWindowsValidationError,
+  isCrossMidnightRankedOpenWindow,
+  prepareRankedOpenWindowsForApi,
+  prepareRankedOpenWindowsForForm,
+  type EditableRankedOpenWindow,
+} from '@/lib/rankedOpenWindows';
 import './theme-table-admin.css';
 
+type Tab = 'overview' | 'seasons';
 type EditorMode = 'closed' | 'create' | 'edit';
 
+const TABS = [
+  { value: 'overview', label: '概览' },
+  { value: 'seasons', label: '主题赛季' },
+] as const;
+
 export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
+  const [tab, setTab] = useState<Tab>('overview');
   const [events, setEvents] = useState<ThemeAdminEventView[]>([]);
-  const [environment, setEnvironment] = useState<ThemeAdminEnvironmentPreview | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [editorMode, setEditorMode] = useState<EditorMode>('closed');
   const [busy, setBusy] = useState(false);
@@ -48,13 +50,9 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      const [nextEnvironment, nextEvents] = await Promise.all([
-        fetchThemeAdminEnvironment(),
-        fetchThemeAdminEvents(),
-        fetchCloudDecks(),
-      ]);
-      setEnvironment(nextEnvironment);
+      const [nextEvents] = await Promise.all([fetchThemeAdminEvents(), fetchCloudDecks()]);
       setEvents(nextEvents);
+      if (nextEvents.length === 0) setTab('seasons');
       setSelectedId((current) =>
         nextEvents.some((event) => event.id === current) ? current : (nextEvents[0]?.id ?? '')
       );
@@ -68,7 +66,7 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
-    // The workbench owns its initial aggregate request.
+    // Initial load owns the aggregate season and deck request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -87,14 +85,18 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
     }
   };
 
+  const selectSeason = (id: string) => {
+    setSelectedId(id);
+    setEditorMode('closed');
+  };
+
   return (
     <div className="app-shell flex min-h-screen flex-col">
-      <PageHeader
-        title="轮换主题牌桌管理"
-        icon={<Sparkles size={20} />}
+      <AdminPageHeader
+        title="主题赛季管理"
+        category="对局与赛季"
         onBack={onBack}
-        backLabel="返回运营管理"
-        right={
+        actions={
           <button className="button-icon" onClick={() => void load()} aria-label="刷新">
             <RefreshCw size={16} className={busy ? 'animate-spin' : ''} />
           </button>
@@ -102,323 +104,320 @@ export function ThemeTableAdminPage({ onBack }: { onBack: () => void }) {
       />
 
       <main className="product-page-main flex-1">
-        <div className="mx-auto w-full max-w-7xl space-y-4">
-          <ProgramRail event={selected} />
+        <div className="mx-auto w-full max-w-5xl">
+          <AdminViewTabs label="主题赛季管理视图" value={tab} tabs={TABS} onChange={setTab} />
 
           {error ? (
-            <p className="rounded-lg bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
+            <p className="mb-4 rounded-xl bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
               {error}
             </p>
           ) : null}
 
-          {editorMode !== 'closed' ? (
-            <DraftForm
-              key={`${editorMode}:${editorMode === 'edit' ? (selected?.id ?? '') : 'new'}`}
-              event={editorMode === 'edit' ? selected : null}
+          {tab === 'overview' ? (
+            <OverviewPanel events={events} selected={selected} onSelect={selectSeason} />
+          ) : (
+            <SeasonPanel
+              events={events}
+              selected={selected}
+              cloudDecks={cloudDecks}
+              editorMode={editorMode}
               busy={busy}
-              onCancel={() => setEditorMode('closed')}
-              onSubmit={(payload) =>
+              onSelect={selectSeason}
+              onOpenCreate={() => {
+                setSelectedId('');
+                setEditorMode('create');
+              }}
+              onOpenEdit={(event) => {
+                setSelectedId(event.id);
+                setEditorMode('edit');
+              }}
+              onCloseEditor={() => setEditorMode('closed')}
+              onSubmitDraft={(event, payload) =>
                 run(() =>
-                  editorMode === 'edit' && selected
-                    ? updateThemeAdminDraft(selected.id, payload)
-                    : createThemeAdminDraft(payload)
+                  event ? updateThemeAdminDraft(event.id, payload) : createThemeAdminDraft(payload)
                 ).then((completed) => {
                   if (completed) setEditorMode('closed');
                 })
               }
+              onLifecycle={(event, action) =>
+                run(() => runThemeAdminLifecycleAction(event.id, action))
+              }
+              onRun={run}
             />
-          ) : null}
-
-          <div className="theme-admin-layout">
-            <EventIndex
-              events={events}
-              selectedId={selected?.id ?? ''}
-              environment={environment}
-              busy={busy}
-              onSelect={setSelectedId}
-              onCreate={() => setEditorMode('create')}
-            />
-
-            {selected ? (
-              <EventWorkspace
-                event={selected}
-                cloudDecks={cloudDecks}
-                busy={busy}
-                onEdit={() => setEditorMode('edit')}
-                onRun={run}
-              />
-            ) : (
-              <section className="product-workbench grid min-h-80 place-items-center p-8 text-center">
-                <div>
-                  <Layers3 className="mx-auto mb-3 text-[var(--text-muted)]" size={28} />
-                  <p className="text-sm text-[var(--text-muted)]">
-                    先创建活动草稿，再冻结预组与组合。
-                  </p>
-                </div>
-              </section>
-            )}
-          </div>
+          )}
         </div>
       </main>
     </div>
   );
 }
 
-function ProgramRail({ event }: { event: ThemeAdminEventView | null }) {
-  const steps = [
-    { label: '活动', complete: Boolean(event) },
-    { label: '预组', complete: (event?.decks.length ?? 0) >= 2 },
-    { label: '组合', complete: Boolean(event?.matchups.some((matchup) => matchup.enabled)) },
-    { label: '发布', complete: Boolean(event && event.lifecycle !== 'DRAFT') },
-  ];
-  return (
-    <section className="theme-program-rail" aria-label="主题活动编排进度">
-      <div className="theme-program-kicker">PROGRAM BOARD</div>
-      <div className="theme-program-steps">
-        {steps.map((step, index) => (
-          <div
-            className={`theme-program-step ${step.complete ? 'is-complete' : ''}`}
-            key={step.label}
-          >
-            <span>{step.complete ? <Check size={14} /> : String(index + 1).padStart(2, '0')}</span>
-            <strong>{step.label}</strong>
-          </div>
-        ))}
-      </div>
-      <p>{event ? `${event.versionKey} · ${lifecycleLabel(event.lifecycle)}` : '尚未选择活动'}</p>
-    </section>
-  );
-}
-
-function EventIndex({
+function OverviewPanel({
   events,
-  selectedId,
-  environment,
-  busy,
+  selected,
   onSelect,
-  onCreate,
 }: {
   events: ThemeAdminEventView[];
-  selectedId: string;
-  environment: ThemeAdminEnvironmentPreview | null;
-  busy: boolean;
+  selected: ThemeAdminEventView | null;
   onSelect: (id: string) => void;
-  onCreate: () => void;
 }) {
-  return (
-    <aside className="product-workbench self-start">
-      <div className="product-workbench-toolbar">
+  if (events.length === 0 || !selected) {
+    return (
+      <div className="product-workbench grid min-h-72 place-items-center p-8 text-center">
         <div>
-          <div className="text-sm font-semibold text-[var(--text-primary)]">活动版本</div>
-          <div className="text-xs text-[var(--text-muted)]">同一时刻仅开放一个版本</div>
+          <Layers3 className="mx-auto mb-3 text-[var(--text-muted)]" size={28} />
+          <p className="text-sm text-[var(--text-muted)]">还没有主题赛季</p>
         </div>
-        <button
-          className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-          onClick={onCreate}
-          disabled={busy}
-        >
-          <Plus size={15} /> 新建
-        </button>
       </div>
-      <div className="product-list">
-        {events.map((event) => (
-          <button
-            className={`theme-event-row product-list-row ${selectedId === event.id ? 'is-selected' : ''}`}
-            key={event.id}
-            onClick={() => onSelect(event.id)}
-          >
-            <span>
-              <strong>{event.name}</strong>
-              <small>{event.versionKey}</small>
-            </span>
-            <em data-lifecycle={event.lifecycle}>{lifecycleLabel(event.lifecycle)}</em>
-          </button>
-        ))}
-        {events.length === 0 ? (
-          <p className="p-5 text-sm text-[var(--text-muted)]">还没有活动版本</p>
-        ) : null}
-      </div>
-      {environment ? (
-        <div className="border-t border-[var(--border-subtle)] p-4 text-xs leading-5 text-[var(--text-muted)]">
-          <div>{environment.rulesEnvironmentId}</div>
-          <div>{environment.publishedCardCount} 张已发布卡牌</div>
-          <div className="truncate" title={environment.cardCatalogHash}>
-            {environment.cardCatalogHash}
-          </div>
-        </div>
-      ) : null}
-    </aside>
-  );
-}
+    );
+  }
 
-function EventWorkspace({
-  event,
-  cloudDecks,
-  busy,
-  onEdit,
-  onRun,
-}: {
-  event: ThemeAdminEventView;
-  cloudDecks: ReturnType<typeof useDeckStore.getState>['cloudDecks'];
-  busy: boolean;
-  onEdit: () => void;
-  onRun: (operation: () => Promise<unknown>) => Promise<boolean>;
-}) {
+  const metrics = selected.metrics;
+  const startRate = metrics.assignmentCount
+    ? metrics.startedMatchCount / metrics.assignmentCount
+    : null;
   return (
     <div className="space-y-4">
-      <section className="product-workbench p-4 sm:p-5">
+      <section className="product-workbench p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <Field label="查看主题赛季">
+            <select
+              className="input-field min-w-64"
+              value={selected.id}
+              onChange={(event) => onSelect(event.target.value)}
+            >
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <div className="text-right text-xs text-[var(--text-muted)]">
+            <StatusPill lifecycle={selected.lifecycle} />
+            <div className="mt-2">{selected.scheduleLabel}</div>
+          </div>
+        </div>
+      </section>
+
+      <section className="product-workbench p-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="mb-1 flex items-center gap-2 text-xs font-semibold tracking-[0.14em] text-[var(--accent-secondary)]">
-              <CalendarClock size={14} /> {event.scheduleLabel}
-            </div>
-            <h1 className="text-xl font-bold text-[var(--text-primary)]">{event.name}</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
-              {event.summary}
+          <div>
+            <h2 className="font-semibold text-[var(--text-primary)]">{selected.name}</h2>
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+              {selected.summary}
             </p>
           </div>
-          <LifecycleActions event={event} busy={busy} onEdit={onEdit} onRun={onRun} />
+          <div className="text-right text-xs text-[var(--text-muted)]">
+            <div>{formatDate(selected.startsAt)} 开始</div>
+            <div className="mt-1">{formatDate(selected.endsAt)} 结束</div>
+          </div>
         </div>
-        <div className="mt-4 grid gap-2 border-t border-[var(--border-subtle)] pt-4 text-xs text-[var(--text-muted)] sm:grid-cols-2">
-          <span>开始：{formatDate(event.startsAt)}</span>
-          <span>结束：{formatDate(event.endsAt)}</span>
-          <span className="truncate" title={event.environmentId}>
-            环境：{event.environmentId}
-          </span>
-          <span>分配：{event.allocationAlgorithmVersion}</span>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <OverviewMetric label="加入候场" value={String(metrics.joinedTicketCount)} />
+          <OverviewMetric label="已开始对局" value={String(metrics.startedMatchCount)} />
+          <OverviewMetric label="已完成对局" value={String(metrics.completedMatchCount)} />
+          <OverviewMetric
+            label="分配后开局率"
+            value={startRate === null ? '—' : formatPercent(startRate)}
+          />
         </div>
       </section>
 
-      <MetricsStrip event={event} />
-
-      <section className="product-workbench">
-        <div className="product-workbench-toolbar">
+      <section className="product-workbench p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-[var(--text-primary)]">冻结预组</div>
-            <div className="text-xs text-[var(--text-muted)]">
-              从管理员自己的合法云端卡组复制不可变快照
-            </div>
+            <h2 className="font-semibold text-[var(--text-primary)]">本期卡组池</h2>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              玩家不选卡组，系统从池内组合中为双方分配。
+            </p>
           </div>
-          <span className="text-xs text-[var(--text-muted)]">{event.decks.length} 副</span>
-        </div>
-        {event.lifecycle === 'DRAFT' ? (
-          <DeckFreezeForm event={event} cloudDecks={cloudDecks} busy={busy} onRun={onRun} />
-        ) : null}
-        <div className="product-list">
-          {event.decks.map((deck) => (
-            <div className="product-list-row grid gap-2 p-4 sm:grid-cols-[1fr_auto]" key={deck.id}>
-              <div>
-                <strong className="text-sm text-[var(--text-primary)]">{deck.displayName}</strong>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  {deck.deckKey} · {difficultyLabel(deck.difficulty)} ·{' '}
-                  {deck.playStyleTags.join(' / ')}
-                </p>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  {deck.sourceLabel} · {deck.reviewNote}
-                </p>
-              </div>
-              <div className="text-right text-xs text-[var(--text-muted)]">
-                <div>主卡组 {sumDeck(deck.mainDeck)}</div>
-                <div>能量 {sumDeck(deck.energyDeck)}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="product-workbench">
-        <div className="product-workbench-toolbar">
-          <div>
-            <div className="text-sm font-semibold text-[var(--text-primary)]">实测组合矩阵</div>
-            <div className="text-xs text-[var(--text-muted)]">
-              发布后只允许停用；不能原地追加或重新启用
-            </div>
-          </div>
-          <span className="text-xs text-[var(--text-muted)]">
-            {event.matchups.filter((item) => item.enabled).length} 组启用
+          <span className="text-sm text-[var(--text-secondary)]">
+            {selected.decks.length} 副卡组 · {enabledMatchupCount(selected)} 个可分配组合
           </span>
         </div>
-        {event.lifecycle === 'DRAFT' && event.decks.length >= 2 ? (
-          <MatchupForm event={event} busy={busy} onRun={onRun} />
-        ) : null}
-        <div className="product-list">
-          {event.matchups.map((matchup) => (
-            <div
-              className="product-list-row flex flex-wrap items-center justify-between gap-3 p-4"
-              key={matchup.id}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {selected.decks.map((deck) => (
+            <span
+              key={deck.id}
+              className="rounded-lg bg-[var(--bg-overlay)] px-3 py-2 text-sm text-[var(--text-secondary)]"
             >
-              <div>
-                <strong className="text-sm text-[var(--text-primary)]">
-                  {matchup.firstDeckName} × {matchup.secondDeckName}
-                </strong>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  权重 {matchup.weight} · {summarizeTest(matchup.testSummary)}
-                </p>
-              </div>
-              <button
-                className={
-                  matchup.enabled
-                    ? 'button-secondary px-3 py-2 text-sm'
-                    : 'button-primary px-3 py-2 text-sm'
-                }
-                disabled={
-                  busy ||
-                  (!matchup.enabled && event.lifecycle !== 'DRAFT') ||
-                  event.lifecycle === 'CLOSED'
-                }
-                onClick={() =>
-                  void onRun(() =>
-                    setThemeAdminMatchupEnabled(event.id, matchup.id, !matchup.enabled)
-                  )
-                }
-              >
-                {matchup.enabled ? '停用组合' : '重新启用'}
-              </button>
-            </div>
+              {deck.displayName}
+            </span>
           ))}
-          {event.matchups.length === 0 ? (
-            <p className="p-5 text-sm text-[var(--text-muted)]">尚未登记实测组合</p>
+          {selected.decks.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">尚未加入卡组</p>
           ) : null}
         </div>
+        {metrics.deckExposure.length > 0 ? (
+          <details className="mt-4 border-t border-[var(--border-subtle)] pt-3">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--text-secondary)]">
+              查看卡组分配情况
+            </summary>
+            <div className="theme-exposure-list mt-3">
+              {metrics.deckExposure.map((item) => (
+                <div key={item.deckVersionId}>
+                  <span>{item.displayName}</span>
+                  <strong>{formatPercent(item.actualShare)}</strong>
+                  <small>目标 {formatPercent(item.expectedShare)}</small>
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
       </section>
     </div>
   );
 }
 
-function LifecycleActions({
+function SeasonPanel({
+  events,
+  selected,
+  cloudDecks,
+  editorMode,
+  busy,
+  onSelect,
+  onOpenCreate,
+  onOpenEdit,
+  onCloseEditor,
+  onSubmitDraft,
+  onLifecycle,
+  onRun,
+}: {
+  events: ThemeAdminEventView[];
+  selected: ThemeAdminEventView | null;
+  cloudDecks: ReturnType<typeof useDeckStore.getState>['cloudDecks'];
+  editorMode: EditorMode;
+  busy: boolean;
+  onSelect: (id: string) => void;
+  onOpenCreate: () => void;
+  onOpenEdit: (event: ThemeAdminEventView) => void;
+  onCloseEditor: () => void;
+  onSubmitDraft: (
+    event: ThemeAdminEventView | null,
+    payload: ThemeAdminDraftPayload
+  ) => Promise<unknown>;
+  onLifecycle: (
+    event: ThemeAdminEventView,
+    action: 'activate' | 'pause' | 'resume' | 'close'
+  ) => Promise<unknown>;
+  onRun: (operation: () => Promise<unknown>) => Promise<boolean>;
+}) {
+  const [managedSeasonId, setManagedSeasonId] = useState<string | null>(null);
+  const editingEvent = editorMode === 'edit' ? selected : null;
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <button className="button-secondary px-4 py-2 text-sm" onClick={onOpenCreate}>
+          <span className="inline-flex items-center gap-1.5">
+            <Plus size={15} /> 新建主题赛季
+          </span>
+        </button>
+      </div>
+
+      {editorMode !== 'closed' ? (
+        <ThemeSeasonForm
+          key={`${editorMode}:${editingEvent?.id ?? 'new'}`}
+          event={editingEvent}
+          busy={busy}
+          onCancel={onCloseEditor}
+          onSubmit={(payload) => onSubmitDraft(editingEvent, payload)}
+        />
+      ) : null}
+
+      {events.length > 0 ? (
+        <div className="product-workbench">
+          {events.map((event) => {
+            const expanded = managedSeasonId === event.id && editorMode === 'closed';
+            return (
+              <section key={event.id} className="product-list-row p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-semibold text-[var(--text-primary)]">{event.name}</h2>
+                      <StatusPill lifecycle={event.lifecycle} />
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      {event.scheduleLabel} · {event.decks.length} 副卡组
+                    </p>
+                  </div>
+                  <SeasonActions
+                    event={event}
+                    busy={busy}
+                    expanded={expanded}
+                    onManage={() => {
+                      onSelect(event.id);
+                      setManagedSeasonId(expanded ? null : event.id);
+                    }}
+                    onEdit={() => onOpenEdit(event)}
+                    onLifecycle={onLifecycle}
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 border-t border-[var(--border-subtle)] pt-3 text-xs text-[var(--text-muted)]">
+                  <span>{formatOpenWindows(event.openWindows)}</span>
+                  <span>结束：{formatDate(event.endsAt)}</span>
+                  <span>{enabledMatchupCount(event)} 个可分配组合</span>
+                </div>
+                {expanded ? (
+                  <DeckPoolPanel event={event} cloudDecks={cloudDecks} busy={busy} onRun={onRun} />
+                ) : null}
+              </section>
+            );
+          })}
+        </div>
+      ) : editorMode === 'closed' ? (
+        <div className="product-workbench p-8 text-center text-sm text-[var(--text-muted)]">
+          还没有主题赛季
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function SeasonActions({
   event,
   busy,
+  expanded,
+  onManage,
   onEdit,
-  onRun,
+  onLifecycle,
 }: {
   event: ThemeAdminEventView;
   busy: boolean;
+  expanded: boolean;
+  onManage: () => void;
   onEdit: () => void;
-  onRun: (operation: () => Promise<unknown>) => Promise<boolean>;
+  onLifecycle: (
+    event: ThemeAdminEventView,
+    action: 'activate' | 'pause' | 'resume' | 'close'
+  ) => Promise<unknown>;
 }) {
-  const action = (kind: 'activate' | 'pause' | 'resume' | 'close') => {
+  const runAction = (action: 'activate' | 'pause' | 'resume' | 'close') => {
     const warning =
-      kind === 'close'
-        ? '结束后不能恢复，确定结束本期主题活动吗？'
-        : kind === 'activate'
-          ? '发布后活动事实、预组和组合将冻结，确定发布吗？'
+      action === 'activate'
+        ? '开始后赛季信息和卡组池将冻结，确定开始主题赛季吗？'
+        : action === 'close'
+          ? '结束后不能恢复，确定结束本期主题赛季吗？'
           : null;
     if (warning && !window.confirm(warning)) return;
-    void onRun(() => runThemeAdminLifecycleAction(event.id, kind));
+    void onLifecycle(event, action);
   };
+
   return (
     <div className="flex flex-wrap gap-2">
+      <button className="button-secondary px-3 py-2 text-sm" onClick={onManage}>
+        {expanded ? '收起卡组池' : '管理卡组池'}
+      </button>
       {event.lifecycle === 'DRAFT' ? (
         <>
           <button className="button-secondary px-3 py-2 text-sm" disabled={busy} onClick={onEdit}>
-            编辑活动
+            编辑赛季
           </button>
           <button
             className="button-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
-            disabled={busy}
-            onClick={() => action('activate')}
+            disabled={busy || event.decks.length < 2 || enabledMatchupCount(event) === 0}
+            onClick={() => runAction('activate')}
           >
-            <ShieldCheck size={15} /> 发布
+            <ShieldCheck size={15} /> 开始赛季
           </button>
         </>
       ) : null}
@@ -426,64 +425,30 @@ function LifecycleActions({
         <button
           className="button-secondary inline-flex items-center gap-1.5 px-3 py-2 text-sm"
           disabled={busy}
-          onClick={() => action('pause')}
+          onClick={() => runAction('pause')}
         >
-          <CirclePause size={15} /> 暂停入队
+          <CirclePause size={15} /> 暂停匹配
         </button>
       ) : null}
       {event.lifecycle === 'PAUSED' ? (
         <button
           className="button-primary px-3 py-2 text-sm"
-          disabled={busy}
-          onClick={() => action('resume')}
+          disabled={busy || enabledMatchupCount(event) === 0}
+          onClick={() => runAction('resume')}
         >
-          恢复开放
+          继续匹配
         </button>
       ) : null}
       {event.lifecycle === 'ACTIVE' || event.lifecycle === 'PAUSED' ? (
-        <button className="theme-danger-button" disabled={busy} onClick={() => action('close')}>
-          结束活动
+        <button className="theme-danger-button" disabled={busy} onClick={() => runAction('close')}>
+          结束赛季
         </button>
       ) : null}
     </div>
   );
 }
 
-function MetricsStrip({ event }: { event: ThemeAdminEventView }) {
-  const metrics = event.metrics;
-  const values = [
-    ['入队票据', metrics.joinedTicketCount],
-    ['已分配', metrics.assignmentCount],
-    ['已开局', metrics.startedMatchCount],
-    ['已完成', metrics.completedMatchCount],
-    ['无过错回队', metrics.noFaultRequeueCount],
-  ] as const;
-  return (
-    <section className="theme-metrics-strip">
-      {values.map(([label, value]) => (
-        <div key={label}>
-          <span>{label}</span>
-          <strong>{value}</strong>
-        </div>
-      ))}
-      <div className="theme-exposure-cell">
-        <span>预组曝光</span>
-        <p>
-          {metrics.deckExposure.length
-            ? metrics.deckExposure
-                .map(
-                  (item) =>
-                    `${item.displayName} ${formatPercent(item.actualShare)} / 目标 ${formatPercent(item.expectedShare)}`
-                )
-                .join(' · ')
-            : '暂无分配'}
-        </p>
-      </div>
-    </section>
-  );
-}
-
-function DeckFreezeForm({
+function DeckPoolPanel({
   event,
   cloudDecks,
   busy,
@@ -494,208 +459,145 @@ function DeckFreezeForm({
   busy: boolean;
   onRun: (operation: () => Promise<unknown>) => Promise<boolean>;
 }) {
-  const [sourceDeckId, setSourceDeckId] = useState(
-    cloudDecks.find((deck) => deck.is_valid)?.id ?? ''
-  );
-  const [deckKey, setDeckKey] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [tags, setTags] = useState('');
-  const [difficulty, setDifficulty] = useState<'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED'>(
-    'INTERMEDIATE'
-  );
-  const [sourceLabel, setSourceLabel] = useState('内部实测卡组');
-  const [sourceUrl, setSourceUrl] = useState('');
-  const [reviewNote, setReviewNote] = useState('');
-  const submit = (submitEvent: FormEvent) => {
-    submitEvent.preventDefault();
-    void onRun(() =>
-      addThemeAdminDeck(event.id, {
-        sourceDeckId,
-        deckKey,
-        displayName,
-        playStyleTags: tags
-          .split(/[，,]/)
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-        difficulty,
-        sourceLabel,
-        sourceUrl: sourceUrl.trim() || null,
-        reviewNote,
-      })
-    ).then((completed) => {
-      if (completed) {
-        setDeckKey('');
-        setDisplayName('');
-        setTags('');
-        setReviewNote('');
-      }
-    });
-  };
+  const poolReady = event.decks.length >= 2 && enabledMatchupCount(event) > 0;
   return (
-    <form className="theme-inline-form" onSubmit={submit}>
-      <Field label="云端卡组">
-        <select
-          className="input-field"
-          value={sourceDeckId}
-          onChange={(e) => setSourceDeckId(e.target.value)}
-          required
-        >
-          <option value="">请选择</option>
-          {cloudDecks.map((deck) => (
-            <option key={deck.id} value={deck.id} disabled={!deck.is_valid}>
-              {deck.name}
-              {deck.is_valid ? '' : '（不合法）'}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="预组标识">
-        <input
-          className="input-field"
-          value={deckKey}
-          onChange={(e) => setDeckKey(e.target.value)}
-          pattern="[a-z0-9][a-z0-9_-]+"
-          required
-        />
-      </Field>
-      <Field label="玩家显示名">
-        <input
-          className="input-field"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          required
-        />
-      </Field>
-      <Field label="玩法标签（逗号分隔）">
-        <input
-          className="input-field"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          required
-        />
-      </Field>
-      <Field label="难度">
-        <select
-          className="input-field"
-          value={difficulty}
-          onChange={(e) => setDifficulty(e.target.value as typeof difficulty)}
-        >
-          <option value="BEGINNER">入门</option>
-          <option value="INTERMEDIATE">进阶</option>
-          <option value="ADVANCED">高阶</option>
-        </select>
-      </Field>
-      <Field label="来源说明">
-        <input
-          className="input-field"
-          value={sourceLabel}
-          onChange={(e) => setSourceLabel(e.target.value)}
-          required
-        />
-      </Field>
-      <Field label="来源链接（可选）">
-        <input
-          className="input-field"
-          type="url"
-          value={sourceUrl}
-          onChange={(e) => setSourceUrl(e.target.value)}
-        />
-      </Field>
-      <Field label="审阅记录">
-        <input
-          className="input-field"
-          value={reviewNote}
-          onChange={(e) => setReviewNote(e.target.value)}
-          required
-        />
-      </Field>
-      <button
-        className="button-primary min-h-11 self-end px-4 text-sm"
-        disabled={busy || !sourceDeckId}
-      >
-        {busy ? <Loader2 size={16} className="animate-spin" /> : '冻结预组'}
-      </button>
-    </form>
+    <div className="mt-4 rounded-xl bg-[var(--bg-overlay)] p-4">
+      <div className="theme-season-readiness">
+        <div>
+          <span>主题赛季</span>
+          <strong>信息已保存</strong>
+        </div>
+        <div data-ready={poolReady}>
+          <span>卡组池</span>
+          <strong>
+            {poolReady ? '可以开始赛季' : `还需加入 ${Math.max(0, 2 - event.decks.length)} 副`}
+          </strong>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--text-primary)]">平台分配卡组池</h3>
+          <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+            加入卡组后，系统自动生成与池内其他卡组的等权组合。
+          </p>
+        </div>
+        <span className="text-xs text-[var(--text-muted)]">{event.decks.length} 副</span>
+      </div>
+
+      {event.lifecycle === 'DRAFT' ? (
+        <DeckPoolAddForm event={event} cloudDecks={cloudDecks} busy={busy} onRun={onRun} />
+      ) : null}
+
+      <div className="theme-deck-pool-grid mt-3">
+        {event.decks.map((deck) => (
+          <div key={deck.id}>
+            <strong>{deck.displayName}</strong>
+            <span>
+              主卡组 {sumDeck(deck.mainDeck)} · 能量 {sumDeck(deck.energyDeck)}
+            </span>
+          </div>
+        ))}
+        {event.decks.length === 0 ? (
+          <p className="py-4 text-sm text-[var(--text-muted)]">从一副合法云端卡组开始。</p>
+        ) : null}
+      </div>
+
+      {event.matchups.length > 0 ? (
+        <details className="mt-4 border-t border-[var(--border-subtle)] pt-3">
+          <summary className="cursor-pointer text-sm text-[var(--text-secondary)]">
+            组合异常处理（{event.matchups.filter((matchup) => !matchup.enabled).length} 个已停用）
+          </summary>
+          <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">
+            这里只用于临时停用有问题的卡组组合。正常编排不需要逐组设置权重。
+          </p>
+          <div className="mt-3 space-y-2">
+            {event.matchups.map((matchup) => (
+              <div
+                key={matchup.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[var(--bg-surface)] px-3 py-2"
+              >
+                <span className="text-sm text-[var(--text-secondary)]">
+                  {matchup.firstDeckName} × {matchup.secondDeckName}
+                </span>
+                <button
+                  className="button-secondary px-3 py-1.5 text-xs"
+                  disabled={
+                    busy ||
+                    (!matchup.enabled && event.lifecycle !== 'DRAFT') ||
+                    event.lifecycle === 'CLOSED'
+                  }
+                  onClick={() =>
+                    void onRun(() =>
+                      setThemeAdminMatchupEnabled(event.id, matchup.id, !matchup.enabled)
+                    )
+                  }
+                >
+                  {matchup.enabled ? '停用' : '重新启用'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </div>
   );
 }
 
-function MatchupForm({
+function DeckPoolAddForm({
   event,
+  cloudDecks,
   busy,
   onRun,
 }: {
   event: ThemeAdminEventView;
+  cloudDecks: ReturnType<typeof useDeckStore.getState>['cloudDecks'];
   busy: boolean;
   onRun: (operation: () => Promise<unknown>) => Promise<boolean>;
 }) {
-  const [first, setFirst] = useState(event.decks[0]?.id ?? '');
-  const [second, setSecond] = useState(event.decks[1]?.id ?? '');
-  const [weight, setWeight] = useState(1);
-  const [summary, setSummary] = useState('');
+  const validDecks = cloudDecks.filter((deck) => deck.is_valid);
+  const [sourceDeckId, setSourceDeckId] = useState(validDecks[0]?.id ?? '');
+  const submit = (submitEvent: FormEvent) => {
+    submitEvent.preventDefault();
+    const deck = validDecks.find((candidate) => candidate.id === sourceDeckId);
+    if (!deck) return;
+    void onRun(() =>
+      addThemeAdminDeck(event.id, {
+        sourceDeckId,
+        deckKey: nextDeckKey(event),
+        displayName: deck.name,
+        playStyleTags: ['平台预组'],
+        difficulty: 'INTERMEDIATE',
+        sourceLabel: '主题赛季卡组池',
+        sourceUrl: null,
+        reviewNote: '加入主题赛季卡组池时审核',
+      })
+    );
+  };
   return (
-    <form
-      className="theme-inline-form theme-inline-form--matchup"
-      onSubmit={(submitEvent) => {
-        submitEvent.preventDefault();
-        void onRun(() =>
-          addThemeAdminMatchup(event.id, {
-            firstDeckVersionId: first,
-            secondDeckVersionId: second,
-            weight,
-            testSummary: { summary },
-          })
-        ).then((completed) => {
-          if (completed) setSummary('');
-        });
-      }}
-    >
-      <Field label="预组 A">
-        <select className="input-field" value={first} onChange={(e) => setFirst(e.target.value)}>
-          {event.decks.map((deck) => (
-            <option key={deck.id} value={deck.id}>
-              {deck.displayName}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="预组 B">
-        <select className="input-field" value={second} onChange={(e) => setSecond(e.target.value)}>
-          {event.decks.map((deck) => (
-            <option key={deck.id} value={deck.id}>
-              {deck.displayName}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field label="权重">
-        <input
-          className="input-field"
-          type="number"
-          min={1}
-          max={1000}
-          value={weight}
-          onChange={(e) => setWeight(Number(e.target.value))}
-        />
-      </Field>
-      <Field label="双向试打摘要">
-        <input
-          className="input-field"
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          required
-        />
-      </Field>
-      <button
-        className="button-primary min-h-11 self-end px-4 text-sm"
-        disabled={busy || !first || !second}
+    <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={submit}>
+      <select
+        className="input-field min-w-0 flex-1"
+        value={sourceDeckId}
+        aria-label="选择云端卡组"
+        onChange={(event) => setSourceDeckId(event.target.value)}
+        required
       >
-        加入矩阵
+        <option value="">选择一副合法云端卡组</option>
+        {validDecks.map((deck) => (
+          <option key={deck.id} value={deck.id}>
+            {deck.name}
+          </option>
+        ))}
+      </select>
+      <button className="button-primary min-h-11 px-4 text-sm" disabled={busy || !sourceDeckId}>
+        {busy ? <Loader2 size={16} className="animate-spin" /> : '加入卡组池'}
       </button>
     </form>
   );
 }
 
-function DraftForm({
+function ThemeSeasonForm({
   event,
   busy,
   onCancel,
@@ -706,67 +608,53 @@ function DraftForm({
   onCancel: () => void;
   onSubmit: (payload: ThemeAdminDraftPayload) => Promise<unknown>;
 }) {
-  const [draft, setDraft] = useState(() => draftFromEvent(event));
+  const [draft, setDraft] = useState(() => seasonDraftFromEvent(event));
+  const openWindowsError = getRankedOpenWindowsValidationError(draft.openWindows);
   return (
     <form
-      className="product-workbench grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3"
+      className="product-workbench grid gap-3 p-4 sm:grid-cols-2"
       onSubmit={(submitEvent) => {
         submitEvent.preventDefault();
-        const { weekdays, windowStart, windowEnd, ...payload } = draft;
+        if (openWindowsError) return;
+        const description = draft.description.trim();
         void onSubmit({
-          ...payload,
-          startsAt: new Date(payload.startsAt).toISOString(),
-          endsAt: new Date(payload.endsAt).toISOString(),
-          openWindows: [
-            {
-              weekdays: parseWeekdays(weekdays),
-              startMinute: parseClock(windowStart),
-              endMinute: parseEndClock(windowEnd),
-            },
-          ],
+          versionKey: draft.versionKey,
+          name: draft.name,
+          platformTimeZone: event?.platformTimeZone ?? 'Asia/Shanghai',
+          startsAt: new Date(draft.startsAt).toISOString(),
+          endsAt: new Date(draft.endsAt).toISOString(),
+          openWindows: prepareRankedOpenWindowsForApi(draft.openWindows),
+          scheduleLabel: formatOpenWindows(draft.openWindows),
+          summary: description,
+          announcement: `本主题季不计入排位，双方将从本期卡组池获得平台分配的预组。\n\n${description}`,
+          evaluationPolicy: event?.evaluationPolicy ?? defaultEvaluationPolicy(),
         });
       }}
     >
-      <div className="sm:col-span-2 lg:col-span-3">
-        <strong className="text-sm text-[var(--text-primary)]">
-          {event ? '编辑活动草稿' : '新建活动草稿'}
-        </strong>
+      <div className="sm:col-span-2">
+        <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+          {event ? '编辑主题赛季' : '新建主题赛季'}
+        </h2>
         <p className="mt-1 text-xs text-[var(--text-muted)]">
-          发布时会再次核对规则版本、卡牌目录、预组和组合。
+          与排位赛季使用相同的时间框架；保存后只需加入卡组池。
         </p>
       </div>
-      <Field label="版本标识">
-        <input
-          className="input-field"
-          value={draft.versionKey}
-          onChange={(e) => setDraft({ ...draft, versionKey: e.target.value })}
-          pattern="[a-z0-9][a-z0-9_-]{2,63}"
-          disabled={Boolean(event)}
-          required
-        />
-      </Field>
-      <Field label="活动名称">
+      <Field label="赛季名称">
         <input
           className="input-field"
           value={draft.name}
-          onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+          placeholder="例如：夏日组合主题季"
+          onChange={(changeEvent) => setDraft({ ...draft, name: changeEvent.target.value })}
           required
         />
       </Field>
-      <Field label="时区">
-        <input
-          className="input-field"
-          value={draft.platformTimeZone}
-          onChange={(e) => setDraft({ ...draft, platformTimeZone: e.target.value })}
-          required
-        />
-      </Field>
+      <div className="hidden sm:block" aria-hidden="true" />
       <Field label="开始">
         <input
           className="input-field"
           type="datetime-local"
           value={draft.startsAt}
-          onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })}
+          onChange={(changeEvent) => setDraft({ ...draft, startsAt: changeEvent.target.value })}
           required
         />
       </Field>
@@ -775,287 +663,173 @@ function DraftForm({
           className="input-field"
           type="datetime-local"
           value={draft.endsAt}
-          onChange={(e) => setDraft({ ...draft, endsAt: e.target.value })}
+          onChange={(changeEvent) => setDraft({ ...draft, endsAt: changeEvent.target.value })}
           required
         />
       </Field>
-      <Field label="玩家时间说明">
-        <input
-          className="input-field"
-          value={draft.scheduleLabel}
-          onChange={(e) => setDraft({ ...draft, scheduleLabel: e.target.value })}
-          required
-        />
-      </Field>
-      <Field label="开放星期（1–7）">
-        <input
-          className="input-field"
-          value={draft.weekdays}
-          onChange={(e) => setDraft({ ...draft, weekdays: e.target.value })}
-          required
-        />
-      </Field>
-      <Field label="每日开始">
-        <input
-          className="input-field"
-          type="time"
-          value={draft.windowStart}
-          onChange={(e) => setDraft({ ...draft, windowStart: e.target.value })}
-          required
-        />
-      </Field>
-      <Field label="每日结束">
-        <input
-          className="input-field"
-          type="time"
-          value={draft.windowEnd}
-          onChange={(e) => setDraft({ ...draft, windowEnd: e.target.value })}
-          required
-        />
-      </Field>
-      <Field label="活动说明" wide>
-        <textarea
-          className="input-field min-h-20"
-          value={draft.summary}
-          onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
-          required
-        />
-      </Field>
-      <Field label="玩家公告" wide>
-        <textarea
-          className="input-field min-h-20"
-          value={draft.announcement}
-          onChange={(e) => setDraft({ ...draft, announcement: e.target.value })}
-          required
-        />
-      </Field>
-      <Field label="每组合最小完成局">
-        <input
-          className="input-field"
-          type="number"
-          min={1}
-          value={draft.evaluationPolicy.minimumCompletedMatchesPerPair}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: {
-                ...draft.evaluationPolicy,
-                minimumCompletedMatchesPerPair: Number(e.target.value),
-              },
-            })
-          }
-        />
-      </Field>
-      <Field label="最低完成率">
-        <RatioInput
-          value={draft.evaluationPolicy.minimumCompletionRate}
-          onChange={(value) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: { ...draft.evaluationPolicy, minimumCompletionRate: value },
-            })
-          }
-        />
-      </Field>
-      <Field label="最高异常率">
-        <RatioInput
-          value={draft.evaluationPolicy.maximumExceptionRate}
-          onChange={(value) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: { ...draft.evaluationPolicy, maximumExceptionRate: value },
-            })
-          }
-        />
-      </Field>
-      <Field label="最高曝光偏差">
-        <RatioInput
-          value={draft.evaluationPolicy.maximumExposureDeviation}
-          onChange={(value) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: { ...draft.evaluationPolicy, maximumExposureDeviation: value },
-            })
-          }
-        />
-      </Field>
-      <Field label="最长中位等待（秒）">
-        <input
-          className="input-field"
-          type="number"
-          min={1}
-          value={draft.evaluationPolicy.maximumMedianWaitSeconds}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: {
-                ...draft.evaluationPolicy,
-                maximumMedianWaitSeconds: Number(e.target.value),
-              },
-            })
-          }
-        />
-      </Field>
-      <Field label="组合胜率下限">
-        <RatioInput
-          value={draft.evaluationPolicy.winRateLowerBound}
-          onChange={(value) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: { ...draft.evaluationPolicy, winRateLowerBound: value },
-            })
-          }
-        />
-      </Field>
-      <Field label="组合胜率上限">
-        <RatioInput
-          value={draft.evaluationPolicy.winRateUpperBound}
-          onChange={(value) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: { ...draft.evaluationPolicy, winRateUpperBound: value },
-            })
-          }
-        />
-      </Field>
-      <Field label="基线窗口">
-        <input
-          className="input-field"
-          value={draft.evaluationPolicy.baselineWindowLabel}
-          onChange={(e) =>
-            setDraft({
-              ...draft,
-              evaluationPolicy: { ...draft.evaluationPolicy, baselineWindowLabel: e.target.value },
-            })
-          }
-          required
-        />
-      </Field>
-      <div className="flex items-end justify-end gap-2 sm:col-span-2 lg:col-span-3">
+      <div className="sm:col-span-2">
+        <Field label="玩家说明">
+          <textarea
+            className="input-field min-h-24 resize-y"
+            value={draft.description}
+            placeholder="说明本期主题、适合体验的玩法和注意事项"
+            onChange={(changeEvent) =>
+              setDraft({ ...draft, description: changeEvent.target.value })
+            }
+            required
+          />
+        </Field>
+      </div>
+      <SeasonOpenWindowsFields
+        openWindows={draft.openWindows}
+        onChange={(openWindows) => setDraft({ ...draft, openWindows })}
+      />
+      <div className="flex items-end justify-end gap-2 sm:col-span-2">
         <button type="button" className="button-secondary min-h-11 px-4" onClick={onCancel}>
           取消
         </button>
-        <button className="button-primary min-h-11 px-5" disabled={busy}>
-          {busy ? <Loader2 size={16} className="animate-spin" /> : '保存草稿'}
+        <button
+          className="button-primary min-h-11 px-5"
+          disabled={busy || Boolean(openWindowsError)}
+        >
+          {busy ? <Loader2 size={16} className="animate-spin" /> : event ? '保存' : '创建赛季'}
         </button>
       </div>
     </form>
   );
 }
 
-function Field({
-  label,
-  wide = false,
-  children,
-}: {
-  label: string;
-  wide?: boolean;
-  children: ReactNode;
-}) {
+function OverviewMetric({ label, value }: { label: string; value: string }) {
   return (
-    <label
-      className={`grid gap-1.5 text-xs font-medium text-[var(--text-secondary)] ${wide ? 'sm:col-span-2 lg:col-span-3' : ''}`}
-    >
-      <span>{label}</span>
+    <div className="rounded-xl bg-[var(--bg-overlay)] p-3">
+      <span className="text-xs text-[var(--text-muted)]">{label}</span>
+      <strong className="mt-1 block text-xl font-semibold tabular-nums text-[var(--text-primary)]">
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+function StatusPill({ lifecycle }: { lifecycle: ThemeAdminEventView['lifecycle'] }) {
+  return (
+    <span className="status-pill" data-status={lifecycle.toLowerCase()}>
+      {lifecycleLabel(lifecycle)}
+    </span>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="grid gap-1 text-sm text-[var(--text-secondary)]">
+      {label}
       {children}
     </label>
   );
 }
 
-function RatioInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
-  return (
-    <input
-      className="input-field"
-      type="number"
-      min={0}
-      max={1}
-      step={0.01}
-      value={value}
-      onChange={(event) => onChange(Number(event.target.value))}
-    />
-  );
-}
-
-function draftFromEvent(event: ThemeAdminEventView | null) {
+function seasonDraftFromEvent(event: ThemeAdminEventView | null): {
+  versionKey: string;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  description: string;
+  openWindows: EditableRankedOpenWindow[];
+} {
   const now = new Date();
   const later = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
-  const window = event?.openWindows[0];
   return {
-    versionKey: event?.versionKey ?? '',
+    versionKey: event?.versionKey ?? createThemeSeasonKey(now),
     name: event?.name ?? '',
-    platformTimeZone: event?.platformTimeZone ?? 'Asia/Shanghai',
     startsAt: toLocalDateTime(event?.startsAt ?? now.getTime()),
     endsAt: toLocalDateTime(event?.endsAt ?? later.getTime()),
-    scheduleLabel: event?.scheduleLabel ?? '周末 19:00–23:00',
-    summary: event?.summary ?? '',
-    announcement: event?.announcement ?? '本活动不计入排位，确认后随机分配本期预组。',
-    weekdays: window?.weekdays.join(',') ?? '6,7',
-    windowStart: formatMinute(window?.startMinute ?? 1140),
-    windowEnd: formatMinute(window?.endMinute ?? 1380),
-    evaluationPolicy: event?.evaluationPolicy ?? {
-      minimumCompletedMatchesPerPair: 20,
-      minimumCompletionRate: 0.8,
-      maximumExceptionRate: 0.05,
-      maximumExposureDeviation: 0.1,
-      maximumMedianWaitSeconds: 180,
-      winRateLowerBound: 0.35,
-      winRateUpperBound: 0.65,
-      baselineWindowLabel: '前两周同星期相邻时段',
-    },
+    description: event?.summary ?? '',
+    openWindows: prepareRankedOpenWindowsForForm(
+      event?.openWindows ?? [{ weekdays: [6, 7], startMinute: 1140, endMinute: 1380 }]
+    ),
   };
 }
 
-function parseWeekdays(value: string) {
-  return [
-    ...new Set(
-      value
-        .split(/[，,\s]+/)
-        .map(Number)
-        .filter((day) => day >= 1 && day <= 7)
-    ),
-  ];
+function defaultEvaluationPolicy() {
+  return {
+    minimumCompletedMatchesPerPair: 20,
+    minimumCompletionRate: 0.8,
+    maximumExceptionRate: 0.05,
+    maximumExposureDeviation: 0.1,
+    maximumMedianWaitSeconds: 180,
+    winRateLowerBound: 0.35,
+    winRateUpperBound: 0.65,
+    baselineWindowLabel: '前两周同星期相邻时段',
+  };
 }
-function parseClock(value: string) {
-  const [hour = '0', minute = '0'] = value.split(':');
-  return Number(hour) * 60 + Number(minute);
+
+function createThemeSeasonKey(date: Date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16)
+    .replace(/[-:T]/g, '');
+  return `theme-${local}`;
 }
-function parseEndClock(value: string) {
-  const minute = parseClock(value);
-  return minute === 0 ? 1440 : minute;
+
+function nextDeckKey(event: ThemeAdminEventView) {
+  return `deck-${String(event.decks.length + 1).padStart(2, '0')}`;
 }
-function formatMinute(value: number) {
-  const normalized = value === 1440 ? 0 : value;
-  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+
+function enabledMatchupCount(event: ThemeAdminEventView) {
+  return event.matchups.filter((matchup) => matchup.enabled).length;
 }
+
+function lifecycleLabel(value: ThemeAdminEventView['lifecycle']) {
+  return { DRAFT: '草稿', ACTIVE: '开放中', PAUSED: '已暂停', CLOSED: '已结束' }[value];
+}
+
+function sumDeck(entries: readonly { count: number }[]) {
+  return entries.reduce((sum, entry) => sum + entry.count, 0);
+}
+
 function toLocalDateTime(value: number) {
   const date = new Date(value);
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
+
 function formatDate(value: number) {
-  return new Intl.DateTimeFormat('zh-CN', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    value
-  );
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(value);
 }
-function lifecycleLabel(value: ThemeAdminEventView['lifecycle']) {
-  return { DRAFT: '草稿', ACTIVE: '开放中', PAUSED: '已暂停', CLOSED: '已结束' }[value];
+
+function formatOpenWindows(
+  windows: readonly { weekdays: readonly number[]; startMinute: number; endMinute: number }[]
+) {
+  const logicalWindows = prepareRankedOpenWindowsForForm(windows);
+  const first = logicalWindows[0];
+  if (!first) return '未设置开放时段';
+  const weekdays =
+    first.weekdays.length === 7
+      ? '每天'
+      : first.weekdays
+          .map((weekday) => `周${['一', '二', '三', '四', '五', '六', '日'][weekday - 1]}`)
+          .join('、');
+  const time = `${minuteToTime(first.startMinute)}–${
+    isCrossMidnightRankedOpenWindow(first) ? '次日 ' : ''
+  }${minuteToTime(first.endMinute, true)}`;
+  return `${weekdays} ${time}${logicalWindows.length > 1 ? ` 等 ${logicalWindows.length} 个时段` : ''}`;
 }
-function difficultyLabel(value: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED') {
-  return { BEGINNER: '入门', INTERMEDIATE: '进阶', ADVANCED: '高阶' }[value];
+
+function minuteToTime(minute: number, isEnd = false) {
+  const normalized = isEnd && minute === 1440 ? 0 : minute;
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
 }
-function sumDeck(entries: readonly { count: number }[]) {
-  return entries.reduce((sum, entry) => sum + entry.count, 0);
-}
+
 function formatPercent(value: number) {
   return new Intl.NumberFormat('zh-CN', {
     style: 'percent',
     maximumFractionDigits: 1,
   }).format(value);
 }
-function summarizeTest(summary: Readonly<Record<string, unknown>>) {
-  return typeof summary.summary === 'string' && summary.summary.trim()
-    ? summary.summary
-    : '已登记测试记录';
-}
+
 function readError(error: unknown) {
-  return error instanceof Error ? error.message : '主题牌桌管理操作失败';
+  return error instanceof Error ? error.message : '主题赛季管理操作失败';
 }

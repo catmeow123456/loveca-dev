@@ -79,4 +79,21 @@ describe('联机房间赛后动作', () => {
       restartDisabledReason: null,
     });
   });
+
+  it('主题牌桌赛后释放房间并返回主题入口重新分配卡组', () => {
+    expect(
+      getOnlineRoomPostMatchActionState({
+        originKind: 'PUBLIC_TABLE',
+        themeTableVersionId: 'theme-1',
+        restartRole: 'NONE',
+        opponentActive: true,
+      })
+    ).toEqual({
+      kind: 'THEME_ROOM',
+      preserveRoomOnLobbyReturn: false,
+      showExplicitLeaveRoom: false,
+      restartAction: null,
+      restartDisabledReason: null,
+    });
+  });
 });

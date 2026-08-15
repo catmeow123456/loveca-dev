@@ -9,6 +9,8 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { AdminPageHeader } from './AdminPageHeader';
+import { AdminViewTabs } from './AdminViewTabs';
+import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
 import { ConfirmDialog } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
@@ -52,11 +54,8 @@ import { resolveCardImagePath } from '@/lib/imageService';
 import {
   getRankedOpenWindowsValidationError,
   isCrossMidnightRankedOpenWindow,
-  isEditableRankedOpenWindowValid,
-  MAX_RANKED_OPEN_WINDOWS,
   prepareRankedOpenWindowsForApi,
   prepareRankedOpenWindowsForForm,
-  type EditableRankedOpenWindow,
 } from '@/lib/rankedOpenWindows';
 
 type Tab = 'overview' | 'season' | 'matches';
@@ -291,21 +290,16 @@ export function RankedAdminPage({ onBack }: { onBack: () => void }) {
 
       <main className="product-page-main flex-1">
         <div className="mx-auto w-full max-w-5xl">
-          <div
-            className="mb-4 flex gap-1 border-b border-[var(--border-subtle)] pb-1"
-            role="tablist"
-            aria-label="排位管理视图"
-          >
-            <TabButton active={tab === 'overview'} onClick={() => setTab('overview')}>
-              概览
-            </TabButton>
-            <TabButton active={tab === 'season'} onClick={() => setTab('season')}>
-              赛季
-            </TabButton>
-            <TabButton active={tab === 'matches'} onClick={() => setTab('matches')}>
-              对局处理
-            </TabButton>
-          </div>
+          <AdminViewTabs
+            label="排位管理视图"
+            value={tab}
+            tabs={[
+              { value: 'overview', label: '概览' },
+              { value: 'season', label: '赛季' },
+              { value: 'matches', label: '对局处理' },
+            ]}
+            onChange={setTab}
+          />
           {error ? (
             <p className="mb-4 rounded-xl bg-[var(--semantic-error)]/10 px-3 py-2 text-sm text-[var(--semantic-error)]">
               {error}
@@ -1351,7 +1345,7 @@ function ActiveSeasonOperationsForm({
           />
         </Field>
       </div>
-      <OpenWindowsFields openWindows={openWindows} onChange={setOpenWindows} />
+      <SeasonOpenWindowsFields openWindows={openWindows} onChange={setOpenWindows} />
       <div className="flex items-end justify-end gap-2 sm:col-span-2">
         <button type="button" className="button-secondary min-h-11 px-4" onClick={onCancel}>
           取消
@@ -1550,7 +1544,7 @@ function SeasonDraftForm({
           </Field>
         </>
       ) : null}
-      <OpenWindowsFields
+      <SeasonOpenWindowsFields
         openWindows={draft.openWindows}
         onChange={(openWindows) => setDraft({ ...draft, openWindows })}
       />
@@ -2608,173 +2602,12 @@ function CorrectionDialog({
   );
 }
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold ${
-        active ? 'bg-[var(--bg-overlay)] text-[var(--text-primary)]' : 'text-[var(--text-muted)]'
-      }`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="grid gap-1 text-sm text-[var(--text-secondary)]">
       {label}
       {children}
     </label>
-  );
-}
-
-function OpenWindowsFields({
-  openWindows,
-  onChange,
-}: {
-  openWindows: EditableRankedOpenWindow[];
-  onChange: (openWindows: EditableRankedOpenWindow[]) => void;
-}) {
-  const validationError = getRankedOpenWindowsValidationError(openWindows);
-  return (
-    <div className="grid gap-3 sm:col-span-2">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-semibold text-[var(--text-primary)]">开放时段</span>
-        <button
-          type="button"
-          className="button-secondary min-h-9 px-3 text-sm"
-          disabled={openWindows.length >= MAX_RANKED_OPEN_WINDOWS}
-          onClick={() =>
-            onChange([...openWindows, { weekdays: [1], startMinute: 1080, endMinute: 1320 }])
-          }
-        >
-          添加开放时段
-        </button>
-      </div>
-      {openWindows.map((openWindow, index) => (
-        <section
-          key={index}
-          aria-label={`开放时段 ${index + 1}`}
-          className="grid gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-overlay)] p-3 sm:grid-cols-2"
-        >
-          <div className="flex items-center justify-between gap-3 sm:col-span-2">
-            <span className="text-sm font-medium text-[var(--text-primary)]">
-              开放时段 {index + 1}
-            </span>
-            {openWindows.length > 1 ? (
-              <button
-                type="button"
-                className="text-sm text-[var(--semantic-error)]"
-                onClick={() => onChange(openWindows.filter((_, itemIndex) => itemIndex !== index))}
-              >
-                删除此时段
-              </button>
-            ) : null}
-          </div>
-          <OpenWindowFields
-            openWindow={openWindow}
-            onChange={(nextOpenWindow) =>
-              onChange(
-                openWindows.map((item, itemIndex) => (itemIndex === index ? nextOpenWindow : item))
-              )
-            }
-          />
-        </section>
-      ))}
-      {validationError ? (
-        <p className="text-sm text-[var(--semantic-error)]">{validationError}</p>
-      ) : null}
-    </div>
-  );
-}
-
-function OpenWindowFields({
-  openWindow,
-  onChange,
-}: {
-  openWindow?: EditableRankedOpenWindow;
-  onChange: (openWindow: EditableRankedOpenWindow) => void;
-}) {
-  const current = openWindow ?? {
-    weekdays: [1, 2, 3, 4, 5, 6, 7],
-    startMinute: 0,
-    endMinute: 1440,
-  };
-  const crossesMidnight = isCrossMidnightRankedOpenWindow(current);
-  const isValid = isEditableRankedOpenWindowValid(current);
-  return (
-    <>
-      <Field label="每日开放">
-        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-          <input
-            type="time"
-            aria-label="开始时间"
-            className="input-field"
-            value={minuteToTime(current.startMinute)}
-            onChange={(event) =>
-              onChange({ ...current, startMinute: timeToMinute(event.target.value) })
-            }
-          />
-          <span className="whitespace-nowrap">—{crossesMidnight ? ' 次日' : ''}</span>
-          <input
-            type="time"
-            aria-label="结束时间"
-            className="input-field"
-            value={minuteToTime(current.endMinute, true)}
-            onChange={(event) =>
-              onChange({ ...current, endMinute: timeToMinute(event.target.value, true) })
-            }
-          />
-        </div>
-        {!isValid ? (
-          <span className="text-xs text-[var(--semantic-error)]">
-            开始与结束时间不能相同。如需全天开放，请设为 00:00–00:00。
-          </span>
-        ) : null}
-      </Field>
-      <Field label="开放日">
-        <div className="grid grid-cols-7 gap-1">
-          {['一', '二', '三', '四', '五', '六', '日'].map((label, index) => {
-            const weekday = index + 1;
-            const selected = current.weekdays.includes(weekday);
-            return (
-              <button
-                key={weekday}
-                type="button"
-                className={`h-9 rounded-lg text-xs ${
-                  selected
-                    ? 'bg-[var(--accent-primary)] text-white'
-                    : 'bg-[var(--bg-elevated)] text-[var(--text-muted)]'
-                }`}
-                onClick={() => {
-                  const weekdays = selected
-                    ? current.weekdays.filter((value) => value !== weekday)
-                    : [...current.weekdays, weekday].sort();
-                  if (weekdays.length > 0) {
-                    onChange({ ...current, weekdays });
-                  }
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-      </Field>
-    </>
   );
 }
 
@@ -2834,12 +2667,6 @@ function createDraftFromSeason(season: RankedAdminSeason) {
 function minuteToTime(minute: number, isEnd = false) {
   if (isEnd && minute === 1440) return '00:00';
   return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
-}
-
-function timeToMinute(value: string, isEnd = false) {
-  const [hour = 0, minute = 0] = value.split(':').map(Number);
-  const result = hour * 60 + minute;
-  return isEnd && result === 0 ? 1440 : result;
 }
 
 function lifecycleLabel(value: RankedAdminSeason['lifecycle']) {

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   poolQuery: vi.fn(),
   publicJoin: vi.fn(),
+  publicGetStatus: vi.fn(),
   getCatalog: vi.fn(),
 }));
 
@@ -11,7 +12,7 @@ vi.mock('../../src/server/services/public-table-service.js', () => ({
   PublicTableServiceError: class PublicTableServiceError extends Error {},
   publicTableService: {
     join: mocks.publicJoin,
-    getStatus: vi.fn(),
+    getStatus: mocks.publicGetStatus,
     heartbeat: vi.fn(),
     confirm: vi.fn(),
     cancel: vi.fn(),
@@ -48,8 +49,12 @@ describe('ThemeTablePlayerService', () => {
     vi.clearAllMocks();
     mocks.getCatalog.mockResolvedValue({ cardCatalogHash: 'sha256:catalog' });
     mocks.publicJoin.mockResolvedValue({ state: 'WAITING' });
+    mocks.publicGetStatus.mockResolvedValue({ state: 'IDLE' });
     mocks.poolQuery.mockImplementation(async (text: string) => {
       if (text.includes("lifecycle IN ('ACTIVE', 'PAUSED')")) return { rows: [THEME] };
+      if (text.includes('AS completed_matches')) {
+        return { rows: [{ completed_matches: '6', wins: '3', losses: '2', draws: '1' }] };
+      }
       if (text.includes('COUNT(*)::text')) return { rows: [{ count: '2' }] };
       return { rows: [] };
     });
@@ -67,6 +72,26 @@ describe('ThemeTablePlayerService', () => {
       seasonId: null,
       themeTableVersionId: THEME.id,
     });
+  });
+
+  it('returns the current theme season win-loss record without creating a rating projection', async () => {
+    const service = new ThemeTablePlayerService(() => NOW);
+
+    const overview = await service.getOverview('user-1');
+
+    expect(overview.player).toEqual({
+      completedMatches: 6,
+      wins: 3,
+      losses: 2,
+      draws: 1,
+      winRate: 0.5,
+    });
+    expect(mocks.poolQuery).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /record\.status IN \('COMPLETED', 'SURRENDERED'\)[\s\S]+FROM theme_table_assignments/
+      ),
+      [THEME.id, 'user-1']
+    );
   });
 
   it('fails closed when the published card catalog no longer matches the frozen event', async () => {

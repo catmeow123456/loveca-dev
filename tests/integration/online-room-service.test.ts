@@ -3320,6 +3320,50 @@ describe('OnlineRoomService', () => {
     );
   });
 
+  it('主题牌桌正式开局后禁止原房重开以保证每局重新分配卡组', async () => {
+    const service = new OnlineRoomService({
+      now: () => 10_000,
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '26262626-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '轮换主题牌桌',
+      rankedSeasonId: null,
+      themeTableVersionId: '27272727-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'theme-deck-a',
+        deckName: '主题预组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-restart-a')),
+        lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'theme-deck-b',
+        deckName: '主题预组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-restart-b')),
+        lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      openingExpiresAt: 190_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    await expect(service.requestRestart(room.roomCode, 'u1')).rejects.toMatchObject({
+      code: 'THEME_RESTART_FORBIDDEN',
+      message: '主题牌桌每局都会重新分配卡组，请返回主题牌桌再次候场',
+    });
+  });
+
   it('排位开局并发提交先后手时只创建并绑定一场对局', async () => {
     const matchService = createInMemoryMatchService();
     const createMatch = vi.spyOn(matchService, 'createMatch');

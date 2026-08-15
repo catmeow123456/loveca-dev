@@ -1,6 +1,7 @@
 import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test';
 import { Buffer } from 'node:buffer';
 import type { RankedOverviewView } from '../../../src/online/ranked-types';
+import type { ThemeTableOverviewView } from '../../../src/online/theme-table-types';
 
 type ApiError = { code: string; message: string } | null;
 type CardDbRecord = {
@@ -233,6 +234,71 @@ const RANKED_OVERVIEW_IN_PLACEMENT: RankedOverviewView = {
   },
 };
 
+const THEME_TABLE_OVERVIEW: ThemeTableOverviewView = {
+  event: {
+    id: 'e2e-theme-season',
+    versionKey: 'e2e-theme-season-v1',
+    name: 'E2E 轮换主题赛季',
+    summary: '用公开预组直接体验不同的卡组节奏。',
+    announcement: '完整卡表公开，本期只记录胜负。',
+    scheduleLabel: '每周六 19:00—22:00',
+    startsAt: Date.parse('2026-08-01T00:00:00.000Z'),
+    endsAt: Date.parse('2026-09-01T00:00:00.000Z'),
+    allocationAlgorithmVersion: 'THEME_PAIR_V1',
+    prebuiltDecks: [
+      {
+        id: 'e2e-theme-deck-one',
+        deckKey: 'theme-one',
+        displayName: '第一套主题卡组',
+        playStyleTags: ['铺场', '基础节奏'],
+        difficulty: 'BEGINNER',
+        sourceLabel: 'E2E 审核预组',
+        sourceUrl: null,
+        contentHash: 'theme-deck-one-content-hash',
+        mainDeck: [
+          ...MEMBER_CARDS.slice(0, 6).map((card) => ({
+            cardCode: card.card_code,
+            count: 4,
+          })),
+          ...LIVE_CARDS.slice(0, 4).map((card) => ({ cardCode: card.card_code, count: 1 })),
+        ],
+        energyDeck: [{ cardCode: ENERGY_CARD.card_code, count: 12 }],
+      },
+      {
+        id: 'e2e-theme-deck-two',
+        deckKey: 'theme-two',
+        displayName: '第二套主题卡组',
+        playStyleTags: ['资源转换'],
+        difficulty: 'INTERMEDIATE',
+        sourceLabel: 'E2E 审核预组',
+        sourceUrl: null,
+        contentHash: 'theme-deck-two-content-hash',
+        mainDeck: [
+          ...MEMBER_CARDS.slice(6, 12).map((card) => ({
+            cardCode: card.card_code,
+            count: 4,
+          })),
+          ...LIVE_CARDS.slice(4, 8).map((card) => ({ cardCode: card.card_code, count: 1 })),
+        ],
+        energyDeck: [{ cardCode: ENERGY_CARD.card_code, count: 12 }],
+      },
+    ],
+  },
+  availability: {
+    state: 'OPEN',
+    canJoin: true,
+    message: '本期主题牌桌正在开放',
+  },
+  player: {
+    completedMatches: 3,
+    wins: 2,
+    losses: 1,
+    draws: 0,
+    winRate: 2 / 3,
+  },
+  queue: RANKED_QUEUE_IDLE,
+};
+
 const DECK_RECORD: DeckRecord = {
   id: 'e2e-deck',
   user_id: 'e2e-user',
@@ -349,7 +415,8 @@ async function installApiMocks(
   page: Page,
   authenticated: boolean,
   cardRecords: CardDbRecord[] = CARD_RECORDS,
-  rankedOverview?: RankedOverviewView
+  rankedOverview?: RankedOverviewView,
+  themeTableOverview?: ThemeTableOverviewView
 ) {
   await page.route('**/images/**', async (route) => {
     await route.fulfill({
@@ -459,6 +526,11 @@ async function installApiMocks(
         },
         cardUsage: [],
       });
+      return;
+    }
+
+    if (url.pathname === '/api/theme-table/overview' && method === 'GET' && themeTableOverview) {
+      await fulfillApi(route, themeTableOverview);
       return;
     }
 
@@ -1610,6 +1682,46 @@ test.describe('mobile layout baseline', () => {
     await attachScreenshot(page, testInfo, 'deck-editor-mobile-card-detail');
     await closeButton.click();
     await expect(cardDetailDrawer).toHaveCount(0);
+  });
+
+  test('主题预组池以卡图卡册呈现并可查看卡牌详情', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile-390x844', '主题卡册回归只需执行一次');
+
+    await installApiMocks(page, true, CARD_RECORDS, undefined, THEME_TABLE_OVERVIEW);
+    await page.goto('/?page=theme-table');
+
+    const firstCard = page.getByRole('button', { name: '查看移动验收成员 001，4 张' });
+    await expect(firstCard).toBeVisible();
+    await expect(page.getByRole('button', { name: /第一套主题卡组/ })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    await expectNoGlobalHorizontalOverflow(page, 'theme deck gallery');
+
+    const firstRowCardCount = await page
+      .locator('.theme-deck-gallery__grid')
+      .first()
+      .locator('.theme-deck-gallery-card')
+      .evaluateAll((cards) => {
+        const firstTop = cards[0]?.getBoundingClientRect().top;
+        return cards.filter((card) => Math.abs(card.getBoundingClientRect().top - firstTop) < 1)
+          .length;
+      });
+    expect(firstRowCardCount).toBe(4);
+
+    await firstCard.click();
+    const cardDetailDrawer = page.getByRole('dialog', { name: '卡牌详情' });
+    const closeButton = cardDetailDrawer.getByRole('button', { name: '关闭卡牌详情' });
+    await expect(cardDetailDrawer).toBeVisible();
+    await expect(closeButton).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(cardDetailDrawer).toHaveCount(0);
+    await expect(firstCard).toBeFocused();
+
+    await page.getByRole('button', { name: /第二套主题卡组/ }).click();
+    await expect(page.getByRole('button', { name: '查看移动验收成员 007，4 张' })).toBeVisible();
+    await attachScreenshot(page, testInfo, 'theme-table-mobile-deck-gallery');
   });
 
   test('桌面缩放等效短视口中联机猜拳操作保持可达', async ({ page }, testInfo) => {

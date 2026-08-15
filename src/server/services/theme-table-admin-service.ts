@@ -246,19 +246,39 @@ export class ThemeTableAdminService {
     const deck = await this.loadDeck(adminUserId, input.sourceDeckId);
     const encoded = encodePublicTableRuntimeDeck(deck.runtimeDeck);
     const result = await this.query<AdminDeckRow>(
-      `INSERT INTO theme_prebuilt_deck_versions (
-         id, theme_table_version_id, deck_key, display_name, runtime_deck, deck_list,
-         content_hash, play_style_tags, difficulty, source_label, source_url,
-         review_note, approved_at, created_at
-       )
-       SELECT
-         $1, $2, $3, $4, $5::jsonb, $6::jsonb,
-         $7, $8::jsonb, $9, $10, $11, $12, $13, $13
-       FROM theme_table_versions AS theme
-       WHERE theme.id = $2 AND theme.lifecycle = 'DRAFT'
-       RETURNING id, deck_key, display_name, deck_list, content_hash,
+      `WITH inserted_deck AS (
+         INSERT INTO theme_prebuilt_deck_versions (
+           id, theme_table_version_id, deck_key, display_name, runtime_deck, deck_list,
+           content_hash, play_style_tags, difficulty, source_label, source_url,
+           review_note, approved_at, created_at
+         )
+         SELECT
+           $1, $2, $3, $4, $5::jsonb, $6::jsonb,
+           $7, $8::jsonb, $9, $10, $11, $12, $13, $13
+         FROM theme_table_versions AS theme
+         WHERE theme.id = $2 AND theme.lifecycle = 'DRAFT'
+         RETURNING id, deck_key, display_name, deck_list, content_hash,
                    play_style_tags, difficulty, source_label, source_url,
-                   review_note, approved_at`,
+                   review_note, approved_at
+       ), inserted_matchups AS (
+         INSERT INTO theme_matchup_pair_versions (
+           theme_table_version_id, first_deck_version_id, second_deck_version_id,
+           weight, enabled, test_summary, approved_at, created_at, updated_at
+         )
+         SELECT
+           $2,
+           CASE WHEN existing.id < inserted.id THEN existing.id ELSE inserted.id END,
+           CASE WHEN existing.id < inserted.id THEN inserted.id ELSE existing.id END,
+           1, TRUE, jsonb_build_object('summary', '随卡组池自动启用'), $13, $13, $13
+         FROM theme_prebuilt_deck_versions AS existing
+         CROSS JOIN inserted_deck AS inserted
+         WHERE existing.theme_table_version_id = $2
+           AND existing.id <> inserted.id
+         ON CONFLICT (
+           theme_table_version_id, first_deck_version_id, second_deck_version_id
+         ) DO NOTHING
+       )
+       SELECT * FROM inserted_deck`,
       [
         this.createId(),
         themeId,

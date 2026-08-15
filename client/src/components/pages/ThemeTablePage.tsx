@@ -1,8 +1,18 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { ChevronDown, Clock3, Loader2, Shuffle, Sparkles, TicketCheck } from 'lucide-react';
-import type { ThemePrebuiltDeckView } from '@game/online/theme-table-types';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  BookOpen,
+  Clock3,
+  ExternalLink,
+  Loader2,
+  Shuffle,
+  Sparkles,
+  TicketCheck,
+} from 'lucide-react';
+import type { ThemeDeckListEntryView, ThemePrebuiltDeckView } from '@game/online/theme-table-types';
+import { isLiveCardData, isMemberCardData, type AnyCardData } from '@game/domain/entities/card';
 import { ActionButton, PageHeader, Panel, StatusBadge } from '@/components/common';
-import { getCardImageUrl } from '@/lib/imageService';
+import { CardDetailDrawer } from '@/components/deck-editor/CardDetailDrawer';
+import { getCardImageUrl, resolveCardImagePath } from '@/lib/imageService';
 import { useThemeTableStore } from '@/store/themeTableStore';
 import { useGameStore } from '@/store/gameStore';
 import './theme-table.css';
@@ -15,7 +25,8 @@ const DIFFICULTY_LABEL = {
 
 export function ThemeTablePage({ onBack }: { onBack: () => void }) {
   const { overview, loading, error, refresh, join, cancel } = useThemeTableStore();
-  const [expandedDeckId, setExpandedDeckId] = useState<string | null>(null);
+  const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
+  const [selectedCard, setSelectedCard] = useState<AnyCardData | null>(null);
   useEffect(() => {
     void refresh().catch(() => undefined);
   }, [refresh]);
@@ -38,7 +49,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
       </div>
     );
   }
-  const { event, availability, queue } = overview;
+  const { event, availability, player, queue } = overview;
   const activeQueue = queue.state !== 'IDLE';
   return (
     <div className="app-shell theme-table-page min-h-screen">
@@ -50,7 +61,7 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
               <StatusBadge tone={availability.canJoin ? 'success' : 'neutral'}>
                 {availability.canJoin ? '正在开放' : availability.message}
               </StatusBadge>
-              <span className="text-xs font-semibold text-white/60">非计分活动</span>
+              <span className="text-xs font-semibold text-white/60">记录胜负 · 不计分</span>
             </div>
             <h1>{event.name}</h1>
             <p>{event.summary}</p>
@@ -81,32 +92,45 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
           </div>
         </section>
 
-        <Panel
-          padding="compact"
-          className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <div className="font-semibold text-[var(--text-primary)]">
-              {activeQueue ? (queue.deckName ?? '卡组尚未揭晓') : availability.message}
+        <Panel padding="compact" className="theme-table-entry-panel mt-4">
+          <div className="theme-table-entry-panel__main">
+            <div>
+              <div className="font-semibold text-[var(--text-primary)]">
+                {activeQueue ? (queue.deckName ?? '卡组尚未揭晓') : availability.message}
+              </div>
+              <p className="mt-1 text-sm text-[var(--text-muted)]">
+                不使用个人卡组；系统先抽取已测试的对局组合，再以相同概率交换双方卡组。
+              </p>
             </div>
-            <p className="mt-1 text-sm text-[var(--text-muted)]">
-              不使用个人卡组；系统先抽取已测试的对局组合，再以相同概率交换双方卡组。
-            </p>
+            {activeQueue ? (
+              <ActionButton
+                variant="secondary"
+                disabled={loading || queue.state === 'CREATING_ROOM'}
+                onClick={() => void cancel()}
+              >
+                退出候场
+              </ActionButton>
+            ) : (
+              <ActionButton disabled={!availability.canJoin || loading} onClick={() => void join()}>
+                {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                加入主题牌桌
+              </ActionButton>
+            )}
           </div>
-          {activeQueue ? (
-            <ActionButton
-              variant="secondary"
-              disabled={loading || queue.state === 'CREATING_ROOM'}
-              onClick={() => void cancel()}
-            >
-              退出候场
-            </ActionButton>
-          ) : (
-            <ActionButton disabled={!availability.canJoin || loading} onClick={() => void join()}>
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-              加入主题牌桌
-            </ActionButton>
-          )}
+          <div
+            className="theme-table-season-record"
+            aria-label={`本期战绩 ${player?.wins ?? 0} 胜 ${player?.losses ?? 0} 负`}
+          >
+            <span className="theme-table-season-record__label">本期战绩</span>
+            <strong>
+              {player?.wins ?? 0} 胜 <i aria-hidden="true">·</i> {player?.losses ?? 0} 负
+            </strong>
+            <span>
+              {player && player.completedMatches > 0
+                ? `共 ${player.completedMatches} 局${player.draws > 0 ? ` · ${player.draws} 平` : ''} · 胜率 ${Math.round((player.winRate ?? 0) * 100)}%`
+                : '完成首局后更新'}
+            </span>
+          </div>
         </Panel>
         {error ? <p className="mt-3 text-sm text-[var(--semantic-error)]">{error}</p> : null}
 
@@ -118,102 +142,265 @@ export function ThemeTablePage({ onBack }: { onBack: () => void }) {
                 {event.prebuiltDecks.length} 副公开卡组
               </h2>
             </div>
-            <span className="text-xs text-[var(--text-muted)]">完整卡表可展开查看</span>
+            <span className="text-xs text-[var(--text-muted)]">选择卡组，点击卡图查看详情</span>
           </div>
-          <div className="theme-deck-grid">
-            {event.prebuiltDecks.map((deck) => (
-              <ThemeDeckCard
-                key={deck.id}
-                deck={deck}
-                expanded={expandedDeckId === deck.id}
-                onToggle={() => setExpandedDeckId(expandedDeckId === deck.id ? null : deck.id)}
-              />
-            ))}
-          </div>
+          <ThemeDeckBrowser
+            decks={event.prebuiltDecks}
+            selectedDeckId={selectedDeckId}
+            onSelectDeck={setSelectedDeckId}
+            onViewCard={setSelectedCard}
+          />
         </section>
         <Panel padding="compact" className="mt-8 text-sm leading-6 text-[var(--text-secondary)]">
           <strong className="text-[var(--text-primary)]">本期说明：</strong> {event.announcement}
         </Panel>
       </main>
+      <CardDetailDrawer card={selectedCard} onClose={() => setSelectedCard(null)} />
     </div>
   );
 }
 
-function ThemeDeckCard({
-  deck,
-  expanded,
-  onToggle,
+function ThemeDeckBrowser({
+  decks,
+  selectedDeckId,
+  onSelectDeck,
+  onViewCard,
 }: {
-  deck: ThemePrebuiltDeckView;
-  expanded: boolean;
-  onToggle: () => void;
+  decks: readonly ThemePrebuiltDeckView[];
+  selectedDeckId: string | null;
+  onSelectDeck: (deckId: string) => void;
+  onViewCard: (card: AnyCardData) => void;
 }) {
+  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
+  const selectedDeck = decks.find((deck) => deck.id === selectedDeckId) ?? decks[0];
+
+  if (!selectedDeck) {
+    return (
+      <div className="theme-deck-browser theme-deck-browser--empty">本期尚未公开预组卡表。</div>
+    );
+  }
+
   return (
-    <article className={`theme-deck-card ${expanded ? 'is-expanded' : ''}`}>
-      <button
-        type="button"
-        className="theme-deck-card__summary"
-        onClick={onToggle}
-        aria-expanded={expanded}
+    <div className="theme-deck-browser">
+      <nav className="theme-deck-browser__selector" aria-label="本期预组卡组">
+        {decks.map((deck) => {
+          const selected = deck.id === selectedDeck.id;
+          const previewEntries = [...deck.mainDeck, ...deck.energyDeck].slice(0, 3);
+          return (
+            <button
+              key={deck.id}
+              type="button"
+              className={`theme-deck-option ${selected ? 'is-selected' : ''}`}
+              aria-pressed={selected}
+              aria-controls="theme-deck-sheet"
+              onClick={() => onSelectDeck(deck.id)}
+            >
+              <span className="theme-deck-option__preview" aria-hidden="true">
+                {previewEntries.map((entry, index) => (
+                  <img
+                    key={`${entry.cardCode}-${index}`}
+                    src={resolveCardImagePath(cardDataRegistry.get(entry.cardCode), 'thumb')}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                    style={
+                      {
+                        '--preview-offset': `${index * 8}px`,
+                        '--preview-rotation': `${(index - 1) * 5}deg`,
+                      } as CSSProperties
+                    }
+                  />
+                ))}
+              </span>
+              <span className="theme-deck-option__copy">
+                <strong>{deck.displayName}</strong>
+                <span>
+                  {[DIFFICULTY_LABEL[deck.difficulty], ...deck.playStyleTags].join(' · ')}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      <article
+        id="theme-deck-sheet"
+        className="theme-deck-sheet"
+        aria-label={`${selectedDeck.displayName}完整卡表`}
       >
-        <img src={getCardImageUrl(deck.mainDeck[0]?.cardCode ?? 'back', 'thumb')} alt="" />
-        <div className="min-w-0 flex-1">
-          <h3>{deck.displayName}</h3>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            <span>{DIFFICULTY_LABEL[deck.difficulty]}</span>
-            {deck.playStyleTags.map((tag) => (
+        <header className="theme-deck-sheet__header">
+          <div>
+            <div className="theme-deck-sheet__eyebrow">
+              <BookOpen size={14} aria-hidden="true" /> 当前卡组卡册
+            </div>
+            <h3>{selectedDeck.displayName}</h3>
+            <p>{selectedDeck.sourceLabel}</p>
+          </div>
+          <div className="theme-deck-sheet__tags" aria-label="卡组标签">
+            <span>{DIFFICULTY_LABEL[selectedDeck.difficulty]}</span>
+            {selectedDeck.playStyleTags.map((tag) => (
               <span key={tag}>{tag}</span>
             ))}
           </div>
-          <p className="mt-3">{deck.sourceLabel}</p>
-        </div>
-        <ChevronDown size={18} className="theme-deck-card__chevron" />
-      </button>
-      {expanded ? (
-        <div className="theme-deck-card__list">
-          <DeckEntries title="主卡组" entries={deck.mainDeck} />
-          <DeckEntries title="能量" entries={deck.energyDeck} />
-          {deck.sourceUrl ? (
-            <a
-              className="text-sm font-semibold text-[var(--accent-primary)]"
-              href={deck.sourceUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
+        </header>
+
+        <ThemeDeckGallery deck={selectedDeck} onViewCard={onViewCard} />
+
+        <footer className="theme-deck-sheet__footer">
+          {selectedDeck.sourceUrl ? (
+            <a href={selectedDeck.sourceUrl} target="_blank" rel="noreferrer">
+              <ExternalLink size={13} aria-hidden="true" />
               查看锁组 / DeckLog 来源
             </a>
           ) : null}
-          <p>卡表版本 {deck.contentHash.slice(0, 12)}</p>
-        </div>
-      ) : null}
-    </article>
+          <span>卡表版本 {selectedDeck.contentHash.slice(0, 12)}</span>
+        </footer>
+      </article>
+    </div>
   );
 }
 
-function DeckEntries({
+function ThemeDeckGallery({
+  deck,
+  onViewCard,
+}: {
+  deck: ThemePrebuiltDeckView;
+  onViewCard: (card: AnyCardData) => void;
+}) {
+  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
+  const sections = useMemo(() => {
+    const members: ThemeDeckListEntryView[] = [];
+    const lives: ThemeDeckListEntryView[] = [];
+    const otherMain: ThemeDeckListEntryView[] = [];
+
+    deck.mainDeck.forEach((entry) => {
+      const card = cardDataRegistry.get(entry.cardCode);
+      if (card && isMemberCardData(card)) members.push(entry);
+      else if (card && isLiveCardData(card)) lives.push(entry);
+      else otherMain.push(entry);
+    });
+
+    return [
+      {
+        key: 'members',
+        title: '成员',
+        entries: sortDeckEntries(members, (cardCode) => cardDataRegistry.get(cardCode)),
+      },
+      {
+        key: 'lives',
+        title: 'LIVE',
+        entries: sortDeckEntries(lives, (cardCode) => cardDataRegistry.get(cardCode)),
+      },
+      ...(otherMain.length > 0
+        ? [{ key: 'other', title: '其他主卡组卡牌', entries: otherMain }]
+        : []),
+      { key: 'energy', title: '能量', entries: deck.energyDeck },
+    ].filter((section) => section.entries.length > 0);
+  }, [cardDataRegistry, deck]);
+
+  return (
+    <div className="theme-deck-gallery">
+      {sections.map((section) => (
+        <ThemeDeckGallerySection
+          key={section.key}
+          title={section.title}
+          entries={section.entries}
+          onViewCard={onViewCard}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ThemeDeckGallerySection({
   title,
   entries,
+  onViewCard,
 }: {
   title: string;
-  entries: readonly { cardCode: string; count: number }[];
+  entries: readonly ThemeDeckListEntryView[];
+  onViewCard: (card: AnyCardData) => void;
 }) {
-  const getCardData = useGameStore((state) => state.getCardData);
+  const cardDataRegistry = useGameStore((state) => state.cardDataRegistry);
+  const totalCards = entries.reduce((total, entry) => total + entry.count, 0);
+
   return (
-    <div>
-      <h4>{title}</h4>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+    <section className="theme-deck-gallery__section">
+      <div className="theme-deck-gallery__heading">
+        <h4>{title}</h4>
+        <span>
+          {totalCards} 张 · {entries.length} 种
+        </span>
+      </div>
+      <div className="theme-deck-gallery__grid">
         {entries.map((entry) => {
-          const card = getCardData(entry.cardCode);
-          return (
-            <span key={entry.cardCode}>
-              {entry.count}× {entry.cardCode}
-              {card?.name ? `「${card.name}」` : ''}
+          const card = cardDataRegistry.get(entry.cardCode);
+          const displayName = card?.nameCn?.trim() || card?.name?.trim() || entry.cardCode;
+          const image = (
+            <span className="theme-deck-gallery-card__image">
+              <img
+                src={
+                  card
+                    ? resolveCardImagePath(card, 'thumb')
+                    : getCardImageUrl(entry.cardCode, 'thumb')
+                }
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
+              <strong aria-label={`${entry.count} 张`}>×{entry.count}</strong>
             </span>
+          );
+
+          if (!card) {
+            return (
+              <div key={entry.cardCode} className="theme-deck-gallery-card is-unavailable">
+                {image}
+                <span title={entry.cardCode}>{entry.cardCode}</span>
+              </div>
+            );
+          }
+
+          return (
+            <button
+              key={entry.cardCode}
+              type="button"
+              className="theme-deck-gallery-card"
+              aria-label={`查看${displayName}，${entry.count} 张`}
+              title={`${displayName} · ${entry.cardCode}`}
+              onClick={() => onViewCard(card)}
+            >
+              {image}
+              <span>{displayName}</span>
+            </button>
           );
         })}
       </div>
-    </div>
+    </section>
   );
+}
+
+function sortDeckEntries(
+  entries: readonly ThemeDeckListEntryView[],
+  getCardData: (cardCode: string) => AnyCardData | undefined
+): ThemeDeckListEntryView[] {
+  return [...entries].sort((left, right) => {
+    const leftCard = getCardData(left.cardCode);
+    const rightCard = getCardData(right.cardCode);
+    const leftValue =
+      leftCard && isMemberCardData(leftCard)
+        ? leftCard.cost
+        : leftCard && isLiveCardData(leftCard)
+          ? leftCard.score
+          : Number.MAX_SAFE_INTEGER;
+    const rightValue =
+      rightCard && isMemberCardData(rightCard)
+        ? rightCard.cost
+        : rightCard && isLiveCardData(rightCard)
+          ? rightCard.score
+          : Number.MAX_SAFE_INTEGER;
+    return leftValue - rightValue || left.cardCode.localeCompare(right.cardCode);
+  });
 }
 
 function CenteredState({ icon, title }: { icon: ReactNode; title: string }) {

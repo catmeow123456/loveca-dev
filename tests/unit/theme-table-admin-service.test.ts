@@ -31,7 +31,7 @@ const THEME = {
 } as const;
 
 describe('ThemeTableAdminService', () => {
-  it('copies an owned cloud deck into an immutable server-side prebuilt snapshot', async () => {
+  it('copies an owned cloud deck and automatically pairs it with the existing season pool', async () => {
     const calls: { text: string; values?: readonly unknown[] }[] = [];
     const query = vi.fn(async (text: string, values?: readonly unknown[]) => {
       calls.push({ text, values });
@@ -97,6 +97,9 @@ describe('ThemeTableAdminService', () => {
       energyDeck: [{ cardCode: 'ENERGY-1', count: 1 }],
     });
     expect(insert?.values?.[6]).toMatch(/^[a-f0-9]{64}$/);
+    expect(insert?.text).toContain('inserted_matchups AS');
+    expect(insert?.text).toContain("jsonb_build_object('summary', '随卡组池自动启用')");
+    expect(insert?.text).toContain('ON CONFLICT');
   });
 
   it('refuses publication until two decks and one enabled tested matchup exist', async () => {

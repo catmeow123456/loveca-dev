@@ -3,9 +3,9 @@
  * 纯查看，不含增删操作
  */
 
-import { useEffect } from 'react';
+import { useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Layers3, Package, Sparkles, Tag, X } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/lib/utils';
@@ -19,6 +19,7 @@ import { isMemberCardData, isLiveCardData } from '@game/domain/entities/card';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { getCardPoint } from '@game/domain/rules/deck-construction';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
+import { useDialogAccessibility } from '@/hooks/useDialogAccessibility';
 
 interface CardDetailDrawerProps {
   card: AnyCardData | null;
@@ -37,6 +38,9 @@ function MetaRow({ label, value }: { label: string; value: string }) {
 export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
   const pointTable = useDeckPointTableRules();
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const reduceMotion = useReducedMotion() === true;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const { getCardImagePath } = useGameStore(
     useShallow((s) => ({ getCardImagePath: s.getCardImagePath }))
   );
@@ -44,41 +48,41 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
   const isLivePreview = !!card && isLiveCardData(card);
   const groupDisplayText = card ? getCardGroupDisplayText(card) : null;
 
-  // ESC 关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    if (card) {
-      document.addEventListener('keydown', handleKeyDown);
-      return () => document.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [card, onClose]);
+  useDialogAccessibility({
+    isOpen: Boolean(card),
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    onEscape: onClose,
+  });
 
   return createPortal(
     <AnimatePresence>
       {card && (
         <>
           <motion.div
-            initial={{ opacity: 0 }}
+            initial={reduceMotion ? false : { opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.15 }}
             className="modal-backdrop fixed inset-0 z-[60]"
             onClick={onClose}
           />
 
           <motion.div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="card-detail-drawer-title"
-            initial={isMobile ? { y: '100%' } : { x: '100%' }}
+            tabIndex={-1}
+            initial={reduceMotion ? false : isMobile ? { y: '100%' } : { x: '100%' }}
             animate={isMobile ? { y: 0 } : { x: 0 }}
-            exit={isMobile ? { y: '100%' } : { x: '100%' }}
+            exit={reduceMotion ? undefined : isMobile ? { y: '100%' } : { x: '100%' }}
             transition={
-              isMobile
-                ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }
-                : { type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }
+              reduceMotion
+                ? { duration: 0 }
+                : isMobile
+                  ? { type: 'tween', duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }
+                  : { type: 'tween', duration: 0.2, ease: [0.22, 1, 0.36, 1] }
             }
             className="workspace-sidebar safe-bottom fixed inset-x-0 bottom-0 top-auto z-[70] flex max-h-[min(88dvh,calc(100dvh_-_env(safe-area-inset-top)_-_0.75rem))] transform-gpu flex-col rounded-t-[28px] border-t border-[var(--border-default)] shadow-[var(--shadow-lg)] will-change-transform md:inset-y-0 md:left-auto md:right-0 md:top-0 md:max-h-none md:w-[min(92vw,760px)] md:rounded-none md:border-l md:border-t-0"
             onClick={(e) => e.stopPropagation()}
@@ -92,6 +96,7 @@ export function CardDetailDrawer({ card, onClose }: CardDetailDrawerProps) {
                 卡牌详情
               </h3>
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="关闭卡牌详情"
                 onClick={onClose}
