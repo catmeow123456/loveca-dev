@@ -10,7 +10,7 @@
 
 import { useDndContext, useDroppable } from '@dnd-kit/core';
 import { cn } from '@/lib/utils';
-import type { MouseEventHandler, ReactNode } from 'react';
+import type { CSSProperties, MouseEventHandler, ReactNode } from 'react';
 import { useGameStore } from '@/store/gameStore';
 
 export interface DroppableZoneProps {
@@ -30,6 +30,8 @@ export interface DroppableZoneProps {
   children: ReactNode;
   /** 基础类名 */
   className?: string;
+  /** 行内样式 */
+  style?: CSSProperties;
   /** 悬停时的高亮类名（鼠标在上方） */
   activeClassName?: string;
   /** 拖拽进行时的高亮类名（标识可放置目标） */
@@ -44,10 +46,7 @@ export interface DroppableZoneProps {
   onClick?: MouseEventHandler<HTMLDivElement>;
 }
 
-export function DroppableZone({
-  disabledForDragFromZones = [],
-  ...props
-}: DroppableZoneProps) {
+export function DroppableZone({ disabledForDragFromZones = [], ...props }: DroppableZoneProps) {
   if (disabledForDragFromZones.length === 0) {
     return <DroppableZoneBase {...props} />;
   }
@@ -83,6 +82,7 @@ function DroppableZoneBase({
   disabled = false,
   children,
   className,
+  style,
   // Prefer `outline` over `ring` here: Tailwind `ring` is box-shadow based and can be
   // noticeably more expensive to repaint during drag hover updates.
   activeClassName = 'outline outline-2 outline-rose-500 bg-rose-500/20',
@@ -110,8 +110,7 @@ function DroppableZoneBase({
   // 判断是否应该显示 "悬停" 高亮
   const showActive = isOver && !disabled;
   // 拖拽时有推荐目标，其他区域变暗（仍可放置）
-  const showDimOthers =
-    isDragging && hasSuggestedTargets && !isSuggested && !isOver && !disabled;
+  const showDimOthers = isDragging && hasSuggestedTargets && !isSuggested && !isOver && !disabled;
 
   return (
     <div
@@ -121,6 +120,7 @@ function DroppableZoneBase({
       title={title}
       aria-label={ariaLabel}
       onClick={onClick}
+      style={style}
       className={cn(
         // During drag, avoid transitions (they stack with frequent hover updates and can feel "laggy").
         isDragging
