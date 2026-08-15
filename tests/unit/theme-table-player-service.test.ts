@@ -74,6 +74,19 @@ describe('ThemeTablePlayerService', () => {
     });
   });
 
+  it('prefers the active theme over newer paused versions', async () => {
+    const service = new ThemeTablePlayerService(() => NOW);
+
+    await service.getOverview('user-1');
+
+    const visibleThemeQuery = mocks.poolQuery.mock.calls.find(([text]) =>
+      String(text).includes("lifecycle IN ('ACTIVE', 'PAUSED')")
+    );
+    expect(String(visibleThemeQuery?.[0])).toContain(
+      "ORDER BY CASE lifecycle WHEN 'ACTIVE' THEN 0 ELSE 1 END, starts_at DESC"
+    );
+  });
+
   it('returns the current theme season win-loss record without creating a rating projection', async () => {
     const service = new ThemeTablePlayerService(() => NOW);
 

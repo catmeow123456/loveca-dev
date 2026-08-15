@@ -330,7 +330,7 @@ function OverviewPanel({
                 <div key={item.deckVersionId}>
                   <span>{item.displayName}</span>
                   <strong>{formatPercent(item.actualShare)}</strong>
-                  <small>目标 {formatPercent(item.expectedShare)}</small>
+                  <small>累计目标 {formatPercent(item.expectedShare)}</small>
                 </div>
               ))}
             </div>

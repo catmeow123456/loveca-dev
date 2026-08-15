@@ -426,4 +426,58 @@ describe('ThemeTableAdminService', () => {
     expect(String(mutation?.[0])).toContain("theme.lifecycle = 'ACTIVE'");
     expect(query).toHaveBeenCalledTimes(2);
   });
+
+  it('derives cumulative exposure targets from each assignment frozen pair snapshot', async () => {
+    const calls: string[] = [];
+    const query = vi.fn(async (text: string) => {
+      await Promise.resolve();
+      calls.push(text);
+      if (text.includes('SELECT * FROM theme_table_versions ORDER BY')) {
+        return { rows: [THEME], rowCount: 1 };
+      }
+      if (text.includes('joined_ticket_count')) {
+        return {
+          rows: [
+            {
+              joined_ticket_count: '12',
+              assignment_count: '10',
+              started_match_count: '9',
+              completed_match_count: '8',
+              no_fault_requeue_count: '1',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      if (text.includes('expected_exposure AS')) {
+        return {
+          rows: [
+            {
+              deck_version_id: 'deck-version-1',
+              display_name: 'Liella! 节奏',
+              assignment_count: '6',
+              expected_assignment_count: '5',
+            },
+          ],
+          rowCount: 1,
+        };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+    const service = new ThemeTableAdminService({ query, now: () => NOW });
+
+    const [event] = await service.listEvents();
+
+    expect(event?.metrics.deckExposure[0]).toMatchObject({
+      deckVersionId: 'deck-version-1',
+      assignmentCount: 6,
+      expectedShare: 0.25,
+      actualShare: 0.3,
+    });
+    expect(event?.metrics.deckExposure[0]?.deviation).toBeCloseTo(0.05);
+    const exposureQuery = calls.find((text) => text.includes('expected_exposure AS'));
+    expect(exposureQuery).toContain("allocation_proof->'eligiblePairSnapshot'");
+    expect(exposureQuery).toContain("allocation_proof->>'totalWeight'");
+    expect(exposureQuery).not.toContain('pair.enabled = TRUE');
+  });
 });

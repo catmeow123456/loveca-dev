@@ -910,36 +910,46 @@ export class ThemeTableAdminService {
         deck_version_id: string;
         display_name: string;
         assignment_count: string;
-        expected_weight: string;
-        total_pair_weight: string;
+        expected_assignment_count: string;
       }>(
-        `SELECT deck.id AS deck_version_id, deck.display_name,
-                COALESCE(SUM(
-                  (assignment.first_ticket_deck_version_id = deck.id)::int +
-                  (assignment.second_ticket_deck_version_id = deck.id)::int
-                ), 0)::text AS assignment_count,
-                COALESCE((
-                  SELECT SUM(
-                    pair.weight *
-                    ((pair.first_deck_version_id = deck.id)::int +
-                     (pair.second_deck_version_id = deck.id)::int)
-                  )
-                  FROM theme_matchup_pair_versions AS pair
-                  WHERE pair.theme_table_version_id = deck.theme_table_version_id
-                    AND pair.enabled = TRUE
-                ), 0)::text AS expected_weight,
-                COALESCE((
-                  SELECT SUM(pair.weight)
-                  FROM theme_matchup_pair_versions AS pair
-                  WHERE pair.theme_table_version_id = deck.theme_table_version_id
-                    AND pair.enabled = TRUE
-                ), 0)::text AS total_pair_weight
+        `WITH theme_assignments AS (
+           SELECT id, first_ticket_deck_version_id, second_ticket_deck_version_id,
+                  allocation_proof
+           FROM theme_table_assignments
+           WHERE theme_table_version_id = $1
+         ), actual_exposure AS (
+           SELECT assigned.deck_version_id, COUNT(*)::numeric AS assignment_count
+           FROM (
+             SELECT first_ticket_deck_version_id AS deck_version_id FROM theme_assignments
+             UNION ALL
+             SELECT second_ticket_deck_version_id AS deck_version_id FROM theme_assignments
+           ) AS assigned
+           GROUP BY assigned.deck_version_id
+         ), expected_exposure AS (
+           SELECT slot.deck_version_id,
+                  SUM(
+                    (snapshot.value->>'weight')::numeric /
+                    NULLIF((assignment.allocation_proof->>'totalWeight')::numeric, 0)
+                  ) AS expected_assignment_count
+           FROM theme_assignments AS assignment
+           CROSS JOIN LATERAL jsonb_array_elements(
+             assignment.allocation_proof->'eligiblePairSnapshot'
+           ) AS snapshot(value)
+           CROSS JOIN LATERAL (
+             VALUES
+               ((snapshot.value->>'firstDeckId')::uuid),
+               ((snapshot.value->>'secondDeckId')::uuid)
+           ) AS slot(deck_version_id)
+           GROUP BY slot.deck_version_id
+         )
+         SELECT deck.id AS deck_version_id, deck.display_name,
+                COALESCE(actual.assignment_count, 0)::text AS assignment_count,
+                COALESCE(expected.expected_assignment_count, 0)::text
+                  AS expected_assignment_count
          FROM theme_prebuilt_deck_versions AS deck
-         LEFT JOIN theme_table_assignments AS assignment
-           ON assignment.theme_table_version_id = deck.theme_table_version_id
-          AND (assignment.first_ticket_deck_version_id = deck.id OR assignment.second_ticket_deck_version_id = deck.id)
+         LEFT JOIN actual_exposure AS actual ON actual.deck_version_id = deck.id
+         LEFT JOIN expected_exposure AS expected ON expected.deck_version_id = deck.id
          WHERE deck.theme_table_version_id = $1
-         GROUP BY deck.id, deck.display_name
          ORDER BY deck.deck_key, deck.id`,
         [themeId]
       ),
@@ -953,10 +963,9 @@ export class ThemeTableAdminService {
       noFaultRequeueCount: Number(row?.no_fault_requeue_count ?? 0),
       deckExposure: exposure.rows.map((entry) => {
         const assignmentCount = Number(entry.assignment_count);
-        const expectedDenominator = Number(entry.total_pair_weight) * 2;
         const actualDenominator = Number(row?.assignment_count ?? 0) * 2;
         const expectedShare =
-          expectedDenominator > 0 ? Number(entry.expected_weight) / expectedDenominator : 0;
+          actualDenominator > 0 ? Number(entry.expected_assignment_count) / actualDenominator : 0;
         const actualShare = actualDenominator > 0 ? assignmentCount / actualDenominator : 0;
         return {
           deckVersionId: entry.deck_version_id,

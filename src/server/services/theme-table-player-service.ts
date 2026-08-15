@@ -134,7 +134,7 @@ export class ThemeTablePlayerService {
       `SELECT *
        FROM theme_table_versions
        WHERE lifecycle IN ('ACTIVE', 'PAUSED')
-       ORDER BY starts_at DESC
+       ORDER BY CASE lifecycle WHEN 'ACTIVE' THEN 0 ELSE 1 END, starts_at DESC
        LIMIT 1`
     );
     if (result.rows[0]) return result.rows[0];
