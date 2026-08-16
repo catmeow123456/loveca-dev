@@ -99,10 +99,16 @@ function startKasumiChooseDeckOwner(
         stepId: CHOOSE_DECK_OWNER_STEP_ID,
         stepText: '选择要查看卡组顶的玩家。',
         awaitingPlayerId: controller.id,
-        selectableOptions: [
-          { id: 'self', label: '自己' },
-          { id: 'opponent', label: '对方' },
-        ],
+        effectChoice: {
+          mode: 'SINGLE',
+          options: [
+            { id: 'self', text: '自己' },
+            { id: 'opponent', text: '对方' },
+          ],
+          minSelections: 1,
+          maxSelections: 1,
+          publicConfirmation: true,
+        },
         metadata: {
           orderedResolution: options.orderedResolution === true,
           sourceSlot: ability.sourceSlot,

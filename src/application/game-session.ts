@@ -2639,17 +2639,19 @@ export class GameSession {
       return '当前正在等待费用支付';
     }
 
+    // 卡牌效果可让等待玩家操作另一玩家拥有的检视牌，效果 actor 授权必须先于检视 owner 闸门。
+    // 公开展示的 deadline、token 与无选择载荷仍由 validateCommand 的细粒度分支校验。
+    if (
+      command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
+      (state.activeEffect?.awaitingPlayerId === command.playerId ||
+        isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
+        isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect) ||
+        isPublicRevealDwellEffect(state.activeEffect))
+    ) {
+      return null;
+    }
+
     if (state.inspectionContext) {
-      const publicRevealAuthority = getPublicRevealAutoAdvanceMetadata(state.activeEffect);
-      if (
-        command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
-        publicRevealAuthority &&
-        command.publicRevealAutoAdvanceAt === publicRevealAuthority.autoAdvanceAt &&
-        command.publicRevealGeneration === publicRevealAuthority.generation
-      ) {
-        // 双方都可推动已经公开的展示；deadline 与无选择载荷仍由 validateCommand 校验。
-        return null;
-      }
       if (state.inspectionContext.ownerPlayerId === command.playerId) {
         return null;
       }
@@ -2681,16 +2683,6 @@ export class GameSession {
     }
 
     if (this.isLiveDeskMoveStageExempt(state, command)) {
-      return null;
-    }
-
-    if (
-      command.type === GameCommandType.CONFIRM_EFFECT_STEP &&
-      (state.activeEffect?.awaitingPlayerId === command.playerId ||
-        isPublicCardSelectionAutoAdvanceEffect(state.activeEffect) ||
-        isPublicEffectChoiceAutoAdvanceEffect(state.activeEffect) ||
-        isPublicRevealDwellEffect(state.activeEffect))
-    ) {
       return null;
     }
 

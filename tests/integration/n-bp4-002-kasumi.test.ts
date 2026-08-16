@@ -9,8 +9,15 @@ import {
 } from '../../src/domain/entities/game';
 import { placeCardInSlot } from '../../src/domain/entities/zone';
 import { GameService } from '../../src/application/game-service';
+import { createGameSession } from '../../src/application/game-session';
+import {
+  createAutoAdvancePublicEffectChoiceCommand,
+  createConfirmEffectChoiceCommand,
+  createConfirmEffectStepCommand,
+} from '../../src/application/game-commands';
 import { confirmActiveEffectStep } from '../../src/application/card-effect-runner';
 import { PL_N_BP4_002_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_OPTIONAL_WAITING_ROOM_ABILITY_ID } from '../../src/application/card-effects/ability-ids';
+import { PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID } from '../../src/application/card-effects/runtime/public-effect-choice-confirmation';
 import { createPublicObjectId, projectPlayerViewState } from '../../src/online/projector';
 import { continuePublicEffectChoiceForTest } from '../helpers/public-effect-choice';
 import {
@@ -99,14 +106,17 @@ function startKasumi(game: GameState): GameState {
 }
 
 function chooseDeckOwner(game: GameState, selectedOptionId: 'self' | 'opponent'): GameState {
-  return confirmActiveEffectStep(
-    game,
-    PLAYER1,
-    game.activeEffect!.id,
-    undefined,
-    undefined,
-    undefined,
-    selectedOptionId
+  return continuePublicEffectChoiceForTest(
+    confirmActiveEffectStep(
+      game,
+      PLAYER1,
+      game.activeEffect!.id,
+      undefined,
+      undefined,
+      undefined,
+      selectedOptionId
+    ),
+    PLAYER1
   );
 }
 
@@ -131,11 +141,18 @@ describe('PL!N-bp4-002 Kasumi live-start choose player look top workflow', () =>
     expect(targetSelection.activeEffect).toMatchObject({
       abilityId: PL_N_BP4_002_LIVE_START_CHOOSE_PLAYER_LOOK_TOP_OPTIONAL_WAITING_ROOM_ABILITY_ID,
       stepId: 'N_BP4_002_CHOOSE_DECK_OWNER',
-      selectableOptions: [
-        { id: 'self', label: '自己' },
-        { id: 'opponent', label: '对方' },
-      ],
     });
+    expect(targetSelection.activeEffect?.effectChoice).toEqual({
+      mode: 'SINGLE',
+      options: [
+        { id: 'self', text: '自己' },
+        { id: 'opponent', text: '对方' },
+      ],
+      minSelections: 1,
+      maxSelections: 1,
+      publicConfirmation: true,
+    });
+    expect(targetSelection.activeEffect?.selectableOptions).toBeUndefined();
     expect(targetSelection.actionHistory.some((action) => action.payload.step === 'START_CONFIRM')).toBe(
       false
     );
@@ -180,7 +197,76 @@ describe('PL!N-bp4-002 Kasumi live-start choose player look top workflow', () =>
 
   it('chooses opponent, lets controller inspect opponent deck top privately, and mills to opponent waiting room', () => {
     const scenario = setupKasumiScenario({ opponentDeckCount: 2 });
-    const inspection = chooseDeckOwner(startKasumi(scenario.game), 'opponent');
+    const targetSelection = startKasumi(scenario.game);
+    let now = 10_000;
+    const session = createGameSession({ now: () => now });
+    session.restoreRuntimeState({ authorityState: targetSelection, currentPublicSeq: 0 });
+
+    const opponentCannotChooseDeckOwner = session.executeCommand(
+      createConfirmEffectChoiceCommand(PLAYER2, targetSelection.activeEffect!.id, {
+        selectedEffectOptionIds: ['opponent'],
+      })
+    );
+    expect(opponentCannotChooseDeckOwner.success).toBe(false);
+
+    const deckOwnerSelection = session.executeCommand(
+      createConfirmEffectChoiceCommand(PLAYER1, targetSelection.activeEffect!.id, {
+        selectedEffectOptionIds: ['opponent'],
+      })
+    );
+    expect(deckOwnerSelection.success, deckOwnerSelection.error).toBe(true);
+    const deckOwnerPublicChoice = session.state!.activeEffect!;
+    expect(deckOwnerPublicChoice).toMatchObject({
+      stepId: PUBLIC_EFFECT_CHOICE_CONFIRMATION_STEP_ID,
+      awaitingPlayerId: PLAYER1,
+      effectChoice: {
+        mode: 'SINGLE',
+        options: [
+          { id: 'self', text: '自己' },
+          { id: 'opponent', text: '对方' },
+        ],
+        minSelections: 1,
+        maxSelections: 1,
+        publicConfirmation: true,
+        selectedOptionIds: ['opponent'],
+      },
+    });
+    expect(session.state!.inspectionZone.cardIds).toEqual([]);
+    expect(session.state!.inspectionContext).toBeNull();
+    expect(session.state!.players[1].mainDeck.cardIds).toEqual(scenario.opponentDeckCardIds);
+
+    const deckOwnerControllerView = projectPlayerViewState(session.state!, PLAYER1);
+    const deckOwnerOpponentView = projectPlayerViewState(session.state!, PLAYER2);
+    expect(deckOwnerControllerView.activeEffect?.effectChoice).toEqual(
+      deckOwnerOpponentView.activeEffect?.effectChoice
+    );
+    expect(deckOwnerControllerView.activeEffect?.effectChoice?.selectedOptionIds).toEqual([
+      'opponent',
+    ]);
+
+    const deckOwnerDeadline = deckOwnerPublicChoice.publicEffectChoiceAutoAdvanceAt;
+    expect(deckOwnerDeadline).toBeGreaterThan(now);
+    expect(
+      session.executeCommand(
+        createAutoAdvancePublicEffectChoiceCommand(
+          PLAYER1,
+          deckOwnerPublicChoice.id,
+          deckOwnerDeadline!
+        )
+      ).success
+    ).toBe(false);
+    expect(session.state!.inspectionContext).toBeNull();
+
+    now = deckOwnerDeadline!;
+    const deckOwnerAutoAdvance = session.executeCommand(
+      createAutoAdvancePublicEffectChoiceCommand(
+        PLAYER1,
+        deckOwnerPublicChoice.id,
+        deckOwnerDeadline!
+      )
+    );
+    expect(deckOwnerAutoAdvance.success, deckOwnerAutoAdvance.error).toBe(true);
+    const inspection = session.state!;
 
     expect(inspection.activeEffect).toMatchObject({
       awaitingPlayerId: PLAYER1,
@@ -198,8 +284,46 @@ describe('PL!N-bp4-002 Kasumi live-start choose player look top workflow', () =>
     expect(controllerView.objects[objectId]?.surface).toBe('FRONT');
     expect(opponentView.objects[objectId]?.surface).toBe('BACK');
 
-    const finished = chooseLookTopOption(inspection, 'place-waiting-room');
+    const opponentCannotChooseResolution = session.executeCommand(
+      createConfirmEffectChoiceCommand(PLAYER2, inspection.activeEffect!.id, {
+        selectedEffectOptionIds: ['place-waiting-room'],
+      })
+    );
+    expect(opponentCannotChooseResolution.success).toBe(false);
 
+    const resolutionSelection = session.executeCommand(
+      createConfirmEffectChoiceCommand(PLAYER1, inspection.activeEffect!.id, {
+        selectedEffectOptionIds: ['place-waiting-room'],
+      })
+    );
+    expect(resolutionSelection.success, resolutionSelection.error).toBe(true);
+    const resolutionPublicChoice = session.state!.activeEffect!;
+    const resolutionDeadline = resolutionPublicChoice.publicEffectChoiceAutoAdvanceAt;
+    expect(resolutionDeadline).toBeGreaterThan(now);
+    expect(
+      session.executeCommand(
+        createAutoAdvancePublicEffectChoiceCommand(
+          PLAYER1,
+          resolutionPublicChoice.id,
+          resolutionDeadline!
+        )
+      ).success
+    ).toBe(false);
+
+    now = resolutionDeadline!;
+    const autoAdvance = session.executeCommand(
+      createAutoAdvancePublicEffectChoiceCommand(
+        PLAYER1,
+        resolutionPublicChoice.id,
+        resolutionDeadline!
+      )
+    );
+    expect(autoAdvance.success, autoAdvance.error).toBe(true);
+    const finished = session.state!;
+
+    expect(finished.activeEffect).toBeNull();
+    expect(finished.inspectionZone.cardIds).toEqual([]);
+    expect(finished.inspectionContext).toBeNull();
     expect(finished.players[1].mainDeck.cardIds).toEqual([scenario.opponentDeckCardIds[1]]);
     expect(finished.players[1].waitingRoom.cardIds).toEqual([scenario.opponentDeckCardIds[0]]);
     expect(
