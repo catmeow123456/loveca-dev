@@ -57,9 +57,11 @@ import { useAuthStore } from '@/store/authStore';
 import { usePublicTableStore } from '@/store/publicTableStore';
 import { useRankedStore } from '@/store/rankedStore';
 import { usePlayerWallpaperStore } from '@/store/playerWallpaperStore';
+import { useThemeTableStore } from '@/store/themeTableStore';
 import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
+import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobalLayer';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const DeckManager = lazy(() =>
@@ -84,6 +86,11 @@ const PublicTablePage = lazy(() =>
 const RankedPage = lazy(() =>
   import('@/components/pages/RankedPage').then((module) => ({
     default: module.RankedPage,
+  }))
+);
+const ThemeTablePage = lazy(() =>
+  import('@/components/pages/ThemeTablePage').then((module) => ({
+    default: module.ThemeTablePage,
   }))
 );
 const OnlineSpectatorPage = lazy(() =>
@@ -145,6 +152,11 @@ const AiEffectExtractionAdminPage = lazy(() =>
     default: module.AiEffectExtractionAdminPage,
   }))
 );
+const ThemeTableAdminPage = lazy(() =>
+  import('@/components/admin/ThemeTableAdminPage').then((module) => ({
+    default: module.ThemeTableAdminPage,
+  }))
+);
 
 type AuthPage =
   | 'landing'
@@ -162,6 +174,7 @@ type AppPage =
   | 'online-room'
   | 'public-table'
   | 'ranked'
+  | 'theme-table'
   | 'online-spectator'
   | 'match-records'
   | 'online-debug'
@@ -173,7 +186,8 @@ type AppPage =
   | 'announcement-admin'
   | 'ranked-admin'
   | 'deck-point-admin'
-  | 'match-emotes-admin';
+  | 'match-emotes-admin'
+  | 'theme-table-admin';
 
 const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'admin-center',
@@ -236,6 +250,7 @@ function getInitialPage(): AppPage {
     page === 'online-room' ||
     page === 'public-table' ||
     page === 'ranked' ||
+    page === 'theme-table' ||
     page === 'online-spectator' ||
     page === 'match-records' ||
     page === 'online-debug' ||
@@ -248,6 +263,7 @@ function getInitialPage(): AppPage {
     page === 'ranked-admin' ||
     page === 'deck-point-admin' ||
     page === 'match-emotes-admin' ||
+    page === 'theme-table-admin' ||
     page === 'platform-config'
   ) {
     return page === 'platform-config' ? 'announcement-admin' : page;
@@ -860,6 +876,11 @@ function App() {
         showWaitingNotice={effectivePage !== 'ranked'}
         onEnterRoom={enterOnlineRoom}
       />
+      <ThemeTableGlobalLayer
+        enabled={Boolean(user && profile && !offlineMode)}
+        showWaitingNotice={effectivePage !== 'theme-table'}
+        onEnterRoom={enterOnlineRoom}
+      />
     </>
   );
 
@@ -884,6 +905,7 @@ function App() {
       await Promise.allSettled([
         usePublicTableStore.getState().refresh(),
         useRankedStore.getState().refresh(),
+        useThemeTableStore.getState().refresh(),
       ]);
     }
     setCurrentPage('game-setup');
@@ -1035,7 +1057,9 @@ function App() {
         onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
         onNavigateToPublicTable={() => setCurrentPage('public-table')}
         onNavigateToRanked={() => setCurrentPage('ranked')}
+        onNavigateToThemeTable={() => setCurrentPage('theme-table')}
         onManageDecks={() => openDeckManager('game-setup')}
+        battleEntryVisibility={appConfig.features.battleEntries}
       />
     );
   }
@@ -1044,6 +1068,7 @@ function App() {
     return withProductFrame(
       <OnlineRoomPage
         onBack={() => setCurrentPage('home')}
+        onBackToThemeTable={() => setCurrentPage('theme-table')}
         onImmersiveModeChange={setIsOnlineRoomImmersive}
         emoteCatalog={appConfig.matchEmotes}
         onEmoteCatalogStale={refreshAppConfig}
@@ -1069,6 +1094,10 @@ function App() {
       <RankedPage onBack={() => setCurrentPage('home')} onEnterRoom={enterOnlineRoom} />,
       'battle'
     );
+  }
+
+  if (effectivePage === 'theme-table') {
+    return withProductFrame(<ThemeTablePage onBack={() => setCurrentPage('home')} />, 'battle');
   }
 
   if (effectivePage === 'online-spectator') {
@@ -1133,6 +1162,9 @@ function App() {
         onOpenDeckPoints={() => setCurrentPage('deck-point-admin')}
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
         onOpenRanked={() => setCurrentPage('ranked-admin')}
+        onOpenThemeTable={() => setCurrentPage('theme-table-admin')}
+        battleEntryVisibility={appConfig.features.battleEntries}
+        onBattleEntryVisibilityChanged={refreshAppConfig}
       />,
       null
     );
@@ -1201,6 +1233,13 @@ function App() {
     );
   }
 
+  if (effectivePage === 'theme-table-admin' && profile?.role === 'admin') {
+    return withProductFrame(
+      <ThemeTableAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      null
+    );
+  }
+
   // 主页
   return withPublicTableLayer(
     <HomePage
@@ -1212,10 +1251,12 @@ function App() {
       onAbandonSavedRoomForLocalGame={handleAbandonSavedRoomForLocalGame}
       onNavigateToOnlineRoom={() => setCurrentPage('online-room')}
       onNavigateToRanked={() => setCurrentPage('ranked')}
+      onNavigateToThemeTable={() => setCurrentPage('theme-table')}
       onNavigateToOnlineSpectator={() => setCurrentPage('online-spectator')}
       onNavigateToMatchRecords={() => setCurrentPage('match-records')}
       onNavigateToOnlineDebug={() => setCurrentPage('online-debug')}
       onNavigateToAdminCenter={() => setCurrentPage('admin-center')}
+      battleEntryVisibility={appConfig.features.battleEntries}
       siteStatus={appConfig.siteStatus}
     />
   );

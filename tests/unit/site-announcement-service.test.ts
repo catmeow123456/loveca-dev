@@ -188,6 +188,44 @@ describe('siteAnnouncementService', () => {
     ]);
   });
 
+  it('reads player battle entry visibility and defaults a missing config row to visible', async () => {
+    vi.mocked(pool.query)
+      .mockResolvedValueOnce({
+        rows: [{ ranked_entry_visible: false, theme_table_entry_visible: true }],
+      } as never)
+      .mockResolvedValueOnce({ rows: [] } as never);
+
+    await expect(siteAnnouncementService.getPlayerBattleEntryVisibility()).resolves.toEqual({
+      ranked: false,
+      themeTable: true,
+    });
+    await expect(siteAnnouncementService.getPlayerBattleEntryVisibility()).resolves.toEqual({
+      ranked: true,
+      themeTable: true,
+    });
+  });
+
+  it('updates both player battle entry switches without changing season lifecycle state', async () => {
+    vi.mocked(pool.query).mockResolvedValueOnce({
+      rows: [{ ranked_entry_visible: true, theme_table_entry_visible: false }],
+    } as never);
+
+    const visibility = await siteAnnouncementService.updatePlayerBattleEntryVisibility(
+      { ranked: true, themeTable: false },
+      '22222222-2222-4222-8222-222222222222'
+    );
+
+    expect(visibility).toEqual({ ranked: true, themeTable: false });
+    expect(vi.mocked(pool.query).mock.calls[0]?.[1]).toEqual([
+      true,
+      false,
+      '22222222-2222-4222-8222-222222222222',
+    ]);
+    expect(vi.mocked(pool.query).mock.calls[0]?.[0]).toContain(
+      'ranked_entry_visible = EXCLUDED.ranked_entry_visible'
+    );
+  });
+
   it('returns a gameplay restriction while maintenance is enabled', async () => {
     vi.mocked(pool.query).mockResolvedValueOnce({
       rows: [

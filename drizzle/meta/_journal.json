@@ -183,6 +183,20 @@
       "when": 1786676278539,
       "tag": "0025_add_match_emote_sticker_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1786776739912,
+      "tag": "0026_add_theme_table_v1",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1786785794120,
+      "tag": "0027_add_player_battle_entry_visibility",
+      "breakpoints": true
     }
   ]
 }

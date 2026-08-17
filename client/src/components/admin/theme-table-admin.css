@@ -1,0 +1,217 @@
+.theme-season-readiness {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface);
+}
+
+.theme-season-readiness > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.theme-season-readiness > div + div {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.theme-season-readiness span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.theme-season-readiness strong {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.theme-season-readiness [data-ready='true'] strong {
+  color: var(--semantic-success);
+}
+
+.theme-deck-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.theme-deck-pool-grid > div {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  padding: 0.75rem;
+  background: var(--bg-surface);
+}
+
+.theme-deck-pool-card__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.theme-deck-pool-card__heading strong {
+  min-width: 0;
+}
+
+.theme-deck-pool-card__actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.theme-deck-pool-card__action {
+  display: inline-flex;
+  flex: none;
+  min-height: 1.75rem;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.4rem;
+  padding: 0 0.45rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.theme-deck-pool-card__action:hover {
+  background: var(--bg-overlay);
+  color: var(--text-primary);
+}
+
+.theme-deck-pool-card__action--danger {
+  color: var(--semantic-error);
+}
+
+.theme-deck-pool-card__action--danger:hover {
+  background: color-mix(in srgb, var(--semantic-error) 9%, transparent);
+  color: var(--semantic-error);
+}
+
+.theme-deck-pool-card__action:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.theme-deck-pool-card__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.theme-deck-pool-grid strong {
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-deck-pool-grid span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.theme-deck-pool-import {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.theme-deck-pool-import__cloud {
+  display: flex;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.theme-deck-pool-import__divider {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.theme-deck-pool-import__error {
+  grid-column: 1 / -1;
+  color: var(--semantic-error);
+  font-size: 0.75rem;
+}
+
+.theme-exposure-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.theme-exposure-list > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.75rem;
+  border-radius: var(--radius-control);
+  padding: 0.7rem 0.8rem;
+  background: var(--bg-overlay);
+}
+
+.theme-exposure-list span,
+.theme-exposure-list strong {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.theme-exposure-list strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.theme-exposure-list small {
+  grid-column: 1 / -1;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.theme-danger-button {
+  min-height: 2.35rem;
+  border: 1px solid color-mix(in srgb, var(--semantic-error) 40%, var(--border-default));
+  border-radius: var(--radius-control);
+  padding: 0 0.8rem;
+  color: var(--semantic-error);
+  font-size: 0.875rem;
+}
+
+.theme-danger-button:hover {
+  background: color-mix(in srgb, var(--semantic-error) 9%, transparent);
+}
+
+.theme-danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 560px) {
+  .theme-season-readiness,
+  .theme-deck-pool-grid,
+  .theme-exposure-list {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-season-readiness > div + div {
+    border-top: 1px solid var(--border-subtle);
+    border-left: 0;
+  }
+
+  .theme-deck-pool-import {
+    grid-template-columns: 1fr;
+  }
+
+  .theme-deck-pool-import__cloud {
+    flex-direction: column;
+  }
+
+  .theme-deck-pool-import__divider {
+    display: none;
+  }
+}

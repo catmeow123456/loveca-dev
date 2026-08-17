@@ -17,6 +17,7 @@ import {
   History,
   Medal,
   RefreshCw,
+  Sparkles,
   ShieldAlert,
   Swords,
   TriangleAlert,
@@ -37,6 +38,7 @@ import type { DeckDisplayItem } from '@/lib/deckDisplay';
 import { useDeckPointTableRules } from '@/hooks/useDeckPointTable';
 import { buildHomeDeckProjection } from '@/lib/homeDeckProjection';
 import type {
+  PlayerBattleEntryVisibility,
   PublicSiteMaintenanceStatus,
   PublicSiteStatus,
   SiteStatusLifecycle,
@@ -64,10 +66,12 @@ interface HomePageProps {
   onAbandonSavedRoomForLocalGame: () => Promise<void>;
   onNavigateToOnlineRoom: () => void;
   onNavigateToRanked: () => void;
+  onNavigateToThemeTable: () => void;
   onNavigateToOnlineSpectator: () => void;
   onNavigateToMatchRecords: () => void;
   onNavigateToOnlineDebug: () => void;
   onNavigateToAdminCenter: () => void;
+  battleEntryVisibility: PlayerBattleEntryVisibility;
   siteStatus: PublicSiteStatus;
 }
 
@@ -106,10 +110,12 @@ export function HomePage({
   onAbandonSavedRoomForLocalGame,
   onNavigateToOnlineRoom,
   onNavigateToRanked,
+  onNavigateToThemeTable,
   onNavigateToOnlineSpectator,
   onNavigateToMatchRecords,
   onNavigateToOnlineDebug,
   onNavigateToAdminCenter,
+  battleEntryVisibility,
   siteStatus,
 }: HomePageProps) {
   const { profile, offlineMode, offlineUser } = useAuthStore();
@@ -253,8 +259,7 @@ export function HomePage({
               ? {
                   state: 'ready' as PrimaryActionState,
                   title: '开始对战',
-                  description:
-                    '选择赛季排位、公共牌桌、房间联机、对墙打或双人调试，进入对应准备流程。',
+                  description: '选择本局的对战方式并完成准备。',
                   cta: '开始对战',
                   icon: Gamepad2,
                   onClick: onNavigateToGameSetup,
@@ -272,8 +277,10 @@ export function HomePage({
                   },
                 };
 
-  const secondaryActions: ActionTileProps[] = [
-    {
+  const secondaryActions: ActionTileProps[] = [];
+
+  if (battleEntryVisibility.ranked) {
+    secondaryActions.push({
       title: '赛季排位',
       icon: Medal,
       onClick: onNavigateToRanked,
@@ -284,7 +291,21 @@ export function HomePage({
           ? '需要符合规则的卡组'
           : '固定时段 · 计入积分',
       tone: canUseOnlineRoom && hasLegalDeck ? 'warning' : 'muted',
-    },
+    });
+  }
+
+  if (battleEntryVisibility.themeTable) {
+    secondaryActions.push({
+      title: '主题赛季',
+      icon: Sparkles,
+      onClick: onNavigateToThemeTable,
+      disabled: !canUseOnlineRoom,
+      status: canUseOnlineRoom ? '平台预组 · 记录胜负' : '连接后可用',
+      tone: canUseOnlineRoom ? 'blue' : 'muted',
+    });
+  }
+
+  secondaryActions.push(
     {
       title: '房间观战',
       icon: Eye,
@@ -302,8 +323,8 @@ export function HomePage({
       compact: !canUseCloudDecks,
       status: canUseCloudDecks ? '只读回放' : '连接后可用',
       tone: canUseCloudDecks ? 'green' : 'muted',
-    },
-  ];
+    }
+  );
 
   if (hasOnlineDebugEntry) {
     secondaryActions.push({

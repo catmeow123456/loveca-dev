@@ -18,6 +18,10 @@ function createConfig(overrides: Partial<PublicAppConfig> = {}): PublicAppConfig
         verificationRequired: false,
         passwordResetEnabled: false,
       },
+      battleEntries: {
+        ranked: true,
+        themeTable: true,
+      },
     },
     siteStatus: {
       lifecycle: 'MAINTENANCE',
@@ -204,6 +208,32 @@ describe('public app config refresh fingerprints', () => {
         },
       }).matchEmotes
     ).toBeNull();
+  });
+
+  it('tracks player battle entry visibility in the render key', () => {
+    const first = createConfig();
+    const second = createConfig({
+      features: {
+        ...first.features,
+        battleEntries: { ranked: false, themeTable: true },
+      },
+    });
+
+    expect(buildPublicAppConfigRenderKey(first)).not.toBe(buildPublicAppConfigRenderKey(second));
+  });
+
+  it('keeps battle entries hidden when older or incomplete config omits the fields', () => {
+    const normalized = normalizeAppConfig({
+      features: {
+        email: {
+          enabled: true,
+          verificationRequired: false,
+          passwordResetEnabled: true,
+        },
+      },
+    } as unknown as Partial<PublicAppConfig>);
+
+    expect(normalized.features.battleEntries).toEqual({ ranked: false, themeTable: false });
   });
 });
 

@@ -435,14 +435,7 @@ wait_for_remote_minio() {
 }
 
 seed_match_emote_assets() {
-  if uses_local_minio; then
-    wait_until "local MinIO bucket and match emote seed upload" 60 pnpm emotes:seed-assets
-    return
-  fi
-  if pnpm emotes:seed-assets; then
-    return
-  fi
-  die "remote MinIO credentials cannot verify or upload match emote seeds; configure writable MINIO_ACCESS_KEY/MINIO_SECRET_KEY, or rerun local testing with: pnpm test-env:start --local-minio"
+  wait_until "local MinIO bucket and match emote seed upload" 60 pnpm emotes:seed-assets
 }
 
 wait_for_api() {
@@ -523,7 +516,7 @@ register_test_users() {
 }
 
 seed_test_admin_fixtures() {
-  if [[ "${TEST_SEED_ADMIN_DECKS:-1}" == "0" && "${TEST_SEED_RANKED_SEASON:-1}" == "0" ]]; then
+  if [[ "${TEST_SEED_ADMIN_DECKS:-1}" == "0" && "${TEST_SEED_RANKED_SEASON:-1}" == "0" && "${TEST_SEED_THEME_SEASON:-1}" == "0" ]]; then
     log "skipping test admin fixtures"
     return
   fi
@@ -627,8 +620,12 @@ start_tmux_environment() {
     wait_for_remote_minio
   fi
 
-  log "seeding match emote assets"
-  seed_match_emote_assets
+  if uses_local_minio; then
+    log "seeding match emote assets into local MinIO"
+    seed_match_emote_assets
+  else
+    log "skipping match emote seed upload for remote MinIO"
+  fi
 
   log "running database migrations"
   pnpm db:migrate

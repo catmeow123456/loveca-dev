@@ -137,6 +137,10 @@ export async function installVisualApiMocks(page: Page, authenticated: boolean) 
             verificationRequired: false,
             passwordResetEnabled: false,
           },
+          battleEntries: {
+            ranked: true,
+            themeTable: true,
+          },
         },
         siteStatus: {
           lifecycle: 'NORMAL',

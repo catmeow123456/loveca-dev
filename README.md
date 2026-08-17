@@ -93,7 +93,14 @@ docker compose -f docker-compose.dev.yml up -d
 pnpm test-env:start
 ```
 
-脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户，并创建、激活且开放一个全年有效的“测试赛季”；赛季时区为 `Asia/Shanghai`，每天开放 `00:00–00:00`：
+脚本会先加载本地测试默认值并校验对局启动必需配置，停止同名 tmux session，默认使用 compose project `loveca` 执行 `down -v` 清理数据库 volume，确认 `3007`、`5173`、`5432` 端口空闲后启动 Postgres。若配置指向本地 MinIO，也会启动并检查本地 MinIO；若指向远端 MinIO，则只检查远端 bucket 可读。数据库迁移完成后会从 `llocg_db` 同步卡牌数据，执行 card code / group name 标准化与校验，然后启动 API 和前端。API 健康检查通过后会自动注册默认测试用户，创建、激活且开放一个全年有效的“测试赛季”，并初始化一个全天开放的“测试主题赛季”。主题赛季卡组池使用 `assets/decks/` 中四副 DeckLog 示例卡组，自动形成包含四个镜像对局在内的 10 个等权组合：
+
+- `decklog-1Y9J3S.yaml`：Liella! 加分星
+- `decklog-222H9S.yaml`：Liella! 可香三神
+- `decklog-1YWYS4.yaml`：μ's DGG混合
+- `decklog-N33A0.yaml`：彩虹混合
+
+两个测试赛季的时区均为 `Asia/Shanghai`，每天全天开放：
 
 ```text
 test_player_1 / test_password_1
@@ -119,7 +126,7 @@ TEST_USERS='alice:password123:Alice,bob:password123:Bob' \
 pnpm test-env:start
 ```
 
-可通过 `TEST_SEED_ADMIN_DECKS=0` 或 `TEST_SEED_RANKED_SEASON=0` 分别跳过管理员卡组或测试赛季；测试赛季的标识、名称和时区可由 `TEST_RANKED_SEASON_KEY`、`TEST_RANKED_SEASON_NAME`、`TEST_RANKED_SEASON_TIME_ZONE` 覆盖。
+可通过 `TEST_SEED_ADMIN_DECKS=0`、`TEST_SEED_RANKED_SEASON=0` 或 `TEST_SEED_THEME_SEASON=0` 分别跳过普通管理员卡组、测试排位赛季或测试主题赛季；主题赛季启用时仍会创建它依赖的四副 DeckLog 管理员卡组。排位赛季的标识、名称和时区可由 `TEST_RANKED_SEASON_KEY`、`TEST_RANKED_SEASON_NAME`、`TEST_RANKED_SEASON_TIME_ZONE` 覆盖；主题赛季对应使用 `TEST_THEME_SEASON_KEY`、`TEST_THEME_SEASON_NAME`、`TEST_THEME_SEASON_TIME_ZONE`。
 
 启动后进入 tmux 查看日志：
 

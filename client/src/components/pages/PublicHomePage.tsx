@@ -39,7 +39,7 @@ const PRODUCT_PATHS = [
   {
     label: '对战',
     title: '开始对战',
-    detail: '赛季排位、公共匹配、房间对战与单人测试',
+    detail: '真人匹配、房间对战与单人测试',
     note: '需要登录',
     icon: Gamepad2,
     action: 'game' as const,

@@ -83,8 +83,8 @@ export interface StoredMatchEmoteCatalogEntry {
   readonly assetId: string;
 }
 export type GameplayParticipationKind =
-  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
-export type MatchmakingQueueKind = 'CASUAL' | 'RANKED';
+  'PUBLIC_QUEUE' | 'RANKED_QUEUE' | 'THEME_QUEUE' | 'ONLINE_ROOM' | 'ONLINE_MATCH';
+export type MatchmakingQueueKind = 'CASUAL' | 'RANKED' | 'THEME';
 export type PublicTableTicketState = 'WAITING' | 'RESERVED' | 'MATCHED' | 'CANCELED' | 'EXPIRED';
 export type PublicTableReservationState =
   'PENDING_CONFIRMATION' | 'CREATING_ROOM' | 'MATCHED' | 'RELEASED';
@@ -94,6 +94,8 @@ export type RankedMatchRatingStatus = 'PENDING' | 'SETTLED' | 'VOIDED';
 export type RankedMatchResultType =
   'NORMAL' | 'SURRENDER' | 'DISCONNECT_FORFEIT' | 'PLATFORM_NO_CONTEST';
 export type RankedRatingEventType = 'SETTLEMENT' | 'VOID' | 'REPLACEMENT';
+export type ThemeTableLifecycle = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
+export type ThemeDeckDifficulty = 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
 export type PlayerWallpaperAssetKind = 'MASTER' | 'WIDE_DISPLAY' | 'COMPACT_DISPLAY';
 export type PlayerWallpaperIdempotencyStatus = 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
 export type PlayerWallpaperOperation = 'PUBLISH' | 'RESET' | 'ADMIN_REMOVE';
@@ -815,6 +817,8 @@ export const siteStatusConfig = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     action: text('action'),
+    rankedEntryVisible: boolean('ranked_entry_visible').notNull().default(true),
+    themeTableEntryVisible: boolean('theme_table_entry_visible').notNull().default(true),
     updatedBy: uuid('updated_by').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -960,6 +964,129 @@ export const aiEffectExtractionAuditLogs = pgTable(
   ]
 );
 
+export const themeTableVersions = pgTable(
+  'theme_table_versions',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    versionKey: text('version_key').notNull().unique(),
+    name: text('name').notNull(),
+    lifecycle: text('lifecycle').$type<ThemeTableLifecycle>().notNull().default('DRAFT'),
+    environmentId: text('environment_id').notNull().unique(),
+    rulesEnvironmentId: text('rules_environment_id').notNull(),
+    cardCatalogHash: text('card_catalog_hash').notNull(),
+    allocationAlgorithmVersion: text('allocation_algorithm_version').notNull(),
+    platformTimeZone: text('platform_time_zone').notNull().default('Asia/Shanghai'),
+    openWindows: jsonb('open_windows').$type<RankedSeasonOpenWindow[]>().notNull(),
+    startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+    endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+    scheduleLabel: text('schedule_label').notNull(),
+    summary: text('summary').notNull(),
+    announcement: text('announcement').notNull(),
+    evaluationPolicy: jsonb('evaluation_policy').$type<Record<string, unknown>>().notNull(),
+    activatedAt: timestamp('activated_at', { withTimezone: true }),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_theme_table_versions_lifecycle_window').on(
+      table.lifecycle,
+      table.startsAt,
+      table.endsAt
+    ),
+    uniqueIndex('uq_theme_table_versions_single_active')
+      .on(table.lifecycle)
+      .where(sql`${table.lifecycle} = 'ACTIVE'`),
+    check(
+      'theme_table_versions_lifecycle_check',
+      sql`${table.lifecycle} IN ('DRAFT', 'ACTIVE', 'PAUSED', 'CLOSED')`
+    ),
+    check('theme_table_versions_window_check', sql`${table.endsAt} > ${table.startsAt}`),
+  ]
+);
+
+export const themePrebuiltDeckVersions = pgTable(
+  'theme_prebuilt_deck_versions',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    themeTableVersionId: uuid('theme_table_version_id')
+      .notNull()
+      .references(() => themeTableVersions.id, { onDelete: 'restrict' }),
+    deckKey: text('deck_key').notNull(),
+    displayName: text('display_name').notNull(),
+    runtimeDeck: jsonb('runtime_deck').$type<unknown>().notNull(),
+    deckList: jsonb('deck_list')
+      .$type<{
+        readonly mainDeck: readonly { readonly cardCode: string; readonly count: number }[];
+        readonly energyDeck: readonly { readonly cardCode: string; readonly count: number }[];
+      }>()
+      .notNull(),
+    contentHash: text('content_hash').notNull(),
+    playStyleTags: jsonb('play_style_tags').$type<readonly string[]>().notNull(),
+    difficulty: text('difficulty').$type<ThemeDeckDifficulty>().notNull(),
+    sourceLabel: text('source_label').notNull(),
+    sourceUrl: text('source_url'),
+    reviewNote: text('review_note').notNull(),
+    approvedAt: timestamp('approved_at', { withTimezone: true }).notNull(),
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('uq_theme_prebuilt_deck_key')
+      .on(table.themeTableVersionId, table.deckKey)
+      .where(sql`${table.retiredAt} IS NULL`),
+    uniqueIndex('uq_theme_prebuilt_deck_content')
+      .on(table.themeTableVersionId, table.contentHash)
+      .where(sql`${table.retiredAt} IS NULL`),
+    check(
+      'theme_prebuilt_deck_difficulty_check',
+      sql`${table.difficulty} IN ('BEGINNER', 'INTERMEDIATE', 'ADVANCED')`
+    ),
+  ]
+);
+
+export const themeMatchupPairVersions = pgTable(
+  'theme_matchup_pair_versions',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    themeTableVersionId: uuid('theme_table_version_id')
+      .notNull()
+      .references(() => themeTableVersions.id, { onDelete: 'restrict' }),
+    firstDeckVersionId: uuid('first_deck_version_id')
+      .notNull()
+      .references(() => themePrebuiltDeckVersions.id, { onDelete: 'restrict' }),
+    secondDeckVersionId: uuid('second_deck_version_id')
+      .notNull()
+      .references(() => themePrebuiltDeckVersions.id, { onDelete: 'restrict' }),
+    weight: integer('weight').notNull().default(1),
+    enabled: boolean('enabled').notNull().default(true),
+    testSummary: jsonb('test_summary').$type<Record<string, unknown>>().notNull(),
+    approvedAt: timestamp('approved_at', { withTimezone: true }).notNull(),
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_theme_matchup_pairs_active').on(table.themeTableVersionId, table.enabled),
+    uniqueIndex('uq_theme_matchup_pair').on(
+      table.themeTableVersionId,
+      table.firstDeckVersionId,
+      table.secondDeckVersionId
+    ),
+    check('theme_matchup_pair_weight_check', sql`${table.weight} > 0`),
+    check(
+      'theme_matchup_pair_canonical_order_check',
+      sql`${table.firstDeckVersionId} <= ${table.secondDeckVersionId}`
+    ),
+  ]
+);
+
 export const publicTableTickets = pgTable(
   'public_table_tickets',
   {
@@ -973,6 +1100,10 @@ export const publicTableTickets = pgTable(
     seasonId: uuid('season_id').references(() => rankedSeasons.id, {
       onDelete: 'restrict',
     }),
+    themeTableVersionId: uuid('theme_table_version_id').references(
+      (): AnyPgColumn => themeTableVersions.id,
+      { onDelete: 'restrict' }
+    ),
     environmentId: text('environment_id').notNull().default('PUBLIC_TABLE_V1'),
     sourceDeckId: uuid('source_deck_id').references(() => decks.id, { onDelete: 'set null' }),
     sourceDeckName: text('source_deck_name').notNull(),
@@ -1016,12 +1147,15 @@ export const publicTableTickets = pgTable(
       'public_table_tickets_state_check',
       sql`${table.state} IN ('WAITING', 'RESERVED', 'MATCHED', 'CANCELED', 'EXPIRED')`
     ),
-    check('public_table_tickets_queue_kind_check', sql`${table.queueKind} IN ('CASUAL', 'RANKED')`),
+    check(
+      'public_table_tickets_queue_kind_check',
+      sql`${table.queueKind} IN ('CASUAL', 'RANKED', 'THEME')`
+    ),
     check('public_table_tickets_point_total_check', sql`${table.pointTotal} >= 0`),
     check('public_table_tickets_point_limit_check', sql`${table.pointLimit} > 0`),
     check(
       'public_table_tickets_ranked_season_check',
-      sql`(${table.queueKind} = 'CASUAL' AND ${table.seasonId} IS NULL) OR (${table.queueKind} = 'RANKED' AND ${table.seasonId} IS NOT NULL)`
+      sql`(${table.queueKind} = 'CASUAL' AND ${table.seasonId} IS NULL AND ${table.themeTableVersionId} IS NULL) OR (${table.queueKind} = 'RANKED' AND ${table.seasonId} IS NOT NULL AND ${table.themeTableVersionId} IS NULL) OR (${table.queueKind} = 'THEME' AND ${table.seasonId} IS NULL AND ${table.themeTableVersionId} IS NOT NULL)`
     ),
   ]
 );
@@ -1036,6 +1170,10 @@ export const publicTableReservations = pgTable(
     seasonId: uuid('season_id').references(() => rankedSeasons.id, {
       onDelete: 'restrict',
     }),
+    themeTableVersionId: uuid('theme_table_version_id').references(
+      (): AnyPgColumn => themeTableVersions.id,
+      { onDelete: 'restrict' }
+    ),
     environmentId: text('environment_id').notNull().default('PUBLIC_TABLE_V1'),
     firstTicketId: uuid('first_ticket_id')
       .notNull()
@@ -1075,13 +1213,45 @@ export const publicTableReservations = pgTable(
     ),
     check(
       'public_table_reservations_queue_kind_check',
-      sql`${table.queueKind} IN ('CASUAL', 'RANKED')`
+      sql`${table.queueKind} IN ('CASUAL', 'RANKED', 'THEME')`
     ),
     check(
       'public_table_reservations_ranked_season_check',
-      sql`(${table.queueKind} = 'CASUAL' AND ${table.seasonId} IS NULL) OR (${table.queueKind} = 'RANKED' AND ${table.seasonId} IS NOT NULL)`
+      sql`(${table.queueKind} = 'CASUAL' AND ${table.seasonId} IS NULL AND ${table.themeTableVersionId} IS NULL) OR (${table.queueKind} = 'RANKED' AND ${table.seasonId} IS NOT NULL AND ${table.themeTableVersionId} IS NULL) OR (${table.queueKind} = 'THEME' AND ${table.seasonId} IS NULL AND ${table.themeTableVersionId} IS NOT NULL)`
     ),
   ]
+);
+
+export const themeTableAssignments = pgTable(
+  'theme_table_assignments',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    reservationId: uuid('reservation_id')
+      .notNull()
+      .unique()
+      .references(() => publicTableReservations.id, { onDelete: 'restrict' }),
+    themeTableVersionId: uuid('theme_table_version_id')
+      .notNull()
+      .references(() => themeTableVersions.id, { onDelete: 'restrict' }),
+    matchupPairVersionId: uuid('matchup_pair_version_id')
+      .notNull()
+      .references(() => themeMatchupPairVersions.id, { onDelete: 'restrict' }),
+    firstTicketDeckVersionId: uuid('first_ticket_deck_version_id')
+      .notNull()
+      .references(() => themePrebuiltDeckVersions.id, { onDelete: 'restrict' }),
+    secondTicketDeckVersionId: uuid('second_ticket_deck_version_id')
+      .notNull()
+      .references(() => themePrebuiltDeckVersions.id, { onDelete: 'restrict' }),
+    allocationAlgorithmVersion: text('allocation_algorithm_version').notNull(),
+    eligiblePairSnapshotHash: text('eligible_pair_snapshot_hash').notNull(),
+    entropyCommitment: text('entropy_commitment').notNull(),
+    allocationProof: jsonb('allocation_proof').$type<Record<string, unknown>>().notNull(),
+    matchId: text('match_id').unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index('idx_theme_table_assignments_theme').on(table.themeTableVersionId)]
 );
 
 export const gameplayParticipations = pgTable(
@@ -1102,7 +1272,7 @@ export const gameplayParticipations = pgTable(
     index('idx_gameplay_participations_kind').on(table.kind),
     check(
       'gameplay_participations_kind_check',
-      sql`${table.kind} IN ('PUBLIC_QUEUE', 'RANKED_QUEUE', 'ONLINE_ROOM', 'ONLINE_MATCH')`
+      sql`${table.kind} IN ('PUBLIC_QUEUE', 'RANKED_QUEUE', 'THEME_QUEUE', 'ONLINE_ROOM', 'ONLINE_MATCH')`
     ),
   ]
 );

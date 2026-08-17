@@ -39,6 +39,11 @@ const siteStatusConfigInputSchema = z.object({
   action: z.string().trim().max(120).nullable().optional(),
 });
 
+const playerBattleEntryVisibilityInputSchema = z.object({
+  ranked: z.boolean(),
+  themeTable: z.boolean(),
+});
+
 siteAnnouncementsRouter.get('/admin', requireAuth, requireAdmin, async (_req, res) => {
   try {
     const announcements = await siteAnnouncementService.listAdminAnnouncements();
@@ -69,6 +74,24 @@ siteAnnouncementsRouter.put(
         req.user!.id
       );
       res.json({ data: siteStatus, error: null });
+    } catch (error) {
+      respondSiteAnnouncementError(res, error);
+    }
+  }
+);
+
+siteAnnouncementsRouter.put(
+  '/admin/player-battle-entries',
+  requireAuth,
+  requireAdmin,
+  validate(playerBattleEntryVisibilityInputSchema),
+  async (req, res) => {
+    try {
+      const visibility = await siteAnnouncementService.updatePlayerBattleEntryVisibility(
+        req.body,
+        req.user!.id
+      );
+      res.json({ data: visibility, error: null });
     } catch (error) {
       respondSiteAnnouncementError(res, error);
     }

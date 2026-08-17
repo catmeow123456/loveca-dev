@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/apiClient';
 import type {
+  PlayerBattleEntryVisibility,
   PublicSiteAnnouncement,
   PublicSiteStatus,
   SiteAnnouncementType,
@@ -14,6 +15,19 @@ export interface AdminSiteAnnouncement extends PublicSiteAnnouncement {
   updatedAt: string;
   createdBy: string | null;
   updatedBy: string | null;
+}
+
+export async function updatePlayerBattleEntryVisibility(
+  input: PlayerBattleEntryVisibility
+): Promise<PlayerBattleEntryVisibility> {
+  const response = await apiClient.put<PlayerBattleEntryVisibility>(
+    '/api/site-announcements/admin/player-battle-entries',
+    input
+  );
+  if (!response.data) {
+    throw new Error(response.error?.message ?? '保存玩家对战入口失败');
+  }
+  return response.data;
 }
 
 export interface SiteAnnouncementInput {

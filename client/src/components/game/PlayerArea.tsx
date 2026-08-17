@@ -35,6 +35,11 @@ import {
 } from '@/lib/cardEffectAutomationVisuals';
 import { getHeartRequirementEntries } from '@/lib/heartRequirementUtils';
 import { getCardLocalizedInfo } from '@/lib/cardLocalization';
+import {
+  getEnergyBelowCardZIndex,
+  getMainMemberCardZIndex,
+  getMemberBelowCardZIndex,
+} from '@/lib/memberStackLayout';
 import { HEART_REQUIREMENT_ICON_SOURCE_BY_COLOR } from '@/lib/modifierIconAssets';
 import {
   collectWaitingRoomJudgmentStats,
@@ -985,7 +990,7 @@ export const PlayerArea = memo(function PlayerArea({
                   transform: `translate(-${offsetPercent}%, ${offsetPercent}%)`,
                   // 越后渲染的在越上层，所以 reverseIndex 越大 z-index 越高
                   // 原始第1张能量卡 (originalIndex=0) 应该在最上层
-                  zIndex: 5 + reverseIndex,
+                  zIndex: getEnergyBelowCardZIndex(reverseIndex),
                 }}
               >
                 <DraggableCard
@@ -1036,7 +1041,7 @@ export const PlayerArea = memo(function PlayerArea({
                 className="absolute inset-0"
                 style={{
                   transform: `translate(${offsetPercent}%, ${offsetPercent}%)`,
-                  zIndex: 5 + energyBelowIds.length + reverseIndex,
+                  zIndex: getMemberBelowCardZIndex(energyBelowIds.length, reverseIndex),
                 }}
               >
                 <DraggableCard
@@ -1100,9 +1105,12 @@ export const PlayerArea = memo(function PlayerArea({
                 'cursor-pointer border-cyan-300 bg-cyan-500/15 shadow-[0_0_18px_rgba(34,211,238,0.34)] hover:border-cyan-100',
               isActiveEffectSlotTarget &&
                 'border-emerald-300 bg-emerald-500/15 shadow-[0_0_18px_rgba(52,211,153,0.34)]',
-              // 确保成员卡在能量卡上方
-              'relative z-10'
+              // 确保成员卡在所有下方卡之上
+              'relative'
             )}
+            style={{
+              zIndex: getMainMemberCardZIndex(energyBelowIds.length, memberBelowIds.length),
+            }}
             activeClassName="ring-2 ring-rose-500 bg-rose-500/20 border-rose-500"
             title={selectedSlotAction?.target.label}
             onClick={handleSlotClick}

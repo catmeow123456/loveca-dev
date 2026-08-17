@@ -1,15 +1,21 @@
-import { type ComponentType } from 'react';
+import { useState, type ComponentType } from 'react';
 import {
   Bell,
   Bot,
   ChevronRight,
+  Loader2,
   Medal,
   MonitorCog,
+  Save,
   Scale,
   Settings,
   SmilePlus,
+  Sparkles,
 } from 'lucide-react';
 import { PageHeader } from '@/components/common';
+import { useKeyedState } from '@/hooks/useKeyedState';
+import type { PlayerBattleEntryVisibility } from '@/lib/appConfig';
+import { updatePlayerBattleEntryVisibility } from '@/lib/siteAnnouncementClient';
 
 interface AdminCenterPageProps {
   readonly onBack: () => void;
@@ -20,6 +26,9 @@ interface AdminCenterPageProps {
   readonly onOpenDeckPoints: () => void;
   readonly onOpenOnlineRooms: () => void;
   readonly onOpenRanked: () => void;
+  readonly onOpenThemeTable: () => void;
+  readonly battleEntryVisibility: PlayerBattleEntryVisibility;
+  readonly onBattleEntryVisibilityChanged?: () => void | Promise<void>;
 }
 
 interface AdminModule {
@@ -37,6 +46,32 @@ interface AdminCategory {
 }
 
 export function AdminCenterPage(props: AdminCenterPageProps) {
+  const visibilityKey = `${props.battleEntryVisibility.ranked}:${props.battleEntryVisibility.themeTable}`;
+  const [entryVisibility, setEntryVisibility] = useKeyedState(
+    visibilityKey,
+    props.battleEntryVisibility
+  );
+  const [isSavingEntryVisibility, setIsSavingEntryVisibility] = useState(false);
+  const [entryVisibilityMessage, setEntryVisibilityMessage] = useState<string | null>(null);
+  const hasEntryVisibilityChanges =
+    entryVisibility.ranked !== props.battleEntryVisibility.ranked ||
+    entryVisibility.themeTable !== props.battleEntryVisibility.themeTable;
+
+  const handleSaveEntryVisibility = async () => {
+    setIsSavingEntryVisibility(true);
+    setEntryVisibilityMessage(null);
+    try {
+      const saved = await updatePlayerBattleEntryVisibility(entryVisibility);
+      setEntryVisibility(saved);
+      await props.onBattleEntryVisibilityChanged?.();
+      setEntryVisibilityMessage('入口设置已保存');
+    } catch (error) {
+      setEntryVisibilityMessage(error instanceof Error ? error.message : '保存玩家对战入口失败');
+    } finally {
+      setIsSavingEntryVisibility(false);
+    }
+  };
+
   const categories: readonly AdminCategory[] = [
     {
       id: 'content-platform',
@@ -99,6 +134,12 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           icon: Medal,
           onOpen: props.onOpenRanked,
         },
+        {
+          title: '主题赛季',
+          description: '管理开放时段与平台卡组池',
+          icon: Sparkles,
+          onOpen: props.onOpenThemeTable,
+        },
       ],
     },
   ];
@@ -114,11 +155,80 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
 
       <main className="product-page-main">
         <div className="mx-auto max-w-5xl">
+          <section
+            aria-labelledby="player-battle-entry-title"
+            className="product-workbench mb-5 overflow-hidden"
+          >
+            <header className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div>
+                <h2
+                  id="player-battle-entry-title"
+                  className="text-sm font-semibold text-[var(--text-primary)]"
+                >
+                  玩家对战入口
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+                  关闭后，玩家大厅和对局准备页不再显示对应入口。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleSaveEntryVisibility()}
+                disabled={isSavingEntryVisibility || !hasEntryVisibilityChanges}
+                className="button-primary inline-flex min-h-10 shrink-0 items-center justify-center gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {isSavingEntryVisibility ? (
+                  <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <Save size={15} aria-hidden="true" />
+                )}
+                保存入口
+              </button>
+            </header>
+
+            <div className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+              <BattleEntrySwitch
+                title="赛季排位"
+                detail="使用玩家卡组，计入赛季积分"
+                checked={entryVisibility.ranked}
+                onChange={(checked) => {
+                  setEntryVisibility((current) => ({ ...current, ranked: checked }));
+                  setEntryVisibilityMessage(null);
+                }}
+              />
+              <BattleEntrySwitch
+                title="主题赛季"
+                detail="使用本期平台预组，记录赛季胜负"
+                checked={entryVisibility.themeTable}
+                onChange={(checked) => {
+                  setEntryVisibility((current) => ({ ...current, themeTable: checked }));
+                  setEntryVisibilityMessage(null);
+                }}
+              />
+            </div>
+
+            <footer className="flex flex-col gap-1 border-t border-[var(--border-subtle)] px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <span className="text-[var(--text-muted)]">暂停匹配请前往对应赛季管理。</span>
+              {entryVisibilityMessage ? (
+                <span
+                  role="status"
+                  className={
+                    entryVisibilityMessage === '入口设置已保存'
+                      ? 'text-[var(--semantic-success)]'
+                      : 'text-[var(--semantic-error)]'
+                  }
+                >
+                  {entryVisibilityMessage}
+                </span>
+              ) : null}
+            </footer>
+          </section>
+
           <div className="mb-4 flex items-center justify-between gap-4 px-1">
             <p className="text-sm text-[var(--text-secondary)]">
               管理公开内容、卡牌规则与联机运营。
             </p>
-            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">7 项工具</span>
+            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">8 项工具</span>
           </div>
 
           <div className="product-workbench divide-y divide-[var(--border-subtle)]">
@@ -155,6 +265,46 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+function BattleEntrySwitch({
+  title,
+  detail,
+  checked,
+  onChange,
+}: {
+  readonly title: string;
+  readonly detail: string;
+  readonly checked: boolean;
+  readonly onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-4 sm:px-5">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold text-[var(--text-primary)]">{title}</div>
+        <div className="mt-0.5 text-xs leading-5 text-[var(--text-secondary)]">{detail}</div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={`${title}玩家入口`}
+        onClick={() => onChange(!checked)}
+        className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-deep)] ${
+          checked
+            ? 'border-[var(--accent-primary)] bg-[var(--accent-primary)]'
+            : 'border-[var(--border-default)] bg-[var(--bg-elevated)]'
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
     </div>
   );
 }

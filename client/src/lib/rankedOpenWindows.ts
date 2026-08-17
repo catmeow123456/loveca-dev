@@ -121,6 +121,26 @@ export function isCrossMidnightRankedOpenWindow(window: RankedOpenWindowValue): 
   return window.endMinute < window.startMinute;
 }
 
+export function formatRankedOpenWindows(windows: readonly RankedOpenWindowValue[]): string {
+  const logicalWindows = prepareRankedOpenWindowsForForm(windows);
+  const first = logicalWindows[0];
+  if (!first) return '未设置开放时段';
+
+  const weekdays =
+    first.weekdays.length === 7
+      ? '每天'
+      : first.weekdays
+          .map((weekday) => `周${['一', '二', '三', '四', '五', '六', '日'][weekday - 1]}`)
+          .join('、');
+  const isAllDay = first.startMinute === 0 && first.endMinute === MINUTES_PER_DAY;
+  const time = isAllDay
+    ? '全天'
+    : `${minuteToDisplayTime(first.startMinute)}–${
+        isCrossMidnightRankedOpenWindow(first) ? '次日 ' : ''
+      }${minuteToDisplayTime(first.endMinute, true)}`;
+  return `${weekdays} ${time}${logicalWindows.length > 1 ? ` 等 ${logicalWindows.length} 个时段` : ''}`;
+}
+
 export function isEditableRankedOpenWindowValid(window: RankedOpenWindowValue): boolean {
   return window.startMinute !== window.endMinute || window.startMinute === 0;
 }
@@ -184,4 +204,9 @@ function normalizeWeekdays(weekdays: readonly number[]): number[] {
 
 function sameWeekdays(left: readonly number[], right: readonly number[]): boolean {
   return left.length === right.length && left.every((weekday, index) => weekday === right[index]);
+}
+
+function minuteToDisplayTime(minute: number, isEnd = false): string {
+  if (isEnd && minute === MINUTES_PER_DAY) return '24:00';
+  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
 }

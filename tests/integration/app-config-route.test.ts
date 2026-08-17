@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 vi.mock('../../src/server/services/site-announcement-service.js', () => ({
   siteAnnouncementService: {
     getPublicSiteStatus: vi.fn(),
+    getPlayerBattleEntryVisibility: vi.fn(),
   },
 }));
 
@@ -86,6 +87,10 @@ describe('appConfigRouter', () => {
       version: '00000000-0000-4000-8000-000000000201',
       items: [],
     });
+    vi.mocked(siteAnnouncementService.getPlayerBattleEntryVisibility).mockResolvedValue({
+      ranked: true,
+      themeTable: false,
+    });
 
     const response = await invokeRoute('/', 'get');
 
@@ -100,6 +105,12 @@ describe('appConfigRouter', () => {
       matchEmotes: {
         version: '00000000-0000-4000-8000-000000000201',
         items: [],
+      },
+      features: {
+        battleEntries: {
+          ranked: true,
+          themeTable: false,
+        },
       },
     });
   });

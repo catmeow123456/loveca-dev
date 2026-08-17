@@ -31,6 +31,7 @@ import {
 } from '../../src/server/services/online-match-service';
 import { pool } from '../../src/server/db/pool';
 import { rankedRatingService } from '../../src/server/services/ranked-rating-service';
+import { recoverNoFaultThemeOpeningPlayers } from '../../src/server/services/theme-table-recovery-service';
 import type { MatchRecorderService } from '../../src/server/services/match-recorder-service';
 import { toDeckPointTableRules } from '../../src/domain/rules/deck-point-table';
 
@@ -73,7 +74,14 @@ vi.mock('../../src/server/services/ranked-rating-service.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/services/theme-table-recovery-service.js', () => ({
+  recoverNoFaultThemeOpeningPlayers: vi.fn(async () => ({ handled: false, requeued: [] })),
+}));
+
 beforeEach(() => {
+  vi.mocked(recoverNoFaultThemeOpeningPlayers)
+    .mockReset()
+    .mockResolvedValue({ handled: false, requeued: [] });
   vi.mocked(pool.query)
     .mockReset()
     .mockImplementation(async (text) => {
@@ -3249,6 +3257,130 @@ describe('OnlineRoomService', () => {
       expect.stringMatching(/SET state = 'RELEASED'[\s\S]*SET state = 'CANCELED'/),
       [reservationId, 'PLAYER_ABANDONED_OPENING', room.roomGeneration, new Date(10_000)]
     );
+  });
+
+  it('主题牌桌开局阶段一方离开时应调用无过错回队并跳过普通双方取消', async () => {
+    vi.mocked(recoverNoFaultThemeOpeningPlayers).mockResolvedValue({
+      handled: true,
+      requeued: [
+        {
+          userId: 'u2',
+          previousTicketId: 'ticket-2',
+          ticketId: 'ticket-2-requeued',
+        },
+      ],
+    });
+    const service = new OnlineRoomService({
+      now: () => 10_000,
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+    });
+    const reservationId = '24242424-2222-4333-8444-555555555555';
+    const room = await service.createPublicTableRoom({
+      reservationId,
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '轮换主题牌桌',
+      rankedSeasonId: null,
+      themeTableVersionId: '25252525-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'theme-deck-a',
+        deckName: '主题预组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-abandon-a')),
+        lockedAt: 9_000,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'theme-deck-b',
+        deckName: '主题预组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-abandon-b')),
+        lockedAt: 9_000,
+      },
+      openingExpiresAt: 190_000,
+    });
+
+    const secondPlayerView = await service.getRoomView(room.roomCode, 'u2');
+    expect(secondPlayerView).toMatchObject({
+      themeTableVersionId: '25252525-2222-4333-8444-555555555555',
+      themeDeckAssignment: {
+        presentationId: room.roomGeneration,
+        deckName: '主题预组二',
+        previewCardCodes: [
+          'theme-abandon-b-MEM-0',
+          'theme-abandon-b-MEM-1',
+          'theme-abandon-b-MEM-2',
+        ],
+      },
+    });
+    expect(secondPlayerView.members.find((member) => member.userId === 'u1')).toMatchObject({
+      lockedDeckId: null,
+      lockedDeckName: null,
+      ready: true,
+    });
+    expect(secondPlayerView.members.find((member) => member.userId === 'u2')).toMatchObject({
+      lockedDeckId: 'theme-deck-b',
+      lockedDeckName: '主题预组二',
+    });
+
+    await service.leaveRoom(room.roomCode, 'u1');
+
+    expect(recoverNoFaultThemeOpeningPlayers).toHaveBeenCalledWith({
+      reservationId,
+      roomGeneration: room.roomGeneration,
+      faultUserIds: ['u1'],
+      reason: 'PLAYER_ABANDONED_OPENING',
+      now: 10_000,
+    });
+    expect(vi.mocked(pool.query)).not.toHaveBeenCalledWith(
+      expect.stringMatching(/SET state = 'RELEASED'[\s\S]*SET state = 'CANCELED'/),
+      expect.anything()
+    );
+  });
+
+  it('主题牌桌正式开局后禁止原房重开以保证每局重新分配卡组', async () => {
+    const service = new OnlineRoomService({
+      now: () => 10_000,
+      matchService: createInMemoryMatchService(),
+      loadUserProfile: (userId) => Promise.resolve({ userId, displayName: userId }),
+    });
+    const room = await service.createPublicTableRoom({
+      reservationId: '26262626-2222-4333-8444-555555555555',
+      originKind: 'PUBLIC_TABLE',
+      originLabel: '轮换主题牌桌',
+      rankedSeasonId: null,
+      themeTableVersionId: '27272727-2222-4333-8444-555555555555',
+      first: {
+        userId: 'u1',
+        displayName: '玩家一',
+        deckId: 'theme-deck-a',
+        deckName: '主题预组一',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-restart-a')),
+        lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      second: {
+        userId: 'u2',
+        displayName: '玩家二',
+        deckId: 'theme-deck-b',
+        deckName: '主题预组二',
+        deck: persistPublicTableRuntimeDeck(createRuntimeDeck('theme-restart-b')),
+        lockedAt: 9_000,
+        pointValidation: TEST_POINT_VALIDATION,
+      },
+      openingExpiresAt: 190_000,
+    });
+    await service.getRoomView(room.roomCode, 'u1');
+    await service.getRoomView(room.roomCode, 'u2');
+    await service.submitOpeningRps(room.roomCode, 'u1', 'ROCK');
+    await service.submitOpeningRps(room.roomCode, 'u2', 'SCISSORS');
+    await service.chooseOpeningTurnOrder(room.roomCode, 'u1', 'SELF_FIRST');
+
+    await expect(service.requestRestart(room.roomCode, 'u1')).rejects.toMatchObject({
+      code: 'THEME_RESTART_FORBIDDEN',
+      message: '主题牌桌每局都会重新分配卡组，请返回主题牌桌再次候场',
+    });
   });
 
   it('排位开局并发提交先后手时只创建并绑定一场对局', async () => {

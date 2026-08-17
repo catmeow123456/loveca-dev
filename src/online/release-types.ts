@@ -40,6 +40,14 @@ export interface OnlineRoomMemberView {
   readonly seat?: Seat;
 }
 
+export interface OnlineThemeDeckAssignmentView {
+  /** 只用于控制同一房间内的本地揭示动画是否已经播放。 */
+  readonly presentationId: string;
+  readonly deckName: string;
+  /** 只包含当前查看者自己的主卡组预览，不携带对手卡组身份。 */
+  readonly previewCardCodes: readonly string[];
+}
+
 export interface OnlineRestartRequestView {
   readonly requestId: string;
   readonly requesterUserId: string;
@@ -57,6 +65,10 @@ export interface OnlineRoomEndView {
 export interface OnlineRoomView {
   readonly roomCode: string;
   readonly originKind: MatchOriginKind;
+  /** 仅主题牌桌房间存在，用于开局前故障恢复后的客户端状态回收。 */
+  readonly themeTableVersionId?: string | null;
+  /** 仅主题牌桌当前参与者可见的本人卡组揭示信息。 */
+  readonly themeDeckAssignment?: OnlineThemeDeckAssignmentView;
   readonly status: OnlineRoomStatus;
   readonly ownerUserId: string;
   readonly currentUserId: string;

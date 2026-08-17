@@ -8,9 +8,10 @@ export const appConfigRouter = Router();
 appConfigRouter.get('/', async (_req, res) => {
   res.setHeader('Cache-Control', 'no-store, max-age=0');
   const emailEnabled = config.isEmailFeatureEnabled;
-  const [siteStatus, matchEmotes] = await Promise.all([
+  const [siteStatus, matchEmotes, battleEntries] = await Promise.all([
     siteAnnouncementService.getPublicSiteStatus(process.env),
     matchEmoteCatalogService.getPublicCatalog(),
+    siteAnnouncementService.getPlayerBattleEntryVisibility(),
   ]);
 
   res.json({
@@ -21,6 +22,7 @@ appConfigRouter.get('/', async (_req, res) => {
           verificationRequired: config.isEmailVerificationRequired,
           passwordResetEnabled: emailEnabled,
         },
+        battleEntries,
       },
       siteStatus,
       matchEmotes,

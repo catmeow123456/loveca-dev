@@ -47,6 +47,11 @@ export interface SiteStatusConfigInput {
   action?: string | null;
 }
 
+export interface PlayerBattleEntryVisibility {
+  readonly ranked: boolean;
+  readonly themeTable: boolean;
+}
+
 interface SiteAnnouncementRow {
   id: string;
   type: SiteAnnouncementType;
@@ -77,6 +82,8 @@ interface SiteStatusConfigRow {
   impact_scopes: string[] | null;
   restrictions: string[] | null;
   action: string | null;
+  ranked_entry_visible: boolean;
+  theme_table_entry_visible: boolean;
   updated_by: string | null;
   created_at: Date | string;
   updated_at: Date | string;
@@ -194,6 +201,61 @@ export class SiteAnnouncementService {
     }
 
     return mapSiteStatusConfigRow(row, now);
+  }
+
+  async getPlayerBattleEntryVisibility(): Promise<PlayerBattleEntryVisibility> {
+    const result = await pool.query<
+      Pick<SiteStatusConfigRow, 'ranked_entry_visible' | 'theme_table_entry_visible'>
+    >(
+      `SELECT ranked_entry_visible, theme_table_entry_visible
+       FROM site_status_config
+       WHERE id = $1
+       LIMIT 1`,
+      [SITE_STATUS_CONFIG_ID]
+    );
+    const row = result.rows[0];
+    return {
+      ranked: row?.ranked_entry_visible ?? true,
+      themeTable: row?.theme_table_entry_visible ?? true,
+    };
+  }
+
+  async updatePlayerBattleEntryVisibility(
+    input: PlayerBattleEntryVisibility,
+    adminUserId: string
+  ): Promise<PlayerBattleEntryVisibility> {
+    const result = await pool.query<
+      Pick<SiteStatusConfigRow, 'ranked_entry_visible' | 'theme_table_entry_visible'>
+    >(
+      `INSERT INTO site_status_config (
+         id,
+         lifecycle,
+         ranked_entry_visible,
+         theme_table_entry_visible,
+         updated_by
+       )
+       VALUES ('default', 'NORMAL', $1, $2, $3)
+       ON CONFLICT (id) DO UPDATE
+       SET
+         ranked_entry_visible = EXCLUDED.ranked_entry_visible,
+         theme_table_entry_visible = EXCLUDED.theme_table_entry_visible,
+         updated_by = EXCLUDED.updated_by,
+         updated_at = now()
+       RETURNING ranked_entry_visible, theme_table_entry_visible`,
+      [input.ranked, input.themeTable, adminUserId]
+    );
+    const row = result.rows[0];
+    if (!row) {
+      throw new SiteAnnouncementServiceError(
+        'PLAYER_BATTLE_ENTRIES_UPDATE_FAILED',
+        '玩家对战入口保存失败',
+        500
+      );
+    }
+    return {
+      ranked: row.ranked_entry_visible,
+      themeTable: row.theme_table_entry_visible,
+    };
   }
 
   async getGameplayRestriction(
