@@ -87,6 +87,15 @@ export interface ManualOperationModeView {
   readonly pendingRequest: ManualOperationModeRequestView | null;
 }
 
+export interface RankedStallView {
+  /** 当前唯一负责推进对局的席位。 */
+  readonly responsibleSeat: Seat;
+  /** 服务端权威操作超时截止时间，Unix 毫秒。 */
+  readonly deadlineAt: number;
+}
+
+export type RankedForfeitCause = 'DISCONNECT_TIMEOUT' | 'STALL_TIMEOUT';
+
 export type ViewerSurface = 'NONE' | 'BACK' | 'FRONT';
 
 export type PublicEventSource = 'PLAYER' | 'SYSTEM';
@@ -124,6 +133,8 @@ export interface MatchViewState {
   readonly undo?: OnlineUndoView;
   /** 当前投影必须显式携带权威操作模式。 */
   readonly manualOperation: ManualOperationModeView;
+  /** 仅排位对局在能够唯一归责时存在；不包含任何隐藏窗口内容。 */
+  readonly rankedStall?: RankedStallView;
   readonly seq: number;
 }
 
@@ -131,6 +142,8 @@ export interface MatchEndView {
   readonly reason: GameEndReason;
   readonly winnerSeat: Seat | null;
   readonly loserSeat: Seat | null;
+  /** 排位服务端判负的真实原因；主动认输和非排位终局不携带。 */
+  readonly rankedForfeitCause?: RankedForfeitCause;
 }
 
 export interface ViewParticipant {

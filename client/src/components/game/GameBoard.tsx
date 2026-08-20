@@ -46,6 +46,7 @@ import { ScoreConfirmModal } from './ScoreConfirmModal';
 import { BattleAnimationLayer } from './BattleAnimationLayer';
 import { BattleActionFeedbackLayer } from './BattleActionFeedbackLayer';
 import { BoardBackground } from './BoardBackground';
+import { RankedStallNotice } from './RankedStallNotice';
 import { EffectChoicePanel } from './EffectChoicePanel';
 import { Card } from '@/components/card/Card';
 import { CardEffectText } from '@/components/card/CardEffectText';
@@ -328,6 +329,7 @@ export const GameBoard = memo(function GameBoard({
   const currentSubPhase = useGameStore((s) => s.getCurrentSubPhaseView()) ?? SubPhase.NONE;
   const activeSeat = useGameStore((s) => s.getActiveSeatView());
   const viewerSeat = useGameStore((s) => s.getViewerSeat());
+  const rankedStall = useGameStore((s) => s.playerViewState?.match.rankedStall ?? null);
   const activeEffect = useGameStore((s) => s.playerViewState?.activeEffect ?? null);
   const pendingCostPayment = useGameStore((s) => s.playerViewState?.pendingCostPayment ?? null);
   const pendingSpecialMemberPlay = useGameStore(
@@ -2345,6 +2347,7 @@ export const GameBoard = memo(function GameBoard({
         <BoardBackground {...tableWallpaper} className="-z-10" />
         <BattleAnimationLayer />
         <BattleActionFeedbackLayer />
+        {!isReadOnly && <RankedStallNotice stall={rankedStall} viewerSeat={viewerSeat} />}
 
         {isReadOnly && replaySession && (
           <div className="pointer-events-none fixed left-4 top-4 z-[130] max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--border-default)] bg-[color:color-mix(in_srgb,var(--bg-frosted)_92%,transparent)] px-3 py-2 text-xs font-semibold text-[var(--text-primary)] shadow-[var(--shadow-md)] backdrop-blur-xl">

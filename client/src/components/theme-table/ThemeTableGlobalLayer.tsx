@@ -13,7 +13,7 @@ export function ThemeTableGlobalLayer({
 }: {
   enabled: boolean;
   showWaitingNotice?: boolean;
-  onEnterRoom: () => void;
+  onEnterRoom: () => void | Promise<void>;
 }) {
   const { overview, loading, error, refresh, heartbeat, confirm, cancel } = useThemeTableStore();
   const [now, setNow] = useState(() => Date.now());
@@ -52,7 +52,7 @@ export function ThemeTableGlobalLayer({
     if (enteredRoomRef.current === roomIdentity) return;
     enteredRoomRef.current = roomIdentity;
     window.sessionStorage.setItem(ONLINE_ROOM_STORAGE_KEY, status.roomCode);
-    onEnterRoom();
+    void onEnterRoom();
   }, [onEnterRoom, roomIdentity, status?.roomCode]);
 
   const remaining = useMemo(

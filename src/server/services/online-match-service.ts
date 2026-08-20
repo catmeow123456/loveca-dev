@@ -9,11 +9,14 @@ import {
   createEndPhaseCommand,
   GameCommandType,
   type GameCommand,
+  type SurrenderCommand,
 } from '../../application/game-commands.js';
 import type { DeckConfig } from '../../application/game-service.js';
 import type { AnyCardData } from '../../domain/entities/card.js';
 import type { GameState } from '../../domain/entities/game.js';
 import type { DeckPointValidationFacts } from '../../domain/rules/deck-point-table.js';
+import { RANKED_STALL_TIMEOUT_MS } from '../../online/ranked-policy.js';
+import { describeRankedSinglePlayerWait } from '../../online/ranked-stall.js';
 import type {
   MatchRecordCompleteness,
   MatchRecordStatus,
@@ -41,6 +44,7 @@ import type {
   PermissionViewState,
   PublicEvent,
   PublicEventsResponse,
+  RankedForfeitCause,
   RuntimeRecoveryInfo,
   Seat,
   SendOnlineMatchChatEntryInput,
@@ -145,6 +149,20 @@ interface OnlinePhaseCompletionGateRuntime {
   readonly gate: OnlinePhaseCompletionGate | null;
 }
 
+export interface RankedStallRuntime {
+  readonly waitKey: string;
+  readonly playerId: string;
+  readonly generation: number;
+  readonly startedAt: number;
+  readonly deadlineAt: number;
+}
+
+export interface RankedStallTimeoutCandidate extends RankedStallRuntime {
+  readonly matchId: string;
+  readonly userId: string;
+  readonly seat: Seat;
+}
+
 export interface OnlineMatchState {
   readonly matchId: string;
   readonly roomCode: string;
@@ -176,6 +194,12 @@ export interface OnlineMatchState {
    * 恢复时缺少此字段会以当前服务端时间保守重建。
    */
   phaseCompletionGateRuntime?: OnlinePhaseCompletionGateRuntime;
+  /** 排位单一责任玩家停滞计时；不进入 GameState/checkpoint/回放。 */
+  rankedStallRuntime?: RankedStallRuntime | null;
+  /** 计时清空后仍保留的进程内代际高水位，用于拒绝旧异步裁定。 */
+  rankedStallGeneration?: number;
+  /** 排位服务端判负原因；只用于当前联机终局投影，不写入 GameState/checkpoint。 */
+  rankedForfeitCause?: RankedForfeitCause | null;
   readonly chat: OnlineMatchChatRuntimeState;
   updatedAt: number;
   lastActivityAt: number;
@@ -466,6 +490,9 @@ export class OnlineMatchService {
         entryGeneration: 0,
         gate: null,
       },
+      rankedStallRuntime: null,
+      rankedStallGeneration: 0,
+      rankedForfeitCause: null,
       chat: createOnlineMatchChatRuntime(),
       updatedAt: now,
       lastActivityAt: now,
@@ -544,6 +571,7 @@ export class OnlineMatchService {
       }
     }
 
+    this.synchronizeRankedStallRuntime(state, now);
     this.matches.set(matchId, state);
     return state;
   }
@@ -557,6 +585,45 @@ export class OnlineMatchService {
     return match?.session.getAuthoritySnapshotForRecord()?.currentPhase === GamePhase.GAME_END;
   }
 
+  getRankedStallTimeoutCandidate(
+    matchId: string,
+    now = this.now()
+  ): RankedStallTimeoutCandidate | null {
+    const match = this.matches.get(matchId);
+    if (!match) {
+      return null;
+    }
+    const runtime = this.synchronizeRankedStallRuntime(match, now);
+    if (!runtime || now < runtime.deadlineAt) {
+      return null;
+    }
+    const participant = Object.values(match.participants).find(
+      (candidate) => candidate.playerId === runtime.playerId
+    );
+    return participant
+      ? {
+          ...runtime,
+          matchId,
+          userId: participant.userId,
+          seat: participant.seat,
+        }
+      : null;
+  }
+
+  isRankedStallTimeoutCandidateCurrent(
+    candidate: RankedStallTimeoutCandidate,
+    now = this.now()
+  ): boolean {
+    const current = this.getRankedStallTimeoutCandidate(candidate.matchId, now);
+    return (
+      current !== null &&
+      current.waitKey === candidate.waitKey &&
+      current.playerId === candidate.playerId &&
+      current.generation === candidate.generation &&
+      current.deadlineAt === candidate.deadlineAt
+    );
+  }
+
   async restoreMatch(match: OnlineMatchState): Promise<OnlineMatchState> {
     const existing = this.matches.get(match.matchId);
     if (existing) {
@@ -565,6 +632,7 @@ export class OnlineMatchService {
 
     this.sealedMatchIds.delete(match.matchId);
     this.synchronizePhaseCompletionGate(match);
+    this.synchronizeRankedStallRuntime(match);
     this.matches.set(match.matchId, match);
     if (match.recoveryNotice) {
       await this.appendSessionRecordFrame(match, 'SYSTEM_TRANSITION', {
@@ -679,6 +747,7 @@ export class OnlineMatchService {
     await this.expirePendingUndoRequestIfNeeded(match);
     await this.expirePendingManualOperationModeRequestIfNeeded(match);
     await this.expireActiveUndoGrantIfNeeded(match);
+    this.synchronizeRankedStallRuntime(match);
     touchMatch(match);
     const currentSeq = match.remoteRevision;
     const hasPendingRecoveryNotice = participant.seat === 'FIRST' && match.recoveryNotice !== null;
@@ -772,6 +841,7 @@ export class OnlineMatchService {
   ): OnlineMatchSnapshot {
     const now = this.now();
     const phaseCompletionGate = this.synchronizePhaseCompletionGate(match, now);
+    this.synchronizeRankedStallRuntime(match, now);
     const recoveryNotice = participant.seat === 'FIRST' ? match.recoveryNotice : null;
     const recovery = recoveryNotice
       ? {
@@ -1407,6 +1477,11 @@ export class OnlineMatchService {
       incrementRemoteRevision(match);
     }
     this.synchronizePhaseCompletionGate(match);
+    this.synchronizeRankedStallRuntime(
+      match,
+      this.now(),
+      result.success ? participant.playerId : undefined
+    );
     await this.appendSessionRecordFrame(
       match,
       result.success ? 'COMMAND_ACCEPTED' : 'COMMAND_REJECTED',
@@ -1439,6 +1514,32 @@ export class OnlineMatchService {
       success: true,
       snapshot: this.buildSnapshotForParticipant(match, participant),
     };
+  }
+
+  async executeRankedForfeitCommand(
+    matchId: string,
+    userId: string,
+    cause: RankedForfeitCause,
+    command: SurrenderCommand
+  ): Promise<OnlineCommandResult | null> {
+    const match = this.matches.get(matchId);
+    if (!match || match.originKind !== 'RANKED') {
+      return null;
+    }
+
+    match.rankedForfeitCause = cause;
+    try {
+      const result = await this.executeCommand(matchId, userId, command);
+      if (!result?.success && match.rankedForfeitCause === cause) {
+        match.rankedForfeitCause = null;
+      }
+      return result;
+    } catch (error) {
+      if (!this.isMatchCompleted(matchId) && match.rankedForfeitCause === cause) {
+        match.rankedForfeitCause = null;
+      }
+      throw error;
+    }
   }
 
   async advancePhase(matchId: string, userId: string): Promise<OnlineCommandResult | null> {
@@ -1547,6 +1648,46 @@ export class OnlineMatchService {
       gate,
     };
     return gate;
+  }
+
+  private synchronizeRankedStallRuntime(
+    match: OnlineMatchState,
+    now = this.now(),
+    acceptedPlayerId?: string
+  ): RankedStallRuntime | null {
+    const state = match.session.state;
+    if (match.originKind !== 'RANKED' || match.matchMode !== 'ONLINE' || !state) {
+      match.rankedStallRuntime = null;
+      return null;
+    }
+
+    const wait = describeRankedSinglePlayerWait(state);
+    if (!wait) {
+      match.rankedStallRuntime = null;
+      return null;
+    }
+
+    const runtime = match.rankedStallRuntime ?? null;
+    const acceptedResponsibleCommand = acceptedPlayerId === wait.playerId;
+    if (
+      runtime &&
+      runtime.waitKey === wait.key &&
+      runtime.playerId === wait.playerId &&
+      !acceptedResponsibleCommand
+    ) {
+      return runtime;
+    }
+
+    const generation = (match.rankedStallGeneration ?? runtime?.generation ?? 0) + 1;
+    match.rankedStallGeneration = generation;
+    match.rankedStallRuntime = {
+      waitKey: wait.key,
+      playerId: wait.playerId,
+      generation,
+      startedAt: now,
+      deadlineAt: now + RANKED_STALL_TIMEOUT_MS,
+    };
+    return match.rankedStallRuntime;
   }
 
   getUndoAvailability(matchId: string, userId: string, policy?: UndoPolicy): OnlineUndoView | null {
@@ -3124,12 +3265,23 @@ function buildSnapshot(
   if (!projectedViewState) {
     throw new Error('联机玩家视图不存在');
   }
+  const rankedStall = buildRankedStallView(match);
+  const rankedForfeitCause = match.rankedForfeitCause ?? null;
   const playerViewState = {
     ...projectedViewState,
     match: {
       ...projectedViewState.match,
       undo: options.undoView ?? buildOnlineUndoView(match, participant),
       manualOperation: buildManualOperationModeView(match),
+      ...(rankedStall ? { rankedStall } : {}),
+      ...(projectedViewState.match.endInfo && rankedForfeitCause
+        ? {
+            endInfo: {
+              ...projectedViewState.match.endInfo,
+              rankedForfeitCause,
+            },
+          }
+        : {}),
     },
     permissions: options.phaseCompletionGateProjection
       ? projectPhaseCompletionGateAvailability(
@@ -3282,6 +3434,19 @@ function buildManualOperationModeView(match: OnlineMatchState): ManualOperationM
         }
       : null,
   };
+}
+
+function buildRankedStallView(
+  match: OnlineMatchState
+): { readonly responsibleSeat: Seat; readonly deadlineAt: number } | null {
+  const runtime = match.rankedStallRuntime ?? null;
+  const responsibleSeat = getSeatByPlayerId(match, runtime?.playerId);
+  return runtime && responsibleSeat
+    ? {
+        responsibleSeat,
+        deadlineAt: runtime.deadlineAt,
+      }
+    : null;
 }
 
 function buildSpectatorLinkView(link: OnlineSpectatorLinkState): OnlineSpectatorLinkView {

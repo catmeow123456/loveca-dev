@@ -13,7 +13,7 @@ export function RankedGlobalLayer({
 }: {
   enabled: boolean;
   showWaitingNotice?: boolean;
-  onEnterRoom: () => void;
+  onEnterRoom: () => void | Promise<void>;
 }) {
   const overview = useRankedStore((state) => state.overview);
   const loading = useRankedStore((state) => state.loading);
@@ -62,7 +62,7 @@ export function RankedGlobalLayer({
     if (enteredRoomIdentityRef.current === matchedRoomIdentity) return;
     enteredRoomIdentityRef.current = matchedRoomIdentity;
     window.sessionStorage.setItem(ONLINE_ROOM_STORAGE_KEY, status.roomCode);
-    onEnterRoom();
+    void onEnterRoom();
   }, [matchedRoomIdentity, onEnterRoom, status?.roomCode]);
 
   const remainingSeconds = useMemo(() => {

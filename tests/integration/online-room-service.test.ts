@@ -16,6 +16,7 @@ import {
   HeartColor,
   SlotPosition,
   SubPhase,
+  ZoneType,
 } from '../../src/shared/types/enums';
 import {
   OnlineRoomService,
@@ -3581,6 +3582,10 @@ describe('OnlineRoomService', () => {
       reason: GameEndReason.OPPONENT_SURRENDER,
       winnerId: expect.stringContaining('u2'),
     });
+    const loserSnapshot = await matchService.getMatchSnapshot(started.matchId!, 'u1');
+    expect(loserSnapshot?.playerViewState.match.endInfo).toMatchObject({
+      rankedForfeitCause: 'DISCONNECT_TIMEOUT',
+    });
     expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
       expect.stringContaining("result_type = 'DISCONNECT_FORFEIT'"),
       [started.matchId]
@@ -3647,6 +3652,124 @@ describe('OnlineRoomService', () => {
 
     expect(summary.rankedDisconnectForfeitCount).toBe(0);
     expect(matchService.isMatchCompleted(started.matchId!)).toBe(false);
+  });
+
+  it('排位检视效果责任方持续在线轮询但三分钟无成功操作时仍应判负', async () => {
+    let now = 25_000;
+    const matchService = createInMemoryMatchService({ now: () => now });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      '13131313-3333-4333-8444-555555555555',
+      '14141414-3333-4333-8444-555555555555',
+      'stall-inspection',
+      now
+    );
+    const match = matchService.getMatch(started.matchId!);
+    const state = match?.session.state;
+    if (!match || !state) throw new Error('missing ranked match');
+    const mutable = state as unknown as {
+      activeEffect: unknown;
+      inspectionContext: unknown;
+    };
+    mutable.activeEffect = {
+      id: 'incident-inspection-effect',
+      abilityId: 'incident-inspection-ability',
+      sourceCardId: 'incident-source-card',
+      controllerId: match.participants.FIRST.playerId,
+      effectText: '检视卡组顶 3 张，可选择符合条件的卡牌加入手牌',
+      stepId: 'select-or-skip',
+      stepText: '请选择或继续处理',
+      awaitingPlayerId: match.participants.FIRST.playerId,
+      selectableCardIds: [],
+      canSkipSelection: true,
+    };
+    mutable.inspectionContext = {
+      ownerPlayerId: match.participants.FIRST.playerId,
+      sourceZone: ZoneType.MAIN_DECK,
+    };
+    await matchService.getMatchSnapshot(match.matchId, 'u1');
+    await matchService.getMatchSnapshot(match.matchId, 'u2');
+    const deadlineAt = match.rankedStallRuntime?.deadlineAt;
+    expect(deadlineAt).toBe(now + 180_000);
+
+    now = deadlineAt! + 1;
+    service.touchInGameMemberByMatch(match.matchId, 'u1');
+    service.touchInGameMemberByMatch(match.matchId, 'u2');
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedDisconnectForfeitCount).toBe(0);
+    expect(summary.rankedStallForfeitCount).toBe(1);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(true);
+    expect(match.session.state?.endInfo).toMatchObject({
+      reason: GameEndReason.OPPONENT_SURRENDER,
+      loserId: match.participants.FIRST.playerId,
+      winnerId: match.participants.SECOND.playerId,
+    });
+    const loserSnapshot = await matchService.getMatchSnapshot(match.matchId, 'u1');
+    expect(loserSnapshot?.playerViewState.match.endInfo).toMatchObject({
+      rankedForfeitCause: 'STALL_TIMEOUT',
+    });
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining("result_type = 'DISCONNECT_FORFEIT'"),
+      [match.matchId]
+    );
+  });
+
+  it('操作超时 CAS 等待期间责任玩家成功操作时应撤销旧代际裁定', async () => {
+    let now = 35_000;
+    const matchService = createInMemoryMatchService({ now: () => now });
+    const service = new OnlineRoomService({
+      now: () => now,
+      matchService,
+      loadUserProfile: async (userId) => ({ userId, displayName: userId }),
+    });
+    const started = await startRankedPublicTableRoom(
+      service,
+      '15151515-3333-4333-8444-555555555555',
+      '16161616-3333-4333-8444-555555555555',
+      'stall-race',
+      now
+    );
+    const match = matchService.getMatch(started.matchId!);
+    if (!match) throw new Error('missing ranked match');
+    forceMainPhaseForFirst(match);
+    (match.session.state as unknown as { manualOperationMode: 'FREE' }).manualOperationMode =
+      'FREE';
+    await matchService.getMatchSnapshot(match.matchId, 'u1');
+    const expiredGeneration = match.rankedStallRuntime?.generation;
+    const deadlineAt = match.rankedStallRuntime?.deadlineAt;
+
+    now = deadlineAt! + 1;
+    service.touchInGameMemberByMatch(match.matchId, 'u1');
+    service.touchInGameMemberByMatch(match.matchId, 'u2');
+    vi.mocked(pool.query).mockImplementation(async (text) => {
+      if (text.includes("SET result_type = 'DISCONNECT_FORFEIT'")) {
+        const accepted = await matchService.executeCommand(
+          match.matchId,
+          'u1',
+          createDrawCardToHandCommand('ignored')
+        );
+        expect(accepted?.success).toBe(true);
+        return { rows: [{ match_id: match.matchId }], rowCount: 1 } as never;
+      }
+      return { rows: [], rowCount: 0 } as never;
+    });
+
+    const summary = await service.cleanupExpiredRuntimeState();
+
+    expect(summary.rankedStallForfeitCount).toBe(0);
+    expect(matchService.isMatchCompleted(match.matchId)).toBe(false);
+    expect(match.rankedStallRuntime?.generation).toBeGreaterThan(expiredGeneration ?? 0);
+    expect(match.rankedStallRuntime?.deadlineAt).toBe(now + 180_000);
+    expect(vi.mocked(pool.query)).toHaveBeenCalledWith(
+      expect.stringContaining('SET result_type = NULL'),
+      [match.matchId]
+    );
   });
 
   it('排位双方均超过重连期限且最后在线相差不超过五秒时应保留为平台无结果', async () => {

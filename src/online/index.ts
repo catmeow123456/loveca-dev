@@ -9,3 +9,4 @@ export * from './replay-types.js';
 export * from './public-table-types.js';
 export * from './chat-types.js';
 export * from './ranked-policy.js';
+export * from './ranked-stall.js';

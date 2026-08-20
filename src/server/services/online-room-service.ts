@@ -162,6 +162,7 @@ export interface OnlineRoomRuntimeCleanupSummary {
   readonly checkedRoomCount: number;
   readonly destroyedRoomCount: number;
   readonly rankedDisconnectForfeitCount: number;
+  readonly rankedStallForfeitCount: number;
   readonly rankedPlatformNoContestCount: number;
   readonly matchCleanup: OnlineMatchCleanupSummary;
 }
@@ -1702,6 +1703,7 @@ export class OnlineRoomService {
     let checkedRoomCount = 0;
     let destroyedRoomCount = 0;
     let rankedDisconnectForfeitCount = 0;
+    let rankedStallForfeitCount = 0;
     let rankedPlatformNoContestCount = 0;
 
     for (const [roomCode, room] of this.rooms) {
@@ -1846,9 +1848,10 @@ export class OnlineRoomService {
             let result;
             let commandFailed = false;
             try {
-              result = await this.matchService.executeCommand(
+              result = await this.matchService.executeRankedForfeitCommand(
                 room.matchId,
                 forfeitingMember.userId,
+                'DISCONNECT_TIMEOUT',
                 {
                   ...createSurrenderCommand(forfeitingMember.userId),
                   timestamp: now,
@@ -1882,6 +1885,12 @@ export class OnlineRoomService {
             } else if (!commandFailed) {
               await clearPendingDisconnectForfeit(room.matchId);
             }
+          }
+          if (
+            !this.matchService.isMatchCompleted(room.matchId) &&
+            (await this.adjudicateRankedStallTimeout(room.matchId, now))
+          ) {
+            rankedStallForfeitCount += 1;
           }
         }
         const shouldPreserveUnfinishedRankedMatch =
@@ -1939,9 +1948,119 @@ export class OnlineRoomService {
       checkedRoomCount,
       destroyedRoomCount,
       rankedDisconnectForfeitCount,
+      rankedStallForfeitCount,
       rankedPlatformNoContestCount,
       matchCleanup,
     };
+  }
+
+  private async adjudicateRankedStallTimeout(
+    matchId: string,
+    observedAt: number
+  ): Promise<boolean> {
+    const candidate = this.matchService.getRankedStallTimeoutCandidate(matchId, observedAt);
+    if (!candidate) {
+      return false;
+    }
+
+    const claimed = await pool.query(
+      `UPDATE ranked_matches
+       SET result_type = 'DISCONNECT_FORFEIT',
+           updated_at = NOW()
+       WHERE match_id = $1
+         AND rating_status = 'PENDING'
+         AND result_type IS NULL
+       RETURNING match_id`,
+      [matchId]
+    );
+    if ((claimed.rowCount ?? 0) === 0) {
+      console.warn(
+        JSON.stringify({
+          scope: 'ranked_match',
+          event: 'RANKED_STALL_FORFEIT_CLAIM_SKIPPED',
+          matchId,
+          responsibleUserId: candidate.userId,
+          waitKey: candidate.waitKey,
+          generation: candidate.generation,
+        })
+      );
+      return false;
+    }
+
+    const adjudicatedAt = this.now();
+    if (!this.matchService.isRankedStallTimeoutCandidateCurrent(candidate, adjudicatedAt)) {
+      await clearPendingDisconnectForfeit(matchId);
+      console.info(
+        JSON.stringify({
+          scope: 'ranked_match',
+          event: 'RANKED_STALL_FORFEIT_REVOKED',
+          matchId,
+          responsibleUserId: candidate.userId,
+          waitKey: candidate.waitKey,
+          generation: candidate.generation,
+        })
+      );
+      return false;
+    }
+
+    try {
+      const result = await this.matchService.executeRankedForfeitCommand(
+        matchId,
+        candidate.userId,
+        'STALL_TIMEOUT',
+        {
+          ...createSurrenderCommand(candidate.playerId),
+          timestamp: adjudicatedAt,
+          idempotencyKey: `ranked-stall-forfeit:${matchId}:${candidate.playerId}:${candidate.generation}`,
+        }
+      );
+      if (result?.success) {
+        console.info(
+          JSON.stringify({
+            scope: 'ranked_match',
+            event: 'RANKED_STALL_FORFEIT',
+            cause: 'RANKED_STALL_TIMEOUT',
+            matchId,
+            responsibleUserId: candidate.userId,
+            responsibleSeat: candidate.seat,
+            waitKey: candidate.waitKey,
+            generation: candidate.generation,
+            deadlineAt: candidate.deadlineAt,
+          })
+        );
+        return true;
+      }
+
+      await clearPendingDisconnectForfeit(matchId);
+      console.error(
+        JSON.stringify({
+          scope: 'ranked_match',
+          event: 'RANKED_STALL_FORFEIT_DEFERRED',
+          cause: 'RANKED_STALL_TIMEOUT',
+          matchId,
+          responsibleUserId: candidate.userId,
+          waitKey: candidate.waitKey,
+          generation: candidate.generation,
+          message: result?.error ?? '操作超时认输命令未到达对局',
+        })
+      );
+      return false;
+    } catch (error) {
+      await clearPendingDisconnectForfeit(matchId);
+      console.error(
+        JSON.stringify({
+          scope: 'ranked_match',
+          event: 'RANKED_STALL_FORFEIT_DEFERRED',
+          cause: 'RANKED_STALL_TIMEOUT',
+          matchId,
+          responsibleUserId: candidate.userId,
+          waitKey: candidate.waitKey,
+          generation: candidate.generation,
+          message: readErrorMessage(error),
+        })
+      );
+      return false;
+    }
   }
 
   private async closePublicTableOpening(

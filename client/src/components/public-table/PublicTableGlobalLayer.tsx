@@ -13,7 +13,7 @@ export function PublicTableGlobalLayer({
 }: {
   enabled: boolean;
   userId: string | null;
-  onEnterRoom: () => void;
+  onEnterRoom: () => void | Promise<void>;
 }) {
   const status = usePublicTableStore((state) => state.status);
   const sessionUserId = usePublicTableStore((state) => state.sessionUserId);
@@ -68,7 +68,7 @@ export function PublicTableGlobalLayer({
     }
     enteredRoomIdentityRef.current = matchedRoomIdentity;
     window.sessionStorage.setItem(ONLINE_ROOM_STORAGE_KEY, visibleStatus.roomCode);
-    onEnterRoom();
+    void onEnterRoom();
   }, [matchedRoomIdentity, onEnterRoom, visibleStatus?.roomCode]);
 
   const remainingSeconds = useMemo(() => {

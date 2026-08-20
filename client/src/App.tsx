@@ -288,7 +288,15 @@ function App() {
     setDeckManagerReturnPage(returnPage);
     setCurrentPage('deck-manager');
   }, []);
-  const enterOnlineRoom = useCallback(() => setCurrentPage('online-room'), []);
+  const enterOnlineRoom = useCallback(async () => {
+    // 匹配期间允许玩家继续进行对墙打。真人房间就绪后，先结束这个
+    // 可恢复的对墙打会话，避免旧远程桌面和新房间同时占用当前视图。
+    const currentGame = useGameStore.getState();
+    if (currentGame.remoteSession?.source === 'SOLITAIRE') {
+      await currentGame.leaveCurrentGame();
+    }
+    setCurrentPage('online-room');
+  }, []);
   const [appConfig, setAppConfig] = useState<PublicAppConfig>(DEFAULT_APP_CONFIG);
   const [configInitialized, setConfigInitialized] = useState(false);
   const appConfigRenderKeyRef = useRef(buildPublicAppConfigRenderKey(DEFAULT_APP_CONFIG));

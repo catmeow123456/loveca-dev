@@ -73,6 +73,7 @@ import {
   writeLastUsedDeckId,
 } from '@/lib/deckSelectionPreferences';
 import { getOnlineRoomLeaveConfirmCopy } from '@/lib/leaveConfirmCopy';
+import { getOnlineMatchEndCopy } from '@/lib/onlineMatchEndCopy';
 import {
   getOnlineRoomPostMatchActionState,
   type OnlineRoomPostMatchActionState,
@@ -81,7 +82,7 @@ import { SerialPollingScheduler } from '@/lib/asyncRequestControl';
 import { ApiClientError } from '@/lib/apiClient';
 import { RANKED_RECONNECT_GRACE_PERIOD_LABEL } from '@game/online/ranked-policy';
 import type { ThemeTableEventView } from '@game/online/theme-table-types';
-import { GameEndReason, GamePhase } from '@game/shared/types/enums';
+import { GamePhase } from '@game/shared/types/enums';
 import type {
   MatchEndView,
   OnlineRoomView,
@@ -2619,31 +2620,6 @@ function OnlineMatchEndPanel({
       </section>
     </div>
   );
-}
-
-function getOnlineMatchEndCopy(
-  endInfo: MatchEndView,
-  viewerSeat: Seat
-): {
-  title: string;
-  detail: string;
-} {
-  if (endInfo.reason === GameEndReason.OPPONENT_SURRENDER) {
-    if (endInfo.loserSeat === viewerSeat) {
-      return { title: '你已认输', detail: '本局结束。' };
-    }
-    if (endInfo.winnerSeat === viewerSeat) {
-      return { title: '本局获胜', detail: '对方已认输。' };
-    }
-  }
-
-  if (endInfo.winnerSeat === viewerSeat) {
-    return { title: '本局获胜', detail: '你已达成胜利条件。' };
-  }
-  if (endInfo.loserSeat === viewerSeat) {
-    return { title: '本局结束', detail: '对手已达成胜利条件。' };
-  }
-  return { title: '本局结束', detail: '本局以平局结束。' };
 }
 
 function RoomActionPanel({
