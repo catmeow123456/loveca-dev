@@ -45,6 +45,7 @@ interface AuthState {
     password: string
   ) => Promise<{ success: boolean; error?: string; code?: string }>;
   signOut: () => Promise<void>;
+  invalidateSession: (message: string) => void;
   updateProfile: (updates: Partial<Profile>) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   updatePassword: (
@@ -210,6 +211,18 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
         }
+      },
+
+      invalidateSession: (message) => {
+        setAccessToken(null);
+        set({
+          user: null,
+          profile: null,
+          offlineMode: false,
+          offlineUser: null,
+          isLoading: false,
+          error: message,
+        });
       },
 
       updateProfile: async (updates) => {

@@ -62,6 +62,8 @@ import { cardService } from '@/lib/cardService';
 import { PublicTableGlobalLayer } from '@/components/public-table/PublicTableGlobalLayer';
 import { RankedGlobalLayer } from '@/components/ranked/RankedGlobalLayer';
 import { ThemeTableGlobalLayer } from '@/components/theme-table/ThemeTableGlobalLayer';
+import { hasAnyManagementPermission, hasPermission } from '@game/shared/auth/permissions';
+import { AUTHORIZATION_STALE_EVENT } from '@/lib/apiClient';
 
 const GameBoard = lazy(() => import('@/components/game/GameBoard'));
 const DeckManager = lazy(() =>
@@ -157,6 +159,11 @@ const ThemeTableAdminPage = lazy(() =>
     default: module.ThemeTableAdminPage,
   }))
 );
+const UserAdminPage = lazy(() =>
+  import('@/components/admin/UserAdminPage').then((module) => ({
+    default: module.UserAdminPage,
+  }))
+);
 
 type AuthPage =
   | 'landing'
@@ -187,7 +194,8 @@ type AppPage =
   | 'ranked-admin'
   | 'deck-point-admin'
   | 'match-emotes-admin'
-  | 'theme-table-admin';
+  | 'theme-table-admin'
+  | 'users-admin';
 
 const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'admin-center',
@@ -198,6 +206,7 @@ const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'ranked-admin',
   'deck-point-admin',
   'match-emotes-admin',
+  'users-admin',
 ]);
 
 function pageRequiresRuntimeCardData(page: AppPage): boolean {
@@ -264,6 +273,7 @@ function getInitialPage(): AppPage {
     page === 'deck-point-admin' ||
     page === 'match-emotes-admin' ||
     page === 'theme-table-admin' ||
+    page === 'users-admin' ||
     page === 'platform-config'
   ) {
     return page === 'platform-config' ? 'announcement-admin' : page;
@@ -369,9 +379,20 @@ function App() {
   const initializeAuth = useAuthStore((s) => s.initialize);
   const enterOfflineMode = useAuthStore((s) => s.enterOfflineMode);
   const signOut = useAuthStore((s) => s.signOut);
+  const invalidateSession = useAuthStore((s) => s.invalidateSession);
   const setPublicTableSessionUser = usePublicTableStore((s) => s.setSessionUser);
   const setWallpaperSessionUser = usePlayerWallpaperStore((s) => s.setSessionUser);
   const publicTableSessionUserId = user && profile && !offlineMode ? user.id : null;
+
+  useEffect(() => {
+    const handleAuthorizationStale = () => {
+      setCurrentPage('home');
+      setAuthPage('login');
+      invalidateSession('权限已变更，请重新登录');
+    };
+    window.addEventListener(AUTHORIZATION_STALE_EVENT, handleAuthorizationStale);
+    return () => window.removeEventListener(AUTHORIZATION_STALE_EVENT, handleAuthorizationStale);
+  }, [invalidateSession]);
 
   useLayoutEffect(() => {
     setPublicTableSessionUser(publicTableSessionUserId);
@@ -1159,9 +1180,10 @@ function App() {
     );
   }
 
-  if (effectivePage === 'admin-center' && profile?.role === 'admin') {
+  if (effectivePage === 'admin-center' && profile && hasAnyManagementPermission(profile.role)) {
     return withProductFrame(
       <AdminCenterPage
+        role={profile.role}
         onBack={() => setCurrentPage('home')}
         onOpenMatchEmotes={() => setCurrentPage('match-emotes-admin')}
         onOpenAnnouncements={() => setCurrentPage('announcement-admin')}
@@ -1171,6 +1193,7 @@ function App() {
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
         onOpenRanked={() => setCurrentPage('ranked-admin')}
         onOpenThemeTable={() => setCurrentPage('theme-table-admin')}
+        onOpenUsers={() => setCurrentPage('users-admin')}
         battleEntryVisibility={appConfig.features.battleEntries}
         onBattleEntryVisibilityChanged={refreshAppConfig}
       />,
@@ -1179,7 +1202,7 @@ function App() {
   }
 
   // 卡牌管理页面
-  if (effectivePage === 'card-admin' && profile?.role === 'admin') {
+  if (effectivePage === 'card-admin' && profile && hasPermission(profile.role, 'cards.manage')) {
     return withProductFrame(
       <CardAdminPage
         onBack={() => setCurrentPage('admin-center')}
@@ -1189,7 +1212,11 @@ function App() {
     );
   }
 
-  if (effectivePage === 'ai-effect-admin' && profile?.role === 'admin') {
+  if (
+    effectivePage === 'ai-effect-admin' &&
+    profile &&
+    hasPermission(profile.role, 'cards.manage')
+  ) {
     return withProductFrame(
       <AiEffectExtractionAdminPage
         onBack={() => setCurrentPage('admin-center')}
@@ -1199,14 +1226,22 @@ function App() {
     );
   }
 
-  if (effectivePage === 'online-admin' && profile?.role === 'admin') {
+  if (
+    effectivePage === 'online-admin' &&
+    profile &&
+    hasPermission(profile.role, 'platform.manage')
+  ) {
     return withProductFrame(
       <OnlineRoomsAdminPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
   }
 
-  if (effectivePage === 'announcement-admin' && profile?.role === 'admin') {
+  if (
+    effectivePage === 'announcement-admin' &&
+    profile &&
+    hasPermission(profile.role, 'platform.manage')
+  ) {
     return withProductFrame(
       <SiteAnnouncementsAdminPage
         onBack={() => setCurrentPage('admin-center')}
@@ -1217,21 +1252,33 @@ function App() {
     );
   }
 
-  if (effectivePage === 'ranked-admin' && profile?.role === 'admin') {
+  if (
+    effectivePage === 'ranked-admin' &&
+    profile &&
+    hasPermission(profile.role, 'season.ranked.manage')
+  ) {
     return withProductFrame(
       <RankedAdminPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
   }
 
-  if (effectivePage === 'deck-point-admin' && profile?.role === 'admin') {
+  if (
+    effectivePage === 'deck-point-admin' &&
+    profile &&
+    hasPermission(profile.role, 'rules.manage')
+  ) {
     return withProductFrame(
       <DeckPointTablesAdminPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
   }
 
-  if (effectivePage === 'match-emotes-admin' && profile?.role === 'admin') {
+  if (
+    effectivePage === 'match-emotes-admin' &&
+    profile &&
+    hasPermission(profile.role, 'platform.manage')
+  ) {
     return withProductFrame(
       <MatchEmotesAdminPage
         onBack={() => setCurrentPage('admin-center')}
@@ -1241,11 +1288,19 @@ function App() {
     );
   }
 
-  if (effectivePage === 'theme-table-admin' && profile?.role === 'admin') {
+  if (
+    effectivePage === 'theme-table-admin' &&
+    profile &&
+    hasPermission(profile.role, 'season.theme.manage')
+  ) {
     return withProductFrame(
       <ThemeTableAdminPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
+  }
+
+  if (effectivePage === 'users-admin' && profile && hasPermission(profile.role, 'users.list')) {
+    return withProductFrame(<UserAdminPage onBack={() => setCurrentPage('admin-center')} />, null);
   }
 
   // 主页

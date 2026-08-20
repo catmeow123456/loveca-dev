@@ -45,8 +45,9 @@ import type {
   WallpaperFocus,
   WideWallpaperMode,
 } from '../../online/player-wallpaper-types.js';
+import type { UserRole } from '../../shared/auth/permissions.js';
 
-export type UserRole = 'user' | 'admin';
+export type { UserRole } from '../../shared/auth/permissions.js';
 export type CardType = 'MEMBER' | 'LIVE' | 'ENERGY';
 export type CardStatus = 'DRAFT' | 'PUBLISHED';
 export type DeckPointTableLifecycle = 'DRAFT' | 'SCHEDULED' | 'ACTIVE' | 'RETIRED';
@@ -261,7 +262,51 @@ export const profiles = pgTable(
   (table) => [
     index('idx_profiles_username').on(table.username),
     index('idx_profiles_role').on(table.role),
-    check('profiles_role_check', sql`${table.role} IN ('user', 'admin')`),
+    check('profiles_role_check', sql`${table.role} IN ('user', 'season_admin', 'admin')`),
+  ]
+);
+
+export const managementAuditLogs = pgTable(
+  'management_audit_logs',
+  {
+    id: uuid('id')
+      .default(sql`gen_random_uuid()`)
+      .primaryKey(),
+    actorUserId: uuid('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+    actorRole: text('actor_role').$type<UserRole>().notNull(),
+    scope: text('scope').notNull(),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: text('target_id').notNull(),
+    requestId: text('request_id').notNull(),
+    result: text('result').notNull(),
+    reason: text('reason'),
+    before: jsonb('before'),
+    after: jsonb('after'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index('idx_management_audit_actor_created').on(table.actorUserId, table.createdAt),
+    index('idx_management_audit_scope_target_created').on(
+      table.scope,
+      table.targetType,
+      table.targetId,
+      table.createdAt
+    ),
+    index('idx_management_audit_created').on(table.createdAt),
+    check(
+      'management_audit_actor_role_check',
+      sql`${table.actorRole} IN ('user', 'season_admin', 'admin')`
+    ),
+    check(
+      'management_audit_scope_check',
+      sql`${table.scope} IN ('RANKED', 'THEME_TABLE', 'SEASON_ENTRY_VISIBILITY')`
+    ),
+    check('management_audit_action_check', sql`btrim(${table.action}) <> ''`),
+    check('management_audit_target_type_check', sql`btrim(${table.targetType}) <> ''`),
+    check('management_audit_target_id_check', sql`btrim(${table.targetId}) <> ''`),
+    check('management_audit_request_id_check', sql`btrim(${table.requestId}) <> ''`),
+    check('management_audit_result_check', sql`${table.result} IN ('SUCCEEDED', 'FAILED')`),
   ]
 );
 

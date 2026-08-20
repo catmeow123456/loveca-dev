@@ -12,6 +12,7 @@ export {
 } from './DeckStats';
 export { ConfirmDialog } from './ConfirmDialog';
 export { PageHeader } from './PageHeader';
+export { SelectMenu, type SelectMenuOption, type SelectMenuProps } from './SelectMenu';
 export { ProductFrame, type ProductNavigationHandlers, type ProductNavKey } from './ProductFrame';
 export { ProductBrand } from './ProductBrand';
 export { ProductHeader } from './ProductHeader';

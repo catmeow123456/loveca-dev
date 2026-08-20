@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../middleware/require-auth.js';
-import { requireAdmin } from '../middleware/require-admin.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import { uploadObject, deleteObjects, getObject } from '../services/minio-service.js';
 
 export const imagesRouter = Router();
+const requireCardsManage = requirePermission('cards.manage');
 export const publicImagesRouter = Router();
 
 const upload = multer({
@@ -68,7 +69,7 @@ publicImagesRouter.get('/:folder/:fileName', async (req, res, next) => {
 imagesRouter.post(
   '/:cardCode',
   requireAuth,
-  requireAdmin,
+  requireCardsManage,
   upload.fields(SIZES.map((s) => ({ name: s, maxCount: 1 }))),
   async (req, res, next) => {
     try {
@@ -110,7 +111,7 @@ imagesRouter.post(
 // DELETE /api/images/:cardCode
 // ============================================
 
-imagesRouter.delete('/:cardCode', requireAuth, requireAdmin, async (req, res, next) => {
+imagesRouter.delete('/:cardCode', requireAuth, requireCardsManage, async (req, res, next) => {
   try {
     const cardCode = req.params.cardCode as string;
     const encodedCode = encodeURIComponent(cardCode);

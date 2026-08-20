@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { SITE_ANNOUNCEMENT_TYPES, SITE_STATUS_LIFECYCLES } from '../site-status.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { requireAdmin } from '../middleware/require-admin.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import { validate } from '../middleware/validate.js';
 import {
   SiteAnnouncementServiceError,
@@ -83,7 +84,7 @@ siteAnnouncementsRouter.put(
 siteAnnouncementsRouter.put(
   '/admin/player-battle-entries',
   requireAuth,
-  requireAdmin,
+  requirePermission('season.entry_visibility.manage'),
   validate(playerBattleEntryVisibilityInputSchema),
   async (req, res) => {
     try {

@@ -1,5 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
+
+const permissionMocks = vi.hoisted(() => ({ poolQuery: vi.fn() }));
+
+vi.mock('../../src/server/db/pool.js', () => ({
+  pool: { query: permissionMocks.poolQuery },
+}));
 
 vi.mock('../../src/server/services/site-announcement-service.js', () => ({
   SiteAnnouncementServiceError: class SiteAnnouncementServiceError extends Error {
@@ -103,16 +109,21 @@ async function invokeRoute(path: string, method: RouteMethod, options: Partial<R
 }
 
 describe('siteAnnouncementsRouter', () => {
-  afterEach(() => {
-    vi.clearAllMocks();
+  beforeEach(() => {
+    permissionMocks.poolQuery.mockResolvedValue({ rows: [{ role: 'admin' }], rowCount: 1 });
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
   });
 
-  it('requires admin role for announcement management routes', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+  });
+
+  it('requires platform admin role for announcement and maintenance routes', () => {
     const adminRoutes: readonly [string, RouteMethod][] = [
       ['/admin', 'get'],
       ['/admin/site-status', 'get'],
       ['/admin/site-status', 'put'],
-      ['/admin/player-battle-entries', 'put'],
       ['/admin', 'post'],
       ['/admin/:id', 'put'],
       ['/admin/:id/publish', 'post'],
@@ -135,6 +146,23 @@ describe('siteAnnouncementsRouter', () => {
       expect(response.body?.error?.code, `${method.toUpperCase()} ${path}`).toBe('FORBIDDEN');
       expect(next, `${method.toUpperCase()} ${path}`).not.toHaveBeenCalled();
     }
+  });
+
+  it('allows a current season administrator to update only player season entry visibility', async () => {
+    permissionMocks.poolQuery.mockResolvedValue({
+      rows: [{ role: 'season_admin' }],
+      rowCount: 1,
+    });
+    const route = findRoute('/admin/player-battle-entries', 'put');
+    const response = createMockResponse();
+    const next = vi.fn();
+
+    await route.stack
+      .at(1)
+      ?.handle({ user: { id: 'season-admin-1', role: 'season_admin' } } as Request, response, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(response.body).toBeNull();
   });
 
   it('updates site maintenance status for the current admin', async () => {

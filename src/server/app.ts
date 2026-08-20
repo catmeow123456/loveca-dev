@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser';
 import { URL } from 'node:url';
 import { config } from './config.js';
 import { authenticate } from './middleware/authenticate.js';
+import { attachRequestContext } from './middleware/request-context.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { authRouter } from './routes/auth.js';
 import { cardsRouter } from './routes/cards.js';
@@ -26,6 +27,7 @@ import { aiEffectExtractionRouter } from './routes/ai-effect-extraction.js';
 import { playerWallpapersRouter } from './routes/player-wallpapers.js';
 import { themeTableRouter } from './routes/theme-table.js';
 import { themeTableAdminRouter } from './routes/theme-table-admin.js';
+import { adminUsersRouter } from './routes/admin-users.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -70,6 +72,7 @@ export function createApp(): express.Express {
   // Body parsing
   app.use(express.json({ limit: '5mb' }));
   app.use(cookieParser());
+  app.use(attachRequestContext);
 
   // Authentication (optional — parses JWT if present)
   app.use(authenticate);
@@ -95,6 +98,7 @@ export function createApp(): express.Express {
   app.use('/api/admin/theme-table', themeTableAdminRouter);
   app.use('/api/admin/ranked', rankedAdminRouter);
   app.use('/api/admin/deck-point-tables', deckPointTablesAdminRouter);
+  app.use('/api/admin/users', adminUsersRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

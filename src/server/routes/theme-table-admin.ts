@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
-import { requireAdmin } from '../middleware/require-admin.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import {
   ThemeTableAdminServiceError,
@@ -106,7 +106,7 @@ const matchupSchema = z
   })
   .strict();
 
-themeTableAdminRouter.use(requireAuth, requireAdmin);
+themeTableAdminRouter.use(requireAuth, requirePermission('season.theme.manage'));
 
 themeTableAdminRouter.get('/environment', async (_req, res) => {
   await respond(res, () => themeTableAdminService.getEnvironmentPreview());

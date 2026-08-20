@@ -2,6 +2,12 @@
 import type { NextFunction, Request, Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const permissionMocks = vi.hoisted(() => ({ poolQuery: vi.fn() }));
+
+vi.mock('../../src/server/db/pool.js', () => ({
+  pool: { query: permissionMocks.poolQuery },
+}));
+
 vi.mock('../../src/server/services/theme-table-admin-service.js', () => ({
   ThemeTableAdminServiceError: class ThemeTableAdminServiceError extends Error {
     constructor(
@@ -118,6 +124,35 @@ const validOperations = {
 
 describe('themeTableAdminRouter', () => {
   afterEach(() => vi.clearAllMocks());
+
+  it('allows a current season administrator through the theme router boundary', async () => {
+    permissionMocks.poolQuery.mockResolvedValue({
+      rows: [{ role: 'season_admin' }],
+      rowCount: 1,
+    });
+    const response = {
+      statusCode: 200,
+      body: null,
+      status(code: number) {
+        this.statusCode = code;
+        return this;
+      },
+      json(payload: never) {
+        this.body = payload;
+        return this;
+      },
+    } as Response & { statusCode: number; body: unknown };
+    const next = vi.fn();
+
+    await themeTableAdminRouter.stack[1].handle(
+      { user: { id: 'season-admin-1', role: 'season_admin' } } as Request,
+      response,
+      next
+    );
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(response.body).toBeNull();
+  });
 
   it('coerces schedule timestamps and uses the authenticated admin identity', async () => {
     vi.mocked(themeTableAdminService.createDraft).mockResolvedValue({ id: 'theme-1' } as never);

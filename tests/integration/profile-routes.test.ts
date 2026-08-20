@@ -130,6 +130,14 @@ describe('profilesRouter account updates', () => {
     expect(mocks.poolQuery).not.toHaveBeenCalled();
   });
 
+  it('rejects role changes through the general profile endpoint', async () => {
+    const response = await invokeProfileUpdate({ role: 'season_admin' });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.body?.error?.code).toBe('VALIDATION_ERROR');
+    expect(mocks.poolQuery).not.toHaveBeenCalled();
+  });
+
   it('returns a conflict when another profile already owns the username', async () => {
     mocks.poolQuery.mockRejectedValue({ code: '23505' });
 

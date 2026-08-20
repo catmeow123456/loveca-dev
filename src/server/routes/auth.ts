@@ -34,6 +34,7 @@ import {
   sendPasswordResetEmail,
   sendVerificationEmail,
 } from '../services/mail-service.js';
+import type { UserRole } from '../../shared/auth/permissions.js';
 
 export const authRouter = Router();
 
@@ -131,7 +132,7 @@ interface AuthSessionRow {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
-  role: 'user' | 'admin';
+  role: UserRole;
   deck_count: number;
 }
 

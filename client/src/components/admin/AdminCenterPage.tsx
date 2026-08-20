@@ -11,13 +11,20 @@ import {
   Settings,
   SmilePlus,
   Sparkles,
+  Users,
 } from 'lucide-react';
+import {
+  hasPermission,
+  type ManagementPermission,
+  type UserRole,
+} from '@game/shared/auth/permissions';
 import { PageHeader } from '@/components/common';
 import { useKeyedState } from '@/hooks/useKeyedState';
 import type { PlayerBattleEntryVisibility } from '@/lib/appConfig';
 import { updatePlayerBattleEntryVisibility } from '@/lib/siteAnnouncementClient';
 
 interface AdminCenterPageProps {
+  readonly role: UserRole;
   readonly onBack: () => void;
   readonly onOpenMatchEmotes: () => void;
   readonly onOpenAnnouncements: () => void;
@@ -27,6 +34,7 @@ interface AdminCenterPageProps {
   readonly onOpenOnlineRooms: () => void;
   readonly onOpenRanked: () => void;
   readonly onOpenThemeTable: () => void;
+  readonly onOpenUsers: () => void;
   readonly battleEntryVisibility: PlayerBattleEntryVisibility;
   readonly onBattleEntryVisibilityChanged?: () => void | Promise<void>;
 }
@@ -36,6 +44,7 @@ interface AdminModule {
   readonly description: string;
   readonly icon: ComponentType<{ size?: number }>;
   readonly onOpen: () => void;
+  readonly permission: ManagementPermission;
 }
 
 interface AdminCategory {
@@ -72,7 +81,7 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
     }
   };
 
-  const categories: readonly AdminCategory[] = [
+  const allCategories: readonly AdminCategory[] = [
     {
       id: 'content-platform',
       title: '内容与平台',
@@ -83,12 +92,14 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           description: '编辑对局表情、显示顺序和发送状态',
           icon: SmilePlus,
           onOpen: props.onOpenMatchEmotes,
+          permission: 'platform.manage',
         },
         {
           title: '平台配置',
           description: '维护平台状态、维护窗口和公告',
           icon: Bell,
           onOpen: props.onOpenAnnouncements,
+          permission: 'platform.manage',
         },
       ],
     },
@@ -102,18 +113,21 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           description: '检索、编辑和发布卡牌资料',
           icon: Settings,
           onOpen: props.onOpenCards,
+          permission: 'cards.manage',
         },
         {
           title: '卡牌效果 AI 提取',
           description: '配置提取服务、模型和私密凭据',
           icon: Bot,
           onOpen: props.onOpenAiExtraction,
+          permission: 'cards.manage',
         },
         {
           title: '卡组规则',
           description: '维护 PT 限制表和规则生效时间',
           icon: Scale,
           onOpen: props.onOpenDeckPoints,
+          permission: 'rules.manage',
         },
       ],
     },
@@ -127,108 +141,139 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           description: '查看在线玩家、等待房间和进行中对局',
           icon: MonitorCog,
           onOpen: props.onOpenOnlineRooms,
+          permission: 'platform.manage',
         },
         {
           title: '赛季排位',
           description: '管理赛季、排位配置和异常结算',
           icon: Medal,
           onOpen: props.onOpenRanked,
+          permission: 'season.ranked.manage',
         },
         {
           title: '主题赛季',
           description: '管理开放时段与平台卡组池',
           icon: Sparkles,
           onOpen: props.onOpenThemeTable,
+          permission: 'season.theme.manage',
+        },
+      ],
+    },
+    {
+      id: 'users-permissions',
+      title: '用户与权限',
+      description: '账号查询与角色委派',
+      modules: [
+        {
+          title: '用户管理',
+          description: '分页检索账号并授予或撤销平台角色',
+          icon: Users,
+          onOpen: props.onOpenUsers,
+          permission: 'users.list',
         },
       ],
     },
   ];
+  const categories = allCategories
+    .map((category) => ({
+      ...category,
+      modules: category.modules.filter((module) => hasPermission(props.role, module.permission)),
+    }))
+    .filter((category) => category.modules.length > 0);
+  const toolCount = categories.reduce((sum, category) => sum + category.modules.length, 0);
+  const isSeasonAdmin = props.role === 'season_admin';
 
   return (
     <div className="app-shell min-h-screen">
       <PageHeader
-        title="运营管理中心"
-        description="选择一项工作"
+        title={isSeasonAdmin ? '赛季运营中心' : '运营管理中心'}
+        description={isSeasonAdmin ? '排位、主题赛季与玩家入口' : '选择一项工作'}
         onBack={props.onBack}
         backLabel="返回大厅"
       />
 
       <main className="product-page-main">
         <div className="mx-auto max-w-5xl">
-          <section
-            aria-labelledby="player-battle-entry-title"
-            className="product-workbench mb-5 overflow-hidden"
-          >
-            <header className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <div>
-                <h2
-                  id="player-battle-entry-title"
-                  className="text-sm font-semibold text-[var(--text-primary)]"
+          {hasPermission(props.role, 'season.entry_visibility.manage') ? (
+            <section
+              aria-labelledby="player-battle-entry-title"
+              className="product-workbench mb-5 overflow-hidden"
+            >
+              <header className="flex flex-col gap-3 border-b border-[var(--border-subtle)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <div>
+                  <h2
+                    id="player-battle-entry-title"
+                    className="text-sm font-semibold text-[var(--text-primary)]"
+                  >
+                    玩家对战入口
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+                    关闭后，玩家大厅和对局准备页不再显示对应入口。
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleSaveEntryVisibility()}
+                  disabled={isSavingEntryVisibility || !hasEntryVisibilityChanges}
+                  className="button-primary inline-flex min-h-10 shrink-0 items-center justify-center gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  玩家对战入口
-                </h2>
-                <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
-                  关闭后，玩家大厅和对局准备页不再显示对应入口。
-                </p>
+                  {isSavingEntryVisibility ? (
+                    <Loader2 size={15} className="animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Save size={15} aria-hidden="true" />
+                  )}
+                  保存入口
+                </button>
+              </header>
+
+              <div className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+                <BattleEntrySwitch
+                  title="赛季排位"
+                  detail="使用玩家卡组，计入赛季积分"
+                  checked={entryVisibility.ranked}
+                  onChange={(checked) => {
+                    setEntryVisibility((current) => ({ ...current, ranked: checked }));
+                    setEntryVisibilityMessage(null);
+                  }}
+                />
+                <BattleEntrySwitch
+                  title="主题赛季"
+                  detail="使用本期平台预组，记录赛季胜负"
+                  checked={entryVisibility.themeTable}
+                  onChange={(checked) => {
+                    setEntryVisibility((current) => ({ ...current, themeTable: checked }));
+                    setEntryVisibilityMessage(null);
+                  }}
+                />
               </div>
-              <button
-                type="button"
-                onClick={() => void handleSaveEntryVisibility()}
-                disabled={isSavingEntryVisibility || !hasEntryVisibilityChanges}
-                className="button-primary inline-flex min-h-10 shrink-0 items-center justify-center gap-2 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-45"
-              >
-                {isSavingEntryVisibility ? (
-                  <Loader2 size={15} className="animate-spin" aria-hidden="true" />
-                ) : (
-                  <Save size={15} aria-hidden="true" />
-                )}
-                保存入口
-              </button>
-            </header>
 
-            <div className="grid divide-y divide-[var(--border-subtle)] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-              <BattleEntrySwitch
-                title="赛季排位"
-                detail="使用玩家卡组，计入赛季积分"
-                checked={entryVisibility.ranked}
-                onChange={(checked) => {
-                  setEntryVisibility((current) => ({ ...current, ranked: checked }));
-                  setEntryVisibilityMessage(null);
-                }}
-              />
-              <BattleEntrySwitch
-                title="主题赛季"
-                detail="使用本期平台预组，记录赛季胜负"
-                checked={entryVisibility.themeTable}
-                onChange={(checked) => {
-                  setEntryVisibility((current) => ({ ...current, themeTable: checked }));
-                  setEntryVisibilityMessage(null);
-                }}
-              />
-            </div>
-
-            <footer className="flex flex-col gap-1 border-t border-[var(--border-subtle)] px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <span className="text-[var(--text-muted)]">暂停匹配请前往对应赛季管理。</span>
-              {entryVisibilityMessage ? (
-                <span
-                  role="status"
-                  className={
-                    entryVisibilityMessage === '入口设置已保存'
-                      ? 'text-[var(--semantic-success)]'
-                      : 'text-[var(--semantic-error)]'
-                  }
-                >
-                  {entryVisibilityMessage}
-                </span>
-              ) : null}
-            </footer>
-          </section>
+              <footer className="flex flex-col gap-1 border-t border-[var(--border-subtle)] px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                <span className="text-[var(--text-muted)]">暂停匹配请前往对应赛季管理。</span>
+                {entryVisibilityMessage ? (
+                  <span
+                    role="status"
+                    className={
+                      entryVisibilityMessage === '入口设置已保存'
+                        ? 'text-[var(--semantic-success)]'
+                        : 'text-[var(--semantic-error)]'
+                    }
+                  >
+                    {entryVisibilityMessage}
+                  </span>
+                ) : null}
+              </footer>
+            </section>
+          ) : null}
 
           <div className="mb-4 flex items-center justify-between gap-4 px-1">
             <p className="text-sm text-[var(--text-secondary)]">
-              管理公开内容、卡牌规则与联机运营。
+              {isSeasonAdmin
+                ? '管理本期排位、主题活动和玩家入口。'
+                : '管理公开内容、卡牌规则、用户权限与联机运营。'}
             </p>
-            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">8 项工具</span>
+            <span className="shrink-0 text-xs tabular-nums text-[var(--text-muted)]">
+              {toolCount} 项工具
+            </span>
           </div>
 
           <div className="product-workbench divide-y divide-[var(--border-subtle)]">

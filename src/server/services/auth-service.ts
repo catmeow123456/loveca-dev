@@ -9,6 +9,7 @@ import {
   readCurrentBcryptHash,
   readLegacyCompatibleBcryptHash,
 } from '../auth-credential-format.js';
+import { isUserRole, type UserRole } from '../../shared/auth/permissions.js';
 
 const SALT_ROUNDS = 12;
 const ACCESS_TOKEN_ISSUER = 'loveca-api';
@@ -92,7 +93,7 @@ function preparePasswordForBcrypt(password: string): string {
 // JWT
 // ============================================
 
-export function signAccessToken(userId: string, role: 'user' | 'admin'): string {
+export function signAccessToken(userId: string, role: UserRole): string {
   return jwt.sign({ sub: userId, role }, config.jwtSecret, {
     algorithm: 'HS256',
     audience: ACCESS_TOKEN_AUDIENCE,
@@ -101,7 +102,7 @@ export function signAccessToken(userId: string, role: 'user' | 'admin'): string 
   });
 }
 
-export function verifyAccessToken(token: string): { sub: string; role: 'user' | 'admin' } {
+export function verifyAccessToken(token: string): { sub: string; role: UserRole } {
   const payload = jwt.verify(token, config.jwtSecret, {
     algorithms: ['HS256'],
     audience: ACCESS_TOKEN_AUDIENCE,
@@ -109,11 +110,7 @@ export function verifyAccessToken(token: string): { sub: string; role: 'user' | 
   });
   const role: unknown = typeof payload === 'string' ? undefined : payload.role;
 
-  if (
-    typeof payload === 'string' ||
-    typeof payload.sub !== 'string' ||
-    (role !== 'user' && role !== 'admin')
-  ) {
+  if (typeof payload === 'string' || typeof payload.sub !== 'string' || !isUserRole(role)) {
     throw new Error('Invalid access token payload');
   }
 

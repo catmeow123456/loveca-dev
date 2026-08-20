@@ -5,6 +5,7 @@ import {
   DeckSelector,
   PageHeader,
   Panel,
+  SelectMenu,
   type DeckDisplayItem,
 } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
@@ -196,12 +197,14 @@ export function RankedPage({
           ) : (
             <>
               {seasonOptions.length > 1 ? (
-                <select
-                  className="input-field mb-3 h-10 max-w-xs text-sm"
-                  aria-label="查看赛季"
+                <SelectMenu
+                  label="查看赛季"
                   value={displayedOverview?.season?.id ?? ''}
-                  onChange={(event) => {
-                    const seasonId = event.target.value;
+                  options={seasonOptions.map((season) => ({
+                    value: season.id,
+                    label: season.name,
+                  }))}
+                  onChange={(seasonId) => {
                     if (seasonId === overview?.season?.id) {
                       setHistoricalOverview(null);
                       return;
@@ -210,13 +213,9 @@ export function RankedPage({
                       .then(setHistoricalOverview)
                       .catch(() => undefined);
                   }}
-                >
-                  {seasonOptions.map((season) => (
-                    <option key={season.id} value={season.id}>
-                      {season.name}
-                    </option>
-                  ))}
-                </select>
+                  className="mb-3 w-full max-w-xs"
+                  menuMinWidth={256}
+                />
               ) : null}
               <SeasonSummary
                 overview={displayedOverview}

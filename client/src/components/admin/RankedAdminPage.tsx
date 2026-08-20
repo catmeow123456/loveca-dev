@@ -11,7 +11,7 @@ import {
 import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
 import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
-import { ConfirmDialog } from '@/components/common';
+import { ConfirmDialog, SelectMenu, type SelectMenuOption } from '@/components/common';
 import { RankedSeasonNoticeDialog } from '@/components/ranked/RankedSeasonNoticeDialog';
 import {
   createRankedSeason,
@@ -61,6 +61,18 @@ import {
 type Tab = 'overview' | 'season' | 'matches';
 type MatchRatingStatus = RankedAdminMatch['ratingStatus'] | '';
 const MATCH_PAGE_SIZE = 20;
+const MATCH_RATING_STATUS_OPTIONS: readonly SelectMenuOption<MatchRatingStatus>[] = [
+  { value: '', label: '全部计分状态' },
+  { value: 'PENDING', label: '等待计分' },
+  { value: 'SETTLED', label: '已计分' },
+  { value: 'VOIDED', label: '不计分' },
+];
+const SOFT_RESET_MODE_OPTIONS: readonly SelectMenuOption<
+  RankedSeasonDraftPayload['softReset']['mode']
+>[] = [
+  { value: 'RESET_TO_INITIAL', label: '重置为默认值' },
+  { value: 'RETAIN_TOWARD_CENTER', label: '向中心值保留' },
+];
 
 export function RankedAdminPage({ onBack }: { onBack: () => void }) {
   const [tab, setTab] = useState<Tab>('overview');
@@ -531,21 +543,17 @@ function OverviewPanel({
       <section className="product-workbench p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <label className="grid max-w-sm gap-1 text-sm text-[var(--text-secondary)]">
-              查看赛季
-              <select
-                className="input-field"
+            <div className="grid max-w-sm gap-1 text-sm text-[var(--text-secondary)]">
+              <span>查看赛季</span>
+              <SelectMenu
+                label="概览赛季"
                 value={selectedSeasonId}
-                aria-label="概览赛季"
-                onChange={(event) => onSelectSeason(event.target.value)}
-              >
-                {seasons.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                options={seasons.map((item) => ({ value: item.id, label: item.name }))}
+                onChange={onSelectSeason}
+                className="w-full"
+                menuMinWidth={256}
+              />
+            </div>
           </div>
           <div className="text-right text-xs text-[var(--text-muted)]">
             <div>{season ? `${season.seasonKey} · ${lifecycleLabel(season.lifecycle)}` : '—'}</div>
@@ -1473,24 +1481,24 @@ function SeasonDraftForm({
           required
         />
       </Field>
-      <Field label="新赛季积分重置">
-        <select
-          className="input-field"
+      <div className="grid gap-1 text-sm text-[var(--text-secondary)]">
+        <span>新赛季积分重置</span>
+        <SelectMenu
+          label="新赛季积分重置"
           value={draft.softReset.mode}
-          onChange={(event) =>
+          options={SOFT_RESET_MODE_OPTIONS}
+          onChange={(mode) =>
             setDraft({
               ...draft,
               softReset: {
                 ...draft.softReset,
-                mode: event.target.value as RankedSeasonDraftPayload['softReset']['mode'],
+                mode,
               },
             })
           }
-        >
-          <option value="RESET_TO_INITIAL">重置为默认值</option>
-          <option value="RETAIN_TOWARD_CENTER">向中心值保留</option>
-        </select>
-      </Field>
+          className="w-full"
+        />
+      </div>
       {draft.softReset.mode === 'RETAIN_TOWARD_CENTER' ? (
         <>
           <Field label="重置中心值">
@@ -1649,30 +1657,23 @@ function MatchesPanel({
           onSearch(searchInput.trim());
         }}
       >
-        <select
-          className="input-field"
+        <SelectMenu
+          label="筛选赛季"
           value={selectedSeasonId}
-          aria-label="筛选赛季"
-          onChange={(event) => onSelectSeason(event.target.value)}
-        >
-          <option value="">全部赛季</option>
-          {seasons.map((season) => (
-            <option key={season.id} value={season.id}>
-              {season.name}
-            </option>
-          ))}
-        </select>
-        <select
-          className="input-field"
+          options={[
+            { value: '', label: '全部赛季' },
+            ...seasons.map((season) => ({ value: season.id, label: season.name })),
+          ]}
+          onChange={onSelectSeason}
+          className="w-full"
+        />
+        <SelectMenu
+          label="筛选计分状态"
           value={ratingStatus}
-          aria-label="筛选计分状态"
-          onChange={(event) => onSelectRatingStatus(event.target.value as MatchRatingStatus)}
-        >
-          <option value="">全部计分状态</option>
-          <option value="PENDING">等待计分</option>
-          <option value="SETTLED">已计分</option>
-          <option value="VOIDED">不计分</option>
-        </select>
+          options={MATCH_RATING_STATUS_OPTIONS}
+          onChange={onSelectRatingStatus}
+          className="w-full"
+        />
         <input
           className="input-field"
           value={searchInput}
@@ -2131,33 +2132,34 @@ function RatingRevisionDialog({
         </div>
 
         {history.length > 0 ? (
-          <Field label="复用已应用过的参数">
-            <select
-              className="input-field mt-3"
-              defaultValue=""
-              onChange={(event) => {
+          <div className="grid gap-1 text-sm text-[var(--text-secondary)]">
+            <span>复用已应用过的参数</span>
+            <SelectMenu
+              label="复用已应用过的参数"
+              value=""
+              options={[
+                { value: '', label: '不复用，编辑当前参数' },
+                ...(originalRevision ? [{ value: 'original', label: '修订前原始参数' }] : []),
+                ...history.map((item) => ({
+                  value: item.id,
+                  label: `第 ${item.revisionNumber} 版${item.current ? '（当前）' : ''} · ${new Date(item.appliedAt).toLocaleString('zh-CN')}`,
+                })),
+              ]}
+              onChange={(revisionId) => {
                 const selectedConfig =
-                  event.target.value === 'original'
+                  revisionId === 'original'
                     ? originalRevision?.sourceConfig
-                    : history.find((candidate) => candidate.id === event.target.value)
-                        ?.targetConfig;
+                    : history.find((candidate) => candidate.id === revisionId)?.targetConfig;
                 if (selectedConfig) {
                   setParameters(revisionParametersFromConfig(selectedConfig));
                   setPreview(null);
                   setConfirmed(false);
                 }
               }}
-            >
-              <option value="">不复用，编辑当前参数</option>
-              {originalRevision ? <option value="original">修订前原始参数</option> : null}
-              {history.map((item) => (
-                <option key={item.id} value={item.id}>
-                  第 {item.revisionNumber} 版{item.current ? '（当前）' : ''} ·{' '}
-                  {new Date(item.appliedAt).toLocaleString('zh-CN')}
-                </option>
-              ))}
-            </select>
-          </Field>
+              className="mt-2 w-full"
+              menuMinWidth={320}
+            />
+          </div>
         ) : null}
 
         <form

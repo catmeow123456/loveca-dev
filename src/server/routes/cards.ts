@@ -2,12 +2,13 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
-import { requireAdmin } from '../middleware/require-admin.js';
+import { readCurrentAuthorizedRole, requirePermission } from '../middleware/require-permission.js';
 import { validate } from '../middleware/validate.js';
 import { inheritMissingBladeHeartsByBase } from '../../domain/card-data/blade-heart-inheritance.js';
 import { getBaseCardCode } from '../../shared/utils/card-code.js';
 
 export const cardsRouter = Router();
+const requireCardsManage = requirePermission('cards.manage');
 
 function hasLanguageName(value: { name_jp?: string | null; name_cn?: string | null }): boolean {
   return Boolean(value.name_jp?.trim() || value.name_cn?.trim());
@@ -131,7 +132,9 @@ function toIsoString(value: Date | string): string {
 
 cardsRouter.get('/', async (req, res, next) => {
   try {
-    const isAdmin = req.user?.role === 'admin';
+    const isAdmin = req.user
+      ? Boolean(await readCurrentAuthorizedRole(req.user.id, req.user.role, 'cards.manage'))
+      : false;
     const statusFilter = req.query.status as string | undefined;
 
     let query: string;
@@ -159,7 +162,7 @@ cardsRouter.get('/', async (req, res, next) => {
 // GET /api/cards/admin
 // ============================================
 
-cardsRouter.get('/admin', requireAuth, requireAdmin, async (req, res, next) => {
+cardsRouter.get('/admin', requireAuth, requireCardsManage, async (req, res, next) => {
   try {
     const parsed = adminCardListQuerySchema.safeParse(req.query);
     if (!parsed.success) {
@@ -231,7 +234,7 @@ cardsRouter.get('/admin', requireAuth, requireAdmin, async (req, res, next) => {
 cardsRouter.put(
   '/admin/status',
   requireAuth,
-  requireAdmin,
+  requireCardsManage,
   validate(adminCardBatchStatusSchema),
   async (req, res, next) => {
     try {
@@ -260,7 +263,7 @@ cardsRouter.put(
 // GET /api/cards/export
 // ============================================
 
-cardsRouter.get('/export', requireAuth, requireAdmin, async (_req, res, next) => {
+cardsRouter.get('/export', requireAuth, requireCardsManage, async (_req, res, next) => {
   try {
     const { rows } = await pool.query<CardRouteRecord>('SELECT * FROM cards ORDER BY card_code');
     const cards = inheritMissingBladeHeartsByBase(rows);
@@ -301,7 +304,7 @@ cardsRouter.get('/export', requireAuth, requireAdmin, async (_req, res, next) =>
 // GET /api/cards/status-map
 // ============================================
 
-cardsRouter.get('/status-map', requireAuth, requireAdmin, async (_req, res, next) => {
+cardsRouter.get('/status-map', requireAuth, requireCardsManage, async (_req, res, next) => {
   try {
     const { rows } = await pool.query('SELECT card_code, status FROM cards');
     const statusMap: Record<string, string> = {};
@@ -320,7 +323,9 @@ cardsRouter.get('/status-map', requireAuth, requireAdmin, async (_req, res, next
 
 cardsRouter.get('/:code', async (req, res, next) => {
   try {
-    const isAdmin = req.user?.role === 'admin';
+    const isAdmin = req.user
+      ? Boolean(await readCurrentAuthorizedRole(req.user.id, req.user.role, 'cards.manage'))
+      : false;
     const { rows } = await pool.query<CardRouteRecord>('SELECT * FROM cards WHERE card_code = $1', [
       req.params.code,
     ]);
@@ -413,7 +418,7 @@ type UpdateCardInput = z.infer<typeof updateCardSchema>;
 cardsRouter.post(
   '/',
   requireAuth,
-  requireAdmin,
+  requireCardsManage,
   validate(createCardSchema),
   async (req, res, next) => {
     try {
@@ -470,7 +475,7 @@ cardsRouter.post(
 cardsRouter.put(
   '/:code',
   requireAuth,
-  requireAdmin,
+  requireCardsManage,
   validate(updateCardSchema),
   async (req, res, next) => {
     try {
@@ -584,7 +589,7 @@ cardsRouter.put(
 // DELETE /api/cards/:code
 // ============================================
 
-cardsRouter.delete('/:code', requireAuth, requireAdmin, async (req, res, next) => {
+cardsRouter.delete('/:code', requireAuth, requireCardsManage, async (req, res, next) => {
   try {
     const { rowCount } = await pool.query('DELETE FROM cards WHERE card_code = $1', [
       req.params.code,
@@ -647,7 +652,7 @@ const importSchema = z.object({
 cardsRouter.post(
   '/import',
   requireAuth,
-  requireAdmin,
+  requireCardsManage,
   validate(importSchema),
   async (req, res, next) => {
     try {
@@ -739,7 +744,7 @@ cardsRouter.post(
 // PUT /api/cards/:code/publish
 // ============================================
 
-cardsRouter.put('/:code/publish', requireAuth, requireAdmin, async (req, res, next) => {
+cardsRouter.put('/:code/publish', requireAuth, requireCardsManage, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE cards SET status = 'PUBLISHED', updated_by = $1
@@ -765,7 +770,7 @@ cardsRouter.put('/:code/publish', requireAuth, requireAdmin, async (req, res, ne
 // PUT /api/cards/:code/unpublish
 // ============================================
 
-cardsRouter.put('/:code/unpublish', requireAuth, requireAdmin, async (req, res, next) => {
+cardsRouter.put('/:code/unpublish', requireAuth, requireCardsManage, async (req, res, next) => {
   try {
     const { rows } = await pool.query(
       `UPDATE cards SET status = 'DRAFT', updated_by = $1

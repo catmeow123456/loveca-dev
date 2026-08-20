@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { validate } from '../middleware/validate.js';
+import { readCurrentAuthorizedRole } from '../middleware/require-permission.js';
+import type { UserRole } from '../../shared/auth/permissions.js';
 
 export const profilesRouter = Router();
 
@@ -17,7 +19,6 @@ const updateProfileSchema = z
       .optional(),
     display_name: z.string().trim().min(1).max(50).optional(),
     avatar_url: z.string().trim().url().max(2048).nullable().optional(),
-    role: z.enum(['user', 'admin']).optional(),
   })
   .strict();
 
@@ -28,7 +29,7 @@ interface ProfileRow {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
-  role: 'user' | 'admin';
+  role: UserRole;
   deck_count: number;
   created_at: Date;
   updated_at?: Date;
@@ -66,12 +67,19 @@ profilesRouter.get('/:id', async (req, res, next) => {
 profilesRouter.put('/:id', requireAuth, validate(updateProfileSchema), async (req, res, next) => {
   try {
     // Users can only update their own profile (admins can update any)
-    if (req.params.id !== req.user!.id && req.user!.role !== 'admin') {
-      res.status(403).json({
-        data: null,
-        error: { code: 'FORBIDDEN', message: '无权修改此档案' },
-      });
-      return;
+    if (req.params.id !== req.user!.id) {
+      const currentRole = await readCurrentAuthorizedRole(
+        req.user!.id,
+        req.user!.role,
+        'platform.manage'
+      );
+      if (!currentRole) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'FORBIDDEN', message: '无权修改此档案' },
+        });
+        return;
+      }
     }
 
     const updates = req.body as UpdateProfileBody;
@@ -79,17 +87,12 @@ profilesRouter.put('/:id', requireAuth, validate(updateProfileSchema), async (re
     const values: unknown[] = [];
     let idx = 1;
 
-    // Allowed fields for user self-update (role excluded!)
+    // Role changes use the dedicated platform-admin user API.
     const allowedFields: Array<keyof UpdateProfileBody> = [
       'username',
       'display_name',
       'avatar_url',
     ];
-
-    // Admin can also update role and username
-    if (req.user!.role === 'admin') {
-      allowedFields.push('role');
-    }
 
     for (const field of allowedFields) {
       if (field in updates) {

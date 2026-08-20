@@ -2,6 +2,12 @@
 import type { NextFunction, Request, Response } from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const permissionMocks = vi.hoisted(() => ({ poolQuery: vi.fn() }));
+
+vi.mock('../../src/server/db/pool.js', () => ({
+  pool: { query: permissionMocks.poolQuery },
+}));
+
 vi.mock('../../src/server/services/ranked-admin-service.js', () => ({
   RankedAdminServiceError: class RankedAdminServiceError extends Error {
     constructor(
@@ -146,6 +152,25 @@ describe('rankedAdminRouter', () => {
     expect(response.statusCode).toBe(403);
     expect(response.body?.error?.code).toBe('FORBIDDEN');
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('allows a current season administrator through the ranked router boundary', async () => {
+    permissionMocks.poolQuery.mockResolvedValue({
+      rows: [{ role: 'season_admin' }],
+      rowCount: 1,
+    });
+    const requireRankedPermission = rankedAdminRouter.stack[1];
+    const response = createMockResponse();
+    const next = vi.fn();
+
+    await requireRankedPermission.handle(
+      { user: { id: 'season-admin-1', role: 'season_admin' } } as Request,
+      response,
+      next
+    );
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(response.body).toBeNull();
   });
 
   it('coerces season schedule timestamps and uses the authenticated admin identity', async () => {

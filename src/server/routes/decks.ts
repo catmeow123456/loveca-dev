@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { requireAuth } from '../middleware/require-auth.js';
+import { readCurrentAuthorizedRole } from '../middleware/require-permission.js';
 import { validate } from '../middleware/validate.js';
 import { scrapeDecklog, extractDecklogInput } from '../services/decklog-scraper.js';
 import {
@@ -312,17 +313,14 @@ decksRouter.get('/:id', requireAuth, async (req, res, next) => {
 
     const deck = rows[0];
     // Allow access if owner, admin, or public/shared deck
-    if (
-      deck.user_id !== req.user!.id &&
-      req.user!.role !== 'admin' &&
-      !deck.is_public &&
-      !deck.share_enabled
-    ) {
-      res.status(403).json({
-        data: null,
-        error: { code: 'FORBIDDEN', message: '无权访问此卡组' },
-      });
-      return;
+    if (deck.user_id !== req.user!.id && !deck.is_public && !deck.share_enabled) {
+      if (!(await hasCurrentPlatformAdminAccess(req))) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'FORBIDDEN', message: '无权访问此卡组' },
+        });
+        return;
+      }
     }
 
     const [currentDeck] = await projectCurrentDeckValidation([deck]);
@@ -491,12 +489,14 @@ decksRouter.post('/:id/share', requireAuth, async (req, res, next) => {
       return;
     }
 
-    if (existing[0].user_id !== req.user!.id && req.user!.role !== 'admin') {
-      res.status(403).json({
-        data: null,
-        error: { code: 'FORBIDDEN', message: '无权分享此卡组' },
-      });
-      return;
+    if (existing[0].user_id !== req.user!.id) {
+      if (!(await hasCurrentPlatformAdminAccess(req))) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'FORBIDDEN', message: '无权分享此卡组' },
+        });
+        return;
+      }
     }
 
     const { rows } = await pool.query(
@@ -535,12 +535,14 @@ decksRouter.delete('/:id/share', requireAuth, async (req, res, next) => {
       return;
     }
 
-    if (existing[0].user_id !== req.user!.id && req.user!.role !== 'admin') {
-      res.status(403).json({
-        data: null,
-        error: { code: 'FORBIDDEN', message: '无权关闭分享' },
-      });
-      return;
+    if (existing[0].user_id !== req.user!.id) {
+      if (!(await hasCurrentPlatformAdminAccess(req))) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'FORBIDDEN', message: '无权关闭分享' },
+        });
+        return;
+      }
     }
 
     const { rows } = await pool.query(
@@ -579,12 +581,14 @@ decksRouter.put('/:id', requireAuth, validate(updateDeckSchema), async (req, res
       return;
     }
 
-    if (existing[0].user_id !== req.user!.id && req.user!.role !== 'admin') {
-      res.status(403).json({
-        data: null,
-        error: { code: 'FORBIDDEN', message: '无权修改此卡组' },
-      });
-      return;
+    if (existing[0].user_id !== req.user!.id) {
+      if (!(await hasCurrentPlatformAdminAccess(req))) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'FORBIDDEN', message: '无权修改此卡组' },
+        });
+        return;
+      }
     }
 
     const updates = req.body;
@@ -700,12 +704,14 @@ decksRouter.delete('/:id', requireAuth, async (req, res, next) => {
       return;
     }
 
-    if (existing[0].user_id !== req.user!.id && req.user!.role !== 'admin') {
-      res.status(403).json({
-        data: null,
-        error: { code: 'FORBIDDEN', message: '无权删除此卡组' },
-      });
-      return;
+    if (existing[0].user_id !== req.user!.id) {
+      if (!(await hasCurrentPlatformAdminAccess(req))) {
+        res.status(403).json({
+          data: null,
+          error: { code: 'FORBIDDEN', message: '无权删除此卡组' },
+        });
+        return;
+      }
     }
 
     await pool.query('DELETE FROM decks WHERE id = $1', [req.params.id]);
@@ -715,6 +721,13 @@ decksRouter.delete('/:id', requireAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+async function hasCurrentPlatformAdminAccess(req: Request): Promise<boolean> {
+  if (!req.user) {
+    return false;
+  }
+  return Boolean(await readCurrentAuthorizedRole(req.user.id, req.user.role, 'platform.manage'));
+}
 
 interface DeckValidationProjectionSource {
   readonly name?: unknown;

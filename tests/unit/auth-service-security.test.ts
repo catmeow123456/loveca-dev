@@ -82,4 +82,12 @@ describe('auth-service security primitives', () => {
     });
     expect(() => verifyAccessToken(invalidRole)).toThrow('Invalid access token payload');
   });
+
+  it('signs and verifies the delegated season administrator role', () => {
+    const token = signAccessToken('season-admin-1', 'season_admin');
+    expect(verifyAccessToken(token)).toEqual({
+      sub: 'season-admin-1',
+      role: 'season_admin',
+    });
+  });
 });

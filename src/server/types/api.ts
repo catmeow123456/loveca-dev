@@ -1,8 +1,9 @@
 import type { Request } from 'express';
+import type { UserRole } from '../../shared/auth/permissions.js';
 
 export interface AuthUser {
   id: string;
-  role: 'user' | 'admin';
+  role: UserRole;
 }
 
 export interface AuthenticatedRequest extends Request {

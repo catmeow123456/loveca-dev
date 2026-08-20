@@ -44,6 +44,7 @@ import type {
   SiteStatusLifecycle,
 } from '@/lib/appConfig';
 import './home-page.css';
+import { hasAnyManagementPermission } from '@game/shared/auth/permissions';
 
 const ONLINE_ROOM_STORAGE_KEY = 'loveca.online.room';
 
@@ -131,7 +132,7 @@ export function HomePage({
   const [savedRoomActionError, setSavedRoomActionError] = useState<string | null>(null);
 
   const hasOnlineDebugEntry = Boolean(import.meta.env.VITE_DEBUG_SEAT);
-  const isAdmin = profile?.role === 'admin';
+  const hasManagementAccess = profile ? hasAnyManagementPermission(profile.role) : false;
   const deckSourceStatus: DeckSourceStatus = offlineMode
     ? 'offline'
     : isApiConfigured
@@ -396,7 +397,7 @@ export function HomePage({
             <SecondaryEntryPanel actions={secondaryActions} />
           </section>
 
-          {isAdmin && (
+          {hasManagementAccess && profile ? (
             <section className="border-t border-[var(--border-subtle)] pt-4">
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
                 <ShieldAlert size={16} className="text-[var(--accent-secondary)]" />
@@ -404,17 +405,21 @@ export function HomePage({
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <ActionTile
-                  title="运营管理中心"
-                  description="统一进入内容、卡牌规则、联机房间与赛季管理。"
+                  title={profile.role === 'season_admin' ? '赛季运营中心' : '运营管理中心'}
+                  description={
+                    profile.role === 'season_admin'
+                      ? '管理排位、主题赛季与玩家入口。'
+                      : '统一进入内容、卡牌规则、用户权限、联机房间与赛季管理。'
+                  }
                   icon={ShieldAlert}
                   onClick={onNavigateToAdminCenter}
-                  status="管理员"
+                  status={profile.role === 'season_admin' ? '赛季管理员' : '平台管理员'}
                   tone="primary"
                   compact
                 />
               </div>
             </section>
-          )}
+          ) : null}
         </div>
       </main>
     </ProductFrame>

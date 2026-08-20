@@ -1,3 +1,5 @@
+import type { UserRole } from '@game/shared/auth/permissions';
+
 // ============================================
 // Configuration
 // ============================================
@@ -51,7 +53,7 @@ export interface Profile {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
-  role: 'user' | 'admin';
+  role: UserRole;
   deck_count: number;
   created_at: string;
   updated_at: string;
@@ -149,6 +151,21 @@ export function getApiBaseUrl(): string {
 const REQUEST_TIMEOUT = 15000; // 15 seconds
 const NETWORK_RETRY_DELAY = 300;
 const AUTH_REFRESH_LOCK = 'loveca-auth-refresh';
+export const AUTHORIZATION_STALE_EVENT = 'loveca:authorization-stale';
+
+export function notifyAuthorizationStale(): void {
+  accessToken = null;
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(AUTHORIZATION_STALE_EVENT));
+  }
+}
+
+function observeAuthorizationBoundary<T>(response: ApiResponse<T>): ApiResponse<T> {
+  if (response.error?.code === 'AUTHORIZATION_STALE') {
+    notifyAuthorizationStale();
+  }
+  return response;
+}
 
 /** Safely parse JSON from a response, returning an error ApiResponse for non-JSON bodies */
 async function safeResponseJson<T>(response: Response): Promise<ApiResponse<T>> {
@@ -301,7 +318,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Api
       }
     }
 
-    const body = await safeResponseJson<T>(response);
+    const body = observeAuthorizationBoundary(await safeResponseJson<T>(response));
 
     // Auto-refresh protected API requests on 401. This also covers tab restores where
     // the in-memory access token was lost but the httpOnly refresh cookie still exists.
@@ -315,7 +332,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<Api
           delete headers['Authorization'];
         }
         const retryResponse = await sendApiRequest(path, options, headers);
-        return await safeResponseJson<T>(retryResponse);
+        return observeAuthorizationBoundary(await safeResponseJson<T>(retryResponse));
       }
       // Refresh failed — clear token
       accessToken = null;
@@ -357,7 +374,7 @@ async function apiFetchBlob(path: string): Promise<ApiResponse<Blob>> {
       }
     }
     if (!response.ok) {
-      return safeResponseJson<Blob>(response);
+      return observeAuthorizationBoundary(await safeResponseJson<Blob>(response));
     }
     return { data: await response.blob(), error: null, status: response.status };
   } catch (error) {

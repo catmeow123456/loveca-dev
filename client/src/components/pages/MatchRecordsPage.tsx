@@ -44,6 +44,7 @@ import type {
   ViewCardObject,
   ViewZoneState,
 } from '@game/online';
+import { hasPermission } from '@game/shared/auth/permissions';
 
 interface MatchRecordsPageProps {
   onBack: () => void;
@@ -67,7 +68,7 @@ export function MatchRecordsPage({ onBack }: MatchRecordsPageProps) {
   const [adminViewerSeat, setAdminViewerSeat] = useState<Seat>('FIRST');
   const [replayBoardOpen, setReplayBoardOpen] = useState(false);
   const profile = useAuthStore((s) => s.profile);
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile ? hasPermission(profile.role, 'platform.manage') : false;
   const latestReplayRequestRef = useRef(0);
   const replayBoardOpenRef = useRef(false);
   const lastViewerSeatReloadKeyRef = useRef<string | null>(null);

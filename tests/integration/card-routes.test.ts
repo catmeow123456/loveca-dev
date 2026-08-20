@@ -7,6 +7,19 @@ vi.mock('../../src/server/db/pool.js', () => ({
   },
 }));
 
+vi.mock('../../src/server/middleware/require-permission.js', () => ({
+  readCurrentAuthorizedRole: vi.fn((_userId: string, role: string) =>
+    Promise.resolve(role === 'admin' ? 'admin' : null)
+  ),
+  requirePermission: () => (req: Request, res: Response, next: NextFunction) => {
+    if (req.user?.role === 'admin') {
+      next();
+      return;
+    }
+    res.status(403).json({ data: null, error: { code: 'FORBIDDEN', message: '无权访问' } });
+  },
+}));
+
 import { cardsRouter } from '../../src/server/routes/cards';
 import { pool } from '../../src/server/db/pool';
 
@@ -104,6 +117,33 @@ async function invokeRoute(path: string, method: RouteMethod, options: Partial<R
 describe('cardsRouter', () => {
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('赛季管理员通过公开列表仍只能读取已发布卡牌', async () => {
+    poolQueryMock.mockResolvedValueOnce({ rows: [] } as never);
+
+    const response = await invokeRoute('/', 'get', {
+      user: { id: 'season-admin-1', role: 'season_admin' },
+      query: { status: 'all' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(poolQueryMock.mock.calls[0]?.[0]).toContain("WHERE status = 'PUBLISHED'");
+  });
+
+  it('赛季管理员不能通过单卡公开接口读取草稿', async () => {
+    poolQueryMock.mockResolvedValueOnce({
+      rows: [{ card_code: 'DRAFT-1', card_type: 'MEMBER', status: 'DRAFT' }],
+    } as never);
+
+    const response = await invokeRoute('/:code', 'get', {
+      user: { id: 'season-admin-1', role: 'season_admin' },
+      params: { code: 'DRAFT-1' },
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.body?.error?.code).toBe('NOT_FOUND');
+    expect(poolQueryMock).toHaveBeenCalledTimes(1);
   });
 
   it('管理列表在服务端分页、筛选并只返回轻量字段', async () => {

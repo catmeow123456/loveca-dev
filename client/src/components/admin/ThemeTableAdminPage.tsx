@@ -27,6 +27,7 @@ import { AdminPageHeader } from './AdminPageHeader';
 import { AdminViewTabs } from './AdminViewTabs';
 import { SeasonOpenWindowsFields } from './SeasonOpenWindowsFields';
 import { CardEditor } from '@/components/deck-editor';
+import { SelectMenu } from '@/components/common';
 import { useDeckStore } from '@/store/deckStore';
 import { useGameStore } from '@/store/gameStore';
 import {
@@ -251,19 +252,17 @@ function OverviewPanel({
     <div className="space-y-4">
       <section className="product-workbench p-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <Field label="查看主题赛季">
-            <select
-              className="input-field min-w-64"
+          <div className="grid gap-1 text-sm text-[var(--text-secondary)]">
+            <span>查看主题赛季</span>
+            <SelectMenu
+              label="查看主题赛季"
               value={selected.id}
-              onChange={(event) => onSelect(event.target.value)}
-            >
-              {events.map((event) => (
-                <option key={event.id} value={event.id}>
-                  {event.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+              options={events.map((event) => ({ value: event.id, label: event.name }))}
+              onChange={onSelect}
+              className="min-w-64"
+              menuMinWidth={256}
+            />
+          </div>
           <div className="text-right text-xs text-[var(--text-muted)]">
             <StatusPill lifecycle={selected.lifecycle} />
             <div className="mt-2">{selected.scheduleLabel}</div>
@@ -940,20 +939,17 @@ function DeckPoolAddForm({
   return (
     <div className="theme-deck-pool-import mt-3">
       <form className="theme-deck-pool-import__cloud" onSubmit={submit}>
-        <select
-          className="input-field min-w-0 flex-1"
+        <SelectMenu
+          label="选择云端卡组"
           value={sourceDeckId}
-          aria-label="选择云端卡组"
-          onChange={(event) => setSourceDeckId(event.target.value)}
-          required
-        >
-          <option value="">选择一副合法云端卡组</option>
-          {validDecks.map((deck) => (
-            <option key={deck.id} value={deck.id}>
-              {deck.name}
-            </option>
-          ))}
-        </select>
+          options={[
+            { value: '', label: '选择一副合法云端卡组' },
+            ...validDecks.map((deck) => ({ value: deck.id, label: deck.name })),
+          ]}
+          onChange={setSourceDeckId}
+          className="h-11 min-w-0 flex-1"
+          menuMinWidth={288}
+        />
         <button className="button-primary min-h-11 px-4 text-sm" disabled={busy || !sourceDeckId}>
           {busy && !importing ? <Loader2 size={16} className="animate-spin" /> : '从云端加入'}
         </button>

@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { requireAdmin } from '../middleware/require-admin.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import { validate } from '../middleware/validate.js';
 import {
   DeckPointTableServiceError,
@@ -110,7 +110,7 @@ deckPointTablesRouter.get('/current', async (_req, res) => {
   }
 });
 
-deckPointTablesAdminRouter.use(requireAuth, requireAdmin);
+deckPointTablesAdminRouter.use(requireAuth, requirePermission('rules.manage'));
 
 deckPointTablesAdminRouter.get('/', async (_req, res) => {
   try {

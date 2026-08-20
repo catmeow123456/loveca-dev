@@ -1,6 +1,6 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
-import { requireAdmin } from '../middleware/require-admin.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import { requireAuth } from '../middleware/require-auth.js';
 import { validate } from '../middleware/validate.js';
 import { RankedAlgorithmRegistryError } from '../rating/ranked-algorithm-registry.js';
@@ -124,7 +124,7 @@ const ratingRevisionApplySchema = z
   })
   .strict();
 
-rankedAdminRouter.use(requireAuth, requireAdmin);
+rankedAdminRouter.use(requireAuth, requirePermission('season.ranked.manage'));
 
 rankedAdminRouter.get('/environment', async (_req, res) => {
   try {

@@ -3,7 +3,7 @@
 > 文档类型：设计文档  
 > 适用范围：Loveca 当前代码架构与关键流程设计（基于现状实现）  
 > 当前状态：现行系统设计；字段级 schema 以 `src/server/db/schema.ts` 和 `drizzle/` 增量迁移为准，初始化函数与触发器以 `docker/init.sql` 为准
-> 最后更新：2026-08-12
+> 最后更新：2026-08-20
 
 ---
 
@@ -49,8 +49,8 @@ graph TB
 
     subgraph Server[服务端 API]
         App[Express App]
-        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle/Ranked/Theme Table]
-        Middleware[鉴权与校验中间件]
+        Routes[Auth/Cards/Decks/Profiles/Images/Online/Battle/Ranked/Theme Table/Admin Users]
+        Middleware[鉴权、Permission 与校验中间件]
         OnlineSvc[OnlineRoomService + OnlineMatchService + SolitaireMatchService]
         RankedSvc[Ranked Season/Queue/Rating/Admin Services]
         ThemeSvc[Theme Table Player/Admin/Allocation/Recovery Services]
@@ -376,6 +376,7 @@ graph LR
     App --> PlayerBadgesR[Player Badges Route]
     App --> ThemeR[Theme Table Route]
     App --> ThemeAdminR[Theme Table Admin Route]
+    App --> AdminUsersR[Admin Users Route]
 
     AuthR --> AuthSvc[auth-service + mail-service]
     DecksR --> Scraper[decklog-scraper]
@@ -389,6 +390,7 @@ graph LR
     PlayerBadgesR --> PlayerBadgeSvc[player-badge-service]
     ThemeR --> ThemeSvc[theme-table-player-service + public-table-service]
     ThemeAdminR --> ThemeAdminSvc[theme-table-admin-service]
+    AdminUsersR --> AdminUsersSvc[admin-user-service]
 ```
 
 代码路径：
@@ -410,15 +412,21 @@ graph LR
 - `src/server/routes/player-badges.ts`
 - `src/server/routes/theme-table.ts`
 - `src/server/routes/theme-table-admin.ts`
+- `src/server/routes/admin-users.ts`
 - `src/server/site-status.ts`
 - `src/server/services/site-announcement-service.ts`
+- `src/server/services/admin-user-service.ts`
+- `src/server/middleware/require-permission.ts`
 - `src/server/middleware/require-gameplay-available.ts`
 - `src/server/services/`
 
 认证与会话链路：
 
 - 访问令牌固定使用带 issuer、audience、subject 与角色约束的 HS256 JWT；浏览器只在内存中保存访问令牌。
+- 账号角色固定为 `user / season_admin / admin`，共享 permission 允许列表位于 `src/shared/auth/permissions.ts`。排位、主题赛季和赛季入口使用各自的赛季权限；平台、卡牌、构筑规则和用户管理使用独立权限，只有平台管理员拥有完整集合。
+- 特权中间件先校验令牌角色，再读取 `profiles.role` 复核当前授权。角色不一致时返回稳定的 `AUTHORIZATION_STALE`，前端清除内存令牌并返回登录页；权限提升也必须通过新会话取得包含新角色的令牌。
 - 刷新令牌通过 HttpOnly Cookie 传递，Cookie 保存令牌定位符与随机 secret，数据库只保存 secret 预哈希后的 bcrypt 摘要；刷新和当前设备登出分别在数据库事务中锁定、校验并轮换或撤销目标令牌。
+- 平台管理员通过独立用户管理服务分页读取账号摘要，并在角色下拉菜单中直接修改角色。角色变更事务锁定平台管理员集合与目标账号，使用 `expectedRole` 防止并发覆盖，阻止最后一个平台管理员被降级，并在同一事务内撤销目标全部刷新令牌；角色修改不要求原因，也不写入持久审计。
 - 启用 `EMAIL_ENABLED` 后，注册邮箱和登录前验证成为强制门禁，服务启动时校验完整 SMTP 配置。邮箱验证、密码重置与邮箱换绑只保存带密钥摘要；邮箱换绑先校验当前密码并向新邮箱发送一次性链接，确认时在同一事务中更新邮箱、撤销刷新令牌并清理其他认证 token。邮件链接通过 URL fragment 交给前端并在页面初始化时清理。
 - 认证端点统一返回不可缓存响应，并使用按 IP 与账号标识组合的有界限流；当前部署边界见 `docs/current-limitations.md`。
 - 运行时只接受 v2 刷新 Cookie 和一次性 token 格式；维护窗口中的认证切换将可识别的旧 bcrypt 密码封装成显式兼容状态，成功登录后原子升级为当前 v2 预哈希格式。原始旧 Cookie 和一次性 token 统一失效；已标记重置或未知密码格式会阻断迁移，不以运行时兜底伪装为可登录账号。
@@ -427,9 +435,13 @@ graph LR
 
 - `src/server/config.ts`
 - `src/server/middleware/authenticate.ts`
+- `src/server/middleware/require-permission.ts`
 - `src/server/middleware/auth-rate-limit.ts`
 - `src/server/routes/auth.ts`
+- `src/server/routes/admin-users.ts`
 - `src/server/services/auth-service.ts`
+- `src/server/services/admin-user-service.ts`
+- `src/shared/auth/permissions.ts`
 - `src/server/services/mail-service.ts`
 - `client/src/lib/apiClient.ts`
 - `client/src/store/authStore.ts`
@@ -445,6 +457,7 @@ erDiagram
     USERS ||--o{ EMAIL_VERIFICATION_TOKENS : receives
     USERS ||--o| EMAIL_CHANGE_TOKENS : requests
     USERS ||--o{ PASSWORD_RESET_TOKENS : receives
+    USERS ||--o{ MANAGEMENT_AUDIT_LOGS : acts_in
     PROFILES ||--o{ DECKS : owns
     USERS ||--o{ CARDS : updates
 
@@ -459,6 +472,18 @@ erDiagram
       text username
       text display_name
       text role
+    }
+    MANAGEMENT_AUDIT_LOGS {
+      uuid id
+      uuid actor_user_id
+      text actor_role
+      text scope
+      text action
+      text target_type
+      text target_id
+      text request_id
+      text result
+      text reason
     }
 ```
 
@@ -537,7 +562,8 @@ graph TD
 - 云端卡组与离线模式并存：已登录玩家使用服务端卡组记录；离线访客通过 `client/src/lib/localDeckStorage.ts` 把版本化 `LocalDeck` 列表保存到当前浏览器，并在 `DeckManager` / `DeckSelector` 中复用同一构筑校验与对局加载链路
 - 正式联机房间闭环：创建/加入、云端卡组锁定、双方准备开始、开局猜拳与胜者决定先后手、服务端权威对局、轮询同步、请求式重开、主动认输、房间号只读观战、离开/短暂恢复与管理员房间观测。认输由 `GameSession` 以 `OPPONENT_SURRENDER` 结束权威对局，公开投影仅暴露终局原因与胜负席位，记录服务封存为 `SURRENDERED`；赛后离开会释放真人对局占用。普通玩家专用观战链接已完整移除。房间号观战默认开放双方玩家视角，观战会话可在当前已授权视角间切换；preferred 目标按玩家身份保存，授权 fallback 只改变 effective 目标。普通观战资格和会话绑定不可复用的房间代际，当前 match/席位只是可替换单局绑定：双方接受重开后返回结构化局间等待，新局创建后按原玩家身份重新解析席位并自动续看；房间关闭、等待期间参赛成员变化、会话过期或全部授权关闭会稳定终止旧资格。同一房间最多 10 个活跃普通观战会话，等待会话继续占名额，管理员单局观战不占公开名额且不跨局；恢复会话、快照、公开日志与视角切换共享服务端请求限流。普通观战采用请求完成后再计时的串行轮询与会话级退避，频率保护或短暂网络中断时保留最后有效桌面并自动恢复；跨局时以房间/绑定代际隔离响应，客户端等待时清空旧单局 store 与日志，新局完整投影到达后再建立桌面
 - 单局文字与快捷表情通信：`src/online/chat-types.ts` 以 `TEXT | EMOTE` 判别联合维护共享条目契约和表情资源快照；`src/server/services/match-emote-catalog-service.ts` 通过数据库不可变版本和 active pointer 管理 1–12 项运营目录，重编码后的内容寻址 WebP 由对象存储提供，管理员可在 `MatchEmotesAdminPage` 排序、改名、停用和替换资源，`/api/config` 公开当前启用目录。`src/server/services/online-match-chat-runtime.ts` 维护按 `matchId` 隔离的有界内存消息、幂等标识、游标分页、文本校验、综合限频和表情冷却；新表情发送直接校验目录版本与启用状态并固化资源快照。`src/server/services/online-match-service.ts` 复用参与者身份与观战会话/代际授权，`src/server/services/online-room-service.ts` 阻止已退出成员被迟到轮询重新激活，`src/server/routes/online.ts` 提供当前房间成员读写和观战只读 REST 入口。前端由 `client/src/components/game/MatchChat.tsx` 独立轮询并渲染共同时间流，`client/src/components/game/MatchEmoteVisual.tsx` 按 reduced-motion、页面可见性与视口状态选择静态或动画资源，`GameBoard` / `PlayerArea` 只声明席位身份锚点。目录与资源元数据持久化；局内消息不写入 `GameState`、公共事件、历史记录或回放，重开、双方离开销毁旧对局运行态或 API 服务重启后不恢复
-- 运营管理中心与 AI 私密配置：`client/src/components/admin/AdminCenterPage.tsx` 将内容与平台、卡牌与规则、对局与赛季模块收敛到单一管理员入口，并在页首提供赛季排位、主题赛季两个玩家入口开关；既有模块页面、赛季运行控制和服务端接口继续复用。`src/server/services/ai-effect-extraction-service.ts` 以 PostgreSQL 单例和 revision 事务审计保存运行时配置，使用部署主密钥加密 API Key，并在每次候选测试或提取时执行上游允许列表、DNS 私网阻断、HTTPS、禁重定向、超时、大小、并发和管理员级限频。浏览器只向 `/api/ai-effect-extraction/admin/extract` 提交 `cardCode`，服务端读取 `cards` 与 MinIO 卡图，返回文本只进入 `CardEditModal` 待确认状态；旧 Vite DashScope 代理已经移除
+- 运营角色与管理中心开发基线：`src/shared/auth/permissions.ts` 定义 `user / season_admin / admin` 和显式权限矩阵，`src/server/middleware/require-permission.ts` 为特权请求复核数据库当前角色。`client/src/components/admin/AdminCenterPage.tsx` 按权限投影平台运营中心或赛季运营中心，平台管理员可通过 `client/src/components/admin/UserAdminPage.tsx` 分页检索账号，并在角色下拉菜单中直接保存变更。`src/server/services/admin-user-service.ts` 负责角色并发保护、最后管理员保护和刷新令牌撤销；角色修改不要求原因或持久审计。数据库增量由 `drizzle/0028_add_season_admin_role.sql` 提供赛季管理审计表骨架。排位、主题赛季和入口权限已经下放，但全部赛季写操作持久审计、破坏性操作原因与完整 E2E 尚未完成，因此当前不得向真实运营账号分配 `season_admin`
+- AI 私密配置：`src/server/services/ai-effect-extraction-service.ts` 以 PostgreSQL 单例和 revision 事务审计保存运行时配置，使用部署主密钥加密 API Key，并在每次候选测试或提取时执行上游允许列表、DNS 私网阻断、HTTPS、禁重定向、超时、大小、并发和管理员级限频。浏览器只向 `/api/ai-effect-extraction/admin/extract` 提交 `cardCode`，服务端读取 `cards` 与 MinIO 卡图，返回文本只进入 `CardEditModal` 待确认状态；旧 Vite DashScope 代理已经移除
 - 公共牌桌 Beta：`src/server/services/public-table-service.ts` 以 PostgreSQL 候场票据和配对预留实现 FIFO 候场、双方确认、锁定卡组快照与超时清理；房间创建使用带代际校验的短租约和有限重试，旧创建者不能覆盖接管后的房间。`src/server/services/gameplay-participation-service.ts` 约束用户不能同时处于候场、房间或对局；确认成功后由 `src/server/services/online-room-service.ts` 创建封闭的公共牌桌房间，双方需在 60 秒内到场才进入猜拳，超时则结束本次开局，并复用正式联机认输、观战和记录链路。`client/src/components/public-table/PublicTableGlobalLayer.tsx` 和 `client/src/components/pages/PublicTablePage.tsx` 负责跨页面候场状态、确认及单次自动进入房间，持久化 schema 由 `src/server/db/schema.ts` 与 `drizzle/0008_add_public_table_beta.sql`、`drizzle/0010_add_ranked_system.sql` 对齐
 - 赛季排位首版：`src/server/services/public-table-service.ts` 复用票据/预留状态机并以 `queueKind + seasonId + competitiveEnvironmentId` 隔离休闲与排位候场；`src/server/services/online-room-service.ts` 按房间代际去重开局并补偿预留、赛季、占用和票据绑定，断线裁定以持久状态和在线代际共同防止重连竞态。`src/server/services/ranked-player-service.ts` 提供赛季总览、固定窗口准入、个人战绩和排行榜，`src/server/services/ranked-rating-service.ts`、`src/server/rating/ranked-rating.ts` 与 `src/server/rating/ranked-ledger.ts` 负责权威结果幂等结算、版本化积分调度、迟到结果重建和追加式更正，`src/server/services/ranked-runtime-service.ts` 先排空可靠结算，再终止到期运行态并执行平台无结果收口。前端由 `client/src/store/rankedStore.ts`、`client/src/components/pages/RankedPage.tsx` 和 `client/src/components/ranked/RankedGlobalLayer.tsx` 提供跨页面候场闭环；管理员由 `client/src/components/admin/RankedAdminPage.tsx` 管理赛季及纯文本公告、查看候场/运行/结算健康与赛季经营分布、按用户查询当前评分、独立定级/参榜进度及上下各最多 3 名的公开榜单上下文、按状态分页检索排位对局并核对双方加减分，以及执行带签名预览的异常结算和参数回算，聚合读取由 `src/server/services/ranked-admin-service.ts` 提供。玩家上下文以单条 SQL 读取当前 `ledgerRevision` 和榜单窗口，不创建额外排名副本。排位基线、评分修订和赛季公告数据库结构分别由 `drizzle/0010_add_ranked_system.sql`、`drizzle/0017_add_ranked_rating_revisions.sql`、`drizzle/0018_add_ranked_season_announcement.sql` 提供。名为 V1 的首个生产赛季当前使用 `GLICKO1_PER_MATCH_V3`；未来新赛季默认 V4，使用 `ratingScale=800 / minimumRD=100 / 5 场定级 / 1800 中心成长池`，详见 [V4 评分设计](matchmaking-and-ladder/RANKED_V4_RATING_DESIGN.md)。V2→V3 停机迁移文档保留为历史运维与审计资料
 - 排位单方操作超时：`src/online/ranked-stall.ts` 从权威 `GameState` 识别当前唯一责任玩家和稳定等待键；`src/server/services/online-match-service.ts` 维护不进入 checkpoint/回放的截止时间与代际，只有责任玩家成功命令才复位；`src/server/services/online-room-service.ts` 复用排位持久裁定权并在数据库等待后复核等待键、责任玩家、代际和截止时间，再执行权威判负。玩家快照只增加责任席位、截止时间和终局判负原因，`client/src/components/game/RankedStallNotice.tsx` 在最后 1 分钟提供非阻塞提示；非排位、观战和历史回放不启用该计时

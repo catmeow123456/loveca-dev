@@ -1,7 +1,7 @@
 import { Router, type Response } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { requireAdmin } from '../middleware/require-admin.js';
+import { requirePermission } from '../middleware/require-permission.js';
 import {
   AiEffectExtractionServiceError,
   aiEffectExtractionService,
@@ -32,7 +32,7 @@ const saveSchema = candidateSchema
 
 const extractionSchema = z.object({ cardCode: z.string().trim().min(1).max(128) }).strict();
 
-aiEffectExtractionRouter.use(requireAuth, requireAdmin);
+aiEffectExtractionRouter.use(requireAuth, requirePermission('cards.manage'));
 
 aiEffectExtractionRouter.get('/admin/config', async (_req, res) => {
   try {
