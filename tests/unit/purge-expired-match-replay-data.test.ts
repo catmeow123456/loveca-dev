@@ -100,7 +100,7 @@ describe('purge-expired-match-replay-data', () => {
 
   it('deletes replay children and marks metadata in batches', async () => {
     const calls: string[] = [];
-    let idBatchRead = false;
+    let purgedBatch = false;
     const client: PurgeReplayQueryClient = {
       async query<T>(text: string) {
         await Promise.resolve();
@@ -109,11 +109,10 @@ describe('purge-expired-match-replay-data', () => {
         if (text.includes('JOIN ranked_matches AS ranked_match')) {
           return { rows: [{ count: '0' }] as T[] };
         }
-        if (text.includes('WITH selected')) return { rows: [{ count: 1 }] as T[] };
-        if (text.includes('SELECT record.match_id FROM match_records AS record')) {
-          if (idBatchRead) return { rows: [] as T[] };
-          idBatchRead = true;
-          return { rows: [{ match_id: 'old-match' }] as T[] };
+        if (text.includes('WITH selected')) {
+          if (purgedBatch) return { rows: [{ count: 0 }] as T[] };
+          purgedBatch = true;
+          return { rows: [{ count: 1 }] as T[] };
         }
         if (text === 'BEGIN' || text === 'COMMIT') return { rows: [] as T[] };
         throw new Error(`unexpected query: ${text}`);
@@ -129,6 +128,7 @@ describe('purge-expired-match-replay-data', () => {
     expect(calls.some((call) => call.includes('FROM ranked_deck_observations'))).toBe(true);
     expect(calls.some((call) => call.includes("first_observation.seat = 'FIRST'"))).toBe(true);
     expect(calls.some((call) => call.includes("second_observation.seat = 'SECOND'"))).toBe(true);
+    expect(calls.some((call) => call.includes('FOR UPDATE OF record SKIP LOCKED'))).toBe(true);
     expect(calls).toContain('COMMIT');
   });
 });

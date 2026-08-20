@@ -63,7 +63,7 @@ async function main() {
     if (mode.rows[0]?.transaction_read_only !== 'on') {
       throw new Error('database transaction is not read-only; refusing to continue');
     }
-    const result = await client.query(SQL, [args.seasonId]);
+    const result = await client.query(RANKED_VOLATILITY_REPORT_SQL, [args.seasonId]);
     payload = result.rows[0];
     await client.query('COMMIT');
   } catch (error) {
@@ -108,7 +108,7 @@ async function main() {
   );
 }
 
-const SQL = `
+export const RANKED_VOLATILITY_REPORT_SQL = `
 WITH candidate_seasons AS (
   SELECT id, season_key, name, lifecycle, queue_admission, starts_at, scheduled_ends_at,
          rating_algorithm_version, rating_config, leaderboard_minimum_match_count, ledger_revision

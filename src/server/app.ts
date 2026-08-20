@@ -28,6 +28,7 @@ import { playerWallpapersRouter } from './routes/player-wallpapers.js';
 import { themeTableRouter } from './routes/theme-table.js';
 import { themeTableAdminRouter } from './routes/theme-table-admin.js';
 import { adminUsersRouter } from './routes/admin-users.js';
+import { platformOperationsRouter } from './routes/platform-operations.js';
 
 export function createApp(): express.Express {
   const app = express();
@@ -99,6 +100,7 @@ export function createApp(): express.Express {
   app.use('/api/admin/ranked', rankedAdminRouter);
   app.use('/api/admin/deck-point-tables', deckPointTablesAdminRouter);
   app.use('/api/admin/users', adminUsersRouter);
+  app.use('/api/admin/platform-operations', platformOperationsRouter);
   if (config.isDev) {
     app.use('/images', publicImagesRouter);
     app.use('/api/debug', debugOnlineRouter);

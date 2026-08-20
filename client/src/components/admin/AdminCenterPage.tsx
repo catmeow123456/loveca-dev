@@ -32,6 +32,7 @@ interface AdminCenterPageProps {
   readonly onOpenAiExtraction: () => void;
   readonly onOpenDeckPoints: () => void;
   readonly onOpenOnlineRooms: () => void;
+  readonly onOpenPlatformOperations: () => void;
   readonly onOpenRanked: () => void;
   readonly onOpenThemeTable: () => void;
   readonly onOpenUsers: () => void;
@@ -99,6 +100,13 @@ export function AdminCenterPage(props: AdminCenterPageProps) {
           description: '维护平台状态、维护窗口和公告',
           icon: Bell,
           onOpen: props.onOpenAnnouncements,
+          permission: 'platform.manage',
+        },
+        {
+          title: '数据维护',
+          description: '清理过期回放并导出赛季积分报告',
+          icon: MonitorCog,
+          onOpen: props.onOpenPlatformOperations,
           permission: 'platform.manage',
         },
       ],

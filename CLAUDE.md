@@ -74,7 +74,7 @@ src/
 │   ├── db/schema.ts         # Drizzle table definitions; keep migrations and init-only DB objects aligned
 │   ├── middleware/           # authenticate, require-auth, require-admin, validate, error-handler
 │   ├── routes/              # app-config, auth, cards, decks, profiles, images, site-announcements,
-│   │                        # online, battle, ranked, ranked-admin, debug-online(dev)
+│   │                        # online, battle, ranked, ranked-admin, platform-operations, debug-online(dev)
 │   └── services/            # auth-service, mail-service, minio-service,
 │                            # online-room-service, online-match-service, debug-match-service,
 │                            # ranked player/season/rating/runtime/admin services,
@@ -82,7 +82,7 @@ src/
 │                            # card-registry-service (published-cards cache for online decks),
 │                            # deck-storage-service (cloud deck normalization + validation),
 │                            # site-announcement-service (public site status + admin announcements),
-│                            # match-recorder/read/debug-replay services for replay records
+│                            # match-recorder/read/debug-replay and replay-retention services
 └── shared/
     ├── types/enums.ts       # All game enums
     └── phase-config/        # Phase configuration registry

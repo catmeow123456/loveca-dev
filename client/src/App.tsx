@@ -164,6 +164,11 @@ const UserAdminPage = lazy(() =>
     default: module.UserAdminPage,
   }))
 );
+const PlatformOperationsPage = lazy(() =>
+  import('@/components/admin/PlatformOperationsPage').then((module) => ({
+    default: module.PlatformOperationsPage,
+  }))
+);
 
 type AuthPage =
   | 'landing'
@@ -195,7 +200,8 @@ type AppPage =
   | 'deck-point-admin'
   | 'match-emotes-admin'
   | 'theme-table-admin'
-  | 'users-admin';
+  | 'users-admin'
+  | 'platform-operations-admin';
 
 const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'admin-center',
@@ -207,6 +213,7 @@ const CARD_DATA_INDEPENDENT_PAGES = new Set<AppPage>([
   'deck-point-admin',
   'match-emotes-admin',
   'users-admin',
+  'platform-operations-admin',
 ]);
 
 function pageRequiresRuntimeCardData(page: AppPage): boolean {
@@ -274,6 +281,7 @@ function getInitialPage(): AppPage {
     page === 'match-emotes-admin' ||
     page === 'theme-table-admin' ||
     page === 'users-admin' ||
+    page === 'platform-operations-admin' ||
     page === 'platform-config'
   ) {
     return page === 'platform-config' ? 'announcement-admin' : page;
@@ -1191,6 +1199,7 @@ function App() {
         onOpenAiExtraction={() => setCurrentPage('ai-effect-admin')}
         onOpenDeckPoints={() => setCurrentPage('deck-point-admin')}
         onOpenOnlineRooms={() => setCurrentPage('online-admin')}
+        onOpenPlatformOperations={() => setCurrentPage('platform-operations-admin')}
         onOpenRanked={() => setCurrentPage('ranked-admin')}
         onOpenThemeTable={() => setCurrentPage('theme-table-admin')}
         onOpenUsers={() => setCurrentPage('users-admin')}
@@ -1233,6 +1242,17 @@ function App() {
   ) {
     return withProductFrame(
       <OnlineRoomsAdminPage onBack={() => setCurrentPage('admin-center')} />,
+      null
+    );
+  }
+
+  if (
+    effectivePage === 'platform-operations-admin' &&
+    profile &&
+    hasPermission(profile.role, 'platform.manage')
+  ) {
+    return withProductFrame(
+      <PlatformOperationsPage onBack={() => setCurrentPage('admin-center')} />,
       null
     );
   }

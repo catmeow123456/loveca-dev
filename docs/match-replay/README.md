@@ -8,11 +8,12 @@
 
 ## 推荐阅读顺序
 
-| 文档                                          | 类型     | 维护边界                                                                            |
-| --------------------------------------------- | -------- | ----------------------------------------------------------------------------------- |
-| [需求](requirements.md)                       | 需求文档 | 用户历史对局、复盘、回放和确定性重演的产品与工程目标                                |
-| [设计](design.md)                             | 设计文档 | match record、timeline、checkpoint、decision record 和 replay capability 的架构边界 |
-| [序列化与复水契约](serialization-contract.md) | 实现契约 | checkpoint / debug bundle payload envelope、版本、hash 和复水安全边界               |
+| 文档                                                                                  | 类型         | 维护边界                                                                            |
+| ------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------------------------------------- |
+| [需求](requirements.md)                                                               | 需求文档     | 用户历史对局、复盘、回放和确定性重演的产品与工程目标                                |
+| [设计](design.md)                                                                     | 设计文档     | match record、timeline、checkpoint、decision record 和 replay capability 的架构边界 |
+| [序列化与复水契约](serialization-contract.md)                                         | 实现契约     | checkpoint / debug bundle payload envelope、版本、hash 和复水安全边界               |
+| [回放保留策略紧急数据库重建 Runbook](emergency-retention-database-rebuild-runbook.md) | 运维 runbook | 源库空间不足时，在外部暂存库清理回放并重建生产数据库的停机与回滚边界                |
 
 ## 当前实施边界
 

@@ -413,9 +413,12 @@ graph LR
 - `src/server/routes/theme-table.ts`
 - `src/server/routes/theme-table-admin.ts`
 - `src/server/routes/admin-users.ts`
+- `src/server/routes/platform-operations.ts`
 - `src/server/site-status.ts`
 - `src/server/services/site-announcement-service.ts`
 - `src/server/services/admin-user-service.ts`
+- `src/server/services/platform-operations-service.ts`
+- `src/server/services/replay-retention.ts`
 - `src/server/middleware/require-permission.ts`
 - `src/server/middleware/require-gameplay-available.ts`
 - `src/server/services/`
@@ -576,7 +579,7 @@ graph TD
 - 服务端可记录对墙打：`src/server/services/solitaire-match-service.ts` 复用 recorded match 链路创建 `GameMode.SOLITAIRE` 权威对局，并在重开时封存旧局、沿用锁定卡组快照创建新的 `matchId`；`client/src/lib/solitaireMatchRecovery.ts` 在同一浏览器标签页保存当前对墙打 matchId 并在刷新或重开后同步恢复目标，`src/server/services/solitaire-runtime-recovery-service.ts` 可在运行态缺失时从最新 authority checkpoint 和公共事件尾部恢复运行中对墙打，`src/server/routes/battle.ts` 提供对墙打创建、重开、运行中快照/命令/推进/离开、公共事件增量读取，以及中性历史读取入口
 - 面向联机的 `PlayerViewState` 脱敏投影、可见性策略和命令权限投影
 - 运行中对局公共日志：`src/application/game-session.ts` 维护 `PublicEvent` 序列；正式联机 `/api/online/matches/:matchId/public-events`、正式联机观战 `/api/online/spectator-links/:token/public-events` 与对墙打 `/api/battle/solitaire-matches/:matchId/public-events` 按 `afterSeq` 返回公共事件增量，单次响应受 `ONLINE_PUBLIC_EVENTS_MAX_BATCH` 保护并在截断时返回 `truncated/droppedEventCount`，运行中 snapshot 继续只承载当前玩家视图，并以 `currentPublicSeq` 暴露公共日志增量水位
-- 对局记录与回放阶段性闭环：`src/server/services/match-recorder-service.ts` 写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 与部分 decision record；`src/server/services/match-replay-read-service.ts` 按参与者玩家视角读取正式联机与服务端可记录对墙打的历史列表、详情、timeline 与只读 checkpoint 投影；完整回放默认保留 10 天，`drizzle/data-migrations/purge-expired-match-replay-data.ts` 在停机维护窗口清理过期子记录和卡组明细并保留 `METADATA_ONLY` 根记录；`client/src/components/pages/MatchRecordsPage.tsx` 可打开只读 `GameBoard` 回放节点，并为已清理记录只展示元信息
+- 对局记录与回放阶段性闭环：`src/server/services/match-recorder-service.ts` 写入历史根记录、卡组快照、timeline、authority checkpoint、public/private event 与部分 decision record；`src/server/services/match-replay-read-service.ts` 按参与者玩家视角读取正式联机与服务端可记录对墙打的历史列表、详情、timeline 与只读 checkpoint 投影；完整回放默认保留 10 天，`src/server/services/replay-retention.ts` 统一停机脚本与管理员页面使用的候选统计、排位观察阻断、批量行锁和元数据降级语义，`drizzle/data-migrations/purge-expired-match-replay-data.ts` 保留默认 dry-run 的停机入口，`src/server/services/platform-operations-service.ts` 与 `client/src/components/admin/PlatformOperationsPage.tsx` 提供平台管理员预览、显式确认清理和只读赛季积分波动报告下载；`client/src/components/pages/MatchRecordsPage.tsx` 可打开只读 `GameBoard` 回放节点，并为已清理记录只展示元信息
 
 ### 10.2 规划中
 

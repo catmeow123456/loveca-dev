@@ -849,9 +849,10 @@ P1e 起，公共事件和私密事件不再只靠 timeline 游标摘要展示：
 - `src/server/services/online-match-service.ts` 负责运行中 match 和 recorder 接线；运行中权威会话仍在进程内存中，进程重启后不会仅凭历史记录恢复为可继续操作的 live match。
 - `src/server/db/schema.ts` 与 `docker/init.sql` 已包含 match record、participant、deck snapshot、timeline、checkpoint、public/private event 与 decision record 等持久化模型；物理表和索引变更必须继续同步两处事实来源。
 - `src/server/services/match-recorder-service.ts` 负责把运行中权威事实追加到历史记录，`src/server/services/match-replay-read-service.ts` 负责按权限读取并投影历史节点。
+- `src/server/services/replay-retention.ts` 统一停机脚本和管理员页面使用的 10 天候选统计、排位长期观察阻断、事务内批量行锁与 `METADATA_ONLY` 降级；`src/server/services/platform-operations-service.ts` 只负责固定网页策略、确认边界和平台管理员报告编排。
 - `GameSession` 已暴露 public/private/audit/command/GameEvent 的增量读取入口，包括 `getGameEventsSince`；recorder 通过这些稳定入口采集增量，不需要读取调试态权威状态 getter。
 
-因此，当前重点已经不是“新增第一处持久记录写入点”，而是继续补齐 decision/random/manual-reason 覆盖、历史保留策略和确定性重演输入；运行中 match 的故障恢复仍属于另一条能力边界。
+因此，当前重点已经不是“新增第一处持久记录写入点”，而是继续补齐 decision/random/manual-reason 覆盖、保留清理的自动低峰调度与持久审计，以及确定性重演输入；运行中 match 的故障恢复仍属于另一条能力边界。
 
 ### 9.2 对局会话层
 

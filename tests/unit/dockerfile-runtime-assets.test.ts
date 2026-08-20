@@ -7,4 +7,12 @@ describe('Dockerfile runtime assets', () => {
 
     expect(dockerfile).toContain('COPY assets/decks ./assets/decks');
   });
+
+  it('includes the ranked volatility report module required by platform operations', () => {
+    const dockerfile = readFileSync('Dockerfile', 'utf8');
+
+    expect(dockerfile).toContain(
+      'COPY scripts/generate-ranked-volatility-report.mjs ./scripts/generate-ranked-volatility-report.mjs'
+    );
+  });
 });
